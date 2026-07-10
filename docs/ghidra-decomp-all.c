@@ -4105,9 +4105,9 @@ void FUN_0000a2dc(void)
 }
 
 
-// FUNC 0xa2e6 FUN_0000a2e6
+// FUNC 0xa2e6 map_scene_render_actors   /* 绘制战场可见单位/角色 */
 
-void FUN_0000a2e6(int param_1,int param_2,int param_3,int param_4)
+void map_scene_render_actors(int param_1,int param_2,int param_3,int param_4)
 
 {
   bool bVar1;
@@ -4423,9 +4423,9 @@ void FUN_0000b15e(void)
 }
 
 
-// FUNC 0xb168 FUN_0000b168
+// FUNC 0xb168 map_actor_blit_24x24   /* FD2.TMP 地图角色 24x24 帧绘制 */
 
-uint FUN_0000b168(int param_1,int param_2,int param_3,int param_4,undefined4 param_5)
+uint map_actor_blit_24x24(int param_1,int param_2,int param_3,int param_4,undefined4 param_5)
 
 {
   byte *pbVar1;
@@ -5380,9 +5380,9 @@ void FUN_0000e5c8(void)
 }
 
 
-// FUNC 0xe761 FUN_0000e761
+// FUNC 0xe761 fdicon_cache_append_unit   /* 按 unit id 从 FDICON.B24 向 FD2.TMP 追加 12 帧并登记 cache class */
 
-void __regparm3 FUN_0000e761(undefined4 param_1,int param_2,undefined4 param_3)
+void __regparm3 fdicon_cache_append_unit(undefined4 param_1,int param_2,undefined4 param_3)
 
 {
   char in_CF;
@@ -6275,11 +6275,11 @@ void FUN_0000ffb8(undefined4 param_1,undefined4 param_2,undefined4 param_3)
 }
 
 
-// FUNC 0x100c5 FUN_000100c5
+// FUNC 0x100c5 field_animation_phase_update   /* 每 5 个 BIOS tick 推进一次角色/地形动画 phase；角色 phase 3 绘制为 phase 1 */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-void FUN_000100c5(void)
+void field_animation_phase_update(void)
 
 {
   FUN_00034777(4);
@@ -6323,7 +6323,7 @@ void FUN_00010134(void)
       return;
     }
     iVar2 = FUN_0001c8cb(iVar7);
-    if ((iVar2 == 0) && (iVar2 = FUN_00031fdc(iVar7), iVar2 == 0)) {
+    if ((iVar2 == 0) && (iVar2 = field_actor_is_hidden(iVar7), iVar2 == 0)) {
       pbVar3 = (byte *)(iVar7 * 0x50 + DAT_00003a45);
       uVar6 = (uint)*pbVar3;
       uVar5 = (uint)pbVar3[1];
@@ -6358,9 +6358,9 @@ LAB_00010168:
 }
 
 
-// FUNC 0x1020e FUN_0001020e
+// FUNC 0x1020e map_tile_blit_visible   /* 战场遮挡格重绘：读取 cell&0x3ff，查 FDSHAP 地形表 flags 后 blit 后一帧 */
 
-void FUN_0001020e(int param_1,int param_2)
+void map_tile_blit_visible(int param_1,int param_2)
 
 {
   byte bVar1;
@@ -6424,7 +6424,7 @@ int FUN_00010355(void)
       return -1;
     }
     if ((*pbVar2 == DAT_00003ab1) && (pbVar2[1] == DAT_00003ab5)) {
-      iVar1 = FUN_00031fdc(iVar3);
+      iVar1 = field_actor_is_hidden(iVar3);
       if (iVar1 == 0) {
         return iVar3;
       }
@@ -6464,7 +6464,7 @@ int FUN_000103a8(void)
     }
     if (*(byte *)(iVar2 + 8) == unaff_retaddr) {
       DAT_00003c1b = iVar2;
-      iVar1 = FUN_00031fdc(iVar3);
+      iVar1 = field_actor_is_hidden(iVar3);
       if (iVar1 == 0) {
         return iVar3;
       }
@@ -6492,7 +6492,7 @@ void FUN_00010432(int param_1)
       FUN_0000f342();
     }
     if ((DAT_00001a83 != 0) && (DAT_00001a83 != 6)) {
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     vsync_wait();
   }
@@ -6504,7 +6504,7 @@ void FUN_00010432(int param_1)
       FUN_0000f2e3();
     }
     if ((DAT_00001a83 != 0) && (DAT_00001a83 != 6)) {
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     vsync_wait();
   }
@@ -6527,9 +6527,9 @@ void FUN_000104c3(void)
 }
 
 
-// FUNC 0x10580 FUN_00010580
+// FUNC 0x10580 map_cell_info_at   /* 读取 FDFIELD cell：terrain_id、cell flags、FDSHAP 地形表 4 字节属性 */
 
-void FUN_00010580(int param_1,ushort *param_2)
+void map_cell_info_at(int param_1,ushort *param_2)
 
 {
   byte bVar1;
@@ -6589,7 +6589,7 @@ void FUN_000105f2(void)
     FUN_0002f978(unaff_retaddr);
     FUN_0004ba64();
     *(undefined1 *)(iVar3 + 4) = (undefined1)local_20;
-    FUN_000100c5();
+    field_animation_phase_update();
     _LAB_00003af4_1 = _LAB_00003af4_1 + iVar4;
     _DAT_00003b0b = _DAT_00003b0b + local_18;
     if (iVar4 == 0) {
@@ -6650,7 +6650,7 @@ void FUN_00010755(void)
     FUN_0002f978(unaff_retaddr);
     FUN_0004ba64();
     pbVar2[4] = (byte)local_1c;
-    FUN_000100c5();
+    field_animation_phase_update();
     _LAB_00003aed = 0x18;
     _LAB_00003af4_1 = _LAB_00003af4_1 + iVar1;
     _DAT_00003b07 = _DAT_00003b07 + local_18;
@@ -6722,7 +6722,7 @@ void FUN_000108cd(void)
     FUN_0002f978(unaff_retaddr);
     FUN_0004ba64();
     *(undefined1 *)(iVar3 + 4) = (undefined1)local_20;
-    FUN_000100c5();
+    field_animation_phase_update();
     _LAB_00003af4_1 = _LAB_00003af4_1 + iVar2;
     _DAT_00003b0b = _DAT_00003b0b + local_18;
     if (DAT_00003aad == 0) {
@@ -6786,7 +6786,7 @@ void FUN_00010a5d(void)
     FUN_0002f978(unaff_retaddr);
     FUN_0004ba64();
     pbVar2[4] = (byte)local_20;
-    FUN_000100c5();
+    field_animation_phase_update();
     _LAB_00003af4_1 = _LAB_00003af4_1 + iVar3;
     _DAT_00003b07 = _DAT_00003b07 + local_18;
     if (iVar3 == 0) {
@@ -6906,17 +6906,15 @@ void FUN_00010c7e(void)
 }
 
 
-// FUNC 0x10d25 FUN_00010d25
+// FUNC 0x10d25 field_camera_pan_to   /* 逐格平移战场镜头到目标 camera x/y */
 
-void FUN_00010d25(int param_1)
+void field_camera_pan_to(int target_x,int target_y)
 
 {
-  int unaff_retaddr;
-  
   FUN_00034777(0x14);
   DAT_00001a83 = 0;
-  while (unaff_retaddr != DAT_00003aa9) {
-    if (unaff_retaddr < DAT_00003aa9) {
+  while (target_x != DAT_00003aa9) {
+    if (target_x < DAT_00003aa9) {
       DAT_00003ab1 = DAT_00003ab1 + -1;
       DAT_00003aa9 = DAT_00003aa9 + -1;
     }
@@ -6927,8 +6925,8 @@ void FUN_00010d25(int param_1)
     FUN_0000f3f4(0);
     vsync_wait();
   }
-  while (param_1 != DAT_00003aad) {
-    if (param_1 < DAT_00003aad) {
+  while (target_y != DAT_00003aad) {
+    if (target_y < DAT_00003aad) {
       DAT_00003ab5 = DAT_00003ab5 + -1;
       DAT_00003aad = DAT_00003aad + -1;
     }
@@ -6943,9 +6941,9 @@ void FUN_00010d25(int param_1)
 }
 
 
-// FUNC 0x10db2 FUN_00010db2
+// FUNC 0x10db2 field_movement_script_play   /* 播放单位移动/朝向脚本，更新 DAT_00003a45 actor 表 */
 
-void FUN_00010db2(void)
+void field_movement_script_play(int script_id)
 
 {
   byte bVar1;
@@ -6956,7 +6954,6 @@ void FUN_00010db2(void)
   char *pcVar6;
   uint uVar7;
   byte *pbVar8;
-  undefined4 unaff_retaddr;
   byte abStack_70 [32];
   byte local_50 [32];
   byte local_30;
@@ -6968,7 +6965,7 @@ void FUN_00010db2(void)
   byte local_18;
   
   FUN_00034777();
-  pbVar3 = (byte *)FUN_0004c290(unaff_retaddr);
+  pbVar3 = (byte *)field_movement_script_ptr(script_id);
   local_28 = *pbVar3;
   pbVar3 = pbVar3 + 1;
   for (local_18 = 0; local_18 < local_28; local_18 = local_18 + 1) {
@@ -7003,7 +7000,7 @@ void FUN_00010db2(void)
             FUN_0000f3f4(1);
             dac_apply_darkness(0,0xff,DAT_00003afb);
           }
-          FUN_000151f1(1);
+          bios_tick_delay(1);
           vsync_wait();
         }
         for (local_24 = 0; uVar4 = (uint)local_24, uVar4 < local_2c; local_24 = local_24 + 1) {
@@ -7028,7 +7025,7 @@ void FUN_00010db2(void)
     else {
       local_1c = local_1c & 0x7f;
       if (local_1c == 0) {
-        FUN_000151f1(1);
+        bios_tick_delay(1);
         FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
         iVar2 = DAT_00003a49;
         for (uVar4 = 0; DAT_00003a49 = iVar2, (int)uVar4 < DAT_00003beb; uVar4 = uVar4 + 1) {
@@ -7045,7 +7042,7 @@ void FUN_00010db2(void)
         }
         FUN_00010134();
         memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-        FUN_000151f1(2);
+        bios_tick_delay(2);
         FUN_0000f3f4(0);
         vsync_wait();
       }
@@ -7055,7 +7052,7 @@ void FUN_00010db2(void)
         }
         for (local_24 = 0; local_24 < local_1c; local_24 = local_24 + 1) {
           FUN_0000f3f4(0);
-          FUN_000151f1(1);
+          bios_tick_delay(1);
           vsync_wait();
         }
       }
@@ -7066,10 +7063,10 @@ void FUN_00010db2(void)
 }
 
 
-// FUNC 0x110e4 FUN_000110e4
+// FUNC 0x110e4 shape_sheet_decode_cache   /* 将 FDSHAP 24x24 RLE 帧解码为 frame_count*0x240 缓存 */
 
-void FUN_000110e4(undefined4 param_1,undefined4 param_2,int param_3,undefined4 param_4,
-                 undefined4 param_5,int param_6,undefined4 param_7,int param_8)
+void shape_sheet_decode_cache(undefined4 param_1,undefined4 param_2,int param_3,undefined4 param_4,
+                              undefined4 param_5,int param_6,undefined4 param_7,int param_8)
 
 {
   int iVar1;
@@ -7180,9 +7177,9 @@ void FUN_000110e4(undefined4 param_1,undefined4 param_2,int param_3,undefined4 p
 }
 
 
-// FUNC 0x1118c FUN_0001118c
+// FUNC 0x1118c field_cell_event_lookup   /* 根据地图 cell event 索引查询 FDFIELD metadata cell_lookup 表 */
 
-void FUN_0001118c(undefined4 param_1,uint param_2)
+void field_cell_event_lookup(undefined4 param_1,uint param_2)
 
 {
   int iVar1;
@@ -7317,7 +7314,7 @@ LAB_00011333:
         }
         pcVar4 = (char *)(DAT_00003a45 + unaff_retaddr * 0x50);
         if ((*pcVar4 == cVar7) && (pcVar4[1] == cVar8)) {
-          FUN_000300bd(unaff_retaddr);
+          field_actor_hide(unaff_retaddr);
         }
         goto LAB_000115a2;
       }
@@ -7453,14 +7450,14 @@ undefined4 FUN_0001171c(void)
   if (((uVar1 != uVar3) && (*(char *)(iVar2 + 0x25) == '\0')) && (*(byte *)(iVar2 + 0x26) == 0)) {
     DAT_00001a83 = (uint)*(byte *)(iVar2 + 0x26);
     FUN_000104c3(unaff_retaddr);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     sfx_play(DAT_00003eec,4,1);
     FUN_0001b15e(&LAB_00008084_4 + DAT_00003a49,0x1c8,unaff_retaddr,2,0xfd);
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     FUN_0001b15e(&LAB_00008084_4 + DAT_00003a49,0x1c8,unaff_retaddr,0,0);
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     uVar4 = (uint)uVar1 + uVar3 / 5;
     if (uVar3 < uVar4) {
       uVar4 = uVar3;
@@ -8159,8 +8156,8 @@ undefined4 FUN_0001279d(int param_1)
   else {
     FUN_0001c792(unaff_retaddr,local_38[0]);
     FUN_0000f3f4(1);
-    FUN_000151f1(1);
-    FUN_000151f1(2);
+    bios_tick_delay(1);
+    bios_tick_delay(2);
     FUN_0002b710(unaff_retaddr);
     FUN_0001efe2(unaff_retaddr,0x50,0xfffffffc);
     thunk_FUN_0003b765(200);
@@ -8194,10 +8191,10 @@ undefined4 FUN_0001279d(int param_1)
     for (iVar1 = 1; iVar1 < 9; iVar1 = iVar1 + 1) {
       DAT_00003c1f = iVar1;
       FUN_0000f3f4(1);
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     FUN_0004b694(SUB_00003a51);
-    FUN_000151f1(2);
+    bios_tick_delay(2);
     FUN_000104c3(local_38[0]);
   }
   FUN_0001e3b7(unaff_retaddr,DAT_00003c3f,uVar2,local_38);
@@ -8900,12 +8897,12 @@ void FUN_00013656(int param_1,int param_2,int param_3,int param_4,int param_5)
 }
 
 
-// FUNC 0x136cc FUN_000136cc
+// FUNC 0x136cc text_dialog_render_tokens   /* FDTXT u16 token 渲染：处理 -4/-5/-6 动态嵌入、-17/-18 直接立绘、-19/-20 单位索引立绘与 16x16 字模 */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-int FUN_000136cc(int param_1,int param_2,int param_3,undefined4 param_4,undefined4 param_5,
-                undefined4 param_6,int param_7,int param_8)
+int text_dialog_render_tokens(int param_1,int param_2,int param_3,undefined4 param_4,undefined4 param_5,
+                              undefined4 param_6,int param_7,int param_8)
 
 {
   int iVar1;
@@ -9113,7 +9110,7 @@ void FUN_00013c30(void)
     DAT_00003a14 = 0;
   }
   sfx_play(DAT_00003eec,2,1);
-  FUN_000151f1(1);
+  bios_tick_delay(1);
   return;
 }
 
@@ -9139,11 +9136,11 @@ void FUN_00013ca1(void)
 }
 
 
-// FUNC 0x13cf4 FUN_00013cf4
+// FUNC 0x13cf4 dialog_box_open   /* 从说话角色格移动 FDOTHER[5] tile 0 到框原点，再按 4x2→8x3→12x4→16x5→19x5 展开 310x86 对话框 */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-undefined4 * FUN_00013cf4(undefined4 param_1,int param_2)
+undefined4 * dialog_box_open(undefined4 param_1,int param_2)
 
 {
   int iVar1;
@@ -9231,11 +9228,11 @@ void blit_image(undefined4 param_1,int param_2,int param_3)
 }
 
 
-// FUNC 0x13ffe FUN_00013ffe
+// FUNC 0x13ffe dialog_box_draw_tiles   /* 使用 FDOTHER[5] 小块拼出对话框边框与底纹 */
 
 /* WARNING: Removing unreachable block (ram,0x0000ebc6) */
 
-void FUN_00013ffe(int param_1,int param_2,int param_3,int param_4,int param_5)
+void dialog_box_draw_tiles(int param_1,int param_2,int param_3,int param_4,int param_5)
 
 {
   int iVar1;
@@ -9577,7 +9574,7 @@ void FUN_00014b64(int param_1)
   local_2c[2] = 0x390;
   local_2c[3] = 0x390;
   sfx_play(DAT_00003eec,8,1);
-  FUN_000100c5();
+  field_animation_phase_update();
   FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
   FUN_0000fef1();
   FUN_0001843b(&LAB_00008084_4 + DAT_00003a49,0x1c8);
@@ -9759,7 +9756,7 @@ char FUN_00014fe0(undefined4 param_1)
       }
       _DAT_00003c17 = (int)DAT_0000046c;
     }
-    FUN_000100c5();
+    field_animation_phase_update();
     FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
     FUN_0000fef1();
     FUN_0001843b(&LAB_00008084_4 + DAT_00003a49,0x1c8);
@@ -9819,11 +9816,11 @@ void FUN_0001511d(int param_1)
 }
 
 
-// FUNC 0x151f1 FUN_000151f1
+// FUNC 0x151f1 bios_tick_delay   /* 按 BIOS 计时器 0x046c 等待指定 tick；1 tick 约 54.9 ms */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-void FUN_000151f1(void)
+void bios_tick_delay(void)
 
 {
   int iVar1;
@@ -10312,7 +10309,7 @@ void FUN_000162cc(void)
     FUN_0004ba64();
     if (unaff_ESI != DAT_0000046c) {
       FUN_0004ba64();
-      FUN_000100c5();
+      field_animation_phase_update();
       FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
       func_0x0000fa24();
       FUN_0000fef1();
@@ -10632,7 +10629,7 @@ void FUN_00016f2d(void)
   local_24[2] = -0x10;
   local_24[3] = 0x10;
   if (1 < SUB_00003a51) {
-    FUN_000100c5();
+    field_animation_phase_update();
     FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
     FUN_0000fef1();
   }
@@ -10687,7 +10684,7 @@ void FUN_0001709b(void)
                 );
   }
   if (1 < SUB_00003a51) {
-    FUN_000100c5();
+    field_animation_phase_update();
     FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
     FUN_0000fef1();
   }
@@ -10714,7 +10711,7 @@ void FUN_0001709b(void)
         }
         _DAT_00003c17 = (int)DAT_0000046c;
         if (1 < SUB_00003a51) {
-          FUN_000100c5();
+          field_animation_phase_update();
           FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
           FUN_0000fef1();
         }
@@ -10886,7 +10883,7 @@ void FUN_00017a53(void)
   FUN_00034777(0x34);
   uVar6 = 0;
   bVar1 = false;
-  FUN_000151f1(1,0);
+  bios_tick_delay(1,0);
   for (iVar4 = 0; iVar4 < DAT_00003beb; iVar4 = iVar4 + 1) {
     iVar3 = iVar4 * 0x50 + DAT_00003a45;
     if ((((*(char *)(iVar3 + 6) == '\x02') && ((*(byte *)(iVar3 + 5) & 0x81) == 0)) &&
@@ -10901,7 +10898,7 @@ void FUN_00017a53(void)
   if (bVar1) {
     sfx_play(DAT_00003eec,4,1);
   }
-  FUN_000151f1(uVar6);
+  bios_tick_delay(uVar6);
   for (iVar4 = 0; iVar4 < DAT_00003beb; iVar4 = iVar4 + 1) {
     iVar3 = iVar4 * 0x50 + DAT_00003a45;
     uVar2 = (uint)*(ushort *)(iVar3 + 0x42);
@@ -10918,7 +10915,7 @@ void FUN_00017a53(void)
     }
   }
   memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-  FUN_000151f1(uVar6);
+  bios_tick_delay(uVar6);
   FUN_0000f3f4(0);
   FUN_00017f5b(1);
   FUN_00017fae(1);
@@ -10974,7 +10971,7 @@ void FUN_00017a53(void)
             FUN_00015f1e(DAT_00003a49 + 0x812f + (iVar4 * iVar4 + 0x5a) * 0x1c8,0x1c8,DAT_00003bef,
                          0x2a,3);
             memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-            FUN_000151f1(1);
+            bios_tick_delay(1);
             FUN_000135b9(uVar6,&LAB_00008084_4 + DAT_00003a49,0x1c8);
           }
           FUN_0000f3f4(0);
@@ -11030,9 +11027,9 @@ void FUN_00017f39(void)
 }
 
 
-// FUNC 0x17f5b FUN_00017f5b
+// FUNC 0x17f5b field_turn_event_check   /* 遍历 FDFIELD metadata 的 16 条阶段事件触发表 */
 
-void FUN_00017f5b(void)
+void field_turn_event_check(void)
 
 {
   int iVar1;
@@ -11448,7 +11445,7 @@ void FUN_0001892f(void)
   do {
     cVar1 = input_check();
     if (DAT_0000046c != unaff_EBP) {
-      FUN_000100c5();
+      field_animation_phase_update();
       FUN_0004ba64();
       FUN_0000f636(&LAB_00008084_4 + DAT_00003a49,0x1c8,0xd,8,DAT_00003aa9,DAT_00003aad);
       FUN_0000fef1();
@@ -11529,7 +11526,7 @@ int FUN_00018d39(void)
     iVar1 = DAT_00003a45 + iVar2 * 0x50;
     if (((*(byte *)(iVar1 + 6) == unaff_retaddr) && (*(char *)(iVar1 + 7) != 'y')) &&
        (*(char *)(iVar1 + 0x1f) != '\n')) {
-      iVar1 = FUN_00031fdc(iVar2);
+      iVar1 = field_actor_is_hidden(iVar2);
       if (iVar1 == 0) {
         iVar3 = iVar3 + 1;
       }
@@ -12189,9 +12186,9 @@ void FUN_00019a22(int param_1,int param_2,int param_3)
   }
   for (iVar2 = 0; iVar2 < 5; iVar2 = iVar2 + 1) {
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + local_18,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + local_18,0x1c8,0x138,0xc0);
   mem_free(local_18);
@@ -12409,7 +12406,7 @@ LAB_00019d9e:
     }
 LAB_00019dac:
     iStack_8c = 1;
-    FUN_000151f1();
+    bios_tick_delay();
     iVar4 = iVar4 + 1;
   } while( true );
 }
@@ -12731,7 +12728,7 @@ void FUN_0001a45f(int param_1,int param_2,int param_3)
       }
     }
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + local_1c,0x1c8,0x138,0xc0);
   mem_free(local_1c);
@@ -12988,12 +12985,12 @@ void FUN_0001ae10(void)
     FUN_0003522d(0x3c9,(&DAT_00001aad)[unaff_retaddr]);
     FUN_0003522d(0x3c9,(&DAT_00001ad1)[unaff_retaddr]);
     FUN_0003522d(0x3c9,(&DAT_00001af5)[unaff_retaddr]);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     FUN_0003522d(0x3c8,0);
     FUN_0003522d(0x3c9,0);
     FUN_0003522d(0x3c9,0);
     FUN_0003522d(0x3c9,0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   return;
 }
@@ -13211,7 +13208,7 @@ void FUN_0001b2ad(void)
       }
       FUN_00010134();
       memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     for (iVar5 = 0; iVar5 < DAT_00003beb; iVar5 = iVar5 + 1) {
       iVar6 = DAT_00003a45 + iVar5 * 0x50;
@@ -13233,7 +13230,7 @@ void FUN_0001b2ad(void)
                      0x1c8);
       }
       memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     for (iVar5 = 6; iVar5 < 0xc; iVar5 = iVar5 + 1) {
       FUN_00034e64(DAT_00003a49,local_18,0x25680);
@@ -13242,7 +13239,7 @@ void FUN_0001b2ad(void)
                      0x1c8);
       }
       memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     mem_free(local_18);
     FUN_0000f3f4(0);
@@ -14211,7 +14208,7 @@ void FUN_0001c914(void)
     mem_free(uVar2);
     dac_apply_darkness(0x10,0xff,iVar3);
     FUN_00034e64(0xa0000,uVar1,64000);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     iVar4 = iVar4 + 1;
   }
   mem_free(uVar1);
@@ -14243,7 +14240,7 @@ void FUN_0001ca52(void)
     mem_free(uVar2);
     dac_apply_darkness(0x10,0xff,iVar4);
     FUN_00034e64(0xa0000,uVar1,64000);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     iVar3 = iVar3 + -1;
   }
   mem_free(uVar1);
@@ -14271,7 +14268,7 @@ void FUN_0001cb75(undefined4 param_1)
   uVar2 = FUN_00013656(DAT_00003a81,&LAB_00008084_4 + DAT_00003a49,0x1c8,unaff_retaddr + 0xa5,0x52,
                        0x51);
   memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-  FUN_000151f1(1);
+  bios_tick_delay(1);
   FUN_000135b9(uVar1,&LAB_00008084_4 + DAT_00003a49,0x1c8);
   FUN_000135b9(uVar2,&LAB_00008084_4 + DAT_00003a49,0x1c8);
   return;
@@ -14294,9 +14291,9 @@ void palette_fade_in_light(void)
 }
 
 
-// FUNC 0x1cca0 FUN_0001cca0
+// FUNC 0x1cca0 field_view_render_from_cache   /* 按 terrain_id 从 FDSHAP 解码缓存采样生成战场底图视窗 */
 
-void FUN_0001cca0(int param_1,int param_2,int param_3)
+void field_view_render_from_cache(int param_1,int param_2,int param_3)
 
 {
   int iVar1;
@@ -14396,8 +14393,8 @@ void intro_cutaway(undefined4 param_1,int param_2,int param_3)
   uVar1 = res_load(&DAT_00001a4d,0,unaff_retaddr);
   blit_image_clipped(uVar1,0,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
-  FUN_000151f1(1);
-  FUN_000151f1(6);
+  bios_tick_delay(1);
+  bios_tick_delay(6);
   palette_fade_out_dark();
   DAT_00003a65 = res_load(&DAT_00001a4d,DAT_00003a65,0x65);
   memcpy_vga(0xa0000,0x140,param_3 * 0x140 + param_2,0x140,0x140,200);
@@ -14493,8 +14490,8 @@ uint boot_intro_title_entry(void)
   local_2c = res_load(&DAT_00001a4d,0,0x4a);
   blit_image_clipped(local_2c,0,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
-  FUN_000151f1(1);
-  FUN_000151f1(0x1e);
+  bios_tick_delay(1);
+  bios_tick_delay(0x1e);
   palette_fade_out_dark();
   DAT_00003a65 = res_load(&DAT_00001a4d,DAT_00003a65,99);
   vga_clear(0xa0000,0,64000);
@@ -14711,8 +14708,8 @@ uint boot_intro_title(void)
   local_28 = res_load(&DAT_00001a4d,0,0x4a);
   blit_image_clipped(local_28,0,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
-  FUN_000151f1(1);
-  FUN_000151f1(0x1e);
+  bios_tick_delay(1);
+  bios_tick_delay(0x1e);
   palette_fade_out_dark();
   DAT_00003a65 = res_load(&DAT_00001a4d,DAT_00003a65,99);
   vga_clear(0xa0000,0,64000);
@@ -15799,7 +15796,7 @@ void FUN_0001fbb8(int param_1,undefined4 param_2)
                  DAT_00003a49 + (unaff_retaddr - DAT_00003aa9) * 0x18 + 0x8250,iVar2,0x1c8);
     FUN_0000fef1();
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   return;
 }
@@ -15824,8 +15821,8 @@ void FUN_0001fc8f(int param_1,int param_2,undefined4 param_3,int param_4,undefin
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
     thunk_FUN_0003b765(10);
   }
-  FUN_000151f1(1);
-  FUN_000151f1(1);
+  bios_tick_delay(1);
+  bios_tick_delay(1);
   FUN_0001bd01();
   return;
 }
@@ -15845,7 +15842,7 @@ void FUN_0001fd9e(undefined4 param_1,undefined4 param_2,undefined4 param_3,undef
     FUN_00034e64(DAT_00003a49,param_2,0x25680);
     FUN_0001f78e(param_3,param_4,0xb,0,0xc0,iVar2);
     memcpy_vga(0xa0504,0x140,&LAB_00008084_4 + DAT_00003a49,0x1c8,0x138,0xc0);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   return;
 }
@@ -16180,56 +16177,57 @@ void FUN_000205a4(void)
   
   FUN_00034777(0x1c);
   FUN_000230bf(0xffffffff,1);
-  FUN_000151f1(1);
+  bios_tick_delay(1);
   palette_fade_out_dark();
   uVar1 = res_load(&DAT_00001a4d,0,0x4f);
   vga_clear(0xa0000,0,64000);
   FUN_0002c2e7(uVar1,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
-  FUN_000151f1(9);
+  bios_tick_delay(9);
   FUN_0002c2e7(uVar1,1,0xa0000,0x140,0xffffffff);
-  FUN_000151f1(0x24);
+  bios_tick_delay(0x24);
   mem_free(uVar1);
   return;
 }
 
 
-// FUNC 0x20b0e FUN_00020b0e
+// FUNC 0x20b0e field_cutscene_setup_units_camera   /* 按脚本数组设置单位 x/y/direction，并设置战场镜头原点 */
 
-void FUN_00020b0e(int param_1,uint param_2,int param_3,int param_4,int param_5,undefined1 param_6,
-                 undefined1 param_7,undefined1 param_8,undefined4 param_9,undefined4 param_10)
+void field_cutscene_setup_units_camera(int x_array,int y_array,uint dir_or_array,int first_actor,
+                                       int last_actor,int special_actor,undefined1 special_x,
+                                       undefined1 special_y,undefined1 special_dir,undefined4 camera_x,
+                                       undefined4 camera_y)
 
 {
   undefined1 *puVar1;
   undefined1 uVar2;
-  int unaff_retaddr;
   
   FUN_00034777(0x18);
   palette_fade_out_dark();
   FUN_00010c7e();
-  for (; param_3 <= param_4; param_3 = param_3 + 1) {
-    puVar1 = (undefined1 *)(DAT_00003a45 + param_3 * 0x50);
-    *puVar1 = *(undefined1 *)(param_3 + unaff_retaddr);
-    puVar1[1] = *(undefined1 *)(param_3 + param_1);
-    if (param_2 < 4) {
-      uVar2 = (undefined1)param_2;
+  for (; first_actor <= last_actor; first_actor = first_actor + 1) {
+    puVar1 = (undefined1 *)(DAT_00003a45 + first_actor * 0x50);
+    *puVar1 = *(undefined1 *)(first_actor + x_array);
+    puVar1[1] = *(undefined1 *)(first_actor + y_array);
+    if (dir_or_array < 4) {
+      uVar2 = (undefined1)dir_or_array;
     }
     else {
-      uVar2 = *(undefined1 *)(param_3 + param_2);
+      uVar2 = *(undefined1 *)(first_actor + dir_or_array);
     }
     puVar1[3] = uVar2;
   }
-  if (param_5 != 0) {
-    puVar1 = (undefined1 *)(DAT_00003a45 + param_5 * 0x50);
-    *puVar1 = param_6;
-    puVar1[1] = param_7;
-    puVar1[3] = param_8;
+  if (special_actor != 0) {
+    puVar1 = (undefined1 *)(DAT_00003a45 + special_actor * 0x50);
+    *puVar1 = special_x;
+    puVar1[1] = special_y;
+    puVar1[3] = special_dir;
   }
   DAT_00001a83 = 0;
-  DAT_00003aa9 = param_9;
-  DAT_00003aad = param_10;
-  DAT_00003ab1 = param_9;
-  DAT_00003ab5 = param_10;
+  DAT_00003aa9 = camera_x;
+  DAT_00003aad = camera_y;
+  DAT_00003ab1 = camera_x;
+  DAT_00003ab5 = camera_y;
   DAT_00003ab9 = 0;
   PTR_LAB_00003abd = (undefined *)0x0;
   FUN_0000f3f4(1);
@@ -16265,7 +16263,7 @@ void FUN_00021a7e(void)
   int iVar3;
   
   FUN_00034777(0x28);
-  FUN_00010d25(0xe,8);
+  field_camera_pan_to(0xe,8);
   uVar1 = mem_alloc(64000);
   FUN_00034e64(uVar1,0xa0000,64000);
   uVar2 = res_load(&DAT_00001a4d,0,0x22);
@@ -16275,7 +16273,7 @@ void FUN_00021a7e(void)
     FUN_0002c2e7(uVar2,iVar3,DAT_00003a49,0x140,0xffffffff);
     FUN_00034e64(0xa0000,DAT_00003a49,64000);
     FUN_0004ba64();
-    FUN_000151f1(3);
+    bios_tick_delay(3);
     vsync_wait();
   }
   animation_play(0,0xf,0);
@@ -16287,7 +16285,7 @@ void FUN_00021a7e(void)
     FUN_00034e64(DAT_00003a49,uVar1,64000);
     FUN_0002c2e7(uVar2,iVar3,DAT_00003a49,0x140,0xffffffff);
     FUN_00034e64(0xa0000,DAT_00003a49,64000);
-    FUN_000151f1(3);
+    bios_tick_delay(3);
     vsync_wait();
   }
   mem_free(uVar1);
@@ -16787,7 +16785,7 @@ bool FUN_0002389a(void)
   uVar1 = file_open(0x22e,0x22b);
   _LAB_00003bdf = 0;
   for (iVar3 = 0; iVar3 < DAT_00003bfb; iVar3 = iVar3 + 1) {
-    FUN_0000e761(*(undefined1 *)(DAT_00003bf7 + 7 + iVar3 * 0x50),uVar1);
+    fdicon_cache_append_unit(*(undefined1 *)(DAT_00003bf7 + 7 + iVar3 * 0x50),uVar1);
   }
   file_close(uVar1);
   if ((&DAT_000023e7)[DAT_00003c03] != '\0') {
@@ -18293,12 +18291,12 @@ void FUN_00026289(void)
   if (DAT_00003f4a == 1) {
     for (iVar1 = 0; iVar1 < 5; iVar1 = iVar1 + 1) {
       blit_image(0xa38e9,0x140,DAT_00003f66,iVar1 + 0x17);
-      FUN_000151f1(2);
+      bios_tick_delay(2);
     }
   }
   else {
     if (DAT_00003f4a == 3) {
-      FUN_000151f1(1);
+      bios_tick_delay(1);
       blit_image(0xa3154,0x140,DAT_00003f66,0x17);
       uVar2 = 8;
     }
@@ -18307,29 +18305,29 @@ void FUN_00026289(void)
         if (DAT_00003f4a == 5) {
           for (iVar1 = 0; iVar1 < 7; iVar1 = iVar1 + 1) {
             blit_image(0xa2383,0x140,DAT_00003f66,iVar1 + 0x17);
-            FUN_000151f1(2);
+            bios_tick_delay(2);
           }
         }
         goto LAB_000263fe;
       }
       FUN_00013ca1(3);
-      FUN_000151f1(2);
+      bios_tick_delay(2);
       for (iVar1 = 0; iVar1 < 9; iVar1 = iVar1 + 1) {
         blit_image(0xa2893,0x140,DAT_00003f66,iVar1 + 0x17);
-        FUN_000151f1(2);
+        bios_tick_delay(2);
       }
       for (iVar1 = 0; iVar1 < 0x40; iVar1 = iVar1 + 2) {
         pal_partial_set(0,0xff,iVar1);
         thunk_FUN_0003b765(4);
       }
-      FUN_000151f1(10);
+      bios_tick_delay(10);
       for (iVar1 = 0x3e; -1 < iVar1; iVar1 = iVar1 + -2) {
         pal_partial_set(0,0xff,iVar1);
         thunk_FUN_0003b765(4);
       }
       uVar2 = 5;
     }
-    FUN_000151f1(uVar2);
+    bios_tick_delay(uVar2);
   }
   FUN_00013ca1(0);
 LAB_000263fe:
@@ -18628,7 +18626,7 @@ void FUN_00026fb7(void)
           uVar4 = file_open(0x275,0x272);
           _LAB_00003bdf = 0;
           for (iVar1 = 0; iVar1 < (int)DAT_00003bfb; iVar1 = iVar1 + 1) {
-            FUN_0000e761(*(undefined1 *)(DAT_00003bf7 + 7 + iVar1 * 0x50),uVar4);
+            fdicon_cache_append_unit(*(undefined1 *)(DAT_00003bf7 + 7 + iVar1 * 0x50),uVar4);
           }
           file_close(uVar4);
           DAT_00003f56 = FUN_0004bf51(DAT_00003c03);
@@ -18774,7 +18772,7 @@ byte FUN_000277c2(void)
   FUN_00034777(0x14);
   local_10 = 0;
   for (iVar2 = 0; iVar2 < DAT_00003bfb; iVar2 = iVar2 + 1) {
-    iVar1 = FUN_00031fdc(iVar2);
+    iVar1 = field_actor_is_hidden(iVar2);
     if (iVar1 == 1) {
       *(char *)(unaff_retaddr + (uint)local_10) = (char)iVar2;
       local_10 = local_10 + 1;
@@ -19222,7 +19220,7 @@ undefined4 FUN_00028670(void)
   uStack_1c = file_open(0x291,0x28e);
   _LAB_00003bdf = 0;
   for (iVar2 = 0; iVar2 < DAT_00003bfb; iVar2 = iVar2 + 1) {
-    FUN_0000e761(*(undefined1 *)(DAT_00003bf7 + 7 + iVar2 * 0x50),uStack_1c);
+    fdicon_cache_append_unit(*(undefined1 *)(DAT_00003bf7 + 7 + iVar2 * 0x50),uStack_1c);
   }
   file_close(uStack_1c);
   if (DAT_00003c03 == 0x10) {
@@ -19333,7 +19331,7 @@ undefined4 FUN_0002886c(void)
           in_stack_00000028 = file_open(0x291);
           _LAB_00003bdf = 0;
           for (iVar1 = 0; iVar1 < DAT_00003bfb; iVar1 = iVar1 + 1) {
-            FUN_0000e761(*(undefined1 *)(DAT_00003bf7 + 7 + iVar1 * 0x50));
+            fdicon_cache_append_unit(*(undefined1 *)(DAT_00003bf7 + 7 + iVar1 * 0x50));
           }
           file_close();
           if ((((((DAT_00003c03 == 0x10) && (iVar1 = FUN_00030be1(), iVar1 != 0)) ||
@@ -19428,7 +19426,7 @@ void FUN_00028c43(int param_1,int param_2,int param_3)
   FUN_00028e91(param_2);
   iVar1 = FUN_00028e91(param_2);
   FUN_00015f1e(PTR_DAT_00003c63 + 0x5b7d,0x140,param_1 - iVar1,0x2a,2);
-  FUN_000100c5();
+  field_animation_phase_update();
   iVar1 = DAT_00003c0b;
   if (DAT_00003c0b == 3) {
     iVar1 = 1;
@@ -19568,7 +19566,7 @@ void FUN_00028f8b(void)
   uVar1 = file_open(0x29f,0x29c);
   _LAB_00003bdf = 0;
   for (iVar2 = 0; iVar2 < DAT_00003bfb; iVar2 = iVar2 + 1) {
-    FUN_0000e761(*(undefined1 *)(DAT_00003bf7 + 7 + iVar2 * 0x50),uVar1);
+    fdicon_cache_append_unit(*(undefined1 *)(DAT_00003bf7 + 7 + iVar2 * 0x50),uVar1);
   }
   file_close(uVar1);
   return;
@@ -19845,7 +19843,7 @@ void FUN_0002a678(int param_1,int param_2,undefined1 *param_3)
                      iVar6 - (uint)*(byte *)((int)auStack_5c + (uVar8 - 4)),0x280);
         FUN_0002c2e7(local_2c,local_28,iVar6,0x280,0xffffffff);
         memcpy_vga(0xa0000,0x140,iVar6,0x280,0x140,200);
-        FUN_000151f1(1);
+        bios_tick_delay(1);
         if (uVar8 != 0) {
           local_20 = local_20 - 1;
         }
@@ -19875,7 +19873,7 @@ void FUN_0002a678(int param_1,int param_2,undefined1 *param_3)
   local_30 = (uint)*LAB_00003a55;
   DAT_00003a5d = res_load(&DAT_00001a65,DAT_00003a5d,local_30 * 2);
   FUN_0002c0a3();
-  FUN_000151f1(6);
+  bios_tick_delay(6);
   palette_fade_out_dark();
   vga_clear(0xa0000,0,64000);
   FUN_0000f3f4(1);
@@ -19992,7 +19990,7 @@ void FUN_0002af55(int param_1,undefined *param_2,undefined *param_3)
   FUN_0002e5e5(unaff_retaddr,param_1,uVar4,uVar4,puVar3);
   pbStack_50 = (byte *)0x6;
   puStack_54 = (undefined *)0x2b124;
-  FUN_000151f1();
+  bios_tick_delay();
   for (iVar6 = 0; iVar6 < 8; iVar6 = iVar6 + 1) {
     pbStack_50 = (byte *)0xc8;
     puStack_54 = (undefined *)0x140;
@@ -20008,7 +20006,7 @@ void FUN_0002af55(int param_1,undefined *param_2,undefined *param_3)
     memcpy_vga(0xa0000,0x140,puVar3);
     pbStack_50 = (byte *)0x1;
     puStack_54 = (undefined *)0x2b18d;
-    FUN_000151f1();
+    bios_tick_delay();
   }
   for (iVar6 = 8; -1 < iVar6; iVar6 = iVar6 + -1) {
     pbStack_50 = (byte *)0xc8;
@@ -20025,7 +20023,7 @@ void FUN_0002af55(int param_1,undefined *param_2,undefined *param_3)
     memcpy_vga(0xa0000,0x140,puVar3);
     pbStack_50 = (byte *)0x1;
     puStack_54 = (undefined *)0x2b1fc;
-    FUN_000151f1();
+    bios_tick_delay();
   }
   if ((param_1 == 0x21) || (param_1 == 0x22)) {
     pbStack_50 = (byte *)0xffffffff;
@@ -20059,7 +20057,7 @@ void FUN_0002af55(int param_1,undefined *param_2,undefined *param_3)
           memcpy_vga(0xa0000,0x140,puVar3);
           pbStack_50 = (byte *)0x2;
           puStack_54 = (undefined *)0x2b371;
-          FUN_000151f1();
+          bios_tick_delay();
           uVar5 = (uint)local_18;
           pbStack_50 = (byte *)(uint)*(byte *)((int)&local_44 + uVar5);
           puStack_54 = (undefined *)(uint)*(byte *)((int)&local_40 + uVar5);
@@ -20211,7 +20209,7 @@ LAB_0002b240:
     }
     pbStack_50 = (byte *)0x2;
     puStack_54 = (undefined *)0x2b258;
-    FUN_000151f1();
+    bios_tick_delay();
     iVar6 = iVar6 + 1;
   } while( true );
 }
@@ -20294,7 +20292,7 @@ void FUN_0002b710(void)
     memcpy_vga(uVar3,0x140,local_18,0x140,0x140,200);
     FUN_0002c2e7(pbVar4,unaff_EDI,uVar3,0x140,0xffffffff);
     memcpy_vga(0xa0000,0x140,uVar3,0x140,0x140,200);
-    FUN_000151f1(pbVar4[iVar2 + 6]);
+    bios_tick_delay(pbVar4[iVar2 + 6]);
   }
   mem_free(local_18);
   mem_free(uVar3);
@@ -20304,7 +20302,7 @@ void FUN_0002b710(void)
   mem_free(local_2c);
   DAT_00003a49 = mem_alloc(0x25680);
   DAT_00003a5d = res_load(&DAT_00001a65,DAT_00003a5d,(uint)*LAB_00003a55 * 2);
-  FUN_000151f1(6);
+  bios_tick_delay(6);
   palette_fade_out_dark();
   vga_clear(0xa0000,0,64000);
   FUN_0000f3f4(1);
@@ -20474,7 +20472,7 @@ void FUN_0002b9f8(int param_1)
     DAT_00003a49 = mem_alloc(0x25680);
     DAT_00003a5d = res_load(&DAT_00001a65,DAT_00003a5d,(uint)*LAB_00003a55 * 2);
     FUN_0002c0a3();
-    FUN_000151f1(6);
+    bios_tick_delay(6);
     palette_fade_out_dark();
     vga_clear(0xa0000,0,64000);
     FUN_0000f3f4(1);
@@ -20491,9 +20489,9 @@ void FUN_0002b9f8(int param_1)
 }
 
 
-// FUNC 0x2c0a3 FUN_0002c0a3
+// FUNC 0x2c0a3 fd2tmp_map_sprite_load   /* 读取 FD2.TMP 地图角色帧缓存 */
 
-void FUN_0002c0a3(void)
+void fd2tmp_map_sprite_load(void)
 
 {
   undefined4 uVar1;
@@ -20678,7 +20676,7 @@ int FUN_0002c329(int param_1,byte *param_2,byte *param_3,int param_4,undefined4 
           memcpy_vga(param_4,0x280,param_5,0x140,0x140,200);
           FUN_0002c2e7(param_2,iVar6,param_4,0x280,0xffffffff);
           memcpy_vga(0xa0000,0x140,param_4,0x280,0x140,200);
-          FUN_000151f1(param_2[iVar1 + 6]);
+          bios_tick_delay(param_2[iVar1 + 6]);
         }
         FUN_0002cd79(param_1,param_3,param_6,param_5,param_4,DAT_0000413b);
       }
@@ -20692,7 +20690,7 @@ int FUN_0002c329(int param_1,byte *param_2,byte *param_3,int param_4,undefined4 
           memcpy_vga(local_58,0x280,param_5,0x140,0x140,200);
           FUN_0002c2e7(param_2,iVar6,local_58,0x280,0xffffffff);
           memcpy_vga(0xa0000,0x140,local_58,0x280,0x140,200);
-          FUN_000151f1(param_2[iVar1 + 6]);
+          bios_tick_delay(param_2[iVar1 + 6]);
         }
         FUN_0002cc1c(param_1,param_3,param_5,param_4,DAT_0000413b);
       }
@@ -20797,7 +20795,7 @@ LAB_0002c7d6:
           iVar2 = iVar2 + -1;
         }
         local_2c = 0xffffffff;
-        FUN_000151f1(1);
+        bios_tick_delay(1);
       }
       if ((DAT_00004133 == 1) && (local_3c == local_40)) {
         return 1;
@@ -21045,7 +21043,7 @@ void FUN_0002d274(int param_1)
   uVar4 = mem_alloc(64000);
   FUN_00034e64(uVar4,0xa0000,64000);
   palette_fade_out_dark();
-  FUN_000151f1(1);
+  bios_tick_delay(1);
   for (iVar6 = 8; -1 < iVar6; iVar6 = iVar6 + -1) {
     vga_clear(iVar1,0,&LAB_0001f3fc_4);
     if (&stack0x00000000 != (undefined1 *)0x20) {
@@ -21110,7 +21108,7 @@ void FUN_0002d55c(undefined4 param_1,int param_2)
         uVar2 = uVar2 ^ *unaff_retaddr;
       }
     }
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   return;
 }
@@ -21347,7 +21345,7 @@ void FUN_0002d649(byte *param_1,int param_2,byte *param_3)
         apbStack_148[0] = (byte *)0xc8;
         memcpy_vga(0xa0000,0x140,pbVar5,0x280,0x140);
         apbStack_148[0] = (byte *)0x1;
-        FUN_000151f1();
+        bios_tick_delay();
       }
       for (local_38 = 0; local_38 < param_2; local_38 = local_38 + 1) {
         apbStack_148[0] = (byte *)0x3;
@@ -21419,7 +21417,7 @@ void FUN_0002d649(byte *param_1,int param_2,byte *param_3)
           apbStack_148[0] = (byte *)0xc8;
           memcpy_vga(0xa0000,0x140,pbVar2 + local_1c,0x280,0x140);
           apbStack_148[0] = (byte *)0x1;
-          FUN_000151f1();
+          bios_tick_delay();
         }
         if (param_2 + -1 != local_38) {
           apbStack_148[0] = param_1;
@@ -21449,7 +21447,7 @@ void FUN_0002d649(byte *param_1,int param_2,byte *param_3)
         apbStack_148[0] = (byte *)0xc8;
         memcpy_vga(0xa0000,0x140,pbVar5,0x280,0x140);
         apbStack_148[0] = (byte *)0x1;
-        FUN_000151f1();
+        bios_tick_delay();
       }
       if (param_1 == (byte *)0x9) {
         for (iVar4 = 7; -1 < iVar4; iVar4 = iVar4 + -1) {
@@ -21480,7 +21478,7 @@ void FUN_0002d649(byte *param_1,int param_2,byte *param_3)
         apbStack_148[0] = (byte *)0xc8;
         memcpy_vga(0xa0000,0x140,pbVar2,0x140,0x140);
         apbStack_148[0] = (byte *)0x1;
-        FUN_000151f1();
+        bios_tick_delay();
       }
       apbStack_148[0] = (byte *)0xc8;
       memcpy_vga(pbVar2,0x140,local_2c,0x140,0x140);
@@ -21523,7 +21521,7 @@ void FUN_0002d649(byte *param_1,int param_2,byte *param_3)
       apbStack_148[0] = (byte *)0x2e530;
       FUN_0002c0a3();
       apbStack_148[0] = (byte *)0x8;
-      FUN_000151f1();
+      bios_tick_delay();
       apbStack_148[0] = (byte *)0x2e53f;
       palette_fade_out_dark();
       apbStack_148[0] = (byte *)0xfa00;
@@ -21659,7 +21657,7 @@ LAB_0002e79d:
           local_1c = 0;
         }
       }
-      FUN_000151f1(1);
+      bios_tick_delay(1);
     }
     local_24 = local_24 + 1;
   } while( true );
@@ -21724,7 +21722,7 @@ void FUN_0002e9ae(undefined4 param_1,byte *param_2,undefined4 param_3,int param_
     FUN_0002c2e7(param_3,0,iVar2 * 0x23 * iVar4 + param_4,0x280,0xffffffff);
     (**(code **)(param_7 * 4 + 0x24c6))(unaff_retaddr,param_1,param_4,0x280,5);
     memcpy_vga(0xa0000,0x140,param_4,0x280,0x140,200);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   for (iVar2 = 4; -1 < iVar2; iVar2 = iVar2 + -1) {
     if ((param_7 == 7) || (iVar3 = param_4, param_7 == 3)) {
@@ -21737,7 +21735,7 @@ void FUN_0002e9ae(undefined4 param_1,byte *param_2,undefined4 param_3,int param_
     FUN_0002c2e7(param_6,0,iVar2 * 0x23 * iVar4 + param_4,0x280,0xffffffff);
     (**(code **)(param_7 * 4 + 0x24c6))(unaff_retaddr,param_1,param_4,0x280,5);
     memcpy_vga(0xa0000,0x140,param_4,0x280,0x140,200);
-    FUN_000151f1(1);
+    bios_tick_delay(1);
   }
   return;
 }
@@ -21917,12 +21915,12 @@ void FUN_0002ec71(void)
   FUN_0002f391();
   vga_clear(0xa0000,0,64000);
   FUN_000230bf(0xffffffff,1);
-  FUN_000151f1(0x32);
+  bios_tick_delay(0x32);
   uVar1 = res_load(&DAT_00001a4d,local_24,0x3c);
   blit_image_clipped(uVar1,0,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
   FUN_000230bf(0x12,0);
-  FUN_000151f1(0x50);
+  bios_tick_delay(0x50);
   palette_fade_out_dark();
   vga_clear(0xa0000,0,64000);
   local_24 = res_load(&DAT_00001a4d,uVar1,0x3a);
@@ -21947,14 +21945,14 @@ void FUN_0002ec71(void)
     FUN_0002b9f8(0,1);
     DAT_00003a65 = local_28;
     dac_apply_darkness(0,0xff,0);
-    FUN_000151f1(0x14);
+    bios_tick_delay(0x14);
     FUN_0002c2e7(local_24,iVar3,0xa0000,0x140,0xffffffff);
-    FUN_000151f1(0x4e);
+    bios_tick_delay(0x4e);
     palette_fade_out_dark();
     vga_clear(0xa0000,0,64000);
   }
   mem_free(local_28);
-  FUN_000151f1(0x32);
+  bios_tick_delay(0x32);
   uVar1 = res_load(&DAT_00001a4d,local_24,0x3b);
   blit_image_clipped(uVar1,0,0,0xa0000,0x140,0xffffffff);
   palette_fade_in_light();
@@ -22059,9 +22057,12 @@ LAB_0002fa57:
 }
 
 
-// FUNC 0x300bd FUN_000300bd
+// FUNC 0x2fa63 new_game_opening_play   /* 完整新游戏初始过场：stage 32→31→0；Ghidra 此次导出漏建函数体，调用序列由未 patch code0 直接反汇编确认 */
 
-void FUN_000300bd(void)
+
+// FUNC 0x300bd field_actor_hide   /* 将指定 actor flags 置为 1，隐藏/失效该单位 */
+
+void field_actor_hide(void)
 
 {
   int unaff_retaddr;
@@ -22072,9 +22073,9 @@ void FUN_000300bd(void)
 }
 
 
-// FUNC 0x300e1 FUN_000300e1
+// FUNC 0x300e1 field_actor_group_arrival_effect   /* 加入 actor 组并用 FDOTHER[9] 的 12 帧 LMI1 动画播放登场特效 */
 
-void FUN_000300e1(void)
+void field_actor_group_arrival_effect(void)
 
 {
   int iVar1;
@@ -22163,7 +22164,7 @@ LAB_000302d3:
       }
     }
     vsync_wait();
-    FUN_000151f1(1);
+    bios_tick_delay(1);
     local_18 = local_18 + 1;
   } while( true );
 }
@@ -22174,7 +22175,7 @@ LAB_000302d3:
 void FUN_00030854(void)
 
 {
-  FUN_00010db2();
+  field_movement_script_play();
                     /* WARNING: Subroutine does not return */
   FUN_000136cc(DAT_00003a79,2,0xa0000,0x140,0xcd,0x4c,0x4a,0x13);
 }
@@ -22292,9 +22293,9 @@ void FUN_00031bfc(int param_1,int param_2,int param_3,int param_4,int param_5)
 }
 
 
-// FUNC 0x31c3a FUN_00031c3a
+// FUNC 0x31c3a field_actor_range_status_set   /* 设置 actor 区间 0x34 字段低 4 位状态 */
 
-void FUN_00031c3a(int param_1,byte param_2)
+void field_actor_range_status_set(int param_1,byte param_2)
 
 {
   int iVar1;
@@ -22309,15 +22310,13 @@ void FUN_00031c3a(int param_1,byte param_2)
 }
 
 
-// FUNC 0x31fdc FUN_00031fdc
+// FUNC 0x31fdc field_actor_is_hidden   /* 返回 actor flags(offset 0x05) bit0 */
 
-byte FUN_00031fdc(void)
+byte field_actor_is_hidden(int actor_id)
 
 {
-  int unaff_retaddr;
-  
   FUN_00034777(4);
-  return *(byte *)(unaff_retaddr * 0x50 + 5 + DAT_00003a45) & 1;
+  return *(byte *)(actor_id * 0x50 + 5 + DAT_00003a45) & 1;
 }
 
 
@@ -22358,15 +22357,15 @@ void FUN_00032e6a(void)
 }
 
 
-// FUNC 0x332c0 FUN_000332c0
+// FUNC 0x332c0 field_camera_music_flash   /* 平移镜头、调用音乐/场景函数并做白闪 */
 
-void FUN_000332c0(undefined4 param_1,undefined1 param_2)
+void field_camera_music_flash(undefined4 param_1,undefined1 param_2)
 
 {
   undefined4 unaff_retaddr;
   
   FUN_00034777(0x10);
-  FUN_00010d25(unaff_retaddr,param_1);
+  field_camera_pan_to(unaff_retaddr,param_1);
   func_0x0000e296(param_2);
   thunk_FUN_0003b765(300);
   pal_partial_set(0,0xff,0xff);
@@ -40435,9 +40434,9 @@ int FUN_0004b651(byte *param_1,int param_2)
 }
 
 
-// FUNC 0x4b670 FUN_0004b670
+// FUNC 0x4b670 save_xor_crypt   /* FD2.SAV 对称 XOR 加/解密流 */
 
-void FUN_0004b670(byte *param_1,int param_2)
+void save_xor_crypt(byte *param_1,int param_2)
 
 {
   ushort uVar1;
@@ -41663,7 +41662,7 @@ void FUN_0004c01b(ushort *param_1,int param_2,int param_3,int param_4,int param_
 }
 
 
-// FUNC 0x4c0d5 blit_image_clipped
+// FUNC 0x4c0d5 blit_image_clipped   /* 图像/FDSHAP RLE 解码并裁剪 blit */
 
 void blit_image_clipped(ushort *param_1,int param_2,int param_3,int param_4,int param_5,uint param_6
                        )
@@ -41861,9 +41860,9 @@ void blit_image_clipped(ushort *param_1,int param_2,int param_3,int param_4,int 
 }
 
 
-// FUNC 0x4c290 FUN_0004c290
+// FUNC 0x4c290 field_movement_script_ptr   /* 按 script_id 从 DAT_000027d8 指针表取移动脚本地址 */
 
-undefined4 FUN_0004c290(int param_1)
+undefined4 field_movement_script_ptr(int param_1)
 
 {
   return (&DAT_000027d8)[param_1];
@@ -41955,11 +41954,11 @@ void FUN_0004c32b(void)
 }
 
 
-// FUNC 0x4c347 FUN_0004c347
+// FUNC 0x4c347 lmi_rle_blit_forward   /* DATO/LMI 立绘 RLE 正向展开 blit */
 
 undefined8 __regparm2
-FUN_0004c347(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined4 param_4,
-            int param_5)
+lmi_rle_blit_forward(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined4 param_4,
+                    int param_5)
 
 {
   undefined1 uVar1;
@@ -41983,11 +41982,11 @@ FUN_0004c347(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined
 }
 
 
-// FUNC 0x4c379 FUN_0004c379
+// FUNC 0x4c379 lmi_rle_blit_reverse   /* DATO/LMI 立绘 RLE 反向展开 blit，用于左右朝向 */
 
 undefined8 __regparm2
-FUN_0004c379(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined4 param_4,
-            int param_5)
+lmi_rle_blit_reverse(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined4 param_4,
+                    int param_5)
 
 {
   undefined1 uVar1;
@@ -42194,11 +42193,11 @@ void FUN_0004c497(void)
 }
 
 
-// FUNC 0x4c4c2 FUN_0004c4c2
+// FUNC 0x4c4c2 font_glyph_blit_16x16   /* FDOTHER[4] 16x16 字模绘制，token*0x20 定位字形 */
 
 undefined8 __regparm2
-FUN_0004c4c2(undefined4 param_1,undefined4 param_2,int param_3,int param_4,undefined4 *param_5,
-            ushort param_6,undefined1 param_7,undefined1 param_8,char param_9)
+font_glyph_blit_16x16(undefined4 param_1,undefined4 param_2,int param_3,int param_4,undefined4 *param_5,
+                      ushort param_6,undefined1 param_7,undefined1 param_8,char param_9)
 
 {
   undefined1 uVar1;

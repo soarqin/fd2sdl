@@ -14,6 +14,9 @@
 
 #include "archive.h"
 #include "image.h"
+#include "field.h"
+#include "tile.h"
+#include "scene.h"
 #include "animation.h"
 #include "vga.h"
 
@@ -461,8 +464,89 @@ title_screen:
     for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
 }
 
+/* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，
+ * 用 FDOTHER.DAT[0] 调色板绘制战场底图。
+ *
+ * 逆向依据：FUN_00010580 @0x10580 从 cell 读 terrain_id 与地形表属性；
+ * FUN_0001cca0 @0x1cca0 按 terrain_id 取 FDSHAP 24×24 帧组成底图；
+ * FUN_0001020e @0x1020e 对 flags 0x80 的遮挡格重绘后一帧。 */
+static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
+    fd2_archive fdshap = {0};
+    fd2_archive field = {0};
+    fd2_terrain_tileset terrain = {0};
+    fd2_field_map map = {0};
+    int result = -1;
+
+    if (fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0) {
+        fprintf(stderr, "cannot open FDSHAP.DAT\n");
+        goto done;
+    }
+    if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0) {
+        fprintf(stderr, "cannot open FDFIELD.DAT\n");
+        goto done;
+    }
+    if (fd2_field_map_open_stage(&map, &field, stage) != 0) {
+        fprintf(stderr, "cannot decode FDFIELD.DAT stage %zu\n", stage);
+        goto done;
+    }
+    if (fd2_terrain_tileset_open_stage(&terrain, &fdshap, &field, stage) != 0) {
+        fprintf(stderr, "cannot decode FDSHAP.DAT terrain sheet for stage %zu\n", stage);
+        goto done;
+    }
+
+    const uint8_t *pal = res_load_palette(0); /* 战场/地形调色板 */
+    if (pal) fd2_vga_set_palette(vga, pal);
+    fd2_vga_set_brightness(vga, 0);
+
+    int camera_x = 0;
+    int camera_y = 0;
+    int anim_phase = 0;
+    int running = 1;
+    printf("map preview: stage=%zu, %dx%d cells, FDSHAP terrain #%zu, %zu frames, %zu attrs\n",
+           stage, map.width, map.height, terrain.shape_index,
+           terrain.sheet.frame_count, terrain.attr_count);
+
+    while (running) {
+        fd2_terrain_render_field_preview(vga, &terrain, &map,
+                                         camera_x, camera_y, anim_phase);
+        fd2_vga_present(vga);
+        if (once) break;
+
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_EVENT_QUIT) running = 0;
+            if (e.type == SDL_EVENT_KEY_DOWN) {
+                switch (e.key.key) {
+                    case SDLK_ESCAPE:
+                    case SDLK_RETURN:
+                    case SDLK_SPACE:
+                        running = 0;
+                        break;
+                    case SDLK_LEFT:  if (camera_x >= 24) camera_x -= 24; break;
+                    case SDLK_RIGHT: camera_x += 24; break;
+                    case SDLK_UP:    if (camera_y >= 24) camera_y -= 24; break;
+                    case SDLK_DOWN:  camera_y += 24; break;
+                }
+            }
+        }
+        fd2_delay_ms(33);
+    }
+    result = 0;
+
+done:
+    fd2_field_map_close(&map);
+    fd2_terrain_tileset_close(&terrain);
+    fd2_archive_close(&field);
+    fd2_archive_close(&fdshap);
+    return result;
+}
+
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
+    int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
+    int prologue_preview = (argc > 1 && strcmp(argv[1], "--prologue-preview") == 0);
+    int prologue_preview_once = (argc > 1 && strcmp(argv[1], "--prologue-preview-once") == 0);
+    size_t map_preview_stage = (argc > 2) ? (size_t)strtoul(argv[2], NULL, 0) : 0;
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -481,32 +565,39 @@ int main(int argc, char **argv) {
     }
     printf("FDOTHER.DAT: %zu entries\n", g_fdother.count);
 
-    /* 打开 ANI.DAT（对应 FUN_0001db69 @0x1db69） */
-    if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
-        fprintf(stderr, "cannot open ANI.DAT\n");
-        fd2_archive_close(&g_fdother);
-        return 1;
-    }
-    printf("ANI.DAT: %zu entries\n", g_ani.count);
-
     /* 初始化虚拟 VGA */
     fd2_vga vga;
     if (fd2_vga_init(&vga, win, ren) != 0) {
         fprintf(stderr, "VGA init failed\n");
-        fd2_archive_close(&g_ani);
         fd2_archive_close(&g_fdother);
         return 1;
     }
 
-    /* 运行启动序列 */
-    boot_intro_title(&vga);
+    int rc = 0;
+    if (map_preview || map_preview_once) {
+        rc = run_map_preview(&vga, map_preview_once, map_preview_stage);
+    } else if (prologue_preview || prologue_preview_once) {
+        rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother, prologue_preview_once);
+    } else {
+        /* 打开 ANI.DAT（对应 FUN_0001db69 @0x1db69） */
+        if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
+            fprintf(stderr, "cannot open ANI.DAT\n");
+            fd2_vga_close(&vga);
+            fd2_archive_close(&g_fdother);
+            return 1;
+        }
+        printf("ANI.DAT: %zu entries\n", g_ani.count);
+
+        /* 运行启动序列 */
+        boot_intro_title(&vga);
+        fd2_archive_close(&g_ani);
+    }
 
     /* 清理 */
     fd2_vga_close(&vga);
-    fd2_archive_close(&g_ani);
     fd2_archive_close(&g_fdother);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
     SDL_Quit();
-    return 0;
+    return rc == 0 ? 0 : 1;
 }

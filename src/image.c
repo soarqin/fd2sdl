@@ -20,8 +20,8 @@ static uint16_t rd_u16_le(const uint8_t *p) {
  *
  * 验证：FDOTHER[0x45-0x49] 片头5帧精确消耗完所有数据，输出恰好 320x147
  */
-static int decode_rle(const uint8_t *src, size_t src_len,
-                       uint8_t *dst, int width, int height) {
+int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
+                                const uint8_t *src, size_t src_len) {
     /* 逐行解码，对应 FUN_0004c0d5 @0x4c0d5 的双层循环:
      *   外层遍历 height 行，每行用宽度计数器从 width 减到 0 */
     size_t si = 0;
@@ -86,7 +86,7 @@ int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len) {
     if (!img->pixels) return -1;
     memset(img->pixels, 0, (size_t)w * h);  /* SKIP 指令依赖清零 */
 
-    if (decode_rle(buf + 4, len - 4, img->pixels, w, h) != 0) {
+    if (fd2_image_decode_rle_pixels(img->pixels, w, h, buf + 4, len - 4) != 0) {
         free(img->pixels);
         img->pixels = NULL;
         return -1;

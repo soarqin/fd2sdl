@@ -48,22 +48,38 @@ fd2sdl/
 - [x] 定位标题调色板（FDOTHER.DAT[8]，256 色 6-bit，见 `docs/03-data-formats.md`）
 - [x] 渲染标题图（FDOTHER.DAT[7] sub[0]；与 TITLE.DAT[0] 同源）到 SDL framebuffer
 - [x] 渲染 BG.DAT[0]（320×100 背景）
-- [ ] 实现 FDSHAP.DAT 精灵加载（注意：精灵是**未压缩**，经 FUN_0004ee50 直接复制；头含 24×24 + 帧偏移表）
+- [x] 实现 FDSHAP.DAT 精灵加载（偶数条目为 24×24 精灵帧包；头含帧数 + 帧偏移表；帧数据复用 FUN_0004c0d5 RLE 控制字节）
 
 **验收**：屏幕显示原版标题画面与一张背景。 ✅ 已验证（`docs/title-rendered.png`）
 
 ### 阶段 2：文本与地图（预计 2 天）
 
-- [ ] FDTXT.DAT 文本加载（确认 Big5/GBK 编码）
-- [ ] TAI.DAT 图块集加载与渲染
-- [ ] FDFIELD.DAT 战场地图解析（24×24 网格）
-- [ ] 在地图上铺贴图块
+- [x] FDTXT.DAT 文本加载（已确认为 u16 token 流，非直接 Big5/GBK；非负 token 映射到 FDOTHER[4] 16×16 字形）
+- [x] TAI.DAT 图像集加载与渲染（通用 RLE 图像，使用 FDOTHER.DAT[0] 调色板）
+- [x] FDFIELD.DAT 战场地图解析（每 3 条一组，组内第 0 条为 u32 cell 网格）
+- [x] FDSHAP.DAT 地形帧与奇数条目地形表映射（`cell & 0x03ff` → 同号 24×24 帧；flags 0x80 为遮挡层后一帧）
+- [x] 在地图上铺贴原版 24×24 地形帧（已接入 `--map-preview`）
 
-**验收**：显示一张完整战场地图。
+**验收**：`./src/fd2sdl --map-preview` 显示一张完整战场地图预览；stage 0 已按 FDSHAP 地形表映射校正。
+
+### 阶段 3A：完整新游戏初始过场 ✅
+
+- [x] DATO.DAT 立绘、FDOTHER.DAT[4] 字模、FDOTHER.DAT[5] 对话框 UI 与 FDTXT 控制码解释
+- [x] 追踪 `new_game_opening_play @0x2fa63`，确认完整流程为 stage 32 → 31 → 0
+- [x] 播放 FDTXT `[33]` fragment `0..5`、`[32]` fragment `0..9`、`[1]` fragment `0..2`，不混入第一关后续事件对白
+- [x] 复现移动脚本 `0,1,2,5,0x5a..0x69`、逐格 6 相位移动、actor 隐藏和镜头卷动
+- [x] 按 placement 建立 stage 32 王宫角色、走廊卫兵和郊外角色，建立 stage 31 五名剧情 actor 与 stage 0 三组 actor
+- [x] 解析 FDICON.B24 的 140 组地图 sprite，按 unit id 直接选帧；不再从 FD2.SAV 猜测职业，也不依赖会随 stage 改写的 FD2.TMP cache class
+- [x] 用 FDOTHER.DAT[9] 的 12 帧 LMI1 动画复现 stage 0 两组 actor 登场特效
+- [x] 复现对话框空心框移动、五级展开/收起、55 ms 字速、1500 ms 翻页和约 275 ms idle 动画
+- [x] 移除统一四边裁剪；按地图像素边界钳制镜头并填满 320×200
+- [x] 提供 `--prologue-preview` 与快速回归入口 `--prologue-preview-once`
+
+**验收**：`./src/fd2sdl --prologue-preview` 从 stage 32 王宫开始，完整播放 stage 31 剧情和 stage 0 战前段，在 fragment 2 结束后保留第一关战场；画面无 SDL 额外黑框。`--prologue-preview-once` 无延时跑完整条调用链。
 
 ### 阶段 3：核心系统（预计 3 天）
 
-- [ ] 角色结构体（位置、朝向、属性）—— 对照 `DATO.DAT` 数据表与反编译的 `FUN_000107b2`
+- [ ] 角色结构体（位置、朝向、属性）—— 对照 FDFIELD 单位记录、DATO 立绘编号与反编译的 `FUN_000107b2`
 - [ ] 角色精灵渲染（朝向 0x9/0x11/0x15/0x16/0x1b/0x17）
 - [ ] 键盘/鼠标输入（对照 `FUN_00010780` 输入轮询）
 - [ ] 光标与格子选择

@@ -99,6 +99,15 @@ add_executable(fd2sdl
     main.c
     archive.c
     image.c
+    shape.c
+    field.c
+    text.c
+    tile.c
+    font.c
+    portrait.c
+    map_sprite.c
+    save.c
+    scene.c
     animation.c
     vga.c
     palette.c

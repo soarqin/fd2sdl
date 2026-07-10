@@ -10,8 +10,8 @@
  *   [2:4] height (u16 LE)
  *   [4:]  RLE 压缩像素（8bpp 索引色）
  *
- * 注意：RLE 精确方案仍在逆向中（见 docs/04-development-plan.md 风险表），
- * 当前实现为占位：直接把压缩数据按字节填充（用于先打通管线）。
+ * RLE 方案源自 FUN_0004c0d5 @0x4c0d5 (blit_image_clipped)，
+ * 详见 docs/03-data-formats.md §7。
  */
 
 typedef struct {
@@ -26,6 +26,11 @@ int fd2_image_decode_entry(fd2_image *img, const fd2_archive *ar, size_t idx);
 
 /* 直接从内存缓冲解码（条目已取出）。 */
 int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len);
+
+/* 解码无 4 字节宽高头的 RLE 像素流。
+ * FDSHAP.DAT 精灵帧共用同一控制字节方案，但宽高来自精灵包头。 */
+int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
+                                const uint8_t *src, size_t src_len);
 
 void fd2_image_free(fd2_image *img);
 

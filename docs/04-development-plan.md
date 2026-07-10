@@ -34,8 +34,8 @@ fd2sdl/
 
 ### 阶段 0：环境搭建（预计 0.5 天）
 
-- [ ] 安装 SDL3（源码编译或 SDL3 预编译包）
-- [ ] CMake 构建脚手架，链接 SDL3
+- [x] SDL3 获取改为系统优先、CPM.cmake 自动回退
+- [x] CMake 构建脚手架，链接 SDL3
 - [ ] 创建窗口、清屏的基本程序
 - [ ] `tools/dat_extract.py`：实现 .DAT 解包（格式已破解，见 03-data-formats.md）
 

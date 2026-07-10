@@ -24,18 +24,7 @@
 
 ## 构建
 
-需要 SDL3（开发版）。若系统未提供，从源码编译：
-
-```bash
-# 下载 SDL3 源码并安装
-wget https://github.com/libsdl-org/SDL/releases/download/release-3.2.12/SDL3-3.2.12.tar.gz
-tar xzf SDL3-3.2.12.tar.gz && cd SDL3-3.2.12
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DSDL_TEST=OFF -DSDL_EXAMPLES=OFF
-cmake --build build -j$(nproc)
-sudo cmake --install build
-```
-
-构建本项目：
+CMake 会优先使用系统已安装的 SDL3（CMake config，其次 pkg-config）；若未找到，自动通过 CPM.cmake 下载并构建 SDL3，无需手动安装 SDL3。
 
 ```bash
 cd src
@@ -43,6 +32,8 @@ cmake -B build
 cmake --build build
 ./fd2sdl          # 从项目根目录运行，以找到 original_game/
 ```
+
+可用 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 强制走 CPM.cmake 回退路径；离线环境可预先安装 SDL3，或通过 `SDL3_DIR` 指向已有 SDL3 CMake 包。
 
 ## 工具
 

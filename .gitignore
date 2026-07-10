@@ -1,0 +1,25 @@
+# 原版游戏文件由开发者自行复制，禁止提交。
+/original_game/
+
+# 本地构建产物
+/src/build/
+/src/fd2sdl
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# 由 FD2.EXE 重建的分析镜像，可用 tools/rebuild_fd2_analysis.py 再生成。
+/tools/*.bin
+
+# 本地 agent / 索引 / 会话产物
+/.codegraph
+/.omo/
+/.pi-subagents/
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store

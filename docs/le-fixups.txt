@@ -1,0 +1,7 @@
+# FD2.EXE LE fixup 说明
+
+完整记录由 `python3 tools/rebuild_fd2_analysis.py` 生成到 `tools/fd2_le_fixups.txt`。
+
+当前可解析简单记录数：7067。
+
+这些记录只用于定位 DS/global 引用和保留 relocation 证据，不得直接写回代码镜像。上一版错误地直接 patch 代码页，导致 `boot_intro_title` 主体 @0x1cfe6 被破坏。

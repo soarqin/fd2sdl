@@ -30,7 +30,8 @@ typedef struct {
     uint8_t  dac[VGA_PALETTE_SIZE];      /* 当前 DAC 输出(8-bit)，palette_expand 后 */
     SDL_Renderer *renderer;
     SDL_Texture   *texture;              /* ARGB8888 流式纹理 */
-    uint64_t frame_start;               /* 帧计时，对应 vsync */
+    uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
+    uint64_t frame_interval_ns;
 } fd2_vga;
 
 /* 初始化 VGA + SDL 窗口/渲染器 */
@@ -61,12 +62,14 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
  * FUN_0002b649 / FUN_0000f488，FUN_0001db69 已确认为动画播放器。 */
 void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step);
 
-/* vsync 等待 + 呈现 (对应 FUN_0004bac9 @0x4bac9 + thunk_FUN_0003b765)
- * 将 framebuffer+palette 上传到纹理并渲染 */
+/* 呈现当前 framebuffer。调用期间会泵送 SDL 窗口事件，但不消费按键。 */
 void fd2_vga_present(fd2_vga *vga);
 
-/* 延时 (对应 thunk_FUN_0003b765 @0x3b765, 毫秒)
- * 原始实现用 int 21h/ah=2Ch 忙等待，参数为毫秒 */
+/* 按绝对 deadline 呈现并等待下一帧，避免把本帧渲染耗时叠加到间隔。 */
+void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
+
+/* 延时 (对应 thunk_FUN_0003b765 @0x3b765, 毫秒)。宿主实现分片等待并
+ * 泵送 SDL 事件，避免长动画期间窗口被系统判定为无响应。 */
 void fd2_delay_ms(uint32_t ms);
 
 /* 等待 BIOS tick (对应 FUN_000151f1 @0x151f1)

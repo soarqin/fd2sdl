@@ -113,9 +113,33 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
         offsets[i] = off;
     }
 
+    /* 140 个单位共 1680 帧，完整解码约占 945 KiB。启动时一次解码可
+     * 避免镜头卷动时每个可见 actor 每帧反复 malloc + RLE 展开。 */
+    size_t decoded_size = count * 24u * 24u;
+    /* RLE SKIP 只推进目标位置，不写透明像素，缓存必须先清零。 */
+    uint8_t *decoded_frames = calloc(1, decoded_size);
+    if (!decoded_frames) {
+        free(offsets);
+        free(data);
+        return -1;
+    }
+    for (size_t i = 0; i < count; i++) {
+        uint32_t start = offsets[i];
+        size_t used = 0;
+        if (measure_rle_24(data + start, (size_t)sz - start, &used) != 0 ||
+            fd2_image_decode_rle_pixels(decoded_frames + i * 24u * 24u,
+                                        24, 24, data + start, used) != 0) {
+            free(decoded_frames);
+            free(offsets);
+            free(data);
+            return -1;
+        }
+    }
+
     bank->data = data;
     bank->size = (size_t)sz;
     bank->offsets = offsets;
+    bank->decoded_frames = decoded_frames;
     bank->frame_count = count;
     return 0;
 }
@@ -139,9 +163,13 @@ int fd2_map_sprite_decode_frame(fd2_image *img,
     img->pixels = calloc(24u * 24u, 1);
     if (!img->pixels) return -1;
 
-    if (fd2_image_decode_rle_pixels(img->pixels, 24, 24,
-                                    bank->data + start,
-                                    (size_t)(end - start)) != 0) {
+    if (bank->decoded_frames) {
+        memcpy(img->pixels,
+               bank->decoded_frames + frame_idx * 24u * 24u,
+               24u * 24u);
+    } else if (fd2_image_decode_rle_pixels(img->pixels, 24, 24,
+                                           bank->data + start,
+                                           (size_t)(end - start)) != 0) {
         fd2_image_free(img);
         return -1;
     }
@@ -152,7 +180,22 @@ void fd2_map_sprite_bank_close(fd2_map_sprite_bank *bank) {
     if (!bank) return;
     free(bank->data);
     free(bank->offsets);
+    free(bank->decoded_frames);
     memset(bank, 0, sizeof(*bank));
+}
+
+void fd2_map_sprite_blit_frame(fd2_vga *vga,
+                               const fd2_map_sprite_bank *bank,
+                               size_t frame_idx,
+                               int x, int y, int transparent_index) {
+    if (!bank || !bank->decoded_frames || frame_idx >= bank->frame_count)
+        return;
+    fd2_image frame = {
+        .width = 24,
+        .height = 24,
+        .pixels = bank->decoded_frames + frame_idx * 24u * 24u,
+    };
+    fd2_map_sprite_blit(vga, &frame, x, y, transparent_index);
 }
 
 void fd2_map_sprite_blit(fd2_vga *vga, const fd2_image *img,

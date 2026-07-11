@@ -317,11 +317,9 @@ static void boot_intro_title(fd2_vga *vga) {
                 }
                 const uint8_t *rp2 = res_load_palette(0x65);
                 if (rp2) fd2_vga_set_palette(vga, rp2);
-                fd2_vga_present(vga);
             }
 
-            fd2_vga_present(vga);
-            fd2_delay_ms(0x1e);  /* thunk_FUN_0003b765(0x1e=30ms) */
+            fd2_vga_present_timed(vga, 0x1e); /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
@@ -555,6 +553,9 @@ int main(int argc, char **argv) {
 
     SDL_Window *win = SDL_CreateWindow("FD2-SDL", WINDOW_W, WINDOW_H, 0);
     SDL_Renderer *ren = SDL_CreateRenderer(win, NULL);
+    /* 游戏自身按原版毫秒/tick 时序调度；显式关闭 backend 隐式 vsync，
+     * 避免 RenderPresent 阻塞与固定 delay 在不同刷新率下重复叠加。 */
+    SDL_SetRenderVSync(ren, 0);
     SDL_SetRenderLogicalPresentation(ren, VGA_W, VGA_H,
                                      SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 

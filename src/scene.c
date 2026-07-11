@@ -519,9 +519,6 @@ static void render_prologue_actors(fd2_vga *vga,
         size_t frame_idx = (size_t)actor->sprite_group * 12u +
                            (size_t)actor->direction * 3u +
                            (size_t)frame_phase;
-        fd2_image frame;
-        if (fd2_map_sprite_decode_frame(&frame, sprites, frame_idx) != 0)
-            continue;
         int sx = actor->x * 24 - camera_x;
         int sy = actor->y * 24 - camera_y - 6;
         /* map_actor_blit_24x24 @0xb168 以 record+4 的 1..6 相位，
@@ -533,8 +530,7 @@ static void render_prologue_actors(fd2_vga *vga,
             case 2: sy -= pixel_step; break;
             case 3: sx += pixel_step; break;
         }
-        fd2_map_sprite_blit(vga, &frame, sx, sy, 0);
-        fd2_image_free(&frame);
+        fd2_map_sprite_blit_frame(vga, sprites, frame_idx, sx, sy, 0);
     }
 }
 
@@ -594,6 +590,16 @@ static void present_base_frame(fd2_vga *vga,
                                const fd2_scene_field_state *field_state) {
     render_scene_base(vga, terrain, map, sprites, field_state);
     fd2_vga_present(vga);
+}
+
+static void present_base_frame_timed(fd2_vga *vga,
+                                     const fd2_terrain_tileset *terrain,
+                                     const fd2_field_map *map,
+                                     const fd2_map_sprite_bank *sprites,
+                                     const fd2_scene_field_state *field_state,
+                                     uint32_t frame_ms) {
+    render_scene_base(vga, terrain, map, sprites, field_state);
+    fd2_vga_present_timed(vga, frame_ms);
 }
 
 static void opening_advance_idle(fd2_scene_field_state *field_state,
@@ -666,8 +672,7 @@ static void animate_dialog_marker(fd2_vga *vga,
          * 在 dialog_box_open @0x13cf4 中将它从角色格移动到对话框原点；
          * 0x4a 是该帧背景色。 */
         blit_ui_tile_mode(vga, ui, 0, x, y, 0x4a);
-        fd2_vga_present(vga);
-        fd2_delay_ms(FD2_DIALOG_TRANSITION_DELAY_MS);
+        fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
         if (poll_skip()) break;
     }
 }
@@ -695,10 +700,10 @@ static void animate_dialog_box_open(fd2_vga *vga,
         render_scene_base(vga, terrain, map, sprites, field_state);
         draw_dialog_tiles(vga, ui, DIALOG_X, dialog_area_y(area),
                           stages[i][0], stages[i][1]);
-        fd2_vga_present(vga);
-        if (i + 1 < sizeof(stages) / sizeof(stages[0])) {
-            fd2_delay_ms(FD2_DIALOG_TRANSITION_DELAY_MS);
-        }
+        if (i + 1 < sizeof(stages) / sizeof(stages[0]))
+            fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
+        else
+            fd2_vga_present(vga);
         if (poll_skip()) break;
     }
 }
@@ -723,8 +728,7 @@ static void animate_dialog_box_close(fd2_vga *vga,
             render_scene_base(vga, terrain, map, sprites, field_state);
             draw_dialog_tiles(vga, ui, DIALOG_X, dialog_area_y(state->area),
                               stages[i][0], stages[i][1]);
-            fd2_vga_present(vga);
-            fd2_delay_ms(FD2_DIALOG_TRANSITION_DELAY_MS);
+            fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
             if (poll_skip()) break;
         }
         animate_dialog_marker(vga, terrain, map, ui, sprites, field_state,
@@ -765,8 +769,8 @@ static void pan_camera_to(fd2_vga *vga,
         cx += dx;
         field_state->focus_cell_x += dx;
         set_camera_cell(field_state, map, cx, field_state->camera_cell_y);
-        present_base_frame(vga, terrain, map, sprites, field_state);
-        fd2_delay_ms(17);
+        present_base_frame_timed(vga, terrain, map, sprites,
+                                 field_state, 17);
         opening_advance_idle(field_state, 17);
     }
     while (field_state->camera_cell_y != target_y) {
@@ -775,8 +779,8 @@ static void pan_camera_to(fd2_vga *vga,
         cy += dy;
         field_state->focus_cell_y += dy;
         set_camera_cell(field_state, map, field_state->camera_cell_x, cy);
-        present_base_frame(vga, terrain, map, sprites, field_state);
-        fd2_delay_ms(17);
+        present_base_frame_timed(vga, terrain, map, sprites,
+                                 field_state, 17);
         opening_advance_idle(field_state, 17);
     }
 }
@@ -817,8 +821,8 @@ static void focus_camera_on_actor(fd2_vga *vga,
         set_camera_cell(field_state, map, camera_x,
                         field_state->camera_cell_y);
         if (!fast) {
-            present_base_frame(vga, terrain, map, sprites, field_state);
-            fd2_delay_ms(17);
+            present_base_frame_timed(vga, terrain, map, sprites,
+                                     field_state, 17);
             opening_advance_idle(field_state, 17);
         }
     }
@@ -834,8 +838,8 @@ static void focus_camera_on_actor(fd2_vga *vga,
         set_camera_cell(field_state, map, field_state->camera_cell_x,
                         camera_y);
         if (!fast) {
-            present_base_frame(vga, terrain, map, sprites, field_state);
-            fd2_delay_ms(17);
+            present_base_frame_timed(vga, terrain, map, sprites,
+                                     field_state, 17);
             opening_advance_idle(field_state, 17);
         }
     }
@@ -1077,8 +1081,7 @@ static int opening_actor_move_up_follow_camera(
                 actor->move_phase = (uint8_t)phase + 1u;
                 state->camera_offset_y = camera_dy * (int)(phase + 1u) * 4;
                 render_scene_base(vga, terrain, map, sprites, state);
-                fd2_vga_present(vga);
-                fd2_delay_ms(FD2_BIOS_TICK_MS);
+                fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
                 opening_advance_idle(state, FD2_BIOS_TICK_MS);
             }
         }
@@ -1126,8 +1129,8 @@ static int play_opening_move_script(fd2_vga *vga,
             if (frames == 0) frames = 1;
             if (!fast) {
                 for (int frame = 0; frame < frames; frame++) {
-                    present_base_frame(vga, terrain, map, sprites, state);
-                    fd2_delay_ms(FD2_BIOS_TICK_MS);
+                    present_base_frame_timed(vga, terrain, map, sprites,
+                                             state, FD2_BIOS_TICK_MS);
                     opening_advance_idle(state, FD2_BIOS_TICK_MS);
                 }
             }
@@ -1151,10 +1154,10 @@ static int play_opening_move_script(fd2_vga *vga,
                         if (darkness < 0x40) darkness++;
                         fd2_vga_set_brightness(vga, darkness);
                     }
-                    fd2_vga_present(vga);
                     /* field_movement_script_play @0x10db2 每个 4 px 相位
-                     * 调用 bios_tick_delay(1) 后再等 vsync。 */
-                    fd2_delay_ms(FD2_BIOS_TICK_MS);
+                     * 调用 bios_tick_delay(1) 后再等 vsync。宿主端以绝对
+                     * deadline 扣除本帧渲染耗时，避免步态节奏抖动。 */
+                    fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
                     opening_advance_idle(state, FD2_BIOS_TICK_MS);
                 }
             }
@@ -1166,7 +1169,10 @@ static int play_opening_move_script(fd2_vga *vga,
                 state->actors[actor_id].frame = 1;
                 state->actors[actor_id].move_phase = 0;
             }
-            present_base_frame(vga, terrain, map, sprites, state);
+            /* phase 6 的 +24 px 与提交后的格坐标画面相同；非 fast 路径
+             * 不再重复 present，以免重置下一相位的 deadline。 */
+            if (fast)
+                present_base_frame(vga, terrain, map, sprites, state);
         }
     }
     return pos == script_len ? 0 : -1;
@@ -1210,8 +1216,7 @@ static void opening_palette_fade_in(fd2_vga *vga, int fast) {
     /* palette_fade_in_light @0x1cc6d：暗度 0x40→0。 */
     for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
         fd2_vga_set_brightness(vga, darkness);
-        fd2_vga_present(vga);
-        fd2_delay_ms(12);
+        fd2_vga_present_timed(vga, 12);
     }
 }
 
@@ -1265,8 +1270,7 @@ static int opening_actor_arrival(fd2_vga *vga,
             fd2_map_sprite_blit(vga, &effect, x, y, 0);
         }
         fd2_image_free(&effect);
-        fd2_vga_present(vga);
-        fd2_delay_ms(FD2_BIOS_TICK_MS);
+        fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
         opening_advance_idle(state, FD2_BIOS_TICK_MS);
     }
     for (size_t i = first_actor; i < last_actor; i++)
@@ -1436,8 +1440,7 @@ static void opening_stage_fade_in(fd2_vga *vga,
     }
     for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
         fd2_vga_set_brightness(vga, darkness);
-        fd2_vga_present(vga);
-        fd2_delay_ms(12);
+        fd2_vga_present_timed(vga, 12);
     }
 }
 

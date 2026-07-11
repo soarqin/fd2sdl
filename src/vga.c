@@ -89,35 +89,104 @@ void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
     (void)end;
 }
 
-void fd2_vga_present(fd2_vga *vga) {
-    /* 复现 FUN_0004bac9 @0x4bac9 (vsync_wait) + 帧呈现
-     * 将 framebuffer(索引) + dac(调色板) 转为 ARGB8888 上传 */
+static void fd2_vga_present_impl(fd2_vga *vga) {
+    /* SDL_PumpEvents 只把宿主窗口消息送入 SDL 队列，不消费按键；后续
+     * poll_skip/menu 仍能按原语义读取事件。Windows 的长过场循环也不会
+     * 因一直不处理窗口消息而显示「未响应」。 */
+    SDL_PumpEvents();
+
+    uint32_t colors[256];
+    for (int i = 0; i < 256; i++) {
+        colors[i] = 0xff000000u |
+                    (uint32_t)vga->dac[i * 3] << 16 |
+                    (uint32_t)vga->dac[i * 3 + 1] << 8 |
+                    vga->dac[i * 3 + 2];
+    }
+
     uint8_t *pixels;
     int pitch;
     if (!SDL_LockTexture(vga->texture, NULL, (void **)&pixels, &pitch)) return;
-    for (int i = 0; i < VGA_W * VGA_H; i++) {
-        uint8_t idx = vga->framebuffer[i];
-        pixels[i*4+0] = vga->dac[idx*3+2]; /* B */
-        pixels[i*4+1] = vga->dac[idx*3+1]; /* G */
-        pixels[i*4+2] = vga->dac[idx*3];   /* R */
-        pixels[i*4+3] = 0xFF;               /* A */
+    for (int y = 0; y < VGA_H; y++) {
+        uint32_t *dst = (uint32_t *)(pixels + (size_t)y * (size_t)pitch);
+        const uint8_t *src = vga->framebuffer + (size_t)y * VGA_STRIDE;
+        for (int x = 0; x < VGA_W; x++)
+            dst[x] = colors[src[x]];
     }
     SDL_UnlockTexture(vga->texture);
     SDL_RenderTexture(vga->renderer, vga->texture, NULL, NULL);
     SDL_RenderPresent(vga->renderer);
 }
 
+static void fd2_delay_until(uint64_t deadline_ns) {
+    const uint64_t ns_per_ms = 1000000u;
+    for (;;) {
+        SDL_PumpEvents();
+        uint64_t now = SDL_GetTicksNS();
+        if (now >= deadline_ns) break;
+        uint64_t remain = deadline_ns - now;
+        if (remain > 2u * ns_per_ms) {
+            uint64_t sleep_ms = remain / ns_per_ms - 1u;
+            if (sleep_ms > 8u) sleep_ms = 8u;
+            SDL_Delay((uint32_t)sleep_ms);
+        } else {
+            SDL_DelayPrecise(remain);
+        }
+    }
+    SDL_PumpEvents();
+}
+
+void fd2_vga_present(fd2_vga *vga) {
+    /* 固定帧率动画切到普通呈现时，先让上一帧显示满其目标间隔，再重置
+     * deadline。这样最后一个步态相位不会被紧随其后的对话立即覆盖。 */
+    if (vga->frame_deadline_ns != 0 &&
+        SDL_GetTicksNS() < vga->frame_deadline_ns)
+        fd2_delay_until(vga->frame_deadline_ns);
+    fd2_vga_present_impl(vga);
+    vga->frame_deadline_ns = 0;
+    vga->frame_interval_ns = 0;
+}
+
+void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
+    if (frame_ms == 0) {
+        fd2_vga_present(vga);
+        return;
+    }
+
+    uint64_t interval = (uint64_t)frame_ms * 1000000u;
+    uint64_t now = SDL_GetTicksNS();
+    uint64_t target = vga->frame_deadline_ns;
+    int continue_schedule = target != 0 &&
+                            vga->frame_interval_ns == interval &&
+                            now <= target + interval;
+
+    /* 在呈现当前帧之前等到 deadline：下一帧的场景合成、sprite blit 和
+     * 纹理准备耗时都包含在帧预算内，而不是额外叠加在固定 delay 后。 */
+    if (target != 0 && now < target)
+        fd2_delay_until(target);
+    fd2_vga_present_impl(vga);
+
+    now = SDL_GetTicksNS();
+    if (continue_schedule)
+        vga->frame_deadline_ns = target + interval;
+    else
+        vga->frame_deadline_ns = now + interval;
+    vga->frame_interval_ns = interval;
+}
+
 void fd2_delay_ms(uint32_t ms) {
-    /* 复现 thunk_FUN_0003b765 @0x3b765: delay_ms(N)
-     * 原始: loops = (N * DAT_000041b0 + 500) / 1000, 忙等待 int 21h/ah=2Ch
-     * DAT_000041b0 运行时设置，参数语义为毫秒 */
-    SDL_Delay(ms);
+    /* 复现 thunk_FUN_0003b765 @0x3b765: delay_ms(N)。DOS 原版忙等待；
+     * SDL 版分成至多 8 ms 的片段并持续泵送事件，但不从队列取走按键。 */
+    if (ms == 0) {
+        SDL_PumpEvents();
+        return;
+    }
+    fd2_delay_until(SDL_GetTicksNS() + (uint64_t)ms * 1000000u);
 }
 
 void fd2_wait_ticks(uint32_t ticks) {
     /* 复现 FUN_000151f1 @0x151f1: wait_ticks(N)
-     * 等待 N 个 BIOS tick (18.2Hz, 1 tick ≈ 54.9ms) */
-    SDL_Delay(ticks * 55);
+     * 等待 N 个 BIOS tick (18.2Hz, 1 tick ≈ 54.9ms)。 */
+    fd2_delay_ms(ticks * 55);
 }
 
 static int g_input_flag = 0;

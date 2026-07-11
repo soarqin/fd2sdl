@@ -42,16 +42,21 @@ Ghidra 原名 -> 语义命名。确认依据见各条。
 |------|------------|---------|------|---------|
 | 0x13fce | FUN_00013fce | blit_image | blit图像到VGA(dest,stride,src,flag) | 转发到FUN_0004c0d5；标题图[7]是嵌套.DAT |
 | 0x136cc | FUN_000136cc | text_dialog_render_tokens | 渲染 FDTXT u16 token：处理换行、分页、动态嵌入、立绘控制码和 16×16 字模 | 反编译确认 -4/-5 递归嵌入动态文本，-6 绘制十进制数值，-0x13/-0x14 通过 `DAT_00003a45 + idx*0x50 + 7` 取 DATO 立绘 |
-| 0x13cf4 | FUN_00013cf4 | dialog_box_open | 从说话角色格弹出并展开 310×86 对话框 | FDOTHER[5] tile 0 先移动到 y=2 或 y=0x70，再按 4×2、8×3、12×4、16×5、19×5 五级尺寸展开 |
+| 0x13cf4 | FUN_00013cf4 | dialog_box_open | 从说话角色格弹出并展开 310×86 对话框 | FDOTHER[5] tile 0 先移动到 y=2 或 y=0x70，再按 4×2、8×3、12×4、16×5、19×5 五级尺寸展开；移动与展开步间均调用 `delay_ms(10)` |
+| 0x1428b | FUN_0001428b | dialog_box_close | 逐级恢复对话框背景，并按需将空心框移回说话角色格 | 反编译从保存的第 4 级背景倒序恢复到第 0 级，每级调用 `delay_ms(10)`；非零角色格参数触发空心框反向移动 |
 | 0x13ffe | FUN_00013ffe | dialog_box_draw_tiles | 用 FDOTHER[5] 小块拼出对话框边框与底纹 | `text_dialog_render_tokens` 立绘控制码路径调用 |
 | 0x151f1 | FUN_000151f1 | bios_tick_delay | 按 BIOS 计时器等待指定 tick | 读取物理地址 `0x046c` 的低 16 位计时器；1 tick 约 54.9 ms；文本渲染每字调用 `bios_tick_delay(1)` |
 | 0x4c347 | FUN_0004c347 | lmi_rle_blit_forward | DATO/LMI 立绘 RLE 正向展开 blit | DATO.DAT 136 个立绘条目首帧均可按 `0xc1..0xff` run 解码 |
 | 0x4c379 | FUN_0004c379 | lmi_rle_blit_reverse | DATO/LMI 立绘 RLE 反向展开 blit | 对话框另一侧立绘使用反向 blit |
 | 0x4c4c2 | FUN_0004c4c2 | font_glyph_blit_16x16 | FDOTHER[4] 16×16 字模绘制，`token * 0x20` 定位字形 | FDTXT token 渲染验证；FDOTHER[4] 共 1824 个字形 |
 | 0x1020e | FUN_0001020e | map_tile_blit_visible | 战场遮挡格重绘：从 FDFIELD cell 读取 `cell & 0x03ff`，查 FDSHAP 地形表 flags 后 blit 后一帧 | 反编译读取 `SUB_00003a51 + (y*w+x)*4`、`DAT_00003a69 + terrain_id*4`；阶段 2 FDSHAP 地形映射验证 |
+| 0x103a8 | FUN_000103a8 | field_visible_actor_find_by_text_id | 按 actor record offset `0x08` 的文本编号查找未隐藏战场角色；只匹配隐藏角色时返回 `-1` | 反编译逐条比较 offset `0x08` 并调用 `field_actor_is_hidden`；`text_dialog_render_tokens` 的 `-17/-18` 路径另从匹配记录 offset `0x07` 读取 DATO 立绘 |
+| 0x10432 | FUN_00010432 | field_focus_move_to | 将战场焦点逐格移到目标 cell；向外移动前已达到左/右 `2/11`、上/下 `2/6` 阈值时同步卷动镜头 | 反编译确认四方向循环和镜头边界判断；`dialog_box_open` 在角色弹框前自动调用，不依赖过场显式镜头指令 |
+| 0x104c3 | FUN_000104c3 | field_focus_move_to_actor | 按 actor 索引读取记录中的 x/y，并调用 `field_focus_move_to` | 反编译确认 `DAT_00003a45 + actor_idx*0x50` 的 offset `0/1` 为目标坐标；战场事件等调用点复用 |
 | 0x10580 | FUN_00010580 | map_cell_info_at | 读取战场单元格信息：terrain_id、cell flags、FDSHAP 地形表 4 字节属性 | 反编译返回 `cell & 0x03ff` 与 `DAT_00003a69[terrain_id]`；SDL 地图预览使用 |
+| 0x108cd | FUN_000108cd | field_actor_move_up_follow_camera | 角色向上移动一格；靠近视窗上缘时镜头随 6 个步态相位各上移 4 px，完成后提交格坐标 | 权威 `tools/fd2_le_code0.bin` 在 code0 `0x08cd` 的反汇编与 Ghidra `0x108cd` 交叉确认；`new_game_opening_play` 直接调用两段 15/13 格上移 |
 | 0x110e4 | FUN_000110e4 | shape_sheet_decode_cache | 将 FDSHAP 24×24 RLE 帧解码为 `frame_count * 0x240 + 6` 缓存 | 反编译读取 `*(ushort *)(DAT_00003a5d+4)` 并逐帧调用 RLE blit |
-| 0x1cca0 | FUN_0001cca0 | field_view_render_from_cache | 按 terrain_id 从 FDSHAP 解码缓存采样生成战场底图视窗 | 反编译 pointer table 使用 `DAT_00003a5d + 6 + terrain_id * 0x240` |
+| 0x1cca0 | FUN_0001cca0 | field_view_render_from_cache | 清屏后按 terrain_id 生成 VGA `(4,4)` 起的 312×192 战场内区 | 反编译先 `vga_clear(...,64000)`，再从 offset `0x504` 写 192 行、每行 312 px；四边保留 4 px 黑边 |
 | 0x0e761 | FUN_0000e761 | fdicon_cache_append_unit | 按 unit id 从 FDICON.B24 复制 12 帧到 FD2.TMP，并登记 cache class | 新游戏 stage 32/31/0 实机捕获的 FD2.TMP 压缩帧与 FDICON 对应 unit id 字节一致；调用点按 actor offset 7 逐项处理 |
 | 0x2c0a3 | FUN_0002c0a3 | fd2tmp_map_sprite_load | 将 FD2.TMP 读入 `DAT_00003a61`，作为地图角色帧缓存 | 文件大小 0x32a00 与 FD2.TMP 一致；FUN_0000b168 后续按偏移表取帧 |
 | 0x0a2e6 | FUN_0000a2e6 | map_scene_render_actors | 遍历单位表，将可见单位按 24×24 帧绘制到战场视窗缓存 | 反编译按 `DAT_00003a45 + idx*0x50` 读取 x/y/class，并用 FD2.TMP 偏移表 blit |
@@ -69,7 +74,7 @@ Ghidra 原名 -> 语义命名。确认依据见各条。
 | 0x31fdc | FUN_00031fdc | field_actor_is_hidden | 返回 actor 记录 flags(offset 0x05) bit0 | 反汇编/反编译均为 `DAT_00003a45 + actor_id*0x50 + 5` 后 `& 1`；stage 0 分支用来判断 actor 是否仍在场 |
 | 0x4b670 | FUN_0004b670 | save_xor_crypt | FD2.SAV 对称 XOR 加/解密流 | 反编译显示 `state=0x00a5`，每字节 `rol16(state+0x9014,3)` 后 XOR；解密后 slot 0 单位表字段可验证 |
 | 0x0b168 | FUN_0000b168 | map_actor_blit_24x24 | 按单位表 cache class/direction/frame 从 FD2.TMP 偏移表取 24×24 地图角色帧并 blit | 反编译使用 `(direction*3 + class*0x0c + frame)*4 + DAT_00003a61` 查偏移；移动相位 1..6 每帧偏移 4 px |
-| 0x100c5 | FUN_000100c5 | field_animation_phase_update | 按 BIOS tick 推进战场角色与地形动画 phase | `tick_delta > 4` 时推进 `DAT_00003c0b`；可见角色帧序列为 0/1/2/1，约每 275 ms 切换一次 |
+| 0x100c5 | FUN_000100c5 | field_animation_phase_update | 按 BIOS tick 推进战场角色与地形动画 phase | `tick_delta > 4` 时推进共享 `DAT_00003c0b`；`map_actor_blit_24x24` 对 offset `0x04 == 0` 的 actor 使用该值并将 phase 3 映射为 1，约每 275 ms 切换一次 |
 | 0x3473c | FUN_0003473c | anim_exec_bytecode | 字节码解释器。遍历 frame 数据，每个字节作为 opcode，经 handler 表分发 | animation_play 内调用 |
 | 0x3471b | FUN_0003471b | anim_buffer_init | 初始化动画缓冲区(size, framebuffer, palette_buf) | animation_play 内调用 |
 | 0x3459f | FUN_0003459f | afm_opcode_palette_raw | ANI.DAT opcode 1：直接复制 0x300 字节调色板 | handler 反汇编 + ANI.DAT 帧解析 |

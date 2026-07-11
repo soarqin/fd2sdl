@@ -277,7 +277,7 @@ fragment_count = first_offset / 2
 ?      变长   fragments，u16 token 流
 ```
 
-片段内容不是可直接按 Big5/GBK 解码的字节串，而是 u16 token 流。非负 token 是 FDOTHER.DAT[4] 的 16×16 字形编号，`FUN_0004c4c2 @0x4c4c2` 按 `token * 0x20` 取 32 字节位图绘制。
+片段内容不是可直接按 Big5/GBK 解码的字节串，而是 u16 token 流。非负 token 是 FDOTHER.DAT[4] 的 16×16 字形编号，`FUN_0004c4c2 @0x4c4c2` 按 `token * 0x20` 取 32 字节位图绘制。全部字形的最终 Unicode 映射见 `docs/font-glyph-map.tsv`，格式说明见 `docs/08-font-text-mapping.md`。
 
 已确认控制码：
 

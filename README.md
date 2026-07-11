@@ -45,6 +45,8 @@ python tools/dat_extract.py dump original_game/TITLE.DAT 0      # 查看条目 0
 python tools/dat_extract.py extract original_game/TITLE.DAT /tmp/out   # 解包
 ```
 
+FDTXT 自定义字形索引的最终 Unicode 映射见 `docs/font-glyph-map.tsv`，格式与控制码说明见 `docs/08-font-text-mapping.md`。
+
 ## 当前进度
 
 - [x] 阶段 0：环境搭建、.DAT 解包工具、SDL3 骨架

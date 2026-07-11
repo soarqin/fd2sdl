@@ -148,8 +148,7 @@ fd2sdl/
 
 ### 2.4 字符编码
 
-原版文本为 Big5（繁体中文）。重写在 Linux 下用 iconv 转 UTF-8 显示，
-需嵌入繁体中文字体。
+原版 `FDTXT.DAT` 不是 Big5/GBK 文本，而是指向 `FDOTHER.DAT[4]` 的自定义 `u16` 字形索引流。重写应查阅 `docs/font-glyph-map.tsv` 的 `glyph ID → Unicode` 映射，再按需要序列化为 UTF-8 或 UTF-16；不能对原始 FDTXT 字节直接调用 iconv。映射格式与控制码边界见 `docs/08-font-text-mapping.md`。
 
 ## 3. 风险与待解问题
 

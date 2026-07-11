@@ -438,7 +438,16 @@ static void init_opening_field_state(fd2_scene_field_state *state,
         if (stage == FD2_OPENING_STAGE_32 && p->x == 0 && p->y == 0)
             break;
         opening_actor_set(state, i, p->unit_id, p->x, p->y);
+        /* stage 31 的模板 offset 0x15 将 actor 0/1、2/3、4 分到
+         * group 1/3/5。new_game_opening_play @0x2fa63 依次调用
+         * func_0x0000e296(1/3/5)，不能在场景加载时一次显示五人。 */
+        if (stage == FD2_OPENING_STAGE_31 && i >= 2)
+            state->actors[i].visible = 0;
     }
+    /* func_0x0000e296 会在各时点扩展 DAT_00003beb actor count；预填的
+     * group 3/5 槽在激活前也不能参与文本编号查找。 */
+    if (stage == FD2_OPENING_STAGE_31 && state->actor_count > 2)
+        state->actor_count = 2;
 }
 
 static void opening_camera_pixels(const fd2_field_map *map,
@@ -1317,10 +1326,19 @@ static int play_stage31_opening(fd2_vga *vga,
     MOVE31(5a); TEXT31(0);
     MOVE31(5b); TEXT31(1);
     MOVE31(5c); TEXT31(2);
+    /* code0 0x1fd56：func_0x0000e296(3) 此时才加入 actor 2/3；
+     * 随后的 camera (4,41) 左移让这两人进入画面。 */
+    state->actors[2].visible = 1;
+    state->actors[3].visible = 1;
+    if (state->actor_count < 4) state->actor_count = 4;
     pan_camera_to(vga, terrain, map, sprites, state, 4, 41, fast);
     TEXT31(3);
     MOVE31(5d); TEXT31(4);
+    /* code0 0x1fdd8/0x1fde2：先隐藏 actor 2，再加入 group 5 的
+     * actor 4。两者同在 (5,44)，绝不能同时绘制。 */
     if (state->actor_count > 2) state->actors[2].visible = 0;
+    state->actors[4].visible = 1;
+    if (state->actor_count < 5) state->actor_count = 5;
     TEXT31(5);
     MOVE31(5e); TEXT31(6);
     MOVE31(5f); TEXT31(7);

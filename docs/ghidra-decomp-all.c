@@ -22050,7 +22050,7 @@ LAB_0002fa57:
 }
 
 
-// FUNC 0x2fa63 new_game_opening_play   /* 完整新游戏初始过场：stage 32→31→0；Ghidra 此次导出漏建函数体，调用序列由未 patch code0 直接反汇编确认 */
+// FUNC 0x2fa63 new_game_opening_play   /* 完整新游戏初始过场：stage 32→31→0；stage 31 依次加入 group 1/3/5，隐藏同坐标 actor 2 后才加入 actor 4；Ghidra 此次导出漏建函数体，调用序列由未 patch code0 直接反汇编确认 */
 
 
 // FUNC 0x300bd field_actor_hide   /* 将指定 actor flags 置为 1，隐藏/失效该单位 */

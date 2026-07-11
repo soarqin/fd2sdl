@@ -66,7 +66,7 @@ Ghidra 原名 -> 语义命名。确认依据见各条。
 | 0x10d25 | FUN_00010d25 | field_camera_pan_to | 将 `DAT_00003aa9/03aad` 镜头格坐标逐步平移到目标 x/y，并同步 `DAT_00003ab1/03ab5` | 反编译确认先完成 X 再完成 Y；每格调用 `FUN_0000f3f4(0)` 与 `vsync_wait` |
 | 0x10db2 | FUN_00010db2 | field_movement_script_play | 播放单位移动/朝向脚本，更新 `DAT_00003a45` actor 的 x/y、direction 与 frame_phase | 每格 6 个 4 px 相位且各等待 1 BIOS tick；`DAT_00003afb!=0/0x40` 时同步递增 DAC 暗度 |
 | 0x4c290 | FUN_0004c290 | field_movement_script_ptr | 按 script_id 从 `DAT_000027d8` 指针表取移动脚本地址 | 反汇编为 `mov 0x27d8(,%eax,4), eax` |
-| 0x2fa63 | FUN_0002fa63 | new_game_opening_play | 完整新游戏初始过场：stage 32 → 31 → 0 | 未 patch EXE 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本、隐藏 actor 与返回条件；DOSBox 全程对照 |
+| 0x2fa63 | FUN_0002fa63 | new_game_opening_play | 完整新游戏初始过场：stage 32 → 31 → 0 | 未 patch EXE 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本和 actor group 时序；stage 31 在 code0 `0x1fc9b/0x1fd56/0x1fde2` 依次加入 group 1/3/5，且 `0x1fdd8` 先隐藏同坐标的 actor 2 |
 | 0x300bd | FUN_000300bd | field_actor_hide | 将指定 actor 的 flags(offset 0x05) 置为 1，用于隐藏/失效单位 | 反编译单点写 `DAT_00003a45 + idx*0x50 + 5` |
 | 0x300e1 | FUN_000300e1 | field_actor_group_arrival_effect | 加入一组关卡 actor，并用 FDOTHER[9] 的 12 帧 LMI1 动画播放登场特效 | 新游戏 stage 0 两次调用参数 1/2；反编译按新增 actor 范围逐帧叠加同一资源 |
 | 0x31c3a | FUN_00031c3a | field_actor_range_status_set | 设置 actor 区间内 offset 0x34 字段低 4 位状态 | 反编译按 actor 索引范围循环写 `record[0x34] = record[0x34] & 0xf0 | state` |

@@ -252,10 +252,12 @@ base_frame  = frames[terrain_id]
 | 段落 | FDFIELD stage | FDTXT entry / fragment | 主要动作 |
 |------|---------------|------------------------|----------|
 | 王宫与郊外 | 32 | `[33]` fragment `0..5` | 镜头 `(3,34)`，脚本 `0x63..0x69`，中途卷动到 `(0,43)` |
-| 遇袭与同行 | 31 | `[32]` fragment `0..9` | 镜头 `(5,42)` / `(4,41)`，脚本 `0x5a..0x62`，隐藏 actor 2 |
+| 遇袭与同行 | 31 | `[32]` fragment `0..9` | 镜头 `(5,42)` / `(4,41)`，脚本 `0x5a..0x62`，依次加入 actor group 1/3/5，并隐藏 actor 2 |
 | 第一关战前 | 0 | `[1]` fragment `0..2` | 镜头 `(4,12)` / `(0,0)` / `(0,15)`，脚本 `0,1,2,5`，两组 actor 登场特效 |
 
 stage 32 网格为 `18×51`，`shape_index=32`；`(0,43)` 只是郊外段镜头，不是整个开场的固定视窗。stage 31 为 `20×50`，stage 0 为 `24×24`。先前将 stage 32 与 `FDTXT[1] fragment 0` 混合播放属于错误实现。
+
+stage 31 的前五个单位模板在 offset `0x15` 分属 group `1,1,3,3,5`。`new_game_opening_play` 在 code0 `0x1fc9b` 先调用 `func_0x0000e296(1)`，初始镜头 `(5,42)` 只显示 actor 0/1；fragment 2 后在 `0x1fd56` 加入 group 3 的 actor 2/3，再将镜头卷到 `(4,41)`。actor 2（unit 75）与 group 5 的 actor 4（unit 9）共用 placement `(5,44)`；code0 `0x1fdd8` 先调用 `field_actor_hide(2)`，`0x1fde2` 才调用 `func_0x0000e296(5)`，因此两者不会同时绘制。一次性加载前五名 actor 会造成初始画面提前出现左侧两人，并让倒地与站立 sprite 重叠。
 
 `field_view_render_from_cache @0x1cca0` 先清空 320×200 缓冲区，再只写 VGA `(4,4)` 起的 312×192 战场内区，因此四边固定保留 4 px 的调色板 index 0 黑边。SDL 镜头必须按 13×8 格内区钳制，并将镜头左上格放在 `(4,4)`；不能为消除黑边而向上、向左额外采样相邻地图格。
 

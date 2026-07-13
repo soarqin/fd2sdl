@@ -1,6 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场音效 cue 到原版 sample bank 的映射
  *
- * 逆向依据：sfx_play @0x4acaa、field_actor_group_flash @0x414ee、
+ * 逆向依据：sfx_play @0x4acaa、field_command_menu_open @0x3c630、
+ * field_command_menu_close @0x3c8c8、field_actor_group_flash @0x414ee、
  * field_earthquake_effect @0x4673b、field_stage_transition_effect @0x4982c。
  */
 
@@ -20,6 +21,10 @@ int fd2_field_sfx_resolve(fd2_field_sfx cue,
         case FD2_FIELD_SFX_DETAIL_CLOSE:
             *bank = FD2_FIELD_SFX_BANK_UI;
             *sample_index = 6;
+            return 0;
+        case FD2_FIELD_SFX_COMMAND_MENU:
+            *bank = FD2_FIELD_SFX_BANK_UI;
+            *sample_index = 8;
             return 0;
         case FD2_FIELD_SFX_ACTOR_GROUP_FLASH:
             *bank = FD2_FIELD_SFX_BANK_BATTLE;

@@ -9,6 +9,7 @@
 #include "field_effect.h"
 #include "field_event.h"
 #include "field_combat.h"
+#include "field_command.h"
 #include "field_handoff.h"
 #include "field_info.h"
 #include "field_path.h"
@@ -83,6 +84,7 @@ typedef struct {
     fd2_map_sprite_bank sprites;
     fd2_field_visuals visuals;
     fd2_field_info_assets info_assets;
+    fd2_field_command_assets command_assets;
     fd2_font font;
     fd2_text_entry ui_text;
     fd2_field_units units;
@@ -97,6 +99,16 @@ typedef struct {
     int detail_visible;
     int detail_acknowledged_unit;
     fd2_image detail_portrait;
+
+    /* field_player_command_execute @0x3dfa0 的四向图形菜单旁路状态；
+     * 0..3 固定为 attack/magic/item/wait。法术和道具尚未实现，因此
+     * 当前 SDL session 将对应项保持禁用。 */
+    int command_selected;
+    uint8_t command_disabled[FD2_FIELD_COMMAND_COUNT];
+    uint8_t command_highlight_phase;
+    uint8_t command_animation_phase;
+    uint8_t command_animation_opening;
+    uint64_t last_command_highlight_ms;
 
     /* M6 无演出攻击的 SDL 旁路状态；不改变原版 0x50 字节记录布局。 */
     int attack_target;
@@ -182,9 +194,21 @@ int fd2_field_game_set_attack_hooks(
     fd2_field_combat_rng_fn rng, void *rng_userdata);
 int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
                                           size_t target_index);
+int fd2_field_game_attack_is_available(const fd2_field_game *game);
 int fd2_field_game_begin_attack(fd2_field_game *game);
 int fd2_field_game_resolve_attack(fd2_field_game *game);
 int fd2_field_game_cancel_attack(fd2_field_game *game);
+
+/* field_command_menu_input @0x3ca10：四方向直接选择固定图标，禁用项
+ * 不移动选择；确认只分派已接入的普通攻击和待机，返回操作复用移动
+ * 快照回退，不消费 RNG。 */
+int fd2_field_game_refresh_commands(fd2_field_game *game);
+int fd2_field_game_select_command_direction(
+    fd2_field_game *game, fd2_field_command_direction direction);
+int fd2_field_game_confirm_command(fd2_field_game *game);
+int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
+                                   int opening, uint32_t frame_delay_ms);
+
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index);
 void fd2_field_game_close_detail(fd2_field_game *game);
 typedef void (*fd2_field_detail_phase_fn)(void *userdata,

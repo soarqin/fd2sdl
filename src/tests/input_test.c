@@ -63,6 +63,39 @@ static int test_context_mappings(void) {
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
                                    FD2_INPUT_KEY_ESCAPE) ==
           FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
+
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_UP) == FD2_INPUT_ACTION_UP);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_LEFT) == FD2_INPUT_ACTION_LEFT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_SPACE) ==
+          FD2_INPUT_ACTION_CONFIRM);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_CANCEL) ==
+          FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_ESCAPE) ==
+          FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_HOME) ==
+          FD2_INPUT_ACTION_NONE);
+
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_RIGHT) ==
+          FD2_INPUT_ACTION_RIGHT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_ENTER) ==
+          FD2_INPUT_ACTION_CONFIRM);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_CANCEL) ==
+          FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_ESCAPE) ==
+          FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_F2) ==
+          FD2_INPUT_ACTION_NONE);
     return 0;
 }
 

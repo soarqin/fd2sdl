@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 正式战场循环入口
  *
- * 当前阶段完成 session 生命周期、开场状态交接、键盘光标，以及移动
- * 范围、路径预览、六相位执行和取消回退；回合动作继续在同一循环加入。
+ * 当前阶段完成 session 生命周期、开场状态交接、键盘光标、移动、
+ * 四向图形指令菜单、无演出攻击和取消回退。
  */
 
 #include "field_play.h"
@@ -12,11 +12,17 @@
 
 #include <SDL3/SDL.h>
 
+#include "field_ai.h"
 #include "field_attack.h"
 #include "field_game.h"
 #include "field_rng.h"
 #include "input.h"
 #include "scene.h"
+
+/* 菜单机器码每相位执行一次 field buffer 合成，但没有 BIOS tick delay。
+ * SDL 以一个约 60 Hz 宿主帧分隔四个 present，避免连续上传被合并；
+ * 该值不登记为原版 DOS 时序。 */
+#define FD2_FIELD_COMMAND_FRAME_MS 16
 
 static void detail_phase_sfx(void *userdata, int opening, int phase) {
     fd2_field_audio *audio = userdata;
@@ -266,6 +272,11 @@ static int validate_move_interaction(fd2_field_game *game, fd2_vga *vga) {
         game->interaction != FD2_FIELD_INTERACTION_MOVING ||
         fd2_field_game_execute_move(game, vga, 0) != 0 ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        !game->command_assets.ready ||
+        game->command_selected < 0 ||
+        !game->command_disabled[FD2_FIELD_COMMAND_MAGIC] ||
+        !game->command_disabled[FD2_FIELD_COMMAND_ITEM] ||
+        game->command_disabled[FD2_FIELD_COMMAND_WAIT] ||
         game->units.items[0].x != target_x ||
         game->units.items[0].y != target_y ||
         game->camera_cell_x != expected_camera_x ||
@@ -890,7 +901,7 @@ int fd2_field_play_run(fd2_vga *vga,
            game.turn_number, game.active_side,
            handoff ? "yes" : "no",
            once ? ", cursor-check=ok, info-check=ok, detail-check=ok, move-check=ok, "
-                  "move-exec-check=ok, attack-check=ok, turn-check=ok, event-check=ok, effect-check=ok, fast"
+                  "ai-query-check=ok, move-exec-check=ok, command-check=ok, attack-check=ok, turn-check=ok, event-check=ok, effect-check=ok, fast"
                 : "");
 
     size_t reported_event_count = 0;
@@ -922,8 +933,14 @@ int fd2_field_play_run(fd2_vga *vga,
         if (fd2_input_take_quit(&vga->input)) running = 0;
         fd2_input_action input_action;
         while (running &&
-               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_FIELD,
-                                     &input_action)) {
+               fd2_input_take_action(
+                   &vga->input,
+                   game.interaction == FD2_FIELD_INTERACTION_COMMAND
+                       ? FD2_INPUT_CONTEXT_FIELD_COMMAND
+                       : game.interaction == FD2_FIELD_INTERACTION_TARGETING
+                           ? FD2_INPUT_CONTEXT_FIELD_TARGETING
+                           : FD2_INPUT_CONTEXT_FIELD,
+                   &input_action)) {
             fd2_field_action action = field_action_from_input(input_action);
             if (game.detail_visible) {
                 if (action == FD2_FIELD_ACTION_CONFIRM ||
@@ -941,7 +958,22 @@ int fd2_field_play_run(fd2_vga *vga,
                     running = 0;
                     break;
                 case FD2_FIELD_ACTION_CANCEL:
-                    fd2_field_game_cancel_selection(&game);
+                    if (game.interaction == FD2_FIELD_INTERACTION_COMMAND) {
+                        (void)fd2_field_audio_play(
+                            field_audio, FD2_FIELD_SFX_COMMAND_MENU);
+                        (void)fd2_field_game_animate_command(
+                            &game, vga, 0, FD2_FIELD_COMMAND_FRAME_MS);
+                        (void)fd2_field_game_cancel_selection(&game);
+                    } else if (game.interaction ==
+                                   FD2_FIELD_INTERACTION_TARGETING &&
+                               fd2_field_game_cancel_attack(&game)) {
+                        /* field_player_command_execute_core @0x3dfaa：
+                         * target selector 返回 -1 后重新进入菜单循环。 */
+                        (void)fd2_field_audio_play(
+                            field_audio, FD2_FIELD_SFX_COMMAND_MENU);
+                        (void)fd2_field_game_animate_command(
+                            &game, vga, 1, FD2_FIELD_COMMAND_FRAME_MS);
+                    }
                     break;
                 case FD2_FIELD_ACTION_DETAIL: {
                     int unit_at = fd2_field_game_unit_at(
@@ -971,12 +1003,26 @@ int fd2_field_play_run(fd2_vga *vga,
                         break;
                     }
                     game.detail_acknowledged_unit = -1;
+                    fd2_field_interaction previous_interaction =
+                        game.interaction;
+                    if (previous_interaction ==
+                            FD2_FIELD_INTERACTION_COMMAND) {
+                        (void)fd2_field_audio_play(
+                            field_audio, FD2_FIELD_SFX_COMMAND_MENU);
+                        (void)fd2_field_game_animate_command(
+                            &game, vga, 0, FD2_FIELD_COMMAND_FRAME_MS);
+                    }
                     int unit_index = fd2_field_game_confirm_cursor(&game);
-                    if (game.interaction == FD2_FIELD_INTERACTION_MOVING &&
-                        fd2_field_game_execute_move(&game, vga, 55) != 0) {
-                        fprintf(stderr, "field move execution failed\n");
-                        running = 0;
-                        break;
+                    if (game.interaction == FD2_FIELD_INTERACTION_MOVING) {
+                        if (fd2_field_game_execute_move(&game, vga, 55) != 0) {
+                            fprintf(stderr, "field move execution failed\n");
+                            running = 0;
+                            break;
+                        }
+                        (void)fd2_field_audio_play(
+                            field_audio, FD2_FIELD_SFX_COMMAND_MENU);
+                        (void)fd2_field_game_animate_command(
+                            &game, vga, 1, FD2_FIELD_COMMAND_FRAME_MS);
                     }
                     if (game.last_attack_valid) {
                         printf("field attack: target=%d hit=%u critical=%u damage=%u hp=%u\n",
@@ -1002,16 +1048,32 @@ int fd2_field_play_run(fd2_vga *vga,
                     break;
                 }
                 case FD2_FIELD_ACTION_LEFT:
-                    fd2_field_game_move_cursor(&game, -1, 0);
+                    if (game.interaction == FD2_FIELD_INTERACTION_COMMAND)
+                        (void)fd2_field_game_select_command_direction(
+                            &game, FD2_FIELD_COMMAND_DIRECTION_LEFT);
+                    else
+                        fd2_field_game_move_cursor(&game, -1, 0);
                     break;
                 case FD2_FIELD_ACTION_RIGHT:
-                    fd2_field_game_move_cursor(&game, 1, 0);
+                    if (game.interaction == FD2_FIELD_INTERACTION_COMMAND)
+                        (void)fd2_field_game_select_command_direction(
+                            &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT);
+                    else
+                        fd2_field_game_move_cursor(&game, 1, 0);
                     break;
                 case FD2_FIELD_ACTION_UP:
-                    fd2_field_game_move_cursor(&game, 0, -1);
+                    if (game.interaction == FD2_FIELD_INTERACTION_COMMAND)
+                        (void)fd2_field_game_select_command_direction(
+                            &game, FD2_FIELD_COMMAND_DIRECTION_UP);
+                    else
+                        fd2_field_game_move_cursor(&game, 0, -1);
                     break;
                 case FD2_FIELD_ACTION_DOWN:
-                    fd2_field_game_move_cursor(&game, 0, 1);
+                    if (game.interaction == FD2_FIELD_INTERACTION_COMMAND)
+                        (void)fd2_field_game_select_command_direction(
+                            &game, FD2_FIELD_COMMAND_DIRECTION_DOWN);
+                    else
+                        fd2_field_game_move_cursor(&game, 0, 1);
                     break;
                 case FD2_FIELD_ACTION_NONE:
                     break;

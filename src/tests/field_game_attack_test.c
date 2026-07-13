@@ -147,11 +147,23 @@ static int test_illegal_and_cancel(void) {
         expect(rng.cursor == 0, "illegal target consumes no RNG") ||
         expect(game.units.items[1].hp == 10, "illegal target preserves HP") ||
         expect(!fd2_field_unit_has_acted(&game.units.items[0]),
-               "illegal target preserves acted bit") ||
-        expect(fd2_field_game_cancel_attack(&game) == 1,
+               "illegal target preserves acted bit"))
+        return -1;
+
+    game.cursor_cell_x = 0;
+    game.cursor_cell_y = 0;
+    if (expect(fd2_field_game_cancel_attack(&game) == 1,
                "targeting cancel succeeds") ||
+        expect(game.cursor_cell_x == game.units.items[0].x &&
+               game.cursor_cell_y == game.units.items[0].y,
+               "targeting cancel restores attacker focus") ||
         expect(game.interaction == FD2_FIELD_INTERACTION_COMMAND,
-               "cancel returns to command"))
+               "cancel returns to command") ||
+        expect(game.command_selected == FD2_FIELD_COMMAND_ATTACK &&
+               !game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
+               "targeting cancel rebuilds the command menu") ||
+        expect(rng.cursor == 0,
+               "targeting cancel and menu rebuild consume no RNG"))
         return -1;
     return 0;
 }
@@ -438,6 +450,67 @@ static int test_adjacent_counterattack(void) {
     return 0;
 }
 
+static int test_command_menu_model(void) {
+    static const uint32_t rolls[] = {0};
+    test_rng rng = {rolls, 1, 0};
+    fd2_field_game game;
+    init_game(&game);
+    if (configure(&game, &rng) != 0 ||
+        fd2_field_game_refresh_commands(&game) != 0)
+        return -1;
+    if (expect(game.command_selected == FD2_FIELD_COMMAND_ATTACK,
+               "attack is the first enabled command") ||
+        expect(!game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
+               "attack enabled with legal target") ||
+        expect(game.command_disabled[FD2_FIELD_COMMAND_MAGIC] &&
+               game.command_disabled[FD2_FIELD_COMMAND_ITEM],
+               "unimplemented magic and item remain disabled") ||
+        expect(!game.command_disabled[FD2_FIELD_COMMAND_WAIT],
+               "wait remains enabled") ||
+        expect(fd2_field_game_select_command_direction(
+                   &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0 &&
+               game.command_selected == FD2_FIELD_COMMAND_ATTACK,
+               "disabled magic direction preserves selection") ||
+        expect(fd2_field_game_select_command_direction(
+                   &game, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1 &&
+               game.command_selected == FD2_FIELD_COMMAND_WAIT,
+               "down selects wait") ||
+        expect(fd2_field_game_confirm_command(&game) == 0,
+               "wait command resolves") ||
+        expect(fd2_field_unit_has_acted(&game.units.items[0]) &&
+               game.interaction == FD2_FIELD_INTERACTION_BROWSE,
+               "wait completes the selected unit action") ||
+        expect(rng.cursor == 0, "menu and wait consume no RNG"))
+        return -1;
+
+    init_game(&game);
+    rng.cursor = 0;
+    if (configure(&game, &rng) != 0) return -1;
+    game.units.items[1].x = 0;
+    game.units.items[1].y = 0;
+    if (fd2_field_game_refresh_commands(&game) != 0 ||
+        expect(game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
+               "attack disabled without a legal target") ||
+        expect(game.command_selected == FD2_FIELD_COMMAND_WAIT,
+               "wait selected when attack is unavailable") ||
+        expect(fd2_field_game_select_command_direction(
+                   &game, FD2_FIELD_COMMAND_DIRECTION_UP) == 0 &&
+               game.command_selected == FD2_FIELD_COMMAND_WAIT,
+               "disabled attack direction preserves wait"))
+        return -1;
+
+    init_game(&game);
+    rng.cursor = 0;
+    if (configure(&game, &rng) != 0 ||
+        fd2_field_game_refresh_commands(&game) != 0 ||
+        fd2_field_game_confirm_command(&game) != 0 ||
+        expect(game.interaction == FD2_FIELD_INTERACTION_TARGETING,
+               "attack command enters targeting") ||
+        expect(rng.cursor == 0, "attack command preflight consumes no RNG"))
+        return -1;
+    return 0;
+}
+
 static int test_miss_completes_action(void) {
     static const uint32_t rolls[] = {50, 99};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
@@ -476,6 +549,7 @@ int main(void) {
                    test_double_strike_sequence() ||
                    test_lethal_first_strike_stops_exchange() ||
                    test_adjacent_counterattack() ||
+                   test_command_menu_model() ||
                    test_miss_completes_action()
                ? 1
                : 0;

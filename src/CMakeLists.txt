@@ -101,6 +101,7 @@ set(FD2SDL_CORE_SOURCES
     audio_pcm.c
     field_audio.c
     field_effect.c
+    field_command.c
     archive.c
     image.c
     shape.c
@@ -203,6 +204,24 @@ if(BUILD_TESTING)
         target_compile_options(fd2_field_effect_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME field_effect COMMAND fd2_field_effect_test)
+
+    add_executable(fd2_field_command_test
+        tests/field_command_test.c
+        field_command.c
+        map_sprite.c
+        image.c
+        archive.c
+    )
+    target_include_directories(fd2_field_command_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_command_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_command_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_command COMMAND fd2_field_command_test)
 
     add_executable(fd2_field_path_test
         tests/field_path_test.c

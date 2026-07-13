@@ -26,6 +26,9 @@
 #define FD2_FIELD_BIOS_TICK_MS 55
 #define FD2_FIELD_IDLE_MS 275
 #define FD2_FIELD_RANGE_VISUAL_MS 165 /* 3 个约 55 ms 的 BIOS tick */
+/* field_command_menu_wait_key @0x3caac 每超过 3 个 BIOS tick 切换一次
+ * normal/highlight 帧，即约 4×55 ms。 */
+#define FD2_FIELD_COMMAND_HIGHLIGHT_MS 220
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
 
 static int finish_unit_action_internal(fd2_field_game *game,
@@ -430,6 +433,7 @@ int fd2_field_game_open(fd2_field_game *game,
     if (!game || !vga || !fdother) return -1;
     memset(game, 0, sizeof(*game));
     game->selected_unit = -1;
+    game->command_selected = -1;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
 
@@ -460,7 +464,8 @@ int fd2_field_game_open(fd2_field_game *game,
         fd2_map_sprite_bank_open(&game->sprites,
                                  "original_game/FDICON.B24") != 0 ||
         fd2_field_visuals_open(&game->visuals, fdother) != 0 ||
-        fd2_field_info_assets_open(&game->info_assets, fdother) != 0)
+        fd2_field_info_assets_open(&game->info_assets, fdother) != 0 ||
+        fd2_field_command_assets_open(&game->command_assets, fdother) != 0)
         goto fail;
 
     if (load_stage0_units(&game->units, &game->metadata,
@@ -487,6 +492,7 @@ int fd2_field_game_open(fd2_field_game *game,
     game->selected_unit = -1;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
+    game->command_selected = -1;
     game->attack_target = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     game->ready = 1;
@@ -535,7 +541,9 @@ int fd2_field_game_apply_handoff(fd2_field_game *game,
     game->last_idle_ms = 0;
     game->last_terrain_visual_ms = 0;
     game->last_range_visual_ms = 0;
+    game->last_command_highlight_ms = 0;
     game->selected_unit = -1;
+    game->command_selected = -1;
     game->attack_target = -1;
     game->last_attack_valid = 0;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
@@ -547,6 +555,7 @@ void fd2_field_game_close(fd2_field_game *game) {
     fd2_field_path_close(&game->move_range);
     free(game->move_path);
     fd2_image_free(&game->detail_portrait);
+    fd2_field_command_assets_close(&game->command_assets);
     fd2_field_info_assets_close(&game->info_assets);
     fd2_field_visuals_close(&game->visuals);
     fd2_map_sprite_bank_close(&game->sprites);
@@ -561,6 +570,7 @@ void fd2_field_game_close(fd2_field_game *game) {
     fd2_archive_close(&game->field_archive);
     memset(game, 0, sizeof(*game));
     game->selected_unit = -1;
+    game->command_selected = -1;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
 }
@@ -595,6 +605,19 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
             game->last_range_visual_ms += FD2_FIELD_RANGE_VISUAL_MS;
         }
     }
+    if (game->interaction != FD2_FIELD_INTERACTION_COMMAND) {
+        game->command_highlight_phase = 0;
+        game->last_command_highlight_ms = 0;
+    } else if (game->last_command_highlight_ms == 0) {
+        game->last_command_highlight_ms = now_ms;
+    } else {
+        while (now_ms - game->last_command_highlight_ms >=
+               FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
+            game->command_highlight_phase ^= 1u;
+            game->last_command_highlight_ms +=
+                FD2_FIELD_COMMAND_HIGHLIGHT_MS;
+        }
+    }
 
     /* 敌方 AI 尚未接入。M5 骨架按 actor 顺序执行确定性待机，使
      * side 1/0 阶段、事件检查和回合切换可独立验证。 */
@@ -622,6 +645,9 @@ static void render_move_selection_overlay(const fd2_field_game *game,
                                           fd2_vga *vga,
                                           int camera_x, int camera_y);
 static void render_field_info(fd2_field_game *game, fd2_vga *vga);
+static void render_field_command(const fd2_field_game *game,
+                                 fd2_vga *vga,
+                                 int camera_x, int camera_y);
 
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
@@ -646,6 +672,7 @@ void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     render_move_selection_overlay(game, vga, camera_x, camera_y);
     clear_view_border(vga);
     render_field_info(game, vga);
+    render_field_command(game, vga, camera_x, camera_y);
     if (game->detail_visible && game->detail_unit >= 0 &&
         (size_t)game->detail_unit < game->units.count) {
         fd2_field_detail_draw(vga, &game->info_assets, &game->font,
@@ -715,6 +742,25 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
     fd2_field_info_draw(vga, &game->info_assets,
                         game->info_panel_right, terrain_image, unit_image,
                         hp, hp_max, attack, defense);
+}
+
+static void render_field_command(const fd2_field_game *game,
+                                 fd2_vga *vga,
+                                 int camera_x, int camera_y) {
+    if (!game || !vga || game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count)
+        return;
+    const fd2_field_unit *unit = &game->units.items[game->selected_unit];
+    /* field_command_menu_open @0x3c63a 的最终四向偏移以单位格左上角
+     * 为基准；图标在信息面板之后绘制。 */
+    fd2_field_command_draw_animation(
+        vga, &game->command_assets,
+        (int)unit->x * 24 - camera_x,
+        (int)unit->y * 24 - camera_y,
+        game->command_selected, game->command_disabled,
+        game->command_highlight_phase, game->command_animation_opening,
+        game->command_animation_phase);
 }
 
 static void render_move_selection(const fd2_field_game *game,
@@ -931,19 +977,8 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
 
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
         int unit_index = game->selected_unit;
-        int target_index = fd2_field_game_unit_at(game, game->cursor_cell_x,
-                                                   game->cursor_cell_y);
-        /* M6 临时直选流程：光标停在其他单位时先进入 TARGETING；光标仍在
-         * 攻击者或空格时保持既有最小待机。原版指令菜单尚待独立逆向。 */
-        if (target_index >= 0 && target_index != unit_index) {
-            if (!fd2_field_game_attack_target_is_legal(
-                    game, (size_t)target_index) ||
-                fd2_field_game_begin_attack(game) != 0)
-                return -1;
-            return unit_index;
-        }
-        if (fd2_field_game_finish_unit_action(game) != 0) return -1;
-        return unit_index;
+        return fd2_field_game_confirm_command(game) == 0
+            ? unit_index : -1;
     }
 
     if (game->interaction == FD2_FIELD_INTERACTION_TARGETING) {
@@ -998,25 +1033,108 @@ int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
         (size_t)game->selected_unit, target_index);
 }
 
-int fd2_field_game_begin_attack(fd2_field_game *game) {
+int fd2_field_game_attack_is_available(const fd2_field_game *game) {
     if (!game || !game->ready || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
-        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
         !game->attack_rng)
-        return -1;
-    fd2_field_unit *attacker =
+        return 0;
+    const fd2_field_unit *attacker =
         &game->units.items[game->selected_unit];
     uint8_t min_range = 0;
     uint8_t max_range = 0;
     if (!unit_can_act_for_side(attacker, game->active_side) ||
         fd2_field_unit_has_acted(attacker) ||
         fd2_field_attack_weapon_range(attacker, &min_range, &max_range) != 0)
+        return 0;
+    for (size_t i = 0; i < game->units.count; i++)
+        if (fd2_field_game_attack_target_is_legal(game, i)) return 1;
+    return 0;
+}
+
+int fd2_field_game_refresh_commands(fd2_field_game *game) {
+    if (!game || !game->ready || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND)
+        return -1;
+
+    /* field_player_command_execute_core @0x3dfaa 的原版顺序固定为
+     * attack/magic/item/wait。field_unit_inventory_count @0x40aba 控制
+     * item 可用性；field_unit_magic_list_build @0x4147d 与 record +0x27
+     * 控制 magic 可用性。其执行入口分别为
+     * field_player_item_command_execute @0x40df0 与
+     * field_player_magic_command_execute @0x42204。当前 SDL 状态机尚未
+     * 实现这两类动作，因此对应图标保持禁用。 */
+    game->command_disabled[FD2_FIELD_COMMAND_ATTACK] =
+        fd2_field_game_attack_is_available(game) ? 0u : 1u;
+    game->command_disabled[FD2_FIELD_COMMAND_MAGIC] = 1u;
+    game->command_disabled[FD2_FIELD_COMMAND_ITEM] = 1u;
+    game->command_disabled[FD2_FIELD_COMMAND_WAIT] = 0u;
+    game->command_selected = fd2_field_command_first_enabled(
+        game->command_disabled);
+    game->command_highlight_phase = 0;
+    game->command_animation_phase = 4u;
+    game->command_animation_opening = 1u;
+    game->last_command_highlight_ms = 0;
+    return game->command_selected >= 0 ? 0 : -1;
+}
+
+int fd2_field_game_select_command_direction(
+        fd2_field_game *game, fd2_field_command_direction direction) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND)
+        return -1;
+    int previous = game->command_selected;
+    game->command_selected = fd2_field_command_select_direction(
+        previous, direction, game->command_disabled);
+    return game->command_selected != previous;
+}
+
+int fd2_field_game_confirm_command(fd2_field_game *game) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        game->command_selected < 0 ||
+        game->command_selected >= (int)FD2_FIELD_COMMAND_COUNT ||
+        game->command_disabled[game->command_selected])
+        return -1;
+    switch ((fd2_field_command)game->command_selected) {
+        case FD2_FIELD_COMMAND_ATTACK:
+            return fd2_field_game_begin_attack(game);
+        case FD2_FIELD_COMMAND_WAIT:
+            return fd2_field_game_finish_unit_action(game);
+        case FD2_FIELD_COMMAND_MAGIC:
+        case FD2_FIELD_COMMAND_ITEM:
+            return -1;
+    }
+    return -1;
+}
+
+int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
+                                   int opening, uint32_t frame_delay_ms) {
+    if (!game || !game->ready || !vga ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        !game->command_assets.ready)
+        return -1;
+    game->command_animation_opening = opening ? 1u : 0u;
+    for (uint8_t phase = 1; phase <= 4u; phase++) {
+        game->command_animation_phase = phase;
+        fd2_field_game_render(game, vga);
+        fd2_vga_present_timed(vga, frame_delay_ms);
+    }
+    game->command_animation_opening = 1u;
+    game->command_animation_phase = 4u;
+    return 0;
+}
+
+int fd2_field_game_begin_attack(fd2_field_game *game) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        !fd2_field_game_attack_is_available(game))
         return -1;
 
     /* field_player_command_execute @0x3dfa0 的普通攻击分支先按首件已装备
-     * 武器构造范围，再进入目标选择。测试可注入 target_allowed 覆盖范围；
-     * side 2 → side 0 等不变量仍由 session 检查。正式 session 默认使用
-     * field_target_range_build @0x39a2c 的规则。 */
+     * 武器构造范围，并且仅在存在合法目标时进入目标选择。测试可注入
+     * target_allowed 覆盖范围；side 2 → side 0 等不变量仍由 session
+     * 强制检查。 */
     game->attack_target = -1;
     game->last_attack_valid = 0;
     game->last_attack_strikes = 0;
@@ -1027,11 +1145,26 @@ int fd2_field_game_begin_attack(fd2_field_game *game) {
 }
 
 int fd2_field_game_cancel_attack(fd2_field_game *game) {
-    if (!game || !game->ready ||
+    if (!game || !game->ready || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_TARGETING)
         return 0;
+    /* field_player_command_execute_core @0x3dfaa 在目标选择返回 -1 后，
+     * 调用 field_focus_move_to @0x37efe 恢复攻击前焦点，再返回 0 让
+     * 上层重开指令菜单。沿用同一 X 后 Y 顺序以同步恢复镜头。 */
+    const fd2_field_unit *attacker =
+        &game->units.items[game->selected_unit];
+    while (game->cursor_cell_x != attacker->x) {
+        int dx = game->cursor_cell_x < attacker->x ? 1 : -1;
+        if (!fd2_field_game_move_cursor(game, dx, 0)) break;
+    }
+    while (game->cursor_cell_y != attacker->y) {
+        int dy = game->cursor_cell_y < attacker->y ? 1 : -1;
+        if (!fd2_field_game_move_cursor(game, 0, dy)) break;
+    }
     game->attack_target = -1;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    (void)fd2_field_game_refresh_commands(game);
     return 1;
 }
 
@@ -1294,8 +1427,11 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
 
     fd2_field_unit *unit = &game->units.items[game->selected_unit];
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
-        /* 正式指令菜单尚未接入；此状态中的取消复现原版移动后回退：
-         * 恢复确认移动前的唯一坐标记录，再重新显示原范围。 */
+        /* field_player_command_execute @0x3dfa0 返回 -1 后，调用者恢复
+         * 确认移动前的唯一坐标记录，再重新显示原移动范围。 */
+        game->command_selected = -1;
+        game->command_highlight_phase = 0;
+        game->last_command_highlight_ms = 0;
         unit->x = (uint8_t)game->move_origin_x;
         unit->y = (uint8_t)game->move_origin_y;
         unit->direction = game->move_origin_direction;
@@ -1398,7 +1534,7 @@ int fd2_field_game_execute_move(fd2_field_game *game,
     }
 
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
-    return 0;
+    return fd2_field_game_refresh_commands(game);
 }
 
 static int finish_unit_action_internal(fd2_field_game *game,
@@ -1417,6 +1553,7 @@ static int finish_unit_action_internal(fd2_field_game *game,
     fd2_field_unit_set_acted(unit, 1);
     clear_move_query(game);
     game->selected_unit = -1;
+    game->command_selected = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     if (fd2_field_game_remaining_units(game, game->active_side) == 0)
         advance_phase(game);

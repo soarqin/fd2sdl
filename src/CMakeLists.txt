@@ -112,6 +112,7 @@ set(FD2SDL_CORE_SOURCES
     field_move.c
     field_move_profile.c
     field_attack.c
+    field_ai.c
     field_combat.c
     field_rng.c
     field_item.c
@@ -294,6 +295,22 @@ if(BUILD_TESTING)
         -Wall -Wextra -Wpedantic
     )
     add_test(NAME field_combat COMMAND fd2_field_combat_test)
+
+    add_executable(fd2_field_ai_test
+        tests/field_ai_test.c
+        field_ai.c
+        field_path.c
+    )
+    target_include_directories(fd2_field_ai_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_ai_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_ai_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_ai COMMAND fd2_field_ai_test)
 
     add_executable(fd2_field_attack_test
         tests/field_attack_test.c

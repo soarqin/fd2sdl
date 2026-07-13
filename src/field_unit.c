@@ -35,6 +35,12 @@ _Static_assert(offsetof(fd2_field_unit, level) == 0x21,
                "unit.level offset");
 _Static_assert(offsetof(fd2_field_unit, detail_status) == 0x25,
                "unit.detail_status offset");
+_Static_assert(offsetof(fd2_field_unit, ai_behavior_raw) == 0x34,
+               "unit.ai_behavior_raw offset");
+_Static_assert(offsetof(fd2_field_unit, ai_param_35) == 0x35,
+               "unit.ai_param_35 offset");
+_Static_assert(offsetof(fd2_field_unit, ai_param_36) == 0x36,
+               "unit.ai_param_36 offset");
 _Static_assert(offsetof(fd2_field_unit, base_attack_le) == 0x37,
                "unit.base_attack offset");
 _Static_assert(offsetof(fd2_field_unit, movement_points) == 0x3b,

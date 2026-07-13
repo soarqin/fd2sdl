@@ -16,6 +16,8 @@
  * 隐藏标志及文本编号。FDFIELD stage metadata 的 26 字节模板与
  * placement 已确认按 unit ID 和出现次序匹配；原版 stage constructor
  * 将 26 字节模板重排为身份、装备和 AI 字段，再按等级派生基础属性。
+ * field_ai_unit_execute @0x38cb3 进一步确认 record +0x34 低半字节为
+ * behavior selector，并在入口读取 +0x35/+0x36 作为模式参数。
  */
 #define FD2_FIELD_UNIT_RECORD_SIZE 0x50
 #define FD2_FIELD_MAX_UNITS 64
@@ -42,7 +44,10 @@ typedef struct {
     uint8_t defense_status;     /* 0x23: DP 状态颜色/缩放触发 */
     uint8_t hit_evasion_status; /* 0x24: HIT/EV 状态颜色与 +15 触发 */
     uint8_t detail_status[3];   /* 0x25..0x27: 详情页 frame 55..57 */
-    uint8_t data_28_36[0x0f];
+    uint8_t data_28_33[0x0c];
+    uint8_t ai_behavior_raw;    /* 0x34: behavior 0..5、7..11；6 未确认 */
+    uint8_t ai_param_35;        /* 0x35: behavior 参数，具体语义按模式解释 */
+    uint8_t ai_param_36;        /* 0x36: behavior 参数，具体语义按模式解释 */
     uint8_t base_attack_le[2];  /* 0x37 */
     uint8_t base_defense_le[2]; /* 0x39 */
     uint8_t movement_points;    /* 0x3b: 每次移动的范围预算 */

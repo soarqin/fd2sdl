@@ -72,13 +72,13 @@ HP/MP/base attack/base defense/base accuracy = coefficient*level
 026105..026116  -> side、unit ID、text ID、0x09
 02611a..02617d  -> template 5..12 重排为 8 个装备槽
 026193..0261a6  -> template 13..16 复制到 record 0x1a..0x1d
-0261b1..0261df  -> level 与 record 0x31..0x36/0x3d
+0261b1..0261df  -> level 与 record 0x31..0x36/0x3d；template 0x11..0x13 → record 0x34..0x36
 0261f5..02620d  -> HP/MP
 026211           call 0x30964    ; 最终装备/状态派生
 02621f           inc [0x3beb]    ; actor_count
 ```
 
-因此原版构造器会初始化超出模板前缀的字段，并在递增 actor count 前完成战斗派生。SDL 当前复现模板重排和基础表等级公式；FD2.TMP cache class 与最终装备派生仍分别由 SDL 直接渲染路径和 `field_unit_stats` 回调边界处理。
+因此原版构造器会初始化超出模板前缀的字段，并在递增 actor count 前完成战斗派生。`field_ai_unit_execute @0x38cb3` 已进一步确认 record `+0x34 & 0x0f` 是 behavior selector，`+0x35/+0x36` 是随 behavior 解释的参数；高半字节及各参数的统一语义仍不命名。stage 0 初始 group 1/2 的模板均为 behavior 0、参数 0/0。SDL 当前复现模板重排和基础表等级公式；FD2.TMP cache class 与最终装备派生仍分别由 SDL 直接渲染路径和 `field_unit_stats` 回调边界处理。
 
 ## Stage 0 增援验证
 

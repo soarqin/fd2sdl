@@ -183,6 +183,47 @@ static int validate_move_ranges(const fd2_field_game *game) {
     return 0;
 }
 
+static int validate_ai_queries(const fd2_field_game *game) {
+    if (!game || !game->ready || game->units.count != 12) return -1;
+    fd2_field_units units_before = game->units;
+    uint32_t turn_before = game->turn_number;
+    uint8_t side_before = game->active_side;
+    fd2_field_interaction interaction_before = game->interaction;
+    size_t phase_cursor_before = game->phase_unit_cursor;
+    int selected_before = game->selected_unit;
+    int cursor_x_before = game->cursor_cell_x;
+    int cursor_y_before = game->cursor_cell_y;
+    for (size_t i = 4; i < 12; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (unit->side != 0 || fd2_field_ai_behavior(unit) != 0 ||
+            unit->ai_param_35 != 0 || unit->ai_param_36 != 0)
+            return -1;
+
+        fd2_field_ai_target target;
+        fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+        fd2_field_ai_destination destination;
+        int ok = fd2_field_ai_nearest_opponent(
+                     &game->units, i, 0, &target) == 0 &&
+                 fd2_field_game_compute_move_range(game, i, &range) == 0 &&
+                 fd2_field_ai_choose_destination(
+                     &range, target.x, target.y, &destination) == 0 &&
+                 fd2_field_path_is_destination(
+                     &range, destination.x, destination.y) &&
+                 destination.manhattan_distance <=
+                     target.manhattan_distance;
+        fd2_field_path_close(&range);
+        if (!ok) return -1;
+    }
+    return memcmp(&game->units, &units_before, sizeof(units_before)) == 0 &&
+           game->turn_number == turn_before && game->active_side == side_before &&
+           game->interaction == interaction_before &&
+           game->phase_unit_cursor == phase_cursor_before &&
+           game->selected_unit == selected_before &&
+           game->cursor_cell_x == cursor_x_before &&
+           game->cursor_cell_y == cursor_y_before
+        ? 0 : -1;
+}
+
 static int validate_move_interaction(fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga || game->units.count == 0)
         return -1;
@@ -884,6 +925,7 @@ int fd2_field_play_run(fd2_vga *vga,
     if (once && (validate_cursor_controls(&game) != 0 ||
                  validate_field_info(&game, vga) != 0 ||
                  validate_move_ranges(&game) != 0 ||
+                 validate_ai_queries(&game) != 0 ||
                  validate_move_interaction(&game, vga) != 0 ||
                  validate_attack_flow(&game) != 0 ||
                  validate_turn_flow(&game, vga, fdother) != 0 ||

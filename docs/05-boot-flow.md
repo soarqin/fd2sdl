@@ -173,7 +173,7 @@ FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
 ### 待完善
 - 片头底图 FDOTHER[0x4d] 的 sub[0] 格式（非标准 RLE 头部 `80 80 80 80`）
 - 切入画面 FUN_0001ce87 的等待/渐变细节
-- 标题菜单交互 FUN_0001d6c1（H/P/Enter 按键）
+- 标题菜单交互 `FUN_0001d6c1`（Up/Down、Enter/Space/数字小键盘 0；详见 `docs/12-input-system.md`）
 - 与 DOSBox 逐帧对照验证片头滚动
 
 ## 6. 脚本动画系统（已接入启动流程）

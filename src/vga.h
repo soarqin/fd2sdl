@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <SDL3/SDL.h>
 
+#include "input.h"
+
 /* 虚拟 VGA 320x200 256色
  *
  * 对应反编译中的硬件抽象：
@@ -30,6 +32,7 @@ typedef struct {
     uint8_t  dac[VGA_PALETTE_SIZE];      /* 当前 DAC 输出(8-bit)，palette_expand 后 */
     SDL_Renderer *renderer;
     SDL_Texture   *texture;              /* ARGB8888 流式纹理 */
+    fd2_input input;                     /* 唯一 SDL 事件所有者 */
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
 } fd2_vga;
@@ -62,7 +65,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
  * FUN_0002b649 / FUN_0000f488，FUN_0001db69 已确认为动画播放器。 */
 void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step);
 
-/* 呈现当前 framebuffer。调用期间会泵送 SDL 窗口事件，但不消费按键。 */
+/* 呈现当前 framebuffer。调用期间由 input 服务收集 SDL 事件；各 UI
+ * 仍通过上下文动作从服务消费按键。 */
 void fd2_vga_present(fd2_vga *vga);
 
 /* 按绝对 deadline 呈现并等待下一帧，避免把本帧渲染耗时叠加到间隔。 */
@@ -80,9 +84,9 @@ void fd2_delay_ms(uint32_t ms);
  * 用于帧同步等待 */
 void fd2_wait_ticks(uint32_t ticks);
 
-/* 检查输入 (对应 FUN_0000dd68 @0x45834)
- * 返回: 0=无输入, 非0=有按键(跳过) */
-int fd2_input_check(void);
+/* 复现 input_check @0x35834：只检查是否已有按键，不消费队首。
+ * 返回: 0=无输入, 非0=有按键或窗口退出请求（用于跳过片头）。 */
+int fd2_input_check(fd2_vga *vga);
 
 /* 释放资源 */
 void fd2_vga_close(fd2_vga *vga);

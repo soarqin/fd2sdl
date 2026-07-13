@@ -17,6 +17,7 @@ static void dac_out(fd2_vga *vga, uint16_t port, uint8_t val) {
 int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
     (void)win;
     memset(vga, 0, sizeof(*vga));
+    fd2_input_init(&vga->input);
     vga->renderer = ren;
     vga->texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                      SDL_TEXTUREACCESS_STREAMING,
@@ -90,10 +91,10 @@ void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* SDL_PumpEvents 只把宿主窗口消息送入 SDL 队列，不消费按键；后续
-     * poll_skip/menu 仍能按原语义读取事件。Windows 的长过场循环也不会
-     * 因一直不处理窗口消息而显示「未响应」。 */
-    SDL_PumpEvents();
+    /* input.c 是唯一调用 SDL_PollEvent 的位置。原版动画的 input_check
+     * 只窥视 BIOS 缓冲，因此这里先将宿主事件写入 FIFO，随后由各 UI 决定
+     * 是否消费。 */
+    fd2_input_pump(&vga->input);
 
     uint32_t colors[256];
     for (int i = 0; i < 256; i++) {
@@ -198,22 +199,13 @@ void fd2_wait_ticks(uint32_t ticks) {
     fd2_delay_ms(ticks * 55);
 }
 
-static int g_input_flag = 0;
-
-int fd2_input_check(void) {
-    /* 复现 FUN_0000dd68 @0x45834: 检查是否有按键
-     * 返回非0表示有输入(用于跳过片头) */
-    SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_EVENT_QUIT) return 1;
-        if (e.type == SDL_EVENT_KEY_DOWN) {
-            if (e.key.key == SDLK_ESCAPE) return 1;
-            g_input_flag = 1;
-        }
-    }
-    int r = g_input_flag;
-    g_input_flag = 0;
-    return r;
+int fd2_input_check(fd2_vga *vga) {
+    /* 复现 input_check @0x35834：原版只比较 BDA 0x041a/0x041c，不读取
+     * 键盘缓冲。ANI/片头跳过后，同一按键仍应留给后续标题或菜单。
+     * 宿主端在长延时中仍须收集窗口事件；收集由 input.c 完成，不消费 FIFO。 */
+    if (!vga) return 0;
+    fd2_input_pump(&vga->input);
+    return fd2_input_has_any_key(&vga->input) || vga->input.quit_requested;
 }
 
 void fd2_vga_close(fd2_vga *vga) {

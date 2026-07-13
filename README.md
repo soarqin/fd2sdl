@@ -22,6 +22,7 @@
 | `09-battlefield-roadmap.md` | 战场系统后续顺序、逆向阻塞项与分阶段验收 |
 | `10-field-unit-constructor.md` | 统一 `0x50` 字节单位记录的构造与属性来源 |
 | `11-audio-plan.md` | AIL、XMIDI、OPL 与 PCM 音频前置调研及实施计划 |
+| `12-input-system.md` | 原版 BIOS 键盘缓冲、扫描码、上下文按键与 SDL 输入层 |
 
 辅助资料：`docs/ghidra-decomp-samples*.txt`、`docs/r2-disasm-samples.txt`。
 
@@ -46,7 +47,7 @@ cmake --build src/build
 ./src/fd2sdl --prologue-preview       # 完整新游戏初始过场
 ```
 
-战场入口使用方向键移动光标，`Enter` 或 `Space` 确认，`Backspace` 或 `Escape` 取消。移动完成后的临时指令状态再次确认会提交待机并标记该单位已行动，取消则恢复移动前坐标并返回范围选择。全部玩家完成后，当前 M5 骨架会让 side 1 和敌方单位按顺序自动待机，再进入下一回合。
+战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。移动后将光标移到武器范围内的敌人，第一次确认进入目标选择，第二次确认结算；光标留在自身或空格时确认仍会待机。武器范围已按原版 item record 与 profile 0 规则接入；RNG loader 初值 `0x7a18` 与 profile 暴击基础表已由 DOSBox runtime capture 接入；省略图形指令菜单仍为 M6 开发期策略；武器 effect type 4 暴击加值、type 2 命中前状态及 type 3／固定 3% 双击已按原版 RNG 顺序接入；目标存活、邻接且持最小射程 1 武器时会立即反击；每击会应用已确认 terrain class 0..5 的攻防百分比；交换结束后，所有 HP 0 actor 会按原版把 flags `+0x05` 精确写为 1。`Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 在原版走同一焦点更新分支，其状态相关效果仍待 DOSBox 验证，SDL 版不把它们猜测为取消。全部玩家完成后，当前 M5 骨架会让 side 1 和敌方单位按顺序自动待机，再进入下一回合。
 
 可用 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 强制走 CPM.cmake 回退路径；离线环境可预先安装 SDL3，或通过 `SDL3_DIR` 指向已有 SDL3 CMake 包。
 
@@ -82,10 +83,10 @@ python3 tools/compare_fd2_music_capture.py capture.wav rendered/
 | 统一单位模型 | 已完成 | 原版 `0x50` 字节记录、角色／敌军基础表、等级成长、装备派生、group 增援和存档逐字恢复 |
 | 战场交互 | 进行中 | 键盘光标、原版选择框、范围 LUT、参数化寻路、ZOC、六相位移动、取消回退和回合骨架 |
 | 战场 UI | 已完成当前范围 | 常驻格子信息面板；DATO 全屏角色详情页；215 项物品表；四名初始玩家实机装备；原版头像边框和 12 帧三段开合视觉 |
-| 事件与战斗 | 进行中 | FDFIELD 回合／格子事件、安全 handler 边界、stage 0 action 0..3 演出、确定性物理攻击核心；正式指令、攻击外围规则、敌方 AI 和胜负推进尚未完成 |
+| 事件与战斗 | 进行中 | FDFIELD 回合／格子事件、安全 handler 边界、stage 0 action 0..3 演出、确定性物理攻击核心、双击与邻接反击；正式指令、敌方 phase AI 和胜负推进尚未完成 |
 | 音频 | PCM 已接入，OPL 原型已评审 | FDOTHER[31]/[80] 已加载；详情音效及 actor flash、stage transition、earthquake 的 snapshot、原版帧序和 cue wrapper 已实现；15 项 XMIDI 与 stage 曲目表已确认。正式 OPL 后端仍待许可证决策或 MIT/LGPL 组件化实现 |
 
-当前快速入口会验证 `cursor/info/detail/move/move-exec/turn/event/effect`，CTest 包含 10 个 C 测试目标。原版不支持鼠标，因此不计划增加鼠标映射。
+当前快速入口会验证 `cursor/info/detail/move/move-exec/attack/turn/event/effect`，CTest 包含 14 个 C 测试目标。原版不支持鼠标，因此不计划增加鼠标映射。
 
 ## 音频实施方向
 

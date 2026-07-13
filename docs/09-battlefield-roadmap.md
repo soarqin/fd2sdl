@@ -203,9 +203,28 @@
 - [x] `field_event` CTest 覆盖回合/phase 匹配、cell ID、match 参数、地形 `0x60` 禁止位，以及移动脚本成功提交和失败回滚。
 - [x] 快速入口自动推进至第 7 回合，验证 27 名 actor、group 3/7/4/5/6 数量、关键脚本终点与最终镜头 `(11,11)`；同时在独立 session 副本中验证四条演出顺序的终态，并实际读取、解码 action 1/2 使用的 12 帧 LMI1。快速模式不验证逐帧时序和像素对照。
 
+### M5.5：原版输入系统
+
+M6 之前先替换分散的 SDL 事件循环。原版不按 SDL 键名分派，而是通过 BIOS 键盘缓冲和 `INT 16h/AH=10h` 取得扫描码；完整证据和已确认键表见 `docs/12-input-system.md`。
+
+范围：
+
+- 单一 SDL 事件所有者、有界 FIFO 和独立的窗口退出请求。
+- 非消费式「任意键」检查，保持 ANI/AFM 跳过后键仍可由下一个 UI 读取的原版语义。
+- 标题、通用二选一框、战场和调试预览使用各自的动作映射，不再直接调用 `SDL_PollEvent`。
+- 保留 `SDL_EVENT_KEY_DOWN` 的 repeat 事件顺序；不延续当前战场循环丢弃 repeat 的行为。
+- 可注入的纯 C 输入测试，覆盖扫描码规范化、FIFO、上下文限制和 title／field 基础映射。
+
+验收标准：
+
+- `src/` 中只有输入模块调用 `SDL_PollEvent`。
+- 标题仅接受原版已确认的 Up/Down 与确认键，不再将 H/P/R/Escape 当作标题快捷键。
+- 输入检查不会吞掉 ANI/片头后的首个菜单键。
+- CTest 不依赖 SDL 窗口即可覆盖输入顺序与上下文映射。
+
 ### M6：无演出的确定性战斗
 
-当前进度：已确认 stage 单位基础构造器、普通物理攻击的四个派生字段、装备重算链和无演出核心公式，并新增 `src/field_unit_base.[ch]`、`src/field_combat.[ch]` 与 `src/field_unit_stats.[ch]`。完整装备数据接入、地形和武器特效的外围修正、暴击率来源以及战场指令接入仍待完成。
+当前进度：已确认 stage 单位基础构造器、普通物理攻击的四个派生字段、装备重算链、武器范围和无演出核心公式，并新增 `src/field_unit_base.[ch]`、`src/field_combat.[ch]`、`src/field_attack.[ch]` 与 `src/field_unit_stats.[ch]`。一／二击序列、敌方邻接反击和 HP 0 全表隐藏提交已接入；RNG loader 初值和完整战斗表已捕获接入；原版指令菜单呈现以及敌方 phase 主动决策仍待完成。
 
 已确认：
 
@@ -218,11 +237,18 @@
 - [x] 暴击先将防御减半；伤害基础值为 `(attack-defense)*9/10`，浮动上限由 `base/9` 给出。
 - [x] HP 扣减钳制到 0；纯逻辑模块同时返回公式伤害和实际 HP 扣减。
 - [x] 随机数由调用方注入，固定序列可完全复现结果。
+- [x] `field_rng_next @0x73df7` 已确认并以 `src/field_rng.[ch]` 实现：`rol16(state + 0x9014, 3)`；DOSBox debugger 在第一次调用前捕获 loader 初值 `0x7a18`，正式 field session 已采用该值。
+- [x] 暴击基础值读取 `DS:0x24a8[record[0x20]-1]`；DOSBox debugger 已从 battlefield overlay 重定位地址 `0x1ae4a8` 捕获 profile 1..30 的完整 30 字节表。正式 session 直接读取该表，测试可按攻击者 callback 覆盖；反击交换双方后重新查询。武器 item `+0x09==4` 时再累加 `+0x0a`。item `+0x09==2` 的命中前 RNG 顺序和防御者 `+0x25=2..5` 状态写入也已接入；音效／闪烁演出仍省略。
+- [x] `field_physical_attack_sequence @0x43a6a` 每次必定先消费一次 RNG；weapon effect 3 或固定 3% 判定触发两击。`field_physical_exchange @0x3a6a2` 在目标存活且 `field_counterattack_is_available @0x442f0` 满足 `+0x26==0`、距离 1、武器最小射程 1 时交换双方执行反击。SDL 已复现双击中止、共享 RNG 和反击不占行动标志。
+- [x] 每击先按所在格 movement cost class 从 `DS:0x1a12/0x1a2a` 取攻防百分比，执行 `stat += stat*percent/100`；`field_unit_ignores_terrain_combat_modifier @0x44397` 确认 unit 28 强制使用地形，其他 unit 的 profile 19 或 race 4/5 跳过。DOSBox debugger 已从重定位地址 `0x1ada12/0x1ada2a` 捕获 class 0..5 完整表并接入。
+- [x] `field_equipped_item_slot_find @0x40a51`、`field_unit_item_id_at @0x40936` 与 `field_target_range_build @0x39a2c` 已确认普通攻击使用首件已装备武器 item record `+0x0b/+0x0c` 的最小／最大范围，以 profile 0 传播；side filter 映射为 `0→side 0`、`1→非 0`、`2→side 1`、`3→side 2`，玩家攻击使用 filter 0。`src/field_attack.[ch]` 和 `field_attack_test` 覆盖短兵／刺矛范围、最小距离、地形成本阻断和阵营过滤。
+- [x] `fd2_field_game` 已提供可测试覆盖的目标规则、注入 RNG、`COMMAND → TARGETING → COMMAND → BROWSE` 攻击状态与 HP 提交接口。`field_physical_attack_resolve @0x43edb` 本体只写 `+0x40`；exchange 后的 `field_defeated_units_finalize @0x42d83` 会把全表所有 HP 0 actor 的 `+0x05` 精确写为 1。`fd2_field_game_attack_test` 用固定 RNG、按单位注入基础暴击率，验证非法目标不消耗 RNG、取消 targeting、已行动攻击者拒绝结算、命中、HP 归零、全表隐藏、死亡反击者行动完成、未命中、状态复位、地形攻防、双击和敌方反击；`--field-play-once 0` 再以 stage 0 roster 和正式武器范围做集成验证。
+- [x] `--field-play 0` 使用已确认武器范围和敌方过滤：移动后将光标移到合法敌人，第一次确认进入 `TARGETING`，第二次确认结算；光标位于自身或空格时仍按最小待机完成行动。RNG 初值与暴击基础值均使用捕获的原版表；省略原版图形指令菜单仍是明确标注的 M6 开发期策略。
 
 范围：
 
 - 移动、攻击、待机指令菜单。
-- 攻击范围和合法目标过滤。
+- [x] 攻击范围和合法目标过滤。
 - 命中、伤害、HP 扣减、死亡和行动完成。
 - 经验和升级先定义接口，确认公式后实现。
 
@@ -231,9 +257,21 @@
 验收标准：
 
 - [x] 固定输入和随机序列时，攻击核心结果可自动断言。
-- [x] HP 不下溢；死亡 flags/status 的写入时点仍待接入战场后确认。
-- 已行动单位不能重复行动。
-- 至少完成一次玩家攻击和一次敌方行动。
+- [x] HP 不下溢；exchange 结束后全表 HP 0 actor 的 flags 精确写 1。死亡演出仍延后到 M8。
+- [x] 已行动单位不能重复行动。
+- [x] 至少完成一次玩家主动攻击和一次敌方邻接反击；敌方 phase 的移动／主动攻击决策归入 M7。
+
+### 后续最高优先级：原版图形指令菜单
+
+在启动 M7 前先完成该项。当前 `COMMAND → TARGETING` 的两次确认流程保留为自动测试入口，不作为最终交互。
+
+- 追踪菜单入口、FDOTHER/FDTXT 资源、坐标、选项顺序、禁用条件、确认与返回语义。
+- 首批只接入已经验证的移动、普通攻击和待机；其他选项必须在用途确认后加入。
+- 菜单只负责选择命令，继续复用 `fd2_field_game` 的范围、目标、RNG、反击和行动完成接口。
+- 增加纯状态测试，覆盖打开、移动选择、攻击选择、待机、返回、无武器和无合法目标。
+- 实机验收要求菜单绘制与原版截图一致，返回路径不消费 RNG，也不提交 HP 或行动标志。
+
+该项优先于敌方 phase AI、FIGANI、存档和音乐后端。
 
 ### M7：敌方 AI、胜负和关卡推进
 

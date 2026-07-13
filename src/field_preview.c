@@ -11,6 +11,7 @@
 #include <SDL3/SDL.h>
 
 #include "field_game.h"
+#include "input.h"
 
 int fd2_field_preview_run(fd2_vga *vga,
                           const fd2_archive *fdother,
@@ -43,27 +44,28 @@ int fd2_field_preview_run(fd2_vga *vga,
         fd2_vga_present(vga);
         if (once) break;
 
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) running = 0;
-            if (event.type != SDL_EVENT_KEY_DOWN) continue;
-            switch (event.key.key) {
-                case SDLK_ESCAPE:
-                case SDLK_RETURN:
-                case SDLK_SPACE:
+        if (fd2_input_take_quit(&vga->input)) running = 0;
+        fd2_input_action action;
+        while (running &&
+               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_PREVIEW,
+                                     &action)) {
+            switch (action) {
+                case FD2_INPUT_ACTION_EXIT:
                     running = 0;
                     break;
-                case SDLK_LEFT:
+                case FD2_INPUT_ACTION_LEFT:
                     fd2_field_game_move_camera(&game, -1, 0);
                     break;
-                case SDLK_RIGHT:
+                case FD2_INPUT_ACTION_RIGHT:
                     fd2_field_game_move_camera(&game, 1, 0);
                     break;
-                case SDLK_UP:
+                case FD2_INPUT_ACTION_UP:
                     fd2_field_game_move_camera(&game, 0, -1);
                     break;
-                case SDLK_DOWN:
+                case FD2_INPUT_ACTION_DOWN:
                     fd2_field_game_move_camera(&game, 0, 1);
+                    break;
+                default:
                     break;
             }
         }

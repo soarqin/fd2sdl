@@ -1,3 +1,8 @@
+/* 炎龙骑士团 2 SDL3 重写 - 普通物理攻击确定性核心
+ *
+ * 复现 field_physical_attack_resolve @0x43edb 已确认的命中、暴击、
+ * 伤害及 HP 钳制路径；地形、装备特效与暴击率来源由调用方处理。
+ */
 #include "field_combat.h"
 
 #include <string.h>

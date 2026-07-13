@@ -3,8 +3,11 @@
  * 逆向依据：FDFIELD stage metadata/placement、DAT_00003a45 的 0x50
  * 字节单位表、field_view_render_tiles @0x3710c、
  * map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、
- * map_tile_blit_visible @0x37cda 与
- * field_unit_detail_transition_frame @0x3d61d。
+ * map_tile_blit_visible @0x37cda、field_unit_detail_transition_frame
+ * @0x3d61d、field_physical_exchange @0x3a6a2、
+ * field_physical_attack_sequence @0x43a6a、
+ * field_physical_attack_resolve @0x43edb 与
+ * field_defeated_units_finalize @0x42d83（entry @0x42d79）。
  */
 
 #include "field_game.h"
@@ -12,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "field_attack.h"
 #include "field_move.h"
 #include "field_move_profile.h"
 #include "field_item.h"
@@ -23,6 +27,19 @@
 #define FD2_FIELD_IDLE_MS 275
 #define FD2_FIELD_RANGE_VISUAL_MS 165 /* 3 个约 55 ms 的 BIOS tick */
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
+
+static int finish_unit_action_internal(fd2_field_game *game,
+                                       int allow_zero_hp);
+
+/* field_defeated_units_finalize @0x42d83（entry @0x42d79）在死亡演出后
+ * 遍历完整 actor 表，把所有 HP==0 单位的 flags `+0x05` 精确写为 1。
+ * M6 无演出版省略旋转／消散帧，只复现最终记录提交。 */
+static void finalize_zero_hp_units(fd2_field_units *units) {
+    if (!units) return;
+    for (size_t i = 0; i < units->count; i++) {
+        if (units->items[i].hp == 0) units->items[i].flags = 1;
+    }
+}
 
 static int stage0_known_item_lookup(void *userdata, uint8_t item_id,
                                     fd2_field_item_stat_effect *effect) {
@@ -467,6 +484,10 @@ int fd2_field_game_open(fd2_field_game *game,
     game->cursor_cell_y = clamp_int(game->camera_cell_y + 4,
                                     0, game->map.height - 1);
     game->turn_number = 1;
+    game->selected_unit = -1;
+    game->detail_unit = -1;
+    game->detail_acknowledged_unit = -1;
+    game->attack_target = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     game->ready = 1;
     enter_phase(game, 2);
@@ -515,6 +536,8 @@ int fd2_field_game_apply_handoff(fd2_field_game *game,
     game->last_terrain_visual_ms = 0;
     game->last_range_visual_ms = 0;
     game->selected_unit = -1;
+    game->attack_target = -1;
+    game->last_attack_valid = 0;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     return 0;
 }
@@ -657,16 +680,13 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
             &game->terrain, cell, &frame_index) == 0)
         terrain_image = fd2_terrain_frame(&game->terrain, frame_index);
 
-    /* stage 0 实机逐格截图确认 movement cost class 0/1/2 的面板值。
-     * 未登记类别不推广样本值。 */
-    static const int attack_modifier[] = {5, -5, 5};
-    static const int defense_modifier[] = {0, 10, 0};
-    int attack = 0;
-    int defense = 0;
-    if (attr && attr->movement_cost_class < 3) {
-        attack = attack_modifier[attr->movement_cost_class];
-        defense = defense_modifier[attr->movement_cost_class];
-    }
+    /* field_cell_info_panel_draw 与物理攻击共读 DS:0x1a12/0x1a2a。
+     * class 0..5 完整表已由 DOSBox debugger runtime capture 确认。 */
+    int32_t attack = 0;
+    int32_t defense = 0;
+    if (attr)
+        (void)fd2_field_attack_terrain_modifiers(
+            attr->movement_cost_class, &attack, &defense);
 
     const fd2_image *unit_image = NULL;
     fd2_image unit_frame = {0};
@@ -839,6 +859,8 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
 
     fd2_field_unit *unit = &game->units.items[unit_index];
     game->selected_unit = unit_index;
+    game->attack_target = -1;
+    game->last_attack_valid = 0;
     game->move_origin_x = unit->x;
     game->move_origin_y = unit->y;
     game->move_origin_direction = unit->direction;
@@ -909,10 +931,290 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
 
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
         int unit_index = game->selected_unit;
+        int target_index = fd2_field_game_unit_at(game, game->cursor_cell_x,
+                                                   game->cursor_cell_y);
+        /* M6 临时直选流程：光标停在其他单位时先进入 TARGETING；光标仍在
+         * 攻击者或空格时保持既有最小待机。原版指令菜单尚待独立逆向。 */
+        if (target_index >= 0 && target_index != unit_index) {
+            if (!fd2_field_game_attack_target_is_legal(
+                    game, (size_t)target_index) ||
+                fd2_field_game_begin_attack(game) != 0)
+                return -1;
+            return unit_index;
+        }
         if (fd2_field_game_finish_unit_action(game) != 0) return -1;
         return unit_index;
     }
+
+    if (game->interaction == FD2_FIELD_INTERACTION_TARGETING) {
+        int unit_index = game->selected_unit;
+        if (fd2_field_game_resolve_attack(game) != 0) return -1;
+        return unit_index;
+    }
     return -1;
+}
+
+int fd2_field_game_set_attack_hooks(
+        fd2_field_game *game, fd2_field_attack_target_fn target_allowed,
+        void *target_userdata, fd2_field_critical_base_fn critical_base,
+        void *critical_base_userdata,
+        fd2_field_combat_rng_fn rng, void *rng_userdata) {
+    if (!game || !game->ready || !rng) return -1;
+    game->attack_target_allowed = target_allowed;
+    game->attack_target_userdata = target_userdata;
+    game->attack_critical_base = critical_base;
+    game->attack_critical_base_userdata = critical_base_userdata;
+    game->attack_rng = rng;
+    game->attack_rng_userdata = rng_userdata;
+    return 0;
+}
+
+int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
+                                          size_t target_index) {
+    if (!game || !game->ready || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
+        target_index >= game->units.count)
+        return 0;
+
+    const fd2_field_unit *attacker = &game->units.items[game->selected_unit];
+    const fd2_field_unit *defender = &game->units.items[target_index];
+    if (attacker == defender || attacker->side != 2 ||
+        attacker->side != game->active_side || defender->side != 0 ||
+        attacker->hp == 0 || defender->hp == 0 ||
+        fd2_field_unit_is_hidden(attacker) ||
+        fd2_field_unit_is_hidden(defender) ||
+        !unit_can_act_for_side(attacker, game->active_side) ||
+        fd2_field_unit_has_acted(attacker))
+        return 0;
+    uint8_t min_range = 0;
+    uint8_t max_range = 0;
+    if (fd2_field_attack_weapon_range(attacker, &min_range, &max_range) != 0)
+        return 0;
+    if (game->attack_target_allowed)
+        return game->attack_target_allowed(attacker, defender,
+                                           game->attack_target_userdata) != 0;
+    return fd2_field_attack_target_is_legal(
+        &game->map, &game->terrain, &game->units,
+        (size_t)game->selected_unit, target_index);
+}
+
+int fd2_field_game_begin_attack(fd2_field_game *game) {
+    if (!game || !game->ready || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        !game->attack_rng)
+        return -1;
+    fd2_field_unit *attacker =
+        &game->units.items[game->selected_unit];
+    uint8_t min_range = 0;
+    uint8_t max_range = 0;
+    if (!unit_can_act_for_side(attacker, game->active_side) ||
+        fd2_field_unit_has_acted(attacker) ||
+        fd2_field_attack_weapon_range(attacker, &min_range, &max_range) != 0)
+        return -1;
+
+    /* field_player_command_execute @0x3dfa0 的普通攻击分支先按首件已装备
+     * 武器构造范围，再进入目标选择。测试可注入 target_allowed 覆盖范围；
+     * side 2 → side 0 等不变量仍由 session 检查。正式 session 默认使用
+     * field_target_range_build @0x39a2c 的规则。 */
+    game->attack_target = -1;
+    game->last_attack_valid = 0;
+    game->last_attack_strikes = 0;
+    game->last_counterattack_valid = 0;
+    game->last_counterattack_strikes = 0;
+    game->interaction = FD2_FIELD_INTERACTION_TARGETING;
+    return 0;
+}
+
+int fd2_field_game_cancel_attack(fd2_field_game *game) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_TARGETING)
+        return 0;
+    game->attack_target = -1;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    return 1;
+}
+
+static int terrain_adjusted_stat(const fd2_field_game *game,
+                                 const fd2_field_unit *unit,
+                                 uint32_t base_stat,
+                                 int use_attack_modifier,
+                                 uint32_t *adjusted) {
+    if (!game || !unit || !adjusted) return -1;
+    if (fd2_field_attack_unit_ignores_terrain_modifier(unit)) {
+        *adjusted = base_stat;
+        return 0;
+    }
+    uint32_t cell = fd2_field_map_cell(&game->map, unit->x, unit->y);
+    const fd2_terrain_attr *attr = fd2_terrain_attr_get(
+        &game->terrain, fd2_field_cell_terrain(cell));
+    if (!attr) return -1;
+    int32_t attack_percent = 0;
+    int32_t defense_percent = 0;
+    if (fd2_field_attack_terrain_modifiers(attr->movement_cost_class,
+                                           &attack_percent,
+                                           &defense_percent) != 0)
+        return -1;
+    return fd2_field_attack_apply_terrain_modifier(
+        base_stat, use_attack_modifier ? attack_percent : defense_percent,
+        adjusted);
+}
+
+static int resolve_attack_sequence(
+        fd2_field_game *game,
+        fd2_field_unit *attacker,
+        fd2_field_unit *defender,
+        fd2_field_attack_result *last_result,
+        uint8_t *resolved_strikes) {
+    if (!game || !attacker || !defender || !last_result ||
+        !resolved_strikes || !game->attack_rng)
+        return -1;
+
+    uint32_t adjusted_attack = 0;
+    uint32_t adjusted_defense = 0;
+    /* 非法 class >5 先于任何 RNG 拒绝，避免错误数据推进共享随机流。 */
+    if (terrain_adjusted_stat(game, attacker, attacker->attack, 1,
+                              &adjusted_attack) != 0 ||
+        terrain_adjusted_stat(game, defender, defender->defense, 0,
+                              &adjusted_defense) != 0)
+        return -1;
+
+    uint8_t weapon_critical_bonus = 0;
+    if (fd2_field_attack_weapon_critical_bonus(
+            attacker, &weapon_critical_bonus) != 0)
+        return -1;
+
+    uint8_t strike_limit = 1;
+    if (fd2_field_attack_sequence_count(
+            attacker, game->attack_rng,
+            game->attack_rng_userdata, &strike_limit) != 0)
+        return -1;
+
+    uint16_t old_hp = defender->hp;
+    uint8_t old_pre_hit_status = defender->detail_status[0];
+    *resolved_strikes = 0;
+    for (uint8_t strike = 0; strike < strike_limit; strike++) {
+        uint8_t base_critical_chance = 0;
+        int critical_result = game->attack_critical_base
+            ? game->attack_critical_base(
+                  attacker, game->attack_critical_base_userdata,
+                  &base_critical_chance)
+            : fd2_field_attack_base_critical_chance(
+                  attacker, &base_critical_chance);
+        if (critical_result != 0) {
+            defender->hp = old_hp;
+            defender->detail_status[0] = old_pre_hit_status;
+            return -1;
+        }
+        uint32_t critical_chance =
+            (uint32_t)base_critical_chance +
+            (uint32_t)weapon_critical_bonus;
+        /* 原函数以整数阈值与 rand()%100 比较；超过 255 的阈值与 255 对
+         * 0..99 的结果相同。 */
+        if (critical_chance > UINT8_MAX) critical_chance = UINT8_MAX;
+
+        int pre_hit_effect_applied = 0;
+        if (fd2_field_attack_apply_pre_hit_effect(
+                attacker, defender, game->attack_rng,
+                game->attack_rng_userdata,
+                &pre_hit_effect_applied) != 0) {
+            defender->hp = old_hp;
+            defender->detail_status[0] = old_pre_hit_status;
+            return -1;
+        }
+        fd2_field_attack_params params = {
+            .attack = adjusted_attack,
+            .defense = adjusted_defense,
+            .accuracy = attacker->accuracy,
+            .evasion = defender->evasion,
+            .critical_chance = critical_chance,
+            .defender_hp = defender->hp,
+        };
+        if (fd2_field_combat_resolve_attack(
+                &params, game->attack_rng, game->attack_rng_userdata,
+                last_result) != 0) {
+            defender->hp = old_hp;
+            defender->detail_status[0] = old_pre_hit_status;
+            return -1;
+        }
+        defender->hp = last_result->hp_after;
+        (*resolved_strikes)++;
+        if (defender->hp == 0) break;
+    }
+    return 0;
+}
+
+int fd2_field_game_resolve_attack(fd2_field_game *game) {
+    if (!game || !game->ready || game->selected_unit < 0 ||
+        game->interaction != FD2_FIELD_INTERACTION_TARGETING ||
+        !game->attack_rng)
+        return -1;
+
+    int target_index = fd2_field_game_unit_at(game, game->cursor_cell_x,
+                                               game->cursor_cell_y);
+    if (target_index < 0 ||
+        !fd2_field_game_attack_target_is_legal(game, (size_t)target_index))
+        return -1;
+
+    fd2_field_unit *attacker = &game->units.items[game->selected_unit];
+    fd2_field_unit *defender = &game->units.items[target_index];
+    uint16_t old_attacker_hp = attacker->hp;
+    uint16_t old_defender_hp = defender->hp;
+    uint8_t old_attacker_status = attacker->detail_status[0];
+    uint8_t old_defender_status = defender->detail_status[0];
+    uint8_t old_flags[FD2_FIELD_MAX_UNITS];
+    for (size_t i = 0; i < game->units.count; i++)
+        old_flags[i] = game->units.items[i].flags;
+    fd2_field_attack_result attack_result;
+    fd2_field_attack_result counterattack_result;
+    uint8_t attack_strikes = 0;
+    uint8_t counterattack_strikes = 0;
+
+    /* field_physical_exchange @0x3a6a2 先执行进攻序列；目标存活且
+     * field_counterattack_is_available @0x442f0 返回 1 时交换双方参数，
+     * 再执行反击序列。反击不占用反击者所属阵营的行动标志。 */
+    if (resolve_attack_sequence(game, attacker, defender, &attack_result,
+                                &attack_strikes) != 0)
+        return -1;
+    int counterattack_valid =
+        defender->hp != 0 &&
+        fd2_field_attack_counterattack_is_available(defender, attacker);
+    if (counterattack_valid &&
+        resolve_attack_sequence(game, defender, attacker,
+                                &counterattack_result,
+                                &counterattack_strikes) != 0) {
+        attacker->hp = old_attacker_hp;
+        defender->hp = old_defender_hp;
+        attacker->detail_status[0] = old_attacker_status;
+        defender->detail_status[0] = old_defender_status;
+        return -1;
+    }
+
+    /* field_physical_attack_resolve @0x43edb 本体只写 +0x25/+0x40；外围
+     * exchange 返回后立即调用 field_defeated_units_finalize @0x42d79，
+     * 统一将所有 HP==0 actor 的 +0x05 写为 1。 */
+    finalize_zero_hp_units(&game->units);
+    game->attack_target = target_index;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    if (finish_unit_action_internal(game, 1) != 0) {
+        attacker->hp = old_attacker_hp;
+        defender->hp = old_defender_hp;
+        attacker->detail_status[0] = old_attacker_status;
+        defender->detail_status[0] = old_defender_status;
+        for (size_t i = 0; i < game->units.count; i++)
+            game->units.items[i].flags = old_flags[i];
+        game->attack_target = -1;
+        game->interaction = FD2_FIELD_INTERACTION_TARGETING;
+        return -1;
+    }
+    game->last_attack = attack_result;
+    game->last_attack_strikes = attack_strikes;
+    game->last_attack_valid = 1;
+    game->last_counterattack_strikes = counterattack_strikes;
+    game->last_counterattack_valid = (uint8_t)counterattack_valid;
+    if (counterattack_valid)
+        game->last_counterattack = counterattack_result;
+    return 0;
 }
 
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index) {
@@ -987,6 +1289,8 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
 
 int fd2_field_game_cancel_selection(fd2_field_game *game) {
     if (!game || !game->ready || game->selected_unit < 0) return 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_TARGETING)
+        return fd2_field_game_cancel_attack(game);
 
     fd2_field_unit *unit = &game->units.items[game->selected_unit];
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
@@ -1097,25 +1401,30 @@ int fd2_field_game_execute_move(fd2_field_game *game,
     return 0;
 }
 
-int fd2_field_game_finish_unit_action(fd2_field_game *game) {
+static int finish_unit_action_internal(fd2_field_game *game,
+                                       int allow_zero_hp) {
     if (!game || !game->ready || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND)
         return -1;
 
     size_t unit_index = (size_t)game->selected_unit;
-    if (!unit_can_act_for_side(&game->units.items[unit_index],
-                               game->active_side) ||
-        fd2_field_unit_has_acted(&game->units.items[unit_index]))
-        return -1;
+    fd2_field_unit *unit = &game->units.items[unit_index];
+    int side_is_actionable = unit_can_act_for_side(unit, game->active_side) ||
+        (allow_zero_hp && unit->side == game->active_side && unit->hp == 0);
+    if (!side_is_actionable || fd2_field_unit_has_acted(unit)) return -1;
     record_cell_event(game, unit_index, 1);
-    fd2_field_unit_set_acted(&game->units.items[unit_index], 1);
+    fd2_field_unit_set_acted(unit, 1);
     clear_move_query(game);
     game->selected_unit = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     if (fd2_field_game_remaining_units(game, game->active_side) == 0)
         advance_phase(game);
     return 0;
+}
+
+int fd2_field_game_finish_unit_action(fd2_field_game *game) {
+    return finish_unit_action_internal(game, 0);
 }
 
 int fd2_field_game_end_active_phase(fd2_field_game *game) {

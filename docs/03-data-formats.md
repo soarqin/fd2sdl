@@ -293,6 +293,8 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - record `0x22/0x23/0x24` 非零时，AP/DP/HIT+EV 改用 FDOTHER[5] frame 119..128 的状态数字颜色；`0x25..0x27` 非零时在 `(194,68)` 起绘制 frame 55..57 状态图标。
 - `field_unit_detail_equipment_draw @0x3d6d4` 遍历 `0x0a..0x19` 的 8 个槽；flag bit `0x80` 表示不显示，bit `0x40` 表示已装备。名称使用 FDTXT[0] fragment `item_id+0xb5`。
 - `field_item_record_get @0x73ad0` 证明完整物品表是 `DS:0x02ad + item_id*0x17` 的 23 字节记录。连续表位于 corrected code0 `0x684c1` / `FD2.EXE` file offset `0x792c1`，共 215 条有效记录；SDL 将其内置于 `src/field_item.c`，详情页和战斗属性重算共用。
+- `field_equipped_item_slot_find @0x40a51` 在 weapon 模式按槽位顺序查找 flag `0x40` 且 `item_id < 0x80` 的首件装备；`field_unit_item_id_at @0x40936` 返回该槽的 item id。玩家普通攻击读取对应 23 字节 item record 的 `+0x0b/+0x0c` 作为最小／最大范围。
+- `field_target_range_build @0x39a2c` 以 movement profile 0 从攻击者格传播最大范围，再按曼哈顿距离排除小于最小范围的格。side filter 的完整语义为 `0→side 0`、`1→side != 0`、`2→side 1`、`3→side 2`；玩家普通攻击传 0。目标收集只保留未隐藏且匹配 filter 的 actor；单位不阻断范围传播。SDL 由 `src/field_attack.[ch]` 复现，并额外拒绝 HP 已为 0 的目标。
 
 第一关新游戏索尔的详情页实机值为 HIT/AP/EV/DP=`97/16/2/12`，装备为短剑 `AP+10`、皮甲 `DP+8`、药草 `HP+40`。SDL 新游戏正式单位记录已应用同一组确认装备，并通过统一战斗属性重算生成最终数值。
 
@@ -491,7 +493,17 @@ if hit:
     hp_after = max(0, hp - damage)
 ```
 
-`src/field_combat.[ch]` 仅实现上述已确认核心，并要求调用方注入随机数；不把尚未确认的职业、装备、地形修正或暴击率来源写死。部分武器特效会在命中判定前消耗随机数，后续战场接入必须先执行外围特效，再把同一 RNG 流交给核心。`damage` 对 HP 的实际扣减会钳制到当前 HP，同时保留公式产生的 `rolled_damage`；超出可保持原版 32 位中间运算语义的输入会被拒绝。
+外围 `field_physical_attack_sequence @0x43a6a` 每轮必定先消费一次 RNG。武器 item `+0x09 == 3`，或该次 `rand()%100 < 3` 时执行两击，否则一击；每击都重新执行上述物理核心，目标 HP 归零即停止。`field_physical_exchange @0x3a6a2` 在进攻序列后检查目标仍存活，并调用 `field_counterattack_is_available @0x442f0`：反击者 record `+0x26` 必须为 0、双方曼哈顿距离必须为 1、反击者首件已装备武器最小射程必须为 1。满足条件时交换双方，再执行完整的一／二击序列；反击本身不消费反击者的行动标志。
+
+每一击在命中判定前先处理地形。`map_cell_info_at @0x3804c` 返回结构的 `+0x05` 是 FDSHAP terrain attr byte 1，即 `movement_cost_class`；攻击者以该值索引 `DS:0x1a12`，防御者索引 `DS:0x1a2a`，均为 32 位百分比，计算 `stat += stat*percent/100` 后才进入暴击／伤害。`field_unit_ignores_terrain_combat_modifier @0x44397` 对 unit ID 28 强制返回 0；其他单位 movement profile 19 或 race 4/5 时返回 1 并跳过地形修正。战场信息面板在 `0x3ffe5/0x40005` 读取相同两张表；DOSBox debugger 在 battlefield overlay 已加载、`CS=0x0170`／flat `DS=0x0178` 时捕获到重定位后的访问地址 `0x1ada12/0x1ada2a`，完整六项分别为攻击 `{+5,0,-5,-5,-5,0}`、防御 `{0,0,+10,+10,-5,0}`。FDSHAP 全部奇数属性条目实际使用 class 0..5；stage 0 的 shape 0 只使用 0..2。SDL 已接入完整表，class >5 在消费 RNG 前拒绝。
+
+`FUN_00073df7 @0x73df7` 已确认是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。SDL 版以 `src/field_rng.[ch]` 保存调用方持有的状态，确保序列次数、外围特效、命中、暴击、伤害浮动和反击共用同一 RNG 流；正式 field session 以 `0x7a18` 初始化。
+
+暴击阈值来源分两层：基础值读取 `DS:0x24a8[attacker.record[0x20]-1]`；首件已装备武器 item record `+0x09 == 4` 时，再累加 `+0x0a`。同一次 DOSBox debugger capture 从重定位地址 `0x1ae4a8` 取得完整 30 字节基础表：`{5,3,3,5,3,3,0,18,5,3,3,12,3,3,12,10,6,3,3,7,3,3,30,18,0,0,0,0,0,0}`，索引对应 movement profile `1..30`。SDL 正式 session 已直接使用该表；测试仍可通过按攻击者 callback 覆盖。反击交换双方后会重新查询，`src/field_attack.[ch]` 再自动复现 type 4 武器加值。item `+0x09 == 2` 的路径会在命中判定前至少消耗一次 RNG，并可能再消耗一次后写防御者 `+0x25` 为 `2..5`。SDL 已在 `field_attack` 复现状态写入和 RNG 顺序；对应音效与闪烁演出仍省略。
+
+`field_physical_attack_resolve @0x43edb` 的原始指令在完成命中、暴击和伤害浮动后，将钳制后的 HP 写入防御者 record `+0x40`（`mov [esi+0x40], ax`）。核心函数体不访问 record `+0x05`；外围 `field_physical_exchange @0x3a6a2` 在双方序列结束后调用 `field_defeated_units_finalize_entry @0x42d79`。其主体 `@0x42d83` 对视窗内 HP 0 actor 播放旋转／消散演出，随后遍历完整 actor 表，把每个 HP 0 record 的 `+0x05` **精确写为 1**。即使没有视窗内死亡单位，也走无演出的全表写入分支。SDL M6 省略死亡帧，但已复现该全表 flags 提交。
+
+`src/field_combat.[ch]` 仅实现上述已确认核心，并要求调用方注入随机数。`field_attack` 已提供完整 profile 暴击基础表、terrain class 0..5 百分比、免疫判定、序列次数与 type 2 武器特效，`field_game` 在核心前应用这些外围规则并复现双击停止及邻接反击，再把同一流交给 `field_combat`。`damage` 对 HP 的实际扣减会钳制到当前 HP，同时保留公式产生的 `rolled_damage`；超出可保持原版 32 位中间运算语义的输入会被拒绝。
 
 ### 3.2 战场过场移动脚本（EXE 指针表）✅ 解释器格式
 

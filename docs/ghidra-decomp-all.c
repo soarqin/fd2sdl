@@ -14,11 +14,10 @@
 // FUNC 0x3d5af field_unit_detail_transition_bottom
 // FUNC 0x3d6d4 field_unit_detail_equipment_draw
 // FUNC 0x3fa27 field_turn_event_check
-// FUNC 0x43edb field_physical_attack_resolve
+// FUNC 0x43edb field_physical_attack_resolve  /* 地形 DS:0x1a12/1a2a；effect 2 写 +0x25；暴击 DS:0x24a8 且 effect 4 加值；写 +0x40，不写 +0x05 */
 // FUNC 0x44953 intro_cutaway
 // FUNC 0x44a32 intro_anim_with_palette
 // FUNC 0x4518d title_menu_draw
-// FUNC 0x45834 input_check
 // FUNC 0x4622d fdicon_cache_append_unit
 // FUNC 0x4673b field_earthquake_effect  /* 3 个缩放 buffer 按 0,1,2,1 震动；FDOTHER[80] SFX 13 */
 
@@ -709,13 +708,13 @@ void FUN_0003526a(void)
 }
 
 
-// FUNC 0x35834 FUN_00035834
+// FUNC 0x35834 input_check  /* 非消费式 BIOS 键盘缓冲检查：BDA 0x041a != 0x041c */
 
-void FUN_00035834(void)
+int input_check(void)
 
 {
   __chkstk(8);
-  return;
+  return *(short *)0x041a != *(short *)0x041c;
 }
 
 
@@ -1340,7 +1339,7 @@ LAB_000369bd:
         if (*(char *)(DAT_00003a45 + 7 + local_18 * 0x50) == '\x1c') {
           uVar4 = 1;
         }
-        iVar3 = FUN_00044397(local_18);
+        iVar3 = field_unit_ignores_terrain_combat_modifier(local_18);
         if (iVar3 != 0) {
           uVar4 = 0x13;
         }
@@ -1738,7 +1737,7 @@ void FUN_00037c0a(void)
     if (DAT_00003beb <= iVar7) {
       return;
     }
-    iVar2 = FUN_00044397(iVar7);
+    iVar2 = field_unit_ignores_terrain_combat_modifier(iVar7);
     if ((iVar2 == 0) && (iVar2 = field_actor_is_hidden(iVar7), iVar2 == 0)) {
       pbVar3 = (byte *)(iVar7 * 0x50 + DAT_00003a45);
       uVar6 = (uint)*pbVar3;
@@ -1784,9 +1783,9 @@ void map_tile_blit_visible(void)
 }
 
 
-// FUNC 0x37e21 FUN_00037e21
+// FUNC 0x37e21 field_visible_actor_at_focus  /* 返回焦点格首个未隐藏 actor 索引；无目标为 -1 */
 
-void FUN_00037e21(void)
+void field_visible_actor_at_focus(void)
 
 {
   __chkstk(0x10);
@@ -2451,9 +2450,9 @@ void FUN_00039960(int param_1,int param_2,int param_3,int param_4,int param_5)
 }
 
 
-// FUNC 0x39a2c FUN_00039a2c
+// FUNC 0x39a2c field_target_range_build  /* profile 0 范围传播、最小曼哈顿距离与 side filter 目标收集 */
 
-void FUN_00039a2c(void)
+void field_target_range_build(void)
 
 {
   __chkstk(0x30);
@@ -2575,7 +2574,7 @@ int FUN_00039c16(int param_1,int param_2,int param_3,int param_4,int param_5,int
     DAT_00003ab5 = DAT_00003ab5 + local_10;
     if ((((DAT_00003ab1 < DAT_00003ac1) && (-1 < DAT_00003ab1)) && (DAT_00003ab5 < DAT_00003ac5)) &&
        (-1 < DAT_00003ab5)) {
-      iVar3 = FUN_00037e21();
+      iVar3 = field_visible_actor_at_focus();
       if ((iVar3 != -1) &&
          (((iVar4 = iVar3 * 0x50 + DAT_00003a45, param_7 == 0 && (*(char *)(iVar4 + 6) != '\0')) ||
           ((param_7 != 0 && (*(char *)(iVar4 + 6) == '\0')))))) {
@@ -2597,6 +2596,9 @@ void FUN_0003a51d(void)
 {
   return;
 }
+
+
+// FUNC 0x3a6a2 field_physical_exchange  /* code0 补边界：进攻后按 0x442f0 条件交换双方执行反击 */
 
 
 // FUNC 0x3ab97 FUN_0003ab97
@@ -3119,7 +3121,7 @@ char FUN_0003be75(int param_1)
   if (DAT_00003a51 == 0) {
     local_1c = &DAT_00004770;
   }
-  iVar3 = FUN_00073df7();
+  iVar3 = field_rng_next();
   iVar3 = iVar3 % 0x1e + 2;
   if (DAT_00003c67 == 0x728) {
     local_20 = 0xa0b4f;
@@ -3143,7 +3145,7 @@ char FUN_0003be75(int param_1)
       }
       if (bVar2) {
         FUN_0003b76d(0);
-        iVar3 = FUN_00073df7();
+        iVar3 = field_rng_next();
         bVar2 = false;
         iVar3 = iVar3 % 0x1e + 2;
         sVar1 = DAT_0000046c;
@@ -3304,7 +3306,7 @@ void FUN_0003c63a(int param_1,int param_2)
   int local_28 [5];
   int local_14;
 
-  local_28[4] = FUN_00037e21();
+  local_28[4] = field_visible_actor_at_focus();
   iVar3 = DAT_00003ab9 * 0x18;
   iVar2 = DAT_00003a49 + 0x8088;
   iVar1 = DAT_00003abd * 0x2ac0;
@@ -3384,7 +3386,7 @@ void FUN_0003c8d2(int param_1,int param_2)
   int local_14;
 
   sfx_play(DAT_00003eec,8,1);
-  local_18 = FUN_00037e21();
+  local_18 = field_visible_actor_at_focus();
   iVar4 = DAT_00003ab9 * 0x18;
   iVar2 = DAT_00003a49 + 0x8088;
   iVar1 = DAT_00003abd * 0x2ac0;
@@ -3620,11 +3622,11 @@ void FUN_0003daa4(void)
 }
 
 
-// FUNC 0x3daae FUN_0003daae
+// FUNC 0x3daae field_player_unit_action  /* 玩家单位：移动选择、移动后动作并在成功结束时标记 acted */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-int FUN_0003daae(int param_1)
+int field_player_unit_action(int param_1)
 
 {
   char cVar1;
@@ -3655,7 +3657,7 @@ int FUN_0003daae(int param_1)
   puVar6 = (undefined1 *)(DAT_00003a45 + param_1 * 0x50);
   local_24 = (uint)(byte)puVar6[0x3b];
   uVar4 = puVar6[0x20];
-  iVar3 = FUN_00044397(param_1);
+  iVar3 = field_unit_ignores_terrain_combat_modifier(param_1);
   if (iVar3 == 0) {
     if (puVar6[7] == '\x1c') {
       uVar4 = 0x10;
@@ -3695,7 +3697,7 @@ LAB_0003dd8b:
     if ((iVar3 == 0) || (iVar3 == 0xff)) {
       if (local_28 != 0) goto LAB_0003dd8b;
       do {
-        iVar3 = FUN_0003dfa0(param_1,local_3c,0);
+        iVar3 = field_player_command_execute(param_1,local_3c,0);
       } while (iVar3 == 0);
       if (iVar3 != -1) {
         field_cell_event_lookup(*puVar6,puVar6[1],1);
@@ -3715,7 +3717,7 @@ LAB_0003dd8b:
         local_3c[1] = 1;
       }
       do {
-        iVar3 = FUN_0003dfa0(param_1,local_3c,1);
+        iVar3 = field_player_command_execute(param_1,local_3c,1);
       } while (iVar3 == 0);
       if (iVar3 != -1) {
         field_cell_event_lookup(*puVar6,puVar6[1],1);
@@ -3789,9 +3791,9 @@ void FUN_0003de8b(int param_1,int param_2,int param_3)
 }
 
 
-// FUNC 0x3dfa0 FUN_0003dfa0
+// FUNC 0x3dfa0 field_player_command_execute  /* 玩家移动后指令菜单与攻击/法术/道具等动作分派入口 */
 
-void FUN_0003dfa0(void)
+void field_player_command_execute(void)
 
 {
   __chkstk(0xb0);
@@ -3799,9 +3801,9 @@ void FUN_0003dfa0(void)
 }
 
 
-// FUNC 0x3dfaa FUN_0003dfaa
+// FUNC 0x3dfaa field_player_command_execute_core  /* field_player_command_execute 的 __chkstk 后主体 */
 
-void FUN_0003dfaa(int param_1,undefined4 *param_2)
+void field_player_command_execute_core(int param_1,undefined4 *param_2)
 
 {
   undefined4 uVar1;
@@ -3821,16 +3823,16 @@ void FUN_0003dfaa(int param_1,undefined4 *param_2)
   }
   *param_2 = 0;
   DAT_00003ec8 = 0;
-  iVar2 = FUN_00040a51(param_1,0);
+  iVar2 = field_equipped_item_slot_find(param_1,0);
   if (iVar2 == -1) {
     *param_2 = 1;
   }
   else {
-    uVar1 = FUN_00040936(param_1,iVar2);
+    uVar1 = field_unit_item_id_at(param_1,iVar2);
     iVar2 = field_item_record_get(uVar1);
     local_14 = (uint)*(byte *)(iVar2 + 0xb);
     local_18 = (uint)*(byte *)(iVar2 + 0xc);
-    iVar2 = FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,0,local_18,local_14,0);
+    iVar2 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,0,local_18,local_14,0);
     if (iVar2 == 0) {
       *param_2 = 1;
     }
@@ -3928,7 +3930,7 @@ void FUN_0003e2ca(int param_1)
           FUN_0003e8df();
           iVar2 = FUN_00040b46(param_1,0);
           if (iVar2 != 0) {
-            local_1c = FUN_00040936(param_1,DAT_00003c57);
+            local_1c = field_unit_item_id_at(param_1,DAT_00003c57);
             local_18 = local_1c;
             FUN_00040afb(param_1,DAT_00003c57);
             FUN_00040da0(param_1,uVar3);
@@ -4109,7 +4111,7 @@ void FUN_0003eb71(void)
   local_28[1] = DAT_00001ef1;
   local_14 = '\0';
   DAT_00003c57 = 0;
-  iVar1 = FUN_00073df7();
+  iVar1 = field_rng_next();
   iVar4 = DAT_00003a49 + 0x1a59c;
   FUN_0005c930(DAT_00003c63,0xa0000,&DAT_0000fa00);
   local_28[2] = 0;
@@ -4173,7 +4175,7 @@ void FUN_0003eb71(void)
           else {
             lmi_rle_blit_reverse(DAT_00003c63 + DAT_00003c67,DAT_00003a85 + *DAT_00003a85,0x140);
           }
-          iVar1 = FUN_00073df7();
+          iVar1 = field_rng_next();
           iVar1 = iVar1 % 0x1e + 10;
           local_14 = '\0';
         }
@@ -4390,7 +4392,7 @@ void FUN_0003fc3b(int param_1,int param_2,int param_3)
             FUN_0003e8df();
             iVar3 = FUN_00040b46(param_1,0);
             if (iVar3 != 0) {
-              FUN_00040936(param_1,DAT_00003c57);
+              field_unit_item_id_at(param_1,DAT_00003c57);
               FUN_00040afb(param_1,DAT_00003c57);
               FUN_00040da0(param_1,uVar4);
               goto LAB_0003fe65;
@@ -4479,7 +4481,7 @@ void field_cell_info_panel_draw(int param_1,int param_2)
                                   *(undefined4 *)(&DAT_00001a12 + (uint)local_17 * 4));
     field_cell_info_modifier_draw(param_2 * 0x13 + iVar3 + 0x2b,param_2,
                                   *(undefined4 *)(&DAT_00001a2a + (uint)local_17 * 4));
-    iVar1 = FUN_00037e21();
+    iVar1 = field_visible_actor_at_focus();
     if (((iVar1 != -1) && (iVar1 = DAT_00003a45 + iVar1 * 0x50, *(char *)(iVar1 + 7) != 'y')) &&
        ((*(char *)(iVar1 + 0x1f) != '\n' || (*(char *)(iVar1 + 6) != '\x01')))) {
       iVar2 = DAT_00003c0b;
@@ -4632,9 +4634,9 @@ void FUN_000408cb(void)
 }
 
 
-// FUNC 0x40936 FUN_00040936
+// FUNC 0x40936 field_unit_item_id_at  /* 返回 actor 装备槽 record[0x0b + slot*2] */
 
-void FUN_00040936(void)
+void field_unit_item_id_at(void)
 
 {
   __chkstk(4);
@@ -4700,9 +4702,9 @@ void field_unit_combat_stats_recompute(int param_1)
 }
 
 
-// FUNC 0x40a51 FUN_00040a51
+// FUNC 0x40a51 field_equipped_item_slot_find  /* 查找首个已装备武器或非武器槽 */
 
-void FUN_00040a51(void)
+void field_equipped_item_slot_find(void)
 
 {
   __chkstk(0xc);
@@ -4779,7 +4781,7 @@ undefined4 FUN_00040dfa(undefined4 param_1)
   if (iVar1 == 0) {
     return 0xffffffff;
   }
-  iVar1 = FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,0,1,1,3);
+  iVar1 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,0,1,1,3);
   FUN_00073160(DAT_00003a51);
   if (iVar1 == 0) {
     local_34[1] = 1;
@@ -5033,13 +5035,13 @@ undefined4 FUN_0004197c(int param_1,int param_2)
   local_10 = (uint)*(byte *)(psVar3 + 1);
   if ((9 < param_2) && (param_2 < 0xd)) {
     aiStack_84[0] = param_1;
-    iVar4 = FUN_00044397();
+    iVar4 = field_unit_ignores_terrain_combat_modifier();
     if (iVar4 != 0) {
       return 0;
     }
   }
   aiStack_84[0] = 0x41a06;
-  iVar4 = FUN_00073df7();
+  iVar4 = field_rng_next();
   if ((int)local_10 <= iVar4 % 100) {
     return 0;
   }
@@ -5074,7 +5076,7 @@ void FUN_00041a3d(int param_1,int param_2)
   iVar5 = param_1 * 0x50 + DAT_00003a45;
   uVar1 = *(ushort *)(iVar5 + 0x40);
   uVar2 = *(ushort *)(iVar5 + 0x42);
-  iVar3 = FUN_00073df7();
+  iVar3 = field_rng_next();
   iVar3 = (param_2 * 9) / 10 + ((iVar3 % 100) * param_2) / 1000;
   iVar6 = (uint)uVar1 - iVar3;
   if (iVar6 < 0) {
@@ -5131,7 +5133,7 @@ void FUN_00041b34(int param_1,int param_2)
   iVar5 = param_1 * 0x50 + DAT_00003a45;
   uVar1 = *(ushort *)(iVar5 + 0x40);
   uVar2 = (uint)*(ushort *)(iVar5 + 0x42);
-  iVar3 = FUN_00073df7();
+  iVar3 = field_rng_next();
   uVar6 = (uint)uVar1 + (param_2 * 9) / 10 + ((iVar3 % 100) * param_2) / 1000;
   if ((int)uVar2 < (int)uVar6) {
     uVar6 = uVar2;
@@ -5187,7 +5189,7 @@ void FUN_00041bfb(int param_1,int param_2)
   iVar4 = DAT_00003a45 + param_1 * 0x50;
   uVar1 = *(ushort *)(iVar4 + 0x44);
   uVar2 = *(ushort *)(iVar4 + 0x46);
-  iVar3 = FUN_00073df7();
+  iVar3 = field_rng_next();
   uVar5 = (uint)uVar1 + (param_2 * 9) / 10 + ((iVar3 % 100) * param_2) / 1000;
   if ((int)(uint)uVar2 < (int)uVar5) {
     uVar5 = (uint)uVar2;
@@ -5427,7 +5429,7 @@ undefined4 FUN_0004220e(undefined4 param_1)
     if ((cVar1 == '\0') || (local_20[DAT_00003c57] != '\x17')) {
       if ((cVar1 == '\0') || (local_20[DAT_00003c57] == '\x17')) {
         DAT_00001a83 = 1;
-        iVar4 = FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,local_e8,(uint)*(byte *)(iVar4 + 4),0,0);
+        iVar4 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,(uint)*(byte *)(iVar4 + 4),0,0);
         uVar2 = 4;
         if (iVar4 == 0) {
           uVar2 = 5;
@@ -5435,7 +5437,7 @@ undefined4 FUN_0004220e(undefined4 param_1)
         iVar5 = FUN_000367ca(uVar2,0,local_e8);
       }
       else {
-        uVar3 = FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,0,*(undefined1 *)(iVar4 + 6));
+        uVar3 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,0,*(undefined1 *)(iVar4 + 6));
         uVar2 = DAT_00003ab1;
         local_14 = DAT_00003ab5;
         iVar5 = FUN_000367ca(*(undefined1 *)(iVar4 + 6),uVar3,local_e8);
@@ -5445,16 +5447,16 @@ undefined4 FUN_0004220e(undefined4 param_1)
                        ,1);
         }
         else {
-          FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,local_e8,*(undefined1 *)(iVar4 + 4),0,
+          field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,*(undefined1 *)(iVar4 + 4),0,
                        *(undefined1 *)(iVar4 + 6));
         }
       }
     }
     else {
-      uVar2 = FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,1,*(undefined1 *)(iVar4 + 6));
+      uVar2 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,1,*(undefined1 *)(iVar4 + 6));
       iVar5 = FUN_000367ca(*(undefined1 *)(iVar4 + 6),uVar2,local_e8);
       FUN_00073160(DAT_00003a51);
-      FUN_00039a2c(DAT_00003ab1,DAT_00003ab5,local_e8,*(undefined1 *)(iVar4 + 4),0,
+      field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,*(undefined1 *)(iVar4 + 4),0,
                    *(undefined1 *)(iVar4 + 6));
       FUN_00073160(DAT_00003a51);
       if (iVar5 != -1) {
@@ -5659,9 +5661,9 @@ LAB_00042cd5:
 }
 
 
-// FUNC 0x42d79 FUN_00042d79
+// FUNC 0x42d79 field_defeated_units_finalize_entry  /* Watcom entry；exchange 后调用 */
 
-void FUN_00042d79(void)
+void field_defeated_units_finalize_entry(void)
 
 {
   __chkstk(0xa8);
@@ -5669,9 +5671,9 @@ void FUN_00042d79(void)
 }
 
 
-// FUNC 0x42d83 FUN_00042d83
+// FUNC 0x42d83 field_defeated_units_finalize  /* 死亡演出后全表将 HP 0 actor 的 +0x05 精确写为 1 */
 
-void FUN_00042d83(void)
+void field_defeated_units_finalize(void)
 
 {
   uint uVar1;
@@ -5929,9 +5931,12 @@ void FUN_0004373d(void)
 }
 
 
-// FUNC 0x442f0 FUN_000442f0
+// FUNC 0x43a6a field_physical_attack_sequence  /* code0 补边界：effect 3 或固定 3% 触发两击，每击调用 0x43edb */
 
-void FUN_000442f0(void)
+
+// FUNC 0x442f0 field_counterattack_is_available  /* +0x26==0、距离 1、首件武器最小射程 1 */
+
+void field_counterattack_is_available(void)
 
 {
   __chkstk(0x18);
@@ -5939,9 +5944,9 @@ void FUN_000442f0(void)
 }
 
 
-// FUNC 0x44397 FUN_00044397
+// FUNC 0x44397 field_unit_ignores_terrain_combat_modifier  /* unit 28 强制使用地形；否则 profile 19 或 race 4/5 跳过 */
 
-void FUN_00044397(void)
+void field_unit_ignores_terrain_combat_modifier(void)
 
 {
   __chkstk(4);
@@ -6347,7 +6352,7 @@ void FUN_00045e8d(undefined4 param_1,undefined4 param_2,int param_3,byte *param_
 
   FUN_000426df();
   DAT_00003ec4 = 0;
-  uVar3 = FUN_00040936(param_1,param_2);
+  uVar3 = field_unit_item_id_at(param_1,param_2);
   iVar4 = field_item_record_get(uVar3);
   local_14 = (uint)*(ushort *)(iVar4 + 0xe);
   cVar2 = *(char *)(iVar4 + 0xd);
@@ -6473,7 +6478,7 @@ LAB_0004625a:
   DAT_00003ec8 = 0;
   FUN_0004270a();
   uVar3 = FUN_000408cb(auStack_7c);
-  FUN_00042d79();
+  field_defeated_units_finalize_entry();
   FUN_0003fc31(param_1,uVar3,auStack_7c);
   return;
 }
@@ -6969,8 +6974,8 @@ void FUN_00046fd0(int param_1,byte param_2,int param_3,int param_4,int param_5)
   undefined8 uVar5;
   double dVar6;
 
-  iVar1 = FUN_00073df7();
-  iVar2 = FUN_00073df7();
+  iVar1 = field_rng_next();
+  iVar2 = field_rng_next();
   dVar6 = (double)(iVar2 % 0x168) * _DAT_000001f8;
   uVar5 = FUN_00061de9(dVar6);
   lVar4 = (longdouble)FUN_0005cd08(dVar6,(double)(((iVar1 % 0x40) * param_1) / 0x40 + -1),uVar5);
@@ -6979,7 +6984,7 @@ void FUN_00046fd0(int param_1,byte param_2,int param_3,int param_4,int param_5)
   FUN_00061dfc(SUB84(dVar6,0),(int)((ulonglong)dVar6 >> 0x20));
   lVar4 = (longdouble)FUN_0005cd08();
   *(short *)(param_4 + uVar3 * 2) = (short)(int)ROUND(lVar4);
-  iVar1 = FUN_00073df7();
+  iVar1 = field_rng_next();
   *(char *)(param_5 + uVar3) = (char)(iVar1 % 8) + '\x01';
   return;
 }
@@ -7012,7 +7017,7 @@ void __regparm2 pal_partial_set(undefined4 param_1,undefined4 param_2)
   FUN_00061dfc(dVar1);
   lVar4 = (longdouble)FUN_0005cd08();
   *(short *)(in_stack_0000003c + uVar3 * 2) = (short)(int)ROUND(lVar4);
-  iVar2 = FUN_00073df7();
+  iVar2 = field_rng_next();
   *(char *)(in_stack_00000040 + uVar3) = (char)(iVar2 % 8) + '\x01';
   return;
 }
@@ -7226,7 +7231,7 @@ void FUN_0004793f(undefined4 param_1,int param_2,int param_3)
       local_14 = local_14 + 0x1e;
     }
     if (*(char *)(iVar4 + 0x22) == '\0') {
-      iVar1 = FUN_00073df7();
+      iVar1 = field_rng_next();
       *(char *)(iVar4 + 0x22) = (char)((longlong)iVar1 % 4) + '\x02';
       uVar2 = (uint)*(ushort *)(iVar4 + 0x48);
       lVar5 = (longdouble)FUN_0005cd08();
@@ -7275,7 +7280,7 @@ void FUN_00047a84(undefined4 param_1,int param_2,int param_3)
       local_14 = local_14 + 0x1e;
     }
     if (*(char *)(iVar4 + 0x23) == '\0') {
-      iVar1 = FUN_00073df7();
+      iVar1 = field_rng_next();
       *(char *)(iVar4 + 0x23) = (char)((longlong)iVar1 % 4) + '\x02';
       uVar2 = (uint)*(ushort *)(iVar4 + 0x4a);
       lVar5 = (longdouble)FUN_0005cd08();
@@ -7322,7 +7327,7 @@ void FUN_00047bb5(undefined4 param_1,int param_2,int param_3)
       local_14 = local_14 + 0x1e;
     }
     if (*(char *)(iVar3 + 0x24) == '\0') {
-      iVar1 = FUN_00073df7();
+      iVar1 = field_rng_next();
       *(char *)(iVar3 + 0x24) = (char)((longlong)iVar1 % 4) + '\x02';
       *(short *)(iVar3 + 0x4c) = *(short *)(iVar3 + 0x4c) + 0xf;
       *(short *)(iVar3 + 0x4e) = *(short *)(iVar3 + 0x4e) + 0xf;
@@ -7432,14 +7437,14 @@ void FUN_00047f39(undefined4 param_1,undefined4 param_2,int param_3,int param_4,
     iVar5 = DAT_00003a45 + (uint)*pbVar4 * 0x50;
     if (((*(char *)(param_5 + iVar5) == '\0') && (*(char *)(iVar5 + 0x20) != '\x19')) &&
        (*(char *)(iVar5 + 0x20) != '\x1a')) {
-      iVar2 = FUN_00073df7();
+      iVar2 = field_rng_next();
       if (0x31 < iVar2 % 100) {
         bVar1 = *pbVar4;
         goto LAB_00047f7c;
       }
       uVar3 = FUN_00041a33(*pbVar4,10);
       FUN_000432ef(uVar3,0x5e,*pbVar4);
-      iVar2 = FUN_00073df7();
+      iVar2 = field_rng_next();
       *(char *)(param_5 + iVar5) = (char)((longlong)iVar2 % 4) + '\x02';
       DAT_00003ec8 = DAT_00003ec8 + (uint)*(byte *)(iVar5 + 0x21) * 8;
     }
@@ -8339,7 +8344,7 @@ char FUN_0004c0f8(int param_1)
     piVar5 = piVar5 + 1;
   }
   local_18 = (uint)DAT_0000046c;
-  iVar1 = FUN_00073df7();
+  iVar1 = field_rng_next();
   iVar1 = iVar1 % 0x32 + 8;
   DAT_00003f52 = 2;
   FUN_0004c28d(local_28,param_1);
@@ -8370,7 +8375,7 @@ char FUN_0004c0f8(int param_1)
       }
       else {
         FUN_0003b76d(0);
-        iVar4 = FUN_00073df7();
+        iVar4 = field_rng_next();
         iVar1 = iVar4 / 0x1e;
         iVar4 = iVar4 % 0x1e + 2;
         local_14 = '\0';
@@ -9000,7 +9005,7 @@ void FUN_0004dedb(void)
       iVar3 = DAT_00003c57;
       if (iVar4 != -1) {
         FUN_0004bbaa();
-        iVar4 = FUN_00040936(iVar1,DAT_00003c57);
+        iVar4 = field_unit_item_id_at(iVar1,DAT_00003c57);
         DAT_00003ad9 = iVar4 + 0xb5;
         iVar4 = field_item_record_get(iVar4);
         DAT_00003ae1 = (int)((uint)*(ushort *)(iVar4 + 0x13) * 3) >> 2;
@@ -10850,7 +10855,7 @@ int FUN_00053dff(int param_1,int param_2,byte *param_3,byte *param_4,int param_5
   }
   local_40 = DAT_00003a45 + param_1 * 0x50;
   local_48 = DAT_00003a45 + param_2 * 0x50;
-  iVar6 = FUN_00073df7();
+  iVar6 = field_rng_next();
   if (iVar6 % 100 < 3) {
     local_50 = 2;
   }
@@ -11107,17 +11112,17 @@ void FUN_000549d4(int param_1,int param_2,undefined4 *param_3)
   local_3c = (byte)puVar1[0x20] - 1;
   local_14 = puVar1[0x21];
   local_18 = puVar5[0x21];
-  uVar3 = FUN_00040a51(param_1,0);
-  uVar3 = FUN_00040936(param_1,uVar3);
+  uVar3 = field_equipped_item_slot_find(param_1,0);
+  uVar3 = field_unit_item_id_at(param_1,uVar3);
   iVar4 = field_item_record_get(uVar3);
   cVar2 = *(char *)(iVar4 + 9);
   local_30 = (uint)*(byte *)(iVar4 + 10);
-  iVar4 = FUN_00044397(param_1);
+  iVar4 = field_unit_ignores_terrain_combat_modifier(param_1);
   if (iVar4 == 0) {
     map_cell_info_at(*puVar1,puVar1[1],auStack_4c);
     local_28 = local_28 + (int)(*(int *)(&DAT_00001a12 + (uint)local_47 * 4) * local_28) / 100;
   }
-  iVar4 = FUN_00044397(param_2);
+  iVar4 = field_unit_ignores_terrain_combat_modifier(param_2);
   if (iVar4 == 0) {
     map_cell_info_at(*puVar5,puVar5[1],auStack_4c);
     local_20 = local_20 + (int)(*(int *)(&DAT_00001a2a + (uint)local_47 * 4) * local_20) / 100;
@@ -11127,9 +11132,9 @@ void FUN_000549d4(int param_1,int param_2,undefined4 *param_3)
     local_2c = local_2c + local_30;
   }
   else if (cVar2 == '\x02') {
-    iVar4 = FUN_00073df7();
+    iVar4 = field_rng_next();
     if (iVar4 % 100 < (int)local_30) {
-      iVar4 = FUN_00073df7();
+      iVar4 = field_rng_next();
       puVar5[0x25] = (char)((longlong)iVar4 % 4) + '\x02';
       param_3[2] = 1;
     }
@@ -11137,10 +11142,10 @@ void FUN_000549d4(int param_1,int param_2,undefined4 *param_3)
   else if (cVar2 == '\x03') {
     param_3[4] = 1;
   }
-  iVar4 = FUN_00073df7();
+  iVar4 = field_rng_next();
   if (iVar4 % 100 < (int)(local_38 - local_40)) {
     *param_3 = 0;
-    iVar4 = FUN_00073df7();
+    iVar4 = field_rng_next();
     if (iVar4 % 100 < (int)local_2c) {
       local_20 = (int)local_20 / 2;
       param_3[1] = 1;
@@ -11151,7 +11156,7 @@ void FUN_000549d4(int param_1,int param_2,undefined4 *param_3)
     }
     local_34 = local_1c / 9;
     if (local_34 != 0) {
-      iVar4 = FUN_00073df7();
+      iVar4 = field_rng_next();
       local_1c = local_1c + iVar4 % local_34;
     }
     local_24 = local_24 - local_1c;
@@ -11419,7 +11424,7 @@ void FUN_0005511f(byte *param_1,byte *param_2,int param_3,byte *param_4)
       map_cell_info_at(*local_44,local_44[1]);
       pbVar6 = (byte *)(uint)*(byte *)(DAT_00003c03 + 0x2470);
       apbStack_144[0] = param_1;
-      iVar5 = FUN_00044397();
+      iVar5 = field_unit_ignores_terrain_combat_modifier();
       if ((iVar5 == 0) || (pbVar6 == (byte *)0x0)) {
         pbVar6 = (byte *)(uint)local_72;
       }
@@ -11582,7 +11587,7 @@ void FUN_0005511f(byte *param_1,byte *param_2,int param_3,byte *param_4)
               }
               local_1c = 0;
               apbStack_144[0] = (byte *)0x5599d;
-              iVar4 = FUN_00073df7();
+              iVar4 = field_rng_next();
               local_3c = 1 - iVar4 % 3;
             }
           }
@@ -11744,7 +11749,7 @@ char FUN_00056043(int param_1,int param_2)
   while (param_1 = param_1 + -1, -1 < param_1) {
     puVar1 = (undefined1 *)(DAT_00003a45 + (uint)*(byte *)(param_1 + param_2) * 0x50);
     map_cell_info_at(*puVar1,puVar1[1],auStack_14);
-    iVar2 = FUN_00044397(*(undefined1 *)(param_1 + param_2));
+    iVar2 = field_unit_ignores_terrain_combat_modifier(*(undefined1 *)(param_1 + param_2));
     if ((iVar2 == 0) || (cVar3 == '\0')) {
       cVar3 = local_e;
     }
@@ -12115,7 +12120,7 @@ void FUN_00056e67(void)
     for (iVar10 = 0; iVar10 < local_34; iVar10 = iVar10 + 1) {
       FUN_000370c4(iVar2,0x140,uVar4,0x140,0x140,200);
       if (local_18 == 0) {
-        bVar1 = FUN_00073df7();
+        bVar1 = field_rng_next();
         local_18 = (bVar1 & 0x1f) + 0x28;
       }
       else {
@@ -12195,7 +12200,7 @@ uint FUN_0005744e(int param_1)
     puVar5 = puVar5 + 1;
   }
   *(undefined1 *)puVar5 = *(undefined1 *)puVar4;
-  iVar3 = FUN_00044397(param_1);
+  iVar3 = field_unit_ignores_terrain_combat_modifier(param_1);
   if (iVar3 == 0) {
     cVar1 = *(char *)((int)auStack_2c + (*(byte *)(DAT_00003a45 + 0x20 + param_1 * 0x50) - 1));
     if (cVar1 == '\0') {
@@ -12336,7 +12341,7 @@ void FUN_000591cd(void)
   mem_free(uVar3);
   palette_fade_out_dark();
   iVar8 = 2;
-  iVar4 = FUN_00073df7();
+  iVar4 = field_rng_next();
   local_20 = (byte)((longlong)iVar4 % 100);
   local_30 = (uint)local_20;
   puVar5 = (undefined1 *)FUN_000730e8(local_30);
@@ -31469,17 +31474,17 @@ FUN_00073dbf(undefined4 param_1,undefined4 param_2,char *param_3,undefined4 para
 }
 
 
-// FUNC 0x73df7 FUN_00073df7
+// FUNC 0x73df7 field_rng_next  /* loader 初值 0x7a18；state = rol16(state + 0x9014, 3) */
 
-void FUN_00073df7(void)
+uint field_rng_next(void)
 
 {
-  ushort uVar1;
+  ushort state;
 
-  uVar1 = (DAT_000027b8 + -0x6fec) * 2 | (ushort)((short)(DAT_000027b8 + -0x6fec) < 0);
-  uVar1 = uVar1 << 1 | (ushort)((short)uVar1 < 0);
-  DAT_000027b8 = uVar1 << 1 | (ushort)((short)uVar1 < 0);
-  return;
+  state = DAT_000027b8 + 0x9014;
+  state = state << 3 | state >> 13;
+  DAT_000027b8 = state;
+  return (uint)state;
 }
 
 

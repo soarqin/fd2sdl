@@ -177,20 +177,20 @@ static int ui_sheet_get_tile(const fd2_ui_sheet *sheet, uint16_t idx,
     return 0;
 }
 
-static int poll_skip(void) {
-    SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_EVENT_QUIT) return 1;
-        if (e.type == SDL_EVENT_KEY_DOWN) {
-            switch (e.key.key) {
-                case SDLK_ESCAPE:
-                case SDLK_RETURN:
-                case SDLK_SPACE:
-                    return 1;
-                default:
-                    break;
-            }
-        }
+static int poll_skip(fd2_vga *vga) {
+    /* 场景对话尚未完成 DOSBox 按键对照；保留迁移前的 Esc／Enter／Space
+     * 跳过集合，但由统一 FIFO 消费，不能再直接轮询 SDL。ANI/AFM 的
+     * 非消费式任意键检查仍由 fd2_input_check 单独实现。 */
+    if (!vga) return 0;
+    fd2_input_pump(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) return 1;
+
+    fd2_input_event event;
+    while (fd2_input_take_key(&vga->input, &event)) {
+        if (event.key == FD2_INPUT_KEY_ESCAPE ||
+            event.key == FD2_INPUT_KEY_ENTER ||
+            event.key == FD2_INPUT_KEY_SPACE)
+            return 1;
     }
     return 0;
 }
@@ -566,7 +566,7 @@ static void animate_dialog_marker(fd2_vga *vga,
          * 0x4a 是该帧背景色。 */
         blit_ui_tile_mode(vga, ui, 0, x, y, 0x4a);
         fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
-        if (poll_skip()) break;
+        if (poll_skip(vga)) break;
     }
 }
 
@@ -597,7 +597,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
             fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
         else
             fd2_vga_present(vga);
-        if (poll_skip()) break;
+        if (poll_skip(vga)) break;
     }
 }
 
@@ -622,7 +622,7 @@ static void animate_dialog_box_close(fd2_vga *vga,
             draw_dialog_tiles(vga, ui, DIALOG_X, dialog_area_y(state->area),
                               stages[i][0], stages[i][1]);
             fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
-            if (poll_skip()) break;
+            if (poll_skip(vga)) break;
         }
         animate_dialog_marker(vga, terrain, map, ui, sprites, field_state,
                               state->speaker_actor_idx, state->area, 1);
@@ -765,10 +765,10 @@ static void redraw_dialog(fd2_vga *vga,
     state->line = 0;
 }
 
-static void wait_or_skip(int ms, int *skip) {
+static void wait_or_skip(fd2_vga *vga, int ms, int *skip) {
     int elapsed = 0;
     while (!*skip && elapsed < ms) {
-        if (poll_skip()) { *skip = 1; break; }
+        if (poll_skip(vga)) { *skip = 1; break; }
         fd2_delay_ms(20);
         elapsed += 20;
     }
@@ -776,7 +776,7 @@ static void wait_or_skip(int ms, int *skip) {
 
 static void page_pause(fd2_vga *vga, int *skip) {
     fd2_vga_present(vga);
-    wait_or_skip(FD2_DIALOG_PAGE_DELAY_MS, skip);
+    wait_or_skip(vga, FD2_DIALOG_PAGE_DELAY_MS, skip);
 }
 
 static void newline_or_page(fd2_vga *vga,
@@ -871,7 +871,7 @@ static int play_text_fragment(fd2_vga *vga,
             portrait_id = resolve_portrait_control(field_state, tok, portrait_id);
             set_dialog_area(vga, terrain, map, dato, ui, sprites, field_state,
                             &state, area, portrait_id, speaker_actor_idx, fast);
-            if (!fast) wait_or_skip(250, &skip);
+            if (!fast) wait_or_skip(vga, 250, &skip);
             continue;
         }
 
@@ -895,7 +895,7 @@ static int play_text_fragment(fd2_vga *vga,
          * 会让恰好排到行尾后紧跟 -2 的文本一次换两行。 */
         state.x += 16;
         fd2_vga_present(vga);
-        if (!fast) wait_or_skip(FD2_TEXT_GLYPH_DELAY_MS, &skip);
+        if (!fast) wait_or_skip(vga, FD2_TEXT_GLYPH_DELAY_MS, &skip);
     }
 
     if (!fast && !skip)

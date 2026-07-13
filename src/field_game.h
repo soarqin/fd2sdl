@@ -8,6 +8,7 @@
 #include "field.h"
 #include "field_effect.h"
 #include "field_event.h"
+#include "field_combat.h"
 #include "field_handoff.h"
 #include "field_info.h"
 #include "field_path.h"
@@ -46,6 +47,15 @@ typedef struct {
     int16_t presentation_focus_y;
     size_t slot;
 } fd2_field_event_notice;
+
+/* M6 战斗外围允许测试覆盖范围判定；玩家 side 2 → 目标 side 0、存活
+ * 与可见性仍由 session 强制检查。正式 session 默认使用已确认的武器
+ * record +0x0b/+0x0c 范围。 */
+typedef int (*fd2_field_attack_target_fn)(
+    const fd2_field_unit *attacker, const fd2_field_unit *defender,
+    void *userdata);
+typedef int (*fd2_field_critical_base_fn)(
+    const fd2_field_unit *attacker, void *userdata, uint8_t *base_chance);
 
 typedef enum {
     FD2_FIELD_INTERACTION_BROWSE = 0,
@@ -87,6 +97,21 @@ typedef struct {
     int detail_visible;
     int detail_acknowledged_unit;
     fd2_image detail_portrait;
+
+    /* M6 无演出攻击的 SDL 旁路状态；不改变原版 0x50 字节记录布局。 */
+    int attack_target;
+    fd2_field_attack_target_fn attack_target_allowed;
+    void *attack_target_userdata;
+    fd2_field_combat_rng_fn attack_rng;
+    void *attack_rng_userdata;
+    fd2_field_critical_base_fn attack_critical_base;
+    void *attack_critical_base_userdata;
+    uint8_t last_attack_valid;
+    uint8_t last_attack_strikes;
+    uint8_t last_counterattack_valid;
+    uint8_t last_counterattack_strikes;
+    fd2_field_attack_result last_attack;
+    fd2_field_attack_result last_counterattack;
 
     /* 移动选择与执行状态。move_range/path 是 SDL 旁路数据，不进入
      * 原版 0x50 字节单位记录。 */
@@ -145,6 +170,21 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_unit_at(const fd2_field_game *game, int x, int y);
 int fd2_field_game_confirm_cursor(fd2_field_game *game);
 int fd2_field_game_cancel_selection(fd2_field_game *game);
+
+/* M6：target_allowed 非 NULL 时覆盖正式武器范围判定，供状态机测试；
+ * side 2 → side 0、必须持有武器等不变量不会被覆盖。critical_base 非
+ * NULL 时按当前进攻者覆盖正式表，供测试使用；正式 session 默认读取
+ * DS:0x24a8 的已捕获表。反击交换双方后会重新查询。 */
+int fd2_field_game_set_attack_hooks(
+    fd2_field_game *game, fd2_field_attack_target_fn target_allowed,
+    void *target_userdata, fd2_field_critical_base_fn critical_base,
+    void *critical_base_userdata,
+    fd2_field_combat_rng_fn rng, void *rng_userdata);
+int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
+                                          size_t target_index);
+int fd2_field_game_begin_attack(fd2_field_game *game);
+int fd2_field_game_resolve_attack(fd2_field_game *game);
+int fd2_field_game_cancel_attack(fd2_field_game *game);
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index);
 void fd2_field_game_close_detail(fd2_field_game *game);
 typedef void (*fd2_field_detail_phase_fn)(void *userdata,

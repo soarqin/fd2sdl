@@ -95,8 +95,8 @@ if(NOT FD2SDL_SDL3_TARGET)
     message(FATAL_ERROR "SDL3 target was not created by system search or CPM.cmake fallback.")
 endif()
 
-add_executable(fd2sdl
-    main.c
+set(FD2SDL_CORE_SOURCES
+    input.c
     audio.c
     audio_pcm.c
     field_audio.c
@@ -110,7 +110,9 @@ add_executable(fd2sdl
     field_path.c
     field_move.c
     field_move_profile.c
+    field_attack.c
     field_combat.c
+    field_rng.c
     field_item.c
     field_unit_stats.c
     field_event.c
@@ -131,6 +133,15 @@ add_executable(fd2sdl
     palette.c
 )
 
+# 主程序与依赖正式 session 的状态机测试共享同一组实现对象，避免测试
+# 意外遗漏 field_game 的间接资源依赖。
+add_library(fd2sdl_core OBJECT ${FD2SDL_CORE_SOURCES})
+target_link_libraries(fd2sdl_core PUBLIC ${FD2SDL_SDL3_TARGET})
+
+add_executable(fd2sdl
+    main.c
+    $<TARGET_OBJECTS:fd2sdl_core>
+)
 target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
 
 include(CTest)
@@ -149,6 +160,19 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio COMMAND fd2_audio_test)
     set_tests_properties(audio PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+
+    add_executable(fd2_input_test
+        tests/input_test.c
+        input.c
+    )
+    target_include_directories(fd2_input_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_input_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_input_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_input_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME input COMMAND fd2_input_test)
 
     add_executable(fd2_audio_pcm_test
         tests/audio_pcm_test.c
@@ -172,6 +196,7 @@ if(BUILD_TESTING)
         field_effect.c
     )
     target_include_directories(fd2_field_effect_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_effect_test PRIVATE ${FD2SDL_SDL3_TARGET})
     if(MSVC)
         target_compile_options(fd2_field_effect_test PRIVATE /W4)
     else()
@@ -250,6 +275,51 @@ if(BUILD_TESTING)
         -Wall -Wextra -Wpedantic
     )
     add_test(NAME field_combat COMMAND fd2_field_combat_test)
+
+    add_executable(fd2_field_attack_test
+        tests/field_attack_test.c
+        field_attack.c
+        field_item.c
+        field_move_profile.c
+        field_path.c
+    )
+    target_include_directories(fd2_field_attack_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_attack_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_attack_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_attack COMMAND fd2_field_attack_test)
+
+    add_executable(fd2_field_rng_test
+        tests/field_rng_test.c
+        field_rng.c
+    )
+    target_include_directories(fd2_field_rng_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_rng_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    add_test(NAME field_rng COMMAND fd2_field_rng_test)
+
+    add_executable(fd2_field_game_attack_test
+        tests/field_game_attack_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_game_attack_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_game_attack_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_game_attack_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_game_attack COMMAND fd2_field_game_attack_test)
 
     add_executable(fd2_field_unit_stats_test
         tests/field_unit_stats_test.c

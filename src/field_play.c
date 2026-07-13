@@ -12,7 +12,10 @@
 
 #include <SDL3/SDL.h>
 
+#include "field_attack.h"
 #include "field_game.h"
+#include "field_rng.h"
+#include "input.h"
 #include "scene.h"
 
 static void detail_phase_sfx(void *userdata, int opening, int phase) {
@@ -32,22 +35,23 @@ typedef enum {
     FD2_FIELD_ACTION_DOWN,
     FD2_FIELD_ACTION_CONFIRM,
     FD2_FIELD_ACTION_CANCEL,
+    FD2_FIELD_ACTION_DETAIL,
+    FD2_FIELD_ACTION_FOCUS_CYCLE,
     FD2_FIELD_ACTION_EXIT
 } fd2_field_action;
 
-static fd2_field_action field_action_from_key(SDL_Keycode key,
-                                               int has_selection) {
-    switch (key) {
-        case SDLK_LEFT: return FD2_FIELD_ACTION_LEFT;
-        case SDLK_RIGHT: return FD2_FIELD_ACTION_RIGHT;
-        case SDLK_UP: return FD2_FIELD_ACTION_UP;
-        case SDLK_DOWN: return FD2_FIELD_ACTION_DOWN;
-        case SDLK_RETURN:
-        case SDLK_SPACE: return FD2_FIELD_ACTION_CONFIRM;
-        case SDLK_BACKSPACE: return FD2_FIELD_ACTION_CANCEL;
-        case SDLK_ESCAPE:
-            return has_selection ? FD2_FIELD_ACTION_CANCEL
-                                 : FD2_FIELD_ACTION_EXIT;
+static fd2_field_action field_action_from_input(fd2_input_action action) {
+    switch (action) {
+        case FD2_INPUT_ACTION_LEFT: return FD2_FIELD_ACTION_LEFT;
+        case FD2_INPUT_ACTION_RIGHT: return FD2_FIELD_ACTION_RIGHT;
+        case FD2_INPUT_ACTION_UP: return FD2_FIELD_ACTION_UP;
+        case FD2_INPUT_ACTION_DOWN: return FD2_FIELD_ACTION_DOWN;
+        case FD2_INPUT_ACTION_CONFIRM: return FD2_FIELD_ACTION_CONFIRM;
+        case FD2_INPUT_ACTION_CANCEL: return FD2_FIELD_ACTION_CANCEL;
+        case FD2_INPUT_ACTION_FIELD_DETAIL: return FD2_FIELD_ACTION_DETAIL;
+        case FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE:
+            return FD2_FIELD_ACTION_FOCUS_CYCLE;
+        case FD2_INPUT_ACTION_EXIT: return FD2_FIELD_ACTION_EXIT;
         default: return FD2_FIELD_ACTION_NONE;
     }
 }
@@ -345,6 +349,152 @@ done:
     game->move_preview_valid = 0;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     return result;
+}
+
+typedef struct {
+    const uint32_t *values;
+    size_t count;
+    size_t cursor;
+} m6_rng_sequence;
+
+static uint32_t m6_rng_next(void *userdata) {
+    m6_rng_sequence *sequence = userdata;
+    if (!sequence || sequence->cursor >= sequence->count) return 0;
+    return sequence->values[sequence->cursor++];
+}
+
+/* M6 垂直切片：使用 field_target_range_build @0x39a2c 已确认的武器
+ * 范围与敌方过滤，使用已捕获的 profile 暴击表和固定 RNG。 */
+static int validate_attack_flow(const fd2_field_game *game) {
+    if (!game || !game->ready || game->active_side != 2) return -1;
+
+    fd2_field_game replay = *game;
+    replay.move_range = (fd2_field_path_result)FD2_FIELD_PATH_RESULT_INITIALIZER;
+    replay.move_path = NULL;
+    replay.move_path_capacity = 0;
+    replay.move_path_length = 0;
+    replay.move_preview_valid = 0;
+    replay.selected_unit = -1;
+    replay.attack_target = -1;
+    replay.last_attack_valid = 0;
+    replay.interaction = FD2_FIELD_INTERACTION_BROWSE;
+
+    int defender_index = -1;
+    for (size_t i = 0; i < replay.units.count; i++) {
+        if (replay.units.items[i].side == 0 &&
+            !fd2_field_unit_is_hidden(&replay.units.items[i])) {
+            defender_index = (int)i;
+            break;
+        }
+    }
+    if (defender_index < 0) return -1;
+
+    int attacker_index = -1;
+    int target_x = -1;
+    int target_y = -1;
+    for (size_t i = 0; i < replay.units.count && attacker_index < 0; i++) {
+        fd2_field_unit *candidate = &replay.units.items[i];
+        if (candidate->side != 2 || fd2_field_unit_is_hidden(candidate))
+            continue;
+        uint8_t original_x = candidate->x;
+        uint8_t original_y = candidate->y;
+        for (int origin_y = 0;
+             origin_y < replay.map.height && attacker_index < 0;
+             origin_y++) {
+            for (int origin_x = 0;
+                 origin_x < replay.map.width && attacker_index < 0;
+                 origin_x++) {
+                candidate->x = (uint8_t)origin_x;
+                candidate->y = (uint8_t)origin_y;
+                fd2_field_path_result attack_range =
+                    FD2_FIELD_PATH_RESULT_INITIALIZER;
+                if (fd2_field_attack_range_compute(
+                        &attack_range, &replay.map,
+                        &replay.terrain, candidate) != 0)
+                    continue;
+                for (int y = 0; y < replay.map.height && target_x < 0; y++) {
+                    for (int x = 0; x < replay.map.width; x++) {
+                        if (!fd2_field_path_is_destination(&attack_range,
+                                                           x, y))
+                            continue;
+                        attacker_index = (int)i;
+                        target_x = x;
+                        target_y = y;
+                        break;
+                    }
+                }
+                fd2_field_path_close(&attack_range);
+            }
+        }
+        if (attacker_index < 0) {
+            candidate->x = original_x;
+            candidate->y = original_y;
+        }
+    }
+    if (attacker_index < 0 || target_x < 0) return -1;
+
+    fd2_field_unit *attacker = &replay.units.items[attacker_index];
+    fd2_field_unit *defender = &replay.units.items[defender_index];
+    /* 集成验证在 session 副本中复用真实地形；目标格若已有剧情重叠 actor，
+     * 先隐藏它们，确保 unit_at 稳定返回被测防御者。 */
+    for (size_t i = 0; i < replay.units.count; i++) {
+        if ((int)i == attacker_index || (int)i == defender_index) continue;
+        if ((replay.units.items[i].x == target_x &&
+             replay.units.items[i].y == target_y) ||
+            (replay.units.items[i].x == attacker->x &&
+             replay.units.items[i].y == attacker->y))
+            fd2_field_unit_set_hidden(&replay.units.items[i], 1);
+    }
+    defender->x = (uint8_t)target_x;
+    defender->y = (uint8_t)target_y;
+    fd2_field_unit_set_hidden(defender, 0);
+    fd2_field_unit_set_acted(attacker, 0);
+    attacker->attack = 100;
+    attacker->accuracy = 100;
+    defender->defense = 0;
+    defender->evasion = 0;
+    defender->hp = 10;
+    defender->hp_max = 10;
+
+    const uint32_t rolls[] = {50, 0, 99, 8};
+    m6_rng_sequence rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    replay.selected_unit = attacker_index;
+    replay.interaction = FD2_FIELD_INTERACTION_COMMAND;
+    replay.cursor_cell_x = attacker->x;
+    replay.cursor_cell_y = attacker->y;
+    if (fd2_field_game_set_attack_hooks(
+            &replay, NULL, NULL, NULL, NULL, m6_rng_next, &rng) != 0 ||
+        fd2_field_game_begin_attack(&replay) != 0 ||
+        replay.interaction != FD2_FIELD_INTERACTION_TARGETING)
+        return -1;
+
+    /* 非法目标和取消都不能消耗 RNG、扣 HP 或标记攻击者。 */
+    replay.cursor_cell_x = attacker->x;
+    replay.cursor_cell_y = attacker->y;
+    if (fd2_field_game_resolve_attack(&replay) == 0 || rng.cursor != 0 ||
+        defender->hp != 10 || fd2_field_unit_has_acted(attacker) ||
+        !fd2_field_game_cancel_attack(&replay) ||
+        replay.interaction != FD2_FIELD_INTERACTION_COMMAND)
+        return -1;
+    replay.cursor_cell_x = defender->x;
+    replay.cursor_cell_y = defender->y;
+    if (fd2_field_game_confirm_cursor(&replay) != attacker_index ||
+        replay.interaction != FD2_FIELD_INTERACTION_TARGETING)
+        return -1;
+    fd2_field_unit_set_acted(attacker, 1);
+    if (fd2_field_game_confirm_cursor(&replay) != -1 ||
+        rng.cursor != 0 || defender->hp != 10 ||
+        replay.interaction != FD2_FIELD_INTERACTION_TARGETING)
+        return -1;
+    fd2_field_unit_set_acted(attacker, 0);
+    if (fd2_field_game_confirm_cursor(&replay) != attacker_index ||
+        !replay.last_attack_valid || !replay.last_attack.hit ||
+        !replay.last_attack.defeated || defender->hp != 0 ||
+        !fd2_field_unit_has_acted(attacker) ||
+        replay.interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        replay.selected_unit != -1 || rng.cursor != 4)
+        return -1;
+    return 0;
 }
 
 static int validate_deferred_presentations(
@@ -704,6 +854,17 @@ int fd2_field_play_run(fd2_vga *vga,
         fprintf(stderr, "cannot load stage %zu field game\n", stage);
         return -1;
     }
+    /* M6 已接入原版武器 record +0x0b/+0x0c 范围与 side==0 目标过滤。
+     * session seed 仍未确认，显式注入可复现种子；profile 暴击基础值
+     * 与武器 effect type 4 加值均使用已确认原版表。 */
+    fd2_field_rng m6_rng;
+    fd2_field_rng_seed(&m6_rng, 0x7a18);
+    if (fd2_field_game_set_attack_hooks(
+            &game, NULL, NULL, NULL, NULL,
+            fd2_field_rng_next, &m6_rng) != 0) {
+        fd2_field_game_close(&game);
+        return -1;
+    }
     if (handoff && fd2_field_game_apply_handoff(&game, handoff) != 0) {
         fprintf(stderr, "cannot apply stage %zu opening handoff\n", stage);
         fd2_field_game_close(&game);
@@ -713,6 +874,7 @@ int fd2_field_play_run(fd2_vga *vga,
                  validate_field_info(&game, vga) != 0 ||
                  validate_move_ranges(&game) != 0 ||
                  validate_move_interaction(&game, vga) != 0 ||
+                 validate_attack_flow(&game) != 0 ||
                  validate_turn_flow(&game, vga, fdother) != 0 ||
                  validate_field_effects(&game, vga, field_audio) != 0)) {
         fprintf(stderr, "field cursor/move validation failed\n");
@@ -728,7 +890,7 @@ int fd2_field_play_run(fd2_vga *vga,
            game.turn_number, game.active_side,
            handoff ? "yes" : "no",
            once ? ", cursor-check=ok, info-check=ok, detail-check=ok, move-check=ok, "
-                  "move-exec-check=ok, turn-check=ok, event-check=ok, effect-check=ok, fast"
+                  "move-exec-check=ok, attack-check=ok, turn-check=ok, event-check=ok, effect-check=ok, fast"
                 : "");
 
     size_t reported_event_count = 0;
@@ -757,14 +919,12 @@ int fd2_field_play_run(fd2_vga *vga,
         fd2_vga_present(vga);
         if (once) break;
 
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) running = 0;
-            if (event.type != SDL_EVENT_KEY_DOWN || event.key.repeat)
-                continue;
-            fd2_field_action action = field_action_from_key(
-                event.key.key,
-                game.selected_unit >= 0 || game.detail_visible);
+        if (fd2_input_take_quit(&vga->input)) running = 0;
+        fd2_input_action input_action;
+        while (running &&
+               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_FIELD,
+                                     &input_action)) {
+            fd2_field_action action = field_action_from_input(input_action);
             if (game.detail_visible) {
                 if (action == FD2_FIELD_ACTION_CONFIRM ||
                     action == FD2_FIELD_ACTION_CANCEL) {
@@ -782,6 +942,20 @@ int fd2_field_play_run(fd2_vga *vga,
                     break;
                 case FD2_FIELD_ACTION_CANCEL:
                     fd2_field_game_cancel_selection(&game);
+                    break;
+                case FD2_FIELD_ACTION_DETAIL: {
+                    int unit_at = fd2_field_game_unit_at(
+                        &game, game.cursor_cell_x, game.cursor_cell_y);
+                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
+                        unit_at >= 0 &&
+                        fd2_field_game_open_detail(&game, (size_t)unit_at) == 0)
+                        (void)fd2_field_game_animate_detail(
+                            &game, vga, 1, detail_phase_sfx, field_audio);
+                    break;
+                }
+                case FD2_FIELD_ACTION_FOCUS_CYCLE:
+                    /* Esc/Z/数字小键盘 5 的原版路径会遍历 actor 并更新焦点。
+                     * 状态相关的可见结果尚待 DOSBox 验证，不能错译为取消选择。 */
                     break;
                 case FD2_FIELD_ACTION_CONFIRM: {
                     int unit_at = fd2_field_game_unit_at(
@@ -803,6 +977,13 @@ int fd2_field_play_run(fd2_vga *vga,
                         fprintf(stderr, "field move execution failed\n");
                         running = 0;
                         break;
+                    }
+                    if (game.last_attack_valid) {
+                        printf("field attack: target=%d hit=%u critical=%u damage=%u hp=%u\n",
+                               game.attack_target, game.last_attack.hit,
+                               game.last_attack.critical, game.last_attack.damage,
+                               game.last_attack.hp_after);
+                        game.last_attack_valid = 0;
                     }
                     uint16_t terrain_id = fd2_field_cell_terrain(
                         fd2_field_map_cell(&game.map,

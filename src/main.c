@@ -14,6 +14,7 @@
 
 #include "archive.h"
 #include "image.h"
+#include "input.h"
 #include "field.h"
 #include "field_play.h"
 #include "field_preview.h"
@@ -327,7 +328,7 @@ static void boot_intro_title(fd2_vga *vga) {
             if (scroll_y == 0) fd2_delay_ms(1000);
 
             /* 检查输入跳过 */
-            if (fd2_input_check()) { free(offscreen); goto title_screen; }
+            if (fd2_input_check(vga)) { free(offscreen); goto title_screen; }
         }
         free(offscreen);
     }
@@ -392,8 +393,9 @@ title_screen:
     }
 
     /* 标题菜单（对应 FUN_0001d6c1 + 菜单循环）
-     * 菜单项位置: y=164/173/182, x=129
-     * 按键: H=上移, P=下移, Enter/Space=确认
+     * 菜单项位置: y=164/173/182, x=129。
+     * 原版比较 INT 16h/AH=10h 的 Up/Down 扫描码；确认接受
+     * Enter、Space 与数字小键盘 0。详见 docs/12-input-system.md。
      * 菜单项图: FDOTHER[7] sub[1-6] */
     int selection = 0;
     int menu_count = 3;
@@ -425,30 +427,26 @@ title_screen:
         }
         fd2_vga_present(vga);
 
-        /* 读按键 (对应 FUN_00034838) */
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_EVENT_QUIT) { menu_done = 1; break; }
-            if (e.type == SDL_EVENT_KEY_DOWN) {
-                switch (e.key.key) {
-                    case SDLK_H: /* 上移 */
-                    case SDLK_UP:
-                        if (selection > 0) selection--;
-                        break;
-                    case SDLK_P: /* 下移 */
-                    case SDLK_DOWN:
-                        if (selection < menu_count - 1) selection++;
-                        else selection = 0; /* 到底回顶 */
-                        break;
-                    case SDLK_RETURN: /* 确认 */
-                    case SDLK_SPACE:
-                    case SDLK_R:
-                        menu_done = 1;
-                        break;
-                    case SDLK_ESCAPE:
-                        menu_done = 1;
-                        break;
-                }
+        if (fd2_input_take_quit(&vga->input)) {
+            menu_done = 1;
+            break;
+        }
+        fd2_input_action action;
+        while (!menu_done &&
+               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_TITLE,
+                                     &action)) {
+            switch (action) {
+                case FD2_INPUT_ACTION_UP:
+                    selection = selection > 0 ? selection - 1 : menu_count - 1;
+                    break;
+                case FD2_INPUT_ACTION_DOWN:
+                    selection = selection + 1 < menu_count ? selection + 1 : 0;
+                    break;
+                case FD2_INPUT_ACTION_CONFIRM:
+                    menu_done = 1;
+                    break;
+                default:
+                    break;
             }
         }
         fd2_delay_ms(50);
@@ -512,21 +510,29 @@ static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
         fd2_vga_present(vga);
         if (once) break;
 
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_EVENT_QUIT) running = 0;
-            if (e.type == SDL_EVENT_KEY_DOWN) {
-                switch (e.key.key) {
-                    case SDLK_ESCAPE:
-                    case SDLK_RETURN:
-                    case SDLK_SPACE:
-                        running = 0;
-                        break;
-                    case SDLK_LEFT:  if (camera_x >= 24) camera_x -= 24; break;
-                    case SDLK_RIGHT: camera_x += 24; break;
-                    case SDLK_UP:    if (camera_y >= 24) camera_y -= 24; break;
-                    case SDLK_DOWN:  camera_y += 24; break;
-                }
+        if (fd2_input_take_quit(&vga->input)) running = 0;
+        fd2_input_action action;
+        while (running &&
+               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_PREVIEW,
+                                     &action)) {
+            switch (action) {
+                case FD2_INPUT_ACTION_EXIT:
+                    running = 0;
+                    break;
+                case FD2_INPUT_ACTION_LEFT:
+                    if (camera_x >= 24) camera_x -= 24;
+                    break;
+                case FD2_INPUT_ACTION_RIGHT:
+                    camera_x += 24;
+                    break;
+                case FD2_INPUT_ACTION_UP:
+                    if (camera_y >= 24) camera_y -= 24;
+                    break;
+                case FD2_INPUT_ACTION_DOWN:
+                    camera_y += 24;
+                    break;
+                default:
+                    break;
             }
         }
         fd2_delay_ms(33);

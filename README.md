@@ -41,13 +41,15 @@ cmake --build src/build
 ```bash
 ./src/fd2sdl --map-preview 0          # 地图预览
 ./src/fd2sdl --field-preview 0        # stage 0 正式单位预览
-./src/fd2sdl --field-play 0           # stage 0 选择框、移动范围与单位移动
+./src/fd2sdl --field-play 0           # stage 0 移动、指令菜单与普通攻击
 ./src/fd2sdl --field-effect-play 0    # 实时播放 actor flash、震动和转场验收序列
 ./src/fd2sdl --new-game-play          # 完整过场结束后进入正式战场
 ./src/fd2sdl --prologue-preview       # 完整新游戏初始过场
 ```
 
-战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。移动后将光标移到武器范围内的敌人，第一次确认进入目标选择，第二次确认结算；光标留在自身或空格时确认仍会待机。武器范围已按原版 item record 与 profile 0 规则接入；RNG loader 初值 `0x7a18` 与 profile 暴击基础表已由 DOSBox runtime capture 接入；省略图形指令菜单仍为 M6 开发期策略；武器 effect type 4 暴击加值、type 2 命中前状态及 type 3／固定 3% 双击已按原版 RNG 顺序接入；目标存活、邻接且持最小射程 1 武器时会立即反击；每击会应用已确认 terrain class 0..5 的攻防百分比；交换结束后，所有 HP 0 actor 会按原版把 flags `+0x05` 精确写为 1。`Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 在原版走同一焦点更新分支，其状态相关效果仍待 DOSBox 验证，SDL 版不把它们猜测为取消。全部玩家完成后，当前 M5 骨架会让 side 1 和敌方单位按顺序自动待机，再进入下一回合。
+战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。确认移动后会展开原版 FDOTHER[2] 四向图形指令菜单：上／左／右／下依次为 attack、magic、item、wait。attack 仅在存在合法目标时可选；确认后移动光标选择目标，再次确认结算，或按取消键返回并重新展开菜单。wait 直接完成行动。magic 和 item 的用途及原版入口已确认，但执行状态机尚未实现，当前显示禁用帧。菜单中按 `Escape` 或数字小键盘 `.`／`Delete` 会收起菜单，并恢复移动前坐标、方向和镜头。
+
+普通攻击已接入原版武器范围、RNG 初值 `0x7a18`、profile 暴击基础表、武器 effect、地形攻防修正、双击、邻接反击和 HP 0 隐藏提交。菜单选择、待机和取消不推进 RNG。菜单外的 `Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 仍保留在原版焦点更新动作中，不猜测其状态相关效果。M7.0 已实现敌方最近目标与可达目的地的原版纯查询，但尚未接入动作提交；全部玩家完成后，当前骨架仍让 side 1 和 side 0 单位按顺序自动待机，再进入下一回合。
 
 可用 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 强制走 CPM.cmake 回退路径；离线环境可预先安装 SDL3，或通过 `SDL3_DIR` 指向已有 SDL3 CMake 包。
 

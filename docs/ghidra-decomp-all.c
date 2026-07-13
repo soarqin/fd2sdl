@@ -7,6 +7,16 @@
 // FUNC 0x3790b field_selection_sprite_blit
 // FUNC 0x39839 field_opponent_zoc_mark_unit
 // FUNC 0x398bb field_cell_zoc_mark
+// FUNC 0x38cb3 field_ai_unit_execute  /* 按 actor +0x34 低半字节分派 behavior 0..5/7..11；6 未确认 */
+// FUNC 0x38cbd field_ai_unit_execute_core  /* field_ai_unit_execute 的 __chkstk 后主体 */
+// FUNC 0x390b0 field_ai_move_toward_nearest  /* 按阵营选择首个曼哈顿距离最近的目标坐标 */
+// FUNC 0x390ba field_ai_move_toward_nearest_core  /* field_ai_move_toward_nearest 的 __chkstk 后主体 */
+// FUNC 0x39d8c field_ai_move_toward_cell  /* 生成可达格并按距离与原版 tie score 选择目的地 */
+// FUNC 0x39d96 field_ai_move_toward_cell_core  /* field_ai_move_toward_cell 的 __chkstk 后主体 */
+// FUNC 0x42a1f field_side1_phase_execute  /* 顺序处理 side 1 actor */
+// FUNC 0x42a29 field_side1_phase_execute_core  /* field_side1_phase_execute 的 __chkstk 后主体 */
+// FUNC 0x42ace field_side0_phase_execute  /* 两阶段顺序处理 side 0 actor */
+// FUNC 0x42ad8 field_side0_phase_execute_core  /* field_side0_phase_execute 的 __chkstk 后主体 */
 // FUNC 0x3ccb4 entry0
 // FUNC 0x3d01f field_unit_detail_open
 // FUNC 0x3d4c1 field_unit_detail_transition_left
@@ -1275,9 +1285,9 @@ void FUN_0003671a(void)
 }
 
 
-// FUNC 0x367ca FUN_000367ca
+// FUNC 0x367ca field_cell_selection_execute  /* 地图格选择循环：四方向移动、确认合法性，规范化返回值 1 时取消 */
 
-void FUN_000367ca(void)
+void field_cell_selection_execute(void)
 
 {
   __chkstk(0x3c);
@@ -1285,9 +1295,9 @@ void FUN_000367ca(void)
 }
 
 
-// FUNC 0x367d4 FUN_000367d4
+// FUNC 0x367d4 field_cell_selection_execute_core  /* field_cell_selection_execute 的 __chkstk 后主体 */
 
-undefined4 FUN_000367d4(int param_1,uint param_2,byte *param_3)
+undefined4 field_cell_selection_execute_core(int param_1,uint param_2,byte *param_3)
 
 {
   byte bVar1;
@@ -3241,11 +3251,11 @@ void FUN_0003c4aa(void)
     local_1c[1] = (DAT_00001e62 == '\0') + 0x14;
     local_1c[2] = (DAT_00003af9 != 0) + 0x16;
     local_1c[3] = (DAT_00001aab == 0) + 0x18;
-    FUN_0003c630(local_1c,auStack_2c);
+    field_command_menu_open(local_1c,auStack_2c);
     do {
-      iVar1 = FUN_0003ca10(local_1c,auStack_2c);
+      iVar1 = field_command_menu_input(local_1c,auStack_2c);
     } while (iVar1 == 0);
-    FUN_0003c8c8(local_1c,auStack_2c);
+    field_command_menu_close(local_1c,auStack_2c);
     if (iVar1 == -1) break;
     if (DAT_00003c57 == 0) {
       DAT_00001e61 = DAT_00001e61 == '\0';
@@ -3274,9 +3284,9 @@ void FUN_0003c4aa(void)
 }
 
 
-// FUNC 0x3c5fb FUN_0003c5fb
+// FUNC 0x3c5fb field_command_first_enabled_select  /* 从四项 disabled 表选择第一项可用命令 */
 
-void FUN_0003c5fb(void)
+void field_command_first_enabled_select(void)
 
 {
   __chkstk(4);
@@ -3284,9 +3294,9 @@ void FUN_0003c5fb(void)
 }
 
 
-// FUNC 0x3c630 FUN_0003c630
+// FUNC 0x3c630 field_command_menu_open  /* 播放 SFX 8，并将 FDOTHER[2] 四个命令图标分四相位展开 */
 
-void FUN_0003c630(void)
+void field_command_menu_open(void)
 
 {
   __chkstk(0x44);
@@ -3361,9 +3371,9 @@ void FUN_0003c857(void)
 }
 
 
-// FUNC 0x3c8c8 FUN_0003c8c8
+// FUNC 0x3c8c8 field_command_menu_close  /* 播放 SFX 8，以独立关闭坐标将四个命令图标分四相位收起 */
 
-void FUN_0003c8c8(void)
+void field_command_menu_close(void)
 
 {
   __chkstk(0x44);
@@ -3418,9 +3428,12 @@ void FUN_0003c8d2(int param_1,int param_2)
 }
 
 
-// FUNC 0x3ca10 FUN_0003ca10
+// FUNC 0x3ca10 field_command_menu_input  /* 四方向选择 attack/magic/item/wait，确认返回 1，取消返回 -1 */
+/* corrected 机器码还确认其内部边界：field_command_menu_wait_key @0x3caac
+ * 负责输入规范化与高亮计时；field_command_menu_draw @0x3cbe9 负责四帧绘制。
+ * 当前 Ghidra 输出未将这两个入口拆成独立函数。 */
 
-void FUN_0003ca10(void)
+void field_command_menu_input(void)
 
 {
   __chkstk(0x10);
@@ -3675,7 +3688,7 @@ int field_player_unit_action(int param_1)
   local_14 = DAT_00003ab1;
   local_18 = DAT_00003ab5;
   FUN_0003dd98(param_1);
-  local_2c = FUN_000367ca(4,0,0);
+  local_2c = field_cell_selection_execute(4,0,0);
   FUN_00073160(DAT_00003a51);
   if (local_2c == -1) {
     field_focus_move_to(local_14,local_18);
@@ -3791,7 +3804,7 @@ void FUN_0003de8b(int param_1,int param_2,int param_3)
 }
 
 
-// FUNC 0x3dfa0 field_player_command_execute  /* 玩家移动后指令菜单与攻击/法术/道具等动作分派入口 */
+// FUNC 0x3dfa0 field_player_command_execute  /* 玩家移动后 attack/magic/item/wait 四向图形菜单与动作分派入口 */
 
 void field_player_command_execute(void)
 
@@ -3801,7 +3814,7 @@ void field_player_command_execute(void)
 }
 
 
-// FUNC 0x3dfaa field_player_command_execute_core  /* field_player_command_execute 的 __chkstk 后主体 */
+// FUNC 0x3dfaa field_player_command_execute_core  /* 构造四项禁用状态并按 0/1/2/3 分派 attack/magic/item/wait */
 
 void field_player_command_execute_core(int param_1,undefined4 *param_2)
 
@@ -3838,24 +3851,24 @@ void field_player_command_execute_core(int param_1,undefined4 *param_2)
     }
     FUN_00073160(DAT_00003a51);
   }
-  FUN_0003c5fb(param_2);
-  FUN_0003c630(local_30,param_2);
-  iVar2 = FUN_00040aba(param_1);
+  field_command_first_enabled_select(param_2);
+  field_command_menu_open(local_30,param_2);
+  iVar2 = field_unit_inventory_count(param_1);
   if (iVar2 == 0) {
     param_2[2] = 1;
   }
-  iVar2 = FUN_0004147d(param_1,0);
+  iVar2 = field_unit_magic_list_build(param_1,0);
   if (iVar2 == 0) {
     param_2[1] = 1;
   }
   if (*(char *)(DAT_00003a45 + param_1 * 0x50 + 0x27) != '\0') {
     param_2[1] = 1;
   }
-  FUN_0003c5fb(param_2);
+  field_command_first_enabled_select(param_2);
   do {
-    iVar2 = FUN_0003ca10(local_30,param_2);
+    iVar2 = field_command_menu_input(local_30,param_2);
   } while (iVar2 == 0);
-  FUN_0003c8c8(local_30,param_2);
+  field_command_menu_close(local_30,param_2);
                     /* WARNING: Subroutine does not return */
   FUN_00036ec0(0);
 }
@@ -4268,11 +4281,11 @@ void FUN_0003f015(void)
       auStack_2c[1] = 1;
     }
   }
-  FUN_0003c630(local_1c,auStack_2c);
+  field_command_menu_open(local_1c,auStack_2c);
   do {
-    iVar3 = FUN_0003ca10(local_1c,auStack_2c);
+    iVar3 = field_command_menu_input(local_1c,auStack_2c);
   } while (iVar3 == 0);
-  FUN_0003c8c8(local_1c,auStack_2c);
+  field_command_menu_close(local_1c,auStack_2c);
                     /* WARNING: Subroutine does not return */
   FUN_00036ec0(0);
 }
@@ -4712,9 +4725,9 @@ void field_equipped_item_slot_find(void)
 }
 
 
-// FUNC 0x40aba FUN_00040aba
+// FUNC 0x40aba field_unit_inventory_count  /* 统计 8 个槽中未置隐藏 bit 0x80 的可用物品 */
 
-void FUN_00040aba(void)
+void field_unit_inventory_count(void)
 
 {
   __chkstk(8);
@@ -4752,9 +4765,9 @@ void FUN_00040da0(void)
 }
 
 
-// FUNC 0x40dfa FUN_00040dfa
+// FUNC 0x40dfa field_player_item_command_execute_core  /* 道具指令入口 0x40df0 的 __chkstk 后主体 */
 
-undefined4 FUN_00040dfa(undefined4 param_1)
+undefined4 field_player_item_command_execute_core(undefined4 param_1)
 
 {
   int iVar1;
@@ -4777,7 +4790,7 @@ undefined4 FUN_00040dfa(undefined4 param_1)
     puVar2 = puVar2 + 1;
     puVar3 = puVar3 + 1;
   }
-  iVar1 = FUN_00040aba(param_1);
+  iVar1 = field_unit_inventory_count(param_1);
   if (iVar1 == 0) {
     return 0xffffffff;
   }
@@ -4786,12 +4799,12 @@ undefined4 FUN_00040dfa(undefined4 param_1)
   if (iVar1 == 0) {
     local_34[1] = 1;
   }
-  FUN_0003c5fb(local_34);
-  FUN_0003c630(local_44,local_34);
+  field_command_first_enabled_select(local_34);
+  field_command_menu_open(local_44,local_34);
   do {
-    iVar1 = FUN_0003ca10(local_44,local_34);
+    iVar1 = field_command_menu_input(local_44,local_34);
   } while (iVar1 == 0);
-  FUN_0003c8c8(local_44,local_34);
+  field_command_menu_close(local_44,local_34);
                     /* WARNING: Subroutine does not return */
   FUN_00036ec0(0);
 }
@@ -4837,9 +4850,9 @@ void FUN_00041434(void)
 }
 
 
-// FUNC 0x4147d FUN_0004147d
+// FUNC 0x4147d field_unit_magic_list_build  /* 枚举 actor +0x1a..0x1e 技能位图，可选写出技能 ID */
 
-void FUN_0004147d(void)
+void field_unit_magic_list_build(void)
 
 {
   __chkstk(0x18);
@@ -4847,9 +4860,9 @@ void FUN_0004147d(void)
 }
 
 
-// FUNC 0x41487 FUN_00041487
+// FUNC 0x41487 field_unit_magic_list_build_core  /* field_unit_magic_list_build 的 __chkstk 后主体 */
 
-void FUN_00041487(int param_1,int param_2)
+void field_unit_magic_list_build_core(int param_1,int param_2)
 
 {
   byte bVar1;
@@ -5362,7 +5375,7 @@ void FUN_0004210b(undefined4 param_1,int param_2,int param_3)
   byte local_34 [32];
   int local_14;
 
-  local_14 = FUN_0004147d(param_1,local_34);
+  local_14 = field_unit_magic_list_build(param_1,local_34);
   for (iVar4 = 0; iVar4 < local_14; iVar4 = iVar4 + 1) {
     iVar2 = (iVar4 % 4) * 0x16;
     uVar1 = 0xcd;
@@ -5383,9 +5396,9 @@ void FUN_0004210b(undefined4 param_1,int param_2,int param_3)
 }
 
 
-// FUNC 0x4220e FUN_0004220e
+// FUNC 0x4220e field_player_magic_command_execute_core  /* 法术指令入口 0x42204 的 __chkstk 后主体 */
 
-undefined4 FUN_0004220e(undefined4 param_1)
+undefined4 field_player_magic_command_execute_core(undefined4 param_1)
 
 {
   char cVar1;
@@ -5422,7 +5435,7 @@ undefined4 FUN_0004220e(undefined4 param_1)
     uVar2 = 0xffffffff;
   }
   else {
-    FUN_0004147d(param_1,local_20);
+    field_unit_magic_list_build(param_1,local_20);
     iVar4 = FUN_00073a7a(local_20[DAT_00003c57]);
     DAT_00001a83 = *(byte *)(iVar4 + 4) + 2;
     cVar1 = *(char *)(iVar4 + 3);
@@ -5434,13 +5447,13 @@ undefined4 FUN_0004220e(undefined4 param_1)
         if (iVar4 == 0) {
           uVar2 = 5;
         }
-        iVar5 = FUN_000367ca(uVar2,0,local_e8);
+        iVar5 = field_cell_selection_execute(uVar2,0,local_e8);
       }
       else {
         uVar3 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,0,*(undefined1 *)(iVar4 + 6));
         uVar2 = DAT_00003ab1;
         local_14 = DAT_00003ab5;
-        iVar5 = FUN_000367ca(*(undefined1 *)(iVar4 + 6),uVar3,local_e8);
+        iVar5 = field_cell_selection_execute(*(undefined1 *)(iVar4 + 6),uVar3,local_e8);
         FUN_00073160(DAT_00003a51);
         if (local_20[DAT_00003c57] == '\x1e') {
           FUN_00039c0c(DAT_00003ab1,DAT_00003ab5,local_e8,uVar2,local_14,*(byte *)(iVar4 + 3) - 0x10
@@ -5454,13 +5467,13 @@ undefined4 FUN_0004220e(undefined4 param_1)
     }
     else {
       uVar2 = field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,cVar1,1,*(undefined1 *)(iVar4 + 6));
-      iVar5 = FUN_000367ca(*(undefined1 *)(iVar4 + 6),uVar2,local_e8);
+      iVar5 = field_cell_selection_execute(*(undefined1 *)(iVar4 + 6),uVar2,local_e8);
       FUN_00073160(DAT_00003a51);
       field_target_range_build(DAT_00003ab1,DAT_00003ab5,local_e8,*(undefined1 *)(iVar4 + 4),0,
                    *(undefined1 *)(iVar4 + 6));
       FUN_00073160(DAT_00003a51);
       if (iVar5 != -1) {
-        iVar5 = FUN_000367ca(6,local_e8[0],0);
+        iVar5 = field_cell_selection_execute(6,local_e8[0],0);
       }
       if (iVar5 != -1) {
         DAT_00001cf9 = DAT_00003ab1;
@@ -5528,7 +5541,7 @@ void FUN_0004273b(int param_1)
 
   FUN_00042101(param_1,DAT_00003c57,0xa0000);
   iVar4 = DAT_00003a45 + param_1 * 0x50;
-  iVar2 = FUN_0004147d(param_1,0);
+  iVar2 = field_unit_magic_list_build(param_1,0);
   iVar3 = FUN_0003be6b(0);
   if (iVar3 == 0x48) {
     if (DAT_00003c57 != 0) {
@@ -5567,7 +5580,7 @@ void FUN_0004273b(int param_1)
     }
   }
   else if ((iVar3 == 0x1c) || (iVar3 == 0x39)) {
-    FUN_0004147d(param_1,auStack_18);
+    field_unit_magic_list_build(param_1,auStack_18);
     uVar1 = *(ushort *)(iVar4 + 0x44);
     iVar2 = FUN_00073a7a(auStack_18[DAT_00003c57]);
     if (*(byte *)(iVar2 + 5) <= uVar1) {
@@ -8899,7 +8912,7 @@ LAB_0004da28:
       DAT_00003f5e = iVar2;
       FUN_0004bbaa();
     } while (iVar3 != 1);
-    iVar3 = FUN_00040aba(local_68[DAT_00003c57]);
+    iVar3 = field_unit_inventory_count(local_68[DAT_00003c57]);
     if (iVar3 == 8) {
       DAT_00003ad9 = *(byte *)((uint)local_68[DAT_00003c57] * 0x50 + 7 + DAT_00003a45) + 1;
       FUN_0003e77f((&DAT_00002387)[DAT_00003f4a]);
@@ -8924,7 +8937,7 @@ LAB_0004da3a:
         iVar3 = FUN_0003eb67();
         FUN_0003e9f9();
         if ((iVar3 != -1) && (DAT_00003c57 == 0)) {
-          iVar3 = FUN_00040aba(bVar1);
+          iVar3 = field_unit_inventory_count(bVar1);
           FUN_00041356(bVar1,iVar3 + -1);
                     /* WARNING: Subroutine does not return */
           field_unit_combat_stats_recompute_entry(bVar1);

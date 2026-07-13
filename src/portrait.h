@@ -8,7 +8,7 @@
 
 /* DATO.DAT 角色立绘包
  *
- * 逆向依据：FUN_000136cc @0x136cc 遇到 FDTXT 控制码 -0x11..-0x14
+ * 逆向依据：FUN_000136cc @0x3b198 遇到 FDTXT 控制码 -0x11..-0x14
  * 时按角色/单位编号从 &DAT_00001a70 加载条目；FUN_0004c347 / FUN_0004c379
  * 使用一种简单 RLE 展开立绘帧。DATO 条目开头是 u32 帧偏移表，
  * first_offset / 4 即帧数；每帧有 u16 width/u16 height 头。

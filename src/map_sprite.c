@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - FDICON.B24 / FD2.TMP 地图角色帧
- * 逆向依据：fdicon_cache_append_unit @0xe761 从 FDICON.B24 建立缓存、
- * fd2tmp_map_sprite_load @0x2c0a3 读取 FD2.TMP，以及
- * map_actor_blit_24x24 @0xb168 绘制 24×24 帧。
+ * 逆向依据：fdicon_cache_append_unit @0x4622d 从 FDICON.B24 建立缓存、
+ * fd2tmp_map_sprite_load @0x53b6f 读取 FD2.TMP，以及
+ * map_actor_blit_24x24 @0x42c34 绘制 24×24 帧。
  */
 
 #include "map_sprite.h"

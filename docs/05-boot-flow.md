@@ -11,11 +11,11 @@
 
 | 函数 | 地址 | 作用 |
 |------|------|------|
-| `fcn.00035a1e` | 0x35a1e | **yield**：jmp 0x3c7f0，让出 CPU。0x3c7f0 调 `FUN_0003f5cb`(AIL序列推进) + `FUN_00045340` + `FUN_000383b5`(`4178--`) |
-| `fcn.00035a23` | 0x35a23 | **resume/创建协程**：call 0x3c7f4（栈切换原语，保存 esp/ebp/ss 跳转） |
+| `fcn.00035a1e` | 0x5d4ea | **yield**：jmp 0x3c7f0，让出 CPU。0x3c7f0 调 `FUN_0003f5cb`(AIL序列推进) + `FUN_00045340` + `FUN_000383b5`(`4178--`) |
+| `fcn.00035a23` | 0x5d4ef | **resume/创建协程**：call 0x3c7f4（栈切换原语，保存 esp/ebp/ss 跳转） |
 | `0x35a12` | 0x35a12 | **恢复点**：`dec [0x4178]; pop ebp; pop edi; ret`，21 处协程让出后跳回此处 |
 | `fcn.00036766` | 0x36766 | **事件泵**：`4178++`，检查输入 `4174`/`4170`，调 `fcn.0003c972`(事件出队) + `fcn.000353e4`，最后 `call fcn.0003d2d8; jmp 0x35a12` |
-| `fcn.00035a31` | 0x35a31 | 事件泵变体（带模式参数 0x302），调用 `fcn.0003cbb3`(显示消息 0x4f5) |
+| `fcn.00035a31` | 0x5d4fd | 事件泵变体（带模式参数 0x302），调用 `fcn.0003cbb3`(显示消息 0x4f5) |
 
 ### 1.2 全局状态
 
@@ -86,7 +86,7 @@ entry0() {
 - 片头/标题图片来源已定位到具体 .DAT 条目
 
 ### 3.2 待逆向/待实现
-- **动画播放器**：`FUN_0001db69 @0x1db69` 已确认是 ANI.DAT/AFM 字节码动画播放器，SDL 已实现启动流程用到的 opcode。
+- **动画播放器**：`FUN_0001db69 @0x45635` 已确认是 ANI.DAT/AFM 字节码动画播放器，SDL 已实现启动流程用到的 opcode。
 - **滚动阶段的脚本动画**：`FUN_0001cf66` 在若干滚动位置会切调色板并播放动画 4/5/6/7/8，不能只当作调色板切换。
 - **空闲回片头的定时器**：标题停留 N 秒后切回片头协程的逻辑。
 
@@ -105,7 +105,7 @@ entry0() {
 
 ### 4.2 资源加载器
 
-`FUN_0000e902(&DAT_00001a4d, old_ptr, index)` @0xe902
+`FUN_0000e902(&DAT_00001a4d, old_ptr, index)` @0x463ce
 - `&DAT_00001a4d` = FDOTHER.DAT 句柄槽
 - `old_ptr` = 旧指针（非零则先释放）
 - `index` = 条目索引
@@ -117,9 +117,9 @@ entry0() {
 `FUN_0000f488(0, 0xff, 0)` = 应用调色板到 VGA DAC。
 `FUN_0001db69(anim_idx, frame_delay, check_input)` = ANI.DAT/AFM 脚本动画播放器；旧文档中“淡入/淡出”的命名已作废。
 
-### 4.4 启动序列函数 FUN_0001cfe6 @0x1cfe6
+### 4.4 启动序列函数 FUN_0001cfe6 @0x44ab2
 
-调用入口为 `FUN_0001cfdc @0x1cfdc`（Watcom 栈检查前缀），片头 + 标题主体从 `0x1cfe6` 开始。调色板切换条件：
+调用入口为 `FUN_0001cfdc @0x44aa8`（Watcom 栈检查前缀），片头 + 标题主体从 `0x44ab2` 开始。调色板切换条件：
 
 | 阶段 | 条件 | 调色板 index | 同时加载的图 |
 |------|------|------------|------------|
@@ -167,7 +167,7 @@ FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
 - `src/vga.h/vga.c`：虚拟VGA抽象（framebuffer+palette+dac+淡入淡出）
   - 对应反编译：FUN_00035058(vga_clear), FUN_0000f488(DAC应用/暗度),
     FUN_0002b649(palette_fade_to), FUN_0004bac9(vsync)
-- `src/main.c`：boot_intro_title() 复现 FUN_0001cfe6 @0x1cfe6
+- `src/main.c`：boot_intro_title() 复现 FUN_0001cfe6 @0x44ab2
 - `src/archive.c`：新增 fd2_archive_open_mem() 支持嵌套.DAT
 
 ### 待完善
@@ -178,7 +178,7 @@ FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
 
 ## 6. 脚本动画系统（已接入启动流程）
 
-`FUN_0001db69` @0x1db69 不是调色板淡入淡出，而是**ANI.DAT/AFM 脚本动画播放器**：
+`FUN_0001db69` @0x45635 不是调色板淡入淡出，而是**ANI.DAT/AFM 脚本动画播放器**：
 - `animation_play(anim_idx, frame_delay_ms, check_input)`
 - 从 ANI.DAT 读取动画记录（0xad 字节头 + 逐帧字节码数据）
 - 每帧用 `FUN_0003473c`（字节码解释器）执行，handler 使用 ESI 顺序消耗操作数

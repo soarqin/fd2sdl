@@ -9,8 +9,8 @@
 
 /* 原版 16×16 字模渲染
  *
- * 逆向依据：FUN_000136cc @0x136cc 使用 FDTXT.DAT 的 u16 token；
- * FUN_0004c4c2 @0x4c4c2 从 FDOTHER.DAT[4] 取 token*0x20 的
+ * 逆向依据：FUN_000136cc @0x3b198 使用 FDTXT.DAT 的 u16 token；
+ * FUN_0004c4c2 @0x73f8e 从 FDOTHER.DAT[4] 取 token*0x20 的
  * 16 行位图，每行 16 bit，绘制主色与阴影色。
  */
 typedef struct {

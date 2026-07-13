@@ -1,8 +1,8 @@
 /* 炎龙骑士团 2 SDL3 重写 - 完整新游戏初始过场
- * 逆向依据：new_game_opening_play @0x2fa63 的 stage 32→31→0
- * 调用序列、text_dialog_render_tokens @0x136cc、field_focus_move_to
- * @0x10432、field_actor_move_up_follow_camera @0x108cd、
- * field_camera_pan_to @0x10d25、field_movement_script_play @0x10db2，
+ * 逆向依据：new_game_opening_play @0x5752f 的 stage 32→31→0
+ * 调用序列、text_dialog_render_tokens @0x3b198、field_focus_move_to
+ * @0x37efe、field_actor_move_up_follow_camera @0x38399、
+ * field_camera_pan_to @0x387f1、field_movement_script_play @0x3887e，
  * 以及原版实机对照。
  */
 
@@ -14,16 +14,17 @@
 #include <SDL3/SDL.h>
 
 #include "field.h"
+#include "field_unit.h"
 #include "font.h"
 #include "map_sprite.h"
 #include "portrait.h"
 #include "text.h"
 #include "tile.h"
 
-/* 完整新游戏开场由 new_game_opening_play @0x2fa63（code0 0x1fa63）驱动：
+/* 完整新游戏开场由 new_game_opening_play @0x5752f（code0 0x4752f）驱动：
  * stage 32 / FDTXT[33] → stage 31 / FDTXT[32] → stage 0 / FDTXT[1]。
- * 三段之间穿插 field_camera_pan_to @0x10d25 与
- * field_movement_script_play @0x10db2，不能把 stage 0 fragment 0
+ * 三段之间穿插 field_camera_pan_to @0x387f1 与
+ * field_movement_script_play @0x3887e，不能把 stage 0 fragment 0
  * 单独放到 stage 32 背景上播放。 */
 #define FD2_OPENING_STAGE_32 32
 #define FD2_OPENING_STAGE_31 31
@@ -34,8 +35,6 @@
 #define FD2_FIELD_VIEW_CELLS_Y 8
 #define FD2_FIELD_VIEW_W (FD2_FIELD_VIEW_CELLS_X * 24)
 #define FD2_FIELD_VIEW_H (FD2_FIELD_VIEW_CELLS_Y * 24)
-#define FD2_SCENE_MAX_UNIT_PORTRAITS 64
-#define FD2_SCENE_MAX_ACTORS 64
 
 #define DIALOG_X 5
 #define DIALOG_W 310
@@ -52,19 +51,19 @@
 #define DIALOG_BOTTOM_PORTRAIT_X 8
 #define DIALOG_BOTTOM_PORTRAIT_Y 115
 
-/* bios_tick_delay @0x151f1 读取 BIOS 计时器 0x046c；
- * text_dialog_render_tokens @0x136cc 每显示一个字调用一次，约 54.9 ms。
- * SDL 端取整为 55 ms。dialog_box_open @0x13cf4 的展开步间等待则
+/* bios_tick_delay @0x3ccbd 读取 BIOS 计时器 0x046c；
+ * text_dialog_render_tokens @0x3b198 每显示一个字调用一次，约 54.9 ms。
+ * SDL 端取整为 55 ms。dialog_box_open @0x3b7c0 的展开步间等待则
  * 调用 delay_ms(10)，不是 BIOS tick。 */
 #define FD2_BIOS_TICK_MS 55
 #define FD2_DIALOG_TRANSITION_DELAY_MS 10
 #define FD2_TEXT_GLYPH_DELAY_MS FD2_BIOS_TICK_MS
 #define FD2_DIALOG_PAGE_DELAY_MS 1500
-/* field_animation_phase_update @0x100c5 仅在 BIOS tick 差值大于 4
+/* field_animation_phase_update @0x37b91 仅在 BIOS tick 差值大于 4
  * 时推进一次角色 idle phase，即约每 5 tick / 275 ms 一帧。 */
 #define FD2_IDLE_FRAME_DELAY_MS (FD2_BIOS_TICK_MS * 5)
 
-/* FDTXT 控制码；FUN_000136cc @0x136cc 使用 signed u16 解释。 */
+/* FDTXT 控制码；FUN_000136cc @0x3b198 使用 signed u16 解释。 */
 enum {
     FD2_TEXT_END = -1,
     FD2_TEXT_NEWLINE = -2,
@@ -88,20 +87,10 @@ typedef struct {
 } fd2_ui_sheet;
 
 typedef struct {
-    uint8_t sprite_group;
-    uint8_t direction;
-    uint8_t frame;
-    uint8_t move_phase;
-    uint8_t visible;
-    int x;
-    int y;
-} fd2_scene_actor;
-
-typedef struct {
     int camera_cell_x;
     int camera_cell_y;
     /* 角色贴近视窗边缘移动时，field_actor_move_up_follow_camera
-     * @0x108cd 等方向函数会在 6 个步态相位中每次卷动 4 px，最后才
+     * @0x38399 等方向函数会在 6 个步态相位中每次卷动 4 px，最后才
      * 提交一格镜头坐标。 */
     int camera_offset_x;
     int camera_offset_y;
@@ -109,18 +98,9 @@ typedef struct {
      * 角色直接移动和对话定位则单独推进焦点。 */
     int focus_cell_x;
     int focus_cell_y;
-    fd2_scene_actor actors[FD2_SCENE_MAX_ACTORS];
-    size_t actor_count;
-    /* FDTXT -19/-20 控制码按 DAT_00003a45 + unit_idx*0x50 + 7
-     * 取 DATO 立绘编号。当前预览只构造已确认的单位索引，未知索引回退为
-     * 直接 DATO 编号，等完整战场 actor 表复现后再补齐。 */
-    uint8_t unit_portrait_known[FD2_SCENE_MAX_UNIT_PORTRAITS];
-    uint8_t unit_portrait_id[FD2_SCENE_MAX_UNIT_PORTRAITS];
-    /* actor record offset 0x08：-17/-18 用于查找说话角色的文本编号；
-     * 与 offset 0x07 的 DATO 立绘编号分开保存。 */
-    uint8_t unit_text_known[FD2_SCENE_MAX_UNIT_PORTRAITS];
-    uint8_t unit_text_id[FD2_SCENE_MAX_UNIT_PORTRAITS];
-    /* field_animation_phase_update @0x100c5 的全局 idle phase。静止 actor
+    /* DAT_00003a45：过场与正式战场共用的 0x50 字节单位记录表。 */
+    fd2_field_units units;
+    /* field_animation_phase_update @0x37b91 的全局 idle phase。静止 actor
      * 共用此相位；移动 actor 由 record offset 0x04 的步行相位覆盖。 */
     uint8_t idle_phase;
     int idle_elapsed_ms;
@@ -250,7 +230,7 @@ static void blit_ui_tile(fd2_vga *vga, const fd2_ui_sheet *ui,
 
 static void draw_dialog_tiles(fd2_vga *vga, const fd2_ui_sheet *ui,
                               int x, int y, int tile_w, int tile_h) {
-    /* 复现 FUN_00013ffe @0x13ffe 的布局：参数为 x/y、内部 16×16
+    /* 复现 FUN_00013ffe @0x3baca 的布局：参数为 x/y、内部 16×16
      * 区块数 tile_w/tile_h；最终对话框调用为 x=5,y=2 或 0x70,
      * tile_w=19,tile_h=5，尺寸正好 310×86。 */
     int inner_w = tile_w - 2;
@@ -304,22 +284,17 @@ static uint16_t resolve_portrait_control(const fd2_scene_field_state *field_stat
     if (!field_state) return arg;
     if ((control == FD2_TEXT_TOP_UNIT_PORTRAIT ||
          control == FD2_TEXT_BOTTOM_UNIT_PORTRAIT) &&
-        arg < FD2_SCENE_MAX_UNIT_PORTRAITS &&
-        field_state->unit_portrait_known[arg]) {
-        return field_state->unit_portrait_id[arg];
+        arg < field_state->units.count) {
+        return field_state->units.items[arg].unit_id;
     }
     if ((control == FD2_TEXT_TOP_PORTRAIT ||
          control == FD2_TEXT_BOTTOM_PORTRAIT) && arg != 0x27u) {
-        /* field_visible_actor_find_by_text_id @0x103a8 即使只找到隐藏
+        /* field_visible_actor_find_by_text_id @0x37e74 即使只找到隐藏
          * actor，也保留其记录指针，供 token 路径读取 offset 0x07 立绘。 */
-        for (size_t i = 0;
-             i < field_state->actor_count &&
-             i < FD2_SCENE_MAX_UNIT_PORTRAITS;
-             i++) {
-            if (field_state->unit_text_known[i] &&
-                field_state->unit_text_id[i] == (uint8_t)arg &&
-                field_state->unit_portrait_known[i])
-                return field_state->unit_portrait_id[i];
+        for (size_t i = 0; i < field_state->units.count; i++) {
+            const fd2_field_unit *unit = &field_state->units.items[i];
+            if (unit->text_id == (uint8_t)arg)
+                return unit->unit_id;
         }
     }
     return arg;
@@ -331,22 +306,13 @@ static int resolve_speaker_actor(const fd2_scene_field_state *field_state,
     if (!field_state) return -1;
     if (control == FD2_TEXT_TOP_UNIT_PORTRAIT ||
         control == FD2_TEXT_BOTTOM_UNIT_PORTRAIT) {
-        return arg < field_state->actor_count ? (int)arg : -1;
+        return arg < field_state->units.count ? (int)arg : -1;
     }
 
     /* -17/-18 的下一 token 是 actor record offset 0x08 文本编号，
-     * field_visible_actor_find_by_text_id @0x103a8 只返回未隐藏角色；
-     * 隐藏角色仍可通过其记录的 offset 0x07 显示立绘，但对话框不从
-     * 旧地图坐标弹出。 */
-    for (size_t i = 0;
-         i < field_state->actor_count && i < FD2_SCENE_MAX_UNIT_PORTRAITS;
-         i++) {
-        if (field_state->actors[i].visible &&
-            field_state->unit_text_known[i] &&
-            field_state->unit_text_id[i] == (uint8_t)arg)
-            return (int)i;
-    }
-    return -1;
+     * field_visible_actor_find_by_text_id @0x37e74 只返回未隐藏角色。 */
+    return fd2_field_units_find_visible_text_id(&field_state->units,
+                                                (uint8_t)arg);
 }
 
 static void draw_portrait(fd2_vga *vga, const fd2_archive *dato,
@@ -367,39 +333,17 @@ static int clamp_int(int value, int lo, int hi) {
     return value;
 }
 
-static uint8_t opening_sprite_group(uint16_t unit_id) {
-    /* DAT_00003a45 offset 2 是 FD2.TMP 的运行期 cache class，不是稳定的
-     * 职业号。fdicon_cache_append_unit @0xe761 按 actor offset 7 的 unit id 从
-     * FDICON.B24 复制 12 帧并重写 cache class。SDL 版直接读取完整的
-     * FDICON.B24，因此帧组就是 unit_id，避免跨 stage 沿用错误 TMP。 */
-    return unit_id <= 0xffu ? (uint8_t)unit_id : 0;
-}
-
 static void opening_actor_set(fd2_scene_field_state *state,
                               size_t actor_idx,
                               uint16_t unit_id,
                               int x,
                               int y) {
-    if (!state || actor_idx >= FD2_SCENE_MAX_ACTORS) return;
-    fd2_scene_actor *actor = &state->actors[actor_idx];
-    actor->sprite_group = opening_sprite_group(unit_id);
-    actor->direction = 0;
-    actor->frame = 1;
-    actor->move_phase = 0;
-    actor->visible = 1;
-    actor->x = x;
-    actor->y = y;
-    if (actor_idx < FD2_SCENE_MAX_UNIT_PORTRAITS) {
-        state->unit_portrait_known[actor_idx] = 1;
-        state->unit_portrait_id[actor_idx] = (uint8_t)unit_id;
-        /* 新游戏开场实际使用的角色，record offset 0x08 文本编号与
-         * offset 0x07 unit/DATO 编号相同；仍分字段保存，避免把
-         * field_visible_actor_find_by_text_id 的比较对象误写成立绘字段。 */
-        state->unit_text_known[actor_idx] = 1;
-        state->unit_text_id[actor_idx] = (uint8_t)unit_id;
-    }
-    if (state->actor_count <= actor_idx)
-        state->actor_count = actor_idx + 1;
+    if (!state || unit_id > 0xffu) return;
+    /* 开场的 text_id 与 unit/DATO id 相同；正式关卡模板会分别填入
+     * record offset 0x07/0x08。 */
+    (void)fd2_field_units_set(&state->units, actor_idx,
+                              (uint8_t)unit_id, (uint8_t)unit_id, 0,
+                              x, y);
 }
 
 static void init_opening_field_state(fd2_scene_field_state *state,
@@ -422,9 +366,9 @@ static void init_opening_field_state(fd2_scene_field_state *state,
         for (size_t i = 0; i < 8 && i < placements->count; i++) {
             const fd2_field_placement *p = &placements->records[i];
             opening_actor_set(state, 4 + i, p->unit_id, p->x, p->y);
-            /* field_actor_group_arrival_effect @0x300e1 先按组加入 actor，再播放 12 帧登场
+            /* field_actor_group_arrival_effect @0x57bad 先按组加入 actor，再播放 12 帧登场
              * 特效；进入 stage 0 时这两组不能提前出现在地图上。 */
-            state->actors[4 + i].visible = 0;
+            fd2_field_unit_set_hidden(&state->units.items[4 + i], 1);
         }
         return;
     }
@@ -439,15 +383,16 @@ static void init_opening_field_state(fd2_scene_field_state *state,
             break;
         opening_actor_set(state, i, p->unit_id, p->x, p->y);
         /* stage 31 的模板 offset 0x15 将 actor 0/1、2/3、4 分到
-         * group 1/3/5。new_game_opening_play @0x2fa63 依次调用
-         * func_0x0000e296(1/3/5)，不能在场景加载时一次显示五人。 */
+         * group 1/3/5。new_game_opening_play @0x5752f 分时触发这些组，
+         * 并由 field_actor_group_arrival_effect @0x57bad 播放登场效果；
+         * 不能在场景加载时一次显示五人。 */
         if (stage == FD2_OPENING_STAGE_31 && i >= 2)
-            state->actors[i].visible = 0;
+            fd2_field_unit_set_hidden(&state->units.items[i], 1);
     }
-    /* func_0x0000e296 会在各时点扩展 DAT_00003beb actor count；预填的
+    /* 原流程会在各组登场时扩展 DAT_00003beb actor count；预填的
      * group 3/5 槽在激活前也不能参与文本编号查找。 */
-    if (stage == FD2_OPENING_STAGE_31 && state->actor_count > 2)
-        state->actor_count = 2;
+    if (stage == FD2_OPENING_STAGE_31 && state->units.count > 2)
+        state->units.count = 2;
 }
 
 static void opening_camera_pixels(const fd2_field_map *map,
@@ -470,73 +415,21 @@ static void opening_camera_pixels(const fd2_field_map *map,
     if (out_y) *out_y = world_y - FD2_FIELD_VIEW_Y;
 }
 
-static uint8_t opening_actor_frame_phase(
-        const fd2_scene_field_state *field_state,
-        const fd2_scene_actor *actor) {
-    if (actor->move_phase != 0)
-        return actor->frame;
-    /* map_actor_blit_24x24 @0xb168：record offset 0x04 为 0 时使用
-     * 全局 DAT_00003c0b；phase 3 映射回 phase 1。 */
-    return field_state->idle_phase == 3 ? 1u : field_state->idle_phase;
-}
-
 static void render_prologue_actors(fd2_vga *vga,
                                    const fd2_field_map *map,
                                    const fd2_map_sprite_bank *sprites,
                                    const fd2_scene_field_state *field_state) {
-    if (!vga || !sprites || !field_state) return;
-
-    size_t order[FD2_SCENE_MAX_ACTORS];
-    size_t order_count = 0;
-    for (size_t i = 0; i < field_state->actor_count && i < FD2_SCENE_MAX_ACTORS; i++) {
-        const fd2_scene_actor *actor = &field_state->actors[i];
-        if (!actor->visible) continue;
-        uint8_t frame_phase = opening_actor_frame_phase(field_state, actor);
-        size_t frame_idx = (size_t)actor->sprite_group * 12u +
-                           (size_t)actor->direction * 3u +
-                           (size_t)frame_phase;
-        if (frame_idx >= sprites->frame_count) continue;
-
-        size_t pos = order_count++;
-        order[pos] = i;
-        while (pos > 0) {
-            const fd2_scene_actor *a = &field_state->actors[order[pos - 1]];
-            const fd2_scene_actor *b = &field_state->actors[order[pos]];
-            if (a->y < b->y || (a->y == b->y && a->x <= b->x)) break;
-            size_t tmp = order[pos - 1];
-            order[pos - 1] = order[pos];
-            order[pos] = tmp;
-            pos--;
-        }
-    }
-
     int camera_x = 0;
     int camera_y = 0;
+    if (!field_state) return;
     opening_camera_pixels(map, field_state, &camera_x, &camera_y);
-    for (size_t oi = 0; oi < order_count; oi++) {
-        const fd2_scene_actor *actor = &field_state->actors[order[oi]];
-        uint8_t frame_phase = opening_actor_frame_phase(field_state, actor);
-        size_t frame_idx = (size_t)actor->sprite_group * 12u +
-                           (size_t)actor->direction * 3u +
-                           (size_t)frame_phase;
-        int sx = actor->x * 24 - camera_x;
-        int sy = actor->y * 24 - camera_y - 6;
-        /* map_actor_blit_24x24 @0xb168 以 record+4 的 1..6 相位，
-         * 每帧沿方向移动 4 px；第 6 帧正好跨过一个 24 px 格。 */
-        int pixel_step = (int)actor->move_phase * 4;
-        switch (actor->direction & 3u) {
-            case 0: sy += pixel_step; break;
-            case 1: sx -= pixel_step; break;
-            case 2: sy -= pixel_step; break;
-            case 3: sx += pixel_step; break;
-        }
-        fd2_map_sprite_blit_frame(vga, sprites, frame_idx, sx, sy, 0);
-    }
+    fd2_field_units_render(vga, sprites, &field_state->units,
+                           camera_x, camera_y, field_state->idle_phase);
 }
 
 static void clear_field_view_border(fd2_vga *vga) {
     if (!vga) return;
-    /* field_view_render_from_cache @0x1cca0 先清空 320×200 缓冲区，再只写
+    /* field_view_render_tiles @0x3710c 先清空 320×200 缓冲区，再只写
      * VGA offset 0x504（4,4）起的 312×192 战场内区。四边 4 px 因此
      * 保持调色板 index 0 的黑边，不能用相邻地图格填充。 */
     for (int y = 0; y < VGA_H; y++) {
@@ -562,8 +455,8 @@ static void render_scene_base(fd2_vga *vga,
     opening_camera_pixels(map, field_state, &camera_x, &camera_y);
     fd2_terrain_render_field_base(vga, terrain, map, camera_x, camera_y);
     render_prologue_actors(vga, map, sprites, field_state);
-    /* map_scene_render_actors @0xa2e6 后由 FUN_00010134 调用
-     * map_tile_blit_visible @0x1020e 重绘遮挡格。 */
+    /* map_scene_render_actors @0x41db2 后由 FUN_00010134 调用
+     * map_tile_blit_visible @0x37cda 重绘遮挡格。 */
     fd2_terrain_render_field_overlay(vga, terrain, map, camera_x, camera_y, 0);
     clear_field_view_border(vga);
 }
@@ -623,10 +516,10 @@ static int dialog_popup_source(const fd2_field_map *map,
                                int *out_y,
                                int *out_steps) {
     if (!field_state || speaker_actor_idx < 0 ||
-        (size_t)speaker_actor_idx >= field_state->actor_count)
+        (size_t)speaker_actor_idx >= field_state->units.count)
         return -1;
 
-    const fd2_scene_actor *actor = &field_state->actors[speaker_actor_idx];
+    const fd2_field_unit *actor = &field_state->units.items[speaker_actor_idx];
 
     int camera_x = 0;
     int camera_y = 0;
@@ -669,7 +562,7 @@ static void animate_dialog_marker(fd2_vga *vga,
          * 进入对话时的共享 idle phase。 */
         render_scene_base(vga, terrain, map, sprites, field_state);
         /* FDOTHER[5] tile 0 是 24×24 空心框。FUN_000135e6 @0x135e6
-         * 在 dialog_box_open @0x13cf4 中将它从角色格移动到对话框原点；
+         * 在 dialog_box_open @0x3b7c0 中将它从角色格移动到对话框原点；
          * 0x4a 是该帧背景色。 */
         blit_ui_tile_mode(vga, ui, 0, x, y, 0x4a);
         fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
@@ -691,7 +584,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
     animate_dialog_marker(vga, terrain, map, ui, sprites, field_state,
                           speaker_actor_idx, area, 0);
 
-    /* dialog_box_open @0x13cf4 依次用 4×2、8×3、12×4、16×5、
+    /* dialog_box_open @0x3b7c0 依次用 4×2、8×3、12×4、16×5、
      * 19×5 个内部块绘制同一对话框，形成原版的伪缩放弹出效果。 */
     static const uint8_t stages[][2] = {
         {4, 2}, {8, 3}, {12, 4}, {16, 5}, {19, 5},
@@ -708,7 +601,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
     }
 }
 
-/* dialog_box_close @0x1428b：倒序恢复五级弹框背景，各级等待 10 ms；
+/* dialog_box_close @0x3bd57：倒序恢复五级弹框背景，各级等待 10 ms；
  * 若对话框来自可见角色，再把 24×24 空心框移回角色格。 */
 static void animate_dialog_box_close(fd2_vga *vga,
                                      const fd2_terrain_tileset *terrain,
@@ -761,7 +654,7 @@ static void pan_camera_to(fd2_vga *vga,
         return;
     }
 
-    /* field_camera_pan_to @0x10d25 先完整调整 X，再调整 Y；每格只等待
+    /* field_camera_pan_to @0x387f1 先完整调整 X，再调整 Y；每格只等待
      * 一次 vsync。确认键不打断镜头，留给随后对话消费。 */
     while (field_state->camera_cell_x != target_x) {
         int cx = field_state->camera_cell_x;
@@ -793,19 +686,19 @@ static void focus_camera_on_actor(fd2_vga *vga,
                                   int actor_idx,
                                   int fast) {
     if (!field_state || actor_idx < 0 ||
-        (size_t)actor_idx >= field_state->actor_count)
+        (size_t)actor_idx >= field_state->units.count)
         return;
 
-    const fd2_scene_actor *actor = &field_state->actors[actor_idx];
+    const fd2_field_unit *actor = &field_state->units.items[actor_idx];
 
     int max_cam_x = map ? map->width - FD2_FIELD_VIEW_CELLS_X : 0;
     int max_cam_y = map ? map->height - FD2_FIELD_VIEW_CELLS_Y : 0;
     if (max_cam_x < 0) max_cam_x = 0;
     if (max_cam_y < 0) max_cam_y = 0;
 
-    /* dialog_box_open @0x13cf4 在从角色格展开对话框前自动调用
-     * field_focus_move_to @0x10432；按 actor 索引定位的等价包装为
-     * field_focus_move_to_actor @0x104c3。前者先逐格移动 X、再移动 Y；焦点
+    /* dialog_box_open @0x3b7c0 在从角色格展开对话框前自动调用
+     * field_focus_move_to @0x37efe；按 actor 索引定位的等价包装为
+     * field_focus_move_to_actor @0x37f8f。前者先逐格移动 X、再移动 Y；焦点
      * 向外达到 x=2/11、y=2/6 阈值后才同步卷动镜头。最终镜头位置
      * 取决于此前焦点，不等同于直接把角色固定到某个屏幕格。
      * 这不是额外的文本控制码，也不需要过场显式调用镜头指令。 */
@@ -997,7 +890,7 @@ static int play_text_fragment(fd2_vga *vga,
 
         fd2_font_draw_glyph(vga, font, (uint16_t)tok, state.x, state.y,
                             0xcd, 0x4c, -1);
-        /* FUN_000136cc @0x136cc 不做按对话框宽度自动折行，只在
+        /* FUN_000136cc @0x3b198 不做按对话框宽度自动折行，只在
          * FDTXT token -2/-3 出现时推进一行。此前这里额外自动折行，
          * 会让恰好排到行尾后紧跟 -2 的文本一次换两行。 */
         state.x += 16;
@@ -1014,7 +907,7 @@ static int play_text_fragment(fd2_vga *vga,
 }
 
 /* DAT_000027d8 中新游戏开场会用到的移动脚本。字节流按
- * field_movement_script_play @0x10db2 的原始格式登记：group_count，
+ * field_movement_script_play @0x3887e 的原始格式登记：group_count，
  * 然后是 step_or_mode、actor_count、(actor_id,direction)。数据来自未
  * patch FD2.EXE 的 object3 初始化区与对应 LE relocation。 */
 static const uint8_t k_move_00[] = {0x05,0x06,0x04,0x00,0x02,0x01,0x02,0x02,0x02,0x03,0x02,0x88,0x01,0x00,0x01,0x88,0x01,0x00,0x03,0x88,0x01,0x00,0x01,0x84,0x01,0x00,0x00};
@@ -1040,7 +933,7 @@ static const uint8_t k_move_69[] = {0x05,0x02,0x01,0x03,0x03,0x01,0x01,0x03,0x00
 
 static const uint8_t k_walk_phases[] = {1, 2, 1, 0, 1, 2};
 
-static void opening_move_one(fd2_scene_actor *actor, uint8_t direction) {
+static void opening_move_one(fd2_field_unit *actor, uint8_t direction) {
     if (!actor) return;
     actor->direction = direction & 3u;
     switch (actor->direction) {
@@ -1060,15 +953,15 @@ static int opening_actor_move_up_follow_camera(
         size_t actor_idx,
         int cell_count,
         int fast) {
-    if (!state || actor_idx >= state->actor_count || cell_count < 0)
+    if (!state || actor_idx >= state->units.count || cell_count < 0)
         return -1;
 
     /* 新游戏开场直接调用的上移：复现
-     * field_actor_move_up_follow_camera @0x108cd。该函数在角色靠近视窗
+     * field_actor_move_up_follow_camera @0x38399。该函数在角色靠近视窗
      * 上缘时，于一格的 6 个步行相位中同时移动角色与镜头，每相位 4 px；
      * 格坐标只在 6 相位完成后提交。 */
     for (int cell = 0; cell < cell_count; cell++) {
-        fd2_scene_actor *actor = &state->actors[actor_idx];
+        fd2_field_unit *actor = &state->units.items[actor_idx];
         int camera_dy = 0;
         if (actor->y - state->camera_cell_y < 2 &&
             state->camera_cell_y > 0)
@@ -1077,8 +970,8 @@ static int opening_actor_move_up_follow_camera(
         actor->direction = 2;
         if (!fast) {
             for (size_t phase = 0; phase < sizeof(k_walk_phases); phase++) {
-                actor->frame = k_walk_phases[phase];
-                actor->move_phase = (uint8_t)phase + 1u;
+                state->units.walk_frames[actor_idx] = k_walk_phases[phase];
+                actor->frame_phase = (uint8_t)phase + 1u;
                 state->camera_offset_y = camera_dy * (int)(phase + 1u) * 4;
                 render_scene_base(vga, terrain, map, sprites, state);
                 fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
@@ -1087,8 +980,8 @@ static int opening_actor_move_up_follow_camera(
         }
 
         opening_move_one(actor, 2);
-        actor->frame = 1;
-        actor->move_phase = 0;
+        state->units.walk_frames[actor_idx] = 1;
+        actor->frame_phase = 0;
         state->focus_cell_y--;
         set_camera_cell(state, map, state->camera_cell_x,
                         state->camera_cell_y + camera_dy);
@@ -1120,8 +1013,8 @@ static int play_opening_move_script(fd2_vga *vga,
 
         for (uint8_t i = 0; i < actor_count; i++) {
             uint8_t actor_id = pairs[i * 2];
-            if (actor_id < state->actor_count)
-                state->actors[actor_id].direction = pairs[i * 2 + 1] & 3u;
+            if (actor_id < state->units.count)
+                state->units.items[actor_id].direction = pairs[i * 2 + 1] & 3u;
         }
 
         if (mode & 0x80u) {
@@ -1142,9 +1035,9 @@ static int play_opening_move_script(fd2_vga *vga,
                 for (size_t phase = 0; phase < sizeof(k_walk_phases); phase++) {
                     for (uint8_t i = 0; i < actor_count; i++) {
                         uint8_t actor_id = pairs[i * 2];
-                        if (actor_id < state->actor_count) {
-                            state->actors[actor_id].frame = k_walk_phases[phase];
-                            state->actors[actor_id].move_phase = (uint8_t)phase + 1u;
+                        if (actor_id < state->units.count) {
+                            state->units.walk_frames[actor_id] = k_walk_phases[phase];
+                            state->units.items[actor_id].frame_phase = (uint8_t)phase + 1u;
                         }
                     }
                     /* 原版只写脚本中 actor 的 record+4；卫兵等静止角色
@@ -1154,7 +1047,7 @@ static int play_opening_move_script(fd2_vga *vga,
                         if (darkness < 0x40) darkness++;
                         fd2_vga_set_brightness(vga, darkness);
                     }
-                    /* field_movement_script_play @0x10db2 每个 4 px 相位
+                    /* field_movement_script_play @0x3887e 每个 4 px 相位
                      * 调用 bios_tick_delay(1) 后再等 vsync。宿主端以绝对
                      * deadline 扣除本帧渲染耗时，避免步态节奏抖动。 */
                     fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
@@ -1164,10 +1057,10 @@ static int play_opening_move_script(fd2_vga *vga,
             for (uint8_t i = 0; i < actor_count; i++) {
                 uint8_t actor_id = pairs[i * 2];
                 uint8_t direction = pairs[i * 2 + 1];
-                if (actor_id >= state->actor_count) continue;
-                opening_move_one(&state->actors[actor_id], direction);
-                state->actors[actor_id].frame = 1;
-                state->actors[actor_id].move_phase = 0;
+                if (actor_id >= state->units.count) continue;
+                opening_move_one(&state->units.items[actor_id], direction);
+                state->units.walk_frames[actor_id] = 1;
+                state->units.items[actor_id].frame_phase = 0;
             }
             /* phase 6 的 +24 px 与提交后的格坐标画面相同；非 fast 路径
              * 不再重复 present，以免重置下一相位的 deadline。 */
@@ -1213,7 +1106,7 @@ static void opening_palette_fade_in(fd2_vga *vga, int fast) {
         fd2_vga_set_brightness(vga, 0);
         return;
     }
-    /* palette_fade_in_light @0x1cc6d：暗度 0x40→0。 */
+    /* palette_fade_in_light @0x44739：暗度 0x40→0。 */
     for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
         fd2_vga_set_brightness(vga, darkness);
         fd2_vga_present_timed(vga, 12);
@@ -1229,13 +1122,8 @@ static int opening_actor_arrival(fd2_vga *vga,
                                  size_t first_actor,
                                  size_t last_actor,
                                  int fast) {
-    if (last_actor > state->actor_count) last_actor = state->actor_count;
+    if (last_actor > state->units.count) last_actor = state->units.count;
     if (first_actor >= last_actor) return 0;
-    if (fast) {
-        for (size_t i = first_actor; i < last_actor; i++)
-            state->actors[i].visible = 1;
-        return 0;
-    }
 
     const uint8_t *data;
     size_t size;
@@ -1246,7 +1134,7 @@ static int opening_actor_arrival(fd2_vga *vga,
     if (frame_count < 12 || 6u + (size_t)frame_count * 4u > size)
         return -1;
 
-    /* field_actor_group_arrival_effect @0x300e1：FUN_0000e296 按组加入 actor 后，使用
+    /* field_actor_group_arrival_effect @0x57bad：按组加入 actor 后，使用
      * FDOTHER[9] 的 12 帧 LMI1 特效在每个新 actor 格上展开。LMI blit
      * 的 0 色透明，因此每帧先恢复无新 actor 的战场底图。 */
     for (uint16_t frame_idx = 0; frame_idx < 12; frame_idx++) {
@@ -1259,22 +1147,24 @@ static int opening_actor_arrival(fd2_vga *vga,
         if (fd2_lmi_decode_image(&effect, data + start, end - start) != 0)
             return -1;
 
-        render_scene_base(vga, terrain, map, sprites, state);
-        int camera_x = 0;
-        int camera_y = 0;
-        opening_camera_pixels(map, state, &camera_x, &camera_y);
-        for (size_t i = first_actor; i < last_actor; i++) {
-            const fd2_scene_actor *actor = &state->actors[i];
-            int x = actor->x * 24 - camera_x + 12 - effect.width / 2;
-            int y = actor->y * 24 - camera_y - 6;
-            fd2_map_sprite_blit(vga, &effect, x, y, 0);
+        if (!fast) {
+            render_scene_base(vga, terrain, map, sprites, state);
+            int camera_x = 0;
+            int camera_y = 0;
+            opening_camera_pixels(map, state, &camera_x, &camera_y);
+            for (size_t i = first_actor; i < last_actor; i++) {
+                const fd2_field_unit *actor = &state->units.items[i];
+                int x = actor->x * 24 - camera_x + 12 - effect.width / 2;
+                int y = actor->y * 24 - camera_y - 6;
+                fd2_map_sprite_blit(vga, &effect, x, y, 0);
+            }
+            fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
+            opening_advance_idle(state, FD2_BIOS_TICK_MS);
         }
         fd2_image_free(&effect);
-        fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
-        opening_advance_idle(state, FD2_BIOS_TICK_MS);
     }
     for (size_t i = first_actor; i < last_actor; i++)
-        state->actors[i].visible = 1;
+        fd2_field_unit_set_hidden(&state->units.items[i], 0);
     present_base_frame(vga, terrain, map, sprites, state);
     return 0;
 }
@@ -1330,19 +1220,20 @@ static int play_stage31_opening(fd2_vga *vga,
     MOVE31(5a); TEXT31(0);
     MOVE31(5b); TEXT31(1);
     MOVE31(5c); TEXT31(2);
-    /* code0 0x1fd56：func_0x0000e296(3) 此时才加入 actor 2/3；
+    /* new_game_opening_play @0x5752f：此时才加入 group 3 的 actor 2/3；
      * 随后的 camera (4,41) 左移让这两人进入画面。 */
-    state->actors[2].visible = 1;
-    state->actors[3].visible = 1;
-    if (state->actor_count < 4) state->actor_count = 4;
+    fd2_field_unit_set_hidden(&state->units.items[2], 0);
+    fd2_field_unit_set_hidden(&state->units.items[3], 0);
+    if (state->units.count < 4) state->units.count = 4;
     pan_camera_to(vga, terrain, map, sprites, state, 4, 41, fast);
     TEXT31(3);
     MOVE31(5d); TEXT31(4);
     /* code0 0x1fdd8/0x1fde2：先隐藏 actor 2，再加入 group 5 的
      * actor 4。两者同在 (5,44)，绝不能同时绘制。 */
-    if (state->actor_count > 2) state->actors[2].visible = 0;
-    state->actors[4].visible = 1;
-    if (state->actor_count < 5) state->actor_count = 5;
+    if (state->units.count > 2)
+        fd2_field_unit_set_hidden(&state->units.items[2], 1);
+    fd2_field_unit_set_hidden(&state->units.items[4], 0);
+    if (state->units.count < 5) state->units.count = 5;
     TEXT31(5);
     MOVE31(5e); TEXT31(6);
     MOVE31(5f); TEXT31(7);
@@ -1382,7 +1273,8 @@ static int play_stage0_opening(fd2_vga *vga,
     MOVE0(02); TEXT0(1);
     opening_delay(vga, terrain, map, sprites, state, 200, fast);
     MOVE0(05);
-    if (state->actor_count > 9) state->actors[9].visible = 0;
+    if (state->units.count > 9)
+        fd2_field_unit_set_hidden(&state->units.items[9], 1);
     opening_delay(vga, terrain, map, sprites, state, 100, fast);
     TEXT0(2);
 #undef TEXT0
@@ -1444,9 +1336,11 @@ static void opening_stage_fade_in(fd2_vga *vga,
     }
 }
 
-int fd2_scene_play_new_game_prologue(fd2_vga *vga,
-                                     const fd2_archive *fdother,
-                                     int once) {
+int fd2_scene_play_new_game_prologue_handoff(
+        fd2_vga *vga,
+        const fd2_archive *fdother,
+        int once,
+        fd2_field_handoff *handoff) {
     fd2_archive field = {0};
     fd2_archive fdshap = {0};
     fd2_archive fdtxt = {0};
@@ -1457,6 +1351,7 @@ int fd2_scene_play_new_game_prologue(fd2_vga *vga,
     fd2_opening_stage scene = {0};
     int result = -1;
 
+    if (handoff) memset(handoff, 0, sizeof(*handoff));
     if (!vga || !fdother) return -1;
     if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0 ||
         fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0 ||
@@ -1493,7 +1388,7 @@ int fd2_scene_play_new_game_prologue(fd2_vga *vga,
         }
         printf("new-game opening: part=%zu stage=%zu text_entry=%zu actors=%zu%s\n",
                part, stages[part], stages[part] + 1u,
-               scene.field_state.actor_count, once ? ", fast" : "");
+               scene.field_state.units.count, once ? ", fast" : "");
         opening_stage_fade_in(vga, &scene, &sprites, once);
 
         int play_result;
@@ -1523,6 +1418,16 @@ int fd2_scene_play_new_game_prologue(fd2_vga *vga,
     if (!once)
         opening_delay(vga, &scene.terrain, &scene.map, &sprites,
                       &scene.field_state, 800, 0);
+    if (handoff) {
+        handoff->stage = FD2_OPENING_STAGE_0;
+        handoff->units = scene.field_state.units;
+        handoff->camera_cell_x = scene.field_state.camera_cell_x;
+        handoff->camera_cell_y = scene.field_state.camera_cell_y;
+        handoff->focus_cell_x = scene.field_state.focus_cell_x;
+        handoff->focus_cell_y = scene.field_state.focus_cell_y;
+        handoff->idle_phase = scene.field_state.idle_phase;
+        handoff->valid = 1;
+    }
     result = 0;
 
 done:
@@ -1533,4 +1438,173 @@ done:
     fd2_archive_close(&fdshap);
     fd2_archive_close(&field);
     return result;
+}
+
+static int field_event_append_group(
+        fd2_vga *vga,
+        const fd2_archive *fdother,
+        const fd2_field_game *game,
+        fd2_scene_field_state *state,
+        uint8_t group,
+        int arrival_effect,
+        int fast) {
+    size_t first = state->units.count;
+    if (fd2_field_units_append_group(&state->units, &game->metadata,
+                                     &game->placements, group) != 0 ||
+        state->units.count == first)
+        return -1;
+    if (!arrival_effect) {
+        present_base_frame(vga, &game->terrain, &game->map,
+                           &game->sprites, state);
+        return 0;
+    }
+    for (size_t i = first; i < state->units.count; i++)
+        fd2_field_unit_set_hidden(&state->units.items[i], 1);
+    return opening_actor_arrival(vga, fdother, &game->terrain, &game->map,
+                                 &game->sprites, state, first,
+                                 state->units.count, fast);
+}
+
+static int field_event_move_script(
+        fd2_vga *vga,
+        const fd2_field_game *game,
+        fd2_scene_field_state *state,
+        uint8_t script_id,
+        int fast) {
+    const uint8_t *script;
+    size_t script_size;
+    if (fd2_field_stage0_movement_script_get(
+            script_id, &script, &script_size) != 0)
+        return -1;
+    return play_opening_move_script(vga, &game->terrain, &game->map,
+                                    &game->sprites, state, script,
+                                    script_size, 0, fast);
+}
+
+int fd2_scene_play_field_event(fd2_vga *vga,
+                               const fd2_archive *fdother,
+                               fd2_field_game *game,
+                               fd2_field_event_notice *notice,
+                               int fast) {
+    if (!vga || !fdother || !game || !notice || !notice->handled ||
+        !notice->presentation_deferred || notice->kind != FD2_FIELD_EVENT_TURN ||
+        game->stage != 0 || notice->action > 3 ||
+        notice->presentation_unit_count > game->units.count)
+        return -1;
+
+    fd2_archive fdtxt = {0};
+    fd2_archive dato = {0};
+    fd2_text_entry text = {0};
+    fd2_font font = {0};
+    fd2_ui_sheet ui = {0};
+    fd2_scene_field_state state;
+    memset(&state, 0, sizeof(state));
+    int result = -1;
+
+    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+        fd2_archive_open(&dato, "original_game/DATO.DAT") != 0 ||
+        fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
+        fd2_font_open_fdother(&font, fdother, 4) != 0 ||
+        ui_sheet_open_fdother(&ui, fdother, 5) != 0)
+        goto done;
+
+    state.camera_cell_x = notice->presentation_camera_x;
+    state.camera_cell_y = notice->presentation_camera_y;
+    state.focus_cell_x = notice->presentation_focus_x;
+    state.focus_cell_y = notice->presentation_focus_y;
+    state.units = game->units;
+    state.units.count = notice->presentation_unit_count;
+    state.idle_phase = game->idle_phase;
+
+#define PAN(x, y) pan_camera_to(vga, &game->terrain, &game->map, \
+                                &game->sprites, &state, (x), (y), fast)
+#define GROUP(id, effect) do { \
+    if (field_event_append_group(vga, fdother, game, &state, \
+                                 (id), (effect), fast) != 0) goto done; \
+} while (0)
+#define MOVE(id) do { \
+    if (field_event_move_script(vga, game, &state, (id), fast) != 0) \
+        goto done; \
+} while (0)
+#define TEXT(id) do { \
+    if (opening_text(vga, &game->terrain, &game->map, &dato, &ui, \
+                     &game->sprites, &state, &font, &text, (id), fast) != 0) \
+        goto done; \
+} while (0)
+
+    /* field_stage0_31_turn_action0..3 @0x59745/0x5981f/0x59887/
+     * 0x598e1：action 1/2 调用 field_actor_group_arrival_effect，
+     * action 0/3 直接追加 group；对话 fragment 依次为 11/3、4、5、6。 */
+    switch (notice->action) {
+        case 0:
+            GROUP(3, 0);
+            PAN(5, 8);
+            opening_delay(vga, &game->terrain, &game->map,
+                          &game->sprites, &state, 100, fast);
+            MOVE(7);
+            TEXT(11);
+            GROUP(7, 0);
+            opening_delay(vga, &game->terrain, &game->map,
+                          &game->sprites, &state, 100, fast);
+            MOVE(8);
+            TEXT(3);
+            break;
+        case 1:
+            PAN(11, 16);
+            GROUP(4, 1);
+            MOVE(3);
+            TEXT(4);
+            break;
+        case 2:
+            PAN(0, 16);
+            GROUP(5, 1);
+            MOVE(4);
+            TEXT(5);
+            break;
+        case 3:
+            PAN(11, 11);
+            GROUP(6, 0);
+            MOVE(6);
+            TEXT(6);
+            break;
+    }
+
+#undef TEXT
+#undef MOVE
+#undef GROUP
+#undef PAN
+
+    if (state.units.count != game->units.count) goto done;
+    for (size_t i = 0; i < game->units.count; i++) {
+        if (memcmp(&state.units.items[i], &game->units.items[i],
+                   sizeof(game->units.items[i])) != 0 ||
+            state.units.source_template_indices[i] !=
+                game->units.source_template_indices[i])
+            goto done;
+    }
+
+    game->camera_cell_x = state.camera_cell_x;
+    game->camera_cell_y = state.camera_cell_y;
+    game->camera_pixel_offset_x = 0;
+    game->camera_pixel_offset_y = 0;
+    game->cursor_cell_x = clamp_int(state.focus_cell_x, 0,
+                                    game->map.width - 1);
+    game->cursor_cell_y = clamp_int(state.focus_cell_y, 0,
+                                    game->map.height - 1);
+    game->idle_phase = state.idle_phase;
+    notice->presentation_deferred = 0;
+    result = 0;
+
+done:
+    fd2_text_entry_close(&text);
+    fd2_archive_close(&dato);
+    fd2_archive_close(&fdtxt);
+    return result;
+}
+
+int fd2_scene_play_new_game_prologue(fd2_vga *vga,
+                                     const fd2_archive *fdother,
+                                     int once) {
+    return fd2_scene_play_new_game_prologue_handoff(vga, fdother, once,
+                                                     NULL);
 }

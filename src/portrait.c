@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - DATO 角色立绘解码
- * 逆向依据：FUN_000136cc @0x136cc、FUN_0004c347 @0x4c347、
- * FUN_0004c379 @0x4c379。
+ * 逆向依据：FUN_000136cc @0x3b198、FUN_0004c347 @0x73e13、
+ * FUN_0004c379 @0x73e45。
  */
 
 #include "portrait.h"

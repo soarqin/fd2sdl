@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 主程序
  *
- * 复现 FUN_0001cfe6 @0x1cfe6 (boot_intro_title): 片头 + 标题主体
- * 调用入口 FUN_0001cfdc @0x1cfdc 仅是 Watcom 栈检查前缀
+ * 复现 FUN_0001cfe6 @0x44ab2 (boot_intro_title): 片头 + 标题主体
+ * 调用入口 FUN_0001cfdc @0x44aa8 仅是 Watcom 栈检查前缀
  *
  * 反编译依据见 docs/ghidra-decomp-all.c 和 docs/function-names.md
  */
@@ -15,6 +15,8 @@
 #include "archive.h"
 #include "image.h"
 #include "field.h"
+#include "field_play.h"
+#include "field_preview.h"
 #include "tile.h"
 #include "scene.h"
 #include "animation.h"
@@ -26,10 +28,10 @@
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */
 static fd2_archive g_fdother;
 
-/* ANI.DAT 句柄（FUN_0001db69 @0x1db69 打开的 AFM 动画包） */
+/* ANI.DAT 句柄（FUN_0001db69 @0x45635 打开的 AFM 动画包） */
 static fd2_archive g_ani;
 
-/* 从 FDOTHER.DAT[idx] 加载资源（对应 FUN_0000e902 @0xe902）
+/* 从 FDOTHER.DAT[idx] 加载资源（对应 FUN_0000e902 @0x463ce）
  * res_load(&DAT_00001a4d, old, idx) -> 返回条目数据指针 */
 static const uint8_t *res_load(size_t idx, const uint8_t **old, size_t *out_len) {
     const uint8_t *ptr; size_t len;
@@ -65,7 +67,7 @@ static int res_load_nested_image(fd2_image *img, size_t idx, size_t sub) {
     return r;
 }
 
-/* 将图像 blit 到 VGA framebuffer（对应 FUN_0004c0d5 @0x4c0d5）
+/* 将图像 blit 到 VGA framebuffer（对应 FUN_0004c0d5 @0x73ba1）
  * blit_image_clipped(src, x, y, dest, stride, 0xffffffff)
  * 简化版：无透明色，直接拷贝 */
 static void blit_image(fd2_vga *vga, const fd2_image *img, int x, int y) {
@@ -118,7 +120,7 @@ static void play_intro_animation_with_palette(fd2_vga *vga,
                                               int anim_idx,
                                               uint32_t delay_ms,
                                               int pal_idx) {
-    /* 复现 FUN_0001cf66 @0x1cf66：可选清屏/换调色板，
+    /* 复现 FUN_0001cf66 @0x44a32：可选清屏/换调色板，
      * 播放 FUN_0001db69(animation_play)，随后调用 FUN_0001cfca 渐出。 */
     if (pal_idx >= 0) {
         fd2_vga_clear(vga, 0);
@@ -130,8 +132,8 @@ static void play_intro_animation_with_palette(fd2_vga *vga,
     fade_out_dark(vga);
 }
 
-/* 复现 FUN_0001cfe6 @0x1cfe6: 片头 + 标题主体
- * FUN_0001cfdc @0x1cfdc 是调用入口的 Watcom 栈检查前缀。 */
+/* 复现 FUN_0001cfe6 @0x44ab2: 片头 + 标题主体
+ * FUN_0001cfdc @0x44aa8 是调用入口的 Watcom 栈检查前缀。 */
 static void boot_intro_title(fd2_vga *vga) {
     /* === 阶段1: 片头初始画面 === */
     /* 反编译精确顺序:
@@ -465,9 +467,9 @@ title_screen:
 /* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，
  * 用 FDOTHER.DAT[0] 调色板绘制战场底图。
  *
- * 逆向依据：FUN_00010580 @0x10580 从 cell 读 terrain_id 与地形表属性；
- * FUN_0001cca0 @0x1cca0 按 terrain_id 取 FDSHAP 24×24 帧组成底图；
- * FUN_0001020e @0x1020e 对 flags 0x80 的遮挡格重绘后一帧。 */
+ * 逆向依据：FUN_00010580 @0x3804c 从 cell 读 terrain_id 与地形表属性；
+ * field_view_render_tiles @0x3710c 按 terrain_id 取 FDSHAP 24×24 帧组成底图；
+ * FUN_0001020e @0x37cda 对 flags 0x80 的遮挡格重绘后一帧。 */
 static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
     fd2_archive fdshap = {0};
     fd2_archive field = {0};
@@ -544,7 +546,16 @@ int main(int argc, char **argv) {
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
     int prologue_preview = (argc > 1 && strcmp(argv[1], "--prologue-preview") == 0);
     int prologue_preview_once = (argc > 1 && strcmp(argv[1], "--prologue-preview-once") == 0);
-    size_t map_preview_stage = (argc > 2) ? (size_t)strtoul(argv[2], NULL, 0) : 0;
+    int field_preview = (argc > 1 && strcmp(argv[1], "--field-preview") == 0);
+    int field_preview_once = (argc > 1 && strcmp(argv[1], "--field-preview-once") == 0);
+    int field_play = (argc > 1 && strcmp(argv[1], "--field-play") == 0);
+    int field_play_once = (argc > 1 && strcmp(argv[1], "--field-play-once") == 0);
+    int field_effect_play =
+        (argc > 1 && strcmp(argv[1], "--field-effect-play") == 0);
+    int new_game_play = (argc > 1 && strcmp(argv[1], "--new-game-play") == 0);
+    int new_game_play_once =
+        (argc > 1 && strcmp(argv[1], "--new-game-play-once") == 0);
+    size_t preview_stage = (argc > 2) ? (size_t)strtoul(argv[2], NULL, 0) : 0;
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -574,18 +585,66 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    fd2_audio *audio = NULL;
+    fd2_pcm_bank ui_sfx_bank = {0};
+    fd2_pcm_bank battle_sfx_bank = {0};
+    fd2_pcm_player pcm_player = {0};
+    fd2_field_audio field_audio = {0};
+    fd2_field_audio *field_audio_ptr = NULL;
+    (void)SDL_InitSubSystem(SDL_INIT_AUDIO);
+    fd2_audio_config audio_config = {
+        .sample_rate = 48000,
+        /* 即使 subsystem 初始化失败也尝试打开；失败路径由 audio 层明确
+         * 降级为 discard null backend，而不是无人消费的 offline backend。 */
+        .open_device = 1,
+        .allow_null = 1,
+    };
+    audio = fd2_audio_create(&audio_config);
+    if (audio && fd2_pcm_bank_open(&ui_sfx_bank, &g_fdother, 31) == 0 &&
+        fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
+        fd2_pcm_player_init(&pcm_player, audio, 11025) == 0) {
+        fd2_field_audio_init(&field_audio, &pcm_player,
+                             &ui_sfx_bank, &battle_sfx_bank);
+        field_audio_ptr = &field_audio;
+        printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [80]=%zu samples\n",
+               fd2_audio_has_device(audio) ? "SDL device" : "null backend",
+               fd2_pcm_bank_count(&ui_sfx_bank),
+               fd2_pcm_bank_count(&battle_sfx_bank));
+    } else {
+        fd2_pcm_bank_close(&battle_sfx_bank);
+        fd2_pcm_bank_close(&ui_sfx_bank);
+        fprintf(stderr, "audio: unavailable; continuing without sound\n");
+    }
+
     int rc = 0;
     if (map_preview || map_preview_once) {
-        rc = run_map_preview(&vga, map_preview_once, map_preview_stage);
+        rc = run_map_preview(&vga, map_preview_once, preview_stage);
+    } else if (field_preview || field_preview_once) {
+        rc = fd2_field_preview_run(&vga, &g_fdother, preview_stage,
+                                   field_preview_once);
+    } else if (field_effect_play) {
+        rc = fd2_field_effect_play_run(
+            &vga, &g_fdother, preview_stage, field_audio_ptr);
+    } else if (field_play || field_play_once) {
+        rc = fd2_field_play_run(&vga, &g_fdother, preview_stage,
+                                field_play_once, NULL, field_audio_ptr);
+    } else if (new_game_play || new_game_play_once) {
+        fd2_field_handoff handoff;
+        rc = fd2_scene_play_new_game_prologue_handoff(
+            &vga, &g_fdother, new_game_play_once, &handoff);
+        if (rc == 0)
+            rc = fd2_field_play_run(&vga, &g_fdother, 0,
+                                    new_game_play_once, &handoff,
+                                    field_audio_ptr);
     } else if (prologue_preview || prologue_preview_once) {
-        rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother, prologue_preview_once);
+        rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother,
+                                              prologue_preview_once);
     } else {
-        /* 打开 ANI.DAT（对应 FUN_0001db69 @0x1db69） */
+        /* 打开 ANI.DAT（对应 FUN_0001db69 @0x45635） */
         if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
             fprintf(stderr, "cannot open ANI.DAT\n");
-            fd2_vga_close(&vga);
-            fd2_archive_close(&g_fdother);
-            return 1;
+            rc = -1;
+            goto cleanup;
         }
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
@@ -594,7 +653,12 @@ int main(int argc, char **argv) {
         fd2_archive_close(&g_ani);
     }
 
-    /* 清理 */
+cleanup:
+    /* 音频 source 借用 FDOTHER 数据，必须先停止 device/retire voice。 */
+    fd2_audio_destroy(audio);
+    fd2_pcm_player_close(&pcm_player);
+    fd2_pcm_bank_close(&battle_sfx_bank);
+    fd2_pcm_bank_close(&ui_sfx_bank);
     fd2_vga_close(&vga);
     fd2_archive_close(&g_fdother);
     SDL_DestroyRenderer(ren);

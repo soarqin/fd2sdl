@@ -208,9 +208,10 @@ offs[1]     变长      条目 1 数据
 
 - 基于 **AIL（Audio Interface Library）**，Miles Sound System 前身
 - 支持多种声卡驱动：AdLib、OPL3、Sound Blaster（含 SB16/SBPro）、Pro Audio Spectrum、Ultrasound、MT-32、SoundScape、MPU-401
-- `SAMPLE.BNK` 为 AIL 音色库（头 `01 00 ADLIB-`）
-- 音乐为 XMIDI 格式（FDMUS.DAT）
-- 重写时建议用 SDL3_mixer 或直接播放转换后的音频，不强制复刻 AIL
+- `FDMUS.DAT` 含 15 项有效 XMIDI 序列
+- `FDOTHER.DAT[31]` 是 `sfx_play @0x4acaa` 使用的 13 项数字样本 bank
+- `SAMPLE.BNK` 头为 `01 00 ADLIB-`；`SAMPLE.AD/.OPL` 使用 Miles AIL `patch, bank, offset` 音色目录
+- 重写不复刻 AIL 硬件驱动，但先以 SDL3 `SDL_AudioStream` 建立统一框架，再分别接入 PCM 音效与 XMIDI/OPL source。见 `docs/11-audio-plan.md`
 
 ## 7. 反编译已知限制
 
@@ -227,8 +228,8 @@ offs[1]     变长      条目 1 数据
 
 | 函数 | 作用 |
 |------|------|
-| `fcn.00035a1e` (0x35a1e) | **yield**：让出 CPU（jmp 0x3c7f0） |
-| `fcn.00035a23` (0x35a23) | 创建/切换协程（call 0x3c7f4 栈切换原语） |
+| `fcn.00035a1e` (0x5d4ea) | **yield**：让出 CPU（jmp 0x3c7f0） |
+| `fcn.00035a23` (0x5d4ef) | 创建/切换协程（call 0x3c7f4 栈切换原语） |
 | `0x35a12` | 协程恢复点（21 处汇聚，`dec [0x4178]; ret`） |
 | `fcn.00036766` / `fcn.00035a31` | 事件泵：`4178++`，处理输入 `4174`/`4170`，调 `fcn.0003c972`(事件出队) |
 
@@ -256,7 +257,7 @@ Ghidra/r2 都不自动应用 LE fixup，但也不能把 fixup 记录机械写入
 - 使用 `tools/rebuild_fd2_analysis.py` 重建未应用 fixup 的分析镜像；
 - `docs/le-fixups.txt` 仅保留 fixup 说明，完整索引在 `tools/fd2_le_fixups.txt`；
 - Ghidra 中只允许为分析目的 patch `__chkstk`，不 patch 业务代码；
-- 启动序列已拆分为调用入口 `FUN_0001cfdc @0x1cfdc`（栈检查前缀）和主体 `FUN_0001cfe6 @0x1cfe6`。
+- 启动序列已拆分为调用入口 `FUN_0001cfdc @0x44aa8`（栈检查前缀）和主体 `FUN_0001cfe6 @0x44ab2`。
 
 当前限制：
 - `FUN_0001db69` 动画播放器已接入 SDL 版，启动流程用到的 ANI.DAT opcode 已实现；

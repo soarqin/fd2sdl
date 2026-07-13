@@ -5,8 +5,8 @@
 
 已确认的 stage metadata(entry stage*3+1) 结构：
 - 0x00: FDSHAP terrain shape_index
-- 0x03..0x32: 16 条 3 字节阶段事件触发表，FUN_00017f5b @0x17f5b 使用
-- 0x33..0x52: 16 条 2 字节 cell 事件查询表，FUN_0001118c @0x1118c 使用
+- 0x03..0x32: 16 条 3 字节阶段事件触发表，FUN_00017f5b @0x3fa27 使用
+- 0x33..0x52: 16 条 2 字节 cell 事件查询表，FUN_0001118c @0x38c58 使用
 - 0x53..0x82: 16 条 3 字节 cell 事件动作表，FUN_000111e7 @0x111e7 间接使用
 - 0x83..end: 26 字节单位模板记录，字段仍在细分中
 
@@ -108,10 +108,10 @@ def dump_stage(entries: list[bytes], stage: int) -> None:
           f"unit_templates={len(info['unit_templates'])}")
     print(f"  placements: bytes={len(place_blob)}, count={len(placements)}")
 
-    print("\n  turn_events[16] @0x03: trigger, action, actor_or_side")
-    for i, (trigger, action, actor) in enumerate(info["turn_events"]):
-        if (trigger, action, actor) != (0xff, 0xff, 0):
-            print(f"    {i:02d}: trigger={trigger:#04x} action={action:#04x} actor={actor:#04x}")
+    print("\n  turn_events[16] @0x03: turn, action, phase")
+    for i, (turn, action, phase) in enumerate(info["turn_events"]):
+        if (turn, action, phase) != (0xff, 0xff, 0):
+            print(f"    {i:02d}: turn={turn:#04x} action={action:#04x} phase={phase:#04x}")
 
     print("\n  cell_lookup[16] @0x33: event_code, match_arg")
     for i, (code, arg) in enumerate(info["cell_lookup"]):

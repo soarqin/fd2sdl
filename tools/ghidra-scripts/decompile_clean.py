@@ -2,8 +2,8 @@
 """Ghidra headless post-script for FD2 clean decompilation.
 
 Input program should be tools/fd2_le_dual_clean.bin imported as raw x86:LE:32.
-The binary intentionally mirrors object1[0..64K) at 0x0 so near calls such as
-`call 0xf488` are resolvable, but it does not apply LE fixups to code bytes.
+The binary mirrors bound-code0[0..64K) at 0x0 and maps the complete bound
+payload at 0x10000. DS object2/3 remain separate in fd2_le_raw.bin.
 """
 
 import os
@@ -16,6 +16,7 @@ from ghidra.program.model.address import AddressSet
 
 ROOT = "/home/soar/src/fd2sdl"
 FUNCS = os.path.join(ROOT, "docs", "r2_funcs.txt")
+NAMES = os.path.join(ROOT, "docs", "function-names.md")
 OUT = os.path.join(ROOT, "docs", "ghidra-decomp-all.c")
 
 fm = currentProgram.getFunctionManager()
@@ -26,71 +27,108 @@ mem = currentProgram.getMemory()
 
 KNOWN = {
     0x3ccb4: "entry0",
-    0x0e902: "res_load",
-    0x1cfdc: "boot_intro_title_entry",
-    0x1cfe6: "boot_intro_title",
-    0x0f488: "dac_apply_darkness",
-    0x1db69: "animation_play",
-    0x3459f: "afm_opcode_palette_raw",
-    0x345ad: "afm_opcode_palette_rle",
-    0x34628: "afm_opcode_fill_framebuffer",
-    0x34650: "afm_opcode_copy_framebuffer",
-    0x3466c: "afm_opcode_rle_framebuffer",
-    0x346b1: "afm_opcode_sparse_pixel",
-    0x346ca: "afm_opcode_sparse_run",
-    0x346f4: "afm_opcode_sparse_literal",
-    0x35058: "vga_clear",
-    0x347b6: "mem_alloc",
-    0x34eb6: "mem_free",
-    0x34a6c: "file_open",
-    0x34b12: "file_read",
-    0x35088: "file_seek",
-    0x34ce4: "file_close",
-    0x4bac9: "vsync_wait",
-    0x0dd68: "input_check",
-    0x35a23: "coro_switch",
-    0x35a31: "event_pump",
-    0x35a1e: "coro_yield",
-    0x1cf66: "intro_anim_with_palette",
-    0x1cfca: "palette_fade_out_dark",
-    0x1cc6d: "palette_fade_in_light",
-    0x2b649: "palette_fade_to",
-    0x1ce87: "intro_cutaway",
-    0x1d6c1: "title_menu_draw",
-    0x2328d: "pal_mask_set",
-    0x231de: "sfx_play",
-    0x13fce: "blit_image",
-    0x4c0d5: "blit_image_clipped",
-    0x0f5f8: "memcpy_vga",
-    0x0f53a: "pal_partial_set",
-    0x3473c: "anim_exec_bytecode",
-    0x3471b: "anim_buffer_init",
-    0x1db0f: "dac_fill_rgb",
+    0x463ce: "res_load",
+    0x44aa8: "boot_intro_title_entry",
+    0x44ab2: "boot_intro_title",
+    0x46f54: "dac_apply_darkness",
+    0x45635: "animation_play",
+    0x5c06b: "afm_opcode_palette_raw",
+    0x5c079: "afm_opcode_palette_rle",
+    0x5c0f4: "afm_opcode_fill_framebuffer",
+    0x5c11c: "afm_opcode_copy_framebuffer",
+    0x5c138: "afm_opcode_rle_framebuffer",
+    0x5c17d: "afm_opcode_sparse_pixel",
+    0x5c196: "afm_opcode_sparse_run",
+    0x5c1c0: "afm_opcode_sparse_literal",
+    0x5cb24: "vga_clear",
+    0x5c243: "__chkstk",
+    0x5c282: "mem_alloc",
+    0x5c982: "mem_free",
+    0x5c538: "file_open",
+    0x5c5de: "file_read",
+    0x5cb54: "file_seek",
+    0x5c7b0: "file_close",
+    0x73595: "vsync_wait",
+    0x45834: "input_check",
+    0x5d4ef: "coro_switch",
+    0x5d4fd: "event_pump",
+    0x5d4ea: "coro_yield",
+    0x44a32: "intro_anim_with_palette",
+    0x44a96: "palette_fade_out_dark",
+    0x44739: "palette_fade_in_light",
+    0x53115: "palette_fade_to",
+    0x44953: "intro_cutaway",
+    0x4518d: "title_menu_draw",
+    0x4ad59: "pal_mask_set",
+    0x4ab8b: "music_track_play",
+    0x4acaa: "sfx_play",
+    0x5e735: "ail_init_sample",
+    0x5e8a8: "ail_set_sample_address",
+    0x5e95c: "ail_start_sample",
+    0x5e9ad: "ail_set_sample_loop_count",
+    0x5ea19: "ail_end_sample",
+    0x60009: "ail_init_sequence",
+    0x60102: "ail_start_sequence",
+    0x6016f: "ail_stop_sequence",
+    0x60338: "ail_set_sequence_volume",
+    0x603ba: "ail_set_sequence_loop_count",
+    0x3ba9a: "blit_image",
+    0x73ba1: "blit_image_clipped",
+    0x470c4: "memcpy_vga",
+    0x47006: "pal_partial_set",
+    0x5c208: "anim_exec_bytecode",
+    0x5c1e7: "anim_buffer_init",
+    0x455db: "dac_fill_rgb",
+    0x3f51f: "field_turn_cycle_run",
+    0x414ee: "field_actor_group_flash",
+    0x414f8: "field_actor_group_flash_core",
+    0x4673b: "field_earthquake_effect",
+    0x4725a: "field_transition_lut_mask",
+    0x4982c: "field_stage_transition_effect",
+    0x49836: "field_stage_transition_effect_core",
+    0x3fa27: "field_turn_event_check",
+    0x40964: "field_unit_combat_stats_recompute_entry",
+    0x4096e: "field_unit_combat_stats_recompute",
+    0x35d6c: "field_actor_group_append",
+    0x35e6e: "field_unit_stage_template_append",
+    0x59745: "field_stage0_31_turn_action0",
+    0x5981f: "field_stage0_31_turn_action1",
+    0x59887: "field_stage0_31_turn_action2",
+    0x598e1: "field_stage0_31_turn_action3",
+    0x7333b: "map_sprite_solid_blit_24",
+    0x5752f: "new_game_opening_play",
 }
+
+# function-names.md 是语义命名登记表；地址列已迁移为 corrected dual。
+name_row = re.compile(r"^\|\s*0x([0-9a-fA-F]+)\s*\|[^|]*\|\s*([^|]+?)\s*\|")
+for line in open(NAMES, "r"):
+    match = name_row.match(line.strip())
+    if match:
+        KNOWN[int(match.group(1), 16)] = match.group(2).strip()
 
 KNOWN_DESC = {
     0x3ccb4: u"程序入口",
-    0x0e902: u"资源加载器",
-    0x1cfdc: u"片头+标题调用入口/栈检查前缀",
-    0x1cfe6: u"片头+标题主体",
-    0x0f488: u"DAC 暗度应用",
-    0x1db69: u"ANI/AFM 动画播放器",
-    0x3459f: u"AFM opcode 1: 原始调色板",
-    0x345ad: u"AFM opcode 2: 调色板 RLE",
-    0x34628: u"AFM opcode 4: 显存填充",
-    0x34650: u"AFM opcode 5: 显存复制",
-    0x3466c: u"AFM opcode 6: 显存 RLE",
-    0x346b1: u"AFM opcode 7: 稀疏单点",
-    0x346ca: u"AFM opcode 8: 稀疏 run",
-    0x346f4: u"AFM opcode 9: 稀疏 literal",
-    0x1cf66: u"片头动画+调色板切换",
-    0x1cfca: u"调色板淡出变暗",
-    0x1cc6d: u"调色板淡入变亮",
-    0x2b649: u"调色板向基色渐变",
-    0x1ce87: u"片头切入画面",
-    0x1d6c1: u"标题菜单绘制",
-    0x3473c: u"动画字节码执行",
-    0x3471b: u"动画缓冲初始化",
+    0x463ce: u"资源加载器",
+    0x44aa8: u"片头+标题调用入口/栈检查前缀",
+    0x44ab2: u"片头+标题主体",
+    0x46f54: u"DAC 暗度应用",
+    0x45635: u"ANI/AFM 动画播放器",
+    0x5c06b: u"AFM opcode 1: 原始调色板",
+    0x5c079: u"AFM opcode 2: 调色板 RLE",
+    0x5c0f4: u"AFM opcode 4: 显存填充",
+    0x5c11c: u"AFM opcode 5: 显存复制",
+    0x5c138: u"AFM opcode 6: 显存 RLE",
+    0x5c17d: u"AFM opcode 7: 稀疏单点",
+    0x5c196: u"AFM opcode 8: 稀疏 run",
+    0x5c1c0: u"AFM opcode 9: 稀疏 literal",
+    0x44a32: u"片头动画+调色板切换",
+    0x44a96: u"调色板淡出变暗",
+    0x44739: u"调色板淡入变亮",
+    0x53115: u"调色板向基色渐变",
+    0x44953: u"片头切入画面",
+    0x4518d: u"标题菜单绘制",
+    0x5c208: u"动画字节码执行",
+    0x5c1e7: u"动画缓冲初始化",
 }
 
 
@@ -152,27 +190,35 @@ for a in sorted(addrs):
         created += 1
 print("FD2 clean decompile: functions seeded=%d" % created)
 
-# __chkstk was patched to ret 4 in the imported image; make sure Ghidra does not treat it as no-return.
-chk = fm.getFunctionAt(addr(0x34777))
+chk = fm.getFunctionAt(addr(0x5c243))
 if chk:
     try:
         chk.setNoReturn(False)
     except Exception:
         pass
 
-# Decompile only meaningful code ranges. Avoid duplicate low mirror except its called helpers.
+# Decompile the low 64 KiB mirror and the complete file-relative bound payload.
 ranges = [
     (0x0000, 0x10000),
-    (0x10000, 0x4ef29),
+    (0x10000, currentProgram.getMaxAddress().getOffset() + 1),
 ]
 
 decomp = DecompInterface()
 decomp.openProgram(currentProgram)
 pw = java.io.PrintWriter(java.io.OutputStreamWriter(java.io.FileOutputStream(OUT), "UTF-8"))
 pw.println("/* AUTO-GENERATED by tools/ghidra-scripts/decompile_clean.py")
-pw.println(" * Input: tools/fd2_le_dual_clean.bin (no LE fixups applied to code; __chkstk analysis patch only)")
+pw.println(" * Input: tools/fd2_le_dual_clean.bin (file-relative bound payload; no LE fixups or __chkstk patch)")
 pw.println(" * Do not edit semantic names here without updating docs/function-names.md.")
 pw.println(" */")
+missing_known = []
+for entry in sorted(KNOWN):
+    if fm.getFunctionAt(addr(entry)) is None:
+        missing_known.append((entry, KNOWN[entry]))
+if missing_known:
+    pw.println("/* Confirmed entries folded into adjacent auto-analysis functions. */")
+    for entry, name in missing_known:
+        pw.println("// FUNC 0x%x %s" % (entry, name))
+    pw.println("")
 n = 0
 for fn in fm.getFunctions(True):
     off = fn.getEntryPoint().getOffset()
@@ -191,7 +237,11 @@ for fn in fm.getFunctions(True):
             pw.println(u"// FUNC 0x%x %s   /* %s */" % (off, nm, desc))
         else:
             pw.println("// FUNC 0x%x %s" % (off, nm))
-        pw.println(res.getDecompiledFunction().getC())
+        # Ghidra 偶尔在空行输出空格；逐行去除尾随空白，保证重建后
+        # `git diff --check` 稳定通过。
+        for c_line in res.getDecompiledFunction().getC().splitlines():
+            pw.println(c_line.rstrip())
+        pw.println("")
         n += 1
 pw.flush()
 pw.close()

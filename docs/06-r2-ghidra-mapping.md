@@ -1,14 +1,15 @@
 # r2 与 Ghidra 地址映射关系（修正版）
 
-> 2026-07-10 修正：上一版把 `tools/fd2_dual_final.bin` 称为最终镜像，但该文件已被错误 LE fixup 污染，会覆盖启动函数指令。详见 `docs/07-decompilation-corrections.md`。
+> 2026-07-11 修正：`LE+0x80` 的 data-page offset 相对文件开头，旧重建脚本却再次加上 `le_off`。当前 code0/dual、r2 函数清单和 Ghidra 输出已按 file-relative bound payload 重建；stage 单位构造链证据见 `docs/10-field-unit-constructor.md`。
 
 ## 当前权威文件
 
 | 文件 | 说明 |
 |------|------|
-| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放，未应用 fixup，保留原始代码字节 |
-| `tools/fd2_le_code0.bin` | object1 从 0 开始，便于按 near-call offset 反汇编 |
-| `tools/fd2_le_ghidra_chkstk.bin` | 仅对 `__chkstk` 做分析 patch，供 Ghidra 使用 |
+| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 和 fixup 数据分析 |
+| `tools/fd2_le_code0.bin` | bound payload 的 file-relative 视图：`code0 = file_offset - data_pages_off` |
+| `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 `0x10000`，前 64 KiB 同时镜像到低地址 |
+| `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；与 raw 相同，不做 patch |
 | `docs/le-fixups.txt` | fixup 说明，提醒不要直接 patch 代码 |
 | `tools/fd2_le_fixups.txt` | 完整 fixup 简单记录索引；只用于辅助解释 DS/global 引用 |
 | `tools/dump_fd2_fixup_table.py` | 按对象与偏移转储 relocation-backed 指针表；例如 `--ds 0x1d71` 查看 object2 关卡脚本分发表，`--object 3 --ds 0x27d8` 查看 object3 表 |
@@ -27,12 +28,12 @@ python3 tools/rebuild_fd2_analysis.py
 | 功能 | 地址 | 说明 |
 |------|------|------|
 | entry0 | 0x3ccb4 | 程序入口（object1 offset 0x2ccb4 + relbase 0x10000） |
-| __chkstk | 0x34777 | 栈检查；只在 `fd2_le_ghidra_chkstk.bin` 中为分析 patch |
-| res_load | 0x0e902 / relbase 0x1e902 | 资源加载器（代码 near-call 使用 object offset） |
-| boot_intro_title_entry | 0x1cfdc | 调用入口；Watcom `push 0x88; call __chkstk` 栈检查前缀 |
-| boot_intro_title | 0x1cfe6 | 启动片头+标题主体；从 `push ebx` 开始 |
-| animation_play | 0x1db69 | ANI.DAT/AFM 动画播放器 |
-| new_game_opening_play | 0x2fa63 / code0 0x1fa63 | 新游戏完整开场；包含跨 64 KiB near call，优先直接反汇编 code0 |
+| __chkstk | dual `0x5c243` / code0 `0x4c243` | Watcom 栈检查 wrapper；不做字节 patch |
+| res_load | dual `0x463ce` / code0 `0x363ce` | 资源加载器 |
+| boot_intro_title_entry | 0x44aa8 | 调用入口；Watcom `push 0x88; call __chkstk` 栈检查前缀 |
+| boot_intro_title | 0x44ab2 | 启动片头+标题主体；从 `push ebx` 开始 |
+| animation_play | 0x45635 | ANI.DAT/AFM 动画播放器 |
+| new_game_opening_play | dual `0x5752f` / code0 `0x4752f` | 新游戏完整开场 |
 
 ## 注意事项
 
@@ -40,7 +41,11 @@ python3 tools/rebuild_fd2_analysis.py
 - 不要把 LE fixup 记录机械写入代码页；这会把 `mov ecx,0xf` 等正常指令改坏。
 - near call 的目标使用代码段 offset；DS/global 引用（如 `0x1a4d`、`0x3a65`）需要结合对象/段语义解释。
 - 间接调用表不要直接按干净镜像中的原始 dword 解释；先用 `tools/dump_fd2_fixup_table.py --ds <offset> --count <n>` 查看 LE fixup 目标。若表位于 object3/BSS，显式传入 `--object 3`。
-- `DAT_000027d8` 移动脚本表位于 object3。该表的 relocation target 转到当前 raw object3 数据窗口时需加 `0x28b8`；按此映射，脚本 `0,1,2,5,0x5a..0x69` 均可按 `group_count / step_or_mode / actor pairs` 完整解码。`target_offset` 仍表示目标对象内偏移，不能直接当 object1 code0 地址。
-- 关卡分发目标来自 object1 内偏移。查看 `tools/fd2_le_code0.bin` 时使用 `dump_fd2_fixup_table.py` 输出的 `code0=...`；查看 `tools/fd2_le_dual_clean.bin` / relbase 视图时使用 `dual=...`/`relbase_linear=...`。目标常落在编译器生成的标签/共享代码块附近，甚至可能靠近上一条指令的立即数字节；不要只按单个地址作为完整函数边界，需结合 `tools/analyze_fd2_stage_code.py`、反汇编窗口和实际分支一起判断。
+- FD2 object1 fixup 先按旧绑定窗口扣除 `0x28b8`，再加 LE header file offset `0x27acc`，才能进入统一 code0：`code0 = target_offset - 0x28b8 + 0x27acc`。例如 `DS:0x1d71` entry 0 的 `off=0x2231b` 对应 `new_game_opening_play @code0 0x4752f`；`DS:0x1b91` action 0 的 `off=0x24531` 对应 `code0 0x49745`。
+- action 0 的 code0 `0x49745` 同时对应 `FD2.EXE` file `0x5a545`；机器码与 DOSBox 运行时 `DS:0x1b91[0]=0x190531` 指向的入口一致。这里修正的是 fixup 目标到 file-relative 分析视图的换算，不向代码页写入 fixup。
+- DOSBox debugger 中 selector-relative offset 与 `D 0:<linear>` 也不能混用。stage 单位构造器的 table helper 执行 `lea ..., [0x1b3af9]` 后，再以 DS 访问返回 offset；本次运行的 DS descriptor base 使实际敌军表首记录落在 debugger linear `0x1b3ae4`，与 `D 0:0x1b3af9` 相差 `0x15`。角色基础表和成长表有相同偏移关系。表首通过 record stride、unit 96 level 2 实机值和 unit 1 存档值交叉验证；不得把 `D 0:` 的显示位置直接当作 selector-relative 表首。
+- `DAT_000027d8` 移动脚本表位于 object3。其 fixup `target_offset` 转到当前 raw object3 数据窗口时同样需扣除 `0x28b8`，再加 object3 relbase；例如 script 3 的 `off=0x29d1` 对应 `data_offset=0x119`、`raw=0x600119`。`dump_fd2_fixup_table.py --object 3` 会直接输出这两个地址。脚本 `0..10` 与 `0x5a..0x69` 均可按 `group_count / step_or_mode / actor pairs` 解码。
+- 关卡分发目标来自 object1 内偏移。查看 `tools/fd2_le_code0.bin` 时使用 `dump_fd2_fixup_table.py` 输出的 `code0=...`；查看 `tools/fd2_le_dual_clean.bin` / relbase 视图时使用 `dual=...`。目标可能落在 Ghidra 未正确切分的函数边界，需结合运行时入口、反汇编窗口和实际分支判断，不能只依赖旧的自动函数边界。
+- `docs/ghidra-decomp-all.c` 已从修正后的 code-only dual 镜像重新生成，共输出 978 个函数。18 个已确认入口被自动分析并入相邻大函数，文件头保留独立 corrected marker；读取这些入口时仍需结合 r2/Capstone 边界。
 - Ghidra 反编译结果由 `tools/ghidra-scripts/decompile_clean.py` 重新生成到 `docs/ghidra-decomp-all.c`。
 - Ghidra 反编译结果必须用 r2/Capstone 反汇编交叉核对，尤其是跨页函数和 Watcom 运行库函数。

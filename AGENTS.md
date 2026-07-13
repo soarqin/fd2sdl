@@ -11,14 +11,14 @@
 1. **源码注释**：在 SDL3 实现代码（`src/*.c`）中，调用或复现某反编译函数逻辑时，
    注释里写明对应的反编译函数地址与原名，例如：
    ```c
-   /* ANI.DAT 动画播放：复现 FUN_0001db69 @0x1db69 (animation_play)
+   /* ANI.DAT 动画播放：复现 FUN_0001db69 @0x45635 (animation_play)
     * 语义: animation_play(anim_idx, frame_delay_ms, check_input) */
    ```
 
 2. **反编译文件标注**：在 `docs/ghidra-decomp-all.c` 中，在对应函数的
    `// FUNC 0x... ` 标记行后追加用途注释，例如：
    ```c
-   // FUNC 0x1cfe6 boot_intro_title   /* 片头+标题主体 */
+   // FUNC 0x44ab2 boot_intro_title   /* 片头+标题主体 */
    ```
 
 3. **函数重命名**：当函数用途确认且有把握时，应将 Ghidra 原名 `FUN_xxxxxx`
@@ -47,10 +47,10 @@ python3 tools/rebuild_fd2_analysis.py
 
 | 文件 | 用途 |
 |------|------|
-| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放，未应用 fixup |
-| `tools/fd2_le_code0.bin` | object1 从 0 开始，便于按 near-call offset 反汇编 |
-| `tools/fd2_le_ghidra_chkstk.bin` | 仅对 `__chkstk` 做分析 patch |
-| `tools/fd2_le_dual_clean.bin` | Ghidra/r2 用镜像，0x0-0xffff 镜像 object1 前 64K，不应用 fixup |
+| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
+| `tools/fd2_le_code0.bin` | bound payload 的 file-relative 代码视图 |
+| `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；保留原始 `__chkstk`，不做 patch |
+| `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 0x10000，并镜像低 64K |
 | `tools/fd2_le_fixups.txt` | fixup 简单记录索引，只用于解释 DS/global 引用 |
 
 **禁止**：把 LE fixup 直接写回代码页。旧的 `tools/fd2_dual_final.bin`、`/tmp/fd2_le_correct.bin`
@@ -68,14 +68,14 @@ Ghidra 重新反编译使用：
   -overwrite -deleteProject
 ```
 
-`tools/ghidra-scripts/decompile_clean.py` 是当前唯一保留的 Ghidra 重建脚本。
+`tools/ghidra-scripts/decompile_clean.py` 是当前唯一保留的 Ghidra 重建脚本。2026-07-11 已修正 `LE+0x80` data-page file offset 被错误加上 `le_off` 的问题，并用 corrected code-only dual 重建 `docs/ghidra-decomp-all.c`；自动函数边界仍须与 r2/Capstone 和 DOSBox 交叉验证。
 
 ## 3. 数据结构与格式
 
 - 所有逆向确认的数据格式记录在 `docs/03-data-formats.md`。
 - 修改格式描述时，需附验证证据（反编译函数或实机对照）。
 - `.DAT` 容器格式、FDOTHER 图像 RLE、调色板格式已确认。
-- `FUN_0001db69 @0x1db69` 已确认为 ANI.DAT/AFM 动画播放器，不是调色板淡入淡出。
+- `FUN_0001db69 @0x45635` 已确认为 ANI.DAT/AFM 动画播放器，不是调色板淡入淡出。
 - 启动流程用到的 ANI.DAT opcode 1/2/4/5/6/7/8/9 已在 `src/animation.c` 复现。
 
 ## 4. 代码风格

@@ -21,6 +21,27 @@ from rebuild_fd2_analysis import decode_fixup_record_end, parse_le, parse_object
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXE = ROOT / "original_game" / "FD2.EXE"
 
+# FD2 bound payload 的旧辅助窗口把 target_offset 减去 0x28b8；统一的
+# file-relative code0 则还需加回 LE header file offset 0x27acc：
+# code0 = target_offset - 0x28b8 + 0x27acc = target_offset + 0x25214。
+# action 0 因此从 off=0x24531 映射到 code0 0x49745，其机器码与
+# FD2.EXE file 0x5a545 及 DOSBox 运行时入口一致。
+FD2_OBJECT1_ANALYSIS_BIAS = 0x28B8
+FD2_BOUND_LE_HEADER_OFFSET = 0x27ACC
+
+
+def fd2_analysis_offset(target_offset: int) -> int:
+    """Map an FD2 bound-LE target offset into the clean analysis window."""
+    if target_offset < FD2_OBJECT1_ANALYSIS_BIAS:
+        raise ValueError(f"target below FD2 analysis bias: {target_offset:#x}")
+    return target_offset - FD2_OBJECT1_ANALYSIS_BIAS
+
+
+def object1_code0_offset(target_offset: int) -> int:
+    """Map an object1 LE fixup target to the file-relative bound code0 view."""
+    return (target_offset - FD2_OBJECT1_ANALYSIS_BIAS +
+            FD2_BOUND_LE_HEADER_OFFSET)
+
 
 def collect_internal_offset_fixups(exe: Path) -> dict[int, tuple[int, int, int]]:
     """Return source relbase -> (target_object, target_offset, target_linear)."""
@@ -93,13 +114,26 @@ def main() -> int:
             print(f"{i:02d}: source={source:#08x} -> <no simple internal offset fixup>")
             continue
         target_object, target_offset, target_linear = hit
-        # LE fixup 记录中的 target_offset 是 object 内偏移，也就是 code0
-        # 视图中的地址；dual_clean/relbase 视图需加 object relbase。
-        # 注意 dual_clean 还把 object1 前 64K 镜像到 0x0-0xffff，
-        # 但超过 64K 的 object1 目标必须使用 relbase_linear 查看。
-        extra = f" code0={target_offset:#07x} dual={target_linear:#08x}" if target_object == 1 else ""
+        # target_offset 是 LE loader 使用的绑定窗口目标值。FD2 object1
+        # 先扣除 0x28b8，再加 LE header file offset 0x27acc，得到统一的
+        # file-relative code0；dual_clean 视图再加 0x10000。
+        extra = ""
+        if target_object == 1:
+            try:
+                code0 = object1_code0_offset(target_offset)
+                dual = objects[0].relbase + code0
+                extra = f" code0={code0:#07x} dual={dual:#08x}"
+            except ValueError:
+                extra = " code0=<below-analysis-bias>"
+        elif target_object == 3:
+            try:
+                data_offset = fd2_analysis_offset(target_offset)
+                raw = objects[2].relbase + data_offset
+                extra = f" data_offset={data_offset:#07x} raw={raw:#08x}"
+            except ValueError:
+                extra = " data_offset=<below-analysis-bias>"
         print(f"{i:02d}: source={source:#08x} -> obj{target_object}:off={target_offset:#07x} "
-              f"relbase_linear={target_linear:#08x}{extra}")
+              f"le_target_linear={target_linear:#08x}{extra}")
     return 0
 
 

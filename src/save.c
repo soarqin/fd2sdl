@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - FD2.SAV 存档读取
  *
- * 逆向依据：FUN_0004b670 @0x4b670 (save_xor_crypt) 的对称 XOR
+ * 逆向依据：FUN_0004b670 @0x7313c (save_xor_crypt) 的对称 XOR
  * 加/解密；FUN_00027313 @0x27313 选择 slot 后从
  * `0x312b + slot * 0xa28` 复制 0xa00 字节单位表到 `DAT_00003bf7`，
  * 随后读取 stage_id/unit_count 等 0x28 字节附加状态。
@@ -22,7 +22,7 @@ static uint32_t rd_u32_le(const uint8_t *p) {
 }
 
 static void fd2_save_xor_crypt(uint8_t *data, size_t size) {
-    /* 复现 FUN_0004b670 @0x4b670：u16 state 从 0x00a5 开始，
+    /* 复现 FUN_0004b670 @0x7313c：u16 state 从 0x00a5 开始，
      * 每字节先加 0x9014，再 rol16(3)，用低 8 位 XOR。 */
     uint16_t state = 0x00a5;
     for (size_t i = 0; i < size; i++) {

@@ -8,7 +8,7 @@
 
 典型证据：
 
-- 原始未 patch 启动函数在 `0x1cfe6` 开始，`0x1d010` 应为：
+- 原始未 patch 启动函数在 `0x44ab2` 开始，`0x1d010` 应为：
   ```asm
   b9 0f 00 00 00    mov ecx, 0xf
   89 e7             mov edi, esp
@@ -21,7 +21,7 @@
 
 因此：
 
-- `__chkstk` 可为 Ghidra 分析单独 patch，避免调用者被误判为不返回；
+- `__chkstk @dual 0x5c243` 保留原始字节，在 Ghidra 脚本中标记为可返回函数；
 - **LE fixup 不可直接写回代码页**。FD2 的 near call 使用代码段 offset，资源句柄和全局变量多是 DS offset，必须在解释时区分。
 
 ## 2. 新的可复现流程
@@ -36,31 +36,31 @@ python3 tools/rebuild_fd2_analysis.py
 
 | 文件 | 用途 |
 |------|------|
-| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放，未应用 fixup，保留原始代码字节 |
-| `tools/fd2_le_code0.bin` | object1 从 0 开始，便于按 near-call offset 反汇编 |
-| `tools/fd2_le_ghidra_chkstk.bin` | `fd2_le_raw.bin` + 仅 `__chkstk` 分析 patch |
-| `tools/fd2_le_dual_clean.bin` | Ghidra/r2 用镜像；0x0-0xffff 镜像 object1 前 64K，不应用 fixup |
+| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
+| `tools/fd2_le_code0.bin` | file-relative bound payload 视图 |
+| `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；不做字节 patch |
+| `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 0x10000，并镜像低 64K |
 | `tools/fd2_le_fixups.txt` | 完整 fixup 简单记录索引；只用于定位 DS/global 引用，不是 patch 脚本 |
 | `docs/le-fixups.txt` | 简短说明，避免误把记录当 patch 输入 |
 
 ## 3. 地址使用约定
 
-- 文档和 SDL 复现继续用 relbase 线性地址标注，例如 `boot_intro_title @0x1cfe6`。
-- 反汇编 near call 时应记住 call 目标是代码段 offset。`tools/fd2_le_dual_clean.bin` 只为静态工具补了 0x0-0xffff 镜像，不改变原始代码页。
+- 文档和 SDL 复现继续用 relbase 线性地址标注，例如 `boot_intro_title @0x44ab2`。
+- 反汇编时优先使用 `code0 = file_offset - data_pages_off`；dual 地址统一为 code0 加 `0x10000`。`fd2_le_dual_clean.bin` 不包含 DS object2/3。
 - DS offset（如 `0x1a4d`、`0x3a65`）需结合对象/段语义解释，不能机械加到当前代码页。
 
 ## 4. 启动函数重新确认
 
-调用点跳到 `0x1cfdc`，这里是 Watcom 栈检查前缀；业务主体从 `0x1cfe6` 开始：
+调用点跳到 `0x44aa8`，这里是 Watcom 栈检查前缀；业务主体从 `0x44ab2` 开始：
 
 ```asm
-0x1cfdc  push 0x88
-0x1cfe1  call __chkstk
-0x1cfe6  push ebx
-0x1cfe7  push esi
-0x1cfe8  push edi
-0x1cfe9  push ebp
-0x1cfea  sub esp, 0x5c
+0x44aa8  push 0x88
+0x44aad  call __chkstk
+0x44ab2  push ebx
+0x44ab3  push esi
+0x44ab4  push edi
+0x44ab5  push ebp
+0x44ab6  sub esp, 0x5c
 ```
 
 因此函数命名分两层登记：
@@ -85,11 +85,11 @@ mkdir -p /tmp/ghidra_fd2_clean_proj
   -overwrite -deleteProject
 ```
 
-当前输出包含 1197 个函数。旧的污染反编译体已被覆盖，不再保留。
+当前输出包含 978 个反编译函数，并为 18 个被自动分析并入相邻函数的确认入口保留独立 marker。旧的污染反编译体已被覆盖。
 
 ## 6. 已同步到 SDL 实现的修正
 
-- `src/main.c`：启动函数注释改为 `FUN_0001cfe6 @0x1cfe6`。
+- `src/main.c`：启动函数注释改为 `FUN_0001cfe6 @0x44ab2`。
 - `src/vga.c`：修正 `FUN_0000f488` 第三参数语义。
   - `0x40` 是全黑；
   - `0` 是完整调色板；

@@ -62,7 +62,7 @@ int fd2_archive_open(fd2_archive *ar, const char *path) {
 }
 
 /* 从内存缓冲区打开 .DAT 归档（用于嵌套归档）。
- * 复现 FUN_0000e902 @0xe902 的资源加载：FDOTHER.DAT[7] 是嵌套 .DAT。
+ * 复现 FUN_0000e902 @0x463ce 的资源加载：FDOTHER.DAT[7] 是嵌套 .DAT。
  * 不拷贝数据，不负责释放 buf。 */
 int fd2_archive_open_mem(fd2_archive *ar, const uint8_t *buf, size_t sz) {
     memset(ar, 0, sizeof(*ar));

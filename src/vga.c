@@ -26,7 +26,7 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
 }
 
 void fd2_vga_clear(fd2_vga *vga, uint8_t fill) {
-    /* 复现 FUN_00035058 @0x35058: 清屏(0xa0000, fill, pattern)
+    /* 复现 FUN_00035058 @0x5cb24: 清屏(0xa0000, fill, pattern)
      * FUN_00035058(0xa0000, 0, &DAT_0000fa00) = 用 0 填充显存 */
     memset(vga->framebuffer, fill, sizeof(vga->framebuffer));
 }
@@ -65,7 +65,7 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
 
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
                                uint8_t r, uint8_t g, uint8_t b) {
-    /* 复现 FUN_0002b649 @0x2b649: palette_fade_to(start, steps, r, g, b)
+    /* 复现 FUN_0002b649 @0x53115: palette_fade_to(start, steps, r, g, b)
      * 从基色(r,g,b)渐变到 vga->palette，分 0x28=40 步
      * 每个分量: dac = (pal[i] - base) * steps / 0x28 + base
      * 注意: pal 是 6-bit，base 也是 6-bit */
@@ -83,8 +83,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
 }
 
 void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
-    /* 兼容包装：真实 FUN_0001db69 @0x1db69 已确认是 animation_play，
-     * 调色板插值实际对应 FUN_0002b649 @0x2b649。 */
+    /* 兼容包装：真实 FUN_0001db69 @0x45635 已确认是 animation_play，
+     * 调色板插值实际对应 FUN_0002b649 @0x53115。 */
     fd2_vga_palette_fade_to(vga, start, step, 0, 0, 0);
     (void)end;
 }
@@ -146,6 +146,15 @@ void fd2_vga_present(fd2_vga *vga) {
     vga->frame_interval_ns = 0;
 }
 
+void fd2_vga_wait_frame_deadline(fd2_vga *vga) {
+    if (!vga) return;
+    if (vga->frame_deadline_ns != 0 &&
+        SDL_GetTicksNS() < vga->frame_deadline_ns)
+        fd2_delay_until(vga->frame_deadline_ns);
+    vga->frame_deadline_ns = 0;
+    vga->frame_interval_ns = 0;
+}
+
 void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
     if (frame_ms == 0) {
         fd2_vga_present(vga);
@@ -174,7 +183,7 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
 }
 
 void fd2_delay_ms(uint32_t ms) {
-    /* 复现 thunk_FUN_0003b765 @0x3b765: delay_ms(N)。DOS 原版忙等待；
+    /* 复现 thunk_FUN_0003b765 @0x63231: delay_ms(N)。DOS 原版忙等待；
      * SDL 版分成至多 8 ms 的片段并持续泵送事件，但不从队列取走按键。 */
     if (ms == 0) {
         SDL_PumpEvents();
@@ -184,7 +193,7 @@ void fd2_delay_ms(uint32_t ms) {
 }
 
 void fd2_wait_ticks(uint32_t ticks) {
-    /* 复现 FUN_000151f1 @0x151f1: wait_ticks(N)
+    /* 复现 FUN_000151f1 @0x3ccbd: wait_ticks(N)
      * 等待 N 个 BIOS tick (18.2Hz, 1 tick ≈ 54.9ms)。 */
     fd2_delay_ms(ticks * 55);
 }
@@ -192,7 +201,7 @@ void fd2_wait_ticks(uint32_t ticks) {
 static int g_input_flag = 0;
 
 int fd2_input_check(void) {
-    /* 复现 FUN_0000dd68 @0xdd68: 检查是否有按键
+    /* 复现 FUN_0000dd68 @0x45834: 检查是否有按键
      * 返回非0表示有输入(用于跳过片头) */
     SDL_Event e;
     while (SDL_PollEvent(&e)) {

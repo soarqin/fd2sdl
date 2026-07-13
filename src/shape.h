@@ -11,7 +11,7 @@
  *
  * 已由 original_game/FDSHAP.DAT 实测确认：偶数条目是 24x24 帧包，
  * 包头为 width/height/frame_count + u32 帧偏移表；每帧使用与
- * FUN_0004c0d5 @0x4c0d5 (blit_image_clipped) 相同的 RLE 控制字节，
+ * FUN_0004c0d5 @0x73ba1 (blit_image_clipped) 相同的 RLE 控制字节，
  * 但帧流本身不含 4 字节宽高头。战场底图使用 FDSHAP 偶数条目的
  * 同号 terrain_id 帧，属性表在配套奇数条目中。
  */

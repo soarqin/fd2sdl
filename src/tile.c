@@ -48,7 +48,7 @@ static int terrain_load_attrs(fd2_terrain_tileset *terrain,
 
     for (size_t i = 0; i < count; i++) {
         attrs[i].flags = data[i * 4 + 0];
-        attrs[i].attr1 = data[i * 4 + 1];
+        attrs[i].movement_cost_class = data[i * 4 + 1];
         attrs[i].attr2 = data[i * 4 + 2];
         attrs[i].attr3 = data[i * 4 + 3];
     }
@@ -125,13 +125,37 @@ const fd2_terrain_attr *fd2_terrain_attr_get(const fd2_terrain_tileset *terrain,
     return &terrain->attrs[terrain_id];
 }
 
+int fd2_terrain_base_frame_from_cell_animated(
+                                      const fd2_terrain_tileset *terrain,
+                                      uint32_t cell,
+                                      int terrain_phase,
+                                      int actor_phase,
+                                      size_t *out_frame_idx) {
+    uint16_t terrain_id = fd2_field_cell_terrain(cell);
+    const fd2_terrain_attr *attr = fd2_terrain_attr_get(terrain, terrain_id);
+    if (!terrain || !attr || terrain_id >= terrain->sheet.frame_count)
+        return -1;
+    if (terrain_phase < 0) terrain_phase = 0;
+    if (actor_phase < 0) actor_phase = 0;
+    size_t frame_index = terrain_id;
+    /* field_view_render_tiles @0x3710c：0x08 动画跨过配套遮挡帧，
+     * 0x10 使用单位 idle phase 的一半，0x04 使用逐 BIOS tick 相位。 */
+    if ((attr->flags & 0x08u) != 0)
+        frame_index += (size_t)(terrain_phase & 1) * 2u;
+    else if ((attr->flags & 0x10u) != 0)
+        frame_index += (size_t)((actor_phase & 3) / 2);
+    else if ((attr->flags & 0x04u) != 0)
+        frame_index += (size_t)(terrain_phase & 1);
+    if (frame_index >= terrain->sheet.frame_count) return -1;
+    if (out_frame_idx) *out_frame_idx = frame_index;
+    return 0;
+}
+
 int fd2_terrain_base_frame_from_cell(const fd2_terrain_tileset *terrain,
                                       uint32_t cell,
                                       size_t *out_frame_idx) {
-    uint16_t terrain_id = fd2_field_cell_terrain(cell);
-    if (!terrain || terrain_id >= terrain->sheet.frame_count) return -1;
-    if (out_frame_idx) *out_frame_idx = terrain_id;
-    return 0;
+    return fd2_terrain_base_frame_from_cell_animated(
+        terrain, cell, 0, 0, out_frame_idx);
 }
 
 int fd2_terrain_overlay_frame_from_cell(const fd2_terrain_tileset *terrain,
@@ -193,20 +217,44 @@ void fd2_tileset_blit(fd2_vga *vga, const fd2_image *img,
     }
 }
 
-void fd2_terrain_render_field_base(fd2_vga *vga,
+void fd2_tileset_blit_lut(fd2_vga *vga, const fd2_image *img,
+                          int x, int y, int transparent_index,
+                          const uint8_t lut[256]) {
+    if (!vga || !img || !img->pixels || !lut) return;
+    for (int row = 0; row < img->height; row++) {
+        int dy = y + row;
+        if (dy < 0 || dy >= VGA_H) continue;
+        for (int col = 0; col < img->width; col++) {
+            int dx = x + col;
+            if (dx < 0 || dx >= VGA_W) continue;
+            uint8_t px = img->pixels[(size_t)row * (size_t)img->width +
+                                     (size_t)col];
+            if (transparent_index >= 0 &&
+                px == (uint8_t)transparent_index)
+                continue;
+            vga->framebuffer[(size_t)dy * VGA_STRIDE + (size_t)dx] = lut[px];
+        }
+    }
+}
+
+void fd2_terrain_render_field_base_animated(
+                                   fd2_vga *vga,
                                    const fd2_terrain_tileset *terrain,
                                    const fd2_field_map *map,
-                                   int camera_x, int camera_y) {
+                                   int camera_x, int camera_y,
+                                   int terrain_phase, int actor_phase) {
     if (!vga || !terrain || !map) return;
     fd2_vga_clear(vga, 0);
 
-    /* 战场底图：对照 FUN_0001cca0 @0x1cca0，按 terrain_id 直接取
-     * FDSHAP 解码缓存中的 24×24 帧。 */
+    /* 战场底图：对照 field_view_render_tiles @0x3710c，按 terrain_id
+     * 与 flags 0x04/0x08/0x10 选择 FDSHAP 24×24 动画帧。 */
     for (int y = 0; y < map->height; y++) {
         for (int x = 0; x < map->width; x++) {
             uint32_t cell = fd2_field_map_cell(map, x, y);
             size_t frame_idx;
-            if (fd2_terrain_base_frame_from_cell(terrain, cell, &frame_idx) != 0)
+            if (fd2_terrain_base_frame_from_cell_animated(
+                    terrain, cell, terrain_phase, actor_phase,
+                    &frame_idx) != 0)
                 continue;
             const fd2_image *img = fd2_terrain_frame(terrain, frame_idx);
             int sx = x * FD2_FIELD_TILE_STEP - camera_x;
@@ -216,6 +264,14 @@ void fd2_terrain_render_field_base(fd2_vga *vga,
     }
 }
 
+void fd2_terrain_render_field_base(fd2_vga *vga,
+                                   const fd2_terrain_tileset *terrain,
+                                   const fd2_field_map *map,
+                                   int camera_x, int camera_y) {
+    fd2_terrain_render_field_base_animated(vga, terrain, map,
+                                           camera_x, camera_y, 0, 0);
+}
+
 void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       const fd2_terrain_tileset *terrain,
                                       const fd2_field_map *map,
@@ -223,7 +279,7 @@ void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       int anim_phase) {
     if (!vga || !terrain || !map) return;
 
-    /* 遮挡层：复现 FUN_0001020e @0x1020e 对地形表 flags 的处理。
+    /* 遮挡层：复现 FUN_0001020e @0x37cda 对地形表 flags 的处理。
      * 原版在 actor 绘制后重绘附近遮挡格，使树冠/建筑位于角色上方。 */
     for (int y = 0; y < map->height; y++) {
         for (int x = 0; x < map->width; x++) {
@@ -247,6 +303,61 @@ void fd2_terrain_render_field_preview(fd2_vga *vga,
     fd2_terrain_render_field_base(vga, terrain, map, camera_x, camera_y);
     fd2_terrain_render_field_overlay(vga, terrain, map, camera_x, camera_y,
                                      anim_phase);
+}
+
+static int64_t fixed_cell_floor(int64_t value, int64_t *remainder) {
+    int64_t cell = value / 0xc00;
+    int64_t rem = value % 0xc00;
+    if (rem < 0) {
+        rem += 0xc00;
+        cell--;
+    }
+    if (remainder) *remainder = rem;
+    return cell;
+}
+
+void fd2_terrain_render_field_scaled_animated(
+                                      fd2_vga *vga,
+                                      const fd2_terrain_tileset *terrain,
+                                      const fd2_field_map *map,
+                                      int center_x_fp, int center_y_fp,
+                                      int step_fp,
+                                      int terrain_phase, int actor_phase) {
+    if (!vga || !terrain || !map || step_fp <= 0) return;
+    /* field_view_render_scaled @0x44776 以视窗中心 (156,96) 回推
+     * 起点，tile fixed-point 宽度为 0xc00，单像素为 0x80。 */
+    int64_t start_x = (int64_t)center_x_fp - (int64_t)step_fp * 156;
+    int64_t source_y = (int64_t)center_y_fp - (int64_t)step_fp * 96;
+    for (int y = 0; y < 192; y++, source_y += step_fp) {
+        int64_t rem_y;
+        int64_t cell_y = fixed_cell_floor(source_y, &rem_y);
+        int pixel_y = (int)(rem_y / 0x80);
+        int64_t source_x = start_x;
+        for (int x = 0; x < 312; x++, source_x += step_fp) {
+            uint8_t pixel = 0;
+            int64_t rem_x;
+            int64_t cell_x = fixed_cell_floor(source_x, &rem_x);
+            if (cell_x >= 0 && cell_x < map->width &&
+                cell_y >= 0 && cell_y < map->height) {
+                uint32_t cell = fd2_field_map_cell(map, cell_x, cell_y);
+                size_t frame_index;
+                if (fd2_terrain_base_frame_from_cell_animated(
+                        terrain, cell, terrain_phase, actor_phase,
+                        &frame_index) == 0) {
+                    const fd2_image *image = fd2_terrain_frame(
+                        terrain, frame_index);
+                    int pixel_x = (int)(rem_x / 0x80);
+                    if (image && image->pixels && pixel_x < image->width &&
+                        pixel_y < image->height)
+                        pixel = image->pixels[(size_t)pixel_y *
+                                              (size_t)image->width +
+                                              (size_t)pixel_x];
+                }
+            }
+            vga->framebuffer[(size_t)(y + 4) * VGA_STRIDE +
+                             (size_t)(x + 4)] = pixel;
+        }
+    }
 }
 
 void fd2_tileset_render_field_preview(fd2_vga *vga,

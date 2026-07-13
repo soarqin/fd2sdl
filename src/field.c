@@ -57,9 +57,9 @@ int fd2_field_map_open_stage(fd2_field_map *map,
 
 int fd2_field_metadata_open_mem(fd2_field_metadata *meta,
                                 const uint8_t *data, size_t size) {
-    /* stage metadata 结构由 FUN_00017f5b @0x17f5b、
-     * FUN_0001118c @0x1118c、FUN_000111e7 路径交叉确认：
-     * 0x03 起 16*3 阶段事件，0x33 起 16*2 cell lookup，
+    /* stage metadata 结构由 FUN_00017f5b @0x3fa27、
+     * FUN_0001118c @0x38c58、FUN_000111e7 路径交叉确认：
+     * 0x03 起 16*3 回合事件（turn/action/phase），0x33 起 16*2 cell lookup，
      * 0x53 起 16*3 cell action，0x83 起 26 字节单位模板。 */
     memset(meta, 0, sizeof(*meta));
     if (!data || size < 0x83) return -1;
@@ -71,9 +71,9 @@ int fd2_field_metadata_open_mem(fd2_field_metadata *meta,
 
     for (size_t i = 0; i < FD2_FIELD_EVENT_SLOTS; i++) {
         size_t off = 0x03 + i * 3;
-        meta->turn_events[i].trigger = data[off];
+        meta->turn_events[i].turn = data[off];
         meta->turn_events[i].action = data[off + 1];
-        meta->turn_events[i].actor_or_side = data[off + 2];
+        meta->turn_events[i].phase = data[off + 2];
     }
     for (size_t i = 0; i < FD2_FIELD_EVENT_SLOTS; i++) {
         size_t off = 0x33 + i * 2;

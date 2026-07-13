@@ -97,10 +97,28 @@ endif()
 
 add_executable(fd2sdl
     main.c
+    audio.c
+    audio_pcm.c
+    field_audio.c
+    field_effect.c
     archive.c
     image.c
     shape.c
     field.c
+    field_unit.c
+    field_unit_base.c
+    field_path.c
+    field_move.c
+    field_move_profile.c
+    field_combat.c
+    field_item.c
+    field_unit_stats.c
+    field_event.c
+    field_visual.c
+    field_info.c
+    field_game.c
+    field_play.c
+    field_preview.c
     text.c
     tile.c
     font.c
@@ -114,6 +132,155 @@ add_executable(fd2sdl
 )
 
 target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(fd2_audio_test
+        tests/audio_test.c
+        audio.c
+    )
+    target_include_directories(fd2_audio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_audio_test PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(fd2_audio_test PRIVATE m)
+    endif()
+    add_test(NAME audio COMMAND fd2_audio_test)
+    set_tests_properties(audio PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+
+    add_executable(fd2_audio_pcm_test
+        tests/audio_pcm_test.c
+        audio_pcm.c
+        audio.c
+        field_audio.c
+        archive.c
+    )
+    target_include_directories(fd2_audio_pcm_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_pcm_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_pcm_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_audio_pcm_test PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(fd2_audio_pcm_test PRIVATE m)
+    endif()
+    add_test(NAME audio_pcm COMMAND fd2_audio_pcm_test)
+
+    add_executable(fd2_field_effect_test
+        tests/field_effect_test.c
+        field_effect.c
+    )
+    target_include_directories(fd2_field_effect_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_field_effect_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_effect_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_effect COMMAND fd2_field_effect_test)
+
+    add_executable(fd2_field_path_test
+        tests/field_path_test.c
+        field_path.c
+        field_move.c
+        field_move_profile.c
+    )
+    target_include_directories(fd2_field_path_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_path_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_path COMMAND fd2_field_path_test)
+
+    add_executable(fd2_field_event_test
+        tests/field_event_test.c
+        field_event.c
+    )
+    target_include_directories(fd2_field_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_event COMMAND fd2_field_event_test)
+
+    add_executable(fd2_field_visual_test
+        tests/field_visual_test.c
+        field_visual.c
+        archive.c
+        shape.c
+        image.c
+        field.c
+        tile.c
+    )
+    target_include_directories(fd2_field_visual_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_visual_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_visual_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_visual COMMAND fd2_field_visual_test)
+
+    add_executable(fd2_field_info_test
+        tests/field_info_test.c
+        field_info.c
+        field_item.c
+        map_sprite.c
+        image.c
+        archive.c
+        portrait.c
+        text.c
+        font.c
+    )
+    target_include_directories(fd2_field_info_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_info_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_info_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_info COMMAND fd2_field_info_test)
+
+    add_executable(fd2_field_combat_test
+        tests/field_combat_test.c
+        field_combat.c
+    )
+    target_include_directories(fd2_field_combat_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_combat_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    add_test(NAME field_combat COMMAND fd2_field_combat_test)
+
+    add_executable(fd2_field_unit_stats_test
+        tests/field_unit_stats_test.c
+        field_unit_stats.c
+    )
+    target_include_directories(fd2_field_unit_stats_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_unit_stats_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_unit_stats_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_unit_stats COMMAND fd2_field_unit_stats_test)
+
+    add_executable(fd2_field_unit_base_test
+        tests/field_unit_base_test.c
+        field_unit_base.c
+    )
+    target_include_directories(fd2_field_unit_base_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_unit_base_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_unit_base_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_unit_base COMMAND fd2_field_unit_base_test)
+endif()
 
 # 让可执行文件能在源码树根目录运行并找到 original_game/
 set_target_properties(fd2sdl PROPERTIES

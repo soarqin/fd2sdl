@@ -22,7 +22,7 @@
 FDTXT token → FDOTHER.DAT[4][token × 32] → 16×16 glyph → docs/font-glyph-map.tsv
 ```
 
-`FUN_0004c4c2 @0x4c4c2` 按 `token * 0x20` 定位并绘制字形。SDL 实现与文本导出工具应先查映射表，再将得到的 Unicode 文本按 UTF-8 或 UTF-16 序列化；不得对原始 FDTXT 字节调用 iconv。
+`FUN_0004c4c2 @0x73f8e` 按 `token * 0x20` 定位并绘制字形。SDL 实现与文本导出工具应先查映射表，再将得到的 Unicode 文本按 UTF-8 或 UTF-16 序列化；不得对原始 FDTXT 字节调用 iconv。
 
 ## 控制码
 

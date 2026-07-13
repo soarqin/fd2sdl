@@ -9,7 +9,7 @@ static uint16_t rd_u16_le(const uint8_t *p) {
 }
 
 /*
- * RLE 解码（源自反编译 FUN_0004c0d5 @0x4c0d5）
+ * RLE 解码（源自反编译 FUN_0004c0d5 @0x73ba1）
  *
  * 头部 4 字节: u16 width + u16 height
  * 控制字节 c：
@@ -22,7 +22,7 @@ static uint16_t rd_u16_le(const uint8_t *p) {
  */
 int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
                                 const uint8_t *src, size_t src_len) {
-    /* 逐行解码，对应 FUN_0004c0d5 @0x4c0d5 的双层循环:
+    /* 逐行解码，对应 FUN_0004c0d5 @0x73ba1 的双层循环:
      *   外层遍历 height 行，每行用宽度计数器从 width 减到 0 */
     size_t si = 0;
     for (int row = 0; row < height; row++) {

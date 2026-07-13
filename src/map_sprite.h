@@ -9,9 +9,9 @@
 
 /* FDICON.B24 完整帧源 / FD2.TMP 运行期帧缓存
  *
- * 逆向依据：fdicon_cache_append_unit @0xe761 从 FDICON.B24 复制单位
- * 12 帧到 FD2.TMP；fd2tmp_map_sprite_load @0x2c0a3 读入缓存；
- * map_actor_blit_24x24 @0xb168 使用
+ * 逆向依据：fdicon_cache_append_unit @0x4622d 从 FDICON.B24 复制单位
+ * 12 帧到 FD2.TMP；fd2tmp_map_sprite_load @0x53b6f 读入缓存；
+ * map_actor_blit_24x24 @0x42c34 使用
  * `(direction*3 + cache_class*0x0c + frame) * 4` 查偏移表。
  */
 typedef struct {

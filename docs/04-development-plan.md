@@ -65,7 +65,7 @@ fd2sdl/
 ### 阶段 3A：完整新游戏初始过场 ✅
 
 - [x] DATO.DAT 立绘、FDOTHER.DAT[4] 字模、FDOTHER.DAT[5] 对话框 UI 与 FDTXT 控制码解释
-- [x] 追踪 `new_game_opening_play @0x2fa63`，确认完整流程为 stage 32 → 31 → 0
+- [x] 追踪 `new_game_opening_play @0x5752f`，确认完整流程为 stage 32 → 31 → 0
 - [x] 播放 FDTXT `[33]` fragment `0..5`、`[32]` fragment `0..9`、`[1]` fragment `0..2`，不混入第一关后续事件对白
 - [x] 复现移动脚本 `0,1,2,5,0x5a..0x69`、逐格 6 相位移动、actor 隐藏和镜头卷动
 - [x] 按 placement 建立 stage 32 王宫角色、走廊卫兵和郊外角色，建立 stage 31 五名剧情 actor 与 stage 0 三组 actor
@@ -79,20 +79,36 @@ fd2sdl/
 
 ### 阶段 3：核心系统（预计 3 天）
 
-- [ ] 角色结构体（位置、朝向、属性）—— 对照 FDFIELD 单位记录、DATO 立绘编号与反编译的 `FUN_000107b2`
-- [ ] 角色精灵渲染（朝向 0x9/0x11/0x15/0x16/0x1b/0x17）
-- [ ] 键盘/鼠标输入（对照 `FUN_00010780` 输入轮询）
-- [ ] 光标与格子选择
-- [ ] 移动范围计算（战棋核心，参考 `fcn.0001f0f5` 疑似 AI/寻路）
+详细依赖、逆向阻塞项和分阶段验收见 `docs/09-battlefield-roadmap.md`。
 
-**验收**：可在地图上移动光标，选中格子显示坐标。
+- [x] 通用战场单位结构：保留 `DAT_00003a45` 的 0x50 字节布局，统一过场与正式战场状态
+- [x] stage 0 初始单位槽位加载与精灵渲染：解析 metadata 模板与 placement，按 `unit_id` 读取 FDICON.B24；战斗属性初始化后续补齐
+- [x] 正式战场 session：统一持有 stage 资源、单位、镜头、光标及回合骨架状态，预览入口已复用
+- [x] 过场结束状态交接与正式 `--field-play`、`--new-game-play` 入口
+- [x] 键盘光标、镜头阈值跟随、单位命中和最小确认/取消选择
+- [x] 原版战场选择框与移动范围 LUT：FDOTHER[1] frame 0、FDOTHER[3] 23 张 palette translation table、`DS:0x1a97` 20 相位序列
+- [x] 正式地形/单位常驻信息面板：FDOTHER[5] 原始底板、terrain、A/D 修正、单位 sprite 与 HP
+- [x] 全屏角色详情页与装备列表：DATO 立绘、FDOTHER[5] frame 20/21、FDTXT 名称及确认属性
+- [x] 提取 215×23 字节完整物品表及详情页主要加成
+- [x] 通过 DOSBox 运行时单位记录确认其余三名初始玩家装备；隐藏槽残值不作为库存
+- [x] 复现详情页 12 帧三段开合视觉
+- [x] 接入详情页打开 phase 11/5 的 SFX 5 与关闭 phase 0/7 的 SFX 6
+- [ ] 接入其余战场 SFX
+- [x] 不实现鼠标坐标映射：原版游戏仅支持键盘
+- [x] 移动核心逆向：确认 record `0x20/0x3b`、FDSHAP 成本类别、敌我占格与控制区规则
+- [x] 参数化 Dijkstra、路径重建和移动 policy 自动测试
+- [x] 提取原版 29×20 字节 movement profile 表，以 DOSBox 新游戏捕获确认 stage 0 单位移动基线并接入真实范围查询
+- [x] 在战场显示移动范围、预览路径并提交六相位移动；移动后取消可恢复原坐标和镜头
+
+**当前验收**：`./src/fd2sdl --field-play 0` 可在第一关选择我方单位、查看范围与路径，并以原版 6×4 px、每相位约 55 ms 的节奏移动；原地确认可待机，全部玩家完成后依次进入 side 1、敌方和下一回合。`--field-play-once 0` 与 `--new-game-play-once` 验证移动、回退、四向镜头、已行动状态、phase 顺序及 stage 0 回合事件；CTest 验证 profile、寻路、占格和 FDFIELD 事件查询。选择框现使用 FDOTHER[1] 原始 24×24 帧；范围按 FDOTHER[3] LUT 循环映射完整地形与遮挡层，不再使用调试内框或路径十字。
 
 ### 阶段 4：战斗系统（预计 4 天）
 
-- [ ] 回合制流程状态机
-- [ ] 角色移动动画（FIGANI.DAT 战斗动画）
+- [x] 最小回合制流程状态机：已行动 bit、phase `2→1→0`、自动待机和回合递增
+- [x] 地图角色移动动画（复用 FDICON 六相位步态）
 - [ ] 攻击/施法/待机指令
-- [ ] 伤害计算（DATO.DAT 中的属性/技能表）
+- [x] 普通物理攻击核心与四项派生重算（基础属性来源、装备数据接入、暴击率和外围修正仍待确认；DATO.DAT 当前只确认是立绘帧包）
+- [ ] FIGANI.DAT 战斗演出
 - [ ] 经验/升级
 
 **验收**：完成一场简单战斗（攻击、扣血、回合切换）。
@@ -106,12 +122,22 @@ fd2sdl/
 
 **验收**：用原版 FD2.SAV 启动并恢复到存档时的场景。
 
-### 阶段 6：音频与剧情（预计 2 天）
+### 阶段 6：音频与剧情（音频框架选型后重新估算）
 
-- [ ] XMID 转 MIDI/OGG 预处理工具
-- [ ] SDL3_mixer 播放背景音乐（FDMUS.DAT）
-- [ ] 音效（SAMPLE.BNK）
+- [x] 确认原版基于 Miles AIL，音乐为 FDMUS XMIDI，UI SFX 来自 FDOTHER 嵌套 PCM bank
+- [x] 映射固定／动态 sample bank、11025 Hz U8 mono 默认参数和音乐控制调用链
+- [x] 基于 SDL3 `SDL_AudioStream` 建立 device、music/sfx bus、有界命令队列、null backend 和离线 PCM capture 入口
+- [x] 实现嵌套 bank、U8 mono、voice pool、循环与 rate conversion 的 PCM source
+- [x] 完成 DOSBox SFX 5/8 波形验证并接入详情页 phase 音效
+- [x] 加载 FDOTHER[80] 并登记 actor flash、stage transition、earthquake cue
+- [x] 实现 actor flash、earthquake、stage transition 的 snapshot/cue 帧调度器
+- [x] 实现 actor flash、earthquake、stage transition 的事务化 snapshot 生成器、原版定时 wrapper 和 `--field-effect-play` 可达验收入口
+- [ ] 映射并接入 FIGANI metadata 驱动的动态战斗音效 bank
+- [ ] 完成 libADLMIDI + AIL bank + Nuked OPL3 保真原型及许可证评审
+- [ ] 选定并接入正式 XMIDI/OPL 音乐后端
 - [ ] 剧情脚本解释器（参考 `fcn.00019f67` 34493 字节大函数）
+
+音频详细计划和验收标准见 `docs/11-audio-plan.md`。
 
 ### 阶段 7：打磨（预计 2 天）
 
@@ -129,7 +155,8 @@ fd2sdl/
 | 组件 | 选择 | 理由 |
 |------|------|------|
 | 图形/输入 | SDL3 | 项目要求 |
-| 音频 | SDL3_mixer 或 SDL3 audio + 预转换音频 | 原版用 AIL，复刻成本高 |
+| 音频核心 | SDL3 `SDL_AudioStream` + 项目内 source/mixer 边界 | 当前 SDL 3.2.12 可直接使用；先统一 PCM、音乐与测试后端，不被具体解码器绑定 |
+| XMIDI/OPL | libADLMIDI 原型，正式后端待许可证与 DOSBox 对照后决定 | 上游支持 AIL XMI、AIL FM bank 与 Nuked OPL3；不能在许可证评审前直接成为发布依赖 |
 | 构建 | CMake | 跨平台，成熟 |
 | 语言 | C（主）/ Python（工具） | 对照原版 Watcom C |
 
@@ -144,7 +171,7 @@ fd2sdl/
 
 - 内部逻辑分辨率 320×200（原版 VGA Mode 13h）
 - 窗口用整数缩放（2x/3x），保持像素清晰
-- 鼠标坐标需反向映射到逻辑坐标
+- 原版游戏仅支持键盘，不增加鼠标交互
 
 ### 2.4 字符编码
 
@@ -158,7 +185,7 @@ fd2sdl/
 | 图像 RLE 方案未完全确认 | 阶段 1 阻塞 | ✅ 已解决：逆向 FUN_0004e176，见 §2.1 |
 | 调色板选择误判 | 标题与片头颜色不一致 | ✅ 已解决：标题图用 FDOTHER.DAT[7] sub[0]，标题调色板用 FDOTHER.DAT[8] |
 | FD2.SAV 加密 | 阶段 5 阻塞 | 反编译存档读写函数定位加密算法 |
-| DATO.DAT 结构体未知 | 角色属性无法读取 | 阶段 3 结合反编译对照 |
+| 单位战斗属性来源仍不完整 | 正式攻击指令无法覆盖所有单位 | 移动字段、stage 0 HP/MP、四项派生链和普通攻击核心已确认；继续追踪基础属性、HP/MP 新建来源及职业/装备表；DATO.DAT 当前只作为立绘帧包 |
 | 无符号函数 | 逆向效率低 | 通过字符串引用、调用约定、FunctionID 逐步命名 |
 | 大函数（5.5万字节）逆向 | 战斗系统理解慢 | 分块逆向，优先状态机骨架 |
 
@@ -177,7 +204,8 @@ fd2sdl/
    - 目标：确认如何选择 .DAT 与条目
 
 4. **角色结构体布局**（阶段 3）
-   - 对照 DATO.DAT 与 `FUN_000107b2` 朝向字段 `DAT_00003c03`
+   - ✅ 已确认战场单位表为 0x50 字节步长，并确认坐标、显示、阵营、unit/text ID 与 HP/MP 偏移
+   - ✅ 已确认 `0x48/0x4a/0x4c/0x4e` 派生链；待追踪基础字段、HP/MP 新建来源和职业/装备表，DATO.DAT 当前只作为立绘帧包
 
 5. **战场 AI/寻路**（阶段 3-4）
    - `fcn.0001f0f5`（34179 字节）

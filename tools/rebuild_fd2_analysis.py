@@ -4,15 +4,15 @@
 关键原则：
 - 不把 LE fixup 直接写回代码页。FD2 的 near call 使用代码段 offset，
   而数据/资源句柄经由 DS offset 访问；上一版脚本把 fixup 当作普通线性
-  patch 写入，导致 0x1cfe6 启动函数中的指令被覆盖。
-- 如需规避 Ghidra 对 __chkstk 的反编译截断，只在专用分析镜像中把
-  __chkstk stub 改成等价的 `ret 4`，不要把这种 patch 当成游戏原始代码。
+  patch 写入，导致 0x44ab2 启动函数中的指令被覆盖。
+- `__chkstk` 已迁移到 dual `0x5c243` / code0 `0x4c243`；保留原始 wrapper，
+  不再通过字节 patch 改变分析输入。
 
 输出：
   tools/fd2_le_raw.bin              object 按 LE relbase 摆放，未应用 fixup
-  tools/fd2_le_code0.bin            object1 从 0 开始，便于按 near-call offset 反汇编
-  tools/fd2_le_ghidra_chkstk.bin    raw 镜像 + __chkstk 分析 patch
-  tools/fd2_le_dual_clean.bin       Ghidra/r2 用镜像：0x0-0xffff 镜像 object1 前 64K，不应用 fixup
+  tools/fd2_le_code0.bin            bound CS 从 0 开始，包含 object1 后的运行库尾部
+  tools/fd2_le_ghidra_chkstk.bin    兼容文件名；当前与 raw 相同，不做未验证 patch
+  tools/fd2_le_dual_clean.bin       code-only：完整 CS 放在 0x10000，并镜像低 64K
   tools/fd2_le_fixups.txt          fixup 记录清单（只作索引，不是 patch 脚本）
   docs/le-fixups.txt                简短说明，避免把巨大记录误当作 patch 输入
 """
@@ -130,7 +130,10 @@ def page_number_from_map_entry(entry: bytes) -> int:
 def extract_page(buf: bytes, le: LEHeader, page_no_1based: int, page_is_last: bool) -> bytes:
     if page_no_1based == 0:
         return b"\x00" * le.page_size
-    off = le.le_off + le.data_pages_off + (page_no_1based - 1) * le.page_size
+    # LE header +0x80 是相对文件开头的 data-page file offset，不是
+    # 相对 LE header。FD2 是 bound LE，页面区实际位于 LE header 之前；
+    # 再加 le_off 会把每个 object page 错读到后方的其他内容。
+    off = le.data_pages_off + (page_no_1based - 1) * le.page_size
     size = le.last_page_size if page_is_last and le.last_page_size else le.page_size
     data = buf[off:off + size]
     if len(data) < le.page_size:
@@ -156,32 +159,30 @@ def build_relbase_image(buf: bytes, le: LEHeader, objects: Iterable[ObjectRecord
     return image
 
 
-def build_code0_image(relbase_image: bytes, objects: list[ObjectRecord]) -> bytearray:
-    code = objects[0]
-    # object1 从 0 开始，object2/3 保留 LE relbase，便于同时查看 DS 数据。
-    size = max(code.vsize, *(obj.relbase + obj.vsize for obj in objects[1:]))
-    image = bytearray(size)
-    image[0:code.vsize] = relbase_image[code.relbase:code.relbase + code.vsize]
-    for obj in objects[1:]:
-        image[obj.relbase:obj.relbase + obj.vsize] = relbase_image[obj.relbase:obj.relbase + obj.vsize]
-    return image
+def build_code0_image(buf: bytes, le: LEHeader,
+                      objects: list[ObjectRecord]) -> bytearray:
+    # FD2 是 bound LE：object1 声明 vsize=0x3ef29，但其后的剧情 handler、
+    # Watcom 运行库和辅助代码仍位于同一 bound payload。code0 统一定义为
+    # `file_offset - data_pages_off`，覆盖 payload 余下全部字节。它是只读
+    # CS/代码分析视图；DS object2/3 继续由 fd2_le_raw.bin 单独表达。
+    del objects
+    return bytearray(buf[le.data_pages_off:])
 
 
 def patch_chkstk_for_analysis(image: bytearray) -> None:
-    # __chkstk @ object/linear 0x34777。替换为 `ret 4` + NOP，避免 Ghidra 把调用者截断。
-    off = 0x34777
-    patch = b"\xc2\x04\x00" + b"\x90" * 13
-    image[off:off + len(patch)] = patch
+    # `__chkstk @dual 0x5c243 / code0 0x4c243` 保留原始 wrapper；
+    # Ghidra 脚本只将其标为普通可返回函数，不修改输入字节。
+    del image
 
 
-def build_dual_clean_image(relbase_image: bytes) -> bytearray:
-    # DOS/4GW 代码里大量 near call 使用 object1 offset（如 call 0xf488）。
-    # 为让静态工具能直接跟随这些 call，把 object1 前 64K 映射到 0x0-0xffff。
-    # 注意这里只复制原始代码页，不应用 LE fixup。
-    image = bytearray(relbase_image)
-    if len(image) < 0x10000:
-        image.extend(b"\x00" * (0x10000 - len(image)))
-    image[0:0x10000] = relbase_image[0x10000:0x20000]
+def build_dual_clean_image(code0_image: bytes) -> bytearray:
+    # 兼容旧 Ghidra relbase 视图：完整 bound CS 窗口放在 0x10000，
+    # 并把前 64 KiB 镜像到低地址以解析 near call。该文件是 code-only；
+    # DS object2/3 必须从 fd2_le_raw.bin 单独查看。
+    image = bytearray(len(code0_image) + 0x10000)
+    image[0x10000:] = code0_image
+    mirror_size = min(0x10000, len(code0_image))
+    image[0:mirror_size] = code0_image[0:mirror_size]
     return image
 
 
@@ -333,7 +334,7 @@ def write_fixup_note(path: Path, count: int) -> None:
         f"当前可解析简单记录数：{count}。\n\n"
         "这些记录只用于定位 DS/global 引用和保留 relocation 证据，"
         "不得直接写回代码镜像。上一版错误地直接 patch 代码页，"
-        "导致 `boot_intro_title` 主体 @0x1cfe6 被破坏。\n",
+        "导致 `boot_intro_title` 主体 @0x44ab2 被破坏。\n",
         encoding="utf-8",
     )
 
@@ -349,10 +350,10 @@ def main() -> int:
     le = parse_le(buf)
     objects = parse_objects(buf, le)
     relbase = build_relbase_image(buf, le, objects)
-    code0 = build_code0_image(relbase, objects)
+    code0 = build_code0_image(buf, le, objects)
     ghidra = bytearray(relbase)
     patch_chkstk_for_analysis(ghidra)
-    dual = build_dual_clean_image(relbase)
+    dual = build_dual_clean_image(code0)
     patch_chkstk_for_analysis(dual)
 
     args.tools_dir.mkdir(parents=True, exist_ok=True)

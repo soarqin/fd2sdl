@@ -116,6 +116,7 @@ set(FD2SDL_CORE_SOURCES
     field_combat.c
     field_rng.c
     field_item.c
+    field_magic.c
     field_unit_stats.c
     field_event.c
     field_visual.c
@@ -299,7 +300,11 @@ if(BUILD_TESTING)
     add_executable(fd2_field_ai_test
         tests/field_ai_test.c
         field_ai.c
+        field_attack.c
         field_path.c
+        field_move_profile.c
+        field_item.c
+        field_magic.c
     )
     target_include_directories(fd2_field_ai_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -356,6 +361,21 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_game_attack COMMAND fd2_field_game_attack_test)
+
+    add_executable(fd2_field_ai_commit_test
+        tests/field_ai_commit_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_ai_commit_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_ai_commit_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_ai_commit_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_ai_commit COMMAND fd2_field_ai_commit_test)
 
     add_executable(fd2_field_unit_stats_test
         tests/field_unit_stats_test.c

@@ -68,8 +68,17 @@ int fd2_field_attack_apply_terrain_modifier(uint32_t stat,
 int fd2_field_attack_base_critical_chance(const fd2_field_unit *attacker,
                                           uint8_t *base_chance);
 
-/* field_target_range_build @0x39a2c 的普通攻击子集：用 movement profile 0
- * 从攻击者坐标传播 max_range，并排除曼哈顿距离小于 min_range 的格子。 */
+/* field_target_range_build @0x39a2c 的 profile 0 范围传播核心。
+ * 从指定格传播 max_range，并按曼哈顿距离排除小于 min_range 的格子；
+ * 不收集 actor，也不修改单位。 */
+int fd2_field_target_range_compute(fd2_field_path_result *result,
+                                   const fd2_field_map *map,
+                                   const fd2_terrain_tileset *terrain,
+                                   int origin_x, int origin_y,
+                                   uint8_t min_range,
+                                   uint8_t max_range);
+
+/* 普通攻击包装：从已装备武器 record +0x0b/+0x0c 读取范围。 */
 int fd2_field_attack_range_compute(fd2_field_path_result *result,
                                    const fd2_field_map *map,
                                    const fd2_terrain_tileset *terrain,

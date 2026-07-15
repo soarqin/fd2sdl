@@ -202,6 +202,7 @@ static int validate_ai_queries(const fd2_field_game *game) {
         fd2_field_ai_target target;
         fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
         fd2_field_ai_destination destination;
+        fd2_field_ai_physical_candidate physical;
         int ok = fd2_field_ai_nearest_opponent(
                      &game->units, i, 0, &target) == 0 &&
                  fd2_field_game_compute_move_range(game, i, &range) == 0 &&
@@ -211,6 +212,23 @@ static int validate_ai_queries(const fd2_field_game *game) {
                      &range, destination.x, destination.y) &&
                  destination.manhattan_distance <=
                      target.manhattan_distance;
+        int physical_result = ok ? fd2_field_ai_choose_physical_candidate(
+            &game->map, &game->terrain, &game->units, i, 0,
+            &range, &physical) : -1;
+        if (physical_result == 0) {
+            ok = physical.unit_index < game->units.count &&
+                 game->units.items[physical.unit_index].side != 0 &&
+                 fd2_field_path_is_destination(
+                     &range, physical.destination_x,
+                     physical.destination_y) &&
+                 (physical.priority == 0 || physical.priority == 8 ||
+                  physical.priority == 0x12) &&
+                 fd2_field_ai_select_attack_action(
+                     physical.priority, 0, 0, 0) ==
+                     (physical.priority >= 6
+                         ? FD2_FIELD_AI_ACTION_PHYSICAL
+                         : FD2_FIELD_AI_ACTION_NONE);
+        }
         fd2_field_path_close(&range);
         if (!ok) return -1;
     }

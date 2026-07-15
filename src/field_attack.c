@@ -213,26 +213,25 @@ int fd2_field_attack_base_critical_chance(
     return 0;
 }
 
-int fd2_field_attack_range_compute(fd2_field_path_result *result,
+int fd2_field_target_range_compute(fd2_field_path_result *result,
                                    const fd2_field_map *map,
                                    const fd2_terrain_tileset *terrain,
-                                   const fd2_field_unit *attacker) {
+                                   int origin_x, int origin_y,
+                                   uint8_t min_range,
+                                   uint8_t max_range) {
     if (!result || !map || !map->cells || map->width <= 0 || map->height <= 0 ||
-        !terrain || !terrain->attrs || !attacker ||
-        attacker->x >= map->width || attacker->y >= map->height)
+        !terrain || !terrain->attrs || origin_x < 0 || origin_y < 0 ||
+        origin_x >= map->width || origin_y >= map->height ||
+        min_range > max_range)
         return -1;
 
-    uint8_t min_range = 0;
-    uint8_t max_range = 0;
-    if (fd2_field_attack_weapon_range(attacker, &min_range, &max_range) != 0)
-        return -1;
     const uint8_t *costs =
         fd2_field_movement_profile_get(FD2_FIELD_ATTACK_PROFILE);
     if (!costs) return -1;
 
     fd2_field_attack_range_context context = {map, terrain, costs};
     if (fd2_field_path_compute(result, map->width, map->height,
-                               attacker->x, attacker->y, max_range,
+                               origin_x, origin_y, max_range,
                                attack_range_query, &context) != 0)
         return -1;
 
@@ -240,8 +239,8 @@ int fd2_field_attack_range_compute(fd2_field_path_result *result,
      * 不是按累计地形成本做下限判断。 */
     for (int y = 0; y < result->height; y++) {
         for (int x = 0; x < result->width; x++) {
-            int dx = x - (int)attacker->x;
-            int dy = y - (int)attacker->y;
+            int dx = x - origin_x;
+            int dy = y - origin_y;
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
             if (dx + dy >= min_range) continue;
@@ -252,6 +251,20 @@ int fd2_field_attack_range_compute(fd2_field_path_result *result,
         }
     }
     return 0;
+}
+
+int fd2_field_attack_range_compute(fd2_field_path_result *result,
+                                   const fd2_field_map *map,
+                                   const fd2_terrain_tileset *terrain,
+                                   const fd2_field_unit *attacker) {
+    if (!attacker) return -1;
+    uint8_t min_range = 0;
+    uint8_t max_range = 0;
+    if (fd2_field_attack_weapon_range(attacker, &min_range, &max_range) != 0)
+        return -1;
+    return fd2_field_target_range_compute(
+        result, map, terrain, attacker->x, attacker->y,
+        min_range, max_range);
 }
 
 int fd2_field_attack_target_matches_filter(

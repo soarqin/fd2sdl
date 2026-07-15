@@ -8,6 +8,7 @@
 #include "field.h"
 #include "field_effect.h"
 #include "field_event.h"
+#include "field_ai.h"
 #include "field_combat.h"
 #include "field_command.h"
 #include "field_handoff.h"
@@ -198,6 +199,19 @@ int fd2_field_game_attack_is_available(const fd2_field_game *game);
 int fd2_field_game_begin_attack(fd2_field_game *game);
 int fd2_field_game_resolve_attack(fd2_field_game *game);
 int fd2_field_game_cancel_attack(fd2_field_game *game);
+
+/* M7.3 显式物理提交事务：重新计算 actor 当前移动范围及最优物理候选，
+ * 仅当与传入 plan 完全一致时重建路径、提交移动，再复用
+ * field_physical_exchange @0x3a6a2 的确定性逻辑核心。vga 可为空；非空时
+ * 复用六相位步态。该 API 不负责选择 actor，也不接入自动 phase；法术／
+ * 物品 handler 未确认时不得退化为物理或待机。 */
+int fd2_field_game_commit_ai_physical(
+    fd2_field_game *game,
+    size_t actor_index,
+    uint8_t side_selector,
+    const fd2_field_ai_physical_candidate *plan,
+    fd2_vga *vga,
+    uint32_t frame_delay_ms);
 
 /* field_command_menu_input @0x3ca10：四方向直接选择固定图标，禁用项
  * 不移动选择；确认只分派已接入的普通攻击和待机，返回操作复用移动

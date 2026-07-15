@@ -23,6 +23,7 @@
  * SDL 以一个约 60 Hz 宿主帧分隔四个 present，避免连续上传被合并；
  * 该值不登记为原版 DOS 时序。 */
 #define FD2_FIELD_COMMAND_FRAME_MS 16
+#define FD2_FIELD_AUTOMATIC_ACTION_MS 150
 
 static void detail_phase_sfx(void *userdata, int opening, int phase) {
     fd2_field_audio *audio = userdata;
@@ -643,7 +644,9 @@ static int validate_turn_flow(fd2_field_game *game, fd2_vga *vga,
                 game, vga, fdother, &validated_presentations) != 0)
             goto done;
         while (game->active_side != 2) {
-            if (!fd2_field_game_process_automatic_action(game) ||
+            /* 该回归验证 stage event／phase 调度，不依赖 AI 战斗结果；
+             * 明确结束自动 phase，避免候选 RNG 改写脚本夹具。 */
+            if (fd2_field_game_end_active_phase(game) != 0 ||
                 ++guard > 128 ||
                 validate_deferred_presentations(
                     game, vga, fdother, &validated_presentations) != 0)
@@ -940,17 +943,24 @@ int fd2_field_play_run(fd2_vga *vga,
         fd2_field_game_close(&game);
         return -1;
     }
-    if (once && (validate_cursor_controls(&game) != 0 ||
-                 validate_field_info(&game, vga) != 0 ||
-                 validate_move_ranges(&game) != 0 ||
-                 validate_ai_queries(&game) != 0 ||
-                 validate_move_interaction(&game, vga) != 0 ||
-                 validate_attack_flow(&game) != 0 ||
-                 validate_turn_flow(&game, vga, fdother) != 0 ||
-                 validate_field_effects(&game, vga, field_audio) != 0)) {
-        fprintf(stderr, "field cursor/move validation failed\n");
-        fd2_field_game_close(&game);
-        return -1;
+    if (once) {
+#define VALIDATE_STEP(name, expression) do { \
+        if ((expression) != 0) { \
+            fprintf(stderr, "field validation failed: %s\n", (name)); \
+            fd2_field_game_close(&game); \
+            return -1; \
+        } \
+    } while (0)
+        VALIDATE_STEP("cursor", validate_cursor_controls(&game));
+        VALIDATE_STEP("info", validate_field_info(&game, vga));
+        VALIDATE_STEP("move-range", validate_move_ranges(&game));
+        VALIDATE_STEP("ai-query", validate_ai_queries(&game));
+        VALIDATE_STEP("move-interaction", validate_move_interaction(&game, vga));
+        VALIDATE_STEP("attack", validate_attack_flow(&game));
+        VALIDATE_STEP("turn", validate_turn_flow(&game, vga, fdother));
+        VALIDATE_STEP("effect", validate_field_effects(
+            &game, vga, field_audio));
+#undef VALIDATE_STEP
     }
 
     printf("field play: stage=%zu, map=%dx%d, units=%zu, camera=(%d,%d), "
@@ -971,6 +981,15 @@ int fd2_field_play_run(fd2_vga *vga,
     int running = 1;
     while (running) {
         fd2_field_game_tick(&game, SDL_GetTicks());
+        game.battle_result = fd2_field_game_battle_result(&game);
+        if (game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
+            printf("field battle: %s, stage=%zu\n",
+                   game.battle_result == FD2_FIELD_BATTLE_VICTORY
+                       ? "victory" : "defeat",
+                   game.stage);
+            fflush(stdout);
+            running = 0;
+        }
         if (game.turn_number != reported_turn ||
             game.active_side != reported_side) {
             printf("field phase: turn=%u phase=%u remaining=%zu\n",
@@ -988,7 +1007,23 @@ int fd2_field_play_run(fd2_vga *vga,
                             &reported_dropped_events);
         fd2_field_game_render(&game, vga);
         fd2_vga_present(vga);
-        if (once) break;
+        if (once || !running) break;
+        if (game.active_side != 2 &&
+            game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
+            game.phase_next_action_ms != 0 &&
+            SDL_GetTicks() >= game.phase_next_action_ms) {
+            int ai_result = fd2_field_game_process_automatic_action_visual(
+                &game, vga, 55);
+            if (game.active_side != 2)
+                game.phase_next_action_ms =
+                    SDL_GetTicks() + FD2_FIELD_AUTOMATIC_ACTION_MS;
+            if (ai_result < 0) {
+                fprintf(stderr, "field automatic action unsupported or failed\n");
+                running = 0;
+            }
+            continue;
+        }
+
 
         if (fd2_input_take_quit(&vga->input)) running = 0;
         fd2_input_action input_action;

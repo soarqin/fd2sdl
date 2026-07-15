@@ -19,6 +19,7 @@
 #include "field_move.h"
 #include "field_move_profile.h"
 #include "field_item.h"
+#include "field_magic.h"
 #include "portrait.h"
 #include "field_unit_base.h"
 #include "field_unit_stats.h"
@@ -234,6 +235,31 @@ size_t fd2_field_game_remaining_units(const fd2_field_game *game,
     return count;
 }
 
+fd2_field_battle_result fd2_field_game_battle_result(
+        const fd2_field_game *game) {
+    if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
+    int have_player = 0;
+    int have_hostile = 0;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (fd2_field_unit_is_hidden(unit) || unit->hp == 0) continue;
+        if (unit->side == 2u) have_player = 1;
+        if (unit->side == 0u) have_hostile = 1;
+    }
+    if (!have_player) return FD2_FIELD_BATTLE_DEFEAT;
+    if (!have_hostile) {
+        /* stage 0 的已确认 turn action 会在第 4/5 回合加入 hostile
+         * group 4/5。基础存活查询不得在这些已知增援触发前提前判胜；
+         * 这仍不是原版完整的 stage 私有胜负 handler。 */
+        if (game->stage == 0u &&
+            (fd2_field_game_group_count(game, 4u) == 0u ||
+             fd2_field_game_group_count(game, 5u) == 0u))
+            return FD2_FIELD_BATTLE_ONGOING;
+        return FD2_FIELD_BATTLE_VICTORY;
+    }
+    return FD2_FIELD_BATTLE_ONGOING;
+}
+
 static int append_stage0_event_group(fd2_field_game *game, uint8_t group) {
     if (!game || game->stage != 0 ||
         fd2_field_game_group_count(game, group) != 0)
@@ -396,6 +422,7 @@ static void enter_phase(fd2_field_game *game, uint8_t side) {
     if (!game) return;
     game->active_side = side;
     game->phase_unit_cursor = 0;
+    game->phase_ai_pass = 0;
     game->phase_next_action_ms = 0;
     for (size_t i = 0; i < game->units.count; i++) {
         if (game->units.items[i].side == side)
@@ -504,6 +531,7 @@ int fd2_field_game_open(fd2_field_game *game,
     game->command_selected = -1;
     game->attack_target = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+    game->battle_result = FD2_FIELD_BATTLE_ONGOING;
     game->ready = 1;
     enter_phase(game, 2);
     return 0;
@@ -628,18 +656,18 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
         }
     }
 
-    /* 敌方 AI 尚未接入。M5 骨架按 actor 顺序执行确定性待机，使
-     * side 1/0 阶段、事件检查和回合切换可独立验证。 */
+    /* field_side1_phase_execute @0x42a1f / 正确 dual 0x1d80b 与
+     * field_side0_phase_execute @0x42ace / 正确 dual 0x1d8ba：自动阶段
+     * 按 raw actor index 逐个进入 AI core；完整演出由 play loop 显式
+     * visual 调用，tick 保持无窗口逻辑路径。 */
     if (game->active_side != 2 &&
         game->interaction == FD2_FIELD_INTERACTION_BROWSE) {
         if (game->phase_next_action_ms == 0) {
             game->phase_next_action_ms =
                 now_ms + FD2_FIELD_AUTOMATIC_ACTION_MS;
         } else if (now_ms >= game->phase_next_action_ms) {
-            (void)fd2_field_game_process_automatic_action(game);
-            if (game->active_side != 2)
-                game->phase_next_action_ms =
-                    now_ms + FD2_FIELD_AUTOMATIC_ACTION_MS;
+            /* 只发布 due 标记；field_play 的 VGA owner 同步执行一次动作。 */
+            game->phase_next_action_ms = now_ms;
         }
     }
 }
@@ -1348,6 +1376,7 @@ static int resolve_physical_exchange(fd2_field_game *game,
     fd2_field_unit *defender = &game->units.items[target_index];
     uint16_t old_attacker_hp = attacker->hp;
     uint16_t old_defender_hp = defender->hp;
+    fd2_field_battle_result old_battle_result = game->battle_result;
     uint8_t old_attacker_status = attacker->detail_status[0];
     uint8_t old_defender_status = defender->detail_status[0];
     uint8_t old_flags[FD2_FIELD_MAX_UNITS];
@@ -1382,6 +1411,7 @@ static int resolve_physical_exchange(fd2_field_game *game,
      * exchange 返回后立即调用 field_defeated_units_finalize @0x42d79，
      * 统一将所有 HP==0 actor 的 +0x05 写为 1。 */
     finalize_zero_hp_units(&game->units);
+    game->battle_result = fd2_field_game_battle_result(game);
     game->attack_target = (int)target_index;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     if (finish_player_action && finish_unit_action_internal(game, 1) != 0) {
@@ -1391,6 +1421,7 @@ static int resolve_physical_exchange(fd2_field_game *game,
         defender->detail_status[0] = old_defender_status;
         for (size_t i = 0; i < game->units.count; i++)
             game->units.items[i].flags = old_flags[i];
+        game->battle_result = old_battle_result;
         game->attack_target = -1;
         game->interaction = FD2_FIELD_INTERACTION_TARGETING;
         return -1;
@@ -1668,8 +1699,10 @@ static int finish_ai_action(fd2_field_game *game, size_t actor_index) {
     if (!game || !game->ready || actor_index >= game->units.count)
         return -1;
     fd2_field_unit *actor = &game->units.items[actor_index];
-    if (actor->side != game->active_side ||
-        (actor->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0)
+    /* field_physical_exchange 可在反击中让 actor 死亡并先执行 defeated
+     * finalize；原版 AI common tail 仍无条件处理该 actor。这里不能因
+     * hidden 拒绝，否则会在 RNG 已消费后错误回滚棋盘。 */
+    if (actor->side != game->active_side)
         return -1;
     /* field_ai_unit_execute_core @0x38cbd: lookup current cell first,
      * then OR acted bit, then 0x386f8 clears every actor direction byte. */
@@ -1838,28 +1871,213 @@ int fd2_field_game_commit_ai_physical(
     return -1;
 }
 
-static int commit_ai_move_toward_anchor(fd2_field_game *game,
-                                         size_t actor_index,
-                                         int anchor_x, int anchor_y) {
-    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
-    if (!game || fd2_field_game_compute_move_range(game, actor_index, &range) != 0)
+static int magic_plan_matches(
+        const fd2_field_ai_magic_candidate *a,
+        const fd2_field_ai_magic_candidate *b) {
+    return a && b && a->magic_id == b->magic_id &&
+        a->cast_x == b->cast_x && a->cast_y == b->cast_y &&
+        a->score == b->score && a->tie_value == b->tie_value;
+}
+
+static int item_plan_matches(
+        const fd2_field_ai_item_candidate *a,
+        const fd2_field_ai_item_candidate *b) {
+    return a && b && a->item_id == b->item_id &&
+        a->slot_index == b->slot_index &&
+        a->target_x == b->target_x && a->target_y == b->target_y &&
+        a->score == b->score;
+}
+
+static int commit_ai_magic_internal(
+        fd2_field_game *game,
+        size_t actor_index,
+        uint8_t selector_mode,
+        const fd2_field_ai_magic_candidate *plan,
+        int finish_action) {
+    if (!game || !game->ready || !plan || !game->attack_rng ||
+        actor_index >= game->units.count || game->active_side == 2u ||
+        game->selected_unit >= 0 ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
-    fd2_field_ai_destination destination;
-    int result = fd2_field_ai_choose_destination(
-        &range, anchor_x, anchor_y, &destination);
-    if (result != 0) {
-        fd2_field_path_close(&range);
-        return 0;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    const uint8_t *record = fd2_field_magic_record_get(plan->magic_id);
+    if (!unit_can_act_for_side(actor, game->active_side) ||
+        fd2_field_unit_has_acted(actor) || !record || plan->score < 6 ||
+        actor->mp < record[5])
+        return -1;
+    fd2_field_ai_magic_candidate current;
+    if (fd2_field_ai_choose_magic_candidate(
+            &game->map, &game->terrain, &game->units, actor_index,
+            selector_mode, &current) != 0 ||
+        !magic_plan_matches(&current, plan))
+        return -1;
+
+    uint8_t targets[FD2_FIELD_MAX_UNITS];
+    size_t target_count = 0;
+    if (fd2_field_ai_collect_magic_targets(
+            &game->map, &game->terrain, &game->units,
+            plan->magic_id, plan->cast_x, plan->cast_y, selector_mode,
+            targets, sizeof(targets), &target_count) != 0 ||
+        target_count == 0)
+        return -1;
+    /* 特殊 handler 在修改状态前显式拒绝；不把部分支持误装成 fallback。 */
+    if (plan->magic_id == 23u || plan->magic_id == 24u ||
+        plan->magic_id >= 28u)
+        return -1;
+    /* 所有目标 profile 必须在 RNG 前预检；effect 核心开始后不得因
+     * 后续目标的数据错误造成无法回滚的 RNG 流。 */
+    if (plan->magic_id <= 12u) {
+        for (size_t i = 0; i < target_count; i++) {
+            uint32_t ignored_scale = 0;
+            if (fd2_field_magic_damage_profile_scale(
+                    game->units.items[targets[i]].movement_profile,
+                    &ignored_scale) != 0)
+                return -1;
+        }
     }
-    size_t count = (size_t)game->map.width * (size_t)game->map.height;
-    uint8_t *path = count ? malloc(count) : NULL;
-    int length = path ? fd2_field_path_build(&range, destination.x,
-                                              destination.y, path, count) : -1;
-    fd2_field_path_close(&range);
-    if (length <= 0) {
-        free(path);
-        return 0;
+
+    fd2_field_game snapshot = *game;
+    for (size_t i = 0; i < target_count; i++) {
+        int result = fd2_field_magic_apply_known_effect(
+            plan->magic_id, targets[i], &game->units,
+            game->attack_rng, game->attack_rng_userdata);
+        if (result < 0) {
+            *game = snapshot;
+            return -1;
+        }
     }
+    finalize_zero_hp_units(&game->units);
+    game->battle_result = fd2_field_game_battle_result(game);
+    game->cursor_cell_x = plan->cast_x;
+    game->cursor_cell_y = plan->cast_y;
+    if (finish_action && finish_ai_action(game, actor_index) != 0) {
+        *game = snapshot;
+        return -1;
+    }
+    return 0;
+}
+
+int fd2_field_game_commit_ai_magic(
+        fd2_field_game *game,
+        size_t actor_index,
+        uint8_t selector_mode,
+        const fd2_field_ai_magic_candidate *plan) {
+    return commit_ai_magic_internal(
+        game, actor_index, selector_mode, plan, 1);
+}
+
+static void inventory_slot_remove(fd2_field_unit *unit, size_t slot_index) {
+    uint8_t *record = (uint8_t *)unit;
+    if (!unit || slot_index >= 8u) return;
+    for (size_t slot = slot_index; slot + 1u < 8u; slot++) {
+        record[0x0au + slot * 2u] = record[0x0cu + slot * 2u];
+        record[0x0bu + slot * 2u] = record[0x0du + slot * 2u];
+    }
+    record[0x18u] = 0x80u;
+    record[0x19u] = 0xffu;
+}
+
+int fd2_field_game_commit_ai_item(
+        fd2_field_game *game,
+        size_t actor_index,
+        uint8_t selector_mode,
+        const fd2_field_ai_item_candidate *plan) {
+    if (!game || !game->ready || !plan || !game->attack_rng ||
+        actor_index >= game->units.count || game->active_side == 2u ||
+        game->selected_unit >= 0 ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE)
+        return -1;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    if (!unit_can_act_for_side(actor, game->active_side) ||
+        fd2_field_unit_has_acted(actor) || plan->score < 6 ||
+        plan->slot_index >= 8u)
+        return -1;
+    fd2_field_ai_item_candidate current;
+    if (fd2_field_ai_choose_item_candidate(
+            &game->map, &game->terrain, &game->units, actor_index,
+            selector_mode, &current) != 0 ||
+        !item_plan_matches(&current, plan))
+        return -1;
+    const uint8_t *item = fd2_field_item_record_get(plan->item_id);
+    uint8_t code = item ? item[0x0du] : 0u;
+    uint16_t value = item ? (uint16_t)item[0x0eu] |
+        ((uint16_t)item[0x0fu] << 8) : 0u;
+    /* 0x20c6f 的物品 dispatcher：AI 评分涉及 code 5/13/20/21/24。
+     * 后三者经不同视觉 wrapper 进入 field_magic_damage_profile_apply
+     * @正确 dual 0x1c75e；item value 是传给该 core 的 magic ID。 */
+    if (!item || (code != 5u && code != 13u && code != 20u &&
+                  code != 21u && code != 24u))
+        return -1;
+
+    uint8_t targets[FD2_FIELD_MAX_UNITS];
+    size_t target_count = 0;
+    if (fd2_field_ai_collect_item_targets(
+            &game->map, &game->terrain, &game->units, actor_index,
+            plan->item_id, plan->target_x, plan->target_y, selector_mode,
+            targets, sizeof(targets), &target_count) != 0 ||
+        target_count == 0)
+        return -1;
+    if (code == 20u || code == 21u || code == 24u) {
+        if (value >= FD2_FIELD_MAGIC_COUNT || value > 12u) return -1;
+        for (size_t i = 0; i < target_count; i++) {
+            uint32_t ignored_scale = 0;
+            if (fd2_field_magic_damage_profile_scale(
+                    game->units.items[targets[i]].movement_profile,
+                    &ignored_scale) != 0)
+                return -1;
+        }
+    }
+
+    fd2_field_game snapshot = *game;
+    for (size_t i = 0; i < target_count; i++) {
+        int result;
+        if (code == 5u || code == 13u) {
+            fd2_field_unit *target = &game->units.items[targets[i]];
+            uint32_t spread = game->attack_rng(
+                game->attack_rng_userdata) % 100u;
+            uint64_t heal = (uint64_t)(value * 9u / 10u) +
+                            (uint64_t)(spread * value / 1000u);
+            uint64_t hp = (uint64_t)target->hp + heal;
+            target->hp = (uint16_t)(hp > target->hp_max
+                ? target->hp_max : hp);
+            result = 1;
+        } else if (code == 20u || code == 21u || code == 24u) {
+            /* item value 是 magic ID；复用同一命中、profile scale 与两次
+             * RNG 顺序，不能误当作 raw damage 或 MP 恢复值。 */
+            result = fd2_field_magic_apply_known_effect(
+                (uint8_t)value, targets[i], &game->units,
+                game->attack_rng, game->attack_rng_userdata);
+        } else {
+            result = -1;
+        }
+        if (result < 0) {
+            *game = snapshot;
+            return -1;
+        }
+    }
+    if (code == 5u) inventory_slot_remove(actor, plan->slot_index);
+    finalize_zero_hp_units(&game->units);
+    game->battle_result = fd2_field_game_battle_result(game);
+    game->cursor_cell_x = plan->target_x;
+    game->cursor_cell_y = plan->target_y;
+    if (finish_ai_action(game, actor_index) != 0) {
+        *game = snapshot;
+        return -1;
+    }
+    return 0;
+}
+
+static int commit_ai_path(fd2_field_game *game,
+                          size_t actor_index,
+                          uint8_t *path,
+                          size_t path_capacity,
+                          size_t path_length,
+                          fd2_vga *vga,
+                          uint32_t frame_delay_ms) {
+    if (!game || actor_index >= game->units.count ||
+        (path_length != 0 && !path) || path_length > path_capacity)
+        return -1;
+    if (path_length == 0) return 0;
     fd2_field_game snapshot = *game;
     fd2_field_unit *actor = &game->units.items[actor_index];
     game->selected_unit = (int)actor_index;
@@ -1869,17 +2087,16 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
     game->move_origin_camera_x = game->camera_cell_x;
     game->move_origin_camera_y = game->camera_cell_y;
     game->move_path = path;
-    game->move_path_capacity = count;
-    game->move_path_length = (size_t)length;
+    game->move_path_capacity = path_capacity;
+    game->move_path_length = path_length;
     game->move_preview_valid = 1;
     game->interaction = FD2_FIELD_INTERACTION_MOVING;
-    result = execute_path_playback(game, NULL, 0, 0);
-    /* path 是本次 AI 移动私有；不能遗留给 session close。 */
+    int result = execute_path_playback(
+        game, vga, frame_delay_ms, 0);
     game->move_path = snapshot.move_path;
     game->move_path_capacity = snapshot.move_path_capacity;
     game->move_path_length = snapshot.move_path_length;
     game->move_preview_valid = snapshot.move_preview_valid;
-    free(path);
     if (result != 0) {
         *game = snapshot;
         return -1;
@@ -1887,19 +2104,137 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
     return 1;
 }
 
-static int run_mode0_action(fd2_field_game *game, size_t actor_index) {
+static int commit_ai_move_toward_anchor(fd2_field_game *game,
+                                         size_t actor_index,
+                                         int anchor_x, int anchor_y,
+                                         fd2_vga *vga,
+                                         uint32_t frame_delay_ms) {
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (!game || actor_index >= game->units.count ||
+        fd2_field_game_compute_move_range(game, actor_index, &range) != 0)
+        return -1;
+    fd2_field_ai_destination destination;
+    int result = fd2_field_ai_choose_destination(
+        &range, anchor_x, anchor_y, &destination);
+    fd2_field_path_close(&range);
+    if (result != 0) return 0;
+
+    size_t count = (size_t)game->map.width * (size_t)game->map.height;
+    if (count > SIZE_MAX / 2u) return -1;
+    uint8_t *path = count ? malloc(count) : NULL;
+    if (!path) return -1;
+    const fd2_field_unit *actor = &game->units.items[actor_index];
+    const uint8_t *profile =
+        fd2_field_movement_profile_get(actor->movement_profile);
+    size_t length = 0;
+    int find_result = profile ? fd2_field_move_path_find(
+        &game->map, &game->terrain, &game->units, actor_index,
+        profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
+        actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
+        destination.x, destination.y, path, count, &length,
+        NULL, NULL) : -1;
+    if (find_result == 0) {
+        /* field_ai_move_toward_cell @0x39d8c（正确 dual 0x14b78）：
+         * direct probe 失败后，用固定预算 0x1c / mode 1 建长路径，逐步
+         * 记录本回合最后仍可达的位置，再对该 anchor 重建普通路径。 */
+        uint8_t *long_path = malloc(count);
+        size_t long_length = 0;
+        if (!long_path) {
+            free(path);
+            return -1;
+        }
+        int long_result = fd2_field_move_path_find(
+            &game->map, &game->terrain, &game->units, actor_index,
+            profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, 0x1cu,
+            FD2_FIELD_MOVE_PATH_EQUAL_ROUTE,
+            destination.x, destination.y,
+            long_path, count, &long_length, NULL, NULL);
+        if (long_result == 1) {
+            int x = actor->x;
+            int y = actor->y;
+            int last_x = x;
+            int last_y = y;
+            static const int dx[] = {0, -1, 0, 1};
+            static const int dy[] = {1, 0, -1, 0};
+            for (size_t i = 0; i < long_length; i++) {
+                uint8_t direction = long_path[i];
+                if (direction > 3u) break;
+                x += dx[direction];
+                y += dy[direction];
+                fd2_field_path_result current =
+                    FD2_FIELD_PATH_RESULT_INITIALIZER;
+                int reachable = fd2_field_game_compute_move_range(
+                    game, actor_index, &current) == 0 &&
+                    fd2_field_path_is_destination(&current, x, y);
+                fd2_field_path_close(&current);
+                if (!reachable) break;
+                last_x = x;
+                last_y = y;
+            }
+            if (last_x != actor->x || last_y != actor->y)
+                find_result = fd2_field_move_path_find(
+                    &game->map, &game->terrain, &game->units, actor_index,
+                    profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
+                    actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
+                    last_x, last_y, path, count, &length, NULL, NULL);
+        } else if (long_result < 0) {
+            find_result = -1;
+        }
+        free(long_path);
+    }
+    if (find_result != 1 || length == 0) {
+        free(path);
+        return find_result < 0 ? -1 : 0;
+    }
+    result = commit_ai_path(
+        game, actor_index, path, count, length, vga, frame_delay_ms);
+    free(path);
+    return result;
+}
+
+/* field_ai_hostile_anchor @0x39335（正确 dual 0x14121）：使用固定预算
+ * 0x1c、path mode 2 寻找 hostile occupied witness，再交给
+ * field_ai_move_toward_cell @0x39d8c 移向其本回合合法 anchor。 */
+static int commit_ai_hostile_witness(fd2_field_game *game,
+                                      size_t actor_index,
+                                      fd2_vga *vga,
+                                      uint32_t frame_delay_ms) {
+    if (!game || actor_index >= game->units.count ||
+        game->map.width <= 0 || game->map.height <= 0)
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[actor_index];
+    const uint8_t *profile =
+        fd2_field_movement_profile_get(actor->movement_profile);
+    if (!profile) return -1;
+    size_t count = (size_t)game->map.width * (size_t)game->map.height;
+    size_t ignored_length = 0;
+    int witness_x = -1;
+    int witness_y = -1;
+    int found = fd2_field_move_path_find(
+        &game->map, &game->terrain, &game->units, actor_index,
+        profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, 0x1cu,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0,
+        NULL, count, &ignored_length, &witness_x, &witness_y);
+    if (found != 1) return found;
+    return commit_ai_move_toward_anchor(
+        game, actor_index, witness_x, witness_y, vga, frame_delay_ms);
+}
+
+static int run_ai_try_attack(fd2_field_game *game, size_t actor_index,
+                             fd2_vga *vga, uint32_t frame_delay_ms) {
     fd2_field_unit *actor = &game->units.items[actor_index];
     uint8_t selector = game->active_side == 0u ? 0u : 1u;
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
     fd2_field_ai_physical_candidate physical;
-    int have_physical = fd2_field_game_compute_move_range(
-        game, actor_index, &range) == 0 &&
+    int have_physical = game->attack_rng &&
+        fd2_field_game_compute_move_range(
+            game, actor_index, &range) == 0 &&
         fd2_field_ai_choose_physical_candidate(
             &game->map, &game->terrain, &game->units, actor_index,
             selector, &range, &physical) == 0;
     fd2_field_path_close(&range);
-    /* 未确认 magic/item effect 不能降级为物理；若其 score 达阈值，
-     * scheduler 显式报错并不产生假动作。当前 stage0 没有此类候选。 */
+    /* magic/item 候选与物理候选平价分派；特殊 effect 若缺少完整语义，
+     * commit 会在修改/RNG 前显式拒绝，不能静默降级为物理。 */
     fd2_field_ai_magic_candidate magic;
     fd2_field_ai_item_candidate item;
     int have_magic = fd2_field_ai_choose_magic_candidate(
@@ -1915,67 +2250,351 @@ static int run_mode0_action(fd2_field_game *game, size_t actor_index) {
         have_magic ? &magic : NULL, have_item ? &item : NULL);
     if (action == FD2_FIELD_AI_ACTION_PHYSICAL)
         return fd2_field_game_commit_ai_physical(
-            game, actor_index, selector, &physical, NULL, 0) == 0 ? 1 : -1;
-    if (action == FD2_FIELD_AI_ACTION_MAGIC || action == FD2_FIELD_AI_ACTION_ITEM)
-        return -1;
+            game, actor_index, selector, &physical,
+            vga, frame_delay_ms) == 0 ? 1 : -1;
+    if (action == FD2_FIELD_AI_ACTION_MAGIC)
+        return fd2_field_game_commit_ai_magic(
+            game, actor_index, selector, &magic) == 0 ? 1 : -1;
+    if (action == FD2_FIELD_AI_ACTION_ITEM)
+        return fd2_field_game_commit_ai_item(
+            game, actor_index, selector, &item) == 0 ? 1 : -1;
     if (action == FD2_FIELD_AI_ACTION_HANDLED_NOOP) return 1;
+    return 0;
+}
 
-    /* 0x39335 的 mode2 hostile anchor 需要递归 mode-2 path policy；现有
-     * generic Dijkstra 无法等价表达，不能猜测替换。没有该 witness 时执行
-     * 已确认的 0x390b0 最近 anchor + 0x39d8c 正常 range/path 提交。 */
+static int ai_behavior5_target_find(const fd2_field_game *game,
+                                    size_t actor_index,
+                                    int *target_x, int *target_y) {
+    if (!game || actor_index >= game->units.count || !target_x || !target_y ||
+        !game->map.cells || !game->terrain.attrs)
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[actor_index];
+    uint8_t lookup_id = actor->data_3d;
+    if (lookup_id >= FD2_FIELD_EVENT_SLOTS) return -2;
+    if (game->cell_action_completed[lookup_id] != 0u) return 0;
+    for (int y = 0; y < game->map.height; y++) {
+        for (int x = 0; x < game->map.width; x++) {
+            uint32_t cell = game->map.cells[
+                (size_t)y * (size_t)game->map.width + (size_t)x];
+            uint16_t terrain_id = (uint16_t)(cell & 0x03ffu);
+            if (terrain_id >= game->terrain.attr_count) return -2;
+            if (((cell >> 16) & 0x1fu) == lookup_id &&
+                (game->terrain.attrs[terrain_id].flags & 0x60u) == 0x20u) {
+                *target_x = x;
+                *target_y = y;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int inventory_first_empty_add(fd2_field_unit *unit, uint8_t item_id) {
+    if (!unit) return -1;
+    uint8_t *record = (uint8_t *)unit;
+    for (size_t slot = 0; slot < 8u; slot++) {
+        uint8_t *flags = &record[0x0au + slot * 2u];
+        if ((*flags & 0x80u) == 0u) continue;
+        *flags = 0u;
+        record[0x0bu + slot * 2u] = item_id;
+        return 1;
+    }
+    return -1;
+}
+
+static int ai_behavior5_complete(fd2_field_game *game,
+                                 size_t actor_index,
+                                 uint8_t lookup_id) {
+    if (!game || actor_index >= game->units.count ||
+        lookup_id >= FD2_FIELD_EVENT_SLOTS)
+        return -1;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    const fd2_field_cell_action *action =
+        &game->metadata.cell_actions[lookup_id];
+    if (action->mode < 2u) {
+        uint8_t *record = (uint8_t *)actor;
+        record[0x31] = action->mode;
+        record[0x32] = (uint8_t)(action->param & 0xffu);
+        record[0x33] = (uint8_t)(action->param >> 8);
+        if (action->mode == 0u)
+            (void)inventory_first_empty_add(actor, (uint8_t)action->param);
+    }
+    game->cell_action_completed[lookup_id] = 1u;
+    actor->ai_behavior_raw =
+        (uint8_t)((actor->ai_behavior_raw & 0xf0u) | 7u);
+    return 0;
+}
+
+static int ai_recover_if_idle(fd2_field_game *game, size_t actor_index) {
+    if (!game || actor_index >= game->units.count) return -1;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    /* 0x13fd4：未满 HP 且 +0x25/+0x26 均为 0 时恢复 maxHP/5。 */
+    if (actor->hp >= actor->hp_max || actor->detail_status[0] != 0u ||
+        actor->detail_status[1] != 0u)
+        return 0;
+    uint32_t hp = actor->hp + actor->hp_max / 5u;
+    actor->hp = (uint16_t)(hp > actor->hp_max ? actor->hp_max : hp);
+    return 1;
+}
+
+static int run_mode0_action(fd2_field_game *game, size_t actor_index,
+                            fd2_vga *vga, uint32_t frame_delay_ms) {
+    int attack = run_ai_try_attack(
+        game, actor_index, vga, frame_delay_ms);
+    if (attack != 0) return attack;
+    int moved = commit_ai_hostile_witness(
+        game, actor_index, vga, frame_delay_ms);
+    if (moved != 0) return moved;
     fd2_field_ai_target target;
     if (fd2_field_ai_nearest_opponent(&game->units, actor_index,
                                       game->active_side, &target) == 0)
         return commit_ai_move_toward_anchor(
-            game, actor_index, target.x, target.y);
+            game, actor_index, target.x, target.y,
+            vga, frame_delay_ms);
     return 0;
 }
 
-int fd2_field_game_process_automatic_action(fd2_field_game *game) {
-    /* stage0 scripted validation still depends on the historic automatic
-     * wait skeleton. Full mode0 commit is exposed via explicit transaction;
-     * enable automatic AI only once later stages have an integration owner. */
-    if (game && game->stage == 0) {
-        if (game->active_side == 2 || game->selected_unit >= 0 ||
-            game->interaction != FD2_FIELD_INTERACTION_BROWSE)
-            return 0;
-        for (size_t i = 0; i < game->units.count; i++) {
-            fd2_field_unit *unit = &game->units.items[i];
-            if (!unit_can_act_for_side(unit, game->active_side) ||
-                fd2_field_unit_has_acted(unit))
-                continue;
-            game->cursor_cell_x = unit->x;
-            game->cursor_cell_y = unit->y;
-            record_cell_event(game, i, 1);
-            fd2_field_unit_set_acted(unit, 1);
-            if (fd2_field_game_remaining_units(game, game->active_side) == 0)
-                advance_phase(game);
-            return 1;
+static int move_then_recover(fd2_field_game *game, size_t actor_index,
+                             int x, int y,
+                             fd2_vga *vga, uint32_t frame_delay_ms) {
+    int moved = commit_ai_move_toward_anchor(
+        game, actor_index, x, y, vga, frame_delay_ms);
+    if (moved != 0) return moved;
+    return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+}
+
+static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
+                           fd2_vga *vga, uint32_t frame_delay_ms,
+                           int *run_common_tail) {
+    if (!game || actor_index >= game->units.count || !run_common_tail)
+        return -1;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    uint8_t behavior = fd2_field_ai_behavior(actor);
+    *run_common_tail = 1;
+    switch (behavior) {
+        case 0:
+            return run_mode0_action(
+                game, actor_index, vga, frame_delay_ms);
+        case 1: {
+            int attack = run_ai_try_attack(
+                game, actor_index, vga, frame_delay_ms);
+            if (attack != 0) return attack;
+            return commit_ai_hostile_witness(
+                game, actor_index, vga, frame_delay_ms);
         }
-        advance_phase(game);
-        return 1;
+        case 2: {
+            int attack = run_ai_try_attack(
+                game, actor_index, vga, frame_delay_ms);
+            if (attack != 0) return attack;
+            /* 正确 dual 0x13b5d：再次运行 physical candidate query，
+             * 不调用 exchange；helper 固定返回 0，随后进入恢复/common tail。 */
+            fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+            if (fd2_field_game_compute_move_range(
+                    game, actor_index, &range) == 0) {
+                fd2_field_ai_physical_candidate ignored;
+                (void)fd2_field_ai_choose_physical_candidate(
+                    &game->map, &game->terrain, &game->units,
+                    actor_index, game->active_side == 0u ? 0u : 1u,
+                    &range, &ignored);
+            }
+            fd2_field_path_close(&range);
+            return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+        }
+        case 3: {
+            int attack = run_ai_try_attack(
+                game, actor_index, vga, frame_delay_ms);
+            if (attack != 0) return attack;
+            int target_index = fd2_field_units_find_visible_text_id(
+                &game->units, actor->ai_param_35);
+            if (target_index < 0)
+                return commit_ai_hostile_witness(
+                    game, actor_index, vga, frame_delay_ms);
+            const fd2_field_unit *target = &game->units.items[target_index];
+            return move_then_recover(
+                game, actor_index, target->x, target->y,
+                vga, frame_delay_ms);
+        }
+        case 4:
+            return move_then_recover(
+                game, actor_index, actor->ai_param_35, actor->ai_param_36,
+                vga, frame_delay_ms);
+        case 5: {
+            int attack = run_ai_try_attack(
+                game, actor_index, vga, frame_delay_ms);
+            if (attack != 0) return attack;
+            int target_x = -1;
+            int target_y = -1;
+            int found = ai_behavior5_target_find(
+                game, actor_index, &target_x, &target_y);
+            /* 0x13c4d/0x13c61 均跳回 0x13b05：完成位已置或
+             * 0x15df3 未命中时执行完整 behavior 0 fallback。 */
+            if (found == -2) return -1;
+            if (found <= 0)
+                return run_mode0_action(
+                    game, actor_index, vga, frame_delay_ms);
+            int moved = commit_ai_move_toward_anchor(
+                game, actor_index, target_x, target_y,
+                vga, frame_delay_ms);
+            if (moved < 0) return -1;
+            if (moved == 0 && ai_recover_if_idle(game, actor_index) < 0)
+                return -1;
+            actor = &game->units.items[actor_index];
+            if (actor->x == target_x && actor->y == target_y &&
+                ai_behavior5_complete(
+                    game, actor_index, actor->data_3d) != 0)
+                return -1;
+            return moved;
+        }
+        case 7: {
+            int moved = commit_ai_move_toward_anchor(
+                game, actor_index, actor->ai_param_35, actor->ai_param_36,
+                vga, frame_delay_ms);
+            if (moved < 0) return -1;
+            if (moved == 0 && ai_recover_if_idle(game, actor_index) < 0)
+                return -1;
+            actor = &game->units.items[actor_index];
+            if (actor->x == actor->ai_param_35 &&
+                actor->y == actor->ai_param_36) {
+                /* behavior 7 的正确 dual 0x32975 仅执行
+                 * `actor[+0x05] = 1`，没有隐藏的 stage callback。 */
+                actor->flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+            }
+            return moved;
+        }
+        case 8:
+            /* 原版直接离开 AI core，不执行 cell-event/acted common tail。 */
+            *run_common_tail = 0;
+            return 0;
+        case 9: {
+            int target_index = fd2_field_units_find_visible_text_id(
+                &game->units, actor->ai_param_35);
+            if (target_index < 0)
+                return run_mode0_action(
+                    game, actor_index, vga, frame_delay_ms);
+            const fd2_field_unit *target = &game->units.items[target_index];
+            return move_then_recover(
+                game, actor_index, target->x, target->y,
+                vga, frame_delay_ms);
+        }
+        case 10: {
+            int attack = run_ai_try_attack(
+                game, actor_index, vga, frame_delay_ms);
+            if (attack != 0) return attack;
+            return move_then_recover(
+                game, actor_index, actor->ai_param_35, actor->ai_param_36,
+                vga, frame_delay_ms);
+        }
+        case 11: {
+            uint8_t selector = game->active_side == 0u ? 0u : 1u;
+            fd2_field_ai_magic_candidate magic;
+            int cast = 0;
+            if (fd2_field_ai_choose_magic_candidate(
+                    &game->map, &game->terrain, &game->units,
+                    actor_index, selector, &magic) == 0 && magic.score >= 6) {
+                if (commit_ai_magic_internal(
+                        game, actor_index, selector, &magic, 0) != 0)
+                    return -1;
+                cast = 1;
+            }
+            fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+            fd2_field_ai_physical_candidate physical;
+            int have_physical = game->attack_rng &&
+                fd2_field_game_compute_move_range(
+                    game, actor_index, &range) == 0 &&
+                fd2_field_ai_choose_physical_candidate(
+                    &game->map, &game->terrain, &game->units,
+                    actor_index, selector, &range, &physical) == 0;
+            fd2_field_path_close(&range);
+            if (have_physical && physical.priority >= 6) {
+                if (fd2_field_game_commit_ai_physical(
+                        game, actor_index, selector, &physical,
+                        vga, frame_delay_ms) == 0)
+                    return 1;
+                /* 原版 0x13e39 的 exchange 没有可观察失败返回。SDL 若在
+                 * magic 已消费 RNG 后因 physical preflight/分配失败，不能
+                 * 回滚外部 RNG，也不能让 actor 未 acted 后重复施法；保留
+                 * 已提交 magic，由 scheduler 执行一次 common tail。 */
+                if (cast) return 1;
+                return -1;
+            }
+            if (cast) return 1;
+            int moved = commit_ai_hostile_witness(
+                game, actor_index, vga, frame_delay_ms);
+            if (moved != 0) return moved;
+            return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+        }
+        /* behavior 6 无有效分支。 */
+        default:
+            return -1;
     }
+}
+
+int fd2_field_game_process_automatic_action_visual(
+        fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms) {
     if (!game || !game->ready || game->active_side == 2 ||
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return 0;
+    game->battle_result = fd2_field_game_battle_result(game);
+    if (game->battle_result != FD2_FIELD_BATTLE_ONGOING) return 0;
+    /* tick 只安排自动阶段时间；有 VGA 的 play owner 负责同步路径演出，
+     * 避免 tick 在 render 前静默推进同一 actor。 */
+    if (!vga && frame_delay_ms != 0u) return 0;
 
     /* side1/side0 均按 raw actor index 升序，而不是旧 skeleton 的环形
-     * phase cursor。side0 的第一 magic/item gate 依赖未实现 handler，
-     * 因而只安全执行第二 normal pass；高分未实现 action 会显式失败。 */
-    for (size_t i = 0; i < game->units.count; i++) {
+     * phase cursor。正确 dual 0x1d8ba 的 side0 第一轮只让 magic/item
+     * candidate >=6 的 actor 先执行；随后第二轮处理尚未 acted 的单位。 */
+    if (game->active_side == 0u && game->phase_ai_pass == 0u) {
+        for (size_t i = game->phase_unit_cursor; i < game->units.count; i++) {
+            fd2_field_unit *unit = &game->units.items[i];
+            if (!unit_can_act_for_side(unit, 0u) ||
+                fd2_field_unit_has_acted(unit) ||
+                unit->detail_status[1] != 0u)
+                continue;
+            fd2_field_ai_magic_candidate magic;
+            fd2_field_ai_item_candidate item;
+            int magic_ready = fd2_field_ai_choose_magic_candidate(
+                &game->map, &game->terrain, &game->units, i, 0,
+                &magic) == 0 && magic.score >= 6;
+            int item_ready = fd2_field_ai_choose_item_candidate(
+                &game->map, &game->terrain, &game->units, i, 0,
+                &item) == 0 && item.score >= 6;
+            if (!magic_ready && !item_ready) continue;
+            game->phase_unit_cursor = i + 1u;
+            game->cursor_cell_x = unit->x;
+            game->cursor_cell_y = unit->y;
+            int run_common_tail = 1;
+            int action_result = run_ai_behavior(
+                game, i, vga, frame_delay_ms, &run_common_tail);
+            if (action_result < 0) return -1;
+            if (run_common_tail &&
+                !fd2_field_unit_has_acted(&game->units.items[i]) &&
+                finish_ai_action(game, i) != 0)
+                return -1;
+            if (fd2_field_game_remaining_units(game, 0u) == 0)
+                advance_phase(game);
+            return 1;
+        }
+        game->phase_ai_pass = 1u;
+        game->phase_unit_cursor = 0;
+    }
+
+    for (size_t i = game->phase_unit_cursor; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
         if (!unit_can_act_for_side(unit, game->active_side) ||
             fd2_field_unit_has_acted(unit) || unit->detail_status[1] != 0u)
             continue;
+        game->phase_unit_cursor = i + 1u;
         game->cursor_cell_x = unit->x;
         game->cursor_cell_y = unit->y;
-        int action_result = fd2_field_ai_behavior(unit) == 0u
-            ? run_mode0_action(game, i) : 0;
+        int run_common_tail = 1;
+        int action_result = run_ai_behavior(
+            game, i, vga, frame_delay_ms, &run_common_tail);
         if (action_result < 0) return -1;
-        /* physical commit has already run common tail. all other mode0
-         * branches must run it exactly once, including complete tie/no move. */
-        if (!fd2_field_unit_has_acted(&game->units.items[i]) &&
+        /* 物理／法术／物品事务已各自执行 common tail；移动、恢复和 noop
+         * 由 scheduler 恰好补一次。behavior 8 是原版显式 early return。 */
+        if (run_common_tail &&
+            !fd2_field_unit_has_acted(&game->units.items[i]) &&
             finish_ai_action(game, i) != 0)
             return -1;
         if (fd2_field_game_remaining_units(game, game->active_side) == 0)
@@ -1984,6 +2603,10 @@ int fd2_field_game_process_automatic_action(fd2_field_game *game) {
     }
     advance_phase(game);
     return 1;
+}
+
+int fd2_field_game_process_automatic_action(fd2_field_game *game) {
+    return fd2_field_game_process_automatic_action_visual(game, NULL, 0);
 }
 
 int fd2_field_game_compute_move_range(const fd2_field_game *game,

@@ -133,6 +133,38 @@ static int test_movement_profiles(void) {
     return 0;
 }
 
+static int test_ai_path_modes(void) {
+    uint32_t cells[5] = {0};
+    fd2_field_map map = {.width = 5, .height = 1, .cells = cells};
+    fd2_terrain_attr attrs[1] = {{.movement_cost_class = 0}};
+    fd2_terrain_tileset terrain = {.attrs = attrs, .attr_count = 1};
+    fd2_field_units units = {0};
+    units.count = 2;
+    units.items[0].x = 0; units.items[0].y = 0; units.items[0].side = 0;
+    units.items[1].x = 3; units.items[1].y = 0; units.items[1].side = 2;
+    uint8_t profile[1] = {1};
+    uint8_t directions[5] = {0};
+    size_t length = 0;
+    int witness_x = -1;
+    int witness_y = -1;
+
+    CHECK(fd2_field_move_path_find(
+        &map, &terrain, &units, 0, profile, 1, 0x1c,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0,
+        NULL, 0, &length, &witness_x, &witness_y) == 1);
+    CHECK(length == 0 && witness_x == 3 && witness_y == 0);
+    CHECK(fd2_field_move_path_find(
+        &map, &terrain, &units, 0, profile, 1, 3,
+        FD2_FIELD_MOVE_PATH_NORMAL, 2, 0,
+        directions, sizeof(directions), &length, NULL, NULL) == 1);
+    CHECK(length == 2 && directions[0] == 3 && directions[1] == 3);
+    CHECK(fd2_field_move_path_find(
+        &map, &terrain, &units, 0, profile, 1, 1,
+        FD2_FIELD_MOVE_PATH_EQUAL_ROUTE, 2, 0,
+        directions, sizeof(directions), &length, NULL, NULL) == 0);
+    return 0;
+}
+
 static int test_original_occupancy_policy(void) {
     fd2_field_path_result result = {0};
     uint32_t cells[8] = {0};
@@ -193,6 +225,7 @@ int main(void) {
     CHECK(test_stop_and_transit() == 0);
     CHECK(test_budget_and_tie_order() == 0);
     CHECK(test_movement_profiles() == 0);
+    CHECK(test_ai_path_modes() == 0);
     CHECK(test_original_occupancy_policy() == 0);
     puts("field path tests: ok");
     return 0;

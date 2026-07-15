@@ -52,7 +52,7 @@ typedef struct {
     uint8_t base_defense_le[2]; /* 0x39 */
     uint8_t movement_points;    /* 0x3b: 每次移动的范围预算 */
     uint8_t experience;         /* 0x3c: 详情页 EX */
-    uint8_t data_3d;
+    uint8_t data_3d;            /* 0x3d: behavior 5 的 0-based cell action slot */
     uint8_t dexterity_le[2];    /* 0x3e: 详情页 DX / 基础命中回避 */
     uint16_t hp;                /* 0x40 */
     uint16_t hp_max;            /* 0x42 */

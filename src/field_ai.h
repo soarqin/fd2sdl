@@ -150,6 +150,26 @@ int fd2_field_ai_choose_item_candidate(
     uint8_t selector_mode,
     fd2_field_ai_item_candidate *candidate);
 
+/* 提交层按同一范围／filter 重建目标 actor 表，避免复制候选层中普通与
+ * 轴线 geometry 的顺序。indices 容量不足返回 -1。 */
+int fd2_field_ai_collect_magic_targets(
+    const fd2_field_map *map,
+    const fd2_terrain_tileset *terrain,
+    const fd2_field_units *units,
+    uint8_t magic_id,
+    int cast_x, int cast_y,
+    uint8_t selector_mode,
+    uint8_t *indices, size_t capacity, size_t *count);
+int fd2_field_ai_collect_item_targets(
+    const fd2_field_map *map,
+    const fd2_terrain_tileset *terrain,
+    const fd2_field_units *units,
+    size_t actor_index,
+    uint8_t item_id,
+    int target_x, int target_y,
+    uint8_t selector_mode,
+    uint8_t *indices, size_t capacity, size_t *count);
+
 /* field_ai_try_attack @0x3a104（corrected code0 0x2a104）在三类候选
  * 分数中使用的动作选择图。三者都低于 6 时返回 NONE；达到阈值但三项
  * 完全相等时，原函数返回成功却不调用任何提交 helper，故返回 NONE。

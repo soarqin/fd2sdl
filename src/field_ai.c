@@ -4,7 +4,7 @@
  * 0x290b0 按阵营选择最近目标，0x29d8c 对可达目的地作稳定排序；
  * 0x2944b、0x2ab9e、0x2a892 枚举物理／法术／物品候选，
  * 0x2ad8b/0x2afb6/0x2aa94 计算非物理目标分数。本模块只复现已确认的
- * 查询和计划，不提前翻译尚未完成的效果、消耗与 phase 提交。
+ * 查询和计划，不在纯查询层提前提交效果、消耗或 phase 状态。
  */
 #include "field_ai.h"
 
@@ -759,6 +759,67 @@ int fd2_field_ai_choose_item_candidate(
     if (!have_best) return -1;
     *candidate = best;
     return 0;
+}
+
+int fd2_field_ai_collect_magic_targets(
+        const fd2_field_map *map,
+        const fd2_terrain_tileset *terrain,
+        const fd2_field_units *units,
+        uint8_t magic_id,
+        int cast_x, int cast_y,
+        uint8_t selector_mode,
+        uint8_t *indices, size_t capacity, size_t *count) {
+    const uint8_t *magic = fd2_field_magic_record_get(magic_id);
+    if (!map || !terrain || !units || !magic || !indices || !count ||
+        cast_x < 0 || cast_y < 0 || cast_x >= map->width ||
+        cast_y >= map->height)
+        return -1;
+    fd2_field_path_result target_range =
+        FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(
+            &target_range, map, terrain, cast_x, cast_y,
+            0, magic[4]) != 0)
+        return -1;
+    uint8_t filter = selector_mode != 0u ? magic[6] :
+        magic[6] != 0u ? 0u : 1u;
+    int result = collect_range_targets(
+        &target_range, units, filter, indices, capacity, count);
+    fd2_field_path_close(&target_range);
+    return result;
+}
+
+int fd2_field_ai_collect_item_targets(
+        const fd2_field_map *map,
+        const fd2_terrain_tileset *terrain,
+        const fd2_field_units *units,
+        size_t actor_index,
+        uint8_t item_id,
+        int target_x, int target_y,
+        uint8_t selector_mode,
+        uint8_t *indices, size_t capacity, size_t *count) {
+    const uint8_t *item = fd2_field_item_record_get(item_id);
+    if (!map || !terrain || !units || actor_index >= units->count ||
+        !item || !indices || !count || target_x < 0 || target_y < 0 ||
+        target_x >= map->width || target_y >= map->height)
+        return -1;
+    const fd2_field_unit *actor = &units->items[actor_index];
+    if (item[0x10u] > 15u)
+        return collect_line_targets(
+            units, actor->x, actor->y, target_x, target_y,
+            (uint8_t)(item[0x10u] - 16u), 0,
+            indices, capacity, count);
+    fd2_field_path_result target_range =
+        FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(
+            &target_range, map, terrain, target_x, target_y,
+            0, item[0x12u]) != 0)
+        return -1;
+    uint8_t filter = selector_mode != 0u ? item[0x11u] :
+        item[0x11u] != 0u ? 0u : 1u;
+    int result = collect_range_targets(
+        &target_range, units, filter, indices, capacity, count);
+    fd2_field_path_close(&target_range);
+    return result;
 }
 
 fd2_field_ai_action fd2_field_ai_select_attack_action(

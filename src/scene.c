@@ -1,5 +1,5 @@
 /* 炎龙骑士团 2 SDL3 重写 - 完整新游戏初始过场
- * 逆向依据：new_game_opening_play @0x5752f 的 stage 32→31→0
+ * 逆向依据：new_game_opening_play @0x3231b 的 stage 32→31→0
  * 调用序列、text_dialog_render_tokens @0x3b198、field_focus_move_to
  * @0x37efe、field_actor_move_up_follow_camera @0x38399、
  * field_camera_pan_to @0x387f1、field_movement_script_play @0x3887e，
@@ -21,7 +21,7 @@
 #include "text.h"
 #include "tile.h"
 
-/* 完整新游戏开场由 new_game_opening_play @0x5752f（code0 0x4752f）驱动：
+/* 完整新游戏开场由 new_game_opening_play @0x3231b（code0 0x2231b）驱动：
  * stage 32 / FDTXT[33] → stage 31 / FDTXT[32] → stage 0 / FDTXT[1]。
  * 三段之间穿插 field_camera_pan_to @0x387f1 与
  * field_movement_script_play @0x3887e，不能把 stage 0 fragment 0
@@ -383,7 +383,7 @@ static void init_opening_field_state(fd2_scene_field_state *state,
             break;
         opening_actor_set(state, i, p->unit_id, p->x, p->y);
         /* stage 31 的模板 offset 0x15 将 actor 0/1、2/3、4 分到
-         * group 1/3/5。new_game_opening_play @0x5752f 分时触发这些组，
+         * group 1/3/5。new_game_opening_play @0x3231b 分时触发这些组，
          * 并由 field_actor_group_arrival_effect @0x57bad 播放登场效果；
          * 不能在场景加载时一次显示五人。 */
         if (stage == FD2_OPENING_STAGE_31 && i >= 2)
@@ -1220,7 +1220,7 @@ static int play_stage31_opening(fd2_vga *vga,
     MOVE31(5a); TEXT31(0);
     MOVE31(5b); TEXT31(1);
     MOVE31(5c); TEXT31(2);
-    /* new_game_opening_play @0x5752f：此时才加入 group 3 的 actor 2/3；
+    /* new_game_opening_play @0x3231b：此时才加入 group 3 的 actor 2/3；
      * 随后的 camera (4,41) 左移让这两人进入画面。 */
     fd2_field_unit_set_hidden(&state->units.items[2], 0);
     fd2_field_unit_set_hidden(&state->units.items[3], 0);
@@ -1532,8 +1532,8 @@ int fd2_scene_play_field_event(fd2_vga *vga,
         goto done; \
 } while (0)
 
-    /* field_stage0_31_turn_action0..3 @0x59745/0x5981f/0x59887/
-     * 0x598e1：action 1/2 调用 field_actor_group_arrival_effect，
+    /* field_stage0_31_turn_action0..3 @0x34531/0x3460b/0x34673/
+     * 0x346cd：action 1/2 调用 field_actor_group_arrival_effect，
      * action 0/3 直接追加 group；对话 fragment 依次为 11/3、4、5、6。 */
     switch (notice->action) {
         case 0:

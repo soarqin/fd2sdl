@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CODE = ROOT / "tools" / "fd2_le_code0.bin"
 DEFAULT_EXE = ROOT / "original_game" / "FD2.EXE"
 
-# 默认使用 file-relative code0；dual_clean 中同一入口统一加 0x10000。
+# 默认使用 object1 code0；dual_clean 中同一入口统一加 0x10000。
 # 这里只列与 stage script 追踪直接相关的调用。
 CALL_NAMES = {
     0x2B198: "text_dialog_render_tokens",

@@ -118,4 +118,4 @@
 
 ## 6. 暂不安排的验证
 
-战场 `Esc`／`Z`／数字小键盘 `5`、`F1`／Page Up、G 与 BIOS typematic 的可见语义均已转入 `docs/04-development-plan.md` 的「暂不安排的验证项」。这些项目不阻塞当前 M6；在对应 UI 重写或具备 DOSBox 交互录制条件时再验证。
+战场 `Esc`／`Z`／数字小键盘 `5`、`F1`／Page Up、G 与 BIOS typematic 的可见语义均已转入 `docs/plans/development.md` 的「暂不安排的验证项」。这些项目不阻塞当前 M6；在对应 UI 重写或具备 DOSBox 交互录制条件时再验证。

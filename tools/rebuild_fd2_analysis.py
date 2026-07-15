@@ -2,19 +2,21 @@
 """重建 FD2.EXE 的可分析镜像与 LE fixup 清单。
 
 关键原则：
-- 不把 LE fixup 直接写回代码页。FD2 的 near call 使用代码段 offset，
-  而数据/资源句柄经由 DS offset 访问；上一版脚本把 fixup 当作普通线性
-  patch 写入，导致 0x44ab2 启动函数中的指令被覆盖。
+- raw-unrelocated 与 loader-relocated 镜像分开输出。旧脚本使用错误 page base
+  和 target bias，把 fixup 写到错误指令位置；新流程只按 manifest 中的合法
+  relocation source 写入独立 relocated 镜像。
 - `__chkstk` 已迁移到 dual `0x5c243` / code0 `0x4c243`；保留原始 wrapper，
   不再通过字节 patch 改变分析输入。
 
 输出：
   tools/fd2_le_raw.bin              object 按 LE relbase 摆放，未应用 fixup
-  tools/fd2_le_code0.bin            bound CS 从 0 开始，包含 object1 后的运行库尾部
+  tools/fd2_le_code0.bin            object1 从 0 开始的真实 LE page view
   tools/fd2_le_ghidra_chkstk.bin    兼容文件名；当前与 raw 相同，不做未验证 patch
-  tools/fd2_le_dual_clean.bin       code-only：完整 CS 放在 0x10000，并镜像低 64K
-  tools/fd2_le_fixups.txt          fixup 记录清单（只作索引，不是 patch 脚本）
-  docs/le-fixups.txt                简短说明，避免把巨大记录误当作 patch 输入
+  tools/fd2_le_dual_clean.bin       code-only：object1 放在 0x10000，并镜像低 64K
+  tools/fd2_le_fixups.txt           完整 internal offset fixup 清单
+  tools/fd2_le_relocated_relbase.bin loader-relocated relbase 镜像
+  tools/fd2_le_relocation_manifest.tsv 逐 source relocation manifest
+  docs/generated/le-fixups.txt      生成摘要和验证状态
 """
 
 from __future__ import annotations
@@ -45,6 +47,7 @@ class LEHeader:
     data_pages_off: int
     entry_object: int
     entry_eip: int
+    module_file_off: int
 
 
 @dataclass(frozen=True)
@@ -68,6 +71,7 @@ class FixupRecord:
     target_object: int
     target_offset: int
     target_linear: int
+    record_file_off: int = 0
 
 
 # 本工程只输出形如 `SRC=0x07 FLAGS=0x00 <src:u16> <obj:1..3> <off:u16>` 的简单记录。
@@ -84,11 +88,25 @@ def u32(buf: bytes, off: int) -> int:
     return struct.unpack_from("<I", buf, off)[0]
 
 
+def find_bound_mz_module(buf: bytes, le_off: int) -> int:
+    """Find the embedded MZ whose e_lfanew points at the selected LE header."""
+    matches = []
+    for off in range(le_off + 1):
+        if buf[off:off + 2] != b"MZ" or off + 0x40 > len(buf):
+            continue
+        if off + u32(buf, off + 0x3C) == le_off:
+            matches.append(off)
+    if len(matches) != 1:
+        raise ValueError(f"LE 头必须有唯一 bound MZ owner，实际 {matches}")
+    return matches[0]
+
+
 def parse_le(buf: bytes) -> LEHeader:
-    # DOS4GW stub 的 e_lfanew 不可靠，直接搜索真正的 LE 头。
+    # 外层 DOS stub 的 e_lfanew 不可靠；找到 LE 后再要求唯一 embedded MZ owner。
     candidates = [i for i in range(len(buf) - 2) if buf[i:i + 2] == b"LE"]
     for off in candidates:
         if off + 0x90 <= len(buf) and u16(buf, off + 8) == 2 and u16(buf, off + 0x0A) == 1:
+            module_file_off = find_bound_mz_module(buf, off)
             return LEHeader(
                 le_off=off,
                 num_pages=u32(buf, off + 0x14),
@@ -102,6 +120,7 @@ def parse_le(buf: bytes) -> LEHeader:
                 data_pages_off=u32(buf, off + 0x80),
                 entry_object=u32(buf, off + 0x18),
                 entry_eip=u32(buf, off + 0x1C),
+                module_file_off=module_file_off,
             )
     raise ValueError("未找到有效 LE 头")
 
@@ -130,10 +149,10 @@ def page_number_from_map_entry(entry: bytes) -> int:
 def extract_page(buf: bytes, le: LEHeader, page_no_1based: int, page_is_last: bool) -> bytes:
     if page_no_1based == 0:
         return b"\x00" * le.page_size
-    # LE header +0x80 是相对文件开头的 data-page file offset，不是
-    # 相对 LE header。FD2 是 bound LE，页面区实际位于 LE header 之前；
-    # 再加 le_off 会把每个 object page 错读到后方的其他内容。
-    off = le.data_pages_off + (page_no_1based - 1) * le.page_size
+    # LE +0x80 相对当前 executable module 开头。FD2.EXE 是 bound file：
+    # 外层 DOS stub 后嵌有 MZ @0x25214，该 MZ 的 e_lfanew=0x28b8 指向
+    # LE @0x27acc；因此 page 1 位于 0x25214+0x10e00=0x36014。
+    off = le.module_file_off + le.data_pages_off + (page_no_1based - 1) * le.page_size
     size = le.last_page_size if page_is_last and le.last_page_size else le.page_size
     data = buf[off:off + size]
     if len(data) < le.page_size:
@@ -161,12 +180,11 @@ def build_relbase_image(buf: bytes, le: LEHeader, objects: Iterable[ObjectRecord
 
 def build_code0_image(buf: bytes, le: LEHeader,
                       objects: list[ObjectRecord]) -> bytearray:
-    # FD2 是 bound LE：object1 声明 vsize=0x3ef29，但其后的剧情 handler、
-    # Watcom 运行库和辅助代码仍位于同一 bound payload。code0 统一定义为
-    # `file_offset - data_pages_off`，覆盖 payload 余下全部字节。它是只读
-    # CS/代码分析视图；DS object2/3 继续由 fd2_le_raw.bin 单独表达。
-    del objects
-    return bytearray(buf[le.data_pages_off:])
+    # code0 是 object1 的真实 LE page view，不再把 bound module 前的外层 stub
+    # 或 object2/3 错当作 object1 尾部。跨 object 数据由 relbase raw 表达。
+    relbase = build_relbase_image(buf, le, objects)
+    code = objects[0]
+    return bytearray(relbase[code.relbase:code.relbase + code.vsize])
 
 
 def patch_chkstk_for_analysis(image: bytearray) -> None:
@@ -176,9 +194,8 @@ def patch_chkstk_for_analysis(image: bytearray) -> None:
 
 
 def build_dual_clean_image(code0_image: bytes) -> bytearray:
-    # 兼容旧 Ghidra relbase 视图：完整 bound CS 窗口放在 0x10000，
-    # 并把前 64 KiB 镜像到低地址以解析 near call。该文件是 code-only；
-    # DS object2/3 必须从 fd2_le_raw.bin 单独查看。
+    # object1 放在 relbase 0x10000，并把前 64 KiB 镜像到低地址以解析
+    # near call。该文件是 code-only；DS object2/3 从 relbase raw 查看。
     image = bytearray(len(code0_image) + 0x10000)
     image[0x10000:] = code0_image
     mirror_size = min(0x10000, len(code0_image))
@@ -262,7 +279,7 @@ def decode_fixup_record_end(buf: bytes, p: int, limit: int) -> int | None:
     return p if p > start else None
 
 
-def parse_simple_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -> list[FixupRecord]:
+def parse_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -> list[FixupRecord]:
     page_table = le.le_off + le.fixup_page_table_off
     rec_base = le.le_off + le.fixup_record_table_off
     # 计算 page index -> object/code0 基址。
@@ -282,36 +299,76 @@ def parse_simple_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -
             if rec_end is None:
                 break
             rec = buf[p:rec_end]
-            # 简单 internal offset 记录。
-            if len(rec) == SIMPLE_FIXUP_SIZE and rec[0] == 0x07 and rec[1] == 0x00 and 1 <= rec[4] <= len(objects):
-                source_type = rec[0]
-                source_offset = u16(rec, 2)
-                target_flags = rec[1]
-                target_object = rec[4]
-                target_offset = u16(rec, 5)
-                obj, obj_page_i = page_to_obj.get(page_index, (objects[0], page_index))
-                source_relbase = obj.relbase + obj_page_i * le.page_size + source_offset
-                source_code0 = (obj_page_i * le.page_size + source_offset) if obj.index == 1 else source_relbase
-                target_linear = objects[target_object - 1].relbase + target_offset
-                out.append(FixupRecord(
-                    page_index=page_index,
-                    source_offset=source_offset,
-                    source_addr_relbase=source_relbase,
-                    source_addr_code0=source_code0,
-                    source_type=source_type,
-                    target_flags=target_flags,
-                    target_object=target_object,
-                    target_offset=target_offset,
-                    target_linear=target_linear,
-                ))
+            # FD2 的全部记录都是 source type 0x07（32-bit offset）与
+            # internal target，flags 只出现 0x00/0x10。任何其他组合失败。
+            if rec[0] != 0x07 or rec[1] not in (0x00, 0x10):
+                raise ValueError(f"unsupported FD2 fixup record: {rec.hex()}")
+            expected_size = 9 if rec[1] & 0x10 else 7
+            if len(rec) != expected_size or not (1 <= rec[4] <= len(objects)):
+                raise ValueError(f"invalid FD2 fixup record: {rec.hex()}")
+            source_type = rec[0]
+            source_offset = struct.unpack_from("<h", rec, 2)[0]
+            target_flags = rec[1]
+            target_object = rec[4]
+            target_offset = (u32(rec, 5) if target_flags & 0x10 else u16(rec, 5))
+            obj, obj_page_i = page_to_obj[page_index]
+            source_relbase = obj.relbase + obj_page_i * le.page_size + source_offset
+            source_code0 = (obj_page_i * le.page_size + source_offset) if obj.index == 1 else source_relbase
+            if source_relbase < obj.relbase or source_relbase + 4 > obj.relbase + obj.vsize:
+                raise ValueError(f"fixup source outside object: page={page_index} src={source_offset}")
+            target_linear = objects[target_object - 1].relbase + target_offset
+            out.append(FixupRecord(
+                page_index=page_index,
+                source_offset=source_offset,
+                source_addr_relbase=source_relbase,
+                source_addr_code0=source_code0,
+                source_type=source_type,
+                target_flags=target_flags,
+                target_object=target_object,
+                target_offset=target_offset,
+                target_linear=target_linear,
+                record_file_off=p,
+            ))
             p = rec_end
     return out
 
 
+# Backward-compatible import for helper scripts.
+parse_simple_fixups = parse_fixups
+
+
+def apply_fixups(raw: bytes, fixups: list[FixupRecord]) -> bytearray:
+    image = bytearray(raw)
+    writes: dict[int, int] = {}
+    for rec in fixups:
+        old = writes.get(rec.source_addr_relbase)
+        if old is not None and old != rec.target_linear:
+            raise ValueError(f"conflicting fixups at {rec.source_addr_relbase:#x}")
+        writes[rec.source_addr_relbase] = rec.target_linear
+    for source, value in sorted(writes.items()):
+        struct.pack_into("<I", image, source, value)
+    return image
+
+
+def write_relocation_manifest(path: Path, raw: bytes, fixups: list[FixupRecord]) -> None:
+    seen: set[int] = set()
+    with path.open("w", encoding="utf-8") as f:
+        f.write("record_file_off\tpage\tsource_relbase\ttarget_object\ttarget_offset\ttarget_linear\traw_u32\tduplicate\n")
+        for rec in fixups:
+            raw_u32 = u32(raw, rec.source_addr_relbase)
+            duplicate = int(rec.source_addr_relbase in seen)
+            seen.add(rec.source_addr_relbase)
+            f.write(
+                f"0x{rec.record_file_off:x}\t{rec.page_index}\t0x{rec.source_addr_relbase:x}\t"
+                f"{rec.target_object}\t0x{rec.target_offset:x}\t0x{rec.target_linear:x}\t"
+                f"0x{raw_u32:x}\t{duplicate}\n"
+            )
+
+
 def write_fixup_report(path: Path, fixups: list[FixupRecord]) -> None:
     with path.open("w", encoding="utf-8") as f:
-        f.write("# FD2.EXE LE fixup 简单记录清单（只作索引，不可直接 patch 代码页）\n")
-        f.write("# 仅输出形如 07 00 <src:u16> <obj:1..3> <off:u16> 的记录；变长记录未展开。\n")
+        f.write("# FD2.EXE LE internal offset fixup 完整清单\n")
+        f.write("# source offset 按 signed i16 解释；flags 0x00/0x10 分别携带 u16/u32 target offset。\n")
         f.write("# columns: page src_relbase src_code0 src_off type target_obj target_off target_linear\n")
         for r in fixups:
             f.write(
@@ -326,15 +383,17 @@ def write_fixup_report(path: Path, fixups: list[FixupRecord]) -> None:
             )
 
 
-def write_fixup_note(path: Path, count: int) -> None:
+def write_fixup_note(path: Path, count: int, unique_count: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "# FD2.EXE LE fixup 说明\n\n"
+        "# FD2.EXE LE fixup 生成摘要\n\n"
         "完整记录由 `python3 tools/rebuild_fd2_analysis.py` 生成到 "
-        "`tools/fd2_le_fixups.txt`。\n\n"
-        f"当前可解析简单记录数：{count}。\n\n"
-        "这些记录只用于定位 DS/global 引用和保留 relocation 证据，"
-        "不得直接写回代码镜像。上一版错误地直接 patch 代码页，"
-        "导致 `boot_intro_title` 主体 @0x44ab2 被破坏。\n",
+        "`tools/fd2_le_fixups.txt`，逐 source manifest 位于 "
+        "`tools/fd2_le_relocation_manifest.tsv`。\n\n"
+        f"记录数：{count}；唯一 source 数：{unique_count}。\n\n"
+        "FD2 的记录全部为 32-bit internal offset source type `0x07`；"
+        "target flags 仅为 `0x00` 或 `0x10`。raw-unrelocated 与 "
+        "loader-relocated 镜像分开输出；不得把 relocated 镜像冒充原始代码。\n",
         encoding="utf-8",
     )
 
@@ -362,16 +421,24 @@ def main() -> int:
     (args.tools_dir / "fd2_le_code0.bin").write_bytes(code0)
     (args.tools_dir / "fd2_le_ghidra_chkstk.bin").write_bytes(ghidra)
     (args.tools_dir / "fd2_le_dual_clean.bin").write_bytes(dual)
-    fixups = parse_simple_fixups(buf, le, objects)
+    fixups = parse_fixups(buf, le, objects)
+    relocated = apply_fixups(relbase, fixups)
     write_fixup_report(args.tools_dir / "fd2_le_fixups.txt", fixups)
-    write_fixup_note(args.docs_dir / "le-fixups.txt", len(fixups))
+    write_relocation_manifest(
+        args.tools_dir / "fd2_le_relocation_manifest.tsv", relbase, fixups)
+    (args.tools_dir / "fd2_le_relocated_relbase.bin").write_bytes(relocated)
+    write_fixup_note(
+        args.docs_dir / "generated" / "le-fixups.txt", len(fixups),
+        len({r.source_addr_relbase for r in fixups}))
 
     entry_obj = objects[le.entry_object - 1]
-    print(f"LE @ 0x{le.le_off:x}, pages={le.num_pages}, page_size=0x{le.page_size:x}")
+    print(f"bound MZ @ 0x{le.module_file_off:x}, LE @ 0x{le.le_off:x}, "
+          f"data pages @ 0x{le.module_file_off + le.data_pages_off:x}, "
+          f"pages={le.num_pages}, page_size=0x{le.page_size:x}")
     for obj in objects:
         print(f"obj{obj.index}: relbase=0x{obj.relbase:x} vsize=0x{obj.vsize:x} pages={obj.page_count}")
     print(f"entry: object{le.entry_object}:offset 0x{le.entry_eip:x} (relbase linear 0x{entry_obj.relbase + le.entry_eip:x})")
-    print("wrote tools/fd2_le_raw.bin, tools/fd2_le_code0.bin, tools/fd2_le_ghidra_chkstk.bin, tools/fd2_le_dual_clean.bin")
+    print("wrote raw/code0/dual, relocated relbase, fixup report and relocation manifest")
     return 0
 
 

@@ -2,7 +2,7 @@
 
 ## 地址与提取修正
 
-`FD2.EXE` 的 LE header `+0x80` 字段是相对文件开头的 data-page offset。旧版 `tools/rebuild_fd2_analysis.py` 误加 `le_off`，导致 `tools/fd2_le_code0.bin` 的页面内容错误。修正后，DOSBox 捕获的机器码可在权威镜像中逐字匹配：
+最终 bound-LE 修正确认：LE header `+0x80` 相对 embedded MZ module `@0x25214`，不是整个文件，也不是 LE header。真实 page 1 位于 `0x36014`。下表地址来自旧错误 page view，已不再作为权威入口；保留仅用于追踪历史分析，相关语义需在新 object1/object2/object3 视图中重新定位。
 
 | 语义 | code0 | dual/relbase | `FD2.EXE` 文件位置 |
 |------|------:|-------------:|-------------------:|

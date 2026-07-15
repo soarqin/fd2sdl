@@ -2,7 +2,7 @@
  *
  * 原版 input_check @0x35834 只检查 BIOS BDA 键盘环形缓冲；具体读取
  * 由 INT 16h/AH=10h 完成。SDL 版在此保留同样的「检查不消费、读取
- * 才出队」边界。详见 docs/12-input-system.md。
+ * 才出队」边界。详见 docs/systems/input.md。
  */
 #include "input.h"
 

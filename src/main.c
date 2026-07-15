@@ -3,7 +3,7 @@
  * 复现 FUN_0001cfe6 @0x44ab2 (boot_intro_title): 片头 + 标题主体
  * 调用入口 FUN_0001cfdc @0x44aa8 仅是 Watcom 栈检查前缀
  *
- * 反编译依据见 docs/ghidra-decomp-all.c 和 docs/function-names.md
+ * 反编译依据见 docs/generated/ghidra-decomp-all.c 和 docs/reverse-engineering/function-names.md
  */
 
 #include <stdio.h>
@@ -395,7 +395,7 @@ title_screen:
     /* 标题菜单（对应 FUN_0001d6c1 + 菜单循环）
      * 菜单项位置: y=164/173/182, x=129。
      * 原版比较 INT 16h/AH=10h 的 Up/Down 扫描码；确认接受
-     * Enter、Space 与数字小键盘 0。详见 docs/12-input-system.md。
+     * Enter、Space 与数字小键盘 0。详见 docs/systems/input.md。
      * 菜单项图: FDOTHER[7] sub[1-6] */
     int selection = 0;
     int menu_count = 3;

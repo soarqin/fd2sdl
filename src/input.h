@@ -2,7 +2,7 @@
  *
  * 逆向依据：input_check @0x35834 比较 BIOS BDA 0x041a/0x041c，
  * field_key_read @0x36cbc 以 INT 16h/AH=10h 读取扫描码。
- * 完整键表与上下文依据见 docs/12-input-system.md。
+ * 完整键表与上下文依据见 docs/systems/input.md。
  */
 #ifndef FD2_INPUT_H
 #define FD2_INPUT_H

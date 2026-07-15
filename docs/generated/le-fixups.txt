@@ -1,0 +1,7 @@
+# FD2.EXE LE fixup 生成摘要
+
+完整记录由 `python3 tools/rebuild_fd2_analysis.py` 生成到 `tools/fd2_le_fixups.txt`，逐 source manifest 位于 `tools/fd2_le_relocation_manifest.tsv`。
+
+记录数：7959；唯一 source 数：7948。
+
+FD2 的记录全部为 32-bit internal offset source type `0x07`；target flags 仅为 `0x00` 或 `0x10`。raw-unrelocated 与 loader-relocated 镜像分开输出；不得把 relocated 镜像冒充原始代码。

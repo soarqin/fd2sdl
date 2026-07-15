@@ -4,7 +4,7 @@
 
 ## 1. 根因
 
-上一版 `tools/fd2_dual_final.bin`/`docs/ghidra-decomp-all.c` 的关键问题不是 `__chkstk` patch，而是 **把 LE fixup 当作普通线性地址 patch 直接写入代码页**。
+上一版 `tools/fd2_dual_final.bin`/`docs/generated/ghidra-decomp-all.c` 的关键问题不是 `__chkstk` patch，而是 **把 LE fixup 当作普通线性地址 patch 直接写入代码页**。
 
 典型证据：
 
@@ -37,16 +37,16 @@ python3 tools/rebuild_fd2_analysis.py
 | 文件 | 用途 |
 |------|------|
 | `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
-| `tools/fd2_le_code0.bin` | file-relative bound payload 视图 |
+| `tools/fd2_le_code0.bin` | 真实 LE object1 从 offset 0 开始的 page view |
 | `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；不做字节 patch |
 | `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 0x10000，并镜像低 64K |
 | `tools/fd2_le_fixups.txt` | 完整 fixup 简单记录索引；只用于定位 DS/global 引用，不是 patch 脚本 |
-| `docs/le-fixups.txt` | 简短说明，避免误把记录当 patch 输入 |
+| `docs/generated/le-fixups.txt` | 简短说明，避免误把记录当 patch 输入 |
 
 ## 3. 地址使用约定
 
 - 文档和 SDL 复现继续用 relbase 线性地址标注，例如 `boot_intro_title @0x44ab2`。
-- 反汇编时优先使用 `code0 = file_offset - data_pages_off`；dual 地址统一为 code0 加 `0x10000`。`fd2_le_dual_clean.bin` 不包含 DS object2/3。
+- 反汇编时使用 object1 内 offset；object1 file offset 为 `0x36014 + object_offset`，dual 地址为 object offset 加 `0x10000`。`fd2_le_dual_clean.bin` 不包含 object2/3。
 - DS offset（如 `0x1a4d`、`0x3a65`）需结合对象/段语义解释，不能机械加到当前代码页。
 
 ## 4. 启动函数重新确认
@@ -72,7 +72,7 @@ FUN_0001cfe6 -> boot_intro_title         // 片头+标题主体
 
 ## 5. 反编译结果重建
 
-`docs/ghidra-decomp-all.c` 已用以下命令重做：
+`docs/generated/ghidra-decomp-all.c` 已用以下命令重做：
 
 ```bash
 mkdir -p /tmp/ghidra_fd2_clean_proj

@@ -101,7 +101,7 @@ entry0() {
 
 之前因 Ghidra 加载了**错误的 flat image**，并且把 LE fixup 直接写入代码页，导致启动函数跨页后指令被污染。
 当前权威流程是 `python3 tools/rebuild_fd2_analysis.py` 生成未应用 fixup 的 raw/code0 镜像，
-再用 r2/Capstone 反汇编与 Ghidra 交叉核对。详见 `docs/06-r2-ghidra-mapping.md` 与 `docs/07-decompilation-corrections.md`。
+再用 r2/Capstone 反汇编与 Ghidra 交叉核对。详见 `docs/reverse-engineering/address-mapping.md` 与 `docs/reverse-engineering/decompilation-corrections.md`。
 
 ### 4.2 资源加载器
 
@@ -173,7 +173,7 @@ FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
 ### 待完善
 - 片头底图 FDOTHER[0x4d] 的 sub[0] 格式（非标准 RLE 头部 `80 80 80 80`）
 - 切入画面 FUN_0001ce87 的等待/渐变细节
-- 标题菜单交互 `FUN_0001d6c1`（Up/Down、Enter/Space/数字小键盘 0；详见 `docs/12-input-system.md`）
+- 标题菜单交互 `FUN_0001d6c1`（Up/Down、Enter/Space/数字小键盘 0；详见 `docs/systems/input.md`）
 - 与 DOSBox 逐帧对照验证片头滚动
 
 ## 6. 脚本动画系统（已接入启动流程）
@@ -192,7 +192,7 @@ FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
 - 标准 `.DAT` 容器（`LLLLLL` 魔数），共 9 个 AFM 条目。
 - 每个条目头部 offset `0xa5` 为帧数，`0xa7/0xa9` 为宽高，启动动画为 320×200。
 - 每帧 8 字节头：`data_len:u16 + command_count:u16 + reserved:u32`，随后是字节码。
-- 已实现 opcode：1、2、4、5、6、7、8、9。详见 `docs/03-data-formats.md`。
+- 已实现 opcode：1、2、4、5、6、7、8、9。详见 `docs/formats/data-formats.md`。
 
 ### 待完善
 - `FUN_0001ce87` 静态切入画面的等待和渐变细节仍需逐帧核对。

@@ -11,20 +11,15 @@
 
 ## 文档
 
-所有逆向分析与开发计划见 `docs/`：
+文档分类和完整索引见 [`docs/README.md`](docs/README.md)。主要入口：
 
-| 文档 | 内容 |
-|------|------|
-| `01-decompilation-report.md` | 反编译总报告：游戏识别、EXE 格式、内存布局、字符串、数据文件总览 |
-| `02-decompilation-samples.md` | 反编译样本：入口函数、角色位图处理、输入检测的汇编/C 伪代码 |
-| `03-data-formats.md` | 数据文件二进制格式规范（.DAT 容器、子格式、存档） |
-| `04-development-plan.md` | 开发计划：7 阶段路线图、技术决策、风险、验收标准 |
-| `09-battlefield-roadmap.md` | 战场系统后续顺序、逆向阻塞项与分阶段验收 |
-| `10-field-unit-constructor.md` | 统一 `0x50` 字节单位记录的构造与属性来源 |
-| `11-audio-plan.md` | AIL、XMIDI、OPL 与 PCM 音频前置调研及实施计划 |
-| `12-input-system.md` | 原版 BIOS 键盘缓冲、扫描码、上下文按键与 SDL 输入层 |
-
-辅助资料：`docs/ghidra-decomp-samples*.txt`、`docs/r2-disasm-samples.txt`。
+- 总体开发计划：`docs/plans/development.md`
+- 战场路线：`docs/plans/battlefield.md`
+- 数据格式：`docs/formats/data-formats.md`
+- 地址映射：`docs/reverse-engineering/address-mapping.md`
+- 函数命名：`docs/reverse-engineering/function-names.md`
+- 工具速查：`docs/tools/README.md`
+- 生成产物：`docs/generated/`
 
 ## 构建
 
@@ -49,7 +44,7 @@ cmake --build src/build
 
 战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。确认移动后会展开原版 FDOTHER[2] 四向图形指令菜单：上／左／右／下依次为 attack、magic、item、wait。attack 仅在存在合法目标时可选；确认后移动光标选择目标，再次确认结算，或按取消键返回并重新展开菜单。wait 直接完成行动。magic 和 item 的用途及原版入口已确认，但执行状态机尚未实现，当前显示禁用帧。菜单中按 `Escape` 或数字小键盘 `.`／`Delete` 会收起菜单，并恢复移动前坐标、方向和镜头。
 
-普通攻击已接入原版武器范围、RNG 初值 `0x7a18`、profile 暴击基础表、武器 effect、地形攻防修正、双击、邻接反击和 HP 0 隐藏提交。菜单选择、待机和取消不推进 RNG。菜单外的 `Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 仍保留在原版焦点更新动作中，不猜测其状态相关效果。M7.0 已实现敌方最近目标与可达目的地的原版纯查询，但尚未接入动作提交；全部玩家完成后，当前骨架仍让 side 1 和 side 0 单位按顺序自动待机，再进入下一回合。
+普通攻击已接入原版武器范围、RNG 初值 `0x7a18`、profile 暴击基础表、武器 effect、地形攻防修正、双击、邻接反击和 HP 0 隐藏提交。菜单选择、待机和取消不推进 RNG。菜单外的 `Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 仍保留在原版焦点更新动作中，不猜测其状态相关效果。M7.0 已实现敌方最近目标与可达目的地查询；M7.1 复现移动后普通攻击候选排序和三分数分派；M7.2 加入 36×7 字节法术表、法术／物品目标评分及候选计划；M7.3 已新增完整平价门控和显式物理 plan/commit 事务，可重验计划、播放路径并复用物理 exchange。该事务尚未接入自动 phase；法术／物品 handler、消耗与演出仍未实现。全部玩家完成后，当前骨架仍让 side 1 和 side 0 单位按顺序自动待机，再进入下一回合。
 
 可用 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 强制走 CPM.cmake 回退路径；离线环境可预先安装 SDL3，或通过 `SDL3_DIR` 指向已有 SDL3 CMake 包。
 
@@ -63,7 +58,7 @@ python tools/dat_extract.py dump original_game/TITLE.DAT 0      # 查看条目 0
 python tools/dat_extract.py extract original_game/TITLE.DAT /tmp/out   # 解包
 ```
 
-FDTXT 自定义字形索引的最终 Unicode 映射见 `docs/font-glyph-map.tsv`，格式与控制码说明见 `docs/08-font-text-mapping.md`。
+FDTXT 自定义字形索引的最终 Unicode 映射见 `docs/formats/font-glyph-map.tsv`，格式与控制码说明见 `docs/formats/font-text-mapping.md`。
 
 音频资源清单：
 
@@ -105,7 +100,7 @@ python3 tools/compare_fd2_music_capture.py capture.wav rendered/
 4. 以 libADLMIDI 的 XMI + AIL bank + Nuked OPL3 能力制作保真原型，同时先完成 GPL/LGPL 组件的许可证评审。
 5. 选定正式音乐后端后，再接入标题、过场、战场和战斗音乐。
 
-不立即引入 SDL3_mixer：当前项目回退版本是 SDL `3.2.12`，新版 SDL3_mixer 要求 SDL `3.4.0` 或更高版本；同时升级 SDL 和 mixer 会扩大音频前置工作的变更面。完整证据、方案比较和验收标准见 [`docs/11-audio-plan.md`](docs/11-audio-plan.md)。
+不立即引入 SDL3_mixer：当前项目回退版本是 SDL `3.2.12`，新版 SDL3_mixer 要求 SDL `3.4.0` 或更高版本；同时升级 SDL 和 mixer 会扩大音频前置工作的变更面。完整证据、方案比较和验收标准见 [`docs/plans/audio.md`](docs/plans/audio.md)。
 
 ## 逆向工具
 
@@ -116,4 +111,4 @@ python3 tools/compare_fd2_music_capture.py capture.wav rendered/
 | capstone | 程序化反汇编 |
 | Python | 自定义二进制解析 |
 
-详见 `docs/02-decompilation-samples.md` 末尾的工具命令备忘。
+详见 `docs/reverse-engineering/decompilation-report.md` 末尾的工具命令备忘。

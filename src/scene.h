@@ -8,7 +8,7 @@
 
 /* 完整新游戏初始过场预览。
  *
- * 按 new_game_opening_play @0x5752f 播放 stage 32、31、0 的全部
+ * 按 new_game_opening_play @0x3231b 播放 stage 32、31、0 的全部
  * 开场镜头、移动、对白和登场特效，在第一关正式交还控制前结束。
  * 资源来自 FDFIELD/FDSHAP、FDICON.B24、DATO、FDTXT 与 FDOTHER。
  */

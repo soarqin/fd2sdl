@@ -11,7 +11,7 @@
  *   [4:]  RLE 压缩像素（8bpp 索引色）
  *
  * RLE 方案源自 FUN_0004c0d5 @0x73ba1 (blit_image_clipped)，
- * 详见 docs/03-data-formats.md §7。
+ * 详见 docs/formats/data-formats.md §7。
  */
 
 typedef struct {

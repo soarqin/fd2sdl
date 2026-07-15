@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* 炎龙骑士团 2 .DAT 归档读取
- * 格式见 docs/03-data-formats.md：
+ * 格式见 docs/formats/data-formats.md：
  *   [0:6]   magic "LLLLLL"
  *   [6:]    u32 偏移流，严格递增
  *   末条目至文件末尾

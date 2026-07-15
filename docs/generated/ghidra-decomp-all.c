@@ -29,6 +29,7 @@
 // FUNC 0x42a29 field_side1_phase_execute_core  /* 每个 actor 后检查 DS:0x3ecc；剧情/脚本退出控制，不是 battle result */
 // FUNC 0x42ace field_side0_phase_execute  /* 两阶段顺序处理 side 0 actor */
 // FUNC 0x42ad8 field_side0_phase_execute_core  /* 两轮每个 actor 后检查 DS:0x3ecc；0x205be 可置 2，普通退出可置 1 */
+// FUNC 0x205b4 field_stage0_result_gate  /* DS:0x1b19[0]；可见 side 0 继续，side 0 全灭结束，actor 0 主角隐藏/HP 0 为失败 */
 // FUNC 0x3ccb4 entry0
 // FUNC 0x3d01f field_unit_detail_open
 // FUNC 0x3d4c1 field_unit_detail_transition_left

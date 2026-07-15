@@ -98,6 +98,7 @@ static int test_commit(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
+    game.stage = 1;
 
     fd2_field_ai_physical_candidate plan;
     CHECK(build_plan(&game, &plan) == 0);
@@ -144,9 +145,8 @@ static int test_automatic_mode0(void) {
     CHECK(game.units.items[1].hp == 0 && game.units.items[1].flags == 1);
     CHECK(game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
-    /* The target is finalized hidden; remaining-unit accounting skips it and
-     * the scheduler may advance straight through the empty side-1 phase. */
-    CHECK(game.active_side == 2);
+    /* battle_result 终止自动 phase；不能再推进到 side 2。 */
+    CHECK(game.active_side == 0);
     CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.command_selected == -1);
     CHECK(rng.cursor == 4);
@@ -182,6 +182,27 @@ static int test_magic_commit(void) {
     CHECK(game.units.items[0].mp == 10); /* record +5 仅作 gate，不猜测扣 MP。 */
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 2);
+    return 0;
+}
+
+static int test_unknown_magic_rejected(void) {
+    static const uint32_t rolls[] = {0};
+    test_rng rng = {rolls, 1, 0};
+    uint32_t cells[8 * 8];
+    fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.units.items[0].side = 1;
+    game.active_side = 1;
+    teach_magic(&game.units.items[0], 23);
+    game.units.items[0].mp = game.units.items[0].mp_max = 10;
+    fd2_field_units before = game.units;
+    CHECK(fd2_field_magic_apply_known_effect(
+        23, 1, &game.units, next_roll, &rng) == -1);
+    CHECK(fd2_field_magic_apply_known_effect(
+        28, 1, &game.units, next_roll, &rng) == -1);
+    CHECK(memcmp(&before, &game.units, sizeof(before)) == 0);
+    CHECK(rng.cursor == 0);
     return 0;
 }
 
@@ -455,7 +476,7 @@ static int test_behavior7_hide_on_arrival(void) {
     /* behavior 7 的 0x32975 先精确写 flags=1，common tail 随后追加 acted。 */
     CHECK((game.units.items[0].flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
-    CHECK(game.active_side == 2);
+    CHECK(game.active_side == 0);
     CHECK(rng.cursor == 0);
     return 0;
 }
@@ -467,36 +488,24 @@ static int test_battle_result_query(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
+    game.stage = 1; /* 先覆盖非 stage 0 的通用 side 存活查询。 */
 
     /* init_game 的 actor 0 为 side 0，actor 1 为 side 2。 */
     CHECK(fd2_field_game_battle_result(&game) ==
           FD2_FIELD_BATTLE_ONGOING);
+    /* DS:0x1b19[0] / dual 0x205b4：stage 0 在无可见 side 0 actor
+     * 时结束，不等待尚未加载的增援 group。 */
     game.units.items[0].hp = 0;
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    CHECK(fd2_field_game_battle_result(&game) ==
-          FD2_FIELD_BATTLE_ONGOING); /* stage 0 尚有第 4/5 回合增援。 */
-    fd2_field_unit_template templates[2] = {{{0}}, {{0}}};
-    game.units.count = 0;
-    game.metadata.unit_template_count = 2;
-    game.metadata.unit_templates = templates;
-    game.metadata.unit_templates[0].bytes[0x15] = 4;
-    game.metadata.unit_templates[1].bytes[0x15] = 5;
-    set_unit(&game.units.items[0], 2, 3, 1);
-    game.units.items[0].side = 2;
-    game.units.source_template_indices[0] = FD2_FIELD_UNIT_NO_TEMPLATE;
-    set_unit(&game.units.items[1], 0, 0, 0);
-    game.units.items[1].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    game.units.source_template_indices[1] = 0;
-    set_unit(&game.units.items[2], 0, 0, 0);
-    game.units.items[2].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    game.units.source_template_indices[2] = 1;
-    game.units.count = 3;
     CHECK(fd2_field_game_battle_result(&game) ==
           FD2_FIELD_BATTLE_VICTORY);
+
+    init_game(&game, cells, attrs, &rng);
+    game.stage = 0;
+    game.units.items[0].side = 2; /* actor 0 是 stage 0 主角。 */
+    game.units.items[1].side = 0;
     game.units.items[0].hp = 0;
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    game.units.items[1].hp = 50;
-    game.units.items[1].flags = 0;
     CHECK(fd2_field_game_battle_result(&game) ==
           FD2_FIELD_BATTLE_DEFEAT);
     return 0;
@@ -536,7 +545,8 @@ static int test_stale_plan(void) {
 
 int main(void) {
     if (test_commit() != 0 || test_automatic_mode0() != 0 ||
-        test_magic_commit() != 0 || test_magic_status_commit() != 0 ||
+        test_magic_commit() != 0 || test_unknown_magic_rejected() != 0 ||
+        test_magic_status_commit() != 0 ||
         test_item_magic_commit() != 0 || test_item_commit() != 0 ||
         test_behavior5_cell_action_commit() != 0 ||
         test_behavior2_recover_after_queries() != 0 ||

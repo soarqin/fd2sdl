@@ -246,17 +246,20 @@ fd2_field_battle_result fd2_field_game_battle_result(
         if (unit->side == 2u) have_player = 1;
         if (unit->side == 0u) have_hostile = 1;
     }
-    if (!have_player) return FD2_FIELD_BATTLE_DEFEAT;
-    if (!have_hostile) {
-        /* stage 0 的已确认 turn action 会在第 4/5 回合加入 hostile
-         * group 4/5。基础存活查询不得在这些已知增援触发前提前判胜；
-         * 这仍不是原版完整的 stage 私有胜负 handler。 */
-        if (game->stage == 0u &&
-            (fd2_field_game_group_count(game, 4u) == 0u ||
-             fd2_field_game_group_count(game, 5u) == 0u))
-            return FD2_FIELD_BATTLE_ONGOING;
-        return FD2_FIELD_BATTLE_VICTORY;
+    if (game->stage == 0u) {
+        /* DS:0x1b19[0] -> 正确 dual 0x205b4：stage 0 handler 先把
+         * 0x3ecc 设为 2；只要仍有可见 side 0 actor 就清回 0；随后
+         * actor 0（新游戏的主角）隐藏时覆盖为 1。这里直接暴露其
+         * 可观察结果，避免把未加载的 future group 当作胜负门。 */
+        const fd2_field_unit *leader = game->units.count != 0
+            ? &game->units.items[0] : NULL;
+        if (!leader || fd2_field_unit_is_hidden(leader) || leader->hp == 0)
+            return FD2_FIELD_BATTLE_DEFEAT;
+        if (!have_hostile) return FD2_FIELD_BATTLE_VICTORY;
+        return FD2_FIELD_BATTLE_ONGOING;
     }
+    if (!have_player) return FD2_FIELD_BATTLE_DEFEAT;
+    if (!have_hostile) return FD2_FIELD_BATTLE_VICTORY;
     return FD2_FIELD_BATTLE_ONGOING;
 }
 
@@ -2571,6 +2574,9 @@ int fd2_field_game_process_automatic_action_visual(
                 !fd2_field_unit_has_acted(&game->units.items[i]) &&
                 finish_ai_action(game, i) != 0)
                 return -1;
+            game->battle_result = fd2_field_game_battle_result(game);
+            if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
+                return 1;
             if (fd2_field_game_remaining_units(game, 0u) == 0)
                 advance_phase(game);
             return 1;
@@ -2597,6 +2603,9 @@ int fd2_field_game_process_automatic_action_visual(
             !fd2_field_unit_has_acted(&game->units.items[i]) &&
             finish_ai_action(game, i) != 0)
             return -1;
+        game->battle_result = fd2_field_game_battle_result(game);
+        if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
+            return 1;
         if (fd2_field_game_remaining_units(game, game->active_side) == 0)
             advance_phase(game);
         return 1;

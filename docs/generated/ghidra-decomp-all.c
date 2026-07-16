@@ -7,7 +7,7 @@
 // FUNC 0x3790b field_selection_sprite_blit
 // FUNC 0x39839 field_opponent_zoc_mark_unit
 // FUNC 0x398bb field_cell_zoc_mark
-// FUNC 0x38cb3 field_ai_unit_execute  /* 正确 dual 0x13a9f；按 actor +0x34 低半字节分派 behavior 0..5/7..11 */
+// FUNC 0x38cb3 field_ai_unit_execute  /* 正确 dual 0x13a9f；behavior 8 在 0x13d9a early return，不执行 cell lookup/acted/方向清理；其余 common tail 只查最终格 match 1 */
 // FUNC 0x38cbd field_ai_unit_execute_core  /* field_ai_unit_execute 的 __chkstk 后主体；behavior 2 为 try-attack→physical query→recover */
 // FUNC 0x390b0 field_ai_move_toward_nearest  /* 按阵营选择首个曼哈顿距离最近的目标坐标 */
 // FUNC 0x390ba field_ai_move_toward_nearest_core  /* field_ai_move_toward_nearest 的 __chkstk 后主体 */
@@ -15,8 +15,8 @@
 // FUNC 0x39d96 field_ai_move_toward_cell_core  /* field_ai_move_toward_cell 的 __chkstk 后主体 */
 // FUNC 0x3944b field_ai_physical_candidate_evaluate  /* 枚举可达格与移动后普通攻击目标；输出 0/8/18 优先级候选 */
 // FUNC 0x3a104 field_ai_try_attack  /* 三类候选分派；物理平价读取 spell 阈值或 actor +0x34 bit6；三平为 handled-noop */
-// FUNC 0x3a269 field_ai_item_action_execute  /* 正确 dual 0x15055；效果/消耗进入正确 dual 0x20c6f */
-// FUNC 0x3a525 field_ai_magic_action_execute  /* 执行已选 AI 法术/技能；分派 effect handler */
+// FUNC 0x3a269 field_ai_item_action_execute  /* 正确 dual 0x15055；效果/消耗进入正确 dual 0x20c6f；code 20/24 共用 wrapper，code 21 使用 0x2111a */
+// FUNC 0x3a525 field_ai_magic_action_execute  /* 执行已选 AI 法术/技能；IDs 13..16 经 0x1c8ed 恢复，17..21/25 状态辅助分支均已锁定 RNG/字段边界 */
 // FUNC 0x32975 field_ai_behavior7_hide_actor  /* behavior 7 到达目标后把当前 actor +0x05 精确写为 1 */
 // FUNC 0x15df3 field_ai_behavior5_cell_find  /* 按 actor +0x3d 与 terrain flags 0x20 查找 cell action 目标；未命中回到 behavior 0 */
 // FUNC 0x3a892 field_ai_item_candidate_evaluate  /* 枚举物品槽、范围和目标；输出 DS:0x3c33/37/3b/3f */
@@ -25,11 +25,13 @@
 // FUNC 0x3ad8b field_ai_magic_targets_score  /* 按 magic ID 与目标 actor 列表累计分数 */
 // FUNC 0x3afb6 field_ai_magic_zero_byte_targets_score  /* 按 unit record byte==0 累计加权分 */
 // FUNC 0x73a7a field_magic_record_get  /* 返回 DS:0x19fd + magic_id*7 */
-// FUNC 0x42a1f field_side1_phase_execute  /* 顺序处理 side 1 actor */
-// FUNC 0x42a29 field_side1_phase_execute_core  /* 每个 actor 后检查 DS:0x3ecc；剧情/脚本退出控制，不是 battle result */
-// FUNC 0x42ace field_side0_phase_execute  /* 两阶段顺序处理 side 0 actor */
-// FUNC 0x42ad8 field_side0_phase_execute_core  /* 两轮每个 actor 后检查 DS:0x3ecc；0x205be 可置 2，普通退出可置 1 */
+// FUNC 0x42a1f field_side1_phase_execute  /* 顺序处理 side 1 actor；AI 返回后先按 DS:0x1a8f 调用 DS:0x1b91 cell handler，再调用 stage handler */
+// FUNC 0x42a29 field_side1_phase_execute_core  /* 每个 raw actor 均分派可选 cell handler、无条件 stage handler，再检查 DS:0x3ecc */
+// FUNC 0x42ace field_side0_phase_execute  /* 两阶段顺序处理 side 0 actor；两轮均在 AI 返回后分派 DS:0x1a8f cell handler */
+// FUNC 0x42ad8 field_side0_phase_execute_core  /* 两轮每个 raw actor 均分派可选 cell handler、无条件 stage handler，再检查 DS:0x3ecc */
 // FUNC 0x205b4 field_stage0_result_gate  /* DS:0x1b19[0]；可见 side 0 继续，side 0 全灭结束，actor 0 主角隐藏/HP 0 为失败 */
+// FUNC 0x1a866 field_phase_status_tick  /* corrected dual；按 side 过滤，中毒扣 maxHP/10，并递减 record +0x22..+0x27；计时归零调用 0x1b750 重算派生属性 */
+// FUNC 0x1b750 field_unit_combat_stats_recompute_runtime  /* phase 状态归零时调用；共享 0x4096e 派生链，使用 DS:0x018d 的 1.15 x87 比例 */
 // FUNC 0x3ccb4 entry0
 // FUNC 0x3d01f field_unit_detail_open
 // FUNC 0x3d4c1 field_unit_detail_transition_left
@@ -2164,9 +2166,9 @@ void field_actor_path_play(void)
 }
 
 
-// FUNC 0x386f8 FUN_000386f8
+// FUNC 0x386f8 field_all_actor_directions_reset  /* 全表 record +0x03 归零后固定延迟 20 ms；AI common tail 在 mark acted 后调用 */
 
-void FUN_000386f8(void)
+void field_all_actor_directions_reset(void)
 
 {
   int iVar1;
@@ -2382,7 +2384,7 @@ void FUN_00038bba(void)
 }
 
 
-// FUNC 0x38c58 field_cell_event_lookup
+// FUNC 0x38c58 field_cell_event_lookup  /* cell byte2 低 5 位为 1-based lookup ID；玩家路径 match 0，行动/AI common tail match 1 */
 
 void field_cell_event_lookup(void)
 
@@ -3737,7 +3739,7 @@ LAB_0003dd8b:
     }
     else {
       field_actor_path_play(param_1,local_20,iVar3);
-      FUN_000386f8();
+      field_all_actor_directions_reset();
       cVar1 = puVar6[7];
       if (((cVar1 != '\x12') && (cVar1 != '\x13')) && (cVar1 != '\"')) {
         local_3c[1] = 1;
@@ -11322,9 +11324,9 @@ void FUN_00055032(byte *param_1,undefined4 param_2,int param_3)
 }
 
 
-// FUNC 0x55115 FUN_00055115
+// FUNC 0x55115 field_magic_battle_animation  /* 原地址 wrapper；主体 corrected dual 0x2ff01。动画主体在 corrected dual 0x30958 逐目标调用 0x1c75e 提交 damage */
 
-void FUN_00055115(void)
+void field_magic_battle_animation(void)
 
 {
   __chkstk(0x164);
@@ -11332,9 +11334,9 @@ void FUN_00055115(void)
 }
 
 
-// FUNC 0x5511f FUN_0005511f
+// FUNC 0x5511f field_magic_battle_animation_core  /* field_magic_battle_animation 的 __chkstk 后主体 */
 
-void FUN_0005511f(byte *param_1,byte *param_2,int param_3,byte *param_4)
+void field_magic_battle_animation_core(byte *param_1,byte *param_2,int param_3,byte *param_4)
 
 {
   byte bVar1;

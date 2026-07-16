@@ -22,8 +22,10 @@ int fd2_field_magic_damage_profile_scale(
     uint8_t movement_profile, uint32_t *scale);
 
 /* 无演出法术效果核心。返回 1 表示命中并提交，0 表示法术 miss／免疫，
- * -1 表示当前 ID 或数据尚不支持。RNG 调用顺序与 0x1c768/0x1c81f：
- * 先命中，再按伤害浮动消费一次。 */
+ * -1 表示当前 ID 或数据尚不支持。IDs 0..8 经 DS:0x1d01 wrapper
+ * 进入 0x55115 动画并由其主体调用 0x1c75e，ID 9 wrapper 直接调用
+ * 该 core；IDs 10..12 在 core 内额外执行 0x1f183 免疫门。
+ * RNG 调用顺序与 0x1c768/0x1c81f：先命中，再按伤害浮动消费一次。 */
 typedef uint32_t (*fd2_field_magic_rng_fn)(void *userdata);
 int fd2_field_magic_apply_known_effect(
     uint8_t magic_id,

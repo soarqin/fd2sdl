@@ -12,6 +12,7 @@
 
 #include "field_game.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -54,8 +55,8 @@ static void finalize_zero_hp_units(fd2_field_units *units) {
     }
 }
 
-static int stage0_known_item_lookup(void *userdata, uint8_t item_id,
-                                    fd2_field_item_stat_effect *effect) {
+static int known_item_stat_lookup(void *userdata, uint8_t item_id,
+                                  fd2_field_item_stat_effect *effect) {
     (void)userdata;
     if (!effect) return -1;
     const uint8_t *record = fd2_field_item_record_get(item_id);
@@ -64,6 +65,27 @@ static int stage0_known_item_lookup(void *userdata, uint8_t item_id,
     effect->accuracy = fd2_field_item_i16(record, 3);
     effect->defense = fd2_field_item_i16(record, 5);
     effect->evasion = fd2_field_item_i16(record, 7);
+    return 0;
+}
+
+static int known_status_stat_scale(void *userdata,
+                                   fd2_field_unit_scaled_stat stat,
+                                   int32_t value,
+                                   int32_t *scaled_value) {
+    (void)userdata;
+    (void)stat;
+    if (!scaled_value) return -1;
+    /* corrected dual 0x1b7ef/0x1b80a 经 fixup 指向 object2
+     * DS:0x018d 的 double 1.15；x87 frndint/fistp 使用 nearest-even。 */
+    int64_t numerator = (int64_t)value * 115;
+    int64_t quotient = numerator / 100;
+    int64_t remainder = numerator % 100;
+    int64_t magnitude = remainder < 0 ? -remainder : remainder;
+    if (magnitude > 50 ||
+        (magnitude == 50 && (quotient & 1) != 0))
+        quotient += numerator < 0 ? -1 : 1;
+    if (quotient < INT32_MIN || quotient > INT32_MAX) return -1;
+    *scaled_value = (int32_t)quotient;
     return 0;
 }
 
@@ -98,7 +120,7 @@ static int apply_stage0_player_equipment(fd2_field_unit *unit) {
             return -1;
     }
     if (fd2_field_unit_combat_stats_recompute(
-            &updated, stage0_known_item_lookup, NULL, NULL, NULL) != 0)
+            &updated, known_item_stat_lookup, NULL, NULL, NULL) != 0)
         return -1;
     *unit = updated;
     return 0;
@@ -220,6 +242,11 @@ static int clamp_int(int value, int lo, int hi) {
 static int unit_can_act_for_side(const fd2_field_unit *unit, uint8_t side) {
     return unit && unit->side == side && !fd2_field_unit_is_hidden(unit) &&
            unit->hp != 0;
+}
+
+static int ai_unit_can_execute(const fd2_field_unit *unit, uint8_t side) {
+    return unit_can_act_for_side(unit, side) &&
+           (unit->flags & FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE) == 0;
 }
 
 size_t fd2_field_game_remaining_units(const fd2_field_game *game,
@@ -400,9 +427,9 @@ static void record_cell_event(fd2_field_game *game,
                               size_t unit_index,
                               uint8_t match_arg) {
     if (!game || unit_index >= game->units.count) return;
-    const fd2_field_unit *unit = &game->units.items[unit_index];
     uint8_t event_code;
     size_t slot;
+    const fd2_field_unit *unit = &game->units.items[unit_index];
     int found = fd2_field_cell_event_find(
         &game->map, &game->terrain, &game->metadata,
         unit->x, unit->y, match_arg, &event_code, &slot);
@@ -421,29 +448,85 @@ static void record_cell_event(fd2_field_game *game,
     append_event_notice(game, &notice);
 }
 
+static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
+    if (!game) return;
+    /* field_turn_cycle_run @0x3f51f 的 phase 前置处理会调用
+     * field_phase_status_tick（corrected dual 0x1a866）：从 raw actor
+     * index 0 开始，对本阵营可见中毒 actor 扣除 maxHP/10，再把
+     * +0x22..+0x27 的六个状态计时各减 1。该路径不消费 RNG；死亡提交
+     * 复用 field_defeated_units_finalize @0x42d83 的最终 flags=1 语义。 */
+    for (size_t i = 0; i < game->units.count; i++) {
+        fd2_field_unit *unit = &game->units.items[i];
+        if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
+        if (unit->detail_status[0] != 0u) {
+            uint16_t damage = (uint16_t)(unit->hp_max / 10u);
+            unit->hp = unit->hp > damage
+                ? (uint16_t)(unit->hp - damage) : 0u;
+        }
+    }
+    finalize_zero_hp_units(&game->units);
+    for (size_t i = 0; i < game->units.count; i++) {
+        fd2_field_unit *unit = &game->units.items[i];
+        if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
+        /* corrected dual 0x1a866 的原始循环从 raw actor index 0
+         * 开始，以 record +0x22 为基址，连续递减六个状态 byte：
+         * +0x22..+0x27。每个 byte 从 1 归零后都会调用 corrected dual
+         * 0x1b750 重算四项派生属性；仅 AP/DP/HIT-EV 三项会改变结果。 */
+        uint8_t *status = &unit->attack_status;
+        int recompute = 0;
+        for (size_t offset = 0; offset < 6u; offset++) {
+            if (status[offset] == 0u) continue;
+            status[offset]--;
+            if (status[offset] == 0u) recompute = 1;
+        }
+        if (recompute && fd2_field_unit_combat_stats_recompute(
+                unit, known_item_stat_lookup, NULL,
+                known_status_stat_scale, NULL) != 0) {
+            /* 内置 item 表与原版 ID 范围相同；若记录损坏，保持当前派生值，
+             * 不能在 phase 边界留下部分写入。 */
+            continue;
+        }
+    }
+    game->battle_result = fd2_field_game_battle_result(game);
+}
+
+static void clear_all_acted(fd2_field_game *game) {
+    if (!game) return;
+    /* field_all_actors_clear_acted @0x3874a：遍历完整 raw actor 表，
+     * 无视 side 与 hidden，仅执行 flags &= 0x7f。 */
+    for (size_t i = 0; i < game->units.count; i++)
+        fd2_field_unit_set_acted(&game->units.items[i], 0);
+}
+
 static void enter_phase(fd2_field_game *game, uint8_t side) {
     if (!game) return;
     game->active_side = side;
     game->phase_unit_cursor = 0;
     game->phase_ai_pass = 0;
     game->phase_next_action_ms = 0;
-    for (size_t i = 0; i < game->units.count; i++) {
-        if (game->units.items[i].side == side)
-            fd2_field_unit_set_acted(&game->units.items[i], 0);
-    }
+    /* 原版顺序是 turn-event dispatch → poison/status tick → phase actor
+     * loop；事件可能先追加 group 或设置剧情退出标志，因此不能交换。 */
     record_turn_events(game);
+    apply_phase_status_tick(game, side);
 }
 
 static void advance_phase(fd2_field_game *game) {
     if (!game) return;
-    /* field_turn_cycle_run @0x3f51f 的阶段顺序：玩家 side 2 完成后处理
-     * side 1，再处理敌方 side 0；随后回合数加一并重新进入 side 2。 */
+    /* field_turn_cycle_run @0x3f51f 的阶段顺序：玩家 side 2 完成后直接
+     * 进入 side 1；side 1 结束后全表清 acted 再进入 side 0；side 0
+     * 结束后回合数加一、再次全表清 acted，最后进入 side 2。
+     *
+     * SDL 逐 actor scheduler 不能在 side 1→0 时清 acted：原版 side 1
+     * 整个循环在一次调用内完成，清除发生在返回之后；SDL 若此时清除，
+     * scheduler 仍在处理 side 1 的最后一次 actor 提交，会把刚写的 acted
+     * 擦掉。side 1→0 的清除因此延迟到 side 0 第一项实际调度之前。 */
     if (game->active_side == 2) {
         enter_phase(game, 1);
     } else if (game->active_side == 1) {
         enter_phase(game, 0);
     } else {
         if (game->turn_number != UINT32_MAX) game->turn_number++;
+        clear_all_acted(game);
         enter_phase(game, 2);
     }
 }
@@ -1632,6 +1715,8 @@ static int execute_path_playback(fd2_field_game *game,
             }
         }
 
+        /* 玩家路径每完成一步都以 match_arg 0 查询刚进入的格；原版
+         * 路径播放器在下一步开始前已提交当前坐标。 */
         unit->x = (uint8_t)((int)unit->x + dx[direction]);
         unit->y = (uint8_t)((int)unit->y + dy[direction]);
         game->camera_cell_x += camera_dx;
@@ -1707,12 +1792,15 @@ static int finish_ai_action(fd2_field_game *game, size_t actor_index) {
      * hidden 拒绝，否则会在 RNG 已消费后错误回滚棋盘。 */
     if (actor->side != game->active_side)
         return -1;
-    /* field_ai_unit_execute_core @0x38cbd: lookup current cell first,
-     * then OR acted bit, then 0x386f8 clears every actor direction byte. */
+    /* field_ai_unit_execute_core @0x38cbd：先查询当前格，再 OR acted，
+     * 随后调用 field_all_actor_directions_reset @0x386f8。record +0x03
+     * 的原版字段在静止状态确实统一归零（默认朝下）；这不是独立的
+     * selection 缓冲。该 helper 还固定延迟 20 ms，SDL 的无视觉提交
+     * 只复现状态写入，视觉版已有动作自身的帧延迟。 */
     record_cell_event(game, actor_index, 1);
     fd2_field_unit_set_acted(actor, 1);
-    /* 0x386f8 清的是 record +3 的 transient selection byte；SDL 的
-     * +3 是持久 facing direction，不能把它错误清为 0。 */
+    for (size_t i = 0; i < game->units.count; i++)
+        game->units.items[i].direction = 0;
     game->selected_unit = -1;
     game->command_selected = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
@@ -1818,6 +1906,12 @@ int fd2_field_game_commit_ai_physical(
     int commit_result = execute_path_playback(
         game, vga, frame_delay_ms, 0);
     if (commit_result == 0) {
+        /* 原版 AI path player 不执行玩家逐步的 match_arg 0 lookup；
+         * 唯一 cell lookup 位于 AI common tail，参数固定为 1。 */
+        game->event_log_count = session_snapshot.event_log_count;
+        game->event_total_count = session_snapshot.event_total_count;
+        game->unhandled_event_count = session_snapshot.unhandled_event_count;
+        game->dropped_event_count = session_snapshot.dropped_event_count;
         fd2_field_unit *target = &game->units.items[plan->unit_index];
         if (actor->hp == 0 || target->hp == 0 ||
             fd2_field_unit_is_hidden(actor) ||
@@ -1976,8 +2070,10 @@ static void inventory_slot_remove(fd2_field_unit *unit, size_t slot_index) {
         record[0x0au + slot * 2u] = record[0x0cu + slot * 2u];
         record[0x0bu + slot * 2u] = record[0x0du + slot * 2u];
     }
+    /* field_unit_inventory_slot_remove @corrected dual 0x1b8e7 以 memcpy
+     * 左移 (7-slot)*2 字节，最后只写 flag byte +0x18=0x80；+0x19 的
+     * item ID 保留为不可见 stale 值，不能擅自规范化为 0xff。 */
     record[0x18u] = 0x80u;
-    record[0x19u] = 0xffu;
 }
 
 int fd2_field_game_commit_ai_item(
@@ -2006,8 +2102,11 @@ int fd2_field_game_commit_ai_item(
     uint16_t value = item ? (uint16_t)item[0x0eu] |
         ((uint16_t)item[0x0fu] << 8) : 0u;
     /* 0x20c6f 的物品 dispatcher：AI 评分涉及 code 5/13/20/21/24。
-     * 后三者经不同视觉 wrapper 进入 field_magic_damage_profile_apply
-     * @正确 dual 0x1c75e；item value 是传给该 core 的 magic ID。 */
+     * code 5/13 先共用 0x211a4，逐目标以 item value 调用恢复 core
+     * 0x1c916；只有 code 5 随后在 0x20d24 移除并压紧原 slot。
+     * code 20/24 共用 0x20f6d 分支；code 21 调用 0x2111a，三者最后
+     * 都逐目标进入 field_magic_damage_profile_apply @正确 dual 0x1c75e。
+     * item value 是传给该 core 的 magic ID，code 13/20/21/24 均不消耗。 */
     if (!item || (code != 5u && code != 13u && code != 20u &&
                   code != 21u && code != 24u))
         return -1;
@@ -2083,6 +2182,8 @@ static int commit_ai_path(fd2_field_game *game,
     if (path_length == 0) return 0;
     fd2_field_game snapshot = *game;
     fd2_field_unit *actor = &game->units.items[actor_index];
+    int start_x = actor->x;
+    int start_y = actor->y;
     game->selected_unit = (int)actor_index;
     game->move_origin_x = actor->x;
     game->move_origin_y = actor->y;
@@ -2101,6 +2202,18 @@ static int commit_ai_path(fd2_field_game *game,
     game->move_path_length = snapshot.move_path_length;
     game->move_preview_valid = snapshot.move_preview_valid;
     if (result != 0) {
+        *game = snapshot;
+        return -1;
+    }
+    /* AI 路径与玩家路径播放器共享状态提交，但原版 AI 只在 common tail
+     * 以 match_arg 1 查询最终格；不能沿途产生 match_arg 0 事件。丢弃
+     * 本次 playback 追加的 notice/counter，不影响此前日志。 */
+    game->event_log_count = snapshot.event_log_count;
+    game->event_total_count = snapshot.event_total_count;
+    game->unhandled_event_count = snapshot.unhandled_event_count;
+    game->dropped_event_count = snapshot.dropped_event_count;
+    /* 防御性检查：非空路径必须改变坐标；否则按提交失败回滚。 */
+    if (actor->x == start_x && actor->y == start_y) {
         *game = snapshot;
         return -1;
     }
@@ -2465,7 +2578,10 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             return moved;
         }
         case 8:
-            /* 原版直接离开 AI core，不执行 cell-event/acted common tail。 */
+            /* corrected dual 0x13d97..0x13d9a 直接跳到 AI function epilogue，
+             * 不执行 cell lookup、acted 或全表 direction reset。outer side
+             * loop 仍执行 stage handler；SDL phase cursor 随后越过该 actor，
+             * 不能因其保持 unacted 而在同一 phase 重复调度。 */
             *run_common_tail = 0;
             return 0;
         case 9: {
@@ -2538,6 +2654,11 @@ int fd2_field_game_process_automatic_action_visual(
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return 0;
+    /* side 1/0 outer loop 原本在每个 raw actor（包括阵营不符、hidden、
+     * acted、状态阻断或 AI gate 拒绝者）后无条件调用 DS:0x1b19[stage]。
+     * 当前正式 session 只开放 stage 0；其 handler 只依赖整张 actor 表，
+     * 因而可在分步 scheduler 入口及每次已提交动作后等价刷新。其他
+     * stage 的私有 handler 未恢复，不能用通用全灭判定冒充其脚本。 */
     game->battle_result = fd2_field_game_battle_result(game);
     if (game->battle_result != FD2_FIELD_BATTLE_ONGOING) return 0;
     /* tick 只安排自动阶段时间；有 VGA 的 play owner 负责同步路径演出，
@@ -2545,12 +2666,19 @@ int fd2_field_game_process_automatic_action_visual(
     if (!vga && frame_delay_ms != 0u) return 0;
 
     /* side1/side0 均按 raw actor index 升序，而不是旧 skeleton 的环形
-     * phase cursor。正确 dual 0x1d8ba 的 side0 第一轮只让 magic/item
-     * candidate >=6 的 actor 先执行；随后第二轮处理尚未 acted 的单位。 */
+     * phase cursor。AI 入口复现 flags `&0x05` gate：hidden bit 0、
+     * AI-ineligible bit 2 均不进入自动行动。正确 dual 0x1d8ba 的 side0
+     * 第一轮只让 magic/item
+     * candidate >=6 的 actor 先执行；随后第二轮处理尚未 acted 的单位。
+     * phase_ai_pass==0 且 cursor==0 是 side 0 尚未开始的唯一入口状态；
+     * 此处复现原版 side 1 phase 返回后的全表 acted 清除。 */
+    if (game->active_side == 0u && game->phase_ai_pass == 0u &&
+        game->phase_unit_cursor == 0u)
+        clear_all_acted(game);
     if (game->active_side == 0u && game->phase_ai_pass == 0u) {
         for (size_t i = game->phase_unit_cursor; i < game->units.count; i++) {
             fd2_field_unit *unit = &game->units.items[i];
-            if (!unit_can_act_for_side(unit, 0u) ||
+            if (!ai_unit_can_execute(unit, 0u) ||
                 fd2_field_unit_has_acted(unit) ||
                 unit->detail_status[1] != 0u)
                 continue;
@@ -2566,6 +2694,7 @@ int fd2_field_game_process_automatic_action_visual(
             game->phase_unit_cursor = i + 1u;
             game->cursor_cell_x = unit->x;
             game->cursor_cell_y = unit->y;
+            uint32_t unhandled_before = game->unhandled_event_count;
             int run_common_tail = 1;
             int action_result = run_ai_behavior(
                 game, i, vga, frame_delay_ms, &run_common_tail);
@@ -2574,6 +2703,14 @@ int fd2_field_game_process_automatic_action_visual(
                 !fd2_field_unit_has_acted(&game->units.items[i]) &&
                 finish_ai_action(game, i) != 0)
                 return -1;
+            /* side phase owner 在 AI 返回后才按 DS:0x1b91[event_code]
+             * 分派 cell handler。SDL 尚未恢复这些 stage-private handler；
+             * 动作与 acted 已提交后必须停止，不能继续下一个 actor，亦
+             * 不能伪造外部 RNG 回滚。 */
+            if (game->unhandled_event_count != unhandled_before)
+                return -1;
+            /* 等价于本 raw actor 的 cell handler 返回后调用 stage 0
+             * DS:0x1b19 handler；必须先于下一 actor 和 phase 推进。 */
             game->battle_result = fd2_field_game_battle_result(game);
             if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
                 return 1;
@@ -2587,12 +2724,13 @@ int fd2_field_game_process_automatic_action_visual(
 
     for (size_t i = game->phase_unit_cursor; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
-        if (!unit_can_act_for_side(unit, game->active_side) ||
+        if (!ai_unit_can_execute(unit, game->active_side) ||
             fd2_field_unit_has_acted(unit) || unit->detail_status[1] != 0u)
             continue;
         game->phase_unit_cursor = i + 1u;
         game->cursor_cell_x = unit->x;
         game->cursor_cell_y = unit->y;
+        uint32_t unhandled_before = game->unhandled_event_count;
         int run_common_tail = 1;
         int action_result = run_ai_behavior(
             game, i, vga, frame_delay_ms, &run_common_tail);
@@ -2603,6 +2741,12 @@ int fd2_field_game_process_automatic_action_visual(
             !fd2_field_unit_has_acted(&game->units.items[i]) &&
             finish_ai_action(game, i) != 0)
             return -1;
+        /* 原版 outer side loop 此时才调用 DS:0x1b91[cell_code]。未知
+         * handler 不得按「无事件」继续；保留已提交动作并显式停机。 */
+        if (game->unhandled_event_count != unhandled_before)
+            return -1;
+        /* 原版 stage handler 对本 raw actor 无条件执行；stage 0 的
+         * 全表结果门在动作提交后于此刷新。 */
         game->battle_result = fd2_field_game_battle_result(game);
         if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
             return 1;

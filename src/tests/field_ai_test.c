@@ -249,6 +249,26 @@ static int test_magic_and_item_scoring(void) {
     CHECK(magic_choice.score == 24 && magic_choice.tie_value == 50);
     CHECK(memcmp(&magic_before, &magic_units, sizeof(magic_units)) == 0);
 
+    /* record +6 是目标阵营 filter，不是效果／伤害开关：selector_mode 0
+     * 会把 +6==0 反转为 filter 1；selector_mode 非 0 则直接使用 +6。
+     * magic 13 的 +6==1 因而在 mode 1 仍选择 side 非 0 目标。 */
+    uint8_t target_indices[FD2_FIELD_MAX_UNITS];
+    size_t target_count = 0;
+    CHECK(fd2_field_ai_collect_magic_targets(
+              &map, &terrain, &magic_units, 0, 2, 1, 0,
+              target_indices, sizeof(target_indices), &target_count) == 0);
+    CHECK(target_count == 1 && target_indices[0] == 1);
+    target_count = 0;
+    CHECK(fd2_field_ai_collect_magic_targets(
+              &map, &terrain, &magic_units, 0, 1, 1, 1,
+              target_indices, sizeof(target_indices), &target_count) == 0);
+    CHECK(target_count == 1 && target_indices[0] == 0);
+    target_count = 0;
+    CHECK(fd2_field_ai_collect_magic_targets(
+              &map, &terrain, &magic_units, 13, 2, 1, 1,
+              target_indices, sizeof(target_indices), &target_count) == 0);
+    CHECK(target_count == 1 && target_indices[0] == 1);
+
     /* item 192：outer range 1、inner range 0、filter 0；目标格本身
      * 成为严格正分候选。其余空槽 item 0 的 dispatch code 为 0。 */
     fd2_field_units item_units = {0};

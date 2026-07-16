@@ -106,6 +106,12 @@ static int apply_damage(uint8_t magic_id,
                         void *rng_userdata) {
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
     if (!record) return -1;
+    /* DS:0x1d01 的 IDs 0..8 wrappers 进入 0x55115 动画；其主体在
+     * corrected dual 0x30958 逐目标调用 0x1c75e 并以提交后的 HP 驱动
+     * 插值演出。ID 9 的独立 wrapper @0x214ad 也直接进入同一 core。
+     * 只有 IDs 10..12
+     * 在 0x1c7c6..0x1c7eb 额外调用 0x1f183 并对命中对象直接免疫。
+     * 该判定与 magic record +6 的目标阵营 filter 无关。 */
     if (magic_id >= 10u && magic_id <= 12u &&
         fd2_field_attack_unit_ignores_terrain_modifier(target))
         return 0;
@@ -133,6 +139,10 @@ static int apply_heal(uint8_t magic_id,
                       void *rng_userdata) {
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
     if (!target || !record || !rng) return -1;
+    /* DS:0x1d01[13..16] wrappers @0x21ad9/0x21b99/0x2211c/0x22153
+     * 最终都逐目标调用 0x1c8ed→0x1c916。该 core 直接取 record u16 +0，
+     * 不做命中或 profile 免疫；每个目标仅消费一次 spread RNG，即使
+     * HP 已满也照常消费，最后把结果 cap 到 hp_max。 */
     uint32_t power = fd2_field_magic_u16(record, 0);
     uint32_t spread = rng(rng_userdata) % 100u;
     uint64_t heal = (uint64_t)(power * 9u / 10u) +
@@ -186,16 +196,23 @@ int fd2_field_magic_apply_known_effect(
         return 1;
     }
     if (magic_id == 20u) {
+        /* 0x22a85 wrapper 传 offset +0x25 给共享 0x22af6；仅在 byte
+         * 非零时清零，不消费 RNG，也不触发属性重算。 */
         if (target->detail_status[0] == 0u) return 0;
         target->detail_status[0] = 0;
         return 1;
     }
     if (magic_id == 21u) {
+        /* 0x22bc6 wrapper 同一 core，offset 改为 +0x26。 */
         if (target->detail_status[1] == 0u) return 0;
         target->detail_status[1] = 0;
         return 1;
     }
     if (magic_id == 22u || magic_id == 26u || magic_id == 27u) {
+        /* 0x22be1/0x22cbf/0x22e41 仅改变传给共享 0x22cda 的状态
+         * offset：ID 22→+0x27、26→+0x25、27→+0x26。三者共用
+         * status==0、profile 25/26 免疫、50% gate、固定伤害 10 和
+         * duration RNG 顺序。 */
         uint8_t *status = magic_id == 22u ? &target->detail_status[2] :
                           magic_id == 26u ? &target->detail_status[0] :
                                             &target->detail_status[1];
@@ -211,6 +228,8 @@ int fd2_field_magic_apply_known_effect(
         return 1;
     }
     if (magic_id == 25u) {
+        /* 0x22c04：逐目标 test flags&0x80；命中时仅执行 flags&=0x7f，
+         * 其他 flag bits 保持，且不消费 RNG。 */
         if ((target->flags & FD2_FIELD_UNIT_FLAG_ACTED) == 0u) return 0;
         target->flags &= (uint8_t)~FD2_FIELD_UNIT_FLAG_ACTED;
         return 1;

@@ -23,6 +23,7 @@
 #define FD2_FIELD_MAX_UNITS 64
 #define FD2_FIELD_UNIT_NO_TEMPLATE UINT16_MAX
 #define FD2_FIELD_UNIT_FLAG_HIDDEN 0x01u
+#define FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE 0x04u /* AI entry flags &0x05 gate */
 #define FD2_FIELD_UNIT_FLAG_ACTED 0x80u
 
 typedef struct {
@@ -32,7 +33,7 @@ typedef struct {
     uint8_t sprite_cache_class; /* 0x02: FD2.TMP 运行期 cache class */
     uint8_t direction;          /* 0x03: 0下、1左、2上、3右 */
     uint8_t frame_phase;        /* 0x04: 移动相位 1..6；0 为静止 */
-    uint8_t flags;              /* 0x05: bit0 隐藏/失效 */
+    uint8_t flags;              /* 0x05: bit0 隐藏，bit2 AI 不可执行，bit7 acted */
     uint8_t side;               /* 0x06: 阵营 */
     uint8_t unit_id;            /* 0x07: FDICON/DATO 稳定单位编号 */
     uint8_t text_id;            /* 0x08: FDTXT 说话角色查找编号 */

@@ -226,6 +226,8 @@ stage metadata 条目（`stage*3+1`）当前确认：
 0x83   26*N       unit_templates，单位/对象模板记录，N=(size-0x83)/26
 ```
 
+`field_cell_event_lookup @0x38c58` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID，并要求地形 flags `&0x60==0`。玩家路径每完成一步以 `match_arg=0` 查询；玩家行动结束和 AI common tail 以 `match_arg=1` 查询。AI 移动过程不执行逐步的 match 0 查询，只在最终格查询一次 match 1。查询只把 `event_code` 写入 `DS:0x1a8f`；side 1/0 outer loop 在 AI 返回后以该值索引 `DS:0x1b91`，并把 actor index 传给 handler，然后才执行 stage handler。
+
 placement 条目（`stage*3+2`）当前确认：
 
 ```
@@ -303,7 +305,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - `field_ai_magic_targets_score @0x3ad8b` 按 magic ID 分派：`0..12` 对每个目标按 `HP >= record.u16(+0)` 取 `8/24`，`text_id==0` 再乘 `1.5`；`13..16` 按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`（严格小于 `1/3` 才取 `8`，严格小于 `1/2` 取 `3`），actor `+0x34 bit0` 翻倍；`17..22、26、27` 按 `+0x22..+0x27` 原始字节和已知法术位图评分。`field_ai_magic_candidate_evaluate @0x3ab9e` 严格高分替换；平分只在 record `u16 +0` 严格更大时替换。
 - `field_ai_item_targets_score @0x3aa94` 只识别 item `+0x0d` code `5/13/20/21/24`。code `5/13` 在目标循环内按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`，并受目标 `+0x34 bit7` 三倍修正；`code 20/21` 先把 `+0x0e` 作为 magic ID 查询 7 字节表的 `u16 +0`，code `24` 直接使用该值，再对当前 HP 严格大于阈值的目标计分。`field_ai_item_candidate_evaluate @0x3a892` 仅在新分数严格更大时替换，分数为 0 时坐标／槽位不视为有效候选。SDL 的 M7.2 保持纯查询，不提交移动、效果、消耗、RNG 或 acted/phase 状态。
 - `field_ai_try_attack @0x3a104` 的物理／法术平价不是固定布尔值：magic ID `<11` 时读取 spell record `u16 +0`，与 actor `+0x48` attack 减去物理候选目标 `+0x4a` defense 的 32 位结果比较；spell 值严格小于差值时选物理，否则选法术。magic ID `>=11` 时由 actor `+0x34 bit6` 决定；物理／物品平价也使用该 bit。SDL 的 `fd2_field_ai_select_attack_action_for_candidates()` 复现此门控，完全三平返回 `HANDLED_NOOP` 并停止 fallback；三项全低仍继续移动 fallback。
-- `field_ai_move_toward_cell @0x39d8c`（正确 dual `0x14b78`）在目的地排序后重建方向路径，并调用 `field_actor_path_play @0x3869c` 提交坐标。SDL 的 AI commit 保持 query/commit 分层：物理、法术和物品提交前均以当前状态重算候选；AI 路径不进入玩家 COMMAND 菜单。`field_path_find @0x7370a` 的正确 dual `0x4e4f6` 已确认 mode 1 的等剩余成本方向变化 tie-break，以及 mode 2 的 hostile occupied witness；`0x39d8c` direct probe 失败后使用固定预算 `0x1c` 的 mode 1 长路径，并截取本回合最后可达 anchor。物品 dispatcher code 20/21/24 将 item `u16 +0x0e` 作为 magic ID 传入共享 damage core，而不是 raw damage／MP 值。缺少完整 gameplay 语义的特殊 handler 继续显式拒绝，不降级为另一动作。
+- `field_ai_move_toward_cell @0x39d8c`（正确 dual `0x14b78`）在目的地排序后重建方向路径，并调用 `field_actor_path_play @0x3869c` 提交坐标。SDL 的 AI commit 保持 query/commit 分层：物理、法术和物品提交前均以当前状态重算候选；AI 路径不进入玩家 COMMAND 菜单。`field_path_find @0x7370a` 的正确 dual `0x4e4f6` 已确认 mode 1 的等剩余成本方向变化 tie-break，以及 mode 2 的 hostile occupied witness；`0x39d8c` direct probe 失败后使用固定预算 `0x1c` 的 mode 1 长路径，并截取本回合最后可达 anchor。物品 dispatcher code 5/13 将 item `u16 +0x0e` 作为恢复量传入共享 HP core `0x1c916`，逐目标消费一次 spread RNG；只有 code 5 在 `0x20d24` 移除物品。`field_unit_inventory_slot_remove @0x1b8e7` 左移后续双字节槽，末槽只写 flag byte `+0x18=0x80`，不会清除 `+0x19` 的 stale item ID。code 20/21/24 则将 item `u16 +0x0e` 作为 magic ID 传入共享 damage core，而不是 raw damage／MP 值；code 20/24 共用 `0x20f6d` wrapper，code 21 使用 `0x2111a`，三者保留原物品槽。缺少完整 gameplay 语义的特殊 handler 继续显式拒绝，不降级为另一动作。
 
 第一关新游戏索尔的详情页实机值为 HIT/AP/EV/DP=`97/16/2/12`，装备为短剑 `AP+10`、皮甲 `DP+8`、药草 `HP+40`。SDL 新游戏正式单位记录已应用同一组确认装备，并通过统一战斗属性重算生成最终数值。
 

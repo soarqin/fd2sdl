@@ -1,8 +1,10 @@
 /* 炎龙骑士团 2 SDL3 重写 - 标题菜单反馈状态
  *
  * 逆向依据：title_action_menu @code0 0xf894：
+ * - animation_play @code0 0x1043f..0x10552 为 ANI[1] 加载
+ *   FDOTHER[78]，并在 frame 0 解码后、首个 delay 前播放 SFX 0；
  * - 0xf8d6..0xf8e6 将 FDOTHER[77] 保存到 local +0x54；
- * - 标题滚动飞行期间以 primary handle 播放 SFX 0；
+ * - 片头滚动期间以 primary handle 播放 FDOTHER[77] SFX 0；
  * - 标题入口以 secondary handle 播放 SFX 3；
  * - Up／Down 以 primary handle 播放 SFX 2；
  * - 确认以 primary handle 播放 SFX 1；
@@ -26,7 +28,10 @@ typedef enum {
 } fd2_title_sfx_handle;
 
 #define FD2_TITLE_SFX_BANK 77
+#define FD2_TITLE_LETTER_FLY_SFX_BANK 78
+#define FD2_TITLE_LETTER_FLY_SFX_SAMPLE 0
 #define FD2_TITLE_FLIGHT_TRIGGER_COUNT 14
+#define FD2_TITLE_LIGHTNING_FLASH_COUNT 11
 
 #define FD2_TITLE_CONFIRM_FLASH_CYCLES 4
 #define FD2_TITLE_CONFIRM_FLASH_FRAMES (FD2_TITLE_CONFIRM_FLASH_CYCLES * 2)
@@ -40,6 +45,10 @@ int fd2_title_sfx_resolve(fd2_title_sfx cue,
  * 命中下一项时以 primary handle 重启 SFX 0。末项 1000 不会被
  * scroll_y=0x217..0 命中，因此有效触发共 14 次。 */
 int fd2_title_flight_sfx_for_scroll_y(int scroll_y);
+
+/* FDOTHER[102] 仅在滚动音效触发后的 11 帧生效，下一帧恢复
+ * FDOTHER[101]。这组调色板差异构成打雷发光效果。 */
+int fd2_title_lightning_flash_for_scroll_y(int scroll_y);
 
 /* frame 0 先显示 normal，frame 1 恢复 highlight；共 8 帧。
  * 对应 code0 0xfef0..0xff30 的两次 draw + 80 ms、循环 4 次。 */

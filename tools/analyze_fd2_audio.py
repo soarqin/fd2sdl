@@ -6,7 +6,8 @@
 - sfx_play @0x4acaa 按嵌套 offset 表提交样本地址与长度；
 - DAT_00003eec / DAT_00003b13 分别固定加载 FDOTHER[31]/[80]；
 - title_action_menu @code0 0xf8d6 加载 FDOTHER[77]，SFX 0/1/2/3 分别用于
-  标题飞行／确认／移动／action 入场；primary/secondary 只区分 AIL handle。
+  片头滚动／确认／移动／action 入场；primary/secondary 只区分 AIL handle；
+- animation_play @code0 0x1043f 为 ANI[1] 加载 FDOTHER[78]，首帧前播放 SFX 0。
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 MAGIC = b"LLLLLL"
-SFX_BANK_ENTRIES = (31, 77, 80)
+SFX_BANK_ENTRIES = (31, 77, 78, 80)
 STAGE_MUSIC_FILE_OFFSET = 0x76E73
 STAGE_MUSIC_COUNT = 30
 
@@ -154,7 +155,7 @@ def main() -> int:
     parser.add_argument("--fd2-exe", default="original_game/FD2.EXE")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--extract-sfx-dir", type=Path,
-                        help="按 AIL 默认参数导出 FDOTHER[31]/[77]/[80] WAV")
+                        help="按 AIL 默认参数导出 FDOTHER[31]/[77]/[78]/[80] WAV")
     parser.add_argument("--extract-music-dir", type=Path,
                         help="导出 FDMUS 中 15 个有效 XMIDI entry")
     args = parser.parse_args()

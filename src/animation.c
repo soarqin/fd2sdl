@@ -149,9 +149,11 @@ static int afm_exec_frame(fd2_vga *vga, const uint8_t *data, size_t len,
     return (pos == len) ? 0 : -1;
 }
 
-int fd2_animation_play(fd2_vga *vga, const fd2_archive *ani,
-                       int anim_idx, uint32_t frame_delay_ms,
-                       int check_input) {
+int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
+                              int anim_idx, uint32_t frame_delay_ms,
+                              int check_input,
+                              fd2_animation_frame_hook hook,
+                              void *hook_userdata) {
     const uint8_t *entry;
     size_t entry_len;
     if (anim_idx < 0 || fd2_archive_get(ani, (size_t)anim_idx, &entry, &entry_len) != 0) {
@@ -180,11 +182,23 @@ int fd2_animation_play(fd2_vga *vga, const fd2_archive *ani,
             return -1;
         }
         pos += data_len;
+        if (hook) hook(hook_userdata, frame);
 
-        fd2_vga_present_timed(vga, frame_delay_ms);
+        /* animation_play @code0 0x10555：每帧字节码和可选音效处理完成后
+         * 固定等待调用方给出的毫秒数。不能使用跨帧 absolute deadline
+         * 把下一帧解码时间抵扣掉，否则大型 cutaway ANI 会明显偏快。 */
+        fd2_vga_present(vga);
+        fd2_delay_ms(frame_delay_ms);
         fd2_input_pump(&vga->input);
         if (fd2_input_take_quit(&vga->input)) return -2;
         if (check_input && fd2_input_has_any_key(&vga->input)) return 1;
     }
     return 0;
+}
+
+int fd2_animation_play(fd2_vga *vga, const fd2_archive *ani,
+                       int anim_idx, uint32_t frame_delay_ms,
+                       int check_input) {
+    return fd2_animation_play_hooked(vga, ani, anim_idx, frame_delay_ms,
+                                     check_input, NULL, NULL);
 }

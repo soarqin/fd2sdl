@@ -36,6 +36,16 @@ int fd2_title_flight_sfx_for_scroll_y(int scroll_y) {
     return 0;
 }
 
+int fd2_title_lightning_flash_for_scroll_y(int scroll_y) {
+    static const int trigger_y[FD2_TITLE_LIGHTNING_FLASH_COUNT] = {
+        520, 430, 410, 340, 310, 300, 240, 180, 150, 130, 87,
+    };
+    for (size_t i = 0; i < FD2_TITLE_LIGHTNING_FLASH_COUNT; i++) {
+        if (scroll_y == trigger_y[i]) return 1;
+    }
+    return 0;
+}
+
 int fd2_title_confirm_highlight_for_frame(int frame) {
     if (frame < 0 || frame >= FD2_TITLE_CONFIRM_FLASH_FRAMES) return -1;
     return frame & 1;

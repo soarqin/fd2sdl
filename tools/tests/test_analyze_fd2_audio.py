@@ -47,6 +47,7 @@ class AudioArchiveTest(unittest.TestCase):
         fdother_entries[31] = make_archive([bytes([0x80, 0x81]),
                                             bytes([0x7f])])
         fdother_entries[77] = make_archive([bytes([0x81, 0x81])])
+        fdother_entries[78] = make_archive([bytes([0x82])])
         fdother_entries[80] = make_archive([bytes([0x80, 0x80, 0x80])])
         result = analyze(fdmus, make_archive(fdother_entries))
         self.assertEqual(result["music"]["entry_count"], 3)
@@ -62,7 +63,10 @@ class AudioArchiveTest(unittest.TestCase):
         self.assertEqual(result["sfx_banks"][1]["fdother_entry"], 77)
         self.assertEqual(result["sfx_banks"][1]["samples"][0]["mean"],
                          129.0)
+        self.assertEqual(result["sfx_banks"][2]["fdother_entry"], 78)
         self.assertEqual(result["sfx_banks"][2]["samples"][0]["mean"],
+                         130.0)
+        self.assertEqual(result["sfx_banks"][3]["samples"][0]["mean"],
                          128.0)
 
     def test_stage_music_tables(self) -> None:
@@ -90,10 +94,11 @@ class AudioArchiveTest(unittest.TestCase):
         entries = [b"x"] * 81
         entries[31] = make_archive([bytes([0x80, 0x81])])
         entries[77] = make_archive([bytes([0x80])])
+        entries[78] = make_archive([bytes([0x81])])
         entries[80] = make_archive([bytes([0x7f])])
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
-            self.assertEqual(extract_sfx_wavs(make_archive(entries), output), 3)
+            self.assertEqual(extract_sfx_wavs(make_archive(entries), output), 4)
             with wave.open(str(output / "fdother031_00.wav"), "rb") as wav:
                 self.assertEqual(wav.getframerate(), 11025)
                 self.assertEqual(wav.getnchannels(), 1)

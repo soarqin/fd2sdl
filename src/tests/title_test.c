@@ -43,6 +43,8 @@ int main(void) {
     fd2_title_sfx_handle handle;
     size_t sample;
     CHECK(FD2_TITLE_SFX_BANK == 77);
+    CHECK(FD2_TITLE_LETTER_FLY_SFX_BANK == 78);
+    CHECK(FD2_TITLE_LETTER_FLY_SFX_SAMPLE == 0);
     CHECK(fd2_title_sfx_resolve((fd2_title_sfx)99, &handle, &sample) != 0);
 
     static const int flight_trigger_y[FD2_TITLE_FLIGHT_TRIGGER_COUNT] = {
@@ -60,6 +62,23 @@ int main(void) {
     }
     CHECK(trigger_count == FD2_TITLE_FLIGHT_TRIGGER_COUNT);
     CHECK(!fd2_title_flight_sfx_for_scroll_y(1000));
+
+    static const int lightning_y[FD2_TITLE_LIGHTNING_FLASH_COUNT] = {
+        520, 430, 410, 340, 310, 300, 240, 180, 150, 130, 87,
+    };
+    int lightning_count = 0;
+    for (int scroll_y = 0x217; scroll_y >= 0; scroll_y--) {
+        int expected = 0;
+        for (size_t i = 0; i < sizeof(lightning_y) /
+                                      sizeof(lightning_y[0]); i++)
+            expected |= scroll_y == lightning_y[i];
+        CHECK(fd2_title_lightning_flash_for_scroll_y(scroll_y) == expected);
+        lightning_count += expected;
+    }
+    CHECK(lightning_count == FD2_TITLE_LIGHTNING_FLASH_COUNT);
+    CHECK(!fd2_title_lightning_flash_for_scroll_y(110));
+    CHECK(!fd2_title_lightning_flash_for_scroll_y(64));
+    CHECK(!fd2_title_lightning_flash_for_scroll_y(22));
 
     CHECK(FD2_TITLE_CONFIRM_FLASH_FRAMES == 8);
     CHECK(FD2_TITLE_CONFIRM_FLASH_DELAY_MS == 80);

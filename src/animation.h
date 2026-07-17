@@ -20,6 +20,17 @@
  *   FUN_000346ca @0x5c196  opcode 8: 稀疏等值 run 写入
  *   FUN_000346f4 @0x5c1c0  opcode 9: 稀疏 literal 写入
  */
+typedef void (*fd2_animation_frame_hook)(void *userdata,
+                                         uint16_t frame_index);
+
+/* hook 在每帧字节码解码完成、present/delay 之前调用。原版 ANI[1]
+ * 在该边界的 frame 0 启动 FDOTHER[78] SFX 0。 */
+int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
+                              int anim_idx, uint32_t frame_delay_ms,
+                              int check_input,
+                              fd2_animation_frame_hook hook,
+                              void *hook_userdata);
+
 int fd2_animation_play(fd2_vga *vga, const fd2_archive *ani,
                        int anim_idx, uint32_t frame_delay_ms,
                        int check_input);

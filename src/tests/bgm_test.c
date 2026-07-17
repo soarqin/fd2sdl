@@ -54,7 +54,9 @@ int main(void) {
     /* 原版重复请求同 track 直接返回，不重启 sequence。 */
     CHECK(fd2_bgm_play(bgm, 18, 0) == 0);
 
-    CHECK(fd2_bgm_play(bgm, 11, 1) == 0);
+    /* new_game_opening_play @code0 0x22413..0x22417：标题曲之后
+     * 以 loop_count=0 切换到过场 track 11。 */
+    CHECK(fd2_bgm_play(bgm, 11, 0) == 0);
     CHECK(fd2_bgm_current_track(bgm) == 11);
     CHECK(render_energy(audio, 48000u) > 10.0);
     CHECK(fd2_bgm_stop(bgm) == 0);

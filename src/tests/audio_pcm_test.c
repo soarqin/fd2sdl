@@ -58,6 +58,7 @@ static int test_field_sfx_mapping(void) {
         {FD2_FIELD_SFX_DETAIL_OPEN, FD2_FIELD_SFX_BANK_UI, 5},
         {FD2_FIELD_SFX_DETAIL_CLOSE, FD2_FIELD_SFX_BANK_UI, 6},
         {FD2_FIELD_SFX_COMMAND_MENU, FD2_FIELD_SFX_BANK_UI, 8},
+        {FD2_FIELD_SFX_DIALOG_GLYPH, FD2_FIELD_SFX_BANK_UI, 2},
         {FD2_FIELD_SFX_ACTOR_GROUP_FLASH, FD2_FIELD_SFX_BANK_BATTLE, 1},
         {FD2_FIELD_SFX_STAGE_TRANSITION, FD2_FIELD_SFX_BANK_BATTLE, 11},
         {FD2_FIELD_SFX_EARTHQUAKE, FD2_FIELD_SFX_BANK_BATTLE, 13},
@@ -93,6 +94,9 @@ static int test_field_audio_dispatch(void) {
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
     CHECK(near(output[0], 5.0f / 128.0f));
+    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DIALOG_GLYPH) == 0);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 2.0f / 128.0f));
     CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_FLASH) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);

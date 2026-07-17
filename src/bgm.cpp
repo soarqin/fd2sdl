@@ -2,7 +2,7 @@
  *
  * 逆向依据：music_track_play @0x4ab8b 从 FDMUS.DAT 取一项 XMIDI，
  * 初始化单一 sequence；loop_count 0 表示循环，track -1 表示停止。
- * new_game_opening_play @dual 0x57629 明确调用 track 11。
+ * new_game_opening_play @code0 0x22413..0x22417 明确调用 track 11。
  *
  * XMIDI 时序使用 BW MIDI Sequencer（MIT；其中 XMI 转换为 LGPL-2.1+）。
  * OPL 寄存器合成器由

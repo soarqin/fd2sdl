@@ -2714,7 +2714,8 @@ void FUN_0003b12c(int param_1,int param_2,int param_3,int param_4,int param_5,in
 }
 
 
-// FUNC 0x3b198 text_dialog_render_tokens
+// FUNC 0x15f84 text_dialog_render_tokens  /* corrected dual；code0 0x5f84。旧导出将函数体错标为 0x3b198 */
+// LEGACY FUNC 0x3b198 FUN_000136cc  /* 非当前权威函数地址 */
 
 void text_dialog_render_tokens(void)
 
@@ -2910,6 +2911,8 @@ LAB_0003b3e2:
   } while( true );
 }
 
+
+// FUNC 0x164e8 text_dialog_glyph_step  /* corrected dual；code0 0x64e8。每个逐字字形调用 sfx_play(DAT_00003eec,2,1) 后等待 1 BIOS tick；旧导出未识别独立函数体 */
 
 // FUNC 0x3b6fc FUN_0003b6fc
 
@@ -3462,7 +3465,8 @@ void field_command_menu_input(void)
 }
 
 
-// FUNC 0x3ccbd bios_tick_delay
+// FUNC 0x17aa9 bios_tick_delay  /* corrected dual；code0 0x7aa9。旧导出将函数体错标为 0x3ccbd */
+// LEGACY FUNC 0x3ccbd FUN_000151f1  /* 非当前权威函数地址 */
 
 void bios_tick_delay(void)
 
@@ -12268,7 +12272,8 @@ LAB_00057523:
 }
 
 
-// FUNC 0x5752f new_game_opening_play  /* stage 32→31→0；0x57629 启动 opening track 11 */
+// FUNC 0x3231b new_game_opening_play  /* corrected dual；code0 0x2231b。0x223dd 停标题曲，0x22413 启动 opening track 11；旧导出函数体错标为 0x5752f */
+// LEGACY FUNC 0x5752f FUN_0002fa63  /* 非当前权威函数地址 */
 
 void new_game_opening_play(void)
 

@@ -116,7 +116,7 @@ libADLMIDI 的上游说明确认其具备以下能力：
 3. 已用 Nuked OPL3、AIL volume model 8、单芯片离线渲染 track 1：44100 Hz stereo、46.186 秒；15 项 XMIDI 也均通过 libADLMIDI 的 DOSBox emulator 完成离线渲染。`tools/render_fd2_opl_prototype.sh [track|all]` 可在 `/tmp` 重建外部原型，环境变量 `FD2_ADLMIDI_EMULATOR` 可切换 emulator。
 4. 已从 `FD2.EXE` file `0x76e73`（corrected code0 `0x66073`）提取两组连续 30 字节 stage 曲目表。机器码 `0x35687` 从 `DS:0x1e63[stage]` 读取 primary，`0x3f78e` 从 `DS:0x1e81[stage]` 读取 alternate；两者地址恰好相差 30。stage 0 primary 已静态确认为 track 1，alternate 为 track 4。
 5. `tools/compare_fd2_music_capture.py` 曾将一次来源不够严格的自动化 capture 的 track 19 指纹排在首位，但这与静态 stage 表冲突；该候选已否决，保留为「音频指纹不能替代调用链」的反例。
-6. 另一份 capture 在截图确认的 `new_game_opening_play` 对话期间录制；机器码 `0x57629` 独立证明此处播放 track 11。15 项候选中 track 11 同时取得最高直接波形相关 `0.212089` 和最高短时谱相似度 `0.974435`。这确认 XMIDI、AIL bank、节奏／音色主路径可用，但直接波形相关仍明显低于 PCM 的 0.95，不能宣称逐样本保真。
+6. 另一份 capture 在截图确认的 `new_game_opening_play` 对话期间录制；当前权威 code0 `0x22413..0x22417` 独立证明此处播放 track 11。15 项候选中 track 11 同时取得最高直接波形相关 `0.212089` 和最高短时谱相似度 `0.974435`。这确认 XMIDI、AIL bank、节奏／音色主路径可用，但直接波形相关仍明显低于 PCM 的 0.95，不能宣称逐样本保真。
 7. 原型评审结论：技术路径可行，适合继续比较循环、打击乐和响度；许可证与逐样本差异使完整 libADLMIDI 暂不适合作为当前发布依赖。
 5. 验证后再接入实时 source 接口。
 
@@ -127,7 +127,7 @@ libADLMIDI 上游同时包含 LGPL、GPL 和 MIT 组件：Nuked OPL3 为 LGPL 2.
 | FDMUS entry | 直接调用上下文 |
 |---:|---|
 | 10 | 战斗演出入口和演出结束恢复路径 |
-| 11 | `new_game_opening_play @0x3231b` 在 `0x57629` 启动第一段可交互开场曲；另用于部分战斗结果及复活／转职演出结束后的恢复路径 |
+| 11 | `new_game_opening_play @code0 0x2231b` 在 `0x22413..0x22417` 启动第一段可交互开场曲；另用于部分战斗结果及复活／转职演出结束后的恢复路径 |
 | 13/14/15 | 按 `DAT_00003f4a` 分支选择的战斗结果演出 |
 | 18 | corrected code0 `0x15db1` 在调用 `title_action_dispatch @0x15ebb` 前执行 `music_track_play(18,0)`；片头与标题共用该循环曲目，标题入口不切曲 |
 | 16 | 转职演出，调用方传 loop count 1 |
@@ -183,7 +183,7 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 
 - [x] 实现 `FDMUS.DAT` 播放、停止、循环、切曲和 music bus 音量；普通曲复现 2000 ms 淡入，停止复现 4000 ms 淡出，track 16/17 立即设为满音量。
 - [x] 接入启动片头与标题：corrected code0 `0x15db1` 证明两者共用循环 track 18，跳过片头或重新进入标题时不重启同一曲目。
-- [ ] 接入新游戏开场 track 11、战场 stage 表和战斗演出。
+- [x] 接入新游戏开场 track 11：第二段对白后停止标题曲，movement script 0x64 渐暗后以 loop count 0 启动；战场 stage 表和战斗演出仍待接入。
 - [ ] 处理窗口失焦、暂停、设备切换和存档恢复。
 - [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。Linux 原生构建、SDL dummy 运行和 MinGW Windows 交叉构建已完成；Windows 实机音频与 macOS 构建待对应环境验证。
 

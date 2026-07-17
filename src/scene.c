@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - 完整新游戏初始过场
- * 逆向依据：new_game_opening_play @0x3231b 的 stage 32→31→0
- * 调用序列、text_dialog_render_tokens @0x3b198、field_focus_move_to
+ * 逆向依据：new_game_opening_play @code0 0x2231b 的 stage 32→31→0
+ * 调用序列、text_dialog_render_tokens @code0 0x5f84、field_focus_move_to
  * @0x37efe、field_actor_move_up_follow_camera @0x38399、
  * field_camera_pan_to @0x387f1、field_movement_script_play @0x3887e，
  * 以及原版实机对照。
@@ -21,7 +21,7 @@
 #include "text.h"
 #include "tile.h"
 
-/* 完整新游戏开场由 new_game_opening_play @0x3231b（code0 0x2231b）驱动：
+/* 完整新游戏开场由 new_game_opening_play @code0 0x2231b 驱动：
  * stage 32 / FDTXT[33] → stage 31 / FDTXT[32] → stage 0 / FDTXT[1]。
  * 三段之间穿插 field_camera_pan_to @0x387f1 与
  * field_movement_script_play @0x3887e，不能把 stage 0 fragment 0
@@ -51,8 +51,9 @@
 #define DIALOG_BOTTOM_PORTRAIT_X 8
 #define DIALOG_BOTTOM_PORTRAIT_Y 115
 
-/* bios_tick_delay @0x3ccbd 读取 BIOS 计时器 0x046c；
- * text_dialog_render_tokens @0x3b198 每显示一个字调用一次，约 54.9 ms。
+/* bios_tick_delay @code0 0x7aa9 读取 BIOS 计时器 0x046c；
+ * text_dialog_glyph_step @code0 0x64e8 每显示一个字先调用
+ * sfx_play(DAT_00003eec, 2, 1)，再等待 1 tick，约 54.9 ms。
  * SDL 端取整为 55 ms。dialog_box_open @0x3b7c0 的展开步间等待则
  * 调用 delay_ms(10)，不是 BIOS tick。 */
 #define FD2_BIOS_TICK_MS 55
@@ -62,7 +63,8 @@
  * 时推进一次角色 idle phase，即约每 5 tick / 275 ms 一帧。 */
 #define FD2_IDLE_FRAME_DELAY_MS (FD2_BIOS_TICK_MS * 5)
 
-/* FDTXT 控制码；FUN_000136cc @0x3b198 使用 signed u16 解释。 */
+/* FDTXT 控制码；text_dialog_render_tokens @code0 0x5f84 使用
+ * signed u16 解释。 */
 enum {
     FD2_TEXT_END = -1,
     FD2_TEXT_NEWLINE = -2,
@@ -378,7 +380,7 @@ static void init_opening_field_state(fd2_scene_field_state *state,
             break;
         opening_actor_set(state, i, p->unit_id, p->x, p->y);
         /* stage 31 的模板 offset 0x15 将 actor 0/1、2/3、4 分到
-         * group 1/3/5。new_game_opening_play @0x3231b 分时触发这些组，
+         * group 1/3/5。new_game_opening_play @code0 0x2231b 分时触发这些组，
          * 并由 field_actor_group_arrival_effect @0x57bad 播放登场效果；
          * 不能在场景加载时一次显示五人。 */
         if (stage == FD2_OPENING_STAGE_31 && i >= 2)
@@ -764,17 +766,8 @@ static void redraw_dialog(fd2_vga *vga,
     state->line = 0;
 }
 
-static void wait_or_skip(fd2_vga *vga, int ms, int *skip) {
+static void wait_for_dialog_step(fd2_vga *vga, int ms, int *skip) {
     if (!vga || !skip || *skip) return;
-    fd2_input_pump(&vga->input);
-    if (scene_host_quit_requested || fd2_input_take_quit(&vga->input)) {
-        scene_host_quit_requested = 1;
-        *skip = 1;
-        return;
-    }
-    /* text_dialog_render_tokens @0x3b198 只检查 BIOS 缓冲是否非空，
-     * 用于跳过字间等待；它不读取按键，也不提前结束 fragment。 */
-    if (fd2_input_has_any_key(&vga->input)) return;
     fd2_delay_ms((uint32_t)ms);
     fd2_input_pump(&vga->input);
     if (fd2_input_take_quit(&vga->input)) {
@@ -869,6 +862,7 @@ static int play_text_fragment(fd2_vga *vga,
                               fd2_scene_field_state *field_state,
                               const fd2_font *font,
                               const fd2_text_entry *text,
+                              fd2_field_audio *audio,
                               size_t fragment_idx,
                               int fast) {
     const uint8_t *tokens;
@@ -884,6 +878,10 @@ static int play_text_fragment(fd2_vga *vga,
     fd2_vga_present(vga);
 
     int skip = 0;
+    /* text_dialog_render_tokens @code0 0x6486..0x64a2：键盘缓冲一旦
+     * 非空，本页后续字形关闭逐字 helper；page／新说话人再恢复。
+     * fast 验证路径从一开始就禁用逐字 helper，避免瞬间重放整段 PCM。 */
+    int glyph_step_enabled = !fast;
     for (size_t i = 0; i < token_count && !skip; i++) {
         int16_t tok = (int16_t)text_token_signed(tokens, i);
         if (tok == FD2_TEXT_END) break;
@@ -900,13 +898,16 @@ static int play_text_fragment(fd2_vga *vga,
             portrait_id = resolve_portrait_control(field_state, tok, portrait_id);
             set_dialog_area(vga, terrain, map, dato, ui, sprites, field_state,
                             &state, area, portrait_id, speaker_actor_idx, fast);
-            if (!fast) wait_or_skip(vga, 250, &skip);
+            glyph_step_enabled = !fast;
+            if (!fast) wait_for_dialog_step(vga, 250, &skip);
             continue;
         }
 
         if (tok == FD2_TEXT_NEWLINE || tok == FD2_TEXT_PAGE) {
+            int starts_page = tok == FD2_TEXT_PAGE || state.line >= 3;
             newline_or_page(vga, terrain, map, dato, ui, sprites, field_state,
                             &state, tok == FD2_TEXT_PAGE, fast, &skip);
+            if (starts_page && !skip) glyph_step_enabled = !fast;
             fd2_vga_present(vga);
             continue;
         }
@@ -919,12 +920,31 @@ static int play_text_fragment(fd2_vga *vga,
 
         fd2_font_draw_glyph(vga, font, (uint16_t)tok, state.x, state.y,
                             0xcd, 0x4c, -1);
-        /* FUN_000136cc @0x3b198 不做按对话框宽度自动折行，只在
-         * FDTXT token -2/-3 出现时推进一行。此前这里额外自动折行，
+        /* text_dialog_render_tokens @code0 0x5f84 不做按对话框宽度自动折行，
+         * 只在 FDTXT token -2/-3 出现时推进一行。此前这里额外自动折行，
          * 会让恰好排到行尾后紧跟 -2 的文本一次换两行。 */
         state.x += 16;
         fd2_vga_present(vga);
-        if (!fast) wait_or_skip(vga, FD2_TEXT_GLYPH_DELAY_MS, &skip);
+
+        if (glyph_step_enabled) {
+            fd2_input_pump(&vga->input);
+            if (scene_host_quit_requested ||
+                fd2_input_take_quit(&vga->input)) {
+                scene_host_quit_requested = 1;
+                skip = 1;
+            } else if (fd2_input_has_any_key(&vga->input)) {
+                glyph_step_enabled = 0;
+            }
+        }
+        if (glyph_step_enabled && !skip) {
+            /* text_dialog_glyph_step @code0 0x64e8：通过 primary AIL
+             * sample handle 播放 FDOTHER[31] sample 2；sfx_play
+             * @code0 0x15a96 会先结束该 handle 的上一声。 */
+            if (audio)
+                (void)fd2_field_audio_play(
+                    audio, FD2_FIELD_SFX_DIALOG_GLYPH);
+            wait_for_dialog_step(vga, FD2_TEXT_GLYPH_DELAY_MS, &skip);
+        }
     }
 
     if (!fast && !skip)
@@ -1109,11 +1129,12 @@ static int opening_text(fd2_vga *vga,
                         fd2_scene_field_state *state,
                         const fd2_font *font,
                         const fd2_text_entry *text,
+                        fd2_field_audio *audio,
                         size_t fragment,
                         int fast) {
     if (fragment >= text->fragment_count) return -1;
     return play_text_fragment(vga, terrain, map, dato, ui, sprites, state,
-                              font, text, fragment, fast);
+                              font, text, audio, fragment, fast);
 }
 
 static void opening_delay(fd2_vga *vga,
@@ -1207,10 +1228,12 @@ static int play_stage32_opening(fd2_vga *vga,
                                 fd2_scene_field_state *state,
                                 const fd2_font *font,
                                 const fd2_text_entry *text,
+                                fd2_bgm_player *bgm,
+                                fd2_field_audio *audio,
                                 int fast) {
 #define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
 #define MOVE32(id, fade) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), fade, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
-#define TEXT32(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT32(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, audio, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
     SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 3, 34, fast);
     MOVE32(63, 0);
@@ -1222,8 +1245,14 @@ static int play_stage32_opening(fd2_vga *vga,
                                             state, 2, 13, fast) != 0)
         return -1;
     TEXT32(1);
+    /* new_game_opening_play @code0 0x223dd..0x22417：第二段对白后
+     * 先让标题 track 18 执行原版 4 秒 sequence fade；movement 0x64
+     * 渐暗结束、stage 32 新镜头就位后，再以 loop_count=0 启动
+     * opening track 11。 */
+    if (bgm && fd2_bgm_stop(bgm) != 0) return -1;
     MOVE32(64, 1);
     pan_camera_to(vga, terrain, map, sprites, state, 0, 43, fast);
+    if (bgm && fd2_bgm_play(bgm, 11, 0) != 0) return -1;
     opening_palette_fade_in(vga, fast);
     MOVE32(65, 0); TEXT32(2);
     MOVE32(66, 0); TEXT32(3);
@@ -1245,16 +1274,17 @@ static int play_stage31_opening(fd2_vga *vga,
                                 fd2_scene_field_state *state,
                                 const fd2_font *font,
                                 const fd2_text_entry *text,
+                                fd2_field_audio *audio,
                                 int fast) {
 #define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
 #define MOVE31(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
-#define TEXT31(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT31(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, audio, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
     SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 5, 42, fast);
     MOVE31(5a); TEXT31(0);
     MOVE31(5b); TEXT31(1);
     MOVE31(5c); TEXT31(2);
-    /* new_game_opening_play @0x3231b：此时才加入 group 3 的 actor 2/3；
+    /* new_game_opening_play @code0 0x2231b：此时才加入 group 3 的 actor 2/3；
      * 随后的 camera (4,41) 左移让这两人进入画面。 */
     fd2_field_unit_set_hidden(&state->units.items[2], 0);
     fd2_field_unit_set_hidden(&state->units.items[3], 0);
@@ -1292,10 +1322,11 @@ static int play_stage0_opening(fd2_vga *vga,
                                fd2_scene_field_state *state,
                                const fd2_font *font,
                                const fd2_text_entry *text,
+                               fd2_field_audio *audio,
                                int fast) {
 #define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
 #define MOVE0(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
-#define TEXT0(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT0(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, audio, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
     SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 4, 12, fast);
     MOVE0(00); opening_delay(vga, terrain, map, sprites, state, 200, fast);
@@ -1377,6 +1408,8 @@ static void opening_stage_fade_in(fd2_vga *vga,
 int fd2_scene_play_new_game_prologue_handoff(
         fd2_vga *vga,
         const fd2_archive *fdother,
+        fd2_bgm_player *bgm,
+        fd2_field_audio *audio,
         int once,
         fd2_field_handoff *handoff) {
     fd2_archive field = {0};
@@ -1436,18 +1469,18 @@ int fd2_scene_play_new_game_prologue_handoff(
             play_result = play_stage32_opening(vga, &scene.terrain, &scene.map,
                                                &dato, &ui, &sprites,
                                                &scene.field_state, &font,
-                                               &scene.text, once);
+                                               &scene.text, bgm, audio, once);
         } else if (stages[part] == FD2_OPENING_STAGE_31) {
             play_result = play_stage31_opening(vga, &scene.terrain, &scene.map,
                                                &dato, &ui, &sprites,
                                                &scene.field_state, &font,
-                                               &scene.text, once);
+                                               &scene.text, audio, once);
         } else {
             play_result = play_stage0_opening(vga, fdother,
                                               &scene.terrain, &scene.map,
                                               &dato, &ui, &sprites,
                                               &scene.field_state, &font,
-                                              &scene.text, once);
+                                              &scene.text, audio, once);
         }
         if (play_result != 0) goto done;
         if (poll_scene_quit(vga)) goto done;
@@ -1527,6 +1560,7 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                const fd2_archive *fdother,
                                fd2_field_game *game,
                                fd2_field_event_notice *notice,
+                               fd2_field_audio *audio,
                                int fast) {
     if (!vga || !fdother || !game || !notice || !notice->handled ||
         !notice->presentation_deferred || notice->kind != FD2_FIELD_EVENT_TURN ||
@@ -1571,7 +1605,8 @@ int fd2_scene_play_field_event(fd2_vga *vga,
 } while (0)
 #define TEXT(id) do { \
     if (opening_text(vga, &game->terrain, &game->map, &dato, &ui, \
-                     &game->sprites, &state, &font, &text, (id), fast) != 0) \
+                     &game->sprites, &state, &font, &text, audio, \
+                     (id), fast) != 0) \
         goto done; \
 } while (0)
 
@@ -1648,7 +1683,9 @@ done:
 
 int fd2_scene_play_new_game_prologue(fd2_vga *vga,
                                      const fd2_archive *fdother,
+                                     fd2_bgm_player *bgm,
+                                     fd2_field_audio *audio,
                                      int once) {
-    return fd2_scene_play_new_game_prologue_handoff(vga, fdother, once,
-                                                     NULL);
+    return fd2_scene_play_new_game_prologue_handoff(
+        vga, fdother, bgm, audio, once, NULL);
 }

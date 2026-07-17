@@ -630,6 +630,7 @@ static int validate_deferred_presentations(
         const fd2_field_game *game,
         fd2_vga *vga,
         const fd2_archive *fdother,
+        fd2_field_audio *audio,
         size_t *validated_count) {
     if (!game || !vga || !fdother || !validated_count) return -1;
     while (*validated_count < game->event_log_count) {
@@ -639,7 +640,7 @@ static int validate_deferred_presentations(
         fd2_field_game replay = *game;
         fd2_field_event_notice replay_notice = *notice;
         if (fd2_scene_play_field_event(vga, fdother, &replay,
-                                       &replay_notice, 1) != 0 ||
+                                       &replay_notice, audio, 1) != 0 ||
             replay_notice.presentation_deferred)
             return -1;
     }
@@ -647,7 +648,8 @@ static int validate_deferred_presentations(
 }
 
 static int validate_turn_flow(fd2_field_game *game, fd2_vga *vga,
-                              const fd2_archive *fdother) {
+                              const fd2_archive *fdother,
+                              fd2_field_audio *audio) {
     if (!game || !game->ready || !vga || !fdother || game->turn_number != 1 ||
         game->active_side != 2 || game->selected_unit != -1 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
@@ -699,7 +701,7 @@ static int validate_turn_flow(fd2_field_game *game, fd2_vga *vga,
         if (game->active_side != 2 ||
             fd2_field_game_end_active_phase(game) != 0 ||
             validate_deferred_presentations(
-                game, vga, fdother, &validated_presentations) != 0)
+                game, vga, fdother, audio, &validated_presentations) != 0)
             goto done;
         while (game->active_side != 2) {
             /* 该回归验证 stage event／phase 调度，不依赖 AI 战斗结果；
@@ -707,7 +709,7 @@ static int validate_turn_flow(fd2_field_game *game, fd2_vga *vga,
             if (fd2_field_game_end_active_phase(game) != 0 ||
                 ++guard > 128 ||
                 validate_deferred_presentations(
-                    game, vga, fdother, &validated_presentations) != 0)
+                    game, vga, fdother, audio, &validated_presentations) != 0)
                 goto done;
         }
     }
@@ -776,13 +778,14 @@ done:
 
 static int present_field_events(fd2_field_game *game,
                                 fd2_vga *vga,
-                                const fd2_archive *fdother) {
+                                const fd2_archive *fdother,
+                                fd2_field_audio *audio) {
     if (!game || !vga || !fdother) return -1;
     for (size_t i = 0; i < game->event_log_count; i++) {
         fd2_field_event_notice *notice = &game->event_log[i];
         if (!notice->handled || !notice->presentation_deferred) continue;
         int result = fd2_scene_play_field_event(
-            vga, fdother, game, notice, 0);
+            vga, fdother, game, notice, audio, 0);
         if (result == FD2_SCENE_RESULT_HOST_QUIT)
             return FD2_SCENE_RESULT_HOST_QUIT;
         if (result != 0)
@@ -1031,7 +1034,8 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         VALIDATE_STEP("ai-query", validate_ai_queries(&game));
         VALIDATE_STEP("move-interaction", validate_move_interaction(&game, vga));
         VALIDATE_STEP("attack", validate_attack_flow(&game));
-        VALIDATE_STEP("turn", validate_turn_flow(&game, vga, fdother));
+        VALIDATE_STEP("turn", validate_turn_flow(&game, vga, fdother,
+                                                   field_audio));
         VALIDATE_STEP("effect", validate_field_effects(
             &game, vga, field_audio));
 #undef VALIDATE_STEP
@@ -1075,7 +1079,8 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             reported_side = game.active_side;
         }
         if (!once) {
-            int event_result = present_field_events(&game, vga, fdother);
+            int event_result = present_field_events(&game, vga, fdother,
+                                                    field_audio);
             if (event_result == FD2_SCENE_RESULT_HOST_QUIT) {
                 play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
                 running = 0;

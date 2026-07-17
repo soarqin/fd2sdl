@@ -869,7 +869,8 @@ int main(int argc, char **argv) {
     } else if (new_game_play || new_game_play_once) {
         fd2_field_handoff handoff;
         rc = fd2_scene_play_new_game_prologue_handoff(
-            &vga, &g_fdother, new_game_play_once, &handoff);
+            &vga, &g_fdother, bgm, field_audio_ptr,
+            new_game_play_once, &handoff);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT)
             rc = 0;
         else if (rc == 0)
@@ -879,8 +880,9 @@ int main(int argc, char **argv) {
                          FD2_FIELD_PLAY_RETURN_ERROR
                      ? -1 : 0;
     } else if (prologue_preview || prologue_preview_once) {
-        rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother,
-                                              prologue_preview_once);
+        rc = fd2_scene_play_new_game_prologue(
+            &vga, &g_fdother, bgm, field_audio_ptr,
+            prologue_preview_once);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT) rc = 0;
     } else {
         /* 打开 ANI.DAT（对应 FUN_0001db69 @0x45635） */
@@ -926,7 +928,7 @@ int main(int argc, char **argv) {
             if (flow == FD2_APP_FLOW_START_NEW_GAME) {
                 fd2_field_handoff handoff;
                 rc = fd2_scene_play_new_game_prologue_handoff(
-                    &vga, &g_fdother, 0, &handoff);
+                    &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff);
                 if (rc == FD2_SCENE_RESULT_HOST_QUIT) {
                     play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
                     rc = 0;

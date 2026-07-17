@@ -47,7 +47,7 @@
 // FUNC 0x44953 intro_cutaway
 // FUNC 0x44a32 intro_anim_with_palette
 // FUNC 0x4518d title_menu_draw
-// FUNC 0x1f894 title_action_menu  /* code0 0xf894：标题 action 选择器；FDOTHER[77] SFX 3 入场，FDOTHER[31] SFX 2 移动、SFX 1 确认；确认项 normal/highlight 交替 4 轮 */
+// FUNC 0x1f894 title_action_menu  /* code0 0xf894：标题 action 选择器；FDOTHER[77] SFX 0 标题飞行、SFX 3 secondary 入场、SFX 2/1 primary 移动/确认；确认项 normal/highlight 交替 4 轮 */
 // FUNC 0x25ebb title_action_dispatch  /* code0 0x15ebb：标题 action 上层分派 */
 // FUNC 0x4622d fdicon_cache_append_unit
 // FUNC 0x4673b field_earthquake_effect  /* 3 个缩放 buffer 按 0,1,2,1 震动；FDOTHER[80] SFX 13 */

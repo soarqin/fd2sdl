@@ -5,7 +5,8 @@
 - music_track_play @0x4ab8b 从 FDMUS handle 加载 track；
 - sfx_play @0x4acaa 按嵌套 offset 表提交样本地址与长度；
 - DAT_00003eec / DAT_00003b13 分别固定加载 FDOTHER[31]/[80]；
-- title_action_menu @code0 0xfd1c 通过 secondary handle 播放 FDOTHER[77] SFX 3。
+- title_action_menu @code0 0xf8d6 加载 FDOTHER[77]，SFX 0/1/2/3 分别用于
+  标题飞行／确认／移动／action 入场；primary/secondary 只区分 AIL handle。
 """
 
 from __future__ import annotations
@@ -153,7 +154,7 @@ def main() -> int:
     parser.add_argument("--fd2-exe", default="original_game/FD2.EXE")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--extract-sfx-dir", type=Path,
-                        help="按 AIL 默认参数导出 FDOTHER[31]/[80] WAV")
+                        help="按 AIL 默认参数导出 FDOTHER[31]/[77]/[80] WAV")
     parser.add_argument("--extract-music-dir", type=Path,
                         help="导出 FDMUS 中 15 个有效 XMIDI entry")
     args = parser.parse_args()

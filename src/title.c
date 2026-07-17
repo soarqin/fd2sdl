@@ -1,24 +1,39 @@
 #include "title.h"
 
 int fd2_title_sfx_resolve(fd2_title_sfx cue,
-                          fd2_title_sfx_bank *bank,
+                          fd2_title_sfx_handle *handle,
                           size_t *sample_index) {
-    if (!bank || !sample_index) return -1;
+    if (!handle || !sample_index) return -1;
     switch (cue) {
+        case FD2_TITLE_SFX_FLIGHT:
+            *handle = FD2_TITLE_SFX_HANDLE_PRIMARY;
+            *sample_index = 0;
+            return 0;
         case FD2_TITLE_SFX_ENTER:
-            *bank = FD2_TITLE_SFX_BANK_ENTRY;
+            *handle = FD2_TITLE_SFX_HANDLE_SECONDARY;
             *sample_index = 3;
             return 0;
         case FD2_TITLE_SFX_MOVE:
-            *bank = FD2_TITLE_SFX_BANK_UI;
+            *handle = FD2_TITLE_SFX_HANDLE_PRIMARY;
             *sample_index = 2;
             return 0;
         case FD2_TITLE_SFX_CONFIRM:
-            *bank = FD2_TITLE_SFX_BANK_UI;
+            *handle = FD2_TITLE_SFX_HANDLE_PRIMARY;
             *sample_index = 1;
             return 0;
     }
     return -1;
+}
+
+int fd2_title_flight_sfx_for_scroll_y(int scroll_y) {
+    static const int trigger_y[FD2_TITLE_FLIGHT_TRIGGER_COUNT] = {
+        520, 430, 410, 340, 310, 300, 240,
+        180, 150, 130, 110, 87, 64, 22,
+    };
+    for (size_t i = 0; i < FD2_TITLE_FLIGHT_TRIGGER_COUNT; i++) {
+        if (scroll_y == trigger_y[i]) return 1;
+    }
+    return 0;
 }
 
 int fd2_title_confirm_highlight_for_frame(int frame) {

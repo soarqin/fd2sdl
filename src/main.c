@@ -41,29 +41,27 @@ static fd2_archive g_fdother;
 /* ANI.DAT 句柄（FUN_0001db69 @0x45635 打开的 AFM 动画包） */
 static fd2_archive g_ani;
 
-/* 标题入口使用独立的 FDOTHER[77] secondary sample handle；菜单移动和
- * 确认继续使用 FDOTHER[31] primary handle。对应 title_action_menu
- * @code0 0xfd1c、0xfe74／0xfe94、0xfed3。 */
+/* title_action_menu @code0 0xf8d6..0xf8e6 只加载 FDOTHER[77]。
+ * 标题飞行／移动／确认使用 primary AIL handle，标题 action 入场声使用
+ * secondary handle；二者共享同一 bank，但可以同时播放。 */
 typedef struct {
-    fd2_pcm_player *ui_player;
-    fd2_pcm_player *entry_player;
-    const fd2_pcm_bank *ui_bank;
-    const fd2_pcm_bank *entry_bank;
+    fd2_pcm_player *primary_player;
+    fd2_pcm_player *secondary_player;
+    const fd2_pcm_bank *bank;
 } fd2_title_audio;
 
 static int title_audio_play(fd2_title_audio *audio, fd2_title_sfx cue) {
-    if (!audio) return -1;
-    fd2_title_sfx_bank bank_id;
+    if (!audio || !audio->bank) return -1;
+    fd2_title_sfx_handle handle;
     size_t sample_index;
-    if (fd2_title_sfx_resolve(cue, &bank_id, &sample_index) != 0) return -1;
-    fd2_pcm_player *player = bank_id == FD2_TITLE_SFX_BANK_UI
-                           ? audio->ui_player : audio->entry_player;
-    const fd2_pcm_bank *bank = bank_id == FD2_TITLE_SFX_BANK_UI
-                             ? audio->ui_bank : audio->entry_bank;
-    if (!player || !bank) return -1;
+    if (fd2_title_sfx_resolve(cue, &handle, &sample_index) != 0) return -1;
+    fd2_pcm_player *player =
+        handle == FD2_TITLE_SFX_HANDLE_PRIMARY
+        ? audio->primary_player : audio->secondary_player;
+    if (!player) return -1;
     /* 原版 primary／secondary sample handle 可同时存在；同一 handle 的
      * sfx_play 则先停止上一声再播放。 */
-    return fd2_pcm_play_replace(player, bank, sample_index, 1, 1.0f);
+    return fd2_pcm_play_replace(player, audio->bank, sample_index, 1, 1.0f);
 }
 
 /* 从 FDOTHER.DAT[idx] 加载资源（对应 FUN_0000e902 @0x463ce）
@@ -407,6 +405,14 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 if (rp2) fd2_vga_set_palette(vga, rp2);
             }
 
+            /* title_action_menu @code0 0xfbb7..0xfbd6：所有当前滚动位置
+             * 对应的 ANI／cutaway 处理结束后，再比较 object2 DS:0x204e
+             * 阈值并以 primary handle 重启 FDOTHER[77] SFX 0。该顺序在
+             * scroll_y==110 时尤其重要：原版先播放 ANI[8]，恢复滚动画面
+             * 后才重新开始飞行声。 */
+            if (fd2_title_flight_sfx_for_scroll_y(scroll_y))
+                (void)title_audio_play(title_audio, FD2_TITLE_SFX_FLIGHT);
+
             fd2_vga_present_timed(vga, 0x1e); /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
@@ -467,7 +473,7 @@ title_screen:
             (void)fd2_input_take_key(&vga->input, &skipped);
         }
         /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
-         * sample handle 播放 FDOTHER[77] SFX 3，再开始背景渐变。 */
+         * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
         fd2_vga_set_palette(vga, pal);
 
@@ -735,7 +741,7 @@ int main(int argc, char **argv) {
     fd2_audio *audio = NULL;
     fd2_bgm_player *bgm = NULL;
     fd2_pcm_bank ui_sfx_bank = {0};
-    fd2_pcm_bank title_entry_sfx_bank = {0};
+    fd2_pcm_bank title_sfx_bank = {0};
     fd2_pcm_bank battle_sfx_bank = {0};
     fd2_pcm_player pcm_player = {0};
     fd2_pcm_player secondary_pcm_player = {0};
@@ -763,26 +769,26 @@ int main(int argc, char **argv) {
             fprintf(stderr, "BGM: cannot open FDMUS.DAT/SAMPLE.AD\n");
     }
     if (audio && fd2_pcm_bank_open(&ui_sfx_bank, &g_fdother, 31) == 0 &&
-        fd2_pcm_bank_open(&title_entry_sfx_bank, &g_fdother, 77) == 0 &&
+        fd2_pcm_bank_open(&title_sfx_bank, &g_fdother,
+                          FD2_TITLE_SFX_BANK) == 0 &&
         fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
         fd2_pcm_player_init(&pcm_player, audio, 11025) == 0 &&
         fd2_pcm_player_init(&secondary_pcm_player, audio, 11025) == 0) {
         fd2_field_audio_init(&field_audio, &pcm_player,
                              &ui_sfx_bank, &battle_sfx_bank);
-        title_audio.ui_player = &pcm_player;
-        title_audio.entry_player = &secondary_pcm_player;
-        title_audio.ui_bank = &ui_sfx_bank;
-        title_audio.entry_bank = &title_entry_sfx_bank;
+        title_audio.primary_player = &pcm_player;
+        title_audio.secondary_player = &secondary_pcm_player;
+        title_audio.bank = &title_sfx_bank;
         field_audio_ptr = &field_audio;
         title_audio_ptr = &title_audio;
         printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [77]=%zu, [80]=%zu samples\n",
                fd2_audio_has_device(audio) ? "SDL device" : "null backend",
                fd2_pcm_bank_count(&ui_sfx_bank),
-               fd2_pcm_bank_count(&title_entry_sfx_bank),
+               fd2_pcm_bank_count(&title_sfx_bank),
                fd2_pcm_bank_count(&battle_sfx_bank));
     } else {
         fd2_pcm_bank_close(&battle_sfx_bank);
-        fd2_pcm_bank_close(&title_entry_sfx_bank);
+        fd2_pcm_bank_close(&title_sfx_bank);
         fd2_pcm_bank_close(&ui_sfx_bank);
         fprintf(stderr, "audio: unavailable; continuing without sound\n");
     }
@@ -917,7 +923,7 @@ cleanup:
     fd2_pcm_player_close(&secondary_pcm_player);
     fd2_pcm_player_close(&pcm_player);
     fd2_pcm_bank_close(&battle_sfx_bank);
-    fd2_pcm_bank_close(&title_entry_sfx_bank);
+    fd2_pcm_bank_close(&title_sfx_bank);
     fd2_pcm_bank_close(&ui_sfx_bank);
     fd2_vga_close(&vga);
     fd2_archive_close(&g_fdother);

@@ -15,7 +15,7 @@
 |------|----------|----------|
 | `FDMUS.DAT` | 外层 `.DAT` 共 20 项；其中 15 项以 `FORM/XDIR/XMID` 开始，5 项是 `20 0d 0a` 哨兵。有效内容为 Miles XMIDI | 解析 XMIDI 事件、循环与曲目映射 |
 | `FDOTHER.DAT[31]` | 13 项嵌套 `LLLLLL` 数字样本；`DAT_00003eec` 固定加载该 entry | 继续登记 SFX 0..12 的用途和响度 |
-| `FDOTHER.DAT[77]` | 4 项嵌套 `LLLLLL` secondary 数字样本；标题 action 入口固定播放 SFX 3 | 继续登记 SFX 0..2 的用途 |
+| `FDOTHER.DAT[77]` | 4 项嵌套 `LLLLLL` 标题数字样本；SFX 0 用于标题飞行，SFX 1/2 用于确认/移动，SFX 3 用于 action 入场 | 已登记标题调用索引与 primary/secondary handle |
 | `FDOTHER.DAT[80]` | 16 项嵌套数字样本；stage/battle 路径将该 entry 载入 `DAT_00003b13` | 登记战场调用索引与用途 |
 | `SAMPLE.BNK` | 头为 `01 00 ADLIB-`，含乐器名称和 AdLib 元数据 | 确认其与 `.AD/.OPL` 的角色分工 |
 | `SAMPLE.AD` / `SAMPLE.OPL` | 两文件内容相同；开头是 `patch, bank, offset` 目录，结构与 libADLMIDI 的 Miles AIL bank loader 一致 | 验证转换后的音色与 DOSBox OPL 输出是否一致 |
@@ -38,9 +38,11 @@ FDOTHER[80] 的固定调用已由视觉逻辑与波形共同确认：
 
 标题 action 的 corrected code0 机器码进一步确认：
 
-- `0xfd1c` 调用 secondary sample wrapper，以 `FDOTHER[77]` SFX 3、loop 1 播放标题入场声；
-- `0xfe74/0xfe94` 调用 primary sample wrapper，以 `FDOTHER[31]` SFX 2、loop 1 播放 Up／Down 移动声；
-- `0xfed3` 以 `FDOTHER[31]` SFX 1、loop 1 播放确认声；
+- `0xf8d6..0xf8e6` 加载 `FDOTHER[77]`，并将返回值保存到 local `+0x54`；下列标题音效调用均传入该 local。此前把 primary wrapper 等同于固定 `DAT_00003eec`／`FDOTHER[31]`，导致菜单样本 bank 登记错误；wrapper 的区别仅是 AIL handle。
+- `0xfbb7..0xfbd6` 比较 object2 `DS:0x204e` 的降序阈值表；滚动位置命中 `520、430、410、340、310、300、240、180、150、130、110、87、64、22` 时，调用 primary wrapper 播放 SFX 0、loop 1。表末项 `1000` 不会被 `0x217..0` 的滚动范围命中。
+- `0xfd1c` 调用 secondary wrapper，以 SFX 3、loop 1 播放标题 action 入场声。
+- `0xfe74/0xfe94` 调用 primary wrapper，以 SFX 2、loop 1 播放 Up／Down 移动声。
+- `0xfed3` 调用 primary wrapper，以 SFX 1、loop 1 播放确认声。
 - `0xfef0..0xff30` 将已选项 normal／highlight 各显示 `80 ms`，交替 4 轮。
 
 `music_track_play @0x4ab8b` 是高层音乐入口：它用 `DS:0x1a11` 缓存当前 track，从 FDMUS handle `DS:0x1a79` 加载对应 entry，固定初始化 XMIDI sequence 0，再启动 sequence。常规场景传 loop count 0，特殊段落传 1；AIL 语义需在 SDL 后端明确映射为无限循环／单次播放。track `-1` 将当前 sequence 在 4000 ms 内降到音量 0；普通曲目先设音量 0，再在 2000 ms 内升到 127，track 16/17 例外为立即设到 127。

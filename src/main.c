@@ -21,6 +21,7 @@
 #include "field_play.h"
 #include "field_preview.h"
 #include "tile.h"
+#include "title.h"
 #include "scene.h"
 #include "animation.h"
 #include "vga.h"
@@ -39,6 +40,31 @@ static fd2_archive g_fdother;
 
 /* ANI.DAT 句柄（FUN_0001db69 @0x45635 打开的 AFM 动画包） */
 static fd2_archive g_ani;
+
+/* 标题入口使用独立的 FDOTHER[77] secondary sample handle；菜单移动和
+ * 确认继续使用 FDOTHER[31] primary handle。对应 title_action_menu
+ * @code0 0xfd1c、0xfe74／0xfe94、0xfed3。 */
+typedef struct {
+    fd2_pcm_player *ui_player;
+    fd2_pcm_player *entry_player;
+    const fd2_pcm_bank *ui_bank;
+    const fd2_pcm_bank *entry_bank;
+} fd2_title_audio;
+
+static int title_audio_play(fd2_title_audio *audio, fd2_title_sfx cue) {
+    if (!audio) return -1;
+    fd2_title_sfx_bank bank_id;
+    size_t sample_index;
+    if (fd2_title_sfx_resolve(cue, &bank_id, &sample_index) != 0) return -1;
+    fd2_pcm_player *player = bank_id == FD2_TITLE_SFX_BANK_UI
+                           ? audio->ui_player : audio->entry_player;
+    const fd2_pcm_bank *bank = bank_id == FD2_TITLE_SFX_BANK_UI
+                             ? audio->ui_bank : audio->entry_bank;
+    if (!player || !bank) return -1;
+    /* 原版 primary／secondary sample handle 可同时存在；同一 handle 的
+     * sfx_play 则先停止上一声再播放。 */
+    return fd2_pcm_play_replace(player, bank, sample_index, 1, 1.0f);
+}
 
 /* 从 FDOTHER.DAT[idx] 加载资源（对应 FUN_0000e902 @0x463ce）
  * res_load(&DAT_00001a4d, old, idx) -> 返回条目数据指针 */
@@ -94,6 +120,24 @@ static void blit_image(fd2_vga *vga, const fd2_image *img, int x, int y) {
     }
 }
 
+typedef struct {
+    fd2_vga *vga;
+    fd2_image *menu_items;
+    int menu_item_count;
+    const int *y_positions;
+} fd2_title_draw_context;
+
+static void draw_title_menu_item(void *userdata,
+                                 int item_index,
+                                 int image_index) {
+    fd2_title_draw_context *context = userdata;
+    if (!context || image_index < 0 ||
+        image_index >= context->menu_item_count)
+        return;
+    blit_image(context->vga, &context->menu_items[image_index],
+               129, context->y_positions[item_index]);
+}
+
 static void fade_in_light(fd2_vga *vga) {
     for (int b = 0x40; b >= 0; b--) {
         fd2_vga_set_brightness(vga, b);
@@ -147,6 +191,7 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
  * FUN_0001cfdc @0x44aa8 是调用入口的 Watcom 栈检查前缀。 */
 static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          fd2_bgm_player *bgm,
+                                         fd2_title_audio *title_audio,
                                          int play_intro,
                                          int load_available) {
     fd2_image menu_items[6] = {0};
@@ -421,6 +466,9 @@ title_screen:
             fd2_input_event skipped;
             (void)fd2_input_take_key(&vga->input, &skipped);
         }
+        /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
+         * sample handle 播放 FDOTHER[77] SFX 3，再开始背景渐变。 */
+        (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
         fd2_vga_set_palette(vga, pal);
 
         /* FUN_0000f53a(0,0xff,0x40)：标题图绘制前先把 DAC 置暗。 */
@@ -481,17 +529,18 @@ title_screen:
         (void)fd2_input_take_key(&vga->input, &stale);
     }
 
+    const int y_pos[3] = {164, 173, 182};
+    fd2_title_draw_context title_draw = {
+        .vga = vga,
+        .menu_items = menu_items,
+        .menu_item_count = n_menu,
+        .y_positions = y_pos,
+    };
+
     int menu_done = 0;
     while (!menu_done) {
-        /* 绘制菜单项 */
-        int y_pos[3] = {164, 173, 182};
-        for (int i = 0; i < menu_count && i < 3; i++) {
-            /* 每项有两个版本: 未选中(idx 0,2,4) 和选中(idx 1,3,5) */
-            int img_idx = i * 2 + (selection == i ? 1 : 0);
-            if (img_idx < n_menu) {
-                blit_image(vga, &menu_items[img_idx], 129, y_pos[i]);
-            }
-        }
+        (void)fd2_title_draw_menu_frame(menu_count, selection, 1,
+                                        draw_title_menu_item, &title_draw);
         fd2_vga_present(vga);
 
         if (fd2_input_take_quit(&vga->input)) {
@@ -505,12 +554,15 @@ title_screen:
                                      &action)) {
             switch (action) {
                 case FD2_INPUT_ACTION_UP:
+                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
                     selection = selection > 0 ? selection - 1 : menu_count - 1;
                     break;
                 case FD2_INPUT_ACTION_DOWN:
+                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
                     selection = selection + 1 < menu_count ? selection + 1 : 0;
                     break;
                 case FD2_INPUT_ACTION_CONFIRM:
+                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_CONFIRM);
                     menu_done = 1;
                     break;
                 default:
@@ -520,10 +572,21 @@ title_screen:
         fd2_delay_ms(50);
     }
 
-    /* 确认闪烁动画 (4次) */
-    for (int i = 0; i < 4; i++) {
-        fd2_vga_present(vga);
-        fd2_delay_ms(0x50);
+    /* title_action_menu @code0 0xfef0..0xff30：选中项 normal 与
+     * highlight 各显示 80 ms，交替 4 轮。旧实现只重复 present 同一
+     * highlight framebuffer，实际没有闪动。宿主退出不播放确认动画。 */
+    if (selection != FD2_TITLE_ACTION_HOST_QUIT) {
+        for (int frame = 0; frame < FD2_TITLE_CONFIRM_FLASH_FRAMES; frame++) {
+            int highlight = fd2_title_confirm_highlight_for_frame(frame);
+            (void)fd2_title_draw_menu_frame(menu_count, selection, highlight,
+                                            draw_title_menu_item, &title_draw);
+            fd2_vga_present(vga);
+            fd2_delay_ms(FD2_TITLE_CONFIRM_FLASH_DELAY_MS);
+            if (fd2_input_take_quit(&vga->input)) {
+                selection = FD2_TITLE_ACTION_HOST_QUIT;
+                break;
+            }
+        }
     }
 
     /* 释放菜单项 */
@@ -672,10 +735,14 @@ int main(int argc, char **argv) {
     fd2_audio *audio = NULL;
     fd2_bgm_player *bgm = NULL;
     fd2_pcm_bank ui_sfx_bank = {0};
+    fd2_pcm_bank title_entry_sfx_bank = {0};
     fd2_pcm_bank battle_sfx_bank = {0};
     fd2_pcm_player pcm_player = {0};
+    fd2_pcm_player secondary_pcm_player = {0};
     fd2_field_audio field_audio = {0};
+    fd2_title_audio title_audio = {0};
     fd2_field_audio *field_audio_ptr = NULL;
+    fd2_title_audio *title_audio_ptr = NULL;
     (void)SDL_InitSubSystem(SDL_INIT_AUDIO);
     fd2_audio_config audio_config = {
         .sample_rate = 48000,
@@ -696,17 +763,26 @@ int main(int argc, char **argv) {
             fprintf(stderr, "BGM: cannot open FDMUS.DAT/SAMPLE.AD\n");
     }
     if (audio && fd2_pcm_bank_open(&ui_sfx_bank, &g_fdother, 31) == 0 &&
+        fd2_pcm_bank_open(&title_entry_sfx_bank, &g_fdother, 77) == 0 &&
         fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
-        fd2_pcm_player_init(&pcm_player, audio, 11025) == 0) {
+        fd2_pcm_player_init(&pcm_player, audio, 11025) == 0 &&
+        fd2_pcm_player_init(&secondary_pcm_player, audio, 11025) == 0) {
         fd2_field_audio_init(&field_audio, &pcm_player,
                              &ui_sfx_bank, &battle_sfx_bank);
+        title_audio.ui_player = &pcm_player;
+        title_audio.entry_player = &secondary_pcm_player;
+        title_audio.ui_bank = &ui_sfx_bank;
+        title_audio.entry_bank = &title_entry_sfx_bank;
         field_audio_ptr = &field_audio;
-        printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [80]=%zu samples\n",
+        title_audio_ptr = &title_audio;
+        printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [77]=%zu, [80]=%zu samples\n",
                fd2_audio_has_device(audio) ? "SDL device" : "null backend",
                fd2_pcm_bank_count(&ui_sfx_bank),
+               fd2_pcm_bank_count(&title_entry_sfx_bank),
                fd2_pcm_bank_count(&battle_sfx_bank));
     } else {
         fd2_pcm_bank_close(&battle_sfx_bank);
+        fd2_pcm_bank_close(&title_entry_sfx_bank);
         fd2_pcm_bank_close(&ui_sfx_bank);
         fprintf(stderr, "audio: unavailable; continuing without sound\n");
     }
@@ -767,7 +843,8 @@ int main(int argc, char **argv) {
                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u;
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
-                &vga, bgm, first_title, title_load_available);
+                &vga, bgm, title_audio_ptr, first_title,
+                title_load_available);
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
             if (flow == FD2_APP_FLOW_EXIT) {
@@ -837,8 +914,10 @@ cleanup:
      * 再释放 sequence、bank 和 archive。 */
     fd2_audio_destroy(audio);
     fd2_bgm_destroy(bgm);
+    fd2_pcm_player_close(&secondary_pcm_player);
     fd2_pcm_player_close(&pcm_player);
     fd2_pcm_bank_close(&battle_sfx_bank);
+    fd2_pcm_bank_close(&title_entry_sfx_bank);
     fd2_pcm_bank_close(&ui_sfx_bank);
     fd2_vga_close(&vga);
     fd2_archive_close(&g_fdother);

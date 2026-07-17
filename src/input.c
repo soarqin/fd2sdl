@@ -11,21 +11,38 @@
 
 #ifdef _WIN32
 #include <windows.h>
+static volatile LONG host_quit_requested;
+#else
+static volatile sig_atomic_t host_quit_requested;
 #endif
 
-static volatile sig_atomic_t interrupt_requested;
+int fd2_input_host_quit_requested(void) {
+#ifdef _WIN32
+    return InterlockedCompareExchange(&host_quit_requested, 0, 0) != 0;
+#else
+    return host_quit_requested != 0;
+#endif
+}
+
+static void request_host_quit(void) {
+#ifdef _WIN32
+    (void)InterlockedExchange(&host_quit_requested, 1);
+#else
+    host_quit_requested = 1;
+#endif
+}
 
 #ifndef _WIN32
 static void input_signal_handler(int signal_number) {
     (void)signal_number;
-    interrupt_requested = 1;
+    host_quit_requested = 1;
 }
 #else
 static BOOL WINAPI input_console_handler(DWORD control_type) {
     if (control_type == CTRL_C_EVENT || control_type == CTRL_BREAK_EVENT ||
         control_type == CTRL_CLOSE_EVENT || control_type == CTRL_LOGOFF_EVENT ||
         control_type == CTRL_SHUTDOWN_EVENT) {
-        interrupt_requested = 1;
+        (void)InterlockedExchange(&host_quit_requested, 1);
         return TRUE;
     }
     return FALSE;
@@ -33,7 +50,11 @@ static BOOL WINAPI input_console_handler(DWORD control_type) {
 #endif
 
 void fd2_input_install_interrupt_handlers(void) {
-    interrupt_requested = 0;
+#ifdef _WIN32
+    (void)InterlockedExchange(&host_quit_requested, 0);
+#else
+    host_quit_requested = 0;
+#endif
 #ifndef _WIN32
     /* 不依赖 SDL 默认 signal hint；显式把 Ctrl+C／终止请求交给主循环，
      * 既保留统一资源清理，也避免 scene 把中断当成普通跳过键。 */
@@ -112,18 +133,24 @@ int fd2_input_push_key(fd2_input *input, fd2_input_key key,
     return 0;
 }
 
+void fd2_input_poll_host_events(void) {
+    SDL_PumpEvents();
+    if (SDL_HasEvent(SDL_EVENT_QUIT) ||
+        SDL_HasEvent(SDL_EVENT_TERMINATING))
+        request_host_quit();
+}
+
 void fd2_input_pump(fd2_input *input) {
     if (!input) return;
 
-    if (interrupt_requested) {
-        interrupt_requested = 0;
+    if (fd2_input_host_quit_requested())
         input->quit_requested = 1;
-    }
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_QUIT ||
             event.type == SDL_EVENT_TERMINATING) {
+            request_host_quit();
             input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
             /* Windows Ctrl+C／Ctrl+Break 在 SDL 窗口拥有焦点时可能只表现为
@@ -132,10 +159,12 @@ void fd2_input_pump(fd2_input *input) {
             if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
                 (event.key.scancode == SDL_SCANCODE_C ||
                  event.key.scancode == SDL_SCANCODE_PAUSE) ) {
+                request_host_quit();
                 input->quit_requested = 1;
                 continue;
             }
             if (event.key.scancode == SDL_SCANCODE_PAUSE) {
+                request_host_quit();
                 input->quit_requested = 1;
                 continue;
             }
@@ -303,7 +332,7 @@ int fd2_input_take_action(fd2_input *input, fd2_input_context context,
 }
 
 int fd2_input_take_quit(fd2_input *input) {
-    if (!input || !input->quit_requested) return 0;
-    input->quit_requested = 0;
-    return 1;
+    if (!input) return fd2_input_host_quit_requested();
+    if (fd2_input_host_quit_requested()) input->quit_requested = 1;
+    return input->quit_requested != 0;
 }

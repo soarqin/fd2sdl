@@ -4,7 +4,8 @@
 逆向依据：
 - music_track_play @0x4ab8b 从 FDMUS handle 加载 track；
 - sfx_play @0x4acaa 按嵌套 offset 表提交样本地址与长度；
-- DAT_00003eec / DAT_00003b13 分别固定加载 FDOTHER[31]/[80]。
+- DAT_00003eec / DAT_00003b13 分别固定加载 FDOTHER[31]/[80]；
+- title_action_menu @code0 0xfd1c 通过 secondary handle 播放 FDOTHER[77] SFX 3。
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 MAGIC = b"LLLLLL"
-SFX_BANK_ENTRIES = (31, 80)
+SFX_BANK_ENTRIES = (31, 77, 80)
 STAGE_MUSIC_FILE_OFFSET = 0x76E73
 STAGE_MUSIC_COUNT = 30
 

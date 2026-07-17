@@ -80,8 +80,16 @@ typedef enum {
 void fd2_input_init(fd2_input *input);
 
 /* 安装宿主中断桥：POSIX SIGINT/SIGTERM 与 Windows Ctrl+C/Ctrl+Break
- * 都转成统一的一次性 quit 请求，不覆盖游戏按键 FIFO。 */
+ * 都转成统一、持续有效的 quit 请求，不覆盖游戏按键 FIFO。 */
 void fd2_input_install_interrupt_handlers(void);
+
+/* 查询进程级宿主中断状态。该状态由信号／控制台回调置位，在 main 完成
+ * 统一清理前保持有效；不能由某个场景消费后让其他等待循环失去退出请求。 */
+int fd2_input_host_quit_requested(void);
+
+/* 仅泵送并窥视宿主退出事件，不消费键盘 FIFO。共享 deadline／delay
+ * 使用该入口缩短窗口关闭与控制台中断的退出延迟。 */
+void fd2_input_poll_host_events(void);
 
 /* 唯一读取 SDL 事件队列的入口。方向键的 KEY_DOWN repeat 按到达顺序入队；
  * 确认／取消键的 repeat 不跨 UI 状态重复触发。KEY_UP 不进入队列。 */
@@ -104,7 +112,7 @@ int fd2_input_take_action(fd2_input *input, fd2_input_context context,
                           fd2_input_action *action);
 
 /* SDL_EVENT_QUIT／SDL_EVENT_TERMINATING／宿主中断是退出请求，不冒充 DOS
- * 按键；读取后清除请求。 */
+ * 按键。请求在整个进程退出前保持有效；take 名称仅为兼容既有调用点。 */
 int fd2_input_take_quit(fd2_input *input);
 
 /* 纯映射接口，供 CTest 直接验证原版上下文键表。 */

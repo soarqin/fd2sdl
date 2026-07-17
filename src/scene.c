@@ -476,6 +476,7 @@ static void present_base_frame(fd2_vga *vga,
                                const fd2_field_map *map,
                                const fd2_map_sprite_bank *sprites,
                                const fd2_scene_field_state *field_state) {
+    if (scene_host_quit_requested || poll_scene_quit(vga)) return;
     render_scene_base(vga, terrain, map, sprites, field_state);
     fd2_vga_present(vga);
     (void)poll_scene_quit(vga);
@@ -487,6 +488,7 @@ static void present_base_frame_timed(fd2_vga *vga,
                                      const fd2_map_sprite_bank *sprites,
                                      const fd2_scene_field_state *field_state,
                                      uint32_t frame_ms) {
+    if (scene_host_quit_requested || poll_scene_quit(vga)) return;
     render_scene_base(vga, terrain, map, sprites, field_state);
     fd2_vga_present_timed(vga, frame_ms);
     (void)poll_scene_quit(vga);
@@ -1206,8 +1208,10 @@ static int play_stage32_opening(fd2_vga *vga,
                                 const fd2_font *font,
                                 const fd2_text_entry *text,
                                 int fast) {
-#define MOVE32(id, fade) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), fade, fast) != 0) return -1; } while (0)
-#define TEXT32(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; } while (0)
+#define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
+#define MOVE32(id, fade) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), fade, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT32(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+    SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 3, 34, fast);
     MOVE32(63, 0);
     if (opening_actor_move_up_follow_camera(vga, terrain, map, sprites,
@@ -1228,6 +1232,7 @@ static int play_stage32_opening(fd2_vga *vga,
     MOVE32(69, 1);
 #undef TEXT32
 #undef MOVE32
+#undef SCENE_QUIT_CHECK
     return 0;
 }
 
@@ -1241,8 +1246,10 @@ static int play_stage31_opening(fd2_vga *vga,
                                 const fd2_font *font,
                                 const fd2_text_entry *text,
                                 int fast) {
-#define MOVE31(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; } while (0)
-#define TEXT31(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; } while (0)
+#define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
+#define MOVE31(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT31(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+    SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 5, 42, fast);
     MOVE31(5a); TEXT31(0);
     MOVE31(5b); TEXT31(1);
@@ -1271,6 +1278,7 @@ static int play_stage31_opening(fd2_vga *vga,
         return -1;
 #undef TEXT31
 #undef MOVE31
+#undef SCENE_QUIT_CHECK
     return 0;
 }
 
@@ -1285,8 +1293,10 @@ static int play_stage0_opening(fd2_vga *vga,
                                const fd2_font *font,
                                const fd2_text_entry *text,
                                int fast) {
-#define MOVE0(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; } while (0)
-#define TEXT0(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; } while (0)
+#define SCENE_QUIT_CHECK() do { if (poll_scene_quit(vga)) return 0; } while (0)
+#define MOVE0(id) do { if (play_opening_move_script(vga, terrain, map, sprites, state, k_move_##id, sizeof(k_move_##id), 0, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+#define TEXT0(n) do { if (opening_text(vga, terrain, map, dato, ui, sprites, state, font, text, n, fast) != 0) return -1; SCENE_QUIT_CHECK(); } while (0)
+    SCENE_QUIT_CHECK();
     pan_camera_to(vga, terrain, map, sprites, state, 4, 12, fast);
     MOVE0(00); opening_delay(vga, terrain, map, sprites, state, 200, fast);
     TEXT0(0); opening_delay(vga, terrain, map, sprites, state, 200, fast);
@@ -1306,6 +1316,7 @@ static int play_stage0_opening(fd2_vga *vga,
     TEXT0(2);
 #undef TEXT0
 #undef MOVE0
+#undef SCENE_QUIT_CHECK
     return 0;
 }
 
@@ -1418,6 +1429,7 @@ int fd2_scene_play_new_game_prologue_handoff(
                part, stages[part], stages[part] + 1u,
                scene.field_state.units.count, once ? ", fast" : "");
         opening_stage_fade_in(vga, &scene, &sprites, once);
+        if (poll_scene_quit(vga)) goto done;
 
         int play_result;
         if (stages[part] == FD2_OPENING_STAGE_32) {
@@ -1438,6 +1450,7 @@ int fd2_scene_play_new_game_prologue_handoff(
                                               &scene.text, once);
         }
         if (play_result != 0) goto done;
+        if (poll_scene_quit(vga)) goto done;
     }
 
     /* FUN_0002fa63 返回后直接进入 stage 0 战斗，不做额外黑场。

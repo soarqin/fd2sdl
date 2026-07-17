@@ -33,6 +33,7 @@ typedef struct {
     uint32_t output_rate;
     int loop_count;
     int finished;
+    _Atomic int stop_requested;
 } fd2_pcm_voice;
 
 typedef struct {
@@ -49,8 +50,9 @@ int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
 int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                  size_t sample_index, int loop_count, float gain);
 
-/* 复现原版全局 AIL sample handle：sfx_play @0x4acaa 先调用
- * ail_end_sample @0x5ea19，再启动新样本；index -1 仅执行停止。 */
+/* 复现一个 AIL sample handle：sfx_play @0x4acaa 先调用
+ * ail_end_sample @0x5ea19，再启动新样本；index -1 仅执行停止。
+ * 不同 fd2_pcm_player 对应不同原版 handle，停止／替换不能误停另一 handle。 */
 int fd2_pcm_play_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                          size_t sample_index, int loop_count, float gain);
 int fd2_pcm_stop(fd2_pcm_player *player);

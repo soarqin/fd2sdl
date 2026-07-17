@@ -195,6 +195,10 @@ static int test_sdl_event_pump(void) {
     event.type = SDL_EVENT_QUIT;
     CHECK(SDL_PushEvent(&event));
 
+    /* 共享 deadline 只调用 host-event peek，也必须立即把窗口关闭提升为
+     * 进程级请求；peek 不消费前面排队的键盘事件。 */
+    fd2_input_poll_host_events();
+    CHECK(fd2_input_host_quit_requested());
     fd2_input_pump(&input);
     /* 确认键 repeat 不得跨越状态边界；方向键 repeat 仍保留。 */
     CHECK(fd2_input_pending_count(&input) == 2);
@@ -204,6 +208,10 @@ static int test_sdl_event_pump(void) {
     CHECK(fd2_input_take_key(&input, &key));
     CHECK(key.key == FD2_INPUT_KEY_UP && key.repeat == 1);
     CHECK(fd2_input_take_quit(&input));
+    /* SDL window quit 也进入进程级状态，新 input 实例可观察到同一请求。 */
+    fd2_input other;
+    fd2_input_init(&other);
+    CHECK(fd2_input_take_quit(&other));
     SDL_Quit();
     return 0;
 }
@@ -213,7 +221,9 @@ static int test_quit_request(void) {
     fd2_input_init(&input);
     input.quit_requested = 1;
     CHECK(fd2_input_take_quit(&input));
-    CHECK(!fd2_input_take_quit(&input));
+    /* 宿主退出是进程级请求。所有场景和等待循环都必须持续观察到它，
+     * 不能被第一个调用点消费后继续进入后续剧情。 */
+    CHECK(fd2_input_take_quit(&input));
     return 0;
 }
 

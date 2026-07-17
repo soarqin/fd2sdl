@@ -121,7 +121,11 @@ static void fd2_vga_present_impl(fd2_vga *vga) {
 static void fd2_delay_until(uint64_t deadline_ns) {
     const uint64_t ns_per_ms = 1000000u;
     for (;;) {
-        SDL_PumpEvents();
+        fd2_input_poll_host_events();
+        /* 所有场景和动画的等待都经过此处。宿主中断或窗口关闭一旦到达
+         * 就立即结束当前 deadline，随后 present／状态机从统一 input
+         * 服务取得持久 quit 请求。 */
+        if (fd2_input_host_quit_requested()) break;
         uint64_t now = SDL_GetTicksNS();
         if (now >= deadline_ns) break;
         uint64_t remain = deadline_ns - now;
@@ -133,7 +137,7 @@ static void fd2_delay_until(uint64_t deadline_ns) {
             SDL_DelayPrecise(remain);
         }
     }
-    SDL_PumpEvents();
+    fd2_input_poll_host_events();
 }
 
 void fd2_vga_present(fd2_vga *vga) {

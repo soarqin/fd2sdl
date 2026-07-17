@@ -187,6 +187,65 @@ static int test_one_shot_and_loop(void) {
     return 0;
 }
 
+static int test_replacement_burst(void) {
+    uint8_t data[19];
+    fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank, data, make_bank(data)) == 0);
+    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
+    fd2_audio *audio = fd2_audio_create(&config);
+    fd2_pcm_player player;
+    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
+
+    /* 主线程可以在音频回调消费 command 之前收到多次导航和确认；最后
+     * 一次确认不得因等待 retire 的旧 voice 占满 pool 而丢失。 */
+    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
+        CHECK(fd2_pcm_play_replace(&player, &bank, i & 1u, 1, 1.0f) == 0);
+    float output[2];
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 0.0f));
+    int active = 0;
+    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
+        active += atomic_load(&player.voices[i].state) != 0;
+    CHECK(active == 1);
+
+    fd2_audio_destroy(audio);
+    fd2_pcm_player_close(&player);
+    fd2_pcm_bank_close(&bank);
+    return 0;
+}
+
+static int test_independent_sample_handles(void) {
+    uint8_t bank_a_data[19], bank_b_data[19];
+    fd2_pcm_bank bank_a, bank_b;
+    CHECK(fd2_pcm_bank_open_mem(&bank_a, bank_a_data,
+                                make_bank(bank_a_data)) == 0);
+    CHECK(fd2_pcm_bank_open_mem(&bank_b, bank_b_data,
+                                make_bank(bank_b_data)) == 0);
+    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
+    fd2_audio *audio = fd2_audio_create(&config);
+    fd2_pcm_player primary, secondary;
+    CHECK(audio && fd2_pcm_player_init(&primary, audio, 11025) == 0);
+    CHECK(fd2_pcm_player_init(&secondary, audio, 11025) == 0);
+
+    CHECK(fd2_pcm_play_replace(&primary, &bank_a, 0, 1, 1.0f) == 0);
+    CHECK(fd2_pcm_play_replace(&secondary, &bank_b, 1, 1, 1.0f) == 0);
+    float output[2];
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    /* primary sample[0]=-1，secondary sample[0]=0；两 handle 同时活动。 */
+    CHECK(near(output[0], -1.0f));
+    CHECK(fd2_pcm_stop(&primary) == 0);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    /* 停 primary 不能停止 secondary；其第二个 byte 为 255。 */
+    CHECK(near(output[0], 127.0f / 128.0f));
+
+    fd2_audio_destroy(audio);
+    fd2_pcm_player_close(&secondary);
+    fd2_pcm_player_close(&primary);
+    fd2_pcm_bank_close(&bank_b);
+    fd2_pcm_bank_close(&bank_a);
+    return 0;
+}
+
 static int test_infinite_extreme_downsampling(void) {
     uint8_t data[19];
     fd2_pcm_bank bank;
@@ -236,6 +295,8 @@ int main(void) {
     CHECK(test_field_sfx_mapping() == 0);
     CHECK(test_field_audio_dispatch() == 0);
     CHECK(test_one_shot_and_loop() == 0);
+    CHECK(test_replacement_burst() == 0);
+    CHECK(test_independent_sample_handles() == 0);
     CHECK(test_resampling() == 0);
     CHECK(test_infinite_extreme_downsampling() == 0);
     puts("audio PCM tests: ok");

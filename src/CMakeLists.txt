@@ -103,6 +103,7 @@ endif()
 
 set(FD2SDL_CORE_SOURCES
     app_flow.c
+    title.c
     input.c
     audio.c
     audio_pcm.c
@@ -236,6 +237,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME bgm COMMAND fd2_bgm_test)
     set_tests_properties(bgm PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_title_test
+        tests/title_test.c
+        title.c
+    )
+    target_include_directories(fd2_title_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_title_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_title_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME title COMMAND fd2_title_test)
 
     add_executable(fd2_input_test
         tests/input_test.c

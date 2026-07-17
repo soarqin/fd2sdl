@@ -13,6 +13,7 @@
 #include <SDL3/SDL.h>
 
 #include "archive.h"
+#include "app_flow.h"
 #include "image.h"
 #include "input.h"
 #include "field.h"
@@ -25,6 +26,12 @@
 
 #define WINDOW_W 960
 #define WINDOW_H 600
+
+_Static_assert(FD2_FIELD_PLAY_RETURN_COMPLETE == FD2_APP_FIELD_COMPLETE &&
+               FD2_FIELD_PLAY_RETURN_TITLE == FD2_APP_FIELD_TITLE &&
+               FD2_FIELD_PLAY_RETURN_HOST_QUIT == FD2_APP_FIELD_HOST_QUIT &&
+               FD2_FIELD_PLAY_RETURN_ERROR == FD2_APP_FIELD_ERROR,
+               "field/app flow result mapping changed");
 
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */
 static fd2_archive g_fdother;
@@ -135,7 +142,10 @@ static void play_intro_animation_with_palette(fd2_vga *vga,
 
 /* 复现 FUN_0001cfe6 @0x44ab2: 片头 + 标题主体
  * FUN_0001cfdc @0x44aa8 是调用入口的 Watcom 栈检查前缀。 */
-static void boot_intro_title(fd2_vga *vga) {
+static fd2_title_action boot_intro_title(fd2_vga *vga,
+                                         int play_intro,
+                                         int load_available) {
+    if (!play_intro) goto title_screen;
     /* === 阶段1: 片头初始画面 === */
     /* 反编译精确顺序:
      *   1. vga_clear
@@ -398,7 +408,9 @@ title_screen:
      * Enter、Space 与数字小键盘 0。详见 docs/systems/input.md。
      * 菜单项图: FDOTHER[7] sub[1-6] */
     int selection = 0;
-    int menu_count = 3;
+    /* 原版 title @code0 0xfd81..0xfe0e 先验证完整 FD2.SAV checksum 与
+     * active meta stage，再把菜单项数从 2 扩为 3。 */
+    int menu_count = load_available ? 3 : 2;
     /* 加载菜单项图 */
     fd2_image menu_items[6];
     int n_menu = 0;
@@ -428,6 +440,7 @@ title_screen:
         fd2_vga_present(vga);
 
         if (fd2_input_take_quit(&vga->input)) {
+            selection = FD2_TITLE_ACTION_HOST_QUIT;
             menu_done = 1;
             break;
         }
@@ -460,6 +473,7 @@ title_screen:
 
     /* 释放菜单项 */
     for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
+    return fd2_title_action_from_selection(selection, load_available);
 }
 
 /* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，
@@ -562,6 +576,9 @@ int main(int argc, char **argv) {
     int new_game_play_once =
         (argc > 1 && strcmp(argv[1], "--new-game-play-once") == 0);
     size_t preview_stage = (argc > 2) ? (size_t)strtoul(argv[2], NULL, 0) : 0;
+    const char *save_path = getenv("FD2SDL_SAVE_PATH");
+    if (!save_path || save_path[0] == '\0')
+        save_path = "FD2.SAV";
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -632,8 +649,10 @@ int main(int argc, char **argv) {
         rc = fd2_field_effect_play_run(
             &vga, &g_fdother, preview_stage, field_audio_ptr);
     } else if (field_play || field_play_once) {
-        rc = fd2_field_play_run(&vga, &g_fdother, preview_stage,
-                                field_play_once, NULL, field_audio_ptr);
+        fd2_field_play_result play_result = fd2_field_play_run(
+            &vga, &g_fdother, preview_stage, field_play_once, NULL,
+            field_audio_ptr, save_path, 0);
+        rc = play_result == FD2_FIELD_PLAY_RETURN_ERROR ? -1 : 0;
     } else if (new_game_play || new_game_play_once) {
         fd2_field_handoff handoff;
         rc = fd2_scene_play_new_game_prologue_handoff(
@@ -641,7 +660,9 @@ int main(int argc, char **argv) {
         if (rc == 0)
             rc = fd2_field_play_run(&vga, &g_fdother, 0,
                                     new_game_play_once, &handoff,
-                                    field_audio_ptr);
+                                    field_audio_ptr, save_path, 0) ==
+                         FD2_FIELD_PLAY_RETURN_ERROR
+                     ? -1 : 0;
     } else if (prologue_preview || prologue_preview_once) {
         rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother,
                                               prologue_preview_once);
@@ -654,8 +675,82 @@ int main(int argc, char **argv) {
         }
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
-        /* 运行启动序列 */
-        boot_intro_title(&vga);
+        /* 运行启动序列并分派普通标题菜单。code0 @0xf894 的标题主体
+         * 只负责 new-game action 与退出；FD2.SAV 校验成功时把 active
+         * snapshot recovery 插入为中间项。原版四槽 hand_load 属于战场
+         * command dispatcher @0x19300，不能在此冒充标题读档。
+         * leave-battle 返回 TITLE 时重新进入该循环，宿主关闭直接退出。 */
+        int title_running = 1;
+        int first_title = 1;
+        while (title_running && rc == 0) {
+            fd2_save_file title_save = {0};
+            fd2_save_battle_snapshot title_snapshot;
+            int title_load_available =
+                fd2_save_file_open(&title_save, save_path) == 0 &&
+                fd2_save_file_get_battle_snapshot(
+                    &title_save, &title_snapshot) == 0 &&
+                title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u;
+            fd2_save_file_close(&title_save);
+            fd2_title_action title_action = boot_intro_title(
+                &vga, first_title, title_load_available);
+            first_title = 0;
+            fd2_app_flow flow = fd2_app_flow_from_title(title_action);
+            if (flow == FD2_APP_FLOW_EXIT) {
+                title_running = 0;
+                break;
+            }
+            if (flow == FD2_APP_FLOW_ERROR) {
+                rc = -1;
+                break;
+            }
+
+            fd2_field_play_result play_result =
+                FD2_FIELD_PLAY_RETURN_ERROR;
+            if (flow == FD2_APP_FLOW_START_NEW_GAME) {
+                fd2_field_handoff handoff;
+                rc = fd2_scene_play_new_game_prologue_handoff(
+                    &vga, &g_fdother, 0, &handoff);
+                if (rc == 0)
+                    play_result = fd2_field_play_run(
+                        &vga, &g_fdother, 0, 0, &handoff,
+                        field_audio_ptr, save_path, 0);
+            } else if (flow == FD2_APP_FLOW_LOAD_GAME) {
+                fd2_save_file save = {0};
+                fd2_save_battle_snapshot snapshot;
+                if (fd2_save_file_open(&save, save_path) != 0 ||
+                    fd2_save_file_get_battle_snapshot(
+                        &save, &snapshot) != 0) {
+                    fprintf(stderr, "cannot load title save: %s\n",
+                            save_path);
+                    rc = -1;
+                } else if (snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 0) {
+                    fprintf(stderr, "unsupported saved stage: %u\n",
+                            snapshot.meta[FD2_SAVE_BATTLE_META_STAGE]);
+                    rc = -1;
+                } else {
+                    fd2_save_file_close(&save);
+                    /* field_play 打开完整 stage 资源后再事务化导入。 */
+                    play_result = fd2_field_play_run(
+                        &vga, &g_fdother, 0, 0, NULL,
+                        field_audio_ptr, save_path, 1);
+                }
+                fd2_save_file_close(&save);
+            }
+
+            if (rc != 0) break;
+            flow = fd2_app_flow_from_field(
+                (fd2_app_field_result)play_result);
+            if (flow == FD2_APP_FLOW_ERROR) {
+                rc = -1;
+                break;
+            }
+            if (flow == FD2_APP_FLOW_EXIT) {
+                title_running = 0;
+                break;
+            }
+            /* RETURN_TITLE 明确重新显示标题；COMPLETE 也回到标题，以便
+             * 后续关卡结果接入时不误关闭宿主。 */
+        }
         fd2_archive_close(&g_ani);
     }
 

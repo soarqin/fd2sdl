@@ -265,7 +265,7 @@ base_frame  = frames[terrain_id]
 选择框资源已确认，不在 FDICON 或 FDSHAP 中：
 
 - `FDOTHER.DAT[1]` 是 `24×24`、20 帧的 shape sheet，格式为 `u16 width, u16 height, u16 count, u32 offsets[count]`，帧流使用 24×24 shape RLE。`field_selection_sprite_blit @0x3790b` 按 `DAT_00003a4d + 6 + frame*4` 取帧，并以透明 SKIP 规则画到 `(cell-camera)*24`。普通战场模式 1 使用 frame 0；模式 2 使用 frame 1；模式 3..5 用 frame 1..18 组合十字、两格和三格范围轮廓。
-- `FDOTHER.DAT[2]` 是战场图形指令菜单的 78 帧 offset-table sheet。条目开头直接是 `u32 offsets[78]`，不是上述带 6 字节头的 shape sheet；每帧为 `u16 width, u16 height, raw indexed pixels[width*height]`。前 12 帧均为 `24×20`，按 `attack/magic/item/wait × normal/highlight/disabled` 排列，即 `frame=command_id*3+state`。`field_command_menu_open @0x3c630` 以单位格左上角为基准，在四相位内把图标移动到上 `(0,-18)`、左 `(-24,2)`、右 `(24,2)`、下 `(0,22)`，每相位位移分别为 5／6／6／5 px。`field_command_menu_close @0x3c8c8` 使用独立初值；其四个可见相位中，上／下偏移为 `(-15,19)→(-10,14)→(-5,9)→(0,4)`，左右偏移为 `(-18,+18)→(-12,+12)→(-6,+6)→(0,0)`，不是打开坐标的简单倒序。打开和关闭都播放 FDOTHER[31] SFX 8。
+- `FDOTHER.DAT[2]` 是战场图形指令菜单的 78 帧 offset-table sheet。条目开头直接是 `u32 offsets[78]`，不是上述带 6 字节头的 shape sheet；每帧为 `u16 width, u16 height, raw indexed pixels[width*height]`。frame `48/49/51/52` 为 `24×16`，其余为 `24×20`；前 12 帧按 `attack/magic/item/wait × normal/highlight/disabled` 排列，即 `frame=command_id*3+state`。当前权威通用 primitive 为 `field_command_menu_open @code0 0x741c（dual 0x1741c）`、`field_command_menu_close @code0 0x76b4（dual 0x176b4）`：它们以焦点格左上角为基准，在四相位内把图标移动到上 `(0,-18)`、左 `(-24,2)`、右 `(24,2)`、下 `(0,22)`，每相位位移分别为 5／6／6／5 px。关闭使用独立初值，不是打开坐标的简单倒序；打开和关闭都播放 FDOTHER[31] SFX 8。空焦点、次级菜单、设置页和单位 action 都复用这些 primitive，但业务状态与 selector 分派保持独立。
 - `field_player_command_execute_core @0x3dfaa` 从 `DS:0x1ed5` 取得 `{0,1,2,3}`，依次表示 attack、magic、item、wait。attack 在没有已装备武器或合法目标时禁用；magic 在 `field_unit_magic_list_build @0x4147d` 返回 0 或 actor `+0x27 != 0` 时禁用；item 在 `field_unit_inventory_count @0x40aba` 返回 0 时禁用；wait 始终可选。方向键直接选择上／左／右／下四项，禁用方向不改变当前选择。确认后索引 1 调用 `field_player_magic_command_execute @0x42204`，索引 2 调用 `field_player_item_command_execute @0x40df0`，索引 3 进入待机收尾；取消返回 `-1`，由上层决定是否恢复移动前状态。
 - `FDOTHER.DAT[3]` 是 `LMI1` 容器，但其 23 帧不是图像：每帧严格为 256 字节，作为 palette index translation LUT。基础 tile 使用 `shape_blit_palette_lut_24x24 @0x7322a`：RUN/LITERAL 执行 `dst=lut[src]`，SKIP 也执行 `dst=lut[dst]`，因此整格现有像素都会变色；遮挡帧改用 `shape_blit_palette_lut_transparent_24x24 @0x732b6`，其 SKIP 才保留目标像素，避免映射下方单位。
 - `field_view_render_tiles @0x3710c` 检查路径 node offset `0x07`。值为 `0xff` 时正常绘制；可达格则使用上述 LUT 重绘完整 24×24 地形。20 相位 LUT 索引表位于 `DS:0x1a97`，原始字节为 `08 01 00 00 00 04 02 05 01 00 00 00 04 02 05 01 00 00 00 04`，每 3 个 BIOS tick 前进一步。
@@ -429,26 +429,102 @@ movement profile 静态表位于原版数据段 `DS:0x1646`。相邻下一张静
 
 ## 3. 存档格式 ⚠️
 
-### 3.1 FD2.SAV（22987 字节）✅ 初步解密与单位槽位
+### 3.1 FD2.SAV（22987 字节）✅ 加密、校验与单位槽位
 
-FD2.SAV 无魔数，整文件使用对称 XOR 流加/解密。`FUN_0004b670 @0x7313c` 从 `u16 state=0x00a5` 开始，对每个字节先执行：
+FD2.SAV 无魔数，整文件使用对称 XOR 流加/解密。当前权威 `save_xor_crypt` 位于 code0 `0x3df28`（dual `0x4df28`），从 `u16 state=0x00a5` 开始，对每个字节先执行：
 
 ```
 state = rol16(state + 0x9014, 3)
 byte ^= state & 0xff
 ```
 
-解密后当前确认：
+解密后的最后 4 字节是 little-endian checksum；`save_checksum_sum`
+位于 code0 `0x3df09`（dual `0x4df09`），计算此前 `size-4` 个明文字节的
+32 位无符号和。本地原版样本满足：
+
+```text
+sum(plain[0:0x59c7]) == u32le(plain[0x59c7:0x59cb]) == 0x004527c1
+```
+
+活动战场快照的原版 writer（code0 `0x9f7a..0xa136`）与启动恢复入口
+（code0 `0x10..0x44b`）还确认了以下整文件区域：
+
+```text
+偏移      长度    字段
+0x12a3    0x1e00  活动战场单位区，0x50 字节记录，最多 96 条
+0x30a3    0x20    cell action 状态；当前 SDL 仅使用前 16 字节
+0x30c3    0x68    活动战场 meta；原版 writer 明确更新前 18 字节
+```
+
+`meta[0..8]` 的当前确认映射：`turn_number、unit_count、stage_id、camera_x、
+camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
+是 `unit_count` 的冗余副本（`DS:0x3bfb`）；`meta[10..13]` 是
+`DAT_00003bf3` 的 32 位资源值，`meta[14..17]` 依次对应 `DS:0x3af9、0x1aab、
+0x1e61、0x1e62` 四个配置字节。options loop @code0 `0x735b..0x73e2`
+确认四个 selector 都立即翻转对应字节；第三项仅在 command-ID 显示条件上
+反向。第一项控制音乐音量淡入／静音，第二项控制 SFX 播放门；第三、四项
+的可见名称仍待 DOSBox 人工确认。其余字节保持不透明。
+SDL 的活动快照 codec 只覆盖已有 owner 的 `meta[0..17]`、当前单位前缀和
+cell-state 前 16 字节；其他字节来自原容器并逐字保留。导入时要求
+`meta[9] == meta[1]`，避免接受内部 count 副本不一致的快照。
+原版 loader 读回
+活动快照后直接进入玩家控制器，因此 SDL 成功导入后固定回到 side 2 的
+browse 边界；`phase_unit_cursor/phase_ai_pass` 是 SDL 分步 scheduler 的旁路
+状态，不是原版存档字段。活动快照也不保存战斗 RNG；原版在进入战场
+控制器前按计时器低 8 位扰动 RNG，详见下文战斗公式。正式 SDL 战场循环
+默认从工作目录下的 `FD2.SAV` 读写活动快照，可用 `FD2SDL_SAVE_PATH`
+覆盖路径；`original_game/FD2.SAV` 只作为本地只读格式证据。
+
+四个手工 slot 当前确认：
 
 ```
-偏移      长度      字段
-0x312b    0xa28*N   save slots；FUN_00027313 @0x27313 以 DAT_00003c57 选择 slot
-slot+0    0xa00     单位表，最多 32 条 0x50 字节单位记录
-slot+0xa00 1        stage_id，值随存档进度变化
-slot+0xa01 1        unit_count，最多 32
-slot+0xa02 4        DAT_00003bf3，语义待细分
-slot+0xa06 4        若干进度/开关字段
+偏移        长度      字段
+0x312b      0xa28*4   四个 save slot
+slot+0      0xa00     单位表，最多 32 条 0x50 字节单位记录
+slot+0xa00  1         stage_id；0xff 表示无效 slot
+slot+0xa01  1         unit_count，最多 32；0xff 表示无效 slot
+slot+0xa02  4         DAT_00003bf3，语义待细分
+slot+0xa06  1         DS:0x1aab 配置字节
+slot+0xa07  1         DS:0x3af9 配置字节
+slot+0xa08  1         DS:0x1e61 音乐配置字节
+slot+0xa09  1         DS:0x1e62 SFX 配置字节
+slot+0xa0a  0x1e      若干进度／未知字节，写回必须完整保留
+0x59c7      4         明文字节和 checksum；与 slot 3 的最后 4 字节重叠
 ```
+
+次级系统菜单 selector 0 调用的 code0 `0xb1e7` 不是存档槽选择器。该函数
+分配两张 320×200 缓冲，按 12 相位调用 `0xaf99/0xb019/0xb0ad/0xb14b`
+展开页面，等待任意键后反向收起。页面绘制 helper `0xb41d` 逐行显示 actor
+属性，并显示 `stage_id+1`、回合数 `DAT_00003bef`、资源值
+`DAT_00003bf3` 和三阵营可见单位计数。由此可确认它是全屏部队状态总览；
+用户可见标签与精确页名仍待 DOSBox 人工截图，SDL 暂不猜测中文名称。
+
+原版写档路径 code0 `0x9f7a..0xa136` 读取并解密完整文件，修改当前状态，
+重算 checksum，再加密写回。SDL `fd2_save_file` 采用相同的整文件保留式模型：
+只允许修改目标 slot 的已提供单位记录、meta 和末尾 checksum；slot `0..2`
+可写完整 `0x28` 字节 meta，slot 3 只写前 `0x24` 字节，其最后 4 字节必须由
+文件 checksum 覆盖。原版手工 slot 配置映射由 code0
+`0x16064..0x16098/0x19757..0x19791` 确认；手工保存路径 code0
+`0x1968d` 会无条件复制当前运行期单位表的完整 `0xa00` 字节，而不是只复制
+`unit_count` 条记录；SDL 的 `fd2_save_file_update_manual_slot()` 已提供该整块
+更新接口；SDL 已增加独立四槽 picker 状态机、输入上下文和事务后端。该
+picker 属于独立 dispatcher `0x19300`，不替换 secondary `0x9df7` 的活动快照
+Save／Load。code0 `0x19ab2` 证明该 picker 为
+`y=0x77+index*0x13` 的纵向四项：每项先绘制 FDTXT `0x225`，空槽使用
+`0x202`，有效槽使用 `0x202+stage_id`；保存／读取成功分别显示 `0x294` 和
+`0x1de`。SDL 使用预解码完整 FDICON bank 取代原版按 unit ID 重建的 FD2.TMP
+cache，因此无需建立持久 cache class；手工 Load 后仍复现
+`DS:0x3f56 = 0x238d + stage*0x1f` 的 stage runtime entry owner，但不猜测
+31 字节记录内尚未命名的字段。最终调色板与装饰视觉仍待人工对照。
+其他字节保持不变。
+原版手工读取 code0 `0x1986f` 仅以 `slot+0xa00 == 0xff` 判定空槽；SDL 的
+严格 `fd2_save_file_get_manual_slot()` 另外要求 `unit_count` 在 `0..32`，以便
+安全导入当前 session；`fd2_save_file_get_manual_slot_raw()` 保留原版的空槽
+判定边界，供兼容层在有完整 runtime restore 证据后使用。截断、超长、checksum
+错误、slot 越界、无效标记和单位数越界均拒绝。写回使用目标同目录内独占创建的
+临时文件，避免预置符号链接和并发 writer 共用固定 `.tmp` 路径；POSIX 在临时
+文件 `fsync`、rename 后继续 `fsync` 父目录，Windows 使用
+`MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`。
 
 单位记录当前确认字段：
 
@@ -513,7 +589,7 @@ if hit:
 
 每一击在命中判定前先处理地形。`map_cell_info_at @0x3804c` 返回结构的 `+0x05` 是 FDSHAP terrain attr byte 1，即 `movement_cost_class`；攻击者以该值索引 `DS:0x1a12`，防御者索引 `DS:0x1a2a`，均为 32 位百分比，计算 `stat += stat*percent/100` 后才进入暴击／伤害。`field_unit_ignores_terrain_combat_modifier @0x44397` 对 unit ID 28 强制返回 0；其他单位 movement profile 19 或 race 4/5 时返回 1 并跳过地形修正。战场信息面板在 `0x3ffe5/0x40005` 读取相同两张表；DOSBox debugger 在 battlefield overlay 已加载、`CS=0x0170`／flat `DS=0x0178` 时捕获到重定位后的访问地址 `0x1ada12/0x1ada2a`，完整六项分别为攻击 `{+5,0,-5,-5,-5,0}`、防御 `{0,0,+10,+10,-5,0}`。FDSHAP 全部奇数属性条目实际使用 class 0..5；stage 0 的 shape 0 只使用 0..2。SDL 已接入完整表，class >5 在消费 RNG 前拒绝。
 
-`FUN_00073df7 @0x73df7` 已确认是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。SDL 版以 `src/field_rng.[ch]` 保存调用方持有的状态，确保序列次数、外围特效、命中、暴击、伤害浮动和反击共用同一 RNG 流；正式 field session 以 `0x7a18` 初始化。
+`FUN_00073df7 @0x73df7` 已确认是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。当前权威 code0 `0x15d90..0x15daf` 还确认：每次进入战场控制器前，原版先读取计时器，以其低 8 位为次数调用 `field_rng_next`。活动快照 writer `0x9f7a..0xa136` 和 loader `0x10..0x44b` 均不读写 `DS:0x27b8`；因此原版读档不是精确 RNG checkpoint，不存在可恢复的快照字段。SDL 版以 `src/field_rng.[ch]` 保存调用方持有的状态，确保单次 session 内外围特效、命中、暴击、伤害浮动和反击共用同一 RNG 流；正式 field session 仍以捕获值 `0x7a18` 初始化，但当前未复现计时器扰动。
 
 暴击阈值来源分两层：基础值读取 `DS:0x24a8[attacker.record[0x20]-1]`；首件已装备武器 item record `+0x09 == 4` 时，再累加 `+0x0a`。同一次 DOSBox debugger capture 从重定位地址 `0x1ae4a8` 取得完整 30 字节基础表：`{5,3,3,5,3,3,0,18,5,3,3,12,3,3,12,10,6,3,3,7,3,3,30,18,0,0,0,0,0,0}`，索引对应 movement profile `1..30`。SDL 正式 session 已直接使用该表；测试仍可通过按攻击者 callback 覆盖。反击交换双方后会重新查询，`src/field_attack.[ch]` 再自动复现 type 4 武器加值。item `+0x09 == 2` 的路径会在命中判定前至少消耗一次 RNG，并可能再消耗一次后写防御者 `+0x25` 为 `2..5`。SDL 已在 `field_attack` 复现状态写入和 RNG 顺序；对应音效与闪烁演出仍省略。
 

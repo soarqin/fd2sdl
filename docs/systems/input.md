@@ -87,7 +87,7 @@
 
 ### 4.4 战场
 
-战场控制器 `0x36a00` 经 `field_key_read` 取得规范化扫描码：
+战场控制器位于 corrected code0 `0x17e7`（dual `0x117e7`），经 `field_key_read` 取得规范化扫描码：
 
 - `Up`、`Down`、`Left`、`Right` 分别进入四个焦点／地图移动 helper。
 - `Enter`、`Space` 进入确认路径。
@@ -97,13 +97,25 @@
 
 ### 4.5 战场图形指令菜单
 
-`field_command_menu_input @0x3ca10` 不复用上述战场控制器分支，而是直接解释规范化后的扫描码：
+`field_command_menu_input` 位于 code0 `0x77fc`（dual `0x177fc`），不复用上述战场控制器分支，而是直接解释规范化后的扫描码：
 
 - `Up`、`Left`、`Right`、`Down` 直接选择 attack、magic、item、wait；禁用项不改变当前选择。
 - `Enter`、`Space` 和数字小键盘 `0`／`Enter` 确认当前项。
-- `Escape` 和数字小键盘小数点／`Delete` 取消菜单；其内部 `field_command_menu_wait_key @0x3caac` 将 `0x53` 规范化为 `0x01`。
+- `Escape` 和数字小键盘小数点／`Delete` 取消菜单；其内部 `field_command_menu_wait_key` 位于 code0 `0x7898`（dual `0x17898`），将 `0x53` 规范化为 `0x01`。
 
 因此，SDL 版仅在 `FD2_INPUT_CONTEXT_FIELD_COMMAND` 中把取消键解释为移动回退；菜单外仍保留战场焦点更新动作，不能把两条路径合并。attack 确认后进入 `field_cell_selection_execute @0x367ca` 的目标选择循环；该循环在规范化键值为 1 时返回 `-1`，上层重新展开指令菜单。SDL 对应使用独立的 `FD2_INPUT_CONTEXT_FIELD_TARGETING`，取消目标不恢复移动，只返回菜单。
+
+### 4.6 四槽手工存档选择器
+
+`field_manual_slot_picker @code0 0x19bcb` 使用独立的纵向四槽列表：
+
+- `Up (0x48)`：选择减一，在 slot 0 保持不变。
+- `Down (0x50)`：选择加一，在 slot 3 保持不变。
+- Enter、Space 和规范化确认键：确认当前 slot。
+- Esc 和规范化取消键：返回 `-1`。
+
+SDL 使用 `FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT`，不复用四向图形菜单的
+Left／Right 业务语义。
 
 ## 5. SDL 实现约束
 

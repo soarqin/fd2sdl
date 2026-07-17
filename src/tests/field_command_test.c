@@ -13,10 +13,10 @@
     } \
 } while (0)
 
-#define FRAME_SIZE (4u + FD2_FIELD_COMMAND_ICON_WIDTH * \
-                    FD2_FIELD_COMMAND_ICON_HEIGHT)
+#define FRAME_SIZE_20 (4u + FD2_FIELD_COMMAND_ICON_WIDTH * 20u)
+#define FRAME_SIZE_16 (4u + FD2_FIELD_COMMAND_ICON_WIDTH * 16u)
 #define SHEET_SIZE (FD2_FIELD_COMMAND_FRAME_COUNT * 4u + \
-                    FD2_FIELD_COMMAND_FRAME_COUNT * FRAME_SIZE)
+                    74u * FRAME_SIZE_20 + 4u * FRAME_SIZE_16)
 
 static void put_u16le(uint8_t *p, uint16_t value) {
     p[0] = (uint8_t)value;
@@ -30,17 +30,26 @@ static void put_u32le(uint8_t *p, uint32_t value) {
     p[3] = (uint8_t)(value >> 24);
 }
 
+static uint32_t get_u32le(const uint8_t *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static int is_short_frame(size_t frame) {
+    return frame == 48u || frame == 49u || frame == 51u || frame == 52u;
+}
+
 static void make_sheet(uint8_t sheet[SHEET_SIZE]) {
-    const size_t table_size = FD2_FIELD_COMMAND_FRAME_COUNT * 4u;
+    size_t offset = FD2_FIELD_COMMAND_FRAME_COUNT * 4u;
     memset(sheet, 0, SHEET_SIZE);
     for (size_t i = 0; i < FD2_FIELD_COMMAND_FRAME_COUNT; i++) {
-        size_t offset = table_size + i * FRAME_SIZE;
+        uint16_t height = is_short_frame(i) ? 16u : 20u;
+        size_t pixel_count = FD2_FIELD_COMMAND_ICON_WIDTH * (size_t)height;
         put_u32le(sheet + i * 4u, (uint32_t)offset);
         put_u16le(sheet + offset, FD2_FIELD_COMMAND_ICON_WIDTH);
-        put_u16le(sheet + offset + 2u, FD2_FIELD_COMMAND_ICON_HEIGHT);
-        memset(sheet + offset + 4u, (int)i + 1,
-               FD2_FIELD_COMMAND_ICON_WIDTH *
-               FD2_FIELD_COMMAND_ICON_HEIGHT);
+        put_u16le(sheet + offset + 2u, height);
+        memset(sheet + offset + 4u, (int)i + 1, pixel_count);
+        offset += 4u + pixel_count;
     }
 }
 
@@ -67,7 +76,8 @@ static int test_sheet_decode_and_frames(void) {
     CHECK(assets.ready);
     for (size_t i = 0; i < FD2_FIELD_COMMAND_FRAME_COUNT; i++) {
         CHECK(assets.frames[i].width == FD2_FIELD_COMMAND_ICON_WIDTH);
-        CHECK(assets.frames[i].height == FD2_FIELD_COMMAND_ICON_HEIGHT);
+        CHECK(assets.frames[i].height ==
+              (is_short_frame(i) ? 16 : FD2_FIELD_COMMAND_ICON_HEIGHT));
         CHECK(assets.frames[i].pixels[0] == i + 1u);
     }
     CHECK(fd2_field_command_frame(
@@ -76,11 +86,21 @@ static int test_sheet_decode_and_frames(void) {
               &assets, FD2_FIELD_COMMAND_ITEM, 1, 0, 1)->pixels[0] == 8);
     CHECK(fd2_field_command_frame(
               &assets, FD2_FIELD_COMMAND_ITEM, 1, 1, 1)->pixels[0] == 9);
+    CHECK(fd2_field_command_frame_id(
+              &assets, 25, 1, 0, 1)->pixels[0] == 77);
+    CHECK(fd2_field_command_frame_id(
+              &assets, 26, 0, 0, 0) == NULL);
     fd2_field_command_assets_close(&assets);
     CHECK(!assets.ready);
 
     make_sheet(sheet);
     put_u16le(sheet + FD2_FIELD_COMMAND_FRAME_COUNT * 4u, 23);
+    archive = make_archive(sheet, offsets);
+    CHECK(fd2_field_command_assets_open(&assets, &archive) != 0);
+
+    make_sheet(sheet);
+    size_t frame47 = get_u32le(sheet + 47u * 4u);
+    put_u16le(sheet + frame47 + 2u, 16);
     archive = make_archive(sheet, offsets);
     CHECK(fd2_field_command_assets_open(&assets, &archive) != 0);
     return 0;
@@ -130,7 +150,7 @@ static int test_radial_positions_and_states(void) {
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 106] == 9);
     CHECK(vga->framebuffer[87 * VGA_STRIDE + 100] == 10);
 
-    /* close @0x3c8c8 使用独立初值；可见四帧不是 opening 的简单倒序。 */
+    /* close @code0 0x76b4 使用独立初值；可见四帧不是 opening 的简单倒序。 */
     static const int close_up_y[] = {65, 70, 75};
     static const int close_left_x[] = {82, 88, 94};
     static const int close_right_x[] = {118, 112, 106};
@@ -152,6 +172,18 @@ static int test_radial_positions_and_states(void) {
     CHECK(vga->framebuffer[80 * VGA_STRIDE + 100] == 1);
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 100] == 9);
     CHECK(vga->framebuffer[84 * VGA_STRIDE + 100] == 10);
+
+    /* field-level 系统 command ID 复用相同四相位坐标，但帧索引按
+     * command_id*3+state 取值，不能强转成单位 action enum。 */
+    uint8_t system_ids[FD2_FIELD_COMMAND_COUNT] = {7, 5, 6, 4};
+    uint8_t system_disabled[FD2_FIELD_COMMAND_COUNT] = {0, 0, 1, 0};
+    memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
+    fd2_field_command_draw_id_animation(
+        vga, &assets, 100, 80, system_ids, 1, system_disabled, 1, 1, 4);
+    CHECK(vga->framebuffer[62 * VGA_STRIDE + 100] == 22);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 17);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 124] == 21);
+    CHECK(vga->framebuffer[102 * VGA_STRIDE + 100] == 13);
 
     fd2_field_command_assets_close(&assets);
     free(vga);

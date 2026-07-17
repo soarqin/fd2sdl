@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场音效 cue 到原版 sample bank 的映射
  *
- * 逆向依据：sfx_play @0x4acaa、field_command_menu_open @0x3c630、
- * field_command_menu_close @0x3c8c8、field_actor_group_flash @0x414ee、
+ * 逆向依据：sfx_play @0x4acaa、field_command_menu_open @code0 0x741c、
+ * field_command_menu_close @code0 0x76b4、field_actor_group_flash @0x414ee、
  * field_earthquake_effect @0x4673b、field_stage_transition_effect @0x4982c。
  */
 

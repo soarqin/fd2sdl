@@ -11,6 +11,8 @@
 #include "field_ai.h"
 #include "field_combat.h"
 #include "field_command.h"
+#include "field_system_menu.h"
+#include "field_manual_slot.h"
 #include "field_handoff.h"
 #include "field_info.h"
 #include "field_path.h"
@@ -18,6 +20,7 @@
 #include "field_visual.h"
 #include "font.h"
 #include "map_sprite.h"
+#include "save.h"
 #include "text.h"
 #include "tile.h"
 #include "vga.h"
@@ -70,7 +73,9 @@ typedef enum {
     FD2_FIELD_INTERACTION_UNIT_SELECTED,
     FD2_FIELD_INTERACTION_MOVING,
     FD2_FIELD_INTERACTION_COMMAND,
-    FD2_FIELD_INTERACTION_TARGETING
+    FD2_FIELD_INTERACTION_TARGETING,
+    FD2_FIELD_INTERACTION_SYSTEM_MENU,
+    FD2_FIELD_INTERACTION_MANUAL_SLOT
 } fd2_field_interaction;
 
 /* 正式战场 session。
@@ -92,6 +97,30 @@ typedef struct {
     fd2_field_visuals visuals;
     fd2_field_info_assets info_assets;
     fd2_field_command_assets command_assets;
+    fd2_field_system_menu system_menu;
+    fd2_field_manual_slot_picker manual_slot_picker;
+    /* 活动快照 meta[14..17] 的持久配置 owner；菜单打开时复制到
+     * system_menu，toggle 后同步写回。 */
+    uint8_t option_values[FD2_FIELD_SYSTEM_MENU_COUNT];
+    /* 原版 DS:0x3bf3；手工 slot meta +0x02 的 32 位资源值 owner。
+     * 当前战斗系统尚未消费该值，但 Save/Load 必须无损往返。 */
+    uint32_t resource_value;
+    fd2_field_system_action last_system_action;
+    /* Save/Load 后端结果的短暂展示状态；只保存已确认 FDTXT fragment，
+     * 不写入原版活动快照。 */
+    uint16_t system_result_fragment;
+    uint64_t system_result_until_ms;
+    /* 手工 slot Save/Load 的 FDTXT 结果；picker 关闭后由 field_play
+     * 在下一帧显示，避免把结果误并入活动快照 confirmation。 */
+    uint16_t manual_slot_result_fragment;
+    uint64_t manual_slot_result_until_ms;
+    /* code0 0x9df7 的 selector 2 资源门；field_play 按宿主提供的
+     * FD2.SAV 路径刷新，测试／宿主后端也可显式覆盖。 */
+    int save_resource_available;
+    /* 原版 DS:0x3f56：stage-indexed 31-byte runtime table pointer 的
+     * SDL 旁路 owner。当前只支持 stage 0，保存其确认的 stage table
+     * entry offset，不把未知字段解释成 gameplay 状态。 */
+    uint32_t stage_runtime_entry_offset;
     fd2_font font;
     fd2_text_entry ui_text;
     fd2_field_units units;
@@ -193,6 +222,56 @@ int fd2_field_game_unit_at(const fd2_field_game *game, int x, int y);
 int fd2_field_game_confirm_cursor(fd2_field_game *game);
 int fd2_field_game_cancel_selection(fd2_field_game *game);
 
+/* M8.1 系统菜单骨架：仅在 browse、玩家回合且焦点没有可见 actor
+ * 时进入独立 SYSTEM_MENU 上下文；不复用单位 COMMAND 状态。 */
+int fd2_field_game_open_system_menu(fd2_field_game *game);
+int fd2_field_game_select_system_menu_direction(
+    fd2_field_game *game, fd2_field_command_direction direction);
+fd2_field_system_action fd2_field_game_confirm_system_menu(
+    fd2_field_game *game);
+fd2_field_system_action fd2_field_game_cancel_system_menu(
+    fd2_field_game *game);
+void fd2_field_game_set_save_resource_available(fd2_field_game *game,
+                                                int available);
+int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
+                                       int opening,
+                                       uint32_t frame_delay_ms);
+
+/* 原版四槽 hand_save/hand_load picker @code0 0x19ab2/0x19bcb。
+ * 这是独立 interaction，不与四向 system menu 选择状态混用。当前只接
+ * picker 生命周期；确认 slot 后的磁盘提交／runtime restore 由下一层
+ * owner 执行，不能把 active snapshot API 用来冒充手工 slot。 */
+int fd2_field_game_open_manual_slot_picker(
+    fd2_field_game *game, const char *path,
+    fd2_field_manual_slot_mode mode, size_t initial_slot);
+int fd2_field_game_move_manual_slot_picker(fd2_field_game *game, int delta);
+int fd2_field_game_confirm_manual_slot_picker(fd2_field_game *game);
+int fd2_field_game_cancel_manual_slot_picker(fd2_field_game *game);
+
+/* code0 0x9f7a..0xa136 / 0x10..0x44b 的活动战场快照 codec。
+ * snapshot 必须来自完整 save 容器，以保留未知字节。原版 loader 返回
+ * 玩家 side 2 控制器边界；快照不保存 RNG，SDL 也不伪造 checkpoint。 */
+int fd2_field_game_export_battle_snapshot(
+    const fd2_field_game *game, fd2_save_battle_snapshot *snapshot);
+int fd2_field_game_import_battle_snapshot(
+    fd2_field_game *game, const fd2_save_battle_snapshot *snapshot);
+int fd2_field_game_save_resource_available(const fd2_field_game *game,
+                                           const char *path);
+int fd2_field_game_save_active(fd2_field_game *game, const char *path);
+int fd2_field_game_load_active(fd2_field_game *game, const char *path);
+/* 原版四槽 hand_save/hand_load 事务。Save 从当前 session 导出完整
+ * 0xa00 单位表并保留未知 meta；Load 只允许当前已支持的 stage 0，
+ * 成功后重建 SDL runtime cache 并回到玩家 browse。 */
+int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
+                                    size_t slot_index);
+int fd2_field_game_load_manual_slot(fd2_field_game *game, const char *path,
+                                    size_t slot_index);
+/* 执行已由 confirmation 页确认的 SAVE/LOAD。返回 1=成功、0=后端失败、
+ * -1=不是存储动作或参数无效；result_fragment 写入 0 表示无已确认片段。 */
+int fd2_field_game_execute_storage_action(
+    fd2_field_game *game, fd2_field_system_action action,
+    const char *path, size_t *result_fragment);
+
 /* M6：target_allowed 非 NULL 时覆盖正式武器范围判定，供状态机测试；
  * side 2 → side 0、必须持有武器等不变量不会被覆盖。critical_base 非
  * NULL 时按当前进攻者覆盖正式表，供测试使用；正式 session 默认读取
@@ -232,7 +311,7 @@ int fd2_field_game_commit_ai_item(
     uint8_t selector_mode,
     const fd2_field_ai_item_candidate *plan);
 
-/* field_command_menu_input @0x3ca10：四方向直接选择固定图标，禁用项
+/* field_command_menu_input @code0 0x77fc：四方向直接选择固定图标，禁用项
  * 不移动选择；确认只分派已接入的普通攻击和待机，返回操作复用移动
  * 快照回退，不消费 RNG。 */
 int fd2_field_game_refresh_commands(fd2_field_game *game);

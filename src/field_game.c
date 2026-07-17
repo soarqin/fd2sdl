@@ -22,13 +22,14 @@
 #include "field_item.h"
 #include "field_magic.h"
 #include "portrait.h"
+#include "save.h"
 #include "field_unit_base.h"
 #include "field_unit_stats.h"
 
 #define FD2_FIELD_BIOS_TICK_MS 55
 #define FD2_FIELD_IDLE_MS 275
 #define FD2_FIELD_RANGE_VISUAL_MS 165 /* 3 个约 55 ms 的 BIOS tick */
-/* field_command_menu_wait_key @0x3caac 每超过 3 个 BIOS tick 切换一次
+/* field_command_menu_wait_key @code0 0x7898 每超过 3 个 BIOS tick 切换一次
  * normal/highlight 帧，即约 4×55 ms。 */
 #define FD2_FIELD_COMMAND_HIGHLIGHT_MS 220
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
@@ -237,6 +238,34 @@ static int clamp_int(int value, int lo, int hi) {
     if (value < lo) return lo;
     if (value > hi) return hi;
     return value;
+}
+
+/* field_secondary_menu_execute @code0 0x9df7：
+ * - selector 2（读档）在 FD2.SAV 资源打开失败时使用 disabled frame；
+ * - selector 1（存档）在仍有未隐藏 actor 且其 acted bit 0x80 已置位时
+ *   使用 disabled frame。原版读取 DS:0x3f22 的四个零 dword 到栈，
+ *   再只改这两个动态项。 */
+static void init_option_values(fd2_field_game *game) {
+    static const uint8_t defaults[FD2_FIELD_SYSTEM_MENU_COUNT] = {
+        1, 1, 0, 1
+    };
+    if (game) memcpy(game->option_values, defaults, sizeof(defaults));
+}
+
+static void refresh_secondary_menu_disabled(fd2_field_game *game) {
+    if (!game) return;
+    uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {0, 0, 0, 0};
+    if (!game->save_resource_available)
+        disabled[2] = 1;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (!fd2_field_unit_is_hidden(unit) &&
+            fd2_field_unit_has_acted(unit)) {
+            disabled[1] = 1;
+            break;
+        }
+    }
+    fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
 }
 
 static int unit_can_act_for_side(const fd2_field_unit *unit, uint8_t side) {
@@ -556,6 +585,14 @@ int fd2_field_game_open(fd2_field_game *game,
     memset(game, 0, sizeof(*game));
     game->selected_unit = -1;
     game->command_selected = -1;
+    fd2_field_system_menu_init(&game->system_menu);
+    init_option_values(game);
+    fd2_field_system_menu_set_options(&game->system_menu,
+                                      game->option_values);
+    game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->manual_slot_picker.open = 0;
+    game->save_resource_available = 0;
+    game->stage_runtime_entry_offset = 0;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
 
@@ -612,6 +649,8 @@ int fd2_field_game_open(fd2_field_game *game,
                                     0, game->map.height - 1);
     game->turn_number = 1;
     game->selected_unit = -1;
+    game->save_resource_available = 0;
+    game->stage_runtime_entry_offset = 0;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
     game->command_selected = -1;
@@ -667,6 +706,13 @@ int fd2_field_game_apply_handoff(fd2_field_game *game,
     game->last_command_highlight_ms = 0;
     game->selected_unit = -1;
     game->command_selected = -1;
+    fd2_field_system_menu_init(&game->system_menu);
+    fd2_field_system_menu_set_options(&game->system_menu,
+                                      game->option_values);
+    game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->manual_slot_picker.open = 0;
+    game->save_resource_available = 0;
+    game->stage_runtime_entry_offset = 0;
     game->attack_target = -1;
     game->last_attack_valid = 0;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
@@ -694,6 +740,9 @@ void fd2_field_game_close(fd2_field_game *game) {
     memset(game, 0, sizeof(*game));
     game->selected_unit = -1;
     game->command_selected = -1;
+    fd2_field_system_menu_init(&game->system_menu);
+    game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->manual_slot_picker.open = 0;
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
 }
@@ -728,18 +777,47 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
             game->last_range_visual_ms += FD2_FIELD_RANGE_VISUAL_MS;
         }
     }
-    if (game->interaction != FD2_FIELD_INTERACTION_COMMAND) {
+    if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
+        if (game->last_command_highlight_ms == 0) {
+            game->last_command_highlight_ms = now_ms;
+        } else {
+            while (now_ms - game->last_command_highlight_ms >=
+                   FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
+                game->command_highlight_phase ^= 1u;
+                game->last_command_highlight_ms +=
+                    FD2_FIELD_COMMAND_HIGHLIGHT_MS;
+            }
+        }
+        game->system_menu.highlight_phase = 0;
+        game->system_menu.last_highlight_ms = 0;
+    } else if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU) {
         game->command_highlight_phase = 0;
         game->last_command_highlight_ms = 0;
-    } else if (game->last_command_highlight_ms == 0) {
-        game->last_command_highlight_ms = now_ms;
-    } else {
-        while (now_ms - game->last_command_highlight_ms >=
-               FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
-            game->command_highlight_phase ^= 1u;
-            game->last_command_highlight_ms +=
-                FD2_FIELD_COMMAND_HIGHLIGHT_MS;
+        if (game->system_menu.last_highlight_ms == 0) {
+            game->system_menu.last_highlight_ms = now_ms;
+        } else {
+            while (now_ms - game->system_menu.last_highlight_ms >=
+                   FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
+                game->system_menu.highlight_phase ^= 1u;
+                game->system_menu.last_highlight_ms +=
+                    FD2_FIELD_COMMAND_HIGHLIGHT_MS;
+            }
         }
+    } else {
+        game->command_highlight_phase = 0;
+        game->last_command_highlight_ms = 0;
+        game->system_menu.highlight_phase = 0;
+        game->system_menu.last_highlight_ms = 0;
+    }
+    if (game->system_result_fragment != 0 &&
+        now_ms >= game->system_result_until_ms) {
+        game->system_result_fragment = 0;
+        game->system_result_until_ms = 0;
+    }
+    if (game->manual_slot_result_fragment != 0 &&
+        now_ms >= game->manual_slot_result_until_ms) {
+        game->manual_slot_result_fragment = 0;
+        game->manual_slot_result_until_ms = 0;
     }
 
     /* field_side1_phase_execute @0x42a1f / 正确 dual 0x1d80b 与
@@ -771,6 +849,15 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga);
 static void render_field_command(const fd2_field_game *game,
                                  fd2_vga *vga,
                                  int camera_x, int camera_y);
+static void render_field_system_menu(const fd2_field_game *game,
+                                     fd2_vga *vga,
+                                     int camera_x, int camera_y);
+static void render_manual_slot_picker(const fd2_field_game *game,
+                                      fd2_vga *vga);
+static void render_manual_slot_result(const fd2_field_game *game,
+                                      fd2_vga *vga);
+static void render_system_result(const fd2_field_game *game,
+                                 fd2_vga *vga);
 
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
@@ -796,6 +883,10 @@ void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     clear_view_border(vga);
     render_field_info(game, vga);
     render_field_command(game, vga, camera_x, camera_y);
+    render_field_system_menu(game, vga, camera_x, camera_y);
+    render_manual_slot_picker(game, vga);
+    render_system_result(game, vga);
+    render_manual_slot_result(game, vga);
     if (game->detail_visible && game->detail_unit >= 0 &&
         (size_t)game->detail_unit < game->units.count) {
         fd2_field_detail_draw(vga, &game->info_assets, &game->font,
@@ -875,7 +966,7 @@ static void render_field_command(const fd2_field_game *game,
         (size_t)game->selected_unit >= game->units.count)
         return;
     const fd2_field_unit *unit = &game->units.items[game->selected_unit];
-    /* field_command_menu_open @0x3c63a 的最终四向偏移以单位格左上角
+    /* field_command_menu_open 主体 @code0 0x7426 的最终四向偏移以单位格左上角
      * 为基准；图标在信息面板之后绘制。 */
     fd2_field_command_draw_animation(
         vga, &game->command_assets,
@@ -884,6 +975,167 @@ static void render_field_command(const fd2_field_game *game,
         game->command_selected, game->command_disabled,
         game->command_highlight_phase, game->command_animation_opening,
         game->command_animation_phase);
+}
+
+static void render_manual_slot_picker(const fd2_field_game *game,
+                                      fd2_vga *vga) {
+    if (!game || !vga || game->interaction !=
+            FD2_FIELD_INTERACTION_MANUAL_SLOT)
+        return;
+    /* field_manual_slot_draw @code0 0x19ab2：四个 slot 是纵向列表，
+     * y=0x77+index*0x13；先绘制 FDTXT 0x225 的「第」，再按空槽
+     * 0x202 或有效槽 0x202+stage 绘制状态。没有证据的装饰帧不猜测。 */
+    for (int row = 112; row < 198; row++)
+        memset(vga->framebuffer + row * VGA_STRIDE + 5, 0xcd, 310u);
+    for (size_t i = 0; i < FD2_SAVE_SLOT_COUNT; i++) {
+        const int y = 0x77 + (int)i * 0x13;
+        const int selected = i == game->manual_slot_picker.selected;
+        const int color = selected ? 0xc9 : 0xcd;
+        const uint8_t *tokens;
+        size_t token_count;
+        if (fd2_text_entry_get_fragment(&game->ui_text, 0x225,
+                                        &tokens, &token_count) == 0) {
+            int x = 10;
+            for (size_t token_i = 0; token_i < token_count; token_i++) {
+                int16_t token = (int16_t)fd2_text_token_at(tokens, token_i);
+                if (token == -1) break;
+                if (token < 0) continue;
+                fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+                                    x, y, color, 0x4c, -1);
+                x += 16;
+            }
+        }
+        /* 原版把 DS:0x3ae1 设为 index+1，再由格式 token 插值显示。
+         * SDL 当前文本渲染不处理该控制 token，因此直接画全角数字。 */
+        fd2_font_draw_glyph(vga, &game->font, (uint16_t)(i + 1u),
+                            26, y, color, 0x4c, -1);
+        size_t fragment = 0x202u;
+        if (game->manual_slot_picker.occupied[i]) {
+            uint8_t stage = game->manual_slot_picker.stage_ids[i];
+            fragment += stage;
+            if (fragment >= game->ui_text.fragment_count)
+                fragment = 0x202u;
+        }
+        if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
+                                        &tokens, &token_count) == 0) {
+            int x = 88;
+            for (size_t token_i = 0; token_i < token_count; token_i++) {
+                int16_t token = (int16_t)fd2_text_token_at(tokens, token_i);
+                if (token == -1) break;
+                if (token < 0) continue;
+                fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+                                    x, y, color, 0x4c, -1);
+                x += 16;
+            }
+        }
+    }
+}
+
+static void render_manual_slot_result(const fd2_field_game *game,
+                                      fd2_vga *vga) {
+    if (!game || !vga || game->manual_slot_result_fragment == 0 ||
+        !game->ui_text.data)
+        return;
+    const fd2_image *dialog = &game->info_assets.detail_bottom;
+    if (dialog->pixels)
+        fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
+    const uint8_t *tokens;
+    size_t token_count;
+    if (fd2_text_entry_get_fragment(&game->ui_text,
+                                    game->manual_slot_result_fragment,
+                                    &tokens, &token_count) != 0)
+        return;
+    int x = 15;
+    int y = 119;
+    for (size_t i = 0; i < token_count; i++) {
+        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
+        if (token == -1) break;
+        if (token == -2) {
+            x = 15;
+            y += 16;
+        } else if (token >= 0 && x + 16 <= 315 && y + 16 <= 198) {
+            fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+                                x, y, 0xcd, 0x4c, -1);
+            x += 16;
+        }
+    }
+}
+
+static void render_system_result(const fd2_field_game *game,
+                                 fd2_vga *vga) {
+    if (!game || !vga || game->system_result_fragment == 0) return;
+    const fd2_image *dialog = &game->info_assets.detail_bottom;
+    if (dialog->pixels)
+        fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
+    const uint8_t *tokens;
+    size_t token_count;
+    if (fd2_text_entry_get_fragment(&game->ui_text,
+                                    game->system_result_fragment,
+                                    &tokens, &token_count) != 0)
+        return;
+    int x = 15;
+    int y = 119;
+    for (size_t i = 0; i < token_count; i++) {
+        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
+        if (token == -1) break;
+        if (token == -2) {
+            x = 15;
+            y += 16;
+        } else if (token >= 0 && x + 16 <= 315 && y + 16 <= 198) {
+            fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+                                x, y, 0xcd, 0x4c, -1);
+            x += 16;
+        }
+    }
+}
+
+static void render_field_system_menu(const fd2_field_game *game,
+                                     fd2_vga *vga, int camera_x, int camera_y) {
+    if (!game || !vga || game->interaction !=
+            FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return;
+    if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION) {
+        const fd2_image *dialog = &game->info_assets.detail_bottom;
+        if (dialog->pixels)
+            fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
+        size_t fragment;
+        if (fd2_field_system_menu_get_confirmation_fragment(
+                &game->system_menu, FD2_FIELD_SYSTEM_CONFIRM_PROMPT,
+                &fragment) != 0)
+            return;
+        const uint8_t *tokens;
+        size_t token_count;
+        if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
+                                        &tokens, &token_count) != 0)
+            return;
+        int x = 15;
+        int y = 119;
+        for (size_t i = 0; i < token_count; i++) {
+            int16_t token = (int16_t)fd2_text_token_at(tokens, i);
+            if (token == -1) break;
+            if (token == -2) {
+                x = 15;
+                y += 16;
+            } else if (token >= 0 && x + 16 <= 315 && y + 16 <= 198) {
+                fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+                                    x, y, 0xcd, 0x4c, -1);
+                x += 16;
+            }
+        }
+        /* yes/no 的可见标签仍待 DOSBox 对照；confirmation_yes 只作为
+         * 独立输入状态，不猜测 command ID。 */
+        return;
+    }
+    uint8_t command_ids[FD2_FIELD_SYSTEM_MENU_COUNT];
+    memcpy(command_ids, game->system_menu.command_ids, sizeof(command_ids));
+    fd2_field_command_draw_id_animation(
+        vga, &game->command_assets,
+        game->cursor_cell_x * 24 - camera_x,
+        game->cursor_cell_y * 24 - camera_y,
+        command_ids, game->system_menu.selected,
+        game->system_menu.disabled, game->system_menu.highlight_phase,
+        game->system_menu.animation_opening,
+        game->system_menu.animation_phase);
 }
 
 static void render_move_selection(const fd2_field_game *game,
@@ -1071,6 +1323,130 @@ int fd2_field_game_update_move_preview(fd2_field_game *game) {
     if (length < 0) return -1;
     game->move_path_length = (size_t)length;
     game->move_preview_valid = 1;
+    return 0;
+}
+
+int fd2_field_game_open_system_menu(fd2_field_game *game) {
+    if (!game || !game->ready || game->active_side != 2u ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        fd2_field_game_unit_at(game, game->cursor_cell_x,
+                               game->cursor_cell_y) >= 0)
+        return -1;
+    fd2_field_system_menu_init(&game->system_menu);
+    fd2_field_system_menu_set_options(&game->system_menu,
+                                      game->option_values);
+    game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+    return 0;
+}
+
+int fd2_field_game_select_system_menu_direction(
+        fd2_field_game *game, fd2_field_command_direction direction) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return -1;
+    return fd2_field_system_menu_select_direction(
+        &game->system_menu, direction);
+}
+
+fd2_field_system_action fd2_field_game_confirm_system_menu(
+        fd2_field_game *game) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->last_system_action = fd2_field_system_menu_confirm(
+        &game->system_menu);
+    if (game->last_system_action ==
+            FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY)
+        refresh_secondary_menu_disabled(game);
+    else if (game->last_system_action ==
+             FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING)
+        memcpy(game->option_values, game->system_menu.option_values,
+               sizeof(game->option_values));
+    return game->last_system_action;
+}
+
+fd2_field_system_action fd2_field_game_cancel_system_menu(
+        fd2_field_game *game) {
+    if (!game || !game->ready ||
+        game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return FD2_FIELD_SYSTEM_ACTION_NONE;
+    game->last_system_action = fd2_field_system_menu_cancel(
+        &game->system_menu);
+    if (game->last_system_action == FD2_FIELD_SYSTEM_ACTION_CANCEL)
+        game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+    return game->last_system_action;
+}
+
+void fd2_field_game_set_save_resource_available(fd2_field_game *game,
+                                                int available) {
+    if (!game) return;
+    game->save_resource_available = available ? 1 : 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU &&
+        game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY)
+        refresh_secondary_menu_disabled(game);
+}
+
+int fd2_field_game_open_manual_slot_picker(
+        fd2_field_game *game, const char *path,
+        fd2_field_manual_slot_mode mode, size_t initial_slot) {
+    if (!game || !game->ready || !path ||
+        game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return -1;
+    fd2_save_file save = {0};
+    /* 原版 Save 在文件不存在时以 0xff 建立容器；picker 也保留这一
+     * 语义，真正提交时才使用独占临时文件写回。 */
+    if (fd2_save_file_open(&save, path) != 0 &&
+        mode == FD2_FIELD_MANUAL_SLOT_MODE_SAVE)
+        (void)fd2_save_file_create_empty(&save);
+    fd2_field_manual_slot_picker_init(
+        &game->manual_slot_picker, mode, initial_slot,
+        save.data ? &save : NULL);
+    fd2_save_file_close(&save);
+    game->interaction = FD2_FIELD_INTERACTION_MANUAL_SLOT;
+    return 0;
+}
+
+int fd2_field_game_move_manual_slot_picker(fd2_field_game *game, int delta) {
+    if (!game || game->interaction != FD2_FIELD_INTERACTION_MANUAL_SLOT)
+        return 0;
+    return fd2_field_manual_slot_picker_move(
+        &game->manual_slot_picker, delta);
+}
+
+int fd2_field_game_confirm_manual_slot_picker(fd2_field_game *game) {
+    if (!game || game->interaction != FD2_FIELD_INTERACTION_MANUAL_SLOT)
+        return -1;
+    int selected = fd2_field_manual_slot_picker_confirm(
+        &game->manual_slot_picker);
+    if (selected >= 0)
+        game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+    return selected;
+}
+
+int fd2_field_game_cancel_manual_slot_picker(fd2_field_game *game) {
+    if (!game || game->interaction != FD2_FIELD_INTERACTION_MANUAL_SLOT)
+        return 0;
+    fd2_field_manual_slot_picker_cancel(&game->manual_slot_picker);
+    game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+    return 1;
+}
+
+int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
+                                       int opening,
+                                       uint32_t frame_delay_ms) {
+    if (!game || !game->ready || !vga ||
+        game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU ||
+        !game->command_assets.ready)
+        return -1;
+    game->system_menu.animation_opening = opening ? 1u : 0u;
+    for (uint8_t phase = 1; phase <= 4u; phase++) {
+        game->system_menu.animation_phase = phase;
+        fd2_field_game_render(game, vga);
+        fd2_vga_present_timed(vga, frame_delay_ms);
+    }
+    game->system_menu.animation_opening = 1u;
+    game->system_menu.animation_phase = 4u;
     return 0;
 }
 
@@ -1615,7 +1991,13 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
 }
 
 int fd2_field_game_cancel_selection(fd2_field_game *game) {
-    if (!game || !game->ready || game->selected_unit < 0) return 0;
+    if (!game || !game->ready) return 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_MANUAL_SLOT)
+        return fd2_field_game_cancel_manual_slot_picker(game);
+    if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU)
+        return fd2_field_game_cancel_system_menu(game) !=
+               FD2_FIELD_SYSTEM_ACTION_NONE;
+    if (game->selected_unit < 0) return 0;
     if (game->interaction == FD2_FIELD_INTERACTION_TARGETING)
         return fd2_field_game_cancel_attack(game);
 

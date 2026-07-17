@@ -81,6 +81,25 @@ static int test_context_mappings(void) {
                                    FD2_INPUT_KEY_HOME) ==
           FD2_INPUT_ACTION_NONE);
 
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
+                                   FD2_INPUT_KEY_RIGHT) ==
+          FD2_INPUT_ACTION_RIGHT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
+                                   FD2_INPUT_KEY_ENTER) ==
+          FD2_INPUT_ACTION_CONFIRM);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
+                                   FD2_INPUT_KEY_ESCAPE) ==
+          FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
+                                   FD2_INPUT_KEY_UP) ==
+          FD2_INPUT_ACTION_LEFT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
+                                   FD2_INPUT_KEY_DOWN) ==
+          FD2_INPUT_ACTION_RIGHT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
+                                   FD2_INPUT_KEY_LEFT) ==
+          FD2_INPUT_ACTION_NONE);
+
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
                                    FD2_INPUT_KEY_RIGHT) ==
           FD2_INPUT_ACTION_RIGHT);

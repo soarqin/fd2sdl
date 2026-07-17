@@ -137,7 +137,7 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
                 key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
                 return FD2_INPUT_ACTION_CONFIRM;
-            /* field_turn controller @0x36a00 将 Esc、0x53 规范化取消码、
+            /* field controller @code0 0x17e7 将 Esc、0x53 规范化取消码、
              * Z 与数字小键盘 5 送入同一遍历 actor／更新焦点分支。尚未
              * 经 DOSBox 确认前，不把这一组误作 SDL 版的取消选择。 */
             if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL ||
@@ -152,13 +152,39 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_FIELD_COMMAND:
-            /* field_command_menu_input @0x3ca10 使用 BIOS 扫描码：
+            /* field_command_menu_input @code0 0x77fc 使用 BIOS 扫描码：
              * 48/50/4b/4d 选四方向，39/1c 确认，01 取消；其读取 helper
              * 另将 keypad 0x52 规范化为确认、0x53 规范化为取消。 */
             if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
             if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
             if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;
             if (key == FD2_INPUT_KEY_RIGHT) return FD2_INPUT_ACTION_RIGHT;
+            if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
+                key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
+                return FD2_INPUT_ACTION_CONFIRM;
+            if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
+                return FD2_INPUT_ACTION_CANCEL;
+            return FD2_INPUT_ACTION_NONE;
+
+        case FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU:
+            /* field_empty_focus_menu_execute @code0 0x6f55 与各子页复用
+             * field_command_menu_input 的四方向、确认和取消键。 */
+            if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
+            if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
+            if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;
+            if (key == FD2_INPUT_KEY_RIGHT) return FD2_INPUT_ACTION_RIGHT;
+            if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
+                key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
+                return FD2_INPUT_ACTION_CONFIRM;
+            if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
+                return FD2_INPUT_ACTION_CANCEL;
+            return FD2_INPUT_ACTION_NONE;
+
+        case FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT:
+            /* field_manual_slot_picker @code0 0x19bcb 只使用扫描码
+             * 0x48/0x50 改变纵向 slot；在原版 BIOS 命名中对应 Up/Down。 */
+            if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_LEFT;
+            if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_RIGHT;
             if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
                 key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
                 return FD2_INPUT_ACTION_CONFIRM;

@@ -3,6 +3,10 @@
  * Do not edit semantic names here without updating docs/reverse-engineering/function-names.md.
  */
 /* Confirmed entries folded into adjacent auto-analysis functions. */
+// FUNC 0x29300 field_manual_slot_dispatch  /* code0 0x19300：部队页/四槽手工 Save/Load/离开确认分派 */
+// FUNC 0x29620 field_manual_slot_save  /* code0 0x1968d：四槽手工 Save；成功片段 FDTXT 0x294 */
+// FUNC 0x2986f field_manual_slot_load  /* code0 0x1986f：四槽手工 Load；成功片段 0x1de、不兼容提示 0x1df */
+// FUNC 0x29bcb field_manual_slot_picker  /* code0 0x19bcb：纵向四槽，y=0x77+index*0x13；0x48/0x50 调整，Enter/Esc 返回 */
 // FUNC 0x374f0 field_selection_overlay_draw
 // FUNC 0x3790b field_selection_sprite_blit
 // FUNC 0x39839 field_opponent_zoc_mark_unit
@@ -43,6 +47,8 @@
 // FUNC 0x44953 intro_cutaway
 // FUNC 0x44a32 intro_anim_with_palette
 // FUNC 0x4518d title_menu_draw
+// FUNC 0x1f894 title_action_menu  /* code0 0xf894：标题 action 选择器；活动快照可用时插入读档 */
+// FUNC 0x25ebb title_action_dispatch  /* code0 0x15ebb：标题 action 上层分派 */
 // FUNC 0x4622d fdicon_cache_append_unit
 // FUNC 0x4673b field_earthquake_effect  /* 3 个缩放 buffer 按 0,1,2,1 震动；FDOTHER[80] SFX 13 */
 

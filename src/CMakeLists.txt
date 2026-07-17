@@ -96,12 +96,15 @@ if(NOT FD2SDL_SDL3_TARGET)
 endif()
 
 set(FD2SDL_CORE_SOURCES
+    app_flow.c
     input.c
     audio.c
     audio_pcm.c
     field_audio.c
     field_effect.c
     field_command.c
+    field_system_menu.c
+    field_manual_slot.c
     archive.c
     image.c
     shape.c
@@ -122,6 +125,7 @@ set(FD2SDL_CORE_SOURCES
     field_visual.c
     field_info.c
     field_game.c
+    field_save.c
     field_play.c
     field_preview.c
     text.c
@@ -149,6 +153,46 @@ target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(fd2_app_flow_test
+        tests/app_flow_test.c
+        app_flow.c
+    )
+    target_include_directories(fd2_app_flow_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_app_flow_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_app_flow_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME app_flow COMMAND fd2_app_flow_test)
+
+    add_executable(fd2_save_test
+        tests/save_test.c
+        save.c
+    )
+    target_include_directories(fd2_save_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_save_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_save_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME save COMMAND fd2_save_test)
+    set_tests_properties(save PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_manual_slot_test
+        tests/field_manual_slot_test.c
+        field_manual_slot.c
+        save.c
+    )
+    target_include_directories(fd2_field_manual_slot_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_field_manual_slot_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_manual_slot_test PRIVATE
+            -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_manual_slot COMMAND fd2_field_manual_slot_test)
+
     add_executable(fd2_audio_test
         tests/audio_test.c
         audio.c
@@ -224,6 +268,25 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_command COMMAND fd2_field_command_test)
+
+    add_executable(fd2_field_system_menu_test
+        tests/field_system_menu_test.c
+        field_system_menu.c
+        field_command.c
+        map_sprite.c
+        image.c
+        archive.c
+    )
+    target_include_directories(fd2_field_system_menu_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_system_menu_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_system_menu_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_system_menu COMMAND fd2_field_system_menu_test)
 
     add_executable(fd2_field_path_test
         tests/field_path_test.c
@@ -361,6 +424,37 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_game_attack COMMAND fd2_field_game_attack_test)
+
+    add_executable(fd2_field_game_system_menu_test
+        tests/field_game_system_menu_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_game_system_menu_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_game_system_menu_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_game_system_menu_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_game_system_menu
+        COMMAND fd2_field_game_system_menu_test)
+
+    add_executable(fd2_field_save_test
+        tests/field_save_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_save_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_compile_options(fd2_field_save_test PRIVATE
+        -Wall -Wextra -Wpedantic
+    )
+    target_link_libraries(fd2_field_save_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_save COMMAND fd2_field_save_test)
 
     add_executable(fd2_field_ai_commit_test
         tests/field_ai_commit_test.c

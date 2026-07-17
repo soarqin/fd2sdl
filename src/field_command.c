@@ -1,10 +1,10 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场图形指令菜单
  *
- * field_command_menu_open @0x3c630 从 FDOTHER[2] 取图标，并以四步
- * 上／左／右／下展开；field_command_menu_input @0x3ca10 将四方向直接
- * 映射到 attack/magic/item/wait。其内部 field_command_menu_wait_key
- * @0x3caac 读取键盘并切换高亮相位，field_command_menu_draw @0x3cbe9
- * 绘制四帧；确认或取消后由 field_command_menu_close @0x3c8c8 收起。
+ * field_command_menu_open @code0 0x741c 从 FDOTHER[2] 取图标，并以
+ * 四步上／左／右／下展开；field_command_menu_input @code0 0x77fc
+ * 将四方向直接映射到 selector 0..3。其内部 wait-key @code0 0x7898
+ * 读取键盘并切换高亮相位，draw @code0 0x79d5 绘制四帧；确认或取消
+ * 后由 close @code0 0x76b4 收起。
  */
 #include "field_command.h"
 
@@ -44,7 +44,7 @@ int fd2_field_command_assets_open(fd2_field_command_assets *assets,
 
     uint32_t first_offset = rd_u32_le(data);
     if (first_offset % 4u != 0 || first_offset > size ||
-        first_offset / 4u < FD2_FIELD_COMMAND_FRAME_COUNT)
+        first_offset / 4u != FD2_FIELD_COMMAND_FRAME_COUNT)
         return -1;
     size_t frame_count = first_offset / 4u;
     if (frame_count > size / 4u) return -1;
@@ -63,19 +63,27 @@ int fd2_field_command_assets_open(fd2_field_command_assets *assets,
         uint32_t end = i + 1u < frame_count
             ? rd_u32_le(data + (i + 1u) * 4u)
             : (uint32_t)size;
-        size_t pixel_count = (size_t)FD2_FIELD_COMMAND_ICON_WIDTH *
-                             FD2_FIELD_COMMAND_ICON_HEIGHT;
-        if (end <= start || (size_t)(end - start) != 4u + pixel_count ||
-            rd_u16_le(data + start) != FD2_FIELD_COMMAND_ICON_WIDTH ||
-            rd_u16_le(data + start + 2u) != FD2_FIELD_COMMAND_ICON_HEIGHT)
+        if (end <= start || (size_t)end > size || end - start < 4u)
+            goto fail;
+        uint16_t width = rd_u16_le(data + start);
+        uint16_t height = rd_u16_le(data + start + 2u);
+        size_t pixel_count = (size_t)width * height;
+        /* FDOTHER[2] 的 78 项中，frame 48/49/51/52 为 24×16；
+         * 系统菜单使用的 0..47、54..77 均为 24×20。完整资源 loader
+         * 仍保留这四帧，不能因它们尺寸不同而拒绝整个 sheet。 */
+        int short_frame = i == 48u || i == 49u || i == 51u || i == 52u;
+        if (width != FD2_FIELD_COMMAND_ICON_WIDTH ||
+            height != (short_frame ? 16u : FD2_FIELD_COMMAND_ICON_HEIGHT) ||
+            (size_t)(end - start) != 4u + pixel_count)
             goto fail;
         fd2_image *frame = &assets->frames[i];
-        frame->width = FD2_FIELD_COMMAND_ICON_WIDTH;
-        frame->height = FD2_FIELD_COMMAND_ICON_HEIGHT;
+        frame->width = width;
+        frame->height = height;
         frame->pixels = malloc(pixel_count);
         if (!frame->pixels) goto fail;
         memcpy(frame->pixels, data + start + 4u, pixel_count);
     }
+    assets->frame_count = frame_count;
     assets->ready = 1;
     return 0;
 
@@ -88,10 +96,20 @@ const fd2_image *fd2_field_command_frame(
         const fd2_field_command_assets *assets,
         fd2_field_command command, int selected, int disabled,
         uint8_t highlight_phase) {
-    if (!assets || !assets->ready || command < FD2_FIELD_COMMAND_ATTACK ||
+    if (command < FD2_FIELD_COMMAND_ATTACK ||
         command > FD2_FIELD_COMMAND_WAIT)
         return NULL;
-    size_t frame = (size_t)command * 3u;
+    return fd2_field_command_frame_id(
+        assets, (uint8_t)command, selected, disabled, highlight_phase);
+}
+
+const fd2_image *fd2_field_command_frame_id(
+        const fd2_field_command_assets *assets, uint8_t command_id,
+        int selected, int disabled, uint8_t highlight_phase) {
+    if (!assets || !assets->ready ||
+        (size_t)command_id * 3u + 2u >= assets->frame_count)
+        return NULL;
+    size_t frame = (size_t)command_id * 3u;
     if (disabled)
         frame += 2u;
     else if (selected && (highlight_phase & 1u))
@@ -101,7 +119,7 @@ const fd2_image *fd2_field_command_frame(
 
 int fd2_field_command_first_enabled(
         const uint8_t disabled[FD2_FIELD_COMMAND_COUNT]) {
-    /* field_command_first_enabled_select @0x3c5fb：从索引 0 起找到
+    /* field_command_first_enabled_select @code0 0x73e7：从索引 0 起找到
      * 第一项 disabled==0 的命令，并写入原版全局选择索引。 */
     if (!disabled) return -1;
     for (size_t i = 0; i < FD2_FIELD_COMMAND_COUNT; i++)
@@ -133,8 +151,8 @@ void fd2_field_command_draw_animation(
     if (!vga || !assets || !assets->ready || !disabled) return;
     if (animation_phase > 4u) animation_phase = 4u;
     const int phase = animation_phase;
-    /* field_command_menu_open @0x3c630 从共同的 y=2 起步；close
-     * @0x3c8c8 则从 (-20,-24,+24,+24) 的独立初值反向移动。
+    /* field_command_menu_open @code0 0x741c 从共同的 y=2 起步；close
+     * @code0 0x76b4 则从 (-20,-24,+24,+24) 的独立初值反向移动。
      * 两者的实际四帧并非同一组坐标的简单倒序。 */
     const int dx[] = {
         0,
@@ -152,6 +170,36 @@ void fd2_field_command_draw_animation(
         const fd2_image *frame = fd2_field_command_frame(
             assets, (fd2_field_command)i, selected == (int)i,
             disabled[i], highlight_phase);
+        if (frame)
+            fd2_map_sprite_blit(vga, frame, focus_x + dx[i],
+                                focus_y + dy[i], 0);
+    }
+}
+
+void fd2_field_command_draw_id_animation(
+        fd2_vga *vga, const fd2_field_command_assets *assets,
+        int focus_x, int focus_y, const uint8_t command_ids[FD2_FIELD_COMMAND_COUNT],
+        int selected, const uint8_t disabled[FD2_FIELD_COMMAND_COUNT],
+        uint8_t highlight_phase, int opening, uint8_t animation_phase) {
+    if (!vga || !assets || !assets->ready || !command_ids || !disabled) return;
+    if (animation_phase > 4u) animation_phase = 4u;
+    const int phase = animation_phase;
+    const int dx[] = {
+        0,
+        opening ? -6 * phase : -24 + 6 * phase,
+        opening ? 6 * phase : 24 - 6 * phase,
+        0,
+    };
+    const int dy[] = {
+        opening ? 2 - 5 * phase : -20 + 5 * phase,
+        2,
+        2,
+        opening ? 2 + 5 * phase : 24 - 5 * phase,
+    };
+    for (size_t i = 0; i < FD2_FIELD_COMMAND_COUNT; i++) {
+        const fd2_image *frame = fd2_field_command_frame_id(
+            assets, command_ids[i], selected == (int)i, disabled[i],
+            highlight_phase);
         if (frame)
             fd2_map_sprite_blit(vga, frame, focus_x + dx[i],
                                 focus_y + dy[i], 0);

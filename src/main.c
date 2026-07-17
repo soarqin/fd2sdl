@@ -14,6 +14,7 @@
 
 #include "archive.h"
 #include "app_flow.h"
+#include "bgm.h"
 #include "image.h"
 #include "input.h"
 #include "field.h"
@@ -145,10 +146,16 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
 /* 复现 FUN_0001cfe6 @0x44ab2: 片头 + 标题主体
  * FUN_0001cfdc @0x44aa8 是调用入口的 Watcom 栈检查前缀。 */
 static fd2_title_action boot_intro_title(fd2_vga *vga,
+                                         fd2_bgm_player *bgm,
                                          int play_intro,
                                          int load_available) {
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
+    /* corrected code0 @0x15db1: music_track_play(18, 0) 紧接着调用
+     * title_action_dispatch @0x15ebb，后者第一步进入 boot_intro_title。
+     * 片头和标题共用循环 track 18，标题入口不切曲。 */
+    if (bgm && fd2_bgm_play(bgm, 18, 0) != 0)
+        fprintf(stderr, "cannot play startup BGM track 18\n");
     if (!play_intro) goto title_screen;
     /* === 阶段1: 片头初始画面 === */
     /* 反编译精确顺序:
@@ -663,6 +670,7 @@ int main(int argc, char **argv) {
     }
 
     fd2_audio *audio = NULL;
+    fd2_bgm_player *bgm = NULL;
     fd2_pcm_bank ui_sfx_bank = {0};
     fd2_pcm_bank battle_sfx_bank = {0};
     fd2_pcm_player pcm_player = {0};
@@ -677,6 +685,16 @@ int main(int argc, char **argv) {
         .allow_null = 1,
     };
     audio = fd2_audio_create(&audio_config);
+    if (audio) {
+        fd2_bgm_config bgm_config = {
+            .fdmus_path = "original_game/FDMUS.DAT",
+            .ail_bank_path = "original_game/SAMPLE.AD",
+            .sample_rate = 48000,
+        };
+        bgm = fd2_bgm_create(audio, &bgm_config);
+        if (!bgm)
+            fprintf(stderr, "BGM: cannot open FDMUS.DAT/SAMPLE.AD\n");
+    }
     if (audio && fd2_pcm_bank_open(&ui_sfx_bank, &g_fdother, 31) == 0 &&
         fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
         fd2_pcm_player_init(&pcm_player, audio, 11025) == 0) {
@@ -749,7 +767,7 @@ int main(int argc, char **argv) {
                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u;
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
-                &vga, first_title, title_load_available);
+                &vga, bgm, first_title, title_load_available);
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
             if (flow == FD2_APP_FLOW_EXIT) {
@@ -815,8 +833,10 @@ int main(int argc, char **argv) {
     }
 
 cleanup:
-    /* 音频 source 借用 FDOTHER 数据，必须先停止 device/retire voice。 */
+    /* BGM/audio source 借用 FDMUS/FDOTHER 数据。先停止 device 并 retire，
+     * 再释放 sequence、bank 和 archive。 */
     fd2_audio_destroy(audio);
+    fd2_bgm_destroy(bgm);
     fd2_pcm_player_close(&pcm_player);
     fd2_pcm_bank_close(&battle_sfx_bank);
     fd2_pcm_bank_close(&ui_sfx_bank);

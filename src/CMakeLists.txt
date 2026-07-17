@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(fd2sdl C)
+project(fd2sdl C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -104,6 +106,9 @@ set(FD2SDL_CORE_SOURCES
     input.c
     audio.c
     audio_pcm.c
+    bgm.cpp
+    third_party/nukedopl3.c
+    third_party/model_ail.c
     field_audio.c
     field_effect.c
     field_command.c
@@ -148,6 +153,7 @@ set(FD2SDL_CORE_SOURCES
 # 意外遗漏 field_game 的间接资源依赖。
 add_library(fd2sdl_core OBJECT ${FD2SDL_CORE_SOURCES})
 target_link_libraries(fd2sdl_core PUBLIC ${FD2SDL_SDL3_TARGET})
+target_include_directories(fd2sdl_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(fd2sdl
     main.c
@@ -211,6 +217,25 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio COMMAND fd2_audio_test)
     set_tests_properties(audio PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+
+    add_executable(fd2_bgm_test
+        tests/bgm_test.c
+        bgm.cpp
+        audio.c
+        archive.c
+        third_party/nukedopl3.c
+        third_party/model_ail.c
+    )
+    target_include_directories(fd2_bgm_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bgm_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_bgm_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_bgm_test PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(fd2_bgm_test PRIVATE m)
+    endif()
+    add_test(NAME bgm COMMAND fd2_bgm_test)
+    set_tests_properties(bgm PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_input_test
         tests/input_test.c

@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* SDL 音频核心。资源解码器只需实现 render source；设备、bus 增益、
  * voice 调度和离线验证由本层统一管理。 */
 
@@ -56,6 +60,11 @@ int fd2_audio_play_source(fd2_audio *audio, fd2_audio_bus bus,
                           fd2_audio_source source, float gain);
 int fd2_audio_stop_bus(fd2_audio *audio, fd2_audio_bus bus);
 int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain);
+/* MUSIC bus uses one replaceable source, matching music_track_play's
+ * single active XMIDI sequence. */
+int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source,
+                                float gain);
+int fd2_audio_stop_music(fd2_audio *audio);
 int fd2_audio_set_master_gain(fd2_audio *audio, float gain);
 
 /* 仅用于 null backend 的确定性测试／离线 capture。输出为交错 float32 stereo。
@@ -63,5 +72,9 @@ int fd2_audio_set_master_gain(fd2_audio *audio, float gain);
  * producer API 和 destroy 不得互相并发。 */
 size_t fd2_audio_render_offline(fd2_audio *audio, float *stereo,
                                 size_t frames);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* FD2_AUDIO_H */

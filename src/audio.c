@@ -250,7 +250,12 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
 
 void fd2_audio_destroy(fd2_audio *audio) {
     if (!audio) return;
-    if (audio->stream) SDL_DestroyAudioStream(audio->stream);
+    if (audio->stream) {
+        /* 先暂停并销毁 stream，使实时回调退出，再销毁 source userdata。 */
+        SDL_PauseAudioStreamDevice(audio->stream);
+        SDL_DestroyAudioStream(audio->stream);
+        audio->stream = NULL;
+    }
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
         voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_DESTROYED);
     uint32_t read = atomic_load_explicit(&audio->command_read,
@@ -296,6 +301,15 @@ int fd2_audio_stop_bus(fd2_audio *audio, fd2_audio_bus bus) {
         .bus = bus,
     };
     return command_push(audio, &command);
+}
+
+int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source,
+                                float gain) {
+    return fd2_audio_play_source(audio, FD2_AUDIO_BUS_MUSIC, source, gain);
+}
+
+int fd2_audio_stop_music(fd2_audio *audio) {
+    return fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_MUSIC);
 }
 
 int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain) {

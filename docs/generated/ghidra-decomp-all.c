@@ -6103,7 +6103,7 @@ void boot_intro_title_entry(void)
 }
 
 
-// FUNC 0x44ab2 boot_intro_title   /* 片头+标题主体 */
+// FUNC 0x44ab2 boot_intro_title   /* 片头+标题主体；上层 code0 0x15db1 先播放循环 BGM track 18 */
 
 void boot_intro_title(void)
 

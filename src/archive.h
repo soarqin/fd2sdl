@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 炎龙骑士团 2 .DAT 归档读取
  * 格式见 docs/formats/data-formats.md：
  *   [0:6]   magic "LLLLLL"
@@ -35,5 +39,9 @@ int  fd2_archive_get(const fd2_archive *ar, size_t idx,
 
 /* 释放资源。 */
 void fd2_archive_close(fd2_archive *ar);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* FD2_ARCHIVE_H */

@@ -117,6 +117,7 @@ libADLMIDI 上游同时包含 LGPL、GPL 和 MIT 组件：Nuked OPL3 为 LGPL 2.
 | 10 | 战斗演出入口和演出结束恢复路径 |
 | 11 | `new_game_opening_play @0x3231b` 在 `0x57629` 启动第一段可交互开场曲；另用于部分战斗结果及复活／转职演出结束后的恢复路径 |
 | 13/14/15 | 按 `DAT_00003f4a` 分支选择的战斗结果演出 |
+| 18 | corrected code0 `0x15db1` 在调用 `title_action_dispatch @0x15ebb` 前执行 `music_track_play(18,0)`；片头与标题共用该循环曲目，标题入口不切曲 |
 | 16 | 转职演出，调用方传 loop count 1 |
 | 17 | 复活演出，调用方传 loop count 1 |
 
@@ -154,7 +155,7 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 - [ ] 继续映射并接入 `DAT_0000414b/4153` 动态战斗动画 bank。
 - [x] 用 DOSBox mixer capture 对照 SFX 5/8 的时长与波形，确认 11025 Hz；SDL 线性插值相关系数为 0.95/0.968，但不宣称硬件逐样本等价。
 
-### A3：XMIDI/OPL 原型
+### A3：XMIDI/OPL 播放
 
 - [x] 提取 15 项 XMIDI；曲目场景用途仍待完整登记。
 - [x] 原型通过 libADLMIDI `gen_adldata` 载入 `SAMPLE.AD` AIL bank。
@@ -164,14 +165,15 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 - [ ] 结合 primary/alternate 切换条件完成其余场景／曲目语义映射。
 - [x] 用调用链已知的 opening track 11 对照 DOSBox：候选排名第一，短时谱相似度 0.974，直接波形相关 0.212；判定主路径可行但非逐样本等价。
 - [x] 完成许可证评审：完整 libADLMIDI core 含 GPLv3+，当前只保留外部原型；正式后端需项目许可证决策或 MIT/LGPL 组件化实现。
-- [ ] 选定正式音乐后端。
+- [x] 选定正式音乐后端：MIT 的 BW MIDI Sequencer、LGPL-2.1 的 XMIDI 转换代码与 Nuked OPL3；项目代码直接读取 `SAMPLE.AD`，不链接完整 libADLMIDI GPL core。
 
 ### A4：音乐与场景接入
 
-- [ ] 实现播放、停止、循环、切曲和 bus 音量。
-- [ ] 接入标题、过场、战场和战斗演出。
+- [x] 实现 `FDMUS.DAT` 播放、停止、循环、切曲和 music bus 音量；普通曲复现 2000 ms 淡入，停止复现 4000 ms 淡出，track 16/17 立即设为满音量。
+- [x] 接入启动片头与标题：corrected code0 `0x15db1` 证明两者共用循环 track 18，跳过片头或重新进入标题时不重启同一曲目。
+- [ ] 接入新游戏开场 track 11、战场 stage 表和战斗演出。
 - [ ] 处理窗口失焦、暂停、设备切换和存档恢复。
-- [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。
+- [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。Linux 原生构建、SDL dummy 运行和 MinGW Windows 交叉构建已完成；Windows 实机音频与 macOS 构建待对应环境验证。
 
 ## 5. 验收标准
 

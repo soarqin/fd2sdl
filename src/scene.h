@@ -6,6 +6,12 @@
 #include "field_handoff.h"
 #include "vga.h"
 
+typedef enum {
+    FD2_SCENE_RESULT_OK = 0,
+    FD2_SCENE_RESULT_ERROR = -1,
+    FD2_SCENE_RESULT_HOST_QUIT = -2
+} fd2_scene_result;
+
 /* 完整新游戏初始过场预览。
  *
  * 按 new_game_opening_play @0x3231b 播放 stage 32、31、0 的全部

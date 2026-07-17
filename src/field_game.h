@@ -75,7 +75,8 @@ typedef enum {
     FD2_FIELD_INTERACTION_COMMAND,
     FD2_FIELD_INTERACTION_TARGETING,
     FD2_FIELD_INTERACTION_SYSTEM_MENU,
-    FD2_FIELD_INTERACTION_MANUAL_SLOT
+    FD2_FIELD_INTERACTION_MANUAL_SLOT,
+    FD2_FIELD_INTERACTION_AUXILIARY
 } fd2_field_interaction;
 
 /* 正式战场 session。
@@ -180,6 +181,9 @@ typedef struct {
     uint8_t active_side;
     fd2_field_interaction interaction;
     size_t phase_unit_cursor;
+    /* field controller @code0 0x17e7 的 DS:0x3ae9 等价物；Esc、Z、
+     * keypad 5 轮换可聚焦的 side 2 actor，并按 raw actor index 回绕。 */
+    size_t focus_cycle_unit;
     uint8_t phase_ai_pass;      /* side 0: 0=magic/item gate, 1=normal pass */
     uint8_t cell_action_completed[FD2_FIELD_EVENT_SLOTS];
     uint64_t phase_next_action_ms;
@@ -218,6 +222,9 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga);
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
+/* 复现 field_controller_input @code0 0x17e7 的焦点轮换分支：跳过
+ * hidden／AI-ineligible／acted／非 side 2 actor；成功时移动到 actor 格。 */
+int fd2_field_game_cycle_focus(fd2_field_game *game);
 int fd2_field_game_unit_at(const fd2_field_game *game, int x, int y);
 int fd2_field_game_confirm_cursor(fd2_field_game *game);
 int fd2_field_game_cancel_selection(fd2_field_game *game);

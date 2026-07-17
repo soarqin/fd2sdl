@@ -175,16 +175,22 @@ static int test_sdl_event_pump(void) {
     event.key.repeat = 1;
     CHECK(SDL_PushEvent(&event));
 
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = SDL_SCANCODE_UP;
+    event.key.repeat = 1;
+    CHECK(SDL_PushEvent(&event));
+
     event.type = SDL_EVENT_QUIT;
     CHECK(SDL_PushEvent(&event));
 
     fd2_input_pump(&input);
+    /* 确认键 repeat 不得跨越状态边界；方向键 repeat 仍保留。 */
     CHECK(fd2_input_pending_count(&input) == 2);
     fd2_input_event key;
     CHECK(fd2_input_take_key(&input, &key));
     CHECK(key.key == FD2_INPUT_KEY_UP && key.repeat == 0);
     CHECK(fd2_input_take_key(&input, &key));
-    CHECK(key.key == FD2_INPUT_KEY_KEYPAD_CONFIRM && key.repeat == 1);
+    CHECK(key.key == FD2_INPUT_KEY_UP && key.repeat == 1);
     CHECK(fd2_input_take_quit(&input));
     SDL_Quit();
     return 0;

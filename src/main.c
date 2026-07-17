@@ -580,6 +580,8 @@ int main(int argc, char **argv) {
     if (!save_path || save_path[0] == '\0')
         save_path = "FD2.SAV";
 
+    fd2_input_install_interrupt_handlers();
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
@@ -657,7 +659,9 @@ int main(int argc, char **argv) {
         fd2_field_handoff handoff;
         rc = fd2_scene_play_new_game_prologue_handoff(
             &vga, &g_fdother, new_game_play_once, &handoff);
-        if (rc == 0)
+        if (rc == FD2_SCENE_RESULT_HOST_QUIT)
+            rc = 0;
+        else if (rc == 0)
             rc = fd2_field_play_run(&vga, &g_fdother, 0,
                                     new_game_play_once, &handoff,
                                     field_audio_ptr, save_path, 0) ==
@@ -666,6 +670,7 @@ int main(int argc, char **argv) {
     } else if (prologue_preview || prologue_preview_once) {
         rc = fd2_scene_play_new_game_prologue(&vga, &g_fdother,
                                               prologue_preview_once);
+        if (rc == FD2_SCENE_RESULT_HOST_QUIT) rc = 0;
     } else {
         /* 打开 ANI.DAT（对应 FUN_0001db69 @0x45635） */
         if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
@@ -710,7 +715,10 @@ int main(int argc, char **argv) {
                 fd2_field_handoff handoff;
                 rc = fd2_scene_play_new_game_prologue_handoff(
                     &vga, &g_fdother, 0, &handoff);
-                if (rc == 0)
+                if (rc == FD2_SCENE_RESULT_HOST_QUIT) {
+                    play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                    rc = 0;
+                } else if (rc == 0)
                     play_result = fd2_field_play_run(
                         &vga, &g_fdother, 0, 0, &handoff,
                         field_audio_ptr, save_path, 0);

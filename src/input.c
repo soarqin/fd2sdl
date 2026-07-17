@@ -6,7 +6,43 @@
  */
 #include "input.h"
 
+#include <signal.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+static volatile sig_atomic_t interrupt_requested;
+
+#ifndef _WIN32
+static void input_signal_handler(int signal_number) {
+    (void)signal_number;
+    interrupt_requested = 1;
+}
+#else
+static BOOL WINAPI input_console_handler(DWORD control_type) {
+    if (control_type == CTRL_C_EVENT || control_type == CTRL_BREAK_EVENT ||
+        control_type == CTRL_CLOSE_EVENT || control_type == CTRL_LOGOFF_EVENT ||
+        control_type == CTRL_SHUTDOWN_EVENT) {
+        interrupt_requested = 1;
+        return TRUE;
+    }
+    return FALSE;
+}
+#endif
+
+void fd2_input_install_interrupt_handlers(void) {
+    interrupt_requested = 0;
+#ifndef _WIN32
+    /* 不依赖 SDL 默认 signal hint；显式把 Ctrl+C／终止请求交给主循环，
+     * 既保留统一资源清理，也避免 scene 把中断当成普通跳过键。 */
+    (void)signal(SIGINT, input_signal_handler);
+    (void)signal(SIGTERM, input_signal_handler);
+#else
+    (void)SetConsoleCtrlHandler(input_console_handler, TRUE);
+#endif
+}
 
 static fd2_input_key key_from_scancode(SDL_Scancode scancode) {
     switch (scancode) {
@@ -79,14 +115,30 @@ int fd2_input_push_key(fd2_input *input, fd2_input_key key,
 void fd2_input_pump(fd2_input *input) {
     if (!input) return;
 
+    if (interrupt_requested) {
+        interrupt_requested = 0;
+        input->quit_requested = 1;
+    }
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_EVENT_QUIT) {
+        if (event.type == SDL_EVENT_QUIT ||
+            event.type == SDL_EVENT_TERMINATING) {
             input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
-            /* BIOS 键盘缓冲会接收 typematic make-code；不能过滤 repeat。 */
-            (void)fd2_input_push_key(input,
-                                     key_from_scancode(event.key.scancode),
+            fd2_input_key key = key_from_scancode(event.key.scancode);
+            /* 原版 BIOS 会保存 typematic，但确认／取消键在实际 UI 中
+             * 以一次按键完成一次操作；SDL 的 repeat 若跨越状态切换，
+             * 会把同一次 Enter 继续投递给下一层菜单。方向键仍保留
+             * repeat，用于光标连续移动。 */
+            if (event.key.repeat &&
+                (key == FD2_INPUT_KEY_ENTER ||
+                 key == FD2_INPUT_KEY_KEYPAD_CONFIRM ||
+                 key == FD2_INPUT_KEY_SPACE ||
+                 key == FD2_INPUT_KEY_ESCAPE ||
+                 key == FD2_INPUT_KEY_CANCEL))
+                continue;
+            (void)fd2_input_push_key(input, key,
                                      event.key.scancode, event.key.repeat);
         }
     }
@@ -190,6 +242,15 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
                 return FD2_INPUT_ACTION_CONFIRM;
             if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
                 return FD2_INPUT_ACTION_CANCEL;
+            return FD2_INPUT_ACTION_NONE;
+
+        case FD2_INPUT_CONTEXT_FIELD_AUXILIARY:
+            /* tactical-map dispatcher @code0 0x1000a 的页面由任意键
+             * 返回 browse；SDL 由 field_play 单独消费确认／取消。 */
+            if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
+                key == FD2_INPUT_KEY_KEYPAD_CONFIRM ||
+                key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
+                return FD2_INPUT_ACTION_EXIT;
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_FIELD_TARGETING:

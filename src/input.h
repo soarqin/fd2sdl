@@ -58,6 +58,7 @@ typedef enum {
     FD2_INPUT_CONTEXT_FIELD_TARGETING,
     FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
     FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
+    FD2_INPUT_CONTEXT_FIELD_AUXILIARY,
     FD2_INPUT_CONTEXT_PREVIEW
 } fd2_input_context;
 
@@ -78,8 +79,12 @@ typedef enum {
 
 void fd2_input_init(fd2_input *input);
 
-/* 唯一读取 SDL 事件队列的入口。KEY_DOWN（包括 repeat）按到达顺序入队；
- * KEY_UP 不影响原版 BIOS make-code 缓冲，不进入队列。 */
+/* 安装宿主中断桥：POSIX SIGINT/SIGTERM 与 Windows Ctrl+C/Ctrl+Break
+ * 都转成统一的一次性 quit 请求，不覆盖游戏按键 FIFO。 */
+void fd2_input_install_interrupt_handlers(void);
+
+/* 唯一读取 SDL 事件队列的入口。方向键的 KEY_DOWN repeat 按到达顺序入队；
+ * 确认／取消键的 repeat 不跨 UI 状态重复触发。KEY_UP 不进入队列。 */
 void fd2_input_pump(fd2_input *input);
 
 /* 测试和无窗口验证入口；成功入队返回 0，满队列返回 -1。 */
@@ -98,7 +103,8 @@ int fd2_input_take_key(fd2_input *input, fd2_input_event *event);
 int fd2_input_take_action(fd2_input *input, fd2_input_context context,
                           fd2_input_action *action);
 
-/* SDL_EVENT_QUIT 是宿主窗口请求，不冒充 DOS 按键；读取后清除请求。 */
+/* SDL_EVENT_QUIT／SDL_EVENT_TERMINATING／宿主中断是退出请求，不冒充 DOS
+ * 按键；读取后清除请求。 */
 int fd2_input_take_quit(fd2_input *input);
 
 /* 纯映射接口，供 CTest 直接验证原版上下文键表。 */

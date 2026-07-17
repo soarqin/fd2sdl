@@ -58,7 +58,6 @@
 #define FD2_BIOS_TICK_MS 55
 #define FD2_DIALOG_TRANSITION_DELAY_MS 10
 #define FD2_TEXT_GLYPH_DELAY_MS FD2_BIOS_TICK_MS
-#define FD2_DIALOG_PAGE_DELAY_MS 1500
 /* field_animation_phase_update @0x37b91 仅在 BIOS tick 差值大于 4
  * 时推进一次角色 idle phase，即约每 5 tick / 275 ms 一帧。 */
 #define FD2_IDLE_FRAME_DELAY_MS (FD2_BIOS_TICK_MS * 5)
@@ -177,20 +176,16 @@ static int ui_sheet_get_tile(const fd2_ui_sheet *sheet, uint16_t idx,
     return 0;
 }
 
-static int poll_skip(fd2_vga *vga) {
-    /* 场景对话尚未完成 DOSBox 按键对照；保留迁移前的 Esc／Enter／Space
-     * 跳过集合，但由统一 FIFO 消费，不能再直接轮询 SDL。ANI/AFM 的
-     * 非消费式任意键检查仍由 fd2_input_check 单独实现。 */
+static int scene_host_quit_requested;
+
+static int poll_scene_quit(fd2_vga *vga) {
+    /* 对话动画只使用原版固定 delay，不读取 DOS 键盘缓冲；宿主关闭／
+     * Ctrl+C 等退出请求则必须传播到 scene API，不能被折叠成剧情跳过。 */
     if (!vga) return 0;
     fd2_input_pump(&vga->input);
-    if (fd2_input_take_quit(&vga->input)) return 1;
-
-    fd2_input_event event;
-    while (fd2_input_take_key(&vga->input, &event)) {
-        if (event.key == FD2_INPUT_KEY_ESCAPE ||
-            event.key == FD2_INPUT_KEY_ENTER ||
-            event.key == FD2_INPUT_KEY_SPACE)
-            return 1;
+    if (fd2_input_take_quit(&vga->input)) {
+        scene_host_quit_requested = 1;
+        return 1;
     }
     return 0;
 }
@@ -483,6 +478,7 @@ static void present_base_frame(fd2_vga *vga,
                                const fd2_scene_field_state *field_state) {
     render_scene_base(vga, terrain, map, sprites, field_state);
     fd2_vga_present(vga);
+    (void)poll_scene_quit(vga);
 }
 
 static void present_base_frame_timed(fd2_vga *vga,
@@ -493,6 +489,7 @@ static void present_base_frame_timed(fd2_vga *vga,
                                      uint32_t frame_ms) {
     render_scene_base(vga, terrain, map, sprites, field_state);
     fd2_vga_present_timed(vga, frame_ms);
+    (void)poll_scene_quit(vga);
 }
 
 static void opening_advance_idle(fd2_scene_field_state *field_state,
@@ -566,7 +563,7 @@ static void animate_dialog_marker(fd2_vga *vga,
          * 0x4a 是该帧背景色。 */
         blit_ui_tile_mode(vga, ui, 0, x, y, 0x4a);
         fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
-        if (poll_skip(vga)) break;
+        if (poll_scene_quit(vga)) break;
     }
 }
 
@@ -597,7 +594,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
             fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
         else
             fd2_vga_present(vga);
-        if (poll_skip(vga)) break;
+        if (poll_scene_quit(vga)) break;
     }
 }
 
@@ -622,7 +619,7 @@ static void animate_dialog_box_close(fd2_vga *vga,
             draw_dialog_tiles(vga, ui, DIALOG_X, dialog_area_y(state->area),
                               stages[i][0], stages[i][1]);
             fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
-            if (poll_skip(vga)) break;
+            if (poll_scene_quit(vga)) break;
         }
         animate_dialog_marker(vga, terrain, map, ui, sprites, field_state,
                               state->speaker_actor_idx, state->area, 1);
@@ -766,17 +763,41 @@ static void redraw_dialog(fd2_vga *vga,
 }
 
 static void wait_or_skip(fd2_vga *vga, int ms, int *skip) {
-    int elapsed = 0;
-    while (!*skip && elapsed < ms) {
-        if (poll_skip(vga)) { *skip = 1; break; }
-        fd2_delay_ms(20);
-        elapsed += 20;
+    if (!vga || !skip || *skip) return;
+    fd2_input_pump(&vga->input);
+    if (scene_host_quit_requested || fd2_input_take_quit(&vga->input)) {
+        scene_host_quit_requested = 1;
+        *skip = 1;
+        return;
+    }
+    /* text_dialog_render_tokens @0x3b198 只检查 BIOS 缓冲是否非空，
+     * 用于跳过字间等待；它不读取按键，也不提前结束 fragment。 */
+    if (fd2_input_has_any_key(&vga->input)) return;
+    fd2_delay_ms((uint32_t)ms);
+    fd2_input_pump(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) {
+        scene_host_quit_requested = 1;
+        *skip = 1;
     }
 }
 
 static void page_pause(fd2_vga *vga, int *skip) {
+    if (!vga || !skip || *skip) return;
     fd2_vga_present(vga);
-    wait_or_skip(vga, FD2_DIALOG_PAGE_DELAY_MS, skip);
+    /* FUN_0003be75 @0x3be75 在页面／fragment 尾部阻塞等待一项
+     * BIOS 按键；正式版不得用计时器自动翻页。只消费这里的一项，
+     * 其余队列内容留给后续原版 UI。 */
+    for (;;) {
+        fd2_input_pump(&vga->input);
+        if (fd2_input_take_quit(&vga->input)) {
+            scene_host_quit_requested = 1;
+            *skip = 1;
+            return;
+        }
+        fd2_input_event event;
+        if (fd2_input_take_key(&vga->input, &event)) return;
+        fd2_delay_ms(20);
+    }
 }
 
 static void newline_or_page(fd2_vga *vga,
@@ -1352,7 +1373,8 @@ int fd2_scene_play_new_game_prologue_handoff(
     int result = -1;
 
     if (handoff) memset(handoff, 0, sizeof(*handoff));
-    if (!vga || !fdother) return -1;
+    if (!vga || !fdother) return FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = 0;
     if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0 ||
         fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0 ||
         fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
@@ -1437,7 +1459,8 @@ done:
     fd2_archive_close(&fdtxt);
     fd2_archive_close(&fdshap);
     fd2_archive_close(&field);
-    return result;
+    return scene_host_quit_requested
+        ? FD2_SCENE_RESULT_HOST_QUIT : result;
 }
 
 static int field_event_append_group(
@@ -1490,7 +1513,8 @@ int fd2_scene_play_field_event(fd2_vga *vga,
         !notice->presentation_deferred || notice->kind != FD2_FIELD_EVENT_TURN ||
         game->stage != 0 || notice->action > 3 ||
         notice->presentation_unit_count > game->units.count)
-        return -1;
+        return FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = 0;
 
     fd2_archive fdtxt = {0};
     fd2_archive dato = {0};
@@ -1599,7 +1623,8 @@ done:
     fd2_text_entry_close(&text);
     fd2_archive_close(&dato);
     fd2_archive_close(&fdtxt);
-    return result;
+    return scene_host_quit_requested
+        ? FD2_SCENE_RESULT_HOST_QUIT : result;
 }
 
 int fd2_scene_play_new_game_prologue(fd2_vga *vga,

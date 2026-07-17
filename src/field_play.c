@@ -98,6 +98,7 @@ typedef enum {
     FD2_FIELD_ACTION_CONFIRM,
     FD2_FIELD_ACTION_CANCEL,
     FD2_FIELD_ACTION_DETAIL,
+    FD2_FIELD_ACTION_AUXILIARY,
     FD2_FIELD_ACTION_FOCUS_CYCLE,
     FD2_FIELD_ACTION_EXIT
 } fd2_field_action;
@@ -111,6 +112,8 @@ static fd2_field_action field_action_from_input(fd2_input_action action) {
         case FD2_INPUT_ACTION_CONFIRM: return FD2_FIELD_ACTION_CONFIRM;
         case FD2_INPUT_ACTION_CANCEL: return FD2_FIELD_ACTION_CANCEL;
         case FD2_INPUT_ACTION_FIELD_DETAIL: return FD2_FIELD_ACTION_DETAIL;
+        case FD2_INPUT_ACTION_FIELD_AUXILIARY:
+            return FD2_FIELD_ACTION_AUXILIARY;
         case FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE:
             return FD2_FIELD_ACTION_FOCUS_CYCLE;
         case FD2_INPUT_ACTION_EXIT: return FD2_FIELD_ACTION_EXIT;
@@ -778,7 +781,11 @@ static int present_field_events(fd2_field_game *game,
     for (size_t i = 0; i < game->event_log_count; i++) {
         fd2_field_event_notice *notice = &game->event_log[i];
         if (!notice->handled || !notice->presentation_deferred) continue;
-        if (fd2_scene_play_field_event(vga, fdother, game, notice, 0) != 0)
+        int result = fd2_scene_play_field_event(
+            vga, fdother, game, notice, 0);
+        if (result == FD2_SCENE_RESULT_HOST_QUIT)
+            return FD2_SCENE_RESULT_HOST_QUIT;
+        if (result != 0)
             return -1;
     }
     return 0;
@@ -1067,9 +1074,15 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             reported_turn = game.turn_number;
             reported_side = game.active_side;
         }
-        if (!once && present_field_events(&game, vga, fdother) != 0) {
-            fprintf(stderr, "field event presentation failed\n");
-            running = 0;
+        if (!once) {
+            int event_result = present_field_events(&game, vga, fdother);
+            if (event_result == FD2_SCENE_RESULT_HOST_QUIT) {
+                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                running = 0;
+            } else if (event_result != 0) {
+                fprintf(stderr, "field event presentation failed\n");
+                running = 0;
+            }
         }
         report_field_events(&game, &reported_event_count,
                             &reported_dropped_events);
@@ -1111,7 +1124,10 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                : game.interaction ==
                                      FD2_FIELD_INTERACTION_MANUAL_SLOT
                                    ? FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT
-                                   : FD2_INPUT_CONTEXT_FIELD,
+                                   : game.interaction ==
+                                         FD2_FIELD_INTERACTION_AUXILIARY
+                                       ? FD2_INPUT_CONTEXT_FIELD_AUXILIARY
+                                       : FD2_INPUT_CONTEXT_FIELD,
                    &input_action)) {
             fd2_field_action action = field_action_from_input(input_action);
             if (game.detail_visible) {
@@ -1156,6 +1172,13 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                 &game, vga, 1, FD2_FIELD_COMMAND_FRAME_MS);
                         }
                     } else if (game.interaction ==
+                                   FD2_FIELD_INTERACTION_AUXILIARY) {
+                        game.interaction = FD2_FIELD_INTERACTION_BROWSE;
+                    } else if (game.interaction ==
+                                   FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+                               game.interaction == FD2_FIELD_INTERACTION_MOVING) {
+                        (void)fd2_field_game_cancel_selection(&game);
+                    } else if (game.interaction ==
                                    FD2_FIELD_INTERACTION_COMMAND) {
                         (void)fd2_field_audio_play(
                             field_audio, FD2_FIELD_SFX_COMMAND_MENU);
@@ -1178,27 +1201,48 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         &game, game.cursor_cell_x, game.cursor_cell_y);
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
                         unit_at >= 0 &&
+                        game.units.items[unit_at].unit_id != 0x79 &&
+                        game.units.items[unit_at].race != 0x0a &&
                         fd2_field_game_open_detail(&game, (size_t)unit_at) == 0)
                         (void)fd2_field_game_animate_detail(
                             &game, vga, 1, detail_phase_sfx, field_audio);
                     break;
                 }
+                case FD2_FIELD_ACTION_AUXILIARY:
+                    /* field_controller_input @code0 0x17e7 的 F1/Page Up
+                     * 分支进入独立 tactical-map dispatcher @code0 0x1000a。
+                     * 该页自身以键盘读取结束；SDL 先保留独立状态，不能
+                     * 把它误并入 system/command menu。 */
+                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE)
+                        game.interaction = FD2_FIELD_INTERACTION_AUXILIARY;
+                    break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
-                    /* Esc/Z/数字小键盘 5 的原版路径会遍历 actor 并更新焦点。
-                     * 状态相关的可见结果尚待 DOSBox 验证，不能错译为取消选择。 */
+                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE)
+                        (void)fd2_field_game_cycle_focus(&game);
                     break;
                 case FD2_FIELD_ACTION_CONFIRM: {
                     int unit_at = fd2_field_game_unit_at(
                         &game, game.cursor_cell_x, game.cursor_cell_y);
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
-                        unit_at >= 0 &&
-                        game.detail_acknowledged_unit != unit_at) {
-                        if (fd2_field_game_open_detail(
-                                &game, (size_t)unit_at) == 0)
-                            (void)fd2_field_game_animate_detail(
-                                &game, vga, 1,
-                                detail_phase_sfx, field_audio);
-                        break;
+                        unit_at >= 0) {
+                        const fd2_field_unit *focused =
+                            &game.units.items[unit_at];
+                        const uint8_t *record = (const uint8_t *)focused;
+                        /* code0 0x1884：只有可行动的 side 2 普通单位进入
+                         * 移动／操作路径；敌方、已行动单位和特殊记录先走
+                         * 原版的单位详情 helper。 */
+                        if (focused->unit_id != 0x79 &&
+                            focused->race != 0x0a &&
+                            (focused->side != 2u ||
+                             fd2_field_unit_has_acted(focused) ||
+                             record[0x26] != 0)) {
+                            if (fd2_field_game_open_detail(
+                                    &game, (size_t)unit_at) == 0)
+                                (void)fd2_field_game_animate_detail(
+                                    &game, vga, 1,
+                                    detail_phase_sfx, field_audio);
+                            break;
+                        }
                     }
                     game.detail_acknowledged_unit = -1;
                     fd2_field_interaction previous_interaction =
@@ -1337,6 +1381,11 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             fprintf(stderr,
                                     "field system action pending: %d\n",
                                     (int)system_action);
+                        break;
+                    }
+                    if (previous_interaction ==
+                            FD2_FIELD_INTERACTION_AUXILIARY) {
+                        game.interaction = FD2_FIELD_INTERACTION_BROWSE;
                         break;
                     }
                     if (previous_interaction ==

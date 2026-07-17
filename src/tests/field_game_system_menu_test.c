@@ -6,6 +6,7 @@
  * 不推进回合、不提交单位／事件／镜头状态，也不消费外部 RNG。
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "field_game.h"
@@ -40,6 +41,10 @@ static void init_game(fd2_field_game *game, test_rng *rng) {
     game->attack_target = -1;
     game->map.width = 24;
     game->map.height = 24;
+    game->map.cells = calloc((size_t)game->map.width * game->map.height,
+                             sizeof(*game->map.cells));
+    game->terrain.attrs = calloc(1, sizeof(*game->terrain.attrs));
+    game->terrain.attr_count = 1;
     game->camera_cell_x = 3;
     game->camera_cell_y = 7;
     game->cursor_cell_x = 11;
@@ -87,6 +92,52 @@ static int business_state_unchanged(const fd2_field_game *game,
     normalized.last_system_action = before->last_system_action;
     normalized.interaction = before->interaction;
     return memcmp(&normalized, before, sizeof(normalized)) == 0;
+}
+
+static int test_focus_cycle_and_confirm(void) {
+    fd2_field_game game;
+    test_rng rng = {0x31415926u, 0};
+    init_game(&game, &rng);
+
+    game.units.count = 6;
+    for (size_t i = 0; i < game.units.count; i++) {
+        game.units.items[i].x = (uint8_t)(2 + i);
+        game.units.items[i].y = (uint8_t)(4 + i);
+        game.units.items[i].hp = 10;
+        game.units.items[i].hp_max = 10;
+        game.units.items[i].movement_profile = 0;
+        game.units.items[i].movement_points = 3;
+    }
+    game.units.items[0].side = 0;
+    game.units.items[1].side = 2;
+    game.units.items[1].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+    game.units.items[2].side = 2;
+    game.units.items[2].flags = FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE;
+    game.units.items[3].side = 2;
+    game.units.items[3].flags = FD2_FIELD_UNIT_FLAG_ACTED;
+    game.units.items[4].side = 2;
+    game.units.items[5].side = 2;
+
+    CHECK(fd2_field_game_cycle_focus(&game) == 4);
+    CHECK(game.cursor_cell_x == game.units.items[4].x &&
+          game.cursor_cell_y == game.units.items[4].y &&
+          game.focus_cycle_unit == 5);
+    CHECK(fd2_field_game_cycle_focus(&game) == 5);
+    CHECK(game.focus_cycle_unit == 0);
+    CHECK(fd2_field_game_cycle_focus(&game) == 4);
+
+    /* field controller @code0 0x17e7：普通可操作角色上的第一次确认
+     * 直接进入移动／操作路径，不先打开个人详情。 */
+    game.cursor_cell_x = game.units.items[4].x;
+    game.cursor_cell_y = game.units.items[4].y;
+    CHECK(fd2_field_game_confirm_cursor(&game) == 4);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    CHECK(game.selected_unit == 4 && !game.detail_visible);
+    fd2_field_path_close(&game.move_range);
+    free(game.move_path);
+    free(game.map.cells);
+    free(game.terrain.attrs);
+    return 0;
 }
 
 static int test_open_gate(void) {
@@ -365,7 +416,7 @@ static int test_pending_actions_are_non_destructive(void) {
 }
 
 int main(void) {
-    if (test_open_gate() != 0 ||
+    if (test_focus_cycle_and_confirm() != 0 || test_open_gate() != 0 ||
         test_layered_cancel() != 0 ||
         test_secondary_dynamic_disabled() != 0 ||
         test_manual_slot_interaction_is_independent() != 0 ||

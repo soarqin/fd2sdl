@@ -205,7 +205,7 @@ int fd2_input_check(fd2_vga *vga) {
      * 宿主端在长延时中仍须收集窗口事件；收集由 input.c 完成，不消费 FIFO。 */
     if (!vga) return 0;
     fd2_input_pump(&vga->input);
-    return fd2_input_has_any_key(&vga->input) || vga->input.quit_requested;
+    return fd2_input_has_any_key(&vga->input);
 }
 
 void fd2_vga_close(fd2_vga *vga) {

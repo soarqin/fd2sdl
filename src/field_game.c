@@ -1245,6 +1245,43 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     return 1;
 }
 
+int fd2_field_game_cycle_focus(fd2_field_game *game) {
+    if (!game || !game->ready || game->active_side != 2u ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        game->units.count == 0)
+        return -1;
+
+    size_t start = game->focus_cycle_unit;
+    if (start >= game->units.count) start = 0;
+    for (size_t step = 0; step < game->units.count; step++) {
+        size_t index = (start + step) % game->units.count;
+        fd2_field_unit *unit = &game->units.items[index];
+        if (fd2_field_unit_is_hidden(unit) ||
+            (unit->flags & FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE) ||
+            fd2_field_unit_has_acted(unit) || unit->side != 2u)
+            continue;
+        game->focus_cycle_unit = (index + 1u) % game->units.count;
+        game->cursor_cell_x = unit->x;
+        game->cursor_cell_y = unit->y;
+        game->detail_acknowledged_unit = -1;
+        /* field_focus_move_to_actor @0x37f8f：焦点随 actor 坐标更新，
+         * 光标进入可视范围时沿用现有 2/11、2/6 镜头阈值。 */
+        int rel_x = game->cursor_cell_x - game->camera_cell_x;
+        int rel_y = game->cursor_cell_y - game->camera_cell_y;
+        if (rel_x < 0) fd2_field_game_move_camera(game, rel_x, 0);
+        else if (rel_x >= FD2_FIELD_VIEW_CELLS_X)
+            fd2_field_game_move_camera(game,
+                                       rel_x - FD2_FIELD_VIEW_CELLS_X + 1,
+                                       0);
+        if (rel_y < 0) fd2_field_game_move_camera(game, 0, rel_y);
+        else if (rel_y >= FD2_FIELD_VIEW_CELLS_Y)
+            fd2_field_game_move_camera(game, 0,
+                                       rel_y - FD2_FIELD_VIEW_CELLS_Y + 1);
+        return (int)index;
+    }
+    return -1;
+}
+
 int fd2_field_game_unit_at(const fd2_field_game *game, int x, int y) {
     if (!game || !game->ready) return -1;
     for (size_t i = 0; i < game->units.count; i++) {

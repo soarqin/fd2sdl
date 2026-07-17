@@ -180,6 +180,18 @@ static int test_sdl_event_pump(void) {
     event.key.repeat = 1;
     CHECK(SDL_PushEvent(&event));
 
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = SDL_SCANCODE_C;
+    event.key.mod = SDL_KMOD_CTRL;
+    event.key.repeat = 0;
+    CHECK(SDL_PushEvent(&event));
+
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = SDL_SCANCODE_PAUSE;
+    event.key.mod = SDL_KMOD_CTRL;
+    event.key.repeat = 0;
+    CHECK(SDL_PushEvent(&event));
+
     event.type = SDL_EVENT_QUIT;
     CHECK(SDL_PushEvent(&event));
 

@@ -10,6 +10,7 @@
  *
  * 复现 FUN_0001db69 @0x45635 (animation_play)：
  *   animation_play(anim_idx, frame_delay_ms, check_input)
+ * 返回 1 表示普通按键跳过，-2 表示宿主退出请求。
  *
  * 相关字节码执行依据：
  *   FUN_0003471b @0x5c1e7  anim_buffer_init(size, framebuffer, palette_buf)

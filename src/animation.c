@@ -182,7 +182,9 @@ int fd2_animation_play(fd2_vga *vga, const fd2_archive *ani,
         pos += data_len;
 
         fd2_vga_present_timed(vga, frame_delay_ms);
-        if (check_input && fd2_input_check(vga)) return 1;
+        fd2_input_pump(&vga->input);
+        if (fd2_input_take_quit(&vga->input)) return -2;
+        if (check_input && fd2_input_has_any_key(&vga->input)) return 1;
     }
     return 0;
 }

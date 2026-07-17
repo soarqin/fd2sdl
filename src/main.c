@@ -124,10 +124,10 @@ static void restore_scroll_frame(fd2_vga *vga, const uint8_t *offscreen,
     }
 }
 
-static void play_intro_animation_with_palette(fd2_vga *vga,
-                                              int anim_idx,
-                                              uint32_t delay_ms,
-                                              int pal_idx) {
+static int play_intro_animation_with_palette(fd2_vga *vga,
+                                             int anim_idx,
+                                             uint32_t delay_ms,
+                                             int pal_idx) {
     /* 复现 FUN_0001cf66 @0x44a32：可选清屏/换调色板，
      * 播放 FUN_0001db69(animation_play)，随后调用 FUN_0001cfca 渐出。 */
     if (pal_idx >= 0) {
@@ -136,8 +136,10 @@ static void play_intro_animation_with_palette(fd2_vga *vga,
         if (pal) fd2_vga_set_palette(vga, pal);
     }
     fd2_vga_set_brightness(vga, 0);
-    (void)fd2_animation_play(vga, &g_ani, anim_idx, delay_ms, 0);
+    int result = fd2_animation_play(vga, &g_ani, anim_idx, delay_ms, 0);
+    if (result == -2) return -2;
     fade_out_dark(vga);
+    return result;
 }
 
 /* 复现 FUN_0001cfe6 @0x44ab2: 片头 + 标题主体
@@ -145,6 +147,8 @@ static void play_intro_animation_with_palette(fd2_vga *vga,
 static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          int play_intro,
                                          int load_available) {
+    fd2_image menu_items[6] = {0};
+    int n_menu = 0;
     if (!play_intro) goto title_screen;
     /* === 阶段1: 片头初始画面 === */
     /* 反编译精确顺序:
@@ -193,7 +197,14 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     fd2_vga_present(vga);  /* 黑屏 */
 
     /* FUN_0001db69(3,0x5a,1)：播放 ANI.DAT[3]，这是首屏后的第二段片头。 */
-    (void)fd2_animation_play(vga, &g_ani, 3, 0x5a, 1);
+    int animation_result = fd2_animation_play(vga, &g_ani, 3, 0x5a, 1);
+    if (animation_result == -2) goto host_quit;
+    if (animation_result == 1) {
+        /* input_check 只窥视 BIOS 队列；SDL 在切入标题菜单前消费掉
+         * 触发跳过的这一项，避免同一次 Enter 立即确认 New Game。 */
+        fd2_input_event skipped;
+        (void)fd2_input_take_key(&vga->input, &skipped);
+    }
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40) */
     fade_out_dark(vga);
@@ -261,15 +272,27 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 if (scroll_y != 0x19) fade_out_dark(vga);
 
                 if (scroll_y == 0x14a) {
-                    play_intro_animation_with_palette(vga, 4, 0x5a, 99);
-                    play_intro_animation_with_palette(vga, 5, 0x32, 0);
+                    if (play_intro_animation_with_palette(vga, 4, 0x5a, 99) == -2 ||
+                        play_intro_animation_with_palette(vga, 5, 0x32, 0) == -2) {
+                        free(offscreen);
+                        goto host_quit;
+                    }
                 } else if (scroll_y == 0xd2) {
-                    play_intro_animation_with_palette(vga, 6, 0x5a, 99);
-                    play_intro_animation_with_palette(vga, 7, 0x32, 0);
+                    if (play_intro_animation_with_palette(vga, 6, 0x5a, 99) == -2 ||
+                        play_intro_animation_with_palette(vga, 7, 0x32, 0) == -2) {
+                        free(offscreen);
+                        goto host_quit;
+                    }
                 } else if (scroll_y == 0x6e) {
-                    play_intro_animation_with_palette(vga, 8, 0x5a, 99);
+                    if (play_intro_animation_with_palette(vga, 8, 0x5a, 99) == -2) {
+                        free(offscreen);
+                        goto host_quit;
+                    }
                 } else { /* scroll_y == 0x19 */
-                    play_intro_animation_with_palette(vga, 0, 0x0f, 0);
+                    if (play_intro_animation_with_palette(vga, 0, 0x0f, 0) == -2) {
+                        free(offscreen);
+                        goto host_quit;
+                    }
                 }
 
                 restore_scroll_frame(vga, offscreen, scroll_total_h, scroll_y);
@@ -337,8 +360,18 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
 
-            /* 检查输入跳过 */
-            if (fd2_input_check(vga)) { free(offscreen); goto title_screen; }
+            /* 检查普通按键跳过；宿主退出不能降级为标题跳过。 */
+            fd2_input_pump(&vga->input);
+            if (fd2_input_take_quit(&vga->input)) {
+                free(offscreen);
+                goto host_quit;
+            }
+            if (fd2_input_has_any_key(&vga->input)) {
+                fd2_input_event skipped;
+                (void)fd2_input_take_key(&vga->input, &skipped);
+                free(offscreen);
+                goto title_screen;
+            }
         }
         free(offscreen);
     }
@@ -375,7 +408,12 @@ title_screen:
 
         /* FUN_0001db69(1,0xf,1)：标题前飞入 LOGO 动画。
          * AFM 帧内会临时写动画调色板；动画结束后恢复标题调色板 [8]。 */
-        (void)fd2_animation_play(vga, &g_ani, 1, 0x0f, 1);
+        animation_result = fd2_animation_play(vga, &g_ani, 1, 0x0f, 1);
+        if (animation_result == -2) goto host_quit;
+        if (animation_result == 1) {
+            fd2_input_event skipped;
+            (void)fd2_input_take_key(&vga->input, &skipped);
+        }
         fd2_vga_set_palette(vga, pal);
 
         /* FUN_0000f53a(0,0xff,0x40)：标题图绘制前先把 DAC 置暗。 */
@@ -412,8 +450,6 @@ title_screen:
      * active meta stage，再把菜单项数从 2 扩为 3。 */
     int menu_count = load_available ? 3 : 2;
     /* 加载菜单项图 */
-    fd2_image menu_items[6];
-    int n_menu = 0;
     const uint8_t *buf7b; size_t len7b;
     if (fd2_archive_get(&g_fdother, 7, &buf7b, &len7b) == 0) {
         fd2_archive ar7b;
@@ -425,7 +461,19 @@ title_screen:
         fd2_archive_close(&ar7b);
     }
 
-    /* 菜单循环 */
+    /* 菜单循环。标题动画的 skip 键属于启动流程，不能越过状态边界
+     * 直接确认默认的 New Game；先泵出宿主事件，再清除进入菜单前已经
+     * 排队的普通按键。quit 请求保持独立，不能被普通键清理吞掉。 */
+    fd2_input_pump(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) {
+        for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
+        return FD2_TITLE_ACTION_HOST_QUIT;
+    }
+    while (fd2_input_has_any_key(&vga->input)) {
+        fd2_input_event stale;
+        (void)fd2_input_take_key(&vga->input, &stale);
+    }
+
     int menu_done = 0;
     while (!menu_done) {
         /* 绘制菜单项 */
@@ -474,6 +522,10 @@ title_screen:
     /* 释放菜单项 */
     for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
     return fd2_title_action_from_selection(selection, load_available);
+
+host_quit:
+    for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
+    return FD2_TITLE_ACTION_HOST_QUIT;
 }
 
 /* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，

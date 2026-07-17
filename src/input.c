@@ -126,6 +126,19 @@ void fd2_input_pump(fd2_input *input) {
             event.type == SDL_EVENT_TERMINATING) {
             input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
+            /* Windows Ctrl+C／Ctrl+Break 在 SDL 窗口拥有焦点时可能只表现为
+             * KEY_DOWN，而不是控制台回调；这两种组合都必须进入宿主退出
+             * 通道，不能作为普通键让片头 input_check 跳到标题。 */
+            if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
+                (event.key.scancode == SDL_SCANCODE_C ||
+                 event.key.scancode == SDL_SCANCODE_PAUSE) ) {
+                input->quit_requested = 1;
+                continue;
+            }
+            if (event.key.scancode == SDL_SCANCODE_PAUSE) {
+                input->quit_requested = 1;
+                continue;
+            }
             fd2_input_key key = key_from_scancode(event.key.scancode);
             /* 原版 BIOS 会保存 typematic，但确认／取消键在实际 UI 中
              * 以一次按键完成一次操作；SDL 的 repeat 若跨越状态切换，

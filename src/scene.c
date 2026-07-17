@@ -783,6 +783,12 @@ static void wait_or_skip(fd2_vga *vga, int ms, int *skip) {
 
 static void page_pause(fd2_vga *vga, int *skip) {
     if (!vga || !skip || *skip) return;
+    fd2_input_pump(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) {
+        scene_host_quit_requested = 1;
+        *skip = 1;
+        return;
+    }
     fd2_vga_present(vga);
     /* FUN_0003be75 @0x3be75 在页面／fragment 尾部阻塞等待一项
      * BIOS 按键；正式版不得用计时器自动翻页。只消费这里的一项，

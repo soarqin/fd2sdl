@@ -31,7 +31,16 @@ typedef enum {
 #define FD2_TITLE_LETTER_FLY_SFX_BANK 78
 #define FD2_TITLE_LETTER_FLY_SFX_SAMPLE 0
 #define FD2_TITLE_FLIGHT_TRIGGER_COUNT 14
-#define FD2_TITLE_LIGHTNING_FLASH_COUNT 11
+#define FD2_TITLE_LIGHTNING_TRIGGER_COUNT FD2_TITLE_FLIGHT_TRIGGER_COUNT
+#define FD2_TITLE_LIGHTNING_FLASH_FRAMES 11
+#define FD2_TITLE_SCROLL_DELAY_MS 30
+#define FD2_TITLE_ANIM_DELAY_SLOW_MS 90
+#define FD2_TITLE_ANIM_DELAY_MEDIUM_MS 50
+#define FD2_TITLE_ANIM_DELAY_FAST_MS 15
+
+typedef struct {
+    unsigned frames_remaining;
+} fd2_title_lightning_state;
 
 #define FD2_TITLE_CONFIRM_FLASH_CYCLES 4
 #define FD2_TITLE_CONFIRM_FLASH_FRAMES (FD2_TITLE_CONFIRM_FLASH_CYCLES * 2)
@@ -46,9 +55,12 @@ int fd2_title_sfx_resolve(fd2_title_sfx cue,
  * scroll_y=0x217..0 命中，因此有效触发共 14 次。 */
 int fd2_title_flight_sfx_for_scroll_y(int scroll_y);
 
-/* FDOTHER[102] 仅在滚动音效触发后的 11 帧生效，下一帧恢复
- * FDOTHER[101]。这组调色板差异构成打雷发光效果。 */
-int fd2_title_lightning_flash_for_scroll_y(int scroll_y);
+/* 14 个滚动音效阈值都会重启一次闪电。每个闪电保持 11 个完整滚动
+ * 帧，随后下一帧恢复 FDOTHER[101]；这组调色板差异构成打雷发光效果。 */
+int fd2_title_lightning_trigger_for_scroll_y(int scroll_y);
+void fd2_title_lightning_state_init(fd2_title_lightning_state *state);
+int fd2_title_lightning_state_advance(fd2_title_lightning_state *state,
+                                      int scroll_y);
 
 /* frame 0 先显示 normal，frame 1 恢复 highlight；共 8 帧。
  * 对应 code0 0xfef0..0xff30 的两次 draw + 80 ms、循环 4 次。 */

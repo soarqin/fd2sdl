@@ -271,7 +271,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     fd2_vga_present(vga);  /* 黑屏 */
 
     /* FUN_0001db69(3,0x5a,1)：播放 ANI.DAT[3]，这是首屏后的第二段片头。 */
-    int animation_result = fd2_animation_play(vga, &g_ani, 3, 0x5a, 1);
+    int animation_result = fd2_animation_play(
+        vga, &g_ani, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1);
     if (animation_result == -2) goto host_quit;
     if (animation_result == 1) {
         /* input_check 只窥视 BIOS 队列；SDL 在切入标题菜单前消费掉
@@ -313,6 +314,9 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
         /* 滚动循环: iVar6 from 0x217(535) down to 0
          * 每帧: memcpy(0xa0000, offscreen + iVar6*0x140, 200行)
          * 即从 offscreen 的 y=iVar6 位置拷贝 200 行到显存 */
+        fd2_title_lightning_state lightning;
+        fd2_title_lightning_state_init(&lightning);
+        int lightning_palette_active = 0;
         for (int scroll_y = 0x217; scroll_y >= 0; scroll_y--) {
             /* 拷贝 offscreen[scroll_y..scroll_y+199] 到 framebuffer */
             int src_start = scroll_y * VGA_STRIDE;
@@ -346,24 +350,30 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 if (scroll_y != 0x19) fade_out_dark(vga);
 
                 if (scroll_y == 0x14a) {
-                    if (play_intro_animation_with_palette(vga, 4, 0x5a, 99) == -2 ||
-                        play_intro_animation_with_palette(vga, 5, 0x32, 0) == -2) {
+                    if (play_intro_animation_with_palette(
+                            vga, 4, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2 ||
+                        play_intro_animation_with_palette(
+                            vga, 5, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0) == -2) {
                         free(offscreen);
                         goto host_quit;
                     }
                 } else if (scroll_y == 0xd2) {
-                    if (play_intro_animation_with_palette(vga, 6, 0x5a, 99) == -2 ||
-                        play_intro_animation_with_palette(vga, 7, 0x32, 0) == -2) {
+                    if (play_intro_animation_with_palette(
+                            vga, 6, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2 ||
+                        play_intro_animation_with_palette(
+                            vga, 7, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0) == -2) {
                         free(offscreen);
                         goto host_quit;
                     }
                 } else if (scroll_y == 0x6e) {
-                    if (play_intro_animation_with_palette(vga, 8, 0x5a, 99) == -2) {
+                    if (play_intro_animation_with_palette(
+                            vga, 8, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2) {
                         free(offscreen);
                         goto host_quit;
                     }
                 } else { /* scroll_y == 0x19 */
-                    if (play_intro_animation_with_palette(vga, 0, 0x0f, 0) == -2) {
+                    if (play_intro_animation_with_palette(
+                            vga, 0, FD2_TITLE_ANIM_DELAY_FAST_MS, 0) == -2) {
                         free(offscreen);
                         goto host_quit;
                     }
@@ -437,15 +447,21 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             if (fd2_title_flight_sfx_for_scroll_y(scroll_y))
                 (void)title_audio_play(title_audio, FD2_TITLE_SFX_FLIGHT);
 
-            /* code0 0xfbd9..0xfc37：前 11 个滚动音效阈值在同帧切换
-             * 到 FDOTHER[102]，下一帧恢复 FDOTHER[101]。两套调色板仅在
-             * 闪电相关色阶上不同，形成一次约 30 ms 的打雷发光。 */
-            const uint8_t *scroll_pal = res_load_palette(
-                fd2_title_lightning_flash_for_scroll_y(scroll_y)
-                ? 0x66u : 0x65u);
-            if (scroll_pal) fd2_vga_set_palette(vga, scroll_pal);
+            /* code0 0xfbd9..0xfc37：全部 14 个有效滚动音效阈值开始闪电
+             * 状态，local_4c 从 0 逐帧递增至 11 才恢复 FDOTHER[101]。
+             * 因此每次闪光完整持续 11 个滚动帧（约 330 ms），而不是
+             * 只显示触发的一个 30 ms 帧。 */
+            int lightning_active =
+                fd2_title_lightning_state_advance(&lightning, scroll_y);
+            if (lightning_active != lightning_palette_active) {
+                const uint8_t *scroll_pal = res_load_palette(
+                    lightning_active ? 0x66u : 0x65u);
+                if (scroll_pal) fd2_vga_set_palette(vga, scroll_pal);
+                lightning_palette_active = lightning_active;
+            }
 
-            fd2_vga_present_timed(vga, 0x1e); /* 原版 delay_ms(30) */
+            fd2_vga_present(vga);
+            fd2_delay_ms(FD2_TITLE_SCROLL_DELAY_MS); /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
@@ -501,7 +517,7 @@ title_screen:
          * FDOTHER[78] SFX 0，并在动画结束／跳过时停止。AFM 帧内会临时
          * 写动画调色板，动画结束后恢复标题调色板 [8]。 */
         animation_result = fd2_animation_play_hooked(
-            vga, &g_ani, 1, 0x0f, 1,
+            vga, &g_ani, 1, FD2_TITLE_ANIM_DELAY_FAST_MS, 1,
             title_letter_fly_audio_on_frame, title_audio);
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;

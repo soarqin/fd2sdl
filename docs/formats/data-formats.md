@@ -112,8 +112,8 @@ def parse_dat(data):
     | iVar6==0xd2 | 7 |
     | iVar6==0x14a | 5 |
     | iVar6==0x19 | 0 |
-    | 前 11 个滚动音效阈值的当前帧 | 0x66 (102)，闪电高亮调色板 |
-    | 闪电帧后的下一帧 | 0x65 (101)，恢复滚动调色板 |
+    | 14 个有效滚动音效阈值 | 0x66 (102)，开始闪电高亮调色板 |
+    | 闪电开始后第 12 个滚动帧 | 0x65 (101)，恢复滚动调色板 |
     | 片头->标题 | 8 |
   - DOSBox 实机验证：标题画面调色板与 FDOTHER.DAT[8] 完全一致
 - **RLE 方案（已逆向确认，源自 FUN_0004e176）**：
@@ -164,7 +164,7 @@ Amiga AFM（Animation File Manager）V1.00。
   u8  commands[data_len]
 ```
 
-- `ANI.DAT`：9 个启动/场景动画，`FUN_0001db69 @0x45635` 直接读取该文件。`animation_play @code0 0x10421` 每帧先解码，再调用固定 `delay_ms(frame_delay)`；解码／上传耗时不能从该 delay 中抵扣。启动调用值为 ANI 3/4/6/8=`90 ms`、ANI 5/7=`50 ms`、ANI 0/1=`15 ms`。
+- `ANI.DAT`：9 个启动/场景动画，`FUN_0001db69 @0x45635` 直接读取该文件。`animation_play @code0 0x10421` 每帧先解码，再调用固定 `delay_ms(frame_delay)`；解码／上传耗时不能从该 delay 中抵扣。启动调用值由当前正常版 `FD2.EXE` 的 code0 `0xf9ac`、`0xfae2..0xfae8`、`0xfb43..0xfb8f`、`0xfd0e` 直接确认：ANI 3/4/6/8=`90 ms`、ANI 5/7=`50 ms`、ANI 0/1=`15 ms`。
 - `FIGANI.DAT`：408 个战斗角色动作，含 3 字节空帧（`04 00 04 00 ...`）作分隔。
 - 启动流程当前用到的 AFM opcode：
 

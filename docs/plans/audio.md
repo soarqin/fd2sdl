@@ -41,7 +41,7 @@ FDOTHER[80] 的固定调用已由视觉逻辑与波形共同确认：
 
 - `animation_play @code0 0x10421` 在 `anim_idx == 1` 时由 `0x1043f..0x10457` 加载 FDOTHER[78]；`0x1053b..0x10552` 在首帧解码后、首个 delay 前以 primary wrapper 播放 SFX 0，`0x10586..0x1059a` 在正常结束或按键跳过后以 index `-1` 停止。该样本对应标题画面上方文字飞入声，不属于 FDOTHER[77] 的滚动触发。
 - `title_action_menu @code0 0xf8d6..0xf8e6` 加载 `FDOTHER[77]`，并将返回值保存到 local `+0x54`；下列 action 音效调用均传入该 local。此前把 primary wrapper 等同于固定 `DAT_00003eec`／`FDOTHER[31]`，导致菜单样本 bank 登记错误；wrapper 的区别仅是 AIL handle。
-- `0xfbb7..0xfbd6` 比较 object2 `DS:0x204e` 的降序阈值表；滚动位置命中 `520、430、410、340、310、300、240、180、150、130、110、87、64、22` 时，调用 primary wrapper 播放 SFX 0、loop 1。表末项 `1000` 不会被 `0x217..0` 的滚动范围命中。`0xfbd9..0xfc37` 还会在前 11 个触发帧加载 FDOTHER[102] 闪电调色板，并于下一帧恢复 FDOTHER[101]；110、64、22 三次仅播放 SFX，不闪光。
+- `0xfbb7..0xfbd6` 比较 object2 `DS:0x204e` 的降序阈值表；滚动位置命中 `520、430、410、340、310、300、240、180、150、130、110、87、64、22` 时，调用 primary wrapper 播放 SFX 0、loop 1。表末项 `1000` 不会被 `0x217..0` 的滚动范围命中。`0xfbd9..0xfc37` 会在全部 14 个有效触发帧加载 FDOTHER[102] 闪电调色板，并将 `local_4c` 从 0 逐帧计至 11 后才恢复 FDOTHER[101]；每次闪光保持 11 个滚动帧、约 `330 ms`。触发索引在每次命中后递增，`local_4c < 12` 只控制是否执行调色板逻辑，不会截断后 3 个触发。
 - `0xfd1c` 调用 secondary wrapper，以 SFX 3、loop 1 播放标题 action 入场声。
 - `0xfe74/0xfe94` 调用 primary wrapper，以 SFX 2、loop 1 播放 Up／Down 移动声。
 - `0xfed3` 调用 primary wrapper，以 SFX 1、loop 1 播放确认声。

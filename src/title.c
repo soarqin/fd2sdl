@@ -36,14 +36,30 @@ int fd2_title_flight_sfx_for_scroll_y(int scroll_y) {
     return 0;
 }
 
-int fd2_title_lightning_flash_for_scroll_y(int scroll_y) {
-    static const int trigger_y[FD2_TITLE_LIGHTNING_FLASH_COUNT] = {
-        520, 430, 410, 340, 310, 300, 240, 180, 150, 130, 87,
+int fd2_title_lightning_trigger_for_scroll_y(int scroll_y) {
+    static const int trigger_y[FD2_TITLE_LIGHTNING_TRIGGER_COUNT] = {
+        520, 430, 410, 340, 310, 300, 240,
+        180, 150, 130, 110, 87, 64, 22,
     };
-    for (size_t i = 0; i < FD2_TITLE_LIGHTNING_FLASH_COUNT; i++) {
+    for (size_t i = 0; i < FD2_TITLE_LIGHTNING_TRIGGER_COUNT; i++) {
         if (scroll_y == trigger_y[i]) return 1;
     }
     return 0;
+}
+
+void fd2_title_lightning_state_init(fd2_title_lightning_state *state) {
+    if (!state) return;
+    state->frames_remaining = 0;
+}
+
+int fd2_title_lightning_state_advance(fd2_title_lightning_state *state,
+                                      int scroll_y) {
+    if (!state) return 0;
+    if (fd2_title_lightning_trigger_for_scroll_y(scroll_y))
+        state->frames_remaining = FD2_TITLE_LIGHTNING_FLASH_FRAMES;
+    if (state->frames_remaining == 0) return 0;
+    state->frames_remaining--;
+    return 1;
 }
 
 int fd2_title_confirm_highlight_for_frame(int frame) {

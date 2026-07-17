@@ -47,7 +47,7 @@
 // FUNC 0x44953 intro_cutaway
 // FUNC 0x44a32 intro_anim_with_palette
 // FUNC 0x4518d title_menu_draw
-// FUNC 0x1f894 title_action_menu  /* code0 0xf894：FDOTHER[77] SFX 0 片头滚动；前 11 个触发帧切 FDOTHER[102] 闪电调色板，次帧恢复 [101]；SFX 3 secondary 入场、SFX 2/1 primary 移动/确认；ANI[1] 文字飞入声为 FDOTHER[78] SFX 0 */
+// FUNC 0x1f894 title_action_menu  /* code0 0xf894：FDOTHER[77] SFX 0 片头滚动；全部 14 个有效触发均切 FDOTHER[102]，local_4c 计至 11 后恢复 [101]；SFX 3 secondary 入场、SFX 2/1 primary 移动/确认；ANI[1] 文字飞入声为 FDOTHER[78] SFX 0 */
 // FUNC 0x25ebb title_action_dispatch  /* code0 0x15ebb：标题 action 上层分派 */
 // FUNC 0x4622d fdicon_cache_append_unit
 // FUNC 0x4673b field_earthquake_effect  /* 3 个缩放 buffer 按 0,1,2,1 震动；FDOTHER[80] SFX 13 */

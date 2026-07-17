@@ -43,6 +43,10 @@ int main(void) {
     fd2_title_sfx_handle handle;
     size_t sample;
     CHECK(FD2_TITLE_SFX_BANK == 77);
+    CHECK(FD2_TITLE_SCROLL_DELAY_MS == 30);
+    CHECK(FD2_TITLE_ANIM_DELAY_SLOW_MS == 90);
+    CHECK(FD2_TITLE_ANIM_DELAY_MEDIUM_MS == 50);
+    CHECK(FD2_TITLE_ANIM_DELAY_FAST_MS == 15);
     CHECK(FD2_TITLE_LETTER_FLY_SFX_BANK == 78);
     CHECK(FD2_TITLE_LETTER_FLY_SFX_SAMPLE == 0);
     CHECK(fd2_title_sfx_resolve((fd2_title_sfx)99, &handle, &sample) != 0);
@@ -63,8 +67,9 @@ int main(void) {
     CHECK(trigger_count == FD2_TITLE_FLIGHT_TRIGGER_COUNT);
     CHECK(!fd2_title_flight_sfx_for_scroll_y(1000));
 
-    static const int lightning_y[FD2_TITLE_LIGHTNING_FLASH_COUNT] = {
-        520, 430, 410, 340, 310, 300, 240, 180, 150, 130, 87,
+    static const int lightning_y[FD2_TITLE_LIGHTNING_TRIGGER_COUNT] = {
+        520, 430, 410, 340, 310, 300, 240,
+        180, 150, 130, 110, 87, 64, 22,
     };
     int lightning_count = 0;
     for (int scroll_y = 0x217; scroll_y >= 0; scroll_y--) {
@@ -72,13 +77,29 @@ int main(void) {
         for (size_t i = 0; i < sizeof(lightning_y) /
                                       sizeof(lightning_y[0]); i++)
             expected |= scroll_y == lightning_y[i];
-        CHECK(fd2_title_lightning_flash_for_scroll_y(scroll_y) == expected);
+        CHECK(fd2_title_lightning_trigger_for_scroll_y(scroll_y) == expected);
         lightning_count += expected;
     }
-    CHECK(lightning_count == FD2_TITLE_LIGHTNING_FLASH_COUNT);
-    CHECK(!fd2_title_lightning_flash_for_scroll_y(110));
-    CHECK(!fd2_title_lightning_flash_for_scroll_y(64));
-    CHECK(!fd2_title_lightning_flash_for_scroll_y(22));
+    CHECK(lightning_count == FD2_TITLE_LIGHTNING_TRIGGER_COUNT);
+    CHECK(fd2_title_lightning_trigger_for_scroll_y(110));
+    CHECK(fd2_title_lightning_trigger_for_scroll_y(64));
+    CHECK(fd2_title_lightning_trigger_for_scroll_y(22));
+
+    fd2_title_lightning_state lightning;
+    fd2_title_lightning_state_init(&lightning);
+    for (int frame = 0; frame < FD2_TITLE_LIGHTNING_FLASH_FRAMES; frame++)
+        CHECK(fd2_title_lightning_state_advance(&lightning,
+                                                 frame ? -1 : 520));
+    CHECK(!fd2_title_lightning_state_advance(&lightning, -1));
+    /* 310 与 300 相距 10 帧：第二次触发发生在前一次闪电仍亮时，
+     * 必须从 300 重新完整计时 11 帧。110/64/22 也属于正常触发。 */
+    CHECK(fd2_title_lightning_state_advance(&lightning, 310));
+    for (int frame = 1; frame < 10; frame++)
+        CHECK(fd2_title_lightning_state_advance(&lightning, -1));
+    CHECK(fd2_title_lightning_state_advance(&lightning, 300));
+    for (int frame = 1; frame < FD2_TITLE_LIGHTNING_FLASH_FRAMES; frame++)
+        CHECK(fd2_title_lightning_state_advance(&lightning, -1));
+    CHECK(!fd2_title_lightning_state_advance(&lightning, -1));
 
     CHECK(FD2_TITLE_CONFIRM_FLASH_FRAMES == 8);
     CHECK(FD2_TITLE_CONFIRM_FLASH_DELAY_MS == 80);

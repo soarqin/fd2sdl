@@ -95,6 +95,10 @@ if(NOT FD2SDL_SDL3_TARGET)
     message(FATAL_ERROR "SDL3 target was not created by system search or CPM.cmake fallback.")
 endif()
 
+if(MSVC)
+    add_compile_options(/utf-8 /experimental:c11atomics /std:c11)
+endif()
+
 set(FD2SDL_CORE_SOURCES
     app_flow.c
     input.c
@@ -261,9 +265,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_command_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_command_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_command_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_command_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_command_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -280,9 +286,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_system_menu_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_system_menu_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_system_menu_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_system_menu_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_system_menu_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -318,9 +326,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_visual_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_visual_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_visual_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_visual_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_visual_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -340,9 +350,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_info_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_info_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_info_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_info_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_info_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -355,9 +367,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_combat_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_combat_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_combat_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_combat_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     add_test(NAME field_combat COMMAND fd2_field_combat_test)
 
     add_executable(fd2_field_ai_test
@@ -372,9 +386,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_ai_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_ai_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_ai_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_ai_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_ai_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -390,9 +406,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_attack_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_attack_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_attack_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_attack_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_attack_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -405,9 +423,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_rng_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_rng_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_rng_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_rng_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     add_test(NAME field_rng COMMAND fd2_field_rng_test)
 
     add_executable(fd2_field_game_attack_test
@@ -417,9 +437,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_game_attack_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_game_attack_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_game_attack_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_game_attack_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_game_attack_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -432,9 +454,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_game_system_menu_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_game_system_menu_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_game_system_menu_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_game_system_menu_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_game_system_menu_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -448,9 +472,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_save_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_save_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_save_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_save_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_save_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -463,9 +489,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_ai_commit_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_ai_commit_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_ai_commit_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_ai_commit_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_ai_commit_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -478,9 +506,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_unit_stats_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_unit_stats_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_unit_stats_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_unit_stats_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_unit_stats_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )
@@ -493,9 +523,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_unit_base_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_options(fd2_field_unit_base_test PRIVATE
-        -Wall -Wextra -Wpedantic
-    )
+    if(MSVC)
+        target_compile_options(fd2_field_unit_base_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_unit_base_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
     target_link_libraries(fd2_field_unit_base_test PRIVATE
         ${FD2SDL_SDL3_TARGET}
     )

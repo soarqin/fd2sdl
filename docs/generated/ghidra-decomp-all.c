@@ -2767,7 +2767,7 @@ LAB_0003b521:
       }
       if (iVar1 != -2) break;
       if (((DAT_00003c67 == 0x728) || (DAT_00003c67 == 0x9017)) && (local_18 == 3)) {
-        FUN_0003c038();
+        dialog_text_scroll_up();
         local_18 = local_18 + -1;
       }
       local_18 = local_18 + 1;
@@ -2897,7 +2897,7 @@ LAB_0003b3e2:
       goto LAB_0003b521;
     }
     if (((DAT_00003c67 == 0x728) || (DAT_00003c67 == 0x9017)) && (local_18 == 3)) {
-      FUN_0003c038();
+      dialog_text_scroll_up();
       local_18 = local_18 + -1;
     }
     local_18 = local_18 + 1;
@@ -3212,9 +3212,9 @@ char FUN_0003be75(int param_1)
 }
 
 
-// FUNC 0x3c038 FUN_0003c038
+// FUNC 0x3c038 dialog_text_scroll_up  /* legacy dual；canonical VA 0x16e24 / code0 0x6e24。文字区五次上卷 3 px、一次上卷 4 px */
 
-void FUN_0003c038(void)
+void dialog_text_scroll_up(void)
 
 {
   __chkstk(0x1c);

@@ -31,8 +31,6 @@ void fd2_bgm_destroy(fd2_bgm_player *player);
 int fd2_bgm_play(fd2_bgm_player *player, size_t track, int loop_count);
 /* 原版 sequence fade stop：4 秒内降到静音。 */
 int fd2_bgm_stop(fd2_bgm_player *player);
-/* UI／场景所有权切换使用的宿主硬停止；下一音频回调立即移除 music bus。 */
-int fd2_bgm_stop_immediate(fd2_bgm_player *player);
 int fd2_bgm_current_track(const fd2_bgm_player *player);
 
 /* 测试和资源验证接口。 */

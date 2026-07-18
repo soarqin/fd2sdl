@@ -29,6 +29,8 @@ CONFIRMED_ANCHORS = {
                  "current bytes and direct xrefs"),
     "new_game_opening_play": (0x3231B, "confirmed-entry", "chkstk-wrapper",
                               "relocation-backed dispatch and current bytes"),
+    "dialog_text_scroll_up": (0x16E24, "confirmed-entry", "chkstk-wrapper",
+                              "current bytes and text-dialog direct xrefs"),
     "__chkstk": (0x3702F, "watcom-runtime-helper", None,
                  "541 direct push-imm32/call sites"),
 }
@@ -61,8 +63,8 @@ def parse_rows(path: Path) -> list[dict[str, object]]:
 
 def build(path: Path) -> tuple[dict[str, object], dict[str, object]]:
     rows = parse_rows(path)
-    if len(rows) != 209:
-        raise ValueError(f"expected 209 historical name rows, got {len(rows)}")
+    if len(rows) != 210:
+        raise ValueError(f"expected 210 historical name rows, got {len(rows)}")
     seen_confirmed: set[str] = set()
     migration_rows = []
     for row in rows:

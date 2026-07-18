@@ -353,7 +353,7 @@ fragment_count = first_offset / 2
 |------------|------|
 | `-1` (`0xffff`) | 片段结束 |
 | `-2` (`0xfffe`) | 换行 |
-| `-3` (`0xfffd`) | 分页/等待后继续 |
+| `-3` (`0xfffd`) | 必要时先上卷旧文字并推进到底行，再显示下箭头等待按键后继续 |
 | `-4` (`0xfffc`) | 动态嵌入：递归渲染 `DAT_00003ad9` 指向的文本片段 |
 | `-5` (`0xfffb`) | 动态嵌入：递归渲染 `DAT_00003add` 指向的文本片段 |
 | `-6` (`0xfffa`) | 动态嵌入：将 `PTR_FUN_00003ae1` 指向的数值转十进制并逐位绘制 |
@@ -369,6 +369,8 @@ fragment_count = first_offset / 2
 从角色格弹框前，`dialog_box_open` 会自动调用 `field_focus_move_to @0x37efe`。该函数将焦点逐格移到说话角色；焦点继续向外移动且已达到左/右 `2/11`、上/下 `2/6` 的视窗阈值时，同步卷动镜头。因此，「说话角色在画面外时先移动视角」属于对话框系统行为，不是 FDTXT 控制码，也不要求过场脚本另发 `field_camera_pan_to` 指令。`-17/-18` 通过 `field_visible_actor_find_by_text_id @0x37e74` 查找未隐藏角色；只匹配到隐藏角色时，仍从该角色记录 offset `0x07` 读取立绘，但不移动镜头，也不从旧角色坐标弹框。`-19/-20` 直接使用 actor 索引，不经过该查找函数。
 
 `bios_tick_delay @code0 0x7aa9` 读取 BIOS 计时器物理地址 `0x046c`，按调用参数等待计时器 tick；1 tick 约为 54.9 ms。当前权威 code0 中，`text_dialog_render_tokens @0x5f84` 的普通字形路径 `0x64a2` 与动态数字路径 `0x6139` 均调用 `text_dialog_glyph_step @0x64e8`。该 helper 在 `0x653c..0x6546` 调用 primary SFX wrapper `0x15a96`，参数为 `sfx_play(DAT_00003eec, 2, 1)`，随后在 `0x6550` 调用 `bios_tick_delay(1)`。因此每个可见字形播放一次 FDOTHER[31] SFX 2，并按 1 tick 推进；SDL 版逐字延时取整为 55 ms。
+
+`-3` 的原版行为不是清空对话框后翻到空白页。`text_dialog_render_tokens @VA 0x15f84 / code0 0x5fc4` 先推进一行，再调用 `FUN_00016559(0)` 恢复普通立绘帧和 `FUN_00016c57(1)` 等待。`FUN_00016c57(1) @VA 0x16c57` 在文字区右下角绘制 FDOTHER.DAT[5] tile 18，并在 18/19 间闪烁下箭头；按键后用 tile 13 擦除。普通 `-2` 和 `-3` 在当前逻辑行号为 3 时，都会先调用 `dialog_text_scroll_up (FUN_00016e24) @VA 0x16e24`：对 208×72 文字区执行五次 3 px 和一次 4 px 上卷（总计 19 px），以背景色 `0x4a` 清理底行，然后将逻辑行号从 3 退回 2 再继续到下一行。因此旧文字保留并向上滚动，新文字显示在底行；不存在整框重绘。
 
 同一 fragment 内遇到新的 `-17..-20` 说话人控制码时，如果旧对话框已打开，`text_dialog_render_tokens @VA 0x15f84` 会先调用 `FUN_00016559(0)` 和 `FUN_00016c57(0)` 等待并读取一次按键，再调用 `FUN_00016b43` 关闭旧框，之后才打开新说话人的框。`-1` 片段结束分支同样在关闭最终对话框前调用 `FUN_00016c57(0)`。因此等待边界是「每段说话人对白」，不是只在 fragment 末尾或 `-3` 分页处等待；省略说话人切换前的 wait 会让一个 fragment 内连续两三句对白自动掠过。
 

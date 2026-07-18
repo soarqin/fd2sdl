@@ -826,7 +826,7 @@ static void page_pause(fd2_vga *vga, int *skip) {
         *skip = 1;
         return;
     }
-    /* FUN_00016c57 @VA 0x16c57：仅在页面等待期间按呈现帧轮询输入。
+    /* FUN_00016c57 @VA 0x16c57：仅在对话等待期间按呈现帧轮询输入。
      * 每轮 present 重建当前帧 IsPressed；此前字形帧的按键不会重放。 */
     for (;;) {
         fd2_vga_present(vga);
@@ -841,28 +841,96 @@ static void page_pause(fd2_vga *vga, int *skip) {
     }
 }
 
-static void newline_or_page(fd2_vga *vga,
-                            const fd2_terrain_tileset *terrain,
-                            const fd2_field_map *map,
-                            const fd2_archive *dato,
-                            const fd2_ui_sheet *ui,
-                            const fd2_map_sprite_bank *sprites,
-                            const fd2_scene_field_state *field_state,
-                            fd2_dialog_state *state,
-                            int force_page,
-                            int fast,
-                            int *skip) {
-    if (force_page || state->line >= 3) {
-        if (!fast)
-            page_pause(vga, skip);
-        if (!*skip)
-            redraw_dialog(vga, terrain, map, dato, ui, sprites, field_state, state);
-        return;
-    }
+static void dialog_scroll_text_up(fd2_vga *vga,
+                                  fd2_dialog_state *state,
+                                  int fast) {
+    if (!vga || !state || !state->is_open) return;
+    int text_x = state->area == FD2_DIALOG_TOP
+               ? DIALOG_TOP_TEXT_X : DIALOG_BOTTOM_TEXT_X;
+    int text_y = state->area == FD2_DIALOG_TOP
+               ? DIALOG_TOP_TEXT_Y : DIALOG_BOTTOM_TEXT_Y;
+    int text_w = 13 * 16;
+    int scroll_h = 72;
 
-    state->line++;
-    state->x = (state->area == FD2_DIALOG_TOP) ? DIALOG_TOP_TEXT_X : DIALOG_BOTTOM_TEXT_X;
+    /* dialog_text_scroll_up (FUN_00016e24) @VA 0x16e24 / code0 0x6e24：
+     * 对话框到第四行后，
+     * 先执行五次 3 px 上卷，再执行一次 4 px 上卷，总计 19 px。
+     * 每步对 72 行分别 memmove 0xd0(208) px；源／目标从文字基址前
+     * 1 px 开始，之后仅将文字区第 72 行填为背景色 0x4a。 */
+    for (int step = 0; step < 6; step++) {
+        int dy = step < 5 ? 3 : 4;
+        for (int row = 0; row < scroll_h; row++)
+            memmove(vga->framebuffer +
+                        (size_t)(text_y + row) * VGA_STRIDE + text_x - 1,
+                    vga->framebuffer +
+                        (size_t)(text_y + row + dy) * VGA_STRIDE + text_x - 1,
+                    (size_t)text_w);
+        memset(vga->framebuffer +
+                   (size_t)(text_y + scroll_h) * VGA_STRIDE + text_x,
+               0x4a, (size_t)text_w);
+        if (!fast) fd2_vga_present(vga);
+    }
+}
+
+static void continuation_pause(fd2_vga *vga,
+                               const fd2_ui_sheet *ui,
+                               const fd2_dialog_state *state,
+                               int *skip) {
+    if (!vga || !ui || !state || !skip || *skip) return;
+    int arrow_x = state->area == FD2_DIALOG_TOP ? 111 : 191;
+    int arrow_y = state->area == FD2_DIALOG_TOP ? 71 : 181;
+    int arrow_frame = 18;
+    uint64_t next_frame_ms = SDL_GetTicks() + 330u;
+
+    /* FUN_00016c57(1) @VA 0x16c57：先绘制 FDOTHER[5] tile 18，
+     * 等待期间在 tile 18/19 间闪烁；读键后以 tile 13 擦除箭头。 */
+    blit_ui_tile_mode(vga, ui, (uint16_t)arrow_frame,
+                      arrow_x, arrow_y, 0x4a);
+    for (;;) {
+        fd2_vga_present(vga);
+        if (fd2_input_take_quit(&vga->input)) {
+            scene_host_quit_requested = 1;
+            *skip = 1;
+            return;
+        }
+        fd2_input_event event;
+        if (fd2_input_take_key(&vga->input, &event)) break;
+        uint64_t now = SDL_GetTicks();
+        if (now >= next_frame_ms) {
+            arrow_frame = arrow_frame == 18 ? 19 : 18;
+            blit_ui_tile_mode(vga, ui, (uint16_t)arrow_frame,
+                              arrow_x, arrow_y, 0x4a);
+            next_frame_ms = now + 330u;
+        }
+        fd2_delay_ms(20);
+    }
+    blit_ui_tile(vga, ui, 13, arrow_x, arrow_y - 5);
+}
+
+static void newline_or_scroll(fd2_vga *vga,
+                              const fd2_ui_sheet *ui,
+                              fd2_dialog_state *state,
+                              int explicit_continue,
+                              int fast,
+                              int *skip) {
+    /* text_dialog_render_tokens @code0 0x5fc4 / 0x6322：-2/-3 先在
+     * line==3 时上卷并将 line 退回 2，再统一推进到下一行。-3 随后才
+     * 调 FUN_00016c57(1)，因此下箭头出现在已经滚动后的画面。 */
+    fd2_dialog_line_transition transition =
+        fd2_dialog_flow_line_transition(
+            explicit_continue ? FD2_TEXT_PAGE : FD2_TEXT_NEWLINE,
+            state->line);
+    if (transition.scroll_before_wait) {
+        dialog_scroll_text_up(vga, state, fast);
+        state->y -= 16;
+    }
+    state->line = transition.line;
+    state->x = state->area == FD2_DIALOG_TOP
+             ? DIALOG_TOP_TEXT_X : DIALOG_BOTTOM_TEXT_X;
     state->y += 16;
+
+    if (transition.wait == FD2_DIALOG_FLOW_WAIT_SCROLL && !fast)
+        continuation_pause(vga, ui, state, skip);
 }
 
 static void set_dialog_area(fd2_vga *vga,
@@ -930,7 +998,7 @@ static int play_text_fragment(fd2_vga *vga,
     int skip = 0;
     /* text_dialog_render_tokens @VA 0x15f84：每个字形只查询该呈现帧的
      * input_check；当前帧有 press 时，本页后续字形关闭逐字 helper，
-     * page／新说话人再恢复。
+     * `-3` continuation／新说话人再恢复。
      * fast 验证路径从一开始就禁用逐字 helper，避免瞬间重放整段 PCM。 */
     int glyph_step_enabled = !fast;
     for (size_t i = 0; i < token_count && !skip; i++) {
@@ -957,10 +1025,10 @@ static int play_text_fragment(fd2_vga *vga,
         }
 
         if (tok == FD2_TEXT_NEWLINE || tok == FD2_TEXT_PAGE) {
-            int starts_page = tok == FD2_TEXT_PAGE || state.line >= 3;
-            newline_or_page(vga, terrain, map, dato, ui, sprites, field_state,
-                            &state, tok == FD2_TEXT_PAGE, fast, &skip);
-            if (starts_page && !skip) glyph_step_enabled = !fast;
+            int restores_glyph_step = tok == FD2_TEXT_PAGE;
+            newline_or_scroll(vga, ui, &state,
+                              tok == FD2_TEXT_PAGE, fast, &skip);
+            if (restores_glyph_step && !skip) glyph_step_enabled = !fast;
             fd2_vga_present(vga);
             continue;
         }
@@ -1333,11 +1401,11 @@ static int play_stage32_opening(fd2_vga *vga,
                                             fast) != 0)
         return -1;
     TEXT32(1);
-    /* new_game_opening_play @code0 0x223dd..0x22417：第二段对白后
-     * 结束标题 track 18；movement 0x64 渐暗结束、stage 32 新镜头
-     * 就位后，再以 loop_count=0 启动 opening track 11。SDL 必须硬停
-     * 上一 UI 的 music source，不能让 4 秒 AIL fade 在场景内仍可听。 */
-    if (bgm && fd2_bgm_stop_immediate(bgm) != 0) return -1;
+    /* new_game_opening_play @VA 0x3231b / code0 0x2231b：标题 track 18
+     * 在新游戏开场最初两段对白期间继续播放；到 code0 0x223dd 才调用
+     * music_track_play(-1, 0)，按原版 sequence 语义执行 4 秒淡出。
+     * movement 0x64 和镜头就位后，code0 0x22413 再启动 track 11。 */
+    if (bgm && fd2_bgm_stop(bgm) != 0) return -1;
     MOVE32(64, 1);
     pan_camera_to(vga, terrain, map, sprites, state, 0, 43, fast);
     if (bgm && fd2_bgm_play(bgm, 11, 0) != 0) return -1;
@@ -1518,10 +1586,8 @@ int fd2_scene_play_new_game_prologue_handoff(
     if (handoff) memset(handoff, 0, sizeof(*handoff));
     if (!vga || !fdother) return FD2_SCENE_RESULT_ERROR;
     scene_host_quit_requested = 0;
-    /* 一进入新游戏场景就移除标题 music source。原版到第二段对白后才
-     * 调用 stop，但 SDL 的 4 秒 fade 会让标题曲在场景内继续可听；场景
-     * 所有权边界必须先保证标题 BGM 不泄漏，track 11 仍按原时点启动。 */
-    if (bgm && fd2_bgm_stop_immediate(bgm) != 0) goto done;
+    /* 不在标题→新游戏的宿主边界停止 music。原版 new_game_opening_play
+     * 让 track 18 继续覆盖最初两段对白，并在自身 code0 0x223dd 才淡出。 */
     if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0 ||
         fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0 ||
         fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||

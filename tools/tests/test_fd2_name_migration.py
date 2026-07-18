@@ -16,11 +16,11 @@ class FunctionNameMigrationTest(unittest.TestCase):
     def test_all_legacy_rows_are_accounted_for_without_address_guessing(self) -> None:
         ledger, confirmed = build(
             ROOT / "docs" / "reverse-engineering" / "function-names.md")
-        self.assertEqual(ledger["row_count"], 209)
-        self.assertEqual(ledger["confirmed_row_count"], 5)
+        self.assertEqual(ledger["row_count"], 210)
+        self.assertEqual(ledger["confirmed_row_count"], 6)
         self.assertEqual(ledger["unresolved_row_count"], 204)
         self.assertEqual(ledger["duplicate_alias_count"], 0)
-        self.assertEqual(confirmed["count"], 7)
+        self.assertEqual(confirmed["count"], 8)
         expected = {
             "fd2_le_entry": 0x3CCB4,
             "title_action_menu": 0x1F894,
@@ -28,6 +28,7 @@ class FunctionNameMigrationTest(unittest.TestCase):
             "music_track_play": 0x25977,
             "sfx_play": 0x25A96,
             "new_game_opening_play": 0x3231B,
+            "dialog_text_scroll_up": 0x16E24,
             "__chkstk": 0x3702F,
         }
         self.assertEqual(

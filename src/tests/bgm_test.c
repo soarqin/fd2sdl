@@ -54,14 +54,16 @@ int main(void) {
     /* 原版重复请求同 track 直接返回，不重启 sequence。 */
     CHECK(fd2_bgm_play(bgm, 18, 0) == 0);
 
-    /* 新游戏场景所有权边界立即移除标题 music source；下一 block
-     * 必须已静音，不能把原版 4 秒 fade 泄漏到场景。 */
-    CHECK(fd2_bgm_stop_immediate(bgm) == 0);
+    /* new_game_opening_play @VA 0x3231b 进入后不立即停标题曲；track 18
+     * 覆盖最初两段对白，到 code0 0x223dd 才按原版执行 4 秒淡出。 */
+    CHECK(fd2_bgm_current_track(bgm) == 18);
+    CHECK(render_energy(audio, 48000u) > 1.0);
+    CHECK(fd2_bgm_stop(bgm) == 0);
     CHECK(fd2_bgm_current_track(bgm) == -1);
-    CHECK(render_energy(audio, 512) == 0.0);
+    CHECK(render_energy(audio, 48000u) > 1.0);
 
     /* new_game_opening_play @code0 0x22413..0x22417：在原时点以
-     * loop_count=0 启动过场 track 11。 */
+     * loop_count=0 启动过场 track 11；music bus replace 旧淡出 source。 */
     CHECK(fd2_bgm_play(bgm, 11, 0) == 0);
     CHECK(fd2_bgm_current_track(bgm) == 11);
     CHECK(render_energy(audio, 48000u) > 10.0);

@@ -185,7 +185,7 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 
 - [x] 实现 `FDMUS.DAT` 播放、停止、循环、切曲和 music bus 音量；普通曲复现 2000 ms 淡入，停止复现 4000 ms 淡出，track 16/17 立即设为满音量。
 - [x] 接入启动片头与标题：corrected code0 `0x15db1` 证明两者共用循环 track 18，跳过片头或重新进入标题时不重启同一曲目。
-- [x] 接入新游戏开场 track 11：进入场景时由宿主 music bus 立即移除标题 source，movement script 0x64 渐暗后以 loop count 0 启动；避免原版 4 秒 fade 在 SDL 场景内仍可听。战场 stage 表和战斗演出仍待接入。
+- [x] 接入新游戏开场 track 11：标题 track 18 在 `new_game_opening_play @VA 0x3231b` 最初两段对白期间继续播放；code0 `0x223dd` 才调用 `music_track_play(-1,0)` 执行原版 4 秒淡出，movement script 0x64 渐暗和镜头就位后于 code0 `0x22413` 以 loop count 0 启动 track 11。不得在标题→新游戏的宿主边界提前硬停。战场 stage 表和战斗演出仍待接入。
 - [ ] 处理窗口失焦、暂停、设备切换和存档恢复。
 - [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。Linux 原生构建、SDL dummy 运行和 MinGW Windows 交叉构建已完成；Windows 实机音频与 macOS 构建待对应环境验证。
 

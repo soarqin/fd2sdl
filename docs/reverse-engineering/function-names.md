@@ -33,6 +33,7 @@ Ghidra 原名 → 语义命名。原名中的十六进制保留旧 Ghidra 窗口
 | 0x5c7b0 | FUN_00034ce4 | file_close | 关闭文件(fclose) | 反编译：libc wrapper |
 | 0x73595 | FUN_0004bac9 | vsync_wait | 等待垂直同步 | 反编译：端口读 |
 | 0x35834 | FUN_00035834 | input_check | 历史 dual 地址；canonical 为 VA `0x10620`、code0 `0x620`，非消费式检查 BIOS 键盘缓冲 | canonical `FUN_00010620` 比较 BDA `0x041a/0x041c` 的 head/tail；旧登记 `0x35834`／`0x45834` 均不得继续作为 canonical 主键。调用与 SDL 宿主差异见 `docs/systems/input.md`。 |
+| VA 0x16e24（code0 0x6e24；legacy dual 0x3c038） | FUN_00016e24 / FUN_0003c038 | dialog_text_scroll_up | 对话文字区向上卷动 19 px，保留旧行并为底行腾出空间 | `text_dialog_render_tokens @VA 0x15f84` 的 `-2/-3` 路径只在当前行号为 3 时调用；机器码对 208×72 区域执行五轮 3 px 和一轮 4 px `memmove`，每轮以 `0x4a` 清底 |
 | 0x63231 | thunk_FUN_0003b765 | delay_ms | 延时(毫秒) | 反编译：循环计数 |
 | 0x5d4ef | FUN_00035a23 | coro_switch | 协程创建/切换 | 反编译：Watcom协程 |
 | 0x5d4fd | FUN_00035a31 | event_pump | 事件泵 | 反编译：消息循环 |
@@ -199,7 +200,7 @@ Ghidra 原名 → 语义命名。原名中的十六进制保留旧 Ghidra 窗口
 | 0x7333b | FUN_0007333b | map_sprite_solid_blit_24 | 解码 24×24 地图 sprite RLE，以固定 palette index 改写所有非透明像素 | `field_actor_group_flash_core` 传入 actor 当前帧、field buffer、stride `0x1c8` 和 `DS:0x1f15[param_2]` 颜色；RLE skip 分支只推进目标地址 |
 | 0x73d5c | FUN_0004c290 | field_movement_script_ptr | 按 script_id 从 `DAT_000027d8` 指针表取移动脚本地址 | 反汇编为 `mov 0x27d8(,%eax,4), eax` |
 | 0x73df7 | FUN_00073df7 | field_rng_next | 更新并返回 16 位伪随机状态 | 原始指令为 `state = rol16(state + 0x9014, 3)`；先清 EAX、以 AX 读写状态，因此返回值低 16 位为新状态。`field_physical_attack_resolve @0x43edb` 在命中、暴击和伤害浮动路径调用该流；DOSBox debugger 在第一次调用入口捕获 loader 初值 `DS:0x27b8=0x7a18`。当前 code0 `0x15d90..0x15daf` 显示每次进入战场控制器前按计时器低 8 位推进该流；活动快照 writer／loader 均不保存 `DS:0x27b8`。 |
-| code0 0x2231b（dual 0x3231b） | FUN_0002fa63 | new_game_opening_play | 完整新游戏初始过场：stage 32 → 31 → 0 | 当前权威 code0 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本和 actor group 时序；`0x223dd..0x223e1` 停止标题曲，movement script 0x64 渐暗后，`0x22413..0x22417` 调用 `music_track_play(11,0)`；DOSBox 对话截图与 OPL capture 交叉验证 opening track 11 |
+| code0 0x2231b（dual 0x3231b） | FUN_0002fa63 | new_game_opening_play | 完整新游戏初始过场：stage 32 → 31 → 0 | 当前权威 code0 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本和 actor group 时序；标题 track 18 继续覆盖最初两段对白，`0x223dd..0x223e1` 才请求 4 秒淡出，movement script 0x64 渐暗后，`0x22413..0x22417` 调用 `music_track_play(11,0)`；DOSBox 对话截图与 OPL capture 交叉验证 opening track 11 |
 | 0x57b89 | FUN_000300bd | field_actor_hide | 将指定 actor 的 flags(offset 0x05) 置为 1，用于隐藏/失效单位 | 反编译单点写 `DAT_00003a45 + idx*0x50 + 5` |
 | 0x57bad | FUN_000300e1 | field_actor_group_arrival_effect | 加入一组关卡 actor，并用 FDOTHER[9] 的 12 帧 LMI1 动画播放登场特效 | 新游戏 stage 0 两次调用参数 1/2；canonical code0 `0x22999` / VA `0x32999` 先加载 FDOTHER[95] 与 FDOTHER[9]，`0x22bc0..0x22bd4` 在 frame counter 等于 1 时经 primary wrapper 播放 bank 95 sample 0；调用点 `0x2289b/0x228bb` 分别加入 group 1/2 |
 | 0x59706 | FUN_00031c3a | field_actor_range_status_set | 设置 actor 区间内 offset 0x34 字段低 4 位状态 | 反编译按 actor 索引范围循环写 `record[0x34] = record[0x34] & 0xf0 | state` |

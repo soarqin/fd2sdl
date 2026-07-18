@@ -91,9 +91,9 @@ void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* 呈现只负责图像与宿主事件泵送。普通按键不在 present 时主动生成
-     * 游戏事件；交互层需要输入时才读取当前物理键态。 */
-    fd2_input_poll_host_events(&vga->input);
+    /* 每次呈现后采样一次当前物理键态，生成且仅生成该呈现帧的
+     * IsPressed／repeat 脉冲；上一呈现帧未读脉冲在此丢弃。 */
+    fd2_input_begin_frame(&vga->input);
 
     uint32_t colors[256];
     for (int i = 0; i < 256; i++) {
@@ -191,7 +191,7 @@ void fd2_delay_ms(uint32_t ms) {
      * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键不在
      * delay 中排队；随后交互读取只采样届时仍按下的物理键。 */
     if (ms == 0) {
-        SDL_PumpEvents();
+        fd2_input_poll_host_events(NULL);
         return;
     }
     fd2_delay_until(SDL_GetTicksNS() + (uint64_t)ms * 1000000u);
@@ -204,11 +204,9 @@ void fd2_wait_ticks(uint32_t ticks) {
 }
 
 int fd2_input_check(fd2_vga *vga) {
-    /* input_check @code0 0x620（VA 0x10620）在原版非消费式比较 BDA
-     * 0x041a/0x041c。SDL 宿主差异是没有 BIOS FIFO，只非消费式采样
-     * 当前键态；不会因为 check 本身登记一次 UI 动作。 */
-    if (!vga) return 0;
-    return fd2_input_has_any_key(&vga->input);
+    /* SDL 端只查询最近一次 present 建立的当前帧脉冲；这里不能再次
+     * 泵送或采样，否则一次渲染帧会拥有多个输入生命周期。 */
+    return vga && fd2_input_has_any_key(&vga->input);
 }
 
 void fd2_vga_close(fd2_vga *vga) {

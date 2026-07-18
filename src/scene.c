@@ -825,9 +825,8 @@ static void page_pause(fd2_vga *vga, int *skip) {
         *skip = 1;
         return;
     }
-    /* FUN_00016c57 @VA 0x16c57：仅在页面等待期间轮询输入。SDL 不
-     * 接受进入等待前已经按下又松开的预输入；持续按住只在 typematic
-     * deadline 到达时再次返回。 */
+    /* FUN_00016c57 @VA 0x16c57：仅在页面等待期间按呈现帧轮询输入。
+     * 每轮 present 重建当前帧 IsPressed；此前字形帧的按键不会重放。 */
     for (;;) {
         fd2_vga_present(vga);
         if (fd2_input_take_quit(&vga->input)) {
@@ -918,8 +917,8 @@ static int play_text_fragment(fd2_vga *vga,
     fd2_vga_present(vga);
 
     int skip = 0;
-    /* text_dialog_render_tokens @VA 0x15f84：每个字形只调用非消费式
-     * input_check；当前键态有键时，本页后续字形关闭逐字 helper，
+    /* text_dialog_render_tokens @VA 0x15f84：每个字形只查询该呈现帧的
+     * input_check；当前帧有 press 时，本页后续字形关闭逐字 helper，
      * page／新说话人再恢复。
      * fast 验证路径从一开始就禁用逐字 helper，避免瞬间重放整段 PCM。 */
     int glyph_step_enabled = !fast;
@@ -973,8 +972,8 @@ static int play_text_fragment(fd2_vga *vga,
                 scene_host_quit_requested = 1;
                 skip = 1;
             } else if (fd2_input_has_any_key(&vga->input)) {
-                /* 原版只检查、不读取。SDL 也不在逐字阶段生成输入事件；
-                 * 后续 page_pause 会按当时键态和 typematic deadline读取。 */
+                /* 只观察本字形的呈现帧；下一次 present 会丢弃此脉冲，
+                 * page_pause 不会再次读到同一次按下。 */
                 glyph_step_enabled = 0;
             }
         }

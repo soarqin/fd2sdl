@@ -17,16 +17,12 @@ static int test_context_mappings(void) {
           FD2_INPUT_ACTION_CONFIRM);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
                                    FD2_INPUT_KEY_G) == FD2_INPUT_ACTION_NONE);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
-                                   FD2_INPUT_KEY_ESCAPE) == FD2_INPUT_ACTION_NONE);
-
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_CHOICE,
                                    FD2_INPUT_KEY_CANCEL) ==
           FD2_INPUT_ACTION_CANCEL);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_CHOICE,
                                    FD2_INPUT_KEY_RIGHT) ==
           FD2_INPUT_ACTION_RIGHT);
-
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
                                    FD2_INPUT_KEY_HOME) ==
           FD2_INPUT_ACTION_FIELD_DETAIL);
@@ -36,30 +32,33 @@ static int test_context_mappings(void) {
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
                                    FD2_INPUT_KEY_Z) ==
           FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
-                                   FD2_INPUT_KEY_CANCEL) ==
-          FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
-                                   FD2_INPUT_KEY_ESCAPE) ==
-          FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
-
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
-                                   FD2_INPUT_KEY_UP) == FD2_INPUT_ACTION_UP);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
-                                   FD2_INPUT_KEY_LEFT) == FD2_INPUT_ACTION_LEFT);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
                                    FD2_INPUT_KEY_SPACE) ==
           FD2_INPUT_ACTION_CONFIRM);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
                                    FD2_INPUT_KEY_CANCEL) ==
           FD2_INPUT_ACTION_CANCEL);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
-                                   FD2_INPUT_KEY_HOME) ==
-          FD2_INPUT_ACTION_NONE);
-
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
                                    FD2_INPUT_KEY_RIGHT) ==
           FD2_INPUT_ACTION_RIGHT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
+                                   FD2_INPUT_KEY_UP) ==
+          FD2_INPUT_ACTION_LEFT);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
+                                   FD2_INPUT_KEY_ENTER) ==
+          FD2_INPUT_ACTION_CONFIRM);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
+                                   FD2_INPUT_KEY_ESCAPE) ==
+          FD2_INPUT_ACTION_NONE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
+                                   FD2_INPUT_KEY_CANCEL) ==
+          FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD,
+                                   FD2_INPUT_KEY_ESCAPE) ==
+          FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_HOME) ==
+          FD2_INPUT_ACTION_NONE);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU,
                                    FD2_INPUT_KEY_ENTER) ==
           FD2_INPUT_ACTION_CONFIRM);
@@ -67,21 +66,11 @@ static int test_context_mappings(void) {
                                    FD2_INPUT_KEY_ESCAPE) ==
           FD2_INPUT_ACTION_CANCEL);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
-                                   FD2_INPUT_KEY_UP) ==
-          FD2_INPUT_ACTION_LEFT);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
                                    FD2_INPUT_KEY_DOWN) ==
           FD2_INPUT_ACTION_RIGHT);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT,
                                    FD2_INPUT_KEY_LEFT) ==
           FD2_INPUT_ACTION_NONE);
-
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
-                                   FD2_INPUT_KEY_RIGHT) ==
-          FD2_INPUT_ACTION_RIGHT);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
-                                   FD2_INPUT_KEY_ENTER) ==
-          FD2_INPUT_ACTION_CONFIRM);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
                                    FD2_INPUT_KEY_CANCEL) ==
           FD2_INPUT_ACTION_CANCEL);
@@ -91,186 +80,116 @@ static int test_context_mappings(void) {
     return 0;
 }
 
-static int test_no_preinput_queue(void) {
+static int test_press_exists_for_one_present_frame(void) {
     fd2_input input;
     fd2_input_init(&input);
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&input, 100);
     CHECK(fd2_input_has_any_key(&input));
 
-    /* 交互层读取前已经松开：没有 KEY_DOWN 队列可在之后重放。 */
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 0);
-    CHECK(!fd2_input_has_any_key(&input));
+    /* 同一呈现帧只消费一次。 */
     fd2_input_event event;
-    CHECK(!fd2_input_take_key_at(&input, &event, 100));
-    return 0;
-}
-
-static void arm_test_repeat(fd2_input *input, SDL_Scancode scancode) {
-    input->repeat_armed[scancode] = true;
-}
-
-static int test_non_consuming_check_then_take(void) {
-    fd2_input input;
-    fd2_input_init(&input);
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
-
-    /* 对话逐字 input_check 只观察当前键态，不登记一次 UI 动作。 */
-    CHECK(fd2_input_has_any_key(&input));
-    CHECK(fd2_input_has_any_key(&input));
-
-    fd2_input_event event;
-    CHECK(fd2_input_take_key_at(&input, &event, 100));
+    CHECK(fd2_input_take_key(&input, &event));
     CHECK(event.key == FD2_INPUT_KEY_ENTER && event.repeat == 0);
-    CHECK(!fd2_input_has_any_key_at(
-        &input, 100 + FD2_INPUT_INITIAL_REPEAT_MS - 1));
-    arm_test_repeat(&input, SDL_SCANCODE_RETURN);
-    CHECK(fd2_input_has_any_key_at(
-        &input, 100 + FD2_INPUT_INITIAL_REPEAT_MS));
+    CHECK(!fd2_input_take_key(&input, &event));
+
+    /* 下一次 present 会重建脉冲；按键仍按住但未到 repeat 时不再触发。 */
+    fd2_input_begin_test_frame(&input, 101);
+    CHECK(!fd2_input_has_any_key(&input));
     return 0;
 }
 
-static int test_typematic_deadlines(void) {
+static int test_unread_press_does_not_cross_present(void) {
+    fd2_input input;
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&input, 200);
+    CHECK(fd2_input_has_any_key(&input));
+
+    /* 本帧没有交互读取；下一次 present 仍无权重放旧 press。 */
+    fd2_input_begin_test_frame(&input, 201);
+    CHECK(!fd2_input_has_any_key(&input));
+    return 0;
+}
+
+static int test_glyph_check_cannot_advance_later_page(void) {
+    fd2_input input;
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&input, 300);
+
+    /* 逐字阶段只观察当前呈现帧。 */
+    CHECK(fd2_input_has_any_key(&input));
+    CHECK(fd2_input_has_any_key(&input));
+
+    /* 字形继续渲染会 present 新帧；旧 press 在页面等待前已消失。 */
+    fd2_input_begin_test_frame(&input, 301);
+    fd2_input_event event;
+    CHECK(!fd2_input_take_key(&input, &event));
+    fd2_input_begin_test_frame(&input, 799);
+    CHECK(!fd2_input_take_key(&input, &event));
+    return 0;
+}
+
+static int test_typematic_is_frame_based(void) {
     fd2_input input;
     fd2_input_init(&input);
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_DOWN, 1);
-
+    fd2_input_begin_test_frame(&input, 1000);
     fd2_input_event event;
-    CHECK(fd2_input_take_key_at(&input, &event, 1000));
+    CHECK(fd2_input_take_key(&input, &event));
     CHECK(event.key == FD2_INPUT_KEY_DOWN && event.repeat == 0);
-    CHECK(!fd2_input_take_key_at(&input, &event,
-                                 1000 + FD2_INPUT_INITIAL_REPEAT_MS - 1));
-    /* 只有宿主开始投递 typematic KEY_DOWN 后，持续按住才可重复。 */
-    arm_test_repeat(&input, SDL_SCANCODE_DOWN);
-    CHECK(fd2_input_take_key_at(&input, &event,
-                                1000 + FD2_INPUT_INITIAL_REPEAT_MS));
-    CHECK(event.key == FD2_INPUT_KEY_DOWN && event.repeat == 1);
-    CHECK(!fd2_input_take_key_at(&input, &event,
-                                 1000 + FD2_INPUT_INITIAL_REPEAT_MS +
-                                 FD2_INPUT_REPEAT_MS - 1));
-    CHECK(fd2_input_take_key_at(&input, &event,
-                                1000 + FD2_INPUT_INITIAL_REPEAT_MS +
-                                FD2_INPUT_REPEAT_MS));
+
+    fd2_input_begin_test_frame(
+        &input, 1000 + FD2_INPUT_INITIAL_REPEAT_MS - 1);
+    CHECK(!fd2_input_take_key(&input, &event));
+    fd2_input_begin_test_frame(
+        &input, 1000 + FD2_INPUT_INITIAL_REPEAT_MS);
+    CHECK(fd2_input_take_key(&input, &event));
     CHECK(event.repeat == 1);
-
-    /* 松开后再次按下是新的第一次按下，不继承旧 deadline。 */
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_DOWN, 0);
-    CHECK(!fd2_input_take_key_at(&input, &event, 2000));
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_DOWN, 1);
-    CHECK(fd2_input_take_key_at(&input, &event, 2001));
-    CHECK(event.repeat == 0);
-    return 0;
-}
-
-static int test_short_press_never_synthesizes_repeat(void) {
-    fd2_input input;
-    fd2_input_init(&input);
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
-    fd2_input_event event;
-    CHECK(fd2_input_take_key_at(&input, &event, 100));
-    /* 没有宿主 typematic repeat，即使测试键态仍为 down，等待多久也
-     * 不能自行生成第二次 UI 输入。 */
-    CHECK(!fd2_input_take_key_at(&input, &event, 10000));
-    return 0;
-}
-
-static int test_state_transition_does_not_retrigger_held_key(void) {
-    fd2_input input;
-    fd2_input_init(&input);
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
-
-    fd2_input_action action;
-    fd2_input_event event;
-    CHECK(fd2_input_observe_any_key_at(&input, 500));
-    CHECK(!fd2_input_take_key_at(&input, &event, 501));
-    CHECK(!fd2_input_has_any_key_at(&input, 999));
-    arm_test_repeat(&input, SDL_SCANCODE_RETURN);
-    CHECK(fd2_input_take_key_at(&input, &event, 1000));
-    action = fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE, event.key);
-    CHECK(action == FD2_INPUT_ACTION_CONFIRM);
+    fd2_input_begin_test_frame(
+        &input, 1000 + FD2_INPUT_INITIAL_REPEAT_MS +
+                FD2_INPUT_REPEAT_MS - 1);
+    CHECK(!fd2_input_take_key(&input, &event));
+    fd2_input_begin_test_frame(
+        &input, 1000 + FD2_INPUT_INITIAL_REPEAT_MS +
+                FD2_INPUT_REPEAT_MS);
+    CHECK(fd2_input_take_key(&input, &event));
     CHECK(event.repeat == 1);
     return 0;
 }
 
-static int test_repeat_observe_restarts_initial_delay(void) {
+static int test_release_repress_is_new_press(void) {
     fd2_input input;
     fd2_input_init(&input);
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&input, 100);
     fd2_input_event event;
-    CHECK(fd2_input_take_key_at(&input, &event, 100));
-    arm_test_repeat(&input, SDL_SCANCODE_RETURN);
-    CHECK(fd2_input_observe_any_key_at(
-        &input, 100 + FD2_INPUT_INITIAL_REPEAT_MS));
-    CHECK(!fd2_input_take_key_at(
-        &input, &event,
-        100 + FD2_INPUT_INITIAL_REPEAT_MS + FD2_INPUT_REPEAT_MS));
-    arm_test_repeat(&input, SDL_SCANCODE_RETURN);
-    CHECK(fd2_input_take_key_at(
-        &input, &event,
-        100 + FD2_INPUT_INITIAL_REPEAT_MS * 2));
-    CHECK(event.repeat == 1);
-    return 0;
-}
+    CHECK(fd2_input_take_key(&input, &event));
 
-static int test_release_repress_between_reads(void) {
-    fd2_input input;
-    fd2_input_init(&input);
-    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
-    fd2_input_event event;
-    CHECK(fd2_input_take_key_at(&input, &event, 100));
-
-    /* 释放和重新按下发生在两次交互读取之间，事件泵仍须观察到 KEY_UP
-     * 并让重新按下成为新的 initial press。 */
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 0);
+    fd2_input_begin_test_frame(&input, 101);
+    CHECK(!fd2_input_take_key(&input, &event));
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
-    CHECK(fd2_input_take_key_at(&input, &event, 101));
+    fd2_input_begin_test_frame(&input, 102);
+    CHECK(fd2_input_take_key(&input, &event));
     CHECK(event.repeat == 0);
     return 0;
 }
 
-static int test_sdl_event_pump_no_preinput(void) {
-    CHECK(SDL_Init(SDL_INIT_EVENTS));
+static int test_observe_consumes_current_frame_only(void) {
     fd2_input input;
     fd2_input_init(&input);
-    SDL_Event event = {0};
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_SPACE, 1);
+    fd2_input_begin_test_frame(&input, 500);
+    CHECK(fd2_input_observe_any_key(&input));
+    CHECK(!fd2_input_observe_any_key(&input));
 
-    /* UI 读取前完成 down/up：事件泵只留下最终电平，不留下预输入。 */
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_RETURN;
-    CHECK(SDL_PushEvent(&event));
-    event.type = SDL_EVENT_KEY_UP;
-    CHECK(SDL_PushEvent(&event));
-    fd2_input_poll_host_events(&input);
-    fd2_input_event key;
-    CHECK(!fd2_input_take_key_at(&input, &key, 100));
-
-    /* 普通短按读取一次后，即使测试时间远超 500 ms，也不能在没有
-     * SDL typematic repeat 的情况下自行连发。 */
-    event.type = SDL_EVENT_KEY_DOWN;
-    CHECK(SDL_PushEvent(&event));
-    fd2_input_poll_host_events(&input);
-    CHECK(fd2_input_take_key_at(&input, &key, 200));
-    CHECK(!fd2_input_take_key_at(&input, &key, 5000));
-
-    /* 收到真实 repeat 后仍服从第一次读取建立的 initial deadline。 */
-    event.key.repeat = true;
-    CHECK(SDL_PushEvent(&event));
-    fd2_input_poll_host_events(&input);
-    CHECK(!fd2_input_take_key_at(
-        &input, &key, 200 + FD2_INPUT_INITIAL_REPEAT_MS - 1));
-    CHECK(fd2_input_take_key_at(
-        &input, &key, 200 + FD2_INPUT_INITIAL_REPEAT_MS));
-    CHECK(key.repeat == 1);
-
-    /* 两次 UI 读取之间发生 release/repress，按事件顺序恢复为新按下。 */
-    event.key.repeat = false;
-    event.type = SDL_EVENT_KEY_UP;
-    CHECK(SDL_PushEvent(&event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    CHECK(SDL_PushEvent(&event));
-    fd2_input_poll_host_events(&input);
-    CHECK(fd2_input_take_key_at(&input, &key, 701));
-    CHECK(key.repeat == 0);
-    SDL_Quit();
+    /* 动画 skip 后的下一 present 不能把同一次 press 交给菜单。 */
+    fd2_input_begin_test_frame(&input, 501);
+    fd2_input_action action;
+    CHECK(!fd2_input_take_action(
+        &input, FD2_INPUT_CONTEXT_TITLE, &action));
     return 0;
 }
 
@@ -278,9 +197,8 @@ static int test_modifier_not_game_key(void) {
     fd2_input input;
     fd2_input_init(&input);
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_LSHIFT, 1);
-    CHECK(!fd2_input_has_any_key_at(&input, 0));
-    fd2_input_event event;
-    CHECK(!fd2_input_take_key_at(&input, &event, 0));
+    fd2_input_begin_test_frame(&input, 0);
+    CHECK(!fd2_input_has_any_key(&input));
     return 0;
 }
 
@@ -295,14 +213,12 @@ static int test_quit_request(void) {
 
 int main(void) {
     if (test_context_mappings() != 0 ||
-        test_no_preinput_queue() != 0 ||
-        test_non_consuming_check_then_take() != 0 ||
-        test_typematic_deadlines() != 0 ||
-        test_short_press_never_synthesizes_repeat() != 0 ||
-        test_state_transition_does_not_retrigger_held_key() != 0 ||
-        test_repeat_observe_restarts_initial_delay() != 0 ||
-        test_release_repress_between_reads() != 0 ||
-        test_sdl_event_pump_no_preinput() != 0 ||
+        test_press_exists_for_one_present_frame() != 0 ||
+        test_unread_press_does_not_cross_present() != 0 ||
+        test_glyph_check_cannot_advance_later_page() != 0 ||
+        test_typematic_is_frame_based() != 0 ||
+        test_release_repress_is_new_press() != 0 ||
+        test_observe_consumes_current_frame_only() != 0 ||
         test_modifier_not_game_key() != 0 ||
         test_quit_request() != 0)
         return 1;

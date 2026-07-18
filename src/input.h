@@ -1,21 +1,19 @@
-/* 炎龙骑士团 2 SDL3 重写 - 按需键态输入抽象
+/* 炎龙骑士团 2 SDL3 重写 - 逐呈现帧键态输入
  *
  * 原版键表依据：input_check @code0 0x620（VA 0x10620）比较 BIOS BDA
  * 0x041a/0x041c；具体 UI 读取通过 INT 16h/AH=10h 消费一项按键。
- * SDL 宿主不复制 BIOS FIFO，而是在交互层需要输入时采样当前物理键态。
- * 完整依据和宿主差异见 docs/systems/input.md。
+ * SDL 宿主不复制 BIOS FIFO：每次画面 present 后采样 SDL 当前键态，
+ * 只向交互层暴露该呈现帧的按下／重复脉冲。
  */
 #ifndef FD2_INPUT_H
 #define FD2_INPUT_H
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #include <SDL3/SDL.h>
 
-/* IBM PC/AT BIOS 常见默认 typematic：首次重复约 500 ms，之后约
- * 10.9 次/秒。原版 EXE 依赖 BIOS/键盘控制器，本身不维护 repeat FIFO。 */
+/* PC/AT 常见默认 typematic 的宿主近似值；不是 FD2.EXE 内部常量。 */
 #define FD2_INPUT_INITIAL_REPEAT_MS 500u
 #define FD2_INPUT_REPEAT_MS 92u
 
@@ -46,12 +44,14 @@ typedef struct {
 } fd2_input_event;
 
 typedef struct {
-    /* 每个物理键只记录当前电平、是否已经交付和下一 typematic 时点；
-     * 没有待消费事件数组或跨状态按键队列。 */
-    bool pressed[SDL_SCANCODE_COUNT];
-    bool delivered[SDL_SCANCODE_COUNT];
-    bool repeat_armed[SDL_SCANCODE_COUNT];
-    uint64_t repeat_due_ms[SDL_SCANCODE_COUNT];
+    /* previous_down／next_repeat_ms 只用于从当前物理电平计算本帧脉冲；
+     * frame_trigger 每次 begin_frame 全量重建，不是跨帧事件队列。 */
+    bool previous_down[SDL_SCANCODE_COUNT];
+    bool frame_trigger[SDL_SCANCODE_COUNT];
+    bool frame_repeat[SDL_SCANCODE_COUNT];
+    bool frame_consumed[SDL_SCANCODE_COUNT];
+    uint64_t next_repeat_ms[SDL_SCANCODE_COUNT];
+    bool test_key_state[SDL_SCANCODE_COUNT];
     int use_test_key_state;
     int quit_requested;
 } fd2_input;
@@ -87,34 +87,24 @@ void fd2_input_init(fd2_input *input);
 void fd2_input_install_interrupt_handlers(void);
 int fd2_input_host_quit_requested(void);
 
-/* 泵送并清空 SDL 事件队列。普通键只更新当前 pressed 电平；KEY_DOWN
- * 不入游戏 FIFO。KEY_UP 立即清除 repeat 生命周期。窗口关闭和宿主
- * 中断保持为进程级请求。 */
+/* 泵送并清空宿主事件，仅保留持久 quit。普通键不在这里生成游戏输入。 */
 void fd2_input_poll_host_events(fd2_input *input);
 
-/* 按需读取当前物理键态。一次新按下立即返回；只有 SDL 已报告真实
- * typematic KEY_DOWN 后，持续按住才按 initial/repeat deadline 返回。
- * 普通短按不会仅因 pressed 电平暂未更新而由计时器合成重复。 */
+/* 每次呈现画面时调用一次：采样 SDL_GetKeyboardState，并重建该呈现帧
+ * 的 IsPressed／repeat 脉冲。上一帧未读取的脉冲在这里直接消失。 */
+void fd2_input_begin_frame(fd2_input *input);
+
+/* 当前呈现帧的非消费式查询与消费接口；均不会主动泵送 SDL 事件。 */
+int fd2_input_has_any_key(const fd2_input *input);
 int fd2_input_take_key(fd2_input *input, fd2_input_event *event);
-
-/* 非消费式查看当前是否有「可读取」按键：新按下立即可读；已交付但仍
- * 按住的键只有到达 typematic deadline 才再次可读。它不登记动作。 */
-int fd2_input_has_any_key(fd2_input *input);
-
-/* 非消费式查询实际导致动画／片头跳过时调用：返回当前可读取键，同时
- * 启动该键的 typematic 生命周期，但不产生可排队的 UI 事件。 */
 int fd2_input_observe_any_key(fd2_input *input);
-
 int fd2_input_take_action(fd2_input *input, fd2_input_context context,
                           fd2_input_action *action);
 
-/* 确定性测试入口：改用注入的当前键态，并在指定毫秒时点查询。 */
+/* 确定性测试入口：注入物理键态，并以指定时间建立呈现帧。 */
 void fd2_input_set_test_key_state(fd2_input *input, SDL_Scancode source,
                                   int pressed);
-int fd2_input_has_any_key_at(fd2_input *input, uint64_t now_ms);
-int fd2_input_observe_any_key_at(fd2_input *input, uint64_t now_ms);
-int fd2_input_take_key_at(fd2_input *input, fd2_input_event *event,
-                          uint64_t now_ms);
+void fd2_input_begin_test_frame(fd2_input *input, uint64_t now_ms);
 
 int fd2_input_take_quit(fd2_input *input);
 fd2_input_action fd2_input_action_for_key(fd2_input_context context,

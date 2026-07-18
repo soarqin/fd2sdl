@@ -1,9 +1,8 @@
-/* 炎龙骑士团 2 SDL3 重写 - 按需键态输入抽象
+/* 炎龙骑士团 2 SDL3 重写 - 逐呈现帧键态输入
  *
- * input_check @code0 0x620（VA 0x10620）只比较 BIOS BDA 键盘缓冲
- * head/tail；field/UI 的等待 helper 再以 INT 16h/AH=10h 读取一项。
- * SDL 无法直接复刻 BIOS 中断层，因此宿主适配为按需采样当前键态，并
- * 用 BIOS 风格 typematic deadline 防止一次长按跨 UI 状态立即重触发。
+ * input_check @code0 0x620（VA 0x10620）只检查 BIOS BDA 键盘缓冲。
+ * SDL 适配不建立按键 FIFO：每次 present 后从 SDL_GetKeyboardState
+ * 计算当前帧 IsPressed／repeat 脉冲，交互层只读取该呈现帧。
  */
 #include "input.h"
 
@@ -17,8 +16,6 @@ static volatile LONG host_quit_requested;
 static volatile sig_atomic_t host_quit_requested;
 #endif
 
-/* 项目只有一个 VGA 输入服务；delay/present 没有 vga 参数时仍通过最近
- * 初始化的服务同步 KEY_UP，避免短暂 release/repress 被漏掉。 */
 static fd2_input *active_input;
 
 int fd2_input_host_quit_requested(void) {
@@ -70,62 +67,33 @@ void fd2_input_install_interrupt_handlers(void) {
 
 static fd2_input_key key_from_scancode(SDL_Scancode scancode) {
     switch (scancode) {
-        case SDL_SCANCODE_ESCAPE:
-            return FD2_INPUT_KEY_ESCAPE;
-        case SDL_SCANCODE_RETURN:
-            return FD2_INPUT_KEY_ENTER;
-        case SDL_SCANCODE_KP_ENTER:
-            return FD2_INPUT_KEY_KEYPAD_CONFIRM;
-        case SDL_SCANCODE_SPACE:
-            return FD2_INPUT_KEY_SPACE;
+        case SDL_SCANCODE_ESCAPE: return FD2_INPUT_KEY_ESCAPE;
+        case SDL_SCANCODE_RETURN: return FD2_INPUT_KEY_ENTER;
+        case SDL_SCANCODE_KP_ENTER: return FD2_INPUT_KEY_KEYPAD_CONFIRM;
+        case SDL_SCANCODE_SPACE: return FD2_INPUT_KEY_SPACE;
         case SDL_SCANCODE_INSERT:
-        case SDL_SCANCODE_KP_0:
-            return FD2_INPUT_KEY_KEYPAD_CONFIRM;
+        case SDL_SCANCODE_KP_0: return FD2_INPUT_KEY_KEYPAD_CONFIRM;
         case SDL_SCANCODE_DELETE:
-        case SDL_SCANCODE_KP_DECIMAL:
-            return FD2_INPUT_KEY_CANCEL;
+        case SDL_SCANCODE_KP_DECIMAL: return FD2_INPUT_KEY_CANCEL;
         case SDL_SCANCODE_UP:
-        case SDL_SCANCODE_KP_8:
-            return FD2_INPUT_KEY_UP;
+        case SDL_SCANCODE_KP_8: return FD2_INPUT_KEY_UP;
         case SDL_SCANCODE_DOWN:
-        case SDL_SCANCODE_KP_2:
-            return FD2_INPUT_KEY_DOWN;
+        case SDL_SCANCODE_KP_2: return FD2_INPUT_KEY_DOWN;
         case SDL_SCANCODE_LEFT:
-        case SDL_SCANCODE_KP_4:
-            return FD2_INPUT_KEY_LEFT;
+        case SDL_SCANCODE_KP_4: return FD2_INPUT_KEY_LEFT;
         case SDL_SCANCODE_RIGHT:
-        case SDL_SCANCODE_KP_6:
-            return FD2_INPUT_KEY_RIGHT;
-        case SDL_SCANCODE_F1:
-            return FD2_INPUT_KEY_F1;
-        case SDL_SCANCODE_F2:
-            return FD2_INPUT_KEY_F2;
+        case SDL_SCANCODE_KP_6: return FD2_INPUT_KEY_RIGHT;
+        case SDL_SCANCODE_F1: return FD2_INPUT_KEY_F1;
+        case SDL_SCANCODE_F2: return FD2_INPUT_KEY_F2;
         case SDL_SCANCODE_HOME:
-        case SDL_SCANCODE_KP_7:
-            return FD2_INPUT_KEY_HOME;
+        case SDL_SCANCODE_KP_7: return FD2_INPUT_KEY_HOME;
         case SDL_SCANCODE_PAGEUP:
-        case SDL_SCANCODE_KP_9:
-            return FD2_INPUT_KEY_PAGE_UP;
-        case SDL_SCANCODE_G:
-            return FD2_INPUT_KEY_G;
-        case SDL_SCANCODE_Z:
-            return FD2_INPUT_KEY_Z;
-        case SDL_SCANCODE_KP_5:
-            return FD2_INPUT_KEY_KEYPAD_5;
-        default:
-            return FD2_INPUT_KEY_OTHER;
+        case SDL_SCANCODE_KP_9: return FD2_INPUT_KEY_PAGE_UP;
+        case SDL_SCANCODE_G: return FD2_INPUT_KEY_G;
+        case SDL_SCANCODE_Z: return FD2_INPUT_KEY_Z;
+        case SDL_SCANCODE_KP_5: return FD2_INPUT_KEY_KEYPAD_5;
+        default: return FD2_INPUT_KEY_OTHER;
     }
-}
-
-void fd2_input_init(fd2_input *input) {
-    if (!input) return;
-    memset(input, 0, sizeof(*input));
-    active_input = input;
-}
-
-static int is_controlled_scancode(SDL_Scancode scancode) {
-    return scancode > SDL_SCANCODE_UNKNOWN &&
-           scancode < SDL_SCANCODE_COUNT;
 }
 
 static int is_modifier_scancode(SDL_Scancode scancode) {
@@ -139,23 +107,19 @@ static int is_modifier_scancode(SDL_Scancode scancode) {
            scancode == SDL_SCANCODE_RGUI;
 }
 
-static void set_key_level(fd2_input *input, SDL_Scancode scancode,
-                          int pressed) {
-    if (!input || !is_controlled_scancode(scancode)) return;
-    input->pressed[scancode] = pressed != 0;
-    if (!pressed) {
-        input->delivered[scancode] = false;
-        input->repeat_armed[scancode] = false;
-        input->repeat_due_ms[scancode] = 0;
-    }
+void fd2_input_init(fd2_input *input) {
+    if (!input) return;
+    memset(input, 0, sizeof(*input));
+    active_input = input;
 }
 
-static void release_all_keys(fd2_input *input) {
+static void clear_key_lifecycle(fd2_input *input) {
     if (!input) return;
-    memset(input->pressed, 0, sizeof(input->pressed));
-    memset(input->delivered, 0, sizeof(input->delivered));
-    memset(input->repeat_armed, 0, sizeof(input->repeat_armed));
-    memset(input->repeat_due_ms, 0, sizeof(input->repeat_due_ms));
+    memset(input->previous_down, 0, sizeof(input->previous_down));
+    memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
+    memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
+    memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
+    memset(input->next_repeat_ms, 0, sizeof(input->next_repeat_ms));
 }
 
 void fd2_input_poll_host_events(fd2_input *input) {
@@ -168,141 +132,99 @@ void fd2_input_poll_host_events(fd2_input *input) {
             request_host_quit();
             if (input) input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
-            /* 失焦期间未必能收到每个 KEY_UP；不能让旧按下电平在恢复后
-             * 永久卡住或继续 typematic。 */
-            release_all_keys(input);
-        } else if (event.type == SDL_EVENT_KEY_DOWN ||
-                   event.type == SDL_EVENT_KEY_UP) {
-            int pressed = event.type == SDL_EVENT_KEY_DOWN;
-            SDL_Scancode scancode = event.key.scancode;
-            if (pressed && (event.key.mod & SDL_KMOD_CTRL) != 0 &&
-                (scancode == SDL_SCANCODE_C ||
-                 scancode == SDL_SCANCODE_PAUSE)) {
+            clear_key_lifecycle(input);
+        } else if (event.type == SDL_EVENT_KEY_DOWN) {
+            if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
+                (event.key.scancode == SDL_SCANCODE_C ||
+                 event.key.scancode == SDL_SCANCODE_PAUSE)) {
                 request_host_quit();
                 if (input) input->quit_requested = 1;
-                continue;
-            }
-            if (pressed && scancode == SDL_SCANCODE_PAUSE) {
+            } else if (event.key.scancode == SDL_SCANCODE_PAUSE) {
                 request_host_quit();
                 if (input) input->quit_requested = 1;
-                continue;
-            }
-            /* KEY_DOWN repeat 不排队为游戏输入，只证明宿主 typematic
-             * 已经开始。此前已交付的长按键从此才允许按 repeat deadline
-             * 再读；普通短按不会由本模块凭时间自行制造重复。 */
-            if (!event.key.repeat) {
-                set_key_level(input, scancode, pressed);
-            } else if (pressed && input && input->pressed[scancode] &&
-                       input->delivered[scancode]) {
-                input->repeat_armed[scancode] = true;
             }
         }
-        /* 其他 window/display/mouse/text 事件在此统一丢弃，不能积压。 */
+        /* 普通 key event 仅用于 SDL 内部键态更新；不转存为游戏事件。 */
     }
 }
 
-static const bool *current_keyboard_state(fd2_input *input) {
-    if (!input->use_test_key_state)
-        fd2_input_poll_host_events(input);
-    return input->pressed;
-}
+static void begin_frame_from_state(fd2_input *input, const bool *state,
+                                   uint64_t now_ms) {
+    memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
+    memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
+    memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
 
-static int input_key_is_readable(const fd2_input *input,
-                                  const bool *state,
-                                  SDL_Scancode scancode,
-                                  uint64_t now_ms) {
-    return state[scancode] && is_controlled_scancode(scancode) &&
-           !is_modifier_scancode(scancode) &&
-           scancode != SDL_SCANCODE_PAUSE &&
-           (!input->delivered[scancode] ||
-            (input->repeat_armed[scancode] &&
-             now_ms >= input->repeat_due_ms[scancode]));
-}
-
-static void input_mark_read(fd2_input *input, SDL_Scancode scancode,
-                            uint64_t now_ms) {
-    int repeat = input->delivered[scancode] != 0;
-    input->delivered[scancode] = true;
-    /* 第一次读取后仍须等 SDL 报告真实 typematic KEY_DOWN；若只是普通
-     * 短按，即使 KEY_UP 尚未被泵到，也不能按计时器凭空连发。 */
-    if (!repeat) input->repeat_armed[scancode] = false;
-    input->repeat_due_ms[scancode] = now_ms +
-        (repeat ? FD2_INPUT_REPEAT_MS : FD2_INPUT_INITIAL_REPEAT_MS);
-}
-
-static int input_find_readable(const fd2_input *input, const bool *state,
-                               uint64_t now_ms, SDL_Scancode *found) {
     for (int i = 1; i < SDL_SCANCODE_COUNT; i++) {
         SDL_Scancode scancode = (SDL_Scancode)i;
-        if (input_key_is_readable(input, state, scancode, now_ms)) {
-            if (found) *found = scancode;
-            return 1;
+        bool down = state[i] && !is_modifier_scancode(scancode) &&
+                    scancode != SDL_SCANCODE_PAUSE;
+        if (!down) {
+            input->previous_down[i] = false;
+            input->next_repeat_ms[i] = 0;
+            continue;
+        }
+        if (!input->previous_down[i]) {
+            input->frame_trigger[i] = true;
+            input->previous_down[i] = true;
+            input->next_repeat_ms[i] =
+                now_ms + FD2_INPUT_INITIAL_REPEAT_MS;
+        } else if (now_ms >= input->next_repeat_ms[i]) {
+            input->frame_trigger[i] = true;
+            input->frame_repeat[i] = true;
+            input->next_repeat_ms[i] = now_ms + FD2_INPUT_REPEAT_MS;
         }
     }
-    return 0;
 }
 
-int fd2_input_take_key_at(fd2_input *input, fd2_input_event *event,
-                          uint64_t now_ms) {
-    if (!input) return 0;
-    const bool *state = current_keyboard_state(input);
-    SDL_Scancode scancode;
-    if (!input_find_readable(input, state, now_ms, &scancode)) return 0;
-
-    int repeat = input->delivered[scancode] != 0;
-    input_mark_read(input, scancode, now_ms);
-    if (event) {
-        event->key = key_from_scancode(scancode);
-        event->source = scancode;
-        event->repeat = repeat ? 1u : 0u;
-    }
-    return 1;
+void fd2_input_begin_frame(fd2_input *input) {
+    if (!input) return;
+    fd2_input_poll_host_events(input);
+    const bool *state = input->use_test_key_state
+        ? input->test_key_state
+        : SDL_GetKeyboardState(NULL);
+    begin_frame_from_state(input, state, SDL_GetTicks());
 }
 
-int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
-    return fd2_input_take_key_at(input, event, SDL_GetTicks());
-}
-
-int fd2_input_has_any_key_at(fd2_input *input, uint64_t now_ms) {
-    if (!input) return 0;
-    const bool *state = current_keyboard_state(input);
-    return input_find_readable(input, state, now_ms, NULL);
-}
-
-int fd2_input_observe_any_key_at(fd2_input *input, uint64_t now_ms) {
-    if (!input) return 0;
-    const bool *state = current_keyboard_state(input);
-    SDL_Scancode scancode;
-    if (!input_find_readable(input, state, now_ms, &scancode)) return 0;
-    /* 状态跳转后的下一 UI 总是获得完整 initial delay；即使本次 skip
-     * 由已按住键的 repeat 时点触发，也不能只保护一个 repeat 间隔。 */
-    input->delivered[scancode] = true;
-    /* 状态跳转本身不能伪造 typematic；必须等后续宿主 repeat KEY_DOWN
-     * 再允许同一长按键进入下一 UI。 */
-    input->repeat_armed[scancode] = false;
-    input->repeat_due_ms[scancode] =
-        now_ms + FD2_INPUT_INITIAL_REPEAT_MS;
-    return 1;
-}
-
-int fd2_input_observe_any_key(fd2_input *input) {
-    return fd2_input_observe_any_key_at(input, SDL_GetTicks());
-}
-
-int fd2_input_has_any_key(fd2_input *input) {
-    return fd2_input_has_any_key_at(input, SDL_GetTicks());
+void fd2_input_begin_test_frame(fd2_input *input, uint64_t now_ms) {
+    if (!input) return;
+    input->use_test_key_state = 1;
+    begin_frame_from_state(input, input->test_key_state, now_ms);
 }
 
 void fd2_input_set_test_key_state(fd2_input *input, SDL_Scancode source,
                                   int pressed) {
-    if (!input || !is_controlled_scancode(source)) return;
+    if (!input || source <= SDL_SCANCODE_UNKNOWN ||
+        source >= SDL_SCANCODE_COUNT)
+        return;
     input->use_test_key_state = 1;
-    input->pressed[source] = pressed != 0;
-    if (!pressed) {
-        input->delivered[source] = 0;
-        input->repeat_armed[source] = 0;
-        input->repeat_due_ms[source] = 0;
+    input->test_key_state[source] = pressed != 0;
+}
+
+int fd2_input_has_any_key(const fd2_input *input) {
+    if (!input) return 0;
+    for (int i = 1; i < SDL_SCANCODE_COUNT; i++)
+        if (input->frame_trigger[i] && !input->frame_consumed[i]) return 1;
+    return 0;
+}
+
+int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
+    if (!input) return 0;
+    for (int i = 1; i < SDL_SCANCODE_COUNT; i++) {
+        if (!input->frame_trigger[i] || input->frame_consumed[i]) continue;
+        input->frame_consumed[i] = true;
+        if (event) {
+            event->source = (SDL_Scancode)i;
+            event->key = key_from_scancode((SDL_Scancode)i);
+            event->repeat = input->frame_repeat[i] ? 1u : 0u;
+        }
+        return 1;
     }
+    return 0;
+}
+
+int fd2_input_observe_any_key(fd2_input *input) {
+    fd2_input_event ignored;
+    return fd2_input_take_key(input, &ignored);
 }
 
 fd2_input_action fd2_input_action_for_key(fd2_input_context context,
@@ -400,7 +322,6 @@ int fd2_input_take_action(fd2_input *input, fd2_input_context context,
 
 int fd2_input_take_quit(fd2_input *input) {
     if (!input) return fd2_input_host_quit_requested();
-    fd2_input_poll_host_events(input);
     if (fd2_input_host_quit_requested()) input->quit_requested = 1;
     return input->quit_requested != 0;
 }

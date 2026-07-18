@@ -274,12 +274,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     int animation_result = fd2_animation_play(
         vga, &g_ani, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1);
     if (animation_result == -2) goto host_quit;
-    if (animation_result == 1) {
-        /* input_check 只窥视 BIOS 队列；SDL 在切入标题菜单前消费掉
-         * 触发跳过的这一项，避免同一次 Enter 立即确认 New Game。 */
-        fd2_input_event skipped;
-        (void)fd2_input_take_key(&vga->input, &skipped);
-    }
+    /* 下一次 present 会开始新输入帧并丢弃本帧 skip 键，不能跨状态
+     * 直接确认标题菜单。 */
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40) */
     fade_out_dark(vga);
@@ -466,8 +462,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
 
-            /* 检查普通按键跳过；宿主退出不能降级为标题跳过。 */
-            fd2_input_pump(&vga->input);
+            /* fd2_vga_present 已开始当前输入帧。检查普通按键跳过；
+             * 宿主退出不能降级为标题跳过。 */
             if (fd2_input_take_quit(&vga->input)) {
                 free(offscreen);
                 goto host_quit;
@@ -521,10 +517,7 @@ title_screen:
             title_letter_fly_audio_on_frame, title_audio);
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;
-        if (animation_result == 1) {
-            fd2_input_event skipped;
-            (void)fd2_input_take_key(&vga->input, &skipped);
-        }
+        /* 下一次 present 会开始新输入帧并丢弃本帧 skip 键。 */
         /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
@@ -575,18 +568,8 @@ title_screen:
         fd2_archive_close(&ar7b);
     }
 
-    /* 菜单循环。标题动画的 skip 键属于启动流程，不能越过状态边界
-     * 直接确认默认的 New Game；先泵出宿主事件，再清除进入菜单前已经
-     * 排队的普通按键。quit 请求保持独立，不能被普通键清理吞掉。 */
-    fd2_input_pump(&vga->input);
-    if (fd2_input_take_quit(&vga->input)) {
-        for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
-        return FD2_TITLE_ACTION_HOST_QUIT;
-    }
-    while (fd2_input_has_any_key(&vga->input)) {
-        fd2_input_event stale;
-        (void)fd2_input_take_key(&vga->input, &stale);
-    }
+    /* 菜单只读取随后 present 开始的当前输入帧；动画 skip 键不存在
+     * 跨状态缓冲，无需在状态边界手工清队列。 */
 
     const int y_pos[3] = {164, 173, 182};
     fd2_title_draw_context title_draw = {
@@ -797,6 +780,7 @@ int main(int argc, char **argv) {
     fd2_pcm_bank title_sfx_bank = {0};
     fd2_pcm_bank title_letter_fly_sfx_bank = {0};
     fd2_pcm_bank battle_sfx_bank = {0};
+    fd2_pcm_bank arrival_sfx_bank = {0};
     fd2_pcm_player pcm_player = {0};
     fd2_pcm_player secondary_pcm_player = {0};
     fd2_field_audio field_audio = {0};
@@ -828,23 +812,28 @@ int main(int argc, char **argv) {
         fd2_pcm_bank_open(&title_letter_fly_sfx_bank, &g_fdother,
                           FD2_TITLE_LETTER_FLY_SFX_BANK) == 0 &&
         fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
+        fd2_pcm_bank_open(&arrival_sfx_bank, &g_fdother,
+                          FD2_FIELD_SFX_BANK_ARRIVAL) == 0 &&
         fd2_pcm_player_init(&pcm_player, audio, 11025) == 0 &&
         fd2_pcm_player_init(&secondary_pcm_player, audio, 11025) == 0) {
         fd2_field_audio_init(&field_audio, &pcm_player,
-                             &ui_sfx_bank, &battle_sfx_bank);
+                             &ui_sfx_bank, &battle_sfx_bank,
+                             &arrival_sfx_bank);
         title_audio.primary_player = &pcm_player;
         title_audio.secondary_player = &secondary_pcm_player;
         title_audio.bank = &title_sfx_bank;
         title_audio.letter_fly_bank = &title_letter_fly_sfx_bank;
         field_audio_ptr = &field_audio;
         title_audio_ptr = &title_audio;
-        printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [77]=%zu, [78]=%zu, [80]=%zu samples\n",
+        printf("audio: %s, 48000 Hz, FDOTHER[31]=%zu, [77]=%zu, [78]=%zu, [80]=%zu, [95]=%zu samples\n",
                fd2_audio_has_device(audio) ? "SDL device" : "null backend",
                fd2_pcm_bank_count(&ui_sfx_bank),
                fd2_pcm_bank_count(&title_sfx_bank),
                fd2_pcm_bank_count(&title_letter_fly_sfx_bank),
-               fd2_pcm_bank_count(&battle_sfx_bank));
+               fd2_pcm_bank_count(&battle_sfx_bank),
+               fd2_pcm_bank_count(&arrival_sfx_bank));
     } else {
+        fd2_pcm_bank_close(&arrival_sfx_bank);
         fd2_pcm_bank_close(&battle_sfx_bank);
         fd2_pcm_bank_close(&title_letter_fly_sfx_bank);
         fd2_pcm_bank_close(&title_sfx_bank);
@@ -983,6 +972,7 @@ cleanup:
     fd2_bgm_destroy(bgm);
     fd2_pcm_player_close(&secondary_pcm_player);
     fd2_pcm_player_close(&pcm_player);
+    fd2_pcm_bank_close(&arrival_sfx_bank);
     fd2_pcm_bank_close(&battle_sfx_bank);
     fd2_pcm_bank_close(&title_letter_fly_sfx_bank);
     fd2_pcm_bank_close(&title_sfx_bank);

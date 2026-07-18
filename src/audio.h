@@ -65,6 +65,8 @@ int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain);
 int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source,
                                 float gain);
 int fd2_audio_stop_music(fd2_audio *audio);
+/* 清除设备 stream 中已排队但尚未播放的音频；场景硬切音乐时使用。 */
+int fd2_audio_flush_output(fd2_audio *audio);
 int fd2_audio_set_master_gain(fd2_audio *audio, float gain);
 
 /* 仅用于 null backend 的确定性测试／离线 capture。输出为交错 float32 stereo。

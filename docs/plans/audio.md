@@ -14,10 +14,11 @@
 | 资源 | 当前结论 | 后续工作 |
 |------|----------|----------|
 | `FDMUS.DAT` | 外层 `.DAT` 共 20 项；其中 15 项以 `FORM/XDIR/XMID` 开始，5 项是 `20 0d 0a` 哨兵。有效内容为 Miles XMIDI | 解析 XMIDI 事件、循环与曲目映射 |
-| `FDOTHER.DAT[31]` | 13 项嵌套 `LLLLLL` 数字样本；`DAT_00003eec` 固定加载该 entry | 继续登记 SFX 0..12 的用途和响度 |
+| `FDOTHER.DAT[31]` | 13 项嵌套 `LLLLLL` 数字样本；`DAT_00003eec` 固定加载该 entry；开场对白逐字使用 SFX 2，角色移动按 profile 使用 SFX 9/10/11 | 继续登记其余 SFX 的用途和响度 |
 | `FDOTHER.DAT[77]` | 4 项嵌套 `LLLLLL` 标题数字样本；SFX 0 用于片头滚动，SFX 1/2 用于确认/移动，SFX 3 用于 action 入场 | 已登记标题调用索引与 primary/secondary handle |
 | `FDOTHER.DAT[78]` | 1 项嵌套数字样本；`animation_play` 仅在 `anim_idx == 1` 时加载 | 上方标题文字飞入时播放 SFX 0 |
 | `FDOTHER.DAT[80]` | 16 项嵌套数字样本；stage/battle 路径将该 entry 载入 `DAT_00003b13` | 登记战场调用索引与用途 |
+| `FDOTHER.DAT[95]` | 1 项嵌套数字样本；`field_actor_group_arrival_effect @code0 0x22999` 动态加载 | 新游戏 stage 0 两次角色组登场均在动画 frame 1 播放 SFX 0 |
 | `SAMPLE.BNK` | 头为 `01 00 ADLIB-`，含乐器名称和 AdLib 元数据 | 确认其与 `.AD/.OPL` 的角色分工 |
 | `SAMPLE.AD` / `SAMPLE.OPL` | 两文件内容相同；开头是 `patch, bank, offset` 目录，结构与 libADLMIDI 的 Miles AIL bank loader 一致 | 验证转换后的音色与 DOSBox OPL 输出是否一致 |
 | `*.MDI` | AIL 音乐驱动，包括 AdLib、OPL3、MPU-401、MT-32、Sound Blaster 等 | 不作为 SDL 运行时依赖，仅用于确认原版设备语义 |
@@ -161,6 +162,7 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 - [x] 实现 24 项无分配 voice pool、停止、循环、增益和 retirement；pan 暂沿用原版默认中心值 64。
 - [x] 主程序加载 FDOTHER[31]，详情打开 phase 11/5 接 SFX 5，关闭 phase 0/7 接 SFX 6，并按原版单 AIL handle 语义重启前一声。
 - [x] 主程序加载 FDOTHER[80]，`src/field_audio.[ch]` 统一登记详情、actor flash、stage transition 与 earthquake cue。
+- [x] 还原新游戏开场全部已确认可听音效：`text_dialog_glyph_step @code0 0x64e8` 的 FDOTHER[31] SFX 2；`field_actor_footstep_play @code0 0x22230` 按 profile 类别和全局步态计数播放 FDOTHER[31] SFX 9/10/11；`field_actor_group_arrival_effect @code0 0x22999` 两次在 frame 1 播放 FDOTHER[95] SFX 0。三类均复用 primary handle 的 replace 语义。
 - [x] 新增 `src/field_effect.[ch]`，按原版 frame 顺序调度 actor flash、earthquake、stage transition snapshot 与 cue；earthquake 为 `0,1,2,1` 共 60 帧，SFX 在 `0..42` 每 6 帧重启。
 - [x] 实现三个效果的事务化 snapshot 生成器和原版入口 wrapper：actor flash 按 FDICON 非透明像素重绘为 palette `0xc0`；earthquake 按 `DS:0x2096..0x20b6` 的 `(x,y,step)` 三组参数重采样；stage transition 直接使用 FDOTHER[3] frame `9→1` 并复现 `field_transition_lut_mask @0x4725a`、500 ms 尾停顿和渐暗。
 - [x] 新增 `--field-effect-play STAGE` 可达验收入口，使用真实 FDOTHER[80] cue 和定时 wrapper；SDL dummy 实测总时长约 1.84 s，与 550 ms flash、600 ms earthquake、45 ms transition frames、500 ms 尾停顿及 128 ms 渐暗之和一致。
@@ -183,7 +185,7 @@ FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成
 
 - [x] 实现 `FDMUS.DAT` 播放、停止、循环、切曲和 music bus 音量；普通曲复现 2000 ms 淡入，停止复现 4000 ms 淡出，track 16/17 立即设为满音量。
 - [x] 接入启动片头与标题：corrected code0 `0x15db1` 证明两者共用循环 track 18，跳过片头或重新进入标题时不重启同一曲目。
-- [x] 接入新游戏开场 track 11：第二段对白后停止标题曲，movement script 0x64 渐暗后以 loop count 0 启动；战场 stage 表和战斗演出仍待接入。
+- [x] 接入新游戏开场 track 11：进入场景时由宿主 music bus 立即移除标题 source，movement script 0x64 渐暗后以 loop count 0 启动；避免原版 4 秒 fade 在 SDL 场景内仍可听。战场 stage 表和战斗演出仍待接入。
 - [ ] 处理窗口失焦、暂停、设备切换和存档恢复。
 - [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。Linux 原生构建、SDL dummy 运行和 MinGW Windows 交叉构建已完成；Windows 实机音频与 macOS 构建待对应环境验证。
 

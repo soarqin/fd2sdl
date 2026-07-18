@@ -1,8 +1,9 @@
-/* 炎龙骑士团 2 SDL3 重写 - 原版键盘输入抽象
+/* 炎龙骑士团 2 SDL3 重写 - 统一帧输入抽象
  *
- * 原版 input_check @0x35834 只检查 BIOS BDA 键盘环形缓冲；具体读取
- * 由 INT 16h/AH=10h 完成。SDL 版在此保留同样的「检查不消费、读取
- * 才出队」边界。详见 docs/systems/input.md。
+ * 原版键值和上下文映射来自 input_check @0x35834 与
+ * field_key_read @0x36cbc；SDL 宿主层不复刻 BIOS FIFO。每次
+ * fd2_input_begin_frame() 都丢弃上一帧未消费事件，只暴露本帧到达的
+ * KEY_DOWN，避免一次 Enter 跨对话框或跨 UI 状态被再次消费。
  */
 #include "input.h"
 
@@ -56,8 +57,6 @@ void fd2_input_install_interrupt_handlers(void) {
     host_quit_requested = 0;
 #endif
 #ifndef _WIN32
-    /* 不依赖 SDL 默认 signal hint；显式把 Ctrl+C／终止请求交给主循环，
-     * 既保留统一资源清理，也避免 scene 把中断当成普通跳过键。 */
     (void)signal(SIGINT, input_signal_handler);
     (void)signal(SIGTERM, input_signal_handler);
 #else
@@ -121,15 +120,15 @@ void fd2_input_init(fd2_input *input) {
 int fd2_input_push_key(fd2_input *input, fd2_input_key key,
                        SDL_Scancode source, int repeat) {
     if (!input) return -1;
-    if (input->count == FD2_INPUT_QUEUE_CAPACITY) {
-        input->dropped_keys++;
+    if (input->frame_event_count == FD2_INPUT_FRAME_EVENT_CAPACITY) {
+        input->dropped_frame_keys++;
         return -1;
     }
-    size_t tail = (input->head + input->count) % FD2_INPUT_QUEUE_CAPACITY;
-    input->queue[tail].key = key;
-    input->queue[tail].source = source;
-    input->queue[tail].repeat = repeat ? 1u : 0u;
-    input->count++;
+    fd2_input_event *event =
+        &input->frame_events[input->frame_event_count++];
+    event->key = key;
+    event->source = source;
+    event->repeat = repeat ? 1u : 0u;
     return 0;
 }
 
@@ -140,9 +139,12 @@ void fd2_input_poll_host_events(void) {
         request_host_quit();
 }
 
-void fd2_input_pump(fd2_input *input) {
+void fd2_input_begin_frame(fd2_input *input) {
     if (!input) return;
 
+    /* 帧边界先清空，再读取当前 SDL 队列；任何未消费按键都不能进入下一帧。 */
+    input->frame_event_count = 0;
+    input->frame_event_cursor = 0;
     if (fd2_input_host_quit_requested())
         input->quit_requested = 1;
 
@@ -153,12 +155,9 @@ void fd2_input_pump(fd2_input *input) {
             request_host_quit();
             input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
-            /* Windows Ctrl+C／Ctrl+Break 在 SDL 窗口拥有焦点时可能只表现为
-             * KEY_DOWN，而不是控制台回调；这两种组合都必须进入宿主退出
-             * 通道，不能作为普通键让片头 input_check 跳到标题。 */
             if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
                 (event.key.scancode == SDL_SCANCODE_C ||
-                 event.key.scancode == SDL_SCANCODE_PAUSE) ) {
+                 event.key.scancode == SDL_SCANCODE_PAUSE)) {
                 request_host_quit();
                 input->quit_requested = 1;
                 continue;
@@ -169,10 +168,8 @@ void fd2_input_pump(fd2_input *input) {
                 continue;
             }
             fd2_input_key key = key_from_scancode(event.key.scancode);
-            /* 原版 BIOS 会保存 typematic，但确认／取消键在实际 UI 中
-             * 以一次按键完成一次操作；SDL 的 repeat 若跨越状态切换，
-             * 会把同一次 Enter 继续投递给下一层菜单。方向键仍保留
-             * repeat，用于光标连续移动。 */
+            /* 同一次确认／取消长按不能跨 UI 状态持续触发；方向 repeat
+             * 保留在其实际到达的宿主帧内，用于连续移动。 */
             if (event.key.repeat &&
                 (key == FD2_INPUT_KEY_ENTER ||
                  key == FD2_INPUT_KEY_KEYPAD_CONFIRM ||
@@ -187,18 +184,19 @@ void fd2_input_pump(fd2_input *input) {
 }
 
 int fd2_input_has_any_key(const fd2_input *input) {
-    return input && input->count != 0;
+    return input && input->frame_event_cursor < input->frame_event_count;
 }
 
 size_t fd2_input_pending_count(const fd2_input *input) {
-    return input ? input->count : 0;
+    if (!input || input->frame_event_cursor >= input->frame_event_count)
+        return 0;
+    return input->frame_event_count - input->frame_event_cursor;
 }
 
 int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
-    if (!input || input->count == 0) return 0;
-    if (event) *event = input->queue[input->head];
-    input->head = (input->head + 1u) % FD2_INPUT_QUEUE_CAPACITY;
-    input->count--;
+    if (!fd2_input_has_any_key(input)) return 0;
+    if (event) *event = input->frame_events[input->frame_event_cursor];
+    input->frame_event_cursor++;
     return 1;
 }
 
@@ -231,9 +229,6 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
                 key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
                 return FD2_INPUT_ACTION_CONFIRM;
-            /* field controller @code0 0x17e7 将 Esc、0x53 规范化取消码、
-             * Z 与数字小键盘 5 送入同一遍历 actor／更新焦点分支。尚未
-             * 经 DOSBox 确认前，不把这一组误作 SDL 版的取消选择。 */
             if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL ||
                 key == FD2_INPUT_KEY_Z || key == FD2_INPUT_KEY_KEYPAD_5)
                 return FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE;
@@ -246,23 +241,8 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_FIELD_COMMAND:
-            /* field_command_menu_input @code0 0x77fc 使用 BIOS 扫描码：
-             * 48/50/4b/4d 选四方向，39/1c 确认，01 取消；其读取 helper
-             * 另将 keypad 0x52 规范化为确认、0x53 规范化为取消。 */
-            if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
-            if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
-            if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;
-            if (key == FD2_INPUT_KEY_RIGHT) return FD2_INPUT_ACTION_RIGHT;
-            if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
-                key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
-                return FD2_INPUT_ACTION_CONFIRM;
-            if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
-                return FD2_INPUT_ACTION_CANCEL;
-            return FD2_INPUT_ACTION_NONE;
-
         case FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU:
-            /* field_empty_focus_menu_execute @code0 0x6f55 与各子页复用
-             * field_command_menu_input 的四方向、确认和取消键。 */
+        case FD2_INPUT_CONTEXT_FIELD_TARGETING:
             if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
             if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
             if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;
@@ -275,8 +255,6 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT:
-            /* field_manual_slot_picker @code0 0x19bcb 只使用扫描码
-             * 0x48/0x50 改变纵向 slot；在原版 BIOS 命名中对应 Up/Down。 */
             if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_LEFT;
             if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_RIGHT;
             if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
@@ -287,26 +265,10 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_FIELD_AUXILIARY:
-            /* tactical-map dispatcher @code0 0x1000a 的页面由任意键
-             * 返回 browse；SDL 由 field_play 单独消费确认／取消。 */
             if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
                 key == FD2_INPUT_KEY_KEYPAD_CONFIRM ||
                 key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
                 return FD2_INPUT_ACTION_EXIT;
-            return FD2_INPUT_ACTION_NONE;
-
-        case FD2_INPUT_CONTEXT_FIELD_TARGETING:
-            /* field_cell_selection_execute @0x367ca 的目标选择循环：
-             * 四方向移动，39/1c 确认，规范化返回值 1 取消。 */
-            if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
-            if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
-            if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;
-            if (key == FD2_INPUT_KEY_RIGHT) return FD2_INPUT_ACTION_RIGHT;
-            if (key == FD2_INPUT_KEY_ENTER || key == FD2_INPUT_KEY_SPACE ||
-                key == FD2_INPUT_KEY_KEYPAD_CONFIRM)
-                return FD2_INPUT_ACTION_CONFIRM;
-            if (key == FD2_INPUT_KEY_ESCAPE || key == FD2_INPUT_KEY_CANCEL)
-                return FD2_INPUT_ACTION_CANCEL;
             return FD2_INPUT_ACTION_NONE;
 
         case FD2_INPUT_CONTEXT_PREVIEW:

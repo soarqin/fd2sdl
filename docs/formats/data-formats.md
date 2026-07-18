@@ -621,6 +621,8 @@ repeat group_count:
 
 `field_camera_pan_to @0x387f1` 先逐格完成 X 轴，再逐格完成 Y 轴，每格刷新一次并等待 vsync；确认键不终止镜头。开场在脚本 `0x64`、`0x69`、`0x62` 前将 `DAT_00003afb=1`：移动脚本每个 4 px 相位递增一次 DAC 暗度，边移动边渐出；新场景初始化随后调用 `palette_fade_in_light @0x44739` 渐亮。
 
+`field_actor_footstep_play @code0 0x22230` 在每格 phase 1..5 完成显示与 BIOS tick 等待后被调用，phase 6 后不调用；多人脚本只传 actor 列表首项。它先调用 `field_unit_ignores_terrain_combat_modifier @code0 0xf183`：该 helper 对 unit ID `0x1c` 返回 0，因此该 ID 仍走 profile 表；只有 movement profile `19` 或 race `4/5` 固定选择 FDOTHER[31] sample 10，并在全局 `DS:0x4132` 计数可被 6 整除时播放。其余单位用 record `+0x20` 的 1-based movement profile 索引 object2 `DS:0x2725` 的 29 字节类别表 `{1,1,2,1,0,0,1,1,1,1,2,1,0,0,3,1,1,1,3,1,0,0,1,1,1,1,1,1,1}`：类别 0/1 分别在计数可被 6/4 整除时播放 sample 9，其他类别在可被 9 整除时播放 sample 11；每次 helper 调用最后都将该 8 位计数加一。SDL 将计数保存在共享 `fd2_field_audio` 中，跨 stage 与后续 field event 持续，并通过 primary PCM handle 重启上一声。
+
 `DAT_000027d8` 指针表位于 object3；LE fixup 的 `target_offset` 直接映射为 object3 内偏移，再加 object3 relbase。按此映射可完整解码 script `0..10` 与开场脚本 `0x5a..0x69`；其中 script `3/4/6/7/8` 已用于 stage 0 回合事件，`0/1/2/5/0x5a..0x69` 与 `new_game_opening_play @code0 0x2231b` 的直接调用顺序一致。
 
 `DS:0x1d71` 是关卡过场分发表，当前按 30 项处理；相邻 `DS:0x1de9` 是进入战场前的另一张分发表，不应混入 stage dispatch。`tools/analyze_fd2_stage_code.py` 默认使用 `tools/fd2_le_code0.bin`；object1 fixup target 直接进入 object1 code0；应采用 `dump_fd2_fixup_table.py` 输出的 `code0` 或 `dual` 地址。

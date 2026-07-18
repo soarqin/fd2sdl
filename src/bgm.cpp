@@ -510,6 +510,16 @@ int fd2_bgm_stop(fd2_bgm_player *player) {
     return 0;
 }
 
+int fd2_bgm_stop_immediate(fd2_bgm_player *player) {
+    if (!player) return -1;
+    player->current_track = -1;
+    /* 场景所有权切换不能让上一 UI 的曲目继续可听。STOP_BUS 与下一次
+     * PLAY 命令使用同一 command FIFO；同时清空 SDL stream 中已排队的
+     * 旧场景采样，避免硬停后仍听到设备前缓冲里的标题曲。 */
+    if (fd2_audio_stop_music(player->audio) != 0) return -1;
+    return fd2_audio_flush_output(player->audio);
+}
+
 int fd2_bgm_current_track(const fd2_bgm_player *player) {
     return player ? player->current_track : -1;
 }

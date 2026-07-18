@@ -312,6 +312,19 @@ int fd2_audio_stop_music(fd2_audio *audio) {
     return fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_MUSIC);
 }
 
+int fd2_audio_flush_output(fd2_audio *audio) {
+    if (!audio) return -1;
+    if (!audio->stream) return 0;
+    /* SDL callback 可能已经向 AudioStream 提前写入旧场景的混音 block；
+     * STOP_BUS 只能阻止后续 render，必须同时清空这部分设备前缓冲。
+     * 锁住 stream 可保证 callback 不会在 Clear 之后、Unlock 之前又
+     * Put 一块停播前已完成的旧混音。 */
+    if (!SDL_LockAudioStream(audio->stream)) return -1;
+    bool ok = SDL_ClearAudioStream(audio->stream);
+    bool unlocked = SDL_UnlockAudioStream(audio->stream);
+    return ok && unlocked ? 0 : -1;
+}
+
 int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain) {
     if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT || !valid_gain(gain))
         return -1;

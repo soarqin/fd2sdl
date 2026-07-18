@@ -1,8 +1,8 @@
-/* 炎龙骑士团 2 SDL3 重写 - 原版键盘输入抽象
+/* 炎龙骑士团 2 SDL3 重写 - 统一帧输入抽象
  *
- * 逆向依据：input_check @0x35834 比较 BIOS BDA 0x041a/0x041c，
- * field_key_read @0x36cbc 以 INT 16h/AH=10h 读取扫描码。
- * 完整键表与上下文依据见 docs/systems/input.md。
+ * 原版键表依据：input_check @0x35834 与 field_key_read @0x36cbc。
+ * SDL 端只保留当前宿主帧到达的 KEY_DOWN；未消费事件不会跨帧或跨 UI
+ * 状态保留。完整键表与帧输入约束见 docs/systems/input.md。
  */
 #ifndef FD2_INPUT_H
 #define FD2_INPUT_H
@@ -12,9 +12,9 @@
 
 #include <SDL3/SDL.h>
 
-/* BIOS BDA 键盘环形缓冲有 16 个槽位，并保留一个空槽区分满／空。
- * SDL 层采用相同的 15 项有效容量；满时丢弃新到的 key down。 */
-#define FD2_INPUT_QUEUE_CAPACITY 15u
+/* 单个宿主帧内允许的 KEY_DOWN 上限。事件只在本帧有效；下一次
+ * fd2_input_begin_frame() 会无条件丢弃未消费项。 */
+#define FD2_INPUT_FRAME_EVENT_CAPACITY 32u
 
 typedef enum {
     FD2_INPUT_KEY_OTHER = 0,
@@ -43,10 +43,10 @@ typedef struct {
 } fd2_input_event;
 
 typedef struct {
-    fd2_input_event queue[FD2_INPUT_QUEUE_CAPACITY];
-    size_t head;
-    size_t count;
-    uint32_t dropped_keys;
+    fd2_input_event frame_events[FD2_INPUT_FRAME_EVENT_CAPACITY];
+    size_t frame_event_count;
+    size_t frame_event_cursor;
+    uint32_t dropped_frame_keys;
     int quit_requested;
 } fd2_input;
 
@@ -80,34 +80,34 @@ typedef enum {
 void fd2_input_init(fd2_input *input);
 
 /* 安装宿主中断桥：POSIX SIGINT/SIGTERM 与 Windows Ctrl+C/Ctrl+Break
- * 都转成统一、持续有效的 quit 请求，不覆盖游戏按键 FIFO。 */
+ * 都转成统一、持续有效的 quit 请求，不混入普通帧按键。 */
 void fd2_input_install_interrupt_handlers(void);
 
 /* 查询进程级宿主中断状态。该状态由信号／控制台回调置位，在 main 完成
  * 统一清理前保持有效；不能由某个场景消费后让其他等待循环失去退出请求。 */
 int fd2_input_host_quit_requested(void);
 
-/* 仅泵送并窥视宿主退出事件，不消费键盘 FIFO。共享 deadline／delay
+/* 仅泵送并窥视宿主退出事件，不收集普通按键。共享 deadline／delay
  * 使用该入口缩短窗口关闭与控制台中断的退出延迟。 */
 void fd2_input_poll_host_events(void);
 
-/* 唯一读取 SDL 事件队列的入口。方向键的 KEY_DOWN repeat 按到达顺序入队；
- * 确认／取消键的 repeat 不跨 UI 状态重复触发。KEY_UP 不进入队列。 */
-void fd2_input_pump(fd2_input *input);
+/* 开始一个输入帧，也是唯一读取 SDL 事件队列的入口。调用时先清除上一帧
+ * 所有未消费按键，再收集当前已到达的 KEY_DOWN。方向键 repeat 保留；
+ * 确认／取消键 repeat 丢弃；KEY_UP 不进入帧事件。 */
+void fd2_input_begin_frame(fd2_input *input);
 
-/* 测试和无窗口验证入口；成功入队返回 0，满队列返回 -1。 */
+/* 测试和无窗口验证入口；向当前帧注入事件。帧容量满时返回 -1。 */
 int fd2_input_push_key(fd2_input *input, fd2_input_key key,
                        SDL_Scancode source, int repeat);
 
-/* 对应原版 input_check：只查看是否已有键，不消费队首。 */
+/* 查看／消费当前帧事件；均不会访问上一帧。 */
 int fd2_input_has_any_key(const fd2_input *input);
 size_t fd2_input_pending_count(const fd2_input *input);
 
-/* 消费一项原始输入；无项时返回 0。 */
+/* 消费当前帧的一项原始输入；无项时返回 0。 */
 int fd2_input_take_key(fd2_input *input, fd2_input_event *event);
 
-/* 取出一项并按当前 UI 上下文翻译。未知按键也会被消费并返回 NONE，
- * 对应原版 INT 16h 读到未处理扫描码后继续菜单循环。 */
+/* 取出当前帧一项并按 UI 上下文翻译。未知按键也会被消费并返回 NONE。 */
 int fd2_input_take_action(fd2_input *input, fd2_input_context context,
                           fd2_input_action *action);
 

@@ -12293,7 +12293,7 @@ void field_actor_hide(void)
 }
 
 
-// FUNC 0x57bad field_actor_group_arrival_effect
+// FUNC 0x57bad field_actor_group_arrival_effect  /* 历史 dual 地址；canonical code0 0x22999 / VA 0x32999。加入 actor group，frame 1 播放 FDOTHER[95] sample 0 */
 
 void field_actor_group_arrival_effect(void)
 

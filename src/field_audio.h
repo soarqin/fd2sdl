@@ -10,6 +10,10 @@ typedef enum {
     FD2_FIELD_SFX_DETAIL_CLOSE,
     FD2_FIELD_SFX_COMMAND_MENU,
     FD2_FIELD_SFX_DIALOG_GLYPH,
+    FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9,
+    FD2_FIELD_SFX_FOOTSTEP_SAMPLE_10,
+    FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11,
+    FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL,
     FD2_FIELD_SFX_ACTOR_GROUP_FLASH,
     FD2_FIELD_SFX_STAGE_TRANSITION,
     FD2_FIELD_SFX_EARTHQUAKE,
@@ -18,21 +22,37 @@ typedef enum {
 typedef enum {
     FD2_FIELD_SFX_BANK_UI = 31,
     FD2_FIELD_SFX_BANK_BATTLE = 80,
+    FD2_FIELD_SFX_BANK_ARRIVAL = 95,
 } fd2_field_sfx_bank;
 
 typedef struct {
     fd2_pcm_player *player;
     const fd2_pcm_bank *ui_bank;
     const fd2_pcm_bank *battle_bank;
+    const fd2_pcm_bank *arrival_bank;
+    uint8_t footstep_counter;
 } fd2_field_audio;
 
 int fd2_field_sfx_resolve(fd2_field_sfx cue,
                           fd2_field_sfx_bank *bank,
                           size_t *sample_index);
+
+/* field_actor_footstep_play @code0 0x22230 的 sample 与 cadence 选择。
+ * 返回 1 表示本相位应播放，0 表示只推进计数，-1 表示输入无效。 */
+int fd2_field_footstep_resolve(uint8_t unit_id,
+                               uint8_t movement_profile,
+                               uint8_t race,
+                               uint8_t step_counter,
+                               fd2_field_sfx *cue);
+int fd2_field_audio_play_footstep(fd2_field_audio *audio,
+                                  uint8_t unit_id,
+                                  uint8_t movement_profile,
+                                  uint8_t race);
 void fd2_field_audio_init(fd2_field_audio *audio,
                           fd2_pcm_player *player,
                           const fd2_pcm_bank *ui_bank,
-                          const fd2_pcm_bank *battle_bank);
+                          const fd2_pcm_bank *battle_bank,
+                          const fd2_pcm_bank *arrival_bank);
 
 /* 所有已确认战场调用都复用原版全局 AIL sample handle。 */
 int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue);

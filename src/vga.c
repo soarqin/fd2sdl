@@ -91,10 +91,9 @@ void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* input.c 是唯一调用 SDL_PollEvent 的位置。原版动画的 input_check
-     * 只窥视 BIOS 缓冲，因此这里先将宿主事件写入 FIFO，随后由各 UI 决定
-     * 是否消费。 */
-    fd2_input_pump(&vga->input);
+    /* 每次呈现开始一个统一输入帧。input.c 是唯一调用 SDL_PollEvent 的
+     * 位置；上一帧未消费按键会在这里丢弃，不能跨场景或 UI 状态积压。 */
+    fd2_input_begin_frame(&vga->input);
 
     uint32_t colors[256];
     for (int i = 0; i < 256; i++) {
@@ -189,7 +188,8 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
 
 void fd2_delay_ms(uint32_t ms) {
     /* 复现 thunk_FUN_0003b765 @0x63231: delay_ms(N)。DOS 原版忙等待；
-     * SDL 版分成至多 8 ms 的片段并持续泵送事件，但不从队列取走按键。 */
+     * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键只在
+     * 下一次 begin_frame 时读取，等待期间不会形成隐藏 FIFO。 */
     if (ms == 0) {
         SDL_PumpEvents();
         return;
@@ -204,11 +204,10 @@ void fd2_wait_ticks(uint32_t ticks) {
 }
 
 int fd2_input_check(fd2_vga *vga) {
-    /* 复现 input_check @0x35834：原版只比较 BDA 0x041a/0x041c，不读取
-     * 键盘缓冲。ANI/片头跳过后，同一按键仍应留给后续标题或菜单。
-     * 宿主端在长延时中仍须收集窗口事件；收集由 input.c 完成，不消费 FIFO。 */
+    /* SDL 统一帧输入：只检查本次 begin_frame 收到的按键。调用方切换 UI
+     * 后的下一帧会清空未消费事件，跳过键不会继续确认后续菜单。 */
     if (!vga) return 0;
-    fd2_input_pump(&vga->input);
+    fd2_input_begin_frame(&vga->input);
     return fd2_input_has_any_key(&vga->input);
 }
 

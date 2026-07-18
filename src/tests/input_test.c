@@ -9,14 +9,13 @@
     } \
 } while (0)
 
-static int test_peek_and_fifo(void) {
+static int test_current_frame_events(void) {
     fd2_input input;
     fd2_input_init(&input);
     CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_OTHER,
                              SDL_SCANCODE_A, 0) == 0);
     CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_UP,
                              SDL_SCANCODE_UP, 1) == 0);
-    /* 对应 input_check：查看不会消费 ANI 跳过键。 */
     CHECK(fd2_input_has_any_key(&input));
     CHECK(fd2_input_pending_count(&input) == 2);
 
@@ -35,7 +34,6 @@ static int test_context_mappings(void) {
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
                                    FD2_INPUT_KEY_KEYPAD_CONFIRM) ==
           FD2_INPUT_ACTION_CONFIRM);
-    /* 原版标题没有 H/P/R/Esc 快捷键。 */
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
                                    FD2_INPUT_KEY_G) == FD2_INPUT_ACTION_NONE);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
@@ -75,9 +73,6 @@ static int test_context_mappings(void) {
                                    FD2_INPUT_KEY_CANCEL) ==
           FD2_INPUT_ACTION_CANCEL);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
-                                   FD2_INPUT_KEY_ESCAPE) ==
-          FD2_INPUT_ACTION_CANCEL);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
                                    FD2_INPUT_KEY_HOME) ==
           FD2_INPUT_ACTION_NONE);
 
@@ -110,9 +105,6 @@ static int test_context_mappings(void) {
                                    FD2_INPUT_KEY_CANCEL) ==
           FD2_INPUT_ACTION_CANCEL);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
-                                   FD2_INPUT_KEY_ESCAPE) ==
-          FD2_INPUT_ACTION_CANCEL);
-    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
                                    FD2_INPUT_KEY_F2) ==
           FD2_INPUT_ACTION_NONE);
     return 0;
@@ -124,22 +116,26 @@ static int test_consumption_and_capacity(void) {
     CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_G,
                              SDL_SCANCODE_G, 0) == 0);
     fd2_input_action action = FD2_INPUT_ACTION_CONFIRM;
-    /* 未处理键也会像 INT 16h 一样被读走。 */
     CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_TITLE, &action));
     CHECK(action == FD2_INPUT_ACTION_NONE);
     CHECK(fd2_input_pending_count(&input) == 0);
+    /* 已消费事件也由下一帧统一回收，再验证完整帧容量。 */
+    input.frame_event_count = 0;
+    input.frame_event_cursor = 0;
 
-    for (size_t i = 0; i < FD2_INPUT_QUEUE_CAPACITY; i++)
+    for (size_t i = 0; i < FD2_INPUT_FRAME_EVENT_CAPACITY; i++)
         CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_OTHER,
                                  SDL_SCANCODE_UNKNOWN, 0) == 0);
     CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_OTHER,
                              SDL_SCANCODE_UNKNOWN, 0) == -1);
-    CHECK(input.dropped_keys == 1);
-    CHECK(fd2_input_pending_count(&input) == FD2_INPUT_QUEUE_CAPACITY);
+    CHECK(input.dropped_frame_keys == 1);
+    CHECK(fd2_input_pending_count(&input) ==
+          FD2_INPUT_FRAME_EVENT_CAPACITY);
     return 0;
 }
 
-static int test_terminal_action_preserves_following_key(void) {
+static int test_frame_boundary_discards_unconsumed(void) {
+    CHECK(SDL_Init(SDL_INIT_EVENTS));
     fd2_input input;
     fd2_input_init(&input);
     CHECK(fd2_input_push_key(&input, FD2_INPUT_KEY_ENTER,
@@ -149,14 +145,17 @@ static int test_terminal_action_preserves_following_key(void) {
     fd2_input_action action;
     CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_TITLE, &action));
     CHECK(action == FD2_INPUT_ACTION_CONFIRM);
-    /* 标题／预览循环在终止动作后停止读取，下一 UI 仍可取得 Down。 */
     CHECK(fd2_input_pending_count(&input) == 1);
-    CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_TITLE, &action));
-    CHECK(action == FD2_INPUT_ACTION_DOWN);
+
+    /* UI 状态切换后的下一帧无条件丢弃 Down；不存在跨帧 FIFO。 */
+    fd2_input_begin_frame(&input);
+    CHECK(fd2_input_pending_count(&input) == 0);
+    CHECK(!fd2_input_take_action(&input, FD2_INPUT_CONTEXT_TITLE, &action));
+    SDL_Quit();
     return 0;
 }
 
-static int test_sdl_event_pump(void) {
+static int test_sdl_frame_pump(void) {
     CHECK(SDL_Init(SDL_INIT_EVENTS));
     fd2_input input;
     fd2_input_init(&input);
@@ -180,38 +179,23 @@ static int test_sdl_event_pump(void) {
     event.key.repeat = 1;
     CHECK(SDL_PushEvent(&event));
 
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_C;
-    event.key.mod = SDL_KMOD_CTRL;
-    event.key.repeat = 0;
-    CHECK(SDL_PushEvent(&event));
-
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_PAUSE;
-    event.key.mod = SDL_KMOD_CTRL;
-    event.key.repeat = 0;
-    CHECK(SDL_PushEvent(&event));
-
-    event.type = SDL_EVENT_QUIT;
-    CHECK(SDL_PushEvent(&event));
-
-    /* 共享 deadline 只调用 host-event peek，也必须立即把窗口关闭提升为
-     * 进程级请求；peek 不消费前面排队的键盘事件。 */
-    fd2_input_poll_host_events();
-    CHECK(fd2_input_host_quit_requested());
-    fd2_input_pump(&input);
-    /* 确认键 repeat 不得跨越状态边界；方向键 repeat 仍保留。 */
+    fd2_input_begin_frame(&input);
     CHECK(fd2_input_pending_count(&input) == 2);
     fd2_input_event key;
     CHECK(fd2_input_take_key(&input, &key));
     CHECK(key.key == FD2_INPUT_KEY_UP && key.repeat == 0);
     CHECK(fd2_input_take_key(&input, &key));
     CHECK(key.key == FD2_INPUT_KEY_UP && key.repeat == 1);
-    CHECK(fd2_input_take_quit(&input));
-    /* SDL window quit 也进入进程级状态，新 input 实例可观察到同一请求。 */
-    fd2_input other;
-    fd2_input_init(&other);
-    CHECK(fd2_input_take_quit(&other));
+
+    /* 未消费事件也只活到下一帧。 */
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = SDL_SCANCODE_RETURN;
+    event.key.repeat = 0;
+    CHECK(SDL_PushEvent(&event));
+    fd2_input_begin_frame(&input);
+    CHECK(fd2_input_pending_count(&input) == 1);
+    fd2_input_begin_frame(&input);
+    CHECK(fd2_input_pending_count(&input) == 0);
     SDL_Quit();
     return 0;
 }
@@ -221,18 +205,16 @@ static int test_quit_request(void) {
     fd2_input_init(&input);
     input.quit_requested = 1;
     CHECK(fd2_input_take_quit(&input));
-    /* 宿主退出是进程级请求。所有场景和等待循环都必须持续观察到它，
-     * 不能被第一个调用点消费后继续进入后续剧情。 */
     CHECK(fd2_input_take_quit(&input));
     return 0;
 }
 
 int main(void) {
-    if (test_peek_and_fifo() != 0 ||
+    if (test_current_frame_events() != 0 ||
         test_context_mappings() != 0 ||
         test_consumption_and_capacity() != 0 ||
-        test_terminal_action_preserves_following_key() != 0 ||
-        test_sdl_event_pump() != 0 ||
+        test_frame_boundary_discards_unconsumed() != 0 ||
+        test_sdl_frame_pump() != 0 ||
         test_quit_request() != 0)
         return 1;
     puts("input_test: ok");

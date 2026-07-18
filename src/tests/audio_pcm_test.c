@@ -59,6 +59,11 @@ static int test_field_sfx_mapping(void) {
         {FD2_FIELD_SFX_DETAIL_CLOSE, FD2_FIELD_SFX_BANK_UI, 6},
         {FD2_FIELD_SFX_COMMAND_MENU, FD2_FIELD_SFX_BANK_UI, 8},
         {FD2_FIELD_SFX_DIALOG_GLYPH, FD2_FIELD_SFX_BANK_UI, 2},
+        {FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9, FD2_FIELD_SFX_BANK_UI, 9},
+        {FD2_FIELD_SFX_FOOTSTEP_SAMPLE_10, FD2_FIELD_SFX_BANK_UI, 10},
+        {FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11, FD2_FIELD_SFX_BANK_UI, 11},
+        {FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL,
+         FD2_FIELD_SFX_BANK_ARRIVAL, 0},
         {FD2_FIELD_SFX_ACTOR_GROUP_FLASH, FD2_FIELD_SFX_BANK_BATTLE, 1},
         {FD2_FIELD_SFX_STAGE_TRANSITION, FD2_FIELD_SFX_BANK_BATTLE, 11},
         {FD2_FIELD_SFX_EARTHQUAKE, FD2_FIELD_SFX_BANK_BATTLE, 13},
@@ -75,20 +80,50 @@ static int test_field_sfx_mapping(void) {
     return 0;
 }
 
+static int test_field_footstep_mapping(void) {
+    fd2_field_sfx cue;
+    /* profile 5 的类别 0：sample 9、每 6 相位一次。 */
+    CHECK(fd2_field_footstep_resolve(9, 5, 1, 0, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9);
+    CHECK(fd2_field_footstep_resolve(9, 5, 1, 1, &cue) == 0);
+    CHECK(fd2_field_footstep_resolve(9, 5, 1, 6, &cue) == 1);
+    /* profile 1 的类别 1：sample 9、每 4 相位一次。 */
+    CHECK(fd2_field_footstep_resolve(0, 1, 1, 4, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9);
+    /* profile 3 的类别 2：sample 11、每 9 相位一次。 */
+    CHECK(fd2_field_footstep_resolve(4, 3, 1, 9, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11);
+    /* unit ID 0x1c 仍走 profile 表；特殊 profile/race 固定 sample 10、
+     * 每 6 相位一次。未知 profile 默认类别 1。 */
+    CHECK(fd2_field_footstep_resolve(0x1c, 3, 1, 9, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11);
+    CHECK(fd2_field_footstep_resolve(0, 19, 1, 6, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_10);
+    CHECK(fd2_field_footstep_resolve(0, 3, 4, 6, &cue) == 1);
+    CHECK(fd2_field_footstep_resolve(0, 0, 0, 4, &cue) == 1);
+    CHECK(cue == FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9);
+    CHECK(fd2_field_footstep_resolve(0, 1, 1, 0, NULL) == -1);
+    return 0;
+}
+
 static int test_field_audio_dispatch(void) {
-    uint8_t ui_data[76], battle_data[76];
-    fd2_pcm_bank ui_bank, battle_bank;
+    uint8_t ui_data[76], battle_data[76], arrival_data[16];
+    fd2_pcm_bank ui_bank, battle_bank, arrival_bank;
     CHECK(fd2_pcm_bank_open_mem(
         &ui_bank, ui_data, make_index_bank(ui_data, 14, 128)) == 0);
     CHECK(fd2_pcm_bank_open_mem(
         &battle_bank, battle_data,
         make_index_bank(battle_data, 14, 160)) == 0);
+    CHECK(fd2_pcm_bank_open_mem(
+        &arrival_bank, arrival_data,
+        make_index_bank(arrival_data, 1, 192)) == 0);
     fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
     fd2_audio *audio = fd2_audio_create(&config);
     fd2_pcm_player player;
     fd2_field_audio field_audio;
     CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
-    fd2_field_audio_init(&field_audio, &player, &ui_bank, &battle_bank);
+    fd2_field_audio_init(&field_audio, &player, &ui_bank, &battle_bank,
+                         &arrival_bank);
 
     float output[2];
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
@@ -98,6 +133,27 @@ static int test_field_audio_dispatch(void) {
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
     CHECK(near(output[0], 2.0f / 128.0f));
     CHECK(fd2_field_audio_play(
+        &field_audio, FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11) == 0);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 11.0f / 128.0f));
+    CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
+    CHECK(field_audio.footstep_counter == 1);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 9.0f / 128.0f));
+    for (int i = 0; i < 3; i++)
+        CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
+    CHECK(field_audio.footstep_counter == 4);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 0.0f));
+    CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
+    CHECK(field_audio.footstep_counter == 5);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 9.0f / 128.0f));
+    CHECK(fd2_field_audio_play(
+        &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL) == 0);
+    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
+    CHECK(near(output[0], 0.5f));
+    CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_FLASH) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
     CHECK(near(output[0], 33.0f / 128.0f));
@@ -106,9 +162,11 @@ static int test_field_audio_dispatch(void) {
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
     CHECK(near(output[0], 43.0f / 128.0f));
 
-    fd2_field_audio_init(&field_audio, &player, NULL, &battle_bank);
+    fd2_field_audio_init(&field_audio, &player, NULL, &battle_bank,
+                         &arrival_bank);
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) != 0);
-    fd2_field_audio_init(&field_audio, NULL, &ui_bank, &battle_bank);
+    fd2_field_audio_init(&field_audio, NULL, &ui_bank, &battle_bank,
+                         &arrival_bank);
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_EARTHQUAKE) != 0);
 
     fd2_audio_destroy(audio);
@@ -122,7 +180,7 @@ static int test_field_audio_dispatch(void) {
     fd2_pcm_player fallback_player;
     CHECK(fd2_pcm_player_init(&fallback_player, fallback, 11025) == 0);
     fd2_field_audio_init(&field_audio, &fallback_player,
-                         &ui_bank, &battle_bank);
+                         &ui_bank, &battle_bank, &arrival_bank);
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_EARTHQUAKE) == 0);
     int active = 0;
     for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
@@ -131,6 +189,7 @@ static int test_field_audio_dispatch(void) {
     fd2_audio_destroy(fallback);
     fd2_pcm_player_close(&fallback_player);
 
+    fd2_pcm_bank_close(&arrival_bank);
     fd2_pcm_bank_close(&battle_bank);
     fd2_pcm_bank_close(&ui_bank);
     return 0;
@@ -297,6 +356,7 @@ static int test_resampling(void) {
 
 int main(void) {
     CHECK(test_field_sfx_mapping() == 0);
+    CHECK(test_field_footstep_mapping() == 0);
     CHECK(test_field_audio_dispatch() == 0);
     CHECK(test_one_shot_and_loop() == 0);
     CHECK(test_replacement_burst() == 0);

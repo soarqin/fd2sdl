@@ -274,8 +274,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     int animation_result = fd2_animation_play(
         vga, &g_ani, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1);
     if (animation_result == -2) goto host_quit;
-    /* 下一次 present 会开始新输入帧并丢弃本帧 skip 键，不能跨状态
-     * 直接确认标题菜单。 */
+    /* 动画只采样当前键态，不保留 skip 事件；若物理键仍按住，后续
+     * 交互还要等待 typematic 初始 deadline，不能立即确认标题菜单。 */
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40) */
     fade_out_dark(vga);
@@ -462,15 +462,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
 
-            /* fd2_vga_present 已开始当前输入帧。检查普通按键跳过；
-             * 宿主退出不能降级为标题跳过。 */
+            /* 在原版查询点采样当前键态；宿主退出不能降级为标题跳过。 */
             if (fd2_input_take_quit(&vga->input)) {
                 free(offscreen);
                 goto host_quit;
             }
-            if (fd2_input_has_any_key(&vga->input)) {
-                fd2_input_event skipped;
-                (void)fd2_input_take_key(&vga->input, &skipped);
+            if (fd2_input_observe_any_key(&vga->input)) {
                 free(offscreen);
                 goto title_screen;
             }
@@ -517,7 +514,7 @@ title_screen:
             title_letter_fly_audio_on_frame, title_audio);
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;
-        /* 下一次 present 会开始新输入帧并丢弃本帧 skip 键。 */
+        /* skip 不作为预输入保存；持续按住受 typematic deadline 约束。 */
         /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
@@ -568,8 +565,9 @@ title_screen:
         fd2_archive_close(&ar7b);
     }
 
-    /* 菜单只读取随后 present 开始的当前输入帧；动画 skip 键不存在
-     * 跨状态缓冲，无需在状态边界手工清队列。 */
+    /* 菜单只在交互循环中按需读取当前键态；动画期间按下又松开的键
+     * 不会形成预输入。若仍保持按下，则受同一物理键的 typematic
+     * deadline 约束，不会在状态切换时立即再次触发。 */
 
     const int y_pos[3] = {164, 173, 182};
     fd2_title_draw_context title_draw = {

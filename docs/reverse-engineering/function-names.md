@@ -32,7 +32,7 @@ Ghidra 原名 → 语义命名。原名中的十六进制保留旧 Ghidra 窗口
 | 0x5cb54 | FUN_00035088 | file_seek | 定位文件(fseek) | 反编译：libc wrapper |
 | 0x5c7b0 | FUN_00034ce4 | file_close | 关闭文件(fclose) | 反编译：libc wrapper |
 | 0x73595 | FUN_0004bac9 | vsync_wait | 等待垂直同步 | 反编译：端口读 |
-| 0x35834 | FUN_00035834 | input_check | 非消费式检查 BIOS 键盘缓冲是否有待取按键 | 重建后的 raw `0x35843..0x35859` 比较 BDA `0x041a/0x041c` 的 head/tail；`animation_play @0x45635` 在 `0x4577c` 调用。旧登记 `0x45834` 落在战场初始化清零指令中，不是函数入口；详见 `docs/systems/input.md`。 |
+| 0x35834 | FUN_00035834 | input_check | 历史 dual 地址；canonical 为 VA `0x10620`、code0 `0x620`，非消费式检查 BIOS 键盘缓冲 | canonical `FUN_00010620` 比较 BDA `0x041a/0x041c` 的 head/tail；旧登记 `0x35834`／`0x45834` 均不得继续作为 canonical 主键。调用与 SDL 宿主差异见 `docs/systems/input.md`。 |
 | 0x63231 | thunk_FUN_0003b765 | delay_ms | 延时(毫秒) | 反编译：循环计数 |
 | 0x5d4ef | FUN_00035a23 | coro_switch | 协程创建/切换 | 反编译：Watcom协程 |
 | 0x5d4fd | FUN_00035a31 | event_pump | 事件泵 | 反编译：消息循环 |

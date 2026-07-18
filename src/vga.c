@@ -91,9 +91,9 @@ void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* 每次呈现开始一个统一输入帧。input.c 是唯一调用 SDL_PollEvent 的
-     * 位置；上一帧未消费按键会在这里丢弃，不能跨场景或 UI 状态积压。 */
-    fd2_input_begin_frame(&vga->input);
+    /* 呈现只负责图像与宿主事件泵送。普通按键不在 present 时主动生成
+     * 游戏事件；交互层需要输入时才读取当前物理键态。 */
+    fd2_input_poll_host_events(&vga->input);
 
     uint32_t colors[256];
     for (int i = 0; i < 256; i++) {
@@ -120,7 +120,7 @@ static void fd2_vga_present_impl(fd2_vga *vga) {
 static void fd2_delay_until(uint64_t deadline_ns) {
     const uint64_t ns_per_ms = 1000000u;
     for (;;) {
-        fd2_input_poll_host_events();
+        fd2_input_poll_host_events(NULL);
         /* 所有场景和动画的等待都经过此处。宿主中断或窗口关闭一旦到达
          * 就立即结束当前 deadline，随后 present／状态机从统一 input
          * 服务取得持久 quit 请求。 */
@@ -136,7 +136,7 @@ static void fd2_delay_until(uint64_t deadline_ns) {
             SDL_DelayPrecise(remain);
         }
     }
-    fd2_input_poll_host_events();
+    fd2_input_poll_host_events(NULL);
 }
 
 void fd2_vga_present(fd2_vga *vga) {
@@ -188,8 +188,8 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
 
 void fd2_delay_ms(uint32_t ms) {
     /* 复现 thunk_FUN_0003b765 @0x63231: delay_ms(N)。DOS 原版忙等待；
-     * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键只在
-     * 下一次 begin_frame 时读取，等待期间不会形成隐藏 FIFO。 */
+     * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键不在
+     * delay 中排队；随后交互读取只采样届时仍按下的物理键。 */
     if (ms == 0) {
         SDL_PumpEvents();
         return;
@@ -204,10 +204,10 @@ void fd2_wait_ticks(uint32_t ticks) {
 }
 
 int fd2_input_check(fd2_vga *vga) {
-    /* SDL 统一帧输入：只检查本次 begin_frame 收到的按键。调用方切换 UI
-     * 后的下一帧会清空未消费事件，跳过键不会继续确认后续菜单。 */
+    /* input_check @code0 0x620（VA 0x10620）在原版非消费式比较 BDA
+     * 0x041a/0x041c。SDL 宿主差异是没有 BIOS FIFO，只非消费式采样
+     * 当前键态；不会因为 check 本身登记一次 UI 动作。 */
     if (!vga) return 0;
-    fd2_input_begin_frame(&vga->input);
     return fd2_input_has_any_key(&vga->input);
 }
 

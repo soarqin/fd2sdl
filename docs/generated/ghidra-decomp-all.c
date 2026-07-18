@@ -739,7 +739,7 @@ void FUN_0003526a(void)
 }
 
 
-// FUNC 0x35834 input_check  /* 非消费式 BIOS 键盘缓冲检查：BDA 0x041a != 0x041c */
+// LEGACY FUNC 0x35834 input_check  /* 历史 dual 地址；canonical VA 0x10620 / code0 0x620：非消费式 BIOS BDA 0x041a != 0x041c */
 
 int input_check(void)
 

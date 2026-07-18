@@ -189,10 +189,10 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
          * 把下一帧解码时间抵扣掉，否则大型 cutaway ANI 会明显偏快。 */
         fd2_vga_present(vga);
         fd2_delay_ms(frame_delay_ms);
-        /* present 已开始当前输入帧；delay 期间到达的普通按键留给下一帧，
-         * 不建立跨帧 FIFO。 */
+        /* 动画只在原版查询点采样当前键态；delay 期间按下又松开的键
+         * 不会形成预输入，也不会留给后续 UI。 */
         if (fd2_input_take_quit(&vga->input)) return -2;
-        if (check_input && fd2_input_has_any_key(&vga->input)) return 1;
+        if (check_input && fd2_input_observe_any_key(&vga->input)) return 1;
     }
     return 0;
 }

@@ -32,7 +32,7 @@ typedef struct {
     uint8_t  dac[VGA_PALETTE_SIZE];      /* 当前 DAC 输出(8-bit)，palette_expand 后 */
     SDL_Renderer *renderer;
     SDL_Texture   *texture;              /* ARGB8888 流式纹理 */
-    fd2_input input;                     /* 唯一 SDL 帧输入所有者 */
+    fd2_input input;                     /* 唯一 SDL 当前键态所有者 */
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
 } fd2_vga;
@@ -65,8 +65,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
  * FUN_0002b649 / FUN_0000f488，FUN_0001db69 已确认为动画播放器。 */
 void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step);
 
-/* 呈现当前 framebuffer，并开始新的输入帧。上一帧未消费按键会先被
- * 清除；各 UI 只消费本帧上下文动作。 */
+/* 呈现当前 framebuffer，并泵送宿主事件。普通键不在这里排队；各 UI
+ * 在需要输入时读取当前物理键态。 */
 void fd2_vga_present(fd2_vga *vga);
 
 /* 按绝对 deadline 呈现并等待下一帧，避免把本帧渲染耗时叠加到间隔。 */
@@ -76,7 +76,7 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
 void fd2_vga_wait_frame_deadline(fd2_vga *vga);
 
 /* 延时 (对应 thunk_FUN_0003b765 @0x63231, 毫秒)。宿主实现分片等待并
- * 检查退出事件；普通按键由下一输入帧统一读取。 */
+ * 检查退出事件；普通按键不排队。 */
 void fd2_delay_ms(uint32_t ms);
 
 /* 等待 BIOS tick (对应 FUN_000151f1 @0x3ccbd)
@@ -84,8 +84,8 @@ void fd2_delay_ms(uint32_t ms);
  * 用于帧同步等待 */
 void fd2_wait_ticks(uint32_t ticks);
 
-/* SDL 帧输入下的动画跳过查询：开始新帧并检查该帧是否有按键。
- * 返回: 0=无输入, 非0=本帧有按键（用于跳过片头）。 */
+/* 非消费式输入查询：原版比较 BIOS BDA head/tail；SDL 适配为采样
+ * 当前物理键态。返回: 0=无按键, 非0=当前有按键（用于跳过片头）。 */
 int fd2_input_check(fd2_vga *vga);
 
 /* 释放资源 */

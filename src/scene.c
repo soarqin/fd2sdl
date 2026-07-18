@@ -13,6 +13,7 @@
 
 #include <SDL3/SDL.h>
 
+#include "dialog_flow.h"
 #include "field.h"
 #include "field_unit.h"
 #include "field_unit_base.h"
@@ -875,10 +876,20 @@ static void set_dialog_area(fd2_vga *vga,
                             fd2_dialog_area area,
                             uint16_t portrait_id,
                             int speaker_actor_idx,
-                            int fast) {
-    if (state->is_open)
+                            int fast,
+                            int *skip) {
+    if (fd2_dialog_flow_event_for_token(
+            FD2_TEXT_TOP_PORTRAIT, state->is_open, state->line) ==
+        FD2_DIALOG_FLOW_WAIT_BEFORE_SPEAKER) {
+        /* text_dialog_render_tokens @VA 0x15f84 的 -17..-20 分支：
+         * 已有对话框时先 FUN_00016c57(0) 等待并读取一个键，之后才
+         * dialog_box_close 并打开新说话人。此前这里直接关闭，导致同一
+         * fragment 内连续两三名说话人的对白根本没有等待点。 */
+        if (!fast) page_pause(vga, skip);
+        if (skip && *skip) return;
         animate_dialog_box_close(vga, terrain, map, ui, sprites, field_state,
                                  state, fast);
+    }
 
     focus_camera_on_actor(vga, terrain, map, sprites, field_state,
                           speaker_actor_idx, fast);
@@ -937,9 +948,11 @@ static int play_text_fragment(fd2_vga *vga,
                                                           portrait_id);
             portrait_id = resolve_portrait_control(field_state, tok, portrait_id);
             set_dialog_area(vga, terrain, map, dato, ui, sprites, field_state,
-                            &state, area, portrait_id, speaker_actor_idx, fast);
+                            &state, area, portrait_id, speaker_actor_idx, fast,
+                            &skip);
             glyph_step_enabled = !fast;
-            if (!fast) wait_for_dialog_step(vga, 250, &skip);
+            /* 原版打开新说话人后直接继续 token 循环；不存在额外 250 ms
+             * 固定等待。首个字形仍由 glyph-step 的 1 BIOS tick 节奏控制。 */
             continue;
         }
 

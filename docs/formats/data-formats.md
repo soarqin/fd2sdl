@@ -370,6 +370,8 @@ fragment_count = first_offset / 2
 
 `bios_tick_delay @code0 0x7aa9` 读取 BIOS 计时器物理地址 `0x046c`，按调用参数等待计时器 tick；1 tick 约为 54.9 ms。当前权威 code0 中，`text_dialog_render_tokens @0x5f84` 的普通字形路径 `0x64a2` 与动态数字路径 `0x6139` 均调用 `text_dialog_glyph_step @0x64e8`。该 helper 在 `0x653c..0x6546` 调用 primary SFX wrapper `0x15a96`，参数为 `sfx_play(DAT_00003eec, 2, 1)`，随后在 `0x6550` 调用 `bios_tick_delay(1)`。因此每个可见字形播放一次 FDOTHER[31] SFX 2，并按 1 tick 推进；SDL 版逐字延时取整为 55 ms。
 
+同一 fragment 内遇到新的 `-17..-20` 说话人控制码时，如果旧对话框已打开，`text_dialog_render_tokens @VA 0x15f84` 会先调用 `FUN_00016559(0)` 和 `FUN_00016c57(0)` 等待并读取一次按键，再调用 `FUN_00016b43` 关闭旧框，之后才打开新说话人的框。`-1` 片段结束分支同样在关闭最终对话框前调用 `FUN_00016c57(0)`。因此等待边界是「每段说话人对白」，不是只在 fragment 末尾或 `-3` 分页处等待；省略说话人切换前的 wait 会让一个 fragment 内连续两三句对白自动掠过。
+
 stage 0 两组敌方 actor 由 `FUN_000300e1 @0x57bad` 登场。该函数使用 FDOTHER.DAT[9]：`LMI1`、12 帧、每帧为 `u16 width/u16 height + LMI RLE`，0 色透明。原版先保留无新 actor 的战场底图，再在每个新 actor 格连续叠加 12 帧特效，最后进入移动脚本 1 或 2。
 
 ### 2.7 角色立绘（DATO.DAT）✅ 立绘帧包

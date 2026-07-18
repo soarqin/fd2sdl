@@ -115,6 +115,7 @@ set(FD2SDL_CORE_SOURCES
     field_command.c
     field_system_menu.c
     field_manual_slot.c
+    dialog_flow.c
     archive.c
     image.c
     shape.c
@@ -262,6 +263,20 @@ if(BUILD_TESTING)
         target_compile_options(fd2_input_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME input COMMAND fd2_input_test)
+
+    add_executable(fd2_dialog_flow_test
+        tests/dialog_flow_test.c
+        dialog_flow.c
+    )
+    target_include_directories(fd2_dialog_flow_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_dialog_flow_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_dialog_flow_test PRIVATE
+            -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME dialog_flow COMMAND fd2_dialog_flow_test)
 
     add_executable(fd2_audio_pcm_test
         tests/audio_pcm_test.c

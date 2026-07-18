@@ -13,6 +13,7 @@
 - [`decompilation-report.md`](reverse-engineering/decompilation-report.md)：原始程序总体反编译报告。
 - [`address-mapping.md`](reverse-engineering/address-mapping.md)：LE、file offset、code0、dual、relbase 和 runtime 地址换算。
 - [`decompilation-corrections.md`](reverse-engineering/decompilation-corrections.md)：历史反编译污染和修正记录。
+- [`ghidra-reconstruction.md`](reverse-engineering/ghidra-reconstruction.md)：Ghidra 11.3.2 规范 relbase 重建、relocation、函数边界和验收流程。
 - [`boot-flow.md`](reverse-engineering/boot-flow.md)：启动、标题和 ANI/AFM 调用流程。
 - [`field-unit-constructor.md`](reverse-engineering/field-unit-constructor.md)：战场单位构造链。
 - [`function-names.md`](reverse-engineering/function-names.md)：已确认函数命名登记表。
@@ -38,8 +39,12 @@
 
 ## `generated/`：生成或机器辅助产物
 
-- `ghidra-decomp-all.c`：Ghidra headless 全量反编译输出。
-- `r2_funcs.txt`：radare2 函数清单。
+- `ghidra-canonical/`：规范 relbase structural inventory、函数边界账本和候选 C 导出。
+- `fd2-function-seeds.json`：证据分层函数 seed、`__chkstk` wrapper 和延后候选清单。
+- `fd2-name-migration.json`：`function-names.md` 全部 209 行的迁移 disposition。
+- `fd2-confirmed-function-names.json`：已重新确认的 canonical name/VA registry。
+- `ghidra-decomp-all.c`：旧 dual 流程的历史 Ghidra 输出，不再作为规范基线。
+- `r2_funcs.txt`：旧 radare2 函数清单，只作候选线索。
 - `authoritative_funcs.txt`：确认入口清单。
 - `le-fixups.txt`：LE fixup 生成摘要与验证结果。
 - `opcode-functions.c`：辅助 opcode 分析输出。

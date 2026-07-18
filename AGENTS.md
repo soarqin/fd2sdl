@@ -50,7 +50,7 @@ python3 tools/rebuild_fd2_analysis.py
 | `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
 | `tools/fd2_le_code0.bin` | 真实 LE object1 从 offset 0 开始的代码视图 |
 | `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；保留原始 `__chkstk`，不做 patch |
-| `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 0x10000，并镜像低 64K |
+| `tools/fd2_le_dual_clean.bin` | 历史兼容：完整 code0 放在 0x10000，并镜像低 64K；禁止作为规范 Ghidra 输入 |
 | `tools/fd2_le_fixups.txt` | fixup 简单记录索引，只用于解释 DS/global 引用 |
 
 **禁止**：把 loader-relocated 镜像覆盖 raw-unrelocated／Ghidra clean 输入，或在没有 manifest 和完整验证时直接 patch。合法的 loader relocation 可以写入 object1 代码中的绝对地址 source，但必须单独输出到 `tools/fd2_le_relocated_relbase.bin`。旧的 `tools/fd2_dual_final.bin`、`/tmp/fd2_le_correct.bin` 以及无 manifest 的 patched 镜像都不是权威输入。
@@ -66,19 +66,17 @@ python3 tools/rebuild_fd2_analysis.py
 5. 静态 loader 输出与运行时转储必须对全部对象逐字节一致；同时逐条验证每个 relocation source 的运行时值。只验证程序入口、几个函数或个别表不构成通过。
 6. 任一字节不一致、任一记录未覆盖或任一验证步骤无法执行时，只能报告未通过；禁止把镜像用于 Ghidra 权威重建，也禁止声称「完全正确」。
 
-Ghidra 重新反编译使用：
+Ghidra 规范重建使用：
 
 ```bash
-/tmp/ghidra_11.3.2_PUBLIC/support/analyzeHeadless \
-  /tmp/ghidra_fd2_clean_proj FD2Clean \
-  -import tools/fd2_le_dual_clean.bin \
-  -processor x86:LE:32:default -cspec gcc \
-  -scriptPath tools/ghidra-scripts \
-  -postscript decompile_clean.py \
-  -overwrite -deleteProject
+python3 tools/rebuild_fd2_analysis.py
+python3 tools/validate_le_fixups.py
+python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
 ```
 
-`tools/ghidra-scripts/decompile_clean.py` 是当前唯一保留的 Ghidra 重建脚本。2026-07-15 已确认 `LE+0x80` 相对拥有 LE 头的 embedded MZ module `@0x25214`，真实 page 1 为 `0x36014`。旧的文件 `0x10e00` 基址和 `LE+0x10e00` 基址均错误；自动函数边界仍须与 r2/Capstone 和 DOSBox 转储交叉验证。
+需要候选 C 时显式使用 `--decompile`。规范流程从原始 object 字节和已验证 relocation manifest 创建 relbase Program，不导入 low-64-KiB dual 镜像，不解析旧 `r2_funcs.txt` 或混址名称表。完整说明见 `docs/reverse-engineering/ghidra-reconstruction.md`。
+
+`tools/ghidra-scripts/decompile_clean.py` 仅保留为旧流程记录，不再是权威入口。2026-07-15 已确认 `LE+0x80` 相对拥有 LE 头的 embedded MZ module `@0x25214`，真实 page 1 为 `0x36014`。旧的文件 `0x10e00` 基址和 `LE+0x10e00` 基址均错误；自动函数边界仍须与 r2/Capstone 和 DOSBox 转储交叉验证。
 
 ### 在线资料检索降级规则
 

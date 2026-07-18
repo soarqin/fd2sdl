@@ -1,6 +1,8 @@
 # r2 与 Ghidra 地址映射关系（修正版）
 
-> 2026-07-15 最终修正：FD2 是 bound executable。真正拥有 LE 头的是 embedded MZ `@file 0x25214`，其 `e_lfanew=0x28b8` 指向 LE `@file 0x27acc`。LE `+0x80=0x10e00` 相对该 module 开头，因此 enumerated page 1 位于 `0x25214+0x10e00=0x36014`，不是文件 `0x10e00`，也不是 `LE+0x10e00`。错误的 `0x10e00` 基址曾把外层 bound payload 当作 LE object pages。
+> 2026-07-18 规范化：FD2 是 bound executable。真正拥有 LE 头的是 embedded MZ `@file 0x25214`，其 `e_lfanew=0x28b8` 指向 LE `@file 0x27acc`。LE `+0x80=0x10e00` 相对该 module 开头，因此 enumerated page 1 位于 `0x25214+0x10e00=0x36014`，不是文件 `0x10e00`，也不是 `LE+0x10e00`。错误的 `0x10e00` 基址曾把外层 bound payload 当作 LE object pages。
+
+Ghidra 的唯一规范主键现为 LE relbase linear VA。权威重建流程见 `docs/reverse-engineering/ghidra-reconstruction.md`。旧的 dual 镜像只保留给历史工具兼容，不再作为 Ghidra 输入。
 
 ## 当前权威文件
 
@@ -8,7 +10,7 @@
 |------|------|
 | `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 和 fixup 数据分析 |
 | `tools/fd2_le_code0.bin` | object1 从 offset 0 开始的真实 LE page view |
-| `tools/fd2_le_dual_clean.bin` | code-only：object1 放在 `0x10000`，前 64 KiB 同时镜像到低地址 |
+| `tools/fd2_le_dual_clean.bin` | 历史兼容文件：含低地址镜像，禁止作为规范 Ghidra 输入 |
 | `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；与 raw 相同，不做 patch |
 | `tools/fd2_le_relocated_relbase.bin` | 单独输出的 loader-relocated relbase 镜像；不得冒充 raw |
 | `tools/fd2_le_relocation_manifest.tsv` | 全部 7959 条记录的 source/target/prevalue/duplicate 清单 |
@@ -28,17 +30,17 @@ python3 tools/validate_le_fixups.py
 
 ## 地址约定
 
-文档中的函数地址仍使用 relbase 线性地址：
+文档中的函数地址统一使用 relbase 线性 VA。结构化坐标写为 `VA=<linear> OBJ=<ordinal> OFF=<object offset>`：
 
 | 功能 | 地址 | 说明 |
 |------|------|------|
 | entry0 | 0x3ccb4 | 程序入口（object1 offset 0x2ccb4 + relbase 0x10000） |
-| __chkstk | dual `0x5c243` / code0 `0x4c243` | Watcom 栈检查 wrapper；不做字节 patch |
-| res_load | dual `0x463ce` / code0 `0x363ce` | 资源加载器 |
-| boot_intro_title_entry | 0x44aa8 | 调用入口；Watcom `push 0x88; call __chkstk` 栈检查前缀 |
-| boot_intro_title | 0x44ab2 | 启动片头+标题主体；从 `push ebx` 开始 |
-| animation_play | 0x45635 | ANI.DAT/AFM 动画播放器 |
-| new_game_opening_play | dual `0x3231b` / code0 `0x2231b` | 新游戏完整开场；object1 fixup 直接给出 offset `0x2231b` |
+| __chkstk | VA `0x3702f` / code0 `0x2702f` | Watcom 栈检查 runtime helper；不做字节 patch |
+| title_action_menu | VA `0x1f894` / code0 `0xf894` | 当前机器码确认的标题 action 菜单 wrapper |
+| animation_play | VA `0x20421` / code0 `0x10421` | ANI.DAT/AFM 动画播放器 |
+| music_track_play | VA `0x25977` / code0 `0x15977` | FDMUS 音乐 wrapper |
+| sfx_play | VA `0x25a96` / code0 `0x15a96` | primary PCM wrapper |
+| new_game_opening_play | VA `0x3231b` / code0 `0x2231b` | 新游戏完整开场；object1 fixup 直接给出 offset `0x2231b` |
 
 ## 注意事项
 
@@ -52,6 +54,6 @@ python3 tools/validate_le_fixups.py
 - DOSBox debugger 中 selector-relative offset 与 `D 0:<linear>` 也不能混用。stage 单位构造器的 table helper 执行 `lea ..., [0x1b3af9]` 后，再以 DS 访问返回 offset；本次运行的 DS descriptor base 使实际敌军表首记录落在 debugger linear `0x1b3ae4`，与 `D 0:0x1b3af9` 相差 `0x15`。角色基础表和成长表有相同偏移关系。表首通过 record stride、unit 96 level 2 实机值和 unit 1 存档值交叉验证；不得把 `D 0:` 的显示位置直接当作 selector-relative 表首。
 - `DAT_000027d8` 移动脚本表位于 object3。fixup `target_offset` 直接作为 object3 offset；例如 script 3 的 `off=0x29d1` 对应 raw `0x6029d1`。脚本 `0..10` 与 `0x5a..0x69` 均可按 `group_count / step_or_mode / actor pairs` 解码。
 - 关卡分发目标来自 object1 内偏移。查看 `tools/fd2_le_code0.bin` 时使用 `dump_fd2_fixup_table.py` 输出的 `code0=...`；查看 `tools/fd2_le_dual_clean.bin` / relbase 视图时使用 `dual=...`。目标可能落在 Ghidra 未正确切分的函数边界，需结合运行时入口、反汇编窗口和实际分支判断，不能只依赖旧的自动函数边界。
-- `docs/generated/ghidra-decomp-all.c` 已从修正后的 code-only dual 镜像重新生成，共输出 978 个函数。18 个已确认入口被自动分析并入相邻大函数，文件头保留独立 corrected marker；读取这些入口时仍需结合 r2/Capstone 边界。
-- Ghidra 反编译结果由 `tools/ghidra-scripts/decompile_clean.py` 重新生成到 `docs/generated/ghidra-decomp-all.c`。
+- `docs/generated/ghidra-decomp-all.c` 是旧 dual 流程的历史产物，不能作为当前规范地址或边界的唯一证据。
+- 规范 Ghidra 重建由 `tools/rebuild_fd2_ghidra.py` 编排。默认 structural inventory 不覆盖大型 C；需要候选 C 时显式使用 `--decompile`。
 - Ghidra 反编译结果必须用 r2/Capstone 反汇编交叉核对，尤其是跨页函数和 Watcom 运行库函数。

@@ -15,6 +15,7 @@
 /tools/*.bin
 /tools/fd2_le_fixups.txt
 /tools/fd2_le_relocation_manifest.tsv
+/tools/fd2-analysis-bundle/
 
 # 本地 agent / 索引 / 会话产物
 /.codegraph

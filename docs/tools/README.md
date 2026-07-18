@@ -137,19 +137,29 @@ cmp -s expected.bin actual.bin
 
 ## 5. Ghidra headless
 
-权威重建命令模板：
+规范重建不再导入 `fd2_le_dual_clean.bin`。先验证 LE/fixup，再由 host-side bundle 和 Ghidra pre-script 建立三 object／四 block 的 relbase Program：
 
 ```bash
-/tmp/ghidra_11.3.2_PUBLIC/support/analyzeHeadless \
-  /tmp/ghidra_fd2_clean_proj FD2Clean \
-  -import tools/fd2_le_dual_clean.bin \
-  -processor x86:LE:32:default -cspec gcc \
-  -scriptPath tools/ghidra-scripts \
-  -postscript decompile_clean.py \
-  -overwrite -deleteProject
+python3 tools/rebuild_fd2_analysis.py
+python3 tools/validate_le_fixups.py
+python3 tools/rebuild_fd2_ghidra.py --determinism-check
 ```
 
-执行前必须确认输入镜像已通过当前 LE/fixup 验证。脚本输出到 `docs/generated/ghidra-decomp-all.c`。反编译结果仍须与原始机器码和独立反汇编交叉核对。
+加入证据分层函数 seed：
+
+```bash
+python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
+```
+
+可选生成候选 C：
+
+```bash
+python3 tools/rebuild_fd2_ghidra.py --decompile --determinism-check
+```
+
+默认 Ghidra headless 路径为 `/tmp/ghidra_11.3.2_PUBLIC/support/analyzeHeadless`，其他位置通过 `--ghidra-headless` 指定。完整结构、地址、权限、relocation 和验收规则见 `docs/reverse-engineering/ghidra-reconstruction.md`。
+
+`tools/ghidra-scripts/decompile_clean.py`、`docs/generated/r2_funcs.txt` 和 `docs/generated/ghidra-decomp-all.c` 属于旧 dual 流程，不能再作为规范输入、函数种子或唯一证据。
 
 ## 6. DOSBox debugger
 

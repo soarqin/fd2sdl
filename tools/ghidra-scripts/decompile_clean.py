@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Ghidra headless post-script for FD2 clean decompilation.
+"""DEPRECATED historical dual-image decompiler.
 
-Input program should be tools/fd2_le_dual_clean.bin imported as raw x86:LE:32.
-The binary mirrors object1[0..64K) at 0x0 and maps complete LE object1 at
-0x10000. DS object2/3 remain separate in fd2_le_raw.bin.
+Do not use this script for canonical analysis. It imports a low-64-KiB mirror,
+legacy r2 seeds and a mixed-address Markdown registry. The authoritative entry
+point is ``python3 tools/rebuild_fd2_ghidra.py``; see
+``docs/reverse-engineering/ghidra-reconstruction.md``.
 """
 
 import os

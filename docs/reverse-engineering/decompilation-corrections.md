@@ -1,5 +1,7 @@
 # 反编译流程修正记录
 
+> 2026-07-18：本页前半部分记录旧 dual 流程的历史修正，不再是当前 Ghidra 操作手册。规范 relbase importer、relocation provenance、函数 seed 和验收流程见 `docs/reverse-engineering/ghidra-reconstruction.md`。
+
 > 目的：修复上一轮把 LE fixup 直接写入代码镜像导致的反编译污染，并给后续 Ghidra/r2 分析建立可复现流程。
 
 ## 1. 根因
@@ -21,7 +23,7 @@
 
 因此：
 
-- `__chkstk @dual 0x5c243` 保留原始字节，在 Ghidra 脚本中标记为可返回函数；
+- 当时误把 `__chkstk` 记为 dual `0x5c243`；当前机器码已确认 canonical VA 为 `0x3702f`、code0 为 `0x2702f`，规范脚本保留原始字节并标记为可返回 runtime helper；
 - **LE fixup 不可直接写回代码页**。FD2 的 near call 使用代码段 offset，资源句柄和全局变量多是 DS offset，必须在解释时区分。
 
 ## 2. 新的可复现流程
@@ -39,7 +41,7 @@ python3 tools/rebuild_fd2_analysis.py
 | `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
 | `tools/fd2_le_code0.bin` | 真实 LE object1 从 offset 0 开始的 page view |
 | `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；不做字节 patch |
-| `tools/fd2_le_dual_clean.bin` | code-only：完整 code0 放在 0x10000，并镜像低 64K |
+| `tools/fd2_le_dual_clean.bin` | 历史兼容：完整 code0 放在 `0x10000` 并镜像低 64K；禁止作为规范 Ghidra 输入 |
 | `tools/fd2_le_fixups.txt` | 完整 fixup 简单记录索引；只用于定位 DS/global 引用，不是 patch 脚本 |
 | `docs/generated/le-fixups.txt` | 简短说明，避免误把记录当 patch 输入 |
 
@@ -70,9 +72,9 @@ FUN_0001cfdc -> boot_intro_title_entry   // 调用入口/栈检查前缀
 FUN_0001cfe6 -> boot_intro_title         // 片头+标题主体
 ```
 
-## 5. 反编译结果重建
+## 5. 历史反编译结果重建
 
-`docs/generated/ghidra-decomp-all.c` 已用以下命令重做：
+以下命令仅记录曾使用的 code-only dual 流程，禁止用于新的规范基线：
 
 ```bash
 mkdir -p /tmp/ghidra_fd2_clean_proj
@@ -85,7 +87,15 @@ mkdir -p /tmp/ghidra_fd2_clean_proj
   -overwrite -deleteProject
 ```
 
-当前输出包含 978 个反编译函数，并为 18 个被自动分析并入相邻函数的确认入口保留独立 marker。旧的污染反编译体已被覆盖。
+该输出是历史产物。函数数量不是质量指标，其中的地址、边界和名称必须回到 canonical relbase bytes 重新验证。
+
+当前命令为：
+
+```bash
+python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
+```
+
+如需生成候选 C，显式增加 `--decompile`。默认 structural baseline 不覆盖 `docs/generated/ghidra-decomp-all.c`。
 
 ## 6. 已同步到 SDL 实现的修正
 
@@ -95,7 +105,7 @@ mkdir -p /tmp/ghidra_fd2_clean_proj
   - `0` 是完整调色板；
   - `FUN_0001cc6d` 为 `0x40 -> 0` 淡入；
   - `FUN_0001cfca` 为 `0 -> 0x3f` 淡出。
-- `src/vga.h`：移除“`FUN_0001db69` 是调色板淡入淡出”的旧说法；该函数已确认为 `animation_play(anim_idx, delay, check_input)`。
+- `src/vga.h`：移除「`FUN_0001db69` 是调色板淡入淡出」的旧说法；该函数已确认为 `animation_play(anim_idx, delay, check_input)`。
 
 ## 7. 仍未完成的差异
 

@@ -5,8 +5,8 @@
 - raw-unrelocated 与 loader-relocated 镜像分开输出。旧脚本使用错误 page base
   和 target bias，把 fixup 写到错误指令位置；新流程只按 manifest 中的合法
   relocation source 写入独立 relocated 镜像。
-- `__chkstk` 已迁移到 dual `0x5c243` / code0 `0x4c243`；保留原始 wrapper，
-  不再通过字节 patch 改变分析输入。
+- `__chkstk` 已按当前 object1 机器码确认在 relbase VA `0x3702f` /
+  code0 `0x2702f`；保留原始字节，不再通过 patch 改变分析输入。
 
 输出：
   tools/fd2_le_raw.bin              object 按 LE relbase 摆放，未应用 fixup
@@ -188,8 +188,8 @@ def build_code0_image(buf: bytes, le: LEHeader,
 
 
 def patch_chkstk_for_analysis(image: bytearray) -> None:
-    # `__chkstk @dual 0x5c243 / code0 0x4c243` 保留原始 wrapper；
-    # Ghidra 脚本只将其标为普通可返回函数，不修改输入字节。
+    # `__chkstk @VA 0x3702f / code0 0x2702f` 保留原始字节；
+    # canonical Ghidra 脚本只将其标为可返回 runtime helper。
     del image
 
 

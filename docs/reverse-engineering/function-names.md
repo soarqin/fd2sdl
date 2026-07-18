@@ -1,6 +1,8 @@
 # 反编译函数命名映射表
 
-Ghidra 原名 → 语义命名。地址列使用修正后的 code-only dual 视图；对应 code0 为地址减 `0x10000`。原名中的十六进制仍保留旧 Ghidra 窗口编号，便于追踪旧反编译文本。
+> 此文件是历史研究档案，不是 Ghidra 的 machine-readable seed source。地址列混有旧 Ghidra 窗口、dual、code0 和少量 canonical VA；不得统一加减常数或直接导入。规范地址、已确认 anchor 和逐项迁移规则见 `docs/reverse-engineering/ghidra-reconstruction.md`。
+
+Ghidra 原名 → 语义命名。原名中的十六进制保留旧 Ghidra 窗口编号，便于追踪旧反编译文本；每一项必须回到当前 object1 bytes 和 xref 独立复核后，才能迁移为 canonical name。
 
 | 地址 | Ghidra 原名 | 语义命名 | 用途 | 确认依据 |
 |------|------------|---------|------|---------|

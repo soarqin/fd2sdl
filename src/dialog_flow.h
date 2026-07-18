@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* text_dialog_render_tokens 的末项参数固定传 0x13；字形本身为 16 px，
+ * 行间保留 3 px。dialog_text_scroll_up 同样总计上卷 19 px。 */
+enum {
+    FD2_DIALOG_LINE_PITCH = 19,
+};
+
 typedef enum {
     FD2_DIALOG_FLOW_NONE = 0,
     FD2_DIALOG_FLOW_WAIT_BEFORE_SPEAKER,

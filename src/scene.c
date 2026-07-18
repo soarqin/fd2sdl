@@ -872,6 +872,17 @@ static void dialog_scroll_text_up(fd2_vga *vga,
     }
 }
 
+static void draw_continuation_arrow_frame(fd2_vga *vga,
+                                          const fd2_ui_sheet *ui,
+                                          int frame,
+                                          int x,
+                                          int y) {
+    /* FUN_0001685c @VA 0x1685c 最终调用不透明 LMI blit
+     * FUN_0004ed0b，而不是透明 blit。tile 18/19 的背景像素 0x4a
+     * 因此会先覆盖上一帧，两个箭头帧不能彼此累积。 */
+    blit_ui_tile(vga, ui, (uint16_t)frame, x, y);
+}
+
 static void continuation_pause(fd2_vga *vga,
                                const fd2_ui_sheet *ui,
                                const fd2_dialog_state *state,
@@ -884,8 +895,8 @@ static void continuation_pause(fd2_vga *vga,
 
     /* FUN_00016c57(1) @VA 0x16c57：先绘制 FDOTHER[5] tile 18，
      * 等待期间在 tile 18/19 间闪烁；读键后以 tile 13 擦除箭头。 */
-    blit_ui_tile_mode(vga, ui, (uint16_t)arrow_frame,
-                      arrow_x, arrow_y, 0x4a);
+    draw_continuation_arrow_frame(vga, ui, arrow_frame,
+                                  arrow_x, arrow_y);
     for (;;) {
         fd2_vga_present(vga);
         if (fd2_input_take_quit(&vga->input)) {
@@ -898,8 +909,8 @@ static void continuation_pause(fd2_vga *vga,
         uint64_t now = SDL_GetTicks();
         if (now >= next_frame_ms) {
             arrow_frame = arrow_frame == 18 ? 19 : 18;
-            blit_ui_tile_mode(vga, ui, (uint16_t)arrow_frame,
-                              arrow_x, arrow_y, 0x4a);
+            draw_continuation_arrow_frame(vga, ui, arrow_frame,
+                                          arrow_x, arrow_y);
             next_frame_ms = now + 330u;
         }
         fd2_delay_ms(20);
@@ -922,12 +933,12 @@ static void newline_or_scroll(fd2_vga *vga,
             state->line);
     if (transition.scroll_before_wait) {
         dialog_scroll_text_up(vga, state, fast);
-        state->y -= 16;
+        state->y -= FD2_DIALOG_LINE_PITCH;
     }
     state->line = transition.line;
     state->x = state->area == FD2_DIALOG_TOP
              ? DIALOG_TOP_TEXT_X : DIALOG_BOTTOM_TEXT_X;
-    state->y += 16;
+    state->y += FD2_DIALOG_LINE_PITCH;
 
     if (transition.wait == FD2_DIALOG_FLOW_WAIT_SCROLL && !fast)
         continuation_pause(vga, ui, state, skip);

@@ -14,6 +14,7 @@
     (uint8_t)(((uint16_t)(value) >> 8) & 0xffu)
 
 static int test_wait_boundary_unit_cases(void) {
+    CHECK(FD2_DIALOG_LINE_PITCH == 19);
     CHECK(fd2_dialog_flow_event_for_token(-18, 0, 0) ==
           FD2_DIALOG_FLOW_NONE);
     CHECK(fd2_dialog_flow_event_for_token(-19, 1, 0) ==

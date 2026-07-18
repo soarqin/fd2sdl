@@ -40,7 +40,7 @@ return sRam0000041c != sRam0000041a;
 - 有按键：把逐字参数置为 `0`，本页后续字符不再调用逐字 helper。
 - 无按键：调用 `text_dialog_glyph_step @VA 0x164e8`，播放 FDOTHER[31] sample 2 并等待 1 BIOS tick。
 - `input_check` 本身不消费按键。
-- `-3` continuation 控制恢复逐字参数，并调用等待 helper `FUN_00016c57 @VA 0x16c57`；helper 先显示闪烁下箭头，按键后继续。普通 `-2` 行溢出只触发 `FUN_00016e24` 上卷，不额外读取按键。
+- `-3` continuation 控制恢复逐字参数，并调用等待 helper `FUN_00016c57 @VA 0x16c57`；helper 以不透明 LMI blit 交替显示 tile 18/19 下箭头，按键后继续。普通 `-2` 行溢出只触发 `FUN_00016e24` 上卷，不额外读取按键。文字行距由调用参数 `0x13` 确定为 19 px，与上卷距离一致。
 
 `FUN_00016c57` 在 `input_check == 0` 时持续处理待机动画；检测到按键后才通过 BIOS `INT 16h` wrapper 读取扫描码。SDL 端保留「逐字阶段只观察、continuation／说话人／结束等待才消费」的业务边界，但观察对象限定为当前呈现帧脉冲，不能将一次按下留给后续字形帧或等待点。
 

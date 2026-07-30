@@ -137,7 +137,7 @@ typedef struct {
     int detail_acknowledged_unit;
     fd2_image detail_portrait;
 
-    /* field_player_command_execute @0x3dfa0 的四向图形菜单旁路状态；
+    /* field_player_command_execute @0x18d8c 的四向图形菜单旁路状态；
      * 0..3 固定为 attack/magic/item/wait。M7 已有 AI 法术／物品事务，
      * 玩家选择状态机仍未实现，因此玩家菜单继续禁用两项。 */
     int command_selected;
@@ -297,7 +297,7 @@ int fd2_field_game_cancel_attack(fd2_field_game *game);
 
 /* M7.3 显式物理提交事务：重新计算 actor 当前移动范围及最优物理候选，
  * 仅当与传入 plan 完全一致时重建路径、提交移动，再复用
- * field_physical_exchange @0x3a6a2 的确定性逻辑核心。vga 可为空；非空时
+ * field_physical_exchange @0x1548e 的确定性逻辑核心。vga 可为空；非空时
  * 复用六相位步态。该 API 不负责选择 actor，也不接入自动 phase；法术／
  * 物品 handler 未确认时不得退化为物理或待机。 */
 int fd2_field_game_commit_ai_physical(
@@ -354,9 +354,9 @@ int fd2_field_game_compute_move_range(const fd2_field_game *game,
                                       fd2_field_path_result *result);
 size_t fd2_field_game_group_count(const fd2_field_game *game, uint8_t group);
 
-/* 战场全屏效果：分别复现 field_actor_group_flash @0x414ee、
- * field_earthquake_effect @0x4673b 与 field_stage_transition_effect
- * @0x4982c。prepare 与 play 分离，保证先完整构造再提交演出。
+/* 战场全屏效果：分别复现 field_actor_group_flash @0x1c2da、
+ * field_earthquake_effect @0x21527 与 field_stage_transition_effect
+ * @0x24618。prepare 与 play 分离，保证先完整构造再提交演出。
  * stage transition 的 center_screen_* 是 312×192 战场内区坐标，
  * `(0,0)` 对应 VGA `(4,4)`；允许中心在边界外，由 mask 安全裁剪。 */
 int fd2_field_game_prepare_actor_group_flash(

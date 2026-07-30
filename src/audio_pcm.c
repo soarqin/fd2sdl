@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - Miles 数字样本 bank 播放后端
  *
- * 逆向依据：sfx_play @0x4acaa 从嵌套 LLLLLL bank 取得无头样本地址和
- * 字节长度；ail_init_sample @0x5e735 默认 11025 Hz、8-bit mono。
+ * 逆向依据：sfx_play @0x25a96 从嵌套 LLLLLL bank 取得无头样本地址和
+ * 字节长度；ail_init_sample @0x39521 默认 11025 Hz、8-bit mono。
  */
 
 #include "audio_pcm.h"

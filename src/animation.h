@@ -8,17 +8,17 @@
 
 /* 播放 ANI.DAT 中的 AFM 动画。
  *
- * 复现 FUN_0001db69 @0x45635 (animation_play)：
+ * 复现 FUN_0001db69 @0x20421 (animation_play)：
  *   animation_play(anim_idx, frame_delay_ms, check_input)
  * 返回 1 表示普通按键跳过，-2 表示宿主退出请求。
  *
  * 相关字节码执行依据：
- *   FUN_0003471b @0x5c1e7  anim_buffer_init(size, framebuffer, palette_buf)
- *   FUN_0003473c @0x5c208  anim_exec_bytecode(command_count, frame_data)
- *   FUN_0003466c @0x5c138  opcode 6: AFM RLE 写入显存
- *   FUN_000346b1 @0x5c17d  opcode 7: 稀疏单点写入
- *   FUN_000346ca @0x5c196  opcode 8: 稀疏等值 run 写入
- *   FUN_000346f4 @0x5c1c0  opcode 9: 稀疏 literal 写入
+ *   FUN_0003471b @0x36fd3  anim_buffer_init(size, framebuffer, palette_buf)
+ *   FUN_0003473c @0x36ff4  anim_exec_bytecode(command_count, frame_data)
+ *   FUN_0003466c @0x36f24  opcode 6: AFM RLE 写入显存
+ *   FUN_000346b1 @0x36f69  opcode 7: 稀疏单点写入
+ *   FUN_000346ca @0x36f82  opcode 8: 稀疏等值 run 写入
+ *   FUN_000346f4 @0x36fac  opcode 9: 稀疏 literal 写入
  */
 typedef void (*fd2_animation_frame_hook)(void *userdata,
                                          uint16_t frame_index);

@@ -1,4 +1,4 @@
-/* field_target_range_build @0x39a2c 普通攻击范围测试。 */
+/* field_target_range_build @0x14818 普通攻击范围测试。 */
 #include <stdio.h>
 #include <string.h>
 

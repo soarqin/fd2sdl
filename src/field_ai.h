@@ -1,11 +1,11 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场 AI 纯查询层
  *
- * 逆向依据：field_side1_phase_execute @0x42a1f、
- * field_side0_phase_execute @0x42ace、field_ai_unit_execute @0x38cb3、
- * field_ai_move_toward_nearest @0x390b0 与
- * field_ai_move_toward_cell @0x39d8c、field_ai_try_attack @0x3a104、
- * field_ai_item_targets_score @0x3aa94 与
- * field_ai_magic_targets_score @0x3ad8b。
+ * 逆向依据：field_side1_phase_execute @0x1d80b、
+ * field_side0_phase_execute @0x1d8ba、field_ai_unit_execute @0x13a9f、
+ * field_ai_move_toward_nearest @0x13e9c 与
+ * field_ai_move_toward_cell @0x14b78、field_ai_try_attack @0x14ef0、
+ * field_ai_item_targets_score @0x15880 与
+ * field_ai_magic_targets_score @0x15b77。
  */
 #ifndef FD2_FIELD_AI_H
 #define FD2_FIELD_AI_H
@@ -65,11 +65,11 @@ typedef struct {
     int32_t score;
 } fd2_field_ai_item_candidate;
 
-/* field_ai_unit_execute @0x38cb3 只取 record[0x34] 的低半字节，
+/* field_ai_unit_execute @0x13a9f 只取 record[0x34] 的低半字节，
  * 已确认分支为 0..5、7..11；高半字节语义仍不命名。 */
 uint8_t fd2_field_ai_behavior(const fd2_field_unit *unit);
 
-/* field_ai_move_toward_nearest @0x390b0 的目标扫描：
+/* field_ai_move_toward_nearest @0x13e9c 的目标扫描：
  * side 0 选择首个最近的 side != 0 单位；side 非 0 选择首个最近的
  * side == 0 单位。同距保持 actor 表中先出现者。原函数不校验 actor
  * 自身阵营，也不检查目标的 hidden/HP/acted，调用方不得在此层
@@ -79,7 +79,7 @@ int fd2_field_ai_nearest_opponent(const fd2_field_units *units,
                                   uint8_t side,
                                   fd2_field_ai_target *target);
 
-/* field_ai_move_toward_cell @0x39d8c 在已经生成并完成友方占格过滤的
+/* field_ai_move_toward_cell @0x14b78 在已经生成并完成友方占格过滤的
  * 可达表中按行优先扫描可停留格。先最小化到 anchor 的曼哈顿距离；
  * 平价时最小化机器码中的非对称分数 abs(dx - abs(dy))。此函数只查询，
  * 不构造路径，也不修改单位或可达表。 */
@@ -109,8 +109,8 @@ int fd2_field_ai_choose_physical_candidate(
     const fd2_field_path_result *move_range,
     fd2_field_ai_physical_candidate *candidate);
 
-/* field_ai_magic_targets_score @0x3ad8b 与
- * field_ai_magic_zero_byte_targets_score @0x3afb6。magic_id 的分支和
+/* field_ai_magic_targets_score @0x15b77 与
+ * field_ai_magic_zero_byte_targets_score @0x15da2。magic_id 的分支和
  * 原始 unit offset 比较逐字节复现，不扣 MP。候选查询同时复现
  * 0x3ab9e 的已知法术、MP、施法中心、目标范围和稳定 tie-break；
  * 仍不执行 0x3a525 的法术效果提交。 */
@@ -130,7 +130,7 @@ int fd2_field_ai_choose_magic_candidate(
     uint8_t selector_mode,
     fd2_field_ai_magic_candidate *candidate);
 
-/* field_ai_item_targets_score @0x3aa94：实现 code 5/13/20/21/24；
+/* field_ai_item_targets_score @0x15880：实现 code 5/13/20/21/24；
  * 其中 code 20/21 依赖 magic_record_get(raw_value)。候选查询复现
  * 0x3a892 的槽位、普通／轴线范围和严格高分替换；未知 code 返回 0，
  * 不执行 0x45e83 的物品效果或消耗。 */
@@ -170,7 +170,7 @@ int fd2_field_ai_collect_item_targets(
     uint8_t selector_mode,
     uint8_t *indices, size_t capacity, size_t *count);
 
-/* field_ai_try_attack @0x3a104（corrected code0 0x2a104）在三类候选
+/* field_ai_try_attack @0x14ef0（corrected code0 0x2a104）在三类候选
  * 分数中使用的动作选择图。三者都低于 6 时返回 NONE；达到阈值但三项
  * 完全相等时，原函数返回成功却不调用任何提交 helper，故返回 NONE。
  * A 与 magic/item 平价时需要 tie_prefer_physical（由调用方按已确认的
@@ -191,7 +191,7 @@ fd2_field_ai_action fd2_field_ai_select_attack_action(
     int32_t item_score,
     int tie_prefer_physical);
 
-/* field_ai_try_attack @0x3a104 的完整平价门控。物理候选目标防御用于
+/* field_ai_try_attack @0x14ef0 的完整平价门控。物理候选目标防御用于
  * 计算 actor.attack-target.defense；减法保持原版 unsigned u16→32 位
  * 环绕。magic ID <11 时以 magic record u16(+0) 与该差值比较；ID>=11
  * 时以 actor +0x34 bit6 决定物理／法术平价。物理／物品平价则同样由

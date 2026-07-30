@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - 地形移动成本 profile
  *
- * 逆向依据：field_movement_profile_get @0x73ab9 计算
+ * 逆向依据：field_movement_profile_get @0x4e8a5 计算
  * `base + profile_id * 0x14`；表范围由下一静态表地址
  * `0x188a - 0x1646 = 29 * 0x14` 确认。原始 580 字节位于
  * original_game/FD2.EXE 文件 offset 0x7a64a，并与 DOSBox stage 0

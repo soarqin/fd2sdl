@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""合并 IDA 独立分析与历史命名档案，生成规范函数命名登记表。
+
+输入：
+    tools/ida-out/ida-name-audit.json    fd2_name_audit.py 的逐行判定
+    tools/ida-out/ida-functions.tsv      从已标注 IDB 导出的函数表
+    tools/ida-out/ida-annotate-report.json
+
+输出：
+    docs/generated/ida-canonical/fd2-ida-function-registry.json
+    docs/reverse-engineering/function-names.md 的表格正文（--markdown）
+
+规范主键统一为 LE relbase linear VA；`OFF` 为 object1 内偏移（`VA - 0x10000`）。
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "tools" / "ida-out"
+CODE0_BASE = 0x10000
+
+# 历史档案里被 IDA 复核推翻或需要澄清的结论。
+# 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
+# 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
+CORRECTIONS: dict[int, list[dict]] = {
+    0x37910: [{
+        "target": "semantic_name",
+        "was": "vga_clear（清屏 memset 0xa0000）",
+        "now": "memset",
+        "why": "IDA FLIRT『Watcom v9-*1.5 32bit DOS runtime』直接命名为 memset；"
+               "调用点传入任意目标缓冲，不限于 0xa0000 显存。",
+    }],
+    0x3706E: [{"target": "semantic_name", "was": "mem_alloc", "now": "malloc",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x3776E: [{"target": "semantic_name", "was": "mem_free", "now": "free",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x37324: [{"target": "semantic_name", "was": "file_open", "now": "fopen",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x373CA: [{"target": "semantic_name", "was": "file_read", "now": "fread",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x37940: [{"target": "semantic_name", "was": "file_seek", "now": "fseek",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x3759C: [{"target": "semantic_name", "was": "file_close", "now": "fclose",
+               "why": "Watcom runtime FLIRT 符号"}],
+    0x25977: [{
+        "target": "evidence",
+        "was": "其他值从 FDMUS handle `DS:0x1a79` 加载 entry",
+        "now": "object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `\"FDMUS.DAT\"`，"
+               "不是 handle；`music_track_play` 把该文件名传给 "
+               "`res_load @0x111ba` 取曲目记录。",
+        "why": "IDA 字符串识别 `aFdmusDat` + res_load 调用形态",
+    }],
+    0x1F894: [{
+        "target": "semantic_name",
+        "was": "boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记",
+        "now": "boot_intro_title_menu（同一函数）",
+        "why": "`0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 "
+               "__chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。",
+    }, {
+        "target": "evidence",
+        "was": "corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 "
+               "`music_track_play(18,0)`",
+        "now": "该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。",
+        "why": "IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，"
+               "其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。",
+    }],
+    0x32975: [{
+        "target": "semantic_name",
+        "was": "field_actor_hide / field_ai_behavior7_hide_actor 两条独立登记",
+        "now": "field_actor_hide（同一函数）",
+        "why": "两条历史描述（写 actor[idx*0x50+5]=1）在 IDA 反编译上完全吻合。",
+    }],
+    0x111BA: [{
+        "target": "address",
+        "was": "0x463ce",
+        "now": "VA 0x111ba / OFF 0x11ba",
+        "why": "`FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，"
+               "39 个调用点，`main` 用它加载 FDOTHER/FDTXT。",
+    }],
+}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")
+    ap.add_argument("--functions", type=Path, default=OUT / "ida-functions.tsv")
+    ap.add_argument("--annotate", type=Path, default=OUT / "ida-annotate-report.json")
+    ap.add_argument("--json", type=Path,
+                    default=ROOT / "docs" / "generated" / "ida-canonical"
+                    / "fd2-ida-function-registry.json")
+    ap.add_argument("--markdown", type=Path)
+    ap.add_argument("--publish", type=Path, default=None,
+                    help="把小体积证据产物复制到该目录（默认 docs/generated/ida-canonical）")
+    ap.add_argument("--no-publish", action="store_true")
+    args = ap.parse_args()
+    if args.publish is None and not args.no_publish:
+        args.publish = args.json.parent
+
+    audit = json.loads(args.audit.read_text(encoding="utf-8"))
+    annotate = json.loads(args.annotate.read_text(encoding="utf-8"))
+
+    funcs: dict[int, dict] = {}
+    with args.functions.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            funcs[int(row["start_ea"], 16)] = row
+
+    renamed = {int(r["va"], 16): r for r in annotate["naming"]["renamed"]}
+
+    entries: dict[int, dict] = {}
+    for row in audit["rows"]:
+        va = row["canonical_va"]
+        if va is None or row["resolution"] == "unresolved":
+            continue
+        e = entries.setdefault(va, {
+            "va": va, "off": va - CODE0_BASE, "ida_name": "",
+            "size": None, "legacy": [], "records": [],
+        })
+        e["records"].append({
+            "semantic_name": row["semantic_name"],
+            "purpose": row["purpose"],
+            "evidence": row["evidence"],
+            "legacy_address_cell": row["address_cell"],
+            "legacy_ghidra_cell": row["ghidra_cell"],
+            "resolution": row["resolution"],
+            "legacy_body_va": row["legacy_body_va"],
+            "source_line": row["line_no"],
+        })
+        e["legacy"].append(row["address_cell"])
+
+    for va, e in entries.items():
+        if va in CORRECTIONS:
+            e["corrections"] = CORRECTIONS[va]
+        fn = funcs.get(va)
+        if fn:
+            e["ida_name"] = fn["name"]
+            e["size"] = int(fn["size"])
+            e["end_va"] = int(fn["end_ea"], 16)
+            e["is_lib"] = fn["is_lib"] == "1"
+            e["prototype"] = fn["prototype"]
+        names = sorted({r["semantic_name"] for r in e["records"]})
+        e["historical_names"] = names
+        e["aliases"] = [n for n in names if n != e["ida_name"]]
+        e["merged_from_multiple_rows"] = len(e["records"]) > 1
+        e["chkstk_body_rows"] = [r["source_line"] for r in e["records"]
+                                 if r["resolution"] == "chkstk-body"]
+
+    payload = {
+        "schema": "fd2-ida-function-registry-v1",
+        "oracle": "IDA Pro 9.4 idalib（loaders/lx.so + metapc + Watcom FLIRT + Hex-Rays）",
+        "address_key": "LE relbase linear VA；OFF = VA - 0x10000（object1 内偏移）",
+        "object1_range": audit["object1_range"],
+        "legacy_rules": {
+            "legacy_dual_minus": f"{audit['legacy_dual_shift']:#x}",
+            "legacy_ghidra_plus": "0x28b8",
+            "chkstk_body_offset": "0xa",
+        },
+        "source_rows": len(audit["rows"]),
+        "canonical_functions": len(entries),
+        "confirmed_anchors": annotate.get("confirmed_anchors", []),
+        "entries": [entries[k] for k in sorted(entries)],
+    }
+    args.json.parent.mkdir(parents=True, exist_ok=True)
+    args.json.write_text(json.dumps(payload, indent=1, ensure_ascii=False),
+                         encoding="utf-8")
+    print(f"历史登记 {len(audit['rows'])} 行 -> {len(entries)} 个规范函数")
+    print(f"其中由多行合并而来: {sum(1 for e in entries.values() if e['merged_from_multiple_rows'])}")
+    print(f"含 __chkstk body 行: {sum(1 for e in entries.values() if e['chkstk_body_rows'])}")
+    print(f"wrote {args.json}")
+
+    if args.publish:
+        import hashlib
+        import shutil
+        args.publish.mkdir(parents=True, exist_ok=True)
+        published = []
+        for name in ("ida-program.json", "ida-verify.json", "ida-name-audit.json",
+                     "ida-annotate-report.json", "ida-prototype-probe.json",
+                     "ida-functions.tsv", "ida-names.tsv", "ida-strings.tsv"):
+            src = OUT / name
+            if not src.exists():
+                continue
+            dst = args.publish / ("fd2-" + name.removeprefix("ida-")
+                                  if name.startswith("ida-") else name)
+            shutil.copy(src, dst)
+            published.append(dst.name)
+        # 汇总校验和，便于跨机器核对生成产物
+        sums = []
+        for f in sorted(args.publish.iterdir()):
+            if f.name == "SHA256SUMS" or f.is_dir():
+                continue
+            sums.append(f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}")
+        (args.publish / "SHA256SUMS").write_text("\n".join(sums) + "\n",
+                                                 encoding="utf-8")
+        print(f"published {len(published)} 个证据产物到 {args.publish}")
+
+    if args.markdown:
+        conflicts = [e for e in entries.values() if e["merged_from_multiple_rows"]]
+        corr_rows = [
+            "| VA | 规范函数名 | 项 | 历史说法 | 复核后 | 依据 |",
+            "|----|-----------|----|---------|--------|------|",
+        ]
+        for va in sorted(entries):
+            for c in entries[va].get("corrections", []):
+                corr_rows.append(
+                    f"| `{va:#x}` | `{entries[va]['ida_name']}` | {c['target']} | "
+                    f"{c['was']} | {c['now']} | {c['why']} |")
+
+        body = [
+            "| VA | OFF | 规范函数名 | 大小 | 历史语义名 | 用途 | 确认依据 | 历史地址列 |",
+            "|----|-----|-----------|------|-----------|------|---------|-----------|",
+        ]
+        for va in sorted(entries):
+            e = entries[va]
+            for r in e["records"]:
+                legacy = f"`{r['legacy_address_cell']}`"
+                if r["resolution"] == "chkstk-body":
+                    legacy += f"（`{r['legacy_body_va']:#x}` 为 `__chkstk` body）"
+                if r["legacy_ghidra_cell"].startswith("FUN_"):
+                    legacy += f" / `{r['legacy_ghidra_cell']}`"
+                body.append(
+                    f"| `{va:#x}` | `{e['off']:#x}` | `{e['ida_name']}` | "
+                    f"{e['size']} | `{r['semantic_name']}` | {r['purpose']} | "
+                    f"{r['evidence']} | {legacy} |")
+
+        header = f"""# 函数命名登记表（canonical VA 主键）
+
+> 本表由 `python3 tools/ida/build_fd2_name_registry.py --markdown \\
+> docs/reverse-engineering/function-names.md` 生成，请勿手工改写地址列。
+> 新增或修订语义命名时，先改 `docs/generated/ida-canonical/fd2-ida-function-registry.json`
+> 的上游来源（历史档案在 Git 历史中，判定账本为 `tools/ida-out/ida-name-audit.json`），
+> 再重新生成本文件。
+
+## 地址主键
+
+唯一主键是 **LE relbase linear VA**；`OFF` 是 object1 内偏移，等于 `VA - 0x10000`。
+object1 有效范围为 `VA 0x10000..0x4ef29`。函数入口、边界与大小由 IDA Pro 9.4
+（`loaders/lx.so` + `metapc` + Watcom FLIRT）独立分析给出，复核过程见
+[`ida-crosscheck.md`](ida-crosscheck.md)。
+
+历史档案的地址列混用两套已废弃坐标系，换算规则如下（均已在本表中完成归约）：
+
+| 旧坐标 | 换算到 canonical VA | 说明 |
+|--------|--------------------|------|
+| 旧 dual 镜像地址 | `VA = legacy - 0x25214` | 旧流程把 `LE+0x80 = 0x10e00` 当成文件偏移，真实 page 1 在 `0x25214 + 0x10e00 = 0x36014` |
+| 旧 Ghidra 窗口地址（`FUN_xxxxxxxx`） | `VA = FUN_addr + 0x28b8` | `0x28b8` 是 embedded MZ 的 `e_lfanew` |
+| 已修正的 `code0` | `VA = code0 + 0x10000` | object1 内偏移加 relbase |
+
+Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，因此历史档案
+里记在函数入口 `+0xa` 的「body」地址已全部归一化到入口。IDA 把 wrapper 与 body
+视为同一个函数，`*_entry` / `*_core` / `*_runtime` 后缀属旧工具产物，不是原程序结构。
+
+## 统计
+
+| 项 | 值 |
+|----|----|
+| 历史登记行数 | {len(audit['rows'])} |
+| 归约后的规范函数数 | {len(entries)} |
+| 由多行历史记录合并而来 | {len(conflicts)} |
+| 含 `__chkstk` body 登记行 | {sum(1 for e in entries.values() if e['chkstk_body_rows'])} |
+| 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
+
+同一 VA 出现多个历史语义名时，本表保留全部历史描述，规范函数名列给出裁决结果。
+
+## 已推翻或澄清的历史结论
+
+原始说法保留在下方登记表的「用途 / 确认依据」列，本节只记录复核结果。
+完整依据见 [`ida-crosscheck.md`](ida-crosscheck.md) 第八节。
+
+{chr(10).join(corr_rows)}
+
+## 登记表
+
+"""
+        args.markdown.parent.mkdir(parents=True, exist_ok=True)
+        args.markdown.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
+        print(f"wrote {args.markdown}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

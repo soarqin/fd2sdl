@@ -85,8 +85,10 @@ LE 通过 fixup table 把代码中的"段内偏移占位符"在加载时改写�
 |--------|-----------|-------------|
 | Ghidra（flat image, x86:LE:32, gcc） | 547 | 205 |
 | radare2（LE plugin） | 827 | — |
+| Ghidra canonical relbase（结构基线） | 858 | — |
+| **IDA Pro 9.4（`lx.so` + Watcom FLIRT）** | **1,308** | **170 runtime 符号 + 186 语义命名** |
 
-Ghidra 可输出可读 C 伪代码；当前全量生成结果见 `docs/generated/ghidra-decomp-all.c`。
+当前开发参考的全量伪 C 为 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`（1,305 / 1,308 个函数成功反编译）。旧的 `docs/generated/ghidra-decomp-all.c` 靠 patch `__chkstk` 字节才能生成且含 wrapper/body 伪拆分，不再作为参考；对照细节见 [`ida-crosscheck.md`](ida-crosscheck.md)。
 r2 可输出带交叉引用的汇编。
 
 ### 2.6 关键字符串（位于代码段末尾只读数据区，r2 虚拟地址）

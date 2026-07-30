@@ -1,9 +1,9 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场格子/单位信息面板
  *
- * 逆向依据：field_cell_info_panel_draw_entry @0x3ff07、
- * field_cell_info_panel_draw @0x3ff11、field_unit_detail_open @0x3d01f、
- * field_unit_detail_draw @0x3d103、field_unit_detail_stats_draw @0x3d1de
- * 与 field_unit_detail_equipment_draw @0x3d6d4。原版从 FDOTHER[5] 取 frame 130
+ * 逆向依据：field_cell_info_panel_draw_entry @0x1acf3、
+ * field_cell_info_panel_draw @0x1acf3、field_unit_detail_open @0x17e0b、
+ * field_unit_detail_draw @0x17eef、field_unit_detail_stats_draw @0x17fc0
+ * 与 field_unit_detail_equipment_draw @0x184c0。原版从 FDOTHER[5] 取 frame 130
  * 底板、frame 131/132 正负号及两组 HP 数字，在当前地形上叠加
  * 光标格单位的固定 idle sprite，并显示两项地形修正和当前 HP。
  */
@@ -324,10 +324,10 @@ void fd2_field_detail_transition_frame(uint8_t *dst,
                                        const uint8_t *background,
                                        int phase) {
     if (!dst || !detail || !background || phase < 0 || phase > 11) return;
-    /* 三个 helper 分别复现 field_unit_detail_transition_left @0x3d4c1、
-     * field_unit_detail_transition_top @0x3d526 与
-     * field_unit_detail_transition_bottom @0x3d5af；组合顺序复现
-     * field_unit_detail_transition_frame @0x3d61d。 */
+    /* 三个 helper 分别复现 field_unit_detail_transition_left @0x182ad、
+     * field_unit_detail_transition_top @0x18312 与
+     * field_unit_detail_transition_bottom @0x1839b；组合顺序复现
+     * field_unit_detail_transition_frame @0x18409。 */
     memcpy(dst, background, VGA_W * VGA_H);
 
     int left = phase >= 6 ? 101 - phase * 16 : 5;
@@ -364,8 +364,8 @@ int fd2_field_detail_sfx_for_phase(int opening, int phase) {
 
 static void draw_detail_portrait_border(
     fd2_vga *vga, const fd2_field_info_assets *assets) {
-    /* dialog_box_draw_tiles @0x3baca 的 `(x=5,y=7,w=5,h=5)` 调用；
-     * field_unit_detail_draw @0x3d103 在 DATO 立绘之前执行该调用。 */
+    /* dialog_box_draw_tiles @0x168b6 的 `(x=5,y=7,w=5,h=5)` 调用；
+     * field_unit_detail_draw @0x17eef 在 DATO 立绘之前执行该调用。 */
     const int x = 5, y = 7, tile_w = 5, tile_h = 5;
     const int inner_w = tile_w - 2;
     const int right_x = x + 3 + tile_w * 16;
@@ -413,7 +413,7 @@ void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_image *portrait) {
     if (!vga || !assets || !assets->ready || !font || !text || !unit)
         return;
-    /* field_unit_detail_draw @0x3d103：先用通用 UI 小块拼 portrait
+    /* field_unit_detail_draw @0x17eef：先用通用 UI 小块拼 portrait
      * 边框，再绘制 portrait (8,10)、属性框 (92,7) 与装备框 (5,94)。 */
     draw_detail_portrait_border(vga, assets);
     if (portrait) fd2_map_sprite_blit(vga, portrait, 8, 10, -1);

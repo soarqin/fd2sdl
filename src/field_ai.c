@@ -619,7 +619,7 @@ static int collect_line_targets(
         size_t capacity,
         size_t *count) {
     if (!units || !indices || !count) return -1;
-    /* FUN_00039c16 @0x39c16 从候选格开始，沿轴向朝 actor 原点走
+    /* sub_149F8 @0x149f8（旧 dual 0x39c16，body 在 +0xa）从候选格开始，沿轴向朝 actor 原点走
      * `steps` 格；候选距离小于 steps 时会越过 actor 继续同方向。 */
     int dx = target_x == origin_x ? 0 : origin_x < target_x ? -1 : 1;
     int dy = target_x == origin_x
@@ -827,7 +827,7 @@ fd2_field_ai_action fd2_field_ai_select_attack_action(
         int32_t magic_score,
         int32_t item_score,
         int tie_prefer_physical) {
-    /* field_ai_try_attack @0x3a104：阈值测试是三项独立的 signed
+    /* field_ai_try_attack @0x14ef0：阈值测试是三项独立的 signed
      * score >= 6；随后比较图中的 B==C>A 平价固定由 magic 胜出。 */
     if (physical_score < 6 && magic_score < 6 && item_score < 6)
         return FD2_FIELD_AI_ACTION_NONE;

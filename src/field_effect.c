@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场全屏效果帧调度
  *
- * 逆向依据：field_actor_group_flash @0x414ee、
- * field_earthquake_effect @0x4673b、field_stage_transition_effect @0x4982c。
+ * 逆向依据：field_actor_group_flash @0x1c2da、
+ * field_earthquake_effect @0x21527、field_stage_transition_effect @0x24618。
  * 这里只复现已确认的 buffer 顺序与 SFX 时序；缩放／palette 视觉参数仍由
  * 对应 renderer 生成 snapshot，避免按效果名称猜测像素。
  */

@@ -1,7 +1,10 @@
 # AGENTS.md - 项目协作规则
 
 本项目（炎龙骑士团 2 SDL3 重写）基于对 1995 年 DOS 游戏 `FD2.EXE` 的逆向工程。
-当前反编译结果在 `docs/generated/ghidra-decomp-all.c`，函数命名登记在 `docs/reverse-engineering/function-names.md`。文档分类和索引见 `docs/README.md`。
+当前权威反编译结果在 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`（IDA Pro 9.4 / Hex-Rays），
+函数命名登记在 `docs/reverse-engineering/function-names.md`（生成文件，输入为 `function-names-legacy.md`）。
+旧的 `docs/generated/ghidra-decomp-all.c` 依赖 patch 过 `__chkstk` 的镜像且含 wrapper/body 伪拆分，
+**不得再作为开发参考**。文档分类和索引见 `docs/README.md`。
 以下规则保证逆向成果可追溯、可验证。常用工具的已验证命令集中记录在 `docs/tools/README.md`；使用工具前先查该目录和对应专题文档，不要仅为回忆语法而反复请求 `--help`。
 
 ## 1. 反编译函数命名与注释（强制）
@@ -15,20 +18,25 @@
     * 语义: animation_play(anim_idx, frame_delay_ms, check_input) */
    ```
 
-2. **反编译文件标注**：在 `docs/generated/ghidra-decomp-all.c` 中，在对应函数的
-   `// FUNC 0x... ` 标记行后追加用途注释，例如：
-   ```c
-   // FUNC 0x44ab2 boot_intro_title   /* 片头+标题主体 */
-   ```
+2. **反编译文件标注**：不要手工改写 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`。
+   该文件由流程生成，函数注释来自命名档案：先在
+   `docs/reverse-engineering/function-names-legacy.md` 追加登记行（或修正
+   `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS` 表），
+   再按 `docs/tools/ida.md` 重跑流程，注释会自动写进 `.c`。
 
-3. **函数重命名**：当函数用途确认且有把握时，应将 Ghidra 原名 `FUN_xxxxxx`
-   改为语义命名（如 `boot_intro_title`）。重命名需在 `docs/reverse-engineering/function-names.md`
-   登记映射表，供后续引用。
+3. **函数重命名**：语义命名以 **canonical relbase VA** 为主键（`OFF = VA - 0x10000`）。
+   不得再使用旧 dual 地址或旧 Ghidra 窗口地址；两套 legacy 坐标的换算规则见
+   `docs/reverse-engineering/address-mapping.md`。IDA 由 Watcom FLIRT 给出的
+   runtime 符号名（`malloc`、`memset`、`fopen` 等）优先于手工猜名。
 
 **判断「确认用途」的标准**：至少满足以下之一：
 - 通过阅读反编译逻辑 + 交叉引用能明确语义
 - 通过 SDL3 复现并对照 DOSBox 实机验证
 - 通过数据文件格式印证
+
+**`__chkstk` wrapper/body 不是两个函数**：Watcom 序言 `push imm32; call watcom_stack_check`
+固定 10 字节，IDA 把它与后续 body 归为同一函数。旧 Ghidra 流程产生的 541 组
+wrapper/body 双函数以及 `*_entry`／`*_core`／`*_runtime` 命名属工具产物，禁止当作原程序结构。
 
 **禁止**：仅凭函数大小、调用次数、地址邻近等弱信号猜测命名。
 
@@ -66,7 +74,21 @@ python3 tools/rebuild_fd2_analysis.py
 5. 静态 loader 输出与运行时转储必须对全部对象逐字节一致；同时逐条验证每个 relocation source 的运行时值。只验证程序入口、几个函数或个别表不构成通过。
 6. 任一字节不一致、任一记录未覆盖或任一验证步骤无法执行时，只能报告未通过；禁止把镜像用于 Ghidra 权威重建，也禁止声称「完全正确」。
 
-Ghidra 规范重建使用：
+### IDA Pro 9.4 独立复核（已完成）
+
+2026-07-30 已用 IDA 自带 `loaders/lx.so` 对 LE 模型做第四个独立实现的复核：object
+relbase／BSS 边界、7,948 个 relocation source 与 target、以及镜像字节全部一致，21 项
+对照检查全部通过。**「LE/LX fixup 可靠性」这一类疑虑至此关闭。** 报告见
+`docs/reverse-engineering/ida-crosscheck.md`；可重跑检查为：
+
+```bash
+python3 tools/ida/verify_ida_vs_project.py
+```
+
+新增或修订函数语义时使用 IDA 流程，完整命令与已知陷阱见 `docs/tools/ida.md`。
+禁止用 `ida`（GUI）或 `idat` 做自动化，只用 `idalib`。
+
+Ghidra 流程现在只保留作结构验收（block、权限、relocation 计数、确定性）：
 
 ```bash
 python3 tools/rebuild_fd2_analysis.py
@@ -102,7 +124,9 @@ python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
 ## 5. 版本库与原版游戏文件
 
 - `original_game/` 中的原版游戏文件、DOSBox 截图和本地运行数据不入库，由开发者自行复制。
-- `src/build/`、`src/fd2sdl`、`tools/*.bin`、`.omo/`、`.pi-subagents/`、`.codegraph` 不入库。
+- `src/build/`、`src/fd2sdl`、`tools/*.bin`、`tools/ida-out/`、`.omo/`、`.pi-subagents/`、`.codegraph` 不入库。
+- IDA 数据库（`.i64`）和大体积中间导出不入库；需要提交的证据产物由
+  `tools/ida/build_fd2_name_registry.py` 发布到 `docs/generated/ida-canonical/` 并附 `SHA256SUMS`。
 - 可再生成的大型分析镜像不要提交；需要跨机器共享时提交脚本和文档即可。
 
 ## 6. DOSBox 使用与验证

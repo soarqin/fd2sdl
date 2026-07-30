@@ -1,5 +1,5 @@
 /* 炎龙骑士团 2 SDL3 重写 - FDTXT 字模渲染
- * 逆向依据：FUN_000136cc @0x3b198 与 FUN_0004c4c2 @0x73f8e。
+ * 逆向依据：FUN_000136cc @0x15f84 与 FUN_0004c4c2 @0x4ed7a。
  */
 
 #include "font.h"

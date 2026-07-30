@@ -16,9 +16,9 @@ typedef enum {
     FD2_APP_FLOW_ERROR
 } fd2_app_flow;
 
-/* code0 boot title @0xf894 的选择器在无可读活动快照时只有两项：
+/* boot_intro_title_menu @0x1f894 的选择器在无可读活动快照时只有两项：
  * new game、exit；有快照时插入 active snapshot load。四槽 hand_load
- * 属于 field command dispatcher @0x19300，不使用此 action。 */
+ * 属于 field_manual_slot_dispatch @0x29300，不使用此 action。 */
 fd2_title_action fd2_title_action_from_selection(int selection,
                                                   int load_available);
 fd2_app_flow fd2_app_flow_from_title(fd2_title_action action);

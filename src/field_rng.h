@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - 原版 16 位伪随机流
  *
- * 复现 FUN_00073df7 @0x73df7：state = rol16(state + 0x9014, 3)。
+ * 复现 FUN_00073df7 @0x4ebe3：state = rol16(state + 0x9014, 3)。
  * loader 初始 state 已由 DOSBox debugger 捕获为 0x7a18；调用方仍显式
  * 持有状态，确保战斗外围特效与伤害结算共用同一 RNG 流。
  */

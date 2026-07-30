@@ -17,6 +17,18 @@
 /tools/fd2_le_relocation_manifest.tsv
 /tools/fd2-analysis-bundle/
 
+# IDA 数据库与中间导出，可用 docs/tools/ida.md 的流程再生成。
+# 需要提交的证据产物由 tools/ida/build_fd2_name_registry.py 发布到
+# docs/generated/ida-canonical/。
+/tools/ida-out/
+*.i64
+*.idb
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+
 # 本地 agent / 索引 / 会话产物
 /.codegraph
 /.omo/
@@ -26,3 +38,7 @@
 *.log
 *.tmp
 .DS_Store
+
+# Python 缓存
+__pycache__/
+*.pyc

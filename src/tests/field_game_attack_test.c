@@ -1,6 +1,6 @@
 /* M6 无演出攻击状态机测试。
- * 覆盖 field_physical_exchange @0x3a6a2、field_physical_attack_sequence
- * @0x43a6a 与 field_physical_attack_resolve @0x43edb：目标／武器预检、
+ * 覆盖 field_physical_exchange @0x1548e、field_physical_attack_sequence
+ * @0x1e856 与 field_physical_attack_resolve @0x1ecc7：目标／武器预检、
  * 状态效果、双击、反击和固定 RNG 顺序。
  */
 #include <stdio.h>

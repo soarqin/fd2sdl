@@ -1,14 +1,14 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场移动查询策略
  *
  * 逆向依据：
- * - field_movement_profile_get @0x73ab9：record offset 0x20 选择 20 字节
+ * - field_movement_profile_get @0x4e8a5：record offset 0x20 选择 20 字节
  *   movement profile；
- * - field_reachable_cells_compute @0x735a4：record offset 0x3b 作为预算；
+ * - field_reachable_cells_compute @0x4e390：record offset 0x3b 作为预算；
  * - FUN_0004bc06 / FUN_0004bdc8：FDSHAP attr[1] 索引 profile 中的成本；
- * - field_opponent_zoc_build @0x397e1、field_opponent_zoc_mark_unit
- *   @0x39839、field_cell_zoc_mark @0x398bb：敌方格标记 0x40，四邻格
+ * - field_opponent_zoc_build @0x145cd、field_opponent_zoc_mark_unit
+ *   @0x14625、field_cell_zoc_mark @0x146a7：敌方格标记 0x40，四邻格
  *   标记 0x80；
- * - field_friendly_destination_block @0x398e5：同阵营其他单位格在范围
+ * - field_friendly_destination_block @0x146d1：同阵营其他单位格在范围
  *   传播后设为不可停留。
  */
 
@@ -224,7 +224,7 @@ static void move_path_search_visit(fd2_field_move_path_search *search,
         search->found_target = 1;
     }
 
-    /* field_path_find @0x7370a / 正确 dual 0x4e4f6 的递归顺序。 */
+    /* field_path_find @0x4e4f6 / 正确 dual 0x4e4f6 的递归顺序。 */
     static const int dx[] = {1, -1, 0, 0};
     static const int dy[] = {0, 0, 1, -1};
     static const uint8_t direction[] = {3, 1, 0, 2};

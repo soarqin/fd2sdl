@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 普通攻击范围、目标与武器外围效果
  *
- * 逆向依据：field_equipped_item_slot_find @0x40a51、
- * field_unit_item_id_at @0x40936 与 field_target_range_build @0x39a2c。
+ * 逆向依据：field_equipped_item_slot_find @0x1b83d、
+ * field_unit_item_id_at @0x1b722 与 field_target_range_build @0x14818。
  * 玩家攻击路径读取武器 record +0x0b/+0x0c，按 profile 0 传播范围，
  * 再以 side_filter=0 保留 side == 0 的可见目标。物理攻击本体同时确认
  * item effect 2 的命中前状态、effect 3 的双击、effect 4 的暴击加值、

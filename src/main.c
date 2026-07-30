@@ -1,9 +1,12 @@
 /* 炎龙骑士团 2 SDL3 重写 - 主程序
  *
- * 复现 FUN_0001cfe6 @0x44ab2 (boot_intro_title): 片头 + 标题主体
- * 调用入口 FUN_0001cfdc @0x44aa8 仅是 Watcom 栈检查前缀
+ * 复现 boot_intro_title_menu @0x1f894：片头 + 标题 + action 菜单同一个函数
+ * （旧档案曾按 boot_intro_title / boot_intro_title_entry / title_action_menu
+ * 三个名字分别登记；`push 0x88; call watcom_stack_check` 是它的序言，
+ * body 在 +0xa，不是独立函数）
  *
- * 反编译依据见 docs/generated/ghidra-decomp-all.c 和 docs/reverse-engineering/function-names.md
+ * 反编译依据见 docs/generated/ida-canonical/fd2-ida-decomp-all.c 和
+ * docs/reverse-engineering/function-names.md
  */
 
 #include <stdio.h>
@@ -38,7 +41,7 @@ _Static_assert(FD2_FIELD_PLAY_RETURN_COMPLETE == FD2_APP_FIELD_COMPLETE &&
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */
 static fd2_archive g_fdother;
 
-/* ANI.DAT 句柄（FUN_0001db69 @0x45635 打开的 AFM 动画包） */
+/* ANI.DAT 句柄（FUN_0001db69 @0x20421 打开的 AFM 动画包） */
 static fd2_archive g_ani;
 
 /* title_action_menu @code0 0xf8d6..0xf8e6 加载 FDOTHER[77]，用于
@@ -88,8 +91,9 @@ static void title_letter_fly_audio_stop(fd2_title_audio *audio) {
     (void)fd2_pcm_stop(audio->primary_player);
 }
 
-/* 从 FDOTHER.DAT[idx] 加载资源（对应 FUN_0000e902 @0x463ce）
- * res_load(&DAT_00001a4d, old, idx) -> 返回条目数据指针 */
+/* 从 FDOTHER.DAT[idx] 加载资源（对应 res_load @0x111ba）
+ * res_load("FDOTHER.DAT", old, idx) -> 返回条目数据指针；
+ * 原版第一参数是 object2 DS:0x1a4d 处的文件名字符串，不是槽位号 */
 static const uint8_t *res_load(size_t idx, const uint8_t **old, size_t *out_len) {
     const uint8_t *ptr; size_t len;
     if (fd2_archive_get(&g_fdother, idx, &ptr, &len) != 0) return NULL;
@@ -124,7 +128,7 @@ static int res_load_nested_image(fd2_image *img, size_t idx, size_t sub) {
     return r;
 }
 
-/* 将图像 blit 到 VGA framebuffer（对应 FUN_0004c0d5 @0x73ba1）
+/* 将图像 blit 到 VGA framebuffer（对应 FUN_0004c0d5 @0x4e98d）
  * blit_image_clipped(src, x, y, dest, stride, 0xffffffff)
  * 简化版：无透明色，直接拷贝 */
 static void blit_image(fd2_vga *vga, const fd2_image *img, int x, int y) {
@@ -195,7 +199,7 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
                                              int anim_idx,
                                              uint32_t delay_ms,
                                              int pal_idx) {
-    /* 复现 FUN_0001cf66 @0x44a32：可选清屏/换调色板，
+    /* 复现 FUN_0001cf66 @0x1f81e：可选清屏/换调色板，
      * 播放 FUN_0001db69(animation_play)，随后调用 FUN_0001cfca 渐出。 */
     if (pal_idx >= 0) {
         fd2_vga_clear(vga, 0);
@@ -209,8 +213,8 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
     return result;
 }
 
-/* 复现 FUN_0001cfe6 @0x44ab2: 片头 + 标题主体
- * FUN_0001cfdc @0x44aa8 是调用入口的 Watcom 栈检查前缀。 */
+/* 复现 boot_intro_title_menu @0x1f894：片头 + 标题 + action 菜单。
+ * `push 0x88; call watcom_stack_check` 是该函数序言，body 在 +0xa。 */
 static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          fd2_bgm_player *bgm,
                                          fd2_title_audio *title_audio,
@@ -218,8 +222,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          int load_available) {
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
-    /* corrected code0 @0x15db1: music_track_play(18, 0) 紧接着调用
-     * title_action_dispatch @0x15ebb，后者第一步进入 boot_intro_title。
+    /* main @0x25bf4 体内 0x25db1: music_track_play(18, 0) 紧接着调用
+     * title_action_dispatch @0x25ebb，后者第一步进入 boot_intro_title_menu。
      * 片头和标题共用循环 track 18，标题入口不切曲。 */
     if (bgm && fd2_bgm_play(bgm, 18, 0) != 0)
         fprintf(stderr, "cannot play startup BGM track 18\n");
@@ -641,9 +645,9 @@ host_quit:
 /* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，
  * 用 FDOTHER.DAT[0] 调色板绘制战场底图。
  *
- * 逆向依据：FUN_00010580 @0x3804c 从 cell 读 terrain_id 与地形表属性；
- * field_view_render_tiles @0x3710c 按 terrain_id 取 FDSHAP 24×24 帧组成底图；
- * FUN_0001020e @0x37cda 对 flags 0x80 的遮挡格重绘后一帧。 */
+ * 逆向依据：FUN_00010580 @0x12e38 从 cell 读 terrain_id 与地形表属性；
+ * field_view_render_tiles @0x11eee 按 terrain_id 取 FDSHAP 24×24 帧组成底图；
+ * FUN_0001020e @0x12ac6 对 flags 0x80 的遮挡格重绘后一帧。 */
 static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
     fd2_archive fdshap = {0};
     fd2_archive field = {0};
@@ -872,7 +876,7 @@ int main(int argc, char **argv) {
             prologue_preview_once);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT) rc = 0;
     } else {
-        /* 打开 ANI.DAT（对应 FUN_0001db69 @0x45635） */
+        /* 打开 ANI.DAT（对应 FUN_0001db69 @0x20421） */
         if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
             fprintf(stderr, "cannot open ANI.DAT\n");
             rc = -1;
@@ -880,10 +884,10 @@ int main(int argc, char **argv) {
         }
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
-        /* 运行启动序列并分派普通标题菜单。code0 @0xf894 的标题主体
+        /* 运行启动序列并分派普通标题菜单。boot_intro_title_menu @0x1f894 的标题主体
          * 只负责 new-game action 与退出；FD2.SAV 校验成功时把 active
          * snapshot recovery 插入为中间项。原版四槽 hand_load 属于战场
-         * command dispatcher @0x19300，不能在此冒充标题读档。
+         * command dispatcher field_manual_slot_dispatch @0x29300，不能在此冒充标题读档。
          * leave-battle 返回 TITLE 时重新进入该循环，宿主关闭直接退出。 */
         int title_running = 1;
         int first_title = 1;

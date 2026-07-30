@@ -15,7 +15,7 @@ from build_fd2_name_migration import build  # noqa: E402
 class FunctionNameMigrationTest(unittest.TestCase):
     def test_all_legacy_rows_are_accounted_for_without_address_guessing(self) -> None:
         ledger, confirmed = build(
-            ROOT / "docs" / "reverse-engineering" / "function-names.md")
+            ROOT / "docs" / "reverse-engineering" / "function-names-legacy.md")
         self.assertEqual(ledger["row_count"], 210)
         self.assertEqual(ledger["confirmed_row_count"], 6)
         self.assertEqual(ledger["unresolved_row_count"], 204)

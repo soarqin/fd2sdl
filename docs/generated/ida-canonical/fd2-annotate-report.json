@@ -1,0 +1,1429 @@
+{
+ "schema": "fd2-ida-annotate-v1",
+ "prototypes": {
+  "method": "callsite `add esp,N` 证据 -> 显式 __cdecl 原型；不修改机器码字节",
+  "applied": [
+   {
+    "callee": "0x14b78",
+    "callee_name": "sub_14B78",
+    "stack_args": 4,
+    "prototype": "int __cdecl f(int, int, int, int);",
+    "triggered_by": "0x13a9f",
+    "err_ea": "0x13d4b",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, _BYTE *, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "4": 8
+    }
+   },
+   {
+    "callee": "0x1a866",
+    "callee_name": "sub_1A866",
+    "stack_args": 1,
+    "prototype": "int __cdecl f(int);",
+    "triggered_by": "0x1a30b",
+    "err_ea": "0x1a4d1",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int)",
+    "callsite_evidence": {
+     "1": 3
+    }
+   },
+   {
+    "callee": "0x1cb94",
+    "callee_name": "sub_1CB94",
+    "stack_args": 4,
+    "prototype": "int __cdecl f(int, int, int, int);",
+    "triggered_by": "0x1cac7",
+    "err_ea": "0x1cae3",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "4": 2
+    }
+   },
+   {
+    "callee": "0x2189a",
+    "callee_name": "sub_2189A",
+    "stack_args": 3,
+    "prototype": "int __cdecl f(int, int, int);",
+    "triggered_by": "0x2185f",
+    "err_ea": "0x21883",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "3": 6
+    }
+   },
+   {
+    "callee": "0x21eb1",
+    "callee_name": "sub_21EB1",
+    "stack_args": 2,
+    "prototype": "int __cdecl f(int, int);",
+    "triggered_by": "0x21ad9",
+    "err_ea": "0x21af9",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "2": 4
+    }
+   },
+   {
+    "callee": "0x22253",
+    "callee_name": "sub_22253",
+    "stack_args": 5,
+    "prototype": "int __cdecl f(int, int, int, int, int);",
+    "triggered_by": "0x2218a",
+    "err_ea": "0x221fd",
+    "hexrays_guessed_prototype": "void __usercall(int@<edi>, int, int, int, int, int, unsigned __int8, int, int, int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "5": 5
+    }
+   },
+   {
+    "callee": "0x24618",
+    "callee_name": "sub_24618",
+    "stack_args": 4,
+    "prototype": "int __cdecl f(int, int, int, int);",
+    "triggered_by": "0x244b6",
+    "err_ea": "0x245ce",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int)",
+    "callsite_evidence": {
+     "4": 8
+    }
+   },
+   {
+    "callee": "0x1f894",
+    "callee_name": "sub_1F894",
+    "stack_args": 0,
+    "prototype": "int __cdecl f(void);",
+    "triggered_by": "0x25ebb",
+    "err_ea": "0x25ec8",
+    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, unsigned __int8)",
+    "callsite_evidence": {
+     "0": 1
+    }
+   },
+   {
+    "callee": "0x4e751",
+    "callee_name": "sub_4E751",
+    "stack_args": 0,
+    "prototype": "int __cdecl f(void);",
+    "triggered_by": "0x4e680",
+    "err_ea": "0x4e6fa",
+    "hexrays_guessed_prototype": "__int16 __fastcall(__int16 result, __int16)",
+    "callsite_evidence": {
+     "0": 2
+    }
+   }
+  ],
+  "rejected": [],
+  "remaining_hexrays_failures": [
+   {
+    "func": "0x34f38",
+    "name": "sub_34F38",
+    "err_ea": "0x34f38",
+    "desc": "positive sp value has been found"
+   },
+   {
+    "func": "0x4a0c4",
+    "name": "__int7_pl3",
+    "err_ea": "0x4a0dc",
+    "desc": "call analysis failed"
+   },
+   {
+    "func": "0x4a0e8",
+    "name": "__int7",
+    "err_ea": "0x4a0f8",
+    "desc": "call analysis failed"
+   },
+   {
+    "func": "0x4a104",
+    "name": "sub_4A104",
+    "err_ea": "0x4b1bf",
+    "desc": "call analysis failed"
+   }
+  ]
+ },
+ "confirmed_anchors": [
+  {
+   "va": "0x3702f",
+   "from": "sub_3702F",
+   "to": "watcom_stack_check"
+  },
+  {
+   "va": "0x37042",
+   "from": "sub_37042",
+   "to": "watcom_stack_check_probe"
+  }
+ ],
+ "naming": {
+  "source": "docs/reverse-engineering/function-names-legacy.md via tools/ida/fd2_name_audit.py",
+  "primary_overrides": {
+   "0x1f894": "boot_intro_title_menu"
+  },
+  "renamed": [
+   {
+    "va": "0x10620",
+    "from": "sub_10620",
+    "to": "input_check",
+    "aliases": []
+   },
+   {
+    "va": "0x10b4e",
+    "from": "sub_10B4E",
+    "to": "field_actor_group_append",
+    "aliases": []
+   },
+   {
+    "va": "0x10c50",
+    "from": "sub_10C50",
+    "to": "field_unit_stage_template_append",
+    "aliases": []
+   },
+   {
+    "va": "0x11019",
+    "from": "sub_11019",
+    "to": "fdicon_cache_append_unit",
+    "aliases": []
+   },
+   {
+    "va": "0x111ba",
+    "from": "sub_111BA",
+    "to": "res_load",
+    "aliases": []
+   },
+   {
+    "va": "0x115b6",
+    "from": "sub_115B6",
+    "to": "field_cell_selection_execute",
+    "aliases": [
+     "field_cell_selection_execute_core"
+    ]
+   },
+   {
+    "va": "0x117e7",
+    "from": "sub_117E7",
+    "to": "field_controller_input",
+    "aliases": []
+   },
+   {
+    "va": "0x11d40",
+    "from": "sub_11D40",
+    "to": "dac_apply_darkness",
+    "aliases": []
+   },
+   {
+    "va": "0x11df2",
+    "from": "sub_11DF2",
+    "to": "pal_partial_set",
+    "aliases": []
+   },
+   {
+    "va": "0x11eb0",
+    "from": "sub_11EB0",
+    "to": "memcpy_vga",
+    "aliases": []
+   },
+   {
+    "va": "0x11eee",
+    "from": "sub_11EEE",
+    "to": "field_view_render_tiles",
+    "aliases": [
+     "field_view_render_tiles_entry"
+    ]
+   },
+   {
+    "va": "0x122dc",
+    "from": "sub_122DC",
+    "to": "field_selection_overlay_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x126f7",
+    "from": "sub_126F7",
+    "to": "field_selection_sprite_blit",
+    "aliases": []
+   },
+   {
+    "va": "0x1297d",
+    "from": "sub_1297D",
+    "to": "field_animation_phase_update",
+    "aliases": []
+   },
+   {
+    "va": "0x12ac6",
+    "from": "sub_12AC6",
+    "to": "map_tile_blit_visible",
+    "aliases": []
+   },
+   {
+    "va": "0x12c0d",
+    "from": "sub_12C0D",
+    "to": "field_visible_actor_at_focus",
+    "aliases": []
+   },
+   {
+    "va": "0x12c60",
+    "from": "sub_12C60",
+    "to": "field_visible_actor_find_by_text_id",
+    "aliases": []
+   },
+   {
+    "va": "0x12cea",
+    "from": "sub_12CEA",
+    "to": "field_focus_move_to",
+    "aliases": []
+   },
+   {
+    "va": "0x12d7b",
+    "from": "sub_12D7B",
+    "to": "field_focus_move_to_actor",
+    "aliases": []
+   },
+   {
+    "va": "0x12e38",
+    "from": "sub_12E38",
+    "to": "map_cell_info_at",
+    "aliases": []
+   },
+   {
+    "va": "0x12eaa",
+    "from": "sub_12EAA",
+    "to": "field_actor_move_down_follow_camera",
+    "aliases": []
+   },
+   {
+    "va": "0x1300d",
+    "from": "sub_1300D",
+    "to": "field_actor_move_left_follow_camera",
+    "aliases": []
+   },
+   {
+    "va": "0x13185",
+    "from": "sub_13185",
+    "to": "field_actor_move_up_follow_camera",
+    "aliases": []
+   },
+   {
+    "va": "0x13315",
+    "from": "sub_13315",
+    "to": "field_actor_move_right_follow_camera",
+    "aliases": []
+   },
+   {
+    "va": "0x13488",
+    "from": "sub_13488",
+    "to": "field_actor_path_play",
+    "aliases": []
+   },
+   {
+    "va": "0x134e4",
+    "from": "sub_134E4",
+    "to": "field_all_actor_directions_reset",
+    "aliases": []
+   },
+   {
+    "va": "0x13512",
+    "from": "sub_13512",
+    "to": "field_actor_mark_acted",
+    "aliases": []
+   },
+   {
+    "va": "0x13536",
+    "from": "sub_13536",
+    "to": "field_all_actors_clear_acted",
+    "aliases": []
+   },
+   {
+    "va": "0x135dd",
+    "from": "sub_135DD",
+    "to": "field_camera_pan_to",
+    "aliases": []
+   },
+   {
+    "va": "0x1366a",
+    "from": "sub_1366A",
+    "to": "field_movement_script_play",
+    "aliases": []
+   },
+   {
+    "va": "0x1399c",
+    "from": "sub_1399C",
+    "to": "shape_sheet_decode_cache",
+    "aliases": []
+   },
+   {
+    "va": "0x13a44",
+    "from": "sub_13A44",
+    "to": "field_cell_event_lookup",
+    "aliases": []
+   },
+   {
+    "va": "0x13a9f",
+    "from": "sub_13A9F",
+    "to": "field_ai_unit_execute",
+    "aliases": [
+     "field_ai_unit_execute_core"
+    ]
+   },
+   {
+    "va": "0x13e9c",
+    "from": "sub_13E9C",
+    "to": "field_ai_move_toward_nearest",
+    "aliases": [
+     "field_ai_move_toward_nearest_core"
+    ]
+   },
+   {
+    "va": "0x14237",
+    "from": "sub_14237",
+    "to": "field_ai_physical_candidate_evaluate",
+    "aliases": []
+   },
+   {
+    "va": "0x145cd",
+    "from": "sub_145CD",
+    "to": "field_opponent_zoc_build",
+    "aliases": []
+   },
+   {
+    "va": "0x14625",
+    "from": "sub_14625",
+    "to": "field_opponent_zoc_mark_unit",
+    "aliases": []
+   },
+   {
+    "va": "0x146a7",
+    "from": "sub_146A7",
+    "to": "field_cell_zoc_mark",
+    "aliases": []
+   },
+   {
+    "va": "0x146d1",
+    "from": "sub_146D1",
+    "to": "field_friendly_destination_block",
+    "aliases": []
+   },
+   {
+    "va": "0x14818",
+    "from": "sub_14818",
+    "to": "field_target_range_build",
+    "aliases": []
+   },
+   {
+    "va": "0x14b78",
+    "from": "sub_14B78",
+    "to": "field_ai_move_toward_cell",
+    "aliases": [
+     "field_ai_move_toward_cell_core"
+    ]
+   },
+   {
+    "va": "0x14ef0",
+    "from": "sub_14EF0",
+    "to": "field_ai_try_attack",
+    "aliases": []
+   },
+   {
+    "va": "0x15055",
+    "from": "sub_15055",
+    "to": "field_ai_item_action_execute",
+    "aliases": []
+   },
+   {
+    "va": "0x15311",
+    "from": "sub_15311",
+    "to": "field_ai_magic_action_execute",
+    "aliases": []
+   },
+   {
+    "va": "0x1548e",
+    "from": "sub_1548E",
+    "to": "field_physical_exchange",
+    "aliases": []
+   },
+   {
+    "va": "0x1567e",
+    "from": "sub_1567E",
+    "to": "field_ai_item_candidate_evaluate",
+    "aliases": []
+   },
+   {
+    "va": "0x15880",
+    "from": "sub_15880",
+    "to": "field_ai_item_targets_score",
+    "aliases": []
+   },
+   {
+    "va": "0x1598a",
+    "from": "sub_1598A",
+    "to": "field_ai_magic_candidate_evaluate",
+    "aliases": []
+   },
+   {
+    "va": "0x15b77",
+    "from": "sub_15B77",
+    "to": "field_ai_magic_targets_score",
+    "aliases": []
+   },
+   {
+    "va": "0x15da2",
+    "from": "sub_15DA2",
+    "to": "field_ai_magic_zero_byte_targets_score",
+    "aliases": []
+   },
+   {
+    "va": "0x15df3",
+    "from": "sub_15DF3",
+    "to": "field_ai_behavior5_cell_find",
+    "aliases": []
+   },
+   {
+    "va": "0x15f84",
+    "from": "sub_15F84",
+    "to": "text_dialog_render_tokens",
+    "aliases": []
+   },
+   {
+    "va": "0x164e8",
+    "from": "sub_164E8",
+    "to": "text_dialog_glyph_step",
+    "aliases": []
+   },
+   {
+    "va": "0x165ac",
+    "from": "sub_165AC",
+    "to": "dialog_box_open",
+    "aliases": []
+   },
+   {
+    "va": "0x16886",
+    "from": "sub_16886",
+    "to": "blit_image",
+    "aliases": []
+   },
+   {
+    "va": "0x168b6",
+    "from": "sub_168B6",
+    "to": "dialog_box_draw_tiles",
+    "aliases": []
+   },
+   {
+    "va": "0x16b43",
+    "from": "sub_16B43",
+    "to": "dialog_box_close",
+    "aliases": []
+   },
+   {
+    "va": "0x16e24",
+    "from": "sub_16E24",
+    "to": "dialog_text_scroll_up",
+    "aliases": []
+   },
+   {
+    "va": "0x16f55",
+    "from": "sub_16F55",
+    "to": "field_empty_focus_menu_execute",
+    "aliases": []
+   },
+   {
+    "va": "0x1728c",
+    "from": "sub_1728C",
+    "to": "field_options_menu_execute",
+    "aliases": []
+   },
+   {
+    "va": "0x173e7",
+    "from": "sub_173E7",
+    "to": "field_command_first_enabled_select",
+    "aliases": []
+   },
+   {
+    "va": "0x1741c",
+    "from": "sub_1741C",
+    "to": "field_command_menu_open",
+    "aliases": []
+   },
+   {
+    "va": "0x176b4",
+    "from": "sub_176B4",
+    "to": "field_command_menu_close",
+    "aliases": []
+   },
+   {
+    "va": "0x177fc",
+    "from": "sub_177FC",
+    "to": "field_command_menu_input",
+    "aliases": []
+   },
+   {
+    "va": "0x17898",
+    "from": "sub_17898",
+    "to": "field_command_menu_wait_key",
+    "aliases": []
+   },
+   {
+    "va": "0x179d5",
+    "from": "sub_179D5",
+    "to": "field_command_menu_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x17aa9",
+    "from": "sub_17AA9",
+    "to": "bios_tick_delay",
+    "aliases": []
+   },
+   {
+    "va": "0x17e0b",
+    "from": "sub_17E0B",
+    "to": "field_unit_detail_open",
+    "aliases": []
+   },
+   {
+    "va": "0x17eef",
+    "from": "sub_17EEF",
+    "to": "field_unit_detail_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x17fc0",
+    "from": "sub_17FC0",
+    "to": "field_unit_detail_stats_draw",
+    "aliases": [
+     "field_unit_detail_stats_draw_entry"
+    ]
+   },
+   {
+    "va": "0x182ad",
+    "from": "sub_182AD",
+    "to": "field_unit_detail_transition_left",
+    "aliases": []
+   },
+   {
+    "va": "0x18312",
+    "from": "sub_18312",
+    "to": "field_unit_detail_transition_top",
+    "aliases": []
+   },
+   {
+    "va": "0x1839b",
+    "from": "sub_1839B",
+    "to": "field_unit_detail_transition_bottom",
+    "aliases": []
+   },
+   {
+    "va": "0x18409",
+    "from": "sub_18409",
+    "to": "field_unit_detail_transition_frame",
+    "aliases": []
+   },
+   {
+    "va": "0x184c0",
+    "from": "sub_184C0",
+    "to": "field_unit_detail_equipment_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x187d6",
+    "from": "sub_187D6",
+    "to": "ui_number_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x18890",
+    "from": "sub_18890",
+    "to": "field_player_unit_action",
+    "aliases": []
+   },
+   {
+    "va": "0x18d8c",
+    "from": "sub_18D8C",
+    "to": "field_player_command_execute",
+    "aliases": [
+     "field_player_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x19df7",
+    "from": "sub_19DF7",
+    "to": "field_secondary_menu_execute",
+    "aliases": []
+   },
+   {
+    "va": "0x1a30b",
+    "from": "sub_1A30B",
+    "to": "field_turn_cycle_run",
+    "aliases": []
+   },
+   {
+    "va": "0x1a813",
+    "from": "sub_1A813",
+    "to": "field_turn_event_check",
+    "aliases": []
+   },
+   {
+    "va": "0x1a866",
+    "from": "sub_1A866",
+    "to": "field_phase_status_tick",
+    "aliases": []
+   },
+   {
+    "va": "0x1acf3",
+    "from": "sub_1ACF3",
+    "to": "field_cell_info_panel_draw",
+    "aliases": [
+     "field_cell_info_panel_draw_entry"
+    ]
+   },
+   {
+    "va": "0x1aeb1",
+    "from": "sub_1AEB1",
+    "to": "field_cell_info_modifier_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x1b722",
+    "from": "sub_1B722",
+    "to": "field_unit_item_id_at",
+    "aliases": []
+   },
+   {
+    "va": "0x1b750",
+    "from": "sub_1B750",
+    "to": "field_unit_combat_stats_recompute",
+    "aliases": [
+     "field_unit_combat_stats_recompute_entry",
+     "field_unit_combat_stats_recompute_runtime"
+    ]
+   },
+   {
+    "va": "0x1b83d",
+    "from": "sub_1B83D",
+    "to": "field_equipped_item_slot_find",
+    "aliases": []
+   },
+   {
+    "va": "0x1b8a6",
+    "from": "sub_1B8A6",
+    "to": "field_unit_inventory_count",
+    "aliases": []
+   },
+   {
+    "va": "0x1bbdc",
+    "from": "sub_1BBDC",
+    "to": "field_player_item_command_execute",
+    "aliases": [
+     "field_player_item_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x1c269",
+    "from": "sub_1C269",
+    "to": "field_unit_magic_list_build",
+    "aliases": [
+     "field_unit_magic_list_build_core"
+    ]
+   },
+   {
+    "va": "0x1c2da",
+    "from": "sub_1C2DA",
+    "to": "field_actor_group_flash",
+    "aliases": [
+     "field_actor_group_flash_core"
+    ]
+   },
+   {
+    "va": "0x1c75e",
+    "from": "sub_1C75E",
+    "to": "field_magic_damage_profile_apply",
+    "aliases": []
+   },
+   {
+    "va": "0x1c8ed",
+    "from": "sub_1C8ED",
+    "to": "field_magic_heal_apply",
+    "aliases": []
+   },
+   {
+    "va": "0x1cb94",
+    "from": "sub_1CB94",
+    "to": "map_scene_render_actors",
+    "aliases": []
+   },
+   {
+    "va": "0x1cff0",
+    "from": "sub_1CFF0",
+    "to": "field_player_magic_command_execute",
+    "aliases": [
+     "field_player_magic_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x1d80b",
+    "from": "sub_1D80B",
+    "to": "field_side1_phase_execute",
+    "aliases": [
+     "field_side1_phase_execute_core"
+    ]
+   },
+   {
+    "va": "0x1d8ba",
+    "from": "sub_1D8BA",
+    "to": "field_side0_phase_execute",
+    "aliases": [
+     "field_side0_phase_execute_core"
+    ]
+   },
+   {
+    "va": "0x1da16",
+    "from": "sub_1DA16",
+    "to": "map_actor_blit_24x24",
+    "aliases": []
+   },
+   {
+    "va": "0x1db65",
+    "from": "sub_1DB65",
+    "to": "field_defeated_units_finalize",
+    "aliases": [
+     "field_defeated_units_finalize_entry"
+    ]
+   },
+   {
+    "va": "0x1e856",
+    "from": "sub_1E856",
+    "to": "field_physical_attack_sequence",
+    "aliases": []
+   },
+   {
+    "va": "0x1ecc7",
+    "from": "sub_1ECC7",
+    "to": "field_physical_attack_resolve",
+    "aliases": []
+   },
+   {
+    "va": "0x1f0dc",
+    "from": "sub_1F0DC",
+    "to": "field_counterattack_is_available",
+    "aliases": []
+   },
+   {
+    "va": "0x1f183",
+    "from": "sub_1F183",
+    "to": "field_unit_ignores_terrain_combat_modifier",
+    "aliases": []
+   },
+   {
+    "va": "0x1f525",
+    "from": "sub_1F525",
+    "to": "palette_fade_in_light",
+    "aliases": []
+   },
+   {
+    "va": "0x1f558",
+    "from": "sub_1F558",
+    "to": "field_view_render_scaled",
+    "aliases": [
+     "field_view_render_scaled_entry"
+    ]
+   },
+   {
+    "va": "0x1f73f",
+    "from": "sub_1F73F",
+    "to": "intro_cutaway",
+    "aliases": []
+   },
+   {
+    "va": "0x1f81e",
+    "from": "sub_1F81E",
+    "to": "intro_anim_with_palette",
+    "aliases": []
+   },
+   {
+    "va": "0x1f882",
+    "from": "sub_1F882",
+    "to": "palette_fade_out_dark",
+    "aliases": []
+   },
+   {
+    "va": "0x1f894",
+    "from": "sub_1F894",
+    "to": "boot_intro_title_menu",
+    "aliases": [
+     "boot_intro_title",
+     "boot_intro_title_entry",
+     "title_action_menu"
+    ]
+   },
+   {
+    "va": "0x1ff79",
+    "from": "sub_1FF79",
+    "to": "title_menu_draw",
+    "aliases": []
+   },
+   {
+    "va": "0x203bd",
+    "from": "sub_203BD",
+    "to": "dac_fill_rgb",
+    "aliases": []
+   },
+   {
+    "va": "0x20421",
+    "from": "sub_20421",
+    "to": "animation_play",
+    "aliases": []
+   },
+   {
+    "va": "0x21527",
+    "from": "sub_21527",
+    "to": "field_earthquake_effect",
+    "aliases": []
+   },
+   {
+    "va": "0x22046",
+    "from": "sub_22046",
+    "to": "field_transition_lut_mask",
+    "aliases": []
+   },
+   {
+    "va": "0x233c6",
+    "from": "sub_233C6",
+    "to": "field_cutscene_setup_units_camera",
+    "aliases": []
+   },
+   {
+    "va": "0x24618",
+    "from": "sub_24618",
+    "to": "field_stage_transition_effect",
+    "aliases": [
+     "field_stage_transition_effect_core"
+    ]
+   },
+   {
+    "va": "0x25977",
+    "from": "sub_25977",
+    "to": "music_track_play",
+    "aliases": []
+   },
+   {
+    "va": "0x25a96",
+    "from": "sub_25A96",
+    "to": "sfx_play",
+    "aliases": []
+   },
+   {
+    "va": "0x25b45",
+    "from": "sub_25B45",
+    "to": "pal_mask_set",
+    "aliases": []
+   },
+   {
+    "va": "0x25ebb",
+    "from": "sub_25EBB",
+    "to": "title_action_dispatch",
+    "aliases": []
+   },
+   {
+    "va": "0x29300",
+    "from": "sub_29300",
+    "to": "field_manual_slot_dispatch",
+    "aliases": []
+   },
+   {
+    "va": "0x29620",
+    "from": "sub_29620",
+    "to": "field_manual_slot_save",
+    "aliases": []
+   },
+   {
+    "va": "0x2986f",
+    "from": "sub_2986F",
+    "to": "field_manual_slot_load",
+    "aliases": []
+   },
+   {
+    "va": "0x29bcb",
+    "from": "sub_29BCB",
+    "to": "field_manual_slot_picker",
+    "aliases": []
+   },
+   {
+    "va": "0x2df01",
+    "from": "sub_2DF01",
+    "to": "palette_fade_to",
+    "aliases": []
+   },
+   {
+    "va": "0x2e95b",
+    "from": "sub_2E95B",
+    "to": "fd2tmp_map_sprite_load",
+    "aliases": []
+   },
+   {
+    "va": "0x2ff01",
+    "from": "sub_2FF01",
+    "to": "field_magic_battle_animation",
+    "aliases": [
+     "field_magic_battle_animation_core"
+    ]
+   },
+   {
+    "va": "0x3231b",
+    "from": "sub_3231B",
+    "to": "new_game_opening_play",
+    "aliases": []
+   },
+   {
+    "va": "0x32975",
+    "from": "sub_32975",
+    "to": "field_actor_hide",
+    "aliases": [
+     "field_ai_behavior7_hide_actor"
+    ]
+   },
+   {
+    "va": "0x32999",
+    "from": "sub_32999",
+    "to": "field_actor_group_arrival_effect",
+    "aliases": []
+   },
+   {
+    "va": "0x344f2",
+    "from": "sub_344F2",
+    "to": "field_actor_range_status_set",
+    "aliases": []
+   },
+   {
+    "va": "0x34531",
+    "from": "sub_34531",
+    "to": "field_stage0_31_turn_action0",
+    "aliases": []
+   },
+   {
+    "va": "0x3460b",
+    "from": "sub_3460B",
+    "to": "field_stage0_31_turn_action1",
+    "aliases": []
+   },
+   {
+    "va": "0x34673",
+    "from": "sub_34673",
+    "to": "field_stage0_31_turn_action2",
+    "aliases": []
+   },
+   {
+    "va": "0x346cd",
+    "from": "sub_346CD",
+    "to": "field_stage0_31_turn_action3",
+    "aliases": []
+   },
+   {
+    "va": "0x34894",
+    "from": "sub_34894",
+    "to": "field_actor_is_hidden",
+    "aliases": []
+   },
+   {
+    "va": "0x35b78",
+    "from": "sub_35B78",
+    "to": "field_camera_music_flash",
+    "aliases": []
+   },
+   {
+    "va": "0x36e57",
+    "from": "sub_36E57",
+    "to": "afm_opcode_palette_raw",
+    "aliases": []
+   },
+   {
+    "va": "0x36e65",
+    "from": "sub_36E65",
+    "to": "afm_opcode_palette_rle",
+    "aliases": []
+   },
+   {
+    "va": "0x36ee0",
+    "from": "sub_36EE0",
+    "to": "afm_opcode_fill_framebuffer",
+    "aliases": []
+   },
+   {
+    "va": "0x36f08",
+    "from": "sub_36F08",
+    "to": "afm_opcode_copy_framebuffer",
+    "aliases": []
+   },
+   {
+    "va": "0x36f24",
+    "from": "sub_36F24",
+    "to": "afm_opcode_rle_framebuffer",
+    "aliases": []
+   },
+   {
+    "va": "0x36f69",
+    "from": "sub_36F69",
+    "to": "afm_opcode_sparse_pixel",
+    "aliases": []
+   },
+   {
+    "va": "0x36f82",
+    "from": "sub_36F82",
+    "to": "afm_opcode_sparse_run",
+    "aliases": []
+   },
+   {
+    "va": "0x36fac",
+    "from": "sub_36FAC",
+    "to": "afm_opcode_sparse_literal",
+    "aliases": []
+   },
+   {
+    "va": "0x36fd3",
+    "from": "sub_36FD3",
+    "to": "anim_buffer_init",
+    "aliases": []
+   },
+   {
+    "va": "0x36ff4",
+    "from": "sub_36FF4",
+    "to": "anim_exec_bytecode",
+    "aliases": []
+   },
+   {
+    "va": "0x373ca",
+    "from": "sub_373CA",
+    "to": "file_read",
+    "aliases": []
+   },
+   {
+    "va": "0x382d6",
+    "from": "sub_382D6",
+    "to": "coro_yield",
+    "aliases": []
+   },
+   {
+    "va": "0x382db",
+    "from": "sub_382DB",
+    "to": "coro_switch",
+    "aliases": []
+   },
+   {
+    "va": "0x382e9",
+    "from": "sub_382E9",
+    "to": "event_pump",
+    "aliases": []
+   },
+   {
+    "va": "0x39521",
+    "from": "sub_39521",
+    "to": "ail_init_sample",
+    "aliases": []
+   },
+   {
+    "va": "0x39694",
+    "from": "sub_39694",
+    "to": "ail_set_sample_address",
+    "aliases": []
+   },
+   {
+    "va": "0x39798",
+    "from": "sub_39798",
+    "to": "ail_start_sample",
+    "aliases": []
+   },
+   {
+    "va": "0x39805",
+    "from": "sub_39805",
+    "to": "ail_end_sample",
+    "aliases": []
+   },
+   {
+    "va": "0x39aae",
+    "from": "sub_39AAE",
+    "to": "ail_set_sample_loop_count",
+    "aliases": []
+   },
+   {
+    "va": "0x3adf5",
+    "from": "sub_3ADF5",
+    "to": "ail_init_sequence",
+    "aliases": []
+   },
+   {
+    "va": "0x3aeee",
+    "from": "sub_3AEEE",
+    "to": "ail_start_sequence",
+    "aliases": []
+   },
+   {
+    "va": "0x3af5b",
+    "from": "sub_3AF5B",
+    "to": "ail_stop_sequence",
+    "aliases": []
+   },
+   {
+    "va": "0x3b124",
+    "from": "sub_3B124",
+    "to": "ail_set_sequence_volume",
+    "aliases": []
+   },
+   {
+    "va": "0x3b1a6",
+    "from": "sub_3B1A6",
+    "to": "ail_set_sequence_loop_count",
+    "aliases": []
+   },
+   {
+    "va": "0x4df09",
+    "from": "sub_4DF09",
+    "to": "save_checksum_sum",
+    "aliases": []
+   },
+   {
+    "va": "0x4df28",
+    "from": "sub_4DF28",
+    "to": "save_xor_crypt",
+    "aliases": []
+   },
+   {
+    "va": "0x4e016",
+    "from": "sub_4E016",
+    "to": "shape_blit_palette_lut_24x24",
+    "aliases": []
+   },
+   {
+    "va": "0x4e0a2",
+    "from": "sub_4E0A2",
+    "to": "shape_blit_palette_lut_transparent_24x24",
+    "aliases": []
+   },
+   {
+    "va": "0x4e127",
+    "from": "sub_4E127",
+    "to": "map_sprite_solid_blit_24",
+    "aliases": []
+   },
+   {
+    "va": "0x4e381",
+    "from": "sub_4E381",
+    "to": "vsync_wait",
+    "aliases": []
+   },
+   {
+    "va": "0x4e390",
+    "from": "sub_4E390",
+    "to": "field_reachable_cells_compute",
+    "aliases": []
+   },
+   {
+    "va": "0x4e4f6",
+    "from": "sub_4E4F6",
+    "to": "field_path_find",
+    "aliases": []
+   },
+   {
+    "va": "0x4e866",
+    "from": "sub_4E866",
+    "to": "field_magic_record_get",
+    "aliases": []
+   },
+   {
+    "va": "0x4e8a5",
+    "from": "sub_4E8A5",
+    "to": "field_movement_profile_get",
+    "aliases": []
+   },
+   {
+    "va": "0x4e8bc",
+    "from": "sub_4E8BC",
+    "to": "field_item_record_get",
+    "aliases": []
+   },
+   {
+    "va": "0x4e98d",
+    "from": "sub_4E98D",
+    "to": "blit_image_clipped",
+    "aliases": []
+   },
+   {
+    "va": "0x4eb48",
+    "from": "sub_4EB48",
+    "to": "field_movement_script_ptr",
+    "aliases": []
+   },
+   {
+    "va": "0x4ebe3",
+    "from": "sub_4EBE3",
+    "to": "field_rng_next",
+    "aliases": []
+   },
+   {
+    "va": "0x4ebff",
+    "from": "sub_4EBFF",
+    "to": "lmi_rle_blit_forward",
+    "aliases": []
+   },
+   {
+    "va": "0x4ec31",
+    "from": "sub_4EC31",
+    "to": "lmi_rle_blit_reverse",
+    "aliases": []
+   },
+   {
+    "va": "0x4ed7a",
+    "from": "sub_4ED7A",
+    "to": "font_glyph_blit_16x16",
+    "aliases": []
+   }
+  ],
+  "skipped": [],
+  "commented": 186,
+  "collisions": [
+   {
+    "va": "0x115b6",
+    "names": [
+     "field_cell_selection_execute",
+     "field_cell_selection_execute_core"
+    ]
+   },
+   {
+    "va": "0x11eee",
+    "names": [
+     "field_view_render_tiles",
+     "field_view_render_tiles_entry"
+    ]
+   },
+   {
+    "va": "0x13a9f",
+    "names": [
+     "field_ai_unit_execute",
+     "field_ai_unit_execute_core"
+    ]
+   },
+   {
+    "va": "0x13e9c",
+    "names": [
+     "field_ai_move_toward_nearest",
+     "field_ai_move_toward_nearest_core"
+    ]
+   },
+   {
+    "va": "0x14b78",
+    "names": [
+     "field_ai_move_toward_cell",
+     "field_ai_move_toward_cell_core"
+    ]
+   },
+   {
+    "va": "0x17fc0",
+    "names": [
+     "field_unit_detail_stats_draw",
+     "field_unit_detail_stats_draw_entry"
+    ]
+   },
+   {
+    "va": "0x18d8c",
+    "names": [
+     "field_player_command_execute",
+     "field_player_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x1acf3",
+    "names": [
+     "field_cell_info_panel_draw",
+     "field_cell_info_panel_draw_entry"
+    ]
+   },
+   {
+    "va": "0x1b750",
+    "names": [
+     "field_unit_combat_stats_recompute",
+     "field_unit_combat_stats_recompute_entry",
+     "field_unit_combat_stats_recompute_runtime"
+    ]
+   },
+   {
+    "va": "0x1bbdc",
+    "names": [
+     "field_player_item_command_execute",
+     "field_player_item_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x1c269",
+    "names": [
+     "field_unit_magic_list_build",
+     "field_unit_magic_list_build_core"
+    ]
+   },
+   {
+    "va": "0x1c2da",
+    "names": [
+     "field_actor_group_flash",
+     "field_actor_group_flash_core"
+    ]
+   },
+   {
+    "va": "0x1cff0",
+    "names": [
+     "field_player_magic_command_execute",
+     "field_player_magic_command_execute_core"
+    ]
+   },
+   {
+    "va": "0x1d80b",
+    "names": [
+     "field_side1_phase_execute",
+     "field_side1_phase_execute_core"
+    ]
+   },
+   {
+    "va": "0x1d8ba",
+    "names": [
+     "field_side0_phase_execute",
+     "field_side0_phase_execute_core"
+    ]
+   },
+   {
+    "va": "0x1db65",
+    "names": [
+     "field_defeated_units_finalize",
+     "field_defeated_units_finalize_entry"
+    ]
+   },
+   {
+    "va": "0x1f558",
+    "names": [
+     "field_view_render_scaled",
+     "field_view_render_scaled_entry"
+    ]
+   },
+   {
+    "va": "0x1f894",
+    "names": [
+     "boot_intro_title",
+     "boot_intro_title_entry",
+     "title_action_menu"
+    ]
+   },
+   {
+    "va": "0x24618",
+    "names": [
+     "field_stage_transition_effect",
+     "field_stage_transition_effect_core"
+    ]
+   },
+   {
+    "va": "0x2ff01",
+    "names": [
+     "field_magic_battle_animation",
+     "field_magic_battle_animation_core"
+    ]
+   },
+   {
+    "va": "0x32975",
+    "names": [
+     "field_actor_hide",
+     "field_ai_behavior7_hide_actor"
+    ]
+   }
+  ]
+ }
+}

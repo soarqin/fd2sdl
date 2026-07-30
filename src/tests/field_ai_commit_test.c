@@ -1,6 +1,6 @@
 /* M7.3 敌方物理 plan/commit 事务测试。
- * 逆向依据：field_ai_move_toward_cell @0x39d8c 最终重建并播放路径；
- * field_physical_exchange @0x3a6a2 在移动后提交进攻、反击和死亡清理。
+ * 逆向依据：field_ai_move_toward_cell @0x14b78 最终重建并播放路径；
+ * field_physical_exchange @0x1548e 在移动后提交进攻、反击和死亡清理。
  */
 #include <stdio.h>
 #include <stdlib.h>

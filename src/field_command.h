@@ -3,7 +3,7 @@
  * 逆向依据：field_command_menu_open @code0 0x741c、
  * field_command_menu_input @code0 0x77fc、field_command_menu_close
  * @code0 0x76b4
- * 与 field_player_command_execute @0x3dfa0。
+ * 与 field_player_command_execute @0x18d8c。
  */
 #ifndef FD2_FIELD_COMMAND_H
 #define FD2_FIELD_COMMAND_H

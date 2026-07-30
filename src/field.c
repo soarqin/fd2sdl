@@ -57,8 +57,8 @@ int fd2_field_map_open_stage(fd2_field_map *map,
 
 int fd2_field_metadata_open_mem(fd2_field_metadata *meta,
                                 const uint8_t *data, size_t size) {
-    /* stage metadata 结构由 FUN_00017f5b @0x3fa27、
-     * FUN_0001118c @0x38c58、FUN_000111e7 路径交叉确认：
+    /* stage metadata 结构由 FUN_00017f5b @0x1a813、
+     * FUN_0001118c @0x13a44、FUN_000111e7 路径交叉确认：
      * 0x03 起 16*3 回合事件（turn/action/phase），0x33 起 16*2 cell lookup，
      * 0x53 起 16*3 cell action，0x83 起 26 字节单位模板。 */
     memset(meta, 0, sizeof(*meta));

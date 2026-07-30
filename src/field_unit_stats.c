@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - 通用单位战斗属性派生
  *
- * 逆向依据：field_unit_combat_stats_recompute @0x4096e（entry 0x40964）
+ * 逆向依据：field_unit_combat_stats_recompute @0x1b750（entry 0x40964）
  *（field_unit_combat_stats_recompute）读取
  * DAT_00003a45 的 0x50 字节单位记录、8 个装备槽和装备表，并写入
  * 0x48/0x4a/0x4c；DOSBox CPU trace 进一步确认共享尾部写入 0x4e。

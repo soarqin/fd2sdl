@@ -138,7 +138,7 @@ int fd2_terrain_base_frame_from_cell_animated(
     if (terrain_phase < 0) terrain_phase = 0;
     if (actor_phase < 0) actor_phase = 0;
     size_t frame_index = terrain_id;
-    /* field_view_render_tiles @0x3710c：0x08 动画跨过配套遮挡帧，
+    /* field_view_render_tiles @0x11eee：0x08 动画跨过配套遮挡帧，
      * 0x10 使用单位 idle phase 的一半，0x04 使用逐 BIOS tick 相位。 */
     if ((attr->flags & 0x08u) != 0)
         frame_index += (size_t)(terrain_phase & 1) * 2u;
@@ -246,7 +246,7 @@ void fd2_terrain_render_field_base_animated(
     if (!vga || !terrain || !map) return;
     fd2_vga_clear(vga, 0);
 
-    /* 战场底图：对照 field_view_render_tiles @0x3710c，按 terrain_id
+    /* 战场底图：对照 field_view_render_tiles @0x11eee，按 terrain_id
      * 与 flags 0x04/0x08/0x10 选择 FDSHAP 24×24 动画帧。 */
     for (int y = 0; y < map->height; y++) {
         for (int x = 0; x < map->width; x++) {
@@ -279,7 +279,7 @@ void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       int anim_phase) {
     if (!vga || !terrain || !map) return;
 
-    /* 遮挡层：复现 FUN_0001020e @0x37cda 对地形表 flags 的处理。
+    /* 遮挡层：复现 FUN_0001020e @0x12ac6 对地形表 flags 的处理。
      * 原版在 actor 绘制后重绘附近遮挡格，使树冠/建筑位于角色上方。 */
     for (int y = 0; y < map->height; y++) {
         for (int x = 0; x < map->width; x++) {
@@ -324,7 +324,7 @@ void fd2_terrain_render_field_scaled_animated(
                                       int step_fp,
                                       int terrain_phase, int actor_phase) {
     if (!vga || !terrain || !map || step_fp <= 0) return;
-    /* field_view_render_scaled @0x44776 以视窗中心 (156,96) 回推
+    /* field_view_render_scaled @0x1f558 以视窗中心 (156,96) 回推
      * 起点，tile fixed-point 宽度为 0xc00，单像素为 0x80。 */
     int64_t start_x = (int64_t)center_x_fp - (int64_t)step_fp * 156;
     int64_t source_y = (int64_t)center_y_fp - (int64_t)step_fp * 96;

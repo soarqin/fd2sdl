@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 统一音频设备、bus 与 source 混音层
  *
- * 原版依据：music_track_play @0x4ab8b 管理 XMIDI sequence，
- * sfx_play @0x4acaa 管理数字 sample。SDL 重写不复刻 AIL 驱动，二者统一
+ * 原版依据：music_track_play @0x25977 管理 XMIDI sequence，
+ * sfx_play @0x25a96 管理数字 sample。SDL 重写不复刻 AIL 驱动，二者统一
  * 渲染为 float32 stereo 后交给 SDL_AudioStream。
  */
 

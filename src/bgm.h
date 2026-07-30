@@ -6,7 +6,7 @@
 #include "archive.h"
 #include "audio.h"
 
-/* 原版 music_track_play @0x4ab8b 的单 sequence 播放器。
+/* 原版 music_track_play @0x25977 的单 sequence 播放器。
  * FDMUS.DAT 继续作为 XMIDI 数据源，SAMPLE.AD 继续作为 AIL/AdLib
  * 音色表；SDL 只接收最终 float32 stereo。 */
 typedef struct fd2_bgm_player fd2_bgm_player;

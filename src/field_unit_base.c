@@ -4,7 +4,7 @@
  *（code0 0x25e6e）按 unit ID 选择两类静态表：ID < 0x44 使用 24 字节基础
  * record + 11 字节成长 record；ID >= 0x44 使用 10 字节敌军 record。
  * 函数写入 0x1f/0x20/0x21、0x37/0x39/0x3e、0x3b 和 HP/MP 后调用
- * field_unit_combat_stats_recompute @0x4096e（entry 0x40964）。
+ * field_unit_combat_stats_recompute @0x1b750（entry 0x40964）。
  */
 
 #include "field_unit_base.h"

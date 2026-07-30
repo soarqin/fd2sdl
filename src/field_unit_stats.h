@@ -33,7 +33,7 @@ typedef int (*fd2_field_unit_stat_scale_fn)(void *userdata,
                                             int32_t value,
                                             int32_t *scaled_value);
 
-/* 复现 field_unit_combat_stats_recompute @0x4096e（entry 0x40964）
+/* 复现 field_unit_combat_stats_recompute @0x1b750（entry 0x40964）
  *（field_unit_combat_stats_recompute）的已确认派生链：
  *
  * - 基础 attack/defense/accuracy 来自 record 0x37/0x39/0x3e；

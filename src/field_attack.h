@@ -11,14 +11,14 @@
 #include "field_unit.h"
 #include "tile.h"
 
-/* field_equipped_item_slot_find @0x40a51 的 weapon 模式：按槽位顺序查找
+/* field_equipped_item_slot_find @0x1b83d 的 weapon 模式：按槽位顺序查找
  * flag 0x40 且 item_id < 0x80 的首件装备，再读取物品记录 +0x0b/+0x0c
  * 作为普通攻击最小／最大范围。 */
 int fd2_field_attack_weapon_range(const fd2_field_unit *attacker,
                                   uint8_t *min_range,
                                   uint8_t *max_range);
 
-/* field_physical_attack_resolve @0x43edb：首件已装备武器 record +0x09
+/* field_physical_attack_resolve @0x1ecc7：首件已装备武器 record +0x09
  * 为特效类型；类型 4 时将 +0x0a 累加到职业／移动 profile 暴击基础值。
  * 基础表 DS:0x24a8 的可靠静态映射仍待运行时确认。 */
 int fd2_field_attack_weapon_critical_bonus(const fd2_field_unit *attacker,
@@ -34,7 +34,7 @@ int fd2_field_attack_apply_pre_hit_effect(
     void *rng_userdata,
     int *applied);
 
-/* field_physical_attack_sequence @0x43a6a：每轮先消费一次 RNG；武器
+/* field_physical_attack_sequence @0x1e856：每轮先消费一次 RNG；武器
  * effect type 3 或 rand()%100 < 3 时执行两击，否则一击。 */
 int fd2_field_attack_sequence_count(
     const fd2_field_unit *attacker,
@@ -42,13 +42,13 @@ int fd2_field_attack_sequence_count(
     void *rng_userdata,
     uint8_t *strike_count);
 
-/* field_counterattack_is_available @0x442f0：反击者 +0x26 必须为 0，
+/* field_counterattack_is_available @0x1f0dc：反击者 +0x26 必须为 0，
  * 双方曼哈顿距离必须为 1，且反击者首件已装备武器最小射程为 1。 */
 int fd2_field_attack_counterattack_is_available(
     const fd2_field_unit *counterattacker,
     const fd2_field_unit *target);
 
-/* field_unit_ignores_terrain_combat_modifier @0x44397：unit 28 强制使用
+/* field_unit_ignores_terrain_combat_modifier @0x1f183：unit 28 强制使用
  * 地形；其他单位 movement profile 19 或 race 4/5 时跳过地形攻防修正。 */
 int fd2_field_attack_unit_ignores_terrain_modifier(
     const fd2_field_unit *unit);
@@ -62,13 +62,13 @@ int fd2_field_attack_apply_terrain_modifier(uint32_t stat,
                                             int32_t percent,
                                             uint32_t *adjusted);
 
-/* field_physical_attack_resolve @0x43edb 从
+/* field_physical_attack_resolve @0x1ecc7 从
  * DS:0x24a8[movement_profile-1] 读取基础暴击率。完整 30 字节表已由
  * DOSBox debugger 捕获；profile 0 或 >30 返回 -1。 */
 int fd2_field_attack_base_critical_chance(const fd2_field_unit *attacker,
                                           uint8_t *base_chance);
 
-/* field_target_range_build @0x39a2c 的 profile 0 范围传播核心。
+/* field_target_range_build @0x14818 的 profile 0 范围传播核心。
  * 从指定格传播 max_range，并按曼哈顿距离排除小于 min_range 的格子；
  * 不收集 actor，也不修改单位。 */
 int fd2_field_target_range_compute(fd2_field_path_result *result,

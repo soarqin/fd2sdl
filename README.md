@@ -18,8 +18,9 @@
 - 数据格式：`docs/formats/data-formats.md`
 - 地址映射：`docs/reverse-engineering/address-mapping.md`
 - 函数命名：`docs/reverse-engineering/function-names.md`
+- IDA 独立复核：`docs/reverse-engineering/ida-crosscheck.md`
 - 工具速查：`docs/tools/README.md`
-- 生成产物：`docs/generated/`
+- 生成产物：`docs/generated/`（当前反编译参考：`docs/generated/ida-canonical/fd2-ida-decomp-all.c`）
 
 ## 构建
 
@@ -42,9 +43,11 @@ cmake --build src/build
 ./src/fd2sdl --prologue-preview       # 完整新游戏初始过场
 ```
 
-战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。确认移动后会展开原版 FDOTHER[2] 四向图形指令菜单：上／左／右／下依次为 attack、magic、item、wait。attack 仅在存在合法目标时可选；确认后移动光标选择目标，再次确认结算，或按取消键返回并重新展开菜单。wait 直接完成行动。magic 和 item 的用途及原版入口已确认，但执行状态机尚未实现，当前显示禁用帧。菜单中按 `Escape` 或数字小键盘 `.`／`Delete` 会收起菜单，并恢复移动前坐标、方向和镜头。
+战场入口使用方向键或数字小键盘方向键移动光标，`Enter`、`Space` 或数字小键盘 `0` 确认；`F2` 或 `Home` 可打开当前焦点单位详情。确认移动后会展开原版 FDOTHER[2] 四向图形指令菜单：上／左／右／下依次为 attack、magic、item、wait。attack 仅在存在合法目标时可选；确认后会显示真实武器范围，移动光标选择目标，再次确认结算，或按取消键返回并重新展开菜单。wait 直接完成行动。magic 和 item 的用途及原版入口已确认，但玩家执行状态机尚未实现，当前显示禁用帧。菜单中按 `Escape` 或数字小键盘 `.`／`Delete` 会收起菜单，并恢复移动前坐标、方向和镜头。
 
-普通攻击已接入原版武器范围、RNG 初值 `0x7a18`、profile 暴击基础表、武器 effect、地形攻防修正、双击、邻接反击和 HP 0 隐藏提交。菜单选择、待机和取消不推进 RNG。菜单外的 `Escape`、`Z`、数字小键盘 `5` 与数字小键盘 `.`／`Delete` 仍保留在原版焦点更新动作中，不猜测其状态相关效果。M7.0 已实现敌方最近目标与可达目的地查询；M7.1 复现移动后普通攻击候选排序和三分数分派；M7.2 加入 36×7 字节法术表、法术／物品目标评分及候选计划；M7.3 已新增完整平价门控和显式物理 plan/commit 事务，可重验计划、播放路径并复用物理 exchange。该事务尚未接入自动 phase；法术／物品 handler、消耗与演出仍未实现。全部玩家完成后，当前骨架仍让 side 1 和 side 0 单位按顺序自动待机，再进入下一回合。
+普通攻击已接入原版武器范围、RNG 初值 `0x7a18`、profile 暴击基础表、武器 effect、地形攻防修正、双击、邻接反击、HP 扣减和 HP 0 隐藏提交。attack 与 wait 均通过正式指令状态机设置 acted；同一单位在本回合不能再次进入移动状态。全部玩家完成后，phase 按 `2 → 1 → 0 → 下一回合 2` 推进，side 1/0 使用已接入的 M7 AI 行动，不再以自动待机代替。菜单选择、待机和取消不推进 RNG。
+
+M7 已接入物理计划／提交、可确认的 AI 法术与物品效果、自动 phase 和 stage 0 胜负门。玩家 magic/item、特殊 handler、FIGANI 演出、关卡结束回调与下一关初始化仍未完成。Linux/X11 环境下的 `field_play_input` CTest 会通过 Xvfb 与 XTest 向正式 `--field-play 0` SDL 循环发送按键，覆盖非零移动后 wait、acted 拒绝、完整 phase 推进、真实属性扣血和双击击杀；`--field-play-once` 只保留资源与逻辑集成检查，不作为正式输入状态机的验收依据。
 
 可用 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 强制走 CPM.cmake 回退路径；离线环境可预先安装 SDL3，或通过 `SDL3_DIR` 指向已有 SDL3 CMake 包。
 
@@ -78,12 +81,12 @@ python3 tools/compare_fd2_music_capture.py capture.wav rendered/
 | 基础设施与资源 | 已完成 | SDL3/CMake 骨架、`.DAT` 嵌套归档、调色板、图像、字体、文本、地图、地形、精灵和存档读取 |
 | 启动流程 | 已完成 | 片头、标题、新游戏 stage 32 → 31 → 0 过场、ANI.DAT/AFM 播放器和正式战场 handoff |
 | 统一单位模型 | 已完成 | 原版 `0x50` 字节记录、角色／敌军基础表、等级成长、装备派生、group 增援和存档逐字恢复 |
-| 战场交互 | 进行中 | 键盘光标、原版选择框、范围 LUT、参数化寻路、ZOC、六相位移动、取消回退和回合骨架 |
+| 战场交互 | 进行中 | 键盘光标、原版选择框、移动／攻击范围 LUT、参数化寻路、ZOC、六相位移动、取消回退、acted 门和完整 phase 推进 |
 | 战场 UI | 已完成当前范围 | 常驻格子信息面板；DATO 全屏角色详情页；215 项物品表；四名初始玩家实机装备；原版头像边框和 12 帧三段开合视觉 |
-| 事件与战斗 | 进行中 | FDFIELD 回合／格子事件、安全 handler 边界、stage 0 action 0..3 演出、确定性物理攻击核心、双击与邻接反击；正式指令、敌方 phase AI 和胜负推进尚未完成 |
+| 事件与战斗 | 进行中 | FDFIELD 回合／格子事件、stage 0 action 0..3、正式物理攻击、双击／反击、敌方 phase AI 和 stage 0 胜负门；玩家法术／物品、特殊 handler、FIGANI 与跨关卡推进尚未完成 |
 | 音频 | PCM 已接入，OPL 原型已评审 | FDOTHER[31]/[80] 已加载；详情音效及 actor flash、stage transition、earthquake 的 snapshot、原版帧序和 cue wrapper 已实现；15 项 XMIDI 与 stage 曲目表已确认。正式 OPL 后端仍待许可证决策或 MIT/LGPL 组件化实现 |
 
-当前快速入口会验证 `cursor/info/detail/move/move-exec/attack/turn/event/effect`，CTest 包含 14 个 C 测试目标。原版不支持鼠标，因此不计划增加鼠标映射。
+当前快速入口会验证 `cursor/info/detail/move/move-exec/player-round/attack/turn/event/effect`。CTest 还包含逻辑、资源和存档测试；依赖齐备的 Linux/X11 环境会额外注册正式 SDL 战场输入回归。原版不支持鼠标，因此不计划增加鼠标映射。
 
 ## 音频实施方向
 

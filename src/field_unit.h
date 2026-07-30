@@ -11,12 +11,12 @@
 /* 战场单位运行时记录。
  *
  * 逆向依据：DAT_00003a45 是由 0x50 字节记录组成的战场单位表；
- * map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、
- * field_visible_actor_find_by_text_id @0x37e74 分别读取坐标、精灵、
+ * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
+ * field_visible_actor_find_by_text_id @0x12c60 分别读取坐标、精灵、
  * 隐藏标志及文本编号。FDFIELD stage metadata 的 26 字节模板与
  * placement 已确认按 unit ID 和出现次序匹配；原版 stage constructor
  * 将 26 字节模板重排为身份、装备和 AI 字段，再按等级派生基础属性。
- * field_ai_unit_execute @0x38cb3 进一步确认 record +0x34 低半字节为
+ * field_ai_unit_execute @0x13a9f 进一步确认 record +0x34 低半字节为
  * behavior selector，并在入口读取 +0x35/+0x36 作为模式参数。
  */
 #define FD2_FIELD_UNIT_RECORD_SIZE 0x50

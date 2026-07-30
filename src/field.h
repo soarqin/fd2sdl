@@ -10,7 +10,7 @@
  *
  * 已用 original_game/FDFIELD.DAT 验证：每 3 个条目为一组，组内第 0 个
  * 条目是地图网格：u16 width + u16 height + width*height 个 u32 cell。
- * cell 低 10 位在反编译 FUN_0001020e @0x37cda 中作为地形/图块索引读取：
+ * cell 低 10 位在反编译 FUN_0001020e @0x12ac6 中作为地形/图块索引读取：
  *   (*(ushort *)(cell_ptr + 4) & 0x3ff)
  */
 

@@ -50,8 +50,8 @@ int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
 int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                  size_t sample_index, int loop_count, float gain);
 
-/* 复现一个 AIL sample handle：sfx_play @0x4acaa 先调用
- * ail_end_sample @0x5ea19，再启动新样本；index -1 仅执行停止。
+/* 复现一个 AIL sample handle：sfx_play @0x25a96 先调用
+ * ail_end_sample @0x39805，再启动新样本；index -1 仅执行停止。
  * 不同 fd2_pcm_player 对应不同原版 handle，停止／替换不能误停另一 handle。 */
 int fd2_pcm_play_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                          size_t sample_index, int loop_count, float gain);

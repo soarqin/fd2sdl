@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""把历史 function-names.md 转为完整、有账的名称迁移 ledger。
+"""把历史命名档案转为完整、有账的名称迁移 ledger（旧 Ghidra 流程用）。
+
+输入固定为 `docs/reverse-engineering/function-names-legacy.md`。
+`function-names.md` 自 2026-07-30 起是由 `tools/ida/build_fd2_name_registry.py`
+生成的规范登记表，不能作为本脚本的输入。
 
 历史地址不统一，脚本不会猜测变换。只有当前机器码已重新确认的 anchor 进入
 confirmed registry；其余条目保留 legacy address 和说明，状态为 unresolved。
@@ -12,7 +16,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT = ROOT / "docs" / "reverse-engineering" / "function-names.md"
+DEFAULT_INPUT = (ROOT / "docs" / "reverse-engineering"
+                 / "function-names-legacy.md")
 DEFAULT_LEDGER = ROOT / "docs" / "generated" / "fd2-name-migration.json"
 DEFAULT_CONFIRMED = ROOT / "docs" / "generated" / "fd2-confirmed-function-names.json"
 ADDRESS_RE = re.compile(r"(?:code0\s+)?0x[0-9a-fA-F]+")
@@ -106,7 +111,7 @@ def build(path: Path) -> tuple[dict[str, object], dict[str, object]]:
         })
     ledger = {
         "schema": "fd2-name-migration-v1",
-        "source": "docs/reverse-engineering/function-names.md",
+        "source": "docs/reverse-engineering/function-names-legacy.md",
         "row_count": len(migration_rows),
         "confirmed_row_count": sum(
             1 for row in migration_rows if row["disposition"] == "confirmed-entry"),

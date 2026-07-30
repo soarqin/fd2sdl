@@ -1,0 +1,112 @@
+{
+ "schema": "fd2-ida-verify-v1",
+ "checks": [
+  {
+   "check": "项目 raw oracle SHA-256",
+   "ok": true,
+   "detail": "37bceab29c9ee9089b5c5f9c4abefdee26a0bb34ae47bb917783dcc23ee30fc2"
+  },
+  {
+   "check": "项目 relocated oracle SHA-256",
+   "ok": true,
+   "detail": "8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"
+  },
+  {
+   "check": "IDA loader 识别为 Linear Executable (LE)",
+   "ok": true,
+   "detail": "Linear Executable (LE)"
+  },
+  {
+   "check": "IDA 识别 compiler 为 Watcom",
+   "ok": true,
+   "detail": "Watcom C++"
+  },
+  {
+   "check": "object1 relbase/位宽/长度",
+   "ok": true,
+   "detail": "0x10000..0x4f000 bits=32 (LE vsize 末尾 0x4ef29, 页对齐末尾 0x4f000)"
+  },
+  {
+   "check": "object2 relbase/位宽/长度",
+   "ok": true,
+   "detail": "0x50000..0x556b0 bits=32 (LE vsize 末尾 0x556b0, 页对齐末尾 0x54000)"
+  },
+  {
+   "check": "object3 relbase/位宽/长度",
+   "ok": true,
+   "detail": "0x60000..0x64000 bits=32 (LE vsize 末尾 0x634d2, 页对齐末尾 0x64000)"
+  },
+  {
+   "check": "项目 relocation 记录数 7959 / 唯一 source 7948",
+   "ok": true,
+   "detail": "records=7959 unique=7948"
+  },
+  {
+   "check": "IDA fixup 数量与项目唯一 source 数一致",
+   "ok": true,
+   "detail": "ida=7948 project=7948"
+  },
+  {
+   "check": "relocation source 集合完全相同",
+   "ok": true,
+   "detail": "only_project=0 only_ida=0"
+  },
+  {
+   "check": "每个 source 的 target linear 地址一致",
+   "ok": true,
+   "detail": "mismatches=0"
+  },
+  {
+   "check": "IDA 全部 fixup 为 FIXUP_OFF32 / 4 字节",
+   "ok": true,
+   "detail": "exceptions=0"
+  },
+  {
+   "check": "IDA 已把 target linear 地址写入 source",
+   "ok": true,
+   "detail": "exceptions=0"
+  },
+  {
+   "check": "object1 已初始化区与 relocated oracle 逐字节一致",
+   "ok": true,
+   "detail": "compared=0x3ef29 diffs=0"
+  },
+  {
+   "check": "object2 已初始化区与 relocated oracle 逐字节一致",
+   "ok": true,
+   "detail": "compared=0x4000 diffs=0"
+  },
+  {
+   "check": "object3 已初始化区与 relocated oracle 逐字节一致",
+   "ok": true,
+   "detail": "compared=0x34d2 diffs=0"
+  },
+  {
+   "check": "object2 BSS 区在 IDA 中标记为未初始化（0xFF 填充）",
+   "ok": true,
+   "detail": "len=0x16b0 all_ff=True"
+  },
+  {
+   "check": "项目 oracle 的 object2 BSS 区为零填充",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "反写 relocation 前值后与 raw oracle 一致（BSS 除外）",
+   "ok": true,
+   "detail": "diffs=0 bss_only=0"
+  },
+  {
+   "check": "全部 IDA 函数位于 object1 范围内",
+   "ok": true,
+   "detail": "outside=0 total=1308"
+  },
+  {
+   "check": "函数最大结束地址不超过 object1 vsize 末尾",
+   "ok": true,
+   "detail": "max_end=0x4ef29 limit=0x4ef29"
+  }
+ ],
+ "passed": 21,
+ "failed": 0
+}

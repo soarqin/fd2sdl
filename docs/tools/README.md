@@ -46,11 +46,12 @@ git diff --check
 ```bash
 python3 tools/rebuild_fd2_analysis.py
 python3 tools/validate_le_fixups.py
+python3 tools/ida/verify_ida_vs_project.py
 python3 tools/verify_le_runtime_dump.py /tmp/fd2-entry.bin \
   --object1-base 0x16c000 --object2-base 0x1ac000 --object3-base 0x1b2000
 ```
 
-`validate_le_fixups.py` 严格检查 fixup page table、独立 decoder、source prevalue、重复记录和非 source 字节不变。`verify_le_runtime_dump.py` 再验证 DOSBox pre-entry 全对象转储。两者都通过才满足 `AGENTS.md` 的完整 fixup 验收；当前 FD2.EXE 已通过该组合验证。
+`validate_le_fixups.py` 严格检查 fixup page table、独立 decoder、source prevalue、重复记录和非 source 字节不变。`tools/ida/verify_ida_vs_project.py` 再用 IDA 自带 `loaders/lx.so` 的独立结果做 21 项对照（object 布局、7,948 个 relocation source/target、镜像字节、BSS 边界、函数分布）。`verify_le_runtime_dump.py` 验证 DOSBox pre-entry 全对象转储。三者都通过才满足 `AGENTS.md` 的完整 fixup 验收；当前 FD2.EXE 已通过。
 
 常用输出：
 
@@ -76,6 +77,8 @@ python3 tools/dump_fd2_fixup_table.py --object 3 --ds 0x27d8 --count 96
 ```bash
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 ```
+
+`test_fd2_function_seeds` 与 `test_rebuild_fd2_ghidra` 需要 `capstone`；本机未安装时这两项报 `ModuleNotFoundError`，属已知环境缺口，不是回归。`test_ida_crosscheck` 不需要 IDA，只校验已发布的证据产物与 `src/` 注释地址是否仍为 canonical VA。
 
 ## 3. radare2
 
@@ -161,6 +164,34 @@ python3 tools/rebuild_fd2_ghidra.py --decompile --determinism-check
 
 `tools/ghidra-scripts/decompile_clean.py`、`docs/generated/r2_funcs.txt` 和 `docs/generated/ghidra-decomp-all.c` 属于旧 dual 流程，不能再作为规范输入、函数种子或唯一证据。
 
+Ghidra 流程当前只保留作**结构验收**（block、权限、relocation 计数、确定性）。函数边界与伪 C 的当前开发基线是 IDA 产物，见下一节。
+
+## 5b. IDA Pro 9.4 / idalib
+
+完整说明见 [`ida.md`](ida.md)；分析结论见 `docs/reverse-engineering/ida-crosscheck.md`。
+
+```bash
+python3 tools/ida/ida_fd2_export.py
+python3 tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
+python3 tools/ida/ida_fd2_annotate.py --probe-only
+python3 tools/ida/ida_fd2_annotate.py
+python3 tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
+python3 tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
+python3 tools/ida/build_fd2_name_registry.py \
+    --markdown docs/reverse-engineering/function-names.md
+python3 tools/ida/ida_fd2_decompile.py --all --xrefs \
+    --out docs/generated/ida-canonical/fd2-ida-decomp-all.c
+```
+
+单点查询：
+
+```bash
+python3 tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
+python3 tools/ida/ida_fd2_decompile.py --asm 0x3702f
+```
+
+禁止用 `ida`（GUI）或 `idat` 做自动化；全部流程走 `idalib`。不要把 `0x3702f` 命名为 `__chkstk`／`alloca`，也不要给它写原型（会触发 IDA 内置 alloca 语义，反而产生大量寄存器幽灵参数）。
+
 ## 6. DOSBox debugger
 
 完整说明见：
@@ -243,9 +274,13 @@ git diff -- path/to/file
 
 ## 10. 文档索引
 
-- 地址空间和 r2/Ghidra：`docs/reverse-engineering/address-mapping.md`
+- 地址空间和 legacy 坐标换算：`docs/reverse-engineering/address-mapping.md`
+- IDA 独立复核报告：`docs/reverse-engineering/ida-crosscheck.md`
+- IDA / idalib 操作：`docs/tools/ida.md`
 - 反编译修正：`docs/reverse-engineering/decompilation-corrections.md`
 - DOSBox debugger：`docs/tools/dosbox-debug.md`
 - 数据格式：`docs/formats/data-formats.md`
-- 函数命名：`docs/reverse-engineering/function-names.md`
+- 函数命名（生成）：`docs/reverse-engineering/function-names.md`
+- 函数命名历史档案（只读）：`docs/reverse-engineering/function-names-legacy.md`
+- 当前反编译参考：`docs/generated/ida-canonical/fd2-ida-decomp-all.c`
 - 项目强制规则：`AGENTS.md`

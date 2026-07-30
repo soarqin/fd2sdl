@@ -33,7 +33,8 @@ typedef struct {
 } fd2_field_info_assets;
 
 /* FDOTHER[5] 战场格子/单位信息面板资源。
- * field_cell_info_panel_draw_entry @0x3ff07 / body @0x3ff11 使用 frame 130
+ * field_cell_info_panel_draw @0x1acf3（Watcom __chkstk body 在 +0xa，
+ * 不是独立函数）使用 frame 130
  * 作为 69×34 底板，frame 131/132 为正负号，frame 31..40 与 42..51
  * 分别为满 HP 和受伤状态的数字。 */
 /* assets 首次调用前必须清零；已 ready 的对象可直接重新打开。 */
@@ -55,8 +56,8 @@ void fd2_field_info_draw(fd2_vga *vga,
                          int attack_modifier,
                          int defense_modifier);
 
-/* 全屏角色详情页主体：复现 field_unit_detail_draw @0x3d103 与
- * field_unit_detail_stats_draw @0x3d1de。portrait 为 DATO 当前单位首帧。 */
+/* 全屏角色详情页主体：复现 field_unit_detail_draw @0x17eef 与
+ * field_unit_detail_stats_draw @0x17fc0。portrait 为 DATO 当前单位首帧。 */
 void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_field_info_assets *assets,
                            const fd2_font *font,
@@ -64,14 +65,14 @@ void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_field_unit *unit,
                            const fd2_image *portrait);
 
-/* field_unit_detail_transition_frame @0x3d61d：phase 11→0 打开，
+/* field_unit_detail_transition_frame @0x18409：phase 11→0 打开，
  * 0→11 关闭；每帧从 background 重建三段开合画面。 */
 void fd2_field_detail_transition_frame(uint8_t *dst,
                                        const uint8_t *detail,
                                        const uint8_t *background,
                                        int phase);
 
-/* field_unit_detail_open @0x3d01f：打开 phase 11/5 播放 SFX 5；
+/* field_unit_detail_open @0x17e0b：打开 phase 11/5 播放 SFX 5；
  * 调用方关闭循环 phase 0/7 播放 SFX 6。其他 phase 返回 -1。 */
 int fd2_field_detail_sfx_for_phase(int opening, int phase);
 

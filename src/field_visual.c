@@ -1,8 +1,8 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场选择框与可达范围视觉资源
  *
- * 逆向依据：field_selection_overlay_draw @0x374f0、
- * field_selection_sprite_blit @0x3790b、field_view_render_tiles @0x3710c
- * 与 shape_blit_palette_lut_24x24 @0x7322a、透明变体 @0x732b6。
+ * 逆向依据：field_selection_overlay_draw @0x122dc、
+ * field_selection_sprite_blit @0x126f7、field_view_render_tiles @0x11eee
+ * 与 shape_blit_palette_lut_24x24 @0x4e016、透明变体 @0x4e0a2。
  * FDOTHER[1] 提供 24×24
  * 选择框帧，FDOTHER[3] 提供 256 字节 palette translation LUT。
  */
@@ -112,7 +112,7 @@ const uint8_t *fd2_field_lut_frame(const fd2_field_visuals *visuals,
 const uint8_t *fd2_field_range_lut(const fd2_field_visuals *visuals,
                                    size_t phase) {
     /* DS:0x1a97，20 个 phase 对 FDOTHER[3] LUT frame 的选择表。
-     * field_view_render_tiles @0x3710c 每 3 个 BIOS tick 前进一步。 */
+     * field_view_render_tiles @0x11eee 每 3 个 BIOS tick 前进一步。 */
     static const uint8_t sequence[FD2_FIELD_RANGE_PHASE_COUNT] = {
         8, 1, 0, 0, 0, 4, 2, 5, 1, 0,
         0, 0, 4, 2, 5, 1, 0, 0, 0, 4,

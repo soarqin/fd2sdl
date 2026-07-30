@@ -1,8 +1,8 @@
 /* 炎龙骑士团 2 SDL3 重写 - 完整新游戏初始过场
  * 逆向依据：new_game_opening_play @code0 0x2231b 的 stage 32→31→0
  * 调用序列、text_dialog_render_tokens @code0 0x5f84、field_focus_move_to
- * @0x37efe、field_actor_move_up_follow_camera @0x38399、
- * field_camera_pan_to @0x387f1、field_movement_script_play @0x3887e，
+ * @0x12cea、field_actor_move_up_follow_camera @0x13185、
+ * field_camera_pan_to @0x135dd、field_movement_script_play @0x1366a，
  * 以及原版实机对照。
  */
 
@@ -25,8 +25,8 @@
 
 /* 完整新游戏开场由 new_game_opening_play @code0 0x2231b 驱动：
  * stage 32 / FDTXT[33] → stage 31 / FDTXT[32] → stage 0 / FDTXT[1]。
- * 三段之间穿插 field_camera_pan_to @0x387f1 与
- * field_movement_script_play @0x3887e，不能把 stage 0 fragment 0
+ * 三段之间穿插 field_camera_pan_to @0x135dd 与
+ * field_movement_script_play @0x1366a，不能把 stage 0 fragment 0
  * 单独放到 stage 32 背景上播放。 */
 #define FD2_OPENING_STAGE_32 32
 #define FD2_OPENING_STAGE_31 31
@@ -56,12 +56,12 @@
 /* bios_tick_delay @code0 0x7aa9 读取 BIOS 计时器 0x046c；
  * text_dialog_glyph_step @code0 0x64e8 每显示一个字先调用
  * sfx_play(DAT_00003eec, 2, 1)，再等待 1 tick，约 54.9 ms。
- * SDL 端取整为 55 ms。dialog_box_open @0x3b7c0 的展开步间等待则
+ * SDL 端取整为 55 ms。dialog_box_open @0x165ac 的展开步间等待则
  * 调用 delay_ms(10)，不是 BIOS tick。 */
 #define FD2_BIOS_TICK_MS 55
 #define FD2_DIALOG_TRANSITION_DELAY_MS 10
 #define FD2_TEXT_GLYPH_DELAY_MS FD2_BIOS_TICK_MS
-/* field_animation_phase_update @0x37b91 仅在 BIOS tick 差值大于 4
+/* field_animation_phase_update @0x1297d 仅在 BIOS tick 差值大于 4
  * 时推进一次角色 idle phase，即约每 5 tick / 275 ms 一帧。 */
 #define FD2_IDLE_FRAME_DELAY_MS (FD2_BIOS_TICK_MS * 5)
 
@@ -93,7 +93,7 @@ typedef struct {
     int camera_cell_x;
     int camera_cell_y;
     /* 角色贴近视窗边缘移动时，field_actor_move_up_follow_camera
-     * @0x38399 等方向函数会在 6 个步态相位中每次卷动 4 px，最后才
+     * @0x13185 等方向函数会在 6 个步态相位中每次卷动 4 px，最后才
      * 提交一格镜头坐标。 */
     int camera_offset_x;
     int camera_offset_y;
@@ -103,7 +103,7 @@ typedef struct {
     int focus_cell_y;
     /* DAT_00003a45：过场与正式战场共用的 0x50 字节单位记录表。 */
     fd2_field_units units;
-    /* field_animation_phase_update @0x37b91 的全局 idle phase。静止 actor
+    /* field_animation_phase_update @0x1297d 的全局 idle phase。静止 actor
      * 共用此相位；移动 actor 由 record offset 0x04 的步行相位覆盖。 */
     uint8_t idle_phase;
     int idle_elapsed_ms;
@@ -220,14 +220,14 @@ static void blit_ui_tile_mode(fd2_vga *vga, const fd2_ui_sheet *ui,
 
 static void blit_ui_tile(fd2_vga *vga, const fd2_ui_sheet *ui,
                          uint16_t tile_idx, int x, int y) {
-    /* 对照 FUN_00013fa4 @0x13fa4 / FUN_0004c453 @0x4c453：
+    /* 对照 FUN_00013fa4 @0x1685c / FUN_0004c453 @0x4ed0b：
      * FDOTHER[5] LMI1 小块是 4 字节宽高头 + 原始 8bpp 像素。 */
     blit_ui_tile_mode(vga, ui, tile_idx, x, y, -1);
 }
 
 static void draw_dialog_tiles(fd2_vga *vga, const fd2_ui_sheet *ui,
                               int x, int y, int tile_w, int tile_h) {
-    /* 复现 FUN_00013ffe @0x3baca 的布局：参数为 x/y、内部 16×16
+    /* 复现 FUN_00013ffe @0x168b6 的布局：参数为 x/y、内部 16×16
      * 区块数 tile_w/tile_h；最终对话框调用为 x=5,y=2 或 0x70,
      * tile_w=19,tile_h=5，尺寸正好 310×86。 */
     int inner_w = tile_w - 2;
@@ -286,7 +286,7 @@ static uint16_t resolve_portrait_control(const fd2_scene_field_state *field_stat
     }
     if ((control == FD2_TEXT_TOP_PORTRAIT ||
          control == FD2_TEXT_BOTTOM_PORTRAIT) && arg != 0x27u) {
-        /* field_visible_actor_find_by_text_id @0x37e74 即使只找到隐藏
+        /* field_visible_actor_find_by_text_id @0x12c60 即使只找到隐藏
          * actor，也保留其记录指针，供 token 路径读取 offset 0x07 立绘。 */
         for (size_t i = 0; i < field_state->units.count; i++) {
             const fd2_field_unit *unit = &field_state->units.items[i];
@@ -307,7 +307,7 @@ static int resolve_speaker_actor(const fd2_scene_field_state *field_state,
     }
 
     /* -17/-18 的下一 token 是 actor record offset 0x08 文本编号，
-     * field_visible_actor_find_by_text_id @0x37e74 只返回未隐藏角色。 */
+     * field_visible_actor_find_by_text_id @0x12c60 只返回未隐藏角色。 */
     return fd2_field_units_find_visible_text_id(&field_state->units,
                                                 (uint8_t)arg);
 }
@@ -403,7 +403,7 @@ static void init_opening_field_state(fd2_scene_field_state *state,
                     p->x, p->y, i);
             else
                 opening_actor_set(state, 4 + i, p->unit_id, p->x, p->y);
-            /* field_actor_group_arrival_effect @0x57bad 先按组加入 actor，再播放 12 帧登场
+            /* field_actor_group_arrival_effect @0x32999 先按组加入 actor，再播放 12 帧登场
              * 特效；进入 stage 0 时这两组不能提前出现在地图上。 */
             fd2_field_unit_set_hidden(&state->units.items[4 + i], 1);
         }
@@ -425,7 +425,7 @@ static void init_opening_field_state(fd2_scene_field_state *state,
             opening_actor_set(state, i, p->unit_id, p->x, p->y);
         /* stage 31 的模板 offset 0x15 将 actor 0/1、2/3、4 分到
          * group 1/3/5。new_game_opening_play @code0 0x2231b 分时触发这些组，
-         * 并由 field_actor_group_arrival_effect @0x57bad 播放登场效果；
+         * 并由 field_actor_group_arrival_effect @0x32999 播放登场效果；
          * 不能在场景加载时一次显示五人。 */
         if (stage == FD2_OPENING_STAGE_31 && i >= 2)
             fd2_field_unit_set_hidden(&state->units.items[i], 1);
@@ -470,7 +470,7 @@ static void render_prologue_actors(fd2_vga *vga,
 
 static void clear_field_view_border(fd2_vga *vga) {
     if (!vga) return;
-    /* field_view_render_tiles @0x3710c 先清空 320×200 缓冲区，再只写
+    /* field_view_render_tiles @0x11eee 先清空 320×200 缓冲区，再只写
      * VGA offset 0x504（4,4）起的 312×192 战场内区。四边 4 px 因此
      * 保持调色板 index 0 的黑边，不能用相邻地图格填充。 */
     for (int y = 0; y < VGA_H; y++) {
@@ -496,8 +496,8 @@ static void render_scene_base(fd2_vga *vga,
     opening_camera_pixels(map, field_state, &camera_x, &camera_y);
     fd2_terrain_render_field_base(vga, terrain, map, camera_x, camera_y);
     render_prologue_actors(vga, map, sprites, field_state);
-    /* map_scene_render_actors @0x41db2 后由 FUN_00010134 调用
-     * map_tile_blit_visible @0x37cda 重绘遮挡格。 */
+    /* map_scene_render_actors @0x1cb94 后由 FUN_00010134 调用
+     * map_tile_blit_visible @0x12ac6 重绘遮挡格。 */
     fd2_terrain_render_field_overlay(vga, terrain, map, camera_x, camera_y, 0);
     clear_field_view_border(vga);
 }
@@ -606,8 +606,8 @@ static void animate_dialog_marker(fd2_vga *vga,
         /* 原版弹框期间不调用 field_animation_phase_update；背景角色保持
          * 进入对话时的共享 idle phase。 */
         render_scene_base(vga, terrain, map, sprites, field_state);
-        /* FDOTHER[5] tile 0 是 24×24 空心框。FUN_000135e6 @0x135e6
-         * 在 dialog_box_open @0x3b7c0 中将它从角色格移动到对话框原点；
+        /* FDOTHER[5] tile 0 是 24×24 空心框。FUN_000135e6 @0x15e9e
+         * 在 dialog_box_open @0x165ac 中将它从角色格移动到对话框原点；
          * 0x4a 是该帧背景色。 */
         blit_ui_tile_mode(vga, ui, 0, x, y, 0x4a);
         fd2_vga_present_timed(vga, FD2_DIALOG_TRANSITION_DELAY_MS);
@@ -629,7 +629,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
     animate_dialog_marker(vga, terrain, map, ui, sprites, field_state,
                           speaker_actor_idx, area, 0);
 
-    /* dialog_box_open @0x3b7c0 依次用 4×2、8×3、12×4、16×5、
+    /* dialog_box_open @0x165ac 依次用 4×2、8×3、12×4、16×5、
      * 19×5 个内部块绘制同一对话框，形成原版的伪缩放弹出效果。 */
     static const uint8_t stages[][2] = {
         {4, 2}, {8, 3}, {12, 4}, {16, 5}, {19, 5},
@@ -646,7 +646,7 @@ static void animate_dialog_box_open(fd2_vga *vga,
     }
 }
 
-/* dialog_box_close @0x3bd57：倒序恢复五级弹框背景，各级等待 10 ms；
+/* dialog_box_close @0x16b43：倒序恢复五级弹框背景，各级等待 10 ms；
  * 若对话框来自可见角色，再把 24×24 空心框移回角色格。 */
 static void animate_dialog_box_close(fd2_vga *vga,
                                      const fd2_terrain_tileset *terrain,
@@ -699,7 +699,7 @@ static void pan_camera_to(fd2_vga *vga,
         return;
     }
 
-    /* field_camera_pan_to @0x387f1 先完整调整 X，再调整 Y；每格只等待
+    /* field_camera_pan_to @0x135dd 先完整调整 X，再调整 Y；每格只等待
      * 一次 vsync。确认键不打断镜头，留给随后对话消费。 */
     while (field_state->camera_cell_x != target_x) {
         int cx = field_state->camera_cell_x;
@@ -741,9 +741,9 @@ static void focus_camera_on_actor(fd2_vga *vga,
     if (max_cam_x < 0) max_cam_x = 0;
     if (max_cam_y < 0) max_cam_y = 0;
 
-    /* dialog_box_open @0x3b7c0 在从角色格展开对话框前自动调用
-     * field_focus_move_to @0x37efe；按 actor 索引定位的等价包装为
-     * field_focus_move_to_actor @0x37f8f。前者先逐格移动 X、再移动 Y；焦点
+    /* dialog_box_open @0x165ac 在从角色格展开对话框前自动调用
+     * field_focus_move_to @0x12cea；按 actor 索引定位的等价包装为
+     * field_focus_move_to_actor @0x12d7b。前者先逐格移动 X、再移动 Y；焦点
      * 向外达到 x=2/11、y=2/6 阈值后才同步卷动镜头。最终镜头位置
      * 取决于此前焦点，不等同于直接把角色固定到某个屏幕格。
      * 这不是额外的文本控制码，也不需要过场显式调用镜头指令。 */
@@ -1089,7 +1089,7 @@ static int play_text_fragment(fd2_vga *vga,
 }
 
 /* DAT_000027d8 中新游戏开场会用到的移动脚本。字节流按
- * field_movement_script_play @0x3887e 的原始格式登记：group_count，
+ * field_movement_script_play @0x1366a 的原始格式登记：group_count，
  * 然后是 step_or_mode、actor_count、(actor_id,direction)。数据来自未
  * patch FD2.EXE 的 object3 初始化区与对应 LE relocation。 */
 static const uint8_t k_move_00[] = {0x05,0x06,0x04,0x00,0x02,0x01,0x02,0x02,0x02,0x03,0x02,0x88,0x01,0x00,0x01,0x88,0x01,0x00,0x03,0x88,0x01,0x00,0x01,0x84,0x01,0x00,0x00};
@@ -1151,7 +1151,7 @@ static int opening_actor_move_up_follow_camera(
         return -1;
 
     /* 新游戏开场直接调用的上移：复现
-     * field_actor_move_up_follow_camera @0x38399。该函数在角色靠近视窗
+     * field_actor_move_up_follow_camera @0x13185。该函数在角色靠近视窗
      * 上缘时，于一格的 6 个步行相位中同时移动角色与镜头，每相位 4 px；
      * 格坐标只在 6 相位完成后提交。 */
     for (int cell = 0; cell < cell_count; cell++) {
@@ -1247,7 +1247,7 @@ static int play_opening_move_script(fd2_vga *vga,
                         if (darkness < 0x40) darkness++;
                         fd2_vga_set_brightness(vga, darkness);
                     }
-                    /* field_movement_script_play @0x3887e 每个 4 px 相位
+                    /* field_movement_script_play @0x1366a 每个 4 px 相位
                      * 调用 bios_tick_delay(1) 后再等 vsync。宿主端以绝对
                      * deadline 扣除本帧渲染耗时，避免步态节奏抖动。 */
                     fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
@@ -1313,7 +1313,7 @@ static void opening_palette_fade_in(fd2_vga *vga, int fast) {
         fd2_vga_set_brightness(vga, 0);
         return;
     }
-    /* palette_fade_in_light @0x44739：暗度 0x40→0。 */
+    /* palette_fade_in_light @0x1f525：暗度 0x40→0。 */
     for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
         fd2_vga_set_brightness(vga, darkness);
         fd2_vga_present_timed(vga, 12);
@@ -1342,7 +1342,7 @@ static int opening_actor_arrival(fd2_vga *vga,
     if (frame_count < 12 || 6u + (size_t)frame_count * 4u > size)
         return -1;
 
-    /* field_actor_group_arrival_effect @0x57bad：按组加入 actor 后，使用
+    /* field_actor_group_arrival_effect @0x32999：按组加入 actor 后，使用
      * FDOTHER[9] 的 12 帧 LMI1 特效在每个新 actor 格上展开。LMI blit
      * 的 0 色透明，因此每帧先恢复无新 actor 的战场底图。 */
     for (uint16_t frame_idx = 0; frame_idx < 12; frame_idx++) {

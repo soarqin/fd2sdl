@@ -1,0 +1,628 @@
+{
+ "schema": "fd2-src-address-migration-v1",
+ "oracle": "docs/generated/ida-canonical/fd2-functions.tsv",
+ "rules": {
+  "legacy-dual": "canonical_VA = legacy - 0x25214",
+  "legacy-ghidra": "canonical_VA = FUN_addr + 0x28b8"
+ },
+ "changed": 59,
+ "skipped": 3,
+ "changes": [
+  {
+   "file": "src/field_game.c",
+   "line": 4,
+   "from": "0x3710c",
+   "to": "0x11eee",
+   "ida_name": "field_view_render_tiles",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_view_render_tiles @…`",
+   "text": "* 字节单位表、field_view_render_tiles @0x3710c、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 5,
+   "from": "0x41db2",
+   "to": "0x1cb94",
+   "ida_name": "map_scene_render_actors",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `map_scene_render_actors @…`",
+   "text": "* map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 5,
+   "from": "0x42c34",
+   "to": "0x1da16",
+   "ida_name": "map_actor_blit_24x24",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `map_actor_blit_24x24 @…`",
+   "text": "* map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 6,
+   "from": "0x37cda",
+   "to": "0x12ac6",
+   "ida_name": "map_tile_blit_visible",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `map_tile_blit_visible @…`",
+   "text": "* map_tile_blit_visible @0x37cda、field_unit_detail_transition_frame"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 7,
+   "from": "0x3d61d",
+   "to": "0x18409",
+   "ida_name": "field_unit_detail_transition_frame",
+   "rule": "legacy-dual -0x25214",
+   "disambiguation": "comment-name-match",
+   "text": "* @0x3d61d、field_physical_exchange @0x3a6a2、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 7,
+   "from": "0x3a6a2",
+   "to": "0x1548e",
+   "ida_name": "field_physical_exchange",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_exchange @…`",
+   "text": "* @0x3d61d、field_physical_exchange @0x3a6a2、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 8,
+   "from": "0x43a6a",
+   "to": "0x1e856",
+   "ida_name": "field_physical_attack_sequence",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_attack_sequence @…`",
+   "text": "* field_physical_attack_sequence @0x43a6a、"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 9,
+   "from": "0x43edb",
+   "to": "0x1ecc7",
+   "ida_name": "field_physical_attack_resolve",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_attack_resolve @…`",
+   "text": "* field_physical_attack_resolve @0x43edb 与"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 10,
+   "from": "0x42d83",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_defeated_units_finalize @…`",
+   "text": "* field_defeated_units_finalize @0x42d83（entry @0x42d79）。"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 10,
+   "from": "0x42d79",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "legacy-dual -0x25214",
+   "disambiguation": "comment-name-match",
+   "text": "* field_defeated_units_finalize @0x42d83（entry @0x42d79）。"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 44,
+   "from": "0x38cbd",
+   "to": "0x13a9f",
+   "ida_name": "field_ai_unit_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_unit_execute_core @…`",
+   "text": "/* field_ai_unit_execute_core @0x38cbd 的 common tail：动作 helper 只提交"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 49,
+   "from": "0x42d83",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_defeated_units_finalize @…`",
+   "text": "/* field_defeated_units_finalize @0x42d83（entry @0x42d79）在死亡演出后"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 49,
+   "from": "0x42d79",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "legacy-dual -0x25214",
+   "disambiguation": "comment-name-match",
+   "text": "/* field_defeated_units_finalize @0x42d83（entry @0x42d79）在死亡演出后"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 135,
+   "from": "0x57bad",
+   "to": "0x32999",
+   "ida_name": "field_actor_group_arrival_effect",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_actor_group_arrival_effect @…`",
+   "text": "* field_actor_group_arrival_effect @0x57bad 依次加入 group 1/2；"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 136,
+   "from": "0x35e6e",
+   "to": "0x10c50",
+   "ida_name": "field_unit_stage_template_append",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_unit_stage_template_append @…`",
+   "text": "* 组内 actor 由 field_unit_stage_template_append @0x35e6e 的模板重排"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 448,
+   "from": "0x3fa27",
+   "to": "0x1a813",
+   "ida_name": "field_turn_event_check",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_turn_event_check @…`",
+   "text": "/* field_turn_event_check @0x3fa27 的 DS:0x1b91 已确认为 cdecl"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 482,
+   "from": "0x3f51f",
+   "to": "0x1a30b",
+   "ida_name": "field_turn_cycle_run",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_turn_cycle_run @…`",
+   "text": "/* field_turn_cycle_run @0x3f51f 的 phase 前置处理会调用"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 486,
+   "from": "0x42d83",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_defeated_units_finalize @…`",
+   "text": "* 复用 field_defeated_units_finalize @0x42d83 的最终 flags=1 语义。 */"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 524,
+   "from": "0x3874a",
+   "to": "0x13536",
+   "ida_name": "field_all_actors_clear_acted",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_all_actors_clear_acted @…`",
+   "text": "/* field_all_actors_clear_acted @0x3874a：遍历完整 raw actor 表，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 544,
+   "from": "0x3f51f",
+   "to": "0x1a30b",
+   "ida_name": "field_turn_cycle_run",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_turn_cycle_run @…`",
+   "text": "/* field_turn_cycle_run @0x3f51f 的阶段顺序：玩家 side 2 完成后直接"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 565,
+   "from": "0x3710c",
+   "to": "0x11eee",
+   "ida_name": "field_view_render_tiles",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_view_render_tiles @…`",
+   "text": "/* field_view_render_tiles @0x3710c 只写 VGA (4,4) 起的"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 823,
+   "from": "0x42a1f",
+   "to": "0x1d80b",
+   "ida_name": "field_side1_phase_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_side1_phase_execute @…`",
+   "text": "/* field_side1_phase_execute @0x42a1f / 正确 dual 0x1d80b 与"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 824,
+   "from": "0x42ace",
+   "to": "0x1d8ba",
+   "ida_name": "field_side0_phase_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_side0_phase_execute @…`",
+   "text": "* field_side0_phase_execute @0x42ace / 正确 dual 0x1d8ba：自动阶段"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 903,
+   "from": "0x3ff11",
+   "to": "0x1acf3",
+   "ida_name": "field_cell_info_panel_draw",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_cell_info_panel_draw @…`",
+   "text": "/* field_cell_info_panel_draw @0x3ff11：光标进入视窗左下角时把面板"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 918,
+   "from": "0x3ff11",
+   "to": "0x1acf3",
+   "ida_name": "field_cell_info_panel_draw",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_cell_info_panel_draw @…`",
+   "text": "/* field_cell_info_panel_draw @0x3ff11 按 map_cell_info_at 返回的"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1149,
+   "from": "0x3710c",
+   "to": "0x11eee",
+   "ida_name": "field_view_render_tiles",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_view_render_tiles @…`",
+   "text": "/* field_view_render_tiles @0x3710c：node offset 0x07 不为 0xff"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1200,
+   "from": "0x374f0",
+   "to": "0x122dc",
+   "ida_name": "field_selection_overlay_draw",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_selection_overlay_draw @…`",
+   "text": "/* field_selection_overlay_draw @0x374f0 在普通模式 1 调用"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1201,
+   "from": "0x3790b",
+   "to": "0x126f7",
+   "ida_name": "field_selection_sprite_blit",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_selection_sprite_blit @…`",
+   "text": "* field_selection_sprite_blit @0x3790b，把 FDOTHER[1] frame 0"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1227,
+   "from": "0x37efe",
+   "to": "0x12cea",
+   "ida_name": "field_focus_move_to",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_focus_move_to @…`",
+   "text": "/* field_focus_move_to @0x37efe：焦点向视窗外侧移动前若已达到"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1267,
+   "from": "0x37f8f",
+   "to": "0x12d7b",
+   "ida_name": "field_focus_move_to_actor",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_focus_move_to_actor @…`",
+   "text": "/* field_focus_move_to_actor @0x37f8f：焦点随 actor 坐标更新，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1596,
+   "from": "0x3dfaa",
+   "to": "0x18d8c",
+   "ida_name": "field_player_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_command_execute_core @…`",
+   "text": "/* field_player_command_execute_core @0x3dfaa 的原版顺序固定为"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1597,
+   "from": "0x40aba",
+   "to": "0x1b8a6",
+   "ida_name": "field_unit_inventory_count",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_unit_inventory_count @…`",
+   "text": "* attack/magic/item/wait。field_unit_inventory_count @0x40aba 控制"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1598,
+   "from": "0x4147d",
+   "to": "0x1c269",
+   "ida_name": "field_unit_magic_list_build",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_unit_magic_list_build @…`",
+   "text": "* item 可用性；field_unit_magic_list_build @0x4147d 与 record +0x27"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1600,
+   "from": "0x40df0",
+   "to": "0x1bbdc",
+   "ida_name": "field_player_item_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_item_command_execute @…`",
+   "text": "* field_player_item_command_execute @0x40df0 与"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1601,
+   "from": "0x42204",
+   "to": "0x1cff0",
+   "ida_name": "field_player_magic_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_magic_command_execute @…`",
+   "text": "* field_player_magic_command_execute @0x42204。当前 SDL 状态机尚未"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1670,
+   "from": "0x3dfa0",
+   "to": "0x18d8c",
+   "ida_name": "field_player_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_command_execute @…`",
+   "text": "/* field_player_command_execute @0x3dfa0 的普通攻击分支先按首件已装备"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1688,
+   "from": "0x3dfaa",
+   "to": "0x18d8c",
+   "ida_name": "field_player_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_command_execute_core @…`",
+   "text": "/* field_player_command_execute_core @0x3dfaa 在目标选择返回 -1 后，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1689,
+   "from": "0x37efe",
+   "to": "0x12cea",
+   "ida_name": "field_focus_move_to",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_focus_move_to @…`",
+   "text": "* 调用 field_focus_move_to @0x37efe 恢复攻击前焦点，再返回 0 让"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1889,
+   "from": "0x3a6a2",
+   "to": "0x1548e",
+   "ida_name": "field_physical_exchange",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_exchange @…`",
+   "text": "/* field_physical_exchange @0x3a6a2 先执行进攻序列；目标存活且"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1890,
+   "from": "0x442f0",
+   "to": "0x1f0dc",
+   "ida_name": "field_counterattack_is_available",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_counterattack_is_available @…`",
+   "text": "* field_counterattack_is_available @0x442f0 返回 1 时交换双方参数，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1909,
+   "from": "0x43edb",
+   "to": "0x1ecc7",
+   "ida_name": "field_physical_attack_resolve",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_attack_resolve @…`",
+   "text": "/* field_physical_attack_resolve @0x43edb 本体只写 +0x25/+0x40；外围"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 1910,
+   "from": "0x42d79",
+   "to": "0x1db65",
+   "ida_name": "field_defeated_units_finalize",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_defeated_units_finalize @…`",
+   "text": "* exchange 返回后立即调用 field_defeated_units_finalize @0x42d79，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2043,
+   "from": "0x3dfa0",
+   "to": "0x18d8c",
+   "ida_name": "field_player_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_command_execute @…`",
+   "text": "/* field_player_command_execute @0x3dfa0 返回 -1 后，调用者恢复"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2090,
+   "from": "0x3869c",
+   "to": "0x13488",
+   "ida_name": "field_actor_path_play",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_actor_path_play @…`",
+   "text": "/* field_actor_path_play @0x3869c 按 0下/1左/2上/3右分派四个"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2214,
+   "from": "0x38cbd",
+   "to": "0x13a9f",
+   "ida_name": "field_ai_unit_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_unit_execute_core @…`",
+   "text": "/* field_ai_unit_execute_core @0x38cbd：先查询当前格，再 OR acted，"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2215,
+   "from": "0x386f8",
+   "to": "0x134e4",
+   "ida_name": "field_all_actor_directions_reset",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_all_actor_directions_reset @…`",
+   "text": "* 随后调用 field_all_actor_directions_reset @0x386f8。record +0x03"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2260,
+   "from": "0x3944b",
+   "to": "0x14237",
+   "ida_name": "field_ai_physical_candidate_evaluate",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_physical_candidate_evaluate @…`",
+   "text": "/* field_ai_physical_candidate_evaluate @0x3944b 的输出只是计划；提交前"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2308,
+   "from": "0x39d8c",
+   "to": "0x14b78",
+   "ida_name": "field_ai_move_toward_cell",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_move_toward_cell @…`",
+   "text": "/* field_ai_move_toward_cell @0x39d8c 最终把重建路径交给"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2309,
+   "from": "0x3869c",
+   "to": "0x13488",
+   "ida_name": "field_actor_path_play",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_actor_path_play @…`",
+   "text": "* field_actor_path_play @0x3869c；SDL 复用同一六相位 path player。 */"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2323,
+   "from": "0x39d8c",
+   "to": "0x14b78",
+   "ida_name": "field_ai_move_toward_cell",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_move_toward_cell @…`",
+   "text": "/* field_ai_move_toward_cell @0x39d8c 只播放 actor path；不打开"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2672,
+   "from": "0x39d8c",
+   "to": "0x14b78",
+   "ida_name": "field_ai_move_toward_cell",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_move_toward_cell @…`",
+   "text": "/* field_ai_move_toward_cell @0x39d8c（正确 dual 0x14b78）："
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2732,
+   "from": "0x39d8c",
+   "to": "0x14b78",
+   "ida_name": "field_ai_move_toward_cell",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_ai_move_toward_cell @…`",
+   "text": "* field_ai_move_toward_cell @0x39d8c 移向其本回合合法 anchor。 */"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 3267,
+   "from": "0x4673b",
+   "to": "0x21527",
+   "ida_name": "field_earthquake_effect",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_earthquake_effect @…`",
+   "text": "/* field_earthquake_effect @0x4673b 从 DS:0x2096..0x20b6 复制的"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 3332,
+   "from": "0x4725a",
+   "to": "0x22046",
+   "ida_name": "field_transition_lut_mask",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_transition_lut_mask @…`",
+   "text": "/* field_transition_lut_mask @0x4725a：整圆一次、下半圆再一次，再对上半部"
+  },
+  {
+   "file": "src/field_play.c",
+   "line": 495,
+   "from": "0x39a2c",
+   "to": "0x14818",
+   "ida_name": "field_target_range_build",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_target_range_build @…`",
+   "text": "/* M6 垂直切片：使用 field_target_range_build @0x39a2c 已确认的武器"
+  },
+  {
+   "file": "src/field_play.c",
+   "line": 1196,
+   "from": "0x3dfaa",
+   "to": "0x18d8c",
+   "ida_name": "field_player_command_execute",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_player_command_execute_core @…`",
+   "text": "/* field_player_command_execute_core @0x3dfaa："
+  },
+  {
+   "file": "src/tests/field_game_attack_test.c",
+   "line": 2,
+   "from": "0x3a6a2",
+   "to": "0x1548e",
+   "ida_name": "field_physical_exchange",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_exchange @…`",
+   "text": "* 覆盖 field_physical_exchange @0x3a6a2、field_physical_attack_sequence"
+  },
+  {
+   "file": "src/tests/field_game_attack_test.c",
+   "line": 3,
+   "from": "0x43a6a",
+   "to": "0x1e856",
+   "ida_name": "field_physical_attack_sequence",
+   "rule": "legacy-dual -0x25214",
+   "disambiguation": "comment-name-match",
+   "text": "* @0x43a6a 与 field_physical_attack_resolve @0x43edb：目标／武器预检、"
+  },
+  {
+   "file": "src/tests/field_game_attack_test.c",
+   "line": 3,
+   "from": "0x43edb",
+   "to": "0x1ecc7",
+   "ida_name": "field_physical_attack_resolve",
+   "rule": "registry-name-anchored",
+   "disambiguation": "comment writes `field_physical_attack_resolve @…`",
+   "text": "* @0x43a6a 与 field_physical_attack_resolve @0x43edb：目标／武器预检、"
+  }
+ ],
+ "skipped_tokens": [
+  {
+   "file": "src/field_game.c",
+   "line": 866,
+   "token": "0x380be",
+   "reason": "落在函数体内部且无候选",
+   "inside": "sub_38074+0x4a",
+   "text": "* @0x380be/0x38221/0x38399/0x38529 在六个步态相位中每次同步"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2351,
+   "token": "0x4425e",
+   "reason": "落在函数体内部且无候选",
+   "inside": "sub_44240+0x1e",
+   "text": "/* field_actor_face_toward @0x4425e：水平差严格大于垂直差"
+  },
+  {
+   "file": "src/field_game.c",
+   "line": 2730,
+   "token": "0x39335",
+   "reason": "落在函数体内部且无候选",
+   "inside": "sub_392D0+0x65",
+   "text": "/* field_ai_hostile_anchor @0x39335（正确 dual 0x14121）：使用固定预算"
+  }
+ ]
+}

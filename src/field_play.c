@@ -492,7 +492,7 @@ static uint32_t m6_rng_next(void *userdata) {
     return sequence->values[sequence->cursor++];
 }
 
-/* M6 垂直切片：使用 field_target_range_build @0x39a2c 已确认的武器
+/* M6 垂直切片：使用 field_target_range_build @0x14818 已确认的武器
  * 范围与敌方过滤，使用已捕获的 profile 暴击表和固定 RNG。 */
 static int validate_attack_flow(const fd2_field_game *game) {
     if (!game || !game->ready || game->active_side != 2) return -1;
@@ -1193,7 +1193,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     } else if (game.interaction ==
                                    FD2_FIELD_INTERACTION_TARGETING &&
                                fd2_field_game_cancel_attack(&game)) {
-                        /* field_player_command_execute_core @0x3dfaa：
+                        /* field_player_command_execute_core @0x18d8c：
                          * target selector 返回 -1 后重新进入菜单循环。 */
                         (void)fd2_field_audio_play(
                             field_audio, FD2_FIELD_SFX_COMMAND_MENU);

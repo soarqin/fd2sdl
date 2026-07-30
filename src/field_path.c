@@ -1,7 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 参数化战场路径搜索
  *
- * 逆向依据：field_reachable_cells_compute @0x735a4 与
- * field_path_find @0x7370a 均按四邻域传播剩余移动力；具体地形成本、
+ * 逆向依据：field_reachable_cells_compute @0x4e390 与
+ * field_path_find @0x4e4f6 均按四邻域传播剩余移动力；具体地形成本、
  * 单位占格与控制区规则由调用方 query 提供，避免在字段未确认时写死。
  */
 

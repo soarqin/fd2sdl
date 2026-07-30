@@ -7,7 +7,7 @@ static inline uint8_t pal_expand6(uint8_t v) {
     return (uint8_t)((v << 2) | (v >> 4));
 }
 
-/* FUN_0003522d @0x3522d: out(port, val) - 写 VGA DAC 端口
+/* FUN_0003522d @0x37ae5: out(port, val) - 写 VGA DAC 端口
  * 在 SDL3 中映射为更新 dac 数组 */
 static void dac_out(fd2_vga *vga, uint16_t port, uint8_t val) {
     (void)port; (void)vga; (void)val;
@@ -27,7 +27,7 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
 }
 
 void fd2_vga_clear(fd2_vga *vga, uint8_t fill) {
-    /* 复现 FUN_00035058 @0x5cb24: 清屏(0xa0000, fill, pattern)
+    /* 复现 FUN_00035058 @0x37910: 清屏(0xa0000, fill, pattern)
      * FUN_00035058(0xa0000, 0, &DAT_0000fa00) = 用 0 填充显存 */
     memset(vga->framebuffer, fill, sizeof(vga->framebuffer));
 }
@@ -48,8 +48,10 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
      * 注意第三参数是“暗度”而不是亮度：
      *   brightness=0x40 -> DAC 全黑
      *   brightness=0    -> 当前调色板完整亮度
-     * 证据：FUN_0001cc6d @0x1cc77 从 0x40 递减到 0，是淡入；
-     *       FUN_0001cfca @0x1cfd4/0x1cc4b 从 0 递增到 0x3f，是淡出。 */
+     * 证据：palette_fade_in_light @0x1f525（旧 Ghidra FUN_0001cc6d）
+     *       从 0x40 递减到 0，是淡入；
+     *       palette_fade_out_dark @0x1f882（旧 Ghidra FUN_0001cfca）
+     *       从 0 递增到 0x3f，是淡出。 */
     if (brightness < 0) brightness = 0;
     if (brightness > 0x40) brightness = 0x40;
     int level = 0x40 - brightness;
@@ -66,7 +68,7 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
 
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
                                uint8_t r, uint8_t g, uint8_t b) {
-    /* 复现 FUN_0002b649 @0x53115: palette_fade_to(start, steps, r, g, b)
+    /* 复现 FUN_0002b649 @0x2df01: palette_fade_to(start, steps, r, g, b)
      * 从基色(r,g,b)渐变到 vga->palette，分 0x28=40 步
      * 每个分量: dac = (pal[i] - base) * steps / 0x28 + base
      * 注意: pal 是 6-bit，base 也是 6-bit */
@@ -84,8 +86,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
 }
 
 void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
-    /* 兼容包装：真实 FUN_0001db69 @0x45635 已确认是 animation_play，
-     * 调色板插值实际对应 FUN_0002b649 @0x53115。 */
+    /* 兼容包装：真实 FUN_0001db69 @0x20421 已确认是 animation_play，
+     * 调色板插值实际对应 FUN_0002b649 @0x2df01。 */
     fd2_vga_palette_fade_to(vga, start, step, 0, 0, 0);
     (void)end;
 }
@@ -187,7 +189,7 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
 }
 
 void fd2_delay_ms(uint32_t ms) {
-    /* 复现 thunk_FUN_0003b765 @0x63231: delay_ms(N)。DOS 原版忙等待；
+    /* 复现 thunk_FUN_0003b765 @0x3e01d: delay_ms(N)。DOS 原版忙等待；
      * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键不在
      * delay 中排队；随后交互读取只采样届时仍按下的物理键。 */
     if (ms == 0) {
@@ -198,7 +200,7 @@ void fd2_delay_ms(uint32_t ms) {
 }
 
 void fd2_wait_ticks(uint32_t ticks) {
-    /* 复现 FUN_000151f1 @0x3ccbd: wait_ticks(N)
+    /* 复现 FUN_000151f1 @0x17aa9: wait_ticks(N)
      * 等待 N 个 BIOS tick (18.2Hz, 1 tick ≈ 54.9ms)。 */
     fd2_delay_ms(ticks * 55);
 }

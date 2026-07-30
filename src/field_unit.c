@@ -1,8 +1,8 @@
 /* 炎龙骑士团 2 SDL3 重写 - 通用战场单位运行时结构
  *
  * 逆向依据：DAT_00003a45 的 0x50 字节单位记录、
- * map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、
- * field_visible_actor_find_by_text_id @0x37e74，以及 FDFIELD metadata
+ * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
+ * field_visible_actor_find_by_text_id @0x12c60，以及 FDFIELD metadata
  * 26 字节模板与 placement 的顺序匹配关系。
  */
 
@@ -200,8 +200,8 @@ int fd2_field_unit_has_acted(const fd2_field_unit *unit) {
 }
 
 void fd2_field_unit_set_acted(fd2_field_unit *unit, int acted) {
-    /* field_actor_mark_acted @0x38726 设置 flags bit 0x80；
-     * field_all_actors_clear_acted @0x3874a 在阶段切换时清除。 */
+    /* field_actor_mark_acted @0x13512 设置 flags bit 0x80；
+     * field_all_actors_clear_acted @0x13536 在阶段切换时清除。 */
     if (!unit) return;
     if (acted)
         unit->flags |= FD2_FIELD_UNIT_FLAG_ACTED;

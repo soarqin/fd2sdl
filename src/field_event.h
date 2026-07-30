@@ -14,7 +14,7 @@ typedef struct {
     uint8_t phase;
 } fd2_field_turn_event_match;
 
-/* 复现 field_turn_event_check @0x3fa27 的纯查询部分：只返回
+/* 复现 field_turn_event_check @0x1a813 的纯查询部分：只返回
  * turn==turn_number 且 phase 匹配的记录，不执行回调表。 */
 size_t fd2_field_turn_events_find(
     const fd2_field_metadata *metadata,
@@ -23,7 +23,7 @@ size_t fd2_field_turn_events_find(
     fd2_field_turn_event_match *out,
     size_t capacity);
 
-/* 复现 field_cell_event_lookup @0x38c58：地图 cell 第 2 字节低 5 位
+/* 复现 field_cell_event_lookup @0x13a44：地图 cell 第 2 字节低 5 位
  * 是 1-based lookup ID；地形 attr.flags 的 0x60 位会禁止触发。
  * 玩家移动每步查询 match_arg 0；玩家行动及 AI common tail 查询 1。
  * 返回 1 表示命中，0 表示无事件，-1 表示输入数据无效。 */
@@ -36,7 +36,7 @@ int fd2_field_cell_event_find(
     uint8_t *event_code,
     size_t *slot);
 
-/* 复现 field_movement_script_play @0x3887e 的无演出状态提交部分。
+/* 复现 field_movement_script_play @0x1366a 的无演出状态提交部分。
  * 先完整校验脚本与 actor 索引，失败时不修改单位表。mode 最高位为 1
  * 时只提交朝向；否则按低 7 位步数移动，并将步态复位为静止。 */
 int fd2_field_movement_script_apply(fd2_field_units *units,

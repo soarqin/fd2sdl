@@ -1,6 +1,14 @@
-# FD2.EXE 的 Ghidra 规范重建
+# FD2.EXE 的 Ghidra 结构验收流程
 
-本文说明从原始 `FD2.EXE` 重建 Ghidra 11.3.2 分析基线的当前权威流程。该流程统一使用 LE relbase linear VA，不再把低地址镜像、object1 offset、旧 bound-file 窗口地址或历史 Ghidra 地址混作函数主键。
+> **范围变更（2026-07-30）**：本流程现在只作 **结构验收**——验证 block 边界、权限、BSS、relocation 计数与确定性。函数边界和伪 C 的当前开发基线改为 IDA Pro 9.4 产物（`docs/generated/ida-canonical/`），原因：
+>
+> - Ghidra 流程靠 patch `__chkstk` 字节才能生成伪 C；IDA 无需修改任何字节。
+> - Ghidra 把 Watcom `push N; call __chkstk; <body>` 拆成 541 组 wrapper/body 双函数；IDA 归为同一函数，与原程序结构一致。
+> - Ghidra 858 个函数 vs IDA 1,308 个，且 IDA 有 Watcom runtime FLIRT 符号和可用的 Watcom 编译器识别。
+>
+> 对照细节见 [`ida-crosscheck.md`](ida-crosscheck.md)。本文描述的 relocation 与内存模型已由 IDA 独立复核通过，仍然有效。
+
+本文说明从原始 `FD2.EXE` 重建 Ghidra 11.3.2 结构基线的流程。该流程统一使用 LE relbase linear VA，不再把低地址镜像、object1 offset、旧 bound-file 窗口地址或历史 Ghidra 地址混作函数主键。
 
 ## 适用范围
 
@@ -186,11 +194,13 @@ body:
 
 线性解码会把嵌入数据误判为指令，因此不能等价于「可达 direct call」。relocation target 落在 executable object 也不能自动证明它是函数。
 
-## Watcom ABI 状态
+## Watcom ABI 状态（已解决）
 
-Ghidra 11.3.2 没有内置 Open Watcom compiler spec。当前 structural/semantic baseline 使用 stock `gcc` cspec，并明确标为 provisional。
+Ghidra 11.3.2 没有内置 Open Watcom compiler spec，因此其 structural baseline 使用 stock `gcc` cspec，伪 C 的签名不可信。
 
-Open Watcom 32 位文档说明默认 register-based convention 的参数寄存器顺序为 `EAX, EDX, EBX, ECX`，随后才使用 stack。该事实尚未在本项目中形成完整 callsite fixture 和 custom cspec 验收，因此当前伪 C 的参数、callee-saved register、stack purge 和签名均不能视为权威。
+本项目曾把「Open Watcom 默认 register-based convention `EAX, EDX, EBX, ECX`」列为未验证假设。**IDA 分析已给出相反的直接证据**：object1 的 6,757 个 near call 中有 4,660 个在 `call` 之后紧跟 `add esp, N`，即游戏代码用**栈传参、调用方清栈（`__cdecl`）**，不是寄存器默认约定。IDA 自动分析也按 `__cdecl` 处理。
+
+例外：`VA >= 0x37000` 的 Watcom runtime 与 Miles AIL 库确有寄存器约定和手写汇编。详细统计见 [`ida-crosscheck.md`](ida-crosscheck.md) 第五节。
 
 参考：
 
@@ -200,7 +210,9 @@ Open Watcom 32 位文档说明默认 register-based convention 的参数寄存�
 
 ## 名称迁移
 
-`docs/reverse-engineering/function-names.md` 当前仍是人类研究档案，包含旧 Ghidra 窗口、dual、code0 和少量 canonical VA 的混合历史。规范脚本不得解析该文件，也不得对全部行机械加减常数。
+历史档案现为 `docs/reverse-engineering/function-names-legacy.md`（只读），包含旧 Ghidra 窗口、dual、code0 和少量 canonical VA 的混合历史。Ghidra 规范脚本不得解析该文件。
+
+该档案的全部 210 行已由 `tools/ida/fd2_name_audit.py` 以 IDA 的 1,308 个函数入口为 oracle 逐行归约到 canonical VA（181 行 exact、3 行 exact-conflict、26 行 `__chkstk` body，0 行无法归约），结果生成 `docs/reverse-engineering/function-names.md`。
 
 名称只有在以下条件全部满足后，才能进入 machine-readable confirmed registry：
 

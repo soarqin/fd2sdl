@@ -5,7 +5,7 @@
 
 /* 普通攻击的无演出确定性核心。
  *
- * 逆向依据：field_physical_attack_resolve @0x43edb。原函数先完成装备、
+ * 逆向依据：field_physical_attack_resolve @0x1ecc7。原函数先完成装备、
  * 地形和特效修正，再以 accuracy-evasion 判定命中，以 critical_chance
  * 判定防御减半，最后按 (attack-defense)*9/10 加有限随机浮动计算伤害。
  * 本模块只接收已经修正后的数值；职业／profile 暴击基础表、武器特效

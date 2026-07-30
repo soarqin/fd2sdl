@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""IDA 复核产物的回归测试。
+
+不依赖 idalib：只校验已发布到 `docs/generated/ida-canonical/` 的证据产物自洽，
+以及 `src/` 注释里的函数地址已全部迁移到 canonical relbase VA。
+"""
+
+import json
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CANON = ROOT / "docs" / "generated" / "ida-canonical"
+sys.path.insert(0, str(ROOT / "tools" / "ida"))
+
+OBJ1_LO, OBJ1_HI = 0x10000, 0x4EF29
+
+
+class IdaCrosscheckArtifactTest(unittest.TestCase):
+    def test_verify_report_all_checks_passed(self):
+        data = json.loads((CANON / "fd2-verify.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["failed"], 0, msg=str(
+            [c for c in data["checks"] if not c["ok"]]))
+        self.assertGreaterEqual(data["passed"], 21)
+        # 关键项必须在报告里出现，防止检查被悄悄删掉
+        names = {c["check"] for c in data["checks"]}
+        for required in ("relocation source 集合完全相同",
+                         "每个 source 的 target linear 地址一致",
+                         "object1 已初始化区与 relocated oracle 逐字节一致",
+                         "反写 relocation 前值后与 raw oracle 一致（BSS 除外）"):
+            self.assertIn(required, names)
+
+    def test_program_export_matches_le_model(self):
+        p = json.loads((CANON / "fd2-program.json").read_text(encoding="utf-8"))
+        self.assertEqual(p["file_type_name"], "Linear Executable (LE)")
+        self.assertIn("Watcom", p["compiler_name"])
+        self.assertEqual(p["fixup_count"], 7948)
+        self.assertEqual(p["fixup_type_histogram"], {"FIXUP_OFF32": 7948})
+        self.assertEqual(p["start_ea"], 0x3CCB4)
+        segs = {s["name"]: s for s in p["segments"]}
+        self.assertEqual(segs["cseg01"]["start_ea"], 0x10000)
+        self.assertEqual(segs["dseg02"]["start_ea"], 0x50000)
+        self.assertEqual(segs["dseg03"]["start_ea"], 0x60000)
+        for s in segs.values():
+            self.assertEqual(s["bits"], 32)
+
+    def test_name_audit_resolves_every_legacy_row(self):
+        a = json.loads((CANON / "fd2-name-audit.json").read_text(encoding="utf-8"))
+        self.assertEqual(sum(a["stats"].values()), len(a["rows"]))
+        self.assertNotIn("unresolved", a["stats"])
+        self.assertNotIn("interior-mismatch", a["stats"])
+        for row in a["rows"]:
+            self.assertIsNotNone(row["canonical_va"], msg=str(row["line_no"]))
+            self.assertTrue(OBJ1_LO <= row["canonical_va"] < OBJ1_HI)
+        # `__chkstk` body 行必须落在函数入口 +0xa
+        for row in a["rows"]:
+            if row["resolution"] == "chkstk-body":
+                self.assertEqual(row["legacy_body_va"] - row["canonical_va"], 0xA)
+
+    def test_registry_entries_are_real_ida_function_entries(self):
+        reg = json.loads(
+            (CANON / "fd2-ida-function-registry.json").read_text(encoding="utf-8"))
+        import csv
+        starts = set()
+        with (CANON / "fd2-functions.tsv").open(encoding="utf-8") as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                starts.add(int(row["start_ea"], 16))
+        self.assertEqual(len(starts), 1308)
+        for e in reg["entries"]:
+            self.assertIn(e["va"], starts, msg=f"{e['va']:#x}")
+            self.assertEqual(e["off"], e["va"] - OBJ1_LO)
+            self.assertTrue(e["ida_name"])
+
+    def test_hexrays_failures_are_documented(self):
+        rep = json.loads(
+            (CANON / "fd2-annotate-report.json").read_text(encoding="utf-8"))
+        remaining = rep["prototypes"]["remaining_hexrays_failures"]
+        self.assertLessEqual(len(remaining), 4)
+        # 只允许手写汇编区（正 sp / AIL 中断处理）残留
+        for f in remaining:
+            self.assertTrue(
+                "positive sp" in f["desc"] or int(f["func"], 16) >= 0x34F38,
+                msg=str(f))
+        # 修原型时不得修改任何机器码字节
+        self.assertIn("不修改机器码", rep["prototypes"]["method"])
+
+
+class SrcAddressMigrationTest(unittest.TestCase):
+    def test_no_stale_legacy_addresses_left_in_src(self):
+        import check_src_addresses as chk
+        ranges, names, starts = chk.load_funcs()
+        stale = []
+        for path in sorted(list((ROOT / "src").rglob("*.c"))
+                           + list((ROOT / "src").rglob("*.h"))):
+            if "third_party" in path.parts or "build" in path.parts:
+                continue
+            for lineno, line in enumerate(
+                    path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if not chk.COMMENTISH.search(line):
+                    continue
+                for m in chk.TOKEN.finditer(line):
+                    ea = int(m.group(1), 16)
+                    i = __import__("bisect").bisect_right(starts, ea) - 1
+                    ok = (OBJ1_LO <= ea < OBJ1_HI and i >= 0
+                          and ranges[i][0] == ea)
+                    if not ok:
+                        stale.append(f"{path.relative_to(ROOT)}:{lineno} {m.group(1)}")
+        self.assertEqual(stale, [], msg="发现未迁移的函数地址注释")
+
+
+if __name__ == "__main__":
+    unittest.main()

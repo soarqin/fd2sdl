@@ -16,7 +16,7 @@
 const uint8_t *fd2_field_magic_record_get(uint8_t magic_id);
 uint16_t fd2_field_magic_u16(const uint8_t *record, size_t offset);
 
-/* field_magic_damage_profile_apply @0x1c768 使用的 object2 DS:0x1f96
+/* field_magic_damage_profile_apply @0x1c75e 使用的 object2 DS:0x1f96
  * 28 项 u32 倍率表；索引 0 对应 profile 1。 */
 int fd2_field_magic_damage_profile_scale(
     uint8_t movement_profile, uint32_t *scale);

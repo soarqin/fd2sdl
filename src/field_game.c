@@ -1,13 +1,13 @@
 /* 炎龙骑士团 2 SDL3 重写 - 正式战场 session
  *
  * 逆向依据：FDFIELD stage metadata/placement、DAT_00003a45 的 0x50
- * 字节单位表、field_view_render_tiles @0x3710c、
- * map_scene_render_actors @0x41db2、map_actor_blit_24x24 @0x42c34、
- * map_tile_blit_visible @0x37cda、field_unit_detail_transition_frame
- * @0x3d61d、field_physical_exchange @0x3a6a2、
- * field_physical_attack_sequence @0x43a6a、
- * field_physical_attack_resolve @0x43edb 与
- * field_defeated_units_finalize @0x42d83（entry @0x42d79）。
+ * 字节单位表、field_view_render_tiles @0x11eee、
+ * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
+ * map_tile_blit_visible @0x12ac6、field_unit_detail_transition_frame
+ * @0x18409、field_physical_exchange @0x1548e、
+ * field_physical_attack_sequence @0x1e856、
+ * field_physical_attack_resolve @0x1ecc7 与
+ * field_defeated_units_finalize @0x1db65（entry @0x1db65）。
  */
 
 #include "field_game.h"
@@ -41,12 +41,12 @@ static int resolve_physical_exchange(fd2_field_game *game,
                                      size_t target_index,
                                      int finish_player_action);
 
-/* field_ai_unit_execute_core @0x38cbd 的 common tail：动作 helper 只提交
+/* field_ai_unit_execute_core @0x13a9f 的 common tail：动作 helper 只提交
  * 物理／移动结果；cell event、acted 和 transient direction 清理由这个
  * 单一入口完成。它不经过玩家 command menu。 */
 static int finish_ai_action(fd2_field_game *game, size_t actor_index);
 
-/* field_defeated_units_finalize @0x42d83（entry @0x42d79）在死亡演出后
+/* field_defeated_units_finalize @0x1db65（entry @0x1db65）在死亡演出后
  * 遍历完整 actor 表，把所有 HP==0 单位的 flags `+0x05` 精确写为 1。
  * M6 无演出版省略旋转／消散帧，只复现最终记录提交。 */
 static void finalize_zero_hp_units(fd2_field_units *units) {
@@ -132,8 +132,8 @@ static int load_stage0_units(fd2_field_units *units,
                              const fd2_field_placements *placements) {
     /* new_game_opening_play @0x3231b 在进入 stage 0 前把四名玩家
      * 0/9/4/30 放在 placement 末四个玩家槽；随后
-     * field_actor_group_arrival_effect @0x57bad 依次加入 group 1/2；
-     * 组内 actor 由 field_unit_stage_template_append @0x35e6e 的模板重排
+     * field_actor_group_arrival_effect @0x32999 依次加入 group 1/2；
+     * 组内 actor 由 field_unit_stage_template_append @0x10c50 的模板重排
      * 与基础表等级公式构造。 */
     static const uint8_t player_ids[] = {0, 9, 4, 30};
     if (!units || !meta || !placements || placements->count < 4)
@@ -445,7 +445,7 @@ static void record_turn_events(fd2_field_game *game) {
             .presentation_focus_y = (int16_t)presentation_focus_y,
             .slot = matches[i].slot,
         };
-        /* field_turn_event_check @0x3fa27 的 DS:0x1b91 已确认为 cdecl
+        /* field_turn_event_check @0x1a813 的 DS:0x1b91 已确认为 cdecl
          * handler(actor_index) 表；回合事件传 0。未知 action 或事务失败
          * 仍保留 unhandled 记录，不能执行部分脚本。 */
         append_event_notice(game, &notice);
@@ -479,11 +479,11 @@ static void record_cell_event(fd2_field_game *game,
 
 static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
     if (!game) return;
-    /* field_turn_cycle_run @0x3f51f 的 phase 前置处理会调用
+    /* field_turn_cycle_run @0x1a30b 的 phase 前置处理会调用
      * field_phase_status_tick（corrected dual 0x1a866）：从 raw actor
      * index 0 开始，对本阵营可见中毒 actor 扣除 maxHP/10，再把
      * +0x22..+0x27 的六个状态计时各减 1。该路径不消费 RNG；死亡提交
-     * 复用 field_defeated_units_finalize @0x42d83 的最终 flags=1 语义。 */
+     * 复用 field_defeated_units_finalize @0x1db65 的最终 flags=1 语义。 */
     for (size_t i = 0; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
         if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
@@ -521,7 +521,7 @@ static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
 
 static void clear_all_acted(fd2_field_game *game) {
     if (!game) return;
-    /* field_all_actors_clear_acted @0x3874a：遍历完整 raw actor 表，
+    /* field_all_actors_clear_acted @0x13536：遍历完整 raw actor 表，
      * 无视 side 与 hidden，仅执行 flags &= 0x7f。 */
     for (size_t i = 0; i < game->units.count; i++)
         fd2_field_unit_set_acted(&game->units.items[i], 0);
@@ -541,7 +541,7 @@ static void enter_phase(fd2_field_game *game, uint8_t side) {
 
 static void advance_phase(fd2_field_game *game) {
     if (!game) return;
-    /* field_turn_cycle_run @0x3f51f 的阶段顺序：玩家 side 2 完成后直接
+    /* field_turn_cycle_run @0x1a30b 的阶段顺序：玩家 side 2 完成后直接
      * 进入 side 1；side 1 结束后全表清 acted 再进入 side 0；side 0
      * 结束后回合数加一、再次全表清 acted，最后进入 side 2。
      *
@@ -562,7 +562,7 @@ static void advance_phase(fd2_field_game *game) {
 
 static void clear_view_border(fd2_vga *vga) {
     if (!vga) return;
-    /* field_view_render_tiles @0x3710c 只写 VGA (4,4) 起的
+    /* field_view_render_tiles @0x11eee 只写 VGA (4,4) 起的
      * 312×192 内区，外围保持 palette index 0。 */
     for (int y = 0; y < VGA_H; y++) {
         uint8_t *row = vga->framebuffer + (size_t)y * VGA_STRIDE;
@@ -820,8 +820,8 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
         game->manual_slot_result_until_ms = 0;
     }
 
-    /* field_side1_phase_execute @0x42a1f / 正确 dual 0x1d80b 与
-     * field_side0_phase_execute @0x42ace / 正确 dual 0x1d8ba：自动阶段
+    /* field_side1_phase_execute @0x1d80b / 正确 dual 0x1d80b 与
+     * field_side0_phase_execute @0x1d8ba / 正确 dual 0x1d8ba：自动阶段
      * 按 raw actor index 逐个进入 AI core；完整演出由 play loop 显式
      * visual 调用，tick 保持无窗口逻辑路径。 */
     if (game->active_side != 2 &&
@@ -863,7 +863,7 @@ void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
 
     /* field_actor_move_{down,left,up,right}_follow_camera
-     * @0x380be/0x38221/0x38399/0x38529 在六个步态相位中每次同步
+     * @0x12eaa/0x1300d/0x13185/0x13315 在六个步态相位中每次同步
      * 卷动镜头 4 px；camera_pixel_offset_* 保存尚未提交到格坐标的部分。 */
     int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER +
                    game->camera_pixel_offset_x;
@@ -900,7 +900,7 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
     if (!game || !vga) return;
     int rel_x = game->cursor_cell_x - game->camera_cell_x;
     int rel_y = game->cursor_cell_y - game->camera_cell_y;
-    /* field_cell_info_panel_draw @0x3ff11：光标进入视窗左下角时把面板
+    /* field_cell_info_panel_draw @0x1acf3：光标进入视窗左下角时把面板
      * 移到右侧；进入右下角时移回左侧，其他位置沿用上次一侧。 */
     if (rel_y >= 6 && rel_x <= 2)
         game->info_panel_right = 1;
@@ -915,7 +915,7 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
         &game->terrain, terrain_id);
     size_t frame_index;
     const fd2_image *terrain_image = NULL;
-    /* field_cell_info_panel_draw @0x3ff11 按 map_cell_info_at 返回的
+    /* field_cell_info_panel_draw @0x1acf3 按 map_cell_info_at 返回的
      * 原始 terrain ID 取基础帧，不套用地图层动画相位。 */
     if (fd2_terrain_base_frame_from_cell(
             &game->terrain, cell, &frame_index) == 0)
@@ -1146,7 +1146,7 @@ static void render_move_selection(const fd2_field_game *game,
         !game->move_range.nodes)
         return;
 
-    /* field_view_render_tiles @0x3710c：node offset 0x07 不为 0xff
+    /* field_view_render_tiles @0x11eee：node offset 0x07 不为 0xff
      * 的可达格不叠加独立贴图，而是用 FDOTHER[3] 的 256 字节 LUT 重绘
      * 整个 FDSHAP 24×24 tile。DS:0x1a97 选择 20 相位动画帧。 */
     const uint8_t *lut = fd2_field_range_lut(
@@ -1197,8 +1197,8 @@ static void render_field_cursor(const fd2_field_game *game,
         game->interaction == FD2_FIELD_INTERACTION_MOVING)
         return;
 
-    /* field_selection_overlay_draw @0x374f0 在普通模式 1 调用
-     * field_selection_sprite_blit @0x3790b，把 FDOTHER[1] frame 0
+    /* field_selection_overlay_draw @0x122dc 在普通模式 1 调用
+     * field_selection_sprite_blit @0x126f7，把 FDOTHER[1] frame 0
      * 以透明 SKIP 规则画在焦点格；顺序位于地形/范围之后、单位之前。 */
     const fd2_image *cursor = fd2_field_cursor_frame(&game->visuals, 0);
     if (!cursor) return;
@@ -1224,7 +1224,7 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     int new_y = clamp_int(old_y + dy, 0, game->map.height - 1);
     if (new_x == old_x && new_y == old_y) return 0;
 
-    /* field_focus_move_to @0x37efe：焦点向视窗外侧移动前若已达到
+    /* field_focus_move_to @0x12cea：焦点向视窗外侧移动前若已达到
      * 左/右 2/11、上/下 2/6 阈值，则光标与镜头同步移动一格。 */
     int rel_x = old_x - game->camera_cell_x;
     int rel_y = old_y - game->camera_cell_y;
@@ -1264,7 +1264,7 @@ int fd2_field_game_cycle_focus(fd2_field_game *game) {
         game->cursor_cell_x = unit->x;
         game->cursor_cell_y = unit->y;
         game->detail_acknowledged_unit = -1;
-        /* field_focus_move_to_actor @0x37f8f：焦点随 actor 坐标更新，
+        /* field_focus_move_to_actor @0x12d7b：焦点随 actor 坐标更新，
          * 光标进入可视范围时沿用现有 2/11、2/6 镜头阈值。 */
         int rel_x = game->cursor_cell_x - game->camera_cell_x;
         int rel_y = game->cursor_cell_y - game->camera_cell_y;
@@ -1593,12 +1593,12 @@ int fd2_field_game_refresh_commands(fd2_field_game *game) {
         game->interaction != FD2_FIELD_INTERACTION_COMMAND)
         return -1;
 
-    /* field_player_command_execute_core @0x3dfaa 的原版顺序固定为
-     * attack/magic/item/wait。field_unit_inventory_count @0x40aba 控制
-     * item 可用性；field_unit_magic_list_build @0x4147d 与 record +0x27
+    /* field_player_command_execute_core @0x18d8c 的原版顺序固定为
+     * attack/magic/item/wait。field_unit_inventory_count @0x1b8a6 控制
+     * item 可用性；field_unit_magic_list_build @0x1c269 与 record +0x27
      * 控制 magic 可用性。其执行入口分别为
-     * field_player_item_command_execute @0x40df0 与
-     * field_player_magic_command_execute @0x42204。当前 SDL 状态机尚未
+     * field_player_item_command_execute @0x1bbdc 与
+     * field_player_magic_command_execute @0x1cff0。当前 SDL 状态机尚未
      * 实现这两类动作，因此对应图标保持禁用。 */
     game->command_disabled[FD2_FIELD_COMMAND_ATTACK] =
         fd2_field_game_attack_is_available(game) ? 0u : 1u;
@@ -1667,7 +1667,7 @@ int fd2_field_game_begin_attack(fd2_field_game *game) {
         !fd2_field_game_attack_is_available(game))
         return -1;
 
-    /* field_player_command_execute @0x3dfa0 的普通攻击分支先按首件已装备
+    /* field_player_command_execute @0x18d8c 的普通攻击分支先按首件已装备
      * 武器构造范围，并且仅在存在合法目标时进入目标选择。测试可注入
      * target_allowed 覆盖范围；side 2 → side 0 等不变量仍由 session
      * 强制检查。 */
@@ -1685,8 +1685,8 @@ int fd2_field_game_cancel_attack(fd2_field_game *game) {
         (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_TARGETING)
         return 0;
-    /* field_player_command_execute_core @0x3dfaa 在目标选择返回 -1 后，
-     * 调用 field_focus_move_to @0x37efe 恢复攻击前焦点，再返回 0 让
+    /* field_player_command_execute_core @0x18d8c 在目标选择返回 -1 后，
+     * 调用 field_focus_move_to @0x12cea 恢复攻击前焦点，再返回 0 让
      * 上层重开指令菜单。沿用同一 X 后 Y 顺序以同步恢复镜头。 */
     const fd2_field_unit *attacker =
         &game->units.items[game->selected_unit];
@@ -1886,8 +1886,8 @@ static int resolve_physical_exchange(fd2_field_game *game,
     uint8_t attack_strikes = 0;
     uint8_t counterattack_strikes = 0;
 
-    /* field_physical_exchange @0x3a6a2 先执行进攻序列；目标存活且
-     * field_counterattack_is_available @0x442f0 返回 1 时交换双方参数，
+    /* field_physical_exchange @0x1548e 先执行进攻序列；目标存活且
+     * field_counterattack_is_available @0x1f0dc 返回 1 时交换双方参数，
      * 再执行反击序列。反击不占用反击者所属阵营的行动标志。 */
     if (resolve_attack_sequence(game, attacker, defender, &attack_result,
                                 &attack_strikes) != 0)
@@ -1906,8 +1906,8 @@ static int resolve_physical_exchange(fd2_field_game *game,
         return -1;
     }
 
-    /* field_physical_attack_resolve @0x43edb 本体只写 +0x25/+0x40；外围
-     * exchange 返回后立即调用 field_defeated_units_finalize @0x42d79，
+    /* field_physical_attack_resolve @0x1ecc7 本体只写 +0x25/+0x40；外围
+     * exchange 返回后立即调用 field_defeated_units_finalize @0x1db65，
      * 统一将所有 HP==0 actor 的 +0x05 写为 1。 */
     finalize_zero_hp_units(&game->units);
     game->battle_result = fd2_field_game_battle_result(game);
@@ -2040,7 +2040,7 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
 
     fd2_field_unit *unit = &game->units.items[game->selected_unit];
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
-        /* field_player_command_execute @0x3dfa0 返回 -1 后，调用者恢复
+        /* field_player_command_execute @0x18d8c 返回 -1 后，调用者恢复
          * 确认移动前的唯一坐标记录，再重新显示原移动范围。 */
         game->command_selected = -1;
         game->command_highlight_phase = 0;
@@ -2087,7 +2087,7 @@ static int execute_path_playback(fd2_field_game *game,
                                  fd2_vga *vga,
                                  uint32_t frame_delay_ms,
                                  int player_command_after_move) {
-    /* field_actor_path_play @0x3869c 按 0下/1左/2上/3右分派四个
+    /* field_actor_path_play @0x13488 按 0下/1左/2上/3右分派四个
      * 单格 helper；每格 helper 写 direction，并用 1..6 相位各走 4 px。
      * 原版每相位等待一次 BIOS tick，调用方传 55 ms 即为实机节奏。 */
     static const int dx[] = {0, -1, 0, 1};
@@ -2211,8 +2211,8 @@ static int finish_ai_action(fd2_field_game *game, size_t actor_index) {
      * hidden 拒绝，否则会在 RNG 已消费后错误回滚棋盘。 */
     if (actor->side != game->active_side)
         return -1;
-    /* field_ai_unit_execute_core @0x38cbd：先查询当前格，再 OR acted，
-     * 随后调用 field_all_actor_directions_reset @0x386f8。record +0x03
+    /* field_ai_unit_execute_core @0x13a9f：先查询当前格，再 OR acted，
+     * 随后调用 field_all_actor_directions_reset @0x134e4。record +0x03
      * 的原版字段在静止状态确实统一归零（默认朝下）；这不是独立的
      * selection 缓冲。该 helper 还固定延迟 20 ms，SDL 的无视觉提交
      * 只复现状态写入，视觉版已有动作自身的帧延迟。 */
@@ -2257,7 +2257,7 @@ int fd2_field_game_commit_ai_physical(
              : game->units.items[plan->unit_index].side != 0u))
         return -1;
 
-    /* field_ai_physical_candidate_evaluate @0x3944b 的输出只是计划；提交前
+    /* field_ai_physical_candidate_evaluate @0x14237 的输出只是计划；提交前
      * 以当前 session 状态重算，防止坐标、装备或目标在查询后改变。 */
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
     if (fd2_field_game_compute_move_range(game, actor_index, &range) != 0)
@@ -2305,8 +2305,8 @@ int fd2_field_game_commit_ai_physical(
      * 事务中不转移所有权，directions 在恢复前单独释放。 */
     fd2_field_game session_snapshot = *game;
 
-    /* field_ai_move_toward_cell @0x39d8c 最终把重建路径交给
-     * field_actor_path_play @0x3869c；SDL 复用同一六相位 path player。 */
+    /* field_ai_move_toward_cell @0x14b78 最终把重建路径交给
+     * field_actor_path_play @0x13488；SDL 复用同一六相位 path player。 */
     game->selected_unit = (int)actor_index;
     game->move_origin_x = actor->x;
     game->move_origin_y = actor->y;
@@ -2320,7 +2320,7 @@ int fd2_field_game_commit_ai_physical(
     game->move_path_length = (size_t)path_length;
     game->move_preview_valid = 1;
     game->interaction = FD2_FIELD_INTERACTION_MOVING;
-    /* field_ai_move_toward_cell @0x39d8c 只播放 actor path；不打开
+    /* field_ai_move_toward_cell @0x14b78 只播放 actor path；不打开
      * player COMMAND 菜单，也不更新 command 的旁路动画状态。 */
     int commit_result = execute_path_playback(
         game, vga, frame_delay_ms, 0);
@@ -2348,8 +2348,9 @@ int fd2_field_game_commit_ai_physical(
             game->cursor_cell_x = target->x;
             game->cursor_cell_y = target->y;
             actor->direction = 0;
-            /* field_actor_face_toward @0x4425e：水平差严格大于垂直差
-             * 时取左右；平价取上下。 */
+            /* field_actor_face_toward @0x1f04a（IDA `sub_1F04A`）：以
+             * `abs(dx)` 与 `abs(dy)` 比较两个 actor 记录坐标，水平差
+             * 严格大于垂直差时取左右；平价取上下。 */
             int dx = (int)actor->x - (int)target->x;
             int dy = (int)actor->y - (int)target->y;
             int abs_x = dx < 0 ? -dx : dx;
@@ -2669,7 +2670,7 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
         destination.x, destination.y, path, count, &length,
         NULL, NULL) : -1;
     if (find_result == 0) {
-        /* field_ai_move_toward_cell @0x39d8c（正确 dual 0x14b78）：
+        /* field_ai_move_toward_cell @0x14b78（正确 dual 0x14b78）：
          * direct probe 失败后，用固定预算 0x1c / mode 1 建长路径，逐步
          * 记录本回合最后仍可达的位置，再对该 anchor 重建普通路径。 */
         uint8_t *long_path = malloc(count);
@@ -2727,9 +2728,9 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
     return result;
 }
 
-/* field_ai_hostile_anchor @0x39335（正确 dual 0x14121）：使用固定预算
+/* field_ai_hostile_anchor @0x14121（IDA `sub_14121`）：使用固定预算
  * 0x1c、path mode 2 寻找 hostile occupied witness，再交给
- * field_ai_move_toward_cell @0x39d8c 移向其本回合合法 anchor。 */
+ * field_ai_move_toward_cell @0x14b78 移向其本回合合法 anchor。 */
 static int commit_ai_hostile_witness(fd2_field_game *game,
                                       size_t actor_index,
                                       fd2_vga *vga,
@@ -3264,7 +3265,7 @@ int fd2_field_game_prepare_earthquake(fd2_field_game *game, fd2_vga *vga,
     fd2_field_game_render(game, vga);
     uint8_t baseline[VGA_W * VGA_H];
     memcpy(baseline, vga->framebuffer, sizeof(baseline));
-    /* field_earthquake_effect @0x4673b 从 DS:0x2096..0x20b6 复制的
+    /* field_earthquake_effect @0x21527 从 DS:0x2096..0x20b6 复制的
      * 三组参数：x offset 72/128/0，y offset -128/128/0，
      * fixed-point step 128/131/128。 */
     static const int x_offset[3] = {72, 128, 0};
@@ -3329,7 +3330,7 @@ static void apply_lut_circle(uint8_t *snapshot, const uint8_t lut[256],
 static void apply_transition_lut(uint8_t *snapshot,
                                  const uint8_t lut[256],
                                  int center_x, int center_y, int radius) {
-    /* field_transition_lut_mask @0x4725a：整圆一次、下半圆再一次，再对上半部
+    /* field_transition_lut_mask @0x22046：整圆一次、下半圆再一次，再对上半部
      * 的 radius/sqrt(2) 中央矩形应用一次同一 LUT。 */
     apply_lut_circle(snapshot, lut, center_x, center_y, radius, 0, 192);
     apply_lut_circle(snapshot, lut, center_x, center_y, radius,

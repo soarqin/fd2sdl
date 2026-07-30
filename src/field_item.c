@@ -1,5 +1,5 @@
 /* 炎龙骑士团 2 SDL3 重写 - 物品/装备 23 字节静态表
- * 逆向依据：field_item_record_get @0x73ad0 直接返回
+ * 逆向依据：field_item_record_get @0x4e8bc 直接返回
  * DS:0x02ad + item_id*0x17；表在 corrected code0 0x684c1。 */
 
 #include "field_item.h"

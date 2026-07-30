@@ -26,9 +26,9 @@ void fd2_tileset_close(fd2_tileset *tiles);
 
 /* FDSHAP.DAT 战场地形表与 24×24 地图帧。
  *
- * 对照 FUN_00010580 @0x3804c：FDFIELD cell 低 10 位为 terrain_id，
+ * 对照 FUN_00010580 @0x12e38：FDFIELD cell 低 10 位为 terrain_id，
  * 再从 FDSHAP 奇数条目的 4 字节地形表读取属性。地图底图使用
- * FDSHAP 偶数条目的同号帧；FUN_0001020e @0x37cda 在重绘遮挡格时
+ * FDSHAP 偶数条目的同号帧；FUN_0001020e @0x12ac6 在重绘遮挡格时
  * 会检查 flags 的 0x08/0x80 位并绘制后一帧。
  */
 typedef struct {
@@ -98,7 +98,7 @@ void fd2_terrain_render_field_preview(fd2_vga *vga,
                                       int camera_x, int camera_y,
                                       int anim_phase);
 
-/* field_view_render_scaled @0x44776：以 1/128 pixel 的 fixed-point 步长
+/* field_view_render_scaled @0x1f558：以 1/128 pixel 的 fixed-point 步长
  * 重采样 312×192 战场视窗。center_* 使用原版每格 0xc00 的坐标。 */
 void fd2_terrain_render_field_scaled_animated(
                                       fd2_vga *vga,

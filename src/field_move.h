@@ -42,7 +42,7 @@ int fd2_field_move_range_compute(fd2_field_path_result *result,
                                  size_t movement_profile_cost_count,
                                  uint32_t movement_points);
 
-/* field_path_find @0x7370a（正确 dual 0x4e4f6）的 mode 参数：
+/* field_path_find @0x4e4f6（正确 dual 0x4e4f6）的 mode 参数：
  * mode 0 是普通路径；mode 1 在等剩余成本时比较递归路径形状；mode 2
  * 在抵达 hostile occupied cell 时更新 witness 坐标。三种模式共享
  * 已确认的地形、占格与 ZOC 查询策略。 */

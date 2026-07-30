@@ -1,6 +1,6 @@
 /* 炎龙骑士团 2 SDL3 重写 - 普通物理攻击确定性核心
  *
- * 复现 field_physical_attack_resolve @0x43edb 已确认的命中、暴击、
+ * 复现 field_physical_attack_resolve @0x1ecc7 已确认的命中、暴击、
  * 伤害及 HP 钳制路径；地形、装备特效与暴击率来源由调用方处理。
  */
 #include "field_combat.h"
@@ -26,7 +26,7 @@ int fd2_field_combat_resolve_attack(
     out->hp_after = params->defender_hp;
     out->defeated = params->defender_hp == 0;
 
-    /* field_physical_attack_resolve @0x43edb：
+    /* field_physical_attack_resolve @0x1ecc7：
      * rand()%100 < accuracy-evasion。差值为负时必定未命中。 */
     out->hit_roll = rng(rng_userdata) % 100u;
     int64_t hit_chance =

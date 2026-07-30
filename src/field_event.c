@@ -1,9 +1,9 @@
 /* 炎龙骑士团 2 SDL3 重写 - FDFIELD 回合与格子事件查询
  *
  * 逆向依据：
- * - field_turn_event_check @0x3fa27 遍历 metadata offset 0x03 的
+ * - field_turn_event_check @0x1a813 遍历 metadata offset 0x03 的
  *   16×3 字节表，比较当前回合和 phase 后按 action 查回调表；
- * - field_cell_event_lookup @0x38c58 从 32 位 map cell 的 byte 2
+ * - field_cell_event_lookup @0x13a44 从 32 位 map cell 的 byte 2
  *   读取低 5 位 1-based ID，查询 metadata offset 0x33 的 16×2 表；
  * - `DS:0x1b91` 回调 ABI 已由 DOSBox 与 LE fixup 交叉确认：cdecl
  *   `handler(actor_index)`，回合事件传 0，调用者清理 4 字节栈。

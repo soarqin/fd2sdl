@@ -204,6 +204,8 @@ static int test_hit_via_confirm_flow(void) {
                "command confirm enters targeting") ||
         expect(game.interaction == FD2_FIELD_INTERACTION_TARGETING,
                "targeting state entered") ||
+        expect(game.move_range.nodes != NULL,
+               "targeting exposes a weapon-range overlay") ||
         expect(fd2_field_game_confirm_cursor(&game) == 0,
                "target confirm resolves attack") ||
         expect(game.interaction == FD2_FIELD_INTERACTION_BROWSE,
@@ -217,6 +219,11 @@ static int test_hit_via_confirm_flow(void) {
                "post-exchange sweep hides every zero-HP actor") ||
         expect(fd2_field_unit_has_acted(&game.units.items[0]),
                "attacker is marked acted") ||
+        expect(game.move_range.nodes == NULL,
+               "resolved attack clears targeting range") ||
+        expect(fd2_field_game_battle_result(&game) ==
+                   FD2_FIELD_BATTLE_VICTORY,
+               "lethal final hostile updates battle result") ||
         expect(rng.cursor == 4,
                "sequence roll precedes hit/critical/spread rolls"))
         return -1;

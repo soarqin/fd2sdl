@@ -2,7 +2,7 @@
 
 ## 1. 当前边界
 
-当前实现已形成第一关可交互战场，包含移动、回合、原版图形指令菜单、无演出的确定性普通攻击，以及 M7 敌方 AI 的查询、提交、自动 phase 和已确认的 stage 0 结果门。玩家法术／道具状态机、特殊 handler 与关卡结束转场仍未完成。
+当前实现已形成第一关可交互战场，包含移动、acted 行动门、完整 phase 推进、原版图形指令菜单、无演出的确定性普通攻击，以及 M7 敌方 AI 的查询、提交、自动 phase 和已确认的 stage 0 结果门。玩家法术／道具状态机、特殊 handler 与关卡结束转场仍未完成；第一关从开场到胜负的完整人工流程仍待验证。
 
 已完成的基础能力：
 
@@ -15,7 +15,9 @@
 - 将开场结束后的动态单位和镜头状态交给正式战场。
 - 使用键盘光标浏览地图、命中单位并确认或取消我方单位选择。
 - 使用 FDOTHER[2] 绘制 attack/magic/item/wait 四向指令菜单，接入普通攻击、待机和取消回退。
-- 完成无演出的确定性普通攻击、双击、反击、地形修正和死亡提交。
+- 在目标选择期间显示真实武器范围；attack 与 wait 均可靠设置 acted 并结束当前单位行动。
+- 完成无演出的确定性普通攻击、双击、反击、地形修正、HP 扣减和死亡隐藏提交。
+- 以 Xvfb/XTest 驱动正式 `--field-play 0` SDL 循环，验证非零移动待机、phase 推进、扣血、双击击杀和 acted 拒绝。
 - 读取 FD2.SAV 的 XOR 加密数据、slot 元数据和 0x50 字节单位记录。
 
 尚未完成的核心能力：
@@ -174,7 +176,7 @@
 
 ### M5：回合骨架和 FDFIELD 事件
 
-当前进度：最小回合、事件查询、stage 0 action `0..3` 的持久状态和演出层已完成。side 1/0 仍按单位顺序执行确定性待机；持久状态先事务化提交，交互模式随后从提交前快照重放镜头、移动、LMI1 和对话，未知事件仍记录为 `unhandled, skipped`。
+当前进度：回合状态机、事件查询、stage 0 action `0..3` 的持久状态和演出层已完成。side 1/0 已按 raw actor 顺序执行 M7 AI；持久状态先事务化提交，交互模式随后从提交前快照重放镜头、移动、LMI1 和对话，未知事件仍记录为 `unhandled, skipped`。
 
 已建立流程：
 
@@ -199,8 +201,9 @@
 
 当前验收：
 
-- [x] 原地确认可作为最小待机，单位完成后不能在同阶段重复选择。
-- [x] 仅使用待机即可完成玩家、side 1、敌方阶段并进入下一回合。
+- [x] 原地确认与非零移动后确认均可进入 wait；单位完成后不能在同阶段重复进入移动状态。
+- [x] 逐名通过正式玩家指令执行 wait 后，phase 可完成 `2 → 1 → 0 → 下一回合 2` 推进。
+- [x] Linux/X11 下的 `field_play_input` CTest 使用 XTest 发送真实按键，不调用 `field_game` 状态 API；它检查四名玩家的 action 日志、acted gate 和下一回合状态。
 - [x] stage 0 四条 turn event 在 `(3,1)/(4,0)/(5,0)/(6,1)` 条件下各执行一次，对应 action `0/1/2/3`；无动画验证保留 `presentation_deferred`，交互播放成功后清除该标记。
 - [x] `field_event` CTest 覆盖回合/phase 匹配、cell ID、match 参数、地形 `0x60` 禁止位，以及移动脚本成功提交和失败回滚。
 - [x] 快速入口自动推进至第 7 回合，验证 27 名 actor、group 3/7/4/5/6 数量、关键脚本终点与最终镜头 `(11,11)`；同时在独立 session 副本中验证四条演出顺序的终态，并实际读取、解码 action 1/2 使用的 12 帧 LMI1。快速模式不验证逐帧时序和像素对照。
@@ -226,7 +229,7 @@ M6 之前先替换分散的 SDL 事件循环。原版不按 SDL 键名分派，�
 
 ### M6：无演出的确定性战斗
 
-当前进度：已确认 stage 单位基础构造器、普通物理攻击的四个派生字段、装备重算链、武器范围和无演出核心公式，并新增 `src/field_unit_base.[ch]`、`src/field_combat.[ch]`、`src/field_attack.[ch]` 与 `src/field_unit_stats.[ch]`。一／二击序列、敌方邻接反击、HP 0 全表隐藏提交及原版四向图形指令菜单均已接入；RNG loader 初值和完整战斗表已捕获接入；敌方 phase 主动决策仍待完成。
+当前进度：已确认 stage 单位基础构造器、普通物理攻击的四个派生字段、装备重算链、武器范围和无演出核心公式，并新增 `src/field_unit_base.[ch]`、`src/field_combat.[ch]`、`src/field_attack.[ch]` 与 `src/field_unit_stats.[ch]`。一／二击序列、敌方邻接反击、HP 0 全表隐藏提交、原版四向图形指令菜单和敌方 phase 主动决策均已接入；RNG loader 初值和完整战斗表已捕获接入。
 
 已确认：
 
@@ -244,14 +247,14 @@ M6 之前先替换分散的 SDL 事件循环。原版不按 SDL 键名分派，�
 - [x] `field_physical_attack_sequence @0x43a6a` 每次必定先消费一次 RNG；weapon effect 3 或固定 3% 判定触发两击。`field_physical_exchange @0x3a6a2` 在目标存活且 `field_counterattack_is_available @0x442f0` 满足 `+0x26==0`、距离 1、武器最小射程 1 时交换双方执行反击。SDL 已复现双击中止、共享 RNG 和反击不占行动标志。
 - [x] 每击先按所在格 movement cost class 从 `DS:0x1a12/0x1a2a` 取攻防百分比，执行 `stat += stat*percent/100`；`field_unit_ignores_terrain_combat_modifier @0x44397` 确认 unit 28 强制使用地形，其他 unit 的 profile 19 或 race 4/5 跳过。DOSBox debugger 已从重定位地址 `0x1ada12/0x1ada2a` 捕获 class 0..5 完整表并接入。
 - [x] `field_equipped_item_slot_find @0x40a51`、`field_unit_item_id_at @0x40936` 与 `field_target_range_build @0x39a2c` 已确认普通攻击使用首件已装备武器 item record `+0x0b/+0x0c` 的最小／最大范围，以 profile 0 传播；side filter 映射为 `0→side 0`、`1→非 0`、`2→side 1`、`3→side 2`，玩家攻击使用 filter 0。`src/field_attack.[ch]` 和 `field_attack_test` 覆盖短兵／刺矛范围、最小距离、地形成本阻断和阵营过滤。
-- [x] `fd2_field_game` 已提供可测试覆盖的目标规则、注入 RNG、`COMMAND → TARGETING → COMMAND → BROWSE` 攻击状态与 HP 提交接口。`field_physical_attack_resolve @0x43edb` 本体只写 `+0x40`；exchange 后的 `field_defeated_units_finalize @0x42d83` 会把全表所有 HP 0 actor 的 `+0x05` 精确写为 1。`fd2_field_game_attack_test` 用固定 RNG、按单位注入基础暴击率，验证非法目标不消耗 RNG、取消 targeting、已行动攻击者拒绝结算、命中、HP 归零、全表隐藏、死亡反击者行动完成、未命中、状态复位、地形攻防、双击和敌方反击；`--field-play-once 0` 再以 stage 0 roster 和正式武器范围做集成验证。
+- [x] `fd2_field_game` 已提供可测试覆盖的目标规则、注入 RNG、`COMMAND → TARGETING → COMMAND → BROWSE` 攻击状态与 HP 提交接口。`field_physical_attack_resolve @0x43edb` 本体只写 `+0x40`；exchange 后的 `field_defeated_units_finalize @0x42d83` 会把全表所有 HP 0 actor 的 `+0x05` 精确写为 1。`fd2_field_game_attack_test` 用固定 RNG、按单位注入基础暴击率，验证非法目标不消耗 RNG、取消 targeting、已行动攻击者拒绝结算、命中、HP 归零、全表隐藏、最终敌方死亡后的胜利结果、未命中、状态复位、地形攻防、双击和敌方反击。`--field-play-once 0` 只负责 stage 0 roster 与正式武器范围的集成检查；正式输入验收由 `field_play_input` CTest 完成。
 - [x] `--field-play 0` 在移动后打开 FDOTHER[2] 四向指令菜单：上／左／右／下依次为 attack/magic/item/wait。attack 仅在存在合法目标时可选，确认后进入 `TARGETING`；wait 直接完成行动；magic/item 的原版身份与禁用条件已确认，但执行状态机未完成，当前显示原版 disabled 帧。
 
 范围：
 
 - [x] 移动、攻击、待机指令菜单。
 - [x] 攻击范围和合法目标过滤。
-- 命中、伤害、HP 扣减、死亡和行动完成。
+- [x] 命中、伤害、HP 扣减、死亡和行动完成。
 - 经验和升级先定义接口，确认公式后实现。
 
 需要先定位真正的职业、属性、装备、技能和伤害数据来源；不能继续沿用「DATO.DAT 是属性表」的旧假设。
@@ -262,6 +265,7 @@ M6 之前先替换分散的 SDL 事件循环。原版不按 SDL 键名分派，�
 - [x] HP 不下溢；exchange 结束后全表 HP 0 actor 的 flags 精确写 1。死亡演出仍延后到 M8。
 - [x] 已行动单位不能重复行动。
 - [x] 至少完成一次玩家主动攻击和一次敌方邻接反击；敌方 phase 的移动／主动攻击决策归入 M7。
+- [x] `field_play_input` 以 stage 0 原始坐标和属性执行正式移动、目标确认与攻击；默认种子验证 `28 → 3 HP`，固定计时器种子 `496` 验证两击总计扣除 28 HP、目标隐藏和攻击者 acted gate。测试不改写单位坐标、HP、攻击或防御属性。
 
 ### M6.5：原版图形指令菜单
 
@@ -317,9 +321,9 @@ M6 之前先替换分散的 SDL 事件循环。原版不按 SDL 键名分派，�
 
 验收标准：
 
-- 第一关可以持续运行到胜利或失败。
-- AI 不越界、不进入非法地形、不与单位重叠。
-- 相同状态和随机种子产生相同决策。
+- [ ] 第一关从正式开场持续运行到胜利或失败；当前已实现结果门，但完整人工流程仍待验证。
+- [ ] AI 不越界、不进入非法地形、不与单位重叠；基础计划与提交已有测试，完整第一关仍需持续运行验证。
+- [x] 相同状态和随机种子产生相同决策。
 
 ### M8：战场系统菜单、存档和退出流程
 
@@ -462,9 +466,12 @@ XOR 和基础 slot 读取，尚未接入正式战场 session。
 
 ```bash
 cmake --build src/build --parallel
+ctest --test-dir src/build --output-on-failure
 SDL_VIDEODRIVER=dummy ./src/fd2sdl --field-preview-once 0
 SDL_VIDEODRIVER=dummy ./src/fd2sdl --prologue-preview-once
 ```
+
+Linux/X11 环境在检测到 Xvfb 与 XTest 后还会注册 `field_play_input`。该测试直接驱动正式 `--field-play 0` SDL 窗口，用于验收玩家输入状态机；快速 `*-once` 入口不能替代这项检查。
 
 纯逻辑模块应补充不依赖 SDL 窗口的测试：
 

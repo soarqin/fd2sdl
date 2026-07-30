@@ -1142,7 +1142,8 @@ static void render_move_selection(const fd2_field_game *game,
                                   fd2_vga *vga,
                                   int camera_x, int camera_y) {
     if (!game || !vga ||
-        game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+        (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
+         game->interaction != FD2_FIELD_INTERACTION_TARGETING) ||
         !game->move_range.nodes)
         return;
 
@@ -1166,7 +1167,8 @@ static void render_move_selection_overlay(const fd2_field_game *game,
                                           fd2_vga *vga,
                                           int camera_x, int camera_y) {
     if (!game || !vga ||
-        game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+        (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
+         game->interaction != FD2_FIELD_INTERACTION_TARGETING) ||
         !game->move_range.nodes)
         return;
     const uint8_t *lut = fd2_field_range_lut(
@@ -1667,10 +1669,19 @@ int fd2_field_game_begin_attack(fd2_field_game *game) {
         !fd2_field_game_attack_is_available(game))
         return -1;
 
-    /* field_player_command_execute @0x18d8c 的普通攻击分支先按首件已装备
-     * 武器构造范围，并且仅在存在合法目标时进入目标选择。测试可注入
-     * target_allowed 覆盖范围；side 2 → side 0 等不变量仍由 session
-     * 强制检查。 */
+    /* field_player_command_execute @0x18d8c 先以武器 min/max range 调用
+     * field_target_range_build @0x14818，再把该范围交给
+     * field_cell_selection_execute。目标选择期间必须显示这张范围表；
+     * 旧实现只在内部做合法性判断，确认非法格时画面没有任何反馈。 */
+    fd2_field_path_result attack_range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    const fd2_field_unit *attacker =
+        &game->units.items[game->selected_unit];
+    if (fd2_field_attack_range_compute(
+            &attack_range, &game->map, &game->terrain, attacker) != 0)
+        return -1;
+    fd2_field_path_close(&game->move_range);
+    game->move_range = attack_range;
+
     game->attack_target = -1;
     game->last_attack_valid = 0;
     game->last_attack_strikes = 0;

@@ -585,6 +585,39 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_unit_base COMMAND fd2_field_unit_base_test)
+
+    # 仅在 Linux/X11 测试依赖齐备时注册真正驱动 SDL 窗口的战场回归。
+    # 该测试不调用 field_game API，避免局部夹具绕过 field_play 输入循环。
+    if(UNIX AND NOT APPLE)
+        find_package(X11 QUIET)
+        find_program(FD2SDL_XVFB_EXECUTABLE Xvfb)
+        if(X11_FOUND AND X11_Xtst_LIB AND FD2SDL_XVFB_EXECUTABLE)
+            add_executable(fd2_field_play_input_driver
+                tests/field_play_input_driver.c
+            )
+            target_include_directories(fd2_field_play_input_driver PRIVATE
+                ${X11_X11_INCLUDE_PATH}
+                ${X11_Xtst_INCLUDE_PATH}
+            )
+            target_link_libraries(fd2_field_play_input_driver PRIVATE
+                ${X11_X11_LIB}
+                ${X11_Xtst_LIB}
+            )
+            target_compile_options(fd2_field_play_input_driver PRIVATE
+                -Wall -Wextra -Wpedantic)
+            add_test(NAME field_play_input
+                COMMAND sh
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_input_test.sh
+                    $<TARGET_FILE:fd2_field_play_input_driver>
+                    $<TARGET_FILE:fd2sdl>
+                    ${CMAKE_SOURCE_DIR}/..
+            )
+            set_tests_properties(field_play_input PROPERTIES
+                TIMEOUT 90
+                LABELS "e2e"
+            )
+        endif()
+    endif()
 endif()
 
 # 让可执行文件能在源码树根目录运行并找到 original_game/

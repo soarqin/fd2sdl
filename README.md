@@ -109,9 +109,8 @@ python3 tools/compare_fd2_music_capture.py capture.wav rendered/
 
 | 工具 | 用途 |
 |------|------|
-| Ghidra 11.3.2 | 32 位 x86 反编译为 C 伪代码 |
-| radare2 5.5 | LE 加载、汇编、交叉引用 |
-| capstone | 程序化反汇编 |
-| Python | 自定义二进制解析 |
+| IDA Pro / Hex-Rays + IDA Domain API | 日常逆向：函数、伪 C、反汇编、交叉引用和数据查询，通过 `idalib` 无界面执行 |
+| Python | 自定义二进制解析和证据验证 |
+| Ghidra / radare2 / Capstone | 仅在需要独立验证或 IDA 能力不足时按需使用，保留历史流程 |
 
-详见 `docs/reverse-engineering/decompilation-report.md` 末尾的工具命令备忘。
+逆向工作使用 `ida-domain-api` skill；编写和执行脚本时使用 `ida-domain-scripting` skill。尽量不使用 `llvm-objdump`、r2 和 Ghidra 做日常分析。工具规范见 `AGENTS.md`，已验证命令见 [`docs/tools/ida.md`](docs/tools/ida.md) 和 [`docs/tools/README.md`](docs/tools/README.md)。

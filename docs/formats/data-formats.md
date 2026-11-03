@@ -27,13 +27,15 @@ offset[1]   变长      entry[1] data     条目 1 数据
 
 ```python
 def parse_dat(data):
-    assert data[:6] == b"LLLLLL"
+    assert len(data) >= 10 and data[:6] == b"LLLLLL"
     fsize = len(data)
+    table_end = u32_le(data[6:10])
+    assert 10 <= table_end < fsize
     offsets = []
     i = 0
     while True:
         pos = 6 + i * 4
-        if pos + 4 > fsize:
+        if pos + 4 > table_end:     # 不把首条目内容继续解释成偏移表
             break
         o = u32_le(data[pos:pos+4])
         if o >= fsize:              # 越界 → 结束
@@ -57,6 +59,7 @@ def parse_dat(data):
 - **4 字节间隙恒存在**：`6 + N*4 + 4 == offsets[0]`。
 - 偏移为**绝对文件偏移**，严格递增。
 - 末条目大小 = `文件大小 - offsets[-1]`。
+- 实现侧以首条目偏移作为表的读取上界，并保留越界／非递增终止规则；不把顶层四字节间隙作为所有嵌套资源的硬性要求。`src/tests/resource_test.c` 覆盖无间隙合成夹具、11 个原版顶层归档及标题／地形解码兼容性。
 
 ### 1.4 各文件清单
 
@@ -265,7 +268,7 @@ base_frame  = frames[terrain_id]
 选择框资源已确认，不在 FDICON 或 FDSHAP 中：
 
 - `FDOTHER.DAT[1]` 是 `24×24`、20 帧的 shape sheet，格式为 `u16 width, u16 height, u16 count, u32 offsets[count]`，帧流使用 24×24 shape RLE。`field_selection_sprite_blit @0x3790b` 按 `DAT_00003a4d + 6 + frame*4` 取帧，并以透明 SKIP 规则画到 `(cell-camera)*24`。普通战场模式 1 使用 frame 0；模式 2 使用 frame 1；模式 3..5 用 frame 1..18 组合十字、两格和三格范围轮廓。
-- `FDOTHER.DAT[2]` 是战场图形指令菜单的 78 帧 offset-table sheet。条目开头直接是 `u32 offsets[78]`，不是上述带 6 字节头的 shape sheet；每帧为 `u16 width, u16 height, raw indexed pixels[width*height]`。frame `48/49/51/52` 为 `24×16`，其余为 `24×20`；前 12 帧按 `attack/magic/item/wait × normal/highlight/disabled` 排列，即 `frame=command_id*3+state`。当前权威通用 primitive 为 `field_command_menu_open @code0 0x741c（dual 0x1741c）`、`field_command_menu_close @code0 0x76b4（dual 0x176b4）`：它们以焦点格左上角为基准，在四相位内把图标移动到上 `(0,-18)`、左 `(-24,2)`、右 `(24,2)`、下 `(0,22)`，每相位位移分别为 5／6／6／5 px。关闭使用独立初值，不是打开坐标的简单倒序；打开和关闭都播放 FDOTHER[31] SFX 8。空焦点、次级菜单、设置页和单位 action 都复用这些 primitive，但业务状态与 selector 分派保持独立。
+- `FDOTHER.DAT[2]` 是战场图形指令菜单的 78 帧 offset-table sheet。条目开头直接是 `u32 offsets[78]`，不是上述带 6 字节头的 shape sheet；每帧为 `u16 width, u16 height, raw indexed pixels[width*height]`。frame `48/49/51/52` 为 `24×16`，其余为 `24×20`；前 12 帧按 `attack/magic/item/wait × normal/highlight/disabled` 排列，即 `frame=command_id*3+state`。通用 primitive 为 `field_command_menu_open @0x1741c`、`field_command_menu_close @0x176b4`（canonical VA）。它们以焦点格左上角为基准；打开四相位的末帧为上 `(0,-18)`、左 `(-24,2)`、右 `(24,2)`、下 `(0,22)`，每相位位移分别为 5／6／6／5 px。关闭使用独立初值，不是打开坐标的简单倒序。静止的 `field_command_menu_draw @0x179d5` 使用上 `(0,-20)`、左 `(-24,2)`、右 `(24,2)`、下 `(0,24)`，不能用打开末帧代替。开合帧仅计算 `command_id*3+disabled*2`，静止时才叠加选中高亮相位；原版机器码执行验证见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md#菜单机器码执行对照与修复)。打开和关闭都播放 FDOTHER[31] SFX 8。空焦点、次级菜单、设置页和单位 action 都复用这些 primitive，但业务状态与 selector 分派保持独立。
 - `field_player_command_execute_core @0x3dfaa` 从 `DS:0x1ed5` 取得 `{0,1,2,3}`，依次表示 attack、magic、item、wait。attack 在没有已装备武器或合法目标时禁用；magic 在 `field_unit_magic_list_build @0x4147d` 返回 0 或 actor `+0x27 != 0` 时禁用；item 在 `field_unit_inventory_count @0x40aba` 返回 0 时禁用；wait 始终可选。方向键直接选择上／左／右／下四项，禁用方向不改变当前选择。确认后索引 1 调用 `field_player_magic_command_execute @0x42204`，索引 2 调用 `field_player_item_command_execute @0x40df0`，索引 3 进入待机收尾；取消返回 `-1`，由上层决定是否恢复移动前状态。
 - `FDOTHER.DAT[3]` 是 `LMI1` 容器，但其 23 帧不是图像：每帧严格为 256 字节，作为 palette index translation LUT。基础 tile 使用 `shape_blit_palette_lut_24x24 @0x7322a`：RUN/LITERAL 执行 `dst=lut[src]`，SKIP 也执行 `dst=lut[dst]`，因此整格现有像素都会变色；遮挡帧改用 `shape_blit_palette_lut_transparent_24x24 @0x732b6`，其 SKIP 才保留目标像素，避免映射下方单位。
 - `field_view_render_tiles @0x3710c` 检查路径 node offset `0x07`。值为 `0xff` 时正常绘制；可达格则使用上述 LUT 重绘完整 24×24 地形。20 相位 LUT 索引表位于 `DS:0x1a97`，原始字节为 `08 01 00 00 00 04 02 05 01 00 00 00 04 02 05 01 00 00 00 04`，每 3 个 BIOS tick 前进一步。

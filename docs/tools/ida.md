@@ -1,32 +1,44 @@
-# IDA Pro 9.4 / idalib 操作说明
+# IDA Domain API / idalib 操作说明
 
-本文记录用 IDA Pro 9.4 的 `idalib`（headless Python 库）对 `original_game/FD2.EXE` 做分析、复核和反编译的已验证命令。分析结论见 [`../reverse-engineering/ida-crosscheck.md`](../reverse-engineering/ida-crosscheck.md)。
+本文记录通过 `idalib` 对 `original_game/FD2.EXE` 做分析、复核和反编译的已验证命令。当前本机环境为 IDA Pro 9.5，重导出字节与局部机器码执行对照见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)；历史 9.4 分析结论仍见 [`../reverse-engineering/ida-crosscheck.md`](../reverse-engineering/ida-crosscheck.md)。
 
 **不要用 `ida`（GUI）或 `idat` 做自动化。** 本机 GUI 会占用显示器且无法在无人值守下操作；全部流程走 `idalib`。
 
+## 日常分析规范
+
+- 先读取 `ida-domain-api` skill；编写或执行脚本时同时使用 `ida-domain-scripting` skill，按其执行器流程查询数据库。
+- 新脚本优先使用 IDA Domain API。仅在 Domain API 缺少所需能力时局部调用低层 IDAPython，并说明原因；现有证据导出脚本不为统一 API 而重写。
+- 优先打开已有数据库，只读查询，不重复建库；需保存数据库修改时先取得开发者确认。下文的建库、标注和全量发布流程仅在需要更新证据基线时执行。
+- 尽量不使用 `llvm-objdump`、r2 或 Ghidra 做日常逆向。独立 loader／结构验收仍保留，但只在确需独立证据或 IDA 能力不足时使用并记录原因。
+
 ## 环境
 
-IDA 安装在 `/home/soar/ida-pro-9.4`。
-
-`idalib` Python 模块的安装（一次性）：
+IDA 当前安装在 `/home/soar/ida-pro-9.5`。Domain API 工具环境独立于项目运行依赖；首次使用时按 skill 初始化：
 
 ```bash
-# 本机没有 pip / venv 模块，直接展开 wheel 到用户 site-packages
-cd /tmp && rm -rf idapro_whl && mkdir idapro_whl && cd idapro_whl
-unzip -o /home/soar/ida-pro-9.4/idalib/python/idapro-0.0.9-py3-none-any.whl
-cp -r . /home/soar/.local/lib/python3.12/site-packages/
-
-# 告诉 idapro 模块 IDA 的安装位置（写 ~/.idapro/ida-config.json）
-python3 /home/soar/ida-pro-9.4/idalib/python/py-activate-idalib.py -d /home/soar/ida-pro-9.4
+export IDADIR=/home/soar/ida-pro-9.5
+cd /home/soar/.agents/skills/ida-domain-scripting
+uv run python setup.py
 ```
 
-验证：
+返回项目根目录后，使用这个工具解释器运行下文的 IDA 脚本；纯数据校验仍可使用系统 `python3`：
 
 ```bash
-python3 -c "import idapro; import ida_funcs, ida_fixup; print('ok')"
+IDA_PYTHON=/home/soar/.agents/skills/ida-domain-scripting/.venv/bin/python
+"$IDA_PYTHON" -c "import idapro; import ida_domain; print('ok')"
 ```
 
-### EULA 标志
+本机已有许可证位于非默认目录。若打开程序报 `Cannot continue without a valid license`，可以按 IDA 官方的 `IDA_LICENSE` 机制选择该文件，仅对当前进程生效，不保存为偏好：
+
+```bash
+export IDA_LICENSE=keyfile=/home/soar/.config/Hex-Rays/idapro.hexlic
+```
+
+其他机器应使用自己的安装和有效许可证路径。不要复制、修改许可证，或自动代替开发者接受 EULA。
+
+### 历史 IDA 9.4 EULA 记录
+
+以下地址、安装路径和备份属于历史 9.4 记录，不作为当前 9.5 的配置步骤。本轮沿用已有授权配置，没有写注册表或变更 EULA 标志。
 
 `idalib` 在 batch 模式下会先检查注册表项 `EULA 90`，未接受时直接
 `FATAL ERROR: License not yet accepted, cannot run in batch mode`。检查逻辑位于
@@ -58,21 +70,23 @@ EOF
 全部输出落在被 Git 忽略的 `tools/ida-out/`；需要提交的证据产物由最后一步复制到
 `docs/generated/ida-canonical/`。
 
+以下流程会新建数据库并写入命名／原型，只在获准更新基线时执行。若只是重导出、比较字节，使用 [9.5 字节复核报告](../reverse-engineering/ida-bytecheck-9.5.md#复现与本地证据) 的临时目录流程，避免 exporter 清空已有的 `db/`。
+
 ```bash
 # 1. 从原始 FD2.EXE 建库并跑自动分析，导出 segment / fixup / 函数 / 字符串
-python3 tools/ida/ida_fd2_export.py
+"$IDA_PYTHON" tools/ida/ida_fd2_export.py
 
 # 2. 用 IDA 的 1308 个函数入口审计历史命名档案，产出逐行判定账本
 python3 tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
 
 # 3. 在一次性副本上定位 Hex-Rays 失败函数，按调用点证据推导原型
-python3 tools/ida/ida_fd2_annotate.py --probe-only
+"$IDA_PYTHON" tools/ida/ida_fd2_annotate.py --probe-only
 
 # 4. 在权威库写入原型 + 语义命名 + 历史注释（不做反编译，避免存入猜测类型）
-python3 tools/ida/ida_fd2_annotate.py
+"$IDA_PYTHON" tools/ida/ida_fd2_annotate.py
 
 # 5. 从已标注的库重新导出函数表（此时带语义名）
-python3 tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
+"$IDA_PYTHON" tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
 
 # 6. 与项目自研 LE parser 对照（21 项检查，不需要 IDA）
 python3 tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
@@ -82,22 +96,28 @@ python3 tools/ida/build_fd2_name_registry.py \
     --markdown docs/reverse-engineering/function-names.md
 
 # 8. 导出全量伪 C（当前开发参考基线）
-python3 tools/ida/ida_fd2_decompile.py --all --xrefs \
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --all --xrefs \
     --out docs/generated/ida-canonical/fd2-ida-decomp-all.c
+
+# 9. 所有发布产物写完后再刷新校验和，避免第 8 步使清单过期
+python3 tools/ida/build_fd2_name_registry.py --checksums-only
+(cd docs/generated/ida-canonical && sha256sum -c SHA256SUMS)
 ```
 
 第 6 步依赖 `python3 tools/rebuild_fd2_analysis.py` 已生成
 `tools/fd2_le_raw.bin`、`tools/fd2_le_relocated_relbase.bin` 和
-`tools/fd2_le_relocation_manifest.tsv`。
+`tools/fd2_le_relocation_manifest.tsv`，以及第 1／5 步的本地 `ida-program.json`、`ida-fixups.tsv` 和 segment 二进制导出。版本库只发布精简证据，不包含完整字节导出；本地导出缺失时不能声称重跑了这 21 项检查。
+
+`--checksums-only` 只为现有发布文件重建清单，不读取数据库或本地 IDA 导出，也不改写证据内容。全量伪 C、源码地址迁移报告或其他发布产物发生变化后，必须最后执行该命令。刷新校验和不等于重新验证证据语义；发布产物完整性及已有报告的结构检查由 `tools/tests/test_ida_crosscheck.py` 覆盖。
 
 ## 常用单点查询
 
 ```bash
 # 反编译指定 VA，并列出调用者/被调用者
-python3 tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
 
 # 同时输出逐指令反汇编（含原始字节）
-python3 tools/ida/ida_fd2_decompile.py --asm 0x3702f
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --asm 0x3702f
 ```
 
 `ida_fd2_decompile.py` 默认打开 `tools/ida-out/db/FD2.EXE.i64` 且 `save=False`，

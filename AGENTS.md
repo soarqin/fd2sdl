@@ -1,7 +1,7 @@
 # AGENTS.md - 项目协作规则
 
 本项目（炎龙骑士团 2 SDL3 重写）基于对 1995 年 DOS 游戏 `FD2.EXE` 的逆向工程。
-当前权威反编译结果在 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`（IDA Pro 9.4 / Hex-Rays），
+当前权威反编译结果在 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`（IDA Pro 9.5 / Hex-Rays），
 函数命名登记在 `docs/reverse-engineering/function-names.md`（生成文件，输入为 `function-names-legacy.md`）。
 旧的 `docs/generated/ghidra-decomp-all.c` 依赖 patch 过 `__chkstk` 的镜像且含 wrapper/body 伪拆分，
 **不得再作为开发参考**。文档分类和索引见 `docs/README.md`。
@@ -40,12 +40,14 @@ wrapper/body 双函数以及 `*_entry`／`*_core`／`*_runtime` 命名属工具�
 
 **禁止**：仅凭函数大小、调用次数、地址邻近等弱信号猜测命名。
 
-## 2. r2 与 Ghidra 交叉印证
+## 2. 逆向工具与独立验证
 
-使用 r2 辅助 Ghidra 分析前，**必须**先按 `docs/reverse-engineering/address-mapping.md`
-建立并验证地址映射。
+- 逆向工作必须先读取并使用 `ida-domain-api` skill；编写或执行分析脚本时，同时使用 `ida-domain-scripting` skill。函数、反汇编、伪 C、交叉引用、字符串和数据查询优先使用 IDA Domain API，通过 `idalib` 无界面执行。
+- 新分析脚本优先复用 Domain API；仅在 Domain API 未暴露所需能力时，局部使用低层 IDAPython API，并说明原因。查询默认只读，不为单点查询重复建库或保存 Hex-Rays 猜测类型。
+- 尽量不使用 `llvm-objdump`、`objdump`、r2／radare2 和 Ghidra 做日常逆向。只有 IDA 无法提供所需证据，或确需独立实现交叉验证时才使用，并记录原因；已有结构验收和历史证据流程保留，不作为日常分析前置步骤。
+- 使用任何工具前，必须先按 `docs/reverse-engineering/address-mapping.md` 确认地址空间；不能把 file offset、code0、canonical relbase VA 和 runtime 地址混用。
 
-当前权威流程：
+LE 分析镜像重建流程（不是日常 IDA 查询的必跑步骤）：
 
 ```bash
 python3 tools/rebuild_fd2_analysis.py
@@ -79,7 +81,9 @@ python3 tools/rebuild_fd2_analysis.py
 2026-07-30 已用 IDA 自带 `loaders/lx.so` 对 LE 模型做第四个独立实现的复核：object
 relbase／BSS 边界、7,948 个 relocation source 与 target、以及镜像字节全部一致，21 项
 对照检查全部通过。**「LE/LX fixup 可靠性」这一类疑虑至此关闭。** 报告见
-`docs/reverse-engineering/ida-crosscheck.md`；可重跑检查为：
+`docs/reverse-engineering/ida-crosscheck.md`。2026-11-04 的 IDA 9.5 原版重导出再次通过
+21 项静态检查，并补充全文件映射、BSS 标记及 RLE／菜单机器码执行对照，见
+`docs/reverse-engineering/ida-bytecheck-9.5.md`；不替代 DOSBox 严格运行时验收。可重跑检查为：
 
 ```bash
 python3 tools/ida/verify_ida_vs_project.py
@@ -88,17 +92,9 @@ python3 tools/ida/verify_ida_vs_project.py
 新增或修订函数语义时使用 IDA 流程，完整命令与已知陷阱见 `docs/tools/ida.md`。
 禁止用 `ida`（GUI）或 `idat` 做自动化，只用 `idalib`。
 
-Ghidra 流程现在只保留作结构验收（block、权限、relocation 计数、确定性）：
+Ghidra 流程只保留作按需独立结构验收（block、权限、relocation 计数、确定性），命令见 `docs/tools/README.md`。不要求为函数语义分析运行 Ghidra，也不以其候选 C 替代 IDA 基线。该流程从原始 object 字节和已验证 relocation manifest 创建 relbase Program，不导入 low-64-KiB dual 镜像，不解析旧 `r2_funcs.txt` 或混址名称表。完整说明见 `docs/reverse-engineering/ghidra-reconstruction.md`。
 
-```bash
-python3 tools/rebuild_fd2_analysis.py
-python3 tools/validate_le_fixups.py
-python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
-```
-
-需要候选 C 时显式使用 `--decompile`。规范流程从原始 object 字节和已验证 relocation manifest 创建 relbase Program，不导入 low-64-KiB dual 镜像，不解析旧 `r2_funcs.txt` 或混址名称表。完整说明见 `docs/reverse-engineering/ghidra-reconstruction.md`。
-
-`tools/ghidra-scripts/decompile_clean.py` 仅保留为旧流程记录，不再是权威入口。2026-07-15 已确认 `LE+0x80` 相对拥有 LE 头的 embedded MZ module `@0x25214`，真实 page 1 为 `0x36014`。旧的文件 `0x10e00` 基址和 `LE+0x10e00` 基址均错误；自动函数边界仍须与 r2/Capstone 和 DOSBox 转储交叉验证。
+`tools/ghidra-scripts/decompile_clean.py` 仅保留为旧流程记录，不再是权威入口。2026-07-15 已确认 `LE+0x80` 相对拥有 LE 头的 embedded MZ module `@0x25214`，真实 page 1 为 `0x36014`。旧的文件 `0x10e00` 基址和 `LE+0x10e00` 基址均错误；函数边界以 IDA 和原始机器码证据为基线；需要运行时证据时使用 DOSBox 转储，不强制引入其他反汇编器。
 
 ### 在线资料检索降级规则
 

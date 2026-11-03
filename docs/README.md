@@ -12,6 +12,7 @@
 
 - [`decompilation-report.md`](reverse-engineering/decompilation-report.md)：原始程序总体反编译报告。
 - [`ida-crosscheck.md`](reverse-engineering/ida-crosscheck.md)：IDA Pro 9.4 独立复核报告：fixup 验证、legacy 坐标换算、`__chkstk` wrapper/body、Watcom ABI 和已推翻的历史结论。
+- [`ida-bytecheck-9.5.md`](reverse-engineering/ida-bytecheck-9.5.md)：IDA Pro 9.5 从原版重导出后的全对象字节对照，以及 RLE／菜单原版机器码执行差分和修复范围。
 - [`address-mapping.md`](reverse-engineering/address-mapping.md)：LE、file offset、code0、dual、relbase 和 runtime 地址换算。
 - [`decompilation-corrections.md`](reverse-engineering/decompilation-corrections.md)：历史反编译污染和修正记录。
 - [`ghidra-reconstruction.md`](reverse-engineering/ghidra-reconstruction.md)：Ghidra 11.3.2 结构验收流程（relocation 计数、block、确定性）；函数边界与伪 C 不再以此为基线。
@@ -35,7 +36,7 @@
 ## `tools/`：工具操作
 
 - [`README.md`](tools/README.md)：项目工具命令速查。
-- [`ida.md`](tools/ida.md)：IDA Pro 9.4 / idalib headless 流程、环境配置和已知陷阱。
+- [`ida.md`](tools/ida.md)：IDA Domain API 优先的逆向规范、`idalib` headless 流程、环境配置和已知陷阱。
 - [`dosbox-debug.md`](tools/dosbox-debug.md)：DOSBox debugger 内存转储流程。
 
 工具文档不参与开发阶段编号。使用工具前先查本目录，避免为查询语法而启动交互式程序。
@@ -53,7 +54,7 @@
 - `le-fixups.txt`：LE fixup 生成摘要与验证结果。
 - `opcode-functions.c`：辅助 opcode 分析输出。
 
-生成文件不得手工改写业务语义。函数语义命名应先登记到 `reverse-engineering/function-names.md`，再由生成流程更新对应产物。
+生成文件不得手工改写业务语义。函数语义命名应先在 `reverse-engineering/function-names-legacy.md` 追加登记，或修正 `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS` 表，再由 IDA 流程更新 `function-names.md` 和对应产物。
 
 ## 分类规则
 

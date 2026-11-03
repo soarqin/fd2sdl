@@ -2,6 +2,8 @@
 
 本文记录用 IDA Pro 9.4 的 `idalib`（headless）对 `original_game/FD2.EXE` 重做一次完整分析，并与既有 radare2 / Ghidra 结果逐项对照的结果。
 
+2026-11-04 已用 IDA 9.5 从原版重新导出：三个段字节 hash 与本报告相同，21 项静态检查再次通过。补充文件映射、初始化标记及 RLE／菜单机器码执行对照见 [`ida-bytecheck-9.5.md`](ida-bytecheck-9.5.md)。以下版本号、函数数量和反编译统计仍保留为 9.4 的历史结果，不与新一轮自动分析混写。
+
 复核目的是回答一个具体问题：**LE/LX fixup 的可靠性**。结论是既有 fixup 模型完全正确；真正需要修正的是函数地址坐标系、`__chkstk` wrapper/body 拆分和 Watcom ABI 假设。
 
 ## 输入身份

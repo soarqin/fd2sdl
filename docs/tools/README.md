@@ -37,6 +37,8 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 git diff --check
 ```
 
+`resource` 回归覆盖 .DAT 表边界、RLE 超行／截断及错误状态；本地原版资源存在时，还检查 11 个归档、全部标题图和地形帧。Linux 的 `field_play_result` 使用链接器替身检查正式战场循环的错误返回，不启动窗口；`field_play_input` 则通过 Xvfb 驱动真实 SDL 按键。以上均不是 DOSBox 行为对照。
+
 不要提交 `src/build/` 或 `src/fd2sdl`。
 
 ## 2. LE 分析镜像
@@ -51,7 +53,9 @@ python3 tools/verify_le_runtime_dump.py /tmp/fd2-entry.bin \
   --object1-base 0x16c000 --object2-base 0x1ac000 --object3-base 0x1b2000
 ```
 
-`validate_le_fixups.py` 严格检查 fixup page table、独立 decoder、source prevalue、重复记录和非 source 字节不变。`tools/ida/verify_ida_vs_project.py` 再用 IDA 自带 `loaders/lx.so` 的独立结果做 21 项对照（object 布局、7,948 个 relocation source/target、镜像字节、BSS 边界、函数分布）。`verify_le_runtime_dump.py` 验证 DOSBox pre-entry 全对象转储。三者都通过才满足 `AGENTS.md` 的完整 fixup 验收；当前 FD2.EXE 已通过。
+`validate_le_fixups.py` 严格检查 fixup page table、独立 decoder、source prevalue、重复／重叠记录和非 source 字节不变；截断记录或越界 page 一律失败。`tools/ida/verify_ida_vs_project.py` 再用 IDA 自带 `loaders/lx.so` 的独立结果做 21 项对照（object 布局、7,948 个 relocation source/target、镜像字节、BSS 边界、函数分布）。当前原版的静态 parser 与已发布 IDA 复核报告均为通过。2026-11-04 已从原版用 IDA 9.5 重导出并再次通过完整字节检查，补充 RLE／菜单机器码执行差分见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)。重跑 IDA 的 21 项字节对照需要本地 `tools/ida-out/` 完整导出；仅有版本库中的精简证据不能代替该步骤。
+
+`verify_le_runtime_dump.py` 比较 DOSBox pre-entry 转储的全部 object 字节，包括 BSS；任一差异均返回失败。历史捕获只通过了 file-backed 区和全部 relocation source 对照，BSS/stack 有 21 个已记录的非零字节，不能据此声称全对象严格验收通过。该限制不改变 IDA 静态 fixup 复核结论；历史捕获及人工转储要求见 [`dosbox-debug.md`](dosbox-debug.md)。上例 object base 仅适用于历史捕获，不能直接复用于新运行。
 
 常用输出：
 
@@ -78,9 +82,11 @@ python3 tools/dump_fd2_fixup_table.py --object 3 --ds 0x27d8 --count 96
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 ```
 
-`test_fd2_function_seeds` 与 `test_rebuild_fd2_ghidra` 需要 `capstone`；本机未安装时这两项报 `ModuleNotFoundError`，属已知环境缺口，不是回归。`test_ida_crosscheck` 不需要 IDA，只校验已发布的证据产物与 `src/` 注释地址是否仍为 canonical VA。
+`test_fd2_function_seeds` 与 `test_rebuild_fd2_ghidra` 需要 `capstone`；本机未安装时这两项报 `ModuleNotFoundError`，属已知环境缺口，不是回归。`test_ida_crosscheck` 不需要 IDA，检查发布产物的完整校验和覆盖、报告结构和 `src/` 注释地址是否仍为 canonical VA；它不代替本地完整字节复核。
 
-## 3. radare2
+## 3. radare2（仅按需独立验证）
+
+日常逆向使用 IDA Domain API 和 `ida-domain-api`／`ida-domain-scripting` skill，命令见第 5b 节与 [`ida.md`](ida.md)。以下 radare2 命令仅保留作历史复核；只有 IDA 能力不足或需要独立证据时才使用，并记录原因。
 
 本项目原始程序必须按 32 位 x86 分析。`rabin2` 默认主要识别 DOS MZ stub，不能把其输出当作完整 LE 应用映像。
 
@@ -138,7 +144,9 @@ cmp -s expected.bin actual.bin
 
 `objdump` 不识别本项目的 bound LE 格式；不要用它作为 LE loader 或 fixup oracle。`rabin2 -I/-S/-R` 主要展示 MZ stub，也不能替代项目 LE parser。
 
-## 5. Ghidra headless
+## 5. Ghidra headless（仅按需结构验收）
+
+不作为日常逆向或 IDA 查询的前置步骤；需要独立结构验收时再执行。尽量不使用 `llvm-objdump`、r2 或 Ghidra 替代 IDA Domain API。
 
 规范重建不再导入 `fd2_le_dual_clean.bin`。先验证 LE/fixup，再由 host-side bundle 和 Ghidra pre-script 建立三 object／四 block 的 relbase Program：
 
@@ -166,28 +174,29 @@ python3 tools/rebuild_fd2_ghidra.py --decompile --determinism-check
 
 Ghidra 流程当前只保留作**结构验收**（block、权限、relocation 计数、确定性）。函数边界与伪 C 的当前开发基线是 IDA 产物，见下一节。
 
-## 5b. IDA Pro 9.4 / idalib
+## 5b. IDA Pro 9.5 / idalib
 
-完整说明见 [`ida.md`](ida.md)；分析结论见 `docs/reverse-engineering/ida-crosscheck.md`。
+完整说明及工具环境配置见 [`ida.md`](ida.md)；历史 9.4 分析结论见 `docs/reverse-engineering/ida-crosscheck.md`，9.5 重导出结果见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)。只比较字节时采用该报告的临时目录流程，不覆盖已有数据库。下列建库、标注及发布命令仅在获准更新基线时执行：
 
 ```bash
-python3 tools/ida/ida_fd2_export.py
+IDA_PYTHON=/home/soar/.agents/skills/ida-domain-scripting/.venv/bin/python
+"$IDA_PYTHON" tools/ida/ida_fd2_export.py
 python3 tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
-python3 tools/ida/ida_fd2_annotate.py --probe-only
-python3 tools/ida/ida_fd2_annotate.py
-python3 tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
+"$IDA_PYTHON" tools/ida/ida_fd2_annotate.py --probe-only
+"$IDA_PYTHON" tools/ida/ida_fd2_annotate.py
+"$IDA_PYTHON" tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
 python3 tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
 python3 tools/ida/build_fd2_name_registry.py \
     --markdown docs/reverse-engineering/function-names.md
-python3 tools/ida/ida_fd2_decompile.py --all --xrefs \
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --all --xrefs \
     --out docs/generated/ida-canonical/fd2-ida-decomp-all.c
 ```
 
 单点查询：
 
 ```bash
-python3 tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
-python3 tools/ida/ida_fd2_decompile.py --asm 0x3702f
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
+"$IDA_PYTHON" tools/ida/ida_fd2_decompile.py --asm 0x3702f
 ```
 
 禁止用 `ida`（GUI）或 `idat` 做自动化；全部流程走 `idalib`。不要把 `0x3702f` 命名为 `__chkstk`／`alloca`，也不要给它写原型（会触发 IDA 内置 alloca 语义，反而产生大量寄存器幽灵参数）。
@@ -276,6 +285,7 @@ git diff -- path/to/file
 
 - 地址空间和 legacy 坐标换算：`docs/reverse-engineering/address-mapping.md`
 - IDA 独立复核报告：`docs/reverse-engineering/ida-crosscheck.md`
+- IDA 9.5 字节与局部执行对照：`docs/reverse-engineering/ida-bytecheck-9.5.md`
 - IDA / idalib 操作：`docs/tools/ida.md`
 - 反编译修正：`docs/reverse-engineering/decompilation-corrections.md`
 - DOSBox debugger：`docs/tools/dosbox-debug.md`

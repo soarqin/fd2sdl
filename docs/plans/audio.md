@@ -1,199 +1,62 @@
-# 音频前置调研与实施计划
+# 音频状态与后续实施计划
 
-## 1. 当前结论
+## 1. 当前基线
 
-原版音频不是单一的「OPL 文件」或标准 MIDI 文件，而是 Miles AIL 3.02 管理的两条播放路径：
+2026-11-04 的代码基线 `e9a2d81` 已有统一音频核心、PCM、现用 XMIDI/AIL/Nuked 后端，以及标题和新游戏过场接入。**A0～A4 不再是待重做的前置工作。** 跨系统顺序以[总计划](development.md#4-新优先级与依赖)为准；下一步是 P1 的 A5，随后为 P2 的 A6～A8。
 
-- **数字音效**：`sfx_play @0x4acaa` 从嵌套资源包取一段样本，向 AIL sample handle 设置地址、长度和循环次数后启动播放。
-- **音乐**：`FDMUS.DAT` 保存 XMIDI 序列，由 `.MDI` 驱动选择 AdLib、OPL3、MPU-401、MT-32 等输出设备。Sound Blaster 配置并不代表音乐本身是 PCM。
+| 工作包 | 已有能力 | 尚未覆盖 |
+|---|---|---|
+| A0：格式与调用链 | PCM 默认参数、固定／动态 bank；XMIDI、stage 曲目表及播放／淡变入口 | 其余场景映射、全局默认音量 |
+| A1：音频框架 | SDL3 device／stream、music/sfx bus、有界队列、retirement、null/offline 与错误降级 | 宿主和设备生命周期扩展归 A8 |
+| A2：PCM | 24 voice、U8 mono、rate conversion、replace／stop；标题、对白、脚步、菜单与已确认战场效果 cue | FIGANI 动态 bank 归 A6 |
+| A3：XMIDI/OPL | `bgm.cpp` 直接读取 `SAMPLE.AD`，现用组件化后端；播放、循环、替换和销毁测试 | 全场景与逐样本保真归 A7，不重做选型 |
+| A4：场景接入 | 标题 track 18、新游戏 track 11 及原版淡变；Load 应用 music/sfx bus 配置 | 战场切曲与 sequence 恢复归 A5，bus 恢复不等于完整音频恢复 |
 
-因此不能直接从详情页 SFX 5/6 开始零散接音效。正确顺序是先确认资源与时序，再建立统一音频设备、混音和播放后端，最后接入音效与音乐调用点。
+历史记录包含 Linux 原生、SDL dummy 和 MinGW 交叉构建；Windows 实机音频、macOS 和后续改动的平台回归仍待对应环境，不能由交叉构建替代。
 
-## 2. 已确认的原版资源
+### 依据与实现边界
 
-| 资源 | 当前结论 | 后续工作 |
-|------|----------|----------|
-| `FDMUS.DAT` | 外层 `.DAT` 共 20 项；其中 15 项以 `FORM/XDIR/XMID` 开始，5 项是 `20 0d 0a` 哨兵。有效内容为 Miles XMIDI | 解析 XMIDI 事件、循环与曲目映射 |
-| `FDOTHER.DAT[31]` | 13 项嵌套 `LLLLLL` 数字样本；`DAT_00003eec` 固定加载该 entry；开场对白逐字使用 SFX 2，角色移动按 profile 使用 SFX 9/10/11 | 继续登记其余 SFX 的用途和响度 |
-| `FDOTHER.DAT[77]` | 4 项嵌套 `LLLLLL` 标题数字样本；SFX 0 用于片头滚动，SFX 1/2 用于确认/移动，SFX 3 用于 action 入场 | 已登记标题调用索引与 primary/secondary handle |
-| `FDOTHER.DAT[78]` | 1 项嵌套数字样本；`animation_play` 仅在 `anim_idx == 1` 时加载 | 上方标题文字飞入时播放 SFX 0 |
-| `FDOTHER.DAT[80]` | 16 项嵌套数字样本；stage/battle 路径将该 entry 载入 `DAT_00003b13` | 登记战场调用索引与用途 |
-| `FDOTHER.DAT[95]` | 1 项嵌套数字样本；`field_actor_group_arrival_effect @code0 0x22999` 动态加载 | 新游戏 stage 0 两次角色组登场均在动画 frame 1 播放 SFX 0 |
-| `SAMPLE.BNK` | 头为 `01 00 ADLIB-`，含乐器名称和 AdLib 元数据 | 确认其与 `.AD/.OPL` 的角色分工 |
-| `SAMPLE.AD` / `SAMPLE.OPL` | 两文件内容相同；开头是 `patch, bank, offset` 目录，结构与 libADLMIDI 的 Miles AIL bank loader 一致 | 验证转换后的音色与 DOSBox OPL 输出是否一致 |
-| `*.MDI` | AIL 音乐驱动，包括 AdLib、OPL3、MPU-401、MT-32、Sound Blaster 等 | 不作为 SDL 运行时依赖，仅用于确认原版设备语义 |
-| `*.DIG` | AIL 数字采样驱动 | 不应误当成游戏音效数据 |
+- [音频调用与对照依据](../reverse-engineering/audio.md)：bank 用途、触发帧、曲目调用、PCM 捕获与外部原型结果；不把局部相关系数当全场景保真。
+- [数据格式](../formats/data-formats.md)：XMIDI、PCM bank、AIL 音色表和 stage 曲目表布局。
+- [session 设计](../systems/battle-session.md)：BGM owner、Load、离场、演出与资源生命周期。
+- 实际 API：`src/audio.h`、`audio_pcm.h`、`bgm.h`、`field_audio.h`；不另维护建议接口，不引入 SDL3_mixer 或临时播放器。
+- [第三方清单](../../src/third_party/README.md)及文件头决定组件许可；完整 libADLMIDI core 只用于外部原型，不是运行依赖。顶层 LICENSE 与 LGPL 发布义务仍是 R1 硬门。
 
-`DAT_00003eec` 已确认来自 `FDOTHER.DAT[31]`，`DAT_00003b13` 来自 `FDOTHER.DAT[80]`。`DAT_0000414b` 由战斗动画 metadata 的 bank selector 动态加载，`DAT_00004153` 也由场景／动画表给出的 FDOTHER index 动态加载，因此二者不是固定 entry。`sfx_play(container,index,loop_count)` 会按嵌套 offset 表取得样本地址和字节长度，再依次调用 AIL sample 初始化、地址设置、循环设置和启动接口。
+## 2. 后续工作包
 
-`ail_init_sample @0x5e735` 的 core 在 corrected code0 `0x566f4` 写入默认播放率 `0x2b11=11025 Hz`、loop count 1 和 pan 64；`sfx_play` 不覆盖播放率、格式、音量或 pan，只把第三参数传给 loop-count setter。每次播放前先调用 `ail_end_sample @0x5ea19`；index `-1` 在 stop 后直接返回，是明确的 stop sentinel。资源字节以 `0x80` 为中心，结合 AIL 默认路径确认当前 bank 为 unsigned 8-bit mono PCM。
+### A5：战场曲目与恢复边界（P1）
 
-FDOTHER[80] 的固定调用已由视觉逻辑与波形共同确认：
+依赖 B0 和现有 A4，可与玩家动作独立推进；不是 FIGANI 的后置任务。
 
-| SFX | 长度／11025 Hz | 调用位置与行为 |
-|---:|---:|---|
-| 1 | 4452 bytes／0.404 s | `field_actor_group_flash @0x414ee`：重绘 actor list，并在修改／原始 field buffer 间闪烁 5 次 |
-| 11 | 11022 bytes／1.000 s | `field_stage_transition_effect @0x4982c`：9 帧资源转场，等待 500 ms 后渐暗；剧情调用方随后清屏并递增 stage |
-| 13 | 15725 bytes／1.426 s | `field_earthquake_effect @0x4673b`：3 个缩放／偏移 field buffer 按 `0,1,2,1` 循环 60 帧，前 43 帧每 6 帧重启低频衰减样本 |
+- [ ] 在正式战场入口播放对应 stage primary；按 `field_turn_cycle_run @0x1a30b` 已确认的边界淡出、进入 alternate，并在新回合恢复 primary。stage 0 的 track 1/4 有静态依据，不按听感另选曲。
+- [ ] 在现有应用／场景编排处连接 BGM 引用或最小曲目请求；播放器仍由应用层持有，不让 `field_game`、绘制和音频回调共同维护当前曲目。
+- [ ] 明确标题 → 新游戏、Load → 战场、离场 → 标题、胜败 → 结果／下一关的替换与淡出；同曲不重启。恢复配置不应重置单位、phase 或 RNG。
+- [ ] 以 null/offline 后端断言请求顺序、loop count、淡变和 bus；真实输入检查 Load 与返回标题。人工对照对应场景时序，不能仅测试 PCM 有能量。
 
-动态 bank `DAT_0000414b/4153` 的索引由 FIGANI／战斗动画 metadata 提供；index `-1` 同样用于停止当前全局 sample handle。
+### A6：FIGANI 动态音效 bank（P2）
 
-标题与 ANI[1] 的 corrected code0 机器码进一步确认：
+依赖 B6 的 metadata／帧序证据，不按全局变量名猜固定资源号。
 
-- `animation_play @code0 0x10421` 在 `anim_idx == 1` 时由 `0x1043f..0x10457` 加载 FDOTHER[78]；`0x1053b..0x10552` 在首帧解码后、首个 delay 前以 primary wrapper 播放 SFX 0，`0x10586..0x1059a` 在正常结束或按键跳过后以 index `-1` 停止。该样本对应标题画面上方文字飞入声，不属于 FDOTHER[77] 的滚动触发。
-- `title_action_menu @code0 0xf8d6..0xf8e6` 加载 `FDOTHER[77]`，并将返回值保存到 local `+0x54`；下列 action 音效调用均传入该 local。此前把 primary wrapper 等同于固定 `DAT_00003eec`／`FDOTHER[31]`，导致菜单样本 bank 登记错误；wrapper 的区别仅是 AIL handle。
-- `0xfbb7..0xfbd6` 比较 object2 `DS:0x204e` 的降序阈值表；滚动位置命中 `520、430、410、340、310、300、240、180、150、130、110、87、64、22` 时，调用 primary wrapper 播放 SFX 0、loop 1。表末项 `1000` 不会被 `0x217..0` 的滚动范围命中。`0xfbd9..0xfc37` 会在全部 14 个有效触发帧加载 FDOTHER[102] 闪电调色板，并将 `local_4c` 从 0 逐帧计至 11 后才恢复 FDOTHER[101]；每次闪光保持 11 个滚动帧、约 `330 ms`。触发索引在每次命中后递增，`local_4c < 12` 只控制是否执行调色板逻辑，不会截断后 3 个触发。
-- `0xfd1c` 调用 secondary wrapper，以 SFX 3、loop 1 播放标题 action 入场声。
-- `0xfe74/0xfe94` 调用 primary wrapper，以 SFX 2、loop 1 播放 Up／Down 移动声。
-- `0xfed3` 调用 primary wrapper，以 SFX 1、loop 1 播放确认声。
-- `0xfef0..0xff30` 将已选项 normal／highlight 各显示 `80 ms`，交替 4 轮。
+- [ ] 确认动态 selector、样本索引、handle replace／stop、循环和触发帧；复用现有 PCM 后端。
+- [ ] 明确演出跳过、换 bank、Load 和离场时的 source retirement；bank 字节活到最后一个引用 source retire，音频回调不做文件 I/O 或释放。
+- [ ] 验证同一动作无论完整播放、跳过、静音或无设备，逻辑和 RNG 均一致；失效 selector／坏样本不能伪装成成功解析。
 
-`music_track_play @0x4ab8b` 是高层音乐入口：它用 `DS:0x1a11` 缓存当前 track，从 FDMUS handle `DS:0x1a79` 加载对应 entry，固定初始化 XMIDI sequence 0，再启动 sequence。常规场景传 loop count 0，特殊段落传 1；AIL 语义需在 SDL 后端明确映射为无限循环／单次播放。track `-1` 将当前 sequence 在 4000 ms 内降到音量 0；普通曲目先设音量 0，再在 2000 ms 内升到 127，track 16/17 例外为立即设到 127。
+### A7：保真与场景对照（P2）
 
-## 3. 技术方案
+- [ ] 优先复核已可达的标题、过场、stage 0 primary/alternate，再随 B6 扩展战斗；不一次扩充所有曲目语义。
+- [ ] PCM 分别比较索引、时长、循环、replace 和触发帧；已有 SFX 5/8 波形结果只覆盖相应样本。继续确认全局默认音量。
+- [ ] XMIDI/OPL 分别比较 tempo、loop、program/control change、打击乐、voice 分配和响度；保留原型指纹与现用后端结果的区别，不把谱相似度等同逐样本一致。
+- [ ] 由开发者手工操作 DOSBox 并提供已确认场景的 capture／操作记录；所有原版捕获和转换产物只留本地。
 
-### 3.1 SDL3 音频核心
+### A8：宿主与设备生命周期（P2，配合 R1）
 
-第一阶段直接使用 SDL3 核心音频 API，不立即引入 SDL3_mixer：
+- [ ] 固化失焦、关闭窗口、设备打开失败和设备丢失时的降级／销毁行为；不为该工作新增暂停或设备选择 UI。
+- [ ] 保持音频不可用时逻辑可运行，source 只 retire 一次，不悬空、不占满队列；主线程与 callback 的资源边界不变。
+- [ ] 在实际 Windows/macOS 环境验证打开、播放、切曲、Load、关闭与错误路径；交叉构建和 SDL dummy 不替代设备实测。
 
-- 打开一个 SDL3 logical playback device。
-- 使用一个 `SDL_AudioStream` 回调生成最终交错双声道 PCM。
-- 内部统一为 float32 stereo；设备采样率和格式转换交给 SDL3。
-- 建立 master、music、sfx 三层增益和静音状态。
-- 主线程只通过 64 项有界 SPSC 队列投递播放、停止和参数命令；音频回调内禁止文件 I/O、内存分配和锁等待。
-- source 在自然结束、停止、替换、抢占、丢弃或销毁时收到 retire 原因；retire 只能发布可回收状态，资源释放留在主线程。
-- 提供 null/headless 后端和离线 PCM/WAV capture sink，供 CTest、ASan 和时序对照使用。
+## 3. 验收标准
 
-SDL3 官方文档说明，SDL3 音频围绕 `SDL_AudioStream` 组织，可绑定多个 stream 并由设备混音，也可通过回调按需提供数据：[SDL3 Audio](https://wiki.libsdl.org/SDL3/CategoryAudio)。本项目先采用单 stream + 项目内混音，避免音乐合成器、PCM voice 和场景状态分别控制设备。
-
-当前 CPM 回退版本是 SDL `3.2.12`。新版 SDL3_mixer 已完全重写，并要求 SDL `3.4.0` 或更高版本：[SDL_mixer](https://github.com/libsdl-org/SDL_mixer)。为接入音频而同时升级 SDL 和引入新 mixer 会扩大变更面，因此暂不作为前置依赖。
-
-建议接口边界：
-
-```c
-typedef struct fd2_audio fd2_audio;
-
-int  fd2_audio_open(fd2_audio *audio);
-void fd2_audio_close(fd2_audio *audio);
-int  fd2_audio_play_sfx(fd2_audio *audio, uint8_t bank, uint8_t index,
-                        unsigned loop_count);
-int  fd2_audio_play_music(fd2_audio *audio, uint8_t track, int loop);
-void fd2_audio_stop_music(fd2_audio *audio);
-void fd2_audio_set_bus_gain(fd2_audio *audio, int bus, float gain);
-```
-
-资源解析器、OPL/MIDI 合成器和 SDL device 不直接互相引用，统一通过「向混音器渲染 N 帧 PCM」的 source 接口连接。
-
-### 3.2 PCM 音效路径
-
-PCM 音效作为第一个可交付后端：
-
-1. 解析 `FDOTHER[31]` 的 13 项嵌套资源。
-2. 已确认 AIL 默认值为 11025 Hz、unsigned 8-bit mono、pan 64、loop count 1；继续确认全局默认音量。
-3. DOSBox 0.74 mixer capture 已验证详情打开 SFX 5 和返回指令菜单 SFX 8：在 44100 Hz capture 中，按 11025 Hz 线性重采样的相关系数分别为 `0.950012` 和 `0.967969`；8000/16000/22050 Hz 候选均低于 `0.12`。
-4. 将 unsigned 8-bit mono 转为内部 float32，交由统一混音器做显式 rate conversion。
-5. `tools/analyze_fd2_audio.py --extract-sfx-dir` 导出离线 WAV，`tools/compare_fd2_sfx_capture.py` 比较 DOSBox capture。
-6. 先接入菜单移动／确认和详情页 phase SFX 5/6，再扩展到战场其他 sample bank。
-
-11025 Hz 来自 `AIL_init_sample` 的直接常量，不是按 DOS 常见值推测；SDL 后端仍应把 source rate 作为 bank metadata 传递，避免未来其他 bank 使用不同参数时写死在混音器中。
-
-### 3.3 XMIDI 与 OPL 音乐路径
-
-优先做 libADLMIDI 原型，但在正式依赖前设置许可证决策点。
-
-libADLMIDI 的上游说明确认其具备以下能力：
-
-- OPL3 模拟与 Nuked OPL3 后端。
-- `WITH_XMI_SUPPORT`，直接支持 AIL XMI。
-- 可使用来自 AIL、DMX、HMI 等 DOS 游戏格式的 FM patch。
-- 可载入自定义 WOPL bank。
-
-来源：[libADLMIDI](https://github.com/Wohlstand/libADLMIDI)。其 AIL bank 转换工具包含 Miles `patch, bank, offset` 格式 loader，可作为 `SAMPLE.AD` 解析依据：[load_ail.h](https://github.com/Wohlstand/libADLMIDI/blob/9760df4e0acfe27818dee38e786f3b1fea8c8e7f/utils/gen_adldata/file_formats/load_ail.h)。
-
-原型流程：
-
-1. `tools/analyze_fd2_audio.py --extract-music-dir` 已从 `FDMUS.DAT` 提取 15 个有效 XMIDI 条目。
-2. 原型在 libADLMIDI commit `9760df4e` 的 `gen_adldata` 中直接加载 `SAMPLE.AD` AIL bank；正式接入仍需转换成 WOPL 或实现只读运行时 loader。
-3. 已用 Nuked OPL3、AIL volume model 8、单芯片离线渲染 track 1：44100 Hz stereo、46.186 秒；15 项 XMIDI 也均通过 libADLMIDI 的 DOSBox emulator 完成离线渲染。`tools/render_fd2_opl_prototype.sh [track|all]` 可在 `/tmp` 重建外部原型，环境变量 `FD2_ADLMIDI_EMULATOR` 可切换 emulator。
-4. 已从 `FD2.EXE` file `0x76e73`（corrected code0 `0x66073`）提取两组连续 30 字节 stage 曲目表。机器码 `0x35687` 从 `DS:0x1e63[stage]` 读取 primary，`0x3f78e` 从 `DS:0x1e81[stage]` 读取 alternate；两者地址恰好相差 30。stage 0 primary 已静态确认为 track 1，alternate 为 track 4。
-5. `tools/compare_fd2_music_capture.py` 曾将一次来源不够严格的自动化 capture 的 track 19 指纹排在首位，但这与静态 stage 表冲突；该候选已否决，保留为「音频指纹不能替代调用链」的反例。
-6. 另一份 capture 在截图确认的 `new_game_opening_play` 对话期间录制；当前权威 code0 `0x22413..0x22417` 独立证明此处播放 track 11。15 项候选中 track 11 同时取得最高直接波形相关 `0.212089` 和最高短时谱相似度 `0.974435`。这确认 XMIDI、AIL bank、节奏／音色主路径可用，但直接波形相关仍明显低于 PCM 的 0.95，不能宣称逐样本保真。
-7. 原型评审结论：技术路径可行，适合继续比较循环、打击乐和响度；许可证与逐样本差异使完整 libADLMIDI 暂不适合作为当前发布依赖。
-5. 验证后再接入实时 source 接口。
-
-libADLMIDI 上游同时包含 LGPL、GPL 和 MIT 组件：Nuked OPL3 为 LGPL 2.1+，MIDI sequencer／XMI converter 与 WOPL 模块为 MIT，但 README 将其余核心标为 GPLv3+。因此当前结论是：在仓库没有顶层 `LICENSE`、项目许可证尚未决定时，不把完整 libADLMIDI 直接链接为发布依赖；`tools/render_fd2_opl_prototype.sh` 只在 `/tmp` 构建外部评估工具。若最终不能接受 GPLv3，应评估以 MIT sequencer/XMI、MIT WOPL 与 LGPL Nuked OPL3 组成范围明确的自有后端，并逐文件复核许可证，而不是复制 libADLMIDI GPL core。
-
-已确认的直接曲目调用上下文如下；这里只登记调用场景，不据此猜测曲名：
-
-| FDMUS entry | 直接调用上下文 |
-|---:|---|
-| 10 | 战斗演出入口和演出结束恢复路径 |
-| 11 | `new_game_opening_play @code0 0x2231b` 在 `0x22413..0x22417` 启动第一段可交互开场曲；另用于部分战斗结果及复活／转职演出结束后的恢复路径 |
-| 13/14/15 | 按 `DAT_00003f4a` 分支选择的战斗结果演出 |
-| 18 | corrected code0 `0x15db1` 在调用 `title_action_dispatch @0x15ebb` 前执行 `music_track_play(18,0)`；片头与标题共用该循环曲目，标题入口不切曲 |
-| 16 | 转职演出，调用方传 loop count 1 |
-| 17 | 复活演出，调用方传 loop count 1 |
-
-战场常驻曲目由两组 stage 索引表间接选择，不能仅凭上述直接调用推断。primary/alternate 的完整 30 项值由 `tools/analyze_fd2_audio.py` 输出；stage 0 分别为 track 1/4。`field_turn_cycle_run @0x3f51f` 在 `0x3f716..0x3f731` 比较两表并在不同曲目时淡出 primary，`0x3f78e..0x3f796` 在 phase 0 事件后启动 alternate，递增回合并完成 phase 切换后于 `0x3f824..0x3f82c` 恢复 primary。
-
-FluidSynth 可作为兼容性备选：它是跨平台 SoundFont 2/3 软件合成器并支持标准 MIDI 文件：[FluidSynth](https://www.fluidsynth.org/)。该路径需要 XMIDI 转标准 MIDI 和额外 SoundFont，输出不会保持原版 AIL/OPL 音色，因此不作为首选保真方案。
-
-## 4. 分阶段实施
-
-### A0：格式与调用链确认
-
-- [x] 确认 FDMUS 为 XMIDI。
-- [x] 确认 `FDOTHER[31]` 是 `sfx_play` 使用的 13 项样本 bank。
-- [x] 确认固定 bank：`DAT_00003eec→FDOTHER[31]`、`DAT_00003b13→FDOTHER[80]`；确认 `DAT_0000414b/4153` 为数据驱动的动态 bank。
-- [x] 确认 PCM 默认 rate、格式、声道、loop count 和 pan；全局默认音量值仍待运行时确认。
-- [x] 确认 `music_track_play @0x4ab8b` 的加载、开始、停止、循环和音量渐变调用链。
-
-### A1：音频框架
-
-- [x] 新增 `src/audio.[ch]`。
-- [x] 建立 SDL3 device、stream callback、有界单生产者命令队列和 music/sfx bus。
-- [x] 建立 null backend 与离线 float32 PCM render/capture 入口。
-- [x] 添加 bus 混音、source retirement、music 替换、voice 抢占、NaN/削波、队列边界和 SDL dummy callback 测试。
-- [x] 主程序已验证设备打开失败自动降级为立即 retire source 的 discard null backend，不占满命令／voice pool。
-
-### A2：PCM 音效
-
-- [x] 新增 `src/audio_pcm.[ch]`，实现嵌套 bank、U8 mono source 与显式线性 rate conversion。
-- [x] 实现 24 项无分配 voice pool、停止、循环、增益和 retirement；pan 暂沿用原版默认中心值 64。
-- [x] 主程序加载 FDOTHER[31]，详情打开 phase 11/5 接 SFX 5，关闭 phase 0/7 接 SFX 6，并按原版单 AIL handle 语义重启前一声。
-- [x] 主程序加载 FDOTHER[80]，`src/field_audio.[ch]` 统一登记详情、actor flash、stage transition 与 earthquake cue。
-- [x] 还原新游戏开场全部已确认可听音效：`text_dialog_glyph_step @code0 0x64e8` 的 FDOTHER[31] SFX 2；`field_actor_footstep_play @code0 0x22230` 按 profile 类别和全局步态计数播放 FDOTHER[31] SFX 9/10/11；`field_actor_group_arrival_effect @code0 0x22999` 两次在 frame 1 播放 FDOTHER[95] SFX 0。三类均复用 primary handle 的 replace 语义。
-- [x] 新增 `src/field_effect.[ch]`，按原版 frame 顺序调度 actor flash、earthquake、stage transition snapshot 与 cue；earthquake 为 `0,1,2,1` 共 60 帧，SFX 在 `0..42` 每 6 帧重启。
-- [x] 实现三个效果的事务化 snapshot 生成器和原版入口 wrapper：actor flash 按 FDICON 非透明像素重绘为 palette `0xc0`；earthquake 按 `DS:0x2096..0x20b6` 的 `(x,y,step)` 三组参数重采样；stage transition 直接使用 FDOTHER[3] frame `9→1` 并复现 `field_transition_lut_mask @0x4725a`、500 ms 尾停顿和渐暗。
-- [x] 新增 `--field-effect-play STAGE` 可达验收入口，使用真实 FDOTHER[80] cue 和定时 wrapper；SDL dummy 实测总时长约 1.84 s，与 550 ms flash、600 ms earthquake、45 ms transition frames、500 ms 尾停顿及 128 ms 渐暗之和一致。
-- [ ] 继续映射并接入 `DAT_0000414b/4153` 动态战斗动画 bank。
-- [x] 用 DOSBox mixer capture 对照 SFX 5/8 的时长与波形，确认 11025 Hz；SDL 线性插值相关系数为 0.95/0.968，但不宣称硬件逐样本等价。
-
-### A3：XMIDI/OPL 播放
-
-- [x] 提取 15 项 XMIDI；曲目场景用途仍待完整登记。
-- [x] 原型通过 libADLMIDI `gen_adldata` 载入 `SAMPLE.AD` AIL bank。
-- [x] 完成 track 1 的 libADLMIDI + Nuked OPL3 + AIL volume model 离线渲染。
-- [x] 15 项 XMIDI 均通过 libADLMIDI DOSBox emulator 离线渲染。
-- [x] 静态确认两组 30 项 stage 曲目表，并否决 stage 0 的 track 19 指纹候选；stage 0 primary/alternate 为 track 1/4。
-- [ ] 结合 primary/alternate 切换条件完成其余场景／曲目语义映射。
-- [x] 用调用链已知的 opening track 11 对照 DOSBox：候选排名第一，短时谱相似度 0.974，直接波形相关 0.212；判定主路径可行但非逐样本等价。
-- [x] 完成许可证评审：完整 libADLMIDI core 含 GPLv3+，当前只保留外部原型；正式后端需项目许可证决策或 MIT/LGPL 组件化实现。
-- [x] 选定正式音乐后端：MIT 的 BW MIDI Sequencer、LGPL-2.1 的 XMIDI 转换代码与 Nuked OPL3；项目代码直接读取 `SAMPLE.AD`，不链接完整 libADLMIDI GPL core。
-
-### A4：音乐与场景接入
-
-- [x] 实现 `FDMUS.DAT` 播放、停止、循环、切曲和 music bus 音量；普通曲复现 2000 ms 淡入，停止复现 4000 ms 淡出，track 16/17 立即设为满音量。
-- [x] 接入启动片头与标题：corrected code0 `0x15db1` 证明两者共用循环 track 18，跳过片头或重新进入标题时不重启同一曲目。
-- [x] 接入新游戏开场 track 11：标题 track 18 在 `new_game_opening_play @VA 0x3231b` 最初两段对白期间继续播放；code0 `0x223dd` 才调用 `music_track_play(-1,0)` 执行原版 4 秒淡出，movement script 0x64 渐暗和镜头就位后于 code0 `0x22413` 以 loop count 0 启动 track 11。不得在标题→新游戏的宿主边界提前硬停。战场 stage 表和战斗演出仍待接入。
-- [ ] 处理窗口失焦、暂停、设备切换和存档恢复。
-- [ ] 完成 Linux、Windows、macOS 与 SDL dummy 验证。Linux 原生构建、SDL dummy 运行和 MinGW Windows 交叉构建已完成；Windows 实机音频与 macOS 构建待对应环境验证。
-
-## 5. 验收标准
-
-- 无音频设备时游戏仍可启动、测试和完成快速入口。
-- 音频回调无文件 I/O、动态分配和非有界等待。
-- PCM SFX 的索引、时长、循环次数及触发 phase 与 DOSBox 一致。
-- XMIDI 的 tempo、loop、program change、控制器和打击乐通过离线测试。
-- OPL 输出与 DOSBox 对照后才标记音乐后端完成。
-- 原版音频资源继续从 `original_game/` 读取，不提交转换产物或原版文件。
+- 无音频设备时游戏仍可启动、测试和完成快速入口；回调无文件 I/O、动态分配或非有界等待。
+- PCM 的索引、时长、循环次数及触发 phase 与 DOSBox 一致；XMIDI 的 tempo、loop、program/control change 和打击乐通过离线测试。
+- 后端实现、场景接入和原版保真分别登记。未取得对应 DOSBox 对照，不能标记该场景保真通过，也不把已实现的播放器重新列为待选型。
+- 原版资源继续只读加载，不提交 capture、渲染、转换产物或原版文件。

@@ -1,4 +1,14 @@
+/* 标题反馈依据 boot_intro_title_menu（旧名 FUN_0001cfe6）@0x1f894。 */
 #include "title.h"
+
+#include <string.h>
+
+int fd2_title_copy_scroll_frame(uint8_t dst[320 * 147], const fd2_image *image) {
+    if (!dst || !image || !image->pixels || image->width != 320 || image->height != 147)
+        return -1;
+    memcpy(dst, image->pixels, 320u * 147u);
+    return 0;
+}
 
 int fd2_title_sfx_resolve(fd2_title_sfx cue,
                           fd2_title_sfx_handle *handle,
@@ -37,14 +47,7 @@ int fd2_title_flight_sfx_for_scroll_y(int scroll_y) {
 }
 
 int fd2_title_lightning_trigger_for_scroll_y(int scroll_y) {
-    static const int trigger_y[FD2_TITLE_LIGHTNING_TRIGGER_COUNT] = {
-        520, 430, 410, 340, 310, 300, 240,
-        180, 150, 130, 110, 87, 64, 22,
-    };
-    for (size_t i = 0; i < FD2_TITLE_LIGHTNING_TRIGGER_COUNT; i++) {
-        if (scroll_y == trigger_y[i]) return 1;
-    }
-    return 0;
+    return fd2_title_flight_sfx_for_scroll_y(scroll_y);
 }
 
 void fd2_title_lightning_state_init(fd2_title_lightning_state *state) {

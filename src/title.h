@@ -15,6 +15,8 @@
 
 #include <stddef.h>
 
+#include "image.h"
+
 typedef enum {
     FD2_TITLE_SFX_FLIGHT = 0,
     FD2_TITLE_SFX_ENTER,
@@ -54,6 +56,9 @@ int fd2_title_sfx_resolve(fd2_title_sfx cue,
  * 命中下一项时以 primary handle 重启 SFX 0。末项 1000 不会被
  * scroll_y=0x217..0 命中，因此有效触发共 14 次。 */
 int fd2_title_flight_sfx_for_scroll_y(int scroll_y);
+
+/* 将一帧 320×147 片头图复制到同尺寸 slot；尺寸不符时不写入。 */
+int fd2_title_copy_scroll_frame(uint8_t dst[320 * 147], const fd2_image *image);
 
 /* 14 个滚动音效阈值都会重启一次闪电。每个闪电保持 11 个完整滚动
  * 帧，随后下一帧恢复 FDOTHER[101]；这组调色板差异构成打雷发光效果。 */

@@ -23,8 +23,6 @@ int fd2_field_map_open_mem(fd2_field_map *map,
         return -1;
 
     size_t count = (size_t)width * (size_t)height;
-    if (width != 0 && count / (size_t)width != (size_t)height)
-        return -1;
     if (size != 4 + count * 4)
         return -1;
 

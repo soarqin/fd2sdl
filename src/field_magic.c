@@ -175,7 +175,7 @@ int fd2_field_magic_apply_known_effect(
         return apply_damage(magic_id, target, rng, rng_userdata);
     if (magic_id <= 16u)
         return apply_heal(magic_id, target, rng, rng_userdata);
-    if (magic_id >= 17u && magic_id <= 19u) {
+    if (magic_id <= 19u) {
         /* 0x226ea/0x2282f/0x22960：状态为 0 时直接消费一次 RNG，
          * 把 RNG%4+2 写入 +0x22/+0x23/+0x24；没有 50% gate。 */
         uint8_t *status = magic_id == 17u ? &target->attack_status :

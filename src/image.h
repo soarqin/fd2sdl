@@ -20,8 +20,7 @@ typedef struct {
     uint8_t *pixels;   /* width*height 字节，8bpp 索引色 */
 } fd2_image;
 
-/* 从归档条目解码图像。idx 为 -1 时用 raw（u16/u16/pixels）。
- * 成功返回 0。 */
+/* 从归档条目解码图像。成功返回 0，失败后 img 保持可释放的空状态。 */
 int fd2_image_decode_entry(fd2_image *img, const fd2_archive *ar, size_t idx);
 
 /* 直接从内存缓冲解码（条目已取出）。 */

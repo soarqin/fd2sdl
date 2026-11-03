@@ -7,13 +7,6 @@ static inline uint8_t pal_expand6(uint8_t v) {
     return (uint8_t)((v << 2) | (v >> 4));
 }
 
-/* FUN_0003522d @0x37ae5: out(port, val) - 写 VGA DAC 端口
- * 在 SDL3 中映射为更新 dac 数组 */
-static void dac_out(fd2_vga *vga, uint16_t port, uint8_t val) {
-    (void)port; (void)vga; (void)val;
-    /* 实际 DAC 更新在 fd2_vga_set_palette / fade 中处理 */
-}
-
 int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
     (void)win;
     memset(vga, 0, sizeof(*vga));
@@ -82,14 +75,6 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
         vga->dac[idx+1] = pal_expand6(dg);
         vga->dac[idx+2] = pal_expand6(db);
     }
-    (void)b; /* b used above via vga->palette */
-}
-
-void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step) {
-    /* 兼容包装：真实 FUN_0001db69 @0x20421 已确认是 animation_play，
-     * 调色板插值实际对应 FUN_0002b649 @0x2df01。 */
-    fd2_vga_palette_fade_to(vga, start, step, 0, 0, 0);
-    (void)end;
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {

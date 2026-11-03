@@ -3,7 +3,7 @@
 
 fd2_title_action fd2_title_action_from_selection(int selection,
                                                   int load_available) {
-    if (selection < 0) return FD2_TITLE_ACTION_HOST_QUIT;
+    if (selection == FD2_TITLE_ACTION_HOST_QUIT) return FD2_TITLE_ACTION_HOST_QUIT;
     if (load_available) {
         if (selection == 0) return FD2_TITLE_ACTION_NEW_GAME;
         if (selection == 1) return FD2_TITLE_ACTION_LOAD;
@@ -12,7 +12,7 @@ fd2_title_action fd2_title_action_from_selection(int selection,
         if (selection == 0) return FD2_TITLE_ACTION_NEW_GAME;
         if (selection == 1) return FD2_TITLE_ACTION_EXIT;
     }
-    return (fd2_title_action)99;
+    return FD2_TITLE_ACTION_ERROR;
 }
 
 fd2_app_flow fd2_app_flow_from_title(fd2_title_action action) {
@@ -24,6 +24,8 @@ fd2_app_flow fd2_app_flow_from_title(fd2_title_action action) {
         case FD2_TITLE_ACTION_EXIT:
         case FD2_TITLE_ACTION_HOST_QUIT:
             return FD2_APP_FLOW_EXIT;
+        case FD2_TITLE_ACTION_ERROR:
+            return FD2_APP_FLOW_ERROR;
     }
     return FD2_APP_FLOW_ERROR;
 }

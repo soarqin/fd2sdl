@@ -92,7 +92,7 @@ int fd2_shape_sheet_decode_frame(fd2_image *img,
 
     if (sheet->width <= 0 || sheet->height <= 0) return -1;
     size_t pixel_count = (size_t)sheet->width * (size_t)sheet->height;
-    if (sheet->width != 0 && pixel_count / (size_t)sheet->width != (size_t)sheet->height)
+    if (pixel_count / (size_t)sheet->width != (size_t)sheet->height)
         return -1;
 
     img->width = sheet->width;

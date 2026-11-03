@@ -62,10 +62,6 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness);
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
                                uint8_t r, uint8_t g, uint8_t b);
 
-/* 兼容包装：旧代码误把 FUN_0001db69 当淡入淡出；真实淡入淡出应使用
- * FUN_0002b649 / FUN_0000f488，FUN_0001db69 已确认为动画播放器。 */
-void fd2_vga_palette_fade(fd2_vga *vga, int start, int end, int step);
-
 /* 呈现当前 framebuffer，并为该呈现帧采样一次当前键态。上一呈现帧
  * 未读取的输入脉冲立即丢弃。 */
 void fd2_vga_present(fd2_vga *vga);

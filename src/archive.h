@@ -19,7 +19,6 @@ extern "C" {
 #define FD2_ARCHIVE_MAGIC_LEN 6
 
 typedef struct {
-    char     *path;       /* 源文件路径（仅供调试） */
     uint8_t  *data;       /* 整个文件载入内存 */
     size_t    size;       /* 文件大小 */
     uint32_t *offsets;    /* 条目偏移表 */
@@ -30,7 +29,8 @@ typedef struct {
 /* 加载 .DAT 文件。成功返回 0，失败返回 -1 并设置 errno。 */
 int  fd2_archive_open(fd2_archive *ar, const char *path);
 
-/* 从内存缓冲区打开 .DAT 归档（用于嵌套归档）。不拷贝数据，不负责释放。 */
+/* 从内存打开 .DAT（用于嵌套归档），借用数据。失败返回 -1 并设置 errno。
+ * 两种 open 均要求 ar 尚未打开；失败后 ar 保持可关闭的空状态。 */
 int  fd2_archive_open_mem(fd2_archive *ar, const uint8_t *data, size_t size);
 
 /* 获取第 idx 条目，写入 *out_ptr / *out_len（指向 ar 内部内存，无需释放）。 */

@@ -165,6 +165,21 @@ target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(fd2_resource_test
+        tests/resource_test.c
+        archive.c
+        image.c
+        shape.c
+    )
+    target_include_directories(fd2_resource_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_resource_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_resource_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME resource COMMAND fd2_resource_test)
+    set_tests_properties(resource PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_app_flow_test
         tests/app_flow_test.c
         app_flow.c
@@ -586,9 +601,27 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_unit_base COMMAND fd2_field_unit_base_test)
 
-    # 仅在 Linux/X11 测试依赖齐备时注册真正驱动 SDL 窗口的战场回归。
-    # 该测试不调用 field_game API，避免局部夹具绕过 field_play 输入循环。
+    # GNU/LLVM 链接器替身仅用于错误出口回归，不向生产代码添加测试钩子。
     if(UNIX AND NOT APPLE)
+        add_executable(fd2_field_play_result_test
+            tests/field_play_result_test.c
+            $<TARGET_OBJECTS:fd2sdl_core>
+        )
+        target_include_directories(fd2_field_play_result_test PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
+        target_link_options(fd2_field_play_result_test PRIVATE
+            -Wl,--wrap=fd2_field_game_open
+            -Wl,--wrap=fd2_field_game_process_automatic_action_visual
+            -Wl,--wrap=fd2_scene_play_field_event
+            -Wl,--wrap=fd2_vga_present
+            -Wl,--wrap=fd2_input_take_action
+            -Wl,--wrap=fd2_field_game_confirm_cursor
+            -Wl,--wrap=fd2_field_game_execute_move)
+        add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
+        set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
+
+        # 依赖齐备时另注册 Xvfb/XTest 回归，发送真实按键而不调用 field_game API。
         find_package(X11 QUIET)
         find_program(FD2SDL_XVFB_EXECUTABLE Xvfb)
         if(X11_FOUND AND X11_Xtst_LIB AND FD2SDL_XVFB_EXECUTABLE)

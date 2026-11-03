@@ -91,23 +91,13 @@ static void title_letter_fly_audio_stop(fd2_title_audio *audio) {
     (void)fd2_pcm_stop(audio->primary_player);
 }
 
-/* 从 FDOTHER.DAT[idx] 加载资源（对应 res_load @0x111ba）
- * res_load("FDOTHER.DAT", old, idx) -> 返回条目数据指针；
- * 原版第一参数是 object2 DS:0x1a4d 处的文件名字符串，不是槽位号 */
-static const uint8_t *res_load(size_t idx, const uint8_t **old, size_t *out_len) {
-    const uint8_t *ptr; size_t len;
-    if (fd2_archive_get(&g_fdother, idx, &ptr, &len) != 0) return NULL;
-    if (out_len) *out_len = len;
-    (void)old;
-    return ptr;
-}
-
-/* 从 FDOTHER.DAT[idx] 加载调色板（768字节 6-bit RGB） */
+/* res_load @0x111ba：从 FDOTHER[idx] 加载 768 字节 6-bit RGB 调色板。 */
 static const uint8_t *res_load_palette(size_t idx) {
+    const uint8_t *palette;
     size_t len;
-    const uint8_t *p = res_load(idx, NULL, &len);
-    if (!p || len < 768) return NULL;
-    return p;
+    if (fd2_archive_get(&g_fdother, idx, &palette, &len) != 0 || len < 768)
+        return NULL;
+    return palette;
 }
 
 /* 从 FDOTHER.DAT[idx] 加载图像并解码（标准 RLE，4字节 w/h 头） */
@@ -222,6 +212,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          int load_available) {
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
+    fd2_title_action result = FD2_TITLE_ACTION_ERROR;
     /* main @0x25bf4 体内 0x25db1: music_track_play(18, 0) 紧接着调用
      * title_action_dispatch @0x25ebb，后者第一步进入 boot_intro_title_menu。
      * 片头和标题共用循环 track 18，标题入口不切曲。 */
@@ -297,18 +288,21 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     if (pal) fd2_vga_set_palette(vga, pal);     /* 步骤17 */
     fd2_vga_set_brightness(vga, 0x40);           /* 步骤18 */
 
-    /* 分配离屏缓冲（对应 iVar2 = alloc(0xa0)，实际是 0xa0*0x140 字节的滚动缓冲）
-     * 5帧各 320x147，垂直拼接 = 320x(147*5)=320x735 */
+    /* boot_intro_title_menu @0x1f894：malloc(0x396c0) 分配 320×735 滚动缓冲，
+     * 5 帧各 320×147，按 y=0x93*i 拼接；另一次 malloc(0xa0) 不属于此缓冲。 */
     int scroll_total_h = 147 * 5;  /* 0x93 * 5 = 735 */
     uint8_t *offscreen = calloc(VGA_W * scroll_total_h, 1);
-    if (offscreen) {
+    if (!offscreen) goto resource_error;
+    {
         for (int i = 0; i < 5; i++) {
-            fd2_image frame;
-            if (res_load_image(&frame, 0x45 + i) == 0) {
-                memcpy(offscreen + i * 0x93 * VGA_W, frame.pixels,
-                       (size_t)frame.width * frame.height);
+            fd2_image frame = {0};
+            if (res_load_image(&frame, 0x45 + i) != 0 ||
+                fd2_title_copy_scroll_frame(offscreen + i * 0x93 * VGA_W, &frame) != 0) {
                 fd2_image_free(&frame);
+                free(offscreen);
+                goto resource_error;
             }
+            fd2_image_free(&frame);
         }
 
         /* 滚动循环: iVar6 from 0x217(535) down to 0
@@ -559,15 +553,19 @@ title_screen:
     int menu_count = load_available ? 3 : 2;
     /* 加载菜单项图 */
     const uint8_t *buf7b; size_t len7b;
-    if (fd2_archive_get(&g_fdother, 7, &buf7b, &len7b) == 0) {
-        fd2_archive ar7b;
-        fd2_archive_open_mem(&ar7b, buf7b, len7b);
-        for (int i = 1; i < 7 && n_menu < 6; i++) {
-            if (fd2_image_decode_entry(&menu_items[n_menu], &ar7b, i) == 0)
-                n_menu++;
+    if (fd2_archive_get(&g_fdother, 7, &buf7b, &len7b) != 0)
+        goto resource_error;
+    fd2_archive ar7b;
+    if (fd2_archive_open_mem(&ar7b, buf7b, len7b) != 0)
+        goto resource_error;
+    for (int i = 1; i < 7; i++) {
+        if (fd2_image_decode_entry(&menu_items[n_menu], &ar7b, i) != 0) {
+            fd2_archive_close(&ar7b);
+            goto resource_error;
         }
-        fd2_archive_close(&ar7b);
+        n_menu++;
     }
+    fd2_archive_close(&ar7b);
 
     /* 菜单只在交互循环中按需读取当前键态；动画期间按下又松开的键
      * 不会形成预输入。若仍保持按下，则受同一物理键的 typematic
@@ -589,7 +587,6 @@ title_screen:
 
         if (fd2_input_take_quit(&vga->input)) {
             selection = FD2_TITLE_ACTION_HOST_QUIT;
-            menu_done = 1;
             break;
         }
         fd2_input_action action;
@@ -633,13 +630,17 @@ title_screen:
         }
     }
 
-    /* 释放菜单项 */
-    for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
-    return fd2_title_action_from_selection(selection, load_available);
+    result = fd2_title_action_from_selection(selection, load_available);
+    goto done;
 
+resource_error:
+    fprintf(stderr, "cannot load title resources\n");
+    goto done;
 host_quit:
+    result = FD2_TITLE_ACTION_HOST_QUIT;
+done:
     for (int i = 0; i < n_menu; i++) fd2_image_free(&menu_items[i]);
-    return FD2_TITLE_ACTION_HOST_QUIT;
+    return result;
 }
 
 /* 阶段 2 地图预览：读取 FDFIELD.DAT[stage*3] + FDSHAP.DAT 成对地形资源，
@@ -754,7 +755,18 @@ int main(int argc, char **argv) {
     }
 
     SDL_Window *win = SDL_CreateWindow("FD2-SDL", WINDOW_W, WINDOW_H, 0);
+    if (!win) {
+        fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
     SDL_Renderer *ren = SDL_CreateRenderer(win, NULL);
+    if (!ren) {
+        fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        SDL_DestroyWindow(win);
+        SDL_Quit();
+        return 1;
+    }
     /* 游戏自身按原版毫秒/tick 时序调度；显式关闭 backend 隐式 vsync，
      * 避免 RenderPresent 阻塞与固定 delay 在不同刷新率下重复叠加。 */
     SDL_SetRenderVSync(ren, 0);
@@ -764,6 +776,9 @@ int main(int argc, char **argv) {
     /* 打开 FDOTHER.DAT（对应 &DAT_00001a4d 全局槽初始化） */
     if (fd2_archive_open(&g_fdother, "original_game/FDOTHER.DAT") != 0) {
         fprintf(stderr, "cannot open FDOTHER.DAT\n");
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        SDL_Quit();
         return 1;
     }
     printf("FDOTHER.DAT: %zu entries\n", g_fdother.count);
@@ -773,6 +788,9 @@ int main(int argc, char **argv) {
     if (fd2_vga_init(&vga, win, ren) != 0) {
         fprintf(stderr, "VGA init failed\n");
         fd2_archive_close(&g_fdother);
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        SDL_Quit();
         return 1;
     }
 
@@ -889,9 +907,8 @@ int main(int argc, char **argv) {
          * snapshot recovery 插入为中间项。原版四槽 hand_load 属于战场
          * command dispatcher field_manual_slot_dispatch @0x29300，不能在此冒充标题读档。
          * leave-battle 返回 TITLE 时重新进入该循环，宿主关闭直接退出。 */
-        int title_running = 1;
         int first_title = 1;
-        while (title_running && rc == 0) {
+        while (rc == 0) {
             fd2_save_file title_save = {0};
             fd2_save_battle_snapshot title_snapshot;
             int title_load_available =
@@ -905,10 +922,7 @@ int main(int argc, char **argv) {
                 title_load_available);
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
-            if (flow == FD2_APP_FLOW_EXIT) {
-                title_running = 0;
-                break;
-            }
+            if (flow == FD2_APP_FLOW_EXIT) break;
             if (flow == FD2_APP_FLOW_ERROR) {
                 rc = -1;
                 break;
@@ -957,10 +971,7 @@ int main(int argc, char **argv) {
                 rc = -1;
                 break;
             }
-            if (flow == FD2_APP_FLOW_EXIT) {
-                title_running = 0;
-                break;
-            }
+            if (flow == FD2_APP_FLOW_EXIT) break;
             /* RETURN_TITLE 明确重新显示标题；COMPLETE 也回到标题，以便
              * 后续关卡结果接入时不误关闭宿主。 */
         }

@@ -1,6 +1,6 @@
+/* 图像解码依据 blit_image_clipped（旧名 FUN_0004c0d5）@0x4e98d。 */
 #include "image.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,59 +22,45 @@ static uint16_t rd_u16_le(const uint8_t *p) {
  */
 int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
                                 const uint8_t *src, size_t src_len) {
-    /* 逐行解码，对应 FUN_0004c0d5 @0x4e98d 的双层循环:
-     *   外层遍历 height 行，每行用宽度计数器从 width 减到 0 */
+    if (!dst || !src || width <= 0 || height <= 0 ||
+        (size_t)width > SIZE_MAX / (size_t)height)
+        return -1;
     size_t si = 0;
     for (int row = 0; row < height; row++) {
-        int col = 0;  /* 当前行已处理宽度 */
-        uint8_t *d = dst + (size_t)row * width;
-        while (col < width && si < src_len) {
+        int col = 0;
+        uint8_t *d = dst + (size_t)row * (size_t)width;
+        while (col < width) {
+            if (si >= src_len) return -1;
             uint8_t c = src[si++];
-            size_t count;
-            uint8_t val;
+            int count = (c & 0x3f) + 1;
+            int span = (c & 0xc0) == 0x40 ? count * 2 : count;
+            /* 不裁剪损坏指令，否则超行的 RUN 或截断 LITERAL 会假成功。 */
+            if (span > width - col) return -1;
             if (c & 0x80) {
-                if (c & 0x40) {
-                    /* SKIP（透明跳过，dst 已清零） */
-                    count = (size_t)(c & 0x3f) + 1;
-                    col += count;
-                } else {
-                    /* LITERAL */
-                    count = (size_t)(c & 0x3f) + 1;
-                    for (size_t k = 0; k < count && col < width; k++) {
-                        if (si >= src_len) return -1;
-                        d[col++] = src[si++];
-                    }
+                if (!(c & 0x40)) {
+                    if ((size_t)count > src_len - si) return -1;
+                    memcpy(d + col, src + si, (size_t)count);
+                    si += (size_t)count;
                 }
             } else {
+                if (si >= src_len) return -1;
+                uint8_t value = src[si++];
                 if (c & 0x40) {
-                    /* RUN stride-2（隔字节写，占 2*count 宽度） */
-                    count = (size_t)(c & 0x3f) + 1;
-                    if (si >= src_len) return -1;
-                    val = src[si++];
-                    for (size_t k = 0; k < count && col + 1 < width; k++) {
-                        d[col + 1] = val;
-                        col += 2;
-                    }
+                    for (int k = 0; k < count; k++) d[col + k * 2 + 1] = value;
                 } else {
-                    /* RUN */
-                    count = (size_t)(c & 0x3f) + 1;
-                    if (si >= src_len) return -1;
-                    val = src[si++];
-                    for (size_t k = 0; k < count && col < width; k++) {
-                        d[col++] = val;
-                    }
+                    memset(d + col, value, (size_t)count);
                 }
             }
+            col += span;
         }
-        if (col != width) return -1;  /* 行宽度不匹配 */
     }
-    if (si != src_len) return -1;  /* 数据未消耗完 */
-    return 0;
+    return si == src_len ? 0 : -1;
 }
 
 int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len) {
+    if (!img) return -1;
     memset(img, 0, sizeof(*img));
-    if (len < 4) return -1;
+    if (!buf || len < 4) return -1;
 
     int w = rd_u16_le(buf);
     int h = rd_u16_le(buf + 2);
@@ -83,18 +69,22 @@ int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len) {
     img->width = w;
     img->height = h;
     img->pixels = malloc((size_t)w * h);
-    if (!img->pixels) return -1;
+    if (!img->pixels) {
+        memset(img, 0, sizeof(*img));
+        return -1;
+    }
     memset(img->pixels, 0, (size_t)w * h);  /* SKIP 指令依赖清零 */
 
     if (fd2_image_decode_rle_pixels(img->pixels, w, h, buf + 4, len - 4) != 0) {
-        free(img->pixels);
-        img->pixels = NULL;
+        fd2_image_free(img);
         return -1;
     }
     return 0;
 }
 
 int fd2_image_decode_entry(fd2_image *img, const fd2_archive *ar, size_t idx) {
+    if (!img) return -1;
+    memset(img, 0, sizeof(*img));
     const uint8_t *buf;
     size_t len;
     if (fd2_archive_get(ar, idx, &buf, &len) != 0) return -1;

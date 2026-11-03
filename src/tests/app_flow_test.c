@@ -21,8 +21,9 @@ int main(void) {
           FD2_TITLE_ACTION_EXIT);
     CHECK(fd2_title_action_from_selection(-1, 1) ==
           FD2_TITLE_ACTION_HOST_QUIT);
-    CHECK(fd2_title_action_from_selection(2, 0) ==
-          (fd2_title_action)99);
+    CHECK(fd2_title_action_from_selection(2, 0) == FD2_TITLE_ACTION_ERROR);
+    CHECK(fd2_title_action_from_selection(-2, 1) == FD2_TITLE_ACTION_ERROR);
+    CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_ERROR) == FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_NEW_GAME) ==
           FD2_APP_FLOW_START_NEW_GAME);
     CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_LOAD) ==

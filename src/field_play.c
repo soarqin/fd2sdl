@@ -1184,6 +1184,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                 running = 0;
             } else if (event_result != 0) {
                 fprintf(stderr, "field event presentation failed\n");
+                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                 running = 0;
             }
         }
@@ -1203,6 +1204,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     SDL_GetTicks() + FD2_FIELD_AUTOMATIC_ACTION_MS;
             if (ai_result < 0) {
                 fprintf(stderr, "field automatic action unsupported or failed\n");
+                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                 running = 0;
             }
             continue;
@@ -1531,6 +1533,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     if (game.interaction == FD2_FIELD_INTERACTION_MOVING) {
                         if (fd2_field_game_execute_move(&game, vga, 55) != 0) {
                             fprintf(stderr, "field move execution failed\n");
+                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                             running = 0;
                             break;
                         }

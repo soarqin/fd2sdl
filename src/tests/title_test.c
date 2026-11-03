@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "title.h"
 
@@ -24,6 +25,21 @@ static void capture_draw(void *userdata, int item_index, int image_index) {
 }
 
 int main(void) {
+    uint8_t source[320 * 148] = {9};
+    uint8_t destination[320 * 147 + 1] = {0};
+    fd2_image scroll = {.width = 320, .height = 147, .pixels = source};
+    destination[320 * 147] = 0xa5;
+    CHECK(fd2_title_copy_scroll_frame(destination, &scroll) == 0);
+    CHECK(memcmp(source, destination, 320 * 147) == 0);
+    CHECK(destination[320 * 147] == 0xa5);
+    scroll.height = 148;
+    CHECK(fd2_title_copy_scroll_frame(destination, &scroll) == -1);
+    scroll.height = 147;
+    scroll.width = 321;
+    CHECK(fd2_title_copy_scroll_frame(destination, &scroll) == -1);
+    CHECK(fd2_title_copy_scroll_frame(NULL, &scroll) == -1);
+    CHECK(fd2_title_copy_scroll_frame(destination, NULL) == -1);
+
     static const struct {
         fd2_title_sfx cue;
         fd2_title_sfx_handle handle;

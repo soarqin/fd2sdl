@@ -25,7 +25,7 @@ SDL 版不复制 BIOS FIFO，也不保存跨帧 `KEY_DOWN`。宿主适配采用�
 
 ### 2.1 `input_check`
 
-canonical Ghidra 基线中的 `FUN_00010620 @VA 0x10620` 对应 code0 `0x620`：
+[规范命名表](../reverse-engineering/function-names.md)中的 `input_check @VA 0x10620` 对应 code0 `0x620`：
 
 ```c
 return sRam0000041c != sRam0000041a;

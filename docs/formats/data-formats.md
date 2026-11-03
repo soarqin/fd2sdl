@@ -1,7 +1,8 @@
 # 数据文件格式规范
 
-> 本文档详细记录原版游戏数据文件的二进制格式，供 SDL3 重写时读取。
-> 已验证格式用 ✅ 标注，待确认用 ⚠️ 标注。
+本文维护原版二进制布局和已确认的读取语义；实现进度见[总计划](../plans/development.md)。✅ 只表示对应格式或字段已有证据，不代表场景实现与原版验收全部完成；⚠️ 表示仍有待确认项。
+
+部分早期取证保留了历史指令／窗口地址，不能直接当作 canonical VA 查询。函数入口以[规范命名表](../reverse-engineering/function-names.md)为准，换算见[地址映射](../reverse-engineering/address-mapping.md)。
 
 ## 1. .DAT 归档容器格式 ✅
 
@@ -16,7 +17,7 @@
 0x06        4         offset[0]         首条目数据偏移（u32 LE）
 0x0A        4         offset[1]         第二条目偏移
 ...
-0x06+4*N    4         gap               4 字节间隙（哨兵，值固定）
+0x06+4*N    4         gap               11 个顶层样本中的间隙，不强制嵌套容器具有
 offset[0]   变长      entry[0] data     条目 0 数据
 offset[1]   变长      entry[1] data     条目 1 数据
 ...
@@ -56,7 +57,7 @@ def parse_dat(data):
 
 - **无独立 count 字段**：条目数通过"越界/非递增即终止"判定。
   （曾被误判的字段实为 offset[0]。）
-- **4 字节间隙恒存在**：`6 + N*4 + 4 == offsets[0]`。
+- **11 个顶层样本均有 4 字节间隙**：`6 + N*4 + 4 == offsets[0]`；不外推为所有嵌套容器的要求。
 - 偏移为**绝对文件偏移**，严格递增。
 - 末条目大小 = `文件大小 - offsets[-1]`。
 - 实现侧以首条目偏移作为表的读取上界，并保留越界／非递增终止规则；不把顶层四字节间隙作为所有嵌套资源的硬性要求。`src/tests/resource_test.c` 覆盖无间隙合成夹具、11 个原版顶层归档及标题／地形解码兼容性。
@@ -81,54 +82,32 @@ def parse_dat(data):
 
 ### 2.1 图像格式（TITLE.DAT / BG.DAT）✅ 头部 + RLE + 调色板
 
-每个图像条目：
-
-```
+```text
 偏移   长度   字段
-0x00   2      width   (u16 LE)   如 320
-0x02   2      height  (u16 LE)   如 200 / 100
-0x04   变长   pixels  (RLE 压缩，8bpp 索引色）
+0x00   2      width   (u16 LE)，如 320
+0x02   2      height  (u16 LE)，如 200 / 100
+0x04   变长   pixels  (RLE，8bpp 索引色)
 ```
 
-- 解压目标大小 = `width × height` 字节
-- **调色板（已逆向精确确认）**：256 色 VGA 6-bit（0-63），768 字节，存于 FDOTHER.DAT。
-  - 资源加载器：`FUN_0000e902(&DAT_00001a4d, old_ptr, index)`（@0x463ce）
-    `&DAT_00001a4d` 是 FDOTHER.DAT 的句柄槽，index 为条目号
-  - 全局调色板指针：`DAT_00003a65`（@0x3a65），指向当前调色板
-  - 渲染时按 `(v<<2)|(v>>4)` 扩展 6-bit 为 8-bit
-  - **标题画面的调色板选择条件**（源自 `FUN_0001cfe6` @0x44ab2，片头/标题序列函数）：
-    片头循环结束后，写死执行：
-    ```c
-    title_bg = FUN_0000e902(&DAT_00001a4d, old, 7);          // 加载标题背景图(索引7)
-    DAT_00003a65 = FUN_0000e902(&DAT_00001a4d, DAT_00003a65, 8);  // 加载调色板(索引8)
-    FUN_00035058(0xa0000, 0, &DAT_0000fa00);   // 清屏
-    FUN_0000f488(0, 0xff, 0);                   // 应用调色板
-    FUN_0001db69(1, 0xf, 1);                    // 标题前脚本动画（animation_play）
-    FUN_00013fce(0xa0000, 0x140, title_bg, 0);  // blit 标题图
-    ```
-    即**标题画面写死用 FDOTHER.DAT[8] 作调色板**，非配置驱动
-  - 片头过程中调色板动态切换（均在 `FUN_0001cfe6` 内）：
-    | 条件 | 调色板 index |
-    |------|------------|
-    | 片头起始 | 0x4c (76) |
-    | iVar6==0x6e | 8 |
-    | iVar6==0xd2 | 7 |
-    | iVar6==0x14a | 5 |
-    | iVar6==0x19 | 0 |
-    | 14 个有效滚动音效阈值 | 0x66 (102)，开始闪电高亮调色板 |
-    | 闪电开始后第 12 个滚动帧 | 0x65 (101)，恢复滚动调色板 |
-    | 片头->标题 | 8 |
-  - DOSBox 实机验证：标题画面调色板与 FDOTHER.DAT[8] 完全一致
-- **RLE 方案（已逆向确认，源自 FUN_0004e176）**：
-  - 控制字节 `c`：
-    - `bit7=0`（c < 0x80）：**RUN**，count = `(c & 0x3f) + 1`，下一字节为像素值，重复 count 次
-    - `bit7=1, bit6=1`（c ≥ 0xC0）：**RUN（隔行平面）**，count = `(c & 0x3f) + 1`，下一字节为像素值
-    - `bit7=1, bit6=0`（0x80-0xBF）：**LITERAL**，count = `(c & 0x3f) + 1`，复制后续 count 个像素字节
-  - 原版 FUN_0004e176 还区分"隔行写入"（param_2+2，用于双平面/精灵掩码），
-    普通背景图按连续写入即可
-  - 验证：TITLE.DAT 全 7 条目、BG.DAT 主图 44/56 条目
-    精确匹配（`consumed == 数据长度 && 输出 == width*height`）
-- 样本：FDOTHER.DAT[7] sub[0] / TITLE.DAT[0] = 320×200（标题画面，已渲染验证），BG.DAT[0] = 320×100（背景）
+目标大小为 `width × height` 字节。依据 `blit_image_clipped @0x4e98d`，逐行解释控制字节 `c`，其中 `count = (c & 0x3f) + 1`：
+
+| 控制字节 | 类型 | 行为 | 行宽消耗 | 额外数据 |
+|---|---|---|---|---|
+| `0x00..0x3f` | RUN | 同值连续写入 | count | 1 字节 val |
+| `0x40..0x7f` | RUN stride-2 | 同值隔字节写入，间隙保留 | count × 2 | 1 字节 val |
+| `0x80..0xbf` | LITERAL | 逐字节复制 | count | count 字节 |
+| `0xc0..0xff` | SKIP | 保留已有目标像素 | count | 无 |
+
+SKIP 和 stride-2 未写位置不是强制置零；新建零底图中才自然表现为零。旧摘要将 SKIP 误写为 RUN，会多读一字节并导致后续数据错位，不能继续使用。
+
+SDL 解码器在写入前校验整条指令跨度，拒绝超行、截断和尾随数据；宽高必须为正。实现和损坏资源回归见 `src/image.c`、`src/tests/resource_test.c`。原版 19 张图及 500 张合法合成图的局部机器码差分见 [9.5 报告](../reverse-engineering/ida-bytecheck-9.5.md#rle-原版机器码执行对照)，其范围限于像素解码分支，不代表完整合成或全部 BG 条目等价。
+
+调色板与图像流分离：
+
+- 256 色 VGA 6-bit RGB（每分量 `0..63`），共 768 字节；按 `(v << 2) | (v >> 4)` 扩展为 8-bit。
+- 当前调色板指针在 object2 `DS:0x3a65`。`res_load @0x111ba` 按文件名、旧指针和 entry index 读取资源，不是文件 handle 接口。
+- 标题图为 FDOTHER[7] 的嵌套 sub[0]，固定使用 FDOTHER[8] 调色板；片头的资源选择、ANI 插入和闪电切换只在[启动流程](../reverse-engineering/boot-flow.md)维护。
+- 样本：标题图为 320×200，BG[0] 为 320×100。
 
 ### 2.2 音乐格式（FDMUS.DAT）✅
 
@@ -143,13 +122,12 @@ IFF/EA IFF 8510 容器，Miles AIL 的 XMIDI。
 
 - 外层 `.DAT` 共 20 项：15 项有效 `FORM/XMID`，5 项为 `20 0d 0a` 哨兵。
 - 块类型：`XDIRINFO`（目录信息）、`XMID`（XMIDI 序列）。
-- stage 曲目表位于 `FD2.EXE` file `0x76e73`／corrected code0 `0x66073`，共两组连续 30 字节：
+- stage 曲目表从 `FD2.EXE` file `0x76e73` 提取，共两组连续 30 字节；不要把旧工具按 `0x10e00` 推导的 `code0_offset` 当作规范地址：
   - primary：`1,0,1,1,19,19,19,19,3,19,19,19,3,4,19,19,19,19,3,19,4,19,19,3,19,3,4,19,3,19`
   - alternate：`4,19,19,8,12,12,1,12,6,12,12,1,6,4,12,1,12,1,6,12,8,12,12,6,12,6,8,12,6,1`
-- 机器码 `0x35687` 读取 `DS:0x1e63[stage]`，`0x3f78e` 读取 `DS:0x1e81[stage]`；地址差 30 与表长一致。stage 0 因而确认为 primary track 1、alternate track 4。
-- 重写不再预设「转 OGG」或「直接交给 SDL3_mixer」；先以 libADLMIDI 的 XMI、AIL bank 和 Nuked OPL3 能力做保真原型，再按许可证与 DOSBox 对照结果决定正式后端。见 `docs/plans/audio.md`。
+- `field_turn_cycle_run @0x1a30b` 按 stage 索引两表；stage 0 为 primary track 1、alternate track 4。切曲和淡变语义见[音频调用依据](../reverse-engineering/audio.md)，实现状态见[音频计划](../plans/audio.md)。
 
-### 2.3 动画格式（ANI.DAT / FIGANI.DAT）✅
+### 2.3 动画格式（ANI.DAT；FIGANI.DAT 另列）
 
 Amiga AFM（Animation File Manager）V1.00。
 
@@ -167,20 +145,20 @@ Amiga AFM（Animation File Manager）V1.00。
   u8  commands[data_len]
 ```
 
-- `ANI.DAT`：9 个启动/场景动画，`FUN_0001db69 @0x45635` 直接读取该文件。`animation_play @code0 0x10421` 每帧先解码，再调用固定 `delay_ms(frame_delay)`；解码／上传耗时不能从该 delay 中抵扣。启动调用值由当前正常版 `FD2.EXE` 的 code0 `0xf9ac`、`0xfae2..0xfae8`、`0xfb43..0xfb8f`、`0xfd0e` 直接确认：ANI 3/4/6/8=`90 ms`、ANI 5/7=`50 ms`、ANI 0/1=`15 ms`。
-- `FIGANI.DAT`：408 个战斗角色动作，含 3 字节空帧（`04 00 04 00 ...`）作分隔。
-- 启动流程当前用到的 AFM opcode：
+- `ANI.DAT`：9 个启动／场景 AFM 条目，由 `animation_play @0x20421` 读取。每帧先解码，再等待完整 `frame_delay`；不能扣除解码／上传耗时。启动调用顺序、调色板和 delay 见[启动流程](../reverse-engineering/boot-flow.md)。
+- `FIGANI.DAT`：外层容器有 408 项；容器解析成功不代表所有动作格式与演出语义已确认，不能从 ANI 直接外推。后续取证见战场工作包 B6。
+- 已确认的启动 AFM opcode；以下函数均为 canonical VA：
 
-| opcode | 反编译 handler | 语义 |
-|--------|----------------|------|
-| 1 | `FUN_0003459f` | 原始 0x300 字节调色板 |
-| 2 | `FUN_000345ad` | AFM 调色板 RLE |
-| 4 | `FUN_00034628` | 单色填充 64000 字节显存 |
-| 5 | `FUN_00034650` | 原始 64000 字节显存 |
-| 6 | `FUN_0003466c` | AFM 显存 RLE：`0xc0-0xff` 为 run，低 6 位为重复次数 |
-| 7 | `FUN_000346b1` | 稀疏单点写入：`(offset:u16, value:u8)` |
-| 8 | `FUN_000346ca` | 稀疏等值 run：`(offset:u16, len:u8, value:u8)` |
-| 9 | `FUN_000346f4` | 稀疏 literal：`(offset:u16, len:u8, bytes...)` |
+| opcode | handler | 语义 |
+|---|---|---|
+| 1 | `afm_opcode_palette_raw @0x36e57` | 原始 0x300 字节调色板 |
+| 2 | `afm_opcode_palette_rle @0x36e65` | AFM 调色板 RLE |
+| 4 | `afm_opcode_fill_framebuffer @0x36ee0` | 单色填充 64000 字节显存 |
+| 5 | `afm_opcode_copy_framebuffer @0x36f08` | 原始 64000 字节显存 |
+| 6 | `afm_opcode_rle_framebuffer @0x36f24` | AFM 显存 RLE：`0xc0..0xff` 为 run，低 6 位为重复次数 |
+| 7 | `afm_opcode_sparse_pixel @0x36f69` | 稀疏单点写入：`(offset:u16, value:u8)` |
+| 8 | `afm_opcode_sparse_run @0x36f82` | 稀疏等值 run：`(offset:u16, len:u8, value:u8)` |
+| 9 | `afm_opcode_sparse_literal @0x36fac` | 稀疏 literal：`(offset:u16, len:u8, bytes...)` |
 
 ### 2.4 地形图块（TAI.DAT）✅ RLE 图像
 
@@ -229,7 +207,7 @@ stage metadata 条目（`stage*3+1`）当前确认：
 0x83   26*N       unit_templates，单位/对象模板记录，N=(size-0x83)/26
 ```
 
-`field_cell_event_lookup @0x38c58` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID，并要求地形 flags `&0x60==0`。玩家路径每完成一步以 `match_arg=0` 查询；玩家行动结束和 AI common tail 以 `match_arg=1` 查询。AI 移动过程不执行逐步的 match 0 查询，只在最终格查询一次 match 1。查询只把 `event_code` 写入 `DS:0x1a8f`；side 1/0 outer loop 在 AI 返回后以该值索引 `DS:0x1b91`，并把 actor index 传给 handler，然后才执行 stage handler。
+`field_cell_event_lookup @0x13a44` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID；ID 为 0、超过 16、地形 flags `&0x60!=0`、event code 为 `0xff` 或 `match_arg` 不符时不触发。玩家每完成一步以 match 0 查询，行动结束和 AI common tail 以 match 1 查询；AI 不沿移动路径查询。命中只写 `DS:0x1a8f`，side 1/0 outer loop 随后以事件码索引 `DS:0x1b91`，传 actor index 执行 handler，再执行 stage handler。
 
 placement 条目（`stage*3+2`）当前确认：
 
@@ -246,8 +224,6 @@ SDL 运行时使用 `fd2_field_unit` 保留原版 `DAT_00003a45` 的 0x50 字节
 `field_turn_event_check @0x3fa27` 将 turn event 的 byte 0 与当前回合 `DAT_00003bef` 比较，将 byte 2 与当前 phase 比较，再用 byte 1 对 `DS:0x1b91` 执行间接调用。该表已确认为战场 action 表：FD2 object1 fixup 的 target offset 直接是 object 内偏移，前四项对应 code0 `0x24531/0x2460b/0x24673/0x246cd`（dual `0x34531/0x3460b/0x34673/0x346cd`）的独立剧情入口。DOSBox 运行时表首项为 `0x190531`，其机器码与 `code0 0x24531` 一致。所有已检查调用点都按 cdecl 传入一个 32 位 actor index（回合事件固定传 0），调用后由调用者执行 `add esp,4`；handler 使用普通 `ret`，返回值未使用。
 
 原版阶段顺序由 `field_turn_cycle_run @0x3f51f` 确认为 side 2（玩家）→ side 1 → side 0（敌方）→ 回合数加一。stage 0 与 stage 31 的四条有效记录均为 `(turn,action,phase)=(3,0,1),(4,1,0),(5,2,0),(6,3,1)`。SDL stage 0 先事务化提交 action `0..3` 的持久状态：action 0 依次加入 group 3/7 并执行 script 7/8，action 1 加入 group 4 并执行 script 3，action 2 加入 group 5 并执行 script 4，action 3 加入 group 6 并执行 script 6；任何分组或脚本校验失败都会回滚单位表和镜头。交互演出再从 notice 保存的提交前单位数、镜头和焦点建立临时 session，逐格重放镜头与移动：action 0 先加入 group 3、再平移镜头并播放 FDTXT fragment 11，随后加入 group 7、播放 fragment 3；action 1/2/3 播放 fragment 4/5/6；只有原版调用 `field_actor_group_arrival_effect @0x57bad` 的 action 1/2 使用 FDOTHER[9] 的 12 帧 LMI1，action 0/3 直接显示新增 group。演出终态必须逐记录匹配已提交单位表，成功后清除 `presentation_deferred`；未知 action 继续安全失败。
-
-`field_cell_event_lookup @0x38c58` 读取 32 位 map cell 的 byte 2 低 5 位作为 1-based lookup ID；ID 为 0、超出 16 项、地形 `attr.flags & 0x60` 非零、event code 为 `0xff`，或 `match_arg` 不一致时均不触发。单格移动提交后使用 `match_arg=0`，单位动作完成路径使用 `match_arg=1`。
 
 stage 0 的初始单位顺序为 4 名玩家，再加入模板 group 1 和 group 2，各 4 名敌军。`field_actor_group_append @0x35d6c` 按模板 byte `0x15` 选择 group，并为每个模板调用 `field_unit_stage_template_append @0x35e6e`；后者是已确认的通用 stage 单位构造器，会填写身份、装备、基础属性、HP/MP 和移动字段，再调用战斗派生重算。此前 `apply_stage0_baseline()` 只是捕获样本，现已由 `src/field_unit_base.c` 的通用表驱动派生替代。
 
@@ -303,7 +279,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - `field_equipped_item_slot_find @0x40a51` 在 weapon 模式按槽位顺序查找 flag `0x40` 且 `item_id < 0x80` 的首件装备；`field_unit_item_id_at @0x40936` 返回该槽的 item id。玩家普通攻击读取对应 23 字节 item record 的 `+0x0b/+0x0c` 作为最小／最大范围。
 - `field_target_range_build @0x39a2c` 以 movement profile 0 从攻击者格传播最大范围，再按曼哈顿距离排除小于最小范围的格。side filter 的完整语义为 `0→side 0`、`1→side != 0`、`2→side 1`、`3→side 2`；玩家普通攻击传 0。目标收集只保留未隐藏且匹配 filter 的 actor；单位不阻断范围传播。SDL 由 `src/field_attack.[ch]` 复现，并额外拒绝 HP 已为 0 的目标。
 - `field_ai_physical_candidate_evaluate @0x3944b`（corrected code0 `0x2944b`）把上述武器范围应用到 actor 的每个可停留移动格，并按行优先格序、actor 表序枚举 `(destination,target)`。候选主优先级只取 `0/8/18`；次分数在每个 destination 开始时从目标数初始化，当前累计分数大于当前目标 HP 时取 `18` 并将分数翻倍，否则当移动格地形修正后的 attack 与目标格地形修正后的 defense 之差大于 2 时取 `8`。同优先级仅当次分数严格更大才替换，完全平价保留先遇到者；同一 destination 的后续 target 会继承前一 target 的翻倍、反击调整和 `*3/2` 结果。`field_ai_try_attack @0x3a104` 再比较物理／法术／物品三类 signed score：三项都 `<6` 时无动作；`magic==item>physical` 固定选 magic，三项完全相等则返回成功但不调用提交 helper。
-- `field_magic_record_get @0x4e866` 返回 `DS:0x19fd + magic_id*7`。36 条静态记录位于 object3 `DS:0x19fd` / `FD2.EXE` file offset `0x7aa11`；字段 `+0` 为 AI tie/阈值用 `u16`，`+3/+4` 分别控制施法中心与目标范围，`+5` 与 actor `+0x44` MP 比较，`+6` 参与 side filter。SDL 将原始表内置于 `src/field_magic.c`，未确认字段继续按 offset 表述。对 `0x3a525` 及 player magic dispatcher 的 clean code0／handler 扫描未发现按 `+5` 扣除 actor `+0x44` 的写入；当前把 `+5` 记录为可用性门，不在 SDL 提交阶段猜测资源消耗。
+- `field_magic_record_get @0x4e866` 返回 `DS:0x19fd + magic_id*7`。36 条静态记录位于 object3 `DS:0x19fd` / `FD2.EXE` file offset `0x7aa11`；字段 `+0` 为 AI tie/阈值用 `u16`，`+3/+4` 分别控制施法中心与目标范围，`+5` 与 actor `+0x44` MP 比较，`+6` 参与 side filter。SDL 将原始表内置于 `src/field_magic.c`，未确认字段继续按 offset 表述。AI 调用已确认 `+5` 用于 MP 可用性门，不足以证明玩家施法的消费规则；玩家 MP 扣减与取消／提交边界仍需独立证据，见战场工作包 B2。
 - `DS:0x1f96` 的 28 项 `u32` magic profile scale 已由正确 bound-LE object2 page 静态恢复：`{10,10,10,10,7,7,10,10,10,10,9,10,5,5,8,10,6,8,10,9,5,5,10,8,8,4,10,7}`。其 file offset 为 `0x76faa`。旧 `0x10e00` page base 在同一逻辑地址读到指令流，现已确认是 page extraction 错误，不需要制作特殊存档。
 - `field_ai_magic_targets_score @0x3ad8b` 按 magic ID 分派：`0..12` 对每个目标按 `HP >= record.u16(+0)` 取 `8/24`，`text_id==0` 再乘 `1.5`；`13..16` 按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`（严格小于 `1/3` 才取 `8`，严格小于 `1/2` 取 `3`），actor `+0x34 bit0` 翻倍；`17..22、26、27` 按 `+0x22..+0x27` 原始字节和已知法术位图评分。`field_ai_magic_candidate_evaluate @0x3ab9e` 严格高分替换；平分只在 record `u16 +0` 严格更大时替换。
 - `field_ai_item_targets_score @0x3aa94` 只识别 item `+0x0d` code `5/13/20/21/24`。code `5/13` 在目标循环内按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`，并受目标 `+0x34 bit7` 三倍修正；`code 20/21` 先把 `+0x0e` 作为 magic ID 查询 7 字节表的 `u16 +0`，code `24` 直接使用该值，再对当前 HP 严格大于阈值的目标计分。`field_ai_item_candidate_evaluate @0x3a892` 仅在新分数严格更大时替换，分数为 0 时坐标／槽位不视为有效候选。SDL 的 M7.2 保持纯查询，不提交移动、效果、消耗、RNG 或 acted/phase 状态。
@@ -312,7 +288,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 
 第一关新游戏索尔的详情页实机值为 HIT/AP/EV/DP=`97/16/2/12`，装备为短剑 `AP+10`、皮甲 `DP+8`、药草 `HP+40`。SDL 新游戏正式单位记录已应用同一组确认装备，并通过统一战斗属性重算生成最终数值。
 
-详情页开合由 `field_unit_detail_transition_frame @0x3d61d` 组合三块区域：左上 86×86 在 phase `11..6` 从左侧滑入，右上 223×86 在 phase `8..3` 从上方滑入，下方 310×102 在 phase `5..0` 从底边滑入；关闭按 `0..11` 逆序。每帧先恢复保存的战场画面，再叠加当前裁剪区域。原版在打开 phase 11/5 播放 SFX 5，在部分菜单关闭 phase 0/7 播放 SFX 6；SDL 已复现视觉帧序列，音效系统尚未接入。
+详情页开合由 `field_unit_detail_transition_frame @0x3d61d` 组合三块区域：左上 86×86 在 phase `11..6` 从左侧滑入，右上 223×86 在 phase `8..3` 从上方滑入，下方 310×102 在 phase `5..0` 从底边滑入；关闭按 `0..11` 逆序。每帧先恢复保存的战场画面，再叠加当前裁剪区域。原版在打开 phase 11/5 播放 SFX 5，在部分菜单关闭 phase 0/7 播放 SFX 6；音效 bank 与播放语义见[音频调用依据](../reverse-engineering/audio.md)。
 
 样本 FDFIELD.DAT[0]：24×24 网格，条目大小为 `4 + 24*24*4 = 2308` 字节，`shape_index=0`，对应 FDSHAP.DAT[0] 的 288 帧与 FDSHAP.DAT[1] 的 300 条属性记录。
 
@@ -569,7 +545,7 @@ cache，因此无需建立持久 cache class；手工 Load 后仍复现
 
 DOSBox 对 stage 构造器的 CPU 捕获确认了完整写入顺序，并以 unit 96 level 2 得到 `(profile,move,hp,mp,base attack,base defense,base accuracy)=(7,4,28,0,14,2,2)`，与既有 stage 0 捕获一致；unit 1 level 2 得到 HP 46，与本地 stage 2 存档一致。当前 `src/field_unit_base.c` 登记构造器已确认的完整同格式索引范围：角色 ID `0..31` 与敌军 ID `68..135`；没有对应基础 record 的 ID `32..67` 事务化失败。最终装备派生仍由 `field_unit_stats` 完成，装备查询或状态缩放回调缺失时不写 `0x48..0x4f`。
 
-`field_ai_unit_execute @0x38cb3` 确认模板 byte `0x11` 写入的 record `+0x34` 是 AI behavior selector，低半字节在原版中分派 `0..5、7..11`；模板 byte `0x12/0x13` 对应 record `+0x35/+0x36`，由不同 behavior 作为目标文本编号或坐标等参数读取，不能统一命名。stage 0 初始 group 1/2 的 8 名 side 0 单位均为 behavior 0，两个参数均为 0。SDL `field_ai` 当前只实现不修改状态的最近敌对目标扫描和可达目的地排序；自动 phase 仍保持明确标注的待机骨架。
+`field_ai_unit_execute @0x38cb3` 确认模板 byte `0x11` 写入的 record `+0x34` 是 AI behavior selector，低半字节在原版中分派 `0..5、7..11`；模板 byte `0x12/0x13` 对应 record `+0x35/+0x36`，由不同 behavior 作为目标文本编号或坐标等参数读取，不能统一命名。stage 0 初始 group 1/2 的 8 名 side 0 单位均为 behavior 0，两个参数均为 0。AI 查询、提交与自动 phase 的当前范围见[战场计划](../plans/battlefield.md)，不在格式页维护实现进度。
 
 `--prologue-preview` 不再从 FD2.SAV 推断 sprite。新游戏流程直接建立 `DAT_00003a45`，稳定标识是 record offset `0x07` 的 unit id；offset `0x02` 只是 FD2.TMP cache slot。
 
@@ -596,7 +572,7 @@ if hit:
 
 每一击在命中判定前先处理地形。`map_cell_info_at @0x3804c` 返回结构的 `+0x05` 是 FDSHAP terrain attr byte 1，即 `movement_cost_class`；攻击者以该值索引 `DS:0x1a12`，防御者索引 `DS:0x1a2a`，均为 32 位百分比，计算 `stat += stat*percent/100` 后才进入暴击／伤害。`field_unit_ignores_terrain_combat_modifier @0x44397` 对 unit ID 28 强制返回 0；其他单位 movement profile 19 或 race 4/5 时返回 1 并跳过地形修正。战场信息面板在 `0x3ffe5/0x40005` 读取相同两张表；DOSBox debugger 在 battlefield overlay 已加载、`CS=0x0170`／flat `DS=0x0178` 时捕获到重定位后的访问地址 `0x1ada12/0x1ada2a`，完整六项分别为攻击 `{+5,0,-5,-5,-5,0}`、防御 `{0,0,+10,+10,-5,0}`。FDSHAP 全部奇数属性条目实际使用 class 0..5；stage 0 的 shape 0 只使用 0..2。SDL 已接入完整表，class >5 在消费 RNG 前拒绝。
 
-`FUN_00073df7 @0x73df7` 已确认是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。当前权威 code0 `0x15d90..0x15daf` 还确认：每次进入战场控制器前，原版先读取计时器，以其低 8 位为次数调用 `field_rng_next`。活动快照 writer `0x9f7a..0xa136` 和 loader `0x10..0x44b` 均不读写 `DS:0x27b8`；因此原版读档不是精确 RNG checkpoint，不存在可恢复的快照字段。SDL 版以 `src/field_rng.[ch]` 保存调用方持有的状态，确保单次 session 内外围特效、命中、暴击、伤害浮动和反击共用同一 RNG 流；正式 field session 仍以捕获值 `0x7a18` 初始化，但当前未复现计时器扰动。
+`field_rng_next @0x4ebe3` 是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。当前权威 code0 `0x15d90..0x15daf` 还确认：每次进入战场控制器前，原版先读取计时器，以其低 8 位为次数调用 `field_rng_next`。活动快照 writer `0x9f7a..0xa136` 和 loader `0x10..0x44b` 均不读写 `DS:0x27b8`；因此原版读档不是精确 RNG checkpoint，不存在可恢复的快照字段。SDL 的调用方持有状态与提交边界见[session 设计](../systems/battle-session.md)；捕获初值不等于各次实际进入战场时的随机状态。
 
 暴击阈值来源分两层：基础值读取 `DS:0x24a8[attacker.record[0x20]-1]`；首件已装备武器 item record `+0x09 == 4` 时，再累加 `+0x0a`。同一次 DOSBox debugger capture 从重定位地址 `0x1ae4a8` 取得完整 30 字节基础表：`{5,3,3,5,3,3,0,18,5,3,3,12,3,3,12,10,6,3,3,7,3,3,30,18,0,0,0,0,0,0}`，索引对应 movement profile `1..30`。SDL 正式 session 已直接使用该表；测试仍可通过按攻击者 callback 覆盖。反击交换双方后会重新查询，`src/field_attack.[ch]` 再自动复现 type 4 武器加值。item `+0x09 == 2` 的路径会在命中判定前至少消耗一次 RNG，并可能再消耗一次后写防御者 `+0x25` 为 `2..5`。SDL 已在 `field_attack` 复现状态写入和 RNG 顺序；对应音效与闪烁演出仍省略。
 
@@ -679,52 +655,32 @@ FD2.TMP 会在 stage 初始化时原地重写，不能作为跨 stage 的稳定�
 | 文件 | 用途 |
 |------|------|
 | `FDMUS.DAT` | 15 项有效 Miles XMIDI 音乐序列 |
-| `FDOTHER.DAT[31]` | `DAT_00003eec` 固定加载的 13 项 unsigned 8-bit mono PCM bank；SFX 2=对话逐字、5/6=详情页开合、8=战场指令菜单展开／收起 |
-| `FDOTHER.DAT[77]` | 4 项标题 unsigned 8-bit mono PCM bank；SFX 0=片头滚动、1=确认、2=选择移动、3=标题 action 入场；SFX 0/1/2 使用 primary AIL handle，SFX 3 使用 secondary handle |
-| `FDOTHER.DAT[78]` | 1 项标题文字飞入样本；`animation_play @code0 0x10421` 在 ANI[1] frame 0 解码后、首个 delay 前播放 SFX 0，动画结束或跳过时停止 |
-| `FDOTHER.DAT[80]` | `DAT_00003b13` 固定加载的 16 项战场样本 bank；已确认 SFX 1=actor group flash、11=stage transition、13=earthquake |
+| `FDOTHER.DAT[31]` | 13 项 unsigned 8-bit mono PCM bank，固定加载到 `DS:0x3eec` |
+| `FDOTHER.DAT[77]` | 4 项标题 PCM bank |
+| `FDOTHER.DAT[78]` | 1 项 ANI[1] 标题文字飞入 PCM bank |
+| `FDOTHER.DAT[80]` | 16 项战场 PCM bank，固定加载到 `DS:0x3b13` |
+| `FDOTHER.DAT[95]` | 1 项 group arrival PCM bank |
 | `*.MDI` | AIL 音乐驱动（AdLib/OPL3/SB/MPU401/...），不是音乐资源 |
 | `*.DIG` | AIL 数字采样驱动，不是音效资源 |
 | `SAMPLE.BNK` | 头为 `01 00 ADLIB-` 的乐器名称与 AdLib 元数据 |
 | `SAMPLE.AD` / `SAMPLE.OPL` | 内容相同，开头为 Miles AIL `patch, bank, offset` 音色目录 |
 | `DIG.INI` / `MDI.INI` | 驱动配置 |
 | `AILDRVR.LST` | 可用驱动列表 |
-| `FDICON.B24` | 140 组地图角色 24×24 帧，详见 §3.3 |
 
-`ail_init_sample @0x5e735` 的默认 sample rate 为直接常量 `0x2b11=11025 Hz`，loop count 为 1，pan 为 64；`sfx_play` 先调用 `ail_end_sample @0x5ea19`，index `-1` 表示只停止不启动新样本，其他索引才设置地址、长度和调用方给出的循环次数。DOSBox 0.74 的 44100 Hz mixer capture 对 FDOTHER[31] SFX 5/8 的 11025 Hz 线性重采样相关系数为 0.950/0.968，而 8000/16000/22050 Hz 候选均低于 0.12，形成运行时交叉验证。`music_track_play @0x4ab8b` 从 FDMUS 加载 XMIDI，调用 AIL sequence init/start，并处理 2000 ms 淡入、4000 ms 停止淡出和循环次数。
+PCM bank 是嵌套 `LLLLLL` 容器，子条目是原始样本字节，不含每条目 WAV header；AIL 初始化默认值为 11025 Hz、loop count 1、pan 64。`SAMPLE.BNK` 与 `.AD/.OPL` 的角色分工仍待确认，`.MDI/.DIG` 不作为 SDL 运行依赖。
 
-重写不复刻 AIL 驱动层，但需要保留其资源与播放语义：SDL3 `SDL_AudioStream` 负责设备和最终 PCM，原始样本与 XMIDI/OPL 分别通过独立 source 后端进入统一混音器。完整计划见 `docs/plans/audio.md`。
+样本索引、动态 bank、primary/secondary handle、淡变与捕获范围统一见[音频调用依据](../reverse-engineering/audio.md)；本节只维护资源布局。
 
-## 6. 嵌套 .DAT 归档
+## 5. 嵌套 .DAT 归档
 
 FDOTHER.DAT 中部分条目本身也是 .DAT 归档（6 字节 "LLLLLL" 魔数开头）：
 
 | 条目 | 用途 | 子条目数 | 关键子条目 |
 |------|------|---------|-----------|
 | [7] | 标题画面 | 7 | sub[0]=320×200标题图, sub[1-6]=菜单文字(61×7等) |
-| [31] | UI／战场数字音效 bank | 13 | `sfx_play(DAT_00003eec,index,loop_count)` 按 offset 直接提交样本字节与长度；对话逐字使用 SFX 2，详情页和战场菜单也使用该 bank |
-| [77] | 标题 action 数字音效 bank | 4 | `title_action_menu @code0 0xf8d6..0xf8e6` 加载该 entry；SFX 0/1/2 分别用于片头滚动、确认、选择移动，SFX 3 通过 secondary handle 用于 action 入场 |
-| [78] | ANI[1] 标题文字飞入音效 bank | 1 | `animation_play @code0 0x1043f..0x1059a` 加载该 entry，在 frame 0 解码后、首个 delay 前以 primary handle 播放 SFX 0，结束或跳过后停止 |
-| [80] | 战场数字音效 bank | 16 | 固定载入 `DAT_00003b13`；调用点使用 SFX 1/11/13 等索引 |
 | [0x4d] | 片头底图 | 4 | sub[0]=片头背景(非标准RLE) |
 
 **验证**：FDOTHER[7] 用 `fd2_archive_open_mem()` 打开后，sub[0] 成功解码为 320×200，
 用调色板[8]渲染得到 159 色标题图，主色 rgb(36,0,0) 与 DOSBox 实机一致。
 
-## 7. RLE 解码方案修正（FUN_0004c0d5）
-
-旧版 image.c 把 SKIP(0xC0-0xFF) 当成 RUN（多读一个字节），导致数据错位撕裂。
-
-**正确方案**（源自反编译 FUN_0004c0d5 @0x73ba1，逐行解码）：
-
-| 控制字节范围 | 类型 | 行为 | 宽度消耗 | 额外数据 |
-|------------|------|------|---------|---------|
-| 0x00-0x3F | RUN | val 重复 count 次 | count | 1字节(val) |
-| 0x40-0x7F | RUN stride-2 | val 隔字节写 | count*2 | 1字节(val) |
-| 0x80-0xBF | LITERAL | 逐字节复制 | count | count字节 |
-| 0xC0-0xFF | SKIP | 透明跳过(dst保持0) | count | 无 |
-
-count = (c & 0x3F) + 1
-
-**验证**：FDOTHER[0x45-0x49] 片头5帧，逐行解码精确消耗100%输入字节，
-输出恰好 320×147=47040 像素，147/147 行完整。
+其他 PCM 嵌套 bank 的条目数见 §4；具体 cue 见[音频调用依据](../reverse-engineering/audio.md)。图像子条目按 §2.1 的统一 RLE 规则读取，不另设嵌套版解码方案。

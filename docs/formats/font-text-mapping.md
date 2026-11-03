@@ -2,7 +2,7 @@
 
 ## 映射文件
 
-最终映射保存在 `docs/formats/font-glyph-map.tsv`。该文件覆盖 `FDOTHER.DAT[4]` 的全部 1824 个 16×16 字形，`glyph_id` 范围为 `0..1823`。
+完整映射见 [font-glyph-map.tsv](font-glyph-map.tsv)。该文件覆盖 `FDOTHER.DAT[4]` 的全部 1824 个 16×16 字形，`glyph_id` 范围为 `0..1823`。
 
 | 列 | 含义 |
 |---|---|
@@ -22,7 +22,7 @@
 FDTXT token → FDOTHER.DAT[4][token × 32] → 16×16 glyph → docs/formats/font-glyph-map.tsv
 ```
 
-`FUN_0004c4c2 @0x73f8e` 按 `token * 0x20` 定位并绘制字形。SDL 实现与文本导出工具应先查映射表，再将得到的 Unicode 文本按 UTF-8 或 UTF-16 序列化；不得对原始 FDTXT 字节调用 iconv。
+`font_glyph_blit_16x16 @0x4ed7a` 按 `token * 0x20` 定位并绘制字形（canonical VA）。SDL 实现与文本导出工具应先查映射表，再将得到的 Unicode 文本按 UTF-8 或 UTF-16 序列化；不得对原始 FDTXT 字节调用 iconv。
 
 ## 控制码
 
@@ -33,7 +33,7 @@ FDTXT token → FDOTHER.DAT[4][token × 32] → 16×16 glyph → docs/formats/fo
 - `0xfffd`：分页；
 - `0xffef..0xffec`：立绘与对话框控制。
 
-控制码说明见 `docs/formats/data-formats.md` §2.6。
+控制码说明见[数据格式 §2.6](data-formats.md#26-文本格式fdtxtdat-token-片段)。
 
 ## 生成依据
 

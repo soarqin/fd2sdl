@@ -1,68 +1,53 @@
 # 文档索引
 
-项目文档按用途分类。新增文件应放入对应目录，不再使用开发步骤编号作为文件名前缀。
+构建和使用见[项目 README](../README.md)，Agent 约束见 [AGENTS.md](../AGENTS.md)。本目录按用途组织技术资料；计划、原版证据、实现设计和工具操作各自维护，避免复制结论。
 
-## `plans/`：计划与里程碑
+## 开发计划
 
-- [`development.md`](plans/development.md)：项目总体开发计划。
-- [`battlefield.md`](plans/battlefield.md)：战场系统 M1～M9 路线和验收标准。
-- [`audio.md`](plans/audio.md)：音频逆向、后端选择和实施计划。
+- [总计划](plans/development.md)：当前基线、**统一开发优先级**、依赖和验收门。
+- [战场工作包](plans/battlefield.md)：B0～B7 的范围和验收。
+- [音频工作包](plans/audio.md)：A0～A4 已有基线及 A5～A8 后续工作。
 
-## `reverse-engineering/`：逆向分析
+## 系统设计
 
-- [`decompilation-report.md`](reverse-engineering/decompilation-report.md)：原始程序总体反编译报告。
-- [`ida-crosscheck.md`](reverse-engineering/ida-crosscheck.md)：IDA Pro 9.4 独立复核报告：fixup 验证、legacy 坐标换算、`__chkstk` wrapper/body、Watcom ABI 和已推翻的历史结论。
-- [`ida-bytecheck-9.5.md`](reverse-engineering/ida-bytecheck-9.5.md)：IDA Pro 9.5 从原版重导出后的全对象字节对照，以及 RLE／菜单原版机器码执行差分和修复范围。
-- [`address-mapping.md`](reverse-engineering/address-mapping.md)：LE、file offset、code0、dual、relbase 和 runtime 地址换算。
-- [`decompilation-corrections.md`](reverse-engineering/decompilation-corrections.md)：历史反编译污染和修正记录。
-- [`ghidra-reconstruction.md`](reverse-engineering/ghidra-reconstruction.md)：Ghidra 11.3.2 结构验收流程（relocation 计数、block、确定性）；函数边界与伪 C 不再以此为基线。
-- [`boot-flow.md`](reverse-engineering/boot-flow.md)：启动、标题和 ANI/AFM 调用流程。
-- [`field-unit-constructor.md`](reverse-engineering/field-unit-constructor.md)：战场单位构造链。
-- [`function-names.md`](reverse-engineering/function-names.md)：**生成文件**。以 canonical VA 为主键的函数命名登记表。
-- [`function-names-legacy.md`](reverse-engineering/function-names-legacy.md)：只读历史命名档案（上述生成文件的输入）。
+- [战场 session](systems/battle-session.md)：状态／资源 owner、动作与 RNG 提交、必需事件、结果、存档和跨关交接。
+- [输入](systems/input.md)：原版键值语义、逐呈现帧采样和 SDL 宿主边界。
 
-## `formats/`：数据格式
+## 数据格式
 
-- [`data-formats.md`](formats/data-formats.md)：原版 `.DAT`、战场、动画、音频等二进制格式。
-- [`font-text-mapping.md`](formats/font-text-mapping.md)：FDTXT token 与 Unicode 映射规则。
-- [`font-glyph-map.tsv`](formats/font-glyph-map.tsv)：完整字形映射数据。
+- [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
+- [文字映射](formats/font-text-mapping.md)：FDTXT token、Unicode 和缺字规则。
+- [字形映射表](formats/font-glyph-map.tsv)：完整映射数据。
 
-## `systems/`：SDL 系统设计
+## 逆向依据
 
-- [`input.md`](systems/input.md)：原版键盘语义与 SDL 输入层边界。
+- [函数命名表](reverse-engineering/function-names.md)：canonical VA 与语义名，**生成文件**。
+- [命名输入](reverse-engineering/function-names-legacy.md)：历史登记与追加入口；旧结论修正按 [IDA 流程](tools/ida.md)处理，不反向导入生成表。
+- [地址映射](reverse-engineering/address-mapping.md)：LE object、file、code0、legacy 和 runtime 坐标。
+- [LE 镜像与验收](reverse-engineering/le-validation.md)：产物边界、静态复核和完整 fixup／运行时硬性条件。
+- [IDA 9.4 独立复核](reverse-engineering/ida-crosscheck.md)：发布基线、ABI、边界和历史模型修正。
+- [IDA 9.5 字节与局部实现复核](reverse-engineering/ida-bytecheck-9.5.md)：从原版重导出、RLE／菜单机器码差分、修复及限制。
+- [启动流程](reverse-engineering/boot-flow.md)：片头、ANI、调色板和标题调用链。
+- [音频调用与对照](reverse-engineering/audio.md)：bank、曲目、cue 与局部捕获依据。
+- [Ghidra 结构验收](reverse-engineering/ghidra-reconstruction.md)：仅按需复核 block、权限、relocation 和确定性，不是日常语义基线。
 
-后续独立系统设计文档放入此目录。逆向事实仍应链接到 `reverse-engineering/` 或 `formats/` 中的证据。
+## 工具操作
 
-## `tools/`：工具操作
+- [工具速查](tools/README.md)：构建、测试、调试入口和常用数据工具。
+- [IDA Domain API／idalib](tools/ida.md)：环境、只读查询、授权发布流程与陷阱。
+- [DOSBox debugger](tools/dosbox-debug.md)：人工二进制取证和当次运行地址确认；禁止自动操作玩法。
 
-- [`README.md`](tools/README.md)：项目工具命令速查。
-- [`ida.md`](tools/ida.md)：IDA Domain API 优先的逆向规范、`idalib` headless 流程、环境配置和已知陷阱。
-- [`dosbox-debug.md`](tools/dosbox-debug.md)：DOSBox debugger 内存转储流程。
+## 生成产物
 
-工具文档不参与开发阶段编号。使用工具前先查本目录，避免为查询语法而启动交互式程序。
+| 路径 | 用途与限制 |
+|---|---|
+| [`generated/ida-canonical/`](generated/ida-canonical/) | 当前已标注伪 C、规范登记和发布证据；输入身份以文件头和复核报告为准 |
+| [`generated/ghidra-canonical/`](generated/ghidra-canonical/) | 结构 inventory、边界账本和候选 C；不代替 IDA 基线 |
+| `generated/fd2-*.json`、`generated/le-fixups.txt` | seed、迁移和 fixup 的机器账本；随对应生成器维护 |
+| `generated/ghidra-decomp-all.c`、旧 r2／辅助输出 | 历史证据及旧工具输入；patch 与 wrapper/body 伪拆分使旧 Ghidra 伪 C **不得作为开发参考** |
 
-## `generated/`：生成或机器辅助产物
+生成文件不手改业务语义。命名先改输入，再按 IDA 流程发布，所有产物完成后最后刷新并校验 `SHA256SUMS`。大型镜像、数据库和原版捕获只留本地。
 
-- `ida-canonical/`：**当前开发参考基线**。IDA Pro 9.4 / Hex-Rays 全量伪 C（`fd2-ida-decomp-all.c`）、规范函数登记表 JSON、函数/命名/字符串导出、命名归约账本和 21 项对照结果。
-- `ghidra-canonical/`：规范 relbase structural inventory、函数边界账本和候选 C 导出。只作结构验收依据。
-- `fd2-function-seeds.json`：证据分层函数 seed、`__chkstk` wrapper 和延后候选清单。
-- `fd2-name-migration.json`：`function-names.md` 全部 209 行的迁移 disposition。
-- `fd2-confirmed-function-names.json`：已重新确认的 canonical name/VA registry。
-- `ghidra-decomp-all.c`：旧 dual 流程的历史 Ghidra 输出，靠 patch `__chkstk` 字节才能生成，函数边界含 wrapper/body 伪拆分；**不得作为开发参考**，改用 `ida-canonical/fd2-ida-decomp-all.c`。
-- `r2_funcs.txt`：旧 radare2 函数清单，只作候选线索。
-- `authoritative_funcs.txt`：确认入口清单。
-- `le-fixups.txt`：LE fixup 生成摘要与验证结果。
-- `opcode-functions.c`：辅助 opcode 分析输出。
+## 维护约定
 
-生成文件不得手工改写业务语义。函数语义命名应先在 `reverse-engineering/function-names-legacy.md` 追加登记，或修正 `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS` 表，再由 IDA 流程更新 `function-names.md` 和对应产物。
-
-## 分类规则
-
-- 跨系统的开发顺序和验收：`plans/`。
-- 原版机器码、调用链和地址证据：`reverse-engineering/`。
-- 原版文件／记录布局：`formats/`。
-- SDL 重写层的系统边界：`systems/`。
-- 命令、工具限制和操作流程：`tools/`。
-- 可再生成的大型文本或机器分析结果：`generated/`。
-
-若单个文档同时包含计划与逆向证据，应按主要用途归类，并用链接引用另一分类中的权威依据，避免复制两份结论。
+新文档按上述用途放置；实现进度只更新计划，原版布局放 `formats/`，调用／地址证据放 `reverse-engineering/`，SDL 边界放 `systems/`，命令放 `tools/`。已被现行资料覆盖且含错误模型的早期叙述不再另存一份；需要追溯时查 Git 历史，正式证据与命名输入仍保留。

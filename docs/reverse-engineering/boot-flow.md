@@ -1,200 +1,62 @@
-# 启动画面流程分析
+# 启动、片头与标题流程
 
-> 通过反编译 + DOSBox 多时机实机截图对照梳理。
-> 核心结论：游戏采用 **Watcom 协程架构**，启动流程是一系列协程通过事件泵切换。
+本文记录启动调用链和资源选择，函数地址采用[canonical VA](address-mapping.md)。格式布局见[数据格式](../formats/data-formats.md)，音频调用见[音频依据](audio.md)，实现范围与后续工作见[总计划](../plans/development.md)。
 
-## 1. 架构：协程式状态机
+## 调用链与函数边界
 
-`FD2.EXE` 用 Watcom 的协作式协程（co-routine）组织逻辑，而非传统的状态机 switch。
-
-### 1.1 协程原语
-
-| 函数 | 地址 | 作用 |
-|------|------|------|
-| `fcn.00035a1e` | 0x5d4ea | **yield**：jmp 0x3c7f0，让出 CPU。0x3c7f0 调 `FUN_0003f5cb`(AIL序列推进) + `FUN_00045340` + `FUN_000383b5`(`4178--`) |
-| `fcn.00035a23` | 0x5d4ef | **resume/创建协程**：call 0x3c7f4（栈切换原语，保存 esp/ebp/ss 跳转） |
-| `0x35a12` | 0x35a12 | **恢复点**：`dec [0x4178]; pop ebp; pop edi; ret`，21 处协程让出后跳回此处 |
-| `fcn.00036766` | 0x36766 | **事件泵**：`4178++`，检查输入 `4174`/`4170`，调 `fcn.0003c972`(事件出队) + `fcn.000353e4`，最后 `call fcn.0003d2d8; jmp 0x35a12` |
-| `fcn.00035a31` | 0x5d4fd | 事件泵变体（带模式参数 0x302），调用 `fcn.0003cbb3`(显示消息 0x4f5) |
-
-### 1.2 全局状态
-
-| 地址 | 含义 |
-|------|------|
-| `0x4178` | 协程嵌套计数（事件泵进出配对） |
-| `0x4174` | 输入有效标志 |
-| `0x4170` | 输入标志 2 |
-| `0x4164` | 消息/事件队列指针 |
-| `0x3604` | 初始化完成标志（entry0 首次设 1，退出清 0） |
-| `DAT_00003c03` | 当前场景/模式索引，从 `&DAT_000030c5[存档]` 读取 |
-| `0x1b19` | 函数指针表：`(*(code**)(DAT_00003c03*4 + 0x1b19))(0)` 按场景调脚本；stage 0 entry 正确 dual 为 `0x205b4`，执行 side 0 全灭与主角 actor 0 隐藏/HP 0 的结果门 |
-
-### 1.3 入口 entry0 @ 0x3ccb4
-
-```c
-entry0() {
-  if (已初始化) return;        // jne 0x3ccf9
-  [0x3604] = 1;
-  handle = fcn.00035a1e();      // yield/初始化子系统
-  [0x4354] = handle;
-  fcn.00035a31(arg, 0x302, 0, 0);  // 事件泵变体（启动主协程）
-  fcn.00035a23([0x4354]);       // 切到主协程
-  [0x3604] = 0;
-}
+```text
+start @0x3ccb4
+  └─ main @0x25bf4
+       ├─ music_track_play(18, 0)
+       └─ title_action_dispatch @0x25ebb
+            └─ boot_intro_title_menu @0x1f894
+                 ├─ 片头／滚动／ANI 插入段
+                 └─ 标题与 action 选择
 ```
 
-## 2. 启动画面序列（实机验证）
+`boot_intro_title`、`boot_intro_title_entry` 和 `title_action_menu` 是同一函数的历史别名，不能拆成三个原版函数。`push 0x88; call watcom_stack_check` 是 10 字节序言，不是额外协程。旧 flat/dual 分析中的协程架构推测不作为当前实现依据；边界与换算以[规范命名表](function-names.md)和 [IDA 复核](ida-crosscheck.md)为准。
 
-通过 DOSBox 每 4 秒截图（共 10 张，对应 ~38 秒启动过程），匹配 .DAT 图像条目：
+资源由 `res_load @0x111ba` 按文件名、旧指针和条目号读取；不是把文件名字符串解释为 handle。全局当前调色板指针位于 object2 `DS:0x3a65`，内容为 768 字节 VGA 6-bit RGB。
 
-| 时刻 | 截图 | 主导像素 | 匹配来源 | 阶段 |
-|------|------|---------|---------|------|
-| 2s | fd2_000 | 0xfc ×59477 | FDOTHER.DAT[74] (71%) | 片头图 1 |
-| 6s | fd2_001 | 0xfe ×39701 | FDOTHER.DAT[60] (8%) | 过渡帧 |
-| 10s | fd2_002 | 0xfe ×36072 | FDOTHER.DAT[60] (10%) | 过渡帧 |
-| 14s | fd2_003 | 0x4a ×21792 | FDOTHER.DAT[59] (9%) | 片头图 2 |
-| 18s | fd2_004 | 0xfe ×32478 | FDOTHER.DAT[60] (17%) | 过渡帧 |
-| 22s | fd2_005 | 0xfe ×33100 | FDOTHER.DAT[60] (16%) | 过渡帧 |
-| 26s | fd2_006 | 0x4a ×15680 | FDOTHER.DAT[59] (9%) | 片头图 2 |
-| 30s | fd2_007 | 0x0 ×30171 | FDOTHER.DAT[60] (20%) | 过渡帧 |
-| 34s | fd2_008 | 0xfe ×22205 | FDOTHER.DAT[100] (3%) | 过渡帧 |
-| 38s | fd2_009 | 0xdf ×28293 | **FDOTHER.DAT[7] sub[0] / TITLE.DAT[0] 同源图** | **标题画面** |
+## 画面与资源顺序
 
-### 2.1 关键发现
+除 ANI 外，下表索引均属于 `FDOTHER.DAT`：
 
-1. **片头图片在 FDOTHER.DAT**（[74], [59], [60], [100]），不在 TITLE.DAT
-   - `FDOTHER.DAT[59]`/`[60]` 反复出现，是片头主体画面（带字幕？）
-   - `FDOTHER.DAT[74]` 是首屏（可能制作组 logo / 警告画面）
-   - 过渡帧匹配率低（8-20%）是因为正在淡入淡出，实际是相邻画面的混合
-2. **标题画面实际加载点 = FDOTHER.DAT[7] 的嵌套 sub[0]**；像素与 `TITLE.DAT[0]` 同源/高度匹配。
-3. **调色板随画面切换**：fd2_000 用 FDOTHER[?], 标题(fd2_009)用 **FDOTHER[8]**
-   - 启动过程调色板在多套间变化（淡入淡出动画）：c0xdf 曾为 (113,130,162)/(73,0,0)/(215,36,77)/(81,0,0)/(125,0,0)/(255,0,0)/(36,0,0)
-4. **片头 -> 标题 -> (空闲) -> 回片头** 的循环由协程调度实现
+| 阶段／滚动位置 | 图像或动画 | 调色板与节奏 |
+|---|---|---|
+| 首屏 | 图 [74] | palette [76]，由暗渐入，等待 `1+30` BIOS tick 后渐出 |
+| 第二段片头 | ANI[3] | palette [99]，每帧解码后等待 90 ms |
+| 滚动 | 图 [69..73]，各 320×147 | palette [101]，拼成 320×735；从 y=535 逐帧减至 0，每帧等待 30 ms |
+| y=450 | 静态切入图 [100] | palette [99]；切入后恢复滚动 |
+| y=330 | ANI[4] → ANI[5] | palette [99]／[0]；90／50 ms |
+| y=210 | ANI[6] → ANI[7] | palette [99]／[0]；90／50 ms |
+| y=110 | ANI[8] | palette [99]；90 ms |
+| y=25 | ANI[0] | palette [0]；15 ms |
+| y=10 | 静态切入图 [75] | palette [76]；切入后恢复滚动 |
+| 标题前 | ANI[1] | 15 ms；结束／跳过后恢复 palette [8] |
+| 标题与菜单 | [7] 内嵌 sub[0] 背景、sub[1..6] 菜单图 | 固定 palette [8]，不是配置项 |
 
-### 2.2 用户口述的流程
+滚动缓冲对应原版 `malloc(0x396c0)`；另一次 `malloc(0xa0)` 不是图像缓冲。ANI 插入段结束后恢复滚动缓冲、palette [101] 和亮度。静态切入由 `intro_cutaway @0x1f73f` 控制，等待 `1+6` BIOS tick 后返回滚动；其精确渐变时序仍需人工逐帧核对。
 
-> * 启动播放片头（连续图片，对应 FDOTHER[74]→[59]/[60]→[100]）
-> * 播放完或按键跳过 -> 进入 LOGO 标题画面（FDOTHER[7] sub[0] + FDOTHER[8] 调色板），含若干选项
-> * 标题停留一段时间不按键 -> 回去播放片头（循环）
+### 滚动音效与闪电
 
-## 3. 待深入
+object2 `DS:0x204e` 的有效阈值为：
 
-### 3.1 已确认
-- entry0 调用链：`a1e`(yield) → `a31`(事件泵,mode=0x302) → `a23`(切主协程)
-- 事件泵 `fcn.00036766` 处理输入 + 调度
-- 场景调度：`(*(code**)(DAT_00003c03*4 + 0x1b19))(0)` 按场景索引调函数指针表
-- 片头/标题图片来源已定位到具体 .DAT 条目
-
-### 3.2 待逆向/待实现
-- **动画播放器**：`FUN_0001db69 @0x45635` 已确认是 ANI.DAT/AFM 字节码动画播放器，SDL 已实现启动流程用到的 opcode。
-- **滚动阶段的脚本动画**：`FUN_0001cf66` 在若干滚动位置会切调色板并播放动画 4/5/6/7/8，不能只当作调色板切换。
-- **空闲回片头的定时器**：标题停留 N 秒后切回片头协程的逻辑。
-
-### 3.3 下一步建议
-1. 不再直接应用 LE fixup 到代码镜像；使用 `tools/rebuild_fd2_analysis.py` 重建未污染镜像。
-2. 优先实现 `FUN_0001db69` 动画播放器和 opcode 表，再做 DOSBox 逐帧截图对齐。
-3. 逐个协程函数反编译，建立「协程 -> 画面」映射表。
-
-## 4. 调色板选择的精确条件（已从正确反编译确认）
-
-### 4.1 关键修正
-
-之前因 Ghidra 加载了**错误的 flat image**，并且把 LE fixup 直接写入代码页，导致启动函数跨页后指令被污染。
-当前权威流程是 `python3 tools/rebuild_fd2_analysis.py` 生成未应用 fixup 的 raw/code0 镜像，
-再用 r2/Capstone 反汇编与 Ghidra 交叉核对。详见 `docs/reverse-engineering/address-mapping.md` 与 `docs/reverse-engineering/decompilation-corrections.md`。
-
-### 4.2 资源加载器
-
-`FUN_0000e902(&DAT_00001a4d, old_ptr, index)` @0x463ce
-- `&DAT_00001a4d` = FDOTHER.DAT 句柄槽
-- `old_ptr` = 旧指针（非零则先释放）
-- `index` = 条目索引
-- 返回条目数据指针
-
-### 4.3 调色板全局指针
-
-`DAT_00003a65`（@0x3a65）：指向当前调色板（768 字节 6-bit RGB）。
-`FUN_0000f488(0, 0xff, 0)` = 应用调色板到 VGA DAC。
-`FUN_0001db69(anim_idx, frame_delay, check_input)` = ANI.DAT/AFM 脚本动画播放器；旧文档中“淡入/淡出”的命名已作废。
-
-### 4.4 启动序列函数 FUN_0001cfe6 @0x44ab2
-
-调用入口为 `FUN_0001cfdc @0x44aa8`（Watcom 栈检查前缀），片头 + 标题主体从 `0x44ab2` 开始。调色板切换条件：
-
-| 阶段 | 条件 | 调色板 index | 同时加载的图 |
-|------|------|------------|------------|
-| 片头起始 | 函数入口 | 0x4c (76) | 背景 0x4d, 片头图 0x4a |
-| 片头中段 | - | 99 (0x63) | - |
-| 片头脚本 | iVar6==0x6e | 99 | animation #8 |
-| | iVar6==0xd2 | 99 -> 0 | animation #6 -> #7 |
-| | iVar6==0x14a | 99 -> 0 | animation #4 -> #5 |
-| | iVar6==0x19 | 0 | animation #0 |
-| 切入画面 | iVar6==0x1c2 | 99 | FDOTHER[100] |
-| | iVar6==0x0a | 0x4c (76) | FDOTHER[0x4b] |
-| 字幕切换 | iVar6==aiStack_6c[local_14] | 0x66 (102) | - |
-| | local_20==0xb | 0x65 (101) | - |
-| **片头->标题** | 循环结束 | **8** | **标题图 7** |
-
-### 4.5 标题画面的精确加载代码
-
-```c
-// FUN_0001cfe6，片头循环结束后：
-uVar8 = FUN_0000e902(&DAT_00001a4d, local_24, 7);              // 加载标题背景图(索引7)
-local_24 = uVar8;
-DAT_00003a65 = FUN_0000e902(&DAT_00001a4d, DAT_00003a65, 8);    // 加载调色板(索引8)
-FUN_00035058(0xa0000, 0, &DAT_0000fa00);   // 清屏
-FUN_0000f488(0, 0xff, 0);                   // 应用调色板
-FUN_0001db69(1, 0xf, 1);                    // 播放标题前脚本动画
-FUN_0002328d(local_18, 3, 1);
-FUN_0000f53a(0, 0xff, 0x40);
-FUN_00013fce(0xa0000, 0x140, uVar8, 0);     // blit 标题图到显存
+```text
+520,430,410,340,310,300,240,180,150,130,110,87,64,22
 ```
 
-**结论：标题画面写死用 FDOTHER.DAT[8] 作调色板，非配置驱动。**
-与 DOSBox 实机标题画面（c0xdf=36,0,0）完全一致。
+表尾 `1000` 不在 `535..0` 范围内。14 次有效命中均先完成该位置的 ANI／cutaway，再以 primary handle 重启 FDOTHER[77] SFX 0，同时切换闪电 palette [102]；保持 11 个完整滚动帧后恢复 [101]。`local_4c < 12` 是持续帧控制，不是把触发总数限制为 11 次。
 
-## 5. SDL3 复现状态
+### 标题渐变与选择
 
-### 已复现
-- **标题画面**：FDOTHER[8]调色板 + FDOTHER[7]嵌套.DAT的sub[0]标题图(320x200)
-  - 与 DOSBox 实机 100% 像素一致（md5: bc7c32c2897c）
-  - 调色板从基色(0x38,0x3c,0x3f)渐变到完整调色板，0x29步
-- **片头滚动背景**：5帧(0x45-0x49, 320x147)垂直拼接滚动入场
-  - 已确认滚动缓冲与触发点；脚本动画仍未实现
-  - FUN_0001cf66 参数确认：`animation_play(anim_idx, delay, check_input=0)`，第三参数为可选调色板 index
+标题背景先置暗，再以 `palette_fade_to @0x2df01` 从基色 `(0x38,0x3c,0x3f)` 经过 `0x29` 步插值到完整 palette [8]，不能用 brightness 线性缩放替代。
 
-### 代码结构
-- `src/vga.h/vga.c`：虚拟VGA抽象（framebuffer+palette+dac+淡入淡出）
-  - 对应反编译：FUN_00035058(vga_clear), FUN_0000f488(DAC应用/暗度),
-    FUN_0002b649(palette_fade_to), FUN_0004bac9(vsync)
-- `src/main.c`：boot_intro_title() 复现 FUN_0001cfe6 @0x44ab2
-- `src/archive.c`：新增 fd2_archive_open_mem() 支持嵌套.DAT
+无可加载活动快照时显示新游戏／退出；有快照时插入 Load。标题入口不是四槽手工读取入口。确认后选中项 normal/highlight 各显示 80 ms，交替 4 轮。按键和 skip 的消费边界见[输入设计](../systems/input.md)，不得把跳过动画的输入积存在后续菜单中。
 
-### 待完善
-- 片头底图 FDOTHER[0x4d] 的 sub[0] 格式（非标准 RLE 头部 `80 80 80 80`）
-- 切入画面 FUN_0001ce87 的等待/渐变细节
-- 标题菜单交互 `FUN_0001d6c1`（Up/Down、Enter/Space/数字小键盘 0；详见 `docs/systems/input.md`）
-- 与 DOSBox 逐帧对照验证片头滚动
+## SDL 对应与验收边界
 
-## 6. 脚本动画系统（已接入启动流程）
-
-`FUN_0001db69` @0x45635 不是调色板淡入淡出，而是**ANI.DAT/AFM 脚本动画播放器**：
-- `animation_play(anim_idx, frame_delay_ms, check_input)`
-- 从 ANI.DAT 读取动画记录（0xad 字节头 + 逐帧字节码数据）
-- 每帧用 `FUN_0003473c`（字节码解释器）执行，handler 使用 ESI 顺序消耗操作数
-
-### boot_intro_title 中的动画调用
-1. `FUN_0001db69(3, 0x5a, 1)`：首屏后的第二段片头。
-2. 滚动阶段 `FUN_0001cf66` 插入：`#4 -> #5`、`#6 -> #7`、`#8`、`#0`。
-3. `FUN_0001db69(1, 0x0f, 1)`：标题前 LOGO 动画。
-
-### ANI.DAT/AFM 启动动画格式
-- 标准 `.DAT` 容器（`LLLLLL` 魔数），共 9 个 AFM 条目。
-- 每个条目头部 offset `0xa5` 为帧数，`0xa7/0xa9` 为宽高，启动动画为 320×200。
-- 每帧 8 字节头：`data_len:u16 + command_count:u16 + reserved:u32`，随后是字节码。
-- 已实现 opcode：1、2、4、5、6、7、8、9。详见 `docs/formats/data-formats.md`。
-
-### 待完善
-- `FUN_0001ce87` 静态切入画面的等待和渐变细节仍需逐帧核对。
-- 标题空闲后回片头的协程定时器仍未复现。
-- 确认动画#3 和 #1 的帧数和内容
+- `src/main.c` 编排启动，`title.[ch]` 管理阈值、闪电、菜单帧和反馈；`animation.c` 复现 `animation_play @0x20421` 与 AFM opcode 1/2/4/5/6/7/8/9。
+- `intro_anim_with_palette @0x1f81e` 的第三参数是可选调色板索引；`animation_play(anim_idx, frame_delay_ms, check_input)` 的第三参数才是是否检查输入。动画每帧先解码，再等待完整 delay，不能扣除解码／上传耗时。
+- RLE、菜单坐标／帧选择的局部机器码对照范围见 [9.5 报告](ida-bytecheck-9.5.md)。它不证明整个片头、调色板、声音或标题交互已经逐帧一致。
+- 启动视听与完整交互仍需开发者手工 DOSBox 对照；标题空闲是否回片头及其时序仍待原版证据。旧无范围「100% 像素一致」和基于旧地址的待办清单不再作为验收结论。

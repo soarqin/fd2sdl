@@ -1,135 +1,51 @@
-# AGENTS.md - 项目协作规则
+# Agent 开发规则
 
-本项目（炎龙骑士团 2 SDL3 重写）基于对 1995 年 DOS 游戏 `FD2.EXE` 的逆向工程。
-当前权威反编译结果在 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`（IDA Pro 9.5 / Hex-Rays），
-函数命名登记在 `docs/reverse-engineering/function-names.md`（生成文件，输入为 `function-names-legacy.md`）。
-旧的 `docs/generated/ghidra-decomp-all.c` 依赖 patch 过 `__chkstk` 的镜像且含 wrapper/body 伪拆分，
-**不得再作为开发参考**。文档分类和索引见 `docs/README.md`。
-以下规则保证逆向成果可追溯、可验证。常用工具的已验证命令集中记录在 `docs/tools/README.md`；使用工具前先查该目录和对应专题文档，不要仅为回忆语法而反复请求 `--help`。
+本项目是基于原版 `FD2.EXE` 逆向的 SDL3 重写。用户构建和使用说明见 [README](README.md)；本文只记录开发纪律，不维护功能进度或工具操作副本。
 
-## 1. 反编译函数命名与注释（强制）
+## 修改前按需阅读
 
-**规则：每确认一个反编译函数的用途，必须在两处同步标注：**
+| 任务 | 必读依据 |
+|---|---|
+| 开发顺序与支持范围 | [总计划](docs/plans/development.md)，相关战场／音频工作包 |
+| 战场、存档、输入 | [session 与动作提交](docs/systems/battle-session.md)、[输入设计](docs/systems/input.md)、[数据格式](docs/formats/data-formats.md) |
+| 函数、指令、xref 或数据逆向 | [地址映射](docs/reverse-engineering/address-mapping.md)、[IDA 操作](docs/tools/ida.md)、[规范命名表](docs/reverse-engineering/function-names.md) |
+| LE 镜像／fixup 或运行时转储 | [LE 验收要求](docs/reverse-engineering/le-validation.md)、[DOSBox 转储](docs/tools/dosbox-debug.md) |
+| 构建、测试、工具参数 | [工具速查](docs/tools/README.md)；先查已验证命令，不为回忆语法反复调用 `--help` |
 
-1. **源码注释**：在 SDL3 实现代码（`src/*.c`）中，调用或复现某反编译函数逻辑时，
-   注释里写明对应的反编译函数地址与原名，例如：
-   ```c
-   /* ANI.DAT 动画播放：复现 FUN_0001db69 @0x45635 (animation_play)
-    * 语义: animation_play(anim_idx, frame_delay_ms, check_input) */
-   ```
+## 开发与验证
 
-2. **反编译文件标注**：不要手工改写 `docs/generated/ida-canonical/fd2-ida-decomp-all.c`。
-   该文件由流程生成，函数注释来自命名档案：先在
-   `docs/reverse-engineering/function-names-legacy.md` 追加登记行（或修正
-   `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS` 表），
-   再按 `docs/tools/ida.md` 重跑流程，注释会自动写进 `.c`。
+- 以 C11、SDL3、CMake 为主，音乐后端含 C++14。沿用现有模块与接口；中文注释、英文标识符，每个源文件头说明逆向依据。
+- 原版数据布局和未知字节必须保留；格式结论附反编译函数、数据或实机证据。不得用 stage 0 捕获值充当通用默认值，不猜测未确认的玩法。
+- 逻辑与呈现分离，遵守 session 的状态／资源 owner、RNG 和提交边界。修复或新增非平凡逻辑时补回归，覆盖错误／取消和无副作用路径。
+- 报告分别列出自动测试、局部机器码对照和原版人工验收的范围；缺少实机证据时标为「待人工对照」，不得用 SDL 自测代替。
 
-3. **函数重命名**：语义命名以 **canonical relbase VA** 为主键（`OFF = VA - 0x10000`）。
-   不得再使用旧 dual 地址或旧 Ghidra 窗口地址；两套 legacy 坐标的换算规则见
-   `docs/reverse-engineering/address-mapping.md`。IDA 由 Watcom FLIRT 给出的
-   runtime 符号名（`malloc`、`memset`、`fopen` 等）优先于手工猜名。
+## 逆向纪律
 
-**判断「确认用途」的标准**：至少满足以下之一：
-- 通过阅读反编译逻辑 + 交叉引用能明确语义
-- 通过 SDL3 复现并对照 DOSBox 实机验证
-- 通过数据文件格式印证
+- 当前权威伪 C 为 [`docs/generated/ida-canonical/fd2-ida-decomp-all.c`](docs/generated/ida-canonical/fd2-ida-decomp-all.c)。旧 Ghidra 伪 C 不作开发参考；伪 C 本身也不等于原始源码或已确认 ABI。
+- 必须先读取并使用 `ida-domain-api` skill；编写／执行脚本同时使用 `ida-domain-scripting` skill。优先 Domain API，通过 `idalib` 无界面执行；API 缺能力时才局部使用低层 IDAPython，并说明原因。
+- 默认复用已有数据库、只读查询，不保存 Hex-Rays 猜测类型。建库、标注、发布或覆盖数据库前取得授权；禁止使用 GUI `ida` 或 `idat` 自动化。
+- `llvm-objdump`、`objdump`、r2 和 Ghidra 仅在 IDA 能力不足或确需独立验证时按需使用并说明原因，不作为日常前置。任何地址操作先确认 file offset、code0、canonical VA 与 runtime 视图。
+- 函数以 **canonical relbase VA** 为主键，object1 的 `OFF = VA - 0x10000`；不再用旧 dual／Ghidra 窗口地址。FLIRT runtime 符号优先于手工猜名。
+- 每确认一个函数语义，必须同时更新实现注释和命名输入：注释保留规范 VA、语义名与原登记名；在 `function-names-legacy.md` 追加登记，或修正 `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS`，再按 IDA 流程生成命名表与伪 C。**不得手改生成文件。**
+- 确认语义须有反编译逻辑与 xref、数据格式或原版对照证据；禁止仅按大小、调用次数或地址邻近命名。Watcom 的 10 字节 `push imm32; call watcom_stack_check` 是函数序言，旧 `*_entry/core/runtime` 拆分不是独立函数；`0x3702f` 不得改名为 `__chkstk`／`alloca` 或写入猜测原型。
 
-**`__chkstk` wrapper/body 不是两个函数**：Watcom 序言 `push imm32; call watcom_stack_check`
-固定 10 字节，IDA 把它与后续 body 归为同一函数。旧 Ghidra 流程产生的 541 组
-wrapper/body 双函数以及 `*_entry`／`*_core`／`*_runtime` 命名属工具产物，禁止当作原程序结构。
+源码注释示例：
 
-**禁止**：仅凭函数大小、调用次数、地址邻近等弱信号猜测命名。
-
-## 2. 逆向工具与独立验证
-
-- 逆向工作必须先读取并使用 `ida-domain-api` skill；编写或执行分析脚本时，同时使用 `ida-domain-scripting` skill。函数、反汇编、伪 C、交叉引用、字符串和数据查询优先使用 IDA Domain API，通过 `idalib` 无界面执行。
-- 新分析脚本优先复用 Domain API；仅在 Domain API 未暴露所需能力时，局部使用低层 IDAPython API，并说明原因。查询默认只读，不为单点查询重复建库或保存 Hex-Rays 猜测类型。
-- 尽量不使用 `llvm-objdump`、`objdump`、r2／radare2 和 Ghidra 做日常逆向。只有 IDA 无法提供所需证据，或确需独立实现交叉验证时才使用，并记录原因；已有结构验收和历史证据流程保留，不作为日常分析前置步骤。
-- 使用任何工具前，必须先按 `docs/reverse-engineering/address-mapping.md` 确认地址空间；不能把 file offset、code0、canonical relbase VA 和 runtime 地址混用。
-
-LE 分析镜像重建流程（不是日常 IDA 查询的必跑步骤）：
-
-```bash
-python3 tools/rebuild_fd2_analysis.py
+```c
+/* ANI/AFM：复现 animation_play @0x20421（原登记 FUN_0001db69）。 */
 ```
 
-该脚本从 `original_game/FD2.EXE` 重建分析文件：
+## 镜像、DOSBox 与外部依据
 
-| 文件 | 用途 |
-|------|------|
-| `tools/fd2_le_raw.bin` | object 按 LE relbase 摆放；用于 DS object2/3 与 fixup 数据 |
-| `tools/fd2_le_code0.bin` | 真实 LE object1 从 offset 0 开始的代码视图 |
-| `tools/fd2_le_ghidra_chkstk.bin` | 兼容文件名；保留原始 `__chkstk`，不做 patch |
-| `tools/fd2_le_dual_clean.bin` | 历史兼容：完整 code0 放在 0x10000，并镜像低 64K；禁止作为规范 Ghidra 输入 |
-| `tools/fd2_le_fixups.txt` | fixup 简单记录索引，只用于解释 DS/global 引用 |
+- raw-unrelocated 与 loader-relocated 镜像分开保存；禁止无 manifest 的 patch，合法 relocation 也只能写独立输出中经验证的 source。修改流程须满足 [LE 严格验收](docs/reverse-engineering/le-validation.md)的全部条件；任一差异或缺失步骤均报告未通过，不得声称完全正确或提升为权威基线。
+- IDA 静态 fixup 复核已经通过，不因普通功能开发重新开启该类疑虑；严格运行时 BSS 验收与游戏行为验收仍分别登记。
+- `dosbox-debug` 只用于已加载可执行对象／运行时二进制证据转储，**禁止运行 `dosbox-debug --help`**，它会启动界面。每次重新取得 selector、object base 和 relocation delta，不复用历史绝对地址。
+- 不自动操作 DOSBox 菜单、关卡、布阵、攻击、法术、物品或剧情。验证需要这些操作时必须停止自动化，请开发者手工提供截图、存档、转储或结果；无人值守运行不算行为、视觉或声音对照。
+- 外部规范优先 `ketch`；失败后必须改用可用的 Pi Web Search；会话未提供时才转可独立复核的本地工具／源码并记录限制。搜索失败不是格式结论，外部资料不替代原版与完整验证。
 
-**禁止**：把 loader-relocated 镜像覆盖 raw-unrelocated／Ghidra clean 输入，或在没有 manifest 和完整验证时直接 patch。合法的 loader relocation 可以写入 object1 代码中的绝对地址 source，但必须单独输出到 `tools/fd2_le_relocated_relbase.bin`。旧的 `tools/fd2_dual_final.bin`、`/tmp/fd2_le_correct.bin` 以及无 manifest 的 patched 镜像都不是权威输入。
+## 文件与提交
 
-### 完整 fixup 的严格验收
-
-若后续生成 loader-relocated 运行时镜像，不得凭反汇编外观、少量地址命中或游戏经验宣称 fixup 正确。必须同时满足以下条件：
-
-1. fixup parser 消费 fixup record table 的全部字节；每条记录的长度、source type、target flags、source list、additive 和 16/32 位字段均有 LE 格式规范依据。未知类型、剩余字节或越界记录一律使构建失败。
-2. 使用两个相互独立的实现解码同一 fixup 表，并逐条比较 page、source、target、addend、写入宽度和记录边界。两个实现共享解析函数或复制同一分支逻辑不算独立验证。
-3. raw-unrelocated 镜像与 loader-relocated 镜像必须分开输出。只允许在 relocation source 覆盖的字节范围写入；所有非 relocation 字节必须与 raw 镜像逐字节一致。重叠或冲突写入必须显式验证，不能按后写覆盖处理。
-4. 使用 `dosbox-debug` 仅启动并转储已经加载的原版可执行对象；在进入任何游戏逻辑或 overlay 改写前，逐字节比较全部已提交 object page、BSS 零填充区和所有 relocation source。selector、object base 与 relocation delta 必须从该次运行重新取得。
-5. 静态 loader 输出与运行时转储必须对全部对象逐字节一致；同时逐条验证每个 relocation source 的运行时值。只验证程序入口、几个函数或个别表不构成通过。
-6. 任一字节不一致、任一记录未覆盖或任一验证步骤无法执行时，只能报告未通过；禁止把镜像用于 Ghidra 权威重建，也禁止声称「完全正确」。
-
-### IDA Pro 9.4 独立复核（已完成）
-
-2026-07-30 已用 IDA 自带 `loaders/lx.so` 对 LE 模型做第四个独立实现的复核：object
-relbase／BSS 边界、7,948 个 relocation source 与 target、以及镜像字节全部一致，21 项
-对照检查全部通过。**「LE/LX fixup 可靠性」这一类疑虑至此关闭。** 报告见
-`docs/reverse-engineering/ida-crosscheck.md`。2026-11-04 的 IDA 9.5 原版重导出再次通过
-21 项静态检查，并补充全文件映射、BSS 标记及 RLE／菜单机器码执行对照，见
-`docs/reverse-engineering/ida-bytecheck-9.5.md`；不替代 DOSBox 严格运行时验收。可重跑检查为：
-
-```bash
-python3 tools/ida/verify_ida_vs_project.py
-```
-
-新增或修订函数语义时使用 IDA 流程，完整命令与已知陷阱见 `docs/tools/ida.md`。
-禁止用 `ida`（GUI）或 `idat` 做自动化，只用 `idalib`。
-
-Ghidra 流程只保留作按需独立结构验收（block、权限、relocation 计数、确定性），命令见 `docs/tools/README.md`。不要求为函数语义分析运行 Ghidra，也不以其候选 C 替代 IDA 基线。该流程从原始 object 字节和已验证 relocation manifest 创建 relbase Program，不导入 low-64-KiB dual 镜像，不解析旧 `r2_funcs.txt` 或混址名称表。完整说明见 `docs/reverse-engineering/ghidra-reconstruction.md`。
-
-`tools/ghidra-scripts/decompile_clean.py` 仅保留为旧流程记录，不再是权威入口。2026-07-15 已确认 `LE+0x80` 相对拥有 LE 头的 embedded MZ module `@0x25214`，真实 page 1 为 `0x36014`。旧的文件 `0x10e00` 基址和 `LE+0x10e00` 基址均错误；函数边界以 IDA 和原始机器码证据为基线；需要运行时证据时使用 DOSBox 转储，不强制引入其他反汇编器。
-
-### 在线资料检索降级规则
-
-- 查询外部格式规范、工具源码或公开文档时，优先使用已配置的 `ketch`。
-- 若 `ketch` 因缺少后端配置、限流、网络错误或上游失败而无法完成检索，必须继续改用 Pi 自带的 Web Search 工具；不得因 `ketch` 失败就停止搜索。
-- 若当前会话没有暴露 Pi Web Search，才可记录工具不可用，并改用已安装工具源码、系统包源码或其他可独立复核的本地资料。不得把搜索失败当作格式结论。
-- 外部资料只作为规范和独立实现依据；FD2 的最终结论仍须由原始 `FD2.EXE`、完整 parser 验证和运行时逐字节对照确认。
-
-## 3. 数据结构与格式
-
-- 所有逆向确认的数据格式记录在 `docs/formats/data-formats.md`。
-- 修改格式描述时，需附验证证据（反编译函数或实机对照）。
-- `.DAT` 容器格式、FDOTHER 图像 RLE、调色板格式已确认。
-- `FUN_0001db69 @0x45635` 已确认为 ANI.DAT/AFM 动画播放器，不是调色板淡入淡出。
-- 启动流程用到的 ANI.DAT opcode 1/2/4/5/6/7/8/9 已在 `src/animation.c` 复现。
-
-## 4. 代码风格
-
-- SDL3 C 代码，CMake 构建。
-- 中文注释（与文档一致），代码标识符用英文。
-- 每个源文件头部注释说明对应逆向依据。
-
-## 5. 版本库与原版游戏文件
-
-- `original_game/` 中的原版游戏文件、DOSBox 截图和本地运行数据不入库，由开发者自行复制。
-- `src/build/`、`src/fd2sdl`、`tools/*.bin`、`tools/ida-out/`、`.omo/`、`.pi-subagents/`、`.codegraph` 不入库。
-- IDA 数据库（`.i64`）和大体积中间导出不入库；需要提交的证据产物由
-  `tools/ida/build_fd2_name_registry.py` 发布到 `docs/generated/ida-canonical/` 并附 `SHA256SUMS`。
-- 可再生成的大型分析镜像不要提交；需要跨机器共享时提交脚本和文档即可。
-
-## 6. DOSBox 使用与验证
-
-- 自动化流程应尽量避免启动 DOSBox 做交互测试。当前环境无法可靠操作 DOSBox 内的菜单、战场和特殊剧情，不能把无人值守运行当作有效的实机验证。
-- `dosbox-debug` 仅用于转储已经加载的原版游戏可执行映像、运行时内存、表或其他二进制证据。具体命令和操作流程见 `docs/tools/dosbox-debug.md`；禁止用 `dosbox-debug --help` 探测帮助，因为本机版本会直接启动界面。使用前仍须按 `docs/reverse-engineering/address-mapping.md` 重新确认 selector、relocation delta 和目标地址；不得把一次运行的绝对地址当作固定常量。
-- 不得使用 `dosbox-debug` 自动操作游戏流程、模拟特殊场景或据此声称完成视觉／行为对照。
-- 当验证需要进入指定关卡、触发剧情、选择菜单、布置单位、执行特定攻击／法术／物品，或截取特殊场景时，必须停止自动化工作，并请开发者手工操作 DOSBox 后提供截图、存档、运行时内存转储或操作结果。
-- 已有 DOSBox 截图、存档和转储位于本地 `original_game/`，只作只读证据，不随 Git 提交。
-- 每个可复现场景（启动、标题、战斗等）实现后仍需与 DOSBox 实机结果对比；若当前缺少可操作的实机证据，必须明确记录为「待人工对照」，不得用 SDL 自测代替原版对照。
+- `original_game/` 中的游戏、截图、存档和 dump 是本地只读证据，不修改、不提交。写入验证使用独立副本。
+- 不提交构建输出、`src/fd2sdl`、`tools/*.bin`、`tools/ida-out/`、IDA 数据库、大型中间导出，以及 `.omo/`、`.pi-subagents/`、`.codegraph/`。可再生产物提交脚本，不提交镜像。
+- 发布的 IDA 证据由生成器写入 `docs/generated/ida-canonical/`；所有产物写完后最后刷新并校验 `SHA256SUMS`。刷新清单不等于重新验证语义。
+- 不分发原版资源；保留第三方版权和许可文件。未经明确要求，不自动暂存、提交或推送。

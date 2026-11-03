@@ -27,15 +27,15 @@ zcat /usr/share/man/man1/dosbox-debug.1.gz | col -b
 
 调试器内部命令以本文记录为准。不要为了查询帮助而反复启动界面。
 
-启动原版程序时，在 DOSBox shell 中挂载只读证据目录并使用 debugger 的 `DEBUG` 命令：
+先将所需原版文件复制到独立临时目录，再由开发者手工启动 debugger。下列占位路径需换成本次副本目录，不能直接挂载 `original_game/` 后假定普通 `MOUNT` 会强制只读：
 
 ```text
-MOUNT C /home/soar/src/fd2sdl/original_game
+MOUNT C <本次原版副本目录>
 C:
 DEBUG FD2.EXE
 ```
 
-实际挂载方式以当次环境为准。不要向 `original_game/` 写入调试输出。
+副本供 DOS 写入缓存／存档；宿主转储也写独立工作目录，原始证据保持不变。
 
 ## 已验证的调试命令
 
@@ -67,12 +67,6 @@ SELINFO <selector-name-or-value>
 BPLIST
 BPDEL <number>
 BPDEL *
-```
-
-普通执行断点：
-
-```text
-BP <selector>:<offset>
 ```
 
 如需在内存改写时停止，使用已验证的三类命令：
@@ -183,37 +177,10 @@ python3 tools/verify_le_runtime_dump.py /tmp/fd2-entry.bin \
 
 ## 地址换算纪律
 
-项目文档函数地址、clean code0、LE object offset 和 debugger runtime offset 是不同地址空间：
-
-```text
-object offset
-relbase linear = object.relbase + object offset
-code0          = object1 offset
-object1 file   = embedded_mz_file_offset + LE.data_pages_off + code0
-runtime linear = descriptor base + selector offset
-```
-
-转换前先在 `docs/reverse-engineering/address-mapping.md` 中确认当前对象和视图。LE internal fixup target offset 直接是目标 object 内偏移；`0x28b8` 仅是 embedded MZ 的 `e_lfanew`，不得再作为 target bias。
+转换前先按[地址映射](../reverse-engineering/address-mapping.md)确认 object、file/code0/VA 与 selector-relative 视图；`D 0:<linear>` 不等于 `D DS:<offset>`。LE target offset 已是 object 内偏移，不能再套用 header bias。
 
 ## 完整 fixup 验证要求
 
-`dosbox-debug` 转储只承担最终独立 oracle，不替代 LE parser 的格式验证。完整 fixup 必须同时满足：
+转储只承担最终独立 oracle，不替代 parser 的格式验证。完整解析、独立 decoder、source 写入边界和全对象／BSS 零差异等硬性条件统一见 [LE 严格验收](../reverse-engineering/le-validation.md#完整-fixup-的严格验收)；任一缺项或差异都不通过。
 
-- fixup record table 全字节解析，没有未知记录或尾部残留；
-- 两个独立 decoder 逐条产生相同结果；
-- 静态 loader 只修改 relocation source 字节；
-- 全部 object、全部 relocation source、全部非 relocation 字节和 BSS 与 loader 初始运行时转储逐字节相同；
-- 任一差异都使验证失败。
-
-详细硬性条件见项目根目录 `AGENTS.md` 的「完整 fixup 的严格验收」。
-
-## 历史已验证实例
-
-2026-07-13 的一次 battlefield overlay 捕获中：
-
-- `CS=0x0170`、`DS=0x0178`；
-- 由 runtime 唯一机器码签名反推出 code0 relocation delta `0x146dec`；
-- 成功转储 terrain attack、terrain defense 和 profile critical 表；
-- 另一次在 `field_rng_next` 首次执行前转储 loader RNG 初值 `0x7a18`。
-
-这些值只用于说明流程，不是下一次运行的默认地址。完整记录见 `docs/reverse-engineering/address-mapping.md`。
+terrain／critical 表和 RNG 初值等历史捕获身份见[地址映射](../reverse-engineering/address-mapping.md#历史运行时取证注意事项)，不作为新运行默认值。

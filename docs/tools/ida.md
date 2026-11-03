@@ -36,34 +36,7 @@ export IDA_LICENSE=keyfile=/home/soar/.config/Hex-Rays/idapro.hexlic
 
 其他机器应使用自己的安装和有效许可证路径。不要复制、修改许可证，或自动代替开发者接受 EULA。
 
-### 历史 IDA 9.4 EULA 记录
-
-以下地址、安装路径和备份属于历史 9.4 记录，不作为当前 9.5 的配置步骤。本轮沿用已有授权配置，没有写注册表或变更 EULA 标志。
-
-`idalib` 在 batch 模式下会先检查注册表项 `EULA 90`，未接受时直接
-`FATAL ERROR: License not yet accepted, cannot run in batch mode`。检查逻辑位于
-`libidalib.so@0x42160`：
-
-```c
-if (reg_int_op("EULA 90", /*save=*/false, 0, NULL) != 0) return ok;
-if (batch) fatal("License not yet accepted, cannot run in batch mode");
-/* 交互确认后：*/ reg_int_op("EULA 90", /*save=*/true, 1, NULL);
-```
-
-本机已由开发者授权写入该标志（等价于 GUI 点击 “I accept”）：
-
-```bash
-python3 - <<'EOF'
-import ctypes
-lib = ctypes.CDLL("/home/soar/ida-pro-9.4/libida.so", mode=ctypes.RTLD_GLOBAL)
-f = lib.reg_int_op; f.restype = ctypes.c_int
-f.argtypes = [ctypes.c_char_p, ctypes.c_bool, ctypes.c_int, ctypes.c_char_p]
-print("EULA 90 =", f(b"EULA 90", False, 0, None))   # 只读检查
-EOF
-```
-
-写入前的 `~/.idapro/ida.reg` 备份为 `~/.idapro/ida.reg.bak-before-agent`。
-**接受 EULA 属开发者的授权行为，自动化流程不得代为决定。**
+若报 `License not yet accepted, cannot run in batch mode`，停止并请开发者按官方方式完成 EULA；不要调用内部注册表接口写许可或 EULA 标志。旧 9.4 的内部地址与本机备份不是当前配置步骤。
 
 ## 规范流程
 
@@ -76,7 +49,7 @@ EOF
 # 1. 从原始 FD2.EXE 建库并跑自动分析，导出 segment / fixup / 函数 / 字符串
 "$IDA_PYTHON" tools/ida/ida_fd2_export.py
 
-# 2. 用 IDA 的 1308 个函数入口审计历史命名档案，产出逐行判定账本
+# 2. 用本次数据库识别的函数入口审计历史命名，产出逐行判定账本
 python3 tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
 
 # 3. 在一次性副本上定位 Hex-Rays 失败函数，按调用点证据推导原型
@@ -104,9 +77,7 @@ python3 tools/ida/build_fd2_name_registry.py --checksums-only
 (cd docs/generated/ida-canonical && sha256sum -c SHA256SUMS)
 ```
 
-第 6 步依赖 `python3 tools/rebuild_fd2_analysis.py` 已生成
-`tools/fd2_le_raw.bin`、`tools/fd2_le_relocated_relbase.bin` 和
-`tools/fd2_le_relocation_manifest.tsv`，以及第 1／5 步的本地 `ida-program.json`、`ida-fixups.tsv` 和 segment 二进制导出。版本库只发布精简证据，不包含完整字节导出；本地导出缺失时不能声称重跑了这 21 项检查。
+第 6 步需要已重建的 raw／relocated／manifest 和第 1／5 步的完整本地 IDA 导出；版本库的精简证据不能替代字节输入。产物和验收边界见 [LE 手册](../reverse-engineering/le-validation.md#重建与静态复核)。自动识别数量可能随版本变化，不能据此覆盖历史函数或把未标注伪 C 提升为新基线。
 
 `--checksums-only` 只为现有发布文件重建清单，不读取数据库或本地 IDA 导出，也不改写证据内容。全量伪 C、源码地址迁移报告或其他发布产物发生变化后，必须最后执行该命令。刷新校验和不等于重新验证证据语义；发布产物完整性及已有报告的结构检查由 `tools/tests/test_ida_crosscheck.py` 覆盖。
 
@@ -139,13 +110,13 @@ python3 tools/ida/build_fd2_name_registry.py --checksums-only
 - **不要把 `0x3702f` 命名为 `__chkstk` / `alloca` / `_alloca_probe`。** IDA 对这些名字有内置 alloca 语义，会把 Watcom 栈检查序言 `push N; call` 当成动态栈分配。实测全量反编译会多出 500 处伪 `alloca()`，带寄存器幽灵参数的函数签名从 220 涨到 434。规范流程使用中性名 `watcom_stack_check`。
 - **不要给 `0x3702f` 写显式原型。** `__stdcall`、`__stdcall __spoils<>` 都试过，幽灵参数同样从 220 涨到 434。留空最好。
 - **不要先做全量反编译再保存 IDB。** Hex-Rays 会把猜测原型写回数据库，污染后续所有调用者签名。probe 阶段因此必须在临时副本上跑。
-- **`function-names.md` 是生成文件。** 它的输入是 `function-names-legacy.md`（只读历史档案），两者不得互为输入。修正历史结论请改 `build_fd2_name_registry.py` 的 `CORRECTIONS` 表。
-- IDA 用 `0xFF` 表示未初始化字节。object2 的 `0x54000..0x556b0` 是 BSS，`get_bytes` 返回 `0xFF` 并不代表数据差异，应改用 `ida_bytes.is_loaded()` 判断边界。
+- **`function-names.md` 是生成文件。** 输入为 `function-names-legacy.md`，不得反向导入生成表。历史条目不改写；新语义按 AGENTS 追加登记，纠正旧结论用 `build_fd2_name_registry.py` 的 `CORRECTIONS`，再生成发布。
+- IDA 对 object2 BSS `0x54000..0x556b0` 可能返回 `0xff`；用 Domain API `db.bytes.is_value_initialized_at()` 检查初始化标记，不按字节值猜 BSS。静态规范化不豁免运行时差异。
 - IDA 把 segment 末尾按页对齐（object1 到 `0x4f000`、object3 到 `0x64000`），项目按 LE `vsize` 截断。引用地址一律以 `vsize` 为准。
 - `ida_funcs.get_frame_size` 不存在，正确位置是 `ida_frame.get_frame_size`；`func_type_data_t` 用 `get_cc()` 而不是属性 `cc`。
 
 ## 不适用范围
 
-- `idalib` 只做静态分析。runtime 逐字节对照仍走 `docs/tools/dosbox-debug.md` 的流程。
+- `idalib` 只做静态分析；runtime 逐字节对照走 [DOSBox 转储](dosbox-debug.md)。
 - 伪 C 不等于原始源码。3 个手写汇编函数（`sub_34F38`、`__int7`、`__int7_pl3`）无法反编译，只能看反汇编。
 - 本流程不产生任何 DOSBox 行为、视觉或音频对照结论。

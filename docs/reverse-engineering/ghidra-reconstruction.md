@@ -1,12 +1,8 @@
 # FD2.EXE 的 Ghidra 结构验收流程
 
-> **范围变更（2026-07-30）**：本流程现在只作 **结构验收**——验证 block 边界、权限、BSS、relocation 计数与确定性。函数边界和伪 C 的当前开发基线改为 IDA Pro 9.4 产物（`docs/generated/ida-canonical/`），原因：
->
-> - Ghidra 流程靠 patch `__chkstk` 字节才能生成伪 C；IDA 无需修改任何字节。
-> - Ghidra 把 Watcom `push N; call __chkstk; <body>` 拆成 541 组 wrapper/body 双函数；IDA 归为同一函数，与原程序结构一致。
-> - Ghidra 858 个函数 vs IDA 1,308 个，且 IDA 有 Watcom runtime FLIRT 符号和可用的 Watcom 编译器识别。
->
-> 对照细节见 [`ida-crosscheck.md`](ida-crosscheck.md)。本文描述的 relocation 与内存模型已由 IDA 独立复核通过，仍然有效。
+**仅按需作独立结构验收**，验证 block、权限、BSS、relocation 与确定性；日常语义分析使用 [IDA Domain API](../tools/ida.md)，当前开发基线是已标注的 `docs/generated/ida-canonical/`。
+
+旧 dual 流程曾 patch `__chkstk` 并产生 wrapper/body 伪拆分，不能作开发参考；**本文的规范流程不 patch 机器码**。历史问题见 [IDA 复核](ida-crosscheck.md)，静态与严格运行时通过条件见 [LE 验收](le-validation.md)。
 
 本文说明从原始 `FD2.EXE` 重建 Ghidra 11.3.2 结构基线的流程。该流程统一使用 LE relbase linear VA，不再把低地址镜像、object1 offset、旧 bound-file 窗口地址或历史 Ghidra 地址混作函数主键。
 
@@ -77,12 +73,12 @@ VA=0x3231b OBJ=1 OFF=0x2231b
 | 语义 | VA | object1 offset |
 |------|----|----------------|
 | LE transfer entry | `0x3ccb4` | `0x2ccb4` |
-| `title_action_menu` | `0x1f894` | `0x0f894` |
+| `boot_intro_title_menu`（旧 seed 名 `title_action_menu`） | `0x1f894` | `0x0f894` |
 | `animation_play` | `0x20421` | `0x10421` |
 | `music_track_play` | `0x25977` | `0x15977` |
 | `sfx_play` | `0x25a96` | `0x15a96` |
 | `new_game_opening_play` | `0x3231b` | `0x2231b` |
-| `__chkstk` | `0x3702f` | `0x2702f` |
+| `watcom_stack_check`（旧 seed 名 `__chkstk`） | `0x3702f` | `0x2702f` |
 
 `entry @VA 0x3ccb4` 是 LE transfer entry。其前方和相邻区域包含 Watcom runtime 数据；它不能与应用初始化 callback 或 `main` 等价。
 
@@ -115,7 +111,7 @@ python3 tools/rebuild_fd2_ghidra.py --determinism-check
 python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
 ```
 
-可选导出规范地址下的 C：
+可选导出规范地址下的候选 C，不提升为开发基线：
 
 ```bash
 python3 tools/rebuild_fd2_ghidra.py --decompile --determinism-check
@@ -166,13 +162,13 @@ structural inventory 将每条 relocation 保留为 source → target relation�
 
 最后一类由 Ghidra function body 的 flow 逐层发现，不等价于对完整 object1 做线性扫描。当前确定性基线共创建 858 个 object1 函数，其中 315 个由可达 direct call 递归新增；函数数量只作本次构建统计，不是质量阈值。
 
-### Tier C：Watcom `__chkstk` wrapper
+### Tier C：Watcom 栈检查序言候选
 
-当前 `__chkstk @VA 0x3702f` 有 541 个直接 callsite，全部匹配：
+本基线的 `watcom_stack_check @VA 0x3702f` 有 541 个直接 callsite，全部匹配：
 
 ```asm
 push frame_size
-call __chkstk
+call watcom_stack_check
 body:
 ```
 
@@ -196,11 +192,7 @@ body:
 
 ## Watcom ABI 状态（已解决）
 
-Ghidra 11.3.2 没有内置 Open Watcom compiler spec，因此其 structural baseline 使用 stock `gcc` cspec，伪 C 的签名不可信。
-
-本项目曾把「Open Watcom 默认 register-based convention `EAX, EDX, EBX, ECX`」列为未验证假设。**IDA 分析已给出相反的直接证据**：object1 的 6,757 个 near call 中有 4,660 个在 `call` 之后紧跟 `add esp, N`，即游戏代码用**栈传参、调用方清栈（`__cdecl`）**，不是寄存器默认约定。IDA 自动分析也按 `__cdecl` 处理。
-
-例外：`VA >= 0x37000` 的 Watcom runtime 与 Miles AIL 库确有寄存器约定和手写汇编。详细统计见 [`ida-crosscheck.md`](ida-crosscheck.md) 第五节。
+Ghidra 11.3.2 的结构基线使用 stock `gcc` cspec，不能信任其伪 C 签名或按编译器默认约定批量改型。IDA 已确认游戏代码主要为栈传参、调用方清栈的 `__cdecl`；Watcom runtime／Miles AIL 有寄存器与手写汇编例外。统计、反例与确认范围统一见 [IDA 复核](ida-crosscheck.md)第五节。
 
 参考：
 
@@ -210,26 +202,11 @@ Ghidra 11.3.2 没有内置 Open Watcom compiler spec，因此其 structural base
 
 ## 名称迁移
 
-历史档案现为 `docs/reverse-engineering/function-names-legacy.md`（只读），包含旧 Ghidra 窗口、dual、code0 和少量 canonical VA 的混合历史。Ghidra 规范脚本不得解析该文件。
+Ghidra 规范脚本不得直接解析混址历史表来自动写 `USER_DEFINED` name。进入 confirmed seed 的名称须位于 object1 vsize 内，能复核字节，有 xref／dispatch／格式／runtime 证据，并已分类序言／主体关系；弱线索只进 candidate ledger。
 
-该档案的全部 210 行已由 `tools/ida/fd2_name_audit.py` 以 IDA 的 1,308 个函数入口为 oracle 逐行归约到 canonical VA（181 行 exact、3 行 exact-conflict、26 行 `__chkstk` body，0 行无法归约），结果生成 `docs/reverse-engineering/function-names.md`。
+`tools/build_fd2_name_migration.py` 生成的 `fd2-name-migration.json` 与 `fd2-confirmed-function-names.json` 是早期 Ghidra seed 账本，不是当前 IDA 命名登记。账本保留原始记录、disposition 和少量确认 anchor；不要将其 `legacy-unresolved` 数量误写成当前 IDA 尚未归约的函数数。
 
-名称只有在以下条件全部满足后，才能进入 machine-readable confirmed registry：
-
-1. candidate VA 位于 object1 vsize 内；
-2. 当前 raw／relocated bytes 可复核；
-3. xref、dispatch table、数据格式或 runtime evidence 可确认入口和语义；
-4. wrapper/body 关系已分类；
-5. semantic name 和 VA 一一对应。
-
-未审计行应保留原始文字和 legacy address，但不能自动写成 Ghidra `USER_DEFINED` name。
-
-当前逐行账本由 `python3 tools/build_fd2_name_migration.py` 生成：
-
-- `docs/generated/fd2-name-migration.json`：保留全部 209 行历史记录和 disposition；
-- `docs/generated/fd2-confirmed-function-names.json`：只含 7 个重新确认的 canonical anchor。
-
-历史表中只有 5 行的 semantic name 可直接关联这 7 个 anchor；`fd2_le_entry` 与 `__chkstk` 没有可靠的同名历史行，因此 confirmed registry 仍独立记录。其余 204 行保持 `legacy-unresolved`。
+当前命名以[规范登记](function-names.md)为准，输入、纠错及发布只按 [IDA 流程](../tools/ida.md)更新，不在本流程再维护一套语义命名。
 
 ## 验收条件
 
@@ -248,7 +225,7 @@ function baseline 还必须满足：
 
 - 每个 seed 有明确 disposition；
 - overlap、decode failure 和 byte mismatch 不被静默吞掉；
-- `__chkstk` helper 固定为 `VA 0x3702f`；
+- 栈检查 helper 固定为 `VA 0x3702f`，旧 seed 名不导入 IDA；
 - wrapper/body 不出现系统性双函数；
 - 上述七个关键 anchor 地址唯一；
 - unresolved boundary conflict 明确列出。

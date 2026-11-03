@@ -134,6 +134,10 @@ def validate(path: Path) -> tuple[int, list[str], dict[tuple[int, int], int]]:
                 errors.append(
                     f"source prevalue mismatch at {rec.source_relbase:#x}: "
                     f"file={encoded:#x}, target_offset={rec.target_offset:#x}")
+        ordered_sources = sorted(writes)
+        for left, right in zip(ordered_sources, ordered_sources[1:]):
+            if right - left < 4:
+                errors.append(f"overlapping relocation sources {left:#x}/{right:#x}")
         relocated = bytearray(raw)
         for source, value in writes.items():
             struct.pack_into("<I", relocated, source, value)

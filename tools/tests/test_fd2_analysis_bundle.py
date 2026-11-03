@@ -33,6 +33,7 @@ class CanonicalBundleTest(unittest.TestCase):
 
             manifest = json.loads((first / "manifest.json").read_text())
             self.assertEqual(manifest["schema"], "fd2-ghidra-bundle-v1")
+            self.assertIn("bss-not-matched", manifest["evidence"]["runtime_validation"])
             self.assertEqual(manifest["le"]["entry_va"], 0x3CCB4)
             self.assertEqual(
                 [(row["object"], row["relbase"], row["initialized_size"],

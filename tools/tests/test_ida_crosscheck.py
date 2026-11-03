@@ -5,9 +5,12 @@
 以及 `src/` 注释里的函数地址已全部迁移到 canonical relbase VA。
 """
 
+import hashlib
 import json
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +21,33 @@ OBJ1_LO, OBJ1_HI = 0x10000, 0x4EF29
 
 
 class IdaCrosscheckArtifactTest(unittest.TestCase):
+    def test_published_checksums_cover_current_artifacts(self):
+        names = set()
+        for line in (CANON / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+            digest, name = line.split("  ", 1)
+            self.assertEqual(hashlib.sha256((CANON / name).read_bytes()).hexdigest(),
+                             digest, msg=name)
+            self.assertNotIn(name, names)
+            names.add(name)
+        self.assertEqual(names, {path.name for path in CANON.iterdir()
+                                 if path.is_file() and path.name != "SHA256SUMS"})
+
+    def test_checksums_only_needs_no_local_ida_exports(self):
+        import build_fd2_name_registry as registry
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "b.bin").write_bytes(b"second")
+            (root / "a.bin").write_bytes(b"first")
+            (root / "SHA256SUMS").write_text("outdated")
+            for content in (b"first", b"updated"):
+                (root / "a.bin").write_bytes(content)
+                with patch.object(sys, "argv", ["registry", "--checksums-only",
+                                               "--publish", directory]):
+                    self.assertEqual(registry.main(), 0)
+                expected = (f"{hashlib.sha256(content).hexdigest()}  a.bin\n"
+                            f"{hashlib.sha256(b'second').hexdigest()}  b.bin\n")
+                self.assertEqual((root / "SHA256SUMS").read_text(), expected)
+
     def test_verify_report_all_checks_passed(self):
         data = json.loads((CANON / "fd2-verify.json").read_text(encoding="utf-8"))
         self.assertEqual(data["failed"], 0, msg=str(

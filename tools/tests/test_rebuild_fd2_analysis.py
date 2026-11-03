@@ -3,6 +3,7 @@
 
 import struct
 import sys
+from dataclasses import replace
 import unittest
 from pathlib import Path
 
@@ -12,6 +13,7 @@ sys.path.insert(0, str(TOOLS))
 from rebuild_fd2_analysis import (  # noqa: E402
     LEHeader,
     ObjectRecord,
+    FixupRecord,
     apply_fixups,
     build_code0_image,
     build_dual_clean_image,
@@ -65,13 +67,46 @@ class FixupValidationTest(unittest.TestCase):
         self.assertEqual(validate.last_details["duplicate_records"], 11)
 
 
-class RuntimeDumpVerifierTest(unittest.TestCase):
-    def test_committed_verifier_accepts_preentry_fixture_shape(self) -> None:
-        # Full DOSBox dump is developer-local and is validated by
-        # tools/verify_le_runtime_dump.py; unit coverage stays on static parsing.
-        verifier = TOOLS / "verify_le_runtime_dump.py"
-        self.assertTrue(verifier.exists())
-        self.assertIn("fixup_sources_verified", verifier.read_text())
+class MalformedFixupTest(unittest.TestCase):
+    @staticmethod
+    def fixture(records: bytes):
+        data = struct.pack("<2I", 0, len(records)) + records
+        header = LEHeader(
+            le_off=0, num_pages=1, page_size=16, last_page_size=0,
+            objtab_off=0, objcnt=1, objmap_off=0,
+            fixup_page_table_off=0, fixup_record_table_off=8,
+            data_pages_off=0, entry_object=1, entry_eip=0,
+            module_file_off=0,
+        )
+        return data, header, [ObjectRecord(1, 32, 0, 0, 1, 1)]
+
+    def test_truncated_record_is_not_silently_dropped(self):
+        record = bytes.fromhex("07000000010400")
+        for length in range(1, len(record)):
+            with self.subTest(length=length), self.assertRaises(ValueError):
+                parse_fixups(*self.fixture(record[:length]))
+        with self.assertRaises(ValueError):
+            parse_fixups(*self.fixture(record + b"\x07"))
+
+    def test_invalid_page_boundaries_are_rejected(self):
+        record = bytes.fromhex("07000000010400")
+        data, header, objects = self.fixture(record)
+        for start, end in ((1, len(record)), (len(record), 0), (0, len(record) + 1)):
+            with self.subTest(start=start, end=end), self.assertRaises(ValueError):
+                parse_fixups(struct.pack("<2I", start, end) + record, header, objects)
+        with self.assertRaises(ValueError):
+            parse_fixups(data[:4], header, objects)
+
+    def test_overlapping_and_out_of_bounds_writes_are_rejected(self):
+        record = FixupRecord(0, 0, 0, 0, 7, 0, 1, 4, 4)
+        raw = bytes(8)
+        self.assertEqual(apply_fixups(raw, [record, record])[:4], b"\x04\x00\x00\x00")
+        for other in (replace(record, target_linear=5),
+                      replace(record, source_addr_relbase=1),
+                      replace(record, source_addr_relbase=-1),
+                      replace(record, source_addr_relbase=6)):
+            with self.subTest(other=other), self.assertRaises(ValueError):
+                apply_fixups(raw, [record, other])
 
 
 class DataPageOffsetTest(unittest.TestCase):
@@ -95,6 +130,11 @@ class DataPageOffsetTest(unittest.TestCase):
             module_file_off=0x20,
         )
         self.assertEqual(extract_page(bytes(data), header, 1, True), b"PAGE")
+
+    def test_truncated_data_page_is_rejected(self) -> None:
+        _, header, _ = MalformedFixupTest.fixture(b"")
+        with self.assertRaises(ValueError):
+            extract_page(b"short", header, 1, False)
 
     def test_code0_contains_only_object1_pages(self) -> None:
         data = bytearray(range(0x40))

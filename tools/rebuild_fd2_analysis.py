@@ -74,12 +74,6 @@ class FixupRecord:
     record_file_off: int = 0
 
 
-# 本工程只输出形如 `SRC=0x07 FLAGS=0x00 <src:u16> <obj:1..3> <off:u16>` 的简单记录。
-# LE fixup 表允许变长记录；这里按记录结构顺序跳过未知类型，但清单仍只作索引，
-# 不作为完整 loader 实现。
-SIMPLE_FIXUP_SIZE = 7
-
-
 def u16(buf: bytes, off: int) -> int:
     return struct.unpack_from("<H", buf, off)[0]
 
@@ -154,6 +148,8 @@ def extract_page(buf: bytes, le: LEHeader, page_no_1based: int, page_is_last: bo
     # LE @0x27acc；因此 page 1 位于 0x25214+0x10e00=0x36014。
     off = le.module_file_off + le.data_pages_off + (page_no_1based - 1) * le.page_size
     size = le.last_page_size if page_is_last and le.last_page_size else le.page_size
+    if size > le.page_size or off < 0 or off + size > len(buf):
+        raise ValueError(f"truncated or invalid LE data page {page_no_1based}")
     data = buf[off:off + size]
     if len(data) < le.page_size:
         data += b"\x00" * (le.page_size - len(data))
@@ -185,12 +181,6 @@ def build_code0_image(buf: bytes, le: LEHeader,
     relbase = build_relbase_image(buf, le, objects)
     code = objects[0]
     return bytearray(relbase[code.relbase:code.relbase + code.vsize])
-
-
-def patch_chkstk_for_analysis(image: bytearray) -> None:
-    # `__chkstk @VA 0x3702f / code0 0x2702f` 保留原始字节；
-    # canonical Ghidra 脚本只将其标为可返回 runtime helper。
-    del image
 
 
 def build_dual_clean_image(code0_image: bytes) -> bytearray:
@@ -282,6 +272,13 @@ def decode_fixup_record_end(buf: bytes, p: int, limit: int) -> int | None:
 def parse_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -> list[FixupRecord]:
     page_table = le.le_off + le.fixup_page_table_off
     rec_base = le.le_off + le.fixup_record_table_off
+    if page_table < 0 or page_table + (le.num_pages + 1) * 4 > len(buf):
+        raise ValueError("truncated fixup page table")
+    boundaries = [u32(buf, page_table + i * 4) for i in range(le.num_pages + 1)]
+    if (boundaries[0] != 0 or rec_base < 0 or rec_base > len(buf) or
+            any(start > end for start, end in zip(boundaries, boundaries[1:])) or
+            boundaries[-1] > len(buf) - rec_base):
+        raise ValueError("invalid fixup page boundaries")
     # 计算 page index -> object/code0 基址。
     page_to_obj: dict[int, tuple[ObjectRecord, int]] = {}
     for obj in objects:
@@ -290,14 +287,15 @@ def parse_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -> list[
 
     out: list[FixupRecord] = []
     for page_index in range(le.num_pages):
-        start = u32(buf, page_table + page_index * 4)
-        end = u32(buf, page_table + (page_index + 1) * 4)
+        start, end = boundaries[page_index:page_index + 2]
+        if start != end and page_index not in page_to_obj:
+            raise ValueError(f"fixup page {page_index} has no owning object")
         p = rec_base + start
         limit = rec_base + end
         while p < limit:
             rec_end = decode_fixup_record_end(buf, p, limit)
             if rec_end is None:
-                break
+                raise ValueError(f"truncated or unknown fixup at page {page_index}, file {p:#x}")
             rec = buf[p:rec_end]
             # FD2 的全部记录都是 source type 0x07（32-bit offset）与
             # internal target，flags 只出现 0x00/0x10。任何其他组合失败。
@@ -333,10 +331,6 @@ def parse_fixups(buf: bytes, le: LEHeader, objects: list[ObjectRecord]) -> list[
     return out
 
 
-# Backward-compatible import for helper scripts.
-parse_simple_fixups = parse_fixups
-
-
 def apply_fixups(raw: bytes, fixups: list[FixupRecord]) -> bytearray:
     image = bytearray(raw)
     writes: dict[int, int] = {}
@@ -345,8 +339,14 @@ def apply_fixups(raw: bytes, fixups: list[FixupRecord]) -> bytearray:
         if old is not None and old != rec.target_linear:
             raise ValueError(f"conflicting fixups at {rec.source_addr_relbase:#x}")
         writes[rec.source_addr_relbase] = rec.target_linear
+    previous_end = 0
     for source, value in sorted(writes.items()):
+        if source < 0 or source + 4 > len(image) or not 0 <= value <= 0xffffffff:
+            raise ValueError(f"fixup write outside image or u32 range at {source:#x}")
+        if source < previous_end:
+            raise ValueError(f"overlapping fixups at {source:#x}")
         struct.pack_into("<I", image, source, value)
+        previous_end = source + 4
     return image
 
 
@@ -410,19 +410,16 @@ def main() -> int:
     objects = parse_objects(buf, le)
     relbase = build_relbase_image(buf, le, objects)
     code0 = build_code0_image(buf, le, objects)
-    ghidra = bytearray(relbase)
-    patch_chkstk_for_analysis(ghidra)
     dual = build_dual_clean_image(code0)
-    patch_chkstk_for_analysis(dual)
+    fixups = parse_fixups(buf, le, objects)
+    relocated = apply_fixups(relbase, fixups)
 
     args.tools_dir.mkdir(parents=True, exist_ok=True)
     args.docs_dir.mkdir(parents=True, exist_ok=True)
     (args.tools_dir / "fd2_le_raw.bin").write_bytes(relbase)
     (args.tools_dir / "fd2_le_code0.bin").write_bytes(code0)
-    (args.tools_dir / "fd2_le_ghidra_chkstk.bin").write_bytes(ghidra)
+    (args.tools_dir / "fd2_le_ghidra_chkstk.bin").write_bytes(relbase)
     (args.tools_dir / "fd2_le_dual_clean.bin").write_bytes(dual)
-    fixups = parse_fixups(buf, le, objects)
-    relocated = apply_fixups(relbase, fixups)
     write_fixup_report(args.tools_dir / "fd2_le_fixups.txt", fixups)
     write_relocation_manifest(
         args.tools_dir / "fd2_le_relocation_manifest.tsv", relbase, fixups)

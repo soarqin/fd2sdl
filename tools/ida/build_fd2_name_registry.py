@@ -85,6 +85,15 @@ CORRECTIONS: dict[int, list[dict]] = {
 }
 
 
+def write_checksums(directory: Path) -> None:
+    import hashlib
+
+    sums = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}"
+            for path in sorted(directory.iterdir())
+            if path.name != "SHA256SUMS" and path.is_file()]
+    (directory / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")
@@ -97,9 +106,16 @@ def main() -> int:
     ap.add_argument("--publish", type=Path, default=None,
                     help="把小体积证据产物复制到该目录（默认 docs/generated/ida-canonical）")
     ap.add_argument("--no-publish", action="store_true")
+    ap.add_argument("--checksums-only", action="store_true",
+                    help="仅刷新发布目录的 SHA256SUMS，不读取 IDA 中间导出或改写证据")
     args = ap.parse_args()
     if args.publish is None and not args.no_publish:
         args.publish = args.json.parent
+    if args.checksums_only:
+        if args.no_publish:
+            ap.error("--checksums-only cannot be combined with --no-publish")
+        write_checksums(args.publish)
+        return 0
 
     audit = json.loads(args.audit.read_text(encoding="utf-8"))
     annotate = json.loads(args.annotate.read_text(encoding="utf-8"))
@@ -173,7 +189,6 @@ def main() -> int:
     print(f"wrote {args.json}")
 
     if args.publish:
-        import hashlib
         import shutil
         args.publish.mkdir(parents=True, exist_ok=True)
         published = []
@@ -187,14 +202,7 @@ def main() -> int:
                                   if name.startswith("ida-") else name)
             shutil.copy(src, dst)
             published.append(dst.name)
-        # 汇总校验和，便于跨机器核对生成产物
-        sums = []
-        for f in sorted(args.publish.iterdir()):
-            if f.name == "SHA256SUMS" or f.is_dir():
-                continue
-            sums.append(f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}")
-        (args.publish / "SHA256SUMS").write_text("\n".join(sums) + "\n",
-                                                 encoding="utf-8")
+        write_checksums(args.publish)
         print(f"published {len(published)} 个证据产物到 {args.publish}")
 
     if args.markdown:

@@ -164,7 +164,9 @@ python3 tools/verify_le_runtime_dump.py /tmp/fd2-entry.bin \
   --object3-base 0x1b2000
 ```
 
-2026-07-15 的 pre-entry dump 长度为 `0x200000`，SHA-256 为 `3eea0a49f8eb6afd7bea29fde75cda5a55fa5e903a44be67265720ba6b5f56e1`。验证结果：7959 条 relocation source 全部等于 `runtime_object_base + target_offset`；三个 object 的全部 file-backed 非 relocation 字节逐字节一致。object2 的 file-backed 区为前 `0x4000` 字节；尾部 BSS/stack 在 EIP transfer 前已有 21 个非零字节，属于 loader 建栈，不作为 file-backed oracle 失败。转储只保存在 `/tmp`，不进入版本库。
+2026-07-15 的 pre-entry dump 长度为 `0x200000`，SHA-256 为 `3eea0a49f8eb6afd7bea29fde75cda5a55fa5e903a44be67265720ba6b5f56e1`。历史验证结果：7959 条 relocation source 全部等于 `runtime_object_base + target_offset`；三个 object 的全部 file-backed 非 relocation 字节逐字节一致。object2 的 file-backed 区为前 `0x4000` 字节；尾部 BSS/stack 在 EIP transfer 前已有 21 个非零字节，历史记录将其归为 loader 建栈。转储只保存在 `/tmp`，不进入版本库。
+
+**验收范围修正**：旧验证器仅打印 BSS 非零计数，仍输出全对象 `PASS`，该结论超出了实际检查范围。当前验证器对 BSS 差异也返回失败，不再把 loader 建栈当作自动豁免。上述历史证据只证明 file-backed 区和 relocation source 一致；全对象严格对照尚未通过。需要新的运行时证据时，须按下节流程重新取得 object base 与完整转储，不能沿用历史绝对地址。IDA 静态 loader／fixup 独立复核结论不受此口径修正影响。
 
 ## 推荐的可执行映像转储流程
 

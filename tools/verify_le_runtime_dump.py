@@ -10,7 +10,10 @@ from rebuild_fd2_analysis import build_relbase_image, parse_fixups, parse_le, pa
 
 
 def parse_base(text: str) -> int:
-    return int(text, 0)
+    value = int(text, 0)
+    if value < 0:
+        raise argparse.ArgumentTypeError("object base must be non-negative")
+    return value
 
 
 def main() -> int:
@@ -59,16 +62,16 @@ def main() -> int:
             continue
         expected = raw[obj.relbase:obj.relbase + obj.vsize]
         actual = runtime[runtime_start:runtime_start + obj.vsize]
-        for offset in range(file_backed):
+        for offset in range(obj.vsize):
             if offset in covered[obj.index]:
                 continue
             if actual[offset] != expected[offset]:
                 errors.append(
-                    f"non-fixup file byte mismatch obj{obj.index}:{offset:#x}: "
+                    f"non-fixup {'BSS' if offset >= file_backed else 'file'} byte mismatch "
+                    f"obj{obj.index}:{offset:#x}: "
                     f"actual={actual[offset]:#x} expected={expected[offset]:#x}")
                 break
-        # Loader-owned stack/BSS can be written before EIP transfer. Report it,
-        # but file-backed bytes and every relocation remain the correctness oracle.
+        # Loader 建栈写入也属于字节差异；仅报告来源不能将全对象检查改判为通过。
         bss_nonzero = sum(actual[i] != 0 for i in range(file_backed, obj.vsize))
         print(
             f"object{obj.index}: base={runtime_start:#x} vsize={obj.vsize:#x} "
@@ -80,6 +83,7 @@ def main() -> int:
         return 1
     print(f"fixup_sources_verified={len(fixups)}")
     print("file_backed_non_fixup_bytes=PASS")
+    print("bss_non_fixup_bytes=PASS")
     print("runtime_dump_validation=PASS")
     return 0
 

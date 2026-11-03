@@ -175,7 +175,7 @@ def build_bundle(exe: Path, out: Path) -> dict[str, object]:
             "exe_sha256": exe_hash,
             "ghidra_version": "11.3.2",
             "ghidra_release_zip_sha256": EXPECTED_GHIDRA_SHA256,
-            "runtime_validation": "historical-pass-see-docs/tools/dosbox-debug.md",
+            "runtime_validation": "historical-file-backed-and-fixup-pass-bss-not-matched-see-docs/tools/dosbox-debug.md",
         },
         "le": {
             "bound_mz_file_offset": le.module_file_off,

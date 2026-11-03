@@ -160,11 +160,14 @@ static int test_illegal_and_cancel(void) {
         expect(game.interaction == FD2_FIELD_INTERACTION_COMMAND,
                "cancel returns to command") ||
         expect(game.command_selected == FD2_FIELD_COMMAND_ATTACK &&
-               !game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
-               "targeting cancel rebuilds the command menu") ||
+               !game.command_disabled[FD2_FIELD_COMMAND_ATTACK] &&
+               game.command_animation_opening == 0 &&
+               game.command_animation_phase == 0,
+               "targeting cancel restores the static command menu") ||
         expect(rng.cursor == 0,
                "targeting cancel and menu rebuild consume no RNG"))
         return -1;
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 
@@ -187,6 +190,7 @@ static int test_acted_preflight_rollback(void) {
         expect(game.interaction == FD2_FIELD_INTERACTION_TARGETING,
                "acted attacker preserves targeting state"))
         return -1;
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 
@@ -323,6 +327,7 @@ static int test_unknown_terrain_class_fails_before_rng(void) {
         expect(game.interaction == FD2_FIELD_INTERACTION_TARGETING,
                "unsupported terrain preserves targeting state"))
         return -1;
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 
@@ -515,6 +520,7 @@ static int test_command_menu_model(void) {
                "attack command enters targeting") ||
         expect(rng.cursor == 0, "attack command preflight consumes no RNG"))
         return -1;
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 

@@ -63,7 +63,10 @@ int fd2_field_command_select_direction(
     const uint8_t disabled[FD2_FIELD_COMMAND_COUNT]);
 
 /* focus_x/focus_y 是当前单位 24×24 地图格的屏幕左上角。
- * 图标最终位置严格为上 (0,-18)、左 (-24,2)、右 (24,2)、下 (0,22)。 */
+ * open 的四帧末尾为上 (0,-18)、左 (-24,2)、右 (24,2)、下 (0,22)。
+ * field_command_menu_draw @0x179d5 的静止位置则为上 (0,-20)、下 (0,24)，
+ * 左右不变；复用 opening=0、animation_phase=0 的 close 初值。
+ * 动画帧不显示选中高亮，只有静止布局使用 highlight_phase。 */
 void fd2_field_command_draw_animation(
     fd2_vga *vga, const fd2_field_command_assets *assets,
     int focus_x, int focus_y, int selected,

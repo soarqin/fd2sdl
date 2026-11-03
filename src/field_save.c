@@ -178,8 +178,8 @@ int fd2_field_game_import_battle_snapshot(
     game->command_selected = -1;
     memset(game->command_disabled, 0, sizeof(game->command_disabled));
     game->command_highlight_phase = 0;
-    game->command_animation_phase = 4;
-    game->command_animation_opening = 1;
+    game->command_animation_phase = 0;
+    game->command_animation_opening = 0;
     game->last_command_highlight_ms = 0;
     fd2_field_system_menu_init(&game->system_menu);
     fd2_field_system_menu_set_options(&game->system_menu,

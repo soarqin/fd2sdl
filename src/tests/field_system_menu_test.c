@@ -14,7 +14,7 @@ static int test_parent_dispatch(void) {
     fd2_field_system_menu menu;
     fd2_field_system_menu_init(&menu);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT);
-    CHECK(menu.animation_opening == 1 && menu.animation_phase == 4);
+    CHECK(menu.animation_opening == 0 && menu.animation_phase == 0);
     CHECK(menu.highlight_phase == 0 && menu.last_highlight_ms == 0);
     CHECK(menu.command_ids[0] == 7 && menu.command_ids[1] == 5);
     CHECK(menu.command_ids[2] == 6 && menu.command_ids[3] == 4);
@@ -22,18 +22,20 @@ static int test_parent_dispatch(void) {
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
-    CHECK(menu.animation_opening == 1 && menu.animation_phase == 4);
+    CHECK(menu.animation_opening == 0 && menu.animation_phase == 0);
     CHECK(menu.command_ids[0] == 12 && menu.command_ids[3] == 15);
 
     CHECK(fd2_field_system_menu_cancel(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_BACK);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT);
+    CHECK(menu.animation_opening == 0 && menu.animation_phase == 0);
     CHECK(fd2_field_system_menu_select_direction(
               &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
     CHECK(menu.selected == 2);
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_OPTIONS);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_OPTIONS);
+    CHECK(menu.animation_opening == 0 && menu.animation_phase == 0);
     return 0;
 }
 

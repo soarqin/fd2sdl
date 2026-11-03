@@ -966,8 +966,8 @@ static void render_field_command(const fd2_field_game *game,
         (size_t)game->selected_unit >= game->units.count)
         return;
     const fd2_field_unit *unit = &game->units.items[game->selected_unit];
-    /* field_command_menu_open 主体 @code0 0x7426 的最终四向偏移以单位格左上角
-     * 为基准；图标在信息面板之后绘制。 */
+    /* field_command_menu_draw @0x179d5：以单位格左上角为基准，
+     * 静止时用 close 初值；开合动画期间保留各自四帧坐标。 */
     fd2_field_command_draw_animation(
         vga, &game->command_assets,
         (int)unit->x * 24 - camera_x,
@@ -1484,8 +1484,8 @@ int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
         fd2_field_game_render(game, vga);
         fd2_vga_present_timed(vga, frame_delay_ms);
     }
-    game->system_menu.animation_opening = 1u;
-    game->system_menu.animation_phase = 4u;
+    game->system_menu.animation_opening = 0;
+    game->system_menu.animation_phase = 0;
     return 0;
 }
 
@@ -1610,8 +1610,8 @@ int fd2_field_game_refresh_commands(fd2_field_game *game) {
     game->command_selected = fd2_field_command_first_enabled(
         game->command_disabled);
     game->command_highlight_phase = 0;
-    game->command_animation_phase = 4u;
-    game->command_animation_opening = 1u;
+    game->command_animation_phase = 0;
+    game->command_animation_opening = 0;
     game->last_command_highlight_ms = 0;
     return game->command_selected >= 0 ? 0 : -1;
 }
@@ -1658,8 +1658,8 @@ int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
         fd2_field_game_render(game, vga);
         fd2_vga_present_timed(vga, frame_delay_ms);
     }
-    game->command_animation_opening = 1u;
-    game->command_animation_phase = 4u;
+    game->command_animation_opening = 0;
+    game->command_animation_phase = 0;
     return 0;
 }
 

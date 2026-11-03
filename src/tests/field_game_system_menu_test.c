@@ -133,10 +133,7 @@ static int test_focus_cycle_and_confirm(void) {
     CHECK(fd2_field_game_confirm_cursor(&game) == 4);
     CHECK(game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
     CHECK(game.selected_unit == 4 && !game.detail_visible);
-    fd2_field_path_close(&game.move_range);
-    free(game.move_path);
-    free(game.map.cells);
-    free(game.terrain.attrs);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -171,6 +168,7 @@ static int test_open_gate(void) {
     CHECK(game.system_menu.selected == 0);
     CHECK(business_state_unchanged(&game, &before));
     CHECK(rng.calls == 0 && rng.state == 0x12345678u);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -203,6 +201,7 @@ static int test_layered_cancel(void) {
     CHECK(fd2_field_game_cancel_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_CANCEL);
     CHECK(business_state_unchanged(&game, &before));
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -258,6 +257,7 @@ static int test_secondary_dynamic_disabled(void) {
     CHECK(!game.system_menu.disabled[1]);
     CHECK(!game.system_menu.disabled[2]);
     CHECK(rng.calls == 0 && rng.state == 0x42424242u);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -293,6 +293,7 @@ static int test_manual_slot_interaction_is_independent(void) {
     CHECK(fd2_field_game_cancel_manual_slot_picker(&game) == 1);
     CHECK(game.interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU);
     CHECK(rng.calls == 0 && rng.state == 0x10203040u);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -316,6 +317,7 @@ static int test_highlight_state_is_independent(void) {
     CHECK(game.system_menu.highlight_phase == 0 &&
           game.system_menu.last_highlight_ms == 1440);
     CHECK(rng.calls == 0 && rng.state == 0x27182818u);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -338,6 +340,7 @@ static int test_options_toggle_is_menu_local(void) {
     normalized.option_values[0] = before.option_values[0];
     CHECK(business_state_unchanged(&normalized, &before));
     CHECK(rng.calls == 0 && rng.state == 0x13579bdfu);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -412,6 +415,32 @@ static int test_pending_actions_are_non_destructive(void) {
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
     CHECK(business_state_unchanged(&game, &before));
     CHECK(rng.calls == 0 && rng.state == 0x31415926u);
+    fd2_field_game_close(&game);
+    return 0;
+}
+
+static int test_animation_returns_to_static_layout(void) {
+    fd2_field_game game;
+    test_rng rng = {0x31415926u, 0};
+    init_game(&game, &rng);
+    fd2_vga *vga = calloc(1, sizeof(*vga));
+    CHECK(vga);
+    game.command_assets.ready = 1;
+    game.command_assets.frame_count = FD2_FIELD_COMMAND_FRAME_COUNT;
+    for (int opening = 0; opening <= 1; opening++) {
+        game.interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+        CHECK(fd2_field_game_animate_system_menu(&game, vga, opening, 0) == 0);
+        CHECK(game.system_menu.animation_opening == 0 &&
+              game.system_menu.animation_phase == 0);
+        game.interaction = FD2_FIELD_INTERACTION_COMMAND;
+        game.selected_unit = 0;
+        CHECK(fd2_field_game_animate_command(&game, vga, opening, 0) == 0);
+        CHECK(game.command_animation_opening == 0 &&
+              game.command_animation_phase == 0);
+    }
+    CHECK(rng.calls == 0);
+    free(vga);
+    fd2_field_game_close(&game);
     return 0;
 }
 
@@ -422,7 +451,8 @@ int main(void) {
         test_manual_slot_interaction_is_independent() != 0 ||
         test_highlight_state_is_independent() != 0 ||
         test_options_toggle_is_menu_local() != 0 ||
-        test_pending_actions_are_non_destructive() != 0)
+        test_pending_actions_are_non_destructive() != 0 ||
+        test_animation_returns_to_static_layout() != 0)
         return 1;
     puts("field_game_system_menu_test: ok");
     return 0;

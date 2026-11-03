@@ -148,32 +148,13 @@ void fd2_field_command_draw_animation(
         int focus_x, int focus_y, int selected,
         const uint8_t disabled[FD2_FIELD_COMMAND_COUNT],
         uint8_t highlight_phase, int opening, uint8_t animation_phase) {
-    if (!vga || !assets || !assets->ready || !disabled) return;
-    if (animation_phase > 4u) animation_phase = 4u;
-    const int phase = animation_phase;
-    /* field_command_menu_open @code0 0x741c 从共同的 y=2 起步；close
-     * @code0 0x76b4 则从 (-20,-24,+24,+24) 的独立初值反向移动。
-     * 两者的实际四帧并非同一组坐标的简单倒序。 */
-    const int dx[] = {
-        0,
-        opening ? -6 * phase : -24 + 6 * phase,
-        opening ? 6 * phase : 24 - 6 * phase,
-        0,
+    static const uint8_t command_ids[FD2_FIELD_COMMAND_COUNT] = {
+        FD2_FIELD_COMMAND_ATTACK, FD2_FIELD_COMMAND_MAGIC,
+        FD2_FIELD_COMMAND_ITEM, FD2_FIELD_COMMAND_WAIT,
     };
-    const int dy[] = {
-        opening ? 2 - 5 * phase : -20 + 5 * phase,
-        2,
-        2,
-        opening ? 2 + 5 * phase : 24 - 5 * phase,
-    };
-    for (size_t i = 0; i < FD2_FIELD_COMMAND_COUNT; i++) {
-        const fd2_image *frame = fd2_field_command_frame(
-            assets, (fd2_field_command)i, selected == (int)i,
-            disabled[i], highlight_phase);
-        if (frame)
-            fd2_map_sprite_blit(vga, frame, focus_x + dx[i],
-                                focus_y + dy[i], 0);
-    }
+    fd2_field_command_draw_id_animation(
+        vga, assets, focus_x, focus_y, command_ids, selected, disabled,
+        highlight_phase, opening, animation_phase);
 }
 
 void fd2_field_command_draw_id_animation(
@@ -182,6 +163,7 @@ void fd2_field_command_draw_id_animation(
         int selected, const uint8_t disabled[FD2_FIELD_COMMAND_COUNT],
         uint8_t highlight_phase, int opening, uint8_t animation_phase) {
     if (!vga || !assets || !assets->ready || !command_ids || !disabled) return;
+    /* open 从共同的 y=2 起步；close 使用独立初值，不是 opening 的倒序。 */
     if (animation_phase > 4u) animation_phase = 4u;
     const int phase = animation_phase;
     const int dx[] = {
@@ -197,9 +179,10 @@ void fd2_field_command_draw_id_animation(
         opening ? 2 + 5 * phase : 24 - 5 * phase,
     };
     for (size_t i = 0; i < FD2_FIELD_COMMAND_COUNT; i++) {
+        /* open/close @0x1741c/@0x176b4 不加高亮；仅静止 draw @0x179d5 加相位。 */
         const fd2_image *frame = fd2_field_command_frame_id(
-            assets, command_ids[i], selected == (int)i, disabled[i],
-            highlight_phase);
+            assets, command_ids[i], !opening && phase == 0 && selected == (int)i,
+            disabled[i], highlight_phase);
         if (frame)
             fd2_map_sprite_blit(vga, frame, focus_x + dx[i],
                                 focus_y + dy[i], 0);
@@ -211,7 +194,8 @@ void fd2_field_command_draw(
         int focus_x, int focus_y, int selected,
         const uint8_t disabled[FD2_FIELD_COMMAND_COUNT],
         uint8_t highlight_phase) {
+    /* field_command_menu_draw @0x179d5：静止位置等于 close 初值，不是 open 末帧。 */
     fd2_field_command_draw_animation(
         vga, assets, focus_x, focus_y, selected, disabled,
-        highlight_phase, 1, 4u);
+        highlight_phase, 0, 0);
 }

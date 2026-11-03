@@ -135,11 +135,21 @@ static int test_radial_positions_and_states(void) {
     fd2_field_command_draw_animation(vga, &assets, 100, 80,
                                      FD2_FIELD_COMMAND_ATTACK,
                                      disabled, 1, 1, 4);
-    /* 最终四向位置：up (0,-18)、left (-24,2)、right (24,2)、down (0,22)。 */
-    CHECK(vga->framebuffer[62 * VGA_STRIDE + 100] == 2);
+    /* 展开末帧不加高亮：up (0,-18)、left (-24,2)、right (24,2)、down (0,22)。 */
+    CHECK(vga->framebuffer[62 * VGA_STRIDE + 100] == 1);
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 6);
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 124] == 9);
     CHECK(vga->framebuffer[102 * VGA_STRIDE + 100] == 10);
+
+    /* field_command_menu_draw @0x179d5 的静态位置不是展开末帧。 */
+    memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
+    fd2_field_command_draw(vga, &assets, 100, 80,
+                           FD2_FIELD_COMMAND_ATTACK, disabled, 1);
+    CHECK(vga->framebuffer[60 * VGA_STRIDE + 100] == 2);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 6);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 124] == 9);
+    CHECK(vga->framebuffer[102 * VGA_STRIDE + 100] == 0);
+    CHECK(vga->framebuffer[104 * VGA_STRIDE + 100] == 10);
 
     memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
     fd2_field_command_draw_animation(vga, &assets, 100, 80,
@@ -168,7 +178,7 @@ static int test_radial_positions_and_states(void) {
     memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
     fd2_field_command_draw_animation(vga, &assets, 100, 80,
                                      FD2_FIELD_COMMAND_ATTACK,
-                                     disabled, 0, 0, 4);
+                                     disabled, 1, 0, 4);
     CHECK(vga->framebuffer[80 * VGA_STRIDE + 100] == 1);
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 100] == 9);
     CHECK(vga->framebuffer[84 * VGA_STRIDE + 100] == 10);
@@ -181,9 +191,18 @@ static int test_radial_positions_and_states(void) {
     fd2_field_command_draw_id_animation(
         vga, &assets, 100, 80, system_ids, 1, system_disabled, 1, 1, 4);
     CHECK(vga->framebuffer[62 * VGA_STRIDE + 100] == 22);
-    CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 17);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 16);
     CHECK(vga->framebuffer[82 * VGA_STRIDE + 124] == 21);
     CHECK(vga->framebuffer[102 * VGA_STRIDE + 100] == 13);
+
+    memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
+    fd2_field_command_draw_id_animation(
+        vga, &assets, 100, 80, system_ids, 1, system_disabled, 1, 0, 0);
+    CHECK(vga->framebuffer[60 * VGA_STRIDE + 100] == 22);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 76] == 17);
+    CHECK(vga->framebuffer[82 * VGA_STRIDE + 124] == 21);
+    CHECK(vga->framebuffer[102 * VGA_STRIDE + 100] == 0);
+    CHECK(vga->framebuffer[104 * VGA_STRIDE + 100] == 13);
 
     fd2_field_command_assets_close(&assets);
     free(vga);

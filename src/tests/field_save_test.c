@@ -156,6 +156,10 @@ static int test_import_is_transactional(void) {
                  sizeof(target.option_values)) == 0);
     CHECK(target.selected_unit == -1 && target.detail_unit == -1);
     CHECK(target.command_selected == -1 && target.attack_target == -1);
+    CHECK(target.command_animation_opening == 0 &&
+          target.command_animation_phase == 0);
+    CHECK(target.system_menu.animation_opening == 0 &&
+          target.system_menu.animation_phase == 0);
     CHECK(target.event_log_count == 0 && target.event_total_count == 0);
     for (size_t i = 0; i < target.units.count; i++) {
         CHECK(target.units.walk_frames[i] == 1);

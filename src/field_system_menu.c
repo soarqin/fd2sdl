@@ -58,8 +58,7 @@ void fd2_field_system_menu_init(fd2_field_system_menu *menu) {
     menu->option_values[1] = 1;
     menu->option_values[2] = 0;
     menu->option_values[3] = 1;
-    menu->animation_opening = 1;
-    menu->animation_phase = 4;
+    /* field_command_menu_draw @0x179d5 的静止布局使用已清零的 close 初值。 */
     set_ids(menu);
 }
 
@@ -69,8 +68,8 @@ void fd2_field_system_menu_open_secondary(fd2_field_system_menu *menu) {
     menu->selected = 0;
     memset(menu->disabled, 0, sizeof(menu->disabled));
     menu->highlight_phase = 0;
-    menu->animation_opening = 1;
-    menu->animation_phase = 4;
+    menu->animation_opening = 0;
+    menu->animation_phase = 0;
     menu->last_highlight_ms = 0;
     set_ids(menu);
 }
@@ -187,8 +186,8 @@ fd2_field_system_action fd2_field_system_menu_confirm(
                 menu->selected = 0;
                 memset(menu->disabled, 0, sizeof(menu->disabled));
                 menu->highlight_phase = 0;
-                menu->animation_opening = 1;
-                menu->animation_phase = 4;
+                menu->animation_opening = 0;
+                menu->animation_phase = 0;
                 menu->last_highlight_ms = 0;
                 set_ids(menu);
                 return FD2_FIELD_SYSTEM_ACTION_OPEN_OPTIONS;
@@ -251,8 +250,8 @@ fd2_field_system_action fd2_field_system_menu_cancel(
     menu->selected = 0;
     memset(menu->disabled, 0, sizeof(menu->disabled));
     menu->highlight_phase = 0;
-    menu->animation_opening = 1;
-    menu->animation_phase = 4;
+    menu->animation_opening = 0;
+    menu->animation_phase = 0;
     menu->last_highlight_ms = 0;
     set_ids(menu);
     return FD2_FIELD_SYSTEM_ACTION_BACK;

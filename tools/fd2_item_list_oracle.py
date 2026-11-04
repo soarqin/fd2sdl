@@ -1,0 +1,125 @@
+"""真实START raw0物品列表资源；不运行进程或改写存档。
+
+依据field_unit_detail_equipment_draw @0x184c0（原登记同名）、
+field_unit_inventory_select @0x1b932（原sub_1B932）和
+field_unit_inventory_select_step @0x1b9de（原sub_1B9DE）。
+物品表由field_item_record_get @0x4e8bc的object3 VA0x602ad取得；
+复用既有LE loader、字形和数字primitive，不从SDL内置表构造oracle。
+"""
+import hashlib
+import struct
+
+from PIL import Image
+
+from fd2_magic_list_oracle import fragment, glyphs, number
+from rebuild_fd2_analysis import build_relbase_image, parse_le, parse_objects
+from run_original_comparison import archive_entry
+from run_original_end_turn import STRIDE, UNITS, round_assets, validate_initial
+from run_original_player import sheet_frame
+
+START_SHA256 = "2c89019b2a83f5460354597e15e860c075951241beb5c9a3dcb6551bb7ca5310"
+EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
+TABLE_VA, TABLE_COUNT, RECORD_SIZE = 0x602ad, 215, 23
+TABLE_SHA256 = "bb64df69e73dfc4d642d342aac7bad8d7c2f4fb0527bb55d35c153b9f79432ca"
+SLOTS = ((0x40, 0), (0x40, 132), (0, 192))
+
+
+def item_table(executable):
+    data = executable.read_bytes()
+    # 先锁定完整输入，不能让任意LE尺寸进入分配或当成本作物品表。
+    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
+        raise ValueError("物品oracle仅支持已确认的完整FD2.EXE")
+    le = parse_le(data)
+    objects = parse_objects(data, le)
+    size = TABLE_COUNT * RECORD_SIZE
+    owners = [obj for obj in objects if obj.relbase <= TABLE_VA and
+              TABLE_VA + size <= obj.relbase + obj.vsize]
+    if len(owners) != 1 or owners[0].index != 3 or owners[0].relbase != 0x60000:
+        raise ValueError("物品表不在已确认的object3完整virtual范围内")
+    table = bytes(build_relbase_image(data, le, objects)[TABLE_VA:TABLE_VA + size])
+    if len(table) != size or hashlib.sha256(table).hexdigest() != TABLE_SHA256:
+        raise ValueError("物品表strictLE4945字节不符")
+    return table, {"getter_va": 0x4e8bc, "canonical_va": TABLE_VA,
+                   "object": 3, "object_offset": 0x2ad, "size": size,
+                   "record_count": TABLE_COUNT, "record_size": RECORD_SIZE,
+                   "sha256": TABLE_SHA256, "executable_sha256": EXE_SHA256,
+                   "source": "parse_le/parse_objects/build_relbase_image raw-unrelocated"}
+
+
+def raw_icon(sheet, index, size, palette):
+    if sheet[:4] != b"LMI1" or len(sheet) < 6:
+        raise ValueError("物品详情目录无效")
+    count = struct.unpack_from("<H", sheet, 4)[0]
+    if index + 1 >= count or 6 + count * 4 > len(sheet):
+        raise ValueError("物品详情raw帧目录越界")
+    start, end = struct.unpack_from("<II", sheet, 6 + index * 4)
+    if not 6 + count * 4 <= start < end <= len(sheet):
+        raise ValueError("物品详情raw帧边界无效")
+    if end - start != 4 + size[0] * size[1] or struct.unpack_from("<HH", sheet, start) != size:
+        raise ValueError("物品详情raw帧尺寸或长度不符")
+    image = Image.frombytes("P", size, sheet[start + 4:end])
+    image.putpalette(palette)
+    return image
+
+
+def prepare(original, fixture):
+    encrypted = fixture.read_bytes()
+    if hashlib.sha256(encrypted).hexdigest() != START_SHA256:
+        raise ValueError("物品列表校准仅支持已确认的只读真实START.SAV；不派生夹具")
+    source, focus = validate_initial(fixture, 0)
+    actor = source[UNITS:UNITS + STRIDE]
+    slots = tuple(tuple(actor[0x0a + i * 2:0x0c + i * 2]) for i in range(3))
+    if slots != SLOTS or any(not actor[0x0a + i * 2] & 0x80 for i in range(3, 8)):
+        raise ValueError("真实START raw0库存不是已确认的密集三槽")
+    if (actor[7:9] != b"\0\0" or struct.unpack_from("<HH", actor, 0x40) != (42, 42) or
+            struct.unpack_from("<HH", actor, 0x44) != (0, 0)):
+        raise ValueError("物品列表角色身份或HP/MP前置不符")
+    table, evidence = item_table(original / "FD2.EXE")
+    assets = round_assets(original)
+    other = (original / "FDOTHER.DAT").read_bytes()
+    sheet, font = archive_entry(other, 5), archive_entry(other, 4)
+    text = archive_entry((original / "FDTXT.DAT").read_bytes(), 0)
+    bottom, top = sheet_frame(sheet, 21, lmi=True), sheet_frame(sheet, 20, lmi=True)
+    if bottom.size != (310, 99) or top.size != (223, 86) or 0 in bottom.getdata():
+        raise ValueError("物品详情底板尺寸或不透明性不符")
+    bottom.putpalette(assets["palette"])
+    top.putpalette(assets["palette"])
+    fields = []
+    templates = {}
+    for selected in (-1, 0, 1, 2):
+        canvas = bottom.copy()
+        for slot, (flags, item_id) in enumerate(slots):
+            record = table[item_id * RECORD_SIZE:(item_id + 1) * RECORD_SIZE]
+            category = record[0]
+            icon = (59 if category < 0x15 else 60 if category < 0x20 else 61) + (3 if flags & 0x40 else 0)
+            effect_icon = 64 if category < 0x15 else 65 if category < 0x20 else 66
+            value = struct.unpack_from("<h", record, 1 if category < 0x15 else 5 if category < 0x20 else 14)[0]
+            if (icon, effect_icon, value, record[13]) != ((62, 64, 10, 0), (63, 65, 8, 0), (61, 66, 40, 5))[slot]:
+                raise ValueError("真实START物品表字段偏离已确认的三项")
+            y = 101 + 22 * slot
+            # 1685c→4ed0b完整raw复制，包括0；不使用透明mask。
+            canvas.paste(raw_icon(sheet, icon, (24, 20), assets["palette"]), (13 - 5, y - 94))
+            name = fragment(text, item_id + 181)
+            glyphs(canvas, font, name, 42 - 5, y + 2 - 94, 201 if selected == slot else 205)
+            canvas.paste(raw_icon(sheet, effect_icon, (21, 8), assets["palette"]), (110 - 5, y + 6 - 94))
+            number(canvas, sheet, value, 135 - 5, y + 6 - 94, 42, 3)
+            if selected == 0:
+                fields.append({"raw_slot": slot, "flags": flags, "item_id": item_id,
+                               "record_hex": record.hex(), "use_code": record[13],
+                               "name_fragment": item_id + 181, "name_tokens": list(name),
+                               "category_frame": icon, "effect_frame": effect_icon, "value": value})
+        templates["unselected" if selected == -1 else f"selected_{selected}"] = ((5, 94), canvas)
+    name = fragment(text, 1)
+    glyphs(top, font, name, 99 - 92, 13 - 7, 205)
+    number(top, sheet, 42, 267 - 92, 41 - 7, 31, 3)
+    number(top, sheet, 42, 293 - 92, 41 - 7, 31, 3)
+    number(top, sheet, 0, 267 - 92, 59 - 7, 31, 3)
+    number(top, sheet, 0, 293 - 92, 59 - 7, 31, 3)
+    templates["actor_name"] = ((98, 13), top.crop((6, 6, 7 + 16 * len(name), 23)))
+    templates["current_max_hp"] = ((267, 41), top.crop((175, 34, 219, 42)))
+    templates["current_max_mp"] = ((267, 59), top.crop((175, 52, 219, 60)))
+    return source, focus, assets, templates, {"raw_actor": 0, "unit_id": 0,
+        "slots": fields, "item_table": evidence, "list_bottom": [5, 94, 310, 99],
+        "actor_fragment": 1, "actor_tokens": list(name), "hp": 42, "max_hp": 42, "mp": 0, "max_mp": 0,
+        "list_is_equipment_page": True, "use_confirmed": False,
+        "runtime_ui_rng_alignment": "unverified; 16c57 wait consumes shared RNG"}

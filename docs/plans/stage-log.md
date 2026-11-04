@@ -226,6 +226,16 @@ B2正式入口 `b20dc53`、默认图形登记 `6603241` 后，继续此独立小
 
 C3程序SHA `37ca0f8feff67baeb0a6cc03a01e09a1a0f680c7f121bb9c4e254b13e266b372` 与B2图形候选7135分开登记：本小阶段没有新增物品UI或原版配对，不将前述27组冒充C3整套重跑。正式ITEM仍禁用，B3整体未完成；下一B3.2先校准原版子菜单／Use列表与取消，再接SDL。B1整关、B2其余法术及B4/B5/B6边界保持，暂无需用户选择的等优决策。
 
+### B3.2a原版物品子菜单与Use列表校准
+
+承接B3.1独立提交`66e69ea`，先确认完整1b932 modal及1bbdc→18d8c→18890的0／-1返回链。新增generic `field_unit_inventory_select`，172B原码SHA与三个调用者支持bool返回、归0索引及三缓冲释放；不改发布物理类型或写入IDA数据库。完整1bbdc及xref确认Use／Give／Equip／Drop、仅Give的相邻候选门、目标取消和53C53的Give专属写入。由CORRECTIONS生成命名与发布清单，不手改生成文件。
+
+新增工具复用现有WGC／资源门／owned-PID及Job helper，从严格LE读取object3 `602ad`完整4,945B物品表，SHA `bb64df69e73dfc4d642d342aac7bad8d7c2f4fb0527bb55d35c153b9f79432ca`；未用SDL内置表作为oracle。14项工具回归及输出路径守卫专项通过，独立审查无阻塞；没有新建场景框架或复制法术runner。
+
+Windows原版首轮运行 `C:/Users/Soar/AppData/Local/Temp/fd2-item-list-original-20261105-01/comparison.json` 通过：真实START raw0原三槽、不改坐标，28个实际检查点及1条白名单WGC过渡帧重试，30条输入含3次启动Esc。四向ITEM图标、禁用Give、完整31,955像素列表、code0 Enter／Space拒绝、导航回绕、取消与重开均有资源ACK。没有确认草药或执行Save／END，来源、夹具和副本内容／mtime守卫均通过。DOSBox PID40348正常exit0，外Job18696 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0`。
+
+报告保持`ok=false/probe_only=true/probe_cases_passed=true`，这是原版校准，不是SDL配对，不增加B2冻结候选累计27组。实际Use／目标／效果、Give／Equip／Drop、完整UI随机流／时序／声音、整关／结算／下一关未验。继续B3.2b纯绘制和B3.2c会话／等待；正式双端配对与B3.3完整支持候选合并执行，避免为中间层增加生产测试入口。正式ITEM仍禁用，B3整体尚未完成，当前无等优选项需用户决定。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

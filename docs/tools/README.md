@@ -80,6 +80,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_magic_list.py` 的列表、伤害和治疗双端场景也已纳入总流程。正式输入必须经过列表和目标选择，仅确认一次施法，分别校验完整静态资源矩形、效果与MP／LV／EX；原版单端校准和配对输出口径不同，参数及夹具限制见[图形测试规范](gui-testing.md)。失焦补跑保留失败及来源，累计结果不能冒称单轮通过。
 
+`run_original_item_list.py` 是B3原版单端校准：真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消；以严格LE原版物品表及完整31,955像素资源门判定。成功保持`ok=false/probe_only=true`，未加入双端套件，也不执行物品效果或库存写入。Windows命令、无窗口工具回归与守卫见[物品菜单规范](gui-testing.md#b3物品菜单的原版单端校准)。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

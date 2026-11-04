@@ -139,6 +139,33 @@ CORRECTIONS: dict[int, list[dict]] = {
                "987981c59e7b3801574e75280fc3848d3f829bfdafa4ef09f3a1707ad86318e9；"
                "1b9de读取count后直接按raw索引选择，不能把显示跳空槽变成库存压实。",
     }],
+    0x1B932: [{
+        "target": "semantic_name", "was": "sub_1B932",
+        "now": "field_unit_inventory_select",
+        "why": "完整172B及190ac/1aa1d/1bbdc的xref：17e0b打开单位详情、"
+               "53C57归0，循环1b9de直到非0，18409按0..11关闭并恢复背景、释放"
+               "三个64000B缓冲；返回selected_result!=-1的bool，不是raw槽索引。",
+    }, {
+        "target": "evidence", "was": "将列表modal归为Use专属或猜测返回选中slot",
+        "now": "普通库存与装备等调用共用完整modal；Use列表取消返回0，调用者"
+               "18d8c重开ITEM子菜单。等待16c57及眨眼仍可消费共享RNG。",
+        "why": "strictLE object1 offb932/file41946完整172B SHA "
+               "1d901f35a51e1072c4f208821fb56e5b7675137c74fb8f202c830c8ded150192；"
+               "2026-11-05真实START raw0原版WGC校准列表导航、code0拒绝与逐级取消；"
+               "不把单端校准作为SDL配对或内存/RNG相等证据。",
+    }],
+    0x1BBDC: [{
+        "target": "evidence", "was": "物品子菜单可以套用MAGIC取消层级或通用库存回滚",
+        "now": "表51f05为Use/Give/Equip/Drop的IDs8..11；count非0才打开，"
+               "仅Give因无相邻filter3候选禁用。列表取消返回0后18d8c19055重开ITEM；"
+               "子菜单取消返回-1后18d8c返回0、18890重开COMMAND。目标取消聚焦"
+               "caster再重开列表0。53C53只由Give完成置1，装备/丢弃已写变化不能回滚。",
+        "why": "published1bbdc及18d8c/18890调用者，strictLE file41bf0完整1058B SHA "
+               "bf0bb20b11c2de14cd1b5612d8d7ed4224e7a22634391de744fa278536a0d3f9；"
+               "2026-11-05真实START raw0三槽、不改坐标，原版WGC逐键验证四向选择、"
+               "Use列表code0确认拒绝、raw索引回绕、取消与重开。实际使用/目标/"
+               "装备/丢弃/Give提交及SDL对应流程仍分别验收。",
+    }],
     0x1B9DE: [{
         "target": "semantic_name", "was": "sub_1B9DE",
         "now": "field_unit_inventory_select_step",

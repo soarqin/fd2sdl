@@ -14,6 +14,18 @@
 
 2026-11-04 的开发约束已调整：允许自动操作原版菜单、剧情、布阵、移动、攻击、法术和物品。过去因 Linux 桌面条件不足而留下的「待人工对照」改为待原版对照，可由本流程逐项关闭。允许操作不表示这些功能均已实现或已经对照通过。
 
+### B3物品菜单的原版单端校准
+
+`run_original_item_list.py` 使用未修改的真实START，定位raw0，验证Use／Give／Equip／Drop四向图标、禁用Give、三槽列表导航、code0的Enter／Space拒绝、取消及重开。列表取消回ITEM，ITEM取消才回COMMAND；继续取消回选择范围和浏览。每次列表检查完整下板30,690像素及姓名、HP、MP，共31,955像素；物品表从严格LE解析的原版object3 VA `0x602ad`取得，不以SDL内置表作oracle。
+
+Windows（PowerShell；driver和DOSBox路径换成当前构建及安装位置）：
+
+```powershell
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python -B tools/run_original_item_list.py --root . --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-item-list-original"
+```
+
+该工具仅支持当前Windows WGC，不提供Linux原版截图入口。Linux可执行无窗口工具回归：`python3 -m unittest discover -s tools/tests -p test_original_item_list.py`；Windows将`python3`换成`python`。运行前解析输出目录的实际路径，拒绝写入原版及其junction目标。保存完整输入、WGC检查点、进程清理和来源／副本的字节及修改时间守卫。成功仍为`ok=false`、`probe_only=true`、`probe_cases_passed=true`，不得计入双端图形组数。没有实际Use、目标选择、效果、装备、丢弃、Give或Save，也未证明内存、UI随机流、时序与声音相等；这些分支及SDL对应流程另行验收。
+
 ## 截图规范
 
 当前 Windows 截图统一使用 Windows Graphics Capture（WGC）的 HWND 单窗口接口，SDL 与 DOSBox-X 均执行同一规范。禁止使用全屏截图再裁切，也禁止通过 `GetDC(NULL)`／`BitBlt` 读取桌面作为单窗口证据；遮挡、其他窗口和桌面缩放会使结果不完整。捕获失败时保留错误，不切换截图方式绕过失败。

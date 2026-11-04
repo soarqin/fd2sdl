@@ -3,7 +3,9 @@
  * 逆向依据：DAT_00003a45 的 0x50 字节单位记录、
  * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
  * field_visible_actor_find_by_text_id @0x12c60，以及 FDFIELD metadata
- * 26 字节模板与 placement 的顺序匹配关系。
+ * 26 字节模板与 placement 的顺序匹配关系。战场单actor复现
+ * sub_127E0 @0x127e0（原登记同名），acted映色依据sub_4E1A6
+ * @0x4e1a6（原登记同名）；本切片尚未补raw26的横向抖动。
  */
 
 #include "field_unit.h"
@@ -231,6 +233,39 @@ size_t fd2_field_unit_frame_index(const fd2_field_unit *unit,
            (size_t)frame;
 }
 
+void fd2_field_unit_render(fd2_vga *vga,
+                           const fd2_map_sprite_bank *sprites,
+                           const fd2_field_unit *unit, uint8_t walk_frame,
+                           int camera_x, int camera_y, uint8_t idle_phase) {
+    if (!vga || !sprites || !sprites->decoded_frames || !unit ||
+        fd2_field_unit_is_hidden(unit)) return;
+    size_t frame_idx = fd2_field_unit_frame_index(unit, walk_frame, idle_phase);
+    if (frame_idx >= sprites->frame_count) return;
+    int64_t sx = (int64_t)unit->x * 24 - camera_x;
+    int64_t sy = (int64_t)unit->y * 24 - camera_y - 6;
+    int64_t pixel_step = (int64_t)unit->frame_phase * 4;
+    switch (unit->direction & 3u) {
+        case 0: sy += pixel_step; break;
+        case 1: sx -= pixel_step; break;
+        case 2: sy -= pixel_step; break;
+        case 3: sx += pixel_step; break;
+    }
+    if (sx <= -24 || sx >= VGA_W || sy <= -24 || sy >= VGA_H) return;
+    if (!fd2_field_unit_has_acted(unit)) {
+        fd2_map_sprite_blit_frame(vga, sprites, frame_idx, (int)sx, (int)sy, 0);
+        return;
+    }
+    /* sub_4E1A6：仅映色实际写入的pixel，RLE skip保持底图。
+     * 真实FDICON全部1680帧无opaque color0，缓存0仅代表skip；
+     * 小栈缓冲保留共享decoded cache，不增加持久mask或修改资源。 */
+    uint8_t mapped[24 * 24];
+    const uint8_t *pixels = sprites->decoded_frames + frame_idx * sizeof(mapped);
+    for (size_t i = 0; i < sizeof(mapped); i++)
+        mapped[i] = pixels[i] ? (uint8_t)((pixels[i] & 7u) + 24u) : 0;
+    const fd2_image image = {24, 24, mapped};
+    fd2_map_sprite_blit(vga, &image, (int)sx, (int)sy, 0);
+}
+
 void fd2_field_units_render(fd2_vga *vga,
                             const fd2_map_sprite_bank *sprites,
                             const fd2_field_units *units,
@@ -263,17 +298,7 @@ void fd2_field_units_render(fd2_vga *vga,
     for (size_t oi = 0; oi < order_count; oi++) {
         size_t unit_index = order[oi];
         const fd2_field_unit *unit = &units->items[unit_index];
-        size_t frame_idx = fd2_field_unit_frame_index(
-            unit, units->walk_frames[unit_index], idle_phase);
-        int sx = (int)unit->x * 24 - camera_x;
-        int sy = (int)unit->y * 24 - camera_y - 6;
-        int pixel_step = (int)unit->frame_phase * 4;
-        switch (unit->direction & 3u) {
-            case 0: sy += pixel_step; break;
-            case 1: sx -= pixel_step; break;
-            case 2: sy -= pixel_step; break;
-            case 3: sx += pixel_step; break;
-        }
-        fd2_map_sprite_blit_frame(vga, sprites, frame_idx, sx, sy, 0);
+        fd2_field_unit_render(vga, sprites, unit, units->walk_frames[unit_index],
+                              camera_x, camera_y, idle_phase);
     }
 }

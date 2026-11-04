@@ -14,7 +14,7 @@ probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
 
 
-class PlayerOracleTest(unittest.TestCase):
+class PlayerVisualOracleTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original = probe.ROOT / "original_game"
@@ -78,30 +78,129 @@ class PlayerOracleTest(unittest.TestCase):
             image = self.assets["commands"][item * 3 + (1 if item == 3 else 0)]
             at = tuple(a + b for a, b in zip(self.plan["leader_screen"], probe.MENU_OFFSETS[item]))
             frame.paste(image.convert("RGB"), at, image.point(lambda value: 255 if value else 0, mode="L"))
+        sprite = self.assets["leader_sprites"][0]
+        x, y = self.plan["leader_screen"]
+        frame.paste(sprite.convert("RGB"), (x, y - 6), sprite.point(lambda value: 255 if value else 0, mode="L"))
         self.assertIsNotNone(oracle.command(frame, tuple(self.plan["leader_screen"]), 3))
 
-    def test_command_top_actor_overlap_does_not_relax_other_resource_pixels(self):
-        oracle = probe.PlayerOracle(self.source, self.assets, self.ranges, self.plan)
+    def command_frame(self, phase=1, states=(2, 5, 7, 9)):
         position = tuple(self.plan["leader_screen"])
         frame = Image.new("RGB", (320, 200))
-        for item, index in enumerate((2, 5, 7, 9)):
+        for item, index in enumerate(states):
             image = self.assets["commands"][index]
             at = tuple(a + b for a, b in zip(position, probe.MENU_OFFSETS[item]))
             frame.paste(image.convert("RGB"), at, image.point(lambda value: 255 if value else 0, mode="L"))
-        x, y = position[0], position[1] - 20
-        frame.paste((251, 1, 127), (x, y + 14, x + 24, y + 20))
-        detail = oracle.command(frame, position)
-        self.assertIsNotNone(detail)
-        self.assertEqual([m["frame"] for m in detail["matches"]], [2, 5, 7, 9])
-        self.assertEqual([m["checked_pixels"] for m in detail["matches"]], [334, 476, 476, 476])
-        # 已证实无遮挡的上缘任一非零像素仍必须严格匹配。
-        for row in range(14):
+        sprite = self.assets["leader_sprites"][phase]
+        frame.paste(sprite.convert("RGB"), (position[0], position[1] - 6),
+                    sprite.point(lambda value: 255 if value else 0, mode="L"))
+        return frame
+
+    def test_top_command_all_twenty_rows_include_current_actor_and_reject_corrupt_occlusion(self):
+        oracle = probe.PlayerOracle(self.source, self.assets, self.ranges, self.plan)
+        position = tuple(self.plan["leader_screen"])
+        for phase in range(12):
+            detail = oracle.command(self.command_frame(phase), position)
+            self.assertIsNotNone(detail)
+            self.assertEqual([match["resource_rows"] for match in detail["matches"]], [20] * 4)
+            self.assertEqual([match["checked_pixels"] for match in detail["matches"]], [476] * 4)
+            self.assertTrue(detail["full_resource_height_checked"])
+            self.assertFalse(detail["capability_gates_compared"])
+            self.assertFalse(detail["default_selection_compared"])
+        frame = self.command_frame()
+        sprite = self.assets["leader_sprites"][1]
+        for row in range(6):
             for column in range(24):
-                if self.assets["commands"][2].getpixel((column, row)):
-                    frame.putpixel((x + column, y + row), (251, 1, 127))
+                if sprite.getpixel((column, row)):
+                    frame.putpixel((position[0] + column, position[1] - 6 + row), (251, 1, 127))
                     self.assertIsNone(oracle.command(frame, position))
                     return
-        self.fail("top icon unexpectedly has no positive pixels")
+        self.fail("expected actual actor overlap pixels")
+
+    def test_full_icon_resource_matching_does_not_require_same_abilities_or_default_selection(self):
+        oracle = probe.PlayerOracle(self.source, self.assets, self.ranges, self.plan)
+        for states in ((2, 5, 7, 9), (2, 4, 6, 9)):
+            detail = oracle.command(self.command_frame(states=states), tuple(self.plan["leader_screen"]))
+            self.assertIsNotNone(detail)
+            self.assertEqual([match["frame"] for match in detail["matches"]], list(states))
+        self.assertIsNone(oracle.command(self.command_frame(), tuple(self.plan["leader_screen"]), 3))
+        self.assertIsNotNone(oracle.command(self.command_frame(states=(2, 5, 6, 10)), tuple(self.plan["leader_screen"]), 3))
+
+    def test_acted_sprite_maps_only_opaque_nonzero_and_preserves_cursor_colors(self):
+        sprite = Image.new("P", (4, 1))
+        sprite.putpalette(self.assets["palette"])
+        sprite.putdata((0, 1, 8, 255))
+        self.assertEqual(list(probe.acted_sprite(sprite).getdata()), [0, 25, 24, 31])
+        cursor, source = self.assets["cursor"], self.assets["leader_sprites"][0]
+        acted = self.assets["acted_leader_cursors"][0]
+        visible_cursor = 0
+        for y in range(24):
+            for x in range(24):
+                if cursor.getpixel((x, y)) and (y + 6 >= 24 or not source.getpixel((x, y + 6))):
+                    self.assertEqual(acted.getpixel((x, y + 6)), cursor.getpixel((x, y)))
+                    visible_cursor += 1
+        self.assertGreater(visible_cursor, 0)
+
+    def acted_frame(self):
+        frame = Image.new("RGB", (320, 200))
+        leader = self.assets["acted_leader_cursors"][0]
+        x, y = self.plan["leader_screen"]
+        frame.paste(leader.convert("RGB"), (x, y - 6), leader.point(lambda value: 255 if value else 0, mode="L"))
+        frame.paste(self.assets["probe_base_tile"].convert("RGB"), tuple(self.plan["destination_screen"]))
+        return frame
+
+    def test_wait_browse_requires_acted_leader_not_ordinary_actor_or_only_cursor(self):
+        oracle = probe.PlayerOracle(self.source, self.assets, self.ranges, self.plan)
+        self.assertIsNotNone(oracle.browse(self.acted_frame(), acted=True))
+        self.assertIsNone(oracle.browse(self.acted_frame()))
+        ordinary = self.frame()
+        ordinary.paste(self.assets["probe_base_tile"].convert("RGB"), tuple(self.plan["destination_screen"]))
+        self.assertIsNone(oracle.browse(ordinary, acted=True))
+
+    def test_native_detail_requires_both_real_edge_resources(self):
+        oracle = probe.PlayerOracle(self.source, self.assets, self.ranges, self.plan)
+        frame = Image.new("RGB", (320, 200))
+        self.assertIsNone(oracle.detail(frame))
+        for index, (image, at) in enumerate(self.assets["detail_edges"]):
+            frame.paste(image.convert("RGB"), at, image.point(lambda value: 255 if value else 0, mode="L"))
+            if index == 0:
+                self.assertIsNone(oracle.detail(frame))
+        detail = oracle.detail(frame)
+        self.assertIsNotNone(detail)
+        self.assertFalse(detail["full_page_visual_equivalence"])
+
+    def test_wait_source_must_be_full_nonzero_hp_before_sending_any_input(self):
+        for hp, maximum in ((0, 0), (1, 2)):
+            source = bytearray(self.source)
+            import struct
+            struct.pack_into("<HH", source, probe.UNITS + 0x40, hp, maximum)
+            capture = Mock()
+            with self.assertRaises(ValueError):
+                probe.exercise(capture, source, self.focus, self.assets, self.composites, self.ranges,
+                               self.plan, {}, None, None, None, {}, "wait-full-hp")
+            capture.key.assert_not_called()
+        self.assertFalse(probe.require_full_hp(self.source)["injured_recovery_branch_covered"])
+
+    def test_wait_checks_acted_before_entering_native_detail_and_stops_on_missing_ack(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory) / "FD2.SAV"
+            save.write_bytes(b"source")
+            for fail_acted in (False, True):
+                capture, checkpoints = Mock(), []
+                def wait(capture, name, predicate, records, **kwargs):
+                    checkpoints.append(name)
+                    if fail_acted and name == "wait-acted-closed-browse":
+                        raise TimeoutError("acted not proven")
+                    return Image.new("RGB", (320, 200)), {}
+                with patch.object(probe, "wait_title"), patch.object(probe, "wait_state", side_effect=wait):
+                    try:
+                        probe.exercise(capture, self.source, self.focus, self.assets, self.composites,
+                                       self.ranges, dict(self.plan, navigation=[]), {3: [None] * 3},
+                                       save, b"source", save.stat().st_mtime_ns, {"checkpoints": []}, "wait-full-hp")
+                    except TimeoutError:
+                        self.assertTrue(fail_acted)
+                keys = [call.args[0] for call in capture.key.call_args_list]
+                self.assertEqual(keys, ["UP", "ENTER", "ENTER", "ENTER", "DOWN", "ENTER"] + ([] if fail_acted else ["ENTER"]))
+                self.assertEqual("acted-enter-opens-detail" in checkpoints, not fail_acted)
 
     def test_missing_selection_ack_stops_before_direction_or_confirm_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -162,7 +261,7 @@ class PlayerPairRunTest(unittest.TestCase):
             for name in ("game.exe", "driver.exe", "dosbox.exe"):
                 (root / name).write_bytes(name.encode())
             args = SimpleNamespace(root=root, artifacts=root / "artifacts", save_fixture=None,
-                                   game=root / "game.exe", driver=root / "driver.exe", dosbox=root / "dosbox.exe")
+                                   game=root / "game.exe", driver=root / "driver.exe", dosbox=root / "dosbox.exe", scenario="move-cancel")
             events, live = [], []
             @contextmanager
             def running(command, cwd, env, log, driver, receipts):
@@ -176,7 +275,7 @@ class PlayerPairRunTest(unittest.TestCase):
                 finally:
                     live.pop()
                     events.append((kind, "close"))
-            def exercise(capture, source, focus, assets, composites, ranges, plan, titles, save, data, mtime, report):
+            def exercise(capture, source, focus, assets, composites, ranges, plan, titles, save, data, mtime, report, scenario):
                 self.assertEqual(save.stat().st_mtime_ns, mtime)
                 if same_bytes_rewrite:
                     import os
@@ -202,7 +301,8 @@ class PlayerPairRunTest(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertEqual(events, [("original", "open"), ("original", "close"), ("sdl", "open"), ("sdl", "close")])
         self.assertEqual([case["status"] for case in report["cases"]], ["passed", "passed"])
-        self.assertFalse(report["command_icon_scope"]["full_icon_visual_equivalence"])
+        self.assertTrue(report["command_icon_scope"]["resource_overlay_checked"])
+        self.assertFalse(report["command_icon_scope"]["full_menu_visual_equivalence"])
         self.assertTrue(all(not case["full_runtime_fields_measured"] for case in report["cases"]))
 
     def test_sdl_failure_keeps_completed_original_case_and_cleanup(self):

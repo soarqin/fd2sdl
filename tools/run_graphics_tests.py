@@ -473,7 +473,7 @@ class Suite:
                 if route == "leave":
                     self.key(process, "DOWN", "ENTER")
                     wait_log(process, log, "title manual load not implemented; staying at title")
-                    capture.wait(title, timeout=20).save(work / "title-after-unsupported-manual-load.png")
+                    capture.wait(title, blank_transition=True, timeout=20).save(work / "title-after-unsupported-manual-load.png")
                     if save.read_bytes() != original:
                         raise AssertionError("unsupported manual Load changed the save")
                 # 三项标题从START向上回绕到CONTINUE；LOAD是独立手工槽入口。
@@ -542,6 +542,10 @@ class Suite:
             self.command("original-player", [sys.executable, ROOT / "tools/run_original_player.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-player"], timeout=360)
+            self.command("original-player-wait", [sys.executable, ROOT / "tools/run_original_player.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--scenario", "wait-full-hp",
+                         "--artifacts", self.work / "original-player-wait"], timeout=360)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

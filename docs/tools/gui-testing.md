@@ -229,3 +229,13 @@ B1.4a 按 `font_glyph_blit_16x16 @0x4ed7a` 的背景／阴影指令修正字体�
 原版-only第1轮研究probe在one-step-command超时，未追加按键，现场保留于`src/build-win/research/player-move-cancel-original-20261104-01/`。原因是原版@0x179d5画图标后以@0x127e0重画focus actor，遮住上icon末6行。已用原始资源离线证明完整图标＋actor组合可匹配；第2轮研究probe和正式双端runner的控制presence仅检查上方14行，其余3项20行，沿用delta≤3、bad=0，并明确`full_icon_visual_equivalence=false`。它不证明SDL完整遮挡绘制正确；该已发现差异及acted映色将在下一独立视觉阶段修复。
 
 受影响END／round2／Save在`src/build-win/graphics-artifacts/player-controller-end-20261104-01/` 用新候选程序复跑通过，确定性字段相等，进程正常清理。新runner已注册为总流程第18组，完整17组通过记录仍对应400891a；本阶段没有冒称完整18组已跑。特定pending handler、受伤WAIT、B4经验、完整runtime／RNG与跨地图镜头仍未做原版配对。当前未知handler和特殊cell-action明确失败，等待阶段不保存，成功Load清续行、失败保留。
+
+### B1.4c1 角色绘制修正：2026-11-04
+
+COMMAND 现按 `@0x179d5 → @0x127e0` 在图标后只重画当前 actor，再裁视区边框；不重画整队或地形遮挡层。已行动角色按 `@0x4e1a6` 将实际写入颜色映为 `(color & 7) + 24`，透明位置保留底图。`audit_fdicon_opaque_zero.py` 逐帧解析真实 FDICON 的 1,680 帧，确认 opaque color 0 写入为零，当前缓存的零可代表 skip；损坏或截断流不能作通过依据。
+
+独立暂存候选 37/37 CTest、160/160 Python 通过，无跳过；后者包含本轮标题过渡捕获回归。`player-overlay-20261104-01/` 与 `player-wait-20261104-01/` 位于本地 `src/build-win/graphics-artifacts/`，两组均原版先行、SDL 后行。前者检查完整 24×20 图标及 actor 遮挡，分别识别图标资源状态；后者要求来源 HP 已满，验证原地 WAIT、acted 映色、返回浏览和 Enter 详情入口。所有检查点及清理后 bytes／mtime 不变，原版与来源未变，窗口正常清理，外层 Job 无遗留或强制终止。受伤恢复、raw26 抖动、全详情页及完整 runtime／RNG 不在此次配对范围。
+
+完整回归第 1 轮在 `20261104-174310-530439/` 的 SDL 手工 LOAD 返回标题时遇到空白 WGC 帧，已失败并正常清理，原版目录未变。修正仅在这个已知页面切换点允许原 deadline 内重试同一 WGC，保留错误帧及 `capture-errors.jsonl`，不追加输入；默认空白错误和其他捕获错误仍立即失败。不能用启动跳过动画的 Esc 掩盖返回标题的检查。
+
+第 2 轮 `src/build-win/graphics-artifacts/20261104-174657-913248/` 的完整 19 组及八份原版配对全部通过，含上述两组玩家场景。所有窗口正常关闭，外层 Job 为 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`，原版目录哈希不变。此记录不覆盖尚未开放的行军、F1、四槽重建、整关结算或声音；Linux 本轮未执行。

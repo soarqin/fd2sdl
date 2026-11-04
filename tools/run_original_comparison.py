@@ -263,7 +263,7 @@ class Capture:
         return self.last
 
     def wait(self, expected: Image.Image, *, startup: bool = False,
-             timeout: float = 15) -> Image.Image:
+             blank_transition: bool = False, timeout: float = 15) -> Image.Image:
         deadline = time.monotonic() + timeout
         next_escape = time.monotonic() + 1
         while time.monotonic() < deadline:
@@ -272,8 +272,22 @@ class Capture:
             except RuntimeError as error:
                 transient = any(message in str(error) for message in
                                 ("no visible window", "blank or nearly uniform", "geometry changed"))
-                if not startup or not transient:
+                allowed_blank = blank_transition and "blank or nearly uniform" in str(error)
+                if not (startup and transient) and not allowed_blank:
                     raise
+                if allowed_blank:
+                    # 已知页面淡出／淡入：同一WGC、同一deadline，不发送跳过键。
+                    # 保留错误画面，下一次成功捕获不得覆盖唯一现场。
+                    event = {"time": time.monotonic(), "pid": self.process.pid,
+                             "capture_error": str(error)}
+                    path = self.artifacts / f"window-{self.process.pid}-current.bmp"
+                    if path.is_file():
+                        saved = self.artifacts / f"transition-blank-{time.monotonic_ns()}.bmp"
+                        shutil.copyfile(path, saved)
+                        event["frame"] = str(saved)
+                    self.trace.append(event)
+                    with (self.artifacts / "capture-errors.jsonl").open("a", encoding="utf-8") as stream:
+                        stream.write(json.dumps(event) + "\n")
                 time.sleep(0.15)
                 continue
             if compare(expected, frame)["ok"]:

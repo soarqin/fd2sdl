@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""START玩家一步移动取消：原版先行，再以同一资源与状态门验证SDL。
+"""START玩家移动取消／满HP原地WAIT：原版先行，再验证SDL资源与状态门。
 
 依据 @0x117e7/@0x18890/@0x18d8c，资源来自只读原版目录。
-由总runner的driver run-job串行执行；只使用WGC，不测WAIT或完整actor/icon遮挡视觉。
+由总runner的driver run-job串行执行；仅WGC。图标资源绘制不等于菜单能力门或默认选择一致。
 """
 from collections import deque
 import argparse
@@ -117,6 +117,27 @@ def navigation(source, target):
     raise ValueError("源快照无法在不滚屏的有界路径内导航至actor0")
 
 
+def require_full_hp(source):
+    hp, maximum = struct.unpack_from("<HH", source, UNITS + 0x40)
+    if hp == 0 or hp != maximum:
+        raise ValueError("WAIT场景只支持源主角HP==max且非0；未覆盖受伤恢复分支")
+    return {"hp": hp, "max_hp": maximum, "injured_recovery_branch_covered": False}
+
+
+def acted_sprite(sprite):
+    """sub_4E1A6 @0x4e1a6：只映实际opaque非0 sprite，不能映cursor。"""
+    image = Image.frombytes("P", sprite.size, bytes((color & 7) + 24 if color else 0 for color in sprite.getdata()))
+    image.putpalette(sprite.getpalette())
+    return image
+
+
+def upper_command_composite(icon, sprite):
+    """field_command_menu_draw @0x179d5末尾单actor覆盖上icon底6行。"""
+    image, overlap = icon.copy(), sprite.crop((0, 0, 24, 6))
+    image.paste(overlap, (0, 14), overlap.point(lambda color: 255 if color else 0, mode="L"))
+    return image
+
+
 def prepare(original, fixture):
     metadata = archive_entry((original / "FDFIELD.DAT").read_bytes(), 1)
     source, focus = validate_initial(fixture, metadata[0])
@@ -186,6 +207,25 @@ def prepare(original, fixture):
     if not ranges:
         raise ValueError("范围模板与普通地形没有足够的可分辨像素")
     _, composites = cursor_assets(original / "FDICON.B24", source, assets)
+    icons = (original / "FDICON.B24").read_bytes()
+    assets["leader_sprites"] = [sheet_frame(icons, actor[7] * 12 + phase) for phase in range(12)]
+    for image in assets["leader_sprites"]:
+        image.putpalette(assets["palette"])
+    assets["upper_commands"] = {index: [upper_command_composite(assets["commands"][index], sprite)
+                                        for sprite in assets["leader_sprites"]]
+                                 for index in range(3)}
+    assets["acted_leader_cursors"] = []
+    for sprite in assets["leader_sprites"]:
+        composite = Image.new("P", (24, 30), 0)
+        composite.putpalette(assets["palette"])
+        for part, y in ((assets["cursor"], 6), (acted_sprite(sprite), 0)):
+            composite.paste(part, (0, y), part.point(lambda color: 255 if color else 0, mode="L"))
+        assets["acted_leader_cursors"].append(composite)
+    detail = archive_entry((original / "FDOTHER.DAT").read_bytes(), 5)
+    assets["detail_edges"] = [(sheet_frame(detail, index, lmi=True).crop((0, 0, width, 2)), at)
+                              for index, width, at in ((20, 223, (92, 7)), (21, 310, (5, 94)))]
+    for image, _ in assets["detail_edges"]:
+        image.putpalette(assets["palette"])
     plan = {"leader_world": list(leader), "leader_screen": list(screen(source, leader)),
             "navigation": path, "step_key": key, "destination_world": list(destination),
             "destination_screen": list(screen(source, destination)), "tile_id": tile_id,
@@ -214,19 +254,20 @@ class PlayerOracle:
             found = None
             for state in states:
                 index = item * 3 + state
-                template = self.assets["commands"][index]
-                # @0x179d5画完四图标后调用sub_127E0重绘actor；sprite从
-                # focus_y-6开始，覆盖上icon(focus_y-20)的底6行。
-                # 仅上icon取已证实无遮挡的前14行，其他三项仍全20行。
-                rows = 14 if item == 0 else template.height
-                check = match_indexed(frame, template.crop((0, 0, template.width, rows)), at)
-                if check["ok"]:
-                    found = {"frame": index, "position": list(at), "resource_rows": rows, **check}
+                templates = self.assets["upper_commands"][index] if item == 0 else [self.assets["commands"][index]]
+                for phase, template in enumerate(templates):
+                    check = match_indexed(frame, template, at)
+                    if check["ok"]:
+                        found = {"frame": index, "position": list(at), "resource_rows": template.height,
+                                 "actor_frame_candidate": phase if item == 0 else None, **check}
+                        break
+                if found:
                     break
             if not found:
                 return None
             matches.append(found)
-        return {"kind": "player_command_presence", "full_icon_visual_equivalence": False, "focus_screen": list(position), "selected": selected, "matches": matches}
+        return {"kind": "player_command_resource_overlay", "full_resource_height_checked": True,
+                "capability_gates_compared": False, "default_selection_compared": False, "focus_screen": list(position), "selected": selected, "matches": matches}
 
     def selection(self, frame, *, moved_focus=False):
         leader = browse_anywhere(frame, self.assets, leader=True) if not moved_focus else None
@@ -247,16 +288,25 @@ class PlayerOracle:
                         "range_tile_world": self.plan["destination_world"], "range_lut": index, **match}
         return None
 
-    def browse(self, frame):
+    def detail(self, frame):
+        checks = [match_indexed(frame, image, at) for image, at in self.assets["detail_edges"]]
+        return {"kind": "native_unit_detail_edge_resources", "full_page_visual_equivalence": False,
+                "edge_resources": checks} if all(check["ok"] for check in checks) else None
+
+    def browse(self, frame, *, acted=False):
         leader_at = tuple(self.plan["leader_screen"])
-        leader = browse_anywhere(frame, self.assets, leader=True)
+        assets = dict(self.assets, leader_cursors=self.assets["acted_leader_cursors"]) if acted else self.assets
+        leader = browse_anywhere(frame, assets, leader=True)
         if not leader or tuple(leader["focus_screen"]) != leader_at or self.command(frame, leader_at):
             return None
         base = exact_tile(frame, self.assets["probe_base_tile"], tuple(self.plan["destination_screen"]))
-        return {"kind": "browse_with_untranslated_terrain", "leader": leader, "base_tile": base} if base else None
+        return {"kind": "acted_browse_with_untranslated_terrain" if acted else "browse_with_untranslated_terrain",
+                "leader": leader, "base_tile": base, "acted_sprite_proven": acted} if base else None
 
 
-def exercise(capture, source, focus, assets, composites, ranges, plan, titles, save, data, mtime, report):
+def exercise(capture, source, focus, assets, composites, ranges, plan, titles, save, data, mtime, report, scenario="move-cancel"):
+    if scenario == "wait-full-hp":
+        require_full_hp(source)
     wait_title(capture, titles[3][0])
     capture.key("UP")
     capture.wait(titles[3][2])
@@ -281,19 +331,31 @@ def exercise(capture, source, focus, assets, composites, ranges, plan, titles, s
     oracle = PlayerOracle(source, assets, ranges, plan)
     capture.key("ENTER")
     checkpoint("actor0-selection", oracle.selection)
-    capture.key(plan["step_key"])
-    checkpoint("one-step-focus-selected", lambda frame: oracle.selection(frame, moved_focus=True))
-    capture.key("ENTER")
-    checkpoint("one-step-command", lambda frame: oracle.command(frame, tuple(plan["destination_screen"])))
-    capture.key("ESC")
-    checkpoint("cancel-restored-selection", oracle.selection)
-    capture.key("ENTER")
-    checkpoint("restored-zero-step-direct-command", lambda frame: oracle.command(frame, leader_at))
-    capture.key("ESC")
-    checkpoint("second-command-cancel-selection", oracle.selection)
-    capture.key("ESC")
-    checkpoint("selection-cancel-browse", oracle.browse)
-    report["observed"] = "一步移动后COMMAND取消恢复actor0/焦点/selection；再Enter直接COMMAND；selection取消回browse"
+    if scenario == "move-cancel":
+        capture.key(plan["step_key"])
+        checkpoint("one-step-focus-selected", lambda frame: oracle.selection(frame, moved_focus=True))
+        capture.key("ENTER")
+        checkpoint("one-step-command", lambda frame: oracle.command(frame, tuple(plan["destination_screen"])))
+        capture.key("ESC")
+        checkpoint("cancel-restored-selection", oracle.selection)
+        capture.key("ENTER")
+        checkpoint("restored-zero-step-direct-command", lambda frame: oracle.command(frame, leader_at))
+        capture.key("ESC")
+        checkpoint("second-command-cancel-selection", oracle.selection)
+        capture.key("ESC")
+        checkpoint("selection-cancel-browse", oracle.browse)
+        report["observed"] = "一步移动后COMMAND取消恢复actor0/焦点/selection；再Enter直接COMMAND；selection取消回browse"
+    else:
+        capture.key("ENTER")
+        checkpoint("zero-step-command", lambda frame: oracle.command(frame, leader_at))
+        capture.key("DOWN")
+        checkpoint("wait-highlight-proven", lambda frame: oracle.command(frame, leader_at, 3))
+        capture.key("ENTER")
+        checkpoint("wait-acted-closed-browse", lambda frame: oracle.browse(frame, acted=True))
+        capture.key("ENTER")
+        checkpoint("acted-enter-opens-detail", oracle.detail)
+        report["observed"] = "满HP原地WAIT后acted sprite+cursor返回browse；Enter原生详情页；未覆盖受伤恢复"
+
 
 
 def run(args):
@@ -304,16 +366,19 @@ def run(args):
         raise ValueError("产物目录不能覆盖original_game或源夹具")
     output.mkdir(parents=True, exist_ok=False)
     before, data, fixture_mtime = hashes(original), fixture.read_bytes(), fixture.stat().st_mtime_ns
-    report = {"ok": False, "scenario": "move-cancel", "capture": "Windows.Graphics.Capture HWND only",
-              "scope": "START actor0 one-step COMMAND cancel, restored selection direct COMMAND, selection cancel browse; resource presence and disk read-only",
-              "excluded": ["WAIT/acted tint", "完整actor与上指令图遮挡视觉", "瞬时动画", "全地图/idle像素一致", "攻击目标取消", "未测量的完整runtime字段/RNG"],
-              "command_icon_scope": {"upper_visible_rows": 14, "other_icons_rows": 20,
-                                     "full_icon_visual_equivalence": False},
+    report = {"ok": False, "scenario": args.scenario, "capture": "Windows.Graphics.Capture HWND only",
+              "scope": "START actor0 move-cancel or full-HP WAIT lifecycle, full-height command resource/actor overlay and acted sprite/cursor; disk read-only",
+              "excluded": ["受伤HP恢复", "菜单能力门/默认选择跨端一致性", "详情页完整像素一致", "瞬时动画", "全地图/idle像素一致", "攻击目标取消", "未测量的完整runtime字段/RNG"],
+              "command_icon_scope": {"upper_visible_rows": 20, "other_icons_rows": 20,
+                                     "resource_overlay_checked": True, "capability_gates_compared": False,
+                                     "default_selection_compared": False, "full_menu_visual_equivalence": False},
               "fixture": {"path": str(fixture), "sha256": hashlib.sha256(data).hexdigest(), "mtime_ns": fixture_mtime},
               "original_before": before, "inputs": [], "checkpoints": [], "processes": [], "cases": []}
     try:
         source, focus, assets, composites, ranges, plan = prepare(original, fixture)
         report["plan"] = plan
+        if args.scenario == "wait-full-hp":
+            report["wait_precondition"] = require_full_hp(source)
         report["binaries"] = {name: {"path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
                                for name, path in (("game", args.game), ("driver", args.driver), ("dosbox", args.dosbox))}
         report["runner_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -349,7 +414,7 @@ def run(args):
                     case["pid"] = process.pid
                     capture = Capture(args.driver, process, work, report["inputs"])
                     exercise(capture, source, focus, assets, composites, ranges, plan, titles,
-                             save, data, mtime, case)
+                             save, data, mtime, case, args.scenario)
                     require_source_unchanged(save, data, mtime)
                 require_source_unchanged(save, data, mtime)
                 case.update(status="passed", disk_and_mtime_unchanged=True,
@@ -377,6 +442,7 @@ def main():
     for option in ("root", "game", "driver", "dosbox", "artifacts"):
         parser.add_argument("--" + option, type=Path, required=True)
     parser.add_argument("--save-fixture", type=Path, help="只读来源，默认original_game/START.SAV")
+    parser.add_argument("--scenario", choices=("move-cancel", "wait-full-hp"), default="move-cancel")
     args = parser.parse_args()
     if sys.platform != "win32":
         parser.error("玩家移动取消配对要求Windows WGC；未启动GUI")

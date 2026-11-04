@@ -577,6 +577,19 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_player_controller COMMAND fd2_field_player_controller_test)
 
+    add_executable(fd2_field_unit_render_test
+        tests/field_unit_render_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_unit_render_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_unit_render_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_unit_render_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_unit_render_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_unit_render COMMAND fd2_field_unit_render_test)
+
     add_executable(fd2_field_game_system_menu_test
         tests/field_game_system_menu_test.c
         $<TARGET_OBJECTS:fd2sdl_core>

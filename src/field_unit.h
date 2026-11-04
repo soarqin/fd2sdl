@@ -105,6 +105,10 @@ size_t fd2_field_unit_frame_index(const fd2_field_unit *unit,
 
 /* 用 FDICON.B24 直接按 unit_id 绘制，避开会随 stage 重建的 FD2.TMP
  * cache class。camera_x/y 为世界像素坐标。 */
+void fd2_field_unit_render(fd2_vga *vga,
+                           const fd2_map_sprite_bank *sprites,
+                           const fd2_field_unit *unit, uint8_t walk_frame,
+                           int camera_x, int camera_y, uint8_t idle_phase);
 void fd2_field_units_render(fd2_vga *vga,
                             const fd2_map_sprite_bank *sprites,
                             const fd2_field_units *units,

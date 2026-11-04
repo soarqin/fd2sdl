@@ -28,6 +28,36 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x127E0: [{
+        "target": "evidence",
+        "was": "未区分战场单actor绘制与全表绘制、COMMAND末尾遮挡顺序",
+        "now": "只按传入index画一个actor，位置相对camera且上移6px，"
+               "frame由direction/cache class/idle或walk组成。acted调用4e1a6映色。"
+               "COMMAND四图标后仅再画focus actor，不重铺terrainoverlay；"
+               "raw26另有横向抖动与frame门，本SDL切片仍未实现该视觉分支。",
+        "why": "已发布sub_127E0无全表循环、stride456和dest常量30168，"
+               "sub_127A9负责全表与遮挡；179d5末尾call127e0。真实原版"
+               "COMMAND截图上图标底6行由FDICON actor0 frame1覆盖，完整"
+               "20行资源合成476像素bad0、delta<=3；不是截图缺失。",
+    }],
+    0x4E1A6: [{
+        "target": "evidence",
+        "was": "未登记已行动actor的专用RLE映色",
+        "now": "对实际写入pixel映为(color&7)+24，RLE skip保留底图；"
+               "不能把cursor一同映色，或把合法opaque0当skip。当前真实FDICON"
+               "1680帧没有opaque0，SDL可在临时栈buffer映非0缓存，不改bank。",
+        "why": "已发布sub_4E1A6、127e0按flags signbit选择它与normal4e22a；"
+               "原始RLE独立审计严格区分repeat/alternate/literal写0与skip，"
+               "全部帧span/end校验通过，配套可再生产审计与回归，不新增mask框架。",
+    }],
+    0x179D5: [{
+        "target": "evidence",
+        "was": "COMMAND图标可以作为actor之后的最后一层",
+        "now": "四向图标后调用sub_127E0重画当前focus actor；actor头部"
+               "覆盖上方图标底6行。只重画一个actor，不重新画全表或地形遮挡。",
+        "why": "已发布field_command_menu_draw调用链、单actor绘制与原版"
+               "移动后COMMAND WGC；14行presence与完整20行遮挡绘制分别验收。",
+    }],
     0x18890: [{
         "target": "evidence",
         "was": "玩家路径逐格执行cell handler，行动尾先格事件后acted",

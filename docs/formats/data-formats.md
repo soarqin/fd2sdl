@@ -258,6 +258,10 @@ base_frame  = frames[terrain_id]
 
 本地 DOSBox 第一关实机截图与 SDL 截图确认，frame 0 位于所选单位下方，移动范围表现为地形本身的循环色调变化；SDL 实现位于 `src/field_visual.[ch]` 和 `src/field_game.c`。
 
+普通场景的单位由`sub_127E0 @0x127e0`按单actor绘制，上移6px；全表caller另处理地形遮挡。COMMAND的`field_command_menu_draw @0x179d5`在四向图标之后仅重画当前actor，不再重铺遮挡层，所以其头部覆盖上方图标末6行。SDL共用一个单actor函数供全表与COMMAND调用，最后仍按312×192视区裁边。
+
+acted按flags bit7选择`sub_4E1A6 @0x4e1a6`，仅把实际写入的sprite颜色映为`(color&7)+24`，cursor保持原色。真实FDICON的1680帧已逐RLE复核，repeat／alternate／literal的opaque0均为0，缓存0可保持为skip；可用`tools/audit_fdicon_opaque_zero.py`复跑，资源版本变化时应重新验证该条件。SDL使用576字节临时栈buffer映色，不修改共享bank或单位记录。raw26的横向抖动和完整特殊状态视觉仍未验收。
+
 ### 战场格子与单位信息面板
 
 `field_cell_info_panel_draw_entry @0x3ff07` / `field_cell_info_panel_draw @0x3ff11` 在标准战场刷新中绘制常驻面板：

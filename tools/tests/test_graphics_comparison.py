@@ -118,5 +118,50 @@ class GraphicsComparisonTest(unittest.TestCase):
                 self.assertEqual((events[0]["pid"], events[0]["key"]), (123, "DOWN"))
 
 
+class TitleTransitionTest(unittest.TestCase):
+    def test_known_blank_transition_retains_frame_and_waits_without_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            raw = work / "window-123-current.bmp"
+            raw.write_bytes(b"failed WGC evidence")
+            capture = Capture(Path("driver"), Mock(pid=123), work)
+            expected = Image.new("RGB", SIZE)
+            for x in range(64):
+                expected.putpixel((x, 0), (x * 4, 0, 0))
+            capture.frame = Mock(side_effect=[RuntimeError("blank or nearly uniform"), expected])
+            capture.key = Mock()
+            with patch("run_original_comparison.time.sleep"):
+                result = capture.wait(expected, blank_transition=True)
+            self.assertEqual(result.tobytes(), expected.tobytes())
+            capture.key.assert_not_called()
+            event = json.loads((work / "capture-errors.jsonl").read_text())
+            self.assertEqual(Path(event["frame"]).read_bytes(), b"failed WGC evidence")
+            self.assertEqual(capture.frame.call_count, 2)
+
+    def test_only_explicit_blank_transition_is_retried(self):
+        for allowed, message in ((False, "blank or nearly uniform"),
+                                 (True, "geometry changed"),
+                                 (True, "no visible window"),
+                                 (True, "WGC device failed")):
+            with self.subTest(allowed=allowed, message=message), tempfile.TemporaryDirectory() as directory:
+                capture = Capture(Path("driver"), Mock(pid=123), Path(directory))
+                capture.frame = Mock(side_effect=RuntimeError(message))
+                with self.assertRaisesRegex(RuntimeError, message):
+                    capture.wait(Image.new("RGB", SIZE), blank_transition=allowed)
+                self.assertEqual(capture.frame.call_count, 1)
+
+    def test_blank_transition_keeps_original_deadline_and_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = Capture(Path("driver"), Mock(pid=123), Path(directory))
+            capture.frame = Mock(side_effect=RuntimeError("blank or nearly uniform"))
+            capture.key = Mock()
+            with patch("run_original_comparison.time.monotonic", side_effect=[0, 0, 0, 0, 21]), \
+                    patch("run_original_comparison.time.sleep"):
+                with self.assertRaisesRegex(RuntimeError, "始终没有可用画面"):
+                    capture.wait(Image.new("RGB", SIZE), blank_transition=True, timeout=20)
+            self.assertEqual(capture.frame.call_count, 1)
+            capture.key.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

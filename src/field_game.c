@@ -1077,6 +1077,13 @@ static void render_field_command(const fd2_field_game *game,
         game->command_selected, game->command_disabled,
         game->command_highlight_phase, game->command_animation_opening,
         game->command_animation_phase);
+    /* field_command_menu_draw @0x179d5 在四个图标后再次调用
+     * sub_127E0 @0x127e0（原登记同名）重画当前actor，不重铺遮挡tile。
+     * 角色上移6px，覆盖上图标末行；最后按原312×192视区裁去边框。 */
+    fd2_field_unit_render(vga, &game->sprites, unit,
+                          game->units.walk_frames[game->selected_unit],
+                          camera_x, camera_y, game->idle_phase);
+    clear_view_border(vga);
 }
 
 static void render_manual_slot_picker(const fd2_field_game *game,

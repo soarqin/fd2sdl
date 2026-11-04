@@ -533,6 +533,7 @@ title_screen:
             title_letter_fly_audio_on_frame, title_audio);
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;
+        if (animation_result < 0) goto resource_error;
         /* skip 不作为预输入保存；持续按住受 typematic deadline 约束。 */
         /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
@@ -560,7 +561,11 @@ title_screen:
             fd2_vga_set_palette(vga, pal);
             fd2_vga_present(vga);
             fd2_image_free(&img_title);
+        } else {
+            goto resource_error;
         }
+    } else {
+        goto resource_error;
     }
 
     /* 标题菜单（对应 FUN_0001d6c1 + 菜单循环）

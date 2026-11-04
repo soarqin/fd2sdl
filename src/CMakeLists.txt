@@ -199,6 +199,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME app_flow COMMAND fd2_app_flow_test)
 
+    add_executable(fd2_main_title_resource_test
+        tests/main_title_resource_test.c
+        field_play.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_main_title_resource_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_main_title_resource_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_main_title_resource_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_main_title_resource_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME main_title_resource COMMAND fd2_main_title_resource_test)
+    set_tests_properties(main_title_resource PROPERTIES TIMEOUT 30)
+
     add_executable(fd2_save_test
         tests/save_test.c
         save.c

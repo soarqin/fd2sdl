@@ -5,6 +5,7 @@
 Load本身不得改磁盘；测量Save逐字对照来源，仅排除active +2 cache class、
 明确记录的测量焦点导航和派生checksum。不比较未对齐的第二回合伤害。
 Windows启动由宿主driver run-job约束整树；原版、SDL串行。
+在第二回合逐键实测Z轮换0→1→2→3→0，再验证Load后的首次Z重回raw0。
 """
 from __future__ import annotations
 
@@ -81,6 +82,62 @@ def restored_source(frame, oracle):
     return RoundOracle.closed_browse(initial, frame)
 
 
+def focus_cycle_assets(original, source, assets):
+    # 延后import：player复用本模块的source guard，不能在模块顶层互相import。
+    from run_original_player import cursor_assets, navigation, screen
+    players = [i for i in range(source[META + 1])
+               if source[UNITS + i * STRIDE + 6] == 2]
+    if players != [0, 1, 2, 3]:
+        raise ValueError("Load focus-cycle comparison requires raw player actors0..3")
+    actors = []
+    for raw in players:
+        record = source[UNITS + raw * STRIDE:UNITS + (raw + 1) * STRIDE]
+        if record[5] & 0x85:
+            raise ValueError("Load focus-cycle source actor is not eligible")
+        isolated = bytearray(source)
+        isolated[META + 1] = 1
+        isolated[UNITS:UNITS + STRIDE] = record
+        _, composites = cursor_assets(original / "FDICON.B24", isolated, assets)
+        # 原版先cursor后actor；当前actor上移6px。只取其完整24行，
+        # 下格actor从cursor+18开始遮挡，不能把遮住的最后6行纳入比对。
+        templates = [image.crop((0, 0, 24, 24)) for image, offset in composites if offset == -6]
+        actors.append({"raw_actor": raw, "unit_id": record[7],
+                       "world": list(record[:2]), "templates": templates})
+    if len({actor["unit_id"] for actor in actors}) != 4:
+        raise ValueError("Load focus-cycle actors need distinct resource identities")
+    leader = tuple(actors[0]["world"])
+    cx, cy, fx, fy = source[META + 3:META + 7]
+    # Load后Z到raw0及回源焦点都限定在内区，不改变测量Save的camera allowlist。
+    if any(not (2 <= x - cx <= 10 and 2 <= y - cy <= 5)
+           for x, y in (leader, (fx, fy))):
+        raise ValueError("Load focus-cycle restoration would need unverified scrolling")
+    positioned = bytearray(source)
+    positioned[META + 5:META + 7] = bytes(leader)
+    returning = [(key, screen(source, cell))
+                 for key, cell in navigation(positioned, (fx, fy))]
+    if len(returning) > 20:
+        raise ValueError("Load focus return exceeds bounded input budget")
+    return {"actors": actors, "returning": returning}
+
+
+def focused_actor(frame, assets, actor):
+    matches = []
+    for row in range(1, 7):
+        for column in range(1, 12):
+            position = (4 + column * 24, 4 + row * 24)
+            found = next((index for index, template in enumerate(actor["templates"])
+                          if match_indexed(frame, template, (position[0], position[1] - 6))["ok"]), None)
+            if found is None:
+                continue
+            oracle = RoundOracle(assets, position)
+            if (not oracle.menu(frame) and not oracle.buttons(frame) and
+                    not match_indexed(frame, assets["dialog_top"], (5, 112))["ok"]):
+                matches.append({"kind": "resource_proven_focus_actor", "raw_actor": actor["raw_actor"],
+                                "unit_id": actor["unit_id"], "focus_screen": list(position),
+                                "sprite_cursor_template": found, "sprite_cursor_rows": 24})
+    return matches[0] if len(matches) == 1 else None
+
+
 def wait_measured_save(save, previous, previous_mtime, timeout=15):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -94,7 +151,7 @@ def wait_measured_save(save, previous, previous_mtime, timeout=15):
 
 
 def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_bytes, log,
-             checkpoints, observation, *, source_mtime):
+             checkpoints, observation, *, source_mtime, focus_cycle):
     wait_title(capture, titles[3][0])
     capture.key("UP")
     capture.wait(titles[3][2])
@@ -128,6 +185,13 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
     checkpoint("round2-leader", lambda frame: browse_anywhere(frame, assets, leader=True), timeout=30)
     require_source_unchanged(save, source_bytes, source_mtime)
     observation["round2_reached_without_save"] = True
+    observation["focus_cycle_before_load"] = []
+    for index, actor in enumerate(focus_cycle["actors"] + focus_cycle["actors"][:1], 1):
+        capture.key("Z")
+        _, detail = checkpoint(f"round2-focus-cycle-{index}-raw-{actor['raw_actor']}",
+                               lambda frame, actor=actor: focused_actor(frame, assets, actor))
+        require_source_unchanged(save, source_bytes, source_mtime)
+        observation["focus_cycle_before_load"].append(detail)
     capture.key("LEFT")
     _, detail = checkpoint("round2-empty-cell", lambda frame: browse_anywhere(frame, assets))
     oracle = RoundOracle(assets, tuple(detail["focus_screen"]))
@@ -167,6 +231,17 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
     require_source_unchanged(save, source_bytes, source_mtime)
     observation["load_disk_unchanged_before_measurement"] = True
     observation["source_mtime_ns_before_measurement"] = source_mtime
+    capture.key("Z")
+    _, detail = checkpoint("loaded-focus-cycle-raw-0", lambda frame: focused_actor(
+        frame, assets, focus_cycle["actors"][0]))
+    observation["focus_cycle_after_load"] = detail
+    require_source_unchanged(save, source_bytes, source_mtime)
+    for index, (key, position) in enumerate(focus_cycle["returning"], 1):
+        capture.key(key)
+        at = RoundOracle(assets, position)
+        checkpoint(f"loaded-source-return-step-{index}", at.initial_browse)
+        require_source_unchanged(save, source_bytes, source_mtime)
+    checkpoint("loaded-source-focus-restored", lambda frame: restored_source(frame, source_oracle))
     oracle = source_oracle
     for index, (key, position) in enumerate(steps, 1):
         capture.key(key)
@@ -191,7 +266,7 @@ def run(args):
         raise ValueError("测试产物不能写入 original_game/")
     output.mkdir(parents=True, exist_ok=False)
     before_hashes, source_bytes = hashes(original), fixture.read_bytes()
-    report = {"ok": False, "scope": "round 2 -> active Load A -> turn 1 verified by explicit UI Save",
+    report = {"ok": False, "scope": "round2 Z raw0/1/2/3/0 -> active Load A -> first Z raw0 -> source focus -> explicit UI Save",
               "cancel_scope": "browse/focus restored, disk unchanged, menu reusable; complete runtime HP/MP/turn/RNG not measured for Esc/NO",
               "excluded": "pre-Load round2 damage/AI/RNG equality, active +2 cache class, documented measuring-focus navigation, full-frame/audio equivalence",
               "capture": "Windows.Graphics.Capture HWND only", "platform": platform.platform(),
@@ -207,6 +282,12 @@ def run(args):
         report["fixture"].update(active_count=source[META + 1], roster_count=check_roster_count(source),
                                  source_focus_screen=list(focus), measuring_navigation=steps)
         assets = round_assets(original)
+        focus_cycle = focus_cycle_assets(original, source, assets)
+        report["focus_cycle_plan"] = {
+            "actors": [{key: actor[key] for key in ("raw_actor", "unit_id", "world")}
+                       for actor in focus_cycle["actors"]],
+            "return_to_source_focus": focus_cycle["returning"],
+            "evidence": "each Z independently ACKed by expected actor FDICON+cursor, not only logs"}
         banner = round_two_template(original / "FDOTHER.DAT", assets["palette"])
         titles = title_templates(original / "FDOTHER.DAT")
         environment = os.environ.copy()
@@ -243,7 +324,7 @@ def run(args):
                     capture = Capture(args.driver, process, work, report["inputs"])
                     measured = exercise(capture, kind, assets, focus, steps, titles, banner, save,
                                         source_bytes, work / "game.log", report["checkpoints"], case["observation"],
-                                        source_mtime=source_mtime)
+                                        source_mtime=source_mtime, focus_cycle=focus_cycle)
                     shutil.copy2(save, work / "loaded-source-measured.SAV")
                     case["measurement"] = check_load_measurement(source, measured, steps)
                 case["status"] = "passed"

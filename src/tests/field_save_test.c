@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "field_game.h"
+#include "field_rng.h"
 #include "test_temp.h"
 
 #define CHECK(expr) do { \
@@ -20,6 +21,8 @@ static void init_game(fd2_field_game *game) {
     game->stage = 0;
     game->map.width = 24;
     game->map.height = 24;
+    /* 无绘制的synthetic fixture仅声明可容纳140个12帧ID。 */
+    game->sprites.frame_count = 140u * 12u;
     game->turn_number = 7;
     game->camera_cell_x = 2;
     game->camera_cell_y = 9;
@@ -728,6 +731,127 @@ static int test_stage0_metadata_matches_resource_and_preserves_tail(void) {
     return 0;
 }
 
+static unsigned load_rng_calls;
+
+static uint32_t count_load_rng(void *userdata) {
+    load_rng_calls++;
+    return fd2_field_rng_next(userdata);
+}
+
+static int test_original_start_load_focus_and_sprite_bounds(void) {
+    fd2_archive fdother = {0};
+    fd2_field_game game = {0};
+    fd2_vga *vga = calloc(1, sizeof(*vga));
+    fd2_save_file save = {0};
+    fd2_save_battle_snapshot original, candidate;
+    fd2_field_rng rng;
+    fd2_field_rng_seed(&rng, 0x3141);
+    uint8_t source_before[FD2_SAVE_FILE_SIZE], source_after[FD2_SAVE_FILE_SIZE];
+    uint8_t file_before[FD2_SAVE_FILE_SIZE], file_after[FD2_SAVE_FILE_SIZE];
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(vga != NULL && fd2_test_temp_path(path) == 0);
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(fd2_field_game_open(&game, vga, &fdother, 0) == 0);
+    CHECK(game.sprites.frame_count == 1680u);
+    CHECK(read_save_bytes("original_game/START.SAV", source_before) == 0);
+    CHECK(fd2_save_file_open(&save, "original_game/START.SAV") == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &original) == 0);
+    CHECK(fd2_save_file_write(&save, path) == 0);
+    game.attack_rng = count_load_rng;
+    game.attack_rng_userdata = &rng;
+    load_rng_calls = 0;
+    game.focus_cycle_unit = 3;
+
+    /* 已有合法checksum；仅变更普通可见actor的资源ID，不能隐形成功。 */
+    const uint8_t bad_ids[] = {140, 255, 140, 140};
+    const uint8_t flags[] = {0, 0, 0x80, 0x04};
+    for (size_t i = 0; i < sizeof(bad_ids); i++) {
+        candidate = original;
+        candidate.unit_area[7] = bad_ids[i];
+        candidate.unit_area[5] = flags[i];
+        if (i == 3) candidate.unit_area[0x1f] = 10; /* 普通renderer无race豁免。 */
+        CHECK(fd2_save_file_update_battle_snapshot(&save, &candidate) == 0);
+        CHECK(fd2_save_file_write(&save, path) == 0);
+        CHECK(read_save_bytes(path, file_before) == 0);
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_import_battle_snapshot(&game, &candidate) != 0);
+        CHECK(fd2_field_game_load_active(&game, path) != 0);
+        CHECK(fd2_field_game_save_resource_available(&game, path) == 0);
+        CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+        CHECK(game.focus_cycle_unit == 3 && load_rng_calls == 0 && rng.state == 0x3141);
+        CHECK(read_save_bytes(path, file_after) == 0);
+        CHECK(memcmp(file_before, file_after, sizeof(file_before)) == 0);
+    }
+
+    candidate = original;
+    candidate.unit_area[7] = 139; /* 最后完整12帧ID合法。 */
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &candidate) == 0);
+    CHECK(game.units.items[0].unit_id == 139 && game.focus_cycle_unit == 0);
+    candidate.unit_area[7] = 121;
+    candidate.unit_area[0x1f] = 10;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &candidate) == 0);
+    CHECK(game.units.items[0].unit_id == 121 && game.units.items[0].race == 10);
+
+    /* hidden资源不参与普通renderer，保留其未知ID而不新增F1门。 */
+    candidate = original;
+    size_t hidden = 9u * FD2_FIELD_UNIT_RECORD_SIZE;
+    candidate.unit_area[hidden + 5u] |= FD2_FIELD_UNIT_FLAG_HIDDEN;
+    candidate.unit_area[hidden + 7u] = 255;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &candidate) == 0);
+    CHECK(game.units.items[9].unit_id == 255 &&
+          fd2_field_unit_is_hidden(&game.units.items[9]));
+
+    game.focus_cycle_unit = 3;
+    CHECK(fd2_field_game_load_active(&game, "original_game/START.SAV") == 0);
+    CHECK(game.focus_cycle_unit == 0 && load_rng_calls == 0 && rng.state == 0x3141);
+    CHECK(fd2_field_game_cycle_focus(&game) == 0);
+    CHECK(game.cursor_cell_x == game.units.items[0].x &&
+          game.cursor_cell_y == game.units.items[0].y &&
+          game.focus_cycle_unit == 1 && load_rng_calls == 0 && rng.state == 0x3141);
+    CHECK(read_save_bytes("original_game/START.SAV", source_after) == 0);
+    CHECK(memcmp(source_before, source_after, sizeof(source_before)) == 0);
+    fd2_save_file_close(&save);
+    fd2_field_game_close(&game);
+    fd2_archive_close(&fdother);
+    free(vga);
+    CHECK(remove(path) == 0);
+    return 0;
+}
+
+static int test_import_result_uses_shared_query(void) {
+    fd2_field_game source, target;
+    init_game(&source);
+    init_game(&target);
+    for (size_t i = 0; i < source.units.count; i++) {
+        source.units.items[i].flags = 0;
+        source.units.items[i].side = (uint8_t)(i == 0 ? 2 : i == 1 ? 0 : 1);
+    }
+    fd2_save_battle_snapshot original, snapshot;
+    memset(&original, 0xa5, sizeof(original));
+    CHECK(fd2_field_game_export_battle_snapshot(&source, &original) == 0);
+    const fd2_field_battle_result expected[] = {
+        FD2_FIELD_BATTLE_ONGOING, FD2_FIELD_BATTLE_VICTORY,
+        FD2_FIELD_BATTLE_DEFEAT, FD2_FIELD_BATTLE_DEFEAT,
+        FD2_FIELD_BATTLE_VICTORY};
+    for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
+        snapshot = original;
+        if (i == 1) snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 5u] = 1;
+        if (i == 2) snapshot.unit_area[5] = 1;
+        if (i == 3) snapshot.unit_area[0x40] = snapshot.unit_area[0x41] = 0;
+        if (i == 4) {
+            snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 0x40] = 0;
+            snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 0x41] = 0;
+        }
+        target.focus_cycle_unit = 2;
+        CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
+        CHECK(target.battle_result == expected[i]);
+        CHECK(target.battle_result == fd2_field_game_battle_result(&target));
+        CHECK(target.focus_cycle_unit == 0);
+    }
+    fd2_field_metadata_close(&target.metadata);
+    return 0;
+}
+
 static int test_original_start_roster_and_recruit_transaction(void) {
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
@@ -806,6 +930,8 @@ int main(void) {
         test_metadata_serialization_and_atomic_import() != 0 ||
         test_metadata_capacity_and_invalid_export() != 0 ||
         test_stage0_metadata_matches_resource_and_preserves_tail() != 0 ||
+        test_original_start_load_focus_and_sprite_bounds() != 0 ||
+        test_import_result_uses_shared_query() != 0 ||
         test_original_start_roster_and_recruit_transaction() != 0)
         return 1;
     puts("field_save_test: ok");

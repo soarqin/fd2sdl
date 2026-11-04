@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 202 |
+| 归约后的规范函数数 | 203 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -44,6 +44,8 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 
 | VA | 规范函数名 | 项 | 历史说法 | 复核后 | 依据 |
 |----|-----------|----|---------|--------|------|
+| `0x10010` | `sub_10010` | evidence | 活动Load后的焦点轮询起点可能沿旧session继续 | 成功活动Load尾把53AE9置0，下一次Z从raw0开始扫描；不是SAV字段，失败加载不交接owner。SDL同时在交接前检查可见actor完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。 | 权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。 |
+| `0x11019` | `fdicon_cache_append_unit` | evidence | snapshot角色图形只需当前idle帧可用 | fdicon_cache_append_unit按unit ID构造完整12帧组；SDL普通renderer只跳hidden和越界帧，不使用F1的unit121/race10过滤。可见记录需完整12帧资源范围；hidden未知ID继续按原保留策略保存。 | 原始1106a乘12、110fa/11193循环12次与真实FDICON1680帧。合法边界139、坏ID140/255、hidden/race10/121区别有回归；不改decoder owner。 |
 | `0x111ba` | `res_load` | address | 0x463ce | VA 0x111ba / OFF 0x11ba | `FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，39 个调用点，`main` 用它加载 FDOTHER/FDTXT。 |
 | `0x112a5` | `sub_112A5` | evidence | 持久玩家构造与活动 stage 模板构造尚未区分完整初始字段 | 本函数在独立 roster 末尾调用 sub_1145A @0x1145a；从 object3 0x61da1 的 32 条 24-byte base 与 0x620a1 的 11-byte growth 读取初始等级、4-byte 法术位图、装备及库存。合计写 record 58 字节，保留 00..04、17、19、28..30、32..36、3d；3b 为 movement，确实写入。SDL 仅成功时提交记录。 | 已发布权威伪 C sub_112A5（661..729 行）与 sub_1145A（734..770 行），由 sub_4E838/sub_4E821 取表；LE page map 只读提取并逐行复核全部 32 条原表。派生函数只对 flags &0x40 的装备累计 AP/DP/HIT/EV；初始状态已清零，可复用现有装备派生。保留中性函数名，未新建 IDB 或修改权威伪 C。 |
 | `0x117e7` | `field_controller_input` | evidence | 玩家acted／格事件／stage与自动phase可按通用动作尾提前分派 | 玩家函数返回后render→经验→stage→13565必要整轮phase→读取当前共享pending并dispatch→清pending。phase内AI可清空／覆盖同一slot，没有跨phase保护玩家事件的私有队列。selection取消也进入该后置门。 | 已发布controller及raw 0x11951 render、0x1196d经验、0x1197b stage、0x11985 phase、0x1199c dispatch、0x119a6 clear；AI outer handler返回后不清slot，只在下个raw actor起点清，最终值可能回到本controller。B2/B3/B4未实现语义仍单独登记。 |

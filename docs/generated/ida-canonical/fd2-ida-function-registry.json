@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 202,
+ "canonical_functions": 203,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -26,6 +26,29 @@
   }
  ],
  "entries": [
+  {
+   "va": 65552,
+   "off": 16,
+   "ida_name": "sub_10010",
+   "size": 1552,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "活动Load后的焦点轮询起点可能沿旧session继续",
+     "now": "成功活动Load尾把53AE9置0，下一次Z从raw0开始扫描；不是SAV字段，失败加载不交接owner。SDL同时在交接前检查可见actor完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。",
+     "why": "权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。"
+    }
+   ],
+   "end_va": 67104,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
   {
    "va": 67104,
    "off": 1568,
@@ -138,6 +161,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 146
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "snapshot角色图形只需当前idle帧可用",
+     "now": "fdicon_cache_append_unit按unit ID构造完整12帧组；SDL普通renderer只跳hidden和越界帧，不使用F1的unit121/race10过滤。可见记录需完整12帧资源范围；hidden未知ID继续按原保留策略保存。",
+     "why": "原始1106a乘12、110fa/11193循环12次与真实FDICON1680帧。合法边界139、坏ID140/255、hidden/race10/121区别有回归；不改decoder owner。"
     }
    ],
    "end_va": 70074,

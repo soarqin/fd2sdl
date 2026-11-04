@@ -152,6 +152,11 @@ static int validate_import(const fd2_field_game *game,
                sizeof(unit));
         if (unit.x >= game->map.width || unit.y >= game->map.height)
             return -1;
+        /* 普通renderer只跳hidden，不按F1的unit121/race10过滤。
+         * fdicon_cache_append_unit @0x11019每ID复制12帧；须完整容纳方向/idle。 */
+        if (!fd2_field_unit_is_hidden(&unit) &&
+            (size_t)unit.unit_id >= game->sprites.frame_count / 12u)
+            return -1;
     }
     if (snapshot->meta[FD2_SAVE_BATTLE_META_CAMERA_X] >
             max_camera_cell(game->map.width, FD2_FIELD_VIEW_CELLS_X) ||
@@ -215,6 +220,7 @@ int fd2_field_game_import_battle_snapshot(
     game->active_side = 2;
     game->phase_unit_cursor = 0;
     game->phase_ai_pass = 0;
+    game->focus_cycle_unit = 0; /* sub_10010 @0x10010尾53AE9=0；失败不交接。 */
     game->camera_cell_x = snapshot->meta[FD2_SAVE_BATTLE_META_CAMERA_X];
     game->camera_cell_y = snapshot->meta[FD2_SAVE_BATTLE_META_CAMERA_Y];
     game->cursor_cell_x = snapshot->meta[FD2_SAVE_BATTLE_META_FOCUS_X];
@@ -269,24 +275,7 @@ int fd2_field_game_import_battle_snapshot(
     game->last_idle_ms = 0;
     game->last_terrain_visual_ms = 0;
     game->last_range_visual_ms = 0;
-    game->battle_result = FD2_FIELD_BATTLE_ONGOING;
-    if (game->units.count != 0 &&
-        (fd2_field_unit_is_hidden(&game->units.items[0]) ||
-         game->units.items[0].hp == 0)) {
-        game->battle_result = FD2_FIELD_BATTLE_DEFEAT;
-    } else {
-        int have_hostile = 0;
-        for (size_t i = 0; i < game->units.count; i++) {
-            const fd2_field_unit *unit = &game->units.items[i];
-            if (unit->side == 0u && !fd2_field_unit_is_hidden(unit) &&
-                unit->hp != 0) {
-                have_hostile = 1;
-                break;
-            }
-        }
-        if (!have_hostile)
-            game->battle_result = FD2_FIELD_BATTLE_VICTORY;
-    }
+    game->battle_result = fd2_field_game_battle_result(game);
     return 0;
 }
 

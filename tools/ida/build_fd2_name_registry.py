@@ -28,6 +28,24 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x10010: [{
+        "target": "evidence",
+        "was": "活动Load后的焦点轮询起点可能沿旧session继续",
+        "now": "成功活动Load尾把53AE9置0，下一次Z从raw0开始扫描；"
+               "不是SAV字段，失败加载不交接owner。SDL同时在交接前检查可见actor"
+               "完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。",
+        "why": "权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败"
+               "原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。",
+    }],
+    0x11019: [{
+        "target": "evidence",
+        "was": "snapshot角色图形只需当前idle帧可用",
+        "now": "fdicon_cache_append_unit按unit ID构造完整12帧组；SDL普通renderer"
+               "只跳hidden和越界帧，不使用F1的unit121/race10过滤。可见记录需完整"
+               "12帧资源范围；hidden未知ID继续按原保留策略保存。",
+        "why": "原始1106a乘12、110fa/11193循环12次与真实FDICON1680帧。"
+               "合法边界139、坏ID140/255、hidden/race10/121区别有回归；不改decoder owner。",
+    }],
     0x2000A: [{
         "target": "evidence",
         "was": "F1/PageUp辅助页可能是部队列表或另一种战况总览",

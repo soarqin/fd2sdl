@@ -73,6 +73,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_f1.py` 为总流程第 21 组。每端按原始 terrain、标记及合法水色表严格检查完整64,000像素；每页首匹配锁定周期候选，之后完整命中另一不相交合法周期即失败，不能重试跳过漂移。原版先取得至少两个标记相位，SDL再等相同相位。直接RGB差异、容差内相等和原始RGB完全相等分别报告，不做颜色归一，也不排除水／黑边／零色。`field_play_auxiliary` 另验全部8个标记相位、7开／6关、输入隔离、资源预检及水色恢复一步；实际WGC捕获范围以报告为准。
 
+`run_original_load.py` 还逐键验证Z轮询raw0→1→2→3→0，再Load后仅按一次Z，必须回到raw0；之后按来源推导的无滚屏路径回原焦点，原完整存档测量门不增加allowlist。专属FDICON＋光标判据拒绝错误角色、裸角色／裸光标及歧义，缺ACK时不补按键。新增坏sprite编号和恢复胜败门属于SDL存档回归，畸形记录不送入DOSBox。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

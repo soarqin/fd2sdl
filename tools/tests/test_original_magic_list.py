@@ -598,7 +598,7 @@ class DamageTest(ResourceFixture,unittest.TestCase):
                 patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]), \
                 patch.object(probe.time,"sleep",side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)):
             if old_gate:
-                with patch.object(probe,"damage_outcome_gate",side_effect=lambda assets,report,role:lambda frame:probe.damage_result(frame,assets)):
+                with patch.object(probe,"magic_resource_quiet_gate",side_effect=lambda assets,report,role,scenario,checkpoint:lambda frame:probe.damage_result(frame,assets)):
                     probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
                         self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
                         save.stat().st_mtime_ns,report,scenario="damage")
@@ -630,7 +630,7 @@ class DamageTest(ResourceFixture,unittest.TestCase):
                     self.assertGreaterEqual(next(now for key,now in keys if key=="RIGHT"),2.8)
                     self.assertEqual([key for key,_ in keys],self.damage_keys)
                     quiet = report["damage_outcome"]["resource_quiet"]
-                    self.assertEqual(quiet["first_kill_time"],0)
+                    self.assertEqual(quiet["first_result_time"],0)
                     self.assertEqual(quiet["hostquiet_seconds"],2.0)
                     self.assertEqual(quiet["resets"],1)
                     self.assertGreaterEqual(quiet["window_duration_seconds"],2)
@@ -640,7 +640,7 @@ class DamageTest(ResourceFixture,unittest.TestCase):
 
     def test_quiet_resets_on_current_checkpoint_wgc_only_and_needs_new_frames(self):
         report,clock = {"checkpoints":[]},[0.0]
-        gate = probe.damage_outcome_gate(self.assets,report,"original")
+        gate = probe.magic_resource_quiet_gate(self.assets,report,"original","damage","damage-cast-outcome")
         kill = self.result_frame()
         with patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]):
             self.assertIsNone(gate(kill))
@@ -663,7 +663,7 @@ class DamageTest(ResourceFixture,unittest.TestCase):
     def test_quiet_miss_and_sdl_return_immediately_without_clock_or_new_keys(self):
         for role in ("original","sdl"):
             report = {"checkpoints":[]}
-            gate = probe.damage_outcome_gate(self.assets,report,role)
+            gate = probe.magic_resource_quiet_gate(self.assets,report,role,"damage","damage-cast-outcome")
             with patch.object(probe.time,"monotonic",side_effect=AssertionError("no quiet clock")):
                 self.assertEqual(gate(self.result_frame(alive=True))["outcome"],"miss")
                 if role == "sdl":
@@ -671,7 +671,7 @@ class DamageTest(ResourceFixture,unittest.TestCase):
             if role == "sdl":
                 self.assertNotIn("damage_resource_quiet",report)
         with self.assertRaises(ValueError):
-            probe.damage_outcome_gate(self.assets,{"checkpoints":[]},"unknown")
+            probe.magic_resource_quiet_gate(self.assets,{"checkpoints":[]},"unknown","damage","damage-cast-outcome")
 
     def test_quiet_unknown_capture_error_and_timeout_never_send_navigation(self):
         for unknown in (True,False):
@@ -852,14 +852,20 @@ class HealTest(ResourceFixture,unittest.TestCase):
         "UP","DOWN","LEFT","RIGHT","UP","ENTER","ESC","UP","ENTER","Z","Z","Z","Z","ENTER",
         "F2","ESC","RIGHT","RIGHT","RIGHT","DOWN","F2","ESC","ESC"]
 
-    def exercise_heal(self,capture,save,report,*,fail_at=None):
+    def exercise_heal(self,capture,save,report,*,fail_at=None,quiet_frames=None,clock=None):
         observed = []
+        real_wait = probe.wait_state
         def wait(capture,name,predicate,checkpoints,**kwargs):
             observed.append((name,capture.key.call_count))
             if name==fail_at:
                 raise TimeoutError("resource missing")
             if name=="heal-acted-closed-browse":
                 self.assertEqual(capture.key.call_count,22)
+                if quiet_frames:
+                    self.assertEqual(kwargs["timeout"],90)
+                    return real_wait(capture,name,predicate,checkpoints,**kwargs)
+            if name=="heal-recipient-detail" and quiet_frames and clock[0] < 2.8:
+                raise TimeoutError("early F2 was not acknowledged")
             if name in ("heal-recipient-detail","heal-caster-detail"):
                 kind = "recipient" if name=="heal-recipient-detail" else "caster"
                 frame = self.detail_frame(kind)
@@ -871,12 +877,103 @@ class HealTest(ResourceFixture,unittest.TestCase):
                 frame = self.closed_caster_frame()
                 return frame,predicate(frame)
             return self.list_frame(),{"focus_screen":[52,76] if name=="z-raw0" else [124,100]}
+        if quiet_frames:
+            def frame():
+                image = quiet_frames().copy()
+                for x in range(64):
+                    image.putpixel((x,0),(x*4,0,0))
+                capture.last = image
+                return image
+            capture.frame.side_effect = frame
         with patch.object(probe,"wait_title"),patch.object(probe,"wait_state",side_effect=wait), \
                 patch.object(probe,"wait_measured_save",side_effect=AssertionError("heal must not Save")):
             probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
                 self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
                 save.stat().st_mtime_ns,report,scenario="heal")
         return observed
+
+    def test_original_heal_quiet_waits_after_early_result_and_notice_before_f2(self):
+        result = self.browse_frame()
+        notice = result.copy()
+        notice.paste(self.assets["dialog_top"].convert("RGB"),(5,112))
+        for old_gate in (True,False):
+            with self.subTest(old_gate=old_gate),tempfile.TemporaryDirectory() as directory:
+                save = Path(directory)/"FD2.SAV"; save.write_bytes(self.derived_bytes)
+                clock,keys,report = [0.0],[],{"checkpoints":[],"kind":"original"}
+                capture = Mock(artifacts=Path(directory),process=Mock(pid=123),last=None)
+                capture.key.side_effect = lambda key:keys.append((key,clock[0]))
+                def frames():
+                    return notice if 0 < clock[0] < 0.8 else result
+                with patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]), \
+                        patch.object(probe.time,"sleep",side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)):
+                    if old_gate:
+                        with patch.object(probe,"magic_resource_quiet_gate",side_effect=lambda assets,report,role,scenario,name:lambda frame:probe.healed_browse(frame,assets)), \
+                                self.assertRaisesRegex(TimeoutError,"early F2"):
+                            self.exercise_heal(capture,save,report,quiet_frames=frames,clock=clock)
+                        self.assertEqual(keys[-1],("F2",0.0))
+                    else:
+                        self.exercise_heal(capture,save,report,quiet_frames=frames,clock=clock)
+                        self.assertGreaterEqual(next(now for key,now in keys if key=="F2"),2.8)
+                        self.assertEqual([key for key,_ in keys],self.heal_keys)
+                        quiet = report["heal_resource_quiet"]
+                        self.assertEqual(quiet["first_result_time"],0)
+                        self.assertEqual(quiet["resets"],1)
+                        self.assertGreaterEqual(quiet["window_duration_seconds"],2)
+                        self.assertGreaterEqual(quiet["valid_samples"],2)
+                        self.assertEqual(report["heal_caster_measurement"]["experience"],20)
+                self.assertEqual(save.read_bytes(),self.derived_bytes)
+
+    def test_heal_outer_notice_and_own_wgc_reset_without_changing_sdl(self):
+        result = self.browse_frame()
+        detail = probe.healed_browse(result,self.assets)
+        notice = result.copy(); notice.paste(self.assets["dialog_top"].convert("RGB"),(5,112))
+        clock,report = [0.0],{"checkpoints":[]}
+        # 单独锁定外层已知框边门；不依赖框边恰好盖到actor的哪些像素。
+        with patch.object(probe,"healed_browse",return_value=detail):
+            gate = probe.magic_resource_quiet_gate(self.assets,report,"original","heal","heal-acted-closed-browse")
+            with patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]):
+                self.assertIsNone(gate(result))
+                clock[0] = 1
+                self.assertIsNone(gate(notice))
+                self.assertIsNone(report["heal_resource_quiet"]["window_started"])
+                self.assertIsNone(gate(result))
+                clock[0] = 2
+                report["checkpoints"].append({"kind":"wgc_transient","name":"damage-cast-outcome-wgc-retry-1"})
+                self.assertIsNone(gate(result))
+                self.assertEqual(report["heal_resource_quiet"]["resets"],1)
+                report["checkpoints"].append({"kind":"wgc_transient","name":"heal-acted-closed-browse-wgc-retry-1"})
+                self.assertIsNone(gate(result))
+                self.assertEqual(report["heal_resource_quiet"]["valid_samples"],1)
+                clock[0] = 4
+                self.assertIsNotNone(gate(result))
+            self.assertEqual(report["heal_resource_quiet"]["resets"],2)
+            sdl = probe.magic_resource_quiet_gate(self.assets,{"checkpoints":[]},"sdl","heal","heal-acted-closed-browse")
+            with patch.object(probe.time,"monotonic",side_effect=AssertionError("SDL must not wait")):
+                self.assertIs(sdl(notice),detail)
+        with self.assertRaises(ValueError):
+            probe.magic_resource_quiet_gate(self.assets,{"checkpoints":[]},"original","unknown","unused")
+
+    def test_heal_quiet_unknown_error_and_timeout_never_send_f2(self):
+        for unknown in (True,False):
+            with self.subTest(unknown=unknown),tempfile.TemporaryDirectory() as directory:
+                save = Path(directory)/"FD2.SAV"; save.write_bytes(self.derived_bytes)
+                clock,report = [0.0],{"checkpoints":[]}
+                capture = Mock(artifacts=Path(directory),process=Mock(pid=123),last=None)
+                def frames():
+                    if unknown:
+                        raise RuntimeError("WGC permission denied")
+                    clock[0] += 10
+                    return Image.new("RGB",(320,200))
+                with patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]), \
+                        patch.object(probe.time,"sleep",side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)), \
+                        self.assertRaisesRegex(RuntimeError if unknown else TimeoutError,
+                            "permission denied" if unknown else "heal-acted-closed-browse"):
+                    self.exercise_heal(capture,save,report,quiet_frames=frames,clock=clock)
+                self.assertEqual([call.args[0] for call in capture.key.call_args_list],self.heal_keys[:22])
+                if not unknown:
+                    self.assertGreaterEqual(clock[0],90)
+                    self.assertLess(clock[0],91)
+                self.assertEqual(save.read_bytes(),self.derived_bytes)
 
     def test_heal_one_cast_two_details_no_save_and_no_extra_input_after_failed_gate(self):
         with tempfile.TemporaryDirectory() as directory:

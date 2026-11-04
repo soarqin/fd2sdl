@@ -477,19 +477,22 @@ def damage_result(frame,assets):
     return None
 
 
-def damage_outcome_gate(assets,report,role):
+def magic_resource_quiet_gate(assets,report,role,scenario,checkpoint_name):
+    if scenario not in ("damage","heal"):
+        raise ValueError("未知施法结果场景")
+    predicate = damage_result if scenario == "damage" else healed_browse
     if role == "sdl":
-        return lambda frame: damage_result(frame,assets)
+        return lambda frame: predicate(frame,assets)
     if role != "original":
-        raise ValueError("未知伤害检查点角色")
+        raise ValueError("未知施法检查点角色")
     # acted后的第一张无框图可能早于经验提示；只观察，不发送跳过／补救键。
     # 两秒是宿主测试稳定间隔，不是11 BIOS tick或完整原版演出时长。
-    state = {"hostquiet_seconds":2.0,"first_kill_time":None,"window_started":None,
+    state = {"hostquiet_seconds":2.0,"first_result_time":None,"window_started":None,
              "window_duration_seconds":0.0,"valid_samples":0,"resets":0,
              "observed_wgc_transients":0,
              "native_basis":"sub_1E292 @0x1e292 -> sub_1E5C0(11 BIOS ticks) @0x1e5c0 -> bios_keyboard_buffer_clear @0x4e381; controller clear @0x119a6",
              "scope":"host no-key resource stability only; full reward notice/timing equivalence unverified"}
-    report["damage_resource_quiet"] = state
+    report[scenario+"_resource_quiet"] = state
 
     def reset():
         if state["window_started"] is not None:
@@ -500,20 +503,21 @@ def damage_outcome_gate(assets,report,role):
 
     def matched(frame):
         transients = sum(item.get("kind") == "wgc_transient" and
-            item.get("name","").startswith("damage-cast-outcome-wgc-retry-")
+            item.get("name","").startswith(checkpoint_name+"-wgc-retry-")
             for item in report["checkpoints"])
         if transients != state["observed_wgc_transients"]:
             reset()
             state["observed_wgc_transients"] = transients
-        detail = damage_result(frame,assets)
-        if detail is None:
+        detail = predicate(frame,assets)
+        if detail is None or (scenario == "heal" and
+                match_indexed(frame,assets["dialog_top"],(5,112))["ok"]):
             reset()
             return None
-        if detail["outcome"] != "kill":
+        if scenario == "damage" and detail["outcome"] != "kill":
             return detail  # miss保持首见即失败，不等待或重抽。
         now = time.monotonic()
-        if state["first_kill_time"] is None:
-            state["first_kill_time"] = now
+        if state["first_result_time"] is None:
+            state["first_result_time"] = now
         if state["window_started"] is None:
             state["window_started"] = now
         state["valid_samples"] += 1
@@ -641,7 +645,8 @@ def exercise(capture,source,focus,assets,actors,probe,templates,fields,titles,sa
         report["input_scope"] = {"controlled_coordinate_fixture":True,"natural_one_turn_route_covered":False,
             "cast_confirmation_count":1,"post_cast_skip_keys":[],"save_attempted":False}
         capture.key("ENTER")  # 本轮唯一施法提交；其后直到稳定browse只观察。
-        _,outcome = checkpoint("damage-cast-outcome",damage_outcome_gate(assets,report,role),timeout=120)
+        _,outcome = checkpoint("damage-cast-outcome",magic_resource_quiet_gate(
+            assets,report,role,"damage","damage-cast-outcome"),timeout=120)
         report["damage_outcome"] = outcome
         if outcome["outcome"]!="kill":
             raise AssertionError("ID0本次未命中，击杀/EX42尚未验收；未重试或发送补键")
@@ -684,7 +689,8 @@ def exercise_heal(capture,source,assets,templates,fields,report,first,checkpoint
     report["input_scope"] = {"synthetic_heal_fixture":True,"cast_confirmation_count":1,
         "post_cast_skip_keys":[],"save_attempted":False,"target_cycle":[0,1,2,3,0]}
     capture.key("ENTER")
-    checkpoint("heal-acted-closed-browse",lambda frame:healed_browse(frame,assets),timeout=90)
+    checkpoint("heal-acted-closed-browse",magic_resource_quiet_gate(
+        assets,report,report.get("kind","original"),"heal","heal-acted-closed-browse"),timeout=90)
     capture.key("F2")
     _,values = checkpoint("heal-recipient-detail",lambda frame:recipient_detail(frame,source,assets))
     report["heal_recipient_measurement"] = values

@@ -330,7 +330,15 @@ C3补跑通过总览、玩家取消、满HP WAIT、March、F1、结果页及法�
 
 C4最后5组全部实跑通过，最终累计30组为C2的18、C3的新7及C4的新5，不能写fresh30。最终summary为`item-formal-c4/cumulative-30/summary.json`，明确`inherited=25/executed=5`；外Job32848 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`。旧报告、截图及来源／二进制／完整工具manifest的前后守卫均通过。C4定向Damage11项及Magic／Item／output-path共80项通过，另18项启动捕获回归；完整341项Python及57项CTest仍保留C1真实来源，不冒称C4全量Python新跑。
 
-复审又发现恢复术的首个F2有相同1e292早帧风险，本次heal通过不能排除竞态。下一小阶段将仅把damage／heal无键观察提为同一owner、保留各自资源门，再fresh配对两场；其它28组按冻结app与未变helper、截图／输入／工具来源累计。B3整体仍未关闭；之后继续B3.4丢弃校准。raw16B／末槽stale、完整UI随机流／浮字／演出／声音、水色同步、整关实战、结算和下一关仍未验。Linux本轮未执行。
+复审又发现恢复术的首个F2有相同1e292早帧风险，本次heal通过不能排除竞态。正式入口已独立提交`ecef415`，三组配对／默认注册已独立提交`ad8ddee`，未混入后续C5审查修补；本地`src/Debug/fd2sdl.exe`已更新为同一已验收0bb6程序。下一小阶段仅把damage／heal无键观察提为同一owner、保留各自资源门，再fresh配对两场；其它28组按冻结app与未变helper、截图／输入／工具来源累计。
+
+C5删除单damage专用门，改为仅两caller共享的`magic_resource_quiet_gate`；各自结果predicate、deadline、checkpoint名、按键及数值门不变。治疗额外拒绝既有`dialog_top(5,112)`完整资源，不更改已修的42行actor组合；每场保存独立quiet收据，记录首结果／当前窗口／有效样本／重置和host参数。原版2秒／两帧、当前gate WGC重置、damage miss首见失败与SDL两场零等待均保留。独立connected复审无新增阻塞；删除旧单用helper和兼容wrapper，没有第二套等待循环或输入owner。
+
+C5完整Magic46项、最终全量356/356 Python（217.436秒，无跳过）通过。最终`item-formal-c5/review-30/summary.json`为passed，明确28项继承加2场本次复验；两场原版／SDL真实运行，damage MP6/8／LV1／EX42，heal recipient42/42及caster MP5/8／LV1／EX20。四PID26616／23644／38796／37736均正常exit0，子Job60944／58940及外Job63232均worker0、timeout0、residual0、forced0、cleaned1。原版quiet实际为7帧2.360秒／4帧2.188秒，区间无键；SDL无quiet。不是用离线重放、C4旧Magic或原版单端校准补作本次配对。
+
+最终源manifest326文件、其中191份src，以及原版50文件在全量Python后再次实核未变；工作区与冻结源码仅CRLF差异，本地程序同0bb6。两场及其祖先收据／输入／截图／binary／工具守卫均通过，保留全部旧failed报告。图形仍为累计30组（C2的18、C3的7、C4的ITEM3及C5的Magic2），CTest保留C1单轮57项真实来源；Linux未执行。此处只关闭已列基础物品纵向路径及观察竞态修补，不关闭整个B3。
+
+B3整体仍未关闭；之后继续B3.4丢弃校准。raw16B／末槽stale、完整UI随机流／浮字／演出／声音、水色同步、整关实战、结算和下一关仍未验。Linux本轮未执行。
 
 ## 本轮审查结论与后续
 

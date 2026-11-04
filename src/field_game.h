@@ -15,6 +15,7 @@
 #include "field_manual_slot.h"
 #include "field_handoff.h"
 #include "field_info.h"
+#include "field_item.h"
 #include "field_magic.h"
 #include "field_path.h"
 #include "field_unit.h"
@@ -97,7 +98,9 @@ typedef enum {
     FD2_FIELD_INTERACTION_MANUAL_SLOT,
     FD2_FIELD_INTERACTION_AUXILIARY,
     FD2_FIELD_INTERACTION_MAGIC_LIST,
-    FD2_FIELD_INTERACTION_MAGIC_TARGETING
+    FD2_FIELD_INTERACTION_MAGIC_TARGETING,
+    FD2_FIELD_INTERACTION_ITEM_MENU,
+    FD2_FIELD_INTERACTION_ITEM_LIST
 } fd2_field_interaction;
 
 /* field_unit_detail_present @0x17aed（原sub_17AED）：装备页任意键后，有法术才显示第二页。 */
@@ -182,6 +185,10 @@ typedef struct {
     /* field_player_magic_command_execute @0x1cff0 的53C57等价索引；
      * 只归列表交互，不写入原版单位或存档。 */
     int magic_list_selected;
+    /* 1b932/1b9de的raw槽索引，仅ITEM_LIST有效；memset零态及成功Load
+     * 均归0，不写SAV。ITEM_MENU复用上述command四向owner，语义为
+     * Use/Give/Equip/Drop；SDL目前仅Use可选，非原版能力表。 */
+    int item_list_selected;
     /* field_cell_selection_execute @0x115b6 的本次target局部轮询，
      * 不复用browse的focus_cycle_unit，不写SAV。 */
     uint8_t magic_target_id;
@@ -356,6 +363,23 @@ int fd2_field_game_magic_list_step(fd2_field_game *game,
                                    fd2_field_magic_list_key key,
                                    uint8_t *confirmed_id);
 int fd2_field_game_end_magic_list(fd2_field_game *game);
+
+/* field_player_item_command_execute @0x1bbdc（原登记同名）、
+ * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
+ * 只支持stage0与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
+ * 正式COMMAND尚未分派此入口，ITEM仍禁用；菜单仅Use可选，Give/Equip/Drop
+ * 明确禁用。confirm仅开列表0；list step的1只报告可确认，不提交handler。
+ * begin/confirm/end成功0，拒绝-1；方向返回是否改变，拒绝-1；list step
+ * 沿用-2/-1/0/1。step不关闭列表，宿主完成关闭动画再end。
+ * 列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，均不回滚临时
+ * 移动、不清pending、不改单位/资源或RNG。COMMAND取消仍由原流程处理。 */
+int fd2_field_game_begin_item_menu(fd2_field_game *game);
+int fd2_field_game_select_item_menu_direction(
+    fd2_field_game *game, fd2_field_command_direction direction);
+int fd2_field_game_confirm_item_menu(fd2_field_game *game);
+int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key);
+int fd2_field_game_end_item_list(fd2_field_game *game);
+int fd2_field_game_end_item_menu(fd2_field_game *game);
 
 /* field_player_magic_command_execute @0x1cff0 的普通area0选择；当前只支持
  * ID0/13。begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；

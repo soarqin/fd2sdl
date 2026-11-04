@@ -1892,6 +1892,87 @@ int fd2_field_game_end_magic_list(fd2_field_game *game) {
     return fd2_field_game_refresh_commands(game);
 }
 
+/* field_player_item_command_execute @0x1bbdc（原登记同名）与
+ * field_unit_inventory_select @0x1b932（原sub_1B932）：不套MAGIC的
+ * MP/+27/移动后unit例外门，纯库存预检复用1b9de的SDL支持门。 */
+static int item_menu_actor_is_valid(const fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->stage != 0 || game->player_post_waiting_phase || game->active_side != 2 ||
+        game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count)
+        return 0;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    int selected = 0;
+    return unit_can_act_for_side(actor, 2) && !fd2_field_unit_has_acted(actor) &&
+        fd2_field_item_list_select_step(actor, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) == 0;
+}
+
+static void enter_item_menu(fd2_field_game *game) {
+    /* 原版[Use,Give,Equip,Drop]按场景计算；这里是SDL尚未开放的能力门。 */
+    game->command_disabled[0] = 0;
+    for (size_t i = 1; i < FD2_FIELD_COMMAND_COUNT; i++) game->command_disabled[i] = 1;
+    game->command_selected = 0;
+    game->command_highlight_phase = 0;
+    game->command_animation_phase = 0;
+    game->command_animation_opening = 0;
+    game->last_command_highlight_ms = 0;
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
+}
+
+int fd2_field_game_begin_item_menu(fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_COMMAND)
+        return -1;
+    enter_item_menu(game);
+    return 0;
+}
+
+int fd2_field_game_select_item_menu_direction(
+        fd2_field_game *game, fd2_field_command_direction direction) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
+        direction < FD2_FIELD_COMMAND_DIRECTION_UP || direction > FD2_FIELD_COMMAND_DIRECTION_DOWN)
+        return -1;
+    int previous = game->command_selected;
+    game->command_selected = fd2_field_command_select_direction(previous, direction, game->command_disabled);
+    return game->command_selected != previous;
+}
+
+int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
+        game->command_selected != 0 || game->command_disabled[0])
+        return -1;
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
+    return 0;
+}
+
+int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST)
+        return -2;
+    return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
+                                          &game->item_list_selected, key, 1);
+}
+
+int fd2_field_game_end_item_list(fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST)
+        return -1;
+    int selected = game->item_list_selected;
+    if (fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
+            &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) != 0)
+        return -1;
+    /* 18d8c @0x19060在Use取消后重跑整个1bbdc，不返回COMMAND。 */
+    enter_item_menu(game);
+    return 0;
+}
+
+int fd2_field_game_end_item_menu(fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU)
+        return -1;
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    return fd2_field_game_refresh_commands(game);
+}
+
 static int magic_target_focus_is_valid(const fd2_field_game *game) {
     return game->map.width > 0 && game->map.height > 0 &&
         game->cursor_cell_x >= 0 && game->cursor_cell_x < game->map.width &&
@@ -2694,6 +2775,10 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         return fd2_field_game_end_magic_list(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING)
         return fd2_field_game_cancel_magic_targeting(game) == 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST)
+        return fd2_field_game_end_item_list(game) == 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU)
+        return fd2_field_game_end_item_menu(game) == 0;
     if (game->selected_unit < 0) return 0;
     if (game->interaction == FD2_FIELD_INTERACTION_TARGETING)
         return fd2_field_game_cancel_attack(game);

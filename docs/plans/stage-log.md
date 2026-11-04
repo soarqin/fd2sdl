@@ -260,6 +260,16 @@ B3.2b已提交`c284b5d`。草药192的power40与法术ID13的power70不同，不
 
 从仅缓存本小阶段5份源码的index冻结 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-session-acceptance/`，全新编译全部core／应用／测试，避免新struct与旧对象混用。Windows单轮54/54 CTest无跳过通过（真实输入42.87秒），10项发布审计及冻结源码465个规范地址通过。Python实现未变，沿用B3.2b实际322项结果，不声称新跑一轮。没有SDL物品WGC，原版28检查点仍只是B3.2a单端；继续B3.2c2私有列表等待及B3.3目标，不关闭整个B3。
 
+### B3.2c2物品列表真实等待与子菜单回显
+
+B3.2c1已提交`28810d7`。在field_play同文件提取仅MAGIC／ITEM Use两类的共享列表主体，原MAGIC保留薄wrapper，不复制开合、portrait0／3、16c57共享RNG／眨眼、水色tick、quit／drain及资源释放。分派仅涉及各自core预检／step、索引和下页绘制；ITEM仅在完整关页后输出raw槽，取消／错误不写out，terminal后仍由外层结束LIST。正式ITEM及目标／效果没有接入，也没有新CLI或生产测试入口。
+
+game的菜单呈现沿原owner只扩ITEM_MENU：IDs8／9／10／11对应frames24..35，复用静止／开关动画及220ms高亮，仍最后重画选中actor。COMMAND的IDs0..3等价保持，ITEM_LIST等非菜单状态不泄漏图标。两个独立只读审查均无阻塞；不保存第二份菜单ID或资源缓存。
+
+隔离index候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-modal-acceptance/` 仅包含固定presenter补丁和列表实现，没有后续ITEM_TARGETING。首次临时校验路径少`src`层，未进入编译；修正后先复核完整source manifest及固定副本，再完成全新core／应用／测试构建。Windows单轮55/55 CTest无跳过通过（真实输入42.92秒），10项发布审计及冻结源码475个规范地址通过。旧8组MAGIC回归和新增ITEM的1／4／5／8项、剑甲拒Use／药raw2确认、逐级core取消、共享RNG／眨眼、20类首错／后段失败及退出释放均通过；整帧合成render另验全部状态／相位和actor覆盖。
+
+本阶段Python实现未变，沿用B3.2b实际322项；草药原版校准工具的后续变更没有混入冻结。没有SDL物品WGC，原版单端与双端累计27组继续分别登记。继续B3.3原版草药校准、目标和提交，B3.2d正式配对仍须完整支持候选；B3尚未完成。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

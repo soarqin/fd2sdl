@@ -954,6 +954,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_item_flow COMMAND fd2_field_item_flow_test)
 
+    add_executable(fd2_field_item_menu_render_test
+        tests/field_item_menu_render_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_item_menu_render_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_item_menu_render_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_item_menu_render_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_item_menu_render_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_item_menu_render COMMAND fd2_field_item_menu_render_test)
+
     add_executable(fd2_field_magic_list_play_test
         tests/field_magic_list_play_test.c
         $<TARGET_OBJECTS:fd2sdl_core>)

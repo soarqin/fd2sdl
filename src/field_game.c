@@ -12,6 +12,9 @@
  * field_controller_input @0x117e7（原登记同名）与sub_13565 @0x13565。
  * 法术列表边界依据field_player_magic_command_execute @0x1cff0（原登记同名）
  * 与field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）。
+ * 物品层依据field_player_item_command_execute @0x1bbdc（原登记同名）、
+ * field_unit_inventory_select @0x1b932（原sub_1B932）与
+ * field_unit_inventory_select_step @0x1b9de（原sub_1B9DE）。
  */
 
 #include "field_game.h"
@@ -889,7 +892,8 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
             game->last_range_visual_ms += FD2_FIELD_RANGE_VISUAL_MS;
         }
     }
-    if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
+    if (game->interaction == FD2_FIELD_INTERACTION_COMMAND ||
+        game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU) {
         if (game->last_command_highlight_ms == 0) {
             game->last_command_highlight_ms = now_ms;
         } else {
@@ -1087,17 +1091,24 @@ static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
 static void render_field_command(const fd2_field_game *game,
                                  fd2_vga *vga,
                                  int camera_x, int camera_y) {
-    if (!game || !vga || game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+    if (!game || !vga ||
+        (game->interaction != FD2_FIELD_INTERACTION_COMMAND &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU) ||
         game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count)
         return;
     const fd2_field_unit *unit = &game->units.items[game->selected_unit];
     /* field_command_menu_draw @0x179d5：以单位格左上角为基准，
      * 静止时用 close 初值；开合动画期间保留各自四帧坐标。 */
-    fd2_field_command_draw_animation(
+    /* 18d8c用0..3，1bbdc物品子菜单用8..11；禁用仍取各自能力门。 */
+    static const uint8_t command_ids[2][FD2_FIELD_COMMAND_COUNT] = {
+        {0, 1, 2, 3}, {8, 9, 10, 11}
+    };
+    fd2_field_command_draw_id_animation(
         vga, &game->command_assets,
         (int)unit->x * 24 - camera_x,
         (int)unit->y * 24 - camera_y,
+        command_ids[game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU],
         game->command_selected, game->command_disabled,
         game->command_highlight_phase, game->command_animation_opening,
         game->command_animation_phase);
@@ -1824,7 +1835,8 @@ int fd2_field_game_confirm_command(fd2_field_game *game) {
 int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
                                    int opening, uint32_t frame_delay_ms) {
     if (!game || !game->ready || !vga ||
-        game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
+        (game->interaction != FD2_FIELD_INTERACTION_COMMAND &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU) ||
         !game->command_assets.ready)
         return -1;
     game->command_animation_opening = opening ? 1u : 0u;

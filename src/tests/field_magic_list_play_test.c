@@ -1,5 +1,6 @@
-/* field_player_magic_command_execute @0x1cff0（原登记同名）的
- * 私有modal无窗口回归；单键步骤@0x1d51d、共享RNG等待@0x16c57。
+/* field_player_magic_command_execute @0x1cff0（原登记同名）与
+ * field_unit_inventory_select @0x1b932（原sub_1B932）的私有modal无窗口
+ * 回归；单键步骤@0x1d51d／@0x1b9de、共享RNG等待@0x16c57。
  * 用真实DATO／字体／列表资源和正式core step，替换宿主时钟／呈现。
  * 验证列表到目标／COMMAND的返回编排，不提交施法，不作为原版运行对照。 */
 #include <stdio.h>
@@ -30,6 +31,7 @@ static struct {
     int steps, indices[32], statuses[32], rng_calls, bad_cue;
     int closing_start, bad_transition;
     fd2_field_magic_list_key keys[32];
+    fd2_field_item_list_key item_keys[32];
     int portrait_at_frame[128];
     key_frame keys_at[16];
     size_t key_count;
@@ -92,8 +94,12 @@ static void modal_render(fd2_field_game *game, fd2_vga *vga) {
     memcpy(reference_page.framebuffer, reference_background, sizeof(reference_background));
     fd2_field_detail_draw(&reference_page, &game->info_assets, &game->font,
         &game->ui_text, &game->units.items[game->selected_unit], &reference_portraits[0]);
-    (void)fd2_field_magic_list_draw(&reference_page, &game->info_assets, &game->font,
-        &game->ui_text, &game->units.items[game->selected_unit], -1);
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST)
+        (void)fd2_field_item_list_draw(&reference_page, &game->info_assets, &game->font,
+            &game->ui_text, &game->units.items[game->selected_unit], -1);
+    else
+        (void)fd2_field_magic_list_draw(&reference_page, &game->info_assets, &game->font,
+            &game->ui_text, &game->units.items[game->selected_unit], -1);
 }
 static int modal_water(fd2_vga *vga, uint64_t now) {
     (void)vga; (void)now;
@@ -114,6 +120,21 @@ static int modal_step(fd2_field_game *game, fd2_field_magic_list_key key,
     if (index < 32) {
         controls.keys[index] = key;
         controls.indices[index] = game->magic_list_selected;
+        controls.statuses[index] = result;
+    }
+    if (result == -1 || result == 1) {
+        controls.closing = 1;
+        controls.closing_start = controls.frames;
+    }
+    return result;
+}
+static int modal_item_step(fd2_field_game *game, fd2_field_item_list_key key) {
+    int result = controls.step_error && controls.steps > 0 ? -2 :
+        fd2_field_game_item_list_step(game, key);
+    int index = controls.steps++;
+    if (index < 32) {
+        controls.item_keys[index] = key;
+        controls.indices[index] = game->item_list_selected;
         controls.statuses[index] = result;
     }
     if (result == -1 || result == 1) {
@@ -193,6 +214,7 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_image_free modal_image_free
 #define fd2_field_game_render modal_render
 #define fd2_field_game_magic_list_step modal_step
+#define fd2_field_game_item_list_step modal_item_step
 #define fd2_field_game_animate_command modal_command
 #define fd2_field_audio_play modal_audio
 #define fd2_field_water_tick modal_water
@@ -207,6 +229,7 @@ static void modal_present(fd2_vga *vga) {
 #undef fd2_image_free
 #undef fd2_field_game_render
 #undef fd2_field_game_magic_list_step
+#undef fd2_field_game_item_list_step
 #undef fd2_field_game_animate_command
 #undef fd2_field_audio_play
 #undef fd2_field_water_tick
@@ -272,9 +295,24 @@ static void reset(fd2_field_game *game, fd2_vga *vga) {
     memset(vga->dac, 125, sizeof(vga->dac));
     fd2_input_init(&vga->input);
 }
+static void set_items(fd2_field_unit *unit, unsigned count) {
+    for (unsigned slot = 0; slot < 8; slot++) {
+        unit->data_09_1e[1u + slot * 2u] = slot < count ? 0 : 0x80;
+        unit->data_09_1e[2u + slot * 2u] = 192; /* 已知可Use的药草。 */
+    }
+}
+static int reset_item(fd2_field_game *game, fd2_vga *vga, unsigned count) {
+    reset(game, vga);
+    set_items(&game->units.items[0], count);
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    CHECK(fd2_field_game_begin_item_menu(game) == 0);
+    CHECK(fd2_field_game_confirm_item_menu(game) == 0);
+    return 0;
+}
 static int unchanged_game(const fd2_field_game *game, const fd2_field_game *before) {
     fd2_field_game copy = *game;
     copy.magic_list_selected = before->magic_list_selected;
+    copy.item_list_selected = before->item_list_selected;
     return memcmp(&copy, before, sizeof(copy)) == 0;
 }
 static int released(void) {
@@ -296,7 +334,7 @@ static int test_navigation_and_cancel(void) {
     uint8_t id = 0xa5;
     fd2_field_audio audio = {0};
     fd2_field_game before = game;
-    CHECK(play_field_magic_list(&game, &vga, &audio, &id) == FIELD_MAGIC_LIST_CANCELLED);
+    CHECK(play_field_magic_list(&game, &vga, &audio, &id) == FIELD_LIST_CANCELLED);
     static const int expected[] = {4,4,0,4,0,0};
     CHECK(controls.steps == 7 && controls.rng_calls == 6);
     CHECK(controls.keys[0] == FD2_FIELD_MAGIC_LIST_KEY_OTHER);
@@ -329,7 +367,7 @@ static int test_single_item_navigation_sound(void) {
         controls.key_count = 5;
         fd2_field_audio audio = {0};
         uint8_t id = 0xa5;
-        CHECK(play_field_magic_list(&game, &vga, &audio, &id) == FIELD_MAGIC_LIST_CANCELLED);
+        CHECK(play_field_magic_list(&game, &vga, &audio, &id) == FIELD_LIST_CANCELLED);
         CHECK(controls.sound_calls == enabled * 2 && game.magic_list_selected == 0);
         CHECK(controls.steps == 6 && controls.rng_calls == 5 && id == 0xa5);
         CHECK(released() == 0);
@@ -346,7 +384,7 @@ static int test_confirm_low_mp_and_other(void) {
         controls.key_count = 1;
         uint8_t id = 0xa5;
         fd2_field_game before = game;
-        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_CONFIRMED);
+        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CONFIRMED);
         CHECK(id == 0 && controls.rng_calls == 1 && controls.steps == 2);
         CHECK(game.units.items[0].mp == 40 && unchanged_game(&game, &before));
         CHECK(released() == 0);
@@ -360,7 +398,7 @@ static int test_confirm_low_mp_and_other(void) {
     controls.keys_at[2] = (key_frame){17, SDL_SCANCODE_DELETE, 0};
     controls.key_count = 3;
     uint8_t id = 0xa5;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_CANCELLED);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
     CHECK(controls.steps == 5 && controls.rng_calls == 4 && id == 0xa5);
     CHECK(controls.statuses[1] == 0 && controls.statuses[4] == -1);
     CHECK(controls.keys[2] == FD2_FIELD_MAGIC_LIST_KEY_OTHER);
@@ -375,7 +413,7 @@ static int test_blink_wait_boundaries(void) {
     controls.keys_at[0] = (key_frame){45, SDL_SCANCODE_ESCAPE, 0};
     controls.key_count = 1;
     uint8_t id = 0xa5;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_CANCELLED);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
     CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 640);
     CHECK(controls.portrait_at_frame[33] == 1 && controls.portrait_at_frame[34] == 3);
     CHECK(controls.portrait_at_frame[40] == 3 && controls.portrait_at_frame[41] == 1);
@@ -384,7 +422,7 @@ static int test_blink_wait_boundaries(void) {
     controls.keys_at[0] = (key_frame){35, SDL_SCANCODE_A, 0};
     controls.keys_at[1] = (key_frame){66, SDL_SCANCODE_ESCAPE, 0};
     controls.key_count = 2;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_CANCELLED);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
     CHECK(controls.rng_calls == 3 && controls.rng_time[1] == 560 && controls.rng_time[2] == 1008);
     CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[63] == 3);
     CHECK(controls.portrait_at_frame[64] == 1);
@@ -393,7 +431,7 @@ static int test_blink_wait_boundaries(void) {
     controls.interval = 1000; /* 每次只推进一个110ms步骤，不追赶10步。 */
     controls.keys_at[0] = (key_frame){16, SDL_SCANCODE_ESCAPE, 0};
     controls.key_count = 1;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_CANCELLED);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
     CHECK(controls.rng_calls == 1 && controls.portrait_at_frame[16] == 3);
     return released();
 }
@@ -408,7 +446,7 @@ static int test_quit_priority(void) {
         controls.quit_frame = frames[i];
         uint8_t id = 0xa5;
         fd2_field_game before = game;
-        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_HOST_QUIT);
+        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_HOST_QUIT);
         CHECK(id == 0xa5 && unchanged_game(&game, &before));
         CHECK(controls.steps == (frames[i] > 13 ? 2 : 1));
         CHECK(controls.rng_calls == (frames[i] > 12 ? 1 : 0));
@@ -419,13 +457,13 @@ static int test_quit_priority(void) {
     reset(&game, &vga);
     vga.input.quit_requested = 1;
     uint8_t id = 0xa5;
-    CHECK(play_field_magic_list(NULL, &vga, NULL, &id) == FIELD_MAGIC_LIST_HOST_QUIT);
+    CHECK(play_field_magic_list(NULL, &vga, NULL, &id) == FIELD_LIST_HOST_QUIT);
     CHECK(!controls.allocations && !controls.decode_calls && !controls.rng_calls);
     reset(&game, &vga);
     controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
     controls.key_count = 1;
     controls.quit_final = 1;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_HOST_QUIT);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_HOST_QUIT);
     CHECK(id == 0xa5 && controls.rng_calls == 1 && controls.presents == 1);
     return released();
 }
@@ -454,7 +492,7 @@ static int test_resource_errors_and_no_side_effects(void) {
         fd2_vga before = vga;
         fd2_field_game game_before = game;
         uint8_t id = 0xa5;
-        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_ERROR);
+        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_ERROR);
         CHECK(id == 0xa5 && controls.rng_calls == 0 && controls.steps == (fault == 12 ? 0 : 1));
         CHECK(controls.frames == 0 && controls.presents == 0);
         CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
@@ -468,7 +506,7 @@ static int test_resource_errors_and_no_side_effects(void) {
     controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
     controls.key_count = 1;
     uint8_t id = 0xa5;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_ERROR);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_ERROR);
     CHECK(id == 0xa5 && controls.rng_calls == 1 && controls.steps == 2);
     return released();
 }
@@ -490,7 +528,7 @@ static int test_core_entry_rejections(void) {
         fd2_field_game before = game;
         fd2_vga vga_before = vga;
         uint8_t id = 0xa5;
-        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_ERROR);
+        CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_ERROR);
         CHECK(controls.steps == 1 && controls.keys[0] == FD2_FIELD_MAGIC_LIST_KEY_OTHER);
         CHECK(controls.statuses[0] == -2 && controls.rng_calls == 0);
         CHECK(!controls.allocations && !controls.decode_calls && !controls.render_calls);
@@ -516,7 +554,7 @@ static int test_core_entry_rejections(void) {
     fd2_input_begin_test_frame(&vga.input, 0);
     fd2_vga before = vga;
     uint8_t id = 0xa5;
-    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_MAGIC_LIST_ERROR);
+    CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_ERROR);
     CHECK(id == 0xa5 && controls.steps == 1 && !controls.rng_calls);
     CHECK(memcmp(&vga, &before, sizeof(vga)) == 0 && fd2_input_has_any_key(&vga.input));
     free(broken_text);
@@ -574,6 +612,199 @@ static int test_selection_routes_target_and_command(void) {
     return released();
 }
 
+static int test_item_navigation_and_cancel_layers(void) {
+    const unsigned counts[] = {1,4,5,8};
+    for (size_t n = 0; n < sizeof(counts) / sizeof(counts[0]); n++) {
+        for (int enabled = 0; enabled <= 1; enabled++) {
+            fd2_field_game game;
+            fd2_vga vga;
+            CHECK(reset_item(&game, &vga, counts[n]) == 0);
+            /* ITEM不借MAGIC的MP、silence或移动后禁法门。 */
+            game.units.items[0].mp = 0;
+            game.units.items[0].detail_status[2] = 1;
+            game.move_path_length = 1;
+            game.option_values[1] = (uint8_t)enabled;
+            set_magic(&game.units.items[0], 0);
+            game.info_assets.magic_cost.pixels = NULL;
+            controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_UP, 0};
+            controls.keys_at[1] = (key_frame){15, SDL_SCANCODE_DOWN, 0};
+            controls.keys_at[2] = (key_frame){17, SDL_SCANCODE_RIGHT, 0};
+            controls.keys_at[3] = (key_frame){19, SDL_SCANCODE_LEFT, 0};
+            controls.keys_at[4] = (key_frame){21, SDL_SCANCODE_ESCAPE, 0};
+            controls.key_count = 5;
+            fd2_field_game before = game;
+            fd2_field_audio audio = {0};
+            uint8_t slot = 0xa5;
+            CHECK(play_field_item_list(&game, &vga, &audio, &slot) == FIELD_LIST_CANCELLED);
+            int expected[] = {(int)counts[n] - 1,0,counts[n] > 4 ? 4 : 0,0,0};
+            CHECK(controls.steps == 6 && controls.rng_calls == 5);
+            CHECK(controls.item_keys[0] == FD2_FIELD_ITEM_LIST_KEY_OTHER);
+            CHECK(memcmp(controls.indices + 1, expected, sizeof(expected)) == 0);
+            CHECK(controls.sound_calls == enabled * (counts[n] > 4 ? 4 : 2));
+            CHECK(slot == 0xa5 && unchanged_game(&game, &before));
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_LIST);
+            CHECK(!fd2_input_has_any_key(&vga.input));
+            for (size_t i = 0; i < sizeof(vga.framebuffer); i++) CHECK(vga.framebuffer[i] == 0x33);
+            for (size_t i = 0; i < sizeof(vga.palette); i++)
+                CHECK(vga.palette[i] == 31 && vga.dac[i] == 125);
+            CHECK(released() == 0);
+            CHECK(fd2_field_game_end_item_list(&game) == 0);
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && game.item_list_selected == 0);
+            CHECK(game.command_selected == 0 && game.command_disabled[0] == 0);
+            for (size_t i = 1; i < FD2_FIELD_COMMAND_COUNT; i++) CHECK(game.command_disabled[i] == 1);
+            CHECK(fd2_field_game_end_item_menu(&game) == 0);
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND);
+            CHECK(game.command_disabled[FD2_FIELD_COMMAND_ITEM] == 1);
+            CHECK(memcmp(&game.units, &before.units, sizeof(game.units)) == 0);
+            CHECK(memcmp(&game.pending_cell_event, &before.pending_cell_event,
+                         sizeof(game.pending_cell_event)) == 0);
+            CHECK(game.move_path_length == 1 && game.move_path == before.move_path);
+            CHECK(game.move_origin_x == before.move_origin_x && game.move_origin_y == before.move_origin_y);
+            CHECK(game.camera_cell_x == before.camera_cell_x && game.camera_cell_y == before.camera_cell_y);
+            CHECK(game.cursor_cell_x == before.cursor_cell_x && game.cursor_cell_y == before.cursor_cell_y);
+            CHECK(game.move_origin_camera_x == before.move_origin_camera_x &&
+                  game.move_origin_camera_y == before.move_origin_camera_y);
+            CHECK(controls.rng_calls == 5 && !game.event_total_count && !game.player_post_waiting_phase);
+        }
+    }
+    return 0;
+}
+
+static int test_item_use_confirmation_and_other(void) {
+    const SDL_Scancode confirms[] = {SDL_SCANCODE_RETURN, SDL_SCANCODE_SPACE, SDL_SCANCODE_KP_ENTER};
+    for (size_t i = 0; i < sizeof(confirms) / sizeof(confirms[0]); i++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_item(&game, &vga, 3) == 0);
+        game.units.items[0].data_09_1e[2] = 0;   /* 剑：record+13=0。 */
+        game.units.items[0].data_09_1e[4] = 132; /* 甲：record+13=0。 */
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+        controls.keys_at[1] = (key_frame){15, SDL_SCANCODE_DOWN, 0};
+        controls.keys_at[2] = (key_frame){17, SDL_SCANCODE_SPACE, 0};
+        controls.keys_at[3] = (key_frame){19, SDL_SCANCODE_DOWN, 0};
+        controls.keys_at[4] = (key_frame){21, SDL_SCANCODE_A, 0};
+        controls.keys_at[5] = (key_frame){23, confirms[i], 0};
+        controls.key_count = 6;
+        fd2_field_game before = game;
+        uint8_t slot = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_CONFIRMED);
+        CHECK(slot == 2 && game.item_list_selected == 2);
+        CHECK(controls.steps == 7 && controls.rng_calls == 6);
+        CHECK(controls.statuses[1] == 0 && controls.statuses[3] == 0 && controls.statuses[6] == 1);
+        CHECK(controls.item_keys[5] == FD2_FIELD_ITEM_LIST_KEY_OTHER);
+        CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_LIST && unchanged_game(&game, &before));
+        CHECK(controls.presents == 1 && !fd2_input_has_any_key(&vga.input));
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
+static int test_item_blink_and_quit(void) {
+    fd2_field_game game;
+    fd2_vga vga;
+    CHECK(reset_item(&game, &vga, 1) == 0);
+    controls.keys_at[0] = (key_frame){35, SDL_SCANCODE_A, 0};
+    controls.keys_at[1] = (key_frame){66, SDL_SCANCODE_DELETE, 0};
+    controls.key_count = 2;
+    uint8_t slot = 0xa5;
+    CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_CANCELLED);
+    CHECK(slot == 0xa5 && controls.rng_calls == 3);
+    CHECK(controls.rng_time[0] == 192 && controls.rng_time[1] == 560 && controls.rng_time[2] == 1008);
+    CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[63] == 3);
+    CHECK(controls.portrait_at_frame[64] == 1 && controls.water_calls > 0);
+    CHECK(released() == 0);
+    const int frames[] = {1,7,12,13,14,25};
+    for (size_t i = 0; i < sizeof(frames) / sizeof(frames[0]); i++) {
+        CHECK(reset_item(&game, &vga, 1) == 0);
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+        controls.key_count = 1;
+        controls.quit_frame = frames[i];
+        fd2_field_game before = game;
+        CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_HOST_QUIT);
+        CHECK(slot == 0xa5 && unchanged_game(&game, &before));
+        CHECK(controls.steps == (frames[i] > 13 ? 2 : 1));
+        CHECK(controls.rng_calls == (frames[i] > 12 ? 1 : 0));
+        CHECK(released() == 0);
+    }
+    CHECK(reset_item(&game, &vga, 1) == 0);
+    vga.input.quit_requested = 1;
+    CHECK(play_field_item_list(NULL, &vga, NULL, &slot) == FIELD_LIST_HOST_QUIT);
+    CHECK(!controls.allocations && !controls.decode_calls && !controls.steps && !controls.rng_calls);
+    CHECK(reset_item(&game, &vga, 1) == 0);
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+    controls.key_count = 1;
+    controls.quit_final = 1;
+    CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_HOST_QUIT);
+    CHECK(slot == 0xa5 && controls.rng_calls == 1 && controls.presents == 1);
+    return released();
+}
+
+static int test_item_errors_before_input(void) {
+    for (int fault = 0; fault < 20; fault++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_item(&game, &vga, 8) == 0);
+        uint8_t *broken_text = NULL;
+        switch (fault) {
+            case 0: controls.fail_decode = 1; break;
+            case 1: controls.fail_decode = 2; break;
+            case 2: controls.fail_alloc = 1; break;
+            case 3: controls.fail_alloc = 2; break;
+            case 4: controls.wrong_portrait_size = 1; break;
+            case 5: game.info_assets.detail_top.pixels = NULL; break;
+            case 6: game.info_assets.detail_bottom.pixels = NULL; break;
+            case 7: game.info_assets.detail_icons[8].pixels = NULL; break;
+            case 8: game.units.items[0].data_09_1e[16] = FD2_FIELD_ITEM_COUNT; break;
+            case 9: game.units.items[0].data_09_1e[3] = 0x80; break; /* hole */
+            case 10: game.item_list_selected = 8; break;
+            case 11: set_items(&game.units.items[0], 0); break;
+            case 12: game.attack_rng = NULL; break;
+            case 13: game.units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
+            case 14: game.units.items[0].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
+            case 15: game.units.items[0].hp = 0; break;
+            case 16: game.active_side = 0; break;
+            case 17: game.player_post_waiting_phase = 1; break;
+            case 18: game.units.items[0].side = 0; break;
+            case 19: {
+                /* 最后raw7独立坏名称，前七槽和上页仍合法。 */
+                game.units.items[0].data_09_1e[16] = 193;
+                const uint8_t *tokens;
+                size_t count;
+                CHECK(fd2_text_entry_get_fragment(&game.ui_text, 181u + 193u, &tokens, &count) == 0 && count > 1);
+                broken_text = malloc(game.ui_text.size);
+                CHECK(broken_text != NULL);
+                memcpy(broken_text, game.ui_text.data, game.ui_text.size);
+                size_t offset = (size_t)(tokens - game.ui_text.data);
+                broken_text[offset] = 1;
+                broken_text[offset + 1] = 0xff;
+                game.ui_text.data = broken_text;
+                break;
+            }
+        }
+        fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 1);
+        fd2_input_begin_test_frame(&vga.input, 0);
+        fd2_vga before = vga;
+        fd2_field_game game_before = game;
+        uint8_t slot = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_ERROR);
+        CHECK(slot == 0xa5 && controls.rng_calls == 0 && controls.steps == (fault == 12 ? 0 : 1));
+        CHECK(!controls.frames && !controls.presents && fd2_input_has_any_key(&vga.input));
+        CHECK(memcmp(&vga, &before, sizeof(vga)) == 0 && memcmp(&game, &game_before, sizeof(game)) == 0);
+        free(broken_text);
+        CHECK(released() == 0);
+    }
+    fd2_field_game game;
+    fd2_vga vga;
+    CHECK(reset_item(&game, &vga, 1) == 0);
+    controls.step_error = 1;
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+    controls.key_count = 1;
+    uint8_t slot = 0xa5;
+    CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_ERROR);
+    CHECK(slot == 0xa5 && controls.rng_calls == 1 && controls.steps == 2);
+    return released();
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
     CHECK(test_navigation_and_cancel() == 0);
@@ -584,6 +815,10 @@ int main(void) {
     CHECK(test_resource_errors_and_no_side_effects() == 0);
     CHECK(test_core_entry_rejections() == 0);
     CHECK(test_selection_routes_target_and_command() == 0);
+    CHECK(test_item_navigation_and_cancel_layers() == 0);
+    CHECK(test_item_use_confirmation_and_other() == 0);
+    CHECK(test_item_blink_and_quit() == 0);
+    CHECK(test_item_errors_before_input() == 0);
     fd2_image_free(&reference_portraits[1]);
     fd2_image_free(&reference_portraits[0]);
     fd2_field_info_assets_close(&fixture.info_assets);
@@ -591,6 +826,6 @@ int main(void) {
     fd2_archive_close(&fixture.dato_archive);
     fd2_archive_close(&text_archive);
     fd2_archive_close(&other);
-    puts("field magic list play tests: ok");
+    puts("field magic/item list play tests: ok");
     return 0;
 }

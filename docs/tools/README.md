@@ -40,6 +40,7 @@ git diff --check
 - `field_info` 覆盖stage 0总览及物品纯列表：raw槽选中、空槽压行、全部215项、frame41缺省属性图、raw零色复制，以及完整预检失败全VGA不变；原详情与MAGIC上页组合另有回归。纯绘制测试不代替正式入口和原版WGC验收。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
 - `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；确认不提交handler，正式ITEM仍禁用。原版单端校准与后续SDL图形配对分别登记。
+- `field_magic_list_play` 现同时覆盖法术／物品私有列表的真实按键等待逻辑，替换宿主时钟与呈现，不开窗口；检查共享RNG、开合、退出、释放和首错。`field_item_menu_render` 用合成资源检查ITEM IDs8–11、禁用图、高亮、动画与角色最后覆盖；二者均不是SDL物品WGC。
 - `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat 生命周期、同帧输入清理、分配失败、宿主退出及玩法／RNG 不变；另读取真实资源检查干净背景。
 - `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另检查Enter详情与F2来源、controller尾按键耗尽。原版具体格事件与镜头仍按场景验收。
 - `field_geometry` 检查原 anchor 优先、整条长路径扫描、局部 profile 覆盖与零预算，并用只读真实 START 逐角色核对已取得的原版终点。它不执行 March 批次、AI／phase 或保存，不能代替正式行军配对。`fd2_movement_oracle.py` 复用 LE loader，从 canonical `0x61646` 提取全部 580 字节并校验摘要；玩家图形 runner 共用此依据，禁止再硬切旧文件偏移。

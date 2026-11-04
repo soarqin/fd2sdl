@@ -222,6 +222,163 @@ done:
     return result;
 }
 
+/* sub_2000A @0x2000a（原登记 sub_2000A）：F1/PageUp独立全场缩放图。
+ * stage0/shape0/24×24/288帧是本项目能力门，不是原版关卡限制。
+ * 预检先于任何framebuffer写入；复用session的terrain.frames，不替换owner。 */
+static int auxiliary_field_ready(const fd2_field_game *game) {
+    if (!game || !game->ready || game->stage != 0 ||
+        game->failure != FD2_FIELD_FAILURE_NONE || game->active_side != 2 ||
+        game->selected_unit != -1 || game->detail_visible ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        game->player_post_waiting_phase ||
+        game->map.width != 24 || game->map.height != 24 || !game->map.cells ||
+        game->metadata.shape_index != 0 || game->terrain.shape_index != 0 ||
+        game->terrain.sheet.width != 24 || game->terrain.sheet.height != 24 ||
+        game->terrain.sheet.frame_count != 288 || !game->terrain.frames ||
+        !game->terrain.attrs || game->units.count > FD2_FIELD_MAX_UNITS ||
+        game->cursor_cell_x < 0 || game->cursor_cell_x >= game->map.width ||
+        game->cursor_cell_y < 0 || game->cursor_cell_y >= game->map.height ||
+        game->camera_cell_x < 0 ||
+        game->camera_cell_x > game->map.width - FD2_FIELD_VIEW_CELLS_X ||
+        game->camera_cell_y < 0 ||
+        game->camera_cell_y > game->map.height - FD2_FIELD_VIEW_CELLS_Y)
+        return 0;
+    for (int y = 0; y < game->map.height; y++) {
+        for (int x = 0; x < game->map.width; x++) {
+            size_t index = fd2_field_cell_terrain(
+                fd2_field_map_cell(&game->map, x, y));
+            const fd2_image *frame = fd2_terrain_frame(&game->terrain, index);
+            if (index >= game->terrain.attr_count || !frame ||
+                !frame->pixels || frame->width != 24 || frame->height != 24)
+                return 0;
+        }
+    }
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if ((unit->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0 ||
+            unit->unit_id == 121 || unit->race == 10)
+            continue;
+        if (unit->side > 2 || unit->x >= game->map.width ||
+            unit->y >= game->map.height)
+            return 0;
+    }
+    return 1;
+}
+
+/* field_view_render_scaled @0x1f558（原登记同名）：tile跨度0xc00，
+ * 单像素0x80。既有sampler对负坐标作floor，绘制内区312×192；先清整帧
+ * 保留4px黑边。phase=0固定使用原terrain_id，不推进地形动画或遮挡层。 */
+static void auxiliary_transition_frame(const fd2_field_game *game,
+                                        fd2_vga *vga, int phase) {
+    int start_x = game->camera_cell_x * 0xc00 + FD2_FIELD_VIEW_CELLS_X * 0x600;
+    int start_y = game->camera_cell_y * 0xc00 + FD2_FIELD_VIEW_CELLS_Y * 0x600;
+    int end_x = game->map.width * 0x600;
+    int end_y = game->map.height * 0x600;
+    /* 开1..7与关6..1共用参数；中心系数为(phase+1)/8，非phase/8。 */
+    int center_x = start_x + (end_x - start_x) * (phase + 1) / 8;
+    int center_y = start_y + (end_y - start_y) * (phase + 1) / 8;
+    int step = 0x80 + phase * 0x280 / 7;
+    fd2_vga_clear(vga, 0);
+    fd2_terrain_render_field_scaled_animated(vga, &game->terrain, &game->map,
+                                             center_x, center_y, step, 0, 0);
+}
+
+/* sub_1F6EF @0x1f6ef（原登记 sub_1F6EF）：stage0每tile4px，
+ * 只写3×3固色块。所有参与者均已预检，focus最后覆盖同格actor。 */
+static void auxiliary_marker(fd2_vga *vga, const fd2_field_map *map,
+                              int x, int y, uint8_t color) {
+    int sx = x * 4 + 160 - map->width * 2;
+    int sy = y * 4 + 100 - map->height * 2;
+    for (int row = 0; row < 3; row++)
+        memset(vga->framebuffer + (size_t)(sy + row) * VGA_STRIDE + sx, color, 3);
+}
+
+static void auxiliary_markers(const fd2_field_game *game, fd2_vga *vga,
+                               int phase) {
+    /* object2 canonical0x5208a：side0/1/2的8色bank起点。 */
+    static const uint8_t bases[3] = {32, 80, 72};
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if ((unit->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0 ||
+            unit->unit_id == 121 || unit->race == 10)
+            continue;
+        auxiliary_marker(vga, &game->map, unit->x, unit->y,
+                           (uint8_t)(bases[unit->side] + phase));
+    }
+    auxiliary_marker(vga, &game->map, game->cursor_cell_x,
+                       game->cursor_cell_y, (uint8_t)(24 + phase));
+}
+
+static void auxiliary_next_phase(int *phase, int *direction) {
+    *phase += *direction;
+    if (*phase < 0 || *phase > 7) {
+        *direction = -*direction;
+        *phase += *direction; /* 端点重复：7..0,0..7,7.. */
+    }
+}
+
+static int play_field_auxiliary(fd2_field_game *game, fd2_vga *vga) {
+    if (!vga) return FD2_SCENE_RESULT_ERROR;
+    /* 主loop已先处理quit；私有入口也保持宿主关闭先于资源／能力门。 */
+    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (!auxiliary_field_ready(game)) return FD2_SCENE_RESULT_ERROR;
+    drain_frame_keys(vga);
+    int result = FD2_SCENE_RESULT_HOST_QUIT;
+    /* 原版开合每次复制整帧，没有DOS帧时长证据；16ms是SDL呈现间隔。 */
+    for (int phase = 1; phase <= 7; phase++) {
+        auxiliary_transition_frame(game, vga, phase);
+        fd2_vga_present_timed(vga, 16);
+        if (fd2_input_take_quit(&vga->input)) goto done;
+        drain_frame_keys(vga);
+    }
+    int phase = 7, direction = -1;
+    uint64_t last_pulse = SDL_GetTicks();
+    int reported_open = 0;
+    for (;;) {
+        /* 稳态地形保留开phase7的原始cache采样；仅重写同位置方块。
+         * 不调用game_tick，不改palette/dac，冻结进入时的当前水色周期。 */
+        auxiliary_markers(game, vga, phase);
+        fd2_vga_present_timed(vga, 16);
+        if (fd2_input_take_quit(&vga->input)) goto done;
+        if (!reported_open) {
+            puts("field auxiliary: opened");
+            fflush(stdout);
+            reported_open = 1;
+        }
+        if (fd2_input_take_key(&vga->input, NULL)) {
+            drain_frame_keys(vga);
+            break;
+        }
+        uint64_t now = SDL_GetTicks();
+        if (now < last_pulse || now - last_pulse >= 110) {
+            auxiliary_next_phase(&phase, &direction);
+            last_pulse = now;
+        }
+    }
+    for (int close_phase = 6; close_phase >= 1; close_phase--) {
+        auxiliary_transition_frame(game, vga, close_phase);
+        fd2_vga_present_timed(vga, 16);
+        if (fd2_input_take_quit(&vga->input)) goto done;
+        /* 原版此处没有额外BIOS清队。SDL耗尽当前帧脉冲并在调用方结束
+         * 本帧输入，避免关闭方向／确认键落回browse；保留held/repeat。 */
+        drain_frame_keys(vga);
+    }
+    /* sub_2000A @0x2000a尾调用sub_11CAC(0)：恢复普通画面前才恢复水色。
+     * 只调用视觉water tick；开/稳/关期间不tick，不追赶modal停留时间。 */
+    (void)fd2_field_water_tick(vga, SDL_GetTicks());
+    fd2_field_game_render(game, vga);
+    fd2_vga_present(vga);
+    if (fd2_input_take_quit(&vga->input)) goto done;
+    drain_frame_keys(vga);
+    puts("field auxiliary: closed");
+    fflush(stdout);
+    result = FD2_SCENE_RESULT_OK;
+done:
+    fd2_vga_wait_frame_deadline(vga);
+    return result;
+}
+
+
 static void apply_field_audio_options(const fd2_field_game *game,
                                       fd2_field_audio *field_audio) {
     if (!game || !field_audio || !field_audio->player ||
@@ -1538,11 +1695,19 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     break;
                 }
                 case FD2_FIELD_ACTION_AUXILIARY:
-                    /* field_controller_input @code0 0x17e7 的 F1/Page Up
-                     * 分支进入独立 tactical-map dispatcher @code0 0x1000a。
-                     * SDL 页面尚未实现，不能进入空状态冒充已打开。 */
-                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE)
-                        fprintf(stderr, "field auxiliary unavailable: SDL tactical page not implemented\n");
+                    /* field_controller_input @0x117e7（原登记同名）的
+                     * F1/PageUp直接调用sub_2000A，不走玩家动作后置。 */
+                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
+                        int auxiliary_result = play_field_auxiliary(&game, vga);
+                        end_input_frame = 1;
+                        if (auxiliary_result == FD2_SCENE_RESULT_HOST_QUIT) {
+                            play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                            running = 0;
+                        } else if (auxiliary_result != FD2_SCENE_RESULT_OK) {
+                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                        }
+                    }
                     break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {

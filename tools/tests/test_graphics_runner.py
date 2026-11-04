@@ -305,16 +305,19 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 suite.run()
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
-                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march"])
-            for call, script in zip(pairs[-4:-1], ("run_original_overview.py", "run_original_player.py", "run_original_player.py")):
+                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1"])
+            by_name = {call.args[0]: call for call in pairs}
+            for name, script, timeout in (
+                    ("original-overview", "run_original_overview.py", 360),
+                    ("original-player", "run_original_player.py", 360),
+                    ("original-player-wait", "run_original_player.py", 360),
+                    ("original-march", "run_original_march.py", 480),
+                    ("original-f1", "run_original_f1.py", 480)):
+                call = by_name[name]
                 self.assertEqual(call.args[1][1], runner.ROOT / "tools" / script)
                 self.assertNotIn("--save-fixture", call.args[1])
-                self.assertEqual(call.kwargs["timeout"], 360)
-            march = pairs[-1]
-            self.assertEqual(march.args[1][1], runner.ROOT / "tools/run_original_march.py")
-            self.assertNotIn("--save-fixture", march.args[1])
-            self.assertEqual(march.kwargs["timeout"], 480)
-            wait_command = pairs[-2].args[1]
+                self.assertEqual(call.kwargs["timeout"], timeout)
+            wait_command = by_name["original-player-wait"].args[1]
             self.assertEqual(wait_command[wait_command.index("--scenario") + 1], "wait-full-hp")
 
 

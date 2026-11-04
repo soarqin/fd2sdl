@@ -549,6 +549,9 @@ class Suite:
             self.command("original-march", [sys.executable, ROOT / "tools/run_original_march.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-march"], timeout=480)
+            self.command("original-f1", [sys.executable, ROOT / "tools/run_original_f1.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-f1"], timeout=480)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

@@ -797,6 +797,20 @@ if(BUILD_TESTING)
     set_tests_properties(field_play_overview PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
+    add_executable(fd2_field_play_auxiliary_test
+        tests/field_play_auxiliary_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_play_auxiliary_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_play_auxiliary_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_play_auxiliary_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_play_auxiliary_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_play_auxiliary COMMAND fd2_field_play_auxiliary_test)
+    set_tests_properties(field_play_auxiliary PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     if(UNIX AND NOT APPLE)
         # 依赖齐备时另注册 Xvfb/XTest 回归，发送真实按键而不调用 field_game API。
         find_package(X11 QUIET)

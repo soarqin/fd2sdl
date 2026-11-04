@@ -526,9 +526,12 @@ int main(void) {
     CHECK(leave_text_presented == 1 && leave_state_checked);
     terminal_case = 4;
     action_sent = 0;
+    auxiliary_checked = 0;
+    /* 该替身没有地图/terrain资源，F1须明确失败且不继续取下一按键。
+     * 有效页面开合与输入隔离由field_play_auxiliary独立覆盖。 */
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
-          FD2_FIELD_PLAY_RETURN_HOST_QUIT);
-    CHECK(auxiliary_checked);
+          FD2_FIELD_PLAY_RETURN_ERROR);
+    CHECK(action_sent == 1 && !auxiliary_checked);
     terminal_case = 5;
     vga.input.quit_requested = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==

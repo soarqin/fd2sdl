@@ -28,6 +28,34 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x2000A: [{
+        "target": "evidence",
+        "was": "F1/PageUp辅助页可能是部队列表或另一种战况总览",
+        "now": "独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、"
+               "关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。"
+               "页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。",
+        "why": "权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；"
+               "1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。"
+               "不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。",
+    }],
+    0x1F558: [{
+        "target": "evidence",
+        "was": "F1缩放采样、黑边与动画中心未完整登记",
+        "now": "tile跨度0xc00、像素余数右移7；清64000后仅画(4,4)的312×192。"
+               "开phase1..7中心系数(phase+1)/8，关6..1，不补phase0采样；"
+               "stage0最终step768、地图96×96，固定原始tile而非动画替代帧。",
+        "why": "已发布field_view_render_scaled及独立原始tile oracle，负坐标floor、"
+               "黑边/零色/全64000索引与真实START回归；terrain owner不替换。",
+    }],
+    0x1F6EF: [{
+        "target": "evidence",
+        "was": "F1单位标记门、颜色和脉冲尚未登记",
+        "now": "stage0每tile4px，标记3×3；按raw顺序排hidden/unit121/race10，"
+               "不加HP/acted/AI门。side0/1/2基色32/80/72，focus灰24最后覆盖。"
+               "phase7..0,0..7,7端点重复，原BIOS差2，SDL约110ms且不推进玩法。",
+        "why": "原始object2表5208a和sub_1F6EF循环、原版空格/actor0叠加页；"
+               "F1 marker过滤不推广为普通actor renderer规则。",
+    }],
     0x4E310: [{
         "target": "evidence",
         "was": "未登记BIOS时钟读取的实际宽度",

@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 200 |
+| 归约后的规范函数数 | 202 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -71,9 +71,12 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x1b1e7` | `sub_1B1E7` | evidence | 战况总览尚未登记开合、背景和关闭键边界 | 双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。 | 已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。 |
 | `0x1b41d` | `sub_1B41D` | evidence | 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 | 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。 | 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。 |
 | `0x1b5f1` | `sub_1B5F1` | evidence | 未登记总览三阵营计数的过滤门 | 逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。 | 已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。 |
+| `0x1f558` | `field_view_render_scaled` | evidence | F1缩放采样、黑边与动画中心未完整登记 | tile跨度0xc00、像素余数右移7；清64000后仅画(4,4)的312×192。开phase1..7中心系数(phase+1)/8，关6..1，不补phase0采样；stage0最终step768、地图96×96，固定原始tile而非动画替代帧。 | 已发布field_view_render_scaled及独立原始tile oracle，负坐标floor、黑边/零色/全64000索引与真实START回归；terrain owner不替换。 |
+| `0x1f6ef` | `sub_1F6EF` | evidence | F1单位标记门、颜色和脉冲尚未登记 | stage0每tile4px，标记3×3；按raw顺序排hidden/unit121/race10，不加HP/acted/AI门。side0/1/2基色32/80/72，focus灰24最后覆盖。phase7..0,0..7,7端点重复，原BIOS差2，SDL约110ms且不推进玩法。 | 原始object2表5208a和sub_1F6EF循环、原版空格/actor0叠加页；F1 marker过滤不推广为普通actor renderer规则。 |
 | `0x1f894` | `boot_intro_title_menu` | semantic_name | boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 | boot_intro_title_menu（同一函数） | `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。 |
 | `0x1f894` | `boot_intro_title_menu` | evidence | corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` | 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。 | IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。 |
 | `0x1f894` | `boot_intro_title_menu` | evidence | 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 | 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。 | 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。 |
+| `0x2000a` | `sub_2000A` | evidence | F1/PageUp辅助页可能是部队列表或另一种战况总览 | 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。 | 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。 |
 | `0x25977` | `music_track_play` | evidence | 其他值从 FDMUS handle `DS:0x1a79` 加载 entry | object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。 | IDA 字符串识别 `aFdmusDat` + res_load 调用形态 |
 | `0x25ebb` | `title_action_dispatch` | evidence | 标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并 | 标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。 | 复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。 |
 | `0x32975` | `field_actor_hide` | semantic_name | field_actor_hide / field_ai_behavior7_hide_actor 两条独立登记 | field_actor_hide（同一函数） | 两条历史描述（写 actor[idx*0x50+5]=1）在 IDA 反编译上完全吻合。 |

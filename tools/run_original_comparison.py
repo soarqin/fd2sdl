@@ -308,7 +308,7 @@ class Capture:
 
 def run(args) -> dict:
     root, output = args.root.resolve(), args.artifacts.resolve()
-    original = root / "original_game"
+    original = (root / "original_game").resolve()
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入 original_game/")
     # 每次独立运行保留现场，不覆盖上次捕获或可写游戏副本。

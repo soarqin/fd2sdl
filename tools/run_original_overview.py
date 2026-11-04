@@ -220,7 +220,7 @@ def exercise(capture, kind, assets, templates, focus, steps, titles, save, sourc
 
 def run(args):
     root, output = args.root.resolve(), args.artifacts.resolve()
-    original = root / "original_game"
+    original = (root / "original_game").resolve()
     fixture = (args.save_fixture or original / "START.SAV").resolve()
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入 original_game/")

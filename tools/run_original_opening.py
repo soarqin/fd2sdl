@@ -81,7 +81,7 @@ def exercise(capture,assets,pages,titles,save,source_bytes,stamp,expected,report
 
 def run(args):
     root,output = args.root.resolve(),args.artifacts.resolve()
-    original = root / "original_game"
+    original = (root / "original_game").resolve()
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入original_game")
     output.mkdir(parents=True, exist_ok=False)

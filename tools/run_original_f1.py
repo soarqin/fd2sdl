@@ -342,7 +342,7 @@ def compare_observations(original, sdl):
 
 def run(args):
     root, output = args.root.resolve(), args.artifacts.resolve()
-    original = root / "original_game"
+    original = (root / "original_game").resolve()
     fixture = (args.save_fixture or original / "START.SAV").resolve()
     if output == original or original in output.parents or output == fixture or output in fixture.parents:
         raise ValueError("产物目录不能覆盖original_game或源夹具")

@@ -206,6 +206,8 @@ static field_list_result play_field_unit_list(
     uint8_t *background = NULL;
     fd2_vga *page = NULL;
     field_list_result result = FIELD_LIST_ERROR;
+    int initial_info_panel_right = game->info_panel_right;
+    int entered = 0;
     if (fd2_portrait_decode_frame(&portraits[0], &game->dato_archive,
                                   unit->unit_id, 0) != 0 ||
         fd2_portrait_decode_frame(&portraits[1], &game->dato_archive,
@@ -231,6 +233,7 @@ static field_list_result play_field_unit_list(
         result = FIELD_LIST_HOST_QUIT;
         goto done;
     }
+    entered = 1;
     drain_frame_keys(vga);
     for (int phase = 11; phase >= 0; phase--) {
         fd2_field_detail_transition_frame(vga->framebuffer,
@@ -311,6 +314,9 @@ static field_list_result play_field_unit_list(
     drain_frame_keys(vga);
     if (result == FIELD_LIST_CONFIRMED) *confirmed = candidate_id;
 done:
+    /* 离屏render会选信息面板侧位；未开始呈现的失败不能提交该UI owner。 */
+    if (!entered && (result == FIELD_LIST_ERROR || result == FIELD_LIST_HOST_QUIT))
+        game->info_panel_right = initial_info_panel_right;
     fd2_vga_wait_frame_deadline(vga);
     free(page);
     free(background);

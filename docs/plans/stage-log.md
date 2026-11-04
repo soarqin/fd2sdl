@@ -292,6 +292,14 @@ DOSBox PID6468／57332各正常exit0、无强制终止；外Job9736／5668均`wo
 
 Python实现未变，沿用B3.3a实际329项，未重称新跑。原版herb两场是8d3d7ac的校准，不是本SDL候选配对；本阶段没有新增WGC组。继续修复列表预检的UI侧位owner边界，再接B3.3c提交与B3.3d正式路径；B3整体及全演出／RNG／声音、整关／结算／下一关仍未验。
 
+### 列表预检错误的面板侧位修复
+
+纯目标已提交`b6dac3e`。connected审查补出真实renderer的UI owner边界：离屏`fd2_field_game_render`会按焦点修改`info_panel_right`，随后末项坏字模拒绝时，原modal虽未写实际VGA／耗键／RNG，却遗留了换侧值。此前替身render回归不能证明这条真实路径的全session不变，原有测试范围按此澄清。
+
+最小修补只保存初始侧位与是否开始实际呈现：预检ERROR／quit恢复，首次drain后保留正常render更新，不回退已经进入的UI。现有TU加入真实game render，对MAGIC／ITEM、左右换侧及晚字模错／预检quit／确认／取消／首present quit共20组合验证；精确旧`c78f7df8...`源码与同一新TU／新ABI core链接，实跑在完整game不变断言预期失败，反例有效。独立只读复审无阻塞，没有通用回滚或复制session。
+
+隔离index候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/modal-owner-acceptance/` 不含草药resolve，全新core与三个相关target构建后，`field_magic_list_play/field_detail_flow/field_play_result`单轮3/3通过。没有新增完整CTest／Python或WGC轮次；既有56项／329项及原版两场各保留真实来源。继续草药提交与正式双端候选，未关闭B3。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

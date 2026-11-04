@@ -27,6 +27,8 @@ static struct {
     int command_quit, command_error;
     int closing, quit_frame, quit_final, deadline;
     int allocations, live_buffers, fail_alloc, decode_calls, live_portraits;
+    int real_render, panel_after_render;
+    fd2_vga *quit_during_render;
     int fail_decode, wrong_portrait_size, step_error;
     int steps, indices[32], statuses[32], rng_calls, bad_cue;
     int closing_start, bad_transition;
@@ -88,8 +90,12 @@ static void modal_image_free(fd2_image *image) {
 }
 static void modal_render(fd2_field_game *game, fd2_vga *vga) {
     controls.render_calls++;
-    memset(vga->framebuffer, 0x33, sizeof(vga->framebuffer));
-    memset(reference_background, 0x33, sizeof(reference_background));
+    if (controls.real_render)
+        fd2_field_game_render(game, vga);
+    else
+        memset(vga->framebuffer, 0x33, sizeof(vga->framebuffer));
+    controls.panel_after_render = game->info_panel_right;
+    memcpy(reference_background, vga->framebuffer, sizeof(reference_background));
     memset(&reference_page, 0, sizeof(reference_page));
     memcpy(reference_page.framebuffer, reference_background, sizeof(reference_background));
     fd2_field_detail_draw(&reference_page, &game->info_assets, &game->font,
@@ -100,6 +106,7 @@ static void modal_render(fd2_field_game *game, fd2_vga *vga) {
     else
         (void)fd2_field_magic_list_draw(&reference_page, &game->info_assets, &game->font,
             &game->ui_text, &game->units.items[game->selected_unit], -1);
+    if (controls.quit_during_render) controls.quit_during_render->input.quit_requested = 1;
 }
 static int modal_water(fd2_vga *vga, uint64_t now) {
     (void)vga; (void)now;
@@ -805,6 +812,87 @@ static int test_item_errors_before_input(void) {
     return released();
 }
 
+static int test_real_renderer_preflight_panel_owner(void) {
+    uint32_t cells[24 * 24] = {0};
+    fd2_terrain_attr attr = {0};
+    for (int item = 0; item <= 1; item++) {
+        for (int initial_side = 0; initial_side <= 1; initial_side++) {
+            /* 晚坏字模、预检quit、确认、取消、首呈现quit分别锁定边界。 */
+            for (int outcome = 0; outcome < 5; outcome++) {
+                fd2_field_game game;
+                fd2_vga vga;
+                if (item) CHECK(reset_item(&game, &vga, 8) == 0);
+                else reset(&game, &vga);
+                controls.real_render = 1;
+                game.map.width = game.map.height = 24;
+                game.map.cells = cells;
+                game.terrain.attrs = &attr;
+                game.terrain.attr_count = 1;
+                game.info_panel_right = initial_side;
+                game.cursor_cell_x = game.units.items[0].x = initial_side ? 15 : 6;
+                game.cursor_cell_y = game.units.items[0].y = 17;
+                /* camera(5,11)下的rel(1/10,6)各自触发真实换侧分支。 */
+                uint8_t *broken_text = NULL;
+                if (outcome == 0) {
+                    size_t fragment = 445; /* MAGIC第五项，前四项／上页合法。 */
+                    if (item) {
+                        game.units.items[0].data_09_1e[16] = 193;
+                        fragment = 181u + 193u; /* ITEM最后raw7独立名称。 */
+                    }
+                    const uint8_t *tokens;
+                    size_t count;
+                    CHECK(fd2_text_entry_get_fragment(&game.ui_text, fragment, &tokens, &count) == 0 && count > 1);
+                    broken_text = malloc(game.ui_text.size);
+                    CHECK(broken_text != NULL);
+                    memcpy(broken_text, game.ui_text.data, game.ui_text.size);
+                    size_t offset = (size_t)(tokens - game.ui_text.data);
+                    broken_text[offset] = 1;
+                    broken_text[offset + 1] = 0xff;
+                    game.ui_text.data = broken_text;
+                }
+                if (outcome <= 1) {
+                    fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 1);
+                    fd2_input_begin_test_frame(&vga.input, 0);
+                    if (outcome == 1) controls.quit_during_render = &vga;
+                } else if (outcome == 4) {
+                    controls.quit_frame = 1;
+                } else {
+                    controls.keys_at[0] = (key_frame){13,
+                        outcome == 2 ? SDL_SCANCODE_RETURN : SDL_SCANCODE_ESCAPE, 0};
+                    controls.key_count = 1;
+                }
+                fd2_field_game before = game;
+                fd2_vga vga_before = vga;
+                uint8_t selected = 0xa5;
+                field_list_result result = item
+                    ? play_field_item_list(&game, &vga, NULL, &selected)
+                    : play_field_magic_list(&game, &vga, NULL, &selected);
+                field_list_result expected = outcome == 0 ? FIELD_LIST_ERROR :
+                    outcome == 2 ? FIELD_LIST_CONFIRMED :
+                    outcome == 3 ? FIELD_LIST_CANCELLED : FIELD_LIST_HOST_QUIT;
+                CHECK(result == expected);
+                CHECK(controls.render_calls == 1 && controls.panel_after_render == !initial_side);
+                CHECK(selected == (outcome == 2 ? 0 : 0xa5));
+                if (outcome <= 1) {
+                    /* 真renderer已换侧，晚错仍须恢复整个session与普通键。 */
+                    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+                    if (outcome == 1) vga_before.input.quit_requested = 1;
+                    CHECK(memcmp(&vga, &vga_before, sizeof(vga)) == 0);
+                    CHECK(!controls.frames && !controls.presents && !controls.rng_calls);
+                    CHECK(fd2_input_has_any_key(&vga.input));
+                } else {
+                    before.info_panel_right = !initial_side;
+                    CHECK(unchanged_game(&game, &before));
+                    CHECK(controls.frames > 0 && controls.rng_calls == (outcome == 4 ? 0 : 1));
+                }
+                free(broken_text);
+                CHECK(released() == 0);
+            }
+        }
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
     CHECK(test_navigation_and_cancel() == 0);
@@ -819,6 +907,7 @@ int main(void) {
     CHECK(test_item_use_confirmation_and_other() == 0);
     CHECK(test_item_blink_and_quit() == 0);
     CHECK(test_item_errors_before_input() == 0);
+    CHECK(test_real_renderer_preflight_panel_owner() == 0);
     fd2_image_free(&reference_portraits[1]);
     fd2_image_free(&reference_portraits[0]);
     fd2_field_info_assets_close(&fixture.info_assets);

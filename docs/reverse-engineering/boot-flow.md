@@ -52,7 +52,7 @@ object2 `DS:0x204e` 的有效阈值为：
 
 标题背景先置暗，再以 `palette_fade_to @0x2df01` 从基色 `(0x38,0x3c,0x3f)` 经过 `0x29` 步插值到完整 palette [8]，不能用 brightness 线性缩放替代。
 
-无可加载活动快照时显示新游戏／退出；有快照时插入 Load。标题入口不是四槽手工读取入口。确认后选中项 normal/highlight 各显示 80 ms，交替 4 轮。按键和 skip 的消费边界见[输入设计](../systems/input.md)，不得把跳过动画的输入积存在后续菜单中。
+`title_action_dispatch @0x25ebb` 的选择器为 `START=0`（新游戏）、`LOAD=1`（四槽手工读取）、`CONTINUE=2`（活动快照恢复）。标题基础项是 START／LOAD，有有效活动快照时在末尾追加 CONTINUE；2026-11-04 原版 WGC 已确认从默认 START 按 Up 回绕到 CONTINUE 并恢复 stage 0。SDL 手工 LOAD 尚未实现，当前提示后留在标题，不改作退出。确认后选中项 normal/highlight 各显示 80 ms，交替 4 轮。按键和 skip 的消费边界见[输入设计](../systems/input.md)，不得把跳过动画的输入积存在后续菜单中。
 
 ## SDL 对应与验收边界
 

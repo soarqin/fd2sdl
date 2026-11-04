@@ -1178,7 +1178,9 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         }
         fd2_field_game_tick(&game, SDL_GetTicks());
         game.battle_result = fd2_field_game_battle_result(&game);
-        if (game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
+        if (!once && game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
+            play_result = game.battle_result == FD2_FIELD_BATTLE_VICTORY
+                ? FD2_FIELD_PLAY_RETURN_VICTORY : FD2_FIELD_PLAY_RETURN_DEFEAT;
             printf("field battle: %s, stage=%zu\n",
                    game.battle_result == FD2_FIELD_BATTLE_VICTORY
                        ? "victory" : "defeat",
@@ -1211,6 +1213,12 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             &reported_dropped_events);
         fd2_field_game_render(&game, vga);
         fd2_vga_present(vga);
+        /* 宿主关闭先于下一 actor 调度；已有错误仍保留错误优先级。 */
+        if (play_result != FD2_FIELD_PLAY_RETURN_ERROR &&
+            fd2_input_take_quit(&vga->input)) {
+            play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+            break;
+        }
         if (once || !running) break;
         if (game.active_side != 2 &&
             game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
@@ -1231,10 +1239,6 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         }
 
 
-        if (fd2_input_take_quit(&vga->input)) {
-            play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-            running = 0;
-        }
         if (!input_ready_reported) {
             printf("field input ready: stage=%zu turn=%u phase=%u\n",
                    game.stage, game.turn_number, game.active_side);

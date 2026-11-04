@@ -12,10 +12,13 @@ typedef enum {
     FD2_FIELD_PLAY_RETURN_COMPLETE = 0,
     FD2_FIELD_PLAY_RETURN_TITLE,
     FD2_FIELD_PLAY_RETURN_HOST_QUIT,
-    FD2_FIELD_PLAY_RETURN_ERROR
+    FD2_FIELD_PLAY_RETURN_ERROR,
+    FD2_FIELD_PLAY_RETURN_VICTORY,
+    FD2_FIELD_PLAY_RETURN_DEFEAT
 } fd2_field_play_result;
 
-/* 正式战场循环入口。handoff 可为空；非空时把开场结束后的动态状态
+/* COMPLETE 只表示 once 快速检查结束；正式战斗分别返回 VICTORY/DEFEAT。
+ * 正式战场循环入口。handoff 可为空；非空时把开场结束后的动态状态
  * 应用到从 FDFIELD 建立的正式 session。 */
 fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                        const fd2_archive *fdother,

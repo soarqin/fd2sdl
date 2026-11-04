@@ -68,6 +68,25 @@ CORRECTIONS: dict[int, list[dict]] = {
         "now": "该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。",
         "why": "IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，"
                "其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。",
+    }, {
+        "target": "evidence",
+        "was": "标题为 new-game/exit 两项，有活动快照时在中间插入恢复项",
+        "now": "基础标题为 START/LOAD；完整存档与活动 stage 校验通过时"
+               "在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到"
+               "索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。",
+        "why": "复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、"
+               "上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC "
+               "Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。",
+    }],
+    0x25EBB: [{
+        "target": "evidence",
+        "was": "标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并",
+        "now": "标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 "
+               "picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。"
+               "LOAD 不等于 CONTINUE。",
+        "why": "复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；"
+               "结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，"
+               "不修改现有函数名或发布新的 IDA 逆向基线。",
     }],
     0x32975: [{
         "target": "semantic_name",
@@ -91,7 +110,8 @@ def write_checksums(directory: Path) -> None:
     sums = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}"
             for path in sorted(directory.iterdir())
             if path.name != "SHA256SUMS" and path.is_file()]
-    (directory / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
+    (directory / "SHA256SUMS").write_text("\n".join(sums) + "\n",
+                                        encoding="utf-8", newline="\n")
 
 
 def main() -> int:
@@ -182,7 +202,7 @@ def main() -> int:
     }
     args.json.parent.mkdir(parents=True, exist_ok=True)
     args.json.write_text(json.dumps(payload, indent=1, ensure_ascii=False),
-                         encoding="utf-8")
+                         encoding="utf-8", newline="\n")
     print(f"历史登记 {len(audit['rows'])} 行 -> {len(entries)} 个规范函数")
     print(f"其中由多行合并而来: {sum(1 for e in entries.values() if e['merged_from_multiple_rows'])}")
     print(f"含 __chkstk body 行: {sum(1 for e in entries.values() if e['chkstk_body_rows'])}")
@@ -284,7 +304,8 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 
 """
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
+        args.markdown.write_text(header + "\n".join(body) + "\n",
+                                 encoding="utf-8", newline="\n")
         print(f"wrote {args.markdown}")
     return 0
 

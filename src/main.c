@@ -35,8 +35,29 @@
 _Static_assert((int)FD2_FIELD_PLAY_RETURN_COMPLETE == (int)FD2_APP_FIELD_COMPLETE &&
                (int)FD2_FIELD_PLAY_RETURN_TITLE == (int)FD2_APP_FIELD_TITLE &&
                (int)FD2_FIELD_PLAY_RETURN_HOST_QUIT == (int)FD2_APP_FIELD_HOST_QUIT &&
-               (int)FD2_FIELD_PLAY_RETURN_ERROR == (int)FD2_APP_FIELD_ERROR,
+               (int)FD2_FIELD_PLAY_RETURN_ERROR == (int)FD2_APP_FIELD_ERROR &&
+               (int)FD2_FIELD_PLAY_RETURN_VICTORY == (int)FD2_APP_FIELD_VICTORY &&
+               (int)FD2_FIELD_PLAY_RETURN_DEFEAT == (int)FD2_APP_FIELD_DEFEAT,
                "field/app flow result mapping changed");
+
+/* SDL 尚未接入本关胜败后续流程；显式停止，不冒充返回标题或下一关。 */
+static int field_result_status(fd2_field_play_result result, size_t stage) {
+    switch (fd2_app_flow_from_field((fd2_app_field_result)result)) {
+        case FD2_APP_FLOW_BATTLE_VICTORY:
+            fprintf(stderr, "战场 victory 已到达（stage=%zu），后续未实现："
+                            "stage 0 settlement not implemented\n", stage);
+            return 2;
+        case FD2_APP_FLOW_BATTLE_DEFEAT:
+            fprintf(stderr, "战场 defeat 已到达（stage=%zu），后续未实现："
+                            "stage 0 defeat continuation not implemented\n", stage);
+            return 2;
+        case FD2_APP_FLOW_SHOW_TITLE:
+        case FD2_APP_FLOW_EXIT:
+            return 0;
+        default:
+            return -1;
+    }
+}
 
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */
 static fd2_archive g_fdother;
@@ -209,7 +230,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          fd2_bgm_player *bgm,
                                          fd2_title_audio *title_audio,
                                          int play_intro,
-                                         int load_available) {
+                                          int continue_available) {
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
     fd2_title_action result = FD2_TITLE_ACTION_ERROR;
@@ -550,7 +571,7 @@ title_screen:
     int selection = 0;
     /* 原版 title @code0 0xfd81..0xfe0e 先验证完整 FD2.SAV checksum 与
      * active meta stage，再把菜单项数从 2 扩为 3。 */
-    int menu_count = load_available ? 3 : 2;
+    int menu_count = continue_available ? 3 : 2;
     /* 加载菜单项图 */
     const uint8_t *buf7b; size_t len7b;
     if (fd2_archive_get(&g_fdother, 7, &buf7b, &len7b) != 0)
@@ -630,7 +651,7 @@ title_screen:
         }
     }
 
-    result = fd2_title_action_from_selection(selection, load_available);
+    result = fd2_title_action_from_selection(selection, continue_available);
     goto done;
 
 resource_error:
@@ -874,7 +895,7 @@ int main(int argc, char **argv) {
         fd2_field_play_result play_result = fd2_field_play_run(
             &vga, &g_fdother, preview_stage, field_play_once, NULL,
             field_audio_ptr, save_path, 0);
-        rc = play_result == FD2_FIELD_PLAY_RETURN_ERROR ? -1 : 0;
+        rc = field_result_status(play_result, preview_stage);
     } else if (new_game_play || new_game_play_once) {
         fd2_field_handoff handoff;
         rc = fd2_scene_play_new_game_prologue_handoff(
@@ -883,11 +904,10 @@ int main(int argc, char **argv) {
         if (rc == FD2_SCENE_RESULT_HOST_QUIT)
             rc = 0;
         else if (rc == 0)
-            rc = fd2_field_play_run(&vga, &g_fdother, 0,
-                                    new_game_play_once, &handoff,
-                                    field_audio_ptr, save_path, 0) ==
-                         FD2_FIELD_PLAY_RETURN_ERROR
-                     ? -1 : 0;
+            rc = field_result_status(
+                fd2_field_play_run(&vga, &g_fdother, 0,
+                                   new_game_play_once, &handoff,
+                                   field_audio_ptr, save_path, 0), 0);
     } else if (prologue_preview || prologue_preview_once) {
         rc = fd2_scene_play_new_game_prologue(
             &vga, &g_fdother, bgm, field_audio_ptr,
@@ -902,16 +922,15 @@ int main(int argc, char **argv) {
         }
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
-        /* 运行启动序列并分派普通标题菜单。boot_intro_title_menu @0x1f894 的标题主体
-         * 只负责 new-game action 与退出；FD2.SAV 校验成功时把 active
-         * snapshot recovery 插入为中间项。原版四槽 hand_load 属于战场
-         * command dispatcher field_manual_slot_dispatch @0x29300，不能在此冒充标题读档。
-         * leave-battle 返回 TITLE 时重新进入该循环，宿主关闭直接退出。 */
+        /* title_action_dispatch @0x25ebb（原登记 title_action_dispatch）：
+         * START=0，四槽 LOAD=1，活动快照 CONTINUE=2；原版也从标题进入
+         * 四槽 picker。SDL 的四槽标题流程尚未接入，不能改作退出或活动
+         * 快照恢复。leave-battle 返回 TITLE 时重入，宿主关闭直接退出。 */
         int first_title = 1;
         while (rc == 0) {
             fd2_save_file title_save = {0};
             fd2_save_battle_snapshot title_snapshot;
-            int title_load_available =
+            int title_continue_available =
                 fd2_save_file_open(&title_save, save_path) == 0 &&
                 fd2_save_file_get_battle_snapshot(
                     &title_save, &title_snapshot) == 0 &&
@@ -919,13 +938,19 @@ int main(int argc, char **argv) {
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
                 &vga, bgm, title_audio_ptr, first_title,
-                title_load_available);
+                title_continue_available);
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
             if (flow == FD2_APP_FLOW_EXIT) break;
             if (flow == FD2_APP_FLOW_ERROR) {
                 rc = -1;
                 break;
+            }
+            if (flow == FD2_APP_FLOW_LOAD_GAME) {
+                fprintf(stderr, "手工 LOAD 尚未实现，已返回标题；"
+                                "可选择 START 或可用的 CONTINUE。"
+                                "title manual load not implemented; staying at title\n");
+                continue;
             }
 
             fd2_field_play_result play_result =
@@ -941,13 +966,13 @@ int main(int argc, char **argv) {
                     play_result = fd2_field_play_run(
                         &vga, &g_fdother, 0, 0, &handoff,
                         field_audio_ptr, save_path, 0);
-            } else if (flow == FD2_APP_FLOW_LOAD_GAME) {
+            } else if (flow == FD2_APP_FLOW_CONTINUE_GAME) {
                 fd2_save_file save = {0};
                 fd2_save_battle_snapshot snapshot;
                 if (fd2_save_file_open(&save, save_path) != 0 ||
                     fd2_save_file_get_battle_snapshot(
                         &save, &snapshot) != 0) {
-                    fprintf(stderr, "cannot load title save: %s\n",
+                    fprintf(stderr, "cannot continue active save: %s\n",
                             save_path);
                     rc = -1;
                 } else if (snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 0) {
@@ -967,13 +992,9 @@ int main(int argc, char **argv) {
             if (rc != 0) break;
             flow = fd2_app_flow_from_field(
                 (fd2_app_field_result)play_result);
-            if (flow == FD2_APP_FLOW_ERROR) {
-                rc = -1;
-                break;
-            }
-            if (flow == FD2_APP_FLOW_EXIT) break;
-            /* RETURN_TITLE 明确重新显示标题；COMPLETE 也回到标题，以便
-             * 后续关卡结果接入时不误关闭宿主。 */
+            rc = field_result_status(play_result, 0);
+            if (rc != 0 || flow != FD2_APP_FLOW_SHOW_TITLE) break;
+            /* 只有游戏内 RETURN_TITLE 重新显示标题；胜败后续未实现时明确停止。 */
         }
         fd2_archive_close(&g_ani);
     }
@@ -995,5 +1016,5 @@ cleanup:
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
     SDL_Quit();
-    return rc == 0 ? 0 : 1;
+    return rc == 0 ? 0 : rc == 2 ? 2 : 1;
 }

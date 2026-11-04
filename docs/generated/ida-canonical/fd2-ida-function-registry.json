@@ -3636,6 +3636,12 @@
      "was": "corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)`",
      "now": "该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。",
      "why": "IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。"
+    },
+    {
+     "target": "evidence",
+     "was": "标题为 new-game/exit 两项，有活动快照时在中间插入恢复项",
+     "now": "基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。",
+     "why": "复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。"
     }
    ],
    "end_va": 130937,
@@ -4000,6 +4006,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 40
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并",
+     "now": "标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。",
+     "why": "复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。"
     }
    ],
    "end_va": 155986,

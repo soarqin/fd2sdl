@@ -83,11 +83,11 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
 
-## 4. 战场结果与应用去向（B1/B5，待实施）
+## 4. 战场结果与应用去向（B1.1 已接入，B5 待实施）
 
-当前 `battle_result` 可区分 stage 0 胜／败，但 `field_play` 都返回 `COMPLETE`；`app_flow` 再统一回标题。保留此行为会阻塞真正的结算与跨关卡。
+`battle_result` 的 stage 0 胜／败通过 `fd2_field_play_result` 与 `app_flow` 分别传给应用层。正式循环先处理 session 错误和宿主退出，再推进下一 actor；快速检查不触发真实胜败结算。
 
-最小调整是扩展现有 `fd2_field_play_result` 和应用分派，显式携带胜／败；`COMPLETE` 只保留为无交互快速检查结束，不再冒充真实战斗结果。同步更新 `field_play.h`、`app_flow.[ch]`、`main.c`、枚举转换／静态断言和全部调用者测试，不另造一套场景框架。
+`COMPLETE` 仅表示无交互快速检查结束。当前胜利结算和失败后续尚未实现，`main.c` 分别报告原因并退出 `2`；普通关闭／快速检查退出 `0`，错误退出 `1`。返回标题只由明确的游戏内离场结果触发。
 
 | 结果 | 应用职责 |
 |---|---|
@@ -110,7 +110,7 @@ B5 的交接顺序应先确认原版 callback、持续单位字段和剧情，�
 | 项 | 活动快照 | 四槽手工存档 |
 |---|---|---|
 | 原始单位区 | `0x1e00` 字节，格式容量 96 条 | 每槽 `0xa00` 字节，格式容量 32 条 |
-| 入口 | 当前标题 Load／secondary Save/Load | 独立 `field_manual_slot_dispatch @0x29300`；正式可见触发待证据 |
+| 入口 | 标题 CONTINUE／secondary Save/Load | 原版标题 LOAD／`field_manual_slot_dispatch @0x29300`；SDL 可见手工入口未接 |
 | 保存数据 | 已确认单位、cell state、stage/turn、镜头／焦点、配置及保留区 | 完整单位块、已确认 meta、配置及未知尾部 |
 | 当前可恢复关卡 | stage 0 | stage 0；codec/picker/事务 API 已有，不等于正式入口已开放 |
 

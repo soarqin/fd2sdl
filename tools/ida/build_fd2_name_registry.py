@@ -28,6 +28,25 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x3231B: [{
+        "target": "evidence",
+        "was": "完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态",
+        "now": "stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦"
+               "actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和"
+               "镜头交给战场；部署调试入口跳过script0也不等于自然开场。",
+        "why": "权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整"
+               "32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门"
+               "及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。",
+    }],
+    0x134E4: [{
+        "target": "evidence",
+        "was": "全体方向复位尚未登记自然开场的独立收尾写集",
+        "now": "field_all_actor_directions_reset只逐actor的record+3写0，"
+               "随后delay20；不写frame_phase或walk_frames。原版3231b在"
+               "最后对白后、聚焦主角之前调用。",
+        "why": "权威134e4及原始函数写集；不是13512的acted标记函数。"
+               "新scene收尾复用已有focus helper，不按捕获相机值直接居中。",
+    }],
     0x12CEA: [{
         "target": "evidence",
         "was": "左／上达到相对格2就卷动；已列控制夹具足以证明聚焦镜头",

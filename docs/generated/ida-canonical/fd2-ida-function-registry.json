@@ -949,6 +949,14 @@
      "source_line": 124
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "全体方向复位尚未登记自然开场的独立收尾写集",
+     "now": "field_all_actor_directions_reset只逐actor的record+3写0，随后delay20；不写frame_phase或walk_frames。原版3231b在最后对白后、聚焦主角之前调用。",
+     "why": "权威134e4及原始函数写集；不是13512的acted标记函数。新scene收尾复用已有focus helper，不按捕获相机值直接居中。"
+    }
+   ],
    "end_va": 79122,
    "is_lib": false,
    "prototype": "",
@@ -4903,6 +4911,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 219
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态",
+     "now": "stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和镜头交给战场；部署调试入口跳过script0也不等于自然开场。",
+     "why": "权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。"
     }
    ],
    "end_va": 207221,

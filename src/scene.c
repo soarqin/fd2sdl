@@ -1513,6 +1513,15 @@ static int play_stage0_opening(fd2_vga *vga,
         fd2_field_unit_set_hidden(&state->units.items[9], 1);
     opening_delay(vga, terrain, map, sprites, state, 100, fast);
     TEXT0(2);
+    /* new_game_opening_play @0x3231b（原登记 FUN_0002fa63）末尾依次调用
+     * field_all_actor_directions_reset @0x134e4（原登记 FUN_000386f8）
+     * 与 field_focus_move_to_actor @0x12d7b（原登记 FUN_000104c3）。
+     * reset 只写 record +0x03 并等待 20 ms，不修改移动相位/步态。 */
+    for (size_t i = 0; i < state->units.count; i++)
+        state->units.items[i].direction = 0;
+    if (!fast) fd2_delay_ms(20);
+    SCENE_QUIT_CHECK();
+    focus_camera_on_actor(vga, terrain, map, sprites, state, 0, fast);
 #undef TEXT0
 #undef MOVE0
 #undef SCENE_QUIT_CHECK
@@ -1666,6 +1675,7 @@ int fd2_scene_play_new_game_prologue_handoff(
     if (!once)
         opening_delay(vga, &scene.terrain, &scene.map, &sprites,
                       &scene.field_state, 800, 0);
+    if (scene_host_quit_requested || poll_scene_quit(vga)) goto done;
     if (handoff) {
         handoff->stage = FD2_OPENING_STAGE_0;
         handoff->units = scene.field_state.units;

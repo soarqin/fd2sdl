@@ -678,9 +678,11 @@ void fd2_field_detail_draw(fd2_vga *vga,
         draw_fragment(vga, font, text, (size_t)item_id + 0xb5u,
                       x + 29, y + 2);
         if (known) {
+            /* field_unit_detail_equipment_draw @0x184c0（原登记同名）：
+             * name+(68,4)为属性图，name+(93,4)为bank42三位数。 */
             fd2_map_sprite_blit(vga, &assets->detail_icons[effect_icon],
-                                x + 95, y + 4, 0);
-            draw_detail_number(vga, assets, x + 117, y + 4,
+                                x + 97, y + 6, 0);
+            draw_detail_number(vga, assets, x + 122, y + 6,
                                (unsigned)(effect_value < 0 ? 0 : effect_value),
                                3);
         }

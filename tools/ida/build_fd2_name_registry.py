@@ -28,6 +28,18 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x184C0: [{
+        "target": "evidence", "was": "库存属性图在(108,105)、数字在(130,105)",
+        "now": "visible序号按每列4项布局：名称(42+150col,103+22row)，"
+               "分类图(13+150col,101+22row)，属性图(110+150col,107+22row)，"
+               "bank42三位数(135+150col,107+22row)。原SDL属性图早2px／2行，"
+               "数字早5px／2行；原版分类图与名称坐标不变。",
+        "why": "published184c0及raw18523/18530分类图、18592的rowY+4、"
+               "18598的nameX+0x5d与185a2的nameX+0x44、18722/1872e/18731"
+               "名称/行列；START短剑0 AP010、皮甲132 DP008、药草192 HP040"
+               "与frames64/65/66及资源相互支持。新真实资源回归覆盖完整底板、"
+               "空槽压行和第二列；不把此前只验上半数值的WGC称为库存布局已验。",
+    }],
     0x1DB65: [{
         "target": "evidence", "was": "无演出时只需把全部HP0的flags写1",
         "now": "只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于"

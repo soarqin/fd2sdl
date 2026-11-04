@@ -616,6 +616,60 @@ static int test_magic_rejects_before_drawing(void) {
     return 0;
 }
 
+static int test_equipment_attribute_coordinates(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0};
+    const uint8_t slots[8][2] = {
+        {0x40,0}, {0x80,0xff}, {0x40,132}, {0,192},
+        {0,0}, {0,132}, {0,192}, {0x80,0xff}
+    };
+    for (size_t i = 0; i < 8; i++) {
+        unit.data_09_1e[1u + 2u * i] = slots[i][0];
+        unit.data_09_1e[2u + 2u * i] = slots[i][1];
+    }
+    fd2_field_unit before = unit;
+    fd2_vga actual = {0}, expected = {0};
+    fd2_field_detail_draw(&actual, &fixture.assets, &fixture.font,
+        &fixture.text, &unit, NULL);
+    expected_blit(expected.framebuffer, &fixture.assets.detail_bottom, 5, 94, -1);
+    /* 184c0：独立固定的visible位置；raw slot1的空洞不占行，列1从第5项起。 */
+    const struct {
+        unsigned id, value;
+        int name_x, name_y, icon_x, icon_y, number_x;
+        size_t type_icon, attribute_icon;
+    } rows[] = {
+        {0,10,42,103,110,107,135,3,5},
+        {132,8,42,125,110,129,135,4,6},
+        {192,40,42,147,110,151,135,2,7},
+        {0,10,42,169,110,173,135,0,5},
+        {132,8,192,103,260,107,285,1,6},
+        {192,40,192,125,260,129,285,2,7},
+    };
+    for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+        expected_blit(expected.framebuffer, &fixture.assets.detail_icons[rows[i].type_icon],
+            rows[i].name_x - 29, rows[i].name_y - 2, 0);
+        const uint8_t *tokens;
+        size_t count;
+        CHECK(fd2_text_entry_get_fragment(&fixture.text, rows[i].id + 181u, &tokens, &count) == 0);
+        for (size_t glyph = 0; glyph < count && fd2_text_token_at(tokens, glyph) != 0xffffu; glyph++)
+            fd2_font_draw_glyph(&expected, &fixture.font, fd2_text_token_at(tokens, glyph),
+                rows[i].name_x + (int)glyph * 16, rows[i].name_y, 205, 76, -1);
+        expected_blit(expected.framebuffer, &fixture.assets.detail_icons[rows[i].attribute_icon],
+            rows[i].icon_x, rows[i].icon_y, 0);
+        unsigned digits[] = {rows[i].value / 100u, rows[i].value / 10u % 10u, rows[i].value % 10u};
+        for (size_t digit = 0; digit < 3; digit++)
+            expected_blit(expected.framebuffer, &fixture.assets.digits[1][digits[digit]],
+                rows[i].number_x + 6 * (int)digit, rows[i].icon_y, 0);
+    }
+    for (int row = 94; row < 193; row++)
+        CHECK(memcmp(actual.framebuffer + row * VGA_STRIDE + 5,
+            expected.framebuffer + row * VGA_STRIDE + 5, 310) == 0);
+    CHECK(memcmp(&unit, &before, sizeof(unit)) == 0);
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
@@ -628,6 +682,7 @@ int main(void) {
     CHECK(test_magic_list_real_layout_and_selection() == 0);
     CHECK(test_magic_empty_name_and_opaque_cost() == 0);
     CHECK(test_magic_rejects_before_drawing() == 0);
+    CHECK(test_equipment_attribute_coordinates() == 0);
     puts("field_info_test: ok");
     return 0;
 }

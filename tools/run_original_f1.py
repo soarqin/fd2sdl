@@ -200,6 +200,35 @@ class FullFrameOracle:
         return None
 
 
+def phase_sampler(oracle, samples, name, *, target=None, excluded=()):
+    """仅错开F1观察时点；完整资源／水冻结门与共享wait_state的15s期限不变。"""
+    delays = (17, 43, 79, 131)
+    attempt = 0
+    excluded = tuple(excluded)
+    def sample(frame):
+        nonlocal attempt
+        record = {"name": name, "time": time.monotonic(), "observed_phase": None,
+                  "target": target, "excluded": list(excluded), "matched": False, "delay_ms": 0}
+        try:
+            detail = oracle.match(frame)
+        except Exception as error:
+            record["error"] = str(error)
+            samples.append(record)
+            raise  # 水DAC漂移等硬错误不得当成漏采样重试。
+        if detail:
+            record["observed_phase"] = detail["pulse_phase"]
+            record["matched"] = (target is None or detail["pulse_phase"] == target) and detail["pulse_phase"] not in excluded
+        if not record["matched"]:
+            record["delay_ms"] = delays[attempt % len(delays)]
+            attempt += 1
+        samples.append(record)
+        if not record["matched"]:
+            time.sleep(record["delay_ms"] / 1000)
+            return None
+        return detail
+    return sample
+
+
 def exercise(capture, source, focus, assets, composites, safe_frames, actor_frames, plan, titles,
              save, data, stamp, report, original_observations=None):
     observations = {}
@@ -210,22 +239,25 @@ def exercise(capture, source, focus, assets, composites, safe_frames, actor_fram
     def open_page(name, key, frames):
         capture.key(key)
         oracle = FullFrameOracle(frames, assets["f1_palette_cycles"])
-        image, first = checkpoint(name + "-pulse-first", oracle.match)
+        samples = report.setdefault("phase_samples", [])
+        first_name = name + "-pulse-first"
+        image, first = checkpoint(first_name, phase_sampler(oracle, samples, first_name))
         for phase, expected in enumerate(oracle.frames):
             expected.save(capture.artifacts / f"{name}-oracle-phase{phase}.png")
         captured = {}
         if original_observations is None:
             captured[first["pulse_phase"]] = image
-            image, second = checkpoint(name + "-pulse-distinct", lambda image: oracle.match(image, (first["pulse_phase"],)))
+            distinct_name = name + "-pulse-distinct"
+            image, second = checkpoint(distinct_name, phase_sampler(
+                oracle, samples, distinct_name, excluded=(first["pulse_phase"],)))
             captured[second["pulse_phase"]] = image
         else:
             # 首帧只校准该端合法DAC；随后等到实际原版的两个marker phase。
             # 不补键、不调整时钟，不要求两端进入前水色周期同步。
             for phase in original_observations[name]["frames"]:
-                def same_phase(frame):
-                    detail = oracle.match(frame)
-                    return detail if detail and detail["pulse_phase"] == phase else None
-                image, _ = checkpoint(f"{name}-native-phase{phase}", same_phase)
+                phase_name = f"{name}-native-phase{phase}"
+                image, _ = checkpoint(phase_name, phase_sampler(
+                    oracle, samples, phase_name, target=phase))
                 captured[phase] = image
         summary = {"name": name, "phases": list(captured),
                    "water_palette_cycle_candidates": oracle.water_candidates,
@@ -362,7 +394,7 @@ def run(args):
                 command, cwd = [str(args.game.resolve())], root
             stamp = save.stat().st_mtime_ns
             case = {"name": kind, "status": "failed", "inputs": report["inputs"],
-                    "checkpoints": [], "observed_pulses": [], "copy_mtime_before_start": stamp}
+                    "checkpoints": [], "observed_pulses": [], "phase_samples": [], "copy_mtime_before_start": stamp}
             report["cases"].append(case)
             try:
                 with running(command, cwd, environment, work / "game.log", args.driver, report["processes"]) as process:

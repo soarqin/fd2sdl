@@ -107,10 +107,14 @@ class F1OracleTest(unittest.TestCase):
         with patch("run_original_battle_menu.save_checkpoint"):
             _, first = probe.wait_state(capture, "first", oracle.match, [])
             self.assertEqual(first["pulse_phase"], 0)
+            samples = []
             with self.assertRaisesRegex(AssertionError, "水DAC漂移"):
-                probe.wait_state(capture, "distinct", lambda frame: oracle.match(frame, (0,)), [])
+                probe.wait_state(capture, "distinct", probe.phase_sampler(
+                    oracle, samples, "distinct", excluded=(0,)), [])
         self.assertEqual(capture.frame.call_count, 2, "must fail on drift before consuming the returned cycle14 frame")
         self.assertEqual(oracle.water_candidates, [14])
+        self.assertEqual(samples[0]["delay_ms"], 0)
+        self.assertIn("水DAC漂移", samples[0]["error"])
 
     def test_timeout_at_full_map_gate_never_sends_closing_or_recovery_keys(self):
         source, focus, assets, composites, base, safe, actor, plan = self.prepared
@@ -220,6 +224,10 @@ class F1OracleTest(unittest.TestCase):
             self.assertTrue(all(page["water_palette_cycle_candidates"] == [14] for page in observed.values()))
             self.assertEqual(len([name for name in names if "-native-phase" in name]), 8)
             self.assertFalse(any(name.endswith("distinct") for name in names))
+            self.assertEqual(len(report["phase_samples"]), 20)
+            target_samples = [sample for sample in report["phase_samples"] if sample["target"] is not None]
+            self.assertEqual(sum(sample["matched"] for sample in target_samples), 8)
+            self.assertTrue(all(sample["observed_phase"] is not None for sample in target_samples))
             keys = [call.args[0] for call in capture.key.call_args_list]
             self.assertEqual([key for key in keys if key in ("F1", "PAGEUP")], ["F1", "PAGEUP", "F1", "F1"])
 
@@ -240,6 +248,88 @@ class F1OracleTest(unittest.TestCase):
             color = rgb.getpixel(point)
             rgb.putpixel(point, tuple(255 - channel for channel in color))
             self.assertIsNone(oracle.match(rgb), point)
+
+
+class F1SamplingTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.frames = probe.prepare(probe.ROOT / "original_game", probe.ROOT / "original_game/START.SAV")[5]
+
+    def test_fixed_sampling_aliases_110ms_pingpong_but_stagger_reaches_target_without_input(self):
+        sequence = (7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7)
+        def attempt(stagger):
+            clock = [0]
+            capture = Mock(last=None)
+            oracle = probe.FullFrameOracle(self.frames)
+            seen, samples = [], []
+            def sleep(seconds):
+                clock[0] += round(seconds * 1000)
+            def frame():
+                # 固定观察成本800ms + 既有wait80ms，恰隔8个110ms pulse。
+                clock[0] += 800
+                image = self.frames[sequence[(clock[0] // 110) % len(sequence)]]
+                capture.last = image
+                return image
+            capture.frame.side_effect = frame
+            def fixed(image):
+                detail = oracle.match(image)
+                self.assertIsNotNone(detail)
+                seen.append(detail["pulse_phase"])
+                return detail if detail["pulse_phase"] == 4 else None
+            predicate = probe.phase_sampler(oracle, samples, "target4", target=4) if stagger else fixed
+            with patch.object(probe.time, "monotonic", side_effect=lambda: clock[0] / 1000), \
+                    patch.object(probe.time, "sleep", side_effect=sleep), \
+                    patch("run_original_battle_menu.save_checkpoint"):
+                if stagger:
+                    _, detail = probe.wait_state(capture, "target4", predicate, [])
+                    self.assertEqual((detail["pulse_phase"], detail["checked_pixels"]), (4, 64000))
+                else:
+                    with self.assertRaises(TimeoutError):
+                        probe.wait_state(capture, "target4", predicate, [])
+            capture.key.assert_not_called()
+            return clock[0], seen, samples
+        old_time, old_seen, _ = attempt(False)
+        self.assertGreaterEqual(old_time, 15000)
+        self.assertEqual(set(old_seen), {0, 7})
+        new_time, _, samples = attempt(True)
+        self.assertLess(new_time, 15000)
+        self.assertEqual([sample["delay_ms"] for sample in samples[:8]], [17, 43, 79, 131] * 2)
+        self.assertTrue(samples[-1]["matched"])
+        self.assertEqual((samples[-1]["observed_phase"], samples[-1]["delay_ms"]), (4, 0))
+
+    def test_distinct_sampling_records_excluded_phase_then_full_frame_change(self):
+        clock, samples, delays = [0], [], []
+        oracle = probe.FullFrameOracle(self.frames)
+        sample = probe.phase_sampler(oracle, samples, "native-distinct", excluded=(3,))
+        def sleep(seconds):
+            delays.append(round(seconds * 1000))
+            clock[0] += round(seconds * 1000)
+        with patch.object(probe.time, "monotonic", side_effect=lambda: clock[0] / 1000), \
+                patch.object(probe.time, "sleep", side_effect=sleep):
+            self.assertIsNone(sample(self.frames[3]))
+            self.assertIsNone(sample(self.frames[3]))
+            result = sample(self.frames[2])
+        self.assertEqual(result["checked_pixels"], 64000)
+        self.assertEqual([entry["observed_phase"] for entry in samples], [3, 3, 2])
+        self.assertEqual([entry["matched"] for entry in samples], [False, False, True])
+        self.assertTrue(all(entry["excluded"] == [3] and entry["target"] is None for entry in samples))
+        self.assertEqual(delays, [17, 43])
+        self.assertEqual([entry["time"] for entry in samples], [0, 0.017, 0.060])
+
+    def test_corrupt_full_frame_is_recorded_none_and_cannot_satisfy_target(self):
+        samples = []
+        oracle = probe.FullFrameOracle(self.frames)
+        sample = probe.phase_sampler(oracle, samples, "target2", target=2)
+        with patch.object(probe.time, "sleep") as sleep:
+            for point in ((0, 0), (319, 199), (160, 100)):
+                image = self.frames[2].convert("RGB")
+                old = image.getpixel(point)
+                image.putpixel(point, tuple(255 - channel for channel in old))
+                self.assertIsNone(sample(image))
+        self.assertEqual([entry["observed_phase"] for entry in samples], [None] * 3)
+        self.assertFalse(any(entry["matched"] for entry in samples))
+        self.assertEqual([entry["delay_ms"] for entry in samples], [17, 43, 79])
+        self.assertEqual(sleep.call_count, 3)
 
 
 def observations(color=20, cycle=0):

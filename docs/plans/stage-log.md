@@ -126,6 +126,12 @@ B1终审 `0842f05` 后继续此阶段，路径防护另提交 `38e3e3e`。永久
 
 独立复审后，修正候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/list-session-fixed/` fresh完整Windows构建及单轮47/47 CTest通过（含真实输入）。新状态回归检查整session、底层path/range、单位、pending、镜头和RNG不变，以及取消first-enabled双分支、错误与Load边界。此项尚无SDL列表WGC或正式入口；UI真实等待／目标／提交继续下一小阶段，不将本纯状态RNG断言推广到原版等待。
 
+### B2.1b3c 列表呈现与等待
+
+列表session已提交 `ccf4b88`。play owner新增私有同步modal，借用现info／字体／文本，局部持有两张像素缓冲及DATO头像0／3；先统一检查core状态与全部必需资源，再开11→0、关0→11。关闭使用原版最初未选中页；确认ID到正常关闭完成才输出，宿主退出优先，不标acted、不扣MP、不处理pending。原版16c57每次等待入口先消费共享RNG，110ms步按postdecrement眨眼／复位，未知键也开启下一等待；保留当前呈现帧与500／92ms repeat适配，不声称复制BIOS FIFO或DOS墙钟。无键时保持水色更新。
+
+复审修正了单项列表Up／Down仍须播放原版sample0，以及无效actor必须在首RNG前由core统一拒绝；没有引入新输入框架或UI随机流。无窗口私有TU使用真实资源、替换宿主时钟／呈现，验证导航、三种确认、低MP／OTHER、单项声音、全部开合相位、等待／眨眼消费边界、退出优先、坏资源及分配／头像释放。新隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/list-play/` fresh完整Windows构建、单轮48/48 CTest通过（含真实输入），无代码编译警告。正式循环暂未调用该modal，MAGIC仍禁用；此项没有SDL列表WGC，不增加B1冻结24组证据。接着实现普通0／13目标及提交门。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

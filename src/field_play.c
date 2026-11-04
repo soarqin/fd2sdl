@@ -20,6 +20,7 @@
 #include "field_visual.h"
 #include "font.h"
 #include "input.h"
+#include "portrait.h"
 #include "text.h"
 #include "scene.h"
 
@@ -102,6 +103,224 @@ static int play_system_confirmation_text(fd2_field_game *game,
 
 static void drain_frame_keys(fd2_vga *vga) {
     while (fd2_input_take_key(&vga->input, NULL)) {}
+}
+
+typedef enum {
+    FIELD_MAGIC_LIST_ERROR = -1,
+    FIELD_MAGIC_LIST_CANCELLED = 0,
+    FIELD_MAGIC_LIST_CONFIRMED = 1,
+    FIELD_MAGIC_LIST_HOST_QUIT = 2
+} field_magic_list_result;
+
+static fd2_field_magic_list_key magic_list_key(fd2_input_key key) {
+    switch (key) {
+        case FD2_INPUT_KEY_UP: return FD2_FIELD_MAGIC_LIST_KEY_UP;
+        case FD2_INPUT_KEY_DOWN: return FD2_FIELD_MAGIC_LIST_KEY_DOWN;
+        case FD2_INPUT_KEY_LEFT: return FD2_FIELD_MAGIC_LIST_KEY_LEFT;
+        case FD2_INPUT_KEY_RIGHT: return FD2_FIELD_MAGIC_LIST_KEY_RIGHT;
+        case FD2_INPUT_KEY_ENTER:
+        case FD2_INPUT_KEY_SPACE:
+        case FD2_INPUT_KEY_KEYPAD_CONFIRM:
+            return FD2_FIELD_MAGIC_LIST_KEY_CONFIRM;
+        case FD2_INPUT_KEY_ESCAPE:
+        case FD2_INPUT_KEY_CANCEL: return FD2_FIELD_MAGIC_LIST_KEY_CANCEL;
+        default: return FD2_FIELD_MAGIC_LIST_KEY_OTHER;
+    }
+}
+
+/* 现有detail_draw为void；先验证实际上屏的上页读集。其装备下页在离屏
+ * 合成后立即被magic_list_draw恢复底板，不成为本modal的必需内容。 */
+static int magic_list_detail_ready(const fd2_field_game *game,
+                                    const fd2_field_unit *unit) {
+    const fd2_field_info_assets *assets = &game->info_assets;
+#define MAGIC_IMAGE(image, w, h) \
+    ((image).pixels && (image).width == (w) && (image).height == (h))
+    if (!assets->ready || !game->font.glyphs ||
+        game->font.glyph_count == 0 ||
+        game->font.glyph_count > game->font.size / 32u ||
+        !MAGIC_IMAGE(assets->detail_top, 223, 86) ||
+        !MAGIC_IMAGE(assets->affiliation[unit->side == 0], 29, 24))
+        return 0;
+    for (size_t i = 1; i < 18; i++) {
+        int w = i <= 4 || i == 10 || i == 11 || i >= 14 ? 3 : 16;
+        int h = i <= 9 || i == 12 ? 3 : 16;
+        if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
+    }
+    for (size_t i = 0; i < 2; i++)
+        if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
+    for (size_t i = 0; i < 3; i++) {
+        if (unit->detail_status[i] &&
+            !MAGIC_IMAGE(assets->status_icons[i], 24, 20)) return 0;
+        if (!MAGIC_IMAGE(assets->digit_overflow[i], i == 2 ? 17 : 18, 8)) return 0;
+        for (size_t digit = 0; digit < 10; digit++)
+            if (!MAGIC_IMAGE(assets->digits[i][digit], digit == 1 ? 5 : 6, 8))
+                return 0;
+    }
+    if (!MAGIC_IMAGE(assets->two_digit_overflow, 12, 8)) return 0;
+#undef MAGIC_IMAGE
+    const size_t fragments[] = {(size_t)unit->text_id + 1u,
+        (size_t)unit->race + 0x8cu, (size_t)unit->movement_profile + 0x96u};
+    for (size_t i = 0; i < 3; i++) {
+        const uint8_t *tokens;
+        size_t count;
+        if (system_confirmation_fragment(game, fragments[i],
+                                          &tokens, &count) != 0) return 0;
+        for (size_t j = 0; j < count; j++)
+            if (fd2_text_token_at(tokens, j) == 0xfffeu) return 0;
+    }
+    return 1;
+}
+
+/* field_player_magic_command_execute @0x1cff0（原登记sub_1CFF0）的列表
+ * 呈现／等待；按键部分复用field_player_magic_list_select_step @0x1d51d
+ * （原登记sub_1D51D），不结束LIST、不扣费、不提交临时移动或pending。
+ * sub_16C57 @0x16c57每次等键入口和眨眼复位均消费session共享RNG；
+ * 16ms只为SDL呈现，110ms只推进一次，不宣称与DOS墙钟相位同步。 */
+static field_magic_list_result play_field_magic_list(
+    fd2_field_game *game, fd2_vga *vga, fd2_field_audio *audio,
+    uint8_t *confirmed_id) {
+    if (!vga) return FIELD_MAGIC_LIST_ERROR;
+    if (fd2_input_take_quit(&vga->input)) return FIELD_MAGIC_LIST_HOST_QUIT;
+    if (!game || !game->ready || !confirmed_id ||
+        game->failure != FD2_FIELD_FAILURE_NONE || !game->attack_rng ||
+        game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST ||
+        game->detail_visible || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
+        game->units.count > FD2_FIELD_MAX_UNITS)
+        return FIELD_MAGIC_LIST_ERROR;
+    uint8_t candidate_id = 0;
+    /* 统一复用core的actor／移动／完整record门，OTHER不改索引或ID。 */
+    if (fd2_field_game_magic_list_step(game,
+            FD2_FIELD_MAGIC_LIST_KEY_OTHER, &candidate_id) != 0)
+        return FIELD_MAGIC_LIST_ERROR;
+    const fd2_field_unit *unit = &game->units.items[game->selected_unit];
+    size_t count = fd2_field_unit_magic_list_build(unit, NULL, 0);
+    if (count == 0 || count > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
+        game->magic_list_selected < 0 ||
+        (size_t)game->magic_list_selected >= count ||
+        !magic_list_detail_ready(game, unit))
+        return FIELD_MAGIC_LIST_ERROR;
+
+    fd2_image portraits[2] = {{0}, {0}};
+    uint8_t *background = NULL;
+    fd2_vga *page = NULL;
+    field_magic_list_result result = FIELD_MAGIC_LIST_ERROR;
+    if (fd2_portrait_decode_frame(&portraits[0], &game->dato_archive,
+                                  unit->unit_id, 0) != 0 ||
+        fd2_portrait_decode_frame(&portraits[1], &game->dato_archive,
+                                  unit->unit_id, 3) != 0)
+        goto done;
+    for (size_t i = 0; i < 2; i++)
+        if (!portraits[i].pixels || portraits[i].width != 80 ||
+            portraits[i].height != 80) goto done;
+    background = malloc(VGA_W * VGA_H);
+    if (!background) goto done;
+    page = malloc(sizeof(*page));
+    if (!page) goto done;
+    /* renderer只需一个离屏VGA目标；不复制宿主input／palette的owner。 */
+    memset(page, 0, sizeof(*page));
+    fd2_field_game_render(game, page);
+    memcpy(background, page->framebuffer, VGA_W * VGA_H);
+    fd2_field_detail_draw(page, &game->info_assets, &game->font,
+                          &game->ui_text, unit, &portraits[0]);
+    if (fd2_field_magic_list_draw(page, &game->info_assets, &game->font,
+                                  &game->ui_text, unit, -1) != 0)
+        goto done;
+    /* 完整资源预检结束后才写实际VGA、耗键或消费RNG。 */
+    if (fd2_input_take_quit(&vga->input)) {
+        result = FIELD_MAGIC_LIST_HOST_QUIT;
+        goto done;
+    }
+    drain_frame_keys(vga);
+    for (int phase = 11; phase >= 0; phase--) {
+        fd2_field_detail_transition_frame(vga->framebuffer,
+            page->framebuffer, background, phase);
+        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FIELD_MAGIC_LIST_HOST_QUIT;
+            goto done;
+        }
+        drain_frame_keys(vga);
+    }
+    for (;;) {
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FIELD_MAGIC_LIST_HOST_QUIT;
+            goto done;
+        }
+        if (fd2_field_magic_list_draw(vga, &game->info_assets, &game->font,
+                &game->ui_text, unit, game->magic_list_selected) != 0)
+            goto done;
+        /* 16c57的counter/flag/tick每次调用重置；立绘本身跨键保留。 */
+        uint32_t counter = game->attack_rng(game->attack_rng_userdata) % 30u + 2u;
+        int blink = 0;
+        uint64_t last = SDL_GetTicks();
+        fd2_input_event event;
+        for (;;) {
+            if (fd2_input_take_quit(&vga->input)) {
+                result = FIELD_MAGIC_LIST_HOST_QUIT;
+                goto done;
+            }
+            if (fd2_input_take_key(&vga->input, &event)) break;
+            uint64_t now = SDL_GetTicks();
+            (void)fd2_field_water_tick(vga, now);
+            if (now < last || now - last >= 110u) {
+                if (blink) {
+                    fd2_map_sprite_blit(vga, &portraits[0], 8, 10, -1);
+                    counter = game->attack_rng(game->attack_rng_userdata) % 30u + 2u;
+                    blink = 0;
+                } else if (counter-- == 0u) {
+                    fd2_map_sprite_blit(vga, &portraits[1], 8, 10, -1);
+                    blink = 1;
+                }
+                last = now;
+            }
+            fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        }
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FIELD_MAGIC_LIST_HOST_QUIT;
+            goto done;
+        }
+        int previous = game->magic_list_selected;
+        fd2_field_magic_list_key key = magic_list_key(event.key);
+        int step = fd2_field_game_magic_list_step(
+            game, key, &candidate_id);
+        if (step == -2) goto done;
+        if (step != 0) {
+            result = step == 1 ? FIELD_MAGIC_LIST_CONFIRMED : FIELD_MAGIC_LIST_CANCELLED;
+            break;
+        }
+        /* native上下即使单项回绕也发声；左右只在实际跨列时发声。 */
+        if (audio && game->option_values[1] &&
+            (key == FD2_FIELD_MAGIC_LIST_KEY_UP ||
+             key == FD2_FIELD_MAGIC_LIST_KEY_DOWN ||
+             previous != game->magic_list_selected))
+            (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_COMMAND_MENU);
+    }
+    for (int phase = 0; phase <= 11; phase++) {
+        fd2_field_detail_transition_frame(vga->framebuffer,
+            page->framebuffer, background, phase);
+        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FIELD_MAGIC_LIST_HOST_QUIT;
+            goto done;
+        }
+        drain_frame_keys(vga);
+    }
+    memcpy(vga->framebuffer, background, VGA_W * VGA_H);
+    fd2_vga_present(vga);
+    if (fd2_input_take_quit(&vga->input)) {
+        result = FIELD_MAGIC_LIST_HOST_QUIT;
+        goto done;
+    }
+    drain_frame_keys(vga);
+    if (result == FIELD_MAGIC_LIST_CONFIRMED) *confirmed_id = candidate_id;
+done:
+    fd2_vga_wait_frame_deadline(vga);
+    free(page);
+    free(background);
+    fd2_image_free(&portraits[1]);
+    fd2_image_free(&portraits[0]);
+    return result;
 }
 
 static void overview_copy_rect(uint8_t *dst, const uint8_t *src,

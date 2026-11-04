@@ -312,6 +312,26 @@ Python实现未变，沿用B3.3a实际329项，未重称新跑。原版herb两�
 
 正式ITEM仍disabled，confirm_cursor／play未分派物品；没有新SDL WGC或原版raw16B量测，不能把57项自测或旧原版两场当作双端。继续B3.3d的最小whole-list能力门及正式输入候选，经双端实际运行后才提交开放；B3.4装备／丢弃／Give和B3整体继续未完成。
 
+### B3.2d／B3.3d正式草药Use与列表配对
+
+B3.3c已独立提交`b2b384c`，正式入口与输入已提交`ecef415`；配对工具及默认注册单独提交。正式ITEM现通过同一只读whole-list能力门：stage0可行动玩家、共享RNG及密集已知库存，非零Use code仅192；普通code0装备只读，无草药也可查看。不借MAGIC的MP、移动、状态或升级限制，EX99可使用。COMMAND、ITEM_MENU及目标confirm重验全库存；LIST由完整关页后的raw槽交给目标层，confirm_cursor不能跳过modal直接确认。退出／逐级取消先于此能力门，临时移动及pending保留。
+
+play复用既有FIELD_COMMAND和FIELD_MAGIC_TARGETING，不增input上下文或生产测试入口。列表开合／共享RNG只有一个owner，层间耗尽普通键并结束当前帧；非法目标不提交，成功Use正确记录item而非子菜单索引0的attack。Give／Equip／Drop仍按SDL能力禁用，原版START仅禁Give；Magic图形oracle同步验raw1普通code0库存的ITEM普通图6，保留旧B2候选禁用图8的历史范围。
+
+完整fresh Windows Debug候选`C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-formal-c1/`通过单轮57/57 CTest（真实输入42.81秒、总62.92秒）、341/341 Python无跳过、10项发布审计及491个规范地址检查。程序SHA `0bb6ceceb23f8241520c483848afef88313784c626bfe08074004a6ee710ed4c`。后续C2只变两份item比较工具，C3再只变两份启动捕获工具；191份src原始字节相等，复用该已测程序和C1构建，不把工具修订当作新编译。
+
+C1首个controls实跑的两端28个业务检查点均通过，但原版多1条WGC transient诊断使旧比较器按数量拒绝；原失败与正常清理收据保留。修补要求完整且唯一的业务名称集合，诊断仅接受typed backend／错误白名单／关联检查点／时序PID／重试数量及附件SHA，不能按后缀任意过滤。静态离线重放392,562累积像素bad=0只用于定位，不增加运行配对组。C2随后controls、herb-full、herb-injured三个串行双端实跑顶层均通过；对应外Job43400／37372／61096均worker0、timeout0、residual0、forced0、cleaned1。
+
+完整30组C2运行先有18组passed，第19组original-overview在720×400启动logo尺寸门超时，业务尚未开始且原版PID16364正常清理。原summary保留为failed，外Job62300无强制或遗留；不将此轮称为单轮全绿。根因是外层捕获尺寸错误重入等待，每次重置next_escape。`c8bc137`仅在Capture.wait的startup阶段接受与真实raw尺寸精确相符的已知非整数倍率错误为诊断，保存BMP，沿同一deadline及既定1秒／后续2秒Esc节拍继续；后续合法尺寸、完整标题资源和内容门不变。小尺寸／非startup／未知错误不放入此分支，blank过渡无键。18项专项及真实旧logo的无窗口新旧反证通过，反证明确不当运行验收。
+
+C3补跑通过总览、玩家取消、满HP WAIT、March、F1、结果页及法术列表7组，随后原版火炎术在`damage-return-caster-1`超时：RIGHT输入后仍停原空目标，SDL尚未开始。PID44232正常exit0，内Job18372及外Job48920均无强制或遗留；C3原summary保留failed，25组passed不改写为fresh30。代码复核确认acted及无框图可能早于1e292的经验提示，1e5c0(11)及controller会清键；现有截图不能单独证明该次清键时刻，故只登记已观测无移动及判据缺口。
+
+修补仅在original damage的同一120秒检查点内增加无键资源观察：原有kill／closed_browse门至少两张有效帧匹配且窗口满2秒，任何已观测失配／本gate的WGC transient重计；miss仍直接失败，SDL不等待。2秒是host稳定参数，不冒充native常数。后续仍逐键ACK、F2验证MP6/8／LV1／EX42，不加补键／重抽或新捕获后端；奖励提示完整时序另验。C4只变Magic runner与对应回归，保持app／driver、WGC、像素门和cleanup不变。
+
+C4最后5组全部实跑通过，最终累计30组为C2的18、C3的新7及C4的新5，不能写fresh30。最终summary为`item-formal-c4/cumulative-30/summary.json`，明确`inherited=25/executed=5`；外Job32848 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`。旧报告、截图及来源／二进制／完整工具manifest的前后守卫均通过。C4定向Damage11项及Magic／Item／output-path共80项通过，另18项启动捕获回归；完整341项Python及57项CTest仍保留C1真实来源，不冒称C4全量Python新跑。
+
+复审又发现恢复术的首个F2有相同1e292早帧风险，本次heal通过不能排除竞态。下一小阶段将仅把damage／heal无键观察提为同一owner、保留各自资源门，再fresh配对两场；其它28组按冻结app与未变helper、截图／输入／工具来源累计。B3整体仍未关闭；之后继续B3.4丢弃校准。raw16B／末槽stale、完整UI随机流／浮字／演出／声音、水色同步、整关实战、结算和下一关仍未验。Linux本轮未执行。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

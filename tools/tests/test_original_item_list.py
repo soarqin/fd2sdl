@@ -32,10 +32,11 @@ class Fixture:
             image.paste(part.convert("RGB"), at)
         return image
 
-    def menu_frame(self, selected=0, *, give_enabled=False, actor_overlay=True):
+    def menu_frame(self, selected=0, *, give_enabled=False, actor_overlay=True, role="original"):
         image = Image.new("RGB", (320, 200))
         for item, command in enumerate((8, 9, 10, 11)):
-            index = command * 3 + (0 if give_enabled else 2) if item == 1 else command * 3 + int(item == selected)
+            disabled = (item > 0 if role == "sdl" else item == 1) and not (item == 1 and give_enabled)
+            index = command * 3 + (2 if disabled else int(item == selected))
             part = self.assets["upper_commands"][index][0] if item == 0 and actor_overlay else self.assets["commands"][index]
             at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[item]))
             image.paste(part.convert("RGB"), at)
@@ -98,6 +99,17 @@ class ResourceTest(Fixture, unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, 1)
 
+    def test_sdl_full_disabled_equipment_drop_frames_are_not_native_enabled_frames(self):
+        frame = self.menu_frame(role="sdl")
+        result = probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, role="sdl")
+        self.assertEqual([item["frame"] for item in result["matches"]], [25, 29, 32, 35])
+        self.assertEqual(result["disabled"], [0, 1, 1, 1])
+        self.assertFalse(result["capability_equivalence_claimed"])
+        self.assertIsNone(probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields))
+        self.assertIsNone(probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, role="sdl"))
+        with self.assertRaises(ValueError):
+            probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, 2, role="sdl")
+
     def test_command_first_enabled_and_cancelled_browse_requires_plain_terrain(self):
         command = probe.PlayerOracle(self.source, self.assets, [], {})
         self.assertTrue(probe.command_page(self.command_frame(), command, (52, 76), self.templates, self.fields)["native_first_enabled_item"])
@@ -157,6 +169,27 @@ class InputTest(Fixture, unittest.TestCase):
             probe.exercise(capture, self.source, self.focus, self.assets, self.actor, self.selection,
                            self.templates, self.fields, {3: [capture.last] * 3}, Path("unused"), b"", 0, {"checkpoints": []})
         self.assertEqual([call.args[0] for call in capture.key.call_args_list], ["UP", "ENTER"])
+
+    def test_sdl_same_submenu_direction_keys_stay_use0_with_strict_full_icons(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory) / "FD2.SAV"
+            save.write_bytes(b"copy")
+            frame = self.menu_frame(role="sdl")
+            capture = Mock(last=frame)
+            checked = []
+            def wait(capture, name, predicate, checkpoints, **kwargs):
+                if name.startswith("submenu-") and name != "submenu-cancel-command":
+                    detail = predicate(frame)
+                    self.assertIsNotNone(detail)
+                    self.assertEqual(detail["selected"], 0)
+                    self.assertEqual([item["frame"] for item in detail["matches"]], [25, 29, 32, 35])
+                    checked.append(name)
+                return frame, {"focus_screen": [52, 76]}
+            with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), patch.object(probe, "wait_state", side_effect=wait):
+                probe.exercise(capture, self.source, self.focus, self.assets, self.actor, self.selection, self.templates,
+                    self.fields, {3: [frame] * 3}, save, b"copy", save.stat().st_mtime_ns, {"kind": "sdl", "checkpoints": []})
+            self.assertEqual(checked, ["submenu-right", "submenu-down", "submenu-up", "submenu-left"])
+            self.assertEqual(len(capture.key.call_args_list), 27)
 
 
 class HerbTest(unittest.TestCase):
@@ -308,7 +341,8 @@ class HerbTest(unittest.TestCase):
 
 
 class RunTest(Fixture, unittest.TestCase):
-    def model(self, output, *, capture_error=False, cleanup_error=False, final_save_change=False, source_change=False, fixture_change=None, scenario="controls", complete_herb=False):
+    def model(self, output, *, capture_error=False, cleanup_error=False, final_save_change=False, source_change=False, fixture_change=None,
+              scenario="controls", complete_herb=False, paired=False, failure_role="original", late_save_change=False, rgb_ok=True):
         events = []
         fixture = (ROOT / "original_game").resolve() / "START.SAV"
         read_bytes, stat = Path.read_bytes, Path.stat
@@ -323,15 +357,19 @@ class RunTest(Fixture, unittest.TestCase):
             return result
         @contextmanager
         def running(command, cwd, env, log, driver, receipts):
-            events.append("started")
-            receipt = {"pid": 123, "cleaned": False, "forced_cleanup": False}
+            role = "original" if "-conf" in command else "sdl"
+            events.append("started-" + role if paired else "started")
+            if role == "sdl":
+                self.assertEqual(Path(env["FD2SDL_SAVE_PATH"]), output / "sdl/FD2.SAV")
+                self.assertEqual(cwd, ROOT.resolve())
+            receipt = {"pid": 123 if role == "original" else 456, "cleaned": False, "forced_cleanup": False}
             receipts.append(receipt)
             try:
                 yield Mock(pid=123)
             finally:
-                receipt.update(cleaned=True, exit_code=0)
-                events.append("closed")
-            if cleanup_error:
+                receipt.update(cleaned=True, exit_code=0, forced_cleanup=cleanup_error and role == failure_role)
+                events.append("closed-" + role if paired else "closed")
+            if cleanup_error and role == failure_role:
                 raise RuntimeError("cleanup error")
         def copytree(source, target):
             target.mkdir()
@@ -339,25 +377,42 @@ class RunTest(Fixture, unittest.TestCase):
         def hashes(path):
             nonlocal calls, tamper
             calls += 1
-            if calls == 2:
+            fail_at = 3 if paired and failure_role == "sdl" else 2
+            if calls == fail_at:
                 tamper = True
-            if calls == 2 and final_save_change:
-                save = output / "game/FD2.SAV"
+            if calls == fail_at and final_save_change:
+                save = output / ("sdl/FD2.SAV" if failure_role == "sdl" else "original/game/FD2.SAV" if paired else "game/FD2.SAV")
                 stamp = save.stat()
                 os.utime(save, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 2_000_000_000))
-            return {"source": "changed" if calls == 2 and source_change else "stable"}
+            return {"source": "changed" if calls == fail_at and source_change else "stable"}
         args = SimpleNamespace(root=ROOT, artifacts=output, driver=ROOT / "tools/run_original_item_list.py", dosbox=ROOT / "tools/run_original_item_list.py", scenario=scenario)
+        if paired:
+            args.sdl = ROOT / "tools/run_original_magic_list.py"
         prepared = (self.source, self.focus, self.assets, self.actor, self.selection, self.templates, self.fields)
+        if scenario != "controls":
+            source = oracle.derive_injured(probe.decode_save(fixture), fixture.read_bytes())[1] if scenario == "herb-injured" else None
+            prepared = probe.prepare(ROOT / "original_game", source=source, herb=True)
         def exercise(*args, **kwargs):
-            if capture_error:
+            record = args[-1]
+            if capture_error and record["kind"] == failure_role:
                 raise RuntimeError("first resource error")
+            record["input_scope"] = {"valid_use_confirmations": 0, "code0_confirmations": 4, "equip_drop_give_confirmations": 0,
+                "save_or_end_sent": False, "cancel_route": ["Use list", "ITEM submenu", "COMMAND", "selection", "browse"]}
             if complete_herb:
                 for key in ("herb_outcome", "herb_measurement", "herb_detail_closed"):
-                    args[-1][key] = {"model": True}
+                    record[key] = {"hp": 42, "max_hp": 42, "mp": 0, "max_mp": 0, "level": 1,
+                                   "experience": 99 if scenario == "herb-injured" else 0, "visible_inventory_ids": [0, 132]}
+        def paired_rgb(*args):
+            if late_save_change:
+                save = output / "original/game/FD2.SAV"
+                stamp = save.stat()
+                os.utime(save, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 2_000_000_000))
+            return {"ok": rgb_ok, "checked_pixels": 31955}
         with patch.object(probe, "prepare", return_value=prepared), patch.object(probe, "hashes", side_effect=hashes), \
                 patch.object(probe.shutil, "copytree", side_effect=copytree), patch.object(probe, "running", running), \
                 patch.object(probe, "Capture"), patch.object(probe, "title_templates", return_value={}), \
                 patch.object(Path, "read_bytes", read), patch.object(Path, "stat", file_stat), \
+                patch.object(probe, "compare_paired_checkpoints", side_effect=paired_rgb), \
                 patch.object(probe, "exercise", side_effect=exercise):
             return probe.run(args), events
 
@@ -417,6 +472,237 @@ class RunTest(Fixture, unittest.TestCase):
                     self.assertTrue(result["fixture_unchanged"] and result["copy_save_unchanged_after_cleanup"])
                     if scenario == "herb-injured":
                         self.assertEqual(result["derived_fixture"]["derived_sha256"], "15cdaa8ce74038f2031d94dcf1983c0597b506e776a2b6028c87ffacb45ec17d")
+
+
+class PairingTest(Fixture, unittest.TestCase):
+    model = RunTest.model
+
+    def test_each_scenario_runs_original_cleanup_before_sdl_same_fixture(self):
+        for scenario in ("controls", "herb-full", "herb-injured"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "new"
+                result, events = self.model(output, paired=True, scenario=scenario, complete_herb=scenario != "controls")
+                self.assertEqual(events, ["started-original", "closed-original", "started-sdl", "closed-sdl"])
+                self.assertTrue(result["ok"] and result["probe_cases_passed"])
+                self.assertFalse(result["probe_only"])
+                self.assertEqual([case["kind"] for case in result["cases"]], ["original", "sdl"])
+                self.assertEqual((output / "original/game/FD2.SAV").read_bytes(), (output / "sdl/FD2.SAV").read_bytes())
+                self.assertTrue(all(case["status"] == "passed" and case["cleanup_passed"] and case["copy_save_unchanged_after_cleanup"] for case in result["cases"]))
+                self.assertEqual(result["cases"][0]["role_expected_submenu_disabled"], [0, 1, 0, 0])
+                self.assertEqual(result["cases"][1]["role_expected_submenu_disabled"], [0, 1, 1, 1])
+                self.assertTrue(all(case["application"]["sha256"] and case["tool_sources"] for case in result["cases"]))
+                self.assertFalse(result["known_capability_differences"]["cross_end_capability_equivalence_claimed"])
+                for role in ("original", "sdl"):
+                    self.assertEqual(json.loads((output / role / "comparison.json").read_bytes())["status"], "passed")
+
+    def test_any_original_failure_blocks_sdl_even_after_source_restored(self):
+        cases = ({"capture_error": True}, {"cleanup_error": True}, {"final_save_change": True},
+                 {"source_change": True}, {"fixture_change": "bytes"}, {"fixture_change": "mtime"})
+        for failure in cases:
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "new"
+                result, events = self.model(output, paired=True, **failure)
+                self.assertEqual(events, ["started-original", "closed-original"])
+                self.assertFalse((output / "sdl").exists())
+                self.assertFalse(result["ok"] or result["probe_cases_passed"])
+                self.assertEqual(len(result["cases"]), 1)
+                self.assertEqual(result["cases"][0]["status"], "failed")
+
+    def test_sdl_failure_and_late_original_copy_mutation_cannot_pass(self):
+        for failure in ({"capture_error": True}, {"cleanup_error": True}, {"final_save_change": True},
+                        {"source_change": True}, {"fixture_change": "mtime"}, {"late_save_change": True}, {"rgb_ok": False}):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "new"
+                result, events = self.model(output, paired=True, failure_role="sdl", **failure)
+                self.assertEqual(events, ["started-original", "closed-original", "started-sdl", "closed-sdl"])
+                self.assertFalse(result["ok"] or result["probe_cases_passed"])
+                self.assertEqual(result["status"], "failed")
+                if failure.get("late_save_change"):
+                    self.assertEqual(result["cases"][0]["status"], "failed")
+                    self.assertFalse(json.loads((output / "original/comparison.json").read_bytes())["copy_save_unchanged_after_cleanup"])
+
+    def test_first_business_error_is_not_overwritten_by_final_guard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _ = self.model(Path(directory) / "new", paired=True, capture_error=True, final_save_change=True)
+        self.assertEqual(result["error"], "first resource error")
+        self.assertEqual(result["cases"][0]["error"], "first resource error")
+
+    def test_bad_sdl_path_rejected_before_mkdir_or_source_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(Path, "mkdir") as mkdir, patch.object(probe, "hashes") as hashes, self.assertRaisesRegex(ValueError, "--sdl"):
+                probe.run(SimpleNamespace(root=ROOT, artifacts=root / "new", sdl=root / "absent.exe"))
+            mkdir.assert_not_called()
+            hashes.assert_not_called()
+
+
+class PairRGBTest(Fixture, unittest.TestCase):
+    @staticmethod
+    def cases(folder, first, second, a, b, name="checkpoint"):
+        result = []
+        for role, frame, detail in (("original", first, a), ("sdl", second, b)):
+            target = folder / role
+            target.mkdir()
+            path = target / (name + ".png")
+            frame.save(path)
+            result.append({"kind": role, "checkpoints": [{"name": name, **detail}],
+                           "capture_hashes": {path.name: hashlib.sha256(path.read_bytes()).hexdigest()}})
+        return result
+
+    @staticmethod
+    def retries(cases, folder, endpoint, count):
+        case = cases[endpoint]
+        target = case["checkpoints"][0]
+        target.update(pid=123 + endpoint, time=100, wgc_transient_retries=count)
+        events = []
+        for number in range(1, count + 1):
+            name = f"{target['name']}-wgc-retry-{number}"
+            filename = name + "-last-valid.png"
+            path = folder / case["kind"] / filename
+            path.write_bytes((folder / case["kind"] / (target["name"] + ".png")).read_bytes())
+            case["capture_hashes"][filename] = hashlib.sha256(path.read_bytes()).hexdigest()
+            events.append({"name": name, "kind": "wgc_transient", "pid": target["pid"], "time": 90 + number,
+                "capture_backend": "Windows.Graphics.Capture HWND", "last_frame_may_precede_error": True,
+                "error": "Windows.Graphics.Capture failed: blank or nearly uniform captured client area",
+                "last_valid_frame": filename})
+        case["checkpoints"][:0] = events
+        return case
+
+    def test_typed_wgc_retries_are_preserved_separately_without_reducing_business_rgb(self):
+        for counts in ((1, 0), (1, 3)):
+            with self.subTest(counts=counts), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                frame = self.list_frame()
+                detail = probe.list_page(frame, self.templates, self.fields)
+                cases = self.cases(root, frame, frame, detail, detail)
+                for endpoint, count in enumerate(counts):
+                    self.retries(cases, root, endpoint, count)
+                compared = probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+                self.assertTrue(compared["ok"])
+                self.assertEqual(compared["checked_pixels"], 31955)
+                self.assertEqual(compared["business_checkpoint_count"], 1)
+                self.assertEqual([row["name"] for row in compared["checkpoints"]], ["checkpoint"])
+                for endpoint, role in enumerate(("original", "sdl")):
+                    diagnostics = compared["wgc_transient_diagnostics"][role]
+                    self.assertEqual(len(diagnostics), counts[endpoint])
+                    for number, row in enumerate(diagnostics, 1):
+                        self.assertEqual(row, {**cases[endpoint]["checkpoints"][number - 1],
+                                               "business_checkpoint": "checkpoint", "retry": number})
+
+    def test_malformed_retry_or_missing_duplicate_business_is_not_ignored(self):
+        mutations = {
+            "backend": lambda rows: rows[0].update(capture_backend="desktop crop"),
+            "unknown_kind": lambda rows: rows[0].update(kind="other_diagnostic"),
+            "name": lambda rows: rows[0].update(name="unrelated-wgc-retry-1"),
+            "ordinal": lambda rows: rows[0].update(name="checkpoint-wgc-retry-0"),
+            "pid": lambda rows: rows[0].update(pid=999),
+            "time": lambda rows: rows[0].update(time=101),
+            "nonfinite_time": lambda rows: rows[0].update(time=float("nan")),
+            "reason": lambda rows: rows[0].update(error="permission denied"),
+            "last_frame_claim": lambda rows: rows[0].update(last_frame_may_precede_error=False),
+            "attachment_name": lambda rows: rows[0].update(last_valid_frame="unrelated.png"),
+            "undeclared": lambda rows: rows[1].pop("wgc_transient_retries"),
+            "count": lambda rows: rows[1].update(wgc_transient_retries=2),
+            "boolean_count": lambda rows: rows[1].update(wgc_transient_retries=True),
+            "missing_business": lambda rows: rows.pop(),
+            "duplicate_business": lambda rows: rows.append(dict(rows[1])),
+            "duplicate_retry": lambda rows: rows.insert(0, dict(rows[0])),
+            "late_retry": lambda rows: rows.reverse(),
+        }
+        frame = self.list_frame()
+        detail = probe.list_page(frame, self.templates, self.fields)
+        for name, mutate in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                cases = self.cases(root, frame, frame, detail, detail)
+                case = self.retries(cases, root, 0, 1)
+                mutate(case["checkpoints"])
+                with self.assertRaises(AssertionError):
+                    probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+
+    def test_retry_gap_or_changed_diagnostic_or_business_png_still_fails(self):
+        frame = self.list_frame()
+        detail = probe.list_page(frame, self.templates, self.fields)
+        for changed in ("gap", "diagnostic_png", "business_png"):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                cases = self.cases(root, frame, frame, detail, detail)
+                case = self.retries(cases, root, 0, 2)
+                if changed == "gap":
+                    case["checkpoints"].pop(0)
+                    case["checkpoints"][-1]["wgc_transient_retries"] = 1
+                else:
+                    name = case["checkpoints"][0]["last_valid_frame"] if changed == "diagnostic_png" else "checkpoint.png"
+                    (root / "original" / name).write_bytes(b"modified")
+                with self.assertRaisesRegex(AssertionError, "WGC|PNG"):
+                    probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+
+    def test_actual_rgb_difference_is_not_replaced_by_each_endpoint_resource_pass(self):
+        frame = self.list_frame()
+        point = (5, 94)
+        value = frame.getpixel(point)
+        first, second = frame.copy(), frame.copy()
+        first.putpixel(point, tuple(channel - 2 for channel in value))
+        second.putpixel(point, tuple(channel + 2 for channel in value))
+        a, b = (probe.list_page(image, self.templates, self.fields) for image in (first, second))
+        self.assertIsNotNone(a)
+        self.assertIsNotNone(b)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = self.cases(root, first, second, a, b)
+            compared = probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+        self.assertFalse(compared["ok"])
+        self.assertEqual(compared["checked_pixels"], 31955)
+        self.assertEqual(sum(region["bad_pixels"] for row in compared["checkpoints"] for region in row["static_regions"]), 1)
+
+    def test_identical_list_passes_and_changed_capture_hash_or_missing_checkpoint_rejected(self):
+        frame = self.list_frame()
+        detail = probe.list_page(frame, self.templates, self.fields)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = self.cases(root, frame, frame, detail, detail)
+            self.assertTrue(probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)["ok"])
+            cases[1]["checkpoints"][0]["name"] = "missing"
+            with self.assertRaisesRegex(AssertionError, "检查点"):
+                probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+            cases[1]["checkpoints"][0]["name"] = "checkpoint"
+            (root / "sdl/checkpoint.png").write_bytes(b"modified")
+            with self.assertRaisesRegex(AssertionError, "PNG"):
+                probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
+
+    def test_capability_differences_are_full_per_endpoint_gates_and_explicit_not_equality(self):
+        a, b = self.menu_frame(2), self.menu_frame(role="sdl")
+        da = probe.submenu_page(a, self.assets, (52, 76), self.templates, self.fields, 2)
+        db = probe.submenu_page(b, self.assets, (52, 76), self.templates, self.fields, role="sdl")
+        self.assertIsNotNone(da)
+        self.assertIsNotNone(db)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compared = probe.compare_paired_checkpoints(self.cases(root, a, b, da, db), root, self.assets, self.selection)
+        self.assertTrue(compared["ok"])
+        row = compared["checkpoints"][0]
+        self.assertEqual(len(row["capability_or_selection_differences"]), 3)
+        self.assertEqual([region["name"] for region in row["static_regions"]], ["command-frame29"])
+
+    def test_target_static_cursor_compared_but_different_lut_phase_is_diagnostic_only(self):
+        source, focus, assets, actor, selection, templates, fields = probe.prepare(ROOT / "original_game", herb=True)
+        first = HerbTest.target_frame(assets, actor, selection)
+        mask = assets["herb"]["target_cursor"].crop((0, 18, 24, 24))
+        first.paste(mask.convert("RGB"), (52, 94), mask.point(lambda index: 255 if index else 0, mode="L"))
+        second = first.copy()
+        phase, image = next((phase, image) for phase, image in selection["ranges"] if image.tobytes() != selection["ranges"][0][1].tobytes())
+        second.paste(image.convert("RGB"), selection["position"])
+        da, db = (probe.herb_target(image, assets, selection, templates, fields) for image in (first, second))
+        self.assertIsNotNone(da)
+        self.assertIsNotNone(db)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compared = probe.compare_paired_checkpoints(self.cases(root, first, second, da, db), root, assets, selection)
+        self.assertTrue(compared["ok"])
+        row = compared["checkpoints"][0]
+        self.assertEqual(row["static_regions"][0]["checked_pixels"], 90)
+        self.assertFalse(row["range_rgb_diagnostic"]["used_for_pass"])
+        self.assertFalse(row["range_rgb_diagnostic"]["within_tolerance"])
 
 
 if __name__ == "__main__":

@@ -570,6 +570,13 @@ class Suite:
                              "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
                              "--dosbox", self.args.dosbox, "--scenario", scenario,
                              "--artifacts", self.work / name], timeout=480)
+            for name, scenario in (("original-item-controls", "controls"),
+                                   ("original-item-herb-full", "herb-full"),
+                                   ("original-item-herb-injured", "herb-injured")):
+                self.command(name, [sys.executable, ROOT / "tools/run_original_item_list.py",
+                             "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                             "--dosbox", self.args.dosbox, "--scenario", scenario,
+                             "--artifacts", self.work / name], timeout=480)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

@@ -306,7 +306,8 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
                 "original-opening", "original-focus", "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result",
-                "original-magic-list", "original-magic-damage", "original-magic-heal"])
+                "original-magic-list", "original-magic-damage", "original-magic-heal",
+                "original-item-controls", "original-item-herb-full", "original-item-herb-injured"])
             self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
                              ["original-opening", "original-focus", "input"])
             by_name = {call.args[0]: call for call in pairs}
@@ -325,12 +326,16 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 self.assertEqual(call.kwargs["timeout"], timeout)
             wait_command = by_name["original-player-wait"].args[1]
             self.assertEqual(wait_command[wait_command.index("--scenario") + 1], "wait-full-hp")
-            for name, scenario in (("original-magic-list", "single"),
-                                   ("original-magic-damage", "damage"),
-                                   ("original-magic-heal", "heal")):
+            for name, scenario, script in (
+                    ("original-magic-list", "single", "run_original_magic_list.py"),
+                    ("original-magic-damage", "damage", "run_original_magic_list.py"),
+                    ("original-magic-heal", "heal", "run_original_magic_list.py"),
+                    ("original-item-controls", "controls", "run_original_item_list.py"),
+                    ("original-item-herb-full", "herb-full", "run_original_item_list.py"),
+                    ("original-item-herb-injured", "herb-injured", "run_original_item_list.py")):
                 case = by_name[name]
                 command = case.args[1]
-                self.assertEqual(command[1], runner.ROOT / "tools/run_original_magic_list.py")
+                self.assertEqual(command[1], runner.ROOT / "tools" / script)
                 self.assertEqual(command[command.index("--sdl") + 1], suite.args.game)
                 self.assertEqual(command[command.index("--scenario") + 1], scenario)
                 self.assertEqual(command[command.index("--driver") + 1], suite.args.driver)

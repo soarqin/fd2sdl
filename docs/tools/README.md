@@ -39,9 +39,9 @@ git diff --check
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
 - `field_info` 覆盖stage 0总览及物品纯列表：raw槽选中、空槽压行、全部215项、frame41缺省属性图、raw零色复制，以及完整预检失败全VGA不变；原详情与MAGIC上页组合另有回归。纯绘制测试不代替正式入口和原版WGC验收。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
-- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；确认不提交handler，正式ITEM仍禁用。原版单端校准与后续SDL图形配对分别登记。
+- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
 - `field_item_target` 覆盖草药192的纯目标范围、raw候选／121轮询、HP0／acted、取消聚焦回LIST0、坏末项及Load owner；合成光标／地形锁定frame1与LUT，不执行物品提交或代替WGC。
-- `field_item_commit` 覆盖草药逻辑提交的HP40／逐目标RNG、压槽及stale ID、MP／EX保留、死亡／phase预测、重复拒绝和提交后错误冻结；不借AI尾链，也不是正式用户路径或原版raw字节量测。
+- `field_item_commit` 覆盖草药逻辑提交的power40／逐目标RNG、压槽及stale ID、MP／EX保留、死亡／phase预测、重复拒绝、提交后错误冻结及正式能力查询／confirm_cursor分派；不借AI尾链，也不代替真实键盘可达性或原版raw字节量测。
 - `field_magic_list_play` 现同时覆盖法术／物品私有列表的真实按键等待逻辑，替换宿主时钟与呈现，不开窗口；检查共享RNG、开合、退出、释放和首错。`field_item_menu_render` 用合成资源检查ITEM IDs8–11、禁用图、高亮、动画与角色最后覆盖；二者均不是SDL物品WGC。
 - `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat 生命周期、同帧输入清理、分配失败、宿主退出及玩法／RNG 不变；另读取真实资源检查干净背景。
 - `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另检查Enter详情与F2来源、controller尾按键耗尽。原版具体格事件与镜头仍按场景验收。
@@ -84,7 +84,7 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_magic_list.py` 的列表、伤害和治疗双端场景也已纳入总流程。正式输入必须经过列表和目标选择，仅确认一次施法，分别校验完整静态资源矩形、效果与MP／LV／EX；原版单端校准和配对输出口径不同，参数及夹具限制见[图形测试规范](gui-testing.md)。失焦补跑保留失败及来源，累计结果不能冒称单轮通过。
 
-`run_original_item_list.py` 是B3原版单端校准：默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消，完整31,955像素门；herb-full／herb-injured另验目标取消、单次Use及完整32,147像素HP／MP／LV／EX和两槽详情。受控派生不改站位，物品表来自严格LE原版，不以SDL为oracle。成功保持`ok=false/probe_only=true`，未加入双端套件；raw尾字节／完整RNG／演出声音仍未验。Windows命令、无窗口回归及守卫见[物品菜单规范](gui-testing.md#b3物品菜单的原版单端校准)。
+`run_original_item_list.py` 支持B3原版单端校准及串行双端配对：默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消，完整31,955像素门；herb-full／herb-injured另验目标取消、单次Use及完整32,147像素HP／MP／LV／EX和两槽详情。受控派生不改站位，物品表来自严格LE原版，不以SDL为oracle。不传`--sdl`的校准成功仍为`ok=false/probe_only=true`；三个场景添加`--sdl`后还须通过双端实际PNG配对，已纳入总流程。raw尾字节／完整RNG／演出声音仍未验。Windows命令、无窗口回归及守卫见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
 
 ### Sanitizer（Linux／Clang）
 

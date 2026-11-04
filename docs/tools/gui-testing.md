@@ -8,13 +8,15 @@
 
 省略 `--sdl` 时只运行原版：成功仍为 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示校准通过。single／damage／heal可添加 `--sdl <fd2sdl可执行文件>`，先完成原版并清理窗口，再运行SDL；controls当前没有SDL配对，指定组合会在创建目录前拒绝。可用 `run-job 480000` 包装配对。只有双端检查点、结果数值及各端最终文件守卫均通过，顶层才可 `ok=true`；任一端失败立即停止，不启动下一端。保存原版、SDL各自收据及首个失败，不用末端检查覆盖前端失败。
 
-资源门分别校验完整不透明像素，显式记录ITEM在原版开放而SDL未开放的差异，不声称全部命令一致。damage验证目标／击杀及caster MP6/8、LV1、EX42；heal验证recipient HP42/42及caster MP5/8、LV1、EX20，并以Esc从caster装备详情翻到未选中法术页，完整校验30,690像素下板及上半数值，再以Esc关闭回已行动caster浏览画面。两者均只确认一次，不重抽随机结果，不用跳过键加速效果，不根据文件未变推断UI RNG或完整runtime未变；完整FIGANI、奖励提示、时序、声音和随机流对齐另验。B1冻结24组证据与本次新增法术配对分别登记，不追改历史候选。
+资源门分别校验完整不透明像素，COMMAND图标按各端当前能力完整验证，不声称全部命令一致。B3开放草药后，真实START raw1的code0装备只读列表允许ITEM，此处SDL由禁用图8改验普通图6；历史B2候选仍保留当时差异。damage验证目标／击杀及caster MP6/8、LV1、EX42；heal验证recipient HP42/42及caster MP5/8、LV1、EX20，并以Esc从caster装备详情翻到未选中法术页，完整校验30,690像素下板及上半数值，再以Esc关闭回已行动caster浏览画面。两者均只确认一次，不重抽随机结果，不用跳过键加速效果，不根据文件未变推断UI RNG或完整runtime未变；完整FIGANI、奖励提示、时序、声音和随机流对齐另验。B1冻结24组证据与新增法术配对分别登记，不追改历史候选。
+
+火炎术的acted／目标消失可早于经验提示，不能据首张无框画面立即发导航键。原版端在同一120秒deadline内无键观察：原有击杀与浏览资源门须匹配至少两张有效帧，且观察窗口满2秒；任何已观测失配或该检查点WGC transient都重新计时。2秒是宿主测试稳定间隔，不是原版演出常数；依据是`1e292 → 1e5c0(11 BIOS ticks) → bios_keyboard_buffer_clear @4e381`及controller清键。之后仍须逐格方向ACK和F2实测EX42，不能补发方向键、重新施法或扩大容差。SDL不增加此等待；该观察不等于完整奖励提示、声音或时序验收。
 
 开发验收只要求当前执行平台的适用检查通过。当前平台为 Windows，WGC 图形流程属于必测项；Linux 等其他平台未执行时如实登记，不阻塞当前开发任务，也不记为已通过。跨平台命令仍维护，当前平台的逻辑、输入、图形与原版对照范围不能因此缩减。
 
 2026-11-04 的开发约束已调整：允许自动操作原版菜单、剧情、布阵、移动、攻击、法术和物品。过去因 Linux 桌面条件不足而留下的「待人工对照」改为待原版对照，可由本流程逐项关闭。允许操作不表示这些功能均已实现或已经对照通过。
 
-### B3物品菜单的原版单端校准
+### B3物品菜单校准与双端配对
 
 `run_original_item_list.py` 使用未修改的真实START，定位raw0，验证Use／Give／Equip／Drop四向图标、禁用Give、三槽列表导航、code0的Enter／Space拒绝、取消及重开。列表取消回ITEM，ITEM取消才回COMMAND；继续取消回选择范围和浏览。每次列表检查完整下板30,690像素及姓名、HP、MP，共31,955像素；物品表从严格LE解析的原版object3 VA `0x602ad`取得，不以SDL内置表作oracle。
 
@@ -24,11 +26,15 @@ Windows（PowerShell；driver和DOSBox路径换成当前构建及安装位置）
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python -B tools/run_original_item_list.py --root . --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-item-list-original"
 ```
 
-该工具仅支持当前Windows WGC，不提供Linux原版截图入口。Linux可执行无窗口工具回归：`python3 -m unittest discover -s tools/tests -p test_original_item_list.py`；Windows将`python3`换成`python`。运行前解析输出目录的实际路径，拒绝写入原版及其junction目标。保存完整输入、WGC检查点、进程清理和来源／副本的字节及修改时间守卫。成功仍为`ok=false`、`probe_only=true`、`probe_cases_passed=true`，不得计入双端图形组数。`controls`不执行实际Use、目标选择、效果、装备、丢弃、Give或Save，也未证明内存、UI随机流、时序与声音相等；这些分支及SDL对应流程另行验收。
+该工具仅支持当前Windows WGC，不提供Linux原版截图入口。Linux可执行无窗口工具回归：`python3 -m unittest discover -s tools/tests -p test_original_item_list.py`；Windows将`python3`换成`python`。运行前解析输出目录的实际路径，拒绝写入原版及其junction目标。保存完整输入、WGC检查点、进程清理和来源／副本的字节及修改时间守卫。不传`--sdl`的原版单端成功仍为`ok=false`、`probe_only=true`、`probe_cases_passed=true`，不得计入双端图形组数。`controls`不执行实际Use、目标选择、效果、装备、丢弃、Give或Save，也未证明内存、UI随机流、时序与声音相等。
 
 默认`--scenario controls`保留上述只读控制范围。新增`--scenario herb-full`使用自然满HP来源，`--scenario herb-injured`仅派生raw0 HP42→20、EX0→99及checksum，保留完整明文／密文字节manifest；两者都不改站位。单独运行沿用同一`run-job 360000`命令并加场景参数及新的`--artifacts`目录，禁止复用已有结果目录。
 
-草药场景两次打开frame1目标选择，中间Esc必须回列表0，随后仅一次实际Use确认。之后纯观察acted、普通光标及无范围／菜单，再F2核对完整下板及姓名、HP／MP、LV／EX，共32,147像素；最后用完整576像素干燥地形门证明关页完成。原版满HP仍消耗药草，受控场景HP42／MP0／EX99保留，剩余可见IDs为0／132。全程不跳演出、不发Save／END；raw16B／末槽stale只记录静态预期，原版运行字节量测另列post-END合法Save场景，不因画面正确而声称隐藏字节、全部RNG／浮字／时序或声音已验。当前仍仅原版，顶层`ok=false`且不能增加双端累计组数。
+草药场景两次打开frame1目标选择，中间Esc必须回列表0，随后仅一次实际Use确认。之后纯观察acted、普通光标及无范围／菜单，再F2核对完整下板及姓名、HP／MP、LV／EX，共32,147像素；最后用完整576像素干燥地形门证明关页完成。原版满HP仍消耗药草，受控场景HP42／MP0／EX99保留，剩余可见IDs为0／132。全程不跳演出、不发Save／END；raw16B／末槽stale只记录静态预期，原版运行字节量测另列合法Save场景，不因画面正确而声称隐藏字节、全部RNG／浮字／时序或声音已验。
+
+三个场景均可加`--sdl <fd2sdl可执行文件>`并用`run-job 480000`包装：完整运行原版并正常清理后才启动SDL。两端各自先过独立原版资源门，再对相同业务检查点的实际PNG作静态区域RGB配对，沿用每通道差≤3、bad=0；Give／Equip／Drop能力差异分别验各端完整图标。仅端内资源、双端像素、终值、来源／副本守卫和清理全部通过才记`ok=true`。三个场景已注册进总流程，不能把早期原版校准或离线重放增加为新的配对组。
+
+已批准的短暂WGC捕获错误是独立的`wgc_transient`诊断记录，不能当业务检查点，也不能按名称后缀随意丢弃。比较器要求完整且唯一的业务名称集合；诊断须符合类型、捕获后端、错误白名单、原检查点关联、时序／PID、重试计数及附件SHA规则。诊断可以在两端数量不同；对应实际业务图仍须逐项完整通过。缺失、重复或伪装的检查点立即失败，不放宽像素门。
 
 ## 截图规范
 
@@ -41,6 +47,8 @@ Windows（PowerShell；driver和DOSBox路径换成当前构建及安装位置）
 | Linux SDL | 现有 Xvfb/XTest 输入回归 | 当前不生成原版像素对照证据；不得把日志回归登记为图像一致 |
 
 微软文档规定，Win32 的 [`CreateForWindow`](https://learn.microsoft.com/en-us/windows/win32/api/windows.graphics.capture.interop/nf-windows-graphics-capture-interop-igraphicscaptureiteminterop-createforwindow) 至少需要 Windows 10 1903。捕获实现使用窗口图像，不依赖窗口在桌面上未被遮挡；最小化、零尺寸、超时、设备或 API 不可用时明确失败。操作按键前仍必须确认窗口焦点，不能把按键发给其他应用。
+
+标题启动logo可能先出现720×400等非320×200整数倍率的有效WGC原图。这些帧只保留为`startup_geometry`诊断，不归一化、不作为检查点通过；同一有界启动等待保留既定Esc节拍（首1秒、随后2秒），只在尚未通过标题资源门时跳过启动动画。随后仍须取得合法整数倍率帧并匹配完整标题资源，才允许业务输入。`Capture.wait`直接拒绝小于320×200、非启动阶段的尺寸异常及未知错误，不由此推进Esc；调用者已有的有界尺寸重试不改变这个检查点要求。不能反复重建等待延长deadline或不断推迟Esc。普通页面淡出／淡入继续只等待，不发跳过键。
 
 历史试验曾按 [DOSBox-X 2026.10.01 的官方截图绑定](https://github.com/joncampbell123/dosbox-x/blob/dosbox-x-v2026.10.01/src/hardware/hardware.cpp#L2313)尝试原生热键和独立 mapper，但未生成 PNG，未记为通过。随后用户确定 WGC 为截图规范；原生 PNG 不属于当前流程，也不是待完成的验收前置。报告将实际捕获方式记录为 WGC，不能登记为模拟器原生 PNG。
 
@@ -126,7 +134,9 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | 原版 B2 列表 | 同一START来源，正式MAGIC列表打开、取消与重开 | 双端完整31,603像素矩形、MP8/8及第0项，逐端资源／文件守卫；ITEM能力差异单列 |
 | 原版 B2 伤害 | 仅派生caster坐标，原地火炎术确认一次 | 目标与范围、击杀／acted组合门，caster MP6/8／LV1／EX42；不声明自然第一回合移动路线或FIGANI相等 |
 | 原版 B2 治疗 | 仅派生恢复术与受术者受伤，目标取消／轮换后确认一次 | HP42/42、MP5/8／LV1／EX20；Esc翻未选中法术详情页，再以完整静态地形证明最终关闭 |
-| 后续原版配对 | 完整phase／AI／随机流、胜败后续、其他法术、物品、战斗演出、声音 | 按下节逐项补充，不因当前控制场景通过而视为全部完成 |
+| 原版 B3 控制 | 同一START来源，ITEM／Use三槽导航、code0拒绝、逐级取消与重开 | 每端完整31,955像素资源门及配对；原版和SDL的Equip／Drop能力差异分别验完整图标，来源／mtime不变 |
+| 原版 B3 草药 | 自然满HP和仅HP20／EX99派生，各自目标取消后只用一次 | acted、HP42／MP0／EX0或99、剩余可见0／132，完整32,147像素详情门及干燥地形关页；未量测隐藏raw16B |
+| 后续原版配对 | 完整phase／AI／随机流、胜败后续、其他法术／物品、Equip／Drop／Give、战斗演出、声音 | 按下节逐项补充，不因当前控制场景通过而视为全部完成 |
 
 前台焦点被外部窗口改变时，保留失焦诊断和失败收据，清理本轮窗口后再运行独立场景。若复用同一冻结候选已通过的场景，须核对二进制、测试源码、原版身份、原收据与截图SHA，并逐项登记来源；失败或跳过场景不能复用为通过。累计验收明确区分复用与本次执行，不写成单轮全绿，也不放宽投键、截图或清理判据。
 

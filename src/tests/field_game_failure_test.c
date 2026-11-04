@@ -84,27 +84,32 @@ static int frozen_after_failure(fd2_field_game *game, test_rng *rng) {
     return 0;
 }
 
+static void keep_player_phase(fd2_field_game *game) {
+    game->units.count = 3;
+    set_unit(&game->units.items[2], 2, 7, 7);
+}
+
 static int test_player_wait_unknown_cell(void) {
     fd2_field_game game;
     uint32_t cells[64];
     fd2_terrain_attr attr;
     test_rng rng = {0};
     init_game(&game, cells, &attr, &rng);
+    keep_player_phase(&game);
     unknown_cell(&game, cells, 1, 1, 1);
     CHECK(fd2_field_game_finish_unit_action(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
     CHECK(game.failure_notice.kind == FD2_FIELD_EVENT_CELL);
     CHECK(game.failure_notice.action == 9 && game.failure_notice.unit_index == 0);
     CHECK(game.event_log_count == 1 && game.unhandled_event_count == 1);
-    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 2 && game.turn_number == 1);
     CHECK(rng.calls == 0);
     return frozen_after_failure(&game, &rng);
 }
 
-/* 当前SDL玩家即时停止的兼容断言；已知不等于原版@18890共享路径，
- * c1b另行恢复player的command/tail/outer边界，c1a不借AI修正改变此路。 */
-static int test_player_move_stops_at_first_event(void) {
+/* @0x18890整路径仅收集pending，未知handler必须等COMMAND完成后才失败。 */
+static int test_player_move_finishes_before_event_dispatch(void) {
     fd2_field_game game;
     uint32_t cells[64];
     fd2_terrain_attr attr;
@@ -116,31 +121,38 @@ static int test_player_move_stops_at_first_event(void) {
     game.move_path = path;
     game.move_path_length = game.move_path_capacity = sizeof(path);
     game.move_preview_valid = 1;
-    CHECK(fd2_field_game_execute_move(&game, NULL, 0) == -1);
-    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
-    CHECK(game.units.items[0].x == 2 && game.units.items[0].y == 1);
-    CHECK(game.cursor_cell_x == 2 && game.cursor_cell_y == 1);
-    CHECK(game.event_log_count == 1);
+    CHECK(fd2_field_game_execute_move(&game, NULL, 0) == 0);
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE);
+    CHECK(game.units.items[0].x == 3 && game.units.items[0].y == 1);
+    CHECK(game.cursor_cell_x == 3 && game.cursor_cell_y == 1);
+    CHECK(game.event_log_count == 0 && game.pending_cell_event.valid);
+    CHECK(game.pending_cell_event.action == 9 && game.pending_cell_event.source_slot == 0);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.calls == 0);
-    return frozen_after_failure(&game, &rng);
+    return 0;
 }
 
-static int test_legacy_player_cancel_does_not_touch_ai_pending(void) {
+static int test_command_cancel_reentry_clears_pending(void) {
     fd2_field_game game;
     uint32_t cells[64];
     fd2_terrain_attr attr;
     test_rng rng = {0};
     init_game(&game, cells, &attr, &rng);
-    game.interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
+    uint8_t path[64];
+    game.move_path = path;
+    game.move_path_capacity = sizeof(path);
     game.move_origin_x = game.units.items[0].x;
     game.move_origin_y = game.units.items[0].y;
+    game.units.items[0].x = 2;
     game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
     CHECK(fd2_field_game_cancel_selection(&game) == 1);
-    CHECK(game.pending_cell_event.valid && game.pending_cell_event.action == 42 &&
-          game.pending_cell_event.source_slot == 4);
+    CHECK(!game.pending_cell_event.valid);
+    CHECK(game.units.items[0].x == 1 && game.units.items[0].y == 1);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.event_log_count == 0 && rng.calls == 0);
-    /* c1a pending只接AI；此兼容边界不是原版player取消oracle。 */
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 
@@ -164,6 +176,7 @@ static int test_player_attack_preserves_committed_damage(void) {
     fd2_terrain_attr attr;
     test_rng rng = {0};
     init_game(&game, cells, &attr, &rng);
+    keep_player_phase(&game);
     game.units.items[1].x = 2;
     game.units.items[1].y = 1;
     unknown_cell(&game, cells, 1, 1, 1);
@@ -174,7 +187,7 @@ static int test_player_attack_preserves_committed_damage(void) {
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
     CHECK(game.units.items[1].hp == 0);
     CHECK(fd2_field_unit_is_hidden(&game.units.items[1]));
-    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.calls == 4);
     CHECK(frozen_after_failure(&game, &rng) == 0);
     fd2_field_path_close(&game.move_range);
@@ -276,6 +289,7 @@ static int test_notice_last_slot_and_full_capacity(void) {
     fd2_terrain_attr attr;
     test_rng rng = {0};
     init_game(&game, cells, &attr, &rng);
+    keep_player_phase(&game);
     fill_notices(&game, FD2_FIELD_EVENT_LOG_CAPACITY - 1);
     unknown_cell(&game, cells, 1, 1, 1);
     CHECK(fd2_field_game_finish_unit_action(&game) == -1);
@@ -285,6 +299,7 @@ static int test_notice_last_slot_and_full_capacity(void) {
     CHECK(game.event_log[0].presentation_deferred == 1);
 
     init_game(&game, cells, &attr, &rng);
+    keep_player_phase(&game);
     fill_notices(&game, FD2_FIELD_EVENT_LOG_CAPACITY);
     unknown_cell(&game, cells, 1, 1, 1);
     fd2_field_event_notice before[FD2_FIELD_EVENT_LOG_CAPACITY];
@@ -293,7 +308,7 @@ static int test_notice_last_slot_and_full_capacity(void) {
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_CAPACITY);
     CHECK(game.event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY);
     CHECK(memcmp(before, game.event_log, sizeof(before)) == 0);
-    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.calls == 0);
     return frozen_after_failure(&game, &rng);
 }
@@ -434,8 +449,8 @@ static int test_ai_commit_failure_does_not_rollback_or_repeat(void) {
 
 int main(void) {
     if (test_player_wait_unknown_cell() ||
-        test_player_move_stops_at_first_event() ||
-        test_legacy_player_cancel_does_not_touch_ai_pending() ||
+        test_player_move_finishes_before_event_dispatch() ||
+        test_command_cancel_reentry_clears_pending() ||
         test_invalid_cell_data_is_not_no_event() ||
         test_player_attack_preserves_committed_damage() ||
         test_counter_failure_keeps_first_strike_and_rng() ||

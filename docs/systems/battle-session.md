@@ -81,7 +81,11 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 原版共享路径每步以`match_arg=0`更新单个pending，未匹配保留之前命中；移动循环不分派handler。AI normal common tail查询最终格`match_arg=1`，命中才覆盖，再acted、全方向reset；outer随后分派pending。未知handler在实际分派时冻结，保留已提交效果、坐标和acted；读取损坏事件数据仍明确失败。pending是session旁路状态，不写原版存档，成功活动Load清除，恢复失败保留原状态。
 
-玩家路径、COMMAND取消重入、acted与controller后置的旧即时处理尚待B1.4c1b修复：已确认原版完整路径后进入COMMAND，成功动作先acted再最终lookup；经验／stage／必要phase之后才分派当前共享pending。普通command取消回滚并重入玩家入口清pending，下级目标取消保留pending。原版phase会共用该slot，不能增加私有队列保护玩家pending后称原版等价。现有玩家逐格立即执行测试只描述尚待修复的SDL行为，不再充当原版依据。
+玩家完整路径后进入COMMAND，成功动作先acted再最终lookup；普通command取消回滚并重入移动选择、清pending，下级目标取消或无效确认保留pending。selection取消不acted／不lookup1，仍经过controller后置。零步WAIT恢复HP，非零路径WAIT不恢复；特殊cell-action尚未支持时在WAIT恢复／acted前明确冻结，不能当普通pending处理或报告成功。
+
+当前controller恢复stage0结果门、精确13565门、必要整轮phase后的pending分派与清空；B4经验尚未扩展。13565只看flags&0x81、side2和raw26，不加HP或bit04门。异步phase期间仅保存原actor与等待标志，不保存pending副本；AI仍可清空／覆盖同一slot，raw尾必须扫描完才换phase。side1尾先全表清acted，再进入phase0事件／状态，删除旧延迟清除补偿。Enter的普通不可操作actor详情关闭后走同一后置，F2直接返回。
+
+controller完成时由play owner耗尽当前帧普通键，保留held／repeat；core不接input。等待phase时拒绝导出／保存，成功活动Load清除续行与pending，失败恢复保留完整原状态。此处恢复的是已确认控制顺序；未实现的cell handler、特殊格、物品已交接取消例外及跨地图镜头仍单独登记。
 
 攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
 

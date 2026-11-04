@@ -63,7 +63,8 @@ static void export_metadata(const fd2_field_metadata *metadata,
 int fd2_field_game_export_battle_snapshot(
         const fd2_field_game *game, fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready ||
-        game->failure != FD2_FIELD_FAILURE_NONE || game->stage > 0xffu ||
+        game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->player_post_waiting_phase || game->stage > 0xffu ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -260,6 +261,9 @@ int fd2_field_game_import_battle_snapshot(
     game->dropped_event_count = 0;
     game->failure = FD2_FIELD_FAILURE_NONE;
     game->pending_cell_event.valid = 0;
+    /* 只有成功active Load提交才丢弃controller续行；验证失败不改owner。 */
+    game->player_post_waiting_phase = 0;
+    game->player_post_actor = 0;
     memset(&game->failure_notice, 0, sizeof(game->failure_notice));
     game->phase_next_action_ms = 0;
     game->last_idle_ms = 0;
@@ -355,7 +359,7 @@ int fd2_field_game_load_active(fd2_field_game *game, const char *path) {
 int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     if (!game || !path || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        slot_index >= FD2_SAVE_SLOT_COUNT ||
+        game->player_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
         game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;
     fd2_save_file save = {0};

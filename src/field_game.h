@@ -229,6 +229,11 @@ typedef struct {
     fd2_field_battle_result battle_result;
     int ready;
     fd2_field_pending_cell_event pending_cell_event;
+    /* field_controller_input @0x117e7 在13565整轮phase之后续行；只保存
+     * 原玩家actor，不保存共享pending。waiting为0即无上下文，actor无效。
+     * 成功active Load清除，失败Load保留；均不写入SAV。 */
+    size_t player_post_actor;
+    uint8_t player_post_waiting_phase;
 } fd2_field_game;
 
 /* 当前只允许打开已验证初始 roster 的 stage 0。资源容器和渲染接口按
@@ -369,6 +374,12 @@ int fd2_field_game_execute_move(fd2_field_game *game,
                                 fd2_vga *vga,
                                 uint32_t frame_delay_ms);
 int fd2_field_game_finish_unit_action(fd2_field_game *game);
+/* @0x117e7 的玩家返回后置：stage0结果门→13565→当前pending分派/清空。
+ * complete用于成功command、selection取消与Enter详情（F2不调用）。
+ * resume返回1=phase尚未返回，0=无续行或已完成，-1=首错冻结。 */
+int fd2_field_game_complete_player_controller(fd2_field_game *game,
+                                               size_t actor_index);
+int fd2_field_game_resume_player_controller(fd2_field_game *game);
 /* 无演出快速回归用：将当前阵营全部标记 acted 后跳过该 phase。
  * 正式玩家菜单使用 end_player_turn，不以本接口模拟原版恢复门。 */
 int fd2_field_game_end_active_phase(fd2_field_game *game);

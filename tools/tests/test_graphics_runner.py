@@ -292,7 +292,7 @@ class CommandTreeTest(unittest.TestCase):
 
 
 class OriginalSuiteRegistrationTest(unittest.TestCase):
-    def test_six_original_pairs_are_registered_and_overview_uses_default_start_fixture(self):
+    def test_seven_original_pairs_are_registered_and_new_pairs_use_default_start_fixture(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
@@ -305,11 +305,11 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 suite.run()
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
-                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview"])
-            overview = pairs[-1]
-            self.assertEqual(overview.args[1][1], runner.ROOT / "tools/run_original_overview.py")
-            self.assertNotIn("--save-fixture", overview.args[1])
-            self.assertEqual(overview.kwargs["timeout"], 360)
+                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player"])
+            for call, script in zip(pairs[-2:], ("run_original_overview.py", "run_original_player.py")):
+                self.assertEqual(call.args[1][1], runner.ROOT / "tools" / script)
+                self.assertNotIn("--save-fixture", call.args[1])
+                self.assertEqual(call.kwargs["timeout"], 360)
 
 
 class WindowCleanupTest(unittest.TestCase):

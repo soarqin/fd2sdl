@@ -539,6 +539,9 @@ class Suite:
             self.command("original-overview", [sys.executable, ROOT / "tools/run_original_overview.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-overview"], timeout=360)
+            self.command("original-player", [sys.executable, ROOT / "tools/run_original_player.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-player"], timeout=360)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

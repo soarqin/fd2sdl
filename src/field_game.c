@@ -7,7 +7,9 @@
  * @0x18409、field_physical_exchange @0x1548e、
  * field_physical_attack_sequence @0x1e856、
  * field_physical_attack_resolve @0x1ecc7 与
- * field_defeated_units_finalize @0x1db65（entry @0x1db65）。
+ * field_defeated_units_finalize @0x1db65（entry @0x1db65）、
+ * field_player_unit_action @0x18890（原登记同名）、
+ * field_controller_input @0x117e7（原登记同名）与sub_13565 @0x13565。
  */
 
 #include "field_game.h"
@@ -34,8 +36,9 @@
 #define FD2_FIELD_COMMAND_HIGHLIGHT_MS 220
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
 
+static int recover_stationary_unit(fd2_field_game *game, size_t actor_index);
 static int finish_unit_action_internal(fd2_field_game *game,
-                                       int allow_zero_hp);
+                                       int physical_action);
 static int resolve_physical_exchange(fd2_field_game *game,
                                      size_t attacker_index,
                                      size_t target_index,
@@ -481,38 +484,6 @@ static void record_turn_events(fd2_field_game *game) {
     }
 }
 
-static void record_cell_event(fd2_field_game *game,
-                              size_t unit_index,
-                              uint8_t match_arg) {
-    if (!game || game->failure != FD2_FIELD_FAILURE_NONE ||
-        unit_index >= game->units.count) return;
-    uint8_t event_code = UINT8_MAX;
-    size_t slot = SIZE_MAX;
-    const fd2_field_unit *unit = &game->units.items[unit_index];
-    int found = fd2_field_cell_event_find(
-        &game->map, &game->terrain, &game->metadata,
-        unit->x, unit->y, match_arg, &event_code, &slot);
-    if (found == 0) return;
-    fd2_field_event_notice notice = {
-        .kind = FD2_FIELD_EVENT_CELL,
-        .turn_number = game->turn_number,
-        .phase = game->active_side,
-        .action = event_code,
-        .unit_index = (uint8_t)unit_index,
-        .x = unit->x,
-        .y = unit->y,
-        .handled = 0,
-        .slot = slot,
-    };
-    if (found < 0) {
-        fail_session(game, FD2_FIELD_FAILURE_EVENT_DATA, &notice);
-        return;
-    }
-    if (reserve_event_notice(game, &notice) != 0) return;
-    append_event_notice(game, &notice);
-    fail_session(game, FD2_FIELD_FAILURE_EVENT_UNSUPPORTED, &notice);
-}
-
 /* field_cell_event_lookup @0x13a44（原登记同名）：只有命中才覆盖pending；
  * no-match保留前次命中。lookup不分派handler、不追加notice，不消费RNG。 */
 static int collect_pending_cell_event(fd2_field_game *game,
@@ -646,15 +617,13 @@ static void advance_phase(fd2_field_game *game) {
     /* field_turn_cycle_run @0x1a30b 的阶段顺序：玩家 side 2 完成后直接
      * 进入 side 1；side 1 结束后全表清 acted 再进入 side 0；side 0
      * 结束后回合数加一、再次全表清 acted，最后进入 side 2。
-     *
-     * SDL 逐 actor scheduler 不能在 side 1→0 时清 acted：原版 side 1
-     * 整个循环在一次调用内完成，清除发生在返回之后；SDL 若此时清除，
-     * scheduler 仍在处理 side 1 的最后一次 actor 提交，会把刚写的 acted
-     * 擦掉。side 1→0 的清除因此延迟到 side 0 第一项实际调度之前。 */
+     * raw尾扫描与动作提交已分步，clear可在side1 outer真正返回后、
+     * phase0 turn-event/status之前执行，不再延迟到side0首个actor。 */
     if (game->active_side == 2) {
         recover_unacted_players(game);
         enter_phase(game, 1);
     } else if (game->active_side == 1) {
+        clear_all_acted(game);
         enter_phase(game, 0);
     } else {
         if (game->turn_number != UINT32_MAX) game->turn_number++;
@@ -1479,6 +1448,8 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
         return -1;
     }
+    /* field_player_unit_action @0x18890入口，原controller重入也清同一slot。 */
+    game->pending_cell_event.valid = 0;
     return unit_index;
 }
 
@@ -1508,6 +1479,7 @@ int fd2_field_game_update_move_preview(fd2_field_game *game) {
 
 int fd2_field_game_open_system_menu(fd2_field_game *game) {
     if (!game || !game->ready || game->active_side != 2u ||
+        game->failure != FD2_FIELD_FAILURE_NONE || game->player_post_waiting_phase ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
         fd2_field_game_unit_at(game, game->cursor_cell_x,
                                game->cursor_cell_y) >= 0)
@@ -1641,7 +1613,8 @@ int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
 }
 
 int fd2_field_game_confirm_cursor(fd2_field_game *game) {
-    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->player_post_waiting_phase) return -1;
 
     if (game->interaction == FD2_FIELD_INTERACTION_BROWSE) {
         if (game->active_side != 2) return -1;
@@ -1651,7 +1624,10 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         if (unit_index < 0 ||
             !unit_can_act_for_side(&game->units.items[unit_index],
                                    game->active_side) ||
-            fd2_field_unit_has_acted(&game->units.items[unit_index]))
+            fd2_field_unit_has_acted(&game->units.items[unit_index]) ||
+            game->units.items[unit_index].detail_status[1] != 0u ||
+            game->units.items[unit_index].unit_id == 0x79u ||
+            game->units.items[unit_index].race == 0x0au)
             return -1;
         return begin_move_selection(game, unit_index);
     }
@@ -2167,7 +2143,8 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
 }
 
 int fd2_field_game_cancel_selection(fd2_field_game *game) {
-    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE) return 0;
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->player_post_waiting_phase) return 0;
     if (game->interaction == FD2_FIELD_INTERACTION_MANUAL_SLOT)
         return fd2_field_game_cancel_manual_slot_picker(game);
     if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU)
@@ -2196,6 +2173,9 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         game->camera_pixel_offset_x = 0;
         game->camera_pixel_offset_y = 0;
         game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
+        /* 普通COMMAND取消返回0，controller重入18890后清pending。
+         * item transfer的53C53已提交例外尚未开放，不能套入本分支。 */
+        game->pending_cell_event.valid = 0;
         if (fd2_field_game_compute_move_range(
                 game, (size_t)game->selected_unit,
                 &game->move_range) != 0 ||
@@ -2216,15 +2196,17 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
     game->camera_cell_y = game->move_origin_camera_y;
     game->cursor_cell_x = game->move_origin_x;
     game->cursor_cell_y = game->move_origin_y;
+    size_t actor_index = (size_t)game->selected_unit;
     clear_move_query(game);
     game->selected_unit = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
-    return 1;
+    /* selection Esc是18890返回1，仍走controller后置；不acted、不lookup1。 */
+    return fd2_field_game_complete_player_controller(game, actor_index) == 0;
 }
 
 typedef enum {
     FIELD_PATH_PLAYER_COMMAND,
-    FIELD_PATH_AI_PENDING
+    FIELD_PATH_BROWSE
 } field_path_playback_mode;
 
 static int execute_path_playback(fd2_field_game *game,
@@ -2278,8 +2260,8 @@ static int execute_path_playback(fd2_field_game *game,
             }
         }
 
-        /* @0x13488共享的单格尾在坐标提交后lookup0；AI仅收集pending。
-         * PLAYER_COMMAND保留当前SDL即时处理，独立c1b再恢复其outer边界。 */
+        /* field_actor_path_play @0x13488共享单格尾：坐标提交后仅lookup0；
+         * 玩家与AI均不在途中dispatch，未命中保留最后pending。 */
         unit->x = (uint8_t)((int)unit->x + dx[direction]);
         unit->y = (uint8_t)((int)unit->y + dy[direction]);
         game->camera_cell_x += camera_dx;
@@ -2290,19 +2272,19 @@ static int execute_path_playback(fd2_field_game *game,
         game->units.walk_frames[game->selected_unit] = 1;
         game->cursor_cell_x = unit->x;
         game->cursor_cell_y = unit->y;
-        if (mode == FIELD_PATH_PLAYER_COMMAND) {
-            record_cell_event(game, (size_t)game->selected_unit, 0);
-            if (game->failure != FD2_FIELD_FAILURE_NONE) return -1;
-        } else if (collect_pending_cell_event(
-                       game, (size_t)game->selected_unit, 0) < 0) {
+        if (collect_pending_cell_event(
+                game, (size_t)game->selected_unit, 0) < 0)
             return -1;
-        }
     }
 
-    if (mode == FIELD_PATH_AI_PENDING) {
+    if (mode == FIELD_PATH_BROWSE) {
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
         return 0;
     }
+    /* @0x18890 的完整非零路径之后才reset全表方向，再开COMMAND。 */
+    if (game->move_path_length != 0)
+        for (size_t i = 0; i < game->units.count; i++)
+            game->units.items[i].direction = 0;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     return fd2_field_game_refresh_commands(game);
 }
@@ -2314,10 +2296,88 @@ int fd2_field_game_execute_move(fd2_field_game *game,
     return execute_path_playback(game, vga, frame_delay_ms, FIELD_PATH_PLAYER_COMMAND);
 }
 
-static int finish_unit_action_internal(fd2_field_game *game,
-                                       int allow_zero_hp) {
+/* field_controller_input @0x117e7（原登记同名）在13565返回后读取
+ * 当前共享slot；AI outer可以清空或覆盖它，不能保存玩家pending副本。 */
+static int dispatch_player_controller_pending(fd2_field_game *game,
+                                               size_t actor_index) {
+    if (dispatch_pending_cell_event(game, actor_index) != 0) return -1;
+    game->pending_cell_event.valid = 0; /* controller指令VA 0x119a6 */
+    game->player_post_waiting_phase = 0;
+    game->player_post_actor = 0;
+    return 0;
+}
+
+int fd2_field_game_resume_player_controller(fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE)
+        return -1;
+    if (!game->player_post_waiting_phase) return 0;
+    /* native turncycle也可因stage结果在side1/0提前返回controller。 */
+    game->battle_result = fd2_field_game_battle_result(game);
+    if (game->active_side != 2u &&
+        game->battle_result == FD2_FIELD_BATTLE_ONGOING)
+        return 1;
+    return dispatch_player_controller_pending(game, game->player_post_actor);
+}
+
+int fd2_field_game_complete_player_controller(fd2_field_game *game,
+                                               size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->selected_unit < 0 ||
+        game->player_post_waiting_phase || actor_index >= game->units.count ||
+        game->active_side != 2u ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE)
+        return -1;
+    /* 当前只恢复stage0 handler的全表结果门。经验演出仍属B4边界。 */
+    game->battle_result = fd2_field_game_battle_result(game);
+    /* sub_13565 @0x13565（原登记同名）：不含HP与bit04门。 */
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if ((unit->flags & 0x81u) == 0u && unit->side == 2u &&
+            unit->detail_status[1] == 0u)
+            return dispatch_player_controller_pending(game, actor_index);
+    }
+    /* 仅异步整轮phase需要续行上下文；零初始化waiting=0不指向actor0。 */
+    game->player_post_actor = actor_index;
+    game->player_post_waiting_phase = 1;
+    advance_phase(game);
+    return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 0;
+}
+
+/* sub_190AC @0x190ac（原登记同名）的特殊地形不是普通pending事件。
+ * shortcut: 宝物/资源确认及库存提交未恢复，WAIT在此支持门显式冻结；
+ * 开放其独立handler后替换此门。移动/RNG事实仍保留，不假装wait成功。 */
+static int preflight_player_wait_cell(fd2_field_game *game, size_t actor_index) {
+    const fd2_field_unit *unit = &game->units.items[actor_index];
+    uint32_t cell = fd2_field_map_cell(&game->map, unit->x, unit->y);
+    const fd2_terrain_attr *attr = fd2_terrain_attr_get(
+        &game->terrain, fd2_field_cell_terrain(cell));
+    if (!game->map.cells || unit->x >= game->map.width ||
+        unit->y >= game->map.height || !attr) {
+        fd2_field_event_notice notice = {
+            .kind = FD2_FIELD_EVENT_CELL, .turn_number = game->turn_number,
+            .phase = game->active_side, .action = UINT8_MAX,
+            .unit_index = (uint8_t)actor_index, .x = unit->x, .y = unit->y,
+            .slot = SIZE_MAX,
+        };
+        fail_session(game, FD2_FIELD_FAILURE_EVENT_DATA, &notice);
+        return -1;
+    }
+    if ((attr->flags & 0x60u) != 0u) {
+        fd2_field_event_notice notice = {
+            .kind = FD2_FIELD_EVENT_CELL, .turn_number = game->turn_number,
+            .phase = game->active_side, .action = UINT8_MAX,
+            .unit_index = (uint8_t)actor_index, .x = unit->x, .y = unit->y,
+            .slot = (cell >> 16) & 0x1fu,
+        };
+        fail_session(game, FD2_FIELD_FAILURE_EVENT_UNSUPPORTED, &notice);
+        return -1;
+    }
+    return 0;
+}
+
+static int finish_unit_action_internal(fd2_field_game *game,
+                                       int physical_action) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->player_post_waiting_phase || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND)
         return -1;
@@ -2325,18 +2385,27 @@ static int finish_unit_action_internal(fd2_field_game *game,
     size_t unit_index = (size_t)game->selected_unit;
     fd2_field_unit *unit = &game->units.items[unit_index];
     int side_is_actionable = unit_can_act_for_side(unit, game->active_side) ||
-        (allow_zero_hp && unit->side == game->active_side && unit->hp == 0);
+        (physical_action && unit->side == game->active_side && unit->hp == 0);
     if (!side_is_actionable || fd2_field_unit_has_acted(unit)) return -1;
-    record_cell_event(game, unit_index, 1);
-    if (game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    /* public finish是WAIT；物理交换内部标识physical_action，不能顺带恢复HP。 */
+    if (!physical_action) {
+        if (preflight_player_wait_cell(game, unit_index) != 0) return -1;
+        /* sub_13FD4 @0x13fd4：只有原地WAIT恢复，非零路径即使绕回也不恢复。 */
+        if (game->move_path_length == 0u &&
+            recover_stationary_unit(game, unit_index) < 0)
+            return -1;
+    }
+    if (physical_action)
+        for (size_t i = 0; i < game->units.count; i++)
+            game->units.items[i].direction = 0;
+    /* 普通成功command先acted，18890才最终lookup1，再交回controller。 */
     fd2_field_unit_set_acted(unit, 1);
+    if (collect_pending_cell_event(game, unit_index, 1) < 0) return -1;
     clear_move_query(game);
     game->selected_unit = -1;
     game->command_selected = -1;
     game->interaction = FD2_FIELD_INTERACTION_BROWSE;
-    if (fd2_field_game_remaining_units(game, game->active_side) == 0)
-        advance_phase(game);
-    return game->failure == FD2_FIELD_FAILURE_NONE ? 0 : -1;
+    return fd2_field_game_complete_player_controller(game, unit_index);
 }
 
 int fd2_field_game_finish_unit_action(fd2_field_game *game) {
@@ -2346,7 +2415,7 @@ int fd2_field_game_finish_unit_action(fd2_field_game *game) {
 int fd2_field_game_end_active_phase(fd2_field_game *game) {
     /* 快速逻辑回归专用的 phase skip；正式玩家输入不调用此全 acted 路径。 */
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->selected_unit >= 0 ||
+        game->player_post_waiting_phase || game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
     for (size_t i = 0; i < game->units.count; i++) {
@@ -2359,7 +2428,8 @@ int fd2_field_game_end_active_phase(fd2_field_game *game) {
 
 int fd2_field_game_end_player_turn(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->active_side != 2u || game->selected_unit >= 0 ||
+        game->active_side != 2u || game->player_post_waiting_phase ||
+        game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
     /* field_empty_focus_menu_execute @0x16f55（原登记同名）的 selector 3
@@ -2501,7 +2571,7 @@ static int commit_ai_physical_internal(
     /* field_ai_move_toward_cell @0x14b78 只播放 actor path；不打开
      * player COMMAND 菜单，也不更新 command 的旁路动画状态。 */
     int commit_result = execute_path_playback(
-        game, vga, frame_delay_ms, FIELD_PATH_AI_PENDING);
+        game, vga, frame_delay_ms, FIELD_PATH_BROWSE);
     if (commit_result == 0) {
         fd2_field_unit *target = &game->units.items[plan->unit_index];
         if (actor->hp == 0 || target->hp == 0 ||
@@ -2810,7 +2880,7 @@ static int commit_ai_path(fd2_field_game *game,
     game->move_preview_valid = 1;
     game->interaction = FD2_FIELD_INTERACTION_MOVING;
     int result = execute_path_playback(
-        game, vga, frame_delay_ms, FIELD_PATH_AI_PENDING);
+        game, vga, frame_delay_ms, FIELD_PATH_BROWSE);
     game->move_path = snapshot.move_path;
     game->move_path_capacity = snapshot.move_path_capacity;
     game->move_path_length = snapshot.move_path_length;
@@ -3049,7 +3119,7 @@ static int ai_behavior5_complete(fd2_field_game *game,
     return 0;
 }
 
-static int ai_recover_if_idle(fd2_field_game *game, size_t actor_index) {
+static int recover_stationary_unit(fd2_field_game *game, size_t actor_index) {
     if (!game || actor_index >= game->units.count) return -1;
     fd2_field_unit *actor = &game->units.items[actor_index];
     /* 0x13fd4：未满 HP 且 +0x25/+0x26 均为 0 时恢复 maxHP/5。 */
@@ -3084,7 +3154,7 @@ static int move_then_recover(fd2_field_game *game, size_t actor_index,
     int moved = commit_ai_move_toward_anchor(
         game, actor_index, x, y, vga, frame_delay_ms);
     if (moved != 0) return moved;
-    return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+    return recover_stationary_unit(game, actor_index) < 0 ? -1 : 0;
 }
 
 static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
@@ -3122,7 +3192,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                     &range, &ignored);
             }
             fd2_field_path_close(&range);
-            return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+            return recover_stationary_unit(game, actor_index) < 0 ? -1 : 0;
         }
         case 3: {
             int attack = run_ai_try_attack(
@@ -3160,7 +3230,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                 game, actor_index, target_x, target_y,
                 vga, frame_delay_ms);
             if (moved < 0) return -1;
-            if (moved == 0 && ai_recover_if_idle(game, actor_index) < 0)
+            if (moved == 0 && recover_stationary_unit(game, actor_index) < 0)
                 return -1;
             actor = &game->units.items[actor_index];
             if (actor->x == target_x && actor->y == target_y &&
@@ -3174,7 +3244,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                 game, actor_index, actor->ai_param_35, actor->ai_param_36,
                 vga, frame_delay_ms);
             if (moved < 0) return -1;
-            if (moved == 0 && ai_recover_if_idle(game, actor_index) < 0)
+            if (moved == 0 && recover_stationary_unit(game, actor_index) < 0)
                 return -1;
             actor = &game->units.items[actor_index];
             if (actor->x == actor->ai_param_35 &&
@@ -3246,7 +3316,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             int moved = commit_ai_hostile_witness(
                 game, actor_index, vga, frame_delay_ms);
             if (moved != 0) return moved;
-            return ai_recover_if_idle(game, actor_index) < 0 ? -1 : 0;
+            return recover_stationary_unit(game, actor_index) < 0 ? -1 : 0;
         }
         /* behavior 6 无有效分支。 */
         default:
@@ -3267,7 +3337,8 @@ int fd2_field_game_process_automatic_action_visual(
      * 因而可在分步 scheduler 入口及每次已提交动作后等价刷新。其他
      * stage 的私有 handler 未恢复，不能用通用全灭判定冒充其脚本。 */
     game->battle_result = fd2_field_game_battle_result(game);
-    if (game->battle_result != FD2_FIELD_BATTLE_ONGOING) return 0;
+    if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
+        return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 0;
     /* tick 只安排自动阶段时间；有 VGA 的 play owner 负责同步路径演出，
      * 避免 tick 在 render 前静默推进同一 actor。 */
     if (!vga && frame_delay_ms != 0u) return 0;
@@ -3277,11 +3348,7 @@ int fd2_field_game_process_automatic_action_visual(
      * AI-ineligible bit 2 均不进入自动行动。正确 dual 0x1d8ba 的 side0
      * 第一轮只让 magic/item
      * candidate >=6 的 actor 先执行；随后第二轮处理尚未 acted 的单位。
-     * phase_ai_pass==0 且 cursor==0 是 side 0 尚未开始的唯一入口状态；
-     * 此处复现原版 side 1 phase 返回后的全表 acted 清除。 */
-    if (game->active_side == 0u && game->phase_ai_pass == 0u &&
-        game->phase_unit_cursor == 0u)
-        clear_all_acted(game);
+     * 两个pass都完整扫raw表，各actor起点清共享pending。 */
     if (game->active_side == 0u && game->phase_ai_pass == 0u) {
         for (size_t i = game->phase_unit_cursor; i < game->units.count; i++) {
             game->pending_cell_event.valid = 0;
@@ -3322,9 +3389,7 @@ int fd2_field_game_process_automatic_action_visual(
              * DS:0x1b19 handler；必须先于下一 actor 和 phase 推进。 */
             game->battle_result = fd2_field_game_battle_result(game);
             if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
-                return 1;
-            if (fd2_field_game_remaining_units(game, 0u) == 0)
-                advance_phase(game);
+                return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
             return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
         }
         game->phase_ai_pass = 1u;
@@ -3360,13 +3425,12 @@ int fd2_field_game_process_automatic_action_visual(
          * 全表结果门在动作提交后于此刷新。 */
         game->battle_result = fd2_field_game_battle_result(game);
         if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
-            return 1;
-        if (fd2_field_game_remaining_units(game, game->active_side) == 0)
-            advance_phase(game);
+            return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
         return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
     }
+    /* 扫到raw尾（含被跳过者）才换phase；不能remaining=0提前跳过清slot。 */
     advance_phase(game);
-    return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
+    return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
 }
 
 int fd2_field_game_process_automatic_action(fd2_field_game *game) {

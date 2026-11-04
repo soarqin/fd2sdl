@@ -39,6 +39,7 @@ git diff --check
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
 - `field_info` 同时覆盖 stage 0 总览的四块布局、可见人数门、数字边界及两段条件预检；缺资源或文本越界不修改画面。纯绘制测试不代替正式入口和原版 WGC 验收。
 - `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat 生命周期、同帧输入清理、分配失败、宿主退出及玩法／RNG 不变；另读取真实资源检查干净背景。
+- `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另检查Enter详情与F2来源、controller尾按键耗尽。原版具体格事件与镜头仍按场景验收。
 - `field_play_input` 驱动真实 SDL 键盘，不直接调用玩法 API。Windows 使用原生交互桌面；Linux/X11 需要 X11、XTest 和 Xvfb。用 `ctest --test-dir src/build-win -C Debug -N` 或 `ctest --test-dir src/build -N` 核实测试清单；未注册不算已测。
 - Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。
@@ -62,6 +63,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 `run_original_leave.py` 比较 Esc／NO 和肯定离场后的自然退出；清理前必须已观察 exit `0`，停在标题再由清理关窗不会通过。已纳入总流程。
 
 `run_original_overview.py` 比较 START 总览的四个完整静态区域、数字和条件文字，分别用 Enter／Esc／Right／A 关闭，检查焦点和文件未变；再从正式 Save 测量完整容器，并测试页面内关闭窗口。已纳入总流程；瞬时动画像素、精确时长、地图和声音另行验收。
+
+`run_original_player.py` 从真实START定位actor0，验证一步移动取消恢复选择态、确认可直接进入COMMAND、取消返回浏览及磁盘只读。它验证范围LUT和指令图presence；当前上方图只验无遮挡14行，完整actor遮挡、已行动映色和受伤WAIT另行验收。已纳入总流程。
 
 ### Sanitizer（Linux／Clang）
 

@@ -28,6 +28,47 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x18890: [{
+        "target": "evidence",
+        "was": "玩家路径逐格执行cell handler，行动尾先格事件后acted",
+        "now": "入口清pending及物品交接标志53C53；完整路径只收集match0，"
+               "随后COMMAND。下级取消返回0重开COMMAND并保留pending；普通COMMAND"
+               "取消恢复起点并return0，由controller重入入口清pending。"
+               "成功COMMAND先acted，再查询最终match1，返回controller后置。",
+        "why": "已发布玩家函数及原raw 0x188b3/0x188bd入口清零、"
+               "0x18a52调用共享路径、0x18b0c/0x18b66最终lookup；"
+               "controller 0x11942..0x1194d重入。53C53=1只确认成功物品交接"
+               "路径@0x1bfa7，未扩为普通攻击或默认状态。",
+    }],
+    0x18D8C: [{
+        "target": "evidence",
+        "was": "成功玩家动作的acted与cell处理时点尚未区分",
+        "now": "WAIT仅零步时做原地恢复，再独立cell-action、acted；移动后WAIT"
+               "跳过恢复。普通攻击成功先战斗／败亡等已确认尾，再acted。"
+               "攻击目标取消返回0并保留移动及pending，普通COMMAND取消返回-1。",
+        "why": "已发布command与raw 0x19077路径长度门、0x19082恢复、"
+               "0x1908b独立cell-action、0x19094 acted、0x18ff3攻击acted、"
+               "0x18f97..0x18fae目标取消；不以pending替代尚未实现的特殊cell-action。",
+    }],
+    0x117E7: [{
+        "target": "evidence",
+        "was": "玩家acted／格事件／stage与自动phase可按通用动作尾提前分派",
+        "now": "玩家函数返回后render→经验→stage→13565必要整轮phase→读取当前"
+               "共享pending并dispatch→清pending。phase内AI可清空／覆盖同一slot，"
+               "没有跨phase保护玩家事件的私有队列。selection取消也进入该后置门。",
+        "why": "已发布controller及raw 0x11951 render、0x1196d经验、"
+               "0x1197b stage、0x11985 phase、0x1199c dispatch、0x119a6 clear；"
+               "AI outer handler返回后不清slot，只在下个raw actor起点清，"
+               "最终值可能回到本controller。B2/B3/B4未实现语义仍单独登记。",
+    }],
+    0x13565: [{
+        "target": "evidence",
+        "was": "自动换phase可以用带HP过滤的remaining_units判断",
+        "now": "仍存在(flags&0x81)==0、side==2、record+0x26==0的actor就"
+               "不换phase，否则调用turn-cycle；没有HP或bit0x04过滤。",
+        "why": "已发布sub_13565与原始函数四条件，controller在pending分派前"
+               "调用；原地取消也需经过同一后置检查，不借AI可行动门替代。",
+    }],
     0x13A44: [{
         "target": "evidence",
         "was": "AI 不查沿途格事件，仅在 common tail 查询最终格；lookup 可视为立即 handler",

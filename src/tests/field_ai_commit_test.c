@@ -684,6 +684,9 @@ static int test_behavior5_cell_action_commit(void) {
     CHECK(record[0x31] == 0 && record[0x32] == 192 && record[0x33] == 0);
     CHECK((game.units.items[0].ai_behavior_raw & 0x0fu) == 7u);
     CHECK(game.cell_action_completed[1] == 1);
+    /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
+    CHECK(game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(game.active_side == 2);
     /* actor 0 completes the side 0 phase; the following turn boundary clears
      * acted for the complete table. */
@@ -725,6 +728,9 @@ static int test_behavior5_cell_action_commit(void) {
     CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK((game.units.items[0].ai_behavior_raw & 0x0fu) == 5u);
     CHECK(game.cell_action_completed[3] == 1);
+    /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
+    CHECK(game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     return 0;
@@ -747,6 +753,9 @@ static int test_behavior2_recover_after_queries(void) {
 
     CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(game.units.items[0].hp == 60);
+    /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
+    CHECK(game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 0);
@@ -769,6 +778,9 @@ static int test_behavior11_magic_then_physical(void) {
     /* 正确 dual 0x13e07..0x13e43：magic 后仍重算并执行 physical。 */
     CHECK(rng.cursor == 6);
     CHECK(game.units.items[1].hp < 255);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 2);
     return 0;
@@ -790,6 +802,9 @@ static int test_behavior11_magic_without_physical_candidate(void) {
     CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(game.units.items[1].hp == 255); /* magic damage remains committed. */
     CHECK(rng.cursor == 2);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 2);
     return 0;
@@ -1006,12 +1021,11 @@ static int test_phase_acted_lifecycle(void) {
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(fd2_field_unit_has_acted(&game.units.items[1]));
 
-    /* side 1→0 clear-all is delayed until the first side 0 scheduler step,
-     * because SDL advances one actor at a time. */
+    /* side1 outer已扫描raw尾，先全表clear，再进入phase0事件/status。 */
     CHECK(fd2_field_game_end_active_phase(&game) == 0);
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
-    CHECK(fd2_field_unit_has_acted(&game.units.items[1]));
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[1]));
     game.units.items[0].side = 0;
     game.units.items[1].side = 2;
     game.units.items[0].ai_behavior_raw = 8; /* confirmed early return. */

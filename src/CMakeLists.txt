@@ -564,6 +564,19 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_turn COMMAND fd2_field_turn_test)
 
+    add_executable(fd2_field_player_controller_test
+        tests/field_player_controller_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_player_controller_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_player_controller_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_player_controller_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_player_controller_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_player_controller COMMAND fd2_field_player_controller_test)
+
     add_executable(fd2_field_game_system_menu_test
         tests/field_game_system_menu_test.c
         $<TARGET_OBJECTS:fd2sdl_core>
@@ -699,6 +712,9 @@ if(BUILD_TESTING)
         fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event
         fd2_vga_present=__wrap_fd2_vga_present
         fd2_input_take_action=__wrap_fd2_input_take_action
+        fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail
+        fd2_field_game_close_detail=__wrap_fd2_field_game_close_detail
+        fd2_field_game_animate_detail=__wrap_fd2_field_game_animate_detail
         fd2_field_game_confirm_cursor=__wrap_fd2_field_game_confirm_cursor
         fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)

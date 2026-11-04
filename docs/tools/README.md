@@ -84,7 +84,9 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_magic_list.py` 的列表、伤害和治疗双端场景也已纳入总流程。正式输入必须经过列表和目标选择，仅确认一次施法，分别校验完整静态资源矩形、效果与MP／LV／EX；原版单端校准和配对输出口径不同，参数及夹具限制见[图形测试规范](gui-testing.md)。失焦补跑保留失败及来源，累计结果不能冒称单轮通过。
 
-`run_original_item_list.py` 支持B3原版单端校准及串行双端配对：默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消，完整31,955像素门；herb-full／herb-injured另验目标取消、单次Use及完整32,147像素HP／MP／LV／EX和两槽详情。受控派生不改站位，物品表来自严格LE原版，不以SDL为oracle。不传`--sdl`的校准成功仍为`ok=false/probe_only=true`；三个场景添加`--sdl`后还须通过双端实际PNG配对，已纳入总流程。raw尾字节／完整RNG／演出声音仍未验。Windows命令、无窗口回归及守卫见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
+`run_original_item_list.py` 支持B3原版单端校准及串行双端配对：默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消，完整31,955像素门；herb-full／herb-injured另验目标取消、单次Use及完整32,147像素HP／MP／LV／EX和两槽详情。受控派生不改站位，物品表来自严格LE原版，不以SDL为oracle。不传`--sdl`的校准成功仍为`ok=false/probe_only=true`；三个场景添加`--sdl`后还须通过双端实际PNG配对，已纳入总流程。Use后raw尾字节／完整RNG／演出声音仍未验。Windows命令、无窗口回归及守卫见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
+
+`--scenario drop-herb`仅校准原版未装备草药192：Drop取消／一次删除、只读两槽、逐级取消与正常Save。真实保存支持该分支的raw16B／末ID和四派生量测；Use后raw16B、其他Drop物品与最后一项未验，SDL Drop仍禁用。此场景拒绝`--sdl`且不计入配对总数，写盘前后守卫及命令见同一规范。
 
 ### Sanitizer（Linux／Clang）
 

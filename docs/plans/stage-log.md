@@ -340,6 +340,20 @@ C5完整Magic46项、最终全量356/356 Python（217.436秒，无跳过）通�
 
 B3整体仍未关闭；之后继续B3.4丢弃校准。raw16B／末槽stale、完整UI随机流／浮字／演出／声音、水色同步、整关实战、结算和下一关仍未验。Linux本轮未执行。
 
+### B3.4a原版Drop取消、一次删除与正常Save校准
+
+正式Use与配对工具已提交`ecef415`／`ad8ddee`，同类法术观察竞态已整理为单owner并提交`059d546`。继续B3.4时先选未装备草药192的Drop：它不结束行动，可从正式菜单合法Save量测；来源沿用未修改START与原版初始化，不注入RNG种子。静态依据仍为1bbdc selector3→1b8e7→1b750，native取消也重算，但本exact START四派生原已正确，取消重算没有动态可区分的数值变化。
+
+工具加`--scenario drop-herb`，只接受原版；`--sdl`在mkdir／读文件／启动前拒绝。复用同一资源、checkpoint、Save解码与整容器比较，没有新截图后端或第二套Save框架。mode0页面记录为Drop而非Use；先slot2取消回ITEM0，再重开slot0后导航slot2只确认一次。之后仅Use只读两槽、逐级Esc回未行动浏览，LEFT到空格`(6,14)`，camera保持`(5,11)`，正式Save一次。Save前bytes／mtime每页及肯定前检查；Save后先落真实`drop-measured.SAV`，严格比较失败仍保留文件，成功及cleanup后都核实当前copy／snapshot的bytes、SHA和完成mtime，晚改写撤销通过。
+
+独立冻结`C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/drop-herb-c1/`仅变Item runner及其回归，191份src未变；作者42项和冻结后root单轮42/42 Item回归（12.525秒，无跳过）通过，独立复审无阻塞。全量356项仍是C5实际来源，不把本次专项写成新全量轮次。
+
+`native-01/comparison.json`首轮原版校准通过：`probe_only=true/ok=false/probe_cases_passed=true`，28业务检查点、27业务键及4启动Esc，无重试Drop、Use／Equip／Give确认或END；仅一次取消及一次Drop、一次Save。列表检查点覆盖完整32,147像素资源门，原版PID40032正常exit0；外Job30668 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`。原目录50文件、fixture bytes／mtime、Save后snapshot／当前copy及清理守卫均通过；登记截图附件72份（PNG／BMP），不增加30组双端／SDL累计。
+
+实测SAV SHA `0552e8890f890691e186129b2d6f30ea90851deefd9e00599e3f0e97a70296ea`，有效size `0x59cb`与checksum，active12／roster4、turn1／stage0。库存raw16B为`40004084800080008000800080c980c9`，末ID `c9`保留；HP42/42、MP0/0、EX0、flags0／未acted、方向0，AP／DP／AC／EV为16／12／97／2。整容器相对START只有3库存字节`12b1/12b2/12ba`、测量焦点4字节`30c8..30cb`及checksum最低字节`59c7`改变，既有允许的active+2 cache实际零处变化；camera、全部roster、未知区及尾部逐字节保留。
+
+这证明共用移槽函数在Drop分支的真实写入，不把它扩成Use后acted全raw测量；取消重算调用仍标静态依据。SDL Drop、装备物品／最后一项删除、Equip／Give、完整RNG／演出／声音及B5仍未验。下一小阶段接SDL mode0列表与移槽／必要派生重算、逐级取消，再补已装备及最后一项原版场景，满足条件后才启用正式Drop。当前无需要用户选择的等优方案。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

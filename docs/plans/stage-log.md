@@ -300,6 +300,18 @@ Python实现未变，沿用B3.3a实际329项，未重称新跑。原版herb两�
 
 隔离index候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/modal-owner-acceptance/` 不含草药resolve，全新core与三个相关target构建后，`field_magic_list_play/field_detail_flow/field_play_result`单轮3/3通过。没有新增完整CTest／Python或WGC轮次；既有56项／329项及原版两场各保留真实来源。继续草药提交与正式双端候选，未关闭B3。
 
+### B3.3c草药提交核心与玩家收尾
+
+列表预检修补已独立提交`a2ebfa4`。新增`resolve_player_item`，只接受ITEM_TARGETING及当前raw槽仍192/code5。所有当前geometry、完整可见坐标／目标HP、未知loot、pending及已知phase／容量门先于首RNG。之后按raw目标依次以power40恢复HP（满HP也RNG1），原slot_remove只执行一次，保留末stale ID，再败亡清理、acted、最终lookup1及controller。MP、各unit EX（含99）及存活者方向保留，不借Magic升级上界、WAIT恢复或AI／物理尾链。
+
+共享玩家尾预检只增加“本次会恢复同格HP0”的布尔，Magic0／13保持等价；受药必复活目标的drop描述符不会误拒，仍HP0的非目标未知loot提前拒绝。未知phase在写入前拦，已知执行路径后段失败保留HP／压槽／已到达acted和RNG并冻结。新增ITEM action kind只承接必要尾，不建新事务或丢弃奖励缓存。独立connected复审无逻辑阻塞；静态注释把1b8e7的memcpy勘误为memmove，未改执行逻辑。
+
+按完整75B／98B及xref登记`field_unit_inventory_slot_remove @1b8e7`、`field_hp_heal_group_execute @211a4`，与实现注释同步、由CORRECTIONS生成219项及最后刷新SHA；20c6f仍保留中性原名，仅列已确认herb分支。不写数据库或伪C类型；HP group不是item专属，也不负责MP／压槽／acted，完整演出／浮字另验。
+
+独立固定patch候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-commit-acceptance/`，没有后续正式gate／play。全新完整Windows构建、单轮57/57 CTest无跳过通过（真实输入42.83秒），10项发布审计和冻结源码487个规范地址通过；另新46源core的item commit-target-flow／Magic target-flow-commit／AI commit／controller／turn／Save共10定向回归通过。新6组验证受伤／满HP／同格raw顺序、RNG前槽与acted未写、MP／EX／方向及未知字节、slot中间／末尾stale、未知loot／pending／phase前拒、HP0复活预测和后段失败不重试。Python实现未变，沿用329项实际来源，不重称本阶段新跑。
+
+正式ITEM仍disabled，confirm_cursor／play未分派物品；没有新SDL WGC或原版raw16B量测，不能把57项自测或旧原版两场当作双端。继续B3.3d的最小whole-list能力门及正式输入候选，经双端实际运行后才提交开放；B3.4装备／丢弃／Give和B3整体继续未完成。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

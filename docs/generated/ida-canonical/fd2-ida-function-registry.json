@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 217,
+ "canonical_functions": 219,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -3352,6 +3352,35 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 112871,
+   "off": 47335,
+   "ida_name": "sub_1B8E7",
+   "size": 75,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_1B8E7",
+     "now": "field_unit_inventory_slot_remove",
+     "why": "完整75B及190ac/1aa1d/1bbdc/20c6f的xref：memmove后续(7-slot)*2字节到当前raw槽，最后仅flag+18写80，末ID+19保留stale。"
+    },
+    {
+     "target": "evidence",
+     "was": "删除库存可以把末ID一并清ff或只压实可见项",
+     "now": "原始后续槽含hidden旗标及未知/stale ID均逐字保留，不按可见行重建。SDL既有AI helper由玩家草药复用；slot范围检查是适配边界，不猜原ABI。",
+     "why": "strictLE完整75B SHA f7165224c5e59503791effde95df6572cff3dc543da65e52d11d44807902162a；callee3771c为memmove，非memcpy。原版两槽画面已校准，但原版raw16B仍未动态量测；末槽stale由原码与SDL逐字回归支持。"
+    }
+   ],
+   "end_va": 112946,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 112946,
    "off": 47410,
    "ida_name": "sub_1B932",
@@ -4567,6 +4596,35 @@
     }
    ],
    "end_va": 132570,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 135588,
+   "off": 70052,
+   "ida_name": "sub_211A4",
+   "size": 98,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_211A4",
+     "now": "field_hp_heal_group_execute",
+     "why": "完整98B及20c6f/2d80d的xref：effect13/眨眼后按raw target逐个调用1c916并显示浮字，经共享21190刷新/数字尾结束；不是item专属。不负责MP、压槽、acted或玩家controller。"
+    },
+    {
+     "target": "evidence",
+     "was": "物品HP恢复可以借一个法术ID或AI尾链替代",
+     "now": "接收调用方原power，物品value40与法术record不同；每个target独立一次spread，1c916返回raw heal供浮字，实际HP差不能冒充该数值。SDL只接已证实的HP逻辑；完整演出/浮字/音效和附加等待另验。",
+     "why": "strictLE完整98B SHA da661db06971bfcbfd2804de28376a52412b5b68183cfd3c2f59f285eb871919；与1c916完整199B/20c6f玩家herb分支及原版full/HP20两场相互支持，未改数据库或伪C物理类型。"
+    }
+   ],
+   "end_va": 135686,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],

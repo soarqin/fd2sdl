@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 217 |
+| 归约后的规范函数数 | 219 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -85,6 +85,8 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x1b41d` | `sub_1B41D` | evidence | 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 | 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。 | 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。 |
 | `0x1b5f1` | `sub_1B5F1` | evidence | 未登记总览三阵营计数的过滤门 | 逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。 | 已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。 |
 | `0x1b8a6` | `field_unit_inventory_count` | evidence | AI私有重复库存计数，未共享完整raw槽语义 | 扫描8个raw槽，只有flag bit80决定是否计数；装备位、物品ID及空洞不参与过滤。SDL将原AI同体实现提为共享查询，NULL0是适配边界，不改原函数ABI。 | published1b8a6..1b8e7与strictLE file418ba完整65B SHA 987981c59e7b3801574e75280fc3848d3f829bfdafa4ef09f3a1707ad86318e9；1b9de读取count后直接按raw索引选择，不能把显示跳空槽变成库存压实。 |
+| `0x1b8e7` | `sub_1B8E7` | semantic_name | sub_1B8E7 | field_unit_inventory_slot_remove | 完整75B及190ac/1aa1d/1bbdc/20c6f的xref：memmove后续(7-slot)*2字节到当前raw槽，最后仅flag+18写80，末ID+19保留stale。 |
+| `0x1b8e7` | `sub_1B8E7` | evidence | 删除库存可以把末ID一并清ff或只压实可见项 | 原始后续槽含hidden旗标及未知/stale ID均逐字保留，不按可见行重建。SDL既有AI helper由玩家草药复用；slot范围检查是适配边界，不猜原ABI。 | strictLE完整75B SHA f7165224c5e59503791effde95df6572cff3dc543da65e52d11d44807902162a；callee3771c为memmove，非memcpy。原版两槽画面已校准，但原版raw16B仍未动态量测；末槽stale由原码与SDL逐字回归支持。 |
 | `0x1b932` | `sub_1B932` | semantic_name | sub_1B932 | field_unit_inventory_select | 完整172B及190ac/1aa1d/1bbdc的xref：17e0b打开单位详情、53C57归0，循环1b9de直到非0，18409按0..11关闭并恢复背景、释放三个64000B缓冲；返回selected_result!=-1的bool，不是raw槽索引。 |
 | `0x1b932` | `sub_1B932` | evidence | 将列表modal归为Use专属或猜测返回选中slot | 普通库存与装备等调用共用完整modal；Use列表取消返回0，调用者18d8c重开ITEM子菜单。等待16c57及眨眼仍可消费共享RNG。 | strictLE object1 offb932/file41946完整172B SHA 1d901f35a51e1072c4f208821fb56e5b7675137c74fb8f202c830c8ded150192；2026-11-05真实START raw0原版WGC校准列表导航、code0拒绝与逐级取消；不把单端校准作为SDL配对或内存/RNG相等证据。 |
 | `0x1b9de` | `sub_1B9DE` | semantic_name | sub_1B9DE | field_unit_inventory_select_step | 完整430B及1b932/1bffe的xref：184c0绘制选中库存、16c57等单键后更新53C57，返回0继续/-1取消/1确认；非完整modal，也非Use专属。Up/Down全表回绕，Left>=4减4，Right<=3且index+4<count加4。 |
@@ -109,6 +111,8 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x1f894` | `boot_intro_title_menu` | evidence | 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 | 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。 | 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。 |
 | `0x2000a` | `sub_2000A` | evidence | F1/PageUp辅助页可能是部队列表或另一种战况总览 | 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。 | 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。 |
 | `0x205b4` | `sub_205B4` | evidence | stage0结果handler仅有静态调用和SDL分派证据 | 保留中性sub_205B4：先置53ECC=2，有可见side0则清0，raw0 hidden覆盖为1；原版不查HP。Continue后由玩家controller后置评估；受控START只改hidden位可分别到达胜利／败北出口。 | 权威205b4及117e7后置链；DOSBox WGC的Z→Enter→选择取消触发22ef6首对白或22e5c败北资源。SDL从同派生快照独立返回胜／败exit2，不声称输入时点、结算或整关实战相同。 |
+| `0x211a4` | `sub_211A4` | semantic_name | sub_211A4 | field_hp_heal_group_execute | 完整98B及20c6f/2d80d的xref：effect13/眨眼后按raw target逐个调用1c916并显示浮字，经共享21190刷新/数字尾结束；不是item专属。不负责MP、压槽、acted或玩家controller。 |
+| `0x211a4` | `sub_211A4` | evidence | 物品HP恢复可以借一个法术ID或AI尾链替代 | 接收调用方原power，物品value40与法术record不同；每个target独立一次spread，1c916返回raw heal供浮字，实际HP差不能冒充该数值。SDL只接已证实的HP逻辑；完整演出/浮字/音效和附加等待另验。 | strictLE完整98B SHA da661db06971bfcbfd2804de28376a52412b5b68183cfd3c2f59f285eb871919；与1c916完整199B/20c6f玩家herb分支及原版full/HP20两场相互支持，未改数据库或伪C物理类型。 |
 | `0x22e5c` | `sub_22E5C` | evidence | 中性败北callback未登记独立资源门 | 保留中性sub_22E5C：停音乐、淡出并清屏，以opaque方式画FDOTHER79 frame0，淡入并等9tick，再画frame1、等36tick。结果门校验使用完整320×200资源，不据此开放SDL败北后续。 | 权威22e5c→2eb9f(header+9)及本地嵌套资源；受控败北快照在原版controller后置到达该页。局部运行与B5后续分开登记。 |
 | `0x22ef6` | `sub_22EF6` | evidence | stage0胜利callback只作为准备页迁移调用依据 | 保留中性sub_22EF6：先呈现FDTXT[1]fragment9，之后11506同步持久表再写stage1。WGC仅校验首说话人4的两行和对话顶边，没有推进对白证明持久同步或下一关。 | 权威22ef6及严格LE结果callback表；受控胜利快照经原版controller取消后匹配2794字形／阴影像素和620顶边像素。这补本关结果分支证据，整关战斗和结算仍留B5／V1。 |
 | `0x25977` | `music_track_play` | evidence | 其他值从 FDMUS handle `DS:0x1a79` 加载 entry | object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。 | IDA 字符串识别 `aFdmusDat` + res_load 调用形态 |

@@ -394,6 +394,12 @@ int fd2_field_game_item_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_item_target(fd2_field_game *game);
 int fd2_field_game_cancel_item_targeting(fd2_field_game *game);
 
+/* sub_20C6F @0x20c6f（原登记同名）的草药192分支：目标/原槽/尾链
+ * 全预检后逐目标恢复HP，移除原槽，再acted→lookup1→controller。
+ * 返回0成功/-1预检拒绝或提交后冻结；不写MP/角色EX，不接正式入口。
+ * 仅恢复无未知掉落/必需handler的逻辑；音画/附加RNG仍另行验收。 */
+int fd2_field_game_resolve_player_item(fd2_field_game *game);
+
 /* field_player_magic_command_execute @0x1cff0 的普通area0选择；当前只支持
  * ID0/13。begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；
  * cycle为1消费一个候选槽（121只跳过focus）/0无候选/-1错误。

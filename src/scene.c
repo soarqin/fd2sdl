@@ -312,11 +312,13 @@ static int resolve_speaker_actor(const fd2_scene_field_state *field_state,
                                                 (uint8_t)arg);
 }
 
-static void draw_portrait(fd2_vga *vga, const fd2_archive *dato,
+static int draw_portrait(fd2_vga *vga, const fd2_archive *dato,
                           fd2_dialog_area area, uint16_t portrait_id) {
     fd2_image portrait;
-    if (fd2_portrait_decode_frame(&portrait, dato, portrait_id, 0) != 0)
-        return;
+    if (fd2_portrait_decode_frame(&portrait, dato, portrait_id, 0) != 0) {
+        fprintf(stderr, "cannot decode dialog portrait %u\n", (unsigned)portrait_id);
+        return -1;
+    }
 
     /* text_dialog_render_tokens @0x15f84 / sub_16559 @0x16559：下框调用
      * lmi_rle_blit_reverse @0x4ec31（原登记 FUN_0004c379），从(87,115)
@@ -336,6 +338,7 @@ static void draw_portrait(fd2_vga *vga, const fd2_archive *dato,
     int y = (area == FD2_DIALOG_TOP) ? DIALOG_TOP_PORTRAIT_Y : DIALOG_BOTTOM_PORTRAIT_Y;
     fd2_tileset_blit(vga, &portrait, x, y, -1);
     fd2_image_free(&portrait);
+    return 0;
 }
 
 static int clamp_int(int value, int lo, int hi) {
@@ -800,7 +803,7 @@ static void focus_camera_on_actor(fd2_vga *vga,
         present_base_frame(vga, terrain, map, sprites, field_state);
 }
 
-static void redraw_dialog(fd2_vga *vga,
+static int redraw_dialog(fd2_vga *vga,
                           const fd2_terrain_tileset *terrain,
                           const fd2_field_map *map,
                           const fd2_archive *dato,
@@ -811,8 +814,9 @@ static void redraw_dialog(fd2_vga *vga,
     render_scene_base(vga, terrain, map, sprites, field_state);
     draw_dialog_box(vga, ui, state->area);
     state->is_open = 1;
-    if (state->has_portrait)
-        draw_portrait(vga, dato, state->area, state->portrait_id);
+    if (state->has_portrait &&
+        draw_portrait(vga, dato, state->area, state->portrait_id) != 0)
+        return -1;
 
     if (state->area == FD2_DIALOG_TOP) {
         state->x = DIALOG_TOP_TEXT_X;
@@ -822,6 +826,7 @@ static void redraw_dialog(fd2_vga *vga,
         state->y = DIALOG_BOTTOM_TEXT_Y;
     }
     state->line = 0;
+    return 0;
 }
 
 static void wait_for_dialog_step(fd2_vga *vga, int ms, int *skip) {
@@ -958,7 +963,7 @@ static void newline_or_scroll(fd2_vga *vga,
         continuation_pause(vga, ui, state, skip);
 }
 
-static void set_dialog_area(fd2_vga *vga,
+static int set_dialog_area(fd2_vga *vga,
                             const fd2_terrain_tileset *terrain,
                             const fd2_field_map *map,
                             const fd2_archive *dato,
@@ -979,7 +984,7 @@ static void set_dialog_area(fd2_vga *vga,
          * dialog_box_close 并打开新说话人。此前这里直接关闭，导致同一
          * fragment 内连续两三名说话人的对白根本没有等待点。 */
         if (!fast) page_pause(vga, skip);
-        if (skip && *skip) return;
+        if (skip && *skip) return 0;
         animate_dialog_box_close(vga, terrain, map, ui, sprites, field_state,
                                  state, fast);
     }
@@ -992,8 +997,10 @@ static void set_dialog_area(fd2_vga *vga,
     state->speaker_actor_idx = speaker_actor_idx;
     animate_dialog_box_open(vga, terrain, map, ui, sprites, field_state,
                             speaker_actor_idx, area, fast);
-    redraw_dialog(vga, terrain, map, dato, ui, sprites, field_state, state);
+    if (redraw_dialog(vga, terrain, map, dato, ui, sprites, field_state, state) != 0)
+        return -1;
     fd2_vga_present(vga);
+    return 0;
 }
 
 static int play_text_fragment(fd2_vga *vga,
@@ -1040,9 +1047,10 @@ static int play_text_fragment(fd2_vga *vga,
             int speaker_actor_idx = resolve_speaker_actor(field_state, tok,
                                                           portrait_id);
             portrait_id = resolve_portrait_control(field_state, tok, portrait_id);
-            set_dialog_area(vga, terrain, map, dato, ui, sprites, field_state,
-                            &state, area, portrait_id, speaker_actor_idx, fast,
-                            &skip);
+            if (set_dialog_area(vga, terrain, map, dato, ui, sprites, field_state,
+                                &state, area, portrait_id, speaker_actor_idx, fast,
+                                &skip) != 0)
+                return -1;
             glyph_step_enabled = !fast;
             /* 原版打开新说话人后直接继续 token 循环；不存在额外 250 ms
              * 固定等待。首个字形仍由 glyph-step 的 1 BIOS tick 节奏控制。 */

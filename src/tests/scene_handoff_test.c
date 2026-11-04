@@ -19,6 +19,9 @@ static const fd2_archive *fail_palette_archive;
 static int palette_failure, palette_queries;
 static int portrait_frame_override;
 static size_t portrait_frame_requested;
+static int portrait_decode_calls, fail_portrait_decode_at;
+static int presents_at_portrait_failure;
+static size_t failed_portrait_identity;
 static fd2_vga *current_vga;
 
 static int scene_test_archive_open(fd2_archive *archive, const char *path) {
@@ -54,6 +57,12 @@ static int scene_test_portrait_decode_frame(fd2_image *image,
                                              const fd2_archive *archive,
                                              size_t identity, size_t frame) {
     portrait_frame_requested = frame;
+    portrait_decode_calls++;
+    if (portrait_decode_calls == fail_portrait_decode_at) {
+        presents_at_portrait_failure = presents;
+        failed_portrait_identity = identity;
+        return -1;
+    }
     return fd2_portrait_decode_frame(image, archive, identity,
         portrait_frame_override >= 0 ? (size_t)portrait_frame_override : frame);
 }
@@ -118,6 +127,9 @@ static void reset_controls(fd2_vga *vga) {
     palette_failure = palette_queries = 0;
     portrait_frame_override = -1;
     portrait_frame_requested = (size_t)-1;
+    portrait_decode_calls = fail_portrait_decode_at = 0;
+    presents_at_portrait_failure = -1;
+    failed_portrait_identity = (size_t)-1;
     current_vga = vga;
 }
 
@@ -240,8 +252,8 @@ static int test_real_portrait_orientation(void) {
                 /* 正式scene目前固定请求frame0；替身喂真实0/3，验证共同方向路径，
                  * 不声称实现了native眨眼计时或RNG。 */
                 portrait_frame_override = frames[phase];
-                draw_portrait(&vga, &dato, (fd2_dialog_area)area,
-                              (uint16_t)identities[id]);
+                CHECK(draw_portrait(&vga, &dato, (fd2_dialog_area)area,
+                                    (uint16_t)identities[id]) == 0);
                 CHECK(portrait_frame_requested == 0 && presents == 0);
                 int x = area == FD2_DIALOG_TOP ? 232 : 8;
                 int y = area == FD2_DIALOG_TOP ? 5 : 115;
@@ -271,6 +283,29 @@ static int test_real_portrait_orientation(void) {
     return 0;
 }
 
+static int test_portrait_decode_error_has_no_handoff(const fd2_archive *fdother) {
+    /* 真正运行开场，只有指定次立绘解码返回错误；其他资源全部真实有效。
+     * 首次bottom ID0和第二次top ID48分别覆盖打开／切换说话人的整条传播链。 */
+    static const size_t expected_ids[] = {0, 48};
+    for (int failure = 1; failure <= 2; failure++) {
+        fd2_vga vga;
+        fd2_field_handoff handoff;
+        reset_controls(&vga);
+        fail_portrait_decode_at = failure;
+        memset(&handoff, 0xa5, sizeof(handoff));
+        CHECK(scene_test_play_handoff(&vga, fdother, NULL, NULL, 1,
+                                      &handoff) == FD2_SCENE_RESULT_ERROR);
+        CHECK(portrait_decode_calls == failure);
+        CHECK(failed_portrait_identity == expected_ids[failure - 1]);
+        CHECK(portrait_frame_requested == 0);
+        CHECK(!scene_host_quit_requested);
+        CHECK(!handoff.valid && handoff.units.count == 0);
+        CHECK(presents_at_portrait_failure > 0 && presents == presents_at_portrait_failure);
+        CHECK(archive_opens == 4 && archive_closes == archive_opens);
+    }
+    return 0;
+}
+
 int main(void) {
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
@@ -279,6 +314,7 @@ int main(void) {
     CHECK(test_resource_error_has_no_handoff(&fdother) == 0);
     CHECK(test_required_palette_error_has_no_handoff(&fdother) == 0);
     CHECK(test_real_portrait_orientation() == 0);
+    CHECK(test_portrait_decode_error_has_no_handoff(&fdother) == 0);
     CHECK(test_host_quit_has_no_handoff(&fdother, final_present) == 0);
     fd2_archive_close(&fdother);
     puts("scene_handoff_test: ok");

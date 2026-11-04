@@ -608,6 +608,8 @@ if(BUILD_TESTING)
     add_executable(fd2_field_unit_base_test
         tests/field_unit_base_test.c
         field_unit_base.c
+        field_item.c
+        field_unit_stats.c
     )
     target_include_directories(fd2_field_unit_base_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}

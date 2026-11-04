@@ -28,6 +28,21 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x112A5: [{
+        "target": "evidence",
+        "was": "持久玩家构造与活动 stage 模板构造尚未区分完整初始字段",
+        "now": "本函数在独立 roster 末尾调用 sub_1145A @0x1145a；"
+               "从 object3 0x61da1 的 32 条 24-byte base 与 0x620a1 的 "
+               "11-byte growth 读取初始等级、4-byte 法术位图、装备及库存。"
+               "合计写 record 58 字节，保留 00..04、17、19、28..30、"
+               "32..36、3d；3b 为 movement，确实写入。SDL 仅成功时提交记录。",
+        "why": "已发布权威伪 C sub_112A5（661..729 行）与 sub_1145A"
+               "（734..770 行），由 sub_4E838/sub_4E821 取表；"
+               "LE page map 只读提取并逐行复核全部 32 条原表。"
+               "派生函数只对 flags &0x40 的装备累计 AP/DP/HIT/EV；"
+               "初始状态已清零，可复用现有装备派生。保留中性函数名，"
+               "未新建 IDB 或修改权威伪 C。",
+    }],
     0x37910: [{
         "target": "semantic_name",
         "was": "vga_clear（清屏 memset 0xa0000）",
@@ -167,6 +182,15 @@ def main() -> int:
             "source_line": row["line_no"],
         })
         e["legacy"].append(row["address_cell"])
+
+    # 新确认的函数可能没有历史登记；仍须以已发布 IDA 入口校验并纳入登记。
+    for va in CORRECTIONS:
+        if va not in funcs:
+            raise ValueError(f"correction VA is not an IDA function entry: {va:#x}")
+        entries.setdefault(va, {
+            "va": va, "off": va - CODE0_BASE, "ida_name": "",
+            "size": None, "legacy": [], "records": [],
+        })
 
     for va, e in entries.items():
         if va in CORRECTIONS:

@@ -89,6 +89,7 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
                 self.assertEqual(row["legacy_body_va"] - row["canonical_va"], 0xA)
 
     def test_registry_entries_are_real_ida_function_entries(self):
+        import build_fd2_name_registry as registry
         reg = json.loads(
             (CANON / "fd2-ida-function-registry.json").read_text(encoding="utf-8"))
         import csv
@@ -97,6 +98,7 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
             for row in csv.DictReader(f, delimiter="\t"):
                 starts.add(int(row["start_ea"], 16))
         self.assertEqual(len(starts), 1308)
+        self.assertTrue(set(registry.CORRECTIONS) <= {e["va"] for e in reg["entries"]})
         for e in reg["entries"]:
             self.assertIn(e["va"], starts, msg=f"{e['va']:#x}")
             self.assertEqual(e["off"], e["va"] - OBJ1_LO)

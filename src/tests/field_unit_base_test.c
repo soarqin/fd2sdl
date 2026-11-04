@@ -40,7 +40,47 @@ static int check_unit(uint8_t id, uint8_t level,
     return 0;
 }
 
+static int test_persistent_constructor(void) {
+    fd2_field_unit unit;
+    memset(&unit, 0xa5, sizeof(unit));
+    CHECK(fd2_field_unit_persistent_create(&unit, 9) == 0);
+    const uint8_t *record = (const uint8_t *)&unit;
+    CHECK(unit.side == 2 && unit.unit_id == 9 && unit.text_id == 9);
+    CHECK(unit.level == 1 && unit.hp == 28 && unit.mp == 8);
+    CHECK(record[0x1a] == 1 && record[0x1b] == 0 &&
+          record[0x1c] == 0 && record[0x1d] == 0 && record[0x1e] == 0);
+    CHECK(record[0x0a] == 0x40 && record[0x0b] == 52 &&
+          record[0x0c] == 0x40 && record[0x0d] == 164);
+    CHECK(unit.attack == 11 && unit.defense == 7 &&
+          unit.accuracy == 86 && unit.evasion == 1);
+    for (uint8_t id = 0; id < 32; id++) {
+        memset(&unit, 0xa5, sizeof(unit));
+        CHECK(fd2_field_unit_persistent_create(&unit, id) == 0);
+        CHECK(unit.side == 2 && unit.unit_id == id && unit.text_id == id);
+        for (size_t i = 0; i < sizeof(unit); i++) {
+            int written = (i >= 5 && i <= 22) || i == 24 ||
+                          (i >= 26 && i <= 39) || i == 49 ||
+                          (i >= 55 && i <= 60) || i >= 62;
+            if (!written) CHECK(record[i] == 0xa5);
+        }
+    }
+    CHECK(fd2_field_unit_persistent_create(&unit, 11) == 0);
+    CHECK(record[0x0e] == 0 && record[0x0f] == 209 &&
+          record[0x1b] == 0x40 && record[0x1c] == 0x40);
+    CHECK(fd2_field_unit_persistent_create(&unit, 28) == 0);
+    CHECK(record[0x1a] == 0 && record[0x1b] == 0x40 &&
+          record[0x1c] == 2 && record[0x1d] == 4);
+    CHECK(fd2_field_unit_persistent_create(&unit, 1) == 0);
+    CHECK(unit.level == 3 && unit.hp == 56 && unit.mp == 0);
+    fd2_field_unit before = unit;
+    CHECK(fd2_field_unit_persistent_create(&unit, 32) == -1);
+    CHECK(memcmp(&unit, &before, sizeof(unit)) == 0);
+    CHECK(fd2_field_unit_persistent_create(NULL, 0) == -1);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_persistent_constructor() == 0);
     /* 新游戏 stage 0 玩家基线。 */
     CHECK(check_unit(0, 1, 1, 1, 4, 42, 0, 6, 4, 2) == 0);
     CHECK(check_unit(9, 1, 1, 5, 4, 28, 8, 3, 2, 1) == 0);

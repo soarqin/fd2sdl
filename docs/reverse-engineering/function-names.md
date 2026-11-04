@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 186 |
+| 归约后的规范函数数 | 187 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -45,6 +45,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | VA | 规范函数名 | 项 | 历史说法 | 复核后 | 依据 |
 |----|-----------|----|---------|--------|------|
 | `0x111ba` | `res_load` | address | 0x463ce | VA 0x111ba / OFF 0x11ba | `FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，39 个调用点，`main` 用它加载 FDOTHER/FDTXT。 |
+| `0x112a5` | `sub_112A5` | evidence | 持久玩家构造与活动 stage 模板构造尚未区分完整初始字段 | 本函数在独立 roster 末尾调用 sub_1145A @0x1145a；从 object3 0x61da1 的 32 条 24-byte base 与 0x620a1 的 11-byte growth 读取初始等级、4-byte 法术位图、装备及库存。合计写 record 58 字节，保留 00..04、17、19、28..30、32..36、3d；3b 为 movement，确实写入。SDL 仅成功时提交记录。 | 已发布权威伪 C sub_112A5（661..729 行）与 sub_1145A（734..770 行），由 sub_4E838/sub_4E821 取表；LE page map 只读提取并逐行复核全部 32 条原表。派生函数只对 flags &0x40 的装备累计 AP/DP/HIT/EV；初始状态已清零，可复用现有装备派生。保留中性函数名，未新建 IDB 或修改权威伪 C。 |
 | `0x1f894` | `boot_intro_title_menu` | semantic_name | boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 | boot_intro_title_menu（同一函数） | `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。 |
 | `0x1f894` | `boot_intro_title_menu` | evidence | corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` | 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。 | IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。 |
 | `0x1f894` | `boot_intro_title_menu` | evidence | 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 | 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。 | 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。 |

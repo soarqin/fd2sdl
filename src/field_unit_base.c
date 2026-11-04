@@ -12,6 +12,9 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "field_item.h"
+#include "field_unit_stats.h"
+
 #define ARRAY_COUNT(a) (sizeof(a) / sizeof((a)[0]))
 
 typedef struct {
@@ -79,6 +82,43 @@ static const fd2_player_base_record k_player_records[] = {
     {29, 5, 13, 150, 14, 60, 12, 100, 8, 70, 8, 0, 3, 6},
     {30, 6, 25, 50, 8, 0, 0, 0, 7, 0, 6, 0, 2, 4},
     {31, 6, 25, 12, 12, 0, 0, 0, 8, 0, 7, 0, 2, 4},
+};
+
+/* sub_4E838 @0x4e838 返回 object3 VA 0x61da1 的 24-byte player base。
+ * 依次保留其 +2 初始等级、+8..11 法术、+12..17 装备／库存字段。 */
+static const uint8_t k_player_initial[32][11] = {
+    {1, 0, 0, 0, 0, 0, 132, 192, 255, 255, 255},
+    {3, 0, 0, 0, 0, 0, 128, 255, 255, 255, 255},
+    {4, 0, 0, 0, 0, 0, 128, 255, 255, 255, 255},
+    {23, 0, 0, 0, 0, 36, 147, 255, 255, 255, 255},
+    {1, 0, 0, 0, 0, 20, 128, 255, 255, 255, 255},
+    {8, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {18, 0, 0, 0, 0, 23, 135, 255, 255, 255, 255},
+    {4, 0, 0, 0, 0, 30, 150, 255, 255, 255, 255},
+    {3, 0, 0, 0, 0, 44, 129, 255, 255, 255, 255},
+    {1, 1, 0, 0, 0, 52, 164, 255, 255, 255, 255},
+    {8, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {16, 0, 64, 64, 0, 54, 167, 209, 255, 255, 255},
+    {10, 0, 0, 0, 0, 62, 172, 255, 255, 255, 255},
+    {8, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {16, 50, 0, 0, 0, 55, 168, 255, 255, 255, 255},
+    {23, 0, 0, 0, 0, 63, 174, 255, 255, 255, 255},
+    {2, 0, 0, 0, 0, 16, 138, 255, 255, 255, 255},
+    {21, 0, 0, 0, 0, 4, 136, 255, 255, 255, 255},
+    {1, 0, 0, 0, 0, 7, 138, 255, 255, 255, 255},
+    {10, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {8, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {5, 0, 193, 124, 0, 57, 169, 255, 255, 255, 255},
+    {12, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {5, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {8, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {5, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {15, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
+    {5, 0, 0, 0, 0, 17, 139, 255, 255, 255, 255},
+    {10, 0, 64, 2, 4, 65, 176, 255, 255, 255, 255},
+    {20, 0, 28, 2, 12, 59, 170, 255, 255, 255, 255},
+    {1, 0, 0, 0, 0, 72, 178, 255, 255, 255, 255},
+    {25, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255},
 };
 
 static const fd2_enemy_base_record k_enemy_records[] = {
@@ -156,6 +196,56 @@ static void wr_u16(uint8_t *record, size_t offset, uint32_t value) {
     uint16_t narrowed = (uint16_t)value;
     record[offset] = (uint8_t)narrowed;
     record[offset + 1u] = (uint8_t)(narrowed >> 8);
+}
+
+static int initial_item_stats(void *userdata, uint8_t item_id,
+                               fd2_field_item_stat_effect *effect) {
+    (void)userdata;
+    const uint8_t *item = fd2_field_item_record_get(item_id);
+    if (!item || !effect) return -1;
+    effect->attack = fd2_field_item_i16(item, 1);
+    effect->accuracy = fd2_field_item_i16(item, 3);
+    effect->defense = fd2_field_item_i16(item, 5);
+    effect->evasion = fd2_field_item_i16(item, 7);
+    return 0;
+}
+
+/* sub_112A5 @0x112a5 与 sub_1145A @0x1145a（原登记同名）：
+ * 初始持久玩家只写58字节，装备派生后一次提交；保留其余raw字节。 */
+int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id) {
+    if (!unit || unit_id >= ARRAY_COUNT(k_player_initial)) return -1;
+    const uint8_t *initial = k_player_initial[unit_id];
+    fd2_field_unit updated = *unit;
+    fd2_field_unit derived = *unit;
+    derived.unit_id = unit_id;
+    if (fd2_field_unit_base_apply(&derived, initial[0]) != 0) return -1;
+    uint8_t *record = (uint8_t *)&updated;
+    const uint8_t *base = (const uint8_t *)&derived;
+    record[5] = 0;
+    record[6] = 2;
+    record[7] = record[8] = unit_id;
+    record[9] = 0;
+    record[10] = record[12] = 0x40;
+    record[11] = initial[5];
+    record[13] = initial[6];
+    for (size_t i = 0; i < 4; i++) {
+        record[14 + i * 2u] = initial[7 + i] == 0xff ? 0x80 : 0;
+        record[15 + i * 2u] = initial[7 + i];
+    }
+    record[22] = record[24] = 0x80;
+    memcpy(record + 26, initial + 1, 4);
+    record[30] = 0;
+    memcpy(record + 31, base + 31, 3);
+    memset(record + 34, 0, 6);
+    record[49] = 0xff;
+    memcpy(record + 55, base + 55, 5);
+    record[60] = 0;
+    memcpy(record + 62, base + 62, 10);
+    if (fd2_field_unit_combat_stats_recompute(
+            &updated, initial_item_stats, NULL, NULL, NULL) != 0)
+        return -1;
+    *unit = updated;
+    return 0;
 }
 
 int fd2_field_unit_stage_template_apply(

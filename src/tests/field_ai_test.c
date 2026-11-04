@@ -97,9 +97,8 @@ static int test_destination_order(void) {
     fd2_field_path_result range;
     init_range(&range, nodes, 5, 5);
 
-    /* 四项到 anchor (2,2) 都是距离 2。机器码的非对称 tie score
-     * 令右上 (3,1) 的 0 胜过左上 (1,1) 的 2；右下与其完全平价，
-     * 因行优先稳定扫描不会覆盖右上。 */
+    /* 四项到anchor(2,2)都是距离2。正确tie是abs(abs(dx)-abs(dy))：
+     * 左上/右上/右下均为0，保留行优先最早的左上(1,1)，不按path_cost替换。 */
     add_destination(&range, 2, 0, 8, 1);
     add_destination(&range, 1, 1, 7, 1);
     add_destination(&range, 3, 1, 6, 1);
@@ -110,10 +109,10 @@ static int test_destination_order(void) {
     CHECK(fd2_field_ai_choose_destination(
               &range, 2, 2, &destination) == 0);
     CHECK(memcmp(nodes, nodes_before, sizeof(nodes)) == 0);
-    CHECK(destination.x == 3 && destination.y == 1);
+    CHECK(destination.x == 1 && destination.y == 1);
     CHECK(destination.manhattan_distance == 2);
     CHECK(destination.tie_score == 0);
-    CHECK(destination.path_cost == 6);
+    CHECK(destination.path_cost == 7);
 
     init_range(&range, nodes, 5, 5);
     /* closer but can_stop=0 的格必须忽略；其余完全平价时保留行优先项。 */

@@ -23,6 +23,10 @@ class PlayerVisualOracleTest(unittest.TestCase):
 
     def test_real_start_plan_derives_leader_and_legal_tile_without_sample_coordinates(self):
         self.assertEqual(self.plan["leader_world"], list(self.source[probe.UNITS:probe.UNITS + 2]))
+        receipt = self.plan["movement_profile_oracle"]
+        self.assertEqual((receipt["canonical_va"], receipt["size"], receipt["object"]), (0x61646, 580, 3))
+        self.assertEqual(receipt["selected_profile"], self.source[probe.UNITS + 0x20])
+        self.assertEqual(receipt["sha256"], "4002a997ddd7c1e036461c7ee2b915560587f1653aae6c5978bd47d84f533935")
         leader, destination = self.plan["leader_world"], self.plan["destination_world"]
         self.assertEqual(sum(abs(a - b) for a, b in zip(leader, destination)), 1)
         self.assertGreater(self.plan["cost"], 0)

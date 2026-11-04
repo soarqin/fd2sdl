@@ -19,7 +19,8 @@
 | B1.4b2 总览正式输入与配对 | `400891a` | 独立候选35/35 CTest、135/135 Python，无跳过；完整17组WGC及六份原版配对通过，四区含条件文字／数字共25,289像素，四种键关闭、显式Save测量和宿主关闭通过；无强制清理或遗留 | 精确动画时长／瞬时帧、完整地图与声音未验；march、F1与四槽重建仍限制，B1未整体完成 |
 | B1.4c1a AI路径pending | `833427a` | 全新暂存候选35/35 CTest、135/135 Python，无跳过；独立审查通过；修正后真实START的原版／SDL END→round2→Save回归通过，窗口正常清理 | 沿途特定格事件仅有静态指令和SDL合成回归，待原版运行；所有cell handler仍明确拒绝，玩家顺序在c1b修复，march未开放 |
 | B1.4c1b 玩家controller与取消 | `214b76b` | 全新候选36/36 CTest、147/147 Python，无跳过；独立审查通过；原版／SDL一步移动取消、selection→COMMAND可达及返回browse配对通过，内容／mtime不变；受影响END／Save继续通过，所有窗口正常清理 | 仅图标presence（上14行／其他20行），完整runtime、特定handler与镜头未验；COMMAND actor遮挡和acted映色发现差异，单列下一视觉修正；总流程已注册18组，未将旧17组记录改为本轮完整通过 |
-| B1.4c1 角色绘制修正 | 本提交 | 独立候选37/37 CTest、160/160 Python，无跳过；独立审查通过；真实 FDICON 全1,680帧 opaque0 审计、COMMAND 完整图标／actor 遮挡及满HP WAIT→acted→详情配对通过；完整19组 WGC、八份原版配对通过，文件与窗口清理检查通过 | raw26 抖动、受伤恢复、全详情页及完整runtime／RNG仍待对照；首次标题过渡黑帧失败及修正保留，未扩大像素容差；B1仍部分完成 |
+| B1.4c1 角色绘制修正 | `6b460e4` | 独立候选37/37 CTest、160/160 Python，无跳过；独立审查通过；真实 FDICON 全1,680帧 opaque0 审计、COMMAND 完整图标／actor 遮挡及满HP WAIT→acted→详情配对通过；完整19组 WGC、八份原版配对通过，文件与窗口清理检查通过 | raw26 抖动、受伤恢复、全详情页及完整runtime／RNG仍待对照；首次标题过渡黑帧失败及修正保留，未扩大像素容差；B1仍部分完成 |
+| B1.4c2a 共享移动表与几何 | 本提交 | 全新暂存候选38/38 CTest、169/169 Python，无跳过；独立审查通过；纠正580字节表及175字节错位、原anchor／整长路径／对称tie／profile／起点ZOC，补非法起点预检；真实START四终点及END／Load／玩家取消／WAIT四组受影响WGC通过，文件未变、窗口正常清理 | 原版特定近敌ZOC／路径handler、完整机器执行与March运行仍未验；未开放March，未把旧19组记录冒充本轮全套；保留DOSBox窗口尺寸变化导致的失败现场 |
 
 独立候选及测试产物位于本地忽略目录 `build/commit-validation/` 的对应阶段子目录，含 `b1-font/`、`b1-overview-render/` 和 `b1-overview-modal/`，不提交资源、程序、截图或报告。每个候选由对应暂存树导出，使用独立构建目录和只读原版资源；本地 LE 测试证据仅复制到该验证目录以避免跳过，未发布新镜像。
 

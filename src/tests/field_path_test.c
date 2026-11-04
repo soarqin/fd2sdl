@@ -113,13 +113,15 @@ static int test_movement_profiles(void) {
     const uint8_t *profile1 = fd2_field_movement_profile_get(1);
     const uint8_t *profile5 = fd2_field_movement_profile_get(5);
     CHECK(fd2_field_movement_profile_count() == 29);
-    CHECK(profile0 && profile0[13] == 0);
-    CHECK(profile1 && profile1[0] == 1 && profile1[17] == 0x14);
-    CHECK(profile5 && profile5[0] == 2 && profile5[1] == 0x14 &&
-          profile5[2] == 1);
+    CHECK(profile0 && profile1 && profile5);
+    for (size_t cost = 0; cost < FD2_FIELD_MOVEMENT_COST_CLASS_COUNT; cost++)
+        CHECK(profile0[cost] == 1); /* canonical0x61646的攻击profile全20类成本1。 */
+    CHECK(profile1[0] == 1 && profile1[1] == 0x14 && profile1[17] == 1);
+    CHECK(profile5[0] == 1 && profile5[1] == 0x14 &&
+          profile5[2] == 1 && profile5[3] == 2 && profile5[5] == 0x14);
     CHECK(fd2_field_movement_profile_get(29) == NULL);
 
-    /* 原表确有零成本项；确认预算为零时仍能安全收敛并重建路径。 */
+    /* 参数化query仍支持零成本；此为算法边界，不把它误称为原表数据。 */
     fd2_field_path_result result = FD2_FIELD_PATH_RESULT_INITIALIZER;
     test_grid grid;
     grid_init(&grid, 3, 3);
@@ -206,8 +208,8 @@ static int test_original_occupancy_policy(void) {
                                        0, profile, 1, 5) == 0);
     CHECK(fd2_field_path_distance(&result, 1, 0) ==
           FD2_FIELD_PATH_UNREACHABLE);
-    CHECK(fd2_field_path_distance(&result, 0, 1) ==
-          FD2_FIELD_PATH_UNREACHABLE);
+    /* 起点本身不走ZOC进入门，可离开到非控制区邻格。 */
+    CHECK(fd2_field_path_distance(&result, 0, 1) == 1);
     fd2_field_path_close(&result);
 
     units.items[2].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;

@@ -49,7 +49,7 @@ static void init(fixture *f) {
     g->map.cells = f->cells;
     g->terrain.attrs = &f->attr;
     g->terrain.attr_count = 1;
-    f->attr.movement_cost_class = 1;
+    f->attr.movement_cost_class = 0; /* profile1 class0成本1；class1成本20。 */
     g->units.count = 3;
     unit(&g->units.items[0], 2, 1, 1);
     unit(&g->units.items[1], 0, 6, 6);

@@ -16,12 +16,14 @@ import sys
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = next(parent for parent in Path(__file__).resolve().parents
+            if (parent / "tools/run_original_end_turn.py").is_file())
 sys.path.insert(0, str(ROOT / "tools"))
 from run_original_comparison import Capture, TOLERANCE, archive_entry, decode_image, hashes, running, title_templates
 from run_original_battle_menu import MENU_OFFSETS, match_indexed, wait_state, wait_title
 from run_original_end_turn import META, UNITS, STRIDE, RoundOracle, browse_anywhere, decode_lmi, round_assets, validate_initial
 from run_original_load import require_source_unchanged
+from fd2_movement_oracle import movement_profile
 
 def cursor_assets(icon_path, source, assets):
     """仅当前源actor身份的真实FDICON帧；未知/遮挡不猜测，找不到就失败。"""
@@ -153,10 +155,8 @@ def prepare(original, fixture):
     shape_data = (original / "FDSHAP.DAT").read_bytes()
     terrain = archive_entry(shape_data, metadata[0] * 2)
     attrs = archive_entry(shape_data, metadata[0] * 2 + 1)
-    # @0x4e8a5 的已发布原始20字节profile表；只读原版，不从SDL行为取oracle。
-    profile = (original / "FD2.EXE").read_bytes()[0x7a64a + actor[0x20] * 20:0x7a64a + (actor[0x20] + 1) * 20]
-    if len(profile) != 20:
-        raise ValueError("移动profile缺失")
+    # canonical object3表由既有LE page map提取，禁止硬编码历史file/runtime偏移。
+    profile, profile_evidence = movement_profile(original / "FD2.EXE", actor[0x20])
     units = [source[UNITS + i * STRIDE:UNITS + (i + 1) * STRIDE] for i in range(source[META + 1])]
     occupied = {tuple(u[:2]) for u in units if not u[5] & 1}
     enemies = [tuple(u[:2]) for u in units if not u[5] & 1 and u[6] == 0]
@@ -229,7 +229,7 @@ def prepare(original, fixture):
     plan = {"leader_world": list(leader), "leader_screen": list(screen(source, leader)),
             "navigation": path, "step_key": key, "destination_world": list(destination),
             "destination_screen": list(screen(source, destination)), "tile_id": tile_id,
-            "cost_class": cost_class, "cost": cost, "range_lut_indices": [i for i, _ in ranges]}
+            "cost_class": cost_class, "cost": cost, "movement_profile_oracle": profile_evidence, "range_lut_indices": [i for i, _ in ranges]}
     return source, focus, assets, composites, ranges, plan
 
 

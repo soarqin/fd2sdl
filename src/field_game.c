@@ -2905,90 +2905,101 @@ static int commit_ai_path(fd2_field_game *game,
     return 1;
 }
 
+/* field_ai_move_toward_cell @0x14b78（原登记同名）：先probe请求anchor，
+ * 必要时沿完整long route更新本回合anchor，最后才排友方占格/选终点。 */
 static int commit_ai_move_toward_anchor(fd2_field_game *game,
                                          size_t actor_index,
                                          int anchor_x, int anchor_y,
                                          fd2_vga *vga,
                                          uint32_t frame_delay_ms) {
-    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
-    if (!game || actor_index >= game->units.count ||
-        fd2_field_game_compute_move_range(game, actor_index, &range) != 0)
+    if (!game || !game->ready || actor_index >= game->units.count ||
+        game->map.width <= 0 || game->map.height <= 0 ||
+        anchor_x < 0 || anchor_y < 0 || anchor_x >= game->map.width ||
+        anchor_y >= game->map.height)
         return -1;
-    fd2_field_ai_destination destination;
-    int result = fd2_field_ai_choose_destination(
-        &range, anchor_x, anchor_y, &destination);
-    fd2_field_path_close(&range);
-    if (result != 0) return 0;
-
-    size_t count = (size_t)game->map.width * (size_t)game->map.height;
-    if (count > SIZE_MAX / 2u) return -1;
-    uint8_t *path = count ? malloc(count) : NULL;
-    if (!path) return -1;
     const fd2_field_unit *actor = &game->units.items[actor_index];
-    const uint8_t *profile =
-        fd2_field_movement_profile_get(actor->movement_profile);
+    /* 145cd/146d1：selector0按side0分组，selector1按side!=0分组。
+     * AI outer只调side0/1，March只side2；现query的actor.side分组等价，
+     * 不能把此caller边界推广为任意actor/selector组合。 */
+    /* @14b9f取raw3b预算（允许0，无HP门）；@14bc7 immune→19，
+     * @14bcc..14bd5按text_id==28覆盖为1，区别于18890的unit_id28→16。 */
+    uint8_t profile_id = actor->movement_profile;
+    if (fd2_field_attack_unit_ignores_terrain_modifier(actor)) profile_id = 19;
+    if (actor->text_id == 28u) profile_id = 1;
+    const uint8_t *profile = fd2_field_movement_profile_get(profile_id);
+    if (!profile || (size_t)game->map.width > SIZE_MAX / (size_t)game->map.height)
+        return -1;
+    size_t count = (size_t)game->map.width * (size_t)game->map.height;
+    uint8_t *path = malloc(count);
+    if (!path) return -1;
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    int result = -1;
     size_t length = 0;
-    int find_result = profile ? fd2_field_move_path_find(
+    /* @14c3a的normal probe目标是调用者的原anchor，不是已排序合法终点。 */
+    int found = fd2_field_move_path_find(
         &game->map, &game->terrain, &game->units, actor_index,
         profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
         actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
-        destination.x, destination.y, path, count, &length,
-        NULL, NULL) : -1;
-    if (find_result == 0) {
-        /* field_ai_move_toward_cell @0x14b78（正确 dual 0x14b78）：
-         * direct probe 失败后，用固定预算 0x1c / mode 1 建长路径，逐步
-         * 记录本回合最后仍可达的位置，再对该 anchor 重建普通路径。 */
-        uint8_t *long_path = malloc(count);
+        anchor_x, anchor_y, path, count, &length, NULL, NULL);
+    if (found < 0) goto done;
+    if (!found) {
+        /* @14c7d固定预算0x1c/mode1仍探同一请求anchor。路径buffer可复用；
+         * 最后普通路径会再次覆盖，不保留或提交该long route。 */
         size_t long_length = 0;
-        if (!long_path) {
-            free(path);
-            return -1;
-        }
-        int long_result = fd2_field_move_path_find(
+        int long_found = fd2_field_move_path_find(
             &game->map, &game->terrain, &game->units, actor_index,
             profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, 0x1cu,
-            FD2_FIELD_MOVE_PATH_EQUAL_ROUTE,
-            destination.x, destination.y,
-            long_path, count, &long_length, NULL, NULL);
-        if (long_result == 1) {
-            int x = actor->x;
-            int y = actor->y;
-            int last_x = x;
-            int last_y = y;
+            FD2_FIELD_MOVE_PATH_EQUAL_ROUTE, anchor_x, anchor_y,
+            path, count, &long_length, NULL, NULL);
+        if (long_found < 0) goto done;
+        if (long_found) {
+            if (fd2_field_move_range_compute(
+                    &range, &game->map, &game->terrain, &game->units, actor_index,
+                    profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
+                    actor->movement_points) != 0)
+                goto done;
+            int x = actor->x, y = actor->y;
+            int last_x = anchor_x, last_y = anchor_y;
             static const int dx[] = {0, -1, 0, 1};
             static const int dy[] = {1, 0, -1, 0};
             for (size_t i = 0; i < long_length; i++) {
-                uint8_t direction = long_path[i];
-                if (direction > 3u) break;
-                x += dx[direction];
-                y += dy[direction];
-                fd2_field_path_result current =
-                    FD2_FIELD_PATH_RESULT_INITIALIZER;
-                int reachable = fd2_field_game_compute_move_range(
-                    game, actor_index, &current) == 0 &&
-                    fd2_field_path_is_destination(&current, x, y);
-                fd2_field_path_close(&current);
-                if (!reachable) break;
-                last_x = x;
-                last_y = y;
+                uint8_t direction = path[i];
+                if (direction > 3u) goto done;
+                x += dx[direction]; y += dy[direction];
+                /* @14d17未命中只继续，不能break；此时原版尚未block友方
+                 * destination，检查reachable distance而不是can_stop。 */
+                if (fd2_field_path_distance(&range, x, y) != FD2_FIELD_PATH_UNREACHABLE) {
+                    last_x = x; last_y = y;
+                }
             }
-            if (last_x != actor->x || last_y != actor->y)
-                find_result = fd2_field_move_path_find(
-                    &game->map, &game->terrain, &game->units, actor_index,
-                    profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
-                    actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
-                    last_x, last_y, path, count, &length, NULL, NULL);
-        } else if (long_result < 0) {
-            find_result = -1;
+            anchor_x = last_x; anchor_y = last_y;
         }
-        free(long_path);
     }
-    if (find_result != 1 || length == 0) {
-        free(path);
-        return find_result < 0 ? -1 : 0;
+    /* @14d47后才最终range/friendly block/sort；Dijkstra的can_stop已表达
+     * 146d1友方终点门，仍允许路径经过同阵营actor。 */
+    if (fd2_field_move_range_compute(
+            &range, &game->map, &game->terrain, &game->units, actor_index,
+            profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
+            actor->movement_points) != 0)
+        goto done;
+    fd2_field_ai_destination destination;
+    if (fd2_field_ai_choose_destination(&range, anchor_x, anchor_y, &destination) != 0) {
+        result = 0;
+        goto done;
+    }
+    found = fd2_field_move_path_find(
+        &game->map, &game->terrain, &game->units, actor_index,
+        profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
+        actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
+        destination.x, destination.y, path, count, &length, NULL, NULL);
+    if (found != 1 || length == 0) {
+        result = found < 0 ? -1 : 0;
+        goto done;
     }
     result = commit_ai_path(
         game, actor_index, path, count, length, vga, frame_delay_ms);
+done:
+    fd2_field_path_close(&range);
     free(path);
     return result;
 }

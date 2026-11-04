@@ -577,6 +577,23 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_player_controller COMMAND fd2_field_player_controller_test)
 
+    # 私有anchor几何直接包含field_game.c；过滤重复对象，保留其余正式依赖。
+    add_executable(fd2_field_geometry_test
+        tests/field_geometry_test.c
+        $<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.]>)
+    target_include_directories(fd2_field_geometry_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_geometry_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    # core包含音乐C++对象；过滤后的对象列表仍须使用C++链接器。
+    set_property(TARGET fd2_field_geometry_test PROPERTY LINKER_LANGUAGE CXX)
+    if(MSVC)
+        target_compile_options(fd2_field_geometry_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_geometry_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_geometry COMMAND fd2_field_geometry_test)
+    set_tests_properties(field_geometry PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_field_unit_render_test
         tests/field_unit_render_test.c
         $<TARGET_OBJECTS:fd2sdl_core>)

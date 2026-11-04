@@ -59,7 +59,7 @@ static void init_game(fd2_field_game *game,
     memset(game->metadata.turn_events, 0xff, sizeof(game->metadata.turn_events));
     memset(cells, 0, 8u * 8u * sizeof(*cells));
     memset(attrs, 0, sizeof(*attrs));
-    attrs[0].movement_cost_class = 1;
+    attrs[0].movement_cost_class = 0; /* profile1 class0成本1；class1成本20。 */
     game->ready = 1;
     game->active_side = 0;
     game->selected_unit = -1;

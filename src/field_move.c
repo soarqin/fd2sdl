@@ -152,8 +152,9 @@ int fd2_field_move_range_compute(fd2_field_path_result *result,
     return fd2_field_path_compute_with_start_policy(
         result, map->width, map->height,
         mover->x, mover->y, movement_points,
-        start_can_stop,
-        !opponent_adjacent(&context, mover->x, mover->y),
+        /* field_reachable_cells_compute @0x4e390在4e422写起点预算，
+         * 4e424无条件进递归；起点不经4e4be的进入格ZOC门。 */
+        start_can_stop, 1,
         fd2_field_move_query_step, &context);
 }
 
@@ -303,6 +304,9 @@ int fd2_field_move_path_find(const fd2_field_map *map,
         return -1;
     if ((size_t)map->width > SIZE_MAX / (size_t)map->height) return -1;
     size_t count = (size_t)map->width * (size_t)map->height;
+    const fd2_field_unit *mover = &units->items[mover_index];
+    if (count > SIZE_MAX / 3u || mover->x >= map->width || mover->y >= map->height)
+        return -1;
     uint8_t *work = calloc(count * 3u, sizeof(uint8_t));
     if (!work) return -1;
 
@@ -331,7 +335,6 @@ int fd2_field_move_path_find(const fd2_field_map *map,
         .witness_x = -1,
         .witness_y = -1,
     };
-    const fd2_field_unit *mover = &units->items[mover_index];
     search.best_remaining[
         (size_t)mover->y * (size_t)map->width + (size_t)mover->x] =
         (uint8_t)movement_points;

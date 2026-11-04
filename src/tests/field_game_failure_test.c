@@ -46,7 +46,7 @@ static void init_game(fd2_field_game *game, uint32_t cells[64],
     memset(game, 0, sizeof(*game));
     memset(cells, 0, 64 * sizeof(*cells));
     memset(attr, 0, sizeof(*attr));
-    attr->movement_cost_class = 1;
+    attr->movement_cost_class = 0; /* profile1 class0成本1；class1成本20。 */
     game->ready = 1;
     game->turn_number = 1;
     game->active_side = 2;

@@ -28,6 +28,49 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x4E390: [{
+        "target": "evidence",
+        "was": "起点邻敌时也按ZOC禁止展开",
+        "now": "起点直接写预算并进入递归，允许先离开起点；只有进入的邻格"
+               "按ZOC位停止继续扩展。友方终点阻断与可经过规则不变。",
+        "why": "原始4e422写起点预算、4e424无条件调用4e42c；"
+               "进入格门4e4be在4e4ea..4e4f0按bit80清剩余预算。"
+               "SDL双方分组回归及无副作用检查；对应近敌原版运行仍待单独取证。",
+    }],
+    0x4E4F6: [{
+        "target": "evidence",
+        "was": "普通路径起点与进入格是否同受ZOC门尚未区分",
+        "now": "初始化起点后直接递归，起点不经进入格ZOC门；"
+               "normal/mode1的SDL实现已有该行为，不额外更改。mode2 hostile witness独立。",
+        "why": "原始初始化/递归调用与4e680进入格门；合成回归检查normal、"
+               "long route、witness和非法起点拒绝。公开API另补坐标/三倍缓冲分配界检查，"
+               "不据此声明原版完整ABI或全函数机器执行通过。",
+    }],
+    0x4E8A5: [{
+        "target": "evidence",
+        "was": "580字节成本表来自file0x7a64a，已与历史runtime线性0x1b3646一致",
+        "now": "getter operand0x4e8b4的LE fixup指向object3+0x1646，"
+               "canonical0x61646..0x6188a共29×20字节；严格LE页映射"
+               "对应file0x7a65a。旧表提前16字节，175/580字节不同。"
+               "正确SHA256=4002a997ddd7c1e036461c7ee2b915560587f1653aae6c5978bd47d84f533935。",
+        "why": "已发布field_movement_profile_get的乘数20、原始operand/fixup、"
+               "既有parse_le/parse_objects/build_relbase_image及独立全表比对。"
+               "本轮未取新selector/base/runtime dump，撤回旧表已通过运行时比对的结论；"
+               "不重新开启已通过的全局静态LE fixup验收。",
+    }],
+    0x14B78: [{
+        "target": "evidence",
+        "was": "先排序合法终点再探路；long route遇不可达即停，tie为abs(dx-abs(dy))",
+        "now": "先normal probe原请求anchor，失败后以预算28/mode1仍探该anchor；"
+               "完整扫描long route，以未做友方终点阻断的distance记录最后可达格，"
+               "未命中继续。随后才range/friendly block/sort/final path。"
+               "tie为abs(abs(dx)-abs(dy))，相等保留扫描先项。局部profile先immune→19，"
+               "再text_id28→1，预算0合法且无HP门，不修改原actor profile。",
+        "why": "权威伪C及原始局部指令14c3a/14c7d/14cd7/14d17/14d47。"
+               "14e0c push使ESP=S-4，14e15 [esp+8]覆盖S+4为abs(dx)，"
+               "14e19才弹参；14e27读回该值，旧非对称解释漏算ESP变化。"
+               "新SDL合成回归与真实START四玩家几何对照，不等于整函数机器执行或March运行验收。",
+    }],
     0x127E0: [{
         "target": "evidence",
         "was": "未区分战场单actor绘制与全表绘制、COMMAND末尾遮挡顺序",

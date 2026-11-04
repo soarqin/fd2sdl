@@ -81,9 +81,10 @@ int fd2_field_ai_choose_destination(
             int dx = x - anchor_x;
             int dy = y - anchor_y;
             uint32_t distance = abs_int(dx) + abs_int(dy);
-            /* corrected code0 0x2a020..0x2a04c：编译结果确实是
-             * abs(dx - abs(dy))，不是常见的 abs(abs(dx)-abs(dy))。 */
-            uint32_t tie = abs_i64((int64_t)dx - abs_int(dy));
+            /* field_ai_move_toward_cell @0x14b78（原登记同名）：
+             * @14e15的[esp+8]在参数尚未弹出时覆盖S+4为abs(dx)，
+             * @14e27再读它减abs(dy)；不能把两处ESP误当同一基址。 */
+            uint32_t tie = abs_i64((int64_t)abs_int(dx) - abs_int(dy));
             if (distance > best_distance ||
                 (distance == best_distance && tie >= best_tie))
                 continue;

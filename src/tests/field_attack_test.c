@@ -33,8 +33,8 @@ static void equip_weapon(fd2_field_unit *unit, uint8_t item_id) {
 int main(void) {
     uint32_t cells[25] = {0};
     fd2_terrain_attr attrs[2] = {{0}};
-    attrs[0].movement_cost_class = 1; /* attack profile 0 cost 1 */
-    attrs[1].movement_cost_class = 0; /* attack profile 0 cost 0x16 */
+    attrs[0].movement_cost_class = 0;
+    attrs[1].movement_cost_class = 1; /* 正确攻击profile0全20类均为成本1。 */
     fd2_field_map map = {5, 5, cells};
     fd2_terrain_tileset terrain = {0};
     terrain.attrs = attrs;
@@ -192,16 +192,20 @@ int main(void) {
     CHECK(!fd2_field_path_is_destination(&range, 4, 3));
     fd2_field_path_close(&range);
 
-    /* 最大范围不是单纯曼哈顿圆：原函数使用 profile 0 传播，昂贵地形
-     * 会阻断预算内不可绕行的目标。 */
+    /* 真实profile0全20类都是1；旧表错位制造出的昂贵地形不应挡住射程2。 */
     uint32_t corridor_cells[3] = {0, 1, 0};
     fd2_field_map corridor = {3, 1, corridor_cells};
     spear.x = 0;
     spear.y = 0;
-    CHECK(fd2_field_attack_range_compute(&range, &corridor, &terrain,
-                                         &spear) == 0);
-    CHECK(!fd2_field_path_is_destination(&range, 2, 0));
-    fd2_field_path_close(&range);
+    for (uint8_t cost_class = 0; cost_class < 20; cost_class++) {
+        attrs[1].movement_cost_class = cost_class;
+        CHECK(fd2_field_attack_range_compute(&range, &corridor, &terrain,
+                                             &spear) == 0);
+        CHECK(fd2_field_path_is_destination(&range, 2, 0));
+        CHECK(fd2_field_path_distance(&range, 2, 0) == 2);
+        fd2_field_path_close(&range);
+    }
+    attrs[1].movement_cost_class = 1;
 
     fd2_field_units units;
     memset(&units, 0, sizeof(units));

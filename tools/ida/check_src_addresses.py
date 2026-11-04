@@ -56,6 +56,14 @@ def load_funcs():
     return ranges, names, [a for a, _ in ranges]
 
 
+def source_files(directory: Path):
+    for path in sorted([*directory.rglob("*.c"), *directory.rglob("*.h")]):
+        parts = path.relative_to(directory).parts[:-1]
+        if any(part in ("third_party", "build") or part.startswith("build-") for part in parts):
+            continue
+        yield path
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", type=Path, default=ROOT / "src")
@@ -75,9 +83,7 @@ def main() -> int:
         return None
 
     findings = []
-    for path in sorted(list(args.src.rglob("*.c")) + list(args.src.rglob("*.h"))):
-        if "third_party" in path.parts or "build" in path.parts:
-            continue
+    for path in source_files(args.src):
         for lineno, line in enumerate(
                 path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             if not COMMENTISH.search(line):

@@ -119,14 +119,25 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
 
 
 class SrcAddressMigrationTest(unittest.TestCase):
+    def test_build_candidates_and_third_party_are_outside_the_source_audit(self):
+        import check_src_addresses as chk
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = ("main.c", "include/main.h", "support/build_options.c",
+                     "build/cache.c", "build-win/candidate/font.c",
+                     "nested/build-linux/cache.h", "third_party/vendor.c")
+            for relative in paths:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("/* @0x4edc0 candidate instruction */", encoding="utf-8")
+            self.assertEqual({path.relative_to(root).as_posix() for path in chk.source_files(root)},
+                             {"main.c", "include/main.h", "support/build_options.c"})
+
     def test_no_stale_legacy_addresses_left_in_src(self):
         import check_src_addresses as chk
         ranges, names, starts = chk.load_funcs()
         stale = []
-        for path in sorted(list((ROOT / "src").rglob("*.c"))
-                           + list((ROOT / "src").rglob("*.h"))):
-            if "third_party" in path.parts or "build" in path.parts:
-                continue
+        for path in chk.source_files(ROOT / "src"):
             for lineno, line in enumerate(
                     path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 if not chk.COMMENTISH.search(line):

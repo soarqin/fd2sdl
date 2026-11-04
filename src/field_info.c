@@ -333,8 +333,8 @@ int fd2_field_overview_draw(fd2_vga *vga,
                 return -1;
         }
     }
-    if (!image_has_size(&assets->digit_overflow[1], 18, 8) ||
-        !image_has_size(&assets->two_digit_overflow, 12, 8))
+    /* stage 0 为01，三阵营最多各64人，无两位溢出；回合可超过999。 */
+    if (!image_has_size(&assets->digit_overflow[1], 18, 8))
         return -1;
     const uint8_t *conditions[2];
     size_t glyph_counts[2];

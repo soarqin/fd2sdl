@@ -48,6 +48,7 @@ python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_end_turn.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-end-turn
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_load.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-load
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_leave.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-leave
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_overview.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-overview
 ```
 
 CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；总流程为每轮创建 `graphics-artifacts/<时间>/`，其中包括输入 trace、日志、原始截图、差异图、原版资源 SHA-256、子进程退出与清理记录及 `summary.json`。当前驱动的文件接口使用 Windows 当前代码页，测试产物目录先使用 ASCII 路径。总流程自动把 SDL 正式 UI 生成的 `storage-cancel/FD2.SAV` 传给原版配对。单独复跑时将示例的 fixture 路径换成该文件，并使用新的产物目录；不要拿任意高关卡存档要求仅支持 stage 0 的 SDL 呈现相同菜单。原版与转换产物不提交；只提交测试脚本、配置生成逻辑与文字结论。
@@ -80,6 +81,7 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | 原版 B1.3a | 真实 START → 肯定 END 一次 → round 002 → actor 0 最终焦点 → 左格正式 Save | 原版回合 banner、角色与光标组合资源、有效存档及独立数量；两端确定性字段相等。源码日志仅补充 SDL phase 顺序 |
 | 原版 B1.3b Load | round2 不保存 → Load 的 Esc／NO → 肯定 Load 来源 A → 显式 UI Save 测量 | Load 前后来源副本内容和 mtime 不变；测量存档恢复 turn1 与全部已确认字段，仅排除 active cache `+2` 和记录的测量焦点导航。取消只证明浏览恢复、文件不写及菜单可再次使用 |
 | 原版 B1.3b leave | Esc／NO 回浏览 → 肯定一次后不再发键 | 自然退出 `0` 必须发生在清理前；未退出时先保存 WGC 并失败，后续清理退出不能翻转为通过 |
+| 原版 B1.4b 总览 | 真实 START → 次级默认项 0 → 四种键分别关闭 → 显式 Save 测量 → 页内宿主关闭 | 原版资源独立合成四区，含数字与597／598条件字形，共25,289像素；SDL再与原版对应区域比较。关闭回同焦点，查看期间内容与mtime不变，测量容器只排除已声明cache／导航字段 |
 | 后续原版配对 | END 肯定提交后的 phase／AI、Save/Load、胜败出口、法术、物品、战斗演出、声音 | 按下节逐项补充，不因可自动输入而视为全部完成 |
 
 `field_play_result` 用测试目标私有替身触发正式循环的自动动作失败、剧情失败、剧情宿主退出与移动失败；不向生产代码加测试钩子。此测试不是 DOSBox 行为对照。
@@ -199,3 +201,15 @@ Windows 基础、B0、B1.1、B1.2a、B1.2b 已分别从独立暂存候选构建�
 `c649883` 对应的完整流程在 `src/build-win/graphics-artifacts/20261104-144934-027836/` **16 组全部通过**：原 13 组，加真实 START 的 END、Load 和离场。五份原版 `comparison.json` 均通过；SDL 真实输入、首次保存、存取档、END、独立主程序出口及窗口关闭继续通过。原版目录哈希不变，所有正向进程正常清理，外层 Job 为 `residual=0 forced=0 cleaned=1`。这不是 B1 大阶段终审，剩余页面、批量动作、手工重建及 V1 视听范围仍分别保留。
 
 B1.4a 按 `font_glyph_blit_16x16 @0x4ed7a` 的背景／阴影指令修正字体基础，新增纯内存 `font` 回归；同时把 FDTXT[412] 瞬态识别模板改为下左／正下阴影，并将模板原点移至 `(98,146)`。受影响原版菜单配对在 `src/build-win/graphics-artifacts/font-battle-menu-20261104-01/` 通过，所有进程正常清理，源档与原版目录不变。该菜单检查仍不覆盖完整文字／头像，字形静态 ROI 的原版像素验收随 B1.4b 总览接入；未新增机器码执行或 IDA 数据库发布。
+
+### B1.4b 战况总览：2026-11-04
+
+`src/build-win/graphics-artifacts/original-overview-20261104-01/` 完成原版先行、SDL 后行的真实 START 配对。独立资源 oracle 合成 FDOTHER[5] 的133..136四个完整矩形，逐 bit 合成597／598条件文字及其下左／正下阴影；每个检查点共25,289像素，沿用每通道最多3的调色板展开容差，错误像素必须为0。页面显示01／001、7／4／0和00000000，SDL还逐次与相应原版页面比较。这同时补齐 B1.4a 在这两段条件文字中的原版像素证据，不扩大为所有字形／页面均已验收。
+
+每端用 Enter、Esc、Right、A 四次单键关闭，检查完整浏览光标、同一焦点及无残留对话；关闭方向键未额外移动战场焦点。查看前后内容与启动前mtime均保持不变，最后单独从正式菜单明确Left选择Save作全容器测量；回合、资源／配置、raw roster、active已确认字段、cell及其他未知字节与来源一致，只允许已声明cache class、导航焦点和checksum差异。再打开页面作宿主关闭，两端自然exit0、正常清理，外层Job residual=0、forced=0，源档与原版目录未变。
+
+实现复用同步modal与两张像素缓冲，不添加持久interaction或另一套输入上下文；稳定页复用缓存内容，背景只绘地形、actor、遮挡与边框。开合恢复最初背景，当前帧键全部消耗但保留物理held／repeat状态。原版 `@0x4e381` 的15字节实际清BIOS队列，登记纠正原vsync_wait；资源phase8与人数phase5的signed负高度由局部原始指令确认，保持0行复制。无窗口回归另验证裁切、分配失败、quit优先、同帧输入隔离及owner／RNG不变。
+
+完整流程在 `src/build-win/graphics-artifacts/20261104-154221-037970/` 17组全部通过，六份原版配对报告通过；所有本轮正向进程正常清理，Job residual=0、forced=0。END／Load／leave 的次级菜单检查已同步为总览默认0，Save必须显式Left，不再保留旧的SDL禁用总览实跑分支。
+
+精确开合时长、瞬时动画画面、整幅地图／idle及声音未作原版一致性验收；Linux未执行。测试替身最初把恢复帧0误当作quit注入点，已修正夹具；未为此改变生产modal或扩大像素容差。B1整体仍部分完成，下一项为批量行军的路径事件契约和正式输入。

@@ -229,15 +229,15 @@ static int test_secondary_dynamic_disabled(void) {
     CHECK(fd2_field_game_open_system_menu(&game) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-    CHECK(game.system_menu.disabled[0]);
+    CHECK(!game.system_menu.disabled[0]);
     CHECK(!game.system_menu.disabled[1]);
     CHECK(game.system_menu.disabled[2]);
     CHECK(!game.system_menu.disabled[3]);
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 0);
-    CHECK(game.system_menu.selected == 1);
+    CHECK(game.system_menu.selected == 0);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 1);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
     CHECK(fd2_field_game_cancel_system_menu(&game) ==
@@ -261,7 +261,7 @@ static int test_secondary_dynamic_disabled(void) {
     CHECK(!game.system_menu.disabled[2]);
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
-    CHECK(game.system_menu.selected == 2);
+    CHECK(game.system_menu.selected == 0);
 
     /* hidden actor 的 stale acted bit 不触发原版动态门。 */
     CHECK(fd2_field_game_cancel_system_menu(&game) ==
@@ -272,6 +272,30 @@ static int test_secondary_dynamic_disabled(void) {
     CHECK(!game.system_menu.disabled[1]);
     CHECK(!game.system_menu.disabled[2]);
     CHECK(rng.calls == 0 && rng.state == 0x42424242u);
+    fd2_field_game_close(&game);
+    return 0;
+}
+
+static int test_overview_stage_gate(void) {
+    fd2_field_game game;
+    test_rng rng = {0x13579bdfu, 0};
+    init_game(&game, &rng);
+    fd2_field_game before = game;
+    CHECK(fd2_field_game_open_system_menu(&game) == 0);
+    CHECK(fd2_field_game_confirm_system_menu(&game) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
+    CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
+    CHECK(fd2_field_game_confirm_system_menu(&game) ==
+          FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+    CHECK(fd2_field_game_confirm_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_NONE);
+    CHECK(business_state_unchanged(&game, &before));
+    game.stage = 1;
+    CHECK(fd2_field_game_open_system_menu(&game) == 0);
+    CHECK(fd2_field_game_confirm_system_menu(&game) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
+    CHECK(game.system_menu.disabled[0] && game.system_menu.selected == 1);
+    CHECK(rng.calls == 0 && rng.state == 0x13579bdfu);
     fd2_field_game_close(&game);
     return 0;
 }
@@ -543,6 +567,7 @@ int main(void) {
     if (test_focus_cycle_and_confirm() != 0 || test_open_gate() != 0 ||
         test_layered_cancel() != 0 ||
         test_secondary_dynamic_disabled() != 0 ||
+        test_overview_stage_gate() != 0 ||
         test_manual_slot_interaction_is_independent() != 0 ||
         test_highlight_state_is_independent() != 0 ||
         test_options_toggle_is_menu_local() != 0 ||

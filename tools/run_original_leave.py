@@ -80,10 +80,10 @@ def exercise(capture, kind, assets, initial_focus, initial_steps, titles, save, 
         checkpoint(label + "-secondary-selected", lambda frame: oracle.menu(frame, 0))
         capture.key("ENTER")
         checkpoint(label + "-secondary", lambda frame: oracle.secondary(
-            frame, None, overview_available=kind == "original"))
+            frame, 0, overview_available=True))
         capture.key("DOWN")
         checkpoint(label + "-leave-selected", lambda frame: oracle.secondary(
-            frame, 3, overview_available=kind == "original"))
+            frame, 3, overview_available=True))
         capture.key("ENTER")
         checkpoint(label + "-default-yes", lambda frame: oracle.buttons(frame, 0))
 

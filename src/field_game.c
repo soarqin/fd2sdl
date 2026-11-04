@@ -231,8 +231,9 @@ static void init_option_values(fd2_field_game *game) {
 
 static void refresh_secondary_menu_disabled(fd2_field_game *game) {
     if (!game) return;
-    /* selector 0 总览尚未实现；这是 SDL 能力门，不是原版禁用规则。 */
-    uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {1, 0, 0, 0};
+    /* 当前总览仅恢复正式 stage 0；其他关卡不借用其条件文本。 */
+    uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {0, 0, 0, 0};
+    disabled[0] = game->stage != 0;
     if (!game->save_resource_available)
         disabled[2] = 1;
     for (size_t i = 0; i < game->units.count; i++) {
@@ -931,7 +932,7 @@ static void render_manual_slot_result(const fd2_field_game *game,
 static void render_system_result(const fd2_field_game *game,
                                  fd2_vga *vga);
 
-void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
+static void render_field(fd2_field_game *game, fd2_vga *vga, int draw_ui) {
     if (!game || !game->ready || !vga) return;
 
     /* field_actor_move_{down,left,up,right}_follow_camera
@@ -944,15 +945,18 @@ void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
     fd2_terrain_render_field_base_animated(
         vga, &game->terrain, &game->map, camera_x, camera_y,
         game->terrain_visual_phase, game->idle_phase);
-    render_move_selection(game, vga, camera_x, camera_y);
-    render_field_cursor(game, vga, camera_x, camera_y);
+    if (draw_ui) {
+        render_move_selection(game, vga, camera_x, camera_y);
+        render_field_cursor(game, vga, camera_x, camera_y);
+    }
     fd2_field_units_render(vga, &game->sprites, &game->units,
                            camera_x, camera_y, game->idle_phase);
     fd2_terrain_render_field_overlay(
         vga, &game->terrain, &game->map, camera_x, camera_y,
         game->terrain_visual_phase);
-    render_move_selection_overlay(game, vga, camera_x, camera_y);
+    if (draw_ui) render_move_selection_overlay(game, vga, camera_x, camera_y);
     clear_view_border(vga);
+    if (!draw_ui) return;
     render_field_info(game, vga);
     render_field_command(game, vga, camera_x, camera_y);
     render_field_system_menu(game, vga, camera_x, camera_y);
@@ -966,6 +970,14 @@ void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
                               &game->units.items[game->detail_unit],
                               &game->detail_portrait);
     }
+}
+
+void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga) {
+    render_field(game, vga, 1);
+}
+
+void fd2_field_game_render_background(fd2_field_game *game, fd2_vga *vga) {
+    render_field(game, vga, 0);
 }
 
 static void render_field_info(fd2_field_game *game, fd2_vga *vga) {
@@ -1485,7 +1497,8 @@ fd2_field_system_action fd2_field_game_confirm_system_menu(
     refresh_system_menu_disabled(game);
     /* field_empty_focus_menu_execute @0x16f55（原登记 FUN_0001469d）
      * 与 secondary 的共享返回尾：确认／拒绝后均退出到浏览。 */
-    if (confirming)
+    if (confirming || game->last_system_action ==
+                          FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION)
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     return game->last_system_action;
 }

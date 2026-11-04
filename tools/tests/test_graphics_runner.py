@@ -291,6 +291,27 @@ class CommandTreeTest(unittest.TestCase):
         self.assertNotIn("process_tree_owner", self.suite.report["cases"][0])
 
 
+class OriginalSuiteRegistrationTest(unittest.TestCase):
+    def test_six_original_pairs_are_registered_and_overview_uses_default_start_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
+                                                  game=root / "game.exe", config="Debug", dosbox="dosbox.exe"))
+            suite.command = Mock()
+            for name in ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes"):
+                setattr(suite, name, Mock())
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}), \
+                    patch.object(runner.subprocess, "Popen", side_effect=AssertionError("model test must not launch processes")):
+                suite.run()
+            pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
+            self.assertEqual([call.args[0] for call in pairs], [
+                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview"])
+            overview = pairs[-1]
+            self.assertEqual(overview.args[1][1], runner.ROOT / "tools/run_original_overview.py")
+            self.assertNotIn("--save-fixture", overview.args[1])
+            self.assertEqual(overview.kwargs["timeout"], 360)
+
+
 class WindowCleanupTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

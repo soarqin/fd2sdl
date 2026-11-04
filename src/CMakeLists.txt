@@ -704,6 +704,23 @@ if(BUILD_TESTING)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
     set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
 
+    # 测试TU私有替身覆盖modal分配、呈现与输入，不给生产代码增加钩子。
+    add_executable(fd2_field_play_overview_test
+        tests/field_play_overview_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_play_overview_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_play_overview_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_play_overview_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_play_overview_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_play_overview COMMAND fd2_field_play_overview_test)
+    set_tests_properties(field_play_overview PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     if(UNIX AND NOT APPLE)
         # 依赖齐备时另注册 Xvfb/XTest 回归，发送真实按键而不调用 field_game API。
         find_package(X11 QUIET)

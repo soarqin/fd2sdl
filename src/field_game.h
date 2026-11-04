@@ -237,6 +237,9 @@ int fd2_field_game_apply_handoff(fd2_field_game *game,
 
 void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga);
+/* sub_1B1E7 @0x1b1e7（原登记 sub_1B1E7）的地图／actor 背景；
+ * 不绘光标、范围或任何UI，也不改变信息面板的左右侧状态。 */
+void fd2_field_game_render_background(fd2_field_game *game, fd2_vga *vga);
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
 /* 复现 field_controller_input @code0 0x17e7 的焦点轮换分支：跳过

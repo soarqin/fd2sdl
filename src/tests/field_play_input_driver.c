@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
         const struct { const char *name; WORD key; } keys[] = {
             {"ENTER", VK_RETURN}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
             {"UP", VK_UP}, {"DOWN", VK_DOWN}, {"LEFT", VK_LEFT},
-            {"RIGHT", VK_RIGHT}, {"Z", 'Z'}, {"G", 'G'},
+            {"RIGHT", VK_RIGHT}, {"Z", 'Z'}, {"G", 'G'}, {"A", 'A'},
             {"F1", VK_F1}, {"F2", VK_F2}, {"HOME", VK_HOME},
             {"INSERT", VK_INSERT}, {"DELETE", VK_DELETE},
             {"PAGEUP", VK_PRIOR}, {"PAGEDOWN", VK_NEXT}

@@ -28,6 +28,52 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x1AF1E: [{
+        "target": "evidence", "was": "未登记总览主体关闭相位",
+        "now": "从静态源(75,37)复制170×117；phase<5时目标x=75-50*(4-phase)，其余为75，负x裁切时同步推进源。",
+        "why": "已发布 sub_1AF1E 与 sub_1B1E7 反向11..0调用链；只读静态矩形复制，无关卡或玩法转移。",
+    }],
+    0x1AF99: [{
+        "target": "evidence", "was": "未登记总览主体打开相位",
+        "now": "从静态源(75,37)复制170×117；phase<=4时目标x=75+50*(4-phase)，其余为75，右侧按屏幕裁切。",
+        "why": "已发布 sub_1AF99 与 sub_1B1E7 正向0..11调用链，FDOTHER[5] frame134；不是详情页或关卡转场。",
+    }],
+    0x1B019: [{
+        "target": "evidence", "was": "未登记总览顶部相位",
+        "now": "102×17顶部栏phase<3不绘，3..7目标y=19-6*(7-phase)，其余y19；上边裁切同步推进源。",
+        "why": "已发布 sub_1B019、开合两处调用与frame133尺寸，源固定(109,19)；精确时序另验。",
+    }],
+    0x1B0AD: [{
+        "target": "evidence", "was": "未登记总览人数栏相位",
+        "now": "170×16人数栏phase<5不绘，5..9目标y=155+9*(9-phase)，其余155；原phase5复制高度-9，signed循环不复制。",
+        "why": "已发布 sub_1B0AD 与已确认原指令的负高度循环，源(75,155)、frame135；不能通用裁切补成理想可见行。",
+    }],
+    0x1B14B: [{
+        "target": "evidence", "was": "未登记总览资源栏相位",
+        "now": "63×15资源栏phase<8不绘，8..11目标y=172+4*(12-phase)；phase8高度-12不复制，phase11仍在176，稳定页回172。",
+        "why": "已发布 sub_1B14B 及object1 0x1b19e lea高度、0x1b1de/0x1b1e0 signed cmp/jl；源(129,172)、frame136。",
+    }],
+    0x1B1E7: [{
+        "target": "evidence",
+        "was": "战况总览尚未登记开合、背景和关闭键边界",
+        "now": "双64000字节缓冲保存最初干净战场与四块静态页面；"
+               "打开0..11、关闭11..0，稳定页继续地形／actor动画，"
+               "不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。",
+        "why": "已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、"
+               "FDOTHER[5] 133..136 资源；0x1b14b 原始指令 "
+               "0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 "
+               "signed jl 不复制，人数 phase5 同样不复制。保留中性名，"
+               "未改数据库或权威伪 C；精确帧时序与完整画面另验。",
+    }],
+    0x4E381: [{
+        "target": "semantic_name",
+        "was": "vsync_wait（等待垂直同步）",
+        "now": "bios_keyboard_buffer_clear",
+        "why": "原15字节 56 be1a040000 66 8b06 66 894602 5e c3 "
+               "将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；"
+               "无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。"
+               "原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。",
+    }],
     0x1B41D: [{
         "target": "evidence",
         "was": "未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表",

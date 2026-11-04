@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 189 |
+| 归约后的规范函数数 | 195 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -52,6 +52,12 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x19df7` | `field_secondary_menu_execute` | evidence | 活动 meta[9]（DS:0x3bfb）被当作当前 actor count 的副本 | meta[1] 为当前战场 actor count（DS:0x3beb，格式容量 96）；meta[9] 为独立持久 roster count（DS:0x3bfb，0x8a3 起 0xa00 字节、32 条 0x50 记录）。二者不要求相等，也不以当前 side 2 actor 数量或 active count 为 roster 上限。 | 已发布伪 C：sub_112A5 @0x112a5 在 dword_53bf7 + 80*dword_53bfb 追加记录并递增 roster count；sub_11506 @0x11506 对 active actor 遍历独立 roster 同步；@0x19df7 writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active 假设。保留中性函数名，未新建 IDB 或修改权威伪 C。 |
 | `0x19df7` | `field_secondary_menu_execute` | evidence | SDL 将 secondary 肯定离场的 -1 建模为返回标题 | selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。 | 已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。 |
 | `0x1a30b` | `field_turn_cycle_run` | evidence | 现有登记只描述玩家结束后的 phase 顺序与状态 tick | 首部仅恢复 side 2、flags & 0x81 == 0、record +0x25/+0x26 均为零且 HP != maxHP 的 actor：HP 增加 maxHP/5 并封顶，随后 OR acted；整数恢复量为零也标记。满 HP 或被 gate 排除者不统一标记 acted。空焦点菜单 selector 3 确认后直接调用本函数。末尾重置 dword_53AE9=0，执行 phase 2 事件与状态后，field_focus_move_to_actor(0) 逐 X 再 Y 恢复焦点和镜头。 | 复用已发布权威伪 C fd2-ida-decomp-all.c 的本函数首部（7282..7314 行）与 field_empty_focus_menu_execute @0x16f55 selector 3 调用（5250..5267 行），末尾 @0x1a30b 的调用链，2026-11-04 真实 START 原版肯定 END→round002→Save 运行证据；未重新建立 IDB 或发布逆向基线。 |
+| `0x1af1e` | `sub_1AF1E` | evidence | 未登记总览主体关闭相位 | 从静态源(75,37)复制170×117；phase<5时目标x=75-50*(4-phase)，其余为75，负x裁切时同步推进源。 | 已发布 sub_1AF1E 与 sub_1B1E7 反向11..0调用链；只读静态矩形复制，无关卡或玩法转移。 |
+| `0x1af99` | `sub_1AF99` | evidence | 未登记总览主体打开相位 | 从静态源(75,37)复制170×117；phase<=4时目标x=75+50*(4-phase)，其余为75，右侧按屏幕裁切。 | 已发布 sub_1AF99 与 sub_1B1E7 正向0..11调用链，FDOTHER[5] frame134；不是详情页或关卡转场。 |
+| `0x1b019` | `sub_1B019` | evidence | 未登记总览顶部相位 | 102×17顶部栏phase<3不绘，3..7目标y=19-6*(7-phase)，其余y19；上边裁切同步推进源。 | 已发布 sub_1B019、开合两处调用与frame133尺寸，源固定(109,19)；精确时序另验。 |
+| `0x1b0ad` | `sub_1B0AD` | evidence | 未登记总览人数栏相位 | 170×16人数栏phase<5不绘，5..9目标y=155+9*(9-phase)，其余155；原phase5复制高度-9，signed循环不复制。 | 已发布 sub_1B0AD 与已确认原指令的负高度循环，源(75,155)、frame135；不能通用裁切补成理想可见行。 |
+| `0x1b14b` | `sub_1B14B` | evidence | 未登记总览资源栏相位 | 63×15资源栏phase<8不绘，8..11目标y=172+4*(12-phase)；phase8高度-12不复制，phase11仍在176，稳定页回172。 | 已发布 sub_1B14B 及object1 0x1b19e lea高度、0x1b1de/0x1b1e0 signed cmp/jl；源(129,172)、frame136。 |
+| `0x1b1e7` | `sub_1B1E7` | evidence | 战况总览尚未登记开合、背景和关闭键边界 | 双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。 | 已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。 |
 | `0x1b41d` | `sub_1B41D` | evidence | 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 | 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。 | 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。 |
 | `0x1b5f1` | `sub_1B5F1` | evidence | 未登记总览三阵营计数的过滤门 | 逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。 | 已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。 |
 | `0x1f894` | `boot_intro_title_menu` | semantic_name | boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 | boot_intro_title_menu（同一函数） | `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。 |
@@ -67,6 +73,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x3776e` | `free` | semantic_name | mem_free | free | Watcom runtime FLIRT 符号 |
 | `0x37910` | `memset` | semantic_name | vga_clear（清屏 memset 0xa0000） | memset | IDA FLIRT『Watcom v9-*1.5 32bit DOS runtime』直接命名为 memset；调用点传入任意目标缓冲，不限于 0xa0000 显存。 |
 | `0x37940` | `fseek` | semantic_name | file_seek | fseek | Watcom runtime FLIRT 符号 |
+| `0x4e381` | `vsync_wait` | semantic_name | vsync_wait（等待垂直同步） | bios_keyboard_buffer_clear | 原15字节 56 be1a040000 66 8b06 66 894602 5e c3 将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。 |
 | `0x4ed7a` | `font_glyph_blit_16x16` | evidence | SDL 字形阴影向右／正下，逐像素填背景，并以 shadow=0 关闭阴影 | 原版背景参数低 byte 为 0 时保留底图，非零时先预清 16×16；glyph 10 在可选预清后跳过字模。每个置位像素写 fg(x,y)、shadow(x-1,y+1)、shadow(x,y+1)，0 色也写入。SDL 保留 bg<0 透明、bg>=0 显式预填的既有接口；原版 background_arg=0 的调用应传 SDL bg=-1。 | 已发布伪 C 52187..52203 与原始 object1 指令：VA 0x4edc0 条件跳过预清、0x4edeb 跳过 glyph 10，0x4ee01/0x4ee03 令 ebx=stride-1，0x4ee1e/0x4ee20/0x4ee23 依次写 fg 与两处阴影。九处现有生产调用均为 shadow=0x4c、bg=-1；未重命名数据库或改写权威伪 C。 |
 
 ## 登记表

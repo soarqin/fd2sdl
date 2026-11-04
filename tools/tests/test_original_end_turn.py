@@ -156,6 +156,22 @@ class RoundResourceTest(unittest.TestCase):
         self.assertIsNone(oracle.secondary(frame, 1, overview_available=False))
         self.assertIsNone(oracle.secondary(Image.new("RGB", (320, 200)), 1, overview_available=False))
 
+    def test_enabled_overview_is_default_zero_and_its_resource_is_required(self):
+        palette = [value for value in range(256) for _ in range(3)]
+        commands = []
+        for index in range(78):
+            image = Image.new("P", (24, 20), index + 1)
+            image.putpalette(palette)
+            commands.append(image)
+        oracle = end.RoundOracle({"commands": commands}, (148, 124))
+        frame = Image.new("RGB", (320, 200))
+        for item, index in ((0, 37), (1, 39), (2, 42), (3, 45)):
+            position = tuple(a + b for a, b in zip(oracle.focus, end.MENU_OFFSETS[item]))
+            frame.paste(commands[index].convert("RGB"), position)
+        self.assertIsNotNone(oracle.secondary(frame, 0, overview_available=True))
+        frame.paste((0, 0, 0), (148, 104, 172, 124))
+        self.assertIsNone(oracle.secondary(frame, 0, overview_available=True))
+
     def test_leader_composite_proves_final_focus_despite_sprite_occlusion(self):
         palette = [value for value in range(256) for _ in range(3)]
         cursor = Image.new("P", (24, 24), 200)

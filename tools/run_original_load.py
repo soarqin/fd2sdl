@@ -138,10 +138,10 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
         capture.key("UP")
         capture.key("ENTER")
         checkpoint(label + "-secondary", lambda frame: oracle.secondary(
-            frame, None, overview_available=kind == "original"))
+            frame, 0, overview_available=True))
         capture.key(direction)
         checkpoint(label + "-selected", lambda frame: oracle.secondary(
-            frame, selected, overview_available=kind == "original"))
+            frame, selected, overview_available=True))
         capture.key("ENTER")
         checkpoint(label + "-default-yes", lambda frame: oracle.buttons(frame, 0))
 

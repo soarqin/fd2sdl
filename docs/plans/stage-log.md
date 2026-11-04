@@ -236,6 +236,14 @@ Windows原版首轮运行 `C:/Users/Soar/AppData/Local/Temp/fd2-item-list-origin
 
 报告保持`ok=false/probe_only=true/probe_cases_passed=true`，这是原版校准，不是SDL配对，不增加B2冻结候选累计27组。实际Use／目标／效果、Give／Equip／Drop、完整UI随机流／时序／声音、整关／结算／下一关未验。继续B3.2b纯绘制和B3.2c会话／等待；正式双端配对与B3.3完整支持候选合并执行，避免为中间层增加生产测试入口。正式ITEM仍禁用，B3整体尚未完成，当前无等优选项需用户决定。
 
+### B3.2b纯物品列表绘制
+
+原版校准已独立提交`fb6f9bc`，217项命名、10项发布审计通过。本小阶段在现info资源owner增加`fd2_field_item_list_draw`：先完整预检8槽、名称与尺寸，再恢复下板及绘制；选中用raw槽，显示按可见项压行，保留隐藏stale ID和合法空名称。补齐无主属性的frame41及raw59..67的完整复制，不新增缓存或UI框架；详情复用同一绘制代码，删除重复库存循环。格式与命名证据同步由生成器发布。
+
+独立审查无阻塞，覆盖1／4／5／8项、raw2／7空洞、全部215条及27项fallback、数值边界、晚坏项与失败全VGA／单位不变。曾发现库存预检失败阻止MAGIC合法上页，已改为只跳过坏下页，MAGIC随后整板覆盖；新增跨MAGIC故障回归，旧实现实际构建运行在该断言失败，新版通过，不扩原void详情API的原子性承诺。
+
+隔离暂存候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-render-acceptance/` 完整fresh Windows构建、单轮53/53 CTest（真实输入42.83秒）及322/322 Python无跳过通过，10项发布审计及冻结源码455个规范地址检查通过；程序SHA `babf2c77a9c9cabaebf7444e791dee0584633b8c0dbe3d9f7c3ee34d6c22c7bc`。冻结只含本小阶段代码，不混入正在开发的session／HP helper；原有Temp目录与历史转换警告未抑制。此处没有SDL物品WGC或新增双端组，正式ITEM仍禁用；继续共享HP小函数及B3.2c会话／真实等待，完整图形配对归B3.2d/B3.3候选。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

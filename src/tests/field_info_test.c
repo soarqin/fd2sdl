@@ -670,6 +670,282 @@ static int test_equipment_attribute_coordinates(void) {
     return 0;
 }
 
+static void item_slot(fd2_field_unit *unit, size_t slot, uint8_t flags, uint8_t id) {
+    unit->data_09_1e[1u + slot * 2u] = flags;
+    unit->data_09_1e[2u + slot * 2u] = id;
+}
+
+static void empty_inventory(fd2_field_unit *unit) {
+    memset(unit, 0, sizeof(*unit));
+    for (size_t i = 0; i < 8; i++) item_slot(unit, i, 0x80, 255);
+}
+
+static int fallback_item(unsigned id) {
+    /* canonical602ad的215×23表，逐项审计的frame41分支集合；不是未知ID降级。 */
+    static const uint8_t ids[] = {88,89,90,91,92,93,94,95,96,100,
+        196,197,198,199,200,201,202,203,204,205,208,209,210,211,212,213,214};
+    for (size_t i = 0; i < sizeof(ids); i++) if (ids[i] == id) return 1;
+    return 0;
+}
+
+static int expected_item_list(fd2_vga *expected, const magic_fixture *fixture,
+                               const fd2_field_unit *unit, int selected) {
+    static const int positions[8][2] = {{42,103},{42,125},{42,147},{42,169},
+                                       {192,103},{192,125},{192,147},{192,169}};
+    expected_blit(expected->framebuffer, &fixture->assets.detail_bottom, 5, 94, -1);
+    size_t visible = 0;
+    for (size_t raw = 0; raw < 8; raw++) {
+        uint8_t flags = unit->data_09_1e[1u + raw * 2u], id = unit->data_09_1e[2u + raw * 2u];
+        if (flags & 0x80) continue;
+        const uint8_t *record = fd2_field_item_record_get(id), *tokens;
+        size_t glyphs;
+        CHECK(record && fd2_text_entry_get_fragment(&fixture->text, 181u + id, &tokens, &glyphs) == 0);
+        int x = positions[visible][0], y = positions[visible][1];
+        size_t type = (record[0] < 21 ? 0u : record[0] < 32 ? 1u : 2u) + ((flags & 0x40) ? 3u : 0u);
+        expected_blit(expected->framebuffer, &fixture->assets.detail_icons[type], x - 29, y - 2, -1);
+        for (size_t i = 0; i < glyphs && fd2_text_token_at(tokens, i) != 0xffffu; i++)
+            fd2_font_draw_glyph(expected, &fixture->font, fd2_text_token_at(tokens, i),
+                x + (int)i * 16, y, selected == (int)raw ? 201u : 205u, 76, -1);
+        if (fallback_item(id)) {
+            expected_blit(expected->framebuffer, &fixture->assets.digit_overflow[0], x + 68, y + 4, 0);
+        } else {
+            size_t attribute = record[0] < 21 ? 5u : record[0] < 32 ? 6u : record[13] == 5 ? 7u : 8u;
+            size_t offset = record[0] < 21 ? 1u : record[0] < 32 ? 5u : 14u;
+            int value = (int16_t)((unsigned)record[offset] | (unsigned)record[offset + 1u] << 8);
+            unsigned number = (unsigned)(value < 0 ? 0 : value);
+            expected_blit(expected->framebuffer, &fixture->assets.detail_icons[attribute], x + 68, y + 4, -1);
+            CHECK(number <= 999u); /* 当前全表极值2..999，无猜测截断。 */
+            unsigned digits[] = {number / 100u, number / 10u % 10u, number % 10u};
+            for (size_t i = 0; i < 3; i++)
+                expected_blit(expected->framebuffer, &fixture->assets.digits[1][digits[i]], x + 93 + 6 * (int)i, y + 4, 0);
+        }
+        visible++;
+    }
+    return 0;
+}
+
+static int check_item_list(const magic_fixture *fixture, const fd2_field_unit *unit, int selected) {
+    fd2_vga actual = {0}, expected = {0};
+    memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+    memset(actual.palette, 11, sizeof(actual.palette));
+    memset(actual.dac, 17, sizeof(actual.dac));
+    memset(&actual.input, 23, sizeof(actual.input));
+    actual.field_water_phase = 7; actual.frame_deadline_ns = 1234;
+    fd2_vga before = actual;
+    fd2_field_unit before_unit = *unit;
+    fd2_field_info_assets before_assets = fixture->assets;
+    memcpy(expected.framebuffer, actual.framebuffer, sizeof(expected.framebuffer));
+    CHECK(expected_item_list(&expected, fixture, unit, selected) == 0);
+    CHECK(fd2_field_item_list_draw(&actual, &fixture->assets, &fixture->font, &fixture->text, unit, selected) == 0);
+    CHECK(memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)) == 0);
+    memcpy(actual.framebuffer, before.framebuffer, sizeof(actual.framebuffer));
+    CHECK(memcmp(&actual, &before, sizeof(actual)) == 0);
+    CHECK(memcmp(unit, &before_unit, sizeof(*unit)) == 0);
+    CHECK(memcmp(&fixture->assets, &before_assets, sizeof(before_assets)) == 0);
+    return 0;
+}
+
+static int test_item_list_layout_raw_selection_and_all_records(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    const size_t counts[] = {1,4,5,8};
+    const uint8_t ids[8] = {0,132,192,206,108,201,128,195};
+    for (size_t n = 0; n < sizeof(counts) / sizeof(counts[0]); n++) {
+        fd2_field_unit unit;
+        empty_inventory(&unit);
+        for (size_t i = 0; i < counts[n]; i++) item_slot(&unit, i, i < 2 ? 0x40 : 0, ids[i]);
+        CHECK(check_item_list(&fixture, &unit, -1) == 0);
+        CHECK(check_item_list(&fixture, &unit, 0) == 0);
+        CHECK(check_item_list(&fixture, &unit, (int)counts[n] - 1) == 0);
+    }
+    fd2_field_unit holes;
+    empty_inventory(&holes);
+    for (size_t raw = 0; raw < 8; raw++)
+        if (raw != 1 && raw != 4) item_slot(&holes, raw, raw == 0 ? 0x40 : 0, ids[raw]);
+    CHECK(check_item_list(&fixture, &holes, 2) == 0); /* 选raw2，不是visible2。 */
+    CHECK(check_item_list(&fixture, &holes, 7) == 0); /* raw7已压到第二列第二行。 */
+    for (unsigned id = 0; id < FD2_FIELD_ITEM_COUNT; id++) {
+        fd2_field_unit unit;
+        empty_inventory(&unit);
+        item_slot(&unit, 0, 0, (uint8_t)id);
+        CHECK(check_item_list(&fixture, &unit, 0) == 0);
+    }
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int test_item_raw_icons_copy_zero_and_fallback_position(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    const uint8_t *sheet;
+    size_t sheet_size;
+    CHECK(fd2_archive_get(&fixture.other, 5, &sheet, &sheet_size) == 0);
+    for (size_t i = 0; i < 9; i++) {
+        uint32_t start = test_u32(sheet + 6u + (59u + i) * 4u);
+        uint32_t end = test_u32(sheet + 6u + (60u + i) * 4u);
+        const fd2_image *image = &fixture.assets.detail_icons[i];
+        size_t bytes = (size_t)image->width * (size_t)image->height;
+        CHECK(start < end && end <= sheet_size && end - start == 4u + bytes);
+        CHECK(image->pixels != sheet + start + 4u);
+        CHECK(memcmp(image->pixels, sheet + start + 4u, bytes) == 0);
+    }
+    /* RLE的cache0=skip仅在本资源没有实际写0时成立；frame41/52
+     * 是18×8溢出图，不能套仅允许6px数字的Python布局门。 */
+    for (size_t frame = 41; frame <= 52; frame++) {
+        uint32_t start = test_u32(sheet + 6u + frame * 4u);
+        uint32_t end = test_u32(sheet + 6u + (frame + 1u) * 4u);
+        CHECK(start < end && end <= sheet_size && end - start >= 4u);
+        const uint8_t *data = sheet + start;
+        unsigned width = (unsigned)data[0] | (unsigned)data[1] << 8;
+        unsigned height = (unsigned)data[2] | (unsigned)data[3] << 8;
+        size_t source = 4;
+        CHECK(height == 8 && width == (frame == 41 || frame == 52 ? 18u : frame == 43 ? 5u : 6u));
+        for (unsigned row = 0; row < height; row++) {
+            unsigned x = 0;
+            while (x < width) {
+                CHECK(source < end - start);
+                uint8_t control = data[source++];
+                unsigned mode = control & 0xc0u, count = (control & 0x3fu) + 1u;
+                unsigned span = mode == 0x40u ? count * 2u : count;
+                CHECK(span <= width - x);
+                if (mode != 0xc0u) {
+                    size_t values = mode == 0x80u ? count : 1u;
+                    CHECK(source + values <= end - start);
+                    for (size_t i = 0; i < values; i++) CHECK(data[source + i] != 0);
+                    source += values;
+                }
+                x += span;
+            }
+        }
+        CHECK(source == end - start);
+    }
+    fd2_field_unit unit;
+    empty_inventory(&unit);
+    item_slot(&unit, 0, 0, 192);
+    fixture.assets.detail_icons[2].pixels[0] = 0;
+    fixture.assets.detail_icons[7].pixels[0] = 0;
+    fd2_vga vga = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    CHECK(fd2_field_item_list_draw(&vga, &fixture.assets, &fixture.font, &fixture.text, &unit, -1) == 0);
+    CHECK(vga.framebuffer[101 * 320 + 13] == 0 && vga.framebuffer[107 * 320 + 110] == 0);
+    CHECK(check_item_list(&fixture, &unit, 0) == 0);
+    item_slot(&unit, 0, 0x40, 192); /* raw位即使不合常规，也不由renderer改写。 */
+    CHECK(check_item_list(&fixture, &unit, -1) == 0);
+    item_slot(&unit, 0, 0, 201);
+    CHECK(check_item_list(&fixture, &unit, -1) == 0);
+    /* 失败旧实现没有fallback；真实frame41必须出现在110而非number135。 */
+    fd2_vga expected = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    fd2_field_detail_draw(&vga, &fixture.assets, &fixture.font, &fixture.text, &unit, NULL);
+    memcpy(expected.framebuffer, vga.framebuffer, sizeof(expected.framebuffer));
+    expected_blit(expected.framebuffer, &fixture.assets.digit_overflow[0], 110, 107, 0);
+    CHECK(memcmp(expected.framebuffer, vga.framebuffer, sizeof(expected.framebuffer)) == 0);
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int reject_item_list(magic_fixture *fixture, fd2_field_unit *unit, int selected) {
+    fd2_vga vga = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    fd2_vga before = vga;
+    fd2_field_unit before_unit = *unit;
+    CHECK(fd2_field_item_list_draw(&vga, &fixture->assets, &fixture->font, &fixture->text, unit, selected) == -1);
+    CHECK(memcmp(&vga, &before, sizeof(vga)) == 0 && !memcmp(unit, &before_unit, sizeof(*unit)));
+    return 0;
+}
+
+static int test_item_list_preflight_leaves_all_state_unchanged(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit;
+    empty_inventory(&unit);
+    CHECK(check_item_list(&fixture, &unit, -1) == 0);
+    CHECK(reject_item_list(&fixture, &unit, 0) == 0);
+    const uint8_t ids[] = {0,132,192,201,0,132,192,206};
+    for (size_t i = 0; i < 8; i++) item_slot(&unit, i, 0, ids[i]);
+    CHECK(reject_item_list(&fixture, &unit, -2) == 0);
+    CHECK(reject_item_list(&fixture, &unit, 8) == 0);
+    item_slot(&unit, 1, 0x80, 255);
+    CHECK(reject_item_list(&fixture, &unit, 1) == 0);
+    CHECK(check_item_list(&fixture, &unit, 7) == 0);
+    item_slot(&unit, 7, 0, 215);
+    CHECK(reject_item_list(&fixture, &unit, 0) == 0); /* 未选中的末项也完整检查。 */
+    item_slot(&unit, 7, 0, 206);
+    fd2_image image = fixture.assets.detail_icons[8];
+    fixture.assets.detail_icons[8].height = 7;
+    CHECK(reject_item_list(&fixture, &unit, 0) == 0);
+    CHECK(reject_item_list(&fixture, &unit, 7) == 0);
+    fixture.assets.detail_icons[8] = image;
+    image = fixture.assets.digit_overflow[0];
+    fixture.assets.digit_overflow[0].pixels = NULL;
+    CHECK(reject_item_list(&fixture, &unit, 0) == 0);
+    fixture.assets.digit_overflow[0] = image;
+    const uint8_t *original_text = fixture.text.data, *tokens;
+    size_t count;
+    CHECK(fd2_text_entry_get_fragment(&fixture.text, 181u + 206u, &tokens, &count) == 0 && count > 1);
+    uint8_t *broken = malloc(fixture.text.size);
+    CHECK(broken);
+    memcpy(broken, original_text, fixture.text.size);
+    size_t offset = (size_t)(tokens - original_text);
+    broken[offset] = 1; broken[offset + 1] = 0xff;
+    fixture.text.data = broken;
+    CHECK(reject_item_list(&fixture, &unit, 0) == 0);
+    CHECK(reject_item_list(&fixture, &unit, 7) == 0);
+    fixture.text.data = original_text;
+    free(broken);
+    fd2_vga vga = {0}, before = {0};
+    CHECK(fd2_field_item_list_draw(NULL, &fixture.assets, &fixture.font, &fixture.text, &unit, -1) == -1);
+    CHECK(fd2_field_item_list_draw(&vga, NULL, &fixture.font, &fixture.text, &unit, -1) == -1);
+    CHECK(fd2_field_item_list_draw(&vga, &fixture.assets, NULL, &fixture.text, &unit, -1) == -1);
+    CHECK(fd2_field_item_list_draw(&vga, &fixture.assets, &fixture.font, NULL, &unit, -1) == -1);
+    CHECK(fd2_field_item_list_draw(&vga, &fixture.assets, &fixture.font, &fixture.text, NULL, -1) == -1);
+    CHECK(!memcmp(&vga, &before, sizeof(vga)));
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int test_bad_inventory_does_not_hide_magic_upper_page(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit;
+    empty_inventory(&unit);
+    item_slot(&unit, 0, 0x40, 0);
+    item_slot(&unit, 7, 0, 206);
+    magic_bit(&unit, 0);
+    fd2_field_unit before_unit = unit;
+    fd2_vga expected = {0};
+    memset(expected.framebuffer, 0xa5, sizeof(expected.framebuffer));
+    fd2_field_detail_draw(&expected, &fixture.assets, &fixture.font, &fixture.text, &unit, NULL);
+    CHECK(fd2_field_magic_list_draw(&expected, &fixture.assets, &fixture.font, &fixture.text, &unit, -1) == 0);
+    const uint8_t *original_text = fixture.text.data, *tokens;
+    size_t count;
+    CHECK(fd2_text_entry_get_fragment(&fixture.text, 181u + 206u, &tokens, &count) == 0 && count > 1);
+    uint8_t *broken = malloc(fixture.text.size);
+    CHECK(broken);
+    memcpy(broken, original_text, fixture.text.size);
+    size_t offset = (size_t)(tokens - original_text);
+    broken[offset] = 1; broken[offset + 1] = 0xff;
+    fd2_image icon = fixture.assets.detail_icons[8];
+    for (int fault = 0; fault < 2; fault++) {
+        if (fault == 0) fixture.text.data = broken;
+        else fixture.assets.detail_icons[8].height = 7;
+        CHECK(reject_item_list(&fixture, &unit, 7) == 0);
+        fd2_vga actual = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        /* 与真实MAGIC modal相同：detail供上页，再用合法法术底板覆盖库存。
+         * 坏物品字模／无关item icon不成为该owner的上页依赖。 */
+        fd2_field_detail_draw(&actual, &fixture.assets, &fixture.font, &fixture.text, &unit, NULL);
+        CHECK(fd2_field_magic_list_draw(&actual, &fixture.assets, &fixture.font, &fixture.text, &unit, -1) == 0);
+        CHECK(memcmp(&actual, &expected, sizeof(actual)) == 0);
+        CHECK(memcmp(&unit, &before_unit, sizeof(unit)) == 0);
+        fixture.text.data = original_text;
+        fixture.assets.detail_icons[8] = icon;
+    }
+    free(broken);
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
@@ -683,6 +959,10 @@ int main(void) {
     CHECK(test_magic_empty_name_and_opaque_cost() == 0);
     CHECK(test_magic_rejects_before_drawing() == 0);
     CHECK(test_equipment_attribute_coordinates() == 0);
+    CHECK(test_item_list_layout_raw_selection_and_all_records() == 0);
+    CHECK(test_item_raw_icons_copy_zero_and_fallback_position() == 0);
+    CHECK(test_item_list_preflight_leaves_all_state_unchanged() == 0);
+    CHECK(test_bad_inventory_does_not_hide_magic_upper_page() == 0);
     puts("field_info_test: ok");
     return 0;
 }

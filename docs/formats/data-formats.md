@@ -285,6 +285,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - 数值字段为：LV=`0x21`、EX=`0x3c`、DX=`0x3e`、MV=`0x3b`、HIT/AP/EV/DP=`0x4c/0x48/0x4e/0x4a`，HP/MP 使用 `0x40..0x47`。HP/MP 条宽为 `current==0 ? 0 : current*101/max+1`；当前值等于最大值时使用 frame 31..40，否则当前值使用 frame 42..51，最大值固定使用 frame 31..40。三位溢出分别使用同组的 frame 41/52，两位溢出使用 frame 93。
 - record `0x22/0x23/0x24` 非零时，AP/DP/HIT+EV 改用 FDOTHER[5] frame 119..128 的状态数字颜色；`0x25..0x27` 非零时在 `(194,68)` 起绘制 frame 55..57 状态图标。
 - `field_unit_detail_equipment_draw @0x184c0` 遍历 `0x0a..0x19` 的 8 个raw槽；flag bit `0x80` 表示不显示，bit `0x40` 表示已装备。名称使用 FDTXT[0] fragment `item_id+0xb5`。显示位置按可见项压行，每列4项；高亮仍比较原raw槽索引，不能把显示序号写回库存或压实存档。
+- 该绘制函数的无主属性分支使用FDOTHER[5] frame41（18×8），位置为名称`+(68,4)`，不是frame93两位溢出图。raw分类／属性frames59..67经`0x1685c→0x4ed0b`完整复制，索引0也写入；当前数字RLE frames41／42..52经实际流审计无opaque0，不能将这一缓存约定推广到其它资源。物品ID108..122的名称合法为空。
 - `field_item_record_get @0x4e8bc` 证明完整物品表是 `DS:0x02ad + item_id*0x17` 的23字节记录。连续表的canonical object3 VA为`0x602ad`，`FD2.EXE` file offset为`0x792c1`，共215条有效记录；SDL将其内置于`src/field_item.c`，详情页和战斗属性重算共用。旧`corrected code0 0x684c1`是历史视图，不用于新的地址操作。
 - `field_equipped_item_slot_find @0x40a51` 在 weapon 模式按槽位顺序查找 flag `0x40` 且 `item_id < 0x80` 的首件装备；`field_unit_item_id_at @0x40936` 返回该槽的 item id。玩家普通攻击读取对应 23 字节 item record 的 `+0x0b/+0x0c` 作为最小／最大范围。
 - `field_target_range_build @0x39a2c` 以 movement profile 0 从攻击者格传播最大范围，再按曼哈顿距离排除小于最小范围的格。side filter 的完整语义为 `0→side 0`、`1→side != 0`、`2→side 1`、`3→side 2`；玩家普通攻击传 0。目标收集只保留未隐藏且匹配 filter 的 actor；单位不阻断范围传播。SDL 由 `src/field_attack.[ch]` 复现，并额外拒绝 HP 已为 0 的目标。

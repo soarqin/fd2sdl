@@ -39,6 +39,16 @@ CORRECTIONS: dict[int, list[dict]] = {
                "名称/行列；START短剑0 AP010、皮甲132 DP008、药草192 HP040"
                "与frames64/65/66及资源相互支持。新真实资源回归覆盖完整底板、"
                "空槽压行和第二列；不把此前只验上半数值的WGC称为库存布局已验。",
+    }, {
+        "target": "evidence", "was": "无主属性留空或将raw分类/属性图的0当透明",
+        "now": "已知无主属性分支在name+(68,4)绘bank31 frame41（18x8），"
+               "不是bank93两位溢出。分类/属性raw59..67经1685c/4ed0b完整复制，"
+               "0也写入；显示按visible序号，高亮比较raw槽。",
+        "why": "完整184c0分支及1685c→4ed0b的memcpy支持；215条物品中27项"
+               "使用fallback，原frame41 SHA "
+               "87e4afe486b48af10aaf7ef6dbad5a2508f9ec79e0142f96dda24f2137c53a99。"
+               "真实名称108..122合法为空，不猜补文本；当前数字RLE41/42..52无opaque0，"
+               "仅该已审计缓存保留0为skip。SDL纯绘制回归不代替正式WGC配对。",
     }],
     0x1DB65: [{
         "target": "evidence", "was": "无演出时只需把全部HP0的flags写1",

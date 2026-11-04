@@ -283,22 +283,21 @@ static int image_has_size(const fd2_image *image, int width, int height) {
     return image->pixels && image->width == width && image->height == height;
 }
 
-static int magic_list_name(const fd2_text_entry *text, const fd2_font *font,
-                           uint8_t magic_id, const uint8_t **tokens,
-                           size_t *glyph_count) {
+static int list_name(const fd2_text_entry *text, const fd2_font *font,
+                       size_t fragment, size_t maximum_glyphs,
+                       const uint8_t **tokens, size_t *glyph_count) {
     const uint8_t *data;
     size_t count;
-    if (fd2_text_entry_get_fragment(text, 441u + magic_id, &data, &count) != 0)
+    if (fd2_text_entry_get_fragment(text, fragment, &data, &count) != 0)
         return -1;
     for (size_t i = 0; i < count; i++) {
         uint16_t token = fd2_text_token_at(data, i);
         if (token == 0xffffu) {
             *tokens = data;
-            *glyph_count = i; /* ID31合法空名，不补猜测文字。 */
+            *glyph_count = i; /* 资源中的合法空名不补猜测文字。 */
             return 0;
         }
-        /* 名称与x+50的费用标签之间仅容纳三个16px字形及左下阴影。 */
-        if (token >= 0xff00u || token >= font->glyph_count || i >= 3u)
+        if (token >= 0xff00u || token >= font->glyph_count || i >= maximum_glyphs)
             return -1;
     }
     return -1;
@@ -330,8 +329,9 @@ int fd2_field_magic_list_draw(fd2_vga *vga,
     uint8_t costs[FD2_FIELD_MAGIC_LIST_MAX_COUNT];
     for (size_t i = 0; i < count; i++) {
         const uint8_t *record = fd2_field_magic_record_get(ids[i]);
-        if (!record || magic_list_name(text, font, ids[i],
-                                       &names[i], &glyph_counts[i]) != 0)
+        /* 名称与x+50费用标签间仅容纳三个16px字形及左下阴影。 */
+        if (!record || list_name(text, font, 441u + ids[i], 3u,
+                                  &names[i], &glyph_counts[i]) != 0)
             return -1;
         costs[i] = record[5];
     }
@@ -507,6 +507,85 @@ static int item_detail(const uint8_t *item, uint8_t flags,
     return 0;
 }
 
+typedef struct {
+    size_t raw_slot, icon, effect_icon;
+    const uint8_t *name;
+    size_t glyphs;
+    int value, has_effect;
+} item_list_row;
+
+static int prepare_item_list(const fd2_field_info_assets *assets,
+                              const fd2_font *font,
+                              const fd2_text_entry *text,
+                              const fd2_field_unit *unit, int selected,
+                              item_list_row rows[8], size_t *count) {
+    if (!assets || !assets->ready || !font || !font->glyphs ||
+        !font->glyph_count || font->glyph_count > font->size / 32u ||
+        !text || !unit || selected < -1 || selected >= 8 ||
+        !image_has_size(&assets->detail_bottom, 310, 99) ||
+        !image_has_size(&assets->digit_overflow[0], 18, 8) ||
+        !image_has_size(&assets->digit_overflow[1], 18, 8)) return -1;
+    for (size_t i = 0; i < 9; i++)
+        if (!image_has_size(&assets->detail_icons[i], i < 5 ? 24 : 21,
+                            i < 5 ? 20 : 8)) return -1;
+    for (size_t i = 0; i < 10; i++)
+        if (!image_has_size(&assets->digits[1][i], i == 1 ? 5 : 6, 8)) return -1;
+    const uint8_t *record = (const uint8_t *)unit;
+    if (selected >= 0 && (record[0x0au + (size_t)selected * 2u] & 0x80u)) return -1;
+    *count = 0;
+    for (size_t slot = 0; slot < 8; slot++) {
+        uint8_t flags = record[0x0au + slot * 2u];
+        if (flags & 0x80u) continue;
+        uint8_t id = record[0x0bu + slot * 2u];
+        const uint8_t *item = fd2_field_item_record_get(id);
+        item_list_row *row = &rows[*count];
+        if (!item || list_name(text, font, 181u + id, SIZE_MAX,
+                                &row->name, &row->glyphs) != 0) return -1;
+        row->raw_slot = slot;
+        row->has_effect = item_detail(item, flags, &row->icon, &row->effect_icon, &row->value);
+        (*count)++;
+    }
+    return 0;
+}
+
+static void draw_item_list(fd2_vga *vga, const fd2_field_info_assets *assets,
+                            const fd2_font *font, const item_list_row rows[8],
+                            size_t count, int selected) {
+    fd2_map_sprite_blit(vga, &assets->detail_bottom, 5, 94, -1);
+    for (size_t i = 0; i < count; i++) {
+        const item_list_row *row = &rows[i];
+        int x = 42 + (int)(i / 4u) * 150, y = 103 + (int)(i % 4u) * 22;
+        /* 1685c→4ed0b逐行memcpy raw59..67，0也必须写；数字RLE的
+         * 当前42..51/41/52均已审计没有opaque0，缓存0仍按skip绘制。 */
+        fd2_map_sprite_blit(vga, &assets->detail_icons[row->icon], x - 29, y - 2, -1);
+        for (size_t j = 0; j < row->glyphs; j++)
+            fd2_font_draw_glyph(vga, font, fd2_text_token_at(row->name, j),
+                                x + (int)j * 16, y,
+                                selected == (int)row->raw_slot ? 201u : 205u, 76, -1);
+        if (row->has_effect) {
+            fd2_map_sprite_blit(vga, &assets->detail_icons[row->effect_icon], x + 68, y + 4, -1);
+            draw_detail_number(vga, assets, x + 93, y + 4,
+                               (unsigned)(row->value < 0 ? 0 : row->value), 3);
+        } else {
+            /* 184c0的已知物品无主属性分支：frame41在属性图位置，不是数值位置。 */
+            fd2_map_sprite_blit(vga, &assets->digit_overflow[0], x + 68, y + 4, 0);
+        }
+    }
+}
+
+int fd2_field_item_list_draw(fd2_vga *vga,
+                             const fd2_field_info_assets *assets,
+                             const fd2_font *font,
+                             const fd2_text_entry *text,
+                             const fd2_field_unit *unit, int selected_raw_slot) {
+    item_list_row rows[8];
+    size_t count;
+    if (!vga || prepare_item_list(assets, font, text, unit, selected_raw_slot, rows, &count) != 0)
+        return -1;
+    draw_item_list(vga, assets, font, rows, count, selected_raw_slot);
+    return 0;
+}
+
 static void detail_transition_copy_rect(uint8_t *dst, const uint8_t *src,
                                         int dst_x, int dst_y,
                                         int src_x, int src_y,
@@ -612,12 +691,17 @@ void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_image *portrait) {
     if (!vga || !assets || !assets->ready || !font || !text || !unit)
         return;
+    item_list_row rows[8];
+    size_t count;
+    /* F2 owner先预检完整详情；MAGIC owner仅需上页，并将完整覆盖下页。
+     * 因而坏库存不能阻止本void入口绘制上页；下页只在准备成功后绘制。
+     * 需要库存错误返回／整VGA原子性的调用者使用item_list_draw。 */
+    int items_ready = prepare_item_list(assets, font, text, unit, -1, rows, &count) == 0;
     /* field_unit_detail_draw @0x17eef：先用通用 UI 小块拼 portrait
      * 边框，再绘制 portrait (8,10)、属性框 (92,7) 与装备框 (5,94)。 */
     draw_detail_portrait_border(vga, assets);
     if (portrait) fd2_map_sprite_blit(vga, portrait, 8, 10, -1);
     fd2_map_sprite_blit(vga, &assets->detail_top, 92, 7, -1);
-    fd2_map_sprite_blit(vga, &assets->detail_bottom, 5, 94, -1);
 
     const uint8_t *record = (const uint8_t *)unit;
     draw_fragment(vga, font, text, (size_t)unit->text_id + 1u, 99, 13);
@@ -659,33 +743,5 @@ void fd2_field_detail_draw(fd2_vga *vga,
                             unit->defense, 3,
                             record[0x23] == 0 ? 1u : 2u);
 
-    size_t visible = 0;
-    for (size_t slot = 0; slot < 8; slot++) {
-        uint8_t flags = record[0x0a + slot * 2u];
-        uint8_t item_id = record[0x0b + slot * 2u];
-        if ((flags & 0x80u) != 0) continue;
-        size_t column = visible / 4u;
-        size_t row = visible % 4u;
-        int x = 13 + (int)column * 150;
-        int y = 101 + (int)row * 22;
-        size_t icon = 2;
-        size_t effect_icon = 0;
-        int effect_value = 0;
-        const uint8_t *item = fd2_field_item_record_get(item_id);
-        int known = item_detail(item, flags, &icon, &effect_icon,
-                                &effect_value);
-        fd2_map_sprite_blit(vga, &assets->detail_icons[icon], x, y, 0);
-        draw_fragment(vga, font, text, (size_t)item_id + 0xb5u,
-                      x + 29, y + 2);
-        if (known) {
-            /* field_unit_detail_equipment_draw @0x184c0（原登记同名）：
-             * name+(68,4)为属性图，name+(93,4)为bank42三位数。 */
-            fd2_map_sprite_blit(vga, &assets->detail_icons[effect_icon],
-                                x + 97, y + 6, 0);
-            draw_detail_number(vga, assets, x + 122, y + 6,
-                               (unsigned)(effect_value < 0 ? 0 : effect_value),
-                               3);
-        }
-        visible++;
-    }
+    if (items_ready) draw_item_list(vga, assets, font, rows, count, -1);
 }

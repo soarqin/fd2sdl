@@ -91,6 +91,19 @@ int fd2_field_magic_list_draw(fd2_vga *vga,
                               const fd2_field_unit *unit,
                               int selected);
 
+/* field_unit_detail_equipment_draw @0x184c0（原登记同名）：显示压行，
+ * selected_raw_slot仍是0..7原始槽；-1未选，选中空槽或未知ID拒绝。
+ * 合法空库存+未选恢复空底板，隐藏槽的stale ID不参与绘制／验证。
+ * 完整预检后恢复(5,94)的310×99底板，再绘名称、分类／属性与数值；
+ * native184c0自身只叠列表，恢复底板是SDL合并详情的整合约定。
+ * 返回0成功/-1错误，失败全VGA不变。不处理输入、Use门、库存或RNG。 */
+int fd2_field_item_list_draw(fd2_vga *vga,
+                             const fd2_field_info_assets *assets,
+                             const fd2_font *font,
+                             const fd2_text_entry *text,
+                             const fd2_field_unit *unit,
+                             int selected_raw_slot);
+
 /* 全屏角色详情页主体：复现 field_unit_detail_draw @0x17eef 与
  * field_unit_detail_stats_draw @0x17fc0。portrait 为 DATO 当前单位首帧。 */
 void fd2_field_detail_draw(fd2_vga *vga,

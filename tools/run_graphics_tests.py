@@ -483,8 +483,12 @@ class Suite:
                     self.capture(process, work, "loaded-battle")
                     # 保存的焦点(6,20)为空，parent→secondary→leave→Yes。
                     self.key(process, "ENTER", "UP", "ENTER", "DOWN", "ENTER", "LEFT", "ENTER")
-                    wait_log(process, log, "field leave: returning to title")
-                    capture.wait(title, timeout=20).save(work / "title-after-leave.png")
+                    wait_log(process, log, "field leave: exiting game")
+                    if process.wait(timeout=20) != 0:
+                        raise AssertionError("game leave did not naturally exit 0")
+                    text = log.read_text(encoding="utf-8", errors="replace")
+                    if text.count("field play: stage=0") != 1:
+                        raise AssertionError("game leave unexpectedly reentered battle")
                 else:
                     if process.wait(timeout=20) != 2:
                         raise AssertionError(f"{route} did not stop with explicit unsupported-continuation exit 2")
@@ -493,7 +497,7 @@ class Suite:
                                     else "stage 0 defeat continuation not implemented")
                     if text.count(f"field battle: {route}, stage=0") != 1 or continuation not in text:
                         raise AssertionError(f"{route} result was not distinctly dispatched to main")
-                    if text.count("field play: stage=0") != 1 or "field leave: returning to title" in text:
+                    if text.count("field play: stage=0") != 1 or "field leave: exiting game" in text:
                         raise AssertionError(f"{route} unexpectedly reentered a title/battle route")
                 if save.read_bytes() != original:
                     raise AssertionError(f"main {route} route unexpectedly changed its save fixture")
@@ -529,6 +533,9 @@ class Suite:
             self.command("original-load", [sys.executable, ROOT / "tools/run_original_load.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-load"], timeout=360)
+            self.command("original-leave", [sys.executable, ROOT / "tools/run_original_leave.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-leave"], timeout=300)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

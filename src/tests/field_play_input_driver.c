@@ -211,7 +211,7 @@ static int focused(const InputTarget *target) {
     if (pid != target->pid || GetForegroundWindow() != target->window) {
         char title[256] = {0};
         GetWindowTextA(GetForegroundWindow(), title, sizeof(title));
-        fprintf(stderr, "target window lost focus; target=%lu foreground=%lu title=%s; no key sent\n",
+        fprintf(stderr, "target window lost focus; target=%lu foreground=%lu title=%s\n",
                 (unsigned long)target->pid, (unsigned long)pid, title);
         return 0;
     }
@@ -266,17 +266,37 @@ static int keyboard_event(WORD symbol, INPUT *event) {
 }
 
 static int tap(InputTarget *display, KeySym symbol, unsigned long delay_us) {
-    if (!focused(display)) return -1;
+    /* 按键会正常关闭目标（例如肯定离场）；在注入前持有该进程身份，
+     * 释放按键后区分已退出和仍在运行却失焦，不用前台窗口猜退出。 */
+    HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, display->pid);
+    if (!process) return -1;
     INPUT event;
-    if (keyboard_event(symbol, &event) != 0) return -1;
-    if (SendInput(1, &event, sizeof(event)) != 1) return -1;
+    if (!focused(display) || keyboard_event(symbol, &event) != 0 ||
+        SendInput(1, &event, sizeof(event)) != 1) {
+        CloseHandle(process);
+        return -1;
+    }
     /* 跨过 Debug／WGC 后的短帧停顿，仍低于宿主 500 ms repeat 门。 */
     Sleep(150);
     event.ki.dwFlags |= KEYEVENTF_KEYUP;
     /* 即使此时失焦，也必须配对释放本驱动刚按下的键。 */
-    if (SendInput(1, &event, sizeof(event)) != 1) return -1;
+    if (SendInput(1, &event, sizeof(event)) != 1) {
+        CloseHandle(process);
+        return -1;
+    }
+    /* 按下／松开已配对，此时核对投递条件；后面的节奏等待期间允许
+     * 游戏完成提示并退出，不再要求一个已完成操作继续持有焦点。 */
+    DWORD state = WaitForSingleObject(process, 0);
+    int result = -1;
+    if (state == WAIT_OBJECT_0) {
+        fprintf(stderr, "key delivered; target exited: pid=%lu\n", (unsigned long)display->pid);
+        result = 0; /* 调用者仍须检查预期退出码与业务检查点。 */
+    } else if (state == WAIT_TIMEOUT) {
+        result = focused(display) ? 0 : -1;
+    }
+    CloseHandle(process);
     Sleep((DWORD)((delay_us + 999) / 1000));
-    return focused(display) ? 0 : -1;
+    return result;
 }
 
 extern int fd2_capture_window(HWND window, const char *path);

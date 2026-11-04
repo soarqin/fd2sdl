@@ -33,7 +33,7 @@
 #define WINDOW_H 600
 
 _Static_assert((int)FD2_FIELD_PLAY_RETURN_COMPLETE == (int)FD2_APP_FIELD_COMPLETE &&
-               (int)FD2_FIELD_PLAY_RETURN_TITLE == (int)FD2_APP_FIELD_TITLE &&
+               (int)FD2_FIELD_PLAY_RETURN_LEAVE_GAME == (int)FD2_APP_FIELD_LEAVE_GAME &&
                (int)FD2_FIELD_PLAY_RETURN_HOST_QUIT == (int)FD2_APP_FIELD_HOST_QUIT &&
                (int)FD2_FIELD_PLAY_RETURN_ERROR == (int)FD2_APP_FIELD_ERROR &&
                (int)FD2_FIELD_PLAY_RETURN_VICTORY == (int)FD2_APP_FIELD_VICTORY &&
@@ -51,7 +51,7 @@ static int field_result_status(fd2_field_play_result result, size_t stage) {
             fprintf(stderr, "战场 defeat 已到达（stage=%zu），后续未实现："
                             "stage 0 defeat continuation not implemented\n", stage);
             return 2;
-        case FD2_APP_FLOW_SHOW_TITLE:
+        case FD2_APP_FLOW_LEAVE_GAME:
         case FD2_APP_FLOW_EXIT:
             return 0;
         default:
@@ -925,7 +925,7 @@ int main(int argc, char **argv) {
         /* title_action_dispatch @0x25ebb（原登记 title_action_dispatch）：
          * START=0，四槽 LOAD=1，活动快照 CONTINUE=2；原版也从标题进入
          * 四槽 picker。SDL 的四槽标题流程尚未接入，不能改作退出或活动
-         * 快照恢复。leave-battle 返回 TITLE 时重入，宿主关闭直接退出。 */
+         * 快照恢复。肯定离场与宿主关闭分别记录来源，最终均正常退出。 */
         int first_title = 1;
         while (rc == 0) {
             fd2_save_file title_save = {0};
@@ -990,11 +990,8 @@ int main(int argc, char **argv) {
             }
 
             if (rc != 0) break;
-            flow = fd2_app_flow_from_field(
-                (fd2_app_field_result)play_result);
             rc = field_result_status(play_result, 0);
-            if (rc != 0 || flow != FD2_APP_FLOW_SHOW_TITLE) break;
-            /* 只有游戏内 RETURN_TITLE 重新显示标题；胜败后续未实现时明确停止。 */
+            break;
         }
         fd2_archive_close(&g_ani);
     }

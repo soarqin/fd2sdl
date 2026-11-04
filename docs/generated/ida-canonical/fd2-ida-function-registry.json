@@ -2568,6 +2568,12 @@
      "was": "活动 meta[9]（DS:0x3bfb）被当作当前 actor count 的副本",
      "now": "meta[1] 为当前战场 actor count（DS:0x3beb，格式容量 96）；meta[9] 为独立持久 roster count（DS:0x3bfb，0x8a3 起 0xa00 字节、32 条 0x50 记录）。二者不要求相等，也不以当前 side 2 actor 数量或 active count 为 roster 上限。",
      "why": "已发布伪 C：sub_112A5 @0x112a5 在 dword_53bf7 + 80*dword_53bfb 追加记录并递增 roster count；sub_11506 @0x11506 对 active actor 遍历独立 roster 同步；@0x19df7 writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active 假设。保留中性函数名，未新建 IDB 或修改权威伪 C。"
+    },
+    {
+     "target": "evidence",
+     "was": "SDL 将 secondary 肯定离场的 -1 建模为返回标题",
+     "now": "selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。",
+     "why": "已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。"
     }
    ],
    "end_va": 107275,

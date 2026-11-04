@@ -10,7 +10,7 @@
 
 typedef enum {
     FD2_FIELD_PLAY_RETURN_COMPLETE = 0,
-    FD2_FIELD_PLAY_RETURN_TITLE,
+    FD2_FIELD_PLAY_RETURN_LEAVE_GAME,
     FD2_FIELD_PLAY_RETURN_HOST_QUIT,
     FD2_FIELD_PLAY_RETURN_ERROR,
     FD2_FIELD_PLAY_RETURN_VICTORY,
@@ -18,6 +18,8 @@ typedef enum {
 } fd2_field_play_result;
 
 /* COMPLETE 只表示 once 快速检查结束；正式战斗分别返回 VICTORY/DEFEAT。
+ * LEAVE_GAME 对应 field_secondary_menu_execute @0x19df7 的肯定离场，
+ * 最终退出游戏；与宿主关闭 HOST_QUIT 保持独立来源。
  * 正式战场循环入口。handoff 可为空；非空时把开场结束后的动态状态
  * 应用到从 FDFIELD 建立的正式 session。 */
 fd2_field_play_result fd2_field_play_run(fd2_vga *vga,

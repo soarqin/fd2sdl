@@ -1,4 +1,4 @@
-/* 应用分派回归：保留胜败、游戏内返回标题、宿主退出与快速检查的区别。 */
+/* 应用分派回归：保留胜败、游戏内离场、宿主退出与快速检查的区别。 */
 #include <stdio.h>
 
 #include "app_flow.h"
@@ -35,8 +35,10 @@ int main(void) {
           FD2_APP_FLOW_CONTINUE_GAME);
     CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_HOST_QUIT) ==
           FD2_APP_FLOW_EXIT);
-    CHECK(fd2_app_flow_from_field(FD2_APP_FIELD_TITLE) ==
-          FD2_APP_FLOW_SHOW_TITLE);
+    CHECK(fd2_app_flow_from_field(FD2_APP_FIELD_LEAVE_GAME) ==
+          FD2_APP_FLOW_LEAVE_GAME);
+    CHECK(fd2_app_flow_from_field(FD2_APP_FIELD_LEAVE_GAME) !=
+          fd2_app_flow_from_field(FD2_APP_FIELD_HOST_QUIT));
     CHECK(fd2_app_flow_from_field(FD2_APP_FIELD_COMPLETE) ==
           FD2_APP_FLOW_EXIT);
     CHECK(fd2_app_flow_from_field(FD2_APP_FIELD_HOST_QUIT) ==

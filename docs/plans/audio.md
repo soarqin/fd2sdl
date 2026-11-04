@@ -31,7 +31,7 @@
 - [ ] 在正式战场入口播放对应 stage primary；按 `field_turn_cycle_run @0x1a30b` 已确认的边界淡出、进入 alternate，并在新回合恢复 primary。stage 0 的 track 1/4 有静态依据，不按听感另选曲。
 - [ ] 在现有应用／场景编排处连接 BGM 引用或最小曲目请求；播放器仍由应用层持有，不让 `field_game`、绘制和音频回调共同维护当前曲目。
 - [ ] 明确标题 → 新游戏、Load → 战场、离场 → 标题、胜败 → 结果／下一关的替换与淡出；同曲不重启。恢复配置不应重置单位、phase 或 RNG。
-- [ ] 以 null/offline 后端断言请求顺序、loop count、淡变和 bus；真实输入检查 Load 与返回标题。自动捕获并比较原版对应场景时序，不能仅测试 PCM 有能量。
+- [ ] 以 null/offline 后端断言请求顺序、loop count、淡变和 bus；真实输入检查 Load 与离场。自动捕获并比较原版对应场景时序，不能仅测试 PCM 有能量。
 
 ### A6：FIGANI 动态音效 bank（P2）
 

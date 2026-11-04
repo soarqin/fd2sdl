@@ -109,6 +109,18 @@ CORRECTIONS: dict[int, list[dict]] = {
                "writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 "
                "12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active "
                "假设。保留中性函数名，未新建 IDB 或修改权威伪 C。",
+    }, {
+        "target": "evidence",
+        "was": "SDL 将 secondary 肯定离场的 -1 建模为返回标题",
+        "now": "selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 "
+               "field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 "
+               "传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。"
+               "SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。",
+        "why": "已发布伪 C 调用链与原始 object1 @0x1a301 的 "
+               "b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；"
+               "2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，"
+               "肯定后不再发键、清理前已观察原版 exit 0。"
+               "仅更新登记输入，未建库、重命名数据库或改写权威伪 C。",
     }],
     0x1A30B: [{
         "target": "evidence",

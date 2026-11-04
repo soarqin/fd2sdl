@@ -31,8 +31,8 @@ fd2_app_flow fd2_app_flow_from_field(fd2_app_field_result result) {
     switch (result) {
         case FD2_APP_FIELD_COMPLETE:
             return FD2_APP_FLOW_EXIT;
-        case FD2_APP_FIELD_TITLE:
-            return FD2_APP_FLOW_SHOW_TITLE;
+        case FD2_APP_FIELD_LEAVE_GAME:
+            return FD2_APP_FLOW_LEAVE_GAME;
         case FD2_APP_FIELD_VICTORY:
             return FD2_APP_FLOW_BATTLE_VICTORY;
         case FD2_APP_FIELD_DEFEAT:

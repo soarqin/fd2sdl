@@ -10,7 +10,7 @@ typedef enum {
 } fd2_title_action;
 
 typedef enum {
-    FD2_APP_FLOW_SHOW_TITLE = 0,
+    FD2_APP_FLOW_LEAVE_GAME = 0,
     FD2_APP_FLOW_START_NEW_GAME,
     FD2_APP_FLOW_LOAD_GAME,
     FD2_APP_FLOW_EXIT,
@@ -29,7 +29,7 @@ fd2_app_flow fd2_app_flow_from_title(fd2_title_action action);
 /* field_play_result 的稳定数值镜像，避免纯分派模块依赖 SDL。 */
 typedef enum {
     FD2_APP_FIELD_COMPLETE = 0,
-    FD2_APP_FIELD_TITLE,
+    FD2_APP_FIELD_LEAVE_GAME,
     FD2_APP_FIELD_HOST_QUIT,
     FD2_APP_FIELD_ERROR,
     FD2_APP_FIELD_VICTORY,
@@ -37,7 +37,7 @@ typedef enum {
 } fd2_app_field_result;
 
 _Static_assert(FD2_APP_FIELD_COMPLETE == 0 &&
-               FD2_APP_FIELD_TITLE == 1 &&
+               FD2_APP_FIELD_LEAVE_GAME == 1 &&
                FD2_APP_FIELD_HOST_QUIT == 2 &&
                FD2_APP_FIELD_ERROR == 3 &&
                FD2_APP_FIELD_VICTORY == 4 &&

@@ -1510,9 +1510,24 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             }
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE) {
-                            puts("field leave: returning to title");
+                            /* field_secondary_menu_execute @0x19df7：
+                             * FDTXT[416] 后返回 -1，main 最终退出游戏。 */
+                            if (play_system_confirmation_text(
+                                    &game, vga,
+                                    FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED,
+                                    once) != 0) {
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                                break;
+                            }
+                            if (fd2_input_take_quit(&vga->input)) {
+                                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                                running = 0;
+                                break;
+                            }
+                            puts("field leave: exiting game");
                             fflush(stdout);
-                            play_result = FD2_FIELD_PLAY_RETURN_TITLE;
+                            play_result = FD2_FIELD_PLAY_RETURN_LEAVE_GAME;
                             running = 0;
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM) {

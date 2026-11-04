@@ -1,6 +1,7 @@
 /* 炎龙骑士团 2 SDL3 重写 - 法术/技能 7 字节静态表
  * 逆向依据：field_magic_record_get @0x4e866 返回 DS:0x19fd + id*7；
- * 原始表由 object3 `DS:0x19fd`（file `0x7aa11`）提取。 */
+ * 原始表由 object3 `DS:0x19fd`（file `0x7aa11`）提取；
+ * field_unit_magic_list_build @0x1c269（原登记同名）枚举五字节位图。 */
 
 #include "field_magic.h"
 
@@ -53,6 +54,24 @@ static const uint8_t MAGIC_RECORDS
     {0x00,0x00,0x00,0x05,0x03,0x1c,0x01},
     {0x00,0x00,0x00,0x04,0x02,0x24,0x00},
 };
+
+/* field_unit_magic_list_build @0x1c269（原登记同名）：
+ * 仅按actor+0x1a..0x1e的byte/bit顺序枚举，不代入玩家状态或AI评分门。 */
+size_t fd2_field_unit_magic_list_build(
+        const fd2_field_unit *unit, uint8_t *magic_ids, size_t capacity) {
+    if (!unit) return 0;
+    size_t count = 0;
+    for (size_t byte_index = 0; byte_index < 5u; byte_index++) {
+        uint8_t bits = unit->data_09_1e[0x11u + byte_index];
+        for (size_t bit = 0; bit < 8u; bit++) {
+            if ((bits & (uint8_t)(1u << bit)) == 0) continue;
+            if (magic_ids && count < capacity)
+                magic_ids[count] = (uint8_t)(byte_index * 8u + bit);
+            count++;
+        }
+    }
+    return count;
+}
 
 const uint8_t *fd2_field_magic_record_get(uint8_t magic_id) {
     if ((size_t)magic_id >= FD2_FIELD_MAGIC_COUNT) return NULL;

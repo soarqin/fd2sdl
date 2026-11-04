@@ -445,22 +445,6 @@ int fd2_field_ai_magic_candidate_is_better(
          candidate->tie_value > best->tie_value);
 }
 
-static size_t unit_magic_list_build(
-        const fd2_field_unit *unit, uint8_t *magic_ids, size_t capacity) {
-    if (!unit) return 0;
-    size_t count = 0;
-    for (size_t byte_index = 0; byte_index < 5u; byte_index++) {
-        uint8_t bits = unit->data_09_1e[0x11u + byte_index];
-        for (size_t bit = 0; bit < 8u; bit++) {
-            if ((bits & (uint8_t)(1u << bit)) == 0) continue;
-            if (magic_ids && count < capacity)
-                magic_ids[count] = (uint8_t)(byte_index * 8u + bit);
-            count++;
-        }
-    }
-    return count;
-}
-
 int fd2_field_ai_choose_magic_candidate(
         const fd2_field_map *map,
         const fd2_terrain_tileset *terrain,
@@ -475,7 +459,7 @@ int fd2_field_ai_choose_magic_candidate(
     if (actor->detail_status[2] != 0u) return -1;
 
     uint8_t magic_ids[40];
-    size_t magic_count = unit_magic_list_build(
+    size_t magic_count = fd2_field_unit_magic_list_build(
         actor, magic_ids, sizeof(magic_ids));
     if (magic_count == 0 || magic_count > sizeof(magic_ids)) return -1;
 

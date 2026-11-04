@@ -13,6 +13,47 @@
     } \
 } while (0)
 
+static int test_magic_bitmap_query(void) {
+    fd2_field_unit unit = {0};
+    uint8_t ids[42];
+    memset(ids, 0xa5, sizeof(ids));
+    CHECK(fd2_field_unit_magic_list_build(NULL, ids, sizeof(ids)) == 0);
+    CHECK(fd2_field_unit_magic_list_build(&unit, ids, sizeof(ids)) == 0);
+    for (size_t i = 0; i < sizeof(ids); i++) CHECK(ids[i] == 0xa5);
+
+    /* 原始actor+1a..1e：byte/bit递增，跨byte和已知record表上界。 */
+    static const uint8_t bits[] = {0x81, 0x42, 0x20, 0x80, 0x98};
+    static const uint8_t expected[] = {0, 7, 9, 14, 21, 31, 35, 36, 39};
+    memcpy(unit.data_09_1e + 0x11, bits, sizeof(bits));
+    unit.detail_status[2] = 1;
+    unit.flags = FD2_FIELD_UNIT_FLAG_HIDDEN | FD2_FIELD_UNIT_FLAG_ACTED;
+    fd2_field_unit before = unit;
+    CHECK(fd2_field_unit_magic_list_build(&unit, NULL, 0) == sizeof(expected));
+    CHECK(fd2_field_unit_magic_list_build(&unit, ids, 0) == sizeof(expected));
+    for (size_t i = 0; i < sizeof(ids); i++) CHECK(ids[i] == 0xa5);
+    CHECK(fd2_field_unit_magic_list_build(&unit, ids + 1, 3) == sizeof(expected));
+    CHECK(ids[0] == 0xa5);
+    for (size_t i = 4; i < sizeof(ids); i++) CHECK(ids[i] == 0xa5);
+    CHECK(memcmp(ids + 1, expected, 3) == 0);
+    memset(ids, 0xa5, sizeof(ids));
+    CHECK(fd2_field_unit_magic_list_build(&unit, ids + 1, 40) == sizeof(expected));
+    CHECK(memcmp(ids + 1, expected, sizeof(expected)) == 0);
+    CHECK(ids[0] == 0xa5);
+    for (size_t i = sizeof(expected) + 1; i < sizeof(ids); i++) CHECK(ids[i] == 0xa5);
+    CHECK(memcmp(&before, &unit, sizeof(unit)) == 0);
+    CHECK(fd2_field_magic_record_get(35) != NULL);
+    CHECK(fd2_field_magic_record_get(36) == NULL && fd2_field_magic_record_get(39) == NULL);
+
+    memset(unit.data_09_1e + 0x11, 0xff, 5);
+    before = unit;
+    memset(ids, 0xa5, sizeof(ids));
+    CHECK(fd2_field_unit_magic_list_build(&unit, ids + 1, 40) == 40);
+    for (uint8_t i = 0; i < 40; i++) CHECK(ids[1u + i] == i);
+    CHECK(ids[0] == 0xa5 && ids[41] == 0xa5);
+    CHECK(memcmp(&before, &unit, sizeof(unit)) == 0);
+    return 0;
+}
+
 static void set_unit(fd2_field_units *units, size_t index,
                      uint8_t side, uint8_t x, uint8_t y) {
     fd2_field_unit *unit = &units->items[index];
@@ -248,6 +289,35 @@ static int test_magic_and_item_scoring(void) {
     CHECK(magic_choice.score == 24 && magic_choice.tie_value == 50);
     CHECK(memcmp(&magic_before, &magic_units, sizeof(magic_units)) == 0);
 
+    /* 此处验证实际AI caller的只读gate；不是尚未接入的玩家列表输入。
+     * raw枚举不因状态/MP过滤，caller才拒绝+27、空列表或不足MP。
+     * 36..39未知位保留在枚举中，但不能访问7byte表或生成假candidate。 */
+    for (int scenario = 0; scenario < 6; scenario++) {
+        fd2_field_units query_units = magic_units;
+        if (scenario == 0) query_units.items[0].detail_status[2] = 1;
+        if (scenario == 1) query_units.items[0].data_09_1e[0x11] = 0;
+        if (scenario == 2) query_units.items[0].mp = 1;
+        if (scenario == 3) {
+            query_units.items[0].data_09_1e[0x11] = 0;
+            query_units.items[0].data_09_1e[0x15] = 0x10;
+        }
+        if (scenario == 4) query_units.items[0].data_09_1e[0x15] = 0x10;
+        if (scenario == 5) query_units.items[0].mp = 2;
+        fd2_field_units before = query_units;
+        fd2_field_ai_magic_candidate selected;
+        memset(&selected, 0xa5, sizeof(selected));
+        fd2_field_ai_magic_candidate untouched = selected;
+        int result = fd2_field_ai_choose_magic_candidate(
+            &map, &terrain, &query_units, 0, 0, &selected);
+        if (scenario < 4) {
+            CHECK(result == -1);
+            CHECK(memcmp(&selected, &untouched, sizeof(selected)) == 0);
+        } else {
+            CHECK(result == 0 && selected.magic_id == 0 && selected.score == 24);
+        }
+        CHECK(memcmp(&query_units, &before, sizeof(query_units)) == 0);
+    }
+
     /* record +6 是目标阵营 filter，不是效果／伤害开关：selector_mode 0
      * 会把 +6==0 反转为 filter 1；selector_mode 非 0 则直接使用 +6。
      * magic 13 的 +6==1 因而在 mode 1 仍选择 side 非 0 目标。 */
@@ -471,7 +541,8 @@ static int test_physical_candidate_and_dispatch(void) {
 }
 
 int main(void) {
-    if (test_behavior_and_nearest_target() != 0 ||
+    if (test_magic_bitmap_query() != 0 ||
+        test_behavior_and_nearest_target() != 0 ||
         test_destination_order() != 0 ||
         test_magic_and_item_scoring() != 0 ||
         test_physical_candidate_and_dispatch() != 0)

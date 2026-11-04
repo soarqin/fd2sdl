@@ -10,6 +10,14 @@
 #define FD2_FIELD_MAGIC_COUNT 36u
 #define FD2_FIELD_MAGIC_DAMAGE_PROFILE_COUNT 28u
 
+/* field_unit_magic_list_build @0x1c269（原登记同名）：按actor
+ * +0x1a..0x1e的40个bit递增枚举，保留超出36条record表的未知ID。
+ * 返回总数；output为NULL只计数，否则最多写capacity个ID。capacity是
+ * SDL的缓冲边界，不是原版ABI。空unit返回0且不写output。
+ * 不检查状态/MP，不提交消耗、acted、phase、pending或RNG。 */
+size_t fd2_field_unit_magic_list_build(
+    const fd2_field_unit *unit, uint8_t *magic_ids, size_t capacity);
+
 /* field_magic_record_get @0x4e866：DS:0x19fd + magic_id*7。
  * 表内容来自 object3 `DS:0x19fd`，对应 FD2.EXE file offset `0x7aa11`。
  * 字段在 AI 评分层暂按原始 offset 使用，避免提前赋予玩法语义。 */

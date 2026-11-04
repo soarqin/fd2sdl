@@ -28,6 +28,7 @@ static fd2_field_unit unchanged_units[2];
 static uint16_t unchanged_rng;
 static int session_failure_case;
 static int terminal_case;
+static int auxiliary_checked;
 
 int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
                                const fd2_archive *fdother, size_t stage) {
@@ -46,15 +47,26 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     game->phase_next_action_ms = 1;
     if (terminal_case == 1 || terminal_case == 5) game->units.items[1].hp = 0;
     if (terminal_case == 2) game->units.items[0].hp = 0;
-    if (terminal_case == 3) {
+    if (terminal_case == 3 || terminal_case == 6) {
         fd2_field_system_menu_init(&game->system_menu);
         game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
-        game->system_menu.confirmation_action = FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE;
-        game->system_menu.confirmation_return_page = FD2_FIELD_SYSTEM_PAGE_SECONDARY;
+        game->system_menu.confirmation_action = terminal_case == 3
+            ? FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE
+            : FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM;
+        game->system_menu.confirmation_return_page = terminal_case == 3
+            ? FD2_FIELD_SYSTEM_PAGE_SECONDARY : FD2_FIELD_SYSTEM_PAGE_PARENT;
         game->system_menu.confirmation_return_selected = 3;
         game->system_menu.confirmation_yes = 1;
         game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
     }
+    if (terminal_case == 6) {
+        /* 缺少 ui_text/font 时不得越过 FDTXT[420] 呈现边界。空事件表
+         * 保证错误地推进 phase 不会先被其他 handler 失败掩盖。 */
+        game->turn_number = 17;
+        memset(game->metadata.turn_events, 0xff,
+               sizeof(game->metadata.turn_events));
+    }
+    if (terminal_case == 4) active_game = game;
     if (session_failure_case == 1) {
         game->failure = FD2_FIELD_FAILURE_EVENT_CAPACITY;
         game->units.items[0].hp = 0; /* 同时出现结果门，也必须先报告错误。 */
@@ -77,7 +89,7 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         game->event_log[0].presentation_deferred = 1;
     }
     if (session_failure_case == 2) game->event_log_count = 0;
-    if (terminal_case == 3 || terminal_case == 5) game->event_log_count = 0;
+    if (terminal_case >= 3) game->event_log_count = 0;
     return 0;
 }
 
@@ -108,8 +120,17 @@ void __wrap_fd2_vga_present(fd2_vga *vga) { (void)vga; }
 int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
     (void)input;
-    if (terminal_case == 3 && action_sent++ == 0) {
+    if ((terminal_case == 3 || terminal_case == 6) && action_sent++ == 0) {
         *action = FD2_INPUT_ACTION_CONFIRM;
+        return 1;
+    }
+    if (terminal_case == 4) {
+        if (action_sent++ == 0) {
+            *action = FD2_INPUT_ACTION_FIELD_AUXILIARY;
+            return 1;
+        }
+        auxiliary_checked = active_game->interaction == FD2_FIELD_INTERACTION_BROWSE;
+        *action = FD2_INPUT_ACTION_EXIT;
         return 1;
     }
     if (session_failure_case == 2 && action_sent == 0) {
@@ -233,11 +254,22 @@ int main(void) {
     action_sent = 0;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
           FD2_FIELD_PLAY_RETURN_TITLE);
+    terminal_case = 4;
+    action_sent = 0;
+    CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+          FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+    CHECK(auxiliary_checked);
     terminal_case = 5;
     vga.input.quit_requested = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
           FD2_FIELD_PLAY_RETURN_HOST_QUIT);
     vga.input.quit_requested = 0;
+    terminal_case = 6;
+    action_sent = 0;
+    failure_called = 0;
+    CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+          FD2_FIELD_PLAY_RETURN_ERROR);
+    CHECK(action_sent == 1 && failure_called == 0);
     puts("field_play_result_test: ok");
     return 0;
 }

@@ -434,6 +434,8 @@ sum(plain[0:0x59c7]) == u32le(plain[0x59c7:0x59cb]) == 0x004527c1
 
 ```text
 偏移      长度    字段
+0x0000    0x08a3  当前关卡 metadata 缓冲；有效前缀与 FDFIELD[3*stage+1] 同格式
+0x08a3    0x0a00  持久角色 roster，0x50 字节记录，容量 32；独立于活动单位区
 0x12a3    0x1e00  活动战场单位区，0x50 字节记录，最多 96 条
 0x30a3    0x20    cell action 状态；当前 SDL 仅使用前 16 字节
 0x30c3    0x68    活动战场 meta；原版 writer 明确更新前 18 字节
@@ -441,15 +443,16 @@ sum(plain[0:0x59c7]) == u32le(plain[0x59c7:0x59cb]) == 0x004527c1
 
 `meta[0..8]` 的当前确认映射：`turn_number、unit_count、stage_id、camera_x、
 camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
-是 `unit_count` 的冗余副本（`DS:0x3bfb`）；`meta[10..13]` 是
+是持久 roster 的独立数量（`DS:0x3bfb`），范围 `0..32`；活动数量对应 `DS:0x3beb`，格式容量为 96。`meta[10..13]` 是
 `DAT_00003bf3` 的 32 位资源值，`meta[14..17]` 依次对应 `DS:0x3af9、0x1aab、
 0x1e61、0x1e62` 四个配置字节。options loop @code0 `0x735b..0x73e2`
 确认四个 selector 都立即翻转对应字节；第三项仅在 command-ID 显示条件上
 反向。第一项控制音乐音量淡入／静音，第二项控制 SFX 播放门；第三、四项
-的可见名称仍待 DOSBox 人工确认。其余字节保持不透明。
-SDL 的活动快照 codec 只覆盖已有 owner 的 `meta[0..17]`、当前单位前缀和
-cell-state 前 16 字节；其他字节来自原容器并逐字保留。导入时要求
-`meta[9] == meta[1]`，避免接受内部 count 副本不一致的快照。
+的可见名称仍待 DOSBox 捕获确认，允许独立副本自动输入与取证。其余字节保持不透明。
+SDL 活动快照写入当前 session 的关卡 metadata 有效前缀、完整 `0xa00` 持久 roster、`meta[0..17]`、当前单位前缀和
+cell-state 前 16 字节。metadata 的 shape、事件／action 表及模板来自本关资源和 session；stage 0 有效长度为 `0x83+31*26=937`。metadata 未用尾及其他未拥有区域来自目标容器并逐字保留；roster 的未知尾则随整个表在 session 中恢复和写回，不能混用目标容器的旧尾。不能把整份旧关卡 metadata 当成无关字节保留，否则原版会按首字节选错 FDSHAP。导入时要求 metadata shape 与当前已加载资源一致，并只解析已确认的模板数。
+
+不得要求 `meta[9] == meta[1]` 或 roster 不超过当前活动数量。原版 `START.SAV` 的两数为 `12/4`，本地 `FD2.SAV` 为 `27/31`；后者本关 side 2 仅 20 人，也不能按当前玩家数重算 roster。`sub_112A5 @0x112a5` 在 `dword_53BF7 + 80*dword_53BFB` 追加持久角色并递增其 count；`sub_11506 @0x11506` 按 text ID 将已确认持续状态回写该独立表。活动恢复 `sub_10010 @0x10010` 分别恢复两个表及其数量。此前将 `meta[9]` 认作冗余副本的结论已被这些原版数据与调用链反证。
 原版 loader 读回
 活动快照后直接进入玩家控制器，因此 SDL 成功导入后固定回到 side 2 的
 browse 边界；`phase_unit_cursor/phase_ai_pass` 是 SDL 分步 scheduler 的旁路
@@ -480,7 +483,7 @@ slot+0xa0a  0x1e      若干进度／未知字节，写回必须完整保留
 展开页面，等待任意键后反向收起。页面绘制 helper `0xb41d` 逐行显示 actor
 属性，并显示 `stage_id+1`、回合数 `DAT_00003bef`、资源值
 `DAT_00003bf3` 和三阵营可见单位计数。由此可确认它是全屏部队状态总览；
-用户可见标签与精确页名仍待 DOSBox 人工截图，SDL 暂不猜测中文名称。
+用户可见标签与精确页名仍待 DOSBox 截图证据，允许自动捕获，SDL 暂不猜测中文名称。
 
 原版写档路径 code0 `0x9f7a..0xa136` 读取并解密完整文件，修改当前状态，
 重算 checksum，再加密写回。SDL `fd2_save_file` 采用相同的整文件保留式模型：
@@ -488,17 +491,15 @@ slot+0xa0a  0x1e      若干进度／未知字节，写回必须完整保留
 可写完整 `0x28` 字节 meta，slot 3 只写前 `0x24` 字节，其最后 4 字节必须由
 文件 checksum 覆盖。原版手工 slot 配置映射由 code0
 `0x16064..0x16098/0x19757..0x19791` 确认；手工保存路径 code0
-`0x1968d` 会无条件复制当前运行期单位表的完整 `0xa00` 字节，而不是只复制
+`0x1968d` 会无条件复制持久 roster 表的完整 `0xa00` 字节，而不是当前活动 actor 表或只复制
 `unit_count` 条记录；SDL 的 `fd2_save_file_update_manual_slot()` 已提供该整块
-更新接口；SDL 已增加独立四槽 picker 状态机、输入上下文和事务后端。该
+更新接口；SDL 已增加独立四槽 picker 状态机、输入上下文和保留式 codec。手工 Save 使用持久 roster，不能把当前活动 actor 当作该表。该
 picker 属于独立 dispatcher `0x19300`，不替换 secondary `0x9df7` 的活动快照
 Save／Load。code0 `0x19ab2` 证明该 picker 为
 `y=0x77+index*0x13` 的纵向四项：每项先绘制 FDTXT `0x225`，空槽使用
 `0x202`，有效槽使用 `0x202+stage_id`；保存／读取成功分别显示 `0x294` 和
 `0x1de`。SDL 使用预解码完整 FDICON bank 取代原版按 unit ID 重建的 FD2.TMP
-cache，因此无需建立持久 cache class；手工 Load 后仍复现
-`DS:0x3f56 = 0x238d + stage*0x1f` 的 stage runtime entry owner，但不猜测
-31 字节记录内尚未命名的字段。最终调色板与装饰视觉仍待人工对照。
+cache，因此无需建立持久 cache class。手工 Load 必须恢复持久 roster 后按原版入口重建关卡；在该入口契约完成前，session 层明确拒绝，不再将 slot 当成活动快照直接恢复。活动快照恢复仍维护 `DS:0x3f56 = 0x238d + stage*0x1f` 的 stage runtime entry owner，不猜测其余字段。最终调色板与装饰视觉仍待原版对照，可按[图形自动化测试](../tools/gui-testing.md)自动捕获并比较。
 其他字节保持不变。
 原版手工读取 code0 `0x1986f` 仅以 `slot+0xa00 == 0xff` 判定空槽；SDL 的
 严格 `fd2_save_file_get_manual_slot()` 另外要求 `unit_count` 在 `0..32`，以便

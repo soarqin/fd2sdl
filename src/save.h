@@ -15,9 +15,17 @@
 #define FD2_SAVE_SLOT_META_SIZE 0x28u
 #define FD2_SAVE_LAST_SLOT_META_SIZE 0x24u
 
-/* 原版活动战场快照，位于四个手工 slot 之前。战场 save 路径 code0
- * 0x9fe9..0xa102 更新这些范围；启动／恢复路径 code0 0x10..0x44b
- * 原样读回。 */
+/* 原版活动战场快照，位于四个手工 slot 之前。
+ * field_secondary_menu_execute @0x19df7（原登记同名）写回 metadata，
+ * sub_10010 @0x10010 恢复其首字节选择 FDSHAP；不能沿用其他关卡前缀。 */
+#define FD2_SAVE_BATTLE_METADATA_BASE 0u
+#define FD2_SAVE_BATTLE_METADATA_SIZE 0x08a3u
+/* sub_112A5 @0x112a5 追加、sub_11506 @0x11506 同步的持久 roster，
+ * 与当前战场 actor 区分别保存；0x30c3+9 是其独立条数。 */
+#define FD2_SAVE_BATTLE_ROSTER_BASE 0x08a3u
+#define FD2_SAVE_BATTLE_ROSTER_SIZE 0x0a00u
+#define FD2_SAVE_BATTLE_MAX_ROSTER \
+    (FD2_SAVE_BATTLE_ROSTER_SIZE / FD2_SAVE_UNIT_RECORD_SIZE)
 #define FD2_SAVE_BATTLE_UNIT_BASE 0x12a3u
 #define FD2_SAVE_BATTLE_UNIT_AREA_SIZE 0x1e00u
 #define FD2_SAVE_BATTLE_MAX_UNITS \
@@ -35,7 +43,7 @@
 #define FD2_SAVE_BATTLE_META_FOCUS_Y 6u
 #define FD2_SAVE_BATTLE_META_FOCUS_REL_X 7u
 #define FD2_SAVE_BATTLE_META_FOCUS_REL_Y 8u
-#define FD2_SAVE_BATTLE_META_UNIT_COUNT_COPY 9u
+#define FD2_SAVE_BATTLE_META_ROSTER_COUNT 9u
 #define FD2_SAVE_BATTLE_META_RESOURCE_VALUE 10u
 #define FD2_SAVE_BATTLE_META_OPTION_EFFECT 14u
 #define FD2_SAVE_BATTLE_META_OPTION_CAMERA 15u
@@ -79,6 +87,8 @@ typedef struct {
 } fd2_save_file;
 
 typedef struct {
+    uint8_t metadata[FD2_SAVE_BATTLE_METADATA_SIZE];
+    uint8_t roster[FD2_SAVE_BATTLE_ROSTER_SIZE];
     uint8_t unit_area[FD2_SAVE_BATTLE_UNIT_AREA_SIZE];
     uint8_t cell_state[FD2_SAVE_BATTLE_CELL_STATE_SIZE];
     uint8_t meta[FD2_SAVE_BATTLE_META_SIZE];

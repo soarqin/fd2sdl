@@ -90,70 +90,47 @@ static int known_status_stat_scale(void *userdata,
     return 0;
 }
 
-static int apply_stage0_player_equipment(fd2_field_unit *unit) {
-    if (!unit) return -1;
-    fd2_field_unit updated = *unit;
-    uint8_t *record = (uint8_t *)&updated;
-    /* DOSBox 第一关运行时 0x50 字节记录确认。未使用槽统一规范为
-     * flag 0x80 / item 0xff；原版被忽略的 item byte 含未初始化残值。 */
-    memset(record + 0x0a, 0x80, 0x10);
-    for (size_t slot = 0; slot < 8; slot++)
-        record[0x0b + slot * 2u] = 0xff;
-    switch (unit->unit_id) {
-        case 0:
-            record[0x0a] = 0x40; record[0x0b] = 0;   /* 短剑 */
-            record[0x0c] = 0x40; record[0x0d] = 132; /* 皮甲 */
-            record[0x0e] = 0x00; record[0x0f] = 192; /* 药草 */
-            break;
-        case 9:
-            record[0x0a] = 0x40; record[0x0b] = 52;  /* 长棍 */
-            record[0x0c] = 0x40; record[0x0d] = 164; /* 长袍 */
-            break;
-        case 4:
-            record[0x0a] = 0x40; record[0x0b] = 20;  /* 刺矛 */
-            record[0x0c] = 0x40; record[0x0d] = 128; /* 布衣 */
-            break;
-        case 30:
-            record[0x0a] = 0x40; record[0x0b] = 72;  /* 威力手臂 */
-            record[0x0c] = 0x40; record[0x0d] = 178; /* 战斗装甲 */
-            break;
-        default:
-            return -1;
-    }
-    if (fd2_field_unit_combat_stats_recompute(
-            &updated, known_item_stat_lookup, NULL, NULL, NULL) != 0)
-        return -1;
-    *unit = updated;
+static int append_persistent_player(fd2_field_game *game, uint8_t unit_id) {
+    if (game->roster_count >= FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+    fd2_field_unit *record = &game->roster[game->roster_count];
+    if (fd2_field_unit_persistent_create(record, unit_id) != 0) return -1;
+    game->roster_count++;
     return 0;
 }
 
-static int load_stage0_units(fd2_field_units *units,
-                             const fd2_field_metadata *meta,
-                             const fd2_field_placements *placements) {
+static int load_stage0_units(fd2_field_game *game) {
     /* new_game_opening_play @0x3231b 在进入 stage 0 前把四名玩家
      * 0/9/4/30 放在 placement 末四个玩家槽；随后
      * field_actor_group_arrival_effect @0x32999 依次加入 group 1/2；
      * 组内 actor 由 field_unit_stage_template_append @0x10c50 的模板重排
      * 与基础表等级公式构造。 */
     static const uint8_t player_ids[] = {0, 9, 4, 30};
-    if (!units || !meta || !placements || placements->count < 4)
-        return -1;
+    fd2_field_units *units = &game->units;
+    const fd2_field_metadata *meta = &game->metadata;
+    const fd2_field_placements *placements = &game->placements;
+    if (placements->count < 4) return -1;
 
     fd2_field_units_clear(units);
+    game->roster_count = 0;
     size_t player_base = placements->count - 4;
     for (size_t i = 0; i < sizeof(player_ids); i++) {
         const fd2_field_placement *placement =
             &placements->records[player_base + i];
-        if (fd2_field_units_set(units, units->count,
+        if (append_persistent_player(game, player_ids[i]) != 0 ||
+            fd2_field_units_set(units, units->count,
                                 player_ids[i], player_ids[i], 2,
-                                placement->x, placement->y) != 0 ||
-            fd2_field_unit_base_apply(
-                &units->items[units->count - 1], 1) != 0 ||
-            apply_stage0_player_equipment(
-                &units->items[units->count - 1]) != 0) {
+                                placement->x, placement->y) != 0) {
             fd2_field_units_clear(units);
             return -1;
         }
+        /* sub_1088D @0x1088d 从持久记录实例化 active，再写部署坐标、
+         * cache 与交互字段；不把 active 状态反向作为 roster 初始化。 */
+        fd2_field_unit *active = &units->items[i];
+        *active = game->roster[i];
+        active->x = (uint8_t)placement->x;
+        active->y = (uint8_t)placement->y;
+        active->direction = active->frame_phase = 0;
+        ((uint8_t *)active)[0x31] = 0xff;
     }
     if (fd2_field_units_append_group(units, meta, placements, 1) != 0 ||
         fd2_field_units_append_group(units, meta, placements, 2) != 0 ||
@@ -254,7 +231,8 @@ static void init_option_values(fd2_field_game *game) {
 
 static void refresh_secondary_menu_disabled(fd2_field_game *game) {
     if (!game) return;
-    uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {0, 0, 0, 0};
+    /* selector 0 总览尚未实现；这是 SDL 能力门，不是原版禁用规则。 */
+    uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {1, 0, 0, 0};
     if (!game->save_resource_available)
         disabled[2] = 1;
     for (size_t i = 0; i < game->units.count; i++) {
@@ -268,6 +246,18 @@ static void refresh_secondary_menu_disabled(fd2_field_game *game) {
     fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
 }
 
+static void refresh_system_menu_disabled(fd2_field_game *game) {
+    if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY) {
+        refresh_secondary_menu_disabled(game);
+    } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT) {
+        const uint8_t disabled[] = {0, 1, 0, 0}; /* SDL 尚无 march 后端。 */
+        fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
+    } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_OPTIONS) {
+        /* 后两项只确认过存档位，尚未实现其可见效果。 */
+        const uint8_t disabled[] = {0, 0, 1, 1};
+        fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
+    }
+}
 
 static int unit_can_act_for_side(const fd2_field_unit *unit, uint8_t side) {
     return unit && unit->side == side && !fd2_field_unit_is_hidden(unit) &&
@@ -355,6 +345,9 @@ static int execute_known_turn_event(fd2_field_game *game, uint8_t action) {
     if (!game || game->stage != 0 || action > 3) return -1;
 
     fd2_field_units saved_units = game->units;
+    fd2_field_unit saved_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
+    memcpy(saved_roster, game->roster, sizeof(saved_roster));
+    size_t saved_roster_count = game->roster_count;
     int saved_camera_x = game->camera_cell_x;
     int saved_camera_y = game->camera_cell_y;
     int result = -1;
@@ -364,7 +357,8 @@ static int execute_known_turn_event(fd2_field_game *game, uint8_t action) {
      * 再从 notice 的提交前快照重放镜头、移动、LMI1 与对话。 */
     switch (action) {
         case 0:
-            if (append_stage0_event_group(game, 3) != 0) break;
+            if (append_persistent_player(game, 1) != 0 ||
+                append_stage0_event_group(game, 3) != 0) break;
             game->camera_cell_x = clamp_int(5, 0, max_camera_x(game));
             game->camera_cell_y = clamp_int(8, 0, max_camera_y(game));
             if (apply_stage0_event_script(game, 7) != 0 ||
@@ -398,6 +392,8 @@ static int execute_known_turn_event(fd2_field_game *game, uint8_t action) {
 
     if (result != 0) {
         game->units = saved_units;
+        memcpy(game->roster, saved_roster, sizeof(saved_roster));
+        game->roster_count = saved_roster_count;
         game->camera_cell_x = saved_camera_x;
         game->camera_cell_y = saved_camera_y;
     }
@@ -579,6 +575,21 @@ static void enter_phase(fd2_field_game *game, uint8_t side) {
     apply_phase_status_tick(game, side);
 }
 
+static void recover_unacted_players(fd2_field_game *game) {
+    /* field_turn_cycle_run @0x1a30b（原登记 FUN_00017a53）：进入 side 1
+     * 前只恢复 side 2、flags &0x81==0、+0x25/+0x26 为零且 HP!=maxHP
+     * 的 actor。恢复量为 maxHP/5；即使整数结果为零也 OR acted。 */
+    for (size_t i = 0; i < game->units.count; i++) {
+        fd2_field_unit *unit = &game->units.items[i];
+        if (unit->side != 2u || (unit->flags & 0x81u) != 0u ||
+            unit->detail_status[0] != 0u || unit->detail_status[1] != 0u ||
+            unit->hp == unit->hp_max)
+            continue;
+        uint32_t hp = (uint32_t)unit->hp + unit->hp_max / 5u;
+        unit->hp = (uint16_t)(hp > unit->hp_max ? unit->hp_max : hp);
+        fd2_field_unit_set_acted(unit, 1);
+    }
+}
 
 static void advance_phase(fd2_field_game *game) {
     if (!game || game->failure != FD2_FIELD_FAILURE_NONE) return;
@@ -591,6 +602,7 @@ static void advance_phase(fd2_field_game *game) {
      * scheduler 仍在处理 side 1 的最后一次 actor 提交，会把刚写的 acted
      * 擦掉。side 1→0 的清除因此延迟到 side 0 第一项实际调度之前。 */
     if (game->active_side == 2) {
+        recover_unacted_players(game);
         enter_phase(game, 1);
     } else if (game->active_side == 1) {
         enter_phase(game, 0);
@@ -630,6 +642,7 @@ int fd2_field_game_open(fd2_field_game *game,
     init_option_values(game);
     fd2_field_system_menu_set_options(&game->system_menu,
                                       game->option_values);
+    refresh_system_menu_disabled(game);
     game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
     game->manual_slot_picker.open = 0;
     game->save_resource_available = 0;
@@ -668,8 +681,7 @@ int fd2_field_game_open(fd2_field_game *game,
         fd2_field_command_assets_open(&game->command_assets, fdother) != 0)
         goto fail;
 
-    if (load_stage0_units(&game->units, &game->metadata,
-                          &game->placements) != 0 ||
+    if (load_stage0_units(game) != 0 ||
         validate_stage0_units(game) != 0)
         goto fail;
 
@@ -1140,6 +1152,16 @@ static void render_field_system_menu(const fd2_field_game *game,
         const fd2_image *dialog = &game->info_assets.detail_bottom;
         if (dialog->pixels)
             fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
+        /* sub_19953 @0x19953：DS:0x1eed={16,17}，YES/NO 最终位置。
+         * 复用 FDOTHER[2] 原图，选中项在 normal/highlight 间闪动。 */
+        for (uint8_t choice = 0; choice < 2; choice++) {
+            const fd2_image *button = fd2_field_command_frame_id(
+                &game->command_assets, (uint8_t)(16 + choice),
+                game->system_menu.confirmation_yes == (choice == 0), 0,
+                game->system_menu.highlight_phase);
+            if (button)
+                fd2_map_sprite_blit(vga, button, 232 + choice * 32, 168, 0);
+        }
         size_t fragment;
         if (fd2_field_system_menu_get_confirmation_fragment(
                 &game->system_menu, FD2_FIELD_SYSTEM_CONFIRM_PROMPT,
@@ -1164,8 +1186,6 @@ static void render_field_system_menu(const fd2_field_game *game,
                 x += 16;
             }
         }
-        /* yes/no 的可见标签仍待 DOSBox 对照；confirmation_yes 只作为
-         * 独立输入状态，不猜测 command ID。 */
         return;
     }
     uint8_t command_ids[FD2_FIELD_SYSTEM_MENU_COUNT];
@@ -1416,6 +1436,7 @@ int fd2_field_game_open_system_menu(fd2_field_game *game) {
     fd2_field_system_menu_init(&game->system_menu);
     fd2_field_system_menu_set_options(&game->system_menu,
                                       game->option_values);
+    refresh_system_menu_disabled(game);
     game->last_system_action = FD2_FIELD_SYSTEM_ACTION_NONE;
     game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
     return 0;
@@ -1435,15 +1456,19 @@ fd2_field_system_action fd2_field_game_confirm_system_menu(
     if (!game || !game->ready ||
         game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
         return FD2_FIELD_SYSTEM_ACTION_NONE;
+    int confirming = game->system_menu.page ==
+        FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
     game->last_system_action = fd2_field_system_menu_confirm(
         &game->system_menu);
     if (game->last_system_action ==
-            FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY)
-        refresh_secondary_menu_disabled(game);
-    else if (game->last_system_action ==
              FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING)
         memcpy(game->option_values, game->system_menu.option_values,
                sizeof(game->option_values));
+    refresh_system_menu_disabled(game);
+    /* field_empty_focus_menu_execute @0x16f55（原登记 FUN_0001469d）
+     * 与 secondary 的共享返回尾：确认／拒绝后均退出到浏览。 */
+    if (confirming)
+        game->interaction = FD2_FIELD_INTERACTION_BROWSE;
     return game->last_system_action;
 }
 
@@ -1452,10 +1477,14 @@ fd2_field_system_action fd2_field_game_cancel_system_menu(
     if (!game || !game->ready ||
         game->interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU)
         return FD2_FIELD_SYSTEM_ACTION_NONE;
+    int confirming = game->system_menu.page ==
+        FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
     game->last_system_action = fd2_field_system_menu_cancel(
         &game->system_menu);
-    if (game->last_system_action == FD2_FIELD_SYSTEM_ACTION_CANCEL)
+    if (confirming || game->last_system_action == FD2_FIELD_SYSTEM_ACTION_CANCEL)
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+    else
+        refresh_system_menu_disabled(game);
     return game->last_system_action;
 }
 
@@ -2227,6 +2256,7 @@ int fd2_field_game_finish_unit_action(fd2_field_game *game) {
 }
 
 int fd2_field_game_end_active_phase(fd2_field_game *game) {
+    /* 快速逻辑回归专用的 phase skip；正式玩家输入不调用此全 acted 路径。 */
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
@@ -2239,6 +2269,16 @@ int fd2_field_game_end_active_phase(fd2_field_game *game) {
     return game->failure == FD2_FIELD_FAILURE_NONE ? 0 : -1;
 }
 
+int fd2_field_game_end_player_turn(fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->active_side != 2u || game->selected_unit >= 0 ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE)
+        return -1;
+    /* field_empty_focus_menu_execute @0x16f55（原登记同名）的 selector 3
+     * 确认后直接进入 turn_cycle，不先给全部玩家设置 acted。 */
+    advance_phase(game);
+    return game->failure == FD2_FIELD_FAILURE_NONE ? 0 : -1;
+}
 
 static int finish_ai_action(fd2_field_game *game, size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||

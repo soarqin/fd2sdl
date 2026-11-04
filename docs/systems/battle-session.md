@@ -83,7 +83,7 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
 
-## 4. 战场结果与应用去向（B1.1 已接入，B5 待实施）
+## 4. 战场结果与应用去向（B1 已接入，B5 待实施）
 
 `battle_result` 的 stage 0 胜／败通过 `fd2_field_play_result` 与 `app_flow` 分别传给应用层。正式循环先处理 session 错误和宿主退出，再推进下一 actor；快速检查不触发真实胜败结算。
 
@@ -111,18 +111,23 @@ B5 的交接顺序应先确认原版 callback、持续单位字段和剧情，�
 |---|---|---|
 | 原始单位区 | `0x1e00` 字节，格式容量 96 条 | 每槽 `0xa00` 字节，格式容量 32 条 |
 | 入口 | 标题 CONTINUE／secondary Save/Load | 原版标题 LOAD／`field_manual_slot_dispatch @0x29300`；SDL 可见手工入口未接 |
-| 保存数据 | 已确认单位、cell state、stage/turn、镜头／焦点、配置及保留区 | 完整单位块、已确认 meta、配置及未知尾部 |
-| 当前可恢复关卡 | stage 0 | stage 0；codec/picker/事务 API 已有，不等于正式入口已开放 |
+| 保存数据 | 本关 metadata、独立持久 roster、活动单位、cell state、stage/turn、镜头／焦点、配置及保留区 | 持久 roster、已确认 meta、配置及未知尾部 |
+| 当前可恢复关卡 | stage 0 | codec/picker 与保存路径已有；session Load 在真实关卡重建契约完成前明确拒绝 |
 
 runtime `FD2_FIELD_MAX_UNITS` 当前为 64。**64／96／32 是三种不同边界，不能统一为一个猜测值，更不能保存时截断。** 跨关卡前必须确认实际 roster 与对应原版存档路径的关系。
 
+活动 meta[1] 与 meta[9] 分别属于当前 actor 和持久 roster，不能互相约束或由当前 side 2 人数重算。持久记录按 text ID 表达跨关身份，新游戏按原版构造顺序建立；活动部署再设置位置、运行期 cache 和临时状态。未知字节在加载／保存往返中保留，不能从活动记录盲拷来构造新持久角色。
+
+session 持有完整 `0xa00` raw roster，包括未用尾；活动与手工保存均写出这整张表。加载 A 后保存到 B 或新文件时，roster 尾来自 A，metadata 未用尾仍由目标容器保留。这两个保留规则不能混为一条。
+
 继续保留已有入口门：系统菜单只在玩家 phase、browse 且焦点无可见 actor 时打开；secondary Save 在任一未隐藏 actor 带 acted `0x80` 时禁用，hidden actor 的 stale acted 不触发该门。Load 要求完整有效且当前支持的快照，不因磁盘上有同名文件就启用。不能把活动快照的限制直接套到四槽 dispatcher。
 
-宿主默认从工作目录 `FD2.SAV` 读写，可由 `FD2SDL_SAVE_PATH` 覆盖。测试／原版对照应使用可写副本，不把该变量指向 `original_game/` 中的原始证据。长度、checksum、四槽边界及 slot 3 尾部与 checksum 重叠的规则继续由 `save.c` 和格式文档维护。
+宿主默认从工作目录 `FD2.SAV` 读写，可由 `FD2SDL_SAVE_PATH` 覆盖。测试／人工对照应使用可写副本，不把该变量指向 `original_game/` 中的原始证据。长度、checksum、四槽边界及 slot 3 尾部与 checksum 重叠的规则继续由 `save.c` 和格式文档维护。
 
 ### 恢复约束
 
 - 先验证完整容器、checksum、stage 支持性、单位数、坐标、镜头及记录语义；失败时当前 session 和原文件不变。
+- 活动快照的关卡 metadata 有独立 owner：保存本关有效前缀，保留未使用尾；加载先检查 shape 与当前资源相符，并按本关已知模板数准备临时 metadata，全部预检成功后交接。不能仅更新 stage 数字却沿用旧关卡数据头。
 - 同关卡恢复复用现有事务导入。跨关卡恢复先准备独立候选 session，验证成功后再切换资源、调色板、音频及 owner；不能因资源准备失败留下半个新关卡。
 - 活动快照没有独立的 active-side 或 RNG checkpoint；原版恢复回玩家控制器边界，SDL 应清理 phase cursor、路径、菜单、演出和计时，按已确认入口处理随机流。不新增未知字段来追求读档后 RNG 序列相同。
 - 恢复不能把存档单位再次经过新建构造器重置 HP/MP、装备或等级，也不能再次播放已完成的增援事件。未知 meta、未使用单位尾部及未拥有的 cell-state 字节继续保留。

@@ -268,6 +268,10 @@ int fd2_save_file_get_battle_snapshot(
         fd2_save_validate_plain(save->data, save->size) != 0)
         return -1;
     fd2_save_battle_snapshot loaded;
+    memcpy(loaded.metadata, save->data + FD2_SAVE_BATTLE_METADATA_BASE,
+           sizeof(loaded.metadata));
+    memcpy(loaded.roster, save->data + FD2_SAVE_BATTLE_ROSTER_BASE,
+           sizeof(loaded.roster));
     memcpy(loaded.unit_area, save->data + FD2_SAVE_BATTLE_UNIT_BASE,
            sizeof(loaded.unit_area));
     memcpy(loaded.cell_state,
@@ -276,7 +280,9 @@ int fd2_save_file_get_battle_snapshot(
     memcpy(loaded.meta, save->data + FD2_SAVE_BATTLE_META_BASE,
            sizeof(loaded.meta));
     if (loaded.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] >
-        FD2_SAVE_BATTLE_MAX_UNITS)
+            FD2_SAVE_BATTLE_MAX_UNITS ||
+        loaded.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
+            FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
     *snapshot = loaded;
     return 0;
@@ -287,11 +293,17 @@ int fd2_save_file_update_battle_snapshot(
     if (!save || !save->data || !snapshot ||
         fd2_save_validate_plain(save->data, save->size) != 0 ||
         snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] >
-            FD2_SAVE_BATTLE_MAX_UNITS)
+            FD2_SAVE_BATTLE_MAX_UNITS ||
+        snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
+            FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
     uint8_t *shadow = malloc(save->size);
     if (!shadow) return -1;
     memcpy(shadow, save->data, save->size);
+    memcpy(shadow + FD2_SAVE_BATTLE_METADATA_BASE, snapshot->metadata,
+           sizeof(snapshot->metadata));
+    memcpy(shadow + FD2_SAVE_BATTLE_ROSTER_BASE, snapshot->roster,
+           sizeof(snapshot->roster));
     memcpy(shadow + FD2_SAVE_BATTLE_UNIT_BASE, snapshot->unit_area,
            sizeof(snapshot->unit_area));
     memcpy(shadow + FD2_SAVE_BATTLE_CELL_STATE_BASE, snapshot->cell_state,

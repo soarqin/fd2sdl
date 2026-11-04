@@ -95,6 +95,21 @@ static int business_state_unchanged(const fd2_field_game *game,
     return memcmp(&normalized, before, sizeof(normalized)) == 0;
 }
 
+static int open_confirmation(fd2_field_game *game, int secondary,
+                             fd2_field_command_direction direction) {
+    CHECK(fd2_field_game_open_system_menu(game) == 0);
+    if (secondary) {
+        CHECK(fd2_field_game_confirm_system_menu(game) ==
+              FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
+    }
+    CHECK(fd2_field_game_select_system_menu_direction(game, direction) >= 0);
+    CHECK(fd2_field_game_confirm_system_menu(game) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU);
+    CHECK(game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION);
+    return 0;
+}
+
 static int test_focus_cycle_and_confirm(void) {
     fd2_field_game game;
     test_rng rng = {0x31415926u, 0};
@@ -214,40 +229,39 @@ static int test_secondary_dynamic_disabled(void) {
     CHECK(fd2_field_game_open_system_menu(&game) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-    CHECK(!game.system_menu.disabled[0]);
+    CHECK(game.system_menu.disabled[0]);
     CHECK(!game.system_menu.disabled[1]);
     CHECK(game.system_menu.disabled[2]);
     CHECK(!game.system_menu.disabled[3]);
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 0);
-    CHECK(game.system_menu.selected == 0);
+    CHECK(game.system_menu.selected == 1);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
     CHECK(fd2_field_game_cancel_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_BACK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.disabled[2]);
+    CHECK(open_confirmation(&game, 1,
+                            FD2_FIELD_COMMAND_DIRECTION_DOWN) == 0);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.disabled[2]);
-    CHECK(fd2_field_game_cancel_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_BACK);
     fd2_field_game_set_save_resource_available(&game, 1);
     fd2_field_unit_set_acted(&game.units.items[0], 1);
+    CHECK(fd2_field_game_open_system_menu(&game) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
     CHECK(game.system_menu.disabled[1]);
     CHECK(!game.system_menu.disabled[2]);
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
-    CHECK(game.system_menu.selected == 0);
+    CHECK(game.system_menu.selected == 2);
 
     /* hidden actor 的 stale acted bit 不触发原版动态门。 */
     CHECK(fd2_field_game_cancel_system_menu(&game) ==
@@ -338,6 +352,11 @@ static int test_options_toggle_is_menu_local(void) {
     CHECK(game.system_menu.option_values[0] == 0);
     CHECK(game.system_menu.command_ids[0] == 19);
     CHECK(game.option_values[0] == 0);
+    CHECK(game.system_menu.disabled[2] && game.system_menu.disabled[3]);
+    CHECK(fd2_field_game_select_system_menu_direction(
+              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 0);
+    CHECK(game.option_values[2] == before.option_values[2]);
+    CHECK(game.option_values[3] == before.option_values[3]);
     fd2_field_game normalized = game;
     normalized.option_values[0] = before.option_values[0];
     CHECK(business_state_unchanged(&normalized, &before));
@@ -346,24 +365,19 @@ static int test_options_toggle_is_menu_local(void) {
     return 0;
 }
 
-static int test_pending_actions_are_non_destructive(void) {
+static int test_supported_actions_and_capability_gates(void) {
     fd2_field_game game;
     test_rng rng = {0x31415926u, 0};
     init_game(&game, &rng);
     fd2_field_game before = game;
 
     CHECK(fd2_field_game_open_system_menu(&game) == 0);
+    CHECK(game.system_menu.disabled[1]);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
+    game.system_menu.selected = 1;
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
-    CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION);
-    CHECK(game.system_menu.confirmation_prompt_fragment == 0x1a1);
-    CHECK(business_state_unchanged(&game, &before));
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM);
+          FD2_FIELD_SYSTEM_ACTION_NONE);
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT);
     CHECK(business_state_unchanged(&game, &before));
     CHECK(fd2_field_game_select_system_menu_direction(
@@ -373,50 +387,87 @@ static int test_pending_actions_are_non_destructive(void) {
     CHECK(game.system_menu.confirmation_prompt_fragment == 0x1a3);
     CHECK(business_state_unchanged(&game, &before));
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT);
     CHECK(business_state_unchanged(&game, &before));
 
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_UP) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(open_confirmation(&game, 1,
+                            FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(game.system_menu.confirmation_prompt_fragment == 0x19a);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_SAVE);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
     CHECK(business_state_unchanged(&game, &before));
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(open_confirmation(&game, 1,
+                            FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 0);
     CHECK(game.system_menu.confirmation_prompt_fragment == 0x19d);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_LOAD);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
     CHECK(business_state_unchanged(&game, &before));
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(open_confirmation(&game, 1,
+                            FD2_FIELD_COMMAND_DIRECTION_DOWN) == 0);
     CHECK(game.system_menu.confirmation_prompt_fragment == 0x19f);
     CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(game.system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
     CHECK(business_state_unchanged(&game, &before));
     CHECK(rng.calls == 0 && rng.state == 0x31415926u);
+    fd2_field_game_close(&game);
+    return 0;
+}
+
+static int test_confirmation_cancel_closes_without_commit(void) {
+    fd2_field_game game;
+    test_rng rng = {0x76543210u, 0};
+    init_game(&game, &rng);
+    fd2_field_game before = game;
+    const struct {
+        int secondary;
+        fd2_field_command_direction direction;
+    } cases[] = {
+        {0, FD2_FIELD_COMMAND_DIRECTION_DOWN},
+        {1, FD2_FIELD_COMMAND_DIRECTION_LEFT},
+        {1, FD2_FIELD_COMMAND_DIRECTION_RIGHT},
+        {1, FD2_FIELD_COMMAND_DIRECTION_DOWN},
+    };
+    /* END、Save、Load、Leave 的 Esc 与 NO 都关闭对话框并返回 browse；
+     * return_page 仅保留旧 selector 元数据，不保持菜单的交互所有权。 */
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        for (int escape = 0; escape <= 1; escape++) {
+            CHECK(open_confirmation(&game, cases[i].secondary,
+                                    cases[i].direction) == 0);
+            if (escape) {
+                CHECK(fd2_field_game_cancel_system_menu(&game) ==
+                      FD2_FIELD_SYSTEM_ACTION_BACK);
+            } else {
+                CHECK(fd2_field_game_select_system_menu_direction(
+                          &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
+                CHECK(fd2_field_game_confirm_system_menu(&game) ==
+                      FD2_FIELD_SYSTEM_ACTION_BACK);
+            }
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+            CHECK(business_state_unchanged(&game, &before));
+            CHECK(fd2_field_game_confirm_system_menu(&game) ==
+                  FD2_FIELD_SYSTEM_ACTION_NONE);
+            CHECK(fd2_field_game_cancel_system_menu(&game) ==
+                  FD2_FIELD_SYSTEM_ACTION_NONE);
+            CHECK(business_state_unchanged(&game, &before));
+        }
+    }
+    CHECK(rng.calls == 0 && rng.state == 0x76543210u);
     fd2_field_game_close(&game);
     return 0;
 }
@@ -446,6 +497,48 @@ static int test_animation_returns_to_static_layout(void) {
     return 0;
 }
 
+static int test_confirmation_buttons(void) {
+    fd2_field_game game;
+    test_rng rng = {0x31415926u, 0};
+    init_game(&game, &rng);
+    fd2_vga *vga = calloc(1, sizeof(*vga));
+    CHECK(vga);
+    game.command_assets.ready = 1;
+    game.command_assets.frame_count = FD2_FIELD_COMMAND_FRAME_COUNT;
+    const size_t indices[] = {48, 49, 51, 52};
+    for (size_t i = 0; i < 4; i++) {
+        fd2_image *frame = &game.command_assets.frames[indices[i]];
+        frame->width = 24;
+        frame->height = 16;
+        frame->pixels = malloc(24 * 16);
+        CHECK(frame->pixels);
+        memset(frame->pixels, (int)(10 + i), 24 * 16);
+    }
+    CHECK(fd2_field_game_open_system_menu(&game) == 0);
+    CHECK(fd2_field_game_select_system_menu_direction(
+              &game, FD2_FIELD_COMMAND_DIRECTION_DOWN));
+    CHECK(fd2_field_game_confirm_system_menu(&game) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    game.system_menu.highlight_phase = 1;
+    fd2_field_game_render(&game, vga);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 232] == 11);
+    CHECK(vga->framebuffer[183 * VGA_STRIDE + 255] == 11);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 264] == 12);
+    CHECK(fd2_field_game_select_system_menu_direction(
+              &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    fd2_field_game_render(&game, vga);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 232] == 10);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 264] == 13);
+    game.system_menu.highlight_phase = 0;
+    fd2_field_game_render(&game, vga);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 232] == 10);
+    CHECK(vga->framebuffer[168 * VGA_STRIDE + 264] == 12);
+    CHECK(rng.calls == 0);
+    free(vga);
+    fd2_field_game_close(&game);
+    return 0;
+}
+
 int main(void) {
     if (test_focus_cycle_and_confirm() != 0 || test_open_gate() != 0 ||
         test_layered_cancel() != 0 ||
@@ -453,8 +546,10 @@ int main(void) {
         test_manual_slot_interaction_is_independent() != 0 ||
         test_highlight_state_is_independent() != 0 ||
         test_options_toggle_is_menu_local() != 0 ||
-        test_pending_actions_are_non_destructive() != 0 ||
-        test_animation_returns_to_static_layout() != 0)
+        test_supported_actions_and_capability_gates() != 0 ||
+        test_confirmation_cancel_closes_without_commit() != 0 ||
+        test_animation_returns_to_static_layout() != 0 ||
+        test_confirmation_buttons() != 0)
         return 1;
     puts("field_game_system_menu_test: ok");
     return 0;

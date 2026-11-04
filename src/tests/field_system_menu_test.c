@@ -51,8 +51,9 @@ static int test_save_load_and_options(void) {
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION);
     CHECK(menu.confirmation_prompt_fragment == 0x19a);
-    CHECK(fd2_field_system_menu_select_direction(
-              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(menu.confirmation_yes && menu.selected == 0);
+    CHECK(!fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_LEFT));
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_SAVE);
     size_t result_fragment = 0;
@@ -68,8 +69,7 @@ static int test_save_load_and_options(void) {
     CHECK(menu.selected == 2);
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
-    CHECK(fd2_field_system_menu_select_direction(
-              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(menu.confirmation_yes && menu.selected == 0);
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_LOAD);
     CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY);
@@ -78,8 +78,7 @@ static int test_save_load_and_options(void) {
     CHECK(menu.selected == 3);
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
-    CHECK(fd2_field_system_menu_select_direction(
-              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(menu.confirmation_yes && menu.selected == 0);
     CHECK(fd2_field_system_menu_confirm(&menu) ==
           FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE);
 
@@ -114,10 +113,46 @@ static int test_disabled_and_cancel(void) {
     return 0;
 }
 
+static int test_confirmation_selection(void) {
+    fd2_field_system_menu menu;
+    fd2_field_system_menu_init(&menu);
+    menu.selected = 3;
+    CHECK(fd2_field_system_menu_confirm(&menu) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(menu.confirmation_yes && menu.selected == 0);
+    CHECK(!fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_DOWN));
+    CHECK(fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(!menu.confirmation_yes && menu.selected == 1);
+    CHECK(!fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_UP));
+    CHECK(!fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(fd2_field_system_menu_confirm(&menu) == FD2_FIELD_SYSTEM_ACTION_BACK);
+    CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT && menu.selected == 3);
+    CHECK(fd2_field_system_menu_confirm(&menu) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(menu.confirmation_yes && menu.selected == 0);
+    CHECK(fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT));
+    CHECK(fd2_field_system_menu_select_direction(
+              &menu, FD2_FIELD_COMMAND_DIRECTION_LEFT));
+    CHECK(menu.confirmation_yes && menu.selected == 0);
+    CHECK(fd2_field_system_menu_cancel(&menu) == FD2_FIELD_SYSTEM_ACTION_BACK);
+    CHECK(menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT && menu.selected == 3);
+    CHECK(fd2_field_system_menu_confirm(&menu) ==
+          FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
+    CHECK(fd2_field_system_menu_confirm(&menu) ==
+          FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM);
+    return 0;
+}
+
 int main(void) {
     if (test_parent_dispatch() != 0 ||
         test_save_load_and_options() != 0 ||
-        test_disabled_and_cancel() != 0)
+        test_disabled_and_cancel() != 0 ||
+        test_confirmation_selection() != 0)
         return 1;
     puts("field_system_menu_test: ok");
     return 0;

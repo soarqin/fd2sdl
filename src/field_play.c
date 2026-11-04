@@ -1237,8 +1237,6 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             }
             continue;
         }
-
-
         if (!input_ready_reported) {
             printf("field input ready: stage=%zu turn=%u phase=%u\n",
                    game.stage, game.turn_number, game.active_side);
@@ -1300,6 +1298,9 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         (void)fd2_field_game_animate_system_menu(
                             &game, vga, 0, FD2_FIELD_COMMAND_FRAME_MS);
                         (void)fd2_field_game_cancel_system_menu(&game);
+                        if (page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION)
+                            (void)play_system_confirmation_text(
+                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once);
                         if (page != FD2_FIELD_SYSTEM_PAGE_PARENT &&
                             game.interaction ==
                                 FD2_FIELD_INTERACTION_SYSTEM_MENU) {
@@ -1349,10 +1350,9 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                 case FD2_FIELD_ACTION_AUXILIARY:
                     /* field_controller_input @code0 0x17e7 的 F1/Page Up
                      * 分支进入独立 tactical-map dispatcher @code0 0x1000a。
-                     * 该页自身以键盘读取结束；SDL 先保留独立状态，不能
-                     * 把它误并入 system/command menu。 */
+                     * SDL 页面尚未实现，不能进入空状态冒充已打开。 */
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE)
-                        game.interaction = FD2_FIELD_INTERACTION_AUXILIARY;
+                        fprintf(stderr, "field auxiliary unavailable: SDL tactical page not implemented\n");
                     break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
@@ -1443,7 +1443,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             FD2_FIELD_INTERACTION_SYSTEM_MENU) {
                         /* open/input/close primitive 的原版边界：确认后先按
                          * 当前 command IDs 收起，再进入下一 dispatcher。
-                         * confirmation page 只展示 FDTXT 片段。 */
+                         * confirmation page 独立绘制 FDTXT 与 YES/NO。 */
                         if (game.option_values[1])
                             (void)fd2_field_audio_play(
                                 field_audio, FD2_FIELD_SFX_COMMAND_MENU);
@@ -1510,8 +1510,41 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             }
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE) {
+                            puts("field leave: returning to title");
+                            fflush(stdout);
                             play_result = FD2_FIELD_PLAY_RETURN_TITLE;
                             running = 0;
+                        } else if (system_action ==
+                                       FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM) {
+                            /* field_empty_focus_menu_execute @0x16f55：
+                             * FDTXT[420] 提示先于 field_turn_cycle_run。 */
+                            if (play_system_confirmation_text(
+                                    &game, vga,
+                                    FD2_FIELD_SYSTEM_TEXT_END_TURN_ACCEPTED,
+                                    once) != 0) {
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                                break;
+                            }
+                            if (fd2_input_take_quit(&vga->input)) {
+                                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                                running = 0;
+                                break;
+                            }
+                            printf("field end turn: turn=%u phase=%u remaining=%zu\n",
+                                   game.turn_number, game.active_side,
+                                   fd2_field_game_remaining_units(&game, 2));
+                            fflush(stdout);
+                            game.interaction = FD2_FIELD_INTERACTION_BROWSE;
+                            if (fd2_field_game_end_player_turn(&game) != 0) {
+                                report_session_failure(&game);
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                            }
+                        } else if (system_action == FD2_FIELD_SYSTEM_ACTION_BACK &&
+                                   game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
+                            (void)play_system_confirmation_text(
+                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once);
                         } else {
                             if (game.option_values[1])
                                 (void)fd2_field_audio_play(
@@ -1519,21 +1552,6 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             (void)fd2_field_game_animate_system_menu(
                                 &game, vga, 1, FD2_FIELD_COMMAND_FRAME_MS);
                         }
-                        /* march/end-turn 尚未接正式后端；Save／Load 与
-                         * leave 已分别提交到文件编排和返回标题分流。 */
-                        if (system_action !=
-                                FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY &&
-                            system_action !=
-                                FD2_FIELD_SYSTEM_ACTION_OPEN_OPTIONS &&
-                            system_action !=
-                                FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING &&
-                            system_action != FD2_FIELD_SYSTEM_ACTION_SAVE &&
-                            system_action != FD2_FIELD_SYSTEM_ACTION_LOAD &&
-                            system_action !=
-                                FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE)
-                            fprintf(stderr,
-                                    "field system action pending: %d\n",
-                                    (int)system_action);
                         break;
                     }
                     if (previous_interaction ==

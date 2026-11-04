@@ -135,6 +135,11 @@ typedef struct {
     fd2_font font;
     fd2_text_entry ui_text;
     fd2_field_units units;
+    /* sub_112A5 @0x112a5 / sub_10010 @0x10010 的独立持久 roster。
+     * raw 记录包含未部署角色；未使用尾也整块归 session。
+     * count 不等于 active actor 或 side 2 数。 */
+    fd2_field_unit roster[FD2_SAVE_BATTLE_MAX_ROSTER];
+    size_t roster_count;
 
     size_t stage;
     int camera_cell_x;
@@ -278,9 +283,8 @@ int fd2_field_game_save_resource_available(const fd2_field_game *game,
                                            const char *path);
 int fd2_field_game_save_active(fd2_field_game *game, const char *path);
 int fd2_field_game_load_active(fd2_field_game *game, const char *path);
-/* 原版四槽 hand_save/hand_load 事务。Save 从当前 session 导出完整
- * 0xa00 单位表并保留未知 meta；Load 只允许当前已支持的 stage 0，
- * 成功后重建 SDL runtime cache 并回到玩家 browse。 */
+/* 四槽 Save 写入独立持久 roster，保留未知 meta。Load 的原版 stage
+ * 重建路径尚未恢复，目前显式拒绝且无副作用，不能把 slot 当 active 表。 */
 int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index);
 int fd2_field_game_load_manual_slot(fd2_field_game *game, const char *path,
@@ -353,7 +357,11 @@ int fd2_field_game_execute_move(fd2_field_game *game,
                                 fd2_vga *vga,
                                 uint32_t frame_delay_ms);
 int fd2_field_game_finish_unit_action(fd2_field_game *game);
+/* 无演出快速回归用：将当前阵营全部标记 acted 后跳过该 phase。
+ * 正式玩家菜单使用 end_player_turn，不以本接口模拟原版恢复门。 */
 int fd2_field_game_end_active_phase(fd2_field_game *game);
+/* 玩家确认结束回合：执行已确认的未行动恢复，再进入 side 1。 */
+int fd2_field_game_end_player_turn(fd2_field_game *game);
 int fd2_field_game_process_automatic_action(fd2_field_game *game);
 int fd2_field_game_process_automatic_action_visual(
     fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms);

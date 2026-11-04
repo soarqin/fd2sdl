@@ -536,6 +536,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_game_failure COMMAND fd2_field_game_failure_test)
 
+    add_executable(fd2_field_turn_test
+        tests/field_turn_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_turn_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_turn_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_turn_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_turn_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_turn COMMAND fd2_field_turn_test)
+
     add_executable(fd2_field_game_system_menu_test
         tests/field_game_system_menu_test.c
         $<TARGET_OBJECTS:fd2sdl_core>
@@ -570,6 +584,7 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_save COMMAND fd2_field_save_test)
+    set_tests_properties(field_save PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_field_ai_commit_test
         tests/field_ai_commit_test.c

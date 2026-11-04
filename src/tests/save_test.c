@@ -34,6 +34,8 @@ static void make_plain(uint8_t plain[FD2_SAVE_FILE_SIZE]) {
         meta[0] = slot < 2 ? (uint8_t)(slot + 1u) : 0xffu;
         meta[1] = slot < 2 ? 2u : 0xffu;
     }
+    plain[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 12;
+    plain[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 4;
     put_u32le(plain + FD2_SAVE_FILE_SIZE - FD2_SAVE_CHECKSUM_SIZE,
               fd2_save_checksum_sum(plain, FD2_SAVE_FILE_SIZE));
 }
@@ -85,15 +87,35 @@ static int test_battle_snapshot_preservation(void) {
               &save, encrypted, FD2_SAVE_FILE_SIZE) == 0);
     fd2_save_battle_snapshot snapshot;
     CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(memcmp(snapshot.metadata,
+                 plain + FD2_SAVE_BATTLE_METADATA_BASE,
+                 sizeof(snapshot.metadata)) == 0);
+    CHECK(memcmp(snapshot.roster, plain + FD2_SAVE_BATTLE_ROSTER_BASE,
+                 sizeof(snapshot.roster)) == 0);
+    CHECK(snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 2 &&
+          snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == 4);
     memcpy(before, save.data, save.size);
+    snapshot.metadata[0] = 0;
+    snapshot.metadata[FD2_SAVE_BATTLE_METADATA_SIZE / 2u] ^= 0x44;
+    snapshot.metadata[FD2_SAVE_BATTLE_METADATA_SIZE - 1u] ^= 0x55;
+    snapshot.roster[0] ^= 0x66;
+    snapshot.roster[FD2_SAVE_BATTLE_ROSTER_SIZE / 2u] ^= 0x77;
+    snapshot.roster[FD2_SAVE_BATTLE_ROSTER_SIZE - 1u] ^= 0x88;
     snapshot.unit_area[0] ^= 0x11;
     snapshot.cell_state[31] ^= 0x22;
     snapshot.meta[FD2_SAVE_BATTLE_META_TURN] = 7;
     CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
     CHECK(fd2_save_validate_plain(save.data, save.size) == 0);
+    fd2_save_battle_snapshot roundtrip;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &roundtrip) == 0);
+    CHECK(memcmp(&roundtrip, &snapshot, sizeof(snapshot)) == 0);
     size_t checksum_begin = save.size - FD2_SAVE_CHECKSUM_SIZE;
     for (size_t i = 0; i < save.size; i++) {
-        int allowed = (i >= FD2_SAVE_BATTLE_UNIT_BASE &&
+        int allowed = i < FD2_SAVE_BATTLE_METADATA_BASE +
+                          FD2_SAVE_BATTLE_METADATA_SIZE ||
+                      (i >= FD2_SAVE_BATTLE_ROSTER_BASE &&
+                       i < FD2_SAVE_BATTLE_ROSTER_BASE + FD2_SAVE_BATTLE_ROSTER_SIZE) ||
+                      (i >= FD2_SAVE_BATTLE_UNIT_BASE &&
                        i < FD2_SAVE_BATTLE_UNIT_BASE +
                            FD2_SAVE_BATTLE_UNIT_AREA_SIZE) ||
                       (i >= FD2_SAVE_BATTLE_CELL_STATE_BASE &&
@@ -107,13 +129,84 @@ static int test_battle_snapshot_preservation(void) {
     }
     snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] =
         FD2_SAVE_BATTLE_MAX_UNITS + 1u;
+    snapshot.metadata[0] ^= 0x66;
     memcpy(before, save.data, save.size);
     CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) != 0);
+    CHECK(memcmp(before, save.data, save.size) == 0);
+    CHECK(fd2_save_file_update_battle_snapshot(&save, NULL) != 0);
     CHECK(memcmp(before, save.data, save.size) == 0);
     fd2_save_file_close(&save);
     free(before);
     free(encrypted);
     free(plain);
+    return 0;
+}
+
+static int test_independent_roster_and_active_count_boundaries(void) {
+    uint8_t *plain = malloc(FD2_SAVE_FILE_SIZE);
+    uint8_t *before = malloc(FD2_SAVE_FILE_SIZE);
+    CHECK(plain && before);
+    make_plain(plain);
+    fd2_save_file save = {.data = plain, .size = FD2_SAVE_FILE_SIZE};
+    fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = FD2_SAVE_BATTLE_MAX_UNITS;
+    snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] = FD2_SAVE_BATTLE_MAX_ROSTER;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
+    fd2_save_battle_snapshot roundtrip;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &roundtrip) == 0);
+    CHECK(memcmp(&roundtrip, &snapshot, sizeof(snapshot)) == 0);
+
+    /* 两个 count 没有相等、大小关系或阵营计数门；只检查各自容量。 */
+    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &roundtrip) == 0);
+    CHECK(roundtrip.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 0 &&
+          roundtrip.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == 32);
+    snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &roundtrip) == 0);
+    CHECK(roundtrip.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 0 &&
+          roundtrip.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == 0);
+
+    memcpy(before, save.data, save.size);
+    snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 33;
+    snapshot.roster[0] ^= 0x11;
+    snapshot.unit_area[0] ^= 0x22;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) != 0);
+    CHECK(memcmp(before, save.data, save.size) == 0);
+    snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
+    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 97;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) != 0);
+    CHECK(memcmp(before, save.data, save.size) == 0);
+
+    /* getter 对非法 roster count 也必须先拒绝，不改输出或容器。 */
+    save.data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 33;
+    put_u32le(save.data + save.size - FD2_SAVE_CHECKSUM_SIZE,
+              fd2_save_checksum_sum(save.data, save.size));
+    memcpy(before, save.data, save.size);
+    memset(&snapshot, 0xa5, sizeof(snapshot));
+    fd2_save_battle_snapshot before_snapshot = snapshot;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0);
+    CHECK(memcmp(&before_snapshot, &snapshot, sizeof(snapshot)) == 0);
+    CHECK(memcmp(before, save.data, save.size) == 0);
+    free(before);
+    fd2_save_file_close(&save);
+    return 0;
+}
+
+static int test_original_start_roster_is_distinct(void) {
+    fd2_save_file save = {0};
+    CHECK(fd2_save_file_open(&save, "original_game/START.SAV") == 0);
+    fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 12);
+    CHECK(snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == 4);
+    CHECK(memcmp(snapshot.roster, save.data + FD2_SAVE_BATTLE_ROSTER_BASE,
+                 sizeof(snapshot.roster)) == 0);
+    CHECK(memcmp(snapshot.unit_area, save.data + FD2_SAVE_BATTLE_UNIT_BASE,
+                 sizeof(snapshot.unit_area)) == 0);
+    fd2_save_file_close(&save);
     return 0;
 }
 
@@ -313,6 +406,8 @@ int main(void) {
     if (test_create_empty() != 0 ||
         test_xor_and_checksum() != 0 ||
         test_battle_snapshot_preservation() != 0 ||
+        test_independent_roster_and_active_count_boundaries() != 0 ||
+        test_original_start_roster_is_distinct() != 0 ||
         test_slots_and_preservation() != 0 ||
         test_last_slot_overlap_and_zero_units() != 0 ||
         test_write_roundtrip_and_overwrite() != 0 ||

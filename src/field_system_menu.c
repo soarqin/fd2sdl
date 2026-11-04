@@ -1,12 +1,13 @@
 /* 炎龙骑士团 2 SDL3 重写 - 战场 field-level 系统菜单骨架
  *
  * 机器码依据：
- * - empty-focus dispatcher @ dual 0x16f55 / code0 0x6f55，
+ * - field_empty_focus_menu_execute @0x16f55（原登记 FUN_0001469d），
  *   command IDs {7,5,6,4}；
- * - secondary dispatcher @ dual 0x19df7 / code0 0x9df7，
+ * - field_secondary_menu_execute @0x19df7（原登记 FUN_0001753f），
  *   command IDs {12,13,14,15}；
- * - options loop @ dual 0x1728c / code0 0x728c，
- *   base IDs {18,20,22,24}，按状态生成相邻 ID。
+ * - field_options_menu_execute @0x1728c（原登记 FUN_000149d4），
+ *   base IDs {18,20,22,24}，按状态生成相邻 ID；
+ * - sub_19953 @0x19953：确认框默认 YES，左右选择，上下不切换。
  *
  * 本文件只实现可测试的选择和动作分派，不猜测未由 DOSBox 确认的
  * 中文标签、存档槽交互和应用级退出。图形资源由共享的完整
@@ -104,11 +105,13 @@ int fd2_field_system_menu_select_direction(
         direction > FD2_FIELD_COMMAND_DIRECTION_DOWN)
         return 0;
     if (menu->page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION) {
-        uint8_t yes = direction == FD2_FIELD_COMMAND_DIRECTION_RIGHT ||
-                      direction == FD2_FIELD_COMMAND_DIRECTION_DOWN;
+        if (direction == FD2_FIELD_COMMAND_DIRECTION_UP ||
+            direction == FD2_FIELD_COMMAND_DIRECTION_DOWN)
+            return 0;
+        uint8_t yes = direction == FD2_FIELD_COMMAND_DIRECTION_LEFT;
         if (menu->confirmation_yes == yes) return 0;
         menu->confirmation_yes = yes;
-        menu->selected = yes;
+        menu->selected = yes ? 0 : 1;
         return 1;
     }
     int selected = fd2_field_command_select_direction(
@@ -134,7 +137,8 @@ static void open_confirmation(fd2_field_system_menu *menu,
     menu->confirmation_failure_fragment = (uint16_t)failure;
     menu->confirmation_return_page = (uint8_t)return_page;
     menu->confirmation_return_selected = (uint8_t)return_selected;
-    menu->confirmation_yes = 0;
+    /* sub_19953 @0x19953 与原版 END 框：左 YES、右 NO，默认 YES。 */
+    menu->confirmation_yes = 1;
     menu->highlight_phase = 0;
     menu->last_highlight_ms = 0;
 }
@@ -152,7 +156,7 @@ fd2_field_system_action fd2_field_system_menu_confirm(
             return FD2_FIELD_SYSTEM_ACTION_BACK;
         }
         /* accepted 只报告一次 action，并回到原 dispatcher 的 selector；
-         * Save/Load 由 field_play 提交，其余后端仍可保持 pending。 */
+         * 具体执行由 field_play 编排。 */
         fd2_field_system_action action = menu->confirmation_action;
         menu->page = (fd2_field_system_page)menu->confirmation_return_page;
         menu->selected = menu->confirmation_return_selected;

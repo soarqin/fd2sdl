@@ -1,14 +1,18 @@
 /* 炎龙骑士团 2 SDL3 重写 - 正式战场 session 与 FD2.SAV 活动快照
  *
- * 逆向依据：战场写档路径 code0 0x9f7a..0xa136 将当前单位表写入
+ * 逆向依据：field_secondary_menu_execute @0x19df7（原登记同名）
+ * 写回完整 0x8a3 metadata 前缀，再将当前单位表写入
  * plain+0x12a3、32 字节 cell state 写入 +0x30a3，并更新
  * +0x30c3 起的活动快照 meta；启动恢复入口 code0 0x10..0x44b 原样
  * 读回相同区域。meta[0..8]、资源字段 [10..13] 与配置字节 [14..17] 已有
- * SDL owner；其余 meta 和 unit-area 尾部保持原文件字节。
+ * SDL owner；metadata 的已用长度来自当前资源模板数，未使用尾部、
+ * 其余 meta 和 unit-area 尾部保持原文件字节。独立 roster 整块归 session。
  */
 
 #include "field_game.h"
 
+#include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "save.h"
@@ -25,21 +29,59 @@ static void wr_u32_le(uint8_t *p, uint32_t value) {
     p[3] = (uint8_t)(value >> 24);
 }
 
+static size_t metadata_prefix_size(const fd2_field_metadata *metadata) {
+    const size_t max_templates =
+        (FD2_SAVE_BATTLE_METADATA_SIZE - 0x83u) / FD2_FIELD_UNIT_TEMPLATE_SIZE;
+    if (metadata->unit_template_count > max_templates ||
+        (metadata->unit_template_count != 0u && !metadata->unit_templates))
+        return 0;
+    return 0x83u + metadata->unit_template_count * FD2_FIELD_UNIT_TEMPLATE_SIZE;
+}
+
+static void export_metadata(const fd2_field_metadata *metadata,
+                             uint8_t *bytes, size_t size) {
+    bytes[0] = metadata->shape_index;
+    bytes[1] = metadata->unknown_01;
+    bytes[2] = metadata->unknown_02;
+    for (size_t i = 0; i < FD2_FIELD_EVENT_SLOTS; i++) {
+        size_t turn = 0x03u + i * 3u;
+        bytes[turn] = metadata->turn_events[i].turn;
+        bytes[turn + 1u] = metadata->turn_events[i].action;
+        bytes[turn + 2u] = metadata->turn_events[i].phase;
+        size_t lookup = 0x33u + i * 2u;
+        bytes[lookup] = metadata->cell_lookup[i].event_code;
+        bytes[lookup + 1u] = metadata->cell_lookup[i].match_arg;
+        size_t action = 0x53u + i * 3u;
+        bytes[action] = metadata->cell_actions[i].mode;
+        bytes[action + 1u] = (uint8_t)metadata->cell_actions[i].param;
+        bytes[action + 2u] = (uint8_t)(metadata->cell_actions[i].param >> 8);
+    }
+    if (size > 0x83u)
+        memcpy(bytes + 0x83u, metadata->unit_templates, size - 0x83u);
+}
+
 int fd2_field_game_export_battle_snapshot(
         const fd2_field_game *game, fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready ||
         game->failure != FD2_FIELD_FAILURE_NONE || game->stage > 0xffu ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
+        game->units.count > FD2_FIELD_MAX_UNITS ||
+        game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
         game->turn_number > 0xffu || game->camera_cell_x < 0 ||
         game->camera_cell_x > 0xff || game->camera_cell_y < 0 ||
         game->camera_cell_y > 0xff || game->cursor_cell_x < 0 ||
         game->cursor_cell_x > 0xff || game->cursor_cell_y < 0 ||
         game->cursor_cell_y > 0xff)
         return -1;
+    size_t metadata_size = metadata_prefix_size(&game->metadata);
+    if (metadata_size == 0u) return -1;
 
     /* snapshot 必须来自 fd2_save_file_get_battle_snapshot；只覆盖原版
-     * writer 明确写回且已有 owner 的单位前缀、cell state、meta[0..17]。
-     * 其中 meta[9] 是 count 副本，meta[10..13] 是资源值。 */
+     * writer 明确写回且已有 owner 的 metadata 已用前缀、完整 roster、
+     * 单位前缀、cell state、meta[0..17]。metadata 未使用尾不重建。
+     * 其中 meta[9] 是独立 roster count，meta[10..13] 是资源值。 */
+    export_metadata(&game->metadata, snapshot->metadata, metadata_size);
+    memcpy(snapshot->roster, game->roster, sizeof(game->roster));
     memcpy(snapshot->unit_area, game->units.items,
            game->units.count * FD2_FIELD_UNIT_RECORD_SIZE);
     memcpy(snapshot->cell_state, game->cell_action_completed,
@@ -61,10 +103,10 @@ int fd2_field_game_export_battle_snapshot(
         (uint8_t)(game->cursor_cell_x - game->camera_cell_x);
     snapshot->meta[FD2_SAVE_BATTLE_META_FOCUS_REL_Y] =
         (uint8_t)(game->cursor_cell_y - game->camera_cell_y);
-    /* 原版 writer @code0 0xa0aa..0xa0b9：meta[9] 是单位表 count 的
-     * 冗余副本，meta[10..13] 是 DS:0x3bf3 资源值。 */
-    snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT_COPY] =
-        (uint8_t)game->units.count;
+    /* field_secondary_menu_execute @0x19df7：meta[9] 是独立持久
+     * roster count；meta[10..13] 是 DS:0x3bf3 资源值。 */
+    snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] =
+        (uint8_t)game->roster_count;
     wr_u32_le(snapshot->meta + FD2_SAVE_BATTLE_META_RESOURCE_VALUE,
               game->resource_value);
     /* 原版 writer @code0 0xa0bc..0xa0dd。 */
@@ -87,10 +129,17 @@ static int max_camera_cell(int map_cells, int view_cells) {
 static int validate_import(const fd2_field_game *game,
                            const fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready) return -1;
+    /* sub_10010 @0x10010 用 snapshot metadata[0] 选择 FDSHAP。
+     * SDL 只恢复当前已加载 stage 0，不在导入中猜测或重载其他资源。
+     * 模板长度沿用当前资源，不能把 0x8a3 的未知尾解析成可用模板。 */
+    if (snapshot->metadata[0] != game->metadata.shape_index ||
+        metadata_prefix_size(&game->metadata) == 0u)
+        return -1;
     size_t count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
     if (stage != game->stage || stage != 0u || count == 0u ||
-        snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT_COPY] != count ||
+        snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
+            FD2_SAVE_BATTLE_MAX_ROSTER ||
         count > FD2_SAVE_BATTLE_MAX_UNITS ||
         count > FD2_FIELD_MAX_UNITS || game->map.width <= 0 ||
         game->map.height <= 0)
@@ -130,6 +179,10 @@ int fd2_field_game_import_battle_snapshot(
     if (validate_import(game, snapshot) != 0) return -1;
 
     /* 先构造完整旁路副本；验证全部完成后才一次提交到 live session。 */
+    fd2_field_metadata loaded_metadata = {0};
+    if (fd2_field_metadata_open_mem(&loaded_metadata, snapshot->metadata,
+                                    metadata_prefix_size(&game->metadata)) != 0)
+        return -1;
     fd2_field_units loaded = {0};
     loaded.count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     memcpy(loaded.items, snapshot->unit_area,
@@ -139,6 +192,10 @@ int fd2_field_game_import_battle_snapshot(
         loaded.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
     }
 
+    fd2_field_metadata_close(&game->metadata);
+    game->metadata = loaded_metadata;
+    memcpy(game->roster, snapshot->roster, sizeof(game->roster));
+    game->roster_count = snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT];
     fd2_field_path_close(&game->move_range);
     game->move_path_length = 0;
     game->move_preview_valid = 0;
@@ -245,13 +302,29 @@ int fd2_field_game_save_resource_available(const fd2_field_game *game,
     return available;
 }
 
+/* 只对不存在的路径新建；既有坏档、读取失败和权限错误必须保留原文件。 */
+static int open_save_for_update(fd2_save_file *save, const char *path) {
+    FILE *existing = fopen(path, "rb");
+    if (existing) {
+        if (fclose(existing) != 0) return -1;
+        return fd2_save_file_open(save, path);
+    }
+    if (errno != ENOENT || fd2_save_file_create_empty(save) != 0)
+        return -1;
+    /* 新容器的 0xff 是空记录哨兵，不是 reader 可读取的 255 条 actor。
+     * 只初始化已知 count，便于随后首次活动保存；空 stage 仍不允许加载。 */
+    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;
+    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
+    wr_u32_le(save->data + save->size - FD2_SAVE_CHECKSUM_SIZE,
+              fd2_save_checksum_sum(save->data, save->size));
+    return 0;
+}
+
 int fd2_field_game_save_active(fd2_field_game *game, const char *path) {
     if (!game || !path || !game->ready) return -1;
     fd2_save_file save = {0};
     fd2_save_battle_snapshot snapshot;
-    if (fd2_save_file_open(&save, path) != 0) {
-        if (fd2_save_file_create_empty(&save) != 0) return -1;
-    }
+    if (open_save_for_update(&save, path) != 0) return -1;
     if (fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
         fd2_field_game_export_battle_snapshot(game, &snapshot) != 0 ||
         fd2_save_file_update_battle_snapshot(&save, &snapshot) != 0 ||
@@ -282,11 +355,10 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     if (!game || !path || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         slot_index >= FD2_SAVE_SLOT_COUNT ||
-        game->stage > 0xfeu || game->units.count > FD2_SAVE_MAX_UNITS)
+        game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;
     fd2_save_file save = {0};
-    if (fd2_save_file_open(&save, path) != 0 &&
-        fd2_save_file_create_empty(&save) != 0)
+    if (open_save_for_update(&save, path) != 0)
         return -1;
     fd2_save_manual_slot slot;
     if (fd2_save_file_get_manual_slot_raw(&save, slot_index, &slot) != 0) {
@@ -295,23 +367,15 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
     }
     fd2_save_manual_state state = {0};
     state.stage_id = (uint8_t)game->stage;
-    state.unit_count = (uint8_t)game->units.count;
+    state.unit_count = (uint8_t)game->roster_count;
     state.gold_or_flags = game->resource_value;
     /* manual slot meta +6..+9 的原版顺序是 camera/effect/music/SFX。 */
     state.options[0] = game->option_values[3];
     state.options[1] = game->option_values[2];
     state.options[2] = game->option_values[0];
     state.options[3] = game->option_values[1];
-    memcpy(state.unit_area, game->units.items,
-           game->units.count * FD2_FIELD_UNIT_RECORD_SIZE);
-    /* 原版 hand_save 无条件复制完整 0xa00 runtime table；SDL items 数组
-     * 也是 64×0x50，手工槽只取其前 32 条。 */
-    if (game->units.count < FD2_SAVE_MAX_UNITS)
-        memcpy(state.unit_area +
-                   game->units.count * FD2_FIELD_UNIT_RECORD_SIZE,
-               game->units.items + game->units.count,
-               (FD2_SAVE_MAX_UNITS - game->units.count) *
-                   FD2_FIELD_UNIT_RECORD_SIZE);
+    /* 原版 hand_save 复制完整 persistent 表，包含未使用 raw 尾。 */
+    memcpy(state.unit_area, game->roster, sizeof(state.unit_area));
     int result = fd2_save_manual_slot_encode(&slot, &state) == 0 &&
                  fd2_save_file_update_manual_slot(
                      &save, slot_index, &slot) == 0 &&
@@ -322,78 +386,12 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
 
 int fd2_field_game_load_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
-    if (!game || !path || !game->ready || slot_index >= FD2_SAVE_SLOT_COUNT)
-        return -1;
-    fd2_save_file save = {0};
-    fd2_save_manual_slot slot;
-    fd2_save_manual_state state;
-    if (fd2_save_file_open(&save, path) != 0 ||
-        fd2_save_file_get_manual_slot(&save, slot_index, &slot) != 0 ||
-        fd2_save_manual_slot_decode(&slot, &state) != 0) {
-        fd2_save_file_close(&save);
-        return -1;
-    }
-    fd2_save_file_close(&save);
-    if (state.stage_id != game->stage || state.stage_id != 0u ||
-        state.unit_count == 0u || state.unit_count > FD2_FIELD_MAX_UNITS)
-        return -1;
-    for (size_t i = 0; i < state.unit_count; i++) {
-        fd2_field_unit unit;
-        memcpy(&unit, state.unit_area + i * FD2_FIELD_UNIT_RECORD_SIZE,
-               sizeof(unit));
-        if (unit.x >= game->map.width || unit.y >= game->map.height)
-            return -1;
-    }
-
-    fd2_field_units loaded = {0};
-    loaded.count = state.unit_count;
-    /* code0 0x19974..0x19985 无条件恢复完整 0xa00 runtime table；
-     * 即使 unit_count 较小，非活动尾部也不能在 SDL owner 中被清零。 */
-    memcpy(loaded.items, state.unit_area, FD2_SAVE_UNIT_TABLE_SIZE);
-    for (size_t i = 0; i < loaded.count; i++) {
-        loaded.walk_frames[i] = 1;
-        loaded.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
-    }
-    fd2_field_path_close(&game->move_range);
-    game->move_path_length = 0;
-    game->move_preview_valid = 0;
-    game->units = loaded;
-    game->stage_runtime_entry_offset = 0x238du +
-        (uint32_t)state.stage_id * 0x1fu;
-    game->resource_value = state.gold_or_flags;
-    game->option_values[3] = state.options[0] ? 1u : 0u;
-    game->option_values[2] = state.options[1] ? 1u : 0u;
-    game->option_values[0] = state.options[2] ? 1u : 0u;
-    game->option_values[1] = state.options[3] ? 1u : 0u;
-    game->selected_unit = -1;
-    game->detail_unit = -1;
-    game->detail_visible = 0;
-    game->detail_acknowledged_unit = -1;
-    game->command_selected = -1;
-    game->attack_target = -1;
-    game->camera_pixel_offset_x = 0;
-    game->camera_pixel_offset_y = 0;
-    game->active_side = 2;
-    game->phase_unit_cursor = 0;
-    game->phase_ai_pass = 0;
-    game->phase_next_action_ms = 0;
-    game->interaction = FD2_FIELD_INTERACTION_BROWSE;
-    game->manual_slot_picker.open = 0;
-    game->system_result_fragment = 0;
-    game->system_result_until_ms = 0;
-    game->manual_slot_result_fragment = 0;
-    game->manual_slot_result_until_ms = 0;
-    fd2_field_system_menu_init(&game->system_menu);
-    fd2_field_system_menu_set_options(&game->system_menu,
-                                      game->option_values);
-    game->event_log_count = 0;
-    game->event_total_count = 0;
-    game->unhandled_event_count = 0;
-    game->dropped_event_count = 0;
-    game->failure = FD2_FIELD_FAILURE_NONE;
-    memset(&game->failure_notice, 0, sizeof(game->failure_notice));
-    game->battle_result = FD2_FIELD_BATTLE_ONGOING;
-    return 0;
+    /* field_manual_slot_load @0x2986f 恢复的是持久表并进入 stage rebuild；
+     * B1.4 尚未恢复该流程，拒绝把 roster 误作当前战场 actor。 */
+    (void)game;
+    (void)path;
+    (void)slot_index;
+    return -1;
 }
 
 int fd2_field_game_execute_storage_action(

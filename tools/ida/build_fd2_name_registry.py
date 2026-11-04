@@ -131,6 +131,30 @@ CORRECTIONS: dict[int, list[dict]] = {
                "重算1aa10。镜头是死亡方向清理的前置读集，漏写可持久化错误方向；"
                "此为逻辑顺序核验，提示、演出及其附加等待/RNG未作动态对照。",
     }],
+    0x1B8A6: [{
+        "target": "evidence", "was": "AI私有重复库存计数，未共享完整raw槽语义",
+        "now": "扫描8个raw槽，只有flag bit80决定是否计数；装备位、物品ID及空洞不参与过滤。"
+               "SDL将原AI同体实现提为共享查询，NULL0是适配边界，不改原函数ABI。",
+        "why": "published1b8a6..1b8e7与strictLE file418ba完整65B SHA "
+               "987981c59e7b3801574e75280fc3848d3f829bfdafa4ef09f3a1707ad86318e9；"
+               "1b9de读取count后直接按raw索引选择，不能把显示跳空槽变成库存压实。",
+    }],
+    0x1B9DE: [{
+        "target": "semantic_name", "was": "sub_1B9DE",
+        "now": "field_unit_inventory_select_step",
+        "why": "完整430B及1b932/1bffe的xref：184c0绘制选中库存、16c57等单键后"
+               "更新53C57，返回0继续/-1取消/1确认；非完整modal，也非Use专属。"
+               "Up/Down全表回绕，Left>=4减4，Right<=3且index+4<count加4。",
+    }, {
+        "target": "evidence", "was": "将Use限制猜成只有已实现handler或装备位决定",
+        "now": "模式非0仅查当前物品record+0d非0，0模式可确认有效槽；不读MP或法术"
+               "禁止状态。SDL提取纯按键部分，不声称整个16c57等待不耗共享RNG；"
+               "dense-prefix和全已知ID是SDL支持门，不归给原版，不改raw槽及stale ID。",
+        "why": "strictLE file419f2全430B SHA "
+               "b47b912b31ed16be618e4a15cfc46e7ffa3aeedc2e7b599084460d1a17dafb07；"
+               "该选择器同时被普通列表与装备循环调用，generic unit命名保留此范围。"
+               "发布物理符号/伪C类型保持，未写数据库或猜测ABI。",
+    }],
     0x1CEED: [{
         "target": "semantic_name", "was": "sub_1CEED",
         "now": "field_unit_magic_list_draw",

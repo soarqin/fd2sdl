@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 215 |
+| 归约后的规范函数数 | 216 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -83,6 +83,9 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x1b1e7` | `sub_1B1E7` | evidence | 战况总览尚未登记开合、背景和关闭键边界 | 双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。 | 已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。 |
 | `0x1b41d` | `sub_1B41D` | evidence | 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 | 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。 | 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。 |
 | `0x1b5f1` | `sub_1B5F1` | evidence | 未登记总览三阵营计数的过滤门 | 逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。 | 已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。 |
+| `0x1b8a6` | `field_unit_inventory_count` | evidence | AI私有重复库存计数，未共享完整raw槽语义 | 扫描8个raw槽，只有flag bit80决定是否计数；装备位、物品ID及空洞不参与过滤。SDL将原AI同体实现提为共享查询，NULL0是适配边界，不改原函数ABI。 | published1b8a6..1b8e7与strictLE file418ba完整65B SHA 987981c59e7b3801574e75280fc3848d3f829bfdafa4ef09f3a1707ad86318e9；1b9de读取count后直接按raw索引选择，不能把显示跳空槽变成库存压实。 |
+| `0x1b9de` | `sub_1B9DE` | semantic_name | sub_1B9DE | field_unit_inventory_select_step | 完整430B及1b932/1bffe的xref：184c0绘制选中库存、16c57等单键后更新53C57，返回0继续/-1取消/1确认；非完整modal，也非Use专属。Up/Down全表回绕，Left>=4减4，Right<=3且index+4<count加4。 |
+| `0x1b9de` | `sub_1B9DE` | evidence | 将Use限制猜成只有已实现handler或装备位决定 | 模式非0仅查当前物品record+0d非0，0模式可确认有效槽；不读MP或法术禁止状态。SDL提取纯按键部分，不声称整个16c57等待不耗共享RNG；dense-prefix和全已知ID是SDL支持门，不归给原版，不改raw槽及stale ID。 | strictLE file419f2全430B SHA b47b912b31ed16be618e4a15cfc46e7ffa3aeedc2e7b599084460d1a17dafb07；该选择器同时被普通列表与装备循环调用，generic unit命名保留此范围。发布物理符号/伪C类型保持，未写数据库或猜测ABI。 |
 | `0x1c81f` | `sub_1C81F` | semantic_name | sub_1C81F | field_magic_damage_apply | 1c75e命中后调用的共享伤害core；逐目标消费spread RNG，两次整数截断形成rawDamage，再HP夹零。敌军ID>=68时读取4e84f record+9乘目标等级；死亡给全值，未死按rawDamage/maxHP计入53EC8。 |
 | `0x1c81f` | `sub_1C81F` | evidence | 经验可以统一按实际HP差计算 | 伤害贡献使用未夹HP的rawDamage，死亡分支给完整level*coefficient；不在此除caster等级、cap99或写EX。保留原IDA物理符号／类型，不据此猜ABI。 | 完整206B SHA b5b10e142a437411b5c94381747eef65783fa0a1e4b7e11caef3c31d1570ef60；已发布1c81f及1c75e/2ff01调用链、680B敌表；受控原版unit9杀unit96实测MP6与EX42，RNG／完整动画仍未对齐。 |
 | `0x1c916` | `sub_1C916` | semantic_name | sub_1C916 | field_hp_heal_apply | 1c8ed法术／211a4物品共享HP恢复core；一次spread RNG，满HP也消费，恢复量夹maxHP。ID<75按实际恢复差*40*目标等级权重/maxHP累加53EC8；只有8<profile<25给目标等级加30，不等同caster归一条件。 |

@@ -930,6 +930,18 @@ if(BUILD_TESTING)
     set_tests_properties(field_detail_flow PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
+    add_executable(fd2_field_item_select_test
+        tests/field_item_select_test.c
+        field_item.c)
+    target_include_directories(fd2_field_item_select_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_item_select_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_item_select_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_item_select_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_item_select COMMAND fd2_field_item_select_test)
+
     add_executable(fd2_field_magic_list_play_test
         tests/field_magic_list_play_test.c
         $<TARGET_OBJECTS:fd2sdl_core>)

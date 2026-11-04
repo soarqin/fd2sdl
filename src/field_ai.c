@@ -584,16 +584,6 @@ int fd2_field_ai_item_candidate_is_better(
                         candidate->score > best->score;
 }
 
-static size_t unit_inventory_count(const fd2_field_unit *unit) {
-    if (!unit) return 0;
-    const uint8_t *record = (const uint8_t *)unit;
-    size_t count = 0;
-    for (size_t slot = 0; slot < 8u; slot++) {
-        if ((record[0x0au + slot * 2u] & 0x80u) == 0) count++;
-    }
-    return count;
-}
-
 static int collect_line_targets(
         const fd2_field_units *units,
         int origin_x, int origin_y,
@@ -644,7 +634,7 @@ int fd2_field_ai_choose_item_candidate(
         return -1;
     const fd2_field_unit *actor = &units->items[actor_index];
     const uint8_t *actor_record = (const uint8_t *)actor;
-    size_t inventory_count = unit_inventory_count(actor);
+    size_t inventory_count = fd2_field_unit_inventory_count(actor);
     if (inventory_count == 0) return -1;
 
     int have_best = 0;

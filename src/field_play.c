@@ -17,6 +17,7 @@
 #include "field_attack.h"
 #include "field_game.h"
 #include "field_rng.h"
+#include "field_visual.h"
 #include "font.h"
 #include "input.h"
 #include "text.h"
@@ -174,6 +175,7 @@ static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
     }
     int reported_open = 0;
     for (;;) {
+        (void)fd2_field_water_tick(vga, SDL_GetTicks()); /* 稳定总览等待。 */
         fd2_field_game_tick(game, SDL_GetTicks());
         fd2_field_game_render_background(game, vga);
         /* phase12为四块稳定位置；静态内容已预检并缓存，不重复格式化。 */
@@ -1331,6 +1333,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         }
         if (was_waiting_phase && !game.player_post_waiting_phase)
             drain_frame_keys(vga); /* native controller尾119a6清BIOS脉冲。 */
+        (void)fd2_field_water_tick(vga, SDL_GetTicks()); /* 普通战场等待。 */
         fd2_field_game_tick(&game, SDL_GetTicks());
         game.battle_result = fd2_field_game_battle_result(&game);
         if (march_waiting_phase && (game.active_side == 2u ||

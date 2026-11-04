@@ -28,6 +28,24 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x4E310: [{
+        "target": "evidence",
+        "was": "未登记BIOS时钟读取的实际宽度",
+        "now": "中性sub_4E310读取BDA46c低16位tick，不按伪C MEMORY宏猜32位ABI。",
+        "why": "已发布入口及局部原始xor eax,eax; mov esi,46c; lodsw。"
+               "保留IDA中性名；SDL使用55ms宿主近似，不宣称硬件精确时钟。",
+    }],
+    0x4E31C: [{
+        "target": "evidence",
+        "was": "未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0",
+        "now": "unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写"
+               "DAC224..239，结束重读last，一次调用不追赶。状态60000/60002"
+               "属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。",
+        "why": "原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。"
+               "严格LE canonical60003有效93字节，后45恰重复首15个RGB，"
+               "16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。"
+               "当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。",
+    }],
     0x4E390: [{
         "target": "evidence",
         "was": "起点邻敌时也按ZOC禁止展开",

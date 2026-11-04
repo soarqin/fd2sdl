@@ -107,6 +107,8 @@ SDL 解码器在写入前校验整条指令跨度，拒绝超行、截断和尾�
 - 256 色 VGA 6-bit RGB（每分量 `0..63`），共 768 字节；按 `(v << 2) | (v >> 4)` 扩展为 8-bit。
 - 当前调色板指针在 object2 `DS:0x3a65`。`res_load @0x111ba` 按文件名、旧指针和 entry index 读取资源，不是文件 handle 接口。
 - 标题图为 FDOTHER[7] 的嵌套 sub[0]，固定使用 FDOTHER[8] 调色板；片头的资源选择、ANI 插入和闪电切换只在[启动流程](../reverse-engineering/boot-flow.md)维护。
+
+战场水色由中性 `sub_4E31C @0x4e31c` 直接更新 DAC224..239。canonical object3 `0x60003` 的93字节有效读集，后45字节恰重复前15个 RGB；因此48字节的16个 RGB6 周期可表达全部16个窗口，不能把未读尾部猜成声明数组大小。有效读集 SHA-256 为 `ff85b2a737b4e838d24fba73331de7d52815f1f87f6d940f339e5d1fd6e74198`。FDOTHER[0] 同区初始颜色的每分量少1，不是运行中的合法 cycle0，不得靠放宽像素容差混同。状态 `0x60000/0x60002` 分别为低16位 last tick／phase；全部 fixup 引用均在 helper 内，活动 Load 不重置。表与C常量可由 `tools/audit_fd2_water.py` 再生产核对。
 - 样本：标题图为 320×200，BG[0] 为 320×100。
 
 ### 2.2 音乐格式（FDMUS.DAT）✅

@@ -1,4 +1,4 @@
-/* 炎龙骑士团 2 SDL3 重写 - 战场选择框与可达范围视觉资源
+/* 炎龙骑士团 2 SDL3 重写 - 战场选择框、可达范围与水色DAC
  *
  * 逆向依据：field_selection_overlay_draw @0x122dc、
  * field_selection_sprite_blit @0x126f7、field_view_render_tiles @0x11eee
@@ -138,4 +138,43 @@ void fd2_field_apply_palette_lut(fd2_vga *vga,
         for (int col = left; col < right; col++)
             dst[col] = lut[dst[col]];
     }
+}
+
+/* sub_4E31C @0x4e31c（原登记 sub_4E31C）：DAC224..239固定水色窗口。
+ * strict LE object3 canonical0x60003的有效读集93字节=16个RGB6+前15个重复。
+ * 这里只保存等价的16色周期；不从FDOTHER初始palette猜色（其分量少1）。 */
+static const uint8_t field_water_rgb6[16][3] = {
+    {14,21,38}, {13,20,37}, {13,20,37}, {13,20,37},
+    {12,19,36}, {12,19,36}, {11,18,35}, {11,18,35},
+    {11,18,35}, {11,18,35}, {12,19,36}, {12,19,36},
+    {13,20,37}, {14,21,38}, {14,21,38}, {14,21,38}
+};
+
+int fd2_field_water_palette_apply(fd2_vga *vga, unsigned phase) {
+    if (!vga || phase >= 16) return -1;
+    for (unsigned i = 0; i < 16; i++) {
+        const uint8_t *color = field_water_rgb6[(phase + i) & 15u];
+        for (unsigned channel = 0; channel < 3; channel++) {
+            uint8_t value = color[channel];
+            vga->dac[(224u + i) * 3u + channel] =
+                (uint8_t)((value << 2) | (value >> 4));
+        }
+    }
+    return 0;
+}
+
+int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ms) {
+    if (!vga) return -1;
+    if (fd2_input_take_quit(&vga->input)) return 0;
+    if (vga->field_water_phase >= 16) return -1;
+    /* sub_4E310 @0x4e310（原登记sub_4E310）实际lodsw读BIOS低16位；
+     * 原4e32e是unsigned jb。55ms沿用宿主BIOS近似，不声称精确硬件时钟。
+     * 原版长停顿后只更新一次并重取last；不能用while追赶消耗暂停时间。 */
+    uint16_t tick = (uint16_t)(now_ms / 55u);
+    if ((uint16_t)(tick - vga->field_water_last_tick) < 2u) return 0;
+    unsigned phase = ((unsigned)vga->field_water_phase + 1u) & 15u;
+    (void)fd2_field_water_palette_apply(vga, phase);
+    vga->field_water_phase = (uint8_t)phase;
+    vga->field_water_last_tick = tick;
+    return 1;
 }

@@ -2263,6 +2263,8 @@ static int execute_path_playback(fd2_field_game *game,
             game->camera_pixel_offset_y =
                 camera_dy * (int)(phase + 1u) * 4;
             if (vga) {
+                /* 四方向follow_camera每个步态显式更新水DAC，纯render不推进。 */
+                (void)fd2_field_water_tick(vga, SDL_GetTicks());
                 /* march的51A83=0取消选择层，51AAC=0关闭常驻信息面板。
                  * 仅本次私有路径参数控制，不留下session显示策略。 */
                 if (mode == FIELD_PATH_MARCH_BROWSE)

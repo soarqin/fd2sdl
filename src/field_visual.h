@@ -39,4 +39,10 @@ void fd2_field_apply_palette_lut(fd2_vga *vga,
                                  int x, int y, int width, int height,
                                  const uint8_t lut[256]);
 
+/* 只应用已确认水色到DAC224..239，不改变base palette或phase；非法输入原子拒绝。
+ * tick由已确认战场等待caller显式调用；render/present不隐式推进。
+ * now_ms以55ms宿主近似转换BIOS低16位，差>=2才推进一次，不追赶。 */
+int fd2_field_water_palette_apply(fd2_vga *vga, unsigned phase);
+int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ms);
+
 #endif /* FD2_FIELD_VISUAL_H */

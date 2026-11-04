@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 198,
+ "canonical_functions": 200,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -6137,6 +6137,52 @@
     }
    ],
    "end_va": 320042,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 320272,
+   "off": 254736,
+   "ida_name": "sub_4E310",
+   "size": 12,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "未登记BIOS时钟读取的实际宽度",
+     "now": "中性sub_4E310读取BDA46c低16位tick，不按伪C MEMORY宏猜32位ABI。",
+     "why": "已发布入口及局部原始xor eax,eax; mov esi,46c; lodsw。保留IDA中性名；SDL使用55ms宿主近似，不宣称硬件精确时钟。"
+    }
+   ],
+   "end_va": 320284,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 320284,
+   "off": 254748,
+   "ida_name": "sub_4E31C",
+   "size": 101,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0",
+     "now": "unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写DAC224..239，结束重读last，一次调用不追赶。状态60000/60002属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。",
+     "why": "原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。严格LE canonical60003有效93字节，后45恰重复首15个RGB，16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。"
+    }
+   ],
+   "end_va": 320385,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],

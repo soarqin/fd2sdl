@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 198 |
+| 归约后的规范函数数 | 200 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -85,6 +85,8 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x37910` | `memset` | semantic_name | vga_clear（清屏 memset 0xa0000） | memset | IDA FLIRT『Watcom v9-*1.5 32bit DOS runtime』直接命名为 memset；调用点传入任意目标缓冲，不限于 0xa0000 显存。 |
 | `0x37940` | `fseek` | semantic_name | file_seek | fseek | Watcom runtime FLIRT 符号 |
 | `0x4e1a6` | `sub_4E1A6` | evidence | 未登记已行动actor的专用RLE映色 | 对实际写入pixel映为(color&7)+24，RLE skip保留底图；不能把cursor一同映色，或把合法opaque0当skip。当前真实FDICON1680帧没有opaque0，SDL可在临时栈buffer映非0缓存，不改bank。 | 已发布sub_4E1A6、127e0按flags signbit选择它与normal4e22a；原始RLE独立审计严格区分repeat/alternate/literal写0与skip，全部帧span/end校验通过，配套可再生产审计与回归，不新增mask框架。 |
+| `0x4e310` | `sub_4E310` | evidence | 未登记BIOS时钟读取的实际宽度 | 中性sub_4E310读取BDA46c低16位tick，不按伪C MEMORY宏猜32位ABI。 | 已发布入口及局部原始xor eax,eax; mov esi,46c; lodsw。保留IDA中性名；SDL使用55ms宿主近似，不宣称硬件精确时钟。 |
+| `0x4e31c` | `sub_4E31C` | evidence | 未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0 | unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写DAC224..239，结束重读last，一次调用不追赶。状态60000/60002属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。 | 原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。严格LE canonical60003有效93字节，后45恰重复首15个RGB，16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。 |
 | `0x4e381` | `vsync_wait` | semantic_name | vsync_wait（等待垂直同步） | bios_keyboard_buffer_clear | 原15字节 56 be1a040000 66 8b06 66 894602 5e c3 将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。 |
 | `0x4e390` | `field_reachable_cells_compute` | evidence | 起点邻敌时也按ZOC禁止展开 | 起点直接写预算并进入递归，允许先离开起点；只有进入的邻格按ZOC位停止继续扩展。友方终点阻断与可经过规则不变。 | 原始4e422写起点预算、4e424无条件调用4e42c；进入格门4e4be在4e4ea..4e4f0按bit80清剩余预算。SDL双方分组回归及无副作用检查；对应近敌原版运行仍待单独取证。 |
 | `0x4e4f6` | `field_path_find` | evidence | 普通路径起点与进入格是否同受ZOC门尚未区分 | 初始化起点后直接递归，起点不经进入格ZOC门；normal/mode1的SDL实现已有该行为，不额外更改。mode2 hostile witness独立。 | 原始初始化/递归调用与4e680进入格门；合成回归检查normal、long route、witness和非法起点拒绝。公开API另补坐标/三倍缓冲分配界检查，不据此声明原版完整ABI或全函数机器执行通过。 |

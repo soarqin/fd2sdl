@@ -41,6 +41,7 @@ git diff --check
 - `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat 生命周期、同帧输入清理、分配失败、宿主退出及玩法／RNG 不变；另读取真实资源检查干净背景。
 - `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另检查Enter详情与F2来源、controller尾按键耗尽。原版具体格事件与镜头仍按场景验收。
 - `field_geometry` 检查原 anchor 优先、整条长路径扫描、局部 profile 覆盖与零预算，并用只读真实 START 逐角色核对已取得的原版终点。它不执行 March 批次、AI／phase 或保存，不能代替正式行军配对。`fd2_movement_oracle.py` 复用 LE loader，从 canonical `0x61646` 提取全部 580 字节并校验摘要；玩家图形 runner 共用此依据，禁止再硬切旧文件偏移。
+- `field_water` 检查 DAC224..239 的精确写集、全部16色窗口、低16位／phase回绕、长停留只一步、Load／新session不重置、纯绘制不推进。`audit_fd2_water.py` 只读比对原版 LE 的93字节有效读集与C的48字节周期，并核对state fixup；它不输出镜像，不等于动态画面或硬件时序验收。
 - `field_unit_render` 检查单actor帧／坐标、acted映色、透明、bank不变、边裁与深度顺序；`python tools/audit_fdicon_opaque_zero.py original_game/FDICON.B24`只读核对原始RLE的opaque0与skip，Linux使用`python3`。
 - `field_play_input` 驱动真实 SDL 键盘，不直接调用玩法 API。Windows 使用原生交互桌面；Linux/X11 需要 X11、XTest 和 Xvfb。用 `ctest --test-dir src/build-win -C Debug -N` 或 `ctest --test-dir src/build -N` 核实测试清单；未注册不算已测。
 - Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。

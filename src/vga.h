@@ -36,6 +36,10 @@ typedef struct {
     fd2_input input;                     /* 唯一 SDL 逐呈现帧输入所有者 */
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
+    /* sub_4E31C @0x4e31c：app级DAC视觉owner；活动Load/新session不清零。
+     * 原版object3 60000/60002，仅VGA初始化归零，不写SAV。 */
+    uint16_t field_water_last_tick;
+    uint8_t field_water_phase;
 } fd2_vga;
 
 /* 初始化 VGA + SDL 窗口/渲染器 */

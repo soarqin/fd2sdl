@@ -257,3 +257,9 @@ COMMAND 现按 `@0x179d5 → @0x127e0` 在图标后只重画当前 actor，再�
 `march-graphics-01/` 的新一轮原版先行、SDL 后行通过：取消和 NO 不改存档 bytes／mtime；只肯定一次；WGC 识别 round2、实际 leader、无滚屏导航和真正空格 parent，再由 UI Save 测量。本次四名玩家终点一致，metadata、完整 `0xa00` roster、未用 actor 尾、cell state、手工槽与其余未声明区域逐字保留。cache、伤害、AI 位置和未对齐随机流另列排除，不把 round2 或未崩溃单独当通过。两端显式 host close 均在清理前正常退出 0，原版及来源未变，Job 无遗留或强制终止。
 
 `march/build/graphics-artifacts/20261104-184719-653282/` 的完整 20 组、九份原版配对全部通过，最外层 Job 为 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`。上述路径均相对本段的 C: 产物根。未声明长路径每个动画相位的即时关闭响应、所有延后剧情 clean、特定 cell handler、整关视听或完整 runtime／RNG 一致；Linux 未执行。
+
+### B1.4d0 水色DAC前置：2026-11-04
+
+在同一 C: 产物根的 `water/` 完整导出、重建后，40/40 CTest、193/193 Python 通过，无跳过。首次完整构建暴露独立 `field_visual` 测试未链接新增的 input 依赖，补齐后重新完整构建和重跑全部 CTest；第一次结果未计为通过。严格 LE／fixup 审计验证93字节读集及全部16个滑窗，内存回归验证只有DAC224..239变化、低16位无符号门／回绕、长停留一步、Load／新session不重置和render／present不推进。
+
+`water-overview-01/` 使用新候选程序完成受影响的原版／SDL 总览配对，原静态区、输入、全容器测量和只读守卫继续通过；双方正常退出，Job `residual=0 forced=0 cleaned=1`，原版与来源不变。此项仅证明既有总览场景未回归，不证明完整水面动态RGB已验；后者随F1下一阶段用完整64,000像素分别验证。宿主55ms tick和单次采样为明确近似，剧情／通用对话／独立timed wait等caller尚未全接，Linux未执行。

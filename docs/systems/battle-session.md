@@ -132,6 +132,8 @@ runtime `FD2_FIELD_MAX_UNITS` 当前为 64。**64／96／32 是三种不同边�
 
 session 持有完整 `0xa00` raw roster，包括未用尾；活动与手工保存均写出这整张表。加载 A 后保存到 B 或新文件时，roster 尾来自 A，metadata 未用尾仍由目标容器保留。这两个保留规则不能混为一条。
 
+水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。当前接普通战场等待、总览稳定等待和共享路径步态，剧情／通用对话／独立 timed wait 尚未全接，不能称全部 caller 已完成。
+
 继续保留已有入口门：系统菜单只在玩家 phase、browse 且焦点无可见 actor 时打开；secondary Save 在任一未隐藏 actor 带 acted `0x80` 时禁用，hidden actor 的 stale acted 不触发该门。Load 要求完整有效且当前支持的快照，不因磁盘上有同名文件就启用。不能把活动快照的限制直接套到四槽 dispatcher。
 
 宿主默认从工作目录 `FD2.SAV` 读写，可由 `FD2SDL_SAVE_PATH` 覆盖。测试／人工对照应使用可写副本，不把该变量指向 `original_game/` 中的原始证据。长度、checksum、四槽边界及 slot 3 尾部与 checksum 重叠的规则继续由 `save.c` 和格式文档维护。

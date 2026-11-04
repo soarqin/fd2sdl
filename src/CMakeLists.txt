@@ -406,6 +406,7 @@ if(BUILD_TESTING)
     add_executable(fd2_field_visual_test
         tests/field_visual_test.c
         field_visual.c
+        input.c
         archive.c
         shape.c
         image.c
@@ -589,6 +590,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_march COMMAND fd2_field_march_test)
     set_tests_properties(field_march PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_water_test
+        tests/field_water_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_water_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_water_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_water_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_water_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_water COMMAND fd2_field_water_test)
+    set_tests_properties(field_water PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     # 私有anchor几何直接包含field_game.c；过滤重复对象，保留其余正式依赖。

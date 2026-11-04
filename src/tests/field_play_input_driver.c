@@ -269,10 +269,24 @@ static int tap(InputTarget *display, KeySym symbol, unsigned long delay_us) {
     /* 按键会正常关闭目标（例如肯定离场）；在注入前持有该进程身份，
      * 释放按键后区分已退出和仍在运行却失焦，不用前台窗口猜退出。 */
     HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, display->pid);
-    if (!process) return -1;
+    if (!process) {
+        fprintf(stderr, "key OpenProcess failed: pid=%lu error=%lu\n",
+                (unsigned long)display->pid, (unsigned long)GetLastError());
+        return -1;
+    }
     INPUT event;
-    if (!focused(display) || keyboard_event(symbol, &event) != 0 ||
-        SendInput(1, &event, sizeof(event)) != 1) {
+    if (!focused(display)) {
+        CloseHandle(process);
+        return -1;
+    }
+    if (keyboard_event(symbol, &event) != 0) {
+        fprintf(stderr, "key has no scan code: virtual_key=%u\n", (unsigned)symbol);
+        CloseHandle(process);
+        return -1;
+    }
+    if (SendInput(1, &event, sizeof(event)) != 1) {
+        fprintf(stderr, "key down SendInput failed: pid=%lu virtual_key=%u error=%lu\n",
+                (unsigned long)display->pid, (unsigned)symbol, (unsigned long)GetLastError());
         CloseHandle(process);
         return -1;
     }
@@ -281,6 +295,8 @@ static int tap(InputTarget *display, KeySym symbol, unsigned long delay_us) {
     event.ki.dwFlags |= KEYEVENTF_KEYUP;
     /* 即使此时失焦，也必须配对释放本驱动刚按下的键。 */
     if (SendInput(1, &event, sizeof(event)) != 1) {
+        fprintf(stderr, "key up SendInput failed: pid=%lu virtual_key=%u error=%lu\n",
+                (unsigned long)display->pid, (unsigned)symbol, (unsigned long)GetLastError());
         CloseHandle(process);
         return -1;
     }
@@ -293,6 +309,9 @@ static int tap(InputTarget *display, KeySym symbol, unsigned long delay_us) {
         result = 0; /* 调用者仍须检查预期退出码与业务检查点。 */
     } else if (state == WAIT_TIMEOUT) {
         result = focused(display) ? 0 : -1;
+    } else {
+        fprintf(stderr, "key process wait failed: pid=%lu state=%lu error=%lu\n",
+                (unsigned long)display->pid, (unsigned long)state, (unsigned long)GetLastError());
     }
     CloseHandle(process);
     Sleep((DWORD)((delay_us + 999) / 1000));

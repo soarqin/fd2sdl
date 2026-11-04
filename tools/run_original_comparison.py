@@ -148,7 +148,8 @@ def driver_call(driver: Path, command: str, process: subprocess.Popen,
         args.append(str(argument))
     result = subprocess.run(args, capture_output=True, text=True, timeout=15)
     if result.returncode:
-        raise RuntimeError(f"窗口驱动 {command} 失败：{result.stdout}{result.stderr}")
+        raise RuntimeError(f"窗口驱动 {command} 失败：{result.stdout or ''}{result.stderr or ''}"
+                           f" [PID={process.pid} exit={result.returncode} argument={argument!s}]")
 
 
 @contextmanager

@@ -40,36 +40,58 @@ static uint16_t field_rng_initial_seed(void) {
     return (uint16_t)parsed;
 }
 
+/* FDTXT[410..420] 当前只确认普通字形、0xfffe换行、0xffff结束。
+ * 先验证完整span，避免后半段坏字形在提示已画出后才被静默跳过。 */
+static int system_confirmation_fragment(const fd2_field_game *game,
+                                          size_t fragment,
+                                          const uint8_t **tokens,
+                                          size_t *draw_count) {
+    if (!game || !game->ready || !game->font.glyphs ||
+        game->font.glyph_count == 0 ||
+        game->font.glyph_count > game->font.size / 32u)
+        return -1;
+    const uint8_t *data;
+    size_t count;
+    if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
+                                    &data, &count) != 0)
+        return -1;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(data, i);
+        if (token == 0xffffu) {
+            *tokens = data;
+            *draw_count = i;
+            return 0;
+        }
+        if (token == 0xfffeu) continue;
+        if (token >= 0xff00u || token >= game->font.glyph_count)
+            return -1;
+    }
+    return -1;
+}
+
 static int play_system_confirmation_text(fd2_field_game *game,
                                          fd2_vga *vga,
                                          size_t fragment,
                                          int fast) {
-    if (!game || !vga || !game->ui_text.data ||
-        !game->font.glyphs || !game->ready)
-        return -1;
     const uint8_t *tokens;
     size_t token_count;
-    if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
-                                    &tokens, &token_count) != 0)
+    if (!vga || system_confirmation_fragment(
+            game, fragment, &tokens, &token_count) != 0)
         return -1;
-    /* FDTXT confirmation fragments are short single-line messages. Render
-     * token glyphs in a neutral lower dialog strip; the actual yes/no choice
-     * remains a system-menu state and no action is committed here. */
+    /* 预检已完成；这里只呈现已确定提示，不提交YES/NO或玩法。 */
     for (int row = 0; row < 86; row++)
         memset(vga->framebuffer + (112 + row) * VGA_STRIDE + 5,
                0xcd, 310u);
     int x = 15;
     int y = 119;
     for (size_t i = 0; i < token_count; i++) {
-        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
-        if (token == -1) break;
-        if (token == -2) {
+        uint16_t token = fd2_text_token_at(tokens, i);
+        if (token == 0xfffeu) {
             x = 15;
             y += 16;
             continue;
         }
-        if (token < 0) continue;
-        fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
+        fd2_font_draw_glyph(vga, &game->font, token,
                             x, y, 0xcd, 0x4c, -1);
         x += 16;
     }
@@ -1643,9 +1665,14 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         (void)fd2_field_game_animate_system_menu(
                             &game, vga, 0, FD2_FIELD_COMMAND_FRAME_MS);
                         (void)fd2_field_game_cancel_system_menu(&game);
-                        if (page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION)
-                            (void)play_system_confirmation_text(
-                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once);
+                        if (page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION &&
+                            play_system_confirmation_text(
+                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
+                            fprintf(stderr, "取消提示资源无效。\n");
+                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                            break;
+                        }
                         if (page != FD2_FIELD_SYSTEM_PAGE_PARENT &&
                             game.interaction ==
                                 FD2_FIELD_INTERACTION_SYSTEM_MENU) {
@@ -1822,9 +1849,14 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             if (fd2_field_system_menu_get_confirmation_fragment(
                                     &game.system_menu,
                                     FD2_FIELD_SYSTEM_CONFIRM_PROMPT,
-                                    &fragment) == 0)
-                                (void)play_system_confirmation_text(
-                                    &game, vga, fragment, once);
+                                    &fragment) != 0 ||
+                                play_system_confirmation_text(
+                                    &game, vga, fragment, once) != 0) {
+                                fprintf(stderr, "系统确认提示资源无效。\n");
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                                break;
+                            }
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION) {
                             int overview_result = play_field_overview(&game, vga);
@@ -1849,15 +1881,28 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                     &game, system_action, save_path,
                                     &fragment) == 1;
                             if (success && system_action ==
-                                               FD2_FIELD_SYSTEM_ACTION_LOAD)
+                                               FD2_FIELD_SYSTEM_ACTION_LOAD) {
+                                reported_event_count = 0;
+                                reported_dropped_events = 0;
                                 apply_field_audio_options(&game, field_audio);
+                            }
                             if (fragment != 0) {
                                 game.system_result_fragment =
                                     (uint16_t)fragment;
                                 game.system_result_until_ms =
                                     SDL_GetTicks() + 1000u;
-                                (void)play_system_confirmation_text(
-                                    &game, vga, fragment, once);
+                                if (play_system_confirmation_text(
+                                        &game, vga, fragment, once) != 0) {
+                                    /* 存储动作已返回；呈现失败不能回滚或把已写
+                                     * 的Save误报成未写。Load成功也已替换session。 */
+                                    const char *status = system_action == FD2_FIELD_SYSTEM_ACTION_SAVE
+                                        ? (success ? "活动存档已写入" : "活动存档返回失败")
+                                        : (success ? "活动读档已完成" : "活动读档返回失败");
+                                    fprintf(stderr, "%s，但结果提示资源无效。\n", status);
+                                    play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                    running = 0;
+                                    break;
+                                }
                             }
                             if (!success)
                                 fprintf(stderr,
@@ -1959,8 +2004,12 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             }
                         } else if (system_action == FD2_FIELD_SYSTEM_ACTION_BACK &&
                                    game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
-                            (void)play_system_confirmation_text(
-                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once);
+                            if (play_system_confirmation_text(
+                                    &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
+                                fprintf(stderr, "取消提示资源无效。\n");
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                            }
                         } else {
                             if (game.option_values[1])
                                 (void)fd2_field_audio_play(

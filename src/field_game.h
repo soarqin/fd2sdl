@@ -53,6 +53,16 @@ typedef struct {
     size_t slot;
 } fd2_field_event_notice;
 
+/* SDL session 的首个不可恢复错误，不写入原版存档或单位记录。 */
+typedef enum {
+    FD2_FIELD_FAILURE_NONE = 0,
+    FD2_FIELD_FAILURE_EVENT_CAPACITY,
+    FD2_FIELD_FAILURE_EVENT_UNSUPPORTED,
+    FD2_FIELD_FAILURE_EVENT_EXECUTION,
+    FD2_FIELD_FAILURE_EVENT_DATA,
+    FD2_FIELD_FAILURE_ACTION
+} fd2_field_failure;
+
 /* M6 战斗外围允许测试覆盖范围判定；玩家 side 2 → 目标 side 0、存活
  * 与可见性仍由 session 强制检查。正式 session 默认使用已确认的武器
  * record +0x0b/+0x0c 范围。 */
@@ -193,6 +203,8 @@ typedef struct {
     uint32_t event_total_count;
     uint32_t unhandled_event_count;
     uint32_t dropped_event_count;
+    fd2_field_failure failure;
+    fd2_field_event_notice failure_notice;
 
     uint8_t idle_phase;
     uint64_t last_idle_ms;

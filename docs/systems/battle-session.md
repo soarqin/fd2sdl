@@ -63,9 +63,9 @@
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。
 
-## 3. 事件执行与诊断日志（B0，待实施）
+## 3. 事件执行与停止边界（B0）
 
-当前 `event_log` 最多保存 64 个 notice，兼有诊断记录与 `presentation_deferred` 驱动用途；玩家路径仍可能打印 `unhandled, skipped`，自动 phase 部分路径则明确失败。这不是统一的完成语义。
+`event_log` 最多保存 64 个 notice，兼有诊断与 `presentation_deferred` 驱动用途。当前实现保留这个有界容器，但必需事件在 handler 执行前检查容量，不再丢弃必需 notice 或把未知事件记为 `unhandled, skipped` 后继续。
 
 设计决定：
 
@@ -76,6 +76,12 @@
 5. 若未知 cell/stage handler 只能在动作提交后发现，停止并报告 `stage/actor/action/phase` 与已提交边界；不能改成待机，也不能假称回滚了整个动作。
 
 回归至少覆盖玩家和 AI 两条路径、notice 满边界、同一事件不重复提交、演出失败、提交后不再调度下一 actor，以及失败不会被应用层报告为正常完成。
+
+session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及其 turn、phase、actor、slot、action 和坐标，不写入原版单位或存档。记录首错后清除自动调度时间；玩家确认、移动、攻击、AI 提交和 phase 调度拒绝继续执行。正式循环先检查错误，再判断胜败；不能让同一动作导致的胜负门掩盖事件失败。
+
+玩家逐步移动只在玩家 path 模式查询 `match_arg=0`，出错后不继续下一步；玩家行动尾部的格事件先于 acted。AI 路径不沿途产生玩家事件，`match_arg=1` 由 common tail 查询，后置 handler 失败保留已提交效果与 acted。攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
+
+成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
 
 ## 4. 战场结果与应用去向（B1/B5，待实施）
 

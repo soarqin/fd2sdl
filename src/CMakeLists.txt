@@ -522,6 +522,20 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_game_attack COMMAND fd2_field_game_attack_test)
 
+    add_executable(fd2_field_game_failure_test
+        tests/field_game_failure_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_game_failure_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_game_failure_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_game_failure_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_game_failure_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_game_failure COMMAND fd2_field_game_failure_test)
+
     add_executable(fd2_field_game_system_menu_test
         tests/field_game_system_menu_test.c
         $<TARGET_OBJECTS:fd2sdl_core>

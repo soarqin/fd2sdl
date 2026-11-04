@@ -302,11 +302,126 @@ static int test_file_roundtrip(void) {
     return 0;
 }
 
+static int read_save_bytes(const char *path, uint8_t bytes[FD2_SAVE_FILE_SIZE]) {
+    FILE *file = fopen(path, "rb");
+    if (!file) return -1;
+    int result = fread(bytes, 1, FD2_SAVE_FILE_SIZE, file) == FD2_SAVE_FILE_SIZE &&
+                 fgetc(file) == EOF ? 0 : -1;
+    if (fclose(file) != 0) result = -1;
+    return result;
+}
+
+static void stop_session(fd2_field_game *game) {
+    game->failure = FD2_FIELD_FAILURE_EVENT_UNSUPPORTED;
+    memset(&game->failure_notice, 0x5a, sizeof(game->failure_notice));
+}
+
+static int test_stopped_session_save_and_restore(void) {
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0 && write_fixture(path) == 0);
+    fd2_field_game game;
+    init_game(&game);
+    CHECK(fd2_field_game_save_active(&game, path) == 0);
+    CHECK(fd2_field_game_save_manual_slot(&game, path, 2) == 0);
+    uint8_t before_file[FD2_SAVE_FILE_SIZE], after_file[FD2_SAVE_FILE_SIZE];
+    CHECK(read_save_bytes(path, before_file) == 0);
+    stop_session(&game);
+    fd2_field_game before = game;
+    fd2_save_battle_snapshot snapshot, before_snapshot;
+    memset(&snapshot, 0xa5, sizeof(snapshot));
+    before_snapshot = snapshot;
+    CHECK(fd2_field_game_export_battle_snapshot(&game, &snapshot) != 0);
+    CHECK(memcmp(&snapshot, &before_snapshot, sizeof(snapshot)) == 0);
+    CHECK(fd2_field_game_save_active(&game, path) != 0);
+    CHECK(fd2_field_game_save_manual_slot(&game, path, 2) != 0);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+    CHECK(read_save_bytes(path, after_file) == 0);
+    CHECK(memcmp(before_file, after_file, sizeof(before_file)) == 0);
+
+    game.units.items[0].hp = 1;
+    CHECK(fd2_field_game_load_active(&game, path) == 0);
+    fd2_field_event_notice empty_notice = {0};
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE);
+    CHECK(memcmp(&game.failure_notice, &empty_notice, sizeof(empty_notice)) == 0);
+    CHECK(game.units.items[0].hp == 100);
+    stop_session(&game);
+    game.units.items[0].hp = 2;
+    CHECK(fd2_field_game_load_manual_slot(&game, path, 2) == 0);
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE);
+    CHECK(memcmp(&game.failure_notice, &empty_notice, sizeof(empty_notice)) == 0);
+    CHECK(game.units.items[0].hp == 100);
+    CHECK(read_save_bytes(path, after_file) == 0);
+    CHECK(memcmp(before_file, after_file, sizeof(before_file)) == 0);
+    CHECK(remove(path) == 0);
+    return 0;
+}
+
+static int test_failed_load_preserves_stopped_session(void) {
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0 && write_fixture(path) == 0);
+    fd2_field_game source, target;
+    init_game(&source);
+    init_game(&target);
+    CHECK(fd2_field_game_save_active(&source, path) == 0);
+    CHECK(fd2_field_game_save_manual_slot(&source, path, 2) == 0);
+    stop_session(&target);
+    fd2_field_game before = target;
+    uint8_t valid_file[FD2_SAVE_FILE_SIZE], before_file[FD2_SAVE_FILE_SIZE];
+    uint8_t after_file[FD2_SAVE_FILE_SIZE];
+    CHECK(read_save_bytes(path, valid_file) == 0);
+
+    FILE *file = fopen(path, "r+b");
+    CHECK(file != NULL && fseek(file, 20, SEEK_SET) == 0);
+    CHECK(fputc(valid_file[20] ^ 1, file) != EOF && fclose(file) == 0);
+    CHECK(read_save_bytes(path, before_file) == 0);
+    CHECK(fd2_field_game_load_active(&target, path) != 0);
+    CHECK(memcmp(&target, &before, sizeof(target)) == 0);
+    CHECK(fd2_field_game_load_manual_slot(&target, path, 2) != 0);
+    CHECK(memcmp(&target, &before, sizeof(target)) == 0);
+    CHECK(read_save_bytes(path, after_file) == 0);
+    CHECK(memcmp(before_file, after_file, sizeof(before_file)) == 0);
+
+    /* 校验和有效但 stage 不支持，也不能清除原停止原因或写回文件。 */
+    CHECK(write_fixture(path) == 0);
+    CHECK(fd2_field_game_save_active(&source, path) == 0);
+    CHECK(fd2_field_game_save_manual_slot(&source, path, 2) == 0);
+    fd2_save_file save = {0};
+    fd2_save_battle_snapshot snapshot;
+    fd2_save_manual_slot slot;
+    fd2_save_manual_state state;
+    CHECK(fd2_save_file_open(&save, path) == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] = 1;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(fd2_save_file_get_manual_slot(&save, 2, &slot) == 0);
+    CHECK(fd2_save_manual_slot_decode(&slot, &state) == 0);
+    state.stage_id = 1;
+    CHECK(fd2_save_manual_slot_encode(&slot, &state) == 0);
+    CHECK(fd2_save_file_update_manual_slot(&save, 2, &slot) == 0);
+    CHECK(fd2_save_file_write(&save, path) == 0);
+    fd2_save_file_close(&save);
+    CHECK(read_save_bytes(path, before_file) == 0);
+    CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) != 0);
+    CHECK(memcmp(&target, &before, sizeof(target)) == 0);
+    CHECK(fd2_field_game_load_active(&target, path) != 0);
+    CHECK(memcmp(&target, &before, sizeof(target)) == 0);
+    CHECK(fd2_field_game_load_manual_slot(&target, path, 2) != 0);
+    CHECK(memcmp(&target, &before, sizeof(target)) == 0);
+    CHECK(read_save_bytes(path, after_file) == 0);
+    CHECK(memcmp(before_file, after_file, sizeof(before_file)) == 0);
+    CHECK(remove(path) == 0);
+    return 0;
+}
+
 int main(void) {
     if (test_export_preserves_unknown() != 0 ||
         test_import_is_transactional() != 0 ||
         test_manual_slot_roundtrip() != 0 ||
-        test_file_roundtrip() != 0)
+        test_file_roundtrip() != 0 ||
+        test_stopped_session_save_and_restore() != 0 ||
+        test_failed_load_preserves_stopped_session() != 0)
         return 1;
     puts("field_save_test: ok");
     return 0;

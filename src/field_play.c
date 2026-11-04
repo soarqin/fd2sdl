@@ -875,16 +875,19 @@ static int present_field_events(fd2_field_game *game,
                                 fd2_vga *vga,
                                 const fd2_archive *fdother,
                                 fd2_field_audio *audio) {
-    if (!game || !vga || !fdother) return -1;
+    if (!game || !vga || !fdother || game->failure != FD2_FIELD_FAILURE_NONE)
+        return -1;
     for (size_t i = 0; i < game->event_log_count; i++) {
         fd2_field_event_notice *notice = &game->event_log[i];
-        if (!notice->handled || !notice->presentation_deferred) continue;
+        if (!notice->handled) return -1;
+        if (!notice->presentation_deferred) continue;
         int result = fd2_scene_play_field_event(
             vga, fdother, game, notice, audio, 0);
         if (result == FD2_SCENE_RESULT_HOST_QUIT)
             return FD2_SCENE_RESULT_HOST_QUIT;
         if (result != 0)
             return -1;
+        notice->presentation_deferred = 0;
     }
     return 0;
 }
@@ -900,7 +903,7 @@ static void report_field_events(const fd2_field_game *game,
             ? (notice->presentation_deferred
                    ? "handled, presentation deferred"
                    : "handled")
-            : "unhandled, skipped";
+            : "unhandled, stopped";
         if (notice->kind == FD2_FIELD_EVENT_TURN) {
             printf("field event: turn=%u phase=%u slot=%zu action=%u %s\n",
                    notice->turn_number, notice->phase, notice->slot,
@@ -914,12 +917,22 @@ static void report_field_events(const fd2_field_game *game,
     }
     if (*reported_dropped != game->dropped_event_count) {
         uint32_t delta = game->dropped_event_count - *reported_dropped;
-        printf("field event: %u additional unhandled event(s) skipped; "
-               "details dropped from bounded log\n", delta);
+        printf("field event: %u diagnostic record(s) dropped from bounded log\n", delta);
         *reported_dropped = game->dropped_event_count;
     }
     if (game->event_log_count != 0 || game->dropped_event_count != 0)
         fflush(stdout);
+}
+
+static void report_session_failure(const fd2_field_game *game) {
+    if (game->failure == FD2_FIELD_FAILURE_NONE) return;
+    const fd2_field_event_notice *notice = &game->failure_notice;
+    fprintf(stderr,
+            "field session stopped: reason=%d stage=%zu turn=%u phase=%u "
+            "actor=%u slot=%zu action=%u cell=(%u,%u); committed state retained\n",
+            (int)game->failure, game->stage, notice->turn_number,
+            notice->phase, notice->unit_index, notice->slot,
+            notice->action, notice->x, notice->y);
 }
 
 static int validate_field_effects(fd2_field_game *game, fd2_vga *vga,
@@ -1158,6 +1171,11 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
     int running = 1;
     fd2_field_play_result play_result = FD2_FIELD_PLAY_RETURN_COMPLETE;
     while (running) {
+        if (game.failure != FD2_FIELD_FAILURE_NONE) {
+            report_session_failure(&game);
+            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+            break;
+        }
         fd2_field_game_tick(&game, SDL_GetTicks());
         game.battle_result = fd2_field_game_battle_result(&game);
         if (game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
@@ -1200,10 +1218,11 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             SDL_GetTicks() >= game.phase_next_action_ms) {
             int ai_result = fd2_field_game_process_automatic_action_visual(
                 &game, vga, 55);
-            if (game.active_side != 2)
+            if (ai_result >= 0 && game.active_side != 2)
                 game.phase_next_action_ms =
                     SDL_GetTicks() + FD2_FIELD_AUTOMATIC_ACTION_MS;
             if (ai_result < 0) {
+                report_session_failure(&game);
                 fprintf(stderr, "field automatic action unsupported or failed\n");
                 play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                 running = 0;
@@ -1540,6 +1559,12 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     } else {
                         unit_index = fd2_field_game_confirm_cursor(&game);
                     }
+                    if (game.failure != FD2_FIELD_FAILURE_NONE) {
+                        report_session_failure(&game);
+                        play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                        running = 0;
+                        break;
+                    }
                     if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU &&
                         previous_interaction == FD2_FIELD_INTERACTION_BROWSE) {
@@ -1551,6 +1576,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     }
                     if (game.interaction == FD2_FIELD_INTERACTION_MOVING) {
                         if (fd2_field_game_execute_move(&game, vga, 55) != 0) {
+                            report_session_failure(&game);
                             fprintf(stderr, "field move execution failed\n");
                             play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                             running = 0;

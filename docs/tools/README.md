@@ -54,6 +54,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 另以 `run_original_end_turn.py` 的真实 START 副本提交一次 END，识别 actor 0 最终焦点并正式 Save，比较回合、计数、配置等确定性字段；已加入总流程。相机、伤害和 AI 随机结果仍不作相等声明。
 
+`run_original_load.py` 在 round2 不保存，再用正式 Load 恢复真实 START，最后显式 Save 测量；Load 前后同时核对文件内容与修改时间，测量时只排除已确认 cache class 和导航焦点差异。该项也在总流程中串行执行。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

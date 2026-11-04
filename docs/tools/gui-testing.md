@@ -46,6 +46,7 @@ ctest --test-dir src/build-win -C Debug -R '^field_play_input$' --output-on-fail
 python tools/run_original_comparison.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-comparison
 python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-battle-menu
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_end_turn.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-end-turn
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_load.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-load
 ```
 
 CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；总流程为每轮创建 `graphics-artifacts/<时间>/`，其中包括输入 trace、日志、原始截图、差异图、原版资源 SHA-256、子进程退出与清理记录及 `summary.json`。当前驱动的文件接口使用 Windows 当前代码页，测试产物目录先使用 ASCII 路径。总流程自动把 SDL 正式 UI 生成的 `storage-cancel/FD2.SAV` 传给原版配对。单独复跑时将示例的 fixture 路径换成该文件，并使用新的产物目录；不要拿任意高关卡存档要求仅支持 stage 0 的 SDL 呈现相同菜单。原版与转换产物不提交；只提交测试脚本、配置生成逻辑与文字结论。
@@ -76,6 +77,7 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | 原版配对 | 标题默认选择、上下移动、回绕、Esc 无副作用 | 原版与 SDL 的 WGC 单窗口帧在同一检查点比较；菜单变化与恢复均有断言；另测宿主遮挡不影响捕获 |
 | 原版 B1 菜单配对 | CONTINUE → 空焦点菜单 → END 默认 YES／Right 选 NO → Esc／NO 回浏览 → 重新开菜单 | 原版资源像素识别各检查点；YES/NO 必须采到对应选中高亮，取消后光标与静态面板区域恢复初始浏览，两份存档不变。SDL march 能力门单独排除 |
 | 原版 B1.3a | 真实 START → 肯定 END 一次 → round 002 → actor 0 最终焦点 → 左格正式 Save | 原版回合 banner、角色与光标组合资源、有效存档及独立数量；两端确定性字段相等。源码日志仅补充 SDL phase 顺序 |
+| 原版 B1.3b Load | round2 不保存 → Load 的 Esc／NO → 肯定 Load 来源 A → 显式 UI Save 测量 | Load 前后来源副本内容和 mtime 不变；测量存档恢复 turn1 与全部已确认字段，仅排除 active cache `+2` 和记录的测量焦点导航。取消只证明浏览恢复、文件不写及菜单可再次使用 |
 | 后续原版配对 | END 肯定提交后的 phase／AI、Save/Load、胜败出口、法术、物品、战斗演出、声音 | 按下节逐项补充，不因可自动输入而视为全部完成 |
 
 `field_play_result` 用测试目标私有替身触发正式循环的自动动作失败、剧情失败、剧情宿主退出与移动失败；不向生产代码加测试钩子。此测试不是 DOSBox 行为对照。
@@ -171,3 +173,11 @@ Windows 基础、B0、B1.1、B1.2a、B1.2b 已分别从独立暂存候选构建�
 第 1～5 轮失败现场继续保留：包括初始遮挡、SDL 焦点缺失、动画中间态、透明能力帧及不适用的缩略图 ROI。均修复具体实现或判据后复跑，未扩大像素容差、改截图接口或补发盲键。`run_original_end_turn.py` 已纳入总流程；单独运行默认使用真实 START，不以 SDL 自产档作为唯一格式 oracle。
 
 通过范围是上述确定性回合／保存合同。原版与 SDL 相机分别为 `(0,13)`／`(4,11)`，如实记录而不判相等；RNG 未对齐，伤害、命中、AI 目标／坐标、roster 有效记录内容和完整画面／声音仍排除。未新增局部机器码执行或 IDA 数据库发布；Load、leave 和 B1.4 页面另行验收。
+
+### B1.3b 活动 Load：2026-11-04
+
+`src/build-win/graphics-artifacts/original-load-20261104-02/` 完成两端 START→END→round2（不保存）→Load 的 Esc／NO→肯定 Load→正式 Save 测量。启动前记录隔离来源 A 的 `st_mtime_ns`，在 END、取消、Load 及测量 Save 肯定前同时检查内容与时间戳，全部保持原值；只有显式测量 Save 允许写盘。第 1 轮已通过内容比较，第 2 轮补齐同内容重写的检测，不把 hash 相等冒充完全未写盘。
+
+测量文件恢复到 stage 0、turn 1、active 12／roster 4。逐字比较整个明文容器，只允许原版重新分配的 active `+2` cache class、明确记录的空格导航焦点四字节，以及重新计算的 checksum 不同；完整 raw roster、有效 actor 的 HP/MP／装备／法术／flags、cell、配置、资源、镜头、metadata 与其他未知字节均匹配来源。Load 本身与随后测量 Save 分别取证，不能混记为自动写档。
+
+两端 Esc／NO 只验收浏览焦点恢复、菜单可再次打开及磁盘无写；未单独测量取消后的全部 runtime／RNG。完整画面、声音、随机流和坏档在原版中的安全恢复不在此项范围。两个进程均正常关闭，Job 无强制清理或遗留，源档及原版目录不变。该 runner 已纳入总流程；leave 和 B1.4 仍独立推进。

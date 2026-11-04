@@ -526,6 +526,9 @@ class Suite:
             self.command("original-end-turn", [sys.executable, ROOT / "tools/run_original_end_turn.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-end-turn"], timeout=300)
+            self.command("original-load", [sys.executable, ROOT / "tools/run_original_load.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-load"], timeout=360)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

@@ -215,11 +215,12 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
     if (pal_idx >= 0) {
         fd2_vga_clear(vga, 0);
         const uint8_t *pal = res_load_palette((size_t)pal_idx);
-        if (pal) fd2_vga_set_palette(vga, pal);
+        if (!pal) return -1;
+        fd2_vga_set_palette(vga, pal);
     }
     fd2_vga_set_brightness(vga, 0);
     int result = fd2_animation_play(vga, &g_ani, anim_idx, delay_ms, 0);
-    if (result == -2) return -2;
+    if (result < 0) return result;
     fade_out_dark(vga);
     return result;
 }
@@ -258,13 +259,16 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
      * 6-bit 亮度最大 0x3F, 但 scale 是 0x40 */
     fd2_vga_clear(vga, 0);
     const uint8_t *pal = res_load_palette(0x4c);
-    if (pal) fd2_vga_set_palette(vga, pal);
+    if (!pal) goto resource_error;
+    fd2_vga_set_palette(vga, pal);
     fd2_vga_set_brightness(vga, 0x40);  /* 暗度=0x40: DAC全黑 */
 
     fd2_image img_intro;
     if (res_load_image(&img_intro, 0x4a) == 0) {
         blit_image(vga, &img_intro, 0, 0);  /* blit (不可见, DAC=黑) */
         fd2_image_free(&img_intro);
+    } else {
+        goto resource_error;
     }
 
     /* FUN_0001cc6d(): 渐入 (brightness 0x40->0, 暗->亮, 65步x2ms) */
@@ -281,7 +285,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
      * 原版此处为 FUN_0000f488(0,0xff,0)：DAC 完整亮度，
      * 画面仍为黑色是因为 framebuffer 已清零。 */
     pal = res_load_palette(99);
-    if (pal) fd2_vga_set_palette(vga, pal);
+    if (!pal) goto resource_error;
+    fd2_vga_set_palette(vga, pal);
     fd2_vga_clear(vga, 0);
     fd2_vga_set_brightness(vga, 0);
     fd2_vga_present(vga);  /* 黑屏 */
@@ -290,6 +295,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     int animation_result = fd2_animation_play(
         vga, &g_ani, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1);
     if (animation_result == -2) goto host_quit;
+    if (animation_result < 0) goto resource_error;
     /* 动画只采样当前键态，不保留 skip 事件；若物理键仍按住，后续
      * 交互还要等待 typematic 初始 deadline，不能立即确认标题菜单。 */
 
@@ -306,7 +312,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
      *   21. for 5 frames: load + blit to offscreen */
     fd2_vga_clear(vga, 0);                      /* 步骤16 */
     pal = res_load_palette(0x65);
-    if (pal) fd2_vga_set_palette(vga, pal);     /* 步骤17 */
+    if (!pal) goto resource_error;
+    fd2_vga_set_palette(vga, pal);             /* 步骤17 */
     fd2_vga_set_brightness(vga, 0x40);           /* 步骤18 */
 
     /* boot_intro_title_menu @0x1f894：malloc(0x396c0) 分配 320×735 滚动缓冲，
@@ -365,38 +372,34 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 if (scroll_y != 0x19) fade_out_dark(vga);
 
                 if (scroll_y == 0x14a) {
-                    if (play_intro_animation_with_palette(
-                            vga, 4, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2 ||
-                        play_intro_animation_with_palette(
-                            vga, 5, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0) == -2) {
-                        free(offscreen);
-                        goto host_quit;
-                    }
+                    animation_result = play_intro_animation_with_palette(
+                        vga, 4, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99);
+                    if (animation_result >= 0)
+                        animation_result = play_intro_animation_with_palette(
+                            vga, 5, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0);
                 } else if (scroll_y == 0xd2) {
-                    if (play_intro_animation_with_palette(
-                            vga, 6, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2 ||
-                        play_intro_animation_with_palette(
-                            vga, 7, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0) == -2) {
-                        free(offscreen);
-                        goto host_quit;
-                    }
+                    animation_result = play_intro_animation_with_palette(
+                        vga, 6, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99);
+                    if (animation_result >= 0)
+                        animation_result = play_intro_animation_with_palette(
+                            vga, 7, FD2_TITLE_ANIM_DELAY_MEDIUM_MS, 0);
                 } else if (scroll_y == 0x6e) {
-                    if (play_intro_animation_with_palette(
-                            vga, 8, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99) == -2) {
-                        free(offscreen);
-                        goto host_quit;
-                    }
+                    animation_result = play_intro_animation_with_palette(
+                        vga, 8, FD2_TITLE_ANIM_DELAY_SLOW_MS, 99);
                 } else { /* scroll_y == 0x19 */
-                    if (play_intro_animation_with_palette(
-                            vga, 0, FD2_TITLE_ANIM_DELAY_FAST_MS, 0) == -2) {
-                        free(offscreen);
-                        goto host_quit;
-                    }
+                    animation_result = play_intro_animation_with_palette(
+                        vga, 0, FD2_TITLE_ANIM_DELAY_FAST_MS, 0);
+                }
+                if (animation_result < 0) {
+                    free(offscreen);
+                    if (animation_result == -2) goto host_quit;
+                    goto resource_error;
                 }
 
                 restore_scroll_frame(vga, offscreen, scroll_total_h, scroll_y);
                 const uint8_t *rp = res_load_palette(0x65);
-                if (rp) fd2_vga_set_palette(vga, rp);
+                if (!rp) { free(offscreen); goto resource_error; }
+                fd2_vga_set_palette(vga, rp);
                 fade_in_light(vga);
             }
 
@@ -415,11 +418,15 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 /* 清屏 + 加载切入调色板和图像 */
                 fd2_vga_clear(vga, 0);
                 const uint8_t *cp = res_load_palette(pal_idx);
-                if (cp) fd2_vga_set_palette(vga, cp);
+                if (!cp) { free(offscreen); goto resource_error; }
+                fd2_vga_set_palette(vga, cp);
                 fd2_image cut_img;
                 if (res_load_image(&cut_img, img_idx) == 0) {
                     blit_image(vga, &cut_img, 0, 0);
                     fd2_image_free(&cut_img);
+                } else {
+                    free(offscreen);
+                    goto resource_error;
                 }
                 /* 渐入 */
                 for (int s = 0; s <= 0x40; s += 4) {
@@ -427,7 +434,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                     fd2_vga_present(vga);
                     fd2_delay_ms(2);
                 }
-                fd2_vga_set_palette(vga, res_load_palette(pal_idx));
+                fd2_vga_set_palette(vga, cp);
                 fd2_vga_present(vga);
                 /* 等 1+6 tick (FUN_000151f1) */
                 fd2_wait_ticks(1);
@@ -437,7 +444,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 fd2_vga_present(vga);
                 /* 恢复滚动调色板[0x65]和滚动画面 */
                 const uint8_t *rp = res_load_palette(0x65);
-                if (rp) fd2_vga_set_palette(vga, rp);
+                if (!rp) { free(offscreen); goto resource_error; }
+                fd2_vga_set_palette(vga, rp);
                 int src_start2 = scroll_y * VGA_STRIDE;
                 int copy_rows2 = (scroll_y + VGA_H <= scroll_total_h) ? VGA_H
                              : (scroll_total_h - scroll_y);
@@ -450,8 +458,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                     fd2_vga_present(vga);
                     fd2_delay_ms(2);
                 }
-                const uint8_t *rp2 = res_load_palette(0x65);
-                if (rp2) fd2_vga_set_palette(vga, rp2);
+                fd2_vga_set_palette(vga, rp);
             }
 
             /* title_action_menu @code0 0xfbb7..0xfbd6：所有当前滚动位置
@@ -471,7 +478,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             if (lightning_active != lightning_palette_active) {
                 const uint8_t *scroll_pal = res_load_palette(
                     lightning_active ? 0x66u : 0x65u);
-                if (scroll_pal) fd2_vga_set_palette(vga, scroll_pal);
+                if (!scroll_pal) { free(offscreen); goto resource_error; }
+                fd2_vga_set_palette(vga, scroll_pal);
                 lightning_palette_active = lightning_active;
             }
 

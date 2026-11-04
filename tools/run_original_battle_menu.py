@@ -78,9 +78,10 @@ def resource_templates(resource: Path, text_resource: Path) -> dict:
             bits = int.from_bytes(glyph[y * 2:y * 2 + 2], "big")
             for x in range(16):
                 if bits & (0x8000 >> x):
-                    notice.putpixel((item * 16 + x, y), 0xcd)
-                    notice.putpixel((item * 16 + x + 1, y), 0x4c)
+                    # @0x4ed7a：下左／正下阴影；画布向左扩1px。
+                    notice.putpixel((1 + item * 16 + x, y), 0xcd)
                     notice.putpixel((item * 16 + x, y + 1), 0x4c)
+                    notice.putpixel((1 + item * 16 + x, y + 1), 0x4c)
     return {"commands": commands, "cursor": cursor, "notice": notice,
             "palette6": palette6, "palette": palette}
 
@@ -142,7 +143,7 @@ class Oracle:
         return None
 
     def cancellation_notice(self, frame):
-        return match_indexed(frame, self.assets["notice"], (99, 146))["ok"]
+        return match_indexed(frame, self.assets["notice"], (98, 146))["ok"]
 
 
 def save_checkpoint(capture, name, frame, detail, report):

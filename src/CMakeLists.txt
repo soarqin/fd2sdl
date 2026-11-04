@@ -273,6 +273,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME title COMMAND fd2_title_test)
 
+    add_executable(fd2_font_test
+        tests/font_test.c
+        font.c
+        archive.c
+    )
+    target_include_directories(fd2_font_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_font_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_font_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_font_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME font COMMAND fd2_font_test)
+
     add_executable(fd2_input_test
         tests/input_test.c
         input.c

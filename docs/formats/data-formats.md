@@ -324,7 +324,11 @@ fragment_count = first_offset / 2
 ?      变长   fragments，u16 token 流
 ```
 
-片段内容不是可直接按 Big5/GBK 解码的字节串，而是 u16 token 流。非负 token 是 FDOTHER.DAT[4] 的 16×16 字形编号，`FUN_0004c4c2 @0x73f8e` 按 `token * 0x20` 取 32 字节位图绘制。全部字形的最终 Unicode 映射见 `docs/formats/font-glyph-map.tsv`，格式说明见 `docs/formats/font-text-mapping.md`。
+片段内容不是可直接按 Big5/GBK 解码的字节串，而是 u16 token 流。非负 token 是 FDOTHER.DAT[4] 的 16×16 字形编号，`font_glyph_blit_16x16 @0x4ed7a`（原登记 `FUN_0004c4c2`）按 `token * 0x20` 取 32 字节位图绘制。全部字形的最终 Unicode 映射见 `docs/formats/font-glyph-map.tsv`，格式说明见 `docs/formats/font-text-mapping.md`。
+
+字体函数的背景参数低 byte 为 0 时保留底图，非零时先预清整个 16×16 区域；收到字形编号 10 时，在可选预清之后跳过字模。每个置位 bit 写前景 `(x,y)`，再写下左 `(x-1,y+1)` 与正下 `(x,y+1)` 的阴影，阴影色 0 也会写入。依据为已发布伪 C 52187..52203 行及 object1 指令 VA `0x4edc0`、`0x4edeb`、`0x4ee01..0x4ee23` 的局部只读复核。
+
+SDL 字体接口继续以 `bg<0` 表示透明，`bg>=0` 表示画字前预填（含显式黑色 0）；因此原版背景参数 0 应映射为 SDL `bg=-1`。三个目标像素分别裁切，保留前景出界而阴影仍可见的情形。已有生产调用均传 `shadow=0x4c, bg=-1`，不按颜色 0 关闭阴影。
 
 已确认控制码：
 

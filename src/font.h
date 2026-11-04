@@ -20,6 +20,9 @@ typedef struct {
 } fd2_font;
 
 int  fd2_font_open_fdother(fd2_font *font, const fd2_archive *fdother, size_t entry_idx);
+/* bg<0 保留底图；bg>=0 先预填16×16再画字（含0色）。原版背景
+ * 参数0表示透明，调用此SDL接口时应传-1。阴影写下左与正下，0色
+ * 不是关闭阴影；字形10只执行可选预填。越界目标像素各自裁切。 */
 void fd2_font_draw_glyph(fd2_vga *vga, const fd2_font *font,
                          uint16_t glyph_idx, int x, int y,
                          uint8_t fg, uint8_t shadow, int bg);

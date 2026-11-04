@@ -64,6 +64,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x3776e` | `free` | semantic_name | mem_free | free | Watcom runtime FLIRT 符号 |
 | `0x37910` | `memset` | semantic_name | vga_clear（清屏 memset 0xa0000） | memset | IDA FLIRT『Watcom v9-*1.5 32bit DOS runtime』直接命名为 memset；调用点传入任意目标缓冲，不限于 0xa0000 显存。 |
 | `0x37940` | `fseek` | semantic_name | file_seek | fseek | Watcom runtime FLIRT 符号 |
+| `0x4ed7a` | `font_glyph_blit_16x16` | evidence | SDL 字形阴影向右／正下，逐像素填背景，并以 shadow=0 关闭阴影 | 原版背景参数低 byte 为 0 时保留底图，非零时先预清 16×16；glyph 10 在可选预清后跳过字模。每个置位像素写 fg(x,y)、shadow(x-1,y+1)、shadow(x,y+1)，0 色也写入。SDL 保留 bg<0 透明、bg>=0 显式预填的既有接口；原版 background_arg=0 的调用应传 SDL bg=-1。 | 已发布伪 C 52187..52203 与原始 object1 指令：VA 0x4edc0 条件跳过预清、0x4edeb 跳过 glyph 10，0x4ee01/0x4ee03 令 ebx=stride-1，0x4ee1e/0x4ee20/0x4ee23 依次写 fg 与两处阴影。九处现有生产调用均为 shadow=0x4c、bg=-1；未重命名数据库或改写权威伪 C。 |
 
 ## 登记表
 

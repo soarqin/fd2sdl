@@ -68,7 +68,7 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
     }
     if (is_leave_case()) {
-        /* 只有 FDTXT[416] 非空；一个测试字形的右侧阴影用于识别
+        /* 只有 FDTXT[416] 非空；一个测试字形的下左阴影用于识别
          * 真正呈现，不依赖生产日志或额外测试钩子。offsets 归 session。 */
         static const uint8_t text[] = {0, 0, 0xff, 0xff};
         static const uint8_t glyph[32] = {0x80};
@@ -155,7 +155,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
     if (is_leave_case() && active_game &&
         active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE &&
-        vga->framebuffer[119u * VGA_STRIDE + 16u] == 0x4c) {
+        vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
         ++leave_text_presented;
         leave_state_checked = active_game->turn_number == 17 &&
             active_game->active_side == 2 &&

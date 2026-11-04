@@ -28,6 +28,20 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x4ED7A: [{
+        "target": "evidence",
+        "was": "SDL 字形阴影向右／正下，逐像素填背景，并以 shadow=0 关闭阴影",
+        "now": "原版背景参数低 byte 为 0 时保留底图，非零时先预清 "
+               "16×16；glyph 10 在可选预清后跳过字模。每个置位像素写 "
+               "fg(x,y)、shadow(x-1,y+1)、shadow(x,y+1)，0 色也写入。"
+               "SDL 保留 bg<0 透明、bg>=0 显式预填的既有接口；"
+               "原版 background_arg=0 的调用应传 SDL bg=-1。",
+        "why": "已发布伪 C 52187..52203 与原始 object1 指令："
+               "VA 0x4edc0 条件跳过预清、0x4edeb 跳过 glyph 10，"
+               "0x4ee01/0x4ee03 令 ebx=stride-1，0x4ee1e/0x4ee20/0x4ee23 "
+               "依次写 fg 与两处阴影。九处现有生产调用均为 "
+               "shadow=0x4c、bg=-1；未重命名数据库或改写权威伪 C。",
+    }],
     0x112A5: [{
         "target": "evidence",
         "was": "持久玩家构造与活动 stage 模板构造尚未区分完整初始字段",

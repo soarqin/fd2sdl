@@ -55,6 +55,9 @@ static int controller_automatic_called;
 static int controller_input_checked;
 static int controller_sync_drained;
 static uint64_t controller_repeat_at;
+static int detail_resource_failure, detail_no_target;
+static int detail_open_calls, detail_open_animation_calls;
+static int detail_close_animation_calls, detail_close_calls;
 
 static int is_leave_case(void) {
     return terminal_case == 3 || terminal_case == 7 || terminal_case == 8;
@@ -94,6 +97,12 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
             game->selected_unit = -1;
         }
         game->cursor_cell_x = game->cursor_cell_y = 1;
+        if (detail_no_target == 1)
+            game->cursor_cell_x = game->cursor_cell_y = 2;
+        else if (detail_no_target == 2) {
+            game->units.items[2].hp = 0;
+            game->cursor_cell_x = game->cursor_cell_y = 5;
+        }
         memset(game->metadata.turn_events, 0xff, sizeof(game->metadata.turn_events));
         active_game = game;
         return 0;
@@ -270,6 +279,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 0);
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_F2, 0);
                 fd2_input_begin_test_frame(&vga->input, 101);
+                if (detail_no_target) vga->input.quit_requested = 1;
             } else if (controller_present_count == 3) {
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
                 if (controller_case == 3)
@@ -423,17 +433,24 @@ int __wrap_fd2_field_game_execute_move(fd2_field_game *game, fd2_vga *vga,
 
 
 int __wrap_fd2_field_game_open_detail(fd2_field_game *game, size_t actor) {
+    detail_open_calls++;
+    if (detail_resource_failure == 1) return -1;
     game->detail_visible = 1;
     game->detail_unit = (int)actor;
     return 0;
 }
 void __wrap_fd2_field_game_close_detail(fd2_field_game *game) {
+    detail_close_calls++;
     game->detail_visible = 0;
     game->detail_unit = -1;
 }
 int __wrap_fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
         int opening, fd2_field_detail_phase_fn callback, void *userdata) {
-    (void)game; (void)vga; (void)opening; (void)callback; (void)userdata;
+    (void)game; (void)vga; (void)callback; (void)userdata;
+    if (opening) detail_open_animation_calls++;
+    else detail_close_animation_calls++;
+    if ((opening && detail_resource_failure == 2) ||
+        (!opening && detail_resource_failure == 3)) return -1;
     return 0;
 }
 
@@ -576,6 +593,33 @@ int main(void) {
         CHECK(controller_automatic_called == ((controller_case == 2 || controller_case == 3) ? 1 : 0));
     }
     controller_case = 0;
+    /* 两个详情入口都必须传播资源/开合失败；后续输入正常，不能靠别的错误通过。 */
+    for (controller_case = 3; controller_case <= 4; controller_case++) {
+        for (detail_resource_failure = 1; detail_resource_failure <= 3;
+             detail_resource_failure++) {
+            controller_present_count = controller_automatic_called = 0;
+            detail_open_calls = detail_open_animation_calls = 0;
+            detail_close_animation_calls = detail_close_calls = 0;
+            vga.input.quit_requested = 0;
+            CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+                  FD2_FIELD_PLAY_RETURN_ERROR);
+            CHECK(detail_open_calls == 1 && detail_close_calls == 0);
+            CHECK(detail_open_animation_calls == (detail_resource_failure >= 2));
+            CHECK(detail_close_animation_calls == (detail_resource_failure == 3));
+            CHECK(controller_automatic_called == 0);
+        }
+    }
+    controller_case = 4;
+    detail_resource_failure = 1;
+    for (detail_no_target = 1; detail_no_target <= 2; detail_no_target++) {
+        controller_present_count = controller_automatic_called = 0;
+        detail_open_calls = detail_open_animation_calls = 0;
+        vga.input.quit_requested = 0;
+        CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+              FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+        CHECK(detail_open_calls == 0 && detail_open_animation_calls == 0);
+    }
+    controller_case = detail_resource_failure = detail_no_target = 0;
     for (march_case = 1; march_case <= 6; march_case++) {
         for (march_missing_resource = 0; march_missing_resource <
                 (march_case == 1 ? 3 : 1); march_missing_resource++) {

@@ -1624,8 +1624,13 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             if (game.detail_visible) {
                 if (action == FD2_FIELD_ACTION_CONFIRM ||
                     action == FD2_FIELD_ACTION_CANCEL) {
-                    (void)fd2_field_game_animate_detail(
-                        &game, vga, 0, detail_phase_sfx, field_audio);
+                    if (fd2_field_game_animate_detail(
+                            &game, vga, 0, detail_phase_sfx, field_audio) != 0) {
+                        fprintf(stderr, "无法关闭单位详情页。\n");
+                        play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                        running = 0;
+                        break;
+                    }
                     fd2_field_game_close_detail(&game);
                     if (detail_controller_actor >= 0) {
                         int actor = detail_controller_actor;
@@ -1716,9 +1721,15 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         unit_at >= 0 &&
                         game.units.items[unit_at].unit_id != 0x79 &&
                         game.units.items[unit_at].race != 0x0a &&
-                        fd2_field_game_open_detail(&game, (size_t)unit_at) == 0)
-                        (void)fd2_field_game_animate_detail(
-                            &game, vga, 1, detail_phase_sfx, field_audio);
+                        game.units.items[unit_at].hp != 0) {
+                        if (fd2_field_game_open_detail(&game, (size_t)unit_at) != 0 ||
+                            fd2_field_game_animate_detail(
+                                &game, vga, 1, detail_phase_sfx, field_audio) != 0) {
+                            fprintf(stderr, "单位详情页资源无效。\n");
+                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                        }
+                    }
                     break;
                 }
                 case FD2_FIELD_ACTION_AUXILIARY:
@@ -1760,6 +1771,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             (focused->side != 2u ||
                              fd2_field_unit_has_acted(focused) ||
                              record[0x26] != 0)) {
+                            if (focused->hp == 0) break;
                             if (focused->side == 2u &&
                                 fd2_field_unit_has_acted(focused)) {
                                 printf("field acted gate: unit=%d, interaction=browse\n",
@@ -1767,11 +1779,15 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                 fflush(stdout);
                             }
                             if (fd2_field_game_open_detail(
-                                    &game, (size_t)unit_at) == 0) {
-                                detail_controller_actor = unit_at;
-                                (void)fd2_field_game_animate_detail(
+                                    &game, (size_t)unit_at) != 0 ||
+                                fd2_field_game_animate_detail(
                                     &game, vga, 1,
-                                    detail_phase_sfx, field_audio);
+                                    detail_phase_sfx, field_audio) != 0) {
+                                fprintf(stderr, "单位详情页资源无效。\n");
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                            } else {
+                                detail_controller_actor = unit_at;
                             }
                             break;
                         }

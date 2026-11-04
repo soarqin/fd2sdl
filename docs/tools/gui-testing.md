@@ -293,3 +293,9 @@ C盘独立暂存候选 `fd2sdl-b1-20261104/title/` 通过43/43 CTest、219/219 P
 ### B1总审：移除March旧能力豁免（2026-11-04）
 
 早期March未开放时，普通battle-menu oracle允许SDL禁用图并排除其opaque像素；该历史范围不能沿用到当前已开放版本。现删除两个豁免：按已知选择态匹配全部菜单图，并把March资源像素纳入双端比较。新增回归拒绝禁用March和单个March opaque像素错误，旧实现两者均会误报通过。独立暂存候选220/220 Python通过，无跳过；March脚本的源码根查找简化为固定父目录。当前这项没有新增GUI运行，最终全套会以新oracle验收，不修改历史通过记录的覆盖量。
+
+### B1总审：详情资源与首次失焦记录（2026-11-04）
+
+C盘独立候选 `fd2sdl-b1-20261104/details/` 的220项Python通过。CTest首轮42项通过，field_play_input在attack-focused阶段报告 `target window lost focus; target=57188 foreground=44648 title=AkagiMS` 后停止；没有继续发键或放宽前台检查。原始 `ctest.log` 和唯一场景目录保留，仅受影响项在 `ctest-input-02.log` 重跑通过，因此43项均有通过结果，但不将首轮记作无失败整套通过。
+
+F2及敌方／已行动Enter进入详情时，头像晚解码或开合动画分配失败会返回ERROR。空焦点、隐藏记录、HP0等合法无目标仍不打开详情。现有私有TU增加六条错误及两条无目标反例；失败不会继续详情close或controller后置。正常详情资源配对留待最终总跑，未声称原版畸形资源行为等价。

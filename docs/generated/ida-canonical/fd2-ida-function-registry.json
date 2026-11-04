@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 203,
+ "canonical_functions": 204,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -4464,6 +4464,12 @@
      "was": "标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并",
      "now": "标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。",
      "why": "复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。"
+    },
+    {
+     "target": "evidence",
+     "was": "手工LOAD后续owner尚未确认，可能直接恢复当前战场",
+     "now": "LOAD1恢复完整持久表、stage/资源/配置后进入城镇出阵准备26152，不直接恢复回合或焦点。START0直接新游戏，CONTINUE2才调用10010活动恢复；四槽可见恢复归B5，B1保留明确未支持门。",
+     "why": "原始25ecf/25f3f/26130分支及26064..26098手工meta写集；260e5先26152、260f5再调DS:1d71。严格LE表51d71[0]指3231b，正常START32→31→0不经过准备页；原版阶段标签已有WGC，准备页及出阵恢复本轮仅静态取证，未冒称运行通过。"
     }
    ],
    "end_va": 155986,
@@ -4496,6 +4502,14 @@
      "source_line": 136
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "普通战场的四槽手工存取dispatcher，可作为stage0菜单入口",
+     "now": "本函数属于城镇准备页的酒店，selector0为持久成员详情、1为2968d手工Save、2为2986f手工Load；不替换战场secondary19df7活动存取。实际可见入口与出阵恢复归B5，B1只完成归属研究。",
+     "why": "26152→2670e的selector0→29300；FDTXT495..499为酒店/武器店/出口/道具店/教会，513为进入战场确认。原始293fb/2940e/29424分别调用29620/2968d/2986f；未冒称该准备页完整运行验收。"
+    }
+   ],
    "end_va": 169504,
    "is_lib": false,
    "prototype": "",
@@ -4526,12 +4540,49 @@
      "source_line": 137
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "field_manual_slot_save",
+     "now": "sub_29620",
+     "why": "撤回旧误名，采用中性标识以覆盖历史save语义；完整109字节只设置53F5E并循环27d33成员选择→17aed详情，无文件读写、checksum或四槽picker。真正writer入口是2968d，不是Watcom序言/body拆分。"
+    },
+    {
+     "target": "evidence",
+     "was": "选择并写入四槽；依据却指code0x1968d",
+     "now": "准备页的持久roster成员选择与详情循环；取消退出，原save注释挂错入口，不能沿用。保留原误名供追溯，不据此保存新的猜测ABI。",
+     "why": "已发布29620..2968d调用27d33/17aed；原始293fb的selector0调用。2968d另有独立Watcom序言和完整writer写集，地址必须分别登记。"
+    }
+   ],
    "end_va": 169613,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "field_manual_slot_save"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 169613,
+   "off": 104077,
+   "ida_name": "sub_2968D",
+   "size": 482,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "中性sub_2968D未独立登记，writer语义误挂29620",
+     "now": "保留IDA中性sub_2968D：真正四槽手工writer，读取完整SAV后经29bcb选择，复制准备owner整张0xa00持久表并写meta0..9、checksum和XOR；未使用roster尾与未知meta保留，不从active表重建。",
+     "why": "2968d独立入口、2940e/26331调用；原始29757..29791写当前stage、roster_count、资源和camera/effect/music/SFX，成功FDTXT660。22ef6先11506同步持久表再stage=1，main25e2a随后进入准备页，正常首个四槽保存阶段是1；没有stage0正式生成链或实机样本。"
+    }
+   ],
+   "end_va": 170095,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -4554,6 +4605,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 138
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "恢复手工slot后直接重建当前战场",
+     "now": "只恢复城镇准备owner的完整持久表、stage/资源/配置，重建FDICON缓存及DS:3f56；出阵后才调用stage entry重建地图、回合和事件状态。仅stageFF判空，再按523e7表拒不兼容章节。",
+     "why": "原始29928..29941的stageFF/表门与完整2986f写集，函数不调用10010/1088d/205da；FDTXT478成功、479为不能在商店内读取。slot没有active、turn或camera快照，坏count/checksum原版安全拒绝未证。"
     }
    ],
    "end_va": 170674,
@@ -4584,6 +4643,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 139
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "picker(buffer,initial_slot)，第二参是初始槽",
+     "now": "选择来自共享53C57，三种caller首次均先置0；第二参选择16c57规范化等待读键或直接BIOS读键，不写初始index。上下限0..3，Enter/Space确认、Esc取消；SDL自有initial_slot不是原版ABI。",
+     "why": "完整29bcb分支只测试第二参以选择读键路径；25ebb、2968d、2986f在调用前清53C57。29ab2按119+19*i绘四行，使用FDTXT549、514、514+stage和550+stage。保留现函数名，不保存猜测参数原型。"
     }
    ],
    "end_va": 171434,

@@ -1,9 +1,10 @@
 /* 炎龙骑士团 2 SDL3 重写 - 四槽手工 Save/Load picker 状态机
  *
- * field_manual_slot_picker @code0 0x19bcb 将选择限制在 0..3；
- * field_manual_slot_draw @code0 0x19ab2 按 y=0x77 + index*0x13 纵向绘制四项，
+ * field_manual_slot_picker @0x29bcb（原登记同名）将共享53C57限制在0..3；
+ * sub_29AB2 @0x29ab2（原登记中性名）按y=0x77+index*0x13绘制四项，
  * 只检查 slot+0xa00 是否为 0xff 来区分空槽与有效槽。本模块不猜测
- * 可见标签或 runtime restore。
+ * 可见恢复。原版第二参选择读键方式，不是初始index；SDL自有initial_slot
+ * 仅供状态机初始化。标题LOAD／城镇酒店的可见owner及出阵重建留B5。
  */
 
 #include "field_manual_slot.h"

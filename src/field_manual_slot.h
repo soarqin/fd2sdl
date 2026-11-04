@@ -8,11 +8,12 @@
 
 /* 炎龙骑士团 2 SDL3 重写 - 四槽手工 Save/Load picker
  *
- * 逆向依据：field_manual_slot_picker @code0 0x19bcb 调用
- * field_manual_slot_draw @code0 0x19ab2，选择范围固定为 0..3；四项按
+ * 逆向依据：field_manual_slot_picker @0x29bcb（原登记同名）调用
+ * sub_29AB2 @0x29ab2（原登记中性名），选择范围固定为 0..3；四项按
  * y=0x77 + index*0x13 纵向逐行绘制，扫描码 0x48/0x50 向前／向后移动，
  * Enter/Space 确认，Esc 取消。空槽只由 slot+0xa00 的 stage marker
- * 0xff 判定。
+ * 0xff 判定。标题LOAD与城镇酒店使用此页，不是战场secondary。
+ * 原版第二参仅选读键方式；SDL initial_slot不映射该ABI，B5接可见owner。
  */
 
 typedef enum {

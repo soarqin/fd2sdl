@@ -368,7 +368,8 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
     state.options[1] = game->option_values[2];
     state.options[2] = game->option_values[0];
     state.options[3] = game->option_values[1];
-    /* 原版 hand_save 复制完整 persistent 表，包含未使用 raw 尾。 */
+    /* sub_2968D @0x2968d（原登记中性名）从准备owner复制完整persistent表；
+     * 本API只提供后端，不是战场入口。旧save误名@0x29620实际为详情选择。 */
     memcpy(state.unit_area, game->roster, sizeof(state.unit_area));
     int result = fd2_save_manual_slot_encode(&slot, &state) == 0 &&
                  fd2_save_file_update_manual_slot(
@@ -380,8 +381,8 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
 
 int fd2_field_game_load_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
-    /* field_manual_slot_load @0x2986f 恢复的是持久表并进入 stage rebuild；
-     * B1.4 尚未恢复该流程，拒绝把 roster 误作当前战场 actor。 */
+    /* field_manual_slot_load @0x2986f（原登记同名）只恢复城镇准备owner，
+     * 出阵后才按stage重建战场。B1.4e已厘清归属，实施留B5，仍拒绝假active恢复。 */
     (void)game;
     (void)path;
     (void)slot_index;

@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 203 |
+| 归约后的规范函数数 | 204 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -81,6 +81,13 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x2000a` | `sub_2000A` | evidence | F1/PageUp辅助页可能是部队列表或另一种战况总览 | 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。 | 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。 |
 | `0x25977` | `music_track_play` | evidence | 其他值从 FDMUS handle `DS:0x1a79` 加载 entry | object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。 | IDA 字符串识别 `aFdmusDat` + res_load 调用形态 |
 | `0x25ebb` | `title_action_dispatch` | evidence | 标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并 | 标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。 | 复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。 |
+| `0x25ebb` | `title_action_dispatch` | evidence | 手工LOAD后续owner尚未确认，可能直接恢复当前战场 | LOAD1恢复完整持久表、stage/资源/配置后进入城镇出阵准备26152，不直接恢复回合或焦点。START0直接新游戏，CONTINUE2才调用10010活动恢复；四槽可见恢复归B5，B1保留明确未支持门。 | 原始25ecf/25f3f/26130分支及26064..26098手工meta写集；260e5先26152、260f5再调DS:1d71。严格LE表51d71[0]指3231b，正常START32→31→0不经过准备页；原版阶段标签已有WGC，准备页及出阵恢复本轮仅静态取证，未冒称运行通过。 |
+| `0x29300` | `field_manual_slot_dispatch` | evidence | 普通战场的四槽手工存取dispatcher，可作为stage0菜单入口 | 本函数属于城镇准备页的酒店，selector0为持久成员详情、1为2968d手工Save、2为2986f手工Load；不替换战场secondary19df7活动存取。实际可见入口与出阵恢复归B5，B1只完成归属研究。 | 26152→2670e的selector0→29300；FDTXT495..499为酒店/武器店/出口/道具店/教会，513为进入战场确认。原始293fb/2940e/29424分别调用29620/2968d/2986f；未冒称该准备页完整运行验收。 |
+| `0x29620` | `field_manual_slot_save` | semantic_name | field_manual_slot_save | sub_29620 | 撤回旧误名，采用中性标识以覆盖历史save语义；完整109字节只设置53F5E并循环27d33成员选择→17aed详情，无文件读写、checksum或四槽picker。真正writer入口是2968d，不是Watcom序言/body拆分。 |
+| `0x29620` | `field_manual_slot_save` | evidence | 选择并写入四槽；依据却指code0x1968d | 准备页的持久roster成员选择与详情循环；取消退出，原save注释挂错入口，不能沿用。保留原误名供追溯，不据此保存新的猜测ABI。 | 已发布29620..2968d调用27d33/17aed；原始293fb的selector0调用。2968d另有独立Watcom序言和完整writer写集，地址必须分别登记。 |
+| `0x2968d` | `sub_2968D` | evidence | 中性sub_2968D未独立登记，writer语义误挂29620 | 保留IDA中性sub_2968D：真正四槽手工writer，读取完整SAV后经29bcb选择，复制准备owner整张0xa00持久表并写meta0..9、checksum和XOR；未使用roster尾与未知meta保留，不从active表重建。 | 2968d独立入口、2940e/26331调用；原始29757..29791写当前stage、roster_count、资源和camera/effect/music/SFX，成功FDTXT660。22ef6先11506同步持久表再stage=1，main25e2a随后进入准备页，正常首个四槽保存阶段是1；没有stage0正式生成链或实机样本。 |
+| `0x2986f` | `field_manual_slot_load` | evidence | 恢复手工slot后直接重建当前战场 | 只恢复城镇准备owner的完整持久表、stage/资源/配置，重建FDICON缓存及DS:3f56；出阵后才调用stage entry重建地图、回合和事件状态。仅stageFF判空，再按523e7表拒不兼容章节。 | 原始29928..29941的stageFF/表门与完整2986f写集，函数不调用10010/1088d/205da；FDTXT478成功、479为不能在商店内读取。slot没有active、turn或camera快照，坏count/checksum原版安全拒绝未证。 |
+| `0x29bcb` | `field_manual_slot_picker` | evidence | picker(buffer,initial_slot)，第二参是初始槽 | 选择来自共享53C57，三种caller首次均先置0；第二参选择16c57规范化等待读键或直接BIOS读键，不写初始index。上下限0..3，Enter/Space确认、Esc取消；SDL自有initial_slot不是原版ABI。 | 完整29bcb分支只测试第二参以选择读键路径；25ebb、2968d、2986f在调用前清53C57。29ab2按119+19*i绘四行，使用FDTXT549、514、514+stage和550+stage。保留现函数名，不保存猜测参数原型。 |
 | `0x32975` | `field_actor_hide` | semantic_name | field_actor_hide / field_ai_behavior7_hide_actor 两条独立登记 | field_actor_hide（同一函数） | 两条历史描述（写 actor[idx*0x50+5]=1）在 IDA 反编译上完全吻合。 |
 | `0x3706e` | `malloc` | semantic_name | mem_alloc | malloc | Watcom runtime FLIRT 符号 |
 | `0x37324` | `fopen` | semantic_name | file_open | fopen | Watcom runtime FLIRT 符号 |

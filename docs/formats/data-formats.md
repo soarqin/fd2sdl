@@ -484,15 +484,15 @@ browse 边界；`phase_unit_cursor/phase_ai_pass` 是 SDL 分步 scheduler 的�
 ```
 偏移        长度      字段
 0x312b      0xa28*4   四个 save slot
-slot+0      0xa00     单位表，最多 32 条 0x50 字节单位记录
+slot+0      0xa00     完整持久 roster，最多 32 条 0x50 字节记录，含未用尾
 slot+0xa00  1         stage_id；0xff 表示无效 slot
-slot+0xa01  1         unit_count，最多 32；0xff 表示无效 slot
-slot+0xa02  4         DAT_00003bf3，语义待细分
+slot+0xa01  1         独立 roster_count，最多 32；原版不以此字段判空
+slot+0xa02  4         DS:0x3bf3，32 位资源值
 slot+0xa06  1         DS:0x1aab 配置字节
 slot+0xa07  1         DS:0x3af9 配置字节
 slot+0xa08  1         DS:0x1e61 音乐配置字节
 slot+0xa09  1         DS:0x1e62 SFX 配置字节
-slot+0xa0a  0x1e      若干进度／未知字节，写回必须完整保留
+slot+0xa0a  0x1e      未知字节，写回必须完整保留
 0x59c7      4         明文字节和 checksum；与 slot 3 的最后 4 字节重叠
 ```
 
@@ -513,30 +513,21 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 仅接受普通字形及结束符；完整资源和两段文本预检失败时不修改 framebuffer。
 静态绘制、开合输入和原版 WGC 验收分别登记，不因绘制接口存在而宣称页面已开放。
 
-原版写档路径 code0 `0x9f7a..0xa136` 读取并解密完整文件，修改当前状态，
-重算 checksum，再加密写回。SDL `fd2_save_file` 采用相同的整文件保留式模型：
-只允许修改目标 slot 的已提供单位记录、meta 和末尾 checksum；slot `0..2`
-可写完整 `0x28` 字节 meta，slot 3 只写前 `0x24` 字节，其最后 4 字节必须由
-文件 checksum 覆盖。原版手工 slot 配置映射由 code0
-`0x16064..0x16098/0x19757..0x19791` 确认；手工保存路径 code0
-`0x1968d` 会无条件复制持久 roster 表的完整 `0xa00` 字节，而不是当前活动 actor 表或只复制
-`unit_count` 条记录；SDL 的 `fd2_save_file_update_manual_slot()` 已提供该整块
-更新接口；SDL 已增加独立四槽 picker 状态机、输入上下文和保留式 codec。手工 Save 使用持久 roster，不能把当前活动 actor 当作该表。该
-picker 属于独立 dispatcher `0x19300`，不替换 secondary `0x9df7` 的活动快照
-Save／Load。code0 `0x19ab2` 证明该 picker 为
-`y=0x77+index*0x13` 的纵向四项：每项先绘制 FDTXT `0x225`，空槽使用
-`0x202`，有效槽使用 `0x202+stage_id`；保存／读取成功分别显示 `0x294` 和
-`0x1de`。SDL 使用预解码完整 FDICON bank 取代原版按 unit ID 重建的 FD2.TMP
-cache，因此无需建立持久 cache class。手工 Load 必须恢复持久 roster 后按原版入口重建关卡；在该入口契约完成前，session 层明确拒绝，不再将 slot 当成活动快照直接恢复。活动快照恢复仍维护 `DS:0x3f56 = 0x238d + stage*0x1f` 的 stage runtime entry owner，不猜测其余字段。最终调色板与装饰视觉仍待原版对照，可按[图形自动化测试](../tools/gui-testing.md)自动捕获并比较。
-其他字节保持不变。
-原版手工读取 code0 `0x1986f` 仅以 `slot+0xa00 == 0xff` 判定空槽；SDL 的
-严格 `fd2_save_file_get_manual_slot()` 另外要求 `unit_count` 在 `0..32`，以便
-安全导入当前 session；`fd2_save_file_get_manual_slot_raw()` 保留原版的空槽
-判定边界，供兼容层在有完整 runtime restore 证据后使用。截断、超长、checksum
-错误、slot 越界、无效标记和单位数越界均拒绝。写回使用目标同目录内独占创建的
-临时文件，避免预置符号链接和并发 writer 共用固定 `.tmp` 路径；POSIX 在临时
-文件 `fsync`、rename 后继续 `fsync` 父目录，Windows 使用
-`MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`。
+活动 writer `field_secondary_menu_execute @0x19df7` 与手工 writer `sub_2968D @0x2968d` 都读取并解密完整文件，修改各自已确认区域后重算 checksum、加密写回。SDL `fd2_save_file` 保留未修改区域；手工更新仅覆盖目标 slot 的整张 roster、已确认 meta 及文件 checksum。slot `0..2` 可写完整 `0x28` 字节 meta，slot 3 只写前 `0x24` 字节，最后 4 字节由 checksum 覆盖。
+
+标题 `title_action_dispatch @0x25ebb` 的 START0／LOAD1／CONTINUE2 分别是新游戏、四槽持久恢复、活动快照恢复。标题 LOAD 恢复 roster、stage、资源和配置后进入 `sub_26152 @0x26152` 城镇／出阵准备；酒店经 `sub_2670E @0x2670e` selector 0 进入 `field_manual_slot_dispatch @0x29300`，其 selector 1／2 分别调用手工 Save `@0x2968d`／Load `@0x2986f`。这些路径不替换战场 secondary `@0x19df7` 的活动 Save/Load。`@0x29620` 实为持久成员选择／详情循环，旧 `field_manual_slot_save` 误名已由命名输入更正。
+
+手工 Save 无条件复制持久表的完整 `0xa00` 字节，不是当前活动 actor 表或 `roster_count` 条前缀；配置映射由原始 `0x26064..0x26098` 和 `0x29757..0x29791` 确认。SDL 已有保留式 codec、独立 picker 和持久表保存 API；尚未实现正确的准备页可见入口。B1.4e 已完成归属研究，实际可见四槽与关卡重建归 B5。
+
+`field_manual_slot_picker @0x29bcb` 从共享 `53C57` 读取当前选择，调用者首次先置 0；第二参控制规范化等待读键或直接 BIOS 读键，**不是初始槽 index**。SDL 自有 `initial_slot` 参数不表示原版 ABI。`sub_29AB2 @0x29ab2` 按 `y=0x77+index*0x13` 绘制纵向四项：前缀 FDTXT549，空槽514，有效槽 `514+stage` 和地点 `550+stage`；保存／读取成功分别为 FDTXT660／478。
+
+城镇手工 Load `@0x2986f` 只恢复准备状态，重建 FDICON cache 并设置 `DS:0x3f56 = 0x238d + stage*0x1f`，不会立即恢复战场。出阵后才调用对应 stage entry；四槽不含活动单位、回合、metadata、事件完成表、镜头或焦点。这些状态由关卡资源与脚本重建，`sub_205DA @0x205da` 初始化回合 1 并清 cell-completed。SDL 的手工 session Load 继续明确拒绝，不能以活动快照导入冒充；活动恢复仍单独维护 stage runtime entry owner。完整 FDICON bank 的预解码可复用，但不能替代准备／出阵的状态合同。
+
+正常 START 经 `new_game_opening_play @0x3231b` 的 stage 32→31→0，不经过准备页。stage 0 胜利回调 `sub_22EF6 @0x22ef6` 先同步持久表，再写 stage 1，main 随后进入准备页，writer 保存当前 stage。因此正式首个四槽阶段是 1；标题虽只以 stage `0xff` 判空，也不拒绝 count 0，却没有正式生成 stage 0 手工槽的链或真实样本，不能把格式可编码值当作 B1 战场入口依据。
+
+原版城镇手工读取 `@0x2986f` 先以 `slot+0xa00 == 0xff` 判空，再按 `byte523E7[stage]` 检查是否允许在商店内读取；不兼容时显示 FDTXT479。没有证据证明这些原版函数会安全拒绝坏 checksum 或畸形 count。SDL 的严格 `fd2_save_file_get_manual_slot()` 另外要求 count 在 `0..32`；`fd2_save_file_get_manual_slot_raw()` 仍保留空槽和未知字节，供正确 owner 的后续实现使用。截断、超长、checksum、slot 越界、无效标记、容量或阶段支持失败均须在 owner 交接前拒绝，不能截断或覆盖坏档。
+
+写回使用目标同目录内独占创建的临时文件，避免预置符号链接和并发 writer 共用固定 `.tmp` 路径；POSIX 在临时文件 `fsync`、rename 后继续 `fsync` 父目录，Windows 使用 `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`。
 
 单位记录当前确认字段：
 

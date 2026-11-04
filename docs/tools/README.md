@@ -35,19 +35,22 @@ git diff --check
 ```
 
 - 部分 CTest／Python 测试依赖原版资源或本地 LE 产物。Python seed／Ghidra 工具测试还需 `capstone`；缺依赖、跳过或未注册不能记为完整通过。
-- `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 在两平台单独编译正式循环并替换依赖，验证自动行动错误、场景错误、宿主退出和移动失败，不启动窗口。
+- `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 单独编译正式循环并替换依赖，验证错误传播、胜／败、返回标题、宿主退出和移动取消；`field_turn` 检查 END 的恢复门、phase 顺序及提交后停止边界，均不启动窗口。
 - `field_play_input` 驱动真实 SDL 键盘，不直接调用玩法 API。Windows 使用原生交互桌面；Linux/X11 需要 X11、XTest 和 Xvfb。用 `ctest --test-dir src/build-win -C Debug -N` 或 `ctest --test-dir src/build -N` 核实测试清单；未注册不算已测。
+- Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。
 
 ### 图形自动化
 
-Windows 正式输入与进程树清理：
+Windows（PowerShell）：
 
 ```powershell
-ctest --test-dir src/build-win -C Debug --output-on-failure -R '^(field_play_input|graphics_job)$'
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
 ```
 
-环境、WGC 单窗口规范和 Linux 对应入口见[图形自动化测试](gui-testing.md)。`graphics_job` 无窗口验证超时／错误／遗留子孙的按本轮 Job 清理，强制终止不能冒充正常退出。
+运行条件、Linux 对应入口和测试范围见[图形自动化测试](gui-testing.md)。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC 单窗口捕获。报告和截图写入构建目录下的 `graphics-artifacts/`，不提交仓库；自动化仅操作本次启动并识别的测试进程。原版 DOSBox 自动对照使用隔离副本及独立判据，不把 SDL 截图自检当作原版一致性证据。
+
+总流程串行包含原版标题像素比较和 `run_original_battle_menu.py` 的 END 确认框／取消对照。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；后者不提交 END，不替代整回合的 phase／AI／随机结果验收。
 
 ### Sanitizer（Linux／Clang）
 

@@ -2004,6 +2004,12 @@
      "was": "selector 3 已确认结束回合，但确认框按钮资源与布局尚未登记",
      "now": "selector 3 使用通用 sub_19953 @0x19953：默认选择索引 0，Left 选 0、Right 选 1，Up/Down 无分支。object2 VA 0x51eed/0x51ef1 的 dword 为 16/17，对应 FDOTHER[2] 的 YES 与 NO!；普通帧 48/51、高亮帧 49/52 均为 24×16。四步展开后，320×200 屏幕按钮左上角分别为 (232,168)/(264,168)。仅选中项叠加 dword_53C13/2，计数每 2 BIOS tick 在 0..3 循环；非选中项始终使用普通帧。sub_197E5 @0x197e5 使用同值表 0x51ee5/0x51ee9 收回按钮。",
      "why": "复用已发布权威伪 C 的 @0x16f55 调用链与 sub_19953 （6916..7028 行）及 published fd2-functions.tsv 边界；只读按现有 LE parser 提取原版 object2 表并核对 FDOTHER[2] raw 像素。屏幕坐标由 buffer 偏移 0x1a599+3±16、view 源 32904/stride 456 与目标屏幕 (4,4) 换算。保留中性 helper 名，未新建 IDB、改写伪 C 或发布新的 IDA 逆向基线。"
+    },
+    {
+     "target": "evidence",
+     "was": "selector1批量行军尚未确认，可能只是结束回合或自动战斗",
+     "now": "417确认、418提示后保留绝对focus为固定anchor，按raw顺序仅处理flags&0x85为0且side2的actor，无HP门。每人focus→清pending→14b78(anchor,index,1)→dispatch当前match0→全表direction0→acted，无最终match1，无路也走尾。整批后才turncycle，无自动Save。",
+     "why": "权威伪C及17104/1712d/17137/1713d/17154写序；17092 push0xc8→17097 call3790a→FLIRT __delay3e01d确认名义200ms，不声明宿主/DOS精确时长。51A83/51AAC在March及整轮phase关闭，SDL用私有呈现参数和play局部续行恢复，不增session/pending队列。"
     }
    ],
    "end_va": 94860,

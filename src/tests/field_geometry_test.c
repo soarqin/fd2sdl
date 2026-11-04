@@ -49,7 +49,7 @@ static int test_requested_anchor_precedes_destination_and_friend_block(void) {
     for (size_t y = 2; y < 8; y++) f.cells[y * 8 + 3] = f.cells[y * 8 + 4] = 1;
     g->units.count = 3;
     geometry_unit(&g->units.items[2], 2, 1, 2);
-    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0) == 1);
+    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
     CHECK(g->units.items[0].x == 2 && g->units.items[0].y == 1);
     CHECK(g->units.items[2].x == 1 && g->units.items[2].y == 2);
     CHECK(!fd2_field_unit_has_acted(&g->units.items[0]));
@@ -63,7 +63,7 @@ static int test_whole_long_route_can_reenter_reachable_area(void) {
     fd2_field_game *g = &f.game;
     g->units.items[0].movement_points = 4;
     f.cells[3 * 8 + 2] = 1; /* long mode可过cost20；本回合该格不可达。 */
-    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0) == 1);
+    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
     /* 长路径越过(2,3)后，(3,3)经北/南绕行仍在4预算内。
      * 未命中即break会丢该后续命中，并朝原anchor选(4,2)。 */
     CHECK(g->units.items[0].x == 3 && g->units.items[0].y == 3);
@@ -83,7 +83,7 @@ static int test_local_profiles_zero_budget_and_no_hp_gate(void) {
         actor->movement_profile = 3; actor->race = 4;
         actor->unit_id = unit_ids[which]; actor->text_id = text_ids[which];
         f.attrs[0].movement_cost_class = 3; /* raw3 cost3、immune19 cost1、text28→1 cost2。 */
-        CHECK(commit_ai_move_toward_anchor(g, 0, 4, 1, NULL, 0) == (which == 1 ? 0 : 1));
+        CHECK(commit_ai_move_toward_anchor(g, 0, 4, 1, NULL, 0, FIELD_PATH_BROWSE) == (which == 1 ? 0 : 1));
         CHECK(actor->x == expected_x[which] && actor->y == 1);
         CHECK(actor->movement_profile == 3 && actor->race == 4);
         CHECK(actor->unit_id == unit_ids[which] && actor->text_id == text_ids[which]);
@@ -93,13 +93,13 @@ static int test_local_profiles_zero_budget_and_no_hp_gate(void) {
     fd2_field_game *g = &f.game;
     g->units.items[0].movement_points = 0;
     g->pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
-    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0) == 0);
+    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 0);
     CHECK(g->units.items[0].x == 1 && g->units.items[0].y == 3);
     CHECK(g->pending_cell_event.valid && g->pending_cell_event.action == 42);
     CHECK(g->failure == FD2_FIELD_FAILURE_NONE && f.rng_calls == 0);
     g->units.items[0].movement_points = 3;
     g->units.items[0].hp = 0;
-    CHECK(commit_ai_move_toward_anchor(g, 0, 4, 3, NULL, 0) == 1);
+    CHECK(commit_ai_move_toward_anchor(g, 0, 4, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
     CHECK(g->units.items[0].x == 4 && g->units.items[0].y == 3);
     CHECK(g->units.items[0].hp == 0 && g->units.items[0].flags == 0 && f.rng_calls == 0);
     return 0;
@@ -110,7 +110,7 @@ static int test_reject_geometry_before_commit(void) {
     fd2_field_game *g = &f.game;
     g->units.items[0].movement_profile = UINT8_MAX;
     fd2_field_game before = *g;
-    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0) == -1);
+    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == -1);
     CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);
     return 0;
 }
@@ -156,7 +156,7 @@ static int test_start_zoc_for_both_selector_groups(void) {
         CHECK(witness_x == 3 && witness_y == 2);
         CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);
         /* 实际共享anchor调用也能离开起点，未改变显式side分组。 */
-        CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0) == 1);
+        CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
         CHECK(g->units.items[0].x == 6 && g->units.items[0].y == 3);
         CHECK(g->units.items[2].x == 4 && g->units.items[2].flags == 0x84 && f.rng_calls == 0);
     }
@@ -208,7 +208,7 @@ static int test_real_start_fixed_anchor_geometry(void) {
     for (size_t i = 0; i < 4; i++) {
         CHECK(game.units.items[i].unit_id == ids[i] && game.units.items[i].side == 2);
         CHECK(game.units.items[i].x == initial_x[i] && game.units.items[i].y == initial_y[i]);
-        CHECK(commit_ai_move_toward_anchor(&game, i, 7, 15, NULL, 0) == 1);
+        CHECK(commit_ai_move_toward_anchor(&game, i, 7, 15, NULL, 0, FIELD_PATH_BROWSE) == 1);
         CHECK(game.units.items[i].x == final_x[i] && game.units.items[i].y == final_y[i]);
         CHECK(game.units.items[i].side == 2 && !fd2_field_unit_has_acted(&game.units.items[i]));
         CHECK(game.move_path == NULL && game.move_path_capacity == 0);

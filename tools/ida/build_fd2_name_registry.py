@@ -308,6 +308,17 @@ CORRECTIONS: dict[int, list[dict]] = {
                "raw 像素。屏幕坐标由 buffer 偏移 0x1a599+3±16、view 源 "
                "32904/stride 456 与目标屏幕 (4,4) 换算。保留中性 helper 名，"
                "未新建 IDB、改写伪 C 或发布新的 IDA 逆向基线。",
+    }, {
+        "target": "evidence",
+        "was": "selector1批量行军尚未确认，可能只是结束回合或自动战斗",
+        "now": "417确认、418提示后保留绝对focus为固定anchor，按raw顺序仅处理"
+               "flags&0x85为0且side2的actor，无HP门。每人focus→清pending→"
+               "14b78(anchor,index,1)→dispatch当前match0→全表direction0→acted，"
+               "无最终match1，无路也走尾。整批后才turncycle，无自动Save。",
+        "why": "权威伪C及17104/1712d/17137/1713d/17154写序；"
+               "17092 push0xc8→17097 call3790a→FLIRT __delay3e01d确认名义200ms，"
+               "不声明宿主/DOS精确时长。51A83/51AAC在March及整轮phase关闭，"
+               "SDL用私有呈现参数和play局部续行恢复，不增session/pending队列。",
     }],
     0x19DF7: [{
         "target": "evidence",

@@ -577,6 +577,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_player_controller COMMAND fd2_field_player_controller_test)
 
+    add_executable(fd2_field_march_test
+        tests/field_march_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_march_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_march_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_march_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_march_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_march COMMAND fd2_field_march_test)
+    set_tests_properties(field_march PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     # 私有anchor几何直接包含field_game.c；过滤重复对象，保留其余正式依赖。
     add_executable(fd2_field_geometry_test
         tests/field_geometry_test.c
@@ -746,7 +760,8 @@ if(BUILD_TESTING)
         fd2_field_game_close_detail=__wrap_fd2_field_game_close_detail
         fd2_field_game_animate_detail=__wrap_fd2_field_game_animate_detail
         fd2_field_game_confirm_cursor=__wrap_fd2_field_game_confirm_cursor
-        fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move)
+        fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move
+        fd2_field_game_march=__wrap_fd2_field_game_march)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
     set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
 

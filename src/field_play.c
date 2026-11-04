@@ -1313,6 +1313,8 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
     int input_ready_reported = 0;
     /* 普通Enter详情返回controller后置；F2是原版独立直接返回分支。 */
     int detail_controller_actor = -1;
+    /* march原版同步turncycle返回后清BIOS；SDL仅记输入尾，不保存pending。 */
+    int march_waiting_phase = 0;
     int running = 1;
     fd2_field_play_result play_result = FD2_FIELD_PLAY_RETURN_COMPLETE;
     while (running) {
@@ -1331,6 +1333,11 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             drain_frame_keys(vga); /* native controller尾119a6清BIOS脉冲。 */
         fd2_field_game_tick(&game, SDL_GetTicks());
         game.battle_result = fd2_field_game_battle_result(&game);
+        if (march_waiting_phase && (game.active_side == 2u ||
+                game.battle_result != FD2_FIELD_BATTLE_ONGOING)) {
+            drain_frame_keys(vga);
+            march_waiting_phase = 0;
+        }
         if (!once && game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
             play_result = game.battle_result == FD2_FIELD_BATTLE_VICTORY
                 ? FD2_FIELD_PLAY_RETURN_VICTORY : FD2_FIELD_PLAY_RETURN_DEFEAT;
@@ -1364,7 +1371,10 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         }
         report_field_events(&game, &reported_event_count,
                             &reported_dropped_events);
-        fd2_field_game_render(&game, vga);
+        if (march_waiting_phase)
+            fd2_field_game_render_background(&game, vga);
+        else
+            fd2_field_game_render(&game, vga);
         fd2_vga_present(vga);
         /* 宿主关闭先于下一 actor 调度；已有错误仍保留错误优先级。 */
         if (play_result != FD2_FIELD_PLAY_RETURN_ERROR &&
@@ -1379,9 +1389,15 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             SDL_GetTicks() >= game.phase_next_action_ms) {
             was_waiting_phase = game.player_post_waiting_phase;
             int ai_result = fd2_field_game_process_automatic_action_visual(
-                &game, vga, 55);
+                &game, vga, 55, march_waiting_phase);
             if (was_waiting_phase && !game.player_post_waiting_phase)
                 drain_frame_keys(vga);
+            if (ai_result >= 0 && march_waiting_phase &&
+                (game.active_side == 2u ||
+                 game.battle_result != FD2_FIELD_BATTLE_ONGOING)) {
+                drain_frame_keys(vga);
+                march_waiting_phase = 0;
+            }
             if (ai_result >= 0 && game.active_side != 2)
                 game.phase_next_action_ms =
                     SDL_GetTicks() + FD2_FIELD_AUTOMATIC_ACTION_MS;
@@ -1713,6 +1729,39 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                             fflush(stdout);
                             play_result = FD2_FIELD_PLAY_RETURN_LEAVE_GAME;
                             running = 0;
+                        } else if (system_action ==
+                                       FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
+                            /* @0x16f55：418提示在固定anchor和逐actor提交之前。 */
+                            if (play_system_confirmation_text(
+                                    &game, vga, FD2_FIELD_SYSTEM_TEXT_MARCH_ACCEPTED,
+                                    1) != 0) {
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                                break;
+                            }
+                            /* @0x16f55 内push200→j___delay；宿主保留名义毫秒参数，非DOS时钟精确复刻。 */
+                            if (!once) fd2_delay_ms(200);
+                            if (fd2_input_take_quit(&vga->input)) {
+                                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                                running = 0;
+                                break;
+                            }
+                            printf("field march: anchor=(%d,%d) turn=%u phase=%u\n",
+                                   game.cursor_cell_x, game.cursor_cell_y,
+                                   game.turn_number, (unsigned)game.active_side);
+                            fflush(stdout);
+                            int march_result = fd2_field_game_march(&game, vga, 55);
+                            if (march_result == 0) march_waiting_phase = 1;
+                            drain_frame_keys(vga);
+                            end_input_frame = 1;
+                            if (march_result == 1) {
+                                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                                running = 0;
+                            } else if (march_result != 0) {
+                                report_session_failure(&game);
+                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                running = 0;
+                            }
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM) {
                             /* field_empty_focus_menu_execute @0x16f55：

@@ -119,6 +119,17 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
 
 
 class SrcAddressMigrationTest(unittest.TestCase):
+    def test_registry_corrections_have_unique_function_addresses(self):
+        import ast
+        source = ROOT / "tools/ida/build_fd2_name_registry.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        value = next(node.value for node in tree.body
+                     if isinstance(node, ast.AnnAssign) and
+                     isinstance(node.target, ast.Name) and node.target.id == "CORRECTIONS")
+        addresses = [ast.literal_eval(key) for key in value.keys]
+        self.assertEqual(len(addresses), len(set(addresses)),
+                         "同一规范函数的更正应合并到一个列表，重复dict键会静默覆盖证据")
+
     def test_build_candidates_and_third_party_are_outside_the_source_audit(self):
         import check_src_addresses as chk
         with tempfile.TemporaryDirectory() as directory:

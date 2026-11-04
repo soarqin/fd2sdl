@@ -385,9 +385,18 @@ int fd2_field_game_resume_player_controller(fd2_field_game *game);
 int fd2_field_game_end_active_phase(fd2_field_game *game);
 /* 玩家确认结束回合：执行已确认的未行动恢复，再进入 side 1。 */
 int fd2_field_game_end_player_turn(fd2_field_game *game);
+/* field_empty_focus_menu_execute @0x16f55（原登记同名）的批量行军。
+ * 固定调用时的绝对focus anchor，raw顺序逐actor提交，不保存/回滚批次。
+ * 0=全部提交并进入side1；1=宿主关闭（保留已提交事实）；-1=失败冻结。
+ * 调用方负责FDTXT418提示与输入隔离；这里只开放正式stage0。 */
+int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
+                         uint32_t frame_delay_ms);
 int fd2_field_game_process_automatic_action(fd2_field_game *game);
+/* clean_background只由March宿主续行传1；普通END/AI调用传0。
+ * 它只选择本次呈现，不进入session、不改变共享pending或动作策略。 */
 int fd2_field_game_process_automatic_action_visual(
-    fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms);
+    fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms,
+    int clean_background);
 size_t fd2_field_game_remaining_units(const fd2_field_game *game,
                                       uint8_t side);
 fd2_field_battle_result fd2_field_game_battle_result(

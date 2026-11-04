@@ -39,6 +39,16 @@ static int auxiliary_checked;
 static int leave_text_presented;
 static int leave_state_checked;
 static int leave_missing_resource;
+static int march_case;
+static int march_missing_resource;
+static int march_called;
+static int march_text_presented;
+static int march_state_checked;
+static int march_phase_called;
+static int march_phase_input_checked;
+static int march_phase_clean_parameter;
+static int march_phase_outer_clean;
+static int ordinary_automatic_clean;
 static int controller_case;
 static int controller_present_count;
 static int controller_automatic_called;
@@ -100,31 +110,32 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     game->phase_next_action_ms = 1;
     if (terminal_case == 1 || terminal_case == 5) game->units.items[1].hp = 0;
     if (terminal_case == 2) game->units.items[0].hp = 0;
-    if (is_leave_case() || terminal_case == 6) {
+    if (is_leave_case() || terminal_case == 6 || march_case) {
         fd2_field_system_menu_init(&game->system_menu);
         game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
         game->system_menu.confirmation_action = is_leave_case()
             ? FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE
-            : FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM;
+            : march_case ? FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM
+                         : FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM;
         game->system_menu.confirmation_return_page = is_leave_case()
             ? FD2_FIELD_SYSTEM_PAGE_SECONDARY : FD2_FIELD_SYSTEM_PAGE_PARENT;
         game->system_menu.confirmation_return_selected = 3;
         game->system_menu.confirmation_yes = 1;
         game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
     }
-    if (is_leave_case()) {
+    if (is_leave_case() || march_case) {
+        const size_t accepted_fragment = march_case ? FD2_FIELD_SYSTEM_TEXT_MARCH_ACCEPTED
+                                                  : FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED;
         /* 只有 FDTXT[416] 非空；一个测试字形的下左阴影用于识别
          * 真正呈现，不依赖生产日志或额外测试钩子。offsets 归 session。 */
         static const uint8_t text[] = {0, 0, 0xff, 0xff};
         static const uint8_t glyph[32] = {0x80};
         game->ui_text.offsets = calloc(
-            FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED + 1u,
-            sizeof(*game->ui_text.offsets));
+            accepted_fragment + 1u, sizeof(*game->ui_text.offsets));
         if (!game->ui_text.offsets) return -1;
         game->ui_text.data = text;
         game->ui_text.size = sizeof(text);
-        game->ui_text.fragment_count =
-            FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED + 1u;
+        game->ui_text.fragment_count = accepted_fragment + 1u;
         game->font.glyphs = glyph;
         game->font.size = sizeof(glyph);
         game->font.glyph_count = 1;
@@ -134,6 +145,19 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
             if (leave_missing_resource == 2)
                 game->ui_text.fragment_count =
                     FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED;
+        }
+        if (march_case == 1) {
+            if (march_missing_resource == 0) game->ui_text.data = NULL;
+            if (march_missing_resource == 1) game->font.glyphs = NULL;
+            if (march_missing_resource == 2) game->ui_text.fragment_count = accepted_fragment;
+        }
+        if (march_case == 6) {
+            game->map.width = game->map.height = 8;
+            game->map.cells = calloc(64, sizeof(*game->map.cells));
+            game->terrain.attrs = calloc(1, sizeof(*game->terrain.attrs));
+            if (!game->map.cells || !game->terrain.attrs) return -1;
+            game->terrain.attr_count = 1;
+            game->cursor_cell_x = 1; game->cursor_cell_y = 6;
         }
         game->turn_number = 17;
         active_game = game;
@@ -170,15 +194,25 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         game->event_log[0].presentation_deferred = 1;
     }
     if (session_failure_case == 2) game->event_log_count = 0;
-    if (terminal_case >= 3) game->event_log_count = 0;
+    if (terminal_case >= 3 || march_case) game->event_log_count = 0;
     return 0;
 }
 
 int __wrap_fd2_field_game_process_automatic_action_visual(
-        fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms) {
+        fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms,
+        int clean_background) {
     (void)game;
     (void)vga;
     (void)frame_delay_ms;
+    if (march_case == 6) {
+        march_phase_clean_parameter = clean_background;
+        march_phase_called++;
+        game->active_side = 2;
+        game->turn_number++;
+        fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+        fd2_input_begin_test_frame(&vga->input, 1000);
+        return 1;
+    }
     if (controller_case == 2 || controller_case == 3) {
         controller_automatic_called++;
         game->active_side = 2;
@@ -188,6 +222,7 @@ int __wrap_fd2_field_game_process_automatic_action_visual(
         fd2_input_begin_test_frame(&vga->input, 1000);
         return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
     }
+    ordinary_automatic_clean = clean_background;
     failure_called++;
     return -1;
 }
@@ -206,6 +241,24 @@ int __wrap_fd2_scene_play_field_event(fd2_vga *vga,
 }
 
 void __wrap_fd2_vga_present(fd2_vga *vga) {
+    if (march_case && active_game && active_game->last_system_action ==
+            FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
+        if (!march_called && vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
+            march_text_presented++;
+            if (march_case == 2) vga->input.quit_requested = 1;
+        } else if (march_called && march_case == 3) {
+            vga->input.quit_requested = 1;
+        } else if (march_called && march_case == 6 && !march_phase_called) {
+            march_phase_outer_clean = active_game->info_panel_right == 0;
+        } else if (march_called && march_case == 6 && march_phase_called) {
+            march_phase_input_checked = !fd2_input_has_any_key(&vga->input) &&
+                active_game->active_side == 2 && active_game->turn_number == 18 &&
+                active_game->info_panel_right == 1 &&
+                vga->input.previous_down[SDL_SCANCODE_RIGHT] &&
+                vga->input.next_repeat_ms[SDL_SCANCODE_RIGHT] > 1000;
+            vga->input.quit_requested = 1;
+        }
+    }
     if (controller_case) {
         controller_present_count++;
         if (controller_case >= 3) {
@@ -297,7 +350,7 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
     if (controller_case) return fd2_input_take_action(input, context, action);
     (void)input;
-    if ((is_leave_case() || terminal_case == 6) && action_sent++ == 0) {
+    if ((is_leave_case() || terminal_case == 6 || march_case) && action_sent++ == 0) {
         *action = FD2_INPUT_ACTION_CONFIRM;
         return 1;
     }
@@ -384,13 +437,31 @@ int __wrap_fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
     return 0;
 }
 
+int __wrap_fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
+                               uint32_t frame_delay_ms) {
+    (void)vga; (void)frame_delay_ms;
+    march_called++;
+    march_state_checked = march_text_presented == 1 &&
+        game->turn_number == 17 && game->active_side == 2 &&
+        game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
+        !memcmp(unchanged_units, game->units.items, sizeof(unchanged_units));
+    if (march_case == 4) {
+        game->failure = FD2_FIELD_FAILURE_ACTION;
+        return -1;
+    }
+    if (march_case == 5) return 1;
+    game->active_side = 1;
+    if (march_case == 6) game->info_panel_right = 0;
+    return 0;
+}
+
 int main(void) {
     fd2_vga vga = {0};
     fd2_archive fdother = {0};
     automatic_failure = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
           FD2_FIELD_PLAY_RETURN_ERROR);
-    CHECK(failure_called == 1);
+    CHECK(failure_called == 1 && ordinary_automatic_clean == 0);
 
     automatic_failure = 0;
     failure_called = 0;
@@ -502,6 +573,24 @@ int main(void) {
         CHECK(controller_automatic_called == ((controller_case == 2 || controller_case == 3) ? 1 : 0));
     }
     controller_case = 0;
+    for (march_case = 1; march_case <= 6; march_case++) {
+        for (march_missing_resource = 0; march_missing_resource <
+                (march_case == 1 ? 3 : 1); march_missing_resource++) {
+            action_sent = march_called = march_text_presented = march_state_checked = 0;
+            march_phase_called = march_phase_input_checked = 0;
+            march_phase_clean_parameter = march_phase_outer_clean = 0;
+            vga.input.quit_requested = 0;
+            fd2_field_play_result expected = march_case == 1 || march_case == 4
+                ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+            CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) == expected);
+            CHECK(march_called == (march_case >= 3 ? 1 : 0));
+            CHECK(march_text_presented == (march_case == 1 ? 0 : 1));
+            if (march_case >= 3) CHECK(march_state_checked);
+            if (march_case == 6) CHECK(march_phase_called == 1 && march_phase_input_checked &&
+                march_phase_clean_parameter == 1 && march_phase_outer_clean);
+        }
+    }
+    march_case = 0;
     puts("field_play_result_test: ok");
     return 0;
 }

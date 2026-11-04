@@ -87,6 +87,10 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 controller完成时由play owner耗尽当前帧普通键，保留held／repeat；core不接input。等待phase时拒绝导出／保存，成功活动Load清除续行与pending，失败恢复保留完整原状态。此处恢复的是已确认控制顺序；未实现的cell handler、特殊格、物品已交接取消例外及跨地图镜头仍单独登记。
 
+批量行军按 `field_empty_focus_menu_execute @0x16f55` 的独立顺序提交：确认后捕获固定绝对焦点，按 raw actor 顺序仅处理 `(flags & 0x85)==0 && side==2`，不附加 HP 门。每人先 focus、清共享 pending、执行完整路径的 match0 收集，再分派当前 pending；成功后才重置全表方向、标记当前 acted。无路仍走尾部，不查询最终 match1。当前 handler 失败保留已走路径和先前 actor 的提交，立即停止，不伪造整批回滚或继续 phase。
+
+整批后只启动一次 side1→side0→新玩家回合，不自动 Save。March 期间由既有私有路径呈现参数关闭选择／信息层；play 局部续行把相同参数传给异步 AI visual step，普通 END 默认使用原呈现。恢复玩家阶段或终态后清当前帧普通键，保留 held／repeat，不把显示策略或 pending 副本存入 session。长路径中途的即时宿主退出仍沿现有路径协议，未声明逐动画相位响应通过。
+
 攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
 
 成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。

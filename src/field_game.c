@@ -254,7 +254,7 @@ static void refresh_system_menu_disabled(fd2_field_game *game) {
     if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY) {
         refresh_secondary_menu_disabled(game);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT) {
-        const uint8_t disabled[] = {0, 1, 0, 0}; /* SDL 尚无 march 后端。 */
+        const uint8_t disabled[] = {0, game->stage != 0u, 0, 0};
         fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_OPTIONS) {
         /* 后两项只确认过存档位，尚未实现其可见效果。 */
@@ -2213,7 +2213,8 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
 
 typedef enum {
     FIELD_PATH_PLAYER_COMMAND,
-    FIELD_PATH_BROWSE
+    FIELD_PATH_BROWSE,
+    FIELD_PATH_MARCH_BROWSE
 } field_path_playback_mode;
 
 static int execute_path_playback(fd2_field_game *game,
@@ -2262,7 +2263,12 @@ static int execute_path_playback(fd2_field_game *game,
             game->camera_pixel_offset_y =
                 camera_dy * (int)(phase + 1u) * 4;
             if (vga) {
-                fd2_field_game_render(game, vga);
+                /* march的51A83=0取消选择层，51AAC=0关闭常驻信息面板。
+                 * 仅本次私有路径参数控制，不留下session显示策略。 */
+                if (mode == FIELD_PATH_MARCH_BROWSE)
+                    fd2_field_game_render_background(game, vga);
+                else
+                    fd2_field_game_render(game, vga);
                 fd2_vga_present_timed(vga, frame_delay_ms);
             }
         }
@@ -2284,7 +2290,7 @@ static int execute_path_playback(fd2_field_game *game,
             return -1;
     }
 
-    if (mode == FIELD_PATH_BROWSE) {
+    if (mode != FIELD_PATH_PLAYER_COMMAND) {
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
         return 0;
     }
@@ -2495,7 +2501,7 @@ static int commit_ai_physical_internal(
         const fd2_field_ai_physical_candidate *plan,
         fd2_vga *vga,
         uint32_t frame_delay_ms,
-        int finish_action) {
+        int finish_action, field_path_playback_mode mode) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         !plan || !game->attack_rng ||
         game->active_side == 2u || actor_index >= game->units.count ||
@@ -2578,7 +2584,7 @@ static int commit_ai_physical_internal(
     /* field_ai_move_toward_cell @0x14b78 只播放 actor path；不打开
      * player COMMAND 菜单，也不更新 command 的旁路动画状态。 */
     int commit_result = execute_path_playback(
-        game, vga, frame_delay_ms, FIELD_PATH_BROWSE);
+        game, vga, frame_delay_ms, mode);
     if (commit_result == 0) {
         fd2_field_unit *target = &game->units.items[plan->unit_index];
         if (actor->hp == 0 || target->hp == 0 ||
@@ -2647,7 +2653,7 @@ int fd2_field_game_commit_ai_physical(
         const fd2_field_ai_physical_candidate *plan,
         fd2_vga *vga, uint32_t frame_delay_ms) {
     return commit_ai_physical_internal(game, actor_index, side_selector,
-                                       plan, vga, frame_delay_ms, 1);
+                                       plan, vga, frame_delay_ms, 1, FIELD_PATH_BROWSE);
 }
 
 static int magic_plan_matches(
@@ -2866,7 +2872,8 @@ static int commit_ai_path(fd2_field_game *game,
                           size_t path_capacity,
                           size_t path_length,
                           fd2_vga *vga,
-                          uint32_t frame_delay_ms) {
+                          uint32_t frame_delay_ms,
+                          field_path_playback_mode mode) {
     if (!game || actor_index >= game->units.count ||
         (path_length != 0 && !path) || path_length > path_capacity)
         return -1;
@@ -2887,7 +2894,7 @@ static int commit_ai_path(fd2_field_game *game,
     game->move_preview_valid = 1;
     game->interaction = FD2_FIELD_INTERACTION_MOVING;
     int result = execute_path_playback(
-        game, vga, frame_delay_ms, FIELD_PATH_BROWSE);
+        game, vga, frame_delay_ms, mode);
     game->move_path = snapshot.move_path;
     game->move_path_capacity = snapshot.move_path_capacity;
     game->move_path_length = snapshot.move_path_length;
@@ -2911,7 +2918,8 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
                                          size_t actor_index,
                                          int anchor_x, int anchor_y,
                                          fd2_vga *vga,
-                                         uint32_t frame_delay_ms) {
+                                         uint32_t frame_delay_ms,
+                                         field_path_playback_mode mode) {
     if (!game || !game->ready || actor_index >= game->units.count ||
         game->map.width <= 0 || game->map.height <= 0 ||
         anchor_x < 0 || anchor_y < 0 || anchor_x >= game->map.width ||
@@ -2997,11 +3005,75 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
         goto done;
     }
     result = commit_ai_path(
-        game, actor_index, path, count, length, vga, frame_delay_ms);
+        game, actor_index, path, count, length, vga, frame_delay_ms, mode);
 done:
     fd2_field_path_close(&range);
     free(path);
     return result;
+}
+
+/* field_empty_focus_menu_execute @0x16f55（原登记同名）selector1：
+ * 每名玩家只走14b78几何，不经AI decision/common-tail的match1与恢复。
+ * 当前actor失败前的路径和之前完成者均已提交，不能退回成普通取消。 */
+int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
+                         uint32_t frame_delay_ms) {
+    if (!game || !game->ready || game->stage != 0u ||
+        game->failure != FD2_FIELD_FAILURE_NONE || game->active_side != 2u ||
+        game->player_post_waiting_phase || game->selected_unit >= 0 ||
+        game->detail_visible || game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        game->cursor_cell_x < 0 || game->cursor_cell_y < 0 ||
+        game->cursor_cell_x >= game->map.width ||
+        game->cursor_cell_y >= game->map.height)
+        return -1;
+    if (vga && fd2_input_take_quit(&vga->input)) return 1;
+    const int anchor_x = game->cursor_cell_x;
+    const int anchor_y = game->cursor_cell_y;
+    for (size_t i = 0; i < game->units.count; i++) {
+        fd2_field_unit *actor = &game->units.items[i];
+        if ((actor->flags & 0x85u) != 0u || actor->side != 2u) continue;
+        if (vga && fd2_input_take_quit(&vga->input)) return 1;
+        /* 原版先focus actor，再清共享slot；后续actor不能把移动后的focus
+         * 当成新anchor。焦点移动沿现有X→Y镜头阈值，不改变固定anchor。 */
+        while (game->cursor_cell_x != actor->x) {
+            if (!fd2_field_game_move_cursor(
+                    game, game->cursor_cell_x < actor->x ? 1 : -1, 0)) {
+                fail_action(game, i);
+                return -1;
+            }
+        }
+        while (game->cursor_cell_y != actor->y) {
+            if (!fd2_field_game_move_cursor(
+                    game, 0, game->cursor_cell_y < actor->y ? 1 : -1)) {
+                fail_action(game, i);
+                return -1;
+            }
+        }
+        game->pending_cell_event.valid = 0;
+        if (commit_ai_move_toward_anchor(
+                game, i, anchor_x, anchor_y, vga, frame_delay_ms,
+                FIELD_PATH_MARCH_BROWSE) < 0) {
+            fail_action(game, i);
+            return -1;
+        }
+        if (vga && fd2_input_take_quit(&vga->input)) return 1;
+        /* march只有沿途match0；无path也到此，不追加最终match1。 */
+        if (dispatch_pending_cell_event(game, i) != 0) return -1;
+        for (size_t j = 0; j < game->units.count; j++)
+            game->units.items[j].direction = 0;
+        fd2_field_unit_set_acted(actor, 1);
+        game->selected_unit = -1;
+        game->command_selected = -1;
+        game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+    }
+    if (vga) {
+        fd2_field_game_render_background(game, vga);
+        fd2_vga_present(vga);
+        if (fd2_input_take_quit(&vga->input)) return 1;
+    }
+    /* 整批结束才统一turncycle；沿既有逐actor呈现完整side1→0→new2。
+     * march没有玩家controller的额外pending后置，也没有自动Save。 */
+    advance_phase(game);
+    return game->failure == FD2_FIELD_FAILURE_NONE ? 0 : -1;
 }
 
 /* field_ai_hostile_anchor @0x14121（IDA `sub_14121`）：使用固定预算
@@ -3010,7 +3082,7 @@ done:
 static int commit_ai_hostile_witness(fd2_field_game *game,
                                       size_t actor_index,
                                       fd2_vga *vga,
-                                      uint32_t frame_delay_ms) {
+                                      uint32_t frame_delay_ms, field_path_playback_mode mode) {
     if (!game || actor_index >= game->units.count ||
         game->map.width <= 0 || game->map.height <= 0)
         return -1;
@@ -3029,11 +3101,11 @@ static int commit_ai_hostile_witness(fd2_field_game *game,
         NULL, count, &ignored_length, &witness_x, &witness_y);
     if (found != 1) return found;
     return commit_ai_move_toward_anchor(
-        game, actor_index, witness_x, witness_y, vga, frame_delay_ms);
+        game, actor_index, witness_x, witness_y, vga, frame_delay_ms, mode);
 }
 
 static int run_ai_try_attack(fd2_field_game *game, size_t actor_index,
-                             fd2_vga *vga, uint32_t frame_delay_ms) {
+                             fd2_vga *vga, uint32_t frame_delay_ms, field_path_playback_mode mode) {
     fd2_field_unit *actor = &game->units.items[actor_index];
     uint8_t selector = game->active_side == 0u ? 0u : 1u;
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
@@ -3063,7 +3135,7 @@ static int run_ai_try_attack(fd2_field_game *game, size_t actor_index,
     if (action == FD2_FIELD_AI_ACTION_PHYSICAL)
         return commit_ai_physical_internal(
             game, actor_index, selector, &physical,
-            vga, frame_delay_ms, 0) == 0 ? 1 : -1;
+            vga, frame_delay_ms, 0, mode) == 0 ? 1 : -1;
     if (action == FD2_FIELD_AI_ACTION_MAGIC)
         return commit_ai_magic_internal(
             game, actor_index, selector, &magic, 0) == 0 ? 1 : -1;
@@ -3150,34 +3222,34 @@ static int recover_stationary_unit(fd2_field_game *game, size_t actor_index) {
 }
 
 static int run_mode0_action(fd2_field_game *game, size_t actor_index,
-                            fd2_vga *vga, uint32_t frame_delay_ms) {
+                            fd2_vga *vga, uint32_t frame_delay_ms, field_path_playback_mode mode) {
     int attack = run_ai_try_attack(
-        game, actor_index, vga, frame_delay_ms);
+        game, actor_index, vga, frame_delay_ms, mode);
     if (attack != 0) return attack;
     int moved = commit_ai_hostile_witness(
-        game, actor_index, vga, frame_delay_ms);
+        game, actor_index, vga, frame_delay_ms, mode);
     if (moved != 0) return moved;
     fd2_field_ai_target target;
     if (fd2_field_ai_nearest_opponent(&game->units, actor_index,
                                       game->active_side, &target) == 0)
         return commit_ai_move_toward_anchor(
             game, actor_index, target.x, target.y,
-            vga, frame_delay_ms);
+            vga, frame_delay_ms, mode);
     return 0;
 }
 
 static int move_then_recover(fd2_field_game *game, size_t actor_index,
                              int x, int y,
-                             fd2_vga *vga, uint32_t frame_delay_ms) {
+                             fd2_vga *vga, uint32_t frame_delay_ms, field_path_playback_mode mode) {
     int moved = commit_ai_move_toward_anchor(
-        game, actor_index, x, y, vga, frame_delay_ms);
+        game, actor_index, x, y, vga, frame_delay_ms, mode);
     if (moved != 0) return moved;
     return recover_stationary_unit(game, actor_index) < 0 ? -1 : 0;
 }
 
 static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                            fd2_vga *vga, uint32_t frame_delay_ms,
-                           int *run_common_tail) {
+                           int *run_common_tail, field_path_playback_mode mode) {
     if (!game || actor_index >= game->units.count || !run_common_tail)
         return -1;
     fd2_field_unit *actor = &game->units.items[actor_index];
@@ -3186,17 +3258,17 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
     switch (behavior) {
         case 0:
             return run_mode0_action(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
         case 1: {
             int attack = run_ai_try_attack(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             return commit_ai_hostile_witness(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
         }
         case 2: {
             int attack = run_ai_try_attack(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             /* 正确 dual 0x13b5d：再次运行 physical candidate query，
              * 不调用 exchange；helper 固定返回 0，随后进入恢复/common tail。 */
@@ -3214,25 +3286,25 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
         }
         case 3: {
             int attack = run_ai_try_attack(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             int target_index = fd2_field_units_find_visible_text_id(
                 &game->units, actor->ai_param_35);
             if (target_index < 0)
                 return commit_ai_hostile_witness(
-                    game, actor_index, vga, frame_delay_ms);
+                    game, actor_index, vga, frame_delay_ms, mode);
             const fd2_field_unit *target = &game->units.items[target_index];
             return move_then_recover(
                 game, actor_index, target->x, target->y,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
         }
         case 4:
             return move_then_recover(
                 game, actor_index, actor->ai_param_35, actor->ai_param_36,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
         case 5: {
             int attack = run_ai_try_attack(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             int target_x = -1;
             int target_y = -1;
@@ -3243,10 +3315,10 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             if (found == -2) return -1;
             if (found <= 0)
                 return run_mode0_action(
-                    game, actor_index, vga, frame_delay_ms);
+                    game, actor_index, vga, frame_delay_ms, mode);
             int moved = commit_ai_move_toward_anchor(
                 game, actor_index, target_x, target_y,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
             if (moved < 0) return -1;
             if (moved == 0 && recover_stationary_unit(game, actor_index) < 0)
                 return -1;
@@ -3260,7 +3332,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
         case 7: {
             int moved = commit_ai_move_toward_anchor(
                 game, actor_index, actor->ai_param_35, actor->ai_param_36,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
             if (moved < 0) return -1;
             if (moved == 0 && recover_stationary_unit(game, actor_index) < 0)
                 return -1;
@@ -3285,19 +3357,19 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                 &game->units, actor->ai_param_35);
             if (target_index < 0)
                 return run_mode0_action(
-                    game, actor_index, vga, frame_delay_ms);
+                    game, actor_index, vga, frame_delay_ms, mode);
             const fd2_field_unit *target = &game->units.items[target_index];
             return move_then_recover(
                 game, actor_index, target->x, target->y,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
         }
         case 10: {
             int attack = run_ai_try_attack(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             return move_then_recover(
                 game, actor_index, actor->ai_param_35, actor->ai_param_36,
-                vga, frame_delay_ms);
+                vga, frame_delay_ms, mode);
         }
         case 11: {
             uint8_t selector = game->active_side == 0u ? 0u : 1u;
@@ -3323,7 +3395,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             if (have_physical && physical.priority >= 6) {
                 if (commit_ai_physical_internal(
                         game, actor_index, selector, &physical,
-                        vga, frame_delay_ms, 0) == 0)
+                        vga, frame_delay_ms, 0, mode) == 0)
                     return 1;
                 /* magic 已消费 RNG；后段失败保留已提交效果并锁住 session，
                  * 不能按成功补 common tail 或重放此前施法。 */
@@ -3332,7 +3404,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             }
             if (cast) return 1;
             int moved = commit_ai_hostile_witness(
-                game, actor_index, vga, frame_delay_ms);
+                game, actor_index, vga, frame_delay_ms, mode);
             if (moved != 0) return moved;
             return recover_stationary_unit(game, actor_index) < 0 ? -1 : 0;
         }
@@ -3343,7 +3415,10 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
 }
 
 int fd2_field_game_process_automatic_action_visual(
-        fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms) {
+        fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms,
+        int clean_background) {
+    field_path_playback_mode mode = clean_background
+        ? FIELD_PATH_MARCH_BROWSE : FIELD_PATH_BROWSE;
     if (game && game->failure != FD2_FIELD_FAILURE_NONE) return -1;
     if (!game || !game->ready || game->active_side == 2 ||
         game->selected_unit >= 0 ||
@@ -3389,7 +3464,7 @@ int fd2_field_game_process_automatic_action_visual(
             game->cursor_cell_y = unit->y;
             int run_common_tail = 1;
             int action_result = run_ai_behavior(
-                game, i, vga, frame_delay_ms, &run_common_tail);
+                game, i, vga, frame_delay_ms, &run_common_tail, mode);
             if (action_result < 0) {
                 fail_action(game, i);
                 return -1;
@@ -3425,7 +3500,7 @@ int fd2_field_game_process_automatic_action_visual(
         game->cursor_cell_y = unit->y;
         int run_common_tail = 1;
         int action_result = run_ai_behavior(
-            game, i, vga, frame_delay_ms, &run_common_tail);
+            game, i, vga, frame_delay_ms, &run_common_tail, mode);
         if (action_result < 0) {
             fail_action(game, i);
             return -1;
@@ -3452,7 +3527,7 @@ int fd2_field_game_process_automatic_action_visual(
 }
 
 int fd2_field_game_process_automatic_action(fd2_field_game *game) {
-    return fd2_field_game_process_automatic_action_visual(game, NULL, 0);
+    return fd2_field_game_process_automatic_action_visual(game, NULL, 0, 0);
 }
 
 int fd2_field_game_compute_move_range(const fd2_field_game *game,

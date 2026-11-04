@@ -68,6 +68,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_player.py` 从真实 START 定位 actor0，验证一步移动取消恢复选择态、确认可直接进入 COMMAND、取消返回浏览及磁盘只读。COMMAND 检查完整 24×20 图标与 actor 遮挡组合，分别识别普通、禁用及高亮资源，不把 SDL 尚未开放的能力当作原版禁用规则。`--scenario wait-full-hp` 要求来源 HP 已满，另验原地 WAIT、已行动映色及 Enter 详情入口；受伤恢复、raw26 抖动和完整 runtime／RNG 仍待原版配对。两场景均已纳入总流程。
 
+`run_original_march.py` 使用真实 START，先跑原版再跑 SDL，逐步识别 March 取消、NO、肯定一次和 round2 的实际资源画面，再由正式菜单 Save 测量。它比较本次原版四名玩家终点，并严格检查完整容器中未声明字段、整张 roster、metadata、手工槽和未知区保留；伤害、AI 位置、cache 与随机流不作相等声明。单独运行仍须使用 `driver run-job` 管理进程树，已纳入总流程第 20 组。`field_march` 覆盖精确 actor 门、pending／acted 顺序、部分提交失败、March 与普通 END 呈现隔离；纯逻辑不能代替该 WGC 配对。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

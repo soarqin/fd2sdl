@@ -78,7 +78,7 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | SDL 应用分派 | 手工 LOAD 拒绝、CONTINUE、leave、合成 victory／defeat | 未实现的手工入口仍留标题；肯定 leave 自然退出 `0`；胜／败各自说明后续未实现并退出 `2`，不改存档。合成隐藏位夹具只证明 SDL 分派 |
 | SDL 窗口生命周期 | 地图、单位预览、对话、新游戏交接期间关闭窗口 | 正式窗口产生有效帧，关闭被处理，进程正常退出 |
 | 原版配对 | 标题默认选择、上下移动、回绕、Esc 无副作用 | 原版与 SDL 的 WGC 单窗口帧在同一检查点比较；菜单变化与恢复均有断言；另测宿主遮挡不影响捕获 |
-| 原版 B1 菜单配对 | CONTINUE → 空焦点菜单 → END 默认 YES／Right 选 NO → Esc／NO 回浏览 → 重新开菜单 | 原版资源像素识别各检查点；YES/NO 必须采到对应选中高亮，取消后光标与静态面板区域恢复初始浏览，两份存档不变。SDL march 能力门单独排除 |
+| 原版 B1 菜单配对 | CONTINUE → 空焦点菜单 → END 默认 YES／Right 选 NO → Esc／NO 回浏览 → 重新开菜单 | 原版资源像素识别各检查点；YES/NO 必须采到对应选中高亮，取消后光标与静态面板区域恢复初始浏览，两份存档不变。March 可用性和肯定批次由独立场景验收 |
 | 原版 B1.3a | 真实 START → 肯定 END 一次 → round 002 → actor 0 最终焦点 → 左格正式 Save | 原版回合 banner、角色与光标组合资源、有效存档及独立数量；两端确定性字段相等。源码日志仅补充 SDL phase 顺序 |
 | 原版 B1.3b Load | round2 不保存 → Load 的 Esc／NO → 肯定 Load 来源 A → 显式 UI Save 测量 | Load 前后来源副本内容和 mtime 不变；测量存档恢复 turn1 与全部已确认字段，仅排除 active cache `+2` 和记录的测量焦点导航。取消只证明浏览恢复、文件不写及菜单可再次使用 |
 | 原版 B1.3b leave | Esc／NO 回浏览 → 肯定一次后不再发键 | 自然退出 `0` 必须发生在清理前；未退出时先保存 WGC 并失败，后续清理退出不能翻转为通过 |
@@ -247,3 +247,13 @@ COMMAND 现按 `@0x179d5 → @0x127e0` 在图标后只重画当前 actor，再�
 受影响原版／SDL WGC 分别在 `src/build-win/graphics-artifacts/c2a-end-20261104-02/`、`c2a-load-20261104-02/`、`c2a-player-20261104-03/` 与 `c2a-wait-20261104-03/` 通过，维持各 runner 的原有状态、严格资源及文件守卫判据。原版目录和来源夹具未变，bytes／mtime 守卫通过；双方均正常退出，Job 无超时、遗留或强制终止。完整 19 组记录仍对应 `6b460e4`，本轮只重跑这四组及 CTest 中的正式输入。
 
 `c2a-player-20261104-02/` 在原版 actor0 导航第二步失败：WGC 取得 `3440×1377` 客户区、游戏居中且带黑边，尺寸校验拒绝，未追加按键或裁切成整数倍率。失败画面、输入和清理记录均保留；SDL 当时未启动，来源及原版目录未变。新窗口的第 3 轮玩家场景及尚未执行的 WAIT 均通过。此项不证明尺寸变化的宿主原因已修复；特定近敌 ZOC 的原版运行、完整 runtime／RNG 和批量行军仍分别待验。
+
+### B1.4c2b 批量行军：2026-11-04
+
+独立暂存候选通过 39/39 CTest、189/189 Python，无跳过。March 覆盖固定 anchor、raw 顺序及精确 `0x85` 门、无 HP 门、无路尾部、只 match0、handler 在 acted 前分派、部分提交失败及整轮只推进一次。呈现只由私有模式和 play 局部续行参数区分，普通 END 的画面、伤害及 RNG 回归保持原契约。必需 418 提示失败或提示后宿主退出均不开始批次。代码保留原 call 的名义 200 ms 参数，不声称实际 DOS／宿主等待时间相等。
+
+因 E: 空间耗尽，本阶段完整重建和后续图形产物改在 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b1-20261104/`。按用户指示，不带 Force 的循环仅移除旧候选中的可再生编译文件并清空目录，释放约 4.23 GiB；源码、日志、截图、原版和研究补丁均保留。早期 E: 构建失败不能当通过，以下结果来自 C: 完整候选。
+
+`march-graphics-01/` 的新一轮原版先行、SDL 后行通过：取消和 NO 不改存档 bytes／mtime；只肯定一次；WGC 识别 round2、实际 leader、无滚屏导航和真正空格 parent，再由 UI Save 测量。本次四名玩家终点一致，metadata、完整 `0xa00` roster、未用 actor 尾、cell state、手工槽与其余未声明区域逐字保留。cache、伤害、AI 位置和未对齐随机流另列排除，不把 round2 或未崩溃单独当通过。两端显式 host close 均在清理前正常退出 0，原版及来源未变，Job 无遗留或强制终止。
+
+`march/build/graphics-artifacts/20261104-184719-653282/` 的完整 20 组、九份原版配对全部通过，最外层 Job 为 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`。上述路径均相对本段的 C: 产物根。未声明长路径每个动画相位的即时关闭响应、所有延后剧情 clean、特定 cell handler、整关视听或完整 runtime／RNG 一致；Linux 未执行。

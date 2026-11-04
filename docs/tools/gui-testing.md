@@ -4,7 +4,7 @@
 
 输出目录检查必须先解析 `original_game` 的实际目标，再拒绝写入该目录及其子目录，最后才能创建产物目录。候选源树常通过 junction 或符号链接复用原版资源，只比较表面路径不能保护实际证据目录。
 
-`tools/run_original_magic_list.py` 是B2的原版-only校准，尚未加入B1的24组配对流程。可用 `run-job 300000` 包装，参数为 `--root`、`--driver`、`--dosbox`、`--artifacts`；成功仍保留 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示原版列表打开、取消与重开通过。它不启动SDL、不施法，也不根据存档未变推断UI RNG或完整runtime未变。
+`tools/run_original_magic_list.py` 是B2的原版-only校准，尚未加入B1的24组配对流程。可用 `run-job 300000` 包装，参数为 `--root`、`--driver`、`--dosbox`、`--artifacts`；默认校准列表打开、取消与重开，`--scenario controls` 另测多项导航、低MP确认和逐级取消。成功仍保留 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示原版校准通过。它不启动SDL、不施法，也不根据存档未变推断UI RNG或完整runtime未变。
 
 开发验收只要求当前执行平台的适用检查通过。当前平台为 Windows，WGC 图形流程属于必测项；Linux 等其他平台未执行时如实登记，不阻塞当前开发任务，也不记为已通过。跨平台命令仍维护，当前平台的逻辑、输入、图形与原版对照范围不能因此缩减。
 

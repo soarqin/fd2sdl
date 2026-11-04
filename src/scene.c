@@ -318,6 +318,20 @@ static void draw_portrait(fd2_vga *vga, const fd2_archive *dato,
     if (fd2_portrait_decode_frame(&portrait, dato, portrait_id, 0) != 0)
         return;
 
+    /* text_dialog_render_tokens @0x15f84 / sub_16559 @0x16559：下框调用
+     * lmi_rle_blit_reverse @0x4ec31（原登记 FUN_0004c379），从(87,115)
+     * 向左写80列；上框仍从(232,5)正向写。只镜像独立解码的图像。 */
+    if (area == FD2_DIALOG_BOTTOM) {
+        for (int row = 0; row < portrait.height; row++) {
+            uint8_t *pixels = portrait.pixels + (size_t)row * (size_t)portrait.width;
+            for (int left = 0; left < portrait.width / 2; left++) {
+                int right = portrait.width - 1 - left;
+                uint8_t pixel = pixels[left];
+                pixels[left] = pixels[right];
+                pixels[right] = pixel;
+            }
+        }
+    }
     int x = (area == FD2_DIALOG_TOP) ? DIALOG_TOP_PORTRAIT_X : DIALOG_BOTTOM_PORTRAIT_X;
     int y = (area == FD2_DIALOG_TOP) ? DIALOG_TOP_PORTRAIT_Y : DIALOG_BOTTOM_PORTRAIT_Y;
     fd2_tileset_blit(vga, &portrait, x, y, -1);
@@ -1624,8 +1638,11 @@ int fd2_scene_play_new_game_prologue_handoff(
 
     const uint8_t *pal;
     size_t pal_len;
-    if (fd2_archive_get(fdother, 0, &pal, &pal_len) == 0 && pal_len >= 768)
-        fd2_vga_set_palette(vga, pal);
+    if (fd2_archive_get(fdother, 0, &pal, &pal_len) != 0 || pal_len < 768) {
+        fprintf(stderr, "cannot load opening palette\n");
+        goto done;
+    }
+    fd2_vga_set_palette(vga, pal);
     fd2_vga_set_brightness(vga, 0);
 
     static const size_t stages[] = {

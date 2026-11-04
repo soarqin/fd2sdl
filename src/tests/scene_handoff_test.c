@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "scene.h"
+#include "portrait.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -14,6 +15,10 @@ static uint64_t test_ms;
 static int presents, quit_at_frame, quit_on_preview_delay;
 static int archive_opens, archive_closes;
 static const char *fail_archive_path;
+static const fd2_archive *fail_palette_archive;
+static int palette_failure, palette_queries;
+static int portrait_frame_override;
+static size_t portrait_frame_requested;
 static fd2_vga *current_vga;
 
 static int scene_test_archive_open(fd2_archive *archive, const char *path) {
@@ -27,6 +32,30 @@ static int scene_test_archive_open(fd2_archive *archive, const char *path) {
 static void scene_test_archive_close(fd2_archive *archive) {
     if (archive && archive->data) archive_closes++;
     fd2_archive_close(archive);
+}
+
+static int scene_test_archive_get(const fd2_archive *archive, size_t index,
+                                  const uint8_t **data, size_t *size) {
+    if (archive == fail_palette_archive && index == 0) {
+        palette_queries++;
+        if (palette_failure == 1) {
+            *data = NULL;
+            *size = 0;
+            return -1;
+        }
+        int result = fd2_archive_get(archive, index, data, size);
+        if (result == 0 && palette_failure == 2) *size = 767;
+        return result;
+    }
+    return fd2_archive_get(archive, index, data, size);
+}
+
+static int scene_test_portrait_decode_frame(fd2_image *image,
+                                             const fd2_archive *archive,
+                                             size_t identity, size_t frame) {
+    portrait_frame_requested = frame;
+    return fd2_portrait_decode_frame(image, archive, identity,
+        portrait_frame_override >= 0 ? (size_t)portrait_frame_override : frame);
 }
 
 static void scene_test_present(fd2_vga *vga) {
@@ -59,6 +88,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_scene_play_field_event scene_test_play_event
 #define fd2_archive_open scene_test_archive_open
 #define fd2_archive_close scene_test_archive_close
+#define fd2_archive_get scene_test_archive_get
+#define fd2_portrait_decode_frame scene_test_portrait_decode_frame
 #define fd2_vga_present scene_test_present
 #define fd2_vga_present_timed scene_test_present_timed
 #define fd2_delay_ms scene_test_delay
@@ -69,6 +100,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #undef fd2_scene_play_field_event
 #undef fd2_archive_open
 #undef fd2_archive_close
+#undef fd2_archive_get
+#undef fd2_portrait_decode_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_delay_ms
@@ -81,6 +114,10 @@ static void reset_controls(fd2_vga *vga) {
     presents = quit_at_frame = quit_on_preview_delay = 0;
     archive_opens = archive_closes = 0;
     fail_archive_path = NULL;
+    fail_palette_archive = NULL;
+    palette_failure = palette_queries = 0;
+    portrait_frame_override = -1;
+    portrait_frame_requested = (size_t)-1;
     current_vga = vga;
 }
 
@@ -166,12 +203,82 @@ static int test_host_quit_has_no_handoff(const fd2_archive *fdother,
     return 0;
 }
 
+static int test_required_palette_error_has_no_handoff(const fd2_archive *fdother) {
+    /* 只故障 FDOTHER[0]：字体/UI/FDICON 均真实有效，不能由更早的错误假通过。 */
+    for (int failure = 1; failure <= 2; failure++) {
+        fd2_vga vga;
+        fd2_field_handoff handoff;
+        reset_controls(&vga);
+        fail_palette_archive = fdother;
+        palette_failure = failure;
+        memset(&handoff, 0xa5, sizeof(handoff));
+        CHECK(scene_test_play_handoff(&vga, fdother, NULL, NULL, 1,
+                                      &handoff) == FD2_SCENE_RESULT_ERROR);
+        CHECK(palette_queries == 1);
+        CHECK(!handoff.valid && handoff.units.count == 0);
+        CHECK(presents == 0);
+        CHECK(archive_opens == 4 && archive_closes == archive_opens);
+    }
+    return 0;
+}
+
+static int test_real_portrait_orientation(void) {
+    static const size_t identities[] = {0, 4, 9, 30, 48, 66, 96};
+    static const int frames[] = {0, 3};
+    fd2_archive dato = {0};
+    CHECK(fd2_archive_open(&dato, "original_game/DATO.DAT") == 0);
+    for (size_t id = 0; id < sizeof(identities) / sizeof(identities[0]); id++) {
+        for (size_t phase = 0; phase < sizeof(frames) / sizeof(frames[0]); phase++) {
+            fd2_image original = {0};
+            CHECK(fd2_portrait_decode_frame(&original, &dato, identities[id],
+                                            (size_t)frames[phase]) == 0);
+            CHECK(original.width == 80 && original.height == 80);
+            for (int area = FD2_DIALOG_TOP; area <= FD2_DIALOG_BOTTOM; area++) {
+                fd2_vga vga;
+                reset_controls(&vga);
+                memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+                /* 正式scene目前固定请求frame0；替身喂真实0/3，验证共同方向路径，
+                 * 不声称实现了native眨眼计时或RNG。 */
+                portrait_frame_override = frames[phase];
+                draw_portrait(&vga, &dato, (fd2_dialog_area)area,
+                              (uint16_t)identities[id]);
+                CHECK(portrait_frame_requested == 0 && presents == 0);
+                int x = area == FD2_DIALOG_TOP ? 232 : 8;
+                int y = area == FD2_DIALOG_TOP ? 5 : 115;
+                size_t asymmetric = 0;
+                for (int row = 0; row < VGA_H; row++) {
+                    for (int column = 0; column < VGA_W; column++) {
+                        uint8_t expected = 0xa5;
+                        if (column >= x && column < x + 80 &&
+                            row >= y && row < y + 80) {
+                            int sx = column - x;
+                            if (area == FD2_DIALOG_BOTTOM) sx = 79 - sx;
+                            size_t index = (size_t)(row - y) * 80u + (size_t)sx;
+                            expected = original.pixels[index];
+                            if (expected != original.pixels[
+                                    (size_t)(row - y) * 80u + (size_t)(79 - sx)])
+                                asymmetric++;
+                        }
+                        CHECK(vga.framebuffer[(size_t)row * VGA_STRIDE + (size_t)column] == expected);
+                    }
+                }
+                CHECK(asymmetric > 0);
+            }
+            fd2_image_free(&original);
+        }
+    }
+    fd2_archive_close(&dato);
+    return 0;
+}
+
 int main(void) {
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
     int final_present = 0;
     CHECK(test_natural_stage0_handoff(&fdother, &final_present) == 0);
     CHECK(test_resource_error_has_no_handoff(&fdother) == 0);
+    CHECK(test_required_palette_error_has_no_handoff(&fdother) == 0);
+    CHECK(test_real_portrait_orientation() == 0);
     CHECK(test_host_quit_has_no_handoff(&fdother, final_present) == 0);
     fd2_archive_close(&fdother);
     puts("scene_handoff_test: ok");

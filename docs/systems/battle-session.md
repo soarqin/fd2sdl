@@ -77,6 +77,8 @@ ITEM_TARGETING仅支持草药192的player cast1／area0／filter1，复用现mov
 
 正式ITEM能力查询无写入／RNG，仅接受stage0可行动玩家及连续已知库存，要求非空共享RNG；非零Use code只允许192，code0普通装备只读。COMMAND、ITEM_MENU及目标确认都重新检查全库存；LIST由私有modal独占确认键，不能通过confirm_cursor跳过关闭过程。查询不借用MAGIC的MP、移动、unit+0x27或升级门。宿主退出与逐级取消先于正式Use能力检查处理；能力失效本身不阻止原有取消，也不清除尚未提交的移动。损坏的actor／record仍可明确报错并退出。
 
+B3.4b1仅接纯Drop会话，正式子菜单仍禁用Drop。低层复用ITEM_LIST和保留的command_selected3表示mode0，code0装备也可确认；不增加第二份slot／ID状态，不进入Use目标。确认先在80字节actor副本移槽，确认或取消都调用既有四属性重算；隐藏但equipped的坏ID也须拒绝。全部成功后才交接actor与UI状态：仍有物品回ITEM_MENU0，删空回COMMAND并重新选择首个可用项；重复确认拒绝。HP／MP、EX99、方向、acted、移动路径／原点、pending、镜头和外部RNG均保留，不执行动作／phase收尾。这里的取消允许刷新派生字段，已提交库存不会随之后的COMMAND移动取消回滚。真实modal、正式能力和双端对照留在B3.4b2。
+
 MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。

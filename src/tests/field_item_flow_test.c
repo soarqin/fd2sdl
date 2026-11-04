@@ -1,6 +1,8 @@
 /* field_player_item_command_execute @0x1bbdc（原登记同名）、
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session回归。
- * 不执行等待、物品handler或图形入口；合成资源capacity只供Load预检。 */
+ * Drop尾另依据field_unit_inventory_slot_remove @0x1b8e7（原sub_1B8E7）
+ * 与field_unit_combat_stats_recompute @0x1b750（原登记同名）。
+ * 不执行等待、Use handler或图形入口；合成资源capacity只供Load预检。 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -239,10 +241,152 @@ static int test_load_and_snapshot_owner_boundaries(void) {
     return 0;
 }
 
+static int open_drop(fixture *f) {
+    fd2_field_game *g = &f->game;
+    fd2_field_unit *actor = &g->units.items[0];
+    actor->base_attack_le[0] = 6;
+    actor->base_defense_le[0] = 4;
+    actor->dexterity_le[0] = 2;
+    actor->attack = actor->defense = actor->accuracy = actor->evasion = 999;
+    actor->experience = 99; actor->hp = 20; actor->mp = 7; actor->mp_max = 9;
+    CHECK(fd2_field_game_begin_item_menu(g) == 0);
+    CHECK(g->command_disabled[3] == 1); /* 正式能力门未开放。 */
+    g->command_selected = 3;
+    g->command_disabled[3] = 0; /* 仅低层合同夹具显式开放Drop。 */
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && g->command_selected == 3);
+    CHECK(g->item_list_selected == 0);
+    return 0;
+}
+
+static int test_drop_cancel_recomputes_without_rollback(void) {
+    for (int through_cancel = 0; through_cancel < 2; through_cancel++) {
+        fixture f;
+        CHECK(init(&f, 0) == 0 && open_drop(&f) == 0);
+        fd2_field_game *g = &f.game;
+        CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1);
+        CHECK(fd2_field_game_begin_item_targeting(g) == -1); /* mode0不走Use目标。 */
+        CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0);
+        CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1); /* code0装备可确认。 */
+        g->attack_rng = NULL; /* 纯Drop不借正式Use或共享等待RNG门。 */
+        fd2_field_game expected = *g;
+        expected.units.items[0].attack = 16; expected.units.items[0].defense = 12;
+        expected.units.items[0].accuracy = 97; expected.units.items[0].evasion = 2;
+        expected_menu(&expected);
+        CHECK((through_cancel ? fd2_field_game_cancel_selection(g)
+                              : fd2_field_game_end_item_list(g)) == (through_cancel ? 1 : 0));
+        CHECK(!memcmp(g, &expected, sizeof(expected)));
+        CHECK(g->move_range.nodes[17].distance == 7 && g->move_path[1] == 3 && f.rng_calls == 0);
+        CHECK(fd2_field_game_end_item_list(g) == -1);
+        CHECK(fd2_field_game_resolve_item_drop(g) == -1);
+        CHECK(!memcmp(g, &expected, sizeof(expected)));
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_drop_removal_equipment_and_stale_tail(void) {
+    for (unsigned selected = 0; selected < 3; selected++) {
+        fixture f;
+        CHECK(init(&f, 0) == 0 && open_drop(&f) == 0);
+        fd2_field_game *g = &f.game;
+        g->item_list_selected = (int)selected;
+        fd2_field_game expected = *g;
+        uint8_t *raw = (uint8_t *)&expected.units.items[0];
+        memmove(raw + 0x0a + selected * 2u, raw + 0x0c + selected * 2u, (7u - selected) * 2u);
+        raw[0x18] = 0x80;
+        expected.units.items[0].attack = selected == 0 ? 6 : 16;
+        expected.units.items[0].defense = selected == 1 ? 4 : 12;
+        expected.units.items[0].accuracy = selected == 0 ? 2 : 97;
+        expected.units.items[0].evasion = 2;
+        expected_menu(&expected);
+        CHECK(fd2_field_game_resolve_item_drop(g) == 0);
+        CHECK(!memcmp(g, &expected, sizeof(expected)));
+        CHECK(((const uint8_t *)&g->units.items[0])[0x19] == 0xa5); /* 不清末ID。 */
+        CHECK(fd2_field_game_resolve_item_drop(g) == -1 && !memcmp(g, &expected, sizeof(expected)));
+        CHECK(f.rng_calls == 0 && g->move_range.nodes[17].distance == 7 && g->move_path[1] == 3);
+        close_fixture(&f);
+    }
+    fixture f;
+    CHECK(init(&f, 0) == 0);
+    slot(&f.game.units.items[0], 2, 0, 193); /* 非零未知Use handler不影响纯Drop。 */
+    CHECK(open_drop(&f) == 0);
+    f.game.item_list_selected = 2;
+    CHECK(fd2_field_game_resolve_item_drop(&f.game) == 0);
+    CHECK(fd2_field_unit_inventory_count(&f.game.units.items[0]) == 2 && f.rng_calls == 0);
+    close_fixture(&f);
+    CHECK(init(&f, 0) == 0);
+    for (unsigned i = 3; i < 8; i++) slot(&f.game.units.items[0], i, 0, 192);
+    CHECK(open_drop(&f) == 0);
+    f.game.item_list_selected = 7;
+    CHECK(fd2_field_game_resolve_item_drop(&f.game) == 0);
+    const uint8_t *raw = (const uint8_t *)&f.game.units.items[0];
+    CHECK(fd2_field_unit_inventory_count(&f.game.units.items[0]) == 7);
+    CHECK(raw[0x18] == 0x80 && raw[0x19] == 192 && raw[0x16] == 0 && raw[0x17] == 192);
+    CHECK(f.game.units.items[0].attack == 16 && f.game.units.items[0].accuracy == 97 && f.rng_calls == 0);
+    close_fixture(&f);
+    return 0;
+}
+
+static int test_drop_last_slot_returns_command(void) {
+    fixture f;
+    CHECK(init(&f, 0) == 0);
+    for (unsigned i = 1; i < 8; i++) slot(&f.game.units.items[0], i, 0x80, 0xa5);
+    CHECK(open_drop(&f) == 0);
+    fd2_field_game *g = &f.game;
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_resolve_item_drop(g) == 0);
+    CHECK(fd2_field_unit_inventory_count(&g->units.items[0]) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->item_list_selected == 0);
+    CHECK(g->command_selected == FD2_FIELD_COMMAND_WAIT && g->command_disabled[2]);
+    CHECK(g->units.items[0].attack == 6 && g->units.items[0].defense == 4 &&
+          g->units.items[0].accuracy == 2 && g->units.items[0].evasion == 2);
+    CHECK(((const uint8_t *)&g->units.items[0])[0x19] == 0xa5);
+    before.units.items[0] = g->units.items[0];
+    before.interaction = g->interaction; before.item_list_selected = 0;
+    before.command_selected = g->command_selected;
+    memcpy(before.command_disabled, g->command_disabled, sizeof(before.command_disabled));
+    before.command_highlight_phase = before.command_animation_phase = before.command_animation_opening = 0;
+    before.last_command_highlight_ms = 0;
+    CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);
+    CHECK(fd2_field_game_resolve_item_drop(g) == -1 && !memcmp(g, &before, sizeof(before)));
+    close_fixture(&f);
+    return 0;
+}
+
+static int test_drop_rejects_without_actor_or_owner_writes(void) {
+    CHECK(fd2_field_game_resolve_item_drop(NULL) == -1);
+    for (unsigned which = 0; which < 20; which++) {
+        fixture f;
+        CHECK(init(&f, 0) == 0 && open_drop(&f) == 0);
+        fd2_field_game *g = &f.game;
+        if (which < 15) invalidate(g, which);
+        else if (which == 15) g->command_selected = 0;
+        else if (which == 16) g->item_list_selected = -1;
+        else if (which == 17) g->item_list_selected = 3;
+        else if (which == 18) g->interaction = FD2_FIELD_INTERACTION_COMMAND;
+        else slot(&g->units.items[0], 7, 0xc0, 255); /* 隐藏但equipped，重算晚错。 */
+        fd2_field_game before = *g;
+        CHECK(fd2_field_game_resolve_item_drop(g) == -1);
+        CHECK(!memcmp(g, &before, sizeof(before)));
+        if (which != 15) {
+            CHECK(fd2_field_game_end_item_list(g) == -1);
+            CHECK(!memcmp(g, &before, sizeof(before)));
+        }
+        CHECK(f.rng_calls == 0);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(test_layers_preserve_move_pending_units_and_rng() == 0);
     CHECK(test_rejections_have_no_write_set() == 0);
     CHECK(test_load_and_snapshot_owner_boundaries() == 0);
+    CHECK(test_drop_cancel_recomputes_without_rollback() == 0);
+    CHECK(test_drop_removal_equipment_and_stale_tail() == 0);
+    CHECK(test_drop_last_slot_returns_command() == 0);
+    CHECK(test_drop_rejects_without_actor_or_owner_writes() == 0);
     puts("field_item_flow_test: ok");
     return 0;
 }

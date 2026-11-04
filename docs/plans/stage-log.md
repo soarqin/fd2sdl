@@ -354,6 +354,18 @@ B3整体仍未关闭；之后继续B3.4丢弃校准。raw16B／末槽stale、完
 
 这证明共用移槽函数在Drop分支的真实写入，不把它扩成Use后acted全raw测量；取消重算调用仍标静态依据。SDL Drop、装备物品／最后一项删除、Equip／Give、完整RNG／演出／声音及B5仍未验。下一小阶段接SDL mode0列表与移槽／必要派生重算、逐级取消，再补已装备及最后一项原版场景，满足条件后才启用正式Drop。当前无需要用户选择的等优方案。
 
+### B3.4b1纯Drop会话与失败边界
+
+B3.4a原版校准已独立提交`187871c`，继续在现有game会话接纯Drop，不开放正式菜单。仅改game实现／接口和既有field_item_flow回归；无新模块、CMake目标、play分支、CLI或UI字段。ITEM_LIST保留的command_selected3区分mode0，code0装备可确认；新增resolve_item_drop与原end_item_list取消复用同一private尾，Drop3不能误进Use targeting。正式disabled3仍为1，测试仅在低层夹具显式开放。
+
+尾部先用80字节actor副本，确认才调用原slot_remove，确认／取消都调用现combat_stats_recompute；隐藏equipped坏ID等晚错不会写原actor或UI。全通过后交接：非空回ITEM0，删空回COMMAND首可用项，WAIT保证存在；基础actor门与非空库存门最小分开，refresh返回的其余前置已验证，无提交后拒绝。没有acted、目标、EX、cell/controller/phase或RNG调用，不回滚移动／pending及既有库存变化。复审确认没有第二份槽缓存或通用事务。
+
+既有目标内追加4组：取消将陈旧派生999重算而库存不动；装备／草药／8槽与末槽stale；删最后一项返COMMAND及重复拒绝；20种坏context／visible或hidden装备ID与晚失败无actor／owner写入。EX99、HP／MP、方向、acted、camera、移动path／range实际内容及pending逐项保持，RNG0，既有Use／target／commit回归不漂。known1.15缩放对i16基础及8装备之和不会溢出int32，不添加生产失败注入钩子。
+
+`C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/drop-core-c1/`从仅3个暂存文件冻结，全新Windows完整构建、单轮57/57 CTest无跳过通过（真实输入42.76秒、总63.03秒），498个源码函数地址token均为canonical；全326源manifest在测试后未变。作者另fresh46core的item_flow／target／commit三项通过，独立connected复审无阻塞。Python未改，356全量及42项Item工具专项分别保留C5／B3.4a来源，不重称本阶段新跑。
+
+本纯会话程序SHA `5c32793ea77a5439df93bab985028088403d31220924bb56a730516a3cdd1ea2`；没有新的Drop WGC或正式操作入口，既有累计30组仍对应0bb6正式候选，不能复用为本程序的完整图形验收。原版192 Drop的Save证据仍只属B3.4a。下一项为B3.4b2的正式输入／能力门与装备、最后一项原版场景及双端对照；Equip／Give、完整RNG／演出声音、整关／结算／下一关均继续未验。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

@@ -39,7 +39,7 @@ git diff --check
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
 - `field_info` 覆盖stage 0总览及物品纯列表：raw槽选中、空槽压行、全部215项、frame41缺省属性图、raw零色复制，以及完整预检失败全VGA不变；原详情与MAGIC上页组合另有回归。纯绘制测试不代替正式入口和原版WGC验收。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
-- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
+- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。另验纯Drop的mode0装备确认、确认／取消重算、末槽stale、删空回COMMAND、隐藏坏装备拒绝及RNG0；正式Drop仍禁用。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
 - `field_item_target` 覆盖草药192的纯目标范围、raw候选／121轮询、HP0／acted、取消聚焦回LIST0、坏末项及Load owner；合成光标／地形锁定frame1与LUT，不执行物品提交或代替WGC。
 - `field_item_commit` 覆盖草药逻辑提交的power40／逐目标RNG、压槽及stale ID、MP／EX保留、死亡／phase预测、重复拒绝、提交后错误冻结及正式能力查询／confirm_cursor分派；不借AI尾链，也不代替真实键盘可达性或原版raw字节量测。
 - `field_magic_list_play` 现同时覆盖法术／物品私有列表的真实按键等待逻辑，替换宿主时钟与呈现，不开窗口；检查共享RNG、开合、退出、释放和首错。`field_item_menu_render` 用合成资源检查ITEM IDs8–11、禁用图、高亮、动画与角色最后覆盖；二者均不是SDL物品WGC。

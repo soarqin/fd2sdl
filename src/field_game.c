@@ -1927,16 +1927,21 @@ int fd2_field_game_end_magic_list(fd2_field_game *game) {
 /* field_player_item_command_execute @0x1bbdc（原登记同名）与
  * field_unit_inventory_select @0x1b932（原sub_1B932）：不套MAGIC的
  * MP/+27/移动后unit例外门，纯库存预检复用1b9de的SDL支持门。 */
-static int item_menu_actor_is_valid(const fd2_field_game *game) {
+static int item_actor_is_valid(const fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->stage != 0 || game->player_post_waiting_phase || game->active_side != 2 ||
         game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count)
         return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    return unit_can_act_for_side(actor, 2) && !fd2_field_unit_has_acted(actor);
+}
+
+static int item_menu_actor_is_valid(const fd2_field_game *game) {
+    if (!item_actor_is_valid(game)) return 0;
     int selected = 0;
-    return unit_can_act_for_side(actor, 2) && !fd2_field_unit_has_acted(actor) &&
-        fd2_field_item_list_select_step(actor, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) == 0;
+    return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
+            &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) == 0;
 }
 
 int fd2_field_game_item_is_available(const fd2_field_game *game) {
@@ -1985,7 +1990,8 @@ int fd2_field_game_select_item_menu_direction(
 
 int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
-        game->command_selected != 0 || game->command_disabled[0])
+        (game->command_selected != 0 && game->command_selected != 3) ||
+        game->command_disabled[game->command_selected])
         return -1;
     game->item_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
@@ -1993,14 +1999,50 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
 }
 
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key) {
-    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST)
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        (game->command_selected != 0 && game->command_selected != 3))
         return -2;
     return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
-                                          &game->item_list_selected, key, 1);
+        &game->item_list_selected, key, game->command_selected == 0);
+}
+
+/* field_player_item_command_execute @0x1bbdc（原登记同名）的Drop尾：
+ * 0x1bfda取消亦落入field_unit_combat_stats_recompute @0x1b750；确认才先
+ * field_unit_inventory_slot_remove @0x1b8e7。shadow确保晚坏装备不改库存。 */
+static int finish_item_drop(fd2_field_game *game, int confirmed) {
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        game->command_selected != 3)
+        return -1;
+    fd2_field_unit shadow = game->units.items[game->selected_unit];
+    int selected = game->item_list_selected;
+    if (fd2_field_item_list_select_step(&shadow, &selected,
+            FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) != 0)
+        return -1;
+    if (confirmed) inventory_slot_remove(&shadow, (size_t)selected);
+    if (fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0)
+        return -1;
+    game->units.items[game->selected_unit] = shadow;
+    if (fd2_field_unit_inventory_count(&shadow)) {
+        enter_item_menu(game);
+        return 0;
+    }
+    /* 基础actor门允许刚删空的库存；refresh的其余前置均已满足，WAIT恒可用。 */
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    return fd2_field_game_refresh_commands(game);
+}
+
+int fd2_field_game_resolve_item_drop(fd2_field_game *game) {
+    return finish_item_drop(game, 1);
 }
 
 int fd2_field_game_end_item_list(fd2_field_game *game) {
-    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST)
+    if (game && game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST &&
+        game->command_selected == 3)
+        return finish_item_drop(game, 0);
+    if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        game->command_selected != 0)
         return -1;
     int selected = game->item_list_selected;
     if (fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
@@ -2166,7 +2208,7 @@ int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
 /* 1bbdc在1bd14之前按raw槽读record；这里只开放已核草药192，
  * 使用player的cast+10/area+12/filter+15，不借AI的+11筛选。 */
 static const uint8_t *item_target_record(const fd2_field_game *game) {
-    if (!item_menu_actor_is_valid(game)) return NULL;
+    if (!item_menu_actor_is_valid(game) || game->command_selected != 0) return NULL;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
     int selected = game->item_list_selected;
     if (fd2_field_item_list_select_step(actor, &selected,

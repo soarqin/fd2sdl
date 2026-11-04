@@ -370,8 +370,9 @@ int fd2_field_game_end_magic_list(fd2_field_game *game);
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
  * 只支持stage0与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
  * 正式COMMAND由item_is_available限制效果能力；低层纯session不混此门。
- * 菜单仅Use可选，Give/Equip/Drop禁用；confirm仅开列表0，list step的1
- * 只报告可确认，不提交handler。
+ * 正式菜单仅Use可选，Give/Equip/Drop禁用；低层confirm亦支持已启用的
+ * Drop3，仍借同一ITEM_LIST与command_selected区分mode1/0，不缓存槽ID。
+ * list step的1只报告可确认，不提交handler。
  * begin/confirm/end成功0，拒绝-1；方向返回是否改变，拒绝-1；list step
  * 沿用-2/-1/0/1。step不关闭列表，宿主完成关闭动画再end。
  * 列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，均不回滚临时
@@ -383,6 +384,14 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game);
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key);
 int fd2_field_game_end_item_list(fd2_field_game *game);
 int fd2_field_game_end_item_menu(fd2_field_game *game);
+
+/* field_player_item_command_execute @0x1bbdc（原登记同名）的纯Drop提交：
+ * 仅ITEM_LIST/Drop3；确认移raw槽，取消由end_item_list分派，二者均按
+ * field_unit_combat_stats_recompute @0x1b750（原登记同名）重算shadow后
+ * 才交接actor。余项回ITEM_MENU0，删空回COMMAND首可用项；重复拒绝。
+ * 成功0、拒绝-1。无acted/目标/收尾/RNG；失败actor与UI owner均不变。
+ * 宿主须先完整关闭列表；正式Drop能力门尚未开放。 */
+int fd2_field_game_resolve_item_drop(fd2_field_game *game);
 
 /* 正式ITEM能力查询：完整可见库存须密集且ID已知，非零Use code仅192；
  * code0武器/装备可看列表，确认仍留页。要求stage0可行动玩家及共享RNG，

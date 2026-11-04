@@ -15,12 +15,16 @@
 #define FD2_FIELD_INFO_PLUS_FRAME 131u
 #define FD2_FIELD_INFO_MINUS_FRAME 132u
 #define FD2_FIELD_INFO_DIGIT_FRAME 31u
+#define FD2_FIELD_INFO_MAGIC_COST_FRAME 92u
+/* 当前SDL完整可见布局门，不是原版40bit位图或分页数量上限。 */
+#define FD2_FIELD_MAGIC_LIST_MAX_COUNT 12u
 
 typedef struct {
     fd2_image panel;
     fd2_image signs[2]; /* 0=正号，1=负号 */
     fd2_image digits[3][10]; /* frame 31..40、42..51、119..128 */
     fd2_image digit_overflow[3]; /* frame 41/52/129 */
+    fd2_image magic_cost; /* frame 92: 20×8 raw，零像素也绘制 */
     fd2_image two_digit_overflow; /* frame 93 */
     fd2_image detail_border[18]; /* frame 1..17：通用 UI 边框小块 */
     fd2_image detail_top;    /* frame 20: 223×86 */
@@ -73,6 +77,19 @@ int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_font *font,
                             const fd2_text_entry *text,
                             const fd2_field_overview *data);
+
+/* field_unit_magic_list_draw @0x1ceed（原登记sub_1CEED）的法术列表绘制；
+ * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）
+ * 的单键UI步骤使用同一selected索引；本函数不执行该步骤。
+ * 接受0..12个已知ID；selected=-1为未选，其余须为有效索引。
+ * 完整预检后恢复(5,94)的310×99底板并叠列表，不重建上半详情。
+ * 成功返回0；错误返回-1且framebuffer不变。不处理输入／MP消耗／RNG。 */
+int fd2_field_magic_list_draw(fd2_vga *vga,
+                              const fd2_field_info_assets *assets,
+                              const fd2_font *font,
+                              const fd2_text_entry *text,
+                              const fd2_field_unit *unit,
+                              int selected);
 
 /* 全屏角色详情页主体：复现 field_unit_detail_draw @0x17eef 与
  * field_unit_detail_stats_draw @0x17fc0。portrait 为 DATO 当前单位首帧。 */

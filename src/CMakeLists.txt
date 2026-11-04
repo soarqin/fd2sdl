@@ -444,6 +444,10 @@ if(BUILD_TESTING)
         tests/field_info_test.c
         field_info.c
         field_item.c
+        field_magic.c
+        field_attack.c
+        field_path.c
+        field_move_profile.c
         map_sprite.c
         image.c
         archive.c
@@ -463,6 +467,7 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_info COMMAND fd2_field_info_test)
+    set_tests_properties(field_info PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_field_combat_test
         tests/field_combat_test.c

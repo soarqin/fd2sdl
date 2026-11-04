@@ -1,9 +1,13 @@
+/* field_unit_magic_list_draw @0x1ceed（原登记sub_1CEED）列表与现有详情资源回归。
+ * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）仅作
+ * selected索引依据；本测试不调用选择／施法，不创建SDL窗口。 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "field_info.h"
 #include "field_item.h"
+#include "field_magic.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -357,6 +361,261 @@ static int test_text_fragment_span_rejection(void) {
     return 0;
 }
 
+typedef struct {
+    fd2_archive other, text_archive;
+    fd2_field_info_assets assets;
+    fd2_font font;
+    fd2_text_entry text;
+} magic_fixture;
+
+static void close_magic_fixture(magic_fixture *fixture) {
+    fd2_field_info_assets_close(&fixture->assets);
+    fd2_text_entry_close(&fixture->text);
+    fd2_archive_close(&fixture->text_archive);
+    fd2_archive_close(&fixture->other);
+}
+
+static int open_magic_fixture(magic_fixture *fixture) {
+    memset(fixture, 0, sizeof(*fixture));
+    if (fd2_archive_open(&fixture->other, "original_game/FDOTHER.DAT") != 0 ||
+        fd2_archive_open(&fixture->text_archive, "original_game/FDTXT.DAT") != 0 ||
+        fd2_field_info_assets_open(&fixture->assets, &fixture->other) != 0 ||
+        fd2_font_open_fdother(&fixture->font, &fixture->other, 4) != 0 ||
+        fd2_text_entry_open_entry(&fixture->text, &fixture->text_archive, 0) != 0) {
+        close_magic_fixture(fixture);
+        return -1;
+    }
+    return 0;
+}
+
+static uint32_t test_u32(const uint8_t *data) {
+    return (uint32_t)data[0] | ((uint32_t)data[1] << 8) |
+           ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+}
+
+static int test_magic_asset_owner(void) {
+    fd2_archive other = {0};
+    fd2_field_info_assets assets = {0};
+    const uint8_t *sheet;
+    size_t size;
+    CHECK(fd2_archive_open(&other, "original_game/FDOTHER.DAT") == 0);
+    CHECK(fd2_archive_get(&other, 5, &sheet, &size) == 0);
+    uint32_t start = test_u32(sheet + 6 + 92 * 4);
+    uint32_t end = test_u32(sheet + 6 + 93 * 4);
+    CHECK(start < end && end <= size && end - start == 164);
+    CHECK(sheet[start] == 20 && sheet[start + 1] == 0 &&
+          sheet[start + 2] == 8 && sheet[start + 3] == 0);
+    CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    CHECK(assets.magic_cost.width == 20 && assets.magic_cost.height == 8);
+    CHECK(assets.magic_cost.pixels != sheet + start + 4);
+    CHECK(memcmp(assets.magic_cost.pixels, sheet + start + 4, 160) == 0);
+    uint8_t expected[160];
+    memcpy(expected, sheet + start + 4, sizeof(expected));
+    uint8_t *broken = malloc(size);
+    CHECK(broken != NULL);
+    memcpy(broken, sheet, size);
+    /* 像素长度仍合法，让raw decoder先分配；尺寸门失败须回收整owner。 */
+    broken[start] = 40;
+    broken[start + 2] = 4;
+    CHECK(fd2_field_info_assets_open_mem(&assets, broken, size) == -1);
+    for (size_t i = 0; i < sizeof(assets); i++) CHECK(((uint8_t *)&assets)[i] == 0);
+    CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    free(broken);
+    fd2_archive_close(&other);
+    CHECK(memcmp(assets.magic_cost.pixels, expected, sizeof(expected)) == 0);
+    fd2_field_info_assets_close(&assets);
+    CHECK(!assets.ready && !assets.magic_cost.pixels && !assets.magic_cost.width);
+    fd2_field_info_assets_close(&assets);
+    return 0;
+}
+
+static void magic_bit(fd2_field_unit *unit, unsigned id) {
+    unit->data_09_1e[0x11u + id / 8u] |= (uint8_t)(1u << (id % 8u));
+}
+
+static void expected_blit(uint8_t *dst, const fd2_image *image,
+                           int x, int y, int transparent) {
+    for (int row = 0; row < image->height; row++) {
+        for (int column = 0; column < image->width; column++) {
+            uint8_t value = image->pixels[(size_t)row * (size_t)image->width + (size_t)column];
+            if (transparent < 0 || value != (uint8_t)transparent)
+                dst[(size_t)(y + row) * VGA_STRIDE + (size_t)(x + column)] = value;
+        }
+    }
+}
+
+static int test_magic_list_real_layout_and_selection(void) {
+    static const int positions[12][2] = {
+        {18,103}, {18,125}, {18,147}, {18,169},
+        {118,103}, {118,125}, {118,147}, {118,169},
+        {218,103}, {218,125}, {218,147}, {218,169}
+    };
+    /* canonical0x619fd的前12项+5；独立固定费用防止错读+6或更换数字bank。 */
+    static const unsigned costs[12] = {2,6,20,42,4,15,30,60,24,30,18,45};
+    const int selections[] = {-1, 0, 3, 4, 11};
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0};
+    unit.mp = 0; /* 不足MP仍显示同一列表，不在纯绘制层改变名称颜色。 */
+    unit.mp_max = 8;
+    for (unsigned i = 0; i < 12; i++) magic_bit(&unit, i);
+    fd2_field_unit before_unit = unit;
+    fd2_field_info_assets before_assets = fixture.assets;
+    for (size_t selected = 0; selected < sizeof(selections) / sizeof(selections[0]); selected++) {
+        fd2_vga actual = {0}, expected = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        memset(actual.palette, 11, sizeof(actual.palette));
+        memset(actual.dac, 17, sizeof(actual.dac));
+        memset(&actual.input, 23, sizeof(actual.input));
+        actual.field_water_phase = 7;
+        actual.frame_deadline_ns = 1234;
+        fd2_vga before_vga = actual;
+        memcpy(expected.framebuffer, actual.framebuffer, sizeof(actual.framebuffer));
+        expected_blit(expected.framebuffer, &fixture.assets.detail_bottom, 5, 94, -1);
+        for (unsigned i = 0; i < 12; i++) {
+            const uint8_t *tokens;
+            size_t count;
+            CHECK(fd2_text_entry_get_fragment(&fixture.text, 441u + i, &tokens, &count) == 0);
+            CHECK(count == 4 && fd2_text_token_at(tokens, 3) == 0xffffu);
+            for (size_t glyph = 0; glyph < 3; glyph++) {
+                fd2_font_draw_glyph(&expected, &fixture.font, fd2_text_token_at(tokens, glyph),
+                    positions[i][0] + (int)glyph * 16, positions[i][1],
+                    selections[selected] == (int)i ? 201u : 205u, 76, -1);
+            }
+            int x = positions[i][0], y = positions[i][1];
+            expected_blit(expected.framebuffer, &fixture.assets.magic_cost, x + 50, y + 5, -1);
+            expected_blit(expected.framebuffer, &fixture.assets.digits[1][costs[i] / 10], x + 73, y + 5, 0);
+            expected_blit(expected.framebuffer, &fixture.assets.digits[1][costs[i] % 10], x + 79, y + 5, 0);
+        }
+        CHECK(fd2_field_magic_list_draw(&actual, &fixture.assets, &fixture.font,
+                                        &fixture.text, &unit, selections[selected]) == 0);
+        CHECK(memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)) == 0);
+        memcpy(actual.framebuffer, before_vga.framebuffer, sizeof(actual.framebuffer));
+        CHECK(memcmp(&actual, &before_vga, sizeof(actual)) == 0);
+        CHECK(memcmp(&unit, &before_unit, sizeof(unit)) == 0);
+        CHECK(memcmp(&fixture.assets, &before_assets, sizeof(before_assets)) == 0);
+    }
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int test_magic_empty_name_and_opaque_cost(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0};
+    magic_bit(&unit, 31);
+    fd2_vga vga = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    CHECK(fd2_field_magic_record_get(31)[5] == 26);
+    CHECK(fd2_field_magic_list_draw(&vga, &fixture.assets, &fixture.font,
+                                    &fixture.text, &unit, 0) == 0);
+    uint8_t expected[VGA_W * VGA_H];
+    memset(expected, 0xa5, sizeof(expected));
+    expected_blit(expected, &fixture.assets.detail_bottom, 5, 94, -1);
+    expected_blit(expected, &fixture.assets.magic_cost, 68, 108, -1);
+    expected_blit(expected, &fixture.assets.digits[1][2], 91, 108, 0);
+    expected_blit(expected, &fixture.assets.digits[1][6], 97, 108, 0);
+    CHECK(memcmp(expected, vga.framebuffer, sizeof(expected)) == 0);
+    memset(&unit, 0, sizeof(unit));
+    magic_bit(&unit, 0);
+    fixture.assets.magic_cost.pixels[0] = 0;
+    CHECK(fd2_field_magic_list_draw(&vga, &fixture.assets, &fixture.font,
+                                    &fixture.text, &unit, -1) == 0);
+    CHECK(vga.framebuffer[108 * VGA_STRIDE + 68] == 0);
+    memcpy(expected, vga.framebuffer, sizeof(expected));
+    CHECK(fd2_field_magic_list_draw(&vga, &fixture.assets, &fixture.font,
+                                    &fixture.text, &unit, 0) == 0);
+    size_t changed = 0;
+    for (size_t i = 0; i < sizeof(expected); i++) {
+        if (expected[i] != vga.framebuffer[i]) {
+            CHECK(expected[i] == 205 && vga.framebuffer[i] == 201);
+            changed++;
+        }
+    }
+    CHECK(changed == 150); /* 已校准原版ID0的选中前景写集。 */
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int magic_rejects_unchanged(fd2_vga *vga, const magic_fixture *fixture,
+                                   const fd2_field_unit *unit, int selected) {
+    fd2_vga before = *vga;
+    fd2_field_unit before_unit = {0};
+    if (unit) before_unit = *unit;
+    CHECK(fd2_field_magic_list_draw(vga, &fixture->assets, &fixture->font,
+                                    &fixture->text, unit, selected) == -1);
+    CHECK(memcmp(vga, &before, sizeof(before)) == 0);
+    if (unit) CHECK(memcmp(unit, &before_unit, sizeof(before_unit)) == 0);
+    return 0;
+}
+
+static int test_magic_rejects_before_drawing(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0};
+    fd2_vga vga = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    CHECK(fd2_field_magic_list_draw(&vga, &fixture.assets, &fixture.font,
+                                    &fixture.text, &unit, -1) == 0);
+    uint8_t empty[VGA_W * VGA_H];
+    memset(empty, 0xa5, sizeof(empty));
+    expected_blit(empty, &fixture.assets.detail_bottom, 5, 94, -1);
+    CHECK(memcmp(vga.framebuffer, empty, sizeof(empty)) == 0);
+    for (unsigned i = 0; i < 12; i++) magic_bit(&unit, i);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, -2) == 0);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 12) == 0);
+    magic_bit(&unit, 12);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    memset(unit.data_09_1e + 0x11, 0xff, 5);
+    CHECK(fd2_field_unit_magic_list_build(&unit, NULL, 0) == 40);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    for (unsigned id = 36; id < 40; id++) {
+        memset(&unit, 0, sizeof(unit));
+        magic_bit(&unit, 0);
+        magic_bit(&unit, id);
+        CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    }
+    memset(&unit, 0, sizeof(unit));
+    for (unsigned i = 0; i < 12; i++) magic_bit(&unit, i);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, NULL, 0) == 0);
+    uint8_t *pixels = fixture.assets.magic_cost.pixels;
+    fixture.assets.magic_cost.pixels = NULL;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.assets.magic_cost.pixels = pixels;
+    fixture.assets.magic_cost.width = 19;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.assets.magic_cost.width = 20;
+    fixture.assets.detail_bottom.height = 98;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.assets.detail_bottom.height = 99;
+    fixture.assets.digits[1][9].height = 7;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.assets.digits[1][9].height = 8;
+    fixture.font.size = 31;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.font.size = fixture.font.glyph_count * 32u;
+    size_t fragments = fixture.text.fragment_count;
+    fixture.text.fragment_count = 452; /* 前11项正常，最后一项缺失也不能先画前缀。 */
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.text.fragment_count = fragments;
+    uint8_t *bad_text = malloc(fixture.text.size);
+    CHECK(bad_text != NULL);
+    memcpy(bad_text, fixture.text.data, fixture.text.size);
+    const uint8_t *original_text = fixture.text.data;
+    fixture.text.data = bad_text;
+    size_t last = fixture.text.offsets[452];
+    bad_text[last] = (uint8_t)fixture.font.glyph_count;
+    bad_text[last + 1] = (uint8_t)(fixture.font.glyph_count >> 8);
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    bad_text[last] = 0xfe; bad_text[last + 1] = 0xff;
+    CHECK(magic_rejects_unchanged(&vga, &fixture, &unit, 0) == 0);
+    fixture.text.data = original_text;
+    free(bad_text);
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
@@ -365,6 +624,10 @@ int main(void) {
     CHECK(test_overview_resource_numbers() == 0);
     CHECK(test_overview_rejects_before_drawing() == 0);
     CHECK(test_text_fragment_span_rejection() == 0);
+    CHECK(test_magic_asset_owner() == 0);
+    CHECK(test_magic_list_real_layout_and_selection() == 0);
+    CHECK(test_magic_empty_name_and_opaque_cost() == 0);
+    CHECK(test_magic_rejects_before_drawing() == 0);
     puts("field_info_test: ok");
     return 0;
 }

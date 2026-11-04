@@ -8,6 +8,9 @@
  * sub_1B5F1 @0x1b5f1（原登记 sub_1B5F1）。原版从 FDOTHER[5] 取 frame 130
  * 底板、frame 131/132 正负号及两组 HP 数字，在当前地形上叠加
  * 光标格单位的固定 idle sprite，并显示两项地形修正和当前 HP。
+ * 法术列表依据field_unit_magic_list_draw @0x1ceed（原登记sub_1CEED）及其调用者
+ * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）；
+ * 本模块只绘制，不接该单键UI步骤／提交。
  */
 
 #include "field_info.h"
@@ -18,6 +21,7 @@
 #include <string.h>
 
 #include "field_item.h"
+#include "field_magic.h"
 #include "map_sprite.h"
 #include "portrait.h"
 
@@ -101,6 +105,7 @@ void fd2_field_info_assets_close(fd2_field_info_assets *assets) {
         fd2_image_free(&assets->digit_overflow[bank]);
     }
     fd2_image_free(&assets->two_digit_overflow);
+    fd2_image_free(&assets->magic_cost);
     for (size_t i = 1; i < 18; i++)
         fd2_image_free(&assets->detail_border[i]);
     fd2_image_free(&assets->detail_top);
@@ -148,7 +153,10 @@ int fd2_field_info_assets_open_mem(fd2_field_info_assets *assets,
                          frame_count, first_frame + 10u) != 0)
             goto fail;
     }
-    if (decode_frame(&assets->two_digit_overflow, data, size,
+    if (decode_raw_frame(&assets->magic_cost, data, size, frame_count,
+                         FD2_FIELD_INFO_MAGIC_COST_FRAME) != 0 ||
+        assets->magic_cost.width != 20 || assets->magic_cost.height != 8 ||
+        decode_frame(&assets->two_digit_overflow, data, size,
                      frame_count, 93u) != 0)
         goto fail;
     for (size_t i = 1; i < 18; i++) {
@@ -273,6 +281,76 @@ static void draw_fragment(fd2_vga *vga, const fd2_font *font,
 
 static int image_has_size(const fd2_image *image, int width, int height) {
     return image->pixels && image->width == width && image->height == height;
+}
+
+static int magic_list_name(const fd2_text_entry *text, const fd2_font *font,
+                           uint8_t magic_id, const uint8_t **tokens,
+                           size_t *glyph_count) {
+    const uint8_t *data;
+    size_t count;
+    if (fd2_text_entry_get_fragment(text, 441u + magic_id, &data, &count) != 0)
+        return -1;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(data, i);
+        if (token == 0xffffu) {
+            *tokens = data;
+            *glyph_count = i; /* ID31合法空名，不补猜测文字。 */
+            return 0;
+        }
+        /* 名称与x+50的费用标签之间仅容纳三个16px字形及左下阴影。 */
+        if (token >= 0xff00u || token >= font->glyph_count || i >= 3u)
+            return -1;
+    }
+    return -1;
+}
+
+int fd2_field_magic_list_draw(fd2_vga *vga,
+                              const fd2_field_info_assets *assets,
+                              const fd2_font *font,
+                              const fd2_text_entry *text,
+                              const fd2_field_unit *unit,
+                              int selected) {
+    if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
+        font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
+        !text || !unit || selected < -1 ||
+        !image_has_size(&assets->detail_bottom, 310, 99) ||
+        !image_has_size(&assets->magic_cost, 20, 8))
+        return -1;
+    for (size_t i = 0; i < 10; i++) {
+        if (!image_has_size(&assets->digits[1][i], i == 1 ? 5 : 6, 8))
+            return -1;
+    }
+    uint8_t ids[40];
+    size_t count = fd2_field_unit_magic_list_build(unit, ids, sizeof(ids));
+    if (count > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
+        (selected >= 0 && (size_t)selected >= count))
+        return -1;
+    const uint8_t *names[FD2_FIELD_MAGIC_LIST_MAX_COUNT];
+    size_t glyph_counts[FD2_FIELD_MAGIC_LIST_MAX_COUNT];
+    uint8_t costs[FD2_FIELD_MAGIC_LIST_MAX_COUNT];
+    for (size_t i = 0; i < count; i++) {
+        const uint8_t *record = fd2_field_magic_record_get(ids[i]);
+        if (!record || magic_list_name(text, font, ids[i],
+                                       &names[i], &glyph_counts[i]) != 0)
+            return -1;
+        costs[i] = record[5];
+    }
+    /* 先预检全部行，再进入无分配的绘制段。native1ceed只绘名称／费用；
+     * SDL现有详情合并了装备页，故此整合入口先恢复空白底板。
+     * 上半姓名／MP／立绘和任何玩法状态均不改。 */
+    fd2_map_sprite_blit(vga, &assets->detail_bottom, 5, 94, -1);
+    for (size_t i = 0; i < count; i++) {
+        int x = 18 + (int)(i / 4u) * 100;
+        int y = 103 + (int)(i % 4u) * 22;
+        uint8_t foreground = selected == (int)i ? 201u : 205u;
+        for (size_t j = 0; j < glyph_counts[i]; j++) {
+            fd2_font_draw_glyph(vga, font, fd2_text_token_at(names[i], j),
+                                x + (int)j * 16, y, foreground, 76, -1);
+        }
+        fd2_map_sprite_blit(vga, &assets->magic_cost, x + 50, y + 5, -1);
+        draw_digits(vga, assets, x + 73, y + 5, costs[i], 2, 1);
+    }
+    return 0;
 }
 
 /* stage 0 两段条件只有普通字形及结束符；先检查完整文本，避免画完

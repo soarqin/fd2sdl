@@ -668,9 +668,41 @@ class HealTest(ResourceFixture,unittest.TestCase):
         found = probe.visual_focus(frame,self.assets,self.assets["heal_result"]["composites"])
         self.assertEqual(found["focus_screen"],[124,76])
 
+    def magic_detail_frame(self,selected=-1):
+        frame = self.detail_frame("caster")
+        key = "unselected" if selected==-1 else "selected" if selected==0 else "selected_1"
+        at,image = self.templates[key]
+        frame.paste(image.convert("RGB"),at)
+        return frame
+
+    def closed_caster_frame(self,acted=True):
+        frame = Image.new("RGB",(320,200))
+        cursor = self.assets["cursor"]
+        sprite = self.assets["heal_result"]["acted"][0] if acted else probe.sheet_frame(
+            (probe.ROOT/"original_game/FDICON.B24").read_bytes(),9*12)
+        sprite.putpalette(self.assets["palette"])
+        frame.paste(cursor.convert("RGB"),(124,100),cursor.point(lambda c:255 if c else 0,mode="L"))
+        frame.paste(sprite.convert("RGB"),(124,94),sprite.point(lambda c:255 if c else 0,mode="L"))
+        frame.paste(self.assets["detail_close_terrain"]["image"].convert("RGB"),self.assets["detail_close_terrain"]["position"])
+        return frame
+
+    def test_caster_magic_detail_is_unselected_full_lower_and_then_closed_acted_browse(self):
+        detail = probe.unselected_magic_detail(self.magic_detail_frame(),self.source,self.assets,self.templates)
+        self.assertEqual((detail["selected"],detail["checked_lower_pixels"]),(-1,30690))
+        self.assertEqual((detail["upper_values"]["mp"],detail["upper_values"]["experience"]),(5,20))
+        self.assertFalse(detail["portrait_compared"])
+        for frame in (self.magic_detail_frame(0),self.magic_detail_frame(1),self.detail_frame("caster"),self.list_frame(True)):
+            self.assertIsNone(probe.unselected_magic_detail(frame,self.source,self.assets,self.templates))
+        bad = self.magic_detail_frame()
+        bad.putpixel((5,94),(255,0,0))
+        self.assertIsNone(probe.unselected_magic_detail(bad,self.source,self.assets,self.templates))
+        self.assertIsNotNone(probe.caster_closed_browse(self.closed_caster_frame(),self.source,self.assets,self.templates))
+        self.assertIsNone(probe.caster_closed_browse(self.closed_caster_frame(False),self.source,self.assets,self.templates))
+        self.assertIsNone(probe.caster_closed_browse(self.magic_detail_frame(),self.source,self.assets,self.templates))
+
     heal_keys = ["UP","ENTER","Z","Z","ENTER","ENTER","LEFT","ENTER",
         "UP","DOWN","LEFT","RIGHT","UP","ENTER","ESC","UP","ENTER","Z","Z","Z","Z","ENTER",
-        "F2","ESC","RIGHT","RIGHT","RIGHT","DOWN","F2"]
+        "F2","ESC","RIGHT","RIGHT","RIGHT","DOWN","F2","ESC","ESC"]
 
     def exercise_heal(self,capture,save,report,*,fail_at=None):
         observed = []
@@ -683,6 +715,12 @@ class HealTest(ResourceFixture,unittest.TestCase):
             if name in ("heal-recipient-detail","heal-caster-detail"):
                 kind = "recipient" if name=="heal-recipient-detail" else "caster"
                 frame = self.detail_frame(kind)
+                return frame,predicate(frame)
+            if name=="heal-caster-unselected-magic-detail":
+                frame = self.magic_detail_frame()
+                return frame,predicate(frame)
+            if name=="heal-caster-detail-closed-browse":
+                frame = self.closed_caster_frame()
                 return frame,predicate(frame)
             return self.list_frame(),{"focus_screen":[52,76] if name=="z-raw0" else [124,100]}
         with patch.object(probe,"wait_title"),patch.object(probe,"wait_state",side_effect=wait), \
@@ -702,6 +740,9 @@ class HealTest(ResourceFixture,unittest.TestCase):
             self.assertEqual(report["input_scope"]["cast_confirmation_count"],1)
             self.assertEqual(report["heal_recipient_measurement"]["hp"],42)
             self.assertEqual(report["heal_caster_measurement"]["experience"],20)
+            self.assertEqual(report["input_scope"]["caster_detail_inputs"],["ESC","ESC"])
+            self.assertEqual(report["heal_caster_magic_detail"]["checked_lower_pixels"],30690)
+            self.assertTrue(report["heal_caster_browse_closed"]["detail_resources_absent"])
             for name,count in observed:
                 capture = Mock()
                 with self.subTest(gate=name),self.assertRaises(TimeoutError):
@@ -719,7 +760,7 @@ class PairingTest(unittest.TestCase):
         args = SimpleNamespace(root=probe.ROOT,driver=driver,dosbox=dosbox,
                                artifacts=base/"output",scenario=scenario,sdl=sdl if paired else None)
         events,fixtures = [],[]
-        fixture = probe.ROOT/"original_game/START.SAV"
+        fixture = (probe.ROOT/"original_game").resolve()/"START.SAV"
         original_read,original_stat = Path.read_bytes,Path.stat
         hash_calls,tripped,bad_fixture = 0,False,False
         def hashes(path):
@@ -776,6 +817,8 @@ class PairingTest(unittest.TestCase):
             else:
                 record["heal_recipient_measurement"] = {"hp":42,"max_hp":42}
                 record["heal_caster_measurement"] = {"mp":5,"max_mp":8,"level":1,"experience":20}
+                record["heal_caster_magic_detail"] = {"selected":-1,"checked_lower_pixels":30690}
+                record["heal_caster_browse_closed"] = {"detail_resources_absent":True}
         with patch.object(probe,"hashes",side_effect=hashes), \
                 patch.object(Path,"read_bytes",read_bytes),patch.object(Path,"stat",stat), \
                 patch.object(probe,"running",side_effect=running),patch.object(probe,"Capture"), \

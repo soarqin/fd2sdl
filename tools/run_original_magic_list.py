@@ -9,6 +9,7 @@ damage依据field_magic_battle_animation @0x2ff01、field_defeated_units_finaliz
 @0x1e292（原登记同名）；只改active站位，不声称自然一回合移动后可施法。
 heal依据field_magic_heal_apply @0x1c8ed（原登记同名）及sub_1C916
 @0x1c916（原登记同名）；只教active ID13/指定受伤，不声称自然学习。
+F2翻页依据field_unit_detail_present @0x17aed（原sub_17AED）。
 不带--sdl保持原版-only；配对只验命名资源/终值，不冒称完整演出或RNG对齐。
 复用fd2_magic_list_oracle纯资源构造；仅由driver run-job串行运行，owned PID清理。
 """
@@ -315,10 +316,44 @@ def prepare_heal_resources(original,source,assets,fields,target_cursor):
         previous = world
     assets["heal_result"] = {"acted":acted,"composites":composites,"returning":returning,"recipient_screen":list(screen(source,worlds[0])),
         "caster_screen":screen(source,worlds[1]),"recipient":actor_focus_resources(original,source,assets,0,assets["cursor"])}
+    assets["detail_close_terrain"] = detail_close_terrain(original,source,assets)
     fields["heal_contract"] = {"spell":13,"caster":1,"recipient":0,"hp_before":20,"hp_after":42,"hp_max":42,
         "mp_after":5,"mp_max":8,"level":1,"experience":20,"cycle_raw_actors":[0,1,2,3,0],
         "experience_formula":"22*40*recipientLV1/42 / casterLV1 = 20",
         "expected_camera":list(camera),"single_cost":3,"no_save_or_end":True}
+
+
+def detail_close_terrain(original,source,assets):
+    """field_unit_detail_transition_left @0x182ad关闭phase11仍占x0..10；验证最终背景。"""
+    field = (original/"FDFIELD.DAT").read_bytes()
+    metadata,map_data = archive_entry(field,1),archive_entry(field,0)
+    width,height = struct.unpack_from("<HH",map_data)
+    if len(map_data)!=4+width*height*4 or source[0]!=metadata[0]:
+        raise ValueError("详情关闭地形门的地图/资源不一致")
+    shape = (original/"FDSHAP.DAT").read_bytes()
+    terrain,attrs = archive_entry(shape,metadata[0]*2),archive_entry(shape,metadata[0]*2+1)
+    occupied = {tuple(source[UNITS+i*STRIDE:UNITS+i*STRIDE+2])
+                for i in range(source[META+1]) if not source[UNITS+i*STRIDE+5]&1}
+    x,cy = source[META+3:META+5]
+    # 两格都在left上页86行内且横跨最后11px，不受施法者/焦点覆盖。
+    for row in (1,2):
+        y = cy+row
+        if not (0<=x<width and 0<=y<height) or (x,y) in occupied or (x,y+1) in occupied:
+            continue
+        cell = struct.unpack_from("<I",map_data,4+(y*width+x)*4)[0]
+        index = cell&0x3ff
+        if index*4+4>len(attrs):
+            raise ValueError("详情关闭地形属性越界")
+        if cell>>10 or attrs[index*4]:
+            continue
+        image = sheet_frame(terrain,index)
+        pixels = bytes(image.getdata())
+        if 0 in pixels or any(224<=pixel<240 for pixel in pixels):
+            continue
+        image.putpalette(assets["palette"])
+        return {"image":image,"position":screen(source,(x,y)),"world":[x,y],"tile":index,
+                "flags":0,"overlays":0,"water_palette_pixels":0,"actor_overlap":False}
+    raise ValueError("详情关闭缺少覆盖最后left残片的完整静态无水/actor地形ROI")
 
 
 def list_page(frame,templates,fields,selected=0):
@@ -451,6 +486,36 @@ def recipient_detail(frame,source,assets):
             "checked_pixels":sum(c["checked_pixels"] for c in checks.values()),"full_page_visual_equivalence":False}
 
 
+def unselected_magic_detail(frame,source,assets,templates):
+    """field_unit_detail_present @0x17aed（原sub_17AED）首键后1ceed(selected=-1)。"""
+    upper = caster_detail(frame,source,assets,heal=True)
+    at,image = templates["unselected"]
+    lower = exact_tile(frame,image,at)
+    if upper and lower:
+        return {"kind":"caster_unselected_magic_detail","selected":-1,"magic_ids":[0,13],
+                "lower_roi":[*at,*image.size],"lower":lower,"checked_lower_pixels":lower["checked_pixels"],
+                "upper_values":upper,"portrait_compared":False,"full_page_visual_equivalence":False}
+    return None
+
+
+def caster_closed_browse(frame,source,assets,templates):
+    terrain = assets["detail_close_terrain"]
+    restored = exact_tile(frame,terrain["image"],terrain["position"])
+    if restored is None:
+        return None
+    found = visual_focus(frame,assets,assets["heal_result"]["composites"])
+    x,y = assets["heal_result"]["caster_screen"]
+    acted = next((phase for phase,sprite in enumerate(assets["heal_result"]["acted"])
+                  if match_indexed(frame,sprite,(x,y-6))["ok"]),None)
+    at,image = templates["unselected"]
+    if (found and acted is not None and found["focus_screen"]==list(assets["heal_result"]["caster_screen"]) and
+            PlayerOracle(source,assets,[],{}).detail(frame) is None and exact_tile(frame,image,at) is None and restored):
+        return {"kind":"caster_detail_closed_browse","focus":found,"acted_caster_frame":acted,"detail_resources_absent":True,
+                "restored_terrain":{**{key:value for key,value in terrain.items() if key!="image"},
+                                    "roi":[*terrain["position"],24,24],**restored}}
+    return None
+
+
 def cancelled_browse(frame,assets,actor,probe):
     focused = focused_actor(frame,assets,actor)
     base = exact_tile(frame,probe["base"],probe["position"])
@@ -555,6 +620,15 @@ def exercise_heal(capture,source,assets,templates,fields,report,first,checkpoint
     capture.key("F2")
     _,values = checkpoint("heal-caster-detail",lambda frame:caster_detail(frame,source,assets,heal=True))
     report["heal_caster_measurement"] = values
+    capture.key("ESC")  # 原17aed：首键翻至法术详情，selected=-1；非施法选择页。
+    _,page = checkpoint("heal-caster-unselected-magic-detail",lambda frame:unselected_magic_detail(
+        frame,source,assets,templates))
+    report["heal_caster_magic_detail"] = page
+    capture.key("ESC")
+    _,closed = checkpoint("heal-caster-detail-closed-browse",lambda frame:caster_closed_browse(
+        frame,source,assets,templates))
+    report["heal_caster_browse_closed"] = closed
+    report["input_scope"]["caster_detail_inputs"] = ["ESC","ESC"]
 
 
 def exercise_controls(capture,source,assets,actors,probe,templates,fields,save,data,stamp,report,first,checkpoint):
@@ -669,7 +743,7 @@ def run(args):
                     image.save(output/("expected-damage-"+name+".png"))
                 assets["damage_result"]["empty"].save(output/"expected-damage-empty-target.png")
             else:
-                report["scope"] = "synthetic ID13+injured raw0: list/target cancel/cycle, one heal, HP42/42 and caster MP5/8 LV1 EX20; no Save or END"
+                report["scope"] = "synthetic ID13+injured raw0: list/target cancel/cycle, one heal, HP42/42 and caster MP5/8 LV1 EX20, unselected magic detail then closed browse; no Save or END"
                 report["excluded"] = "natural learning, raw runtime other owners, exact RNG stream, complete animation/timing/audio, other spell/caster"
                 for kind in ("recipient","caster"):
                     for name,(at,image) in assets["heal_"+kind+"_detail"].items():
@@ -726,7 +800,7 @@ def run(args):
                     else:
                         exercise(*arguments,scenario=scenario)
                         required = ("measurement",) if scenario=="controls" else ("damage_measurement",) if scenario=="damage" else (
-                            "heal_recipient_measurement","heal_caster_measurement")
+                            "heal_recipient_measurement","heal_caster_measurement","heal_caster_magic_detail","heal_caster_browse_closed")
                         if any(key not in record for key in required):
                             raise AssertionError("场景未完成其严格量测")
                     completed_bytes,completed_stamp = save.read_bytes(),save.stat().st_mtime_ns

@@ -40,7 +40,9 @@
 
 | B1／B2交界：AI无演出MP费用 | `3b23696` | 全新候选43/43 CTest、220/220 Python单轮无跳过；独立复审通过；依据1ca89真实写集和完整wrapper链纠正旧浅查结论，25个真实评分ID、多目标／首RNG观察／无效果仍扣／五种预检及后段失败保留回归；生成205函数registry/SHA | 这是静态／局部指令与SDL回归，不是原版施法运行；START首END静态无AI法术，不追改旧运行结论；FIGANI零／多费用标记和玩家施法另留B2／B6 |
 
-| B1.3c 受控胜败原版结果门 | 本提交 | 全新候选43/43 CTest、231/231 Python无跳过；两端由同来源只改hidden位的精确manifest派生快照，原版controller取消后到达胜利首对白及败北frame0→GAME OVER frame1；SDL分别唯一结果log并自然exit2，4进程正常清理、文件内容／mtime和原版hash不变；208函数registry/SHA校验通过 | 受控终态不是整关实战；只验原版胜利首段／败北两帧和SDL独立结果分派，不验B5结算／回标题／持久同步；完整22组正串行执行 |
+| B1.3c 受控胜败原版结果门 | `8fe860f` | 全新候选43/43 CTest、231/231 Python无跳过；两端由同来源只改hidden位的精确manifest派生快照，原版controller取消后到达胜利首对白及败北frame0→GAME OVER frame1；SDL分别唯一结果log并自然exit2，4进程正常清理、文件内容／mtime和原版hash不变；208函数registry/SHA校验通过 | 受控终态不是整关实战；只验原版胜利首段／败北两帧和SDL独立结果分派，不验B5结算／回标题／持久同步；完整22组正串行执行 |
+
+| B1终审：共享March菜单判据 | 本提交 | 170组资源组合复核判定与匹配数据一致；委托共享strict菜单，保留strict_parent报告标签和额外secondary关闭门；19项局部及最终231项Python通过，独立复审无阻塞 | 首轮曾移除测试依赖的常量导出而失败，已恢复并保留日志；完整22组使用此精简候选，尚在运行 |
 
 独立候选及测试产物位于本地忽略目录 `build/commit-validation/` 的对应阶段子目录，含 `b1-font/`、`b1-overview-render/` 和 `b1-overview-modal/`，不提交资源、程序、截图或报告。每个候选由对应暂存树导出，使用独立构建目录和只读原版资源；本地 LE 测试证据仅复制到该验证目录以避免跳过，未发布新镜像。
 

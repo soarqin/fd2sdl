@@ -104,15 +104,10 @@ def save_path(leader, occupied):
 
 
 def parent_menu(frame, oracle, selected):
-    matches = []
-    for item, command in enumerate(PARENT_IDS):
-        position = tuple(a + b for a, b in zip(oracle.focus, MENU_OFFSETS[item]))
-        states = (0, 1) if selected is None else (int(item == selected),)
-        match = oracle.choices(frame, tuple(command * 3 + state for state in states), position)
-        if not match:
-            return None
-        matches.append(match)
-    return {"kind": "strict_parent", "selected": selected, "matches": matches}
+    detail = RoundOracle.menu(oracle, frame, selected)
+    if detail:
+        detail["kind"] = "strict_parent"
+    return detail
 
 class MarchOracle(RoundOracle):
     # 本场景使用全部普通／高亮资源，March禁用图不能作为可用菜单。

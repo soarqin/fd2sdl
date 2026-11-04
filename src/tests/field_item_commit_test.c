@@ -263,6 +263,109 @@ static int test_last_player_controller_and_death_cleanup(void) {
     close_fixture(&f); return 0;
 }
 
+static int test_formal_query_and_weapon_only_list(void) {
+    fixture f; init(&f);
+    fd2_field_game *g = &f.game;
+    g->units.items[0].experience = 99; g->move_path_length = 2;
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_item_is_available(g) == 1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+    ((uint8_t *)&g->units.items[0])[0x0e] = 0x80; /* 只留剑/甲，仍可看Use列表。 */
+    CHECK(fd2_field_game_item_is_available(g) == 1);
+    CHECK(fd2_field_game_refresh_commands(g) == 0 && !g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
+    CHECK(g->command_selected == FD2_FIELD_COMMAND_ITEM);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST);
+    before = *g;
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before))); /* LIST由modal消费键。 */
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 0);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0 && g->item_list_selected == 1);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 0);
+    CHECK(fd2_field_game_cancel_selection(g) == 1 && g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
+    CHECK(fd2_field_game_cancel_selection(g) == 1 && g->interaction == FD2_FIELD_INTERACTION_COMMAND);
+    CHECK(g->command_selected == FD2_FIELD_COMMAND_ITEM && !f.calls);
+    close_fixture(&f);
+
+    CHECK(fd2_field_game_item_is_available(NULL) == 0);
+    for (unsigned which = 0; which < 16; which++) {
+        init(&f); g = &f.game;
+        switch (which) {
+            case 0: g->attack_rng = NULL; break;
+            case 1: g->stage = 1; break;
+            case 2: g->active_side = 1; break;
+            case 3: g->player_post_waiting_phase = 1; break;
+            case 4: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
+            case 5: g->selected_unit = 4; break;
+            case 6: g->units.count = FD2_FIELD_MAX_UNITS + 1u; break;
+            case 7: ((uint8_t *)&g->units.items[0])[0x0f] = 193; break;
+            case 8: ((uint8_t *)&g->units.items[0])[0x0f] = 215; break;
+            case 9: ((uint8_t *)&g->units.items[0])[0x0c] = 0x80; break;
+            case 10: for (unsigned i = 0; i < 8; i++) ((uint8_t *)&g->units.items[0])[0x0a + 2 * i] = 0x80; break;
+            case 11: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
+            case 12: g->units.items[0].hp = 0; break;
+            case 13: g->failure = FD2_FIELD_FAILURE_EVENT_DATA; break;
+            case 14: g->ready = 0; break;
+            case 15: g->units.items[0].side = 1; break;
+        }
+        before = *g;
+        CHECK(fd2_field_game_item_is_available(g) == 0 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_formal_confirmation_rechecks_whole_list_but_cancel_does_not(void) {
+    for (unsigned layer = 0; layer < 3; layer++) {
+        fixture f; init(&f);
+        fd2_field_game *g = &f.game;
+        CHECK(fd2_field_game_refresh_commands(g) == 0 && !g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
+        if (layer == 1) CHECK(fd2_field_game_confirm_cursor(g) == 0);
+        if (layer == 2) CHECK(target(&f, 0) == 0);
+        /* 当前选中草药不变，只破坏另一可见Use项；不能靠旧cached能力放行。 */
+        ((uint8_t *)&g->units.items[0])[0x0b] = 193;
+        fd2_field_game before = *g;
+        CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+        if (layer) {
+            CHECK(fd2_field_game_cancel_selection(g) == 1);
+            if (layer == 2) {
+                CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && !g->item_list_selected);
+                CHECK(fd2_field_game_cancel_selection(g) == 1);
+            }
+            if (g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU)
+                CHECK(fd2_field_game_cancel_selection(g) == 1);
+            CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
+        }
+        CHECK(!f.calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_formal_route_returns_the_nonzero_actor_index(void) {
+    fixture f; init(&f);
+    fd2_field_game *g = &f.game;
+    fd2_field_unit actor = g->units.items[0];
+    g->units.items[0] = g->units.items[1];
+    g->units.items[1] = actor; g->units.items[1].experience = 99;
+    g->selected_unit = 1;
+    CHECK(fd2_field_game_refresh_commands(g) == 0 && g->command_selected == FD2_FIELD_COMMAND_ITEM);
+    CHECK(fd2_field_game_confirm_cursor(g) == 1 && g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
+    CHECK(fd2_field_game_confirm_cursor(g) == 1 && g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0 && g->item_list_selected == 2);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1);
+    CHECK(fd2_field_game_begin_item_targeting(g) == 0 && !f.calls);
+    CHECK(g->cursor_cell_x == 5 && g->cursor_cell_y == 6);
+    CHECK(fd2_field_game_confirm_cursor(g) == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
+    CHECK(fd2_field_unit_has_acted(&g->units.items[1]) && g->units.items[1].experience == 99);
+    CHECK(g->units.items[1].mp == 0 && g->units.items[1].hp == 20 && g->units.items[0].hp == 56 && f.calls == 1);
+    fd2_field_unit expected = g->units.items[1]; expected_consumed(&expected);
+    CHECK(!memcmp((uint8_t *)&expected + 0x0a, (uint8_t *)&g->units.items[1] + 0x0a, 16));
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && f.calls == 1);
+    close_fixture(&f); return 0;
+}
+
 int main(void) {
     CHECK(test_full_injured_and_ex99_keep_mp_ex_direction() == 0);
     CHECK(test_same_cell_raw_order_one_removal_and_no_wait_heal() == 0);
@@ -270,6 +373,9 @@ int main(void) {
     CHECK(test_revive_prediction_and_live_drop_descriptor() == 0);
     CHECK(test_post_commit_failure_keeps_effect_consumption_and_acted() == 0);
     CHECK(test_last_player_controller_and_death_cleanup() == 0);
+    CHECK(test_formal_query_and_weapon_only_list() == 0);
+    CHECK(test_formal_confirmation_rechecks_whole_list_but_cancel_does_not() == 0);
+    CHECK(test_formal_route_returns_the_nonzero_actor_index() == 0);
     puts("field item commit tests: ok");
     return 0;
 }

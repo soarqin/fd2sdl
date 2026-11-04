@@ -14,6 +14,11 @@
 int fd2_input_take_action(fd2_input *, fd2_input_context, fd2_input_action *);
 #endif
 
+#ifdef fd2_field_game_confirm_cursor
+#undef fd2_field_game_confirm_cursor
+int fd2_field_game_confirm_cursor(fd2_field_game *);
+#endif
+
 #define CHECK(expr) do { \
     if (!(expr)) { \
         fprintf(stderr, "CHECK failed at %s:%d: %s\n", \
@@ -58,6 +63,9 @@ static uint64_t controller_repeat_at;
 static int detail_resource_failure, detail_no_target;
 static int detail_open_calls, detail_open_animation_calls;
 static int detail_close_animation_calls, detail_close_calls;
+static int item_case, item_frames, item_confirm_calls, item_context_bad;
+static int item_menu_checked, item_invalid_checked, item_finished_checked;
+static uint16_t item_initial_rng;
 
 static int is_leave_case(void) {
     return terminal_case == 3 || terminal_case == 7 || terminal_case == 8;
@@ -68,6 +76,46 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     (void)vga;
     (void)fdother;
     memset(game, 0, sizeof(*game));
+    if (item_case) {
+        fd2_input_init(&vga->input);
+        game->ready = 1; game->stage = stage; game->active_side = 2;
+        game->turn_number = 17; game->selected_unit = 0;
+        game->detail_unit = -1; game->attack_target = -1;
+        game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+        game->command_selected = FD2_FIELD_COMMAND_ITEM;
+        game->command_assets.ready = item_case != 3;
+        game->map.width = game->map.height = 8;
+        game->map.cells = calloc(64, sizeof(*game->map.cells));
+        game->terrain.attrs = calloc(1, sizeof(*game->terrain.attrs));
+        if (!game->map.cells || !game->terrain.attrs) return -1;
+        game->terrain.attr_count = 1;
+        game->units.count = 3;
+        for (size_t i = 0; i < game->units.count; i++) {
+            game->units.items[i].hp = game->units.items[i].hp_max = 42;
+            game->units.items[i].side = i == 1 ? 0 : 2;
+            game->units.items[i].x = game->units.items[i].y = (uint8_t)(1 + i * 2);
+            ((uint8_t *)&game->units.items[i])[0x31] = 0xff;
+        }
+        game->units.items[0].hp = 20;
+        game->units.items[0].experience = 99;
+        game->units.items[0].direction = 3;
+        const uint8_t inventory[] = {0x40,0, 0x40,132, 0,192,
+                                    0x80,0, 0x80,0, 0x80,0, 0x80,0, 0x80,201};
+        memcpy((uint8_t *)&game->units.items[0] + 0x0a, inventory, sizeof(inventory));
+        game->cursor_cell_x = game->cursor_cell_y = 1;
+        game->move_origin_x = game->move_origin_y = 0;
+        memset(game->metadata.turn_events, 0xff, sizeof(game->metadata.turn_events));
+        memset(game->metadata.cell_lookup, 0xff, sizeof(game->metadata.cell_lookup));
+        if (item_case == 2) {
+            game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
+            game->item_list_selected = 2;
+            game->command_selected = 0; /* Use不是顶层ATTACK。 */
+            if (fd2_field_game_begin_item_targeting(game) != 0) return -1;
+        } else game->pending_cell_event = (fd2_field_pending_cell_event){1,9,4};
+        active_game = game;
+        memcpy(unchanged_units, game->units.items, sizeof(unchanged_units));
+        return 0;
+    }
     if (controller_case) {
         fd2_input_init(&vga->input);
         game->ready = 1;
@@ -250,6 +298,72 @@ int __wrap_fd2_scene_play_field_event(fd2_vga *vga,
 }
 
 void __wrap_fd2_vga_present(fd2_vga *vga) {
+    if (item_case) {
+        item_frames++;
+        for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
+            fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
+        if (item_frames == 1)
+            item_initial_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
+        if (item_case == 2) {
+            if (item_frames == 1) fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+            if (item_frames == 2) {
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_SPACE, 1);
+            }
+            if (item_frames == 3) {
+                item_invalid_checked = active_game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING &&
+                    active_game->cursor_cell_x == 2 && active_game->cursor_cell_y == 1 &&
+                    active_game->units.items[0].hp == 20 && !fd2_field_unit_has_acted(&active_game->units.items[0]) &&
+                    item_confirm_calls == 2 && ((fd2_field_rng *)active_game->attack_rng_userdata)->state == item_initial_rng;
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_Z, 1);
+            }
+            if (item_frames == 4) {
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+            }
+            if (item_frames == 5) {
+                item_finished_checked = active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
+                    active_game->selected_unit == -1 && active_game->cursor_cell_x == 1 && active_game->cursor_cell_y == 1 &&
+                    active_game->units.items[0].hp == 42 && active_game->units.items[0].experience == 99 &&
+                    active_game->units.items[0].mp == 0 && active_game->units.items[0].direction == 3 &&
+                    fd2_field_unit_has_acted(&active_game->units.items[0]) &&
+                    fd2_field_unit_inventory_count(&active_game->units.items[0]) == 2 && item_confirm_calls == 3 &&
+                    !fd2_input_has_any_key(&vga->input);
+                vga->input.quit_requested = 1;
+            }
+        } else {
+            if (item_frames == 1) {
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_ESCAPE, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+            }
+            if (item_frames == 2)
+                item_menu_checked = active_game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU &&
+                    active_game->command_selected == 0 && item_confirm_calls == 1 && !fd2_input_has_any_key(&vga->input);
+            if (item_frames == 3) {
+                for (int key = SDL_SCANCODE_RIGHT; key <= SDL_SCANCODE_UP; key++)
+                    fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 1);
+            }
+            if (item_frames == 4) {
+                item_menu_checked = item_menu_checked && active_game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU &&
+                    active_game->command_selected == 0 && active_game->cursor_cell_x == 1 && active_game->cursor_cell_y == 1;
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_ESCAPE, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_SPACE, 1);
+            }
+            if (item_frames == 5) {
+                item_finished_checked = active_game->interaction == FD2_FIELD_INTERACTION_COMMAND &&
+                    active_game->command_selected == FD2_FIELD_COMMAND_ITEM && item_confirm_calls == 1 &&
+                    active_game->cursor_cell_x == 1 && active_game->cursor_cell_y == 1 &&
+                    active_game->pending_cell_event.valid && active_game->pending_cell_event.action == 9 &&
+                    !memcmp(unchanged_units, active_game->units.items, sizeof(unchanged_units)) &&
+                    !fd2_input_has_any_key(&vga->input);
+                vga->input.quit_requested = 1;
+            }
+        }
+        fd2_input_begin_test_frame(&vga->input, (uint64_t)item_frames * 100u);
+        if (item_frames > 8) vga->input.quit_requested = 1;
+        return;
+    }
     if (march_case && active_game && active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
         if (!march_called && vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
@@ -358,7 +472,13 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
 
 int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
-    if (controller_case) return fd2_input_take_action(input, context, action);
+    if (controller_case || item_case) {
+        if (item_case && active_game &&
+            ((active_game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU && context != FD2_INPUT_CONTEXT_FIELD_COMMAND) ||
+             (active_game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING && context != FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING)))
+            item_context_bad = 1;
+        return fd2_input_take_action(input, context, action);
+    }
     (void)input;
     if ((is_leave_case() || terminal_case == 6 || march_case) && action_sent++ == 0) {
         *action = FD2_INPUT_ACTION_CONFIRM;
@@ -413,6 +533,10 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
 }
 
 int __wrap_fd2_field_game_confirm_cursor(fd2_field_game *game) {
+    if (item_case) {
+        item_confirm_calls++;
+        return fd2_field_game_confirm_cursor(game);
+    }
     if (controller_case) return fd2_field_game_confirm_command(game);
     if (session_failure_case == 2) {
         game->failure = FD2_FIELD_FAILURE_EVENT_UNSUPPORTED;
@@ -638,6 +762,18 @@ int main(void) {
         }
     }
     march_case = 0;
+    for (item_case = 1; item_case <= 3; item_case++) {
+        item_frames = item_confirm_calls = item_context_bad = 0;
+        item_menu_checked = item_invalid_checked = item_finished_checked = 0;
+        vga.input.quit_requested = 0;
+        CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+            (item_case == 3 ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT));
+        CHECK(!item_context_bad);
+        if (item_case == 1) CHECK(item_menu_checked && item_finished_checked && item_frames == 5);
+        if (item_case == 2) CHECK(item_invalid_checked && item_finished_checked && item_frames == 5);
+        if (item_case == 3) CHECK(item_confirm_calls == 0 && item_frames == 1);
+    }
+    item_case = 0;
     puts("field_play_result_test: ok");
     return 0;
 }

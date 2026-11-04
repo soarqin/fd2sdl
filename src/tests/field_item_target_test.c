@@ -130,7 +130,7 @@ static int test_outside_cancel_preserves_move_and_pending(void) {
     while (g->cursor_cell_y < 23) CHECK(fd2_field_game_move_cursor(g, 0, 1) == 1);
     fd2_field_game before = *g;
     CHECK(fd2_field_game_item_target_is_legal(g) == 0);
-    CHECK(fd2_field_game_confirm_cursor(g) == -1); /* 尚未接正式确认分派。 */
+    CHECK(fd2_field_game_confirm_cursor(g) == -1); /* 正式分派也拒绝范围外格。 */
     CHECK(!memcmp(g, &before, sizeof(before)));
     CHECK(fd2_field_game_cancel_selection(g) == 1);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && g->item_list_selected == 0);

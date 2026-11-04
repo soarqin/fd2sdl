@@ -69,11 +69,13 @@
 
 物品B3的已确认返回合同独立于MAGIC：Use列表取消使1bbdc返回0，18d8c重开ITEM子菜单；子菜单取消使1bbdc返回-1、18d8c返回0，再由18890重开COMMAND。Use目标取消先聚焦caster，再重开1b932列表并归0选项，保留临时移动及pending。53C53仅由Give完成分支置1，不能把它当作所有库存改变标志；装备／丢弃已提交变化也不能因为该值0而回滚。
 
-ITEM_MENU／ITEM_LIST纯session层已按此合同接入。子菜单复用四向command呈现状态，但语义为Use／Give／Equip／Drop；当前SDL仅Use可选，其他三项是实现能力禁用，区别于原版真实START只禁用Give。列表索引是独立临时raw槽，确认仅报告可确认，不执行效果；列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，两层均先于COMMAND原移动回滚分派。成功Load清索引并回浏览，失败保留所有旧owner，不序列化新UI字段。真实等待、目标和提交分别验收，正式ITEM仍禁用。
+ITEM_MENU／ITEM_LIST已接正式输入。子菜单复用四向command呈现状态，但语义为Use／Give／Equip／Drop；当前SDL仅Use可选，其他三项是实现能力禁用，区别于原版真实START只禁用Give。列表索引是独立临时raw槽，step只报告可确认，不自行执行效果；列表完整关闭后才进入目标层。列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，两层均先于COMMAND原移动回滚分派。成功Load清索引并回浏览，失败保留所有旧owner，不序列化新UI字段。
 
-ITEM_TARGETING纯目标层仅支持草药192的player cast1／area0／filter1，复用现move_range和互斥target候选buffer，不缓存第二份slot／物品真值。每次按当前raw槽重新查192，候选按raw顺序只过滤hidden和side0，不额外过滤HP0或acted；121占轮询槽但不移动焦点。法术与物品共享范围建立和轮换，保留各自record／列表／能力门。目标取消先完整聚焦使用者，再清目标owner、返回ITEM_LIST0，保留移动路径／origin、单位、pending和RNG。方向可以移出cast范围，合法性另查；提交与正式确认尚未接入。
+ITEM_TARGETING仅支持草药192的player cast1／area0／filter1，复用现move_range和互斥target候选buffer，不缓存第二份slot／物品真值。每次按当前raw槽重新查192，候选按raw顺序只过滤hidden和side0，不额外过滤HP0或acted；121占轮询槽但不移动焦点。法术与物品共享范围建立和轮换，保留各自record／列表／能力门。目标取消先完整聚焦使用者，再清目标owner、返回ITEM_LIST0，保留移动路径／origin、单位、pending和RNG。方向可以移出cast范围，合法性另查；目标层不自行提交动作，正式confirm_cursor仅在能力门与合法目标都通过后调用提交API。
 
-草药逻辑提交API已独立接入：按当前raw槽／record、重建范围、同格raw目标、完整可见坐标／HP数据及必经尾链预检后，才逐目标调用power40 HP helper并消费一次RNG，再移除所选槽一次、处理败亡、acted、最终lookup1及controller。不扣MP、不写unit EX、不做WAIT恢复或物理方向复位。可能恢复的同格HP0目标不会误因drop描述符拒绝；预测仍HP0的非目标未知loot先拒绝，phase预测保留controller原无HP门。提交后失败保留HP／压槽／已到达的acted与外部RNG，首错冻结，不退款、不重试。正式能力与确认分派仍待后续候选。
+草药提交按当前raw槽／record、重建范围、同格raw目标、完整可见坐标／HP数据及必经尾链预检后，才逐目标调用power40 HP helper并消费一次RNG，再移除所选槽一次、处理败亡、acted、最终lookup1及controller。不扣MP、不写unit EX、不做WAIT恢复或物理方向复位。可能恢复的同格HP0目标不会误因drop描述符拒绝；预测仍HP0的非目标未知loot先拒绝，phase预测保留controller原无HP门。提交后失败保留HP／压槽／已到达的acted与外部RNG，首错冻结，不退款、不重试。
+
+正式ITEM能力查询无写入／RNG，仅接受stage0可行动玩家及连续已知库存，要求非空共享RNG；非零Use code只允许192，code0普通装备只读。COMMAND、ITEM_MENU及目标确认都重新检查全库存；LIST由私有modal独占确认键，不能通过confirm_cursor跳过关闭过程。查询不借用MAGIC的MP、移动、unit+0x27或升级门。宿主退出与逐级取消先于正式Use能力检查处理；能力失效本身不阻止原有取消，也不清除尚未提交的移动。损坏的actor／record仍可明确报错并退出。
 
 MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
 

@@ -1716,6 +1716,16 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         int unit_index = game->selected_unit;
         return fd2_field_game_resolve_player_magic(game) == 0 ? unit_index : -1;
     }
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU) {
+        int unit_index = game->selected_unit;
+        return fd2_field_game_item_is_available(game) &&
+            fd2_field_game_confirm_item_menu(game) == 0 ? unit_index : -1;
+    }
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) {
+        int unit_index = game->selected_unit;
+        return fd2_field_game_item_is_available(game) &&
+            fd2_field_game_resolve_player_item(game) == 0 ? unit_index : -1;
+    }
     return -1;
 }
 
@@ -1793,12 +1803,13 @@ int fd2_field_game_refresh_commands(fd2_field_game *game) {
      * 控制 magic 可用性。其执行入口分别为
      * field_player_item_command_execute @0x1bbdc 与
      * field_player_magic_command_execute @0x1cff0。法术只按当前已验证的
-     * 基础分支开放；物品仍未接玩家提交，保持禁用。 */
+     * 基础分支开放；物品按当前已确认的Use效果能力开放。 */
     game->command_disabled[FD2_FIELD_COMMAND_ATTACK] =
         fd2_field_game_attack_is_available(game) ? 0u : 1u;
     game->command_disabled[FD2_FIELD_COMMAND_MAGIC] =
         fd2_field_game_magic_is_available(game) ? 0u : 1u;
-    game->command_disabled[FD2_FIELD_COMMAND_ITEM] = 1u;
+    game->command_disabled[FD2_FIELD_COMMAND_ITEM] =
+        fd2_field_game_item_is_available(game) ? 0u : 1u;
     game->command_disabled[FD2_FIELD_COMMAND_WAIT] = 0u;
     game->command_selected = fd2_field_command_first_enabled(
         game->command_disabled);
@@ -1835,7 +1846,8 @@ int fd2_field_game_confirm_command(fd2_field_game *game) {
         case FD2_FIELD_COMMAND_MAGIC:
             return fd2_field_game_begin_magic_list(game);
         case FD2_FIELD_COMMAND_ITEM:
-            return -1;
+            return fd2_field_game_item_is_available(game)
+                ? fd2_field_game_begin_item_menu(game) : -1;
     }
     return -1;
 }
@@ -1925,6 +1937,20 @@ static int item_menu_actor_is_valid(const fd2_field_game *game) {
     int selected = 0;
     return unit_can_act_for_side(actor, 2) && !fd2_field_unit_has_acted(actor) &&
         fd2_field_item_list_select_step(actor, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) == 0;
+}
+
+int fd2_field_game_item_is_available(const fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || !game->attack_rng) return 0;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    const uint8_t *raw = (const uint8_t *)actor;
+    size_t count = fd2_field_unit_inventory_count(actor);
+    for (size_t i = 0; i < count; i++) {
+        uint8_t id = raw[0x0bu + i * 2u];
+        const uint8_t *record = fd2_field_item_record_get(id);
+        /* code0确认留列表；其余Use只开放192，不让未知handler进入正式UI。 */
+        if (record[0x0d] != 0 && id != 192) return 0;
+    }
+    return 1;
 }
 
 static void enter_item_menu(fd2_field_game *game) {

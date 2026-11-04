@@ -94,9 +94,12 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         fd2_field_game *g = &f.game;
         fd2_field_game expected = *g;
         g->command_selected = FD2_FIELD_COMMAND_ITEM;
+        slot(&g->units.items[0], 2, 0, 193); /* 已知但未支持的非零Use code。 */
         expected = *g;
         CHECK(fd2_field_game_confirm_command(g) == -1);
-        CHECK(!memcmp(g, &expected, sizeof(expected))); /* 正式入口仍关闭。 */
+        CHECK(!memcmp(g, &expected, sizeof(expected))); /* cached enabled也须重验。 */
+        slot(&g->units.items[0], 2, 0, 192);
+        expected = *g;
         CHECK(fd2_field_game_begin_item_menu(g) == 0);
         expected_menu(&expected);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
@@ -127,9 +130,10 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         CHECK((attack ? fd2_field_game_end_item_menu(g) : fd2_field_game_cancel_selection(g)) == (attack ? 0 : 1));
         expected.interaction = FD2_FIELD_INTERACTION_COMMAND;
         expected.command_disabled[0] = (uint8_t)!attack;
-        expected.command_disabled[1] = expected.command_disabled[2] = 1;
+        expected.command_disabled[1] = 1;
+        expected.command_disabled[2] = 0;
         expected.command_disabled[3] = 0;
-        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_WAIT;
+        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_ITEM;
         CHECK(!memcmp(g, &expected, sizeof(expected)));
         CHECK(g->move_range.nodes[17].distance == 7 && g->move_path_length == 2 && g->move_path[1] == 3);
         CHECK(g->pending_cell_event.valid && g->pending_cell_event.action == 9 && f.rng_calls == 0);

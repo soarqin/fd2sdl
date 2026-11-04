@@ -119,7 +119,9 @@ static int test_begin_navigation_confirm_and_cancel_preserve_owner(void) {
                         fd2_field_game_end_magic_list(g)) == (attack ? 1 : 0));
         expected.magic_list_selected = 0;
         expected.interaction = FD2_FIELD_INTERACTION_COMMAND;
-        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_WAIT;
+        /* 本fixture只有code0库存；MAGIC正式门拒1/2/3，ITEM仍可查看。 */
+        CHECK(!g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
+        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_ITEM;
         expected.command_highlight_phase = 0;
         expected.command_animation_phase = 0;
         expected.command_animation_opening = 0;

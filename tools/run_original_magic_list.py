@@ -21,11 +21,13 @@ import os
 import shutil
 import struct
 import sys
+import time
 
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 from fd2_magic_list_oracle import prepare as list_templates,caster_values as detail_templates,healed_recipient_values
+from fd2_item_list_oracle import item_table
 from audit_fdicon_opaque_zero import audit_fdicon
 from run_graphics_tests import decode_save
 from run_original_comparison import Capture,archive_entry,hashes,running,title_templates
@@ -133,6 +135,31 @@ def actor_focus_resources(original,source,assets,raw,cursor):
             "templates":[image.crop((0,0,24,24)) for image,offset in composites if offset==-6]}
 
 
+def command_item_gate(original,source):
+    """1b8a6原版按8槽flag80计数；SDL正式ITEM另要求whole known dense前缀。
+
+    4e8bc的strictLE原表决定code；仅code0或item192属于当前SDL Use支持门，
+    不从另一角色、捕获值或SDL内置表猜raw1装备ID，不套MP/禁法门。
+    """
+    table,evidence = item_table(original/"FD2.EXE")
+    actor = source[UNITS+STRIDE:UNITS+2*STRIDE]
+    occupied = [slot for slot in range(8) if not actor[0x0a+2*slot]&0x80]
+    slots = []
+    for slot in occupied:
+        item = actor[0x0b+2*slot]
+        code = table[item*23+13] if item<215 else None
+        slots.append({"raw_slot":slot,"flags":actor[0x0a+2*slot],"item_id":item,"use_code":code})
+    dense = occupied==list(range(len(occupied)))
+    known = all(slot["use_code"] is not None for slot in slots)
+    native = bool(occupied)
+    supported = native and dense and known and all(slot["use_code"]==0 or slot["item_id"]==192 for slot in slots)
+    return {"raw_actor":1,"slots":slots,"dense":dense,"all_ids_known":known,
+            "available":{"original":native,"sdl":supported},
+            "expected_frames":{"original":6 if native else 8,"sdl":6 if supported else 8},
+            "support_scope":"SDL inventory support only; normal stage0 COMMAND/RNG context required",
+            "table":evidence}
+
+
 def prepare(original,*,source=None):
     fixture = original/"START.SAV"
     encrypted = fixture.read_bytes()
@@ -147,6 +174,8 @@ def prepare(original,*,source=None):
         focus = screen(source,tuple(source[META+5:META+7]))
     templates,fields = list_templates(original,fixture,source=source)
     assets = round_assets(original)
+    assets["command_item_gate"] = command_item_gate(original,source)
+    fields["command_item_gate"] = assets["command_item_gate"]
     actors = focus_cycle_assets(original,source,assets)["actors"]
     actor = source[UNITS+STRIDE:UNITS+STRIDE*2]
     sprites = (original/"FDICON.B24").read_bytes()
@@ -381,8 +410,9 @@ def command_page(frame,command,position,templates,selected=None,*,after_cancel=F
     if detail is None:
         return None
     indices = [match["frame"] for match in detail["matches"]]
-    # raw1攻击无目标、MAGIC/WAIT有效；ITEM按端逐像素验原版可用/SDL禁用。
-    item_frame = 8 if role=="sdl" else 6
+    # raw1攻击无目标、MAGIC/WAIT有效；ITEM按完整原始库存与原版表逐端派生。
+    gate = command.assets["command_item_gate"]
+    item_frame = gate["expected_frames"][role]
     if indices[0]!=2 or indices[1] not in ((4,) if selected==1 else (3,4)) or indices[2:]!=[item_frame,9]:
         return None
     if after_cancel:
@@ -391,8 +421,9 @@ def command_page(frame,command,position,templates,selected=None,*,after_cancel=F
             return None
     return {**detail,"capability_gates_compared":False,"full_command_resource_gates_compared":True,
             "cross_end_capability_equivalence":False,"role":role,"expected_command_frames":[2,4 if selected==1 else [3,4],item_frame,9],
-            "item_gate":{"expected_frame":item_frame,"available":role=="original",
-                         "cross_end_equivalence_excluded":True,"reason":"SDL ITEM not implemented"},
+            "item_gate":{"expected_frame":item_frame,"available":gate["available"][role],
+                         "cross_end_equivalence_excluded":gate["available"]["original"]!=gate["available"]["sdl"],
+                         "source_inventory":gate},
             "list_resource_absent":after_cancel}
 
 
@@ -444,6 +475,54 @@ def damage_result(frame,assets):
     if alive and tuple(alive["focus_screen"])==position:
         return {"kind":"magic0_acted_miss_browse","outcome":"miss","acted_caster_frame":actor,"alive_target":alive}
     return None
+
+
+def damage_outcome_gate(assets,report,role):
+    if role == "sdl":
+        return lambda frame: damage_result(frame,assets)
+    if role != "original":
+        raise ValueError("未知伤害检查点角色")
+    # acted后的第一张无框图可能早于经验提示；只观察，不发送跳过／补救键。
+    # 两秒是宿主测试稳定间隔，不是11 BIOS tick或完整原版演出时长。
+    state = {"hostquiet_seconds":2.0,"first_kill_time":None,"window_started":None,
+             "window_duration_seconds":0.0,"valid_samples":0,"resets":0,
+             "observed_wgc_transients":0,
+             "native_basis":"sub_1E292 @0x1e292 -> sub_1E5C0(11 BIOS ticks) @0x1e5c0 -> bios_keyboard_buffer_clear @0x4e381; controller clear @0x119a6",
+             "scope":"host no-key resource stability only; full reward notice/timing equivalence unverified"}
+    report["damage_resource_quiet"] = state
+
+    def reset():
+        if state["window_started"] is not None:
+            state["resets"] += 1
+        state["window_started"] = None
+        state["window_duration_seconds"] = 0.0
+        state["valid_samples"] = 0
+
+    def matched(frame):
+        transients = sum(item.get("kind") == "wgc_transient" and
+            item.get("name","").startswith("damage-cast-outcome-wgc-retry-")
+            for item in report["checkpoints"])
+        if transients != state["observed_wgc_transients"]:
+            reset()
+            state["observed_wgc_transients"] = transients
+        detail = damage_result(frame,assets)
+        if detail is None:
+            reset()
+            return None
+        if detail["outcome"] != "kill":
+            return detail  # miss保持首见即失败，不等待或重抽。
+        now = time.monotonic()
+        if state["first_kill_time"] is None:
+            state["first_kill_time"] = now
+        if state["window_started"] is None:
+            state["window_started"] = now
+        state["valid_samples"] += 1
+        state["window_duration_seconds"] = now - state["window_started"]
+        if state["window_duration_seconds"] < state["hostquiet_seconds"] or state["valid_samples"] < 2:
+            return None
+        return {**detail,"resource_quiet":dict(state)}
+
+    return matched
 
 
 def caster_detail(frame,source,assets,*,heal=False):
@@ -562,7 +641,7 @@ def exercise(capture,source,focus,assets,actors,probe,templates,fields,titles,sa
         report["input_scope"] = {"controlled_coordinate_fixture":True,"natural_one_turn_route_covered":False,
             "cast_confirmation_count":1,"post_cast_skip_keys":[],"save_attempted":False}
         capture.key("ENTER")  # 本轮唯一施法提交；其后直到稳定browse只观察。
-        _,outcome = checkpoint("damage-cast-outcome",lambda frame:damage_result(frame,assets),timeout=120)
+        _,outcome = checkpoint("damage-cast-outcome",damage_outcome_gate(assets,report,role),timeout=120)
         report["damage_outcome"] = outcome
         if outcome["outcome"]!="kill":
             raise AssertionError("ID0本次未命中，击杀/EX42尚未验收；未重试或发送补键")
@@ -752,9 +831,11 @@ def run(args):
             source,focus,assets,actors,probe,templates,fields = prepare(original)
         if sdl is not None:
             report["excluded"] = report["excluded"].replace("SDL pairing, ","")
-            report["known_sdl_differences"] = {"ITEM":{"original_frame":6,"sdl_frame":8,
-                "all_opaque_pixels_checked_per_role":True,"capability_equivalence_excluded":True,
-                "reason":"SDL formal ITEM remains disabled"}}
+            gate = fields["command_item_gate"]
+            report["known_sdl_differences"] = {} if gate["available"]["original"]==gate["available"]["sdl"] else {
+                "ITEM":{"original_frame":gate["expected_frames"]["original"],"sdl_frame":gate["expected_frames"]["sdl"],
+                        "all_opaque_pixels_checked_per_role":True,"capability_equivalence_excluded":True}}
+        report["command_item_capability"] = fields["command_item_gate"]
         report["resource_fields"] = fields
         report["plan"] = {"actors":[{key:actor[key] for key in ("raw_actor","unit_id","world")} for actor in actors[:2]],
                           "selection_probe_world":list(probe["world"]),"selection_probe_screen":list(probe["position"])}

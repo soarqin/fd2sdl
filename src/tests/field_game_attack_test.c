@@ -467,6 +467,8 @@ static int test_command_menu_model(void) {
     test_rng rng = {rolls, 1, 0};
     fd2_field_game game;
     init_game(&game);
+    /* 本例库存仍是密集已知ID，但末槽Use code非0且尚未支持。 */
+    ((uint8_t *)&game.units.items[0])[0x19] = 193;
     if (configure(&game, &rng) != 0 ||
         fd2_field_game_refresh_commands(&game) != 0)
         return -1;
@@ -476,7 +478,7 @@ static int test_command_menu_model(void) {
                "attack enabled with legal target") ||
         expect(game.command_disabled[FD2_FIELD_COMMAND_MAGIC] &&
                game.command_disabled[FD2_FIELD_COMMAND_ITEM],
-               "unimplemented magic and item remain disabled") ||
+               "empty magic and unsupported item Use remain disabled") ||
         expect(!game.command_disabled[FD2_FIELD_COMMAND_WAIT],
                "wait remains enabled") ||
         expect(fd2_field_game_select_command_direction(
@@ -503,12 +505,13 @@ static int test_command_menu_model(void) {
     if (fd2_field_game_refresh_commands(&game) != 0 ||
         expect(game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
                "attack disabled without a legal target") ||
-        expect(game.command_selected == FD2_FIELD_COMMAND_WAIT,
-               "wait selected when attack is unavailable") ||
+        expect(game.command_selected == FD2_FIELD_COMMAND_ITEM &&
+               !game.command_disabled[FD2_FIELD_COMMAND_ITEM],
+               "weapon-only item list is first when attack is unavailable") ||
         expect(fd2_field_game_select_command_direction(
                    &game, FD2_FIELD_COMMAND_DIRECTION_UP) == 0 &&
-               game.command_selected == FD2_FIELD_COMMAND_WAIT,
-               "disabled attack direction preserves wait"))
+               game.command_selected == FD2_FIELD_COMMAND_ITEM,
+               "disabled attack direction preserves item"))
         return -1;
 
     init_game(&game);

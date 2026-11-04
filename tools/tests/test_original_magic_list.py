@@ -32,10 +32,10 @@ class ResourceFixture:
             image.paste(part.convert("RGB"),at)
         return image
 
-    def command_frame(self,*,highlight=True,actor_overlay=True,sdl=False):
+    def command_frame(self,*,highlight=True,actor_overlay=True,item_disabled=False):
         image = Image.new("RGB",(320,200))
         position = (124,100)
-        for item,index in enumerate((2,4 if highlight else 3,8 if sdl else 6,9)):
+        for item,index in enumerate((2,4 if highlight else 3,8 if item_disabled else 6,9)):
             part = self.assets["upper_commands"][index][0] if item==0 and actor_overlay else self.assets["commands"][index]
             image.paste(part.convert("RGB"),tuple(a+b for a,b in zip(position,MENU_OFFSETS[item])))
         return image
@@ -73,16 +73,45 @@ class ResourceTest(ResourceFixture,unittest.TestCase):
             with self.assertRaises(AssertionError):
                 probe.compare_reopened(first,second,self.templates)
 
-    def test_command_item_is_checked_per_role_and_never_claimed_equivalent(self):
+    def test_command_item_is_derived_from_whole_real_inventory_for_each_role(self):
         command = probe.PlayerOracle(self.source,self.assets,[],{})
-        for role,sdl,item in (("original",False,6),("sdl",True,8)):
-            detail = probe.command_page(self.command_frame(sdl=sdl),command,(124,100),self.templates,1,role=role)
-            self.assertEqual(detail["matches"][2]["frame"],item)
+        gate = self.fields["command_item_gate"]
+        self.assertEqual([(slot["item_id"],slot["use_code"]) for slot in gate["slots"]],[(52,0),(164,0)])
+        self.assertEqual(gate["expected_frames"],{"original":6,"sdl":6})
+        for role in ("original","sdl"):
+            detail = probe.command_page(self.command_frame(),command,(124,100),self.templates,1,role=role)
+            self.assertEqual(detail["matches"][2]["frame"],6)
             self.assertEqual(detail["matches"][2]["checked_pixels"],476)
             self.assertFalse(detail["capability_gates_compared"] or detail["cross_end_capability_equivalence"])
-            self.assertTrue(detail["item_gate"]["cross_end_equivalence_excluded"])
-            self.assertIsNone(probe.command_page(self.command_frame(sdl=not sdl),command,(124,100),self.templates,1,role=role))
-            self.assertIsNone(probe.command_page(self.command_frame(highlight=False,sdl=sdl),command,(124,100),self.templates,1,role=role))
+            self.assertFalse(detail["item_gate"]["cross_end_equivalence_excluded"])
+            self.assertIsNone(probe.command_page(self.command_frame(item_disabled=True),command,(124,100),self.templates,1,role=role))
+            self.assertIsNone(probe.command_page(self.command_frame(highlight=False),command,(124,100),self.templates,1,role=role))
+
+    def test_item_support_requires_whole_known_dense_prefix_not_just_selected_slot(self):
+        base = probe.UNITS+probe.STRIDE
+        for mode in ("empty","hole","unknown","unsupported-code","herb"):
+            source = bytearray(self.source)
+            if mode=="empty":
+                for slot in range(8): source[base+0x0a+2*slot] = 0x80
+            elif mode=="hole":
+                source[base+0x0a] = 0x80
+            elif mode=="unknown":
+                source[base+0x0d] = 255
+            elif mode=="unsupported-code":
+                source[base+0x0d] = 193
+            else:
+                source[base+0x0d] = 192
+            gate = probe.command_item_gate(probe.ROOT/"original_game",source)
+            with self.subTest(mode=mode):
+                self.assertEqual(gate["available"]["original"],mode!="empty")
+                self.assertEqual(gate["available"]["sdl"],mode=="herb")
+                assets = dict(self.assets,command_item_gate=gate)
+                command = probe.PlayerOracle(source,assets,[],{})
+                for role in ("original","sdl"):
+                    disabled = not gate["available"][role]
+                    detail = probe.command_page(self.command_frame(item_disabled=disabled),command,(124,100),self.templates,1,role=role)
+                    self.assertIsNotNone(detail)
+                    self.assertIsNone(probe.command_page(self.command_frame(item_disabled=not disabled),command,(124,100),self.templates,1,role=role))
 
 
 class InputTest(ResourceFixture,unittest.TestCase):
@@ -545,6 +574,125 @@ class DamageTest(ResourceFixture,unittest.TestCase):
             self.assertNotIn("damage_measurement",report)
             self.assertEqual(save.read_bytes(),self.derived_bytes)
 
+    def quiet_exercise(self,capture,save,report,clock,frames,*,old_gate=False):
+        real_wait = probe.wait_state
+        def wait(capture,name,predicate,checkpoints,**kwargs):
+            if name == "damage-cast-outcome":
+                self.assertEqual(kwargs["timeout"],120)
+                return real_wait(capture,name,predicate,checkpoints,**kwargs)
+            if name == "damage-return-caster-1" and clock[0] < 2.8:
+                raise TimeoutError("early RIGHT was not acknowledged")
+            if name == "damage-caster-detail":
+                frame = self.detail_frame()
+                return frame,probe.caster_detail(frame,self.source,self.assets)
+            return self.list_frame(),{"focus_screen":[52,76] if name=="z-raw0" else [52,124]}
+        def frame():
+            image = frames().copy()
+            # 合成地图也满足真实wait_state的内容门；边框不属于本场资源ROI。
+            for x in range(64):
+                image.putpixel((x,0),(x*4,0,0))
+            capture.last = image
+            return image
+        capture.frame.side_effect = frame
+        with patch.object(probe,"wait_title"),patch.object(probe,"wait_state",side_effect=wait), \
+                patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]), \
+                patch.object(probe.time,"sleep",side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)):
+            if old_gate:
+                with patch.object(probe,"damage_outcome_gate",side_effect=lambda assets,report,role:lambda frame:probe.damage_result(frame,assets)):
+                    probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
+                        self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
+                        save.stat().st_mtime_ns,report,scenario="damage")
+            else:
+                probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
+                    self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
+                    save.stat().st_mtime_ns,report,scenario="damage")
+
+    def test_original_quiet_rejects_early_acted_then_notice_before_first_right(self):
+        kill = self.result_frame()
+        notice = kill.copy()
+        notice.paste(self.assets["dialog_top"].convert("RGB"),(5,112))
+        self.assertIsNone(probe.damage_result(notice,self.assets))
+        for old_gate in (True,False):
+            with self.subTest(old_gate=old_gate),tempfile.TemporaryDirectory() as directory:
+                save = Path(directory)/"FD2.SAV"; save.write_bytes(self.derived_bytes)
+                clock,keys = [0.0],[]
+                capture = Mock(artifacts=Path(directory),process=Mock(pid=123),last=None)
+                capture.key.side_effect = lambda key:keys.append((key,clock[0]))
+                report = {"checkpoints":[],"kind":"original"}
+                def frame():
+                    return notice if 0 < clock[0] < 0.8 else kill
+                if old_gate:
+                    with self.assertRaisesRegex(TimeoutError,"early RIGHT"):
+                        self.quiet_exercise(capture,save,report,clock,frame,old_gate=True)
+                    self.assertEqual(keys[-1],("RIGHT",0.0))
+                else:
+                    self.quiet_exercise(capture,save,report,clock,frame)
+                    self.assertGreaterEqual(next(now for key,now in keys if key=="RIGHT"),2.8)
+                    self.assertEqual([key for key,_ in keys],self.damage_keys)
+                    quiet = report["damage_outcome"]["resource_quiet"]
+                    self.assertEqual(quiet["first_kill_time"],0)
+                    self.assertEqual(quiet["hostquiet_seconds"],2.0)
+                    self.assertEqual(quiet["resets"],1)
+                    self.assertGreaterEqual(quiet["window_duration_seconds"],2)
+                    self.assertGreaterEqual(quiet["valid_samples"],2)
+                    self.assertEqual(report["damage_measurement"]["experience"],42)
+                self.assertEqual(save.read_bytes(),self.derived_bytes)
+
+    def test_quiet_resets_on_current_checkpoint_wgc_only_and_needs_new_frames(self):
+        report,clock = {"checkpoints":[]},[0.0]
+        gate = probe.damage_outcome_gate(self.assets,report,"original")
+        kill = self.result_frame()
+        with patch.object(probe.time,"monotonic",side_effect=lambda:clock[0]):
+            self.assertIsNone(gate(kill))
+            clock[0] = 1
+            report["checkpoints"].append({"kind":"wgc_transient","name":"other-wgc-retry-1"})
+            self.assertIsNone(gate(kill))
+            self.assertEqual(report["damage_resource_quiet"]["resets"],0)
+            clock[0] = 1.5
+            report["checkpoints"].append({"kind":"wgc_transient","name":"damage-cast-outcome-wgc-retry-1"})
+            self.assertIsNone(gate(kill))
+            self.assertEqual(report["damage_resource_quiet"]["valid_samples"],1)
+            clock[0] = 3.4
+            self.assertIsNone(gate(kill))
+            clock[0] = 3.5
+            detail = gate(kill)
+        self.assertEqual(detail["resource_quiet"]["window_started"],1.5)
+        self.assertEqual(detail["resource_quiet"]["resets"],1)
+        self.assertEqual(detail["resource_quiet"]["observed_wgc_transients"],1)
+
+    def test_quiet_miss_and_sdl_return_immediately_without_clock_or_new_keys(self):
+        for role in ("original","sdl"):
+            report = {"checkpoints":[]}
+            gate = probe.damage_outcome_gate(self.assets,report,role)
+            with patch.object(probe.time,"monotonic",side_effect=AssertionError("no quiet clock")):
+                self.assertEqual(gate(self.result_frame(alive=True))["outcome"],"miss")
+                if role == "sdl":
+                    self.assertEqual(gate(self.result_frame())["outcome"],"kill")
+            if role == "sdl":
+                self.assertNotIn("damage_resource_quiet",report)
+        with self.assertRaises(ValueError):
+            probe.damage_outcome_gate(self.assets,{"checkpoints":[]},"unknown")
+
+    def test_quiet_unknown_capture_error_and_timeout_never_send_navigation(self):
+        for unknown in (True,False):
+            with self.subTest(unknown=unknown),tempfile.TemporaryDirectory() as directory:
+                save = Path(directory)/"FD2.SAV"; save.write_bytes(self.derived_bytes)
+                capture = Mock(artifacts=Path(directory),process=Mock(pid=123),last=None)
+                clock,report = [0.0],{"checkpoints":[]}
+                def frames():
+                    if unknown:
+                        raise RuntimeError("WGC permission denied")
+                    clock[0] += 10
+                    return Image.new("RGB",(320,200))
+                with self.assertRaisesRegex(RuntimeError if unknown else TimeoutError,
+                        "permission denied" if unknown else "damage-cast-outcome"):
+                    self.quiet_exercise(capture,save,report,clock,frames)
+                self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.damage_keys[:10])
+                if not unknown:
+                    self.assertGreaterEqual(clock[0],120)
+                    self.assertLess(clock[0],121)
+                self.assertEqual(save.read_bytes(),self.derived_bytes)
+
     def test_damage_runner_records_controlled_fixture_and_rejects_any_save_write(self):
         for unexpected_save in (False,True):
             with self.subTest(unexpected_save=unexpected_save),tempfile.TemporaryDirectory() as directory:
@@ -839,7 +987,8 @@ class PairingTest(unittest.TestCase):
                 self.assertEqual([c["status"] for c in report["cases"]],["passed","passed"])
                 self.assertEqual(len(report["processes"]),2)
                 self.assertEqual(report["paired_terminal_values"]["original"],report["paired_terminal_values"]["sdl"])
-                self.assertEqual(report["known_sdl_differences"]["ITEM"]["sdl_frame"],8)
+                self.assertEqual(report["known_sdl_differences"],{})
+                self.assertEqual(report["command_item_capability"]["expected_frames"],{"original":6,"sdl":6})
                 for kind in ("original","sdl"):
                     endpoint = json.loads((output/kind/"comparison.json").read_text(encoding="utf-8"))
                     self.assertEqual(endpoint["kind"],kind)

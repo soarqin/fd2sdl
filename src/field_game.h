@@ -176,7 +176,7 @@ typedef struct {
 
     /* field_player_command_execute @0x18d8c 的四向图形菜单旁路状态；
      * 0..3 固定为 attack/magic/item/wait。玩家法术仅开放已验证基础分支；
-     * M7的AI物品事务不等于玩家入口，ITEM继续禁用。 */
+     * 玩家物品仅开放已确认草药192，其余Use效果有独立能力门。 */
     int command_selected;
     uint8_t command_disabled[FD2_FIELD_COMMAND_COUNT];
     uint8_t command_highlight_phase;
@@ -369,8 +369,9 @@ int fd2_field_game_end_magic_list(fd2_field_game *game);
 /* field_player_item_command_execute @0x1bbdc（原登记同名）、
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
  * 只支持stage0与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
- * 正式COMMAND尚未分派此入口，ITEM仍禁用；菜单仅Use可选，Give/Equip/Drop
- * 明确禁用。confirm仅开列表0；list step的1只报告可确认，不提交handler。
+ * 正式COMMAND由item_is_available限制效果能力；低层纯session不混此门。
+ * 菜单仅Use可选，Give/Equip/Drop禁用；confirm仅开列表0，list step的1
+ * 只报告可确认，不提交handler。
  * begin/confirm/end成功0，拒绝-1；方向返回是否改变，拒绝-1；list step
  * 沿用-2/-1/0/1。step不关闭列表，宿主完成关闭动画再end。
  * 列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，均不回滚临时
@@ -382,6 +383,13 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game);
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key);
 int fd2_field_game_end_item_list(fd2_field_game *game);
 int fd2_field_game_end_item_menu(fd2_field_game *game);
+
+/* 正式ITEM能力查询：完整可见库存须密集且ID已知，非零Use code仅192；
+ * code0武器/装备可看列表，确认仍留页。要求stage0可行动玩家及共享RNG，
+ * 不套MP/+27/移动后禁法/EX99门。查询不写状态或消费RNG。
+ * COMMAND、ITEM_MENU与ITEM_TARGETING正式confirm均重新检查此门；
+ * confirm_cursor成功返回原actor index，非法格/拒绝/错误返回-1。 */
+int fd2_field_game_item_is_available(const fd2_field_game *game);
 
 /* field_player_item_command_execute @0x1bbdc（原登记同名）的草药192
  * 普通area0目标session：用record+10/+12/+15，不套AI的+11或MAGIC门。
@@ -396,7 +404,7 @@ int fd2_field_game_cancel_item_targeting(fd2_field_game *game);
 
 /* sub_20C6F @0x20c6f（原登记同名）的草药192分支：目标/原槽/尾链
  * 全预检后逐目标恢复HP，移除原槽，再acted→lookup1→controller。
- * 返回0成功/-1预检拒绝或提交后冻结；不写MP/角色EX，不接正式入口。
+ * 返回0成功/-1预检拒绝或提交后冻结；不写MP/角色EX。
  * 仅恢复无未知掉落/必需handler的逻辑；音画/附加RNG仍另行验收。 */
 int fd2_field_game_resolve_player_item(fd2_field_game *game);
 

@@ -523,6 +523,9 @@ class Suite:
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-battle-menu",
                          "--save-fixture", self.work / "storage-cancel/FD2.SAV"], timeout=300)
+            self.command("original-end-turn", [sys.executable, ROOT / "tools/run_original_end_turn.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-end-turn"], timeout=300)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

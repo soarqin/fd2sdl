@@ -609,7 +609,25 @@ static void advance_phase(fd2_field_game *game) {
     } else {
         if (game->turn_number != UINT32_MAX) game->turn_number++;
         clear_all_acted(game);
+        game->focus_cycle_unit = 0;
         enter_phase(game, 2);
+        /* field_turn_cycle_run @0x1a30b（原登记 FUN_00017a53）末尾：
+         * 重置 Z 轮询起点，phase 2 的事件／状态完成后聚焦 raw actor 0。
+         * field_focus_move_to_actor @0x12d7b 沿 X 再 Y 逐格移动，复用
+         * field_focus_move_to @0x12cea 的镜头阈值；失败不继续改焦点。 */
+        if (game->failure == FD2_FIELD_FAILURE_NONE && game->units.count) {
+            const fd2_field_unit *leader = &game->units.items[0];
+            while (game->cursor_cell_x != leader->x) {
+                if (!fd2_field_game_move_cursor(
+                        game, game->cursor_cell_x < leader->x ? 1 : -1, 0))
+                    break;
+            }
+            while (game->cursor_cell_y != leader->y) {
+                if (!fd2_field_game_move_cursor(
+                        game, 0, game->cursor_cell_y < leader->y ? 1 : -1))
+                    break;
+            }
+        }
     }
 }
 

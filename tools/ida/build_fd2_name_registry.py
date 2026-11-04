@@ -116,10 +116,14 @@ CORRECTIONS: dict[int, list[dict]] = {
         "now": "首部仅恢复 side 2、flags & 0x81 == 0、record +0x25/+0x26 "
                "均为零且 HP != maxHP 的 actor：HP 增加 maxHP/5 并封顶，"
                "随后 OR acted；整数恢复量为零也标记。满 HP 或被 gate 排除者"
-               "不统一标记 acted。空焦点菜单 selector 3 确认后直接调用本函数。",
+               "不统一标记 acted。空焦点菜单 selector 3 确认后直接调用本函数。"
+               "末尾重置 dword_53AE9=0，执行 phase 2 事件与状态后，"
+               "field_focus_move_to_actor(0) 逐 X 再 Y 恢复焦点和镜头。",
         "why": "复用已发布权威伪 C fd2-ida-decomp-all.c 的本函数首部"
                "（7282..7314 行）与 field_empty_focus_menu_execute @0x16f55 "
-               "selector 3 调用（5250..5267 行）；未重新建立 IDB 或发布逆向基线。",
+               "selector 3 调用（5250..5267 行），末尾 @0x1a30b 的调用链，"
+               "2026-11-04 真实 START 原版肯定 END→round002→Save 运行证据；"
+               "未重新建立 IDB 或发布逆向基线。",
     }],
     0x25977: [{
         "target": "evidence",

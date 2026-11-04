@@ -52,6 +52,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 总流程串行包含原版标题像素比较和 `run_original_battle_menu.py` 的 END 确认框／取消对照。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；后者不提交 END，不替代整回合的 phase／AI／随机结果验收。
 
+另以 `run_original_end_turn.py` 的真实 START 副本提交一次 END，识别 actor 0 最终焦点并正式 Save，比较回合、计数、配置等确定性字段；已加入总流程。相机、伤害和 AI 随机结果仍不作相等声明。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

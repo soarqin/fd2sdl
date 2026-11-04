@@ -182,12 +182,54 @@ static int test_fast_skip_is_separate(void) {
     return 0;
 }
 
+static int test_new_round_restores_leader_focus_and_cycle(void) {
+    fd2_field_game game;
+    size_t rng_calls = 0;
+    init_game(&game, &rng_calls);
+    game.map.width = game.map.height = 24;
+    game.active_side = 0;
+    game.units.items[0].x = 7;
+    game.units.items[0].y = 14;
+    game.cursor_cell_x = game.cursor_cell_y = 23;
+    game.camera_cell_x = 11;
+    game.camera_cell_y = 16;
+    game.focus_cycle_unit = 3;
+    game.detail_acknowledged_unit = 4;
+    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(game.turn_number == 2 && game.active_side == 2);
+    CHECK(game.cursor_cell_x == 7 && game.cursor_cell_y == 14);
+    CHECK(game.camera_cell_x == 5 && game.camera_cell_y == 12);
+    CHECK(game.focus_cycle_unit == 0 && game.detail_acknowledged_unit == -1);
+    CHECK(fd2_field_game_cycle_focus(&game) == 0);
+    CHECK(game.focus_cycle_unit == 1 && rng_calls == 0);
+
+    /* 地图边缘不能为保持阈值而卷出边界。 */
+    game.active_side = 0;
+    game.units.items[0].x = game.units.items[0].y = 0;
+    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(game.cursor_cell_x == 0 && game.cursor_cell_y == 0);
+    CHECK(game.camera_cell_x == 0 && game.camera_cell_y == 0);
+
+    game.active_side = 0;
+    game.cursor_cell_x = game.cursor_cell_y = 10;
+    game.focus_cycle_unit = 3;
+    game.metadata.turn_events[0] = (fd2_field_turn_event){
+        .turn = 4, .action = 0xff, .phase = 2};
+    CHECK(fd2_field_game_end_active_phase(&game) == -1);
+    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+    CHECK(game.cursor_cell_x == 10 && game.cursor_cell_y == 10);
+    CHECK(game.focus_cycle_unit == 0);
+    CHECK(rng_calls == 0);
+    return 0;
+}
+
 int main(void) {
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
         test_unknown_event_preserves_recovery_and_stops_status() ||
         test_capacity_stops_before_handler() ||
-        test_fast_skip_is_separate())
+        test_fast_skip_is_separate() ||
+        test_new_round_restores_leader_focus_and_cycle())
         return 1;
     puts("field_turn_test: ok");
     return 0;

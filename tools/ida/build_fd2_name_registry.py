@@ -28,6 +28,40 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x1CEED: [{
+        "target": "semantic_name", "was": "sub_1CEED",
+        "now": "field_unit_magic_list_draw",
+        "why": "完整259B及17aed/1cff0/1d51d的xref：枚举actor法术，按每列4行"
+               "绘441+ID名称、frame92费用标签和record+5的bank42两位数字。"
+               "selected仅切换205/201前景，shadow76、背景透明。普通详情也调用，"
+               "故不是player专用；不画底板/姓名MP、不等待、分配或提交。",
+    }, {
+        "target": "evidence", "was": "中性符号未登记完整列表绘制写集",
+        "now": "x=18+100*(index/4)，y=103+22*(index%4)；费用图位于x+50/y+5，"
+               "数字x+73/y+5。SDL现有详情合并装备，纯列表整合先恢复底板不等于"
+               "原函数自身画底板。IDA原符号与发布伪C保持，未写猜测ABI。",
+        "why": "published函数区间1ceed..1cff0与strictLE object1 offceed/"
+               "file42f01完整窗口一致；SHA fc1b0cc845879719340b084d927c069d1393efd809085feece0c052c0660558f。"
+               "2026-11-04真实START raw1火炎术首项开/取消/重开，31603矩形"
+               "资源门通过；全部36名称只含普通glyph/结束，31为空名。",
+    }],
+    0x1D51D: [{
+        "target": "semantic_name", "was": "sub_1D51D",
+        "now": "field_player_magic_list_select_step",
+        "why": "完整427B及1cff0内1d0cf调用：先1ceed重绘，再16c57读单键，"
+               "上下环绕、左右跨4项，索引留53C57；返回0继续/-1取消/1确认。"
+               "确认只查MP>=record+5费用，不扣MP、不标acted或施法。开合与循环"
+               "在caller，故不是返回spellID的完整modal。",
+    }, {
+        "target": "evidence", "was": "按旧伪C的void和七个参数推断选择器ABI或纯查询",
+        "now": "保留原sub_1D51D物理符号/伪C类型；raw1d68a..1d6c1补全MP与"
+               "0/-1/1路径，共享16f04恢复尾。16c57会消费UI RNG，不能声称"
+               "取消或列表等待不推进共享随机流。",
+        "why": "strictLE object1 offd51d/file43531全427B连续窗口相等；"
+               "SHA bf6c1838f60e40612e1af48ee194a468a4edd0442c9971ddd18168d709949d71。"
+               "运行仅证实首项MP8/8/cost02的打开、Esc与重开；完整导航和低MP门"
+               "本轮仍是静态证据，不冒称原版已执行。未新建或写入IDB。",
+    }],
     0x3231B: [{
         "target": "evidence",
         "was": "完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态",

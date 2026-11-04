@@ -137,7 +137,6 @@ set(FD2SDL_CORE_SOURCES
     field_info.c
     field_game.c
     field_save.c
-    field_play.c
     field_preview.c
     text.c
     tile.c
@@ -159,12 +158,20 @@ target_include_directories(fd2sdl_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(fd2sdl
     main.c
+    field_play.c
     $<TARGET_OBJECTS:fd2sdl_core>
 )
 target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
 
 include(CTest)
 if(BUILD_TESTING)
+    option(FD2SDL_REQUIRE_GUI_TESTS "图形回归依赖不全时配置失败，避免静默缺测" OFF)
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME field_play_input_harness
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_input_test.py --self-test)
+    endif()
     add_executable(fd2_resource_test
         tests/resource_test.c
         archive.c
@@ -601,26 +608,58 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_unit_base COMMAND fd2_field_unit_base_test)
 
-    # GNU/LLVM 链接器替身仅用于错误出口回归，不向生产代码添加测试钩子。
-    if(UNIX AND NOT APPLE)
-        add_executable(fd2_field_play_result_test
-            tests/field_play_result_test.c
-            $<TARGET_OBJECTS:fd2sdl_core>
-        )
-        target_include_directories(fd2_field_play_result_test PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR})
-        target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
-        target_link_options(fd2_field_play_result_test PRIVATE
-            -Wl,--wrap=fd2_field_game_open
-            -Wl,--wrap=fd2_field_game_process_automatic_action_visual
-            -Wl,--wrap=fd2_scene_play_field_event
-            -Wl,--wrap=fd2_vga_present
-            -Wl,--wrap=fd2_input_take_action
-            -Wl,--wrap=fd2_field_game_confirm_cursor
-            -Wl,--wrap=fd2_field_game_execute_move)
-        add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
-        set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
+    if(WIN32)
+        if(NOT Python3_Interpreter_FOUND)
+            if(FD2SDL_REQUIRE_GUI_TESTS)
+                message(FATAL_ERROR "Windows GUI tests require Python 3")
+            endif()
+            message(WARNING "field_play_input not registered: install Python 3 and reconfigure")
+        else()
+            add_executable(fd2_field_play_input_driver
+                tests/field_play_input_driver.c tests/window_capture.cpp)
+            # C++/WinRT 只用于测试工具，音乐生产后端保持 C++14。
+            set_target_properties(fd2_field_play_input_driver PROPERTIES CXX_STANDARD 17)
+            target_link_libraries(fd2_field_play_input_driver PRIVATE user32 d3d11 dxgi windowsapp dwmapi)
+            add_test(NAME graphics_job
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_job_test.py
+                    --driver $<TARGET_FILE:fd2_field_play_input_driver>
+                    --artifacts ${CMAKE_BINARY_DIR}/test-artifacts/graphics-job)
+            set_tests_properties(graphics_job PROPERTIES
+                TIMEOUT 60 LABELS "integration;process" RUN_SERIAL TRUE)
+            add_test(NAME field_play_input
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_input_test.py
+                    --driver $<TARGET_FILE:fd2_field_play_input_driver>
+                    --game $<TARGET_FILE:fd2sdl>
+                    --root ${CMAKE_SOURCE_DIR}/..
+                    --artifacts ${CMAKE_BINARY_DIR}/test-artifacts/field-play-input)
+            set_tests_properties(field_play_input PROPERTIES
+                TIMEOUT 180 LABELS "e2e;graphics" RUN_SERIAL TRUE)
+        endif()
+    endif()
 
+    # 仅该测试重新编译正式循环并替换依赖，兼容 MSVC，不给生产代码增加钩子。
+    add_executable(fd2_field_play_result_test
+        tests/field_play_result_test.c
+        field_play.c
+        $<TARGET_OBJECTS:fd2sdl_core>
+    )
+    target_include_directories(fd2_field_play_result_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    target_compile_definitions(fd2_field_play_result_test PRIVATE
+        fd2_field_game_open=__wrap_fd2_field_game_open
+        fd2_field_game_process_automatic_action_visual=__wrap_fd2_field_game_process_automatic_action_visual
+        fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event
+        fd2_vga_present=__wrap_fd2_vga_present
+        fd2_input_take_action=__wrap_fd2_input_take_action
+        fd2_field_game_confirm_cursor=__wrap_fd2_field_game_confirm_cursor
+        fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move)
+    add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
+    set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
+
+    if(UNIX AND NOT APPLE)
         # 依赖齐备时另注册 Xvfb/XTest 回归，发送真实按键而不调用 field_game API。
         find_package(X11 QUIET)
         find_program(FD2SDL_XVFB_EXECUTABLE Xvfb)
@@ -647,10 +686,27 @@ if(BUILD_TESTING)
             )
             set_tests_properties(field_play_input PROPERTIES
                 TIMEOUT 90
-                LABELS "e2e"
+                LABELS "e2e;graphics"
+                RUN_SERIAL TRUE
             )
+        elseif(FD2SDL_REQUIRE_GUI_TESTS)
+            message(FATAL_ERROR "Linux GUI tests require X11, XTest and Xvfb")
+        else()
+            message(WARNING "field_play_input not registered: install X11, XTest and Xvfb")
         endif()
     endif()
+
+    # 测试中的 assert 包含实际调用；Release 也必须执行，不能得到空跑假绿。
+    get_directory_property(fd2_targets BUILDSYSTEM_TARGETS)
+    foreach(fd2_target IN LISTS fd2_targets)
+        if(fd2_target MATCHES "^fd2_.*_test$")
+            if(MSVC)
+                target_compile_options(${fd2_target} PRIVATE /UNDEBUG)
+            else()
+                target_compile_options(${fd2_target} PRIVATE -UNDEBUG)
+            endif()
+        endif()
+    endforeach()
 endif()
 
 # 让可执行文件能在源码树根目录运行并找到 original_game/

@@ -16,6 +16,8 @@
 | Python `idapro` | 0.0.12 |
 | 局部执行对照 | Unicorn 2.1.4；本机 C 实现由 GCC 13.3.0 编译 |
 
+本表记录 Linux 捕获环境；`lx.so` 和 GCC 身份不表示 Windows 也使用同一 loader 文件或编译器。Windows 的复跑应另记本机 IDA、loader、Python 与编译器身份，不能沿用本表作为 Windows 验收结果。
+
 复用现有 `ida_fd2_export.py` 导出 segment、fixup 和函数表，再用 IDA Domain API 只读查询原始字节、初始化标记、函数和指令。Domain API 未提供的 loader file-region 映射与 patch 枚举，局部使用 `ida_loader.get_fileregion_offset` 和 `ida_bytes.visit_patched_bytes`。
 
 新数据库在临时目录创建。后续查询均使用 `save_on_close=False`；数据库与查询前副本逐字节相同。没有修改机器码、写入新原型或保存 Hex-Rays 猜测类型。
@@ -92,9 +94,26 @@ SDL 对截断、超行等损坏资源增加失败检查。原版没有等价的�
 
 ## 复现与本地证据
 
-当前工具环境位于 `/home/soar/.agents/skills/ida-domain-scripting/.venv`。本机许可证不在默认搜索位置，需要按官方方式显式选择已有文件；不写入许可证偏好，不代替开发者接受 EULA。其他机器应使用自己的安装和许可证路径。
+历史 Linux 工具环境位于 `/home/soar/.agents/skills/ida-domain-scripting/.venv`，不是 Windows 或其他工作区的默认配置。复跑前按 [IDA 环境](../tools/ida.md#环境)选择本机 IDA、skill 工具解释器及有效许可证；不写入许可证偏好，不代替开发者接受 EULA。
 
 从项目根目录重做导出时，使用新的临时目录，避免 exporter 覆盖已有 `db/`：
+
+Windows PowerShell（`$idaPython` 已按 IDA 手册配置）：
+
+```powershell
+$work = Join-Path ([IO.Path]::GetTempPath()) ('fd2-ida-reexport-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $work | Out-Null
+& $idaPython tools/ida/ida_fd2_export.py --out (Join-Path $work 'export')
+if ($LASTEXITCODE -ne 0) { throw 'IDA 导出失败；保留临时目录排查，不复制失败产物。' }
+# 只复制数据；不覆盖 db/ 或已发布命名／伪 C。
+New-Item -ItemType Directory -Force -Path tools/ida-out | Out-Null
+Copy-Item -Path "$work/export/ida-*.json", "$work/export/ida-*.tsv", "$work/export/ida-image-*.bin" -Destination tools/ida-out
+python tools/rebuild_fd2_analysis.py
+python tools/validate_le_fixups.py
+python tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
+```
+
+Linux bash（保留历史环境路径以便追溯，其他机器须替换）：
 
 ```bash
 export IDADIR=/home/soar/ida-pro-9.5
@@ -122,5 +141,5 @@ python3 tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
 
 - 没有对全部 SDL 实现逐函数证明语义等价；本次机器码执行对照限定为 RLE 像素解码，以及菜单坐标／帧选择。
 - 没有比较 SDL 与 DOS 可执行文件的二进制相等性，两者架构、编译器和宿主接口不同。
-- RLE 与菜单场景的 DOSBox 人工视觉、时序、声音和玩法对照：**待人工对照**；没有用上述局部执行对照代替实机结果。
-- 历史 DOSBox 捕获的 BSS/stack 仍有 21 个非零字节；严格全对象运行时验收仍未通过，需要新的人工转储。静态 BSS 规范化不能消除此限制。
+- RLE 与菜单场景的 DOSBox 视觉、时序、声音和玩法对照：**待原版对照**；允许按[图形自动化测试](../tools/gui-testing.md)自动输入、捕获与比对，没有用上述局部执行对照代替实机结果。
+- 历史 DOSBox 捕获的 BSS/stack 仍有 21 个非零字节；严格全对象运行时验收仍未通过，需要新的转储。自动取证仍须重新确认本次地址与完整范围；静态 BSS 规范化不能消除此限制。

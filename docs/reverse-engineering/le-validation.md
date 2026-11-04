@@ -6,7 +6,7 @@
 
 - **静态模型已通过独立复核**：项目 parser／独立 decoder 与 IDA loader 的 object、全部 fixup 和字节一致；LE/LX fixup 可靠性疑虑已关闭。历史依据为 [IDA 9.4 报告](ida-crosscheck.md)，[9.5 重导出](ida-bytecheck-9.5.md)再次通过 21 项静态检查。
 - **严格运行时全对象验收尚未通过**：历史 DOSBox 捕获的 file-backed 区和 relocation source 匹配，但 object2 BSS/stack 有 21 个非零字节，需要新转储。不能用「loader 建栈」或静态 BSS 规范化自动豁免差异。
-- **玩法／视听另行验收**：静态、运行时字节检查和局部机器码执行都不替代 DOSBox 人工操作对照。
+- **玩法／视听另行验收**：静态、运行时字节检查和局部机器码执行都不替代 DOSBox 场景对照。允许在独立副本上自动操作与捕获，仍须有状态、截图／存档／trace 和已确认判据。
 
 ## 产物与写入边界
 
@@ -26,6 +26,8 @@
 `tools/fd2_dual_final.bin`、`/tmp/fd2_le_correct.bin` 及其他无清单 patched 镜像不是权威输入。镜像、数据库、完整内存和本地导出不入库。
 
 ## 重建与静态复核
+
+以下为 Linux bash 命令。Windows PowerShell 使用 `python` 替换 `python3`，参数和相对路径保持相同；Python 环境、文件哈希和临时目录操作见[跨平台命令](../tools/platforms.md)。两平台的实际执行结果分别登记，命令可改写不等于已重新通过验收。
 
 从项目根目录执行：
 

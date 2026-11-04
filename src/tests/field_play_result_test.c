@@ -1,9 +1,10 @@
-/* 用链接器替身触发正式 field_play 循环的错误出口，不启动窗口或原版游戏。 */
+/* 仅测试构建替换正式 field_play 依赖，验证错误出口和移动取消，不启动窗口或原版游戏。 */
 #include <stdio.h>
 #include <string.h>
 
 #include "field_game.h"
 #include "field_play.h"
+#include "field_rng.h"
 #include "scene.h"
 
 #define CHECK(expr) do { \
@@ -19,6 +20,12 @@ static int movement_failure;
 static int action_sent;
 static int scene_result;
 static int failure_called;
+static int cancellation_case;
+static int cancellation_checked;
+static fd2_input_key cancellation_key;
+static fd2_field_game *active_game;
+static fd2_field_unit unchanged_units[2];
+static uint16_t unchanged_rng;
 
 int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
                                const fd2_archive *fdother, size_t stage) {
@@ -35,7 +42,19 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     game->units.items[1].hp = 1;
     game->active_side = automatic_failure ? 0 : 2;
     game->phase_next_action_ms = 1;
-    if (!automatic_failure && !movement_failure) {
+    if (cancellation_case) {
+        active_game = game;
+        game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
+        game->selected_unit = 0;
+        game->units.items[0].x = 1;
+        game->units.items[0].y = 2;
+        game->move_origin_x = 1;
+        game->move_origin_y = 2;
+        game->cursor_cell_x = 2;
+        game->cursor_cell_y = 3;
+        game->turn_number = 17;
+    }
+    if (!automatic_failure && !movement_failure && !cancellation_case) {
         game->event_log_count = 1;
         game->event_log[0].handled = 1;
         game->event_log[0].presentation_deferred = 1;
@@ -70,7 +89,29 @@ void __wrap_fd2_vga_present(fd2_vga *vga) { (void)vga; }
 int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
     (void)input;
-    (void)context;
+    if (cancellation_case) {
+        if (action_sent == 0) {
+            memcpy(unchanged_units, active_game->units.items, sizeof(unchanged_units));
+            unchanged_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
+            action_sent = 1;
+            *action = fd2_input_action_for_key(context, cancellation_key);
+            return 1;
+        }
+        if (action_sent == 1) {
+            cancellation_checked = context == FD2_INPUT_CONTEXT_FIELD &&
+                active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
+                active_game->selected_unit == -1 && active_game->turn_number == 17 &&
+                active_game->active_side == 2 && active_game->phase_next_action_ms == 1 &&
+                active_game->cursor_cell_x == 1 && active_game->cursor_cell_y == 2 &&
+                active_game->event_log_count == 0 && active_game->event_total_count == 0 &&
+                memcmp(unchanged_units, active_game->units.items, sizeof(unchanged_units)) == 0 &&
+                ((fd2_field_rng *)active_game->attack_rng_userdata)->state == unchanged_rng;
+            action_sent = 2;
+            *action = FD2_INPUT_ACTION_EXIT;
+            return 1;
+        }
+        return 0;
+    }
     if (!movement_failure || action_sent) return 0;
     action_sent = 1;
     *action = FD2_INPUT_ACTION_CONFIRM;
@@ -116,6 +157,18 @@ int main(void) {
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
           FD2_FIELD_PLAY_RETURN_ERROR);
     CHECK(failure_called == 1);
+    movement_failure = 0;
+    cancellation_case = 1;
+    const fd2_input_key cancel_keys[] = {FD2_INPUT_KEY_ESCAPE, FD2_INPUT_KEY_CANCEL};
+    for (size_t i = 0; i < sizeof(cancel_keys) / sizeof(cancel_keys[0]); i++) {
+        action_sent = 0;
+        cancellation_checked = 0;
+        cancellation_key = cancel_keys[i];
+        CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+              FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+        CHECK(cancellation_checked);
+    }
+    cancellation_case = 0;
     puts("field_play_result_test: ok");
     return 0;
 }

@@ -2,24 +2,26 @@
 
 本文记录本项目在 Ubuntu `dosbox-debug 0.74-3` 中已经验证过的调试器命令，供原版 `FD2.EXE` 可执行映像和运行时表转储使用。
 
+Windows 使用带 debugger 的 DOSBox 构建。普通 DOSBox 发行版不一定包含 debugger；不能仅凭版本号认定下列命令可用。Windows 构建的内部命令、转储文件名与长度解析须在首次使用时确认，尚未取得相应捕获前保持「待原版对照」。宿主 PowerShell 与 Linux bash 的文件操作分别列在下文，共用规则见[跨平台命令](platforms.md)。原版和 SDL 的自动输入、捕获及比对统一见[图形自动化测试](gui-testing.md)。
+
 ## 使用边界
 
-- `dosbox-debug` 仅用于转储已经加载的原版游戏可执行对象、运行时内存和二进制表。
-- 不使用调试器自动操作菜单、战场或剧情。
-- 需要指定关卡、施法、物品或剧情状态时，停止自动化工作，请开发者手工操作并提供截图、存档或转储结果。
+- 本文的 debugger 命令用于转储已加载的原版可执行对象、运行时内存和二进制表；玩法验证另按图形自动化流程驱动独立副本。
+- 允许自动操作原版菜单、战场或剧情并捕获截图、声音、存档和 trace；输入步骤与判据须来自逆向或已确认原版证据，不能凭自动运行结束宣称行为一致。
+- 指定关卡、施法、物品或剧情状态须有可复现 fixture 和状态检查；无法确认当前状态时保存失败证据并停止该场景，不继续盲发按键。
 - 每次运行都重新确认 selector、descriptor base 和 relocation delta。不得复用历史运行中的绝对地址。
 - `original_game/` 只读。转储文件先写到临时目录，确认用途后再决定是否保留；不得提交原版内存映像。
 
 ## 启动注意事项
 
-本机的 `/usr/bin/dosbox-debug` 是图形／终端交互式程序。以下调用不会显示调试器命令帮助，反而会直接启动界面：
+历史 Linux 环境的 `/usr/bin/dosbox-debug` 是图形／终端交互式程序。以下调用不会显示调试器命令帮助，反而会直接启动界面；两平台均禁止用这种方式探测帮助：
 
 ```bash
 # 禁止用作帮助探测
 # dosbox-debug --help
 ```
 
-通用 DOSBox 命令行参数查本地 man page：
+Linux 的通用 DOSBox 命令行参数查本地 man page；Windows 查安装包随附的 README／手册，不能执行 Linux 的 `zcat` 命令：
 
 ```bash
 zcat /usr/share/man/man1/dosbox-debug.1.gz | col -b
@@ -27,7 +29,7 @@ zcat /usr/share/man/man1/dosbox-debug.1.gz | col -b
 
 调试器内部命令以本文记录为准。不要为了查询帮助而反复启动界面。
 
-先将所需原版文件复制到独立临时目录，再由开发者手工启动 debugger。下列占位路径需换成本次副本目录，不能直接挂载 `original_game/` 后假定普通 `MOUNT` 会强制只读：
+先将所需原版文件复制到独立临时目录，再启动 debugger。可自动启动与取证，但下列占位路径须换成本次副本目录，不能直接挂载 `original_game/` 后假定普通 `MOUNT` 会强制只读：
 
 ```text
 MOUNT C <本次原版副本目录>
@@ -99,6 +101,20 @@ MEMDUMPBIN <selector>:<offset> <length>
 
 调试器将内容写入当前目录的固定文件 `memdump.bin`，不是以地址自动命名。每次转储前应先准备独立临时工作目录；转储后立即改名并记录来源，避免下一次命令覆盖：
 
+Windows PowerShell（在启动 debugger 前创建目录，再从该目录启动 debugger）：
+
+```powershell
+$captureDir = Join-Path ([IO.Path]::GetTempPath()) ('fd2-debug-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $captureDir | Out-Null
+Set-Location $captureDir
+# 在 debugger 内执行 MEMDUMPBIN 后退出或切回 PowerShell
+Move-Item -LiteralPath memdump.bin -Destination rng-initial.bin
+Get-FileHash -Algorithm SHA256 -LiteralPath rng-initial.bin
+(Get-Item -LiteralPath rng-initial.bin).Length
+```
+
+Linux bash：
+
 ```bash
 mkdir -p /tmp/fd2-debug-capture-YYYYMMDD
 cd /tmp/fd2-debug-capture-YYYYMMDD
@@ -113,7 +129,7 @@ sha256sum rng-initial.bin
 MEMDUMPBIN 178:1AE7B8 2
 ```
 
-该命令曾在第一次 `field_rng_next` 执行前转储两个字节，得到 loader 初值。`MEMDUMPBIN` 的长度是十进制或十六进制数值时，以实际 debugger 解析结果和生成文件大小为准；完成后必须用 `stat -c '%s'` 检查长度。
+该命令曾在第一次 `field_rng_next` 执行前转储两个字节，得到 loader 初值。`MEMDUMPBIN` 的长度是十进制或十六进制数值时，以实际 debugger 解析结果和生成文件大小为准；完成后必须检查文件长度，Linux 使用 `stat -c '%s' rng-initial.bin`，PowerShell 使用 `(Get-Item -LiteralPath rng-initial.bin).Length`。
 
 相关文本转储命令也已确认：
 
@@ -149,7 +165,15 @@ object3 base = 0x1b2000
 MEMDUMPBIN DS:0 200000
 ```
 
-6. 将 `MEMDUMP.BIN` 移到 `/tmp`，执行：
+6. 将 `MEMDUMP.BIN` 移到本次独立临时目录并命名为 `fd2-entry.bin`，返回项目根目录后执行。以下仍是历史 object base 示例，新捕获必须替换三个 base：
+
+Windows PowerShell（`$captureDir` 指向本次捕获目录）：
+
+```powershell
+python tools/verify_le_runtime_dump.py (Join-Path $captureDir 'fd2-entry.bin') --object1-base 0x16c000 --object2-base 0x1ac000 --object3-base 0x1b2000
+```
+
+Linux bash：
 
 ```bash
 python3 tools/verify_le_runtime_dump.py /tmp/fd2-entry.bin \

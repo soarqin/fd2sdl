@@ -80,4 +80,4 @@ DOSBox 0.74 的 44100 Hz mixer capture 已对照 FDOTHER[31] SFX 5/8。按 11025
 - 一次来源不够严格的自动 capture 将 track 19 排在首位，与 stage 0 静态表冲突，该候选已否决。
 - 另一份 capture 有截图确认的开场对白上下文和独立 track 11 调用证据。track 11 在 15 项候选中直接波形相关最高，为 `0.212089`；短时谱相似度最高，为 `0.974435`。这证明主路径可行，不是逐样本保真。
 
-`tools/render_fd2_opl_prototype.sh` 在临时目录重建外部评估工具，`tools/compare_fd2_music_capture.py` 比较 capture；操作见[工具速查](../tools/README.md)。原版捕获、bank、渲染和转换产物只留本地。完整 libADLMIDI core 未被选作运行依赖，现用组件的逐文件许可证以第三方清单和源文件为准。
+`tools/render_fd2_opl_prototype.sh` 是 Linux bash 外部评估脚本，在临时目录重建评估工具；Windows 原生游戏和测试不依赖它，需复跑历史原型时使用单独的 Linux／WSL 环境并记录环境。`tools/compare_fd2_music_capture.py` 可在两平台比较已有 capture（Windows `python`／Linux `python3`），操作见[工具速查](../tools/README.md)。原版捕获、bank、渲染和转换产物只留本地。完整 libADLMIDI core 未被选作运行依赖，现用组件的逐文件许可证以第三方清单和源文件为准。

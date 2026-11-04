@@ -34,8 +34,10 @@
 ## 工具操作
 
 - [工具速查](tools/README.md)：构建、测试、调试入口和常用数据工具。
+- [跨平台命令约定](tools/platforms.md)：Windows PowerShell／Linux Bash、构建输出、Python、环境变量和只读二进制检查。
+- [图形自动化测试](tools/gui-testing.md)：SDL 原生窗口、真实按键、截图、退出与隔离存档的验证流程。
 - [IDA Domain API／idalib](tools/ida.md)：环境、只读查询、授权发布流程与陷阱。
-- [DOSBox debugger](tools/dosbox-debug.md)：人工二进制取证和当次运行地址确认；禁止自动操作玩法。
+- [DOSBox debugger](tools/dosbox-debug.md)：二进制取证、当次运行地址确认，以及独立工作副本中的原版自动操作约束。
 
 ## 生成产物
 
@@ -50,4 +52,4 @@
 
 ## 维护约定
 
-新文档按上述用途放置；实现进度只更新计划，原版布局放 `formats/`，调用／地址证据放 `reverse-engineering/`，SDL 边界放 `systems/`，命令放 `tools/`。已被现行资料覆盖且含错误模型的早期叙述不再另存一份；需要追溯时查 Git 历史，正式证据与命名输入仍保留。
+新文档按上述用途放置；实现进度只更新计划，原版布局放 `formats/`，调用／地址证据放 `reverse-engineering/`，SDL 边界放 `systems/`，命令放 `tools/`。操作命令注明 PowerShell／Bash；通用转换引用跨平台约定。历史 Linux 路径和机器码证据保留原记录，不因宿主迁移改写为 Windows 已验收。已被现行资料覆盖且含错误模型的早期叙述不再另存一份；需要追溯时查 Git 历史，正式证据与命名输入仍保留。

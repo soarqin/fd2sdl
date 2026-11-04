@@ -6,9 +6,19 @@
 
 ## 准备与构建
 
-需要 CMake 3.16+、C11／C++14 编译器，以及合法取得的原版游戏数据。将数据文件放入 `original_game/`；本仓库不分发原版资源。
+需要 CMake 3.16+、C11／C++14 编译器，以及合法取得的原版游戏数据。Windows 使用带 C++ 桌面开发组件和 Windows SDK 的 Visual Studio Build Tools；图形测试驱动另需 C++17 与 C++/WinRT SDK。Linux 使用 GCC 或 Clang。将数据文件放入 `original_game/`；本仓库不分发原版资源。
 
-从项目根目录执行：
+从项目根目录执行。两平台使用独立构建目录，不复用另一平台的 `CMakeCache.txt`。
+
+Windows（PowerShell，Visual Studio 生成器）：
+
+```powershell
+cmake -S src -B src/build-win
+cmake --build src/build-win --config Debug --parallel
+./src/Debug/fd2sdl.exe
+```
+
+Linux（Bash，单配置生成器）：
 
 ```bash
 cmake -S src -B src/build
@@ -18,16 +28,27 @@ cmake --build src/build --parallel
 
 CMake 优先查找系统 SDL3（CMake package，其次 pkg-config）；找不到时通过 CPM.cmake 下载并构建，回退路径需要网络。离线构建应预装 SDL3，必要时设置 `SDL3_DIR`；`-DFD2SDL_USE_SYSTEM_SDL3=OFF` 可强制使用下载路径。
 
-以上为 Linux 命令示例；Windows 输出为 `fd2sdl.exe`，路径随生成器和构建配置变化。启动时保持工作目录为项目根目录，以便找到 `original_game/`。
+启动时保持工作目录为项目根目录，以便找到 `original_game/`。Visual Studio 的 Release 输出为 `src/Release/fd2sdl.exe`；Windows Ninja 单配置生成器的输出为 `src/fd2sdl.exe`。生成器、Python、环境变量与临时目录的对应方式见[跨平台命令约定](docs/tools/platforms.md)。
 
 ## 使用
 
 默认从片头进入标题菜单。也可直接进入已有场景：
 
-```bash
-./src/fd2sdl --new-game-play  # 播放新游戏过场后进入战场
-./src/fd2sdl --field-play 0   # 直接进入第一关；正式战场目前仅支持 stage 0
+Windows（PowerShell）：
+
+```powershell
+./src/Debug/fd2sdl.exe --new-game-play
+./src/Debug/fd2sdl.exe --field-play 0
 ```
+
+Linux（Bash）：
+
+```bash
+./src/fd2sdl --new-game-play
+./src/fd2sdl --field-play 0
+```
+
+`--new-game-play` 播放新游戏过场后进入战场；`--field-play 0` 直接进入第一关。正式战场目前仅支持 stage 0。
 
 游戏使用键盘，不支持鼠标。标题用上／下选择并确认；战场常用键位如下：
 
@@ -45,11 +66,19 @@ CMake 优先查找系统 SDL3（CMake package，其次 pkg-config）；找不到
 
 ## 测试与开发文档
 
+Windows（PowerShell）：
+
+```powershell
+ctest --test-dir src/build-win -C Debug --output-on-failure
+```
+
+Linux（Bash）：
+
 ```bash
 ctest --test-dir src/build --output-on-failure
 ```
 
-部分测试需要本地原版资源；真实键盘回归还依赖 Linux/X11、Xvfb 和 XTest。无窗口验证、Python 测试及调试入口见[工具速查](docs/tools/README.md)。SDL 测试不替代 DOSBox 原版人工对照。
+部分测试需要本地原版资源。窗口自动化的环境要求、运行命令、覆盖范围和截图证据见[图形自动化测试](docs/tools/gui-testing.md)；Windows 使用可交互桌面，Linux 使用 X11／Xvfb 和 XTest。无窗口验证、Python 测试及调试入口见[工具速查](docs/tools/README.md)。DOSBox 原版可在独立副本中自动操作和取证；SDL 自测通过仍需对应原版场景和判据才能证明一致。
 
 - [文档索引](docs/README.md)：计划、格式、系统设计和逆向依据。
 - [AGENTS.md](AGENTS.md)：Agent 开发规则与修改前必读事项。

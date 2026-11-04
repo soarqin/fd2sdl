@@ -9,5 +9,6 @@
 | Nuked OPL3 | 同上，Nuked OPL3 1.8 | LGPL-2.1；见源文件头和 `LICENSE.nukedopl3` | 生成 OPL PCM |
 | OPL AIL model | 同上，`model_ail.c` | MIT；见源文件头和 `LICENSE.opl-models-mit` | 复现 AIL 频率与音量量化公式 |
 
-`src/bgm.cpp` 自行读取原版 `SAMPLE.AD` Miles AIL 音色表，并驱动以上组件。
-原版资源仍从 `original_game/` 读取，不复制到本目录。
+`src/bgm.cpp` 自行读取原版 `SAMPLE.AD` Miles AIL 音色表，并驱动以上组件。Windows 和 Linux 使用同一组源码及许可文件，由项目 CMake 构建，不需要外部 `adlmidiplay`。原版资源仍从 `original_game/` 读取，不复制到本目录。
+
+外部音色评估脚本 `tools/render_fd2_opl_prototype.sh` 使用 Linux／Bash 和上游完整源码，独立于运行时；其平台条件见[工具速查](../../docs/tools/README.md#离线音频对照)。构建与打包在两平台都必须保留以上许可证，不能因静态链接而省略许可义务。

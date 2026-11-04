@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "field_game.h"
+#include "test_temp.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -193,8 +194,9 @@ static void prepare_confirmed_action(fd2_field_game *game,
 }
 
 static int test_manual_slot_roundtrip(void) {
-    static const char path[] = "/tmp/fd2sdl-field-manual-test.sav";
-    (void)remove(path);
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0);
     fd2_field_game source;
     init_game(&source);
     CHECK(fd2_field_game_save_manual_slot(&source, path, 2) == 0);
@@ -247,8 +249,9 @@ static int test_manual_slot_roundtrip(void) {
 }
 
 static int test_file_roundtrip(void) {
-    static const char path[] = "/tmp/fd2sdl-field-save-test.sav";
-    (void)remove(path);
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0);
     CHECK(write_fixture(path) == 0);
     fd2_field_game source;
     init_game(&source);

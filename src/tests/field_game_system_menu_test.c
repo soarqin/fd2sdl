@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "field_game.h"
+#include "test_temp.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -262,8 +263,9 @@ static int test_secondary_dynamic_disabled(void) {
 }
 
 static int test_manual_slot_interaction_is_independent(void) {
-    static const char path[] = "/tmp/fd2sdl-field-manual-slot-missing.sav";
-    (void)remove(path);
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0);
     fd2_field_game game;
     test_rng rng = {0x10203040u, 0};
     init_game(&game, &rng);

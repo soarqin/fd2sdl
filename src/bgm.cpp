@@ -520,12 +520,12 @@ size_t fd2_bgm_track_count(const fd2_bgm_player *player) {
 
 int fd2_bgm_track_valid(const fd2_bgm_player *player, size_t track) {
     if (!player) return 0;
+    static const uint8_t xmid[] = {'X', 'M', 'I', 'D'};
     const uint8_t *data = nullptr;
     size_t size = 0;
     return fd2_archive_get(&player->fdmus, track, &data, &size) == 0 &&
            size >= 16 && std::memcmp(data, "FORM", 4) == 0 &&
            std::search(data, data + std::min<size_t>(size, 96),
-                       reinterpret_cast<const uint8_t *>("XMID"),
-                       reinterpret_cast<const uint8_t *>("XMID") + 4) !=
+                       xmid, xmid + sizeof(xmid)) !=
                data + std::min<size_t>(size, 96);
 }

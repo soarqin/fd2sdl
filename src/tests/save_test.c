@@ -7,6 +7,7 @@
 #endif
 
 #include "save.h"
+#include "test_temp.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -226,8 +227,9 @@ static int test_last_slot_overlap_and_zero_units(void) {
 }
 
 static int test_write_roundtrip_and_overwrite(void) {
-    static const char path[] = "/tmp/fd2sdl-save-test.sav";
-    (void)remove(path);
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(remove(path) == 0);
     uint8_t *plain = malloc(FD2_SAVE_FILE_SIZE);
     uint8_t *encrypted = malloc(FD2_SAVE_FILE_SIZE);
     CHECK(plain && encrypted);

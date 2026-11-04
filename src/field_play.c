@@ -1154,6 +1154,7 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
     uint32_t reported_dropped_events = 0;
     uint32_t reported_turn = game.turn_number;
     uint8_t reported_side = game.active_side;
+    int input_ready_reported = 0;
     int running = 1;
     fd2_field_play_result play_result = FD2_FIELD_PLAY_RETURN_COMPLETE;
     while (running) {
@@ -1215,11 +1216,20 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
             running = 0;
         }
+        if (!input_ready_reported) {
+            printf("field input ready: stage=%zu turn=%u phase=%u\n",
+                   game.stage, game.turn_number, game.active_side);
+            fflush(stdout);
+            input_ready_reported = 1;
+        }
         fd2_input_action input_action;
         while (running &&
                fd2_input_take_action(
                    &vga->input,
-                   game.interaction == FD2_FIELD_INTERACTION_COMMAND
+                   game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+                           game.interaction == FD2_FIELD_INTERACTION_MOVING
+                       ? FD2_INPUT_CONTEXT_FIELD_MOVEMENT
+                       : game.interaction == FD2_FIELD_INTERACTION_COMMAND
                        ? FD2_INPUT_CONTEXT_FIELD_COMMAND
                        : game.interaction == FD2_FIELD_INTERACTION_TARGETING
                            ? FD2_INPUT_CONTEXT_FIELD_TARGETING
@@ -1322,8 +1332,12 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         game.interaction = FD2_FIELD_INTERACTION_AUXILIARY;
                     break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
-                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE)
-                        (void)fd2_field_game_cycle_focus(&game);
+                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
+                        int unit = fd2_field_game_cycle_focus(&game);
+                        printf("field focus: unit=%d, cell=(%d,%d), interaction=browse\n",
+                               unit, game.cursor_cell_x, game.cursor_cell_y);
+                        fflush(stdout);
+                    }
                     break;
                 case FD2_FIELD_ACTION_CONFIRM: {
                     int unit_at = fd2_field_game_unit_at(
@@ -1415,8 +1429,13 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         fd2_field_system_action system_action =
                             fd2_field_game_confirm_system_menu(&game);
                         if (system_action ==
-                                FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING)
+                                FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING) {
                             apply_field_audio_options(&game, field_audio);
+                            unsigned index = game.system_menu.selected;
+                            printf("field option: index=%u value=%u\n", index,
+                                   game.option_values[index]);
+                            fflush(stdout);
+                        }
                         if (system_action ==
                                 FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION) {
                             size_t fragment = 0;

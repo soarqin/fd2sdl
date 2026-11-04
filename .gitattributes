@@ -1,0 +1,5 @@
+# 发布证据的 SHA-256 按 LF 原始字节登记，不能随宿主转换换行。
+/docs/generated/** text eol=lf
+
+# Bash 不能将 CRLF 的回车当作命令或 shebang 的一部分。
+*.sh text eol=lf

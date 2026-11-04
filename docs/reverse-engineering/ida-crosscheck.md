@@ -213,21 +213,10 @@ Watcom 会让多个函数共用同一段 `add esp,N; pop …; retn` 尾码，被
 - 1,308 个函数不等于「全部函数已发现」。间接调用、跳表目标和纯数据驱动的入口仍可能缺失。
 - 3 个 Hex-Rays 失败函数只能按反汇编理解。
 - object1 内 200 个函数签名仍带寄存器形参（其中 171 个在 `VA >= 0x37000` 的 runtime/AIL 区），未逐个确认。
-- 本次复核没有增加任何 DOSBox 实机行为、视觉或音频对照。需要进入指定关卡、触发剧情或截取特殊场景的验证仍须开发者手工操作。
+- 本次复核没有增加任何 DOSBox 实机行为、视觉或音频对照。指定关卡、剧情或特殊场景仍需独立原版证据；当前允许按[图形自动化测试](../tools/gui-testing.md)在独立副本中自动输入和捕获，历史静态通过记录不因此扩展范围。
 
 ## 复现命令
 
-```bash
-python3 tools/ida/ida_fd2_export.py
-python3 tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
-python3 tools/ida/ida_fd2_annotate.py --probe-only
-python3 tools/ida/ida_fd2_annotate.py
-python3 tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
-python3 tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
-python3 tools/ida/build_fd2_name_registry.py \
-    --markdown docs/reverse-engineering/function-names.md
-python3 tools/ida/ida_fd2_decompile.py --all --xrefs \
-    --out docs/generated/ida-canonical/fd2-ida-decomp-all.c
-```
+Windows PowerShell 与 Linux bash 的命令统一维护在 [IDA 操作说明](../tools/ida.md#规范流程)，避免历史报告保留一套缺少专用解释器或末尾清单校验的旧流程。上表 `loaders/lx.so` 等记录仍是 Linux IDA 9.4 的历史输入身份，不作为 Windows loader 身份。
 
-操作前置与环境说明见 `docs/tools/ida.md`。
+建库、标注或发布前仍需取得授权；只读查询复用已有数据库。若只重跑静态字节比较，使用 [9.5 临时目录导出流程](ida-bytecheck-9.5.md#复现与本地证据)，不覆盖已标注数据库。

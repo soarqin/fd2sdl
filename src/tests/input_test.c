@@ -10,6 +10,18 @@
 } while (0)
 
 static int test_context_mappings(void) {
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_ESCAPE) == FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_CANCEL) == FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_Z) == FD2_INPUT_ACTION_NONE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_KEYPAD_5) == FD2_INPUT_ACTION_NONE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_ENTER) == FD2_INPUT_ACTION_CONFIRM);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_LEFT) == FD2_INPUT_ACTION_LEFT);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
                                    FD2_INPUT_KEY_UP) == FD2_INPUT_ACTION_UP);
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_TITLE,
@@ -77,6 +89,23 @@ static int test_context_mappings(void) {
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
                                    FD2_INPUT_KEY_F2) ==
           FD2_INPUT_ACTION_NONE);
+    return 0;
+}
+
+static int test_movement_cancel_scancodes(void) {
+    const SDL_Scancode keys[] = {
+        SDL_SCANCODE_ESCAPE, SDL_SCANCODE_DELETE, SDL_SCANCODE_KP_DECIMAL,
+    };
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        fd2_input input;
+        fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input, keys[i], 1);
+        fd2_input_begin_test_frame(&input, 100);
+        fd2_input_action action;
+        CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MOVEMENT, &action));
+        CHECK(action == FD2_INPUT_ACTION_CANCEL);
+        CHECK(!fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MOVEMENT, &action));
+    }
     return 0;
 }
 
@@ -213,6 +242,7 @@ static int test_quit_request(void) {
 
 int main(void) {
     if (test_context_mappings() != 0 ||
+        test_movement_cancel_scancodes() != 0 ||
         test_press_exists_for_one_present_frame() != 0 ||
         test_unread_press_does_not_cross_present() != 0 ||
         test_glyph_check_cannot_advance_later_page() != 0 ||

@@ -1,8 +1,24 @@
 # 项目工具速查
 
-以下命令从项目根目录执行。先查本文及专题，不为回忆语法反复调用 `--help`；工具版本／行为改变后再修订对应命令。开发约束见 [AGENTS.md](../../AGENTS.md)，完整分类见[文档索引](../README.md)。
+以下命令从项目根目录执行。命令按 PowerShell／Bash 标注，Python、环境变量、临时目录、二进制比较和历史绝对路径的转换见[跨平台约定](platforms.md)。先查本文及专题，不为回忆语法反复调用 `--help`；工具版本／行为改变后再修订对应命令。开发约束见 [AGENTS.md](../../AGENTS.md)，完整分类见[文档索引](../README.md)。
 
 ## 构建与回归
+
+开发验收执行当前平台的适用检查即可；下列另一平台命令用于维护兼容说明，不是当前任务必须补跑的前置。未执行的平台如实登记，当前平台必测项仍须实际注册并通过。
+
+Windows（PowerShell，Visual Studio Debug）：
+
+```powershell
+cmake -S src -B src/build-win
+cmake --build src/build-win --config Debug --parallel
+ctest --test-dir src/build-win -C Debug --output-on-failure
+python -m unittest discover -s tools/tests -p 'test_*.py'
+python tools/ida/check_src_addresses.py
+python -m unittest discover -s tools/tests -p test_ida_crosscheck.py
+git diff --check
+```
+
+Linux（Bash，单配置生成器）：
 
 ```bash
 cmake -S src -B src/build
@@ -10,7 +26,7 @@ cmake --build src/build --parallel
 ctest --test-dir src/build --output-on-failure
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
-# 无窗口资源／逻辑集成，不是正式输入或原版行为验收
+# 无窗口资源／逻辑集成，正式窗口另测
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/fd2sdl --field-play-once
 
 python3 tools/ida/check_src_addresses.py
@@ -19,9 +35,19 @@ git diff --check
 ```
 
 - 部分 CTest／Python 测试依赖原版资源或本地 LE 产物。Python seed／Ghidra 工具测试还需 `capstone`；缺依赖、跳过或未注册不能记为完整通过。
-- `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 用链接器替身验证正式循环错误出口，不启动窗口。
-- Linux/X11 的 `field_play_input` 由 CMake 在 X11、XTest 和 Xvfb 齐备时注册，驱动真实 SDL 键盘，不直接调用玩法 API。可先用 `ctest --test-dir src/build -N` 核实测试是否存在。
+- `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 在两平台单独编译正式循环并替换依赖，验证自动行动错误、场景错误、宿主退出和移动失败，不启动窗口。
+- `field_play_input` 驱动真实 SDL 键盘，不直接调用玩法 API。Windows 使用原生交互桌面；Linux/X11 需要 X11、XTest 和 Xvfb。用 `ctest --test-dir src/build-win -C Debug -N` 或 `ctest --test-dir src/build -N` 核实测试清单；未注册不算已测。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。
+
+### 图形自动化
+
+Windows 正式输入与进程树清理：
+
+```powershell
+ctest --test-dir src/build-win -C Debug --output-on-failure -R '^(field_play_input|graphics_job)$'
+```
+
+环境、WGC 单窗口规范和 Linux 对应入口见[图形自动化测试](gui-testing.md)。`graphics_job` 无窗口验证超时／错误／遗留子孙的按本轮 Job 清理，强制终止不能冒充正常退出。
 
 ### Sanitizer（Linux／Clang）
 
@@ -40,9 +66,11 @@ ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 cmake --build src/build --target fd2sdl --clean-first
 ```
 
-该 sanitizer 子集不覆盖窗口输入；窗口回归仍须由普通构建运行。构建目录和可执行文件不入库。
+该 sanitizer 子集不覆盖窗口输入；窗口回归仍须由普通构建运行。当前 Windows 任务不要求补跑该 Linux 子集；Windows 普通 CTest 通过也不登记为 Linux ASan／UBSan 通过，Windows MSVC 不能直接使用上述 Clang 参数。构建目录和可执行文件不入库。
 
 ## 调试与快速入口
+
+以下为 Linux 主程序路径；Windows Visual Studio Debug 将 `./src/fd2sdl` 替换为 `./src/Debug/fd2sdl.exe`，参数相同。Release／Ninja 路径见跨平台约定。
 
 | 命令 | 用途 |
 |---|---|
@@ -67,9 +95,11 @@ cmake --build src/build --target fd2sdl --clean-first
 | 已加载映像／内存取证 | [DOSBox debugger](dosbox-debug.md)：当次 selector/base、转储和离线比较 |
 | 必要的独立结构复核 | [Ghidra 结构验收](../reverse-engineering/ghidra-reconstruction.md)：不是日常语义基线 |
 
-`dosbox-debug --help` 会启动界面，禁止用作帮助探测。不得自动操作原版玩法，也不得将旧捕获中的 object base 复制到新运行。r2／objdump／Ghidra 仅按需使用，所有地址先查[映射](../reverse-engineering/address-mapping.md)。
+`dosbox-debug --help` 会启动界面，禁止用作帮助探测。原版玩法自动化必须运行独立副本，先确认逆向依据、场景步骤和通过判据，保留截图／存档／输入记录／必要 trace；不得将旧捕获中的 object base 复制到新运行。r2／objdump／Ghidra 仅按需使用，所有地址先查[映射](../reverse-engineering/address-mapping.md)。
 
 ### relocation-backed 指针表
+
+以下为 Bash 命令；PowerShell 将 `python3` 换成 `python`，参数不变。
 
 ```bash
 python3 tools/dump_fd2_fixup_table.py --ds 0x1d71 --count 30
@@ -80,6 +110,24 @@ python3 tools/dump_fd2_fixup_table.py --object 3 --ds 0x27d8 --count 96
 不要把未重定位镜像的 dword 直接当运行时指针；明确 object，再使用输出的 code0／relbase 坐标。
 
 ## 原版资源分析
+
+Windows（PowerShell）：
+
+```powershell
+python tools/dat_extract.py list original_game/FDOTHER.DAT
+python tools/dat_extract.py dump original_game/FDOTHER.DAT 7
+python tools/analyze_fdfield_events.py --stage 0
+python tools/analyze_fd2_stage_code.py --stage 0
+python tools/analyze_fd2_audio.py --json
+
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ('fd2-assets-' + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $work | Out-Null
+python tools/dat_extract.py extract original_game/FDOTHER.DAT "$work/other"
+python tools/analyze_fd2_audio.py --extract-sfx-dir "$work/sfx"
+python tools/analyze_fd2_audio.py --extract-music-dir "$work/music"
+```
+
+Linux（Bash）：
 
 ```bash
 python3 tools/dat_extract.py list original_game/FDOTHER.DAT
@@ -99,15 +147,28 @@ python3 tools/analyze_fd2_audio.py --extract-music-dir "$work/music"
 
 ### 离线音频对照
 
+两平台的比较脚本都只读取已有音频，另需 NumPy。capture 必须附确认的场景和调用依据，可由有判据的 DOSBox 自动取证产生。
+
+Windows（PowerShell；先将路径换成实际捕获和候选目录）：
+
+```powershell
+python tools/compare_fd2_sfx_capture.py "$work/capture.wav" --sample 5
+python tools/compare_fd2_music_capture.py "$work/capture.wav" "$work/xmi"
+```
+
+Linux（Bash）：
+
 ```bash
 python3 tools/compare_fd2_sfx_capture.py /tmp/capture.wav --sample 5
 bash tools/render_fd2_opl_prototype.sh 1   # 也可传 all；外部评估，不是运行依赖
 python3 tools/compare_fd2_music_capture.py /tmp/capture.wav /tmp/fd2-adlmidi-prototype/xmi
 ```
 
-capture 必须附人工确认的场景与调用依据；比较脚本另需 NumPy，只处理已有音频，不自动操作 DOSBox。原型需要上游源码、网络和本地构建工具，默认在 `/tmp/fd2-adlmidi-prototype` 工作，可通过 `FD2_ADLMIDI_WORK`／`FD2_ADLMIDI_EMULATOR` 调整；每次会重建其 `xmi/`，不要在该目录存放人工证据。比较全部候选前先渲染 `all`。结果范围与已否决候选见[音频依据](../reverse-engineering/audio.md)。
+`render_fd2_opl_prototype.sh` 是 Linux／Bash 外部评估脚本，不是 Windows 原生构建步骤，也不是运行依赖。Windows 可直接比较已有候选 WAV；需要重新生成历史原型时，在具有 Linux 编译器、CMake、Python 3 和 Git 的 WSL 中执行 Bash 命令，证据登记为 WSL／Linux 结果。原型需要上游源码、网络和本地构建工具，默认在 `/tmp/fd2-adlmidi-prototype` 工作，可通过 `FD2_ADLMIDI_WORK`／`FD2_ADLMIDI_EMULATOR` 调整；每次会重建其 `xmi/`，不要在该目录存放捕获证据。比较全部候选前先渲染 `all`。结果范围与已否决候选见[音频依据](../reverse-engineering/audio.md)。
 
 ## 二进制与工作区检查
+
+Windows 的 SHA-256、字节比较和十六进制读取见[跨平台约定](platforms.md#哈希二进制比较与发布清单)；以下二进制工具示例限定 Linux／Bash，Git 命令适用于两平台。
 
 ```bash
 xxd -g1 -s $((0x36014)) -l 128 original_game/FD2.EXE

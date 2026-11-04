@@ -84,6 +84,8 @@ VA=0x3231b OBJ=1 OFF=0x2231b
 
 ## 重建步骤
 
+下列短命令在 Linux 使用 `python3`，在 Windows PowerShell 使用 `python`，参数相同。先按[跨平台命令](../tools/platforms.md)确认 Python、临时目录和本机 Ghidra 路径。历史结构验收来自 Linux；没有重新执行时不能标记 Windows 已验收。
+
 先重建并独立验证 LE 数据：
 
 ```bash
@@ -117,7 +119,15 @@ python3 tools/rebuild_fd2_ghidra.py --functions --determinism-check
 python3 tools/rebuild_fd2_ghidra.py --decompile --determinism-check
 ```
 
-默认 Ghidra 位置为 `/tmp/ghidra_11.3.2_PUBLIC/support/analyzeHeadless`，官方 release ZIP 为 `/tmp/ghidra_11.3.2_PUBLIC_20250415.zip`。runner 启动前同时检查安装目录的 `application.version=11.3.2`、`application.release.name=PUBLIC`，以及 release ZIP SHA-256；任一不符即 fail-closed。其他位置分别通过 `--ghidra-headless` 和 `--ghidra-release-zip` 显式指定。
+脚本保留的历史 Linux 默认位置为 `/tmp/ghidra_11.3.2_PUBLIC/support/analyzeHeadless`，官方 release ZIP 为 `/tmp/ghidra_11.3.2_PUBLIC_20250415.zip`。Windows 必须指定本机 `support/analyzeHeadless.bat` 与原版 release ZIP，不能把 `/tmp` 路径照搬到 Windows。runner 启动前同时检查安装目录的 `application.version=11.3.2`、`application.release.name=PUBLIC`，以及 release ZIP SHA-256；任一不符即 fail-closed。其他位置分别通过 `--ghidra-headless` 和 `--ghidra-release-zip` 显式指定。
+
+Windows PowerShell 示例（路径须替换成本机安装，JDK 按该版 Ghidra 要求配置）：
+
+```powershell
+python tools/rebuild_fd2_ghidra.py --determinism-check --ghidra-headless 'C:/Tools/ghidra_11.3.2_PUBLIC/support/analyzeHeadless.bat' --ghidra-release-zip 'C:/Downloads/ghidra_11.3.2_PUBLIC_20250415.zip'
+```
+
+该命令是 Windows 复跑入口，不是 Windows 验收记录；若缺 Ghidra／JDK 或无法启动 batch，记录未执行并保留错误，不改用旧 Ghidra 伪 C 作为开发基线。
 
 ## 脚本分层
 

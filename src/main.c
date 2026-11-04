@@ -32,10 +32,10 @@
 #define WINDOW_W 960
 #define WINDOW_H 600
 
-_Static_assert(FD2_FIELD_PLAY_RETURN_COMPLETE == FD2_APP_FIELD_COMPLETE &&
-               FD2_FIELD_PLAY_RETURN_TITLE == FD2_APP_FIELD_TITLE &&
-               FD2_FIELD_PLAY_RETURN_HOST_QUIT == FD2_APP_FIELD_HOST_QUIT &&
-               FD2_FIELD_PLAY_RETURN_ERROR == FD2_APP_FIELD_ERROR,
+_Static_assert((int)FD2_FIELD_PLAY_RETURN_COMPLETE == (int)FD2_APP_FIELD_COMPLETE &&
+               (int)FD2_FIELD_PLAY_RETURN_TITLE == (int)FD2_APP_FIELD_TITLE &&
+               (int)FD2_FIELD_PLAY_RETURN_HOST_QUIT == (int)FD2_APP_FIELD_HOST_QUIT &&
+               (int)FD2_FIELD_PLAY_RETURN_ERROR == (int)FD2_APP_FIELD_ERROR,
                "field/app flow result mapping changed");
 
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */

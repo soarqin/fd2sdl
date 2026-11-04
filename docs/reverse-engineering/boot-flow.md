@@ -36,7 +36,7 @@ start @0x3ccb4
 | 标题前 | ANI[1] | 15 ms；结束／跳过后恢复 palette [8] |
 | 标题与菜单 | [7] 内嵌 sub[0] 背景、sub[1..6] 菜单图 | 固定 palette [8]，不是配置项 |
 
-滚动缓冲对应原版 `malloc(0x396c0)`；另一次 `malloc(0xa0)` 不是图像缓冲。ANI 插入段结束后恢复滚动缓冲、palette [101] 和亮度。静态切入由 `intro_cutaway @0x1f73f` 控制，等待 `1+6` BIOS tick 后返回滚动；其精确渐变时序仍需人工逐帧核对。
+滚动缓冲对应原版 `malloc(0x396c0)`；另一次 `malloc(0xa0)` 不是图像缓冲。ANI 插入段结束后恢复滚动缓冲、palette [101] 和亮度。静态切入由 `intro_cutaway @0x1f73f` 控制，等待 `1+6` BIOS tick 后返回滚动；其精确渐变时序仍需原版逐帧捕获核对。
 
 ### 滚动音效与闪电
 
@@ -59,4 +59,4 @@ object2 `DS:0x204e` 的有效阈值为：
 - `src/main.c` 编排启动，`title.[ch]` 管理阈值、闪电、菜单帧和反馈；`animation.c` 复现 `animation_play @0x20421` 与 AFM opcode 1/2/4/5/6/7/8/9。
 - `intro_anim_with_palette @0x1f81e` 的第三参数是可选调色板索引；`animation_play(anim_idx, frame_delay_ms, check_input)` 的第三参数才是是否检查输入。动画每帧先解码，再等待完整 delay，不能扣除解码／上传耗时。
 - RLE、菜单坐标／帧选择的局部机器码对照范围见 [9.5 报告](ida-bytecheck-9.5.md)。它不证明整个片头、调色板、声音或标题交互已经逐帧一致。
-- 启动视听与完整交互仍需开发者手工 DOSBox 对照；标题空闲是否回片头及其时序仍待原版证据。旧无范围「100% 像素一致」和基于旧地址的待办清单不再作为验收结论。
+- 启动视听与完整交互仍待 DOSBox 对照，可按[图形自动化测试](../tools/gui-testing.md)在独立副本上自动输入和捕获；标题空闲是否回片头及其时序仍待原版证据。旧无范围「100% 像素一致」和基于旧地址的待办清单不再作为验收结论。

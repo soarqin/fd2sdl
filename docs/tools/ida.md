@@ -1,8 +1,8 @@
 # IDA Domain API / idalib 操作说明
 
-本文记录通过 `idalib` 对 `original_game/FD2.EXE` 做分析、复核和反编译的已验证命令。当前本机环境为 IDA Pro 9.5，重导出字节与局部机器码执行对照见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)；历史 9.4 分析结论仍见 [`../reverse-engineering/ida-crosscheck.md`](../reverse-engineering/ida-crosscheck.md)。
+本文记录通过 `idalib` 对 `original_game/FD2.EXE` 做分析、复核和反编译的流程，分别列出 Windows PowerShell 与 Linux bash 命令。已有 IDA Pro 9.5 重导出和局部机器码执行证据来自 Linux，见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)；历史 9.4 分析结论仍见 [`../reverse-engineering/ida-crosscheck.md`](../reverse-engineering/ida-crosscheck.md)。Windows 环境需使用本机安装与工具解释器，不能沿用历史 `/home/soar/` 路径或将命令改写记为重新通过验收。
 
-**不要用 `ida`（GUI）或 `idat` 做自动化。** 本机 GUI 会占用显示器且无法在无人值守下操作；全部流程走 `idalib`。
+**不要用 `ida`（GUI）或 `idat` 做自动化。** 两个平台全部分析流程均走 `idalib`；Windows 桌面可用不改变数据库与证据的操作边界。
 
 ## 日常分析规范
 
@@ -13,25 +13,42 @@
 
 ## 环境
 
-IDA 当前安装在 `/home/soar/ida-pro-9.5`。Domain API 工具环境独立于项目运行依赖；首次使用时按 skill 初始化：
+Domain API 工具环境独立于项目运行依赖。先按本机会话提供的 skill 路径读取 `ida-domain-api` 与 `ida-domain-scripting`，不要假设 skill 总在 `~/.agents/skills/`。首次使用按 skill 初始化；以下安装目录、skill 目录与许可证均为示例，应替换成本机实际路径。
 
-```bash
-export IDADIR=/home/soar/ida-pro-9.5
-cd /home/soar/.agents/skills/ida-domain-scripting
+Windows PowerShell：
+
+```powershell
+$env:IDADIR = 'C:/Tools/IDA Professional 9.5'
+$idaSkill = 'C:/path/to/ida-domain-scripting'
+Push-Location $idaSkill
 uv run python setup.py
+Pop-Location
+$idaPython = Join-Path $idaSkill '.venv/Scripts/python.exe'
+& $idaPython -c "import idapro; import ida_domain; print('ok')"
 ```
 
-返回项目根目录后，使用这个工具解释器运行下文的 IDA 脚本；纯数据校验仍可使用系统 `python3`：
+Linux bash：
 
 ```bash
-IDA_PYTHON=/home/soar/.agents/skills/ida-domain-scripting/.venv/bin/python
+export IDADIR=/path/to/ida-pro-9.5
+ida_skill=/path/to/ida-domain-scripting
+pushd "$ida_skill"
+uv run python setup.py
+popd
+IDA_PYTHON="$ida_skill/.venv/bin/python"
 "$IDA_PYTHON" -c "import idapro; import ida_domain; print('ok')"
 ```
 
-本机已有许可证位于非默认目录。若打开程序报 `Cannot continue without a valid license`，可以按 IDA 官方的 `IDA_LICENSE` 机制选择该文件，仅对当前进程生效，不保存为偏好：
+返回项目根目录后，使用这个工具解释器运行下文的 IDA 脚本；纯数据校验可使用 Windows `python`／Linux `python3`。临时目录、哈希与清单校验见[跨平台命令](platforms.md)。
+
+若已有有效许可证位于非默认目录，打开程序报 `Cannot continue without a valid license` 时，可按 `IDA_LICENSE` 机制选择该文件，仅对当前 shell 及其子进程生效，不保存为偏好：
+
+```powershell
+$env:IDA_LICENSE = 'keyfile=C:/path/to/idapro.hexlic'
+```
 
 ```bash
-export IDA_LICENSE=keyfile=/home/soar/.config/Hex-Rays/idapro.hexlic
+export IDA_LICENSE=keyfile=/path/to/idapro.hexlic
 ```
 
 其他机器应使用自己的安装和有效许可证路径。不要复制、修改许可证，或自动代替开发者接受 EULA。
@@ -44,6 +61,31 @@ export IDA_LICENSE=keyfile=/home/soar/.config/Hex-Rays/idapro.hexlic
 `docs/generated/ida-canonical/`。
 
 以下流程会新建数据库并写入命名／原型，只在获准更新基线时执行。若只是重导出、比较字节，使用 [9.5 字节复核报告](../reverse-engineering/ida-bytecheck-9.5.md#复现与本地证据) 的临时目录流程，避免 exporter 清空已有的 `db/`。
+
+Windows PowerShell：
+
+```powershell
+# 1. 建库并导出
+& $idaPython tools/ida/ida_fd2_export.py
+# 2. 审计历史命名
+python tools/ida/fd2_name_audit.py --json tools/ida-out/ida-name-audit.json
+# 3. 临时副本原型取证
+& $idaPython tools/ida/ida_fd2_annotate.py --probe-only
+# 4. 写入已确认命名和原型
+& $idaPython tools/ida/ida_fd2_annotate.py
+# 5. 从标注库重新导出
+& $idaPython tools/ida/ida_fd2_export.py --idb tools/ida-out/db/FD2.EXE.i64
+# 6. 静态字节对照
+python tools/ida/verify_ida_vs_project.py --json tools/ida-out/ida-verify.json
+# 7. 发布命名登记
+python tools/ida/build_fd2_name_registry.py --markdown docs/reverse-engineering/function-names.md
+# 8. 导出伪 C
+& $idaPython tools/ida/ida_fd2_decompile.py --all --xrefs --out docs/generated/ida-canonical/fd2-ida-decomp-all.c
+# 9. 最后刷新清单；校验命令见 platforms.md
+python tools/ida/build_fd2_name_registry.py --checksums-only
+```
+
+Linux bash：
 
 ```bash
 # 1. 从原始 FD2.EXE 建库并跑自动分析，导出 segment / fixup / 函数 / 字符串
@@ -82,6 +124,15 @@ python3 tools/ida/build_fd2_name_registry.py --checksums-only
 `--checksums-only` 只为现有发布文件重建清单，不读取数据库或本地 IDA 导出，也不改写证据内容。全量伪 C、源码地址迁移报告或其他发布产物发生变化后，必须最后执行该命令。刷新校验和不等于重新验证证据语义；发布产物完整性及已有报告的结构检查由 `tools/tests/test_ida_crosscheck.py` 覆盖。
 
 ## 常用单点查询
+
+Windows PowerShell：
+
+```powershell
+& $idaPython tools/ida/ida_fd2_decompile.py --xrefs 0x25bf4 0x1f894
+& $idaPython tools/ida/ida_fd2_decompile.py --asm 0x3702f
+```
+
+Linux bash：
 
 ```bash
 # 反编译指定 VA，并列出调用者/被调用者

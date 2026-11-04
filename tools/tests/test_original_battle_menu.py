@@ -76,15 +76,24 @@ class BattleMenuOracleTest(unittest.TestCase):
         self.assertFalse(menu.match_indexed(frame, indexed, (232, 168))["ok"])
         self.assertFalse(menu.match_indexed(frame, Image.new("P", (1, 1)), (1, 1))["ok"])
 
-    def test_menu_highlight_and_explicit_march_capability_scope(self):
+    def test_menu_highlight_requires_enabled_march(self):
         original = parent(self.oracle, 3)
         sdl = parent(self.oracle, 3, march_disabled=True)
         self.assertIsNotNone(self.oracle.menu(original, 3))
         self.assertIsNone(self.oracle.menu(original, 0))
-        detail = self.oracle.menu(sdl, 3)
-        self.assertIsNotNone(detail)
+        self.assertIsNone(self.oracle.menu(sdl, 3))
+        self.assertIsNone(self.oracle.menu(sdl))
+        highlighted = parent(self.oracle, 1)
+        self.assertIsNotNone(self.oracle.menu(highlighted, 1))
+        self.assertIsNotNone(self.oracle.menu(highlighted))
+
+    def test_resource_comparison_includes_march_opaque_pixels(self):
+        original = parent(self.oracle, 3)
+        detail = self.oracle.menu(original, 3)
+        sdl = original.copy()
         self.assertTrue(menu.compare_resources(original, sdl, detail, self.oracle.assets)["ok"])
-        sdl.putpixel((150, 150), (255, 255, 255))
+        x, y = (a + b for a, b in zip(self.oracle.focus, menu.MENU_OFFSETS[1]))
+        sdl.putpixel((x + 1, y), (255, 255, 255))
         self.assertFalse(menu.compare_resources(original, sdl, detail, self.oracle.assets)["ok"])
 
     def test_fixture_must_have_empty_supported_visible_focus(self):

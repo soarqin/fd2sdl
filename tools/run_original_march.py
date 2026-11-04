@@ -15,8 +15,7 @@ import shutil
 import struct
 import sys
 
-ROOT = next(parent for parent in Path(__file__).resolve().parents
-            if (parent / "tools/run_original_end_turn.py").is_file())
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from fd2_movement_oracle import movement_table
 from run_graphics_tests import wait_log
@@ -116,7 +115,7 @@ def parent_menu(frame, oracle, selected):
     return {"kind": "strict_parent", "selected": selected, "matches": matches}
 
 class MarchOracle(RoundOracle):
-    # 旧兼容oracle允许March disabled但不接受其highlight；本场景March必须可用。
+    # 本场景使用全部普通／高亮资源，March禁用图不能作为可用菜单。
     def menu(self, frame, selected=None):
         return parent_menu(frame, self, selected)
 

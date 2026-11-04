@@ -116,9 +116,6 @@ class Oracle:
         matches = []
         for item, command in enumerate(PARENT_IDS):
             states = (0, 1) if selected is None else (1,) if selected == item else (0,)
-            # SDL 的 march 禁用是能力门，原版正常图与 SDL 禁用图分开核实。
-            if item == 1:
-                states = (0, 2)
             position = tuple(a + b for a, b in zip(self.focus, MENU_OFFSETS[item]))
             found = self.choices(frame, [command * 3 + state for state in states], position)
             if not found:
@@ -209,13 +206,11 @@ def wait_state(capture, name, predicate, report, *, timeout=15, transition=None)
 
 
 def compare_resources(original, actual, detail, assets):
-    """只对照已识别的资源像素；march 能力门与地形动画不在此像素范围。"""
+    """对照全部已识别的资源像素；地形动画不在此像素范围。"""
     expected_canvas = Image.new("RGB", SIZE)
     actual_canvas = Image.new("RGB", SIZE)
     checked = 0
     for match in detail.get("matches", []):
-        if match["frame"] // 3 == 5:
-            continue
         template = assets["commands"][match["frame"]]
         px, py = match["position"]
         for y in range(template.height):
@@ -228,7 +223,7 @@ def compare_resources(original, actual, detail, assets):
     result = compare(expected_canvas, actual_canvas)
     result["ok"] = result["ok"] and checked > 0
     result["checked_pixels"] = checked
-    result["scope"] = "identified opaque resource pixels; SDL march capability gate excluded"
+    result["scope"] = "all identified opaque resource pixels"
     return result
 
 

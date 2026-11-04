@@ -206,9 +206,125 @@ static int test_magic_commit(void) {
     CHECK(plan.magic_id == 0 && plan.score >= 6);
     CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
     CHECK(game.units.items[1].hp == 55);
-    CHECK(game.units.items[0].mp == 10); /* record +5 仅作 gate，不猜测扣 MP。 */
+    CHECK(game.units.items[0].mp == 8); /* 21227→1ca89在逐目标效果前扣一次2。 */
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 2);
+    return 0;
+}
+
+typedef struct {
+    test_rng rng;
+    const fd2_field_unit *actor;
+    uint16_t expected_mp;
+    int wrong_mp;
+} magic_cost_rng;
+
+static uint32_t cost_observing_roll(void *userdata) {
+    magic_cost_rng *check = userdata;
+    if (check->actor->mp != check->expected_mp) check->wrong_mp = 1;
+    return next_roll(&check->rng);
+}
+
+static int test_magic_cast_cost_before_targets(void) {
+    static const uint32_t rolls[16] = {0};
+    for (uint8_t id = 0; id < 28u; id++) {
+        /* 23/24尚未开放；25的AI评分恒0，不伪造可提交candidate。 */
+        if (id >= 23u && id <= 25u) continue;
+        uint32_t cells[8 * 8];
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        test_rng unused = {rolls, 16, 0};
+        init_game(&game, cells, attrs, &unused);
+        game.stage = 1;
+        game.units.count = 3;
+        game.units.items[0].mp = game.units.items[0].mp_max = 200;
+        teach_magic(&game.units.items[0], id);
+        const uint8_t *record = fd2_field_magic_record_get(id);
+        uint8_t cost_id = id == 17u ? 18u : id; /* 原226ea实参，不按相同现值省略。 */
+        const uint8_t *cost = fd2_field_magic_record_get(cost_id);
+        for (size_t i = 1; i < 3; i++) {
+            set_unit(&game.units.items[i], record[6] ? 0 : 2, (int)i + 1, 1);
+            game.units.items[i].hp_max = 1000;
+            game.units.items[i].hp = id >= 13u && id <= 16u ? 1 : 1000;
+            if (id == 20u || id == 21u)
+                game.units.items[i].detail_status[id - 20u] = 1;
+            if (id == 22u) teach_magic(&game.units.items[i], 0);
+        }
+        magic_cost_rng check = {{rolls, 16, 0}, &game.units.items[0],
+                               (uint16_t)(200u - cost[5]), 0};
+        game.attack_rng = cost_observing_roll;
+        game.attack_rng_userdata = &check;
+        fd2_field_ai_magic_candidate plan;
+        CHECK(fd2_field_ai_choose_magic_candidate(
+            &game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+        CHECK(plan.magic_id == id && plan.score >= 6);
+        uint8_t targets[FD2_FIELD_MAX_UNITS];
+        size_t target_count;
+        CHECK(fd2_field_ai_collect_magic_targets(
+            &game.map, &game.terrain, &game.units, id,
+            plan.cast_x, plan.cast_y, 0,
+            targets, sizeof(targets), &target_count) == 0);
+        if (record[4] != 0u) CHECK(target_count >= 2u);
+        CHECK(game.units.items[0].mp == 200 && check.rng.cursor == 0);
+        CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
+        CHECK(game.units.items[0].mp == check.expected_mp && !check.wrong_mp);
+        CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        if (id != 20u && id != 21u)
+            CHECK(check.rng.cursor > 0u);
+        else
+            CHECK(check.rng.cursor == 0u);
+    }
+    return 0;
+}
+
+static int test_magic_miss_and_immunity_still_cost(void) {
+    static const uint32_t rolls[] = {99};
+    for (int immune = 0; immune < 2; immune++) {
+        test_rng rng = {rolls, 1, 0};
+        uint32_t cells[8 * 8];
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        init_game(&game, cells, attrs, &rng);
+        uint8_t id = immune ? 10u : 0u;
+        teach_magic(&game.units.items[0], id);
+        game.units.items[0].mp = game.units.items[0].mp_max = 100;
+        if (immune) game.units.items[1].movement_profile = 19;
+        fd2_field_ai_magic_candidate plan;
+        CHECK(fd2_field_ai_choose_magic_candidate(
+            &game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+        CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
+        CHECK(game.units.items[0].mp == 100u - fd2_field_magic_record_get(id)[5]);
+        CHECK(game.units.items[1].hp == 50);
+        CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(rng.cursor == (immune ? 0u : 1u));
+    }
+    return 0;
+}
+
+static int test_magic_preflight_preserves_cost(void) {
+    static const uint32_t rolls[] = {0, 0};
+    for (int failure = 0; failure < 5; failure++) {
+        test_rng rng = {rolls, 2, 0};
+        uint32_t cells[8 * 8];
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        init_game(&game, cells, attrs, &rng);
+        teach_magic(&game.units.items[0], 0);
+        game.units.items[0].mp = game.units.items[0].mp_max = 10;
+        fd2_field_ai_magic_candidate plan;
+        CHECK(fd2_field_ai_choose_magic_candidate(
+            &game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+        switch (failure) {
+            case 0: ++plan.score; break;
+            case 1: game.units.items[1].movement_profile = 0; break;
+            case 2: fd2_field_unit_set_hidden(&game.units.items[1], 1); break;
+            case 3: game.units.items[0].mp = 1; break;
+            case 4: plan.magic_id = 23; break;
+        }
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == -1);
+        CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
+    }
     return 0;
 }
 
@@ -508,7 +624,7 @@ static int test_magic_item_tail_failure_preserves_commit(void) {
             CHECK(fd2_field_ai_choose_magic_candidate(&game.map, &game.terrain,
                       &game.units, 0, 0, &magic) == 0);
             CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &magic) == -1);
-            CHECK(game.units.items[1].hp == 55 && game.units.items[0].mp == 10);
+            CHECK(game.units.items[1].hp == 55 && game.units.items[0].mp == 8);
         }
         CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
         CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
@@ -835,6 +951,7 @@ static int test_behavior11_committed_magic_then_physical_failure_stops(void) {
     CHECK(fd2_field_game_process_automatic_action(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_ACTION);
     CHECK(game.units.items[1].hp == 255);
+    CHECK(game.units.items[0].mp == 8); /* 已扣费和magic效果不因后段失败退款。 */
     CHECK(rng.cursor == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 0);
@@ -1322,6 +1439,9 @@ int main(void) {
         test_common_tail_resets_all_directions() != 0 ||
         test_automatic_mode0() != 0 ||
         test_magic_commit() != 0 ||
+        test_magic_cast_cost_before_targets() != 0 ||
+        test_magic_miss_and_immunity_still_cost() != 0 ||
+        test_magic_preflight_preserves_cost() != 0 ||
         test_magic_damage_dispatch_boundaries() != 0 ||
         test_magic_heal_boundaries() != 0 ||
         test_unknown_magic_rejected() != 0 ||

@@ -28,6 +28,29 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x15311: [{
+        "target": "evidence",
+        "was": "静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门",
+        "now": "本体不直接写MP，但map-effect表的damage/heal/status wrapper在"
+               "逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。"
+               "动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证"
+               "所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。",
+        "why": "权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。"
+               "51d01的0..27 relocation表、21227/21b18/226ea等wrapper与"
+               "30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；"
+               "不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。",
+    }],
+    0x1CA89: [{
+        "target": "evidence",
+        "was": "中性sub_1CA89的MP消费写集未登记，AI消费被误当成只有gate",
+        "now": "保留中性名；输入actor index和cost-record ID，只把"
+               "actor+0x44的u16减去magic record+5的u8后写回；不夹0、不重新"
+               "检查MP，不消费RNG。map-effect wrapper在target循环前调用，"
+               "miss/免疫/状态无变化仍扣；目标选择取消尚未进入该helper。",
+        "why": "权威伪C和原始1ca89..1cac7逐指令一致，唯一单位写指令为"
+               "1cac1的mov word[actor+44],bx。15311和1cff0共用wrapper，"
+               "动画30e9d另由part标记触发；静态写集不等于完整实机施法验收。",
+    }],
     0x29300: [{
         "target": "evidence",
         "was": "普通战场的四槽手工存取dispatcher，可作为stage0菜单入口",

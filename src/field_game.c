@@ -2725,6 +2725,13 @@ static int commit_ai_magic_internal(
     }
 
     if (finish_action) game->pending_cell_event.valid = 0;
+    /* sub_1CA89 @0x1ca89（原登记 sub_1CA89）：map-effect wrapper 在
+     * 逐目标循环前单次写 actor+0x44 -= record+5；miss/免疫也不退款。
+     * ID17 的 sub_226EA @0x226ea 明确传 cost ID18；两者现值均为5。
+     * 此处只恢复无演出分支；FIGANI按caster part+4==1扣费，不假称等价。 */
+    const uint8_t *cost_record = fd2_field_magic_record_get(
+        plan->magic_id == 17u ? 18u : plan->magic_id);
+    actor->mp = (uint16_t)(actor->mp - cost_record[5]);
     for (size_t i = 0; i < target_count; i++) {
         int result = fd2_field_magic_apply_known_effect(
             plan->magic_id, targets[i], &game->units,

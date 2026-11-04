@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 204,
+ "canonical_functions": 205,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -1566,6 +1566,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 172
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门",
+     "now": "本体不直接写MP，但map-effect表的damage/heal/status wrapper在逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。",
+     "why": "权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。51d01的0..27 relocation表、21227/21b18/226ea等wrapper与30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。"
     }
    ],
    "end_va": 87182,
@@ -3442,6 +3450,29 @@
    "historical_names": [
     "field_magic_heal_apply"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 117385,
+   "off": 51849,
+   "ida_name": "sub_1CA89",
+   "size": 62,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "中性sub_1CA89的MP消费写集未登记，AI消费被误当成只有gate",
+     "now": "保留中性名；输入actor index和cost-record ID，只把actor+0x44的u16减去magic record+5的u8后写回；不夹0、不重新检查MP，不消费RNG。map-effect wrapper在target循环前调用，miss/免疫/状态无变化仍扣；目标选择取消尚未进入该helper。",
+     "why": "权威伪C和原始1ca89..1cac7逐指令一致，唯一单位写指令为1cac1的mov word[actor+44],bx。15311和1cff0共用wrapper，动画30e9d另由part标记触发；静态写集不等于完整实机施法验收。"
+    }
+   ],
+   "end_va": 117447,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []

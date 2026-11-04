@@ -292,7 +292,7 @@ class CommandTreeTest(unittest.TestCase):
 
 
 class OriginalSuiteRegistrationTest(unittest.TestCase):
-    def test_eleven_original_pairs_are_registered_and_new_pairs_use_default_start_fixture(self):
+    def test_original_pairs_require_opening_and_focus_before_other_windows(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
@@ -305,9 +305,13 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 suite.run()
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
-                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result"])
+                "original-opening", "original-focus", "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result"])
+            self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
+                             ["original-opening", "original-focus", "input"])
             by_name = {call.args[0]: call for call in pairs}
             for name, script, timeout in (
+                    ("original-opening", "run_original_opening.py", 1500),
+                    ("original-focus", "run_original_focus.py", 600),
                     ("original-overview", "run_original_overview.py", 360),
                     ("original-player", "run_original_player.py", 360),
                     ("original-player-wait", "run_original_player.py", 360),

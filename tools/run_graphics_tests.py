@@ -510,6 +510,14 @@ class Suite:
         before = hashes(ROOT / "original_game")
         self.report["original_hashes"] = before
         try:
+            if sys.platform == "win32":
+                # 自然站位与边缘镜头是后续菜单/动作截图的共同前置。
+                self.command("original-opening", [sys.executable, ROOT / "tools/run_original_opening.py",
+                             "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                             "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-opening"], timeout=1500)
+                self.command("original-focus", [sys.executable, ROOT / "tools/run_original_focus.py",
+                             "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                             "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-focus"], timeout=600)
             self.command("input", ["ctest", "--test-dir", self.args.build_dir, "-C", self.args.config,
                                    "--output-on-failure", "--no-tests=error", "-R", "^field_play_input$"])
             if sys.platform != "win32":

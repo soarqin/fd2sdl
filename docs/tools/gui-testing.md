@@ -42,6 +42,8 @@ DOSBox-X 不在 `PATH` 时，最后一条追加 `--dosbox 'C:/Tools/DOSBox-X/dos
 正式输入与原版对照可单独复跑：
 
 ```powershell
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 1500000 python tools/run_original_opening.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-opening
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_focus.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-focus
 ctest --test-dir src/build-win -C Debug -R '^field_play_input$' --output-on-failure
 python tools/run_original_comparison.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-comparison
 python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-battle-menu
@@ -53,6 +55,12 @@ python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --
 ```
 
 CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；总流程为每轮创建 `graphics-artifacts/<时间>/`，其中包括输入 trace、日志、原始截图、差异图、原版资源 SHA-256、子进程退出与清理记录及 `summary.json`。当前驱动的文件接口使用 Windows 当前代码页，测试产物目录先使用 ASCII 路径。总流程自动把 SDL 正式 UI 生成的 `storage-cancel/FD2.SAV` 传给原版配对。单独复跑时将示例的 fixture 路径换成该文件，并使用新的产物目录；不要拿任意高关卡存档要求仅支持 stage 0 的 SDL 呈现相同菜单。原版与转换产物不提交；只提交测试脚本、配置生成逻辑与文字结论。
+
+Windows 总流程先执行自然开场和边缘镜头配对，再执行快速战场入口、菜单和动作测试。自然开场必须从标题 START 经 stage 32／31／0，到首次可操作状态；`--field-play 0` 跳过引导，不能作为自然站位基线。117 个等待点各自通过文字、头像、框边和必要箭头的资源门后才发送一次确认键。首次焦点先截图确认，再向左一格打开正式 Save 测量；原始焦点与测量焦点分别报告。当前不宣称 RNG、完整场景像素、音频或精确时序相等。
+
+自然流程保留同一来源 `FD2.SAV`，但从 START 进入，不加载该来源。来源为其他关卡时，原版可读取活动档，SDL 只可恢复当前支持的 stage 0，因此 Save 测量前的 Load 图标可不同；必须按各端前置完整验证普通或禁用图，不排除该图标。原版次级 Load 只看文件能否打开，不能套用标题 CONTINUE 的 stage `0xff` 门。该 runner 对 stage 0 来源暂只接受已验证的真实 START 完整快照，其余来源明确报工具范围限制；这不代表游戏拒绝其他合法 stage 0 存档。
+
+边缘场景从 START 副本只改 actor0 坐标及 checksum，保留原焦点／镜头，使用 Z 聚焦到左上和右下目标。以干燥静态地块唯一识别相机，再检查选择范围、COMMAND 四个完整图标及角色遮挡，最后逐级取消。合成坐标不冒称自然开场；原版可用命令与 SDL 开放能力分别登记。地图边界和 same-target 行为遵循原版，不要求所有焦点始终居中。总流程约需半小时，外部超时应至少预留 45 分钟，并用 `run-job` 管理本轮进程树。
 
 ## Linux 运行
 
@@ -71,6 +79,8 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | 层 | 场景 | 通过依据 |
 |---|---|---|
 | 基础回归 | 资源、状态机、存档、声音、错误出口 | CTest 与 Python 的实际注册、执行及退出码；Release 也不得禁用测试断言 |
+| 原版共同前置：自然开场 | 标题 START → 32／31／0 的 117 个等待点 → 首次浏览 → 显式 UI Save | 逐页资源 ACK；12 名角色身份、阵营、坐标、方向、隐藏／行动标记及阶段／计数／资源／相机／焦点核对；不使用已操作 START.SAV 的坐标推导自然终态 |
+| 原版共同前置：边缘镜头 | 坐标派生副本 → Z → selection → COMMAND → 两级取消 | 左上／右下合计覆盖四向卷动，唯一地块识别镜头、完整范围格与四图标；内容／mtime 不变；地图边界和同目标例外另由坐标核心回归覆盖 |
 | SDL 正式输入 | 移动后待机、acted gate、完整 phase、普通攻击和致死双击 | 真实宿主键盘到 SDL 循环；固定 seed 仅用于复现；生产日志断言与非空窗口帧 |
 | SDL 系统菜单 | 移动取消、存档确认取消、Save → 改变状态／配置 → Load → 再次 Save → 继续行动 | 取消不提交行动／文件；校验 checksum、stage、turn 和配置；重写后快照与加载源一致，恢复后可待机 |
 | SDL 首次保存 | 无活动文件时从正式菜单 Save | 肯定前没有文件，肯定后 checksum、metadata、active／roster 独立数量有效，手工槽为空；不能只测已有文件覆盖 |

@@ -245,7 +245,9 @@ class RoundOracle(Oracle):
                     "focus_screen": list(self.focus)}
         return None
 
-    def secondary(self, frame, selected, *, overview_available=True):
+    def secondary(self, frame, selected, *, overview_available=True, load_available=True):
+        if selected == 2 and not load_available:
+            return None
         matches = []
         for item, command in enumerate((12, 13, 14, 15)):
             position = tuple(a + b for a, b in zip(self.focus, MENU_OFFSETS[item]))
@@ -256,7 +258,8 @@ class RoundOracle(Oracle):
                     return None
                 matches.append({"capability": "overview unavailable", "excluded": True})
                 continue
-            states = (0, 1) if selected is None else (1,) if selected == item else (0,)
+            states = (2,) if item == 2 and not load_available else (
+                (0, 1) if selected is None else (1,) if selected == item else (0,))
             found = self.choices(frame, [command * 3 + state for state in states], position)
             if not found:
                 return None

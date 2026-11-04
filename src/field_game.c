@@ -37,6 +37,7 @@
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
 
 static int recover_stationary_unit(fd2_field_game *game, size_t actor_index);
+static int focus_to(fd2_field_game *game, int x, int y);
 static int finish_unit_action_internal(fd2_field_game *game,
                                        int physical_action);
 static int resolve_physical_exchange(fd2_field_game *game,
@@ -637,16 +638,8 @@ static void advance_phase(fd2_field_game *game) {
          * field_focus_move_to @0x12cea 的镜头阈值；失败不继续改焦点。 */
         if (game->failure == FD2_FIELD_FAILURE_NONE && game->units.count) {
             const fd2_field_unit *leader = &game->units.items[0];
-            while (game->cursor_cell_x != leader->x) {
-                if (!fd2_field_game_move_cursor(
-                        game, game->cursor_cell_x < leader->x ? 1 : -1, 0))
-                    break;
-            }
-            while (game->cursor_cell_y != leader->y) {
-                if (!fd2_field_game_move_cursor(
-                        game, 0, game->cursor_cell_y < leader->y ? 1 : -1))
-                    break;
-            }
+            if (focus_to(game, leader->x, leader->y) != 0)
+                fail_action(game, 0);
         }
     }
 }
@@ -1344,15 +1337,15 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     int new_y = clamp_int(old_y + dy, 0, game->map.height - 1);
     if (new_x == old_x && new_y == old_y) return 0;
 
-    /* field_focus_move_to @0x12cea：焦点向视窗外侧移动前若已达到
-     * 左/右 2/11、上/下 2/6 阈值，则光标与镜头同步移动一格。 */
+    /* sub_11C59/11B48 @0x11c59/@0x11b48（原登记同名）：移动前相对格
+     * 左/上严格<2才卷动；右/下>=11/>=6。地图边缘仍受camera范围限制。 */
     int rel_x = old_x - game->camera_cell_x;
     int rel_y = old_y - game->camera_cell_y;
-    if (new_x < old_x && rel_x <= 2)
+    if (new_x < old_x && rel_x < 2)
         fd2_field_game_move_camera(game, -1, 0);
     else if (new_x > old_x && rel_x >= 11)
         fd2_field_game_move_camera(game, 1, 0);
-    if (new_y < old_y && rel_y <= 2)
+    if (new_y < old_y && rel_y < 2)
         fd2_field_game_move_camera(game, 0, -1);
     else if (new_y > old_y && rel_y >= 6)
         fd2_field_game_move_camera(game, 0, 1);
@@ -1363,6 +1356,25 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     if (game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED)
         (void)fd2_field_game_update_move_preview(game);
     return 1;
+}
+
+/* field_focus_move_to @0x12cea（原登记 FUN_00010432）：先X后Y，逐格
+ * 复用browse方向移动；不居中，不在同目标时额外卷动。预检两轴后才写入。 */
+static int focus_to(fd2_field_game *game, int x, int y) {
+    if (!game || !game->ready || x < 0 || y < 0 ||
+        x >= game->map.width || y >= game->map.height)
+        return -1;
+    while (game->cursor_cell_x != x) {
+        if (!fd2_field_game_move_cursor(
+                game, game->cursor_cell_x < x ? 1 : -1, 0))
+            return -1;
+    }
+    while (game->cursor_cell_y != y) {
+        if (!fd2_field_game_move_cursor(
+                game, 0, game->cursor_cell_y < y ? 1 : -1))
+            return -1;
+    }
+    return 0;
 }
 
 int fd2_field_game_cycle_focus(fd2_field_game *game) {
@@ -1380,23 +1392,11 @@ int fd2_field_game_cycle_focus(fd2_field_game *game) {
             (unit->flags & FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE) ||
             fd2_field_unit_has_acted(unit) || unit->side != 2u)
             continue;
+        /* field_controller_input @0x117e7（原登记同名）先经12d7b/12cea
+         * 完成聚焦，再推进轮询owner；非法actor目标不留下半次聚焦。 */
+        if (focus_to(game, unit->x, unit->y) != 0) return -1;
         game->focus_cycle_unit = (index + 1u) % game->units.count;
-        game->cursor_cell_x = unit->x;
-        game->cursor_cell_y = unit->y;
         game->detail_acknowledged_unit = -1;
-        /* field_focus_move_to_actor @0x12d7b：焦点随 actor 坐标更新，
-         * 光标进入可视范围时沿用现有 2/11、2/6 镜头阈值。 */
-        int rel_x = game->cursor_cell_x - game->camera_cell_x;
-        int rel_y = game->cursor_cell_y - game->camera_cell_y;
-        if (rel_x < 0) fd2_field_game_move_camera(game, rel_x, 0);
-        else if (rel_x >= FD2_FIELD_VIEW_CELLS_X)
-            fd2_field_game_move_camera(game,
-                                       rel_x - FD2_FIELD_VIEW_CELLS_X + 1,
-                                       0);
-        if (rel_y < 0) fd2_field_game_move_camera(game, 0, rel_y);
-        else if (rel_y >= FD2_FIELD_VIEW_CELLS_Y)
-            fd2_field_game_move_camera(game, 0,
-                                       rel_y - FD2_FIELD_VIEW_CELLS_Y + 1);
         return (int)index;
     }
     return -1;
@@ -1836,14 +1836,7 @@ int fd2_field_game_cancel_attack(fd2_field_game *game) {
      * 上层重开指令菜单。沿用同一 X 后 Y 顺序以同步恢复镜头。 */
     const fd2_field_unit *attacker =
         &game->units.items[game->selected_unit];
-    while (game->cursor_cell_x != attacker->x) {
-        int dx = game->cursor_cell_x < attacker->x ? 1 : -1;
-        if (!fd2_field_game_move_cursor(game, dx, 0)) break;
-    }
-    while (game->cursor_cell_y != attacker->y) {
-        int dy = game->cursor_cell_y < attacker->y ? 1 : -1;
-        if (!fd2_field_game_move_cursor(game, 0, dy)) break;
-    }
+    if (focus_to(game, attacker->x, attacker->y) != 0) return 0;
     game->attack_target = -1;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     (void)fd2_field_game_refresh_commands(game);
@@ -3044,19 +3037,9 @@ int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
         if (vga && fd2_input_take_quit(&vga->input)) return 1;
         /* 原版先focus actor，再清共享slot；后续actor不能把移动后的focus
          * 当成新anchor。焦点移动沿现有X→Y镜头阈值，不改变固定anchor。 */
-        while (game->cursor_cell_x != actor->x) {
-            if (!fd2_field_game_move_cursor(
-                    game, game->cursor_cell_x < actor->x ? 1 : -1, 0)) {
-                fail_action(game, i);
-                return -1;
-            }
-        }
-        while (game->cursor_cell_y != actor->y) {
-            if (!fd2_field_game_move_cursor(
-                    game, 0, game->cursor_cell_y < actor->y ? 1 : -1)) {
-                fail_action(game, i);
-                return -1;
-            }
+        if (focus_to(game, actor->x, actor->y) != 0) {
+            fail_action(game, i);
+            return -1;
         }
         game->pending_cell_event.valid = 0;
         if (commit_ai_move_toward_anchor(

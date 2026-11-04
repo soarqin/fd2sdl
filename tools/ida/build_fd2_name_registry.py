@@ -28,6 +28,26 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x12CEA: [{
+        "target": "evidence",
+        "was": "左／上达到相对格2就卷动；已列控制夹具足以证明聚焦镜头",
+        "now": "field_focus_move_to先X后Y逐格调用四方向。移动前旧relative"
+               "左／上严格<2、右>=11、下>=6时才同步卷动；相机受地图边界限制，"
+               "target已等于focus时不动，不是固定居中或只夹到可见范围。",
+        "why": "权威12cea与原始11b62/11c73的jge、11c19/11bba的jle；"
+               "13×8格、每格24px和4px边。旧SDL<=2提前一格，Z直接赋值又"
+               "跳过逐格路径；scene已有严格<2版本，不能用测试安全导航替代边缘验收。",
+    }],
+    0x12D7B: [{
+        "target": "evidence",
+        "was": "聚焦actor只需使其进入可见范围，Z可直接更新坐标后夹相机",
+        "now": "field_focus_move_to_actor读取raw actor的xy后调用12cea；"
+               "117e7按flags&85==0且side2选中后，先完成聚焦再推进轮询owner。"
+               "END、攻击取消和March的已确认调用复用同一坐标路径。",
+        "why": "权威117e7/12d7b及四方向原始分支。cam(5,11)、focus(8,15)"
+               "到actor(2,5)最终cam(1,4)，到(20,22)最终cam(9,16)；"
+               "地图边缘或same-target不承诺额外一格空白。运行对照另行登记。",
+    }],
     0x205B4: [{
         "target": "evidence",
         "was": "stage0结果handler仅有静态调用和SDL分派证据",

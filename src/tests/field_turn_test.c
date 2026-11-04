@@ -27,6 +27,8 @@ static void init_game(fd2_field_game *game, size_t *rng_calls) {
     memset(game->metadata.turn_events, 0xff,
            sizeof(game->metadata.turn_events));
     game->ready = 1;
+    game->map.width = 24;
+    game->map.height = 24;
     game->turn_number = 1;
     game->active_side = 2;
     game->selected_unit = -1;
@@ -198,7 +200,7 @@ static int test_new_round_restores_leader_focus_and_cycle(void) {
     CHECK(fd2_field_game_end_active_phase(&game) == 0);
     CHECK(game.turn_number == 2 && game.active_side == 2);
     CHECK(game.cursor_cell_x == 7 && game.cursor_cell_y == 14);
-    CHECK(game.camera_cell_x == 5 && game.camera_cell_y == 12);
+    CHECK(game.camera_cell_x == 6 && game.camera_cell_y == 13);
     CHECK(game.focus_cycle_unit == 0 && game.detail_acknowledged_unit == -1);
     CHECK(fd2_field_game_cycle_focus(&game) == 0);
     CHECK(game.focus_cycle_unit == 1 && rng_calls == 0);

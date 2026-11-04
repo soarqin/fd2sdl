@@ -268,5 +268,3 @@ def compare_measurements(original, sdl):
             raise AssertionError(f"natural START original/SDL mismatch: {field}")
     return {"ok":True,"compared_fields":list(fields),"actor_count":12,
             "excluded":"RNG, full scene pixels/timing/audio, unknown active and raw roster bytes"}
-
-

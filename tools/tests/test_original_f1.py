@@ -249,6 +249,75 @@ class F1OracleTest(unittest.TestCase):
             rgb.putpixel(point, tuple(255 - channel for channel in color))
             self.assertIsNone(oracle.match(rgb), point)
 
+    def test_sdl_reuses_valid_first_phase_and_keeps_same_page_water_lock(self):
+        source, focus, assets, composites, base, safe, actor, plan = self.prepared
+        for drift in (False, True):
+            with self.subTest(drift=drift), tempfile.TemporaryDirectory() as directory:
+                save = Path(directory) / "FD2.SAV"
+                save.write_bytes(b"unchanged")
+                stamp = save.stat().st_mtime_ns
+                capture = Mock(artifacts=Path(directory))
+                capture.process.pid = 123
+                capture.process.wait.return_value = capture.process.poll.return_value = 0
+                names = []
+                first_images = {}
+
+                def actual(frames, phase, cycle=15):
+                    image = frames[phase].copy()
+                    image.putpalette(assets["f1_palette_cycles"][cycle]["palette"])
+                    return image.convert("RGB")
+
+                def wait(capture, name, predicate, records, **kwargs):
+                    names.append(name)
+                    frames = actor if name.startswith("actor0-focus-") else safe
+                    if name.endswith("-pulse-first"):
+                        image = actual(frames, 2)
+                        invalid = image.copy()
+                        invalid.putpixel((0, 0), (255, 255, 255))
+                        self.assertIsNone(predicate(invalid), "坏首图不能校准或收作phase2")
+                        detail = predicate(image)
+                        self.assertIsNotNone(detail)
+                        self.assertEqual(detail["water_palette_cycle_candidates"], [15])
+                        first_images[name.removesuffix("-pulse-first")] = image
+                        return image, detail
+                    if "-native-phase" in name:
+                        self.assertTrue(name.endswith("phase4"), "首图phase2不得再次等待")
+                        image = actual(frames, 4, cycle=0 if drift else 15)
+                        detail = predicate(image)
+                        self.assertIsNotNone(detail)
+                        return image, detail
+                    return Image.new("RGB", (320, 200)), {}
+
+                report = {"checkpoints": [], "observed_pulses": [], "inputs": []}
+                with patch.object(probe, "wait_title"), patch.object(probe, "wait_state", side_effect=wait), \
+                        patch.object(probe.time, "sleep"), patch.object(probe, "driver_call") as close:
+                    if drift:
+                        with self.assertRaisesRegex(AssertionError, "水DAC漂移"):
+                            probe.exercise(capture, source, focus, assets, composites, safe, actor, plan,
+                                           {3: [None] * 3}, save, b"unchanged", stamp,
+                                           report, observations(phases=(4, 2)))
+                    else:
+                        observed = probe.exercise(capture, source, focus, assets, composites, safe, actor, plan,
+                                                  {3: [None] * 3}, save, b"unchanged", stamp,
+                                                  report, observations(phases=(4, 2)))
+                if drift:
+                    close.assert_not_called()
+                    self.assertFalse(report["observed_pulses"])
+                    self.assertEqual(capture.key.call_args_list[-1].args, ("F1",))
+                    self.assertIn("水DAC漂移", report["phase_samples"][-1]["error"])
+                else:
+                    self.assertEqual(len([name for name in names if "-native-phase" in name]), 4)
+                    for name, page in observed.items():
+                        self.assertEqual(set(page["frames"]), {4, 2})
+                        self.assertIs(page["frames"][2], first_images[name])
+                        self.assertEqual(page["first_frame_reused_for_native_phase"], 2)
+                        self.assertEqual(page["water_palette_cycle_candidates"], [15])
+                    close.assert_called_once_with(capture.driver, "close", capture.process)
+                    self.assertEqual([call.args[0] for call in capture.key.call_args_list
+                                      if call.args[0] in ("F1", "PAGEUP")], ["F1", "PAGEUP", "F1", "F1"])
+                self.assertEqual(save.read_bytes(), b"unchanged")
+                self.assertEqual(save.stat().st_mtime_ns, stamp)
+
 
 class F1SamplingTest(unittest.TestCase):
     @classmethod
@@ -332,9 +401,9 @@ class F1SamplingTest(unittest.TestCase):
         self.assertEqual(sleep.call_count, 3)
 
 
-def observations(color=20, cycle=0):
+def observations(color=20, cycle=0, phases=(3, 4)):
     return {name: {"frames": {phase: Image.new("RGB", (320, 200), (color + phase,) * 3)
-                              for phase in (3, 4)},
+                              for phase in phases},
                    "water_palette_cycle_candidates": [cycle]}
             for name in ("f1-escape", "pageup-right", "f1-letter", "actor0-focus-overlays-side-marker")}
 

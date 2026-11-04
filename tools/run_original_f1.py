@@ -245,6 +245,7 @@ def exercise(capture, source, focus, assets, composites, safe_frames, actor_fram
         for phase, expected in enumerate(oracle.frames):
             expected.save(capture.artifacts / f"{name}-oracle-phase{phase}.png")
         captured = {}
+        reused_first = None
         if original_observations is None:
             captured[first["pulse_phase"]] = image
             distinct_name = name + "-pulse-distinct"
@@ -252,14 +253,22 @@ def exercise(capture, source, focus, assets, composites, safe_frames, actor_fram
                 oracle, samples, distinct_name, excluded=(first["pulse_phase"],)))
             captured[second["pulse_phase"]] = image
         else:
-            # 首帧只校准该端合法DAC；随后等到实际原版的两个marker phase。
+            # 首帧校准该端合法DAC；收齐实际原版的两个marker phase。
             # 不补键、不调整时钟，不要求两端进入前水色周期同步。
-            for phase in original_observations[name]["frames"]:
+            required = original_observations[name]["frames"]
+            # 首帧已通过同一完整资源门；若也满足目标，就保留，避免重复等相位。
+            if first["pulse_phase"] in required:
+                captured[first["pulse_phase"]] = image
+                reused_first = first["pulse_phase"]
+            for phase in required:
+                if phase in captured:
+                    continue
                 phase_name = f"{name}-native-phase{phase}"
                 image, _ = checkpoint(phase_name, phase_sampler(
                     oracle, samples, phase_name, target=phase))
                 captured[phase] = image
         summary = {"name": name, "phases": list(captured),
+                   "first_frame_reused_for_native_phase": reused_first,
                    "water_palette_cycle_candidates": oracle.water_candidates,
                    "resource_checked_pixels_per_frame": 64000,
                    "water_black_and_zero_included": True}

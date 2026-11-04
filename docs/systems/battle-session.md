@@ -43,10 +43,10 @@
 
 ### 查询与取消
 
-- 列表、范围、目标预览和菜单绘制不修改单位、HP/MP、物品、acted、phase 或 RNG；只允许更改对应的临时 UI／派生缓存。
+- 列表查询、范围、目标预览和菜单绘制不修改单位、HP/MP、物品、acted、phase 或 RNG；只允许更改对应的临时 UI／派生缓存。真实输入等待与纯查询分开：原版法术列表的 `field_player_magic_list_select_step @0x1d51d` 调用 `sub_16C57 @0x16c57`，进入等待及头像闪烁重置会消费共享RNG，不能省略或另建UI随机流。
 - 提交时必须按当前状态重验，不接受过期候选。对多目标动作，要在第一个目标消费 RNG 前完成全部目标的数据与支持性检查。
-- targeting 取消先回 COMMAND，保留当前临时移动位置；COMMAND 取消才恢复本次移动前坐标、方向和镜头。不能把两级取消合并。
-- 法术／物品列表及施法中心取消各回来源页；不扣资源、不标 acted、不触发 cell handler。原版若有例外，必须用调用点证据单独登记后实现。
+- 普通攻击targeting取消先回COMMAND，保留当前临时移动位置；COMMAND取消才恢复本次移动前坐标、方向和镜头。不能把两级取消合并。
+- 法术列表取消回COMMAND并重新选择首个可用命令；法术目标取消先聚焦施法者，再重开列表第0项。两者均保留临时移动及pending，不扣资源、不标acted、不触发cell handler；真实等待的RNG消费保留。物品的返回路径仍须按对应调用点确认。
 - Options toggle 属于已经提交的配置操作，不能套用未提交战斗动作的取消规则。
 
 ### 提交边界与 RNG
@@ -62,6 +62,8 @@
 ### 玩家法术／物品扩展（B2/B3，待实施）
 
 在现有交互状态中区分列表选择、施法中心／目标确认和返回路径，不将攻击专用 `TARGETING` 未加区分地用于全部命令。列表可用性取自原版玩家入口，已确认范围和 effect helper 可复用。
+
+列表状态已接入：MAGIC_LIST保存临时索引，step不负责关闭，取消关闭后才回COMMAND。原版18890对非零路径禁法，只有unit ID18／19／34例外；此门与空法术、record+0x27禁止状态共同检查。低MP只阻止当前项确认。正式入口仍等待目标和提交能力门，不能把低层API可测误写成菜单已开放。
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。
 
@@ -174,7 +176,7 @@ BGM 仍由应用层持有，只把必要的曲目请求或现有播放器引用�
 
 ## 7. 验证要求
 
-- 同一状态与注入 RNG 序列下，查询／取消／预检拒绝逐字段不变；成功动作只提交一次，并断言 RNG 消费次数。
+- 同一状态与注入 RNG 序列下，纯查询／提交前拒绝逐字段不变；取消检查业务状态及各级返回路径，真实UI等待按已确认调用点断言RNG消费，不能要求退款。成功动作只提交一次，并断言RNG消费次数。
 - 故障注入区分提交前与提交后，验证没有自动重放、额外 phase、双重释放或原档损坏。
 - 每种正式命令、存取与退出原因均通过真实 SDL 输入到达；快速入口与直接 session API 测试分别报告，不互相替代。
 - 新显示场景保留 DOSBox 截图／操作／时序证据，可按[图形自动化测试](../tools/gui-testing.md)在独立副本上自动获取；没有确认判据的自动运行不记为通过。Windows 原生窗口输入与 Linux Xvfb/XTest 的执行结果分别登记。现有菜单机器码差分只验证坐标与帧选择，RLE 差分只验证指定解码分支，范围见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)。

@@ -10,6 +10,8 @@
  * field_defeated_units_finalize @0x1db65（entry @0x1db65）、
  * field_player_unit_action @0x18890（原登记同名）、
  * field_controller_input @0x117e7（原登记同名）与sub_13565 @0x13565。
+ * 法术列表边界依据field_player_magic_command_execute @0x1cff0（原登记同名）
+ * 与field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）。
  */
 
 #include "field_game.h"
@@ -1798,6 +1800,60 @@ int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
     return 0;
 }
 
+static int magic_list_actor_is_valid(const fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->player_post_waiting_phase || game->active_side != 2 ||
+        game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count)
+        return 0;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    /* field_player_unit_action @0x18890：非零路径后，指令VA 0x18a63..
+     * 0x18a72仅让unit18/19/34保留MAGIC，其他ID置disabled[1]。 */
+    return unit_can_act_for_side(actor, 2) &&
+           !fd2_field_unit_has_acted(actor) && !actor->detail_status[2] &&
+           (game->move_path_length == 0 || actor->unit_id == 18 ||
+            actor->unit_id == 19 || actor->unit_id == 34);
+}
+
+int fd2_field_game_begin_magic_list(fd2_field_game *game) {
+    if (!magic_list_actor_is_valid(game) ||
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND)
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    size_t count = fd2_field_unit_magic_list_build(actor, NULL, 0);
+    int selected = 0;
+    uint8_t id = 0;
+    /* 完整record预检复用纯选择器；12项是现有画面的可见支持门。
+     * MP不足不禁止进入列表，只有确认受费用门约束。 */
+    if (count == 0 || count > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
+        fd2_field_magic_list_select_step(actor, &selected,
+            FD2_FIELD_MAGIC_LIST_KEY_OTHER, &id) != 0)
+        return -1;
+    game->magic_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_MAGIC_LIST;
+    return 0;
+}
+
+int fd2_field_game_magic_list_step(fd2_field_game *game,
+                                   fd2_field_magic_list_key key,
+                                   uint8_t *confirmed_id) {
+    if (!magic_list_actor_is_valid(game) ||
+        game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST)
+        return -2;
+    return fd2_field_magic_list_select_step(
+        &game->units.items[game->selected_unit], &game->magic_list_selected,
+        key, confirmed_id);
+}
+
+int fd2_field_game_end_magic_list(fd2_field_game *game) {
+    if (!magic_list_actor_is_valid(game) ||
+        game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST)
+        return -1;
+    game->magic_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    return fd2_field_game_refresh_commands(game);
+}
+
 int fd2_field_game_begin_attack(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
@@ -2151,6 +2207,8 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
     if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU)
         return fd2_field_game_cancel_system_menu(game) !=
                FD2_FIELD_SYSTEM_ACTION_NONE;
+    if (game->interaction == FD2_FIELD_INTERACTION_MAGIC_LIST)
+        return fd2_field_game_end_magic_list(game) == 0;
     if (game->selected_unit < 0) return 0;
     if (game->interaction == FD2_FIELD_INTERACTION_TARGETING)
         return fd2_field_game_cancel_attack(game);

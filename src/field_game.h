@@ -15,6 +15,7 @@
 #include "field_manual_slot.h"
 #include "field_handoff.h"
 #include "field_info.h"
+#include "field_magic.h"
 #include "field_path.h"
 #include "field_unit.h"
 #include "field_visual.h"
@@ -94,7 +95,8 @@ typedef enum {
     FD2_FIELD_INTERACTION_TARGETING,
     FD2_FIELD_INTERACTION_SYSTEM_MENU,
     FD2_FIELD_INTERACTION_MANUAL_SLOT,
-    FD2_FIELD_INTERACTION_AUXILIARY
+    FD2_FIELD_INTERACTION_AUXILIARY,
+    FD2_FIELD_INTERACTION_MAGIC_LIST
 } fd2_field_interaction;
 
 /* 正式战场 session。
@@ -169,6 +171,9 @@ typedef struct {
     uint8_t command_animation_phase;
     uint8_t command_animation_opening;
     uint64_t last_command_highlight_ms;
+    /* field_player_magic_command_execute @0x1cff0 的53C57等价索引；
+     * 只归列表交互，不写入原版单位或存档。 */
+    int magic_list_selected;
 
     /* M6 无演出攻击的 SDL 旁路状态；不改变原版 0x50 字节记录布局。 */
     int attack_target;
@@ -327,6 +332,16 @@ int fd2_field_game_attack_is_available(const fd2_field_game *game);
 int fd2_field_game_begin_attack(fd2_field_game *game);
 int fd2_field_game_resolve_attack(fd2_field_game *game);
 int fd2_field_game_cancel_attack(fd2_field_game *game);
+
+/* 1cff0／1d51d 的列表状态边界。begin/end成功0、拒绝-1；step沿用
+ * 纯选择函数的-2/-1/0/1。step不关闭列表，宿主先完成关闭动画再end或
+ * 进入目标选择。end只回COMMAND，不回滚临时移动或清pending。
+ * 正式MAGIC仍由完整目标／提交能力门控制。 */
+int fd2_field_game_begin_magic_list(fd2_field_game *game);
+int fd2_field_game_magic_list_step(fd2_field_game *game,
+                                   fd2_field_magic_list_key key,
+                                   uint8_t *confirmed_id);
+int fd2_field_game_end_magic_list(fd2_field_game *game);
 
 /* M7.3 显式物理提交事务：重新计算 actor 当前移动范围及最优物理候选，
  * 仅当与传入 plan 完全一致时重建路径、提交移动，再复用

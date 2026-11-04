@@ -298,10 +298,11 @@ fd2_field_battle_result fd2_field_game_battle_result(
         if (unit->side == 0u) have_hostile = 1;
     }
     if (game->stage == 0u) {
-        /* DS:0x1b19[0] -> 正确 dual 0x205b4：stage 0 handler 先把
+        /* sub_205B4 @0x205b4（原登记中性名），DS:0x1b19[0]：先把
          * 0x3ecc 设为 2；只要仍有可见 side 0 actor 就清回 0；随后
          * actor 0（新游戏的主角）隐藏时覆盖为 1。这里直接暴露其
-         * 可观察结果，避免把未加载的 future group 当作胜负门。 */
+         * 可观察结果，避免把未加载的 future group 当作胜负门。
+         * 原版只查hidden；HP0门是SDL内部防护，受控原版对照只改hidden位。 */
         const fd2_field_unit *leader = game->units.count != 0
             ? &game->units.items[0] : NULL;
         if (!leader || fd2_field_unit_is_hidden(leader) || leader->hp == 0)

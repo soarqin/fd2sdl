@@ -313,3 +313,13 @@ F2及敌方／已行动Enter进入详情时，头像晚解码或开合动画分�
 独立候选 `fd2sdl-b1-20261104/mp-cost/` 单轮43/43 CTest、220/220 Python通过，无跳过；25个真实AI可评分ID、多目标一次、首RNG观察费用时点、miss／免疫、预检拒绝及behavior11后段失败保留均有回归。尚未进行原版实机施法对照；不能把该逻辑修复列为WGC已覆盖。真实START的side0/1没有可施法单位，首轮END不触发15311，因此此前START1→2证据范围不变。
 
 动画2ff01→30e9d按caster part标记扣费；实际FIGANI回退条目存在零／多标记。当前实现只恢复已确认无演出分支，不能据unit9／ID0单标记把全部动画演员概括为一次。玩家法术和动画的运行验收仍由B2／B6补齐。
+
+### B1.3c：受控胜败结果门（2026-11-04）
+
+`run_original_result.py` 注册为第22组。只从真实START派生：victory将side0 actor的flags bit0置1；defeat只将raw0 flags bit0置1，重算checksum/XOR，保留来源及派生hash、全部明文与密文字节差异。HP、roster及未知字段不改；这不是整关实战。原版10010读档本身不运行stage结果门，随后Z／Enter必须各自命中资源ACK，选择态Esc后才由controller后置到205b4；若提前出现对应结果立即停键。
+
+`result-graphics-02/` 正式运行原版两场后再SDL两场：胜利FDTXT[1]fragment9首说话人4的两行共2794字形／阴影像素及620对话顶边像素；败北FDOTHER79 frame0及无键自动等待的frame1分别检查完整64,000像素，GAME OVER字样已覆盖。全部bad=0、最大通道差3。SDL从同来源Continue后不发额外按键，分别要求唯一victory／defeat日志、相应未实现后续说明和自然exit2；不强行把原版controller输入时点套给SDL。
+
+四个进程均在finally清理前／正常hostclose后按预期退出（原版0，SDL2），没有强制终止；外层Job58096 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`，来源／隔离SAV bytes和mtime、原版hash均未变。前一原版only校准为probe_only且ok=false，正式01只验败北frame0；本轮02补frame1，旧记录不追改。所有路径相对C:候选根。全新最终候选43/43 CTest、231/231 Python通过，无跳过；完整22组正在统一执行。
+
+该项只证明已确认结果门和应用来源分派：胜利没有继续对白验证11506持久同步或stage1，败北没有继续验证回标题，B5和完整V1仍未验。它不是SDL结算画面与原版相同的声明。

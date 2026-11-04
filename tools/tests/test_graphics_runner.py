@@ -292,7 +292,7 @@ class CommandTreeTest(unittest.TestCase):
 
 
 class OriginalSuiteRegistrationTest(unittest.TestCase):
-    def test_nine_original_pairs_are_registered_and_new_pairs_use_default_start_fixture(self):
+    def test_eleven_original_pairs_are_registered_and_new_pairs_use_default_start_fixture(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
@@ -305,14 +305,15 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 suite.run()
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
-                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1"])
+                "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result"])
             by_name = {call.args[0]: call for call in pairs}
             for name, script, timeout in (
                     ("original-overview", "run_original_overview.py", 360),
                     ("original-player", "run_original_player.py", 360),
                     ("original-player-wait", "run_original_player.py", 360),
                     ("original-march", "run_original_march.py", 480),
-                    ("original-f1", "run_original_f1.py", 480)):
+                    ("original-f1", "run_original_f1.py", 480),
+                    ("original-result", "run_original_result.py", 360)):
                 call = by_name[name]
                 self.assertEqual(call.args[1][1], runner.ROOT / "tools" / script)
                 self.assertNotIn("--save-fixture", call.args[1])

@@ -153,11 +153,11 @@ def driver_call(driver: Path, command: str, process: subprocess.Popen,
 
 @contextmanager
 def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
-            receipts: list[dict]):
+            receipts: list[dict], *, expected_exit=0):
     with log.open("w", encoding="utf-8") as stream:
         process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=stream)
         receipt = {"pid": process.pid, "command": command, "log": str(log),
-                   "forced_cleanup": False, "cleaned": False}
+                   "forced_cleanup": False, "cleaned": False, "expected_exit": expected_exit}
         receipts.append(receipt)
         body_failed = False
         try:
@@ -180,7 +180,7 @@ def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
                         process.wait(timeout=3)
             receipt["exit_code"] = process.poll()
             receipt["cleaned"] = process.poll() is not None
-            if not body_failed and (receipt["forced_cleanup"] or receipt["exit_code"] != 0):
+            if not body_failed and (receipt["forced_cleanup"] or receipt["exit_code"] != expected_exit):
                 raise RuntimeError(f"窗口进程未正常退出：{receipt}")
 
 

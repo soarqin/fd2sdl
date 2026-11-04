@@ -28,6 +28,35 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x205B4: [{
+        "target": "evidence",
+        "was": "stage0结果handler仅有静态调用和SDL分派证据",
+        "now": "保留中性sub_205B4：先置53ECC=2，有可见side0则清0，"
+               "raw0 hidden覆盖为1；原版不查HP。Continue后由玩家controller"
+               "后置评估；受控START只改hidden位可分别到达胜利／败北出口。",
+        "why": "权威205b4及117e7后置链；DOSBox WGC的Z→Enter→选择取消"
+               "触发22ef6首对白或22e5c败北资源。SDL从同派生快照独立返回"
+               "胜／败exit2，不声称输入时点、结算或整关实战相同。",
+    }],
+    0x22E5C: [{
+        "target": "evidence",
+        "was": "中性败北callback未登记独立资源门",
+        "now": "保留中性sub_22E5C：停音乐、淡出并清屏，以opaque方式画"
+               "FDOTHER79 frame0，淡入并等9tick，再画frame1、等36tick。"
+               "结果门校验使用完整320×200资源，不据此开放SDL败北后续。",
+        "why": "权威22e5c→2eb9f(header+9)及本地嵌套资源；受控败北"
+               "快照在原版controller后置到达该页。局部运行与B5后续分开登记。",
+    }],
+    0x22EF6: [{
+        "target": "evidence",
+        "was": "stage0胜利callback只作为准备页迁移调用依据",
+        "now": "保留中性sub_22EF6：先呈现FDTXT[1]fragment9，之后11506"
+               "同步持久表再写stage1。WGC仅校验首说话人4的两行和对话顶边，"
+               "没有推进对白证明持久同步或下一关。",
+        "why": "权威22ef6及严格LE结果callback表；受控胜利快照经原版"
+               "controller取消后匹配2794字形／阴影像素和620顶边像素。"
+               "这补本关结果分支证据，整关战斗和结算仍留B5／V1。",
+    }],
     0x15311: [{
         "target": "evidence",
         "was": "静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门",

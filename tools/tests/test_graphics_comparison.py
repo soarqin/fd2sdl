@@ -87,6 +87,28 @@ class GraphicsComparisonTest(unittest.TestCase):
         self.assertTrue(receipts[0]["cleaned"])
         self.assertTrue(receipts[0]["forced_cleanup"])
 
+    def test_explicit_exit2_requires_natural_matching_exit_and_defaults_still_reject_it(self):
+        for actual, expected, passes in ((2,2,True),(1,2,False),(0,2,False),(2,0,False)):
+            with self.subTest(actual=actual,expected=expected), tempfile.TemporaryDirectory() as directory:
+                child = Mock(pid=123)
+                child.poll.return_value = actual
+                receipts = []
+                with patch("run_original_comparison.subprocess.Popen",return_value=child), \
+                        patch("run_original_comparison.driver_call") as drive:
+                    context = running(["game"],Path(directory),{},Path(directory)/"result.log",
+                                      Path("driver"),receipts,expected_exit=expected)
+                    if passes:
+                        with context:
+                            pass
+                    else:
+                        with self.assertRaisesRegex(RuntimeError,"窗口进程未正常退出"):
+                            with context:
+                                pass
+                drive.assert_not_called()
+                child.terminate.assert_not_called()
+                self.assertTrue(receipts[0]["cleaned"])
+                self.assertEqual(receipts[0]["expected_exit"],expected)
+
     def test_missing_driver_still_cleans_and_preserves_checkpoint_failure(self):
         child = Mock(pid=123)
         child.poll.return_value = None

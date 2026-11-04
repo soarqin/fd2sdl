@@ -30,7 +30,7 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | 项 | 值 |
 |----|----|
 | 历史登记行数 | 210 |
-| 归约后的规范函数数 | 205 |
+| 归约后的规范函数数 | 208 |
 | 由多行历史记录合并而来 | 22 |
 | 含 `__chkstk` body 登记行 | 27 |
 | 机器可读版本 | `docs/generated/ida-canonical/fd2-ida-function-registry.json` |
@@ -81,6 +81,9 @@ Watcom 栈检查序言 `push imm32; call watcom_stack_check` 固定 10 字节，
 | `0x1f894` | `boot_intro_title_menu` | evidence | corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` | 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。 | IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。 |
 | `0x1f894` | `boot_intro_title_menu` | evidence | 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 | 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。 | 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。 |
 | `0x2000a` | `sub_2000A` | evidence | F1/PageUp辅助页可能是部队列表或另一种战况总览 | 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。 | 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。 |
+| `0x205b4` | `sub_205B4` | evidence | stage0结果handler仅有静态调用和SDL分派证据 | 保留中性sub_205B4：先置53ECC=2，有可见side0则清0，raw0 hidden覆盖为1；原版不查HP。Continue后由玩家controller后置评估；受控START只改hidden位可分别到达胜利／败北出口。 | 权威205b4及117e7后置链；DOSBox WGC的Z→Enter→选择取消触发22ef6首对白或22e5c败北资源。SDL从同派生快照独立返回胜／败exit2，不声称输入时点、结算或整关实战相同。 |
+| `0x22e5c` | `sub_22E5C` | evidence | 中性败北callback未登记独立资源门 | 保留中性sub_22E5C：停音乐、淡出并清屏，以opaque方式画FDOTHER79 frame0，淡入并等9tick，再画frame1、等36tick。结果门校验使用完整320×200资源，不据此开放SDL败北后续。 | 权威22e5c→2eb9f(header+9)及本地嵌套资源；受控败北快照在原版controller后置到达该页。局部运行与B5后续分开登记。 |
+| `0x22ef6` | `sub_22EF6` | evidence | stage0胜利callback只作为准备页迁移调用依据 | 保留中性sub_22EF6：先呈现FDTXT[1]fragment9，之后11506同步持久表再写stage1。WGC仅校验首说话人4的两行和对话顶边，没有推进对白证明持久同步或下一关。 | 权威22ef6及严格LE结果callback表；受控胜利快照经原版controller取消后匹配2794字形／阴影像素和620顶边像素。这补本关结果分支证据，整关战斗和结算仍留B5／V1。 |
 | `0x25977` | `music_track_play` | evidence | 其他值从 FDMUS handle `DS:0x1a79` 加载 entry | object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。 | IDA 字符串识别 `aFdmusDat` + res_load 调用形态 |
 | `0x25ebb` | `title_action_dispatch` | evidence | 标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并 | 标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。 | 复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。 |
 | `0x25ebb` | `title_action_dispatch` | evidence | 手工LOAD后续owner尚未确认，可能直接恢复当前战场 | LOAD1恢复完整持久表、stage/资源/配置后进入城镇出阵准备26152，不直接恢复回合或焦点。START0直接新游戏，CONTINUE2才调用10010活动恢复；四槽可见恢复归B5，B1保留明确未支持门。 | 原始25ecf/25f3f/26130分支及26064..26098手工meta写集；260e5先26152、260f5再调DS:1d71。严格LE表51d71[0]指3231b，正常START32→31→0不经过准备页；原版阶段标签已有WGC，准备页及出阵恢复本轮仅静态取证，未冒称运行通过。 |

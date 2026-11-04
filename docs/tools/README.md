@@ -75,6 +75,8 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_load.py` 还逐键验证Z轮询raw0→1→2→3→0，再Load后仅按一次Z，必须回到raw0；之后按来源推导的无滚屏路径回原焦点，原完整存档测量门不增加allowlist。专属FDICON＋光标判据拒绝错误角色、裸角色／裸光标及歧义，缺ACK时不补按键。新增坏sprite编号和恢复胜败门属于SDL存档回归，畸形记录不送入DOSBox。
 
+`run_original_result.py` 是第22组：从真实START只改已确认hidden位并重算checksum，保留完整派生manifest；原版按资源门逐键到达胜利首对白、败北frame0及自动GAME OVER frame1，SDL从同来源独立报告胜／败并自然exit2。测试不推进结算或回标题，不声称整关实战。共享进程helper只在本SDL场景显式接受exit2，其他窗口仍要求默认exit0，强制清理不得记为通过。单独运行使用与其他配对相同的 `driver run-job`、`--root/--game/--driver/--dosbox/--artifacts` 参数。
+
 ### Sanitizer（Linux／Clang）
 
 ```bash

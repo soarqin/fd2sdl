@@ -75,7 +75,7 @@ def check_end_turn_log(text):
 
 
 def terminal_save_fixture(plain, outcome):
-    """合成 SDL 终态夹具：只改已确认的隐藏位和checksum，不算原版行为证据。"""
+    """编码受控终态：只改已确认隐藏位和checksum；运行证据须由对应场景另验。"""
     if len(plain) != 0x59cb or sum(plain[:-4]) != int.from_bytes(plain[-4:], "little"):
         raise ValueError("terminal fixture requires a valid plaintext save")
     count = plain[0x30c4]
@@ -552,6 +552,9 @@ class Suite:
             self.command("original-f1", [sys.executable, ROOT / "tools/run_original_f1.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-f1"], timeout=480)
+            self.command("original-result", [sys.executable, ROOT / "tools/run_original_result.py",
+                         "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-result"], timeout=360)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

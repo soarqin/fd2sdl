@@ -185,5 +185,131 @@ class TitleTransitionTest(unittest.TestCase):
             capture.key.assert_not_called()
 
 
+class StartupGeometryTest(unittest.TestCase):
+    class Clock:
+        def __init__(self):
+            self.now = 0.0
+
+        def monotonic(self):
+            return self.now
+
+        def sleep(self, seconds):
+            self.now += seconds
+
+    @staticmethod
+    def title():
+        image = Image.new("RGB", SIZE)
+        for x in range(64):
+            image.putpixel((x, 0), (x * 4, 0, 0))
+        return image
+
+    def test_captured_logo_geometry_keeps_wait_until_owned_escape_then_exact_title(self):
+        clock, expected = self.Clock(), self.title()
+        logo = Image.linear_gradient("L").resize((720, 400)).convert("RGB")
+        with tempfile.TemporaryDirectory() as directory:
+            work, process = Path(directory), Mock(pid=123)
+            capture = Capture(Path("driver"), process, work)
+            escapes, commands = [], []
+            def driver(driver, command, target, argument=None):
+                self.assertIs(target, process)
+                commands.append(command)
+                if command == "capture":
+                    frame = expected.resize((640, 400), Image.Resampling.NEAREST) if escapes else logo
+                    frame.save(argument)
+                elif command == "key":
+                    self.assertEqual(argument, "ESC")
+                    escapes.append(clock.now)
+            with patch("run_original_comparison.driver_call", side_effect=driver), \
+                    patch("run_original_comparison.time.monotonic", side_effect=clock.monotonic), \
+                    patch("run_original_comparison.time.sleep", side_effect=clock.sleep):
+                actual = capture.wait(expected, startup=True, timeout=4)
+            self.assertEqual(actual.tobytes(), expected.tobytes())
+            self.assertEqual(len(escapes), 1)
+            self.assertGreaterEqual(escapes[0], 1)
+            self.assertLess(escapes[0], 1.2)
+            self.assertEqual(commands[-3:], ["focus", "key", "capture"])
+            events = [json.loads(line) for line in (work / "capture-errors.jsonl").read_text().splitlines()]
+            self.assertTrue(events)
+            for event in events:
+                self.assertEqual(event["kind"], "startup_geometry")
+                self.assertEqual(event["raw_size"], [720, 400])
+                with Image.open(event["frame"]) as image:
+                    self.assertEqual(image.size, (720, 400))
+                self.assertIn(event, capture.trace)
+            keys = [event for event in capture.trace if "key" in event]
+            self.assertEqual([event["key"] for event in keys], ["ESC"])
+
+    def test_geometry_timeout_keeps_deadline_and_original_escape_cadence(self):
+        clock = self.Clock()
+        logo = Image.linear_gradient("L").resize((720, 400)).convert("RGB")
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            capture = Capture(Path("driver"), Mock(pid=123), work)
+            escapes = []
+            def driver(driver, command, target, argument=None):
+                if command == "capture":
+                    logo.save(argument)
+                elif command == "key":
+                    escapes.append(clock.now)
+            with patch("run_original_comparison.driver_call", side_effect=driver), \
+                    patch("run_original_comparison.time.monotonic", side_effect=clock.monotonic), \
+                    patch("run_original_comparison.time.sleep", side_effect=clock.sleep):
+                with self.assertRaisesRegex(RuntimeError, "始终没有可用画面"):
+                    capture.wait(self.title(), startup=True, timeout=3.4)
+            self.assertGreaterEqual(clock.now, 3.4)
+            self.assertLess(clock.now, 3.6)
+            self.assertEqual(len(escapes), 2)
+            self.assertGreaterEqual(escapes[0], 1)
+            self.assertGreaterEqual(escapes[1] - escapes[0], 2)
+            self.assertLess(escapes[1] - escapes[0], 2.2)
+            self.assertIsNone(capture.last)
+            self.assertTrue(list(work.glob("startup-geometry-*.bmp")))
+
+    def test_only_startup_captured_noninteger_geometry_is_allowed(self):
+        for startup, size in ((False, (720, 400)), (True, (160, 100)),
+                              (True, (319, 200)), (True, (640, 199))):
+            with self.subTest(startup=startup, size=size), tempfile.TemporaryDirectory() as directory:
+                capture = Capture(Path("driver"), Mock(pid=123), Path(directory))
+                def driver(driver, command, target, argument=None):
+                    self.assertEqual(command, "capture")
+                    Image.new("RGB", size, "blue").save(argument)
+                with patch("run_original_comparison.driver_call", side_effect=driver) as calls:
+                    with self.assertRaises(ValueError):
+                        capture.wait(self.title(), startup=startup, blank_transition=True)
+                self.assertEqual(calls.call_count, 1)
+                self.assertFalse(capture.trace)
+                self.assertFalse(list(Path(directory).glob("startup-geometry-*.bmp")))
+
+    def test_unknown_errors_and_missing_raw_frame_are_not_retried(self):
+        for error, raw in ((ValueError("unrelated decoder error"), "invalid"),
+                           (RuntimeError("WGC device failed"), True),
+                           (ValueError("截图尺寸不是 320x200 的整数倍率：(640, 401)"), True),
+                           (ValueError("截图尺寸不是 320x200 的整数倍率：(720, 400)"), False)):
+            with self.subTest(error=error, raw=raw), tempfile.TemporaryDirectory() as directory:
+                work = Path(directory)
+                if raw == "invalid":
+                    (work / "window-123-current.bmp").write_bytes(b"invalid raw evidence")
+                elif raw:
+                    Image.new("RGB", (720, 400)).save(work / "window-123-current.bmp")
+                capture = Capture(Path("driver"), Mock(pid=123), work)
+                capture.frame = Mock(side_effect=error)
+                capture.key = Mock()
+                with self.assertRaises(type(error)) as caught:
+                    capture.wait(self.title(), startup=True)
+                self.assertIs(caught.exception, error)
+                self.assertEqual(capture.frame.call_count, 1)
+                capture.key.assert_not_called()
+
+    def test_legal_title_does_not_send_startup_escape(self):
+        for startup in (False, True):
+            with self.subTest(startup=startup), tempfile.TemporaryDirectory() as directory:
+                capture = Capture(Path("driver"), Mock(pid=123), Path(directory))
+                expected = self.title()
+                capture.frame = Mock(return_value=expected)
+                capture.key = Mock()
+                self.assertEqual(capture.wait(expected, startup=startup).tobytes(), expected.tobytes())
+                capture.key.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -291,7 +291,32 @@ class Capture:
                         stream.write(json.dumps(event) + "\n")
                 time.sleep(0.15)
                 continue
-            if compare(expected, frame)["ok"]:
+            except ValueError as error:
+                # 启动logo可能先用非320整数倍率；必须保留同一等待和Esc节拍，
+                # 不能让外层重入wait后每次把next_escape重新推迟一秒。
+                path = self.artifacts / f"window-{self.process.pid}-current.bmp"
+                if (not startup or not str(error).startswith("截图尺寸不是 320x200 的整数倍率：") or
+                        not path.is_file()):
+                    raise
+                with Image.open(path) as raw:
+                    size = raw.size
+                width, height = size
+                if (str(error) != f"截图尺寸不是 320x200 的整数倍率：{size}" or
+                        width < SIZE[0] or height < SIZE[1] or
+                        (width % SIZE[0] == 0 and height % SIZE[1] == 0 and
+                         width // SIZE[0] == height // SIZE[1])):
+                    raise
+                saved = self.artifacts / f"startup-geometry-{time.monotonic_ns()}.bmp"
+                shutil.copyfile(path, saved)
+                event = {"time": time.monotonic(), "pid": self.process.pid,
+                         "kind": "startup_geometry", "capture_error": str(error),
+                         "capture_backend": "Windows.Graphics.Capture HWND",
+                         "raw_size": list(size), "frame": str(saved)}
+                self.trace.append(event)
+                with (self.artifacts / "capture-errors.jsonl").open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(event) + "\n")
+                frame = None
+            if frame is not None and compare(expected, frame)["ok"]:
                 require_content(frame)
                 return frame.copy()
             if startup and time.monotonic() >= next_escape:

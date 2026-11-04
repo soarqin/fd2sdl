@@ -122,7 +122,8 @@ class SrcAddressMigrationTest(unittest.TestCase):
     def test_build_candidates_and_third_party_are_outside_the_source_audit(self):
         import check_src_addresses as chk
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            # 导出的真实源码本身位于build之下，只有src内部构建副本应排除。
+            root = Path(directory) / "build" / "candidate" / "src"
             paths = ("main.c", "include/main.h", "support/build_options.c",
                      "build/cache.c", "build-win/candidate/font.c",
                      "nested/build-linux/cache.h", "third_party/vendor.c")

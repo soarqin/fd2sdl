@@ -146,6 +146,14 @@ B1终审 `0842f05` 后继续此阶段，路径防护另提交 `38e3e3e`。永久
 
 24项专项及2项路径回归通过，另一agent独立只读审查并重放旧controls资源门无阻塞。原版实际证据 `C:/Users/Soar/AppData/Local/Temp/fd2-magic-damage-original-20261105-01/comparison.json` 为probe_only，cases通过；PID41228正常退出，外Job22996无超时／遗留／强制清理。没有END或Save，原版目录、副本与来源bytes／mtime保持。本项不读取runtime hidden字节、未对齐RNG／FIGANI／声音，也未启动SDL，不能增加双端配对计数；自然多回合施法、治疗及SDL对应效果继续后续验收。
 
+### B2.2b 基础效果与非升级经验准备
+
+原版受控伤害工具已提交 `1f4d685`。本阶段仅扩纯接口：ID0／13继续复用原伤害／恢复及shared RNG；新增结果记录HP前后、hit、未夹HP的rawDamage及原始经验贡献，不扣MP或写caster EX。伤害死亡给完整目标level×enemy系数，未死按rawDamage／maxHP；治疗按实际恢复差与目标权重计算，满HP仍消费一次RNG。caster归一只在整次目标贡献累加后执行，profile>8加30、cap99；未知系数、坏数据、溢出和可能EX升级在动作提交前拒绝，不把非升级子集冒充B4全实现。
+
+敌军经验系数补入现有68条基础record的末字段，没有第二张表。strictLE提取VA61af9/file7ab0d完整680字节，逐条验证旧9字节和新增10字节，SHA `bc304be826fe3ff0ff129155da846126350852c9b67c6b08a2d7c2d103cc99df`。实现注释与CORRECTIONS同步登记1c81f／1c916／4e84f，1e292只登记已确认非升级分支；从已发布IDA输入生成214项registry并最后刷新清单，未写数据库、猜ABI或手改伪C。
+
+独立复审无阻塞；28000组profile／HP／spread组合验证既有效果、RNG与可达紧上界，另测overkill／miss、实际恢复、目标／caster的8／9／24／25权重差异、等值levelcap、cap99、EX边界、错误输出不变和整次统一归一。隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/magic-reward/` fresh完整Windows构建、单轮50/50 CTest（含真实输入）及286/286 Python无跳过通过。正式MAGIC仍禁用，本阶段没有SDL施法WGC；FIGANI／488奖励提示／附加呈现RNG、升级成长及自然多回合路径保持未验。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

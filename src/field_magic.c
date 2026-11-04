@@ -2,13 +2,16 @@
  * 逆向依据：field_magic_record_get @0x4e866 返回 DS:0x19fd + id*7；
  * 原始表由 object3 `DS:0x19fd`（file `0x7aa11`）提取；
  * field_unit_magic_list_build @0x1c269（原登记同名）枚举五字节位图；
- * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）的按键分派。 */
+ * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）的按键分派；
+ * field_magic_damage_apply @0x1c81f（原登记sub_1C81F）、
+ * field_hp_heal_apply @0x1c916（原登记sub_1C916）的HP／原始经验贡献。 */
 
 #include "field_magic.h"
 
 #include <limits.h>
 
 #include "field_attack.h"
+#include "field_unit_base.h"
 
 static const uint32_t MAGIC_DAMAGE_PROFILE_SCALES
     [FD2_FIELD_MAGIC_DAMAGE_PROFILE_COUNT] = {
@@ -134,11 +137,25 @@ int fd2_field_magic_damage_profile_scale(
     return 0;
 }
 
+static int scaled_damage_power(uint16_t value, uint32_t profile_scale,
+                                 uint32_t *power) {
+    int64_t scaled = (int64_t)(int16_t)value * (int64_t)profile_scale / 10;
+    if (scaled < 0 || scaled > INT32_MAX) return -1;
+    *power = (uint32_t)scaled;
+    return 0;
+}
+
+/* 1c81f／1c916的两次除法各自截断；上界查询以spread99复用同一公式。 */
+static uint64_t spread_value(uint32_t power, uint32_t spread) {
+    return (uint64_t)power * 9u / 10u + (uint64_t)spread * power / 1000u;
+}
+
 static int apply_damage_value(uint16_t value,
                               uint8_t accuracy,
                               fd2_field_unit *target,
                               fd2_field_magic_rng_fn rng,
-                              void *rng_userdata) {
+                              void *rng_userdata,
+                              uint32_t *raw_damage) {
     uint32_t profile_scale = 0;
     if (!target || !rng ||
         fd2_field_magic_damage_profile_scale(
@@ -146,15 +163,13 @@ static int apply_damage_value(uint16_t value,
         return -1;
     uint32_t hit_roll = rng(rng_userdata) % 100u;
     if (hit_roll >= accuracy) return 0;
-    int32_t signed_power = (int16_t)value;
-    int64_t scaled = (int64_t)signed_power * (int64_t)profile_scale / 10;
-    if (scaled < 0 || scaled > INT32_MAX) return -1;
-    uint32_t power = (uint32_t)scaled;
+    uint32_t power;
+    if (scaled_damage_power(value, profile_scale, &power) != 0) return -1;
     uint32_t spread = rng(rng_userdata) % 100u;
     /* 0x1c81f：base*9/10 + (rng%100)*base/1000，两个除法都用
      * signed idiv 并在相加前分别截断。 */
-    uint64_t damage = (uint64_t)(power * 9u / 10u) +
-                      (uint64_t)(spread * power / 1000u);
+    uint64_t damage = spread_value(power, spread);
+    if (raw_damage) *raw_damage = (uint32_t)damage;
     if (damage > target->hp) damage = target->hp;
     target->hp = (uint16_t)(target->hp - (uint16_t)damage);
     return 1;
@@ -177,7 +192,7 @@ static int apply_damage(uint8_t magic_id,
         return 0;
     return apply_damage_value(
         fd2_field_magic_u16(record, 0), record[2], target,
-        rng, rng_userdata);
+        rng, rng_userdata, NULL);
 }
 
 static int apply_raw_damage(uint32_t power,
@@ -186,8 +201,7 @@ static int apply_raw_damage(uint32_t power,
                             void *rng_userdata) {
     if (!target || !rng) return -1;
     uint32_t spread = rng(rng_userdata) % 100u;
-    uint64_t damage = (uint64_t)(power * 9u / 10u) +
-                      (uint64_t)(spread * power / 1000u);
+    uint64_t damage = spread_value(power, spread);
     if (damage > target->hp) damage = target->hp;
     target->hp = (uint16_t)(target->hp - (uint16_t)damage);
     return 1;
@@ -205,11 +219,108 @@ static int apply_heal(uint8_t magic_id,
      * HP 已满也照常消费，最后把结果 cap 到 hp_max。 */
     uint32_t power = fd2_field_magic_u16(record, 0);
     uint32_t spread = rng(rng_userdata) % 100u;
-    uint64_t heal = (uint64_t)(power * 9u / 10u) +
-                    (uint64_t)(spread * power / 1000u);
+    uint64_t heal = spread_value(power, spread);
     uint64_t hp = (uint64_t)target->hp + heal;
     target->hp = (uint16_t)(hp > target->hp_max ? target->hp_max : hp);
     return 1;
+}
+
+/* sub_1C81F／sub_1C916（原登记同名）：damage用未夹HP的rawDamage，
+ * heal用实际HP增量。目标等级权重在这里，caster权重只在最终归一处。 */
+static int basic_experience_value(uint8_t magic_id,
+                                   const fd2_field_unit *before,
+                                   uint16_t hp_after, uint32_t raw_damage,
+                                   uint32_t *value) {
+    uint64_t experience = 0;
+    if (magic_id == 0 && before->unit_id >= 68u) {
+        uint8_t coefficient;
+        if (fd2_field_unit_enemy_experience_coefficient(
+                before->unit_id, &coefficient) != 0) return -1;
+        uint32_t full = (uint32_t)before->level * coefficient;
+        experience = hp_after == 0 ? full :
+            (uint64_t)raw_damage * full / before->hp_max;
+    } else if (magic_id == 13 && before->unit_id < 75u) {
+        unsigned level = before->level;
+        if (before->movement_profile > 8u && before->movement_profile < 25u)
+            level += 30u;
+        experience = (uint64_t)(hp_after - before->hp) * 40u * level / before->hp_max;
+    }
+    if (experience > UINT32_MAX) return -1;
+    *value = (uint32_t)experience;
+    return 0;
+}
+
+int fd2_field_magic_basic_reward_max(
+        uint8_t magic_id, const fd2_field_unit *target, uint32_t *value) {
+    if (!target || !value || (magic_id != 0 && magic_id != 13) ||
+        (target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) ||
+        target->hp_max == 0 || target->hp > target->hp_max)
+        return -1;
+    const uint8_t *record = fd2_field_magic_record_get(magic_id);
+    uint32_t power = fd2_field_magic_u16(record, 0);
+    uint32_t damage = 0;
+    uint16_t hp_after;
+    if (magic_id == 0) {
+        uint32_t scale;
+        if (fd2_field_magic_damage_profile_scale(target->movement_profile, &scale) != 0 ||
+            scaled_damage_power((uint16_t)power, scale, &power) != 0)
+            return -1;
+        damage = (uint32_t)spread_value(power, 99);
+        hp_after = damage >= target->hp ? 0 : (uint16_t)(target->hp - damage);
+    } else {
+        uint64_t hp = (uint64_t)target->hp + spread_value(power, 99);
+        hp_after = hp > target->hp_max ? target->hp_max : (uint16_t)hp;
+    }
+    return basic_experience_value(magic_id, target, hp_after, damage, value);
+}
+
+int fd2_field_magic_apply_player_basic_effect(
+        uint8_t magic_id, fd2_field_unit *target,
+        fd2_field_magic_rng_fn rng, void *rng_userdata,
+        fd2_field_magic_basic_result *result) {
+    uint32_t maximum;
+    if (!rng || !result ||
+        fd2_field_magic_basic_reward_max(magic_id, target, &maximum) != 0)
+        return -1;
+    fd2_field_unit before = *target;
+    fd2_field_unit updated = before;
+    fd2_field_magic_basic_result effect = {0};
+    effect.hp_before = before.hp;
+    int hit;
+    if (magic_id == 0) {
+        const uint8_t *record = fd2_field_magic_record_get(magic_id);
+        hit = apply_damage_value(fd2_field_magic_u16(record, 0), record[2],
+            &updated, rng, rng_userdata, &effect.raw_damage);
+    } else {
+        hit = apply_heal(magic_id, &updated, rng, rng_userdata);
+    }
+    if (hit < 0) return -1;
+    effect.hit = (uint8_t)hit;
+    effect.hp_after = updated.hp;
+    if (hit && basic_experience_value(magic_id, &before, updated.hp,
+                effect.raw_damage, &effect.experience_value) != 0)
+        return -1;
+    *target = updated;
+    *result = effect;
+    return hit;
+}
+
+int fd2_field_magic_basic_reward_gain(
+        const fd2_field_unit *caster, uint64_t raw_sum, uint8_t *gain) {
+    if (!caster || !gain || raw_sum > UINT32_MAX) return -1;
+    if ((caster->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) ||
+        (caster->unit_id == 30u || caster->unit_id == 31u
+            ? caster->level == 99u : caster->level == 40u)) {
+        *gain = 0;
+        return 0;
+    }
+    unsigned divisor = caster->level + (caster->movement_profile > 8u ? 30u : 0u);
+    if (divisor == 0) return -1;
+    uint64_t value = raw_sum / divisor;
+    if (value > 99u) value = 99u;
+    if ((uint64_t)caster->experience + value >= 100u) return -1;
+    *gain = (uint8_t)value;
+    return 0;
 }
 
 static uint16_t add_status_scaled_stat(uint16_t value) {

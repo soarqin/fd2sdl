@@ -56,6 +56,40 @@ int fd2_field_magic_damage_profile_scale(
  * 该 core；IDs 10..12 在 core 内额外执行 0x1f183 免疫门。
  * RNG 调用顺序与 0x1c768/0x1c81f：先命中，再按伤害浮动消费一次。 */
 typedef uint32_t (*fd2_field_magic_rng_fn)(void *userdata);
+
+/* SDL无演出基础法术的单目标结果，不含MP／acted／死亡清理／升级。
+ * experience_value是sub_1C81F @0x1c81f／sub_1C916 @0x1c916
+ * （原登记同名）向53EC8累加的原始贡献，尚未按caster等级归一。 */
+typedef struct {
+    uint8_t hit;
+    uint16_t hp_before;
+    uint16_t hp_after;
+    uint32_t raw_damage; /* 命中伤害在HP夹零前的数值；miss／治疗为0。 */
+    uint32_t experience_value;
+} fd2_field_magic_basic_result;
+
+/* 仅ID0伤害／ID13治疗。最坏原始经验贡献查询不耗RNG、不写target；
+ * 未知敌军系数、坏profile／HP等失败时不写output。调用方先以uint64
+ * 累加全部目标上界，再经basic_reward_gain预检，之后才扣MP和执行效果。 */
+int fd2_field_magic_basic_reward_max(
+    uint8_t magic_id, const fd2_field_unit *target, uint32_t *experience_value);
+
+/* 复用既有效果公式／RNG；返回1命中、0miss、-1拒绝（不写结果）。
+ * 单目标结果只提交target HP与output，不扣MP、不写caster EX。
+ * 本接口不替调用方完成整次cast的升级预检或多目标提交边界。 */
+int fd2_field_magic_apply_player_basic_effect(
+    uint8_t magic_id, fd2_field_unit *target,
+    fd2_field_magic_rng_fn rng, void *rng_userdata,
+    fd2_field_magic_basic_result *result);
+
+/* field_player_command_execute @0x18d8c的caster归一／controller
+ * @0x117e7 cap99及sub_1E292 @0x1e292（原登记同名）的非升级门。
+ * raw_sum须用uint64累加；超过UINT32_MAX拒绝，不接受先回绕的总数。
+ * hidden或原版等值levelcap给gain0；其他只支持EX+gain<100。
+ * 0成功/-1拒绝，失败不写gain；不写unit，不消费RNG。 */
+int fd2_field_magic_basic_reward_gain(
+    const fd2_field_unit *caster, uint64_t raw_sum, uint8_t *gain);
+
 int fd2_field_magic_apply_known_effect(
     uint8_t magic_id,
     uint8_t target_unit_index,

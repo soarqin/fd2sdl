@@ -28,6 +28,58 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x1C81F: [{
+        "target": "semantic_name", "was": "sub_1C81F",
+        "now": "field_magic_damage_apply",
+        "why": "1c75e命中后调用的共享伤害core；逐目标消费spread RNG，"
+               "两次整数截断形成rawDamage，再HP夹零。敌军ID>=68时读取"
+               "4e84f record+9乘目标等级；死亡给全值，未死按rawDamage/maxHP计入53EC8。",
+    }, {
+        "target": "evidence", "was": "经验可以统一按实际HP差计算",
+        "now": "伤害贡献使用未夹HP的rawDamage，死亡分支给完整level*coefficient；"
+               "不在此除caster等级、cap99或写EX。保留原IDA物理符号／类型，不据此猜ABI。",
+        "why": "完整206B SHA b5b10e142a437411b5c94381747eef65783fa0a1e4b7e11caef3c31d1570ef60；"
+               "已发布1c81f及1c75e/2ff01调用链、680B敌表；受控原版unit9杀unit96"
+               "实测MP6与EX42，RNG／完整动画仍未对齐。",
+    }],
+    0x1C916: [{
+        "target": "semantic_name", "was": "sub_1C916",
+        "now": "field_hp_heal_apply",
+        "why": "1c8ed法术／211a4物品共享HP恢复core；一次spread RNG，满HP也消费，"
+               "恢复量夹maxHP。ID<75按实际恢复差*40*目标等级权重/maxHP累加53EC8；"
+               "只有8<profile<25给目标等级加30，不等同caster归一条件。",
+    }, {
+        "target": "evidence", "was": "恢复core可以承担费用或caster经验写回",
+        "now": "只恢复当前target HP并累计原始贡献，费用由wrapper、caster归一由18d8c负责；"
+               "SDL最坏贡献查询复用相同整数公式，所有目标先预检。",
+        "why": "完整199B SHA 2bfd114f863e4e0f16eea866cdd8e699c925e78c1ebf8c131defd539a791778d，"
+               "已发布调用者及raw写集；28000组profile/HP/spread逻辑组合检查既有效果与上界。"
+               "该组合检查不是局部机器码执行或原版治疗运行。",
+    }],
+    0x4E84F: [{
+        "target": "semantic_name", "was": "sub_4E84F",
+        "now": "field_enemy_base_record_get",
+        "why": "完整23B getter返回object3 VA61af9+index*10；10c50构造、1c81f/1ecc7"
+               "经验以及2f7b6共用。连续68条record的前9字节与SDL既有基础表逐条相等，"
+               "末字节为经验系数，不另造stage0默认表。",
+    }, {
+        "target": "evidence", "was": "敌军基础record只保留9个已用字段",
+        "now": "保留同表第9字节经验系数，SDL只支持unit ID68..135，未知ID不猜；"
+               "原函数参数为record index，SDL getter的unit ID接口不是原版ABI。",
+        "why": "getter SHA 1b865aa8e9782be6ea4d262678f4f034400ef6db45240d9d42122fad53211554；"
+               "strictLE object3 VA61af9/file7ab0d完整680B SHA "
+               "bc304be826fe3ff0ff129155da846126350852c9b67c6b08a2d7c2d103cc99df。",
+    }],
+    0x1E292: [{
+        "target": "evidence", "was": "未升级动作可省略EX或用WAIT收尾代替",
+        "now": "gain非零、caster未hidden且不在等值levelcap时，EX+gain<100分支只写+3c，"
+               "不成长／重算／学习。18d8c先按level+(profile>8?30:0)归一，controller"
+               "再cap99；升级分支仍待B4，SDL在MP/RNG前以全目标上界拒绝可能升级。",
+        "why": "已发布1e292及117e7/18d8c，完整663B SHA "
+               "5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；"
+               "levelcap为ID30/31等于99、其它等于40，不扩为>=。这里只登记已确认分支，"
+               "不命名整个成长流程或声称488提示／FIGANI／额外呈现RNG已验收。",
+    }],
     0x1CEED: [{
         "target": "semantic_name", "was": "sub_1CEED",
         "now": "field_unit_magic_list_draw",

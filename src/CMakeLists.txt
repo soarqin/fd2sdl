@@ -445,6 +445,8 @@ if(BUILD_TESTING)
         field_info.c
         field_item.c
         field_magic.c
+        field_unit_base.c
+        field_unit_stats.c
         field_attack.c
         field_path.c
         field_move_profile.c
@@ -486,6 +488,8 @@ if(BUILD_TESTING)
     add_executable(fd2_field_magic_test
         tests/field_magic_test.c
         field_magic.c
+        field_unit_base.c
+        field_unit_stats.c
         field_attack.c
         field_item.c
         field_path.c
@@ -500,6 +504,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_magic COMMAND fd2_field_magic_test)
 
+    add_executable(fd2_field_magic_reward_test
+        tests/field_magic_reward_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_magic_reward_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_magic_reward_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_magic_reward_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_magic_reward_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_magic_reward COMMAND fd2_field_magic_reward_test)
+
     add_executable(fd2_field_ai_test
         tests/field_ai_test.c
         field_ai.c
@@ -508,6 +524,8 @@ if(BUILD_TESTING)
         field_move_profile.c
         field_item.c
         field_magic.c
+        field_unit_base.c
+        field_unit_stats.c
     )
     target_include_directories(fd2_field_ai_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}

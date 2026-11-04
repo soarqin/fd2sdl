@@ -102,6 +102,8 @@ static int test_player_wait_unknown_cell(void) {
     return frozen_after_failure(&game, &rng);
 }
 
+/* 当前SDL玩家即时停止的兼容断言；已知不等于原版@18890共享路径，
+ * c1b另行恢复player的command/tail/outer边界，c1a不借AI修正改变此路。 */
 static int test_player_move_stops_at_first_event(void) {
     fd2_field_game game;
     uint32_t cells[64];
@@ -122,6 +124,24 @@ static int test_player_move_stops_at_first_event(void) {
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.calls == 0);
     return frozen_after_failure(&game, &rng);
+}
+
+static int test_legacy_player_cancel_does_not_touch_ai_pending(void) {
+    fd2_field_game game;
+    uint32_t cells[64];
+    fd2_terrain_attr attr;
+    test_rng rng = {0};
+    init_game(&game, cells, &attr, &rng);
+    game.interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
+    game.move_origin_x = game.units.items[0].x;
+    game.move_origin_y = game.units.items[0].y;
+    game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
+    CHECK(fd2_field_game_cancel_selection(&game) == 1);
+    CHECK(game.pending_cell_event.valid && game.pending_cell_event.action == 42 &&
+          game.pending_cell_event.source_slot == 4);
+    CHECK(game.event_log_count == 0 && rng.calls == 0);
+    /* c1a pending只接AI；此兼容边界不是原版player取消oracle。 */
+    return 0;
 }
 
 static int test_invalid_cell_data_is_not_no_event(void) {
@@ -415,6 +435,7 @@ static int test_ai_commit_failure_does_not_rollback_or_repeat(void) {
 int main(void) {
     if (test_player_wait_unknown_cell() ||
         test_player_move_stops_at_first_event() ||
+        test_legacy_player_cancel_does_not_touch_ai_pending() ||
         test_invalid_cell_data_is_not_no_event() ||
         test_player_attack_preserves_committed_damage() ||
         test_counter_failure_keeps_first_strike_and_rng() ||

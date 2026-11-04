@@ -259,6 +259,7 @@ int fd2_field_game_import_battle_snapshot(
     game->unhandled_event_count = 0;
     game->dropped_event_count = 0;
     game->failure = FD2_FIELD_FAILURE_NONE;
+    game->pending_cell_event.valid = 0;
     memset(&game->failure_notice, 0, sizeof(game->failure_notice));
     game->phase_next_action_ms = 0;
     game->last_idle_ms = 0;

@@ -79,7 +79,11 @@
 
 session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及其 turn、phase、actor、slot、action 和坐标，不写入原版单位或存档。记录首错后清除自动调度时间；玩家确认、移动、攻击、AI 提交和 phase 调度拒绝继续执行。正式循环先检查错误，再判断胜败；不能让同一动作导致的胜负门掩盖事件失败。
 
-玩家逐步移动只在玩家 path 模式查询 `match_arg=0`，出错后不继续下一步；玩家行动尾部的格事件先于 acted。AI 路径不沿途产生玩家事件，`match_arg=1` 由 common tail 查询，后置 handler 失败保留已提交效果与 acted。攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
+原版共享路径每步以`match_arg=0`更新单个pending，未匹配保留之前命中；移动循环不分派handler。AI normal common tail查询最终格`match_arg=1`，命中才覆盖，再acted、全方向reset；outer随后分派pending。未知handler在实际分派时冻结，保留已提交效果、坐标和acted；读取损坏事件数据仍明确失败。pending是session旁路状态，不写原版存档，成功活动Load清除，恢复失败保留原状态。
+
+玩家路径、COMMAND取消重入、acted与controller后置的旧即时处理尚待B1.4c1b修复：已确认原版完整路径后进入COMMAND，成功动作先acted再最终lookup；经验／stage／必要phase之后才分派当前共享pending。普通command取消回滚并重入玩家入口清pending，下级目标取消保留pending。原版phase会共用该slot，不能增加私有队列保护玩家pending后称原版等价。现有玩家逐格立即执行测试只描述尚待修复的SDL行为，不再充当原版依据。
+
+攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
 
 成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
 

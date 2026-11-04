@@ -505,6 +505,7 @@ static int test_stopped_session_save_and_restore(void) {
     uint8_t before_file[FD2_SAVE_FILE_SIZE], after_file[FD2_SAVE_FILE_SIZE];
     CHECK(read_save_bytes(path, before_file) == 0);
     stop_session(&game);
+    game.pending_cell_event = (fd2_field_pending_cell_event){1, 9, 3};
     fd2_field_game before = game;
     fd2_save_battle_snapshot snapshot, before_snapshot;
     memset(&snapshot, 0xa5, sizeof(snapshot));
@@ -521,6 +522,7 @@ static int test_stopped_session_save_and_restore(void) {
     CHECK(fd2_field_game_load_active(&game, path) == 0);
     fd2_field_event_notice empty_notice = {0};
     CHECK(game.failure == FD2_FIELD_FAILURE_NONE);
+    CHECK(!game.pending_cell_event.valid);
     CHECK(memcmp(&game.failure_notice, &empty_notice, sizeof(empty_notice)) == 0);
     CHECK(game.units.items[0].hp == 100);
     stop_session(&game);
@@ -544,6 +546,7 @@ static int test_failed_load_preserves_stopped_session(void) {
     CHECK(fd2_field_game_save_active(&source, path) == 0);
     CHECK(fd2_field_game_save_manual_slot(&source, path, 2) == 0);
     stop_session(&target);
+    target.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 5};
     fd2_field_game before = target;
     uint8_t valid_file[FD2_SAVE_FILE_SIZE], before_file[FD2_SAVE_FILE_SIZE];
     uint8_t after_file[FD2_SAVE_FILE_SIZE];

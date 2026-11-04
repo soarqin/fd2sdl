@@ -213,3 +213,9 @@ B1.4a 按 `font_glyph_blit_16x16 @0x4ed7a` 的背景／阴影指令修正字体�
 完整流程在 `src/build-win/graphics-artifacts/20261104-154221-037970/` 17组全部通过，六份原版配对报告通过；所有本轮正向进程正常清理，Job residual=0、forced=0。END／Load／leave 的次级菜单检查已同步为总览默认0，Save必须显式Left，不再保留旧的SDL禁用总览实跑分支。
 
 精确开合时长、瞬时动画画面、整幅地图／idle及声音未作原版一致性验收；Linux未执行。测试替身最初把恢复帧0误当作quit注入点，已修正夹具；未为此改变生产modal或扩大像素容差。B1整体仍部分完成，下一项为批量行军的路径事件契约和正式输入。
+
+### B1.4c1a 路径事件修正后的控制回归：2026-11-04
+
+独立暂存候选在完整重建全部TU后通过35项CTest和135项Python，无跳过；新session字段未借旧结构布局作正式验收。受影响的原版／SDL START→END→round2→显式Save在 `src/build-win/graphics-artifacts/ai-pending-end-20261104-01/` 复跑通过，使用的是独立候选程序，其路径与SHA-256由comparison.json记录。确定性字段相等，源档／原版目录不变，两个本轮进程正常清理，Job residual=0、forced=0。
+
+本次修正沿途match0收集、末格match1覆盖及outer延后分派；新增SDL回归检查最后命中、无路径、RNG提交后未知handler冻结、path owner恢复与Load清理。局部原始指令支持lookup／tail结论，当前没有已实现的cell handler；上述END场景不证明特定沿途事件的原版运行等价。玩家动作顺序、批量行军和具体handler仍分别验收，完整17组记录仍对应此前400891a总览阶段。

@@ -207,7 +207,9 @@ stage metadata 条目（`stage*3+1`）当前确认：
 0x83   26*N       unit_templates，单位/对象模板记录，N=(size-0x83)/26
 ```
 
-`field_cell_event_lookup @0x13a44` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID；ID 为 0、超过 16、地形 flags `&0x60!=0`、event code 为 `0xff` 或 `match_arg` 不符时不触发。玩家每完成一步以 match 0 查询，行动结束和 AI common tail 以 match 1 查询；AI 不沿移动路径查询。命中只写 `DS:0x1a8f`，side 1/0 outer loop 随后以事件码索引 `DS:0x1b91`，传 actor index 执行 handler，再执行 stage handler。
+`field_cell_event_lookup @0x13a44` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID；SDL 对已确认的16项作边界校验。ID 为0、地形 flags `&0x60!=0`、event code 为`0xff`或`match_arg`不符时不命中。命中只覆盖 `DS:0x1a8f` 的单个 pending code，未命中不清旧值；它不执行 handler。`field_actor_path_play @0x13488` 的四方向共享尾每步都以 match0 查询，玩家和AI共用，没有event-free AI分支；完整路径保留最后一次匹配，后续未命中仍保留。AI normal common tail 再作最终格match1，随后acted与全表方向reset，side1／0 outer才按当前pending调用`DS:0x1b91`的handler，再执行stage handler。
+
+依据为已发布伪C及原始object1共享尾 `0x13167..0x1317a`、唯一pending写点`0x13a95`和AI尾`0x13e6c..0x13e88`；此前「AI不查沿途」说明已撤回。pending不进入原版单位或存档，不是FIFO。AI outer每个raw actor起点清slot，handler返回后不自动清；末actor的值可能留到玩家controller，后者分派后才明确清。handler收到actor index，执行时actor已在最终格；SDL诊断的source slot与最终x/y分别保留。玩家acted、取消重入和controller后置顺序另有已确认差异，B1.4c1b单独恢复，不能套用AI或行军尾。
 
 placement 条目（`stage*3+2`）当前确认：
 

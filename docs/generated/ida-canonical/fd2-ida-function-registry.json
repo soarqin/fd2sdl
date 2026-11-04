@@ -833,6 +833,14 @@
      "source_line": 122
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "可把 AI 路径视为 event-free，玩家路径每步立即分派格事件",
+     "now": "共享方向播放器完整走路径，每步更新match0 pending；循环不检查pending、不分派handler，不在第一次命中停步。最后一次匹配保留至调用者后置分派，后续未匹配不清空。",
+     "why": "已发布 field_actor_path_play 与四方向调用；raw down 0x13008→0x13167，up 0x13310→0x12ff0 后同尾，right 0x1345b→0x1314f 后同尾。@0x14b78 selector1选择side/ZOC/path策略，不切换到另一个无lookup播放器。"
+    }
+   ],
    "end_va": 79076,
    "is_lib": false,
    "prototype": "",
@@ -1043,6 +1051,14 @@
      "source_line": 155
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "AI 不查沿途格事件，仅在 common tail 查询最终格；lookup 可视为立即 handler",
+     "now": "只在命中时写单个 pending code（DS:0x1a8f），未命中保留旧值；不调用 handler、不追加事件完成记录。四方向单格尾都以 match0 调用，AI common tail 另以 match1 查询最终格，命中才覆盖沿途pending。",
+     "why": "已发布伪 C 的 lookup 与共享播放器，raw唯一pending写点 0x13a95；0x13167..0x1317a push0/focus_y/focus_x/call13a44，四方向和镜头分支均汇入该尾，未匹配路径直接ret。修正历史假设，不变更原资源或数据库；原版具体格事件运行另验。"
+    }
+   ],
    "end_va": 80543,
    "is_lib": false,
    "prototype": "",
@@ -1082,6 +1098,14 @@
      "resolution": "chkstk-body",
      "legacy_body_va": 80553,
      "source_line": 157
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "AI cell lookup只会产生最终格事件，物理／法术／物品事务可自行提前分派",
+     "now": "normal common tail顺序为最终格match1 lookup→acted→全表方向reset；side outer随后按当前pending调用handler。最终未命中仍可保留沿途match0。behavior8显式early return继续跳过common tail。",
+     "why": "已发布AI函数与side1/side0 outer，raw 0x13e6c..0x13e88 确认尾顺序；side1 0x1d85d..0x1d876同样传selector1，与行军共享移动播放器。未知handler只在真实分派边界冻结，不把已提交动作或外部RNG回滚成未发生。"
     }
    ],
    "end_va": 81564,

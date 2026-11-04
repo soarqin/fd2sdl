@@ -1090,7 +1090,7 @@ static int test_battle_result_query(void) {
     return 0;
 }
 
-static int test_ai_cell_event_common_tail_only(void) {
+static int test_ai_cell_event_pending_then_tail(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
     uint32_t cells[8 * 8];
@@ -1100,8 +1100,8 @@ static int test_ai_cell_event_common_tail_only(void) {
     game.stage = 1;
     game.units.items[1].x = 4;
     game.units.items[1].y = 1;
-    /* 两步 AI 路径：中间格只匹配玩家逐步查询参数 0，最终格匹配
-     * AI common tail 参数 1。原版 AI 不沿途触发前者。 */
+    /* 中间格lookup0收集pending7，不立即dispatch；最终格lookup1
+     * 命中才覆盖为9，整个动作／acted完成后只dispatch最后事件。 */
     cells[1u * 8u + 2u] = 1u << 16;
     cells[1u * 8u + 3u] = 2u << 16;
     game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
@@ -1144,6 +1144,130 @@ static int test_ai_cell_event_common_tail_only(void) {
     return 0;
 }
 
+static int test_ai_pending_last_match_and_no_path(void) {
+    static const uint32_t rolls[] = {50, 0, 99, 0};
+    for (int final_match = 0; final_match < 2; final_match++) {
+        test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+        uint32_t cells[64];
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        init_game(&game, cells, attrs, &rng);
+        game.stage = 1;
+        game.units.items[0].movement_points = 3;
+        game.units.items[1].x = 5;
+        cells[1u * 8u + 2u] = 1u << 16;
+        cells[1u * 8u + 3u] = 2u << 16;
+        game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
+        game.metadata.cell_lookup[1] = (fd2_field_cell_lookup){8, 0};
+        if (final_match) {
+            cells[1u * 8u + 4u] = 3u << 16;
+            game.metadata.cell_lookup[2] = (fd2_field_cell_lookup){9, 1};
+        }
+        fd2_field_ai_physical_candidate plan;
+        CHECK(build_plan(&game, &plan) == 0);
+        CHECK(plan.destination_x == 4 && plan.destination_y == 1);
+        uint8_t *owned_path = malloc(2);
+        CHECK(owned_path != NULL);
+        owned_path[0] = 0x6d;
+        owned_path[1] = 0x7e;
+        game.move_path = owned_path;
+        game.move_path_capacity = 2;
+        game.move_path_length = 1;
+        game.move_preview_valid = 0;
+        CHECK(fd2_field_game_commit_ai_physical(
+                  &game, 0, 0, &plan, NULL, 0) == -1);
+        CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+        CHECK(game.units.items[0].x == 4 && game.units.items[0].y == 1);
+        CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(game.units.items[0].direction == 0);
+        CHECK(rng.cursor == 4); /* 未在第一个未知lookup0处提早停止。 */
+        CHECK(game.event_log_count == 1 && game.event_total_count == 1);
+        CHECK(game.failure_notice.action == (final_match ? 9 : 8));
+        CHECK(game.failure_notice.slot == (size_t)(final_match ? 2 : 1));
+        CHECK(game.failure_notice.x == 4 && game.failure_notice.y == 1);
+        CHECK(game.pending_cell_event.valid &&
+              game.pending_cell_event.action == (final_match ? 9 : 8));
+        CHECK(game.move_path == owned_path && game.move_path_capacity == 2 &&
+              game.move_path_length == 1 && game.move_preview_valid == 0);
+        CHECK(owned_path[0] == 0x6d && owned_path[1] == 0x7e);
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+        CHECK(fd2_field_game_commit_ai_physical(
+                  &game, 0, 0, &plan, NULL, 0) == -1);
+        CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 4);
+        free(owned_path);
+        game.move_path = NULL;
+    }
+
+    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    uint32_t cells[64];
+    fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.stage = 1;
+    /* 相邻敌方ZOC禁止origin展开；预算仍有效，唯一候选是原地。 */
+    game.units.items[0].movement_points = 1;
+    game.units.items[1].x = 2;
+    cells[1u * 8u + 1u] = 1u << 16;
+    game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
+    fd2_field_ai_physical_candidate plan;
+    CHECK(build_plan(&game, &plan) == 0);
+    CHECK(plan.destination_x == 1 && plan.destination_y == 1);
+    game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
+    fd2_field_ai_physical_candidate invalid = plan;
+    invalid.destination_x = 0;
+    fd2_field_game before = game;
+    CHECK(fd2_field_game_commit_ai_physical(
+              &game, 0, 0, &invalid, NULL, 0) == -1);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
+    CHECK(fd2_field_game_commit_ai_physical(
+              &game, 0, 0, &plan, NULL, 0) == 0);
+    CHECK(game.units.items[0].x == 1 && game.units.items[0].y == 1);
+    CHECK(game.event_log_count == 0 && !game.pending_cell_event.valid);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]) && rng.cursor == 4);
+    return 0;
+}
+
+static int test_ai_outer_pending_dispatch_without_rng(void) {
+    test_rng rng = {NULL, 0, 0};
+    uint32_t cells[64];
+    fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.stage = 1;
+    game.phase_ai_pass = 1;
+    game.units.items[1].x = game.units.items[1].y = 7;
+    game.units.items[0].ai_behavior_raw = 4;
+    game.units.items[0].ai_param_35 = 4;
+    game.units.items[0].ai_param_36 = 1;
+    cells[1u * 8u + 2u] = 1u << 16;
+    cells[1u * 8u + 3u] = 2u << 16;
+    game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
+    game.metadata.cell_lookup[1] = (fd2_field_cell_lookup){8, 0};
+    game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
+    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(game.failure_notice.action == 8 && game.failure_notice.slot == 1);
+    CHECK(game.units.items[0].x == 3 && game.units.items[0].y == 1);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(game.event_log_count == 1 && game.active_side == 0 && rng.cursor == 0);
+    fd2_field_game before = game;
+    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
+
+    /* 新actor调度起点清旧pending；无任何lookup命中不能沿用42。 */
+    init_game(&game, cells, attrs, &rng);
+    game.stage = 1;
+    game.phase_ai_pass = 1;
+    game.units.items[0].ai_behavior_raw = 2;
+    game.units.items[0].movement_points = 0;
+    game.units.items[1].x = game.units.items[1].y = 7;
+    game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE && game.event_log_count == 0);
+    CHECK(!game.pending_cell_event.valid && rng.cursor == 0);
+    return 0;
+}
+
 static int test_stale_plan(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
@@ -1178,7 +1302,9 @@ static int test_stale_plan(void) {
 
 int main(void) {
     if (test_commit() != 0 ||
-        test_ai_cell_event_common_tail_only() != 0 ||
+        test_ai_cell_event_pending_then_tail() != 0 ||
+        test_ai_pending_last_match_and_no_path() != 0 ||
+        test_ai_outer_pending_dispatch_without_rng() != 0 ||
         test_common_tail_resets_all_directions() != 0 ||
         test_automatic_mode0() != 0 ||
         test_magic_commit() != 0 ||

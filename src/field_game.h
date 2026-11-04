@@ -53,6 +53,14 @@ typedef struct {
     size_t slot;
 } fd2_field_event_notice;
 
+/* field_cell_event_lookup @0x13a44 的51A8F旁路owner；source_slot仅供
+ * SDL诊断，handler仍在dispatch时读取actor最终坐标。不进入存档。 */
+typedef struct {
+    uint8_t valid;
+    uint8_t action;
+    size_t source_slot;
+} fd2_field_pending_cell_event;
+
 /* SDL session 的首个不可恢复错误，不写入原版存档或单位记录。 */
 typedef enum {
     FD2_FIELD_FAILURE_NONE = 0,
@@ -220,6 +228,7 @@ typedef struct {
     int info_panel_right;
     fd2_field_battle_result battle_result;
     int ready;
+    fd2_field_pending_cell_event pending_cell_event;
 } fd2_field_game;
 
 /* 当前只允许打开已验证初始 roster 的 stage 0。资源容器和渲染接口按

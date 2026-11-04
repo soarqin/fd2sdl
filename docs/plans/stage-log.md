@@ -270,6 +270,18 @@ game的菜单呈现沿原owner只扩ITEM_MENU：IDs8／9／10／11对应frames24
 
 本阶段Python实现未变，沿用B3.2b实际322项；草药原版校准工具的后续变更没有混入冻结。没有SDL物品WGC，原版单端与双端累计27组继续分别登记。继续B3.3原版草药校准、目标和提交，B3.2d正式配对仍须完整支持候选；B3尚未完成。
 
+### B3.3a原版草药192单次使用校准
+
+B3.2c2已独立提交`9eb84f6`。原版工具保持controls默认范围，另加herb-full与herb-injured：后者仅改raw0 HP42→20、EX0→99及checksum，完整明文／密文manifest和XOR往返通过，站位、能力、roster及其它字节保留；派生SAV SHA `15cdaa8ce74038f2031d94dcf1983c0597b506e776a2b6028c87ffacb45ec17d`。范围取严格LE profile0和item192的player `+10/+12/+15`，不借AI `+11`；原版20c6f／211a4／1c916／1b8e7的完整原码与xref支持power40、移槽及全局53EC8清零，不清unit EX。
+
+两场Windows原版首轮WGC通过：`C:/Users/Soar/AppData/Local/Temp/fd2-item-herb-{full,injured}-original-20261105-01/comparison.json`。每场16个实际检查点加1条白名单过渡帧重试，18条输入含3次启动Esc；目标打开2次、取消1次归列表0，仅一次实际Use，之后不跳演出。满HP仍消耗并acted；受伤者HP20→42，两场MP0／LV1、EX0或99保留，完整32,147像素详情显示剩余IDs0／132，最后576像素干燥地形证明关页。原版、夹具及隔离SAV的bytes／mtime守卫均通过；未发Save／END。
+
+DOSBox PID6468／57332各正常exit0、无强制终止；外Job9736／5668均`worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0`。三工具SHA实跑前后保持；独立只读审查无阻塞，21项专项及2项输出路径回归通过。仅缓存工具／文档／原版证据登记的隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/herb-calibration-acceptance/`，完整329/329 Python无跳过通过；没有后续目标state源码，不重称55项CTest为本阶段新跑。生成217项命名及发布SHA由Python审计验证，不改IDA数据库／物理类型。
+
+本地自包含 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/original-herb-review/index.html` 内嵌8张实际PNG；两报告各44项capture_hashes全部校验，Job日志JSON与comparison逐项相等，内嵌bytes再解码SHA也相等。页面未启动浏览器，静态检查与原截图复核完成；生成器和报告均留本地，不提交。
+
+报告仍`ok=false/probe_only=true`，不增加B2冻结候选累计27组或当作SDL配对。raw16B／末槽stale运行量测为未覆盖：因acted后本回合Save禁用，另设计独立END→下一玩家phase→合法Save，不强行绕过门或扩大allowlist。静态预期`40004084800080008000800080c980c9`与可见两槽不替代隐藏字节实测；完整浮字／RNG／时序／演出／声音、整关／结算／下一关未验。继续B3.3b目标、B3.3c提交、B3.3d正式入口及B3.2d配对，B3整体未完成。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

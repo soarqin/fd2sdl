@@ -177,6 +177,15 @@ CORRECTIONS: dict[int, list[dict]] = {
                "2026-11-05真实START raw0三槽、不改坐标，原版WGC逐键验证四向选择、"
                "Use列表code0确认拒绝、raw索引回绕、取消与重开。实际使用/目标/"
                "装备/丢弃/Give提交及SDL对应流程仍分别验收。",
+    }, {
+        "target": "evidence", "was": "草药可借法术ID13或把53EC8清零当成unit EX清零",
+        "now": "item192/code5由20c6f→211a4→1c916传原power40；玩家目标读"
+               "record+10 cast1/+12 area0/+15 filter1，不借AI的+11。效果后1b8e7"
+               "移槽，20c6f/18d8c清全局53EC8，再acted及玩家尾；unit MP与EX保留。",
+        "why": "完整20c6f SHA bd7d202cf348a11c5712ab96a02e5cf75f534b8b5aae2bb0447077ecf7e30c2b，"
+               "211a4/1c916/1b8e7原码与xref；2026-11-05原版WGC满HP及exact HP20/EX99"
+               "派生各使用一次，target取消回列表0，HP42/MP0/EX0或99、两槽详情通过。"
+               "未执行Save/END，raw16B/stale尾运行量测、完整UI RNG/演出/声音与SDL配对未验。",
     }],
     0x1B9DE: [{
         "target": "semantic_name", "was": "sub_1B9DE",

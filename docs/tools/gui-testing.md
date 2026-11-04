@@ -24,7 +24,11 @@ Windows（PowerShell；driver和DOSBox路径换成当前构建及安装位置）
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python -B tools/run_original_item_list.py --root . --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-item-list-original"
 ```
 
-该工具仅支持当前Windows WGC，不提供Linux原版截图入口。Linux可执行无窗口工具回归：`python3 -m unittest discover -s tools/tests -p test_original_item_list.py`；Windows将`python3`换成`python`。运行前解析输出目录的实际路径，拒绝写入原版及其junction目标。保存完整输入、WGC检查点、进程清理和来源／副本的字节及修改时间守卫。成功仍为`ok=false`、`probe_only=true`、`probe_cases_passed=true`，不得计入双端图形组数。没有实际Use、目标选择、效果、装备、丢弃、Give或Save，也未证明内存、UI随机流、时序与声音相等；这些分支及SDL对应流程另行验收。
+该工具仅支持当前Windows WGC，不提供Linux原版截图入口。Linux可执行无窗口工具回归：`python3 -m unittest discover -s tools/tests -p test_original_item_list.py`；Windows将`python3`换成`python`。运行前解析输出目录的实际路径，拒绝写入原版及其junction目标。保存完整输入、WGC检查点、进程清理和来源／副本的字节及修改时间守卫。成功仍为`ok=false`、`probe_only=true`、`probe_cases_passed=true`，不得计入双端图形组数。`controls`不执行实际Use、目标选择、效果、装备、丢弃、Give或Save，也未证明内存、UI随机流、时序与声音相等；这些分支及SDL对应流程另行验收。
+
+默认`--scenario controls`保留上述只读控制范围。新增`--scenario herb-full`使用自然满HP来源，`--scenario herb-injured`仅派生raw0 HP42→20、EX0→99及checksum，保留完整明文／密文字节manifest；两者都不改站位。单独运行沿用同一`run-job 360000`命令并加场景参数及新的`--artifacts`目录，禁止复用已有结果目录。
+
+草药场景两次打开frame1目标选择，中间Esc必须回列表0，随后仅一次实际Use确认。之后纯观察acted、普通光标及无范围／菜单，再F2核对完整下板及姓名、HP／MP、LV／EX，共32,147像素；最后用完整576像素干燥地形门证明关页完成。原版满HP仍消耗药草，受控场景HP42／MP0／EX99保留，剩余可见IDs为0／132。全程不跳演出、不发Save／END；raw16B／末槽stale只记录静态预期，原版运行字节量测另列post-END合法Save场景，不因画面正确而声称隐藏字节、全部RNG／浮字／时序或声音已验。当前仍仅原版，顶层`ok=false`且不能增加双端累计组数。
 
 ## 截图规范
 

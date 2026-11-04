@@ -18,10 +18,34 @@ from run_original_end_turn import STRIDE, UNITS, round_assets, validate_initial
 from run_original_player import sheet_frame
 
 START_SHA256 = "2c89019b2a83f5460354597e15e860c075951241beb5c9a3dcb6551bb7ca5310"
+PLAIN_SHA256 = "b50fd076d397ea5afbb31630ebe1dd6aa40b335a776a0f8323730cde0365f975"
 EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 TABLE_VA, TABLE_COUNT, RECORD_SIZE = 0x602ad, 215, 23
 TABLE_SHA256 = "bb64df69e73dfc4d642d342aac7bad8d7c2f4fb0527bb55d35c153b9f79432ca"
 SLOTS = ((0x40, 0), (0x40, 132), (0, 192))
+AFTER_USE_INVENTORY = "40004084800080008000800080c980c9"
+
+
+def derive_injured(source, encrypted):
+    """仅active raw0 HP42→20、EX0→99及checksum；不改站位/roster/能力。"""
+    if (hashlib.sha256(encrypted).hexdigest() != START_SHA256 or
+            hashlib.sha256(source).hexdigest() != PLAIN_SHA256):
+        raise ValueError("受控草药夹具必须从完整已确认START明文及密文派生")
+    changed = bytearray(source)
+    struct.pack_into("<H", changed, UNITS + 0x40, 20)
+    changed[UNITS + 0x3c] = 99
+    changed[-4:] = sum(changed[:-4]).to_bytes(4, "little")
+    encoded = bytes(a ^ b ^ c for a, b, c in zip(encrypted, source, changed))
+    def patches(before, after):
+        return [{"offset": index, "before": a, "after": b}
+                for index, (a, b) in enumerate(zip(before, after)) if a != b]
+    return encoded, bytes(changed), {"scenario": "herb-injured", "controlled_fixture": True,
+        "source_sha256": START_SHA256, "source_plain_sha256": PLAIN_SHA256,
+        "derived_sha256": hashlib.sha256(encoded).hexdigest(),
+        "derived_plain_sha256": hashlib.sha256(changed).hexdigest(),
+        "plaintext_patches": patches(source, changed), "encrypted_patches": patches(encrypted, encoded),
+        "checksum_before": source[-4:].hex(), "checksum_after": changed[-4:].hex(),
+        "excluded": "natural injury/experience history; runtime RNG/whole-owner equivalence"}
 
 
 def item_table(executable):
@@ -62,18 +86,30 @@ def raw_icon(sheet, index, size, palette):
     return image
 
 
-def prepare(original, fixture):
+def prepare(original, fixture, *, source=None, after_use=False):
     encrypted = fixture.read_bytes()
     if hashlib.sha256(encrypted).hexdigest() != START_SHA256:
-        raise ValueError("物品列表校准仅支持已确认的只读真实START.SAV；不派生夹具")
-    source, focus = validate_initial(fixture, 0)
-    actor = source[UNITS:UNITS + STRIDE]
+        raise ValueError("物品校准仅支持已确认的只读真实START.SAV来源")
+    base, focus = validate_initial(fixture, 0)
+    if source is None:
+        source = base
+    elif bytes(source) not in (base, derive_injured(base, encrypted)[1]):
+        raise ValueError("物品资源仅接受原START或HP20/EX99完整exact manifest派生")
+    actor = bytearray(source[UNITS:UNITS + STRIDE])
     slots = tuple(tuple(actor[0x0a + i * 2:0x0c + i * 2]) for i in range(3))
     if slots != SLOTS or any(not actor[0x0a + i * 2] & 0x80 for i in range(3, 8)):
         raise ValueError("真实START raw0库存不是已确认的密集三槽")
-    if (actor[7:9] != b"\0\0" or struct.unpack_from("<HH", actor, 0x40) != (42, 42) or
+    if (actor[7:9] != b"\0\0" or struct.unpack_from("<HH", actor, 0x40) not in ((42, 42), (20, 42)) or
             struct.unpack_from("<HH", actor, 0x44) != (0, 0)):
         raise ValueError("物品列表角色身份或HP/MP前置不符")
+    if after_use:
+        # 1b8e7移除raw slot2：只左移后槽并写末flag80，不能清stale ID。
+        actor[0x0e:0x18] = actor[0x10:0x1a]
+        actor[0x18] = 0x80
+        struct.pack_into("<H", actor, 0x40, 42)
+        if actor[0x0a:0x1a].hex() != AFTER_USE_INVENTORY:
+            raise ValueError("草药后库存预期模型与已确认1b8e7写集不符")
+        slots = slots[:2]
     table, evidence = item_table(original / "FD2.EXE")
     assets = round_assets(original)
     other = (original / "FDOTHER.DAT").read_bytes()
@@ -86,7 +122,7 @@ def prepare(original, fixture):
     top.putpalette(assets["palette"])
     fields = []
     templates = {}
-    for selected in (-1, 0, 1, 2):
+    for selected in (-1, *range(len(slots))):
         canvas = bottom.copy()
         for slot, (flags, item_id) in enumerate(slots):
             record = table[item_id * RECORD_SIZE:(item_id + 1) * RECORD_SIZE]
@@ -111,15 +147,23 @@ def prepare(original, fixture):
         templates["unselected" if selected == -1 else f"selected_{selected}"] = ((5, 94), canvas)
     name = fragment(text, 1)
     glyphs(top, font, name, 99 - 92, 13 - 7, 205)
-    number(top, sheet, 42, 267 - 92, 41 - 7, 31, 3)
+    hp, maximum = struct.unpack_from("<HH", actor, 0x40)
+    number(top, sheet, hp, 267 - 92, 41 - 7, 31 if hp == maximum else 42, 3)
     number(top, sheet, 42, 293 - 92, 41 - 7, 31, 3)
     number(top, sheet, 0, 267 - 92, 59 - 7, 31, 3)
     number(top, sheet, 0, 293 - 92, 59 - 7, 31, 3)
+    number(top, sheet, actor[0x21], 157 - 92, 33 - 7, 42, 2)
+    number(top, sheet, actor[0x3c], 157 - 92, 44 - 7, 42, 2)
     templates["actor_name"] = ((98, 13), top.crop((6, 6, 7 + 16 * len(name), 23)))
     templates["current_max_hp"] = ((267, 41), top.crop((175, 34, 219, 42)))
     templates["current_max_mp"] = ((267, 59), top.crop((175, 52, 219, 60)))
+    templates["level"] = ((157, 33), top.crop((65, 26, 77, 34)))
+    templates["experience"] = ((157, 44), top.crop((65, 37, 77, 45)))
     return source, focus, assets, templates, {"raw_actor": 0, "unit_id": 0,
         "slots": fields, "item_table": evidence, "list_bottom": [5, 94, 310, 99],
-        "actor_fragment": 1, "actor_tokens": list(name), "hp": 42, "max_hp": 42, "mp": 0, "max_mp": 0,
+        "actor_fragment": 1, "actor_tokens": list(name), "hp": hp, "max_hp": 42, "mp": 0, "max_mp": 0,
+        "level": actor[0x21], "experience": actor[0x3c],
+        "expected_inventory_hex": actor[0x0a:0x1a].hex(), "after_use_model": after_use,
+        "runtime_raw_inventory_measured": False,
         "list_is_equipment_page": True, "use_confirmed": False,
         "runtime_ui_rng_alignment": "unverified; 16c57 wait consumes shared RNG"}

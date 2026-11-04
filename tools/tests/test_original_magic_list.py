@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import hashlib
 import json
+import os
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -31,10 +32,10 @@ class ResourceFixture:
             image.paste(part.convert("RGB"),at)
         return image
 
-    def command_frame(self,*,highlight=True,actor_overlay=True):
+    def command_frame(self,*,highlight=True,actor_overlay=True,sdl=False):
         image = Image.new("RGB",(320,200))
         position = (124,100)
-        for item,index in enumerate((2,4 if highlight else 3,6,9)):
+        for item,index in enumerate((2,4 if highlight else 3,8 if sdl else 6,9)):
             part = self.assets["upper_commands"][index][0] if item==0 and actor_overlay else self.assets["commands"][index]
             image.paste(part.convert("RGB"),tuple(a+b for a,b in zip(position,MENU_OFFSETS[item])))
         return image
@@ -71,6 +72,17 @@ class ResourceTest(ResourceFixture,unittest.TestCase):
             second.putpixel(point,(255,0,0))
             with self.assertRaises(AssertionError):
                 probe.compare_reopened(first,second,self.templates)
+
+    def test_command_item_is_checked_per_role_and_never_claimed_equivalent(self):
+        command = probe.PlayerOracle(self.source,self.assets,[],{})
+        for role,sdl,item in (("original",False,6),("sdl",True,8)):
+            detail = probe.command_page(self.command_frame(sdl=sdl),command,(124,100),self.templates,1,role=role)
+            self.assertEqual(detail["matches"][2]["frame"],item)
+            self.assertEqual(detail["matches"][2]["checked_pixels"],476)
+            self.assertFalse(detail["capability_gates_compared"] or detail["cross_end_capability_equivalence"])
+            self.assertTrue(detail["item_gate"]["cross_end_equivalence_excluded"])
+            self.assertIsNone(probe.command_page(self.command_frame(sdl=not sdl),command,(124,100),self.templates,1,role=role))
+            self.assertIsNone(probe.command_page(self.command_frame(highlight=False,sdl=sdl),command,(124,100),self.templates,1,role=role))
 
 
 class InputTest(ResourceFixture,unittest.TestCase):
@@ -566,6 +578,304 @@ class DamageTest(ResourceFixture,unittest.TestCase):
                 self.assertEqual(report["derived_fixture"],self.manifest)
                 self.assertNotIn("measurement_save_requested",report)
                 self.assertEqual((args.artifacts/"damage-start.SAV").read_bytes(),self.derived_bytes)
+
+
+class HealTest(ResourceFixture,unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.base = cls.source
+        cls.encrypted = (probe.ROOT/"original_game/START.SAV").read_bytes()
+        cls.derived_bytes,derived,cls.manifest = probe.derive_heal(cls.base,cls.encrypted)
+        (cls.source,cls.focus,cls.assets,cls.actors,cls.selection,cls.templates,
+         cls.fields) = probe.prepare(probe.ROOT/"original_game",source=derived)
+
+    def test_heal_exact_manifest_does_not_change_roster_coordinates_or_caster_mp_ex(self):
+        self.assertEqual([(c["offset"],c["before"],c["after"]) for c in self.manifest["changed_plain_bytes"]],
+                         [(0x12e3,42,20),(0x130e,0,32),(0x59c7,88,98)])
+        self.assertEqual(self.manifest["derived_encrypted_sha256"],
+                         "fe694338e87e6c86c242dff743e0ce0a882789c222b0bb11adaebd2aeedfe0e9")
+        self.assertEqual(self.source[0x8a3:probe.UNITS],self.base[0x8a3:probe.UNITS])
+        self.assertEqual(self.fields["ids"],[0,13])
+        self.assertEqual(self.fields["costs"],[2,3])
+        self.assertEqual(self.fields["heal_contract"]["experience"],20)
+        self.assertFalse(self.manifest["natural_learning_covered"])
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory)/"heal.SAV"
+            save.write_bytes(self.derived_bytes)
+            self.assertEqual(probe.decode_save(save),self.source)
+        with self.assertRaises(ValueError):
+            probe.derive_heal(self.source,self.encrypted)
+
+    def test_two_full_lists_and_each_frame1_actor_range_cycle_have_exact_resource_gates(self):
+        for selected in (0,1):
+            frame = self.list_frame(selected=selected)
+            self.assertEqual(probe.list_page(frame,self.templates,self.fields,selected)["checked_pixels"],31603)
+            self.assertIsNone(probe.list_page(frame,self.templates,self.fields,1-selected))
+        for raw in (0,1,2,3):
+            target = self.assets["heal_targets"][raw]
+            frame = Image.new("RGB",(320,200))
+            part = target["actor"]["templates"][0]
+            x,y = target["screen"]
+            frame.paste(part.convert("RGB"),(x,y-6),part.point(lambda c:255 if c else 0,mode="L"))
+            frame.paste(target["range"]["ranges"][0][1].convert("RGB"),target["range"]["position"])
+            view = dict(self.assets,magic_target=target)
+            detail = probe.target_state(frame,view,self.templates,self.fields)
+            self.assertEqual((detail["raw_actor"],detail["selection_frame"]),(raw,1))
+            self.assertEqual(detail["focus"]["focus_screen"],target["screen"])
+            frame.paste(target["range"]["base"].convert("RGB"),target["range"]["position"])
+            self.assertIsNone(probe.target_state(frame,view,self.templates,self.fields))
+
+    def browse_frame(self,*,acted=True):
+        frame = Image.new("RGB",(320,200))
+        plan = self.assets["heal_result"]
+        part = plan["recipient"]["templates"][0]
+        x,y = plan["recipient_screen"]
+        frame.paste(part.convert("RGB"),(x,y-6),part.point(lambda c:255 if c else 0,mode="L"))
+        sprite = plan["acted"][0] if acted else probe.sheet_frame(
+            (probe.ROOT/"original_game/FDICON.B24").read_bytes(),9*12)
+        sprite.putpalette(self.assets["palette"])
+        x,y = plan["caster_screen"]
+        frame.paste(sprite.convert("RGB"),(x,y-6),sprite.point(lambda c:255 if c else 0,mode="L"))
+        return frame
+
+    def detail_frame(self,kind):
+        frame = Image.new("RGB",(320,200))
+        for part,at in self.assets["detail_edges"]:
+            frame.paste(part.convert("RGB"),at,part.point(lambda c:255 if c else 0,mode="L"))
+        for at,part in self.assets["heal_"+kind+"_detail"].values():
+            frame.paste(part.convert("RGB"),at)
+        return frame
+
+    def test_heal_requires_acted_before_hp42_and_mp5_lv1_ex20_detail_measurements(self):
+        self.assertIsNotNone(probe.healed_browse(self.browse_frame(),self.assets))
+        self.assertIsNone(probe.healed_browse(self.browse_frame(acted=False),self.assets))
+        recipient = probe.recipient_detail(self.detail_frame("recipient"),self.source,self.assets)
+        caster = probe.caster_detail(self.detail_frame("caster"),self.source,self.assets,heal=True)
+        self.assertEqual((recipient["hp"],recipient["max_hp"],recipient["checked_pixels"]),(42,42,913))
+        self.assertEqual((caster["mp"],caster["experience"],caster["level"],caster["checked_pixels"]),(5,20,1,1105))
+        for kind,point in (("recipient",(267,41)),("caster",(267,59)),("caster",(157,44))):
+            frame = self.detail_frame(kind)
+            frame.putpixel(point,(255,0,0))
+            found = probe.recipient_detail(frame,self.source,self.assets) if kind=="recipient" else probe.caster_detail(frame,self.source,self.assets,heal=True)
+            self.assertIsNone(found)
+
+    def test_cursor_above_acted_caster_is_composed_without_cropping(self):
+        frame = Image.new("RGB",(320,200))
+        cursor,sprite = self.assets["cursor"],self.assets["heal_result"]["acted"][0]
+        frame.paste(cursor.convert("RGB"),(124,76),cursor.point(lambda c:255 if c else 0,mode="L"))
+        frame.paste(sprite.convert("RGB"),(124,94),sprite.point(lambda c:255 if c else 0,mode="L"))
+        found = probe.visual_focus(frame,self.assets,self.assets["heal_result"]["composites"])
+        self.assertEqual(found["focus_screen"],[124,76])
+
+    heal_keys = ["UP","ENTER","Z","Z","ENTER","ENTER","LEFT","ENTER",
+        "UP","DOWN","LEFT","RIGHT","UP","ENTER","ESC","UP","ENTER","Z","Z","Z","Z","ENTER",
+        "F2","ESC","RIGHT","RIGHT","RIGHT","DOWN","F2"]
+
+    def exercise_heal(self,capture,save,report,*,fail_at=None):
+        observed = []
+        def wait(capture,name,predicate,checkpoints,**kwargs):
+            observed.append((name,capture.key.call_count))
+            if name==fail_at:
+                raise TimeoutError("resource missing")
+            if name=="heal-acted-closed-browse":
+                self.assertEqual(capture.key.call_count,22)
+            if name in ("heal-recipient-detail","heal-caster-detail"):
+                kind = "recipient" if name=="heal-recipient-detail" else "caster"
+                frame = self.detail_frame(kind)
+                return frame,predicate(frame)
+            return self.list_frame(),{"focus_screen":[52,76] if name=="z-raw0" else [124,100]}
+        with patch.object(probe,"wait_title"),patch.object(probe,"wait_state",side_effect=wait), \
+                patch.object(probe,"wait_measured_save",side_effect=AssertionError("heal must not Save")):
+            probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
+                self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
+                save.stat().st_mtime_ns,report,scenario="heal")
+        return observed
+
+    def test_heal_one_cast_two_details_no_save_and_no_extra_input_after_failed_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory)/"FD2.SAV"
+            save.write_bytes(self.derived_bytes)
+            capture,report = Mock(),{"checkpoints":[]}
+            observed = self.exercise_heal(capture,save,report)
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.heal_keys)
+            self.assertEqual(report["input_scope"]["cast_confirmation_count"],1)
+            self.assertEqual(report["heal_recipient_measurement"]["hp"],42)
+            self.assertEqual(report["heal_caster_measurement"]["experience"],20)
+            for name,count in observed:
+                capture = Mock()
+                with self.subTest(gate=name),self.assertRaises(TimeoutError):
+                    self.exercise_heal(capture,save,{"checkpoints":[]},fail_at=name)
+                self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.heal_keys[:count])
+            self.assertEqual(save.read_bytes(),self.derived_bytes)
+
+
+class PairingTest(unittest.TestCase):
+    def model(self,directory,scenario,*,failed=None,mismatch=False,paired=True,late_guard=None):
+        base = Path(directory)
+        driver,dosbox,sdl = base/"driver.exe",base/"dosbox.exe",base/"fd2sdl.exe"
+        for path in (driver,dosbox,sdl):
+            path.write_bytes(b"not launched")
+        args = SimpleNamespace(root=probe.ROOT,driver=driver,dosbox=dosbox,
+                               artifacts=base/"output",scenario=scenario,sdl=sdl if paired else None)
+        events,fixtures = [],[]
+        fixture = probe.ROOT/"original_game/START.SAV"
+        original_read,original_stat = Path.read_bytes,Path.stat
+        hash_calls,tripped,bad_fixture = 0,False,False
+        def hashes(path):
+            nonlocal hash_calls,tripped,bad_fixture
+            hash_calls += 1
+            if (late_guard=="original_copy" and hash_calls==2 or
+                    late_guard=="sdl_copy" and events[-1:]==["closed-sdl"]) and not tripped:
+                save = args.artifacts/("original/game/FD2.SAV" if paired else "game/FD2.SAV")
+                if late_guard=="sdl_copy":
+                    save = args.artifacts/"sdl/FD2.SAV"
+                stamp = save.stat()
+                os.utime(save,ns=(stamp.st_atime_ns,stamp.st_mtime_ns+2_000_000_000))
+                tripped = True
+            if late_guard in ("fixture_bytes","fixture_mtime"):
+                bad_fixture = hash_calls==3  # 只模拟该端finally，顶层读回已稳定来源。
+            return {"source":"changed" if late_guard=="original_hash" and hash_calls==3 else "stable"}
+        def read_bytes(path):
+            data = original_read(path)
+            return data[:-1]+bytes([data[-1]^1]) if bad_fixture and late_guard=="fixture_bytes" and path==fixture else data
+        def stat(path,*args,**kwargs):
+            value = original_stat(path,*args,**kwargs)
+            if bad_fixture and late_guard=="fixture_mtime" and path==fixture:
+                return SimpleNamespace(st_mtime_ns=value.st_mtime_ns+2_000_000_000,st_mode=value.st_mode)
+            return value
+        @contextmanager
+        def running(command,cwd,env,log,driver,receipts):
+            kind = "sdl" if command[0]==str(sdl.resolve()) else "original"
+            events.append("start-"+kind)
+            if kind=="sdl":
+                self.assertEqual(cwd,probe.ROOT)
+                self.assertEqual(Path(env["FD2SDL_SAVE_PATH"]),args.artifacts/"sdl/FD2.SAV")
+            receipts.append({"pid":100+len(events),"cleaned":True,"forced_cleanup":False,"exit_code":0})
+            try:
+                yield Mock(pid=100+len(events))
+            finally:
+                events.append("closed-"+kind)
+        def exercise(capture,source,focus,assets,actors,selection,templates,fields,titles,
+                     save,data,stamp,record,**kwargs):
+            kind = record.get("kind","original")
+            fixtures.append((kind,data,source))
+            self.assertEqual(save.read_bytes(),data)
+            if kind==failed:
+                raise TimeoutError("stopped at "+kind)
+            if scenario=="single":
+                record["reopened_comparison"] = {"name_mp_cost_selection_unchanged":True}
+            elif scenario=="damage":
+                record["damage_measurement"] = {"mp":6,"max_mp":8,"level":1,"experience":42 if not mismatch or kind=="original" else 41}
+            elif scenario=="controls":
+                measured = bytearray(source)
+                measured[probe.META+5:probe.META+9] = bytes((9,15,4,4))
+                measured[-4:] = sum(measured[:-4]).to_bytes(4,"little")
+                save.write_bytes(bytes(a^b^c for a,b,c in zip(data,source,measured)))
+                record["measurement"] = probe.check_load_measurement(source,measured,[("LEFT",(100,100))])
+            else:
+                record["heal_recipient_measurement"] = {"hp":42,"max_hp":42}
+                record["heal_caster_measurement"] = {"mp":5,"max_mp":8,"level":1,"experience":20}
+        with patch.object(probe,"hashes",side_effect=hashes), \
+                patch.object(Path,"read_bytes",read_bytes),patch.object(Path,"stat",stat), \
+                patch.object(probe,"running",side_effect=running),patch.object(probe,"Capture"), \
+                patch.object(probe.shutil,"copytree",side_effect=lambda source,destination:destination.mkdir()), \
+                patch.object(probe,"exercise",side_effect=exercise), \
+                patch("subprocess.Popen",side_effect=AssertionError("pure test must not launch")):
+            report = probe.run(args)
+        return report,events,fixtures,args.artifacts
+
+    def test_single_damage_heal_pair_is_original_first_same_fixture_and_two_receipts(self):
+        for scenario in ("single","damage","heal"):
+            with self.subTest(scenario=scenario),tempfile.TemporaryDirectory() as directory:
+                report,events,fixtures,output = self.model(directory,scenario)
+                self.assertTrue(report["ok"] and report["probe_cases_passed"])
+                self.assertFalse(report["probe_only"])
+                self.assertEqual(events,["start-original","closed-original","start-sdl","closed-sdl"])
+                self.assertEqual(fixtures[0][1:],fixtures[1][1:])
+                self.assertEqual([c["status"] for c in report["cases"]],["passed","passed"])
+                self.assertEqual(len(report["processes"]),2)
+                self.assertEqual(report["paired_terminal_values"]["original"],report["paired_terminal_values"]["sdl"])
+                self.assertEqual(report["known_sdl_differences"]["ITEM"]["sdl_frame"],8)
+                for kind in ("original","sdl"):
+                    endpoint = json.loads((output/kind/"comparison.json").read_text(encoding="utf-8"))
+                    self.assertEqual(endpoint["kind"],kind)
+                    self.assertTrue(endpoint["copy_save_unchanged_after_cleanup"])
+                    self.assertTrue(endpoint["probe_cases_passed"])
+
+    def test_native_failure_blocks_sdl_and_sdl_failure_or_mismatch_never_passes_pair(self):
+        for failed,mismatch in (("original",False),("sdl",False),(None,True)):
+            with self.subTest(failed=failed,mismatch=mismatch),tempfile.TemporaryDirectory() as directory:
+                report,events,_,output = self.model(directory,"damage",failed=failed,mismatch=mismatch)
+                self.assertFalse(report["ok"] or report["probe_cases_passed"])
+                self.assertIn("error",report)
+                if failed=="original":
+                    self.assertEqual(events,["start-original","closed-original"])
+                    self.assertFalse((output/"sdl").exists())
+                else:
+                    self.assertEqual(events,["start-original","closed-original","start-sdl","closed-sdl"])
+
+    def test_original_heal_remains_probe_and_controls_pair_is_rejected_before_mkdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report,events,_,_ = self.model(directory,"heal",paired=False)
+            self.assertTrue(report["probe_cases_passed"] and report["probe_only"])
+            self.assertFalse(report["ok"])
+            self.assertEqual(events,["start-original","closed-original"])
+        args = SimpleNamespace(root=probe.ROOT,artifacts=Path("C:/unused-controls-pair"),
+                               scenario="controls",sdl=Path("C:/unused-sdl.exe"))
+        with patch.object(Path,"mkdir") as mkdir,patch.object(probe,"hashes") as hashes, \
+                patch("subprocess.Popen",side_effect=AssertionError("must not launch")):
+            with self.assertRaisesRegex(ValueError,"controls.*--sdl"):
+                probe.run(args)
+            mkdir.assert_not_called()
+            hashes.assert_not_called()
+
+    def test_cli_pair_cannot_exit_success_from_probe_only_receipt(self):
+        args = ["run_original_magic_list.py","--root",".","--driver","d.exe","--dosbox","b.exe",
+                "--artifacts","unused","--sdl","s.exe"]
+        with patch.object(probe.sys,"argv",args),patch.object(probe.sys,"platform","win32"), \
+                patch.object(probe,"run",return_value={"ok":False,"probe_cases_passed":True}),patch("builtins.print"):
+            self.assertEqual(probe.main(),1)
+
+    def test_each_endpoint_final_copy_mtime_guard_revokes_pass_before_next_endpoint(self):
+        for late_guard in ("original_copy","sdl_copy"):
+            with self.subTest(guard=late_guard),tempfile.TemporaryDirectory() as directory:
+                report,events,fixtures,output = self.model(directory,"single",late_guard=late_guard)
+                self.assertFalse(report["ok"] or report["probe_cases_passed"])
+                bad = report["cases"][0 if late_guard=="original_copy" else 1]
+                self.assertEqual(bad["status"],"failed")
+                self.assertFalse(bad["probe_cases_passed"] or bad["endpoint_final_guards_passed"])
+                self.assertFalse(bad["copy_save_unchanged_after_cleanup"] or bad["copy_save_matches_completed_state_after_cleanup"])
+                endpoint = json.loads((output/bad["kind"]/"comparison.json").read_text(encoding="utf-8"))
+                self.assertEqual(endpoint["status"],"failed")
+                self.assertEqual((output/bad["kind"]/("game/FD2.SAV" if bad["kind"]=="original" else "FD2.SAV")).read_bytes(),fixtures[-1][1])
+                if late_guard=="original_copy":
+                    self.assertEqual(events,["start-original","closed-original"])
+                    self.assertFalse((output/"sdl").exists())
+
+    def test_final_source_hash_fixture_bytes_and_fixture_mtime_cannot_be_rescued_by_top_guard(self):
+        for guard in ("original_hash","fixture_bytes","fixture_mtime"):
+            with self.subTest(guard=guard),tempfile.TemporaryDirectory() as directory:
+                report,events,_,output = self.model(directory,"single",late_guard=guard)
+                self.assertFalse(report["ok"] or report["probe_cases_passed"])
+                self.assertEqual(events,["start-original","closed-original"])
+                record = report["cases"][0]
+                self.assertFalse(record["endpoint_final_guards_passed"])
+                self.assertFalse(record["original_unchanged"] if guard=="original_hash" else record["fixture_unchanged"])
+                self.assertTrue(report["original_unchanged"] and report["fixture_unchanged"])
+                self.assertFalse((output/"sdl").exists())
+
+    def test_controls_uses_completed_save_stamp_and_final_guard_preserves_first_error(self):
+        for guard in (None,"original_copy"):
+            with self.subTest(guard=guard),tempfile.TemporaryDirectory() as directory:
+                report,_,_,_ = self.model(directory,"controls",paired=False,late_guard=guard)
+                self.assertEqual(report["probe_cases_passed"],guard is None)
+                self.assertFalse(report["copy_save_unchanged_after_cleanup"])
+                self.assertEqual(report["copy_save_matches_completed_state_after_cleanup"],guard is None)
+        with tempfile.TemporaryDirectory() as directory:
+            report,_,_,_ = self.model(directory,"single",failed="original",late_guard="original_copy")
+            self.assertEqual(report["error"],"stopped at original")
+            self.assertEqual(report["cases"][0]["error"],"stopped at original")
 
 
 if __name__=="__main__":

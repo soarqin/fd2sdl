@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""原版-only MAGIC列表/取消与受控ID0单次施法校准；不开放SDL正式MAGIC。
+"""MAGIC列表/取消与受控0/13单次施法校准；可选原版先行SDL配对。
 
 依据field_player_magic_command_execute @0x1cff0、field_player_command_execute
 @0x18d8c（原登记同名）；field_unit_magic_list_draw @0x1ceed（原sub_1CEED）
@@ -7,6 +7,9 @@
 damage依据field_magic_battle_animation @0x2ff01、field_defeated_units_finalize
 @0x1db65、field_unit_detail_stats_draw @0x17fc0（原登记同名）与sub_1E292
 @0x1e292（原登记同名）；只改active站位，不声称自然一回合移动后可施法。
+heal依据field_magic_heal_apply @0x1c8ed（原登记同名）及sub_1C916
+@0x1c916（原登记同名）；只教active ID13/指定受伤，不声称自然学习。
+不带--sdl保持原版-only；配对只验命名资源/终值，不冒称完整演出或RNG对齐。
 复用fd2_magic_list_oracle纯资源构造；仅由driver run-job串行运行，owned PID清理。
 """
 from pathlib import Path
@@ -21,7 +24,7 @@ import sys
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-from fd2_magic_list_oracle import prepare as list_templates,damage_detail as detail_templates
+from fd2_magic_list_oracle import prepare as list_templates,caster_values as detail_templates,healed_recipient_values
 from audit_fdicon_opaque_zero import audit_fdicon
 from run_graphics_tests import decode_save
 from run_original_comparison import Capture,archive_entry,hashes,running,title_templates
@@ -93,6 +96,32 @@ def derive_damage(source,encrypted):
         "derived_plain_sha256":hashlib.sha256(plain).hexdigest()}
 
 
+def derive_heal(source,encrypted):
+    """只教active raw1 ID13并使raw0受伤；不重建roster或声称自然学习。"""
+    if (len(source)!=0x59cb or len(encrypted)!=len(source) or
+            hashlib.sha256(source).hexdigest()!=START_PLAIN_SHA256 or
+            hashlib.sha256(encrypted).hexdigest()!=START_SHA256):
+        raise ValueError("heal仅支持已确认真实START完整来源")
+    plain = bytearray(source)
+    hp,bitmap = UNITS+0x40,UNITS+STRIDE+0x1b
+    plain[hp],plain[bitmap] = 20,0x20
+    plain[-4:] = sum(plain[:-4]).to_bytes(4,"little")
+    encoded = bytes(a^b^c for a,b,c in zip(encrypted,source,plain))
+    changes = [{"offset":i,"before":a,"after":b,
+                "owner":"raw0 HP" if i==hp else "raw1 active magic bitmap" if i==bitmap else "checksum"}
+               for i,(a,b) in enumerate(zip(source,plain)) if a!=b]
+    if {change["offset"] for change in changes}!={hp,bitmap,len(plain)-4}:
+        raise AssertionError("heal派生改动超出HP/位图/checksum")
+    return encoded,bytes(plain),{"synthetic_heal_fixture":True,"natural_learning_covered":False,
+        "magic_ids":[0,13],"recipient_hp_before":20,"recipient_hp_max":42,"changed_plain_bytes":changes,
+        "changed_encrypted_bytes":[{"offset":i,"before":a,"after":b}
+                                    for i,(a,b) in enumerate(zip(encrypted,encoded)) if a!=b],
+        "source_encrypted_sha256":hashlib.sha256(encrypted).hexdigest(),
+        "source_plain_sha256":hashlib.sha256(source).hexdigest(),
+        "derived_encrypted_sha256":hashlib.sha256(encoded).hexdigest(),
+        "derived_plain_sha256":hashlib.sha256(plain).hexdigest()}
+
+
 def actor_focus_resources(original,source,assets,raw,cursor):
     record = source[UNITS+raw*STRIDE:UNITS+(raw+1)*STRIDE]
     isolated = bytearray(source)
@@ -112,8 +141,8 @@ def prepare(original,*,source=None):
     if source is None:
         source = base
     else:
-        if source not in (derive_controls(base,encrypted)[1],derive_damage(base,encrypted)[1]):
-            raise ValueError("资源仅接受完整controls/damage exact manifest派生")
+        if source not in (derive_controls(base,encrypted)[1],derive_damage(base,encrypted)[1],derive_heal(base,encrypted)[1]):
+            raise ValueError("资源仅接受完整controls/damage/heal exact manifest派生")
         focus = screen(source,tuple(source[META+5:META+7]))
     templates,fields = list_templates(original,fixture,source=source)
     assets = round_assets(original)
@@ -126,12 +155,13 @@ def prepare(original,*,source=None):
     assets["upper_commands"] = {index:[upper_command_composite(assets["commands"][index],sprite)
                                        for sprite in actor_sprites] for index in range(3)}
     damage = tuple(actor[:2])==(7,16)
+    heal = fields["ids"]==[0,13]
     # 7,16的四邻受actor/视口边缘限制；沿用原source的9,15完整地形模板，
     # 后续按受控站位另验7,15→8,15→9,15三格可达，不冒称它是相邻格。
     probe = selection_probe(original,base if damage else source,1,assets)
     if damage:
         probe = dict(probe,actor_position=screen(source,tuple(actor[:2])))
-    if fields["ids"]==[0,1,2,3,13] or damage:
+    if fields["ids"]==[0,1,2,3,13] or damage or heal:
         # 1cff0→14818→115b6：普通0/13分支，按native filter与raw顺序取首目标。
         raw,spell,budget = (11,0,5) if damage else (0,13,4)
         candidates = [i for i in range(source[META+1])
@@ -164,7 +194,30 @@ def prepare(original,*,source=None):
             "selection_opaque_zero_pixels":audit["opaque_zero_pixels"]}
         if damage:
             prepare_damage_resources(original,source,assets,fields,geometry,target_world)
+        elif heal:
+            prepare_heal_resources(original,source,assets,fields,target_cursor)
     return source,focus,assets,actors,probe,templates,fields
+
+
+def caster_resources(original,source,assets,*,mp,experience):
+    """两个已确认0/13场景共用unit9的acted、焦点和详情资源，不持有游戏状态。"""
+    icons = (original/"FDICON.B24").read_bytes()
+    acted = [acted_sprite(sheet_frame(icons,9*12+phase)) for phase in range(12)]
+    _,composites = cursor_assets(original/"FDICON.B24",source,assets)
+    for sprite in acted:
+        sprite.putpalette(assets["palette"])
+        for height,cursor_y,sprite_y,offset in ((30,6,0,-6),(42,0,18,0)):
+            composite = Image.new("P",(24,height))
+            composite.putpalette(assets["palette"])
+            for image,at in ((assets["cursor"],(0,cursor_y)),(sprite,(0,sprite_y))):
+                composite.paste(image,at,image.point(lambda c:255 if c else 0,mode="L"))
+            composites.append((composite,offset))
+    detail = archive_entry((original/"FDOTHER.DAT").read_bytes(),5)
+    assets["detail_edges"] = [(sheet_frame(detail,index,lmi=True).crop((0,0,width,2)),at)
+        for index,width,at in ((20,223,(92,7)),(21,310,(5,94)))]
+    for image,_ in assets["detail_edges"]:
+        image.putpalette(assets["palette"])
+    return acted,composites,detail_templates(original,original/"START.SAV",source,mp=mp,experience=experience)
 
 
 def prepare_damage_resources(original,source,assets,fields,geometry,target_world):
@@ -207,16 +260,7 @@ def prepare_damage_resources(original,source,assets,fields,geometry,target_world
     empty.paste(lower,(0,6))
     cursor = assets["cursor"]
     empty.paste(cursor,(0,6),cursor.point(lambda c:255 if c else 0,mode="L"))
-    icons = (original/"FDICON.B24").read_bytes()
-    acted = [acted_sprite(sheet_frame(icons,9*12+phase)) for phase in range(12)]
-    _,composites = cursor_assets(original/"FDICON.B24",source,assets)
-    for sprite in acted:
-        sprite.putpalette(assets["palette"])
-        composite = Image.new("P",(24,30))
-        composite.putpalette(assets["palette"])
-        for image,at in ((cursor,(0,6)),(sprite,(0,0))):
-            composite.paste(image,at,image.point(lambda c:255 if c else 0,mode="L"))
-        composites.append((composite,-6))
+    acted,composites,values = caster_resources(original,source,assets,mp=6,experience=42)
     reference = native_focus_reference(tuple(geometry[META+3:META+5]),target_world,caster)
     returning = []
     previous = target_world
@@ -230,12 +274,7 @@ def prepare_damage_resources(original,source,assets,fields,geometry,target_world
     assets["damage_result"] = {"empty":empty,"empty_at":(assets["magic_target"]["screen"][0],assets["magic_target"]["screen"][1]-6),
         "acted":acted,"caster_screen":screen(geometry,caster),"composites":composites,"returning":returning,
         "alive_actor":actor_focus_resources(original,source,assets,11,cursor)}
-    assets["damage_detail"] = detail_templates(original,original/"START.SAV",source)
-    detail = archive_entry((original/"FDOTHER.DAT").read_bytes(),5)
-    assets["detail_edges"] = [(sheet_frame(detail,index,lmi=True).crop((0,0,width,2)),at)
-        for index,width,at in ((20,223,(92,7)),(21,310,(5,94)))]
-    for image,_ in assets["detail_edges"]:
-        image.putpalette(assets["palette"])
+    assets["damage_detail"] = values
     fields["damage_contract"] = {"spell":0,"caster":1,"victim":11,"expected_mp":6,"max_mp":8,
         "expected_level":1,"expected_experience":42,"initial_experience":0,
         "enemy_base_record_va":"0x61c11","enemy_base_record_hex":"01070e00000701010415",
@@ -244,6 +283,42 @@ def prepare_damage_resources(original,source,assets,fields,geometry,target_world
         "caster_screen":list(screen(geometry,caster)),"target_hidden_raw_flag_not_read":True,
         "hidden_visual_roi":[*assets["damage_result"]["empty_at"],24,30],
         "experience_notice":"sub_1E292 @0x1e292 fragment488 -> sub_1E5C0(11), automatic; no skip key"}
+
+
+def prepare_heal_resources(original,source,assets,fields,target_cursor):
+    """1c916恢复cap42，EX=(42-20)*40*LV1/42=20；不模拟界面RNG。"""
+    if hashlib.sha256((original/"FD2.EXE").read_bytes()).hexdigest()!=EXE_SHA256:
+        raise ValueError("heal数值依据只支持已确认原版EXE")
+    acted,composites,values = caster_resources(original,source,assets,mp=5,experience=20)
+    assets["heal_caster_detail"] = values
+    assets["heal_recipient_detail"] = healed_recipient_values(original,source)
+    camera = tuple(source[META+3:META+5])
+    worlds = [tuple(source[UNITS+i*STRIDE:UNITS+i*STRIDE+2]) for i in range(4)]
+    assets["heal_targets"] = {raw:dict(assets["magic_target"],
+        actor=actor_focus_resources(original,source,assets,raw,target_cursor),screen=list(screen(source,worlds[raw])))
+        for raw in range(4)}
+    current = worlds[0]
+    for raw in (1,2,3,0):
+        reference = native_focus_reference(camera,current,worlds[raw])
+        if tuple(reference["camera"])!=camera:
+            raise ValueError("heal目标轮换发生未校准卷屏")
+        current = worlds[raw]
+    reference = native_focus_reference(camera,worlds[0],worlds[1])
+    returning = []
+    previous = worlds[0]
+    for step in reference["steps"]:
+        world = tuple(step["world"])
+        if tuple(step["camera"])!=camera:
+            raise ValueError("heal返回施法者需要额外卷屏")
+        key = "RIGHT" if world[0]>previous[0] else "LEFT" if world[0]<previous[0] else "DOWN" if world[1]>previous[1] else "UP"
+        returning.append((key,screen(source,world)))
+        previous = world
+    assets["heal_result"] = {"acted":acted,"composites":composites,"returning":returning,"recipient_screen":list(screen(source,worlds[0])),
+        "caster_screen":screen(source,worlds[1]),"recipient":actor_focus_resources(original,source,assets,0,assets["cursor"])}
+    fields["heal_contract"] = {"spell":13,"caster":1,"recipient":0,"hp_before":20,"hp_after":42,"hp_max":42,
+        "mp_after":5,"mp_max":8,"level":1,"experience":20,"cycle_raw_actors":[0,1,2,3,0],
+        "experience_formula":"22*40*recipientLV1/42 / casterLV1 = 20",
+        "expected_camera":list(camera),"single_cost":3,"no_save_or_end":True}
 
 
 def list_page(frame,templates,fields,selected=0):
@@ -264,19 +339,26 @@ def list_page(frame,templates,fields,selected=0):
             "checked_pixels":sum(check["checked_pixels"] for check in checks.values())}
 
 
-def command_page(frame,command,position,templates,selected=None,*,after_cancel=False):
+def command_page(frame,command,position,templates,selected=None,*,after_cancel=False,role="original"):
+    if role not in ("original","sdl"):
+        raise ValueError("未知COMMAND资源端")
     detail = command.command(frame,position,selected)
     if detail is None:
         return None
     indices = [match["frame"] for match in detail["matches"]]
-    # 真实raw1的weapon52 range1无敌目标、magic有效、两装备槽可计数、WAIT有效。
-    if indices[0]!=2 or indices[1] not in ((4,) if selected==1 else (3,4)) or indices[2:]!=[6,9]:
+    # raw1攻击无目标、MAGIC/WAIT有效；ITEM按端逐像素验原版可用/SDL禁用。
+    item_frame = 8 if role=="sdl" else 6
+    if indices[0]!=2 or indices[1] not in ((4,) if selected==1 else (3,4)) or indices[2:]!=[item_frame,9]:
         return None
     if after_cancel:
         at,image = templates["selected"]
         if exact_tile(frame,image,at) is not None:
             return None
-    return {**detail,"capability_gates_compared":True,"list_resource_absent":after_cancel}
+    return {**detail,"capability_gates_compared":False,"full_command_resource_gates_compared":True,
+            "cross_end_capability_equivalence":False,"role":role,"expected_command_frames":[2,4 if selected==1 else [3,4],item_frame,9],
+            "item_gate":{"expected_frame":item_frame,"available":role=="original",
+                         "cross_end_equivalence_excluded":True,"reason":"SDL ITEM not implemented"},
+            "list_resource_absent":after_cancel}
 
 
 def compare_reopened(first,second,templates):
@@ -329,18 +411,44 @@ def damage_result(frame,assets):
     return None
 
 
-def caster_detail(frame,source,assets):
+def caster_detail(frame,source,assets,*,heal=False):
     if PlayerOracle(source,assets,[],{}).detail(frame) is None:
         return None
     checks = {}
-    for name,(at,image) in assets["damage_detail"].items():
+    for name,(at,image) in assets["heal_caster_detail" if heal else "damage_detail"].items():
         found = exact_tile(frame,image,at)
         if found is None:
             return None
         checks[name] = {"roi":[*at,*image.size],**found}
-    return {"kind":"magic0_caster_detail_values","mp":6,"max_mp":8,"level":1,"experience":42,
+    return {"kind":"magic13_caster_detail_values" if heal else "magic0_caster_detail_values",
+            "mp":5 if heal else 6,"max_mp":8,"level":1,"experience":20 if heal else 42,
             "rectangles":checks,"checked_pixels":sum(c["checked_pixels"] for c in checks.values()),
             "full_page_visual_equivalence":False,"rng_alignment_verified":False}
+
+
+def healed_browse(frame,assets):
+    plan = assets["heal_result"]
+    recipient = focused_actor(frame,assets,plan["recipient"])
+    x,y = plan["caster_screen"]
+    actor = next((phase for phase,sprite in enumerate(plan["acted"])
+                  if match_indexed(frame,sprite,(x,y-6))["ok"]),None)
+    if recipient and recipient["focus_screen"]==plan["recipient_screen"] and actor is not None:
+        return {"kind":"magic13_acted_caster_recipient_browse","recipient":recipient,
+                "acted_caster_frame":actor,"hp_not_yet_measured":True}
+    return None
+
+
+def recipient_detail(frame,source,assets):
+    if PlayerOracle(source,assets,[],{}).detail(frame) is None:
+        return None
+    checks = {}
+    for name,(at,image) in assets["heal_recipient_detail"].items():
+        found = exact_tile(frame,image,at)
+        if found is None:
+            return None
+        checks[name] = {"roi":[*at,*image.size],**found}
+    return {"kind":"magic13_recipient_detail_values","hp":42,"max_hp":42,"rectangles":checks,
+            "checked_pixels":sum(c["checked_pixels"] for c in checks.values()),"full_page_visual_equivalence":False}
 
 
 def cancelled_browse(frame,assets,actor,probe):
@@ -352,6 +460,7 @@ def cancelled_browse(frame,assets,actor,probe):
 
 
 def exercise(capture,source,focus,assets,actors,probe,templates,fields,titles,save,data,stamp,report,*,scenario="single"):
+    role = report.get("kind","original")
     def checkpoint(name,predicate,**kwargs):
         frame,detail = wait_state(capture,name,predicate,report["checkpoints"],**kwargs)
         require_source_unchanged(save,data,stamp)
@@ -371,13 +480,16 @@ def exercise(capture,source,focus,assets,actors,probe,templates,fields,titles,sa
     capture.key("ENTER")
     command = PlayerOracle(source,assets,[],{})
     position = screen(source,tuple(actors[1]["world"]))
-    checkpoint("raw1-zero-move-command",lambda frame:command_page(frame,command,position,templates))
+    checkpoint("raw1-zero-move-command",lambda frame:command_page(frame,command,position,templates,1,role=role))
     capture.key("LEFT")
-    checkpoint("raw1-magic-selected",lambda frame:command_page(frame,command,position,templates,1))
+    checkpoint("raw1-magic-selected",lambda frame:command_page(frame,command,position,templates,1,role=role))
     capture.key("ENTER")
     first,_ = checkpoint("magic-list-first",lambda frame:list_page(frame,templates,fields))
     if scenario=="controls":
         exercise_controls(capture,source,assets,actors,probe,templates,fields,save,data,stamp,report,first,checkpoint)
+        return
+    if scenario=="heal":
+        exercise_heal(capture,source,assets,templates,fields,report,first,checkpoint)
         return
     if scenario=="damage":
         capture.key("ENTER")  # 只打开唯一ID0的施法中心选择。
@@ -400,11 +512,49 @@ def exercise(capture,source,focus,assets,actors,probe,templates,fields,titles,sa
         report["damage_measurement"] = detail
         return  # 首详情稳定页即hostclose；不关页、不Save、不END。
     capture.key("ESC")
-    checkpoint("list-cancel-back-command",lambda frame:command_page(frame,command,position,templates,1,after_cancel=True))
+    checkpoint("list-cancel-back-command",lambda frame:command_page(frame,command,position,templates,1,after_cancel=True,role=role))
     capture.key("ENTER")
     second,_ = checkpoint("magic-list-reopened",lambda frame:list_page(frame,templates,fields))
     report["reopened_comparison"] = compare_reopened(first,second,templates)
     report["input_scope"] = {"list_input":["ESC"],"second_list_input":[],"cast_confirmation_sent":False}
+
+
+def exercise_heal(capture,source,assets,templates,fields,report,first,checkpoint):
+    for name,key,selected in (("up-wrap","UP",1),("down-wrap","DOWN",0),("left-edge","LEFT",0),
+                              ("right-edge","RIGHT",0),("select13","UP",1)):
+        capture.key(key)
+        checkpoint("heal-list-"+name,lambda frame,s=selected:list_page(frame,templates,fields,s))
+    capture.key("ENTER")
+    checkpoint("heal-target-first-raw0",lambda frame:target_state(frame,assets,templates,fields))
+    capture.key("ESC")
+    reopened,_ = checkpoint("heal-target-cancel-list0",lambda frame:list_page(frame,templates,fields))
+    report["reopened_comparison"] = compare_reopened(first,reopened,templates)
+    capture.key("UP")
+    checkpoint("heal-list-reselect13",lambda frame:list_page(frame,templates,fields,1))
+    capture.key("ENTER")
+    checkpoint("heal-target-reopened-raw0",lambda frame:target_state(frame,assets,templates,fields))
+    for raw in (1,2,3,0):
+        capture.key("Z")
+        view = dict(assets,magic_target=assets["heal_targets"][raw])
+        checkpoint(f"heal-target-cycle-raw{raw}",lambda frame,a=view:target_state(frame,a,templates,fields))
+    report["input_scope"] = {"synthetic_heal_fixture":True,"cast_confirmation_count":1,
+        "post_cast_skip_keys":[],"save_attempted":False,"target_cycle":[0,1,2,3,0]}
+    capture.key("ENTER")
+    checkpoint("heal-acted-closed-browse",lambda frame:healed_browse(frame,assets),timeout=90)
+    capture.key("F2")
+    _,values = checkpoint("heal-recipient-detail",lambda frame:recipient_detail(frame,source,assets))
+    report["heal_recipient_measurement"] = values
+    capture.key("ESC")  # raw0无魔法，原17aed只有这一页；不额外推进caster详情。
+    checkpoint("heal-recipient-detail-closed",lambda frame:healed_browse(frame,assets))
+    for index,(key,expected) in enumerate(assets["heal_result"]["returning"],1):
+        capture.key(key)
+        def reached(frame,at=expected):
+            found = visual_focus(frame,assets,assets["heal_result"]["composites"])
+            return found if found and tuple(found["focus_screen"])==tuple(at) else None
+        checkpoint(f"heal-return-caster-{index}",reached)
+    capture.key("F2")
+    _,values = checkpoint("heal-caster-detail",lambda frame:caster_detail(frame,source,assets,heal=True))
+    report["heal_caster_measurement"] = values
 
 
 def exercise_controls(capture,source,assets,actors,probe,templates,fields,save,data,stamp,report,first,checkpoint):
@@ -475,20 +625,23 @@ def run(args):
     original = (root/"original_game").resolve()
     if output==original or original in output.parents:
         raise ValueError("测试产物不能写入original_game")
+    scenario = getattr(args,"scenario","single")
+    sdl = getattr(args,"sdl",None)
+    if scenario not in ("single","controls","damage","heal"):
+        raise ValueError("未知法术校准场景")
+    if sdl is not None and scenario=="controls":
+        raise ValueError("controls含SDL正式未支持的ID1/2/3，不能与--sdl配对；请用single/damage/heal")
     output.mkdir(parents=True,exist_ok=False)
     before = hashes(original)
     fixture = original/"START.SAV"
     data,fixture_stamp = fixture.read_bytes(),fixture.stat().st_mtime_ns
-    scenario = getattr(args,"scenario","single")
-    if scenario not in ("single","controls","damage"):
-        raise ValueError("未知法术列表校准场景")
-    report = {"ok":False,"probe_only":True,"probe_cases_passed":False,
+    report = {"ok":False,"probe_only":sdl is None,"probe_cases_passed":False,
               "scenario":scenario,
               "capture":"Windows.Graphics.Capture HWND only","scope":"real START raw1 fire0 list -> Esc COMMAND -> reopened list; no cast",
               "excluded":"SDL pairing, cast/target/effect, runtime acted/pending snapshot, UI RNG alignment, animation/timing/audio, healing13",
               "ui_rng_static_evidence":"1d51d calls16c57(0); that wait consumes shared RNG; actual count/alignment not measured",
               "original_before":before,"fixture":{"path":str(fixture),"sha256":hashlib.sha256(data).hexdigest(),"mtime_ns":fixture_stamp},
-              "processes":[],"inputs":[],"checkpoints":[]}
+              "processes":[],"inputs":[],"checkpoints":[],"cases":[]}
     save = None
     save_stamp = None
     save_data = data
@@ -496,8 +649,11 @@ def run(args):
     try:
         report["binaries"] = {name:{"path":str(path.resolve()),"sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
                               for name,path in (("driver",args.driver),("dosbox",args.dosbox))}
-        if scenario in ("controls","damage"):
-            derive = derive_controls if scenario=="controls" else derive_damage
+        if sdl is not None:
+            report["binaries"]["sdl"] = {"path":str(sdl.resolve()),"sha256":hashlib.sha256(sdl.read_bytes()).hexdigest()}
+            report["paired_scope"] = "original then SDL, same exact fixture, named resource ROIs and terminal values only; not full-frame/animation/RNG/timing equivalence"
+        if scenario in ("controls","damage","heal"):
+            derive = {"controls":derive_controls,"damage":derive_damage,"heal":derive_heal}[scenario]
             save_data,derived,manifest = derive(decode_save(fixture),data)
             (output/(scenario+"-start.SAV")).write_bytes(save_data)
             (output/"fixture-manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8")
@@ -506,47 +662,127 @@ def run(args):
             if scenario=="controls":
                 report["scope"] = "synthetic five-spell START controls: navigation, insufficient MP, target/list/command/selection cancel, explicit UI Save; no cast"
                 report["excluded"] = "SDL pairing, spell effects, natural learning, runtime pending/RNG, animation/timing/audio"
-            else:
+            elif scenario=="damage":
                 report["scope"] = "controlled raw1 coordinates only: zero-move ID0 cast, acted/hidden visual evidence and caster MP/LV/EX detail; no Save or END"
                 report["excluded"] = "natural one-turn route, SDL pairing, raw runtime flags/other owners, exact RNG stream, complete FIGANI visuals/timing/audio, other spell/caster"
                 for name,(at,image) in assets["damage_detail"].items():
                     image.save(output/("expected-damage-"+name+".png"))
                 assets["damage_result"]["empty"].save(output/"expected-damage-empty-target.png")
+            else:
+                report["scope"] = "synthetic ID13+injured raw0: list/target cancel/cycle, one heal, HP42/42 and caster MP5/8 LV1 EX20; no Save or END"
+                report["excluded"] = "natural learning, raw runtime other owners, exact RNG stream, complete animation/timing/audio, other spell/caster"
+                for kind in ("recipient","caster"):
+                    for name,(at,image) in assets["heal_"+kind+"_detail"].items():
+                        image.save(output/("expected-heal-"+kind+"-"+name+".png"))
         else:
             source,focus,assets,actors,probe,templates,fields = prepare(original)
+        if sdl is not None:
+            report["excluded"] = report["excluded"].replace("SDL pairing, ","")
+            report["known_sdl_differences"] = {"ITEM":{"original_frame":6,"sdl_frame":8,
+                "all_opaque_pixels_checked_per_role":True,"capability_equivalence_excluded":True,
+                "reason":"SDL formal ITEM remains disabled"}}
         report["resource_fields"] = fields
         report["plan"] = {"actors":[{key:actor[key] for key in ("raw_actor","unit_id","world")} for actor in actors[:2]],
                           "selection_probe_world":list(probe["world"]),"selection_probe_screen":list(probe["position"])}
         for name,(at,image) in templates.items():
             image.save(output/("expected-"+name+".png"))
-        game_copy = output/"game"
-        shutil.copytree(original,game_copy)
-        save = game_copy/"FD2.SAV"
-        save.write_bytes(save_data)
-        save_stamp = save.stat().st_mtime_ns
-        config = output/"dosbox.conf"
-        config.write_text("[sdl]\nfullscreen=false\noutput=surface\nshowmenu=false\nautolock=false\nwaitonerror=false\n"
-            "[dosbox]\nmachine=svga_s3\nmemsize=16\nquit warning=false\n[render]\naspect=false\nscaler=normal2x\n"
-            f'[cpu]\ncore=normal\ncycles=fixed 20000\n[autoexec]\nmount c "{game_copy}"\nc:\nFD2.EXE\nexit\n',encoding="utf-8")
-        env = os.environ.copy()
-        for name in ("SDL_VIDEODRIVER","SDL_AUDIODRIVER"):
-            env.pop(name,None)
-        with running([str(args.dosbox.resolve()),"-conf",str(config),"-noconsole"],output,env,
-                     output/"game.log",args.driver.resolve(),report["processes"]) as process:
-            capture = Capture(args.driver.resolve(),process,output,report["inputs"])
-            arguments = (capture,source,focus,assets,actors,probe,templates,fields,title_templates(original/"FDOTHER.DAT"),
-                         save,save_data,save_stamp,report)
-            if scenario=="single":
-                exercise(*arguments)  # 保持默认单项协议与输入不变。
-            else:
-                exercise(*arguments,scenario=scenario)
-                if ("measurement" if scenario=="controls" else "damage_measurement") not in report:
-                    raise AssertionError("场景未完成其严格量测")
-            completed_bytes,completed_stamp = save.read_bytes(),save.stat().st_mtime_ns
-        require_source_unchanged(save,completed_bytes,completed_stamp)
+        titles = title_templates(original/"FDOTHER.DAT")
+        for kind in (("original",) if sdl is None else ("original","sdl")):
+            work = output if sdl is None else output/kind
+            if sdl is not None:
+                work.mkdir()
+            record = report if sdl is None else {"ok":False,"probe_only":True,"endpoint_only":True,
+                "probe_cases_passed":False,"scenario":scenario,"kind":kind,"status":"failed",
+                "scope":report["scope"],"excluded":report["excluded"],"resource_fields":fields,
+                "known_sdl_differences":report["known_sdl_differences"],"processes":[],"inputs":[],"checkpoints":[]}
+            if sdl is not None:
+                report["cases"].append(record)
+            save,save_stamp,completed_bytes,completed_stamp = None,None,None,None
+            try:
+                env = os.environ.copy()
+                for name in ("SDL_VIDEODRIVER","SDL_AUDIODRIVER"):
+                    env.pop(name,None)
+                if kind=="original":
+                    game_copy = work/"game"
+                    shutil.copytree(original,game_copy)
+                    save = game_copy/"FD2.SAV"
+                    config = work/"dosbox.conf"
+                    config.write_text("[sdl]\nfullscreen=false\noutput=surface\nshowmenu=false\nautolock=false\nwaitonerror=false\n"
+                        "[dosbox]\nmachine=svga_s3\nmemsize=16\nquit warning=false\n[render]\naspect=false\nscaler=normal2x\n"
+                        f'[cpu]\ncore=normal\ncycles=fixed 20000\n[autoexec]\nmount c "{game_copy}"\nc:\nFD2.EXE\nexit\n',encoding="utf-8")
+                    command,cwd = [str(args.dosbox.resolve()),"-conf",str(config),"-noconsole"],work
+                else:
+                    save = work/"FD2.SAV"
+                    env["FD2SDL_SAVE_PATH"] = str(save)
+                    command,cwd = [str(sdl.resolve())],root
+                save.write_bytes(save_data)
+                save_stamp = save.stat().st_mtime_ns
+                record["fixture_sha256"] = hashlib.sha256(save_data).hexdigest()
+                with running(command,cwd,env,work/"game.log",args.driver.resolve(),record["processes"]) as process:
+                    capture = Capture(args.driver.resolve(),process,work,record["inputs"])
+                    arguments = (capture,source,focus,assets,actors,probe,templates,fields,titles,save,save_data,save_stamp,record)
+                    if scenario=="single":
+                        exercise(*arguments)  # 保持默认单项协议与输入不变。
+                    else:
+                        exercise(*arguments,scenario=scenario)
+                        required = ("measurement",) if scenario=="controls" else ("damage_measurement",) if scenario=="damage" else (
+                            "heal_recipient_measurement","heal_caster_measurement")
+                        if any(key not in record for key in required):
+                            raise AssertionError("场景未完成其严格量测")
+                    completed_bytes,completed_stamp = save.read_bytes(),save.stat().st_mtime_ns
+                require_source_unchanged(save,completed_bytes,completed_stamp)
+                if scenario!="controls":
+                    require_source_unchanged(save,save_data,save_stamp)
+                record["original_unchanged"] = hashes(original)==before
+                record["fixture_unchanged"] = fixture.read_bytes()==data and fixture.stat().st_mtime_ns==fixture_stamp
+                if not record["original_unchanged"] or not record["fixture_unchanged"]:
+                    raise AssertionError("原版目录或只读START来源发生变化；未启动后续端")
+                record["probe_cases_passed"],record["status"] = True,"passed"
+            except Exception as error:
+                record["probe_cases_passed"],record["status"],record["error"] = False,"failed",str(error)
+                raise
+            finally:
+                record["original_unchanged"] = hashes(original)==before
+                record["fixture_unchanged"] = fixture.read_bytes()==data and fixture.stat().st_mtime_ns==fixture_stamp
+                record["copy_save_unchanged_after_cleanup"] = (save is not None and save.exists() and
+                    save.read_bytes()==save_data and save.stat().st_mtime_ns==save_stamp)
+                record["copy_save_matches_completed_state_after_cleanup"] = (save is not None and save.exists() and
+                    completed_bytes is not None and save.read_bytes()==completed_bytes and save.stat().st_mtime_ns==completed_stamp)
+                record["endpoint_final_guards_passed"] = (record["original_unchanged"] and record["fixture_unchanged"] and
+                    record["copy_save_matches_completed_state_after_cleanup"] and
+                    (scenario=="controls" or record["copy_save_unchanged_after_cleanup"]))
+                if not record["endpoint_final_guards_passed"]:
+                    record["probe_cases_passed"],record["status"] = False,"failed"
+                    record.setdefault("error","该端最终原版来源/存档bytes或mtime守卫失败；未启动后续端")
+                record["capture_hashes"] = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in work.iterdir()
+                    if p.is_file() and p.suffix.lower() in (".png",".bmp")}
+                if sdl is not None:
+                    report["processes"].extend(record["processes"])
+                    report["inputs"].extend(dict(case=kind,**item) for item in record["inputs"])
+                    report["checkpoints"].extend(dict(case=kind,**item) for item in record["checkpoints"])
+                    (work/"comparison.json").write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding="utf-8")
+            if not record["probe_cases_passed"]:
+                raise AssertionError(record["error"])
         report["probe_cases_passed"] = True
+        if sdl is not None:
+            if scenario=="single":
+                values = [{"ids":fields["ids"],"mp":fields["current_mp"],"max_mp":fields["max_mp"],
+                           "reopened_equal":case["reopened_comparison"]["name_mp_cost_selection_unchanged"]}
+                          for case in report["cases"]]
+            elif scenario=="damage":
+                values = [{key:case["damage_measurement"][key] for key in ("mp","max_mp","level","experience")}
+                          for case in report["cases"]]
+            else:
+                values = [dict({key:case["heal_caster_measurement"][key] for key in ("mp","max_mp","level","experience")},
+                               hp=case["heal_recipient_measurement"]["hp"],max_hp=case["heal_recipient_measurement"]["max_hp"])
+                          for case in report["cases"]]
+            report["paired_terminal_values"] = dict(zip(("original","sdl"),values))
+            if len(values)!=2 or values[0]!=values[1]:
+                raise AssertionError("两端已量测法术终值不一致")
+        report["ok"] = sdl is not None
     except Exception as error:
         report["error"] = str(error)
+        report["probe_cases_passed"],report["ok"] = False,False
     finally:
         report["original_after"] = hashes(original)
         report["original_unchanged"] = before==report["original_after"]
@@ -559,7 +795,10 @@ def run(args):
                                   if p.is_file() and p.suffix.lower() in (".png",".bmp")}
         report["probe_cases_passed"] = (report["probe_cases_passed"] and report["original_unchanged"] and
             report["fixture_unchanged"] and report["copy_save_matches_completed_state_after_cleanup"] and
-            (scenario=="controls" or report["copy_save_unchanged_after_cleanup"]))
+            (scenario=="controls" or report["copy_save_unchanged_after_cleanup"]) and
+            (sdl is None or len(report["cases"])==2 and all(case["status"]=="passed" and case["probe_cases_passed"]
+                for case in report["cases"])))
+        report["ok"] = report["ok"] and report["probe_cases_passed"]
         (output/"comparison.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     return report
 
@@ -568,14 +807,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("root","driver","dosbox","artifacts"):
         parser.add_argument("--"+name,type=Path,required=True)
-    parser.add_argument("--scenario",choices=("single","controls","damage"),default="single")
+    parser.add_argument("--scenario",choices=("single","controls","damage","heal"),default="single")
+    parser.add_argument("--sdl",type=Path,help="可选SDL程序；原版先通过并清理后，再以同一夹具正式Continue配对")
     args = parser.parse_args()
     if sys.platform!="win32":
         parser.error("原版法术列表校准要求Windows WGC；未启动窗口")
     try:
         report = run(args)
         print(json.dumps(report,ensure_ascii=False,indent=2))
-        return 0 if report["probe_cases_passed"] else 1
+        return 0 if (report["ok"] if args.sdl is not None else report["probe_cases_passed"]) else 1
     except Exception as error:
         print(f"法术列表校准无法启动：{error}。检查参数并使用新产物目录重跑。",file=sys.stderr)
         return 1

@@ -4,7 +4,11 @@
 
 输出目录检查必须先解析 `original_game` 的实际目标，再拒绝写入该目录及其子目录，最后才能创建产物目录。候选源树常通过 junction 或符号链接复用原版资源，只比较表面路径不能保护实际证据目录。
 
-`tools/run_original_magic_list.py` 是B2的原版-only校准，尚未加入B1的24组配对流程。可用 `run-job 300000` 包装，参数为 `--root`、`--driver`、`--dosbox`、`--artifacts`；默认校准列表打开、取消与重开，`--scenario controls` 测多项导航、低MP确认和逐级取消，`--scenario damage` 在明确派生坐标的副本中提交一次火炎术。成功仍保留 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示原版校准通过。它不启动SDL，不根据存档未变推断UI RNG或完整runtime未变；damage只验证目标／击杀及指定详情数值，不声明完整FIGANI相等。
+`tools/run_original_magic_list.py` 支持B2原版校准及串行双端配对。参数为 `--root`、`--driver`、`--dosbox`、`--artifacts`；默认校准列表打开、取消与重开，`--scenario controls` 测多项导航、低MP确认和逐级取消，`--scenario damage` 在明确派生坐标的副本中提交一次火炎术，`--scenario heal` 在仅增加恢复术／降低受术者HP的副本中验证目标取消／轮换和一次治疗。派生夹具逐字登记，不能当作自然学习或自然第一回合路径。
+
+省略 `--sdl` 时只运行原版：成功仍为 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示校准通过。single／damage／heal可添加 `--sdl <fd2sdl可执行文件>`，先完成原版并清理窗口，再运行SDL；controls当前没有SDL配对，指定组合会在创建目录前拒绝。可用 `run-job 480000` 包装配对。只有双端检查点、结果数值及各端最终文件守卫均通过，顶层才可 `ok=true`；任一端失败立即停止，不启动下一端。保存原版、SDL各自收据及首个失败，不用末端检查覆盖前端失败。
+
+资源门分别校验完整不透明像素，显式记录ITEM在原版开放而SDL未开放的差异，不声称全部命令一致。damage验证目标／击杀及caster MP6/8、LV1、EX42；heal验证recipient HP42/42及caster MP5/8、LV1、EX20。两者均只确认一次，不重抽随机结果，不用跳过键加速效果，不根据文件未变推断UI RNG或完整runtime未变；完整FIGANI、奖励提示、时序、声音和随机流对齐另验。B1冻结24组证据与本次新增法术配对分别登记，不追改历史候选。
 
 开发验收只要求当前执行平台的适用检查通过。当前平台为 Windows，WGC 图形流程属于必测项；Linux 等其他平台未执行时如实登记，不阻塞当前开发任务，也不记为已通过。跨平台命令仍维护，当前平台的逻辑、输入、图形与原版对照范围不能因此缩减。
 

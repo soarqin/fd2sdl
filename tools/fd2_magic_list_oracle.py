@@ -3,7 +3,7 @@
 依据field_player_magic_command_execute @0x1cff0（原登记同名）、
 field_unit_magic_list_draw @0x1ceed（原sub_1CEED，仅叠名字/费用）及
 field_player_magic_list_select_step @0x1d51d（原sub_1D51D，处理选择）。
-只构造列表/姓名/MP和受控damage详情数值矩形，不模拟施法或成长，
+只构造列表/姓名/MP和受控0/13详情数值矩形，不模拟施法或成长，
 不推断恢复术13自然学习、原版UI的RNG次数或SDL正式MAGIC已完成。
 """
 import hashlib
@@ -85,7 +85,7 @@ def prepare(original,fixture,*,source=None):
     actor = source[UNITS+STRIDE:UNITS+2*STRIDE]
     ids = [8*byte+bit for byte in range(5) for bit in range(8) if actor[0x1a+byte]&(1<<bit)]
     if ((actor[7],actor[8],actor[0x20]) != (9,9,5) or
-            (tuple(actor[:2]),ids) not in (((10,15),[0]),((10,15),[0,1,2,3,13]),((7,16),[0]))):
+            (tuple(actor[:2]),ids) not in (((10,15),[0]),((10,15),[0,13]),((10,15),[0,1,2,3,13]),((7,16),[0]))):
         raise ValueError("magic list oracle requires START raw1/unit9 or an exact controls/damage fixture")
     assets = round_assets(original)
     other = (original / "FDOTHER.DAT").read_bytes()
@@ -138,24 +138,45 @@ def prepare(original,fixture,*,source=None):
                    "acceptance":False}
 
 
-def damage_detail(original,fixture,source):
+def caster_values(original,fixture,source,*,mp=6,experience=42):
     """17fc0（field_unit_detail_stats_draw，原登记同名）：只构造MP/姓名/LV/EX ROI。
 
     受控unit9以ID0击杀LV2 enemy96：1c81f累计2*21，18d8c除LV1，
-    1e292（原sub_1E292）由EX0写42，不升级；不模拟整套成长或FIGANI。
+    恢复raw0则1c916累计22*40*LV1/42=20；1e292（原sub_1E292）
+    由EX0写42/20，均不升级；不模拟整套成长或FIGANI。
     """
     expected = bytearray(source)
     actor = UNITS+STRIDE
     if expected[actor+7]!=9 or expected[actor+0x21]!=1 or expected[actor+0x3c]!=0:
-        raise ValueError("damage详情仅支持已确认unit9 LV1/EX0起点")
-    struct.pack_into("<H",expected,actor+0x44,6)
-    expected[actor+0x3c] = 42
+        raise ValueError("施法详情仅支持已确认unit9 LV1/EX0起点")
+    if (mp,experience) not in ((6,42),(5,20)):
+        raise ValueError("仅构造已确认的ID0击杀/ID13恢复详情终值")
+    struct.pack_into("<H",expected,actor+0x44,mp)
+    expected[actor+0x3c] = experience
     templates,_ = prepare(original,fixture,source=expected)
     sheet = archive_entry((original/"FDOTHER.DAT").read_bytes(),5)
     top = sheet_frame(sheet,20,lmi=True)
     top.putpalette(templates["current_max_mp"][1].getpalette())
     number(top,sheet,1,157-92,33-7,42,2)
-    number(top,sheet,42,157-92,44-7,42,2)
+    number(top,sheet,experience,157-92,44-7,42,2)
     return {"actor_name":templates["actor_name"],"current_max_mp":templates["current_max_mp"],
             "level":((157,33),top.crop((157-92,33-7,169-92,41-7))),
             "experience":((157,44),top.crop((157-92,44-7,169-92,52-7)))}
+
+
+def healed_recipient_values(original,source):
+    """17fc0的姓名/HP矩形：受控raw0由20恢复到42，不模拟恢复RNG。"""
+    unit = source[UNITS:UNITS+STRIDE]
+    if unit[7:9]!=b"\0\0" or struct.unpack_from("<HH",unit,0x40)!=(20,42):
+        raise ValueError("heal目标必须是明确受伤的START raw0")
+    other = (original/"FDOTHER.DAT").read_bytes()
+    sheet,font = archive_entry(other,5),archive_entry(other,4)
+    text = archive_entry((original/"FDTXT.DAT").read_bytes(),0)
+    top = sheet_frame(sheet,20,lmi=True)
+    top.putpalette(round_assets(original)["palette"])
+    names = fragment(text,unit[8]+1)
+    glyphs(top,font,names,99-92,13-7,205)
+    number(top,sheet,42,267-92,41-7,31,3)
+    number(top,sheet,42,293-92,41-7,31,3)
+    return {"actor_name":((98,13),top.crop((98-92,13-7,99-92+16*len(names),30-7))),
+            "current_max_hp":((267,41),top.crop((267-92,41-7,311-92,49-7)))}

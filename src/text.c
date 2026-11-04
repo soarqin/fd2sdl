@@ -1,3 +1,5 @@
+/* FDTXT 片段读取：依据原版资源的 u16 偏移表与 token 流，
+ * 格式及控制码见 docs/formats/data-formats.md；读取不拥有归档数据。 */
 #include "text.h"
 
 #include <stdlib.h>
@@ -59,7 +61,7 @@ int fd2_text_entry_get_fragment(const fd2_text_entry *txt, size_t fragment_idx,
     size_t end = (fragment_idx + 1 < txt->fragment_count)
                ? txt->offsets[fragment_idx + 1]
                : txt->size;
-    if (end < start || ((end - start) & 1) != 0) return -1;
+    if (end > txt->size || end < start || ((end - start) & 1) != 0) return -1;
 
     if (out_tokens) *out_tokens = txt->data + start;
     if (out_token_count) *out_token_count = (end - start) / 2;

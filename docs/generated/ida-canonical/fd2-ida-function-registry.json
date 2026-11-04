@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 187,
+ "canonical_functions": 189,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -2559,6 +2559,12 @@
    "corrections": [
     {
      "target": "evidence",
+     "was": "selector 0 总览逐行显示 actor 属性",
+     "now": "selector 0 调用 sub_1B1E7 @0x1b1e7，显示胜败条件、关卡／回合、资源与三阵营人数，不列出 actor 属性；静态内容、开合输入与原版运行分别验收。",
+     "why": "已发布 sub_1B41D @0x1b41d 的四块绘制与 sub_1B5F1 计数门，FDOTHER[5] 133..136 和 FDTXT[0] 597/598 资源，纠正历史说明，不手改生成文件或伪 C。"
+    },
+    {
+     "target": "evidence",
      "was": "SDL 活动快照只覆盖单位、cell state 和 meta，未登记开头 metadata owner",
      "now": "原版 Save 先把 dword_53A55 的 2211（0x8a3）字节 metadata 写到 FD2.SAV 明文开头，再把独立的 2560 字节持久 roster 写到 +0x8a3。活动恢复 sub_10010 @0x10010 原样读回 metadata，并用 metadata[0]*2 选择 FDSHAP。stage 0 的 FDFIELD[1] 已用长度为 937（0x83+31*26）字节，首三字节为 00 04 1e。SDL 导出须从当前 session 序列化头部、turn/cell 表和完整模板字节，不能沿用旧 stage 的 prefix；未使用 metadata 尾由目标容器保留，完整 roster（含未用 raw 尾）由 session 恢复并整表写回。+1/+2 不赋予未经确认的玩法语义。",
      "why": "复用已发布权威伪 C 的 @0x19df7 writer（7143..7145 行）与 sub_10010（68..90 行）读回／shape 选择；FDFIELD.DAT[1] 原始长度和首部只读复核。原版 WGC 对照暴露旧 stage 29 prefix 1d 14 46 与活动 stage 0 混用；未新建 IDB 或改写伪 C。"
@@ -2756,6 +2762,52 @@
    "historical_names": [
     "field_cell_info_modifier_draw"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 111645,
+   "off": 46109,
+   "ida_name": "sub_1B41D",
+   "size": 468,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表",
+     "now": "战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。",
+     "why": "已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。"
+    }
+   ],
+   "end_va": 112113,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 112113,
+   "off": 46577,
+   "ida_name": "sub_1B5F1",
+   "size": 98,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "未登记总览三阵营计数的过滤门",
+     "now": "逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。",
+     "why": "已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。"
+    }
+   ],
+   "end_va": 112211,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []

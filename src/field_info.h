@@ -29,8 +29,16 @@ typedef struct {
     fd2_image status_icons[3]; /* frame 55..57 */
     fd2_image bars[2];       /* frame 23/26: HP/MP 1×5 色条 */
     fd2_image detail_icons[9]; /* frame 59..67 */
+    fd2_image overview[4]; /* frame 133..136：回合、条件、人数、资源底板 */
     int ready;
 } fd2_field_info_assets;
+
+typedef struct {
+    size_t stage;
+    uint32_t turn_number;
+    uint32_t resource_value;
+    const fd2_field_units *units;
+} fd2_field_overview;
 
 /* FDOTHER[5] 战场格子/单位信息面板资源。
  * field_cell_info_panel_draw @0x1acf3（Watcom __chkstk body 在 +0xa，
@@ -55,6 +63,16 @@ void fd2_field_info_draw(fd2_vga *vga,
                          uint16_t hp_max,
                          int attack_modifier,
                          int defense_modifier);
+
+/* 战况／胜败条件总览：sub_1B41D @0x1b41d、sub_1B5F1 @0x1b5f1。
+ * 当前只支持 stage 0 的 FDTXT[0] 597/598 普通字形条件。成功返回 0；
+ * 资源、文本或输入不受支持时返回 -1，framebuffer 保持不变。
+ * 只叠加4块页面，不绘制地图、不提交玩法，也不播放开合或处理输入。 */
+int fd2_field_overview_draw(fd2_vga *vga,
+                            const fd2_field_info_assets *assets,
+                            const fd2_font *font,
+                            const fd2_text_entry *text,
+                            const fd2_field_overview *data);
 
 /* 全屏角色详情页主体：复现 field_unit_detail_draw @0x17eef 与
  * field_unit_detail_stats_draw @0x17fc0。portrait 为 DATO 当前单位首帧。 */

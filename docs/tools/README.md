@@ -37,6 +37,7 @@ git diff --check
 - 部分 CTest／Python 测试依赖原版资源或本地 LE 产物。Python seed／Ghidra 工具测试还需 `capstone`；缺依赖、跳过或未注册不能记为完整通过。
 - `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 单独编译正式循环并替换依赖，验证错误传播、胜／败、游戏内离场、宿主退出和移动取消；`field_turn` 检查 END 的恢复门、phase 顺序及提交后停止边界，均不启动窗口。
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
+- `field_info` 同时覆盖 stage 0 总览的四块布局、可见人数门、数字边界及两段条件预检；缺资源或文本越界不修改画面。纯绘制测试不代替正式入口和原版 WGC 验收。
 - `field_play_input` 驱动真实 SDL 键盘，不直接调用玩法 API。Windows 使用原生交互桌面；Linux/X11 需要 X11、XTest 和 Xvfb。用 `ctest --test-dir src/build-win -C Debug -N` 或 `ctest --test-dir src/build -N` 核实测试清单；未注册不算已测。
 - Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。

@@ -3,7 +3,9 @@
  * 逆向依据：field_cell_info_panel_draw_entry @0x1acf3、
  * field_cell_info_panel_draw @0x1acf3、field_unit_detail_open @0x17e0b、
  * field_unit_detail_draw @0x17eef、field_unit_detail_stats_draw @0x17fc0
- * 与 field_unit_detail_equipment_draw @0x184c0。原版从 FDOTHER[5] 取 frame 130
+ * 与 field_unit_detail_equipment_draw @0x184c0。总览依据
+ * sub_1B41D @0x1b41d（原登记 sub_1B41D）和人数门
+ * sub_1B5F1 @0x1b5f1（原登记 sub_1B5F1）。原版从 FDOTHER[5] 取 frame 130
  * 底板、frame 131/132 正负号及两组 HP 数字，在当前地形上叠加
  * 光标格单位的固定 idle sprite，并显示两项地形修正和当前 HP。
  */
@@ -11,6 +13,7 @@
 #include "field_info.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,10 +22,14 @@
 #include "portrait.h"
 
 #define FD2_FIELD_INFO_FDOTHER_ENTRY 5u
-#define FD2_FIELD_INFO_REQUIRED_FRAMES 133u
+#define FD2_FIELD_INFO_REQUIRED_FRAMES 137u
 #define FD2_FIELD_INFO_LEFT_X 5
 #define FD2_FIELD_INFO_RIGHT_X 246
 #define FD2_FIELD_INFO_Y 161
+
+static const int overview_sizes[4][2] = {
+    {102, 17}, {170, 117}, {170, 16}, {63, 15}
+};
 
 static uint16_t rd_u16_le(const uint8_t *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -106,6 +113,8 @@ void fd2_field_info_assets_close(fd2_field_info_assets *assets) {
         fd2_image_free(&assets->status_icons[i]);
     for (size_t i = 0; i < 9; i++)
         fd2_image_free(&assets->detail_icons[i]);
+    for (size_t i = 0; i < 4; i++)
+        fd2_image_free(&assets->overview[i]);
     memset(assets, 0, sizeof(*assets));
 }
 
@@ -162,6 +171,13 @@ int fd2_field_info_assets_open_mem(fd2_field_info_assets *assets,
     for (size_t i = 0; i < 9; i++) {
         if (decode_raw_frame(&assets->detail_icons[i], data, size,
                              frame_count, 59u + i) != 0)
+            goto fail;
+    }
+    for (size_t i = 0; i < 4; i++) {
+        if (decode_frame(&assets->overview[i], data, size, frame_count,
+                         133u + i) != 0 ||
+            assets->overview[i].width != overview_sizes[i][0] ||
+            assets->overview[i].height != overview_sizes[i][1])
             goto fail;
     }
     assets->ready = 1;
@@ -253,6 +269,111 @@ static void draw_fragment(fd2_vga *vga, const fd2_font *font,
         fd2_font_draw_glyph(vga, font, token, x, y, 0xcd, 0x4c, -1);
         x += 16;
     }
+}
+
+static int image_has_size(const fd2_image *image, int width, int height) {
+    return image->pixels && image->width == width && image->height == height;
+}
+
+/* stage 0 两段条件只有普通字形及结束符；先检查完整文本，避免画完
+ * 第一段后才发现第二段缺失。其他控制码留待其实际关卡得到支持。 */
+static int overview_fragment(const fd2_text_entry *text, const fd2_font *font,
+                              size_t fragment, const uint8_t **tokens,
+                              size_t *glyph_count) {
+    const uint8_t *data;
+    size_t count;
+    if (fd2_text_entry_get_fragment(text, fragment, &data, &count) != 0)
+        return -1;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(data, i);
+        if (token == 0xffffu) {
+            *tokens = data;
+            *glyph_count = i;
+            return 0;
+        }
+        if (token >= 0xff00u || token >= font->glyph_count ||
+            i >= (VGA_W - 80u) / 16u)
+            return -1;
+    }
+    return -1;
+}
+
+/* ui_number_draw @0x187d6（原登记 ui_number_draw）的八位分支：
+ * signed 负值先归零；超过八位时按格式化结果取前八字符。 */
+static void draw_overview_resource(fd2_vga *vga,
+                                     const fd2_field_info_assets *assets,
+                                     uint32_t value) {
+    char digits[11];
+    unsigned number = value <= INT32_MAX ? (unsigned)value : 0u;
+    (void)snprintf(digits, sizeof(digits), "%08u", number);
+    for (size_t i = 0; i < 8; i++)
+        fd2_map_sprite_blit(vga, &assets->digits[0][digits[i] - '0'],
+                            140 + (int)i * 6, 176, 0);
+}
+
+int fd2_field_overview_draw(fd2_vga *vga,
+                            const fd2_field_info_assets *assets,
+                            const fd2_font *font,
+                            const fd2_text_entry *text,
+                            const fd2_field_overview *data) {
+    if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
+        font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
+        !data || data->stage != 0 || !data->units ||
+        data->units->count > FD2_FIELD_MAX_UNITS)
+        return -1;
+    for (size_t i = 0; i < 4; i++) {
+        if (!image_has_size(&assets->overview[i],
+                            overview_sizes[i][0], overview_sizes[i][1]))
+            return -1;
+    }
+    for (size_t bank = 0; bank < 2; bank++) {
+        for (size_t digit = 0; digit < 10; digit++) {
+            if (!image_has_size(&assets->digits[bank][digit],
+                                digit == 1 ? 5 : 6, 8))
+                return -1;
+        }
+    }
+    if (!image_has_size(&assets->digit_overflow[1], 18, 8) ||
+        !image_has_size(&assets->two_digit_overflow, 12, 8))
+        return -1;
+    const uint8_t *conditions[2];
+    size_t glyph_counts[2];
+    for (size_t i = 0; i < 2; i++) {
+        if (overview_fragment(text, font, 597u + i,
+                               &conditions[i], &glyph_counts[i]) != 0)
+            return -1;
+    }
+
+    /* sub_1B5F1 @0x1b5f1：按 active 表计数，不过滤HP、acted或AI门，
+     * 也不以 persistent roster／remaining_units 代替本页人数。 */
+    unsigned counts[3] = {0};
+    for (size_t i = 0; i < data->units->count; i++) {
+        const fd2_field_unit *unit = &data->units->items[i];
+        if (unit->side < 3 && unit->unit_id != 121 && unit->race != 10 &&
+            !(unit->flags & FD2_FIELD_UNIT_FLAG_HIDDEN))
+            ++counts[unit->side];
+    }
+    fd2_map_sprite_blit(vga, &assets->overview[0], 109, 19, -1);
+    fd2_map_sprite_blit(vga, &assets->overview[1], 75, 37, -1);
+    fd2_map_sprite_blit(vga, &assets->overview[2], 75, 155, -1);
+    fd2_map_sprite_blit(vga, &assets->overview[3], 129, 172, -1);
+    draw_digits(vga, assets, 143, 24, 1, 2, 1);
+    unsigned turn = data->turn_number <= INT32_MAX
+        ? (unsigned)data->turn_number : 0u;
+    draw_digits(vga, assets, 188, 24, turn, 3, 1);
+    draw_overview_resource(vga, assets, data->resource_value);
+    draw_digits(vga, assets, 120, 159, counts[0], 2, 1);
+    draw_digits(vga, assets, 182, 159, counts[2], 2, 1);
+    draw_digits(vga, assets, 228, 159, counts[1], 2, 1);
+    for (size_t i = 0; i < 2; i++) {
+        for (size_t j = 0; j < glyph_counts[i]; j++) {
+            fd2_font_draw_glyph(vga, font,
+                                fd2_text_token_at(conditions[i], j),
+                                80 + (int)j * 16, i == 0 ? 61 : 116,
+                                0xcd, 0x4c, -1);
+        }
+    }
+    return 0;
 }
 
 static void draw_detail_number_bank(fd2_vga *vga,

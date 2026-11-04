@@ -28,6 +28,28 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x1B41D: [{
+        "target": "evidence",
+        "was": "未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表",
+        "now": "战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，"
+               "关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 "
+               "597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。"
+               "SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。",
+        "why": "已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] "
+               "原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；"
+               "ui_number_draw @0x187d6 八位分支取格式化结果前八字符。"
+               "保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。",
+    }],
+    0x1B5F1: [{
+        "target": "evidence",
+        "was": "未登记总览三阵营计数的过滤门",
+        "now": "逐 active actor 统计指定 side，排除 hidden bit 0、unit_id "
+               "121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster "
+               "过滤。真实 START 的 side 0/2/1 为 7/4/0。",
+        "why": "已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，"
+               "只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；"
+               "SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。",
+    }],
     0x4ED7A: [{
         "target": "evidence",
         "was": "SDL 字形阴影向右／正下，逐像素填背景，并以 shadow=0 关闭阴影",
@@ -95,6 +117,15 @@ CORRECTIONS: dict[int, list[dict]] = {
                "未新建 IDB、改写伪 C 或发布新的 IDA 逆向基线。",
     }],
     0x19DF7: [{
+        "target": "evidence",
+        "was": "selector 0 总览逐行显示 actor 属性",
+        "now": "selector 0 调用 sub_1B1E7 @0x1b1e7，显示胜败条件、"
+               "关卡／回合、资源与三阵营人数，不列出 actor 属性；"
+               "静态内容、开合输入与原版运行分别验收。",
+        "why": "已发布 sub_1B41D @0x1b41d 的四块绘制与 sub_1B5F1 "
+               "计数门，FDOTHER[5] 133..136 和 FDTXT[0] 597/598 资源，"
+               "纠正历史说明，不手改生成文件或伪 C。",
+    }, {
         "target": "evidence",
         "was": "SDL 活动快照只覆盖单位、cell state 和 meta，未登记开头 metadata owner",
         "now": "原版 Save 先把 dword_53A55 的 2211（0x8a3）字节 metadata "

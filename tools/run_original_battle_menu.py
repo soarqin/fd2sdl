@@ -28,6 +28,7 @@ from run_graphics_tests import decode_save
 BUTTON_POSITIONS = ((232, 168), (264, 168))
 PARENT_IDS = (7, 5, 6, 4)
 MENU_OFFSETS = ((0, -20), (-24, 2), (24, 2), (0, 24))
+RESTORED_BORDER_BOX = (16, 190, 32, 195)
 
 
 def resource_templates(resource: Path, text_resource: Path) -> dict:
@@ -60,6 +61,28 @@ def resource_templates(resource: Path, text_resource: Path) -> dict:
     cursor = decode_image(struct.pack("<HH", width, height) + cursor_sheet[start:end])
     cursor.putpalette(palette)
 
+    # @0x1acf3：frame130在(5,161)画69×34面板；底边5行不含
+    # terrain缩略图。y195已在面板外，会随全局DAC224..239变化。
+    detail_sheet = archive_entry(data, 5)
+    if len(detail_sheet) < 6 or detail_sheet[:4] != b"LMI1":
+        raise ValueError("FDOTHER[5] 面板目录无效")
+    count = struct.unpack_from("<H", detail_sheet, 4)[0]
+    boundary = 6 + count * 4
+    if count <= 130 or boundary > len(detail_sheet):
+        raise ValueError("FDOTHER[5] 缺少 frame130 面板")
+    start = struct.unpack_from("<I", detail_sheet, 6 + 130 * 4)[0]
+    end = (struct.unpack_from("<I", detail_sheet, 6 + 131 * 4)[0]
+           if count > 131 else len(detail_sheet))
+    if not boundary <= start < end <= len(detail_sheet):
+        raise ValueError("FDOTHER[5] frame130 边界无效")
+    panel = decode_image(detail_sheet[start:end])
+    if panel.size != (69, 34):
+        raise ValueError("FDOTHER[5] frame130 不是69×34面板")
+    border = panel.crop((11, 29, 27, 34))
+    if any(224 <= index < 240 for index in border.getdata()):
+        raise ValueError("恢复边框包含动态水色DAC224..239")
+    border.putpalette(palette)
+
     # fragment 412 只有十个普通字形和 -1，不等待键盘；只识别前两字的
     # 前景／阴影，允许在 200 ms 的完整提示停留期间未采到这一瞬间。
     text = archive_entry(text_resource.read_bytes(), 0)
@@ -83,6 +106,7 @@ def resource_templates(resource: Path, text_resource: Path) -> dict:
                     notice.putpixel((item * 16 + x, y + 1), 0x4c)
                     notice.putpixel((1 + item * 16 + x, y + 1), 0x4c)
     return {"commands": commands, "cursor": cursor, "notice": notice,
+            "restoration_border": border,
             "palette6": palette6, "palette": palette}
 
 
@@ -243,19 +267,23 @@ def wait_title(capture, expected, timeout=45):
 
 
 def restored_browse(frame, baseline, oracle):
-    # 本夹具的左下角 ROI 经原版 WGC 确认不受 actor／地形动画影响；
-    # 确认层在此显示头像。光标可能仍显示在 fragment 412 上方，
-    # 必须同时证明此区域恢复为本进程的原始战场。
-    box = (16, 184, 32, 196)
+    # 仅检查资源确认的面板底边；光标仍可能出现在412提示上方，
+    # 必须同时匹配资源及本进程基准，不能把提示层当成恢复完成。
+    box = RESTORED_BORDER_BOX
     expected = Image.new("RGB", SIZE)
     actual = Image.new("RGB", SIZE)
-    expected.paste(baseline.crop(box), box[:2])
+    expected.paste(oracle.assets["restoration_border"].convert("RGB"), box[:2])
     actual.paste(frame.crop(box), box[:2])
+    resource = compare(expected, actual)
+    if not resource["ok"]:
+        return None
+    expected.paste(baseline.crop(box), box[:2])
     restored = compare(expected, actual)
-    if restored["ok"]:
+    if restored["ok"] and not oracle.cancellation_notice(frame):
         detail = oracle.browse(frame)
         if detail:
-            return {**detail, "restored_battle_roi": list(box), "restoration": restored}
+            return {**detail, "restored_battle_roi": list(box), "restoration": restored,
+                    "restoration_resource": resource}
     return None
 
 

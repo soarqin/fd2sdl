@@ -1,5 +1,6 @@
 """B1 资源 ROI／取消导航判据；不启动游戏或图形桌面。"""
 import sys
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,7 +27,10 @@ def assets():
     cursor.putpalette(palette)
     for point in ((1, 1), (22, 1), (1, 22), (22, 22)):
         cursor.putpixel(point, 197)
-    return {"commands": frames, "cursor": cursor, "notice": cursor}
+    border = Image.new("P", (16, 5), 73)
+    border.putpalette(palette)
+    return {"commands": frames, "cursor": cursor, "notice": cursor,
+            "restoration_border": border}
 
 
 def paste(frame, indexed, point):
@@ -48,6 +52,14 @@ def parent(oracle, selected, march_disabled=False):
         state = 2 if item == 1 and march_disabled else int(item == selected)
         position = tuple(a + b for a, b in zip(oracle.focus, menu.MENU_OFFSETS[item]))
         paste(frame, oracle.assets["commands"][command * 3 + state], position)
+    return frame
+
+
+def browse(oracle):
+    frame = Image.new("RGB", menu.SIZE, (9, 8, 7))
+    paste(frame, oracle.assets["cursor"], oracle.focus)
+    frame.paste(oracle.assets["restoration_border"].convert("RGB"),
+                menu.RESTORED_BORDER_BOX[:2])
     return frame
 
 
@@ -162,14 +174,30 @@ class BattleMenuOracleTest(unittest.TestCase):
         capture.key.assert_not_called()
 
     def test_cancel_notice_with_visible_cursor_is_not_restored_browse(self):
-        initial = Image.new("RGB", menu.SIZE, (30, 60, 90))
+        initial = browse(self.oracle)
         dialog = initial.copy()
-        dialog.paste((100, 120, 160), (16, 184, 32, 196))
-        oracle = Mock()
-        oracle.browse.return_value = {"kind": "browse"}
-        self.assertIsNone(menu.restored_browse(dialog, initial, oracle))
-        oracle.browse.assert_not_called()
-        self.assertIsNotNone(menu.restored_browse(initial, initial, oracle))
+        # 即使面板底边和光标均正确，也必须显式拒绝412文字残留。
+        paste(dialog, self.oracle.assets["notice"], (98, 146))
+        self.assertIsNotNone(self.oracle.browse(dialog))
+        self.assertIsNone(menu.restored_browse(dialog, initial, self.oracle))
+        self.assertIsNotNone(menu.restored_browse(initial, initial, self.oracle))
+
+    def test_restore_checks_resource_baseline_cursor_and_missing_menus(self):
+        initial = browse(self.oracle)
+        bad = initial.copy()
+        bad.putpixel(menu.RESTORED_BORDER_BOX[:2], (255, 255, 255))
+        # 同一错误同时存在于baseline也不能代替正确资源边框。
+        self.assertIsNone(menu.restored_browse(bad, bad, self.oracle))
+        self.assertIsNone(menu.restored_browse(initial, bad, self.oracle))
+        no_cursor = initial.copy()
+        no_cursor.paste((9, 8, 7), (*self.oracle.focus,
+                         self.oracle.focus[0] + 24, self.oracle.focus[1] + 24))
+        self.assertIsNone(menu.restored_browse(no_cursor, initial, self.oracle))
+        for overlay in (buttons(self.oracle, 0), parent(self.oracle, 0)):
+            paste(overlay, self.oracle.assets["cursor"], self.oracle.focus)
+            overlay.paste(self.oracle.assets["restoration_border"].convert("RGB"),
+                          menu.RESTORED_BORDER_BOX[:2])
+            self.assertIsNone(menu.restored_browse(overlay, initial, self.oracle))
 
     def test_known_wgc_scene_transients_retry_and_keep_last_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -212,6 +240,62 @@ class BattleMenuOracleTest(unittest.TestCase):
             menu.wait_state(capture, "battle", lambda _: None, [])
         sleep.assert_not_called()
         capture.key.assert_not_called()
+
+
+class RealRestorationBorderTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        original = Path(__file__).resolve().parents[2] / "original_game"
+        cls.assets = menu.resource_templates(original / "FDOTHER.DAT", original / "FDTXT.DAT")
+        cls.oracle = menu.Oracle(cls.assets, (148, 124))
+        sheet = menu.archive_entry((original / "FDOTHER.DAT").read_bytes(), 5)
+        start, end = struct.unpack_from("<II", sheet, 6 + 130 * 4)
+        cls.panel = menu.decode_image(sheet[start:end])
+
+    def test_all_80_pixels_are_static_frame130_border(self):
+        self.assertEqual(menu.RESTORED_BORDER_BOX, (16, 190, 32, 195))
+        self.assertEqual(self.panel.size, (69, 34))
+        border = self.assets["restoration_border"]
+        self.assertEqual(border.size, (16, 5))
+        self.assertEqual(border.tobytes(), self.panel.crop((11, 29, 27, 34)).tobytes())
+        self.assertEqual(list(border.getdata()),
+                         [index for index in (207, 73, 254, 189, 99) for _ in range(16)])
+        self.assertFalse(any(224 <= index < 240 for index in border.getdata()))
+        initial = browse(self.oracle)
+        result = menu.restored_browse(initial, initial, self.oracle)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["restoration_resource"]["bad_pixels"], 0)
+        for y in range(190, 195):
+            for x in range(16, 32):
+                damaged = initial.copy()
+                damaged.putpixel((x, y), (255, 255, 255))
+                self.assertIsNone(menu.restored_browse(damaged, initial, self.oracle))
+
+    def test_old_roi_false_negative_from_observed_water_colors(self):
+        initial = browse(self.oracle)
+        # 原失败实帧y195出现的合法DAC颜色；它已在69×34面板下方。
+        initial.paste((44, 73, 142), (16, 195, 32, 196))
+        changed = initial.copy()
+        changed.paste((56, 85, 154), (16, 195, 32, 196))
+        expected, actual = Image.new("RGB", menu.SIZE), Image.new("RGB", menu.SIZE)
+        old_box = (16, 184, 32, 196)
+        expected.paste(initial.crop(old_box), old_box[:2])
+        actual.paste(changed.crop(old_box), old_box[:2])
+        self.assertEqual(menu.compare(expected, actual)["bad_pixels"], 16)
+        self.assertIsNotNone(menu.restored_browse(changed, initial, self.oracle))
+        paste(changed, self.assets["notice"], (98, 146))
+        self.assertTrue(self.oracle.cancellation_notice(changed))
+        self.assertIsNone(menu.restored_browse(changed, initial, self.oracle))
+
+    def test_panel_size_and_dynamic_border_are_rejected(self):
+        original = Path(__file__).resolve().parents[2] / "original_game"
+        invalid = [Image.new("P", (69, 35)), self.panel.copy()]
+        invalid[1].putpixel((11, 29), 224)
+        for panel, message in zip(invalid, ("69×34", "动态水色")):
+            with self.subTest(message=message), \
+                    patch.object(menu, "decode_image", side_effect=[self.assets["cursor"].copy(), panel]), \
+                    self.assertRaisesRegex(ValueError, message):
+                menu.resource_templates(original / "FDOTHER.DAT", original / "FDTXT.DAT")
 
 
 if __name__ == "__main__":

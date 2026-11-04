@@ -237,8 +237,10 @@ int fd2_field_game_import_battle_snapshot(
         snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA] ? 1u : 0u;
 
     game->selected_unit = -1;
+    fd2_image_free(&game->detail_portrait);
     game->detail_unit = -1;
     game->detail_visible = 0;
+    game->detail_page = FD2_FIELD_DETAIL_EQUIPMENT;
     game->detail_acknowledged_unit = -1;
     game->command_selected = -1;
     memset(game->command_disabled, 0, sizeof(game->command_disabled));

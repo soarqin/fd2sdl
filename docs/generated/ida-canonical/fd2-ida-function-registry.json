@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 214,
+ "canonical_functions": 215,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -2342,6 +2342,35 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 97005,
+   "off": 31469,
+   "ida_name": "sub_17AED",
+   "size": 642,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_17AED",
+     "now": "field_unit_detail_present",
+     "why": "完整642B与117e7/29620的xref：打开actor装备详情，16c57等任意键；法术非空时仅卷下页、画1ceed(actor,-1)并再等任意键，最后整页关闭。F2直接返回，普通Enter的controller后置在调用者；不扣MP或标acted。"
+    },
+    {
+     "target": "evidence",
+     "was": "猜测第二actor实参或Esc直接跳过所有详情页",
+     "now": "17af8与17c40在不同栈深度读同一初始actor实参，不据伪C的a2写ABI。out1839b相位0..6，独立只保留上块的空底页present，然后底板frame21与未选中法术列表，in6..0；最终18409相位0..11。上下块固定86x86/223x86，底部拷贝310x102包含底板99行外的缓存背景。",
+     "why": "published17aed..17d6f及strictLE raw全642B SHA fdabaa88e2e33df5cb9b8040e9b8b7d3caabf3bbf3c9fba30537968801f471c5。17bba..17c0f空底页没有额外等待门；两处等待均16c57。此为缓存IDA及独立raw核对，未新建数据库或重写伪C类型，完整等待RNG/时序另验。"
+    }
+   ],
+   "end_va": 97647,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 97803,
    "off": 32267,
    "ida_name": "field_unit_detail_open",
@@ -2879,6 +2908,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 206
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "只恢复毒伤和状态计时，忽略聚焦并合并重算",
+     "now": "raw顺序处理匹配side且非hidden的中毒actor，HP扣除后即12d7b聚焦，不加HP或damage非零门；完整扫描后1db65死亡清理。第二段逐actor逐byte递减+22..27，每次归零立即聚焦并1b750重算，不能合并到actor末尾。",
+     "why": "published1a866..1aa1d与strictLE file4087a全439B SHA 951bd9b8a4ea02aa53a97dc7dbc808cf9673365bed6cda162d1b53349db00b35；HP写入1a8d0/必聚焦1a8df/扫描后清理1a941；归零聚焦1a9aa..1a9b0，重算1aa10。镜头是死亡方向清理的前置读集，漏写可持久化错误方向；此为逻辑顺序核验，提示、演出及其附加等待/RNG未作动态对照。"
     }
    ],
    "end_va": 109085,

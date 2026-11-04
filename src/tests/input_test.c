@@ -270,10 +270,32 @@ static int test_magic_target_scancodes(void) {
     return 0;
 }
 
+static int test_detail_any_ordinary_key(void) {
+    const SDL_Scancode keys[] = {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_DELETE,
+        SDL_SCANCODE_KP_DECIMAL, SDL_SCANCODE_RETURN, SDL_SCANCODE_SPACE,
+        SDL_SCANCODE_KP_ENTER, SDL_SCANCODE_UP, SDL_SCANCODE_DOWN,
+        SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_A,
+        SDL_SCANCODE_Z, SDL_SCANCODE_F1, SDL_SCANCODE_F2};
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        fd2_input input;
+        fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input, keys[i], 1);
+        fd2_input_begin_test_frame(&input, 0);
+        fd2_input_action action;
+        CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_DETAIL, &action));
+        CHECK(action == FD2_INPUT_ACTION_CONFIRM);
+        CHECK(!fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_DETAIL, &action));
+    }
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD, FD2_INPUT_KEY_ESCAPE) ==
+        FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE); /* browse原义不变。 */
+    return 0;
+}
+
 int main(void) {
     if (test_context_mappings() != 0 ||
         test_movement_cancel_scancodes() != 0 ||
         test_magic_target_scancodes() != 0 ||
+        test_detail_any_ordinary_key() != 0 ||
         test_press_exists_for_one_present_frame() != 0 ||
         test_unread_press_does_not_cross_present() != 0 ||
         test_glyph_check_cannot_advance_later_page() != 0 ||

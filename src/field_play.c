@@ -128,50 +128,7 @@ static fd2_field_magic_list_key magic_list_key(fd2_input_key key) {
     }
 }
 
-/* 现有detail_draw为void；先验证实际上屏的上页读集。其装备下页在离屏
- * 合成后立即被magic_list_draw恢复底板，不成为本modal的必需内容。 */
-static int magic_list_detail_ready(const fd2_field_game *game,
-                                    const fd2_field_unit *unit) {
-    const fd2_field_info_assets *assets = &game->info_assets;
-#define MAGIC_IMAGE(image, w, h) \
-    ((image).pixels && (image).width == (w) && (image).height == (h))
-    if (!assets->ready || !game->font.glyphs ||
-        game->font.glyph_count == 0 ||
-        game->font.glyph_count > game->font.size / 32u ||
-        !MAGIC_IMAGE(assets->detail_top, 223, 86) ||
-        !MAGIC_IMAGE(assets->affiliation[unit->side == 0], 29, 24))
-        return 0;
-    for (size_t i = 1; i < 18; i++) {
-        int w = i <= 4 || i == 10 || i == 11 || i >= 14 ? 3 : 16;
-        int h = i <= 9 || i == 12 ? 3 : 16;
-        if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
-    }
-    for (size_t i = 0; i < 2; i++)
-        if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
-    for (size_t i = 0; i < 3; i++) {
-        if (unit->detail_status[i] &&
-            !MAGIC_IMAGE(assets->status_icons[i], 24, 20)) return 0;
-        if (!MAGIC_IMAGE(assets->digit_overflow[i], i == 2 ? 17 : 18, 8)) return 0;
-        for (size_t digit = 0; digit < 10; digit++)
-            if (!MAGIC_IMAGE(assets->digits[i][digit], digit == 1 ? 5 : 6, 8))
-                return 0;
-    }
-    if (!MAGIC_IMAGE(assets->two_digit_overflow, 12, 8)) return 0;
-#undef MAGIC_IMAGE
-    const size_t fragments[] = {(size_t)unit->text_id + 1u,
-        (size_t)unit->race + 0x8cu, (size_t)unit->movement_profile + 0x96u};
-    for (size_t i = 0; i < 3; i++) {
-        const uint8_t *tokens;
-        size_t count;
-        if (system_confirmation_fragment(game, fragments[i],
-                                          &tokens, &count) != 0) return 0;
-        for (size_t j = 0; j < count; j++)
-            if (fd2_text_token_at(tokens, j) == 0xfffeu) return 0;
-    }
-    return 1;
-}
-
-/* field_player_magic_command_execute @0x1cff0（原登记sub_1CFF0）的列表
+/* field_player_magic_command_execute @0x1cff0（原登记同名）的列表
  * 呈现／等待；按键部分复用field_player_magic_list_select_step @0x1d51d
  * （原登记sub_1D51D），不结束LIST、不扣费、不提交临时移动或pending。
  * sub_16C57 @0x16c57每次等键入口和眨眼复位均消费session共享RNG；
@@ -198,7 +155,7 @@ static field_magic_list_result play_field_magic_list(
     if (count == 0 || count > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
         game->magic_list_selected < 0 ||
         (size_t)game->magic_list_selected >= count ||
-        !magic_list_detail_ready(game, unit))
+        !fd2_field_game_detail_upper_is_ready(game, unit))
         return FIELD_MAGIC_LIST_ERROR;
 
     fd2_image portraits[2] = {{0}, {0}};
@@ -321,6 +278,27 @@ done:
     fd2_image_free(&portraits[1]);
     fd2_image_free(&portraits[0]);
     return result;
+}
+
+/* 18d8c的1cff0重入：列表Esc回COMMAND，目标Esc由调用者先复位为LIST。
+ * 只编排呈现和目标状态，不在这里提交费用或效果。 */
+static int play_field_magic_selection(fd2_field_game *game, fd2_vga *vga,
+                                       fd2_field_audio *audio) {
+    uint8_t magic_id = 0;
+    field_magic_list_result result = play_field_magic_list(game, vga, audio, &magic_id);
+    if (result == FIELD_MAGIC_LIST_HOST_QUIT) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (result == FIELD_MAGIC_LIST_ERROR) return FD2_SCENE_RESULT_ERROR;
+    if (result == FIELD_MAGIC_LIST_CONFIRMED)
+        return fd2_field_game_begin_magic_targeting(game, magic_id) == 0
+            ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
+    if (fd2_field_game_end_magic_list(game) != 0) return FD2_SCENE_RESULT_ERROR;
+    if (audio && game->option_values[1])
+        (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_COMMAND_MENU);
+    if (fd2_field_game_animate_command(game, vga, 1,
+            FD2_FIELD_COMMAND_FRAME_MS) != 0)
+        return FD2_SCENE_RESULT_ERROR;
+    return fd2_input_take_quit(&vga->input)
+        ? FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_OK;
 }
 
 static void overview_copy_rect(uint8_t *dst, const uint8_t *src,
@@ -642,6 +620,28 @@ static void detail_phase_sfx(void *userdata, int opening, int phase) {
      * sfx_play(DAT_00003eec,sample,1)；全局 AIL handle 会重启前一声。 */
     (void)fd2_field_audio_play(audio, opening
         ? FD2_FIELD_SFX_DETAIL_OPEN : FD2_FIELD_SFX_DETAIL_CLOSE);
+}
+
+/* field_unit_detail_present @0x17aed（原sub_17AED）：任意普通键推进一页。
+ * native16c57完整等待／眨眼RNG另验，本adapter不编造额外随机流。 */
+static int play_field_detail_step(fd2_field_game *game, fd2_vga *vga,
+                                    fd2_field_audio *audio) {
+    if (!vga) return FD2_SCENE_RESULT_ERROR;
+    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (!game || !game->detail_visible || game->detail_unit < 0 ||
+        (size_t)game->detail_unit >= game->units.count)
+        return FD2_SCENE_RESULT_ERROR;
+    int has_next = game->detail_page == FD2_FIELD_DETAIL_EQUIPMENT &&
+        fd2_field_unit_magic_list_build(&game->units.items[game->detail_unit], NULL, 0) != 0;
+    int result = has_next
+        ? fd2_field_game_animate_detail_magic_page(game, vga, detail_phase_sfx, audio)
+        : fd2_field_game_animate_detail(game, vga, 0, detail_phase_sfx, audio);
+    drain_frame_keys(vga);
+    if (result < 0) return FD2_SCENE_RESULT_ERROR;
+    if (result == 1 || fd2_input_take_quit(&vga->input))
+        return FD2_SCENE_RESULT_HOST_QUIT;
+    if (!has_next) fd2_field_game_close_detail(game);
+    return FD2_SCENE_RESULT_OK;
 }
 
 typedef enum {
@@ -1821,11 +1821,14 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         while (running && !end_input_frame &&
                fd2_input_take_action(
                    &vga->input,
-                   game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+                   game.detail_visible ? FD2_INPUT_CONTEXT_FIELD_DETAIL
+                       : game.interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED ||
                            game.interaction == FD2_FIELD_INTERACTION_MOVING
                        ? FD2_INPUT_CONTEXT_FIELD_MOVEMENT
                        : game.interaction == FD2_FIELD_INTERACTION_COMMAND
                        ? FD2_INPUT_CONTEXT_FIELD_COMMAND
+                       : game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING
+                           ? FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING
                        : game.interaction == FD2_FIELD_INTERACTION_TARGETING
                            ? FD2_INPUT_CONTEXT_FIELD_TARGETING
                            : game.interaction ==
@@ -1841,27 +1844,22 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                    &input_action)) {
             fd2_field_action action = field_action_from_input(input_action);
             if (game.detail_visible) {
-                if (action == FD2_FIELD_ACTION_CONFIRM ||
-                    action == FD2_FIELD_ACTION_CANCEL) {
-                    if (fd2_field_game_animate_detail(
-                            &game, vga, 0, detail_phase_sfx, field_audio) != 0) {
-                        fprintf(stderr, "无法关闭单位详情页。\n");
+                int result = play_field_detail_step(&game, vga, field_audio);
+                end_input_frame = 1;
+                if (result != FD2_SCENE_RESULT_OK) {
+                    play_result = result == FD2_SCENE_RESULT_HOST_QUIT
+                        ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
+                    running = 0;
+                    if (result == FD2_SCENE_RESULT_ERROR)
+                        fprintf(stderr, "单位详情翻页或关闭失败。\n");
+                } else if (!game.detail_visible && detail_controller_actor >= 0) {
+                    int actor = detail_controller_actor;
+                    detail_controller_actor = -1;
+                    if (fd2_field_game_complete_player_controller(
+                            &game, (size_t)actor) != 0) {
+                        report_session_failure(&game);
                         play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                         running = 0;
-                        break;
-                    }
-                    fd2_field_game_close_detail(&game);
-                    if (detail_controller_actor >= 0) {
-                        int actor = detail_controller_actor;
-                        detail_controller_actor = -1;
-                        if (fd2_field_game_complete_player_controller(
-                                &game, (size_t)actor) != 0) {
-                            report_session_failure(&game);
-                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
-                            running = 0;
-                        }
-                        drain_frame_keys(vga);
-                        end_input_frame = 1;
                     }
                 }
                 continue;
@@ -1922,6 +1920,18 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         (void)fd2_field_game_animate_command(
                             &game, vga, 0, FD2_FIELD_COMMAND_FRAME_MS);
                         (void)fd2_field_game_cancel_selection(&game);
+                    } else if (game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING) {
+                        int result = fd2_field_game_cancel_magic_targeting(&game) == 0
+                            ? play_field_magic_selection(&game, vga, field_audio)
+                            : FD2_SCENE_RESULT_ERROR;
+                        end_input_frame = 1;
+                        if (result != FD2_SCENE_RESULT_OK) {
+                            play_result = result == FD2_SCENE_RESULT_HOST_QUIT
+                                ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                            if (result == FD2_SCENE_RESULT_ERROR)
+                                fprintf(stderr, "法术目标取消或列表重开失败。\n");
+                        }
                     } else if (game.interaction ==
                                    FD2_FIELD_INTERACTION_TARGETING &&
                                fd2_field_game_cancel_attack(&game)) {
@@ -1941,13 +1951,19 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         game.units.items[unit_at].unit_id != 0x79 &&
                         game.units.items[unit_at].race != 0x0a &&
                         game.units.items[unit_at].hp != 0) {
-                        if (fd2_field_game_open_detail(&game, (size_t)unit_at) != 0 ||
-                            fd2_field_game_animate_detail(
-                                &game, vga, 1, detail_phase_sfx, field_audio) != 0) {
-                            fprintf(stderr, "单位详情页资源无效。\n");
-                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                        int detail_result = fd2_field_game_open_detail(&game, (size_t)unit_at) != 0
+                            ? -1 : fd2_field_game_animate_detail(
+                                &game, vga, 1, detail_phase_sfx, field_audio);
+                        drain_frame_keys(vga);
+                        end_input_frame = 1;
+                        int host_quit = detail_result == 1 || fd2_input_take_quit(&vga->input);
+                        if (detail_result < 0 || host_quit) {
+                            if (detail_result < 0)
+                                fprintf(stderr, "单位详情页资源无效。\n");
+                            play_result = detail_result < 0
+                                ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
                             running = 0;
-                        }
+                        } else detail_controller_actor = -1;
                     }
                     break;
                 }
@@ -1967,7 +1983,14 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     }
                     break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
-                    if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
+                    if (game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING) {
+                        int result = fd2_field_game_cycle_magic_target(&game);
+                        if (result < 0) {
+                            fprintf(stderr, "法术目标轮换状态无效。\n");
+                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                        }
+                    } else if (game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
                         int unit = fd2_field_game_cycle_focus(&game);
                         printf("field focus: unit=%d, cell=(%d,%d), interaction=browse\n",
                                unit, game.cursor_cell_x, game.cursor_cell_y);
@@ -1997,13 +2020,18 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                        unit_at);
                                 fflush(stdout);
                             }
-                            if (fd2_field_game_open_detail(
-                                    &game, (size_t)unit_at) != 0 ||
-                                fd2_field_game_animate_detail(
-                                    &game, vga, 1,
-                                    detail_phase_sfx, field_audio) != 0) {
-                                fprintf(stderr, "单位详情页资源无效。\n");
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            int detail_result = fd2_field_game_open_detail(
+                                    &game, (size_t)unit_at) != 0 ? -1 :
+                                fd2_field_game_animate_detail(&game, vga, 1,
+                                    detail_phase_sfx, field_audio);
+                            drain_frame_keys(vga);
+                            end_input_frame = 1;
+                            int host_quit = detail_result == 1 || fd2_input_take_quit(&vga->input);
+                            if (detail_result < 0 || host_quit) {
+                                if (detail_result < 0)
+                                    fprintf(stderr, "单位详情页资源无效。\n");
+                                play_result = detail_result < 0
+                                    ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
                                 running = 0;
                             } else {
                                 detail_controller_actor = unit_at;
@@ -2309,12 +2337,26 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         (void)fd2_field_game_animate_command(
                             &game, vga, 1, FD2_FIELD_COMMAND_FRAME_MS);
                     }
+                    if (game.interaction == FD2_FIELD_INTERACTION_MAGIC_LIST) {
+                        int result = play_field_magic_selection(&game, vga, field_audio);
+                        end_input_frame = 1;
+                        if (result != FD2_SCENE_RESULT_OK) {
+                            play_result = result == FD2_SCENE_RESULT_HOST_QUIT
+                                ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
+                            running = 0;
+                            if (result == FD2_SCENE_RESULT_ERROR)
+                                fprintf(stderr, "法术列表或目标选择资源无效。\n");
+                            break;
+                        }
+                    }
                     if (action_unit >= 0 &&
                         (size_t)action_unit < game.units.count &&
                         (previous_interaction ==
                              FD2_FIELD_INTERACTION_COMMAND ||
                          previous_interaction ==
-                             FD2_FIELD_INTERACTION_TARGETING) &&
+                             FD2_FIELD_INTERACTION_TARGETING ||
+                         previous_interaction ==
+                             FD2_FIELD_INTERACTION_MAGIC_TARGETING) &&
                         fd2_field_unit_has_acted(
                             &game.units.items[action_unit]) &&
                         game.selected_unit == -1) {
@@ -2323,7 +2365,8 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                         printf("field action: unit=%d command=%s acted=1 remaining=%zu phase=%u\n",
                                action_unit,
                                action_command == FD2_FIELD_COMMAND_ATTACK
-                                   ? "attack" : "wait",
+                                   ? "attack" : action_command == FD2_FIELD_COMMAND_MAGIC
+                                       ? "magic" : "wait",
                                fd2_field_game_remaining_units(&game, 2u),
                                (unsigned)game.active_side);
                     }

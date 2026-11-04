@@ -225,13 +225,152 @@ static int test_new_round_restores_leader_focus_and_cycle(void) {
     return 0;
 }
 
+static void init_status_focus(fd2_field_game *game, size_t *rng_calls) {
+    init_game(game, rng_calls);
+    game->units.count = 3;
+    memset(game->units.items, 0, sizeof(game->units.items));
+    for (size_t i = 0; i < game->units.count; i++) {
+        fd2_field_unit *unit = &game->units.items[i];
+        unit->side = i == 0 ? 2u : i == 1 ? 1u : 0u;
+        unit->unit_id = i == 0 ? 0u : 96u;
+        unit->x = unit->y = i == 0 ? 2u : 20u;
+        unit->hp = unit->hp_max = 50;
+        unit->movement_profile = unit->level = 1;
+        for (size_t slot = 0; slot < 8; slot++)
+            unit->data_09_1e[1u + 2u * slot] = 0x80;
+    }
+    /* 不执行AI common tail，才能观察毒伤死亡方向是否真实保留到下一回合。 */
+    game->units.items[2].flags = FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE;
+}
+
+static int test_poison_death_focus_survives_round_and_export(void) {
+    fd2_field_game game;
+    size_t calls = 0;
+    init_status_focus(&game, &calls);
+    fd2_field_unit *poisoned = &game.units.items[1];
+    poisoned->hp = 1; poisoned->hp_max = 10;
+    poisoned->direction = 3; poisoned->detail_status[0] = 1;
+    CHECK(fd2_field_game_end_player_turn(&game) == 0);
+    /* 右／下检查移动前相对格，最终保留相对(11,6)。 */
+    CHECK(game.camera_cell_x == 9 && game.camera_cell_y == 14);
+    CHECK(game.cursor_cell_x == 20 && game.cursor_cell_y == 20);
+    CHECK(poisoned->hp == 0 && poisoned->flags == 1 && poisoned->direction == 0);
+    CHECK(poisoned->detail_status[0] == 1); /* finalize先隐藏，死者不再递减计时。 */
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1 && game.active_side == 0);
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1 && game.active_side == 2);
+    CHECK(game.turn_number == 2 && game.cursor_cell_x == 2 && game.cursor_cell_y == 2);
+    CHECK(game.camera_cell_x == 1 && game.camera_cell_y == 1 && poisoned->direction == 0);
+    fd2_save_battle_snapshot snapshot = {0};
+    CHECK(fd2_field_game_export_battle_snapshot(&game, &snapshot) == 0);
+    fd2_field_unit saved;
+    memcpy(&saved, snapshot.unit_area + FD2_FIELD_UNIT_RECORD_SIZE, sizeof(saved));
+    CHECK(saved.hp == 0 && saved.flags == 1 && saved.direction == 0);
+    CHECK(snapshot.meta[FD2_SAVE_BATTLE_META_CAMERA_X] == 1 &&
+        snapshot.meta[FD2_SAVE_BATTLE_META_CAMERA_Y] == 1 && calls == 0);
+    return 0;
+}
+
+static int test_poison_focus_uses_raw_order_even_for_zero_hp_or_damage(void) {
+    fd2_field_game game;
+    size_t calls = 0;
+    init_status_focus(&game, &calls);
+    game.units.count = 7;
+    fd2_field_unit *units = game.units.items;
+    for (size_t i = 1; i < game.units.count; i++) {
+        units[i].side = 1;
+        units[i].hp = units[i].hp_max = 50;
+        units[i].detail_status[0] = 2;
+    }
+    units[1].hp = 5; units[1].hp_max = 9; /* damage0仍需先聚焦(20,20)。 */
+    units[2].x = units[2].y = 3;
+    units[2].hp = 0; units[2].direction = 3; /* HP0仍聚焦，改变后续镜头路径。 */
+    units[3].x = 22; units[3].y = 5; units[3].hp = 20; units[3].hp_max = 100;
+    units[4].x = 1; units[4].y = 22; units[4].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+    units[5].x = 1; units[5].y = 23; units[5].side = 0;
+    units[6].detail_status[0] = 0; units[6].attack_status = 2;
+    CHECK(fd2_field_game_end_player_turn(&game) == 0);
+    CHECK(game.cursor_cell_x == 22 && game.cursor_cell_y == 5);
+    CHECK(game.camera_cell_x == 11 && game.camera_cell_y == 2);
+    CHECK(units[1].hp == 5 && units[1].detail_status[0] == 1);
+    /* 最后聚焦存活raw3后，raw2不在扩视区：不能无条件把死者方向改0。 */
+    CHECK(units[2].flags == 1 && units[2].direction == 3 && units[2].detail_status[0] == 2);
+    CHECK(units[3].hp == 10 && units[3].detail_status[0] == 1);
+    CHECK(units[4].hp == 50 && units[4].detail_status[0] == 2);
+    CHECK(units[5].hp == 50 && units[5].detail_status[0] == 2);
+    CHECK(units[6].hp == 50 && units[6].attack_status == 1 && calls == 0);
+    return 0;
+}
+
+static int test_status_expiration_focus_and_failure_order(void) {
+    for (int broken_stats = 0; broken_stats < 2; broken_stats++) {
+        fd2_field_game game;
+        size_t calls = 0;
+        init_status_focus(&game, &calls);
+        game.units.count = 5;
+        fd2_field_unit *poisoned = &game.units.items[1];
+        poisoned->hp = 50; poisoned->hp_max = 100; poisoned->detail_status[0] = 2;
+        fd2_field_unit *expired = &game.units.items[3];
+        expired->side = 1; expired->hp = expired->hp_max = 50;
+        expired->x = expired->y = 3;
+        expired->attack_status = expired->defense_status = 1;
+        expired->base_attack_le[0] = 10; expired->base_defense_le[0] = 20;
+        expired->dexterity_le[0] = 30;
+        for (size_t slot = 0; slot < 8; slot++)
+            expired->data_09_1e[1u + 2u * slot] = 0x80;
+        game.units.items[4].side = 1;
+        game.units.items[4].hp = game.units.items[4].hp_max = 50;
+        game.units.items[4].attack_status = 2;
+        if (broken_stats) {
+            expired->data_09_1e[1] = 0x40;
+            expired->data_09_1e[2] = 255;
+        }
+        CHECK(fd2_field_game_end_player_turn(&game) == (broken_stats ? -1 : 0));
+        CHECK(game.cursor_cell_x == 3 && game.cursor_cell_y == 3);
+        CHECK(game.camera_cell_x == 2 && game.camera_cell_y == 2);
+        CHECK(poisoned->hp == 40 && poisoned->detail_status[0] == 1);
+        CHECK(expired->attack_status == 0 && expired->defense_status == (broken_stats ? 1 : 0));
+        CHECK(game.units.items[4].attack_status == (broken_stats ? 2 : 1));
+        if (broken_stats) {
+            CHECK(game.failure == FD2_FIELD_FAILURE_ACTION && game.failure_notice.unit_index == 3);
+            CHECK(reject_without_changes(&game, &calls) == 0);
+        } else {
+            CHECK(expired->attack == 10 && expired->defense == 20 &&
+                expired->accuracy == 30 && expired->evasion == 30);
+        }
+        CHECK(calls == 0);
+    }
+    return 0;
+}
+
+static int test_poison_bad_focus_stops_after_hp_write(void) {
+    fd2_field_game game;
+    size_t calls = 0;
+    init_status_focus(&game, &calls);
+    game.units.items[1].x = 255;
+    game.units.items[1].hp = 1; game.units.items[1].hp_max = 10;
+    game.units.items[1].direction = 3; game.units.items[1].detail_status[0] = 2;
+    game.units.items[2].side = 1; game.units.items[2].detail_status[0] = 2;
+    CHECK(fd2_field_game_end_player_turn(&game) == -1);
+    CHECK(game.failure == FD2_FIELD_FAILURE_ACTION && game.failure_notice.unit_index == 1);
+    CHECK(game.units.items[1].hp == 0 && game.units.items[1].flags == 0 &&
+        game.units.items[1].direction == 3 && game.units.items[1].detail_status[0] == 2);
+    CHECK(game.units.items[2].hp == 50 && game.units.items[2].detail_status[0] == 2);
+    CHECK(game.cursor_cell_x == 0 && game.cursor_cell_y == 0 &&
+        game.camera_cell_x == 0 && game.camera_cell_y == 0 && calls == 0);
+    return reject_without_changes(&game, &calls);
+}
+
 int main(void) {
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
         test_unknown_event_preserves_recovery_and_stops_status() ||
         test_capacity_stops_before_handler() ||
         test_fast_skip_is_separate() ||
-        test_new_round_restores_leader_focus_and_cycle())
+        test_new_round_restores_leader_focus_and_cycle() ||
+        test_poison_death_focus_survives_round_and_export() ||
+        test_poison_focus_uses_raw_order_even_for_zero_hp_or_damage() ||
+        test_status_expiration_focus_and_failure_order() ||
+        test_poison_bad_focus_stops_after_hp_write())
         return 1;
     puts("field_turn_test: ok");
     return 0;

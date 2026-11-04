@@ -1,7 +1,7 @@
-/* field_player_magic_command_execute @0x1cff0（原登记sub_1CFF0）的
+/* field_player_magic_command_execute @0x1cff0（原登记同名）的
  * 私有modal无窗口回归；单键步骤@0x1d51d、共享RNG等待@0x16c57。
  * 用真实DATO／字体／列表资源和正式core step，替换宿主时钟／呈现。
- * 不开放MAGIC，不执行目标选择或施法，不作为原版运行对照。 */
+ * 验证列表到目标／COMMAND的返回编排，不提交施法，不作为原版运行对照。 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +22,8 @@ typedef struct {
 static struct {
     uint64_t now, rng_time[32];
     unsigned interval;
-    int frames, presents, waits, render_calls, water_calls, sound_calls;
+    int frames, presents, waits, render_calls, water_calls, sound_calls, command_calls;
+    int command_quit, command_error;
     int closing, quit_frame, quit_final, deadline;
     int allocations, live_buffers, fail_alloc, decode_calls, live_portraits;
     int fail_decode, wrong_portrait_size, step_error;
@@ -121,6 +122,14 @@ static int modal_step(fd2_field_game *game, fd2_field_magic_list_key key,
     }
     return result;
 }
+static int modal_command(fd2_field_game *game, fd2_vga *vga,
+                          int opening, uint32_t interval) {
+    controls.command_calls++;
+    if (controls.command_quit) vga->input.quit_requested = 1;
+    if (controls.command_error) return -1;
+    return game->interaction == FD2_FIELD_INTERACTION_COMMAND && opening == 1 &&
+        interval == 16u ? 0 : -1;
+}
 static void modal_frame_input(fd2_vga *vga, int frame) {
     for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
         fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
@@ -184,6 +193,7 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_image_free modal_image_free
 #define fd2_field_game_render modal_render
 #define fd2_field_game_magic_list_step modal_step
+#define fd2_field_game_animate_command modal_command
 #define fd2_field_audio_play modal_audio
 #define fd2_field_water_tick modal_water
 #define SDL_GetTicks modal_ticks
@@ -197,6 +207,7 @@ static void modal_present(fd2_vga *vga) {
 #undef fd2_image_free
 #undef fd2_field_game_render
 #undef fd2_field_game_magic_list_step
+#undef fd2_field_game_animate_command
 #undef fd2_field_audio_play
 #undef fd2_field_water_tick
 #undef SDL_GetTicks
@@ -511,6 +522,58 @@ static int test_core_entry_rejections(void) {
     free(broken_text);
     return released();
 }
+static int test_selection_routes_target_and_command(void) {
+    fd2_field_game game;
+    fd2_vga vga;
+    uint32_t cells[24 * 24] = {0};
+    fd2_terrain_attr attr = {0};
+    reset(&game, &vga);
+    game.map.width = game.map.height = 24;
+    game.map.cells = cells;
+    game.terrain.attrs = &attr;
+    game.terrain.attr_count = 1;
+    set_magic(&game.units.items[0], 1);
+    fd2_field_units before = game.units;
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+    controls.key_count = 1;
+    CHECK(play_field_magic_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING);
+    CHECK(!game.magic_target_count && !memcmp(&before, &game.units, sizeof(before)));
+    CHECK(game.pending_cell_event.valid && controls.command_calls == 0);
+    CHECK(fd2_field_game_cancel_magic_targeting(&game) == 0);
+    CHECK(game.magic_list_selected == 0 && game.interaction == FD2_FIELD_INTERACTION_MAGIC_LIST);
+    CHECK(released() == 0);
+    memset(&controls, 0, sizeof(controls));
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_ESCAPE, 0};
+    controls.key_count = 1;
+    CHECK(play_field_magic_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND && controls.command_calls == 1);
+    CHECK(!memcmp(&before, &game.units, sizeof(before)) && game.pending_cell_event.valid);
+    CHECK(game.command_selected == FD2_FIELD_COMMAND_MAGIC);
+    CHECK(!game.event_total_count && !game.player_post_waiting_phase);
+    CHECK(released() == 0);
+    for (int error = 0; error < 2; error++) {
+        reset(&game, &vga);
+        before = game.units;
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_ESCAPE, 0};
+        controls.key_count = 1;
+        controls.command_quit = 1;
+        controls.command_error = error;
+        CHECK(play_field_magic_selection(&game, &vga, NULL) ==
+            (error ? FD2_SCENE_RESULT_ERROR : FD2_SCENE_RESULT_HOST_QUIT));
+        CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND && controls.command_calls == 1);
+        CHECK(!memcmp(&before, &game.units, sizeof(before)) && game.pending_cell_event.valid);
+        CHECK(!game.event_total_count && !game.player_post_waiting_phase);
+        CHECK(released() == 0);
+    }
+    reset(&game, &vga);
+    controls.quit_frame = 1;
+    CHECK(play_field_magic_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_MAGIC_LIST);
+    CHECK(controls.command_calls == 0 && !controls.rng_calls);
+    return released();
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
     CHECK(test_navigation_and_cancel() == 0);
@@ -520,6 +583,7 @@ int main(void) {
     CHECK(test_quit_priority() == 0);
     CHECK(test_resource_errors_and_no_side_effects() == 0);
     CHECK(test_core_entry_rejections() == 0);
+    CHECK(test_selection_routes_target_and_command() == 0);
     fd2_image_free(&reference_portraits[1]);
     fd2_image_free(&reference_portraits[0]);
     fd2_field_info_assets_close(&fixture.info_assets);

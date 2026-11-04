@@ -128,7 +128,7 @@ static int test_empty_range_and_illegal_confirmation_do_not_submit(void) {
     CHECK(g->cursor_cell_x == 0 && !fd2_field_path_is_destination(&g->move_range, 0, 6));
     before = *g;
     CHECK(fd2_field_game_magic_target_is_legal(g) == 0);
-    CHECK(fd2_field_game_confirm_cursor(g) == -1); /* 尚未接入提交。 */
+    CHECK(fd2_field_game_confirm_cursor(g) == -1); /* 范围外确认不提交。 */
     CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);
     CHECK(fd2_field_game_cancel_magic_targeting(g) == 0);
     CHECK(g->cursor_cell_x == 6 && g->cursor_cell_y == 6 && !g->move_range.nodes);

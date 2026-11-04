@@ -331,6 +331,47 @@ static int test_death_direction_extended_viewport_contract(void) {
     return 0;
 }
 
+static int test_formal_command_routes_basic_magic(void) {
+    fixture f;
+    init(&f);
+    fd2_field_game *g = &f.game;
+    CHECK(fd2_field_game_refresh_commands(g) == 0);
+    CHECK(!g->command_disabled[FD2_FIELD_COMMAND_MAGIC]);
+    CHECK(g->command_selected == FD2_FIELD_COMMAND_MAGIC);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_MAGIC_LIST && !f.calls);
+    uint8_t id = 0xff;
+    CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &id) == 1 && id == 0);
+    CHECK(fd2_field_game_begin_magic_targeting(g, id) == 0);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
+    CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == 42 && f.calls == 2);
+    CHECK(g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
+    CHECK(fd2_field_unit_has_acted(&g->units.items[0]));
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_confirm_cursor(g) == -1);
+    CHECK(!memcmp(&before, g, sizeof(before)) && f.calls == 2);
+    close_fixture(&f);
+
+    init(&f);
+    g->units.items[0].mp = 0;
+    CHECK(fd2_field_game_refresh_commands(g) == 0 && !g->command_disabled[FD2_FIELD_COMMAND_MAGIC]);
+    CHECK(fd2_field_game_confirm_command(g) == 0);
+    before = *g;
+    CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &id) == 0);
+    CHECK(!memcmp(&before, g, sizeof(before)) && !f.calls);
+    CHECK(fd2_field_game_cancel_selection(g) == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->command_selected == FD2_FIELD_COMMAND_MAGIC);
+    g->units.items[0].data_09_1e[0x11] |= 2;
+    CHECK(fd2_field_game_refresh_commands(g) == 0 && g->command_disabled[FD2_FIELD_COMMAND_MAGIC]);
+    g->command_selected = FD2_FIELD_COMMAND_MAGIC;
+    before = *g;
+    CHECK(fd2_field_game_confirm_command(g) == -1);
+    CHECK(!memcmp(&before, g, sizeof(before)) && !f.calls);
+    close_fixture(&f);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_capability_gate_does_not_use_mp() == 0);
     CHECK(test_damage_kill_miss_and_nonlethal_reward() == 0);
@@ -341,6 +382,7 @@ int main(void) {
     CHECK(test_post_commit_failure_preserves_cost_effect_and_freezes() == 0);
     CHECK(test_phase_prediction_hides_dead_players_but_keeps_healed_players() == 0);
     CHECK(test_death_direction_extended_viewport_contract() == 0);
+    CHECK(test_formal_command_routes_basic_magic() == 0);
     puts("field_magic_commit_test: ok");
     return 0;
 }

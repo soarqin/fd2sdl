@@ -100,6 +100,12 @@ typedef enum {
     FD2_FIELD_INTERACTION_MAGIC_TARGETING
 } fd2_field_interaction;
 
+/* field_unit_detail_present @0x17aed（原sub_17AED）：装备页任意键后，有法术才显示第二页。 */
+typedef enum {
+    FD2_FIELD_DETAIL_EQUIPMENT = 0,
+    FD2_FIELD_DETAIL_MAGIC
+} fd2_field_detail_page;
+
 /* 正式战场 session。
  *
  * 集中管理 stage 资源、单位、镜头、移动查询及后续交互状态。单位记录
@@ -160,12 +166,13 @@ typedef struct {
     int selected_unit;
     int detail_unit;
     int detail_visible;
+    fd2_field_detail_page detail_page;
     int detail_acknowledged_unit;
     fd2_image detail_portrait;
 
     /* field_player_command_execute @0x18d8c 的四向图形菜单旁路状态；
-     * 0..3 固定为 attack/magic/item/wait。M7 已有 AI 法术／物品事务，
-     * 玩家选择状态机仍未实现，因此玩家菜单继续禁用两项。 */
+     * 0..3 固定为 attack/magic/item/wait。玩家法术仅开放已验证基础分支；
+     * M7的AI物品事务不等于玩家入口，ITEM继续禁用。 */
     int command_selected;
     uint8_t command_disabled[FD2_FIELD_COMMAND_COUNT];
     uint8_t command_highlight_phase;
@@ -343,7 +350,7 @@ int fd2_field_game_cancel_attack(fd2_field_game *game);
 /* 1cff0／1d51d 的列表状态边界。begin/end成功0、拒绝-1；step沿用
  * 纯选择函数的-2/-1/0/1。step不关闭列表，宿主先完成关闭动画再end或
  * 进入目标选择。end只回COMMAND，不回滚临时移动或清pending。
- * 正式MAGIC仍由完整目标／提交能力门控制。 */
+ * 正式MAGIC由下述基础目标／提交能力门控制。 */
 int fd2_field_game_begin_magic_list(fd2_field_game *game);
 int fd2_field_game_magic_list_step(fd2_field_game *game,
                                    fd2_field_magic_list_key key,
@@ -360,7 +367,7 @@ int fd2_field_game_cycle_magic_target(fd2_field_game *game);
 int fd2_field_game_cancel_magic_targeting(fd2_field_game *game);
 
 /* stage0基础法术能力门：所有列表项都须为已支持的0(unit9)/13；
- * 不因低MP禁列表，不接正式COMMAND图标。resolve只从MAGIC_TARGETING提交，
+ * 不因低MP禁列表；正式COMMAND图标复用此门。resolve只从MAGIC_TARGETING提交，
  * 0成功/-1拒绝或已提交后冻结；拒绝预检不改业务状态/RNG，提交后不退款。
  * 当前只恢复无掉落、非升级逻辑，FIGANI/奖励提示/附加呈现RNG另行验收。 */
 int fd2_field_game_magic_is_available(const fd2_field_game *game);
@@ -390,8 +397,8 @@ int fd2_field_game_commit_ai_item(
     const fd2_field_ai_item_candidate *plan);
 
 /* field_command_menu_input @code0 0x77fc：四方向直接选择固定图标，禁用项
- * 不移动选择；确认只分派已接入的普通攻击和待机，返回操作复用移动
- * 快照回退，不消费 RNG。 */
+ * 不移动选择；确认分派已接入的攻击／基础法术／待机；COMMAND取消才
+ * 复用移动快照回退，本身不消费RNG。法术真实等待消费另由play负责。 */
 int fd2_field_game_refresh_commands(fd2_field_game *game);
 int fd2_field_game_select_command_direction(
     fd2_field_game *game, fd2_field_command_direction direction);
@@ -401,12 +408,21 @@ int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
 
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index);
 void fd2_field_game_close_detail(fd2_field_game *game);
+/* 上页借用资源的纯预检，供详情与法术列表共同使用；不画屏、不耗RNG。 */
+int fd2_field_game_detail_upper_is_ready(
+    const fd2_field_game *game, const fd2_field_unit *unit);
 typedef void (*fd2_field_detail_phase_fn)(void *userdata,
                                            int opening, int phase);
 int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
                                   int opening,
                                   fd2_field_detail_phase_fn phase_callback,
                                   void *phase_userdata);
+/* 17aed装备→未选中法术页的bottom-only过渡；两动画接口均为
+ * 0完成/-1资源错误/1宿主退出。只改详情页，不提交玩法或controller。
+ * 16c57等待／眨眼共享RNG的完整时序尚未恢复。 */
+int fd2_field_game_animate_detail_magic_page(
+    fd2_field_game *game, fd2_vga *vga,
+    fd2_field_detail_phase_fn phase_callback, void *phase_userdata);
 int fd2_field_game_update_move_preview(fd2_field_game *game);
 int fd2_field_game_execute_move(fd2_field_game *game,
                                 fd2_vga *vga,

@@ -230,6 +230,9 @@ int fd2_input_observe_any_key(fd2_input *input) {
 fd2_input_action fd2_input_action_for_key(fd2_input_context context,
                                           fd2_input_key key) {
     switch (context) {
+        case FD2_INPUT_CONTEXT_FIELD_DETAIL:
+            /* 17aed的16c57(0)接受任意普通键，不走browse Esc轮询。 */
+            return FD2_INPUT_ACTION_CONFIRM;
         case FD2_INPUT_CONTEXT_TITLE:
             if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
             if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;

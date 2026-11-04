@@ -561,11 +561,11 @@ static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index)
 
 static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
     if (!game) return;
-    /* field_turn_cycle_run @0x1a30b 的 phase 前置处理会调用
-     * field_phase_status_tick（corrected dual 0x1a866）：从 raw actor
-     * index 0 开始，对本阵营可见中毒 actor 扣除 maxHP/10，再把
-     * +0x22..+0x27 的六个状态计时各减 1。该路径不消费 RNG；死亡提交
-     * 复用 field_defeated_units_finalize @0x1db65 的最终 flags=1 语义。 */
+    /* field_phase_status_tick @0x1a866（原登记同名）：先按 raw 顺序给
+     * 本阵营可见中毒 actor 扣 maxHP/10、聚焦，再统一清理死亡；HP0与
+     * damage0仍聚焦。随后逐个递减+0x22..+0x27，每次归零即聚焦、重算。
+     * 当前只恢复这些字段写序，不追加RNG；原版提示／等待及其共享RNG
+     * 尚未恢复，不能据此称整个原版状态流程不耗RNG。 */
     for (size_t i = 0; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
         if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
@@ -573,29 +573,30 @@ static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
             uint16_t damage = (uint16_t)(unit->hp_max / 10u);
             unit->hp = unit->hp > damage
                 ? (uint16_t)(unit->hp - damage) : 0u;
+            if (focus_to(game, unit->x, unit->y) != 0) {
+                fail_action(game, i);
+                return;
+            }
         }
     }
     finalize_zero_hp_units(game);
     for (size_t i = 0; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
         if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
-        /* corrected dual 0x1a866 的原始循环从 raw actor index 0
-         * 开始，以 record +0x22 为基址，连续递减六个状态 byte：
-         * +0x22..+0x27。每个 byte 从 1 归零后都会调用 corrected dual
-         * 0x1b750 重算四项派生属性；仅 AP/DP/HIT-EV 三项会改变结果。 */
+        /* 指令VA 0x1a99f先递减当前byte，0x1a9b0聚焦；原版提示后
+         * 0x1aa10立即重算，才处理下一byte。失败保留已提交的计时／焦点。 */
         uint8_t *status = &unit->attack_status;
-        int recompute = 0;
         for (size_t offset = 0; offset < 6u; offset++) {
             if (status[offset] == 0u) continue;
             status[offset]--;
-            if (status[offset] == 0u) recompute = 1;
-        }
-        if (recompute && fd2_field_unit_combat_stats_recompute(
-                unit, known_item_stat_lookup, NULL,
-                known_status_stat_scale, NULL) != 0) {
-            /* status 已递减；坏记录必须停机，不能跳过重算后调度下一 actor。 */
-            fail_action(game, i);
-            return;
+            if (status[offset] != 0u) continue;
+            if (focus_to(game, unit->x, unit->y) != 0 ||
+                fd2_field_unit_combat_stats_recompute(
+                    unit, known_item_stat_lookup, NULL,
+                    known_status_stat_scale, NULL) != 0) {
+                fail_action(game, i);
+                return;
+            }
         }
     }
     game->battle_result = fd2_field_game_battle_result(game);
@@ -833,6 +834,8 @@ void fd2_field_game_close(fd2_field_game *game) {
     fd2_field_path_close(&game->move_range);
     free(game->move_path);
     fd2_image_free(&game->detail_portrait);
+    game->detail_visible = 0;
+    game->detail_page = FD2_FIELD_DETAIL_EQUIPMENT;
     fd2_field_command_assets_close(&game->command_assets);
     fd2_field_info_assets_close(&game->info_assets);
     fd2_field_visuals_close(&game->visuals);
@@ -1005,6 +1008,9 @@ static void render_field(fd2_field_game *game, fd2_vga *vga, int draw_ui) {
                               &game->ui_text,
                               &game->units.items[game->detail_unit],
                               &game->detail_portrait);
+        if (game->detail_page == FD2_FIELD_DETAIL_MAGIC)
+            (void)fd2_field_magic_list_draw(vga, &game->info_assets, &game->font,
+                &game->ui_text, &game->units.items[game->detail_unit], -1);
     }
 }
 
@@ -1687,6 +1693,10 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         if (fd2_field_game_resolve_attack(game) != 0) return -1;
         return unit_index;
     }
+    if (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING) {
+        int unit_index = game->selected_unit;
+        return fd2_field_game_resolve_player_magic(game) == 0 ? unit_index : -1;
+    }
     return -1;
 }
 
@@ -1763,11 +1773,12 @@ int fd2_field_game_refresh_commands(fd2_field_game *game) {
      * item 可用性；field_unit_magic_list_build @0x1c269 与 record +0x27
      * 控制 magic 可用性。其执行入口分别为
      * field_player_item_command_execute @0x1bbdc 与
-     * field_player_magic_command_execute @0x1cff0。当前 SDL 状态机尚未
-     * 实现这两类动作，因此对应图标保持禁用。 */
+     * field_player_magic_command_execute @0x1cff0。法术只按当前已验证的
+     * 基础分支开放；物品仍未接玩家提交，保持禁用。 */
     game->command_disabled[FD2_FIELD_COMMAND_ATTACK] =
         fd2_field_game_attack_is_available(game) ? 0u : 1u;
-    game->command_disabled[FD2_FIELD_COMMAND_MAGIC] = 1u;
+    game->command_disabled[FD2_FIELD_COMMAND_MAGIC] =
+        fd2_field_game_magic_is_available(game) ? 0u : 1u;
     game->command_disabled[FD2_FIELD_COMMAND_ITEM] = 1u;
     game->command_disabled[FD2_FIELD_COMMAND_WAIT] = 0u;
     game->command_selected = fd2_field_command_first_enabled(
@@ -1803,6 +1814,7 @@ int fd2_field_game_confirm_command(fd2_field_game *game) {
         case FD2_FIELD_COMMAND_WAIT:
             return fd2_field_game_finish_unit_action(game);
         case FD2_FIELD_COMMAND_MAGIC:
+            return fd2_field_game_begin_magic_list(game);
         case FD2_FIELD_COMMAND_ITEM:
             return -1;
     }
@@ -2401,20 +2413,121 @@ int fd2_field_game_resolve_attack(fd2_field_game *game) {
         game, (size_t)game->selected_unit, (size_t)target_index, 1);
 }
 
+/* 详情仅支持普通字形和结束符；末尾坏字模也须在首帧之前拒绝。 */
+static int detail_fragment_ready(const fd2_field_game *game, size_t fragment,
+                                  const uint8_t **tokens, size_t *glyphs) {
+    const uint8_t *data;
+    size_t count;
+    if (fd2_text_entry_get_fragment(&game->ui_text, fragment, &data, &count) != 0)
+        return 0;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(data, i);
+        if (token == 0xffffu) {
+            *tokens = data;
+            *glyphs = i;
+            return 1;
+        }
+        if (token >= 0xff00u || token >= game->font.glyph_count) return 0;
+    }
+    return 0;
+}
+
+/* 详情与法术列表共用上页读集；下页由各自调用者完整预检，
+ * 不把法术列表已清掉的装备内容变成其必需资源。 */
+int fd2_field_game_detail_upper_is_ready(const fd2_field_game *game,
+                                    const fd2_field_unit *unit) {
+    if (!game || !game->ready || !unit) return 0;
+    const fd2_field_info_assets *assets = &game->info_assets;
+#define MAGIC_IMAGE(image, w, h) \
+    ((image).pixels && (image).width == (w) && (image).height == (h))
+    if (!assets->ready || !game->font.glyphs ||
+        game->font.glyph_count == 0 ||
+        game->font.glyph_count > game->font.size / 32u ||
+        !MAGIC_IMAGE(assets->detail_top, 223, 86) ||
+        !MAGIC_IMAGE(assets->affiliation[unit->side == 0], 29, 24))
+        return 0;
+    for (size_t i = 1; i < 18; i++) {
+        int w = i <= 4 || i == 10 || i == 11 || i >= 14 ? 3 : 16;
+        int h = i <= 9 || i == 12 ? 3 : 16;
+        if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
+    }
+    for (size_t i = 0; i < 2; i++)
+        if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
+    for (size_t i = 0; i < 3; i++) {
+        if (unit->detail_status[i] &&
+            !MAGIC_IMAGE(assets->status_icons[i], 24, 20)) return 0;
+        if (!MAGIC_IMAGE(assets->digit_overflow[i], i == 2 ? 17 : 18, 8)) return 0;
+        for (size_t digit = 0; digit < 10; digit++)
+            if (!MAGIC_IMAGE(assets->digits[i][digit], digit == 1 ? 5 : 6, 8))
+                return 0;
+    }
+    if (!MAGIC_IMAGE(assets->two_digit_overflow, 12, 8)) return 0;
+#undef MAGIC_IMAGE
+    const size_t fragments[] = {(size_t)unit->text_id + 1u,
+        (size_t)unit->race + 0x8cu, (size_t)unit->movement_profile + 0x96u};
+    for (size_t i = 0; i < 3; i++) {
+        const uint8_t *tokens;
+        size_t count;
+        if (!detail_fragment_ready(game, fragments[i], &tokens, &count)) return 0;
+    }
+    return 1;
+}
+
+static int detail_resources_ready(const fd2_field_game *game,
+                                   const fd2_field_unit *unit) {
+    if (!fd2_field_game_detail_upper_is_ready(game, unit)) return 0;
+    const fd2_field_info_assets *assets = &game->info_assets;
+    if (!assets->detail_bottom.pixels || assets->detail_bottom.width != 310 ||
+        assets->detail_bottom.height != 99) return 0;
+    for (size_t i = 0; i < 9; i++) {
+        if (!assets->detail_icons[i].pixels ||
+            assets->detail_icons[i].width != (i < 5 ? 24 : 21) ||
+            assets->detail_icons[i].height != (i < 5 ? 20 : 8)) return 0;
+    }
+    const uint8_t *record = (const uint8_t *)unit;
+    for (size_t slot = 0; slot < 8; slot++) {
+        if (record[0x0a + slot * 2u] & 0x80u) continue;
+        uint8_t item_id = record[0x0b + slot * 2u];
+        const uint8_t *tokens;
+        size_t glyphs;
+        if (!fd2_field_item_record_get(item_id) ||
+            !detail_fragment_ready(game, (size_t)item_id + 0xb5u,
+                                     &tokens, &glyphs)) return 0;
+    }
+    size_t count = fd2_field_unit_magic_list_build(unit, NULL, 0);
+    if (count == 0) return 1;
+    if (count > FD2_FIELD_MAGIC_LIST_MAX_COUNT) return 0;
+    /* 第二页也在装备首帧前完整预检；不把未知位／坏末项当空列表。 */
+    fd2_vga *check = malloc(sizeof(*check));
+    if (!check) return 0;
+    memset(check, 0, sizeof(*check));
+    int valid = fd2_field_magic_list_draw(check, assets, &game->font,
+        &game->ui_text, unit, -1) == 0;
+    free(check);
+    return valid;
+}
+
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index) {
     if (!game || !game->ready || unit_index >= game->units.count ||
+        game->units.count > FD2_FIELD_MAX_UNITS ||
         fd2_field_unit_is_hidden(&game->units.items[unit_index]) ||
-        game->units.items[unit_index].hp == 0)
+        game->units.items[unit_index].hp == 0 ||
+        !detail_resources_ready(game, &game->units.items[unit_index]))
         return -1;
     fd2_image portrait = {0};
     if (fd2_portrait_decode_frame(&portrait, &game->dato_archive,
                                   game->units.items[unit_index].unit_id,
                                   0) != 0)
         return -1;
+    if (!portrait.pixels || portrait.width != 80 || portrait.height != 80) {
+        fd2_image_free(&portrait);
+        return -1;
+    }
     fd2_image_free(&game->detail_portrait);
     game->detail_portrait = portrait;
     game->detail_unit = (int)unit_index;
     game->detail_visible = 1;
+    game->detail_page = FD2_FIELD_DETAIL_EQUIPMENT;
     game->detail_acknowledged_unit = -1;
     return 0;
 }
@@ -2425,6 +2538,7 @@ void fd2_field_game_close_detail(fd2_field_game *game) {
     fd2_image_free(&game->detail_portrait);
     game->detail_unit = -1;
     game->detail_visible = 0;
+    game->detail_page = FD2_FIELD_DETAIL_EQUIPMENT;
     game->detail_acknowledged_unit = unit_index;
 }
 
@@ -2432,43 +2546,140 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
                                   int opening,
                                   fd2_field_detail_phase_fn phase_callback,
                                   void *phase_userdata) {
-    if (!game || !vga || !game->detail_visible) return -1;
+    if (!vga) return -1;
+    if (fd2_input_take_quit(&vga->input)) return 1;
+    if (!game || !game->detail_visible || game->detail_unit < 0 ||
+        (size_t)game->detail_unit >= game->units.count ||
+        (game->detail_page != FD2_FIELD_DETAIL_EQUIPMENT &&
+         game->detail_page != FD2_FIELD_DETAIL_MAGIC) ||
+        !detail_resources_ready(game, &game->units.items[game->detail_unit]) ||
+        !game->detail_portrait.pixels || game->detail_portrait.width != 80 ||
+        game->detail_portrait.height != 80) return -1;
     uint8_t *background = malloc(VGA_W * VGA_H);
-    uint8_t *detail = malloc(VGA_W * VGA_H);
+    fd2_vga *detail = malloc(sizeof(*detail));
     if (!background || !detail) {
         free(background);
         free(detail);
         return -1;
     }
 
+    memset(detail, 0, sizeof(*detail));
     game->detail_visible = 0;
-    fd2_field_game_render(game, vga);
-    memcpy(background, vga->framebuffer, VGA_W * VGA_H);
+    fd2_field_game_render(game, detail);
+    memcpy(background, detail->framebuffer, VGA_W * VGA_H);
     game->detail_visible = 1;
-    fd2_field_game_render(game, vga);
-    memcpy(detail, vga->framebuffer, VGA_W * VGA_H);
+    fd2_field_detail_draw(detail, &game->info_assets, &game->font,
+        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait);
+    if (game->detail_page == FD2_FIELD_DETAIL_MAGIC &&
+        fd2_field_magic_list_draw(detail, &game->info_assets, &game->font,
+            &game->ui_text, &game->units.items[game->detail_unit], -1) != 0) {
+        free(background);
+        free(detail);
+        return -1;
+    }
 
+    int result = 0;
     if (opening) {
         for (int phase = 11; phase >= 0; phase--) {
             if (phase_callback)
                 phase_callback(phase_userdata, 1, phase);
-            fd2_field_detail_transition_frame(vga->framebuffer, detail,
+            if (fd2_input_take_quit(&vga->input)) { result = 1; break; }
+            fd2_field_detail_transition_frame(vga->framebuffer, detail->framebuffer,
                                     background, phase);
             fd2_vga_present_timed(vga, 16);
+            if (fd2_input_take_quit(&vga->input)) { result = 1; break; }
         }
     } else {
         for (int phase = 0; phase < 12; phase++) {
             if (phase_callback)
                 phase_callback(phase_userdata, 0, phase);
-            fd2_field_detail_transition_frame(vga->framebuffer, detail,
+            if (fd2_input_take_quit(&vga->input)) { result = 1; break; }
+            fd2_field_detail_transition_frame(vga->framebuffer, detail->framebuffer,
                                     background, phase);
             fd2_vga_present_timed(vga, 16);
+            if (fd2_input_take_quit(&vga->input)) { result = 1; break; }
         }
-        memcpy(vga->framebuffer, background, VGA_W * VGA_H);
+        if (result == 0) {
+            memcpy(vga->framebuffer, background, VGA_W * VGA_H);
+            fd2_vga_present(vga);
+            if (fd2_input_take_quit(&vga->input)) result = 1;
+        }
     }
+    fd2_vga_wait_frame_deadline(vga);
     free(background);
     free(detail);
-    return 0;
+    return result;
+}
+
+/* field_unit_detail_present @0x17aed（原sub_17AED）固定left/top位置，
+ * 1839b只卷动底条；phase7是独立memmove，只留下上两块。
+ * 与18409整页过渡分开，不能让翻页时上半立绘和属性一起移出。 */
+static void detail_bottom_frame(uint8_t *dst, const uint8_t *page,
+                                  const uint8_t *background, int phase) {
+    memcpy(dst, background, VGA_W * VGA_H);
+    for (int row = 7; row < 93; row++) {
+        memcpy(dst + row * VGA_STRIDE + 5, page + row * VGA_STRIDE + 5, 86);
+        memcpy(dst + row * VGA_STRIDE + 92, page + row * VGA_STRIDE + 92, 223);
+    }
+    if (phase == 7) return;
+    int y = 94 + phase * 16;
+    int height = 200 - y;
+    if (height > 102) height = 102;
+    for (int row = 0; row < height; row++)
+        memcpy(dst + (y + row) * VGA_STRIDE + 5,
+               page + (94 + row) * VGA_STRIDE + 5, 310);
+}
+
+int fd2_field_game_animate_detail_magic_page(
+        fd2_field_game *game, fd2_vga *vga,
+        fd2_field_detail_phase_fn phase_callback, void *phase_userdata) {
+    if (!vga) return -1;
+    if (fd2_input_take_quit(&vga->input)) return 1;
+    if (!game || !game->detail_visible || game->detail_unit < 0 ||
+        (size_t)game->detail_unit >= game->units.count ||
+        game->detail_page != FD2_FIELD_DETAIL_EQUIPMENT ||
+        !detail_resources_ready(game, &game->units.items[game->detail_unit]) ||
+        !fd2_field_unit_magic_list_build(&game->units.items[game->detail_unit], NULL, 0) ||
+        !game->detail_portrait.pixels || game->detail_portrait.width != 80 ||
+        game->detail_portrait.height != 80) return -1;
+    uint8_t *background = malloc(VGA_W * VGA_H);
+    fd2_vga *page = malloc(sizeof(*page));
+    int result = -1;
+    if (!background || !page) goto done;
+    memset(page, 0, sizeof(*page));
+    game->detail_visible = 0;
+    fd2_field_game_render(game, page);
+    memcpy(background, page->framebuffer, VGA_W * VGA_H);
+    game->detail_visible = 1;
+    fd2_field_detail_draw(page, &game->info_assets, &game->font,
+        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait);
+    if (phase_callback) phase_callback(phase_userdata, 0, 0);
+    for (int phase = 0; phase <= 6; phase++) {
+        if (fd2_input_take_quit(&vga->input)) { result = 1; goto done; }
+        detail_bottom_frame(vga->framebuffer, page->framebuffer, background, phase);
+        fd2_vga_present_timed(vga, 16);
+        if (fd2_input_take_quit(&vga->input)) { result = 1; goto done; }
+    }
+    detail_bottom_frame(vga->framebuffer, page->framebuffer, background, 7);
+    fd2_vga_present(vga); /* 原版独立空底页，没有额外16ms计时门。 */
+    if (fd2_input_take_quit(&vga->input)) { result = 1; goto done; }
+    if (fd2_field_magic_list_draw(page, &game->info_assets, &game->font,
+            &game->ui_text, &game->units.items[game->detail_unit], -1) != 0)
+        goto done;
+    game->detail_page = FD2_FIELD_DETAIL_MAGIC;
+    if (phase_callback) phase_callback(phase_userdata, 1, 11);
+    for (int phase = 6; phase >= 0; phase--) {
+        if (fd2_input_take_quit(&vga->input)) { result = 1; goto done; }
+        detail_bottom_frame(vga->framebuffer, page->framebuffer, background, phase);
+        fd2_vga_present_timed(vga, 16);
+        if (fd2_input_take_quit(&vga->input)) { result = 1; goto done; }
+    }
+    result = 0;
+done:
+    fd2_vga_wait_frame_deadline(vga);
+    free(page);
+    free(background);
+    return result;
 }
 
 int fd2_field_game_cancel_selection(fd2_field_game *game) {

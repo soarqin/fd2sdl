@@ -563,6 +563,13 @@ class Suite:
             self.command("original-result", [sys.executable, ROOT / "tools/run_original_result.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-result"], timeout=360)
+            for name, scenario in (("original-magic-list", "single"),
+                                   ("original-magic-damage", "damage"),
+                                   ("original-magic-heal", "heal")):
+                self.command(name, [sys.executable, ROOT / "tools/run_original_magic_list.py",
+                             "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                             "--dosbox", self.args.dosbox, "--scenario", scenario,
+                             "--artifacts", self.work / name], timeout=480)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before

@@ -150,6 +150,17 @@ static uint64_t spread_value(uint32_t power, uint32_t spread) {
     return (uint64_t)power * 9u / 10u + (uint64_t)spread * power / 1000u;
 }
 
+int fd2_field_hp_heal_apply(fd2_field_unit *target, uint16_t power,
+                            fd2_field_magic_rng_fn rng, void *rng_userdata) {
+    if (!target || !rng) return -1;
+    /* field_hp_heal_apply @0x1c916（原登记sub_1C916）：只共享HP写集，
+     * 211a4的物品value与1c8ed的法术power不互换；费用／经验在各caller。 */
+    uint32_t spread = rng(rng_userdata) % 100u;
+    uint64_t hp = (uint64_t)target->hp + spread_value(power, spread);
+    target->hp = (uint16_t)(hp > target->hp_max ? target->hp_max : hp);
+    return 1;
+}
+
 static int apply_damage_value(uint16_t value,
                               uint8_t accuracy,
                               fd2_field_unit *target,
@@ -217,12 +228,8 @@ static int apply_heal(uint8_t magic_id,
      * 最终都逐目标调用 0x1c8ed→0x1c916。该 core 直接取 record u16 +0，
      * 不做命中或 profile 免疫；每个目标仅消费一次 spread RNG，即使
      * HP 已满也照常消费，最后把结果 cap 到 hp_max。 */
-    uint32_t power = fd2_field_magic_u16(record, 0);
-    uint32_t spread = rng(rng_userdata) % 100u;
-    uint64_t heal = spread_value(power, spread);
-    uint64_t hp = (uint64_t)target->hp + heal;
-    target->hp = (uint16_t)(hp > target->hp_max ? target->hp_max : hp);
-    return 1;
+    return fd2_field_hp_heal_apply(target, fd2_field_magic_u16(record, 0),
+                                   rng, rng_userdata);
 }
 
 /* sub_1C81F／sub_1C916（原登记同名）：damage用未夹HP的rawDamage，

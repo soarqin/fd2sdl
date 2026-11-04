@@ -244,6 +244,14 @@ Windows原版首轮运行 `C:/Users/Soar/AppData/Local/Temp/fd2-item-list-origin
 
 隔离暂存候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-render-acceptance/` 完整fresh Windows构建、单轮53/53 CTest（真实输入42.83秒）及322/322 Python无跳过通过，10项发布审计及冻结源码455个规范地址检查通过；程序SHA `babf2c77a9c9cabaebf7444e791dee0584633b8c0dbe3d9f7c3ee34d6c22c7bc`。冻结只含本小阶段代码，不混入正在开发的session／HP helper；原有Temp目录与历史转换警告未抑制。此处没有SDL物品WGC或新增双端组，正式ITEM仍禁用；继续共享HP小函数及B3.2c会话／真实等待，完整图形配对归B3.2d/B3.3候选。
 
+### B3.3前置：共享按power恢复HP的最小函数
+
+B3.2b已提交`c284b5d`。草药192的power40与法术ID13的power70不同，不能借法术ID替代物品value。沿原`1c8ed/211a4→1c916`，在既有field_magic提取纯HP helper，由MAGIC及AI item code5／13实际复用，删除AI手写公式；仅HP写入、每目标一次spread，满HP／power0仍消费。费用、贡献、MP／EX、压槽、acted与各自尾链保持caller所有权，没有新模块或结果缓存。原函数的全局贡献累计仍由已有法术结果路径处理，不把纯HP API冒充完整native函数。
+
+独立暂存候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/hp-helper-acceptance/` 只缓存AI末尾替换hunk及helper／测试，不含在开发的session struct。全新编译所有core和四个相关target，`field_magic_reward/field_ai/field_ai_commit/field_magic_commit`单轮4/4通过；10项发布审计与冻结源码459个规范地址通过。4,200组HP／power／spread覆盖全记录仅HP变化、空参无RNG、溢出与夹顶；AI5／13覆盖满HP仍耗首roll、raw目标顺序、费用与消耗差异、重复提交拒绝，以及提交后事件失败保留HP46／压槽／acted／RNG1并冻结。原有转换／Temp警告保留，无新增helper警告。
+
+这是共享计算整理，不是新的完整CTest／Python或图形轮次；此前53／322及27组图形候选继续保留各自来源。原版草药的实际使用、玩家提交／目标和正式ITEM仍待后续验证；B3.2c拆为session与真实等待两个可独立提交的小阶段，不因单层完成关闭B3。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

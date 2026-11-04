@@ -3663,7 +3663,7 @@
     {
      "target": "evidence",
      "was": "恢复core可以承担费用或caster经验写回",
-     "now": "只恢复当前target HP并累计原始贡献，费用由wrapper、caster归一由18d8c负责；SDL最坏贡献查询复用相同整数公式，所有目标先预检。",
+     "now": "只恢复当前target HP并累计原始贡献，费用由wrapper、caster归一由18d8c负责；SDL最坏贡献查询复用相同整数公式，所有目标先预检；SDL另共享纯HP部分供真实magic power与item value调用，不把其API等同原函数的贡献累计、费用或各动作尾链。",
      "why": "完整199B SHA 2bfd114f863e4e0f16eea866cdd8e699c925e78c1ebf8c131defd539a791778d，已发布调用者及raw写集；28000组profile/HP/spread逻辑组合检查既有效果与上界。该组合检查不是局部机器码执行或原版治疗运行。"
     }
    ],

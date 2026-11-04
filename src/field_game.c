@@ -3388,15 +3388,8 @@ static int commit_ai_item_internal(
     for (size_t i = 0; i < target_count; i++) {
         int result;
         if (code == 5u || code == 13u) {
-            fd2_field_unit *target = &game->units.items[targets[i]];
-            uint32_t spread = game->attack_rng(
-                game->attack_rng_userdata) % 100u;
-            uint64_t heal = (uint64_t)(value * 9u / 10u) +
-                            (uint64_t)(spread * value / 1000u);
-            uint64_t hp = (uint64_t)target->hp + heal;
-            target->hp = (uint16_t)(hp > target->hp_max
-                ? target->hp_max : hp);
-            result = 1;
+            result = fd2_field_hp_heal_apply(&game->units.items[targets[i]], value,
+                game->attack_rng, game->attack_rng_userdata);
         } else if (code == 20u || code == 21u || code == 24u) {
             /* item value 是 magic ID；复用同一命中、profile scale 与两次
              * RNG 顺序，不能误当作 raw damage 或 MP 恢复值。 */

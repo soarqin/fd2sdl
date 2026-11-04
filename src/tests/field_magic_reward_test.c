@@ -1,4 +1,4 @@
-/* 基础法术的单目标结果／非升级经验回归，不开窗口、不接正式MAGIC。
+/* 共享HP恢复、基础法术的单目标结果／非升级经验回归，不开窗口。
  * 依据sub_1C81F @0x1c81f、sub_1C916 @0x1c916、sub_1E292 @0x1e292
  * （原登记同名），以及18d8c归一／117e7 cap99。
  * 原版enemy表VA0x61af9由既有strict LE loader提取后逐条核对既有9字节。
@@ -43,6 +43,45 @@ static fd2_field_unit unit(uint8_t id, uint8_t profile,
     result.experience = 0;
     return result;
 }
+
+static int test_shared_hp_heal_power_and_write_set(void) {
+    const uint16_t powers[] = {0, 1, 25, 40, 70, UINT16_MAX};
+    const uint16_t hp_cases[][2] = {
+        {0, 42}, {20, 42}, {42, 42}, {1, UINT16_MAX}, {UINT16_MAX, UINT16_MAX},
+        /* 纯HP层保留既有夹顶行为，不新增调用方的数据支持门。 */
+        {100, 42}, {1, 0}
+    };
+    CHECK(fd2_field_magic_u16(fd2_field_magic_record_get(13), 0) == 70);
+    for (size_t p = 0; p < sizeof(powers) / sizeof(powers[0]); p++) {
+        for (size_t h = 0; h < sizeof(hp_cases) / sizeof(hp_cases[0]); h++) {
+            for (uint32_t spread = 0; spread < 100; spread++) {
+                fd2_field_unit target = unit(255, 255, 0, hp_cases[h][0], hp_cases[h][1]);
+                target.flags = 0x85;
+                target.experience = 99;
+                fd2_field_unit expected = target;
+                uint64_t healed = (uint64_t)target.hp + (uint64_t)powers[p] * 9u / 10u +
+                                  (uint64_t)spread * powers[p] / 1000u;
+                expected.hp = (uint16_t)(healed > target.hp_max ? target.hp_max : healed);
+                test_rng rng = {{spread + 300u, 0}, 0, &target, target.hp, target.mp, 0};
+                CHECK(fd2_field_hp_heal_apply(&target, powers[p], next_roll, &rng) == 1);
+                CHECK(rng.calls == 1 && !rng.changed_before_rng);
+                CHECK(memcmp(&target, &expected, sizeof(target)) == 0);
+            }
+        }
+    }
+    fd2_field_unit target = unit(0, 1, 1, 0, 100);
+    test_rng rng = {{UINT32_MAX, 0}, 0, &target, target.hp, target.mp, 0};
+    CHECK(fd2_field_hp_heal_apply(&target, 40, next_roll, &rng) == 1);
+    CHECK(target.hp == 39 && rng.calls == 1 && !rng.changed_before_rng);
+    fd2_field_unit before = target;
+    rng.calls = 0;
+    CHECK(fd2_field_hp_heal_apply(NULL, 40, next_roll, &rng) == -1);
+    CHECK(fd2_field_hp_heal_apply(&target, 40, NULL, &rng) == -1);
+    CHECK(fd2_field_hp_heal_apply(NULL, 40, NULL, NULL) == -1);
+    CHECK(rng.calls == 0 && memcmp(&target, &before, sizeof(target)) == 0);
+    return 0;
+}
+
 static int test_enemy_coefficient_table(void) {
     /* 独立LE提取680B SHA256=bc304be826fe3ff0ff129155da8461263
      * 50852c9b67c6b08a2d7c2d103cc99df；这里锁68个末字节的FNV1a。 */
@@ -288,6 +327,7 @@ static int test_rejection_preserves_target_result_and_rng(void) {
     return 0;
 }
 int main(void) {
+    CHECK(test_shared_hp_heal_power_and_write_set() == 0);
     CHECK(test_enemy_coefficient_table() == 0);
     CHECK(test_damage_result_and_reward() == 0);
     CHECK(test_heal_weights_and_full_hp() == 0);

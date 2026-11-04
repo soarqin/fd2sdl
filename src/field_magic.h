@@ -57,6 +57,15 @@ int fd2_field_magic_damage_profile_scale(
  * RNG 调用顺序与 0x1c768/0x1c81f：先命中，再按伤害浮动消费一次。 */
 typedef uint32_t (*fd2_field_magic_rng_fn)(void *userdata);
 
+/* field_hp_heal_apply @0x1c916（原登记sub_1C916）的纯HP部分。
+ * power取调用方的原始u16；两段整数截断后加HP并夹到hp_max。
+ * 返回1完成/-1空target或rng；拒绝不写入、不耗RNG。完成时恰耗一次
+ * spread RNG，power0／满HP亦如此；除HP外不改unit，不写MP／EX／acted。
+ * 范围、目标及数据支持门、原始经验贡献与各动作尾链均由调用方负责。 */
+int fd2_field_hp_heal_apply(
+    fd2_field_unit *target, uint16_t power,
+    fd2_field_magic_rng_fn rng, void *rng_userdata);
+
 /* SDL无演出基础法术的单目标结果，不含MP／acted／死亡清理／升级。
  * experience_value是sub_1C81F @0x1c81f／sub_1C916 @0x1c916
  * （原登记同名）向53EC8累加的原始贡献，尚未按caster等级归一。 */

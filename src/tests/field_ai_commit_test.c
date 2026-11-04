@@ -1,6 +1,8 @@
 /* M7.3 敌方物理 plan/commit 事务测试。
  * 逆向依据：field_ai_move_toward_cell @0x14b78 最终重建并播放路径；
  * field_physical_exchange @0x1548e 在移动后提交进攻、反击和死亡清理。
+ * 物品sub_20C6F @0x20c6f／sub_211A4 @0x211a4共享
+ * field_hp_heal_apply @0x1c916（原登记sub_1C916），仍保留各自AI尾链。
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -733,6 +735,110 @@ static int test_item_heal_boundaries(void) {
     return 0;
 }
 
+static uint32_t count_heal_roll(void *userdata) {
+    test_rng *rng = userdata;
+    size_t index = rng->cursor++;
+    return index < rng->count ? rng->values[index] : 0;
+}
+
+static int test_shared_item_hp_core_preserves_caller_tail(void) {
+    static const uint32_t rolls[] = {0, 99};
+    const uint8_t ids[] = {192, 40}; /* code5 power40消耗；code13 power100保留。 */
+    for (size_t c = 0; c < sizeof(ids); c++) {
+        test_rng rng = {rolls, 2, 0};
+        uint32_t cells[8 * 8];
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        init_game(&game, cells, attrs, &rng);
+        game.stage = 1;
+        game.active_side = game.units.items[0].side = 1;
+        game.attack_rng = count_heal_roll;
+        game.units.items[0].hp = game.units.items[0].hp_max = 1000;
+        game.units.items[0].mp = 7;
+        game.units.items[0].experience = 91;
+        game.units.items[0].direction = 3;
+        game.units.items[1].side = 1;
+        game.units.items[1].x = game.units.items[1].y = 1;
+        game.units.items[1].hp = 10;
+        game.units.items[1].hp_max = 1000;
+        game.units.items[1].mp = 9;
+        game.units.items[1].experience = 99;
+        game.units.items[1].direction = 2;
+        uint8_t *record = (uint8_t *)&game.units.items[0];
+        for (size_t slot = 0; slot < 8; slot++) {
+            record[0x0au + slot * 2u] = 0x80;
+            record[0x0bu + slot * 2u] = 0xff;
+        }
+        record[0x0a] = 0x40;
+        record[0x0b] = ids[c];
+        fd2_field_ai_item_candidate plan;
+        CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain,
+                  &game.units, 0, 1, &plan) == 0);
+        CHECK(plan.item_id == ids[c] && plan.score >= 6 && rng.cursor == 0);
+        fd2_field_ai_item_candidate stale = plan;
+        stale.item_id = c == 0 ? 40 : 192;
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &stale) == -1);
+        CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
+        CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &plan) == 0);
+        /* 满HP raw0仍消耗第一个0；raw1应使用99，不能交换或重复消费。 */
+        CHECK(rng.cursor == 2 && game.units.items[0].hp == 1000);
+        CHECK(game.units.items[1].hp == (c == 0 ? 49 : 109));
+        CHECK(game.units.items[0].mp == 7 && game.units.items[1].mp == 9);
+        CHECK(game.units.items[0].experience == 91 && game.units.items[1].experience == 99);
+        CHECK(record[0x0a] == (c == 0 ? 0x80 : 0x40));
+        CHECK(record[0x0b] == (c == 0 ? 0xff : 40));
+        CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(!fd2_field_unit_has_acted(&game.units.items[1]));
+        CHECK(game.units.items[0].direction == 0 && game.units.items[1].direction == 0);
+        CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE && game.selected_unit == -1);
+        before = game;
+        CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &plan) == -1);
+        CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 2);
+    }
+    return 0;
+}
+
+static int test_shared_item_hp_core_tail_failure_keeps_commit(void) {
+    static const uint32_t rolls[] = {0};
+    test_rng rng = {rolls, 1, 0};
+    uint32_t cells[8 * 8];
+    fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.active_side = game.units.items[0].side = 1;
+    game.attack_rng = count_heal_roll;
+    game.units.items[0].hp = 10;
+    game.units.items[0].hp_max = 100;
+    game.units.items[0].mp = 7;
+    game.units.items[0].experience = 91;
+    uint8_t *record = (uint8_t *)&game.units.items[0];
+    for (size_t slot = 0; slot < 8; slot++) {
+        record[0x0au + slot * 2u] = 0x80;
+        record[0x0bu + slot * 2u] = 0xff;
+    }
+    record[0x0a] = 0;
+    record[0x0b] = 192;
+    record[0x19] = 77;
+    cells[1u * 8u + 1u] = 1u << 16;
+    game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){9, 1};
+    fd2_field_ai_item_candidate plan;
+    CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain,
+              &game.units, 0, 1, &plan) == 0);
+    CHECK(plan.item_id == 192 && rng.cursor == 0);
+    CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &plan) == -1);
+    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+    CHECK(game.units.items[0].hp == 46 && game.units.items[0].mp == 7);
+    CHECK(game.units.items[0].experience == 91 && rng.cursor == 1);
+    CHECK(record[0x0a] == 0x80 && record[0x0b] == 0xff && record[0x19] == 77);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+    fd2_field_game before = game;
+    CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &plan) == -1);
+    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 1);
+    return 0;
+}
+
 static int test_item_commit(void) {
     static const uint32_t rolls[] = {0};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
@@ -1450,6 +1556,8 @@ int main(void) {
         test_magic_item_tail_failure_preserves_commit() != 0 ||
         test_item_magic_wrapper_boundaries() != 0 ||
         test_item_heal_boundaries() != 0 ||
+        test_shared_item_hp_core_preserves_caller_tail() != 0 ||
+        test_shared_item_hp_core_tail_failure_keeps_commit() != 0 ||
         test_item_commit() != 0 ||
         test_behavior5_cell_action_commit() != 0 ||
         test_behavior2_recover_after_queries() != 0 ||

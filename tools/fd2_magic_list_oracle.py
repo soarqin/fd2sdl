@@ -1,10 +1,10 @@
-"""真实START raw1及其明示位图派生的法术列表资源，不运行进程或改写存档。
+"""真实START raw1及其明示位图/坐标派生的法术列表资源，不运行进程或改写存档。
 
 依据field_player_magic_command_execute @0x1cff0（原登记同名）、
 field_unit_magic_list_draw @0x1ceed（原sub_1CEED，仅叠名字/费用）及
 field_player_magic_list_select_step @0x1d51d（原sub_1D51D，处理选择）。
-只生成已校准的列表/姓名/MP矩形，
-不推断施法效果、恢复术13的自然学习、原版UI的RNG次数或SDL正式MAGIC已完成。
+只构造列表/姓名/MP和受控damage详情数值矩形，不模拟施法或成长，
+不推断恢复术13自然学习、原版UI的RNG次数或SDL正式MAGIC已完成。
 """
 import hashlib
 import struct
@@ -84,9 +84,9 @@ def prepare(original,fixture,*,source=None):
         source,_ = validate_initial(fixture,0)
     actor = source[UNITS+STRIDE:UNITS+2*STRIDE]
     ids = [8*byte+bit for byte in range(5) for bit in range(8) if actor[0x1a+byte]&(1<<bit)]
-    if ((actor[7],actor[8],actor[0x20],tuple(actor[:2])) != (9,9,5,(10,15)) or
-            ids not in ([0],[0,1,2,3,13])):
-        raise ValueError("magic list oracle requires START raw1/unit9 or its exact five-spell controls fixture")
+    if ((actor[7],actor[8],actor[0x20]) != (9,9,5) or
+            (tuple(actor[:2]),ids) not in (((10,15),[0]),((10,15),[0,1,2,3,13]),((7,16),[0]))):
+        raise ValueError("magic list oracle requires START raw1/unit9 or an exact controls/damage fixture")
     assets = round_assets(original)
     other = (original / "FDOTHER.DAT").read_bytes()
     sheet,font = archive_entry(other,5),archive_entry(other,4)
@@ -136,3 +136,26 @@ def prepare(original,fixture,*,source=None):
                    "source_sha256":hashlib.sha256(fixture.read_bytes()).hexdigest(),
                    "runtime_rng_ui_consumption":"16c57 shared-RNG reader confirmed statically; actual count/alignment unverified",
                    "acceptance":False}
+
+
+def damage_detail(original,fixture,source):
+    """17fc0（field_unit_detail_stats_draw，原登记同名）：只构造MP/姓名/LV/EX ROI。
+
+    受控unit9以ID0击杀LV2 enemy96：1c81f累计2*21，18d8c除LV1，
+    1e292（原sub_1E292）由EX0写42，不升级；不模拟整套成长或FIGANI。
+    """
+    expected = bytearray(source)
+    actor = UNITS+STRIDE
+    if expected[actor+7]!=9 or expected[actor+0x21]!=1 or expected[actor+0x3c]!=0:
+        raise ValueError("damage详情仅支持已确认unit9 LV1/EX0起点")
+    struct.pack_into("<H",expected,actor+0x44,6)
+    expected[actor+0x3c] = 42
+    templates,_ = prepare(original,fixture,source=expected)
+    sheet = archive_entry((original/"FDOTHER.DAT").read_bytes(),5)
+    top = sheet_frame(sheet,20,lmi=True)
+    top.putpalette(templates["current_max_mp"][1].getpalette())
+    number(top,sheet,1,157-92,33-7,42,2)
+    number(top,sheet,42,157-92,44-7,42,2)
+    return {"actor_name":templates["actor_name"],"current_max_mp":templates["current_max_mp"],
+            "level":((157,33),top.crop((157-92,33-7,169-92,41-7))),
+            "experience":((157,44),top.crop((157-92,44-7,169-92,52-7)))}

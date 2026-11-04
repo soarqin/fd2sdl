@@ -387,5 +387,186 @@ class ControlsTest(ResourceFixture,unittest.TestCase):
             self.assertEqual((args.artifacts/"controls-start.SAV").read_bytes(),self.derived_bytes)
 
 
+class DamageTest(ResourceFixture,unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.base = cls.source
+        cls.encrypted = (probe.ROOT/"original_game/START.SAV").read_bytes()
+        cls.derived_bytes,derived,cls.manifest = probe.derive_damage(cls.base,cls.encrypted)
+        (cls.source,cls.focus,cls.assets,cls.actors,cls.selection,cls.templates,
+         cls.fields) = probe.prepare(probe.ROOT/"original_game",source=derived)
+
+    def test_damage_manifest_only_deploys_actor_and_preserves_hp_mp_ex_bitmap(self):
+        self.assertEqual([(c["offset"],c["before"],c["after"]) for c in self.manifest["changed_plain_bytes"]],
+                         [(0x12f3,10,7),(0x12f4,15,16),(0x59c7,88,86)])
+        self.assertEqual(self.manifest["derived_encrypted_sha256"],
+                         "77cb56bafbd8ceb767ae176c074f18d8c34959476522197bf8f3f926a5c19201")
+        self.assertEqual(self.source[probe.UNITS+probe.STRIDE+2:-4],self.base[probe.UNITS+probe.STRIDE+2:-4])
+        self.assertFalse(self.manifest["natural_one_turn_route_covered"])
+        self.assertEqual(self.manifest["command_move_length"],0)
+        self.assertEqual(self.fields["target_contract"]["raw_candidates"],[11])
+        self.assertEqual(self.fields["target_contract"]["expected_camera"],[4,13])
+        self.assertEqual(self.fields["target_contract"]["initial_focus_screen"],[28,148])
+        self.assertEqual(self.fields["damage_contract"]["expected_experience"],42)
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory)/"derived.SAV"
+            save.write_bytes(self.derived_bytes)
+            self.assertEqual(probe.decode_save(save),self.source)
+        for plain,encoded in ((self.source,self.encrypted),(self.base,self.derived_bytes)):
+            with self.assertRaises(ValueError):
+                probe.derive_damage(plain,encoded)
+
+    def result_frame(self,*,alive=False,acted=True):
+        frame = Image.new("RGB",(320,200))
+        plan = self.assets["damage_result"]
+        frame.paste(plan["empty"].convert("RGB"),plan["empty_at"])
+        if alive:
+            part = plan["alive_actor"]["templates"][0]
+            frame.paste(part.convert("RGB"),plan["empty_at"],part.point(lambda c:255 if c else 0,mode="L"))
+        sprite = plan["acted"][0] if acted else probe.sheet_frame(
+            (probe.ROOT/"original_game/FDICON.B24").read_bytes(),9*12)
+        sprite.putpalette(self.assets["palette"])
+        x,y = plan["caster_screen"]
+        frame.paste(sprite.convert("RGB"),(x,y-6),sprite.point(lambda c:255 if c else 0,mode="L"))
+        return frame
+
+    def test_damage_target_uses_scrolled_frame1_actor_and_unoccluded_range(self):
+        target = self.assets["magic_target"]
+        def frame(actor):
+            image = Image.new("RGB",(320,200))
+            part = actor["templates"][0]
+            x,y = target["screen"]
+            image.paste(part.convert("RGB"),(x,y-6),part.point(lambda c:255 if c else 0,mode="L"))
+            image.paste(target["range"]["ranges"][0][1].convert("RGB"),target["range"]["position"])
+            return image
+        good = frame(target["actor"])
+        detail = probe.target_state(good,self.assets,self.templates,self.fields)
+        self.assertEqual((detail["kind"],detail["raw_actor"],detail["range_roi"]),
+                         ("magic0_target_selection",11,[124,52,24,24]))
+        self.assertEqual(detail["focus"]["focus_screen"],[28,148])
+        self.assertIsNone(probe.target_state(frame(self.assets["damage_result"]["alive_actor"]),
+                                            self.assets,self.templates,self.fields))
+        good.paste(target["range"]["base"].convert("RGB"),target["range"]["position"])
+        self.assertIsNone(probe.target_state(good,self.assets,self.templates,self.fields))
+
+    def test_damage_kill_requires_acted_and_complete_empty_target_miss_is_distinct(self):
+        killed = probe.damage_result(self.result_frame(),self.assets)
+        self.assertEqual(killed["outcome"],"kill")
+        self.assertEqual(killed["empty_target"]["checked_pixels"],720)
+        self.assertTrue(killed["target_raw_flags_not_read"])
+        self.assertIsNone(probe.damage_result(self.result_frame(acted=False),self.assets))
+        self.assertEqual(probe.damage_result(self.result_frame(alive=True),self.assets)["outcome"],"miss")
+        bad = self.result_frame()
+        bad.putpixel((28,142),(255,0,0))
+        self.assertIsNone(probe.damage_result(bad,self.assets))
+        self.assertIsNone(probe.damage_result(Image.new("RGB",(320,200)),self.assets))
+
+    def detail_frame(self):
+        frame = Image.new("RGB",(320,200))
+        for part,at in self.assets["detail_edges"]:
+            frame.paste(part.convert("RGB"),at,part.point(lambda c:255 if c else 0,mode="L"))
+        for at,part in self.assets["damage_detail"].values():
+            frame.paste(part.convert("RGB"),at)
+        return frame
+
+    def test_detail_requires_name_mp6_max8_lv1_ex42_and_native_edges(self):
+        detail = probe.caster_detail(self.detail_frame(),self.source,self.assets)
+        self.assertEqual((detail["mp"],detail["max_mp"],detail["level"],detail["experience"],detail["checked_pixels"]),
+                         (6,8,1,42,1105))
+        for point in ((98,13),(267,59),(157,33),(157,44)):
+            frame = self.detail_frame()
+            frame.putpixel(point,(255,0,0))
+            self.assertIsNone(probe.caster_detail(frame,self.source,self.assets))
+        self.assertIsNone(probe.caster_detail(self.list_frame(),self.source,self.assets))
+
+    damage_keys = ["UP","ENTER","Z","Z","ENTER","ENTER","LEFT","ENTER","ENTER","ENTER",
+                   "RIGHT","RIGHT","UP","UP","UP","F2"]
+
+    def exercise_damage(self,capture,save,report,*,miss=False,fail_at=None):
+        observed = []
+        def wait(capture,name,predicate,checkpoints,**kwargs):
+            observed.append((name,capture.key.call_count))
+            if name==fail_at:
+                raise TimeoutError("resource missing")
+            if name=="damage-cast-outcome":
+                self.assertEqual(capture.key.call_count,10)  # 单次提交后只有观察。
+                return self.result_frame(alive=miss),{"outcome":"miss" if miss else "kill"}
+            if name=="damage-caster-detail":
+                frame = self.detail_frame()
+                return frame,probe.caster_detail(frame,self.source,self.assets)
+            return self.list_frame(),{"focus_screen":[52,76] if name=="z-raw0" else [52,124]}
+        with patch.object(probe,"wait_title"),patch.object(probe,"wait_state",side_effect=wait), \
+                patch.object(probe,"wait_measured_save",side_effect=AssertionError("damage must not Save")):
+            probe.exercise(capture,self.source,self.focus,self.assets,self.actors,self.selection,
+                self.templates,self.fields,{3:[None,None,None]},save,self.derived_bytes,
+                save.stat().st_mtime_ns,report,scenario="damage")
+        return observed
+
+    def test_one_cast_then_observation_and_bounded_return_f2_without_save_or_skip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory)/"FD2.SAV"
+            save.write_bytes(self.derived_bytes)
+            capture,report = Mock(),{"checkpoints":[]}
+            self.exercise_damage(capture,save,report)
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.damage_keys)
+            self.assertEqual(report["input_scope"]["cast_confirmation_count"],1)
+            self.assertEqual(report["input_scope"]["post_cast_skip_keys"],[])
+            self.assertFalse(report["input_scope"]["save_attempted"])
+            self.assertEqual(report["damage_measurement"]["experience"],42)
+            self.assertEqual(save.read_bytes(),self.derived_bytes)
+
+    def test_miss_or_missing_gate_stops_without_reroll_recovery_or_extra_confirm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory)/"FD2.SAV"
+            save.write_bytes(self.derived_bytes)
+            observed = self.exercise_damage(Mock(),save,{"checkpoints":[]})
+            for name,key_count in observed:
+                capture = Mock()
+                with self.subTest(gate=name),self.assertRaises(TimeoutError):
+                    self.exercise_damage(capture,save,{"checkpoints":[]},fail_at=name)
+                self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.damage_keys[:key_count])
+            capture,report = Mock(),{"checkpoints":[]}
+            with self.assertRaisesRegex(AssertionError,"未命中"):
+                self.exercise_damage(capture,save,report,miss=True)
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],self.damage_keys[:10])
+            self.assertNotIn("damage_measurement",report)
+            self.assertEqual(save.read_bytes(),self.derived_bytes)
+
+    def test_damage_runner_records_controlled_fixture_and_rejects_any_save_write(self):
+        for unexpected_save in (False,True):
+            with self.subTest(unexpected_save=unexpected_save),tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                driver,dosbox = base/"driver.exe",base/"dosbox.exe"
+                driver.write_bytes(b"not launched")
+                dosbox.write_bytes(b"not launched")
+                args = SimpleNamespace(root=probe.ROOT,driver=driver,dosbox=dosbox,
+                                       artifacts=base/"output",scenario="damage")
+                @contextmanager
+                def running(command,cwd,env,log,driver,receipts):
+                    receipts.append({"pid":123,"cleaned":True,"forced_cleanup":False,"exit_code":0})
+                    yield Mock(pid=123)
+                def exercise(capture,source,focus,assets,actors,selection,templates,fields,titles,
+                             save,data,stamp,report,*,scenario):
+                    self.assertEqual(scenario,"damage")
+                    self.assertEqual(save.read_bytes(),self.derived_bytes)
+                    report["damage_measurement"] = {"mp":6,"level":1,"experience":42}
+                    if unexpected_save:
+                        save.write_bytes(data[:-1]+bytes([data[-1]^1]))
+                with patch.object(probe,"hashes",return_value={"source":"stable"}), \
+                        patch.object(probe,"running",side_effect=running),patch.object(probe,"Capture"), \
+                        patch.object(probe.shutil,"copytree",side_effect=lambda source,destination:destination.mkdir()), \
+                        patch.object(probe,"exercise",side_effect=exercise), \
+                        patch("subprocess.Popen",side_effect=AssertionError("pure test must not launch")):
+                    report = probe.run(args)
+                self.assertEqual(report["probe_cases_passed"],not unexpected_save)
+                self.assertFalse(report["ok"])
+                self.assertTrue(report["probe_only"] and report["fixture_unchanged"])
+                self.assertEqual(report["copy_save_unchanged_after_cleanup"],not unexpected_save)
+                self.assertEqual(report["derived_fixture"],self.manifest)
+                self.assertNotIn("measurement_save_requested",report)
+                self.assertEqual((args.artifacts/"damage-start.SAV").read_bytes(),self.derived_bytes)
+
+
 if __name__=="__main__":
     unittest.main()

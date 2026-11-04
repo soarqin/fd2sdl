@@ -28,6 +28,17 @@ CODE0_BASE = 0x10000
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x1DB65: [{
+        "target": "evidence", "was": "无演出时只需把全部HP0的flags写1",
+        "now": "只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于"
+               "x[camX-1,camX+13]／y[camY-1,camY+9]，13帧循环会把全体非hidden"
+               "HP0（含离屏者）方向最终写0；hidden死者方向不改。无屏内见证者则不改"
+               "方向；最后全部HP0 flags精确赋1，不能OR原flags或重置所有存活者方向。",
+        "why": "已发布1db65的收集门及j0..12全表循环、strictLE object2 "
+               "VA51a87/51a8b原始8字节0d00000008000000，与现13x8 viewport相等。"
+               "SDL共享清理用于phase/physical/AI magic/item及新player magic，"
+               "扩边界与屏内外／hidden组合锁终态；此项不证明旋转／消散帧已实现。",
+    }],
     0x1C81F: [{
         "target": "semantic_name", "was": "sub_1C81F",
         "now": "field_magic_damage_apply",

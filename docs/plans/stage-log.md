@@ -154,6 +154,16 @@ B1终审 `0842f05` 后继续此阶段，路径防护另提交 `38e3e3e`。永久
 
 独立复审无阻塞；28000组profile／HP／spread组合验证既有效果、RNG与可达紧上界，另测overkill／miss、实际恢复、目标／caster的8／9／24／25权重差异、等值levelcap、cap99、EX边界、错误输出不变和整次统一归一。隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/magic-reward/` fresh完整Windows构建、单轮50/50 CTest（含真实输入）及286/286 Python无跳过通过。正式MAGIC仍禁用，本阶段没有SDL施法WGC；FIGANI／488奖励提示／附加呈现RNG、升级成长及自然多回合路径保持未验。
 
+### B2.2c 玩家基础法术提交核心
+
+效果／奖励准备已提交 `2c61eed`。新提交接口从独立MAGIC_TARGETING重建castmask、重新检查当前法术／MP，按同格raw顺序预检全部目标、基础效果、总贡献上界及非升级门。当前能力限stage0的0（caster unit9已有单费用标记证据）／13，完整列表含其它ID时不开放；目标或已见HP0携带非ff奖励描述符保守拒绝，不静默丢掉落／脚本。最终格与有效pending、即将进入side1的未知回合action及notice容量均先检查，之后才扣一次MP并消费效果RNG；miss仍扣费／行动，错误不退款或重试。
+
+收尾沿现私有函数以WAIT／PHYSICAL／MAGIC小枚举分支，避免法术误走原地恢复或物理全方向复位；效果／败亡后acted→caster归一→最终lookup1→非升级EX写回→controller。死亡清理同时补齐1db65可观察方向终态：扩展视区内一个非hidden HP0触发全体非hidden HP0方向0，最后全部HP0 flags精确1；无见证者不改方向，hidden方向保留。现五类caller共用，未增加magic专用重复清理或持久奖励owner，帧演出仍留B6。
+
+独立审查修复了另一个提交前预测遗漏：非目标HP0玩家将在败亡清理后隐藏，不能算作仍能行动而绕过side1未知事件预检；13同格、当时非hidden的HP0目标恢复后仍须算可行动。13565本体继续不加HP门。能力查询另要求真实共享RNG可用。回归覆盖三种预测路径、kill42／miss／非致死经验97、同格多目标与混合raw顺序／cap99、满HP／自身恢复、费用时点、17类拒绝、过期mask、异步phase、提交后首错冻结与重复拒绝，以及七组死亡视区边界。
+
+隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/magic-commit/` fresh完整Windows构建、单轮51/51 CTest（含真实输入）和10/10地址／发布审计通过。正式菜单仍禁用，这不是SDL施法WGC；奖励488提示、FIGANI／额外呈现RNG、升级、带奖励目标、自然多回合与整关仍未验。接着连接正式输入，并与原版damage／heal逐项配对，不因本次核心完成关闭整个B2。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

@@ -359,6 +359,13 @@ int fd2_field_game_magic_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_magic_target(fd2_field_game *game);
 int fd2_field_game_cancel_magic_targeting(fd2_field_game *game);
 
+/* stage0基础法术能力门：所有列表项都须为已支持的0(unit9)/13；
+ * 不因低MP禁列表，不接正式COMMAND图标。resolve只从MAGIC_TARGETING提交，
+ * 0成功/-1拒绝或已提交后冻结；拒绝预检不改业务状态/RNG，提交后不退款。
+ * 当前只恢复无掉落、非升级逻辑，FIGANI/奖励提示/附加呈现RNG另行验收。 */
+int fd2_field_game_magic_is_available(const fd2_field_game *game);
+int fd2_field_game_resolve_player_magic(fd2_field_game *game);
+
 /* M7.3 显式物理提交事务：重新计算 actor 当前移动范围及最优物理候选，
  * 仅当与传入 plan 完全一致时重建路径、提交移动，再复用
  * field_physical_exchange @0x1548e 的确定性逻辑核心。vga 可为空；非空时

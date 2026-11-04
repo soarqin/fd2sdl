@@ -40,8 +40,14 @@
 
 static int recover_stationary_unit(fd2_field_game *game, size_t actor_index);
 static int focus_to(fd2_field_game *game, int x, int y);
+typedef enum {
+    PLAYER_ACTION_WAIT,
+    PLAYER_ACTION_PHYSICAL,
+    PLAYER_ACTION_MAGIC
+} player_action_kind;
 static int finish_unit_action_internal(fd2_field_game *game,
-                                       int physical_action);
+                                       player_action_kind kind,
+                                       uint64_t magic_raw_reward);
 static int resolve_physical_exchange(fd2_field_game *game,
                                      size_t attacker_index,
                                      size_t target_index,
@@ -52,13 +58,29 @@ static int resolve_physical_exchange(fd2_field_game *game,
  * 分派pending。它不经过玩家 command menu。 */
 static int finish_ai_action(fd2_field_game *game, size_t actor_index);
 
-/* field_defeated_units_finalize @0x1db65（entry @0x1db65）在死亡演出后
- * 遍历完整 actor 表，把所有 HP==0 单位的 flags `+0x05` 精确写为 1。
- * M6 无演出版省略旋转／消散帧，只复现最终记录提交。 */
-static void finalize_zero_hp_units(fd2_field_units *units) {
-    if (!units) return;
+/* field_defeated_units_finalize @0x1db65（原登记同名）：有屏内可见死者
+ * 才旋转全表可见死者，最终direction0；之后全部HP0 flags精确1。
+ * 原始51a87/51a8b为13/8。只省略帧，不省略可观察记录终态。 */
+static void finalize_zero_hp_units(fd2_field_game *game) {
+    if (!game) return;
+    fd2_field_units *units = &game->units;
+    int rotate = 0;
     for (size_t i = 0; i < units->count; i++) {
-        if (units->items[i].hp == 0) units->items[i].flags = 1;
+        const fd2_field_unit *unit = &units->items[i];
+        if (unit->hp == 0 && !fd2_field_unit_is_hidden(unit) &&
+            unit->x >= (int64_t)game->camera_cell_x - 1 &&
+            unit->x <= (int64_t)game->camera_cell_x + FD2_FIELD_VIEW_CELLS_X &&
+            unit->y >= (int64_t)game->camera_cell_y - 1 &&
+            unit->y <= (int64_t)game->camera_cell_y + FD2_FIELD_VIEW_CELLS_Y + 1) {
+            rotate = 1;
+            break;
+        }
+    }
+    for (size_t i = 0; i < units->count; i++) {
+        fd2_field_unit *unit = &units->items[i];
+        if (unit->hp != 0) continue;
+        if (rotate && !fd2_field_unit_is_hidden(unit)) unit->direction = 0;
+        unit->flags = 1;
     }
 }
 
@@ -553,7 +575,7 @@ static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
                 ? (uint16_t)(unit->hp - damage) : 0u;
         }
     }
-    finalize_zero_hp_units(&game->units);
+    finalize_zero_hp_units(game);
     for (size_t i = 0; i < game->units.count; i++) {
         fd2_field_unit *unit = &game->units.items[i];
         if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
@@ -1986,6 +2008,124 @@ int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
     return 0;
 }
 
+static int player_basic_magic_list_is_supported(const fd2_field_game *game) {
+    if (!magic_list_actor_is_valid(game) || game->stage != 0) return 0;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    uint8_t ids[40];
+    size_t count = fd2_field_unit_magic_list_build(actor, ids, sizeof(ids));
+    if (!count || count > FD2_FIELD_MAGIC_LIST_MAX_COUNT) return 0;
+    for (size_t i = 0; i < count; i++) {
+        /* ID0玩家强制2ff01；目前仅unit9的FIGANI29空→28
+         * 有已核单个caster费用标记。13的21b18在目标循环前扣一次。 */
+        if (ids[i] != 13 && !(ids[i] == 0 && actor->unit_id == 9)) return 0;
+    }
+    return 1;
+}
+
+int fd2_field_game_magic_is_available(const fd2_field_game *game) {
+    return game && game->attack_rng && game->interaction == FD2_FIELD_INTERACTION_COMMAND &&
+        player_basic_magic_list_is_supported(game);
+}
+
+static int player_magic_tail_is_supported(const fd2_field_game *game,
+                                            size_t actor_index) {
+    const fd2_field_unit *actor = &game->units.items[actor_index];
+    uint8_t action;
+    size_t slot;
+    int found = fd2_field_cell_event_find(&game->map, &game->terrain,
+        &game->metadata, actor->x, actor->y, 1, &action, &slot);
+    /* 最终match1覆盖旧pending；当前尚无已支持cell handler，不能先扣MP
+     * 再发现必经未知handler。特殊地形不是MAGIC的WAIT cell-action。 */
+    if (found < 0 || found || game->pending_cell_event.valid) return 0;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (i != actor_index && unit->side == 2 &&
+            (unit->flags & 0x81u) == 0 && !unit->detail_status[1]) {
+            /* 预测本次finalize后的flags，不改13565本体的无HP门契约。
+             * 13同格HP0已通过maxHP预检，必先恢复存活；其他HP0将隐藏。 */
+            if (!unit->hp && !(game->magic_target_id == 13 &&
+                    unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y))
+                continue;
+            return 1;
+        }
+    }
+    /* 最后一名玩家会立即进入side1；未知回合action和notice容量先拒绝。
+     * 已知handler本身的执行失败仍由已提交后的controller保留事实并冻结。 */
+    fd2_field_turn_event_match matches[FD2_FIELD_EVENT_SLOTS];
+    size_t count = fd2_field_turn_events_find(&game->metadata,
+        game->turn_number, 1, matches, FD2_FIELD_EVENT_SLOTS);
+    if (count > FD2_FIELD_EVENT_SLOTS || game->event_log_count > FD2_FIELD_EVENT_LOG_CAPACITY ||
+        count > FD2_FIELD_EVENT_LOG_CAPACITY - game->event_log_count)
+        return 0;
+    for (size_t i = 0; i < count; i++) if (matches[i].action > 3) return 0;
+    return 1;
+}
+
+int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
+    if (!magic_target_context_is_valid(game) || !game->attack_rng ||
+        !player_basic_magic_list_is_supported(game)) return -1;
+    size_t actor_index = (size_t)game->selected_unit;
+    fd2_field_unit *actor = &game->units.items[actor_index];
+    int selected = game->magic_list_selected;
+    uint8_t id = 0xff;
+    if (fd2_field_magic_list_select_step(actor, &selected,
+            FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &id) != 1 || id != game->magic_target_id)
+        return -1;
+    const uint8_t *record = fd2_field_magic_record_get(id);
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+            actor->x, actor->y, 0, record[3]) != 0) return -1;
+    int legal_cell = fd2_field_path_is_destination(&range,
+        game->cursor_cell_x, game->cursor_cell_y);
+    fd2_field_path_close(&range);
+    if (!legal_cell) return -1;
+    uint8_t targets[FD2_FIELD_MAX_UNITS];
+    size_t count = 0;
+    uint64_t maximum_reward = 0;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (fd2_field_unit_is_hidden(unit)) continue;
+        if (unit->x >= game->map.width || unit->y >= game->map.height) return -1;
+        int target = magic_target_matches(unit, id) &&
+            unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y;
+        /* 1b6b7在死亡清理前扫描完整表。基础流程不接+31..33奖励描述符；
+         * 非目标原有HP0同样不能把未知掉落/脚本静默丢掉。 */
+        if ((target || unit->hp == 0) && ((const uint8_t *)unit)[0x31] != 0xffu)
+            return -1;
+        if (!target) continue;
+        uint32_t maximum;
+        if (fd2_field_magic_basic_reward_max(id, unit, &maximum) != 0) return -1;
+        maximum_reward += maximum;
+        targets[count++] = (uint8_t)i;
+    }
+    uint8_t maximum_gain;
+    if (!count || fd2_field_magic_basic_reward_gain(actor, maximum_reward, &maximum_gain) != 0 ||
+        !player_magic_tail_is_supported(game, actor_index)) return -1;
+
+    /* 1ca89的u16费用先于首目标effect/RNG；所有数据/整次奖励预检已完成。
+     * SDL这里只执行已确认逻辑，不模拟2ff01附加抖动RNG或音画时序。 */
+    actor->mp = (uint16_t)(actor->mp - record[5]);
+    uint64_t actual_reward = 0;
+    for (size_t i = 0; i < count; i++) {
+        fd2_field_magic_basic_result effect;
+        if (fd2_field_magic_apply_player_basic_effect(id,
+                &game->units.items[targets[i]], game->attack_rng,
+                game->attack_rng_userdata, &effect) < 0) {
+            fail_action(game, actor_index);
+            return -1;
+        }
+        actual_reward += effect.experience_value;
+    }
+    finalize_zero_hp_units(game);
+    game->battle_result = fd2_field_game_battle_result(game);
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    if (finish_unit_action_internal(game, PLAYER_ACTION_MAGIC, actual_reward) != 0) {
+        fail_action(game, actor_index);
+        return -1;
+    }
+    return 0;
+}
+
 int fd2_field_game_begin_attack(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
@@ -2219,11 +2359,11 @@ static int resolve_physical_exchange(fd2_field_game *game,
     /* field_physical_attack_resolve @0x1ecc7 本体只写 +0x25/+0x40；外围
      * exchange 返回后立即调用 field_defeated_units_finalize @0x1db65，
      * 统一将所有 HP==0 actor 的 +0x05 写为 1。 */
-    finalize_zero_hp_units(&game->units);
+    finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
     game->attack_target = (int)target_index;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
-    if (finish_player_action && finish_unit_action_internal(game, 1) != 0) {
+    if (finish_player_action && finish_unit_action_internal(game, PLAYER_ACTION_PHYSICAL, 0) != 0) {
         /* cell/phase 失败发生在伤害与 RNG 提交之后，不能假回滚再重试。 */
         fail_action(game, attacker_index);
         return -1;
@@ -2576,7 +2716,8 @@ static int preflight_player_wait_cell(fd2_field_game *game, size_t actor_index) 
 }
 
 static int finish_unit_action_internal(fd2_field_game *game,
-                                       int physical_action) {
+                                       player_action_kind kind,
+                                       uint64_t magic_raw_reward) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->player_post_waiting_phase || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
@@ -2586,22 +2727,38 @@ static int finish_unit_action_internal(fd2_field_game *game,
     size_t unit_index = (size_t)game->selected_unit;
     fd2_field_unit *unit = &game->units.items[unit_index];
     int side_is_actionable = unit_can_act_for_side(unit, game->active_side) ||
-        (physical_action && unit->side == game->active_side && unit->hp == 0);
+        (kind == PLAYER_ACTION_PHYSICAL && unit->side == game->active_side && unit->hp == 0);
     if (!side_is_actionable || fd2_field_unit_has_acted(unit)) return -1;
-    /* public finish是WAIT；物理交换内部标识physical_action，不能顺带恢复HP。 */
-    if (!physical_action) {
+    /* 只有WAIT执行原地恢复；物理与法术各保留自己的方向/奖励边界。 */
+    if (kind == PLAYER_ACTION_WAIT) {
         if (preflight_player_wait_cell(game, unit_index) != 0) return -1;
         /* sub_13FD4 @0x13fd4：只有原地WAIT恢复，非零路径即使绕回也不恢复。 */
         if (game->move_path_length == 0u &&
             recover_stationary_unit(game, unit_index) < 0)
             return -1;
     }
-    if (physical_action)
+    if (kind == PLAYER_ACTION_PHYSICAL)
         for (size_t i = 0; i < game->units.count; i++)
             game->units.items[i].direction = 0;
     /* 普通成功command先acted，18890才最终lookup1，再交回controller。 */
     fd2_field_unit_set_acted(unit, 1);
+    uint8_t gain = 0;
+    if (kind == PLAYER_ACTION_MAGIC &&
+        fd2_field_magic_basic_reward_gain(unit, magic_raw_reward, &gain) != 0) {
+        fail_action(game, unit_index);
+        return -1;
+    }
     if (collect_pending_cell_event(game, unit_index, 1) < 0) return -1;
+    /* 18d8c先归一，18890 lookup1后controller117e7才调用1e292写EX。
+     * 非升级gain已整体预检；提示/portrait/11tick仍待呈现层对照。 */
+    if (kind == PLAYER_ACTION_MAGIC) {
+        unit->experience = (uint8_t)(unit->experience + gain);
+        game->magic_list_selected = 0;
+        game->magic_target_id = 0;
+        memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+        game->magic_target_count = 0;
+        game->magic_target_cycle = 0;
+    }
     clear_move_query(game);
     game->selected_unit = -1;
     game->command_selected = -1;
@@ -2610,7 +2767,7 @@ static int finish_unit_action_internal(fd2_field_game *game,
 }
 
 int fd2_field_game_finish_unit_action(fd2_field_game *game) {
-    return finish_unit_action_internal(game, 0);
+    return finish_unit_action_internal(game, PLAYER_ACTION_WAIT, 0);
 }
 
 int fd2_field_game_end_active_phase(fd2_field_game *game) {
@@ -2927,7 +3084,7 @@ static int commit_ai_magic_internal(
             return -1;
         }
     }
-    finalize_zero_hp_units(&game->units);
+    finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
     game->cursor_cell_x = plan->cast_x;
     game->cursor_cell_y = plan->cast_y;
@@ -3044,7 +3201,7 @@ static int commit_ai_item_internal(
         }
     }
     if (code == 5u) inventory_slot_remove(actor, plan->slot_index);
-    finalize_zero_hp_units(&game->units);
+    finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
     game->cursor_cell_x = plan->target_x;
     game->cursor_cell_y = plan->target_y;

@@ -1296,7 +1296,8 @@ static void render_move_selection(const fd2_field_game *game,
     if (!game || !vga ||
         (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
          game->interaction != FD2_FIELD_INTERACTION_TARGETING &&
-         game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING) ||
+         game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING) ||
         !game->move_range.nodes)
         return;
 
@@ -1322,7 +1323,8 @@ static void render_move_selection_overlay(const fd2_field_game *game,
     if (!game || !vga ||
         (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
          game->interaction != FD2_FIELD_INTERACTION_TARGETING &&
-         game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING) ||
+         game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING) ||
         !game->move_range.nodes)
         return;
     const uint8_t *lut = fd2_field_range_lut(
@@ -1356,8 +1358,9 @@ static void render_field_cursor(const fd2_field_game *game,
     /* field_selection_overlay_draw @0x122dc 在普通模式 1 调用
      * field_selection_sprite_blit @0x126f7，把 FDOTHER[1] frame 0
      * 以透明 SKIP 规则画在焦点格；顺序位于地形/范围之后、单位之前。 */
-    /* 1cff0将area0选择模式设为2，122dc改画frame1；仍先于actor。 */
-    size_t frame = game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING ? 1u : 0u;
+    /* 1cff0/1bbdc将area0选择模式设为2，122dc改画frame1；仍先于actor。 */
+    size_t frame = (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING ||
+                    game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) ? 1u : 0u;
     const fd2_image *cursor = fd2_field_cursor_frame(&game->visuals, frame);
     if (!cursor) return;
     fd2_map_sprite_blit(vga, cursor,
@@ -1985,7 +1988,7 @@ int fd2_field_game_end_item_menu(fd2_field_game *game) {
     return fd2_field_game_refresh_commands(game);
 }
 
-static int magic_target_focus_is_valid(const fd2_field_game *game) {
+static int target_focus_is_valid(const fd2_field_game *game) {
     return game->map.width > 0 && game->map.height > 0 &&
         game->cursor_cell_x >= 0 && game->cursor_cell_x < game->map.width &&
         game->cursor_cell_y >= 0 && game->cursor_cell_y < game->map.height &&
@@ -1993,39 +1996,34 @@ static int magic_target_focus_is_valid(const fd2_field_game *game) {
         game->camera_cell_y >= 0 && game->camera_cell_y <= max_camera_y(game);
 }
 
+static int target_matches_filter(const fd2_field_unit *unit, uint8_t filter) {
+    return !fd2_field_unit_is_hidden(unit) &&
+        (filter == 0 ? unit->side == 0 : unit->side != 0);
+}
+
 static int magic_target_matches(const fd2_field_unit *unit, uint8_t magic_id) {
     /* 14818/14742共享filter：ID0为side0，ID13为side!=0；
      * 不加HP/acted/占格门，不使用敌方AI的filter反转。 */
-    return !fd2_field_unit_is_hidden(unit) &&
-        (magic_id == 0 ? unit->side == 0 : unit->side != 0);
+    return target_matches_filter(unit, magic_id == 0 ? 0 : 1);
 }
 
 static int magic_target_context_is_valid(const fd2_field_game *game) {
     return magic_list_actor_is_valid(game) &&
         game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
         (game->magic_target_id == 0 || game->magic_target_id == 13) &&
-        magic_target_focus_is_valid(game) &&
+        target_focus_is_valid(game) &&
         game->units.items[game->selected_unit].x < game->map.width &&
         game->units.items[game->selected_unit].y < game->map.height;
 }
 
-int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id) {
-    if (!magic_list_actor_is_valid(game) ||
-        game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST ||
-        (magic_id != 0 && magic_id != 13) || !magic_target_focus_is_valid(game))
-        return -1;
+/* 14818→115b6的范围/候选与focus顺序由法术、物品真实共用；
+ * caller先检查各自actor、record、列表索引与焦点，不混用消费门。 */
+static int begin_target_selection(fd2_field_game *game, uint8_t cast,
+        uint8_t filter, fd2_field_interaction interaction, uint8_t magic_id) {
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
-    uint8_t confirmed = 0xff;
-    int selected = game->magic_list_selected;
-    if (fd2_field_unit_magic_list_build(actor, NULL, 0) > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
-        game->cursor_cell_x != actor->x || game->cursor_cell_y != actor->y ||
-        fd2_field_magic_list_select_step(actor, &selected,
-            FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) != 1 || confirmed != magic_id)
-        return -1;
-    const uint8_t *record = fd2_field_magic_record_get(magic_id);
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
     if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
-            actor->x, actor->y, 0, record[3]) != 0)
+            actor->x, actor->y, 0, cast) != 0)
         return -1;
     uint8_t candidates[FD2_FIELD_MAX_UNITS];
     size_t count = 0;
@@ -2036,12 +2034,11 @@ int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id)
             fd2_field_path_close(&range);
             return -1;
         }
-        if (magic_target_matches(unit, magic_id) &&
+        if (target_matches_filter(unit, filter) &&
             fd2_field_path_is_destination(&range, unit->x, unit->y))
             candidates[count++] = (uint8_t)i;
     }
-    /* 1d2bf先14818(max=record+3/min0)，115ee随后focus raw首项；
-     * 所有范围/坐标预检已完成，focus_to不再有可失败的数据路径。 */
+    /* 所有范围/坐标预检已完成，focus_to不再有可失败的数据路径。 */
     fd2_field_path_close(&game->move_range);
     game->move_range = range;
     game->magic_target_id = magic_id;
@@ -2049,11 +2046,29 @@ int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id)
     memcpy(game->magic_target_candidates, candidates, count);
     game->magic_target_count = count;
     game->magic_target_cycle = 0;
-    game->interaction = FD2_FIELD_INTERACTION_MAGIC_TARGETING;
+    game->interaction = interaction;
     if (count && game->units.items[candidates[0]].unit_id != 121)
         (void)focus_to(game, game->units.items[candidates[0]].x,
                              game->units.items[candidates[0]].y);
     return 0;
+}
+
+int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id) {
+    if (!magic_list_actor_is_valid(game) ||
+        game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST ||
+        (magic_id != 0 && magic_id != 13) || !target_focus_is_valid(game))
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    uint8_t confirmed = 0xff;
+    int selected = game->magic_list_selected;
+    if (fd2_field_unit_magic_list_build(actor, NULL, 0) > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
+        game->cursor_cell_x != actor->x || game->cursor_cell_y != actor->y ||
+        fd2_field_magic_list_select_step(actor, &selected,
+            FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) != 1 || confirmed != magic_id)
+        return -1;
+    const uint8_t *record = fd2_field_magic_record_get(magic_id);
+    return begin_target_selection(game, record[3], magic_id == 0 ? 0 : 1,
+                                  FD2_FIELD_INTERACTION_MAGIC_TARGETING, magic_id);
 }
 
 int fd2_field_game_magic_target_is_legal(const fd2_field_game *game) {
@@ -2082,9 +2097,8 @@ int fd2_field_game_magic_target_is_legal(const fd2_field_game *game) {
     return 0;
 }
 
-int fd2_field_game_cycle_magic_target(fd2_field_game *game) {
-    if (!magic_target_context_is_valid(game) ||
-        game->magic_target_count > FD2_FIELD_MAX_UNITS ||
+static int cycle_target_selection(fd2_field_game *game) {
+    if (game->magic_target_count > FD2_FIELD_MAX_UNITS ||
         (game->magic_target_count && game->magic_target_cycle >= game->magic_target_count))
         return -1;
     if (!game->magic_target_count) return 0;
@@ -2099,6 +2113,11 @@ int fd2_field_game_cycle_magic_target(fd2_field_game *game) {
     return 1;
 }
 
+int fd2_field_game_cycle_magic_target(fd2_field_game *game) {
+    if (!magic_target_context_is_valid(game)) return -1;
+    return cycle_target_selection(game);
+}
+
 int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
     if (!magic_target_context_is_valid(game)) return -1;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
@@ -2110,6 +2129,81 @@ int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
     game->magic_target_cycle = 0;
     game->magic_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_MAGIC_LIST;
+    return 0;
+}
+
+/* 1bbdc在1bd14之前按raw槽读record；这里只开放已核草药192，
+ * 使用player的cast+10/area+12/filter+15，不借AI的+11筛选。 */
+static const uint8_t *item_target_record(const fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game)) return NULL;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    int selected = game->item_list_selected;
+    if (fd2_field_item_list_select_step(actor, &selected,
+            FD2_FIELD_ITEM_LIST_KEY_CONFIRM, 1) != 1)
+        return NULL;
+    const uint8_t *raw = (const uint8_t *)actor;
+    if (raw[0x0bu + (size_t)selected * 2u] != 192) return NULL;
+    const uint8_t *record = fd2_field_item_record_get(192);
+    return record && record[0x0d] == 5 && record[0x10] == 1 &&
+        record[0x12] == 0 && record[0x15] == 1 ? record : NULL;
+}
+
+static int item_target_context_is_valid(const fd2_field_game *game) {
+    return item_target_record(game) &&
+        game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING &&
+        target_focus_is_valid(game) &&
+        game->units.items[game->selected_unit].x < game->map.width &&
+        game->units.items[game->selected_unit].y < game->map.height;
+}
+
+int fd2_field_game_begin_item_targeting(fd2_field_game *game) {
+    const uint8_t *record = item_target_record(game);
+    if (!record || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        !target_focus_is_valid(game))
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (game->cursor_cell_x != actor->x || game->cursor_cell_y != actor->y)
+        return -1;
+    return begin_target_selection(game, record[0x10], record[0x15],
+                                  FD2_FIELD_INTERACTION_ITEM_TARGETING, 0);
+}
+
+int fd2_field_game_item_target_is_legal(const fd2_field_game *game) {
+    if (!item_target_context_is_valid(game) || !game->move_range.nodes ||
+        game->move_range.width != game->map.width || game->move_range.height != game->map.height)
+        return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (game->move_range.start_x != actor->x || game->move_range.start_y != actor->y)
+        return -1;
+    if (!fd2_field_path_is_destination(&game->move_range,
+            game->cursor_cell_x, game->cursor_cell_y))
+        return 0;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (target_matches_filter(unit, 1) &&
+            unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y)
+            return 1;
+    }
+    return 0;
+}
+
+int fd2_field_game_cycle_item_target(fd2_field_game *game) {
+    if (!item_target_context_is_valid(game)) return -1;
+    return cycle_target_selection(game);
+}
+
+int fd2_field_game_cancel_item_targeting(fd2_field_game *game) {
+    if (!item_target_context_is_valid(game)) return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (focus_to(game, actor->x, actor->y) != 0) return -1;
+    fd2_field_path_close(&game->move_range);
+    game->magic_target_id = 0;
+    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+    game->magic_target_count = 0;
+    game->magic_target_cycle = 0;
+    /* 1be60先focus，1be85重开1b932的selected0；不返回物品子菜单。 */
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
     return 0;
 }
 
@@ -2787,6 +2881,8 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         return fd2_field_game_end_magic_list(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING)
         return fd2_field_game_cancel_magic_targeting(game) == 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING)
+        return fd2_field_game_cancel_item_targeting(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST)
         return fd2_field_game_end_item_list(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU)

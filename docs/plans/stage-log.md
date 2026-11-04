@@ -282,6 +282,16 @@ DOSBox PID6468／57332各正常exit0、无强制终止；外Job9736／5668均`wo
 
 报告仍`ok=false/probe_only=true`，不增加B2冻结候选累计27组或当作SDL配对。raw16B／末槽stale运行量测为未覆盖：因acted后本回合Save禁用，另设计独立END→下一玩家phase→合法Save，不强行绕过门或扩大allowlist。静态预期`40004084800080008000800080c980c9`与可见两槽不替代隐藏字节实测；完整浮字／RNG／时序／演出／声音、整关／结算／下一关未验。继续B3.3b目标、B3.3c提交、B3.3d正式入口及B3.2d配对，B3整体未完成。
 
+### B3.3b草药纯目标session
+
+原版单次使用校准已独立提交`8d3d7ac`。新增ITEM_TARGETING和四个纯目标API，当前raw槽必须仍为192/code5/cast1/area0/filter1；不套Magic的MP／+27／移动后门。复用move_range及原target候选buffer，不新增slot／ID缓存或SAV字段。候选仅排hidden与side0，HP0／acted仍保留，121占槽但不移动焦点；方向可出范围，合法性另查。取消完整focus使用者后清候选并回LIST0，不改移动路径／origin、单位、pending或RNG。
+
+初稿审查指出重复的范围／候选和轮换逻辑，提交前改为同文件两个小helper，MAGIC与ITEM各自保留原record／列表／上下文门，共享数据准备、owner交接与121轮换；没有新模块或通用目标框架。重构后独立复审无阻塞，旧MAGIC写入／焦点顺序保持。定向全新46源core的目标／MAGIC target-flow-commit／item-flow／Save共6项通过；Save临时命令首跑cwd不符，按资源工作目录复跑通过，未归因于生产代码或隐去失败。
+
+随后从固定target补丁独立冻结 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/item-target-acceptance/`，不含后续resolve或列表UI修补；fresh完整Windows构建、单轮56/56 CTest无跳过通过（真实输入42.75秒），10项发布审计及冻结源码478个规范地址通过。新6组用例覆盖raw／filter／HP0／acted、121、越范围取消与镜头、15类晚错原子拒绝、当前slot变更、Load成功清理／失败保留、合成cursor1和range LUT。正式confirm_cursor刻意仍拒绝，ITEM仍disabled。
+
+Python实现未变，沿用B3.3a实际329项，未重称新跑。原版herb两场是8d3d7ac的校准，不是本SDL候选配对；本阶段没有新增WGC组。继续修复列表预检的UI侧位owner边界，再接B3.3c提交与B3.3d正式路径；B3整体及全演出／RNG／声音、整关／结算／下一关仍未验。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

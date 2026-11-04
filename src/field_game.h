@@ -100,7 +100,8 @@ typedef enum {
     FD2_FIELD_INTERACTION_MAGIC_LIST,
     FD2_FIELD_INTERACTION_MAGIC_TARGETING,
     FD2_FIELD_INTERACTION_ITEM_MENU,
-    FD2_FIELD_INTERACTION_ITEM_LIST
+    FD2_FIELD_INTERACTION_ITEM_LIST,
+    FD2_FIELD_INTERACTION_ITEM_TARGETING
 } fd2_field_interaction;
 
 /* field_unit_detail_present @0x17aed（原sub_17AED）：装备页任意键后，有法术才显示第二页。 */
@@ -185,11 +186,12 @@ typedef struct {
     /* field_player_magic_command_execute @0x1cff0 的53C57等价索引；
      * 只归列表交互，不写入原版单位或存档。 */
     int magic_list_selected;
-    /* 1b932/1b9de的raw槽索引，仅ITEM_LIST有效；memset零态及成功Load
+    /* 1b932/1b9de的raw槽索引，ITEM_LIST/TARGETING共用；memset零态及成功Load
      * 均归0，不写SAV。ITEM_MENU复用上述command四向owner，语义为
      * Use/Give/Equip/Drop；SDL目前仅Use可选，非原版能力表。 */
     int item_list_selected;
     /* field_cell_selection_execute @0x115b6 的本次target局部轮询，
+     * MAGIC/ITEM_TARGETING互斥借用候选buffer；id只归MAGIC。
      * 不复用browse的focus_cycle_unit，不写SAV。 */
     uint8_t magic_target_id;
     uint8_t magic_target_candidates[FD2_FIELD_MAX_UNITS];
@@ -380,6 +382,17 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game);
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key);
 int fd2_field_game_end_item_list(fd2_field_game *game);
 int fd2_field_game_end_item_menu(fd2_field_game *game);
+
+/* field_player_item_command_execute @0x1bbdc（原登记同名）的草药192
+ * 普通area0目标session：用record+10/+12/+15，不套AI的+11或MAGIC门。
+ * begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；
+ * cycle为1消费一个槽（121只跳过focus）/0无候选/-1错误。
+ * 只借move_range与target候选owner，不消费物品/MP/RNG，不提交动作；
+ * cancel先focus到使用者，再返回ITEM_LIST0，保留临时移动和pending。 */
+int fd2_field_game_begin_item_targeting(fd2_field_game *game);
+int fd2_field_game_item_target_is_legal(const fd2_field_game *game);
+int fd2_field_game_cycle_item_target(fd2_field_game *game);
+int fd2_field_game_cancel_item_targeting(fd2_field_game *game);
 
 /* field_player_magic_command_execute @0x1cff0 的普通area0选择；当前只支持
  * ID0/13。begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；

@@ -71,6 +71,8 @@
 
 ITEM_MENU／ITEM_LIST纯session层已按此合同接入。子菜单复用四向command呈现状态，但语义为Use／Give／Equip／Drop；当前SDL仅Use可选，其他三项是实现能力禁用，区别于原版真实START只禁用Give。列表索引是独立临时raw槽，确认仅报告可确认，不执行效果；列表取消回ITEM_MENU0，子菜单取消回COMMAND首可用项，两层均先于COMMAND原移动回滚分派。成功Load清索引并回浏览，失败保留所有旧owner，不序列化新UI字段。真实等待、目标和提交分别验收，正式ITEM仍禁用。
 
+ITEM_TARGETING纯目标层仅支持草药192的player cast1／area0／filter1，复用现move_range和互斥target候选buffer，不缓存第二份slot／物品真值。每次按当前raw槽重新查192，候选按raw顺序只过滤hidden和side0，不额外过滤HP0或acted；121占轮询槽但不移动焦点。法术与物品共享范围建立和轮换，保留各自record／列表／能力门。目标取消先完整聚焦使用者，再清目标owner、返回ITEM_LIST0，保留移动路径／origin、单位、pending和RNG。方向可以移出cast范围，合法性另查；提交与正式确认尚未接入。
+
 MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。

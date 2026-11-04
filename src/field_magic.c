@@ -1,7 +1,8 @@
 /* 炎龙骑士团 2 SDL3 重写 - 法术/技能 7 字节静态表
  * 逆向依据：field_magic_record_get @0x4e866 返回 DS:0x19fd + id*7；
  * 原始表由 object3 `DS:0x19fd`（file `0x7aa11`）提取；
- * field_unit_magic_list_build @0x1c269（原登记同名）枚举五字节位图。 */
+ * field_unit_magic_list_build @0x1c269（原登记同名）枚举五字节位图；
+ * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）的按键分派。 */
 
 #include "field_magic.h"
 
@@ -76,6 +77,46 @@ size_t fd2_field_unit_magic_list_build(
 const uint8_t *fd2_field_magic_record_get(uint8_t magic_id) {
     if ((size_t)magic_id >= FD2_FIELD_MAGIC_COUNT) return NULL;
     return MAGIC_RECORDS[magic_id];
+}
+
+int fd2_field_magic_list_select_step(
+        const fd2_field_unit *unit, int *selected, fd2_field_magic_list_key key,
+        uint8_t *confirmed_id) {
+    if (!unit || !selected || !confirmed_id ||
+        key < FD2_FIELD_MAGIC_LIST_KEY_OTHER || key > FD2_FIELD_MAGIC_LIST_KEY_CANCEL)
+        return -2;
+    uint8_t ids[40];
+    size_t count = fd2_field_unit_magic_list_build(unit, ids, sizeof(ids));
+    int index = *selected;
+    if (count == 0 || count > sizeof(ids) || index < 0 || (size_t)index >= count)
+        return -2;
+    /* 未选中的后项也先验证，不能导航后或确认写ID后才发现未知位。 */
+    for (size_t i = 0; i < count; i++) {
+        if (!fd2_field_magic_record_get(ids[i])) return -2;
+    }
+    switch (key) {
+        case FD2_FIELD_MAGIC_LIST_KEY_UP:
+            *selected = index == 0 ? (int)count - 1 : index - 1;
+            break;
+        case FD2_FIELD_MAGIC_LIST_KEY_DOWN:
+            *selected = (size_t)index + 1u == count ? 0 : index + 1;
+            break;
+        case FD2_FIELD_MAGIC_LIST_KEY_LEFT:
+            if (index >= 4) *selected = index - 4;
+            break;
+        case FD2_FIELD_MAGIC_LIST_KEY_RIGHT:
+            if ((size_t)index + 4u < count) *selected = index + 4;
+            break;
+        case FD2_FIELD_MAGIC_LIST_KEY_CONFIRM:
+            if (unit->mp < fd2_field_magic_record_get(ids[index])[5]) return 0;
+            *confirmed_id = ids[index];
+            return 1;
+        case FD2_FIELD_MAGIC_LIST_KEY_CANCEL:
+            return -1;
+        case FD2_FIELD_MAGIC_LIST_KEY_OTHER:
+            break;
+    }
+    return 0;
 }
 
 uint16_t fd2_field_magic_u16(const uint8_t *record, size_t offset) {

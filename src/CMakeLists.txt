@@ -483,6 +483,23 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_combat COMMAND fd2_field_combat_test)
 
+    add_executable(fd2_field_magic_test
+        tests/field_magic_test.c
+        field_magic.c
+        field_attack.c
+        field_item.c
+        field_path.c
+        field_move_profile.c
+    )
+    target_include_directories(fd2_field_magic_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_magic_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_magic_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_magic_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_magic COMMAND fd2_field_magic_test)
+
     add_executable(fd2_field_ai_test
         tests/field_ai_test.c
         field_ai.c

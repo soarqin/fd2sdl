@@ -18,6 +18,27 @@
 size_t fd2_field_unit_magic_list_build(
     const fd2_field_unit *unit, uint8_t *magic_ids, size_t capacity);
 
+/* SDL动作枚举，不是BIOS扫描码；Enter/Space由宿主adapter统一为CONFIRM。 */
+typedef enum {
+    FD2_FIELD_MAGIC_LIST_KEY_OTHER = 0,
+    FD2_FIELD_MAGIC_LIST_KEY_UP,
+    FD2_FIELD_MAGIC_LIST_KEY_DOWN,
+    FD2_FIELD_MAGIC_LIST_KEY_LEFT,
+    FD2_FIELD_MAGIC_LIST_KEY_RIGHT,
+    FD2_FIELD_MAGIC_LIST_KEY_CONFIRM,
+    FD2_FIELD_MAGIC_LIST_KEY_CANCEL
+} fd2_field_magic_list_key;
+
+/* field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）
+ * 的纯按键部分：0继续、-1取消、1确认；SDL数据／参数拒绝返回-2。
+ * selected与confirmed_id均须非NULL；只有导航写selected，确认成功才写ID。
+ * 预检完整40bit列表，保留原版全表回绕；12项仅是renderer的可见能力门。
+ * 不修改unit，不扣MP，不执行16c57等待／UI共享RNG，后者由play owner负责。
+ * 返回值不是法术ID，也不是完整native函数或宿主退出结果。 */
+int fd2_field_magic_list_select_step(
+    const fd2_field_unit *unit, int *selected, fd2_field_magic_list_key key,
+    uint8_t *confirmed_id);
+
 /* field_magic_record_get @0x4e866：DS:0x19fd + magic_id*7。
  * 表内容来自 object3 `DS:0x19fd`，对应 FD2.EXE file offset `0x7aa11`。
  * 字段在 AI 评分层暂按原始 offset 使用，避免提前赋予玩法语义。 */

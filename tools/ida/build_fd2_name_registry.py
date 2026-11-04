@@ -346,6 +346,19 @@ CORRECTIONS: dict[int, list[dict]] = {
         "why": "已发布field_command_menu_draw调用链、单actor绘制与原版"
                "移动后COMMAND WGC；14行presence与完整20行遮挡绘制分别验收。",
     }],
+    0x115B6: [{
+        "target": "evidence",
+        "was": "target轮换可以沿用browse的持久focus索引或筛除unit121",
+        "now": "本次selector局部索引入口为0；非空候选先读list[0]，Z／keypad5"
+               "先递增并回绕后读对应槽。unit121仍占轮询槽，只跳过focus helper，"
+               "保留当前镜头／焦点；无候选时不轮换。普通法术0／13的确认检查"
+               "cast mask及filter目标，方向移动本身不限制在mask内。",
+        "why": "已发布115b6和strictLE完整561字节SHA "
+               "d8e63ca0aaba31c73d2efd6ad8b74f626464f908862a3a68c24ef086ff015fd4；"
+               "115cf清ESI、115ee..11624首槽、1176b..11788递增回绕／121门。"
+               "2026-11-05 controls原版WGC另证普通13首目标与frame1；"
+               "Z及121分支本轮仍仅静态／SDL回归，不冒称原版运行。",
+    }],
     0x18890: [{
         "target": "evidence",
         "was": "玩家路径逐格执行cell handler，行动尾先格事件后acted",
@@ -357,6 +370,16 @@ CORRECTIONS: dict[int, list[dict]] = {
                "0x18a52调用共享路径、0x18b0c/0x18b66最终lookup；"
                "controller 0x11942..0x1194d重入。53C53=1只确认成功物品交接"
                "路径@0x1bfa7，未扩为普通攻击或默认状态。",
+    }, {
+        "target": "evidence",
+        "was": "START角色9可移动四格后在同一回合直接施法",
+        "now": "非零且非ff路径播放后，unit ID不为18／19／34时将disabled[1]置1，"
+               "因此MAGIC禁止；零步分支不写此门。旧四步施法预研路线撤回。",
+        "why": "已发布18890与raw18a38..18a7c：18a5f读unit[7]，"
+               "18a63/68/6d比较三个例外，18a72写[ESP+4]=1，18a7c传同一disabled表；"
+               "18d8c的空法术／+27状态也写此槽。0x18a38..0x18a8c的84字节"
+               "SHA 95150fbbe7d8341b73f691ca9ecbbc5cbfb8172d0f11033f003bb719ac1c4fa6。"
+               "SDL列表状态回归分别检查零步、例外及相邻ID；不从合成能力推断自然学习。",
     }],
     0x18D8C: [{
         "target": "evidence",

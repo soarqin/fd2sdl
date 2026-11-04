@@ -247,6 +247,10 @@ int fd2_field_game_import_battle_snapshot(
     game->command_animation_opening = 0;
     game->last_command_highlight_ms = 0;
     game->magic_list_selected = 0;
+    game->magic_target_id = 0;
+    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+    game->magic_target_count = 0;
+    game->magic_target_cycle = 0;
     fd2_field_system_menu_init(&game->system_menu);
     fd2_field_system_menu_set_options(&game->system_menu,
                                       game->option_values);

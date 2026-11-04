@@ -130,7 +130,15 @@ B1终审 `0842f05` 后继续此阶段，路径防护另提交 `38e3e3e`。永久
 
 列表session已提交 `ccf4b88`。play owner新增私有同步modal，借用现info／字体／文本，局部持有两张像素缓冲及DATO头像0／3；先统一检查core状态与全部必需资源，再开11→0、关0→11。关闭使用原版最初未选中页；确认ID到正常关闭完成才输出，宿主退出优先，不标acted、不扣MP、不处理pending。原版16c57每次等待入口先消费共享RNG，110ms步按postdecrement眨眼／复位，未知键也开启下一等待；保留当前呈现帧与500／92ms repeat适配，不声称复制BIOS FIFO或DOS墙钟。无键时保持水色更新。
 
-复审修正了单项列表Up／Down仍须播放原版sample0，以及无效actor必须在首RNG前由core统一拒绝；没有引入新输入框架或UI随机流。无窗口私有TU使用真实资源、替换宿主时钟／呈现，验证导航、三种确认、低MP／OTHER、单项声音、全部开合相位、等待／眨眼消费边界、退出优先、坏资源及分配／头像释放。新隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/list-play/` fresh完整Windows构建、单轮48/48 CTest通过（含真实输入），无代码编译警告。正式循环暂未调用该modal，MAGIC仍禁用；此项没有SDL列表WGC，不增加B1冻结24组证据。接着实现普通0／13目标及提交门。
+复审修正了单项列表Up／Down仍须播放原版sample0，以及无效actor必须在首RNG前由core统一拒绝；没有引入新输入框架或UI随机流。无窗口私有TU使用真实资源、替换宿主时钟／呈现，验证导航、三种确认、低MP／OTHER、单项声音、全部开合相位、等待／眨眼消费边界、退出优先、坏资源及分配／头像释放。新隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/list-play/` fresh完整Windows构建、单轮48/48 CTest通过（含真实输入）；新增modal／测试未报编译警告，完整构建仍有既存模块／第三方和Temp目录警告。正式循环暂未调用该modal，MAGIC仍禁用；此项没有SDL列表WGC，不增加B1冻结24组证据。接着实现普通0／13目标及提交门。
+
+### B2.1c 普通法术目标核心
+
+列表modal已提交 `34c93b3`。新增独立MAGIC_TARGETING，仅开放普通area0的ID0／13；cast范围复用14818的profile0传播，按原filter和raw顺序列出非hidden单位，不加HP／acted或占格门。入场选首槽，Z／小键盘5先递增再回绕，unit121保留槽位而只跳过聚焦；不复用browse轮换索引。方向可离开castmask，合法查询要求当前格在范围内且同格有符合filter的目标；无候选仍进入。目标页用FDOTHER[1]frame1及既有范围LUT，取消逐格聚焦施法者再回LIST第0项，保留临时移动／pending。
+
+新增独立法术target输入上下文，Esc取消与Z轮换分别映射，普通移动／攻击上下文保持。真实扫描码回归首轮误用SDL的KP_PERIOD枚举，导致输入项失败；改为项目实际映射的KP_DECIMAL后仅补跑该项通过，生产输入未为该失败调整。隔离候选 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b2-20261105/magic-target/` 完整Windows构建及累计49项CTest通过：首轮48通过，input补跑1通过，不称单轮全绿；原失败和补跑manifest保留。10项地址／发布审计通过。新增回归覆盖范围外、空目标、隐藏／HP0／acted、121与raw轮换、错误无副作用、远处取消镜头、Load及frame1／LUT。
+
+规范命名输入补登记18890移动后禁法门及115b6的局部轮询证据，由现已发布IDA输入生成210项registry／命名表，最后刷新清单；没有新建／写入数据库、改伪C类型或重新作ABI验证。此阶段没有正式施法或SDL法术WGC配对，提交仍未接入，MAGIC继续禁用。
 
 ## 本轮审查结论与后续
 

@@ -240,9 +240,40 @@ static int test_quit_request(void) {
     return 0;
 }
 
+/* 115b6普通法术目标：Esc取消，Z/小键盘5轮询，不能套browse的Esc轮询。 */
+static int test_magic_target_scancodes(void) {
+    const struct { SDL_Scancode key; fd2_input_action action; } cases[] = {
+        {SDL_SCANCODE_ESCAPE, FD2_INPUT_ACTION_CANCEL},
+        {SDL_SCANCODE_DELETE, FD2_INPUT_ACTION_CANCEL},
+        {SDL_SCANCODE_KP_DECIMAL, FD2_INPUT_ACTION_CANCEL},
+        {SDL_SCANCODE_Z, FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE},
+        {SDL_SCANCODE_KP_5, FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE},
+        {SDL_SCANCODE_RETURN, FD2_INPUT_ACTION_CONFIRM},
+        {SDL_SCANCODE_SPACE, FD2_INPUT_ACTION_CONFIRM},
+        {SDL_SCANCODE_KP_ENTER, FD2_INPUT_ACTION_CONFIRM},
+        {SDL_SCANCODE_UP, FD2_INPUT_ACTION_UP},
+        {SDL_SCANCODE_DOWN, FD2_INPUT_ACTION_DOWN},
+        {SDL_SCANCODE_LEFT, FD2_INPUT_ACTION_LEFT},
+        {SDL_SCANCODE_RIGHT, FD2_INPUT_ACTION_RIGHT},
+        {SDL_SCANCODE_F2, FD2_INPUT_ACTION_NONE},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        fd2_input input;
+        fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input, cases[i].key, 1);
+        fd2_input_begin_test_frame(&input, 0);
+        fd2_input_action action;
+        CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING, &action));
+        CHECK(action == cases[i].action);
+        CHECK(!fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING, &action));
+    }
+    return 0;
+}
+
 int main(void) {
     if (test_context_mappings() != 0 ||
         test_movement_cancel_scancodes() != 0 ||
+        test_magic_target_scancodes() != 0 ||
         test_press_exists_for_one_present_frame() != 0 ||
         test_unread_press_does_not_cross_present() != 0 ||
         test_glyph_check_cannot_advance_later_page() != 0 ||

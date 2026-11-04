@@ -270,7 +270,11 @@ fd2_input_action fd2_input_action_for_key(fd2_input_context context,
         case FD2_INPUT_CONTEXT_FIELD_COMMAND:
         case FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU:
         case FD2_INPUT_CONTEXT_FIELD_TARGETING:
+        case FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING:
         case FD2_INPUT_CONTEXT_FIELD_MOVEMENT:
+            if (context == FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING &&
+                (key == FD2_INPUT_KEY_Z || key == FD2_INPUT_KEY_KEYPAD_5))
+                return FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE;
             if (key == FD2_INPUT_KEY_UP) return FD2_INPUT_ACTION_UP;
             if (key == FD2_INPUT_KEY_DOWN) return FD2_INPUT_ACTION_DOWN;
             if (key == FD2_INPUT_KEY_LEFT) return FD2_INPUT_ACTION_LEFT;

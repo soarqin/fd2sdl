@@ -96,7 +96,8 @@ typedef enum {
     FD2_FIELD_INTERACTION_SYSTEM_MENU,
     FD2_FIELD_INTERACTION_MANUAL_SLOT,
     FD2_FIELD_INTERACTION_AUXILIARY,
-    FD2_FIELD_INTERACTION_MAGIC_LIST
+    FD2_FIELD_INTERACTION_MAGIC_LIST,
+    FD2_FIELD_INTERACTION_MAGIC_TARGETING
 } fd2_field_interaction;
 
 /* 正式战场 session。
@@ -174,6 +175,12 @@ typedef struct {
     /* field_player_magic_command_execute @0x1cff0 的53C57等价索引；
      * 只归列表交互，不写入原版单位或存档。 */
     int magic_list_selected;
+    /* field_cell_selection_execute @0x115b6 的本次target局部轮询，
+     * 不复用browse的focus_cycle_unit，不写SAV。 */
+    uint8_t magic_target_id;
+    uint8_t magic_target_candidates[FD2_FIELD_MAX_UNITS];
+    size_t magic_target_count;
+    size_t magic_target_cycle;
 
     /* M6 无演出攻击的 SDL 旁路状态；不改变原版 0x50 字节记录布局。 */
     int attack_target;
@@ -342,6 +349,15 @@ int fd2_field_game_magic_list_step(fd2_field_game *game,
                                    fd2_field_magic_list_key key,
                                    uint8_t *confirmed_id);
 int fd2_field_game_end_magic_list(fd2_field_game *game);
+
+/* field_player_magic_command_execute @0x1cff0 的普通area0选择；当前只支持
+ * ID0/13。begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；
+ * cycle为1消费一个候选槽（121只跳过focus）/0无候选/-1错误。
+ * 这些接口不扣MP、不提交效果/acted/controller；方向可离开cast范围。 */
+int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id);
+int fd2_field_game_magic_target_is_legal(const fd2_field_game *game);
+int fd2_field_game_cycle_magic_target(fd2_field_game *game);
+int fd2_field_game_cancel_magic_targeting(fd2_field_game *game);
 
 /* M7.3 显式物理提交事务：重新计算 actor 当前移动范围及最优物理候选，
  * 仅当与传入 plan 完全一致时重建路径、提交移动，再复用

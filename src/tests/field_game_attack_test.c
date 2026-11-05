@@ -467,7 +467,7 @@ static int test_command_menu_model(void) {
     test_rng rng = {rolls, 1, 0};
     fd2_field_game game;
     init_game(&game);
-    /* 本例库存仍是密集已知ID，但末槽Use code非0且尚未支持。 */
+    /* 末槽Use code非0尚未支持，但密集已知库存仍允许Drop。 */
     ((uint8_t *)&game.units.items[0])[0x19] = 193;
     if (configure(&game, &rng) != 0 ||
         fd2_field_game_refresh_commands(&game) != 0)
@@ -477,8 +477,9 @@ static int test_command_menu_model(void) {
         expect(!game.command_disabled[FD2_FIELD_COMMAND_ATTACK],
                "attack enabled with legal target") ||
         expect(game.command_disabled[FD2_FIELD_COMMAND_MAGIC] &&
-               game.command_disabled[FD2_FIELD_COMMAND_ITEM],
-               "empty magic and unsupported item Use remain disabled") ||
+               !game.command_disabled[FD2_FIELD_COMMAND_ITEM] &&
+               !fd2_field_game_item_use_is_available(&game) && fd2_field_game_item_drop_is_available(&game),
+               "empty magic is disabled; unsupported Use can still enter Drop") ||
         expect(!game.command_disabled[FD2_FIELD_COMMAND_WAIT],
                "wait remains enabled") ||
         expect(fd2_field_game_select_command_direction(

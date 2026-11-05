@@ -1718,12 +1718,15 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
     }
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU) {
         int unit_index = game->selected_unit;
-        return fd2_field_game_item_is_available(game) &&
+        int available = game->command_selected == 0
+            ? fd2_field_game_item_use_is_available(game)
+            : game->command_selected == 3 && fd2_field_game_item_drop_is_available(game);
+        return available &&
             fd2_field_game_confirm_item_menu(game) == 0 ? unit_index : -1;
     }
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) {
         int unit_index = game->selected_unit;
-        return fd2_field_game_item_is_available(game) &&
+        return fd2_field_game_item_use_is_available(game) &&
             fd2_field_game_resolve_player_item(game) == 0 ? unit_index : -1;
     }
     return -1;
@@ -1944,9 +1947,16 @@ static int item_menu_actor_is_valid(const fd2_field_game *game) {
             &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) == 0;
 }
 
-int fd2_field_game_item_is_available(const fd2_field_game *game) {
-    if (!item_menu_actor_is_valid(game) || !game->attack_rng) return 0;
+static int item_command_is_supported(const fd2_field_game *game, int command) {
+    if (!item_menu_actor_is_valid(game)) return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (command == 3) {
+        /* Drop无Use handler门，但包含隐藏flag40的全8槽必须可重算。 */
+        fd2_field_unit shadow = *actor;
+        return fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) == 0;
+    }
+    if (command != 0) return 0;
     const uint8_t *raw = (const uint8_t *)actor;
     size_t count = fd2_field_unit_inventory_count(actor);
     for (size_t i = 0; i < count; i++) {
@@ -1958,24 +1968,40 @@ int fd2_field_game_item_is_available(const fd2_field_game *game) {
     return 1;
 }
 
-static void enter_item_menu(fd2_field_game *game) {
-    /* 原版[Use,Give,Equip,Drop]按场景计算；这里是SDL尚未开放的能力门。 */
-    game->command_disabled[0] = 0;
-    for (size_t i = 1; i < FD2_FIELD_COMMAND_COUNT; i++) game->command_disabled[i] = 1;
-    game->command_selected = 0;
+int fd2_field_game_item_use_is_available(const fd2_field_game *game) {
+    return game && game->attack_rng && item_command_is_supported(game, 0);
+}
+
+int fd2_field_game_item_drop_is_available(const fd2_field_game *game) {
+    return game && game->attack_rng && item_command_is_supported(game, 3);
+}
+
+int fd2_field_game_item_is_available(const fd2_field_game *game) {
+    return fd2_field_game_item_use_is_available(game) || fd2_field_game_item_drop_is_available(game);
+}
+
+static int enter_item_menu(fd2_field_game *game) {
+    /* 原版非空库存仅按邻接目标禁Give；SDL的Use/Drop能力分别限制，
+     * 纯session不执行等待，RNG有效性留正式入口查询。 */
+    uint8_t disabled[FD2_FIELD_COMMAND_COUNT] = {
+        !item_command_is_supported(game, 0), 1, 1, !item_command_is_supported(game, 3)};
+    int selected = fd2_field_command_first_enabled(disabled);
+    if (selected < 0) return -1;
+    memcpy(game->command_disabled, disabled, sizeof(disabled));
+    game->command_selected = selected;
     game->command_highlight_phase = 0;
     game->command_animation_phase = 0;
     game->command_animation_opening = 0;
     game->last_command_highlight_ms = 0;
     game->item_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
+    return 0;
 }
 
 int fd2_field_game_begin_item_menu(fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_COMMAND)
         return -1;
-    enter_item_menu(game);
-    return 0;
+    return enter_item_menu(game);
 }
 
 int fd2_field_game_select_item_menu_direction(
@@ -1991,7 +2017,8 @@ int fd2_field_game_select_item_menu_direction(
 int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
         (game->command_selected != 0 && game->command_selected != 3) ||
-        game->command_disabled[game->command_selected])
+        game->command_disabled[game->command_selected] ||
+        !item_command_is_supported(game, game->command_selected))
         return -1;
     game->item_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
@@ -2024,8 +2051,7 @@ static int finish_item_drop(fd2_field_game *game, int confirmed) {
         return -1;
     game->units.items[game->selected_unit] = shadow;
     if (fd2_field_unit_inventory_count(&shadow)) {
-        enter_item_menu(game);
-        return 0;
+        return enter_item_menu(game);
     }
     /* 基础actor门允许刚删空的库存；refresh的其余前置均已满足，WAIT恒可用。 */
     game->item_list_selected = 0;
@@ -2049,8 +2075,7 @@ int fd2_field_game_end_item_list(fd2_field_game *game) {
             &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) != 0)
         return -1;
     /* 18d8c @0x19060在Use取消后重跑整个1bbdc，不返回COMMAND。 */
-    enter_item_menu(game);
-    return 0;
+    return enter_item_menu(game);
 }
 
 int fd2_field_game_end_item_menu(fd2_field_game *game) {

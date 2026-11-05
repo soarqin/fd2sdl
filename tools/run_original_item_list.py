@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ITEM列表控制／单次草药；另含原版-only Drop/Save校准，不执行装备或交接。
+"""ITEM列表控制、单次草药及Drop/Save：先原版后可选SDL，不执行装备或交接。
 
 依据field_player_item_command_execute @0x1bbdc（原登记同名）、
 field_unit_inventory_select @0x1b932（原sub_1B932）、
@@ -44,6 +44,7 @@ from run_original_magic_list import actor_focus_resources, detail_close_terrain
 
 DROP_SCENARIOS = {"drop-herb": 2, "drop-weapon": 0, "drop-armor": 1, "drop-last": 0}
 DROP_LAST_PLAIN_SHA256 = "f5103f3d69983c6eda7d963dc26dfb720627a5331996c5fa1b8f1b79b528b41c"
+SUBMENU_DISABLED = {"original": [0, 1, 0, 0], "sdl": [0, 1, 1, 0]}
 
 
 def drop_derived(actor, table):
@@ -260,7 +261,7 @@ def list_absent(frame, templates, fields):
 def submenu_page(frame, assets, position, templates, fields, selected=0, *, role="original"):
     if role not in ("original", "sdl"):
         raise ValueError("未知物品端点角色")
-    disabled = fields["submenu"]["disabled"] if role == "original" else [0, 1, 1, 1]
+    disabled = fields["submenu"]["disabled"] if role == "original" else SUBMENU_DISABLED[role]
     if selected not in range(4) or disabled[selected]:
         raise ValueError("当前物品子菜单禁用项不能作为选中项")
     matches = []
@@ -325,7 +326,7 @@ def herb_browse(frame, source, assets, probe, templates, fields, *, role="origin
         return None
     if PlayerOracle(source, assets, [], {}).command(frame, (52, 76)) or any(
             submenu_page(frame, assets, (52, 76), templates, fields, selected, role=role)
-            for selected in ((0, 2, 3) if role == "original" else (0,))):
+            for selected in ((0, 2, 3) if role == "original" else (0, 3))):
         return None
     return {"kind": "herb192_acted_browse", "acted_sprite_cursor_frame_candidate": acted,
             "ordinary_cursor_frame": 0, "sprite_cursor_roi": [52, 70, 24, 30],
@@ -378,11 +379,12 @@ def exercise_herb(capture, source, assets, probe, templates, fields, report, che
         "deferred_post_end_measurement": fields["herb_contract"]["deferred_post_end_measurement"]}
 
 
-def drop_browse(frame, source, assets, actor, probe, templates, fields):
-    detail = cancelled_browse(frame, assets, actor, probe, templates, fields)
+def drop_browse(frame, source, assets, actor, probe, templates, fields, *, role="original"):
+    detail = cancelled_browse(frame, assets, actor, probe, templates, fields, role=role)
     position = probe["actor_position"]
     if (not detail or PlayerOracle(source, assets, [], {}).command(frame, position) or
-            any(submenu_page(frame, assets, position, templates, fields, selected) for selected in (0, 2, 3))):
+            any(submenu_page(frame, assets, position, templates, fields, selected, role=role)
+                for selected in ((0, 2, 3) if role == "original" else (0, 3)))):
         return None
     return {**detail, "kind": "drop_unacted_browse", "raw_acted_measured": False}
 
@@ -399,9 +401,10 @@ def exercise_drop(capture, source, assets, actor, probe, templates, fields, save
     position = screen(source, tuple(actor["world"]))
     selected_slot = fields["drop_contract"]["raw_slot"]
     command = PlayerOracle(source, assets, [], {})
+    role = report.get("kind", "original")
     for attempt in ("cancel", "commit"):
         capture.key("DOWN")
-        checkpoint(f"drop-{attempt}-selected", lambda frame: submenu_page(frame, assets, position, templates, fields, 3))
+        checkpoint(f"drop-{attempt}-selected", lambda frame: submenu_page(frame, assets, position, templates, fields, 3, role=role))
         capture.key("ENTER")
         checkpoint(f"drop-{attempt}-list-zero", lambda frame: drop_list_page(frame, templates, fields))
         for selected in range(1, selected_slot + 1):
@@ -411,7 +414,7 @@ def exercise_drop(capture, source, assets, actor, probe, templates, fields, save
         active_templates, active_fields = (templates, fields) if attempt == "cancel" else (after_templates, after_fields)
         if active_fields["slots"]:
             checkpoint(f"drop-{attempt}-back-item-zero", lambda frame, t=active_templates, f=active_fields:
-                       submenu_page(frame, assets, position, t, f))
+                       submenu_page(frame, assets, position, t, f, role=role))
         else:
             _, report["drop_empty_command"] = checkpoint("drop-commit-back-empty-command",
                 lambda frame: command_page(frame, command, position, active_templates, active_fields))
@@ -420,14 +423,14 @@ def exercise_drop(capture, source, assets, actor, probe, templates, fields, save
         _, report["drop_two_slot_page"] = checkpoint("drop-after-use-list-two-slots",
             lambda frame: list_page(frame, after_templates, after_fields))
         capture.key("ESC")
-        checkpoint("drop-readonly-list-cancel-item", lambda frame: submenu_page(frame, assets, position, after_templates, after_fields))
+        checkpoint("drop-readonly-list-cancel-item", lambda frame: submenu_page(frame, assets, position, after_templates, after_fields, role=role))
         capture.key("ESC")
         checkpoint("drop-item-cancel-command", lambda frame: command_page(frame, command, position, after_templates, after_fields))
     capture.key("ESC")
     checkpoint("drop-command-cancel-selection", lambda frame: selection_state(frame, assets, actor, probe))
     capture.key("ESC")
     checkpoint("drop-selection-cancel-unacted-browse",
-        lambda frame: drop_browse(frame, source, assets, actor, probe, after_templates, after_fields))
+        lambda frame: drop_browse(frame, source, assets, actor, probe, after_templates, after_fields, role=role))
     for index, (key, at) in enumerate(plan["steps"], 1):
         capture.key(key)
         checkpoint(f"drop-save-empty-step-{index}", RoundOracle(assets, at).closed_browse)
@@ -502,7 +505,7 @@ def exercise(capture, source, focus, assets, actor, probe, templates, fields, ti
         return
     for key, selected in (("RIGHT", 2), ("DOWN", 3), ("UP", 0), ("LEFT", 0)):
         capture.key(key)
-        selected = 0 if role == "sdl" else selected
+        selected = 0 if role == "sdl" and selected == 2 else selected
         checkpoint(f"submenu-{key.lower()}", lambda frame, index=selected:
                    submenu_page(frame, assets, position, templates, fields, index, role=role))
     capture.key("ENTER")
@@ -608,7 +611,7 @@ def compare_paired_checkpoints(cases, output, assets, probe):
     result = {"ok": True, "checked_pixels": 0, "checkpoints": [],
               "business_checkpoint_count": len(first),
               "wgc_transient_diagnostics": {"original": original_diagnostics, "sdl": sdl_diagnostics},
-              "excluded": "whole frame/water/actor idle phase/RNG/audio/raw16B; native EQT/Drop capability differs"}
+              "excluded": "whole frame/water/actor idle phase/RNG/audio; Give/EQT capability differs; raw inventory only compared in Drop Save scenarios"}
     for name, detail in first.items():
         if detail["kind"] != second[name]["kind"]:
             raise AssertionError("两端检查点状态类型不一致")
@@ -622,7 +625,7 @@ def compare_paired_checkpoints(cases, output, assets, probe):
                 images.append(image.convert("RGB"))
         row = {"name": name, "per_endpoint_resource_gates_passed": True, "static_regions": []}
         regions = []
-        if detail["kind"] in ("use_inventory_list", "herb192_two_slot_detail"):
+        if detail["kind"] in ("use_inventory_list", "drop_inventory_list", "herb192_two_slot_detail"):
             a, b = detail["rectangles"], second[name]["rectangles"]
             if [(r["name"], r["position"], r["size"]) for r in a] != [(r["name"], r["position"], r["size"]) for r in b]:
                 raise AssertionError("两端静态列表/详情ROI定义不一致")
@@ -652,7 +655,7 @@ def compare_paired_checkpoints(cases, output, assets, probe):
             row["range_rgb_diagnostic"] = {**rgb_difference(*images, tuple(probe["position"]), (24, 24)),
                 "original_lut": detail["range_lut"], "sdl_lut": second[name]["range_lut"],
                 "used_for_pass": False, "reason": "dynamic LUT phase; each endpoint must match its own exact accepted resource"}
-        elif detail["kind"] == "cancelled_browse":
+        elif detail["kind"] in ("cancelled_browse", "drop_unacted_browse"):
             regions.append(("plain-terrain", tuple(probe["position"]), (24, 24), None))
         elif detail["kind"] == "herb192_acted_browse":
             regions.append(("plain-terrain", tuple(probe["position"]), (24, 24), None))
@@ -667,6 +670,26 @@ def compare_paired_checkpoints(cases, output, assets, probe):
         result["checkpoints"].append(row)
     result["ok"] = bool(result["ok"] and result["checked_pixels"])
     return result
+
+
+def compare_drop_saves(cases):
+    """每端先过独立模型；再要求两份真实SAV完整相同，不归一cache或焦点。"""
+    encoded, plain, hashes_by_role = [], [], {}
+    for case in cases:
+        completed = case["completed_save"]
+        path = Path(completed["snapshot"])
+        data = path.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        if digest != completed["sha256"] or digest != case["drop_measurement"]["snapshot_sha256"]:
+            raise AssertionError("Drop配对快照不再匹配已测量hash")
+        encoded.append(data)
+        plain.append(decode_save(path))
+        hashes_by_role[case["kind"]] = digest
+    if len(encoded) != 2 or encoded[0] != encoded[1] or plain[0] != plain[1]:
+        raise AssertionError("两端Drop真实SAV完整字节不一致；不归一cache/导航或扩大差异范围")
+    return {"full_encoded_bytes_equal": True, "full_plaintext_bytes_equal": True,
+            "size": len(encoded[0]), "sha256": hashes_by_role,
+            "cache_or_navigation_normalized": False}
 
 
 def endpoint_guards(record, original, before, fixture, data, stamp, save_data):
@@ -762,8 +785,6 @@ def run(args):
     if scenario not in ("controls", "herb-full", "herb-injured", *DROP_SCENARIOS):
         raise ValueError("未知物品校准场景")
     sdl = getattr(args, "sdl", None)
-    if scenario in DROP_SCENARIOS and sdl is not None:
-        raise ValueError(f"{scenario}当前仅用于原版校准，不接受--sdl；未创建产物或启动窗口")
     if sdl is not None and not sdl.is_file():
         raise ValueError("--sdl 程序不存在；提供已构建的正式SDL程序，未创建产物或启动窗口")
     output.mkdir(parents=True, exist_ok=False)
@@ -778,8 +799,8 @@ def run(args):
     cases = []
     if sdl is not None:
         report["cases"] = cases
-        report["known_capability_differences"] = {"item_submenu_disabled": {"original": [0, 1, 0, 0], "sdl": [0, 1, 1, 1]},
-            "same_direction_keys": "native RIGHT/DOWN select EQT/Drop; SDL stays Use0",
+        report["known_capability_differences"] = {"item_submenu_disabled": SUBMENU_DISABLED,
+            "same_direction_keys": "RIGHT selects native EQT2 but SDL stays Use0; DOWN selects Drop3 in both",
             "full_resources_checked_per_endpoint": True, "cross_end_capability_equivalence_claimed": False}
     save_data = data
     try:
@@ -822,7 +843,8 @@ def run(args):
                               for name, path in (("driver", args.driver), ("dosbox", args.dosbox))}
         if sdl is not None:
             report["binaries"]["sdl"] = {"path": str(sdl.resolve()), "sha256": hashlib.sha256(sdl.read_bytes()).hexdigest()}
-            report["excluded"] = report["excluded"].replace("SDL pairing; ", "")
+            report["excluded"] = report["excluded"].removeprefix("SDL pairing; ").removeprefix("SDL pairing, ")
+            report["scope"] = report["scope"].replace("original-only ", "")
             report["paired_scope"] = "original first, cleanup+guards, then SDL; exact per-end resource gates and shared static RGB <=3 only"
         report["tool_sources"] = {name: {"path": str(Path(module.__file__).resolve()),
             "sha256": hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()}
@@ -843,7 +865,7 @@ def run(args):
                 "resource_fields": fields, "binaries": report["binaries"], "tool_sources": report["tool_sources"],
                 "processes": [], "inputs": [], "checkpoints": []}
             record["kind"] = kind
-            record["role_expected_submenu_disabled"] = [0, 1, 0, 0] if kind == "original" else [0, 1, 1, 1]
+            record["role_expected_submenu_disabled"] = SUBMENU_DISABLED[kind]
             cases.append(record)
             run_endpoint(kind, work, record, args, root, original, before, fixture, data, stamp, save_data, prepared, titles)
             if sdl is not None:
@@ -860,6 +882,10 @@ def run(args):
                 values = [{key: case["input_scope"][key] for key in
                     ("valid_use_confirmations", "code0_confirmations", "equip_drop_give_confirmations", "save_or_end_sent", "cancel_route")}
                     for case in cases]
+            elif scenario in DROP_SCENARIOS:
+                report["paired_drop_save"] = compare_drop_saves(cases)
+                values = [{key: case["drop_measurement"][key] for key in
+                    ("measured_inventory_hex", "measured_derived_values", "raw_flags", "unit_experience")} for case in cases]
             else:
                 values = [{key: case["herb_measurement"][key] for key in
                     ("hp", "max_hp", "mp", "max_mp", "level", "experience", "visible_inventory_ids")} for case in cases]
@@ -876,7 +902,8 @@ def run(args):
             for record in cases:
                 endpoint_guards(record, original, before, fixture, data, stamp, save_data)
                 (output / record["kind"] / "comparison.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-            for key in ("original_unchanged", "fixture_unchanged", "copy_save_unchanged_after_cleanup", "cleanup_passed"):
+            save_guard = "copy_save_matches_completed_state_after_cleanup" if scenario in DROP_SCENARIOS else "copy_save_unchanged_after_cleanup"
+            for key in ("original_unchanged", "fixture_unchanged", save_guard, "cleanup_passed"):
                 report[key] = bool(cases) and all(record[key] for record in cases)
             report["probe_cases_passed"] = report["probe_cases_passed"] and len(cases) == 2 and all(
                 record["status"] == "passed" and record["probe_cases_passed"] for record in cases)

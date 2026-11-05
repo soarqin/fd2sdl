@@ -307,7 +307,8 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             self.assertEqual([call.args[0] for call in pairs], [
                 "original-opening", "original-focus", "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result",
                 "original-magic-list", "original-magic-damage", "original-magic-heal",
-                "original-item-controls", "original-item-herb-full", "original-item-herb-injured"])
+                "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
+                "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last"])
             self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
                              ["original-opening", "original-focus", "input"])
             by_name = {call.args[0]: call for call in pairs}
@@ -332,7 +333,11 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                     ("original-magic-heal", "heal", "run_original_magic_list.py"),
                     ("original-item-controls", "controls", "run_original_item_list.py"),
                     ("original-item-herb-full", "herb-full", "run_original_item_list.py"),
-                    ("original-item-herb-injured", "herb-injured", "run_original_item_list.py")):
+                    ("original-item-herb-injured", "herb-injured", "run_original_item_list.py"),
+                    ("original-item-drop-herb", "drop-herb", "run_original_item_list.py"),
+                    ("original-item-drop-weapon", "drop-weapon", "run_original_item_list.py"),
+                    ("original-item-drop-armor", "drop-armor", "run_original_item_list.py"),
+                    ("original-item-drop-last", "drop-last", "run_original_item_list.py")):
                 case = by_name[name]
                 command = case.args[1]
                 self.assertEqual(command[1], runner.ROOT / "tools" / script)

@@ -296,7 +296,7 @@ static int test_formal_query_and_weapon_only_list(void) {
             case 4: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
             case 5: g->selected_unit = 4; break;
             case 6: g->units.count = FD2_FIELD_MAX_UNITS + 1u; break;
-            case 7: ((uint8_t *)&g->units.items[0])[0x0f] = 193; break;
+            case 7: ((uint8_t *)&g->units.items[0])[0x0f] = 255; break;
             case 8: ((uint8_t *)&g->units.items[0])[0x0f] = 215; break;
             case 9: ((uint8_t *)&g->units.items[0])[0x0c] = 0x80; break;
             case 10: for (unsigned i = 0; i < 8; i++) ((uint8_t *)&g->units.items[0])[0x0a + 2 * i] = 0x80; break;
@@ -323,7 +323,13 @@ static int test_formal_confirmation_rechecks_whole_list_but_cancel_does_not(void
         /* 当前选中草药不变，只破坏另一可见Use项；不能靠旧cached能力放行。 */
         ((uint8_t *)&g->units.items[0])[0x0b] = 193;
         fd2_field_game before = *g;
-        CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+        if (!layer) {
+            CHECK(fd2_field_game_confirm_cursor(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
+            CHECK(g->command_selected == 3 && g->command_disabled[0] && !g->command_disabled[3]);
+            CHECK(fd2_field_game_cancel_selection(g) == 1);
+        } else {
+            CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+        }
         if (layer) {
             CHECK(fd2_field_game_cancel_selection(g) == 1);
             if (layer == 2) {
@@ -332,7 +338,7 @@ static int test_formal_confirmation_rechecks_whole_list_but_cancel_does_not(void
             }
             if (g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU)
                 CHECK(fd2_field_game_cancel_selection(g) == 1);
-            CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
+            CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && !g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
         }
         CHECK(!f.calls);
         close_fixture(&f);

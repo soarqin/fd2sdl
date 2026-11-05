@@ -115,7 +115,7 @@ typedef enum {
     FIELD_LIST_HOST_QUIT = 2
 } field_list_result;
 
-typedef enum { FIELD_LIST_MAGIC, FIELD_LIST_ITEM_USE } field_list_kind;
+typedef enum { FIELD_LIST_MAGIC, FIELD_LIST_ITEM } field_list_kind;
 
 static fd2_field_magic_list_key magic_list_key(fd2_input_key key) {
     switch (key) {
@@ -190,6 +190,10 @@ static field_list_result play_field_unit_list(
         game->detail_visible || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         game->units.count > FD2_FIELD_MAX_UNITS)
+        return FIELD_LIST_ERROR;
+    if (kind == FIELD_LIST_ITEM &&
+        !(game->command_selected == 0 ? fd2_field_game_item_use_is_available(game) :
+          game->command_selected == 3 && fd2_field_game_item_drop_is_available(game)))
         return FIELD_LIST_ERROR;
     uint8_t candidate_id = 0;
     /* 统一复用core的actor／移动／完整record门，OTHER不改索引或ID。 */
@@ -334,11 +338,11 @@ static field_list_result play_field_magic_list(
     return play_field_unit_list(game, vga, audio, FIELD_LIST_MAGIC, confirmed_id);
 }
 
-/* 私有Use列表仅在完整关页后返回raw槽；进入目标或返回子菜单归caller。 */
+/* 物品列表仅在完整关页后返回raw槽；Use/Drop由command_selected区分。 */
 static field_list_result play_field_item_list(
     fd2_field_game *game, fd2_vga *vga, fd2_field_audio *audio,
     uint8_t *confirmed_raw_slot) {
-    return play_field_unit_list(game, vga, audio, FIELD_LIST_ITEM_USE, confirmed_raw_slot);
+    return play_field_unit_list(game, vga, audio, FIELD_LIST_ITEM, confirmed_raw_slot);
 }
 
 /* 18d8c的1cff0重入：列表Esc回COMMAND，目标Esc由调用者先复位为LIST。
@@ -375,19 +379,26 @@ static int play_command_transition(fd2_field_game *game, fd2_vga *vga,
         ? FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_OK;
 }
 
-/* 1bbdc的Use列表取消重开ITEM_MENU；确认只交给已关闭页面的raw槽。 */
+/* 1bbdc的Use/Drop共用列表；完整关页才提交raw槽，按当前owner重开菜单。 */
 static int play_field_item_selection(fd2_field_game *game, fd2_vga *vga,
                                       fd2_field_audio *audio) {
     uint8_t slot = 0xff;
     field_list_result result = play_field_item_list(game, vga, audio, &slot);
     if (result == FIELD_LIST_HOST_QUIT) return FD2_SCENE_RESULT_HOST_QUIT;
     if (result == FIELD_LIST_ERROR) return FD2_SCENE_RESULT_ERROR;
-    if (result == FIELD_LIST_CONFIRMED)
-        return slot == game->item_list_selected &&
-            fd2_field_game_item_is_available(game) &&
-            fd2_field_game_begin_item_targeting(game) == 0
-                ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
-    if (fd2_field_game_end_item_list(game) != 0) return FD2_SCENE_RESULT_ERROR;
+    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (result == FIELD_LIST_CONFIRMED) {
+        if (slot != game->item_list_selected) return FD2_SCENE_RESULT_ERROR;
+        if (game->command_selected == 0)
+            return fd2_field_game_item_use_is_available(game) &&
+                fd2_field_game_begin_item_targeting(game) == 0
+                    ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
+        if (game->command_selected != 3 || !fd2_field_game_item_drop_is_available(game) ||
+            fd2_field_game_resolve_item_drop(game) != 0)
+            return FD2_SCENE_RESULT_ERROR;
+    } else if (fd2_field_game_end_item_list(game) != 0) {
+        return FD2_SCENE_RESULT_ERROR;
+    }
     return play_command_transition(game, vga, audio, 1);
 }
 

@@ -79,9 +79,10 @@ static int test_ids_states_animation_and_actor_overlay(void) {
             CHECK(check_frame(&f, 0, 0) == 0);
         }
     }
-    /* SDL仅Use已支持；Give/Equip/Drop的32/35等禁用帧不是原版能力声明。 */
+    /* SDL支持Use/Drop；Give/EQT的禁用帧不是原版能力声明。 */
     f.game.command_selected = 0;
-    f.game.command_disabled[1] = f.game.command_disabled[2] = f.game.command_disabled[3] = 1;
+    f.game.command_disabled[1] = f.game.command_disabled[2] = 1;
+    f.game.command_disabled[3] = 0;
     CHECK(check_frame(&f, 0, 0) == 0);
     for (int opening = 0; opening < 2; opening++)
         for (int phase = 1; phase <= 4; phase++) CHECK(check_frame(&f, opening, phase) == 0);

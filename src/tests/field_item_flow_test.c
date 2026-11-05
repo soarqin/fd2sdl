@@ -84,7 +84,8 @@ static void expected_menu(fd2_field_game *g) {
     g->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
     g->item_list_selected = 0; g->command_selected = 0;
     g->command_disabled[0] = 0;
-    g->command_disabled[1] = g->command_disabled[2] = g->command_disabled[3] = 1;
+    g->command_disabled[1] = g->command_disabled[2] = 1;
+    g->command_disabled[3] = 0;
     g->command_highlight_phase = g->command_animation_phase = g->command_animation_opening = 0;
     g->last_command_highlight_ms = 0;
 }
@@ -96,7 +97,7 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         fd2_field_game *g = &f.game;
         fd2_field_game expected = *g;
         g->command_selected = FD2_FIELD_COMMAND_ITEM;
-        slot(&g->units.items[0], 2, 0, 193); /* 已知但未支持的非零Use code。 */
+        slot(&g->units.items[0], 2, 0, 255); /* 未知记录不能借旧cached能力进入。 */
         expected = *g;
         CHECK(fd2_field_game_confirm_command(g) == -1);
         CHECK(!memcmp(g, &expected, sizeof(expected))); /* cached enabled也须重验。 */
@@ -105,10 +106,15 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         CHECK(fd2_field_game_begin_item_menu(g) == 0);
         expected_menu(&expected);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
-        for (unsigned direction = 0; direction < 4; direction++) {
+        for (unsigned direction = 0; direction < 3; direction++) {
             CHECK(fd2_field_game_select_item_menu_direction(g, (fd2_field_command_direction)direction) == 0);
-            CHECK(!memcmp(g, &expected, sizeof(expected))); /* 仅Use；不给Equip/Drop假可用。 */
+            CHECK(!memcmp(g, &expected, sizeof(expected))); /* Give/EQT仍禁用。 */
         }
+        CHECK(fd2_field_game_select_item_menu_direction(g, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1);
+        expected.command_selected = 3;
+        CHECK(!memcmp(g, &expected, sizeof(expected)));
+        CHECK(fd2_field_game_select_item_menu_direction(g, FD2_FIELD_COMMAND_DIRECTION_UP) == 1);
+        expected.command_selected = 0;
         CHECK(fd2_field_game_begin_item_menu(g) == -1);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
         CHECK(fd2_field_game_confirm_item_menu(g) == 0);
@@ -200,10 +206,12 @@ static int test_rejections_have_no_write_set(void) {
     CHECK(!memcmp(g, &before, sizeof(before)));
     for (int selected = 1; selected < 4; selected++) {
         g->command_selected = selected;
+        if (selected == 3) g->command_disabled[3] = 1;
         before = *g;
         CHECK(fd2_field_game_confirm_item_menu(g) == -1 && !memcmp(g, &before, sizeof(before)));
     }
     g->command_selected = 0;
+    g->command_disabled[3] = 0;
     CHECK(fd2_field_game_confirm_item_menu(g) == 0);
     g->item_list_selected = 8;
     before = *g;
@@ -250,9 +258,8 @@ static int open_drop(fixture *f) {
     actor->attack = actor->defense = actor->accuracy = actor->evasion = 999;
     actor->experience = 99; actor->hp = 20; actor->mp = 7; actor->mp_max = 9;
     CHECK(fd2_field_game_begin_item_menu(g) == 0);
-    CHECK(g->command_disabled[3] == 1); /* 正式能力门未开放。 */
+    CHECK(g->command_disabled[3] == 0);
     g->command_selected = 3;
-    g->command_disabled[3] = 0; /* 仅低层合同夹具显式开放Drop。 */
     CHECK(fd2_field_game_confirm_item_menu(g) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && g->command_selected == 3);
     CHECK(g->item_list_selected == 0);
@@ -379,6 +386,67 @@ static int test_drop_rejects_without_actor_or_owner_writes(void) {
     return 0;
 }
 
+static int test_formal_use_drop_capabilities_and_cached_rechecks(void) {
+    fixture f;
+    CHECK(init(&f, 0) == 0);
+    fd2_field_game *g = &f.game;
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_item_use_is_available(g) && fd2_field_game_item_drop_is_available(g));
+    CHECK(!memcmp(g, &before, sizeof(before)) && !f.rng_calls);
+    slot(&g->units.items[0], 2, 0, 193);
+    CHECK(!fd2_field_game_item_use_is_available(g) && fd2_field_game_item_drop_is_available(g));
+    CHECK(fd2_field_game_item_is_available(g));
+    CHECK(fd2_field_game_begin_item_menu(g) == 0);
+    CHECK(g->command_selected == 3 && g->command_disabled[0] && !g->command_disabled[3]);
+    g->command_selected = 0; g->command_disabled[0] = 0; /* 旧cached Use不能借Drop能力确认。 */
+    before = *g;
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)));
+    g->command_selected = 3;
+    g->attack_rng = NULL;
+    before = *g;
+    CHECK(!fd2_field_game_item_is_available(g) && !fd2_field_game_item_drop_is_available(g));
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)));
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0); /* 纯步进不执行真实等待。 */
+    g->item_list_selected = 2;
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1);
+    CHECK(fd2_field_game_resolve_item_drop(g) == 0 && g->command_selected == 0);
+    CHECK(!g->command_disabled[0] && !g->command_disabled[3] && !f.rng_calls);
+    close_fixture(&f);
+
+    CHECK(init(&f, 0) == 0);
+    slot(&f.game.units.items[0], 7, 0xc0, 255);
+    CHECK(fd2_field_game_item_use_is_available(&f.game) && !fd2_field_game_item_drop_is_available(&f.game));
+    CHECK(fd2_field_game_begin_item_menu(&f.game) == 0 && f.game.command_disabled[3]);
+    f.game.command_selected = 3; f.game.command_disabled[3] = 0;
+    before = f.game;
+    CHECK(fd2_field_game_confirm_cursor(&f.game) == -1 && !memcmp(&f.game, &before, sizeof(before)));
+    slot(&f.game.units.items[0], 2, 0, 193);
+    CHECK(!fd2_field_game_item_is_available(&f.game)); /* Use与Drop的失败分别独立。 */
+    close_fixture(&f);
+    CHECK(!fd2_field_game_item_use_is_available(NULL) && !fd2_field_game_item_drop_is_available(NULL));
+    return 0;
+}
+
+static int test_drop_inventory_survives_outer_movement_cancel(void) {
+    fixture f;
+    CHECK(init(&f, 0) == 0);
+    f.game.units.items[0].movement_points = 3; /* 真正重开移动范围的合法预算。 */
+    CHECK(open_drop(&f) == 0);
+    fd2_field_game *g = &f.game;
+    g->item_list_selected = 0; /* 删除装备武器，随后取消临时移动。 */
+    CHECK(fd2_field_game_resolve_item_drop(g) == 0);
+    fd2_field_unit dropped = g->units.items[0];
+    CHECK(fd2_field_game_end_item_menu(g) == 0);
+    CHECK(fd2_field_game_cancel_selection(g) == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    CHECK(g->units.items[0].x == 2 && g->units.items[0].y == 3 && g->units.items[0].direction == 1);
+    dropped.x = 2; dropped.y = 3; dropped.direction = 1; dropped.frame_phase = 0;
+    CHECK(!memcmp(&g->units.items[0], &dropped, sizeof(dropped)) && !f.rng_calls);
+    CHECK(!g->pending_cell_event.valid && !fd2_field_unit_has_acted(&g->units.items[0]));
+    close_fixture(&f);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_layers_preserve_move_pending_units_and_rng() == 0);
     CHECK(test_rejections_have_no_write_set() == 0);
@@ -387,6 +455,8 @@ int main(void) {
     CHECK(test_drop_removal_equipment_and_stale_tail() == 0);
     CHECK(test_drop_last_slot_returns_command() == 0);
     CHECK(test_drop_rejects_without_actor_or_owner_writes() == 0);
+    CHECK(test_formal_use_drop_capabilities_and_cached_rechecks() == 0);
+    CHECK(test_drop_inventory_survives_outer_movement_cancel() == 0);
     puts("field_item_flow_test: ok");
     return 0;
 }

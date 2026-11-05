@@ -35,7 +35,7 @@ class Fixture:
     def menu_frame(self, selected=0, *, give_enabled=False, actor_overlay=True, role="original"):
         image = Image.new("RGB", (320, 200))
         for item, command in enumerate((8, 9, 10, 11)):
-            disabled = (item > 0 if role == "sdl" else item == 1) and not (item == 1 and give_enabled)
+            disabled = (item in (1, 2) if role == "sdl" else item == 1) and not (item == 1 and give_enabled)
             index = command * 3 + (2 if disabled else int(item == selected))
             part = self.assets["upper_commands"][index][0] if item == 0 and actor_overlay else self.assets["commands"][index]
             at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[item]))
@@ -99,16 +99,22 @@ class ResourceTest(Fixture, unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, 1)
 
-    def test_sdl_full_disabled_equipment_drop_frames_are_not_native_enabled_frames(self):
+    def test_sdl_equipment_is_disabled_but_drop_is_enabled_with_full_frames(self):
         frame = self.menu_frame(role="sdl")
         result = probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, role="sdl")
-        self.assertEqual([item["frame"] for item in result["matches"]], [25, 29, 32, 35])
-        self.assertEqual(result["disabled"], [0, 1, 1, 1])
+        self.assertEqual([item["frame"] for item in result["matches"]], [25, 29, 32, 33])
+        self.assertEqual(result["disabled"], [0, 1, 1, 0])
         self.assertFalse(result["capability_equivalence_claimed"])
         self.assertIsNone(probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields))
         self.assertIsNone(probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, role="sdl"))
         with self.assertRaises(ValueError):
             probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, 2, role="sdl")
+        selected = probe.submenu_page(self.menu_frame(3, role="sdl"), self.assets, (52, 76), self.templates, self.fields, 3, role="sdl")
+        self.assertEqual([item["frame"] for item in selected["matches"]], [24, 29, 32, 34])
+        disabled_drop = frame.copy()
+        at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[3]))
+        disabled_drop.paste(self.assets["commands"][35].convert("RGB"), at)
+        self.assertIsNone(probe.submenu_page(disabled_drop, self.assets, (52, 76), self.templates, self.fields, role="sdl"))
 
     def test_command_first_enabled_and_cancelled_browse_requires_plain_terrain(self):
         command = probe.PlayerOracle(self.source, self.assets, [], {})
@@ -170,7 +176,7 @@ class InputTest(Fixture, unittest.TestCase):
                            self.templates, self.fields, {3: [capture.last] * 3}, Path("unused"), b"", 0, {"checkpoints": []})
         self.assertEqual([call.args[0] for call in capture.key.call_args_list], ["UP", "ENTER"])
 
-    def test_sdl_same_submenu_direction_keys_stay_use0_with_strict_full_icons(self):
+    def test_sdl_down_selects_drop_and_other_directions_keep_exact_supported_icons(self):
         with tempfile.TemporaryDirectory() as directory:
             save = Path(directory) / "FD2.SAV"
             save.write_bytes(b"copy")
@@ -179,10 +185,12 @@ class InputTest(Fixture, unittest.TestCase):
             checked = []
             def wait(capture, name, predicate, checkpoints, **kwargs):
                 if name.startswith("submenu-") and name != "submenu-cancel-command":
-                    detail = predicate(frame)
+                    selected = 3 if name == "submenu-down" else 0
+                    detail = predicate(self.menu_frame(selected, role="sdl"))
                     self.assertIsNotNone(detail)
-                    self.assertEqual(detail["selected"], 0)
-                    self.assertEqual([item["frame"] for item in detail["matches"]], [25, 29, 32, 35])
+                    self.assertEqual(detail["selected"], selected)
+                    self.assertEqual([item["frame"] for item in detail["matches"]],
+                                     [24, 29, 32, 34] if selected == 3 else [25, 29, 32, 33])
                     checked.append(name)
                 return frame, {"focus_screen": [52, 76]}
             with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), patch.object(probe, "wait_state", side_effect=wait):
@@ -429,7 +437,7 @@ class DropTest(Fixture, unittest.TestCase):
         "ENTER", "ESC", "ESC", "ESC", "ESC", "LEFT", "ENTER", "ENTER", "LEFT", "ENTER", "ENTER"]
 
     def protocol(self, directory, *, stop=None, bad_measurement=False, late_mtime=False,
-                 scenario="drop-herb", case=None):
+                 scenario="drop-herb", case=None, role="original"):
         case = case or (self.source, self.focus, self.assets, self.actor, self.selection, self.templates, self.fields)
         source, focus, assets, actor, selection, templates, fields = case
         data = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.source, source))
@@ -446,6 +454,7 @@ class DropTest(Fixture, unittest.TestCase):
         capture = Mock(artifacts=directory, last=image)
         self.protocol_capture = capture
         armed = [False]
+        self.protocol_menu_checks = []
         def key(name):
             if armed[0] and name == "ENTER":
                 save.write_bytes(encoded); armed[0] = False
@@ -456,8 +465,14 @@ class DropTest(Fixture, unittest.TestCase):
             if name == "drop-save-default-yes": armed[0] = True
             if name == "drop-saved-browse" and late_mtime:
                 stamp = save.stat(); os.utime(save, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 2_000_000_000))
+            if role == "sdl" and (name in ("item-submenu-default-use", "drop-cancel-selected", "drop-commit-selected") or
+                    name.endswith("-back-item-zero") or name == "drop-readonly-list-cancel-item"):
+                selected = 3 if name in ("drop-cancel-selected", "drop-commit-selected") else 0
+                detail = predicate(self.menu_frame(selected, role="sdl"))
+                self.assertIsNotNone(detail)
+                self.protocol_menu_checks.append((name, detail["disabled"], detail["selected"]))
             return image, {"focus_screen": [52, 76]}
-        report = {"checkpoints": [], "kind": "original"}
+        report = {"checkpoints": [], "kind": role}
         with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), \
                 patch.object(probe, "wait_state", side_effect=wait):
             probe.exercise(capture, source, focus, assets, actor, selection,
@@ -490,11 +505,11 @@ class DropTest(Fixture, unittest.TestCase):
                     self.assertEqual([call.args[0] for call in self.protocol_capture.key.call_args_list], self.drop_keys)
                     self.assertTrue((Path(directory) / "drop-measured.SAV").is_file())
 
-    def test_sdl_drop_rejected_before_mkdir_read_or_launch(self):
+    def test_sdl_drop_bad_executable_rejected_before_mkdir_read_or_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(Path, "mkdir") as mkdir, patch.object(probe, "hashes") as hashes, \
                     patch.object(Path, "read_bytes") as reads, patch("subprocess.Popen") as popen, \
-                    self.assertRaisesRegex(ValueError, "仅用于原版"):
+                    self.assertRaisesRegex(ValueError, "--sdl"):
                 probe.run(SimpleNamespace(root=ROOT, artifacts=Path(directory) / "not-created",
                     scenario="drop-herb", sdl=Path("missing.exe")))
             mkdir.assert_not_called(); hashes.assert_not_called(); reads.assert_not_called(); popen.assert_not_called()
@@ -655,11 +670,20 @@ class DropTest(Fixture, unittest.TestCase):
                     self.protocol(Path(directory), scenario=scenario, case=self.boundary_case(scenario), bad_measurement=True)
                 self.assertTrue((Path(directory) / "drop-measured.SAV").is_file())
 
-    def test_all_new_drop_pairing_is_rejected_before_any_io(self):
+    def test_sdl_drop_protocol_uses_sdl_resources_at_every_menu_return(self):
+        for scenario in probe.DROP_SCENARIOS:
+            case = None if scenario == "drop-herb" else self.boundary_case(scenario)
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                self.protocol(Path(directory), scenario=scenario, case=case, role="sdl")
+                self.assertEqual(len(self.protocol_menu_checks), 4 if scenario == "drop-last" else 6)
+                self.assertTrue(all(disabled == [0, 1, 1, 0] for _, disabled, _ in self.protocol_menu_checks))
+                self.assertEqual([selected for _, _, selected in self.protocol_menu_checks].count(3), 2)
+
+    def test_all_new_drop_bad_sdl_paths_are_rejected_before_any_io(self):
         for scenario in ("drop-weapon", "drop-armor", "drop-last"):
             with self.subTest(scenario=scenario), patch.object(Path, "mkdir") as mkdir, \
                     patch.object(Path, "read_bytes") as reads, patch.object(probe, "hashes") as hashes, \
-                    patch("subprocess.Popen") as popen, self.assertRaisesRegex(ValueError, "仅用于原版"):
+                    patch("subprocess.Popen") as popen, self.assertRaisesRegex(ValueError, "--sdl"):
                 probe.run(SimpleNamespace(root=ROOT, artifacts=Path("unused"), scenario=scenario, sdl=Path("unused.exe")))
             mkdir.assert_not_called(); reads.assert_not_called(); hashes.assert_not_called(); popen.assert_not_called()
 
@@ -712,10 +736,42 @@ class DropTest(Fixture, unittest.TestCase):
                 self.assertNotIn("copy_save_unchanged_after_cleanup", report)
                 self.assertTrue(report["fixture_unchanged"])
 
+    def test_drop_full_rectangles_are_cross_compared_including_all_four_new_numbers(self):
+        for scenario in ("drop-weapon", "drop-armor", "drop-last"):
+            case = self.boundary_case(scenario)
+            source, _, assets, _, selection, templates, fields = case
+            if scenario != "drop-last":
+                templates, fields = assets["drop"]["after_templates"], assets["drop"]["after_fields"]
+            image = Image.new("RGB", (320, 200))
+            for name in ("selected_0", "actor_name", "current_max_hp", "current_max_mp", "level", "experience",
+                         "attack", "defense", "accuracy", "evasion"):
+                at, part = templates[name]; image.paste(part.convert("RGB"), at)
+            detail = probe.drop_list_page(image, templates, fields)
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                cases = PairRGBTest.cases(folder, image, image, detail, detail)
+                compared = probe.compare_paired_checkpoints(cases, folder, assets, selection)
+                self.assertTrue(compared["ok"])
+                self.assertEqual(compared["checked_pixels"], 32723)
+                self.assertEqual([r["name"] for r in compared["checkpoints"][0]["static_regions"]][-4:],
+                                 ["attack", "defense", "accuracy", "evasion"])
+            point = next((x, y) for y in range(67, 75) for x in range(157, 175)
+                         if min(image.getpixel((x, y))) >= 2 and max(image.getpixel((x, y))) <= 253)
+            value = image.getpixel(point); first, second = image.copy(), image.copy()
+            first.putpixel(point, tuple(v - 2 for v in value)); second.putpixel(point, tuple(v + 2 for v in value))
+            a, b = (probe.drop_list_page(frame, templates, fields) for frame in (first, second))
+            self.assertIsNotNone(a); self.assertIsNotNone(b)
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                compared = probe.compare_paired_checkpoints(PairRGBTest.cases(folder, first, second, a, b), folder, assets, selection)
+                self.assertFalse(compared["ok"])
+                self.assertEqual(sum(r["bad_pixels"] for row in compared["checkpoints"] for r in row["static_regions"]), 1)
+
 
 class RunTest(Fixture, unittest.TestCase):
     def model(self, output, *, capture_error=False, cleanup_error=False, final_save_change=False, source_change=False, fixture_change=None,
-              scenario="controls", complete_herb=False, paired=False, failure_role="original", late_save_change=False, rgb_ok=True):
+              scenario="controls", complete_herb=False, paired=False, failure_role="original", late_save_change=False, rgb_ok=True,
+              drop_cache_difference=False):
         events = []
         fixture = (ROOT / "original_game").resolve() / "START.SAV"
         read_bytes, stat = Path.read_bytes, Path.stat
@@ -762,13 +818,33 @@ class RunTest(Fixture, unittest.TestCase):
         if paired:
             args.sdl = ROOT / "tools/run_original_magic_list.py"
         prepared = (self.source, self.focus, self.assets, self.actor, self.selection, self.templates, self.fields)
-        if scenario != "controls":
+        if scenario != "controls" and scenario not in probe.DROP_SCENARIOS:
             source = oracle.derive_injured(probe.decode_save(fixture), fixture.read_bytes())[1] if scenario == "herb-injured" else None
             prepared = probe.prepare(ROOT / "original_game", source=source, herb=True)
         def exercise(*args, **kwargs):
             record = args[-1]
             if capture_error and record["kind"] == failure_role:
                 raise RuntimeError("first resource error")
+            if scenario in probe.DROP_SCENARIOS:
+                source, assets, save, data = args[1], args[3], args[-4], args[-3]
+                self.assertEqual(probe.decode_save(save), source)
+                measured = bytearray(assets["drop"]["expected_source"])
+                measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
+                if drop_cache_difference and record["kind"] == "sdl":
+                    measured[probe.UNITS + 2] ^= 1
+                measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+                encoded = bytes(a ^ b ^ c for a, b, c in zip(data, source, measured))
+                work = output / record["kind"] if paired else output
+                snapshot = work / "drop-measured.SAV"
+                save.write_bytes(encoded); snapshot.write_bytes(encoded)
+                record["drop_measurement"] = {**probe.check_load_measurement(assets["drop"]["expected_source"], measured, assets["drop"]["steps"]),
+                    "runtime_raw_inventory_measured": True, "snapshot_sha256": hashlib.sha256(encoded).hexdigest(),
+                    "measured_inventory_hex": measured[probe.UNITS + 10:probe.UNITS + 26].hex(),
+                    "measured_derived_values": list(struct.unpack_from("<4H", measured, probe.UNITS + 0x48)),
+                    "raw_flags": measured[probe.UNITS + 5], "unit_experience": measured[probe.UNITS + 0x3c]}
+                record["completed_save"] = {"snapshot": str(snapshot), "sha256": hashlib.sha256(encoded).hexdigest(),
+                                            "mtime_ns": save.stat().st_mtime_ns}
+                return
             record["input_scope"] = {"valid_use_confirmations": 0, "code0_confirmations": 4, "equip_drop_give_confirmations": 0,
                 "save_or_end_sent": False, "cancel_route": ["Use list", "ITEM submenu", "COMMAND", "selection", "browse"]}
             if complete_herb:
@@ -850,6 +926,58 @@ class RunTest(Fixture, unittest.TestCase):
 class PairingTest(Fixture, unittest.TestCase):
     model = RunTest.model
 
+    def test_four_drop_cases_use_same_fixture_then_compare_two_complete_real_save_artifacts(self):
+        for scenario in probe.DROP_SCENARIOS:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "new"
+                result, events = self.model(output, paired=True, scenario=scenario)
+                self.assertEqual(events, ["started-original", "closed-original", "started-sdl", "closed-sdl"])
+                self.assertTrue(result["ok"] and result["probe_cases_passed"] and not result["probe_only"])
+                self.assertEqual((output / "original/drop-measured.SAV").read_bytes(), (output / "sdl/drop-measured.SAV").read_bytes())
+                self.assertTrue(result["paired_drop_save"]["full_encoded_bytes_equal"])
+                self.assertTrue(result["paired_drop_save"]["full_plaintext_bytes_equal"])
+                self.assertFalse(result["paired_drop_save"]["cache_or_navigation_normalized"])
+                self.assertTrue(result["copy_save_matches_completed_state_after_cleanup"])
+                self.assertNotIn("copy_save_unchanged_after_cleanup", result)
+                self.assertEqual(result["paired_terminal_values"]["original"], result["paired_terminal_values"]["sdl"])
+                self.assertEqual([case["runtime_fixture_sha256"] for case in result["cases"]], [result["runtime_fixture_sha256"]] * 2)
+                if scenario == "drop-last":
+                    self.assertEqual(result["derived_fixture"]["derived_plain_sha256"], probe.DROP_LAST_PLAIN_SHA256)
+                    final = probe.decode_save(output / "sdl/drop-measured.SAV")
+                    self.assertTrue(all(final[probe.UNITS + 10 + 2 * i] & 128 for i in range(8)))
+
+    def test_drop_original_failure_blocks_sdl_and_late_artifact_or_mtime_cannot_pass(self):
+        for kwargs in ({"capture_error": True}, {"cleanup_error": True}, {"fixture_change": "mtime"},
+                       {"final_save_change": True}):
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
+                result, events = self.model(Path(directory) / "new", paired=True, scenario="drop-last", **kwargs)
+                self.assertEqual(events, ["started-original", "closed-original"])
+                self.assertFalse(result["ok"] or result["probe_cases_passed"])
+        for kwargs in ({"late_save_change": True}, {"rgb_ok": False}, {"drop_cache_difference": True},
+                       {"cleanup_error": True, "failure_role": "sdl"}):
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
+                result, events = self.model(Path(directory) / "new", paired=True, scenario="drop-armor", **kwargs)
+                self.assertEqual(events, ["started-original", "closed-original", "started-sdl", "closed-sdl"])
+                self.assertFalse(result["ok"] or result["probe_cases_passed"])
+                if kwargs.get("drop_cache_difference"):
+                    self.assertIn("完整字节不一致", result["error"])
+
+    def test_drop_save_pair_rejects_tampered_hash_or_invalid_checksum(self):
+        fixture = ROOT / "original_game/START.SAV"
+        for fault in ("hash", "checksum"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                p = Path(directory); cases = []
+                for role in ("original", "sdl"):
+                    data = fixture.read_bytes()
+                    if role == "sdl" and fault == "checksum":
+                        changed = bytearray(data); changed[-1] ^= 1; data = bytes(changed)
+                    path = p / f"{role}.SAV"; path.write_bytes(data)
+                    digest = hashlib.sha256(data).hexdigest()
+                    cases.append({"kind": role, "completed_save": {"snapshot": str(path), "sha256": digest},
+                                  "drop_measurement": {"snapshot_sha256": digest}})
+                if fault == "hash": Path(cases[0]["completed_save"]["snapshot"]).write_bytes(b"changed")
+                with self.assertRaises(AssertionError): probe.compare_drop_saves(cases)
+
     def test_each_scenario_runs_original_cleanup_before_sdl_same_fixture(self):
         for scenario in ("controls", "herb-full", "herb-injured"):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
@@ -862,7 +990,7 @@ class PairingTest(Fixture, unittest.TestCase):
                 self.assertEqual((output / "original/game/FD2.SAV").read_bytes(), (output / "sdl/FD2.SAV").read_bytes())
                 self.assertTrue(all(case["status"] == "passed" and case["cleanup_passed"] and case["copy_save_unchanged_after_cleanup"] for case in result["cases"]))
                 self.assertEqual(result["cases"][0]["role_expected_submenu_disabled"], [0, 1, 0, 0])
-                self.assertEqual(result["cases"][1]["role_expected_submenu_disabled"], [0, 1, 1, 1])
+                self.assertEqual(result["cases"][1]["role_expected_submenu_disabled"], [0, 1, 1, 0])
                 self.assertTrue(all(case["application"]["sha256"] and case["tool_sources"] for case in result["cases"]))
                 self.assertFalse(result["known_capability_differences"]["cross_end_capability_equivalence_claimed"])
                 for role in ("original", "sdl"):
@@ -1054,8 +1182,8 @@ class PairRGBTest(Fixture, unittest.TestCase):
             compared = probe.compare_paired_checkpoints(self.cases(root, a, b, da, db), root, self.assets, self.selection)
         self.assertTrue(compared["ok"])
         row = compared["checkpoints"][0]
-        self.assertEqual(len(row["capability_or_selection_differences"]), 3)
-        self.assertEqual([region["name"] for region in row["static_regions"]], ["command-frame29"])
+        self.assertEqual(len(row["capability_or_selection_differences"]), 2)
+        self.assertEqual([region["name"] for region in row["static_regions"]], ["command-frame29", "command-frame33"])
 
     def test_target_static_cursor_compared_but_different_lut_phase_is_diagnostic_only(self):
         source, focus, assets, actor, selection, templates, fields = probe.prepare(ROOT / "original_game", herb=True)

@@ -28,10 +28,13 @@ static struct {
     int command_quit_at, command_error_at, command_keys;
     fd2_field_interaction command_states[8];
     int command_openings[8];
-    int closing, quit_frame, quit_final, deadline;
+    int closing, quit_frame, quit_final, quit_on_wait, deadline;
     int allocations, live_buffers, fail_alloc, decode_calls, live_portraits;
     int real_render, panel_after_render;
     fd2_vga *quit_during_render;
+    fd2_field_game *drop_game;
+    size_t drop_initial_count;
+    int early_drop;
     int fail_decode, wrong_portrait_size, step_error;
     int steps, indices[32], statuses[32], rng_calls, bad_cue;
     int closing_start, bad_transition;
@@ -58,6 +61,7 @@ static uint64_t modal_ticks(void) { return controls.now; }
 static void modal_wait(fd2_vga *vga) {
     controls.waits++;
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+    if (controls.quit_on_wait) vga->input.quit_requested = 1;
 }
 static void *modal_malloc(size_t size) {
     controls.allocations++;
@@ -201,6 +205,9 @@ static int matches_portrait(const fd2_vga *vga, const fd2_image *portrait) {
 }
 static void modal_present_timed(fd2_vga *vga, uint32_t interval) {
     controls.frames++;
+    if (controls.closing && controls.drop_game &&
+        fd2_field_unit_inventory_count(&controls.drop_game->units.items[0]) != controls.drop_initial_count)
+        controls.early_drop = 1;
     if (controls.frames <= 12 || controls.closing) {
         uint8_t expected[VGA_W * VGA_H];
         int phase = controls.closing ? controls.frames - controls.closing_start - 1 :
@@ -672,7 +679,7 @@ static int test_item_navigation_and_cancel_layers(void) {
             CHECK(fd2_field_game_end_item_list(&game) == 0);
             CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && game.item_list_selected == 0);
             CHECK(game.command_selected == 0 && game.command_disabled[0] == 0);
-            for (size_t i = 1; i < FD2_FIELD_COMMAND_COUNT; i++) CHECK(game.command_disabled[i] == 1);
+            CHECK(game.command_disabled[1] && game.command_disabled[2] && !game.command_disabled[3]);
             CHECK(fd2_field_game_end_item_menu(&game) == 0);
             CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND);
             CHECK(game.command_disabled[FD2_FIELD_COMMAND_ITEM] == 0);
@@ -789,10 +796,10 @@ static int test_item_errors_before_input(void) {
             case 18: game.units.items[0].side = 0; break;
             case 19: {
                 /* 最后raw7独立坏名称，前七槽和上页仍合法。 */
-                game.units.items[0].data_09_1e[16] = 193;
+                game.units.items[0].data_09_1e[16] = 0; /* code0仍在Use能力内，只有末项名称不同。 */
                 const uint8_t *tokens;
                 size_t count;
-                CHECK(fd2_text_entry_get_fragment(&game.ui_text, 181u + 193u, &tokens, &count) == 0 && count > 1);
+                CHECK(fd2_text_entry_get_fragment(&game.ui_text, 181u, &tokens, &count) == 0 && count > 1);
                 broken_text = malloc(game.ui_text.size);
                 CHECK(broken_text != NULL);
                 memcpy(broken_text, game.ui_text.data, game.ui_text.size);
@@ -809,7 +816,8 @@ static int test_item_errors_before_input(void) {
         fd2_field_game game_before = game;
         uint8_t slot = 0xa5;
         CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_ERROR);
-        CHECK(slot == 0xa5 && controls.rng_calls == 0 && controls.steps == (fault == 12 ? 0 : 1));
+        int rejected_at_capability = fault == 8 || fault == 9 || (fault >= 11 && fault <= 18);
+        CHECK(slot == 0xa5 && controls.rng_calls == 0 && controls.steps == !rejected_at_capability);
         CHECK(!controls.frames && !controls.presents && fd2_input_has_any_key(&vga.input));
         CHECK(memcmp(&vga, &before, sizeof(vga)) == 0 && memcmp(&game, &game_before, sizeof(game)) == 0);
         free(broken_text);
@@ -851,8 +859,8 @@ static int test_real_renderer_preflight_panel_owner(void) {
                 if (outcome == 0) {
                     size_t fragment = 445; /* MAGIC第五项，前四项／上页合法。 */
                     if (item) {
-                        game.units.items[0].data_09_1e[16] = 193;
-                        fragment = 181u + 193u; /* ITEM最后raw7独立名称。 */
+                        game.units.items[0].data_09_1e[16] = 0;
+                        fragment = 181u; /* 合法code0，ITEM最后raw7独立名称。 */
                     }
                     const uint8_t *tokens;
                     size_t count;
@@ -1010,6 +1018,115 @@ static int test_item_handoff_errors_and_quit(void) {
     return released();
 }
 
+static int reset_drop(fd2_field_game *game, fd2_vga *vga, unsigned count) {
+    CHECK(reset_item(game, vga, count) == 0);
+    game->command_selected = 3;
+    controls.drop_game = game;
+    controls.drop_initial_count = count;
+    return 0;
+}
+
+static int test_drop_closes_before_commit_and_reopens_actual_owner(void) {
+    for (unsigned count = 1; count <= 3; count += 2) {
+        for (int cancel = 0; cancel < 2; cancel++) {
+            fd2_field_game game;
+            fd2_vga vga;
+            CHECK(reset_drop(&game, &vga, count) == 0);
+            game.units.items[0].experience = 99;
+            fd2_field_unit expected = game.units.items[0];
+            controls.keys_at[0] = (key_frame){13, cancel ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN, SDL_SCANCODE_RIGHT};
+            controls.key_count = 1;
+            controls.command_keys = 1;
+            CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+            CHECK(!controls.early_drop && controls.closing && controls.frames == 25);
+            CHECK(controls.command_calls == 1 && controls.command_openings[0] == 1);
+            CHECK(fd2_field_unit_inventory_count(&game.units.items[0]) == count - !cancel);
+            if (!cancel) {
+                uint8_t *raw = (uint8_t *)&expected;
+                memmove(raw + 0x0a, raw + 0x0c, 14);
+                raw[0x18] = 0x80;
+            }
+            CHECK(!memcmp(&game.units.items[0], &expected, sizeof(expected)));
+            fd2_field_interaction owner = count == 1 && !cancel
+                ? FD2_FIELD_INTERACTION_COMMAND : FD2_FIELD_INTERACTION_ITEM_MENU;
+            CHECK(game.interaction == owner && controls.command_states[0] == owner);
+            CHECK(game.command_selected == (owner == FD2_FIELD_INTERACTION_COMMAND ? FD2_FIELD_COMMAND_WAIT : 0));
+            CHECK(!game.item_list_selected && !game.event_total_count && !game.player_post_waiting_phase);
+            CHECK(game.pending_cell_event.valid && !fd2_field_unit_has_acted(&game.units.items[0]));
+            CHECK(!fd2_input_has_any_key(&vga.input) && controls.rng_calls == 1);
+            CHECK(released() == 0);
+        }
+    }
+    fd2_field_game game;
+    fd2_vga vga;
+    CHECK(reset_drop(&game, &vga, 1) == 0);
+    uint8_t *raw = (uint8_t *)&game.units.items[0];
+    raw[0x0a] = 0x40; raw[0x0b] = 0; /* mode0确认普通装备，不借Use code。 */
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+    controls.key_count = 1;
+    CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND && !fd2_field_unit_inventory_count(&game.units.items[0]));
+    CHECK(!controls.early_drop && controls.rng_calls == 1 && !fd2_field_unit_has_acted(&game.units.items[0]));
+    return released();
+}
+
+static int test_drop_errors_quit_and_postcommit_freeze(void) {
+    for (unsigned count = 1; count <= 3; count += 2) {
+        for (int fault = 0; fault < 3; fault++) {
+            fd2_field_game game;
+            fd2_vga vga;
+            CHECK(reset_drop(&game, &vga, count) == 0);
+            controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+            controls.key_count = 1;
+            if (fault != 1) controls.command_error = 1;
+            if (fault != 0) controls.command_quit = 1;
+            CHECK(play_field_item_selection(&game, &vga, NULL) ==
+                (fault == 1 ? FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_ERROR));
+            CHECK(fd2_field_unit_inventory_count(&game.units.items[0]) == count - 1);
+            CHECK(controls.command_calls == 1 && !controls.early_drop && controls.rng_calls == 1);
+            CHECK(!fd2_field_unit_has_acted(&game.units.items[0]) && game.pending_cell_event.valid);
+            CHECK(released() == 0);
+        }
+    }
+    fd2_field_game game;
+    fd2_vga vga;
+    CHECK(reset_drop(&game, &vga, 3) == 0);
+    fd2_field_game before = game;
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+    controls.key_count = 1;
+    controls.quit_frame = 14; /* 关闭途中退出，不丢弃且不写出raw槽。 */
+    CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(!memcmp(&game, &before, sizeof(game)) && !controls.command_calls && !controls.early_drop);
+    CHECK(released() == 0);
+    CHECK(reset_drop(&game, &vga, 3) == 0);
+    uint8_t *raw = (uint8_t *)&game.units.items[0];
+    raw[0x18] = 0xc0; raw[0x19] = 255;
+    before = game;
+    fd2_vga old_vga = vga;
+    CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_ERROR);
+    CHECK(!memcmp(&game, &before, sizeof(game)) && !memcmp(&vga, &old_vga, sizeof(vga)));
+    CHECK(!controls.rng_calls && !controls.allocations && !controls.command_calls);
+    return released();
+}
+
+static int test_list_cleanup_quit_precedes_drop_or_use_handoff(void) {
+    for (int scenario = 0; scenario < 3; scenario++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_drop(&game, &vga, 3) == 0);
+        if (scenario == 2) game.command_selected = 0;
+        fd2_field_game before = game;
+        controls.keys_at[0] = (key_frame){13, scenario == 1 ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN, 0};
+        controls.key_count = 1;
+        controls.quit_on_wait = 1; /* 完整close后cleanup才留下已观察的quit。 */
+        CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_HOST_QUIT);
+        CHECK(!memcmp(&game, &before, sizeof(game)) && !controls.command_calls && !controls.early_drop);
+        CHECK(controls.frames == 25 && controls.rng_calls == 1 && vga.input.quit_requested);
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
     CHECK(test_navigation_and_cancel() == 0);
@@ -1027,6 +1144,9 @@ int main(void) {
     CHECK(test_real_renderer_preflight_panel_owner() == 0);
     CHECK(test_item_selection_handoffs_and_context() == 0);
     CHECK(test_item_handoff_errors_and_quit() == 0);
+    CHECK(test_drop_closes_before_commit_and_reopens_actual_owner() == 0);
+    CHECK(test_drop_errors_quit_and_postcommit_freeze() == 0);
+    CHECK(test_list_cleanup_quit_precedes_drop_or_use_handoff() == 0);
     fd2_image_free(&reference_portraits[1]);
     fd2_image_free(&reference_portraits[0]);
     fd2_field_info_assets_close(&fixture.info_assets);

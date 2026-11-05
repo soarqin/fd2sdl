@@ -383,6 +383,20 @@ B3.4a原版校准已独立提交`187871c`，继续在现有game会话接纯Drop�
 
 本批只扩充 B3.4a 原版依据，不增加原有 30 组双端／SDL 累计。取消重算因初值一致无可区分写入，仍只记机器码调用依据；Use 后 acted 的 raw16B、正式 SDL Drop、Equip／Give、完整 RNG／音画、整关结算和下一关均未因此验收。下一步继续 B3.4b2 正式输入及同四场双端比较，不把这四份单端报告移作配对通过。
 
+### B3.4b2 正式 Drop、四场双端及新程序完整回归
+
+原版装备物品／最后一项校准已独立提交 `17cf5f5`。正式入口沿用同一 ITEM modal 和 command_selected，不增 slot／ID 缓存或新输入上下文。Use／Drop 能力分开：Use 限已确认 handler，Drop 独立预检全 8 槽重算；任一可用才开放 ITEM，仅 Drop 可用时首项为 Drop3。Give／Equip 保持能力禁用。列表完整关闭后才提交 Drop 或进入 Use 目标，关页退出不提交，资源错误优先；已提交后菜单失败不退款、不重试。删空回 COMMAND，余项回 ITEM 首可用项；取消移动保留已提交库存。
+
+`drop-formal-app-c1/` 全新 Windows 构建及单轮 57/57 CTest 无跳过通过（真实输入 42.88 秒、总 63.07 秒），498 个源码地址 token 检查通过。程序 SHA `64175bed9a41cc04f39a73c0418afa173d072c6b63d1a62c6f40bd4b6467e605`、driver SHA `2f587d46862b4c313f89c1ddab65c80a272ad35cf5321cc654e16b082939f9ba`。专项 53/53 通过，随后 `drop-pair-c1/` 冻结 326 文件，其中 191 份 src 与实际编译源逐字节一致；全量 374/374 Python 通过（232.978 秒，无跳过）。最终提交仅把 header 的“余项回 ITEM_MENU0”修正为“回 ITEM 首可用项”，无编译逻辑变化；受测源码及 manifest 保持原冻结值，不追改历史来源。
+
+`drop-pair-c1/graphics-artifacts/20261105-083850-033829/summary.json` 是新程序单轮 **34/34**，`inherited=0/executed=34`：先重新执行自然开场两端各 117 个等待点、角色终态／保存测量和镜头留边，再执行既有控制、存取／回合／结果、基础法术及 Use，最后实际执行四场 Drop。没有把旧 0bb6 程序的累计 30 组或四场原版单端校准算作本次通过。
+
+四场每端各一次取消、一次删除和一次合法 Save。各自先过原版资源与完整容器模型，再比较两端实际 PNG 静态 ROI（每通道容差 3、bad=0）以及两份真实 SAV 的完整编码／解密字节；不归一 cache、焦点或扩大差异允许范围。草药／武器／防具／最后一件的共同静态像素分别为 236,845／109,985／175,431／74,690；raw16、四派生、flags0／未 acted、EX0 及 SAV SHA 均与上节原版实测一致。最后一件直接回 COMMAND／WAIT，未打开空 Use 列表；余项检查完整四数字与只读 Use，后续取消不恢复库存。SDL 子菜单 `[0,1,1,0]` 与原版 `[0,1,0,0]` 分别核完整图标，不把 Equip 能力差异冒称等价。
+
+外层 owner19208／Job root3592 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0`；全部原版／SDL 流程串行并清理。源 326 文件、原版 50 文件和两二进制前后守卫通过。保留全部输入、截图、SAV、批准的 WGC transient 诊断及 stderr。四条 `no visible window for PID` 对应 host-close 窗口的关闭后探测，四 PID47732／57552／12792／38240 最终正常 exit0，收据均 cleaned、未强制；不删除诊断或视为残留窗口。提交前另核工作区 191 份 src：25 份仅 LF／CRLF 差异，唯一额外改动为上述 header 注释；规范化后可执行源码文本一致，`review-source-equivalence.json` 单列这些差异，不称工作区 raw SHA 完全相同。connected 终审无新增执行性问题；保留必要的独立能力查询和共享 modal，没有引入新 owner 或通用框架。
+
+这是 B3.4b2 的受支持正式 Drop 交付，不关闭整个 B3。下一小阶段为 B3.4c Equip 原版校准：先核职业许可、同类 flag 写集及确认后留页重绘，再接纯 session 和正式 modal；Give 及满槽交换独立处理。Use 后 acted 的全 raw16、完整 UI RNG／演出／声音、水色整帧同步、整关实战、结算和下一关仍未验，Linux 本轮未执行。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

@@ -572,7 +572,11 @@ class Suite:
                              "--artifacts", self.work / name], timeout=480)
             for name, scenario in (("original-item-controls", "controls"),
                                    ("original-item-herb-full", "herb-full"),
-                                   ("original-item-herb-injured", "herb-injured")):
+                                   ("original-item-herb-injured", "herb-injured"),
+                                   ("original-item-drop-herb", "drop-herb"),
+                                   ("original-item-drop-weapon", "drop-weapon"),
+                                   ("original-item-drop-armor", "drop-armor"),
+                                   ("original-item-drop-last", "drop-last")):
                 self.command(name, [sys.executable, ROOT / "tools/run_original_item_list.py",
                              "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
                              "--dosbox", self.args.dosbox, "--scenario", scenario,

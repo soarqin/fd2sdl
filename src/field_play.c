@@ -4,6 +4,9 @@
  * field_player_magic_command_execute @0x1cff0与
  * field_player_item_command_execute @0x1bbdc（原登记均同名），以及
  * field_unit_inventory_select @0x1b932（原sub_1B932）。
+ * B4依据field_unit_experience_reward_execute @0x1e292（原sub_1E292）、
+ * field_growth_stat_present_apply @0x1e529（原sub_1E529）及
+ * field_phase_status_tick @0x1a866（原登记同名）。
  * 此处编排输入、呈现和场景退出；玩法记录与提交仍由field_game持有。
  */
 
@@ -32,6 +35,10 @@
  * 该值不登记为原版 DOS 时序。 */
 #define FD2_FIELD_COMMAND_FRAME_MS 16
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
+
+static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
+                                const fd2_archive *fdother,
+                                fd2_field_audio *audio, int fast);
 
 /* 正式输入回归可固定计时器派生的 RNG 初值；普通运行未设置环境变量时
  * 保持现有战场初值。该入口只控制随机流，不改 actor 坐标或属性。 */
@@ -106,6 +113,273 @@ static int play_system_confirmation_text(fd2_field_game *game,
 
 static void drain_frame_keys(fd2_vga *vga) {
     while (fd2_input_take_key(&vga->input, NULL)) {}
+}
+
+/* field_bottom_notice_open @0x1956b（原sub_1956B）与
+ * field_bottom_notice_close @0x196cb（原sub_196CB）共用滑入框，借当前焦点。
+ * page保留原始空框供关闭，后续文字只写真实VGA，不能回写成另一份单位真值。 */
+typedef struct {
+    uint8_t *background;
+    fd2_vga *page;
+    fd2_image portraits[4];
+    int portrait_origin;
+    int row;
+    /* shortcut: 跨框嘴型相位留B6统一接入；此处仅复现框内合法帧。 */
+    unsigned mouth_phase;
+    unsigned glyph_counter;
+} field_progress_box;
+
+typedef struct {
+    uint16_t tokens[128];
+    size_t count;
+} field_progress_text;
+
+static int progress_text_append(field_progress_text *text, uint16_t token,
+                                 const fd2_font *font) {
+    if (text->count >= sizeof(text->tokens) / sizeof(text->tokens[0]) ||
+        (token < 0xff00u && token >= font->glyph_count)) return -1;
+    text->tokens[text->count++] = token;
+    return 0;
+}
+
+static int progress_text_expand(const fd2_field_game *game,
+                                 const fd2_field_progress_notice *notice,
+                                 size_t fragment, unsigned depth,
+                                 field_progress_text *text) {
+    const uint8_t *tokens;
+    size_t count;
+    if (depth > 1 || fd2_text_entry_get_fragment(
+            &game->ui_text, fragment, &tokens, &count) != 0) return -1;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(tokens, i);
+        if (token == 0xffffu) return 0;
+        if (token == 0xfffau) { /* 15f84的-6：十进制字符直接选字模0..9。 */
+            char number[16];
+            if (notice->value > INT32_MAX) return -1;
+            snprintf(number, sizeof(number), "%u", (unsigned)notice->value);
+            for (size_t j = 0; number[j]; j++)
+                if (progress_text_append(text, (uint16_t)(number[j] - '0'), &game->font) != 0)
+                    return -1;
+        } else if (token == 0xfffcu) { /* -4只由587嵌入已确认法术名。 */
+            if (depth || notice->kind != FD2_FIELD_PROGRESS_LEARN || notice->magic_id >= 36 ||
+                progress_text_expand(game, notice, 441u + notice->magic_id, depth + 1, text) != 0)
+                return -1;
+        } else {
+            if (token >= 0xff00u && token != 0xfffeu && token != 0xfffdu) return -1;
+            if (progress_text_append(text, token, &game->font) != 0) return -1;
+        }
+    }
+    return -1;
+}
+
+static int progress_text_prepare(const fd2_field_game *game,
+                                  const fd2_field_progress_notice *notice,
+                                  field_progress_text *text) {
+    if (!game || !notice || !text || !game->font.glyphs ||
+        !game->font.glyph_count || game->font.glyph_count > game->font.size / 32u) return -1;
+    memset(text, 0, sizeof(*text));
+    switch (notice->kind) {
+        case FD2_FIELD_PROGRESS_CLOSE: return notice->fragment == 0 ? 0 : -1;
+        case FD2_FIELD_PROGRESS_GAIN: if (notice->fragment != 488) return -1; break;
+        case FD2_FIELD_PROGRESS_LEVEL: if (notice->fragment != 489) return -1; break;
+        case FD2_FIELD_PROGRESS_GROWTH:
+            if (notice->fragment < 490 || notice->fragment > 494) return -1;
+            break;
+        case FD2_FIELD_PROGRESS_LEARN: if (notice->fragment != 587) return -1; break;
+        case FD2_FIELD_PROGRESS_STATUS:
+            if (notice->fragment < 481 || notice->fragment > 487) return -1;
+            break;
+        default: return -1;
+    }
+    return progress_text_expand(game, notice, notice->fragment, 0, text);
+}
+
+static int progress_resources_preflight(const fd2_field_game *game,
+                                        const fd2_field_progress_notice *notice,
+                                        void *userdata) {
+    const fd2_archive *fdother = userdata;
+    field_progress_text text;
+    if (!game || !notice || notice->actor_index >= game->units.count ||
+        !game->map.cells || fd2_scene_field_message_validate(fdother) != 0 ||
+        progress_text_prepare(game, notice, &text) != 0) return -1;
+    for (size_t i = 0; i < 4; i++) {
+        fd2_image image = {0};
+        int valid = fd2_portrait_decode_frame(&image, &game->dato_archive,
+            game->units.items[notice->actor_index].unit_id, i) == 0 &&
+            image.width == 80 && image.height == 80;
+        fd2_image_free(&image);
+        if (!valid) return -1;
+    }
+    return 0;
+}
+
+static void progress_box_free(field_progress_box *box) {
+    if (!box) return;
+    for (size_t i = 0; i < 4; i++) fd2_image_free(&box->portraits[i]);
+    free(box->background);
+    free(box->page);
+    memset(box, 0, sizeof(*box));
+}
+
+static void progress_portrait(field_progress_box *box, fd2_vga *vga,
+                               unsigned frame, int opening) {
+    const fd2_image *image = &box->portraits[frame];
+    int x = box->portrait_origin % VGA_STRIDE;
+    int y = box->portrait_origin / VGA_STRIDE;
+    int reverse = opening || box->portrait_origin == 36887;
+    /* 1956b初始一律reverse；16559仅普通下框reverse，128..132保持forward。 */
+    for (int row = 0; row < image->height; row++)
+        for (int column = 0; column < image->width; column++) {
+            int dx = reverse ? x - column : x + column;
+            if (dx >= 0 && dx < VGA_W && y + row >= 0 && y + row < VGA_H)
+                vga->framebuffer[(y + row) * VGA_STRIDE + dx] =
+                    image->pixels[(size_t)row * (size_t)image->width + (size_t)column];
+        }
+}
+
+static int progress_box_transition(field_progress_box *box, fd2_vga *vga,
+                                     int opening, int fast) {
+    for (int phase = opening ? 5 : 1; opening ? phase >= 0 : phase < 6;
+         phase += opening ? -1 : 1) {
+        int y = 112 + phase * 13;
+        memcpy(vga->framebuffer, box->background, VGA_W * VGA_H);
+        for (int row = 0; row < 86 && y + row < VGA_H; row++)
+            memcpy(vga->framebuffer + (y + row) * VGA_STRIDE + 5,
+                box->page->framebuffer + (112 + row) * VGA_STRIDE + 5, 310);
+        if (!fast) fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    }
+    return FD2_SCENE_RESULT_OK;
+}
+
+static int progress_box_open(field_progress_box *box, fd2_field_game *game,
+                              fd2_vga *vga, const fd2_archive *fdother,
+                              size_t actor_index, int fast) {
+    static const int special_origins[5] = {4283, 1707, 3939, 1398, 3644};
+    if (!box || box->page || actor_index >= game->units.count) return -1;
+    unsigned id = game->units.items[actor_index].unit_id;
+    box->portrait_origin = id >= 128 && id <= 132 ? special_origins[id - 128] : 36887;
+    box->row = 2;
+    box->background = malloc(VGA_W * VGA_H);
+    box->page = calloc(1, sizeof(*box->page));
+    if (!box->background || !box->page) goto fail;
+    memcpy(box->background, vga->framebuffer, VGA_W * VGA_H);
+    memcpy(box->page->framebuffer, box->background, VGA_W * VGA_H);
+    for (size_t i = 0; i < 4; i++)
+        if (fd2_portrait_decode_frame(&box->portraits[i], &game->dato_archive, id, i) != 0 ||
+            box->portraits[i].width != 80 || box->portraits[i].height != 80) goto fail;
+    if (fd2_scene_field_message_box(box->page, fdother) != 0) goto fail;
+    progress_portrait(box, box->page, 0, 1);
+    return progress_box_transition(box, vga, 1, fast);
+fail:
+    progress_box_free(box);
+    return FD2_SCENE_RESULT_ERROR;
+}
+
+static int progress_wait(field_progress_box *box, fd2_field_game *game,
+                          fd2_vga *vga, const fd2_archive *fdother, int fast) {
+    if (!game->attack_rng) return FD2_SCENE_RESULT_ERROR;
+    uint32_t counter = game->attack_rng(game->attack_rng_userdata) % 30u + 2u;
+    if (fast) return FD2_SCENE_RESULT_OK;
+    unsigned arrow = 18, arrow_ticks = 0;
+    int blinking = 0;
+    uint64_t last = SDL_GetTicks();
+    if (fd2_scene_field_message_arrow(vga, fdother, arrow) != 0) return -1;
+    for (;;) {
+        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+        if (fd2_input_take_key(&vga->input, NULL)) break;
+        uint64_t now = SDL_GetTicks();
+        (void)fd2_field_water_tick(vga, now);
+        if (now < last || now - last >= 110u) {
+            if (++arrow_ticks == 3) {
+                arrow_ticks = 0;
+                arrow = arrow == 18 ? 19 : 18;
+                if (fd2_scene_field_message_arrow(vga, fdother, arrow) != 0) return -1;
+            }
+            if (blinking) {
+                progress_portrait(box, vga, 0, 0);
+                counter = game->attack_rng(game->attack_rng_userdata) % 30u + 2u;
+                blinking = 0;
+            } else if (counter-- == 0) {
+                progress_portrait(box, vga, 3, 0);
+                blinking = 1;
+            }
+            last = now;
+        }
+        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+    }
+    return fd2_scene_field_message_arrow(vga, fdother, 13);
+}
+
+static int progress_scroll(fd2_vga *vga, int fast) {
+    /* dialog_text_scroll_up @0x16e24：底框208×72，五次3px再一次4px。 */
+    for (int step = 0; step < 6; step++) {
+        int delta = step < 5 ? 3 : 4;
+        for (int row = 0; row < 72; row++)
+            memmove(vga->framebuffer + (119 + row) * VGA_STRIDE + 94,
+                vga->framebuffer + (119 + row + delta) * VGA_STRIDE + 94, 208);
+        memset(vga->framebuffer + 191 * VGA_STRIDE + 95, 0x4a, 208);
+        if (!fast) fd2_vga_present(vga);
+        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    }
+    return FD2_SCENE_RESULT_OK;
+}
+
+static int progress_text_play(field_progress_box *box, fd2_field_game *game,
+                               fd2_vga *vga, const fd2_archive *fdother,
+                               fd2_field_audio *audio,
+                               const fd2_field_progress_notice *notice, int fast) {
+    field_progress_text text;
+    if (progress_text_prepare(game, notice, &text) != 0) return -1;
+    int x = notice->kind == FD2_FIELD_PROGRESS_STATUS ? 99 : 95;
+    int start_x = x;
+    int y = notice->kind == FD2_FIELD_PROGRESS_STATUS ? 127 :
+        notice->kind == FD2_FIELD_PROGRESS_GAIN ? 119 :
+        notice->kind == FD2_FIELD_PROGRESS_LEVEL ? 138 : 119 + 19 * box->row;
+    int glyph_step = !fast;
+    for (size_t i = 0; i < text.count; i++) {
+        uint16_t token = text.tokens[i];
+        if (token == 0xfffeu || token == 0xfffdu) {
+            x = start_x;
+            y += 19;
+            if (token == 0xfffdu) {
+                progress_portrait(box, vga, 0, 0);
+                int waited = progress_wait(box, game, vga, fdother, fast);
+                if (waited != FD2_SCENE_RESULT_OK) return waited;
+                glyph_step = !fast;
+            }
+            continue;
+        }
+        fd2_font_draw_glyph(vga, &game->font, token, x, y, 0xcd, 0x4c, 0x4a);
+        x += 16;
+        if (!fast) fd2_vga_present(vga);
+        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+        if (fd2_input_has_any_key(&vga->input)) glyph_step = 0;
+        if (glyph_step) {
+            if (++box->glyph_counter == 2) {
+                box->glyph_counter = 0;
+                box->mouth_phase = (box->mouth_phase + 1u) % 4u;
+                progress_portrait(box, vga, box->mouth_phase == 3 ? 1 : box->mouth_phase, 0);
+            }
+            if (audio) (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_DIALOG_GLYPH);
+            fd2_delay_ms(55);
+        }
+    }
+    return FD2_SCENE_RESULT_OK;
+}
+
+static int progress_timed_wait(fd2_vga *vga, unsigned ticks, int fast) {
+    drain_frame_keys(vga);
+    if (fast) return FD2_SCENE_RESULT_OK;
+    uint64_t start = SDL_GetTicks();
+    while (SDL_GetTicks() - start < (uint64_t)ticks * 55u) {
+        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+        if (fd2_input_has_any_key(&vga->input)) break;
+        (void)fd2_field_water_tick(vga, SDL_GetTicks());
+        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+    }
+    drain_frame_keys(vga);
+    return FD2_SCENE_RESULT_OK;
 }
 
 typedef enum {
@@ -1382,7 +1656,9 @@ done:
  * 移动范围查询本回合可达的物理候选，再走玩家移动、菜单、目标选择、
  * 伤害提交和 acted 门。 */
 static int validate_attack_flow(const fd2_field_game *game,
-                                int require_reachable_attack) {
+                                int require_reachable_attack,
+                                fd2_vga *vga, const fd2_archive *fdother,
+                                fd2_field_audio *audio) {
     if (!game || !game->ready || game->active_side != 2u) return -1;
     fd2_field_game replay;
     init_validation_replay(&replay, game);
@@ -1462,6 +1738,12 @@ static int validate_attack_flow(const fd2_field_game *game,
         goto done;
 
     failed_stage = "acted gate";
+    /* once同样完成B4逻辑续态；fast不等待按键，不登记真实提示或RNG对照。 */
+    int progress_result = play_field_progress(&replay, vga, fdother, audio, 1);
+    if (progress_result != FD2_SCENE_RESULT_OK) {
+        if (progress_result == FD2_SCENE_RESULT_HOST_QUIT) result = FD2_SCENE_RESULT_HOST_QUIT;
+        goto done;
+    }
     /* 攻击完成后的 acted 单位同样不能重新进入移动状态。 */
     replay.cursor_cell_x = attacker->x;
     replay.cursor_cell_y = attacker->y;
@@ -1472,7 +1754,7 @@ static int validate_attack_flow(const fd2_field_game *game,
     result = 0;
 
 done:
-    if (result != 0)
+    if (result != 0 && result != FD2_SCENE_RESULT_HOST_QUIT)
         fprintf(stderr, "field attack validation stopped at: %s\n",
                 failed_stage);
     close_validation_replay(&replay);
@@ -1629,10 +1911,10 @@ done:
     return result;
 }
 
-static int present_field_events(fd2_field_game *game,
-                                fd2_vga *vga,
-                                const fd2_archive *fdother,
-                                fd2_field_audio *audio) {
+static int present_field_events_mode(fd2_field_game *game,
+                                     fd2_vga *vga,
+                                     const fd2_archive *fdother,
+                                     fd2_field_audio *audio, int fast) {
     if (!game || !vga || !fdother || game->failure != FD2_FIELD_FAILURE_NONE)
         return -1;
     for (size_t i = 0; i < game->event_log_count; i++) {
@@ -1640,7 +1922,7 @@ static int present_field_events(fd2_field_game *game,
         if (!notice->handled) return -1;
         if (!notice->presentation_deferred) continue;
         int result = fd2_scene_play_field_event(
-            vga, fdother, game, notice, audio, 0);
+            vga, fdother, game, notice, audio, fast);
         if (result == FD2_SCENE_RESULT_HOST_QUIT)
             return FD2_SCENE_RESULT_HOST_QUIT;
         if (result != 0)
@@ -1648,6 +1930,94 @@ static int present_field_events(fd2_field_game *game,
         notice->presentation_deferred = 0;
     }
     return 0;
+}
+
+static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
+                                const fd2_archive *fdother,
+                                fd2_field_audio *audio, int fast) {
+    if (!game || !vga || !fdother || game->failure != FD2_FIELD_FAILURE_NONE)
+        return FD2_SCENE_RESULT_ERROR;
+    field_progress_box box = {0};
+    int result = FD2_SCENE_RESULT_OK;
+    int played = 0;
+    for (;;) {
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FD2_SCENE_RESULT_HOST_QUIT;
+            break;
+        }
+        result = present_field_events_mode(game, vga, fdother, audio, fast);
+        if (result != FD2_SCENE_RESULT_OK) break;
+        int resumed = fd2_field_game_progress_resume(game);
+        if (resumed < 0) { result = FD2_SCENE_RESULT_ERROR; break; }
+        fd2_field_progress_notice notice;
+        int pending = fd2_field_game_progress_peek(game, &notice);
+        if (pending < 0) { result = FD2_SCENE_RESULT_ERROR; break; }
+        if (!pending) {
+            if (resumed > 0) continue;
+            if (box.page) result = FD2_SCENE_RESULT_ERROR;
+            break;
+        }
+        played = 1;
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FD2_SCENE_RESULT_HOST_QUIT;
+            break;
+        }
+        if (!box.page) {
+            if (notice.kind != FD2_FIELD_PROGRESS_GAIN && notice.kind != FD2_FIELD_PROGRESS_STATUS) {
+                result = FD2_SCENE_RESULT_ERROR;
+                break;
+            }
+            if (progress_resources_preflight(game, &notice, (void *)fdother) != 0) {
+                result = FD2_SCENE_RESULT_ERROR;
+                break;
+            }
+            if (notice.kind == FD2_FIELD_PROGRESS_GAIN) drain_frame_keys(vga);
+            fd2_field_game_render(game, vga);
+            result = progress_box_open(&box, game, vga, fdother, notice.actor_index, fast);
+            if (result != FD2_SCENE_RESULT_OK) break;
+        }
+        printf("field progress: kind=%d actor=%zu fragment=%u value=%u magic=%u\n",
+            (int)notice.kind, notice.actor_index, (unsigned)notice.fragment,
+            (unsigned)notice.value, (unsigned)notice.magic_id);
+        fflush(stdout);
+        if (notice.kind == FD2_FIELD_PROGRESS_CLOSE) {
+            result = progress_timed_wait(vga, notice.wait_ticks, fast);
+        } else {
+            if (notice.kind == FD2_FIELD_PROGRESS_LEVEL || notice.kind == FD2_FIELD_PROGRESS_GROWTH)
+                drain_frame_keys(vga);
+            if (notice.kind == FD2_FIELD_PROGRESS_GROWTH && box.row == 3) {
+                result = progress_scroll(vga, fast);
+                if (result != FD2_SCENE_RESULT_OK) break;
+                box.row = 2;
+            }
+            result = progress_text_play(&box, game, vga, fdother, audio, &notice, fast);
+            if (result != FD2_SCENE_RESULT_OK) break;
+            if (notice.kind == FD2_FIELD_PROGRESS_GAIN) progress_portrait(&box, vga, 0, 0);
+            if (notice.kind == FD2_FIELD_PROGRESS_STATUS)
+                result = progress_timed_wait(vga, notice.wait_ticks, fast);
+        }
+        if (result != FD2_SCENE_RESULT_OK) break;
+        if (notice.kind == FD2_FIELD_PROGRESS_STATUS || notice.kind == FD2_FIELD_PROGRESS_CLOSE) {
+            result = progress_box_transition(&box, vga, 0, fast);
+            if (result != FD2_SCENE_RESULT_OK) break;
+            memcpy(vga->framebuffer, box.background, VGA_W * VGA_H);
+            progress_box_free(&box);
+            fd2_field_game_render(game, vga);
+            if (!fast) fd2_vga_present(vga);
+        }
+        if (fd2_input_take_quit(&vga->input)) {
+            result = FD2_SCENE_RESULT_HOST_QUIT;
+            break;
+        }
+        if (fd2_field_game_progress_ack(game) != 0) {
+            result = FD2_SCENE_RESULT_ERROR;
+            break;
+        }
+        if (notice.kind == FD2_FIELD_PROGRESS_GROWTH) box.row++;
+    }
+    if (result == FD2_SCENE_RESULT_OK && played) drain_frame_keys(vga);
+    progress_box_free(&box);
+    return result;
 }
 
 static void report_field_events(const fd2_field_game *game,
@@ -1888,10 +2258,13 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
     apply_field_audio_options(&game, field_audio);
     if (once) {
 #define VALIDATE_STEP(name, expression) do { \
-        if ((expression) != 0) { \
-            fprintf(stderr, "field validation failed: %s\n", (name)); \
+        int validation_result = (expression); \
+        if (validation_result != 0) { \
+            if (validation_result != FD2_SCENE_RESULT_HOST_QUIT) \
+                fprintf(stderr, "field validation failed: %s\n", (name)); \
             fd2_field_game_close(&game); \
-            return FD2_FIELD_PLAY_RETURN_ERROR; \
+            return validation_result == FD2_SCENE_RESULT_HOST_QUIT \
+                ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR; \
         } \
     } while (0)
         VALIDATE_STEP("cursor", validate_cursor_controls(&game));
@@ -1901,12 +2274,17 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         VALIDATE_STEP("move-interaction", validate_move_interaction(&game, vga));
         VALIDATE_STEP("player-round", validate_player_round_flow(&game));
         VALIDATE_STEP("attack", validate_attack_flow(
-            &game, handoff == NULL && !load_active));
+            &game, handoff == NULL && !load_active, vga, fdother, field_audio));
         VALIDATE_STEP("turn", validate_turn_flow(&game, vga, fdother,
                                                    field_audio));
         VALIDATE_STEP("effect", validate_field_effects(
             &game, vga, field_audio));
 #undef VALIDATE_STEP
+    }
+    if (!once && fd2_field_game_set_progress_preflight(
+            &game, progress_resources_preflight, (void *)fdother) != 0) {
+        fd2_field_game_close(&game);
+        return FD2_FIELD_PLAY_RETURN_ERROR;
     }
 
     printf("field play: stage=%zu, map=%dx%d, units=%zu, camera=(%d,%d), "
@@ -1937,6 +2315,16 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             report_session_failure(&game);
             play_result = FD2_FIELD_PLAY_RETURN_ERROR;
             break;
+        }
+        if (!once) {
+            int progress_result = play_field_progress(&game, vga, fdother, field_audio, 0);
+            if (progress_result != FD2_SCENE_RESULT_OK) {
+                play_result = progress_result == FD2_SCENE_RESULT_HOST_QUIT
+                    ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
+                if (progress_result == FD2_SCENE_RESULT_ERROR)
+                    fprintf(stderr, "战场奖励、状态提示或必需演出失败。\n");
+                break;
+            }
         }
         int was_waiting_phase = game.player_post_waiting_phase;
         if (fd2_field_game_resume_player_controller(&game) < 0) {
@@ -1972,18 +2360,6 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
             fflush(stdout);
             reported_turn = game.turn_number;
             reported_side = game.active_side;
-        }
-        if (!once) {
-            int event_result = present_field_events(&game, vga, fdother,
-                                                    field_audio);
-            if (event_result == FD2_SCENE_RESULT_HOST_QUIT) {
-                play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-                running = 0;
-            } else if (event_result != 0) {
-                fprintf(stderr, "field event presentation failed\n");
-                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
-                running = 0;
-            }
         }
         report_field_events(&game, &reported_event_count,
                             &reported_dropped_events);
@@ -2219,10 +2595,13 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                     }
                     break;
                 case FD2_FIELD_ACTION_FOCUS_CYCLE:
-                    if (game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING ||
+                    if (game.interaction == FD2_FIELD_INTERACTION_TARGETING ||
+                        game.interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING ||
                         game.interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING ||
                         game.interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING) {
-                        int result = game.interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING
+                        int result = game.interaction == FD2_FIELD_INTERACTION_TARGETING
+                            ? fd2_field_game_cycle_attack_target(&game)
+                            : game.interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING
                             ? fd2_field_game_cycle_item_give_target(&game)
                             : game.interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING
                             ? fd2_field_game_cycle_item_target(&game)
@@ -2262,7 +2641,9 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                        unit_at);
                                 fflush(stdout);
                             }
-                            int detail_result = fd2_field_game_open_detail(
+                            int detail_result = fd2_field_game_begin_player_controller(
+                                    &game, (size_t)unit_at) != 0 ? -1 :
+                                fd2_field_game_open_detail(
                                     &game, (size_t)unit_at) != 0 ? -1 :
                                 fd2_field_game_animate_detail(&game, vga, 1,
                                     detail_phase_sfx, field_audio);
@@ -2647,7 +3028,9 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                fd2_field_game_remaining_units(&game, 2u),
                                (unsigned)game.active_side);
                     }
-                    if (game.last_attack_valid) {
+                    /* AI结果不属于本次玩家确认，不能用本帧HP计算其累计伤害。 */
+                    if (game.last_attack_valid &&
+                        previous_interaction == FD2_FIELD_INTERACTION_TARGETING) {
                         printf("field attack: target=%d strikes=%u hit=%u critical=%u base=%u rolled=%u damage=%u total=%u hp=%u defeated=%u hidden=%u\n",
                                game.attack_target,
                                (unsigned)game.last_attack_strikes,
@@ -2665,8 +3048,8 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
                                    ? (unsigned)fd2_field_unit_is_hidden(
                                          &game.units.items[game.attack_target])
                                    : 0u);
-                        game.last_attack_valid = 0;
                     }
+                    game.last_attack_valid = 0;
                     uint16_t terrain_id = fd2_field_cell_terrain(
                         fd2_field_map_cell(&game.map,
                                            game.cursor_cell_x,

@@ -37,6 +37,89 @@ def ida_provenance() -> str:
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x16559: [{
+        "target": "semantic_name", "was": "sub_16559",
+        "now": "dialog_portrait_frame_draw",
+        "why": "完整83B及15f84/164e8/16c57/1e292等xref：按DATO帧偏移重画立绘，"
+               "origin53C67等于36887时以VGA右端(87,115)反向画，否则在该origin正向画。"
+               "DATO0..135全部4帧80x80；4ec31先写再dec，普通页左界为8。"
+               "raw SHA 18ab5a72d38d7240d0cf5af6c966c259f235a8ed4293d1cd74f6c9618080eac1。",
+    }],
+    0x16C57: [{
+        "target": "semantic_name", "was": "sub_16C57",
+        "now": "dialog_wait_key",
+        "why": "完整461B与15f84/17aed/1b9de/1d51d等caller：读取一个BIOS键，"
+               "可选18/19箭头；每次入口一次RNG%30+2，按2 BIOS tick门更新"
+               "portrait0/3及重新取blink计时，并显式推进water DAC。"
+               "正式map非NULL的bottom箭头为(191,181)，无map另分支为143。"
+               "返回前读取并规范化扩展键；不猜测持久ABI。raw SHA "
+               "9ee45fd0d376c2f05cedeff838be5f13f7fcc8724000b152f1ad17f44c5b865e。",
+    }],
+    0x1956B: [{
+        "target": "semantic_name", "was": "sub_1956B",
+        "now": "field_bottom_notice_open",
+        "why": "完整352B及系统确认/1a866/1e292等caller：分配三个64000B缓冲，"
+               "保存初始VGA并拼310x86的bottom底板，载入DATO初帧reverse，"
+               "i5..0以1974c(13*i+112)滑入。不是奖励专用；128..132有特殊origin。"
+               "raw SHA e5b8b359f8371ce6513766b7d0badb2189dd8ea58af75a4e8abda637d0733026。",
+    }],
+    0x196CB: [{
+        "target": "semantic_name", "was": "sub_196CB",
+        "now": "field_bottom_notice_close",
+        "why": "完整129B与1956b配对caller：i1..5调用1974c滑出初始静态底板，"
+               "恢复打开前VGA、释放三缓冲并11cac(0)刷新；关闭不以当前文字页作源。"
+               "raw SHA 9ed5ae278e9018f35c52d1abc69d2f475dcfb56d1dfc09b7d6f5441276c766e5。",
+    }],
+    0x1974C: [{
+        "target": "semantic_name", "was": "sub_1974C",
+        "now": "field_bottom_notice_slide_draw",
+        "why": "完整153B及1956b/196cb和底部选择页caller：先复制53C5F初始背景，"
+               "再从源(5,112)逐行复制310像素到目标y，最多86行并裁到200，"
+               "交接完整VGA后走既有同步尾；不移动camera或修改actor。"
+               "raw SHA 86eee771d050f98da4a5a88143f434f340cc0e7e84c8a7f987c525527fb688c8。",
+    }],
+    0x1D79C: [{
+        "target": "semantic_name", "was": "sub_1D79C",
+        "now": "field_unit_magic_bit_set",
+        "why": "完整111B、1e292唯一caller及能力位图数据：按magicID/8选择"
+               "actor+1a起byte，并OR原1<<bit表；不校学习等级、不判重复已学。"
+               "学习条件及消息在caller，不把此函数当完整学习流程。"
+               "raw SHA d09104c23818299c04f1c1e5303b2b18db1c7d4ee6d5fd7172c575e6ed8fe54c。",
+    }],
+    0x1E529: [{
+        "target": "semantic_name", "was": "sub_1E529",
+        "now": "field_growth_stat_present_apply",
+        "why": "完整151B及1e292/2ac7d调用：1e548的EB0E跳过RNG块，"
+               "取growth pair第二byte到53AE1；零值不写不呈现，非零时必要先scroll，"
+               "显示带-3的成长消息后才WORD+=delta并递增行号。"
+               "raw SHA 9f5f76922f070cd37ea0d39c655f478c9d5ccd9de6a798695e74fbbc05e13f78。",
+    }],
+    0x1E5C0: [{
+        "target": "semantic_name", "was": "sub_1E5C0",
+        "now": "field_notice_wait_ticks",
+        "why": "完整81B、1a866参数10/1e292参数11：循环显式water DAC与input_check，"
+               "达到BIOS tick间隔、tick wrap或任意键即结束，最后清BIOS键队列。"
+               "本体不调用field RNG，不把可按键提前结束写成固定完整时长。"
+               "raw SHA e9edc6715a04c11222290f6108decd5f54409f1adc7f209963bd0a599ced8e4d。",
+    }],
+    0x4E7F2: [{
+        "target": "semantic_name", "was": "sub_4E7F2",
+        "now": "field_magic_learning_record_get",
+        "why": "完整23B getter返回object3 VA626b3+12*index，唯一caller1e292；"
+               "68条growth+10的非ff引用完整覆盖0..19，对应20x12B六对level/magicID。"
+               "完整240B strictLE==Domain SHA "
+               "839200667f837136d3426ab952e455b1a63b3bbba8b9175eb895d4408ddd6fb9；"
+               "getter无自己的索引门，不把已证引用集当原版一般校验。",
+    }],
+    0x4E821: [{
+        "target": "semantic_name", "was": "sub_4E821",
+        "now": "field_growth_record_get",
+        "why": "完整23B getter返回object3 VA620a1+11*index，"
+               "由10c50/112a5/1e292/2ac7d读五对成长及学习selector。"
+               "下一独立getter4e809指向6238d，完整68x11B strictLE==Domain SHA "
+               "75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5。"
+               "getter无内部边界，不把SDL玩家构造范围等同该静态读集。",
+    }],
     0x17D6F: [{
         "target": "semantic_name", "was": "sub_17D6F",
         "now": "field_stat_bar_columns_draw",
@@ -130,6 +213,14 @@ CORRECTIONS: dict[int, list[dict]] = {
         "why": "完整199B SHA 2bfd114f863e4e0f16eea866cdd8e699c925e78c1ebf8c131defd539a791778d，"
                "已发布调用者及raw写集；28000组profile/HP/spread逻辑组合检查既有效果与上界。"
                "该组合检查不是局部机器码执行或原版治疗运行。",
+    }, {
+        "target": "evidence", "was": "恢复实际差一定非负，贡献可等到完整effect返回后再加",
+        "now": "先提交HP，再把signed(newHP-oldHP)*40*weightedLV/maxHP加到DWORD53EC8。"
+               "oldHP>maxHP时cap可产生负差，ADD按32位回绕而非夹0。MP恢复1c9dd"
+               "在写MP后复用1c9c7的signed除法/ADD尾，ID<75才计算且不作profile加30。",
+        "why": "Domain原字节1c990..1c9cf和1ca58..1ca84；有状态cure的heal贡献"
+               "先于clear/额外贡献，负状态damage贡献更先于duration RNG。"
+               "恢复helper自身不归一或写caster EX；异常除零/未知数据支持门另列。",
     }],
     0x4E84F: [{
         "target": "semantic_name", "was": "sub_4E84F",
@@ -146,14 +237,24 @@ CORRECTIONS: dict[int, list[dict]] = {
                "bc304be826fe3ff0ff129155da846126350852c9b67c6b08a2d7c2d103cc99df。",
     }],
     0x1E292: [{
+        "target": "semantic_name", "was": "sub_1E292",
+        "now": "field_unit_experience_reward_execute",
+        "why": "完整663B及117e7/1548e的xref：检查raw贡献/hidden/等值levelcap，"
+               "显示488后逐级执行LEVEL、五成长、六pair学习和重算，"
+               "最终wait11/关闭后才写EX并清53EC8。入口早退保留raw；"
+               "level先于489，成长WORD在其-3 ACK后写，学习bit先于587。"
+               "普通40仅入口等值门，循环只在新30或特殊ID30/31新99清余值；"
+               "raw SHA 5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b。",
+    }, {
         "target": "evidence", "was": "未升级动作可省略EX或用WAIT收尾代替",
-        "now": "gain非零、caster未hidden且不在等值levelcap时，EX+gain<100分支只写+3c，"
-               "不成长／重算／学习。18d8c先按level+(profile>8?30:0)归一，controller"
-               "再cap99；升级分支仍待B4，SDL在MP/RNG前以全目标上界拒绝可能升级。",
+        "now": "gain非零、actor未hidden且不在等值levelcap时执行奖励；EX+gain<100"
+               "不成长，完成488及自动等待/关闭后才写+3c并清全局。玩家18d8c先"
+               "按level+(profile>8?30:0)归一，117e7再cap99；AI1548e不作cap99。"
+               "B4已静态复核完整逐级/成长/学习顺序，不把原B2的非升级支持门当原版门。",
         "why": "已发布1e292及117e7/18d8c，完整663B SHA "
                "5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；"
-               "levelcap为ID30/31等于99、其它等于40，不扩为>=。这里只登记已确认分支，"
-               "不命名整个成长流程或声称488提示／FIGANI／额外呈现RNG已验收。",
+               "levelcap为ID30/31等于99、其它等于40，不扩为>=。"
+               "完整Domain与原字节/xref确认语义，原版提示/等待RNG运行验收另登记。",
     }],
     0x17AED: [{
         "target": "semantic_name", "was": "sub_17AED",
@@ -182,6 +283,47 @@ CORRECTIONS: dict[int, list[dict]] = {
                "HP写入1a8d0/必聚焦1a8df/扫描后清理1a941；归零聚焦1a9aa..1a9b0，"
                "重算1aa10。镜头是死亡方向清理的前置读集，漏写可持久化错误方向；"
                "此为逻辑顺序核验，提示、演出及其附加等待/RNG未作动态对照。",
+    }, {
+        "target": "evidence", "was": "状态消息可在整批HP/计时/属性写入后补播",
+        "now": "每名中毒actor先HP写入和focus，再bottom notice487，clear键、"
+               "wait10、关闭；全部毒后才死亡清理及stage handler。每个+22..27"
+               "归零后focus→481..486→clear/wait10/close→立即1b750，再处理下一byte。"
+               "487的-2只换行、-6读53AE1毒伤，七个片段均无-3；自动等待无blink RNG。",
+        "why": "完整439B Domain/strictLE字节相等；消息调用696099对应(99,127)，"
+               "1956b/196cb及1e5c0(10)和FDTXT0的481..487完整token相互支持。"
+               "逐字164e8可留下portrait0/1/2，不能套16c57等待页的0/3。",
+    }],
+    0x1ECC7: [{
+        "target": "evidence", "was": "物理经验可把每击贡献相加或按实际HP差统一归一",
+        "now": "仅attacker.side2且defenderID>=68写53EC8，以MOV覆盖而非累加。"
+               "先enemyLV*coef除有效attackerLV；若最终HP非零再rawDamage*base除maxHP。"
+               "profile9..24或textID28将u8等级副本加30，注意不是unitID28；"
+               "maxHP等战斗WORD均movzx。乘法为32位imul后signed idiv，不能悄改u64公式。",
+        "why": "完整899B及1e856唯一caller；1ed20、1efd2..1f03c逐指令，"
+               "2f7b6的2fa4d..2fab9采用同两次截断/MOV规则。miss时存活者贡献0，"
+               "其它side/ID门不写而保留旧全局；完整FIGANI与无演出RNG轨迹仍分开。",
+    }],
+    0x1B750: [{
+        "target": "evidence", "was": "AP/DP状态倍率1.15使用x87 nearest-even取整",
+        "now": "仅AP/DP在装备累加后乘原binary64倍率1.15；原__CHP临时设置RC向0，"
+               "故先PC53乘法舍入，再向0截断。10→11、12→13、20→23，"
+               "100→114、-100→-114，不能替换为整数115*v/100。AC/EV不乘倍率，"
+               "+24状态只使两者各加15。",
+        "why": "完整237B/xref与原指令VA1b7ef..1b802、1b80a..1b81d及"
+               "__CHP37af4；启动CW127f，倍率原字节666666666666f23f。"
+               "verify_fd2_x87_stat_scale.py复用原块/原__CHP，无patch或hook，"
+               "两块各穷举-65536..65535共131072输入，等于强制binary64中间值再向0cast；"
+               "每块向量SHA 55dafb59f3c3576c68a43d3f241cc735c5160a4b3eb48e362fb54315d0ea32c2。"
+               "这是局部机器码与C模型复核，不代表原版运行或全演出时序验收。",
+    }],
+    0x1548E: [{
+        "target": "evidence", "was": "AI物理尾只奖励仍存活的玩家反击者且先清贡献",
+        "now": "exchange后方向reset→败亡描述符→刷新→死亡清理→掉落→刷新，"
+               "随后无额外HP门调用1e292给原防御者。caller不清53EC8、不作99cap；"
+               "1e292入口hidden/等值level门可早退，早退不消费残留全局。",
+        "why": "完整496B、13a9f/14ef0两caller及15627..1566a指令；53EC8完整xref"
+               "无1548e/1e856/13a9f/14ef0初始化。Load10010/secondary19df7/END1a30b"
+               "亦无清零写，不能从后来118ee/18dc4选择门推出Load必已清贡献。",
     }],
     0x1B8A6: [{
         "target": "evidence", "was": "AI私有重复库存计数，未共享完整raw槽语义",
@@ -384,6 +526,17 @@ CORRECTIONS: dict[int, list[dict]] = {
                "51d01的0..27 relocation表、21227/21b18/226ea等wrapper与"
                "30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；"
                "不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。",
+    }, {
+        "target": "evidence", "was": "20/21仅清状态无RNG，状态贡献可以动作末统一累计",
+        "now": "20/21的22af6仅在状态非零时先1c916(target,10)耗一次spread RNG并"
+               "写HP/累heal贡献，再清状态并加4*weightedLV。17/18/19首次buff加"
+               "2*weightedLV；25只在acted真时清位并加8*weightedLV。22/26/27"
+               "命中先1c81f写HP/累damage贡献，再duration RNG、写状态、加8*原LV。"
+               "23在扣费后、迁移前加10*weightedLV。AI尾1546a及item21046仍清全局。",
+        "why": "完整51d01表及22721/22866/22997/22af6/22c04/22d1b原始写xref；"
+               "weightedLV仅target profile9..24加30。22dd6..22e0b锁duration RNG前"
+               "已有damage贡献，不能只在整个effect后补写。buff增量仍沿本轮x87"
+               "127f/PC53和u16全域局部执行证明的floor((old*15+100)/100)，非RNE结果。",
     }],
     0x1CA89: [{
         "target": "evidence",

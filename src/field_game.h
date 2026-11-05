@@ -19,6 +19,7 @@
 #include "field_magic.h"
 #include "field_path.h"
 #include "field_unit.h"
+#include "field_unit_base.h"
 #include "field_visual.h"
 #include "font.h"
 #include "map_sprite.h"
@@ -113,13 +114,68 @@ typedef enum {
     FD2_FIELD_DETAIL_MAGIC
 } fd2_field_detail_page;
 
+typedef struct fd2_field_game fd2_field_game;
+
+/* field_unit_experience_reward_execute @0x1e292（原sub_1E292）与
+ * field_phase_status_tick @0x1a866（原登记同名）
+ * 的B4单份进展续态，不是通用事件队列；NONE为零初始化。 */
+typedef enum {
+    FD2_FIELD_PROGRESS_NONE = 0,
+    FD2_FIELD_PROGRESS_GAIN,
+    FD2_FIELD_PROGRESS_LEVEL,
+    FD2_FIELD_PROGRESS_GROWTH,
+    FD2_FIELD_PROGRESS_LEARN,
+    FD2_FIELD_PROGRESS_CLOSE,
+    FD2_FIELD_PROGRESS_STATUS
+} fd2_field_progress_kind;
+
+typedef struct {
+    fd2_field_progress_kind kind;
+    size_t actor_index;
+    uint16_t fragment; /* 488/489/490..494/587；STATUS为481..487。 */
+    uint32_t value;    /* gain、下一等级、成长delta或毒伤；其他0。 */
+    uint8_t magic_id;  /* LEARN使用；其他0。 */
+    uint8_t wait_ticks; /* CLOSE=11、STATUS=10，其余由文本token决定。 */
+} fd2_field_progress_notice;
+
+/* 正式play注册必需资源预检；无present/键消费/RNG/业务写入。
+ * core在首动作RNG前枚举可能奖励路径，状态批次亦在写入前枚举。
+ * 返回0资源已验证，非0拒绝。未注册的纯core只验证逻辑数据，不宣称UI资源验收。 */
+typedef int (*fd2_field_progress_preflight_fn)(
+    const fd2_field_game *game, const fd2_field_progress_notice *notice,
+    void *userdata);
+
+typedef enum {
+    FD2_FIELD_PROGRESS_RESUME_NONE = 0,
+    FD2_FIELD_PROGRESS_RESUME_PLAYER,
+    FD2_FIELD_PROGRESS_RESUME_AI_DIRECT,
+    FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER,
+    FD2_FIELD_PROGRESS_RESUME_PHASE
+} fd2_field_progress_resume;
+
+typedef struct {
+    fd2_field_progress_notice notice;
+    uint32_t total;
+    fd2_field_unit_level_growth level;
+    uint8_t growth_cursor;
+    uint8_t learn_cursor;
+    fd2_field_progress_resume resume;
+    size_t resume_actor;
+    uint8_t ai_common_tail;
+    /* STATUS逐raw毒伤→finalize→逐raw/byte计时；不整批提前改写。 */
+    uint8_t status_side;
+    uint8_t status_pass;
+    uint8_t status_byte;
+    size_t status_cursor;
+} fd2_field_progress;
+
 /* 正式战场 session。
  *
  * 集中管理 stage 资源、单位、镜头、移动查询及后续交互状态。单位记录
  * 本身使用 fd2_field_unit 的原版 0x50 字节布局；移动 profile 与预算已
  * 确认，职业和其他战斗属性仍保留原始字节，不在 session 层猜测解释。
  */
-typedef struct {
+struct fd2_field_game {
     fd2_archive field_archive;
     fd2_archive fdshap_archive;
     fd2_archive dato_archive;
@@ -200,7 +256,7 @@ typedef struct {
     int item_give_selected;
     uint8_t item_transfer_committed;
     /* field_cell_selection_execute @0x115b6 的本次target局部轮询，
-     * MAGIC/ITEM_TARGETING互斥借用候选buffer；id只归MAGIC。
+     * 物理/MAGIC/ITEM_TARGETING互斥借用候选buffer；id只归MAGIC。
      * 不复用browse的focus_cycle_unit，不写SAV。 */
     uint8_t magic_target_id;
     uint8_t magic_target_candidates[FD2_FIELD_MAX_UNITS];
@@ -271,7 +327,31 @@ typedef struct {
      * 成功active Load清除，失败Load保留；均不写入SAV。 */
     size_t player_post_actor;
     uint8_t player_post_waiting_phase;
-} fd2_field_game;
+    /* 原53EC8只在已证调用点清/写；不进SAV，成功Load/END保留它。 */
+    uint32_t experience_value;
+    fd2_field_progress progress;
+    fd2_field_progress_preflight_fn progress_preflight;
+    void *progress_preflight_userdata;
+};
+
+/* 0成功/-1拒绝；注册只读资源校验，不变更当前贡献或进展。 */
+int fd2_field_game_set_progress_preflight(fd2_field_game *game,
+    fd2_field_progress_preflight_fn preflight, void *userdata);
+/* peek=1有当前notice、0无、-1数据错误；不改变单位/RNG/输出失败值。
+ * ack=0消费当前notice；可能产生下一notice或续原controller/AI/phase。
+ * GROWTH ack之后才加WORD；LEARN notice之前已OR位；CLOSE仅在宿主
+ * 等11tick并关闭后ack，届时才写EX/清53EC8。STATUS宿主等10tick/关闭后ack。
+ * 主循环必须先呈现已有turn事件，再处理progress，pending时不调度/读普通动作。 */
+int fd2_field_game_progress_peek(const fd2_field_game *game,
+    fd2_field_progress_notice *notice);
+int fd2_field_game_progress_ack(fd2_field_game *game);
+/* turn演出成功清deferred后调用，才开始本phase的状态写；1忙/0无/-1错。
+ * 等待turn时peek为0但progress.resume=PHASE，仍不能调度或保存。 */
+int fd2_field_game_progress_resume(fd2_field_game *game);
+/* controller117e7选到可见actor时清53EC8；Enter详情调用，F2不调用。
+ * 普通行动confirm_cursor会自行调用；不得给Load/END补造清零。 */
+int fd2_field_game_begin_player_controller(fd2_field_game *game,
+    size_t actor_index);
 
 /* 当前只允许打开已验证初始 roster 的 stage 0。资源容器和渲染接口按
  * 通用 stage session 组织，后续确认其他关卡初始化后可直接扩展。 */
@@ -362,6 +442,8 @@ int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
                                           size_t target_index);
 int fd2_field_game_attack_is_available(const fd2_field_game *game);
 int fd2_field_game_begin_attack(fd2_field_game *game);
+/* 115b6的Z/小键盘5按raw候选回绕；121占槽但不移动焦点，不消费RNG。 */
+int fd2_field_game_cycle_attack_target(fd2_field_game *game);
 int fd2_field_game_resolve_attack(fd2_field_game *game);
 int fd2_field_game_cancel_attack(fd2_field_game *game);
 

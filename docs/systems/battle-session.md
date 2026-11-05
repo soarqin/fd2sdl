@@ -65,7 +65,7 @@
 
 在现有交互状态中区分列表选择、施法中心／目标确认和返回路径，不将攻击专用 `TARGETING` 未加区分地用于全部命令。列表可用性取自原版玩家入口，已确认范围和 effect helper 可复用。
 
-列表状态已接入：MAGIC_LIST保存临时索引，step不负责关闭，取消关闭后才回COMMAND。原版18890对非零路径禁法，只有unit ID18／19／34例外；此门与空法术、record+0x27禁止状态共同检查。低MP只阻止当前项确认。正式入口限stage0、全列表为0（caster unit9已有费用标记证据）／13，并要求共享RNG可用；未知列表项不开放，不从AI支持表推断玩家全能力。
+列表状态已接入：MAGIC_LIST保存临时索引，step不负责关闭，取消关闭后才回COMMAND。原版18890对非零路径禁法，只有unit ID18／19／34例外；此门与空法术、record+0x27禁止状态共同检查。低MP只阻止当前项确认。正式入口限stage0并要求共享RNG、至少一个可提交的0（caster unit9已有费用标记证据）／13；其他已知ID可显示／导航，但逐项确认仍拒绝未实现效果，不能因新学17就禁用原有0／13。未知位36..39及超出现有12项可见布局仍拒绝，不从AI支持表推断玩家全能力。
 
 物品B3的已确认返回合同独立于MAGIC：Use列表取消使1bbdc返回0，18d8c重开ITEM子菜单；子菜单取消使1bbdc返回-1、18d8c返回0，再由18890重开COMMAND。Use目标取消先聚焦caster，再重开1b932列表并归0选项，保留临时移动及pending。53C53仅由Give完成分支置1，不能把它当作所有库存改变标志；装备／丢弃已提交变化也不能因为该值0而回滚。
 
@@ -87,9 +87,29 @@ Give 用独立目标与收方列表层。相邻友军使该格可选，确认后
 
 私有 modal 独占列表确认键；退出、资源错误和完整关页在不可逆提交前检查，caller 耗尽当前帧普通输入以免重复确认。Equip 留页复用同一 portrait／page owner，成功重画后继续原索引，不兼容保留当前眨眼画面。提交后重绘失败保留业务结果并冻结，不重试。实现与逻辑测试不等于原版运行验收；各冻结候选的双端 WGC、SAV 和精确随机范围见[阶段记录](../plans/stage-log.md)。
 
-MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
+普通物理目标同样复用14818／115b6的互斥范围和raw候选owner：按武器min／max与filter0建立范围，首次聚焦首raw，Z／小键盘5先递增再取槽；121占槽而不移动焦点。取消先回actor，再清候选／范围并重开COMMAND，成功尾同样清cache。候选不额外滤HP0／acted，提交仍沿独立物理有效门重验。移动预算0可保留原点，不得在game wrapper整体拒绝而令AI错过原地攻击。
+
+MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、B4成长及必需消息资源和必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、奖励续态、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI与完整附加呈现随机流仍归B6，B4消息的本阶段运行对照另登记。
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。
+
+### 奖励与状态续态（B4）
+
+`experience_value` 对应原全局53EC8，与单位EX、消息动态数字53AE1分别处理。物理每击按原门覆盖该值；法术／物品共享效果在HP／MP写入后立即累加，负状态的伤害贡献必须先于后续duration RNG。恢复贡献以signed实际差计算，old超过max再cap产生的负差按DWORD回绕，不能夹成0。玩家controller先cap99，AI物理尾没有该cap；AI法术和物品在原尾清零，不能移到首效果前。活动Load不清贡献，也不将其写入SAV。
+
+`field_unit_experience_reward_execute @0x1e292` 无side门。贡献0、hidden或精确等级cap（ID30／31等于99、其他等于40）早退并保留全局。成长支持已有ID0..67记录，不套创建器0..31门；未知成长数据或不安全的signed运算在提交前拒绝。普通40仅为入口门，循环只在新等级30或特殊ID新99清余值，不能另加每级>=40门。
+
+game保存一个有界续态，play只持有背景／空底板／四帧立绘。LEVEL前先写level；每个非零成长量先提示／ACK，返回后才写WORD；学习先OR位，再显示587。每级末重算，最终自动等待和关闭后才写EX、清全局。最大HP／MP增长不改当前值。资源预检可用80字节纯副本，不能提前交接最终单位或消费RNG。
+
+中毒按raw actor先扣 `maxHP/10`、聚焦、显示487；全部毒伤后才死亡清理。六状态byte逐项递减，恰归零就聚焦→481..486→等待／关闭→重算，再处理下一byte。失败或宿主退出不ACK后续写点；保留已提交HP、计时、成长及外部RNG，不假回滚。入口quit先于core resume，scroll／开合中途quit停止并释放缓冲。
+
+成长固定取pair第二byte，无成长RNG。489／490..494的-3以任意键ACK，488／587和481..487无-3，487的-2只换行。`dialog_wait_key @0x16c57` 每次入口与眨眼复位耗共享RNG；`field_notice_wait_ticks @0x1e5c0` 自身不耗该RNG。宿主55／110ms门是BIOS时钟适配，跨框嘴型相位、完整音画／随机流仍未声明一致。
+
+本阶段六组实际WGC来源为C4四组＋C5两组，消息资源、详情和完整Save／WAIT／Load／Save均通过；不是最新程序重新跑六组。SDL回合编号横幅未图形对齐，使用有序phase日志与后续真实WGC／完整SAV核验，不把日志当横幅像素；完整FIGANI、跨框嘴型相位和共享RNG等价仍不声明。最终C6仅修AI结果误用玩家HP前值的printf下溢诊断，业务、RNG和呈现不变，无新GUI。
+
+大阶段输入复审另保留两项既存风险：非ITEM的COMMAND关闭动画返回值仍有被忽略的调用，动画期间宿主quit可能先执行WAIT再退出；历史首次END确认落到NO的原因仍未定位。B4新提示的入口／scroll quit已单独处理，不把本阶段定向运行当作这两项已修或全历史输入回归。
+
+AP／DP重算使用binary64 1.15乘积先53位舍入再向0截断，推翻旧nearest-even说明，不能换成整数115/100。直接增益 `old + floor((15*old+100)/100)` 是另一条已证u16公式；AC／EV状态只各加15，不乘1.15。局部原码复现见[IDA工具说明](../tools/ida.md)。
 
 ## 3. 事件执行与停止边界（B0）
 
@@ -111,7 +131,7 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 玩家完整路径后进入COMMAND，成功动作先acted再最终lookup；普通command取消回滚并重入移动选择、清pending，下级目标取消或无效确认保留pending。selection取消不acted／不lookup1，仍经过controller后置。零步WAIT恢复HP，非零路径WAIT不恢复；特殊cell-action尚未支持时在WAIT恢复／acted前明确冻结，不能当普通pending处理或报告成功。
 
-当前controller恢复stage0结果门、精确13565门、必要整轮phase后的pending分派与清空；B4经验尚未扩展。13565只看flags&0x81、side2和raw26，不加HP或bit04门。异步phase期间仅保存原actor与等待标志，不保存pending副本；AI仍可清空／覆盖同一slot，raw尾必须扫描完才换phase。side1尾先全表清acted，再进入phase0事件／状态，删除旧延迟清除补偿。Enter的普通不可操作actor详情关闭后走同一后置，F2直接返回。
+当前controller先完成B4奖励续态，再恢复stage0结果门、精确13565门、必要整轮phase后的pending分派与清空。13565只看flags&0x81、side2和raw26，不加HP或bit04门。异步phase期间仅保存原actor与等待标志，不保存pending副本；AI仍可清空／覆盖同一slot，raw尾必须扫描完才换phase。side1尾先全表清acted，再进入phase0事件／状态，删除旧延迟清除补偿。Enter的普通不可操作actor详情关闭后走同一后置，F2直接返回。
 
 controller完成时由play owner耗尽当前帧普通键，保留held／repeat；core不接input。等待phase时拒绝导出／保存，成功活动Load清除续行与pending，失败恢复保留完整原状态。此处恢复的是已确认控制顺序；未实现的cell handler、特殊格、物品已交接取消例外及跨地图镜头仍单独登记。
 
@@ -160,7 +180,7 @@ runtime `FD2_FIELD_MAX_UNITS` 当前为 64。**64／96／32 是三种不同边�
 
 session 持有完整 `0xa00` raw roster，包括未用尾；活动与手工保存均写出这整张表。加载 A 后保存到 B 或新文件时，roster 尾来自 A，metadata 未用尾仍由目标容器保留。这两个保留规则不能混为一条。
 
-水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。当前接普通战场等待、总览稳定等待和共享路径步态，剧情／通用对话／独立 timed wait 尚未全接，不能称全部 caller 已完成。
+水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。当前接普通战场等待、总览稳定等待、共享路径步态和B4奖励／状态的按键及自动等待；剧情／其余通用对话尚未全接，不能称全部caller已完成。
 
 F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain，不替换 session cache。开7帧、关6帧；中间只更新阵营／焦点标记，不推进 game tick、RNG 或水色。关闭后正常重绘前显式恢复一次水色更新，长停留不追赶。普通键只关闭页面，不改焦点或继续处理当前帧动作；保留 held／repeat，宿主退出优先。这是 SDL 当前帧适配，不宣称复制 BIOS FIFO 或原版末尾额外清队。
 
@@ -175,6 +195,7 @@ F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain�
 - 同关卡恢复复用现有事务导入。跨关卡恢复先准备独立候选 session，验证成功后再切换资源、调色板、音频及 owner；不能因资源准备失败留下半个新关卡。
 - 活动快照没有独立的 active-side 或 RNG checkpoint；原版恢复回玩家控制器边界，SDL 应清理 phase cursor、路径、菜单、演出和计时，按已确认入口处理随机流。不新增未知字段来追求读档后 RNG 序列相同。
 - 成功活动 Load 把焦点轮询起点重置为0，失败保持旧 owner；该值不从 SAV 读取。普通可见 actor 必须在当前 FDICON bank 中容纳完整12帧组，不能只验证当前idle帧，也不能套用F1的unit121／race10参与者过滤。hidden未知ID继续保留；这不等于原版畸形hidden记录也安全。
+- 成功恢复清奖励／状态续态，但保留不属于SAV的全局经验贡献；失败保持原owner。奖励、状态、phase或详情忙态拒绝保存，不能把中间写点导出成正常边界。
 - 恢复不能把存档单位再次经过新建构造器重置 HP/MP、装备或等级，也不能再次播放已完成的增援事件。未知 meta、未使用单位尾部及未拥有的 cell-state 字节继续保留。
 - `FD2.TMP` cache class 不是职业。SDL 用稳定 unit ID／FDICON 重建运行期缓存；磁盘 TMP 互操作是否属于发布交付另行确认。
 - 写回继续使用同目录独占临时文件与受检替换；失败不破坏原档。临时文件唯一不等于多进程更新锁，目前不宣称多个游戏进程并发写档安全。

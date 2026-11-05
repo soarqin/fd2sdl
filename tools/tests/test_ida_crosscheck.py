@@ -113,6 +113,19 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
         import verify_fd2_x87_boost as x87
         with self.assertRaisesRegex(ValueError, "SHA256"):
             x87.verify(b"not the FD2 image")
+        import verify_fd2_x87_stat_scale as stat_scale
+        with self.assertRaisesRegex(ValueError, "SHA256"):
+            stat_scale.verify(b"not the FD2 image")
+
+    def test_stat_scale_evidence_keeps_binary64_truncation_counterexample(self):
+        import build_fd2_name_registry as registry
+        correction = next(row for row in registry.CORRECTIONS[0x1b750]
+                          if row["target"] == "evidence")
+        self.assertIn("PC53", correction["now"])
+        self.assertIn("向0", correction["now"])
+        self.assertIn("100→114", correction["now"])
+        self.assertIn("不能替换为整数", correction["now"])
+        self.assertIn("131072", correction["why"])
 
     def test_semantic_corrections_match_actual_ida_names(self):
         import csv

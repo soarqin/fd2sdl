@@ -119,6 +119,30 @@ class EndRoundEvidenceTest(unittest.TestCase):
 
 
 class RoundResourceTest(unittest.TestCase):
+    def test_acted_save_disabled_requires_complete41_and_cannot_be_selected(self):
+        assets = end.round_assets((Path(__file__).resolve().parents[2] / "original_game").resolve())
+        oracle = end.RoundOracle(assets, (28, 76))
+        def frame(selected, save_frame):
+            image = Image.new("RGB", (320, 200))
+            for item, index in enumerate((37 if selected == 0 else 36, save_frame, 43 if selected == 2 else 42, 45)):
+                at = tuple(a + b for a, b in zip(oracle.focus, end.MENU_OFFSETS[item]))
+                image.paste(assets["commands"][index].convert("RGB"), at)
+            return image
+        for selected in (0, 2):
+            actual = frame(selected, 41)
+            detail = oracle.secondary(actual, selected, save_available=False)
+            self.assertEqual(detail["matches"][1]["checked_pixels"], 476)
+            self.assertEqual(detail["matches"][1]["bad_pixels"], 0)
+            self.assertIsNone(oracle.secondary(actual, selected))
+            self.assertIsNone(oracle.secondary(frame(selected, 39), selected, save_available=False))
+            self.assertIsNotNone(oracle.secondary(frame(selected, 39), selected))
+            bad = actual.copy()
+            px, py = next((x, y) for y in range(20) for x in range(24) if assets["commands"][41].getpixel((x, y)))
+            at = (4 + px, 78 + py)
+            bad.putpixel(at, tuple((channel + 128) % 256 for channel in bad.getpixel(at)))
+            self.assertIsNone(oracle.secondary(bad, selected, save_available=False))
+        self.assertIsNone(oracle.secondary(frame(0, 41), 1, save_available=False))
+
     def test_browse_waits_for_automatic_dialog_border_to_disappear(self):
         palette = [value for value in range(256) for _ in range(3)]
         cursor = Image.new("P", (24, 24), 200)

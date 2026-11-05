@@ -1,8 +1,8 @@
-/* 共享HP恢复、基础法术的单目标结果／非升级经验回归，不开窗口。
+/* 共享HP恢复、基础法术结果／共享贡献回归，不开窗口。
  * 依据sub_1C81F @0x1c81f、sub_1C916 @0x1c916、sub_1E292 @0x1e292
  * （原登记同名），以及18d8c归一／117e7 cap99。
  * 原版enemy表VA0x61af9由既有strict LE loader提取后逐条核对既有9字节。
- * 本测试只锁已确认0/13和EX<100，不声明完整B4或FIGANI时序。 */
+ * 本测试锁效果贡献与caster归一；升级分段由game专用回归，不声明FIGANI时序。 */
 #include <stdio.h>
 #include <string.h>
 #include "field_magic.h"
@@ -179,49 +179,27 @@ static int test_heal_weights_and_full_hp(void) {
 }
 static int test_caster_normalization_caps_and_errors(void) {
     const uint8_t profiles[] = {8,9,24,25};
-    const uint8_t gains[] = {25,1,1,1};
+    const uint32_t gains[] = {25,1,1,1};
     for (size_t i = 0; i < sizeof(profiles); i++) {
         fd2_field_unit caster = unit(9, profiles[i], 2, 50, 50);
+        caster.flags = 1; caster.experience = 99; /* 不把1e292门混入18d8c除法。 */
         fd2_field_unit before = caster;
-        uint8_t gain = 0xa5;
-        CHECK(fd2_field_magic_basic_reward_gain(&caster, 50, &gain) == 0 && gain == gains[i]);
+        uint32_t gain = 0xa5;
+        CHECK(fd2_field_magic_reward_normalize(&caster, 50, &gain) == 0 && gain == gains[i]);
         CHECK(memcmp(&caster, &before, sizeof(caster)) == 0);
     }
-    const struct { uint8_t id, level, profile, experience, flags, gain; } cases[] = {
-        {9,40,5,255,0,0}, {30,99,25,255,0,0}, {31,99,25,255,0,0},
-        {9,41,5,0,0,24}, /* native只检查等于cap，不扩成>=。 */
-        {30,40,25,0,0,14},
-        {9,1,5,255,FD2_FIELD_UNIT_FLAG_HIDDEN,0},
-        {9,1,5,0,0,99}
-    };
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        fd2_field_unit caster = unit(cases[i].id, cases[i].profile, cases[i].level, 50, 50);
-        caster.flags = cases[i].flags;
-        caster.experience = cases[i].experience;
-        uint8_t gain = 0xa5;
-        CHECK(fd2_field_magic_basic_reward_gain(&caster, 1000, &gain) == 0 && gain == cases[i].gain);
-    }
     fd2_field_unit caster = unit(9, 5, 3, 50, 50);
-    uint8_t gain = 0xa5;
-    caster.experience = 96;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, 10, &gain) == 0 && gain == 3);
-    caster.experience = 97;
+    uint32_t gain = 0xa5;
+    CHECK(fd2_field_magic_reward_normalize(&caster, 1000, &gain) == 0 && gain == 333);
+    CHECK(fd2_field_magic_reward_normalize(&caster, 10, &gain) == 0 && gain == 3);
     gain = 0xa5;
-    fd2_field_unit before = caster;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, 10, &gain) == -1 && gain == 0xa5);
-    CHECK(memcmp(&caster, &before, sizeof(caster)) == 0);
-    caster.experience = 0;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, UINT32_MAX, &gain) == 0 && gain == 99);
-    gain = 0xa5;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, (uint64_t)UINT32_MAX + 1u, &gain) == -1);
-    CHECK(gain == 0xa5);
-    CHECK(fd2_field_magic_basic_reward_gain(NULL, 0, &gain) == -1 && gain == 0xa5);
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, 0, NULL) == -1);
+    CHECK(fd2_field_magic_reward_normalize(&caster, UINT32_MAX, &gain) == -1 && gain == 0xa5);
+    CHECK(fd2_field_magic_reward_normalize(NULL, 0, &gain) == -1 && gain == 0xa5);
+    CHECK(fd2_field_magic_reward_normalize(&caster, 0, NULL) == -1);
     caster.level = 0;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, 0, &gain) == -1 && gain == 0xa5);
-    caster.level = 3;
-    caster.experience = 100;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, 0, &gain) == -1 && gain == 0xa5);
+    CHECK(fd2_field_magic_reward_normalize(&caster, 0, &gain) == -1 && gain == 0xa5);
+    caster.movement_profile = 25;
+    CHECK(fd2_field_magic_reward_normalize(&caster, 60, &gain) == 0 && gain == 2);
     return 0;
 }
 static int test_maximum_query_matches_effect_and_existing_rng(void) {
@@ -266,17 +244,10 @@ static int test_multi_target_preflight_and_no_upgrade_rng(void) {
         CHECK(fd2_field_magic_basic_reward_max(0, &targets[i], &maximum) == 0 && maximum == 5);
         raw_maximum += maximum;
     }
-    uint8_t gain = 0xa5;
+    uint32_t gain = 0xa5;
     caster.experience = 97;
-    fd2_field_unit before = caster;
-    fd2_field_unit targets_before[2];
-    memcpy(targets_before, targets, sizeof(targets));
+    CHECK(fd2_field_magic_reward_normalize(&caster, raw_maximum, &gain) == 0 && gain == 3);
     test_rng rng = {{0,0},0,NULL,0,0,0};
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, raw_maximum, &gain) == -1);
-    CHECK(gain == 0xa5 && rng.calls == 0 && memcmp(&caster, &before, sizeof(caster)) == 0);
-    CHECK(memcmp(targets, targets_before, sizeof(targets)) == 0);
-    caster.experience = 96;
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, raw_maximum, &gain) == 0 && gain == 3);
     uint64_t raw_actual = 0;
     for (size_t i = 0; i < 2; i++) {
         fd2_field_magic_basic_result result;
@@ -284,8 +255,8 @@ static int test_multi_target_preflight_and_no_upgrade_rng(void) {
         CHECK(result.experience_value == 5);
         raw_actual += result.experience_value;
     }
-    CHECK(fd2_field_magic_basic_reward_gain(&caster, raw_actual, &gain) == 0 && gain == 3);
-    CHECK(caster.experience == 96 && caster.mp == 100 && rng.calls == 4);
+    CHECK(fd2_field_magic_reward_normalize(&caster, raw_actual, &gain) == 0 && gain == 3);
+    CHECK(caster.experience == 97 && caster.mp == 100 && rng.calls == 4);
     return 0;
 }
 static int test_rejection_preserves_target_result_and_rng(void) {
@@ -326,8 +297,54 @@ static int test_rejection_preserves_target_result_and_rng(void) {
     CHECK(rng.calls == 0);
     return 0;
 }
+typedef struct { uint32_t *owner; unsigned calls; uint32_t seen[3]; } owner_rng;
+static uint32_t read_owner(void *userdata) {
+    owner_rng *rng = userdata;
+    rng->seen[rng->calls++] = *rng->owner;
+    return 0;
+}
+static int test_shared_contribution_write_points(void) {
+    fd2_field_units units = {0}; units.count = 1;
+    units.items[0] = unit(68,1,3,100,100);
+    units.items[0].detail_status[0] = 0;
+    uint32_t value = 7;
+    owner_rng rng = {&value,0,{0}};
+    CHECK(fd2_field_magic_apply_known_effect_with_reward(26,0,&units,read_owner,&rng,&value) == 1);
+    CHECK(units.items[0].hp == 91 && units.items[0].detail_status[0] == 2);
+    /* gate/spread先见7，duration已见damage floor(9*90/100)=8。 */
+    CHECK(rng.calls == 3 && rng.seen[0] == 7 && rng.seen[1] == 7 && rng.seen[2] == 15);
+    CHECK(value == 39); /* 再加8*raw LV，不加profile权重。 */
+    units.items[0] = unit(9,9,2,20,100);
+    units.items[0].detail_status[0] = 1;
+    value = 0; rng = (owner_rng){&value,0,{0}};
+    CHECK(fd2_field_magic_apply_known_effect_with_reward(20,0,&units,read_owner,&rng,&value) == 1);
+    CHECK(units.items[0].hp == 29 && !units.items[0].detail_status[0]);
+    CHECK(value == 115 + 128 && rng.calls == 1);
+    units.items[0].hp = 120;
+    value = 3; rng = (owner_rng){&value,0,{0}};
+    CHECK(fd2_field_hp_heal_apply_with_reward(&units.items[0],0,read_owner,&rng,&value) == 1);
+    CHECK(units.items[0].hp == 100 && value == (uint32_t)(3 - 256));
+    units.items[0].mp = 120; units.items[0].mp_max = 100;
+    value = 3; rng = (owner_rng){&value,0,{0}};
+    CHECK(fd2_field_mp_heal_apply_with_reward(&units.items[0],0,read_owner,&rng,&value) == 1);
+    CHECK(units.items[0].mp == 100 && value == (uint32_t)(3 - 16)); /* MP无profile+30。 */
+    units.items[0] = unit(75,9,2,20,100); value = 3;
+    rng = (owner_rng){&value,0,{0}};
+    CHECK(fd2_field_hp_heal_apply_with_reward(&units.items[0],10,read_owner,&rng,&value) == 1 && value == 3);
+    units.items[0].mp_max = 0; units.items[0].mp = 10;
+    CHECK(fd2_field_mp_heal_apply_with_reward(&units.items[0],0,read_owner,&rng,&value) == 1 && value == 3);
+    units.items[0] = unit(9,9,2,20,0); value = 3;
+    fd2_field_unit before = units.items[0]; rng.calls = 0;
+    CHECK(fd2_field_hp_heal_apply_with_reward(&units.items[0],10,read_owner,&rng,&value) == -1);
+    CHECK(value == 3 && rng.calls == 0 && memcmp(&before,&units.items[0],sizeof(before)) == 0);
+    units.items[0].detail_status[0] = 0;
+    CHECK(fd2_field_magic_apply_known_effect_with_reward(20,0,&units,read_owner,&rng,&value) == 0);
+    CHECK(value == 3 && rng.calls == 0);
+    return 0;
+}
 int main(void) {
     CHECK(test_shared_hp_heal_power_and_write_set() == 0);
+    CHECK(test_shared_contribution_write_points() == 0);
     CHECK(test_enemy_coefficient_table() == 0);
     CHECK(test_damage_result_and_reward() == 0);
     CHECK(test_heal_weights_and_full_hp() == 0);

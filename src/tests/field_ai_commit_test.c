@@ -24,11 +24,39 @@ typedef struct {
     const uint32_t *values;
     size_t count;
     size_t cursor;
+    const fd2_field_game *owner;
+    uint32_t first_experience;
 } test_rng;
 
+/* 本逻辑测试显式完成progress ACK，不模拟真实提示、按键或等待RNG。 */
+static int ack_progress(fd2_field_game *game) {
+    for (unsigned i=0;i<1024;i++) {
+        fd2_field_progress_notice notice;
+        int state=fd2_field_game_progress_peek(game,&notice);
+        if(state<0)return -1;
+        if(!state) {
+            for(size_t j=0;j<game->event_log_count;j++)game->event_log[j].presentation_deferred=0;
+            state=fd2_field_game_progress_resume(game);
+            if(state<0)return -1;
+            if(!state)return 0;
+            if(fd2_field_game_progress_peek(game,&notice)!=1)return -1;
+        }
+        if(fd2_field_game_progress_ack(game)!=0)return -1;
+    }
+    return -1;
+}
+static int process_automatic_action_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_process_automatic_action(game);
+    return result<0?result:ack_progress(game)<0?-1:result;
+}
+static int end_phase_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_end_active_phase(game);
+    return result<0?result:ack_progress(game)<0?-1:result;
+}
 static uint32_t next_roll(void *userdata) {
     test_rng *rng = userdata;
     if (!rng || rng->cursor >= rng->count) return 0;
+    if (rng->cursor == 0 && rng->owner) rng->first_experience = rng->owner->experience_value;
     return rng->values[rng->cursor++];
 }
 
@@ -44,6 +72,8 @@ static void set_unit(fd2_field_unit *unit, uint8_t side, int x, int y) {
     unit->accuracy = 100;
     unit->movement_profile = 1;
     unit->movement_points = 1;
+    unit->level = 1;
+    ((uint8_t *)unit)[0x31] = 0xff; /* 纯AI夹具不携未知loot。 */
 }
 
 static void equip_weapon(fd2_field_unit *unit) {
@@ -152,7 +182,7 @@ static int test_common_tail_resets_all_directions(void) {
     game.units.items[1].x = 7;
     game.units.items[1].y = 7;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[0].direction == 0);
     CHECK(game.units.items[1].direction == 0);
     CHECK(rng.cursor == 0);
@@ -169,7 +199,7 @@ static int test_automatic_mode0(void) {
     /* 该夹具直接构造非正式 session；stage 字段不参与 M7 调度。 */
     game.stage = 1;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[0].x == 2 && game.units.items[0].y == 1);
     CHECK(game.units.items[1].hp == 0 && game.units.items[1].flags == 1);
     CHECK(game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
@@ -254,6 +284,7 @@ static int test_magic_cast_cost_before_targets(void) {
         }
         magic_cost_rng check = {{rolls, 16, 0}, &game.units.items[0],
                                (uint16_t)(200u - cost[5]), 0};
+        game.experience_value = 7;check.rng.owner = &game;
         game.attack_rng = cost_observing_roll;
         game.attack_rng_userdata = &check;
         fd2_field_ai_magic_candidate plan;
@@ -275,6 +306,8 @@ static int test_magic_cast_cost_before_targets(void) {
         CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
         CHECK(game.units.items[0].mp == check.expected_mp && !check.wrong_mp);
         CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(game.experience_value == 0);
+        if(check.rng.cursor) CHECK(check.rng.first_experience == 7);
         if (id != 20u && id != 21u)
             CHECK(check.rng.cursor > 0u);
         else
@@ -327,6 +360,7 @@ static int test_magic_preflight_preserves_cost(void) {
             case 3: game.units.items[0].mp = 1; break;
             case 4: plan.magic_id = 23; break;
         }
+        game.experience_value=7;
         fd2_field_game before = game;
         CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == -1);
         CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
@@ -588,11 +622,12 @@ static int test_item_magic_commit(void) {
     CHECK(fd2_field_ai_choose_item_candidate(
         &game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
     CHECK(plan.item_id == 11 && plan.score >= 6);
+    game.experience_value=7;rng.owner=&game;
     CHECK(fd2_field_game_commit_ai_item(&game, 0, 0, &plan) == 0);
     CHECK(game.units.items[1].hp == 75);
     CHECK(record[0x0b] == 11); /* code 20 不走 code 5 的消耗路径。 */
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
-    CHECK(rng.cursor == 2);
+    CHECK(rng.cursor == 2 && rng.first_experience == 7 && game.experience_value == 0);
     return 0;
 }
 
@@ -610,6 +645,7 @@ static int test_magic_item_tail_failure_preserves_commit(void) {
         game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){9, 1};
         fd2_field_ai_magic_candidate magic;
         fd2_field_ai_item_candidate item;
+        game.experience_value=7;rng.owner=&game;
         if (item_case) {
             game.units.items[1].hp = game.units.items[1].hp_max = 300;
             game.active_side = game.units.items[0].side = 1;
@@ -635,11 +671,11 @@ static int test_magic_item_tail_failure_preserves_commit(void) {
         CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
         CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
         CHECK(game.event_log_count == 1 && game.event_log[0].action == 9);
-        CHECK(rng.cursor == 2);
+        CHECK(rng.cursor == 2 && rng.first_experience==7 && game.experience_value==0);
         fd2_field_game before = game;
         CHECK((item_case ? fd2_field_game_commit_ai_item(&game, 0, 0, &item)
                         : fd2_field_game_commit_ai_magic(&game, 0, 0, &magic)) == -1);
-        CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+        CHECK(process_automatic_action_and_ack(&game) == -1);
         CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 2);
     }
     return 0;
@@ -838,7 +874,7 @@ static int test_shared_item_hp_core_tail_failure_keeps_commit(void) {
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     fd2_field_game before = game;
     CHECK(fd2_field_game_commit_ai_item(&game, 0, 1, &plan) == -1);
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 1);
     return 0;
 }
@@ -904,7 +940,7 @@ static int test_behavior5_cell_action_commit(void) {
     for (size_t slot = 0; slot < 8; slot++)
         record[0x0bu + slot * 2u] = 0xff;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[0].x == 2 && game.units.items[0].y == 1);
     CHECK(record[0x0a] == 0 && record[0x0b] == 192);
     CHECK(record[0x31] == 0 && record[0x32] == 192 && record[0x33] == 0);
@@ -912,7 +948,7 @@ static int test_behavior5_cell_action_commit(void) {
     CHECK(game.cell_action_completed[1] == 1);
     /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 2);
     /* actor 0 completes the side 0 phase; the following turn boundary clears
      * acted for the complete table. */
@@ -937,7 +973,7 @@ static int test_behavior5_cell_action_commit(void) {
         record[0x0au + slot * 2u] = 0;
         record[0x0bu + slot * 2u] = (uint8_t)slot;
     }
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.cell_action_completed[1] == 1);
     CHECK((game.units.items[0].ai_behavior_raw & 0x0fu) == 7u);
     for (size_t slot = 0; slot < 8; slot++)
@@ -951,12 +987,12 @@ static int test_behavior5_cell_action_commit(void) {
     game.units.items[0].movement_points = 2;
     game.cell_action_completed[3] = 1;
     memset(cells, 0, sizeof(cells));
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK((game.units.items[0].ai_behavior_raw & 0x0fu) == 5u);
     CHECK(game.cell_action_completed[3] == 1);
     /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     return 0;
@@ -977,11 +1013,11 @@ static int test_behavior2_recover_after_queries(void) {
     for (size_t slot = 0; slot < 8; slot++)
         record[0x0bu + slot * 2u] = 0xff;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[0].hp == 60);
     /* 本actor之后仍须扫描被跳过的raw尾，才进入下一玩家phase。 */
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 0);
@@ -1000,13 +1036,13 @@ static int test_behavior11_magic_then_physical(void) {
     teach_magic(&game.units.items[0], 0);
     game.units.items[1].hp = game.units.items[1].hp_max = 300;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     /* 正确 dual 0x13e07..0x13e43：magic 后仍重算并执行 physical。 */
     CHECK(rng.cursor == 6);
     CHECK(game.units.items[1].hp < 255);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 2);
     return 0;
@@ -1025,12 +1061,12 @@ static int test_behavior11_magic_without_physical_candidate(void) {
     game.units.items[1].hp = game.units.items[1].hp_max = 300;
     game.units.items[0].movement_profile = 28; /* no magic profile: physical candidate is absent. */
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[1].hp == 255); /* magic damage remains committed. */
     CHECK(rng.cursor == 2);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 2);
     return 0;
@@ -1058,7 +1094,7 @@ static int test_behavior11_committed_magic_then_physical_failure_stops(void) {
     /* AI physical 只支持已预检的内置 critical 表；该 hook 使后段拒绝，
      * 不影响先执行的 magic。不能吞掉后段失败或回滚已经消费的 RNG。 */
     game.attack_critical_base = external_critical_base;
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_ACTION);
     CHECK(game.units.items[1].hp == 255);
     CHECK(game.units.items[0].mp == 8); /* 已扣费和magic效果不因后段失败退款。 */
@@ -1066,7 +1102,7 @@ static int test_behavior11_committed_magic_then_physical_failure_stops(void) {
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.active_side == 0);
     fd2_field_game before = game;
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(memcmp(&game, &before, sizeof(game)) == 0);
     CHECK(rng.cursor == 2);
     return 0;
@@ -1083,7 +1119,7 @@ static int test_behavior7_hide_on_arrival(void) {
     game.units.items[0].ai_param_35 = game.units.items[0].x;
     game.units.items[0].ai_param_36 = game.units.items[0].y;
 
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     /* behavior 7 的 0x32975 先精确写 flags=1，common tail 随后追加 acted。 */
     CHECK((game.units.items[0].flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
@@ -1107,7 +1143,7 @@ static int test_phase_status_tick(void) {
     game.units.items[0].hp = 50;
     game.units.items[0].detail_status[0] = 1;
     game.units.items[0].attack_status = 2;
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 1);
     /* Both loops start at raw actor index 0 but still filter by side, so the
      * side 0 actor remains untouched while entering side 1. */
@@ -1136,7 +1172,7 @@ static int test_phase_status_tick(void) {
     game.units.items[1].accuracy = 55;
     game.units.items[1].evasion = 55;
     game.active_side = 0;
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 2);
     CHECK(game.units.items[1].hp == 45);
     CHECK(game.units.items[1].detail_status[0] == 0);
@@ -1147,7 +1183,7 @@ static int test_phase_status_tick(void) {
     CHECK(game.units.items[1].detail_status[2] == 0);
     /* defense_status expired and therefore loses its 1.15 multiplier;
      * attack/hit-evasion remain active. */
-    CHECK(game.units.items[1].attack == 115);
+    CHECK(game.units.items[1].attack == 114); /* 原binary64 1.15截断，不是数学115。 */
     CHECK(game.units.items[1].defense == 80);
     CHECK(game.units.items[1].accuracy == 55);
     CHECK(game.units.items[1].evasion == 55);
@@ -1165,7 +1201,7 @@ static int test_ai_flag_gate(void) {
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE;
     game.units.items[1].side = 2;
     game.active_side = 0;
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 0);
@@ -1195,7 +1231,7 @@ static int test_behavior8_outer_loop_boundary(void) {
     set_unit(&game.units.items[2], 2, 7, 7);
     cells[1u * 8u + 1u] = 1u << 16;
     game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){9, 1};
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.units.items[0].direction == 3);
@@ -1203,7 +1239,7 @@ static int test_behavior8_outer_loop_boundary(void) {
     CHECK(game.event_log_count == 0);
     CHECK(game.unhandled_event_count == 0);
     CHECK(rng.cursor == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 0);
 
     /* side 0：第一轮候选不足后立即进入第二轮；behavior 8 仍不 acted。
@@ -1214,14 +1250,14 @@ static int test_behavior8_outer_loop_boundary(void) {
     game.units.items[0].ai_behavior_raw = 8;
     game.units.items[0].direction = 3;
     game.units.items[1].direction = 2;
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 0);
     CHECK(game.phase_ai_pass == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.units.items[0].direction == 3);
     CHECK(game.units.items[1].direction == 2);
     CHECK(rng.cursor == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 0);
@@ -1243,26 +1279,26 @@ static int test_phase_acted_lifecycle(void) {
     fd2_field_unit_set_acted(&game.units.items[1], 1);
 
     /* side 2→1 has no clear-all call in field_turn_cycle_run. */
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 1);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(fd2_field_unit_has_acted(&game.units.items[1]));
 
     /* side1 outer已扫描raw尾，先全表clear，再进入phase0事件/status。 */
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 0);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(!fd2_field_unit_has_acted(&game.units.items[1]));
     game.units.items[0].side = 0;
     game.units.items[1].side = 2;
     game.units.items[0].ai_behavior_raw = 8; /* confirmed early return. */
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(!fd2_field_unit_has_acted(&game.units.items[1]));
 
     fd2_field_unit_set_acted(&game.units.items[0], 1);
     fd2_field_unit_set_acted(&game.units.items[1], 1);
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 2);
     CHECK(game.turn_number == 1);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
@@ -1285,7 +1321,7 @@ static int test_stage0_handler_gate_preempts_ai(void) {
     game.units.items[0].flags = 0;
     game.units.items[1].side = 0;
     game.units.items[1].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    CHECK(fd2_field_game_process_automatic_action(&game) == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 0);
     CHECK(game.battle_result == FD2_FIELD_BATTLE_VICTORY);
     CHECK(game.active_side == 0);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
@@ -1294,7 +1330,7 @@ static int test_stage0_handler_gate_preempts_ai(void) {
 
     /* 主角隐藏优先覆盖为失败，即使 side 0 也已经全灭。 */
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
-    CHECK(fd2_field_game_process_automatic_action(&game) == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 0);
     CHECK(game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
     CHECK(game.active_side == 0);
     CHECK(rng.cursor == 0);
@@ -1377,7 +1413,7 @@ static int test_ai_cell_event_pending_then_tail(void) {
     game.units.items[0].ai_behavior_raw = 2;
     game.units.items[0].hp = game.units.items[0].hp_max;
     game.units.items[0].movement_points = 0;
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(game.event_log_count == 1);
     CHECK(game.unhandled_event_count == 1);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
@@ -1432,7 +1468,7 @@ static int test_ai_pending_last_match_and_no_path(void) {
               game.move_path_length == 1 && game.move_preview_valid == 0);
         CHECK(owned_path[0] == 0x6d && owned_path[1] == 0x7e);
         fd2_field_game before = game;
-        CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+        CHECK(process_automatic_action_and_ack(&game) == -1);
         CHECK(fd2_field_game_commit_ai_physical(
                   &game, 0, 0, &plan, NULL, 0) == -1);
         CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 4);
@@ -1486,13 +1522,13 @@ static int test_ai_outer_pending_dispatch_without_rng(void) {
     game.metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
     game.metadata.cell_lookup[1] = (fd2_field_cell_lookup){8, 0};
     game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(game.failure_notice.action == 8 && game.failure_notice.slot == 1);
     CHECK(game.units.items[0].x == 3 && game.units.items[0].y == 1);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.event_log_count == 1 && game.active_side == 0 && rng.cursor == 0);
     fd2_field_game before = game;
-    CHECK(fd2_field_game_process_automatic_action(&game) == -1);
+    CHECK(process_automatic_action_and_ack(&game) == -1);
     CHECK(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0);
 
     /* 新actor调度起点清旧pending；无任何lookup命中不能沿用42。 */
@@ -1503,7 +1539,7 @@ static int test_ai_outer_pending_dispatch_without_rng(void) {
     game.units.items[0].movement_points = 0;
     game.units.items[1].x = game.units.items[1].y = 7;
     game.pending_cell_event = (fd2_field_pending_cell_event){1, 42, 4};
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.failure == FD2_FIELD_FAILURE_NONE && game.event_log_count == 0);
     CHECK(!game.pending_cell_event.valid && rng.cursor == 0);
     return 0;
@@ -1541,8 +1577,37 @@ static int test_stale_plan(void) {
     return 0;
 }
 
+static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
+    static const uint32_t rolls[]={0,0};
+    for(int item_case=0;item_case<2;item_case++) {
+        test_rng r={rolls,2,0};uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+        init_game(&game,cells,attrs,&r);game.units.items[1].x=2;game.units.items[1].y=1;
+        game.units.items[1].hp=10;game.units.items[1].hp_max=100;
+        ((uint8_t*)&game.units.items[1])[0x31]=0;
+        game.experience_value=7;
+        fd2_field_ai_magic_candidate magic;fd2_field_ai_item_candidate item;
+        if(item_case) {
+            game.active_side=game.units.items[0].side=1;
+            /* Item AI仅对HP>power的目标评分；用非目标既存死者证明全表门。 */
+            game.units.items[1].hp=game.units.items[1].hp_max=300;
+            ((uint8_t*)&game.units.items[1])[0x31]=0xff;
+            game.units.count=3;set_unit(&game.units.items[2],0,7,7);
+            game.units.items[2].hp=0;((uint8_t*)&game.units.items[2])[0x31]=0;
+            uint8_t *raw=(uint8_t*)&game.units.items[0];memset(raw+10,0x80,16);raw[10]=0;raw[11]=11;
+            CHECK(fd2_field_ai_choose_item_candidate(&game.map,&game.terrain,&game.units,0,0,&item)==0);
+        } else {
+            game.units.items[0].mp=100;teach_magic(&game.units.items[0],0);
+            CHECK(fd2_field_ai_choose_magic_candidate(&game.map,&game.terrain,&game.units,0,0,&magic)==0);
+        }
+        fd2_field_game before=game;
+        CHECK((item_case?fd2_field_game_commit_ai_item(&game,0,0,&item):fd2_field_game_commit_ai_magic(&game,0,0,&magic))==-1);
+        CHECK(r.cursor==0 && memcmp(&before,&game,sizeof(game))==0);
+    }
+    return 0;
+}
 int main(void) {
-    if (test_commit() != 0 ||
+    if (test_ai_effect_unknown_loot_is_before_first_rng() != 0 ||
+        test_commit() != 0 ||
         test_ai_cell_event_pending_then_tail() != 0 ||
         test_ai_pending_last_match_and_no_path() != 0 ||
         test_ai_outer_pending_dispatch_without_rng() != 0 ||

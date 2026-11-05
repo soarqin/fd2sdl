@@ -829,6 +829,25 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_unit_base COMMAND fd2_field_unit_base_test)
 
+    add_executable(fd2_field_growth_test
+        tests/field_growth_test.c
+        field_unit_base.c
+        field_item.c
+        field_unit_stats.c
+    )
+    target_include_directories(fd2_field_growth_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    if(MSVC)
+        target_compile_options(fd2_field_growth_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_growth_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    target_link_libraries(fd2_field_growth_test PRIVATE
+        ${FD2SDL_SDL3_TARGET}
+    )
+    add_test(NAME field_growth COMMAND fd2_field_growth_test)
+
     if(WIN32)
         if(NOT Python3_Interpreter_FOUND)
             if(FD2SDL_REQUIRE_GUI_TESTS)
@@ -1002,6 +1021,34 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_magic_list_play COMMAND fd2_field_magic_list_play_test)
     set_tests_properties(field_magic_list_play PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_progress_play_test
+        tests/field_progress_play_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_progress_play_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_progress_play_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_progress_play_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_progress_play_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_progress_play COMMAND fd2_field_progress_play_test)
+    set_tests_properties(field_progress_play PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_progress_test
+        tests/field_progress_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_progress_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_progress_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_progress_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_progress_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_progress COMMAND fd2_field_progress_test)
+    set_tests_properties(field_progress PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_field_system_message_test

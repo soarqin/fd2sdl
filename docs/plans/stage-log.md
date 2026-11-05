@@ -1,6 +1,6 @@
 # 分阶段提交与验证记录
 
-2026-11-05 用户修订推进规则：项目所需IDA Domain／idalib数据库操作不再逐次授权；B3及后续同级编号为最小交付／提交单元，阶段内部只测试自身新增、修改与直接受影响路径，大阶段结束再统一全面复测历史功能。完整B3已按此规则一次交付，之后按同等粒度推进B4；不在内部功能完成时停报或提交。下文旧微阶段划分、当时的授权等待和重复全量实机计划仅为历史记录，不再构成当前要求；已有提交及实际测试范围保持原样。
+2026-11-05 用户修订推进规则：项目所需IDA Domain／idalib数据库操作不再逐次授权；B3及后续同级编号为最小交付／提交单元，阶段内部只测试自身新增、修改与直接受影响路径，大阶段结束再统一全面复测历史功能。完整B3／B4已按此规则分别交付，当前按同等粒度推进B5；不在内部功能完成时停报或提交。下文旧微阶段划分、当时的授权等待和重复全量实机计划仅为历史记录，不再构成当前要求；已有提交及实际测试范围保持原样。
 
 B1 已列控制场景和用户反馈后的自然开场／边缘镜头补充复验均已通过，累计验收及补跑边界见下文。结果与菜单合同、原版运行证据、未开放页面分别登记。结算属于 B5，完整第一关的玩法／视觉／声音验收属于 V1，不因核心合同通过而自动关闭。
 
@@ -499,3 +499,70 @@ Use12首次SDL END确认框观测到NO，原因仍未定位；原版端已完成
 完整B3连接复审与新三场工具独审无其他确证阻塞；合并重复append，沿用既有库存、modal、范围、Save和资源owner，未增加通用框架或第二套状态。Equip实机仅profile1两场；Give叠格／HP0／赠出最后项、瞬移MP1等组合未逐一WGC，本阶段以原码及定向回归覆盖，不能声称这些组合都已实机验证。受控START派生的flag04／库存／身份等在manifest明列，非自然整关获得路线。Linux、完整共享RNG、FIGANI／声音／精确时序、水色同步、整关实战、结算及下一关仍未验收。B2剩余法术未关闭。
 
 之后直接推进完整B4，不按成长helper／列表切片提交。原成长68×11及学习20×12表、奖励时点和固定增量已取得只读依据，隔离纯逻辑草稿2/2通过；正式贡献owner、分段升级／学习提示、状态呈现及本阶段DOSBox对照仍待完成。大阶段统一审查门仍为B0—B5及所需A5的自然新游戏到下一关可操作交接。
+
+## 2026-11-05 完整B4：经验、成长、学习与状态提示
+
+本次以整个B4为一个交付／提交单元。正式动作接入唯一的raw贡献owner，恢复逐步奖励、成长／学习与毒伤／状态到期提示；B5及所需A5继续推进，第一关完整纵向大阶段尚未关闭。本阶段不重复B3历史35种GUI或全仓库历史回归。
+
+物理每击按原门覆盖53EC8；仅玩家MAGIC在controller按有效等级归一，玩家奖励再cap99；AI反击无该cap，AI法术／物品在原尾清零，不移到首效果之前。共享效果的贡献写点先于后续duration RNG，恢复以signed实际差累加并保留DWORD回绕。贡献与单位EX、提示数字分别处理，不写SAV，活动Load不擅自清零。坏数据／未知loot／必需资源先于首RNG预检，提交后失败保留事实并停止，不退款或重试。
+
+成长使用完整68×11B表及20×12B学习表。已有ID0..67记录沿原奖励规则，不套新建构造器0..31门；LEVEL先加等级再提示，非零WORD成长在相应-3 ACK后写，学习位先于587写。每级末重算，最终关闭后才写EX；最大HP／MP增长不补当前值。状态tick按raw／byte顺序暂停，毒伤HP→focus→487／wait10；全部毒伤后死亡清理。六状态归零即481..486／wait10／关闭／重算后才继续下一项，自动页不补键。
+
+### 冻结候选与实际验证来源
+
+证据根目录为 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b4-20261105/`。各候选336文件／194src，source清单、原版50文件bytes／size／mtime和程序／工具身份分别保留；后补文档不回写旧清单。Python与CTest按实际版本列出，不相加为互不重复用例数。
+
+| 候选 | 编译／工具与定向检查 | 图形结果 |
+|---|---|---|
+| C1 `b4-complete-c1` | manifest `11c4b323…403`，fresh Windows候选构建（main／driver及所列target）；18/18 CTest，4.26s；18/18奖励Python，4.537s；38/38Suite，0.347s | 首原版到SaveA／真实WAIT后，Save-disabled oracle超时；SDL未启动，不计pair |
+| C2 `b4-tools-c2` | manifest `639233ec…572`，194src与C1逐byte相同，复用app；18/18奖励，4.427s＋16/16END，1.238s | 原版完整Save／WAIT／Load／Save通过，SDL物理目标首焦点失败，不计pair |
+| C3 `b4-complete-c3` | manifest `ea4ba944…6e9`，修物理目标后fresh app／driver；7/7定向CTest，3.45s；20/20奖励，5.038s | 原版通过，SDL目标控制与99奖励后因错误横幅门失败，不计pair |
+| C4 `b4-tools-c4` | manifest `be8df273…2d0`，194src与C3相同，只修角色横幅门；22/22奖励，5.742s，无CPP重编 | 物理99、双击覆盖、治疗、升级学习四组实际双端通过；counter原版通过、SDL失败，status未运行 |
+| C5 `b4-complete-c5` | manifest `e995ca9f…174e`，仅MOV0修复及两个回归；fresh app，7/7定向CTest，0.23s，含真实文件Load→完整scheduler→630经验与22987B保存模型 | 仅counter-multi与status两组实际双端通过，未重跑前四 |
+| C6 `b4-complete-c6` | manifest `299d38dd…311`，Src相对C5仅field_play.c诊断printf guard；fresh构建及2/2 play无窗口CTest，3.18s | 无新GUI，不冒称此binary重新跑六组 |
+
+C1／C2 app为 `ab43d03ba6d6fd40ac9027328b774608da382b04a0e12ea9363a93f9d99be49b`。C3／C4受验app为 `c6216c7eac8036e27d546b9bb3241d2028c1d7d0256cca9c690b83cc07842309`，driver为 `57a837c4046799f22c0735c6d472d56b261da87895c31b0745f32ee9432fee51`。C5受验app为 `d023b241b6b7bbac346d820f1a1023a375e06e4571552833edb8702d46ea8a80`，复用该driver。最终C6交付app为 `a6ab9e7bee256b21d94c31515ee647fec0ff689bb0cb5fbfca535885366d88a8`。C5定向target编译既存AI／geometry代码有3处C警告，不能记为整轮无warning；主app构建无新增error。
+
+C3沿18d8c→14818→115b6修复物理首raw目标聚焦、Z／小键盘5轮换、121占槽不聚焦、取消／成功清互斥cache；不改范围算法或耗RNG。C5修复game wrapper错误拒MOV0：原4e390起点预算0合法，146d1跳过mover，14b16保留非ff原点，14237仍能对邻敌攻击。真实MOV0夹具保持不变，未改成MOV1绕过；玩家零MOV原地COMMAND／两级取消及完整AI scheduler均补回归。
+
+### 六组真实WGC与完整存档
+
+最终范围为C4四组＋C5两组，共六种、12个正常退出端点，不是C5或C6单轮重跑六组。截图均为HWND WGC，逐消息资源门通过后再比较明确静态文字／列表／详情区域；完整帧、完整FIGANI／音频、宿主精确时钟、共享RNG及跨框嘴型全局相位未宣称等价。
+
+| 场景 | 实际目录（上述根目录内） | 共同检查点／关键结果 |
+|---|---|---|
+| physical-cap | `b4-tools-c4/build/graphics-artifacts/20261105-163902-830195/` | 45；玩家99封顶，LV1／EX99 |
+| physical-overwrite | 同上 | 45；双击各贡献3，最终EX3而非6 |
+| heal | 同上 | 69；20经验，caster MP8→5，recipient HP20→42 |
+| learn | 同上 | 84；LV4／EX99加5→LV5／EX4，学17；HP28保持而max28→37，MP5保持而max8→16 |
+| counter-multi | `b4-complete-c5/build/graphics-artifacts/20261105-171102-868046/` | 67；AI两击后玩家反击，630经验连升6级至LV7／EX30，HP38保持而max114 |
+| status | 同上 | 43；487毒伤与481..486七页全自动，HP42→38，六状态0，派生16／12／97／2 |
+
+学习页保留[0,13,17]：17可见／可导航，SDL确认／空格明确拒绝未实现效果，0／13仍可用，13目标取消回列表0。原版未对17发效果确认，不能将其纳入B2已完成法术。状态页发生在原版Round002之后，不补键也不回头等待已过去横幅。
+
+六组每端都执行合法SaveA→真实WAIT改变acted／可恢复HP→Load→SaveB，24份实际快照由strictLE模型独立重生并核完整容器；只沿原checker允许active+2cache及明确测量导航，不豁免camera、roster或未知尾。每场原版与SDL最终编码SAV逐字相同。独立复核1504个capture文件摘要，按各报告既定静态RGB写集离线重放结果逐字段一致；原版50文件、fixture、冻结source／tools／app及清理守卫均通过。
+
+C4前四组进程PID为39072／8708、42752／32244、22684／41000、19608／61364；C5两组为61600／6236、52768／50400，全部exit0且正常清理。C4整个batch仍因其counter失败保留Job40176 worker_exit1，不能篡改为batch全绿；最终两组Job48596为worker_exit0、timed_out0、residual0、forced0、cleaned1、result0。各场真实passed与outer batch状态分别展示，不以正常退出代替业务门。
+
+SDL Round002编号横幅仍未图形对齐。原版非状态场景单列横幅资源门；SDL使用一次有序END1→side1→side0→turn2／side2日志，加后续真实quiet浏览、详情和完整turn2 SAV，不把日志当横幅像素。C6另修AI残留last_attack_valid延迟到玩家菜单后误用HP前值0，产生4294967258等printf total下溢：只限定玩家TARGETING诊断打印并在原位置清同一latch，实际HP38／SAV原本正确，业务、RNG及呈现不变。
+
+### 失败与未覆盖范围
+
+四个失败报告、截图／存档／输入及环境现场原样保留，均不计最终pair：
+
+1. C1 `20261105-160559-518567`：原版WAIT后次级图标实际[37,41,42,45]，旧工具要求Save39；修完整disabled41门。Job53712 worker_exit1，timed_out0／residual0／forced0／cleaned1。
+2. C2 `20261105-161413-380253`：原版完成，SDL范围576像素合法但仍聚焦caster而非首raw目标；C3修真实代码，不放宽图像门。Job4560同样正常清理。
+3. C3 `20261105-162639-036568`：原版通过，SDL已过新目标控制与99奖励，工具误要求未实现横幅；C4按角色分派且保留后续WGC／SAV。Job40664正常清理。
+4. C4 counter：原版31页与完整保存恢复通过；SDL因MOV0 wrapper跳过AI，等待488后段另出现28×19／WGC139f。原场景及WGC错误分别保留，不把截图错误认定为AI跳过根因，不加截图fallback／重抽。Job40176正常清理。
+
+原码／DB和SDL回归还覆盖早退cap、signed贡献与溢出、错误资源、失败／quit前后写点、Load owner、未知loot等；它们不等于全部组合已WGC。运行中成长可读0..67，不代表68种角色逐一原版实测。当前Windows通过，Linux本轮未执行。转职、其余法术、掉落交互、整关结算／下一关与完整FIGANI／音画仍保留各自工作包。
+
+大阶段输入审查仍保留旧非ITEM COMMAND收起动画忽略返回值、宿主quit可能先WAIT提交，以及历史一次END确认NO原因未定位两项风险；B4新进展入口／scroll quit已独立修并测，不声称旧风险已修或全历史输入已复验。
+
+### 真实IDA发布与局部机器码
+
+本阶段一次Domain应用11个全函数语义，真实IDA9.5／Windows lx.dll、Hex-Rays9.5重导全量1307函数、registry240项；保持原9条已证持久类型，3702f无猜测原型。11项canonical产物最终刷新／校验SHA256SUMS，保留旧putchar_0识别差异及真实decompile失败来源，不用token替换伪造导出。21项static／13项IDA产物回归各保实际来源；源码规范地址实际最终545/545，通过日志SHA256 `ee0289abccea613870a261c581c43f485db1224a6f63f56dd7cd4f3f1a3d892d`。
+
+原1b750的AP／DP两块与真实__CHP、原CW127f各执行完整-65536..65535，共262144向量，和实际MSVC C11／volatile binary64后向0cast逐项相同，向量SHA `55dafb59f3c3576c68a43d3f241cc735c5160a4b3eb48e362fb54315d0ea32c2`。12→13、100→114、-100→-114，推翻旧nearest-even及整数115/100；临时增益0.15加1仍是B3独立公式。复现脚本`tools/ida/verify_fd2_x87_stat_scale.py`，真实发布收据为`ida-equipment/run-20261105_111831_688108/b4-publication-20261105_155414_534319`。生成器输入SHA `00ee193541d479dc3f399253c843ad71c8bfe2b69c80f525e8115d33f12a1116`，pC SHA `de1272523ecd0deec9993220a897df540e84bc4fa147eef6926ee0ed9b8fe546`。
+
+B4连接复审、必要修复与局部精简已收口，复用既有范围／效果／dialog资源与进展owner，不建通用事件框架。自包含审阅页位于本机`b4-complete-review/index.html`，实际PNG内嵌、逐场来源可查；B4统一提交哈希在root完成提交后只填该外部页面，不改测试原报告。下一步完整B5及所需A5；大阶段全面历史回归尚未执行。

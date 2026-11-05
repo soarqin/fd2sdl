@@ -64,6 +64,8 @@ int fd2_field_game_export_battle_snapshot(
         const fd2_field_game *game, fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready ||
         game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
+        game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
         game->player_post_waiting_phase || game->stage > 0xffu ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
@@ -252,6 +254,8 @@ int fd2_field_game_import_battle_snapshot(
     game->item_list_selected = 0; /* 临时raw槽owner仅在成功Load交接时清除。 */
     game->item_give_recipient = game->item_give_selected = 0;
     game->item_transfer_committed = 0;
+    /* Load不引用原53EC8；仅丢弃奖励/状态UI续态，experience_value保持。 */
+    memset(&game->progress, 0, sizeof(game->progress));
     game->magic_target_id = 0;
     memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
     game->magic_target_count = 0;
@@ -358,6 +362,8 @@ int fd2_field_game_load_active(fd2_field_game *game, const char *path) {
 int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     if (!game || !path || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
+        game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
         game->player_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
         game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;

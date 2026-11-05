@@ -53,10 +53,12 @@ ea	name	is_func	is_public
 0x15df3	field_ai_behavior5_cell_find	1	0
 0x15f84	text_dialog_render_tokens	1	0
 0x164e8	text_dialog_glyph_step	1	0
+0x16559	dialog_portrait_frame_draw	1	0
 0x165ac	dialog_box_open	1	0
 0x16886	blit_image	1	0
 0x168b6	dialog_box_draw_tiles	1	0
 0x16b43	dialog_box_close	1	0
+0x16c57	dialog_wait_key	1	0
 0x16e24	dialog_text_scroll_up	1	0
 0x16f55	field_empty_focus_menu_execute	1	0
 0x1728c	field_options_menu_execute	1	0
@@ -81,6 +83,9 @@ ea	name	is_func	is_public
 0x187d6	ui_number_draw	1	0
 0x18890	field_player_unit_action	1	0
 0x18d8c	field_player_command_execute	1	0
+0x1956b	field_bottom_notice_open	1	0
+0x196cb	field_bottom_notice_close	1	0
+0x1974c	field_bottom_notice_slide_draw	1	0
 0x19df7	field_secondary_menu_execute	1	0
 0x1a30b	field_turn_cycle_run	1	0
 0x1a813	field_turn_event_check	1	0
@@ -110,10 +115,14 @@ ea	name	is_func	is_public
 0x1ceed	field_unit_magic_list_draw	1	0
 0x1cff0	field_player_magic_command_execute	1	0
 0x1d51d	field_player_magic_list_select_step	1	0
+0x1d79c	field_unit_magic_bit_set	1	0
 0x1d80b	field_side1_phase_execute	1	0
 0x1d8ba	field_side0_phase_execute	1	0
 0x1da16	map_actor_blit_24x24	1	0
 0x1db65	field_defeated_units_finalize	1	0
+0x1e292	field_unit_experience_reward_execute	1	0
+0x1e529	field_growth_stat_present_apply	1	0
+0x1e5c0	field_notice_wait_ticks	1	0
 0x1e856	field_physical_attack_sequence	1	0
 0x1ecc7	field_physical_attack_resolve	1	0
 0x1f0dc	field_counterattack_is_available	1	0
@@ -388,6 +397,8 @@ ea	name	is_func	is_public
 0x4e381	bios_keyboard_buffer_clear	1	0
 0x4e390	field_reachable_cells_compute	1	0
 0x4e4f6	field_path_find	1	0
+0x4e7f2	field_magic_learning_record_get	1	0
+0x4e821	field_growth_record_get	1	0
 0x4e84f	field_enemy_base_record_get	1	0
 0x4e866	field_magic_record_get	1	0
 0x4e88e	field_equipment_profile_get	1	0

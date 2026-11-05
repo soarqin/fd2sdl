@@ -89,6 +89,10 @@ static int test_context_mappings(void) {
     CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_TARGETING,
                                    FD2_INPUT_KEY_F2) ==
           FD2_INPUT_ACTION_NONE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_COMMAND,
+                                   FD2_INPUT_KEY_Z) == FD2_INPUT_ACTION_NONE);
+    CHECK(fd2_input_action_for_key(FD2_INPUT_CONTEXT_FIELD_MOVEMENT,
+                                   FD2_INPUT_KEY_KEYPAD_5) == FD2_INPUT_ACTION_NONE);
     return 0;
 }
 
@@ -240,8 +244,11 @@ static int test_quit_request(void) {
     return 0;
 }
 
-/* 115b6普通法术目标：Esc取消，Z/小键盘5轮询，不能套browse的Esc轮询。 */
-static int test_magic_target_scancodes(void) {
+/* 115b6物理/法术目标共用Esc取消、Z/小键盘5轮询，不套browse的Esc轮询。 */
+static int test_target_scancodes(void) {
+    const fd2_input_context contexts[] = {
+        FD2_INPUT_CONTEXT_FIELD_TARGETING, FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING
+    };
     const struct { SDL_Scancode key; fd2_input_action action; } cases[] = {
         {SDL_SCANCODE_ESCAPE, FD2_INPUT_ACTION_CANCEL},
         {SDL_SCANCODE_DELETE, FD2_INPUT_ACTION_CANCEL},
@@ -257,15 +264,16 @@ static int test_magic_target_scancodes(void) {
         {SDL_SCANCODE_RIGHT, FD2_INPUT_ACTION_RIGHT},
         {SDL_SCANCODE_F2, FD2_INPUT_ACTION_NONE},
     };
+    for (size_t c = 0; c < sizeof(contexts) / sizeof(contexts[0]); c++)
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
         fd2_input input;
         fd2_input_init(&input);
         fd2_input_set_test_key_state(&input, cases[i].key, 1);
         fd2_input_begin_test_frame(&input, 0);
         fd2_input_action action;
-        CHECK(fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING, &action));
+        CHECK(fd2_input_take_action(&input, contexts[c], &action));
         CHECK(action == cases[i].action);
-        CHECK(!fd2_input_take_action(&input, FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING, &action));
+        CHECK(!fd2_input_take_action(&input, contexts[c], &action));
     }
     return 0;
 }
@@ -294,7 +302,7 @@ static int test_detail_any_ordinary_key(void) {
 int main(void) {
     if (test_context_mappings() != 0 ||
         test_movement_cancel_scancodes() != 0 ||
-        test_magic_target_scancodes() != 0 ||
+        test_target_scancodes() != 0 ||
         test_detail_any_ordinary_key() != 0 ||
         test_press_exists_for_one_present_frame() != 0 ||
         test_unread_press_does_not_cross_present() != 0 ||

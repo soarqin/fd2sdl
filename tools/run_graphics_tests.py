@@ -21,6 +21,7 @@ from field_play_input_test import check_bitmap, wait_log
 B3_SCENARIOS = ("controls", "herb-full", "herb-injured", "drop-herb", "drop-weapon", "drop-armor", "drop-last",
                 "eqt-incompatible", "eqt-weapon", "give-cancel", "give-empty", "give-swap", "give-moved",
                 *(f"use-{code:02d}" for code in range(5, 25)), "use-area2", "use-23-mp0")
+B4_SCENARIOS = ("physical-cap", "physical-overwrite", "heal", "learn", "counter-multi", "status")
 
 
 def hashes(directory):
@@ -159,10 +160,16 @@ def check_browse_restored(expected, actual):
 
 class Suite:
     def __init__(self, args):
+        if getattr(args, "b3_only", False) and getattr(args, "b4_only", False):
+            raise ValueError("--b3-only与--b4-only不能同时指定；未创建产物")
         requested = getattr(args, "b3_scenarios", None)
         if requested is not None:
             if not getattr(args, "b3_only", False) or not requested or len(requested) != len(set(requested)) or any(name not in B3_SCENARIOS for name in requested):
                 raise ValueError("--b3-scenarios要求--b3-only且场景非空、无重复、全部已登记；未创建产物")
+        requested_b4 = getattr(args, "b4_scenarios", None)
+        if requested_b4 is not None:
+            if not getattr(args, "b4_only", False) or not requested_b4 or len(requested_b4) != len(set(requested_b4)) or any(name not in B4_SCENARIOS for name in requested_b4):
+                raise ValueError("--b4-scenarios要求--b4-only且场景非空、无重复、全部已登记；未创建产物")
         self.args = args
         self.work = args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         original = (ROOT / "original_game").resolve()
@@ -523,10 +530,26 @@ class Suite:
                          "--dosbox", self.args.dosbox, "--scenario", scenario,
                          "--artifacts", self.work / name], timeout=480)
 
+    def reward_cases(self):
+        """B4本阶段奖励/成长/状态对照；登记不代表已执行或通过。"""
+        for scenario in getattr(self.args, "b4_scenarios", None) or B4_SCENARIOS:
+            name = "original-reward-" + scenario
+            self.command(name, [sys.executable, ROOT / "tools/run_original_reward.py",
+                         "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--scenario", scenario,
+                         "--artifacts", self.work / name], timeout=900)
+
     def run(self):
         before = hashes(ROOT / "original_game")
         self.report["original_hashes"] = before
         try:
+            if getattr(self.args, "b4_only", False):
+                if sys.platform != "win32":
+                    raise RuntimeError("B4原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
+                self.report["scope"] = "B4 changed/new reward, growth, learning, status and save/load only; no historical suite rerun or inheritance"
+                self.reward_cases()
+                self.report["status"] = "passed"
+                return
             if getattr(self.args, "b3_only", False):
                 if sys.platform != "win32":
                     raise RuntimeError("B3原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
@@ -595,6 +618,7 @@ class Suite:
                              "--dosbox", self.args.dosbox, "--scenario", scenario,
                              "--artifacts", self.work / name], timeout=480)
             self.item_cases()
+            self.reward_cases()
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before
@@ -612,6 +636,8 @@ def main():
     parser.add_argument("--dosbox", default=shutil.which("dosbox-x"))
     parser.add_argument("--b3-only", action="store_true", help="仅运行本轮B3物品功能；历史完整实机回归留大阶段审查")
     parser.add_argument("--b3-scenarios", nargs="+", help="仅在--b3-only下选择已登记场景；未知/重复在创建产物前拒绝")
+    parser.add_argument("--b4-only", action="store_true", help="仅运行本轮B4经验/成长/学习/状态与存档功能")
+    parser.add_argument("--b4-scenarios", nargs="+", help="仅在--b4-only下选择已登记场景；未知/重复在创建产物前拒绝")
     args = parser.parse_args()
     args.build_dir, args.game = args.build_dir.resolve(), args.game.resolve()
     if not args.driver:

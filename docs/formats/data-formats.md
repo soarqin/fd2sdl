@@ -292,8 +292,9 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - `field_unit_inventory_item_append @0x1bb8c`（原 `sub_1BB8C`）查找首个 flag bit80 置位的槽，整 flag 写0，再写 ID；满8槽时失败。Give 的满槽交换是双方各移除后追加，不是原位交换两组字节；只重算送方派生值。返回与外层行动合同见[session 设计](../systems/battle-session.md)。
 - `field_equipment_profile_get @0x4e88e`（原 `sub_4E88E`）读取 canonical `0x6188a..0x61955` 的29×7字节表；`field_unit_can_equip_item @0x1c1c3`（原 `sub_1C1C3`）只比较每行前6字节与物品 record 首字节，第7字节保持未知。`field_unit_equipment_slot_set @0x1c142`（原 `sub_1C142`）按 ID `<128`／`>=128` 分组，清同组已装备槽的整个 flag，再将选中 flag 写40；不能改成按分类分组或仅清 bit40。整表来自严格 LE 原始数据，具体实机场景范围见[阶段记录](../plans/stage-log.md)。
 - `field_equipped_item_slot_find @0x40a51` 在 weapon 模式按槽位顺序查找 flag `0x40` 且 `item_id < 0x80` 的首件装备；`field_unit_item_id_at @0x40936` 返回该槽的 item id。玩家普通攻击读取对应 23 字节 item record 的 `+0x0b/+0x0c` 作为最小／最大范围。
+- `field_reachable_cells_compute @0x4e390` 无MOV0拒绝门，起点node `+7`先写预算（0亦合法）；`field_friendly_destination_block @0x146d1`排除mover自身，`sub_14B16 @0x14b16`按非ff收集，故预算0原点仍能参加`field_ai_physical_candidate_evaluate @0x14237`的武器范围／邻敌判断。不能把“不移动”解释为“不能攻击”；对应回归与实机场景见阶段记录。
 - `field_target_range_build @0x14818` 以 movement profile0 传播普通范围，再按 Manhattan 距离排除小于最小范围的格；max≥16 分支则直接建立半长 `max-16` 的十字，不走地形传播或普通 min 排除。side filter 为 `0→side0`、`1→side!=0`、`2→side1`、`3→side2`；玩家普通攻击传0。收集仅保留未隐藏且匹配 filter 的 actor，单位不阻断范围传播。SDL 普通物理确认额外拒绝 HP0；玩家物品／法术沿各自原版路径保留 HP0 和 acted 目标，不能把物理门推广到共享范围查询。
-- `field_ai_physical_candidate_evaluate @0x3944b`（corrected code0 `0x2944b`）把上述武器范围应用到 actor 的每个可停留移动格，并按行优先格序、actor 表序枚举 `(destination,target)`。候选主优先级只取 `0/8/18`；次分数在每个 destination 开始时从目标数初始化，当前累计分数大于当前目标 HP 时取 `18` 并将分数翻倍，否则当移动格地形修正后的 attack 与目标格地形修正后的 defense 之差大于 2 时取 `8`。同优先级仅当次分数严格更大才替换，完全平价保留先遇到者；同一 destination 的后续 target 会继承前一 target 的翻倍、反击调整和 `*3/2` 结果。`field_ai_try_attack @0x3a104` 再比较物理／法术／物品三类 signed score：三项都 `<6` 时无动作；`magic==item>physical` 固定选 magic，三项完全相等则返回成功但不调用提交 helper。
+- `field_ai_physical_candidate_evaluate @0x14237`把上述武器范围应用到 actor 的每个可停留移动格，并按行优先格序、actor 表序枚举 `(destination,target)`。候选主优先级只取 `0/8/18`；次分数在每个 destination 开始时从目标数初始化，当前累计分数大于当前目标 HP 时取 `18` 并将分数翻倍，否则当移动格地形修正后的 attack 与目标格地形修正后的 defense 之差大于 2 时取 `8`。同优先级仅当次分数严格更大才替换，完全平价保留先遇到者；同一 destination 的后续 target 会继承前一 target 的翻倍、反击调整和 `*3/2` 结果。`field_ai_try_attack @0x3a104` 再比较物理／法术／物品三类 signed score：三项都 `<6` 时无动作；`magic==item>physical` 固定选 magic，三项完全相等则返回成功但不调用提交 helper。
 - `field_magic_record_get @0x4e866` 返回 `DS:0x19fd + magic_id*7`。36 条静态记录位于 object3 `DS:0x19fd` / `FD2.EXE` file offset `0x7aa11`；字段 `+0` 为 AI tie/阈值用 `u16`，`+3/+4` 分别控制施法中心与目标范围，`+5` 与 actor `+0x44` MP 比较，`+6` 参与 side filter。SDL 将原始表内置于 `src/field_magic.c`，未确认字段继续按 offset 表述。`sub_1CA89 @0x1ca89` 还把 actor `+0x44` 的 u16 减去所选费用记录 `+5` 的 u8；不夹零、没有额外门或 RNG。无演出 damage／heal／status wrapper 在逐目标循环前调用一次；ID17 的 `sub_226EA @0x226ea` 实际传费用 ID18（当前两者费用均5）。旧“只有MP gate、不扣费”结论已撤回，见生成命名勘误。
 - 当前 SDL 已支持的 AI 无演出法术在全部候选／目标／profile／handler 预检后、首个目标效果前扣一次费用；多目标、miss、免疫或状态未变化不重复扣或退款，提交后失败保留已扣值。未知handler仍预检拒绝。动画 `sub_2FF01 @0x2ff01` 经 `sub_30E9D @0x30e9d` 按每个 caster part `+4==1` 调扣费；实际 FIGANI 回退条目存在零个或多个标记，不能把“整次一次”推广为全部动画语义。START unit9／ID0所用entry28仅part6一个标记，仍不替代玩家列表、取消与其他演员的B2／B6验收。
 - `DS:0x1f96` 的 28 项 `u32` magic profile scale 已由正确 bound-LE object2 page 静态恢复：`{10,10,10,10,7,7,10,10,10,10,9,10,5,5,8,10,6,8,10,9,5,5,10,8,8,4,10,7}`。其 file offset 为 `0x76faa`。旧 `0x10e00` page base 在同一逻辑地址读到指令流，现已确认是 page extraction 错误，不需要制作特殊存档。
@@ -392,7 +393,7 @@ stage 0 两组敌方 actor 由 `FUN_000300e1 @0x57bad` 登场。该函数使用 
 - `0x00..0xc0`：直接输出 1 个像素值；
 - `0xc1..0xff`：run，长度 `byte - 0xc0`，下一字节为重复像素值。
 
-**验证**：DATO.DAT 136 个条目的首帧均可按上述 RLE 解码；首批条目为 80×80、4 帧。
+**验证**：DATO.DAT 的136个有效条目（ID0..135）已完整读取，每项4帧、每帧80×80；不只校首帧。B4普通底框的reverse右端为(87,115)，实际覆盖左x8..87；128..132的特殊origin和刷新方向按调用者保留，不能统一翻转。
 
 ### 2.8 精灵/地形帧（FDSHAP.DAT）✅ 帧包 + 地形表
 
@@ -547,11 +548,18 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 0x06   1      side/camp，0 敌方，2 我方等
 0x07   1      DATO 立绘编号
 0x08   1      名称/文本编号；当前样本与 0x07 相同
+0x1a   5      magic_bits，40bit；学习按原byte／bit位置OR，不重建整表
 0x20   1      movement_profile，`field_movement_profile_get` 按该值选择 20 字节地形成本表
+0x21   1      level
+0x22   6      attack/defense/hit+evasion/poison/paralysis/magic禁止计时byte
 0x34   1      ai_behavior_raw；低半字节已确认分支为 behavior 0..5、7..11，mode 6 未确认
 0x35   1      ai_param_35；具体语义随 behavior 解释
 0x36   1      ai_param_36；具体语义随 behavior 解释
+0x37   2      base_attack，装备／状态派生的上游
+0x39   2      base_defense
 0x3b   1      movement_points，传给可达范围与路径搜索作为本次移动预算
+0x3c   1      experience，单位EX；不等于原全局53EC8贡献
+0x3e   2      base_accuracy
 0x40   2      hp 当前值
 0x42   2      hp 最大值
 0x44   2      mp 当前值
@@ -567,9 +575,23 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 1. `field_unit_stage_template_append @0x35e6e` 将 placement 与 FDFIELD 26 字节模板重排到单位记录，并按 template level 与 unit ID 查询静态基础表。ID `<0x44` 使用 24 字节角色基础 record 和 11 字节成长 record：HP/MP 使用 `base + growth*(level-1)`，attack/defense/accuracy 基础值使用 `base + growth*level`；ID `>=0x44` 使用 10 字节敌军 record，各数值按 `coefficient*level` 生成。两条路径都写入种族索引 `0x1f`、movement/职业 profile `0x20`、level `0x21`、基础值 `0x37/0x39/0x3e`、movement points `0x3b` 和 HP/MP `0x40..0x47`。
 2. 新游戏四名玩家没有 stage 模板构造步骤，但使用同一角色基础/成长表按 level 1 初始化，不再使用 stage 0 专用属性结构。
 3. 存档加载按单位数逐字恢复完整 `0x50` 字节记录；恢复路径不能重新套用新建默认值，否则会覆盖 HP、MP、装备和剧情状态。
-4. `field_unit_combat_stats_recompute @0x4096e（entry 0x40964）` 从 `0x37/0x39/0x3e` 读取三项基础值，从 `0x0a..0x19` 遍历 8 个装备槽，并写入 `0x48/0x4a/0x4c/0x4e`。装备槽 flag bit `0x40` 表示已装备；装备表 record `+1/+3/+5/+7` 分别累加 attack/accuracy/defense/evasion。record `0x24` 非零时，accuracy 和 evasion 的共同基础值加 15；`0x22/0x23` 分别触发攻击和防御的 x87 比例修正。
+4. `field_unit_combat_stats_recompute @0x1b750` 从 `0x37/0x39/0x3e` 读取三项基础值，从 `0x0a..0x19` 遍历 8 个装备槽，并写入 `0x48/0x4a/0x4c/0x4e`。装备槽 flag bit `0x40` 表示已装备；装备表 record `+1/+3/+5/+7` 分别累加 attack/accuracy/defense/evasion。record `0x24` 非零时，accuracy 和 evasion 的共同基础值加 15；`0x22/0x23` 分别触发攻击和防御的 x87 比例修正。
 
 DOSBox 对 stage 构造器的 CPU 捕获确认了完整写入顺序，并以 unit 96 level 2 得到 `(profile,move,hp,mp,base attack,base defense,base accuracy)=(7,4,28,0,14,2,2)`，与既有 stage 0 捕获一致；unit 1 level 2 得到 HP 46，与本地 stage 2 存档一致。当前 `src/field_unit_base.c` 登记构造器已确认的完整同格式索引范围：角色 ID `0..31` 与敌军 ID `68..135`；没有对应基础 record 的 ID `32..67` 事务化失败。最终装备派生仍由 `field_unit_stats` 完成，装备查询或状态缩放回调缺失时不写 `0x48..0x4f`。
+
+### 运行中成长、经验与状态字节
+
+`field_growth_record_get @0x4e821`（原 `sub_4E821`）返回数据VA `0x620a1 + 11*index`。已确认完整范围为68条、748字节，至独立下一表基址 `0x6238d`，SHA256 `75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5`。前10字节为五对成长字段，最后byte为学习selector；运行中 `field_growth_stat_present_apply @0x1e529` 的原 `EB0E` 分支直接取每对第二byte，不调用创建等级公式或成长RNG。
+
+`field_magic_learning_record_get @0x4e7f2`（原 `sub_4E7F2`）返回数据VA `0x626b3 + 12*selector`。完整growth非ff引用覆盖0..19，共20×12=240字节，SHA256 `839200667f837136d3426ab952e455b1a63b3bbba8b9175eb895d4408ddd6fb9`；每行六对 `(level, magicID)`，有效magicID最大35。重复已学位仍OR并通知，例如unit28在level15／23两次学习11；不把duplicate当坏数据，也不把ff哨兵解释为可写出五byte之外的能力。
+
+已有单位的运行中成长支持ID0..67，与上述初始创建器0..31边界不同；不能为成长重建整份单位。五个u16写点依次为 `0x37/0x39/0x3e/0x42/0x46`，加法按WORD回绕，HP／MP当前值保留。level先加1再显示489；非零成长在490..494的-3等待返回后写，学习位在587前OR，每级末重算。最终等待／关闭后才写EX byte。阈值100与精确等级门、贡献owner及错误边界见[session约束](../systems/battle-session.md)。
+
+`field_unit_combat_stats_recompute @0x1b750` 的AP／DP状态缩放推翻旧nearest-even结论：按原控制字127f，先将signed基础／装备和乘binary64 `1.15`，PC53舍入后 `__CHP` 临时向0截断，再写WORD。12→13、20→23、100→114，负100→负114；整数 `115*value/100` 也不等价。AC／EV不乘1.15，`0x24`非零只先各加15。`verify_fd2_x87_stat_scale.py` 对两块原指令及原 `__CHP` 各执行全部 `-65536..65535`，实际C的volatile double中间值逐项相同；这是局部机器码验收，不是原版运行验收。
+
+本轮运行证据覆盖受控普通治疗、一次升级学17、AI反击630经验连升六级，以及毒伤和六状态到期；不等于68条成长记录均已逐一实机。详情与最终合法SAV按原始字段验证；共享随机流、完整演出／音画及SDL回合编号横幅没有因此图形对齐，候选来源见[阶段记录](../plans/stage-log.md)。
+
+53EC8是未序列化的全局raw贡献，不是EX字段：物理满足side／敌ID门时逐击MOV覆盖，伤害／恢复／状态效果按其helper在指定写点ADD。恢复的signed实际差可为负，按DWORD回绕；玩家归一／cap99与AI奖励调用不同，不能存一份猜测的RNG或贡献checkpoint到SAV。`field_phase_status_tick @0x1a866` 的毒伤和六状态byte写序、提示前后暂停点及Load规则见session说明。
 
 `field_ai_unit_execute @0x38cb3` 确认模板 byte `0x11` 写入的 record `+0x34` 是 AI behavior selector，低半字节在原版中分派 `0..5、7..11`；模板 byte `0x12/0x13` 对应 record `+0x35/+0x36`，由不同 behavior 作为目标文本编号或坐标等参数读取，不能统一命名。stage 0 初始 group 1/2 的 8 名 side 0 单位均为 behavior 0，两个参数均为 0。AI 查询、提交与自动 phase 的当前范围见[战场计划](../plans/battlefield.md)，不在格式页维护实现进度。
 

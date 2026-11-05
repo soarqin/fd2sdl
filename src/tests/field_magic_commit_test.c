@@ -83,10 +83,38 @@ static void close_fixture(fixture *f) {
     free(f->game.move_path);
 }
 
+/* 本逻辑测试显式完成progress ACK，不模拟真实提示、按键或等待RNG。 */
+static int ack_progress(fd2_field_game *game) {
+    for (unsigned i=0;i<1024;i++) {
+        fd2_field_progress_notice notice;
+        int state=fd2_field_game_progress_peek(game,&notice);
+        if(state<0)return -1;
+        if(!state) {
+            for(size_t j=0;j<game->event_log_count;j++)game->event_log[j].presentation_deferred=0;
+            state=fd2_field_game_progress_resume(game);
+            if(state<0)return -1;
+            if(!state)return 0;
+            if(fd2_field_game_progress_peek(game,&notice)!=1)return -1;
+        }
+        if(fd2_field_game_progress_ack(game)!=0)return -1;
+    }
+    return -1;
+}
+static int resolve_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_resolve_player_magic(game);
+    return result==0?ack_progress(game):result;
+}
+static int reject_growth(const fd2_field_game *game,const fd2_field_progress_notice *notice,void *unused) {
+    (void)game;(void)unused;return notice->fragment==489?-1:0;
+}
 static int unchanged_rejection(fixture *f) {
     fd2_field_game before = f->game;
     size_t calls = f->calls;
-    CHECK(fd2_field_game_resolve_player_magic(&f->game) == -1);
+    CHECK(resolve_and_ack(&f->game) == -1);
+    if (f->game.failure == FD2_FIELD_FAILURE_ACTION && before.progress_preflight) {
+        before.failure=f->game.failure;before.failure_notice=f->game.failure_notice;
+        before.phase_next_action_ms=f->game.phase_next_action_ms;
+    }
     CHECK(!memcmp(&before, &f->game, sizeof(before)) && f->calls == calls);
     return 0;
 }
@@ -102,12 +130,12 @@ static int test_capability_gate_does_not_use_mp(void) {
     CHECK(!memcmp(&before, &f.game, sizeof(before)) && !f.calls);
     f.game.attack_rng = rng;
     f.game.units.items[0].data_09_1e[0x11] |= 2; /* 已知但本阶段未支持ID1。 */
-    CHECK(!fd2_field_game_magic_is_available(&f.game));
+    CHECK(fd2_field_game_magic_is_available(&f.game)); /* 已知未支持项不封禁0/13。 */
     f.game.units.items[0].data_09_1e[0x11] = 0;
     f.game.units.items[0].unit_id = 18; f.game.move_path_length = 2;
     CHECK(fd2_field_game_magic_is_available(&f.game) == 1); /* 仅13、移动例外。 */
     f.game.units.items[0].data_09_1e[0x11] = 1;
-    CHECK(!fd2_field_game_magic_is_available(&f.game)); /* ID0缺该caster动画费用证据。 */
+    CHECK(fd2_field_game_magic_is_available(&f.game)); /* ID13仍可用，ID0在逐项确认门拒绝。 */
     CHECK(!fd2_field_game_magic_is_available(NULL) && !f.calls);
     close_fixture(&f); return 0;
 }
@@ -133,7 +161,7 @@ static int test_damage_kill_miss_and_nonlethal_reward(void) {
             expected.items[1].flags = 1;
             expected.items[1].direction = 0;
         } else if (which == 2) expected.items[1].hp = 55;
-        CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+        CHECK(resolve_and_ack(g) == 0);
         CHECK(!memcmp(&expected, &g->units, sizeof(expected)));
         CHECK(f.calls == (which == 1 ? 1u : 2u) && f.observed_mp[0] == 6 && !f.observed_acted[0]);
         CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
@@ -154,7 +182,7 @@ static int test_same_cell_targets_are_raw_order_and_cost_once(void) {
         g->units.items[4].level = 2; g->units.items[4].movement_profile = 7;
         if (mixed) f.rolls[0] = 99; /* raw1 miss，raw4 hit。 */
         CHECK(target(&f, 0) == 0);
-        CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+        CHECK(resolve_and_ack(g) == 0);
         CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == (mixed ? 42 : 84));
         CHECK(g->units.items[1].hp == (mixed ? 28 : 0) && !g->units.items[4].hp);
         CHECK(f.calls == (mixed ? 3u : 4u));
@@ -171,7 +199,7 @@ static int test_self_heal_and_full_hp_still_charge_and_act(void) {
         fd2_field_game *g = &f.game;
         if (full) g->units.items[0].hp = g->units.items[0].hp_max;
         CHECK(target(&f, 13) == 0);
-        CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+        CHECK(resolve_and_ack(g) == 0);
         CHECK(g->units.items[0].hp == 28 && g->units.items[0].mp == 5);
         CHECK(g->units.items[0].experience == (full ? 0 : 11));
         CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && g->units.items[0].direction == 3);
@@ -190,13 +218,13 @@ static int test_reward_cap_and_last_player_controller(void) {
     unit(&g->units.items[4], 96, 0, 5, 6);
     g->units.items[4].level = 2;
     CHECK(target(&f, 0) == 0);
-    CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+    CHECK(resolve_and_ack(g) == 0);
     CHECK(g->units.items[0].experience == 99 && g->units.items[0].mp == 6 && f.calls == 6);
     close_fixture(&f);
     init(&f); g = &f.game;
     g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
     CHECK(target(&f, 0) == 0);
-    CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+    CHECK(resolve_and_ack(g) == 0);
     CHECK(g->active_side == 1 && g->player_post_waiting_phase && g->player_post_actor == 0);
     CHECK(g->units.items[0].experience == 42 && g->units.items[0].mp == 6 && f.calls == 2);
     CHECK(fd2_field_game_resume_player_controller(g) == 1);
@@ -213,12 +241,12 @@ static int test_all_preflight_rejections_are_before_mp_and_rng(void) {
         switch (which) {
             case 0: g->units.items[0].mp = 1; break;
             case 1: g->units.items[0].unit_id = 18; break;
-            case 2: g->units.items[0].experience = 58; break; /* 42+58升级。 */
+            case 2: g->units.items[0].experience = 58; g->progress_preflight=reject_growth; break; /* 可能升级的资源先拒绝。 */
             case 3: g->units.items[1].unit_id = 136; break;
             case 4: g->units.items[1].movement_profile = 0; break;
             case 5: g->units.items[1].hp_max = 0; break;
             case 6: ((uint8_t *)&g->units.items[1])[0x31] = 0; break;
-            case 7: g->units.items[0].data_09_1e[0x11] |= 2; break;
+            case 7: g->units.items[0].data_09_1e[0x15] |= 0x10; break; /* 未知bit36。 */
             case 8: g->attack_rng = NULL; break;
             case 9:
                 g->cursor_cell_x = g->units.items[1].x = 23;
@@ -241,12 +269,12 @@ static int test_all_preflight_rejections_are_before_mp_and_rng(void) {
             case 15: g->units.items[0].detail_status[2] = 1; break;
             case 16:
                 g->units.items[1].hp = g->units.items[1].hp_max = 100;
-                g->units.items[0].experience = 80; break; /* 最大20，不能赌实际18。 */
+                g->units.items[0].experience = 80; g->progress_preflight=reject_growth; break; /* 最大20升级资源，不能赌实际18。 */
         }
         CHECK(unchanged_rejection(&f) == 0 && !f.calls);
         close_fixture(&f);
     }
-    CHECK(fd2_field_game_resolve_player_magic(NULL) == -1);
+    CHECK(resolve_and_ack(NULL) == -1);
     return 0;
 }
 
@@ -260,7 +288,7 @@ static int test_post_commit_failure_preserves_cost_effect_and_freezes(void) {
             /* 已知action0执行缺少部署资源；不是未知handler预检。 */
         } else f.corrupt_cell = 1; /* 测试回调在首RNG后破坏cell，模拟后段错误。 */
         CHECK(target(&f, 0) == 0);
-        CHECK(fd2_field_game_resolve_player_magic(g) == -1);
+        CHECK(resolve_and_ack(g) == -1);
         CHECK(g->failure == (phase_failure ? FD2_FIELD_FAILURE_EVENT_EXECUTION : FD2_FIELD_FAILURE_EVENT_DATA));
         CHECK(g->units.items[0].mp == 6 && g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
         CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && f.calls == 2);
@@ -288,7 +316,7 @@ static int test_phase_prediction_hides_dead_players_but_keeps_healed_players(voi
     g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1};
     g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY; /* 未进入side1，不需要notice。 */
     CHECK(target(&f, 13) == 0);
-    CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+    CHECK(resolve_and_ack(g) == 0);
     CHECK(g->units.items[0].mp == 5 && g->units.items[0].experience == 51);
     CHECK(g->units.items[2].hp == 42 && g->units.items[2].flags == 0);
     CHECK(g->active_side == 2 && !g->player_post_waiting_phase && !g->failure);
@@ -319,7 +347,7 @@ static int test_death_direction_extended_viewport_contract(void) {
         unit(&g->units.items[4], 96, 0, 10, 10);
         g->units.items[4].hp = 0; g->units.items[4].flags = 0x85; g->units.items[4].direction = 3;
         CHECK(target(&f, 13) == 0);
-        CHECK(fd2_field_game_resolve_player_magic(g) == 0);
+        CHECK(resolve_and_ack(g) == 0);
         CHECK(g->units.items[1].direction == (cases[c].rotates ? 0 : 2));
         CHECK(g->units.items[3].direction == (cases[c].rotates ? 0 : 1));
         CHECK(g->units.items[4].direction == 3); /* hidden死者不参与旋转。 */
@@ -345,6 +373,7 @@ static int test_formal_command_routes_basic_magic(void) {
     CHECK(fd2_field_game_begin_magic_targeting(g, id) == 0);
     CHECK(fd2_field_game_confirm_cursor(g) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
+    CHECK(ack_progress(g) == 0);
     CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == 42 && f.calls == 2);
     CHECK(g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
     CHECK(fd2_field_unit_has_acted(&g->units.items[0]));
@@ -362,7 +391,7 @@ static int test_formal_command_routes_basic_magic(void) {
     CHECK(!memcmp(&before, g, sizeof(before)) && !f.calls);
     CHECK(fd2_field_game_cancel_selection(g) == 1);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->command_selected == FD2_FIELD_COMMAND_MAGIC);
-    g->units.items[0].data_09_1e[0x11] |= 2;
+    g->units.items[0].data_09_1e[0x15] |= 0x10; /* 未知36才拒整表。 */
     CHECK(fd2_field_game_refresh_commands(g) == 0 && g->command_disabled[FD2_FIELD_COMMAND_MAGIC]);
     g->command_selected = FD2_FIELD_COMMAND_MAGIC;
     before = *g;

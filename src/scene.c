@@ -1,9 +1,11 @@
-/* 炎龙骑士团 2 SDL3 重写 - 完整新游戏初始过场
+/* 炎龙骑士团 2 SDL3 重写 - 新游戏过场与共用战场文本绘制
  * 逆向依据：new_game_opening_play @code0 0x2231b 的 stage 32→31→0
  * 调用序列、text_dialog_render_tokens @code0 0x5f84、field_focus_move_to
  * @0x12cea、field_actor_move_up_follow_camera @0x13185、
  * field_camera_pan_to @0x135dd、field_movement_script_play @0x1366a，
  * 以及原版实机对照。
+ * B4底框复用field_bottom_notice_open @0x1956b（原sub_1956B）调用的
+ * dialog_box_draw_tiles @0x168b6，箭头依据dialog_wait_key @0x16c57（原sub_16C57）。
  */
 
 #include "scene.h"
@@ -273,6 +275,42 @@ static void draw_dialog_box(fd2_vga *vga, const fd2_ui_sheet *ui,
                             fd2_dialog_area area) {
     int y = (area == FD2_DIALOG_TOP) ? DIALOG_TOP_Y : DIALOG_BOTTOM_Y;
     draw_dialog_tiles(vga, ui, DIALOG_X, y, 19, 5);
+}
+
+int fd2_scene_field_message_validate(const fd2_archive *fdother) {
+    fd2_ui_sheet ui;
+    if (ui_sheet_open_fdother(&ui, fdother, 5) != 0) return -1;
+    /* 168b6/16c57实际读取的19张raw图；先校全span，晚坏图不能半绘。 */
+    static const uint8_t dimensions[19][2] = {
+        {3,3},{3,3},{3,3},{3,3},{16,3},{16,3},{16,3},{16,3},{16,3},
+        {3,16},{3,16},{16,3},{16,16},{3,16},{3,16},{3,16},{3,16},
+        {14,10},{14,10}
+    };
+    for (unsigned i = 0; i < 19; i++) {
+        int width, height;
+        if (ui_sheet_get_tile(&ui, (uint16_t)(i + 1), NULL, &width, &height) != 0 ||
+            width != dimensions[i][0] || height != dimensions[i][1]) return -1;
+    }
+    return 0;
+}
+
+int fd2_scene_field_message_box(fd2_vga *vga, const fd2_archive *fdother) {
+    fd2_ui_sheet ui;
+    if (!vga || fd2_scene_field_message_validate(fdother) != 0 ||
+        ui_sheet_open_fdother(&ui, fdother, 5) != 0) return -1;
+    draw_dialog_box(vga, &ui, FD2_DIALOG_BOTTOM);
+    return 0;
+}
+
+int fd2_scene_field_message_arrow(fd2_vga *vga, const fd2_archive *fdother,
+                                  unsigned arrow_frame) {
+    fd2_ui_sheet ui;
+    if (!vga || (arrow_frame != 13 && arrow_frame != 18 && arrow_frame != 19) ||
+        fd2_scene_field_message_validate(fdother) != 0 ||
+        ui_sheet_open_fdother(&ui, fdother, 5) != 0) return -1;
+    /* 16c57：53A51为已加载map指针，v7=18336；13的擦除原点上移5px。 */
+    blit_ui_tile(vga, &ui, (uint16_t)arrow_frame, 191, arrow_frame == 13 ? 176 : 181);
+    return 0;
 }
 
 static uint16_t resolve_portrait_control(const fd2_scene_field_state *field_state,

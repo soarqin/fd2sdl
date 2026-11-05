@@ -29,6 +29,26 @@
    "name": "__int7",
    "err_ea": "0x4a0f8",
    "desc": "call analysis failed"
+  }
+ ],
+ "previous_probe_remaining_failures": [
+  {
+   "func": "0x34f38",
+   "name": "sub_34F38",
+   "err_ea": "0x34f38",
+   "desc": "positive sp value has been found"
+  },
+  {
+   "func": "0x4a0c4",
+   "name": "__int7_pl3",
+   "err_ea": "0x4a0dc",
+   "desc": "call analysis failed"
+  },
+  {
+   "func": "0x4a0e8",
+   "name": "__int7",
+   "err_ea": "0x4a0f8",
+   "desc": "call analysis failed"
   },
   {
    "func": "0x4a104",
@@ -36,5 +56,10 @@
    "err_ea": "0x4b1bf",
    "desc": "call analysis failed"
   }
- ]
+ ],
+ "b4_failure_inventory": {
+  "source": "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b4-publication-20261105_155414_534319\\workspace\\docs\\generated\\ida-canonical\\fd2-ida-decomp-all.c",
+  "sha256": "de1272523ecd0deec9993220a897df540e84bc4fa147eef6926ee0ed9b8fe546",
+  "method": "count actual full export; no type proposals applied or saved in this phase"
+ }
 }

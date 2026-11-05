@@ -1022,7 +1022,8 @@ static int test_item_selection_handoffs_and_context(void) {
     fd2_input_begin_test_frame(&vga.input, 0);
     controls.command_keys = 1;
     CHECK(play_field_item_menu_cancel(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
-    CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND && game.command_selected == FD2_FIELD_COMMAND_ITEM);
+    /* B4允许混合已知列表保留0：无装备ATTACK时重开COMMAND首项为MAGIC。 */
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND && game.command_selected == FD2_FIELD_COMMAND_MAGIC);
     CHECK(controls.command_calls == 2 && controls.command_openings[0] == 0 && controls.command_openings[1] == 1);
     CHECK(controls.command_states[0] == FD2_FIELD_INTERACTION_ITEM_MENU &&
           controls.command_states[1] == FD2_FIELD_INTERACTION_COMMAND);
@@ -1111,7 +1112,8 @@ static int test_drop_closes_before_commit_and_reopens_actual_owner(void) {
             fd2_field_interaction owner = count == 1 && !cancel
                 ? FD2_FIELD_INTERACTION_COMMAND : FD2_FIELD_INTERACTION_ITEM_MENU;
             CHECK(game.interaction == owner && controls.command_states[0] == owner);
-            CHECK(game.command_selected == (owner == FD2_FIELD_INTERACTION_COMMAND ? FD2_FIELD_COMMAND_WAIT : 0));
+            /* 删空库存仍有已支持0，B4重开COMMAND首可用项是MAGIC。 */
+            CHECK(game.command_selected == (owner == FD2_FIELD_INTERACTION_COMMAND ? FD2_FIELD_COMMAND_MAGIC : 0));
             CHECK(!game.item_list_selected && !game.event_total_count && !game.player_post_waiting_phase);
             CHECK(game.pending_cell_event.valid && !fd2_field_unit_has_acted(&game.units.items[0]));
             CHECK(!fd2_input_has_any_key(&vga.input) && controls.rng_calls == 1);

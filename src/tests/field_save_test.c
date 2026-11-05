@@ -914,8 +914,35 @@ static int test_original_start_roster_and_recruit_transaction(void) {
     return 0;
 }
 
+static int test_progress_owner_load_and_save_boundaries(void) {
+    fd2_field_game source,target;init_game(&source);init_game(&target);
+    fd2_save_battle_snapshot snapshot={0};
+    CHECK(fd2_field_game_export_battle_snapshot(&source,&snapshot)==0);
+    target.experience_value=0xffffffed;
+    target.progress.notice=(fd2_field_progress_notice){FD2_FIELD_PROGRESS_GAIN,0,488,5,0,0};
+    target.progress.total=105;target.progress.resume=FD2_FIELD_PROGRESS_RESUME_PLAYER;
+    fd2_save_battle_snapshot sentry;memset(&sentry,0xa5,sizeof(sentry));
+    fd2_save_battle_snapshot before_sentry=sentry;
+    CHECK(fd2_field_game_export_battle_snapshot(&target,&sentry)!=0);
+    CHECK(memcmp(&sentry,&before_sentry,sizeof(sentry))==0);
+    fd2_save_battle_snapshot invalid=snapshot;invalid.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=65;
+    fd2_field_game before=target;
+    CHECK(fd2_field_game_import_battle_snapshot(&target,&invalid)!=0);
+    CHECK(memcmp(&target,&before,sizeof(target))==0);
+    CHECK(fd2_field_game_import_battle_snapshot(&target,&snapshot)==0);
+    CHECK(target.experience_value==0xffffffed && !target.progress.resume && !target.progress.notice.kind && !target.progress.total);
+    target.progress.resume=FD2_FIELD_PROGRESS_RESUME_PHASE;
+    CHECK(fd2_field_game_export_battle_snapshot(&target,&sentry)!=0);
+    CHECK(memcmp(&sentry,&before_sentry,sizeof(sentry))==0);
+    char path[FD2_TEST_PATH_MAX];CHECK(fd2_test_temp_path(path)==0);CHECK(remove(path)==0);
+    CHECK(fd2_field_game_save_active(&target,path)==-1);
+    CHECK(fd2_field_game_save_manual_slot(&target,path,0)==-1);
+    FILE *unexpected=fopen(path,"rb");CHECK(unexpected==NULL);
+    return 0;
+}
 int main(void) {
-    if (test_export_preserves_unknown() != 0 ||
+    if (test_progress_owner_load_and_save_boundaries() != 0 ||
+        test_export_preserves_unknown() != 0 ||
         test_runtime_unit_capacity() != 0 ||
         test_roster_capacity_is_independent() != 0 ||
         test_first_active_save() != 0 ||

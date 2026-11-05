@@ -310,7 +310,7 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
                 "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last",
                 "original-item-eqt-incompatible", "original-item-eqt-weapon",
-                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"])
+                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"] + ["original-reward-" + name for name in runner.B4_SCENARIOS])
             self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
                              ["original-opening", "original-focus", "input"])
             by_name = {call.args[0]: call for call in pairs}
@@ -389,6 +389,43 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             suite = runner.Suite(args); suite.command = Mock()
             with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
             self.assertEqual([row.args[0] for row in suite.command.call_args_list], ["original-item-give-swap", "original-item-use-24"])
+
+    def test_b4_only_exact_scenes_never_launch_history_or_items(self):
+        scenarios = ("physical-cap", "physical-overwrite", "heal", "learn", "counter-multi", "status")
+        from fd2_reward_oracle import SCENARIOS
+        self.assertEqual(scenarios, SCENARIOS)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = SimpleNamespace(build_dir=root, b4_only=True, game=root / "game.exe", driver=root / "driver.exe", dosbox="dosbox.exe")
+            suite = runner.Suite(args); suite.command = Mock()
+            suite.item_cases = Mock(side_effect=AssertionError("B4不得重跑B3"))
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+            self.assertEqual([row.args[0] for row in suite.command.call_args_list], ["original-reward-" + name for name in scenarios])
+            self.assertEqual(suite.report["status"], "passed")
+            self.assertIn("B4 changed/new", suite.report["scope"])
+            for row, name in zip(suite.command.call_args_list, scenarios):
+                command = row.args[1]
+                self.assertEqual(command[1], runner.ROOT / "tools/run_original_reward.py")
+                self.assertEqual(command[command.index("--scenario") + 1], name)
+                self.assertEqual(command[command.index("--sdl") + 1], args.game)
+                self.assertEqual(row.kwargs["timeout"], 900)
+            suite.item_cases.assert_not_called()
+
+    def test_b4_subset_and_all_invalid_stage_flags_precede_mkdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for overrides in ({"b4_only": True, "b4_scenarios": ["unknown"]},
+                    {"b4_only": True, "b4_scenarios": ["learn", "learn"]},
+                    {"b4_only": True, "b4_scenarios": []}, {"b4_scenarios": ["learn"]},
+                    {"b4_only": True, "b3_only": True}):
+                with patch.object(Path, "mkdir") as mkdir, self.assertRaises(ValueError):
+                    runner.Suite(SimpleNamespace(build_dir=root, **overrides))
+                mkdir.assert_not_called()
+            args = SimpleNamespace(build_dir=root, b4_only=True, b4_scenarios=["status", "learn"],
+                game=root / "game.exe", driver=root / "driver.exe", dosbox="dosbox.exe")
+            suite = runner.Suite(args); suite.command = Mock()
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+            self.assertEqual([row.args[0] for row in suite.command.call_args_list], ["original-reward-status", "original-reward-learn"])
 
 
 class WindowCleanupTest(unittest.TestCase):

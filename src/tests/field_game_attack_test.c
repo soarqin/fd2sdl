@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "field_attack.h"
 #include "field_game.h"
 
 typedef struct {
@@ -59,6 +60,8 @@ static void init_unit(fd2_field_unit *unit, uint8_t side, int x, int y) {
     unit->hp_max = 10;
     unit->attack = 20;
     unit->accuracy = 100;
+    unit->level = 1;
+    ((uint8_t *)unit)[0x31] = 0xff; /* synthetic死亡不携未知loot。 */
 }
 
 static void equip_weapon(fd2_field_unit *unit, uint8_t item_id) {
@@ -126,6 +129,128 @@ static int test_weapon_required_with_range_hook(void) {
         expect(rng.cursor == 0,
                "weapon preflight consumes no RNG"))
         return -1;
+    return 0;
+}
+
+/* 18d8c→14818→115b6：候选按raw/filter0，不另加HP/acted门；
+ * unit121保留轮询槽但不调用12cea。选择/取消不执行战斗提交。 */
+static int test_target_focus_and_cycle(void) {
+    test_rng rng = {NULL, 0, 0};
+    fd2_field_game game;
+    init_game(&game);
+    game.cursor_cell_x = 5;
+    game.cursor_cell_y = 5;
+    game.focus_cycle_unit = 2;
+    game.units.count = 5;
+    game.units.items[1].hp = 0;
+    fd2_field_unit_set_acted(&game.units.items[1], 1);
+    init_unit(&game.units.items[3], 0, 5, 4);
+    init_unit(&game.units.items[4], 0, 4, 5);
+    game.units.items[4].unit_id = 121;
+    game.move_path_length = 1;
+    game.move_origin_x = 4;
+    game.move_origin_y = 5;
+    game.pending_cell_event.valid = 1;
+    game.pending_cell_event.action = 7;
+    game.pending_cell_event.source_slot = 3;
+    fd2_field_unit units[5];
+    memcpy(units, game.units.items, sizeof(units));
+    if (configure(&game, &rng) != 0 ||
+        expect(fd2_field_game_begin_attack(&game) == 0,
+               "physical target selection opens") ||
+        expect(game.magic_target_count == 3 && game.magic_target_cycle == 0 &&
+               game.magic_target_candidates[0] == 1 &&
+               game.magic_target_candidates[1] == 3 &&
+               game.magic_target_candidates[2] == 4,
+               "filter0 candidates retain raw order including HP0/acted/121") ||
+        expect(game.cursor_cell_x == 6 && game.cursor_cell_y == 5,
+               "initial focus moves to the first raw candidate") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == 1 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 4,
+               "Z advances to the next raw target") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == 1 &&
+               game.magic_target_cycle == 2 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 4,
+               "121 consumes one slot without moving focus") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == 1 &&
+               game.magic_target_cycle == 0 &&
+               game.cursor_cell_x == 6 && game.cursor_cell_y == 5,
+               "target cycling wraps to the first raw candidate") ||
+        expect(fd2_field_game_cancel_attack(&game) == 1 &&
+               game.interaction == FD2_FIELD_INTERACTION_COMMAND &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 5 &&
+               !game.move_range.nodes && !game.magic_target_count &&
+               !game.magic_target_cycle,
+               "cancel clears target owner and restores caster command focus") ||
+        expect(game.focus_cycle_unit == 2 && game.move_path_length == 1 &&
+               game.move_origin_x == 4 && game.move_origin_y == 5 &&
+               game.pending_cell_event.valid && game.pending_cell_event.action == 7 &&
+               game.pending_cell_event.source_slot == 3 &&
+               memcmp(units, game.units.items, sizeof(units)) == 0 && rng.cursor == 0,
+               "target focus/cancel preserve movement, pending, units and RNG") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == -1,
+               "target cycling cannot escape into COMMAND"))
+        return -1;
+
+    /* 首槽121不跳到后面的普通目标；hidden槽不进入候选。 */
+    game.units.items[1].unit_id = 121;
+    game.units.items[4].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+    if (expect(fd2_field_game_begin_attack(&game) == 0 &&
+               game.magic_target_count == 2 && game.magic_target_cycle == 0 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 5,
+               "first 121 retains incoming focus instead of skipping the slot") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == 1 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 4,
+               "cycling from first 121 reaches the next candidate") ||
+        expect(fd2_field_game_cancel_attack(&game) == 1,
+               "121 selection can be cancelled"))
+        return -1;
+    game.units.items[1].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN;
+    if (expect(fd2_field_game_begin_attack(&game) == 0 &&
+               game.magic_target_count == 1 && game.magic_target_candidates[0] == 3 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 4,
+               "hidden raw slots are skipped at initial focus") ||
+        expect(fd2_field_game_cycle_attack_target(&game) == 1 &&
+               game.magic_target_cycle == 0 &&
+               game.cursor_cell_x == 5 && game.cursor_cell_y == 4,
+               "single target wraps without another focus owner") ||
+        expect(fd2_field_game_cancel_attack(&game) == 1 && rng.cursor == 0,
+               "reopening and cancelling never consume combat RNG"))
+        return -1;
+    return 0;
+}
+
+static int test_target_selection_rejection_is_atomic(void) {
+    test_rng rng = {NULL, 0, 0};
+    fd2_field_game game, before;
+    init_game(&game);
+    if (configure(&game, &rng) != 0 ||
+        fd2_field_attack_range_compute(&game.move_range, &game.map, &game.terrain,
+            &game.units.items[0]) != 0)
+        return -1;
+    game.units.count = 4;
+    init_unit(&game.units.items[3], 1, 8, 0);
+    before = game;
+    if (expect(fd2_field_game_begin_attack(&game) == -1 &&
+               memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0,
+               "late invalid visible coordinates reject before range/focus handoff"))
+        return -1;
+    game.units.count = 3;
+    game.units.items[1].side = 1;
+    before = game;
+    if (expect(fd2_field_game_begin_attack(&game) == -1 &&
+               memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0,
+               "no legal enemy keeps the disabled attack and existing owner unchanged"))
+        return -1;
+    game.units.items[1].side = 0;
+    if (fd2_field_game_begin_attack(&game) != 0) return -1;
+    game.magic_target_candidates[0] = FD2_FIELD_MAX_UNITS;
+    before = game;
+    if (expect(fd2_field_game_cycle_attack_target(&game) == -1 &&
+               memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0,
+               "invalid cached raw slot rejects before focus/cycle changes"))
+        return -1;
+    fd2_field_path_close(&game.move_range);
     return 0;
 }
 
@@ -225,6 +350,8 @@ static int test_hit_via_confirm_flow(void) {
                "attacker is marked acted") ||
         expect(game.move_range.nodes == NULL,
                "resolved attack clears targeting range") ||
+        expect(game.magic_target_count == 0 && game.magic_target_cycle == 0,
+               "resolved physical action clears the shared target owner") ||
         expect(fd2_field_game_battle_result(&game) ==
                    FD2_FIELD_BATTLE_VICTORY,
                "lethal final hostile updates battle result") ||
@@ -555,6 +682,8 @@ static int test_miss_completes_action(void) {
 
 int main(void) {
     return test_weapon_required_with_range_hook() ||
+                   test_target_focus_and_cycle() ||
+                   test_target_selection_rejection_is_atomic() ||
                    test_illegal_and_cancel() ||
                    test_acted_preflight_rollback() ||
                    test_hit_via_confirm_flow() ||

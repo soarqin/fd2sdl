@@ -73,6 +73,17 @@ static int item_give_has_target(const fd2_field_game *game);
 static int finish_item_give_cancel(fd2_field_game *game, int restore_focus);
 static const uint8_t *item_target_record(const fd2_field_game *game);
 static int item_teleport_destination_is_legal(const fd2_field_game *game);
+static int complete_player_controller_tail(fd2_field_game *game, size_t actor_index);
+static int finish_and_dispatch_ai_action(fd2_field_game *game, size_t actor_index);
+static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index);
+static int advance_status_progress(fd2_field_game *game);
+static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t gain);
+static int begin_reward(fd2_field_game *game, size_t actor_index,
+                         fd2_field_progress_resume resume, size_t resume_actor);
+static int progress_pending(const fd2_field_game *game) {
+    return game && (game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
+                    game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE);
+}
 
 /* field_selection_overlay_draw @0x122dc（原登记同名）display6写当前
  * node+7=0；逻辑准备显式拥有此写集，纯renderer不暗改范围。 */
@@ -134,17 +145,12 @@ static int known_status_stat_scale(void *userdata,
     (void)userdata;
     (void)stat;
     if (!scaled_value) return -1;
-    /* corrected dual 0x1b7ef/0x1b80a 经 fixup 指向 object2
-     * DS:0x018d 的 double 1.15；x87 frndint/fistp 使用 nearest-even。 */
-    int64_t numerator = (int64_t)value * 115;
-    int64_t quotient = numerator / 100;
-    int64_t remainder = numerator % 100;
-    int64_t magnitude = remainder < 0 ? -remainder : remainder;
-    if (magnitude > 50 ||
-        (magnitude == 50 && (quotient & 1) != 0))
-        quotient += numerator < 0 ? -1 : 1;
-    if (quotient < INT32_MIN || quotient > INT32_MAX) return -1;
-    *scaled_value = (int32_t)quotient;
+    /* field_unit_combat_stats_recompute @0x1b750（原登记同名）的两段
+     * 1b7ef/1b80a：原CW127f乘binary64 1.15后，__CHP临时向0截断。
+     * 原码全域[-65536,65535]已对照；volatile固定乘积53bit舍入，勿用115/100。 */
+    volatile double product = (double)value * 1.15;
+    if (product < INT32_MIN || product > INT32_MAX) return -1;
+    *scaled_value = (int32_t)product;
     return 0;
 }
 
@@ -479,6 +485,183 @@ static void fail_action(fd2_field_game *game, size_t actor_index) {
     fail_session(game, FD2_FIELD_FAILURE_ACTION, &notice);
 }
 
+int fd2_field_game_set_progress_preflight(fd2_field_game *game,
+        fd2_field_progress_preflight_fn preflight, void *userdata) {
+    if (!game || !game->ready || progress_pending(game))
+        return -1;
+    game->progress_preflight = preflight;
+    game->progress_preflight_userdata = userdata;
+    return 0;
+}
+
+static int progress_resource_ready(fd2_field_game *game,
+                                    const fd2_field_progress_notice *notice) {
+    if (!game->progress_preflight || game->progress_preflight(
+            game, notice, game->progress_preflight_userdata) == 0) return 1;
+    fail_action(game, notice->actor_index); /* 必需UI资源错误不能冒充普通非法目标。 */
+    return 0;
+}
+
+/* 先用80B preview验证完整终态；资源回调只枚举可能提示，不执行呈现或写actor。 */
+static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t gain) {
+    if (actor_index >= game->units.count) return -1;
+    const fd2_field_unit *unit = &game->units.items[actor_index];
+    fd2_field_unit shadow;
+    int result = fd2_field_unit_reward_preview(unit, gain,
+        known_status_stat_scale, NULL, &shadow);
+    if (result <= 0) return result;
+    fd2_field_progress_notice notice = {FD2_FIELD_PROGRESS_GAIN, actor_index, 488, gain, 0, 0};
+    if (!progress_resource_ready(game, &notice)) return -1;
+    uint32_t total = unit->experience + gain;
+    fd2_field_unit level_source = *unit;
+    while (total >= 100u) {
+        fd2_field_unit_level_growth level;
+        if (fd2_field_unit_level_growth_prepare(&level_source, &level) != 0) return -1;
+        level_source.level = level.level;
+        notice.kind = FD2_FIELD_PROGRESS_LEVEL; notice.fragment = 489;
+        notice.value = level.level;
+        if (!progress_resource_ready(game, &notice)) return -1;
+        for (size_t i = 0; i < 5u; i++) {
+            if (!level.growth[i]) continue;
+            notice.kind = FD2_FIELD_PROGRESS_GROWTH; notice.fragment = (uint16_t)(490u + i);
+            notice.value = level.growth[i];
+            if (!progress_resource_ready(game, &notice)) return -1;
+        }
+        for (size_t i = 0; i < level.learned_count; i++) {
+            notice.kind = FD2_FIELD_PROGRESS_LEARN; notice.fragment = 587;
+            notice.value = 0; notice.magic_id = level.learned_magic[i];
+            if (!progress_resource_ready(game, &notice)) return -1;
+        }
+        total -= 100u;
+        if (level_source.level == 30u ||
+            ((unit->unit_id == 30u || unit->unit_id == 31u) && level_source.level == 99u)) total = 0;
+    }
+    notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_CLOSE, actor_index, 0, 0, 0, 11};
+    return progress_resource_ready(game, &notice) ? 1 : -1;
+}
+
+static int begin_reward(fd2_field_game *game, size_t actor_index,
+                         fd2_field_progress_resume resume, size_t resume_actor) {
+    if (progress_pending(game) ||
+        actor_index >= game->units.count) return -1;
+    int checked = preflight_reward(game, actor_index, game->experience_value);
+    if (checked <= 0) return checked;
+    memset(&game->progress, 0, sizeof(game->progress));
+    game->progress.notice = (fd2_field_progress_notice){
+        FD2_FIELD_PROGRESS_GAIN, actor_index, 488, game->experience_value, 0, 0};
+    game->progress.total = game->units.items[actor_index].experience + game->experience_value;
+    game->progress.resume = resume;
+    game->progress.resume_actor = resume_actor;
+    return 1;
+}
+
+int fd2_field_game_progress_peek(const fd2_field_game *game,
+                                 fd2_field_progress_notice *notice) {
+    if (!game || !game->ready || !notice || game->failure != FD2_FIELD_FAILURE_NONE)
+        return -1;
+    if (game->progress.notice.kind == FD2_FIELD_PROGRESS_NONE) return 0;
+    if (game->progress.notice.kind > FD2_FIELD_PROGRESS_STATUS ||
+        game->progress.notice.actor_index >= game->units.count) return -1;
+    *notice = game->progress.notice;
+    return 1;
+}
+
+static int reward_next_level(fd2_field_game *game) {
+    fd2_field_progress *progress = &game->progress;
+    if (progress->total < 100u) {
+        progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_CLOSE,
+            progress->notice.actor_index, 0, 0, 0, 11};
+        return 0;
+    }
+    fd2_field_unit *unit = &game->units.items[progress->notice.actor_index];
+    if (fd2_field_unit_level_growth_prepare(unit, &progress->level) != 0) return -1;
+    unit->level = progress->level.level; /* 原489提示之前先INC byte。 */
+    progress->growth_cursor = progress->learn_cursor = 0;
+    progress->notice.kind = FD2_FIELD_PROGRESS_LEVEL;
+    progress->notice.fragment = 489; progress->notice.value = unit->level;
+    progress->notice.magic_id = progress->notice.wait_ticks = 0;
+    return 0;
+}
+
+static int reward_next_field(fd2_field_game *game) {
+    fd2_field_progress *progress = &game->progress;
+    fd2_field_unit *unit = &game->units.items[progress->notice.actor_index];
+    while (progress->growth_cursor < 5u) {
+        uint8_t index = progress->growth_cursor;
+        if (!progress->level.growth[index]) { progress->growth_cursor++; continue; }
+        progress->notice.kind = FD2_FIELD_PROGRESS_GROWTH;
+        progress->notice.fragment = (uint16_t)(490u + index);
+        progress->notice.value = progress->level.growth[index];
+        return 0; /* 原1e529必须等本条提示返回才ADD WORD。 */
+    }
+    if (progress->learn_cursor < progress->level.learned_count) {
+        uint8_t id = progress->level.learned_magic[progress->learn_cursor];
+        uint8_t *raw = (uint8_t *)unit;
+        raw[0x1au + id / 8u] |= (uint8_t)(1u << (id % 8u));
+        progress->notice.kind = FD2_FIELD_PROGRESS_LEARN;
+        progress->notice.fragment = 587; progress->notice.value = 0;
+        progress->notice.magic_id = id;
+        return 0;
+    }
+    if (fd2_field_unit_combat_stats_recompute(unit, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0) return -1;
+    progress->total -= 100u;
+    if (unit->level == 30u ||
+        ((unit->unit_id == 30u || unit->unit_id == 31u) && unit->level == 99u)) progress->total = 0;
+    return reward_next_level(game);
+}
+
+int fd2_field_game_progress_ack(fd2_field_game *game) {
+    fd2_field_progress_notice notice;
+    if (fd2_field_game_progress_peek(game, &notice) != 1) return -1;
+    int result = 0;
+    if (notice.kind == FD2_FIELD_PROGRESS_STATUS) {
+        if (notice.fragment != 487 && fd2_field_unit_combat_stats_recompute(
+                &game->units.items[notice.actor_index], known_item_stat_lookup, NULL,
+                known_status_stat_scale, NULL) != 0) result = -1;
+        else result = advance_status_progress(game);
+    } else if (notice.kind == FD2_FIELD_PROGRESS_GAIN) result = reward_next_level(game);
+    else if (notice.kind == FD2_FIELD_PROGRESS_LEVEL) result = reward_next_field(game);
+    else if (notice.kind == FD2_FIELD_PROGRESS_GROWTH) {
+        static const size_t offsets[5] = {0x37, 0x39, 0x3e, 0x42, 0x46};
+        size_t i = game->progress.growth_cursor;
+        if (i >= 5u) result = -1;
+        else {
+            uint8_t *raw = (uint8_t *)&game->units.items[notice.actor_index];
+            size_t at = offsets[i];
+            uint16_t value = (uint16_t)(raw[at] | (uint16_t)raw[at + 1u] << 8);
+            value = (uint16_t)(value + game->progress.level.growth[i]);
+            raw[at] = (uint8_t)value; raw[at + 1u] = (uint8_t)(value >> 8);
+            game->progress.growth_cursor++;
+            result = reward_next_field(game);
+        }
+    } else if (notice.kind == FD2_FIELD_PROGRESS_LEARN) {
+        game->progress.learn_cursor++;
+        result = reward_next_field(game);
+    } else if (notice.kind == FD2_FIELD_PROGRESS_CLOSE) {
+        fd2_field_progress_resume resume = game->progress.resume;
+        size_t actor = game->progress.resume_actor;
+        int common_tail = game->progress.ai_common_tail;
+        game->units.items[notice.actor_index].experience = (uint8_t)game->progress.total;
+        game->experience_value = 0;
+        memset(&game->progress, 0, sizeof(game->progress));
+        if (resume == FD2_FIELD_PROGRESS_RESUME_PLAYER)
+            result = complete_player_controller_tail(game, actor);
+        else if (resume == FD2_FIELD_PROGRESS_RESUME_AI_DIRECT ||
+                 resume == FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER) {
+            if (common_tail) result = finish_ai_action(game, actor);
+            if (result == 0) result = dispatch_pending_cell_event(game, actor);
+            if (result == 0) {
+                game->battle_result = fd2_field_game_battle_result(game);
+                if (game->battle_result != FD2_FIELD_BATTLE_ONGOING &&
+                    fd2_field_game_resume_player_controller(game) < 0) result = -1;
+            }
+        }
+    } else result = -1;
+    if (result < 0 && game->failure == FD2_FIELD_FAILURE_NONE) fail_action(game, notice.actor_index);
+    return result < 0 ? -1 : 0;
+}
+
 static int reserve_event_notice(fd2_field_game *game,
                                  const fd2_field_event_notice *notice) {
     if (game->failure != FD2_FIELD_FAILURE_NONE) return -1;
@@ -589,47 +772,87 @@ static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index)
     return -1;
 }
 
-static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
-    if (!game) return;
-    /* field_phase_status_tick @0x1a866（原登记同名）：先按 raw 顺序给
-     * 本阵营可见中毒 actor 扣 maxHP/10、聚焦，再统一清理死亡；HP0与
-     * damage0仍聚焦。随后逐个递减+0x22..+0x27，每次归零即聚焦、重算。
-     * 当前只恢复这些字段写序，不追加RNG；原版提示／等待及其共享RNG
-     * 尚未恢复，不能据此称整个原版状态流程不耗RNG。 */
-    for (size_t i = 0; i < game->units.count; i++) {
-        fd2_field_unit *unit = &game->units.items[i];
-        if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
-        if (unit->detail_status[0] != 0u) {
+/* field_phase_status_tick @0x1a866（原登记同名）：提示只借同一B4续态，
+ * 每raw/byte的写入、聚焦与重算保持原序；没有新的状态UI RNG。 */
+static int advance_status_progress(fd2_field_game *game) {
+    fd2_field_progress *progress = &game->progress;
+    while (progress->status_pass == 0u) {
+        while (progress->status_cursor < game->units.count) {
+            size_t i = progress->status_cursor++;
+            fd2_field_unit *unit = &game->units.items[i];
+            if (unit->side != progress->status_side || fd2_field_unit_is_hidden(unit) ||
+                !unit->detail_status[0]) continue;
             uint16_t damage = (uint16_t)(unit->hp_max / 10u);
-            unit->hp = unit->hp > damage
-                ? (uint16_t)(unit->hp - damage) : 0u;
-            if (focus_to(game, unit->x, unit->y) != 0) {
-                fail_action(game, i);
-                return;
-            }
+            unit->hp = unit->hp > damage ? (uint16_t)(unit->hp - damage) : 0u;
+            if (focus_to(game, unit->x, unit->y) != 0) { fail_action(game, i); return -1; }
+            progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_STATUS, i, 487, damage, 0, 10};
+            return 0;
         }
+        finalize_zero_hp_units(game);
+        game->battle_result = fd2_field_game_battle_result(game);
+        progress->status_pass = 1;
+        progress->status_cursor = progress->status_byte = 0;
     }
-    finalize_zero_hp_units(game);
-    for (size_t i = 0; i < game->units.count; i++) {
+    while (progress->status_cursor < game->units.count) {
+        size_t i = progress->status_cursor;
         fd2_field_unit *unit = &game->units.items[i];
+        if (unit->side != progress->status_side || fd2_field_unit_is_hidden(unit)) {
+            progress->status_cursor++; progress->status_byte = 0; continue;
+        }
+        while (progress->status_byte < 6u) {
+            uint8_t index = progress->status_byte++;
+            uint8_t *status = &unit->attack_status;
+            if (!status[index] || --status[index] != 0u) continue;
+            if (focus_to(game, unit->x, unit->y) != 0) { fail_action(game, i); return -1; }
+            progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_STATUS, i,
+                (uint16_t)(481u + index), 0, 0, 10};
+            return 0; /* close/ack后1b750，才继续下个byte。 */
+        }
+        progress->status_cursor++; progress->status_byte = 0;
+    }
+    uint8_t side = progress->status_side;
+    memset(progress, 0, sizeof(*progress));
+    if (side == 2u && game->units.count) {
+        game->focus_cycle_unit = 0;
+        const fd2_field_unit *leader = &game->units.items[0];
+        if (focus_to(game, leader->x, leader->y) != 0) { fail_action(game, 0); return -1; }
+    }
+    return 0;
+}
+
+int fd2_field_game_progress_resume(fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    if (game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE) return 1;
+    if (game->progress.resume != FD2_FIELD_PROGRESS_RESUME_PHASE) return 0;
+    for (size_t i = 0; i < game->event_log_count; i++)
+        if (game->event_log[i].kind == FD2_FIELD_EVENT_TURN &&
+            game->event_log[i].handled && game->event_log[i].presentation_deferred) return 1;
+    if (advance_status_progress(game) < 0) return -1;
+    return progress_pending(game) ? 1 : 0;
+}
+
+static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
+    if (!game || game->failure != FD2_FIELD_FAILURE_NONE) return;
+    if (progress_pending(game)) { fail_action(game, 0); return; }
+    /* 完整可预测资源在第一笔HP/计时写入前检查；未知数据仍按原写点报首错。 */
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
         if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
-        /* 指令VA 0x1a99f先递减当前byte，0x1a9b0聚焦；原版提示后
-         * 0x1aa10立即重算，才处理下一byte。失败保留已提交的计时／焦点。 */
-        uint8_t *status = &unit->attack_status;
-        for (size_t offset = 0; offset < 6u; offset++) {
-            if (status[offset] == 0u) continue;
-            status[offset]--;
-            if (status[offset] != 0u) continue;
-            if (focus_to(game, unit->x, unit->y) != 0 ||
-                fd2_field_unit_combat_stats_recompute(
-                    unit, known_item_stat_lookup, NULL,
-                    known_status_stat_scale, NULL) != 0) {
-                fail_action(game, i);
-                return;
-            }
+        uint16_t damage = unit->detail_status[0] ? (uint16_t)(unit->hp_max / 10u) : 0;
+        fd2_field_progress_notice notice = {FD2_FIELD_PROGRESS_STATUS, i, 487, damage, 0, 10};
+        if (unit->detail_status[0] && !progress_resource_ready(game, &notice)) { fail_action(game, i); return; }
+        if (unit->hp <= damage) continue; /* 毒扫描尾统一finalize后不再递减死者。 */
+        const uint8_t *status = &unit->attack_status;
+        for (size_t index = 0; index < 6u; index++) {
+            if (status[index] != 1u) continue;
+            notice.fragment = (uint16_t)(481u + index); notice.value = 0;
+            if (!progress_resource_ready(game, &notice)) { fail_action(game, i); return; }
         }
     }
-    game->battle_result = fd2_field_game_battle_result(game);
+    memset(&game->progress, 0, sizeof(game->progress));
+    game->progress.resume = FD2_FIELD_PROGRESS_RESUME_PHASE;
+    game->progress.status_side = side;
+    (void)fd2_field_game_progress_resume(game);
 }
 
 static void clear_all_acted(fd2_field_game *game) {
@@ -687,15 +910,7 @@ static void advance_phase(fd2_field_game *game) {
         clear_all_acted(game);
         game->focus_cycle_unit = 0;
         enter_phase(game, 2);
-        /* field_turn_cycle_run @0x1a30b（原登记 FUN_00017a53）末尾：
-         * 重置 Z 轮询起点，phase 2 的事件／状态完成后聚焦 raw actor 0。
-         * field_focus_move_to_actor @0x12d7b 沿 X 再 Y 逐格移动，复用
-         * field_focus_move_to @0x12cea 的镜头阈值；失败不继续改焦点。 */
-        if (game->failure == FD2_FIELD_FAILURE_NONE && game->units.count) {
-            const fd2_field_unit *leader = &game->units.items[0];
-            if (focus_to(game, leader->x, leader->y) != 0)
-                fail_action(game, 0);
-        }
+        /* actor0最终focus在phase2的TURN/STATUS全部完成后，由续态尾执行。 */
     }
 }
 
@@ -967,7 +1182,7 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
      * field_side0_phase_execute @0x1d8ba / 正确 dual 0x1d8ba：自动阶段
      * 按 raw actor index 逐个进入 AI core；完整演出由 play loop 显式
      * visual 调用，tick 保持无窗口逻辑路径。 */
-    if (game->active_side != 2 &&
+    if (game->active_side != 2 && !progress_pending(game) &&
         game->interaction == FD2_FIELD_INTERACTION_BROWSE) {
         if (game->phase_next_action_ms == 0) {
             game->phase_next_action_ms =
@@ -1420,7 +1635,7 @@ static void render_field_cursor(const fd2_field_game *game,
     }
 }
 
-int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy) {
+static int move_camera_internal(fd2_field_game *game, int dx, int dy) {
     if (!game || !game->ready) return 0;
     int old_x = game->camera_cell_x;
     int old_y = game->camera_cell_y;
@@ -1429,7 +1644,7 @@ int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy) {
     return game->camera_cell_x != old_x || game->camera_cell_y != old_y;
 }
 
-int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
+static int move_cursor_internal(fd2_field_game *game, int dx, int dy) {
     if (!game || !game->ready) return 0;
     int old_x = game->cursor_cell_x;
     int old_y = game->cursor_cell_y;
@@ -1442,13 +1657,13 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     int rel_x = old_x - game->camera_cell_x;
     int rel_y = old_y - game->camera_cell_y;
     if (new_x < old_x && rel_x < 2)
-        fd2_field_game_move_camera(game, -1, 0);
+        move_camera_internal(game, -1, 0);
     else if (new_x > old_x && rel_x >= 11)
-        fd2_field_game_move_camera(game, 1, 0);
+        move_camera_internal(game, 1, 0);
     if (new_y < old_y && rel_y < 2)
-        fd2_field_game_move_camera(game, 0, -1);
+        move_camera_internal(game, 0, -1);
     else if (new_y > old_y && rel_y >= 6)
-        fd2_field_game_move_camera(game, 0, 1);
+        move_camera_internal(game, 0, 1);
 
     game->cursor_cell_x = new_x;
     game->cursor_cell_y = new_y;
@@ -1459,6 +1674,13 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
     return 1;
 }
 
+int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy) {
+    return !game || progress_pending(game) ? 0 : move_camera_internal(game, dx, dy);
+}
+int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
+    return !game || progress_pending(game) ? 0 : move_cursor_internal(game, dx, dy);
+}
+
 /* field_focus_move_to @0x12cea（原登记 FUN_00010432）：先X后Y，逐格
  * 复用browse方向移动；不居中，不在同目标时额外卷动。预检两轴后才写入。 */
 static int focus_to(fd2_field_game *game, int x, int y) {
@@ -1466,12 +1688,12 @@ static int focus_to(fd2_field_game *game, int x, int y) {
         x >= game->map.width || y >= game->map.height)
         return -1;
     while (game->cursor_cell_x != x) {
-        if (!fd2_field_game_move_cursor(
+        if (!move_cursor_internal(
                 game, game->cursor_cell_x < x ? 1 : -1, 0))
             return -1;
     }
     while (game->cursor_cell_y != y) {
-        if (!fd2_field_game_move_cursor(
+        if (!move_cursor_internal(
                 game, 0, game->cursor_cell_y < y ? 1 : -1))
             return -1;
     }
@@ -1479,7 +1701,7 @@ static int focus_to(fd2_field_game *game, int x, int y) {
 }
 
 int fd2_field_game_cycle_focus(fd2_field_game *game) {
-    if (!game || !game->ready || game->active_side != 2u ||
+    if (!game || !game->ready || progress_pending(game) || game->active_side != 2u ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
         game->units.count == 0)
         return -1;
@@ -1564,6 +1786,16 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
     return unit_index;
 }
 
+int fd2_field_game_begin_player_controller(fd2_field_game *game, size_t actor_index) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
+        game->active_side != 2 || game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        actor_index >= game->units.count ||
+        fd2_field_unit_is_hidden(&game->units.items[actor_index])) return -1;
+    game->experience_value = 0; /* controller117e7指令VA0x118ee，F2不经过。 */
+    return 0;
+}
+
 int fd2_field_game_update_move_preview(fd2_field_game *game) {
     if (!game || !game->ready || game->selected_unit < 0 ||
         game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED ||
@@ -1589,7 +1821,7 @@ int fd2_field_game_update_move_preview(fd2_field_game *game) {
 }
 
 int fd2_field_game_open_system_menu(fd2_field_game *game) {
-    if (!game || !game->ready || game->active_side != 2u ||
+    if (!game || !game->ready || progress_pending(game) || game->active_side != 2u ||
         game->failure != FD2_FIELD_FAILURE_NONE || game->player_post_waiting_phase ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
         fd2_field_game_unit_at(game, game->cursor_cell_x,
@@ -1725,6 +1957,7 @@ int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
 
 int fd2_field_game_confirm_cursor(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->player_post_waiting_phase) return -1;
 
     if (game->interaction == FD2_FIELD_INTERACTION_BROWSE) {
@@ -1732,6 +1965,8 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         int unit_index = fd2_field_game_unit_at(game,
                                                 game->cursor_cell_x,
                                                 game->cursor_cell_y);
+        if (unit_index >= 0 && fd2_field_game_begin_player_controller(game, (size_t)unit_index) != 0)
+            return -1;
         if (unit_index < 0 ||
             !unit_can_act_for_side(&game->units.items[unit_index],
                                    game->active_side) ||
@@ -1894,6 +2129,7 @@ int fd2_field_game_select_command_direction(
 
 int fd2_field_game_confirm_command(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
         game->command_selected < 0 ||
         game->command_selected >= (int)FD2_FIELD_COMMAND_COUNT ||
@@ -1933,6 +2169,7 @@ int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
 
 static int magic_list_actor_is_valid(const fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->player_post_waiting_phase || game->active_side != 2 ||
         game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count)
@@ -1944,6 +2181,10 @@ static int magic_list_actor_is_valid(const fd2_field_game *game) {
            !fd2_field_unit_has_acted(actor) && !actor->detail_status[2] &&
            (game->move_path_length == 0 || actor->unit_id == 18 ||
             actor->unit_id == 19 || actor->unit_id == 34);
+}
+
+static int player_magic_entry_is_supported(const fd2_field_unit *actor, uint8_t id) {
+    return id == 13u || (id == 0u && actor->unit_id == 9u);
 }
 
 int fd2_field_game_begin_magic_list(fd2_field_game *game) {
@@ -1971,9 +2212,17 @@ int fd2_field_game_magic_list_step(fd2_field_game *game,
     if (!magic_list_actor_is_valid(game) ||
         game->interaction != FD2_FIELD_INTERACTION_MAGIC_LIST)
         return -2;
-    return fd2_field_magic_list_select_step(
+    if (!confirmed_id) return -2;
+    uint8_t candidate = 0xff;
+    int result = fd2_field_magic_list_select_step(
         &game->units.items[game->selected_unit], &game->magic_list_selected,
-        key, confirmed_id);
+        key, &candidate);
+    if (result == 1) {
+        const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+        if (!player_magic_entry_is_supported(actor, candidate)) return 0;
+        *confirmed_id = candidate;
+    }
+    return result;
 }
 
 int fd2_field_game_end_magic_list(fd2_field_game *game) {
@@ -1982,6 +2231,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game) {
         return -1;
     game->magic_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    game->experience_value = 0; /* field_player_command_execute指令VA0x18dc4。 */
     return fd2_field_game_refresh_commands(game);
 }
 
@@ -1990,6 +2240,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game) {
  * MP/+27/移动后unit例外门，纯库存预检复用1b9de的SDL支持门。 */
 static int item_actor_is_valid(const fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->stage != 0 || game->player_post_waiting_phase || game->active_side != 2 ||
         game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count)
@@ -2223,13 +2474,13 @@ static int magic_target_matches(const fd2_field_unit *unit, uint8_t magic_id) {
 static int magic_target_context_is_valid(const fd2_field_game *game) {
     return magic_list_actor_is_valid(game) &&
         game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
-        (game->magic_target_id == 0 || game->magic_target_id == 13) &&
+        player_magic_entry_is_supported(&game->units.items[game->selected_unit], game->magic_target_id) &&
         target_focus_is_valid(game) &&
         game->units.items[game->selected_unit].x < game->map.width &&
         game->units.items[game->selected_unit].y < game->map.height;
 }
 
-/* 14818→115b6的范围/候选与focus顺序由法术、物品真实共用；
+/* 14818→115b6的范围/候选与focus顺序由物理、法术、物品真实共用；
  * caller先检查各自actor、record、列表索引与焦点，不混用消费门。 */
 static int begin_target_selection(fd2_field_game *game, uint8_t cast, uint8_t minimum,
         uint8_t filter, fd2_field_interaction interaction, uint8_t magic_id) {
@@ -2272,6 +2523,7 @@ int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id)
         (magic_id != 0 && magic_id != 13) || !target_focus_is_valid(game))
         return -1;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (!player_magic_entry_is_supported(actor, magic_id)) return -1;
     uint8_t confirmed = 0xff;
     int selected = game->magic_list_selected;
     if (fd2_field_unit_magic_list_build(actor, NULL, 0) > FD2_FIELD_MAGIC_LIST_MAX_COUNT ||
@@ -2607,12 +2859,14 @@ static int player_basic_magic_list_is_supported(const fd2_field_game *game) {
     uint8_t ids[40];
     size_t count = fd2_field_unit_magic_list_build(actor, ids, sizeof(ids));
     if (!count || count > FD2_FIELD_MAGIC_LIST_MAX_COUNT) return 0;
+    int supported = 0;
     for (size_t i = 0; i < count; i++) {
         /* ID0玩家强制2ff01；目前仅unit9的FIGANI29空→28
          * 有已核单个caster费用标记。13的21b18在目标循环前扣一次。 */
-        if (ids[i] != 13 && !(ids[i] == 0 && actor->unit_id == 9)) return 0;
+        if (!fd2_field_magic_record_get(ids[i])) return 0;
+        if (ids[i] == 13 || (ids[i] == 0 && actor->unit_id == 9)) supported = 1;
     }
-    return 1;
+    return supported; /* 学习已知未开放项不能连带禁用原有0/13。 */
 }
 
 int fd2_field_game_magic_is_available(const fd2_field_game *game) {
@@ -2695,15 +2949,16 @@ int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
         maximum_reward += maximum;
         targets[count++] = (uint8_t)i;
     }
-    uint8_t maximum_gain;
-    if (!count || fd2_field_magic_basic_reward_gain(actor, maximum_reward, &maximum_gain) != 0 ||
+    uint32_t maximum_gain;
+    if (!count || fd2_field_magic_reward_normalize(actor, maximum_reward, &maximum_gain) != 0 ||
+        preflight_reward(game, actor_index, maximum_gain > 99u ? 99u : maximum_gain) < 0 ||
         !player_effect_tail_is_supported(game, actor_index,
             id == 13 ? targets : NULL, id == 13 ? count : 0, 0, actor->x, actor->y)) return -1;
 
     /* 1ca89的u16费用先于首目标effect/RNG；所有数据/整次奖励预检已完成。
      * SDL这里只执行已确认逻辑，不模拟2ff01附加抖动RNG或音画时序。 */
     actor->mp = (uint16_t)(actor->mp - record[5]);
-    uint64_t actual_reward = 0;
+    game->experience_value = 0; /* 18d8c本次command贡献起点。 */
     for (size_t i = 0; i < count; i++) {
         fd2_field_magic_basic_result effect;
         if (fd2_field_magic_apply_player_basic_effect(id,
@@ -2712,12 +2967,15 @@ int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
             fail_action(game, actor_index);
             return -1;
         }
-        actual_reward += effect.experience_value;
+        if (effect.experience_value > UINT32_MAX - game->experience_value) {
+            fail_action(game, actor_index); return -1;
+        }
+        game->experience_value += effect.experience_value;
     }
     finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
-    if (finish_unit_action_internal(game, PLAYER_ACTION_MAGIC, actual_reward) != 0) {
+    if (finish_unit_action_internal(game, PLAYER_ACTION_MAGIC, game->experience_value) != 0) {
         fail_action(game, actor_index);
         return -1;
     }
@@ -2726,21 +2984,47 @@ int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
 
 /* field_item_use_effect_execute @0x20c6f（原sub_20C6F）：目标收集用14818，确认用14742的Manhattan门，
  * 两者不可合并。未知掉落描述符属于尚未接入的败亡交互，提交前拒绝。 */
-static int item_effect_may_kill(const uint8_t *record, const fd2_field_unit *unit) {
-    unsigned code = record[0x0d];
-    if (code == 20 || code == 21 || code == 24) {
-        uint16_t id = (uint16_t)fd2_field_item_i16(record, 0x0e);
-        const uint8_t *magic = id < 13 ? fd2_field_magic_record_get((uint8_t)id) : NULL;
-        uint32_t scale;
-        if (!magic || fd2_field_magic_damage_profile_scale(unit->movement_profile, &scale) != 0) return -1;
-        uint64_t base = (uint64_t)fd2_field_magic_u16(magic, 0) * scale / 10u;
-        return unit->hp <= base * 9u / 10u + base * 99u / 1000u;
+static int magic_effect_may_kill(uint8_t id, const fd2_field_unit *unit) {
+    if (id <= 12u) {
+        const uint8_t *record=fd2_field_magic_record_get(id);uint32_t scale;
+        if (id >= 10u && fd2_field_attack_unit_ignores_terrain_modifier(unit)) return !unit->hp;
+        if (fd2_field_magic_damage_profile_scale(unit->movement_profile,&scale)!=0) return -1;
+        uint64_t base=(uint64_t)fd2_field_magic_u16(record,0)*scale/10u;
+        return unit->hp<=base*9u/10u+base*99u/1000u;
     }
+    if (id>=13u && id<=16u) return !unit->hp_max;
+    if (id==20u || id==21u)
+        return unit->detail_status[id-20u] ? !unit->hp_max : !unit->hp;
     if (!unit->hp) return 1;
-    if (code == 14 || code == 22)
-        return unit->hp <= 9 && unit->movement_profile != 25 && unit->movement_profile != 26 &&
-            !unit->detail_status[code == 14 ? 1 : 2];
+    if (id==22u || id==26u || id==27u)
+        return unit->hp<=9u && unit->movement_profile!=25u && unit->movement_profile!=26u &&
+            !unit->detail_status[id==22u?2:id==26u?0:1];
     return 0;
+}
+
+static int item_effect_may_kill(const uint8_t *record, const fd2_field_unit *unit) {
+    unsigned code=record[0x0d];
+    if (code==5u || code==13u) return !unit->hp_max;
+    if (code==20u || code==21u || code==24u) {
+        uint16_t id=(uint16_t)fd2_field_item_i16(record,0x0e);
+        return id>12u?-1:magic_effect_may_kill((uint8_t)id,unit);
+    }
+    if (code==6u || code==7u || code==14u || code==22u)
+        return magic_effect_may_kill(code==6u?20u:code==7u?21u:code==14u?27u:22u,unit);
+    return !unit->hp;
+}
+
+/* 原1b6b7扫描全表；只阻断可能进入尚未恢复的描述符交互者。 */
+static int effect_deaths_are_supported(const fd2_field_game *game,
+        const uint8_t *targets,size_t count,uint8_t magic_id,int item_heal) {
+    for(size_t i=0;i<game->units.count;i++) {
+        const fd2_field_unit *unit=&game->units.items[i];
+        if(fd2_field_unit_is_hidden(unit))continue;
+        int target=0;for(size_t j=0;j<count;j++)if(targets[j]==i)target=1;
+        int may_die=target?(item_heal?!unit->hp_max:magic_effect_may_kill(magic_id,unit)):!unit->hp;
+        if(may_die<0 || (may_die && ((const uint8_t*)unit)[0x31]!=0xffu))return 0;
+    }
+    return 1;
 }
 
 static int item_teleport_destination_is_legal(const fd2_field_game *game) {
@@ -2848,6 +3132,17 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
         for (size_t t = 0; t < count; t++) if (targets[t] == i) target = 1;
         int may_die = target ? item_effect_may_kill(record, unit) : !unit->hp;
         if (may_die < 0) return -1;
+        if (target && !growth && code != 23) {
+            if (heals) {
+                if (unit->unit_id < 75u && !unit->hp_max) return -1;
+            } else if (code == 11) {
+                /* dispatcher的maxMP==0分支完全跳过恢复及贡献。 */
+            } else {
+                uint8_t id = code == 6 ? 20 : code == 7 ? 21 : code == 12 ? 19 : code == 14 ? 27 :
+                    code == 15 ? 18 : code == 16 ? 17 : code == 22 ? 22 : (uint8_t)power;
+                if (fd2_field_magic_effect_reward_preflight(id, unit) != 0) return -1;
+            }
+        }
         for (size_t t = 0; t < healed_count; t++)
             if (healed_targets[t] == i) may_die = !unit->hp_max;
         if (may_die && ((const uint8_t *)unit)[0x31] != 0xff) return -1;
@@ -2870,6 +3165,8 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
         (void)focus_to(game, actor->x, actor->y);
         if (focus_to(game, target->x, target->y) != 0) return -1;
         actor->mp = (uint16_t)(actor->mp - fd2_field_magic_record_get(23)[5]);
+        game->experience_value += 10u * (target->level +
+            (target->movement_profile > 8 && target->movement_profile < 25 ? 30u : 0u));
         /* 22253只写arg2/arg3低byte到xy；临时255只属演出过程，不泄漏renderer。 */
         target->x = (uint8_t)x; target->y = (uint8_t)y;
         (void)focus_to(game, x, y);
@@ -2882,13 +3179,13 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
         for (size_t i = 0; i < count; i++) {
             fd2_field_unit *target = &game->units.items[targets[i]];
             int effect = 0;
-            if (heals) effect = fd2_field_hp_heal_apply(target, power, game->attack_rng, game->attack_rng_userdata);
+            if (heals) effect = fd2_field_hp_heal_apply_with_reward(target, power, game->attack_rng, game->attack_rng_userdata, &game->experience_value);
             else if (code == 11) {
-                if (target->mp_max) effect = fd2_field_mp_heal_apply(target, power, game->attack_rng, game->attack_rng_userdata);
+                if (target->mp_max) effect = fd2_field_mp_heal_apply_with_reward(target, power, game->attack_rng, game->attack_rng_userdata, &game->experience_value);
             } else {
                 uint8_t id = code == 6 ? 20 : code == 7 ? 21 : code == 12 ? 19 : code == 14 ? 27 :
                     code == 15 ? 18 : code == 16 ? 17 : code == 22 ? 22 : (uint8_t)power;
-                effect = fd2_field_magic_apply_known_effect(id, targets[i], &game->units, game->attack_rng, game->attack_rng_userdata);
+                effect = fd2_field_magic_apply_known_effect_with_reward(id, targets[i], &game->units, game->attack_rng, game->attack_rng_userdata, &game->experience_value);
             }
             if (effect < 0) { fail_action(game, actor_index); return -1; }
         }
@@ -2906,44 +3203,61 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
 
 int fd2_field_game_begin_attack(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
+        game->units.count > FD2_FIELD_MAX_UNITS ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND ||
         !fd2_field_game_attack_is_available(game))
         return -1;
 
-    /* field_player_command_execute @0x18d8c 先以武器 min/max range 调用
-     * field_target_range_build @0x14818，再把该范围交给
-     * field_cell_selection_execute。目标选择期间必须显示这张范围表；
-     * 旧实现只在内部做合法性判断，确认非法格时画面没有任何反馈。 */
-    fd2_field_path_result attack_range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    /* field_player_command_execute @0x18d8c（原field_player_command_execute_core）
+     * 以武器min/max与filter0
+     * 调用field_target_range_build @0x14818，再由
+     * field_cell_selection_execute @0x115b6聚焦首raw候选；121只占槽。 */
     const fd2_field_unit *attacker =
         &game->units.items[game->selected_unit];
-    if (fd2_field_attack_range_compute(
-            &attack_range, &game->map, &game->terrain, attacker) != 0)
+    uint8_t minimum = 0, maximum = 0;
+    if (!target_focus_is_valid(game) ||
+        fd2_field_attack_weapon_range(attacker, &minimum, &maximum) != 0 ||
+        begin_target_selection(game, maximum, minimum, 0,
+            FD2_FIELD_INTERACTION_TARGETING, 0) != 0)
         return -1;
-    fd2_field_path_close(&game->move_range);
-    game->move_range = attack_range;
 
     game->attack_target = -1;
     game->last_attack_valid = 0;
     game->last_attack_strikes = 0;
     game->last_counterattack_valid = 0;
     game->last_counterattack_strikes = 0;
-    game->interaction = FD2_FIELD_INTERACTION_TARGETING;
     return 0;
 }
 
+int fd2_field_game_cycle_attack_target(fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) || game->selected_unit < 0 ||
+        (size_t)game->selected_unit >= game->units.count ||
+        game->units.count > FD2_FIELD_MAX_UNITS || !target_focus_is_valid(game) ||
+        game->interaction != FD2_FIELD_INTERACTION_TARGETING)
+        return -1;
+    return cycle_target_selection(game);
+}
+
 int fd2_field_game_cancel_attack(fd2_field_game *game) {
-    if (!game || !game->ready || game->selected_unit < 0 ||
+    if (!game || !game->ready || progress_pending(game) || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_TARGETING)
         return 0;
-    /* field_player_command_execute_core @0x18d8c 在目标选择返回 -1 后，
+    /* field_player_command_execute @0x18d8c（原field_player_command_execute_core）
+     * 在目标选择返回 -1 后，
      * 调用 field_focus_move_to @0x12cea 恢复攻击前焦点，再返回 0 让
      * 上层重开指令菜单。沿用同一 X 后 Y 顺序以同步恢复镜头。 */
     const fd2_field_unit *attacker =
         &game->units.items[game->selected_unit];
     if (focus_to(game, attacker->x, attacker->y) != 0) return 0;
     game->attack_target = -1;
+    fd2_field_path_close(&game->move_range);
+    game->magic_target_id = 0;
+    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+    game->magic_target_count = 0;
+    game->magic_target_cycle = 0;
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     (void)fd2_field_game_refresh_commands(game);
     return 1;
@@ -2972,6 +3286,69 @@ static int terrain_adjusted_stat(const fd2_field_game *game,
     return fd2_field_attack_apply_terrain_modifier(
         base_stat, use_attack_modifier ? attack_percent : defense_percent,
         adjusted);
+}
+
+static int physical_reward_value(const fd2_field_unit *attacker,
+        const fd2_field_unit *defender, uint32_t damage, uint16_t hp_after,
+        uint32_t *value) {
+    if (attacker->side != 2u || defender->unit_id < 68u) return 0;
+    uint8_t coefficient;
+    if (fd2_field_unit_enemy_experience_coefficient(defender->unit_id, &coefficient) != 0) return -1;
+    uint8_t level = attacker->level;
+    if ((attacker->movement_profile > 8u && attacker->movement_profile < 25u) || attacker->text_id == 28u)
+        level = (uint8_t)(level + 30u);
+    return fd2_field_combat_reward_value(level, defender->level, coefficient,
+        defender->hp_max, damage, hp_after == 0u, value) == 0 ? 1 : -1;
+}
+
+static int physical_max_damage(const fd2_field_game *game,
+        const fd2_field_unit *attacker, const fd2_field_unit *defender, uint32_t *damage) {
+    uint32_t attack, defense;
+    uint8_t critical = 0, bonus;
+    if (terrain_adjusted_stat(game, attacker, attacker->attack, 1, &attack) != 0 ||
+        terrain_adjusted_stat(game, defender, defender->defense, 0, &defense) != 0 ||
+        fd2_field_attack_weapon_critical_bonus(attacker, &bonus) != 0 ||
+        (!game->attack_critical_base && fd2_field_attack_base_critical_chance(attacker, &critical) != 0)) return -1;
+    if (game->attack_critical_base || critical || bonus) defense /= 2u;
+    uint32_t base = attack > defense ? (uint32_t)((uint64_t)(attack - defense) * 9u / 10u) : 0;
+    *damage = attacker->accuracy > defender->evasion ? base + (base / 9u ? base / 9u - 1u : 0) : 0;
+    return 0;
+}
+
+static int physical_reward_preflight(fd2_field_game *game,
+        size_t attacker_index, size_t target_index, int player) {
+    const fd2_field_unit *attacker = &game->units.items[attacker_index];
+    const fd2_field_unit *defender = &game->units.items[target_index];
+    uint32_t attack_max, counter_max = 0;
+    int counter = fd2_field_attack_counterattack_is_available(defender, attacker);
+    if (physical_max_damage(game, attacker, defender, &attack_max) != 0 ||
+        (counter && physical_max_damage(game, defender, attacker, &counter_max) != 0)) return -1;
+    uint32_t maximum = game->experience_value;
+    const fd2_field_unit *from[2] = {attacker, defender}, *to[2] = {defender, attacker};
+    uint32_t damage[2] = {attack_max, counter_max};
+    for (size_t i = 0; i < (counter ? 2u : 1u); i++) {
+        uint32_t full;
+        int writes = physical_reward_value(from[i], to[i], 0, 0, &full);
+        if (writes < 0) return -1;
+        if (!writes) continue;
+        if (full > maximum) maximum = full;
+        uint32_t nonlethal = to[i]->hp ? to[i]->hp - 1u : 0;
+        if (nonlethal > damage[i]) nonlethal = damage[i];
+        uint32_t alive;
+        if (physical_reward_value(from[i], to[i], nonlethal, 1, &alive) < 0) return -1;
+        if (alive > maximum) maximum = alive;
+    }
+    /* 所有可能进入1b6b7的死亡均先检查，未知掉落不在首RNG之后才报错。 */
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (fd2_field_unit_is_hidden(unit)) continue;
+        /* 任意武器都有3%两击，单击伤害界只用于每击贡献，loot需两击界。 */
+        int may_die = !unit->hp || (i == target_index && unit->hp <= (uint64_t)attack_max * 2u) ||
+            (counter && i == attacker_index && unit->hp <= (uint64_t)counter_max * 2u);
+        if (may_die && ((const uint8_t *)unit)[0x31] != 0xffu) return -1;
+    }
+    if (player && maximum > 99u) maximum = 99u;
+    return preflight_reward(game, player ? attacker_index : target_index, maximum) < 0 ? -1 : 0;
 }
 
 static int resolve_attack_sequence(
@@ -3044,6 +3421,11 @@ static int resolve_attack_sequence(
             return -1;
         }
         defender->hp = last_result->hp_after;
+        uint32_t reward;
+        int writes = physical_reward_value(attacker, defender,
+            last_result->rolled_damage, last_result->hp_after, &reward);
+        if (writes < 0) return -1;
+        if (writes) game->experience_value = reward; /* 每击覆盖，非累加。 */
         (*resolved_strikes)++;
         if (defender->hp == 0) break;
     }
@@ -3071,6 +3453,8 @@ static int physical_sequence_preflight(
                               &adjusted_defense) != 0 ||
         adjusted_attack > FD2_FIELD_COMBAT_EFFECTIVE_STAT_MAX ||
         adjusted_defense > FD2_FIELD_COMBAT_EFFECTIVE_STAT_MAX ||
+        attacker->accuracy > FD2_FIELD_COMBAT_ACCURACY_MAX ||
+        defender->evasion > FD2_FIELD_COMBAT_ACCURACY_MAX ||
         fd2_field_attack_weapon_critical_bonus(
             attacker, &weapon_critical_bonus) != 0 ||
         (!game->attack_critical_base &&
@@ -3106,7 +3490,8 @@ static int resolve_physical_exchange(fd2_field_game *game,
                                      int finish_player_action) {
     if (!game || !game->ready ||
         physical_exchange_preflight(
-            game, attacker_index, target_index, 0) != 0)
+            game, attacker_index, target_index, 0) != 0 ||
+        physical_reward_preflight(game, attacker_index, target_index, finish_player_action) != 0)
         return -1;
     fd2_field_unit *attacker = &game->units.items[attacker_index];
     fd2_field_unit *defender = &game->units.items[target_index];
@@ -3152,6 +3537,9 @@ static int resolve_physical_exchange(fd2_field_game *game,
         game->selected_unit = -1;
         game->command_selected = -1;
         game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+        if (begin_reward(game, target_index, FD2_FIELD_PROGRESS_RESUME_NONE, attacker_index) < 0) {
+            fail_action(game, attacker_index); return -1;
+        }
     }
     game->last_attack = attack_result;
     game->last_attack_strikes = attack_strikes;
@@ -3165,6 +3553,7 @@ static int resolve_physical_exchange(fd2_field_game *game,
 
 int fd2_field_game_resolve_attack(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->selected_unit < 0 ||
         game->interaction != FD2_FIELD_INTERACTION_TARGETING ||
         !game->attack_rng)
@@ -3274,7 +3663,7 @@ static int detail_resources_ready(const fd2_field_game *game,
 }
 
 int fd2_field_game_open_detail(fd2_field_game *game, size_t unit_index) {
-    if (!game || !game->ready || unit_index >= game->units.count ||
+    if (!game || !game->ready || progress_pending(game) || unit_index >= game->units.count ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         fd2_field_unit_is_hidden(&game->units.items[unit_index]) ||
         game->units.items[unit_index].hp == 0 ||
@@ -3450,6 +3839,7 @@ done:
 
 int fd2_field_game_cancel_selection(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->player_post_waiting_phase) return 0;
     if (game->interaction == FD2_FIELD_INTERACTION_MANUAL_SLOT)
         return fd2_field_game_cancel_manual_slot_picker(game);
@@ -3630,7 +4020,7 @@ static int execute_path_playback(fd2_field_game *game,
 int fd2_field_game_execute_move(fd2_field_game *game,
                                 fd2_vga *vga,
                                 uint32_t frame_delay_ms) {
-    if (!game || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    if (!game || game->failure != FD2_FIELD_FAILURE_NONE || progress_pending(game)) return -1;
     return execute_path_playback(game, vga, frame_delay_ms, FIELD_PATH_PLAYER_COMMAND);
 }
 
@@ -3648,6 +4038,7 @@ static int dispatch_player_controller_pending(fd2_field_game *game,
 int fd2_field_game_resume_player_controller(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE)
         return -1;
+    if (progress_pending(game)) return 1;
     if (!game->player_post_waiting_phase) return 0;
     /* native turncycle也可因stage结果在side1/0提前返回controller。 */
     game->battle_result = fd2_field_game_battle_result(game);
@@ -3660,11 +4051,24 @@ int fd2_field_game_resume_player_controller(fd2_field_game *game) {
 int fd2_field_game_complete_player_controller(fd2_field_game *game,
                                                size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
+        actor_index >= game->units.count ||
+        game->player_post_waiting_phase || game->active_side != 2 ||
+        game->interaction != FD2_FIELD_INTERACTION_BROWSE) return -1;
+    if (game->experience_value <= INT32_MAX && game->experience_value > 99u)
+        game->experience_value = 99u;
+    int reward = begin_reward(game, actor_index, FD2_FIELD_PROGRESS_RESUME_PLAYER, actor_index);
+    if (reward < 0) { fail_action(game, actor_index); return -1; }
+    return reward ? 0 : complete_player_controller_tail(game, actor_index);
+}
+
+static int complete_player_controller_tail(fd2_field_game *game, size_t actor_index) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         game->player_post_waiting_phase || actor_index >= game->units.count ||
         game->active_side != 2u ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
-    /* 当前只恢复stage0 handler的全表结果门。经验演出仍属B4边界。 */
+    /* 原117e7在奖励关闭后再进stage结果/整轮控制器。 */
     game->battle_result = fd2_field_game_battle_result(game);
     /* sub_13565 @0x13565（原登记同名）：不含HP与bit04门。 */
     for (size_t i = 0; i < game->units.count; i++) {
@@ -3716,6 +4120,7 @@ static int finish_unit_action_internal(fd2_field_game *game,
                                        player_action_kind kind,
                                        uint64_t magic_raw_reward) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->player_post_waiting_phase || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         game->interaction != FD2_FIELD_INTERACTION_COMMAND)
@@ -3740,24 +4145,26 @@ static int finish_unit_action_internal(fd2_field_game *game,
             game->units.items[i].direction = 0;
     /* 普通成功command先acted，18890才最终lookup1，再交回controller。 */
     fd2_field_unit_set_acted(unit, 1);
-    uint8_t gain = 0;
+    uint32_t gain = 0;
     if (kind == PLAYER_ACTION_MAGIC &&
-        fd2_field_magic_basic_reward_gain(unit, magic_raw_reward, &gain) != 0) {
+        fd2_field_magic_reward_normalize(unit, magic_raw_reward, &gain) != 0) {
         fail_action(game, unit_index);
         return -1;
     }
+    if (kind == PLAYER_ACTION_MAGIC) game->experience_value = gain;
+    if (kind == PLAYER_ACTION_ITEM) game->experience_value = 0;
     if (collect_pending_cell_event(game, unit_index, 1) < 0) return -1;
     /* 18d8c先归一，18890 lookup1后controller117e7才调用1e292写EX。
-     * 非升级gain已整体预检；提示/portrait/11tick仍待呈现层对照。 */
+     * 成长路径已整体预检；提示/portrait/11tick由progress逐条ack。 */
     if (kind == PLAYER_ACTION_MAGIC) {
-        unit->experience = (uint8_t)(unit->experience + gain);
         game->magic_list_selected = 0;
     }
     if (kind == PLAYER_ACTION_ITEM) {
         game->item_list_selected = 0;
         game->item_give_recipient = game->item_give_selected = 0;
     }
-    if (kind == PLAYER_ACTION_MAGIC || kind == PLAYER_ACTION_ITEM) {
+    if (kind == PLAYER_ACTION_PHYSICAL || kind == PLAYER_ACTION_MAGIC ||
+        kind == PLAYER_ACTION_ITEM) {
         game->magic_target_id = 0;
         memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
         game->magic_target_count = 0;
@@ -3777,6 +4184,7 @@ int fd2_field_game_finish_unit_action(fd2_field_game *game) {
 int fd2_field_game_end_active_phase(fd2_field_game *game) {
     /* 快速逻辑回归专用的 phase skip；正式玩家输入不调用此全 acted 路径。 */
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->player_post_waiting_phase || game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
@@ -3790,6 +4198,7 @@ int fd2_field_game_end_active_phase(fd2_field_game *game) {
 
 int fd2_field_game_end_player_turn(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         game->active_side != 2u || game->player_post_waiting_phase ||
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
@@ -3802,6 +4211,7 @@ int fd2_field_game_end_player_turn(fd2_field_game *game) {
 
 static int finish_ai_action(fd2_field_game *game, size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         actor_index >= game->units.count)
         return -1;
     fd2_field_unit *actor = &game->units.items[actor_index];
@@ -3852,6 +4262,7 @@ static int commit_ai_physical_internal(
         uint32_t frame_delay_ms,
         int finish_action, field_path_playback_mode mode) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         !plan || !game->attack_rng ||
         game->active_side == 2u || actor_index >= game->units.count ||
         plan->unit_index >= game->units.count || game->selected_unit >= 0 ||
@@ -3904,7 +4315,8 @@ static int commit_ai_physical_internal(
     /* 任何可能失败的 combat/profile hook 都要在动画前拒绝；外部 RNG
      * 没有 checkpoint，故后续 exchange 只进入预检已通过的确定性路径。 */
     if (physical_exchange_preflight(
-            game, actor_index, plan->unit_index, 1) != 0) {
+            game, actor_index, plan->unit_index, 1) != 0 ||
+        physical_reward_preflight(game, actor_index, plan->unit_index, 0) != 0) {
         free(directions);
         return -1;
     }
@@ -3978,6 +4390,14 @@ static int commit_ai_physical_internal(
         /* execute_path_playback 清理前仍保存 directions；恢复原始指针后
          * 释放一次，避免 close session 时释放同一地址两次。 */
         free(directions);
+        if (progress_pending(game)) {
+            if (finish_action) {
+                game->progress.resume = FD2_FIELD_PROGRESS_RESUME_AI_DIRECT;
+                game->progress.resume_actor = actor_index;
+                game->progress.ai_common_tail = 1;
+            }
+            return 0;
+        }
         if (!finish_action || finish_and_dispatch_ai_action(game, actor_index) == 0)
             return 0;
         fail_action(game, actor_index);
@@ -4029,6 +4449,7 @@ static int commit_ai_magic_internal(
         const fd2_field_ai_magic_candidate *plan,
         int finish_action) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         !plan || !game->attack_rng ||
         actor_index >= game->units.count || game->active_side == 2u ||
         game->selected_unit >= 0 ||
@@ -4071,6 +4492,9 @@ static int commit_ai_magic_internal(
         }
     }
 
+    for (size_t i = 0; i < target_count; i++)
+        if (fd2_field_magic_effect_reward_preflight(plan->magic_id, &game->units.items[targets[i]]) != 0) return -1;
+    if (!effect_deaths_are_supported(game,targets,target_count,plan->magic_id,0)) return -1;
     if (finish_action) game->pending_cell_event.valid = 0;
     /* sub_1CA89 @0x1ca89（原登记 sub_1CA89）：map-effect wrapper 在
      * 逐目标循环前单次写 actor+0x44 -= record+5；miss/免疫也不退款。
@@ -4080,9 +4504,9 @@ static int commit_ai_magic_internal(
         plan->magic_id == 17u ? 18u : plan->magic_id);
     actor->mp = (uint16_t)(actor->mp - cost_record[5]);
     for (size_t i = 0; i < target_count; i++) {
-        int result = fd2_field_magic_apply_known_effect(
+        int result = fd2_field_magic_apply_known_effect_with_reward(
             plan->magic_id, targets[i], &game->units,
-            game->attack_rng, game->attack_rng_userdata);
+            game->attack_rng, game->attack_rng_userdata, &game->experience_value);
         if (result < 0) {
             fail_action(game, actor_index);
             return -1;
@@ -4090,6 +4514,7 @@ static int commit_ai_magic_internal(
     }
     finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
+    game->experience_value = 0; /* AI15311指令VA0x1546a：wrapper/finalize之后，非入口清零。 */
     game->cursor_cell_x = plan->cast_x;
     game->cursor_cell_y = plan->cast_y;
     if (finish_action && finish_and_dispatch_ai_action(game, actor_index) != 0) {
@@ -4128,6 +4553,7 @@ static int commit_ai_item_internal(
         const fd2_field_ai_item_candidate *plan,
         int finish_action) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        progress_pending(game) ||
         !plan || !game->attack_rng ||
         actor_index >= game->units.count || game->active_side == 2u ||
         game->selected_unit >= 0 ||
@@ -4177,18 +4603,25 @@ static int commit_ai_item_internal(
         }
     }
 
+    for (size_t i = 0; i < target_count; i++) {
+        const fd2_field_unit *target = &game->units.items[targets[i]];
+        if (code == 5 || code == 13) {
+            if (target->unit_id < 75u && !target->hp_max) return -1;
+        } else if (fd2_field_magic_effect_reward_preflight((uint8_t)value, target) != 0) return -1;
+    }
+    if (!effect_deaths_are_supported(game,targets,target_count,(uint8_t)value,code==5u||code==13u)) return -1;
     if (finish_action) game->pending_cell_event.valid = 0;
     for (size_t i = 0; i < target_count; i++) {
         int result;
         if (code == 5u || code == 13u) {
-            result = fd2_field_hp_heal_apply(&game->units.items[targets[i]], value,
-                game->attack_rng, game->attack_rng_userdata);
+            result = fd2_field_hp_heal_apply_with_reward(&game->units.items[targets[i]], value,
+                game->attack_rng, game->attack_rng_userdata, &game->experience_value);
         } else if (code == 20u || code == 21u || code == 24u) {
             /* item value 是 magic ID；复用同一命中、profile scale 与两次
              * RNG 顺序，不能误当作 raw damage 或 MP 恢复值。 */
-            result = fd2_field_magic_apply_known_effect(
+            result = fd2_field_magic_apply_known_effect_with_reward(
                 (uint8_t)value, targets[i], &game->units,
-                game->attack_rng, game->attack_rng_userdata);
+                game->attack_rng, game->attack_rng_userdata, &game->experience_value);
         } else {
             result = -1;
         }
@@ -4197,6 +4630,7 @@ static int commit_ai_item_internal(
             return -1;
         }
     }
+    game->experience_value = 0; /* field_item_use_effect_execute @0x20c6f末尾。 */
     if (code == 5u) inventory_slot_remove(actor, plan->slot_index);
     finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
@@ -4760,7 +5194,7 @@ int fd2_field_game_process_automatic_action_visual(
     field_path_playback_mode mode = clean_background
         ? FIELD_PATH_MARCH_BROWSE : FIELD_PATH_BROWSE;
     if (game && game->failure != FD2_FIELD_FAILURE_NONE) return -1;
-    if (!game || !game->ready || game->active_side == 2 ||
+    if (!game || !game->ready || progress_pending(game) || game->active_side == 2 ||
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return 0;
@@ -4809,6 +5243,12 @@ int fd2_field_game_process_automatic_action_visual(
                 fail_action(game, i);
                 return -1;
             }
+            if (progress_pending(game)) {
+                game->progress.resume = FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER;
+                game->progress.resume_actor = i;
+                game->progress.ai_common_tail = (uint8_t)run_common_tail;
+                return 1;
+            }
             if (run_common_tail && finish_ai_action(game, i) != 0)
                 return -1;
             /* side phase owner 在 AI 返回后才按 DS:0x1b91[event_code]
@@ -4845,6 +5285,12 @@ int fd2_field_game_process_automatic_action_visual(
             fail_action(game, i);
             return -1;
         }
+        if (progress_pending(game)) {
+            game->progress.resume = FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER;
+            game->progress.resume_actor = i;
+            game->progress.ai_common_tail = (uint8_t)run_common_tail;
+            return 1;
+        }
         /* 内部物理／法术／物品及移动事务都未执行tail；scheduler按原版
          * 无条件补一次，不因效果提交后的acted/死亡跳过。behavior8除外。 */
         if (run_common_tail && finish_ai_action(game, i) != 0)
@@ -4878,7 +5324,8 @@ int fd2_field_game_compute_move_range(const fd2_field_game *game,
     const fd2_field_unit *unit = &game->units.items[mover_index];
     const uint8_t *profile =
         fd2_field_movement_profile_get(unit->movement_profile);
-    if (!profile || unit->movement_points == 0) return -1;
+    /* field_reachable_cells_compute @0x4e390先写起点预算；MOV0仍可原地行动。 */
+    if (!profile) return -1;
     return fd2_field_move_range_compute(
         result, &game->map, &game->terrain, &game->units, mover_index,
         profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,

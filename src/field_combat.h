@@ -56,4 +56,13 @@ int fd2_field_combat_resolve_attack(
     void *rng_userdata,
     fd2_field_attack_result *out);
 
+/* field_physical_attack_resolve @0x1ecc7（原登记同名）的单击贡献：
+ * 先(enemy_level*coefficient)/effective_level，再对存活目标按raw伤害/maxHP。
+ * 不累加、不cap99；caller只在attacker.side2/targetID>=68时覆盖53EC8。
+ * effective_level是原byte加30后收窄的结果，身份判定留caller。
+ * 0成功/-1零除数或超出已证非负signed32中间域；失败不写value。无RNG。 */
+int fd2_field_combat_reward_value(uint8_t effective_level,
+    uint8_t enemy_level, uint8_t coefficient, uint16_t enemy_max_hp,
+    uint32_t raw_damage, int defeated, uint32_t *value);
+
 #endif /* FD2_FIELD_COMBAT_H */

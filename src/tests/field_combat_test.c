@@ -163,8 +163,27 @@ static int test_negative_hit_chance_and_invalid_input(void) {
                   "NULL output must be rejected");
 }
 
+static int test_physical_reward_division_order_and_bounds(void) {
+    uint32_t value=0xa5;
+    if (expect(fd2_field_combat_reward_value(3,7,31,100,9,0,&value)==0 && value==6,
+        "physical divides level before proportional damage") !=0) return -1;
+    if (expect(fd2_field_combat_reward_value(3,7,31,100,9,1,&value)==0 && value==72,
+        "kill gives predivided full value") !=0) return -1;
+    if (expect(fd2_field_combat_reward_value(3,7,31,100,0,0,&value)==0 && value==0,
+        "miss overwrites previous physical contribution with zero") !=0) return -1;
+    if (expect(fd2_field_combat_reward_value(1,255,255,65535,36000,0,&value)==-1,
+        "signed imul overflow unsupported before action RNG") !=0) return -1;
+    value=0xa5;
+    if (expect(fd2_field_combat_reward_value(0,7,31,100,9,0,&value)==-1 && value==0xa5,
+        "byte level+30 wrapping to zero rejected") !=0) return -1;
+    if (expect(fd2_field_combat_reward_value(3,7,31,0,9,0,&value)==-1 && value==0xa5,
+        "living target maxHP zero rejected") !=0) return -1;
+    return expect(fd2_field_combat_reward_value(3,7,31,0,9,1,&value)==0 && value==72,
+        "kill does not divide maxHP");
+}
 int main(void) {
-    if (test_miss_boundary() != 0 ||
+    if (test_physical_reward_division_order_and_bounds() != 0 ||
+        test_miss_boundary() != 0 ||
         test_hit_damage_spread() != 0 ||
         test_critical_halves_defense() != 0 ||
         test_zero_and_lethal_damage() != 0 ||

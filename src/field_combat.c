@@ -7,6 +7,17 @@
 
 #include <string.h>
 
+int fd2_field_combat_reward_value(uint8_t effective_level,
+        uint8_t enemy_level, uint8_t coefficient, uint16_t enemy_max_hp,
+        uint32_t raw_damage, int defeated, uint32_t *value) {
+    if (!value || !effective_level || (!defeated && !enemy_max_hp)) return -1;
+    uint32_t full = (uint32_t)enemy_level * coefficient / effective_level;
+    uint64_t product = (uint64_t)raw_damage * full;
+    if (!defeated && product > INT32_MAX) return -1;
+    *value = defeated ? full : (uint32_t)(product / enemy_max_hp);
+    return 0;
+}
+
 int fd2_field_combat_resolve_attack(
     const fd2_field_attack_params *params,
     fd2_field_combat_rng_fn rng,

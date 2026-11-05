@@ -44,4 +44,11 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                fd2_field_audio *audio,
                                int fast);
 
+/* B4的1956b滑入框复用168b6布局；纯绘制／资源校验，不采样输入或改game。
+ * arrow_frame仅接受18/19，13表示按16c57擦除；正式战场map已载入。 */
+int fd2_scene_field_message_validate(const fd2_archive *fdother);
+int fd2_scene_field_message_box(fd2_vga *vga, const fd2_archive *fdother);
+int fd2_scene_field_message_arrow(fd2_vga *vga, const fd2_archive *fdother,
+                                  unsigned arrow_frame);
+
 #endif /* FD2_SCENE_H */

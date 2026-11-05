@@ -60,11 +60,11 @@ void sub_10010()
     LODWORD(v3) = save_checksum_sum(v0, 22987);
     if ( (_DWORD)v3 != *(_DWORD *)(v0 + 22983) )
     {
-      sub_1956B(75);
+      field_bottom_notice_open(75);
       text_dialog_render_tokens(dword_53A7D, 436, 696099, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
-      LODWORD(v3) = sub_16C57(0);
-      LODWORD(v3) = sub_196CB(v3, HIDWORD(v3));
+      dialog_portrait_frame_draw(0);
+      LODWORD(v3) = dialog_wait_key(0);
+      LODWORD(v3) = field_bottom_notice_close(v3, HIDWORD(v3));
     }
     palette_fade_out_dark(v3, HIDWORD(v3));
     memmove(dword_53BF7, v0 + 2211, 2560);
@@ -475,7 +475,7 @@ int __cdecl field_unit_stage_template_append(int a1, int a2)
   if ( v17 < 0x44 )
   {
     v8 = sub_4E838(v17);
-    v9 = (unsigned __int8 *)sub_4E821(v17);
+    v9 = (unsigned __int8 *)field_growth_record_get(v17);
     v20 = (v21 - 1) * v9[6] + *(_WORD *)(v8 + 3);
     v19 = v9[8] * (v21 - 1) + *(_WORD *)(v8 + 5);
     v15 = *(_WORD *)(v8 + 18);
@@ -685,7 +685,7 @@ int __cdecl sub_112A5(int a1)
   watcom_stack_check(64);
   v1 = 80 * dword_53BFB + dword_53BF7;
   v2 = sub_4E838(a1);
-  v12 = (unsigned __int8 *)sub_4E821(a1);
+  v12 = (unsigned __int8 *)field_growth_record_get(a1);
   v10 = *(unsigned __int8 *)(v2 + 2);
   v6 = *(_WORD *)(v2 + 3) + (v10 - 1) * v12[6];
   v11 = v12[8] * (v10 - 1) + *(_WORD *)(v2 + 5);
@@ -1074,7 +1074,7 @@ LABEL_15:
       sub_11CAC(0);
       if ( dword_53EC8 > 99 )
         dword_53EC8 = 99;
-      sub_1E292(v10);
+      field_unit_experience_reward_execute(v10);
       v15 = ((int (__cdecl *)(int))funcs_1197B[dword_53C03])(v10);
       v3 = sub_13565(v15);
       if ( dword_51A8F != 255 )
@@ -3933,6 +3933,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
 //   依据: 正确 dual `0x15311` 先要求 `DS:0x3c23>=6`；目标列表由 record `+0x04` 范围和 `+0x06` 阵营 filter 构造。IDs `<10` 且全局 `DS:0x3af9==0` 时调用原 `0x55115`／corrected dual `0x2ff01` 战斗动画，否则直接调用 `DS:0x1d01[magic_id]` effect handler；静态复核未发现 actor `+0x44` 扣除，record `+0x05` 仅作为 MP 可用性门。IDs 17/18/19 的 cores `0x22721/0x22866/0x22997` 只在 `+0x22/+0x23/+0x24` 为零时消费一次 duration RNG；随后分别对 attack/defense 加 `round-nearest-even(old*0.15+1)`，或对 accuracy/evasion 做 16 位 `+15`。IDs 20/21 经 wrappers `0x22a85/0x22bc6` 把 `+0x25/+0x26` 传给共享 `0x22af6`，仅清除非零 byte且不消费 RNG。ID 25 的 `0x22c04` 仅在 acted bit 已置位时执行 `flags &= 0x7f`，保留其他 flag bits且不消费 RNG。IDs 22/26/27 共用 `0x22cda` 的状态为零、profile 25/26 免疫、50% gate、固定基础伤害 10、duration RNG 顺序；behavior 11 最后才执行一次 common tail。
 //   历史地址列 `0x3a525`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] 静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门 -> 本体不直接写MP，但map-effect表的damage/heal/status wrapper在逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。；依据: 权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。51d01的0..27 relocation表、21227/21b18/226ea等wrapper与30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。
+// [勘误 evidence] 20/21的22af6仅在状态非零时先1c916(target,10)耗一次spread RNG并写HP/累heal贡献，再清状态并加4*weightedLV。17/18/19首次buff加2*weightedLV；25只在acted真时清位并加8*weightedLV。22/26/27命中先1c81f写HP/累damage贡献，再duration RNG、写状态、加8*原LV。23在扣费后、迁移前加10*weightedLV。AI尾1546a及item21046仍清全局。；依据: 完整51d01表及22721/22866/22997/22af6/22c04/22d1b原始写xref；weightedLV仅target profile9..24加30。22dd6..22e0b锁duration RNG前已有damage贡献，不能只在整个effect后补写。buff增量仍沿本轮x87127f/PC53和u16全域局部执行证明的floor((old*15+100)/100)，非RNE结果。
 int __cdecl field_ai_magic_action_execute(int a1, int a2)
 {
   int v2; // eax
@@ -3997,6 +3998,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 // [field_physical_exchange] 执行一次进攻序列，并在目标存活且满足条件时交换双方执行反击序列
 //   依据: corrected code0 `0x2a7b5..0x2a7bd` 以 `attacker,target,frames` 调用 `0x43a6a`；返回 HP 非 0 且 `field_counterattack_is_available` 返回 1 时，`0x2a81a..0x2a822` 交换 attacker/target 再调用。反击不写行动标志；SDL M7.3a 在计划重验和路径提交后复用该核心。
 //   历史地址列 `0x3a6a2`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] exchange后方向reset→败亡描述符→刷新→死亡清理→掉落→刷新，随后无额外HP门调用1e292给原防御者。caller不清53EC8、不作99cap；1e292入口hidden/等值level门可早退，早退不消费残留全局。；依据: 完整496B、13a9f/14ef0两caller及15627..1566a指令；53EC8完整xref无1548e/1e856/13a9f/14ef0初始化。Load10010/secondary19df7/END1a30b亦无清零写，不能从后来118ee/18dc4选择门推出Load必已清贡献。
 int __cdecl field_physical_exchange(int a1, int a2)
 {
   int v2; // esi
@@ -4045,7 +4047,7 @@ int __cdecl field_physical_exchange(int a1, int a2)
   field_defeated_units_finalize(v6);
   sub_1AA1D(dword_53C4B, v5, v8);
   sub_11CAC(0);
-  sub_1E292(dword_53C4B);
+  field_unit_experience_reward_execute(dword_53C4B);
   return 1;
 }
 
@@ -4612,8 +4614,8 @@ void __usercall text_dialog_render_tokens(
                 v10 = ++v27 * a9 * a5 + a4;
                 ++v11;
                 if ( dword_53C67 == 1832 || dword_53C67 == 36887 )
-                  sub_16559(0);
-                sub_16C57(1);
+                  dialog_portrait_frame_draw(0);
+                dialog_wait_key(1);
                 a10 = 1;
                 break;
               case -2:
@@ -4627,8 +4629,8 @@ void __usercall text_dialog_render_tokens(
               case -1:
                 if ( v26 != 0 )
                 {
-                  sub_16559(0);
-                  sub_16C57(0);
+                  dialog_portrait_frame_draw(0);
+                  dialog_wait_key(0);
                   dialog_box_close(v26, v25);
                   dword_53C67 = 0;
                 }
@@ -4671,8 +4673,8 @@ LABEL_50:
       {
         if ( v26 != 0 )
         {
-          sub_16559(0);
-          sub_16C57(0);
+          dialog_portrait_frame_draw(0);
+          dialog_wait_key(0);
           dialog_box_close(v26, v25);
         }
         dword_53C67 = 1832;
@@ -4702,8 +4704,8 @@ LABEL_33:
         break;
       if ( v26 != 0 )
       {
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
         dialog_box_close(v26, v25);
       }
       dword_53C67 = 36887;
@@ -4729,8 +4731,8 @@ LABEL_42:
     {
       if ( v26 != 0 )
       {
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
         dialog_box_close(v26, v25);
       }
       dword_53C67 = 1832;
@@ -4745,8 +4747,8 @@ LABEL_42:
     {
       if ( v26 != 0 )
       {
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
         dialog_box_close(v26, v25);
       }
       dword_53C67 = 36887;
@@ -4790,7 +4792,7 @@ int text_dialog_glyph_step()
     v0 = dword_53A10;
     if ( dword_53A10 == 3 )
       v0 = 1;
-    sub_16559(v0);
+    dialog_portrait_frame_draw(v0);
     dword_53A14 = 0;
   }
   sfx_play(dword_53EEC, 2, 1);
@@ -4799,12 +4801,13 @@ int text_dialog_glyph_step()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_16559
+ * IDA 9.5 Hex-Rays: dialog_portrait_frame_draw
  * VA=0x16559..0x165ac OBJ=1 OFF=0x6559 size=0x53
  * callers: 0x10010, 0x15f84, 0x164e8, 0x16c57, 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x1e292, 0x26152, 0x2670e, 0x26eda, 0x279bc, 0x2872b, 0x28b41, 0x28cbd, 0x28f65, 0x29300, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x3702f, 0x4ebff, 0x4ec31
  * --------------------------------------------------------------- */
-int __cdecl sub_16559(int a1)
+// [勘误 semantic_name] dialog_portrait_frame_draw；依据: 完整83B及15f84/164e8/16c57/1e292等xref：按DATO帧偏移重画立绘，origin53C67等于36887时以VGA右端(87,115)反向画，否则在该origin正向画。DATO0..135全部4帧80x80；4ec31先写再dec，普通页左界为8。raw SHA 18ab5a72d38d7240d0cf5af6c966c259f235a8ed4293d1cd74f6c9618080eac1。
+int __cdecl dialog_portrait_frame_draw(int a1)
 {
   int v1; // eax
 
@@ -5051,12 +5054,13 @@ void __cdecl dialog_box_close(int *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_16C57
+ * IDA 9.5 Hex-Rays: dialog_wait_key
  * VA=0x16c57..0x16e24 OBJ=1 OFF=0x6c57 size=0x1cd
  * callers: 0x10010, 0x15f84, 0x17aed, 0x190ac, 0x1aa1d, 0x1b9de, 0x1d51d, 0x2872b, 0x28cbd, 0x28f65, 0x2968d, 0x2986f, 0x29bcb, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x10620, 0x16559, 0x1685c, 0x3702f, 0x370f0, 0x4e31c, 0x4ebe3
  * --------------------------------------------------------------- */
-void __cdecl sub_16C57(int a1)
+// [勘误 semantic_name] dialog_wait_key；依据: 完整461B与15f84/17aed/1b9de/1d51d等caller：读取一个BIOS键，可选18/19箭头；每次入口一次RNG%30+2，按2 BIOS tick门更新portrait0/3及重新取blink计时，并显式推进water DAC。正式map非NULL的bottom箭头为(191,181)，无map另分支为143。返回前读取并规范化扩展键；不猜测持久ABI。raw SHA 9ee45fd0d376c2f05cedeff838be5f13f7fcc8724000b152f1ad17f44c5b865e。
+void __cdecl dialog_wait_key(int a1)
 {
   int v1; // esi
   int v2; // edi
@@ -5097,7 +5101,7 @@ void __cdecl sub_16C57(int a1)
       }
       if ( v9 != 0 )
       {
-        v4 = sub_16559(0);
+        v4 = dialog_portrait_frame_draw(0);
         v3 = field_rng_next(v4) % 30 + 2;
         v9 = 0;
       }
@@ -5106,7 +5110,7 @@ void __cdecl sub_16C57(int a1)
         v5 = v3--;
         if ( v5 == 0 )
         {
-          sub_16559(3);
+          dialog_portrait_frame_draw(3);
           v9 = 1;
         }
       }
@@ -5216,9 +5220,9 @@ int field_empty_focus_menu_execute()
     case 0:
       return field_secondary_menu_execute(v18, DWORD1(v18), DWORD2(v18), SBYTE12(v18));
     case 1:
-      sub_1956B(*(unsigned __int8 *)(dword_53A45 + 7));
+      field_bottom_notice_open(*(unsigned __int8 *)(dword_53A45 + 7));
       text_dialog_render_tokens(v20, dword_53A7D, 417, 696099, 320, 205, 76, 74, 19, 1);
-      v3 = sub_16559(0);
+      v3 = dialog_portrait_frame_draw(0);
       v4 = sub_19953(v3);
       v5 = v4;
       sub_197E5(v4, HIDWORD(v4), v4);
@@ -5226,7 +5230,7 @@ int field_empty_focus_menu_execute()
       {
         text_dialog_render_tokens(v20, dword_53A7D, 418, 702179, 320, 205, 76, 74, 19, 1);
         v7 = j___delay(200);
-        sub_196CB(v7, v6);
+        field_bottom_notice_close(v7, v6);
         v8 = qword_53AB1;
         dword_51A83 = 0;
         byte_51AAC = 0;
@@ -5255,9 +5259,9 @@ int field_empty_focus_menu_execute()
       field_options_menu_execute(v1);
       return 0;
     case 3:
-      sub_1956B(75);
+      field_bottom_notice_open(75);
       text_dialog_render_tokens(v20, dword_53A7D, 419, 696099, 320, 205, 76, 74, 19, 1);
-      v13 = sub_16559(0);
+      v13 = dialog_portrait_frame_draw(0);
       v14 = sub_19953(v13);
       v15 = v14;
       sub_197E5(v14, HIDWORD(v14), v14);
@@ -5265,7 +5269,7 @@ int field_empty_focus_menu_execute()
       {
         text_dialog_render_tokens(v20, dword_53A7D, 420, 702179, 320, 205, 76, 74, 19, 1);
         v16 = j___delay(200);
-        v17 = sub_196CB(v16, v6);
+        v17 = field_bottom_notice_close(v16, v6);
         byte_51AAC = 0;
         field_turn_cycle_run(v17);
         byte_51AAC = 1;
@@ -5274,7 +5278,7 @@ int field_empty_focus_menu_execute()
 LABEL_20:
       text_dialog_render_tokens(v20, dword_53A7D, 412, 702179, 320, 205, 76, 74, 19, 1);
       v12 = j___delay(200);
-      sub_196CB(v12, v6);
+      field_bottom_notice_close(v12, v6);
       return 1;
     default:
       return 0;
@@ -5706,7 +5710,7 @@ void __cdecl field_unit_detail_present(int a1, int a2)
 
   watcom_stack_check(24);
   field_unit_detail_open(a1);
-  sub_16C57(0);
+  dialog_wait_key(0);
   if ( field_unit_magic_list_build(a1, 0) != 0 )
   {
     sfx_play(dword_53EEC, 6, 1);
@@ -5733,7 +5737,7 @@ void __cdecl field_unit_detail_present(int a1, int a2)
       field_unit_detail_transition_bottom(16 * j + 94, dword_53C5B, dword_53C63);
       memmove(655360, dword_53C5B, 64000);
     }
-    sub_16C57(0);
+    dialog_wait_key(0);
   }
   for ( k = 0; k <= 11; ++k )
   {
@@ -6632,12 +6636,12 @@ char __cdecl sub_190AC(int a1)
     {
       v3 = dword_53A45 + 80 * a1;
       bios_keyboard_buffer_clear(dword_53A45);
-      sub_1956B(*(unsigned __int8 *)(v3 + 7));
+      field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
       if ( (v22 & 0x20) != 0 )
         text_dialog_render_tokens(v1, dword_53A7D, 421, 696099, 320, 205, 76, 74, 19, 1);
       else
         text_dialog_render_tokens(v1, dword_53A7D, 428, 696099, 320, 205, 76, 74, 19, 1);
-      v4 = sub_16559(0);
+      v4 = dialog_portrait_frame_draw(0);
       v5 = sub_19953(v4);
       v6 = v5;
       sub_197E5(v5, HIDWORD(v5), v5);
@@ -6646,7 +6650,7 @@ char __cdecl sub_190AC(int a1)
         j___delay(100);
         text_dialog_render_tokens(v1, dword_53A7D, 412, 702179, 320, 205, 76, 74, 19, 1);
         v15 = j___delay(200);
-        return sub_196CB(v15, v7);
+        return field_bottom_notice_close(v15, v7);
       }
       pal_mask_set(dword_53EEC, 12, 1);
       j___delay(300);
@@ -6662,18 +6666,18 @@ char __cdecl sub_190AC(int a1)
         if ( field_unit_inventory_item_append(a1, v9) != -1 )
         {
           v1[dword_53AD5] = 1;
-          sub_16559(0);
-          sub_16C57(0);
-          sub_196CB(v10, v8);
+          dialog_portrait_frame_draw(0);
+          dialog_wait_key(0);
+          field_bottom_notice_close(v10, v8);
           return sub_12263();
         }
-        sub_16559(0);
-        sub_16C57(0);
-        sub_196CB(v11, v8);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
+        field_bottom_notice_close(v11, v8);
         j___delay(100);
-        sub_1956B(*(unsigned __int8 *)(v3 + 7));
+        field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
         text_dialog_render_tokens(v1, dword_53A7D, 423, 696099, 320, 205, 76, 74, 19, 1);
-        v12 = sub_16559(0);
+        v12 = dialog_portrait_frame_draw(0);
         v13 = sub_19953(v12);
         v21 = v13;
         v14 = sub_197E5(v13, HIDWORD(v13), v9);
@@ -6683,7 +6687,7 @@ char __cdecl sub_190AC(int a1)
         }
         else
         {
-          sub_196CB(v14, v7);
+          field_bottom_notice_close(v14, v7);
           if ( field_unit_inventory_select(a1, 0) != 0 )
           {
             v21 = field_unit_item_id_at(a1, dword_53C57);
@@ -6693,19 +6697,19 @@ char __cdecl sub_190AC(int a1)
             v7 = v20;
             *(_WORD *)(dword_53A55 + 3 * (_DWORD)v1 + 84) = v20;
             j___delay(100);
-            sub_1956B(*(unsigned __int8 *)(v3 + 7));
+            field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
             dword_53ADD = v21 + 181;
             text_dialog_render_tokens(v1, dword_53A7D, 425, 696099, 320, 205, 76, 74, 19, 1);
-            sub_16559(0);
-            sub_16C57(0);
-            return sub_196CB(v15, v7);
+            dialog_portrait_frame_draw(0);
+            dialog_wait_key(0);
+            return field_bottom_notice_close(v15, v7);
           }
           j___delay(100);
-          sub_1956B(*(unsigned __int8 *)(v3 + 7));
+          field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
           text_dialog_render_tokens(v1, dword_53A7D, 424, 696099, 320, 205, 76, 74, 19, 1);
         }
         v15 = j___delay(200);
-        return sub_196CB(v15, v7);
+        return field_bottom_notice_close(v15, v7);
       }
       if ( *(_BYTE *)(dword_53A55 + 3 * (_DWORD)v1 + 83) == 1 )
       {
@@ -6745,15 +6749,15 @@ char __cdecl sub_190AC(int a1)
             19,
             *(unsigned __int8 *)(dword_53A55 + 3 * (_DWORD)v1 + 83));
         }
-        sub_16559(0);
-        sub_16C57(0);
-        sub_196CB(v16, v8);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
+        field_bottom_notice_close(v16, v8);
         dword_53BF3 += dword_53AE1;
         v1[dword_53AD5] = 1;
         return sub_12263();
       }
       v17 = j___delay(200);
-      sub_196CB(v17, v8);
+      field_bottom_notice_close(v17, v8);
       return ((int (__cdecl *)(int))funcs_1199C[v9])(a1);
     }
   }
@@ -6762,12 +6766,13 @@ char __cdecl sub_190AC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1956B
+ * IDA 9.5 Hex-Rays: field_bottom_notice_open
  * VA=0x1956b..0x196cb OBJ=1 OFF=0x956b size=0x160
  * callers: 0x10010, 0x16f55, 0x190ac, 0x19df7, 0x1a866, 0x1aa1d, 0x1e292, 0x26152, 0x2670e, 0x279bc, 0x2872b, 0x28cbd, 0x28f65, 0x29300, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x111ba, 0x168b6, 0x1974c, 0x3702f, 0x3706e, 0x3771c, 0x4ec31
  * --------------------------------------------------------------- */
-int __cdecl sub_1956B(int a1)
+// [勘误 semantic_name] field_bottom_notice_open；依据: 完整352B及系统确认/1a866/1e292等caller：分配三个64000B缓冲，保存初始VGA并拼310x86的bottom底板，载入DATO初帧reverse，i5..0以1974c(13*i+112)滑入。不是奖励专用；128..132有特殊origin。raw SHA e5b8b359f8371ce6513766b7d0badb2189dd8ea58af75a4e8abda637d0733026。
+int __cdecl field_bottom_notice_open(int a1)
 {
   int result; // eax
   int i; // ebx
@@ -6803,25 +6808,26 @@ int __cdecl sub_1956B(int a1)
   dword_53A85 = res_load((int)aDatoDat, dword_53A85, a1);
   result = lmi_rle_blit_reverse(dword_53C67 + dword_53C63, *(unsigned __int8 *)dword_53A85 + dword_53A85, 320);
   for ( i = 5; i >= 0; --i )
-    result = sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    result = field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_196CB
+ * IDA 9.5 Hex-Rays: field_bottom_notice_close
  * VA=0x196cb..0x1974c OBJ=1 OFF=0x96cb size=0x81
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x10010, 0x16f55, 0x190ac, 0x19df7, 0x1a866, 0x1aa1d, 0x1e292, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x11cac, 0x1974c, 0x3702f, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-int sub_196CB()
+// [勘误 semantic_name] field_bottom_notice_close；依据: 完整129B与1956b配对caller：i1..5调用1974c滑出初始静态底板，恢复打开前VGA、释放三缓冲并11cac(0)刷新；关闭不以当前文字页作源。raw SHA 9ed5ae278e9018f35c52d1abc69d2f475dcfb56d1dfc09b7d6f5441276c766e5。
+int field_bottom_notice_close()
 {
   int i; // ebx
 
   watcom_stack_check(20);
   for ( i = 1; i < 6; ++i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   memmove(655360, dword_53C5F, 64000);
   free(dword_53C5B);
   free(dword_53C5F);
@@ -6831,12 +6837,13 @@ int sub_196CB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1974C
+ * IDA 9.5 Hex-Rays: field_bottom_notice_slide_draw
  * VA=0x1974c..0x197e5 OBJ=1 OFF=0x974c size=0x99
  * callers: 0x1956b, 0x196cb, 0x26996, 0x27738, 0x27d33, 0x27f4a, 0x29bcb, 0x2a29d, 0x2a857
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-void __cdecl sub_1974C(int a1, int a2, int a3)
+// [勘误 semantic_name] field_bottom_notice_slide_draw；依据: 完整153B及1956b/196cb和底部选择页caller：先复制53C5F初始背景，再从源(5,112)逐行复制310像素到目标y，最多86行并裁到200，交接完整VGA后走既有同步尾；不移动camera或修改actor。raw SHA 86eee771d050f98da4a5a88143f434f340cc0e7e84c8a7f987c525527fb688c8。
+void __cdecl field_bottom_notice_slide_draw(int a1, int a2, int a3)
 {
   int v3; // esi
   int i; // ebx
@@ -7140,9 +7147,9 @@ void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@
         sub_1B1E7(v12);
         goto LABEL_33;
       case 1:
-        sub_1956B(75);
+        field_bottom_notice_open(75);
         text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 410, 696099, 320, 205, 76, 74, 19, 1);
-        sub_16559(0);
+        dialog_portrait_frame_draw(0);
         sub_19953();
         v14 = v13;
         sub_197E5();
@@ -7217,15 +7224,15 @@ LABEL_23:
           v26,
           v27);
         j___delay(200);
-        v18 = sub_196CB();
+        v18 = field_bottom_notice_close();
 LABEL_24:
         bios_keyboard_buffer_clear(v18);
 LABEL_33:
         JUMPOUT(0x16FD8);
       case 2:
-        sub_1956B(75);
+        field_bottom_notice_open(75);
         text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 413, 696099, 320, 205, 76, 74, 19, 1);
-        sub_16559(0);
+        dialog_portrait_frame_draw(0);
         sub_19953();
         v20 = v19;
         sub_197E5();
@@ -7233,7 +7240,7 @@ LABEL_33:
         {
           text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 414, 702179, 320, 205, 76, 74, 19, 1);
           j___delay(200);
-          sub_196CB();
+          field_bottom_notice_close();
           music_track_play(-1, 0);
           sub_10010();
           goto LABEL_24;
@@ -7242,9 +7249,9 @@ LABEL_33:
       default:
         break;
     }
-    sub_1956B(75);
+    field_bottom_notice_open(75);
     text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 415, 696099, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     sub_19953();
     v22 = v21;
     sub_197E5();
@@ -7253,7 +7260,7 @@ LABEL_33:
     text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 416, 702179, 320, 205, 76, 74, 19, 1);
     music_track_play(-1, 1);
     j___delay(200);
-    sub_196CB();
+    field_bottom_notice_close();
   }
   JUMPOUT(0x16FDD);
 }
@@ -7493,6 +7500,7 @@ void __cdecl field_turn_event_check(int a1)
 //   依据: corrected dual `0x1a866` 的 poison 与状态子循环均从 raw actor index 0 开始，仅处理匹配 side 且 flags bit 0 未置位的 actor；poison 扣除 `HP -= maxHP/10` 并下限为 0，随后遍历 `record +0x22..+0x27` 六个状态 byte，每次归零都会调用 `field_unit_combat_stats_recompute_runtime`，最终派生属性复用 `0x4096e`，倍率为 DS:0x018d 的 1.15。
 //   历史地址列 `0x1a866`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] 只恢复毒伤和状态计时，忽略聚焦并合并重算 -> raw顺序处理匹配side且非hidden的中毒actor，HP扣除后即12d7b聚焦，不加HP或damage非零门；完整扫描后1db65死亡清理。第二段逐actor逐byte递减+22..27，每次归零立即聚焦并1b750重算，不能合并到actor末尾。；依据: published1a866..1aa1d与strictLE file4087a全439B SHA 951bd9b8a4ea02aa53a97dc7dbc808cf9673365bed6cda162d1b53349db00b35；HP写入1a8d0/必聚焦1a8df/扫描后清理1a941；归零聚焦1a9aa..1a9b0，重算1aa10。镜头是死亡方向清理的前置读集，漏写可持久化错误方向；此为逻辑顺序核验，提示、演出及其附加等待/RNG未作动态对照。
+// [勘误 evidence] 每名中毒actor先HP写入和focus，再bottom notice487，clear键、wait10、关闭；全部毒后才死亡清理及stage handler。每个+22..27归零后focus→481..486→clear/wait10/close→立即1b750，再处理下一byte。487的-2只换行、-6读53AE1毒伤，七个片段均无-3；自动等待无blink RNG。；依据: 完整439B Domain/strictLE字节相等；消息调用696099对应(99,127)，1956b/196cb及1e5c0(10)和FDTXT0的481..487完整token相互支持。逐字164e8可留下portrait0/1/2，不能套16c57等待页的0/3。
 int __cdecl field_phase_status_tick(int a1)
 {
   int v1; // eax
@@ -7527,11 +7535,11 @@ int __cdecl field_phase_status_tick(int a1)
         dword_51A83 = 0;
         field_focus_move_to_actor(i);
         dword_51A83 = 1;
-        sub_1956B(*(unsigned __int8 *)(v3 + 7));
+        field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
         text_dialog_render_tokens(v5, dword_53A7D, 487, 696099, 320, 205, 76, 74, 19, 1);
         bios_keyboard_buffer_clear(v6);
-        sub_1E5C0(10);
-        v1 = sub_196CB();
+        field_notice_wait_ticks(10);
+        v1 = field_bottom_notice_close();
       }
     }
   }
@@ -7550,11 +7558,11 @@ int __cdecl field_phase_status_tick(int a1)
           dword_51A83 = 0;
           field_focus_move_to_actor(j);
           dword_51A83 = 1;
-          sub_1956B(*(unsigned __int8 *)(v8 + 7));
+          field_bottom_notice_open(*(unsigned __int8 *)(v8 + 7));
           text_dialog_render_tokens(k, dword_53A7D, (int)(k + 481), 696099, 320, 205, 76, 74, 19, 1);
           bios_keyboard_buffer_clear(v11);
-          sub_1E5C0(10);
-          sub_196CB();
+          field_notice_wait_ticks(10);
+          field_bottom_notice_close();
           field_unit_combat_stats_recompute(j);
         }
       }
@@ -7601,12 +7609,12 @@ LABEL_24:
         case 1:
           if ( *(_BYTE *)(v4 + 6) != 2 )
             goto LABEL_24;
-          sub_1956B(*(unsigned __int8 *)(v4 + 7));
+          field_bottom_notice_open(*(unsigned __int8 *)(v4 + 7));
           dword_53AE1 = v8;
           text_dialog_render_tokens(a1, dword_53A7D, 435, 696099, 320, 205, 76, 74, 19, 1);
-          sub_16559(0);
-          sub_16C57(0);
-          sub_196CB();
+          dialog_portrait_frame_draw(0);
+          dialog_wait_key(0);
+          field_bottom_notice_close();
           v3 = dword_53AE1;
           dword_53BF3 += dword_53AE1;
           break;
@@ -7626,17 +7634,17 @@ LABEL_24:
       if ( *(_BYTE *)(v4 + 6) != 2 )
         goto LABEL_24;
       dword_53AD9 = v8 + 181;
-      sub_1956B(*(unsigned __int8 *)(v4 + 7));
+      field_bottom_notice_open(*(unsigned __int8 *)(v4 + 7));
       text_dialog_render_tokens(a1, dword_53A7D, 432, 696099, 320, 205, 76, 74, 19, 1);
       if ( field_unit_inventory_item_append(a1, v8) == -1 )
       {
-        sub_16559(0);
-        sub_16C57(0);
-        sub_196CB();
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
+        field_bottom_notice_close();
         j___delay(100);
-        sub_1956B(*(unsigned __int8 *)(v4 + 7));
+        field_bottom_notice_open(*(unsigned __int8 *)(v4 + 7));
         text_dialog_render_tokens(a1, dword_53A7D, 433, 696099, 320, 205, 76, 74, 19, 1);
-        sub_16559(0);
+        dialog_portrait_frame_draw(0);
         sub_19953();
         v9 = v6;
         sub_197E5();
@@ -7646,7 +7654,7 @@ LABEL_24:
         }
         else
         {
-          sub_196CB();
+          field_bottom_notice_close();
           if ( field_unit_inventory_select(a1, 0) != 0 )
           {
             field_unit_item_id_at(a1, dword_53C57);
@@ -7655,17 +7663,17 @@ LABEL_24:
             continue;
           }
           j___delay(100);
-          sub_1956B(*(unsigned __int8 *)(v4 + 7));
+          field_bottom_notice_open(*(unsigned __int8 *)(v4 + 7));
           text_dialog_render_tokens(a1, dword_53A7D, 434, 696099, 320, 205, 76, 74, 19, 1);
         }
         j___delay(200);
       }
       else
       {
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
       }
-      v3 = sub_196CB();
+      v3 = field_bottom_notice_close();
     }
   }
 }
@@ -8204,6 +8212,7 @@ int __cdecl field_unit_item_id_at(int a1, int a2)
 // [field_unit_combat_stats_recompute_runtime] phase 状态归零时的派生属性重算
 //   依据: corrected dual `0x1b750` 读取同一单位记录和装备槽，复用 `0x4096e` 的基础/装备累加与 16 位写回；AP/DP 状态有效时对对应派生值执行 1.15 x87 nearest-even 缩放。
 //   历史地址列 `0x1b750`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 仅AP/DP在装备累加后乘原binary64倍率1.15；原__CHP临时设置RC向0，故先PC53乘法舍入，再向0截断。10→11、12→13、20→23，100→114、-100→-114，不能替换为整数115*v/100。AC/EV不乘倍率，+24状态只使两者各加15。；依据: 完整237B/xref与原指令VA1b7ef..1b802、1b80a..1b81d及__CHP37af4；启动CW127f，倍率原字节666666666666f23f。verify_fd2_x87_stat_scale.py复用原块/原__CHP，无patch或hook，两块各穷举-65536..65535共131072输入，等于强制binary64中间值再向0cast；每块向量SHA 55dafb59f3c3576c68a43d3f241cc735c5160a4b3eb48e362fb54315d0ea32c2。这是局部机器码与C模型复核，不代表原版运行或全演出时序验收。
 void __cdecl field_unit_combat_stats_recompute(int a1)
 {
   int v1; // edi
@@ -8384,7 +8393,7 @@ int __cdecl field_unit_inventory_select_step(int a1, int a2)
     if ( *(char *)(v3 + 2 * i + 10) >= 0 )
       ++v2;
   }
-  sub_16C57(0);
+  dialog_wait_key(0);
   switch ( v5 )
   {
     case 1:
@@ -9075,6 +9084,7 @@ int __cdecl field_magic_heal_apply(int a1, int a2)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] sub_1C916 -> field_hp_heal_apply；依据: 1c8ed法术／211a4物品共享HP恢复core；一次spread RNG，满HP也消费，恢复量夹maxHP。ID<75按实际恢复差*40*目标等级权重/maxHP累加53EC8；只有8<profile<25给目标等级加30，不等同caster归一条件。
 // [勘误 evidence] 恢复core可以承担费用或caster经验写回 -> 只恢复当前target HP并累计原始贡献，费用由wrapper、caster归一由18d8c负责；SDL最坏贡献查询复用相同整数公式，所有目标先预检；SDL另共享纯HP部分供真实magic power与item value调用，不把其API等同原函数的贡献累计、费用或各动作尾链。；依据: 完整199B SHA 2bfd114f863e4e0f16eea866cdd8e699c925e78c1ebf8c131defd539a791778d，已发布调用者及raw写集；28000组profile/HP/spread逻辑组合检查既有效果与上界。该组合检查不是局部机器码执行或原版治疗运行。
+// [勘误 evidence] 先提交HP，再把signed(newHP-oldHP)*40*weightedLV/maxHP加到DWORD53EC8。oldHP>maxHP时cap可产生负差，ADD按32位回绕而非夹0。MP恢复1c9dd在写MP后复用1c9c7的signed除法/ADD尾，ID<75才计算且不作profile加30。；依据: Domain原字节1c990..1c9cf和1ca58..1ca84；有状态cure的heal贡献先于clear/额外贡献，负状态damage贡献更先于duration RNG。恢复helper自身不归一或写caster EX；异常除零/未知数据支持门另列。
 void __cdecl field_hp_heal_apply(int a1, int a2)
 {
   int v2; // esi
@@ -9564,7 +9574,7 @@ void __cdecl field_player_magic_list_select_step(int a1, int a2, int a3, int a4,
   field_unit_magic_list_draw(a1, dword_53C57, 655360);
   field_unit_magic_list_build(a7, 0);
   v8 = v7;
-  sub_16C57(0);
+  dialog_wait_key(0);
   switch ( v9 )
   {
     case 72:
@@ -9648,12 +9658,13 @@ int __cdecl sub_1D6C8(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1D79C
+ * IDA 9.5 Hex-Rays: field_unit_magic_bit_set
  * VA=0x1d79c..0x1d80b OBJ=1 OFF=0xd79c size=0x6f
  * callers: 0x1e292
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_1D79C(int a1, int a2)
+// [勘误 semantic_name] field_unit_magic_bit_set；依据: 完整111B、1e292唯一caller及能力位图数据：按magicID/8选择actor+1a起byte，并OR原1<<bit表；不校学习等级、不判重复已学。学习条件及消息在caller，不把此函数当完整学习流程。raw SHA d09104c23818299c04f1c1e5303b2b18db1c7d4ee6d5fd7172c575e6ed8fe54c。
+void __cdecl field_unit_magic_bit_set(int a1, int a2)
 {
   int v2; // ecx
   _DWORD v3[2]; // [esp+0h] [ebp-1Ch]
@@ -10153,13 +10164,15 @@ int __cdecl sub_1E1DC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1E292
+ * IDA 9.5 Hex-Rays: field_unit_experience_reward_execute
  * VA=0x1e292..0x1e529 OBJ=1 OFF=0xe292 size=0x297
  * callers: 0x117e7, 0x1548e
  * callees: 0x15f84, 0x16559, 0x1956b, 0x196cb, 0x1b750, 0x1d79c, 0x1e529, 0x1e5c0, 0x3702f, 0x4e381, 0x4e7f2, 0x4e821
  * --------------------------------------------------------------- */
 // [勘误 evidence] 未升级动作可省略EX或用WAIT收尾代替 -> gain非零、caster未hidden且不在等值levelcap时，EX+gain<100分支只写+3c，不成长／重算／学习。18d8c先按level+(profile>8?30:0)归一，controller再cap99；升级分支仍待B4，SDL在MP/RNG前以全目标上界拒绝可能升级。；依据: 已发布1e292及117e7/18d8c，完整663B SHA 5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；levelcap为ID30/31等于99、其它等于40，不扩为>=。这里只登记已确认分支，不命名整个成长流程或声称488提示／FIGANI／额外呈现RNG已验收。
-void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
+// [勘误 semantic_name] field_unit_experience_reward_execute；依据: 完整663B及117e7/1548e的xref：检查raw贡献/hidden/等值levelcap，显示488后逐级执行LEVEL、五成长、六pair学习和重算，最终wait11/关闭后才写EX并清53EC8。入口早退保留raw；level先于489，成长WORD在其-3 ACK后写，学习bit先于587。普通40仅入口等值门，循环只在新30或特殊ID30/31新99清余值；raw SHA 5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b。
+// [勘误 evidence] gain非零、actor未hidden且不在等值levelcap时执行奖励；EX+gain<100不成长，完成488及自动等待/关闭后才写+3c并清全局。玩家18d8c先按level+(profile>8?30:0)归一，117e7再cap99；AI1548e不作cap99。B4已静态复核完整逐级/成长/学习顺序，不把原B2的非升级支持门当原版门。；依据: 已发布1e292及117e7/18d8c，完整663B SHA 5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；levelcap为ID30/31等于99、其它等于40，不扩为>=。完整Domain与原字节/xref确认语义，原版提示/等待RNG运行验收另登记。
+void __usercall field_unit_experience_reward_execute(unsigned __int8 *a1@<edi>, int a2)
 {
   int v2; // ebp
   _BYTE *v3; // esi
@@ -10184,33 +10197,33 @@ void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
   v14 = v5;
   if ( dword_53EC8 != 0 && (v3[5] & 1) == 0 && !(v5 == 30 || v5 == 31 ? v4 == 99 : v4 == 40) )
   {
-    v16 = sub_4E821((unsigned __int8)v3[7]);
+    v16 = field_growth_record_get((unsigned __int8)v3[7]);
     v15 = (unsigned __int8)v3[60] + dword_53EC8;
     dword_53AE1 = dword_53EC8;
     bios_keyboard_buffer_clear(dword_53EC8);
-    sub_1956B((unsigned __int8)v3[7]);
+    field_bottom_notice_open((unsigned __int8)v3[7]);
     text_dialog_render_tokens(a1, dword_53A7D, 488, 693535, 320, 205, 76, 74, 19, 1);
-    v7 = sub_16559(0);
+    v7 = dialog_portrait_frame_draw(0);
     while ( v15 >= 100 )
     {
       bios_keyboard_buffer_clear(v7);
       ++v3[33];
       text_dialog_render_tokens(a1, dword_53A7D, 489, 699615, 320, 205, 76, 74, 19, 1);
-      v10 = sub_1E529(v3 + 55, v16, 490, v2);
-      v11 = sub_1E529(v3 + 57, v16 + 2, 491, v10);
-      v12 = sub_1E529(v3 + 62, v16 + 4, 492, v11);
-      v13 = sub_1E529(v3 + 66, v16 + 6, 493, v12);
-      v2 = sub_1E529(v3 + 70, v16 + 8, 494, v13);
+      v10 = field_growth_stat_present_apply(v3 + 55, v16, 490, v2);
+      v11 = field_growth_stat_present_apply(v3 + 57, v16 + 2, 491, v10);
+      v12 = field_growth_stat_present_apply(v3 + 62, v16 + 4, 492, v11);
+      v13 = field_growth_stat_present_apply(v3 + 66, v16 + 6, 493, v12);
+      v2 = field_growth_stat_present_apply(v3 + 70, v16 + 8, 494, v13);
       if ( *(unsigned __int8 *)(v16 + 10) != 255 )
       {
-        a1 = (unsigned __int8 *)sub_4E7F2(*(unsigned __int8 *)(v16 + 10));
+        a1 = (unsigned __int8 *)field_magic_learning_record_get(*(unsigned __int8 *)(v16 + 10));
         for ( i = 0; i < 6; ++i )
         {
           if ( (unsigned __int8)v3[33] == a1[2 * i] )
           {
             v9 = a1[2 * i + 1];
             dword_53AD9 = v9 + 441;
-            sub_1D79C(a2, v9);
+            field_unit_magic_bit_set(a2, v9);
             text_dialog_render_tokens(a1, dword_53A7D, 587, 6080 * v2 + 693535, 320, 205, 76, 74, 19, 1);
           }
         }
@@ -10221,8 +10234,8 @@ void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
       if ( (v14 == 30 || v14 == 31) && v7 == 99 || v7 == 30 )
         v15 = 0;
     }
-    sub_1E5C0(11);
-    sub_196CB();
+    field_notice_wait_ticks(11);
+    field_bottom_notice_close();
     v3[60] = v15;
     dword_53EC8 = 0;
   }
@@ -10231,12 +10244,13 @@ void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1E529
+ * IDA 9.5 Hex-Rays: field_growth_stat_present_apply
  * VA=0x1e529..0x1e5c0 OBJ=1 OFF=0xe529 size=0x97
  * callers: 0x1e292, 0x2ac7d
  * callees: 0x15f84, 0x16e24, 0x3702f, 0x4e381, 0x4ebe3
  * --------------------------------------------------------------- */
-int __cdecl sub_1E529(_WORD *a1, int a2, int a3, int a4)
+// [勘误 semantic_name] field_growth_stat_present_apply；依据: 完整151B及1e292/2ac7d调用：1e548的EB0E跳过RNG块，取growth pair第二byte到53AE1；零值不写不呈现，非零时必要先scroll，显示带-3的成长消息后才WORD+=delta并递增行号。raw SHA 9f5f76922f070cd37ea0d39c655f478c9d5ccd9de6a798695e74fbbc05e13f78。
+int __cdecl field_growth_stat_present_apply(_WORD *a1, int a2, int a3, int a4)
 {
   int v4; // eax
   int v5; // edi
@@ -10262,12 +10276,13 @@ int __cdecl sub_1E529(_WORD *a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1E5C0
+ * IDA 9.5 Hex-Rays: field_notice_wait_ticks
  * VA=0x1e5c0..0x1e611 OBJ=1 OFF=0xe5c0 size=0x51
  * callers: 0x1a866, 0x1e292
  * callees: 0x10620, 0x3702f, 0x4e31c, 0x4e381
  * --------------------------------------------------------------- */
-int __cdecl sub_1E5C0(int a1)
+// [勘误 semantic_name] field_notice_wait_ticks；依据: 完整81B、1a866参数10/1e292参数11：循环显式water DAC与input_check，达到BIOS tick间隔、tick wrap或任意键即结束，最后清BIOS键队列。本体不调用field RNG，不把可按键提前结束写成固定完整时长。raw SHA e9edc6715a04c11222290f6108decd5f54409f1adc7f209963bd0a599ced8e4d。
+int __cdecl field_notice_wait_ticks(int a1)
 {
   int v1; // eax
   int v2; // esi
@@ -10586,6 +10601,7 @@ LABEL_7:
 // [field_physical_attack_resolve] 结算一次普通物理攻击的命中、暴击、伤害和目标 HP
 //   依据: 原始指令先按攻击者／防御者所在格 movement cost class 查询 `DS:0x1a12/0x1a2a`，执行 `stat += stat*percent/100`；再确认 record `0x48/0x4a/0x4c/0x4e` 分别用于攻击、防御、命中、回避；暴击基础值取 `DS:0x24a8[record[0x20]-1]`，武器 item `+0x09==4` 时累加 `+0x0a`；`+0x09==2` 时在命中前以 `+0x0a` 为百分比阈值，成功后再取 `rand()%4+2` 写 defender `+0x25`。核心判定为 `rand()%100 < accuracy-evasion`，暴击时防御减半，基础伤害为 `(attack-defense)*9/10`，再加 `rand()%(base/9)` 浮动并将 HP 钳制到 0，最后写 defender `+0x40`。函数体不访问 `+0x05`。
 //   历史地址列 `0x43edb`；旧 Ghidra 名 `FUN_0001c40f`；判定 exact
+// [勘误 evidence] 仅attacker.side2且defenderID>=68写53EC8，以MOV覆盖而非累加。先enemyLV*coef除有效attackerLV；若最终HP非零再rawDamage*base除maxHP。profile9..24或textID28将u8等级副本加30，注意不是unitID28；maxHP等战斗WORD均movzx。乘法为32位imul后signed idiv，不能悄改u64公式。；依据: 完整899B及1e856唯一caller；1ed20、1efd2..1f03c逐指令，2f7b6的2fa4d..2fab9采用同两次截断/MOV规则。miss时存活者贡献0，其它side/ID门不写而保留旧全局；完整FIGANI与无演出RNG轨迹仍分开。
 void __cdecl field_physical_attack_resolve(int a1, int a2)
 {
   int v2; // ebp
@@ -15418,9 +15434,9 @@ bool sub_26152()
   {
     memset(655360, 0, 64000);
     dac_apply_darkness(0, 255, 0);
-    sub_1956B(75);
+    field_bottom_notice_open(75);
     text_dialog_render_tokens((unsigned __int8 *)&v11 + 3, dword_53A7D, 410, 693540, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     dword_53A51 = 1;
     sub_19953();
     v3 = v2;
@@ -15568,10 +15584,10 @@ void __usercall sub_2670E(int a1@<ebp>, unsigned __int8 *a2@<edi>)
   music_track_play(-1, 0);
   if ( dword_53F4A == 2 )
   {
-    sub_1956B(75);
+    field_bottom_notice_open(75);
     text_dialog_render_tokens(a2, dword_53A7D, 513, 693535, 320, 205, 76, 74, 19, 1);
     dword_53A51 = 1;
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     sub_19953();
     v3 = v2;
     sub_197E5();
@@ -15650,7 +15666,7 @@ int sub_26996()
 
   watcom_stack_check(20);
   for ( i = 1; i < 6; ++i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   memmove(655360, dword_53C5F, 64000);
   free(dword_53C5B);
   free(dword_53C5F);
@@ -15980,7 +15996,7 @@ int __cdecl sub_26EDA(int a1)
       sub_27079(&v9, a1);
       if ( v11 != 0 )
       {
-        v4 = sub_16559(0);
+        v4 = dialog_portrait_frame_draw(0);
         v5 = field_rng_next(v4);
         v7 = v5 % 30;
         v6 = v5 / 30;
@@ -15992,7 +16008,7 @@ int __cdecl sub_26EDA(int a1)
         v6 = v1--;
         if ( v6 == 0 )
         {
-          HIWORD(v6) = (unsigned int)sub_16559(3) >> 16;
+          HIWORD(v6) = (unsigned int)dialog_portrait_frame_draw(3) >> 16;
           v11 = 1;
         }
       }
@@ -16292,7 +16308,7 @@ void __cdecl sub_27738(int a1, int a2, char a3)
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
   sub_272D0(a1, a2, dword_53C57, dword_53C63, a3);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
 }
 
 
@@ -16399,7 +16415,7 @@ void __cdecl sub_279BC(int a1)
   blit_image(655360, 320, dword_53F66, 0);
   palette_fade_in_light();
   j___delay(200);
-  sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+  field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
   v3 = dword_53F66 + *(_DWORD *)(dword_53F66 + 10);
   lmi_rle_blit_forward(685765, v3, 320);
   ui_number_draw(687056, 320, dword_53BF3, 31, 8);
@@ -16410,7 +16426,7 @@ void __cdecl sub_279BC(int a1)
   else
     v4 = 440;
   text_dialog_render_tokens(nullptr, dword_53A7D, v4, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
+  dialog_portrait_frame_draw(0);
   dword_53F6A = 0;
   dword_53F6E = 0;
   while ( 1 )
@@ -16445,13 +16461,13 @@ void __cdecl sub_279BC(int a1)
       {
         sub_2872B(v5, v8);
       }
-      sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+      field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       if ( dword_53F4A == 1 )
         v6 = 503;
       else
         v6 = 440;
       text_dialog_render_tokens(v1, dword_53A7D, v6, 693452, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
+      dialog_portrait_frame_draw(0);
     }
     if ( v10 != 1 )
     {
@@ -16502,7 +16518,7 @@ int sub_27D33()
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
   sub_2810B(dword_53C57, dword_53C63);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   do
   {
     v2 = sub_26EDA(3);
@@ -16591,7 +16607,7 @@ void __cdecl sub_27F4A(int a1, int a2, int a3)
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
   sub_2825B(a1, a2, a3, dword_53C57, dword_53C63);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
     v5 = sub_26EDA(2);
@@ -16902,7 +16918,7 @@ int __cdecl sub_2872B(int a1, int a2)
     }
     if ( *v7 < 0x20u && v3 == 0 )
     {
-      sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+      field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       text_dialog_render_tokens(
         (unsigned __int8 *)v2,
         dword_53A7D,
@@ -16914,15 +16930,15 @@ int __cdecl sub_2872B(int a1, int a2)
         74,
         19,
         1);
-      sub_16559(0);
+      dialog_portrait_frame_draw(0);
 LABEL_11:
-      sub_16C57(1);
+      dialog_wait_key(1);
       goto LABEL_12;
     }
     v2 = dword_53F5E;
     dword_53F5E = v3;
     dword_53F62 = (int)v14;
-    sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+    field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
     text_dialog_render_tokens(
       (unsigned __int8 *)v2,
       dword_53A7D,
@@ -16934,7 +16950,7 @@ LABEL_11:
       74,
       19,
       1);
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     sub_19953();
     v16 = v8;
     sub_197E5();
@@ -16958,7 +16974,7 @@ LABEL_12:
           74,
           19,
           1);
-        sub_16559(0);
+        dialog_portrait_frame_draw(0);
         goto LABEL_11;
       }
       sub_26996();
@@ -16979,7 +16995,7 @@ LABEL_12:
         if ( field_unit_inventory_count(*((unsigned __int8 *)v14 + dword_53C57)) == 8 )
         {
           dword_53AD9 = *(unsigned __int8 *)(80 * *((unsigned __int8 *)v14 + dword_53C57) + dword_53A45 + 7) + 1;
-          sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
           text_dialog_render_tokens(
             (unsigned __int8 *)v2,
             dword_53A7D,
@@ -16991,15 +17007,15 @@ LABEL_12:
             74,
             19,
             1);
-          sub_16559(0);
-          sub_16C57(1);
+          dialog_portrait_frame_draw(0);
+          dialog_wait_key(1);
           goto LABEL_12;
         }
         field_unit_inventory_item_append(*((unsigned __int8 *)v14 + dword_53C57), *(_BYTE *)(dword_53F6A + a2));
         LODWORD(v6) = *v7;
         if ( (unsigned int)v6 < 0x20 )
         {
-          sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
           text_dialog_render_tokens(
             (unsigned __int8 *)v2,
             dword_53A7D,
@@ -17011,7 +17027,7 @@ LABEL_12:
             74,
             19,
             1);
-          sub_16559(0);
+          dialog_portrait_frame_draw(0);
           v2 = *((unsigned __int8 *)v14 + dword_53C57);
           sub_19953();
           v12 = v11;
@@ -17063,10 +17079,10 @@ int sub_28B41()
       blit_image(667988, 320, dword_53F66, 23);
       bios_tick_delay(8);
 LABEL_8:
-      v0 = sub_16559(0);
+      v0 = dialog_portrait_frame_draw(0);
       return bios_keyboard_buffer_clear(v0);
     case 4:
-      sub_16559(3);
+      dialog_portrait_frame_draw(3);
       bios_tick_delay(2);
       for ( j = 0; j < 9; ++j )
       {
@@ -17148,7 +17164,7 @@ int sub_28CBD()
     if ( v1 == 0 )
     {
       dword_53AD9 = *(unsigned __int8 *)(dword_53A45 + 80 * v4 + 7) + 1;
-      sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+      field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       text_dialog_render_tokens(
         (unsigned __int8 *)v4,
         dword_53A7D,
@@ -17160,8 +17176,8 @@ int sub_28CBD()
         74,
         19,
         1);
-      sub_16559(0);
-      sub_16C57(1);
+      dialog_portrait_frame_draw(0);
+      dialog_wait_key(1);
       goto LABEL_8;
     }
     dword_53C57 = 0;
@@ -17175,7 +17191,7 @@ int sub_28CBD()
     v7 = field_unit_item_id_at(v4, dword_53C57);
     dword_53AD9 = v7 + 181;
     dword_53AE1 = (3 * *(unsigned __int16 *)(field_item_record_get(v7) + 19)) >> 2;
-    sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+    field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
     text_dialog_render_tokens(
       (unsigned __int8 *)v4,
       dword_53A7D,
@@ -17187,7 +17203,7 @@ int sub_28CBD()
       74,
       19,
       1);
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     sub_19953();
     v9 = v8;
     sub_197E5();
@@ -17259,10 +17275,10 @@ void __usercall sub_28F65(int a1@<edi>)
   v8[2] = a1;
   while ( 1 )
   {
-    sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+    field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 512, 693452, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
-    sub_16C57(1);
+    dialog_portrait_frame_draw(0);
+    dialog_wait_key(1);
     sub_26996();
     dword_53F5E = dword_53BFB;
     v3 = sub_27D33();
@@ -17292,10 +17308,10 @@ LABEL_9:
     {
       v5 = dword_53C57;
       sub_26996();
-      sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+      field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 510, 693452, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
-      sub_16C57(1);
+      dialog_portrait_frame_draw(0);
+      dialog_wait_key(1);
       sub_26996();
       v6 = sub_27D33();
       sub_26996();
@@ -17304,7 +17320,7 @@ LABEL_9:
         if ( field_unit_inventory_count(dword_53C57) == 8 )
         {
           dword_53AD9 = *(unsigned __int8 *)(dword_53A45 + 80 * dword_53C57 + 8) + 1;
-          sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
           text_dialog_render_tokens(
             (unsigned __int8 *)a1,
             dword_53A7D,
@@ -17316,7 +17332,7 @@ LABEL_9:
             74,
             19,
             1);
-          sub_16559(0);
+          dialog_portrait_frame_draw(0);
           goto LABEL_8;
         }
         v7 = field_unit_item_id_at(a1, v5);
@@ -17327,11 +17343,11 @@ LABEL_9:
     }
   }
   dword_53AD9 = *(unsigned __int8 *)(80 * a1 + dword_53A45 + 8) + 1;
-  sub_1956B((unsigned __int8)byte_52387[dword_53F4A]);
+  field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
   text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 511, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
+  dialog_portrait_frame_draw(0);
 LABEL_8:
-  sub_16C57(1);
+  dialog_wait_key(1);
   goto LABEL_9;
 }
 
@@ -17402,9 +17418,9 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
   blit_image(655360, 320, dword_53F66, 0);
   palette_fade_in_light();
   j___delay(200);
-  sub_1956B((unsigned __int8)byte_52387[0]);
+  field_bottom_notice_open((unsigned __int8)byte_52387[0]);
   text_dialog_render_tokens(a1, dword_53A7D, 585, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
+  dialog_portrait_frame_draw(0);
   v1 = 0;
   do
   {
@@ -17429,9 +17445,9 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
         }
         else
         {
-          sub_1956B((unsigned __int8)byte_52387[0]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[0]);
           text_dialog_render_tokens(a1, dword_53A7D, 415, 693452, 320, 205, 76, 74, 19, 1);
-          sub_16559(0);
+          dialog_portrait_frame_draw(0);
           sub_19953();
           v3 = v2;
           sub_197E5();
@@ -17449,9 +17465,9 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
       {
         sub_29620();
       }
-      sub_1956B((unsigned __int8)byte_52387[0]);
+      field_bottom_notice_open((unsigned __int8)byte_52387[0]);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
+      dialog_portrait_frame_draw(0);
     }
   }
   while ( v7 == 1 );
@@ -17568,10 +17584,10 @@ int __cdecl sub_2968D(unsigned __int8 a1)
       if ( byte_523E7[dword_53C03] == 0 )
       {
         sub_26996();
-        sub_1956B((unsigned __int8)byte_52387[0]);
+        field_bottom_notice_open((unsigned __int8)byte_52387[0]);
         text_dialog_render_tokens(v7, dword_53A7D, 660, 693452, 320, 205, 76, 74, 19, 1);
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
       }
     }
     sub_26996();
@@ -17633,7 +17649,7 @@ int field_manual_slot_load()
       {
         if ( byte_523E7[v6] != 0 )
         {
-          sub_1956B((unsigned __int8)byte_52387[0]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[0]);
           text_dialog_render_tokens(v1, dword_53A7D, 479, 693452, 320, 205, 76, 74, 19, 1);
         }
         else
@@ -17656,11 +17672,11 @@ int field_manual_slot_load()
           fclose(v8);
           dword_53F56 = sub_4E809(dword_53C03);
           v4 = -1;
-          sub_1956B((unsigned __int8)byte_52387[0]);
+          field_bottom_notice_open((unsigned __int8)byte_52387[0]);
           text_dialog_render_tokens(v1, dword_53A7D, 478, 693452, 320, 205, 76, 74, 19, 1);
         }
-        sub_16559(0);
-        sub_16C57(0);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(0);
         sub_26996();
       }
     }
@@ -17748,12 +17764,12 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
   sub_29AB2(dword_53C57, dword_53C63, a1);
   sfx_play(dword_53EEC, 5, 1);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
     if ( a2 != 0 )
     {
-      sub_16C57(0);
+      dialog_wait_key(0);
     }
     else
     {
@@ -17812,14 +17828,14 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
   blit_image(655360, 320, dword_53F66, 0);
   palette_fade_in_light();
   j___delay(200);
-  sub_1956B((unsigned __int8)byte_5238B);
+  field_bottom_notice_open((unsigned __int8)byte_5238B);
   v1 = dword_53F66 + *(_DWORD *)(dword_53F66 + 10);
   lmi_rle_blit_forward(685765, v1, 320);
   ui_number_draw(687056, 320, dword_53BF3, 31, 8);
   lmi_rle_blit_forward(dword_53C5F + 30405, v1, 320);
   ui_number_draw(dword_53C5F + 31696, 320, dword_53BF3, 31, 8);
   text_dialog_render_tokens(a1, dword_53A7D, 585, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
+  dialog_portrait_frame_draw(0);
   v2 = 0;
   while ( 1 )
   {
@@ -17851,9 +17867,9 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
       {
         sub_29620((int)a1);
       }
-      sub_1956B((unsigned __int8)byte_5238B);
+      field_bottom_notice_open((unsigned __int8)byte_5238B);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
+      dialog_portrait_frame_draw(0);
     }
     if ( v5 != 1 )
     {
@@ -17973,7 +17989,7 @@ void __cdecl sub_2A29D(int a1, int a2)
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
   sub_2A0C2(a1, dword_53C63, (unsigned __int8 *)dword_53C57, a2);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
     v4 = sub_26EDA(2);
@@ -18040,17 +18056,17 @@ int __usercall sub_2A43E@<eax>(unsigned __int8 *a1@<edi>)
     v1 = sub_2A07A((int)v8);
     if ( v1 == 0 )
       break;
-    sub_1956B((unsigned __int8)byte_5238B);
+    field_bottom_notice_open((unsigned __int8)byte_5238B);
     text_dialog_render_tokens(a1, dword_53A7D, 589, 693452, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
-    sub_16C57(1);
+    dialog_portrait_frame_draw(0);
+    dialog_wait_key(1);
     sub_26996();
     sub_2A29D(v1, (int)v8);
     v4 = v3;
     result = sub_26996();
     if ( v4 == -1 )
       return result;
-    sub_1956B((unsigned __int8)byte_5238B);
+    field_bottom_notice_open((unsigned __int8)byte_5238B);
     v5 = dword_53A45 + 80 * (unsigned __int8)v8[dword_53C57];
     dword_53AD9 = *(unsigned __int8 *)(v5 + 8) + 1;
     dword_53AE1 = word_52397[*(unsigned __int8 *)(v5 + 32)] * *(unsigned __int8 *)(v5 + 33);
@@ -18068,8 +18084,8 @@ LABEL_9:
       if ( dword_53BF3 < dword_53AE1 )
       {
         text_dialog_render_tokens(a1, dword_53A7D, 504, 705612, 320, 205, 76, 74, 19, 1);
-        sub_16559(0);
-        sub_16C57(1);
+        dialog_portrait_frame_draw(0);
+        dialog_wait_key(1);
         goto LABEL_9;
       }
       sub_26B91(dword_53AE1);
@@ -18083,10 +18099,10 @@ LABEL_9:
       music_track_play(11, 1);
     }
   }
-  sub_1956B((unsigned __int8)byte_5238B);
+  field_bottom_notice_open((unsigned __int8)byte_5238B);
   text_dialog_render_tokens(a1, dword_53A7D, 588, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
-  sub_16C57(0);
+  dialog_portrait_frame_draw(0);
+  dialog_wait_key(0);
   return sub_26996();
 }
 
@@ -18160,7 +18176,7 @@ void __cdecl sub_2A857(int a1, int a2, int a3)
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
   sub_2A694(a1, dword_53C63, dword_53C57, a2, a3);
   for ( i = 5; i >= 0; --i )
-    sub_1974C(13 * i + 112, dword_53C5B, dword_53C63);
+    field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
     v5 = sub_26EDA(2);
@@ -18237,10 +18253,10 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     v1 = sub_2AE0E(v15, v14);
     if ( v1 == 0 )
       break;
-    sub_1956B((unsigned __int8)byte_5238B);
+    field_bottom_notice_open((unsigned __int8)byte_5238B);
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 592, 693452, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
-    sub_16C57(1);
+    dialog_portrait_frame_draw(0);
+    dialog_wait_key(1);
     v3 = sub_26996();
     bios_keyboard_buffer_clear(v3);
     sub_2A857(v1, (int)v15, (int)v14);
@@ -18248,7 +18264,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     result = sub_26996();
     if ( v5 == -1 )
       return result;
-    sub_1956B((unsigned __int8)byte_5238B);
+    field_bottom_notice_open((unsigned __int8)byte_5238B);
     a1 = (unsigned __int8)v15[dword_53C57];
     v16 = (unsigned __int8)v14[dword_53C57];
     v6 = 80 * a1 + dword_53A45;
@@ -18289,10 +18305,10 @@ LABEL_12:
       bios_keyboard_buffer_clear(v13);
     }
   }
-  sub_1956B((unsigned __int8)byte_5238B);
+  field_bottom_notice_open((unsigned __int8)byte_5238B);
   text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 591, 693452, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
-  sub_16C57(0);
+  dialog_portrait_frame_draw(0);
+  dialog_wait_key(0);
   return sub_26996();
 }
 
@@ -18318,24 +18334,24 @@ int __cdecl sub_2AC7D(int a1)
 
   watcom_stack_check(52);
   v1 = 80 * a1 + dword_53A45;
-  v2 = (unsigned __int8 *)sub_4E821(*(unsigned __int8 *)(v1 + 7));
+  v2 = (unsigned __int8 *)field_growth_record_get(*(unsigned __int8 *)(v1 + 7));
   bios_keyboard_buffer_clear(v2);
-  sub_1956B(*(unsigned __int8 *)(v1 + 7));
+  field_bottom_notice_open(*(unsigned __int8 *)(v1 + 7));
   dword_53AD9 = *(unsigned __int8 *)(v1 + 32) + 150;
   text_dialog_render_tokens(v2, dword_53A7D, 595, 693535, 320, 205, 76, 74, 19, 1);
-  v3 = sub_16559(0);
+  v3 = dialog_portrait_frame_draw(0);
   bios_keyboard_buffer_clear(v3);
-  v4 = sub_1E529((_WORD *)(v1 + 55), (int)v2, 490, 1);
-  v5 = sub_1E529((_WORD *)(v1 + 57), (int)(v2 + 2), 491, v4);
-  v6 = sub_1E529((_WORD *)(v1 + 62), (int)(v2 + 4), 492, v5);
-  v7 = sub_1E529((_WORD *)(v1 + 66), (int)(v2 + 6), 493, v6);
-  v8 = sub_1E529((_WORD *)(v1 + 70), (int)(v2 + 8), 494, v7);
+  v4 = field_growth_stat_present_apply((_WORD *)(v1 + 55), (int)v2, 490, 1);
+  v5 = field_growth_stat_present_apply((_WORD *)(v1 + 57), (int)(v2 + 2), 491, v4);
+  v6 = field_growth_stat_present_apply((_WORD *)(v1 + 62), (int)(v2 + 4), 492, v5);
+  v7 = field_growth_stat_present_apply((_WORD *)(v1 + 66), (int)(v2 + 6), 493, v6);
+  v8 = field_growth_stat_present_apply((_WORD *)(v1 + 70), (int)(v2 + 8), 494, v7);
   v9 = *(unsigned __int8 *)(sub_4E7DD(*(unsigned __int8 *)(v1 + 7)) + 1);
   if ( v9 != 0 )
   {
     dword_53AE1 = v9;
     text_dialog_render_tokens((unsigned __int8 *)v8, dword_53A7D, 596, 6080 * v8 + 693535, 320, 205, 76, 74, 19, 1);
-    sub_16C57(0);
+    dialog_wait_key(0);
     *(_BYTE *)(v1 + 59) += dword_53AE1;
   }
   field_unit_combat_stats_recompute(a1);
@@ -18584,9 +18600,9 @@ LABEL_56:
         break;
     }
   }
-  sub_1956B(75);
+  field_bottom_notice_open(75);
   text_dialog_render_tokens((unsigned __int8 *)1, dword_53A7D, 658, 693535, 320, 205, 76, 74, 19, 1);
-  v10 = sub_16559(0);
+  v10 = dialog_portrait_frame_draw(0);
   dword_53A51 = 1;
   bios_keyboard_buffer_clear(v10);
   sub_19953();
@@ -18620,12 +18636,12 @@ int __usercall sub_2B439@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int
   }
   if ( v5 == 0 )
   {
-    sub_1956B(75);
+    field_bottom_notice_open(75);
     dword_53AD9 = a3 + 1;
     text_dialog_render_tokens(a1, dword_53A7D, 657, 693535, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
+    dialog_portrait_frame_draw(0);
     dword_53A51 = 1;
-    sub_16C57(0);
+    dialog_wait_key(0);
     dword_53A51 = 0;
     sub_26996();
   }
@@ -21135,11 +21151,11 @@ int __usercall sub_31BDF@<eax>(unsigned __int8 *a1@<edi>, int a2, int a3)
 
   v3 = watcom_stack_check(44);
   bios_keyboard_buffer_clear(v3);
-  v4 = sub_1956B(a2);
+  v4 = field_bottom_notice_open(a2);
   bios_keyboard_buffer_clear(v4);
   text_dialog_render_tokens(a1, dword_53A79, a3, 693524, 320, 205, 76, 74, 19, 1);
-  sub_16559(0);
-  sub_16C57(0);
+  dialog_portrait_frame_draw(0);
+  dialog_wait_key(0);
   v5 = sub_26996();
   return bios_keyboard_buffer_clear(v5);
 }
@@ -23466,13 +23482,13 @@ char __cdecl sub_35854(int a1)
   v6 = unk_5274E;
   v7 = unk_52752;
   bios_keyboard_buffer_clear(v1);
-  sub_1956B(*(unsigned __int8 *)(80 * a1 + dword_53A45 + 7));
+  field_bottom_notice_open(*(unsigned __int8 *)(80 * a1 + dword_53A45 + 7));
   if ( field_unit_inventory_count(a1) == 8 )
   {
     text_dialog_render_tokens(v8, dword_53A7D, 480, 696099, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
-    sub_16C57(0);
-    return sub_196CB();
+    dialog_portrait_frame_draw(0);
+    dialog_wait_key(0);
+    return field_bottom_notice_close();
   }
   else
   {
@@ -23480,10 +23496,10 @@ char __cdecl sub_35854(int a1)
     v3 = BYTE2(v5);
     dword_53AD9 = *((unsigned __int8 *)&v6 + BYTE2(v5)) + 181;
     text_dialog_render_tokens(v8, dword_53A7D, 422, 696099, 320, 205, 76, 74, 19, 1);
-    sub_16559(0);
-    sub_16C57(0);
+    dialog_portrait_frame_draw(0);
+    dialog_wait_key(0);
     field_unit_inventory_item_append(a1, *((_BYTE *)&v6 + v3));
-    sub_196CB();
+    field_bottom_notice_close();
     for ( i = 0; i < 5u; ++i )
       *(_BYTE *)(dword_53AD5 + i) = 1;
     return sub_12263();
@@ -23545,21 +23561,21 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
   watcom_stack_check(48);
   if ( *(_BYTE *)(dword_53AD5 + 12) == 0 )
   {
-    sub_1956B(*(unsigned __int8 *)(80 * a2 + dword_53A45 + 7));
+    field_bottom_notice_open(*(unsigned __int8 *)(80 * a2 + dword_53A45 + 7));
     v2 = sub_2AEDB(a2, 208);
     if ( v2 == -1 )
     {
       text_dialog_render_tokens(a1, dword_53A79, 2, 693535, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
-      sub_16C57(0);
-      sub_196CB();
+      dialog_portrait_frame_draw(0);
+      dialog_wait_key(0);
+      field_bottom_notice_close();
     }
     else
     {
       field_unit_inventory_slot_remove(a2, v2);
       text_dialog_render_tokens(a1, dword_53A79, 3, 693535, 320, 205, 76, 74, 19, 1);
-      sub_16C57(0);
-      sub_196CB();
+      dialog_wait_key(0);
+      field_bottom_notice_close();
       v3 = res_load((int)aFdotherDat, 0, 45);
       for ( i = 0; i < 59; ++i )
       {
@@ -23904,11 +23920,11 @@ _BYTE *__usercall sub_35FCF@<eax>(unsigned __int8 *a1@<edi>, int a2)
     }
     else
     {
-      sub_1956B((unsigned __int8)result[7]);
+      field_bottom_notice_open((unsigned __int8)result[7]);
       text_dialog_render_tokens(a1, dword_53A79, 0, 693535, 320, 205, 76, 74, 19, 1);
-      sub_16559(0);
-      sub_16C57(0);
-      return (_BYTE *)sub_196CB();
+      dialog_portrait_frame_draw(0);
+      dialog_wait_key(0);
+      return (_BYTE *)field_bottom_notice_close();
     }
   }
   return result;
@@ -51327,12 +51343,13 @@ char *__cdecl sub_4E7DD(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4E7F2
+ * IDA 9.5 Hex-Rays: field_magic_learning_record_get
  * VA=0x4e7f2..0x4e809 OBJ=1 OFF=0x3e7f2 size=0x17
  * callers: 0x1e292
  * callees: -
  * --------------------------------------------------------------- */
-char *__cdecl sub_4E7F2(int a1)
+// [勘误 semantic_name] field_magic_learning_record_get；依据: 完整23B getter返回object3 VA626b3+12*index，唯一caller1e292；68条growth+10的非ff引用完整覆盖0..19，对应20x12B六对level/magicID。完整240B strictLE==Domain SHA 839200667f837136d3426ab952e455b1a63b3bbba8b9175eb895d4408ddd6fb9；getter无自己的索引门，不把已证引用集当原版一般校验。
+char *__cdecl field_magic_learning_record_get(int a1)
 {
   return (char *)&unk_626B3 + 12 * a1;
 }
@@ -51352,12 +51369,13 @@ char *__cdecl sub_4E809(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4E821
+ * IDA 9.5 Hex-Rays: field_growth_record_get
  * VA=0x4e821..0x4e838 OBJ=1 OFF=0x3e821 size=0x17
  * callers: 0x10c50, 0x112a5, 0x1e292, 0x2ac7d
  * callees: -
  * --------------------------------------------------------------- */
-char *__cdecl sub_4E821(int a1)
+// [勘误 semantic_name] field_growth_record_get；依据: 完整23B getter返回object3 VA620a1+11*index，由10c50/112a5/1e292/2ac7d读五对成长及学习selector。下一独立getter4e809指向6238d，完整68x11B strictLE==Domain SHA 75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5。getter无内部边界，不把SDL玩家构造范围等同该静态读集。
+char *__cdecl field_growth_record_get(int a1)
 {
   return (char *)&unk_620A1 + 11 * a1;
 }

@@ -18,6 +18,24 @@ typedef struct {
     size_t rng_calls;
 } fixture;
 
+/* 显式core ACK保留本测试后置/错误顺序，不等同提示时钟或按键验收。 */
+static int automatic_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_process_automatic_action(game);
+    if(result<0)return result;
+    for(unsigned i=0;i<1024;i++) {
+        fd2_field_progress_notice notice;
+        int pending=fd2_field_game_progress_peek(game,&notice);
+        if(pending<0)return -1;
+        if(!pending) {
+            for(size_t j=0;j<game->event_log_count;j++)game->event_log[j].presentation_deferred=0;
+            pending=fd2_field_game_progress_resume(game);
+            if(pending<0)return -1;
+            if(!pending)return result;
+        }
+        if(fd2_field_game_progress_ack(game)!=0)return -1;
+    }
+    return -1;
+}
 static uint32_t rng(void *data) { (*(size_t *)data)++; return 0; }
 
 static void unit(fd2_field_unit *u, uint8_t side, uint8_t x, uint8_t y) {
@@ -74,6 +92,40 @@ static int command_at(fixture *f, int x, int y) {
     return 0;
 }
 
+static int test_zero_movement_command_and_cancel(void) {
+    fixture f; init(&f);
+    fd2_field_game *g = &f.game;
+    g->units.items[0].movement_points = 0;
+    fd2_field_units before = g->units;
+    CHECK(fd2_field_game_confirm_cursor(g) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    size_t reachable = 0;
+    for (int y = 0; y < g->map.height; y++)
+        for (int x = 0; x < g->map.width; x++)
+            reachable += fd2_field_path_is_destination(&g->move_range, x, y) != 0;
+    CHECK(reachable == 1 && fd2_field_path_is_destination(&g->move_range, 1, 1));
+    CHECK(fd2_field_game_move_cursor(g, 1, 0) == 1);
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !g->move_preview_valid);
+    CHECK(g->units.items[0].x == 1 && g->units.items[0].y == 1);
+    CHECK(fd2_field_game_move_cursor(g, -1, 0) == 1);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0);
+    CHECK(fd2_field_game_execute_move(g, NULL, 0) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_COMMAND && g->move_path_length == 0);
+    CHECK(fd2_field_game_cancel_selection(g) == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    CHECK(fd2_field_game_cancel_selection(g) == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
+    /* execute_move将walk_frames呈现缓存归静止帧1；80B记录/其余旁路均不变。 */
+    before.walk_frames[0] = 1;
+    CHECK(memcmp(&before, &g->units, sizeof(before)) == 0 && f.rng_calls == 0);
+    CHECK(g->turn_number == 1 && g->active_side == 2 && !g->pending_cell_event.valid);
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    g->units.items[0].movement_profile = UINT8_MAX;
+    CHECK(fd2_field_game_compute_move_range(g, 0, &range) == -1 && !range.nodes);
+    close_fixture(&f);
+    return 0;
+}
+
 static int frozen(fixture *f) {
     fd2_field_game *g = &f->game;
     fd2_field_game before = *g;
@@ -81,7 +133,7 @@ static int frozen(fixture *f) {
     CHECK(fd2_field_game_finish_unit_action(g) == -1);
     CHECK(fd2_field_game_confirm_cursor(g) == -1);
     CHECK(fd2_field_game_cancel_selection(g) == 0);
-    CHECK(fd2_field_game_process_automatic_action(g) == -1);
+    CHECK(automatic_and_ack(g) == -1);
     CHECK(fd2_field_game_resume_player_controller(g) == -1);
     CHECK(!memcmp(g, &before, sizeof(before)) && calls == f->rng_calls);
     return 0;
@@ -229,10 +281,10 @@ static int test_phase_uses_shared_slot_and_clears_continuation(void) {
     CHECK(fd2_field_game_end_player_turn(g) == -1);
     CHECK(!memcmp(g, &before, sizeof(before)));
     /* side1无行动actor，扫描raw表清掉玩家pending；不保护为私有队列。 */
-    CHECK(fd2_field_game_process_automatic_action(g) == 1);
+    CHECK(automatic_and_ack(g) == 1);
     CHECK(g->active_side == 0 && !g->pending_cell_event.valid);
     for (int guard = 0; g->active_side != 2 && guard < 8; guard++)
-        CHECK(fd2_field_game_process_automatic_action(g) == 1);
+        CHECK(automatic_and_ack(g) == 1);
     CHECK(g->active_side == 2 && g->turn_number == 2);
     CHECK(!g->player_post_waiting_phase && !g->pending_cell_event.valid);
     CHECK(g->player_post_actor == 0 && g->event_log_count == 0 && f.rng_calls == 0);
@@ -280,7 +332,7 @@ static int test_phase_overwrites_player_slot_before_unknown_handler(void) {
     g->pending_cell_event = (fd2_field_pending_cell_event){1, 99, 7};
     CHECK(fd2_field_game_finish_unit_action(g) == 0);
     CHECK(g->player_post_waiting_phase && g->pending_cell_event.action == 99);
-    CHECK(fd2_field_game_process_automatic_action(g) == -1);
+    CHECK(automatic_and_ack(g) == -1);
     CHECK(g->failure_notice.kind == FD2_FIELD_EVENT_CELL);
     CHECK(g->failure_notice.unit_index == 1 && g->failure_notice.action == 23);
     CHECK(g->pending_cell_event.action == 23 && g->pending_cell_event.source_slot == 0);
@@ -308,7 +360,7 @@ static int test_phase0_clear_precedes_event_and_status_failure(void) {
             g->units.items[1].attack_status = 1;
             ((uint8_t *)&g->units.items[1])[0x0b] = 255; /* 派生重算必须拒绝。 */
         }
-        CHECK(fd2_field_game_process_automatic_action(g) == -1);
+        CHECK(automatic_and_ack(g) == -1);
         CHECK(g->active_side == 0);
         for (size_t i = 0; i < g->units.count; i++)
             CHECK(!fd2_field_unit_has_acted(&g->units.items[i]));
@@ -330,7 +382,8 @@ static int test_phase0_clear_precedes_event_and_status_failure(void) {
 }
 
 int main(void) {
-    if (test_full_path_last_match_and_cancel() ||
+    if (test_zero_movement_command_and_cancel() ||
+        test_full_path_last_match_and_cancel() ||
         test_final_lookup_after_acted_and_no_retry() ||
         test_wait_recovery_and_special_cell_gate() ||
         test_13565_gate_and_selection_cancel() ||

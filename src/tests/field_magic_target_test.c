@@ -143,7 +143,8 @@ static int test_cancel_preserves_temporary_move_and_controller_owner(void) {
     g->move_path_length = 2; g->move_preview_valid = 1;
     fd2_field_units units = g->units;
     uint8_t *path = g->move_path;
-    CHECK(fd2_field_game_begin_magic_targeting(g, 0) == 0);
+    g->magic_list_selected = 1; /* 移动例外actor18只借已支持13，不伪造ID0费用能力。 */
+    CHECK(fd2_field_game_begin_magic_targeting(g, 13) == 0);
     while (g->cursor_cell_x < 23) CHECK(fd2_field_game_move_cursor(g, 1, 0) == 1);
     while (g->cursor_cell_y < 23) CHECK(fd2_field_game_move_cursor(g, 0, 1) == 1);
     CHECK(fd2_field_game_cancel_selection(g) == 1);

@@ -193,3 +193,25 @@ uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_boost.py --js
 ```
 
 该局部执行不增加原版玩法、完整 UI RNG、FIGANI 或声音的运行验收范围。
+
+
+### B4 奖励／状态语义与1.15纠正（2026-11-05）
+
+本阶段复用上述9.5隔离库，通过Domain真正应用11项完整函数语义名和17条注释，再真实全量导出；registry为240项、TSV／伪C为1,307函数。静态LE检查21/21、发布／地址专项13/13通过；9条持久类型保持，3702f仍无类型。新全量导出实际剩3项Hex-Rays失败，历史4项记录另保留；减少失败不表示新增猜测原型或改变机器码。`current-b4-publication.txt` 指向 `b4-publication-20261105_155414_534319/` 的命名应用、类型审计、发布校验及日志，全部产物最后刷新SHA256SUMS。此发布不增加WGC场景数。
+
+本轮原码复核推翻旧属性重算「1.15 nearest-even」说明。`field_unit_combat_stats_recompute @0x1b750` 的指令VA `0x1b7ef..0x1b802`、`0x1b80a..0x1b81d` 使用原binary64倍率 `666666666666f23f`；原 `__CHP` 临时将RC设为向0。原CW127f下，两块分别完整执行 `-65536..65535` 的131,072输入，无指令patch或模拟handler，均等于乘积强制binary64后向0cast。12→13、100→114，负数对称向0；不能改成整数115/100。每块向量SHA256为 `55dafb59f3c3576c68a43d3f241cc735c5160a4b3eb48e362fb54315d0ea32c2`。独立MSVC C11／volatile double模型已实际编译并逐项比对通过；AP／DP直接增益的0.15加1仍保持前节独立公式。
+
+Windows本轮已执行，Linux仅保留复现命令、未执行：
+
+```powershell
+uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_stat_scale.py --json C:/Temp/fd2-stat-scale.json --write-c-model C:/Temp/fd2-stat-scale.c
+```
+
+```bash
+uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_stat_scale.py --json /tmp/fd2-stat-scale.json --write-c-model /tmp/fd2-stat-scale.c
+cc -std=c11 -ffp-contract=off /tmp/fd2-stat-scale.c -o /tmp/fd2-stat-scale
+/tmp/fd2-stat-scale /tmp/fd2-stat-scale.bin
+uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_stat_scale.py --c-results /tmp/fd2-stat-scale.bin --json /tmp/fd2-stat-scale-with-c.json
+```
+
+`--write-c-model`只输出独立模型源；没有传入实际编译结果时，报告不会把Python binary64对照冒称C验证。实际本机收据在 `C:/Users/Soar/AppData/Local/Temp/ida-x87-stat-scale-20261105_154802_431559/`，包括CMake／MSVC构建日志和 `actual-c-native-verified.json`。原版奖励消息、完整等待随机流和FIGANI／音画仍按各自运行证据登记。

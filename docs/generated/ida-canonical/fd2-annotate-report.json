@@ -104,12 +104,6 @@
     "name": "__int7",
     "err_ea": "0x4a0f8",
     "desc": "call analysis failed"
-   },
-   {
-    "func": "0x4a104",
-    "name": "sub_4A104",
-    "err_ea": "0x4b1bf",
-    "desc": "call analysis failed"
    }
   ]
  },
@@ -1286,6 +1280,61 @@
     "va": "0x4ed7a",
     "from": "font_glyph_blit_16x16",
     "to": "font_glyph_blit_16x16"
+   },
+   {
+    "va": "0x16559",
+    "from": "sub_16559",
+    "to": "dialog_portrait_frame_draw"
+   },
+   {
+    "va": "0x16c57",
+    "from": "sub_16C57",
+    "to": "dialog_wait_key"
+   },
+   {
+    "va": "0x1956b",
+    "from": "sub_1956B",
+    "to": "field_bottom_notice_open"
+   },
+   {
+    "va": "0x196cb",
+    "from": "sub_196CB",
+    "to": "field_bottom_notice_close"
+   },
+   {
+    "va": "0x1974c",
+    "from": "sub_1974C",
+    "to": "field_bottom_notice_slide_draw"
+   },
+   {
+    "va": "0x1d79c",
+    "from": "sub_1D79C",
+    "to": "field_unit_magic_bit_set"
+   },
+   {
+    "va": "0x1e292",
+    "from": "sub_1E292",
+    "to": "field_unit_experience_reward_execute"
+   },
+   {
+    "va": "0x1e529",
+    "from": "sub_1E529",
+    "to": "field_growth_stat_present_apply"
+   },
+   {
+    "va": "0x1e5c0",
+    "from": "sub_1E5C0",
+    "to": "field_notice_wait_ticks"
+   },
+   {
+    "va": "0x4e7f2",
+    "from": "sub_4E7F2",
+    "to": "field_magic_learning_record_get"
+   },
+   {
+    "va": "0x4e821",
+    "from": "sub_4E821",
+    "to": "field_growth_record_get"
    }
   ],
   "skipped": [],
@@ -1445,7 +1494,8 @@
  "actual_application_reports": [
   "apply-verified-report.json",
   "apply-b3-name-report.json",
-  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\actual-name-sync.json"
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\actual-name-sync.json",
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b4-publication-20261105_155414_534319\\actual-name-sync.json"
  ],
  "stack_check": {
   "name": "watcom_stack_check",
@@ -1473,5 +1523,113 @@
   ],
   "readset": "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\readset.json",
   "types_changed": false
+ },
+ "b4_update": {
+  "method": "IDA Domain functions.set_name/set_comment; no prototypes or instruction writes",
+  "renamed": [
+   {
+    "va": "0x16559",
+    "from": "sub_16559",
+    "to": "dialog_portrait_frame_draw"
+   },
+   {
+    "va": "0x16c57",
+    "from": "sub_16C57",
+    "to": "dialog_wait_key"
+   },
+   {
+    "va": "0x1956b",
+    "from": "sub_1956B",
+    "to": "field_bottom_notice_open"
+   },
+   {
+    "va": "0x196cb",
+    "from": "sub_196CB",
+    "to": "field_bottom_notice_close"
+   },
+   {
+    "va": "0x1974c",
+    "from": "sub_1974C",
+    "to": "field_bottom_notice_slide_draw"
+   },
+   {
+    "va": "0x1d79c",
+    "from": "sub_1D79C",
+    "to": "field_unit_magic_bit_set"
+   },
+   {
+    "va": "0x1e292",
+    "from": "sub_1E292",
+    "to": "field_unit_experience_reward_execute"
+   },
+   {
+    "va": "0x1e529",
+    "from": "sub_1E529",
+    "to": "field_growth_stat_present_apply"
+   },
+   {
+    "va": "0x1e5c0",
+    "from": "sub_1E5C0",
+    "to": "field_notice_wait_ticks"
+   },
+   {
+    "va": "0x4e7f2",
+    "from": "sub_4E7F2",
+    "to": "field_magic_learning_record_get"
+   },
+   {
+    "va": "0x4e821",
+    "from": "sub_4E821",
+    "to": "field_growth_record_get"
+   }
+  ],
+  "commented": [
+   "0x15311",
+   "0x1548e",
+   "0x16559",
+   "0x16c57",
+   "0x1956b",
+   "0x196cb",
+   "0x1974c",
+   "0x1a866",
+   "0x1b750",
+   "0x1c916",
+   "0x1d79c",
+   "0x1e292",
+   "0x1e529",
+   "0x1e5c0",
+   "0x1ecc7",
+   "0x4e7f2",
+   "0x4e821"
+  ],
+  "upstream_sha256": "00ee193541d479dc3f399253c843ad71c8bfe2b69c80f525e8115d33f12a1116",
+  "types_changed": false,
+  "full_export_functions": 1307,
+  "full_export_failures": [
+   {
+    "func": "0x34f38",
+    "name": "sub_34F38",
+    "err_ea": "0x34f38",
+    "desc": "positive sp value has been found"
+   },
+   {
+    "func": "0x4a0c4",
+    "name": "__int7_pl3",
+    "err_ea": "0x4a0dc",
+    "desc": "call analysis failed"
+   },
+   {
+    "func": "0x4a0e8",
+    "name": "__int7",
+    "err_ea": "0x4a0f8",
+    "desc": "call analysis failed"
+   }
+  ],
+  "readsets": [
+   "C:/Users/Soar/AppData/Local/Temp/b4-ui-20261105_145611_170624",
+   "C:/Users/Soar/AppData/Local/Temp/ida-domain-20261105_150947_413820-b4-effect-xp",
+   "C:/Users/Soar/AppData/Local/Temp/ida-x87-stat-scale-20261105_154802_431559"
+  ],
+  "note": "既有DB真实Domain应用11个完整语义名；仅保留原9已证持久类型。全量pC的临时推断不保存；本轮3个剩余失败由该真实导出统计，不沿用历史4个。"
  }
 }

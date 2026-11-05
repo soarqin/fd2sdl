@@ -20,6 +20,28 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 无窗口验证同样按改动选择 CTest 和 Python 测试，物品工具可运行 `python -B -m unittest discover -s tools/tests -p test_original_item_list.py`。Linux 使用 `python3` 执行相同纯逻辑命令；本轮不在 Linux 运行上述 WGC 对照。大阶段统一实机回归移除 `--b3-only`，按后文完整套件执行。
 
+### B4 经验、成长与状态
+
+`--b4-only` 仅运行本阶段六个场景：`physical-cap`（玩家奖励封顶99）、`physical-overwrite`（两击贡献覆盖而非累加）、`heal`（不升级）、`learn`（成长并学习17）、`counter-multi`（AI回合反击奖励630、连续六级）与 `status`（中毒及六类状态到期）。`--b4-scenarios` 可选择受修复影响的子集，必须与 `--b4-only` 合用；未知项、重复项及 B3/B4 组合在创建目录前拒绝。登记场景不代表实机通过，实际候选与结果见阶段记录。
+
+```powershell
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only --b4-scenarios learn
+python -B -m unittest discover -s tools/tests -p '*reward*.py'
+```
+
+每场直接运行原版→SDL 配对，不另重复整套原版校准。原版完成全部检查并清理后才启动 SDL；任一端失败立即停止。奖励提示按原版资源和等待点逐页核对，再检查等级、经验、HP/MP与派生值，执行 Save→WAIT→Load→Save，逐字检查完整存档与源文件守卫。学习场景还检查列表 `[0,13,17]` 和逐级取消；SDL 对尚未开放的17拒绝确认，原版不施放该技能。该场景证明学习结果，不宣称17玩家效果已验收。
+
+WAIT 后存在已行动角色，系统子菜单的 Save 必须显示禁用图41，Load 仍可用。`RoundOracle.secondary` 以 `save_available=False` 完整检查该图，禁用项不可选；默认参数保留其他场景原有的可用 Save 判据。不能因 Load 目标正确就跳过其余菜单图标，也不能为匹配可用 Save 而额外推进回合。
+
+两个物理场景还检查首个 raw 候选自动聚焦，实际发送 Z、小键盘5、Esc 和重新进入目标选择，再确认唯一一次攻击。每次输入前后须通过完整目标／COMMAND 资源门，不给 SDL 单独补方向键绕开差异。当前受控 WGC 场景为单目标回绕；多候选 raw 顺序、121占槽不聚焦和错误原子性另由 C 回归覆盖，不能把它们登记为多目标实机对照。
+
+回合锚点沿用已有流程：原版非 `status` 场景须匹配 Round002 横幅，作为独立端内观察保存；`status` 的提示在该横幅之后，不能先看完提示再要求已经过去的横幅。SDL 用完整的 phase1→phase0→第2回合phase2日志门；两端之后都必须通过稳定战场、详情与完整存档检查。SDL 尚未实现原版编号横幅，不能把日志门写成该横幅的双端图形对齐；相应差异保留到后续回合呈现工作。
+
+夹具只在隔离副本修改声明的字段与 checksum，完整保存变化 manifest；不能当作自然整关实战。通过外层 `run-job 6000000` 管理六场进程树，单场限时900秒；失败、超时与成功均遵循同一窗口清理规则。原版单端诊断使用 `tools/run_original_reward.py --root . --driver <driver> --dosbox <DOSBox-X> --scenario <场景> --artifacts <新目录>`；无 `--sdl` 时始终 `ok=false`／`probe_only=true`，不得登记为双端验收。
+
+奖励提示的完整音画、精确墙钟、跨框头像相位和共享 RNG 对齐仍按 B6／音频工作包单列。原版全帧水色周期差异不能用扩大像素容差隐藏。首次 END 默认 NO 的历史失败保留；补跑通过不能代替原因定位，若本阶段再现则当场诊断，否则留待大阶段统一输入审查。
+
 `tools/run_original_magic_list.py` 支持B2原版校准及串行双端配对。参数为 `--root`、`--driver`、`--dosbox`、`--artifacts`；默认校准列表打开、取消与重开，`--scenario controls` 测多项导航、低MP确认和逐级取消，`--scenario damage` 在明确派生坐标的副本中提交一次火炎术，`--scenario heal` 在仅增加恢复术／降低受术者HP的副本中验证目标取消／轮换和一次治疗。派生夹具逐字登记，不能当作自然学习或自然第一回合路径。
 
 省略 `--sdl` 时只运行原版：成功仍为 `ok=false`／`probe_only=true`，由 `probe_cases_passed` 表示校准通过。single／damage／heal可添加 `--sdl <fd2sdl可执行文件>`，先完成原版并清理窗口，再运行SDL；controls当前没有SDL配对，指定组合会在创建目录前拒绝。可用 `run-job 480000` 包装配对。只有双端检查点、结果数值及各端最终文件守卫均通过，顶层才可 `ok=true`；任一端失败立即停止，不启动下一端。保存原版、SDL各自收据及首个失败，不用末端检查覆盖前端失败。

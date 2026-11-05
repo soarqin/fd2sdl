@@ -16,6 +16,35 @@
     } \
 } while (0)
 
+/* 本逻辑测试显式完成progress ACK，不模拟真实提示、按键或等待RNG。 */
+static int ack_progress(fd2_field_game *game) {
+    for (unsigned i=0;i<1024;i++) {
+        fd2_field_progress_notice notice;
+        int state=fd2_field_game_progress_peek(game,&notice);
+        if(state<0)return -1;
+        if(!state) {
+            for(size_t j=0;j<game->event_log_count;j++)game->event_log[j].presentation_deferred=0;
+            state=fd2_field_game_progress_resume(game);
+            if(state<0)return -1;
+            if(!state)return 0;
+            if(fd2_field_game_progress_peek(game,&notice)!=1)return -1;
+        }
+        if(fd2_field_game_progress_ack(game)!=0)return -1;
+    }
+    return -1;
+}
+static int end_player_turn_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_end_player_turn(game);
+    return result<0?result:ack_progress(game)<0?-1:result;
+}
+static int end_active_phase_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_end_active_phase(game);
+    return result<0?result:ack_progress(game)<0?-1:result;
+}
+static int process_automatic_action_and_ack(fd2_field_game *game) {
+    int result=fd2_field_game_process_automatic_action(game);
+    return result<0?result:ack_progress(game)<0?-1:result;
+}
 static uint32_t next_roll(void *userdata) {
     size_t *calls = userdata;
     (*calls)++;
@@ -53,7 +82,7 @@ static void init_game(fd2_field_game *game, size_t *rng_calls) {
 static int reject_without_changes(fd2_field_game *game, size_t *rng_calls) {
     fd2_field_game before = *game;
     size_t calls = *rng_calls;
-    CHECK(fd2_field_game_end_player_turn(game) == -1);
+    CHECK(end_player_turn_and_ack(game) == -1);
     CHECK(memcmp(game, &before, sizeof(before)) == 0);
     CHECK(*rng_calls == calls);
     return 0;
@@ -84,7 +113,7 @@ static int test_recovery_gates_and_phase_order(void) {
     units[9].hit_evasion_status = 4;
     units[10].hp = 60; /* 原版门为 !=，不是 <；合成超上限输入。 */
 
-    CHECK(fd2_field_game_end_player_turn(&game) == 0);
+    CHECK(end_player_turn_and_ack(&game) == 0);
     CHECK(game.active_side == 1 && game.turn_number == 1);
     CHECK(units[0].hp == 45 && units[0].flags == 0x80);
     CHECK(units[1].hp == 50 && units[1].flags == 0x80);
@@ -110,7 +139,7 @@ static int test_recovery_gates_and_phase_order(void) {
 static int test_player_turn_guards(void) {
     fd2_field_game game;
     size_t rng_calls = 0;
-    CHECK(fd2_field_game_end_player_turn(NULL) == -1);
+    CHECK(end_player_turn_and_ack(NULL) == -1);
     init_game(&game, &rng_calls);
     game.ready = 0;
     CHECK(reject_without_changes(&game, &rng_calls) == 0);
@@ -137,7 +166,7 @@ static int test_unknown_event_preserves_recovery_and_stops_status(void) {
         .turn = 1, .action = 0xff, .phase = 1};
     game.metadata.turn_events[1] = (fd2_field_turn_event){
         .turn = 1, .action = 0, .phase = 1};
-    CHECK(fd2_field_game_end_player_turn(&game) == -1);
+    CHECK(end_player_turn_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
     CHECK(game.active_side == 1 && game.turn_number == 1);
     CHECK(game.units.items[0].hp == 45 &&
@@ -159,7 +188,7 @@ static int test_capacity_stops_before_handler(void) {
     game.event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY;
     game.metadata.turn_events[0] = (fd2_field_turn_event){
         .turn = 1, .action = 0, .phase = 1};
-    CHECK(fd2_field_game_end_player_turn(&game) == -1);
+    CHECK(end_player_turn_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_CAPACITY);
     CHECK(game.units.items[0].hp == 45 &&
           fd2_field_unit_has_acted(&game.units.items[0]));
@@ -176,7 +205,7 @@ static int test_fast_skip_is_separate(void) {
     size_t rng_calls = 0;
     init_game(&game, &rng_calls);
     game.units.items[0].hp = 35;
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_active_phase_and_ack(&game) == 0);
     CHECK(game.active_side == 1 && game.units.items[0].hp == 35);
     CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(fd2_field_unit_has_acted(&game.units.items[6]));
@@ -197,7 +226,7 @@ static int test_new_round_restores_leader_focus_and_cycle(void) {
     game.camera_cell_y = 16;
     game.focus_cycle_unit = 3;
     game.detail_acknowledged_unit = 4;
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_active_phase_and_ack(&game) == 0);
     CHECK(game.turn_number == 2 && game.active_side == 2);
     CHECK(game.cursor_cell_x == 7 && game.cursor_cell_y == 14);
     CHECK(game.camera_cell_x == 6 && game.camera_cell_y == 13);
@@ -208,7 +237,7 @@ static int test_new_round_restores_leader_focus_and_cycle(void) {
     /* 地图边缘不能为保持阈值而卷出边界。 */
     game.active_side = 0;
     game.units.items[0].x = game.units.items[0].y = 0;
-    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    CHECK(end_active_phase_and_ack(&game) == 0);
     CHECK(game.cursor_cell_x == 0 && game.cursor_cell_y == 0);
     CHECK(game.camera_cell_x == 0 && game.camera_cell_y == 0);
 
@@ -217,7 +246,7 @@ static int test_new_round_restores_leader_focus_and_cycle(void) {
     game.focus_cycle_unit = 3;
     game.metadata.turn_events[0] = (fd2_field_turn_event){
         .turn = 4, .action = 0xff, .phase = 2};
-    CHECK(fd2_field_game_end_active_phase(&game) == -1);
+    CHECK(end_active_phase_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
     CHECK(game.cursor_cell_x == 10 && game.cursor_cell_y == 10);
     CHECK(game.focus_cycle_unit == 0);
@@ -250,14 +279,14 @@ static int test_poison_death_focus_survives_round_and_export(void) {
     fd2_field_unit *poisoned = &game.units.items[1];
     poisoned->hp = 1; poisoned->hp_max = 10;
     poisoned->direction = 3; poisoned->detail_status[0] = 1;
-    CHECK(fd2_field_game_end_player_turn(&game) == 0);
+    CHECK(end_player_turn_and_ack(&game) == 0);
     /* 右／下检查移动前相对格，最终保留相对(11,6)。 */
     CHECK(game.camera_cell_x == 9 && game.camera_cell_y == 14);
     CHECK(game.cursor_cell_x == 20 && game.cursor_cell_y == 20);
     CHECK(poisoned->hp == 0 && poisoned->flags == 1 && poisoned->direction == 0);
     CHECK(poisoned->detail_status[0] == 1); /* finalize先隐藏，死者不再递减计时。 */
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1 && game.active_side == 0);
-    CHECK(fd2_field_game_process_automatic_action(&game) == 1 && game.active_side == 2);
+    CHECK(process_automatic_action_and_ack(&game) == 1 && game.active_side == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 1 && game.active_side == 2);
     CHECK(game.turn_number == 2 && game.cursor_cell_x == 2 && game.cursor_cell_y == 2);
     CHECK(game.camera_cell_x == 1 && game.camera_cell_y == 1 && poisoned->direction == 0);
     fd2_save_battle_snapshot snapshot = {0};
@@ -288,7 +317,7 @@ static int test_poison_focus_uses_raw_order_even_for_zero_hp_or_damage(void) {
     units[4].x = 1; units[4].y = 22; units[4].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
     units[5].x = 1; units[5].y = 23; units[5].side = 0;
     units[6].detail_status[0] = 0; units[6].attack_status = 2;
-    CHECK(fd2_field_game_end_player_turn(&game) == 0);
+    CHECK(end_player_turn_and_ack(&game) == 0);
     CHECK(game.cursor_cell_x == 22 && game.cursor_cell_y == 5);
     CHECK(game.camera_cell_x == 11 && game.camera_cell_y == 2);
     CHECK(units[1].hp == 5 && units[1].detail_status[0] == 1);
@@ -324,7 +353,7 @@ static int test_status_expiration_focus_and_failure_order(void) {
             expired->data_09_1e[1] = 0x40;
             expired->data_09_1e[2] = 255;
         }
-        CHECK(fd2_field_game_end_player_turn(&game) == (broken_stats ? -1 : 0));
+        CHECK(end_player_turn_and_ack(&game) == (broken_stats ? -1 : 0));
         CHECK(game.cursor_cell_x == 3 && game.cursor_cell_y == 3);
         CHECK(game.camera_cell_x == 2 && game.camera_cell_y == 2);
         CHECK(poisoned->hp == 40 && poisoned->detail_status[0] == 1);
@@ -350,7 +379,7 @@ static int test_poison_bad_focus_stops_after_hp_write(void) {
     game.units.items[1].hp = 1; game.units.items[1].hp_max = 10;
     game.units.items[1].direction = 3; game.units.items[1].detail_status[0] = 2;
     game.units.items[2].side = 1; game.units.items[2].detail_status[0] = 2;
-    CHECK(fd2_field_game_end_player_turn(&game) == -1);
+    CHECK(end_player_turn_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_ACTION && game.failure_notice.unit_index == 1);
     CHECK(game.units.items[1].hp == 0 && game.units.items[1].flags == 0 &&
         game.units.items[1].direction == 3 && game.units.items[1].detail_status[0] == 2);

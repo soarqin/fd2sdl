@@ -110,8 +110,32 @@ def prepare(original, fixture, *, source=None, after_use=False):
         if actor[0x0a:0x1a].hex() != AFTER_USE_INVENTORY:
             raise ValueError("草药后库存预期模型与已确认1b8e7写集不符")
         slots = slots[:2]
+    assets, templates, fields = inventory_templates(original, actor)
+    if [(item["category_frame"], item["effect_frame"], item["value"], item["use_code"])
+            for item in fields["slots"]] != [(62, 64, 10, 0), (63, 65, 8, 0), (61, 66, 40, 5)][:len(slots)]:
+        raise ValueError("真实START物品表字段偏离已确认的三项")
+    fields["after_use_model"] = after_use
+    return source, focus, assets, templates, fields
+
+
+def inventory_templates(original, actor, assets=None):
+    """纯资源构图：调用者先验证完整来源/派生manifest，不接受任意SAV。
+
+    只覆盖本轮已核0/132/192的最多三项重排。空库存只供删空后的
+    COMMAND/无列表判据，不把空页当原版会打开的列表。
+    """
+    if len(actor) != STRIDE or actor[7:9] != b"\0\0":
+        raise ValueError("物品构图仅覆盖已确认raw0角色")
+    slots = [tuple(actor[0x0a + i * 2:0x0c + i * 2]) for i in range(8)]
+    count = sum(not flags & 0x80 for flags, _ in slots)
+    if count > 3 or any(bool(flags & 0x80) != (i >= count) for i, (flags, _) in enumerate(slots)):
+        raise ValueError("物品构图仅覆盖最多三项的已确认密集库存")
+    slots = slots[:count]
+    if any(item_id not in (0, 132, 192) for _, item_id in slots):
+        raise ValueError("物品构图包含本轮未校准的物品资源")
     table, evidence = item_table(original / "FD2.EXE")
-    assets = round_assets(original)
+    if assets is None:
+        assets = round_assets(original)
     other = (original / "FDOTHER.DAT").read_bytes()
     sheet, font = archive_entry(other, 5), archive_entry(other, 4)
     text = archive_entry((original / "FDTXT.DAT").read_bytes(), 0)
@@ -130,8 +154,6 @@ def prepare(original, fixture, *, source=None, after_use=False):
             icon = (59 if category < 0x15 else 60 if category < 0x20 else 61) + (3 if flags & 0x40 else 0)
             effect_icon = 64 if category < 0x15 else 65 if category < 0x20 else 66
             value = struct.unpack_from("<h", record, 1 if category < 0x15 else 5 if category < 0x20 else 14)[0]
-            if (icon, effect_icon, value, record[13]) != ((62, 64, 10, 0), (63, 65, 8, 0), (61, 66, 40, 5))[slot]:
-                raise ValueError("真实START物品表字段偏离已确认的三项")
             y = 101 + 22 * slot
             # 1685c→4ed0b完整raw复制，包括0；不使用透明mask。
             canvas.paste(raw_icon(sheet, icon, (24, 20), assets["palette"]), (13 - 5, y - 94))
@@ -149,21 +171,32 @@ def prepare(original, fixture, *, source=None, after_use=False):
     glyphs(top, font, name, 99 - 92, 13 - 7, 205)
     hp, maximum = struct.unpack_from("<HH", actor, 0x40)
     number(top, sheet, hp, 267 - 92, 41 - 7, 31 if hp == maximum else 42, 3)
-    number(top, sheet, 42, 293 - 92, 41 - 7, 31, 3)
-    number(top, sheet, 0, 267 - 92, 59 - 7, 31, 3)
-    number(top, sheet, 0, 293 - 92, 59 - 7, 31, 3)
+    number(top, sheet, maximum, 293 - 92, 41 - 7, 31, 3)
+    mp, mp_max = struct.unpack_from("<HH", actor, 0x44)
+    number(top, sheet, mp, 267 - 92, 59 - 7, 31 if mp == mp_max else 42, 3)
+    number(top, sheet, mp_max, 293 - 92, 59 - 7, 31, 3)
     number(top, sheet, actor[0x21], 157 - 92, 33 - 7, 42, 2)
     number(top, sheet, actor[0x3c], 157 - 92, 44 - 7, 42, 2)
+    # field_unit_detail_stats_draw @0x17fc0（原登记同名）：
+    # 21597/25437/21557/25397分别为四个目标地址偏移，
+    # 无+22..24状态时bank42；Drop装备必须同时验当前页四派生数字。
+    for label, offset, x, y, status in (("attack", 0x48, 157, 67, 0x22),
+            ("defense", 0x4a, 157, 79, 0x23), ("accuracy", 0x4c, 117, 67, 0x24),
+            ("evasion", 0x4e, 117, 79, 0x24)):
+        number(top, sheet, struct.unpack_from("<H", actor, offset)[0], x - 92, y - 7,
+               119 if actor[status] else 42, 3)
+        templates[label] = ((x, y), top.crop((x - 92, y - 7, x - 92 + 18, y - 7 + 8)))
     templates["actor_name"] = ((98, 13), top.crop((6, 6, 7 + 16 * len(name), 23)))
     templates["current_max_hp"] = ((267, 41), top.crop((175, 34, 219, 42)))
     templates["current_max_mp"] = ((267, 59), top.crop((175, 52, 219, 60)))
     templates["level"] = ((157, 33), top.crop((65, 26, 77, 34)))
     templates["experience"] = ((157, 44), top.crop((65, 37, 77, 45)))
-    return source, focus, assets, templates, {"raw_actor": 0, "unit_id": 0,
+    return assets, templates, {"raw_actor": 0, "unit_id": 0,
         "slots": fields, "item_table": evidence, "list_bottom": [5, 94, 310, 99],
-        "actor_fragment": 1, "actor_tokens": list(name), "hp": hp, "max_hp": 42, "mp": 0, "max_mp": 0,
+        "actor_fragment": 1, "actor_tokens": list(name), "hp": hp, "max_hp": maximum, "mp": mp, "max_mp": mp_max,
         "level": actor[0x21], "experience": actor[0x3c],
-        "expected_inventory_hex": actor[0x0a:0x1a].hex(), "after_use_model": after_use,
+        "derived_values": list(struct.unpack_from("<4H", actor, 0x48)),
+        "expected_inventory_hex": actor[0x0a:0x1a].hex(), "after_use_model": False,
         "runtime_raw_inventory_measured": False,
         "list_is_equipment_page": True, "use_confirmed": False,
         "runtime_ui_rng_alignment": "unverified; 16c57 wait consumes shared RNG"}

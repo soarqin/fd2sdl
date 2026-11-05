@@ -34,9 +34,11 @@ Windows（PowerShell；driver和DOSBox路径换成当前构建及安装位置）
 
 三个场景均可加`--sdl <fd2sdl可执行文件>`并用`run-job 480000`包装：完整运行原版并正常清理后才启动SDL。两端各自先过独立原版资源门，再对相同业务检查点的实际PNG作静态区域RGB配对，沿用每通道差≤3、bad=0；Give／Equip／Drop能力差异分别验各端完整图标。仅端内资源、双端像素、终值、来源／副本守卫和清理全部通过才记`ok=true`。三个场景已注册进总流程，不能把早期原版校准或离线重放增加为新的配对组。
 
-`--scenario drop-herb`是另列的原版单端校准，暂不接受`--sdl`，也不加入默认配对组。沿用上方命令、使用新的产物目录并把Job超时改为`480000`：exact START raw0先在Drop的mode0列表取消，再只确认一次slot2草药；回Use查看两槽但不确认，逐级取消后向左到明确空格，正式Save只肯定一次。Save前每个资源检查点及肯定前均要求副本bytes／mtime未变；肯定后先保留`drop-measured.SAV`，再验证checksum和整容器。只允许既有active `+2` cache及本次测量focus，camera、roster、末槽ID和所有未知字节均严格比较；最后要求当前文件与已验快照bytes／hash／完成mtime一致。失败停键并保留已写数据，不回滚或扩大差异范围。
+`--scenario drop-herb/drop-weapon/drop-armor/drop-last` 为四个独立的原版单端校准，暂不接受 `--sdl`，也不加入默认配对组。命令一次只指定一个场景，使用新的产物目录并把 Job 超时改为 `480000`。前三场使用 exact START raw0，分别删除 slot2 草药、slot0 装备武器、slot1 装备防具；最后一件使用明列差异及校验和的隔离派生档，只保留 slot0 草药并重算初始四派生，不改站位。每场先取消，再重开且只确认一次 Drop；余项只读 Use 列表，删空直接检查 COMMAND，随后逐级取消到浏览，向左到明确空格，正式 Save 只肯定一次。装备和最后一件场景额外检查 AP／DP／AC／EV 四组数字，不能只比较剩余物品名。
 
-Drop实测后的raw16B与AP／DP／AC／EV属于该原版分支证据；Use后acted的raw16B仍未直接量测。初始四派生已正确，所以本夹具取消后的重算是数值无变化，不能据此声称观测到了重算写入。原版单端成功仍为`ok=false/probe_only=true/probe_cases_passed=true`，未证明SDL Drop、其他物品或最后一项删除。
+Save 前每个资源检查点及肯定前均要求副本 bytes／mtime 未变；肯定后先保留 `drop-measured.SAV`，再验证 checksum 和整容器。只允许既有 active `+2` cache 及本次测量 focus，camera、roster、末槽 ID 和所有未知字节均严格比较；最后要求当前文件与已验快照 bytes／hash／完成 mtime 一致。失败停键并保留已写数据，不回滚或扩大差异范围。
+
+Drop 实测后的 raw16B 与 AP／DP／AC／EV 属于所列原版分支证据；Use 后 acted 的 raw16B 仍未直接量测。四场初始派生已正确，取消重算均无数值变化，调用依据仍来自机器码，不能据此声称观测到了取消重算写入。原版单端成功仍为 `ok=false/probe_only=true/probe_cases_passed=true`，四场已通过不代表 SDL Drop 配对、Equip 或 Give 通过。
 
 已批准的短暂WGC捕获错误是独立的`wgc_transient`诊断记录，不能当业务检查点，也不能按名称后缀随意丢弃。比较器要求完整且唯一的业务名称集合；诊断须符合类型、捕获后端、错误白名单、原检查点关联、时序／PID、重试计数及附件SHA规则。诊断可以在两端数量不同；对应实际业务图仍须逐项完整通过。缺失、重复或伪装的检查点立即失败，不放宽像素门。
 

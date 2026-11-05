@@ -347,6 +347,19 @@ class DropTest(Fixture, unittest.TestCase):
         probe.prepare_drop(ROOT / "original_game", cls.source, cls.assets, cls.actor, cls.fields)
         cls.plan = cls.assets["drop"]
         cls.encrypted = (ROOT / "original_game/START.SAV").read_bytes()
+        cls.boundary_cases = {}
+
+    def boundary_case(self, scenario):
+        if scenario not in self.boundary_cases:
+            source, focus, assets, actor, selection, templates, fields = probe.prepare(ROOT / "original_game")
+            if scenario == "drop-last":
+                table, _ = oracle.item_table(ROOT / "original_game/FD2.EXE")
+                _, source, _ = probe.derive_drop_last(source, self.encrypted, table)
+                _, templates, updated = oracle.inventory_templates(ROOT / "original_game", source[probe.UNITS:probe.UNITS + probe.STRIDE], assets)
+                fields = dict(updated, submenu=fields["submenu"])
+            probe.prepare_drop(ROOT / "original_game", source, assets, actor, fields, scenario)
+            self.boundary_cases[scenario] = (source, focus, assets, actor, selection, templates, fields)
+        return self.boundary_cases[scenario]
 
     def measured(self):
         plain = bytearray(self.plan["expected_source"])
@@ -415,9 +428,16 @@ class DropTest(Fixture, unittest.TestCase):
         "DOWN", "ENTER", "DOWN", "DOWN", "ESC", "DOWN", "ENTER", "DOWN", "DOWN", "ENTER",
         "ENTER", "ESC", "ESC", "ESC", "ESC", "LEFT", "ENTER", "ENTER", "LEFT", "ENTER", "ENTER"]
 
-    def protocol(self, directory, *, stop=None, bad_measurement=False, late_mtime=False):
-        save = directory / "FD2.SAV"; save.write_bytes(self.encrypted)
-        measured, encoded = self.measured()
+    def protocol(self, directory, *, stop=None, bad_measurement=False, late_mtime=False,
+                 scenario="drop-herb", case=None):
+        case = case or (self.source, self.focus, self.assets, self.actor, self.selection, self.templates, self.fields)
+        source, focus, assets, actor, selection, templates, fields = case
+        data = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.source, source))
+        save = directory / "FD2.SAV"; save.write_bytes(data)
+        measured = bytearray(assets["drop"]["expected_source"])
+        measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
+        measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+        encoded = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.source, measured))
         if bad_measurement:
             measured = bytearray(measured); measured[0x8a3] ^= 1
             measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
@@ -440,9 +460,9 @@ class DropTest(Fixture, unittest.TestCase):
         report = {"checkpoints": [], "kind": "original"}
         with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), \
                 patch.object(probe, "wait_state", side_effect=wait):
-            probe.exercise(capture, self.source, self.focus, self.assets, self.actor, self.selection,
-                self.templates, self.fields, {3: [image] * 3}, save, self.encrypted,
-                save.stat().st_mtime_ns, report, scenario="drop-herb")
+            probe.exercise(capture, source, focus, assets, actor, selection,
+                templates, fields, {3: [image] * 3}, save, data,
+                save.stat().st_mtime_ns, report, scenario=scenario)
         return capture, report, save
 
     def test_one_drop_after_cancel_and_only_explicit_ui_save_measures_raw(self):
@@ -523,6 +543,174 @@ class DropTest(Fixture, unittest.TestCase):
                 self.assertEqual(report["probe_cases_passed"],fault is None)
                 self.assertEqual(report["copy_save_matches_completed_state_after_cleanup"],fault is None)
                 self.assertNotIn("copy_save_unchanged_after_cleanup",report)
+
+    def test_weapon_armor_and_last_models_preserve_every_unrelated_byte(self):
+        expected_values = {
+            "drop-weapon": ("408400c0800080008000800080c980c9", [6, 12, 2, 2]),
+            "drop-armor": ("400000c0800080008000800080c980c9", [16, 4, 97, 2]),
+            "drop-last": ("808480c0800080008000800080c980c9", [6, 4, 2, 2])}
+        for scenario, (inventory, values) in expected_values.items():
+            source, _, assets, _, _, _, fields = self.boundary_case(scenario)
+            expected = assets["drop"]["expected_source"]
+            contract = fields["drop_contract"]
+            with self.subTest(scenario=scenario):
+                self.assertEqual(expected[probe.UNITS + 10:probe.UNITS + 26].hex(), inventory)
+                self.assertEqual(contract["derived_values"], values)
+                self.assertEqual(list(struct.unpack_from("<4H", expected, probe.UNITS + 0x48)), values)
+                allowed = {probe.UNITS + i for i in range(10, 26)} | {probe.UNITS + i for i in range(0x48, 0x50)}
+                self.assertTrue(all(i in allowed for i, (a, b) in enumerate(zip(source[:-4], expected[:-4])) if a != b))
+                self.assertEqual(expected[probe.UNITS + 0x19], 0xc9)
+                self.assertEqual(expected[0x8a3:probe.UNITS], self.source[0x8a3:probe.UNITS])
+                self.assertEqual(struct.unpack_from("<4H", expected, probe.UNITS + 0x40), (42, 42, 0, 0))
+                self.assertEqual(expected[probe.UNITS + 5], 0)
+                self.assertEqual(expected[probe.UNITS + 0x3c], 0)
+                measured = bytearray(expected)
+                measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
+                measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+                self.assertTrue(probe.check_load_measurement(expected, measured, assets["drop"]["steps"]))
+                for offset in (probe.META + 3, probe.UNITS + 0x19, 0x8a3, probe.UNITS + 0x40, probe.UNITS + 5):
+                    bad = bytearray(measured); bad[offset] ^= 1
+                    bad[-4:] = sum(bad[:-4]).to_bytes(4, "little")
+                    with self.assertRaises(AssertionError):
+                        probe.check_load_measurement(expected, bad, assets["drop"]["steps"])
+
+    def test_last_fixture_exact_manifest_and_source_whitelist_remains_strict(self):
+        table, _ = oracle.item_table(ROOT / "original_game/FD2.EXE")
+        encoded, source, manifest = probe.derive_drop_last(self.source, self.encrypted, table)
+        self.assertEqual(hashlib.sha256(source).hexdigest(), probe.DROP_LAST_PLAIN_SHA256)
+        self.assertEqual(source[probe.UNITS + 10:probe.UNITS + 26].hex(), "00c0808480c0800080008000800080c9")
+        self.assertEqual(manifest["derived_values"], [6, 4, 2, 2])
+        self.assertFalse(manifest["cancel_recompute_dynamic_write_observed"])
+        offsets = {p["offset"] for p in manifest["plaintext_patches"]}
+        self.assertEqual(offsets, {probe.UNITS + i for i in (10, 11, 12, 14, 0x48, 0x4a, 0x4c)} | {len(source) - 4, len(source) - 3})
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory) / "last.SAV"; save.write_bytes(encoded)
+            self.assertEqual(probe.decode_save(save), source)
+        # 共享构图不会把新派生SAV加入原prepare的来源白名单。
+        with self.assertRaises(ValueError):
+            oracle.prepare(ROOT / "original_game", ROOT / "original_game/START.SAV", source=source)
+        for before, encrypted in ((source, self.encrypted), (self.source, encoded)):
+            with self.assertRaises(ValueError): probe.derive_drop_last(before, encrypted, table)
+        bad = bytearray(source); bad[0x8a3] ^= 1
+        with self.assertRaises(ValueError): probe.drop_expected_source(bad, table, "drop-last")
+
+    def test_reordered_resources_and_only_herb_menu_have_exact_native_gates(self):
+        for scenario in ("drop-weapon", "drop-armor", "drop-last"):
+            source, _, assets, actor, _, templates, fields = self.boundary_case(scenario)
+            plan = assets["drop"]
+            with self.subTest(scenario=scenario):
+                for t, f in ((templates, fields), (plan["after_templates"], plan["after_fields"])):
+                    for selected in range(len(f["slots"])):
+                        frame = Image.new("RGB", (320, 200))
+                        for name in (f"selected_{selected}", "actor_name", "current_max_hp", "current_max_mp", "level", "experience",
+                                     "attack", "defense", "accuracy", "evasion"):
+                            at, part = t[name]; frame.paste(part.convert("RGB"), at)
+                        detail = probe.drop_list_page(frame, t, f, selected)
+                        self.assertEqual(detail["checked_pixels"], 32723)
+                        self.assertEqual(detail["visible_derived_values"], f["derived_values"])
+                        for wrong in range(len(f["slots"])):
+                            if selected != wrong: self.assertIsNone(probe.list_page(frame, t, f, wrong))
+                        broken = frame.copy(); broken.putpixel((110, 107), (255, 0, 255))
+                        self.assertIsNone(probe.list_page(broken, t, f, selected))
+                        for name in ("attack", "defense", "accuracy", "evasion"):
+                            bad = frame.copy()
+                            at, _ = t[name]; bad.putpixel(at, (255, 0, 255))
+                            self.assertIsNone(probe.list_page(bad, t, f, selected))
+                # only-herb仍有EQT普通图30和Drop普通图33；不是[0,1,1,1]。
+                menu = self.menu_frame()
+                self.assertEqual(probe.submenu_page(menu, assets, (52, 76), templates, fields)["disabled"], [0, 1, 0, 0])
+                self.assertIsNone(probe.submenu_page(self.menu_frame(role="sdl"), assets, (52, 76), templates, fields))
+                if scenario == "drop-last":
+                    self.assertEqual(plan["after_fields"]["slots"], [])
+                    command = Image.new("RGB", (320, 200))
+                    for i, index in enumerate((2, 5, 8, 10)):
+                        part = assets["upper_commands"][index][0] if i == 0 else assets["commands"][index]
+                        at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[i]))
+                        command.paste(part.convert("RGB"), at)
+                    detail = probe.command_page(command, probe.PlayerOracle(source, assets, [], {}), (52, 76), plan["after_templates"], plan["after_fields"])
+                    self.assertTrue(detail["native_first_enabled_wait_after_empty_drop"])
+                    self.assertIsNone(probe.command_page(self.command_frame(), probe.PlayerOracle(source, assets, [], {}), (52, 76), plan["after_templates"], plan["after_fields"]))
+
+    def test_new_drop_protocols_one_cancel_one_commit_no_empty_use_page(self):
+        for scenario, slot, count in (("drop-weapon", 0, 23), ("drop-armor", 1, 25), ("drop-last", 0, 20)):
+            case = self.boundary_case(scenario)
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                capture, report, save = self.protocol(Path(directory), scenario=scenario, case=case)
+                navigate = ["DOWN"] * slot
+                expected = ["UP", "ENTER", "Z", "ENTER", "ENTER", "ENTER", "DOWN", "ENTER", *navigate,
+                            "ESC", "DOWN", "ENTER", *navigate, "ENTER"]
+                if scenario != "drop-last": expected += ["ENTER", "ESC", "ESC"]
+                expected += ["ESC", "ESC", "LEFT", "ENTER", "ENTER", "LEFT", "ENTER", "ENTER"]
+                self.assertEqual([call.args[0] for call in capture.key.call_args_list], expected)
+                self.assertEqual(len(expected), count)
+                self.assertEqual("drop_empty_command" in report, scenario == "drop-last")
+                self.assertEqual("drop_two_slot_page" in report, scenario != "drop-last")
+                self.assertEqual(report["input_scope"]["drop_confirmation_count"], 1)
+                self.assertEqual(report["input_scope"]["valid_use_confirmations"], 0)
+                self.assertEqual(report["drop_measurement"]["measured_derived_values"], case[-1]["drop_contract"]["derived_values"])
+                self.assertEqual(save.read_bytes(), (Path(directory) / "drop-measured.SAV").read_bytes())
+        for scenario in ("drop-weapon", "drop-armor", "drop-last"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(AssertionError):
+                    self.protocol(Path(directory), scenario=scenario, case=self.boundary_case(scenario), bad_measurement=True)
+                self.assertTrue((Path(directory) / "drop-measured.SAV").is_file())
+
+    def test_all_new_drop_pairing_is_rejected_before_any_io(self):
+        for scenario in ("drop-weapon", "drop-armor", "drop-last"):
+            with self.subTest(scenario=scenario), patch.object(Path, "mkdir") as mkdir, \
+                    patch.object(Path, "read_bytes") as reads, patch.object(probe, "hashes") as hashes, \
+                    patch("subprocess.Popen") as popen, self.assertRaisesRegex(ValueError, "仅用于原版"):
+                probe.run(SimpleNamespace(root=ROOT, artifacts=Path("unused"), scenario=scenario, sdl=Path("unused.exe")))
+            mkdir.assert_not_called(); reads.assert_not_called(); hashes.assert_not_called(); popen.assert_not_called()
+
+    def test_new_scenarios_keep_probe_only_and_guard_the_actual_completed_save(self):
+        for scenario, tamper in (("drop-weapon", False), ("drop-armor", False),
+                                 ("drop-last", False), ("drop-last", True)):
+            with self.subTest(scenario=scenario, tamper=tamper), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "new"
+                args = SimpleNamespace(root=ROOT, artifacts=output, scenario=scenario,
+                    driver=Path(__file__), dosbox=Path(__file__))
+                @contextmanager
+                def running(command, cwd, env, log, driver, receipts):
+                    receipt = {"pid": 123, "cleaned": False, "forced_cleanup": False}
+                    receipts.append(receipt)
+                    try:
+                        yield Mock(pid=123)
+                    finally:
+                        receipt.update(cleaned=True, exit_code=0)
+                        if tamper:
+                            save = output / "game/FD2.SAV"; info = save.stat()
+                            os.utime(save, ns=(info.st_atime_ns, info.st_mtime_ns + 2_000_000_000))
+                def exercise(*args, **kwargs):
+                    self.assertEqual(kwargs["scenario"], scenario)
+                    source, assets, save, data, record = args[1], args[3], args[-4], args[-3], args[-1]
+                    self.assertEqual(save.read_bytes(), data)
+                    self.assertEqual(probe.decode_save(save), source)
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), record["runtime_fixture_sha256"])
+                    if scenario == "drop-last":
+                        self.assertEqual(hashlib.sha256(source).hexdigest(), probe.DROP_LAST_PLAIN_SHA256)
+                    else:
+                        self.assertEqual(data, self.encrypted)
+                    measured = bytearray(assets["drop"]["expected_source"])
+                    measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
+                    measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+                    encoded = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.source, measured))
+                    snapshot = output / "drop-measured.SAV"; snapshot.write_bytes(encoded); save.write_bytes(encoded)
+                    record["drop_measurement"] = {"runtime_raw_inventory_measured": True}
+                    record["completed_save"] = {"snapshot": str(snapshot), "sha256": hashlib.sha256(encoded).hexdigest(),
+                                                "mtime_ns": save.stat().st_mtime_ns}
+                with patch.object(probe, "hashes", return_value={"source": "stable"}), \
+                        patch.object(probe.shutil, "copytree", side_effect=lambda source, dest: dest.mkdir()), \
+                        patch.object(probe, "running", side_effect=running), patch.object(probe, "Capture"), \
+                        patch.object(probe, "title_templates", return_value={}), patch.object(probe, "exercise", side_effect=exercise), \
+                        patch("subprocess.Popen", side_effect=AssertionError("pure test must not launch")):
+                    report = probe.run(args)
+                self.assertTrue(report["probe_only"] and not report["ok"])
+                self.assertEqual(report["probe_cases_passed"], not tamper)
+                self.assertEqual(report["copy_save_matches_completed_state_after_cleanup"], not tamper)
+                self.assertEqual("derived_fixture" in report, scenario == "drop-last")
+                self.assertNotIn("copy_save_unchanged_after_cleanup", report)
+                self.assertTrue(report["fixture_unchanged"])
 
 
 class RunTest(Fixture, unittest.TestCase):

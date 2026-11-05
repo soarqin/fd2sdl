@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ITEM列表控制／单次草药；另含原版-only草药Drop/Save校准，不执行装备或交接。
+"""ITEM列表控制／单次草药；另含原版-only Drop/Save校准，不执行装备或交接。
 
 依据field_player_item_command_execute @0x1bbdc（原登记同名）、
 field_unit_inventory_select @0x1b932（原sub_1B932）、
@@ -28,7 +28,8 @@ import sys
 from PIL import Image, ImageChops
 
 from audit_fdicon_opaque_zero import audit_fdicon
-from fd2_item_list_oracle import AFTER_USE_INVENTORY, PLAIN_SHA256, derive_injured, item_table, prepare as prepare_templates
+from fd2_item_list_oracle import (AFTER_USE_INVENTORY, PLAIN_SHA256, START_SHA256,
+    derive_injured, inventory_templates, item_table, prepare as prepare_templates)
 from fd2_movement_oracle import movement_profile
 from run_graphics_tests import decode_save
 from run_original_comparison import Capture, SIZE, archive_entry, hashes, running, title_templates
@@ -40,6 +41,52 @@ from run_original_focus import native_focus_reference
 from run_original_player import PlayerOracle, acted_sprite, exact_tile, screen, sheet_frame, upper_command_composite
 from run_original_result import selection_probe, selection_state
 from run_original_magic_list import actor_focus_resources, detail_close_terrain
+
+DROP_SCENARIOS = {"drop-herb": 2, "drop-weapon": 0, "drop-armor": 1, "drop-last": 0}
+DROP_LAST_PLAIN_SHA256 = "f5103f3d69983c6eda7d963dc26dfb720627a5331996c5fa1b8f1b79b528b41c"
+
+
+def drop_derived(actor, table):
+    """1b750的本组无状态分支；仅从EXE表推导，不以SDL或捕获值作oracle。"""
+    if len(table) != 215 * 23 or actor[0x22:0x25] != b"\0\0\0":
+        raise ValueError("Drop派生模型只覆盖原版完整表及无AP/DP/AC状态的夹具")
+    attack, defense, accuracy = (struct.unpack_from("<h", actor, offset)[0] for offset in (0x37, 0x39, 0x3e))
+    evasion = accuracy
+    for slot in range(8):
+        flags, item_id = actor[0x0a + 2 * slot:0x0c + 2 * slot]
+        if flags & 0x40:
+            if item_id >= 215:
+                raise ValueError("Drop重算包含未知装备ID")
+            ap, ac, dp, ev = struct.unpack_from("<4h", table, item_id * 23 + 1)
+            attack += ap; defense += dp; accuracy += ac; evasion += ev
+    return [value & 0xffff for value in (attack, defense, accuracy, evasion)]
+
+
+def derive_drop_last(source, encrypted, table):
+    """只改active raw0库存和1b750已证派生值；其余来源逐字节保留。"""
+    if hashlib.sha256(source).hexdigest() != PLAIN_SHA256 or hashlib.sha256(encrypted).hexdigest() != START_SHA256:
+        raise ValueError("最后一项Drop必须从完整已确认START派生")
+    changed = bytearray(source)
+    actor = bytearray(source[UNITS:UNITS + STRIDE])
+    for slot in range(8):
+        actor[0x0a + 2 * slot] = 0x80  # 旧ID原样保留，只有slot0改为草药。
+    actor[0x0a:0x0c] = bytes((0, 192))
+    struct.pack_into("<4H", actor, 0x48, *drop_derived(actor, table))
+    changed[UNITS:UNITS + STRIDE] = actor
+    changed[-4:] = sum(changed[:-4]).to_bytes(4, "little")
+    if hashlib.sha256(changed).hexdigest() != DROP_LAST_PLAIN_SHA256:
+        raise ValueError("最后一项Drop派生完整明文不符")
+    encoded = bytes(a ^ b ^ c for a, b, c in zip(encrypted, source, changed))
+    def patches(before, after):
+        return [{"offset": i, "before": a, "after": b} for i, (a, b) in enumerate(zip(before, after)) if a != b]
+    return encoded, bytes(changed), {"scenario": "drop-last", "controlled_fixture": True,
+        "source_sha256": START_SHA256, "source_plain_sha256": PLAIN_SHA256,
+        "derived_sha256": hashlib.sha256(encoded).hexdigest(), "derived_plain_sha256": DROP_LAST_PLAIN_SHA256,
+        "plaintext_patches": patches(source, changed), "encrypted_patches": patches(encrypted, encoded),
+        "checksum_before": source[-4:].hex(), "checksum_after": changed[-4:].hex(),
+        "inventory_hex": actor[0x0a:0x1a].hex(), "derived_values": list(struct.unpack_from("<4H", actor, 0x48)),
+        "scope": "active raw0 inventory plus EXE-derived AP/DP/AC/EV and checksum only; not natural inventory history",
+        "cancel_recompute_dynamic_write_observed": False}
 
 
 def prepare(original, *, source=None, herb=False):
@@ -118,47 +165,50 @@ def prepare_herb(original, source, assets, probe, fields):
         "deferred_post_end_measurement": "separate original case: END -> next player phase -> legal Save; not executed here"}
 
 
-def drop_expected_source(source, table):
-    """1bbdc selector3→1b8e7→1b750；只建exact START静态预期，不模拟运行。"""
-    if hashlib.sha256(source).hexdigest() != PLAIN_SHA256 or len(table) != 215 * 23:
-        raise ValueError("Drop模型只支持完整已确认START及原版215项物品表")
+def drop_expected_source(source, table, scenario="drop-herb"):
+    """1bbdc selector3→1b8e7→1b750；只建锁定完整来源的静态预期。"""
+    if scenario not in DROP_SCENARIOS:
+        raise ValueError("未知Drop模型")
+    source_sha = DROP_LAST_PLAIN_SHA256 if scenario == "drop-last" else PLAIN_SHA256
+    if hashlib.sha256(source).hexdigest() != source_sha or len(table) != 215 * 23:
+        raise ValueError("Drop模型只支持完整已确认START/最后项manifest及原版215项物品表")
     expected = bytearray(source)
     actor = bytearray(source[UNITS:UNITS + STRIDE])
     before = bytes(actor[0x0a:0x1a])
-    if before.hex() != "4000408400c0800080008000800080c9" or actor[0x22:0x25] != b"\0\0\0":
-        raise ValueError("Drop草药不是已确认的未装备slot2或属性状态前置不符")
-    actor[0x0e:0x18] = actor[0x10:0x1a]
+    selected = DROP_SCENARIOS[scenario]
+    if drop_derived(actor, table) != list(struct.unpack_from("<4H", actor, 0x48)):
+        raise ValueError("Drop来源的EXE派生值与记录不符")
+    item_id = actor[0x0b + selected * 2]
+    actor[0x0a + selected * 2:0x18] = actor[0x0c + selected * 2:0x1a]
     actor[0x18] = 0x80
-    attack, defense, accuracy = (struct.unpack_from("<h", actor, offset)[0] for offset in (0x37, 0x39, 0x3e))
-    evasion = accuracy
-    for slot in range(8):
-        flags, item_id = actor[0x0a + 2 * slot:0x0c + 2 * slot]
-        if not flags & 0x40:
-            continue
-        if item_id >= 215:
-            raise ValueError("Drop重算包含未知装备ID")
-        ap, ac, dp, ev = struct.unpack_from("<4h", table, item_id * 23 + 1)
-        attack += ap; defense += dp; accuracy += ac; evasion += ev
-    derived = [value & 0xffff for value in (attack, defense, accuracy, evasion)]
-    if derived != [16, 12, 97, 2] or list(struct.unpack_from("<4H", actor, 0x48)) != derived:
-        raise ValueError("原版表及1b750公式不满足本场四派生不变前置")
+    derived = drop_derived(actor, table)
+    values = {"drop-herb": [16, 12, 97, 2], "drop-weapon": [6, 12, 2, 2],
+              "drop-armor": [16, 4, 97, 2], "drop-last": [6, 4, 2, 2]}
+    if derived != values[scenario]:
+        raise ValueError("原版表及1b750公式不满足本场四派生预期")
     struct.pack_into("<4H", actor, 0x48, *derived)
-    if actor[0x0a:0x1a].hex() != AFTER_USE_INVENTORY:
+    if scenario == "drop-herb" and actor[0x0a:0x1a].hex() != AFTER_USE_INVENTORY:
         raise ValueError("原始移槽与已确认16字节模型不符")
     expected[UNITS:UNITS + STRIDE] = actor
     expected[-4:] = sum(expected[:-4]).to_bytes(4, "little")
-    return bytes(expected), {"native_branch": "0x1bfcd..0x1bff4", "remove_va": "0x1b8e7",
+    return bytes(expected), {"scenario": scenario, "item_id": item_id, "raw_slot": selected,
+        "native_branch": "0x1bfcd..0x1bff4", "remove_va": "0x1b8e7",
         "recompute_va": "0x1b750", "derived_offsets": [0x48, 0x4a, 0x4c, 0x4e],
         "derived_values": derived, "before_inventory_hex": before.hex(),
         "after_inventory_hex": actor[0x0a:0x1a].hex(), "runtime_raw_inventory_measured": False,
         "raw_unit_changed_offsets": [i for i, (a, b) in enumerate(zip(source[UNITS:UNITS + STRIDE], actor)) if a != b]}
 
 
-def prepare_drop(original, source, assets, actor, fields):
+def prepare_drop(original, source, assets, actor, fields, scenario="drop-herb"):
     table, evidence = item_table(original / "FD2.EXE")
-    expected, contract = drop_expected_source(source, table)
-    _, _, _, after_templates, after_fields = prepare_templates(original, original / "START.SAV", source=source, after_use=True)
-    contract.update(item_id=192, raw_slot=2, selected_command=3, list_mode=0, item_table=evidence,
+    expected, contract = drop_expected_source(source, table, scenario)
+    _, after_templates, after_fields = inventory_templates(original, expected[UNITS:UNITS + STRIDE], assets)
+    # 1bbdc除零库存返回外，唯一运行置禁为Give的相邻filter3门；
+    # 本组只改库存/四派生，完整人物几何仍同START，EQT没有菜单类型门。
+    fields["submenu"] = dict(fields["submenu"], disabled=[0, 1, 0, 0],
+        native_evidence="1bbdc: nonempty; only missing adjacent filter3 disables Give; first enabled Use0")
+    after_fields["submenu"] = dict(fields["submenu"], command_default=2 if after_fields["slots"] else 3)
+    contract.update(selected_command=3, list_mode=0, item_table=evidence,
                     after_model_scope="slot removal/recompute only; no HP heal, acted or runtime measurement",
                     cancel_recompute_evidence="static 0x1bfda -> 0x1bfeb -> 0x1b750; unchanged four values do not prove runtime writes")
     fields["drop_contract"] = contract
@@ -178,17 +228,19 @@ def prepare_drop(original, source, assets, actor, fields):
 
 def list_page(frame, templates, fields, selected=0):
     if selected not in range(len(fields["slots"])):
-        raise ValueError("物品资源门只支持真实三槽索引")
+        raise ValueError("物品资源门索引超出本场已确认可见库存")
     if frame.size != SIZE:
         return None
     names = (f"selected_{selected}", "actor_name", "current_max_hp", "current_max_mp")
     if "herb_contract" in fields or "drop_contract" in fields:
         names += ("level", "experience")
+    if fields.get("drop_contract", {}).get("scenario") in ("drop-weapon", "drop-armor", "drop-last"):
+        names += ("attack", "defense", "accuracy", "evasion")
     checks = [exact_tile(frame, templates[name][1], templates[name][0]) for name in names]
     if any(check is None for check in checks):
         return None
     slot = fields["slots"][selected]
-    return {"kind": "use_inventory_list", "selected_raw_slot": selected,
+    detail = {"kind": "use_inventory_list", "selected_raw_slot": selected,
             "item_id": slot["item_id"], "use_code": slot["use_code"],
             "checked_pixels": sum(check["checked_pixels"] for check in checks),
             "max_channel_delta": max(check["max_channel_delta"] for check in checks),
@@ -196,6 +248,9 @@ def list_page(frame, templates, fields, selected=0):
                             "size": list(templates[name][1].size), **check} for name, check in zip(names, checks)],
             "complete_bottom_checked": True, "hp": fields["hp"], "max_hp": fields["max_hp"],
             "mp": fields["mp"], "max_mp": fields["max_mp"]}
+    if "attack" in names:
+        detail["visible_derived_values"] = fields["derived_values"]
+    return detail
 
 
 def list_absent(frame, templates, fields):
@@ -205,7 +260,7 @@ def list_absent(frame, templates, fields):
 def submenu_page(frame, assets, position, templates, fields, selected=0, *, role="original"):
     if role not in ("original", "sdl"):
         raise ValueError("未知物品端点角色")
-    disabled = [0, 1, 0, 0] if role == "original" else [0, 1, 1, 1]
+    disabled = fields["submenu"]["disabled"] if role == "original" else [0, 1, 1, 1]
     if selected not in range(4) or disabled[selected]:
         raise ValueError("当前物品子菜单禁用项不能作为选中项")
     matches = []
@@ -226,10 +281,14 @@ def submenu_page(frame, assets, position, templates, fields, selected=0, *, role
 
 
 def command_page(frame, command, position, templates, fields):
-    detail = command.command(frame, position, 2)
-    if not detail or [match["frame"] for match in detail["matches"]] != [2, 5, 7, 9]:
+    selected = fields["submenu"]["command_default"]
+    expected = [2, 5, 7, 9] if selected == 2 else [2, 5, 8, 10]
+    detail = command.command(frame, position, selected)
+    if not detail or [match["frame"] for match in detail["matches"]] != expected:
         return None
-    return {**detail, "native_first_enabled_item": True, "inventory_list_absent": True} if list_absent(frame, templates, fields) else None
+    return {**detail, "native_first_enabled_item": selected == 2,
+            "native_first_enabled_wait_after_empty_drop": selected == 3,
+            "inventory_list_absent": True} if list_absent(frame, templates, fields) else None
 
 
 def cancelled_browse(frame, assets, actor, probe, templates, fields, *, role="original"):
@@ -338,26 +397,32 @@ def exercise_drop(capture, source, assets, actor, probe, templates, fields, save
     plan = assets["drop"]
     after_templates, after_fields = plan["after_templates"], plan["after_fields"]
     position = screen(source, tuple(actor["world"]))
+    selected_slot = fields["drop_contract"]["raw_slot"]
+    command = PlayerOracle(source, assets, [], {})
     for attempt in ("cancel", "commit"):
         capture.key("DOWN")
         checkpoint(f"drop-{attempt}-selected", lambda frame: submenu_page(frame, assets, position, templates, fields, 3))
         capture.key("ENTER")
         checkpoint(f"drop-{attempt}-list-zero", lambda frame: drop_list_page(frame, templates, fields))
-        for selected in (1, 2):
+        for selected in range(1, selected_slot + 1):
             capture.key("DOWN")
             checkpoint(f"drop-{attempt}-slot{selected}", lambda frame, index=selected: drop_list_page(frame, templates, fields, index))
         capture.key("ESC" if attempt == "cancel" else "ENTER")
         active_templates, active_fields = (templates, fields) if attempt == "cancel" else (after_templates, after_fields)
-        checkpoint(f"drop-{attempt}-back-item-zero", lambda frame, t=active_templates, f=active_fields:
-                   submenu_page(frame, assets, position, t, f))
-    capture.key("ENTER")  # Use只读看剩余两槽；不确认任何物品。
-    _, report["drop_two_slot_page"] = checkpoint("drop-after-use-list-two-slots",
-        lambda frame: list_page(frame, after_templates, after_fields))
-    capture.key("ESC")
-    checkpoint("drop-readonly-list-cancel-item", lambda frame: submenu_page(frame, assets, position, after_templates, after_fields))
-    capture.key("ESC")
-    command = PlayerOracle(source, assets, [], {})
-    checkpoint("drop-item-cancel-command", lambda frame: command_page(frame, command, position, after_templates, after_fields))
+        if active_fields["slots"]:
+            checkpoint(f"drop-{attempt}-back-item-zero", lambda frame, t=active_templates, f=active_fields:
+                       submenu_page(frame, assets, position, t, f))
+        else:
+            _, report["drop_empty_command"] = checkpoint("drop-commit-back-empty-command",
+                lambda frame: command_page(frame, command, position, active_templates, active_fields))
+    if after_fields["slots"]:
+        capture.key("ENTER")  # Use只读看剩余两槽；不确认任何物品。
+        _, report["drop_two_slot_page"] = checkpoint("drop-after-use-list-two-slots",
+            lambda frame: list_page(frame, after_templates, after_fields))
+        capture.key("ESC")
+        checkpoint("drop-readonly-list-cancel-item", lambda frame: submenu_page(frame, assets, position, after_templates, after_fields))
+        capture.key("ESC")
+        checkpoint("drop-item-cancel-command", lambda frame: command_page(frame, command, position, after_templates, after_fields))
     capture.key("ESC")
     checkpoint("drop-command-cancel-selection", lambda frame: selection_state(frame, assets, actor, probe))
     capture.key("ESC")
@@ -429,7 +494,7 @@ def exercise(capture, source, focus, assets, actor, probe, templates, fields, ti
     checkpoint("raw0-zero-move-command", lambda frame: command_page(frame, command, position, templates, fields))
     capture.key("ENTER")
     checkpoint("item-submenu-default-use", lambda frame: submenu_page(frame, assets, position, templates, fields, role=role))
-    if scenario == "drop-herb":
+    if scenario in DROP_SCENARIOS:
         exercise_drop(capture, source, assets, actor, probe, templates, fields, save, data, stamp, report, checkpoint)
         return
     if scenario != "controls":
@@ -609,7 +674,7 @@ def endpoint_guards(record, original, before, fixture, data, stamp, save_data):
         "fixture_unchanged": fixture.is_file() and fixture.read_bytes() == data and fixture.stat().st_mtime_ns == stamp}
     save = record.get("save")
     path = Path(save["path"]) if save else None
-    if record.get("scenario") == "drop-herb":
+    if record.get("scenario") in DROP_SCENARIOS:
         completed = record.get("completed_save")
         snapshot = Path(completed["snapshot"]) if completed else None
         matches = bool(path and path.is_file())
@@ -667,7 +732,7 @@ def run_endpoint(kind, work, record, args, root, original, before, fixture, data
                 exercise(*arguments)
             else:
                 exercise(*arguments, scenario=record["scenario"])
-                if record["scenario"] == "drop-herb":
+                if record["scenario"] in DROP_SCENARIOS:
                     if not record.get("drop_measurement", {}).get("runtime_raw_inventory_measured") or "completed_save" not in record:
                         raise AssertionError("Drop/取消/正式Save量测未全部完成")
                     final_data = Path(record["completed_save"]["snapshot"]).read_bytes()
@@ -694,11 +759,11 @@ def run(args):
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入original_game")
     scenario = getattr(args, "scenario", "controls")
-    if scenario not in ("controls", "herb-full", "herb-injured", "drop-herb"):
+    if scenario not in ("controls", "herb-full", "herb-injured", *DROP_SCENARIOS):
         raise ValueError("未知物品校准场景")
     sdl = getattr(args, "sdl", None)
-    if scenario == "drop-herb" and sdl is not None:
-        raise ValueError("drop-herb当前仅用于原版校准，不接受--sdl；未创建产物或启动窗口")
+    if scenario in DROP_SCENARIOS and sdl is not None:
+        raise ValueError(f"{scenario}当前仅用于原版校准，不接受--sdl；未创建产物或启动窗口")
     if sdl is not None and not sdl.is_file():
         raise ValueError("--sdl 程序不存在；提供已构建的正式SDL程序，未创建产物或启动窗口")
     output.mkdir(parents=True, exist_ok=False)
@@ -727,13 +792,27 @@ def run(args):
                 raise AssertionError("草药受控SAV的XOR/checksum往返不符")
             report["derived_fixture"] = manifest
             (output / "fixture-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        prepared = prepare(original) if scenario in ("controls", "drop-herb") else prepare(
+        elif scenario == "drop-last":
+            table, _ = item_table(original / "FD2.EXE")
+            save_data, source_override, manifest = derive_drop_last(decode_save(fixture), data, table)
+            derived = output / "drop-last.SAV"
+            derived.write_bytes(save_data)
+            if decode_save(derived) != source_override:
+                raise AssertionError("最后一项Drop的XOR/checksum往返不符")
+            report["derived_fixture"] = manifest
+            (output / "fixture-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        prepared = prepare(original) if scenario == "controls" or scenario in DROP_SCENARIOS else prepare(
             original, source=source_override, herb=True)
         source, focus, assets, actor, probe, templates, fields = prepared
-        if scenario == "drop-herb":
-            prepare_drop(original, source, assets, actor, fields)
-            report["scope"] = "original-only exact START: Drop192 cancel -> one Drop -> two-slot Use view -> layered cancel -> unacted -> explicit UI Save/full-container measurement"
-            report["excluded"] = "SDL pairing, Equip/Give/Use effects, other Drop items/empty inventory, exact UI RNG/timing/audio and whole-owner equivalence"
+        if scenario in DROP_SCENARIOS:
+            if source_override is not None:
+                source = source_override
+                _, templates, updated = inventory_templates(original, source[UNITS:UNITS + STRIDE], assets)
+                fields = dict(updated, submenu=fields["submenu"])
+            prepare_drop(original, source, assets, actor, fields, scenario)
+            prepared = (source, focus, assets, actor, probe, templates, fields)
+            report["scope"] = f"original-only {scenario}: mode0 cancel -> one Drop -> remaining inventory/empty COMMAND -> unacted -> explicit UI Save/full-container measurement"
+            report["excluded"] = "SDL pairing, Equip/Give/Use effects, other Drop fixtures, exact UI RNG/timing/audio and whole-owner equivalence"
         elif scenario != "controls":
             report["scope"] = "Continue from same START geometry -> herb192 target cancel -> one Use -> acted, F2 HP/MP/LV/EX/two visible slots -> close"
             report["excluded"] = "SDL pairing; raw16B inventory/stale-tail runtime measurement, post-END Save, exact RNG/floating heal/animation/audio and whole-owner equivalence"
@@ -819,7 +898,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("root", "driver", "dosbox", "artifacts"):
         parser.add_argument("--" + name, type=Path, required=True)
-    parser.add_argument("--scenario", choices=("controls", "herb-full", "herb-injured", "drop-herb"), default="controls")
+    parser.add_argument("--scenario", choices=("controls", "herb-full", "herb-injured", *DROP_SCENARIOS), default="controls")
     parser.add_argument("--sdl", type=Path, help="原版先通过并清理后，以同一fixture正式启动SDL配对")
     args = parser.parse_args()
     if sys.platform != "win32":

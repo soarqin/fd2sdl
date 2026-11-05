@@ -308,7 +308,9 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 "original-opening", "original-focus", "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result",
                 "original-magic-list", "original-magic-damage", "original-magic-heal",
                 "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
-                "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last"])
+                "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last",
+                "original-item-eqt-incompatible", "original-item-eqt-weapon",
+                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"])
             self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
                              ["original-opening", "original-focus", "input"])
             by_name = {call.args[0]: call for call in pairs}
@@ -337,7 +339,13 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                     ("original-item-drop-herb", "drop-herb", "run_original_item_list.py"),
                     ("original-item-drop-weapon", "drop-weapon", "run_original_item_list.py"),
                     ("original-item-drop-armor", "drop-armor", "run_original_item_list.py"),
-                    ("original-item-drop-last", "drop-last", "run_original_item_list.py")):
+                    ("original-item-drop-last", "drop-last", "run_original_item_list.py"),
+                    ("original-item-eqt-incompatible", "eqt-incompatible", "run_original_item_list.py"),
+                    ("original-item-eqt-weapon", "eqt-weapon", "run_original_item_list.py"),
+                    ("original-item-give-cancel", "give-cancel", "run_original_item_list.py"),
+                    ("original-item-give-empty", "give-empty", "run_original_item_list.py"),
+                    ("original-item-give-swap", "give-swap", "run_original_item_list.py"),
+                    ("original-item-give-moved", "give-moved", "run_original_item_list.py")):
                 case = by_name[name]
                 command = case.args[1]
                 self.assertEqual(command[1], runner.ROOT / "tools" / script)
@@ -347,6 +355,40 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 self.assertEqual(command[command.index("--artifacts") + 1], suite.work / name)
                 self.assertEqual(case.kwargs["timeout"], 480)
                 self.assertNotIn("--save-fixture", command)
+
+    def test_b3_only_does_not_launch_historical_input_opening_or_host_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe", game=root / "game.exe",
+                                                config="Debug", dosbox="dosbox.exe", b3_only=True))
+            suite.command = Mock()
+            other = ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes")
+            for name in other:
+                setattr(suite, name, Mock(side_effect=AssertionError("B3不得启动历史宿主场景")))
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}):
+                suite.run()
+            self.assertEqual([call.args[0] for call in suite.command.call_args_list], [
+                "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
+                "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last",
+                "original-item-eqt-incompatible", "original-item-eqt-weapon",
+                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"])
+            self.assertEqual(suite.report["status"], "passed")
+            self.assertIn("B3 changed/new", suite.report["scope"])
+            for name in other:
+                getattr(suite, name).assert_not_called()
+
+    def test_b3_selection_is_exact_and_invalid_selection_precedes_mkdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for selected, only in ((["unknown"], True), (["give-swap", "give-swap"], True), ([], True), (["give-swap"], False)):
+                args = SimpleNamespace(build_dir=root, b3_scenarios=selected, b3_only=only)
+                with patch.object(Path, "mkdir") as mkdir, self.assertRaises(ValueError): runner.Suite(args)
+                mkdir.assert_not_called()
+            args = SimpleNamespace(build_dir=root, b3_scenarios=["give-swap", "use-24"], b3_only=True,
+                driver=root / "driver.exe", game=root / "game.exe", config="Debug", dosbox="dosbox.exe")
+            suite = runner.Suite(args); suite.command = Mock()
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+            self.assertEqual([row.args[0] for row in suite.command.call_args_list], ["original-item-give-swap", "original-item-use-24"])
 
 
 class WindowCleanupTest(unittest.TestCase):

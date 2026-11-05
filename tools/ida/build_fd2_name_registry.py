@@ -24,10 +24,50 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "tools" / "ida-out"
 CODE0_BASE = 0x10000
 
+def ida_provenance() -> str:
+    candidates = (OUT / "ida-program.json", ROOT / "docs/generated/ida-canonical/fd2-program.json")
+    program = next((json.loads(path.read_text(encoding="utf-8")) for path in candidates if path.exists()), {})
+    version = program.get("ida_version", "unknown")
+    host = program.get("host_platform", "historical host")
+    loader = program.get("loader_module", "LE loader")
+    return f"IDA Pro {version} {host} idalib（{loader} + metapc + Watcom FLIRT + Hex-Rays）"
+
+
 # 历史档案里被 IDA 复核推翻或需要澄清的结论。
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x17D6F: [{
+        "target": "semantic_name", "was": "sub_17D6F",
+        "now": "field_stat_bar_columns_draw",
+        "why": "完整156B raw-unrelocated SHA "
+               "8feeb8ffe6045be1a71a51091a2437372edc6d8f9553bc762ae508f666446595；"
+               "唯一caller18795，按signed length分支调用1685c复制FDOTHER[5]的1x5列。"
+               "length非0先head，i=1且signed i<length时middle，最后tail；"
+               "负length只写head和x+1 tail，不把负数当0。length0在x+1..101画29、"
+               "x+102画30，x本身不写；全部8帧23..30已只读核尺寸和raw像素。",
+    }],
+    0x18795: [{
+        "target": "semantic_name", "was": "sub_18795",
+        "now": "field_stat_bar_draw",
+        "why": "完整65B raw-unrelocated SHA "
+               "c665cfc068acf8b11f7e67d6a063754301dd508087e79bf8358744b7ea223f4f；"
+               "callers17fc0详情和18c6d战斗信息均先movsx读取HP/MP，再传本函数。"
+               "max为0不画；current0传length0，否则signed idiv得到"
+               "trunc(101*current/max)+1后调用17d6f。length是参数，不是实际像素宽："
+               "正length写length+1列，负length只写2列，0分支写x+1..102共102列。"
+               "Domain指令字节与已验证relocated镜像一致，不据伪C固化ABI。",
+    }],
+    0x17FC0: [{
+        "target": "evidence", "was": "详情HP/MP与属性WORD可按无符号直接显示",
+        "now": "HP/MP当前和上限、DX、AP/DP/HIT/EV共9个WORD均movsx；"
+               "LV/EX/MV为u8。HP/MP的signed值同时进入18795条形和1875d数字路径，"
+               "不能只修数字而把u16下溢MP画成满条。",
+        "why": "完整749B及17eef/2b4fb的xref，17feb..17ffe的movsx与"
+               "后续各属性调用、18c6d同类读法；18795使用signed idiv，187d6"
+               "负数显示0，2位大于99用frame93、3位大于999用起始bank+10。"
+               "本轮只登记原始读法与绘制边界，MP扣费u16写集不改为夹0。",
+    }],
     0x184C0: [{
         "target": "evidence", "was": "库存属性图在(108,105)、数字在(130,105)",
         "now": "visible序号按每列4项布局：名称(42+150col,103+22row)，"
@@ -921,8 +961,65 @@ CORRECTIONS: dict[int, list[dict]] = {
         "why": "`FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，"
                "39 个调用点，`main` 用它加载 FDOTHER/FDTXT。",
     }],
+
+    # B3：完整函数、调用链及新IDA Domain原始字节／xref复核。
+    0x1BB8C: [{'target': 'semantic_name',
+      'was': 'sub_1BB8C',
+      'now': 'field_unit_inventory_item_append',
+      'why': '完整80B与Give/loot/剧情等xref：按raw0..7找首flags80位为1的槽，整flag写0且写item '
+             'ID，成功返回1，满8槽返回-1；无压槽/重算/acted/MP/EX。新9.5 Domain全函数与原始机器码独立复核。'}],
+    0x1BFFE: [{'target': 'semantic_name',
+      'was': 'sub_1BFFE',
+      'now': 'field_unit_equipment_menu_execute',
+      'why': 'EQT反复执行mode0库存选择；兼容时切装备并重算/重画，Esc关闭和释放缓冲；确认后仍同页同raw索引。 依据已发布完整canonical '
+             'pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。'}],
+    0x1C142: [{'target': 'semantic_name',
+      'was': 'sub_1C142',
+      'now': 'field_unit_equipment_slot_set',
+      'why': '按item ID<128/≥128分组清全flag为0，再selected flag=40；不做职业兼容或重算。 依据已发布完整canonical '
+             'pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。'}],
+    0x1C1C3: [{'target': 'semantic_name',
+      'was': 'sub_1C1C3',
+      'now': 'field_unit_can_equip_item',
+      'why': 'actor+20→7-byte profile row；item.category仅比前6B，返回1/0，不使用第7B。 依据已发布完整canonical '
+             'pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。'}],
+    0x1C9DD: [{'target': 'semantic_name',
+      'was': 'sub_1C9DD',
+      'now': 'field_mp_heal_apply',
+      'why': '完整172B及20c6f/code11的xref：先整数9*power/10，再一次RNG%100*power/1000，加oldMP并夹mp_max，满值也耗RNG；原caster '
+             'MP不扣费，targetID<75时实际恢复差*40*targetLV/mp_max仅累全局53EC8，经item dispatcher清除，不改unit.EX。'}],
+    0x20C6F: [{'target': 'semantic_name',
+      'was': 'sub_20C6F',
+      'now': 'field_item_use_effect_execute',
+      'why': '完整1043B、玩家1bbdc与AI15055的xref和新9.5 '
+             'Domain/raw：按item+0dh分派5..24全20个码；5/6/7/8/9/10/11/17/18/19耗槽，12/13/14/15/16/20/21/22/23/24不耗；23复用2218a扣magic23费用，其余不得泛化扣MP。末53EC8全局归0后收败亡/清理/掉落，不清unit.EX；acted在玩家caller。新功能运行验收与B6完整演出/RNG另列。'}],
+    0x21082: [{'target': 'semantic_name',
+      'was': 'sub_21082',
+      'now': 'field_item_permanent_stat_apply',
+      'why': '完整152B仅20c6f的xref：向首raw '
+             'target的给定offset作WORD+=power(16位回绕)，浮字/清呈现后仅caster1b750重算，再1b8e7压一次源槽。code8/9/10/17/18分别offset37h/39h/3eh/42h/46h，code19 '
+             'offset3bh跨MV/EX后由caller恢复EX。无随机或HP随max增补。'}],
+    0x2218A: [{'target': 'semantic_name',
+      'was': 'sub_2218A',
+      'now': 'field_actor_teleport_execute',
+      'why': '完整201B与15311/1cff0/20c6f的xref：只用targets首raw，先focus该actor，1ca89(caster,23)扣一次费用，先22253(target,255,255,oldxy)，再聚焦global51CF9目的地并22253(target,destxy,destxy)，display归1；临时全局贡献由调用侧处理，不是物品独占helper。22253共享栈布局仍以raw读写为准，不从猜测pC参数造ABI。'}],
+    0x4E88E: [{'target': 'semantic_name',
+      'was': 'sub_4E88E',
+      'now': 'field_equipment_profile_get',
+      'why': '返回object3 0x6188a+7*profile，不在getter中做边界或兼容检查。 依据已发布完整canonical '
+             'pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。'}],
 }
 
+
+
+CORRECTIONS[0x1BBDC].append({'target': 'evidence',
+ 'was': 'Give可把side2候选直接当收方或交换保装备flag，变更后COMMAND取消仍回原格',
+ 'now': 'Give range1/minManhattan1/filter3排除整中心格，仅hidden/side门；确认后12c0d再取该格首可见raw(不重筛side)。空槽append '
+        'flags0；满槽两侧各remove后append flags0；仅giver重算。成功53C53=1，零步/移动最终COMMAND '
+        'Esc均markacted→lookup1，移动不回滚；取消子路sender仍重算。',
+ 'why': '完整1bbdc/1bb8c/1b8e7/18d8c/18890和新Domain指令/xref；1bbdc '
+        'code23额外身份门读取text_id+8==24与mp_max+46h>=20，而非currentMP；首次目标后第二次selector6选空且可走目的地，display仍1/frame0。Use '
+        'area确认14742为纯Manhattan，最终收集14818仍地形传播，两者不可合并。'})
 
 def write_checksums(directory: Path) -> None:
     import hashlib
@@ -1016,7 +1113,7 @@ def main() -> int:
 
     payload = {
         "schema": "fd2-ida-function-registry-v1",
-        "oracle": "IDA Pro 9.4 idalib（loaders/lx.so + metapc + Watcom FLIRT + Hex-Rays）",
+        "oracle": ida_provenance(),
         "address_key": "LE relbase linear VA；OFF = VA - 0x10000（object1 内偏移）",
         "object1_range": audit["object1_range"],
         "legacy_rules": {
@@ -1094,8 +1191,7 @@ def main() -> int:
 ## 地址主键
 
 唯一主键是 **LE relbase linear VA**；`OFF` 是 object1 内偏移，等于 `VA - 0x10000`。
-object1 有效范围为 `VA 0x10000..0x4ef29`。函数入口、边界与大小由 IDA Pro 9.4
-（`loaders/lx.so` + `metapc` + Watcom FLIRT）独立分析给出，复核过程见
+object1 有效范围为 `VA 0x10000..0x4ef29`。本次函数入口、边界与大小来源：{ida_provenance()}。历史复核过程见
 [`ida-crosscheck.md`](ida-crosscheck.md)。
 
 历史档案的地址列混用两套已废弃坐标系，换算规则如下（均已在本表中完成归约）：

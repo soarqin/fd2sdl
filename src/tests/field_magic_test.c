@@ -145,7 +145,50 @@ static int test_invalid_data_and_parameters_preserve_outputs(void) {
     return 0;
 }
 
+static uint32_t effect_rng(void *data) { (*(unsigned *)data)++; return 0; }
+
+static int test_boost_native_fpu_floor_vectors_and_wrap(void) {
+    static const uint16_t before[] = {0,10,16,20,40,60,100,65535};
+    static const uint16_t delta[] = {1,2,3,4,7,10,16,9831};
+    for (unsigned id = 17; id <= 18; id++) for (size_t n = 0; n < sizeof(before)/sizeof(before[0]); n++) {
+        fd2_field_units units = {0}; units.count = 1;
+        units.items[0].attack = units.items[0].defense = before[n];
+        unsigned calls = 0;
+        CHECK(fd2_field_magic_apply_known_effect((uint8_t)id, 0, &units, effect_rng, &calls) == 1 && calls == 1);
+        CHECK((id == 17 ? units.items[0].attack : units.items[0].defense) == (uint16_t)(before[n] + delta[n]));
+        CHECK((id == 17 ? units.items[0].defense : units.items[0].attack) == before[n]);
+        fd2_field_units snapshot = units;
+        CHECK(fd2_field_magic_apply_known_effect((uint8_t)id, 0, &units, effect_rng, &calls) == 0 && calls == 1);
+        CHECK(!memcmp(&snapshot, &units, sizeof(units)));
+    }
+    fd2_field_unit unit = {0}; unit.hp = 5; unit.mp = 3; unit.mp_max = 50;
+    unsigned calls = 0;
+    CHECK(fd2_field_mp_heal_apply(&unit, 80, effect_rng, &calls) == 1 && unit.mp == 50 && unit.hp == 5 && calls == 1);
+    CHECK(fd2_field_mp_heal_apply(&unit, 80, effect_rng, &calls) == 1 && unit.mp == 50 && calls == 2);
+    fd2_field_unit snapshot = unit;
+    CHECK(fd2_field_mp_heal_apply(&unit, 80, NULL, &calls) == -1 && !memcmp(&snapshot, &unit, sizeof(unit)) && calls == 2);
+    return 0;
+}
+
+static int test_cures_heal_before_clear_and_require_rng_only_when_active(void) {
+    for (unsigned id = 20; id <= 21; id++) {
+        fd2_field_units units = {0}; units.count = 1;
+        fd2_field_unit *unit = &units.items[0]; unit->hp = 20; unit->hp_max = 50;
+        unit->detail_status[id-20] = 7;
+        unsigned calls = 0; fd2_field_unit before = *unit;
+        CHECK(fd2_field_magic_apply_known_effect((uint8_t)id,0,&units,NULL,NULL) == -1);
+        CHECK(!memcmp(&before, unit, sizeof(before)));
+        CHECK(fd2_field_magic_apply_known_effect((uint8_t)id,0,&units,effect_rng,&calls) == 1);
+        CHECK(unit->hp == 29 && !unit->detail_status[id-20] && calls == 1);
+        before = *unit;
+        CHECK(fd2_field_magic_apply_known_effect((uint8_t)id,0,&units,NULL,NULL) == 0 && !memcmp(&before,unit,sizeof(before)) && calls == 1);
+    }
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_cures_heal_before_clear_and_require_rng_only_when_active() == 0);
+    CHECK(test_boost_native_fpu_floor_vectors_and_wrap() == 0);
     CHECK(test_navigation_boundaries() == 0);
     CHECK(test_sparse_ids_and_real_mp_cost() == 0);
     CHECK(test_cancel_other_and_insufficient_mp_are_read_only() == 0);

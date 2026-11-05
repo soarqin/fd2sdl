@@ -161,6 +161,15 @@ int fd2_field_hp_heal_apply(fd2_field_unit *target, uint16_t power,
     return 1;
 }
 
+/* field_mp_heal_apply @0x1c9dd（原sub_1C9DD）：HP/MP共享spread整数截断。 */
+int fd2_field_mp_heal_apply(fd2_field_unit *target, uint16_t power,
+                            fd2_field_magic_rng_fn rng, void *rng_userdata) {
+    if (!target || !rng) return -1;
+    uint64_t mp = (uint64_t)target->mp + spread_value(power, rng(rng_userdata) % 100u);
+    target->mp = (uint16_t)(mp > target->mp_max ? target->mp_max : mp);
+    return 1;
+}
+
 static int apply_damage_value(uint16_t value,
                               uint8_t accuracy,
                               fd2_field_unit *target,
@@ -331,13 +340,9 @@ int fd2_field_magic_basic_reward_gain(
 }
 
 static uint16_t add_status_scaled_stat(uint16_t value) {
-    /* DS:0x0210/0x0218 均为 double 0.15。x87 fistp 使用默认 nearest-even。 */
-    uint32_t numerator = (uint32_t)value * 15u + 100u;
-    uint32_t quotient = numerator / 100u;
-    uint32_t remainder = numerator % 100u;
-    if (remainder > 50u || (remainder == 50u && (quotient & 1u) != 0u))
-        quotient++;
-    return (uint16_t)(value + (uint16_t)quotient);
+    /* 227db/22920→__CHP @0x37af4：原CW127f的两块原码均已全u16域
+     * 验证等价此整数floor；勿借1b750的独立1.15 nearest-even重算。 */
+    return (uint16_t)(value + (uint16_t)(((uint32_t)value * 15u + 100u) / 100u));
 }
 
 int fd2_field_magic_apply_known_effect(
@@ -374,15 +379,17 @@ int fd2_field_magic_apply_known_effect(
         return 1;
     }
     if (magic_id == 20u) {
-        /* 0x22a85 wrapper 传 offset +0x25 给共享 0x22af6；仅在 byte
-         * 非零时清零，不消费 RNG，也不触发属性重算。 */
+        /* 22a85→22af6：状态非零先1c916(power10)，再清状态；
+         * HP满亦耗一次spread RNG；无状态时不恢复、不消费。 */
         if (target->detail_status[0] == 0u) return 0;
+        if (fd2_field_hp_heal_apply(target, 10u, rng, rng_userdata) < 0) return -1;
         target->detail_status[0] = 0;
         return 1;
     }
     if (magic_id == 21u) {
         /* 0x22bc6 wrapper 同一 core，offset 改为 +0x26。 */
         if (target->detail_status[1] == 0u) return 0;
+        if (fd2_field_hp_heal_apply(target, 10u, rng, rng_userdata) < 0) return -1;
         target->detail_status[1] = 0;
         return 1;
     }

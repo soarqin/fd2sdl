@@ -1,4 +1,4 @@
-/* FD2.EXE 反编译输出（IDA Pro 9.4 / Hex-Rays，idalib headless）
+/* FD2.EXE 反编译输出（IDA Pro 9.5 / Hex-Rays，idalib headless）
  *
  * 生成方式：
  *   python3 tools/ida/ida_fd2_export.py
@@ -23,11 +23,12 @@
  */
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_10010
+ * IDA 9.5 Hex-Rays: sub_10010
  * VA=0x10010..0x10620 OBJ=1 OFF=0x10 size=0x610
  * callers: 0x19df7, 0x25ebb
  * callees: 0x10652, 0x11019, 0x111ba, 0x11cac, 0x11eb0, 0x12263, 0x15e71, 0x15f0e, 0x15f84, 0x16559, 0x16c57, 0x17aa9, 0x187d6, 0x1956b, 0x196cb, 0x1f525, 0x1f882, 0x25977, 0x3702f, 0x3706e, 0x370f0, 0x37119, 0x37324, 0x373ca, 0x3759c, 0x3771c, 0x3776e, 0x377a3, 0x3790a, 0x4df09, 0x4df28, 0x4df4c, 0x4e381
  * --------------------------------------------------------------- */
+// [勘误 evidence] 活动Load后的焦点轮询起点可能沿旧session继续 -> 成功活动Load尾把53AE9置0，下一次Z从raw0开始扫描；不是SAV字段，失败加载不交接owner。SDL同时在交接前检查可见actor完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。；依据: 权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。
 void sub_10010()
 {
   int v0; // ebp
@@ -53,7 +54,7 @@ void sub_10010()
   {
     v3 = fopen(aFd2Sav_2, aRb_0);
     v2 = v3;
-    file_read(v0, 1, 22987, v3);
+    fread(v0, 1, 22987, v3);
     fclose(v2);
     save_xor_crypt(v0, 22987);
     LODWORD(v3) = save_checksum_sum(v0, 22987);
@@ -153,7 +154,7 @@ void sub_10010()
         v14 = j___delay(200);
         dword_53AE9 = 0;
         dword_51A83 = 1;
-        vsync_wait(v14);
+        bios_keyboard_buffer_clear(v14);
         JUMPOUT(0x22BBE);
       }
       word_53A8D = 3;
@@ -178,7 +179,7 @@ void sub_10010()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: input_check
+ * IDA 9.5 Hex-Rays: input_check
  * VA=0x10620..0x10652 OBJ=1 OFF=0x620 size=0x32
  * callers: 0x11aa8, 0x12dac, 0x15f84, 0x16c57, 0x17898, 0x18b84, 0x19953, 0x1b1e7, 0x1e5c0, 0x1f894, 0x2000a, 0x20421, 0x26152, 0x26eda, 0x2b67f, 0x31c49
  * callees: 0x3702f
@@ -194,7 +195,7 @@ bool input_check()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_10652
+ * IDA 9.5 Hex-Rays: sub_10652
  * VA=0x10652..0x1088d OBJ=1 OFF=0x652 size=0x23b
  * type: int __fastcall(_DWORD)
  * callers: 0x10010, 0x1088d, 0x24754
@@ -279,7 +280,7 @@ LABEL_25:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1088D
+ * IDA 9.5 Hex-Rays: sub_1088D
  * VA=0x1088d..0x10b4e OBJ=1 OFF=0x88d size=0x2c1
  * callers: 0x205da, 0x25757, 0x31c49
  * callees: 0x10652, 0x10b4e, 0x11019, 0x111ba, 0x1b750, 0x3702f, 0x3706e, 0x370f0, 0x37324, 0x3759c, 0x3771c, 0x3776e, 0x37910, 0x4df4c
@@ -358,7 +359,7 @@ int __cdecl sub_1088D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_group_append
+ * IDA 9.5 Hex-Rays: field_actor_group_append
  * VA=0x10b4e..0x10c50 OBJ=1 OFF=0xb4e size=0x102
  * callers: 0x1088d, 0x22f37, 0x23296, 0x235bc, 0x237d5, 0x23b5f, 0x23e74, 0x24df2, 0x2548c, 0x3231b, 0x32999, 0x32d18, 0x33367, 0x333f5, 0x335aa, 0x336a0, 0x338c4, 0x34531, 0x346cd, 0x34778, 0x34818, 0x348bb, 0x34984, 0x349ec, 0x34b6f, 0x34c7a, 0x34d2f, 0x34dd0, 0x34eb3, 0x34fcc, 0x35022, 0x350be, 0x350c8, 0x35298, 0x35321, 0x353b5, 0x35422, 0x35468, 0x3553f, 0x355b7, 0x356b3, 0x357dd, 0x35833, 0x35a0d, 0x35b78, 0x360b6, 0x362e8
  * callees: 0x10c50, 0x111ba, 0x3702f, 0x370f0, 0x37324, 0x3759c, 0x3776e, 0x377a3
@@ -396,7 +397,7 @@ int __cdecl field_actor_group_append(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_stage_template_append
+ * IDA 9.5 Hex-Rays: field_unit_stage_template_append
  * VA=0x10c50..0x11019 OBJ=1 OFF=0xc50 size=0x3c9
  * callers: 0x10b4e
  * callees: 0x11019, 0x145cd, 0x1b750, 0x3702f, 0x3771c, 0x37910, 0x37932, 0x4df4c, 0x4e821, 0x4e838, 0x4e84f
@@ -489,7 +490,7 @@ int __cdecl field_unit_stage_template_append(int a1, int a2)
   }
   else
   {
-    v7 = sub_4E84F((unsigned __int8)v5[132] - 68);
+    v7 = field_enemy_base_record_get((unsigned __int8)v5[132] - 68);
     v20 = *(_WORD *)(v7 + 2) * v21;
     v19 = *(unsigned __int8 *)(v7 + 4) * v21;
     *(_BYTE *)(v22 + 31) = *(_BYTE *)v7;
@@ -556,7 +557,7 @@ int __cdecl field_unit_stage_template_append(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fdicon_cache_append_unit
+ * IDA 9.5 Hex-Rays: fdicon_cache_append_unit
  * VA=0x11019..0x111ba OBJ=1 OFF=0x1019 size=0x1a1
  * callers: 0x10010, 0x1088d, 0x10c50, 0x26152, 0x2986f, 0x2aa00, 0x2af28, 0x2b843
  * callees: 0x3702f, 0x3706e, 0x373ca, 0x3776e, 0x37940
@@ -564,6 +565,7 @@ int __cdecl field_unit_stage_template_append(int a1, int a2)
 // [fdicon_cache_append_unit] 按 unit id 从 FDICON.B24 复制 12 帧到 FD2.TMP，并登记 cache class
 //   依据: 新游戏 stage 32/31/0 实机捕获的 FD2.TMP 压缩帧与 FDICON 对应 unit id 字节一致；调用点按 actor offset 7 逐项处理
 //   历史地址列 `0x4622d`；旧 Ghidra 名 `FUN_0000e761`；判定 exact
+// [勘误 evidence] snapshot角色图形只需当前idle帧可用 -> fdicon_cache_append_unit按unit ID构造完整12帧组；SDL普通renderer只跳hidden和越界帧，不使用F1的unit121/race10过滤。可见记录需完整12帧资源范围；hidden未知ID继续按原保留策略保存。；依据: 原始1106a乘12、110fa/11193循环12次与真实FDICON1680帧。合法边界139、坏ID140/255、hidden/race10/121区别有回归；不改decoder owner。
 int __cdecl fdicon_cache_append_unit(int a1, int a2)
 {
   int v2; // ebp
@@ -577,7 +579,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
   watcom_stack_check(92);
   fseek(a2, 6, 0);
   v2 = malloc(6720);
-  file_read(v2, 1, 6720, a2);
+  fread(v2, 1, 6720, a2);
   for ( i = 0; i < 13; ++i )
     v9[i] = *(_DWORD *)(v2 + 4 * (i + 12 * a1));
   v10 = v9[12] - v9[0];
@@ -591,7 +593,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
     }
     dword_53B17[j] = a1;
     fseek(a2, v9[0], 0);
-    file_read(dword_539EC + dword_53A61, 1, v10, a2);
+    fread(dword_539EC + dword_53A61, 1, v10, a2);
     for ( k = 0; k < 12; ++k )
       *(_DWORD *)(dword_53A61 + 4 * (k + 12 * dword_53BDF)) = v9[k] - v9[0] + dword_539EC;
     dword_539EC += v10;
@@ -602,7 +604,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
     dword_53B17[0] = a1;
     dword_53A61 = malloc((char *)&loc_329FE + 2);
     fseek(a2, v9[0], 0);
-    file_read(dword_53A61 + 1920, 1, v10, a2);
+    fread(dword_53A61 + 1920, 1, v10, a2);
     for ( m = 0; m < 12; ++m )
       *(_DWORD *)(dword_53A61 + 4 * m) = v9[m] - v9[0] + 1920;
     ++dword_53BDF;
@@ -613,7 +615,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: res_load
+ * IDA 9.5 Hex-Rays: res_load
  * VA=0x111ba..0x112a5 OBJ=1 OFF=0x11ba size=0xeb
  * callers: 0x10010, 0x10652, 0x1088d, 0x10b4e, 0x15f84, 0x17eef, 0x1956b, 0x1a7bd, 0x1d4cb, 0x1f73f, 0x1f81e, 0x1f894, 0x20421, 0x22253, 0x22e5c, 0x24336, 0x24754, 0x25977, 0x25bf4, 0x25ebb, 0x26152, 0x279bc, 0x28efe, 0x29300, 0x29620, 0x29daa, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2fb2c, 0x2ff01, 0x314de, 0x31529, 0x31c49, 0x32999, 0x3396a, 0x33faf, 0x35a0d
  * callees: 0x3702f, 0x3706e, 0x37119, 0x37324, 0x373ca, 0x3759c, 0x3776e, 0x37940
@@ -621,6 +623,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
 // [res_load] 资源加载器(slot, old, idx)
 //   依据: 反编译：fseek(idx*4+6)+fread
 //   历史地址列 `0x463ce`；旧 Ghidra 名 `FUN_0000e902`；判定 exact
+// [勘误 address] 0x463ce -> VA 0x111ba / OFF 0x11ba；依据: `FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，39 个调用点，`main` 用它加载 FDOTHER/FDTXT。
 int __cdecl res_load(int a1, int a2, int a3)
 {
   int v3; // esi
@@ -639,7 +642,7 @@ int __cdecl res_load(int a1, int a2, int a3)
   }
   v4 = (int *)malloc(8);
   fseek(v3, 4 * a3 + 6, 0);
-  file_read(v4, 1, 8, v3);
+  fread(v4, 1, 8, v3);
   v5 = *v4;
   dword_53BFF = v4[1] - *v4;
   free(v4);
@@ -651,18 +654,19 @@ LABEL_8:
     JUMPOUT(0x1005E);
   }
   fseek(v3, v5, 0);
-  file_read(v6, 1, dword_53BFF, v3);
+  fread(v6, 1, dword_53BFF, v3);
   fclose(v3);
   return v6;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_112A5
+ * IDA 9.5 Hex-Rays: sub_112A5
  * VA=0x112a5..0x1145a OBJ=1 OFF=0x12a5 size=0x1b5
  * callers: 0x22f37, 0x230f2, 0x23296, 0x232e8, 0x235f9, 0x23790, 0x237d5, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e74, 0x240fa, 0x24754, 0x24df2, 0x3231b, 0x34531, 0x35422, 0x355b7, 0x35a0d
  * callees: 0x1145a, 0x3702f, 0x3771c, 0x37910, 0x4e821, 0x4e838
  * --------------------------------------------------------------- */
+// [勘误 evidence] 持久玩家构造与活动 stage 模板构造尚未区分完整初始字段 -> 本函数在独立 roster 末尾调用 sub_1145A @0x1145a；从 object3 0x61da1 的 32 条 24-byte base 与 0x620a1 的 11-byte growth 读取初始等级、4-byte 法术位图、装备及库存。合计写 record 58 字节，保留 00..04、17、19、28..30、32..36、3d；3b 为 movement，确实写入。SDL 仅成功时提交记录。；依据: 已发布权威伪 C sub_112A5（661..729 行）与 sub_1145A（734..770 行），由 sub_4E838/sub_4E821 取表；LE page map 只读提取并逐行复核全部 32 条原表。派生函数只对 flags &0x40 的装备累计 AP/DP/HIT/EV；初始状态已清零，可复用现有装备派生。保留中性函数名，未新建 IDB 或修改权威伪 C。
 int __cdecl sub_112A5(int a1)
 {
   int v1; // esi
@@ -731,7 +735,7 @@ int __cdecl sub_112A5(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1145A
+ * IDA 9.5 Hex-Rays: sub_1145A
  * VA=0x1145a..0x11506 OBJ=1 OFF=0x145a size=0xac
  * callers: 0x112a5, 0x11506
  * callees: 0x3702f, 0x4e8bc
@@ -772,7 +776,7 @@ int __cdecl sub_1145A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11506
+ * IDA 9.5 Hex-Rays: sub_11506
  * VA=0x11506..0x115b6 OBJ=1 OFF=0x1506 size=0xb0
  * callers: 0x22ef6, 0x22f37, 0x230f2, 0x232e8, 0x235f9, 0x23790, 0x237d5, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x24754, 0x24c1e, 0x24df2, 0x24e80, 0x250cc, 0x2548c
  * callees: 0x1145a, 0x34894, 0x3702f, 0x3771c, 0x37910
@@ -809,7 +813,7 @@ void sub_11506()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cell_selection_execute
+ * IDA 9.5 Hex-Rays: field_cell_selection_execute
  * VA=0x115b6..0x117e7 OBJ=1 OFF=0x15b6 size=0x231
  * callers: 0x18890, 0x18d8c, 0x1bbdc, 0x1cff0
  * callees: 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x12d7b, 0x12dac, 0x12e38, 0x14742, 0x1f183, 0x25a96, 0x34894, 0x3702f, 0x4e8a5
@@ -821,6 +825,7 @@ void sub_11506()
 // [field_cell_selection_execute_core] `field_cell_selection_execute` 的 `__chkstk` 后主体
 //   依据: Ghidra 将 `0x367ca` 栈检查前缀与主体拆分；真实调用进入 wrapper。
 //   历史地址列 `0x367d4`（`0x115c0` 是 __chkstk body，入口为 `0x115b6`）；旧 Ghidra 名 `FUN_000367d4`；判定 chkstk-body
+// [勘误 evidence] target轮换可以沿用browse的持久focus索引或筛除unit121 -> 本次selector局部索引入口为0；非空候选先读list[0]，Z／keypad5先递增并回绕后读对应槽。unit121仍占轮询槽，只跳过focus helper，保留当前镜头／焦点；无候选时不轮换。普通法术0／13的确认检查cast mask及filter目标，方向移动本身不限制在mask内。；依据: 已发布115b6和strictLE完整561字节SHA d8e63ca0aaba31c73d2efd6ad8b74f626464f908862a3a68c24ef086ff015fd4；115cf清ESI、115ee..11624首槽、1176b..11788递增回绕／121门。2026-11-05 controls原版WGC另证普通13首目标与frame1；Z及121分支本轮仍仅静态／SDL回归，不冒称原版运行。
 void __usercall field_cell_selection_execute(__int64 a1@<edx:eax>, int a2, int a3, unsigned __int8 *a4)
 {
   int v4; // ebp
@@ -938,7 +943,7 @@ LABEL_39:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_controller_input
+ * IDA 9.5 Hex-Rays: field_controller_input
  * VA=0x117e7..0x11aa8 OBJ=1 OFF=0x17e7 size=0x2c1
  * callers: 0x25bf4
  * callees: 0x11aa8, 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x11cac, 0x12c0d, 0x12d7b, 0x13565, 0x16f55, 0x17aed, 0x18890, 0x1e292, 0x2000a, 0x205b4, 0x206c5, 0x20707, 0x2073d, 0x20765, 0x20822, 0x2084a, 0x20872, 0x208cf, 0x20926, 0x20957, 0x20a51, 0x20a87, 0x20aaf, 0x20b14, 0x20b3c, 0x20b72, 0x20bf5, 0x25a96, 0x33faf, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f, 0x4e381
@@ -946,6 +951,7 @@ LABEL_39:
 // [field_controller_input] 处理战场 browse 状态的一次按键
 //   依据: 当前权威 code0 `0x17e7`，dual `0x117e7`。Enter/Space 先调用 code0 `0x2c0d` 的可见 actor 查询；焦点无可见 actor 时唯一直接调用 `field_empty_focus_menu_execute @0x16f55`。Esc/Delete、Z 和 keypad 5 共用玩家单位焦点轮换分支；F1/Page Up 进入独立缩放战术图页面，不是系统菜单。
 //   历史地址列 `0x117e7`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 玩家acted／格事件／stage与自动phase可按通用动作尾提前分派 -> 玩家函数返回后render→经验→stage→13565必要整轮phase→读取当前共享pending并dispatch→清pending。phase内AI可清空／覆盖同一slot，没有跨phase保护玩家事件的私有队列。selection取消也进入该后置门。；依据: 已发布controller及raw 0x11951 render、0x1196d经验、0x1197b stage、0x11985 phase、0x1199c dispatch、0x119a6 clear；AI outer handler返回后不清slot，只在下个raw actor起点清，最终值可能回到本controller。B2/B3/B4未实现语义仍单独登记。
 int __usercall field_controller_input@<eax>(int a1@<ebx>, int a2@<esi>)
 {
   int v2; // eax
@@ -995,7 +1001,7 @@ int __usercall field_controller_input@<eax>(int a1@<ebx>, int a2@<esi>)
         v6 = 0;
     }
 LABEL_15:
-    vsync_wait(v3);
+    bios_keyboard_buffer_clear(v3);
     return 0;
   }
   if ( v3 != 57 && v3 != 28 )
@@ -1017,7 +1023,7 @@ LABEL_15:
             v18 = 80 * v16 + dword_53A45;
             if ( *(_BYTE *)(v18 + 7) != 121 && *(_BYTE *)(v18 + 31) != 10 )
             {
-              sub_17AED(v17, a2);
+              field_unit_detail_present(v17, a2);
               return 0;
             }
           }
@@ -1063,7 +1069,7 @@ LABEL_15:
       }
       else
       {
-        sub_17AED(v10, a2);
+        field_unit_detail_present(v10, a2);
       }
       sub_11CAC(0);
       if ( dword_53EC8 > 99 )
@@ -1091,7 +1097,7 @@ LABEL_15:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11AA8
+ * IDA 9.5 Hex-Rays: sub_11AA8
  * VA=0x11aa8..0x11b48 OBJ=1 OFF=0x1aa8 size=0xa0
  * type: int __fastcall(_DWORD)
  * callers: 0x117e7
@@ -1121,7 +1127,7 @@ int sub_11AA8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11B48
+ * IDA 9.5 Hex-Rays: sub_11B48
  * VA=0x11b48..0x11b9b OBJ=1 OFF=0x1b48 size=0x53
  * type: int __fastcall(_DWORD)
  * callers: 0x115b6, 0x117e7, 0x12cea
@@ -1152,7 +1158,7 @@ int sub_11B48()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11B9B
+ * IDA 9.5 Hex-Rays: sub_11B9B
  * VA=0x11b9b..0x11bfa OBJ=1 OFF=0x1b9b size=0x5f
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x115b6, 0x117e7, 0x12cea
@@ -1184,7 +1190,7 @@ int sub_11B9B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11BFA
+ * IDA 9.5 Hex-Rays: sub_11BFA
  * VA=0x11bfa..0x11c59 OBJ=1 OFF=0x1bfa size=0x5f
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x115b6, 0x117e7, 0x12cea
@@ -1216,7 +1222,7 @@ int sub_11BFA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11C59
+ * IDA 9.5 Hex-Rays: sub_11C59
  * VA=0x11c59..0x11cac OBJ=1 OFF=0x1c59 size=0x53
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x115b6, 0x117e7, 0x12cea
@@ -1247,7 +1253,7 @@ int sub_11C59()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_11CAC
+ * IDA 9.5 Hex-Rays: sub_11CAC
  * VA=0x11cac..0x11d40 OBJ=1 OFF=0x1cac size=0x94
  * callers: 0x10010, 0x117e7, 0x11aa8, 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x12cea, 0x12dac, 0x135dd, 0x1366a, 0x13a9f, 0x15055, 0x15311, 0x1548e, 0x16f55, 0x18d8c, 0x196cb, 0x19df7, 0x1a30b, 0x1bbdc, 0x1c4cc, 0x1cac7, 0x1cff0, 0x1db65, 0x2000a, 0x205da, 0x20c6f, 0x21082, 0x2111a, 0x214ad, 0x21548, 0x2189a, 0x21eb1, 0x22721, 0x22997, 0x22af6, 0x22c04, 0x22d1b, 0x233c6, 0x235f9, 0x23e74, 0x24b4d, 0x24c1e, 0x25757, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ff01, 0x3231b, 0x32d18, 0x336a0, 0x33c9d, 0x33faf, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x35730, 0x35b78
  * callees: 0x11eb0, 0x11eee, 0x122dc, 0x127a9, 0x1297d, 0x1acf3, 0x3702f, 0x4e31c
@@ -1272,7 +1278,7 @@ int __cdecl sub_11CAC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dac_apply_darkness
+ * IDA 9.5 Hex-Rays: dac_apply_darkness
  * VA=0x11d40..0x11df2 OBJ=1 OFF=0x1d40 size=0xb2
  * callers: 0x1366a, 0x1f1cc, 0x1f30a, 0x1f525, 0x1f81e, 0x1f882, 0x1f894, 0x234bb, 0x24c1e, 0x25ebb, 0x26152, 0x2670e, 0x279bc, 0x29300, 0x29daa, 0x2e9a8, 0x2fb2c, 0x31529, 0x31c49
  * callees: 0x3702f, 0x37ae5
@@ -1309,7 +1315,7 @@ void __cdecl dac_apply_darkness(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: pal_partial_set
+ * IDA 9.5 Hex-Rays: pal_partial_set
  * VA=0x11df2..0x11eb0 OBJ=1 OFF=0x1df2 size=0xbe
  * callers: 0x15055, 0x1ecc7, 0x1f894, 0x24336, 0x24618, 0x24754, 0x25052, 0x2548c, 0x25757, 0x28b41, 0x2fb2c, 0x31529, 0x336a0, 0x33af1, 0x33c9d, 0x35b78, 0x361b0
  * callees: 0x3702f, 0x37ae5
@@ -1346,7 +1352,7 @@ void __cdecl pal_partial_set(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: memcpy_vga
+ * IDA 9.5 Hex-Rays: memcpy_vga
  * VA=0x11eb0..0x11eee OBJ=1 OFF=0x1eb0 size=0x3e
  * callers: 0x10010, 0x11cac, 0x11eee, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1366a, 0x13fd4, 0x1741c, 0x176b4, 0x17898, 0x18b84, 0x197e5, 0x19953, 0x1a30b, 0x1b1e7, 0x1c2da, 0x1c4cc, 0x1cac7, 0x1cd17, 0x1db65, 0x1df58, 0x1f42d, 0x1f73f, 0x1f894, 0x21548, 0x2189a, 0x21eb1, 0x22470, 0x22547, 0x22656, 0x24618, 0x24b4d, 0x265ec, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2e9a8, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2fb2c, 0x2fe14, 0x2ff01, 0x30e9d, 0x31266, 0x31529, 0x31c49, 0x32999
  * callees: 0x3702f, 0x3771c
@@ -1371,7 +1377,7 @@ int __cdecl memcpy_vga(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_view_render_tiles
+ * IDA 9.5 Hex-Rays: field_view_render_tiles
  * VA=0x11eee..0x12263 OBJ=1 OFF=0x1eee size=0x375
  * callers: 0x11cac, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1366a, 0x1741c, 0x17898, 0x18b84, 0x197e5, 0x19953, 0x1b1e7, 0x1cb94, 0x1db65, 0x1e611, 0x1f30a, 0x2189a, 0x21eb1, 0x22253, 0x24618, 0x24b4d, 0x32999
  * callees: 0x11eb0, 0x24d22, 0x3702f, 0x4e016, 0x4e22a, 0x4eee0
@@ -1500,7 +1506,7 @@ LABEL_40:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_12263
+ * IDA 9.5 Hex-Rays: sub_12263
  * VA=0x12263..0x122dc OBJ=1 OFF=0x2263 size=0x79
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x10010, 0x13a9f, 0x190ac, 0x35730, 0x35854, 0x35a0d
@@ -1538,7 +1544,7 @@ char sub_12263()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_selection_overlay_draw
+ * IDA 9.5 Hex-Rays: field_selection_overlay_draw
  * VA=0x122dc..0x126f7 OBJ=1 OFF=0x22dc size=0x41b
  * type: int __fastcall(_DWORD)
  * callers: 0x11cac, 0x18b84
@@ -1622,7 +1628,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_selection_sprite_blit
+ * IDA 9.5 Hex-Rays: field_selection_sprite_blit
  * VA=0x126f7..0x127a9 OBJ=1 OFF=0x26f7 size=0xb2
  * callers: 0x122dc
  * callees: 0x3702f, 0x4e22a
@@ -1658,7 +1664,7 @@ int __cdecl field_selection_sprite_blit(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_127A9
+ * IDA 9.5 Hex-Rays: sub_127A9
  * VA=0x127a9..0x127e0 OBJ=1 OFF=0x27a9 size=0x37
  * type: int __fastcall(_DWORD)
  * callers: 0x11cac, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1741c, 0x17898, 0x18b84, 0x197e5, 0x19953, 0x1b1e7, 0x1db65, 0x1e611, 0x1f30a, 0x2189a, 0x22046, 0x22470, 0x32999
@@ -1681,11 +1687,12 @@ int sub_127A9()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_127E0
+ * IDA 9.5 Hex-Rays: sub_127E0
  * VA=0x127e0..0x1297d OBJ=1 OFF=0x27e0 size=0x19d
  * callers: 0x127a9, 0x1366a, 0x1741c, 0x176b4, 0x179d5, 0x1db65, 0x21548, 0x32999
  * callees: 0x3702f, 0x4e1a6, 0x4e22a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未区分战场单actor绘制与全表绘制、COMMAND末尾遮挡顺序 -> 只按传入index画一个actor，位置相对camera且上移6px，frame由direction/cache class/idle或walk组成。acted调用4e1a6映色。COMMAND四图标后仅再画focus actor，不重铺terrainoverlay；raw26另有横向抖动与frame门，本SDL切片仍未实现该视觉分支。；依据: 已发布sub_127E0无全表循环、stride456和dest常量30168，sub_127A9负责全表与遮挡；179d5末尾call127e0。真实原版COMMAND截图上图标底6行由FDICON actor0 frame1覆盖，完整20行资源合成476像素bad0、delta<=3；不是截图缺失。
 void __cdecl sub_127E0(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -1760,7 +1767,7 @@ void __cdecl sub_127E0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_animation_phase_update
+ * IDA 9.5 Hex-Rays: field_animation_phase_update
  * VA=0x1297d..0x129ec OBJ=1 OFF=0x297d size=0x6f
  * type: int __fastcall(_DWORD)
  * callers: 0x11cac, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1741c, 0x17898, 0x18b84, 0x197e5, 0x19953, 0x1b1e7, 0x2b4fb
@@ -1788,7 +1795,7 @@ int field_animation_phase_update()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_129EC
+ * IDA 9.5 Hex-Rays: sub_129EC
  * VA=0x129ec..0x12ac6 OBJ=1 OFF=0x29ec size=0xda
  * type: int __fastcall(_DWORD)
  * callers: 0x127a9, 0x1366a, 0x1db65, 0x32999
@@ -1851,7 +1858,7 @@ LABEL_4:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: map_tile_blit_visible
+ * IDA 9.5 Hex-Rays: map_tile_blit_visible
  * VA=0x12ac6..0x12c0d OBJ=1 OFF=0x2ac6 size=0x147
  * callers: 0x129ec
  * callees: 0x3702f, 0x4e0a2, 0x4e22a
@@ -1905,7 +1912,7 @@ int __cdecl map_tile_blit_visible(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_visible_actor_at_focus
+ * IDA 9.5 Hex-Rays: field_visible_actor_at_focus
  * VA=0x12c0d..0x12c60 OBJ=1 OFF=0x2c0d size=0x53
  * type: int(void)
  * callers: 0x117e7, 0x149f8, 0x1741c, 0x176b4, 0x179d5, 0x18d8c, 0x1acf3, 0x1bbdc
@@ -1932,7 +1939,7 @@ int field_visible_actor_at_focus()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_visible_actor_find_by_text_id
+ * IDA 9.5 Hex-Rays: field_visible_actor_find_by_text_id
  * VA=0x12c60..0x12cea OBJ=1 OFF=0x2c60 size=0x8a
  * callers: 0x13a9f, 0x15f84
  * callees: 0x34894, 0x3702f
@@ -1975,7 +1982,7 @@ int __cdecl field_visible_actor_find_by_text_id(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_focus_move_to
+ * IDA 9.5 Hex-Rays: field_focus_move_to
  * VA=0x12cea..0x12d7b OBJ=1 OFF=0x2cea size=0x91
  * callers: 0x12d7b, 0x15055, 0x15311, 0x165ac, 0x16f55, 0x18890, 0x18d8c, 0x1bbdc, 0x2218a, 0x2548c, 0x25757, 0x33f78
  * callees: 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x11cac, 0x17aa9, 0x3702f, 0x4e381
@@ -1983,6 +1990,7 @@ int __cdecl field_visible_actor_find_by_text_id(int a1)
 // [field_focus_move_to] 将战场焦点逐格移到目标 cell；向外移动前已达到左/右 `2/11`、上/下 `2/6` 阈值时同步卷动镜头
 //   依据: 反编译确认四方向循环和镜头边界判断；`dialog_box_open` 在角色弹框前自动调用，不依赖过场显式镜头指令
 //   历史地址列 `0x37efe`；旧 Ghidra 名 `FUN_00010432`；判定 exact
+// [勘误 evidence] 左／上达到相对格2就卷动；已列控制夹具足以证明聚焦镜头 -> field_focus_move_to先X后Y逐格调用四方向。移动前旧relative左／上严格<2、右>=11、下>=6时才同步卷动；相机受地图边界限制，target已等于focus时不动，不是固定居中或只夹到可见范围。；依据: 权威12cea与原始11b62/11c73的jge、11c19/11bba的jle；13×8格、每格24px和4px边。旧SDL<=2提前一格，Z直接赋值又跳过逐格路径；scene已有严格<2版本，不能用测试安全导航替代边缘验收。
 void __cdecl field_focus_move_to(int a1, int a2)
 {
   int v2; // eax
@@ -1998,7 +2006,7 @@ void __cdecl field_focus_move_to(int a1, int a2)
       v2 = sub_11C59();
     if ( dword_51A83 != 0 && dword_51A83 != 6 )
       v2 = bios_tick_delay(1);
-    vsync_wait(v2);
+    bios_keyboard_buffer_clear(v2);
   }
   while ( a2 != HIDWORD(qword_53AB1) )
   {
@@ -2008,14 +2016,14 @@ void __cdecl field_focus_move_to(int a1, int a2)
       v3 = sub_11B48();
     if ( dword_51A83 != 0 && dword_51A83 != 6 )
       v3 = bios_tick_delay(1);
-    vsync_wait(v3);
+    bios_keyboard_buffer_clear(v3);
   }
   JUMPOUT(0x12CE6);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_focus_move_to_actor
+ * IDA 9.5 Hex-Rays: field_focus_move_to_actor
  * VA=0x12d7b..0x12dac OBJ=1 OFF=0x2d7b size=0x31
  * callers: 0x115b6, 0x117e7, 0x13a9f, 0x13e9c, 0x13fd4, 0x14121, 0x15055, 0x15311, 0x1548e, 0x1a30b, 0x1a866, 0x1bbdc, 0x1cff0, 0x2218a, 0x3231b, 0x32d18, 0x3327d, 0x334d9, 0x3396a
  * callees: 0x12cea, 0x3702f
@@ -2023,6 +2031,7 @@ void __cdecl field_focus_move_to(int a1, int a2)
 // [field_focus_move_to_actor] 按 actor 索引读取记录中的 x/y，并调用 `field_focus_move_to`
 //   依据: 反编译确认 `DAT_00003a45 + actor_idx*0x50` 的 offset `0/1` 为目标坐标；战场事件等调用点复用
 //   历史地址列 `0x37f8f`；旧 Ghidra 名 `FUN_000104c3`；判定 exact
+// [勘误 evidence] 聚焦actor只需使其进入可见范围，Z可直接更新坐标后夹相机 -> field_focus_move_to_actor读取raw actor的xy后调用12cea；117e7按flags&85==0且side2选中后，先完成聚焦再推进轮询owner。END、攻击取消和March的已确认调用复用同一坐标路径。；依据: 权威117e7/12d7b及四方向原始分支。cam(5,11)、focus(8,15)到actor(2,5)最终cam(1,4)，到(20,22)最终cam(9,16)；地图边缘或same-target不承诺额外一格空白。运行对照另行登记。
 void __cdecl field_focus_move_to_actor(int a1)
 {
   watcom_stack_check(12);
@@ -2031,7 +2040,7 @@ void __cdecl field_focus_move_to_actor(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_12DAC
+ * IDA 9.5 Hex-Rays: sub_12DAC
  * VA=0x12dac..0x12e38 OBJ=1 OFF=0x2dac size=0x8c
  * type: int(void)
  * callers: 0x115b6
@@ -2060,7 +2069,7 @@ int __usercall sub_12DAC@<eax>(int a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: map_cell_info_at
+ * IDA 9.5 Hex-Rays: map_cell_info_at
  * VA=0x12e38..0x12eaa OBJ=1 OFF=0x2e38 size=0x72
  * callers: 0x115b6, 0x12263, 0x13a44, 0x14237, 0x15df3, 0x190ac, 0x1acf3, 0x1ecc7, 0x2000a, 0x21548, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2f7b6, 0x2ff01, 0x30e25, 0x35854
  * callees: 0x3702f
@@ -2092,7 +2101,7 @@ char __cdecl map_cell_info_at(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_move_down_follow_camera
+ * IDA 9.5 Hex-Rays: field_actor_move_down_follow_camera
  * VA=0x12eaa..0x1300d OBJ=1 OFF=0x2eaa size=0x163
  * callers: 0x13488
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x13460, 0x32230, 0x3702f, 0x4e31c
@@ -2158,7 +2167,7 @@ void __cdecl field_actor_move_down_follow_camera(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_move_left_follow_camera
+ * IDA 9.5 Hex-Rays: field_actor_move_left_follow_camera
  * VA=0x1300d..0x13185 OBJ=1 OFF=0x300d size=0x178
  * callers: 0x13488
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x13460, 0x13a44, 0x32230, 0x3702f, 0x4e31c
@@ -2223,7 +2232,7 @@ int __cdecl field_actor_move_left_follow_camera(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_move_up_follow_camera
+ * IDA 9.5 Hex-Rays: field_actor_move_up_follow_camera
  * VA=0x13185..0x13315 OBJ=1 OFF=0x3185 size=0x190
  * callers: 0x13488, 0x3231b
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x13460, 0x32230, 0x3702f, 0x4e31c
@@ -2293,7 +2302,7 @@ void __cdecl field_actor_move_up_follow_camera(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_move_right_follow_camera
+ * IDA 9.5 Hex-Rays: field_actor_move_right_follow_camera
  * VA=0x13315..0x13460 OBJ=1 OFF=0x3315 size=0x14b
  * callers: 0x13488
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x13460, 0x32230, 0x3702f, 0x4e31c
@@ -2356,7 +2365,7 @@ void __cdecl field_actor_move_right_follow_camera(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_13460
+ * IDA 9.5 Hex-Rays: sub_13460
  * VA=0x13460..0x13488 OBJ=1 OFF=0x3460 size=0x28
  * type: int __fastcall(_DWORD)
  * callers: 0x12eaa, 0x1300d, 0x13185, 0x13315
@@ -2373,7 +2382,7 @@ int sub_13460()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_path_play
+ * IDA 9.5 Hex-Rays: field_actor_path_play
  * VA=0x13488..0x134e4 OBJ=1 OFF=0x3488 size=0x5c
  * callers: 0x14b78, 0x18890
  * callees: 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x3702f
@@ -2381,6 +2390,7 @@ int sub_13460()
 // [field_actor_path_play] 按方向码序列逐格执行单位移动
 //   依据: 反编译遍历路径字节并按 `0/1/2/3` 分派下、左、上、右四个单格移动 helper；AI 路径调用点直接传入 `field_path_find` 输出
 //   历史地址列 `0x3869c`；旧 Ghidra 名 `FUN_00010bd0`；判定 exact
+// [勘误 evidence] 可把 AI 路径视为 event-free，玩家路径每步立即分派格事件 -> 共享方向播放器完整走路径，每步更新match0 pending；循环不检查pending、不分派handler，不在第一次命中停步。最后一次匹配保留至调用者后置分派，后续未匹配不清空。；依据: 已发布 field_actor_path_play 与四方向调用；raw down 0x13008→0x13167，up 0x13310→0x12ff0 后同尾，right 0x1345b→0x1314f 后同尾。@0x14b78 selector1选择side/ZOC/path策略，不切换到另一个无lookup播放器。
 void __cdecl field_actor_path_play(int a1, int a2, int a3)
 {
   int i; // ebx
@@ -2415,7 +2425,7 @@ void __cdecl field_actor_path_play(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_all_actor_directions_reset
+ * IDA 9.5 Hex-Rays: field_all_actor_directions_reset
  * VA=0x134e4..0x13512 OBJ=1 OFF=0x34e4 size=0x2e
  * callers: 0x13a9f, 0x15055, 0x1548e, 0x16f55, 0x18890, 0x18d8c, 0x3231b, 0x32d18, 0x3327d, 0x333f5, 0x336a0, 0x33c9d, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34984, 0x34fcc, 0x35022, 0x350c8, 0x357dd
  * callees: 0x3702f, 0x3790a
@@ -2423,6 +2433,7 @@ void __cdecl field_actor_path_play(int a1, int a2, int a3)
 // [field_all_actor_directions_reset] 将完整 actor 表的方向字段归零并延迟 20 ms
 //   依据: corrected dual `0x134e4` 遍历 `DAT_00003a45` 的全部 `DAT_00003beb` 条记录，写 `record[0x03]=0`，随后调用 `delay_ms(0x14)`；`field_ai_unit_execute` common tail 在 cell lookup、mark acted 之后调用。
 //   历史地址列 `0x386f8`；旧 Ghidra 名 `FUN_000386f8`；判定 exact
+// [勘误 evidence] 全体方向复位尚未登记自然开场的独立收尾写集 -> field_all_actor_directions_reset只逐actor的record+3写0，随后delay20；不写frame_phase或walk_frames。原版3231b在最后对白后、聚焦主角之前调用。；依据: 权威134e4及原始函数写集；不是13512的acted标记函数。新scene收尾复用已有focus helper，不按捕获相机值直接居中。
 int field_all_actor_directions_reset()
 {
   int v0; // eax
@@ -2440,7 +2451,7 @@ int field_all_actor_directions_reset()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_mark_acted
+ * IDA 9.5 Hex-Rays: field_actor_mark_acted
  * VA=0x13512..0x13536 OBJ=1 OFF=0x3512 size=0x24
  * callers: 0x13a9f, 0x16f55, 0x18890, 0x18d8c, 0x1a30b, 0x1bbdc, 0x360b6, 0x3623c
  * callees: 0x3702f
@@ -2457,7 +2468,7 @@ int __cdecl field_actor_mark_acted(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_all_actors_clear_acted
+ * IDA 9.5 Hex-Rays: field_all_actors_clear_acted
  * VA=0x13536..0x13565 OBJ=1 OFF=0x3536 size=0x2f
  * callers: 0x1a30b, 0x233c6, 0x235f9, 0x23e74
  * callees: 0x3702f
@@ -2467,26 +2478,25 @@ int __cdecl field_actor_mark_acted(int a1)
 //   历史地址列 `0x3874a`；旧 Ghidra 名 `FUN_00010c7e`；判定 exact
 int field_all_actors_clear_acted()
 {
-  int result; // eax
-  int i; // edx
+  __int64 i; // rax
 
-  result = watcom_stack_check(8);
-  for ( i = 0; i < dword_53BEB; ++i )
+  for ( i = (unsigned int)watcom_stack_check(8); SHIDWORD(i) < dword_53BEB; ++HIDWORD(i) )
   {
-    result = dword_53A45;
-    *(_BYTE *)(80 * i + dword_53A45 + 5) &= ~0x80u;
+    LODWORD(i) = dword_53A45;
+    *(_BYTE *)(80 * HIDWORD(i) + dword_53A45 + 5) &= ~0x80u;
   }
-  return result;
+  return i;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_13565
+ * IDA 9.5 Hex-Rays: sub_13565
  * VA=0x13565..0x135dd OBJ=1 OFF=0x3565 size=0x78
  * type: int __fastcall(_DWORD)
  * callers: 0x117e7
  * callees: 0x1a30b, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 自动换phase可以用带HP过滤的remaining_units判断 -> 仍存在(flags&0x81)==0、side==2、record+0x26==0的actor就不换phase，否则调用turn-cycle；没有HP或bit0x04过滤。；依据: 已发布sub_13565与原始函数四条件，controller在pending分派前调用；原地取消也需经过同一后置检查，不借AI可行动门替代。
 int sub_13565()
 {
   int result; // eax
@@ -2518,7 +2528,7 @@ int sub_13565()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_camera_pan_to
+ * IDA 9.5 Hex-Rays: field_camera_pan_to
  * VA=0x135dd..0x1366a OBJ=1 OFF=0x35dd size=0x8d
  * callers: 0x22f37, 0x23296, 0x235bc, 0x23b5f, 0x24336, 0x244b6, 0x24754, 0x24df2, 0x250cc, 0x2548c, 0x25757, 0x3231b, 0x32d18, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3347c, 0x334d9, 0x335da, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34778, 0x34818, 0x34984, 0x34b6f, 0x34c7a, 0x34d2f, 0x34eb3, 0x34fcc, 0x35022, 0x350c8, 0x35321, 0x35468, 0x3553f, 0x355b7, 0x356b3, 0x357dd, 0x35b78, 0x362e8
  * callees: 0x11cac, 0x3702f, 0x4e381
@@ -2546,7 +2556,7 @@ void __cdecl field_camera_pan_to(int a1, int a2)
       --dword_53AA9;
     }
     v2 = sub_11CAC(0);
-    vsync_wait(v2);
+    bios_keyboard_buffer_clear(v2);
   }
   while ( a2 != dword_53AAD )
   {
@@ -2561,14 +2571,14 @@ void __cdecl field_camera_pan_to(int a1, int a2)
       --dword_53AAD;
     }
     v3 = sub_11CAC(0);
-    vsync_wait(v3);
+    bios_keyboard_buffer_clear(v3);
   }
   JUMPOUT(0x13181);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_movement_script_play
+ * IDA 9.5 Hex-Rays: field_movement_script_play
  * VA=0x1366a..0x1399c OBJ=1 OFF=0x366a size=0x332
  * callers: 0x22f37, 0x23296, 0x234bb, 0x235bc, 0x235f9, 0x237d5, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e74, 0x240fa, 0x244b6, 0x24754, 0x24df2, 0x24e80, 0x250cc, 0x25757, 0x3231b, 0x32d18, 0x33219, 0x3327d, 0x33367, 0x333f5, 0x334d9, 0x335da, 0x336a0, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34778, 0x34984, 0x34a1e, 0x34b6f, 0x34c7a, 0x34fcc, 0x35022, 0x350c8, 0x357dd
  * callees: 0x11cac, 0x11d40, 0x11eb0, 0x11eee, 0x127e0, 0x129ec, 0x17aa9, 0x32230, 0x3702f, 0x4e381, 0x4eb48
@@ -2645,7 +2655,7 @@ int __cdecl field_movement_script_play(int a1)
             dac_apply_darkness(0, 255, dword_53AFB);
           }
           v11 = bios_tick_delay(1);
-          vsync_wait(v11);
+          bios_keyboard_buffer_clear(v11);
         }
         for ( k = 0; k < (unsigned int)v18; ++k )
         {
@@ -2685,7 +2695,7 @@ int __cdecl field_movement_script_play(int a1)
         {
           sub_11CAC(0);
           v8 = bios_tick_delay(1);
-          vsync_wait(v8);
+          bios_keyboard_buffer_clear(v8);
         }
       }
       else
@@ -2712,7 +2722,7 @@ int __cdecl field_movement_script_play(int a1)
         memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
         bios_tick_delay(2);
         v7 = sub_11CAC(0);
-        vsync_wait(v7);
+        bios_keyboard_buffer_clear(v7);
       }
     }
     ++v23;
@@ -2722,7 +2732,7 @@ int __cdecl field_movement_script_play(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: shape_sheet_decode_cache
+ * IDA 9.5 Hex-Rays: shape_sheet_decode_cache
  * VA=0x1399c..0x13a44 OBJ=1 OFF=0x399c size=0xa8
  * callers: 0x2000a, 0x21548
  * callees: 0x3702f, 0x3706e, 0x37910, 0x4e22a
@@ -2756,7 +2766,7 @@ void shape_sheet_decode_cache()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cell_event_lookup
+ * IDA 9.5 Hex-Rays: field_cell_event_lookup
  * VA=0x13a44..0x13a9f OBJ=1 OFF=0x3a44 size=0x5b
  * callers: 0x1300d, 0x13a9f, 0x18890
  * callees: 0x12e38, 0x3702f
@@ -2764,6 +2774,7 @@ void shape_sheet_decode_cache()
 // [field_cell_event_lookup] 按地图格事件 ID 与 match 参数查询 FDFIELD metadata 的 cell_lookup 表，并设置 `DAT_00001a8f`
 //   依据: 权威 code0 读取 32 位 cell 的 byte 2 低 5 位作为 1-based ID，检查地形 attr.flags `0x60` 后访问 metadata offset `0x33 + (id-1)*2`。玩家路径每步传 match `0`；玩家行动结束与 `field_ai_unit_execute` common tail 传 `1`。AI 只在最终格执行一次 lookup，不沿移动路径触发 match `0`。
 //   历史地址列 `0x38c58`；旧 Ghidra 名 `FUN_0001118c`；判定 exact
+// [勘误 evidence] AI 不查沿途格事件，仅在 common tail 查询最终格；lookup 可视为立即 handler -> 只在命中时写单个 pending code（DS:0x1a8f），未命中保留旧值；不调用 handler、不追加事件完成记录。四方向单格尾都以 match0 调用，AI common tail 另以 match1 查询最终格，命中才覆盖沿途pending。；依据: 已发布伪 C 的 lookup 与共享播放器，raw唯一pending写点 0x13a95；0x13167..0x1317a push0/focus_y/focus_x/call13a44，四方向和镜头分支均汇入该尾，未匹配路径直接ret。修正历史假设，不变更原资源或数据库；原版具体格事件运行另验。
 char __cdecl field_cell_event_lookup(int a1, int a2, int a3)
 {
   int v3; // eax
@@ -2791,7 +2802,7 @@ char __cdecl field_cell_event_lookup(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_unit_execute
+ * IDA 9.5 Hex-Rays: field_ai_unit_execute
  * VA=0x13a9f..0x13e9c OBJ=1 OFF=0x3a9f size=0x3fd
  * callers: 0x1d80b, 0x1d8ba
  * callees: 0x11cac, 0x12263, 0x12c60, 0x12d7b, 0x134e4, 0x13512, 0x13a44, 0x13e9c, 0x13fd4, 0x14121, 0x14237, 0x14b78, 0x14ef0, 0x15311, 0x1548e, 0x1598a, 0x15df3, 0x1bb8c, 0x25b45, 0x32975, 0x3702f
@@ -2803,6 +2814,7 @@ char __cdecl field_cell_event_lookup(int a1, int a2, int a3)
 // [field_ai_unit_execute_core] `field_ai_unit_execute` 的 `__chkstk` 后主体
 //   依据: mode 0 为 try-attack → hostile witness → nearest；1 为 try-attack → witness；3/9 以 `+0x35` 查 text ID；4/7/10 以 `+0x35/+0x36` 为坐标；11 为 magic → physical → witness → recovery。behavior 7 到达 `+0x35/+0x36` 后调用正确 dual `0x32975`。mode 2 在 try-attack 失败后只重算 physical candidate，再执行恢复/common tail；mode 5 按 actor `+0x3d` 查找 cell action。common tail 的固定顺序为 `field_cell_event_lookup(x,y,1)` → `field_actor_mark_acted(actor)` → `field_all_actor_directions_reset()` → presentation flush。
 //   历史地址列 `0x38cbd`（`0x13aa9` 是 __chkstk body，入口为 `0x13a9f`）；旧 Ghidra 名 `Ghidra 未识别边界`；判定 chkstk-body
+// [勘误 evidence] AI cell lookup只会产生最终格事件，物理／法术／物品事务可自行提前分派 -> normal common tail顺序为最终格match1 lookup→acted→全表方向reset；side outer随后按当前pending调用handler。最终未命中仍可保留沿途match0。behavior8显式early return继续跳过common tail。；依据: 已发布AI函数与side1/side0 outer，raw 0x13e6c..0x13e88 确认尾顺序；side1 0x1d85d..0x1d876同样传selector1，与行军共享移动播放器。未知handler只在真实分派边界冻结，不把已提交动作或外部RNG回滚成未发生。
 void __usercall field_ai_unit_execute(int a1@<ebp>, int a2@<edi>, int a3@<esi>, int a4, int a5)
 {
   _BYTE *v5; // ebx
@@ -2873,102 +2885,94 @@ LABEL_3:
     case 4:
       dword_51A83 = 0;
       break;
-    default:
-      switch ( v6 )
+    case 5:
+      if ( field_ai_try_attack(a4, a5) != 0 )
+        goto LABEL_55;
+      dword_51A83 = 0;
+      field_focus_move_to_actor(a4);
+      if ( *(_BYTE *)(dword_53AD5 + v7) == 0 && field_ai_behavior5_cell_find(v7, &v20) == 0 )
       {
-        case 5:
-          if ( field_ai_try_attack(a4, a5) != 0 )
-            goto LABEL_55;
-          dword_51A83 = 0;
-          field_focus_move_to_actor(a4);
-          if ( *(_BYTE *)(dword_53AD5 + v7) == 0 && field_ai_behavior5_cell_find(v7, &v20) == 0 )
-          {
-            if ( field_ai_move_toward_cell((unsigned __int8)v20, BYTE1(v20), a4, a5) == 0 )
-              sub_13FD4(a4);
-            v11 = (unsigned __int8 *)(80 * a4 + dword_53A45);
-            if ( *v11 == (unsigned __int8)v20 && v11[1] == BYTE1(v20) )
-            {
-              v12 = dword_53A55 + 3 * v7;
-              v13 = *(unsigned __int8 *)(v12 + 83);
-              v18 = *(_WORD *)(v12 + 84);
-              if ( v13 < 2 )
-              {
-                v11[49] = v13;
-                *((_WORD *)v11 + 25) = v18;
-                if ( v13 == 0 )
-                  sub_1BB8C(a4, v18);
-              }
-              *(_BYTE *)(dword_53AD5 + v7) = 1;
-              pal_mask_set(dword_53EEC, 12, 1);
-              sub_12263();
-              v11[52] = 7;
-            }
-            goto LABEL_55;
-          }
-LABEL_4:
-          if ( sub_14121(a4, a5, v17, v19, v20, v21, v22, v23) == 0 )
-          {
-            v8 = field_ai_move_toward_nearest(a4, a5);
-            goto LABEL_21;
-          }
-LABEL_55:
-          field_cell_event_lookup(
-            *(unsigned __int8 *)(80 * a4 + dword_53A45),
-            *(unsigned __int8 *)(80 * a4 + dword_53A45 + 1),
-            1);
-          field_actor_mark_acted(a4);
-          field_all_actor_directions_reset();
-          sub_11CAC(0);
-          goto LABEL_56;
-        case 7:
-          dword_51A83 = 0;
-          field_focus_move_to_actor(a4);
-          if ( field_ai_move_toward_cell(v19, v17, a4, a5) == 0 )
-            sub_13FD4(a4);
-          v14 = (unsigned __int8 *)(80 * a4 + dword_53A45);
-          if ( *v14 == v19 && v14[1] == v17 )
-            field_actor_hide(a4);
-          goto LABEL_55;
-        case 8:
-          goto LABEL_56;
-        case 9:
-          v15 = field_visible_actor_find_by_text_id(v19);
-          if ( v15 == -1 )
-            goto LABEL_3;
-          v16 = (unsigned __int8 *)(80 * v15 + dword_53A45);
-          field_focus_move_to_actor(a4);
-          v8 = field_ai_move_toward_cell(*v16, v16[1], a4, a5);
-LABEL_21:
-          if ( v8 == 0 )
-            sub_13FD4(a4);
-          goto LABEL_55;
-        default:
-          break;
-      }
-      if ( v6 != 10 )
-      {
-        if ( v6 == 11 )
+        if ( field_ai_move_toward_cell((unsigned __int8)v20, BYTE1(v20), a4, a5) == 0 )
+          sub_13FD4(a4);
+        v11 = (unsigned __int8 *)(80 * a4 + dword_53A45);
+        if ( *v11 == (unsigned __int8)v20 && v11[1] == BYTE1(v20) )
         {
-          field_ai_magic_candidate_evaluate(a4, a5);
-          if ( dword_53C23 >= 6 )
-            field_ai_magic_action_execute(a4, a5);
-          field_ai_physical_candidate_evaluate(a4, a5);
-          if ( dword_53C4F < 6 )
+          v12 = dword_53A55 + 3 * v7;
+          v13 = *(unsigned __int8 *)(v12 + 83);
+          v18 = *(_WORD *)(v12 + 84);
+          if ( v13 < 2 )
           {
-            if ( sub_14121(a4, a5, v17, v19, v20, v21, v22, v23) == 0 )
-              sub_13FD4(a4);
+            v11[49] = v13;
+            *((_WORD *)v11 + 25) = v18;
+            if ( v13 == 0 )
+              field_unit_inventory_item_append(a4, v18);
           }
-          else
-          {
-            field_physical_exchange(a4, a5);
-          }
+          *(_BYTE *)(dword_53AD5 + v7) = 1;
+          pal_mask_set(dword_53EEC, 12, 1);
+          sub_12263();
+          v11[52] = 7;
         }
         goto LABEL_55;
       }
+LABEL_4:
+      if ( sub_14121(a4, a5, v17, v19, v20, v21, v22, v23) == 0 )
+      {
+        v8 = field_ai_move_toward_nearest(a4, a5);
+        goto LABEL_21;
+      }
+LABEL_55:
+      field_cell_event_lookup(
+        *(unsigned __int8 *)(80 * a4 + dword_53A45),
+        *(unsigned __int8 *)(80 * a4 + dword_53A45 + 1),
+        1);
+      field_actor_mark_acted(a4);
+      field_all_actor_directions_reset();
+      sub_11CAC(0);
+      goto LABEL_56;
+    case 7:
+      dword_51A83 = 0;
+      field_focus_move_to_actor(a4);
+      if ( field_ai_move_toward_cell(v19, v17, a4, a5) == 0 )
+        sub_13FD4(a4);
+      v14 = (unsigned __int8 *)(80 * a4 + dword_53A45);
+      if ( *v14 == v19 && v14[1] == v17 )
+        field_actor_hide(a4);
+      goto LABEL_55;
+    case 8:
+      goto LABEL_56;
+    case 9:
+      v15 = field_visible_actor_find_by_text_id(v19);
+      if ( v15 == -1 )
+        goto LABEL_3;
+      v16 = (unsigned __int8 *)(80 * v15 + dword_53A45);
+      field_focus_move_to_actor(a4);
+      v8 = field_ai_move_toward_cell(*v16, v16[1], a4, a5);
+LABEL_21:
+      if ( v8 == 0 )
+        sub_13FD4(a4);
+      goto LABEL_55;
+    case 10:
       if ( field_ai_try_attack(a4, a5) != 0 )
         goto LABEL_55;
       dword_51A83 = 0;
       break;
+    case 11:
+      field_ai_magic_candidate_evaluate(a4, a5);
+      if ( dword_53C23 >= 6 )
+        field_ai_magic_action_execute(a4, a5);
+      field_ai_physical_candidate_evaluate(a4, a5);
+      if ( dword_53C4F < 6 )
+      {
+        if ( sub_14121(a4, a5, v17, v19, v20, v21, v22, v23) == 0 )
+          sub_13FD4(a4);
+      }
+      else
+      {
+        field_physical_exchange(a4, a5);
+      }
+      goto LABEL_55;
+    default:
+      goto LABEL_55;
   }
   field_focus_move_to_actor(a4);
   v8 = field_ai_move_toward_cell(v19, v17, a4, a5);
@@ -2977,7 +2981,7 @@ LABEL_21:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_move_toward_nearest
+ * IDA 9.5 Hex-Rays: field_ai_move_toward_nearest
  * VA=0x13e9c..0x13fd4 OBJ=1 OFF=0x3e9c size=0x138
  * callers: 0x13a9f
  * callees: 0x12d7b, 0x14b78, 0x3702f, 0x37932
@@ -3044,7 +3048,7 @@ int __cdecl field_ai_move_toward_nearest(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_13FD4
+ * IDA 9.5 Hex-Rays: sub_13FD4
  * VA=0x13fd4..0x14121 OBJ=1 OFF=0x3fd4 size=0x14d
  * callers: 0x13a9f, 0x18d8c
  * callees: 0x11eb0, 0x12d7b, 0x17aa9, 0x1da16, 0x25a96, 0x3702f
@@ -3082,7 +3086,7 @@ int __cdecl sub_13FD4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_14121
+ * IDA 9.5 Hex-Rays: sub_14121
  * VA=0x14121..0x14237 OBJ=1 OFF=0x4121 size=0x116
  * callers: 0x13a9f
  * callees: 0x12d7b, 0x145cd, 0x14b78, 0x1f183, 0x3702f, 0x4df4c, 0x4e4f6, 0x4e8a5
@@ -3129,7 +3133,7 @@ void __cdecl sub_14121(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_physical_candidate_evaluate
+ * IDA 9.5 Hex-Rays: field_ai_physical_candidate_evaluate
  * VA=0x14237..0x145cd OBJ=1 OFF=0x4237 size=0x396
  * callers: 0x13a9f, 0x14ef0
  * callees: 0x12e38, 0x145cd, 0x146d1, 0x14818, 0x14b16, 0x1b722, 0x1b83d, 0x1debe, 0x1f183, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e390, 0x4e8a5, 0x4e8bc
@@ -3272,7 +3276,7 @@ int __cdecl field_ai_physical_candidate_evaluate(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_opponent_zoc_build
+ * IDA 9.5 Hex-Rays: field_opponent_zoc_build
  * VA=0x145cd..0x14625 OBJ=1 OFF=0x45cd size=0x58
  * callers: 0x10c50, 0x14121, 0x14237, 0x14b78, 0x18890
  * callees: 0x14625, 0x3702f
@@ -3298,7 +3302,7 @@ void __cdecl field_opponent_zoc_build(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_opponent_zoc_mark_unit
+ * IDA 9.5 Hex-Rays: field_opponent_zoc_mark_unit
  * VA=0x14625..0x146a7 OBJ=1 OFF=0x4625 size=0x82
  * callers: 0x145cd
  * callees: 0x146a7, 0x3702f
@@ -3326,7 +3330,7 @@ _BYTE *__cdecl field_opponent_zoc_mark_unit(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cell_zoc_mark
+ * IDA 9.5 Hex-Rays: field_cell_zoc_mark
  * VA=0x146a7..0x146d1 OBJ=1 OFF=0x46a7 size=0x2a
  * callers: 0x14625
  * callees: 0x3702f
@@ -3346,7 +3350,7 @@ _BYTE *__cdecl field_cell_zoc_mark(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_friendly_destination_block
+ * IDA 9.5 Hex-Rays: field_friendly_destination_block
  * VA=0x146d1..0x14742 OBJ=1 OFF=0x46d1 size=0x71
  * callers: 0x14237, 0x14b78, 0x18890
  * callees: 0x3702f
@@ -3385,7 +3389,7 @@ LABEL_2:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_14742
+ * IDA 9.5 Hex-Rays: sub_14742
  * VA=0x14742..0x14818 OBJ=1 OFF=0x4742 size=0xd6
  * callers: 0x115b6
  * callees: 0x3702f, 0x37932
@@ -3421,7 +3425,7 @@ void __cdecl sub_14742(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_target_range_build
+ * IDA 9.5 Hex-Rays: field_target_range_build
  * VA=0x14818..0x149f8 OBJ=1 OFF=0x4818 size=0x1e0
  * callers: 0x14237, 0x15055, 0x15311, 0x1567e, 0x1598a, 0x18d8c, 0x1bbdc, 0x1cff0
  * callees: 0x3702f, 0x37932, 0x4e390, 0x4e8a5
@@ -3501,7 +3505,7 @@ void __cdecl field_target_range_build(int a1, int a2, int a3, int a4, int a5, in
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_149F8
+ * IDA 9.5 Hex-Rays: sub_149F8
  * VA=0x149f8..0x14b16 OBJ=1 OFF=0x49f8 size=0x11e
  * callers: 0x15055, 0x1567e, 0x1cff0
  * callees: 0x12c0d, 0x3702f
@@ -3565,7 +3569,7 @@ void __cdecl sub_149F8(int a1, int a2, int a3, __int64 a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_14B16
+ * IDA 9.5 Hex-Rays: sub_14B16
  * VA=0x14b16..0x14b78 OBJ=1 OFF=0x4b16 size=0x62
  * callers: 0x14237, 0x14b78, 0x1567e, 0x1598a
  * callees: 0x3702f
@@ -3599,7 +3603,7 @@ int __cdecl sub_14B16(_BYTE *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_move_toward_cell
+ * IDA 9.5 Hex-Rays: field_ai_move_toward_cell
  * VA=0x14b78..0x14ef0 OBJ=1 OFF=0x4b78 size=0x378
  * type: int __cdecl(int, int, int, int)
  * callers: 0x13a9f, 0x13e9c, 0x14121, 0x1548e, 0x16f55
@@ -3612,6 +3616,7 @@ int __cdecl sub_14B16(_BYTE *a1)
 // [field_ai_move_toward_cell_core] `field_ai_move_toward_cell` 的 `__chkstk` 后主体
 //   依据: SDL 已接入 direct probe、固定预算 `0x1c` 的 mode-1 long route、最后可达 anchor、普通路径重建及六相位播放。
 //   历史地址列 `0x39d96`（`0x14b82` 是 __chkstk body，入口为 `0x14b78`）；旧 Ghidra 名 `Ghidra 未识别边界`；判定 chkstk-body
+// [勘误 evidence] 先排序合法终点再探路；long route遇不可达即停，tie为abs(dx-abs(dy)) -> 先normal probe原请求anchor，失败后以预算28/mode1仍探该anchor；完整扫描long route，以未做友方终点阻断的distance记录最后可达格，未命中继续。随后才range/friendly block/sort/final path。tie为abs(abs(dx)-abs(dy))，相等保留扫描先项。局部profile先immune→19，再text_id28→1，预算0合法且无HP门，不修改原actor profile。；依据: 权威伪C及原始局部指令14c3a/14c7d/14cd7/14d17/14d47。14e0c push使ESP=S-4，14e15 [esp+8]覆盖S+4为abs(dx)，14e19才弹参；14e27读回该值，旧非对称解释漏算ESP变化。新SDL合成回归与真实START四玩家几何对照，不等于整函数机器执行或March运行验收。
 int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
@@ -3742,7 +3747,7 @@ int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_try_attack
+ * IDA 9.5 Hex-Rays: field_ai_try_attack
  * VA=0x14ef0..0x15055 OBJ=1 OFF=0x4ef0 size=0x165
  * callers: 0x13a9f
  * callees: 0x14237, 0x15055, 0x15311, 0x1548e, 0x1567e, 0x1598a, 0x3702f, 0x4e866
@@ -3807,7 +3812,7 @@ LABEL_23:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_item_action_execute
+ * IDA 9.5 Hex-Rays: field_ai_item_action_execute
  * VA=0x15055..0x15311 OBJ=1 OFF=0x5055 size=0x2bc
  * callers: 0x14ef0
  * callees: 0x11cac, 0x11df2, 0x12cea, 0x12d7b, 0x134e4, 0x14818, 0x149f8, 0x17aa9, 0x1b722, 0x1f04a, 0x20c6f, 0x2189a, 0x2dfc8, 0x3702f, 0x3790a, 0x4df4c, 0x4e8bc
@@ -3911,7 +3916,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
   {
     field_focus_move_to(dword_53C37, dword_53C3B);
   }
-  sub_20C6F(a1, dword_53C3F, v7, v14);
+  field_item_use_effect_execute(a1, dword_53C3F, v7, v14);
   field_all_actor_directions_reset();
   dword_53EC8 = 0;
   return 0;
@@ -3919,7 +3924,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_magic_action_execute
+ * IDA 9.5 Hex-Rays: field_ai_magic_action_execute
  * VA=0x15311..0x1548e OBJ=1 OFF=0x5311 size=0x17d
  * callers: 0x13a9f, 0x14ef0
  * callees: 0x11cac, 0x12cea, 0x12d7b, 0x14818, 0x1aa1d, 0x1b653, 0x1d4cb, 0x1d4f6, 0x1db65, 0x21206, 0x2134b, 0x21364, 0x2137d, 0x21396, 0x21449, 0x21462, 0x2147b, 0x21494, 0x214ad, 0x21527, 0x2185f, 0x21a9e, 0x21ad9, 0x21b99, 0x2211c, 0x22153, 0x2218a, 0x226ea, 0x2282f, 0x22960, 0x22a85, 0x22bc6, 0x22be1, 0x22c04, 0x22cbf, 0x22e41, 0x2ff01, 0x3702f, 0x3790a, 0x4df4c, 0x4e866
@@ -3927,6 +3932,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
 // [field_ai_magic_action_execute] 执行已选 AI 法术／技能动作的范围、handler 与死亡清理
 //   依据: 正确 dual `0x15311` 先要求 `DS:0x3c23>=6`；目标列表由 record `+0x04` 范围和 `+0x06` 阵营 filter 构造。IDs `<10` 且全局 `DS:0x3af9==0` 时调用原 `0x55115`／corrected dual `0x2ff01` 战斗动画，否则直接调用 `DS:0x1d01[magic_id]` effect handler；静态复核未发现 actor `+0x44` 扣除，record `+0x05` 仅作为 MP 可用性门。IDs 17/18/19 的 cores `0x22721/0x22866/0x22997` 只在 `+0x22/+0x23/+0x24` 为零时消费一次 duration RNG；随后分别对 attack/defense 加 `round-nearest-even(old*0.15+1)`，或对 accuracy/evasion 做 16 位 `+15`。IDs 20/21 经 wrappers `0x22a85/0x22bc6` 把 `+0x25/+0x26` 传给共享 `0x22af6`，仅清除非零 byte且不消费 RNG。ID 25 的 `0x22c04` 仅在 acted bit 已置位时执行 `flags &= 0x7f`，保留其他 flag bits且不消费 RNG。IDs 22/26/27 共用 `0x22cda` 的状态为零、profile 25/26 免疫、50% gate、固定基础伤害 10、duration RNG 顺序；behavior 11 最后才执行一次 common tail。
 //   历史地址列 `0x3a525`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门 -> 本体不直接写MP，但map-effect表的damage/heal/status wrapper在逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。；依据: 权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。51d01的0..27 relocation表、21227/21b18/226ea等wrapper与30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。
 int __cdecl field_ai_magic_action_execute(int a1, int a2)
 {
   int v2; // eax
@@ -3983,7 +3989,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_physical_exchange
+ * IDA 9.5 Hex-Rays: field_physical_exchange
  * VA=0x1548e..0x1567e OBJ=1 OFF=0x548e size=0x1f0
  * callers: 0x13a9f, 0x14ef0
  * callees: 0x11cac, 0x12d7b, 0x134e4, 0x14b78, 0x1aa1d, 0x1b6b7, 0x1db65, 0x1e292, 0x1e611, 0x1e7f6, 0x1e856, 0x1eb05, 0x1f04a, 0x1f0dc, 0x2e2b0, 0x3702f
@@ -4045,7 +4051,7 @@ int __cdecl field_physical_exchange(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_item_candidate_evaluate
+ * IDA 9.5 Hex-Rays: field_ai_item_candidate_evaluate
  * VA=0x1567e..0x15880 OBJ=1 OFF=0x567e size=0x202
  * callers: 0x14ef0, 0x1d8ba
  * callees: 0x14818, 0x149f8, 0x14b16, 0x15880, 0x1b8a6, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e8a5, 0x4e8bc
@@ -4142,7 +4148,7 @@ int __cdecl field_ai_item_candidate_evaluate(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_item_targets_score
+ * IDA 9.5 Hex-Rays: field_ai_item_targets_score
  * VA=0x15880..0x1598a OBJ=1 OFF=0x5880 size=0x10a
  * callers: 0x1567e
  * callees: 0x3702f, 0x4e866, 0x4e8bc
@@ -4210,7 +4216,7 @@ void __cdecl field_ai_item_targets_score(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_magic_candidate_evaluate
+ * IDA 9.5 Hex-Rays: field_ai_magic_candidate_evaluate
  * VA=0x1598a..0x15b77 OBJ=1 OFF=0x598a size=0x1ed
  * callers: 0x13a9f, 0x14ef0, 0x1d8ba
  * callees: 0x14818, 0x14b16, 0x15b77, 0x1c269, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e390, 0x4e866, 0x4e8a5
@@ -4297,7 +4303,7 @@ int __cdecl field_ai_magic_candidate_evaluate(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_magic_targets_score
+ * IDA 9.5 Hex-Rays: field_ai_magic_targets_score
  * VA=0x15b77..0x15da2 OBJ=1 OFF=0x5b77 size=0x22b
  * callers: 0x1598a
  * callees: 0x15da2, 0x1c269, 0x1f183, 0x3702f, 0x37af4, 0x4e866
@@ -4411,7 +4417,7 @@ int __cdecl field_ai_magic_targets_score(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_magic_zero_byte_targets_score
+ * IDA 9.5 Hex-Rays: field_ai_magic_zero_byte_targets_score
  * VA=0x15da2..0x15df3 OBJ=1 OFF=0x5da2 size=0x51
  * callers: 0x15b77
  * callees: 0x3702f
@@ -4436,7 +4442,7 @@ int __cdecl field_ai_magic_zero_byte_targets_score(int a1, int a2, int a3, int a
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_ai_behavior5_cell_find
+ * IDA 9.5 Hex-Rays: field_ai_behavior5_cell_find
  * VA=0x15df3..0x15e71 OBJ=1 OFF=0x5df3 size=0x7e
  * callers: 0x13a9f
  * callees: 0x12e38, 0x3702f
@@ -4472,7 +4478,7 @@ LABEL_10:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_15E71
+ * IDA 9.5 Hex-Rays: sub_15E71
  * VA=0x15e71..0x15e9e OBJ=1 OFF=0x5e71 size=0x2d
  * callers: 0x10010, 0x165ac, 0x16b43, 0x1a30b, 0x1e98c, 0x1eb05, 0x1f42d
  * callees: 0x3702f, 0x3776e, 0x4ec7c
@@ -4486,7 +4492,7 @@ int __cdecl sub_15E71(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_15E9E
+ * IDA 9.5 Hex-Rays: sub_15E9E
  * VA=0x15e9e..0x15f0e OBJ=1 OFF=0x5e9e size=0x70
  * callers: 0x165ac, 0x16b43
  * callees: 0x3702f, 0x3706e, 0x4ecbf, 0x4ed34
@@ -4510,7 +4516,7 @@ void __cdecl sub_15E9E(__int16 *a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_15F0E
+ * IDA 9.5 Hex-Rays: sub_15F0E
  * VA=0x15f0e..0x15f84 OBJ=1 OFF=0x5f0e size=0x76
  * callers: 0x10010, 0x1a30b, 0x1e611, 0x1e98c, 0x1eb05, 0x1f1cc, 0x1f30a, 0x1f42d
  * callees: 0x3702f, 0x3706e, 0x4ebab, 0x4ecbf
@@ -4536,7 +4542,7 @@ void __cdecl sub_15F0E(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: text_dialog_render_tokens
+ * IDA 9.5 Hex-Rays: text_dialog_render_tokens
  * VA=0x15f84..0x164e8 OBJ=1 OFF=0x5f84 size=0x564
  * callers: 0x10010, 0x15f84, 0x16f55, 0x17fc0, 0x184c0, 0x18c6d, 0x190ac, 0x19df7, 0x1a866, 0x1aa1d, 0x1b41d, 0x1ceed, 0x1e292, 0x1e529, 0x20765, 0x20872, 0x20957, 0x20b72, 0x20bf5, 0x22ef6, 0x22f37, 0x230f2, 0x232e8, 0x234bb, 0x235f9, 0x23790, 0x237d5, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x244b6, 0x24754, 0x24c1e, 0x24df2, 0x24e80, 0x250cc, 0x2548c, 0x25757, 0x26152, 0x265ec, 0x2670e, 0x272d0, 0x279bc, 0x2810b, 0x2825b, 0x2872b, 0x28cbd, 0x28f65, 0x29300, 0x2968d, 0x2986f, 0x29ab2, 0x29daa, 0x2a0c2, 0x2a43e, 0x2a694, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf, 0x31c49, 0x3231b, 0x32d18, 0x33219, 0x3327d, 0x33367, 0x334d9, 0x335da, 0x336a0, 0x338c4, 0x3396a, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x34531, 0x3460b, 0x34738, 0x34778, 0x34818, 0x348ea, 0x34a1e, 0x34a6c, 0x34b2f, 0x34b6f, 0x34c7a, 0x34d92, 0x34dd0, 0x34f74, 0x35022, 0x350be, 0x35123, 0x35191, 0x351e6, 0x35258, 0x352ca, 0x35346, 0x35422, 0x35468, 0x3553f, 0x35677, 0x35730, 0x357dd, 0x35854, 0x35a0d, 0x35c40, 0x35d1e, 0x35d9e, 0x35e5b, 0x35ec1, 0x35fcf, 0x360b6, 0x362e8, 0x363de
  * callees: 0x10620, 0x111ba, 0x12c60, 0x15f84, 0x164e8, 0x16559, 0x165ac, 0x16b43, 0x16c57, 0x16e24, 0x3702f, 0x37b29, 0x37b55, 0x4ebff, 0x4ec31, 0x4ed7a
@@ -4595,41 +4601,43 @@ void __usercall text_dialog_render_tokens(
           while ( 1 )
           {
             v17 = *v11;
-            if ( v17 == -1 )
+            switch ( v17 )
             {
-              if ( v26 != 0 )
-              {
-                sub_16559(0);
-                sub_16C57(0);
-                dialog_box_close(v26, v25);
-                dword_53C67 = 0;
-              }
-              JUMPOUT(0x15309);
+              case -3:
+                if ( (dword_53C67 == 1832 || dword_53C67 == 36887) && v27 == 3 )
+                {
+                  dialog_text_scroll_up();
+                  --v27;
+                }
+                v10 = ++v27 * a9 * a5 + a4;
+                ++v11;
+                if ( dword_53C67 == 1832 || dword_53C67 == 36887 )
+                  sub_16559(0);
+                sub_16C57(1);
+                a10 = 1;
+                break;
+              case -2:
+                if ( (dword_53C67 == 1832 || dword_53C67 == 36887) && v27 == 3 )
+                {
+                  dialog_text_scroll_up();
+                  --v27;
+                }
+                v10 = ++v27 * a9 * a5 + a4;
+                goto LABEL_50;
+              case -1:
+                if ( v26 != 0 )
+                {
+                  sub_16559(0);
+                  sub_16C57(0);
+                  dialog_box_close(v26, v25);
+                  dword_53C67 = 0;
+                }
+                JUMPOUT(0x15309);
+              default:
+                goto LABEL_11;
             }
-            if ( v17 == -2 )
-            {
-              if ( (dword_53C67 == 1832 || dword_53C67 == 36887) && v27 == 3 )
-              {
-                dialog_text_scroll_up();
-                --v27;
-              }
-              v10 = ++v27 * a9 * a5 + a4;
-              goto LABEL_50;
-            }
-            if ( v17 != -3 )
-              break;
-            if ( (dword_53C67 == 1832 || dword_53C67 == 36887) && v27 == 3 )
-            {
-              dialog_text_scroll_up();
-              --v27;
-            }
-            v10 = ++v27 * a9 * a5 + a4;
-            ++v11;
-            if ( dword_53C67 == 1832 || dword_53C67 == 36887 )
-              sub_16559(0);
-            sub_16C57(1);
-            a10 = 1;
           }
+LABEL_11:
           v23 = v11 + 1;
           if ( v17 == -4 )
           {
@@ -4761,7 +4769,7 @@ LABEL_42:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: text_dialog_glyph_step
+ * IDA 9.5 Hex-Rays: text_dialog_glyph_step
  * VA=0x164e8..0x16559 OBJ=1 OFF=0x64e8 size=0x71
  * type: int(void)
  * callers: 0x15f84
@@ -4791,7 +4799,7 @@ int text_dialog_glyph_step()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_16559
+ * IDA 9.5 Hex-Rays: sub_16559
  * VA=0x16559..0x165ac OBJ=1 OFF=0x6559 size=0x53
  * callers: 0x10010, 0x15f84, 0x164e8, 0x16c57, 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x1e292, 0x26152, 0x2670e, 0x26eda, 0x279bc, 0x2872b, 0x28b41, 0x28cbd, 0x28f65, 0x29300, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x3702f, 0x4ebff, 0x4ec31
@@ -4810,7 +4818,7 @@ int __cdecl sub_16559(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dialog_box_open
+ * IDA 9.5 Hex-Rays: dialog_box_open
  * VA=0x165ac..0x1685c OBJ=1 OFF=0x65ac size=0x2b0
  * callers: 0x15f84
  * callees: 0x12cea, 0x15e71, 0x15e9e, 0x168b6, 0x3702f, 0x3706e, 0x3790a, 0x4e381, 0x4ecbf
@@ -4851,7 +4859,7 @@ int *__cdecl dialog_box_open(int a1, int a2, int a3)
           v12 - i * (v12 - a3) / v3);
         dword_53A18[0] = v5;
         v6 = j___delay(10);
-        vsync_wait(v6);
+        bios_keyboard_buffer_clear(v6);
         sub_15E71(dword_53A18[0], 655360, 320);
       }
     }
@@ -4881,13 +4889,13 @@ int *__cdecl dialog_box_open(int a1, int a2, int a3)
   j___delay(10);
   sub_4ECBF(dword_53A28, 310, 86, 655360, v8, 320);
   v9 = dialog_box_draw_tiles(655360, 320, 5, a3, 19, 5);
-  vsync_wait(v9);
+  bios_keyboard_buffer_clear(v9);
   return dword_53A18;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1685C
+ * IDA 9.5 Hex-Rays: sub_1685C
  * VA=0x1685c..0x16886 OBJ=1 OFF=0x685c size=0x2a
  * callers: 0x168b6, 0x16c57, 0x17d6f, 0x17fc0, 0x184c0, 0x1ceed, 0x1e739, 0x272d0, 0x2a0c2
  * callees: 0x3702f, 0x4ed0b
@@ -4900,7 +4908,7 @@ int __cdecl sub_1685C(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: blit_image
+ * IDA 9.5 Hex-Rays: blit_image
  * VA=0x16886..0x168b6 OBJ=1 OFF=0x6886 size=0x30
  * callers: 0x184c0, 0x187d6, 0x1b41d, 0x1f894, 0x1ff79, 0x272d0, 0x279bc, 0x28b41, 0x29300, 0x29daa, 0x2af28
  * callees: 0x3702f, 0x4e98d
@@ -4919,7 +4927,7 @@ int __cdecl blit_image(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dialog_box_draw_tiles
+ * IDA 9.5 Hex-Rays: dialog_box_draw_tiles
  * VA=0x168b6..0x16b43 OBJ=1 OFF=0x68b6 size=0x28d
  * callers: 0x165ac, 0x17eef, 0x1956b, 0x31c49
  * callees: 0x1685c, 0x3702f
@@ -4989,7 +4997,7 @@ void __cdecl dialog_box_draw_tiles(int a1, int a2, int a3, int a4, int a5, int a
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dialog_box_close
+ * IDA 9.5 Hex-Rays: dialog_box_close
  * VA=0x16b43..0x16c57 OBJ=1 OFF=0x6b43 size=0x114
  * callers: 0x15f84
  * callees: 0x15e71, 0x15e9e, 0x3702f, 0x3790a
@@ -5043,7 +5051,7 @@ void __cdecl dialog_box_close(int *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_16C57
+ * IDA 9.5 Hex-Rays: sub_16C57
  * VA=0x16c57..0x16e24 OBJ=1 OFF=0x6c57 size=0x1cd
  * callers: 0x10010, 0x15f84, 0x17aed, 0x190ac, 0x1aa1d, 0x1b9de, 0x1d51d, 0x2872b, 0x28cbd, 0x28f65, 0x2968d, 0x2986f, 0x29bcb, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x10620, 0x16559, 0x1685c, 0x3702f, 0x370f0, 0x4e31c, 0x4ebe3
@@ -5118,7 +5126,7 @@ void __cdecl sub_16C57(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dialog_text_scroll_up
+ * IDA 9.5 Hex-Rays: dialog_text_scroll_up
  * VA=0x16e24..0x16f0b OBJ=1 OFF=0x6e24 size=0xe7
  * type: int(void)
  * callers: 0x15f84, 0x1e529
@@ -5157,7 +5165,7 @@ int dialog_text_scroll_up()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_empty_focus_menu_execute
+ * IDA 9.5 Hex-Rays: field_empty_focus_menu_execute
  * VA=0x16f55..0x1728c OBJ=1 OFF=0x6f55 size=0x337
  * type: int(void)
  * callers: 0x117e7
@@ -5166,6 +5174,8 @@ int dialog_text_scroll_up()
 // [field_empty_focus_menu_execute] 焦点无可见 actor 时展开四项 field-level 菜单
 //   依据: 当前权威 code0 `0x6f55`，唯一直接调用点为 code0 `0x18c1`。command IDs 来自 object 2 `DS:0x1e9f={7,5,6,4}`；selector 0 调用 `field_secondary_menu_execute @0x19df7`，selector 1 使用 FDTXT `0x1a1/0x1a2` 确认行军，selector 2 调用 `field_options_menu_execute @0x1728c`，selector 3 使用 FDTXT `0x1a3/0x1a4` 确认结束回合。command ID 不等于用户可见标签；标签仍待 DOSBox 截图。
 //   历史地址列 `0x16f55`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] selector 3 已确认结束回合，但确认框按钮资源与布局尚未登记 -> selector 3 使用通用 sub_19953 @0x19953：默认选择索引 0，Left 选 0、Right 选 1，Up/Down 无分支。object2 VA 0x51eed/0x51ef1 的 dword 为 16/17，对应 FDOTHER[2] 的 YES 与 NO!；普通帧 48/51、高亮帧 49/52 均为 24×16。四步展开后，320×200 屏幕按钮左上角分别为 (232,168)/(264,168)。仅选中项叠加 dword_53C13/2，计数每 2 BIOS tick 在 0..3 循环；非选中项始终使用普通帧。sub_197E5 @0x197e5 使用同值表 0x51ee5/0x51ee9 收回按钮。；依据: 复用已发布权威伪 C 的 @0x16f55 调用链与 sub_19953 （6916..7028 行）及 published fd2-functions.tsv 边界；只读按现有 LE parser 提取原版 object2 表并核对 FDOTHER[2] raw 像素。屏幕坐标由 buffer 偏移 0x1a599+3±16、view 源 32904/stride 456 与目标屏幕 (4,4) 换算。保留中性 helper 名，未新建 IDB、改写伪 C 或发布新的 IDA 逆向基线。
+// [勘误 evidence] selector1批量行军尚未确认，可能只是结束回合或自动战斗 -> 417确认、418提示后保留绝对focus为固定anchor，按raw顺序仅处理flags&0x85为0且side2的actor，无HP门。每人focus→清pending→14b78(anchor,index,1)→dispatch当前match0→全表direction0→acted，无最终match1，无路也走尾。整批后才turncycle，无自动Save。；依据: 权威伪C及17104/1712d/17137/1713d/17154写序；17092 push0xc8→17097 call3790a→FLIRT __delay3e01d确认名义200ms，不声明宿主/DOS精确时长。51A83/51AAC在March及整轮phase关闭，SDL用私有呈现参数和play局部续行恢复，不增session/pending队列。
 int field_empty_focus_menu_execute()
 {
   int v0; // ebx
@@ -5244,37 +5254,36 @@ int field_empty_focus_menu_execute()
     case 2:
       field_options_menu_execute(v1);
       return 0;
-    default:
-      break;
-  }
-  if ( dword_53C57 != 3 )
-    return 0;
-  sub_1956B(75);
-  text_dialog_render_tokens(v20, dword_53A7D, 419, 696099, 320, 205, 76, 74, 19, 1);
-  v13 = sub_16559(0);
-  v14 = sub_19953(v13);
-  v15 = v14;
-  sub_197E5(v14, HIDWORD(v14), v14);
-  if ( v15 == 1 && dword_53C57 == 0 )
-  {
-    text_dialog_render_tokens(v20, dword_53A7D, 420, 702179, 320, 205, 76, 74, 19, 1);
-    v16 = j___delay(200);
-    v17 = sub_196CB(v16, v6);
-    byte_51AAC = 0;
-    field_turn_cycle_run(v17);
-    byte_51AAC = 1;
-    return 1;
-  }
+    case 3:
+      sub_1956B(75);
+      text_dialog_render_tokens(v20, dword_53A7D, 419, 696099, 320, 205, 76, 74, 19, 1);
+      v13 = sub_16559(0);
+      v14 = sub_19953(v13);
+      v15 = v14;
+      sub_197E5(v14, HIDWORD(v14), v14);
+      if ( v15 == 1 && dword_53C57 == 0 )
+      {
+        text_dialog_render_tokens(v20, dword_53A7D, 420, 702179, 320, 205, 76, 74, 19, 1);
+        v16 = j___delay(200);
+        v17 = sub_196CB(v16, v6);
+        byte_51AAC = 0;
+        field_turn_cycle_run(v17);
+        byte_51AAC = 1;
+        return 1;
+      }
 LABEL_20:
-  text_dialog_render_tokens(v20, dword_53A7D, 412, 702179, 320, 205, 76, 74, 19, 1);
-  v12 = j___delay(200);
-  sub_196CB(v12, v6);
-  return 1;
+      text_dialog_render_tokens(v20, dword_53A7D, 412, 702179, 320, 205, 76, 74, 19, 1);
+      v12 = j___delay(200);
+      sub_196CB(v12, v6);
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_options_menu_execute
+ * IDA 9.5 Hex-Rays: field_options_menu_execute
  * VA=0x1728c..0x173e7 OBJ=1 OFF=0x728c size=0x15b
  * type: int __fastcall(_DWORD)
  * callers: 0x16f55
@@ -5287,23 +5296,23 @@ void field_options_menu_execute()
 {
   int v0; // ebx
   __int128 v1; // [esp-10h] [ebp-2Ch] BYREF
-  _QWORD v2[2]; // [esp+0h] [ebp-1Ch] BYREF
+  __int128 v2; // [esp+0h] [ebp-1Ch] BYREF
 
   watcom_stack_check(60);
-  *(_OWORD *)v2 = unk_51EAF;
+  v2 = unk_51EAF;
   v1 = unk_53F02;
   dword_53C57 = 0;
   while ( 1 )
   {
-    LODWORD(v2[0]) = (byte_51E61 == 0) + 18;
-    HIDWORD(v2[0]) = (byte_51E62 == 0) + 20;
-    LODWORD(v2[1]) = (byte_53AF9 != 0) + 22;
-    HIDWORD(v2[1]) = (byte_51AAB == 0) + 24;
-    ((void (__cdecl *)(_QWORD *, __int128 *))field_command_menu_open)(v2, &v1);
+    LODWORD(v2) = (byte_51E61 == 0) + 18;
+    DWORD1(v2) = (byte_51E62 == 0) + 20;
+    DWORD2(v2) = (byte_53AF9 != 0) + 22;
+    HIDWORD(v2) = (byte_51AAB == 0) + 24;
+    ((void (__cdecl *)(__int128 *, __int128 *))field_command_menu_open)(&v2, &v1);
     do
-      v0 = field_command_menu_input(v2, &v1);
+      v0 = field_command_menu_input(&v2, &v1);
     while ( v0 == 0 );
-    field_command_menu_close(v2, &v1);
+    field_command_menu_close(&v2, &v1);
     if ( v0 == -1 )
       break;
     if ( dword_53C57 != 0 )
@@ -5335,7 +5344,7 @@ void field_options_menu_execute()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_first_enabled_select
+ * IDA 9.5 Hex-Rays: field_command_first_enabled_select
  * VA=0x173e7..0x1741c OBJ=1 OFF=0x73e7 size=0x35
  * callers: 0x18d8c, 0x1bbdc
  * callees: 0x3702f
@@ -5359,7 +5368,7 @@ int __cdecl field_command_first_enabled_select(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_menu_open
+ * IDA 9.5 Hex-Rays: field_command_menu_open
  * VA=0x1741c..0x175a9 OBJ=1 OFF=0x741c size=0x18d
  * callers: 0x16f55, 0x1728c, 0x18d8c, 0x19df7, 0x1bbdc
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x127e0, 0x1297d, 0x12c0d, 0x175a9, 0x17643, 0x1acf3, 0x25a96, 0x3702f, 0x4ed34
@@ -5419,7 +5428,7 @@ void __cdecl field_command_menu_open(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_175A9
+ * IDA 9.5 Hex-Rays: sub_175A9
  * VA=0x175a9..0x17643 OBJ=1 OFF=0x75a9 size=0x9a
  * type: int __fastcall(_DWORD)
  * callers: 0x1741c
@@ -5447,7 +5456,7 @@ int sub_175A9()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_17643
+ * IDA 9.5 Hex-Rays: sub_17643
  * VA=0x17643..0x176b4 OBJ=1 OFF=0x7643 size=0x71
  * type: int __fastcall(_DWORD)
  * callers: 0x1741c, 0x176b4
@@ -5472,7 +5481,7 @@ int sub_17643()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_menu_close
+ * IDA 9.5 Hex-Rays: field_command_menu_close
  * VA=0x176b4..0x177fc OBJ=1 OFF=0x76b4 size=0x148
  * callers: 0x16f55, 0x1728c, 0x18d8c, 0x19df7, 0x1bbdc
  * callees: 0x11eb0, 0x127e0, 0x12c0d, 0x17643, 0x25a96, 0x3702f, 0x4e381, 0x4ed34
@@ -5517,13 +5526,13 @@ void __cdecl field_command_menu_close(int a1, int a2)
     memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
   }
   v4 = sub_17643();
-  vsync_wait(v4);
+  bios_keyboard_buffer_clear(v4);
   JUMPOUT(0x13FCC);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_menu_input
+ * IDA 9.5 Hex-Rays: field_command_menu_input
  * VA=0x177fc..0x17898 OBJ=1 OFF=0x77fc size=0x9c
  * callers: 0x16f55, 0x1728c, 0x18d8c, 0x19df7, 0x1bbdc
  * callees: 0x17898, 0x3702f
@@ -5575,7 +5584,7 @@ int __cdecl field_command_menu_input(int a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_menu_wait_key
+ * IDA 9.5 Hex-Rays: field_command_menu_wait_key
  * VA=0x17898..0x179d5 OBJ=1 OFF=0x7898 size=0x13d
  * callers: 0x177fc
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x179d5, 0x1acf3, 0x3702f, 0x370f0, 0x4e31c
@@ -5613,7 +5622,7 @@ int __cdecl field_command_menu_wait_key(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_command_menu_draw
+ * IDA 9.5 Hex-Rays: field_command_menu_draw
  * VA=0x179d5..0x17aa9 OBJ=1 OFF=0x79d5 size=0xd4
  * callers: 0x17898
  * callees: 0x127e0, 0x12c0d, 0x3702f, 0x4ed34
@@ -5621,6 +5630,7 @@ int __cdecl field_command_menu_wait_key(int a1, int a2)
 // [field_command_menu_draw] 按 command ID、disabled 状态和选中高亮绘制四个图标
 //   依据: 当前权威 code0 `0x79d5`；计算 `frame=command_id*3+disabled*2`，仅对当前选择再加 0/1 高亮相位；帧从 FDOTHER[2] 78 项 offset 表读取。
 //   历史地址列 `0x179d5`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] COMMAND图标可以作为actor之后的最后一层 -> 四向图标后调用sub_127E0重画当前focus actor；actor头部覆盖上方图标底6行。只重画一个actor，不重新画全表或地形遮挡。；依据: 已发布field_command_menu_draw调用链、单actor绘制与原版移动后COMMAND WGC；14行presence与完整20行遮挡绘制分别验收。
 void __cdecl field_command_menu_draw(int a1, int a2)
 {
   int v2; // edi
@@ -5654,7 +5664,7 @@ void __cdecl field_command_menu_draw(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: bios_tick_delay
+ * IDA 9.5 Hex-Rays: bios_tick_delay
  * VA=0x17aa9..0x17aed OBJ=1 OFF=0x7aa9 size=0x44
  * callers: 0x10010, 0x12cea, 0x1366a, 0x13fd4, 0x15055, 0x164e8, 0x1a30b, 0x1c2da, 0x1c4cc, 0x1cd17, 0x1d6c8, 0x1db65, 0x1f1cc, 0x1f30a, 0x1f42d, 0x1f73f, 0x1f894, 0x22470, 0x22547, 0x22656, 0x22e5c, 0x24336, 0x24c1e, 0x25757, 0x28b41, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ebe1, 0x2fb2c, 0x2fe14, 0x2ff01, 0x30e9d, 0x31266, 0x31529, 0x31c49, 0x32999, 0x35468, 0x3553f, 0x355b7, 0x35a0d
  * callees: 0x3702f
@@ -5681,12 +5691,14 @@ int __cdecl bios_tick_delay(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_17AED
+ * IDA 9.5 Hex-Rays: field_unit_detail_present
  * VA=0x17aed..0x17d6f OBJ=1 OFF=0x7aed size=0x282
  * callers: 0x117e7, 0x29620
  * callees: 0x16c57, 0x17e0b, 0x182ad, 0x18312, 0x1839b, 0x18409, 0x1c269, 0x1ceed, 0x25a96, 0x3702f, 0x3771c, 0x3776e, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_17AED(int a1, int a2)
+// [勘误 semantic_name] sub_17AED -> field_unit_detail_present；依据: 完整642B与117e7/29620的xref：打开actor装备详情，16c57等任意键；法术非空时仅卷下页、画1ceed(actor,-1)并再等任意键，最后整页关闭。F2直接返回，普通Enter的controller后置在调用者；不扣MP或标acted。
+// [勘误 evidence] 猜测第二actor实参或Esc直接跳过所有详情页 -> 17af8与17c40在不同栈深度读同一初始actor实参，不据伪C的a2写ABI。out1839b相位0..6，独立只保留上块的空底页present，然后底板frame21与未选中法术列表，in6..0；最终18409相位0..11。上下块固定86x86/223x86，底部拷贝310x102包含底板99行外的缓存背景。；依据: published17aed..17d6f及strictLE raw全642B SHA fdabaa88e2e33df5cb9b8040e9b8b7d3caabf3bbf3c9fba30537968801f471c5。17bba..17c0f空底页没有额外等待门；两处等待均16c57。此为缓存IDA及独立raw核对，未新建数据库或重写伪C类型，完整等待RNG/时序另验。
+void __cdecl field_unit_detail_present(int a1, int a2)
 {
   int i; // ebx
   int j; // ebx
@@ -5711,7 +5723,7 @@ void __cdecl sub_17AED(int a1, int a2)
     field_unit_detail_transition_top(7, dword_53C5B, dword_53C63);
     memmove(655360, dword_53C5B, 64000);
     lmi_rle_blit_forward(dword_53C63 + 30085, *(_DWORD *)(dword_53A81 + 90) + dword_53A81, 320);
-    sub_1CEED(a2, -1, dword_53C63);
+    field_unit_magic_list_draw(a2, -1, dword_53C63);
     sfx_play(dword_53EEC, 5, 1);
     for ( j = 6; j >= 0; --j )
     {
@@ -5737,12 +5749,13 @@ void __cdecl sub_17AED(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_17D6F
+ * IDA 9.5 Hex-Rays: field_stat_bar_columns_draw
  * VA=0x17d6f..0x17e0b OBJ=1 OFF=0x7d6f size=0x9c
  * callers: 0x18795
  * callees: 0x1685c, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_17D6F(int a1, int a2, int a3, int a4)
+// [勘误 semantic_name] field_stat_bar_columns_draw；依据: 完整156B raw-unrelocated SHA 8feeb8ffe6045be1a71a51091a2437372edc6d8f9553bc762ae508f666446595；唯一caller18795，按signed length分支调用1685c复制FDOTHER[5]的1x5列。length非0先head，i=1且signed i<length时middle，最后tail；负length只写head和x+1 tail，不把负数当0。length0在x+1..101画29、x+102画30，x本身不写；全部8帧23..30已只读核尺寸和raw像素。
+int __cdecl field_stat_bar_columns_draw(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
   int i; // ebx
@@ -5766,7 +5779,7 @@ int __cdecl sub_17D6F(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_open
+ * IDA 9.5 Hex-Rays: field_unit_detail_open
  * VA=0x17e0b..0x17eef OBJ=1 OFF=0x7e0b size=0xe4
  * callers: 0x17aed, 0x1b932, 0x1bffe
  * callees: 0x17eef, 0x18409, 0x184c0, 0x25a96, 0x3702f, 0x3706e, 0x3771c, 0x4e381
@@ -5793,12 +5806,12 @@ int __cdecl field_unit_detail_open(int a1)
       sfx_play(dword_53EEC, 5, 1);
     v1 = field_unit_detail_transition_frame(i, dword_53C5B, dword_53C63, dword_53C5F);
   }
-  return vsync_wait(v1);
+  return bios_keyboard_buffer_clear(v1);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_draw
+ * IDA 9.5 Hex-Rays: field_unit_detail_draw
  * VA=0x17eef..0x17fc0 OBJ=1 OFF=0x7eef size=0xd1
  * callers: 0x17e0b, 0x1bffe, 0x1cff0
  * callees: 0x111ba, 0x168b6, 0x17fc0, 0x3702f, 0x4ebff
@@ -5823,7 +5836,7 @@ int __cdecl field_unit_detail_draw(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_stats_draw
+ * IDA 9.5 Hex-Rays: field_unit_detail_stats_draw
  * VA=0x17fc0..0x182ad OBJ=1 OFF=0x7fc0 size=0x2ed
  * callers: 0x17eef, 0x2b4fb
  * callees: 0x15f84, 0x1685c, 0x1875d, 0x18795, 0x187d6, 0x3702f
@@ -5835,6 +5848,7 @@ int __cdecl field_unit_detail_draw(int a1, int a2)
 // [field_unit_detail_stats_draw] 绘制姓名、种族、职业、HP/MP、LV/EX/DX/MV/HIT/AP/EV/DP
 //   依据: 读取 record `0x1f/0x20/0x21/0x3b/0x3c/0x3e/0x40..0x4e`；FDTXT[0] fragment 分别为 `text_id+1`、`race+0x8c`、`profile+0x96`
 //   历史地址列 `0x3d1de`（`0x17fca` 是 __chkstk body，入口为 `0x17fc0`）；旧 Ghidra 名 `FUN_0003d1de`；判定 chkstk-body
+// [勘误 evidence] HP/MP当前和上限、DX、AP/DP/HIT/EV共9个WORD均movsx；LV/EX/MV为u8。HP/MP的signed值同时进入18795条形和1875d数字路径，不能只修数字而把u16下溢MP画成满条。；依据: 完整749B及17eef/2b4fb的xref，17feb..17ffe的movsx与后续各属性调用、18c6d同类读法；18795使用signed idiv，187d6负数显示0，2位大于99用frame93、3位大于999用起始bank+10。本轮只登记原始读法与绘制边界，MP扣费u16写集不改为夹0。
 void __cdecl field_unit_detail_stats_draw(int a1, unsigned __int8 *a2)
 {
   int v2; // ebx
@@ -5855,8 +5869,8 @@ void __cdecl field_unit_detail_stats_draw(int a1, unsigned __int8 *a2)
   v3 = *(__int16 *)(v2 + 66);
   v11 = *(__int16 *)(v2 + 68);
   v4 = *(__int16 *)(v2 + 70);
-  sub_18795(a2 + 10758, 320, 23, v12, v3);
-  sub_18795(a2 + 16838, 320, 26, v11, v4);
+  field_stat_bar_draw(a2 + 10758, 320, 23, v12, v3);
+  field_stat_bar_draw(a2 + 16838, 320, 26, v11, v4);
   sub_1875D(a2 + 13387, 320, v12, v3, 3);
   sub_1875D(a2 + 13413, 320, v3, v3, 3);
   sub_1875D(a2 + 19147, 320, v11, v4, 3);
@@ -5919,7 +5933,7 @@ void __cdecl field_unit_detail_stats_draw(int a1, unsigned __int8 *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_transition_left
+ * IDA 9.5 Hex-Rays: field_unit_detail_transition_left
  * VA=0x182ad..0x18312 OBJ=1 OFF=0x82ad size=0x65
  * callers: 0x17aed, 0x18409
  * callees: 0x3702f, 0x3771c
@@ -5952,7 +5966,7 @@ int __cdecl field_unit_detail_transition_left(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_transition_top
+ * IDA 9.5 Hex-Rays: field_unit_detail_transition_top
  * VA=0x18312..0x1839b OBJ=1 OFF=0x8312 size=0x89
  * callers: 0x17aed, 0x18409
  * callees: 0x3702f, 0x3771c
@@ -5983,7 +5997,7 @@ int __cdecl field_unit_detail_transition_top(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_transition_bottom
+ * IDA 9.5 Hex-Rays: field_unit_detail_transition_bottom
  * VA=0x1839b..0x18409 OBJ=1 OFF=0x839b size=0x6e
  * callers: 0x17aed, 0x18409
  * callees: 0x3702f, 0x3771c
@@ -6009,7 +6023,7 @@ int __cdecl field_unit_detail_transition_bottom(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_transition_frame
+ * IDA 9.5 Hex-Rays: field_unit_detail_transition_frame
  * VA=0x18409..0x184c0 OBJ=1 OFF=0x8409 size=0xb7
  * callers: 0x17aed, 0x17e0b, 0x1b932, 0x1bffe, 0x1cff0, 0x2af28
  * callees: 0x182ad, 0x18312, 0x1839b, 0x3702f, 0x3771c
@@ -6041,7 +6055,7 @@ int __cdecl field_unit_detail_transition_frame(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_detail_equipment_draw
+ * IDA 9.5 Hex-Rays: field_unit_detail_equipment_draw
  * VA=0x184c0..0x1875d OBJ=1 OFF=0x84c0 size=0x29d
  * callers: 0x17e0b, 0x1b9de, 0x1bffe
  * callees: 0x15f84, 0x1685c, 0x16886, 0x187d6, 0x3702f, 0x4e8bc
@@ -6049,6 +6063,8 @@ int __cdecl field_unit_detail_transition_frame(int a1, int a2, int a3, int a4)
 // [field_unit_detail_equipment_draw] 遍历 8 个装备槽并绘制图标、名称和主要加成
 //   依据: corrected code0 `0x2d6d4`；bit `0x80` 跳过，bit `0x40` 选择装备图标；名称为 FDTXT[0] fragment `item_id+0xb5`
 //   历史地址列 `0x3d6d4`；旧 Ghidra 名 `merged into FUN_0003d61d`；判定 exact
+// [勘误 evidence] 库存属性图在(108,105)、数字在(130,105) -> visible序号按每列4项布局：名称(42+150col,103+22row)，分类图(13+150col,101+22row)，属性图(110+150col,107+22row)，bank42三位数(135+150col,107+22row)。原SDL属性图早2px／2行，数字早5px／2行；原版分类图与名称坐标不变。；依据: published184c0及raw18523/18530分类图、18592的rowY+4、18598的nameX+0x5d与185a2的nameX+0x44、18722/1872e/18731名称/行列；START短剑0 AP010、皮甲132 DP008、药草192 HP040与frames64/65/66及资源相互支持。新真实资源回归覆盖完整底板、空槽压行和第二列；不把此前只验上半数值的WGC称为库存布局已验。
+// [勘误 evidence] 无主属性留空或将raw分类/属性图的0当透明 -> 已知无主属性分支在name+(68,4)绘bank31 frame41（18x8），不是bank93两位溢出。分类/属性raw59..67经1685c/4ed0b完整复制，0也写入；显示按visible序号，高亮比较raw槽。；依据: 完整184c0分支及1685c→4ed0b的memcpy支持；215条物品中27项使用fallback，原frame41 SHA 87e4afe486b48af10aaf7ef6dbad5a2508f9ec79e0142f96dda24f2137c53a99。真实名称108..122合法为空，不猜补文本；当前数字RLE41/42..52无opaque0，仅该已审计缓存保留0为skip。SDL纯绘制回归不代替正式WGC配对。
 void __cdecl field_unit_detail_equipment_draw(int a1, int a2, int a3)
 {
   int v3; // esi
@@ -6157,7 +6173,7 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1875D
+ * IDA 9.5 Hex-Rays: sub_1875D
  * VA=0x1875d..0x18795 OBJ=1 OFF=0x875d size=0x38
  * callers: 0x17fc0, 0x18c6d, 0x1acf3
  * callees: 0x187d6, 0x3702f
@@ -6175,12 +6191,13 @@ int __cdecl sub_1875D(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_18795
+ * IDA 9.5 Hex-Rays: field_stat_bar_draw
  * VA=0x18795..0x187d6 OBJ=1 OFF=0x8795 size=0x41
  * callers: 0x17fc0, 0x18c6d
  * callees: 0x17d6f, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_18795(int a1, int a2, int a3, int a4, int a5)
+// [勘误 semantic_name] field_stat_bar_draw；依据: 完整65B raw-unrelocated SHA c665cfc068acf8b11f7e67d6a063754301dd508087e79bf8358744b7ea223f4f；callers17fc0详情和18c6d战斗信息均先movsx读取HP/MP，再传本函数。max为0不画；current0传length0，否则signed idiv得到trunc(101*current/max)+1后调用17d6f。length是参数，不是实际像素宽：正length写length+1列，负length只写2列，0分支写x+1..102共102列。Domain指令字节与已验证relocated镜像一致，不据伪C固化ABI。
+int __cdecl field_stat_bar_draw(int a1, int a2, int a3, int a4, int a5)
 {
   int result; // eax
   int v6; // eax
@@ -6192,14 +6209,14 @@ int __cdecl sub_18795(int a1, int a2, int a3, int a4, int a5)
       v6 = 101 * a4 / a5 + 1;
     else
       v6 = 0;
-    return sub_17D6F(a1, a2, v6, a3);
+    return field_stat_bar_columns_draw(a1, a2, v6, a3);
   }
   return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ui_number_draw
+ * IDA 9.5 Hex-Rays: ui_number_draw
  * VA=0x187d6..0x18890 OBJ=1 OFF=0x87d6 size=0xba
  * callers: 0x10010, 0x17fc0, 0x184c0, 0x1875d, 0x18c6d, 0x1a30b, 0x1aeb1, 0x1b41d, 0x1ceed, 0x272d0, 0x279bc, 0x2825b, 0x29daa, 0x2a0c2, 0x2a43e, 0x2b4fb
  * callees: 0x16886, 0x3702f, 0x37b29
@@ -6233,7 +6250,7 @@ int __cdecl ui_number_draw(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_player_unit_action
+ * IDA 9.5 Hex-Rays: field_player_unit_action
  * VA=0x18890..0x18b84 OBJ=1 OFF=0x8890 size=0x2f4
  * callers: 0x117e7
  * callees: 0x115b6, 0x12cea, 0x13488, 0x134e4, 0x13512, 0x13a44, 0x145cd, 0x146d1, 0x18b84, 0x18d8c, 0x1f183, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e390, 0x4e4f6, 0x4e8a5
@@ -6241,6 +6258,8 @@ int __cdecl ui_number_draw(int a1, int a2, int a3, int a4, int a5)
 // [field_player_unit_action] 执行一名玩家单位的移动选择、路径播放及移动后动作
 //   依据: 先计算可达格、友方占格和路径；移动后调用交互 helper。仅在动作未取消且后续格事件处理完成后调用 `field_actor_mark_acted`。
 //   历史地址列 `0x3daae`（`0x1889a` 是 __chkstk body，入口为 `0x18890`）；旧 Ghidra 名 `FUN_0003daae`；判定 chkstk-body
+// [勘误 evidence] 玩家路径逐格执行cell handler，行动尾先格事件后acted -> 入口清pending及物品交接标志53C53；完整路径只收集match0，随后COMMAND。下级取消返回0重开COMMAND并保留pending；普通COMMAND取消恢复起点并return0，由controller重入入口清pending。成功COMMAND先acted，再查询最终match1，返回controller后置。；依据: 已发布玩家函数及原raw 0x188b3/0x188bd入口清零、0x18a52调用共享路径、0x18b0c/0x18b66最终lookup；controller 0x11942..0x1194d重入。53C53=1只确认成功物品交接路径@0x1bfa7，未扩为普通攻击或默认状态。
+// [勘误 evidence] START角色9可移动四格后在同一回合直接施法 -> 非零且非ff路径播放后，unit ID不为18／19／34时将disabled[1]置1，因此MAGIC禁止；零步分支不写此门。旧四步施法预研路线撤回。；依据: 已发布18890与raw18a38..18a7c：18a5f读unit[7]，18a63/68/6d比较三个例外，18a72写[ESP+4]=1，18a7c传同一disabled表；18d8c的空法术／+27状态也写此槽。0x18a38..0x18a8c的84字节SHA 95150fbbe7d8341b73f691ca9ecbbc5cbfb8172d0f11033f003bb719ac1c4fa6。SDL列表状态回归分别检查零步、例外及相邻ID；不从合成能力推断自然学习。
 int __cdecl field_player_unit_action(int a1)
 {
   unsigned __int8 *v1; // esi
@@ -6357,7 +6376,7 @@ LABEL_18:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_18B84
+ * IDA 9.5 Hex-Rays: sub_18B84
  * VA=0x18b84..0x18c6d OBJ=1 OFF=0x8b84 size=0xe9
  * callers: 0x18890
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x122dc, 0x127a9, 0x1297d, 0x18c6d, 0x1acf3, 0x3702f, 0x4e31c
@@ -6392,7 +6411,7 @@ void __usercall sub_18B84(int a1@<esi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_18C6D
+ * IDA 9.5 Hex-Rays: sub_18C6D
  * VA=0x18c6d..0x18d8c OBJ=1 OFF=0x8c6d size=0x11f
  * callers: 0x18b84, 0x2facd
  * callees: 0x15f84, 0x1875d, 0x18795, 0x187d6, 0x3702f, 0x4ebff
@@ -6412,8 +6431,8 @@ void __cdecl sub_18C6D(int a1, int a2, int a3)
   v7 = *(__int16 *)(v4 + 68);
   v6 = *(__int16 *)(v4 + 70);
   lmi_rle_blit_forward(a1, *(_DWORD *)(dword_53A81 + 94) + dword_53A81, a2);
-  sub_18795(a1 + 21 + 22 * a2, a2, 23, v5, v8);
-  sub_18795(a1 + 21 + 31 * a2, a2, 26, v7, v6);
+  field_stat_bar_draw(a1 + 21 + 22 * a2, a2, 23, v5, v8);
+  field_stat_bar_draw(a1 + 21 + 31 * a2, a2, 26, v7, v6);
   ui_number_draw(4 * a2 + a1 + 132, a2, *(unsigned __int8 *)(v4 + 33), 31, 2);
   sub_1875D(a1 + 126 + 21 * a2, a2, v5, v8, 3);
   sub_1875D(a1 + 126 + 30 * a2, a2, v7, v6, 3);
@@ -6433,7 +6452,7 @@ void __cdecl sub_18C6D(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_player_command_execute
+ * IDA 9.5 Hex-Rays: field_player_command_execute
  * VA=0x18d8c..0x190ac OBJ=1 OFF=0x8d8c size=0x320
  * callers: 0x18890
  * callees: 0x115b6, 0x11cac, 0x12c0d, 0x12cea, 0x134e4, 0x13512, 0x13fd4, 0x14818, 0x173e7, 0x1741c, 0x176b4, 0x177fc, 0x190ac, 0x1aa1d, 0x1b6b7, 0x1b722, 0x1b83d, 0x1b8a6, 0x1bbdc, 0x1c269, 0x1cff0, 0x1db65, 0x1f04a, 0x2e2b0, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e381, 0x4e8bc
@@ -6445,6 +6464,7 @@ void __cdecl sub_18C6D(int a1, int a2, int a3)
 // [field_player_command_execute_core] `field_player_command_execute` 的 Watcom `__chkstk` 后主体
 //   依据: corrected 机器码入口 `0x3dfa0` 为栈检查前缀，主体从 `0x3dfaa` 开始；索引 1 调用 `0x42204`，索引 2 调用 `0x40df0`，索引 3 进入待机收尾。
 //   历史地址列 `0x3dfaa`（`0x18d96` 是 __chkstk body，入口为 `0x18d8c`）；旧 Ghidra 名 `FUN_0003dfaa`；判定 chkstk-body
+// [勘误 evidence] 成功玩家动作的acted与cell处理时点尚未区分 -> WAIT仅零步时做原地恢复，再独立cell-action、acted；移动后WAIT跳过恢复。普通攻击成功先战斗／败亡等已确认尾，再acted。攻击目标取消返回0并保留移动及pending，普通COMMAND取消返回-1。；依据: 已发布command与raw 0x19077路径长度门、0x19082恢复、0x1908b独立cell-action、0x19094 acted、0x18ff3攻击acted、0x18f97..0x18fae目标取消；不以pending替代尚未实现的特殊cell-action。
 int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
 {
   int v3; // eax
@@ -6563,14 +6583,14 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
     field_defeated_units_finalize(v15);
     sub_1AA1D(a1, v15, v20);
     v16 = field_actor_mark_acted(a1);
-    vsync_wait(v16);
+    bios_keyboard_buffer_clear(v16);
   }
   return 1;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_190AC
+ * IDA 9.5 Hex-Rays: sub_190AC
  * VA=0x190ac..0x1956b OBJ=1 OFF=0x90ac size=0x4bf
  * callers: 0x18d8c
  * callees: 0x12263, 0x12e38, 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x197e5, 0x19953, 0x1b722, 0x1b8e7, 0x1b932, 0x1bb8c, 0x25b45, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f, 0x3790a, 0x4e381
@@ -6611,7 +6631,7 @@ char __cdecl sub_190AC(int a1)
     if ( result == 0 )
     {
       v3 = dword_53A45 + 80 * a1;
-      vsync_wait(dword_53A45);
+      bios_keyboard_buffer_clear(dword_53A45);
       sub_1956B(*(unsigned __int8 *)(v3 + 7));
       if ( (v22 & 0x20) != 0 )
         text_dialog_render_tokens(v1, dword_53A7D, 421, 696099, 320, 205, 76, 74, 19, 1);
@@ -6639,7 +6659,7 @@ char __cdecl sub_190AC(int a1)
           text_dialog_render_tokens(v1, dword_53A7D, 422, 702179, 320, 205, 76, 74, 19, 1);
         else
           text_dialog_render_tokens(v1, dword_53A7D, 429, 702179, 320, 205, 76, 74, 19, 1);
-        if ( sub_1BB8C(a1, v9) != -1 )
+        if ( field_unit_inventory_item_append(a1, v9) != -1 )
         {
           v1[dword_53AD5] = 1;
           sub_16559(0);
@@ -6664,12 +6684,12 @@ char __cdecl sub_190AC(int a1)
         else
         {
           sub_196CB(v14, v7);
-          if ( sub_1B932(a1, 0) != 0 )
+          if ( field_unit_inventory_select(a1, 0) != 0 )
           {
             v21 = field_unit_item_id_at(a1, dword_53C57);
             v20 = v21;
-            sub_1B8E7(a1, dword_53C57);
-            sub_1BB8C(a1, v9);
+            field_unit_inventory_slot_remove(a1, dword_53C57);
+            field_unit_inventory_item_append(a1, v9);
             v7 = v20;
             *(_WORD *)(dword_53A55 + 3 * (_DWORD)v1 + 84) = v20;
             j___delay(100);
@@ -6742,7 +6762,7 @@ char __cdecl sub_190AC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1956B
+ * IDA 9.5 Hex-Rays: sub_1956B
  * VA=0x1956b..0x196cb OBJ=1 OFF=0x956b size=0x160
  * callers: 0x10010, 0x16f55, 0x190ac, 0x19df7, 0x1a866, 0x1aa1d, 0x1e292, 0x26152, 0x2670e, 0x279bc, 0x2872b, 0x28cbd, 0x28f65, 0x29300, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf, 0x35854, 0x35a0d, 0x35fcf
  * callees: 0x111ba, 0x168b6, 0x1974c, 0x3702f, 0x3706e, 0x3771c, 0x4ec31
@@ -6789,7 +6809,7 @@ int __cdecl sub_1956B(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_196CB
+ * IDA 9.5 Hex-Rays: sub_196CB
  * VA=0x196cb..0x1974c OBJ=1 OFF=0x96cb size=0x81
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x10010, 0x16f55, 0x190ac, 0x19df7, 0x1a866, 0x1aa1d, 0x1e292, 0x35854, 0x35a0d, 0x35fcf
@@ -6811,7 +6831,7 @@ int sub_196CB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1974C
+ * IDA 9.5 Hex-Rays: sub_1974C
  * VA=0x1974c..0x197e5 OBJ=1 OFF=0x974c size=0x99
  * callers: 0x1956b, 0x196cb, 0x26996, 0x27738, 0x27d33, 0x27f4a, 0x29bcb, 0x2a29d, 0x2a857
  * callees: 0x3702f, 0x3771c
@@ -6834,7 +6854,7 @@ void __cdecl sub_1974C(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_197E5
+ * IDA 9.5 Hex-Rays: sub_197E5
  * VA=0x197e5..0x19953 OBJ=1 OFF=0x97e5 size=0x16e
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x26152, 0x2670e, 0x2872b, 0x28cbd, 0x29300, 0x2a43e, 0x2aa00, 0x2af28
@@ -6884,7 +6904,7 @@ void sub_197E5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_19953
+ * IDA 9.5 Hex-Rays: sub_19953
  * VA=0x19953..0x19df7 OBJ=1 OFF=0x9953 size=0x4a4
  * type: __int64 __fastcall(_DWORD)
  * callers: 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x26152, 0x2670e, 0x2872b, 0x28cbd, 0x29300, 0x2a43e, 0x2aa00, 0x2af28
@@ -7030,7 +7050,7 @@ LABEL_57:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_secondary_menu_execute
+ * IDA 9.5 Hex-Rays: field_secondary_menu_execute
  * VA=0x19df7..0x1a30b OBJ=1 OFF=0x9df7 size=0x514
  * callers: 0x16f55
  * callees: 0x10010, 0x11cac, 0x15f84, 0x16559, 0x1741c, 0x176b4, 0x177fc, 0x1956b, 0x196cb, 0x197e5, 0x19953, 0x1b1e7, 0x25977, 0x3702f, 0x3706e, 0x37324, 0x373ca, 0x3759c, 0x3771c, 0x3776e, 0x377a3, 0x3790a, 0x4df09, 0x4df28, 0x4e381
@@ -7038,6 +7058,10 @@ LABEL_57:
 // [field_secondary_menu_execute] 显示四项次级 field-level 菜单并分派屏幕页、存档、读档和离开战场
 //   依据: 当前权威 code0 `0x9df7`。object 2 `DS:0x1ef5={12,13,14,15}`；selector 0 调用 code0 `0xb1e7`（dual `0x1b1e7`）的全屏部队状态总览，按 12 相位展开／收起并逐行显示 actor 属性、stage、turn、资源值和三阵营计数；可见页名仍待人工确认。selector 1 使用 FDTXT `0x19a/0x19b/0x19c` 执行快照写回；selector 2 使用 `0x19d/0x19e` 并调用 `0x15977(-1,0)`；selector 3 在 code0 `0xa25b..0xa306` 使用 `0x19f/0x1a0`，调用 `0x15977(-1,1)` 后返回 `-1`。SDL 将该返回值建模为独立「返回标题」结果，不与宿主关闭合并。
 //   历史地址列 `0x19df7`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] selector 0 总览逐行显示 actor 属性 -> selector 0 调用 sub_1B1E7 @0x1b1e7，显示胜败条件、关卡／回合、资源与三阵营人数，不列出 actor 属性；静态内容、开合输入与原版运行分别验收。；依据: 已发布 sub_1B41D @0x1b41d 的四块绘制与 sub_1B5F1 计数门，FDOTHER[5] 133..136 和 FDTXT[0] 597/598 资源，纠正历史说明，不手改生成文件或伪 C。
+// [勘误 evidence] SDL 活动快照只覆盖单位、cell state 和 meta，未登记开头 metadata owner -> 原版 Save 先把 dword_53A55 的 2211（0x8a3）字节 metadata 写到 FD2.SAV 明文开头，再把独立的 2560 字节持久 roster 写到 +0x8a3。活动恢复 sub_10010 @0x10010 原样读回 metadata，并用 metadata[0]*2 选择 FDSHAP。stage 0 的 FDFIELD[1] 已用长度为 937（0x83+31*26）字节，首三字节为 00 04 1e。SDL 导出须从当前 session 序列化头部、turn/cell 表和完整模板字节，不能沿用旧 stage 的 prefix；未使用 metadata 尾由目标容器保留，完整 roster（含未用 raw 尾）由 session 恢复并整表写回。+1/+2 不赋予未经确认的玩法语义。；依据: 复用已发布权威伪 C 的 @0x19df7 writer（7143..7145 行）与 sub_10010（68..90 行）读回／shape 选择；FDFIELD.DAT[1] 原始长度和首部只读复核。原版 WGC 对照暴露旧 stage 29 prefix 1d 14 46 与活动 stage 0 混用；未新建 IDB 或改写伪 C。
+// [勘误 evidence] 活动 meta[9]（DS:0x3bfb）被当作当前 actor count 的副本 -> meta[1] 为当前战场 actor count（DS:0x3beb，格式容量 96）；meta[9] 为独立持久 roster count（DS:0x3bfb，0x8a3 起 0xa00 字节、32 条 0x50 记录）。二者不要求相等，也不以当前 side 2 actor 数量或 active count 为 roster 上限。；依据: 已发布伪 C：sub_112A5 @0x112a5 在 dword_53bf7 + 80*dword_53bfb 追加记录并递增 roster count；sub_11506 @0x11506 对 active actor 遍历独立 roster 同步；@0x19df7 writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active 假设。保留中性函数名，未新建 IDB 或修改权威伪 C。
+// [勘误 evidence] SDL 将 secondary 肯定离场的 -1 建模为返回标题 -> selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。；依据: 已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。
 void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@<esi>, int a4, int a5, int a6, ...)
 {
   unsigned __int8 *v6; // edi
@@ -7077,7 +7101,7 @@ void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@
   if ( v7 != 0 )
   {
     v8 = malloc(22987);
-    file_read(v8, 1, 22987, v7);
+    fread(v8, 1, 22987, v7);
     fclose(v7);
     free(v8);
   }
@@ -7129,7 +7153,7 @@ void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@
           v17 = v16;
           if ( v16 != 0 )
           {
-            file_read(v15, 1, 22987, v16);
+            fread(v15, 1, 22987, v16);
             save_xor_crypt(v15, 22987);
             fclose(v17);
           }
@@ -7195,7 +7219,7 @@ LABEL_23:
         j___delay(200);
         v18 = sub_196CB();
 LABEL_24:
-        vsync_wait(v18);
+        bios_keyboard_buffer_clear(v18);
 LABEL_33:
         JUMPOUT(0x16FD8);
       case 2:
@@ -7236,7 +7260,7 @@ LABEL_33:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_turn_cycle_run
+ * IDA 9.5 Hex-Rays: field_turn_cycle_run
  * VA=0x1a30b..0x1a7bd OBJ=1 OFF=0xa30b size=0x4b2
  * type: int __fastcall(_DWORD)
  * callers: 0x13565, 0x16f55
@@ -7245,6 +7269,7 @@ LABEL_33:
 // [field_turn_cycle_run] 玩家阶段结束后依次处理 side 1、side 0，递增回合后进入 side 2
 //   依据: 反编译调用顺序为 `field_turn_event_check(1)`、side 1 phase 前置状态处理与 `field_side1_phase_execute`、清行动标志、`field_turn_event_check(0)`、side 0 phase 前置状态处理与 `field_side0_phase_execute`、`DAT_00003bef++`、清行动标志、`field_turn_event_check(2)`；机器码 `0x3f716..0x3f731` 比较 primary/alternate 并按需淡出，`0x3f78e` 在 phase 0 事件后读取 `DS:0x1e81[stage]` 启动 alternate，`0x3f824` 在新回合 phase 2 前恢复 `DS:0x1e63[stage]` primary。SDL 已复现可观察的中毒扣 `maxHP/10`、`+0x22..+0x27` 状态递减，以及完整 actor 表 acted 清理时机。
 //   历史地址列 `0x3f51f`；旧 Ghidra 名 `FUN_00017a53`；判定 exact
+// [勘误 evidence] 现有登记只描述玩家结束后的 phase 顺序与状态 tick -> 首部仅恢复 side 2、flags & 0x81 == 0、record +0x25/+0x26 均为零且 HP != maxHP 的 actor：HP 增加 maxHP/5 并封顶，随后 OR acted；整数恢复量为零也标记。满 HP 或被 gate 排除者不统一标记 acted。空焦点菜单 selector 3 确认后直接调用本函数。末尾重置 dword_53AE9=0，执行 phase 2 事件与状态后，field_focus_move_to_actor(0) 逐 X 再 Y 恢复焦点和镜头。；依据: 复用已发布权威伪 C fd2-ida-decomp-all.c 的本函数首部（7282..7314 行）与 field_empty_focus_menu_execute @0x16f55 selector 3 调用（5250..5267 行），末尾 @0x1a30b 的调用链，2026-11-04 真实 START 原版肯定 END→round002→Save 运行证据；未重新建立 IDB 或发布逆向基线。
 void field_turn_cycle_run()
 {
   int v0; // edx
@@ -7383,7 +7408,7 @@ void field_turn_cycle_run()
           field_phase_status_tick(2);
           dword_51A83 = 1;
           field_focus_move_to_actor(0);
-          vsync_wait(v23);
+          bios_keyboard_buffer_clear(v23);
         }
       }
     }
@@ -7393,7 +7418,7 @@ void field_turn_cycle_run()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1A7BD
+ * IDA 9.5 Hex-Rays: sub_1A7BD
  * VA=0x1a7bd..0x1a7f1 OBJ=1 OFF=0xa7bd size=0x34
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x1a30b
@@ -7415,7 +7440,7 @@ int sub_1A7BD()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1A7F1
+ * IDA 9.5 Hex-Rays: sub_1A7F1
  * VA=0x1a7f1..0x1a813 OBJ=1 OFF=0xa7f1 size=0x22
  * type: int __fastcall(_DWORD)
  * callers: 0x1a30b
@@ -7433,7 +7458,7 @@ int sub_1A7F1()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_turn_event_check
+ * IDA 9.5 Hex-Rays: field_turn_event_check
  * VA=0x1a813..0x1a866 OBJ=1 OFF=0xa813 size=0x53
  * callers: 0x1a30b
  * callees: 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f
@@ -7458,7 +7483,7 @@ void __cdecl field_turn_event_check(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_phase_status_tick
+ * IDA 9.5 Hex-Rays: field_phase_status_tick
  * VA=0x1a866..0x1aa1d OBJ=1 OFF=0xa866 size=0x1b7
  * type: int __cdecl(int)
  * callers: 0x1a30b
@@ -7467,6 +7492,7 @@ void __cdecl field_turn_event_check(int a1)
 // [field_phase_status_tick] phase 前置状态处理
 //   依据: corrected dual `0x1a866` 的 poison 与状态子循环均从 raw actor index 0 开始，仅处理匹配 side 且 flags bit 0 未置位的 actor；poison 扣除 `HP -= maxHP/10` 并下限为 0，随后遍历 `record +0x22..+0x27` 六个状态 byte，每次归零都会调用 `field_unit_combat_stats_recompute_runtime`，最终派生属性复用 `0x4096e`，倍率为 DS:0x018d 的 1.15。
 //   历史地址列 `0x1a866`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 只恢复毒伤和状态计时，忽略聚焦并合并重算 -> raw顺序处理匹配side且非hidden的中毒actor，HP扣除后即12d7b聚焦，不加HP或damage非零门；完整扫描后1db65死亡清理。第二段逐actor逐byte递减+22..27，每次归零立即聚焦并1b750重算，不能合并到actor末尾。；依据: published1a866..1aa1d与strictLE file4087a全439B SHA 951bd9b8a4ea02aa53a97dc7dbc808cf9673365bed6cda162d1b53349db00b35；HP写入1a8d0/必聚焦1a8df/扫描后清理1a941；归零聚焦1a9aa..1a9b0，重算1aa10。镜头是死亡方向清理的前置读集，漏写可持久化错误方向；此为逻辑顺序核验，提示、演出及其附加等待/RNG未作动态对照。
 int __cdecl field_phase_status_tick(int a1)
 {
   int v1; // eax
@@ -7503,7 +7529,7 @@ int __cdecl field_phase_status_tick(int a1)
         dword_51A83 = 1;
         sub_1956B(*(unsigned __int8 *)(v3 + 7));
         text_dialog_render_tokens(v5, dword_53A7D, 487, 696099, 320, 205, 76, 74, 19, 1);
-        vsync_wait(v6);
+        bios_keyboard_buffer_clear(v6);
         sub_1E5C0(10);
         v1 = sub_196CB();
       }
@@ -7526,7 +7552,7 @@ int __cdecl field_phase_status_tick(int a1)
           dword_51A83 = 1;
           sub_1956B(*(unsigned __int8 *)(v8 + 7));
           text_dialog_render_tokens(k, dword_53A7D, (int)(k + 481), 696099, 320, 205, 76, 74, 19, 1);
-          vsync_wait(v11);
+          bios_keyboard_buffer_clear(v11);
           sub_1E5C0(10);
           sub_196CB();
           field_unit_combat_stats_recompute(j);
@@ -7539,7 +7565,7 @@ int __cdecl field_phase_status_tick(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1AA1D
+ * IDA 9.5 Hex-Rays: sub_1AA1D
  * VA=0x1aa1d..0x1acf3 OBJ=1 OFF=0xaa1d size=0x2d6
  * callers: 0x15311, 0x1548e, 0x18d8c, 0x1cff0, 0x20c6f, 0x352ca, 0x35346, 0x355f0, 0x35730
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x197e5, 0x19953, 0x1b722, 0x1b8e7, 0x1b932, 0x1bb8c, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f, 0x3790a, 0x4e381
@@ -7564,7 +7590,7 @@ LABEL_24:
   {
     if ( i >= a2 )
       goto LABEL_24;
-    vsync_wait(v3);
+    bios_keyboard_buffer_clear(v3);
     v7 = (unsigned __int8 *)(a3 + 3 * i);
     v8 = *(unsigned __int16 *)(v7 + 1);
     v3 = *v7;
@@ -7602,7 +7628,7 @@ LABEL_24:
       dword_53AD9 = v8 + 181;
       sub_1956B(*(unsigned __int8 *)(v4 + 7));
       text_dialog_render_tokens(a1, dword_53A7D, 432, 696099, 320, 205, 76, 74, 19, 1);
-      if ( sub_1BB8C(a1, v8) == -1 )
+      if ( field_unit_inventory_item_append(a1, v8) == -1 )
       {
         sub_16559(0);
         sub_16C57(0);
@@ -7621,11 +7647,11 @@ LABEL_24:
         else
         {
           sub_196CB();
-          if ( sub_1B932(a1, 0) != 0 )
+          if ( field_unit_inventory_select(a1, 0) != 0 )
           {
             field_unit_item_id_at(a1, dword_53C57);
-            sub_1B8E7(a1, dword_53C57);
-            v3 = sub_1BB8C(a1, v8);
+            field_unit_inventory_slot_remove(a1, dword_53C57);
+            v3 = field_unit_inventory_item_append(a1, v8);
             continue;
           }
           j___delay(100);
@@ -7646,7 +7672,7 @@ LABEL_24:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cell_info_panel_draw
+ * IDA 9.5 Hex-Rays: field_cell_info_panel_draw
  * VA=0x1acf3..0x1aeb1 OBJ=1 OFF=0xacf3 size=0x1be
  * callers: 0x11cac, 0x1741c, 0x17898, 0x18b84
  * callees: 0x12c0d, 0x12e38, 0x1875d, 0x1aeb1, 0x3702f, 0x4e22a, 0x4e98d
@@ -7706,7 +7732,7 @@ void __cdecl field_cell_info_panel_draw(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cell_info_modifier_draw
+ * IDA 9.5 Hex-Rays: field_cell_info_modifier_draw
  * VA=0x1aeb1..0x1af1e OBJ=1 OFF=0xaeb1 size=0x6d
  * callers: 0x1acf3
  * callees: 0x187d6, 0x3702f, 0x37932, 0x4e98d
@@ -7731,11 +7757,12 @@ int __cdecl field_cell_info_modifier_draw(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1AF1E
+ * IDA 9.5 Hex-Rays: sub_1AF1E
  * VA=0x1af1e..0x1af99 OBJ=1 OFF=0xaf1e size=0x7b
  * callers: 0x1b1e7
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览主体关闭相位 -> 从静态源(75,37)复制170×117；phase<5时目标x=75-50*(4-phase)，其余为75，负x裁切时同步推进源。；依据: 已发布 sub_1AF1E 与 sub_1B1E7 反向11..0调用链；只读静态矩形复制，无关卡或玩法转移。
 int __cdecl sub_1AF1E(int a1, int a2)
 {
   int v2; // ebp
@@ -7778,11 +7805,12 @@ int __cdecl sub_1AF1E(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1AF99
+ * IDA 9.5 Hex-Rays: sub_1AF99
  * VA=0x1af99..0x1b019 OBJ=1 OFF=0xaf99 size=0x80
  * callers: 0x1b1e7
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览主体打开相位 -> 从静态源(75,37)复制170×117；phase<=4时目标x=75+50*(4-phase)，其余为75，右侧按屏幕裁切。；依据: 已发布 sub_1AF99 与 sub_1B1E7 正向0..11调用链，FDOTHER[5] frame134；不是详情页或关卡转场。
 int __cdecl sub_1AF99(int a1, int a2)
 {
   int result; // eax
@@ -7822,11 +7850,12 @@ int __cdecl sub_1AF99(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B019
+ * IDA 9.5 Hex-Rays: sub_1B019
  * VA=0x1b019..0x1b0ad OBJ=1 OFF=0xb019 size=0x94
  * callers: 0x1b1e7
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览顶部相位 -> 102×17顶部栏phase<3不绘，3..7目标y=19-6*(7-phase)，其余y19；上边裁切同步推进源。；依据: 已发布 sub_1B019、开合两处调用与frame133尺寸，源固定(109,19)；精确时序另验。
 int __cdecl sub_1B019(int a1, int a2)
 {
   int v2; // ebp
@@ -7872,11 +7901,12 @@ int __cdecl sub_1B019(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B0AD
+ * IDA 9.5 Hex-Rays: sub_1B0AD
  * VA=0x1b0ad..0x1b14b OBJ=1 OFF=0xb0ad size=0x9e
  * callers: 0x1b1e7
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览人数栏相位 -> 170×16人数栏phase<5不绘，5..9目标y=155+9*(9-phase)，其余155；原phase5复制高度-9，signed循环不复制。；依据: 已发布 sub_1B0AD 与已确认原指令的负高度循环，源(75,155)、frame135；不能通用裁切补成理想可见行。
 int __cdecl sub_1B0AD(int a1, int a2)
 {
   int result; // eax
@@ -7918,11 +7948,12 @@ int __cdecl sub_1B0AD(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B14B
+ * IDA 9.5 Hex-Rays: sub_1B14B
  * VA=0x1b14b..0x1b1e7 OBJ=1 OFF=0xb14b size=0x9c
  * callers: 0x1b1e7
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览资源栏相位 -> 63×15资源栏phase<8不绘，8..11目标y=172+4*(12-phase)；phase8高度-12不复制，phase11仍在176，稳定页回172。；依据: 已发布 sub_1B14B 及object1 0x1b19e lea高度、0x1b1de/0x1b1e0 signed cmp/jl；源(129,172)、frame136。
 int __cdecl sub_1B14B(int a1, int a2)
 {
   int result; // eax
@@ -7963,12 +7994,13 @@ int __cdecl sub_1B14B(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B1E7
+ * IDA 9.5 Hex-Rays: sub_1B1E7
  * VA=0x1b1e7..0x1b41d OBJ=1 OFF=0xb1e7 size=0x236
  * type: int __fastcall(_DWORD)
  * callers: 0x19df7
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x1af1e, 0x1af99, 0x1b019, 0x1b0ad, 0x1b14b, 0x1b41d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e31c, 0x4e381
  * --------------------------------------------------------------- */
+// [勘误 evidence] 战况总览尚未登记开合、背景和关闭键边界 -> 双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。；依据: 已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。
 void __usercall sub_1B1E7(int a1@<ebp>)
 {
   int v1; // edi
@@ -8010,7 +8042,7 @@ void __usercall sub_1B1E7(int a1@<ebp>)
     }
     if ( (_BYTE)retaddr != 0 )
     {
-      vsync_wait((unsigned __int8)retaddr);
+      bios_keyboard_buffer_clear((unsigned __int8)retaddr);
       for ( j = 11; j >= 0; --j )
       {
         memmove(dword_53A49, v1, 64000);
@@ -8023,7 +8055,7 @@ void __usercall sub_1B1E7(int a1@<ebp>)
       memmove(655360, v1, 64000);
       free(v1);
       v6 = free(v2);
-      vsync_wait(v6);
+      bios_keyboard_buffer_clear(v6);
       JUMPOUT(0x10C49);
     }
   }
@@ -8031,11 +8063,12 @@ void __usercall sub_1B1E7(int a1@<ebp>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B41D
+ * IDA 9.5 Hex-Rays: sub_1B41D
  * VA=0x1b41d..0x1b5f1 OBJ=1 OFF=0xb41d size=0x1d4
  * callers: 0x1b1e7
  * callees: 0x15f84, 0x16886, 0x187d6, 0x1b5f1, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 -> 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。；依据: 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。
 void __cdecl sub_1B41D(int a1, int a2)
 {
   int v3; // eax
@@ -8066,11 +8099,12 @@ void __cdecl sub_1B41D(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B5F1
+ * IDA 9.5 Hex-Rays: sub_1B5F1
  * VA=0x1b5f1..0x1b653 OBJ=1 OFF=0xb5f1 size=0x62
  * callers: 0x1b41d
  * callees: 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记总览三阵营计数的过滤门 -> 逐 active actor 统计指定 side，排除 hidden bit 0、unit_id 121、record +0x1f 为 10；不按 HP、acted、AI 门或持久 roster 过滤。真实 START 的 side 0/2/1 为 7/4/0。；依据: 已发布 sub_1B5F1 的完整四条件与 sub_1B41D 三处调用，只读 START 的 12 条 active 数据（其中 actor9 hidden）独立核对；SDL 计数、布局和错误无画面写入回归。未开放其他关卡或重命名 IDB。
 int __cdecl sub_1B5F1(int a1)
 {
   int v1; // esi
@@ -8090,7 +8124,7 @@ int __cdecl sub_1B5F1(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B653
+ * IDA 9.5 Hex-Rays: sub_1B653
  * VA=0x1b653..0x1b6b7 OBJ=1 OFF=0xb653 size=0x64
  * callers: 0x15311
  * callees: 0x3702f, 0x3771c
@@ -8114,7 +8148,7 @@ void __cdecl sub_1B653(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B6B7
+ * IDA 9.5 Hex-Rays: sub_1B6B7
  * VA=0x1b6b7..0x1b722 OBJ=1 OFF=0xb6b7 size=0x6b
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x1548e, 0x18d8c, 0x1cff0, 0x20c6f
@@ -8139,7 +8173,7 @@ void __cdecl sub_1B6B7(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_item_id_at
+ * IDA 9.5 Hex-Rays: field_unit_item_id_at
  * VA=0x1b722..0x1b750 OBJ=1 OFF=0xb722 size=0x2e
  * callers: 0x14237, 0x15055, 0x18d8c, 0x190ac, 0x1aa1d, 0x1bbdc, 0x1bffe, 0x1c142, 0x1debe, 0x1e856, 0x1e98c, 0x1ecc7, 0x1f0dc, 0x20c6f, 0x28cbd, 0x28f65, 0x2aedb, 0x2f7b6
  * callees: 0x3702f
@@ -8155,7 +8189,7 @@ int __cdecl field_unit_item_id_at(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_combat_stats_recompute
+ * IDA 9.5 Hex-Rays: field_unit_combat_stats_recompute
  * VA=0x1b750..0x1b83d OBJ=1 OFF=0xb750 size=0xed
  * callers: 0x1088d, 0x10c50, 0x1a866, 0x1bbdc, 0x1bffe, 0x1e292, 0x21082, 0x2872b, 0x28cbd, 0x28f65, 0x2ac7d
  * callees: 0x3702f, 0x37af4, 0x4e8bc
@@ -8221,7 +8255,7 @@ void __cdecl field_unit_combat_stats_recompute(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_equipped_item_slot_find
+ * IDA 9.5 Hex-Rays: field_equipped_item_slot_find
  * VA=0x1b83d..0x1b8a6 OBJ=1 OFF=0xb83d size=0x69
  * callers: 0x14237, 0x18d8c, 0x1debe, 0x1e856, 0x1e98c, 0x1ecc7, 0x1f0dc, 0x2f7b6
  * callees: 0x3702f
@@ -8250,7 +8284,7 @@ int __cdecl field_equipped_item_slot_find(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_inventory_count
+ * IDA 9.5 Hex-Rays: field_unit_inventory_count
  * VA=0x1b8a6..0x1b8e7 OBJ=1 OFF=0xb8a6 size=0x41
  * callers: 0x1567e, 0x18d8c, 0x1bbdc, 0x1bffe, 0x2872b, 0x28f65, 0x2aedb, 0x35123, 0x35854
  * callees: 0x3702f
@@ -8258,6 +8292,7 @@ int __cdecl field_equipped_item_slot_find(int a1, int a2)
 // [field_unit_inventory_count] 统计 actor 的可用物品槽数
 //   依据: corrected code0 主体从 `0x30ac4` 开始；遍历 8 个两字节槽，flag bit `0x80` 未置位即计数。`field_player_command_execute_core` 以返回 0 禁用 item。
 //   历史地址列 `0x40aba`；旧 Ghidra 名 `FUN_00040aba`；判定 exact
+// [勘误 evidence] AI私有重复库存计数，未共享完整raw槽语义 -> 扫描8个raw槽，只有flag bit80决定是否计数；装备位、物品ID及空洞不参与过滤。SDL将原AI同体实现提为共享查询，NULL0是适配边界，不改原函数ABI。；依据: published1b8a6..1b8e7与strictLE file418ba完整65B SHA 987981c59e7b3801574e75280fc3848d3f829bfdafa4ef09f3a1707ad86318e9；1b9de读取count后直接按raw索引选择，不能把显示跳空槽变成库存压实。
 int __cdecl field_unit_inventory_count(int a1)
 {
   int v1; // ebx
@@ -8275,12 +8310,14 @@ int __cdecl field_unit_inventory_count(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B8E7
+ * IDA 9.5 Hex-Rays: field_unit_inventory_slot_remove
  * VA=0x1b8e7..0x1b932 OBJ=1 OFF=0xb8e7 size=0x4b
  * callers: 0x190ac, 0x1aa1d, 0x1bbdc, 0x20c6f, 0x21082, 0x240fa, 0x28cbd, 0x28f65, 0x2aa00, 0x35a0d
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-int __cdecl sub_1B8E7(int a1, int a2)
+// [勘误 semantic_name] sub_1B8E7 -> field_unit_inventory_slot_remove；依据: 完整75B及190ac/1aa1d/1bbdc/20c6f的xref：memmove后续(7-slot)*2字节到当前raw槽，最后仅flag+18写80，末ID+19保留stale。
+// [勘误 evidence] 删除库存可以把末ID一并清ff或只压实可见项 -> 原始后续槽含hidden旗标及未知/stale ID均逐字保留，不按可见行重建。SDL既有AI helper由玩家草药复用；slot范围检查是适配边界，不猜原ABI。；依据: strictLE完整75B SHA f7165224c5e59503791effde95df6572cff3dc543da65e52d11d44807902162a；callee3771c为memmove，非memcpy。原版两槽画面已校准，但原版raw16B仍未动态量测；末槽stale由原码与SDL逐字回归支持。
+int __cdecl field_unit_inventory_slot_remove(int a1, int a2)
 {
   int v2; // ebx
   int result; // eax
@@ -8294,12 +8331,14 @@ int __cdecl sub_1B8E7(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B932
+ * IDA 9.5 Hex-Rays: field_unit_inventory_select
  * VA=0x1b932..0x1b9de OBJ=1 OFF=0xb932 size=0xac
  * callers: 0x190ac, 0x1aa1d, 0x1bbdc
  * callees: 0x17e0b, 0x18409, 0x1b9de, 0x3702f, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-bool __cdecl sub_1B932(int a1, int a2)
+// [勘误 semantic_name] sub_1B932 -> field_unit_inventory_select；依据: 完整172B及190ac/1aa1d/1bbdc的xref：17e0b打开单位详情、53C57归0，循环1b9de直到非0，18409按0..11关闭并恢复背景、释放三个64000B缓冲；返回selected_result!=-1的bool，不是raw槽索引。
+// [勘误 evidence] 将列表modal归为Use专属或猜测返回选中slot -> 普通库存与装备等调用共用完整modal；Use列表取消返回0，调用者18d8c重开ITEM子菜单。等待16c57及眨眼仍可消费共享RNG。；依据: strictLE object1 offb932/file41946完整172B SHA 1d901f35a51e1072c4f208821fb56e5b7675137c74fb8f202c830c8ded150192；2026-11-05真实START raw0原版WGC校准列表导航、code0拒绝与逐级取消；不把单端校准作为SDL配对或内存/RNG相等证据。
+bool __cdecl field_unit_inventory_select(int a1, int a2)
 {
   int v2; // esi
   int i; // ebx
@@ -8308,7 +8347,7 @@ bool __cdecl sub_1B932(int a1, int a2)
   field_unit_detail_open(a1);
   dword_53C57 = 0;
   do
-    v2 = sub_1B9DE(a1, a2);
+    v2 = field_unit_inventory_select_step(a1, a2);
   while ( v2 == 0 );
   for ( i = 0; i <= 11; ++i )
     field_unit_detail_transition_frame(i, dword_53C5B, dword_53C63, dword_53C5F);
@@ -8321,12 +8360,14 @@ bool __cdecl sub_1B932(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1B9DE
+ * IDA 9.5 Hex-Rays: field_unit_inventory_select_step
  * VA=0x1b9de..0x1bb8c OBJ=1 OFF=0xb9de size=0x1ae
  * callers: 0x1b932, 0x1bffe
  * callees: 0x16c57, 0x184c0, 0x25a96, 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-int __cdecl sub_1B9DE(int a1, int a2)
+// [勘误 semantic_name] sub_1B9DE -> field_unit_inventory_select_step；依据: 完整430B及1b932/1bffe的xref：184c0绘制选中库存、16c57等单键后更新53C57，返回0继续/-1取消/1确认；非完整modal，也非Use专属。Up/Down全表回绕，Left>=4减4，Right<=3且index+4<count加4。
+// [勘误 evidence] 将Use限制猜成只有已实现handler或装备位决定 -> 模式非0仅查当前物品record+0d非0，0模式可确认有效槽；不读MP或法术禁止状态。SDL提取纯按键部分，不声称整个16c57等待不耗共享RNG；dense-prefix和全已知ID是SDL支持门，不归给原版，不改raw槽及stale ID。；依据: strictLE file419f2全430B SHA b47b912b31ed16be618e4a15cfc46e7ffa3aeedc2e7b599084460d1a17dafb07；该选择器同时被普通列表与装备循环调用，generic unit命名保留此范围。发布物理符号/伪C类型保持，未写数据库或猜测ABI。
+int __cdecl field_unit_inventory_select_step(int a1, int a2)
 {
   int v2; // ebx
   int v3; // esi
@@ -8346,7 +8387,17 @@ int __cdecl sub_1B9DE(int a1, int a2)
   sub_16C57(0);
   switch ( v5 )
   {
-    case 'H':
+    case 1:
+      return -1;
+    case 28:
+    case 57:
+      if ( a2 == 0 )
+        return 1;
+      result = *(unsigned __int8 *)(field_item_record_get(*(unsigned __int8 *)(v3 + 2 * dword_53C57 + 11)) + 13);
+      if ( result != 0 )
+        return 1;
+      return result;
+    case 72:
       if ( dword_53C57 != 0 )
       {
         sfx_play(dword_53EEC, 0, 1);
@@ -8356,7 +8407,23 @@ int __cdecl sub_1B9DE(int a1, int a2)
       sfx_play(dword_53EEC, 0, 1);
       dword_53C57 = v2 - 1;
       return 0;
-    case 'P':
+    case 75:
+      if ( dword_53C57 >= 4 )
+      {
+        sfx_play(dword_53EEC, 0, 1);
+        dword_53C57 -= 4;
+        return 0;
+      }
+      return 0;
+    case 77:
+      if ( dword_53C57 <= 3 && v2 - 4 > dword_53C57 )
+      {
+        sfx_play(dword_53EEC, 0, 1);
+        dword_53C57 += 4;
+        return 0;
+      }
+      return 0;
+    case 80:
       if ( v2 - 1 != dword_53C57 )
       {
         sfx_play(dword_53EEC, 0, 1);
@@ -8366,47 +8433,21 @@ int __cdecl sub_1B9DE(int a1, int a2)
       sfx_play(dword_53EEC, 0, 1);
       dword_53C57 = 0;
       return 0;
-    case 'K':
-      if ( dword_53C57 >= 4 )
-      {
-        sfx_play(dword_53EEC, 0, 1);
-        dword_53C57 -= 4;
-        return 0;
-      }
-      return 0;
-    case 'M':
-      if ( dword_53C57 <= 3 && v2 - 4 > dword_53C57 )
-      {
-        sfx_play(dword_53EEC, 0, 1);
-        dword_53C57 += 4;
-        return 0;
-      }
-      return 0;
     default:
-      break;
+      return 0;
   }
-  if ( v5 != 28 && v5 != 57 )
-  {
-    if ( v5 == 1 )
-      return -1;
-    return 0;
-  }
-  if ( a2 == 0 )
-    return 1;
-  result = *(unsigned __int8 *)(field_item_record_get(*(unsigned __int8 *)(v3 + 2 * dword_53C57 + 11)) + 13);
-  if ( result != 0 )
-    return 1;
-  return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1BB8C
+ * IDA 9.5 Hex-Rays: field_unit_inventory_item_append
  * VA=0x1bb8c..0x1bbdc OBJ=1 OFF=0xbb8c size=0x50
  * callers: 0x13a9f, 0x190ac, 0x1aa1d, 0x1bbdc, 0x1c220, 0x2872b, 0x28f65, 0x35123, 0x35854
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_1BB8C(int a1, char a2)
+// [field_unit_inventory_item_append] canonical @0x1bb8c, original sub_1BB8C; first hidden slot flags=0/id=item; full returns -1; no stats/acted/MP/EX.
+// [勘误 semantic_name] sub_1BB8C -> field_unit_inventory_item_append；依据: 完整80B与Give/loot/剧情等xref：按raw0..7找首flags80位为1的槽，整flag写0且写item ID，成功返回1，满8槽返回-1；无压槽/重算/acted/MP/EX。新9.5 Domain全函数与原始机器码独立复核。
+int __cdecl field_unit_inventory_item_append(int a1, char a2)
 {
   int i; // edx
   char *v3; // eax
@@ -8427,7 +8468,7 @@ int __cdecl sub_1BB8C(int a1, char a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_player_item_command_execute
+ * IDA 9.5 Hex-Rays: field_player_item_command_execute
  * VA=0x1bbdc..0x1bffe OBJ=1 OFF=0xbbdc size=0x422
  * callers: 0x18d8c
  * callees: 0x115b6, 0x11cac, 0x12c0d, 0x12cea, 0x12d7b, 0x13512, 0x14818, 0x173e7, 0x1741c, 0x176b4, 0x177fc, 0x1b722, 0x1b750, 0x1b8a6, 0x1b8e7, 0x1b932, 0x1bb8c, 0x1bffe, 0x20c6f, 0x3702f, 0x3706e, 0x3776e, 0x4df4c, 0x4e8bc
@@ -8439,6 +8480,9 @@ int __cdecl sub_1BB8C(int a1, char a2)
 // [field_player_item_command_execute_core] `field_player_item_command_execute` 的 `__chkstk` 后主体
 //   依据: 反编译确认物品列表、目标范围和取消返回路径；完整道具效果状态机尚未移植。
 //   历史地址列 `0x40dfa`（`0x1bbe6` 是 __chkstk body，入口为 `0x1bbdc`）；旧 Ghidra 名 `FUN_00040dfa`；判定 chkstk-body
+// [勘误 evidence] 物品子菜单可以套用MAGIC取消层级或通用库存回滚 -> 表51f05为Use/Give/Equip/Drop的IDs8..11；count非0才打开，仅Give因无相邻filter3候选禁用。列表取消返回0后18d8c19055重开ITEM；子菜单取消返回-1后18d8c返回0、18890重开COMMAND。目标取消聚焦caster再重开列表0。53C53只由Give完成置1，装备/丢弃已写变化不能回滚。；依据: published1bbdc及18d8c/18890调用者，strictLE file41bf0完整1058B SHA bf0bb20b11c2de14cd1b5612d8d7ed4224e7a22634391de744fa278536a0d3f9；2026-11-05真实START raw0三槽、不改坐标，原版WGC逐键验证四向选择、Use列表code0确认拒绝、raw索引回绕、取消与重开。实际使用/目标/装备/丢弃/Give提交及SDL对应流程仍分别验收。
+// [勘误 evidence] 草药可借法术ID13或把53EC8清零当成unit EX清零 -> item192/code5由20c6f→211a4→1c916传原power40；玩家目标读record+10 cast1/+12 area0/+15 filter1，不借AI的+11。效果后1b8e7移槽，20c6f/18d8c清全局53EC8，再acted及玩家尾；unit MP与EX保留。；依据: 完整20c6f SHA bd7d202cf348a11c5712ab96a02e5cf75f534b8b5aae2bb0447077ecf7e30c2b，211a4/1c916/1b8e7原码与xref；2026-11-05原版WGC满HP及exact HP20/EX99派生各使用一次，target取消回列表0，HP42/MP0/EX0或99、两槽详情通过。未执行Save/END，raw16B/stale尾运行量测、完整UI RNG/演出/声音与SDL配对未验。
+// [勘误 evidence] Give range1/minManhattan1/filter3排除整中心格，仅hidden/side门；确认后12c0d再取该格首可见raw(不重筛side)。空槽append flags0；满槽两侧各remove后append flags0；仅giver重算。成功53C53=1，零步/移动最终COMMAND Esc均markacted→lookup1，移动不回滚；取消子路sender仍重算。；依据: 完整1bbdc/1bb8c/1b8e7/18d8c/18890和新Domain指令/xref；1bbdc code23额外身份门读取text_id+8==24与mp_max+46h>=20，而非currentMP；首次目标后第二次selector6选空且可走目的地，display仍1/frame0。Use area确认14742为纯Manhattan，最终收集14818仍地形传播，两者不可合并。
 int __cdecl field_player_item_command_execute(int a1)
 {
   __int64 v1; // rax
@@ -8488,7 +8532,7 @@ int __cdecl field_player_item_command_execute(int a1)
   {
     while ( 1 )
     {
-      v6 = sub_1B932(a1, 1);
+      v6 = field_unit_inventory_select(a1, 1);
       if ( v6 )
       {
         LODWORD(v1) = field_unit_item_id_at(a1, dword_53C57);
@@ -8538,7 +8582,7 @@ int __cdecl field_player_item_command_execute(int a1)
         }
         if ( v8 != -1 )
         {
-          sub_20C6F(a1, dword_53C57, v23, v17);
+          field_item_use_effect_execute(a1, dword_53C57, v23, v17);
           field_actor_mark_acted(a1);
           return 1;
         }
@@ -8555,17 +8599,17 @@ int __cdecl field_player_item_command_execute(int a1)
   {
     if ( dword_53C57 == 2 )
     {
-      sub_1BFFE(a1);
+      field_unit_equipment_menu_execute(a1);
     }
     else
     {
-      if ( sub_1B932(a1, 0) )
-        sub_1B8E7(a1, dword_53C57);
+      if ( field_unit_inventory_select(a1, 0) )
+        field_unit_inventory_slot_remove(a1, dword_53C57);
       field_unit_combat_stats_recompute(a1);
     }
     return 0;
   }
-  if ( sub_1B932(a1, 0) )
+  if ( field_unit_inventory_select(a1, 0) )
   {
     v10 = malloc(100);
     v11 = (unsigned __int8 *)v10;
@@ -8579,21 +8623,21 @@ int __cdecl field_player_item_command_execute(int a1)
     if ( v20 != -1 )
     {
       v14 = field_unit_item_id_at(a1, dword_53C57);
-      if ( sub_1BB8C(v13, v14) != -1 )
+      if ( field_unit_inventory_item_append(v13, v14) != -1 )
       {
-        sub_1B8E7(a1, dword_53C57);
+        field_unit_inventory_slot_remove(a1, dword_53C57);
 LABEL_31:
         dword_53C53 = 1;
         goto LABEL_32;
       }
       v21 = dword_53C57;
-      if ( sub_1B932(v13, 0) )
+      if ( field_unit_inventory_select(v13, 0) )
       {
         v15 = field_unit_item_id_at(v13, dword_53C57);
-        sub_1B8E7(v13, dword_53C57);
-        sub_1BB8C(v13, v14);
-        sub_1B8E7(a1, v21);
-        sub_1BB8C(a1, v15);
+        field_unit_inventory_slot_remove(v13, dword_53C57);
+        field_unit_inventory_item_append(v13, v14);
+        field_unit_inventory_slot_remove(a1, v21);
+        field_unit_inventory_item_append(a1, v15);
         goto LABEL_31;
       }
     }
@@ -8605,12 +8649,14 @@ LABEL_32:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1BFFE
+ * IDA 9.5 Hex-Rays: field_unit_equipment_menu_execute
  * VA=0x1bffe..0x1c142 OBJ=1 OFF=0xbffe size=0x144
  * callers: 0x1bbdc, 0x28efe
  * callees: 0x17e0b, 0x17eef, 0x18409, 0x184c0, 0x1b722, 0x1b750, 0x1b8a6, 0x1b9de, 0x1c142, 0x1c1c3, 0x3702f, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-void __cdecl sub_1BFFE(int a1)
+// [field_unit_equipment_menu_execute] canonical 0x1bffe; original sub_1BFFE; EQT反复执行mode0库存选择；兼容时切装备并重算/重画，Esc关闭和释放缓冲；确认后仍同页同raw索引。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+// [勘误 semantic_name] sub_1BFFE -> field_unit_equipment_menu_execute；依据: EQT反复执行mode0库存选择；兼容时切装备并重算/重画，Esc关闭和释放缓冲；确认后仍同页同raw索引。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+void __cdecl field_unit_equipment_menu_execute(int a1)
 {
   int v1; // esi
   int v2; // edi
@@ -8622,7 +8668,7 @@ void __cdecl sub_1BFFE(int a1)
   while ( 1 )
   {
     do
-      v1 = sub_1B9DE(a1, 0);
+      v1 = field_unit_inventory_select_step(a1, 0);
     while ( v1 == 0 );
     v2 = field_unit_item_id_at(a1, dword_53C57);
     if ( v1 == -1 || field_unit_inventory_count(a1) == 0 )
@@ -8635,9 +8681,9 @@ void __cdecl sub_1BFFE(int a1)
       free(dword_53C63);
       JUMPOUT(0x10C49);
     }
-    if ( sub_1C1C3(a1, v2) != 0 )
+    if ( field_unit_can_equip_item(a1, v2) != 0 )
     {
-      sub_1C142(a1, dword_53C57);
+      field_unit_equipment_slot_set(a1, dword_53C57);
       field_unit_combat_stats_recompute(a1);
       memmove(dword_53A49, 655360, 64000);
       field_unit_detail_draw(a1, dword_53A49);
@@ -8649,12 +8695,14 @@ void __cdecl sub_1BFFE(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C142
+ * IDA 9.5 Hex-Rays: field_unit_equipment_slot_set
  * VA=0x1c142..0x1c1c3 OBJ=1 OFF=0xc142 size=0x81
  * callers: 0x1bffe, 0x2872b
  * callees: 0x1b722, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_1C142(int a1, int a2)
+// [field_unit_equipment_slot_set] canonical 0x1c142; original sub_1C142; 按item ID<128/≥128分组清全flag为0，再selected flag=40；不做职业兼容或重算。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+// [勘误 semantic_name] sub_1C142 -> field_unit_equipment_slot_set；依据: 按item ID<128/≥128分组清全flag为0，再selected flag=40；不做职业兼容或重算。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+int __cdecl field_unit_equipment_slot_set(int a1, int a2)
 {
   int v2; // esi
   int v3; // ebx
@@ -8680,19 +8728,21 @@ int __cdecl sub_1C142(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C1C3
+ * IDA 9.5 Hex-Rays: field_unit_can_equip_item
  * VA=0x1c1c3..0x1c220 OBJ=1 OFF=0xc1c3 size=0x5d
  * callers: 0x1bffe, 0x2872b
  * callees: 0x3702f, 0x4e88e, 0x4e8bc
  * --------------------------------------------------------------- */
-int __cdecl sub_1C1C3(int a1, int a2)
+// [field_unit_can_equip_item] canonical 0x1c1c3; original sub_1C1C3; actor+20→7-byte profile row；item.category仅比前6B，返回1/0，不使用第7B。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+// [勘误 semantic_name] sub_1C1C3 -> field_unit_can_equip_item；依据: actor+20→7-byte profile row；item.category仅比前6B，返回1/0，不使用第7B。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+int __cdecl field_unit_can_equip_item(int a1, int a2)
 {
   int v2; // esi
   int v3; // ebx
   int i; // eax
 
   watcom_stack_check(16);
-  v2 = sub_4E88E(*(unsigned __int8 *)(80 * a1 + dword_53A45 + 32));
+  v2 = field_equipment_profile_get(*(unsigned __int8 *)(80 * a1 + dword_53A45 + 32));
   v3 = *(unsigned __int8 *)field_item_record_get(a2);
   for ( i = 0; i < 6; ++i )
   {
@@ -8704,7 +8754,7 @@ int __cdecl sub_1C1C3(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C220
+ * IDA 9.5 Hex-Rays: sub_1C220
  * VA=0x1c220..0x1c269 OBJ=1 OFF=0xc220 size=0x49
  * callers: 0x22f37, 0x240fa
  * callees: 0x1bb8c, 0x3702f
@@ -8720,7 +8770,7 @@ int __cdecl sub_1C220(char a1)
     result = *(unsigned __int8 *)(dword_53A45 + 80 * i + 6);
     if ( result == 2 )
     {
-      result = sub_1BB8C(i, a1);
+      result = field_unit_inventory_item_append(i, a1);
       if ( result != -1 )
         break;
     }
@@ -8730,7 +8780,7 @@ int __cdecl sub_1C220(char a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_magic_list_build
+ * IDA 9.5 Hex-Rays: field_unit_magic_list_build
  * VA=0x1c269..0x1c2da OBJ=1 OFF=0xc269 size=0x71
  * callers: 0x1598a, 0x15b77, 0x17aed, 0x18d8c, 0x1ceed, 0x1cff0, 0x1d51d
  * callees: 0x3702f
@@ -8771,7 +8821,7 @@ void __cdecl field_unit_magic_list_build(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_group_flash
+ * IDA 9.5 Hex-Rays: field_actor_group_flash
  * VA=0x1c2da..0x1c4cc OBJ=1 OFF=0xc2da size=0x1f2
  * callers: 0x20c6f, 0x21082, 0x211a4, 0x21b18, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22c04, 0x22d1b, 0x250cc
  * callees: 0x11eb0, 0x17aa9, 0x25a96, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x4e127
@@ -8831,7 +8881,7 @@ int __cdecl field_actor_group_flash(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C4CC
+ * IDA 9.5 Hex-Rays: sub_1C4CC
  * VA=0x1c4cc..0x1c75e OBJ=1 OFF=0xc4cc size=0x292
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x211a4, 0x21227, 0x213b7, 0x214ad, 0x21b18, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22c04, 0x22d1b
  * callees: 0x11cac, 0x11eb0, 0x17aa9, 0x25a96, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x4ebab
@@ -8918,7 +8968,7 @@ int __cdecl sub_1C4CC(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_magic_damage_profile_apply
+ * IDA 9.5 Hex-Rays: field_magic_damage_profile_apply
  * VA=0x1c75e..0x1c81f OBJ=1 OFF=0xc75e size=0xc1
  * callers: 0x20c6f, 0x2111a, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x2ff01
  * callees: 0x1c81f, 0x1f183, 0x3702f, 0x4e866, 0x4ebe3
@@ -8953,17 +9003,19 @@ int __cdecl field_magic_damage_profile_apply(int a1, int a2)
   if ( v6 >= v10 )
     return 0;
   else
-    return sub_1C81F(a1, v4);
+    return field_magic_damage_apply(a1, v4);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C81F
+ * IDA 9.5 Hex-Rays: field_magic_damage_apply
  * VA=0x1c81f..0x1c8ed OBJ=1 OFF=0xc81f size=0xce
  * callers: 0x1c75e, 0x22d1b, 0x2cf30
  * callees: 0x3702f, 0x4e84f, 0x4ebe3
  * --------------------------------------------------------------- */
-void __cdecl sub_1C81F(int a1, int a2)
+// [勘误 semantic_name] sub_1C81F -> field_magic_damage_apply；依据: 1c75e命中后调用的共享伤害core；逐目标消费spread RNG，两次整数截断形成rawDamage，再HP夹零。敌军ID>=68时读取4e84f record+9乘目标等级；死亡给全值，未死按rawDamage/maxHP计入53EC8。
+// [勘误 evidence] 经验可以统一按实际HP差计算 -> 伤害贡献使用未夹HP的rawDamage，死亡分支给完整level*coefficient；不在此除caster等级、cap99或写EX。保留原IDA物理符号／类型，不据此猜ABI。；依据: 完整206B SHA b5b10e142a437411b5c94381747eef65783fa0a1e4b7e11caef3c31d1570ef60；已发布1c81f及1c75e/2ff01调用链、680B敌表；受控原版unit9杀unit96实测MP6与EX42，RNG／完整动画仍未对齐。
+void __cdecl field_magic_damage_apply(int a1, int a2)
 {
   int v2; // esi
   int v3; // edi
@@ -8986,7 +9038,7 @@ void __cdecl sub_1C81F(int a1, int a2)
   v6 = *(unsigned __int8 *)(v2 + 7);
   if ( v6 >= 0x44 )
   {
-    v7 = *(unsigned __int8 *)(v2 + 33) * *(unsigned __int8 *)(sub_4E84F(v6 - 68) + 9);
+    v7 = *(unsigned __int8 *)(v2 + 33) * *(unsigned __int8 *)(field_enemy_base_record_get(v6 - 68) + 9);
     v9 = v7;
     if ( v5 != 0 )
       v9 = v4 * v7 / v8;
@@ -8997,7 +9049,7 @@ void __cdecl sub_1C81F(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_magic_heal_apply
+ * IDA 9.5 Hex-Rays: field_magic_heal_apply
  * VA=0x1c8ed..0x1c916 OBJ=1 OFF=0xc8ed size=0x29
  * callers: 0x21b18
  * callees: 0x1c916, 0x3702f, 0x4e866
@@ -9011,17 +9063,19 @@ int __cdecl field_magic_heal_apply(int a1, int a2)
 
   watcom_stack_check(16);
   v2 = (__int16 *)field_magic_record_get(a2);
-  return sub_1C916(a1, *v2);
+  return field_hp_heal_apply(a1, *v2);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C916
+ * IDA 9.5 Hex-Rays: field_hp_heal_apply
  * VA=0x1c916..0x1c9dd OBJ=1 OFF=0xc916 size=0xc7
  * callers: 0x1c8ed, 0x211a4, 0x22af6
  * callees: 0x3702f, 0x4ebe3
  * --------------------------------------------------------------- */
-void __cdecl sub_1C916(int a1, int a2)
+// [勘误 semantic_name] sub_1C916 -> field_hp_heal_apply；依据: 1c8ed法术／211a4物品共享HP恢复core；一次spread RNG，满HP也消费，恢复量夹maxHP。ID<75按实际恢复差*40*目标等级权重/maxHP累加53EC8；只有8<profile<25给目标等级加30，不等同caster归一条件。
+// [勘误 evidence] 恢复core可以承担费用或caster经验写回 -> 只恢复当前target HP并累计原始贡献，费用由wrapper、caster归一由18d8c负责；SDL最坏贡献查询复用相同整数公式，所有目标先预检；SDL另共享纯HP部分供真实magic power与item value调用，不把其API等同原函数的贡献累计、费用或各动作尾链。；依据: 完整199B SHA 2bfd114f863e4e0f16eea866cdd8e699c925e78c1ebf8c131defd539a791778d，已发布调用者及raw写集；28000组profile/HP/spread逻辑组合检查既有效果与上界。该组合检查不是局部机器码执行或原版治疗运行。
+void __cdecl field_hp_heal_apply(int a1, int a2)
 {
   int v2; // esi
   int v3; // edi
@@ -9049,12 +9103,13 @@ void __cdecl sub_1C916(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1C9DD
+ * IDA 9.5 Hex-Rays: field_mp_heal_apply
  * VA=0x1c9dd..0x1ca89 OBJ=1 OFF=0xc9dd size=0xac
  * callers: 0x20c6f
  * callees: 0x3702f, 0x4ebe3
  * --------------------------------------------------------------- */
-void __cdecl sub_1C9DD(int a1, int a2)
+// [field_mp_heal_apply] canonical 0x1c9dd; original sub_1C9DD; 完整172B及20c6f/code11的xref：先整数9*power/10，再一次RNG%100*power/1000，加oldMP并夹mp_max，满值也耗RNG；原caster MP不扣费，targetID<75时实际恢复差*40*targetLV/mp_max仅累全局53EC8，经item dispatcher清除，不改unit.EX。
+void __cdecl field_mp_heal_apply(int a1, int a2)
 {
   int v2; // esi
   int v3; // edi
@@ -9076,11 +9131,12 @@ void __cdecl sub_1C9DD(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1CA89
+ * IDA 9.5 Hex-Rays: sub_1CA89
  * VA=0x1ca89..0x1cac7 OBJ=1 OFF=0xca89 size=0x3e
  * callers: 0x21227, 0x213b7, 0x214ad, 0x21548, 0x21b18, 0x2218a, 0x226ea, 0x2282f, 0x22960, 0x22aa8, 0x22c04, 0x22cda, 0x30e9d
  * callees: 0x3702f, 0x4e866
  * --------------------------------------------------------------- */
+// [勘误 evidence] 中性sub_1CA89的MP消费写集未登记，AI消费被误当成只有gate -> 保留中性名；输入actor index和cost-record ID，只把actor+0x44的u16减去magic record+5的u8后写回；不夹0、不重新检查MP，不消费RNG。map-effect wrapper在target循环前调用，miss/免疫/状态无变化仍扣；目标选择取消尚未进入该helper。；依据: 权威伪C和原始1ca89..1cac7逐指令一致，唯一单位写指令为1cac1的mov word[actor+44],bx。15311和1cff0共用wrapper，动画30e9d另由part标记触发；静态写集不等于完整实机施法验收。
 int __cdecl sub_1CA89(int a1, int a2)
 {
   int v2; // edx
@@ -9095,7 +9151,7 @@ int __cdecl sub_1CA89(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1CAC7
+ * IDA 9.5 Hex-Rays: sub_1CAC7
  * VA=0x1cac7..0x1cb94 OBJ=1 OFF=0xcac7 size=0xcd
  * callers: 0x2111a, 0x213b7
  * callees: 0x11cac, 0x11eb0, 0x1cb94, 0x3702f, 0x3706e, 0x3776e, 0x3790a
@@ -9123,7 +9179,7 @@ void __cdecl sub_1CAC7(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: map_scene_render_actors
+ * IDA 9.5 Hex-Rays: map_scene_render_actors
  * VA=0x1cb94..0x1cd17 OBJ=1 OFF=0xcb94 size=0x183
  * type: int __cdecl(int, int, int, int)
  * callers: 0x1cac7
@@ -9192,7 +9248,7 @@ int __cdecl map_scene_render_actors(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1CD17
+ * IDA 9.5 Hex-Rays: sub_1CD17
  * VA=0x1cd17..0x1ceed OBJ=1 OFF=0xcd17 size=0x1d6
  * callers: 0x20c6f, 0x21227
  * callees: 0x11eb0, 0x17aa9, 0x3702f, 0x3706e, 0x3771c, 0x4df84
@@ -9247,12 +9303,14 @@ void __cdecl sub_1CD17(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1CEED
+ * IDA 9.5 Hex-Rays: field_unit_magic_list_draw
  * VA=0x1ceed..0x1cff0 OBJ=1 OFF=0xceed size=0x103
  * callers: 0x17aed, 0x1cff0, 0x1d51d
  * callees: 0x15f84, 0x1685c, 0x187d6, 0x1c269, 0x3702f, 0x4e866
  * --------------------------------------------------------------- */
-void __cdecl sub_1CEED(int a1, int a2, int a3)
+// [勘误 semantic_name] sub_1CEED -> field_unit_magic_list_draw；依据: 完整259B及17aed/1cff0/1d51d的xref：枚举actor法术，按每列4行绘441+ID名称、frame92费用标签和record+5的bank42两位数字。selected仅切换205/201前景，shadow76、背景透明。普通详情也调用，故不是player专用；不画底板/姓名MP、不等待、分配或提交。
+// [勘误 evidence] 中性符号未登记完整列表绘制写集 -> x=18+100*(index/4)，y=103+22*(index%4)；费用图位于x+50/y+5，数字x+73/y+5。SDL现有详情合并装备，纯列表整合先恢复底板不等于原函数自身画底板。IDA原符号与发布伪C保持，未写猜测ABI。；依据: published函数区间1ceed..1cff0与strictLE object1 offceed/file42f01完整窗口一致；SHA fc1b0cc845879719340b084d927c069d1393efd809085feece0c052c0660558f。2026-11-04真实START raw1火炎术首项开/取消/重开，31603矩形资源门通过；全部36名称只含普通glyph/结束，31为空名。
+void __cdecl field_unit_magic_list_draw(int a1, int a2, int a3)
 {
   int v3; // eax
   int i; // esi
@@ -9293,7 +9351,7 @@ void __cdecl sub_1CEED(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_player_magic_command_execute
+ * IDA 9.5 Hex-Rays: field_player_magic_command_execute
  * VA=0x1cff0..0x1d4cb OBJ=1 OFF=0xcff0 size=0x4db
  * callers: 0x18d8c
  * callees: 0x115b6, 0x11cac, 0x12d7b, 0x14818, 0x149f8, 0x17eef, 0x18409, 0x1aa1d, 0x1b6b7, 0x1c269, 0x1ceed, 0x1d4cb, 0x1d4f6, 0x1d51d, 0x1d6c8, 0x1db65, 0x21206, 0x2134b, 0x21364, 0x2137d, 0x21396, 0x21449, 0x21462, 0x2147b, 0x21494, 0x214ad, 0x21527, 0x2185f, 0x21a9e, 0x21ad9, 0x21b99, 0x2211c, 0x22153, 0x2218a, 0x226ea, 0x2282f, 0x22960, 0x22a85, 0x22bc6, 0x22be1, 0x22c04, 0x22cbf, 0x22e41, 0x2ff01, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x4df4c, 0x4e866
@@ -9344,12 +9402,12 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
   memmove(dword_53C5F, 655360, 64000);
   memmove(dword_53C63, dword_53C5F, 64000);
   field_unit_detail_draw((int)a1, dword_53C63);
-  sub_1CEED((int)a1, -1, dword_53C63);
+  field_unit_magic_list_draw((int)a1, -1, dword_53C63);
   for ( i = 11; i >= 0; --i )
     field_unit_detail_transition_frame(i, dword_53C5B, dword_53C63, dword_53C5F);
   dword_53C57 = 0;
   do
-    v3 = sub_1D51D(a1, v26[0], v26[1], v26[2], v26[3], v26[4], v26[5]);
+    v3 = field_player_magic_list_select_step(a1, v26[0], v26[1], v26[2], v26[3], v26[4], v26[5]);
   while ( v3 == 0 );
   for ( j = 0; j <= 11; ++j )
     field_unit_detail_transition_frame(j, dword_53C5B, dword_53C63, dword_53C5F);
@@ -9454,7 +9512,7 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1D4CB
+ * IDA 9.5 Hex-Rays: sub_1D4CB
  * VA=0x1d4cb..0x1d4f6 OBJ=1 OFF=0xd4cb size=0x2b
  * type: int __fastcall(_DWORD)
  * callers: 0x15311, 0x1cff0, 0x20c6f, 0x24618, 0x2d80d
@@ -9473,7 +9531,7 @@ int sub_1D4CB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1D4F6
+ * IDA 9.5 Hex-Rays: sub_1D4F6
  * VA=0x1d4f6..0x1d51d OBJ=1 OFF=0xd4f6 size=0x27
  * type: int __fastcall(_DWORD)
  * callers: 0x15311, 0x1cff0, 0x20c6f, 0x2d80d, 0x3396a
@@ -9488,12 +9546,14 @@ void sub_1D4F6()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1D51D
+ * IDA 9.5 Hex-Rays: field_player_magic_list_select_step
  * VA=0x1d51d..0x1d6c8 OBJ=1 OFF=0xd51d size=0x1ab
  * callers: 0x1cff0
  * callees: 0x16c57, 0x1c269, 0x1ceed, 0x25a96, 0x3702f, 0x4e866
  * --------------------------------------------------------------- */
-void __cdecl sub_1D51D(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
+// [勘误 semantic_name] sub_1D51D -> field_player_magic_list_select_step；依据: 完整427B及1cff0内1d0cf调用：先1ceed重绘，再16c57读单键，上下环绕、左右跨4项，索引留53C57；返回0继续/-1取消/1确认。确认只查MP>=record+5费用，不扣MP、不标acted或施法。开合与循环在caller，故不是返回spellID的完整modal。
+// [勘误 evidence] 按旧伪C的void和七个参数推断选择器ABI或纯查询 -> 保留原sub_1D51D物理符号/伪C类型；raw1d68a..1d6c1补全MP与0/-1/1路径，共享16f04恢复尾。16c57会消费UI RNG，不能声称取消或列表等待不推进共享随机流。；依据: strictLE object1 offd51d/file43531全427B连续窗口相等；SHA bf6c1838f60e40612e1af48ee194a468a4edd0442c9971ddd18168d709949d71。运行仅证实首项MP8/8/cost02的打开、Esc与重开；完整导航和低MP门本轮仍是静态证据，不冒称原版已执行。未新建或写入IDB。
+void __cdecl field_player_magic_list_select_step(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 {
   int v7; // eax
   int v8; // ebx
@@ -9501,7 +9561,7 @@ void __cdecl sub_1D51D(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
   _UNKNOWN *retaddr; // [esp+18h] [ebp+0h] BYREF
 
   watcom_stack_check(40);
-  sub_1CEED(a1, dword_53C57, 655360);
+  field_unit_magic_list_draw(a1, dword_53C57, 655360);
   field_unit_magic_list_build(a7, 0);
   v8 = v7;
   sub_16C57(0);
@@ -9558,7 +9618,7 @@ void __cdecl sub_1D51D(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1D6C8
+ * IDA 9.5 Hex-Rays: sub_1D6C8
  * VA=0x1d6c8..0x1d79c OBJ=1 OFF=0xd6c8 size=0xd4
  * callers: 0x1cff0
  * callees: 0x17aa9, 0x25a96, 0x3702f, 0x37ae5
@@ -9588,7 +9648,7 @@ int __cdecl sub_1D6C8(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1D79C
+ * IDA 9.5 Hex-Rays: sub_1D79C
  * VA=0x1d79c..0x1d80b OBJ=1 OFF=0xd79c size=0x6f
  * callers: 0x1e292
  * callees: 0x3702f
@@ -9612,7 +9672,7 @@ void __cdecl sub_1D79C(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_side1_phase_execute
+ * IDA 9.5 Hex-Rays: field_side1_phase_execute
  * VA=0x1d80b..0x1d8ba OBJ=1 OFF=0xd80b size=0xaf
  * type: int __fastcall(_DWORD)
  * callers: 0x1a30b
@@ -9636,7 +9696,7 @@ int __usercall field_side1_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
   for ( i = 0; i < dword_53BEB; ++i )
   {
     dword_51A83 = 0;
-    vsync_wait(result);
+    bios_keyboard_buffer_clear(result);
     v4 = (_BYTE *)(dword_53A45 + 80 * i);
     dword_51A8F = 255;
     if ( v4[6] == 1 && (v4[5] & 0x81) == 0 && v4[38] == 0 )
@@ -9652,7 +9712,7 @@ int __usercall field_side1_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_side0_phase_execute
+ * IDA 9.5 Hex-Rays: field_side0_phase_execute
  * VA=0x1d8ba..0x1da16 OBJ=1 OFF=0xd8ba size=0x15c
  * type: int __fastcall(_DWORD)
  * callers: 0x1a30b
@@ -9677,7 +9737,7 @@ int __usercall field_side0_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
   for ( i = 0; i < dword_53BEB; ++i )
   {
     dword_51A83 = 0;
-    vsync_wait(result);
+    bios_keyboard_buffer_clear(result);
     v4 = (_BYTE *)(80 * i + dword_53A45);
     dword_51A8F = 255;
     if ( v4[6] == 0 && (v4[5] & 0x81) == 0 && v4[38] == 0 )
@@ -9695,7 +9755,7 @@ int __usercall field_side0_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
   }
   for ( j = 0; j < dword_53BEB; ++j )
   {
-    vsync_wait(result);
+    bios_keyboard_buffer_clear(result);
     v6 = (_BYTE *)(80 * j + dword_53A45);
     dword_51A8F = 255;
     if ( v6[6] == 0 && (v6[5] & 0x81) == 0 && v6[38] == 0 )
@@ -9711,7 +9771,7 @@ int __usercall field_side0_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: map_actor_blit_24x24
+ * IDA 9.5 Hex-Rays: map_actor_blit_24x24
  * VA=0x1da16..0x1db65 OBJ=1 OFF=0xda16 size=0x14f
  * callers: 0x13fd4, 0x1a30b, 0x1e98c
  * callees: 0x3702f, 0x4e127, 0x4e22a
@@ -9788,7 +9848,7 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_defeated_units_finalize
+ * IDA 9.5 Hex-Rays: field_defeated_units_finalize
  * VA=0x1db65..0x1debe OBJ=1 OFF=0xdb65 size=0x359
  * type: int __fastcall(_DWORD)
  * callers: 0x15311, 0x1548e, 0x18d8c, 0x1a866, 0x1cff0, 0x20c6f, 0x35730, 0x35f10
@@ -9801,6 +9861,7 @@ LABEL_22:
 // [field_defeated_units_finalize] 收集可见 HP 0 actor 播放旋转／消散演出，并把所有 HP 0 actor 的 flags `+0x05` 写为 1
 //   依据: 无可见死亡单位时 `0x42e4a..0x42e79` 直接遍历完整 actor 表写 flags；有演出时 `0x42e7b..0x42f37` 播放 13 帧旋转，`0x42f39..0x42f64` 再执行相同全表写入。赋值是精确写 1，不是 OR bit。
 //   历史地址列 `0x42d83`（`0x1db6f` 是 __chkstk body，入口为 `0x1db65`）；旧 Ghidra 名 `FUN_00042d83`；判定 chkstk-body
+// [勘误 evidence] 无演出时只需把全部HP0的flags写1 -> 只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于x[camX-1,camX+13]／y[camY-1,camY+9]，13帧循环会把全体非hiddenHP0（含离屏者）方向最终写0；hidden死者方向不改。无屏内见证者则不改方向；最后全部HP0 flags精确赋1，不能OR原flags或重置所有存活者方向。；依据: 已发布1db65的收集门及j0..12全表循环、strictLE object2 VA51a87/51a8b原始8字节0d00000008000000，与现13x8 viewport相等。SDL共享清理用于phase/physical/AI magic/item及新player magic，扩边界与屏内外／hidden组合锁终态；此项不证明旋转／消散帧已实现。
 int field_defeated_units_finalize()
 {
   int result; // eax
@@ -9907,7 +9968,7 @@ int field_defeated_units_finalize()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1DEBE
+ * IDA 9.5 Hex-Rays: sub_1DEBE
  * VA=0x1debe..0x1df58 OBJ=1 OFF=0xdebe size=0x9a
  * callers: 0x14237
  * callees: 0x1b722, 0x1b83d, 0x3702f, 0x37932, 0x4e8bc
@@ -9939,7 +10000,7 @@ int __cdecl sub_1DEBE(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1DF58
+ * IDA 9.5 Hex-Rays: sub_1DF58
  * VA=0x1df58..0x1e0db OBJ=1 OFF=0xdf58 size=0x183
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x214ad, 0x21548, 0x22721, 0x22997, 0x22aa8, 0x22c04
  * callees: 0x11eb0, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x4ebab
@@ -9988,7 +10049,7 @@ void sub_1DF58()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E0DB
+ * IDA 9.5 Hex-Rays: sub_1E0DB
  * VA=0x1e0db..0x1e1dc OBJ=1 OFF=0xe0db size=0x101
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x211a4, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x21b18, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22d1b
  * callees: 0x3702f, 0x37b29, 0x37b55
@@ -10039,7 +10100,7 @@ void __cdecl sub_1E0DB(int a1, char a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E1DC
+ * IDA 9.5 Hex-Rays: sub_1E1DC
  * VA=0x1e1dc..0x1e292 OBJ=1 OFF=0xe1dc size=0xb6
  * callers: 0x20c6f, 0x2111a, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22c04, 0x22d1b
  * callees: 0x3702f
@@ -10092,11 +10153,12 @@ int __cdecl sub_1E1DC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E292
+ * IDA 9.5 Hex-Rays: sub_1E292
  * VA=0x1e292..0x1e529 OBJ=1 OFF=0xe292 size=0x297
  * callers: 0x117e7, 0x1548e
  * callees: 0x15f84, 0x16559, 0x1956b, 0x196cb, 0x1b750, 0x1d79c, 0x1e529, 0x1e5c0, 0x3702f, 0x4e381, 0x4e7f2, 0x4e821
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未升级动作可省略EX或用WAIT收尾代替 -> gain非零、caster未hidden且不在等值levelcap时，EX+gain<100分支只写+3c，不成长／重算／学习。18d8c先按level+(profile>8?30:0)归一，controller再cap99；升级分支仍待B4，SDL在MP/RNG前以全目标上界拒绝可能升级。；依据: 已发布1e292及117e7/18d8c，完整663B SHA 5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；levelcap为ID30/31等于99、其它等于40，不扩为>=。这里只登记已确认分支，不命名整个成长流程或声称488提示／FIGANI／额外呈现RNG已验收。
 void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
 {
   int v2; // ebp
@@ -10125,13 +10187,13 @@ void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
     v16 = sub_4E821((unsigned __int8)v3[7]);
     v15 = (unsigned __int8)v3[60] + dword_53EC8;
     dword_53AE1 = dword_53EC8;
-    vsync_wait(dword_53EC8);
+    bios_keyboard_buffer_clear(dword_53EC8);
     sub_1956B((unsigned __int8)v3[7]);
     text_dialog_render_tokens(a1, dword_53A7D, 488, 693535, 320, 205, 76, 74, 19, 1);
     v7 = sub_16559(0);
     while ( v15 >= 100 )
     {
-      vsync_wait(v7);
+      bios_keyboard_buffer_clear(v7);
       ++v3[33];
       text_dialog_render_tokens(a1, dword_53A7D, 489, 699615, 320, 205, 76, 74, 19, 1);
       v10 = sub_1E529(v3 + 55, v16, 490, v2);
@@ -10169,7 +10231,7 @@ void __usercall sub_1E292(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E529
+ * IDA 9.5 Hex-Rays: sub_1E529
  * VA=0x1e529..0x1e5c0 OBJ=1 OFF=0xe529 size=0x97
  * callers: 0x1e292, 0x2ac7d
  * callees: 0x15f84, 0x16e24, 0x3702f, 0x4e381, 0x4ebe3
@@ -10190,7 +10252,7 @@ int __cdecl sub_1E529(_WORD *a1, int a2, int a3, int a4)
       v5 = 2;
       v4 = dialog_text_scroll_up();
     }
-    vsync_wait(v4);
+    bios_keyboard_buffer_clear(v4);
     text_dialog_render_tokens((unsigned __int8 *)v5, dword_53A7D, a3, 6080 * v5 + 693535, 320, 205, 76, 74, 19, 1);
     *a1 += dword_53AE1;
     ++v5;
@@ -10200,7 +10262,7 @@ int __cdecl sub_1E529(_WORD *a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E5C0
+ * IDA 9.5 Hex-Rays: sub_1E5C0
  * VA=0x1e5c0..0x1e611 OBJ=1 OFF=0xe5c0 size=0x51
  * callers: 0x1a866, 0x1e292
  * callees: 0x10620, 0x3702f, 0x4e31c, 0x4e381
@@ -10222,12 +10284,12 @@ int __cdecl sub_1E5C0(int a1)
     v1 = v3;
   }
   while ( !v3 );
-  return vsync_wait(v3);
+  return bios_keyboard_buffer_clear(v3);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E611
+ * IDA 9.5 Hex-Rays: sub_1E611
  * VA=0x1e611..0x1e739 OBJ=1 OFF=0xe611 size=0x128
  * callers: 0x1548e
  * callees: 0x11eee, 0x127a9, 0x15f0e, 0x1e739, 0x1e7f6, 0x3702f
@@ -10250,7 +10312,7 @@ void __cdecl sub_1E611(_DWORD *a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E739
+ * IDA 9.5 Hex-Rays: sub_1E739
  * VA=0x1e739..0x1e7f6 OBJ=1 OFF=0xe739 size=0xbd
  * callers: 0x1e611, 0x1e7f6, 0x1e856
  * callees: 0x1685c, 0x3702f
@@ -10297,7 +10359,7 @@ int __cdecl sub_1E739(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E7F6
+ * IDA 9.5 Hex-Rays: sub_1E7F6
  * VA=0x1e7f6..0x1e856 OBJ=1 OFF=0xe7f6 size=0x60
  * callers: 0x1548e, 0x1e611
  * callees: 0x1e739, 0x3702f
@@ -10318,7 +10380,7 @@ int __cdecl sub_1E7F6(int a1, int a2, int a3, _DWORD *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_physical_attack_sequence
+ * IDA 9.5 Hex-Rays: field_physical_attack_sequence
  * VA=0x1e856..0x1e98c OBJ=1 OFF=0xe856 size=0x136
  * callers: 0x1548e
  * callees: 0x1b722, 0x1b83d, 0x1e739, 0x1e98c, 0x1ecc7, 0x3702f, 0x3790a, 0x4e8bc, 0x4ebe3
@@ -10370,7 +10432,7 @@ void __cdecl field_physical_attack_sequence(int a1, int a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1E98C
+ * IDA 9.5 Hex-Rays: sub_1E98C
  * VA=0x1e98c..0x1eb05 OBJ=1 OFF=0xe98c size=0x179
  * callers: 0x1e856
  * callees: 0x15e71, 0x15f0e, 0x1b722, 0x1b83d, 0x1da16, 0x25a96, 0x3702f, 0x3790a, 0x4e87d, 0x4e8bc
@@ -10427,7 +10489,7 @@ void __cdecl sub_1E98C(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1EB05
+ * IDA 9.5 Hex-Rays: sub_1EB05
  * VA=0x1eb05..0x1ec2a OBJ=1 OFF=0xeb05 size=0x125
  * callers: 0x1548e
  * callees: 0x15e71, 0x15f0e, 0x1ec2a, 0x1f0dc, 0x3702f, 0x3776e, 0x3790a
@@ -10469,7 +10531,7 @@ int *__usercall sub_1EB05@<eax>(int a1@<ebp>, int a2@<edi>, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1EC2A
+ * IDA 9.5 Hex-Rays: sub_1EC2A
  * VA=0x1ec2a..0x1ecc7 OBJ=1 OFF=0xec2a size=0x9d
  * callers: 0x1eb05
  * callees: 0x3702f
@@ -10516,7 +10578,7 @@ LABEL_7:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_physical_attack_resolve
+ * IDA 9.5 Hex-Rays: field_physical_attack_resolve
  * VA=0x1ecc7..0x1f04a OBJ=1 OFF=0xecc7 size=0x383
  * callers: 0x1e856
  * callees: 0x11df2, 0x12e38, 0x1b722, 0x1b83d, 0x1f183, 0x203bd, 0x3702f, 0x3790a, 0x4e84f, 0x4e8bc, 0x4ebe3
@@ -10641,7 +10703,7 @@ void __cdecl field_physical_attack_resolve(int a1, int a2)
     v14 = v4[7];
     if ( v14 >= 0x44 )
     {
-      v15 = sub_4E84F(v14 - 68);
+      v15 = field_enemy_base_record_get(v14 - 68);
       if ( v3[32] > 8u && v3[32] < 0x19u || v3[8] == 28 )
         v30 += 30;
       v16 = v29 * (unsigned int)*(unsigned __int8 *)(v15 + 9) / (__int64)v30;
@@ -10655,7 +10717,7 @@ void __cdecl field_physical_attack_resolve(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1F04A
+ * IDA 9.5 Hex-Rays: sub_1F04A
  * VA=0x1f04a..0x1f0dc OBJ=1 OFF=0xf04a size=0x92
  * callers: 0x15055, 0x1548e, 0x18d8c
  * callees: 0x3702f, 0x37932
@@ -10692,7 +10754,7 @@ unsigned int __cdecl sub_1F04A(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_counterattack_is_available
+ * IDA 9.5 Hex-Rays: field_counterattack_is_available
  * VA=0x1f0dc..0x1f183 OBJ=1 OFF=0xf0dc size=0xa7
  * callers: 0x1548e, 0x1eb05, 0x2e2b0
  * callees: 0x1b722, 0x1b83d, 0x3702f, 0x37932, 0x4e8bc
@@ -10729,7 +10791,7 @@ int __cdecl field_counterattack_is_available(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_unit_ignores_terrain_combat_modifier
+ * IDA 9.5 Hex-Rays: field_unit_ignores_terrain_combat_modifier
  * VA=0x1f183..0x1f1cc OBJ=1 OFF=0xf183 size=0x49
  * callers: 0x115b6, 0x129ec, 0x14121, 0x14237, 0x14b78, 0x15b77, 0x18890, 0x1c75e, 0x1ecc7, 0x2f7b6, 0x2ff01, 0x30e25, 0x32230
  * callees: 0x3702f
@@ -10759,7 +10821,7 @@ bool __cdecl field_unit_ignores_terrain_combat_modifier(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1F1CC
+ * IDA 9.5 Hex-Rays: sub_1F1CC
  * VA=0x1f1cc..0x1f30a OBJ=1 OFF=0xf1cc size=0x13e
  * callers: 0x1a30b
  * callees: 0x11d40, 0x15f0e, 0x17aa9, 0x1f42d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e381, 0x4eb59
@@ -10797,12 +10859,12 @@ int __cdecl sub_1F1CC(int a1)
     ++v1;
   }
   v7 = free(v2);
-  return vsync_wait(v7);
+  return bios_keyboard_buffer_clear(v7);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1F30A
+ * IDA 9.5 Hex-Rays: sub_1F30A
  * VA=0x1f30a..0x1f42d OBJ=1 OFF=0xf30a size=0x123
  * callers: 0x1a30b
  * callees: 0x11d40, 0x11eee, 0x127a9, 0x15f0e, 0x17aa9, 0x1f42d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4eb59
@@ -10843,7 +10905,7 @@ int __cdecl sub_1F30A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1F42D
+ * IDA 9.5 Hex-Rays: sub_1F42D
  * VA=0x1f42d..0x1f503 OBJ=1 OFF=0xf42d size=0xd6
  * callers: 0x1f1cc, 0x1f30a
  * callees: 0x11eb0, 0x15e71, 0x15f0e, 0x17aa9, 0x3702f
@@ -10869,7 +10931,7 @@ void __cdecl sub_1F42D(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: palette_fade_in_light
+ * IDA 9.5 Hex-Rays: palette_fade_in_light
  * VA=0x1f525..0x1f558 OBJ=1 OFF=0xf525 size=0x33
  * type: int __fastcall(_DWORD)
  * callers: 0x10010, 0x1f73f, 0x1f894, 0x205da, 0x22e5c, 0x233c6, 0x235f9, 0x23e74, 0x26152, 0x279bc, 0x29300, 0x29daa, 0x2cf30, 0x2dfc8, 0x2e2b0, 0x2fb2c, 0x2ff01, 0x31529, 0x3231b, 0x33faf
@@ -10894,7 +10956,7 @@ int palette_fade_in_light()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_view_render_scaled
+ * IDA 9.5 Hex-Rays: field_view_render_scaled
  * VA=0x1f558..0x1f6ef OBJ=1 OFF=0xf558 size=0x197
  * callers: 0x2000a, 0x21548
  * callees: 0x3702f, 0x37910
@@ -10906,6 +10968,7 @@ int palette_fade_in_light()
 // [field_view_render_scaled] 以 12.12 定点步长对战场 tile cache 做最近邻缩放采样
 //   依据: 反编译用 `param_3` 作为逐像素步长，按 `0xc00` 跨格、`>>7` 取 24×24 tile 内像素，输出 VGA `(4,4)` 起的 312×192 内区；标准 tile renderer 实际为 `field_view_render_tiles @0x3710c`
 //   历史地址列 `0x44776`；旧 Ghidra 名 `FUN_0001cca0 body`；判定 exact
+// [勘误 evidence] F1缩放采样、黑边与动画中心未完整登记 -> tile跨度0xc00、像素余数右移7；清64000后仅画(4,4)的312×192。开phase1..7中心系数(phase+1)/8，关6..1，不补phase0采样；stage0最终step768、地图96×96，固定原始tile而非动画替代帧。；依据: 已发布field_view_render_scaled及独立原始tile oracle，负坐标floor、黑边/零色/全64000索引与真实START回归；terrain owner不替换。
 void __cdecl field_view_render_scaled(int a1, int a2, int a3, int a4)
 {
   int v4; // esi
@@ -10973,11 +11036,12 @@ void __cdecl field_view_render_scaled(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_1F6EF
+ * IDA 9.5 Hex-Rays: sub_1F6EF
  * VA=0x1f6ef..0x1f73f OBJ=1 OFF=0xf6ef size=0x50
  * callers: 0x2000a
  * callees: 0x3702f, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] F1单位标记门、颜色和脉冲尚未登记 -> stage0每tile4px，标记3×3；按raw顺序排hidden/unit121/race10，不加HP/acted/AI门。side0/1/2基色32/80/72，focus灰24最后覆盖。phase7..0,0..7,7端点重复，原BIOS差2，SDL约110ms且不推进玩法。；依据: 原始object2表5208a和sub_1F6EF循环、原版空格/actor0叠加页；F1 marker过滤不推广为普通actor renderer规则。
 int __cdecl sub_1F6EF(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
@@ -10999,7 +11063,7 @@ int __cdecl sub_1F6EF(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: intro_cutaway
+ * IDA 9.5 Hex-Rays: intro_cutaway
  * VA=0x1f73f..0x1f81e OBJ=1 OFF=0xf73f size=0xdf
  * callers: 0x1f894
  * callees: 0x111ba, 0x11eb0, 0x17aa9, 0x1f525, 0x1f882, 0x3702f, 0x37910, 0x4e98d
@@ -11031,7 +11095,7 @@ int __cdecl intro_cutaway(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: intro_anim_with_palette
+ * IDA 9.5 Hex-Rays: intro_anim_with_palette
  * VA=0x1f81e..0x1f882 OBJ=1 OFF=0xf81e size=0x64
  * callers: 0x1f894
  * callees: 0x111ba, 0x11d40, 0x20421, 0x3702f, 0x37910
@@ -11057,7 +11121,7 @@ int __cdecl intro_anim_with_palette(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: palette_fade_out_dark
+ * IDA 9.5 Hex-Rays: palette_fade_out_dark
  * VA=0x1f882..0x1f894 OBJ=1 OFF=0xf882 size=0x12
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x10010, 0x1f73f, 0x1f81e, 0x1f894, 0x22e5c, 0x233c6, 0x235f9, 0x23e74, 0x244b6, 0x250cc, 0x25ebb, 0x26152, 0x279bc, 0x29300, 0x29daa, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2fb2c, 0x2ff01, 0x31529, 0x31c49, 0x33faf
@@ -11082,7 +11146,7 @@ int palette_fade_out_dark()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: boot_intro_title_menu
+ * IDA 9.5 Hex-Rays: boot_intro_title_menu
  * VA=0x1f894..0x1ff79 OBJ=1 OFF=0xf894 size=0x6e5
  * type: int __cdecl()
  * callers: 0x25ebb
@@ -11098,6 +11162,9 @@ int palette_fade_out_dark()
 // [title_action_menu] 标题 action 菜单；无活动快照时仅显示两项，有活动快照时插入 active snapshot load
 //   依据: 当前权威 code0 `0xf894`；`0xf8d6..0xf8e6` 将 FDOTHER[77] 保存到 local `+0x54`，后续标题音效均传入该 local：`0xfbb7..0xfbd6` 在 object2 `DS:0x204e` 的 14 个有效滚动阈值以 primary wrapper 重启 SFX 0；`0xfbd9..0xfc37` 在全部 14 个有效触发帧切换到 FDOTHER[102] 闪电调色板，并在 `local_4c` 逐帧计至 11 后恢复 FDOTHER[101]（11 个滚动帧）；`0xfd1c` 以 secondary wrapper 播放 SFX 3，`0xfe74/0xfe94` 以 primary wrapper 播放 SFX 2，`0xfed3` 播放 SFX 1。菜单先以 `FDTXT`/`FD2.SAV` 读取活动快照并检查 `meta[2] == 0`，再调用通用 six-entry selector `0x17d33`；确认后 `0xfef0..0xff30` 将选中项 normal/highlight 各显示 80 ms，交替 4 轮。该链不调用 `new_game_opening_play @0x2231b`，四槽 hand_load 仍属于 code0 `0x19300`
 //   历史地址列 `0x1f894`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 semantic_name] boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 -> boot_intro_title_menu（同一函数）；依据: `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。
+// [勘误 evidence] corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` -> 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。；依据: IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。
+// [勘误 evidence] 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 -> 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。；依据: 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。
 int __cdecl boot_intro_title_menu()
 {
   int v0; // ebp
@@ -11157,7 +11224,7 @@ int __cdecl boot_intro_title_menu()
     v23 = res_load((int)aFdotherDat, v23, i + 69);
     v2 = blit_image_clipped(v23, 0, 147 * i, v1, 320, -1);
   }
-  vsync_wait(v2);
+  bios_keyboard_buffer_clear(v2);
   if ( dword_53A45 != 0 )
     free(dword_53A45);
   dword_53A45 = malloc(160);
@@ -11172,7 +11239,7 @@ LABEL_32:
         j___delay(8);
       }
       v6 = j___delay(100);
-      vsync_wait(v6);
+      bios_keyboard_buffer_clear(v6);
       free(v1);
       free(v23);
       v25 = res_load((int)aFdotherDat, v24, 7);
@@ -11188,12 +11255,12 @@ LABEL_32:
         palette_fade_to(0, 255, m, 56, 60, 63);
         v7 = j___delay(8);
       }
-      vsync_wait(v7);
+      bios_keyboard_buffer_clear(v7);
       v9 = fopen(aFd2Sav_3, aRb_2);
       if ( v9 != 0 )
       {
         v10 = malloc(22987);
-        file_read(v10, 1, 22987, v9);
+        fread(v10, 1, 22987, v9);
         fclose(v9);
         save_xor_crypt(v10, 22987);
         if ( save_checksum_sum(v10, 22987) == *(_DWORD *)(v10 + 22983) )
@@ -11251,10 +11318,14 @@ LABEL_32:
       JUMPOUT(0x13994);
     }
     memcpy_vga(655360, 320, v1 + 320 * j, 320, 320, 200);
-    if ( j == 535 )
-      palette_fade_in_light();
     switch ( j )
     {
+      case 10:
+        v20 = 10;
+        v18 = v1;
+        v16 = 76;
+        v14 = 75;
+        break;
       case 25:
         v19 = 0;
         v17 = 15;
@@ -11265,12 +11336,11 @@ LABEL_13:
         dword_53A65 = res_load((int)aFdotherDat, dword_53A65, 101);
         palette_fade_in_light();
         goto LABEL_25;
-      case 330:
+      case 110:
         palette_fade_out_dark();
-        intro_anim_with_palette(4, 90, 99);
-        v19 = 0;
-        v17 = 50;
-        v15 = 5;
+        v19 = 99;
+        v17 = 90;
+        v15 = 8;
         goto LABEL_13;
       case 210:
         palette_fade_out_dark();
@@ -11279,11 +11349,12 @@ LABEL_13:
         v17 = 50;
         v15 = 7;
         goto LABEL_13;
-      case 110:
+      case 330:
         palette_fade_out_dark();
-        v19 = 99;
-        v17 = 90;
-        v15 = 8;
+        intro_anim_with_palette(4, 90, 99);
+        v19 = 0;
+        v17 = 50;
+        v15 = 5;
         goto LABEL_13;
       case 450:
         v20 = 450;
@@ -11291,12 +11362,9 @@ LABEL_13:
         v16 = 99;
         v14 = 100;
         break;
-      case 10:
-        v20 = 10;
-        v18 = v1;
-        v16 = 76;
-        v14 = 75;
-        break;
+      case 535:
+        palette_fade_in_light();
+        goto LABEL_25;
       default:
         goto LABEL_25;
     }
@@ -11326,7 +11394,7 @@ LABEL_25:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: title_menu_draw
+ * IDA 9.5 Hex-Rays: title_menu_draw
  * VA=0x1ff79..0x2000a OBJ=1 OFF=0xff79 size=0x91
  * callers: 0x1f894
  * callees: 0x16886, 0x3702f
@@ -11365,12 +11433,13 @@ int __cdecl title_menu_draw(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2000A
+ * IDA 9.5 Hex-Rays: sub_2000A
  * VA=0x2000a..0x203bd OBJ=1 OFF=0x1000a size=0x3b3
  * type: int(void)
  * callers: 0x117e7
  * callees: 0x10620, 0x11cac, 0x12e38, 0x1399c, 0x1f558, 0x1f6ef, 0x3702f, 0x3706e, 0x370f0, 0x3771c, 0x3776e, 0x4e381
  * --------------------------------------------------------------- */
+// [勘误 evidence] F1/PageUp辅助页可能是部队列表或另一种战况总览 -> 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。；依据: 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。
 int sub_2000A()
 {
   int v0; // ebp
@@ -11442,7 +11511,7 @@ int sub_2000A()
       (int)v24);
     v2 = (_DWORD *)memmove(655360, dword_53A49, 64000);
   }
-  vsync_wait(v2);
+  bios_keyboard_buffer_clear(v2);
   while ( !input_check() )
   {
     if ( (unsigned int)(MEMORY[0x46C] - v23) >= 2 )
@@ -11488,7 +11557,7 @@ int sub_2000A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: dac_fill_rgb
+ * IDA 9.5 Hex-Rays: dac_fill_rgb
  * VA=0x203bd..0x20421 OBJ=1 OFF=0x103bd size=0x64
  * callers: 0x1ecc7
  * callees: 0x3702f, 0x37ae5
@@ -11514,7 +11583,7 @@ int __cdecl dac_fill_rgb(char a1, char a2, char a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: animation_play
+ * IDA 9.5 Hex-Rays: animation_play
  * VA=0x20421..0x205b4 OBJ=1 OFF=0x10421 size=0x193
  * callers: 0x1f81e, 0x1f894, 0x24336, 0x31529
  * callees: 0x10620, 0x111ba, 0x25a96, 0x36fd3, 0x36ff4, 0x3702f, 0x3706e, 0x37324, 0x373ca, 0x3759c, 0x3776e, 0x3790a, 0x37940, 0x4e381
@@ -11537,7 +11606,7 @@ void __cdecl animation_play(int a1, int a2, int a3)
 
   v3 = watcom_stack_check(56);
   v11 = 0;
-  vsync_wait(v3);
+  bios_keyboard_buffer_clear(v3);
   if ( a1 == 1 )
     v11 = res_load((int)aFdotherDat, 0, 78);
   v10 = malloc(768);
@@ -11545,15 +11614,15 @@ void __cdecl animation_play(int a1, int a2, int a3)
   anim_buffer_init(64000, 655360, v10);
   v5 = fopen(aAniDat, aRb_3);
   fseek(v5, 4 * a1 + 6, 0);
-  file_read(v4, 1, 8, v5);
+  fread(v4, 1, 8, v5);
   fseek(v5, *(_DWORD *)v4, 0);
-  HIWORD(v6) = file_read(v4, 1, 173, v5) >> 16;
+  HIWORD(v6) = fread(v4, 1, 173, v5) >> 16;
   LOWORD(v6) = *(_WORD *)(v4 + 165);
   v12 = v6;
   for ( i = 0; i < (__int16)v12; ++i )
   {
-    file_read(v9, 1, 8, v5);
-    file_read(v4, 1, (unsigned __int16)v9[0], v5);
+    fread(v9, 1, 8, v5);
+    fread(v4, 1, (unsigned __int16)v9[0], v5);
     anim_exec_bytecode(v9[1], v4);
     if ( a1 == 1 && i == 0 )
       sfx_play(v11, 0, 1);
@@ -11564,7 +11633,7 @@ void __cdecl animation_play(int a1, int a2, int a3)
       if ( v8 != 0 )
         break;
     }
-    vsync_wait(v8);
+    bios_keyboard_buffer_clear(v8);
   }
   free(v10);
   free(v4);
@@ -11579,12 +11648,13 @@ void __cdecl animation_play(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_205B4
+ * IDA 9.5 Hex-Rays: sub_205B4
  * VA=0x205b4..0x205da OBJ=1 OFF=0x105b4 size=0x26
  * type: int __cdecl(_DWORD)
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] stage0结果handler仅有静态调用和SDL分派证据 -> 保留中性sub_205B4：先置53ECC=2，有可见side0则清0，raw0 hidden覆盖为1；原版不查HP。Continue后由玩家controller后置评估；受控START只改hidden位可分别到达胜利／败北出口。；依据: 权威205b4及117e7后置链；DOSBox WGC的Z→Enter→选择取消触发22ef6首对白或22e5c败北资源。SDL从同派生快照独立返回胜／败exit2，不声称输入时点、结算或整关实战相同。
 int sub_205B4()
 {
   int i; // edx
@@ -11608,7 +11678,7 @@ int sub_205B4()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_205DA
+ * IDA 9.5 Hex-Rays: sub_205DA
  * VA=0x205da..0x2067d OBJ=1 OFF=0x105da size=0xa3
  * callers: 0x3231b, 0x32d18, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3346b, 0x3347c, 0x334d9, 0x335aa, 0x335da, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c
  * callees: 0x1088d, 0x11cac, 0x1f525, 0x3702f, 0x37910
@@ -11634,7 +11704,7 @@ void sub_205DA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_206C5
+ * IDA 9.5 Hex-Rays: sub_206C5
  * VA=0x206c5..0x20707 OBJ=1 OFF=0x106c5 size=0x42
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x3702f
@@ -11659,7 +11729,7 @@ int sub_206C5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20707
+ * IDA 9.5 Hex-Rays: sub_20707
  * VA=0x20707..0x2073d OBJ=1 OFF=0x10707 size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11679,7 +11749,7 @@ int sub_20707()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2073D
+ * IDA 9.5 Hex-Rays: sub_2073D
  * VA=0x2073d..0x20765 OBJ=1 OFF=0x1073d size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11699,7 +11769,7 @@ int sub_2073D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20765
+ * IDA 9.5 Hex-Rays: sub_20765
  * VA=0x20765..0x20822 OBJ=1 OFF=0x10765 size=0xbd
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x34894, 0x3702f
@@ -11732,7 +11802,7 @@ void __usercall sub_20765(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20822
+ * IDA 9.5 Hex-Rays: sub_20822
  * VA=0x20822..0x2084a OBJ=1 OFF=0x10822 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11752,7 +11822,7 @@ int sub_20822()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2084A
+ * IDA 9.5 Hex-Rays: sub_2084A
  * VA=0x2084a..0x20872 OBJ=1 OFF=0x1084a size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11772,7 +11842,7 @@ int sub_2084A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20872
+ * IDA 9.5 Hex-Rays: sub_20872
  * VA=0x20872..0x208cf OBJ=1 OFF=0x10872 size=0x5d
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x33499, 0x34894, 0x3702f
@@ -11792,7 +11862,7 @@ void __usercall sub_20872(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_208CF
+ * IDA 9.5 Hex-Rays: sub_208CF
  * VA=0x208cf..0x20926 OBJ=1 OFF=0x108cf size=0x57
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x34894, 0x3702f
@@ -11812,7 +11882,7 @@ int sub_208CF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20926
+ * IDA 9.5 Hex-Rays: sub_20926
  * VA=0x20926..0x20957 OBJ=1 OFF=0x10926 size=0x31
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11835,7 +11905,7 @@ int sub_20926()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20957
+ * IDA 9.5 Hex-Rays: sub_20957
  * VA=0x20957..0x20a51 OBJ=1 OFF=0x10957 size=0xfa
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x34894, 0x3702f
@@ -11884,7 +11954,7 @@ int __usercall sub_20957@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20A51
+ * IDA 9.5 Hex-Rays: sub_20A51
  * VA=0x20a51..0x20a87 OBJ=1 OFF=0x10a51 size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11904,7 +11974,7 @@ int sub_20A51()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20A87
+ * IDA 9.5 Hex-Rays: sub_20A87
  * VA=0x20a87..0x20aaf OBJ=1 OFF=0x10a87 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11924,7 +11994,7 @@ int sub_20A87()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20AAF
+ * IDA 9.5 Hex-Rays: sub_20AAF
  * VA=0x20aaf..0x20b14 OBJ=1 OFF=0x10aaf size=0x65
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x34894, 0x3702f
@@ -11949,7 +12019,7 @@ int sub_20AAF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20B14
+ * IDA 9.5 Hex-Rays: sub_20B14
  * VA=0x20b14..0x20b3c OBJ=1 OFF=0x10b14 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11969,7 +12039,7 @@ int sub_20B14()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20B3C
+ * IDA 9.5 Hex-Rays: sub_20B3C
  * VA=0x20b3c..0x20b72 OBJ=1 OFF=0x10b3c size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
@@ -11989,7 +12059,7 @@ int sub_20B3C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20B72
+ * IDA 9.5 Hex-Rays: sub_20B72
  * VA=0x20b72..0x20bf5 OBJ=1 OFF=0x10b72 size=0x83
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
@@ -12010,7 +12080,7 @@ void __usercall sub_20B72(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20BF5
+ * IDA 9.5 Hex-Rays: sub_20BF5
  * VA=0x20bf5..0x20c6f OBJ=1 OFF=0x10bf5 size=0x7a
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
@@ -12031,12 +12101,13 @@ void __usercall sub_20BF5(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_20C6F
+ * IDA 9.5 Hex-Rays: field_item_use_effect_execute
  * VA=0x20c6f..0x21082 OBJ=1 OFF=0x10c6f size=0x413
  * callers: 0x15055, 0x1bbdc
  * callees: 0x11cac, 0x1aa1d, 0x1b6b7, 0x1b722, 0x1b8e7, 0x1c2da, 0x1c4cc, 0x1c75e, 0x1c9dd, 0x1cd17, 0x1d4cb, 0x1d4f6, 0x1db65, 0x1df58, 0x1e0db, 0x1e1dc, 0x21082, 0x2111a, 0x211a4, 0x2218a, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22d1b, 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
+// [field_item_use_effect_execute] canonical 0x20c6f; original sub_20C6F; 完整1043B、玩家1bbdc与AI15055的xref和新9.5 Domain/raw：按item+0dh分派5..24全20个码；5/6/7/8/9/10/11/17/18/19耗槽，12/13/14/15/16/20/21/22/23/24不耗；23复用2218a扣magic23费用，其余不得泛化扣MP。末53EC8全局归0后收败亡/清理/掉落，不清unit.EX；acted在玩家caller。新功能运行验收与B6完整演出/RNG另列。
+void __cdecl field_item_use_effect_execute(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
 {
   int v4; // eax
   int v5; // eax
@@ -12076,13 +12147,13 @@ void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
         switch ( v7 )
         {
           case 8:
-            sub_21082(a1, v6, 55, a2, a3, a4, 17);
+            field_item_permanent_stat_apply(a1, v6, 55, a2, a3, a4, 17);
             goto LABEL_55;
           case 9:
-            sub_21082(a1, v6, 57, a2, a3, a4, 18);
+            field_item_permanent_stat_apply(a1, v6, 57, a2, a3, a4, 18);
             goto LABEL_55;
           case 10:
-            sub_21082(a1, v6, 62, a2, a3, a4, 19);
+            field_item_permanent_stat_apply(a1, v6, 62, a2, a3, a4, 19);
             goto LABEL_55;
           default:
             break;
@@ -12104,15 +12175,15 @@ void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
               sub_22721(a1, a3, a4);
               break;
             case 17:
-              sub_21082(a1, v6, 66, a2, a3, a4, 13);
+              field_item_permanent_stat_apply(a1, v6, 66, a2, a3, a4, 13);
               break;
             case 18:
-              sub_21082(a1, v6, 70, a2, a3, a4, 13);
+              field_item_permanent_stat_apply(a1, v6, 70, a2, a3, a4, 13);
               break;
             case 19:
               v11 = 80 * *a4 + dword_53A45;
               v18 = *(unsigned __int8 *)(v11 + 60);
-              sub_21082(a1, v19, 59, a2, a3, a4, 19);
+              field_item_permanent_stat_apply(a1, v19, 59, a2, a3, a4, 19);
               *(_BYTE *)(v11 + 60) = v18;
               break;
             case 20:
@@ -12138,7 +12209,7 @@ void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
               sub_22D1B(a1, 22, a3, a4, 39);
               break;
             case 23:
-              sub_2218A(a1, a3, a4);
+              field_actor_teleport_execute(a1, a3, a4);
               break;
             default:
               break;
@@ -12152,7 +12223,7 @@ void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
           v10 = a4[j];
           if ( *(_WORD *)(dword_53A45 + 80 * v10 + 70) != 0 )
           {
-            sub_1C9DD(v10, v19);
+            field_mp_heal_apply(v10, v19);
             sub_1E0DB(v9, 105, a4[j]);
           }
           else
@@ -12168,14 +12239,14 @@ void __cdecl sub_20C6F(unsigned __int8 *a1, int a2, int a3, unsigned __int8 *a4)
     if ( dword_53EC4 == 0 )
     {
 LABEL_9:
-      sub_1B8E7((int)a1, a2);
+      field_unit_inventory_slot_remove((int)a1, a2);
       goto LABEL_55;
     }
 LABEL_8:
     sub_1DF58();
     goto LABEL_9;
   }
-  sub_211A4(a1, a3, a4, v19);
+  field_hp_heal_group_execute(a1, a3, a4, v19);
   if ( v7 == 5 )
     goto LABEL_9;
 LABEL_55:
@@ -12189,12 +12260,13 @@ LABEL_55:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21082
+ * IDA 9.5 Hex-Rays: field_item_permanent_stat_apply
  * VA=0x21082..0x2111a OBJ=1 OFF=0x11082 size=0x98
  * callers: 0x20c6f
  * callees: 0x11cac, 0x1b750, 0x1b8e7, 0x1c2da, 0x1c4cc, 0x1df58, 0x1e0db, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_21082(int a1, int a2, int a3, int a4, int a5, unsigned __int8 *a6, int a7)
+// [field_item_permanent_stat_apply] canonical 0x21082; original sub_21082; 完整152B仅20c6f的xref：向首raw target的给定offset作WORD+=power(16位回绕)，浮字/清呈现后仅caster1b750重算，再1b8e7压一次源槽。code8/9/10/17/18分别offset37h/39h/3eh/42h/46h，code19 offset3bh跨MV/EX后由caller恢复EX。无随机或HP随max增补。
+int __cdecl field_item_permanent_stat_apply(int a1, int a2, int a3, int a4, int a5, unsigned __int8 *a6, int a7)
 {
   _WORD *v7; // eax
 
@@ -12207,12 +12279,12 @@ int __cdecl sub_21082(int a1, int a2, int a3, int a4, int a5, unsigned __int8 *a
   sub_11CAC(0);
   sub_1DF58();
   field_unit_combat_stats_recompute(a1);
-  return sub_1B8E7(a1, a4);
+  return field_unit_inventory_slot_remove(a1, a4);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2111A
+ * IDA 9.5 Hex-Rays: sub_2111A
  * VA=0x2111a..0x211a4 OBJ=1 OFF=0x1111a size=0x8a
  * callers: 0x20c6f, 0x2d80d
  * callees: 0x11cac, 0x1c4cc, 0x1c75e, 0x1cac7, 0x1df58, 0x1e0db, 0x1e1dc, 0x3702f
@@ -12241,12 +12313,14 @@ void __usercall sub_2111A(int a1@<ebp>, int a2@<edi>, int a3, int a4, int a5, in
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_211A4
+ * IDA 9.5 Hex-Rays: field_hp_heal_group_execute
  * VA=0x211a4..0x21206 OBJ=1 OFF=0x111a4 size=0x62
  * callers: 0x20c6f, 0x2d80d
  * callees: 0x1c2da, 0x1c4cc, 0x1c916, 0x1e0db, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_211A4(int a1, int a2, int a3, int a4)
+// [勘误 semantic_name] sub_211A4 -> field_hp_heal_group_execute；依据: 完整98B及20c6f/2d80d的xref：effect13/眨眼后按raw target逐个调用1c916并显示浮字，经共享21190刷新/数字尾结束；不是item专属。不负责MP、压槽、acted或玩家controller。
+// [勘误 evidence] 物品HP恢复可以借一个法术ID或AI尾链替代 -> 接收调用方原power，物品value40与法术record不同；每个target独立一次spread，1c916返回raw heal供浮字，实际HP差不能冒充该数值。SDL只接已证实的HP逻辑；完整演出/浮字/音效和附加等待另验。；依据: strictLE完整98B SHA da661db06971bfcbfd2804de28376a52412b5b68183cfd3c2f59f285eb871919；与1c916完整199B/20c6f玩家herb分支及原版full/HP20两场相互支持，未改数据库或伪C物理类型。
+void __cdecl field_hp_heal_group_execute(int a1, int a2, int a3, int a4)
 {
   int i; // esi
   int v5; // eax
@@ -12256,7 +12330,7 @@ void __cdecl sub_211A4(int a1, int a2, int a3, int a4)
   field_actor_group_flash(a1, 13, a2, a3);
   for ( i = 0; i < a2; ++i )
   {
-    sub_1C916(*(unsigned __int8 *)(i + a3), a4);
+    field_hp_heal_apply(*(unsigned __int8 *)(i + a3), a4);
     sub_1E0DB(v5, 105, *(unsigned __int8 *)(i + a3));
   }
   JUMPOUT(0x21190);
@@ -12264,7 +12338,7 @@ void __cdecl sub_211A4(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21206
+ * IDA 9.5 Hex-Rays: sub_21206
  * VA=0x21206..0x21227 OBJ=1 OFF=0x11206 size=0x21
  * callers: 0x15311, 0x1cff0
  * callees: 0x21227, 0x3702f
@@ -12277,7 +12351,7 @@ int __cdecl sub_21206(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21227
+ * IDA 9.5 Hex-Rays: sub_21227
  * VA=0x21227..0x212b9 OBJ=1 OFF=0x11227 size=0x92
  * callers: 0x21206
  * callees: 0x1c4cc, 0x1c75e, 0x1ca89, 0x1cd17, 0x1e0db, 0x1e1dc, 0x3702f
@@ -12307,7 +12381,7 @@ void __cdecl sub_21227(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2134B
+ * IDA 9.5 Hex-Rays: sub_2134B
  * VA=0x2134b..0x21364 OBJ=1 OFF=0x1134b size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12320,7 +12394,7 @@ void sub_2134B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21364
+ * IDA 9.5 Hex-Rays: sub_21364
  * VA=0x21364..0x2137d OBJ=1 OFF=0x11364 size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12333,7 +12407,7 @@ void sub_21364()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2137D
+ * IDA 9.5 Hex-Rays: sub_2137D
  * VA=0x2137d..0x21396 OBJ=1 OFF=0x1137d size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12346,7 +12420,7 @@ void sub_2137D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21396
+ * IDA 9.5 Hex-Rays: sub_21396
  * VA=0x21396..0x213b7 OBJ=1 OFF=0x11396 size=0x21
  * callers: 0x15311, 0x1cff0
  * callees: 0x213b7, 0x3702f
@@ -12359,7 +12433,7 @@ int __cdecl sub_21396(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_213B7
+ * IDA 9.5 Hex-Rays: sub_213B7
  * VA=0x213b7..0x21449 OBJ=1 OFF=0x113b7 size=0x92
  * callers: 0x21396
  * callees: 0x1c4cc, 0x1c75e, 0x1ca89, 0x1cac7, 0x1e0db, 0x1e1dc, 0x3702f
@@ -12389,7 +12463,7 @@ void __usercall sub_213B7(int a1@<ebp>, int a2@<edi>, int a3, int a4, int a5, in
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21449
+ * IDA 9.5 Hex-Rays: sub_21449
  * VA=0x21449..0x21462 OBJ=1 OFF=0x11449 size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12402,7 +12476,7 @@ void sub_21449()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21462
+ * IDA 9.5 Hex-Rays: sub_21462
  * VA=0x21462..0x2147b OBJ=1 OFF=0x11462 size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12415,7 +12489,7 @@ void sub_21462()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2147B
+ * IDA 9.5 Hex-Rays: sub_2147B
  * VA=0x2147b..0x21494 OBJ=1 OFF=0x1147b size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12428,7 +12502,7 @@ void sub_2147B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21494
+ * IDA 9.5 Hex-Rays: sub_21494
  * VA=0x21494..0x214ad OBJ=1 OFF=0x11494 size=0x19
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -12441,7 +12515,7 @@ void sub_21494()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_214AD
+ * IDA 9.5 Hex-Rays: sub_214AD
  * VA=0x214ad..0x21527 OBJ=1 OFF=0x114ad size=0x7a
  * callers: 0x15311, 0x1cff0
  * callees: 0x11cac, 0x1c4cc, 0x1c75e, 0x1ca89, 0x1df58, 0x1e0db, 0x1e1dc, 0x3702f
@@ -12465,7 +12539,7 @@ void __cdecl sub_214AD(int a1, int a2, unsigned __int8 *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_earthquake_effect
+ * IDA 9.5 Hex-Rays: field_earthquake_effect
  * VA=0x21527..0x21548 OBJ=1 OFF=0x11527 size=0x21
  * callers: 0x15311, 0x1cff0
  * callees: 0x21548, 0x3702f
@@ -12481,7 +12555,7 @@ int __cdecl field_earthquake_effect(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21548
+ * IDA 9.5 Hex-Rays: sub_21548
  * VA=0x21548..0x2185f OBJ=1 OFF=0x11548 size=0x317
  * callers: 0x21527
  * callees: 0x11cac, 0x11eb0, 0x127e0, 0x12e38, 0x1399c, 0x1c75e, 0x1ca89, 0x1df58, 0x1e0db, 0x1e1dc, 0x1f558, 0x25a96, 0x3702f, 0x3706e, 0x37119, 0x3776e, 0x3790a
@@ -12587,7 +12661,7 @@ void __cdecl sub_21548(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2185F
+ * IDA 9.5 Hex-Rays: sub_2185F
  * VA=0x2185f..0x2189a OBJ=1 OFF=0x1185f size=0x3b
  * callers: 0x15311, 0x1cff0
  * callees: 0x2189a, 0x25a96, 0x3702f
@@ -12602,7 +12676,7 @@ void __cdecl sub_2185F(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2189A
+ * IDA 9.5 Hex-Rays: sub_2189A
  * VA=0x2189a..0x219ad OBJ=1 OFF=0x1189a size=0x113
  * type: int __cdecl(int, int, int)
  * callers: 0x15055, 0x2185f, 0x21a9e, 0x24754
@@ -12635,7 +12709,7 @@ int __cdecl sub_2189A(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_219AD
+ * IDA 9.5 Hex-Rays: sub_219AD
  * VA=0x219ad..0x21a9e OBJ=1 OFF=0x119ad size=0xf1
  * callers: 0x2189a, 0x22046
  * callees: 0x3702f, 0x37932, 0x37af4, 0x3ca4c, 0x4deec
@@ -12684,7 +12758,7 @@ void __cdecl sub_219AD(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21A9E
+ * IDA 9.5 Hex-Rays: sub_21A9E
  * VA=0x21a9e..0x21ad9 OBJ=1 OFF=0x11a9e size=0x3b
  * callers: 0x15311, 0x1cff0
  * callees: 0x2189a, 0x25a96, 0x3702f
@@ -12699,7 +12773,7 @@ void __cdecl sub_21A9E(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21AD9
+ * IDA 9.5 Hex-Rays: sub_21AD9
  * VA=0x21ad9..0x21b18 OBJ=1 OFF=0x11ad9 size=0x3f
  * callers: 0x15311, 0x1cff0
  * callees: 0x21b18, 0x21eb1, 0x25a96, 0x3702f
@@ -12714,7 +12788,7 @@ int __cdecl sub_21AD9(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21B18
+ * IDA 9.5 Hex-Rays: sub_21B18
  * VA=0x21b18..0x21b99 OBJ=1 OFF=0x11b18 size=0x81
  * callers: 0x21ad9
  * callees: 0x1c2da, 0x1c4cc, 0x1c8ed, 0x1ca89, 0x1e0db, 0x3702f
@@ -12739,7 +12813,7 @@ void __cdecl sub_21B18(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21B99
+ * IDA 9.5 Hex-Rays: sub_21B99
  * VA=0x21b99..0x21bd0 OBJ=1 OFF=0x11b99 size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x21eb1, 0x25a96, 0x3702f
@@ -12754,7 +12828,7 @@ void sub_21B99()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21DB2
+ * IDA 9.5 Hex-Rays: sub_21DB2
  * VA=0x21db2..0x21eb1 OBJ=1 OFF=0x11db2 size=0xff
  * callers: -
  * callees: 0x3702f, 0x37af4, 0x3cbd5, 0x3cbe8, 0x4ebe3
@@ -12785,7 +12859,7 @@ char __cdecl sub_21DB2(int a1, unsigned __int8 a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_21EB1
+ * IDA 9.5 Hex-Rays: sub_21EB1
  * VA=0x21eb1..0x22046 OBJ=1 OFF=0x11eb1 size=0x195
  * type: int __cdecl(int, int)
  * callers: 0x21ad9, 0x21b99, 0x2211c, 0x22153
@@ -12834,7 +12908,7 @@ int __cdecl sub_21EB1(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_transition_lut_mask
+ * IDA 9.5 Hex-Rays: field_transition_lut_mask
  * VA=0x22046..0x2211c OBJ=1 OFF=0x12046 size=0xd6
  * callers: 0x21eb1, 0x22253, 0x22547, 0x22656, 0x24618
  * callees: 0x127a9, 0x219ad, 0x3702f, 0x37af4, 0x4deec
@@ -12895,7 +12969,7 @@ int __usercall field_transition_lut_mask@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2211C
+ * IDA 9.5 Hex-Rays: sub_2211C
  * VA=0x2211c..0x22153 OBJ=1 OFF=0x1211c size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x21eb1, 0x25a96, 0x3702f
@@ -12910,7 +12984,7 @@ void sub_2211C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22153
+ * IDA 9.5 Hex-Rays: sub_22153
  * VA=0x22153..0x2218a OBJ=1 OFF=0x12153 size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x21eb1, 0x25a96, 0x3702f
@@ -12925,12 +12999,13 @@ void sub_22153()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2218A
+ * IDA 9.5 Hex-Rays: field_actor_teleport_execute
  * VA=0x2218a..0x22253 OBJ=1 OFF=0x1218a size=0xc9
  * callers: 0x15311, 0x1cff0, 0x20c6f
  * callees: 0x12cea, 0x12d7b, 0x1ca89, 0x22253, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_2218A(int a1, int a2, unsigned __int8 *a3)
+// [field_actor_teleport_execute] canonical 0x2218a; original sub_2218A; 完整201B与15311/1cff0/20c6f的xref：只用targets首raw，先focus该actor，1ca89(caster,23)扣一次费用，先22253(target,255,255,oldxy)，再聚焦global51CF9目的地并22253(target,destxy,destxy)，display归1；临时全局贡献由调用侧处理，不是物品独占helper。22253共享栈布局仍以raw读写为准，不从猜测pC参数造ABI。
+int __cdecl field_actor_teleport_execute(int a1, int a2, unsigned __int8 *a3)
 {
   unsigned __int8 *v3; // eax
   int v4; // edx
@@ -12954,7 +13029,7 @@ int __cdecl sub_2218A(int a1, int a2, unsigned __int8 *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22253
+ * IDA 9.5 Hex-Rays: sub_22253
  * VA=0x22253..0x22470 OBJ=1 OFF=0x12253 size=0x21d
  * type: int __cdecl(int, int, int, int, int)
  * callers: 0x2218a, 0x250cc, 0x2548c, 0x33f78
@@ -13025,7 +13100,7 @@ int __cdecl sub_22253(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22470
+ * IDA 9.5 Hex-Rays: sub_22470
  * VA=0x22470..0x22547 OBJ=1 OFF=0x12470 size=0xd7
  * callers: 0x22253
  * callees: 0x11eb0, 0x127a9, 0x17aa9, 0x3702f, 0x3771c, 0x4ebab
@@ -13051,7 +13126,7 @@ int __cdecl sub_22470(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22547
+ * IDA 9.5 Hex-Rays: sub_22547
  * VA=0x22547..0x22656 OBJ=1 OFF=0x12547 size=0x10f
  * callers: 0x22253
  * callees: 0x11eb0, 0x17aa9, 0x22046, 0x3702f, 0x3771c, 0x3790a, 0x4ebab
@@ -13078,7 +13153,7 @@ void __cdecl sub_22547(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22656
+ * IDA 9.5 Hex-Rays: sub_22656
  * VA=0x22656..0x226ea OBJ=1 OFF=0x12656 size=0x94
  * callers: 0x22253
  * callees: 0x11eb0, 0x17aa9, 0x22046, 0x3702f, 0x3771c
@@ -13103,7 +13178,7 @@ int __cdecl sub_22656(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_226EA
+ * IDA 9.5 Hex-Rays: sub_226EA
  * VA=0x226ea..0x22721 OBJ=1 OFF=0x126ea size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x1ca89, 0x22721, 0x3702f
@@ -13118,7 +13193,7 @@ int __cdecl sub_226EA(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22721
+ * IDA 9.5 Hex-Rays: sub_22721
  * VA=0x22721..0x2282f OBJ=1 OFF=0x12721 size=0x10e
  * callers: 0x20c6f, 0x226ea, 0x2d80d
  * callees: 0x11cac, 0x1c2da, 0x1c4cc, 0x1df58, 0x1e0db, 0x1e1dc, 0x3702f, 0x37af4, 0x4ebe3
@@ -13161,7 +13236,7 @@ void __cdecl sub_22721(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2282F
+ * IDA 9.5 Hex-Rays: sub_2282F
  * VA=0x2282f..0x22866 OBJ=1 OFF=0x1282f size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x1ca89, 0x22866, 0x3702f
@@ -13176,7 +13251,7 @@ int __cdecl sub_2282F(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22866
+ * IDA 9.5 Hex-Rays: sub_22866
  * VA=0x22866..0x22960 OBJ=1 OFF=0x12866 size=0xfa
  * callers: 0x20c6f, 0x2282f, 0x2d80d
  * callees: 0x1c2da, 0x1c4cc, 0x1e0db, 0x1e1dc, 0x3702f, 0x37af4, 0x4ebe3
@@ -13217,7 +13292,7 @@ void __cdecl sub_22866(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22960
+ * IDA 9.5 Hex-Rays: sub_22960
  * VA=0x22960..0x22997 OBJ=1 OFF=0x12960 size=0x37
  * callers: 0x15311, 0x1cff0
  * callees: 0x1ca89, 0x22997, 0x3702f
@@ -13232,7 +13307,7 @@ int __cdecl sub_22960(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22997
+ * IDA 9.5 Hex-Rays: sub_22997
  * VA=0x22997..0x22a85 OBJ=1 OFF=0x12997 size=0xee
  * callers: 0x20c6f, 0x22960, 0x2d80d
  * callees: 0x11cac, 0x1c2da, 0x1c4cc, 0x1df58, 0x1e0db, 0x1e1dc, 0x3702f, 0x4ebe3
@@ -13275,7 +13350,7 @@ void __cdecl sub_22997(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22A85
+ * IDA 9.5 Hex-Rays: sub_22A85
  * VA=0x22a85..0x22aa8 OBJ=1 OFF=0x12a85 size=0x23
  * callers: 0x15311, 0x1cff0
  * callees: 0x22aa8, 0x3702f
@@ -13288,7 +13363,7 @@ int __cdecl sub_22A85(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22AA8
+ * IDA 9.5 Hex-Rays: sub_22AA8
  * VA=0x22aa8..0x22af6 OBJ=1 OFF=0x12aa8 size=0x4e
  * callers: 0x22a85
  * callees: 0x1ca89, 0x22af6, 0x3702f
@@ -13305,7 +13380,7 @@ void __cdecl sub_22AA8(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22AF6
+ * IDA 9.5 Hex-Rays: sub_22AF6
  * VA=0x22af6..0x22bc6 OBJ=1 OFF=0x12af6 size=0xd0
  * callers: 0x20c6f, 0x22aa8
  * callees: 0x11cac, 0x1c2da, 0x1c4cc, 0x1c916, 0x1e0db, 0x1e1dc, 0x3702f
@@ -13334,7 +13409,7 @@ int __cdecl sub_22AF6(int a1, int a2, int a3, int a4, int a5)
     v10 = (unsigned __int8 *)(i + a4);
     if ( v9 != 0 )
     {
-      sub_1C916(*v10, 10);
+      field_hp_heal_apply(*v10, 10);
       sub_1E0DB(v11, 105, *v10);
       *v8 = 0;
       dword_53EC8 += 4 * v7;
@@ -13349,7 +13424,7 @@ int __cdecl sub_22AF6(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22BC6
+ * IDA 9.5 Hex-Rays: sub_22BC6
  * VA=0x22bc6..0x22be1 OBJ=1 OFF=0x12bc6 size=0x1b
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -13362,7 +13437,7 @@ void sub_22BC6()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22BE1
+ * IDA 9.5 Hex-Rays: sub_22BE1
  * VA=0x22be1..0x22c04 OBJ=1 OFF=0x12be1 size=0x23
  * callers: 0x15311, 0x1cff0
  * callees: 0x22cda, 0x3702f
@@ -13375,7 +13450,7 @@ int __cdecl sub_22BE1(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22C04
+ * IDA 9.5 Hex-Rays: sub_22C04
  * VA=0x22c04..0x22cbf OBJ=1 OFF=0x12c04 size=0xbb
  * callers: 0x15311, 0x1cff0
  * callees: 0x11cac, 0x1c2da, 0x1c4cc, 0x1ca89, 0x1df58, 0x1e1dc, 0x3702f
@@ -13416,7 +13491,7 @@ void __cdecl sub_22C04(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22CBF
+ * IDA 9.5 Hex-Rays: sub_22CBF
  * VA=0x22cbf..0x22cda OBJ=1 OFF=0x12cbf size=0x1b
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -13429,7 +13504,7 @@ void sub_22CBF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22CDA
+ * IDA 9.5 Hex-Rays: sub_22CDA
  * VA=0x22cda..0x22d1b OBJ=1 OFF=0x12cda size=0x41
  * callers: 0x22be1
  * callees: 0x1ca89, 0x22d1b, 0x3702f
@@ -13444,7 +13519,7 @@ int __cdecl sub_22CDA(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22D1B
+ * IDA 9.5 Hex-Rays: sub_22D1B
  * VA=0x22d1b..0x22e41 OBJ=1 OFF=0x12d1b size=0x126
  * callers: 0x20c6f, 0x22cda, 0x2d80d
  * callees: 0x11cac, 0x1c2da, 0x1c4cc, 0x1c81f, 0x1e0db, 0x1e1dc, 0x3702f, 0x4ebe3
@@ -13483,7 +13558,7 @@ LABEL_3:
       sub_1E1DC(v5);
       continue;
     }
-    sub_1C81F(*v6, 10);
+    field_magic_damage_apply(*v6, 10);
     sub_1E0DB(v9, 94, *v6);
     *(_BYTE *)(v7 + a5) = field_rng_next(v10) % 4 + 2;
     dword_53EC8 += 8 * *(unsigned __int8 *)(v7 + 33);
@@ -13494,7 +13569,7 @@ LABEL_3:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22E41
+ * IDA 9.5 Hex-Rays: sub_22E41
  * VA=0x22e41..0x22e5c OBJ=1 OFF=0x12e41 size=0x1b
  * callers: 0x15311, 0x1cff0
  * callees: 0x3702f
@@ -13507,11 +13582,12 @@ void sub_22E41()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22E5C
+ * IDA 9.5 Hex-Rays: sub_22E5C
  * VA=0x22e5c..0x22ef6 OBJ=1 OFF=0x12e5c size=0x9a
  * callers: 0x25bf4
  * callees: 0x111ba, 0x17aa9, 0x1f525, 0x1f882, 0x25977, 0x2eb9f, 0x3702f, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] 中性败北callback未登记独立资源门 -> 保留中性sub_22E5C：停音乐、淡出并清屏，以opaque方式画FDOTHER79 frame0，淡入并等9tick，再画frame1、等36tick。结果门校验使用完整320×200资源，不据此开放SDL败北后续。；依据: 权威22e5c→2eb9f(header+9)及本地嵌套资源；受控败北快照在原版controller后置到达该页。局部运行与B5后续分开登记。
 void sub_22E5C()
 {
   int v0; // ebx
@@ -13532,11 +13608,12 @@ void sub_22E5C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22EF6
+ * IDA 9.5 Hex-Rays: sub_22EF6
  * VA=0x22ef6..0x22f37 OBJ=1 OFF=0x12ef6 size=0x41
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] stage0胜利callback只作为准备页迁移调用依据 -> 保留中性sub_22EF6：先呈现FDTXT[1]fragment9，之后11506同步持久表再写stage1。WGC仅校验首说话人4的两行和对话顶边，没有推进对白证明持久同步或下一关。；依据: 权威22ef6及严格LE结果callback表；受控胜利快照经原版controller取消后匹配2794字形／阴影像素和620顶边像素。这补本关结果分支证据，整关战斗和结算仍留B5／V1。
 void __usercall sub_22EF6(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -13547,7 +13624,7 @@ void __usercall sub_22EF6(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_22F37
+ * IDA 9.5 Hex-Rays: sub_22F37
  * VA=0x22f37..0x230f2 OBJ=1 OFF=0x12f37 size=0x1bb
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x1c220, 0x3702f, 0x3790a
@@ -13596,7 +13673,7 @@ void __usercall sub_22F37(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_230F2
+ * IDA 9.5 Hex-Rays: sub_230F2
  * VA=0x230f2..0x23296 OBJ=1 OFF=0x130f2 size=0x1a4
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x233c6, 0x34894, 0x3702f
@@ -13634,7 +13711,7 @@ void sub_230F2()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23296
+ * IDA 9.5 Hex-Rays: sub_23296
  * VA=0x23296..0x232e8 OBJ=1 OFF=0x13296 size=0x52
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x135dd, 0x1366a, 0x3702f
@@ -13651,7 +13728,7 @@ void sub_23296()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_232E8
+ * IDA 9.5 Hex-Rays: sub_232E8
  * VA=0x232e8..0x233c6 OBJ=1 OFF=0x132e8 size=0xde
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x233c6, 0x34894, 0x3702f
@@ -13689,7 +13766,7 @@ void sub_232E8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_cutscene_setup_units_camera
+ * IDA 9.5 Hex-Rays: field_cutscene_setup_units_camera
  * VA=0x233c6..0x234bb OBJ=1 OFF=0x133c6 size=0xf5
  * callers: 0x230f2, 0x232e8, 0x234bb, 0x237d5, 0x23a0a, 0x23b5f, 0x23cd5, 0x240fa, 0x244b6, 0x24754, 0x24e80, 0x250cc, 0x25757
  * callees: 0x11cac, 0x13536, 0x1f525, 0x1f882, 0x3702f, 0x3790a
@@ -13748,7 +13825,7 @@ void __cdecl field_cutscene_setup_units_camera(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_234BB
+ * IDA 9.5 Hex-Rays: sub_234BB
  * VA=0x234bb..0x235bc OBJ=1 OFF=0x134bb size=0x101
  * callers: 0x25bf4
  * callees: 0x11d40, 0x1366a, 0x15f84, 0x233c6, 0x3702f, 0x37910
@@ -13783,7 +13860,7 @@ void sub_234BB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_235BC
+ * IDA 9.5 Hex-Rays: sub_235BC
  * VA=0x235bc..0x235f9 OBJ=1 OFF=0x135bc size=0x3d
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x3702f
@@ -13800,7 +13877,7 @@ void sub_235BC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_235F9
+ * IDA 9.5 Hex-Rays: sub_235F9
  * VA=0x235f9..0x23790 OBJ=1 OFF=0x135f9 size=0x197
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x11cac, 0x13536, 0x1366a, 0x15f84, 0x1f525, 0x1f882, 0x3702f, 0x3790a
@@ -13868,7 +13945,7 @@ int sub_235F9()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23790
+ * IDA 9.5 Hex-Rays: sub_23790
  * VA=0x23790..0x237d5 OBJ=1 OFF=0x13790 size=0x45
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x3702f
@@ -13884,7 +13961,7 @@ void __usercall sub_23790(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_237D5
+ * IDA 9.5 Hex-Rays: sub_237D5
  * VA=0x237d5..0x239bd OBJ=1 OFF=0x137d5 size=0x1e8
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
@@ -13922,7 +13999,7 @@ int sub_237D5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_239BD
+ * IDA 9.5 Hex-Rays: sub_239BD
  * VA=0x239bd..0x23a0a OBJ=1 OFF=0x139bd size=0x4d
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x33499, 0x3702f
@@ -13940,7 +14017,7 @@ void __usercall sub_239BD(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23A0A
+ * IDA 9.5 Hex-Rays: sub_23A0A
  * VA=0x23a0a..0x23b5f OBJ=1 OFF=0x13a0a size=0x155
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x34894, 0x3702f
@@ -13984,7 +14061,7 @@ void sub_23A0A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23B5F
+ * IDA 9.5 Hex-Rays: sub_23B5F
  * VA=0x23b5f..0x23cd5 OBJ=1 OFF=0x13b5f size=0x176
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x233c6, 0x33499, 0x3702f
@@ -13993,7 +14070,7 @@ int sub_23B5F()
 {
   int result; // eax
   __int128 v1; // [esp+0h] [ebp-28h] BYREF
-  _QWORD v2[2]; // [esp+10h] [ebp-18h] BYREF
+  unsigned __int8 v2[24]; // [esp+10h] [ebp-18h] BYREF
 
   watcom_stack_check(88);
   *(_OWORD *)v2 = unk_521A3;
@@ -14001,7 +14078,7 @@ int sub_23B5F()
   sub_11506();
   if ( sub_33499(18) != 0 )
   {
-    text_dialog_render_tokens((unsigned __int8 *)v2, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
+    text_dialog_render_tokens(v2, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
     dword_51A83 = 0;
     field_camera_pan_to(17, 14);
     field_actor_group_append(3);
@@ -14010,16 +14087,16 @@ int sub_23B5F()
   else
   {
     field_cutscene_setup_units_camera((int)v2, (int)&v1, 0, 0, 15, 52, 23, 23, 2, 0x1100000011LL);
-    text_dialog_render_tokens((unsigned __int8 *)v2, dword_53A79, 7, 655360, 320, 205, 76, 74, 19, 1);
+    text_dialog_render_tokens(v2, dword_53A79, 7, 655360, 320, 205, 76, 74, 19, 1);
     dword_51A83 = 0;
     field_movement_script_play(50);
     field_camera_pan_to(17, 14);
     field_actor_group_append(3);
     field_movement_script_play(51);
   }
-  text_dialog_render_tokens((unsigned __int8 *)v2, dword_53A79, 6, 655360, 320, 205, 76, 74, 19, 1);
+  text_dialog_render_tokens(v2, dword_53A79, 6, 655360, 320, 205, 76, 74, 19, 1);
   field_movement_script_play(53);
-  text_dialog_render_tokens((unsigned __int8 *)v2, dword_53A79, 8, 655360, 320, 205, 76, 74, 19, 1);
+  text_dialog_render_tokens(v2, dword_53A79, 8, 655360, 320, 205, 76, 74, 19, 1);
   result = sub_112A5(16);
   ++dword_53C03;
   return result;
@@ -14027,7 +14104,7 @@ int sub_23B5F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23CD5
+ * IDA 9.5 Hex-Rays: sub_23CD5
  * VA=0x23cd5..0x23e39 OBJ=1 OFF=0x13cd5 size=0x164
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
@@ -14064,7 +14141,7 @@ int sub_23CD5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23E39
+ * IDA 9.5 Hex-Rays: sub_23E39
  * VA=0x23e39..0x23e74 OBJ=1 OFF=0x13e39 size=0x3b
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x3702f
@@ -14079,7 +14156,7 @@ void __usercall sub_23E39(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_23E74
+ * IDA 9.5 Hex-Rays: sub_23E74
  * VA=0x23e74..0x240fa OBJ=1 OFF=0x13e74 size=0x286
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x11cac, 0x13536, 0x1366a, 0x15f84, 0x1f525, 0x1f882, 0x3702f, 0x3790a
@@ -14152,7 +14229,7 @@ void sub_23E74()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_240FA
+ * IDA 9.5 Hex-Rays: sub_240FA
  * VA=0x240fa..0x24336 OBJ=1 OFF=0x140fa size=0x23c
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x1b8e7, 0x1c220, 0x233c6, 0x24336, 0x2aedb, 0x3702f
@@ -14176,7 +14253,7 @@ void sub_240FA()
   v0 = 0;
   field_cutscene_setup_units_camera((int)v6, (int)v5, (unsigned int)v3, 0, 24, 25, 23, 14, 1, 0xA0000000ELL);
   text_dialog_render_tokens(v4, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
-  for ( i = -47; i < 0xD7u; ++i )
+  for ( i = 0xD1u; i < 0xD7u; ++i )
   {
     for ( j = 0; j < 0x10u; ++j )
     {
@@ -14186,7 +14263,7 @@ void sub_240FA()
   }
   if ( v0 == 6 )
   {
-    for ( i = -47; i < 0xD7u; ++i )
+    for ( i = 0xD1u; i < 0xD7u; ++i )
     {
       for ( j = 0; ; ++j )
       {
@@ -14195,7 +14272,7 @@ void sub_240FA()
           break;
         v2 = sub_2AEDB(j, i);
         if ( v2 != -1 )
-          sub_1B8E7(v1, v2);
+          field_unit_inventory_slot_remove(v1, v2);
       }
     }
     sub_1C220(100);
@@ -14221,7 +14298,7 @@ void sub_240FA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24336
+ * IDA 9.5 Hex-Rays: sub_24336
  * VA=0x24336..0x244b6 OBJ=1 OFF=0x14336 size=0x180
  * type: int(void)
  * callers: 0x240fa
@@ -14249,7 +14326,7 @@ void sub_24336()
     v3 = memmove(655360, dword_53A49, 64000);
     sub_4E31C(v3);
     v4 = bios_tick_delay(3);
-    vsync_wait(v4);
+    bios_keyboard_buffer_clear(v4);
   }
   animation_play(0, 15, 0);
   pal_partial_set(0, 255, 63);
@@ -14262,7 +14339,7 @@ void sub_24336()
     sub_2EB9F(v1, i, dword_53A49, 320, -1);
     memmove(655360, dword_53A49, 64000);
     v5 = bios_tick_delay(3);
-    vsync_wait(v5);
+    bios_keyboard_buffer_clear(v5);
     ++i;
   }
   free(v0);
@@ -14272,7 +14349,7 @@ void sub_24336()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_244B6
+ * IDA 9.5 Hex-Rays: sub_244B6
  * VA=0x244b6..0x24618 OBJ=1 OFF=0x144b6 size=0x162
  * callers: 0x25bf4
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x1f882, 0x233c6, 0x24618, 0x3702f, 0x3790a, 0x37910
@@ -14306,7 +14383,7 @@ void sub_244B6()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_stage_transition_effect
+ * IDA 9.5 Hex-Rays: field_stage_transition_effect
  * VA=0x24618..0x24754 OBJ=1 OFF=0x14618 size=0x13c
  * type: int __cdecl(int, int, int, int)
  * callers: 0x244b6, 0x250cc, 0x25757, 0x336a0, 0x33af1, 0x33c9d
@@ -14355,7 +14432,7 @@ int __cdecl field_stage_transition_effect(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24754
+ * IDA 9.5 Hex-Rays: sub_24754
  * VA=0x24754..0x24b14 OBJ=1 OFF=0x14754 size=0x3c0
  * callers: 0x25bf4
  * callees: 0x10652, 0x111ba, 0x112a5, 0x11506, 0x11df2, 0x135dd, 0x1366a, 0x15f84, 0x2189a, 0x233c6, 0x24b14, 0x24b4d, 0x24bde, 0x32975, 0x3702f, 0x3790a, 0x4df4c
@@ -14438,7 +14515,7 @@ void sub_24754()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24B14
+ * IDA 9.5 Hex-Rays: sub_24B14
  * VA=0x24b14..0x24b4d OBJ=1 OFF=0x14b14 size=0x39
  * callers: 0x24754, 0x250cc, 0x33af1
  * callees: 0x2aedb, 0x3702f
@@ -14458,7 +14535,7 @@ int __cdecl sub_24B14(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24B4D
+ * IDA 9.5 Hex-Rays: sub_24B4D
  * VA=0x24b4d..0x24bde OBJ=1 OFF=0x14b4d size=0x91
  * callers: 0x24754, 0x2548c, 0x3396a
  * callees: 0x11cac, 0x11eb0, 0x11eee, 0x3702f, 0x3790a
@@ -14481,7 +14558,7 @@ int __cdecl sub_24B4D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24BDE
+ * IDA 9.5 Hex-Rays: sub_24BDE
  * VA=0x24bde..0x24c1e OBJ=1 OFF=0x14bde size=0x40
  * callers: 0x24754
  * callees: 0x3702f
@@ -14501,7 +14578,7 @@ int __cdecl sub_24BDE(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24C1E
+ * IDA 9.5 Hex-Rays: sub_24C1E
  * VA=0x24c1e..0x24d22 OBJ=1 OFF=0x14c1e size=0x104
  * callers: 0x25bf4
  * callees: 0x11506, 0x11cac, 0x11d40, 0x15f84, 0x17aa9, 0x24d22, 0x3702f, 0x37910
@@ -14547,7 +14624,7 @@ void __usercall sub_24C1E(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24D22
+ * IDA 9.5 Hex-Rays: sub_24D22
  * VA=0x24d22..0x24df2 OBJ=1 OFF=0x14d22 size=0xd0
  * callers: 0x10652, 0x11eee, 0x24c1e
  * callees: 0x3702f, 0x3706e, 0x3771c, 0x3776e
@@ -14576,7 +14653,7 @@ char __cdecl sub_24D22(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24DF2
+ * IDA 9.5 Hex-Rays: sub_24DF2
  * VA=0x24df2..0x24e80 OBJ=1 OFF=0x14df2 size=0x8e
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x3702f
@@ -14596,7 +14673,7 @@ void __usercall sub_24DF2(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_24E80
+ * IDA 9.5 Hex-Rays: sub_24E80
  * VA=0x24e80..0x25052 OBJ=1 OFF=0x14e80 size=0x1d2
  * callers: 0x25bf4
  * callees: 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
@@ -14663,7 +14740,7 @@ void sub_24E80()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_25052
+ * IDA 9.5 Hex-Rays: sub_25052
  * VA=0x25052..0x25089 OBJ=1 OFF=0x15052 size=0x37
  * callers: 0x250cc
  * callees: 0x11df2, 0x3702f, 0x3790a
@@ -14684,7 +14761,7 @@ int __cdecl sub_25052(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_25089
+ * IDA 9.5 Hex-Rays: sub_25089
  * VA=0x25089..0x250cc OBJ=1 OFF=0x15089 size=0x43
  * callers: 0x250cc, 0x25757
  * callees: 0x3702f
@@ -14711,7 +14788,7 @@ int sub_25089()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_250CC
+ * IDA 9.5 Hex-Rays: sub_250CC
  * VA=0x250cc..0x25464 OBJ=1 OFF=0x150cc size=0x398
  * callers: 0x25bf4
  * callees: 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x1c2da, 0x1f882, 0x22253, 0x233c6, 0x24618, 0x24b14, 0x25052, 0x25089, 0x31529, 0x3702f, 0x3790a, 0x37910
@@ -14785,7 +14862,7 @@ void sub_250CC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_25464
+ * IDA 9.5 Hex-Rays: sub_25464
  * VA=0x25464..0x2548c OBJ=1 OFF=0x15464 size=0x28
  * callers: 0x25bf4
  * callees: 0x3702f
@@ -14798,7 +14875,7 @@ void sub_25464()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2548C
+ * IDA 9.5 Hex-Rays: sub_2548C
  * VA=0x2548c..0x25757 OBJ=1 OFF=0x1548c size=0x2cb
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x11506, 0x11df2, 0x12cea, 0x135dd, 0x15f84, 0x22253, 0x24b4d, 0x35f10, 0x361b0, 0x3702f, 0x3790a, 0x37910
@@ -14873,7 +14950,7 @@ void __usercall sub_2548C(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_25757
+ * IDA 9.5 Hex-Rays: sub_25757
  * VA=0x25757..0x25977 OBJ=1 OFF=0x15757 size=0x220 [noreturn]
  * callers: 0x25bf4
  * callees: 0x1088d, 0x11cac, 0x11df2, 0x12cea, 0x135dd, 0x1366a, 0x15f84, 0x17aa9, 0x233c6, 0x24618, 0x25089, 0x31529, 0x3702f, 0x3790a
@@ -14932,7 +15009,7 @@ void __noreturn sub_25757()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: music_track_play
+ * IDA 9.5 Hex-Rays: music_track_play
  * VA=0x25977..0x25a96 OBJ=1 OFF=0x15977 size=0x11f
  * callers: 0x10010, 0x19df7, 0x1a30b, 0x22e5c, 0x25bf4, 0x25ebb, 0x26152, 0x2670e, 0x2a43e, 0x2aa00, 0x31529, 0x31c49, 0x3231b
  * callees: 0x111ba, 0x3666c, 0x3702f, 0x3adf5, 0x3aeee, 0x3af5b, 0x3b124, 0x3b1a6
@@ -14940,6 +15017,7 @@ void __noreturn sub_25757()
 // [music_track_play] 加载 FDMUS XMIDI 曲目并设置循环、淡入或停止
 //   依据: corrected code0 `0x3ab8b` 缓存当前 track；`-1` 将 sequence 音量在 4000 ms 内降到 0；其他值从 FDMUS handle `DS:0x1a79` 加载 entry，依次调用 AIL init/start、volume 与 loop-count wrapper
 //   历史地址列 `0x4ab8b`；旧 Ghidra 名 `FUN_0004ab8b`；判定 exact
+// [勘误 evidence] 其他值从 FDMUS handle `DS:0x1a79` 加载 entry -> object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。；依据: IDA 字符串识别 `aFdmusDat` + res_load 调用形态
 int __cdecl music_track_play(int a1, int a2)
 {
   int result; // eax
@@ -14991,7 +15069,7 @@ int __cdecl music_track_play(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sfx_play
+ * IDA 9.5 Hex-Rays: sfx_play
  * VA=0x25a96..0x25b45 OBJ=1 OFF=0x15a96 size=0xaf
  * callers: 0x115b6, 0x117e7, 0x13fd4, 0x164e8, 0x1741c, 0x176b4, 0x17aed, 0x17e0b, 0x1a30b, 0x1b9de, 0x1c2da, 0x1c4cc, 0x1d4f6, 0x1d51d, 0x1d6c8, 0x1db65, 0x1e98c, 0x1f894, 0x20421, 0x21548, 0x2185f, 0x21a9e, 0x21ad9, 0x21b99, 0x2211c, 0x22153, 0x22253, 0x24618, 0x26152, 0x26e38, 0x275e6, 0x27d33, 0x27f4a, 0x29bcb, 0x2af28, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ebe1, 0x2ff01, 0x30e9d, 0x32230, 0x32999, 0x3396a, 0x33faf
  * callees: 0x3702f, 0x39521, 0x39694, 0x39798, 0x39805, 0x39aae
@@ -15026,7 +15104,7 @@ int __cdecl sfx_play(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: pal_mask_set
+ * IDA 9.5 Hex-Rays: pal_mask_set
  * VA=0x25b45..0x25bf4 OBJ=1 OFF=0x15b45 size=0xaf
  * callers: 0x13a9f, 0x190ac, 0x1f894, 0x2af28, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2d80d
  * callees: 0x3702f, 0x39521, 0x39694, 0x39798, 0x39805, 0x39aae
@@ -15061,7 +15139,7 @@ int __cdecl pal_mask_set(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: main
+ * IDA 9.5 Hex-Rays: main
  * VA=0x25bf4..0x25ebb OBJ=1 OFF=0x15bf4 size=0x2c7
  * type: int __cdecl(int argc, const char **argv, const char **envp)
  * callers: 0x4609b
@@ -15165,7 +15243,7 @@ int __cdecl main(int argc, const char **argv, const char **envp)
           }
           byte_51AAC = 1;
           dword_53ECC = 0;
-          v14 = vsync_wait(v17);
+          v14 = bios_keyboard_buffer_clear(v17);
         }
       }
       while ( i == 0 );
@@ -15184,7 +15262,7 @@ int __cdecl main(int argc, const char **argv, const char **envp)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: title_action_dispatch
+ * IDA 9.5 Hex-Rays: title_action_dispatch
  * VA=0x25ebb..0x26152 OBJ=1 OFF=0x15ebb size=0x297
  * type: int __fastcall(_DWORD)
  * callers: 0x25bf4
@@ -15193,6 +15271,8 @@ int __cdecl main(int argc, const char **argv, const char **envp)
 // [title_action_dispatch] 标题 action 上层循环与返回分派
 //   依据: 当前权威 code0 `0x15ebb`；调用 `title_action_menu @0xf894`，返回 0 时进入新游戏／初始化，返回 1 时读取活动快照并恢复，其他返回值退出或回到宿主；具体可见标题标签仍待 DOSBox 确认
 //   历史地址列 `0x25ebb`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并 -> 标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。；依据: 复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。
+// [勘误 evidence] 手工LOAD后续owner尚未确认，可能直接恢复当前战场 -> LOAD1恢复完整持久表、stage/资源/配置后进入城镇出阵准备26152，不直接恢复回合或焦点。START0直接新游戏，CONTINUE2才调用10010活动恢复；四槽可见恢复归B5，B1保留明确未支持门。；依据: 原始25ecf/25f3f/26130分支及26064..26098手工meta写集；260e5先26152、260f5再调DS:1d71。严格LE表51d71[0]指3231b，正常START32→31→0不经过准备页；原版阶段标签已有WGC，准备页及出阵恢复本轮仅静态取证，未冒称运行通过。
 int title_action_dispatch()
 {
   int v0; // eax
@@ -15216,7 +15296,7 @@ int title_action_dispatch()
     funcs_25E3A[dword_53C03]();
     v1 = music_track_play((unsigned __int8)byte_51E63[dword_53C03], 0);
     byte_51AAC = 1;
-    vsync_wait(v1);
+    bios_keyboard_buffer_clear(v1);
     return 0;
   }
   if ( v0 != 1 )
@@ -15237,7 +15317,7 @@ int title_action_dispatch()
   v5 = v4;
   if ( (_DWORD)v4 != 0 )
   {
-    file_read(v2, 1, 22987, v4);
+    fread(v2, 1, 22987, v4);
     save_xor_crypt(v2, 22987);
     fclose(v5);
   }
@@ -15282,13 +15362,13 @@ int title_action_dispatch()
     }
     byte_51AAC = 1;
   }
-  vsync_wait(v4);
+  bios_keyboard_buffer_clear(v4);
   return v6;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26152
+ * IDA 9.5 Hex-Rays: sub_26152
  * VA=0x26152..0x265ec OBJ=1 OFF=0x16152 size=0x49a
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x25bf4, 0x25ebb
@@ -15376,7 +15456,7 @@ bool sub_26152()
   dword_53F5A = res_load((int)aFdotherDat, 0, 10);
   ((void (*)(void))sub_265EC)();
   v8 = palette_fade_in_light();
-  v9 = vsync_wait(v8);
+  v9 = bios_keyboard_buffer_clear(v8);
   do
   {
 LABEL_22:
@@ -15437,7 +15517,7 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_265EC
+ * IDA 9.5 Hex-Rays: sub_265EC
  * VA=0x265ec..0x2670e OBJ=1 OFF=0x165ec size=0x122
  * type: int __fastcall(_DWORD)
  * callers: 0x26152
@@ -15468,7 +15548,7 @@ int __usercall sub_265EC@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2670E
+ * IDA 9.5 Hex-Rays: sub_2670E
  * VA=0x2670e..0x26996 OBJ=1 OFF=0x1670e size=0x288
  * type: int(void)
  * callers: 0x26152
@@ -15558,7 +15638,7 @@ LABEL_24:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26996
+ * IDA 9.5 Hex-Rays: sub_26996
  * VA=0x26996..0x26a0d OBJ=1 OFF=0x16996 size=0x77
  * type: int __cdecl(_DWORD, _DWORD)
  * callers: 0x25ebb, 0x26152, 0x2670e, 0x279bc, 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x29300, 0x29620, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf
@@ -15579,7 +15659,7 @@ int sub_26996()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26A0D
+ * IDA 9.5 Hex-Rays: sub_26A0D
  * VA=0x26a0d..0x26a7a OBJ=1 OFF=0x16a0d size=0x6d
  * callers: 0x279bc
  * callees: 0x3702f
@@ -15621,7 +15701,7 @@ int __cdecl sub_26A0D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26A7A
+ * IDA 9.5 Hex-Rays: sub_26A7A
  * VA=0x26a7a..0x26b91 OBJ=1 OFF=0x16a7a size=0x117
  * callers: 0x28cbd
  * callees: 0x26c9b, 0x3702f, 0x3790a, 0x37b29
@@ -15685,7 +15765,7 @@ int __cdecl sub_26A7A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26B91
+ * IDA 9.5 Hex-Rays: sub_26B91
  * VA=0x26b91..0x26c9b OBJ=1 OFF=0x16b91 size=0x10a
  * callers: 0x2872b, 0x2a43e
  * callees: 0x26c9b, 0x3702f, 0x3790a, 0x37b29
@@ -15745,7 +15825,7 @@ void __cdecl sub_26B91(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26C9B
+ * IDA 9.5 Hex-Rays: sub_26C9B
  * VA=0x26c9b..0x26ce4 OBJ=1 OFF=0x16c9b size=0x49
  * callers: 0x26a7a, 0x26b91
  * callees: 0x3702f, 0x3771c
@@ -15769,7 +15849,7 @@ __int64 __cdecl sub_26C9B(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26CE4
+ * IDA 9.5 Hex-Rays: sub_26CE4
  * VA=0x26ce4..0x26e38 OBJ=1 OFF=0x16ce4 size=0x154
  * callers: 0x279bc, 0x29300, 0x29daa
  * callees: 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4ed34
@@ -15781,11 +15861,11 @@ int __cdecl sub_26CE4(int a1)
   int j; // edi
   int k; // esi
   int v5; // eax
-  _QWORD v7[2]; // [esp+0h] [ebp-24h]
+  __int128 v7; // [esp+0h] [ebp-24h]
   int v8; // [esp+10h] [ebp-14h]
 
   watcom_stack_check(52);
-  *(_OWORD *)v7 = unk_52408;
+  v7 = unk_52408;
   v8 = malloc(64000);
   memmove(v8, 655360, 64000);
   for ( i = 0; i < 20; ++i )
@@ -15799,9 +15879,9 @@ int __cdecl sub_26CE4(int a1)
     {
       v5 = *(_DWORD *)(dword_53F66 + 4 * (2 * k + 3) + 6) + dword_53F66;
       if ( a1 != 0 )
-        sub_4ED34(v2 + *((_DWORD *)v7 + k) / (j + 1), v5, 320);
+        sub_4ED34(v2 + *((_DWORD *)&v7 + k) / (j + 1), v5, 320);
       else
-        sub_4ED34(v2 + *((_DWORD *)v7 + k) / (4 - j), v5, 320);
+        sub_4ED34(v2 + *((_DWORD *)&v7 + k) / (4 - j), v5, 320);
     }
     memmove(655360, dword_53A49, 64000);
   }
@@ -15812,7 +15892,7 @@ int __cdecl sub_26CE4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26E38
+ * IDA 9.5 Hex-Rays: sub_26E38
  * VA=0x26e38..0x26eda OBJ=1 OFF=0x16e38 size=0xa2
  * callers: 0x279bc, 0x29300, 0x29daa
  * callees: 0x25a96, 0x26eda, 0x3702f
@@ -15856,7 +15936,7 @@ int sub_26E38()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_26EDA
+ * IDA 9.5 Hex-Rays: sub_26EDA
  * VA=0x26eda..0x27079 OBJ=1 OFF=0x16eda size=0x19f
  * callers: 0x26e38, 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
  * callees: 0x10620, 0x16559, 0x27079, 0x3702f, 0x370f0, 0x4ebe3, 0x4ed34
@@ -15870,17 +15950,17 @@ int __cdecl sub_26EDA(int a1)
   int v5; // eax
   int v6; // eax
   int v7; // et2
-  _QWORD v9[2]; // [esp+0h] [ebp-28h] BYREF
+  __int128 v9; // [esp+0h] [ebp-28h] BYREF
   int v10; // [esp+10h] [ebp-18h]
   char v11; // [esp+14h] [ebp-14h]
 
   watcom_stack_check(56);
   v11 = 0;
-  *(_OWORD *)v9 = unk_52418;
+  v9 = unk_52418;
   v10 = MEMORY[0x46C];
   v1 = field_rng_next(MEMORY[0x46C]) % 50 + 8;
   dword_53F52 = 2;
-  sub_27079(v9, a1);
+  sub_27079(&v9, a1);
   if ( a1 == 0 )
   {
     for ( i = 0; i < 4; ++i )
@@ -15888,7 +15968,7 @@ int __cdecl sub_26EDA(int a1)
       v3 = 2 * i + 3;
       if ( i == dword_53C57 )
         v3 = 2 * i + 4;
-      sub_4ED34(*((_DWORD *)v9 + i) + 709680, *(_DWORD *)(dword_53F66 + 4 * v3 + 6) + dword_53F66, 320);
+      sub_4ED34(*((_DWORD *)&v9 + i) + 709680, *(_DWORD *)(dword_53F66 + 4 * v3 + 6) + dword_53F66, 320);
     }
   }
   do
@@ -15897,7 +15977,7 @@ int __cdecl sub_26EDA(int a1)
     {
       if ( ++dword_53F52 == 4 )
         dword_53F52 = 0;
-      sub_27079(v9, a1);
+      sub_27079(&v9, a1);
       if ( v11 != 0 )
       {
         v4 = sub_16559(0);
@@ -15932,7 +16012,7 @@ int __cdecl sub_26EDA(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_27079
+ * IDA 9.5 Hex-Rays: sub_27079
  * VA=0x27079..0x272d0 OBJ=1 OFF=0x17079 size=0x257
  * callers: 0x26eda
  * callees: 0x2810b, 0x3702f, 0x4e29c, 0x4ebff, 0x4ed34
@@ -16005,7 +16085,7 @@ int __cdecl sub_27079(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_272D0
+ * IDA 9.5 Hex-Rays: sub_272D0
  * VA=0x272d0..0x275e6 OBJ=1 OFF=0x172d0 size=0x316
  * callers: 0x275e6, 0x27738
  * callees: 0x15f84, 0x1685c, 0x16886, 0x187d6, 0x3702f, 0x4e8bc
@@ -16117,7 +16197,7 @@ LABEL_23:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_275E6
+ * IDA 9.5 Hex-Rays: sub_275E6
  * VA=0x275e6..0x27738 OBJ=1 OFF=0x175e6 size=0x152
  * callers: 0x2872b, 0x28cbd, 0x28f65
  * callees: 0x25a96, 0x26eda, 0x272d0, 0x27816, 0x278e7, 0x3702f
@@ -16194,7 +16274,7 @@ LABEL_7:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_27738
+ * IDA 9.5 Hex-Rays: sub_27738
  * VA=0x27738..0x27816 OBJ=1 OFF=0x17738 size=0xde
  * callers: 0x2872b, 0x28cbd, 0x28f65
  * callees: 0x1974c, 0x272d0, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
@@ -16217,7 +16297,7 @@ void __cdecl sub_27738(int a1, int a2, char a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_27816
+ * IDA 9.5 Hex-Rays: sub_27816
  * VA=0x27816..0x278e7 OBJ=1 OFF=0x17816 size=0xd1
  * type: int(void)
  * callers: 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
@@ -16250,7 +16330,7 @@ int sub_27816()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_278E7
+ * IDA 9.5 Hex-Rays: sub_278E7
  * VA=0x278e7..0x279bc OBJ=1 OFF=0x178e7 size=0xd5
  * type: int(void)
  * callers: 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
@@ -16283,7 +16363,7 @@ int sub_278E7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_279BC
+ * IDA 9.5 Hex-Rays: sub_279BC
  * VA=0x279bc..0x27d33 OBJ=1 OFF=0x179bc size=0x377
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x187d6, 0x1956b, 0x1f525, 0x1f882, 0x26996, 0x26a0d, 0x26ce4, 0x26e38, 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x2921a, 0x3702f, 0x3771c, 0x3776e, 0x3790a, 0x4e809, 0x4ebff
@@ -16399,7 +16479,7 @@ void __cdecl sub_279BC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_27D33
+ * IDA 9.5 Hex-Rays: sub_27D33
  * VA=0x27d33..0x27f4a OBJ=1 OFF=0x17d33 size=0x217
  * callers: 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x29620
  * callees: 0x1974c, 0x25a96, 0x26eda, 0x27816, 0x278e7, 0x2810b, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
@@ -16488,7 +16568,7 @@ LABEL_9:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_27F4A
+ * IDA 9.5 Hex-Rays: sub_27F4A
  * VA=0x27f4a..0x2810b OBJ=1 OFF=0x17f4a size=0x1c1
  * callers: 0x2872b
  * callees: 0x1974c, 0x25a96, 0x26eda, 0x27816, 0x278e7, 0x2825b, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
@@ -16557,7 +16637,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2810B
+ * IDA 9.5 Hex-Rays: sub_2810B
  * VA=0x2810b..0x2825b OBJ=1 OFF=0x1810b size=0x150
  * callers: 0x27079, 0x27d33
  * callees: 0x15f84, 0x3702f, 0x4e29c
@@ -16609,7 +16689,7 @@ void __cdecl sub_2810B(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2825B
+ * IDA 9.5 Hex-Rays: sub_2825B
  * VA=0x2825b..0x2860a OBJ=1 OFF=0x1825b size=0x3af
  * callers: 0x27f4a
  * callees: 0x15f84, 0x187d6, 0x2860a, 0x28632, 0x3702f, 0x4e29c, 0x4ebff
@@ -16697,7 +16777,7 @@ int __cdecl sub_2825B(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2860A
+ * IDA 9.5 Hex-Rays: sub_2860A
  * VA=0x2860a..0x28632 OBJ=1 OFF=0x1860a size=0x28
  * callers: 0x2825b
  * callees: 0x3702f
@@ -16714,7 +16794,7 @@ int __cdecl sub_2860A(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_28632
+ * IDA 9.5 Hex-Rays: sub_28632
  * VA=0x28632..0x2872b OBJ=1 OFF=0x18632 size=0xf9
  * callers: 0x2825b
  * callees: 0x3702f, 0x4e8bc
@@ -16761,7 +16841,7 @@ void __cdecl sub_28632(int a1, int a2, int *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2872B
+ * IDA 9.5 Hex-Rays: sub_2872B
  * VA=0x2872b..0x28b41 OBJ=1 OFF=0x1872b size=0x416
  * callers: 0x279bc
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x197e5, 0x19953, 0x1b750, 0x1b8a6, 0x1bb8c, 0x1c142, 0x1c1c3, 0x26996, 0x26b91, 0x275e6, 0x27738, 0x27d33, 0x27f4a, 0x28b41, 0x3702f, 0x4e8bc
@@ -16817,7 +16897,7 @@ int __cdecl sub_2872B(int a1, int a2)
     v3 = 0;
     for ( i = 0; i < dword_53BFB; ++i )
     {
-      if ( *v7 < 0x20u && sub_1C1C3(i, *(unsigned __int8 *)(dword_53F6A + a2)) == 1 || *v7 >= 0x20u )
+      if ( *v7 < 0x20u && field_unit_can_equip_item(i, *(unsigned __int8 *)(dword_53F6A + a2)) == 1 || *v7 >= 0x20u )
         *((_BYTE *)v14 + v3++) = i;
     }
     if ( *v7 < 0x20u && v3 == 0 )
@@ -16915,7 +16995,7 @@ LABEL_12:
           sub_16C57(1);
           goto LABEL_12;
         }
-        sub_1BB8C(*((unsigned __int8 *)v14 + dword_53C57), *(_BYTE *)(dword_53F6A + a2));
+        field_unit_inventory_item_append(*((unsigned __int8 *)v14 + dword_53C57), *(_BYTE *)(dword_53F6A + a2));
         LODWORD(v6) = *v7;
         if ( (unsigned int)v6 < 0x20 )
         {
@@ -16939,7 +17019,7 @@ LABEL_12:
           if ( v12 != -1 && dword_53C57 == 0 )
           {
             v13 = field_unit_inventory_count(v2);
-            sub_1C142(v2, v13 - 1);
+            field_unit_equipment_slot_set(v2, v13 - 1);
             field_unit_combat_stats_recompute(v2);
           }
           LODWORD(v6) = sub_26996();
@@ -16953,7 +17033,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_28B41
+ * IDA 9.5 Hex-Rays: sub_28B41
  * VA=0x28b41..0x28cbd OBJ=1 OFF=0x18b41 size=0x17c
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x2872b, 0x28cbd, 0x2a43e
@@ -16984,7 +17064,7 @@ int sub_28B41()
       bios_tick_delay(8);
 LABEL_8:
       v0 = sub_16559(0);
-      return vsync_wait(v0);
+      return bios_keyboard_buffer_clear(v0);
     case 4:
       sub_16559(3);
       bios_tick_delay(2);
@@ -17016,12 +17096,12 @@ LABEL_8:
     default:
       break;
   }
-  return vsync_wait(v0);
+  return bios_keyboard_buffer_clear(v0);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_28CBD
+ * IDA 9.5 Hex-Rays: sub_28CBD
  * VA=0x28cbd..0x28efe OBJ=1 OFF=0x18cbd size=0x241
  * type: int(void)
  * callers: 0x279bc
@@ -17121,7 +17201,7 @@ LABEL_8:
       sub_26996();
       sub_28B41();
       sub_26A7A(dword_53AE1);
-      sub_1B8E7(v4, v6);
+      field_unit_inventory_slot_remove(v4, v6);
       field_unit_combat_stats_recompute(v4);
     }
   }
@@ -17129,7 +17209,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_28EFE
+ * IDA 9.5 Hex-Rays: sub_28EFE
  * VA=0x28efe..0x28f65 OBJ=1 OFF=0x18efe size=0x67
  * type: int(void)
  * callers: 0x279bc
@@ -17149,7 +17229,7 @@ void sub_28EFE()
     if ( v0 == -1 )
       break;
     v1 = dword_53C67;
-    sub_1BFFE(dword_53C57);
+    field_unit_equipment_menu_execute(dword_53C57);
     dword_53C67 = v1;
     dword_53A85 = res_load((int)aDatoDat, dword_53A85, (unsigned __int8)byte_52387[dword_53F4A]);
   }
@@ -17158,7 +17238,7 @@ void sub_28EFE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_28F65
+ * IDA 9.5 Hex-Rays: sub_28F65
  * VA=0x28f65..0x2921a OBJ=1 OFF=0x18f65 size=0x2b5
  * type: int(void)
  * callers: 0x279bc, 0x29daa
@@ -17240,8 +17320,8 @@ LABEL_9:
           goto LABEL_8;
         }
         v7 = field_unit_item_id_at(a1, v5);
-        sub_1B8E7(a1, v5);
-        sub_1BB8C(dword_53C57, v7);
+        field_unit_inventory_slot_remove(a1, v5);
+        field_unit_inventory_item_append(dword_53C57, v7);
         field_unit_combat_stats_recompute(a1);
       }
     }
@@ -17257,7 +17337,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2921A
+ * IDA 9.5 Hex-Rays: sub_2921A
  * VA=0x2921a..0x29300 OBJ=1 OFF=0x1921a size=0xe6
  * callers: 0x2670e, 0x279bc, 0x29300, 0x29daa
  * callees: 0x3702f, 0x37910
@@ -17298,7 +17378,7 @@ int __cdecl sub_2921A(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_manual_slot_dispatch
+ * IDA 9.5 Hex-Rays: field_manual_slot_dispatch
  * VA=0x29300..0x29620 OBJ=1 OFF=0x19300 size=0x320
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x1956b, 0x197e5, 0x19953, 0x1f525, 0x1f882, 0x26996, 0x26ce4, 0x26e38, 0x2921a, 0x29620, 0x2968d, 0x2986f, 0x3702f, 0x3771c, 0x3776e, 0x3790a, 0x4e809
@@ -17306,6 +17386,7 @@ int __cdecl sub_2921A(int a1, int a2, int a3, int a4)
 // [field_manual_slot_dispatch] 分派全屏部队状态页、四槽手工保存、四槽手工读取和离开战场确认
 //   依据: 当前权威 code0 `0x19300` 的干净函数入口；其 selector `0..3` 分别调用 code0 `0x19620`（部队／单位选择页）、`0x1968d`（手工 Save）、`0x1986f`（手工 Load）和 FDTXT `0x19f/0x1a0` 的离开确认。四槽路径使用 `0x312b + selected * 0xa28`，不能解释为标题菜单新游戏分派。
 //   历史地址列 `0x29300`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 普通战场的四槽手工存取dispatcher，可作为stage0菜单入口 -> 本函数属于城镇准备页的酒店，selector0为持久成员详情、1为2968d手工Save、2为2986f手工Load；不替换战场secondary19df7活动存取。实际可见入口与出阵恢复归B5，B1只完成归属研究。；依据: 26152→2670e的selector0→29300；FDTXT495..499为酒店/武器店/出口/道具店/教会，513为进入战场确认。原始293fb/2940e/29424分别调用29620/2968d/2986f；未冒称该准备页完整运行验收。
 int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
 {
   int v1; // esi
@@ -17366,7 +17447,7 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
       }
       else
       {
-        field_manual_slot_save();
+        sub_29620();
       }
       sub_1956B((unsigned __int8)byte_52387[0]);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
@@ -17394,7 +17475,7 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_manual_slot_save
+ * IDA 9.5 Hex-Rays: sub_29620
  * VA=0x29620..0x2968d OBJ=1 OFF=0x19620 size=0x6d
  * type: int(void)
  * callers: 0x29300, 0x29daa
@@ -17403,7 +17484,9 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
 // [field_manual_slot_save] 选择并写入一个四槽手工存档
 //   依据: code0 `0x1968d`：调用 `0x19bcb(buffer, initial_slot)`，空槽以 `slot+0xa00 == 0xff` 显示；确认后完整复制当前单位表 `0xa00` 字节、写 meta `+0xa00..+0xa09`，重算 checksum、XOR 加密后写回；成功片段为 FDTXT `0x294`。
 //   历史地址列 `0x29620`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
-int __usercall field_manual_slot_save@<eax>(int a1@<edi>)
+// [勘误 semantic_name] field_manual_slot_save -> sub_29620；依据: 撤回旧误名，采用中性标识以覆盖历史save语义；完整109字节只设置53F5E并循环27d33成员选择→17aed详情，无文件读写、checksum或四槽picker。真正writer入口是2968d，不是Watcom序言/body拆分。
+// [勘误 evidence] 选择并写入四槽；依据却指code0x1968d -> 准备页的持久roster成员选择与详情循环；取消退出，原save注释挂错入口，不能沿用。保留原误名供追溯，不据此保存新的猜测ABI。；依据: 已发布29620..2968d调用27d33/17aed；原始293fb的selector0调用。2968d另有独立Watcom序言和完整writer写集，地址必须分别登记。
+int __usercall sub_29620@<eax>(int a1@<edi>)
 {
   int v1; // esi
   int result; // eax
@@ -17420,7 +17503,7 @@ int __usercall field_manual_slot_save@<eax>(int a1@<edi>)
     v3 = dword_53C67;
     if ( v1 == -1 )
       break;
-    sub_17AED(dword_53C57, v4);
+    field_unit_detail_present(dword_53C57, v4);
     dword_53C67 = v3;
     dword_53A85 = res_load((int)aDatoDat, dword_53A85, (unsigned __int8)byte_52387[0]);
   }
@@ -17429,11 +17512,12 @@ int __usercall field_manual_slot_save@<eax>(int a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2968D
+ * IDA 9.5 Hex-Rays: sub_2968D
  * VA=0x2968d..0x2986f OBJ=1 OFF=0x1968d size=0x1e2
  * callers: 0x26152, 0x29300
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x29bcb, 0x3702f, 0x3706e, 0x37324, 0x373ca, 0x3759c, 0x3771c, 0x3776e, 0x377a3, 0x37910, 0x4df09, 0x4df28
  * --------------------------------------------------------------- */
+// [勘误 evidence] 中性sub_2968D未独立登记，writer语义误挂29620 -> 保留IDA中性sub_2968D：真正四槽手工writer，读取完整SAV后经29bcb选择，复制准备owner整张0xa00持久表并写meta0..9、checksum和XOR；未使用roster尾与未知meta保留，不从active表重建。；依据: 2968d独立入口、2940e/26331调用；原始29757..29791写当前stage、roster_count、资源和camera/effect/music/SFX，成功FDTXT660。22ef6先11506同步持久表再stage=1，main25e2a随后进入准备页，正常首个四槽保存阶段是1；没有stage0正式生成链或实机样本。
 int __cdecl sub_2968D(unsigned __int8 a1)
 {
   int v1; // ebx
@@ -17451,7 +17535,7 @@ int __cdecl sub_2968D(unsigned __int8 a1)
   v4 = v3;
   if ( v3 != 0 )
   {
-    file_read(v1, 1, 22987, v3);
+    fread(v1, 1, 22987, v3);
     save_xor_crypt(v1, 22987);
     fclose(v4);
   }
@@ -17498,7 +17582,7 @@ int __cdecl sub_2968D(unsigned __int8 a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_manual_slot_load
+ * IDA 9.5 Hex-Rays: field_manual_slot_load
  * VA=0x2986f..0x29ab2 OBJ=1 OFF=0x1986f size=0x243
  * type: int(void)
  * callers: 0x29300
@@ -17507,6 +17591,7 @@ int __cdecl sub_2968D(unsigned __int8 a1)
 // [field_manual_slot_load] 选择并读取一个四槽手工存档
 //   依据: code0 `0x1986f`：调用 `0x19bcb(buffer, initial_slot=1)`，只以 `slot+0xa00 == 0xff` 判定空槽；成功后恢复 `0xa00` 单位表、stage、unit_count、资源值和四个配置字节，并重建运行期单位 cache，随后写 `DS:0x3f56 = 0x238d + stage*0x1f`；成功片段为 FDTXT `0x1de`，不兼容当前入口的 stage 显示 `0x1df`。
 //   历史地址列 `0x2986f`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 恢复手工slot后直接重建当前战场 -> 只恢复城镇准备owner的完整持久表、stage/资源/配置，重建FDICON缓存及DS:3f56；出阵后才调用stage entry重建地图、回合和事件状态。仅stageFF判空，再按523e7表拒不兼容章节。；依据: 原始29928..29941的stageFF/表门与完整2986f写集，函数不调用10010/1088d/205da；FDTXT478成功、479为不能在商店内读取。slot没有active、turn或camera快照，坏count/checksum原版安全拒绝未证。
 int field_manual_slot_load()
 {
   unsigned __int8 *v0; // ebx
@@ -17527,7 +17612,7 @@ int field_manual_slot_load()
   v3 = v2;
   if ( v2 != 0 )
   {
-    file_read(v0, 1, 22987, v2);
+    fread(v0, 1, 22987, v2);
     save_xor_crypt(v0, 22987);
     fclose(v3);
   }
@@ -17586,7 +17671,7 @@ int field_manual_slot_load()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_29AB2
+ * IDA 9.5 Hex-Rays: sub_29AB2
  * VA=0x29ab2..0x29bcb OBJ=1 OFF=0x19ab2 size=0x119
  * callers: 0x29bcb
  * callees: 0x15f84, 0x3702f
@@ -17636,7 +17721,7 @@ void __cdecl sub_29AB2(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_manual_slot_picker
+ * IDA 9.5 Hex-Rays: field_manual_slot_picker
  * VA=0x29bcb..0x29daa OBJ=1 OFF=0x19bcb size=0x1df
  * type: __int64 __cdecl(_DWORD, _DWORD)
  * callers: 0x25ebb, 0x2968d, 0x2986f
@@ -17645,6 +17730,7 @@ void __cdecl sub_29AB2(int a1, int a2, int a3)
 // [field_manual_slot_picker] 绘制并选择四个手工 slot
 //   依据: code0 `0x19bcb(buffer, initial_slot)`：使用 `0x19ab2` 按 `y=0x77 + index*0x13` 逐行绘制四项，扫描码 `0x48/0x50` 将选择限制在 `0..3`，Enter/Space 确认，Esc 取消；每项以 FDTXT `0x225` 开头，空槽绘制 `0x202`，有效槽绘制 `0x202+stage`。该 picker 与 `0x17d33` 的六项滚动选择器无关。
 //   历史地址列 `0x29bcb`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] picker(buffer,initial_slot)，第二参是初始槽 -> 选择来自共享53C57，三种caller首次均先置0；第二参选择16c57规范化等待读键或直接BIOS读键，不写初始index。上下限0..3，Enter/Space确认、Esc取消；SDL自有initial_slot不是原版ABI。；依据: 完整29bcb分支只测试第二参以选择读键路径；25ebb、2968d、2986f在调用前清53C57。29ab2按119+19*i绘四行，使用FDTXT549、514、514+stage和550+stage。保留现函数名，不保存猜测参数原型。
 void __cdecl field_manual_slot_picker(int a1, int a2)
 {
   int v2; // esi
@@ -17707,7 +17793,7 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_29DAA
+ * IDA 9.5 Hex-Rays: sub_29DAA
  * VA=0x29daa..0x2a07a OBJ=1 OFF=0x19daa size=0x2d0
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x187d6, 0x1956b, 0x1f525, 0x1f882, 0x26996, 0x26ce4, 0x26e38, 0x28f65, 0x2921a, 0x29620, 0x2a43e, 0x2aa00, 0x3702f, 0x3771c, 0x3790a, 0x4e809, 0x4ebff
@@ -17763,7 +17849,7 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
       }
       else
       {
-        field_manual_slot_save((int)a1);
+        sub_29620((int)a1);
       }
       sub_1956B((unsigned __int8)byte_5238B);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
@@ -17791,7 +17877,7 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A07A
+ * IDA 9.5 Hex-Rays: sub_2A07A
  * VA=0x2a07a..0x2a0c2 OBJ=1 OFF=0x1a07a size=0x48
  * callers: 0x2a43e
  * callees: 0x34894, 0x3702f
@@ -17813,7 +17899,7 @@ int __cdecl sub_2A07A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A0C2
+ * IDA 9.5 Hex-Rays: sub_2A0C2
  * VA=0x2a0c2..0x2a29d OBJ=1 OFF=0x1a0c2 size=0x1db
  * callers: 0x2a29d
  * callees: 0x15f84, 0x1685c, 0x187d6, 0x3702f, 0x4e29c
@@ -17862,7 +17948,7 @@ void __cdecl sub_2A0C2(int a1, int a2, unsigned __int8 *a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A29D
+ * IDA 9.5 Hex-Rays: sub_2A29D
  * VA=0x2a29d..0x2a43e OBJ=1 OFF=0x1a29d size=0x1a1
  * callers: 0x2a43e
  * callees: 0x1974c, 0x26eda, 0x27816, 0x278e7, 0x2a0c2, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
@@ -17931,7 +18017,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A43E
+ * IDA 9.5 Hex-Rays: sub_2A43E
  * VA=0x2a43e..0x2a694 OBJ=1 OFF=0x1a43e size=0x256
  * type: int(void)
  * callers: 0x29daa
@@ -18006,7 +18092,7 @@ LABEL_9:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A694
+ * IDA 9.5 Hex-Rays: sub_2A694
  * VA=0x2a694..0x2a857 OBJ=1 OFF=0x1a694 size=0x1c3
  * callers: 0x2a857
  * callees: 0x15f84, 0x3702f, 0x4e29c, 0x4e7dd
@@ -18049,7 +18135,7 @@ void __cdecl sub_2A694(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2A857
+ * IDA 9.5 Hex-Rays: sub_2A857
  * VA=0x2a857..0x2aa00 OBJ=1 OFF=0x1a857 size=0x1a9
  * callers: 0x2aa00
  * callees: 0x1974c, 0x26eda, 0x27816, 0x278e7, 0x2a694, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
@@ -18118,7 +18204,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2AA00
+ * IDA 9.5 Hex-Rays: sub_2AA00
  * VA=0x2aa00..0x2ac7d OBJ=1 OFF=0x1aa00 size=0x27d
  * type: int(void)
  * callers: 0x29daa
@@ -18156,7 +18242,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     sub_16559(0);
     sub_16C57(1);
     v3 = sub_26996();
-    vsync_wait(v3);
+    bios_keyboard_buffer_clear(v3);
     sub_2A857(v1, (int)v15, (int)v14);
     v5 = v4;
     result = sub_26996();
@@ -18168,7 +18254,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     v6 = 80 * a1 + dword_53A45;
     dword_53AD9 = *(unsigned __int8 *)(v6 + 7) + 1;
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 594, 693452, 320, 205, 76, 74, 19, 1);
-    vsync_wait(v7);
+    bios_keyboard_buffer_clear(v7);
     sub_19953();
     v9 = v8;
     sub_197E5();
@@ -18185,7 +18271,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
           goto LABEL_12;
         v10 = sub_2AEDB(a1, (unsigned __int8)byte_523D5[*(unsigned __int8 *)(v6 + 7)]);
       }
-      sub_1B8E7(a1, v10);
+      field_unit_inventory_slot_remove(a1, v10);
 LABEL_12:
       music_track_play(16, 1);
       sub_2FB2C(a1, v16);
@@ -18200,7 +18286,7 @@ LABEL_12:
         fdicon_cache_append_unit(*(unsigned __int8 *)(dword_53BF7 + 80 * i + 7), v11);
       fclose(v11);
       v13 = sub_2AC7D(a1);
-      vsync_wait(v13);
+      bios_keyboard_buffer_clear(v13);
     }
   }
   sub_1956B((unsigned __int8)byte_5238B);
@@ -18212,7 +18298,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2AC7D
+ * IDA 9.5 Hex-Rays: sub_2AC7D
  * VA=0x2ac7d..0x2ae0e OBJ=1 OFF=0x1ac7d size=0x191
  * callers: 0x2aa00
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x1b750, 0x1e529, 0x26996, 0x3702f, 0x4e381, 0x4e7dd, 0x4e821
@@ -18233,12 +18319,12 @@ int __cdecl sub_2AC7D(int a1)
   watcom_stack_check(52);
   v1 = 80 * a1 + dword_53A45;
   v2 = (unsigned __int8 *)sub_4E821(*(unsigned __int8 *)(v1 + 7));
-  vsync_wait(v2);
+  bios_keyboard_buffer_clear(v2);
   sub_1956B(*(unsigned __int8 *)(v1 + 7));
   dword_53AD9 = *(unsigned __int8 *)(v1 + 32) + 150;
   text_dialog_render_tokens(v2, dword_53A7D, 595, 693535, 320, 205, 76, 74, 19, 1);
   v3 = sub_16559(0);
-  vsync_wait(v3);
+  bios_keyboard_buffer_clear(v3);
   v4 = sub_1E529((_WORD *)(v1 + 55), (int)v2, 490, 1);
   v5 = sub_1E529((_WORD *)(v1 + 57), (int)(v2 + 2), 491, v4);
   v6 = sub_1E529((_WORD *)(v1 + 62), (int)(v2 + 4), 492, v5);
@@ -18259,12 +18345,12 @@ int __cdecl sub_2AC7D(int a1)
   *(_WORD *)(v1 + 64) = *(_WORD *)(v1 + 66);
   LOWORD(v10) = *(_WORD *)(v1 + 70);
   *(_WORD *)(v1 + 68) = v10;
-  return vsync_wait(v10);
+  return bios_keyboard_buffer_clear(v10);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2AE0E
+ * IDA 9.5 Hex-Rays: sub_2AE0E
  * VA=0x2ae0e..0x2aedb OBJ=1 OFF=0x1ae0e size=0xcd
  * callers: 0x2aa00
  * callees: 0x2aedb, 0x3702f
@@ -18300,7 +18386,7 @@ int __cdecl sub_2AE0E(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2AEDB
+ * IDA 9.5 Hex-Rays: sub_2AEDB
  * VA=0x2aedb..0x2af28 OBJ=1 OFF=0x1aedb size=0x4d
  * callers: 0x240fa, 0x24b14, 0x2aa00, 0x2ae0e, 0x35a0d
  * callees: 0x1b722, 0x1b8a6, 0x3702f
@@ -18325,7 +18411,7 @@ int __cdecl sub_2AEDB(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2AF28
+ * IDA 9.5 Hex-Rays: sub_2AF28
  * VA=0x2af28..0x2b439 OBJ=1 OFF=0x1af28 size=0x511
  * type: int(void)
  * callers: 0x26152, 0x2670e
@@ -18375,7 +18461,7 @@ int sub_2AF28()
       sfx_play(dword_53EEC, 5, 1);
     v3 = field_unit_detail_transition_frame(i, dword_53C5B, dword_53C63, dword_53C5F);
   }
-  vsync_wait(v3);
+  bios_keyboard_buffer_clear(v3);
   do
   {
     v5 = sub_2B67F(v17, v0, v14, v2);
@@ -18502,7 +18588,7 @@ LABEL_56:
   text_dialog_render_tokens((unsigned __int8 *)1, dword_53A7D, 658, 693535, 320, 205, 76, 74, 19, 1);
   v10 = sub_16559(0);
   dword_53A51 = 1;
-  vsync_wait(v10);
+  bios_keyboard_buffer_clear(v10);
   sub_19953();
   v12 = v11;
   dword_53A51 = 0;
@@ -18515,7 +18601,7 @@ LABEL_56:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B439
+ * IDA 9.5 Hex-Rays: sub_2B439
  * VA=0x2b439..0x2b4fb OBJ=1 OFF=0x1b439 size=0xc2
  * callers: 0x2af28
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x3702f
@@ -18548,7 +18634,7 @@ int __usercall sub_2B439@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B4FB
+ * IDA 9.5 Hex-Rays: sub_2B4FB
  * VA=0x2b4fb..0x2b67f OBJ=1 OFF=0x1b4fb size=0x184
  * callers: 0x2af28, 0x2b67f
  * callees: 0x1297d, 0x17fc0, 0x187d6, 0x2b749, 0x3702f, 0x3771c, 0x4e1a6, 0x4e22a
@@ -18590,7 +18676,7 @@ void __cdecl sub_2B4FB(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B67F
+ * IDA 9.5 Hex-Rays: sub_2B67F
  * VA=0x2b67f..0x2b749 OBJ=1 OFF=0x1b67f size=0xca
  * callers: 0x2af28
  * callees: 0x10620, 0x2b4fb, 0x3702f, 0x370f0, 0x3771c
@@ -18627,7 +18713,7 @@ int __usercall sub_2B67F@<eax>(int a1@<ebx>, int a2@<ebp>, int a3@<edi>, int a4@
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B749
+ * IDA 9.5 Hex-Rays: sub_2B749
  * VA=0x2b749..0x2b777 OBJ=1 OFF=0x1b749 size=0x2e
  * callers: 0x2af28, 0x2b4fb
  * callees: 0x3702f
@@ -18649,7 +18735,7 @@ void __cdecl sub_2B749(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B777
+ * IDA 9.5 Hex-Rays: sub_2B777
  * VA=0x2b777..0x2b843 OBJ=1 OFF=0x1b777 size=0xcc
  * callers: 0x2af28
  * callees: 0x3702f, 0x3706e, 0x3771c
@@ -18680,7 +18766,7 @@ void __cdecl sub_2B777(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B843
+ * IDA 9.5 Hex-Rays: sub_2B843
  * VA=0x2b843..0x2b996 OBJ=1 OFF=0x1b843 size=0x153
  * callers: 0x2af28
  * callees: 0x11019, 0x3702f, 0x3706e, 0x37324, 0x3759c, 0x3771c, 0x3776e
@@ -18722,7 +18808,7 @@ int __cdecl sub_2B843(unsigned __int8 a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2B996
+ * IDA 9.5 Hex-Rays: sub_2B996
  * VA=0x2b996..0x2cafc OBJ=1 OFF=0x1b996 size=0x1166
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2bf83, 0x2eb9f, 0x3702f, 0x37af4, 0x3cbd5, 0x3cbe8, 0x4ebe3
@@ -18784,7 +18870,7 @@ int __cdecl sub_2B996(int a1, int a2, int a3, int a4, char a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2CAFC
+ * IDA 9.5 Hex-Rays: sub_2CAFC
  * VA=0x2cafc..0x2ccf4 OBJ=1 OFF=0x1cafc size=0x1f8
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
@@ -18793,8 +18879,8 @@ int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
 {
   int v5; // ebp
   int i; // ebx
-  int k; // ebx
   int j; // ebx
+  int k; // ebx
   _DWORD v10[14]; // [esp+0h] [ebp-38h]
 
   watcom_stack_check(80);
@@ -18805,71 +18891,66 @@ int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
     for ( i = 0; i < 10; ++i )
       v10[i] += 130;
   }
-  if ( a5 != 0 )
+  switch ( a5 )
   {
-    switch ( a5 )
-    {
-      case 3:
-        return 32;
-      case 6:
-        byte_540EC = 1;
-        return 16;
-      case 2:
-      case 5:
-      case 8:
-        ++byte_540ED;
-        byte_540ED = (unsigned __int8)byte_540ED % 2;
-        for ( j = 0; j < 3; ++j )
+    case 0:
+      for ( j = 0; j < 4; ++j )
+      {
+        dword_540CB[j] = -3 * j;
+        dword_540DB[j] = j;
+      }
+      byte_540EB = j;
+      byte_540EC = 0;
+      byte_540ED = 0;
+      return 2;
+    case 2:
+    case 5:
+    case 8:
+      ++byte_540ED;
+      byte_540ED = (unsigned __int8)byte_540ED % 2;
+      for ( k = 0; k < 3; ++k )
+      {
+        if ( (unsigned int)dword_540CB[k] <= 4 )
+          sub_2EB9F(a2, dword_540CB[k], v10[dword_540DB[k]] + a3, a4, -1);
+        if ( byte_540ED == 0 )
         {
-          if ( (unsigned int)dword_540CB[j] <= 4 )
-            sub_2EB9F(a2, dword_540CB[j], v10[dword_540DB[j]] + a3, a4, -1);
-          if ( byte_540ED == 0 )
+          if ( dword_540CB[k] == 1 )
           {
-            if ( dword_540CB[j] == 1 )
+            if ( k != 0 )
             {
-              if ( j != 0 )
-              {
-                if ( j == 1 )
-                  pal_mask_set(dword_54153, 1, 1);
-              }
-              else
-              {
-                sfx_play(dword_54153, 1, 1);
-              }
+              if ( k == 1 )
+                pal_mask_set(dword_54153, 1, 1);
             }
-            if ( ++dword_540CB[j] == 2 )
-              v5 = 1;
-            if ( dword_540CB[j] == 7 && byte_540EC == 0 )
+            else
             {
-              ++byte_540EB;
-              byte_540EB = (unsigned __int8)byte_540EB % 10;
-              dword_540DB[j] = (unsigned __int8)byte_540EB;
-              dword_540CB[j] = 0;
+              sfx_play(dword_54153, 1, 1);
             }
           }
+          if ( ++dword_540CB[k] == 2 )
+            v5 = 1;
+          if ( dword_540CB[k] == 7 && byte_540EC == 0 )
+          {
+            ++byte_540EB;
+            byte_540EB = (unsigned __int8)byte_540EB % 10;
+            dword_540DB[k] = (unsigned __int8)byte_540EB;
+            dword_540CB[k] = 0;
+          }
         }
-        return v5;
-      default:
-        return 0;
-    }
-  }
-  else
-  {
-    for ( k = 0; k < 4; ++k )
-    {
-      dword_540CB[k] = -3 * k;
-      dword_540DB[k] = k;
-    }
-    byte_540EB = k;
-    byte_540EC = 0;
-    byte_540ED = 0;
-    return 2;
+      }
+      return v5;
+    case 3:
+      return 32;
+    case 6:
+      byte_540EC = 1;
+      return 16;
+    default:
+      return 0;
   }
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2CCF4
+ * IDA 9.5 Hex-Rays: sub_2CCF4
  * VA=0x2ccf4..0x2ce1a OBJ=1 OFF=0x1ccf4 size=0x126
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
@@ -18877,50 +18958,45 @@ int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
 int __cdecl sub_2CCF4(int a1, int a2, int a3, int a4, char a5)
 {
   int v5; // esi
-  int j; // ebx
   int i; // ebx
-  _QWORD v9[4]; // [esp+0h] [ebp-20h]
+  int j; // ebx
+  _OWORD v9[2]; // [esp+0h] [ebp-20h]
 
   watcom_stack_check(56);
-  *(_OWORD *)v9 = unk_52646;
+  v9[0] = unk_52646;
   v5 = 0;
-  if ( a5 != 0 )
+  switch ( a5 )
   {
-    switch ( a5 )
-    {
-      case 3:
-        return 34;
-      case 6:
-        return 2;
-      case 2:
-      case 5:
-        for ( i = 0; i < 16; ++i )
-        {
-          if ( (unsigned int)dword_540EE[i] < 8 )
-            sub_2EB9F(a2, *((unsigned __int8 *)v9 + i) + dword_540EE[i], a3, a4, -1);
-          if ( dword_540EE[i] == 0 )
-            sfx_play(dword_54153, 1, 1);
-          if ( dword_540EE[i] == 4 )
-            pal_mask_set(dword_54153, 2, 1);
-          if ( ++dword_540EE[i] == 4 )
-            v5 = 1;
-        }
-        return v5;
-      default:
-        return 0;
-    }
-  }
-  else
-  {
-    for ( j = 0; j < 16; ++j )
-      dword_540EE[j] = -2 * j;
-    return 3;
+    case 0:
+      for ( i = 0; i < 16; ++i )
+        dword_540EE[i] = -2 * i;
+      return 3;
+    case 2:
+    case 5:
+      for ( j = 0; j < 16; ++j )
+      {
+        if ( (unsigned int)dword_540EE[j] < 8 )
+          sub_2EB9F(a2, *((unsigned __int8 *)v9 + j) + dword_540EE[j], a3, a4, -1);
+        if ( dword_540EE[j] == 0 )
+          sfx_play(dword_54153, 1, 1);
+        if ( dword_540EE[j] == 4 )
+          pal_mask_set(dword_54153, 2, 1);
+        if ( ++dword_540EE[j] == 4 )
+          v5 = 1;
+      }
+      return v5;
+    case 3:
+      return 34;
+    case 6:
+      return 2;
+    default:
+      return 0;
   }
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2CE1A
+ * IDA 9.5 Hex-Rays: sub_2CE1A
  * VA=0x2ce1a..0x2cf30 OBJ=1 OFF=0x1ce1a size=0x116
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
@@ -18934,16 +19010,14 @@ int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
       byte_5412F = 0;
       byte_5412E = 1;
       return 20;
-    case 3:
-      return 60;
-    case 6:
-      return 20;
     case 1:
     case 7:
       if ( byte_5412F == 0 )
         sub_2EB9F(a2, 0, a3, a4, -1);
       byte_5412F ^= 1u;
       return 0;
+    case 3:
+      return 60;
     case 4:
       sub_2EB9F(a2, 0, a3, a4, -1);
       return 0;
@@ -18958,6 +19032,8 @@ int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
         pal_mask_set(dword_54153, 2, 1);
       }
       return (unsigned __int8)++byte_5412E < 0x2Cu && (unsigned __int8)byte_5412E > 0x10u;
+    case 6:
+      return 20;
     default:
       return 0;
   }
@@ -18965,7 +19041,7 @@ int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2CF30
+ * IDA 9.5 Hex-Rays: sub_2CF30
  * VA=0x2cf30..0x2d80d OBJ=1 OFF=0x1cf30 size=0x8dd
  * callers: 0x2ff01
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1c81f, 0x1f525, 0x1f882, 0x25a96, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2f4d4, 0x2facd, 0x30e25, 0x30e9d, 0x311e5, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
@@ -19090,7 +19166,7 @@ int __cdecl sub_2CF30(int a1, int a2, int a3, unsigned __int8 *a4)
     v11 = a4[i];
     v29 = (unsigned __int8 *)(80 * v11 + dword_53A45);
     v28 = *((__int16 *)v29 + 32);
-    sub_1C81F(v11, v25 - *((__int16 *)v29 + 37));
+    field_magic_damage_apply(v11, v25 - *((__int16 *)v29 + 37));
     v27 = v12;
     if ( v12 > v28 )
       v27 = v28;
@@ -19156,7 +19232,7 @@ int __cdecl sub_2CF30(int a1, int a2, int a3, unsigned __int8 *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2D80D
+ * IDA 9.5 Hex-Rays: sub_2D80D
  * VA=0x2d80d..0x2df01 OBJ=1 OFF=0x1d80d size=0x6f4
  * callers: 0x2ff01
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1d4cb, 0x1d4f6, 0x1f882, 0x2111a, 0x211a4, 0x22721, 0x22866, 0x22997, 0x22d1b, 0x25a96, 0x25b45, 0x2df01, 0x2e9a8, 0x2eb9f, 0x2facd, 0x30e9d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x37910, 0x4e98d
@@ -19306,7 +19382,7 @@ LABEL_14:
     case '!':
       for ( ii = 0; ii < a3; ++ii )
         memset(80 * *(unsigned __int8 *)(ii + a4) + dword_53A45 + 37, 0, 3);
-      sub_211A4(a1, a3, a4, 800);
+      field_hp_heal_group_execute(a1, a3, a4, 800);
       break;
     case '"':
       sub_22721(a1, a3, a4);
@@ -19330,7 +19406,7 @@ LABEL_14:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: palette_fade_to
+ * IDA 9.5 Hex-Rays: palette_fade_to
  * VA=0x2df01..0x2dfc8 OBJ=1 OFF=0x1df01 size=0xc7
  * callers: 0x1f894, 0x2d80d
  * callees: 0x3702f, 0x37ae5
@@ -19355,7 +19431,7 @@ int __cdecl palette_fade_to(int a1, int a2, int a3, unsigned __int8 a4, unsigned
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2DFC8
+ * IDA 9.5 Hex-Rays: sub_2DFC8
  * VA=0x2dfc8..0x2e2b0 OBJ=1 OFF=0x1dfc8 size=0x2e8
  * callers: 0x15055
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f525, 0x1f882, 0x25a96, 0x2e9a8, 0x2eb9f, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
@@ -19433,7 +19509,7 @@ int __usercall sub_2DFC8@<eax>(int a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2E2B0
+ * IDA 9.5 Hex-Rays: sub_2E2B0
  * VA=0x2e2b0..0x2e95b OBJ=1 OFF=0x1e2b0 size=0x6ab
  * callers: 0x1548e, 0x18d8c, 0x31529, 0x35730
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f0dc, 0x1f525, 0x1f882, 0x25a96, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2ebe1, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
@@ -19620,7 +19696,7 @@ int __cdecl sub_2E2B0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fd2tmp_map_sprite_load
+ * IDA 9.5 Hex-Rays: fd2tmp_map_sprite_load
  * VA=0x2e95b..0x2e9a8 OBJ=1 OFF=0x1e95b size=0x4d
  * type: int(void)
  * callers: 0x2cf30, 0x2e2b0, 0x2ff01
@@ -19636,13 +19712,13 @@ int fd2tmp_map_sprite_load()
   watcom_stack_check(24);
   v0 = fopen(aFd2Tmp_0, &unk_502BA);
   dword_53A61 = malloc((char *)&loc_329FE + 2);
-  file_read(dword_53A61, 1, (char *)&loc_329FE + 2, v0);
+  fread(dword_53A61, 1, (char *)&loc_329FE + 2, v0);
   return fclose(v0);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2E9A8
+ * IDA 9.5 Hex-Rays: sub_2E9A8
  * VA=0x2e9a8..0x2eb9f OBJ=1 OFF=0x1e9a8 size=0x1f7
  * callers: 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ff01, 0x31c49
  * callees: 0x11d40, 0x11eb0, 0x2eb9f, 0x3702f, 0x4e98d
@@ -19683,7 +19759,7 @@ int __cdecl sub_2E9A8(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2EB9F
+ * IDA 9.5 Hex-Rays: sub_2EB9F
  * VA=0x2eb9f..0x2ebe1 OBJ=1 OFF=0x1eb9f size=0x42
  * callers: 0x22e5c, 0x24336, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2e9a8, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2fb2c, 0x2fe14, 0x2ff01, 0x30e9d, 0x311e5, 0x31266, 0x31529, 0x31c49, 0x35a0d
  * callees: 0x3702f, 0x4e98d
@@ -19699,7 +19775,7 @@ int __cdecl sub_2EB9F(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2EBE1
+ * IDA 9.5 Hex-Rays: sub_2EBE1
  * VA=0x2ebe1..0x2f4d4 OBJ=1 OFF=0x1ebe1 size=0x8f3
  * callers: 0x2e2b0
  * callees: 0x11eb0, 0x17aa9, 0x25a96, 0x2eb9f, 0x2f4d4, 0x2f631, 0x2f7b6, 0x2facd, 0x3702f, 0x3790a, 0x37910, 0x37ae5, 0x4ebe3
@@ -19949,7 +20025,7 @@ LABEL_43:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2F4D4
+ * IDA 9.5 Hex-Rays: sub_2F4D4
  * VA=0x2f4d4..0x2f631 OBJ=1 OFF=0x1f4d4 size=0x15d
  * callers: 0x2cf30, 0x2ebe1
  * callees: 0x11eb0, 0x2eb9f, 0x2facd, 0x3702f, 0x37910, 0x4e98d
@@ -19982,7 +20058,7 @@ int __cdecl sub_2F4D4(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2F631
+ * IDA 9.5 Hex-Rays: sub_2F631
  * VA=0x2f631..0x2f7b6 OBJ=1 OFF=0x1f631 size=0x185
  * callers: 0x2ebe1
  * callees: 0x11eb0, 0x2eb9f, 0x2facd, 0x3702f, 0x37910, 0x4e98d
@@ -20016,7 +20092,7 @@ int __cdecl sub_2F631(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2F7B6
+ * IDA 9.5 Hex-Rays: sub_2F7B6
  * VA=0x2f7b6..0x2facd OBJ=1 OFF=0x1f7b6 size=0x317
  * callers: 0x2ebe1
  * callees: 0x12e38, 0x1b722, 0x1b83d, 0x1f183, 0x3702f, 0x4e84f, 0x4e8bc, 0x4ebe3
@@ -20144,7 +20220,7 @@ int __cdecl sub_2F7B6(int a1, int a2, _DWORD *a3)
     v17 = v4[7];
     if ( v17 >= 0x44 )
     {
-      v18 = sub_4E84F(v17 - 68);
+      v18 = field_enemy_base_record_get(v17 - 68);
       if ( v3[32] > 8u && v3[32] < 0x19u || v3[8] == 28 )
         v35 += 30;
       v19 = *(unsigned __int8 *)(v18 + 9) * (unsigned int)v34 / (__int64)v35;
@@ -20160,7 +20236,7 @@ int __cdecl sub_2F7B6(int a1, int a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2FACD
+ * IDA 9.5 Hex-Rays: sub_2FACD
  * VA=0x2facd..0x2fb2c OBJ=1 OFF=0x1facd size=0x5f
  * callers: 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2ff01, 0x30e9d
  * callees: 0x18c6d, 0x3702f
@@ -20181,7 +20257,7 @@ void __cdecl sub_2FACD(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2FB2C
+ * IDA 9.5 Hex-Rays: sub_2FB2C
  * VA=0x2fb2c..0x2fe14 OBJ=1 OFF=0x1fb2c size=0x2e8
  * callers: 0x2aa00
  * callees: 0x111ba, 0x11d40, 0x11df2, 0x11eb0, 0x17aa9, 0x1f525, 0x1f882, 0x2eb9f, 0x2fe14, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x37910, 0x4e98d
@@ -20247,7 +20323,7 @@ int __cdecl sub_2FB2C(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_2FE14
+ * IDA 9.5 Hex-Rays: sub_2FE14
  * VA=0x2fe14..0x2ff01 OBJ=1 OFF=0x1fe14 size=0xed
  * callers: 0x2fb2c
  * callees: 0x11eb0, 0x17aa9, 0x2eb9f, 0x3702f, 0x37910, 0x4e98d
@@ -20288,7 +20364,7 @@ int __cdecl sub_2FE14(unsigned __int8 *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_magic_battle_animation
+ * IDA 9.5 Hex-Rays: field_magic_battle_animation
  * VA=0x2ff01..0x30e25 OBJ=1 OFF=0x1ff01 size=0xf24
  * callers: 0x15311, 0x1cff0
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1c75e, 0x1f183, 0x1f525, 0x1f882, 0x25a96, 0x2b996, 0x2bb33, 0x2bd6c, 0x2bfd9, 0x2c217, 0x2c441, 0x2c67d, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2cf30, 0x2d80d, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2facd, 0x30e25, 0x30e9d, 0x311e5, 0x31266, 0x3702f, 0x3706e, 0x3776e, 0x3790a, 0x37910, 0x4e8d3, 0x4e98d, 0x4ebe3
@@ -20333,8 +20409,8 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
   int nn; // edi
   int v33; // [esp+0h] [ebp-144h]
   int v34[30]; // [esp+4h] [ebp-140h]
-  _QWORD v35[2]; // [esp+7Ch] [ebp-C8h]
-  _QWORD v36[2]; // [esp+8Ch] [ebp-B8h]
+  __int128 v35; // [esp+7Ch] [ebp-C8h]
+  __int128 v36; // [esp+8Ch] [ebp-B8h]
   _DWORD v37[2]; // [esp+9Ch] [ebp-A8h]
   __int16 v38; // [esp+A4h] [ebp-A0h]
   _BYTE v39[12]; // [esp+A8h] [ebp-9Ch] BYREF
@@ -20375,8 +20451,8 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
   v51 = 0;
   v62 = 0;
   v65 = 8;
-  *(_OWORD *)v36 = unk_5269C;
-  *(_OWORD *)v35 = unk_526AC;
+  v36 = unk_5269C;
+  v35 = unk_526AC;
   v66 = 3;
   v58 = -1;
   v52 = 32;
@@ -20521,8 +20597,8 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
           }
           else
           {
-            v21 = v58 * *((_DWORD *)v36 + v66);
-            v47 = *((_DWORD *)v35 + v66);
+            v21 = v58 * v37[v66 - 4];
+            v47 = *((_DWORD *)&v35 + v66);
             sub_311E5(v34[n], v52 + (v65-- << 8), v20 + v21 + 640 * v47, 640);
             if ( v65 == 1 )
               v65 = 8;
@@ -20622,7 +20698,7 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_30E25
+ * IDA 9.5 Hex-Rays: sub_30E25
  * VA=0x30e25..0x30e9d OBJ=1 OFF=0x20e25 size=0x78
  * callers: 0x2cf30, 0x2ff01
  * callees: 0x12e38, 0x1f183, 0x3702f
@@ -20647,7 +20723,7 @@ int __cdecl sub_30E25(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_30E9D
+ * IDA 9.5 Hex-Rays: sub_30E9D
  * VA=0x30e9d..0x311e5 OBJ=1 OFF=0x20e9d size=0x348
  * callers: 0x2cf30, 0x2d80d, 0x2ff01
  * callees: 0x11eb0, 0x17aa9, 0x1ca89, 0x25a96, 0x2eb9f, 0x2facd, 0x3702f, 0x3790a, 0x37ae5, 0x4e8d3
@@ -20743,7 +20819,7 @@ int __cdecl sub_30E9D(int a1, int a2, int a3, _BYTE *a4, int a5, int a6, int a7,
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_311E5
+ * IDA 9.5 Hex-Rays: sub_311E5
  * VA=0x311e5..0x31266 OBJ=1 OFF=0x211e5 size=0x81
  * callers: 0x2cf30, 0x2ff01, 0x31c49
  * callees: 0x2eb9f, 0x3702f
@@ -20775,7 +20851,7 @@ LABEL_5:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_31266
+ * IDA 9.5 Hex-Rays: sub_31266
  * VA=0x31266..0x314de OBJ=1 OFF=0x21266 size=0x278
  * callers: 0x2ff01
  * callees: 0x11eb0, 0x17aa9, 0x2b996, 0x2bb33, 0x2bd6c, 0x2bfd9, 0x2c217, 0x2c441, 0x2c67d, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2eb9f, 0x3702f
@@ -20837,7 +20913,7 @@ void __cdecl sub_31266(int a1, int a2, unsigned __int8 *a3, int a4, int a5, int 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_314DE
+ * IDA 9.5 Hex-Rays: sub_314DE
  * VA=0x314de..0x31529 OBJ=1 OFF=0x214de size=0x4b
  * callers: 0x2cf30, 0x2dfc8, 0x2e2b0
  * callees: 0x111ba, 0x3702f
@@ -20857,7 +20933,7 @@ int __cdecl sub_314DE(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_31529
+ * IDA 9.5 Hex-Rays: sub_31529
  * VA=0x31529..0x31bdf OBJ=1 OFF=0x21529 size=0x6b6
  * type: int __fastcall(_DWORD)
  * callers: 0x250cc, 0x25757
@@ -20882,7 +20958,7 @@ int sub_31529()
   int v14; // esi
   _BYTE v16[20]; // [esp+0h] [ebp-64h]
   _BYTE v17[20]; // [esp+14h] [ebp-50h]
-  _BYTE v18[24]; // [esp+28h] [ebp-3Ch]
+  _DWORD v18[6]; // [esp+28h] [ebp-3Ch]
   int v19; // [esp+40h] [ebp-24h]
   int v20; // [esp+44h] [ebp-20h]
   int v21; // [esp+48h] [ebp-1Ch]
@@ -20987,7 +21063,7 @@ int sub_31529()
   {
     memmove(v0, v21, 64000);
     v7 = ii % 4;
-    *(_DWORD *)&v18[20] = ii % 4;
+    v18[5] = ii % 4;
     sub_2EB9F(v1, ii % 4 + 1, v0, 320, -1);
     sub_2EB9F(v1, ii % 4 + 5, v0, 320, -1);
     j___delay(20);
@@ -21015,11 +21091,11 @@ int sub_31529()
   for ( jj = 0; jj < 20; ++jj )
   {
     dword_53A65 = v12;
-    if ( (unsigned __int8)v18[jj] >= 0x4Cu )
+    if ( *((unsigned __int8 *)v18 + jj) >= 0x4Cu )
       *(_BYTE *)(dword_53A45 + 6) = 0;
     else
       *(_BYTE *)(dword_53A45 + 6) = 2;
-    *(_BYTE *)(dword_53A45 + 7) = v18[jj];
+    *(_BYTE *)(dword_53A45 + 7) = *((_BYTE *)v18 + jj);
     if ( (unsigned __int8)v17[jj] >= 0x4Cu )
       *(_BYTE *)(dword_53A45 + 86) = 0;
     else
@@ -21046,7 +21122,7 @@ int sub_31529()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_31BDF
+ * IDA 9.5 Hex-Rays: sub_31BDF
  * VA=0x31bdf..0x31c49 OBJ=1 OFF=0x21bdf size=0x6a
  * callers: 0x31529
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x3702f, 0x4e381
@@ -21058,19 +21134,19 @@ int __usercall sub_31BDF@<eax>(unsigned __int8 *a1@<edi>, int a2, int a3)
   int v5; // eax
 
   v3 = watcom_stack_check(44);
-  vsync_wait(v3);
+  bios_keyboard_buffer_clear(v3);
   v4 = sub_1956B(a2);
-  vsync_wait(v4);
+  bios_keyboard_buffer_clear(v4);
   text_dialog_render_tokens(a1, dword_53A79, a3, 693524, 320, 205, 76, 74, 19, 1);
   sub_16559(0);
   sub_16C57(0);
   v5 = sub_26996();
-  return vsync_wait(v5);
+  return bios_keyboard_buffer_clear(v5);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_31C49
+ * IDA 9.5 Hex-Rays: sub_31C49
  * VA=0x31c49..0x32230 OBJ=1 OFF=0x21c49 size=0x5e7
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x31529
@@ -21203,7 +21279,7 @@ void __usercall sub_31C49(unsigned __int8 *a1@<edi>)
       if ( v14 )
       {
         j = 1;
-        vsync_wait(v14);
+        bios_keyboard_buffer_clear(v14);
       }
     }
     palette_fade_out_dark();
@@ -21218,7 +21294,7 @@ void __usercall sub_31C49(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_32230
+ * IDA 9.5 Hex-Rays: sub_32230
  * VA=0x32230..0x3231b OBJ=1 OFF=0x22230 size=0xeb
  * callers: 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1366a
  * callees: 0x1f183, 0x25a96, 0x3702f
@@ -21267,7 +21343,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: new_game_opening_play
+ * IDA 9.5 Hex-Rays: new_game_opening_play
  * VA=0x3231b..0x32975 OBJ=1 OFF=0x2231b size=0x65a
  * type: int(void)
  * callers: 0x25bf4, 0x25ebb
@@ -21276,6 +21352,7 @@ LABEL_12:
 // [new_game_opening_play] 完整新游戏初始过场：stage 32 → 31 → 0
 //   依据: 当前权威 code0 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本和 actor group 时序；标题 track 18 继续覆盖最初两段对白，`0x223dd..0x223e1` 才请求 4 秒淡出，movement script 0x64 渐暗后，`0x22413..0x22417` 调用 `music_track_play(11,0)`；DOSBox 对话截图与 OPL capture 交叉验证 opening track 11
 //   历史地址列 `code0 0x2231b（dual 0x3231b）`；旧 Ghidra 名 `FUN_0002fa63`；判定 exact
+// [勘误 evidence] 完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态 -> stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和镜头交给战场；部署调试入口跳过script0也不等于自然开场。；依据: 权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。
 void __usercall new_game_opening_play(unsigned __int8 *a1@<edi>)
 {
   unsigned __int8 i; // bl
@@ -21391,7 +21468,7 @@ void __usercall new_game_opening_play(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_hide
+ * IDA 9.5 Hex-Rays: field_actor_hide
  * VA=0x32975..0x32999 OBJ=1 OFF=0x22975 size=0x24
  * callers: 0x13a9f, 0x24754, 0x3231b, 0x336a0, 0x33c9d, 0x34b6f
  * callees: 0x3702f
@@ -21403,6 +21480,7 @@ void __usercall new_game_opening_play(unsigned __int8 *a1@<edi>)
 // [field_actor_hide] 将指定 actor 的 flags(offset 0x05) 置为 1，用于隐藏/失效单位
 //   依据: 反编译单点写 `DAT_00003a45 + idx*0x50 + 5`
 //   历史地址列 `0x57b89`；旧 Ghidra 名 `FUN_000300bd`；判定 exact
+// [勘误 semantic_name] field_actor_hide / field_ai_behavior7_hide_actor 两条独立登记 -> field_actor_hide（同一函数）；依据: 两条历史描述（写 actor[idx*0x50+5]=1）在 IDA 反编译上完全吻合。
 int __cdecl field_actor_hide(int a1)
 {
   watcom_stack_check(4);
@@ -21412,7 +21490,7 @@ int __cdecl field_actor_hide(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_group_arrival_effect
+ * IDA 9.5 Hex-Rays: field_actor_group_arrival_effect
  * VA=0x32999..0x32d18 OBJ=1 OFF=0x22999 size=0x37f
  * callers: 0x3231b, 0x3460b, 0x34673
  * callees: 0x10b4e, 0x111ba, 0x11eb0, 0x11eee, 0x127a9, 0x127e0, 0x129ec, 0x17aa9, 0x25a96, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x4e381, 0x4ebab
@@ -21513,7 +21591,7 @@ LABEL_22:
       default:
         break;
     }
-    vsync_wait(v6);
+    bios_keyboard_buffer_clear(v6);
     bios_tick_delay(1);
   }
   free(v13);
@@ -21523,7 +21601,7 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_32D18
+ * IDA 9.5 Hex-Rays: sub_32D18
  * VA=0x32d18..0x33219 OBJ=1 OFF=0x22d18 size=0x501
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x11cac, 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f, 0x3790a
@@ -21562,7 +21640,7 @@ void __usercall sub_32D18(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33219
+ * IDA 9.5 Hex-Rays: sub_33219
  * VA=0x33219..0x3327d OBJ=1 OFF=0x23219 size=0x64
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
@@ -21581,7 +21659,7 @@ void __usercall sub_33219(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3327D
+ * IDA 9.5 Hex-Rays: sub_3327D
  * VA=0x3327d..0x3332b OBJ=1 OFF=0x2327d size=0xae
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
@@ -21605,7 +21683,7 @@ int __usercall sub_3327D@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3332B
+ * IDA 9.5 Hex-Rays: sub_3332B
  * VA=0x3332b..0x33367 OBJ=1 OFF=0x2332b size=0x3c
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x205da, 0x3702f
@@ -21622,7 +21700,7 @@ void sub_3332B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33367
+ * IDA 9.5 Hex-Rays: sub_33367
  * VA=0x33367..0x333f5 OBJ=1 OFF=0x23367 size=0x8e
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
@@ -21642,7 +21720,7 @@ void __usercall sub_33367(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_333F5
+ * IDA 9.5 Hex-Rays: sub_333F5
  * VA=0x333f5..0x3344d OBJ=1 OFF=0x233f5 size=0x58
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x205da, 0x3702f
@@ -21664,7 +21742,7 @@ void sub_333F5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3346B
+ * IDA 9.5 Hex-Rays: sub_3346B
  * VA=0x3346b..0x3347c OBJ=1 OFF=0x2346b size=0x11
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x205da, 0x3702f
@@ -21678,7 +21756,7 @@ void sub_3346B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3347C
+ * IDA 9.5 Hex-Rays: sub_3347C
  * VA=0x3347c..0x33499 OBJ=1 OFF=0x2347c size=0x1d
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x205da, 0x3702f
@@ -21693,7 +21771,7 @@ void sub_3347C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33499
+ * IDA 9.5 Hex-Rays: sub_33499
  * VA=0x33499..0x334d9 OBJ=1 OFF=0x23499 size=0x40
  * callers: 0x1b41d, 0x20872, 0x239bd, 0x23b5f, 0x2af28, 0x334d9, 0x335aa
  * callees: 0x3702f
@@ -21713,7 +21791,7 @@ int __cdecl sub_33499(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_334D9
+ * IDA 9.5 Hex-Rays: sub_334D9
  * VA=0x334d9..0x335a0 OBJ=1 OFF=0x234d9 size=0xc7
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x12d7b, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x33499, 0x3702f
@@ -21736,7 +21814,7 @@ void __usercall sub_334D9(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_335A0
+ * IDA 9.5 Hex-Rays: sub_335A0
  * VA=0x335a0..0x335aa OBJ=1 OFF=0x235a0 size=0xa
  * callers: 0x25bf4, 0x25ebb
  * callees: -
@@ -21748,7 +21826,7 @@ void sub_335A0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_335AA
+ * IDA 9.5 Hex-Rays: sub_335AA
  * VA=0x335aa..0x335da OBJ=1 OFF=0x235aa size=0x30
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x205da, 0x33499, 0x3702f
@@ -21764,7 +21842,7 @@ void sub_335AA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_335DA
+ * IDA 9.5 Hex-Rays: sub_335DA
  * VA=0x335da..0x33674 OBJ=1 OFF=0x235da size=0x9a
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
@@ -21785,7 +21863,7 @@ void __usercall sub_335DA(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33674
+ * IDA 9.5 Hex-Rays: sub_33674
  * VA=0x33674..0x3367e OBJ=1 OFF=0x23674 size=0xa
  * callers: 0x25bf4, 0x25ebb
  * callees: -
@@ -21797,7 +21875,7 @@ void sub_33674()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3367E
+ * IDA 9.5 Hex-Rays: sub_3367E
  * VA=0x3367e..0x336a0 OBJ=1 OFF=0x2367e size=0x22
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x205da, 0x3702f
@@ -21812,7 +21890,7 @@ void sub_3367E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_336A0
+ * IDA 9.5 Hex-Rays: sub_336A0
  * VA=0x336a0..0x338c4 OBJ=1 OFF=0x236a0 size=0x224
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x11cac, 0x11df2, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x32975, 0x3702f, 0x3790a
@@ -21867,7 +21945,7 @@ void __usercall sub_336A0(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_338C4
+ * IDA 9.5 Hex-Rays: sub_338C4
  * VA=0x338c4..0x3396a OBJ=1 OFF=0x238c4 size=0xa6
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x205da, 0x3702f, 0x3790a
@@ -21891,7 +21969,7 @@ void __usercall sub_338C4(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3396A
+ * IDA 9.5 Hex-Rays: sub_3396A
  * VA=0x3396a..0x33aae OBJ=1 OFF=0x2396a size=0x144
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x111ba, 0x12d7b, 0x135dd, 0x15f84, 0x205da, 0x24b4d, 0x25a96, 0x3702f, 0x3790a, 0x37910
@@ -21923,7 +22001,7 @@ void __usercall sub_3396A(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33AAE
+ * IDA 9.5 Hex-Rays: sub_33AAE
  * VA=0x33aae..0x33af1 OBJ=1 OFF=0x23aae size=0x43
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x205da, 0x3702f
@@ -21939,7 +22017,7 @@ void sub_33AAE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33AF1
+ * IDA 9.5 Hex-Rays: sub_33AF1
  * VA=0x33af1..0x33c9d OBJ=1 OFF=0x23af1 size=0x1ac
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x11df2, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x24b14, 0x3702f
@@ -21969,7 +22047,7 @@ void __usercall sub_33AF1(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33C9D
+ * IDA 9.5 Hex-Rays: sub_33C9D
  * VA=0x33c9d..0x33dba OBJ=1 OFF=0x23c9d size=0x11d
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x11cac, 0x11df2, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x32975, 0x35b78, 0x3702f, 0x3790a
@@ -22009,7 +22087,7 @@ void __usercall sub_33C9D(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33DBA
+ * IDA 9.5 Hex-Rays: sub_33DBA
  * VA=0x33dba..0x33e3c OBJ=1 OFF=0x23dba size=0x82
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x35b78, 0x3702f
@@ -22028,7 +22106,7 @@ void __usercall sub_33DBA(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33E3C
+ * IDA 9.5 Hex-Rays: sub_33E3C
  * VA=0x33e3c..0x33f78 OBJ=1 OFF=0x23e3c size=0x13c
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x33f78, 0x361b0, 0x3702f
@@ -22063,7 +22141,7 @@ void __usercall sub_33E3C(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33F78
+ * IDA 9.5 Hex-Rays: sub_33F78
  * VA=0x33f78..0x33faf OBJ=1 OFF=0x23f78 size=0x37
  * callers: 0x33e3c, 0x362e8
  * callees: 0x12cea, 0x22253, 0x3702f
@@ -22077,7 +22155,7 @@ int __cdecl sub_33F78(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_33FAF
+ * IDA 9.5 Hex-Rays: sub_33FAF
  * VA=0x33faf..0x34317 OBJ=1 OFF=0x23faf size=0x368
  * callers: 0x117e7
  * callees: 0x111ba, 0x11cac, 0x1f525, 0x1f882, 0x25a96, 0x34317, 0x34366, 0x3702f, 0x3706e, 0x370f0, 0x37119, 0x3776e, 0x3790a, 0x37910, 0x37ed8, 0x4ded4, 0x4e381, 0x4e98d, 0x4ebe3
@@ -22130,7 +22208,7 @@ int sub_33FAF()
   do
   {
     v5 = sub_34366(v14, v1, v17, v11, v16, v15, v0);
-    vsync_wait(v5);
+    bios_keyboard_buffer_clear(v5);
     v10 = 16;
     int386(22, &v9, &v9);
     if ( v10 == 224 || v10 == 82 || v10 == 57 )
@@ -22186,7 +22264,7 @@ int sub_33FAF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34317
+ * IDA 9.5 Hex-Rays: sub_34317
  * VA=0x34317..0x34366 OBJ=1 OFF=0x24317 size=0x4f
  * callers: 0x33faf
  * callees: 0x3702f
@@ -22213,7 +22291,7 @@ int __cdecl sub_34317(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34366
+ * IDA 9.5 Hex-Rays: sub_34366
  * VA=0x34366..0x344b4 OBJ=1 OFF=0x24366 size=0x14e
  * callers: 0x33faf
  * callees: 0x344b4, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37b29
@@ -22244,7 +22322,7 @@ int __cdecl sub_34366(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_344B4
+ * IDA 9.5 Hex-Rays: sub_344B4
  * VA=0x344b4..0x344f2 OBJ=1 OFF=0x244b4 size=0x3e
  * callers: 0x34366
  * callees: 0x3702f, 0x4e22a
@@ -22257,7 +22335,7 @@ int __cdecl sub_344B4(int a1, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_range_status_set
+ * IDA 9.5 Hex-Rays: field_actor_range_status_set
  * VA=0x344f2..0x34531 OBJ=1 OFF=0x244f2 size=0x3f
  * callers: 0x348ea, 0x34940, 0x34984, 0x34a1e, 0x34a6c, 0x34b6f, 0x34cf1, 0x35191, 0x351e6, 0x35258, 0x3551c, 0x35997, 0x359cb, 0x35e5b, 0x362e8
  * callees: 0x3702f
@@ -22281,7 +22359,7 @@ int __cdecl field_actor_range_status_set(int a1, int a2, char a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_stage0_31_turn_action0
+ * IDA 9.5 Hex-Rays: field_stage0_31_turn_action0
  * VA=0x34531..0x3460b OBJ=1 OFF=0x24531 size=0xda
  * type: int __cdecl(_DWORD)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
@@ -22302,21 +22380,21 @@ int __usercall field_stage0_31_turn_action0@<eax>(unsigned __int8 *a1@<edi>)
   sub_11CAC(1);
   j___delay(100);
   v1 = field_movement_script_play(7);
-  vsync_wait(v1);
+  bios_keyboard_buffer_clear(v1);
   text_dialog_render_tokens(a1, dword_53A79, 11, 655360, 320, 205, 76, 74, 19, 1);
   dword_51A83 = 0;
   field_actor_group_append(7);
   sub_11CAC(1);
   j___delay(100);
   v2 = field_movement_script_play(8);
-  vsync_wait(v2);
+  bios_keyboard_buffer_clear(v2);
   text_dialog_render_tokens(a1, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
   return field_all_actor_directions_reset();
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_stage0_31_turn_action1
+ * IDA 9.5 Hex-Rays: field_stage0_31_turn_action1
  * VA=0x3460b..0x34673 OBJ=1 OFF=0x2460b size=0x68
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x11cac, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x32999, 0x3702f, 0x4e381
@@ -22331,7 +22409,7 @@ void __usercall field_stage0_31_turn_action1(unsigned __int8 *a1@<edi>)
   watcom_stack_check(44);
   field_camera_pan_to(11, 16);
   v1 = field_actor_group_arrival_effect(4);
-  vsync_wait(v1);
+  bios_keyboard_buffer_clear(v1);
   sub_11CAC(1);
   field_movement_script_play(3);
   field_all_actor_directions_reset();
@@ -22340,7 +22418,7 @@ void __usercall field_stage0_31_turn_action1(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_stage0_31_turn_action2
+ * IDA 9.5 Hex-Rays: field_stage0_31_turn_action2
  * VA=0x34673..0x346cd OBJ=1 OFF=0x24673 size=0x5a
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x11cac, 0x134e4, 0x135dd, 0x1366a, 0x32999, 0x3702f, 0x4e381
@@ -22355,7 +22433,7 @@ void field_stage0_31_turn_action2()
   watcom_stack_check(44);
   field_camera_pan_to(0, 16);
   v0 = field_actor_group_arrival_effect(5);
-  vsync_wait(v0);
+  bios_keyboard_buffer_clear(v0);
   sub_11CAC(1);
   field_movement_script_play(4);
   field_all_actor_directions_reset();
@@ -22364,7 +22442,7 @@ void field_stage0_31_turn_action2()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_stage0_31_turn_action3
+ * IDA 9.5 Hex-Rays: field_stage0_31_turn_action3
  * VA=0x346cd..0x34738 OBJ=1 OFF=0x246cd size=0x6b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x11cac, 0x134e4, 0x135dd, 0x1366a, 0x3702f, 0x4e381
@@ -22384,13 +22462,13 @@ void field_stage0_31_turn_action3()
   sub_11CAC(1);
   field_movement_script_play(6);
   v0 = field_all_actor_directions_reset();
-  vsync_wait(v0);
+  bios_keyboard_buffer_clear(v0);
   JUMPOUT(0x34663);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34738
+ * IDA 9.5 Hex-Rays: sub_34738
  * VA=0x34738..0x34778 OBJ=1 OFF=0x24738 size=0x40
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
@@ -22404,7 +22482,7 @@ void __usercall sub_34738(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34778
+ * IDA 9.5 Hex-Rays: sub_34778
  * VA=0x34778..0x34818 OBJ=1 OFF=0x24778 size=0xa0
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f, 0x3790a
@@ -22435,7 +22513,7 @@ void __usercall sub_34778(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34818
+ * IDA 9.5 Hex-Rays: sub_34818
  * VA=0x34818..0x34894 OBJ=1 OFF=0x24818 size=0x7c
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x34894, 0x3702f, 0x3790a
@@ -22456,7 +22534,7 @@ void __usercall sub_34818(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_actor_is_hidden
+ * IDA 9.5 Hex-Rays: field_actor_is_hidden
  * VA=0x34894..0x348bb OBJ=1 OFF=0x24894 size=0x27
  * callers: 0x11506, 0x115b6, 0x127a9, 0x129ec, 0x12c0d, 0x12c60, 0x1b5f1, 0x20707, 0x2073d, 0x20765, 0x20822, 0x2084a, 0x20872, 0x208cf, 0x20926, 0x20957, 0x20a51, 0x20a87, 0x20aaf, 0x20b14, 0x20b3c, 0x20b72, 0x20bf5, 0x230f2, 0x232e8, 0x23a0a, 0x2a07a, 0x34818, 0x34a6c, 0x34b2f, 0x34b6f, 0x35730
  * callees: 0x3702f
@@ -22472,7 +22550,7 @@ int __cdecl field_actor_is_hidden(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_348BB
+ * IDA 9.5 Hex-Rays: sub_348BB
  * VA=0x348bb..0x348ea OBJ=1 OFF=0x248bb size=0x2f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
@@ -22486,7 +22564,7 @@ void sub_348BB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_348EA
+ * IDA 9.5 Hex-Rays: sub_348EA
  * VA=0x348ea..0x34940 OBJ=1 OFF=0x248ea size=0x56
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
@@ -22509,7 +22587,7 @@ int __usercall sub_348EA@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34940
+ * IDA 9.5 Hex-Rays: sub_34940
  * VA=0x34940..0x34984 OBJ=1 OFF=0x24940 size=0x44
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
@@ -22524,7 +22602,7 @@ void sub_34940()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34984
+ * IDA 9.5 Hex-Rays: sub_34984
  * VA=0x34984..0x349ec OBJ=1 OFF=0x24984 size=0x68
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x344f2, 0x3702f
@@ -22546,7 +22624,7 @@ void sub_34984()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_349EC
+ * IDA 9.5 Hex-Rays: sub_349EC
  * VA=0x349ec..0x34a1e OBJ=1 OFF=0x249ec size=0x32
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
@@ -22560,7 +22638,7 @@ void sub_349EC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34A1E
+ * IDA 9.5 Hex-Rays: sub_34A1E
  * VA=0x34a1e..0x34a6c OBJ=1 OFF=0x24a1e size=0x4e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x1366a, 0x15f84, 0x344f2, 0x3702f
@@ -22576,7 +22654,7 @@ void __usercall sub_34A1E(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34A6C
+ * IDA 9.5 Hex-Rays: sub_34A6C
  * VA=0x34a6c..0x34b07 OBJ=1 OFF=0x24a6c size=0x9b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x34894, 0x3702f
@@ -22601,7 +22679,7 @@ void __usercall sub_34A6C(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34B07
+ * IDA 9.5 Hex-Rays: sub_34B07
  * VA=0x34b07..0x34b2f OBJ=1 OFF=0x24b07 size=0x28
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -22614,7 +22692,7 @@ void sub_34B07()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34B2F
+ * IDA 9.5 Hex-Rays: sub_34B2F
  * VA=0x34b2f..0x34b6f OBJ=1 OFF=0x24b2f size=0x40
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
@@ -22628,7 +22706,7 @@ void __usercall sub_34B2F(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34B6F
+ * IDA 9.5 Hex-Rays: sub_34B6F
  * VA=0x34b6f..0x34c7a OBJ=1 OFF=0x24b6f size=0x10b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x32975, 0x344f2, 0x34894, 0x3702f
@@ -22646,7 +22724,7 @@ void sub_34B6F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34C7A
+ * IDA 9.5 Hex-Rays: sub_34C7A
  * VA=0x34c7a..0x34cf1 OBJ=1 OFF=0x24c7a size=0x77
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f
@@ -22673,7 +22751,7 @@ int __usercall sub_34C7A@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34CF1
+ * IDA 9.5 Hex-Rays: sub_34CF1
  * VA=0x34cf1..0x34d2f OBJ=1 OFF=0x24cf1 size=0x3e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
@@ -22695,7 +22773,7 @@ int __cdecl sub_34CF1(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34D2F
+ * IDA 9.5 Hex-Rays: sub_34D2F
  * VA=0x34d2f..0x34d64 OBJ=1 OFF=0x24d2f size=0x35
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
@@ -22711,28 +22789,26 @@ void sub_34D2F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34D64
+ * IDA 9.5 Hex-Rays: sub_34D64
  * VA=0x34d64..0x34d92 OBJ=1 OFF=0x24d64 size=0x2e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba, 0x34d92
  * callees: 0x3702f
  * --------------------------------------------------------------- */
 int sub_34D64()
 {
-  int result; // eax
-  int i; // edx
+  __int64 i; // rax
 
-  result = watcom_stack_check(8);
-  for ( i = 0; i < 18; ++i )
+  for ( i = (unsigned int)watcom_stack_check(8); SHIDWORD(i) < 18; ++HIDWORD(i) )
   {
-    result = dword_53A45;
-    *(_BYTE *)(80 * (i + 10) + dword_53A45 + 52) &= 0x80u;
+    LODWORD(i) = dword_53A45;
+    *(_BYTE *)(80 * (HIDWORD(i) + 10) + dword_53A45 + 52) &= 0x80u;
   }
-  return result;
+  return i;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34D92
+ * IDA 9.5 Hex-Rays: sub_34D92
  * VA=0x34d92..0x34dd0 OBJ=1 OFF=0x24d92 size=0x3e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34d64, 0x3702f
@@ -22746,7 +22822,7 @@ int __usercall sub_34D92@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34DD0
+ * IDA 9.5 Hex-Rays: sub_34DD0
  * VA=0x34dd0..0x34eb3 OBJ=1 OFF=0x24dd0 size=0xe3
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x15f84, 0x3702f
@@ -22781,7 +22857,7 @@ int __usercall sub_34DD0@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34EB3
+ * IDA 9.5 Hex-Rays: sub_34EB3
  * VA=0x34eb3..0x34f38 OBJ=1 OFF=0x24eb3 size=0x85
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
@@ -22803,7 +22879,7 @@ void sub_34EB3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34F38
+ * IDA 9.5 Hex-Rays: sub_34F38
  * VA=0x34f38..0x34f3d OBJ=1 OFF=0x24f38 size=0x5
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -22811,7 +22887,7 @@ void sub_34EB3()
 /* Hex-Rays 无法反编译（positive sp value has been found @ 0x34f38）；该函数为手写汇编，请用 --asm 查看反汇编。 */
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34F74
+ * IDA 9.5 Hex-Rays: sub_34F74
  * VA=0x34f74..0x34fc2 OBJ=1 OFF=0x24f74 size=0x4e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
@@ -22830,7 +22906,7 @@ int __usercall sub_34F74@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34FC2
+ * IDA 9.5 Hex-Rays: sub_34FC2
  * VA=0x34fc2..0x34fcc OBJ=1 OFF=0x24fc2 size=0xa
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -22842,7 +22918,7 @@ void sub_34FC2()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_34FCC
+ * IDA 9.5 Hex-Rays: sub_34FCC
  * VA=0x34fcc..0x35009 OBJ=1 OFF=0x24fcc size=0x3d
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x3702f
@@ -22860,7 +22936,7 @@ int sub_34FCC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35009
+ * IDA 9.5 Hex-Rays: sub_35009
  * VA=0x35009..0x35022 OBJ=1 OFF=0x25009 size=0x19
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -22877,7 +22953,7 @@ int sub_35009()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35022
+ * IDA 9.5 Hex-Rays: sub_35022
  * VA=0x35022..0x350be OBJ=1 OFF=0x25022 size=0x9c
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x3702f
@@ -22907,7 +22983,7 @@ int __usercall sub_35022@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_350BE
+ * IDA 9.5 Hex-Rays: sub_350BE
  * VA=0x350be..0x350c8 OBJ=1 OFF=0x250be size=0xa
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x15f84, 0x3702f
@@ -22921,7 +22997,7 @@ void __usercall sub_350BE(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_350C8
+ * IDA 9.5 Hex-Rays: sub_350C8
  * VA=0x350c8..0x35123 OBJ=1 OFF=0x250c8 size=0x5b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x3702f
@@ -22940,7 +23016,7 @@ void sub_350C8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35123
+ * IDA 9.5 Hex-Rays: sub_35123
  * VA=0x35123..0x35191 OBJ=1 OFF=0x25123 size=0x6e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1b8a6, 0x1bb8c, 0x3702f
@@ -22958,7 +23034,7 @@ int __usercall sub_35123@<eax>(unsigned __int8 *a1@<edi>, int a2)
       result = *(unsigned __int8 *)(dword_53AD5 + 16);
       if ( *(_BYTE *)(dword_53AD5 + 16) == 0 )
       {
-        sub_1BB8C(0, 89);
+        field_unit_inventory_item_append(0, 89);
         text_dialog_render_tokens(a1, dword_53A79, 11, 655360, 320, 205, 76, 74, 19, 1);
         result = dword_53AD5;
         *(_BYTE *)(dword_53AD5 + 16) = 1;
@@ -22970,7 +23046,7 @@ int __usercall sub_35123@<eax>(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35191
+ * IDA 9.5 Hex-Rays: sub_35191
  * VA=0x35191..0x351e6 OBJ=1 OFF=0x25191 size=0x55
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
@@ -22993,7 +23069,7 @@ int __usercall sub_35191@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_351E6
+ * IDA 9.5 Hex-Rays: sub_351E6
  * VA=0x351e6..0x35258 OBJ=1 OFF=0x251e6 size=0x72
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
@@ -23012,7 +23088,7 @@ int __usercall sub_351E6@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35258
+ * IDA 9.5 Hex-Rays: sub_35258
  * VA=0x35258..0x35298 OBJ=1 OFF=0x25258 size=0x40
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
@@ -23026,7 +23102,7 @@ int __usercall sub_35258@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35298
+ * IDA 9.5 Hex-Rays: sub_35298
  * VA=0x35298..0x352ca OBJ=1 OFF=0x25298 size=0x32
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
@@ -23040,7 +23116,7 @@ void sub_35298()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_352CA
+ * IDA 9.5 Hex-Rays: sub_352CA
  * VA=0x352ca..0x35321 OBJ=1 OFF=0x252ca size=0x57
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1aa1d, 0x3702f
@@ -23059,7 +23135,7 @@ void __cdecl sub_352CA(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35321
+ * IDA 9.5 Hex-Rays: sub_35321
  * VA=0x35321..0x35346 OBJ=1 OFF=0x25321 size=0x25
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f
@@ -23074,7 +23150,7 @@ void sub_35321()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35346
+ * IDA 9.5 Hex-Rays: sub_35346
  * VA=0x35346..0x353b5 OBJ=1 OFF=0x25346 size=0x6f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1aa1d, 0x3702f
@@ -23096,7 +23172,7 @@ void __cdecl sub_35346(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_353B5
+ * IDA 9.5 Hex-Rays: sub_353B5
  * VA=0x353b5..0x353e7 OBJ=1 OFF=0x253b5 size=0x32
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
@@ -23110,7 +23186,7 @@ void sub_353B5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_353E7
+ * IDA 9.5 Hex-Rays: sub_353E7
  * VA=0x353e7..0x353fa OBJ=1 OFF=0x253e7 size=0x13
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23123,7 +23199,7 @@ void sub_353E7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_353FA
+ * IDA 9.5 Hex-Rays: sub_353FA
  * VA=0x353fa..0x3540f OBJ=1 OFF=0x253fa size=0x15
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23136,7 +23212,7 @@ void sub_353FA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3540F
+ * IDA 9.5 Hex-Rays: sub_3540F
  * VA=0x3540f..0x35422 OBJ=1 OFF=0x2540f size=0x13
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23149,7 +23225,7 @@ void sub_3540F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35422
+ * IDA 9.5 Hex-Rays: sub_35422
  * VA=0x35422..0x35468 OBJ=1 OFF=0x25422 size=0x46
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x112a5, 0x15f84, 0x3702f
@@ -23164,7 +23240,7 @@ int __usercall sub_35422@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35468
+ * IDA 9.5 Hex-Rays: sub_35468
  * VA=0x35468..0x3551c OBJ=1 OFF=0x25468 size=0xb4
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x17aa9, 0x3702f
@@ -23188,7 +23264,7 @@ void __usercall sub_35468(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3551C
+ * IDA 9.5 Hex-Rays: sub_3551C
  * VA=0x3551c..0x3553f OBJ=1 OFF=0x2551c size=0x23
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
@@ -23202,7 +23278,7 @@ void sub_3551C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3553F
+ * IDA 9.5 Hex-Rays: sub_3553F
  * VA=0x3553f..0x355b7 OBJ=1 OFF=0x2553f size=0x78
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x17aa9, 0x3702f
@@ -23221,7 +23297,7 @@ void __usercall sub_3553F(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_355B7
+ * IDA 9.5 Hex-Rays: sub_355B7
  * VA=0x355b7..0x355f0 OBJ=1 OFF=0x255b7 size=0x39
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x112a5, 0x135dd, 0x17aa9, 0x3702f
@@ -23238,7 +23314,7 @@ void sub_355B7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_355F0
+ * IDA 9.5 Hex-Rays: sub_355F0
  * VA=0x355f0..0x35638 OBJ=1 OFF=0x255f0 size=0x48
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x1aa1d, 0x3702f
@@ -23259,7 +23335,7 @@ void __cdecl sub_355F0(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35638
+ * IDA 9.5 Hex-Rays: sub_35638
  * VA=0x35638..0x35677 OBJ=1 OFF=0x25638 size=0x3f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
@@ -23273,7 +23349,7 @@ int sub_35638()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35677
+ * IDA 9.5 Hex-Rays: sub_35677
  * VA=0x35677..0x356b3 OBJ=1 OFF=0x25677 size=0x3c
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35f10, 0x3702f
@@ -23287,7 +23363,7 @@ int __usercall sub_35677@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_356B3
+ * IDA 9.5 Hex-Rays: sub_356B3
  * VA=0x356b3..0x35722 OBJ=1 OFF=0x256b3 size=0x6f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
@@ -23308,7 +23384,7 @@ void sub_356B3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35730
+ * IDA 9.5 Hex-Rays: sub_35730
  * VA=0x35730..0x357dd OBJ=1 OFF=0x25730 size=0xad
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x11cac, 0x12263, 0x15f84, 0x1aa1d, 0x1db65, 0x2e2b0, 0x34894, 0x3702f
@@ -23340,7 +23416,7 @@ void __cdecl sub_35730(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_357DD
+ * IDA 9.5 Hex-Rays: sub_357DD
  * VA=0x357dd..0x35833 OBJ=1 OFF=0x257dd size=0x56
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f
@@ -23357,7 +23433,7 @@ int __usercall sub_357DD@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35833
+ * IDA 9.5 Hex-Rays: sub_35833
  * VA=0x35833..0x35854 OBJ=1 OFF=0x25833 size=0x21
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
@@ -23371,7 +23447,7 @@ void sub_35833()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35854
+ * IDA 9.5 Hex-Rays: sub_35854
  * VA=0x35854..0x35997 OBJ=1 OFF=0x25854 size=0x143
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x12263, 0x12e38, 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x1b8a6, 0x1bb8c, 0x3702f, 0x4e381
@@ -23389,7 +23465,7 @@ char __cdecl sub_35854(int a1)
   v1 = watcom_stack_check(68);
   v6 = unk_5274E;
   v7 = unk_52752;
-  vsync_wait(v1);
+  bios_keyboard_buffer_clear(v1);
   sub_1956B(*(unsigned __int8 *)(80 * a1 + dword_53A45 + 7));
   if ( field_unit_inventory_count(a1) == 8 )
   {
@@ -23406,7 +23482,7 @@ char __cdecl sub_35854(int a1)
     text_dialog_render_tokens(v8, dword_53A7D, 422, 696099, 320, 205, 76, 74, 19, 1);
     sub_16559(0);
     sub_16C57(0);
-    sub_1BB8C(a1, *((_BYTE *)&v6 + v3));
+    field_unit_inventory_item_append(a1, *((_BYTE *)&v6 + v3));
     sub_196CB();
     for ( i = 0; i < 5u; ++i )
       *(_BYTE *)(dword_53AD5 + i) = 1;
@@ -23416,7 +23492,7 @@ char __cdecl sub_35854(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35997
+ * IDA 9.5 Hex-Rays: sub_35997
  * VA=0x35997..0x359cb OBJ=1 OFF=0x25997 size=0x34
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
@@ -23434,7 +23510,7 @@ int __cdecl sub_35997(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_359CB
+ * IDA 9.5 Hex-Rays: sub_359CB
  * VA=0x359cb..0x35a0d OBJ=1 OFF=0x259cb size=0x42
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
@@ -23455,7 +23531,7 @@ int __cdecl sub_359CB(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35A0D
+ * IDA 9.5 Hex-Rays: sub_35A0D
  * VA=0x35a0d..0x35b78 OBJ=1 OFF=0x25a0d size=0x16b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x111ba, 0x112a5, 0x12263, 0x15f84, 0x16559, 0x16c57, 0x17aa9, 0x1956b, 0x196cb, 0x1b8e7, 0x2aedb, 0x2eb9f, 0x3702f, 0x3776e
@@ -23480,7 +23556,7 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
     }
     else
     {
-      sub_1B8E7(a2, v2);
+      field_unit_inventory_slot_remove(a2, v2);
       text_dialog_render_tokens(a1, dword_53A79, 3, 693535, 320, 205, 76, 74, 19, 1);
       sub_16C57(0);
       sub_196CB();
@@ -23502,7 +23578,7 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_camera_music_flash
+ * IDA 9.5 Hex-Rays: field_camera_music_flash
  * VA=0x35b78..0x35bee OBJ=1 OFF=0x25b78 size=0x76
  * callers: 0x33c9d, 0x33dba, 0x35638, 0x35c1d, 0x35c40, 0x35d1e, 0x35d9e, 0x35e5b, 0x35f48, 0x35f88
  * callees: 0x10b4e, 0x11cac, 0x11df2, 0x135dd, 0x3702f, 0x3790a
@@ -23525,7 +23601,7 @@ int __cdecl field_camera_music_flash(int a1, int a2, unsigned __int8 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35BEE
+ * IDA 9.5 Hex-Rays: sub_35BEE
  * VA=0x35bee..0x35c1d OBJ=1 OFF=0x25bee size=0x2f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23547,7 +23623,7 @@ int sub_35BEE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35C1D
+ * IDA 9.5 Hex-Rays: sub_35C1D
  * VA=0x35c1d..0x35c40 OBJ=1 OFF=0x25c1d size=0x23
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
@@ -23561,7 +23637,7 @@ void sub_35C1D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35C40
+ * IDA 9.5 Hex-Rays: sub_35C40
  * VA=0x35c40..0x35cf1 OBJ=1 OFF=0x25c40 size=0xb1
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x35f10, 0x3702f
@@ -23593,7 +23669,7 @@ int __usercall sub_35C40@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35CF1
+ * IDA 9.5 Hex-Rays: sub_35CF1
  * VA=0x35cf1..0x35d1e OBJ=1 OFF=0x25cf1 size=0x2d
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23615,7 +23691,7 @@ int sub_35CF1()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35D1E
+ * IDA 9.5 Hex-Rays: sub_35D1E
  * VA=0x35d1e..0x35d76 OBJ=1 OFF=0x25d1e size=0x58
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x3702f
@@ -23630,7 +23706,7 @@ void __usercall sub_35D1E(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35D85
+ * IDA 9.5 Hex-Rays: sub_35D85
  * VA=0x35d85..0x35d9e OBJ=1 OFF=0x25d85 size=0x19
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23647,7 +23723,7 @@ int sub_35D85()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35D9E
+ * IDA 9.5 Hex-Rays: sub_35D9E
  * VA=0x35d9e..0x35e0e OBJ=1 OFF=0x25d9e size=0x70
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x3702f
@@ -23667,7 +23743,7 @@ int __usercall sub_35D9E@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35E0E
+ * IDA 9.5 Hex-Rays: sub_35E0E
  * VA=0x35e0e..0x35e5b OBJ=1 OFF=0x25e0e size=0x4d
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23693,7 +23769,7 @@ int __cdecl sub_35E0E(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35E5B
+ * IDA 9.5 Hex-Rays: sub_35E5B
  * VA=0x35e5b..0x35ec1 OBJ=1 OFF=0x25e5b size=0x66
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x35b78, 0x3702f
@@ -23710,7 +23786,7 @@ void __usercall sub_35E5B(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35EC1
+ * IDA 9.5 Hex-Rays: sub_35EC1
  * VA=0x35ec1..0x35f10 OBJ=1 OFF=0x25ec1 size=0x4f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35f10, 0x3702f
@@ -23732,7 +23808,7 @@ int __usercall sub_35EC1@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35F10
+ * IDA 9.5 Hex-Rays: sub_35F10
  * VA=0x35f10..0x35f48 OBJ=1 OFF=0x25f10 size=0x38
  * callers: 0x2548c, 0x35677, 0x35c40, 0x35ec1
  * callees: 0x1db65, 0x3702f
@@ -23747,7 +23823,7 @@ int __cdecl sub_35F10(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35F48
+ * IDA 9.5 Hex-Rays: sub_35F48
  * VA=0x35f48..0x35f6e OBJ=1 OFF=0x25f48 size=0x26
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
@@ -23762,7 +23838,7 @@ void sub_35F48()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: nullsub_6
+ * IDA 9.5 Hex-Rays: nullsub_6
  * VA=0x35f78..0x35f79 OBJ=1 OFF=0x25f78 size=0x1
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x34b6f
@@ -23775,7 +23851,7 @@ void nullsub_6()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35F79
+ * IDA 9.5 Hex-Rays: sub_35F79
  * VA=0x35f79..0x35f88 OBJ=1 OFF=0x25f79 size=0xf
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23788,7 +23864,7 @@ void sub_35F79()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35F88
+ * IDA 9.5 Hex-Rays: sub_35F88
  * VA=0x35f88..0x35fcf OBJ=1 OFF=0x25f88 size=0x47
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
@@ -23804,7 +23880,7 @@ void sub_35F88()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_35FCF
+ * IDA 9.5 Hex-Rays: sub_35FCF
  * VA=0x35fcf..0x360b6 OBJ=1 OFF=0x25fcf size=0xe7
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x3702f
@@ -23840,7 +23916,7 @@ _BYTE *__usercall sub_35FCF@<eax>(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_360B6
+ * IDA 9.5 Hex-Rays: sub_360B6
  * VA=0x360b6..0x361b0 OBJ=1 OFF=0x260b6 size=0xfa
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x13512, 0x15f84, 0x361b0, 0x3702f, 0x3790a
@@ -23883,7 +23959,7 @@ void __usercall sub_360B6(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_361B0
+ * IDA 9.5 Hex-Rays: sub_361B0
  * VA=0x361b0..0x36214 OBJ=1 OFF=0x261b0 size=0x64
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x2548c, 0x33e3c, 0x360b6
@@ -23912,7 +23988,7 @@ int sub_361B0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36214
+ * IDA 9.5 Hex-Rays: sub_36214
  * VA=0x36214..0x36228 OBJ=1 OFF=0x26214 size=0x14
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23929,7 +24005,7 @@ int sub_36214()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36228
+ * IDA 9.5 Hex-Rays: sub_36228
  * VA=0x36228..0x3623c OBJ=1 OFF=0x26228 size=0x14
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23946,7 +24022,7 @@ int sub_36228()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3623C
+ * IDA 9.5 Hex-Rays: sub_3623C
  * VA=0x3623c..0x362b0 OBJ=1 OFF=0x2623c size=0x74
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x13512, 0x3702f, 0x4ebe3
@@ -23965,7 +24041,7 @@ int sub_3623C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_362B0
+ * IDA 9.5 Hex-Rays: sub_362B0
  * VA=0x362b0..0x362c5 OBJ=1 OFF=0x262b0 size=0x15
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23978,7 +24054,7 @@ void sub_362B0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_362C5
+ * IDA 9.5 Hex-Rays: sub_362C5
  * VA=0x362c5..0x362e8 OBJ=1 OFF=0x262c5 size=0x23
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -23996,7 +24072,7 @@ int sub_362C5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_362E8
+ * IDA 9.5 Hex-Rays: sub_362E8
  * VA=0x362e8..0x363de OBJ=1 OFF=0x262e8 size=0xf6
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x33f78, 0x344f2, 0x3702f
@@ -24038,7 +24114,7 @@ void __usercall sub_362E8(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_363DE
+ * IDA 9.5 Hex-Rays: sub_363DE
  * VA=0x363de..0x36416 OBJ=1 OFF=0x263de size=0x38
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
@@ -24052,7 +24128,7 @@ void __usercall sub_363DE(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36416
+ * IDA 9.5 Hex-Rays: sub_36416
  * VA=0x36416..0x3642e OBJ=1 OFF=0x26416 size=0x18
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -24065,7 +24141,7 @@ void sub_36416()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3642E
+ * IDA 9.5 Hex-Rays: sub_3642E
  * VA=0x3642e..0x36439 OBJ=1 OFF=0x2642e size=0xb
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
@@ -24077,7 +24153,7 @@ __int64 sub_3642E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36439
+ * IDA 9.5 Hex-Rays: sub_36439
  * VA=0x36439..0x36440 OBJ=1 OFF=0x26439 size=0x7
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -24089,7 +24165,7 @@ void sub_36439()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36440
+ * IDA 9.5 Hex-Rays: sub_36440
  * VA=0x36440..0x36447 OBJ=1 OFF=0x26440 size=0x7
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -24101,7 +24177,7 @@ void sub_36440()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36447
+ * IDA 9.5 Hex-Rays: sub_36447
  * VA=0x36447..0x3644e OBJ=1 OFF=0x26447 size=0x7
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -24113,7 +24189,7 @@ void sub_36447()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3644E
+ * IDA 9.5 Hex-Rays: sub_3644E
  * VA=0x3644e..0x36455 OBJ=1 OFF=0x2644e size=0x7
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
@@ -24125,7 +24201,7 @@ void sub_3644E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3645D
+ * IDA 9.5 Hex-Rays: sub_3645D
  * VA=0x3645d..0x364b4 OBJ=1 OFF=0x2645d size=0x57
  * callers: 0x3669a, 0x367d1
  * callees: 0x3cf26, 0x3cf50, 0x3cf9b
@@ -24146,7 +24222,7 @@ int __cdecl sub_3645D(int a1, int a2, char a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_364B4
+ * IDA 9.5 Hex-Rays: sub_364B4
  * VA=0x364b4..0x364c4 OBJ=1 OFF=0x264b4 size=0x10
  * callers: -
  * callees: -
@@ -24162,7 +24238,7 @@ int (__cdecl *__cdecl sub_364B4(int (__cdecl *a1)(int)))(int)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_364C4
+ * IDA 9.5 Hex-Rays: sub_364C4
  * VA=0x364c4..0x364d4 OBJ=1 OFF=0x264c4 size=0x10
  * callers: -
  * callees: -
@@ -24178,7 +24254,7 @@ int (__cdecl *__cdecl sub_364C4(int (__cdecl *a1)(int)))(int)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_364D4
+ * IDA 9.5 Hex-Rays: sub_364D4
  * VA=0x364d4..0x364fb OBJ=1 OFF=0x264d4 size=0x27
  * callers: 0x3f950, 0x40cf0, 0x43ad0, 0x45e21
  * callees: 0x3666c, 0x3706e
@@ -24197,7 +24273,7 @@ int __cdecl sub_364D4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_364FB
+ * IDA 9.5 Hex-Rays: sub_364FB
  * VA=0x364fb..0x36522 OBJ=1 OFF=0x264fb size=0x27
  * callers: 0x3f950, 0x3fb90, 0x40c40, 0x40cf0, 0x43a70, 0x43ad0, 0x45f99
  * callees: 0x36683, 0x3776e
@@ -24216,7 +24292,7 @@ int __cdecl sub_364FB(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36522
+ * IDA 9.5 Hex-Rays: sub_36522
  * VA=0x36522..0x365ab OBJ=1 OFF=0x26522 size=0x89
  * callers: 0x3f950, 0x40cf0
  * callees: 0x365da, 0x370f0
@@ -24250,7 +24326,7 @@ int __cdecl sub_36522(int a1, _DWORD *a2, _DWORD *a3, _DWORD *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_365AB
+ * IDA 9.5 Hex-Rays: sub_365AB
  * VA=0x365ab..0x365da OBJ=1 OFF=0x265ab size=0x2f
  * callers: 0x3f950, 0x3fb90, 0x40c40, 0x40cf0
  * callees: 0x370f0
@@ -24267,7 +24343,7 @@ int __cdecl sub_365AB(int a1, int a2, unsigned __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_365DA
+ * IDA 9.5 Hex-Rays: sub_365DA
  * VA=0x365da..0x36647 OBJ=1 OFF=0x265da size=0x6d
  * callers: 0x36522, 0x3666c, 0x37b8c, 0x3f446, 0x3f4e0, 0x40100, 0x41af4, 0x42110, 0x45670, 0x4994f
  * callees: 0x370f0
@@ -24300,7 +24376,7 @@ bool __cdecl sub_365DA(unsigned int a1, unsigned int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36647
+ * IDA 9.5 Hex-Rays: sub_36647
  * VA=0x36647..0x3666c OBJ=1 OFF=0x26647 size=0x25
  * callers: 0x36683, 0x3ca23, 0x3fddc, 0x41a40, 0x420e1, 0x45380, 0x45fed
  * callees: -
@@ -24312,7 +24388,7 @@ void sub_36647()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3666C
+ * IDA 9.5 Hex-Rays: sub_3666C
  * VA=0x3666c..0x36683 OBJ=1 OFF=0x2666c size=0x17
  * callers: 0x25977, 0x364d4, 0x37b8c, 0x3f4e0, 0x40100, 0x42110
  * callees: 0x365da
@@ -24324,7 +24400,7 @@ bool __cdecl sub_3666C(unsigned int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36683
+ * IDA 9.5 Hex-Rays: sub_36683
  * VA=0x36683..0x3669a OBJ=1 OFF=0x26683 size=0x17
  * callers: 0x364fb, 0x3fddc, 0x41a40, 0x45380
  * callees: 0x36647
@@ -24336,7 +24412,7 @@ void sub_36683()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3669A
+ * IDA 9.5 Hex-Rays: sub_3669A
  * VA=0x3669a..0x367d1 OBJ=1 OFF=0x2669a size=0x137
  * callers: 0x367d1
  * callees: 0x3645d, 0x3d074, 0x3d2c0, 0x3d36c
@@ -24387,7 +24463,7 @@ int __cdecl sub_3669A(int a1, char a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_367D1
+ * IDA 9.5 Hex-Rays: sub_367D1
  * VA=0x367d1..0x36c50 OBJ=1 OFF=0x267d1 size=0x47f
  * callers: -
  * callees: 0x3645d, 0x3669a, 0x3706e, 0x37910, 0x3d074, 0x3d2c0, 0x3d36c
@@ -24543,7 +24619,7 @@ LABEL_37:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36C50
+ * IDA 9.5 Hex-Rays: sub_36C50
  * VA=0x36c50..0x36c56 OBJ=1 OFF=0x26c50 size=0x6
  * callers: -
  * callees: -
@@ -24555,7 +24631,7 @@ int sub_36C50()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36C56
+ * IDA 9.5 Hex-Rays: sub_36C56
  * VA=0x36c56..0x36cab OBJ=1 OFF=0x26c56 size=0x55
  * callers: 0x36cab, 0x41300, 0x44180
  * callees: 0x3d074, 0x3d36c, 0x3d3a6
@@ -24586,7 +24662,7 @@ int __cdecl sub_36C56(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36CAB
+ * IDA 9.5 Hex-Rays: sub_36CAB
  * VA=0x36cab..0x36d58 OBJ=1 OFF=0x26cab size=0xad
  * callers: 0x41300, 0x44180
  * callees: 0x36c56, 0x3706e, 0x3776e, 0x3cf9b, 0x3d074, 0x3d36c
@@ -24634,7 +24710,7 @@ LABEL_2:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36E3D
+ * IDA 9.5 Hex-Rays: sub_36E3D
  * VA=0x36e3d..0x36e57 OBJ=1 OFF=0x26e3d size=0x1a
  * callers: 0x36ff4
  * callees: -
@@ -24655,7 +24731,7 @@ __int16 __usercall sub_36E3D@<ax>(int a1@<eax>, _BYTE *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_palette_raw
+ * IDA 9.5 Hex-Rays: afm_opcode_palette_raw
  * VA=0x36e57..0x36e65 OBJ=1 OFF=0x26e57 size=0xe
  * callers: 0x36ff4
  * callees: -
@@ -24665,12 +24741,12 @@ __int16 __usercall sub_36E3D@<ax>(int a1@<eax>, _BYTE *a2@<esi>)
 //   历史地址列 `0x5c06b`；旧 Ghidra 名 `FUN_0003459f`；判定 exact
 void __usercall afm_opcode_palette_raw(const void *a1@<esi>)
 {
-  qmemcpy((void *)dword_52766, a1, 0x300u);
+  qmemcpy((void *)dword_52766, a1, 768);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_palette_rle
+ * IDA 9.5 Hex-Rays: afm_opcode_palette_rle
  * VA=0x36e65..0x36ea7 OBJ=1 OFF=0x26e65 size=0x42
  * callers: 0x36ff4
  * callees: -
@@ -24717,7 +24793,7 @@ void __usercall afm_opcode_palette_rle(char *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_36EA7
+ * IDA 9.5 Hex-Rays: sub_36EA7
  * VA=0x36ea7..0x36ee0 OBJ=1 OFF=0x26ea7 size=0x39
  * callers: 0x36ff4
  * callees: -
@@ -24767,7 +24843,7 @@ __int16 __usercall sub_36EA7@<ax>(_BYTE *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_fill_framebuffer
+ * IDA 9.5 Hex-Rays: afm_opcode_fill_framebuffer
  * VA=0x36ee0..0x36f08 OBJ=1 OFF=0x26ee0 size=0x28
  * callers: 0x36ff4
  * callees: -
@@ -24797,7 +24873,7 @@ __int16 __usercall afm_opcode_fill_framebuffer@<ax>(int a1@<eax>, _BYTE *a2@<esi
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_copy_framebuffer
+ * IDA 9.5 Hex-Rays: afm_opcode_copy_framebuffer
  * VA=0x36f08..0x36f24 OBJ=1 OFF=0x26f08 size=0x1c
  * callers: 0x36ff4
  * callees: -
@@ -24812,7 +24888,7 @@ void __usercall afm_opcode_copy_framebuffer(const void *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_rle_framebuffer
+ * IDA 9.5 Hex-Rays: afm_opcode_rle_framebuffer
  * VA=0x36f24..0x36f69 OBJ=1 OFF=0x26f24 size=0x45
  * callers: 0x36ff4
  * callees: -
@@ -24861,7 +24937,7 @@ void __usercall afm_opcode_rle_framebuffer(char *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_sparse_pixel
+ * IDA 9.5 Hex-Rays: afm_opcode_sparse_pixel
  * VA=0x36f69..0x36f82 OBJ=1 OFF=0x26f69 size=0x19
  * callers: 0x36ff4
  * callees: -
@@ -24899,7 +24975,7 @@ __int16 __usercall afm_opcode_sparse_pixel@<ax>(_WORD *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_sparse_run
+ * IDA 9.5 Hex-Rays: afm_opcode_sparse_run
  * VA=0x36f82..0x36fac OBJ=1 OFF=0x26f82 size=0x2a
  * callers: 0x36ff4
  * callees: -
@@ -24952,7 +25028,7 @@ __int16 __usercall afm_opcode_sparse_run@<ax>(_WORD *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: afm_opcode_sparse_literal
+ * IDA 9.5 Hex-Rays: afm_opcode_sparse_literal
  * VA=0x36fac..0x36fd3 OBJ=1 OFF=0x26fac size=0x27
  * callers: 0x36ff4
  * callees: -
@@ -25004,7 +25080,7 @@ char __usercall afm_opcode_sparse_literal@<al>(_WORD *a1@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: anim_buffer_init
+ * IDA 9.5 Hex-Rays: anim_buffer_init
  * VA=0x36fd3..0x36ff4 OBJ=1 OFF=0x26fd3 size=0x21
  * callers: 0x20421
  * callees: -
@@ -25022,7 +25098,7 @@ int __cdecl anim_buffer_init(__int16 a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: anim_exec_bytecode
+ * IDA 9.5 Hex-Rays: anim_exec_bytecode
  * VA=0x36ff4..0x37025 OBJ=1 OFF=0x26ff4 size=0x31
  * callers: 0x20421
  * callees: 0x36e3d, 0x36e57, 0x36e65, 0x36ea7, 0x36ee0, 0x36f08, 0x36f24, 0x36f69, 0x36f82, 0x36fac
@@ -25047,7 +25123,7 @@ __int16 __cdecl anim_exec_bytecode(__int16 a1, unsigned __int8 *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37028
+ * IDA 9.5 Hex-Rays: sub_37028
  * VA=0x37028..0x3702f OBJ=1 OFF=0x27028 size=0x7
  * callers: -
  * callees: -
@@ -25059,7 +25135,7 @@ void sub_37028()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: watcom_stack_check
+ * IDA 9.5 Hex-Rays: watcom_stack_check
  * VA=0x3702f..0x3703f OBJ=1 OFF=0x2702f size=0x10
  * type: __int64 __stdcall(_DWORD)
  * callers: 0x10010, 0x10620, 0x10652, 0x1088d, 0x10b4e, 0x10c50, 0x11019, 0x111ba, 0x112a5, 0x1145a, 0x11506, 0x115b6, 0x117e7, 0x11aa8, 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x11cac, 0x11d40, 0x11df2, 0x11eb0, 0x11eee, 0x12263, 0x122dc, 0x126f7, 0x127a9, 0x127e0, 0x1297d, 0x129ec, 0x12ac6, 0x12c0d, 0x12c60, 0x12cea, 0x12d7b, 0x12dac, 0x12e38, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x13460, 0x13488, 0x134e4, 0x13512, 0x13536, 0x13565, 0x135dd, 0x1366a, 0x1399c, 0x13a44, 0x13a9f, 0x13e9c, 0x13fd4, 0x14121, 0x14237, 0x145cd, 0x14625, 0x146a7, 0x146d1, 0x14742, 0x14818, 0x149f8, 0x14b16, 0x14b78, 0x14ef0, 0x15055, 0x15311, 0x1548e, 0x1567e, 0x15880, 0x1598a, 0x15b77, 0x15da2, 0x15df3, 0x15e71, 0x15e9e, 0x15f0e, 0x15f84, 0x164e8, 0x16559, 0x165ac, 0x1685c, 0x16886, 0x168b6, 0x16b43, 0x16c57, 0x16e24, 0x16f55, 0x1728c, 0x173e7, 0x1741c, 0x175a9, 0x17643, 0x176b4, 0x177fc, 0x17898, 0x179d5, 0x17aa9, 0x17aed, 0x17d6f, 0x17e0b, 0x17eef, 0x17fc0, 0x182ad, 0x18312, 0x1839b, 0x18409, 0x184c0, 0x1875d, 0x18795, 0x187d6, 0x18890, 0x18b84, 0x18c6d, 0x18d8c, 0x190ac, 0x1956b, 0x196cb, 0x1974c, 0x197e5, 0x19953, 0x19df7, 0x1a30b, 0x1a7bd, 0x1a7f1, 0x1a813, 0x1a866, 0x1aa1d, 0x1acf3, 0x1aeb1, 0x1af1e, 0x1af99, 0x1b019, 0x1b0ad, 0x1b14b, 0x1b1e7, 0x1b41d, 0x1b5f1, 0x1b653, 0x1b6b7, 0x1b722, 0x1b750, 0x1b83d, 0x1b8a6, 0x1b8e7, 0x1b932, 0x1b9de, 0x1bb8c, 0x1bbdc, 0x1bffe, 0x1c142, 0x1c1c3, 0x1c220, 0x1c269, 0x1c2da, 0x1c4cc, 0x1c75e, 0x1c81f, 0x1c8ed, 0x1c916, 0x1c9dd, 0x1ca89, 0x1cac7, 0x1cb94, 0x1cd17, 0x1ceed, 0x1cff0, 0x1d4cb, 0x1d4f6, 0x1d51d, 0x1d6c8, 0x1d79c, 0x1d80b, 0x1d8ba, 0x1da16, 0x1db65, 0x1debe, 0x1df58, 0x1e0db, 0x1e1dc, 0x1e292, 0x1e529, 0x1e5c0, 0x1e611, 0x1e739, 0x1e7f6, 0x1e856, 0x1e98c, 0x1eb05, 0x1ec2a, 0x1ecc7, 0x1f04a, 0x1f0dc, 0x1f183, 0x1f1cc, 0x1f30a, 0x1f42d, 0x1f525, 0x1f558, 0x1f6ef, 0x1f73f, 0x1f81e, 0x1f882, 0x1f894, 0x1ff79, 0x2000a, 0x203bd, 0x20421, 0x205b4, 0x205da, 0x206c5, 0x20707, 0x2073d, 0x20765, 0x20822, 0x2084a, 0x20872, 0x208cf, 0x20926, 0x20957, 0x20a51, 0x20a87, 0x20aaf, 0x20b14, 0x20b3c, 0x20b72, 0x20bf5, 0x20c6f, 0x21082, 0x2111a, 0x211a4, 0x21206, 0x21227, 0x2134b, 0x21364, 0x2137d, 0x21396, 0x213b7, 0x21449, 0x21462, 0x2147b, 0x21494, 0x214ad, 0x21527, 0x21548, 0x2185f, 0x2189a, 0x219ad, 0x21a9e, 0x21ad9, 0x21b18, 0x21b99, 0x21db2, 0x21eb1, 0x22046, 0x2211c, 0x22153, 0x2218a, 0x22253, 0x22470, 0x22547, 0x22656, 0x226ea, 0x22721, 0x2282f, 0x22866, 0x22960, 0x22997, 0x22a85, 0x22aa8, 0x22af6, 0x22bc6, 0x22be1, 0x22c04, 0x22cbf, 0x22cda, 0x22d1b, 0x22e41, 0x22e5c, 0x22ef6, 0x22f37, 0x230f2, 0x23296, 0x232e8, 0x233c6, 0x234bb, 0x235bc, 0x235f9, 0x23790, 0x237d5, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x24336, 0x244b6, 0x24618, 0x24754, 0x24b14, 0x24b4d, 0x24bde, 0x24c1e, 0x24d22, 0x24df2, 0x24e80, 0x25052, 0x25089, 0x250cc, 0x25464, 0x2548c, 0x25757, 0x25977, 0x25a96, 0x25b45, 0x25bf4, 0x25ebb, 0x26152, 0x265ec, 0x2670e, 0x26996, 0x26a0d, 0x26a7a, 0x26b91, 0x26c9b, 0x26ce4, 0x26e38, 0x26eda, 0x27079, 0x272d0, 0x275e6, 0x27738, 0x27816, 0x278e7, 0x279bc, 0x27d33, 0x27f4a, 0x2810b, 0x2825b, 0x2860a, 0x28632, 0x2872b, 0x28b41, 0x28cbd, 0x28efe, 0x28f65, 0x2921a, 0x29300, 0x29620, 0x2968d, 0x2986f, 0x29ab2, 0x29bcb, 0x29daa, 0x2a07a, 0x2a0c2, 0x2a29d, 0x2a43e, 0x2a694, 0x2a857, 0x2aa00, 0x2ac7d, 0x2ae0e, 0x2aedb, 0x2af28, 0x2b439, 0x2b4fb, 0x2b67f, 0x2b749, 0x2b777, 0x2b843, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2cf30, 0x2d80d, 0x2df01, 0x2dfc8, 0x2e2b0, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2f7b6, 0x2facd, 0x2fb2c, 0x2fe14, 0x2ff01, 0x30e25, 0x30e9d, 0x311e5, 0x31266, 0x314de, 0x31529, 0x31bdf, 0x31c49, 0x32230, 0x3231b, 0x32975, 0x32999, 0x32d18, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3346b, 0x3347c, 0x33499, 0x334d9, 0x335aa, 0x335da, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x33f78, 0x33faf, 0x34317, 0x34366, 0x344b4, 0x344f2, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x34894, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f74, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35b78, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f10, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x361b0, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e
@@ -25074,7 +25150,7 @@ int __fastcall watcom_stack_check(__int32 a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: nullsub_4
+ * IDA 9.5 Hex-Rays: nullsub_4
  * VA=0x3703f..0x37042 OBJ=1 OFF=0x2703f size=0x3
  * callers: -
  * callees: -
@@ -25086,7 +25162,7 @@ void __stdcall nullsub_4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: watcom_stack_check_probe
+ * IDA 9.5 Hex-Rays: watcom_stack_check_probe
  * VA=0x37042..0x3705f OBJ=1 OFF=0x27042 size=0x1d
  * type: int __fastcall(_DWORD)
  * callers: 0x3702f
@@ -25109,7 +25185,7 @@ char *__fastcall watcom_stack_check_probe(unsigned int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3705F
+ * IDA 9.5 Hex-Rays: sub_3705F
  * VA=0x3705f..0x3706e OBJ=1 OFF=0x2705f size=0xf
  * type: int(void)
  * callers: 0x37042, 0x3d3e5
@@ -25122,7 +25198,7 @@ void sub_3705F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: malloc
+ * IDA 9.5 Hex-Rays: malloc
  * VA=0x3706e..0x3707e OBJ=1 OFF=0x2706e size=0x10 [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x10010, 0x10652, 0x1088d, 0x11019, 0x111ba, 0x1399c, 0x14237, 0x14b78, 0x1567e, 0x1598a, 0x15e9e, 0x15f0e, 0x165ac, 0x175a9, 0x17e0b, 0x18890, 0x18d8c, 0x1956b, 0x19df7, 0x1b1e7, 0x1bbdc, 0x1c2da, 0x1c4cc, 0x1cac7, 0x1cd17, 0x1cff0, 0x1db65, 0x1df58, 0x1f1cc, 0x1f30a, 0x1f894, 0x2000a, 0x20421, 0x21548, 0x2189a, 0x21eb1, 0x22253, 0x24336, 0x24618, 0x24d22, 0x25bf4, 0x25ebb, 0x26152, 0x2670e, 0x26ce4, 0x27738, 0x27d33, 0x27f4a, 0x2968d, 0x2986f, 0x29bcb, 0x2a29d, 0x2a857, 0x2af28, 0x2b777, 0x2b843, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2e95b, 0x2fb2c, 0x2ff01, 0x31529, 0x31c49, 0x32999, 0x33faf, 0x34366, 0x364d4, 0x367d1, 0x36cab, 0x3db52, 0x3dc69, 0x43ad0, 0x46464
@@ -25132,6 +25208,7 @@ void sub_3705F()
 // [mem_alloc] 分配内存(malloc)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5c282`；旧 Ghidra 名 `FUN_000347b6`；判定 exact
+// [勘误 semantic_name] mem_alloc -> malloc；依据: Watcom runtime FLIRT 符号
 int __cdecl malloc(int a1)
 {
   return nmalloc(a1);
@@ -25139,7 +25216,7 @@ int __cdecl malloc(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _nmalloc
+ * IDA 9.5 Hex-Rays: _nmalloc
  * VA=0x3707e..0x370f0 OBJ=1 OFF=0x2707e size=0x72 [FLIRT-lib]
  * callers: 0x3706e, 0x46c48, 0x4cf4d
  * callees: 0x3d5c0, 0x3d842, 0x3da42
@@ -25170,7 +25247,7 @@ LABEL_3:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: int386
+ * IDA 9.5 Hex-Rays: int386
  * VA=0x370f0..0x37119 OBJ=1 OFF=0x270f0 size=0x29 [FLIRT-lib]
  * callers: 0x10010, 0x1088d, 0x10b4e, 0x11aa8, 0x12dac, 0x16c57, 0x17898, 0x19953, 0x1f894, 0x2000a, 0x25bf4, 0x26152, 0x26eda, 0x29bcb, 0x2b67f, 0x33faf, 0x36522, 0x365ab, 0x365da
  * callees: 0x3da49, 0x3da76
@@ -25185,7 +25262,7 @@ int __cdecl int386(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: printf
+ * IDA 9.5 Hex-Rays: printf
  * VA=0x37119..0x3713b OBJ=1 OFF=0x27119 size=0x22 [FLIRT-lib]
  * type: _DWORD __cdecl(_DWORD)
  * callers: 0x10010, 0x111ba, 0x21548, 0x33faf
@@ -25201,7 +25278,7 @@ int __cdecl printf(int a1, char a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __null_int23_exit
+ * IDA 9.5 Hex-Rays: __null_int23_exit
  * VA=0x3713b..0x3713c OBJ=1 OFF=0x2713b size=0x1 [FLIRT-lib]
  * callers: 0x3713c
  * callees: -
@@ -25213,7 +25290,7 @@ void _null_int23_exit()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: exit
+ * IDA 9.5 Hex-Rays: exit
  * VA=0x3713c..0x37165 OBJ=1 OFF=0x2713c size=0x29 [FLIRT-lib, noreturn]
  * type: void __fastcall __noreturn(_DWORD)
  * callers: 0x10010, 0x21548, 0x33faf, 0x4609b
@@ -25232,7 +25309,7 @@ void __noreturn exit()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __open_flags
+ * IDA 9.5 Hex-Rays: __open_flags
  * VA=0x37165..0x37214 OBJ=1 OFF=0x27165 size=0xaf [FLIRT-lib]
  * callers: 0x3713c, 0x37214
  * callees: 0x3db31, 0x3db46
@@ -25312,7 +25389,7 @@ LABEL_18:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37214
+ * IDA 9.5 Hex-Rays: sub_37214
  * VA=0x37214..0x372f9 OBJ=1 OFF=0x27214 size=0xe5 [FLIRT-lib]
  * callers: 0x372f9, 0x3739e
  * callees: 0x37165, 0x37940, 0x3d093, 0x3db31, 0x3dbe7, 0x3dc3c
@@ -25371,7 +25448,7 @@ int __usercall sub_37214@<eax>(int a1@<edx>, int a2, unsigned __int8 *a3, char a
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _fsopen
+ * IDA 9.5 Hex-Rays: _fsopen
  * VA=0x372f9..0x37324 OBJ=1 OFF=0x272f9 size=0x2b [FLIRT-lib]
  * callers: 0x37324
  * callees: 0x37214, 0x3db52
@@ -25390,7 +25467,7 @@ int __cdecl fsopen(int a1, unsigned __int8 *a2, char a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fopen
+ * IDA 9.5 Hex-Rays: fopen
  * VA=0x37324..0x37339 OBJ=1 OFF=0x27324 size=0x15 [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD)
  * callers: 0x10010, 0x1088d, 0x10b4e, 0x111ba, 0x19df7, 0x1f894, 0x20421, 0x25ebb, 0x26152, 0x2968d, 0x2986f, 0x2aa00, 0x2af28, 0x2b843, 0x2e95b, 0x37d3e, 0x3f656
@@ -25400,6 +25477,7 @@ int __cdecl fsopen(int a1, unsigned __int8 *a2, char a3)
 // [file_open] 打开文件(fopen)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5c538`；旧 Ghidra 名 `FUN_00034a6c`；判定 exact
+// [勘误 semantic_name] file_open -> fopen；依据: Watcom runtime FLIRT 符号
 int __cdecl fopen(int a1, unsigned __int8 *a2)
 {
   return fsopen(a1, a2, 0);
@@ -25407,7 +25485,7 @@ int __cdecl fopen(int a1, unsigned __int8 *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37339
+ * IDA 9.5 Hex-Rays: sub_37339
  * VA=0x37339..0x3739e OBJ=1 OFF=0x27339 size=0x65 [FLIRT-lib]
  * callers: 0x3739e
  * callees: 0x3767e, 0x3db46
@@ -25447,7 +25525,7 @@ int __cdecl sub_37339(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: freopen
+ * IDA 9.5 Hex-Rays: freopen
  * VA=0x3739e..0x373ca OBJ=1 OFF=0x2739e size=0x2c [FLIRT-lib]
  * callers: -
  * callees: 0x37214, 0x37339
@@ -25467,7 +25545,7 @@ int __usercall freopen@<eax>(int a1@<edx>, int a2, unsigned __int8 *a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: file_read
+ * IDA 9.5 Hex-Rays: fread
  * VA=0x373ca..0x3759c OBJ=1 OFF=0x273ca size=0x1d2
  * callers: 0x10010, 0x11019, 0x111ba, 0x19df7, 0x1f894, 0x20421, 0x25ebb, 0x2968d, 0x2986f, 0x2e95b
  * callees: 0x3cf26, 0x3db46, 0x3dc69, 0x3dce0, 0x3ddb5
@@ -25475,7 +25553,8 @@ int __usercall freopen@<eax>(int a1@<edx>, int a2, unsigned __int8 *a3, int a4)
 // [file_read] 读文件(fread)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5c5de`；旧 Ghidra 名 `FUN_00034b12`；判定 exact
-int __usercall file_read@<eax>(int a1@<eax>, int a2@<edx>, int a3@<ecx>, _BYTE *a4, unsigned int a5, int a6, int a7)
+// [勘误 semantic_name] file_read -> fread；依据: Watcom runtime FLIRT 符号
+int __usercall fread@<eax>(int a1@<eax>, int a2@<edx>, int a3@<ecx>, _BYTE *a4, unsigned int a5, int a6, int a7)
 {
   unsigned int v8; // esi
   unsigned int v9; // edi
@@ -25606,7 +25685,7 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fclose
+ * IDA 9.5 Hex-Rays: fclose
  * VA=0x3759c..0x375c8 OBJ=1 OFF=0x2759c size=0x2c [FLIRT-lib]
  * callers: 0x10010, 0x1088d, 0x10b4e, 0x111ba, 0x19df7, 0x1f894, 0x20421, 0x25ebb, 0x26152, 0x2968d, 0x2986f, 0x2aa00, 0x2af28, 0x2b843, 0x2e95b, 0x37ed8, 0x3f656
  * callees: 0x375c8
@@ -25615,6 +25694,7 @@ LABEL_22:
 // [file_close] 关闭文件(fclose)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5c7b0`；旧 Ghidra 名 `FUN_00034ce4`；判定 exact
+// [勘误 semantic_name] file_close -> fclose；依据: Watcom runtime FLIRT 符号
 int __cdecl fclose(int a1)
 {
   _DWORD *i; // eax
@@ -25631,7 +25711,7 @@ int __cdecl fclose(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __shutdown_stream
+ * IDA 9.5 Hex-Rays: __shutdown_stream
  * VA=0x375c8..0x375ec OBJ=1 OFF=0x275c8 size=0x24 [FLIRT-lib]
  * callers: 0x3759c, 0x46ca7
  * callees: 0x3767e, 0x3dbe7
@@ -25647,7 +25727,7 @@ int __cdecl _shutdown_stream(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_375EC
+ * IDA 9.5 Hex-Rays: sub_375EC
  * VA=0x375ec..0x375ff OBJ=1 OFF=0x275ec size=0x13 [FLIRT-lib]
  * callers: 0x375ff
  * callees: -
@@ -25664,7 +25744,7 @@ int __cdecl sub_375EC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __MkTmpFile
+ * IDA 9.5 Hex-Rays: __MkTmpFile
  * VA=0x375ff..0x3767e OBJ=1 OFF=0x275ff size=0x7f [FLIRT-lib]
  * callers: 0x3767e
  * callees: 0x375ec, 0x3de60
@@ -25698,7 +25778,7 @@ int __cdecl _MkTmpFile(_BYTE *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __doclose
+ * IDA 9.5 Hex-Rays: __doclose
  * VA=0x3767e..0x3771c OBJ=1 OFF=0x2767e size=0x9e [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD)
  * callers: 0x37339, 0x375c8
@@ -25735,7 +25815,7 @@ int __cdecl _doclose(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: memmove
+ * IDA 9.5 Hex-Rays: memmove
  * VA=0x3771c..0x3776e OBJ=1 OFF=0x2771c size=0x52 [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD, _DWORD)
  * callers: 0x10010, 0x1088d, 0x10c50, 0x112a5, 0x11506, 0x11eb0, 0x16e24, 0x175a9, 0x17643, 0x17aed, 0x17e0b, 0x182ad, 0x18312, 0x1839b, 0x18409, 0x1956b, 0x196cb, 0x1974c, 0x197e5, 0x19953, 0x19df7, 0x1af1e, 0x1af99, 0x1b019, 0x1b0ad, 0x1b14b, 0x1b1e7, 0x1b653, 0x1b6b7, 0x1b8e7, 0x1b932, 0x1bffe, 0x1c2da, 0x1c4cc, 0x1cd17, 0x1cff0, 0x1db65, 0x1df58, 0x1f1cc, 0x1f30a, 0x2000a, 0x2189a, 0x21eb1, 0x22253, 0x22470, 0x22547, 0x22656, 0x24336, 0x24618, 0x24d22, 0x25ebb, 0x265ec, 0x2670e, 0x26996, 0x26c9b, 0x26ce4, 0x27738, 0x27816, 0x278e7, 0x279bc, 0x27d33, 0x27f4a, 0x29300, 0x2968d, 0x2986f, 0x29bcb, 0x29daa, 0x2a29d, 0x2a857, 0x2af28, 0x2b4fb, 0x2b67f, 0x2b777, 0x2b843, 0x2d80d, 0x2fb2c, 0x31529, 0x31c49, 0x32999, 0x34366, 0x3f950, 0x423e0, 0x43270, 0x443d0, 0x44af0, 0x452f0
@@ -25783,7 +25863,7 @@ char *__cdecl memmove(char *a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: free
+ * IDA 9.5 Hex-Rays: free
  * VA=0x3776e..0x3777e OBJ=1 OFF=0x2776e size=0x10 [FLIRT-lib]
  * callers: 0x10010, 0x10652, 0x1088d, 0x10b4e, 0x11019, 0x111ba, 0x14237, 0x14b78, 0x1567e, 0x1598a, 0x15e71, 0x175a9, 0x17aed, 0x18890, 0x18d8c, 0x196cb, 0x19df7, 0x1a7f1, 0x1b1e7, 0x1b932, 0x1bbdc, 0x1bffe, 0x1c2da, 0x1c4cc, 0x1cac7, 0x1cff0, 0x1db65, 0x1df58, 0x1eb05, 0x1f1cc, 0x1f30a, 0x1f894, 0x2000a, 0x20421, 0x21548, 0x2189a, 0x21eb1, 0x22253, 0x24336, 0x24618, 0x24d22, 0x25ebb, 0x26152, 0x2670e, 0x26996, 0x26ce4, 0x279bc, 0x29300, 0x2968d, 0x2986f, 0x2aa00, 0x2af28, 0x2b843, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2fb2c, 0x2ff01, 0x31529, 0x31c49, 0x32999, 0x33faf, 0x34366, 0x35a0d, 0x364fb, 0x36cab, 0x3767e, 0x3dc1a, 0x41300, 0x44180
  * callees: 0x3777e
@@ -25792,6 +25872,7 @@ char *__cdecl memmove(char *a1, char *a2, unsigned int a3)
 // [mem_free] 释放内存(free)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5c982`；旧 Ghidra 名 `FUN_00034eb6`；判定 exact
+// [勘误 semantic_name] mem_free -> free；依据: Watcom runtime FLIRT 符号
 int __cdecl free(int a1)
 {
   return nfree(a1);
@@ -25799,7 +25880,7 @@ int __cdecl free(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _nfree
+ * IDA 9.5 Hex-Rays: _nfree
  * VA=0x3777e..0x377a3 OBJ=1 OFF=0x2777e size=0x25 [FLIRT-lib]
  * callers: 0x3776e, 0x3d842, 0x4cf4d
  * callees: 0x3d670
@@ -25815,7 +25896,7 @@ int __cdecl nfree(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fwrite
+ * IDA 9.5 Hex-Rays: fwrite
  * VA=0x377a3..0x3790a OBJ=1 OFF=0x277a3 size=0x167 [FLIRT-lib]
  * callers: 0x10010, 0x10b4e, 0x19df7, 0x2968d
  * callees: 0x3cf26, 0x3d3e5, 0x3db46, 0x3dc69, 0x3de66, 0x3df47
@@ -25921,7 +26002,7 @@ LABEL_31:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: j___delay
+ * IDA 9.5 Hex-Rays: j___delay
  * VA=0x3790a..0x3790f OBJ=1 OFF=0x2790a size=0x5 [thunk]
  * callers: 0x10010, 0x134e4, 0x15055, 0x15311, 0x165ac, 0x16b43, 0x16f55, 0x190ac, 0x19df7, 0x1a30b, 0x1aa1d, 0x1cac7, 0x1df58, 0x1e856, 0x1e98c, 0x1eb05, 0x1ecc7, 0x1f525, 0x1f882, 0x1f894, 0x20421, 0x21548, 0x21eb1, 0x22253, 0x22547, 0x22f37, 0x233c6, 0x235f9, 0x23e74, 0x24336, 0x244b6, 0x24618, 0x24754, 0x24b4d, 0x25052, 0x250cc, 0x2548c, 0x25757, 0x26a7a, 0x26b91, 0x27816, 0x278e7, 0x279bc, 0x28b41, 0x29300, 0x29daa, 0x2d80d, 0x2ebe1, 0x2fb2c, 0x2ff01, 0x30e9d, 0x31529, 0x3231b, 0x32d18, 0x336a0, 0x338c4, 0x3396a, 0x33c9d, 0x33faf, 0x34531, 0x34778, 0x34818, 0x34d2f, 0x34eb3, 0x356b3, 0x35b78, 0x360b6, 0x361b0
  * callees: -
@@ -25934,7 +26015,7 @@ int __cdecl j___delay(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: memset
+ * IDA 9.5 Hex-Rays: memset
  * VA=0x37910..0x37932 OBJ=1 OFF=0x27910 size=0x22 [FLIRT-lib]
  * callers: 0x1088d, 0x10c50, 0x112a5, 0x11506, 0x1399c, 0x16e24, 0x1b1e7, 0x1f1cc, 0x1f30a, 0x1f558, 0x1f6ef, 0x1f73f, 0x1f81e, 0x1f894, 0x205da, 0x22e5c, 0x234bb, 0x244b6, 0x24c1e, 0x250cc, 0x2548c, 0x25ebb, 0x26152, 0x2670e, 0x26ce4, 0x27816, 0x278e7, 0x2921a, 0x2968d, 0x2986f, 0x2af28, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2fb2c, 0x2fe14, 0x2ff01, 0x31529, 0x31c49, 0x3396a, 0x33faf, 0x367d1, 0x3f656, 0x40cf0, 0x43160, 0x43ad0, 0x4cf4d, 0x4d1f0, 0x4d25b
  * callees: 0x3e060
@@ -25943,6 +26024,7 @@ int __cdecl j___delay(int a1)
 // [vga_clear] 清屏(memset 0xa0000)
 //   依据: 反编译：fill显存
 //   历史地址列 `0x5cb24`；旧 Ghidra 名 `FUN_00035058`；判定 exact
+// [勘误 semantic_name] vga_clear（清屏 memset 0xa0000） -> memset；依据: IDA FLIRT『Watcom v9-*1.5 32bit DOS runtime』直接命名为 memset；调用点传入任意目标缓冲，不限于 0xa0000 显存。
 int __usercall memset@<eax>(int a1@<ebx>, int a2, int a3, int a4)
 {
   int v4; // edx
@@ -25959,7 +26041,7 @@ int __usercall memset@<eax>(int a1@<ebx>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: abs
+ * IDA 9.5 Hex-Rays: abs
  * VA=0x37932..0x37940 OBJ=1 OFF=0x27932 size=0xe [FLIRT-lib]
  * callers: 0x10c50, 0x13e9c, 0x14742, 0x14818, 0x14b78, 0x1aeb1, 0x1debe, 0x1f04a, 0x1f0dc, 0x219ad
  * callees: -
@@ -25976,7 +26058,7 @@ int __cdecl abs(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fseek
+ * IDA 9.5 Hex-Rays: fseek
  * VA=0x37940..0x37ae5 OBJ=1 OFF=0x27940 size=0x1a5 [FLIRT-lib]
  * callers: 0x11019, 0x111ba, 0x20421, 0x37214
  * callees: 0x3cf50, 0x3db46, 0x3dc69, 0x3ddb5, 0x3de66, 0x3df03, 0x3e103
@@ -25985,6 +26067,7 @@ int __cdecl abs(int a1)
 // [file_seek] 定位文件(fseek)
 //   依据: 反编译：libc wrapper
 //   历史地址列 `0x5cb54`；旧 Ghidra 名 `FUN_00035088`；判定 exact
+// [勘误 semantic_name] file_seek -> fseek；依据: Watcom runtime FLIRT 符号
 int __usercall fseek@<eax>(int a1@<eax>, int a2@<edx>, int a3@<ecx>, int a4, int a5, unsigned int a6)
 {
   int v6; // esi
@@ -26083,7 +26166,7 @@ LABEL_40:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: outp
+ * IDA 9.5 Hex-Rays: outp
  * VA=0x37ae5..0x37af1 OBJ=1 OFF=0x27ae5 size=0xc [FLIRT-lib]
  * callers: 0x11d40, 0x11df2, 0x1d6c8, 0x203bd, 0x2df01, 0x2ebe1, 0x30e9d
  * callees: -
@@ -26099,7 +26182,7 @@ unsigned __int8 __cdecl outp(unsigned __int16 a1, unsigned __int8 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __CHP
+ * IDA 9.5 Hex-Rays: __CHP
  * VA=0x37af4..0x37b13 OBJ=1 OFF=0x27af4 size=0x1f [FLIRT-lib]
  * type: double __usercall@<st0>(_DWORD, _DWORD, double@<st0>)
  * callers: 0x15b77, 0x1b750, 0x219ad, 0x21db2, 0x22046, 0x22721, 0x22866, 0x2b996, 0x4d25b, 0x4deb4
@@ -26112,7 +26195,7 @@ long double __usercall _CHP@<st0>(long double a1@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37B13
+ * IDA 9.5 Hex-Rays: sub_37B13
  * VA=0x37b13..0x37b29 OBJ=1 OFF=0x27b13 size=0x16 [FLIRT-lib]
  * callers: 0x37b29
  * callees: -
@@ -26129,7 +26212,7 @@ _DWORD *__cdecl sub_37B13(_DWORD *a1, char a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sprintf
+ * IDA 9.5 Hex-Rays: sprintf
  * VA=0x37b29..0x37b55 OBJ=1 OFF=0x27b29 size=0x2c [FLIRT-lib]
  * type: _DWORD(_DWORD, const char *, ...)
  * callers: 0x15f84, 0x187d6, 0x1e0db, 0x26a7a, 0x26b91, 0x34366, 0x443d0, 0x44af0
@@ -26150,7 +26233,7 @@ int sprintf(int a1, const char *a2, ...)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strlen
+ * IDA 9.5 Hex-Rays: strlen
  * VA=0x37b55..0x37b71 OBJ=1 OFF=0x27b55 size=0x1c [FLIRT-lib]
  * callers: 0x15f84, 0x1e0db, 0x3e4e3, 0x3f48b, 0x3f5b4, 0x3f656
  * callees: -
@@ -26162,7 +26245,7 @@ unsigned int __cdecl strlen(const char *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37B71
+ * IDA 9.5 Hex-Rays: sub_37B71
  * VA=0x37b71..0x37b8c OBJ=1 OFF=0x27b71 size=0x1b
  * callers: -
  * callees: -
@@ -26183,7 +26266,7 @@ int sub_37B71()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37B8C
+ * IDA 9.5 Hex-Rays: sub_37B8C
  * VA=0x37b8c..0x37c30 OBJ=1 OFF=0x27b8c size=0xa4
  * callers: 0x37b8c, 0x37d3e, 0x3ca23
  * callees: 0x365da, 0x3666c
@@ -26210,7 +26293,7 @@ bool sub_37B8C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37C30
+ * IDA 9.5 Hex-Rays: sub_37C30
  * VA=0x37c30..0x37c9c OBJ=1 OFF=0x27c30 size=0x6c
  * callers: 0x37d3e
  * callees: -
@@ -26239,7 +26322,7 @@ int sub_37C30()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37C9C
+ * IDA 9.5 Hex-Rays: sub_37C9C
  * VA=0x37c9c..0x37d3e OBJ=1 OFF=0x27c9c size=0xa2
  * callers: 0x37d3e, 0x37ed8, 0x37f70, 0x38074, 0x3815f, 0x381d8, 0x38262, 0x382e9, 0x383f1, 0x38463, 0x387bc, 0x388a7, 0x3899a, 0x38a10, 0x38afc, 0x38bd9, 0x38ca8, 0x38d77, 0x38de4, 0x38e46, 0x38f2b, 0x3901e, 0x3908b, 0x39176, 0x392d0, 0x393b5, 0x394b4, 0x39521, 0x3958e, 0x39694, 0x39716, 0x39798, 0x39805, 0x398df, 0x3994c, 0x399c2, 0x39a38, 0x39aae, 0x39b24, 0x39c09, 0x39cfa, 0x39ddf, 0x39ec4, 0x39fa9, 0x3a0a2, 0x3a19b, 0x3a280, 0x3a385, 0x3a46a, 0x3a557, 0x3a644, 0x3a731, 0x3a81e, 0x3a8a0, 0x3a98d, 0x3aa72, 0x3ab49, 0x3aca3, 0x3adf5, 0x3aeee, 0x3af5b, 0x3b035, 0x3b0a2, 0x3b124, 0x3b1a6, 0x3b21c, 0x3b301, 0x3b3e6, 0x3b4cb, 0x3b5b0, 0x3b716, 0x3b80f, 0x3b908, 0x3b98a, 0x3ba0c, 0x3baf1, 0x3bbea, 0x3bcd7, 0x3bddf, 0x3be55, 0x3bf42, 0x3c02f, 0x3c11c, 0x3c209, 0x3c2f6, 0x3c378, 0x3c4db, 0x3c5c0, 0x3c636, 0x3c6b8, 0x3c7a5, 0x3c8b4
  * callees: 0x3ea74, 0x3ea81, 0x3f46b
@@ -26276,7 +26359,7 @@ int sub_37C9C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37D3E
+ * IDA 9.5 Hex-Rays: sub_37D3E
  * VA=0x37d3e..0x37ed8 OBJ=1 OFF=0x27d3e size=0x19a
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x25bf4
@@ -26332,7 +26415,7 @@ int sub_37D3E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37ED8
+ * IDA 9.5 Hex-Rays: sub_37ED8
  * VA=0x37ed8..0x37f70 OBJ=1 OFF=0x27ed8 size=0x98
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x25bf4, 0x33faf
@@ -26359,7 +26442,7 @@ int sub_37ED8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_37F70
+ * IDA 9.5 Hex-Rays: sub_37F70
  * VA=0x37f70..0x3806a OBJ=1 OFF=0x27f70 size=0xfa
  * callers: 0x3fca9
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x3f937
@@ -26388,7 +26471,7 @@ void __usercall sub_37F70(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3806A
+ * IDA 9.5 Hex-Rays: sub_3806A
  * VA=0x3806a..0x3806f OBJ=1 OFF=0x2806a size=0x5 [thunk]
  * callers: 0x3ec17, 0x3f113, 0x3f236, 0x3f27d, 0x3f2a5, 0x3f2cc, 0x3f2f0, 0x3f320, 0x3f344, 0x3f374, 0x3f398, 0x3f3c8, 0x3f3f8, 0x41460, 0x44330
  * callees: -
@@ -26401,7 +26484,7 @@ int sub_3806A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3806F
+ * IDA 9.5 Hex-Rays: sub_3806F
  * VA=0x3806f..0x38074 OBJ=1 OFF=0x2806f size=0x5 [thunk]
  * callers: 0x3ec17, 0x3f113, 0x3f236, 0x3f27d, 0x3f2a5, 0x3f2cc, 0x3f2f0, 0x3f320, 0x3f344, 0x3f374, 0x3f398, 0x3f3c8, 0x3f3f8, 0x41460, 0x44330
  * callees: -
@@ -26414,7 +26497,7 @@ int __fastcall sub_3806F(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38074
+ * IDA 9.5 Hex-Rays: sub_38074
  * VA=0x38074..0x3815f OBJ=1 OFF=0x28074 size=0xeb
  * callers: 0x3f950
  * callees: 0x37c9c, 0x3eda5, 0x3f22a, 0x3f46b
@@ -26443,7 +26526,7 @@ void __usercall sub_38074(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3815F
+ * IDA 9.5 Hex-Rays: sub_3815F
  * VA=0x3815f..0x381d8 OBJ=1 OFF=0x2815f size=0x79
  * callers: 0x3f950, 0x3fb90
  * callees: 0x37c9c, 0x3edd1, 0x3f22a, 0x3f46b
@@ -26461,7 +26544,7 @@ void __usercall sub_3815F(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_381D8
+ * IDA 9.5 Hex-Rays: sub_381D8
  * VA=0x381d8..0x38255 OBJ=1 OFF=0x281d8 size=0x7d
  * callers: -
  * callees: 0x37c9c, 0x3ee4d, 0x3f22a, 0x3f46b
@@ -26479,7 +26562,7 @@ void __fastcall sub_381D8(int a1, int a2, int a3, int a4, int a5, int a6, int a7
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38262
+ * IDA 9.5 Hex-Rays: sub_38262
  * VA=0x38262..0x382d6 OBJ=1 OFF=0x28262 size=0x74
  * callers: 0x3fb90, 0x40cf0
  * callees: 0x37c9c, 0x3f063, 0x3f22a, 0x3f46b
@@ -26499,7 +26582,7 @@ int __usercall sub_38262@<eax>(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: coro_yield
+ * IDA 9.5 Hex-Rays: coro_yield
  * VA=0x382d6..0x382db OBJ=1 OFF=0x282d6 size=0x5 [thunk]
  * callers: 0x3f565, 0x404c0
  * callees: -
@@ -26515,7 +26598,7 @@ int coro_yield()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: coro_switch
+ * IDA 9.5 Hex-Rays: coro_switch
  * VA=0x382db..0x382e9 OBJ=1 OFF=0x282db size=0xe
  * callers: 0x3f565, 0x404c0
  * callees: 0x3f0ac
@@ -26530,7 +26613,7 @@ int __cdecl coro_switch(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: event_pump
+ * IDA 9.5 Hex-Rays: event_pump
  * VA=0x382e9..0x383f1 OBJ=1 OFF=0x282e9 size=0x108
  * callers: 0x3f565, 0x3f950, 0x3fb90, 0x3fc33, 0x401c0, 0x404c0, 0x406b0, 0x40b40, 0x40c40, 0x40cf0, 0x416f0, 0x41950, 0x42270, 0x422c0, 0x423e0, 0x42dd0, 0x42ea0, 0x43270, 0x439a0, 0x43ad0, 0x443d0, 0x44ab0, 0x44af0, 0x44bf0, 0x44c30, 0x45240
  * callees: 0x37c9c, 0x3f113, 0x3f22a, 0x3f46b
@@ -26562,7 +26645,7 @@ void __usercall event_pump(int a1@<eax>, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_383F1
+ * IDA 9.5 Hex-Rays: sub_383F1
  * VA=0x383f1..0x3845e OBJ=1 OFF=0x283f1 size=0x6d
  * callers: 0x40c40, 0x42dd0, 0x43ad0
  * callees: 0x37c9c, 0x3f1ed, 0x3f22a, 0x3f46b
@@ -26580,7 +26663,7 @@ void __usercall sub_383F1(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3845E
+ * IDA 9.5 Hex-Rays: sub_3845E
  * VA=0x3845e..0x38463 OBJ=1 OFF=0x2845e size=0x5 [thunk]
  * callers: 0x42dd0, 0x443d0
  * callees: -
@@ -26593,7 +26676,7 @@ int __fastcall sub_3845E(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38463
+ * IDA 9.5 Hex-Rays: sub_38463
  * VA=0x38463..0x387bc OBJ=1 OFF=0x28463 size=0x359
  * callers: 0x413c0, 0x44240
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x3f656
@@ -26673,7 +26756,7 @@ int __usercall sub_38463@<eax>(int a1@<eax>, int a2, const char *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_387BC
+ * IDA 9.5 Hex-Rays: sub_387BC
  * VA=0x387bc..0x388a7 OBJ=1 OFF=0x287bc size=0xeb
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f236, 0x3f46b
@@ -26702,7 +26785,7 @@ void __usercall sub_387BC(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_388A7
+ * IDA 9.5 Hex-Rays: sub_388A7
  * VA=0x388a7..0x3899a OBJ=1 OFF=0x288a7 size=0xf3
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f27d, 0x3f46b
@@ -26731,7 +26814,7 @@ void __usercall sub_388A7(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3899A
+ * IDA 9.5 Hex-Rays: sub_3899A
  * VA=0x3899a..0x38a10 OBJ=1 OFF=0x2899a size=0x76
  * callers: 0x3ec7c, 0x3f3c8, 0x3f3f8
  * callees: 0x37c9c, 0x3f22a, 0x3f398, 0x3f46b
@@ -26749,7 +26832,7 @@ void __usercall sub_3899A(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38A10
+ * IDA 9.5 Hex-Rays: sub_38A10
  * VA=0x38a10..0x38a86 OBJ=1 OFF=0x28a10 size=0x76
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f3c8, 0x3f46b
@@ -26767,7 +26850,7 @@ void __usercall sub_38A10(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38AFC
+ * IDA 9.5 Hex-Rays: sub_38AFC
  * VA=0x38afc..0x38bd9 OBJ=1 OFF=0x28afc size=0xdd
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f43a, 0x3f46b
@@ -26796,7 +26879,7 @@ void __fastcall sub_38AFC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38BD9
+ * IDA 9.5 Hex-Rays: sub_38BD9
  * VA=0x38bd9..0x38c46 OBJ=1 OFF=0x28bd9 size=0x6d
  * callers: 0x3f320, 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f2f0, 0x3f46b
@@ -26814,7 +26897,7 @@ void __usercall sub_38BD9(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38CA8
+ * IDA 9.5 Hex-Rays: sub_38CA8
  * VA=0x38ca8..0x38d15 OBJ=1 OFF=0x28ca8 size=0x6d
  * callers: 0x3f374
  * callees: 0x37c9c, 0x3f22a, 0x3f344, 0x3f46b
@@ -26832,7 +26915,7 @@ void __usercall sub_38CA8(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38D77
+ * IDA 9.5 Hex-Rays: sub_38D77
  * VA=0x38d77..0x38de4 OBJ=1 OFF=0x28d77 size=0x6d
  * callers: 0x3f2cc, 0x3fb90, 0x40c40, 0x43a70
  * callees: 0x37c9c, 0x3f22a, 0x3f2a5, 0x3f46b
@@ -26850,7 +26933,7 @@ void __usercall sub_38D77(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38DE4
+ * IDA 9.5 Hex-Rays: sub_38DE4
  * VA=0x38de4..0x38e46 OBJ=1 OFF=0x28de4 size=0x62
  * callers: 0x3fdaf
  * callees: 0x37c9c, 0x3f22a, 0x3f2cc, 0x3f46b
@@ -26868,7 +26951,7 @@ void __fastcall sub_38DE4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38E46
+ * IDA 9.5 Hex-Rays: sub_38E46
  * VA=0x38e46..0x38f2b OBJ=1 OFF=0x28e46 size=0xe5
  * callers: 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x3fc33
@@ -26897,7 +26980,7 @@ void __fastcall sub_38E46(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_38F2B
+ * IDA 9.5 Hex-Rays: sub_38F2B
  * VA=0x38f2b..0x3901e OBJ=1 OFF=0x28f2b size=0xf3
  * callers: 0x41300, 0x41380, 0x44180, 0x44200
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x3f950
@@ -26926,7 +27009,7 @@ void __usercall sub_38F2B(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3901E
+ * IDA 9.5 Hex-Rays: sub_3901E
  * VA=0x3901e..0x3908b OBJ=1 OFF=0x2901e size=0x6d
  * callers: 0x3fdaf, 0x41300, 0x41380, 0x41420, 0x44180, 0x44200, 0x442a0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x3fb90
@@ -26944,7 +27027,7 @@ void __usercall sub_3901E(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3908B
+ * IDA 9.5 Hex-Rays: sub_3908B
  * VA=0x3908b..0x39176 OBJ=1 OFF=0x2908b size=0xeb
  * type: int(void)
  * callers: 0x25bf4
@@ -26977,7 +27060,7 @@ int __fastcall sub_3908B(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39176
+ * IDA 9.5 Hex-Rays: sub_39176
  * VA=0x39176..0x39263 OBJ=1 OFF=0x29176 size=0xed
  * callers: 0x413c0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41300
@@ -27006,7 +27089,7 @@ void __usercall sub_39176(int a1@<eax>, const char *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_392D0
+ * IDA 9.5 Hex-Rays: sub_392D0
  * VA=0x392d0..0x393b5 OBJ=1 OFF=0x292d0 size=0xe5
  * callers: 0x25bf4, 0x41ec1, 0x45e21
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41460
@@ -27035,7 +27118,7 @@ void __fastcall sub_392D0(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_393B5
+ * IDA 9.5 Hex-Rays: sub_393B5
  * VA=0x393b5..0x394b4 OBJ=1 OFF=0x293b5 size=0xff
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41ec1
@@ -27064,7 +27147,7 @@ void __usercall sub_393B5(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_394B4
+ * IDA 9.5 Hex-Rays: sub_394B4
  * VA=0x394b4..0x39521 OBJ=1 OFF=0x294b4 size=0x6d
  * callers: 0x41b26, 0x45f99
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x414d0
@@ -27082,7 +27165,7 @@ void __usercall sub_394B4(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_init_sample
+ * IDA 9.5 Hex-Rays: ail_init_sample
  * VA=0x39521..0x3958e OBJ=1 OFF=0x29521 size=0x6d
  * callers: 0x25a96, 0x25b45, 0x41460, 0x41ec1, 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x414e0
@@ -27103,7 +27186,7 @@ void __usercall ail_init_sample(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3958E
+ * IDA 9.5 Hex-Rays: sub_3958E
  * VA=0x3958e..0x39682 OBJ=1 OFF=0x2958e size=0xf4
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41fee
@@ -27132,7 +27215,7 @@ void __fastcall sub_3958E(int a1, int a2, int a3, int a4, int a5, int a6, int a7
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_set_sample_address
+ * IDA 9.5 Hex-Rays: ail_set_sample_address
  * VA=0x39694..0x39716 OBJ=1 OFF=0x29694 size=0x82
  * callers: 0x25a96, 0x25b45, 0x41b84, 0x41deb, 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x415a0
@@ -27155,7 +27238,7 @@ int __usercall ail_set_sample_address@<eax>(int a1@<eax>, int a2, int a3, int a4
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39716
+ * IDA 9.5 Hex-Rays: sub_39716
  * VA=0x39716..0x39798 OBJ=1 OFF=0x29716 size=0x82
  * callers: 0x41b84, 0x41deb, 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x415d0
@@ -27175,7 +27258,7 @@ int __usercall sub_39716@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_start_sample
+ * IDA 9.5 Hex-Rays: ail_start_sample
  * VA=0x39798..0x39805 OBJ=1 OFF=0x29798 size=0x6d
  * callers: 0x25a96, 0x25b45, 0x41b84, 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x416f0
@@ -27196,7 +27279,7 @@ void __usercall ail_start_sample(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_end_sample
+ * IDA 9.5 Hex-Rays: ail_end_sample
  * VA=0x39805..0x39872 OBJ=1 OFF=0x29805 size=0x6d
  * callers: 0x25a96, 0x25b45
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41770
@@ -27217,7 +27300,7 @@ void __usercall ail_end_sample(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_398DF
+ * IDA 9.5 Hex-Rays: sub_398DF
  * VA=0x398df..0x3994c OBJ=1 OFF=0x298df size=0x6d
  * callers: 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x417b0
@@ -27235,7 +27318,7 @@ void __usercall sub_398DF(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3994C
+ * IDA 9.5 Hex-Rays: sub_3994C
  * VA=0x3994c..0x399c2 OBJ=1 OFF=0x2994c size=0x76
  * callers: 0x41b84, 0x41deb, 0x458f0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41610
@@ -27253,7 +27336,7 @@ void __usercall sub_3994C(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_399C2
+ * IDA 9.5 Hex-Rays: sub_399C2
  * VA=0x399c2..0x39a38 OBJ=1 OFF=0x299c2 size=0x76
  * callers: 0x45880
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41630
@@ -27271,7 +27354,7 @@ void __usercall sub_399C2(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39A38
+ * IDA 9.5 Hex-Rays: sub_39A38
  * VA=0x39a38..0x39aae OBJ=1 OFF=0x29a38 size=0x76
  * callers: 0x45880
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41660
@@ -27289,7 +27372,7 @@ void __usercall sub_39A38(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_set_sample_loop_count
+ * IDA 9.5 Hex-Rays: ail_set_sample_loop_count
  * VA=0x39aae..0x39b24 OBJ=1 OFF=0x29aae size=0x76
  * callers: 0x25a96, 0x25b45
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x416e0
@@ -27310,7 +27393,7 @@ void __usercall ail_set_sample_loop_count(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39B24
+ * IDA 9.5 Hex-Rays: sub_39B24
  * VA=0x39b24..0x39c09 OBJ=1 OFF=0x29b24 size=0xe5
  * callers: 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41590
@@ -27339,7 +27422,7 @@ void __usercall sub_39B24(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39C09
+ * IDA 9.5 Hex-Rays: sub_39C09
  * VA=0x39c09..0x39ce9 OBJ=1 OFF=0x29c09 size=0xe0
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41600
@@ -27368,7 +27451,7 @@ void __fastcall sub_39C09(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39CFA
+ * IDA 9.5 Hex-Rays: sub_39CFA
  * VA=0x39cfa..0x39ddf OBJ=1 OFF=0x29cfa size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41620
@@ -27397,7 +27480,7 @@ void __fastcall sub_39CFA(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39DDF
+ * IDA 9.5 Hex-Rays: sub_39DDF
  * VA=0x39ddf..0x39ec4 OBJ=1 OFF=0x29ddf size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41650
@@ -27426,7 +27509,7 @@ void __fastcall sub_39DDF(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39EC4
+ * IDA 9.5 Hex-Rays: sub_39EC4
  * VA=0x39ec4..0x39fa9 OBJ=1 OFF=0x29ec4 size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x416c0
@@ -27455,7 +27538,7 @@ void __fastcall sub_39EC4(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_39FA9
+ * IDA 9.5 Hex-Rays: sub_39FA9
  * VA=0x39fa9..0x3a0a2 OBJ=1 OFF=0x29fa9 size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41380
@@ -27484,7 +27567,7 @@ void __usercall sub_39FA9(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A0A2
+ * IDA 9.5 Hex-Rays: sub_3A0A2
  * VA=0x3a0a2..0x3a19b OBJ=1 OFF=0x2a0a2 size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x418b0
@@ -27513,7 +27596,7 @@ void __usercall sub_3A0A2(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A19B
+ * IDA 9.5 Hex-Rays: sub_3A19B
  * VA=0x3a19b..0x3a280 OBJ=1 OFF=0x2a19b size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x419e0
@@ -27542,7 +27625,7 @@ void __fastcall sub_3A19B(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A280
+ * IDA 9.5 Hex-Rays: sub_3A280
  * VA=0x3a280..0x3a30f OBJ=1 OFF=0x2a280 size=0x8f
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41950
@@ -27560,7 +27643,7 @@ void __usercall sub_3A280(int a1@<eax>, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A385
+ * IDA 9.5 Hex-Rays: sub_3A385
  * VA=0x3a385..0x3a46a OBJ=1 OFF=0x2a385 size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41680
@@ -27589,7 +27672,7 @@ void __usercall sub_3A385(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A46A
+ * IDA 9.5 Hex-Rays: sub_3A46A
  * VA=0x3a46a..0x3a557 OBJ=1 OFF=0x2a46a size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41800
@@ -27618,7 +27701,7 @@ void __usercall sub_3A46A(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A557
+ * IDA 9.5 Hex-Rays: sub_3A557
  * VA=0x3a557..0x3a644 OBJ=1 OFF=0x2a557 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41820
@@ -27647,7 +27730,7 @@ void __usercall sub_3A557(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A644
+ * IDA 9.5 Hex-Rays: sub_3A644
  * VA=0x3a644..0x3a731 OBJ=1 OFF=0x2a644 size=0xed
  * callers: 0x41ec1
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41840
@@ -27676,7 +27759,7 @@ void __usercall sub_3A644(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A731
+ * IDA 9.5 Hex-Rays: sub_3A731
  * VA=0x3a731..0x3a81e OBJ=1 OFF=0x2a731 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x420c6
@@ -27705,7 +27788,7 @@ void __usercall sub_3A731(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A81E
+ * IDA 9.5 Hex-Rays: sub_3A81E
  * VA=0x3a81e..0x3a8a0 OBJ=1 OFF=0x2a81e size=0x82
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41860
@@ -27725,7 +27808,7 @@ int __usercall sub_3A81E@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A8A0
+ * IDA 9.5 Hex-Rays: sub_3A8A0
  * VA=0x3a8a0..0x3a98d OBJ=1 OFF=0x2a8a0 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41880
@@ -27754,7 +27837,7 @@ void __usercall sub_3A8A0(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3A98D
+ * IDA 9.5 Hex-Rays: sub_3A98D
  * VA=0x3a98d..0x3aa72 OBJ=1 OFF=0x2a98d size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41430
@@ -27783,7 +27866,7 @@ void __fastcall sub_3A98D(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3AA72
+ * IDA 9.5 Hex-Rays: sub_3AA72
  * VA=0x3aa72..0x3ab49 OBJ=1 OFF=0x2aa72 size=0xd7
  * type: int __fastcall(_DWORD)
  * callers: 0x25bf4
@@ -27813,7 +27896,7 @@ void __fastcall sub_3AA72(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3AB49
+ * IDA 9.5 Hex-Rays: sub_3AB49
  * VA=0x3ab49..0x3ac36 OBJ=1 OFF=0x2ab49 size=0xed
  * callers: 0x44240
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44180
@@ -27842,7 +27925,7 @@ void __usercall sub_3AB49(int a1@<eax>, const char *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3ACA3
+ * IDA 9.5 Hex-Rays: sub_3ACA3
  * VA=0x3aca3..0x3ad88 OBJ=1 OFF=0x2aca3 size=0xe5
  * callers: 0x25bf4
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44330
@@ -27871,7 +27954,7 @@ void __usercall sub_3ACA3(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_init_sequence
+ * IDA 9.5 Hex-Rays: ail_init_sequence
  * VA=0x3adf5..0x3aeee OBJ=1 OFF=0x2adf5 size=0xf9
  * callers: 0x25977
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x443d0
@@ -27903,7 +27986,7 @@ void __usercall ail_init_sequence(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_start_sequence
+ * IDA 9.5 Hex-Rays: ail_start_sequence
  * VA=0x3aeee..0x3af5b OBJ=1 OFF=0x2aeee size=0x6d
  * callers: 0x25977
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44790
@@ -27924,7 +28007,7 @@ void __usercall ail_start_sequence(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_stop_sequence
+ * IDA 9.5 Hex-Rays: ail_stop_sequence
  * VA=0x3af5b..0x3afc8 OBJ=1 OFF=0x2af5b size=0x6d
  * callers: 0x25977, 0x43270, 0x443b0, 0x44790, 0x44930
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x447d0
@@ -27945,7 +28028,7 @@ void __usercall ail_stop_sequence(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B035
+ * IDA 9.5 Hex-Rays: sub_3B035
  * VA=0x3b035..0x3b0a2 OBJ=1 OFF=0x2b035 size=0x6d
  * callers: 0x43a70
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44930
@@ -27963,7 +28046,7 @@ void __usercall sub_3B035(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B0A2
+ * IDA 9.5 Hex-Rays: sub_3B0A2
  * VA=0x3b0a2..0x3b124 OBJ=1 OFF=0x2b0a2 size=0x82
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44970
@@ -27983,7 +28066,7 @@ int __usercall sub_3B0A2@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_set_sequence_volume
+ * IDA 9.5 Hex-Rays: ail_set_sequence_volume
  * VA=0x3b124..0x3b1a6 OBJ=1 OFF=0x2b124 size=0x82
  * callers: 0x1728c, 0x25977
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x449e0
@@ -28006,7 +28089,7 @@ int __usercall ail_set_sequence_volume@<eax>(int a1@<eax>, int a2, int a3, int a
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ail_set_sequence_loop_count
+ * IDA 9.5 Hex-Rays: ail_set_sequence_loop_count
  * VA=0x3b1a6..0x3b21c OBJ=1 OFF=0x2b1a6 size=0x76
  * callers: 0x25977
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44960
@@ -28027,7 +28110,7 @@ void __usercall ail_set_sequence_loop_count(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B21C
+ * IDA 9.5 Hex-Rays: sub_3B21C
  * VA=0x3b21c..0x3b301 OBJ=1 OFF=0x2b21c size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44a60
@@ -28056,7 +28139,7 @@ void __usercall sub_3B21C(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B301
+ * IDA 9.5 Hex-Rays: sub_3B301
  * VA=0x3b301..0x3b3e6 OBJ=1 OFF=0x2b301 size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44a90
@@ -28085,7 +28168,7 @@ void __fastcall sub_3B301(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B3E6
+ * IDA 9.5 Hex-Rays: sub_3B3E6
  * VA=0x3b3e6..0x3b4cb OBJ=1 OFF=0x2b3e6 size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44aa0
@@ -28114,7 +28197,7 @@ void __fastcall sub_3B3E6(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B4CB
+ * IDA 9.5 Hex-Rays: sub_3B4CB
  * VA=0x3b4cb..0x3b5b0 OBJ=1 OFF=0x2b4cb size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44a70
@@ -28143,7 +28226,7 @@ void __fastcall sub_3B4CB(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B5B0
+ * IDA 9.5 Hex-Rays: sub_3B5B0
  * VA=0x3b5b0..0x3b6a9 OBJ=1 OFF=0x2b5b0 size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44200
@@ -28172,7 +28255,7 @@ void __usercall sub_3B5B0(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B716
+ * IDA 9.5 Hex-Rays: sub_3B716
  * VA=0x3b716..0x3b80f OBJ=1 OFF=0x2b716 size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44ab0
@@ -28201,7 +28284,7 @@ void __usercall sub_3B716(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B80F
+ * IDA 9.5 Hex-Rays: sub_3B80F
  * VA=0x3b80f..0x3b908 OBJ=1 OFF=0x2b80f size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44af0
@@ -28230,7 +28313,7 @@ void __usercall sub_3B80F(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B908
+ * IDA 9.5 Hex-Rays: sub_3B908
  * VA=0x3b908..0x3b98a OBJ=1 OFF=0x2b908 size=0x82
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44bf0
@@ -28250,7 +28333,7 @@ int __usercall sub_3B908@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3B98A
+ * IDA 9.5 Hex-Rays: sub_3B98A
  * VA=0x3b98a..0x3ba0c OBJ=1 OFF=0x2b98a size=0x82
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44c30
@@ -28270,7 +28353,7 @@ int __usercall sub_3B98A@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BA0C
+ * IDA 9.5 Hex-Rays: sub_3BA0C
  * VA=0x3ba0c..0x3baf1 OBJ=1 OFF=0x2ba0c size=0xe5
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44c70
@@ -28299,7 +28382,7 @@ void __fastcall sub_3BA0C(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BAF1
+ * IDA 9.5 Hex-Rays: sub_3BAF1
  * VA=0x3baf1..0x3bbea OBJ=1 OFF=0x2baf1 size=0xf9
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44ca0
@@ -28328,7 +28411,7 @@ void __usercall sub_3BAF1(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BBEA
+ * IDA 9.5 Hex-Rays: sub_3BBEA
  * VA=0x3bbea..0x3bcd7 OBJ=1 OFF=0x2bbea size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44cd0
@@ -28357,7 +28440,7 @@ void __usercall sub_3BBEA(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BCD7
+ * IDA 9.5 Hex-Rays: sub_3BCD7
  * VA=0x3bcd7..0x3bddf OBJ=1 OFF=0x2bcd7 size=0x108
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44d10
@@ -28387,7 +28470,7 @@ void __usercall sub_3BCD7(int a1@<eax>, int a2, _DWORD *a3, _DWORD *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BDDF
+ * IDA 9.5 Hex-Rays: sub_3BDDF
  * VA=0x3bddf..0x3be55 OBJ=1 OFF=0x2bddf size=0x76
  * callers: 0x42980
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44d80
@@ -28405,7 +28488,7 @@ void __usercall sub_3BDDF(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BE55
+ * IDA 9.5 Hex-Rays: sub_3BE55
  * VA=0x3be55..0x3bf42 OBJ=1 OFF=0x2be55 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44e10
@@ -28434,7 +28517,7 @@ void __usercall sub_3BE55(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3BF42
+ * IDA 9.5 Hex-Rays: sub_3BF42
  * VA=0x3bf42..0x3c02f OBJ=1 OFF=0x2bf42 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44e30
@@ -28463,7 +28546,7 @@ void __usercall sub_3BF42(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C02F
+ * IDA 9.5 Hex-Rays: sub_3C02F
  * VA=0x3c02f..0x3c11c OBJ=1 OFF=0x2c02f size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44e50
@@ -28492,7 +28575,7 @@ void __usercall sub_3C02F(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C11C
+ * IDA 9.5 Hex-Rays: sub_3C11C
  * VA=0x3c11c..0x3c209 OBJ=1 OFF=0x2c11c size=0xed
  * callers: 0x45e21, 0x45f99
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44e70
@@ -28521,7 +28604,7 @@ void __usercall sub_3C11C(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C209
+ * IDA 9.5 Hex-Rays: sub_3C209
  * VA=0x3c209..0x3c2f6 OBJ=1 OFF=0x2c209 size=0xed
  * callers: 0x45e21, 0x45f99
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44e90
@@ -28550,7 +28633,7 @@ void __usercall sub_3C209(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C2F6
+ * IDA 9.5 Hex-Rays: sub_3C2F6
  * VA=0x3c2f6..0x3c378 OBJ=1 OFF=0x2c2f6 size=0x82
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44eb0
@@ -28570,7 +28653,7 @@ int __usercall sub_3C2F6@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C378
+ * IDA 9.5 Hex-Rays: sub_3C378
  * VA=0x3c378..0x3c465 OBJ=1 OFF=0x2c378 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44ed0
@@ -28599,7 +28682,7 @@ void __usercall sub_3C378(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C4DB
+ * IDA 9.5 Hex-Rays: sub_3C4DB
  * VA=0x3c4db..0x3c5c0 OBJ=1 OFF=0x2c4db size=0xe5
  * callers: 0x42980, 0x448a0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x44f00
@@ -28628,7 +28711,7 @@ void __fastcall sub_3C4DB(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C5C0
+ * IDA 9.5 Hex-Rays: sub_3C5C0
  * VA=0x3c5c0..0x3c636 OBJ=1 OFF=0x2c5c0 size=0x76
  * callers: 0x42980, 0x447d0
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x450b0
@@ -28646,7 +28729,7 @@ void __usercall sub_3C5C0(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C636
+ * IDA 9.5 Hex-Rays: sub_3C636
  * VA=0x3c636..0x3c6b8 OBJ=1 OFF=0x2c636 size=0x82
  * callers: 0x42980
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x451e0
@@ -28666,7 +28749,7 @@ int __usercall sub_3C636@<eax>(int a1@<eax>, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C6B8
+ * IDA 9.5 Hex-Rays: sub_3C6B8
  * VA=0x3c6b8..0x3c7a5 OBJ=1 OFF=0x2c6b8 size=0xed
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x45220
@@ -28695,7 +28778,7 @@ void __usercall sub_3C6B8(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C7A5
+ * IDA 9.5 Hex-Rays: sub_3C7A5
  * VA=0x3c7a5..0x3c83e OBJ=1 OFF=0x2c7a5 size=0x99
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x45240
@@ -28713,7 +28796,7 @@ void __usercall sub_3C7A5(int a1@<eax>, int a2, int a3, int a4, int a5, int a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3C8B4
+ * IDA 9.5 Hex-Rays: sub_3C8B4
  * VA=0x3c8b4..0x3c9b6 OBJ=1 OFF=0x2c8b4 size=0x102
  * callers: -
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x45e21
@@ -28742,7 +28825,7 @@ void __usercall sub_3C8B4(int a1@<eax>, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CA23
+ * IDA 9.5 Hex-Rays: sub_3CA23
  * VA=0x3ca23..0x3ca49 OBJ=1 OFF=0x2ca23 size=0x26
  * callers: 0x37b8c, 0x3ca23
  * callees: 0x36647
@@ -28758,7 +28841,7 @@ void sub_3CA23()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sqrt
+ * IDA 9.5 Hex-Rays: sqrt
  * VA=0x3ca4c..0x3ca86 OBJ=1 OFF=0x2ca4c size=0x3a [FLIRT-lib]
  * type: int __cdecl(double)
  * callers: 0x219ad
@@ -28768,7 +28851,7 @@ int __cdecl sqrt(double a1)
 {
   double v1; // rax
 
-  if ( a1 < 0.0 && (LODWORD(a1) | HIDWORD(a1) & 0x7FFFFFFF) != 0 )
+  if ( signbit(a1) && (LODWORD(a1) | HIDWORD(a1) & 0x7FFFFFFF) != 0 )
     return _math87_err(a1, 3);
   v1 = sqrt(a1);
   return LODWORD(v1);
@@ -28776,7 +28859,7 @@ int __cdecl sqrt(double a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DSQRT
+ * IDA 9.5 Hex-Rays: IF@DSQRT
  * VA=0x3ca86..0x3cac6 OBJ=1 OFF=0x2ca86 size=0x40 [FLIRT-lib]
  * callers: -
  * callees: 0x46013
@@ -28806,7 +28889,7 @@ char __fastcall __spoils<ah> IF_DSQRT(__int64 a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DCOS
+ * IDA 9.5 Hex-Rays: IF@DCOS
  * VA=0x3cb06..0x3cb1f OBJ=1 OFF=0x2cb06 size=0x19 [FLIRT-lib]
  * callers: 0x3cbd5
  * callees: 0x3cba9
@@ -28830,7 +28913,7 @@ long double __usercall IF_DCOS@<st0>(long double result@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DSIN
+ * IDA 9.5 Hex-Rays: IF@DSIN
  * VA=0x3cb1f..0x3cb9b OBJ=1 OFF=0x2cb1f size=0x7c [FLIRT-lib]
  * callers: 0x3cbe8
  * callees: 0x3cba9
@@ -28887,7 +28970,7 @@ long double __usercall IF_DSIN@<st0>(long double result@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CB9B
+ * IDA 9.5 Hex-Rays: sub_3CB9B
  * VA=0x3cb9b..0x3cba2 OBJ=1 OFF=0x2cb9b size=0x7
  * callers: -
  * callees: -
@@ -28899,7 +28982,7 @@ double __usercall sub_3CB9B@<st0>(double a1@<st2>, double a2@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CBA2
+ * IDA 9.5 Hex-Rays: sub_3CBA2
  * VA=0x3cba2..0x3cba9 OBJ=1 OFF=0x2cba2 size=0x7
  * callers: -
  * callees: -
@@ -28912,7 +28995,7 @@ void __usercall sub_3CBA2(double a1@<st1>, double a2@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CBA9
+ * IDA 9.5 Hex-Rays: sub_3CBA9
  * VA=0x3cba9..0x3cbd5 OBJ=1 OFF=0x2cba9 size=0x2c
  * type: double __fastcall(_DWORD)
  * callers: 0x3cb06, 0x3cb1f
@@ -28937,7 +29020,7 @@ double __usercall sub_3CBA9@<st0>(double result@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: cos
+ * IDA 9.5 Hex-Rays: cos
  * VA=0x3cbd5..0x3cbe8 OBJ=1 OFF=0x2cbd5 size=0x13 [FLIRT-lib]
  * type: int __cdecl(double)
  * callers: 0x21db2, 0x2b996
@@ -28953,7 +29036,7 @@ __int64 __cdecl cos(long double a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sin
+ * IDA 9.5 Hex-Rays: sin
  * VA=0x3cbe8..0x3cbfb OBJ=1 OFF=0x2cbe8 size=0x13 [FLIRT-lib]
  * type: int __cdecl(double)
  * callers: 0x21db2, 0x2b996
@@ -28969,7 +29052,7 @@ __int64 __cdecl sin(long double a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DTAN
+ * IDA 9.5 Hex-Rays: IF@DTAN
  * VA=0x3cbfb..0x3cc64 OBJ=1 OFF=0x2cbfb size=0x69 [FLIRT-lib]
  * callers: -
  * callees: -
@@ -29016,7 +29099,7 @@ long double __usercall IF_DTAN@<st0>(long double a1@<st0>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CC77
+ * IDA 9.5 Hex-Rays: sub_3CC77
  * VA=0x3cc77..0x3cc7d OBJ=1 OFF=0x2cc77 size=0x6 [FLIRT-lib]
  * callers: 0x3cc7d, 0x3cc9f
  * callees: -
@@ -29028,7 +29111,7 @@ void *sub_3CC77()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: rand
+ * IDA 9.5 Hex-Rays: rand
  * VA=0x3cc7d..0x3cc9f OBJ=1 OFF=0x2cc7d size=0x22 [FLIRT-lib]
  * type: int(void)
  * callers: 0x25bf4
@@ -29051,7 +29134,7 @@ _DWORD *rand()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: srand
+ * IDA 9.5 Hex-Rays: srand
  * VA=0x3cc9f..0x3ccb2 OBJ=1 OFF=0x2cc9f size=0x13 [FLIRT-lib]
  * callers: -
  * callees: 0x3cc77
@@ -29068,7 +29151,7 @@ _DWORD *__cdecl srand(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: start
+ * IDA 9.5 Hex-Rays: start
  * VA=0x3ccb4..0x3cf1c OBJ=1 OFF=0x2ccb4 size=0x268 [FLIRT-lib, noreturn]
  * callers: -
  * callees: 0x4609b, 0x460ea, 0x4612d
@@ -29173,7 +29256,7 @@ void __noreturn start()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: j___sys_init_387_emulator
+ * IDA 9.5 Hex-Rays: j___sys_init_387_emulator
  * VA=0x3cf1c..0x3cf21 OBJ=1 OFF=0x2cf1c size=0x5 [thunk]
  * callers: -
  * callees: -
@@ -29186,7 +29269,7 @@ int j___sys_init_387_emulator()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: j___sys_fini_387_emulator
+ * IDA 9.5 Hex-Rays: j___sys_fini_387_emulator
  * VA=0x3cf21..0x3cf26 OBJ=1 OFF=0x2cf21 size=0x5 [thunk]
  * callers: -
  * callees: -
@@ -29199,7 +29282,7 @@ int j___sys_fini_387_emulator()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: memcpy
+ * IDA 9.5 Hex-Rays: memcpy
  * VA=0x3cf26..0x3cf50 OBJ=1 OFF=0x2cf26 size=0x2a [FLIRT-lib]
  * callers: 0x3645d, 0x373ca, 0x377a3, 0x46464, 0x472b3
  * callees: -
@@ -29212,7 +29295,7 @@ void *__cdecl memcpy(void *a1, const void *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3CF50
+ * IDA 9.5 Hex-Rays: sub_3CF50
  * VA=0x3cf50..0x3cf9b OBJ=1 OFF=0x2cf50 size=0x4b
  * callers: 0x3645d, 0x3767e, 0x37940, 0x3d3a6, 0x3de66, 0x3e103
  * callees: 0x46632
@@ -29237,7 +29320,7 @@ int __cdecl sub_3CF50(int a1, __int16 a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: read
+ * IDA 9.5 Hex-Rays: read
  * VA=0x3cf9b..0x3d074 OBJ=1 OFF=0x2cf9b size=0xd9 [FLIRT-lib]
  * callers: 0x3645d, 0x36cab
  * callees: 0x3db46, 0x46632, 0x466a2
@@ -29321,7 +29404,7 @@ int __usercall read@<eax>(int a1@<edx>, int a2@<ecx>, int a3@<ebx>, int a4, _BYT
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: open
+ * IDA 9.5 Hex-Rays: open
  * VA=0x3d074..0x3d093 OBJ=1 OFF=0x2d074 size=0x1f [FLIRT-lib]
  * type: _DWORD __cdecl(_DWORD, _DWORD)
  * callers: 0x3669a, 0x367d1, 0x36c56, 0x36cab
@@ -29334,7 +29417,7 @@ int __cdecl open(int a1, int a2, char a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sopen
+ * IDA 9.5 Hex-Rays: sopen
  * VA=0x3d093..0x3d253 OBJ=1 OFF=0x2d093 size=0x1c0 [FLIRT-lib]
  * callers: 0x37214, 0x3d074
  * callees: 0x3db46, 0x3fe5f, 0x46632, 0x466a2, 0x466f4
@@ -29482,7 +29565,7 @@ LABEL_39:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __set_binary
+ * IDA 9.5 Hex-Rays: __set_binary
  * VA=0x3d253..0x3d2bf OBJ=1 OFF=0x2d253 size=0x6c [FLIRT-lib]
  * callers: -
  * callees: 0x46632, 0x466a2, 0x466f4
@@ -29522,7 +29605,7 @@ int __cdecl _set_binary(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strcmp
+ * IDA 9.5 Hex-Rays: strcmp
  * VA=0x3d2c0..0x3d36c OBJ=1 OFF=0x2d2c0 size=0xac [FLIRT-lib]
  * callers: 0x3669a, 0x367d1
  * callees: -
@@ -29602,7 +29685,7 @@ LABEL_18:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: close
+ * IDA 9.5 Hex-Rays: close
  * VA=0x3d36c..0x3d3a6 OBJ=1 OFF=0x2d36c size=0x3a [FLIRT-lib]
  * callers: 0x3669a, 0x367d1, 0x36c56, 0x36cab, 0x3767e
  * callees: 0x3db46, 0x466f4
@@ -29632,7 +29715,7 @@ int __usercall close@<eax>(int _EAX@<eax>, int a2@<edx>, int a3@<ecx>, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: filelength
+ * IDA 9.5 Hex-Rays: filelength
  * VA=0x3d3a6..0x3d3e5 OBJ=1 OFF=0x2d3a6 size=0x3f [FLIRT-lib]
  * callers: 0x36c56
  * callees: 0x3cf50
@@ -29656,7 +29739,7 @@ int __cdecl filelength(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3D3E5
+ * IDA 9.5 Hex-Rays: sub_3D3E5
  * VA=0x3d3e5..0x3d5be OBJ=1 OFF=0x2d3e5 size=0x1d9
  * callers: 0x377a3
  * callees: 0x3705f, 0x3db46, 0x46632, 0x466a2, 0x4670c
@@ -29832,7 +29915,7 @@ LABEL_23:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: nullsub_2
+ * IDA 9.5 Hex-Rays: nullsub_2
  * VA=0x3d5be..0x3d5bf OBJ=1 OFF=0x2d5be size=0x1
  * callers: 0x4a314
  * callees: -
@@ -29844,7 +29927,7 @@ void nullsub_2()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __MemAllocator
+ * IDA 9.5 Hex-Rays: __MemAllocator
  * VA=0x3d5c0..0x3d66b OBJ=1 OFF=0x2d5c0 size=0xab [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x3707e
@@ -29928,7 +30011,7 @@ unsigned int *__fastcall _MemAllocator(int a1, __int16 a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __MemFree
+ * IDA 9.5 Hex-Rays: __MemFree
  * VA=0x3d670..0x3d77b OBJ=1 OFF=0x2d670 size=0x10b [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x3777e
@@ -30063,7 +30146,7 @@ LABEL_26:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __LastFree
+ * IDA 9.5 Hex-Rays: __LastFree
  * VA=0x3d77b..0x3d79e OBJ=1 OFF=0x2d77b size=0x23 [FLIRT-lib]
  * callers: 0x3d842
  * callees: -
@@ -30078,7 +30161,7 @@ int _LastFree()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3D79E
+ * IDA 9.5 Hex-Rays: sub_3D79E
  * VA=0x3d79e..0x3d842 OBJ=1 OFF=0x2d79e size=0xa4 [FLIRT-lib]
  * callers: 0x3d842
  * callees: -
@@ -30142,7 +30225,7 @@ LABEL_10:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __ExpandDGROUP
+ * IDA 9.5 Hex-Rays: __ExpandDGROUP
  * VA=0x3d842..0x3da42 OBJ=1 OFF=0x2d842 size=0x200 [FLIRT-lib]
  * callers: 0x3707e
  * callees: 0x3777e, 0x3d77b, 0x3d79e, 0x467c5
@@ -30189,7 +30272,7 @@ __int16 __usercall _ExpandDGROUP@<ax>(__int16 a1@<dx>, int a2)
   {
     v10 = dword_52804 + v6;
     if ( v10 < dword_52804 )
-      v10 = -2;
+      v10 = 0xFFFFFFFE;
     v11 = _brk(v10);
     if ( v11 != -1 )
     {
@@ -30301,7 +30384,7 @@ LABEL_2:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __nmemneed
+ * IDA 9.5 Hex-Rays: __nmemneed
  * VA=0x3da42..0x3da49 OBJ=1 OFF=0x2da42 size=0x7 [FLIRT-lib]
  * type: int __cdecl(_DWORD)
  * callers: 0x3707e
@@ -30314,7 +30397,7 @@ int _nmemneed()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: segread
+ * IDA 9.5 Hex-Rays: segread
  * VA=0x3da49..0x3da76 OBJ=1 OFF=0x2da49 size=0x2d [FLIRT-lib]
  * callers: 0x370f0
  * callees: -
@@ -30332,7 +30415,7 @@ int __cdecl segread(_WORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: int386x
+ * IDA 9.5 Hex-Rays: int386x
  * VA=0x3da76..0x3da97 OBJ=1 OFF=0x2da76 size=0x21 [FLIRT-lib]
  * callers: 0x370f0
  * callees: 0x46870
@@ -30345,7 +30428,7 @@ int __usercall int386x@<eax>(int a1@<eax>, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3DA97
+ * IDA 9.5 Hex-Rays: sub_3DA97
  * VA=0x3da97..0x3dab1 OBJ=1 OFF=0x2da97 size=0x1a [FLIRT-lib]
  * callers: 0x3dab1
  * callees: 0x3df47
@@ -30361,7 +30444,7 @@ int __cdecl sub_3DA97(_DWORD *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __fprtf
+ * IDA 9.5 Hex-Rays: __fprtf
  * VA=0x3dab1..0x3db31 OBJ=1 OFF=0x2dab1 size=0x80 [FLIRT-lib]
  * callers: 0x37119, 0x3f46b
  * callees: 0x3dc69, 0x3de66, 0x3e117
@@ -30400,7 +30483,7 @@ int __cdecl _fprtf(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: tolower
+ * IDA 9.5 Hex-Rays: tolower
  * VA=0x3db31..0x3db46 OBJ=1 OFF=0x2db31 size=0x15 [FLIRT-lib]
  * callers: 0x37165, 0x37214
  * callees: -
@@ -30417,7 +30500,7 @@ int __cdecl tolower(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3DB46
+ * IDA 9.5 Hex-Rays: sub_3DB46
  * VA=0x3db46..0x3db4c OBJ=1 OFF=0x2db46 size=0x6
  * type: int __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x37165, 0x37339, 0x373ca, 0x377a3, 0x37940, 0x3cf9b, 0x3d093, 0x3d36c, 0x3d3e5, 0x3db52, 0x3dd11, 0x3de66, 0x3df47, 0x46632, 0x46728, 0x467c5, 0x46d53, 0x4d715
@@ -30430,7 +30513,7 @@ void *sub_3DB46()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3DB4C
+ * IDA 9.5 Hex-Rays: sub_3DB4C
  * VA=0x3db4c..0x3db52 OBJ=1 OFF=0x2db4c size=0x6
  * callers: 0x46632
  * callees: -
@@ -30442,7 +30525,7 @@ void *sub_3DB4C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __allocfp
+ * IDA 9.5 Hex-Rays: __allocfp
  * VA=0x3db52..0x3dbe7 OBJ=1 OFF=0x2db52 size=0x95 [FLIRT-lib]
  * type: int __cdecl(_DWORD)
  * callers: 0x372f9
@@ -30498,7 +30581,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __freefp
+ * IDA 9.5 Hex-Rays: __freefp
  * VA=0x3dbe7..0x3dc1a OBJ=1 OFF=0x2dbe7 size=0x33 [FLIRT-lib]
  * callers: 0x37214, 0x375c8
  * callees: -
@@ -30527,7 +30610,7 @@ int *__cdecl _freefp(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __purgefp
+ * IDA 9.5 Hex-Rays: __purgefp
  * VA=0x3dc1a..0x3dc3c OBJ=1 OFF=0x2dc1a size=0x22 [FLIRT-lib]
  * callers: 0x46c8d
  * callees: 0x3776e
@@ -30547,7 +30630,7 @@ void _purgefp()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __chktty
+ * IDA 9.5 Hex-Rays: __chktty
  * VA=0x3dc3c..0x3dc69 OBJ=1 OFF=0x2dc3c size=0x2d [FLIRT-lib]
  * callers: 0x37214, 0x3dc69, 0x47039
  * callees: 0x3fe5f
@@ -30564,7 +30647,7 @@ void __cdecl __spoils<> _chktty(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __ioalloc
+ * IDA 9.5 Hex-Rays: __ioalloc
  * VA=0x3dc69..0x3dce0 OBJ=1 OFF=0x2dc69 size=0x77 [FLIRT-lib]
  * callers: 0x373ca, 0x377a3, 0x37940, 0x3dab1, 0x3ddb5, 0x3df47, 0x47039, 0x4d695
  * callees: 0x3706e, 0x3dc3c
@@ -30611,7 +30694,7 @@ int __cdecl _ioalloc(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __qread
+ * IDA 9.5 Hex-Rays: __qread
  * VA=0x3dce0..0x3dd11 OBJ=1 OFF=0x2dce0 size=0x31 [FLIRT-lib]
  * callers: 0x373ca, 0x3ddb5
  * callees: 0x46632
@@ -30637,7 +30720,7 @@ int __cdecl _qread(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fgetc
+ * IDA 9.5 Hex-Rays: fgetc
  * VA=0x3dd11..0x3dd8a OBJ=1 OFF=0x2dd11 size=0x79 [FLIRT-lib]
  * callers: 0x46f9c
  * callees: 0x3db46, 0x3dd8a
@@ -30679,7 +30762,7 @@ int __cdecl fgetc(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __filbuf
+ * IDA 9.5 Hex-Rays: __filbuf
  * VA=0x3dd8a..0x3ddb5 OBJ=1 OFF=0x2dd8a size=0x2b [FLIRT-lib]
  * callers: 0x3dd11
  * callees: 0x3ddb5
@@ -30694,7 +30777,7 @@ int __cdecl _filbuf(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __fill_buffer
+ * IDA 9.5 Hex-Rays: __fill_buffer
  * VA=0x3ddb5..0x3de60 OBJ=1 OFF=0x2ddb5 size=0xab [FLIRT-lib]
  * callers: 0x373ca, 0x37940, 0x3dd8a
  * callees: 0x3dc69, 0x3dce0, 0x46d00, 0x46d38
@@ -30740,7 +30823,7 @@ int __cdecl _fill_buffer(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3DE60
+ * IDA 9.5 Hex-Rays: sub_3DE60
  * VA=0x3de60..0x3de66 OBJ=1 OFF=0x2de60 size=0x6
  * type: int(void)
  * callers: 0x375ff
@@ -30753,7 +30836,7 @@ int sub_3DE60()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __flush
+ * IDA 9.5 Hex-Rays: __flush
  * VA=0x3de66..0x3df03 OBJ=1 OFF=0x2de66 size=0x9d [FLIRT-lib]
  * callers: 0x3767e, 0x377a3, 0x37940, 0x3dab1, 0x3df47, 0x46d00, 0x4d695
  * callees: 0x3cf50, 0x3db46, 0x46d53
@@ -30809,7 +30892,7 @@ LABEL_15:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ftell
+ * IDA 9.5 Hex-Rays: ftell
  * VA=0x3df03..0x3df37 OBJ=1 OFF=0x2df03 size=0x34 [FLIRT-lib]
  * callers: 0x3767e, 0x37940
  * callees: 0x3e103
@@ -30837,7 +30920,7 @@ int __cdecl ftell(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: remove
+ * IDA 9.5 Hex-Rays: remove
  * VA=0x3df37..0x3df47 OBJ=1 OFF=0x2df37 size=0x10 [FLIRT-lib]
  * callers: 0x3767e
  * callees: 0x46dd0
@@ -30849,7 +30932,7 @@ int __cdecl remove(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fputc
+ * IDA 9.5 Hex-Rays: fputc
  * VA=0x3df47..0x3dfef OBJ=1 OFF=0x2df47 size=0xa8 [FLIRT-lib]
  * callers: 0x377a3, 0x3da97, 0x4d03e, 0x4d695
  * callees: 0x3db46, 0x3dc69, 0x3de66
@@ -30899,7 +30982,7 @@ int __cdecl fputc(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __delay_init
+ * IDA 9.5 Hex-Rays: __delay_init
  * VA=0x3dfef..0x3e01d OBJ=1 OFF=0x2dfef size=0x2e [FLIRT-lib]
  * callers: -
  * callees: -
@@ -30913,7 +30996,7 @@ void _delay_init()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __delay
+ * IDA 9.5 Hex-Rays: __delay
  * VA=0x3e01d..0x3e058 OBJ=1 OFF=0x2e01d size=0x3b [FLIRT-lib]
  * callers: 0x3790a
  * callees: -
@@ -30946,7 +31029,7 @@ int __cdecl _delay(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __STOSB
+ * IDA 9.5 Hex-Rays: __STOSB
  * VA=0x3e060..0x3e091 OBJ=1 OFF=0x2e060 size=0x31 [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x37910
@@ -30984,7 +31067,7 @@ int __fastcall _STOSB(int result, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __STOSD
+ * IDA 9.5 Hex-Rays: __STOSD
  * VA=0x3e097..0x3e103 OBJ=1 OFF=0x2e097 size=0x6c [FLIRT-lib]
  * type: int __cdecl(_DWORD)
  * callers: 0x3e060
@@ -31059,7 +31142,7 @@ _DWORD *__fastcall _STOSD(_DWORD *result, int a2, int a3, unsigned int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E103
+ * IDA 9.5 Hex-Rays: sub_3E103
  * VA=0x3e103..0x3e117 OBJ=1 OFF=0x2e103 size=0x14
  * callers: 0x37940, 0x3df03
  * callees: 0x3cf50
@@ -31071,7 +31154,7 @@ int __cdecl sub_3E103(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E117
+ * IDA 9.5 Hex-Rays: sub_3E117
  * VA=0x3e117..0x3e337 OBJ=1 OFF=0x2e117 size=0x220
  * callers: 0x37b29, 0x3dab1
  * callees: 0x3e337, 0x3e619
@@ -31238,7 +31321,7 @@ LABEL_6:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E337
+ * IDA 9.5 Hex-Rays: sub_3E337
  * VA=0x3e337..0x3e440 OBJ=1 OFF=0x2e337 size=0x109
  * callers: 0x3e117
  * callees: 0x3e440
@@ -31341,7 +31424,7 @@ LABEL_33:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E440
+ * IDA 9.5 Hex-Rays: sub_3E440
  * VA=0x3e440..0x3e493 OBJ=1 OFF=0x2e440 size=0x53
  * callers: 0x3e337
  * callees: -
@@ -31353,9 +31436,12 @@ _BYTE *__cdecl sub_3E440(_BYTE *a1, int a2)
   {
     switch ( *a1 )
     {
-      case '-':
-        *(_BYTE *)(a2 + 20) |= 8u;
-        goto LABEL_13;
+      case ' ':
+        if ( (*(_BYTE *)(a2 + 20) & 4) == 0 )
+          *(_BYTE *)(a2 + 20) |= 2u;
+LABEL_13:
+        ++a1;
+        break;
       case '#':
         *(_BYTE *)(a2 + 20) |= 1u;
         goto LABEL_13;
@@ -31363,16 +31449,14 @@ _BYTE *__cdecl sub_3E440(_BYTE *a1, int a2)
         *(_BYTE *)(a2 + 20) |= 4u;
         *(_BYTE *)(a2 + 20) &= ~2u;
         goto LABEL_13;
+      case '-':
+        *(_BYTE *)(a2 + 20) |= 8u;
+        goto LABEL_13;
       default:
-        break;
+        goto LABEL_11;
     }
-    if ( *a1 != 32 )
-      break;
-    if ( (*(_BYTE *)(a2 + 20) & 4) == 0 )
-      *(_BYTE *)(a2 + 20) |= 2u;
-LABEL_13:
-    ++a1;
   }
+LABEL_11:
   if ( *a1 == 48 )
   {
     *(_BYTE *)(a2 + 22) = 48;
@@ -31383,7 +31467,7 @@ LABEL_13:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E493
+ * IDA 9.5 Hex-Rays: sub_3E493
  * VA=0x3e493..0x3e4bc OBJ=1 OFF=0x2e493 size=0x29
  * callers: 0x3e619
  * callees: -
@@ -31404,7 +31488,7 @@ int __cdecl sub_3E493(int a1, __int16 a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E4BC
+ * IDA 9.5 Hex-Rays: sub_3E4BC
  * VA=0x3e4bc..0x3e4e3 OBJ=1 OFF=0x2e4bc size=0x27
  * callers: 0x3e619
  * callees: -
@@ -31426,7 +31510,7 @@ void __cdecl sub_3E4BC(int a1, __int16 a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E4E3
+ * IDA 9.5 Hex-Rays: sub_3E4E3
  * VA=0x3e4e3..0x3e536 OBJ=1 OFF=0x2e4e3 size=0x53
  * callers: 0x3e619
  * callees: 0x37b55, 0x46e61
@@ -31462,7 +31546,7 @@ int __cdecl sub_3E4E3(int a1, const char *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E536
+ * IDA 9.5 Hex-Rays: sub_3E536
  * VA=0x3e536..0x3e602 OBJ=1 OFF=0x2e536 size=0xcc
  * callers: 0x3e619
  * callees: 0x46e61
@@ -31540,7 +31624,7 @@ _BYTE *__cdecl sub_3E536(_BYTE *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E602
+ * IDA 9.5 Hex-Rays: sub_3E602
  * VA=0x3e602..0x3e619 OBJ=1 OFF=0x2e602 size=0x17
  * callers: 0x3e619
  * callees: 0x46e91
@@ -31552,7 +31636,7 @@ int sub_3E602()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3E619
+ * IDA 9.5 Hex-Rays: sub_3E619
  * VA=0x3e619..0x3ea52 OBJ=1 OFF=0x2e619 size=0x439
  * callers: 0x3e117
  * callees: 0x3e493, 0x3e4bc, 0x3e4e3, 0x3e536, 0x3e602, 0x3ea52, 0x46e61, 0x46ec2, 0x46f0a
@@ -31891,7 +31975,7 @@ LABEL_61:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EA52
+ * IDA 9.5 Hex-Rays: sub_3EA52
  * VA=0x3ea52..0x3ea72 OBJ=1 OFF=0x2ea52 size=0x20
  * callers: 0x3e619
  * callees: 0x46f3a
@@ -31907,7 +31991,7 @@ void __cdecl __spoils<> sub_3EA52(_BYTE *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EA74
+ * IDA 9.5 Hex-Rays: sub_3EA74
  * VA=0x3ea74..0x3ea81 OBJ=1 OFF=0x2ea74 size=0xd
  * type: int(void)
  * callers: 0x37c9c, 0x3806a, 0x3f446
@@ -31920,7 +32004,7 @@ void sub_3EA74()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EA81
+ * IDA 9.5 Hex-Rays: sub_3EA81
  * VA=0x3ea81..0x3ea8e OBJ=1 OFF=0x2ea81 size=0xd
  * type: int __fastcall(_DWORD)
  * callers: 0x37c9c, 0x3806f
@@ -31933,7 +32017,7 @@ void sub_3EA81()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EA8E
+ * IDA 9.5 Hex-Rays: sub_3EA8E
  * VA=0x3ea8e..0x3ebb4 OBJ=1 OFF=0x2ea8e size=0x126
  * callers: 0x3ec7c
  * callees: -
@@ -31957,7 +32041,7 @@ int __usercall sub_3EA8E@<eax>(
   _DWORD v15[10]; // [esp-30h] [ebp-30h] BYREF
   __int32 v16; // [esp-8h] [ebp-8h] BYREF
   __int32 v17; // [esp-4h] [ebp-4h] BYREF
-  _BYTE retaddr[8]; // [esp+0h] [ebp+0h] BYREF
+  _DWORD retaddr[2]; // [esp+0h] [ebp+0h] BYREF
 
   if ( dword_52BE6 != 0 )
   {
@@ -32018,12 +32102,12 @@ int __usercall sub_3EA8E@<eax>(
   v11 = (unsigned __int16)word_52BD8;
   v12 = _InterlockedExchange(&v16, dword_52BD4);
   v13 = _InterlockedExchange(&v17, v11);
-  return MK_FP(*(_WORD *)retaddr, *(_DWORD *)retaddr)(v13, v17, v16, v12);
+  return MK_FP(retaddr[0], retaddr[0])(v13, v17, v16, v12);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EBB4
+ * IDA 9.5 Hex-Rays: sub_3EBB4
  * VA=0x3ebb4..0x3ebe4 OBJ=1 OFF=0x2ebb4 size=0x30
  * callers: 0x3ebe4, 0x3ed6a
  * callees: -
@@ -32050,7 +32134,7 @@ char __cdecl sub_3EBB4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EBE4
+ * IDA 9.5 Hex-Rays: sub_3EBE4
  * VA=0x3ebe4..0x3ec17 OBJ=1 OFF=0x2ebe4 size=0x33
  * callers: 0x3ec17
  * callees: 0x3ebb4
@@ -32067,7 +32151,7 @@ char __cdecl sub_3EBE4(unsigned int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EC17
+ * IDA 9.5 Hex-Rays: sub_3EC17
  * VA=0x3ec17..0x3ec7c OBJ=1 OFF=0x2ec17 size=0x65
  * callers: 0x3f398
  * callees: 0x3806a, 0x3806f, 0x3ebe4
@@ -32078,8 +32162,8 @@ int sub_3EC17()
   unsigned int v1; // ecx
   unsigned int i; // edi
 
-  v0 = sub_3806A();
-  v1 = -1;
+  v0 = sub_3806A((unsigned __int16)__ES__);
+  v1 = 0xFFFFFFFF;
   for ( i = 0; i < 16; ++i )
   {
     if ( dword_52A94[i] != 0 )
@@ -32101,7 +32185,7 @@ int sub_3EC17()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EC7C
+ * IDA 9.5 Hex-Rays: sub_3EC7C
  * VA=0x3ec7c..0x3ed6a OBJ=1 OFF=0x2ec7c size=0xee
  * callers: 0x3fca9
  * callees: 0x3899a, 0x3f446
@@ -32138,7 +32222,7 @@ void __fastcall sub_3EC7C(int a1, unsigned __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3ED6A
+ * IDA 9.5 Hex-Rays: sub_3ED6A
  * VA=0x3ed6a..0x3eda5 OBJ=1 OFF=0x2ed6a size=0x3b
  * callers: 0x3fdaf
  * callees: 0x3ebb4
@@ -32162,7 +32246,7 @@ int sub_3ED6A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EDA5
+ * IDA 9.5 Hex-Rays: sub_3EDA5
  * VA=0x3eda5..0x3edd1 OBJ=1 OFF=0x2eda5 size=0x2c
  * callers: 0x38074
  * callees: -
@@ -32180,7 +32264,7 @@ int __fastcall sub_3EDA5(int a1, __int16 a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EDD1
+ * IDA 9.5 Hex-Rays: sub_3EDD1
  * VA=0x3edd1..0x3edf8 OBJ=1 OFF=0x2edd1 size=0x27
  * callers: 0x3815f
  * callees: -
@@ -32193,7 +32277,7 @@ int sub_3EDD1()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EE3D
+ * IDA 9.5 Hex-Rays: sub_3EE3D
  * VA=0x3ee3d..0x3ee42 OBJ=1 OFF=0x2ee3d size=0x5
  * callers: -
  * callees: -
@@ -32206,7 +32290,7 @@ void sub_3EE3D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3EE4D
+ * IDA 9.5 Hex-Rays: sub_3EE4D
  * VA=0x3ee4d..0x3f063 OBJ=1 OFF=0x2ee4d size=0x216
  * callers: 0x381d8
  * callees: -
@@ -32256,7 +32340,7 @@ int __cdecl sub_3EE4D(int a1, int a2, __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F063
+ * IDA 9.5 Hex-Rays: sub_3F063
  * VA=0x3f063..0x3f0a8 OBJ=1 OFF=0x2f063 size=0x45
  * callers: 0x38262
  * callees: -
@@ -32276,7 +32360,7 @@ int __cdecl sub_3F063(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F0A8
+ * IDA 9.5 Hex-Rays: sub_3F0A8
  * VA=0x3f0a8..0x3f0ac OBJ=1 OFF=0x2f0a8 size=0x4
  * type: int(void)
  * callers: 0x382d6
@@ -32293,7 +32377,7 @@ unsigned int sub_3F0A8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F0AC
+ * IDA 9.5 Hex-Rays: sub_3F0AC
  * VA=0x3f0ac..0x3f0c1 OBJ=1 OFF=0x2f0ac size=0x15
  * callers: 0x382db
  * callees: -
@@ -32310,7 +32394,7 @@ void __cdecl sub_3F0AC(unsigned int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F113
+ * IDA 9.5 Hex-Rays: sub_3F113
  * VA=0x3f113..0x3f1ed OBJ=1 OFF=0x2f113 size=0xda
  * callers: 0x382e9
  * callees: 0x3806a, 0x3806f
@@ -32327,7 +32411,7 @@ int __cdecl sub_3F113(int a1, __int16 a2, _WORD *a3, _WORD *a4)
   int v16; // [esp-Ch] [ebp-54h]
   _WORD v17[25]; // [esp+Eh] [ebp-3Ah] BYREF
 
-  sub_3806A();
+  sub_3806A((unsigned __int16)__ES__);
   memset(v17, 0, sizeof(v17));
   _CF = __CFSHR__(50, 2);
   _ZF = 0;
@@ -32369,7 +32453,7 @@ int __cdecl sub_3F113(int a1, __int16 a2, _WORD *a3, _WORD *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F1ED
+ * IDA 9.5 Hex-Rays: sub_3F1ED
  * VA=0x3f1ed..0x3f22a OBJ=1 OFF=0x2f1ed size=0x3d
  * callers: 0x383f1
  * callees: -
@@ -32397,7 +32481,7 @@ unsigned __int8 __cdecl sub_3F1ED(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F22A
+ * IDA 9.5 Hex-Rays: sub_3F22A
  * VA=0x3f22a..0x3f236 OBJ=1 OFF=0x2f22a size=0xc
  * type: int __fastcall(_DWORD)
  * callers: 0x37ed8, 0x37f70, 0x38074, 0x3815f, 0x381d8, 0x38262, 0x382e9, 0x383f1, 0x3845e, 0x38463, 0x387bc, 0x388a7, 0x3899a, 0x38a10, 0x38afc, 0x38bd9, 0x38ca8, 0x38d77, 0x38de4, 0x38e46, 0x38f2b, 0x3901e, 0x3908b, 0x39176, 0x392d0, 0x393b5, 0x394b4, 0x39521, 0x3958e, 0x39694, 0x39716, 0x39798, 0x39805, 0x398df, 0x3994c, 0x399c2, 0x39a38, 0x39aae, 0x39b24, 0x39c09, 0x39cfa, 0x39ddf, 0x39ec4, 0x39fa9, 0x3a0a2, 0x3a19b, 0x3a280, 0x3a385, 0x3a46a, 0x3a557, 0x3a644, 0x3a731, 0x3a81e, 0x3a8a0, 0x3a98d, 0x3aa72, 0x3ab49, 0x3aca3, 0x3adf5, 0x3aeee, 0x3af5b, 0x3b035, 0x3b0a2, 0x3b124, 0x3b1a6, 0x3b21c, 0x3b301, 0x3b3e6, 0x3b4cb, 0x3b5b0, 0x3b716, 0x3b80f, 0x3b908, 0x3b98a, 0x3ba0c, 0x3baf1, 0x3bbea, 0x3bcd7, 0x3bddf, 0x3be55, 0x3bf42, 0x3c02f, 0x3c11c, 0x3c209, 0x3c2f6, 0x3c378, 0x3c4db, 0x3c5c0, 0x3c636, 0x3c6b8, 0x3c7a5, 0x3c8b4
@@ -32410,7 +32494,7 @@ int sub_3F22A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F236
+ * IDA 9.5 Hex-Rays: sub_3F236
  * VA=0x3f236..0x3f27d OBJ=1 OFF=0x2f236 size=0x47
  * callers: 0x37d3e, 0x387bc
  * callees: 0x3806a, 0x3806f
@@ -32427,7 +32511,7 @@ unsigned int __cdecl sub_3F236(int a1)
     v1 += 4;
     if ( v1 >= 0x3C )
     {
-      v1 = -1;
+      v1 = 0xFFFFFFFF;
       goto LABEL_6;
     }
   }
@@ -32441,7 +32525,7 @@ LABEL_6:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F27D
+ * IDA 9.5 Hex-Rays: sub_3F27D
  * VA=0x3f27d..0x3f2a5 OBJ=1 OFF=0x2f27d size=0x28
  * callers: 0x388a7
  * callees: 0x3806a, 0x3806f
@@ -32461,7 +32545,7 @@ __int32 __cdecl sub_3F27D(int a1, __int32 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F2A5
+ * IDA 9.5 Hex-Rays: sub_3F2A5
  * VA=0x3f2a5..0x3f2cc OBJ=1 OFF=0x2f2a5 size=0x27
  * callers: 0x38d77
  * callees: 0x3806a, 0x3806f
@@ -32476,7 +32560,7 @@ int __cdecl sub_3F2A5(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F2CC
+ * IDA 9.5 Hex-Rays: sub_3F2CC
  * VA=0x3f2cc..0x3f2f0 OBJ=1 OFF=0x2f2cc size=0x24
  * type: int(void)
  * callers: 0x38de4
@@ -32504,7 +32588,7 @@ int sub_3F2CC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F2F0
+ * IDA 9.5 Hex-Rays: sub_3F2F0
  * VA=0x3f2f0..0x3f320 OBJ=1 OFF=0x2f2f0 size=0x30
  * callers: 0x37d3e, 0x38bd9
  * callees: 0x3806a, 0x3806f
@@ -32521,7 +32605,7 @@ int __cdecl sub_3F2F0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F320
+ * IDA 9.5 Hex-Rays: sub_3F320
  * VA=0x3f320..0x3f344 OBJ=1 OFF=0x2f320 size=0x24
  * callers: -
  * callees: 0x3806a, 0x3806f, 0x38bd9
@@ -32548,7 +32632,7 @@ int sub_3F320()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F344
+ * IDA 9.5 Hex-Rays: sub_3F344
  * VA=0x3f344..0x3f374 OBJ=1 OFF=0x2f344 size=0x30
  * callers: 0x38ca8
  * callees: 0x3806a, 0x3806f
@@ -32565,7 +32649,7 @@ int __cdecl sub_3F344(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F374
+ * IDA 9.5 Hex-Rays: sub_3F374
  * VA=0x3f374..0x3f398 OBJ=1 OFF=0x2f374 size=0x24
  * callers: -
  * callees: 0x3806a, 0x3806f, 0x38ca8
@@ -32592,7 +32676,7 @@ int sub_3F374()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F398
+ * IDA 9.5 Hex-Rays: sub_3F398
  * VA=0x3f398..0x3f3c8 OBJ=1 OFF=0x2f398 size=0x30
  * callers: 0x3899a
  * callees: 0x3806a, 0x3806f, 0x3ec17
@@ -32610,7 +32694,7 @@ int __cdecl sub_3F398(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F3C8
+ * IDA 9.5 Hex-Rays: sub_3F3C8
  * VA=0x3f3c8..0x3f3f8 OBJ=1 OFF=0x2f3c8 size=0x30
  * callers: 0x37d3e, 0x38a10
  * callees: 0x3806a, 0x3806f, 0x3899a
@@ -32626,7 +32710,7 @@ int __cdecl sub_3F3C8(int a1, unsigned int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F3F8
+ * IDA 9.5 Hex-Rays: sub_3F3F8
  * VA=0x3f3f8..0x3f43a OBJ=1 OFF=0x2f3f8 size=0x42
  * callers: -
  * callees: 0x3806a, 0x3806f, 0x3899a
@@ -32647,7 +32731,7 @@ int __cdecl sub_3F3F8(int a1, unsigned int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F43A
+ * IDA 9.5 Hex-Rays: sub_3F43A
  * VA=0x3f43a..0x3f446 OBJ=1 OFF=0x2f43a size=0xc
  * type: int(void)
  * callers: 0x38afc
@@ -32660,7 +32744,7 @@ int sub_3F43A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F446
+ * IDA 9.5 Hex-Rays: sub_3F446
  * VA=0x3f446..0x3f46b OBJ=1 OFF=0x2f446 size=0x25
  * type: int(void)
  * callers: 0x3ec7c, 0x3f446
@@ -32674,7 +32758,7 @@ bool sub_3F446()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fprintf
+ * IDA 9.5 Hex-Rays: fprintf
  * VA=0x3f46b..0x3f48b OBJ=1 OFF=0x2f46b size=0x20 [FLIRT-lib]
  * type: _DWORD(_DWORD, _DWORD, ...)
  * callers: 0x37c9c, 0x37d3e, 0x37ed8, 0x37f70, 0x38074, 0x3815f, 0x381d8, 0x38262, 0x382e9, 0x383f1, 0x38463, 0x387bc, 0x388a7, 0x3899a, 0x38a10, 0x38afc, 0x38bd9, 0x38ca8, 0x38d77, 0x38de4, 0x38e46, 0x38f2b, 0x3901e, 0x3908b, 0x39176, 0x392d0, 0x393b5, 0x394b4, 0x39521, 0x3958e, 0x39694, 0x39716, 0x39798, 0x39805, 0x398df, 0x3994c, 0x399c2, 0x39a38, 0x39aae, 0x39b24, 0x39c09, 0x39cfa, 0x39ddf, 0x39ec4, 0x39fa9, 0x3a0a2, 0x3a19b, 0x3a280, 0x3a385, 0x3a46a, 0x3a557, 0x3a644, 0x3a731, 0x3a81e, 0x3a8a0, 0x3a98d, 0x3aa72, 0x3ab49, 0x3aca3, 0x3adf5, 0x3aeee, 0x3af5b, 0x3b035, 0x3b0a2, 0x3b124, 0x3b1a6, 0x3b21c, 0x3b301, 0x3b3e6, 0x3b4cb, 0x3b5b0, 0x3b716, 0x3b80f, 0x3b908, 0x3b98a, 0x3ba0c, 0x3baf1, 0x3bbea, 0x3bcd7, 0x3bddf, 0x3be55, 0x3bf42, 0x3c02f, 0x3c11c, 0x3c209, 0x3c2f6, 0x3c378, 0x3c4db, 0x3c5c0, 0x3c636, 0x3c6b8, 0x3c7a5, 0x3c8b4
@@ -32692,7 +32776,7 @@ int fprintf(int a1, int a2, ...)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: getenv
+ * IDA 9.5 Hex-Rays: getenv
  * VA=0x3f48b..0x3f4e0 OBJ=1 OFF=0x2f48b size=0x55 [FLIRT-lib]
  * callers: 0x37d3e, 0x3fc33, 0x43ad0, 0x4726f
  * callees: 0x37b55, 0x46f4f
@@ -32722,7 +32806,7 @@ int __cdecl getenv(const char *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F4E0
+ * IDA 9.5 Hex-Rays: sub_3F4E0
  * VA=0x3f4e0..0x3f565 OBJ=1 OFF=0x2f4e0 size=0x85
  * callers: 0x3f4e0, 0x3fca9, 0x3fddc
  * callees: 0x365da, 0x3666c
@@ -32747,7 +32831,7 @@ bool sub_3F4E0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F565
+ * IDA 9.5 Hex-Rays: sub_3F565
  * VA=0x3f565..0x3f5b4 OBJ=1 OFF=0x2f565 size=0x4f
  * callers: 0x3f950
  * callees: 0x382d6, 0x382db, 0x382e9
@@ -32766,7 +32850,7 @@ void __cdecl __spoils<> sub_3F565(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F5B4
+ * IDA 9.5 Hex-Rays: sub_3F5B4
  * VA=0x3f5b4..0x3f656 OBJ=1 OFF=0x2f5b4 size=0xa2
  * callers: 0x3f656
  * callees: 0x37b55, 0x46f3a
@@ -32811,7 +32895,7 @@ int __cdecl sub_3F5B4(const char *a1, int a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F656
+ * IDA 9.5 Hex-Rays: sub_3F656
  * VA=0x3f656..0x3f937 OBJ=1 OFF=0x2f656 size=0x2e1
  * callers: 0x38463
  * callees: 0x37324, 0x3759c, 0x37910, 0x37b55, 0x3f5b4, 0x400cc, 0x46f4f, 0x46f9c
@@ -32894,7 +32978,7 @@ int __usercall sub_3F656@<eax>(int a1@<ebx>, void *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F937
+ * IDA 9.5 Hex-Rays: sub_3F937
  * VA=0x3f937..0x3f950 OBJ=1 OFF=0x2f937 size=0x19
  * callers: 0x37f70
  * callees: -
@@ -32910,7 +32994,7 @@ int __cdecl sub_3F937(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3F950
+ * IDA 9.5 Hex-Rays: sub_3F950
  * VA=0x3f950..0x3fb90 OBJ=1 OFF=0x2f950 size=0x240
  * callers: 0x38f2b
  * callees: 0x364d4, 0x364fb, 0x36522, 0x365ab, 0x3771c, 0x38074, 0x3815f, 0x382e9, 0x387bc, 0x388a7, 0x38a10, 0x38bd9, 0x46f4f
@@ -33011,7 +33095,7 @@ LABEL_9:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FB90
+ * IDA 9.5 Hex-Rays: sub_3FB90
  * VA=0x3fb90..0x3fc33 OBJ=1 OFF=0x2fb90 size=0xa3
  * callers: 0x3901e
  * callees: 0x364fb, 0x365ab, 0x3815f, 0x38262, 0x382e9, 0x38d77
@@ -33047,7 +33131,7 @@ int __usercall sub_3FB90@<eax>(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FC33
+ * IDA 9.5 Hex-Rays: sub_3FC33
  * VA=0x3fc33..0x3fca9 OBJ=1 OFF=0x2fc33 size=0x76
  * callers: 0x38e46
  * callees: 0x382e9, 0x3f48b, 0x47006
@@ -33073,7 +33157,7 @@ const char *__cdecl sub_3FC33(int a1)
       }
       else
       {
-        qmemcpy(&unk_54358, (const void *)(*(_DWORD *)(a1 + 12) + 22), 0x18u);
+        qmemcpy(unk_54358, (const void *)(*(_DWORD *)(a1 + 12) + 22), sizeof(unk_54358));
         return (const char *)&unk_54358;
       }
     }
@@ -33083,7 +33167,7 @@ const char *__cdecl sub_3FC33(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FCA9
+ * IDA 9.5 Hex-Rays: sub_3FCA9
  * VA=0x3fca9..0x3fdaf OBJ=1 OFF=0x2fca9 size=0x106
  * type: int __fastcall(_DWORD)
  * callers: 0x37d3e
@@ -33139,7 +33223,7 @@ void __fastcall sub_3FCA9(int a1, unsigned __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FDAF
+ * IDA 9.5 Hex-Rays: sub_3FDAF
  * VA=0x3fdaf..0x3fddc OBJ=1 OFF=0x2fdaf size=0x2d
  * type: int(void)
  * callers: 0x37ed8
@@ -33161,7 +33245,7 @@ int __fastcall sub_3FDAF(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FDDC
+ * IDA 9.5 Hex-Rays: sub_3FDDC
  * VA=0x3fddc..0x3fe5f OBJ=1 OFF=0x2fddc size=0x83
  * callers: 0x3f4e0, 0x3fddc
  * callees: 0x36647, 0x36683
@@ -33183,7 +33267,7 @@ void sub_3FDDC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: isatty
+ * IDA 9.5 Hex-Rays: isatty
  * VA=0x3fe5f..0x3fe7f OBJ=1 OFF=0x2fe5f size=0x20 [FLIRT-lib]
  * callers: 0x37d3e, 0x3d093, 0x3dc3c, 0x466a2
  * callees: -
@@ -33200,7 +33284,7 @@ bool isatty()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: setbuf
+ * IDA 9.5 Hex-Rays: setbuf
  * VA=0x3fe7f..0x3fea7 OBJ=1 OFF=0x2fe7f size=0x28 [FLIRT-lib]
  * callers: 0x37d3e
  * callees: 0x47039
@@ -33217,7 +33301,7 @@ int __cdecl setbuf(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: time
+ * IDA 9.5 Hex-Rays: time
  * VA=0x3fea7..0x3fee0 OBJ=1 OFF=0x2fea7 size=0x39 [FLIRT-lib]
  * callers: 0x37d3e
  * callees: 0x470b1, 0x47153
@@ -33237,7 +33321,7 @@ int __cdecl time(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FEE0
+ * IDA 9.5 Hex-Rays: sub_3FEE0
  * VA=0x3fee0..0x3ff35 OBJ=1 OFF=0x2fee0 size=0x55
  * callers: 0x3ff35, 0x40090
  * callees: 0x4726f, 0x47525, 0x476c1
@@ -33256,7 +33340,7 @@ int __usercall sub_3FEE0@<eax>(int a1@<eax>, int a2@<edx>, _DWORD *a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: putchar
+ * IDA 9.5 Hex-Rays: putchar
  * VA=0x3ff35..0x3ff4a OBJ=1 OFF=0x2ff35 size=0x15 [FLIRT-lib]
  * callers: 0x37d3e, 0x400b3
  * callees: 0x3fee0
@@ -33268,7 +33352,7 @@ int __usercall putchar@<eax>(int a1@<eax>, int a2@<edx>, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_3FF4A
+ * IDA 9.5 Hex-Rays: sub_3FF4A
  * VA=0x3ff4a..0x3ff8b OBJ=1 OFF=0x2ff4a size=0x41 [FLIRT-lib]
  * callers: 0x3ff8b
  * callees: 0x47952
@@ -33288,7 +33372,7 @@ _BYTE *__cdecl sub_3FF4A(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _asctime
+ * IDA 9.5 Hex-Rays: _asctime
  * VA=0x3ff8b..0x4007b OBJ=1 OFF=0x2ff8b size=0xf0 [FLIRT-lib]
  * type: char *(const struct tm *timeptr)
  * callers: 0x4007b, 0x40090
@@ -33332,7 +33416,7 @@ char *asctime(const struct tm *timeptr)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: asctime
+ * IDA 9.5 Hex-Rays: asctime
  * VA=0x4007b..0x40090 OBJ=1 OFF=0x3007b size=0x15 [FLIRT-lib]
  * type: int __cdecl(struct tm *timeptr)
  * callers: 0x37d3e, 0x400b3
@@ -33345,7 +33429,7 @@ char *__cdecl asctime(struct tm *timeptr)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _ctime
+ * IDA 9.5 Hex-Rays: _ctime
  * VA=0x40090..0x400b3 OBJ=1 OFF=0x30090 size=0x23 [FLIRT-lib]
  * type: char *(const time_t *timer)
  * callers: -
@@ -33363,7 +33447,7 @@ char *ctime(const time_t *timer)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: ctime
+ * IDA 9.5 Hex-Rays: ctime
  * VA=0x400b3..0x400cc OBJ=1 OFF=0x300b3 size=0x19 [FLIRT-lib]
  * callers: -
  * callees: 0x3ff35, 0x4007b
@@ -33378,7 +33462,7 @@ char *__usercall ctime@<eax>(int a1@<eax>, int a2@<edx>, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strcpy
+ * IDA 9.5 Hex-Rays: strcpy
  * VA=0x400cc..0x400f5 OBJ=1 OFF=0x300cc size=0x29 [FLIRT-lib]
  * callers: 0x37d3e, 0x3f656, 0x4d966
  * callees: -
@@ -33407,7 +33491,7 @@ char *__cdecl strcpy(char *a1, char *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_40100
+ * IDA 9.5 Hex-Rays: sub_40100
  * VA=0x40100..0x401bb OBJ=1 OFF=0x30100 size=0xbb
  * callers: 0x40100, 0x40cf0, 0x41a40
  * callees: 0x365da, 0x3666c, 0x4994f
@@ -33435,7 +33519,7 @@ void sub_40100()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_401C0
+ * IDA 9.5 Hex-Rays: sub_401C0
  * VA=0x401c0..0x40203 OBJ=1 OFF=0x301c0 size=0x43
  * callers: -
  * callees: 0x382e9
@@ -33457,7 +33541,7 @@ void __cdecl sub_401C0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_40240
+ * IDA 9.5 Hex-Rays: sub_40240
  * VA=0x40240..0x404b2 OBJ=1 OFF=0x30240 size=0x272
  * callers: 0x414e0, 0x415d0, 0x41630, 0x41660
  * callees: -
@@ -33615,7 +33699,7 @@ int *__cdecl sub_40240(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_404C0
+ * IDA 9.5 Hex-Rays: sub_404C0
  * VA=0x404c0..0x40684 OBJ=1 OFF=0x304c0 size=0x1c4
  * callers: 0x40cf0
  * callees: 0x382d6, 0x382db, 0x382e9, 0x49690, 0x49891, 0x49923
@@ -33697,7 +33781,7 @@ void __cdecl sub_404C0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_406B0
+ * IDA 9.5 Hex-Rays: sub_406B0
  * VA=0x406b0..0x40b34 OBJ=1 OFF=0x306b0 size=0x484
  * callers: 0x40cf0
  * callees: 0x382e9, 0x49891, 0x49923
@@ -33936,7 +34020,7 @@ LABEL_41:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_40B40
+ * IDA 9.5 Hex-Rays: sub_40B40
  * VA=0x40b40..0x40c39 OBJ=1 OFF=0x30b40 size=0xf9
  * callers: 0x40cf0
  * callees: 0x382e9
@@ -33945,9 +34029,9 @@ void __cdecl sub_40B40(int *a1, const void *a2)
 {
   int v2; // eax
   _WORD *v3; // ebx
-  unsigned int i; // eax
+  int i; // eax
   int v5; // ebx
-  _DWORD v6[6]; // [esp+0h] [ebp-30h] BYREF
+  _WORD v6[12]; // [esp+0h] [ebp-30h]
   _BYTE v7[6]; // [esp+18h] [ebp-18h] BYREF
   __int16 v8; // [esp+1Eh] [ebp-12h]
 
@@ -33956,18 +34040,18 @@ void __cdecl sub_40B40(int *a1, const void *a2)
   if ( *(_WORD *)(v2 + 16) != 0 )
   {
     v3 = (_WORD *)((unsigned __int16)*(_DWORD *)(v2 + 12) + 16 * HIWORD(*(_DWORD *)(v2 + 12)));
-    if ( SLOWORD(v6[0]) < 0 )
-      LOWORD(v6[0]) = *v3;
     if ( v6[0] < 0 )
-      HIWORD(v6[0]) = v3[1];
-    if ( SLOWORD(v6[1]) < 0 )
-      LOWORD(v6[1]) = v3[2];
+      v6[0] = *v3;
     if ( v6[1] < 0 )
-      HIWORD(v6[1]) = v3[3];
-    for ( i = 0; i != 16; i += 4 )
+      v6[1] = *(_WORD *)((unsigned __int16)*(_DWORD *)(v2 + 12) + 16 * HIWORD(*(_DWORD *)(v2 + 12)) + 2);
+    if ( v6[2] < 0 )
+      v6[2] = *(_WORD *)((unsigned __int16)*(_DWORD *)(v2 + 12) + 16 * HIWORD(*(_DWORD *)(v2 + 12)) + 4);
+    if ( v6[3] < 0 )
+      v6[3] = *(_WORD *)((unsigned __int16)*(_DWORD *)(v2 + 12) + 16 * HIWORD(*(_DWORD *)(v2 + 12)) + 6);
+    for ( i = 0; i != 8; i += 2 )
     {
-      if ( (int)v6[i / 4 + 2] < 0 )
-        v6[i / 4 + 2] = *(_DWORD *)&v3[i / 2 + 4];
+      if ( *(int *)&v6[i + 4] < 0 )
+        *(_DWORD *)&v6[i + 4] = *(_DWORD *)&v3[i + 4];
     }
   }
   v5 = dword_54330;
@@ -33981,7 +34065,7 @@ void __cdecl sub_40B40(int *a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_40C40
+ * IDA 9.5 Hex-Rays: sub_40C40
  * VA=0x40c40..0x40cea OBJ=1 OFF=0x30c40 size=0xaa
  * callers: 0x40cf0
  * callees: 0x364fb, 0x365ab, 0x382e9, 0x383f1, 0x38d77, 0x49891, 0x49923
@@ -34008,7 +34092,7 @@ int __usercall sub_40C40@<eax>(int a1@<eax>, int *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_40CF0
+ * IDA 9.5 Hex-Rays: sub_40CF0
  * VA=0x40cf0..0x412fa OBJ=1 OFF=0x30cf0 size=0x60a
  * callers: 0x41300, 0x41380
  * callees: 0x364d4, 0x364fb, 0x36522, 0x365ab, 0x37910, 0x38262, 0x382e9, 0x387bc, 0x388a7, 0x38a10, 0x38bd9, 0x38e46, 0x40100, 0x406b0, 0x40b40, 0x49891, 0x49923
@@ -34041,7 +34125,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
   int v25; // eax
   int v26; // eax
   int v27; // eax
-  _BYTE v28[24]; // [esp+0h] [ebp-50h] BYREF
+  _BYTE v28[24]; // [esp+0h] [ebp-50h]
   _WORD v29[6]; // [esp+18h] [ebp-38h] BYREF
   int v30; // [esp+24h] [ebp-2Ch] BYREF
   unsigned int v31; // [esp+28h] [ebp-28h] BYREF
@@ -34081,7 +34165,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
       v36 = 0;
       if ( a2 != nullptr )
       {
-        qmemcpy(&unk_542F4, a2, 0x18u);
+        qmemcpy(unk_542F4, a2, sizeof(unk_542F4));
         sub_40B40(v3, a2);
         if ( v7 != 0 )
         {
@@ -34096,7 +34180,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
         v35 = v8;
         if ( v8 != nullptr )
         {
-          qmemcpy(&unk_542F4, v8, 0x18u);
+          qmemcpy(unk_542F4, v8, sizeof(unk_542F4));
           sub_40B40(v3, v8);
           if ( v9 != 0 )
           {
@@ -34117,7 +34201,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
           v10 = (const void *)(16 * HIWORD(*(_DWORD *)(v12 + 12)) + (unsigned __int16)*(_DWORD *)(v12 + 12) + v33);
           v34 = v10;
           if ( v37 == 0 )
-            qmemcpy(&unk_542F4, v10, 0x18u);
+            qmemcpy(unk_542F4, v10, sizeof(unk_542F4));
           sub_40B40(v3, v34);
           if ( v11 != 0 )
           {
@@ -34266,7 +34350,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41300
+ * IDA 9.5 Hex-Rays: sub_41300
  * VA=0x41300..0x41378 OBJ=1 OFF=0x31300 size=0x78
  * callers: 0x39176
  * callees: 0x36c56, 0x36cab, 0x3776e, 0x38f2b, 0x3901e, 0x40cf0
@@ -34309,7 +34393,7 @@ int __cdecl sub_41300(int a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41380
+ * IDA 9.5 Hex-Rays: sub_41380
  * VA=0x41380..0x413bc OBJ=1 OFF=0x31380 size=0x3c
  * callers: 0x39fa9
  * callees: 0x38f2b, 0x3901e, 0x40cf0
@@ -34327,7 +34411,7 @@ void __usercall sub_41380(int a1@<eax>, int a2, int a3, const void *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_413C0
+ * IDA 9.5 Hex-Rays: sub_413C0
  * VA=0x413c0..0x41413 OBJ=1 OFF=0x313c0 size=0x53
  * type: int(void)
  * callers: 0x3908b
@@ -34347,7 +34431,7 @@ void sub_413C0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41420
+ * IDA 9.5 Hex-Rays: sub_41420
  * VA=0x41420..0x41430 OBJ=1 OFF=0x31420 size=0x10
  * callers: -
  * callees: 0x3901e
@@ -34359,7 +34443,7 @@ void __cdecl sub_41420(int *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41430
+ * IDA 9.5 Hex-Rays: sub_41430
  * VA=0x41430..0x4145c OBJ=1 OFF=0x31430 size=0x2c
  * callers: 0x3a98d
  * callees: -
@@ -34389,7 +34473,7 @@ int __cdecl sub_41430(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41460
+ * IDA 9.5 Hex-Rays: sub_41460
  * VA=0x41460..0x414cc OBJ=1 OFF=0x31460 size=0x6c
  * callers: 0x392d0
  * callees: 0x3806a, 0x3806f, 0x39521
@@ -34434,7 +34518,7 @@ int __cdecl sub_41460(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_414D0
+ * IDA 9.5 Hex-Rays: sub_414D0
  * VA=0x414d0..0x414e0 OBJ=1 OFF=0x314d0 size=0x10
  * callers: 0x394b4
  * callees: -
@@ -34451,7 +34535,7 @@ int __cdecl sub_414D0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_414E0
+ * IDA 9.5 Hex-Rays: sub_414E0
  * VA=0x414e0..0x4158d OBJ=1 OFF=0x314e0 size=0xad
  * callers: 0x39521
  * callees: 0x40240
@@ -34492,7 +34576,7 @@ int *__cdecl sub_414E0(int *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41590
+ * IDA 9.5 Hex-Rays: sub_41590
  * VA=0x41590..0x4159c OBJ=1 OFF=0x31590 size=0xc
  * callers: 0x39b24
  * callees: -
@@ -34509,7 +34593,7 @@ int __cdecl sub_41590(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_415A0
+ * IDA 9.5 Hex-Rays: sub_415A0
  * VA=0x415a0..0x415c5 OBJ=1 OFF=0x315a0 size=0x25
  * callers: 0x39694
  * callees: -
@@ -34531,7 +34615,7 @@ _DWORD *__cdecl sub_415A0(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_415D0
+ * IDA 9.5 Hex-Rays: sub_415D0
  * VA=0x415d0..0x415fa OBJ=1 OFF=0x315d0 size=0x2a
  * callers: 0x39716
  * callees: 0x40240
@@ -34552,7 +34636,7 @@ int *__cdecl sub_415D0(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41600
+ * IDA 9.5 Hex-Rays: sub_41600
  * VA=0x41600..0x4160c OBJ=1 OFF=0x31600 size=0xc
  * callers: 0x39c09
  * callees: -
@@ -34569,7 +34653,7 @@ int __cdecl sub_41600(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41610
+ * IDA 9.5 Hex-Rays: sub_41610
  * VA=0x41610..0x41620 OBJ=1 OFF=0x31610 size=0x10
  * callers: 0x3994c
  * callees: -
@@ -34586,7 +34670,7 @@ int __cdecl sub_41610(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41620
+ * IDA 9.5 Hex-Rays: sub_41620
  * VA=0x41620..0x4162c OBJ=1 OFF=0x31620 size=0xc
  * callers: 0x39cfa
  * callees: -
@@ -34603,7 +34687,7 @@ int __cdecl sub_41620(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41630
+ * IDA 9.5 Hex-Rays: sub_41630
  * VA=0x41630..0x4164e OBJ=1 OFF=0x31630 size=0x1e
  * callers: 0x399c2
  * callees: 0x40240
@@ -34623,7 +34707,7 @@ int *__cdecl sub_41630(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41650
+ * IDA 9.5 Hex-Rays: sub_41650
  * VA=0x41650..0x4165c OBJ=1 OFF=0x31650 size=0xc
  * callers: 0x39ddf
  * callees: -
@@ -34640,7 +34724,7 @@ int __cdecl sub_41650(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41660
+ * IDA 9.5 Hex-Rays: sub_41660
  * VA=0x41660..0x4167e OBJ=1 OFF=0x31660 size=0x1e
  * callers: 0x39a38
  * callees: 0x40240
@@ -34660,7 +34744,7 @@ int *__cdecl sub_41660(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41680
+ * IDA 9.5 Hex-Rays: sub_41680
  * VA=0x41680..0x41693 OBJ=1 OFF=0x31680 size=0x13
  * callers: 0x3a385
  * callees: -
@@ -34675,7 +34759,7 @@ int __cdecl sub_41680(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_416A0
+ * IDA 9.5 Hex-Rays: sub_416A0
  * VA=0x416a0..0x416bc OBJ=1 OFF=0x316a0 size=0x1c
  * callers: -
  * callees: -
@@ -34694,7 +34778,7 @@ int __cdecl sub_416A0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_416C0
+ * IDA 9.5 Hex-Rays: sub_416C0
  * VA=0x416c0..0x416d2 OBJ=1 OFF=0x316c0 size=0x12
  * callers: 0x39ec4
  * callees: -
@@ -34709,7 +34793,7 @@ int __cdecl sub_416C0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_416E0
+ * IDA 9.5 Hex-Rays: sub_416E0
  * VA=0x416e0..0x416f0 OBJ=1 OFF=0x316e0 size=0x10
  * callers: 0x39aae
  * callees: -
@@ -34726,7 +34810,7 @@ int __cdecl sub_416E0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_416F0
+ * IDA 9.5 Hex-Rays: sub_416F0
  * VA=0x416f0..0x41769 OBJ=1 OFF=0x316f0 size=0x79
  * callers: 0x39798
  * callees: 0x382e9
@@ -34760,7 +34844,7 @@ void __cdecl __spoils<> sub_416F0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41770
+ * IDA 9.5 Hex-Rays: sub_41770
  * VA=0x41770..0x41786 OBJ=1 OFF=0x31770 size=0x16
  * callers: 0x39805
  * callees: -
@@ -34777,7 +34861,7 @@ int __cdecl sub_41770(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41790
+ * IDA 9.5 Hex-Rays: sub_41790
  * VA=0x41790..0x417a6 OBJ=1 OFF=0x31790 size=0x16
  * callers: -
  * callees: -
@@ -34794,7 +34878,7 @@ int __cdecl sub_41790(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_417B0
+ * IDA 9.5 Hex-Rays: sub_417B0
  * VA=0x417b0..0x417f6 OBJ=1 OFF=0x317b0 size=0x46
  * callers: 0x398df
  * callees: -
@@ -34823,7 +34907,7 @@ int __cdecl sub_417B0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41800
+ * IDA 9.5 Hex-Rays: sub_41800
  * VA=0x41800..0x4181b OBJ=1 OFF=0x31800 size=0x1b
  * callers: 0x3a46a
  * callees: -
@@ -34845,7 +34929,7 @@ int __cdecl sub_41800(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41820
+ * IDA 9.5 Hex-Rays: sub_41820
  * VA=0x41820..0x4183b OBJ=1 OFF=0x31820 size=0x1b
  * callers: 0x3a557
  * callees: -
@@ -34867,7 +34951,7 @@ int __cdecl sub_41820(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41840
+ * IDA 9.5 Hex-Rays: sub_41840
  * VA=0x41840..0x4185b OBJ=1 OFF=0x31840 size=0x1b
  * callers: 0x3a644
  * callees: -
@@ -34889,7 +34973,7 @@ int __cdecl sub_41840(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41860
+ * IDA 9.5 Hex-Rays: sub_41860
  * VA=0x41860..0x41880 OBJ=1 OFF=0x31860 size=0x20
  * callers: 0x3a81e
  * callees: -
@@ -34908,7 +34992,7 @@ int __cdecl sub_41860(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41880
+ * IDA 9.5 Hex-Rays: sub_41880
  * VA=0x41880..0x41897 OBJ=1 OFF=0x31880 size=0x17
  * callers: 0x3a8a0
  * callees: -
@@ -34923,7 +35007,7 @@ int __cdecl sub_41880(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_418B0
+ * IDA 9.5 Hex-Rays: sub_418B0
  * VA=0x418b0..0x41948 OBJ=1 OFF=0x318b0 size=0x98
  * callers: 0x3a0a2
  * callees: -
@@ -34962,7 +35046,7 @@ int __usercall sub_418B0@<eax>(int a1@<edx>, _DWORD *a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41950
+ * IDA 9.5 Hex-Rays: sub_41950
  * VA=0x41950..0x419d4 OBJ=1 OFF=0x31950 size=0x84
  * callers: 0x3a280
  * callees: 0x382e9
@@ -34997,7 +35081,7 @@ void __cdecl sub_41950(int *a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_419E0
+ * IDA 9.5 Hex-Rays: sub_419E0
  * VA=0x419e0..0x41a34 OBJ=1 OFF=0x319e0 size=0x54
  * callers: 0x3a19b
  * callees: -
@@ -35038,7 +35122,7 @@ char __cdecl sub_419E0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41A40
+ * IDA 9.5 Hex-Rays: sub_41A40
  * VA=0x41a40..0x41af4 OBJ=1 OFF=0x31a40 size=0xb4
  * callers: 0x40100, 0x41a40
  * callees: 0x36647, 0x36683
@@ -35063,7 +35147,7 @@ void sub_41A40()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41AF4
+ * IDA 9.5 Hex-Rays: sub_41AF4
  * VA=0x41af4..0x41b1c OBJ=1 OFF=0x31af4 size=0x28
  * callers: 0x41af4, 0x41ec1, 0x420e1
  * callees: 0x365da
@@ -35082,7 +35166,7 @@ bool sub_41AF4()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41B1C
+ * IDA 9.5 Hex-Rays: sub_41B1C
  * VA=0x41b1c..0x41b26 OBJ=1 OFF=0x31b1c size=0xa
  * callers: 0x41b84
  * callees: -
@@ -35094,7 +35178,7 @@ int __cdecl sub_41B1C(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41B26
+ * IDA 9.5 Hex-Rays: sub_41B26
  * VA=0x41b26..0x41b5c OBJ=1 OFF=0x31b26 size=0x36
  * callers: 0x41b84, 0x41ec1
  * callees: 0x394b4
@@ -35110,7 +35194,7 @@ void __usercall sub_41B26(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41B84
+ * IDA 9.5 Hex-Rays: sub_41B84
  * VA=0x41b84..0x41ddb OBJ=1 OFF=0x31b84 size=0x257
  * callers: 0x41ddb, 0x41ec1, 0x41fee
  * callees: 0x39694, 0x39716, 0x39798, 0x3994c, 0x41b1c, 0x41b26
@@ -35230,7 +35314,7 @@ LABEL_39:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41DDB
+ * IDA 9.5 Hex-Rays: sub_41DDB
  * VA=0x41ddb..0x41deb OBJ=1 OFF=0x31ddb size=0x10
  * callers: 0x41ec1
  * callees: 0x41b84
@@ -35242,7 +35326,7 @@ void __cdecl sub_41DDB(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41DEB
+ * IDA 9.5 Hex-Rays: sub_41DEB
  * VA=0x41deb..0x41ec1 OBJ=1 OFF=0x31deb size=0xd6
  * callers: 0x41ec1, 0x41fee
  * callees: 0x39694, 0x39716, 0x3994c, 0x46f4f
@@ -35283,7 +35367,7 @@ int __cdecl sub_41DEB(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41EC1
+ * IDA 9.5 Hex-Rays: sub_41EC1
  * VA=0x41ec1..0x41fee OBJ=1 OFF=0x31ec1 size=0x12d
  * callers: 0x393b5
  * callees: 0x392d0, 0x39521, 0x3a644, 0x41af4, 0x41b84, 0x41deb, 0x46f4f
@@ -35342,7 +35426,7 @@ void __cdecl sub_41EC1(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_41FEE
+ * IDA 9.5 Hex-Rays: sub_41FEE
  * VA=0x41fee..0x420c6 OBJ=1 OFF=0x31fee size=0xd8
  * callers: 0x3958e
  * callees: 0x41b84, 0x41deb, 0x46f4f
@@ -35384,7 +35468,7 @@ int __cdecl sub_41FEE(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_420C6
+ * IDA 9.5 Hex-Rays: sub_420C6
  * VA=0x420c6..0x420e1 OBJ=1 OFF=0x320c6 size=0x1b
  * callers: 0x3a731
  * callees: -
@@ -35406,7 +35490,7 @@ int __cdecl sub_420C6(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_420E1
+ * IDA 9.5 Hex-Rays: sub_420E1
  * VA=0x420e1..0x42107 OBJ=1 OFF=0x320e1 size=0x26
  * callers: 0x41af4, 0x420e1
  * callees: 0x36647
@@ -35422,7 +35506,7 @@ void sub_420E1()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42110
+ * IDA 9.5 Hex-Rays: sub_42110
  * VA=0x42110..0x42203 OBJ=1 OFF=0x32110 size=0xf3
  * callers: 0x42110, 0x43ad0, 0x45380
  * callees: 0x365da, 0x3666c
@@ -35454,7 +35538,7 @@ bool sub_42110()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42270
+ * IDA 9.5 Hex-Rays: sub_42270
  * VA=0x42270..0x422bd OBJ=1 OFF=0x32270 size=0x4d
  * callers: 0x43270, 0x452f0
  * callees: 0x382e9
@@ -35475,7 +35559,7 @@ void __cdecl sub_42270(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_422C0
+ * IDA 9.5 Hex-Rays: sub_422C0
  * VA=0x422c0..0x423d8 OBJ=1 OFF=0x322c0 size=0x118
  * callers: 0x42980, 0x43ad0, 0x447d0, 0x44f00, 0x450b0, 0x45240
  * callees: 0x382e9
@@ -35559,7 +35643,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_423E0
+ * IDA 9.5 Hex-Rays: sub_423E0
  * VA=0x423e0..0x424a5 OBJ=1 OFF=0x323e0 size=0xc5
  * callers: -
  * callees: 0x3771c, 0x382e9
@@ -35598,7 +35682,7 @@ void __cdecl sub_423E0(int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_424B0
+ * IDA 9.5 Hex-Rays: sub_424B0
  * VA=0x424b0..0x424dd OBJ=1 OFF=0x324b0 size=0x2d
  * callers: 0x43270, 0x452f0
  * callees: -
@@ -35625,7 +35709,7 @@ int __cdecl sub_424B0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_424E0
+ * IDA 9.5 Hex-Rays: sub_424E0
  * VA=0x424e0..0x42514 OBJ=1 OFF=0x324e0 size=0x34
  * callers: -
  * callees: -
@@ -35637,7 +35721,7 @@ unsigned int __cdecl sub_424E0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42520
+ * IDA 9.5 Hex-Rays: sub_42520
  * VA=0x42520..0x4263a OBJ=1 OFF=0x32520 size=0x11a
  * callers: 0x443d0
  * callees: 0x4997e
@@ -35699,7 +35783,7 @@ unsigned int __cdecl sub_42520(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42640
+ * IDA 9.5 Hex-Rays: sub_42640
  * VA=0x42640..0x427b8 OBJ=1 OFF=0x32640 size=0x178
  * callers: 0x44ca0
  * callees: -
@@ -35815,7 +35899,7 @@ int __cdecl sub_42640(int a1, char a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_427C0
+ * IDA 9.5 Hex-Rays: sub_427C0
  * VA=0x427c0..0x42973 OBJ=1 OFF=0x327c0 size=0x1b3
  * callers: 0x42980
  * callees: -
@@ -35942,7 +36026,7 @@ unsigned int __cdecl sub_427C0(int a1, char a2, unsigned int a3, unsigned __int8
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42980
+ * IDA 9.5 Hex-Rays: sub_42980
  * VA=0x42980..0x42dc6 OBJ=1 OFF=0x32980 size=0x446
  * callers: 0x42980, 0x42dd0, 0x42ea0, 0x42f50, 0x43230, 0x43270, 0x44f00, 0x450b0, 0x45240
  * callees: 0x3bddf, 0x3c4db, 0x3c5c0, 0x3c636, 0x422c0, 0x427c0, 0x42980, 0x42ea0
@@ -36164,7 +36248,7 @@ LABEL_31:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42DD0
+ * IDA 9.5 Hex-Rays: sub_42DD0
  * VA=0x42dd0..0x42e96 OBJ=1 OFF=0x32dd0 size=0xc6
  * callers: 0x447d0
  * callees: 0x382e9, 0x383f1, 0x3845e, 0x42980
@@ -36209,7 +36293,7 @@ void __cdecl sub_42DD0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42EA0
+ * IDA 9.5 Hex-Rays: sub_42EA0
  * VA=0x42ea0..0x42f50 OBJ=1 OFF=0x32ea0 size=0xb0
  * callers: 0x42980
  * callees: 0x382e9, 0x42980
@@ -36244,7 +36328,7 @@ void __cdecl sub_42EA0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_42F50
+ * IDA 9.5 Hex-Rays: sub_42F50
  * VA=0x42f50..0x43160 OBJ=1 OFF=0x32f50 size=0x210
  * callers: 0x448a0, 0x450b0
  * callees: 0x42980
@@ -36310,7 +36394,7 @@ void __cdecl sub_42F50(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_43160
+ * IDA 9.5 Hex-Rays: sub_43160
  * VA=0x43160..0x4320b OBJ=1 OFF=0x33160 size=0xab
  * callers: 0x44330, 0x443d0, 0x44790
  * callees: 0x37910
@@ -36358,7 +36442,7 @@ _DWORD *__cdecl sub_43160(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_43230
+ * IDA 9.5 Hex-Rays: sub_43230
  * VA=0x43230..0x4326d OBJ=1 OFF=0x33230 size=0x3d
  * callers: 0x43270, 0x449e0
  * callees: 0x42980
@@ -36381,7 +36465,7 @@ void __cdecl sub_43230(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_43270
+ * IDA 9.5 Hex-Rays: sub_43270
  * VA=0x43270..0x43996 OBJ=1 OFF=0x33270 size=0x726
  * callers: 0x43ad0
  * callees: 0x3771c, 0x382e9, 0x3af5b, 0x42270, 0x424b0, 0x42980, 0x43230
@@ -36782,7 +36866,7 @@ LABEL_67:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_439A0
+ * IDA 9.5 Hex-Rays: sub_439A0
  * VA=0x439a0..0x43a6e OBJ=1 OFF=0x339a0 size=0xce
  * callers: 0x43ad0
  * callees: 0x382e9
@@ -36791,27 +36875,27 @@ void __cdecl sub_439A0(int *a1, const void *a2)
 {
   int v2; // eax
   _WORD *v3; // ebx
-  unsigned int i; // eax
+  int i; // eax
   int v5; // eax
-  _DWORD v6[9]; // [esp+0h] [ebp-24h] BYREF
+  _WORD v6[18]; // [esp+0h] [ebp-24h]
 
-  qmemcpy(v6, a2, 0x18u);
+  qmemcpy(v6, a2, 24);
   v2 = *(_DWORD *)(*a1 + 12);
   if ( *(_WORD *)(v2 + 16) != 0 )
   {
     v3 = (_WORD *)(16 * HIWORD(*(_DWORD *)(v2 + 12)) + (unsigned __int16)*(_DWORD *)(v2 + 12));
-    if ( SLOWORD(v6[0]) < 1 )
-      LOWORD(v6[0]) = *v3;
-    if ( SHIWORD(v6[0]) < 1 )
-      HIWORD(v6[0]) = v3[1];
-    if ( SLOWORD(v6[1]) < 1 )
-      LOWORD(v6[1]) = v3[2];
-    if ( SHIWORD(v6[1]) < 1 )
-      HIWORD(v6[1]) = v3[3];
-    for ( i = 0; i != 16; i += 4 )
+    if ( v6[0] < 1 )
+      v6[0] = *v3;
+    if ( v6[1] < 1 )
+      v6[1] = *(_WORD *)(16 * HIWORD(*(_DWORD *)(v2 + 12)) + (unsigned __int16)*(_DWORD *)(v2 + 12) + 2);
+    if ( v6[2] < 1 )
+      v6[2] = *(_WORD *)(16 * HIWORD(*(_DWORD *)(v2 + 12)) + (unsigned __int16)*(_DWORD *)(v2 + 12) + 4);
+    if ( v6[3] < 1 )
+      v6[3] = *(_WORD *)(16 * HIWORD(*(_DWORD *)(v2 + 12)) + (unsigned __int16)*(_DWORD *)(v2 + 12) + 6);
+    for ( i = 0; i != 8; i += 2 )
     {
-      if ( (int)v6[i / 4 + 2] < 1 )
-        v6[i / 4 + 2] = *(_DWORD *)&v3[i / 2 + 4];
+      if ( *(int *)&v6[i + 4] < 1 )
+        *(_DWORD *)&v6[i + 4] = *(_DWORD *)&v3[i + 4];
     }
   }
   v5 = *a1;
@@ -36821,7 +36905,7 @@ void __cdecl sub_439A0(int *a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_43A70
+ * IDA 9.5 Hex-Rays: sub_43A70
  * VA=0x43a70..0x43ad0 OBJ=1 OFF=0x33a70 size=0x60
  * callers: 0x43ad0
  * callees: 0x364fb, 0x38d77, 0x3b035
@@ -36850,7 +36934,7 @@ int __usercall sub_43A70@<eax>(int a1@<eax>, int *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_43AD0
+ * IDA 9.5 Hex-Rays: sub_43AD0
  * VA=0x43ad0..0x44172 OBJ=1 OFF=0x33ad0 size=0x6a2
  * callers: 0x44180, 0x44200
  * callees: 0x364d4, 0x364fb, 0x3706e, 0x37910, 0x382e9, 0x383f1, 0x387bc, 0x388a7, 0x38a10, 0x38bd9, 0x38e46, 0x3f48b, 0x42110, 0x422c0, 0x439a0, 0x47006
@@ -36885,7 +36969,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
   int v27; // edi
   int v28; // eax
   int v29; // eax
-  _BYTE v30[24]; // [esp+0h] [ebp-50h] BYREF
+  _BYTE v30[24]; // [esp+0h] [ebp-50h]
   _BYTE v31[4]; // [esp+18h] [ebp-38h] BYREF
   __int16 v32; // [esp+1Ch] [ebp-34h]
   _WORD v33[6]; // [esp+24h] [ebp-2Ch] BYREF
@@ -36953,7 +37037,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
       v36 = 0;
       if ( a2 != nullptr )
       {
-        qmemcpy(&unk_542F4, a2, 0x18u);
+        qmemcpy(unk_542F4, a2, sizeof(unk_542F4));
         sub_439A0(v3, a2);
         if ( v15 != 0 )
         {
@@ -36968,7 +37052,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
         v35 = (const void *)v15;
         if ( v15 != 0 )
         {
-          qmemcpy(&unk_542F4, (const void *)v15, 0x18u);
+          qmemcpy(unk_542F4, (const void *)v15, sizeof(unk_542F4));
           sub_439A0(v3, (const void *)v15);
           if ( v15 != 0 )
           {
@@ -36990,7 +37074,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
           v16 = (const void *)(16 * HIWORD(*(_DWORD *)(v15 + 12)) + (unsigned __int16)*(_DWORD *)(v15 + 12) + v34);
           v37 = v16;
           if ( v38 == 0 )
-            qmemcpy(&unk_542F4, v16, 0x18u);
+            qmemcpy(unk_542F4, v16, sizeof(unk_542F4));
           sub_439A0(v3, v37);
           if ( v17 != 0 )
           {
@@ -37142,7 +37226,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44180
+ * IDA 9.5 Hex-Rays: sub_44180
  * VA=0x44180..0x441f8 OBJ=1 OFF=0x34180 size=0x78
  * callers: 0x3ab49
  * callees: 0x36c56, 0x36cab, 0x3776e, 0x38f2b, 0x3901e, 0x43ad0
@@ -37185,7 +37269,7 @@ int __cdecl sub_44180(int a1, const void *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44200
+ * IDA 9.5 Hex-Rays: sub_44200
  * VA=0x44200..0x4423c OBJ=1 OFF=0x34200 size=0x3c
  * callers: 0x3b5b0
  * callees: 0x38f2b, 0x3901e, 0x43ad0
@@ -37203,7 +37287,7 @@ void __usercall sub_44200(int a1@<eax>, int a2, int a3, const void *a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44240
+ * IDA 9.5 Hex-Rays: sub_44240
  * VA=0x44240..0x44293 OBJ=1 OFF=0x34240 size=0x53
  * type: int(void)
  * callers: 0x3aa72
@@ -37223,7 +37307,7 @@ void sub_44240()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_442A0
+ * IDA 9.5 Hex-Rays: sub_442A0
  * VA=0x442a0..0x442b0 OBJ=1 OFF=0x342a0 size=0x10
  * callers: -
  * callees: 0x3901e
@@ -37235,7 +37319,7 @@ void __cdecl sub_442A0(int *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_442B0
+ * IDA 9.5 Hex-Rays: sub_442B0
  * VA=0x442b0..0x4432a OBJ=1 OFF=0x342b0 size=0x7a
  * callers: -
  * callees: -
@@ -37289,7 +37373,7 @@ int __cdecl sub_442B0(char *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44330
+ * IDA 9.5 Hex-Rays: sub_44330
  * VA=0x44330..0x443a1 OBJ=1 OFF=0x34330 size=0x71
  * callers: 0x3aca3
  * callees: 0x3806a, 0x3806f, 0x43160
@@ -37333,7 +37417,7 @@ _DWORD *__cdecl sub_44330(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_443B0
+ * IDA 9.5 Hex-Rays: sub_443B0
  * VA=0x443b0..0x443cb OBJ=1 OFF=0x343b0 size=0x1b
  * callers: -
  * callees: 0x3af5b
@@ -37349,7 +37433,7 @@ void __usercall sub_443B0(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_443D0
+ * IDA 9.5 Hex-Rays: sub_443D0
  * VA=0x443d0..0x44782 OBJ=1 OFF=0x343d0 size=0x3b2
  * callers: 0x3adf5
  * callees: 0x3771c, 0x37b29, 0x382e9, 0x3845e, 0x42520, 0x43160, 0x4997e
@@ -37507,7 +37591,7 @@ unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44790
+ * IDA 9.5 Hex-Rays: sub_44790
  * VA=0x44790..0x447c3 OBJ=1 OFF=0x34790 size=0x33
  * callers: 0x3aeee
  * callees: 0x3af5b, 0x43160
@@ -37530,7 +37614,7 @@ int __usercall sub_44790@<eax>(int result@<eax>, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_447D0
+ * IDA 9.5 Hex-Rays: sub_447D0
  * VA=0x447d0..0x44891 OBJ=1 OFF=0x347d0 size=0xc1
  * callers: 0x3af5b
  * callees: 0x3c5c0, 0x422c0, 0x42dd0
@@ -37567,7 +37651,7 @@ void __cdecl __spoils<> sub_447D0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_448A0
+ * IDA 9.5 Hex-Rays: sub_448A0
  * VA=0x448a0..0x4492e OBJ=1 OFF=0x348a0 size=0x8e
  * callers: -
  * callees: 0x3c4db, 0x42f50
@@ -37609,7 +37693,7 @@ void __usercall sub_448A0(int a1@<edx>, int a2@<ebx>, int *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44930
+ * IDA 9.5 Hex-Rays: sub_44930
  * VA=0x44930..0x44951 OBJ=1 OFF=0x34930 size=0x21
  * callers: 0x3b035
  * callees: 0x3af5b
@@ -37625,7 +37709,7 @@ void __usercall sub_44930(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44960
+ * IDA 9.5 Hex-Rays: sub_44960
  * VA=0x44960..0x44970 OBJ=1 OFF=0x34960 size=0x10
  * callers: 0x3b1a6
  * callees: -
@@ -37642,7 +37726,7 @@ int __cdecl sub_44960(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44970
+ * IDA 9.5 Hex-Rays: sub_44970
  * VA=0x44970..0x449d9 OBJ=1 OFF=0x34970 size=0x69
  * callers: 0x3b0a2
  * callees: -
@@ -37679,7 +37763,7 @@ int __cdecl sub_44970(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_449E0
+ * IDA 9.5 Hex-Rays: sub_449E0
  * VA=0x449e0..0x44a60 OBJ=1 OFF=0x349e0 size=0x80
  * callers: 0x3b124
  * callees: 0x43230
@@ -37722,7 +37806,7 @@ int __cdecl sub_449E0(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44A60
+ * IDA 9.5 Hex-Rays: sub_44A60
  * VA=0x44a60..0x44a6c OBJ=1 OFF=0x34a60 size=0xc
  * callers: 0x3b21c
  * callees: -
@@ -37739,7 +37823,7 @@ int __cdecl sub_44A60(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44A70
+ * IDA 9.5 Hex-Rays: sub_44A70
  * VA=0x44a70..0x44a82 OBJ=1 OFF=0x34a70 size=0x12
  * callers: 0x3b4cb
  * callees: -
@@ -37754,7 +37838,7 @@ int __cdecl sub_44A70(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44A90
+ * IDA 9.5 Hex-Rays: sub_44A90
  * VA=0x44a90..0x44a9c OBJ=1 OFF=0x34a90 size=0xc
  * callers: 0x3b301
  * callees: -
@@ -37771,7 +37855,7 @@ int __cdecl sub_44A90(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44AA0
+ * IDA 9.5 Hex-Rays: sub_44AA0
  * VA=0x44aa0..0x44aac OBJ=1 OFF=0x34aa0 size=0xc
  * callers: 0x3b3e6
  * callees: -
@@ -37788,7 +37872,7 @@ int __cdecl sub_44AA0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44AB0
+ * IDA 9.5 Hex-Rays: sub_44AB0
  * VA=0x44ab0..0x44ae4 OBJ=1 OFF=0x34ab0 size=0x34
  * callers: 0x3b716
  * callees: 0x382e9
@@ -37804,7 +37888,7 @@ void __cdecl sub_44AB0(int *a1, __int16 a2, __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44AF0
+ * IDA 9.5 Hex-Rays: sub_44AF0
  * VA=0x44af0..0x44bec OBJ=1 OFF=0x34af0 size=0xfc
  * callers: 0x3b80f
  * callees: 0x3771c, 0x37b29, 0x382e9
@@ -37846,7 +37930,7 @@ int __cdecl sub_44AF0(int *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44BF0
+ * IDA 9.5 Hex-Rays: sub_44BF0
  * VA=0x44bf0..0x44c2e OBJ=1 OFF=0x34bf0 size=0x3e
  * callers: 0x3b908
  * callees: 0x382e9
@@ -37864,7 +37948,7 @@ void __cdecl sub_44BF0(int *a1, __int16 a2, __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44C30
+ * IDA 9.5 Hex-Rays: sub_44C30
  * VA=0x44c30..0x44c6b OBJ=1 OFF=0x34c30 size=0x3b
  * callers: 0x3b98a
  * callees: 0x382e9
@@ -37882,7 +37966,7 @@ void __cdecl sub_44C30(int *a1, __int16 a2, __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44C70
+ * IDA 9.5 Hex-Rays: sub_44C70
  * VA=0x44c70..0x44c9c OBJ=1 OFF=0x34c70 size=0x2c
  * callers: 0x3ba0c
  * callees: -
@@ -37912,7 +37996,7 @@ int __cdecl sub_44C70(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44CA0
+ * IDA 9.5 Hex-Rays: sub_44CA0
  * VA=0x44ca0..0x44ccb OBJ=1 OFF=0x34ca0 size=0x2b
  * callers: 0x3baf1
  * callees: 0x42640
@@ -37927,7 +38011,7 @@ int __cdecl sub_44CA0(int a1, char a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44CD0
+ * IDA 9.5 Hex-Rays: sub_44CD0
  * VA=0x44cd0..0x44d0a OBJ=1 OFF=0x34cd0 size=0x3a
  * callers: 0x3bbea
  * callees: -
@@ -37953,7 +38037,7 @@ int __cdecl sub_44CD0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44D10
+ * IDA 9.5 Hex-Rays: sub_44D10
  * VA=0x44d10..0x44d7e OBJ=1 OFF=0x34d10 size=0x6e
  * callers: 0x3bcd7
  * callees: -
@@ -38007,7 +38091,7 @@ void __cdecl sub_44D10(_DWORD *a1, _DWORD *a2, int *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44D80
+ * IDA 9.5 Hex-Rays: sub_44D80
  * VA=0x44d80..0x44e09 OBJ=1 OFF=0x34d80 size=0x89
  * callers: 0x3bddf
  * callees: -
@@ -38068,7 +38152,7 @@ void __cdecl sub_44D80(_DWORD *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44E10
+ * IDA 9.5 Hex-Rays: sub_44E10
  * VA=0x44e10..0x44e25 OBJ=1 OFF=0x34e10 size=0x15
  * callers: 0x3be55
  * callees: -
@@ -38090,7 +38174,7 @@ int __cdecl sub_44E10(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44E30
+ * IDA 9.5 Hex-Rays: sub_44E30
  * VA=0x44e30..0x44e45 OBJ=1 OFF=0x34e30 size=0x15
  * callers: 0x3bf42
  * callees: -
@@ -38112,7 +38196,7 @@ int __cdecl sub_44E30(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44E50
+ * IDA 9.5 Hex-Rays: sub_44E50
  * VA=0x44e50..0x44e65 OBJ=1 OFF=0x34e50 size=0x15
  * callers: 0x3c02f
  * callees: -
@@ -38134,7 +38218,7 @@ int __cdecl sub_44E50(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44E70
+ * IDA 9.5 Hex-Rays: sub_44E70
  * VA=0x44e70..0x44e85 OBJ=1 OFF=0x34e70 size=0x15
  * callers: 0x3c11c
  * callees: -
@@ -38150,7 +38234,7 @@ int __cdecl sub_44E70(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44E90
+ * IDA 9.5 Hex-Rays: sub_44E90
  * VA=0x44e90..0x44ea5 OBJ=1 OFF=0x34e90 size=0x15
  * callers: 0x3c209
  * callees: -
@@ -38166,7 +38250,7 @@ int __cdecl sub_44E90(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44EB0
+ * IDA 9.5 Hex-Rays: sub_44EB0
  * VA=0x44eb0..0x44ed0 OBJ=1 OFF=0x34eb0 size=0x20
  * callers: 0x3c2f6
  * callees: -
@@ -38185,7 +38269,7 @@ int __cdecl sub_44EB0(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44ED0
+ * IDA 9.5 Hex-Rays: sub_44ED0
  * VA=0x44ed0..0x44ee7 OBJ=1 OFF=0x34ed0 size=0x17
  * callers: 0x3c378
  * callees: -
@@ -38200,7 +38284,7 @@ int __cdecl sub_44ED0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44EF0
+ * IDA 9.5 Hex-Rays: sub_44EF0
  * VA=0x44ef0..0x44f00 OBJ=1 OFF=0x34ef0 size=0x10
  * callers: -
  * callees: -
@@ -38217,7 +38301,7 @@ int __cdecl sub_44EF0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_44F00
+ * IDA 9.5 Hex-Rays: sub_44F00
  * VA=0x44f00..0x450af OBJ=1 OFF=0x34f00 size=0x1af
  * callers: 0x3c4db
  * callees: 0x422c0, 0x42980
@@ -38324,7 +38408,7 @@ int __cdecl sub_44F00(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_450B0
+ * IDA 9.5 Hex-Rays: sub_450B0
  * VA=0x450b0..0x451d7 OBJ=1 OFF=0x350b0 size=0x127
  * callers: 0x3c5c0
  * callees: 0x422c0, 0x42980, 0x42f50
@@ -38387,7 +38471,7 @@ _DWORD *__cdecl sub_450B0(_DWORD *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_451E0
+ * IDA 9.5 Hex-Rays: sub_451E0
  * VA=0x451e0..0x45214 OBJ=1 OFF=0x351e0 size=0x34
  * callers: 0x3c636
  * callees: -
@@ -38410,7 +38494,7 @@ _DWORD *__cdecl sub_451E0(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45220
+ * IDA 9.5 Hex-Rays: sub_45220
  * VA=0x45220..0x45238 OBJ=1 OFF=0x35220 size=0x18
  * callers: 0x3c6b8
  * callees: -
@@ -38425,7 +38509,7 @@ int __cdecl sub_45220(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45240
+ * IDA 9.5 Hex-Rays: sub_45240
  * VA=0x45240..0x452eb OBJ=1 OFF=0x35240 size=0xab
  * callers: 0x3c7a5
  * callees: 0x382e9, 0x422c0, 0x42980
@@ -38457,7 +38541,7 @@ void __cdecl sub_45240(int a1, int a2, int a3, unsigned int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_452F0
+ * IDA 9.5 Hex-Rays: sub_452F0
  * VA=0x452f0..0x45376 OBJ=1 OFF=0x352f0 size=0x86
  * callers: -
  * callees: 0x3771c, 0x42270, 0x424b0
@@ -38488,7 +38572,7 @@ int __cdecl sub_452F0(_DWORD *a1, char *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45380
+ * IDA 9.5 Hex-Rays: sub_45380
  * VA=0x45380..0x45470 OBJ=1 OFF=0x35380 size=0xf0
  * callers: 0x42110, 0x45380
  * callees: 0x36647, 0x36683
@@ -38517,7 +38601,7 @@ void sub_45380()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45670
+ * IDA 9.5 Hex-Rays: sub_45670
  * VA=0x45670..0x45698 OBJ=1 OFF=0x35670 size=0x28
  * callers: 0x45670, 0x45e21, 0x45fed
  * callees: 0x365da
@@ -38536,7 +38620,7 @@ bool sub_45670()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45698
+ * IDA 9.5 Hex-Rays: sub_45698
  * VA=0x45698..0x4584d OBJ=1 OFF=0x35698 size=0x1b5
  * callers: 0x45a20
  * callees: -
@@ -38648,7 +38732,7 @@ _DWORD *__cdecl sub_45698(int a1, char a2, unsigned int a3, unsigned __int8 a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4584D
+ * IDA 9.5 Hex-Rays: sub_4584D
  * VA=0x4584d..0x45880 OBJ=1 OFF=0x3584d size=0x33
  * callers: 0x459f5, 0x45a20
  * callees: -
@@ -38670,7 +38754,7 @@ _DWORD *__cdecl sub_4584D(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45880
+ * IDA 9.5 Hex-Rays: sub_45880
  * VA=0x45880..0x458f0 OBJ=1 OFF=0x35880 size=0x70
  * callers: 0x45a20
  * callees: 0x399c2, 0x39a38
@@ -38688,7 +38772,7 @@ void __cdecl sub_45880(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_458F0
+ * IDA 9.5 Hex-Rays: sub_458F0
  * VA=0x458f0..0x459f5 OBJ=1 OFF=0x358f0 size=0x105
  * callers: 0x45a20
  * callees: 0x3994c
@@ -38760,7 +38844,7 @@ void __cdecl sub_458F0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_459F5
+ * IDA 9.5 Hex-Rays: sub_459F5
  * VA=0x459f5..0x45a20 OBJ=1 OFF=0x359f5 size=0x2b
  * callers: 0x45e21
  * callees: 0x4584d
@@ -38772,7 +38856,7 @@ bool __cdecl sub_459F5(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45A20
+ * IDA 9.5 Hex-Rays: sub_45A20
  * VA=0x45a20..0x45e21 OBJ=1 OFF=0x35a20 size=0x401
  * callers: 0x45e21
  * callees: 0x39521, 0x39694, 0x39716, 0x39798, 0x398df, 0x39b24, 0x45698, 0x4584d, 0x45880, 0x458f0
@@ -38939,7 +39023,7 @@ LABEL_26:
   }
   if ( ii == *(_DWORD *)(v5 + 1236) )
   {
-    v23 = -1;
+    v23 = 0xFFFFFFFF;
     for ( jj = 0; jj < *(_DWORD *)(v5 + 1236); ++jj )
     {
       v25 = v5 + 4 * jj;
@@ -38979,7 +39063,7 @@ LABEL_26:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45E21
+ * IDA 9.5 Hex-Rays: sub_45E21
  * VA=0x45e21..0x45f99 OBJ=1 OFF=0x35e21 size=0x178
  * callers: 0x3c8b4
  * callees: 0x364d4, 0x392d0, 0x3c11c, 0x3c209, 0x45670
@@ -39057,7 +39141,7 @@ int *__cdecl sub_45E21(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45F99
+ * IDA 9.5 Hex-Rays: sub_45F99
  * VA=0x45f99..0x45fed OBJ=1 OFF=0x35f99 size=0x54
  * callers: -
  * callees: 0x364fb, 0x394b4, 0x3c11c, 0x3c209
@@ -39076,7 +39160,7 @@ void __usercall sub_45F99(int a1@<eax>, int *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_45FED
+ * IDA 9.5 Hex-Rays: sub_45FED
  * VA=0x45fed..0x46013 OBJ=1 OFF=0x35fed size=0x26
  * callers: 0x45670, 0x45fed
  * callees: 0x36647
@@ -39092,7 +39176,7 @@ void sub_45FED()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __math87_err
+ * IDA 9.5 Hex-Rays: __math87_err
  * VA=0x46013..0x4609b OBJ=1 OFF=0x36013 size=0x88 [FLIRT-lib]
  * type: int __cdecl(double, char)
  * callers: 0x3ca4c, 0x3ca86
@@ -39138,7 +39222,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __CMain
+ * IDA 9.5 Hex-Rays: __CMain
  * VA=0x4609b..0x460ea OBJ=1 OFF=0x3609b size=0x4f [FLIRT-lib, noreturn]
  * type: void __fastcall __noreturn(_DWORD, _DWORD)
  * callers: 0x3ccb4
@@ -39170,7 +39254,7 @@ void __noreturn _CMain()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __InitRtns
+ * IDA 9.5 Hex-Rays: __InitRtns
  * VA=0x460ea..0x4612d OBJ=1 OFF=0x360ea size=0x43 [FLIRT-lib]
  * type: int(void)
  * callers: 0x3ccb4
@@ -39187,7 +39271,7 @@ unsigned __int8 _InitRtns()
   {
     v0 = (char *)&unk_539B0;
     v1 = byte_539E0;
-    result = -1;
+    result = 0xFFu;
     while ( v0 < byte_539E0 )
     {
       if ( *v0 != 2 && (unsigned __int8)v0[1] <= result )
@@ -39209,7 +39293,7 @@ unsigned __int8 _InitRtns()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __FiniRtns
+ * IDA 9.5 Hex-Rays: __FiniRtns
  * VA=0x4612d..0x46170 OBJ=1 OFF=0x3612d size=0x43 [FLIRT-lib]
  * callers: 0x3ccb4
  * callees: -
@@ -39247,7 +39331,7 @@ unsigned __int8 _FiniRtns()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46170
+ * IDA 9.5 Hex-Rays: sub_46170
  * VA=0x46170..0x46185 OBJ=1 OFF=0x36170 size=0x15
  * callers: -
  * callees: -
@@ -39260,7 +39344,7 @@ void sub_46170()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __sys_init_387_emulator
+ * IDA 9.5 Hex-Rays: __sys_init_387_emulator
  * VA=0x46186..0x461b7 OBJ=1 OFF=0x36186 size=0x31 [FLIRT-lib]
  * type: int(void)
  * callers: 0x3cf1c
@@ -39279,7 +39363,7 @@ int __usercall _sys_init_387_emulator@<eax>(int result@<eax>, int a2@<ebp>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_461B7
+ * IDA 9.5 Hex-Rays: sub_461B7
  * VA=0x461b7..0x4627f OBJ=1 OFF=0x361b7 size=0xc8
  * type: int(void)
  * callers: 0x46186
@@ -39343,7 +39427,7 @@ __int16 __fastcall sub_461B7(int a1, __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4627F
+ * IDA 9.5 Hex-Rays: sub_4627F
  * VA=0x4627f..0x4629a OBJ=1 OFF=0x3627f size=0x1b
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x461b7
@@ -39356,7 +39440,7 @@ void sub_4627F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4629A
+ * IDA 9.5 Hex-Rays: sub_4629A
  * VA=0x4629a..0x462e6 OBJ=1 OFF=0x3629a size=0x4c
  * type: int(void)
  * callers: 0x461b7
@@ -39387,7 +39471,7 @@ __int16 __fastcall sub_4629A(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_462E6
+ * IDA 9.5 Hex-Rays: sub_462E6
  * VA=0x462e6..0x46306 OBJ=1 OFF=0x362e6 size=0x20
  * type: int __fastcall(_DWORD)
  * callers: 0x461b7, 0x4629a
@@ -39404,7 +39488,7 @@ __int16 sub_462E6()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __sys_fini_387_emulator
+ * IDA 9.5 Hex-Rays: __sys_fini_387_emulator
  * VA=0x46306..0x46380 OBJ=1 OFF=0x36306 size=0x7a [FLIRT-lib]
  * type: int(void)
  * callers: 0x3cf21
@@ -39443,7 +39527,7 @@ void __fastcall _sys_fini_387_emulator(int a1, __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46380
+ * IDA 9.5 Hex-Rays: sub_46380
  * VA=0x46380..0x463ba OBJ=1 OFF=0x36380 size=0x3a
  * type: int(void)
  * callers: 0x46306
@@ -39467,7 +39551,7 @@ __int16 sub_46380()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_463BA
+ * IDA 9.5 Hex-Rays: sub_463BA
  * VA=0x463ba..0x463db OBJ=1 OFF=0x363ba size=0x21
  * type: int __fastcall(_DWORD)
  * callers: 0x46306, 0x46380
@@ -39483,8 +39567,8 @@ __int16 sub_463BA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_463DB
- * VA=0x463db..0x463e7 OBJ=1 OFF=0x363db size=0xc
+ * IDA 9.5 Hex-Rays: sub_463DB
+ * VA=0x463db..0x463e7 OBJ=1 OFF=0x363db size=0xc [FLIRT-lib]
  * callers: 0x463f2
  * callees: -
  * --------------------------------------------------------------- */
@@ -39499,8 +39583,8 @@ int __cdecl sub_463DB(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_463E7
- * VA=0x463e7..0x463f2 OBJ=1 OFF=0x363e7 size=0xb
+ * IDA 9.5 Hex-Rays: sub_463E7
+ * VA=0x463e7..0x463f2 OBJ=1 OFF=0x363e7 size=0xb [FLIRT-lib]
  * callers: 0x463f2
  * callees: -
  * --------------------------------------------------------------- */
@@ -39515,7 +39599,7 @@ int __cdecl sub_463E7(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __init_8087
+ * IDA 9.5 Hex-Rays: __init_8087
  * VA=0x463f2..0x4641b OBJ=1 OFF=0x363f2 size=0x29 [FLIRT-lib]
  * callers: 0x46425
  * callees: -
@@ -39539,7 +39623,7 @@ char _init_8087()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __chk8087
+ * IDA 9.5 Hex-Rays: __chk8087
  * VA=0x46425..0x46464 OBJ=1 OFF=0x36425 size=0x3f [FLIRT-lib]
  * callers: -
  * callees: 0x463f2
@@ -39560,7 +39644,7 @@ void __spoils<> _chk8087()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __Init_Argv
+ * IDA 9.5 Hex-Rays: __Init_Argv
  * VA=0x46464..0x46517 OBJ=1 OFF=0x36464 size=0xb3 [FLIRT-lib]
  * callers: -
  * callees: 0x3706e, 0x3cf26, 0x46517
@@ -39598,7 +39682,7 @@ int _Init_Argv()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46517
+ * IDA 9.5 Hex-Rays: sub_46517
  * VA=0x46517..0x465f2 OBJ=1 OFF=0x36517 size=0xdb [FLIRT-lib]
  * callers: 0x46464
  * callees: -
@@ -39667,7 +39751,7 @@ int __cdecl sub_46517(_BYTE *a1, int a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _dosret0
+ * IDA 9.5 Hex-Rays: _dosret0
  * VA=0x465f2..0x4660a OBJ=1 OFF=0x365f2 size=0x18 [FLIRT-lib]
  * callers: -
  * callees: 0x4660a
@@ -39684,7 +39768,7 @@ int __cdecl dosret0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _dosretax
+ * IDA 9.5 Hex-Rays: _dosretax
  * VA=0x4660a..0x46621 OBJ=1 OFF=0x3660a size=0x17 [FLIRT-lib]
  * callers: 0x465f2
  * callees: 0x46632
@@ -39701,7 +39785,7 @@ int __cdecl dosretax(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _set_errno
+ * IDA 9.5 Hex-Rays: _set_errno
  * VA=0x46632..0x466a2 OBJ=1 OFF=0x36632 size=0x70 [FLIRT-lib]
  * callers: 0x3cf50, 0x3cf9b, 0x3d093, 0x3d253, 0x3d3e5, 0x3dce0, 0x4660a, 0x46d53, 0x46dd0
  * callees: 0x3db46, 0x3db4c
@@ -39745,7 +39829,7 @@ int __cdecl set_errno(unsigned int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __IOMode
+ * IDA 9.5 Hex-Rays: __IOMode
  * VA=0x466a2..0x466f4 OBJ=1 OFF=0x366a2 size=0x52 [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x3cf9b, 0x3d093, 0x3d253, 0x3d3e5, 0x46d53
@@ -39772,7 +39856,7 @@ int __cdecl _IOMode(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __SetIOMode
+ * IDA 9.5 Hex-Rays: __SetIOMode
  * VA=0x466f4..0x4670c OBJ=1 OFF=0x366f4 size=0x18 [FLIRT-lib]
  * callers: 0x3d093, 0x3d253, 0x3d36c
  * callees: -
@@ -39791,7 +39875,7 @@ void *__cdecl _SetIOMode(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4670C
+ * IDA 9.5 Hex-Rays: sub_4670C
  * VA=0x4670c..0x46715 OBJ=1 OFF=0x3670c size=0x9
  * type: int __cdecl(_DWORD)
  * callers: 0x3d3e5, 0x4609b
@@ -39806,7 +39890,7 @@ char *sub_4670C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sbrk
+ * IDA 9.5 Hex-Rays: sbrk
  * VA=0x46728..0x467c5 OBJ=1 OFF=0x36728 size=0x9d [FLIRT-lib]
  * callers: -
  * callees: 0x3db46, 0x467c5
@@ -39861,7 +39945,7 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __brk
+ * IDA 9.5 Hex-Rays: __brk
  * VA=0x467c5..0x4686f OBJ=1 OFF=0x367c5 size=0xaa [FLIRT-lib]
  * callers: 0x3d842, 0x46728
  * callees: 0x3db46
@@ -39915,7 +39999,7 @@ LABEL_7:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __int386x_
+ * IDA 9.5 Hex-Rays: __int386x_
  * VA=0x46870..0x468a7 OBJ=1 OFF=0x36870 size=0x37 [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x3da76
@@ -39941,7 +40025,7 @@ int __usercall _int386x@<eax>(_DWORD *a1@<edx>, int a2@<ecx>, _WORD *a3@<ebx>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_468A7
+ * IDA 9.5 Hex-Rays: sub_468A7
  * VA=0x468a7..0x468cb OBJ=1 OFF=0x368a7 size=0x24 [FLIRT-lib]
  * type: __int64(void)
  * callers: 0x46870
@@ -39954,7 +40038,7 @@ int __usercall sub_468A7@<eax>(int a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _DoINTR_
+ * IDA 9.5 Hex-Rays: _DoINTR_
  * VA=0x468cb..0x46915 OBJ=1 OFF=0x368cb size=0x4a [FLIRT-lib]
  * callers: -
  * callees: 0x46915
@@ -39989,7 +40073,7 @@ int __usercall __spoils<> DoINTR@<edx>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46915
+ * IDA 9.5 Hex-Rays: sub_46915
  * VA=0x46915..0x46948 OBJ=1 OFF=0x36915 size=0x33
  * type: __int64(void)
  * callers: 0x468cb
@@ -40002,7 +40086,7 @@ int __fastcall sub_46915(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46C48
+ * IDA 9.5 Hex-Rays: sub_46C48
  * VA=0x46c48..0x46c8d OBJ=1 OFF=0x36c48 size=0x45
  * callers: -
  * callees: 0x3707e
@@ -40028,7 +40112,7 @@ void sub_46C48()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __full_io_exit
+ * IDA 9.5 Hex-Rays: __full_io_exit
  * VA=0x46c8d..0x46c9c OBJ=1 OFF=0x36c8d size=0xf [FLIRT-lib]
  * callers: -
  * callees: 0x46ca7
@@ -40041,7 +40125,7 @@ void _full_io_exit()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46CA7
+ * IDA 9.5 Hex-Rays: sub_46CA7
  * VA=0x46ca7..0x46cf5 OBJ=1 OFF=0x36ca7 size=0x4e
  * callers: 0x46c8d
  * callees: 0x375c8
@@ -40077,7 +40161,7 @@ LABEL_6:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __flushall
+ * IDA 9.5 Hex-Rays: __flushall
  * VA=0x46d00..0x46d38 OBJ=1 OFF=0x36d00 size=0x38 [FLIRT-lib]
  * callers: 0x3ddb5
  * callees: 0x3de66
@@ -40106,7 +40190,7 @@ int __cdecl _flushall(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46D38
+ * IDA 9.5 Hex-Rays: sub_46D38
  * VA=0x46d38..0x46d53 OBJ=1 OFF=0x36d38 size=0x1b
  * type: int(void)
  * callers: 0x3ddb5
@@ -40128,7 +40212,7 @@ int sub_46D38()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __qwrite
+ * IDA 9.5 Hex-Rays: __qwrite
  * VA=0x46d53..0x46dd0 OBJ=1 OFF=0x36d53 size=0x7d [FLIRT-lib]
  * callers: 0x3de66
  * callees: 0x3db46, 0x46632, 0x466a2
@@ -40177,7 +40261,7 @@ int __cdecl _qwrite(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: unlink
+ * IDA 9.5 Hex-Rays: unlink
  * VA=0x46dd0..0x46df4 OBJ=1 OFF=0x36dd0 size=0x24 [FLIRT-lib]
  * callers: 0x3df37
  * callees: 0x46632
@@ -40201,7 +40285,7 @@ int __fastcall unlink(int _EAX)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46E19
+ * IDA 9.5 Hex-Rays: sub_46E19
  * VA=0x46e19..0x46e61 OBJ=1 OFF=0x36e19 size=0x48
  * callers: 0x46e61
  * callees: -
@@ -40235,7 +40319,7 @@ char *__cdecl sub_46E19(unsigned int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46E61
+ * IDA 9.5 Hex-Rays: sub_46E61
  * VA=0x46e61..0x46e91 OBJ=1 OFF=0x36e61 size=0x30
  * callers: 0x3e4e3, 0x3e536, 0x3e619
  * callees: 0x46e19
@@ -40259,7 +40343,7 @@ char *__cdecl sub_46E61(int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46E91
+ * IDA 9.5 Hex-Rays: sub_46E91
  * VA=0x46e91..0x46e9d OBJ=1 OFF=0x36e91 size=0xc
  * callers: 0x3e602
  * callees: -
@@ -40271,7 +40355,7 @@ void sub_46E91()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46EC2
+ * IDA 9.5 Hex-Rays: sub_46EC2
  * VA=0x46ec2..0x46f0a OBJ=1 OFF=0x36ec2 size=0x48
  * callers: 0x3e619, 0x46f0a
  * callees: -
@@ -40306,7 +40390,7 @@ char *__cdecl sub_46EC2(unsigned int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46F0A
+ * IDA 9.5 Hex-Rays: sub_46F0A
  * VA=0x46f0a..0x46f3a OBJ=1 OFF=0x36f0a size=0x30
  * callers: 0x3e619
  * callees: 0x46ec2
@@ -40330,7 +40414,7 @@ char *__cdecl sub_46F0A(int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: toupper
+ * IDA 9.5 Hex-Rays: toupper
  * VA=0x46f3a..0x46f4f OBJ=1 OFF=0x36f3a size=0x15 [FLIRT-lib]
  * callers: 0x3ea52, 0x3f5b4
  * callees: -
@@ -40347,7 +40431,7 @@ int __cdecl toupper(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strnicmp
+ * IDA 9.5 Hex-Rays: strnicmp
  * VA=0x46f4f..0x46f9c OBJ=1 OFF=0x36f4f size=0x4d [FLIRT-lib]
  * callers: 0x3f48b, 0x3f656, 0x3f950, 0x41deb, 0x41ec1, 0x41fee
  * callees: -
@@ -40380,7 +40464,7 @@ int __cdecl strnicmp(unsigned __int8 *a1, unsigned __int8 *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_46F9C
+ * IDA 9.5 Hex-Rays: sub_46F9C
  * VA=0x46f9c..0x47006 OBJ=1 OFF=0x36f9c size=0x6a
  * callers: 0x3f656
  * callees: 0x3dd11
@@ -40416,7 +40500,7 @@ _BYTE *__cdecl sub_46F9C(_BYTE *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strncpy
+ * IDA 9.5 Hex-Rays: strncpy
  * VA=0x47006..0x47039 OBJ=1 OFF=0x37006 size=0x33 [FLIRT-lib]
  * callers: 0x3fc33, 0x43ad0
  * callees: -
@@ -40439,7 +40523,7 @@ _BYTE *__cdecl strncpy(_BYTE *a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: setvbuf
+ * IDA 9.5 Hex-Rays: setvbuf
  * VA=0x47039..0x470b1 OBJ=1 OFF=0x37039 size=0x78 [FLIRT-lib]
  * callers: 0x3fe7f
  * callees: 0x3dc3c, 0x3dc69
@@ -40479,7 +40563,7 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __getctime
+ * IDA 9.5 Hex-Rays: __getctime
  * VA=0x470b1..0x47153 OBJ=1 OFF=0x370b1 size=0xa2 [FLIRT-lib]
  * callers: 0x3fea7
  * callees: -
@@ -40508,7 +40592,7 @@ int __usercall _getctime@<eax>(char a1@<al>, __int16 a2@<dx>, int a3@<ecx>, _DWO
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47153
+ * IDA 9.5 Hex-Rays: sub_47153
  * VA=0x47153..0x4726f OBJ=1 OFF=0x37153 size=0x11c
  * callers: 0x3fea7
  * callees: 0x4726f, 0x47525, 0x4768d, 0x476c1
@@ -40566,7 +40650,7 @@ int __cdecl sub_47153(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: tzset
+ * IDA 9.5 Hex-Rays: tzset
  * VA=0x4726f..0x4728a OBJ=1 OFF=0x3726f size=0x1b [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x3fee0, 0x47153
@@ -40584,7 +40668,7 @@ int tzset()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4728A
+ * IDA 9.5 Hex-Rays: sub_4728A
  * VA=0x4728a..0x472b3 OBJ=1 OFF=0x3728a size=0x29 [FLIRT-lib]
  * callers: 0x472b3, 0x47396
  * callees: -
@@ -40604,7 +40688,7 @@ int __cdecl sub_4728A(unsigned int a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_472B3
+ * IDA 9.5 Hex-Rays: sub_472B3
  * VA=0x472b3..0x47396 OBJ=1 OFF=0x372b3 size=0xe3 [FLIRT-lib]
  * callers: 0x47488
  * callees: 0x3cf26, 0x4728a
@@ -40674,7 +40758,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47396
+ * IDA 9.5 Hex-Rays: sub_47396
  * VA=0x47396..0x47488 OBJ=1 OFF=0x37396 size=0xf2 [FLIRT-lib]
  * callers: 0x47488
  * callees: 0x4728a
@@ -40751,7 +40835,7 @@ _BYTE *__cdecl sub_47396(_BYTE *a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __parse_tz
+ * IDA 9.5 Hex-Rays: __parse_tz
  * VA=0x47488..0x47525 OBJ=1 OFF=0x37488 size=0x9d [FLIRT-lib]
  * callers: 0x4726f
  * callees: 0x472b3, 0x47396
@@ -40788,7 +40872,7 @@ _BYTE *__cdecl _parse_tz(_BYTE *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47525
+ * IDA 9.5 Hex-Rays: sub_47525
  * VA=0x47525..0x47654 OBJ=1 OFF=0x37525 size=0x12f
  * callers: 0x3fee0, 0x47153, 0x47654
  * callees: 0x4768d
@@ -40841,9 +40925,9 @@ unsigned int *__cdecl sub_47525(int a1, unsigned int a2, int a3, unsigned int *a
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47654
+ * IDA 9.5 Hex-Rays: sub_47654
  * VA=0x47654..0x47678 OBJ=1 OFF=0x37654 size=0x24
- * callers: 0x47678
+ * callers: -
  * callees: 0x47525
  * --------------------------------------------------------------- */
 unsigned int *__cdecl sub_47654(unsigned int *a1, unsigned int *a2)
@@ -40854,19 +40938,7 @@ unsigned int *__cdecl sub_47654(unsigned int *a1, unsigned int *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: putchar_0
- * VA=0x47678..0x4768d OBJ=1 OFF=0x37678 size=0x15 [FLIRT-lib]
- * callers: -
- * callees: 0x47654
- * --------------------------------------------------------------- */
-unsigned int *__cdecl putchar_0(unsigned int *a1)
-{
-  return sub_47654(a1, dword_54604);
-}
-
-
-/* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __leapyear
+ * IDA 9.5 Hex-Rays: __leapyear
  * VA=0x4768d..0x476c1 OBJ=1 OFF=0x3768d size=0x34 [FLIRT-lib]
  * callers: 0x47153, 0x47525, 0x476c1
  * callees: -
@@ -40878,7 +40950,7 @@ bool __cdecl _leapyear(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __isindst
+ * IDA 9.5 Hex-Rays: __isindst
  * VA=0x476c1..0x47922 OBJ=1 OFF=0x376c1 size=0x261 [FLIRT-lib]
  * callers: 0x3fee0, 0x47153
  * callees: 0x4768d, 0x47922
@@ -41037,7 +41109,7 @@ LABEL_52:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47922
+ * IDA 9.5 Hex-Rays: sub_47922
  * VA=0x47922..0x47952 OBJ=1 OFF=0x37922 size=0x30 [FLIRT-lib]
  * callers: 0x476c1
  * callees: -
@@ -41063,7 +41135,7 @@ int __cdecl sub_47922(_DWORD *a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: div
+ * IDA 9.5 Hex-Rays: div
  * VA=0x47952..0x47985 OBJ=1 OFF=0x37952 size=0x33 [FLIRT-lib]
  * callers: 0x3ff4a, 0x3ff8b
  * callees: -
@@ -41077,7 +41149,7 @@ int *__usercall div@<eax>(int *a1@<esi>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47D88
+ * IDA 9.5 Hex-Rays: sub_47D88
  * VA=0x47d88..0x47d99 OBJ=1 OFF=0x37d88 size=0x11
  * callers: 0x47d88, 0x49891
  * callees: -
@@ -41100,7 +41172,7 @@ int __usercall sub_47D88@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47D99
+ * IDA 9.5 Hex-Rays: sub_47D99
  * VA=0x47d99..0x47da5 OBJ=1 OFF=0x37d99 size=0xc
  * callers: 0x47d99
  * callees: -
@@ -41121,7 +41193,7 @@ int __usercall sub_47D99@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47DA5
+ * IDA 9.5 Hex-Rays: sub_47DA5
  * VA=0x47da5..0x47dc4 OBJ=1 OFF=0x37da5 size=0x1f
  * callers: 0x47da5
  * callees: -
@@ -41149,7 +41221,7 @@ int __usercall sub_47DA5@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47DC4
+ * IDA 9.5 Hex-Rays: sub_47DC4
  * VA=0x47dc4..0x47dd8 OBJ=1 OFF=0x37dc4 size=0x14
  * callers: 0x47dc4
  * callees: -
@@ -41174,7 +41246,7 @@ int __usercall sub_47DC4@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47DD8
+ * IDA 9.5 Hex-Rays: sub_47DD8
  * VA=0x47dd8..0x47df7 OBJ=1 OFF=0x37dd8 size=0x1f
  * callers: 0x47dd8
  * callees: -
@@ -41201,7 +41273,7 @@ char __usercall sub_47DD8@<al>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47DF7
+ * IDA 9.5 Hex-Rays: sub_47DF7
  * VA=0x47df7..0x47e0b OBJ=1 OFF=0x37df7 size=0x14
  * callers: 0x47df7
  * callees: -
@@ -41226,7 +41298,7 @@ char __usercall sub_47DF7@<al>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E0B
+ * IDA 9.5 Hex-Rays: sub_47E0B
  * VA=0x47e0b..0x47e28 OBJ=1 OFF=0x37e0b size=0x1d
  * callers: 0x47e0b
  * callees: -
@@ -41255,7 +41327,7 @@ int __usercall sub_47E0B@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E28
+ * IDA 9.5 Hex-Rays: sub_47E28
  * VA=0x47e28..0x47e3a OBJ=1 OFF=0x37e28 size=0x12
  * callers: 0x47e28
  * callees: -
@@ -41282,7 +41354,7 @@ int __usercall sub_47E28@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E3A
+ * IDA 9.5 Hex-Rays: sub_47E3A
  * VA=0x47e3a..0x47e57 OBJ=1 OFF=0x37e3a size=0x1d
  * callers: 0x47e3a
  * callees: -
@@ -41311,7 +41383,7 @@ int __usercall sub_47E3A@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E57
+ * IDA 9.5 Hex-Rays: sub_47E57
  * VA=0x47e57..0x47e69 OBJ=1 OFF=0x37e57 size=0x12
  * callers: 0x47e57
  * callees: -
@@ -41338,7 +41410,7 @@ int __usercall sub_47E57@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E69
+ * IDA 9.5 Hex-Rays: sub_47E69
  * VA=0x47e69..0x47e7d OBJ=1 OFF=0x37e69 size=0x14
  * callers: 0x47e69
  * callees: -
@@ -41361,7 +41433,7 @@ int __usercall sub_47E69@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E7D
+ * IDA 9.5 Hex-Rays: sub_47E7D
  * VA=0x47e7d..0x47e8c OBJ=1 OFF=0x37e7d size=0xf
  * callers: 0x47e7d
  * callees: -
@@ -41382,7 +41454,7 @@ int __usercall sub_47E7D@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47E8C
+ * IDA 9.5 Hex-Rays: sub_47E8C
  * VA=0x47e8c..0x47ea2 OBJ=1 OFF=0x37e8c size=0x16
  * callers: 0x47e8c
  * callees: -
@@ -41409,7 +41481,7 @@ __int16 __usercall sub_47E8C@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47EA2
+ * IDA 9.5 Hex-Rays: sub_47EA2
  * VA=0x47ea2..0x47eb3 OBJ=1 OFF=0x37ea2 size=0x11
  * callers: 0x47ea2
  * callees: -
@@ -41435,7 +41507,7 @@ __int16 __usercall sub_47EA2@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47EB3
+ * IDA 9.5 Hex-Rays: sub_47EB3
  * VA=0x47eb3..0x47ed4 OBJ=1 OFF=0x37eb3 size=0x21
  * callers: 0x47eb3
  * callees: -
@@ -41463,7 +41535,7 @@ int __usercall sub_47EB3@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47ED4
+ * IDA 9.5 Hex-Rays: sub_47ED4
  * VA=0x47ed4..0x47eea OBJ=1 OFF=0x37ed4 size=0x16
  * callers: 0x47ed4
  * callees: -
@@ -41489,7 +41561,7 @@ int __usercall sub_47ED4@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47EEA
+ * IDA 9.5 Hex-Rays: sub_47EEA
  * VA=0x47eea..0x47f0b OBJ=1 OFF=0x37eea size=0x21
  * callers: 0x47eea
  * callees: -
@@ -41517,7 +41589,7 @@ int __usercall sub_47EEA@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F0B
+ * IDA 9.5 Hex-Rays: sub_47F0B
  * VA=0x47f0b..0x47f21 OBJ=1 OFF=0x37f0b size=0x16
  * callers: 0x47f0b
  * callees: -
@@ -41543,7 +41615,7 @@ int __usercall sub_47F0B@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F21
+ * IDA 9.5 Hex-Rays: sub_47F21
  * VA=0x47f21..0x47f46 OBJ=1 OFF=0x37f21 size=0x25
  * callers: 0x47f21
  * callees: -
@@ -41580,7 +41652,7 @@ __int16 __usercall sub_47F21@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F46
+ * IDA 9.5 Hex-Rays: sub_47F46
  * VA=0x47f46..0x47f60 OBJ=1 OFF=0x37f46 size=0x1a
  * callers: 0x47f46
  * callees: -
@@ -41615,7 +41687,7 @@ __int16 __usercall sub_47F46@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F60
+ * IDA 9.5 Hex-Rays: sub_47F60
  * VA=0x47f60..0x47f85 OBJ=1 OFF=0x37f60 size=0x25
  * callers: 0x47f60
  * callees: -
@@ -41652,7 +41724,7 @@ __int16 __usercall sub_47F60@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F85
+ * IDA 9.5 Hex-Rays: sub_47F85
  * VA=0x47f85..0x47f9f OBJ=1 OFF=0x37f85 size=0x1a
  * callers: 0x47f85
  * callees: -
@@ -41687,7 +41759,7 @@ __int16 __usercall sub_47F85@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47F9F
+ * IDA 9.5 Hex-Rays: sub_47F9F
  * VA=0x47f9f..0x47fc2 OBJ=1 OFF=0x37f9f size=0x23
  * callers: 0x47f9f
  * callees: -
@@ -41716,7 +41788,7 @@ int __usercall sub_47F9F@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47FC2
+ * IDA 9.5 Hex-Rays: sub_47FC2
  * VA=0x47fc2..0x47fda OBJ=1 OFF=0x37fc2 size=0x18
  * callers: 0x47fc2
  * callees: -
@@ -41743,7 +41815,7 @@ int __usercall sub_47FC2@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47FDA
+ * IDA 9.5 Hex-Rays: sub_47FDA
  * VA=0x47fda..0x47ffd OBJ=1 OFF=0x37fda size=0x23
  * callers: 0x47fda
  * callees: -
@@ -41772,7 +41844,7 @@ int __usercall sub_47FDA@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_47FFD
+ * IDA 9.5 Hex-Rays: sub_47FFD
  * VA=0x47ffd..0x48015 OBJ=1 OFF=0x37ffd size=0x18
  * callers: 0x47ffd
  * callees: -
@@ -41799,7 +41871,7 @@ int __usercall sub_47FFD@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48015
+ * IDA 9.5 Hex-Rays: sub_48015
  * VA=0x48015..0x4803c OBJ=1 OFF=0x38015 size=0x27
  * callers: 0x48015
  * callees: -
@@ -41837,7 +41909,7 @@ __int16 __usercall sub_48015@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4803C
+ * IDA 9.5 Hex-Rays: sub_4803C
  * VA=0x4803c..0x48058 OBJ=1 OFF=0x3803c size=0x1c
  * callers: 0x4803c
  * callees: -
@@ -41873,7 +41945,7 @@ __int16 __usercall sub_4803C@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48058
+ * IDA 9.5 Hex-Rays: sub_48058
  * VA=0x48058..0x4807f OBJ=1 OFF=0x38058 size=0x27
  * callers: 0x48058
  * callees: -
@@ -41911,7 +41983,7 @@ __int16 __usercall sub_48058@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4807F
+ * IDA 9.5 Hex-Rays: sub_4807F
  * VA=0x4807f..0x4809b OBJ=1 OFF=0x3807f size=0x1c
  * callers: 0x4807f
  * callees: -
@@ -41947,7 +42019,7 @@ __int16 __usercall sub_4807F@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4809B
+ * IDA 9.5 Hex-Rays: sub_4809B
  * VA=0x4809b..0x480c8 OBJ=1 OFF=0x3809b size=0x2d
  * callers: 0x4809b
  * callees: -
@@ -41978,7 +42050,7 @@ int __usercall sub_4809B@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_480C8
+ * IDA 9.5 Hex-Rays: sub_480C8
  * VA=0x480c8..0x480f0 OBJ=1 OFF=0x380c8 size=0x28
  * callers: 0x480c8
  * callees: -
@@ -42007,7 +42079,7 @@ int __usercall sub_480C8@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_480F0
+ * IDA 9.5 Hex-Rays: sub_480F0
  * VA=0x480f0..0x48149 OBJ=1 OFF=0x380f0 size=0x59
  * callers: 0x480f0
  * callees: -
@@ -42052,7 +42124,7 @@ int __usercall sub_480F0@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48149
+ * IDA 9.5 Hex-Rays: sub_48149
  * VA=0x48149..0x48197 OBJ=1 OFF=0x38149 size=0x4e
  * callers: 0x48149
  * callees: -
@@ -42093,7 +42165,7 @@ int __usercall sub_48149@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48197
+ * IDA 9.5 Hex-Rays: sub_48197
  * VA=0x48197..0x481f0 OBJ=1 OFF=0x38197 size=0x59
  * callers: 0x48197
  * callees: -
@@ -42136,7 +42208,7 @@ char __usercall sub_48197@<al>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_481F0
+ * IDA 9.5 Hex-Rays: sub_481F0
  * VA=0x481f0..0x4823e OBJ=1 OFF=0x381f0 size=0x4e
  * callers: 0x481f0
  * callees: -
@@ -42177,7 +42249,7 @@ char __usercall sub_481F0@<al>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4823E
+ * IDA 9.5 Hex-Rays: sub_4823E
  * VA=0x4823e..0x48295 OBJ=1 OFF=0x3823e size=0x57
  * callers: 0x4823e
  * callees: -
@@ -42222,7 +42294,7 @@ int __usercall sub_4823E@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48295
+ * IDA 9.5 Hex-Rays: sub_48295
  * VA=0x48295..0x482e1 OBJ=1 OFF=0x38295 size=0x4c
  * callers: 0x48295
  * callees: -
@@ -42265,7 +42337,7 @@ int __usercall sub_48295@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_482E1
+ * IDA 9.5 Hex-Rays: sub_482E1
  * VA=0x482e1..0x48338 OBJ=1 OFF=0x382e1 size=0x57
  * callers: 0x482e1
  * callees: -
@@ -42310,7 +42382,7 @@ int __usercall sub_482E1@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48338
+ * IDA 9.5 Hex-Rays: sub_48338
  * VA=0x48338..0x48384 OBJ=1 OFF=0x38338 size=0x4c
  * callers: 0x48338
  * callees: -
@@ -42353,7 +42425,7 @@ int __usercall sub_48338@<eax>(int a1@<ecx>, _BYTE *a2@<ebx>, _BYTE *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48384
+ * IDA 9.5 Hex-Rays: sub_48384
  * VA=0x48384..0x483b4 OBJ=1 OFF=0x38384 size=0x30
  * callers: 0x48384
  * callees: -
@@ -42384,7 +42456,7 @@ int __usercall sub_48384@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_483B4
+ * IDA 9.5 Hex-Rays: sub_483B4
  * VA=0x483b4..0x483df OBJ=1 OFF=0x383b4 size=0x2b
  * callers: 0x483b4
  * callees: -
@@ -42413,7 +42485,7 @@ int __usercall sub_483B4@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_483DF
+ * IDA 9.5 Hex-Rays: sub_483DF
  * VA=0x483df..0x48411 OBJ=1 OFF=0x383df size=0x32
  * callers: 0x483df
  * callees: -
@@ -42449,7 +42521,7 @@ __int16 __usercall sub_483DF@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48411
+ * IDA 9.5 Hex-Rays: sub_48411
  * VA=0x48411..0x4843e OBJ=1 OFF=0x38411 size=0x2d
  * callers: 0x48411
  * callees: -
@@ -42483,7 +42555,7 @@ __int16 __usercall sub_48411@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4843E
+ * IDA 9.5 Hex-Rays: sub_4843E
  * VA=0x4843e..0x48499 OBJ=1 OFF=0x3843e size=0x5b
  * callers: 0x4843e
  * callees: -
@@ -42527,7 +42599,7 @@ int __usercall sub_4843E@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48499
+ * IDA 9.5 Hex-Rays: sub_48499
  * VA=0x48499..0x484e9 OBJ=1 OFF=0x38499 size=0x50
  * callers: 0x48499
  * callees: -
@@ -42569,7 +42641,7 @@ int __usercall sub_48499@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_484E9
+ * IDA 9.5 Hex-Rays: sub_484E9
  * VA=0x484e9..0x48544 OBJ=1 OFF=0x384e9 size=0x5b
  * callers: 0x484e9
  * callees: -
@@ -42613,7 +42685,7 @@ int __usercall sub_484E9@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48544
+ * IDA 9.5 Hex-Rays: sub_48544
  * VA=0x48544..0x48594 OBJ=1 OFF=0x38544 size=0x50
  * callers: 0x48544
  * callees: -
@@ -42655,7 +42727,7 @@ int __usercall sub_48544@<eax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48594
+ * IDA 9.5 Hex-Rays: sub_48594
  * VA=0x48594..0x485f3 OBJ=1 OFF=0x38594 size=0x5f
  * callers: 0x48594
  * callees: -
@@ -42710,7 +42782,7 @@ __int16 __usercall sub_48594@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_485F3
+ * IDA 9.5 Hex-Rays: sub_485F3
  * VA=0x485f3..0x48647 OBJ=1 OFF=0x385f3 size=0x54
  * callers: 0x485f3
  * callees: -
@@ -42762,7 +42834,7 @@ __int16 __usercall sub_485F3@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48647
+ * IDA 9.5 Hex-Rays: sub_48647
  * VA=0x48647..0x486a6 OBJ=1 OFF=0x38647 size=0x5f
  * callers: 0x48647
  * callees: -
@@ -42817,7 +42889,7 @@ __int16 __usercall sub_48647@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_486A6
+ * IDA 9.5 Hex-Rays: sub_486A6
  * VA=0x486a6..0x486fa OBJ=1 OFF=0x386a6 size=0x54
  * callers: 0x486a6
  * callees: -
@@ -42869,7 +42941,7 @@ __int16 __usercall sub_486A6@<ax>(int a1@<ecx>, _WORD *a2@<edi>, int *a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_486FA
+ * IDA 9.5 Hex-Rays: sub_486FA
  * VA=0x486fa..0x48757 OBJ=1 OFF=0x386fa size=0x5d
  * callers: 0x486fa
  * callees: -
@@ -42914,7 +42986,7 @@ int __usercall sub_486FA@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48757
+ * IDA 9.5 Hex-Rays: sub_48757
  * VA=0x48757..0x487a9 OBJ=1 OFF=0x38757 size=0x52
  * callers: 0x48757
  * callees: -
@@ -42957,7 +43029,7 @@ int __usercall sub_48757@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_487A9
+ * IDA 9.5 Hex-Rays: sub_487A9
  * VA=0x487a9..0x48806 OBJ=1 OFF=0x387a9 size=0x5d
  * callers: 0x487a9
  * callees: -
@@ -43002,7 +43074,7 @@ int __usercall sub_487A9@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48806
+ * IDA 9.5 Hex-Rays: sub_48806
  * VA=0x48806..0x48858 OBJ=1 OFF=0x38806 size=0x52
  * callers: 0x48806
  * callees: -
@@ -43045,7 +43117,7 @@ int __usercall sub_48806@<eax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48858
+ * IDA 9.5 Hex-Rays: sub_48858
  * VA=0x48858..0x488b9 OBJ=1 OFF=0x38858 size=0x61
  * callers: 0x48858
  * callees: -
@@ -43101,7 +43173,7 @@ __int16 __usercall sub_48858@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_488B9
+ * IDA 9.5 Hex-Rays: sub_488B9
  * VA=0x488b9..0x4890f OBJ=1 OFF=0x388b9 size=0x56
  * callers: 0x488b9
  * callees: -
@@ -43154,7 +43226,7 @@ __int16 __usercall sub_488B9@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4890F
+ * IDA 9.5 Hex-Rays: sub_4890F
  * VA=0x4890f..0x48970 OBJ=1 OFF=0x3890f size=0x61
  * callers: 0x4890f
  * callees: -
@@ -43210,7 +43282,7 @@ __int16 __usercall sub_4890F@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48970
+ * IDA 9.5 Hex-Rays: sub_48970
  * VA=0x48970..0x489c6 OBJ=1 OFF=0x38970 size=0x56
  * callers: 0x48970
  * callees: -
@@ -43263,7 +43335,7 @@ __int16 __usercall sub_48970@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_489C6
+ * IDA 9.5 Hex-Rays: sub_489C6
  * VA=0x489c6..0x489e7 OBJ=1 OFF=0x389c6 size=0x21
  * callers: 0x489c6, 0x49690
  * callees: -
@@ -43285,7 +43357,7 @@ int __usercall sub_489C6@<eax>(int result@<eax>, _DWORD *a2@<edi>, _BYTE *a3@<es
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_489E7
+ * IDA 9.5 Hex-Rays: sub_489E7
  * VA=0x489e7..0x48a0b OBJ=1 OFF=0x389e7 size=0x24
  * callers: 0x489e7, 0x49690
  * callees: -
@@ -43309,7 +43381,7 @@ int __usercall sub_489E7@<eax>(int result@<eax>, _DWORD *a2@<edi>, _BYTE *a3@<es
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48A0B
+ * IDA 9.5 Hex-Rays: sub_48A0B
  * VA=0x48a0b..0x48a37 OBJ=1 OFF=0x38a0b size=0x2c
  * callers: 0x48a0b, 0x49690
  * callees: -
@@ -43331,7 +43403,7 @@ int __usercall sub_48A0B@<eax>(int result@<eax>, _DWORD *a2@<edi>, _BYTE *a3@<es
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48A37
+ * IDA 9.5 Hex-Rays: sub_48A37
  * VA=0x48a37..0x48a69 OBJ=1 OFF=0x38a37 size=0x32
  * callers: 0x48a37, 0x49690
  * callees: -
@@ -43357,7 +43429,7 @@ int __usercall sub_48A37@<eax>(int result@<eax>, __int16 a2@<bx>, _DWORD *a3@<ed
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48A69
+ * IDA 9.5 Hex-Rays: sub_48A69
  * VA=0x48a69..0x48a95 OBJ=1 OFF=0x38a69 size=0x2c
  * callers: 0x48a69
  * callees: -
@@ -43379,7 +43451,7 @@ int __usercall sub_48A69@<eax>(int result@<eax>, _DWORD *a2@<edi>, unsigned int 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48A95
+ * IDA 9.5 Hex-Rays: sub_48A95
  * VA=0x48a95..0x48ac7 OBJ=1 OFF=0x38a95 size=0x32
  * callers: 0x48a95
  * callees: -
@@ -43405,7 +43477,7 @@ int __usercall sub_48A95@<eax>(int result@<eax>, __int16 a2@<bx>, _DWORD *a3@<ed
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48AC7
+ * IDA 9.5 Hex-Rays: sub_48AC7
  * VA=0x48ac7..0x48aeb OBJ=1 OFF=0x38ac7 size=0x24
  * callers: 0x48ac7
  * callees: -
@@ -43427,7 +43499,7 @@ __int16 __usercall sub_48AC7@<ax>(_DWORD *a1@<edi>, _WORD *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48AEB
+ * IDA 9.5 Hex-Rays: sub_48AEB
  * VA=0x48aeb..0x48b12 OBJ=1 OFF=0x38aeb size=0x27
  * callers: 0x48aeb
  * callees: -
@@ -43451,7 +43523,7 @@ __int16 __usercall sub_48AEB@<ax>(_DWORD *a1@<edi>, _WORD *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48B12
+ * IDA 9.5 Hex-Rays: sub_48B12
  * VA=0x48b12..0x48b40 OBJ=1 OFF=0x38b12 size=0x2e
  * callers: 0x48b12
  * callees: -
@@ -43474,7 +43546,7 @@ __int16 __usercall sub_48B12@<ax>(_DWORD *a1@<edi>, _WORD *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48B40
+ * IDA 9.5 Hex-Rays: sub_48B40
  * VA=0x48b40..0x48b74 OBJ=1 OFF=0x38b40 size=0x34
  * callers: 0x48b40
  * callees: -
@@ -43501,7 +43573,7 @@ __int16 __usercall sub_48B40@<ax>(_DWORD *a1@<edi>, _WORD *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48B74
+ * IDA 9.5 Hex-Rays: sub_48B74
  * VA=0x48b74..0x48ba2 OBJ=1 OFF=0x38b74 size=0x2e
  * callers: 0x48b74
  * callees: -
@@ -43524,7 +43596,7 @@ __int16 __usercall sub_48B74@<ax>(_DWORD *a1@<edi>, unsigned int a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48BA2
+ * IDA 9.5 Hex-Rays: sub_48BA2
  * VA=0x48ba2..0x48bd6 OBJ=1 OFF=0x38ba2 size=0x34
  * callers: 0x48ba2
  * callees: -
@@ -43551,7 +43623,7 @@ __int16 __usercall sub_48BA2@<ax>(_DWORD *a1@<edi>, _WORD *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48BD6
+ * IDA 9.5 Hex-Rays: sub_48BD6
  * VA=0x48bd6..0x48bf2 OBJ=1 OFF=0x38bd6 size=0x1c
  * callers: 0x48bd6
  * callees: -
@@ -43571,7 +43643,7 @@ __int16 __usercall sub_48BD6@<ax>(__int16 result@<ax>, _DWORD *a2@<edi>, _BYTE *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48BF2
+ * IDA 9.5 Hex-Rays: sub_48BF2
  * VA=0x48bf2..0x48c11 OBJ=1 OFF=0x38bf2 size=0x1f
  * callers: 0x48bf2
  * callees: -
@@ -43593,7 +43665,7 @@ __int16 __usercall sub_48BF2@<ax>(__int16 result@<ax>, _DWORD *a2@<edi>, _BYTE *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48C11
+ * IDA 9.5 Hex-Rays: sub_48C11
  * VA=0x48c11..0x48c32 OBJ=1 OFF=0x38c11 size=0x21
  * callers: 0x48c11
  * callees: -
@@ -43614,7 +43686,7 @@ __int16 __usercall sub_48C11@<ax>(__int16 result@<ax>, _DWORD *a2@<edi>, _BYTE *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48C32
+ * IDA 9.5 Hex-Rays: sub_48C32
  * VA=0x48c32..0x48c59 OBJ=1 OFF=0x38c32 size=0x27
  * callers: 0x48c32
  * callees: -
@@ -43638,7 +43710,7 @@ __int16 __usercall sub_48C32@<ax>(__int16 result@<ax>, __int16 a2@<bx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48C59
+ * IDA 9.5 Hex-Rays: sub_48C59
  * VA=0x48c59..0x48c7a OBJ=1 OFF=0x38c59 size=0x21
  * callers: 0x48c59
  * callees: -
@@ -43659,7 +43731,7 @@ __int16 __usercall sub_48C59@<ax>(__int16 result@<ax>, _DWORD *a2@<edi>, unsigne
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48C7A
+ * IDA 9.5 Hex-Rays: sub_48C7A
  * VA=0x48c7a..0x48ca1 OBJ=1 OFF=0x38c7a size=0x27
  * callers: 0x48c7a
  * callees: -
@@ -43683,7 +43755,7 @@ __int16 __usercall sub_48C7A@<ax>(__int16 result@<ax>, __int16 a2@<bx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48CA1
+ * IDA 9.5 Hex-Rays: sub_48CA1
  * VA=0x48ca1..0x48cc0 OBJ=1 OFF=0x38ca1 size=0x1f
  * callers: 0x48ca1
  * callees: -
@@ -43705,7 +43777,7 @@ __int16 __usercall sub_48CA1@<ax>(_DWORD *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48CC0
+ * IDA 9.5 Hex-Rays: sub_48CC0
  * VA=0x48cc0..0x48ce2 OBJ=1 OFF=0x38cc0 size=0x22
  * callers: 0x48cc0
  * callees: -
@@ -43729,7 +43801,7 @@ __int16 __usercall sub_48CC0@<ax>(_DWORD *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48CE2
+ * IDA 9.5 Hex-Rays: sub_48CE2
  * VA=0x48ce2..0x48d05 OBJ=1 OFF=0x38ce2 size=0x23
  * callers: 0x48ce2
  * callees: -
@@ -43752,7 +43824,7 @@ __int16 __usercall sub_48CE2@<ax>(_DWORD *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48D05
+ * IDA 9.5 Hex-Rays: sub_48D05
  * VA=0x48d05..0x48d2e OBJ=1 OFF=0x38d05 size=0x29
  * callers: 0x48d05
  * callees: -
@@ -43779,7 +43851,7 @@ __int16 __usercall sub_48D05@<ax>(_DWORD *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48D2E
+ * IDA 9.5 Hex-Rays: sub_48D2E
  * VA=0x48d2e..0x48d51 OBJ=1 OFF=0x38d2e size=0x23
  * callers: 0x48d2e
  * callees: -
@@ -43802,7 +43874,7 @@ __int16 __usercall sub_48D2E@<ax>(_DWORD *a1@<edi>, unsigned int a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48D51
+ * IDA 9.5 Hex-Rays: sub_48D51
  * VA=0x48d51..0x48d7a OBJ=1 OFF=0x38d51 size=0x29
  * callers: 0x48d51
  * callees: -
@@ -43829,7 +43901,7 @@ __int16 __usercall sub_48D51@<ax>(_DWORD *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48D7A
+ * IDA 9.5 Hex-Rays: sub_48D7A
  * VA=0x48d7a..0x48da6 OBJ=1 OFF=0x38d7a size=0x2c
  * callers: 0x48d7a
  * callees: -
@@ -43852,7 +43924,7 @@ int __usercall sub_48D7A@<eax>(int result@<eax>, unsigned int a2@<ecx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48DA6
+ * IDA 9.5 Hex-Rays: sub_48DA6
  * VA=0x48da6..0x48dd5 OBJ=1 OFF=0x38da6 size=0x2f
  * callers: 0x48da6
  * callees: -
@@ -43877,7 +43949,7 @@ int __usercall sub_48DA6@<eax>(int result@<eax>, unsigned int a2@<ecx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48DD5
+ * IDA 9.5 Hex-Rays: sub_48DD5
  * VA=0x48dd5..0x48e0f OBJ=1 OFF=0x38dd5 size=0x3a
  * callers: 0x48dd5
  * callees: -
@@ -43903,7 +43975,7 @@ int __usercall sub_48DD5@<eax>(int result@<eax>, unsigned int a2@<ecx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48E0F
+ * IDA 9.5 Hex-Rays: sub_48E0F
  * VA=0x48e0f..0x48e4f OBJ=1 OFF=0x38e0f size=0x40
  * callers: 0x48e0f
  * callees: -
@@ -43938,7 +44010,7 @@ int __usercall sub_48E0F@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48E4F
+ * IDA 9.5 Hex-Rays: sub_48E4F
  * VA=0x48e4f..0x48e89 OBJ=1 OFF=0x38e4f size=0x3a
  * callers: 0x48e4f
  * callees: -
@@ -43964,7 +44036,7 @@ int __usercall sub_48E4F@<eax>(int result@<eax>, unsigned int a2@<ecx>, _DWORD *
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48E89
+ * IDA 9.5 Hex-Rays: sub_48E89
  * VA=0x48e89..0x48ec9 OBJ=1 OFF=0x38e89 size=0x40
  * callers: 0x48e89
  * callees: -
@@ -43999,7 +44071,7 @@ int __usercall sub_48E89@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48EC9
+ * IDA 9.5 Hex-Rays: sub_48EC9
  * VA=0x48ec9..0x48efb OBJ=1 OFF=0x38ec9 size=0x32
  * callers: 0x48ec9
  * callees: -
@@ -44025,7 +44097,7 @@ __int16 __usercall sub_48EC9@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, _WORD
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48EFB
+ * IDA 9.5 Hex-Rays: sub_48EFB
  * VA=0x48efb..0x48f30 OBJ=1 OFF=0x38efb size=0x35
  * callers: 0x48efb
  * callees: -
@@ -44053,7 +44125,7 @@ __int16 __usercall sub_48EFB@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, _WORD
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48F30
+ * IDA 9.5 Hex-Rays: sub_48F30
  * VA=0x48f30..0x48f6c OBJ=1 OFF=0x38f30 size=0x3c
  * callers: 0x48f30
  * callees: -
@@ -44079,7 +44151,7 @@ __int16 __usercall sub_48F30@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, _WORD
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48F6C
+ * IDA 9.5 Hex-Rays: sub_48F6C
  * VA=0x48f6c..0x48fae OBJ=1 OFF=0x38f6c size=0x42
  * callers: 0x48f6c
  * callees: -
@@ -44109,7 +44181,7 @@ __int16 __usercall sub_48F6C@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, _WORD
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48FAE
+ * IDA 9.5 Hex-Rays: sub_48FAE
  * VA=0x48fae..0x48fea OBJ=1 OFF=0x38fae size=0x3c
  * callers: 0x48fae
  * callees: -
@@ -44135,7 +44207,7 @@ __int16 __usercall sub_48FAE@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, unsig
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_48FEA
+ * IDA 9.5 Hex-Rays: sub_48FEA
  * VA=0x48fea..0x4902c OBJ=1 OFF=0x38fea size=0x42
  * callers: 0x48fea
  * callees: -
@@ -44165,7 +44237,7 @@ __int16 __usercall sub_48FEA@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, _WORD
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4902C
+ * IDA 9.5 Hex-Rays: sub_4902C
  * VA=0x4902c..0x49053 OBJ=1 OFF=0x3902c size=0x27
  * callers: 0x4902c
  * callees: -
@@ -44187,7 +44259,7 @@ __int16 __usercall sub_4902C@<ax>(__int16 result@<ax>, unsigned int a2@<ecx>, _D
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49053
+ * IDA 9.5 Hex-Rays: sub_49053
  * VA=0x49053..0x4907d OBJ=1 OFF=0x39053 size=0x2a
  * callers: 0x49053
  * callees: -
@@ -44211,7 +44283,7 @@ __int16 __usercall sub_49053@<ax>(__int16 result@<ax>, unsigned int a2@<ecx>, _D
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4907D
+ * IDA 9.5 Hex-Rays: sub_4907D
  * VA=0x4907d..0x490ac OBJ=1 OFF=0x3907d size=0x2f
  * callers: 0x4907d
  * callees: -
@@ -44236,7 +44308,7 @@ __int16 __usercall sub_4907D@<ax>(__int16 result@<ax>, unsigned int a2@<ecx>, _D
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_490AC
+ * IDA 9.5 Hex-Rays: sub_490AC
  * VA=0x490ac..0x490e1 OBJ=1 OFF=0x390ac size=0x35
  * callers: 0x490ac
  * callees: -
@@ -44269,7 +44341,7 @@ __int16 __usercall sub_490AC@<ax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_490E1
+ * IDA 9.5 Hex-Rays: sub_490E1
  * VA=0x490e1..0x49110 OBJ=1 OFF=0x390e1 size=0x2f
  * callers: 0x490e1
  * callees: -
@@ -44294,7 +44366,7 @@ __int16 __usercall sub_490E1@<ax>(__int16 result@<ax>, unsigned int a2@<ecx>, _D
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49110
+ * IDA 9.5 Hex-Rays: sub_49110
  * VA=0x49110..0x49145 OBJ=1 OFF=0x39110 size=0x35
  * callers: 0x49110
  * callees: -
@@ -44327,7 +44399,7 @@ __int16 __usercall sub_49110@<ax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49145
+ * IDA 9.5 Hex-Rays: sub_49145
  * VA=0x49145..0x49172 OBJ=1 OFF=0x39145 size=0x2d
  * callers: 0x49145
  * callees: -
@@ -44353,7 +44425,7 @@ __int16 __usercall sub_49145@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49172
+ * IDA 9.5 Hex-Rays: sub_49172
  * VA=0x49172..0x491a2 OBJ=1 OFF=0x39172 size=0x30
  * callers: 0x49172
  * callees: -
@@ -44381,7 +44453,7 @@ __int16 __usercall sub_49172@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_491A2
+ * IDA 9.5 Hex-Rays: sub_491A2
  * VA=0x491a2..0x491d3 OBJ=1 OFF=0x391a2 size=0x31
  * callers: 0x491a2
  * callees: -
@@ -44407,7 +44479,7 @@ __int16 __usercall sub_491A2@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_491D3
+ * IDA 9.5 Hex-Rays: sub_491D3
  * VA=0x491d3..0x4920a OBJ=1 OFF=0x391d3 size=0x37
  * callers: 0x491d3
  * callees: -
@@ -44437,7 +44509,7 @@ __int16 __usercall sub_491D3@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4920A
+ * IDA 9.5 Hex-Rays: sub_4920A
  * VA=0x4920a..0x4923b OBJ=1 OFF=0x3920a size=0x31
  * callers: 0x4920a
  * callees: -
@@ -44463,7 +44535,7 @@ __int16 __usercall sub_4920A@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, unsig
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4923B
+ * IDA 9.5 Hex-Rays: sub_4923B
  * VA=0x4923b..0x49272 OBJ=1 OFF=0x3923b size=0x37
  * callers: 0x4923b
  * callees: -
@@ -44493,7 +44565,7 @@ __int16 __usercall sub_4923B@<ax>(unsigned int a1@<ecx>, _DWORD *a2@<edi>, __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49272
+ * IDA 9.5 Hex-Rays: sub_49272
  * VA=0x49272..0x4928e OBJ=1 OFF=0x39272 size=0x1c
  * callers: 0x49272
  * callees: -
@@ -44513,7 +44585,7 @@ char __usercall sub_49272@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, _BY
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4928E
+ * IDA 9.5 Hex-Rays: sub_4928E
  * VA=0x4928e..0x492b4 OBJ=1 OFF=0x3928e size=0x26
  * callers: 0x4928e
  * callees: -
@@ -44535,7 +44607,7 @@ char __usercall sub_4928E@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, _BY
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_492B4
+ * IDA 9.5 Hex-Rays: sub_492B4
  * VA=0x492b4..0x492d5 OBJ=1 OFF=0x392b4 size=0x21
  * callers: 0x492b4
  * callees: -
@@ -44556,7 +44628,7 @@ char __usercall sub_492B4@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, _BY
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_492D5
+ * IDA 9.5 Hex-Rays: sub_492D5
  * VA=0x492d5..0x49300 OBJ=1 OFF=0x392d5 size=0x2b
  * callers: 0x492d5
  * callees: -
@@ -44580,7 +44652,7 @@ char __usercall sub_492D5@<al>(int a1@<eax>, int a2@<edx>, int a3@<ebx>, _DWORD 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49300
+ * IDA 9.5 Hex-Rays: sub_49300
  * VA=0x49300..0x49321 OBJ=1 OFF=0x39300 size=0x21
  * callers: 0x49300
  * callees: -
@@ -44601,7 +44673,7 @@ char __usercall sub_49300@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, uns
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49321
+ * IDA 9.5 Hex-Rays: sub_49321
  * VA=0x49321..0x4934c OBJ=1 OFF=0x39321 size=0x2b
  * callers: 0x49321
  * callees: -
@@ -44625,7 +44697,7 @@ char __usercall sub_49321@<al>(int a1@<eax>, int a2@<edx>, int a3@<ebx>, _DWORD 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4934C
+ * IDA 9.5 Hex-Rays: sub_4934C
  * VA=0x4934c..0x4936b OBJ=1 OFF=0x3934c size=0x1f
  * callers: 0x4934c
  * callees: -
@@ -44646,7 +44718,7 @@ char __usercall sub_4934C@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, uns
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4936B
+ * IDA 9.5 Hex-Rays: sub_4936B
  * VA=0x4936b..0x49394 OBJ=1 OFF=0x3936b size=0x29
  * callers: 0x4936b
  * callees: -
@@ -44669,7 +44741,7 @@ char __usercall sub_4936B@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, uns
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49394
+ * IDA 9.5 Hex-Rays: sub_49394
  * VA=0x49394..0x493b6 OBJ=1 OFF=0x39394 size=0x22
  * callers: 0x49394
  * callees: -
@@ -44690,7 +44762,7 @@ char __usercall sub_49394@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, uns
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_493B6
+ * IDA 9.5 Hex-Rays: sub_493B6
  * VA=0x493b6..0x493e2 OBJ=1 OFF=0x393b6 size=0x2c
  * callers: 0x493b6
  * callees: -
@@ -44714,7 +44786,7 @@ char __usercall sub_493B6@<al>(int a1@<eax>, int a2@<edx>, int a3@<ebx>, _DWORD 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_493E2
+ * IDA 9.5 Hex-Rays: sub_493E2
  * VA=0x493e2..0x49404 OBJ=1 OFF=0x393e2 size=0x22
  * callers: 0x493e2
  * callees: -
@@ -44735,7 +44807,7 @@ char __usercall sub_493E2@<al>(int a1@<eax>, int a2@<edx>, _DWORD *a3@<edi>, uns
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49404
+ * IDA 9.5 Hex-Rays: sub_49404
  * VA=0x49404..0x49430 OBJ=1 OFF=0x39404 size=0x2c
  * callers: 0x49404
  * callees: -
@@ -44759,7 +44831,7 @@ char __usercall sub_49404@<al>(int a1@<eax>, int a2@<edx>, int a3@<ebx>, _DWORD 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49430
+ * IDA 9.5 Hex-Rays: sub_49430
  * VA=0x49430..0x49457 OBJ=1 OFF=0x39430 size=0x27
  * callers: 0x49430
  * callees: -
@@ -44781,7 +44853,7 @@ char __usercall sub_49430@<al>(int a1@<eax>, int a2@<edx>, unsigned int a3@<ecx>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49457
+ * IDA 9.5 Hex-Rays: sub_49457
  * VA=0x49457..0x49488 OBJ=1 OFF=0x39457 size=0x31
  * callers: 0x49457
  * callees: -
@@ -44805,7 +44877,7 @@ char __usercall sub_49457@<al>(int a1@<eax>, int a2@<edx>, unsigned int a3@<ecx>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49488
+ * IDA 9.5 Hex-Rays: sub_49488
  * VA=0x49488..0x494b7 OBJ=1 OFF=0x39488 size=0x2f
  * callers: 0x49488
  * callees: -
@@ -44830,7 +44902,7 @@ char __usercall sub_49488@<al>(int a1@<eax>, int a2@<edx>, unsigned int a3@<ecx>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_494B7
+ * IDA 9.5 Hex-Rays: sub_494B7
  * VA=0x494b7..0x494f0 OBJ=1 OFF=0x394b7 size=0x39
  * callers: 0x494b7
  * callees: -
@@ -44864,7 +44936,7 @@ char __usercall sub_494B7@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_494F0
+ * IDA 9.5 Hex-Rays: sub_494F0
  * VA=0x494f0..0x4951f OBJ=1 OFF=0x394f0 size=0x2f
  * callers: 0x494f0
  * callees: -
@@ -44894,7 +44966,7 @@ char __usercall sub_494F0@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4951F
+ * IDA 9.5 Hex-Rays: sub_4951F
  * VA=0x4951f..0x49558 OBJ=1 OFF=0x3951f size=0x39
  * callers: 0x4951f
  * callees: -
@@ -44928,7 +45000,7 @@ char __usercall sub_4951F@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49558
+ * IDA 9.5 Hex-Rays: sub_49558
  * VA=0x49558..0x49585 OBJ=1 OFF=0x39558 size=0x2d
  * callers: 0x49558
  * callees: -
@@ -44958,7 +45030,7 @@ char __usercall sub_49558@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49585
+ * IDA 9.5 Hex-Rays: sub_49585
  * VA=0x49585..0x495bc OBJ=1 OFF=0x39585 size=0x37
  * callers: 0x49585
  * callees: -
@@ -44990,7 +45062,7 @@ char __usercall sub_49585@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_495BC
+ * IDA 9.5 Hex-Rays: sub_495BC
  * VA=0x495bc..0x495ec OBJ=1 OFF=0x395bc size=0x30
  * callers: 0x495bc
  * callees: -
@@ -45020,7 +45092,7 @@ char __usercall sub_495BC@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_495EC
+ * IDA 9.5 Hex-Rays: sub_495EC
  * VA=0x495ec..0x49626 OBJ=1 OFF=0x395ec size=0x3a
  * callers: 0x495ec
  * callees: -
@@ -45054,7 +45126,7 @@ char __usercall sub_495EC@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49626
+ * IDA 9.5 Hex-Rays: sub_49626
  * VA=0x49626..0x49656 OBJ=1 OFF=0x39626 size=0x30
  * callers: 0x49626
  * callees: -
@@ -45084,7 +45156,7 @@ char __usercall sub_49626@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49656
+ * IDA 9.5 Hex-Rays: sub_49656
  * VA=0x49656..0x49690 OBJ=1 OFF=0x39656 size=0x3a
  * callers: 0x49656
  * callees: -
@@ -45118,7 +45190,7 @@ char __usercall sub_49656@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49690
+ * IDA 9.5 Hex-Rays: sub_49690
  * VA=0x49690..0x49891 OBJ=1 OFF=0x39690 size=0x201
  * callers: 0x404c0
  * callees: 0x489c6, 0x489e7, 0x48a0b, 0x48a37
@@ -45242,7 +45314,7 @@ int __cdecl sub_49690(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49891
+ * IDA 9.5 Hex-Rays: sub_49891
  * VA=0x49891..0x49923 OBJ=1 OFF=0x39891 size=0x92
  * callers: 0x404c0, 0x406b0, 0x40c40, 0x40cf0
  * callees: 0x47d88
@@ -45278,7 +45350,7 @@ int __cdecl sub_49891(_DWORD *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49923
+ * IDA 9.5 Hex-Rays: sub_49923
  * VA=0x49923..0x4994f OBJ=1 OFF=0x39923 size=0x2c
  * callers: 0x404c0, 0x406b0, 0x40c40, 0x40cf0
  * callees: -
@@ -45297,7 +45369,7 @@ int __cdecl sub_49923(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4994F
+ * IDA 9.5 Hex-Rays: sub_4994F
  * VA=0x4994f..0x4997e OBJ=1 OFF=0x3994f size=0x2f
  * type: int __fastcall(_DWORD)
  * callers: 0x40100, 0x4994f
@@ -45311,7 +45383,7 @@ bool sub_4994F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strncmp
+ * IDA 9.5 Hex-Rays: strncmp
  * VA=0x4997e..0x499b0 OBJ=1 OFF=0x3997e size=0x32 [FLIRT-lib]
  * callers: 0x42520, 0x443d0
  * callees: -
@@ -45335,7 +45407,7 @@ int __cdecl strncmp(_BYTE *a1, _BYTE *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __math1err
+ * IDA 9.5 Hex-Rays: __math1err
  * VA=0x499b0..0x499da OBJ=1 OFF=0x399b0 size=0x2a [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD)
  * callers: 0x46013, 0x4dc41
@@ -45348,7 +45420,7 @@ __int64 __cdecl _math1err(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __math2err
+ * IDA 9.5 Hex-Rays: __math2err
  * VA=0x499da..0x49acd OBJ=1 OFF=0x399da size=0xf3 [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD, _DWORD)
  * callers: 0x499b0
@@ -45427,7 +45499,7 @@ int __cdecl _math2err(__int16 a1, double *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49ACD
+ * IDA 9.5 Hex-Rays: sub_49ACD
  * VA=0x49acd..0x49ad8 OBJ=1 OFF=0x39acd size=0xb
  * type: int(void)
  * callers: 0x4609b
@@ -45440,7 +45512,7 @@ void sub_49ACD()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _EFG_Format
+ * IDA 9.5 Hex-Rays: _EFG_Format
  * VA=0x49ad8..0x49bb7 OBJ=1 OFF=0x39ad8 size=0xdf [FLIRT-lib]
  * callers: 0x46170
  * callees: 0x49bb7, 0x4d25b
@@ -45503,7 +45575,7 @@ LABEL_16:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49BB7
+ * IDA 9.5 Hex-Rays: sub_49BB7
  * VA=0x49bb7..0x49c03 OBJ=1 OFF=0x39bb7 size=0x4c [FLIRT-lib]
  * callers: 0x49ad8
  * callees: -
@@ -45535,7 +45607,7 @@ const char *__cdecl sub_49BB7(const char *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __cnvs2d
+ * IDA 9.5 Hex-Rays: __cnvs2d
  * VA=0x49c03..0x49c26 OBJ=1 OFF=0x39c03 size=0x23 [FLIRT-lib]
  * callers: 0x46170
  * callees: 0x4d49c
@@ -45551,7 +45623,7 @@ double *__cdecl _cnvs2d(int a1, double *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49C26
+ * IDA 9.5 Hex-Rays: sub_49C26
  * VA=0x49c26..0x49cf5 OBJ=1 OFF=0x39c26 size=0xcf
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x461b7
@@ -45579,7 +45651,7 @@ char __fastcall sub_49C26(int a1, __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_49CF5
+ * IDA 9.5 Hex-Rays: sub_49CF5
  * VA=0x49cf5..0x49d4a OBJ=1 OFF=0x39cf5 size=0x55
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x46306
@@ -45612,7 +45684,7 @@ char __fastcall sub_49CF5(int a1, __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __int7_pl3
+ * IDA 9.5 Hex-Rays: __int7_pl3
  * VA=0x4a0c4..0x4a0e5 OBJ=1 OFF=0x3a0c4 size=0x21 [FLIRT-lib]
  * callers: 0x4629a
  * callees: 0x4a104
@@ -45620,7 +45692,7 @@ char __fastcall sub_49CF5(int a1, __int16 a2)
 /* Hex-Rays 无法反编译（call analysis failed @ 0x4a0dc）；该函数为手写汇编，请用 --asm 查看反汇编。 */
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __int7
+ * IDA 9.5 Hex-Rays: __int7
  * VA=0x4a0e8..0x4a104 OBJ=1 OFF=0x3a0e8 size=0x1c [FLIRT-lib]
  * callers: 0x461b7, 0x4627f, 0x4629a, 0x49c26
  * callees: 0x4a104
@@ -45628,7 +45700,7 @@ char __fastcall sub_49CF5(int a1, __int16 a2)
 /* Hex-Rays 无法反编译（call analysis failed @ 0x4a0f8）；该函数为手写汇编，请用 --asm 查看反汇编。 */
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A104
+ * IDA 9.5 Hex-Rays: sub_4A104
  * VA=0x4a104..0x4a238 OBJ=1 OFF=0x3a104 size=0x134 [FLIRT-lib]
  * callers: 0x4a0c4, 0x4a0e8, 0x4a104, 0x4a238, 0x4a274
  * callees: 0x3cf14, 0x4a362, 0x4a368, 0x4a36e, 0x4a374, 0x4a382, 0x4a388, 0x4a38e, 0x4a394, 0x4a39c, 0x4a3a4, 0x4a3ac, 0x4a3be, 0x4a3c8, 0x4a3d0, 0x4a3d8, 0x4a3e1, 0x4a3ea, 0x4a3f3, 0x4a407, 0x4a412, 0x4a41b, 0x4a424, 0x4b81a, 0x4b828, 0x4b9ee, 0x4ba87, 0x4bc5c, 0x4bdd7, 0x4bddc, 0x4be46, 0x4be57, 0x4be8c, 0x4bf0c, 0x4bf8b, 0x4c052, 0x4c117, 0x4c2a4, 0x4c4bd, 0x4c59e, 0x4c68c, 0x4c6a5, 0x4cb77, 0x4cb81, 0x4cb8e, 0x4cbc4, 0x4cd98
@@ -45667,20 +45739,10 @@ char __cdecl sub_4A104(
       switch ( result )
       {
         case '&':
-          ++v15;
-          goto LABEL_5;
         case '.':
-          ++v15;
-          goto LABEL_5;
         case '6':
-          ++v15;
-          goto LABEL_5;
         case '>':
-          ++v15;
-          goto LABEL_5;
         case 'd':
-          ++v15;
-          goto LABEL_5;
         case 'e':
           ++v15;
           goto LABEL_5;
@@ -45716,7 +45778,7 @@ LABEL_5:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A238
+ * IDA 9.5 Hex-Rays: sub_4A238
  * VA=0x4a238..0x4a274 OBJ=1 OFF=0x3a238 size=0x3c [FLIRT-lib]
  * callers: 0x4a104
  * callees: -
@@ -45770,7 +45832,7 @@ char __usercall sub_4A238@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A274
+ * IDA 9.5 Hex-Rays: sub_4A274
  * VA=0x4a274..0x4a2a6 OBJ=1 OFF=0x3a274 size=0x32 [FLIRT-lib]
  * callers: 0x4a104
  * callees: -
@@ -45800,7 +45862,7 @@ char __usercall sub_4A274@<al>(
 
   v17 = (_QWORD *)(edi0 + ebp0 + 28);
   v18 = -2048;
-  if ( __CFSHL__(*(_DWORD *)v17, 22) )
+  if ( (*(_DWORD *)v17 & 0x400) != 0 )
   {
     if ( *(_DWORD *)v17 << 22 == 0 )
       v18 = -4096;
@@ -45818,33 +45880,27 @@ char __usercall sub_4A274@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A314
+ * IDA 9.5 Hex-Rays: sub_4A314
  * VA=0x4a314..0x4a362 OBJ=1 OFF=0x3a314 size=0x4e
  * callers: 0x4bab1, 0x4be8c, 0x4bf8b
  * callees: 0x3d5be
  * --------------------------------------------------------------- */
-void __usercall sub_4A314(unsigned __int8 a1@<al>, int a2@<ecx>, _BYTE *a3@<ebp>)
+void __usercall sub_4A314(unsigned __int8 a1@<al>, _BYTE *a2@<ebp>)
 {
-  _BYTE v3[108]; // [esp-80h] [ebp-80h] BYREF
-  int v4; // [esp-14h] [ebp-14h]
-  int v5; // [esp-10h] [ebp-10h]
-  int v6; // [esp-Ch] [ebp-Ch]
+  _BYTE v2[108]; // [esp-80h] [ebp-80h]
 
-  a3[4] |= a1;
-  if ( (a1 & *a3) == 0 )
+  a2[4] |= a1;
+  if ( (a1 & *a2) == 0 )
   {
-    v6 = a2;
-    v5 = (unsigned __int16)__ES__;
-    v4 = (unsigned __int16)__DS__;
-    qmemcpy(v3, a3, sizeof(v3));
+    qmemcpy(v2, a2, sizeof(v2));
     off_5283C();
-    qmemcpy(a3, v3, 108);
+    qmemcpy(a2, v2, 108);
   }
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A362
+ * IDA 9.5 Hex-Rays: sub_4A362
  * VA=0x4a362..0x4a368 OBJ=1 OFF=0x3a362 size=0x6
  * type: __int64(void)
  * callers: 0x4a104, 0x4a424
@@ -45857,7 +45913,7 @@ void sub_4A362()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A368
+ * IDA 9.5 Hex-Rays: sub_4A368
  * VA=0x4a368..0x4a36e OBJ=1 OFF=0x3a368 size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45869,7 +45925,7 @@ void sub_4A368()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A36E
+ * IDA 9.5 Hex-Rays: sub_4A36E
  * VA=0x4a36e..0x4a374 OBJ=1 OFF=0x3a36e size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45881,7 +45937,7 @@ void sub_4A36E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A374
+ * IDA 9.5 Hex-Rays: sub_4A374
  * VA=0x4a374..0x4a37a OBJ=1 OFF=0x3a374 size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45893,7 +45949,7 @@ void sub_4A374()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A37A
+ * IDA 9.5 Hex-Rays: sub_4A37A
  * VA=0x4a37a..0x4a382 OBJ=1 OFF=0x3a37a size=0x8
  * callers: 0x4a424
  * callees: -
@@ -45905,7 +45961,7 @@ void sub_4A37A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A382
+ * IDA 9.5 Hex-Rays: sub_4A382
  * VA=0x4a382..0x4a388 OBJ=1 OFF=0x3a382 size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45917,7 +45973,7 @@ void sub_4A382()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A388
+ * IDA 9.5 Hex-Rays: sub_4A388
  * VA=0x4a388..0x4a38e OBJ=1 OFF=0x3a388 size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45929,7 +45985,7 @@ void sub_4A388()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A38E
+ * IDA 9.5 Hex-Rays: sub_4A38E
  * VA=0x4a38e..0x4a394 OBJ=1 OFF=0x3a38e size=0x6
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45941,7 +45997,7 @@ void sub_4A38E()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A394
+ * IDA 9.5 Hex-Rays: sub_4A394
  * VA=0x4a394..0x4a39c OBJ=1 OFF=0x3a394 size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45953,7 +46009,7 @@ void sub_4A394()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A39C
+ * IDA 9.5 Hex-Rays: sub_4A39C
  * VA=0x4a39c..0x4a3a4 OBJ=1 OFF=0x3a39c size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45965,7 +46021,7 @@ void sub_4A39C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3A4
+ * IDA 9.5 Hex-Rays: sub_4A3A4
  * VA=0x4a3a4..0x4a3ac OBJ=1 OFF=0x3a3a4 size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45977,7 +46033,7 @@ void sub_4A3A4()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3AC
+ * IDA 9.5 Hex-Rays: sub_4A3AC
  * VA=0x4a3ac..0x4a3b4 OBJ=1 OFF=0x3a3ac size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -45989,7 +46045,7 @@ void sub_4A3AC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3B4
+ * IDA 9.5 Hex-Rays: sub_4A3B4
  * VA=0x4a3b4..0x4a3be OBJ=1 OFF=0x3a3b4 size=0xa
  * callers: 0x4a424
  * callees: -
@@ -46001,7 +46057,7 @@ void sub_4A3B4()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3BE
+ * IDA 9.5 Hex-Rays: sub_4A3BE
  * VA=0x4a3be..0x4a3c8 OBJ=1 OFF=0x3a3be size=0xa
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46013,7 +46069,7 @@ void sub_4A3BE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3C8
+ * IDA 9.5 Hex-Rays: sub_4A3C8
  * VA=0x4a3c8..0x4a3d0 OBJ=1 OFF=0x3a3c8 size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46025,7 +46081,7 @@ void sub_4A3C8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3D0
+ * IDA 9.5 Hex-Rays: sub_4A3D0
  * VA=0x4a3d0..0x4a3d8 OBJ=1 OFF=0x3a3d0 size=0x8
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46037,7 +46093,7 @@ void sub_4A3D0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3D8
+ * IDA 9.5 Hex-Rays: sub_4A3D8
  * VA=0x4a3d8..0x4a3e1 OBJ=1 OFF=0x3a3d8 size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46049,7 +46105,7 @@ void sub_4A3D8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3E1
+ * IDA 9.5 Hex-Rays: sub_4A3E1
  * VA=0x4a3e1..0x4a3ea OBJ=1 OFF=0x3a3e1 size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46061,7 +46117,7 @@ void sub_4A3E1()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3EA
+ * IDA 9.5 Hex-Rays: sub_4A3EA
  * VA=0x4a3ea..0x4a3f3 OBJ=1 OFF=0x3a3ea size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46073,7 +46129,7 @@ void sub_4A3EA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3F3
+ * IDA 9.5 Hex-Rays: sub_4A3F3
  * VA=0x4a3f3..0x4a3fc OBJ=1 OFF=0x3a3f3 size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46085,7 +46141,7 @@ void sub_4A3F3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A3FC
+ * IDA 9.5 Hex-Rays: sub_4A3FC
  * VA=0x4a3fc..0x4a407 OBJ=1 OFF=0x3a3fc size=0xb
  * callers: 0x4a424
  * callees: -
@@ -46097,7 +46153,7 @@ void sub_4A3FC()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A407
+ * IDA 9.5 Hex-Rays: sub_4A407
  * VA=0x4a407..0x4a412 OBJ=1 OFF=0x3a407 size=0xb
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46109,7 +46165,7 @@ void sub_4A407()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A412
+ * IDA 9.5 Hex-Rays: sub_4A412
  * VA=0x4a412..0x4a41b OBJ=1 OFF=0x3a412 size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46121,7 +46177,7 @@ void sub_4A412()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A41B
+ * IDA 9.5 Hex-Rays: sub_4A41B
  * VA=0x4a41b..0x4a424 OBJ=1 OFF=0x3a41b size=0x9
  * callers: 0x4a104, 0x4a424
  * callees: -
@@ -46133,7 +46189,7 @@ void sub_4A41B()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4A424
+ * IDA 9.5 Hex-Rays: sub_4A424
  * VA=0x4a424..0x4a45c OBJ=1 OFF=0x3a424 size=0x38
  * callers: 0x4a104
  * callees: 0x4a362, 0x4a368, 0x4a36e, 0x4a374, 0x4a37a, 0x4a382, 0x4a388, 0x4a38e, 0x4a394, 0x4a39c, 0x4a3a4, 0x4a3ac, 0x4a3b4, 0x4a3be, 0x4a3c8, 0x4a3d0, 0x4a3d8, 0x4a3e1, 0x4a3ea, 0x4a3f3, 0x4a3fc, 0x4a407, 0x4a412, 0x4a41b
@@ -46146,7 +46202,7 @@ void __usercall sub_4A424(unsigned __int8 a1@<ah>, int a2@<ebx>, _BYTE *a3@<esi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4B81A
+ * IDA 9.5 Hex-Rays: sub_4B81A
  * VA=0x4b81a..0x4b828 OBJ=1 OFF=0x3b81a size=0xe
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104
@@ -46159,7 +46215,7 @@ void sub_4B81A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4B828
+ * IDA 9.5 Hex-Rays: sub_4B828
  * VA=0x4b828..0x4b852 OBJ=1 OFF=0x3b828 size=0x2a
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104
@@ -46181,7 +46237,7 @@ __int64 __fastcall sub_4B828(int a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4B852
+ * IDA 9.5 Hex-Rays: sub_4B852
  * VA=0x4b852..0x4b882 OBJ=1 OFF=0x3b852 size=0x30
  * callers: 0x4c2a4, 0x4c35a, 0x4c68c, 0x4c980, 0x4cbc4
  * callees: 0x4b882
@@ -46200,184 +46256,183 @@ __int64 __fastcall sub_4B852(int a1, int a2, int a3, int a4, int a5, int a6, __i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4B882
+ * IDA 9.5 Hex-Rays: sub_4B882
  * VA=0x4b882..0x4b9ee OBJ=1 OFF=0x3b882 size=0x16c
  * type: __int64 __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4b828, 0x4b852, 0x4c35a, 0x4c6e8, 0x4cbc4, 0x4ce84
  * callees: -
  * --------------------------------------------------------------- */
-int __usercall sub_4B882@<eax>(__int64 a1@<edx:eax>, int a2@<ecx>, int a3@<ebx>, int a4@<esi>)
+int __usercall sub_4B882@<eax>(__int64 a1@<edx:eax>, int a2@<ecx>, unsigned __int64 a3@<0:ebx, 4:esi>)
 {
-  _BOOL1 v4; // cf
-  unsigned __int16 v5; // si
-  int v6; // ecx
-  int v7; // esi
-  unsigned int v9; // ebp
-  int v10; // edi
-  int v11; // ecx
-  unsigned __int16 v12; // di
-  _BOOL1 v13; // cf
-  int v14; // ecx
-  int v15; // et1
-  int v16; // et2
-  int v17; // edi
-  int v18; // ebx
-  char v19; // ch
-  int v20; // ebx
-  int v21; // edi
-  char v22; // cf
-  char v23; // tt
+  _BOOL1 v3; // cf
+  unsigned __int16 v4; // si
+  int v5; // ecx
+  unsigned int v8; // ebp
+  int v9; // edi
+  int v10; // ecx
+  unsigned __int16 v11; // di
+  _BOOL1 v12; // cf
+  int v13; // ecx
+  int v14; // et1
+  int v15; // et2
+  int v16; // edi
+  int v17; // ebx
+  char v18; // ch
+  int v19; // ebx
+  int v20; // edi
+  char v21; // cf
+  char v22; // tt
+  int v23; // ett
   int v24; // ett
-  int v25; // ett
-  __int16 v26; // bp
-  int v27; // et2
-  _BOOL1 v28; // cf
-  int v29; // eax
-  _BOOL1 v30; // tt
-  bool v31; // ett
-  int v32; // ett
-  int v34; // [esp-Ch] [ebp-Ch]
+  __int16 v25; // bp
+  int v26; // et2
+  _BOOL1 v27; // cf
+  int v28; // eax
+  _BOOL1 v29; // tt
+  bool v30; // ett
+  int v31; // ett
+  int v33; // [esp-Ch] [ebp-Ch]
 
   if ( a1 == 0 )
   {
-    v4 = __CFADD__((_WORD)a4, (_WORD)a4);
-    v5 = 2 * a4;
-    if ( v5 == 0 )
+    v3 = __CFADD__(WORD2(a3), WORD2(a3));
+    v4 = 2 * WORD2(a3);
+    if ( v4 == 0 )
     {
       LODWORD(a1) = a3;
       return a1;
     }
-    LOWORD(a4) = (v5 >> 1) | (v4 << 15);
+    WORD2(a3) = (v4 >> 1) | (v3 << 15);
   }
-  if ( a2 != 0 || a3 != 0 || (a4 & 0x7FFF0000) != 0 )
+  if ( a2 != 0 || __PAIR64__(a3, 0) != (HIDWORD(a3) & 0x7FFF0000) )
   {
-    v6 = a4;
-    v7 = a2;
-    v9 = (v6 >> 16) & 0x80007FFF;
-    v10 = __ROL4__(((int)__ROL4__(v6, 16) >> 16) & 0x80007FFF, 16);
+    v5 = HIDWORD(a3);
+    HIDWORD(a3) = a2;
+    v8 = (v5 >> 16) & 0x80007FFF;
+    v9 = __ROL4__(((int)__ROL4__(v5, 16) >> 16) & 0x80007FFF, 16);
+    v10 = __ROL4__(v8, 16);
+    LOWORD(v10) = v9 + v10;
     v11 = __ROL4__(v9, 16);
-    LOWORD(v11) = v10 + v11;
-    v12 = __ROL4__(v10, 16);
-    v14 = __ROL4__(v11, 16);
-    v13 = (unsigned __int16)v14 < v12;
-    LOWORD(v14) = v14 - v12;
-    if ( (_WORD)v14 == 0 )
-      goto LABEL_13;
-    if ( v13 )
+    v13 = __ROL4__(v10, 16);
+    v12 = (unsigned __int16)v13 < v11;
+    LOWORD(v13) = v13 - v11;
+    if ( (_WORD)v13 == 0 )
+      goto LABEL_12;
+    if ( v12 )
     {
-      LOWORD(v9) = v12;
-      LOWORD(v14) = -(__int16)v14;
-      v15 = a1;
+      LOWORD(v8) = v11;
+      LOWORD(v13) = -(__int16)v13;
+      v14 = a1;
       LODWORD(a1) = a3;
-      a3 = v15;
-      v16 = HIDWORD(a1);
-      HIDWORD(a1) = v7;
-      v7 = v16;
+      LODWORD(a3) = v14;
+      v15 = HIDWORD(a1);
+      HIDWORD(a1) = HIDWORD(a3);
+      HIDWORD(a3) = v15;
     }
-    if ( (unsigned __int16)v14 > 0x40u )
+    if ( (unsigned __int16)v13 > 0x40u )
     {
       LODWORD(a1) = a3;
     }
     else
     {
-LABEL_13:
-      BYTE1(v14) = 0;
-      if ( v14 < 0 )
+LABEL_12:
+      BYTE1(v13) = 0;
+      if ( v13 < 0 )
       {
-        BYTE1(v14) = -1;
-        a3 = -a3;
-        v7 = -v7 - (a3 != 0);
+        BYTE1(v13) = -1;
+        LODWORD(a3) = -(int)a3;
+        HIDWORD(a3) = -HIDWORD(a3) - ((_DWORD)a3 != 0);
       }
-      v17 = 0;
-      if ( (_BYTE)v14 != 0 )
+      v16 = 0;
+      if ( (_BYTE)v13 != 0 )
       {
-        v34 = a3;
-        v18 = 0;
-        if ( (unsigned __int8)v14 >= 0x20u )
+        v33 = a3;
+        v17 = 0;
+        if ( (unsigned __int8)v13 >= 0x20u )
         {
-          LOBYTE(v18) = (_DWORD)a1 != 0;
-          v17 = v18;
-          if ( (_BYTE)v14 == 64 )
+          LOBYTE(v17) = (_DWORD)a1 != 0;
+          v16 = v17;
+          if ( (_BYTE)v13 == 64 )
           {
-            v17 = HIDWORD(a1) | v18;
+            v16 = HIDWORD(a1) | v17;
             HIDWORD(a1) = 0;
           }
           a1 = HIDWORD(a1);
         }
-        v17 |= __PAIR64__(a1, 0) >> v14;
-        LODWORD(a1) = (unsigned __int64)a1 >> v14;
-        HIDWORD(a1) = (unsigned __int64)HIDWORD(a1) >> v14;
-        a3 = v34;
+        v16 |= __PAIR64__(a1, 0) >> v13;
+        LODWORD(a1) = (unsigned __int64)a1 >> v13;
+        HIDWORD(a1) = (unsigned __int64)HIDWORD(a1) >> v13;
+        LODWORD(a3) = v33;
       }
-      v4 = __CFADD__(__PAIR64__(v7, a3), a1);
-      a1 += __PAIR64__(v7, a3);
-      v19 = v4 + BYTE1(v14);
-      if ( v19 < 0 )
+      v3 = __CFADD__(a3, a1);
+      a1 += a3;
+      v18 = v3 + BYTE1(v13);
+      if ( v18 < 0 )
       {
-        if ( (_BYTE)v14 == 64 )
-          a1 += (v17 & 0x7FFFFFFF) != 0;
+        if ( (_BYTE)v13 == 64 )
+          a1 += (v16 & 0x7FFFFFFF) != 0;
         a1 = -a1;
-        v19 = 0;
+        v18 = 0;
       }
-      v20 = a1;
-      LOBYTE(v20) = v19 | a1;
-      if ( (HIDWORD(a1) | v20) != 0 && (_WORD)v9 != 0 )
+      v19 = a1;
+      LOBYTE(v19) = v18 | a1;
+      if ( (HIDWORD(a1) | v19) != 0 && (_WORD)v8 != 0 )
       {
-        if ( v19 != 0 )
+        if ( v18 != 0 )
         {
-LABEL_31:
-          v26 = v9 + 1;
-          if ( v26 == 0x7FFF )
-            goto LABEL_39;
-          v4 = BYTE4(a1) & 1;
+LABEL_30:
+          v25 = v8 + 1;
+          if ( v25 == 0x7FFF )
+            goto LABEL_38;
+          v3 = BYTE4(a1) & 1;
           HIDWORD(a1) = (HIDWORD(a1) >> 1) | 0x80000000;
-          v27 = v4 << 31;
-          v4 = a1 & 1;
-          LODWORD(a1) = ((unsigned int)a1 >> 1) | v27;
-          if ( v4 )
+          v26 = v3 << 31;
+          v3 = a1 & 1;
+          LODWORD(a1) = ((unsigned int)a1 >> 1) | v26;
+          if ( v3 )
           {
-            v28 = __CFADD__(v17, v17);
-            if ( 2 * v17 == 0 )
+            v27 = __CFADD__(v16, v16);
+            if ( 2 * v16 == 0 )
             {
-              v29 = __ROR4__(a1, 1);
-              v30 = __CFSHL__(v29, 1);
-              LODWORD(a1) = __ROL4__(v29, 1);
-              v28 = v30;
+              v28 = __ROR4__(a1, 1);
+              v29 = __CFSHL__(v28, 1);
+              LODWORD(a1) = __ROL4__(v28, 1);
+              v27 = v29;
             }
-            v31 = v28;
-            v4 = __CFADD__(v28, (_DWORD)a1);
-            LODWORD(a1) = v31 + a1;
-            v32 = v4;
-            v4 = __CFADD__(v4, HIDWORD(a1));
-            HIDWORD(a1) += v32;
-            if ( v4 )
+            v30 = v27;
+            v3 = __CFADD__(v27, (_DWORD)a1);
+            LODWORD(a1) = v30 + a1;
+            v31 = v3;
+            v3 = __CFADD__(v3, HIDWORD(a1));
+            HIDWORD(a1) += v31;
+            if ( v3 )
             {
               LODWORD(a1) = a1 >> 1;
-              if ( v26 == 32766 )
-LABEL_39:
+              if ( v25 == 32766 )
+LABEL_38:
                 LODWORD(a1) = 0;
             }
           }
         }
         else
         {
-          v21 = __ROL4__(v17, 1);
-          v23 = v21 & 1;
-          v17 = __ROR4__(v21, 1);
-          v22 = v23;
+          v20 = __ROL4__(v16, 1);
+          v22 = v20 & 1;
+          v16 = __ROR4__(v20, 1);
+          v21 = v22;
           while ( 1 )
           {
-            LOWORD(v9) = v9 - 1;
-            if ( (_WORD)v9 == 0 )
+            LOWORD(v8) = v8 - 1;
+            if ( (_WORD)v8 == 0 )
               break;
-            v24 = v22 + (_DWORD)a1;
-            v4 = __CFADD__(v22, (_DWORD)a1) | __CFADD__((_DWORD)a1, v24);
-            LODWORD(a1) = a1 + v24;
-            v25 = v4 + HIDWORD(a1);
-            v22 = __CFADD__(v4, HIDWORD(a1)) | __CFADD__(HIDWORD(a1), v25);
-            HIDWORD(a1) += v25;
-            if ( v22 )
-              goto LABEL_31;
+            v23 = v21 + (_DWORD)a1;
+            v3 = __CFADD__(v21, (_DWORD)a1) | __CFADD__((_DWORD)a1, v23);
+            LODWORD(a1) = a1 + v23;
+            v24 = v3 + HIDWORD(a1);
+            v21 = __CFADD__(v3, HIDWORD(a1)) | __CFADD__(HIDWORD(a1), v24);
+            HIDWORD(a1) += v24;
+            if ( v21 )
+              goto LABEL_30;
           }
         }
       }
@@ -46388,7 +46443,7 @@ LABEL_39:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4B9EE
+ * IDA 9.5 Hex-Rays: sub_4B9EE
  * VA=0x4b9ee..0x4ba87 OBJ=1 OFF=0x3b9ee size=0x99
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -46438,7 +46493,7 @@ int __fastcall sub_4B9EE(unsigned int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BA87
+ * IDA 9.5 Hex-Rays: sub_4BA87
  * VA=0x4ba87..0x4bab1 OBJ=1 OFF=0x3ba87 size=0x2a
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104, 0x4c2a4
@@ -46460,7 +46515,7 @@ __int64 __fastcall sub_4BA87(int a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BAB1
+ * IDA 9.5 Hex-Rays: sub_4BAB1
  * VA=0x4bab1..0x4bc5c OBJ=1 OFF=0x3bab1 size=0x1ab
  * type: __int64 __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4ba87, 0x4c35a, 0x4c6e8, 0x4c980, 0x4cbc4
@@ -46469,144 +46524,136 @@ __int64 __fastcall sub_4BA87(int a1, _DWORD *a2)
 int __usercall sub_4BAB1@<eax>(
         unsigned __int64 a1@<edx:eax>,
         int a2@<ecx>,
-        unsigned int a3@<ebx>,
-        _BYTE *a4@<ebp>,
-        int a5@<esi>)
+        signed __int64 a3@<0:ebx, 4:esi>,
+        _BYTE *a4@<ebp>)
 {
-  _BOOL1 v5; // cf
-  unsigned __int16 v6; // si
-  int v7; // ecx
-  int v8; // esi
-  int v10; // edi
-  int v11; // ecx
-  __int16 v12; // di
-  __int16 v13; // cx
-  __int16 v14; // di
-  unsigned int v15; // ecx
-  unsigned int v16; // edi
-  unsigned int v17; // esi
-  unsigned __int64 v18; // rax
-  int v19; // ecx
-  int v20; // edi
-  unsigned int i; // esi
-  unsigned __int64 v22; // kr10_8
-  unsigned int v23; // edi
-  unsigned int v24; // eax
-  unsigned __int64 v25; // kr18_8
-  unsigned __int64 v26; // rax
-  int v27; // edi
-  unsigned __int64 j; // kr28_8
-  __int16 v29; // di
-  char v30; // cl
-  _BYTE v32[12]; // [esp-20h] [ebp-20h]
-  unsigned __int64 v33; // [esp-14h] [ebp-14h]
-  __int16 v34; // [esp-Ch] [ebp-Ch]
+  _BOOL1 v4; // cf
+  unsigned __int16 v5; // si
+  int v6; // ecx
+  int v9; // edi
+  int v10; // ecx
+  __int16 v11; // di
+  __int16 v12; // cx
+  __int16 v13; // di
+  unsigned int v14; // ecx
+  unsigned __int64 v15; // rax
+  int v16; // edi
+  unsigned int v18; // eax
+  unsigned __int64 v19; // kr08_8
+  unsigned __int64 v20; // rax
+  int v21; // edi
+  __int16 v23; // di
+  char v24; // cl
+  _DWORD v26[3]; // [esp-20h] [ebp-20h]
+  signed __int64 v27; // [esp-14h] [ebp-14h]
+  __int16 v28; // [esp-Ch] [ebp-Ch]
+  unsigned __int64 v29; // 0:ecx.4,4:esi.4
+  unsigned __int64 v30; // 0:ecx.4,4:esi.4
+  unsigned __int64 v31; // 0:esi.4,4:edi.4
+  unsigned __int64 v32; // 0:esi.4,4:edi.4
 
-  if ( a2 != 0 || a3 != 0 || (a5 & 0x7FFF0000) != 0 )
+  if ( a2 != 0 || __PAIR64__(a3, 0) != (HIDWORD(a3) & 0x7FFF0000) )
   {
     if ( a1 == 0 )
     {
-      v5 = __CFADD__((_WORD)a5, (_WORD)a5);
-      v6 = 2 * a5;
-      if ( v6 == 0 )
+      v4 = __CFADD__(WORD2(a3), WORD2(a3));
+      v5 = 2 * WORD2(a3);
+      if ( v5 == 0 )
         return a1;
-      LOWORD(a5) = (v6 >> 1) | (v5 << 15);
+      WORD2(a3) = (v5 >> 1) | (v4 << 15);
     }
-    v7 = a5;
-    v8 = a2;
-    v10 = __ROL4__(((int)__ROL4__(v7, 16) >> 16) & 0x80007FFF, 16);
-    v11 = __ROL4__((v7 >> 16) & 0x80007FFF, 16);
-    LOWORD(v10) = v11 + v10;
+    v6 = HIDWORD(a3);
+    HIDWORD(a3) = a2;
+    v9 = __ROL4__(((int)__ROL4__(v6, 16) >> 16) & 0x80007FFF, 16);
+    v10 = __ROL4__((v6 >> 16) & 0x80007FFF, 16);
+    LOWORD(v9) = v10 + v9;
+    v11 = __ROL4__(v9, 16);
     v12 = __ROL4__(v10, 16);
-    v13 = __ROL4__(v11, 16);
-    if ( v12 == 0 )
+    if ( v11 == 0 )
     {
       do
       {
         a1 *= 2LL;
-        --v12;
+        --v11;
       }
       while ( (a1 & 0x8000000000000000LL) == 0LL );
     }
-    if ( v13 == 0 )
+    if ( v12 == 0 )
     {
       do
       {
-        v8 = __PAIR64__(v8, a3) >> 31;
-        a3 *= 2;
-        --v13;
+        a3 *= 2LL;
+        --v12;
       }
-      while ( v8 >= 0 );
+      while ( a3 >= 0 );
     }
-    v14 = v12 - v13 + 0x3FFF;
-    if ( v14 == 0x7FFF )
+    v13 = v11 - v12 + 0x3FFF;
+    if ( v13 == 0x7FFF )
     {
       LODWORD(a1) = 0;
     }
-    else if ( v14 >= -64 )
+    else if ( v13 >= -64 )
     {
-      v34 = v14;
-      v33 = __PAIR64__(v8, a3);
-      v15 = v8;
-      v16 = HIDWORD(a1);
-      v17 = a1;
+      v28 = v13;
+      v27 = a3;
+      v14 = HIDWORD(a3);
+      v31 = a1;
       LODWORD(a1) = 0;
-      if ( v15 <= HIDWORD(a1) )
+      if ( v14 <= HIDWORD(a1) )
       {
-        HIDWORD(a1) -= v15;
+        HIDWORD(a1) -= v14;
         LODWORD(a1) = 1;
       }
-      *(_DWORD *)&v32[8] = a1;
-      *(_DWORD *)&v32[4] = __PAIR64__(HIDWORD(a1), v17) / v15;
-      v18 = ((*(unsigned int *)&v32[4] * (unsigned __int64)a3) >> 32) + *(unsigned int *)&v32[4] * (unsigned __int64)v15;
-      if ( (v32[8] & 1) != 0 )
-        v18 += v33;
-      v19 = -(*(_DWORD *)&v32[4] * a3);
-      v20 = (__PAIR64__(v16, v17) - __PAIR64__(HIDWORD(v18), (*(_DWORD *)&v32[4] * a3 != 0) + (unsigned int)v18)) >> 32;
-      for ( i = v17 - ((*(_DWORD *)&v32[4] * a3 != 0) + v18); v20 != 0; v20 += v5 )
+      v26[2] = a1;
+      v26[1] = __PAIR64__(HIDWORD(a1), v31) / v14;
+      v15 = ((v26[1] * (unsigned __int64)(unsigned int)a3) >> 32) + v26[1] * (unsigned __int64)v14;
+      if ( (v26[2] & 1) != 0 )
+        v15 += v27;
+      LODWORD(v29) = -(v26[1] * a3);
+      v16 = (v31 - __PAIR64__(HIDWORD(v15), (v26[1] * (_DWORD)a3 != 0) + (unsigned int)v15)) >> 32;
+      for ( HIDWORD(v29) = v31 - ((v26[1] * (_DWORD)a3 != 0) + v15); v16 != 0; v16 += v4 )
       {
-        --*(_QWORD *)&v32[4];
-        v5 = __CFADD__(v33, __PAIR64__(i, v19));
-        v22 = v33 + __PAIR64__(i, v19);
-        i = (v33 + __PAIR64__(i, v19)) >> 32;
-        v19 = v22;
+        --*(_QWORD *)&v26[1];
+        v4 = __CFADD__(v27, v29);
+        v29 += v27;
       }
-      v23 = i;
-      if ( HIDWORD(v33) <= i )
+      v32 = v29;
+      if ( HIDWORD(v27) <= HIDWORD(v32) )
       {
-        v23 = i - HIDWORD(v33);
-        ++*(_QWORD *)&v32[4];
+        HIDWORD(v32) -= HIDWORD(v27);
+        ++*(_QWORD *)&v26[1];
       }
-      v24 = __PAIR64__(v23, v19) / HIDWORD(v33);
-      *(_DWORD *)v32 = v24;
-      if ( v24 != 0 )
+      v18 = __PAIR64__(HIDWORD(v32), v29) / HIDWORD(v27);
+      v26[0] = v18;
+      if ( v18 != 0 )
       {
-        v25 = v24 * (unsigned __int64)a3;
-        v26 = HIDWORD(v25) + v24 * (unsigned __int64)HIDWORD(v33);
-        v27 = (__PAIR64__(v23, v19) - __PAIR64__(HIDWORD(v26), ((_DWORD)v25 != 0) + (unsigned int)v26)) >> 32;
-        for ( j = __PAIR64__(v19 - (((_DWORD)v25 != 0) + (unsigned int)v26), -(int)v25); v27 != 0; v27 += v5 )
+        v19 = v18 * (unsigned __int64)(unsigned int)a3;
+        v20 = HIDWORD(v19) + v18 * (unsigned __int64)HIDWORD(v27);
+        LODWORD(v30) = -(int)v19;
+        v21 = (v32 - __PAIR64__(HIDWORD(v20), ((_DWORD)v19 != 0) + (unsigned int)v20)) >> 32;
+        for ( HIDWORD(v30) = v32 - (((_DWORD)v19 != 0) + v20); v21 != 0; v21 += v4 )
         {
-          v5 = (*(_QWORD *)v32)-- == 0;
-          *(_DWORD *)&v32[8] -= v5;
-          v5 = __CFADD__(v33, j);
-          j += v33;
+          v4 = (*(_QWORD *)v26)-- == 0;
+          v26[2] -= v4;
+          v4 = __CFADD__(v27, v30);
+          v30 += v27;
         }
       }
-      a1 = *(_QWORD *)v32;
-      v29 = v34 - 1;
-      if ( v32[8] & 1 )
+      a1 = *(_QWORD *)v26;
+      v23 = v28 - 1;
+      if ( v26[2] & 1 )
       {
-        HIDWORD(a1) = *(__int64 *)&v32[4] >> 1;
-        LODWORD(a1) = *(__int64 *)v32 >> 1;
-        v29 = v34;
+        HIDWORD(a1) = *(__int64 *)&v26[1] >> 1;
+        LODWORD(a1) = *(__int64 *)v26 >> 1;
+        v23 = v28;
       }
-      if ( v29 <= 0 )
+      if ( v23 <= 0 )
       {
-        if ( v29 != 0 )
-          v30 = -(char)v29;
+        if ( v23 != 0 )
+          v24 = -(char)v23;
         else
-          v30 = 1;
-        LODWORD(a1) = a1 >> v30;
+          v24 = 1;
+        LODWORD(a1) = a1 >> v24;
       }
     }
     else
@@ -46614,14 +46661,14 @@ int __usercall sub_4BAB1@<eax>(
       LODWORD(a1) = 0;
     }
   }
-  else if ( a1 != 0 || 2 * (_WORD)a5 != 0 )
+  else if ( a1 != 0 || 2 * WORD2(a3) != 0 )
   {
-    sub_4A314(4u, 0, a4);
+    sub_4A314(4u, a4);
     LODWORD(a1) = 0;
   }
   else
   {
-    sub_4A314(1u, 0, a4);
+    sub_4A314(1u, a4);
     LODWORD(a1) = 0;
   }
   return a1;
@@ -46629,7 +46676,7 @@ int __usercall sub_4BAB1@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BC5C
+ * IDA 9.5 Hex-Rays: sub_4BC5C
  * VA=0x4bc5c..0x4bc86 OBJ=1 OFF=0x3bc5c size=0x2a
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104, 0x4c6a5
@@ -46651,7 +46698,7 @@ __int64 __fastcall sub_4BC5C(int a1, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BC86
+ * IDA 9.5 Hex-Rays: sub_4BC86
  * VA=0x4bc86..0x4bd82 OBJ=1 OFF=0x3bc86 size=0xfc
  * type: __int64 __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4bc5c, 0x4c35a, 0x4c6a5, 0x4c6e8, 0x4c980, 0x4cbc4, 0x4ce84, 0x4ced6
@@ -46785,7 +46832,7 @@ LABEL_26:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BD82
+ * IDA 9.5 Hex-Rays: sub_4BD82
  * VA=0x4bd82..0x4bd87 OBJ=1 OFF=0x3bd82 size=0x5
  * callers: -
  * callees: -
@@ -46797,7 +46844,7 @@ void sub_4BD82()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BD87
+ * IDA 9.5 Hex-Rays: sub_4BD87
  * VA=0x4bd87..0x4bdd7 OBJ=1 OFF=0x3bd87 size=0x50
  * callers: -
  * callees: -
@@ -46837,7 +46884,7 @@ int __fastcall sub_4BD87(int *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BDD7
+ * IDA 9.5 Hex-Rays: sub_4BDD7
  * VA=0x4bdd7..0x4bddc OBJ=1 OFF=0x3bdd7 size=0x5
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -46850,7 +46897,7 @@ void sub_4BDD7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BDDC
+ * IDA 9.5 Hex-Rays: sub_4BDDC
  * VA=0x4bddc..0x4be46 OBJ=1 OFF=0x3bddc size=0x6a
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -46899,7 +46946,7 @@ int __fastcall sub_4BDDC(int *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BE46
+ * IDA 9.5 Hex-Rays: sub_4BE46
  * VA=0x4be46..0x4be57 OBJ=1 OFF=0x3be46 size=0x11
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104, 0x4c6e8
@@ -46914,7 +46961,7 @@ int __fastcall sub_4BE46(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BE57
+ * IDA 9.5 Hex-Rays: sub_4BE57
  * VA=0x4be57..0x4be8c OBJ=1 OFF=0x3be57 size=0x35
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104, 0x4be46
@@ -46947,7 +46994,7 @@ int __fastcall sub_4BE57(unsigned int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BE8C
+ * IDA 9.5 Hex-Rays: sub_4BE8C
  * VA=0x4be8c..0x4bf0c OBJ=1 OFF=0x3be8c size=0x80
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104
@@ -46977,7 +47024,7 @@ int __usercall sub_4BE8C@<eax>(__int64 a1@<edx:eax>, int a2@<ebx>, _BYTE *a3@<eb
       if ( !v6 )
       {
         v9 = v4;
-        sub_4A314(1u, v5, a3);
+        sub_4A314(1u, a3);
         v4 = __PAIR64__(HIDWORD(v4), v9) | 0x4000000000000000LL;
       }
     }
@@ -47014,7 +47061,7 @@ int __usercall sub_4BE8C@<eax>(__int64 a1@<edx:eax>, int a2@<ebx>, _BYTE *a3@<eb
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BF0C
+ * IDA 9.5 Hex-Rays: sub_4BF0C
  * VA=0x4bf0c..0x4bf8b OBJ=1 OFF=0x3bf0c size=0x7f
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47035,7 +47082,7 @@ unsigned int __fastcall sub_4BF0C(int a1)
   v3 = *(_DWORD *)(a1 + 4);
   v4 = v3 << 25;
   LOWORD(v4) = *(_WORD *)(a1 + 8);
-  if ( __CFSHL__(v3, 25) )
+  if ( (v3 & 0x80) != 0 )
   {
     if ( v3 << 25 == 0 && *(_DWORD *)a1 == 0 )
       v2 = -512;
@@ -47083,7 +47130,7 @@ unsigned int __fastcall sub_4BF0C(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4BF8B
+ * IDA 9.5 Hex-Rays: sub_4BF8B
  * VA=0x4bf8b..0x4c052 OBJ=1 OFF=0x3bf8b size=0xc7
  * type: __int64 __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47103,7 +47150,7 @@ int __usercall sub_4BF8B@<eax>(__int64 *a1@<eax>, _BYTE *a2@<ebp>)
   v2 = *((_WORD *)a1 + 4);
   v3 = *a1;
   v4 = -2048;
-  if ( __CFSHL__(v3, 22) )
+  if ( (v3 & 0x400) != 0 )
   {
     if ( (_DWORD)v3 << 22 == 0 )
       v4 = -4096;
@@ -47125,7 +47172,7 @@ int __usercall sub_4BF8B@<eax>(__int64 *a1@<eax>, _BYTE *a2@<ebp>)
       if ( v6 != 17407 )
       {
         v9 = result;
-        sub_4A314(8u, v6, a2);
+        sub_4A314(8u, a2);
         return v9;
       }
     }
@@ -47158,7 +47205,7 @@ int __usercall sub_4BF8B@<eax>(__int64 *a1@<eax>, _BYTE *a2@<ebp>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C052
+ * IDA 9.5 Hex-Rays: sub_4C052
  * VA=0x4c052..0x4c097 OBJ=1 OFF=0x3c052 size=0x45
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -47196,7 +47243,7 @@ signed int __fastcall sub_4C052(signed int result, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C117
+ * IDA 9.5 Hex-Rays: sub_4C117
  * VA=0x4c117..0x4c24a OBJ=1 OFF=0x3c117 size=0x133
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -47342,7 +47389,7 @@ LABEL_35:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C2A4
+ * IDA 9.5 Hex-Rays: sub_4C2A4
  * VA=0x4c2a4..0x4c35a OBJ=1 OFF=0x3c2a4 size=0xb6
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4a104
@@ -47396,33 +47443,31 @@ __int16 __fastcall sub_4C2A4(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C35A
+ * IDA 9.5 Hex-Rays: sub_4C35A
  * VA=0x4c35a..0x4c4bd OBJ=1 OFF=0x3c35a size=0x163
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4c2a4
  * callees: 0x4b852, 0x4b882, 0x4bab1, 0x4bc86, 0x4ced6
  * --------------------------------------------------------------- */
-__int16 __usercall __spoils<> sub_4C35A@<ax>(__int64 a1@<edx:eax>, int a2@<ecx>, _BYTE *a3@<ebp>, int a4@<esi>)
+__int16 __usercall __spoils<> sub_4C35A@<ax>(__int64 a1@<edx:eax>, int a2@<ecx>, _BYTE *ebp0@<ebp>, int a4@<esi>)
 {
   int v4; // edi
-  int v5; // esi
-  int v6; // edx
-  unsigned __int16 v7; // ax
-  _BOOL1 v8; // cc
-  int v9; // esi
-  int v10; // edx
-  __int64 v11; // rax
-  int v12; // esi
-  unsigned __int64 v13; // rax
-  int v14; // ebx
-  int v15; // edx
-  char v16; // cf
-  int v17; // ecx
-  int v19; // [esp-1Ch] [ebp-24h]
-  int v20; // [esp-18h] [ebp-20h]
-  unsigned int v21; // [esp-14h] [ebp-1Ch]
-  int v22; // [esp-10h] [ebp-18h]
-  int v23; // [esp-10h] [ebp-18h]
+  int v5; // edx
+  unsigned __int16 v6; // ax
+  _BOOL1 v7; // cc
+  int v8; // edx
+  __int64 v9; // rax
+  unsigned __int64 v10; // rax
+  int v11; // edx
+  char v12; // cf
+  int v13; // ecx
+  int v15; // [esp-1Ch] [ebp-24h]
+  int v16; // [esp-18h] [ebp-20h]
+  int v17; // [esp-14h] [ebp-1Ch]
+  int v18; // [esp-10h] [ebp-18h]
+  int v19; // [esp-10h] [ebp-18h]
+  signed __int64 a3; // 0:ebx.4,4:esi.4
+  unsigned __int64 v21; // 0:ebx.4,4:esi.4
 
   v4 = a1;
   LOWORD(a2) = *(unsigned __int8 *)(a1 + 9);
@@ -47439,56 +47484,61 @@ __int16 __usercall __spoils<> sub_4C35A@<ax>(__int64 a1@<edx:eax>, int a2@<ecx>,
   {
     if ( *(__int16 *)(a1 + 8) >= 0x3FFF )
     {
-      v22 = a2;
+      v18 = a2;
       LOWORD(a4) = *(_WORD *)(a1 + 8);
-      v5 = a4 << 16;
-      LOWORD(v5) = 0x3FFF;
-      *(_DWORD *)a1 = sub_4BAB1(0x8000000000000000LL, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, a3, v5);
-      *(_DWORD *)(v4 + 4) = v6;
+      LODWORD(a3) = *(_DWORD *)a1;
+      HIDWORD(a3) = a4 << 16;
+      WORD2(a3) = 0x3FFF;
+      *(_DWORD *)a1 = sub_4BAB1(0x8000000000000000LL, *(_DWORD *)(a1 + 4), a3, ebp0);
+      *(_DWORD *)(v4 + 4) = v5;
       *(_WORD *)(v4 + 8) = 0x3FFF;
-      a2 = v22;
+      a2 = v18;
       BYTE1(a2) = 2;
     }
-    v7 = *(_WORD *)(v4 + 8);
-    v8 = v7 <= 0x3FFDu;
-    if ( v7 == 16381 )
-      v8 = *(_QWORD *)v4 <= 0x8930A2F4F66AB09BLL;
-    if ( !v8 )
+    v6 = *(_WORD *)(v4 + 8);
+    v7 = v6 <= 0x3FFDu;
+    if ( v6 == 16381 )
+      v7 = *(_QWORD *)v4 <= 0x8930A2F4F66AB09BLL;
+    if ( !v7 )
     {
-      v23 = a2;
-      HIWORD(v9) = 0x3FFF;
-      LOWORD(v9) = *(_WORD *)(v4 + 8);
-      v21 = sub_4B882(*(_QWORD *)v4, -575416510, -1033546850, v9);
-      v20 = v10;
-      v19 = v9;
-      HIWORD(v9) = 0x3FFF;
-      LOWORD(v9) = *(_WORD *)(v4 + 8);
-      LODWORD(v11) = sub_4BC86(*(_QWORD *)v4, 0xDDB3D742, 0xC265539E, v9);
-      HIWORD(v9) = __ROL4__(v9, 16) >> 16;
-      LOWORD(v9) = -16385;
-      v12 = __ROL4__(v9, 16);
-      LODWORD(v13) = sub_4B882(v11, 0x80000000, 0, v12);
-      v14 = v19 << 16;
-      LOWORD(v14) = v12;
-      *(_DWORD *)v4 = sub_4BAB1(v13, v20, v21, a3, v14);
-      *(_DWORD *)(v4 + 4) = v15;
-      *(_WORD *)(v4 + 8) = v12;
-      a2 = v23;
-      BYTE1(a2) = BYTE1(v23) | 1;
+      v19 = a2;
+      LODWORD(v21) = -1033546850;
+      HIWORD(v21) = 0x3FFF;
+      WORD2(v21) = *(_WORD *)(v4 + 8);
+      v17 = sub_4B882(*(_QWORD *)v4, -575416510, v21);
+      v16 = v8;
+      v15 = HIDWORD(v21);
+      HIWORD(v21) = 0x3FFF;
+      WORD2(v21) = *(_WORD *)(v4 + 8);
+      LODWORD(v9) = sub_4BC86(*(_QWORD *)v4, 0xDDB3D742, 0xC265539E, SHIDWORD(v21));
+      LODWORD(v21) = 0;
+      HIWORD(v21) = __ROL4__(HIDWORD(v21), 16) >> 16;
+      WORD2(v21) = -16385;
+      HIDWORD(v21) = __ROL4__(HIDWORD(v21), 16);
+      LODWORD(v10) = sub_4B882(v9, 0x80000000, v21);
+      LODWORD(v21) = v15 << 16;
+      LOWORD(v21) = WORD2(v21);
+      HIDWORD(v21) = v21;
+      LODWORD(v21) = v17;
+      *(_DWORD *)v4 = sub_4BAB1(v10, v16, v21, ebp0);
+      *(_DWORD *)(v4 + 4) = v11;
+      *(_WORD *)(v4 + 8) = WORD2(v21);
+      a2 = v19;
+      BYTE1(a2) = BYTE1(v19) | 1;
     }
     LOWORD(a1) = sub_4CED6(v4, &word_4C24A, 8, a2);
-    v16 = BYTE1(v17) & 1;
-    BYTE1(v17) >>= 1;
-    if ( v16 )
-      a1 = sub_4B852(v4, SHIDWORD(a1), v4, v17, 1805331491, -2046127679, 16382);
-    v16 = BYTE1(v17) & 1;
-    BYTE1(v17) >>= 1;
-    if ( v16 )
+    v12 = BYTE1(v13) & 1;
+    BYTE1(v13) >>= 1;
+    if ( v12 )
+      a1 = sub_4B852(v4, SHIDWORD(a1), v4, v13, 1805331491, -2046127679, 16382);
+    v12 = BYTE1(v13) & 1;
+    BYTE1(v13) >>= 1;
+    if ( v12 )
     {
-      LOWORD(a1) = sub_4B852(v4, SHIDWORD(a1), v4, v17, 560513589, -921707870, 49151);
+      LOWORD(a1) = sub_4B852(v4, SHIDWORD(a1), v4, v13, 560513589, -921707870, 49151);
       *(_BYTE *)(v4 + 9) ^= 0x80u;
     }
-    if ( (v17 & 0x80u) != 0 )
+    if ( (v13 & 0x80u) != 0 )
       *(_BYTE *)(v4 + 9) ^= 0x80u;
   }
   return a1;
@@ -47496,7 +47546,7 @@ __int16 __usercall __spoils<> sub_4C35A@<ax>(__int64 a1@<edx:eax>, int a2@<ecx>,
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C4BD
+ * IDA 9.5 Hex-Rays: sub_4C4BD
  * VA=0x4c4bd..0x4c523 OBJ=1 OFF=0x3c4bd size=0x66
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -47530,7 +47580,7 @@ int __usercall sub_4C4BD@<eax>(int a1@<eax>, int a2@<edx>, int a3@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C523
+ * IDA 9.5 Hex-Rays: sub_4C523
  * VA=0x4c523..0x4c59e OBJ=1 OFF=0x3c523 size=0x7b
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x4c4bd, 0x4c980
@@ -47597,7 +47647,7 @@ LABEL_6:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C59E
+ * IDA 9.5 Hex-Rays: sub_4C59E
  * VA=0x4c59e..0x4c645 OBJ=1 OFF=0x3c59e size=0xa7
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47667,7 +47717,7 @@ char __usercall sub_4C59E@<al>(int a1@<eax>, int a2@<ebp>, int a3@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C68C
+ * IDA 9.5 Hex-Rays: sub_4C68C
  * VA=0x4c68c..0x4c6a5 OBJ=1 OFF=0x3c68c size=0x19
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104
@@ -47681,7 +47731,7 @@ int __fastcall sub_4C68C(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C6A5
+ * IDA 9.5 Hex-Rays: sub_4C6A5
  * VA=0x4c6a5..0x4c6e8 OBJ=1 OFF=0x3c6a5 size=0x43
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4a104, 0x4c68c
@@ -47709,7 +47759,7 @@ int __usercall sub_4C6A5@<eax>(int a1@<eax>, int a2@<edx>, int a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C6E8
+ * IDA 9.5 Hex-Rays: sub_4C6E8
  * VA=0x4c6e8..0x4c8b9 OBJ=1 OFF=0x3c6e8 size=0x1d1
  * type: int(void)
  * callers: 0x4c6a5
@@ -47719,42 +47769,46 @@ int __usercall sub_4C6E8@<eax>(int *a1@<eax>, _BYTE *a2@<ebp>)
 {
   __int64 v3; // rax
   _BOOL1 v4; // cc
-  unsigned __int64 v5; // kr00_8
-  int v6; // esi
-  unsigned int v7; // eax
+  int v5; // esi
+  int v6; // edx
+  unsigned __int64 v7; // rax
   int v8; // edx
-  unsigned __int64 v9; // rax
-  unsigned __int64 v10; // kr08_8
-  int v11; // edx
-  __int64 v12; // kr10_8
+  __int64 v9; // kr38_8
+  unsigned __int64 v10; // rax
+  unsigned __int64 v11; // rax
+  int v12; // esi
   unsigned __int64 v13; // rax
   int v14; // esi
-  unsigned __int64 v15; // rax
+  __int64 v15; // rax
   int v16; // esi
-  unsigned __int64 v17; // rax
-  int v18; // esi
-  __int64 v19; // rax
-  int v20; // esi
   int result; // eax
+  int v18; // edx
+  int v19; // ecx
+  unsigned int v20; // esi
+  __int64 v21; // rax
   int v22; // edx
-  int v23; // ecx
-  unsigned int v24; // esi
-  __int64 v25; // rax
-  int v26; // esi
-  int v27; // edx
-  int v28; // esi
-  __int64 v29; // rax
-  __int16 v30; // [esp+4h] [ebp-20h]
-  __int16 v31; // [esp+4h] [ebp-20h]
-  int v32; // [esp+8h] [ebp-1Ch]
-  int v33; // [esp+8h] [ebp-1Ch]
+  int v23; // esi
+  __int64 v24; // rax
+  unsigned int v25; // [esp+4h] [ebp-20h]
+  unsigned int v26; // [esp+4h] [ebp-20h]
+  __int16 v27; // [esp+4h] [ebp-20h]
+  unsigned int v28; // [esp+8h] [ebp-1Ch]
+  unsigned int v29; // [esp+8h] [ebp-1Ch]
+  int v30; // [esp+8h] [ebp-1Ch]
+  int v31; // [esp+8h] [ebp-1Ch]
+  int v32; // [esp+Ch] [ebp-18h]
+  int v33; // [esp+Ch] [ebp-18h]
   int v34; // [esp+Ch] [ebp-18h]
-  int v35; // [esp+Ch] [ebp-18h]
-  int v36; // [esp+Ch] [ebp-18h]
+  unsigned __int64 a3; // 0:kr08_8.8
+  signed __int64 v36; // 0:kr10_8.8
+  signed __int64 v37; // 0:kr18_8.8
+  unsigned __int64 v38; // 0:kr20_8.8
+  unsigned __int64 v39; // 0:kr28_8.8
+  unsigned __int64 v40; // 0:kr30_8.8
 
-  v34 = *((unsigned __int16 *)a1 + 4) - 16382;
+  v32 = *((unsigned __int16 *)a1 + 4) - 16382;
   *((_WORD *)a1 + 4) = 16382;
-  LODWORD(v3) = sub_4B882(*(_QWORD *)a1, 0x80000000, 0, -1073856514);
+  LODWORD(v3) = sub_4B882(*(_QWORD *)a1, 0x80000000, 0xBFFE3FFE00000000LL);
   v4 = *((_WORD *)a1 + 4) <= 0x3FFEu;
   if ( *((_WORD *)a1 + 4) == 16382 )
     v4 = *(_QWORD *)a1 <= 0xB504F333F9DE6484LL;
@@ -47762,74 +47816,83 @@ int __usercall sub_4C6E8@<eax>(int *a1@<eax>, _BYTE *a2@<ebp>)
   {
     *(_QWORD *)a1 = v3;
     *((_WORD *)a1 + 4) = 16382;
-    --v34;
+    --v32;
   }
   else
   {
-    LODWORD(v3) = sub_4B882(v3, 0x80000000, 0, -1073856514);
+    LODWORD(v3) = sub_4B882(v3, 0x80000000, 0xBFFE3FFE00000000LL);
   }
-  v5 = v3;
-  v6 = (unsigned __int16)(*((_WORD *)a1 + 4) - 1) | 0x3FFE0000;
-  v7 = sub_4B882(*(_QWORD *)a1, 0x80000000, 0, v6);
-  v6 <<= 16;
-  LOWORD(v6) = 16382;
-  LODWORD(v9) = sub_4BAB1(v5, v8, v7, a2, v6);
-  v10 = v9;
-  v6 <<= 16;
-  LOWORD(v6) = 16382;
-  *a1 = sub_4BC86(v9, HIDWORD(v9), v9, v6);
-  a1[1] = v11;
+  v25 = HIDWORD(v3);
+  v28 = v3;
+  LODWORD(a3) = 0;
+  HIDWORD(a3) = (unsigned __int16)(*((_WORD *)a1 + 4) - 1) | 0x3FFE0000;
+  v5 = HIDWORD(a3) << 16;
+  LOWORD(v5) = 16382;
+  LODWORD(v36) = sub_4B882(*(_QWORD *)a1, 0x80000000, a3);
+  HIDWORD(v36) = v5;
+  LODWORD(v7) = sub_4BAB1(__PAIR64__(v25, v28), v6, v36, a2);
+  v26 = HIDWORD(v7);
+  v29 = v7;
+  v5 <<= 16;
+  LOWORD(v5) = 16382;
+  *a1 = sub_4BC86(v7, HIDWORD(v7), v7, v5);
+  a1[1] = v8;
   *((_WORD *)a1 + 4) = 16382;
-  v12 = ((__int64 (*)(void))sub_4CE84)();
-  LOWORD(v6) = *((_WORD *)a1 + 4);
-  v13 = sub_4CE84(*a1, a1[1], 2, &word_4C646);
-  HIWORD(v6) = __ROL4__(v6, 16) >> 16;
-  LOWORD(v6) = 16382;
-  v14 = __ROL4__(v6, 16);
-  LODWORD(v15) = sub_4BAB1(v13, SHIDWORD(v12), v12, a2, v14);
+  v9 = ((__int64 (*)(void))sub_4CE84)();
+  LOWORD(v5) = *((_WORD *)a1 + 4);
+  v10 = sub_4CE84(*a1, a1[1], 2, &word_4C646);
+  HIWORD(v5) = __ROL4__(v5, 16) >> 16;
+  LOWORD(v5) = 16382;
+  LODWORD(v37) = v9;
+  HIDWORD(v37) = __ROL4__(v5, 16);
+  LODWORD(v11) = sub_4BAB1(v10, SHIDWORD(v9), v37, a2);
+  HIWORD(v5) = __ROL4__(HIDWORD(v37), 16) >> 16;
+  LOWORD(v5) = *((_WORD *)a1 + 4);
+  v12 = __ROL4__(v5, 16);
+  LODWORD(v13) = sub_4BC86(v11, a1[1], *a1, v12);
+  HIWORD(v12) = __ROL4__(v12, 16) >> 16;
+  LOWORD(v12) = 16382;
+  v14 = __ROL4__(v12, 16);
+  LODWORD(v15) = sub_4BC86(v13, v26, v29, v14);
   HIWORD(v14) = __ROL4__(v14, 16) >> 16;
-  LOWORD(v14) = *((_WORD *)a1 + 4);
+  LOWORD(v14) = 16382;
   v16 = __ROL4__(v14, 16);
-  LODWORD(v17) = sub_4BC86(v15, a1[1], *a1, v16);
-  HIWORD(v16) = __ROL4__(v16, 16) >> 16;
-  LOWORD(v16) = 16382;
-  v18 = __ROL4__(v16, 16);
-  LODWORD(v19) = sub_4BC86(v17, HIDWORD(v10), v10, v18);
-  HIWORD(v18) = __ROL4__(v18, 16) >> 16;
-  LOWORD(v18) = 16382;
-  v20 = __ROL4__(v18, 16);
-  result = sub_4B882(v19, SHIDWORD(v10), v10, v20);
-  v23 = v34;
-  if ( v34 != 0 )
+  LODWORD(v39) = v29;
+  HIDWORD(v39) = v16;
+  result = sub_4B882(v15, v26, v39);
+  v19 = v32;
+  if ( v32 != 0 )
   {
-    v35 = result;
-    v32 = v22;
-    v30 = v20;
-    sub_4BE46(v23, (int)a1);
-    v24 = *((unsigned __int16 *)a1 + 4) | 0xBFF20000;
-    LODWORD(v25) = sub_4BC86(*(_QWORD *)a1, 0xDE8082E3, 0x865435Cu, v24);
-    HIWORD(v24) = __ROL4__(v24, 16) >> 16;
-    LOWORD(v24) = v30;
-    v26 = __ROL4__(v24, 16);
-    v36 = sub_4B882(v25, v32, v35, v26);
-    v33 = v27;
-    v31 = v26;
-    v28 = *((unsigned __int16 *)a1 + 4) | 0x3FFE0000;
-    LODWORD(v29) = sub_4BC86(*(_QWORD *)a1, 0xB1800000, 0, v28);
-    HIWORD(v28) = __ROL4__(v28, 16) >> 16;
-    LOWORD(v28) = v31;
-    v20 = __ROL4__(v28, 16);
-    result = sub_4B882(v29, v33, v36, v20);
+    v33 = result;
+    v30 = v18;
+    v27 = v16;
+    sub_4BE46(v19, (int)a1);
+    v20 = *((unsigned __int16 *)a1 + 4) | 0xBFF20000;
+    LODWORD(v21) = sub_4BC86(*(_QWORD *)a1, 0xDE8082E3, 0x865435Cu, v20);
+    HIWORD(v20) = __ROL4__(v20, 16) >> 16;
+    LOWORD(v20) = v27;
+    LODWORD(v38) = v33;
+    HIDWORD(v38) = __ROL4__(v20, 16);
+    v34 = sub_4B882(v21, v30, v38);
+    v31 = v22;
+    v23 = *((unsigned __int16 *)a1 + 4) | 0x3FFE0000;
+    LODWORD(v24) = sub_4BC86(*(_QWORD *)a1, 0xB1800000, 0, v23);
+    HIWORD(v23) = __ROL4__(v23, 16) >> 16;
+    LOWORD(v23) = WORD2(v38);
+    v16 = __ROL4__(v23, 16);
+    LODWORD(v40) = v34;
+    HIDWORD(v40) = v16;
+    result = sub_4B882(v24, v31, v40);
   }
   *a1 = result;
-  a1[1] = v22;
-  *((_WORD *)a1 + 4) = v20;
+  a1[1] = v18;
+  *((_WORD *)a1 + 4) = v16;
   return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4C980
+ * IDA 9.5 Hex-Rays: sub_4C980
  * VA=0x4c980..0x4cb77 OBJ=1 OFF=0x3c980 size=0x1f7
  * callers: 0x4cb77, 0x4cb81, 0x4cb8e
  * callees: 0x4b852, 0x4bab1, 0x4bc86, 0x4c523, 0x4ce84, 0x4ced6
@@ -47939,7 +48002,7 @@ int __usercall sub_4C980@<eax>(int a1@<eax>, int a2@<esi>)
     v7 = __ROL4__(v7, 16);
     if ( v14 != 0 || (v7 & 0x7FFF0000) != 0 )
     {
-      LODWORD(v13) = sub_4BAB1(v13, SHIDWORD(v14), v14, savedregs, v7);
+      LODWORD(v13) = sub_4BAB1(v13, SHIDWORD(v14), __SPAIR64__(v7, v14), savedregs);
     }
     else
     {
@@ -47954,7 +48017,7 @@ int __usercall sub_4C980@<eax>(int a1@<eax>, int a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CB77
+ * IDA 9.5 Hex-Rays: sub_4CB77
  * VA=0x4cb77..0x4cb81 OBJ=1 OFF=0x3cb77 size=0xa
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47967,7 +48030,7 @@ int __fastcall sub_4CB77(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CB81
+ * IDA 9.5 Hex-Rays: sub_4CB81
  * VA=0x4cb81..0x4cb8e OBJ=1 OFF=0x3cb81 size=0xd
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47980,7 +48043,7 @@ int __fastcall sub_4CB81(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CB8E
+ * IDA 9.5 Hex-Rays: sub_4CB8E
  * VA=0x4cb8e..0x4cb9b OBJ=1 OFF=0x3cb8e size=0xd
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -47993,13 +48056,13 @@ int __fastcall sub_4CB8E(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CBC4
+ * IDA 9.5 Hex-Rays: sub_4CBC4
  * VA=0x4cbc4..0x4cd98 OBJ=1 OFF=0x3cbc4 size=0x1d4
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
  * callees: 0x4b852, 0x4b882, 0x4bab1, 0x4bc86
  * --------------------------------------------------------------- */
-int __fastcall sub_4CBC4(int a1, int a2, int a3, int a4)
+int __fastcall sub_4CBC4(int a1, int a2, int ebx0, int a4)
 {
   int v5; // esi
   _BOOL1 v6; // zf
@@ -48010,38 +48073,32 @@ int __fastcall sub_4CBC4(int a1, int a2, int a3, int a4)
   __int16 v11; // bx
   int v12; // esi
   __int64 v13; // rax
-  int v14; // esi
-  unsigned __int64 v15; // rax
-  __int32 v16; // edx
-  int v17; // esi
+  unsigned __int64 v14; // rax
+  __int32 v15; // edx
+  __int64 v16; // rax
+  unsigned __int64 v17; // rax
   __int64 v18; // rax
-  int v19; // esi
-  unsigned __int64 v20; // rax
-  int v21; // esi
-  __int64 v22; // rax
-  int v23; // esi
-  __int64 v24; // rax
-  __int32 v25; // edx
-  int v26; // esi
-  unsigned __int64 v27; // rax
-  int v28; // esi
-  int v29; // eax
-  int v30; // edx
-  unsigned int v31; // ecx
-  int (*v32)(); // esi
-  int v33; // eax
-  __int16 v34; // t0
-  __int32 v36; // [esp-2Ch] [ebp-38h] BYREF
-  __int32 v37; // [esp-28h] [ebp-34h] BYREF
-  unsigned int v38; // [esp-24h] [ebp-30h] BYREF
-  __int32 v39; // [esp-20h] [ebp-2Ch] BYREF
-  __int32 v40; // [esp-1Ch] [ebp-28h] BYREF
-  int (*v41)(); // [esp-18h] [ebp-24h] BYREF
-  int v42; // [esp-14h] [ebp-20h]
-  int v43; // [esp-10h] [ebp-1Ch]
-  int v44; // [esp-8h] [ebp-14h]
+  __int64 v19; // rax
+  __int32 v20; // edx
+  unsigned __int64 v21; // rax
+  int v22; // eax
+  int v23; // edx
+  unsigned int v24; // ecx
+  int (*v25)(); // esi
+  int v26; // eax
+  __int16 v27; // t0
+  __int32 v29; // [esp-2Ch] [ebp-38h] BYREF
+  __int32 v30; // [esp-28h] [ebp-34h] BYREF
+  __int32 v31; // [esp-24h] [ebp-30h] BYREF
+  __int32 v32; // [esp-20h] [ebp-2Ch] BYREF
+  __int32 v33; // [esp-1Ch] [ebp-28h] BYREF
+  int (*v34)(); // [esp-18h] [ebp-24h] BYREF
+  int v35; // [esp-14h] [ebp-20h]
+  int v36; // [esp-10h] [ebp-1Ch]
+  int v37; // [esp-8h] [ebp-14h]
+  unsigned __int64 a3; // 0:ebx.4,4:esi.4
 
-  v44 = a4;
+  v37 = a4;
   v5 = 0;
   LOWORD(a4) = *(_WORD *)(a1 + 8);
   *(_BYTE *)(a1 + 9) &= ~0x80u;
@@ -48086,75 +48143,80 @@ int __fastcall sub_4CBC4(int a1, int a2, int a3, int a4)
     *(_QWORD *)a1 = v9;
     *(_WORD *)(a1 + 8) = v11;
   }
-  v43 = v5;
-  v42 = v8;
+  v36 = v5;
+  v35 = v8;
   LOWORD(v5) = *(_WORD *)(a1 + 8);
   v12 = v5 << 16;
   LOWORD(v12) = *(_WORD *)(a1 + 8);
   LODWORD(v13) = sub_4BC86(*(_QWORD *)a1, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v12);
-  v40 = HIDWORD(v13);
-  v41 = (int (*)())v13;
-  v39 = v12;
-  v14 = (unsigned __int16)v12 | 0x40030000;
-  LODWORD(v15) = _InterlockedExchange((volatile __int32 *)&v41, sub_4B882(v13, -1501390215, 468852620, v14));
-  HIDWORD(v15) = _InterlockedExchange(&v40, v16);
-  v17 = (unsigned __int16)_InterlockedExchange(&v39, v14) | 0x3FFA0000;
-  LODWORD(v18) = sub_4BC86(v15, 0xEC96F0D6, 0x9D7BFDBu, v17);
-  v19 = (unsigned __int16)v17 | 0x40010000;
-  LODWORD(v20) = sub_4B882(v18, -422247142, -449388153, v19);
-  HIWORD(v19) = __ROL4__(v19, 16) >> 16;
-  LOWORD(v19) = *(_WORD *)(a1 + 8);
-  v21 = __ROL4__(v19, 16);
-  LODWORD(v22) = sub_4BC86(v20, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v21);
-  v37 = HIDWORD(v22);
-  v38 = v22;
-  v36 = v21;
-  HIWORD(v21) = __ROL4__(v21 ^ 0x8000, 16) >> 16;
-  LOWORD(v21) = v39;
-  v23 = __ROL4__(v21, 16);
-  LODWORD(v24) = _InterlockedExchange((volatile __int32 *)&v38, sub_4B882(v22, v40, (int)v41, v23));
-  HIDWORD(v24) = _InterlockedExchange(&v37, v25);
-  HIWORD(v23) = __ROL4__(_InterlockedExchange(&v36, v23), 16) >> 16;
-  LOWORD(v23) = v39;
-  v26 = __ROL4__(v23, 16);
-  LODWORD(v27) = sub_4B882(v24, v40, (int)v41, v26);
-  HIWORD(v26) = __ROL4__(v26, 16) >> 16;
-  LOWORD(v26) = v36;
-  v28 = __ROL4__(v26, 16);
-  v29 = sub_4BAB1(v27, v37, v38, &v39, v28);
-  *(_DWORD *)a1 = v29;
-  *(_DWORD *)(a1 + 4) = v30;
-  *(_WORD *)(a1 + 8) = v28;
-  v31 = v42;
-  v32 = sub_4CB9C;
-  while ( v31 != 0 )
+  v33 = HIDWORD(v13);
+  v34 = (int (*)())v13;
+  v32 = v12;
+  LODWORD(a3) = 468852620;
+  HIDWORD(a3) = (unsigned __int16)v12 | 0x40030000;
+  LODWORD(v14) = _InterlockedExchange((volatile __int32 *)&v34, sub_4B882(v13, -1501390215, a3));
+  HIDWORD(v14) = _InterlockedExchange(&v33, v15);
+  HIDWORD(a3) = (unsigned __int16)_InterlockedExchange(&v32, SHIDWORD(a3)) | 0x3FFA0000;
+  LODWORD(v16) = sub_4BC86(v14, 0xEC96F0D6, 0x9D7BFDBu, SHIDWORD(a3));
+  LODWORD(a3) = -449388153;
+  HIDWORD(a3) = WORD2(a3) | 0x40010000;
+  LODWORD(v17) = sub_4B882(v16, -422247142, a3);
+  HIWORD(a3) = __ROL4__(HIDWORD(a3), 16) >> 16;
+  WORD2(a3) = *(_WORD *)(a1 + 8);
+  HIDWORD(a3) = __ROL4__(HIDWORD(a3), 16);
+  LODWORD(v18) = sub_4BC86(v17, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, SHIDWORD(a3));
+  v30 = HIDWORD(v18);
+  v31 = v18;
+  v29 = HIDWORD(a3);
+  HIWORD(a3) = __ROL4__(HIDWORD(a3) ^ 0x8000, 16) >> 16;
+  WORD2(a3) = v32;
+  HIDWORD(a3) = __ROL4__(HIDWORD(a3), 16);
+  LODWORD(a3) = v34;
+  LODWORD(v19) = _InterlockedExchange(&v31, sub_4B882(v18, v33, a3));
+  HIDWORD(v19) = _InterlockedExchange(&v30, v20);
+  HIWORD(a3) = __ROL4__(_InterlockedExchange(&v29, SHIDWORD(a3)), 16) >> 16;
+  WORD2(a3) = v32;
+  HIDWORD(a3) = __ROL4__(HIDWORD(a3), 16);
+  LODWORD(a3) = v34;
+  LODWORD(v21) = sub_4B882(v19, v33, a3);
+  HIWORD(a3) = __ROL4__(HIDWORD(a3), 16) >> 16;
+  WORD2(a3) = v29;
+  HIDWORD(a3) = __ROL4__(HIDWORD(a3), 16);
+  LODWORD(a3) = v31;
+  v22 = sub_4BAB1(v21, v30, a3, &v32);
+  *(_DWORD *)a1 = v22;
+  *(_DWORD *)(a1 + 4) = v23;
+  *(_WORD *)(a1 + 8) = WORD2(a3);
+  v24 = v35;
+  v25 = sub_4CB9C;
+  while ( v24 != 0 )
   {
-    v10 = v31 & 1;
-    v31 >>= 1;
+    v10 = v24 & 1;
+    v24 >>= 1;
     if ( v10 )
     {
-      v42 = v31;
-      v41 = v32;
-      LOWORD(v29) = *(_WORD *)(a1 + 8);
-      v33 = v29 << 16;
-      LOWORD(v33) = *((_WORD *)v32 + 4);
-      v34 = v33;
-      v29 = sub_4BC86(*(_QWORD *)v32, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v33);
-      *(_DWORD *)a1 = v29;
-      *(_DWORD *)(a1 + 4) = v30;
-      *(_WORD *)(a1 + 8) = v34;
-      v32 = v41;
-      v31 = v42;
+      v35 = v24;
+      v34 = v25;
+      LOWORD(v22) = *(_WORD *)(a1 + 8);
+      v26 = v22 << 16;
+      LOWORD(v26) = *((_WORD *)v25 + 4);
+      v27 = v26;
+      v22 = sub_4BC86(*(_QWORD *)v25, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v26);
+      *(_DWORD *)a1 = v22;
+      *(_DWORD *)(a1 + 4) = v23;
+      *(_WORD *)(a1 + 8) = v27;
+      v25 = v34;
+      v24 = v35;
     }
-    v32 = (int (*)())((char *)v32 + 10);
+    v25 = (int (*)())((char *)v25 + 10);
   }
-  *(_WORD *)(a1 + 8) += v43;
-  return sub_4B852(a1, v30, a1, 0, 0, 0x80000000, 49151);
+  *(_WORD *)(a1 + 8) += v36;
+  return sub_4B852(a1, v23, a1, 0, 0, 0x80000000, 49151);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CD98
+ * IDA 9.5 Hex-Rays: sub_4CD98
  * VA=0x4cd98..0x4ce64 OBJ=1 OFF=0x3cd98 size=0xcc
  * type: int __fastcall(_DWORD)
  * callers: 0x4a104
@@ -48278,7 +48340,7 @@ LABEL_21:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CE64
+ * IDA 9.5 Hex-Rays: sub_4CE64
  * VA=0x4ce64..0x4ce84 OBJ=1 OFF=0x3ce64 size=0x20
  * callers: -
  * callees: 0x4ce84
@@ -48297,13 +48359,13 @@ __int64 __fastcall sub_4CE64(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CE84
+ * IDA 9.5 Hex-Rays: sub_4CE84
  * VA=0x4ce84..0x4ced6 OBJ=1 OFF=0x3ce84 size=0x52
  * type: __int64 __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4c6e8, 0x4c980, 0x4ce64, 0x4ced6
  * callees: 0x4b882, 0x4bc86
  * --------------------------------------------------------------- */
-int __usercall sub_4CE84@<eax>(int a1@<ecx>, int a2@<esi>)
+int __usercall sub_4CE84@<eax>(int a1@<ecx>, unsigned __int64 a3@<0:ebx, 4:esi>)
 {
   int v2; // edi
   unsigned __int64 v3; // rax
@@ -48317,18 +48379,19 @@ int __usercall sub_4CE84@<eax>(int a1@<ecx>, int a2@<esi>)
 
   v2 = a1;
   v3 = *(_QWORD *)a1;
-  LOWORD(a2) = *(_WORD *)(a1 + 8);
+  WORD2(a3) = *(_WORD *)(a1 + 8);
   do
   {
-    HIWORD(v4) = __ROL4__(a2, 16) >> 16;
+    HIWORD(v4) = __ROL4__(HIDWORD(a3), 16) >> 16;
     LOWORD(v4) = vars8;
     v5 = __ROL4__(v4, 16);
     LODWORD(v6) = sub_4BC86(v3, vars4, vars0, v5);
     v2 += 10;
+    LODWORD(a3) = *(_DWORD *)v2;
     HIWORD(v5) = __ROL4__(v5, 16) >> 16;
     LOWORD(v5) = *(_WORD *)(v2 + 8);
-    a2 = __ROL4__(v5, 16);
-    LODWORD(v3) = sub_4B882(v6, *(_DWORD *)(v2 + 4), *(_DWORD *)v2, a2);
+    HIDWORD(a3) = __ROL4__(v5, 16);
+    LODWORD(v3) = sub_4B882(v6, *(_DWORD *)(v2 + 4), a3);
     --varsC;
   }
   while ( varsC != 0 );
@@ -48337,13 +48400,13 @@ int __usercall sub_4CE84@<eax>(int a1@<ecx>, int a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CED6
+ * IDA 9.5 Hex-Rays: sub_4CED6
  * VA=0x4ced6..0x4cf1e OBJ=1 OFF=0x3ced6 size=0x48
  * type: int __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4c35a, 0x4c980
  * callees: 0x4bc86, 0x4ce84
  * --------------------------------------------------------------- */
-int __usercall sub_4CED6@<eax>(int a1@<eax>, int a2@<edx>, int a3@<esi>)
+int __usercall sub_4CED6@<eax>(int a1@<eax>, int a2@<edx>, unsigned __int64 a3@<0:ebx, 4:esi>)
 {
   int v4; // esi
   unsigned __int64 v5; // rax
@@ -48351,12 +48414,12 @@ int __usercall sub_4CED6@<eax>(int a1@<eax>, int a2@<edx>, int a3@<esi>)
   int result; // eax
   int v8; // edx
 
-  LOWORD(a3) = *(_WORD *)(a1 + 8);
-  v4 = a3 << 16;
-  LOWORD(v4) = *(_WORD *)(a1 + 8);
-  sub_4BC86(*(_QWORD *)a1, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v4);
-  LODWORD(v5) = sub_4CE84(a2, v4);
-  HIWORD(v4) = __ROL4__(v4, 16) >> 16;
+  WORD2(a3) = *(_WORD *)(a1 + 8);
+  v4 = HIDWORD(a3) << 16;
+  WORD2(a3) = *(_WORD *)(a1 + 8);
+  sub_4BC86(*(_QWORD *)a1, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, SHIDWORD(a3));
+  LODWORD(v5) = sub_4CE84(a2, a3);
+  HIWORD(v4) = __ROL4__(HIDWORD(a3), 16) >> 16;
   LOWORD(v4) = *(_WORD *)(a1 + 8);
   v6 = __ROL4__(v4, 16);
   result = sub_4BC86(v5, *(_DWORD *)(a1 + 4), *(_DWORD *)a1, v6);
@@ -48368,7 +48431,7 @@ int __usercall sub_4CED6@<eax>(int a1@<eax>, int a2@<edx>, int a3@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: nullsub_3
+ * IDA 9.5 Hex-Rays: nullsub_3
  * VA=0x4cf1e..0x4cf1f OBJ=1 OFF=0x3cf1e size=0x1
  * callers: -
  * callees: -
@@ -48380,7 +48443,7 @@ void nullsub_3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4CF4D
+ * IDA 9.5 Hex-Rays: sub_4CF4D
  * VA=0x4cf4d..0x4d031 OBJ=1 OFF=0x3cf4d size=0xe4
  * callers: -
  * callees: 0x3707e, 0x3777e, 0x37910
@@ -48450,7 +48513,7 @@ void sub_4CF4D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _set_matherr
+ * IDA 9.5 Hex-Rays: _set_matherr
  * VA=0x4d031..0x4d03e OBJ=1 OFF=0x3d031 size=0xd [FLIRT-lib]
  * callers: -
  * callees: -
@@ -48463,7 +48526,7 @@ int (*__cdecl set_matherr(int (*a1)()))()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _matherr
+ * IDA 9.5 Hex-Rays: _matherr
  * VA=0x4d03e..0x4d0c3 OBJ=1 OFF=0x3d03e size=0x85 [FLIRT-lib]
  * type: int(struct exception *)
  * callers: 0x499da
@@ -48489,7 +48552,7 @@ int matherr(struct exception *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _SetMaxPrec
+ * IDA 9.5 Hex-Rays: _SetMaxPrec
  * VA=0x4d0c3..0x4d0d0 OBJ=1 OFF=0x3d0c3 size=0xd [FLIRT-lib]
  * callers: -
  * callees: -
@@ -48502,7 +48565,7 @@ int __cdecl SetMaxPrec(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4D0D0
+ * IDA 9.5 Hex-Rays: sub_4D0D0
  * VA=0x4d0d0..0x4d174 OBJ=1 OFF=0x3d0d0 size=0xa4 [FLIRT-lib]
  * callers: 0x4d25b
  * callees: -
@@ -48580,7 +48643,7 @@ int __cdecl sub_4D0D0(char *a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4D174
+ * IDA 9.5 Hex-Rays: sub_4D174
  * VA=0x4d174..0x4d1f0 OBJ=1 OFF=0x3d174 size=0x7c [FLIRT-lib]
  * callers: 0x4d25b
  * callees: -
@@ -48650,7 +48713,7 @@ _BYTE *__cdecl sub_4D174(_BYTE *a1, char *a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4D1F0
+ * IDA 9.5 Hex-Rays: sub_4D1F0
  * VA=0x4d1f0..0x4d25b OBJ=1 OFF=0x3d1f0 size=0x6b [FLIRT-lib]
  * callers: 0x4d25b
  * callees: 0x37910
@@ -48696,7 +48759,7 @@ void __cdecl sub_4D1F0(_BYTE *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _FtoS
+ * IDA 9.5 Hex-Rays: _FtoS
  * VA=0x4d25b..0x4d49c OBJ=1 OFF=0x3d25b size=0x241 [FLIRT-lib]
  * callers: 0x49ad8
  * callees: 0x37910, 0x37af4, 0x4d0d0, 0x4d174, 0x4d1f0, 0x4d731, 0x4d7a0, 0x4d81b, 0x4d88c, 0x4d966
@@ -48877,7 +48940,7 @@ LABEL_20:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: strtod
+ * IDA 9.5 Hex-Rays: strtod
  * VA=0x4d49c..0x4d656 OBJ=1 OFF=0x3d49c size=0x1ba [FLIRT-lib]
  * type: __int64 __cdecl(_DWORD, _DWORD)
  * callers: 0x49c03
@@ -49048,7 +49111,7 @@ LABEL_63:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _dos_setvect
+ * IDA 9.5 Hex-Rays: _dos_setvect
  * VA=0x4d656..0x4d68d OBJ=1 OFF=0x3d656 size=0x37 [FLIRT-lib]
  * callers: 0x49c26
  * callees: -
@@ -49073,7 +49136,7 @@ __int16 __cdecl dos_setvect(char a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: j___nmemneed_0
+ * IDA 9.5 Hex-Rays: j___nmemneed_0
  * VA=0x4d690..0x4d695 OBJ=1 OFF=0x3d690 size=0x5 [thunk]
  * callers: 0x4d03e
  * callees: -
@@ -49086,7 +49149,7 @@ int j___nmemneed_0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fputs
+ * IDA 9.5 Hex-Rays: fputs
  * VA=0x4d695..0x4d70e OBJ=1 OFF=0x3d695 size=0x79 [FLIRT-lib]
  * callers: 0x4d03e
  * callees: 0x3dc69, 0x3de66, 0x3df47
@@ -49130,7 +49193,7 @@ int __cdecl fputs(unsigned __int8 *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __set_EDOM
+ * IDA 9.5 Hex-Rays: __set_EDOM
  * VA=0x4d70e..0x4d715 OBJ=1 OFF=0x3d70e size=0x7 [FLIRT-lib]
  * type: int __fastcall(_DWORD)
  * callers: 0x4d03e
@@ -49143,7 +49206,7 @@ void _set_EDOM()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __set_ERANGE
+ * IDA 9.5 Hex-Rays: __set_ERANGE
  * VA=0x4d715..0x4d726 OBJ=1 OFF=0x3d715 size=0x11 [FLIRT-lib]
  * type: int __fastcall(_DWORD)
  * callers: 0x4d03e, 0x4d49c
@@ -49160,7 +49223,7 @@ _DWORD *_set_ERANGE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __Nan_Inf
+ * IDA 9.5 Hex-Rays: __Nan_Inf
  * VA=0x4d731..0x4d79f OBJ=1 OFF=0x3d731 size=0x6e [FLIRT-lib]
  * callers: 0x4d25b, 0x4d966
  * callees: -
@@ -49188,7 +49251,7 @@ int __cdecl _Nan_Inf(int a1, int a2, int *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: fabs
+ * IDA 9.5 Hex-Rays: fabs
  * VA=0x4d7a0..0x4d7ae OBJ=1 OFF=0x3d7a0 size=0xe [FLIRT-lib]
  * callers: 0x4d25b
  * callees: -
@@ -49200,7 +49263,7 @@ void __cdecl fabs()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DLOG
+ * IDA 9.5 Hex-Rays: IF@DLOG
  * VA=0x4d7b4..0x4d7b6 OBJ=1 OFF=0x3d7b4 size=0x2 [FLIRT-lib]
  * callers: -
  * callees: -
@@ -49212,7 +49275,7 @@ int IF_DLOG()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4D7B6
+ * IDA 9.5 Hex-Rays: sub_4D7B6
  * VA=0x4d7b6..0x4d800 OBJ=1 OFF=0x3d7b6 size=0x4a [FLIRT-lib]
  * type: int __fastcall(_DWORD)
  * callers: 0x4d7b4, 0x4d800, 0x4d804
@@ -49221,12 +49284,12 @@ int IF_DLOG()
 long double __usercall sub_4D7B6@<st0>(double a1@<edx:eax>, __int16 a2@<fpstat>, double a3@<st0>)
 {
   _BOOL1 v3; // c0
-  char v4; // c2
+  _BOOL1 v4; // c2
   _BOOL1 v5; // c3
   long double v7; // st6
 
+  v4 = isnan(a3);
   v3 = a3 < 0.0;
-  v4 = 0;
   v5 = a3 == 0.0;
   BYTE1(a1) = HIBYTE(a2);
   if ( a3 > 0.0 )
@@ -49254,7 +49317,7 @@ long double __usercall sub_4D7B6@<st0>(double a1@<edx:eax>, __int16 a2@<fpstat>,
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DLOG2
+ * IDA 9.5 Hex-Rays: IF@DLOG2
  * VA=0x4d800..0x4d804 OBJ=1 OFF=0x3d800 size=0x4 [FLIRT-lib]
  * callers: -
  * callees: -
@@ -49267,7 +49330,7 @@ long double __usercall IF_DLOG2@<st0>(double a1@<edx:eax>, __int16 a2@<fpstat>, 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: IF@DLOG10
+ * IDA 9.5 Hex-Rays: IF@DLOG10
  * VA=0x4d804..0x4d808 OBJ=1 OFF=0x3d804 size=0x4 [FLIRT-lib]
  * callers: 0x4d81b
  * callees: -
@@ -49280,7 +49343,7 @@ long double __usercall IF_DLOG10@<st0>(double a1@<edx:eax>, __int16 a2@<fpstat>,
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: log10
+ * IDA 9.5 Hex-Rays: log10
  * VA=0x4d81b..0x4d82e OBJ=1 OFF=0x3d81b size=0x13 [FLIRT-lib]
  * type: int __cdecl(double)
  * callers: 0x4d25b
@@ -49297,7 +49360,7 @@ __int64 __usercall log10@<edx:eax>(double a1@<edx:eax>, double a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _Scale
+ * IDA 9.5 Hex-Rays: _Scale
  * VA=0x4d841..0x4d88c OBJ=1 OFF=0x3d841 size=0x4b [FLIRT-lib]
  * type: int __cdecl(int, double, int, int)
  * callers: 0x4d966
@@ -49323,7 +49386,7 @@ int __cdecl Scale(int a1, double a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: _Scale10V
+ * IDA 9.5 Hex-Rays: _Scale10V
  * VA=0x4d88c..0x4d966 OBJ=1 OFF=0x3d88c size=0xda [FLIRT-lib]
  * type: int __cdecl(double, int)
  * callers: 0x4d25b, 0x4d49c, 0x4d841
@@ -49400,7 +49463,7 @@ LABEL_11:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4D966
+ * IDA 9.5 Hex-Rays: sub_4D966
  * VA=0x4d966..0x4db0a OBJ=1 OFF=0x3d966 size=0x1a4
  * type: int __cdecl(double, int, int, int, int, int)
  * callers: 0x4d25b
@@ -49527,7 +49590,7 @@ char *__cdecl sub_4D966(double a1, int a2, int *a3, _DWORD *a4, int a5, int *a6)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __ModF
+ * IDA 9.5 Hex-Rays: __ModF
  * VA=0x4db0c..0x4db9c OBJ=1 OFF=0x3db0c size=0x90 [FLIRT-lib]
  * callers: -
  * callees: 0x4dbe7
@@ -49592,7 +49655,7 @@ LABEL_5:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __ZBuf2F
+ * IDA 9.5 Hex-Rays: __ZBuf2F
  * VA=0x4db9c..0x4dbe7 OBJ=1 OFF=0x3db9c size=0x4b [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4d49c
@@ -49621,7 +49684,7 @@ __int64 __fastcall _ZBuf2F(_BYTE *a1, __int64 *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DBE7
+ * IDA 9.5 Hex-Rays: sub_4DBE7
  * VA=0x4dbe7..0x4dc3a OBJ=1 OFF=0x3dbe7 size=0x53 [FLIRT-lib]
  * type: __int64 __fastcall(_DWORD, _DWORD)
  * callers: 0x4db0c, 0x4db9c
@@ -49669,7 +49732,7 @@ int __usercall sub_4DBE7@<eax>(__int64 a1@<edx:eax>, int a2@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __nmemneed_0
+ * IDA 9.5 Hex-Rays: __nmemneed_0
  * VA=0x4dc3a..0x4dc41 OBJ=1 OFF=0x3dc3a size=0x7 [FLIRT-lib]
  * callers: 0x4d690
  * callees: -
@@ -49681,7 +49744,7 @@ int _nmemneed_0()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __log87_err
+ * IDA 9.5 Hex-Rays: __log87_err
  * VA=0x4dc41..0x4dc89 OBJ=1 OFF=0x3dc41 size=0x48 [FLIRT-lib]
  * type: int __cdecl(double, int)
  * callers: 0x4d7b6
@@ -49701,7 +49764,7 @@ __int64 __cdecl _log87_err(double a1, char a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __CmpBigInt
+ * IDA 9.5 Hex-Rays: __CmpBigInt
  * VA=0x4dc8c..0x4dcc6 OBJ=1 OFF=0x3dc8c size=0x3a [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4d841
@@ -49745,7 +49808,7 @@ int __usercall _CmpBigInt@<eax>(int a1@<ecx>, int a2@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __Rnd2Int
+ * IDA 9.5 Hex-Rays: __Rnd2Int
  * VA=0x4dcc6..0x4dd31 OBJ=1 OFF=0x3dcc6 size=0x6b [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4d841
@@ -49806,7 +49869,7 @@ unsigned int __fastcall _Rnd2Int(unsigned int result, _QWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: __Bin2String
+ * IDA 9.5 Hex-Rays: __Bin2String
  * VA=0x4dd31..0x4dda3 OBJ=1 OFF=0x3dd31 size=0x72 [FLIRT-lib]
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4d966
@@ -49883,7 +49946,7 @@ LABEL_7:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DE58
+ * IDA 9.5 Hex-Rays: sub_4DE58
  * VA=0x4de58..0x4de5a OBJ=1 OFF=0x3de58 size=0x2 [FLIRT-lib]
  * callers: -
  * callees: -
@@ -49896,7 +49959,7 @@ void sub_4DE58()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: frexp
+ * IDA 9.5 Hex-Rays: frexp
  * VA=0x4de5a..0x4deb2 OBJ=1 OFF=0x3de5a size=0x58 [FLIRT-lib]
  * type: int __cdecl(double, int)
  * callers: 0x4d966
@@ -49920,7 +49983,7 @@ __int64 __cdecl frexp(double a1, int *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: modf
+ * IDA 9.5 Hex-Rays: modf
  * VA=0x4deb4..0x4ded4 OBJ=1 OFF=0x3deb4 size=0x20 [FLIRT-lib]
  * type: int __cdecl(double, int)
  * callers: 0x4d966
@@ -49940,7 +50003,7 @@ __int64 __cdecl modf(long double a1, double *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DED4
+ * IDA 9.5 Hex-Rays: sub_4DED4
  * VA=0x4ded4..0x4deec OBJ=1 OFF=0x3ded4 size=0x18
  * callers: 0x33faf
  * callees: -
@@ -49952,7 +50015,7 @@ char *__cdecl sub_4DED4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DEEC
+ * IDA 9.5 Hex-Rays: sub_4DEEC
  * VA=0x4deec..0x4df09 OBJ=1 OFF=0x3deec size=0x1d
  * callers: 0x219ad, 0x22046
  * callees: -
@@ -49979,7 +50042,7 @@ char __cdecl sub_4DEEC(int a1, int a2, _BYTE *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: save_checksum_sum
+ * IDA 9.5 Hex-Rays: save_checksum_sum
  * VA=0x4df09..0x4df28 OBJ=1 OFF=0x3df09 size=0x1f
  * callers: 0x10010, 0x19df7, 0x1f894, 0x2968d
  * callees: -
@@ -50008,7 +50071,7 @@ int __cdecl save_checksum_sum(_BYTE *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: save_xor_crypt
+ * IDA 9.5 Hex-Rays: save_xor_crypt
  * VA=0x4df28..0x4df4c OBJ=1 OFF=0x3df28 size=0x24
  * callers: 0x10010, 0x19df7, 0x1f894, 0x25ebb, 0x2968d, 0x2986f
  * callees: -
@@ -50041,7 +50104,7 @@ char __cdecl save_xor_crypt(char *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DF4C
+ * IDA 9.5 Hex-Rays: sub_4DF4C
  * VA=0x4df4c..0x4df84 OBJ=1 OFF=0x3df4c size=0x38
  * callers: 0x10010, 0x1088d, 0x10c50, 0x14121, 0x14237, 0x14b78, 0x15055, 0x15311, 0x1567e, 0x1598a, 0x18890, 0x18d8c, 0x1bbdc, 0x1cff0, 0x24754
  * callees: -
@@ -50069,7 +50132,7 @@ char __cdecl sub_4DF4C(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4DF84
+ * IDA 9.5 Hex-Rays: sub_4DF84
  * VA=0x4df84..0x4e016 OBJ=1 OFF=0x3df84 size=0x92
  * callers: 0x1cd17
  * callees: -
@@ -50100,7 +50163,7 @@ char __cdecl sub_4DF84(char *a1, char *a2, int a3, char a4, char a5)
         {
           result = *a1++;
           v11 = 2 * result;
-          if ( __CFSHL__(result, 1) )
+          if ( result < 0 )
             break;
           v12 = __CFSHL__(v11, 1);
           LOBYTE(v7) = 4 * result;
@@ -50164,7 +50227,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: shape_blit_palette_lut_24x24
+ * IDA 9.5 Hex-Rays: shape_blit_palette_lut_24x24
  * VA=0x4e016..0x4e0a2 OBJ=1 OFF=0x3e016 size=0x8c
  * callers: 0x11eee
  * callees: -
@@ -50197,7 +50260,7 @@ char __cdecl shape_blit_palette_lut_24x24(char *a1, _BYTE *a2, int a3, int a4)
         {
           v10 = *a1++;
           v11 = 2 * v10;
-          if ( __CFSHL__(v10, 1) )
+          if ( v10 < 0 )
             break;
           v12 = __CFSHL__(v11, 1);
           LOBYTE(v6) = 4 * v10;
@@ -50268,7 +50331,7 @@ LABEL_19:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: shape_blit_palette_lut_transparent_24x24
+ * IDA 9.5 Hex-Rays: shape_blit_palette_lut_transparent_24x24
  * VA=0x4e0a2..0x4e127 OBJ=1 OFF=0x3e0a2 size=0x85
  * callers: 0x12ac6
  * callees: -
@@ -50299,7 +50362,7 @@ char __cdecl shape_blit_palette_lut_transparent_24x24(_BYTE *a1, _BYTE *a2, int 
         {
           LOBYTE(v7) = *a1++;
           v10 = 2 * v7;
-          if ( __CFSHL__(v7, 1) )
+          if ( (v7 & 0x80u) != 0 )
             break;
           v11 = __CFSHL__(v10, 1);
           LOBYTE(v6) = 4 * v7;
@@ -50363,7 +50426,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: map_sprite_solid_blit_24
+ * IDA 9.5 Hex-Rays: map_sprite_solid_blit_24
  * VA=0x4e127..0x4e1a6 OBJ=1 OFF=0x3e127 size=0x7f
  * callers: 0x1c2da, 0x1da16
  * callees: -
@@ -50393,7 +50456,7 @@ char __cdecl map_sprite_solid_blit_24(char *a1, _BYTE *a2, int a3)
         {
           result = *a1++;
           v9 = 2 * result;
-          if ( __CFSHL__(result, 1) )
+          if ( result < 0 )
             break;
           v10 = __CFSHL__(v9, 1);
           LOBYTE(v5) = 4 * result;
@@ -50457,11 +50520,12 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E1A6
+ * IDA 9.5 Hex-Rays: sub_4E1A6
  * VA=0x4e1a6..0x4e22a OBJ=1 OFF=0x3e1a6 size=0x84
  * callers: 0x127e0, 0x2b4fb
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记已行动actor的专用RLE映色 -> 对实际写入pixel映为(color&7)+24，RLE skip保留底图；不能把cursor一同映色，或把合法opaque0当skip。当前真实FDICON1680帧没有opaque0，SDL可在临时栈buffer映非0缓存，不改bank。；依据: 已发布sub_4E1A6、127e0按flags signbit选择它与normal4e22a；原始RLE独立审计严格区分repeat/alternate/literal写0与skip，全部帧span/end校验通过，配套可再生产审计与回归，不新增mask框架。
 char __cdecl sub_4E1A6(char *a1, char *a2, int a3)
 {
   unsigned int v5; // ecx
@@ -50487,7 +50551,7 @@ char __cdecl sub_4E1A6(char *a1, char *a2, int a3)
         {
           result = *a1++;
           v9 = 2 * result;
-          if ( __CFSHL__(result, 1) )
+          if ( result < 0 )
             break;
           v10 = __CFSHL__(v9, 1);
           LOBYTE(v5) = 4 * result;
@@ -50551,7 +50615,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E22A
+ * IDA 9.5 Hex-Rays: sub_4E22A
  * VA=0x4e22a..0x4e29c OBJ=1 OFF=0x3e22a size=0x72
  * callers: 0x11eee, 0x126f7, 0x127e0, 0x12ac6, 0x1399c, 0x1acf3, 0x1cb94, 0x1da16, 0x265ec, 0x2b4fb, 0x344b4
  * callees: -
@@ -50578,7 +50642,7 @@ char __cdecl sub_4E22A(char *a1, char *a2, int a3)
         {
           result = *a1++;
           v9 = 2 * result;
-          if ( !__CFSHL__(result, 1) )
+          if ( result >= 0 )
             break;
           v10 = __CFSHL__(v9, 1);
           LOBYTE(v5) = 4 * result;
@@ -50636,7 +50700,7 @@ LABEL_15:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E29C
+ * IDA 9.5 Hex-Rays: sub_4E29C
  * VA=0x4e29c..0x4e310 OBJ=1 OFF=0x3e29c size=0x74
  * callers: 0x27079, 0x2810b, 0x2825b, 0x2a0c2, 0x2a694
  * callees: -
@@ -50663,7 +50727,7 @@ char __cdecl sub_4E29C(char *a1, char *a2, int a3)
         {
           result = *a1++;
           v9 = 2 * result;
-          if ( !__CFSHL__(result, 1) )
+          if ( result >= 0 )
             break;
           v10 = __CFSHL__(v9, 1);
           LOBYTE(v5) = 4 * result;
@@ -50724,11 +50788,12 @@ LABEL_15:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E310
+ * IDA 9.5 Hex-Rays: sub_4E310
  * VA=0x4e310..0x4e31c OBJ=1 OFF=0x3e310 size=0xc
  * callers: 0x4e31c
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记BIOS时钟读取的实际宽度 -> 中性sub_4E310读取BDA46c低16位tick，不按伪C MEMORY宏猜32位ABI。；依据: 已发布入口及局部原始xor eax,eax; mov esi,46c; lodsw。保留IDA中性名；SDL使用55ms宿主近似，不宣称硬件精确时钟。
 int sub_4E310()
 {
   return MEMORY[0x46C];
@@ -50736,12 +50801,13 @@ int sub_4E310()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E31C
+ * IDA 9.5 Hex-Rays: sub_4E31C
  * VA=0x4e31c..0x4e381 OBJ=1 OFF=0x3e31c size=0x65
  * type: int __fastcall(_DWORD)
  * callers: 0x11aa8, 0x11cac, 0x12dac, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x16c57, 0x17898, 0x18b84, 0x19953, 0x1b1e7, 0x1e5c0, 0x24336
  * callees: 0x4e310
  * --------------------------------------------------------------- */
+// [勘误 evidence] 未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0 -> unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写DAC224..239，结束重读last，一次调用不追赶。状态60000/60002属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。；依据: 原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。严格LE canonical60003有效93字节，后45恰重复首15个RGB，16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。
 void __spoils<> sub_4E31C()
 {
   unsigned __int8 *v0; // esi
@@ -50758,7 +50824,7 @@ void __spoils<> sub_4E31C()
       byte_60002 = 0;
     v0 = (unsigned __int8 *)&unk_60003 + (unsigned __int16)(3 * (unsigned __int8)byte_60002);
     v1 = 16;
-    v2 = -32;
+    v2 = 0xE0u;
     do
     {
       __outbyte(0x3C8u, v2);
@@ -50780,7 +50846,7 @@ void __spoils<> sub_4E31C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: vsync_wait
+ * IDA 9.5 Hex-Rays: bios_keyboard_buffer_clear
  * VA=0x4e381..0x4e390 OBJ=1 OFF=0x3e381 size=0xf
  * type: int __fastcall(_DWORD)
  * callers: 0x10010, 0x117e7, 0x12cea, 0x135dd, 0x1366a, 0x165ac, 0x176b4, 0x17e0b, 0x18d8c, 0x190ac, 0x19df7, 0x1a30b, 0x1a866, 0x1aa1d, 0x1b1e7, 0x1d80b, 0x1d8ba, 0x1e292, 0x1e529, 0x1e5c0, 0x1f1cc, 0x1f894, 0x2000a, 0x20421, 0x24336, 0x25bf4, 0x25ebb, 0x26152, 0x28b41, 0x2aa00, 0x2ac7d, 0x2af28, 0x31bdf, 0x31c49, 0x32999, 0x33faf, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x35854
@@ -50789,7 +50855,8 @@ void __spoils<> sub_4E31C()
 // [vsync_wait] 等待垂直同步
 //   依据: 反编译：端口读
 //   历史地址列 `0x73595`；旧 Ghidra 名 `FUN_0004bac9`；判定 exact
-__int16 vsync_wait()
+// [勘误 semantic_name] vsync_wait（等待垂直同步） -> bios_keyboard_buffer_clear；依据: 原15字节 56 be1a040000 66 8b06 66 894602 5e c3 将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。
+__int16 bios_keyboard_buffer_clear()
 {
   MEMORY[0x41C] = MEMORY[0x41A];
   return MEMORY[0x41A];
@@ -50797,7 +50864,7 @@ __int16 vsync_wait()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_reachable_cells_compute
+ * IDA 9.5 Hex-Rays: field_reachable_cells_compute
  * VA=0x4e390..0x4e42c OBJ=1 OFF=0x3e390 size=0x9c
  * callers: 0x14237, 0x14818, 0x14b78, 0x1598a, 0x18890
  * callees: 0x4e42c
@@ -50805,6 +50872,7 @@ __int16 vsync_wait()
 // [field_reachable_cells_compute] 按 movement profile、起点和移动预算传播可达格
 //   依据: corrected code0 `0x635a4` 保存 profile/x/y/budget/map/attr 参数并按右、左、下、上展开
 //   历史地址列 `0x735a4`；旧 Ghidra 名 `FUN_0004bad8`；判定 exact
+// [勘误 evidence] 起点邻敌时也按ZOC禁止展开 -> 起点直接写预算并进入递归，允许先离开起点；只有进入的邻格按ZOC位停止继续扩展。友方终点阻断与可经过规则不变。；依据: 原始4e422写起点预算、4e424无条件调用4e42c；进入格门4e4be在4e4ea..4e4f0按bit80清剩余预算。SDL双方分组回归及无副作用检查；对应近敌原版运行仍待单独取证。
 void __cdecl __spoils<> field_reachable_cells_compute(
         int a1,
         unsigned __int8 a2,
@@ -50834,7 +50902,7 @@ void __cdecl __spoils<> field_reachable_cells_compute(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E42C
+ * IDA 9.5 Hex-Rays: sub_4E42C
  * VA=0x4e42c..0x4e4be OBJ=1 OFF=0x3e42c size=0x92
  * type: int(void)
  * callers: 0x4e390, 0x4e42c
@@ -50892,7 +50960,7 @@ int __usercall sub_4E42C@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E4BE
+ * IDA 9.5 Hex-Rays: sub_4E4BE
  * VA=0x4e4be..0x4e4f6 OBJ=1 OFF=0x3e4be size=0x38
  * type: int __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4e42c
@@ -50925,7 +50993,7 @@ char __usercall sub_4E4BE@<al>(unsigned __int8 a1@<cl>, char *a2@<ebx>, int a3@<
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_path_find
+ * IDA 9.5 Hex-Rays: field_path_find
  * VA=0x4e4f6..0x4e5cc OBJ=1 OFF=0x3e4f6 size=0xd6
  * callers: 0x14121, 0x14b78, 0x18890
  * callees: 0x4e5cc, 0x4e751
@@ -50933,6 +51001,7 @@ char __usercall sub_4E4BE@<al>(unsigned __int8 a1@<cl>, char *a2@<ebx>, int a3@<
 // [field_path_find] 使用同一成本和占格规则搜索目标并输出方向路径
 //   依据: 正确 dual `0x4e4f6`；递归邻域顺序为右、左、下、上。mode 0 保留首次路径，mode 1 在剩余成本相等时以递归方向变化数 `*4` 更新，mode 2 抵达 hostile occupied cell 时写 witness 坐标。
 //   历史地址列 `0x7370a`；旧 Ghidra 名 `FUN_0004bc3e`；判定 exact
+// [勘误 evidence] 普通路径起点与进入格是否同受ZOC门尚未区分 -> 初始化起点后直接递归，起点不经进入格ZOC门；normal/mode1的SDL实现已有该行为，不额外更改。mode2 hostile witness独立。；依据: 原始初始化/递归调用与4e680进入格门；合成回归检查normal、long route、witness和非法起点拒绝。公开API另补坐标/三倍缓冲分配界检查，不据此声明原版完整ABI或全函数机器执行通过。
 int __cdecl field_path_find(
         int a1,
         unsigned __int8 a2,
@@ -50978,7 +51047,7 @@ int __cdecl field_path_find(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E5CC
+ * IDA 9.5 Hex-Rays: sub_4E5CC
  * VA=0x4e5cc..0x4e680 OBJ=1 OFF=0x3e5cc size=0xb4
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x4e4f6, 0x4e5cc
@@ -51052,7 +51121,7 @@ int __usercall sub_4E5CC@<eax>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E680
+ * IDA 9.5 Hex-Rays: sub_4E680
  * VA=0x4e680..0x4e703 OBJ=1 OFF=0x3e680 size=0x83
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x4e5cc
@@ -51109,7 +51178,7 @@ unsigned __int8 __usercall sub_4E680@<al>(unsigned __int8 a1@<cl>, unsigned __in
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E703
+ * IDA 9.5 Hex-Rays: sub_4E703
  * VA=0x4e703..0x4e71f OBJ=1 OFF=0x3e703 size=0x1c
  * type: int(void)
  * callers: 0x4e680
@@ -51130,7 +51199,7 @@ char __fastcall sub_4E703(int a1, __int16 a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E71F
+ * IDA 9.5 Hex-Rays: sub_4E71F
  * VA=0x4e71f..0x4e751 OBJ=1 OFF=0x3e71f size=0x32
  * type: int(void)
  * callers: 0x4e680
@@ -51163,7 +51232,7 @@ char sub_4E71F()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E751
+ * IDA 9.5 Hex-Rays: sub_4E751
  * VA=0x4e751..0x4e795 OBJ=1 OFF=0x3e751 size=0x44
  * type: int __cdecl()
  * callers: 0x4e4f6, 0x4e680
@@ -51171,10 +51240,10 @@ char sub_4E71F()
  * --------------------------------------------------------------- */
 int __cdecl sub_4E751()
 {
-  int result; // eax
   __int16 v1; // dx
   char *v2; // esi
   _BYTE *v3; // edi
+  int result; // eax
 
   if ( v1 == word_60071 )
   {
@@ -51202,7 +51271,7 @@ int __cdecl sub_4E751()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E795
+ * IDA 9.5 Hex-Rays: sub_4E795
  * VA=0x4e795..0x4e7dd OBJ=1 OFF=0x3e795 size=0x48
  * callers: -
  * callees: -
@@ -51246,7 +51315,7 @@ char __cdecl sub_4E795(_BYTE *a1, __int16 *a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E7DD
+ * IDA 9.5 Hex-Rays: sub_4E7DD
  * VA=0x4e7dd..0x4e7f2 OBJ=1 OFF=0x3e7dd size=0x15
  * callers: 0x2a694, 0x2aa00, 0x2ac7d
  * callees: -
@@ -51258,7 +51327,7 @@ char *__cdecl sub_4E7DD(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E7F2
+ * IDA 9.5 Hex-Rays: sub_4E7F2
  * VA=0x4e7f2..0x4e809 OBJ=1 OFF=0x3e7f2 size=0x17
  * callers: 0x1e292
  * callees: -
@@ -51270,7 +51339,7 @@ char *__cdecl sub_4E7F2(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E809
+ * IDA 9.5 Hex-Rays: sub_4E809
  * VA=0x4e809..0x4e821 OBJ=1 OFF=0x3e809 size=0x18
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x26152, 0x265ec, 0x2670e, 0x279bc, 0x29300, 0x2986f, 0x29daa
@@ -51283,7 +51352,7 @@ char *__cdecl sub_4E809(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E821
+ * IDA 9.5 Hex-Rays: sub_4E821
  * VA=0x4e821..0x4e838 OBJ=1 OFF=0x3e821 size=0x17
  * callers: 0x10c50, 0x112a5, 0x1e292, 0x2ac7d
  * callees: -
@@ -51295,7 +51364,7 @@ char *__cdecl sub_4E821(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E838
+ * IDA 9.5 Hex-Rays: sub_4E838
  * VA=0x4e838..0x4e84f OBJ=1 OFF=0x3e838 size=0x17
  * callers: 0x10c50, 0x112a5
  * callees: -
@@ -51307,19 +51376,21 @@ char *__cdecl sub_4E838(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E84F
+ * IDA 9.5 Hex-Rays: field_enemy_base_record_get
  * VA=0x4e84f..0x4e866 OBJ=1 OFF=0x3e84f size=0x17
  * callers: 0x10c50, 0x1c81f, 0x1ecc7, 0x2f7b6
  * callees: -
  * --------------------------------------------------------------- */
-char *__cdecl sub_4E84F(int a1)
+// [勘误 semantic_name] sub_4E84F -> field_enemy_base_record_get；依据: 完整23B getter返回object3 VA61af9+index*10；10c50构造、1c81f/1ecc7经验以及2f7b6共用。连续68条record的前9字节与SDL既有基础表逐条相等，末字节为经验系数，不另造stage0默认表。
+// [勘误 evidence] 敌军基础record只保留9个已用字段 -> 保留同表第9字节经验系数，SDL只支持unit ID68..135，未知ID不猜；原函数参数为record index，SDL getter的unit ID接口不是原版ABI。；依据: getter SHA 1b865aa8e9782be6ea4d262678f4f034400ef6db45240d9d42122fad53211554；strictLE object3 VA61af9/file7ab0d完整680B SHA bc304be826fe3ff0ff129155da846126350852c9b67c6b08a2d7c2d103cc99df。
+char *__cdecl field_enemy_base_record_get(int a1)
 {
   return (char *)&unk_61AF9 + 10 * a1;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_magic_record_get
+ * IDA 9.5 Hex-Rays: field_magic_record_get
  * VA=0x4e866..0x4e87d OBJ=1 OFF=0x3e866 size=0x17
  * callers: 0x14ef0, 0x15311, 0x15880, 0x1598a, 0x15b77, 0x1c75e, 0x1c8ed, 0x1ca89, 0x1ceed, 0x1cff0, 0x1d51d
  * callees: -
@@ -51334,7 +51405,7 @@ char *__cdecl field_magic_record_get(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E87D
+ * IDA 9.5 Hex-Rays: sub_4E87D
  * VA=0x4e87d..0x4e88e OBJ=1 OFF=0x3e87d size=0x11
  * callers: 0x1e98c
  * callees: -
@@ -51346,19 +51417,21 @@ int __cdecl sub_4E87D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E88E
+ * IDA 9.5 Hex-Rays: field_equipment_profile_get
  * VA=0x4e88e..0x4e8a5 OBJ=1 OFF=0x3e88e size=0x17
  * callers: 0x1c1c3
  * callees: -
  * --------------------------------------------------------------- */
-char *__cdecl sub_4E88E(int a1)
+// [field_equipment_profile_get] canonical 0x4e88e; original sub_4E88E; 返回object3 0x6188a+7*profile，不在getter中做边界或兼容检查。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+// [勘误 semantic_name] sub_4E88E -> field_equipment_profile_get；依据: 返回object3 0x6188a+7*profile，不在getter中做边界或兼容检查。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+char *__cdecl field_equipment_profile_get(int a1)
 {
   return (char *)&unk_6188A + 7 * a1;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_movement_profile_get
+ * IDA 9.5 Hex-Rays: field_movement_profile_get
  * VA=0x4e8a5..0x4e8bc OBJ=1 OFF=0x3e8a5 size=0x17
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x115b6, 0x14121, 0x14237, 0x14818, 0x14b78, 0x1567e, 0x1598a, 0x18890
@@ -51367,6 +51440,7 @@ char *__cdecl sub_4E88E(int a1)
 // [field_movement_profile_get] 按单位移动 profile ID 返回 20 字节地形成本表
 //   依据: corrected code0 `0x63ab9` 明确计算 `0x1646 + id*0x14`；下一表位于 `0x188a`，确认 29 个 profile；原表与 `FD2.EXE` offset `0x7a64a` 及 DOSBox 线性地址 `0x1b3646` 的 580 字节一致；调用点传入 actor record offset 0x20
 //   历史地址列 `0x73ab9`；旧 Ghidra 名 `FUN_0004bfed`；判定 exact
+// [勘误 evidence] 580字节成本表来自file0x7a64a，已与历史runtime线性0x1b3646一致 -> getter operand0x4e8b4的LE fixup指向object3+0x1646，canonical0x61646..0x6188a共29×20字节；严格LE页映射对应file0x7a65a。旧表提前16字节，175/580字节不同。正确SHA256=4002a997ddd7c1e036461c7ee2b915560587f1653aae6c5978bd47d84f533935。；依据: 已发布field_movement_profile_get的乘数20、原始operand/fixup、既有parse_le/parse_objects/build_relbase_image及独立全表比对。本轮未取新selector/base/runtime dump，撤回旧表已通过运行时比对的结论；不重新开启已通过的全局静态LE fixup验收。
 char *__cdecl field_movement_profile_get(int a1)
 {
   return (char *)&unk_61646 + 20 * a1;
@@ -51374,7 +51448,7 @@ char *__cdecl field_movement_profile_get(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_item_record_get
+ * IDA 9.5 Hex-Rays: field_item_record_get
  * VA=0x4e8bc..0x4e8d3 OBJ=1 OFF=0x3e8bc size=0x17
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x1145a, 0x14237, 0x15055, 0x1567e, 0x15880, 0x184c0, 0x18d8c, 0x1b750, 0x1b9de, 0x1bbdc, 0x1c1c3, 0x1debe, 0x1e856, 0x1e98c, 0x1ecc7, 0x1f0dc, 0x20c6f, 0x272d0, 0x28632, 0x2872b, 0x28cbd, 0x2f7b6
@@ -51390,7 +51464,7 @@ char *__cdecl field_item_record_get(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4E8D3
+ * IDA 9.5 Hex-Rays: sub_4E8D3
  * VA=0x4e8d3..0x4e98d OBJ=1 OFF=0x3e8d3 size=0xba
  * callers: 0x2ff01, 0x30e9d
  * callees: -
@@ -51425,7 +51499,7 @@ char __cdecl sub_4E8D3(__int16 *a1, int a2, int a3, int a4, int a5, int a6)
         {
           LOBYTE(v10) = *v6++;
           v12 = 2 * v10;
-          if ( __CFSHL__(v10, 1) )
+          if ( (v10 & 0x80u) != 0 )
             break;
           v13 = __CFSHL__(v12, 1);
           LOBYTE(v9) = 4 * v10;
@@ -51492,7 +51566,7 @@ LABEL_17:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: blit_image_clipped
+ * IDA 9.5 Hex-Rays: blit_image_clipped
  * VA=0x4e98d..0x4eb48 OBJ=1 OFF=0x3e98d size=0x1bb
  * callers: 0x10652, 0x16886, 0x1acf3, 0x1aeb1, 0x1f73f, 0x1f894, 0x26152, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2e9a8, 0x2eb9f, 0x2f4d4, 0x2f631, 0x2fb2c, 0x2fe14, 0x2ff01, 0x31529, 0x31c49, 0x33faf
  * callees: -
@@ -51540,7 +51614,7 @@ char __cdecl blit_image_clipped(__int16 *a1, int a2, int a3, int a4, int a5, int
           {
             result = *v6++;
             v12 = 2 * result;
-            if ( !__CFSHL__(result, 1) )
+            if ( result >= 0 )
               break;
             v13 = __CFSHL__(v12, 1);
             LOBYTE(v9) = 4 * result;
@@ -51609,7 +51683,7 @@ LABEL_17:
           {
             result = *v6++;
             v19 = 2 * result;
-            if ( __CFSHL__(result, 1) )
+            if ( result < 0 )
               break;
             v13 = __CFSHL__(v19, 1);
             LOBYTE(v9) = 4 * result;
@@ -51684,7 +51758,7 @@ LABEL_49:
           {
             result = *v6++;
             v16 = 2 * result;
-            if ( !__CFSHL__(result, 1) )
+            if ( result >= 0 )
               break;
             v13 = __CFSHL__(v16, 1);
             LOBYTE(v9) = 4 * result;
@@ -51748,7 +51822,7 @@ LABEL_32:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_movement_script_ptr
+ * IDA 9.5 Hex-Rays: field_movement_script_ptr
  * VA=0x4eb48..0x4eb59 OBJ=1 OFF=0x3eb48 size=0x11
  * callers: 0x1366a
  * callees: -
@@ -51763,7 +51837,7 @@ int __cdecl field_movement_script_ptr(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4EB59
+ * IDA 9.5 Hex-Rays: sub_4EB59
  * VA=0x4eb59..0x4ebab OBJ=1 OFF=0x3eb59 size=0x52
  * callers: 0x1f1cc, 0x1f30a
  * callees: -
@@ -51816,7 +51890,7 @@ void __cdecl __spoils<> sub_4EB59(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4EBAB
+ * IDA 9.5 Hex-Rays: sub_4EBAB
  * VA=0x4ebab..0x4ebe3 OBJ=1 OFF=0x3ebab size=0x38
  * callers: 0x15f0e, 0x1c4cc, 0x1cb94, 0x1db65, 0x1df58, 0x22470, 0x22547, 0x32999
  * callees: 0x4ec66
@@ -51855,7 +51929,7 @@ void __cdecl __spoils<> sub_4EBAB(_BYTE *a1, __int16 *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: field_rng_next
+ * IDA 9.5 Hex-Rays: field_rng_next
  * VA=0x4ebe3..0x4ebff OBJ=1 OFF=0x3ebe3 size=0x1c
  * type: int __fastcall(_DWORD)
  * callers: 0x16c57, 0x19953, 0x1c75e, 0x1c81f, 0x1c916, 0x1c9dd, 0x1e529, 0x1e856, 0x1ecc7, 0x21db2, 0x22721, 0x22866, 0x22997, 0x22d1b, 0x25bf4, 0x26eda, 0x2b996, 0x2ebe1, 0x2f7b6, 0x2ff01, 0x31c49, 0x33faf, 0x3623c
@@ -51875,7 +51949,7 @@ __int16 field_rng_next()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: lmi_rle_blit_forward
+ * IDA 9.5 Hex-Rays: lmi_rle_blit_forward
  * VA=0x4ebff..0x4ec31 OBJ=1 OFF=0x3ebff size=0x32
  * callers: 0x15f84, 0x16559, 0x17aed, 0x17eef, 0x18c6d, 0x19953, 0x265ec, 0x27079, 0x27738, 0x279bc, 0x27d33, 0x27f4a, 0x2825b, 0x29bcb, 0x29daa, 0x2a29d, 0x2a43e, 0x2a857, 0x2af28, 0x31c49
  * callees: 0x4ec66
@@ -51915,7 +51989,7 @@ void __cdecl __spoils<> lmi_rle_blit_forward(_BYTE *a1, __int16 *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: lmi_rle_blit_reverse
+ * IDA 9.5 Hex-Rays: lmi_rle_blit_reverse
  * VA=0x4ec31..0x4ec65 OBJ=1 OFF=0x3ec31 size=0x34
  * callers: 0x15f84, 0x16559, 0x1956b, 0x19953
  * callees: 0x4ec66
@@ -51955,7 +52029,7 @@ void __cdecl __spoils<> lmi_rle_blit_reverse(_BYTE *a1, __int16 *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: nullsub_5
+ * IDA 9.5 Hex-Rays: nullsub_5
  * VA=0x4ec65..0x4ec66 OBJ=1 OFF=0x3ec65 size=0x1
  * callers: -
  * callees: -
@@ -51967,7 +52041,7 @@ void nullsub_5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4EC66
+ * IDA 9.5 Hex-Rays: sub_4EC66
  * VA=0x4ec66..0x4ec7c OBJ=1 OFF=0x3ec66 size=0x16
  * type: int __fastcall(_DWORD, _DWORD, _DWORD, _DWORD)
  * callers: 0x4ebab, 0x4ebff, 0x4ec31
@@ -51980,7 +52054,7 @@ void __spoils<> sub_4EC66()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4EC7C
+ * IDA 9.5 Hex-Rays: sub_4EC7C
  * VA=0x4ec7c..0x4eca4 OBJ=1 OFF=0x3ec7c size=0x28
  * callers: 0x15e71
  * callees: 0x4eca4
@@ -51994,7 +52068,7 @@ void __cdecl __spoils<> sub_4EC7C(__int16 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ECA4
+ * IDA 9.5 Hex-Rays: sub_4ECA4
  * VA=0x4eca4..0x4ecbf OBJ=1 OFF=0x3eca4 size=0x1b
  * type: int(void)
  * callers: 0x4ec7c
@@ -52020,7 +52094,7 @@ __int64 __usercall sub_4ECA4@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<e
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ECBF
+ * IDA 9.5 Hex-Rays: sub_4ECBF
  * VA=0x4ecbf..0x4ecf0 OBJ=1 OFF=0x3ecbf size=0x31
  * callers: 0x15e9e, 0x15f0e, 0x165ac
  * callees: 0x4ecf0
@@ -52037,7 +52111,7 @@ void __cdecl __spoils<> sub_4ECBF(int a1, __int16 a2, __int16 a3, int a4, int a5
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ECF0
+ * IDA 9.5 Hex-Rays: sub_4ECF0
  * VA=0x4ecf0..0x4ed0b OBJ=1 OFF=0x3ecf0 size=0x1b
  * type: int(void)
  * callers: 0x4ecbf
@@ -52063,7 +52137,7 @@ __int64 __usercall sub_4ECF0@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<e
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ED0B
+ * IDA 9.5 Hex-Rays: sub_4ED0B
  * VA=0x4ed0b..0x4ed34 OBJ=1 OFF=0x3ed0b size=0x29
  * callers: 0x1685c
  * callees: -
@@ -52089,7 +52163,7 @@ void __cdecl sub_4ED0B(char *a1, _WORD *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ED34
+ * IDA 9.5 Hex-Rays: sub_4ED34
  * VA=0x4ed34..0x4ed4f OBJ=1 OFF=0x3ed34 size=0x1b
  * callers: 0x15e9e, 0x1741c, 0x176b4, 0x179d5, 0x197e5, 0x19953, 0x26ce4, 0x26eda, 0x27079
  * callees: 0x4ed4f
@@ -52102,7 +52176,7 @@ void __cdecl __spoils<> sub_4ED34(int a1, int a2, __int16 a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4ED4F
+ * IDA 9.5 Hex-Rays: sub_4ED4F
  * VA=0x4ed4f..0x4ed7a OBJ=1 OFF=0x3ed4f size=0x2b
  * type: int(void)
  * callers: 0x4ed34
@@ -52151,7 +52225,7 @@ char __usercall sub_4ED4F@<al>(_BYTE *a1@<edi>, __int16 *a2@<esi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: font_glyph_blit_16x16
+ * IDA 9.5 Hex-Rays: font_glyph_blit_16x16
  * VA=0x4ed7a..0x4ee36 OBJ=1 OFF=0x3ed7a size=0xbc
  * callers: 0x15f84
  * callees: -
@@ -52159,6 +52233,7 @@ char __usercall sub_4ED4F@<al>(_BYTE *a1@<edi>, __int16 *a2@<esi>)
 // [font_glyph_blit_16x16] FDOTHER[4] 16×16 字模绘制，`token * 0x20` 定位字形
 //   依据: FDTXT token 渲染验证；FDOTHER[4] 共 1824 个字形
 //   历史地址列 `0x73f8e`；旧 Ghidra 名 `FUN_0004c4c2`；判定 exact
+// [勘误 evidence] SDL 字形阴影向右／正下，逐像素填背景，并以 shadow=0 关闭阴影 -> 原版背景参数低 byte 为 0 时保留底图，非零时先预清 16×16；glyph 10 在可选预清后跳过字模。每个置位像素写 fg(x,y)、shadow(x-1,y+1)、shadow(x,y+1)，0 色也写入。SDL 保留 bg<0 透明、bg>=0 显式预填的既有接口；原版 background_arg=0 的调用应传 SDL bg=-1。；依据: 已发布伪 C 52187..52203 与原始 object1 指令：VA 0x4edc0 条件跳过预清、0x4edeb 跳过 glyph 10，0x4ee01/0x4ee03 令 ebx=stride-1，0x4ee1e/0x4ee20/0x4ee23 依次写 fg 与两处阴影。九处现有生产调用均为 shadow=0x4c、bg=-1；未重命名数据库或改写权威伪 C。
 void __cdecl __spoils<> font_glyph_blit_16x16(int a1, int a2, int a3, unsigned __int16 a4, char a5, char a6, int a7)
 {
   int v7; // eax
@@ -52231,7 +52306,7 @@ void __cdecl __spoils<> font_glyph_blit_16x16(int a1, int a2, int a3, unsigned _
 
 
 /* ---------------------------------------------------------------
- * IDA 9.4 Hex-Rays: sub_4EEE0
+ * IDA 9.5 Hex-Rays: sub_4EEE0
  * VA=0x4eee0..0x4ef29 OBJ=1 OFF=0x3eee0 size=0x49
  * callers: 0x11eee
  * callees: -
@@ -52251,7 +52326,7 @@ _BYTE *__cdecl sub_4EEE0(int a1, char *a2, int a3)
   do
   {
     LOBYTE(v6) = byte_627C8[a3];
-    qmemcpy(a2, (const void *)(v6 + v3), 0x138u);
+    qmemcpy(a2, (const void *)(v6 + v3), 312);
     v9 = a2 + 312;
     v3 += 320;
     LOWORD(a3) = a3 + 1;

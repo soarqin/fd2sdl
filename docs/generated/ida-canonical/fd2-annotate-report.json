@@ -1,115 +1,88 @@
 {
  "schema": "fd2-ida-annotate-v1",
  "prototypes": {
-  "method": "callsite `add esp,N` 证据 -> 显式 __cdecl 原型；不修改机器码字节",
+  "method": "已发布caller add esp,N确认原型，经本机所有直接callsite重新核对后仅重放9条；不修改机器码，不采用Hex-Rays猜测类型，3702f显式类型禁止。",
   "applied": [
    {
     "callee": "0x14b78",
-    "callee_name": "sub_14B78",
-    "stack_args": 4,
     "prototype": "int __cdecl f(int, int, int, int);",
-    "triggered_by": "0x13a9f",
-    "err_ea": "0x13d4b",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, _BYTE *, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)",
+    "stack_args": 4,
     "callsite_evidence": {
      "4": 8
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x1a866",
-    "callee_name": "sub_1A866",
-    "stack_args": 1,
     "prototype": "int __cdecl f(int);",
-    "triggered_by": "0x1a30b",
-    "err_ea": "0x1a4d1",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int)",
+    "stack_args": 1,
     "callsite_evidence": {
      "1": 3
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x1cb94",
-    "callee_name": "sub_1CB94",
-    "stack_args": 4,
     "prototype": "int __cdecl f(int, int, int, int);",
-    "triggered_by": "0x1cac7",
-    "err_ea": "0x1cae3",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int, int)",
+    "stack_args": 4,
     "callsite_evidence": {
      "4": 2
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x2189a",
-    "callee_name": "sub_2189A",
-    "stack_args": 3,
     "prototype": "int __cdecl f(int, int, int);",
-    "triggered_by": "0x2185f",
-    "err_ea": "0x21883",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int)",
+    "stack_args": 3,
     "callsite_evidence": {
      "3": 6
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x21eb1",
-    "callee_name": "sub_21EB1",
-    "stack_args": 2,
     "prototype": "int __cdecl f(int, int);",
-    "triggered_by": "0x21ad9",
-    "err_ea": "0x21af9",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int)",
+    "stack_args": 2,
     "callsite_evidence": {
      "2": 4
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x22253",
-    "callee_name": "sub_22253",
-    "stack_args": 5,
     "prototype": "int __cdecl f(int, int, int, int, int);",
-    "triggered_by": "0x2218a",
-    "err_ea": "0x221fd",
-    "hexrays_guessed_prototype": "void __usercall(int@<edi>, int, int, int, int, int, unsigned __int8, int, int, int, int, int, int, int, int, int, int)",
+    "stack_args": 5,
     "callsite_evidence": {
      "5": 5
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x24618",
-    "callee_name": "sub_24618",
-    "stack_args": 4,
     "prototype": "int __cdecl f(int, int, int, int);",
-    "triggered_by": "0x244b6",
-    "err_ea": "0x245ce",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int)",
+    "stack_args": 4,
     "callsite_evidence": {
      "4": 8
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x1f894",
-    "callee_name": "sub_1F894",
-    "stack_args": 0,
     "prototype": "int __cdecl f(void);",
-    "triggered_by": "0x25ebb",
-    "err_ea": "0x25ec8",
-    "hexrays_guessed_prototype": "void __cdecl(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, unsigned __int8)",
+    "stack_args": 0,
     "callsite_evidence": {
      "0": 1
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    },
    {
     "callee": "0x4e751",
-    "callee_name": "sub_4E751",
-    "stack_args": 0,
     "prototype": "int __cdecl f(void);",
-    "triggered_by": "0x4e680",
-    "err_ea": "0x4e6fa",
-    "hexrays_guessed_prototype": "__int16 __fastcall(__int16 result, __int16)",
+    "stack_args": 0,
     "callsite_evidence": {
      "0": 2
-    }
+    },
+    "source": "published approved prototype; new raw-callsite revalidation"
    }
   ],
   "rejected": [],
@@ -153,1123 +126,1166 @@
   }
  ],
  "naming": {
-  "source": "docs/reverse-engineering/function-names-legacy.md via tools/ida/fd2_name_audit.py",
+  "source": "published confirmed registry/CORRECTIONS, applied to actual IDA9.5 database with Domain functions.set_name/set_comment; final export is authoritative",
   "primary_overrides": {
    "0x1f894": "boot_intro_title_menu"
   },
   "renamed": [
    {
+    "va": "0x10010",
+    "from": "sub_10010",
+    "to": "sub_10010"
+   },
+   {
     "va": "0x10620",
-    "from": "sub_10620",
-    "to": "input_check",
-    "aliases": []
+    "from": "input_check",
+    "to": "input_check"
    },
    {
     "va": "0x10b4e",
-    "from": "sub_10B4E",
-    "to": "field_actor_group_append",
-    "aliases": []
+    "from": "field_actor_group_append",
+    "to": "field_actor_group_append"
    },
    {
     "va": "0x10c50",
-    "from": "sub_10C50",
-    "to": "field_unit_stage_template_append",
-    "aliases": []
+    "from": "field_unit_stage_template_append",
+    "to": "field_unit_stage_template_append"
    },
    {
     "va": "0x11019",
-    "from": "sub_11019",
-    "to": "fdicon_cache_append_unit",
-    "aliases": []
+    "from": "fdicon_cache_append_unit",
+    "to": "fdicon_cache_append_unit"
    },
    {
     "va": "0x111ba",
-    "from": "sub_111BA",
-    "to": "res_load",
-    "aliases": []
+    "from": "res_load",
+    "to": "res_load"
+   },
+   {
+    "va": "0x112a5",
+    "from": "sub_112A5",
+    "to": "sub_112A5"
    },
    {
     "va": "0x115b6",
-    "from": "sub_115B6",
-    "to": "field_cell_selection_execute",
-    "aliases": [
-     "field_cell_selection_execute_core"
-    ]
+    "from": "field_cell_selection_execute",
+    "to": "field_cell_selection_execute"
    },
    {
     "va": "0x117e7",
-    "from": "sub_117E7",
-    "to": "field_controller_input",
-    "aliases": []
+    "from": "field_controller_input",
+    "to": "field_controller_input"
    },
    {
     "va": "0x11d40",
-    "from": "sub_11D40",
-    "to": "dac_apply_darkness",
-    "aliases": []
+    "from": "dac_apply_darkness",
+    "to": "dac_apply_darkness"
    },
    {
     "va": "0x11df2",
-    "from": "sub_11DF2",
-    "to": "pal_partial_set",
-    "aliases": []
+    "from": "pal_partial_set",
+    "to": "pal_partial_set"
    },
    {
     "va": "0x11eb0",
-    "from": "sub_11EB0",
-    "to": "memcpy_vga",
-    "aliases": []
+    "from": "memcpy_vga",
+    "to": "memcpy_vga"
    },
    {
     "va": "0x11eee",
-    "from": "sub_11EEE",
-    "to": "field_view_render_tiles",
-    "aliases": [
-     "field_view_render_tiles_entry"
-    ]
+    "from": "field_view_render_tiles",
+    "to": "field_view_render_tiles"
    },
    {
     "va": "0x122dc",
-    "from": "sub_122DC",
-    "to": "field_selection_overlay_draw",
-    "aliases": []
+    "from": "field_selection_overlay_draw",
+    "to": "field_selection_overlay_draw"
    },
    {
     "va": "0x126f7",
-    "from": "sub_126F7",
-    "to": "field_selection_sprite_blit",
-    "aliases": []
+    "from": "field_selection_sprite_blit",
+    "to": "field_selection_sprite_blit"
+   },
+   {
+    "va": "0x127e0",
+    "from": "sub_127E0",
+    "to": "sub_127E0"
    },
    {
     "va": "0x1297d",
-    "from": "sub_1297D",
-    "to": "field_animation_phase_update",
-    "aliases": []
+    "from": "field_animation_phase_update",
+    "to": "field_animation_phase_update"
    },
    {
     "va": "0x12ac6",
-    "from": "sub_12AC6",
-    "to": "map_tile_blit_visible",
-    "aliases": []
+    "from": "map_tile_blit_visible",
+    "to": "map_tile_blit_visible"
    },
    {
     "va": "0x12c0d",
-    "from": "sub_12C0D",
-    "to": "field_visible_actor_at_focus",
-    "aliases": []
+    "from": "field_visible_actor_at_focus",
+    "to": "field_visible_actor_at_focus"
    },
    {
     "va": "0x12c60",
-    "from": "sub_12C60",
-    "to": "field_visible_actor_find_by_text_id",
-    "aliases": []
+    "from": "field_visible_actor_find_by_text_id",
+    "to": "field_visible_actor_find_by_text_id"
    },
    {
     "va": "0x12cea",
-    "from": "sub_12CEA",
-    "to": "field_focus_move_to",
-    "aliases": []
+    "from": "field_focus_move_to",
+    "to": "field_focus_move_to"
    },
    {
     "va": "0x12d7b",
-    "from": "sub_12D7B",
-    "to": "field_focus_move_to_actor",
-    "aliases": []
+    "from": "field_focus_move_to_actor",
+    "to": "field_focus_move_to_actor"
    },
    {
     "va": "0x12e38",
-    "from": "sub_12E38",
-    "to": "map_cell_info_at",
-    "aliases": []
+    "from": "map_cell_info_at",
+    "to": "map_cell_info_at"
    },
    {
     "va": "0x12eaa",
-    "from": "sub_12EAA",
-    "to": "field_actor_move_down_follow_camera",
-    "aliases": []
+    "from": "field_actor_move_down_follow_camera",
+    "to": "field_actor_move_down_follow_camera"
    },
    {
     "va": "0x1300d",
-    "from": "sub_1300D",
-    "to": "field_actor_move_left_follow_camera",
-    "aliases": []
+    "from": "field_actor_move_left_follow_camera",
+    "to": "field_actor_move_left_follow_camera"
    },
    {
     "va": "0x13185",
-    "from": "sub_13185",
-    "to": "field_actor_move_up_follow_camera",
-    "aliases": []
+    "from": "field_actor_move_up_follow_camera",
+    "to": "field_actor_move_up_follow_camera"
    },
    {
     "va": "0x13315",
-    "from": "sub_13315",
-    "to": "field_actor_move_right_follow_camera",
-    "aliases": []
+    "from": "field_actor_move_right_follow_camera",
+    "to": "field_actor_move_right_follow_camera"
    },
    {
     "va": "0x13488",
-    "from": "sub_13488",
-    "to": "field_actor_path_play",
-    "aliases": []
+    "from": "field_actor_path_play",
+    "to": "field_actor_path_play"
    },
    {
     "va": "0x134e4",
-    "from": "sub_134E4",
-    "to": "field_all_actor_directions_reset",
-    "aliases": []
+    "from": "field_all_actor_directions_reset",
+    "to": "field_all_actor_directions_reset"
    },
    {
     "va": "0x13512",
-    "from": "sub_13512",
-    "to": "field_actor_mark_acted",
-    "aliases": []
+    "from": "field_actor_mark_acted",
+    "to": "field_actor_mark_acted"
    },
    {
     "va": "0x13536",
-    "from": "sub_13536",
-    "to": "field_all_actors_clear_acted",
-    "aliases": []
+    "from": "field_all_actors_clear_acted",
+    "to": "field_all_actors_clear_acted"
+   },
+   {
+    "va": "0x13565",
+    "from": "sub_13565",
+    "to": "sub_13565"
    },
    {
     "va": "0x135dd",
-    "from": "sub_135DD",
-    "to": "field_camera_pan_to",
-    "aliases": []
+    "from": "field_camera_pan_to",
+    "to": "field_camera_pan_to"
    },
    {
     "va": "0x1366a",
-    "from": "sub_1366A",
-    "to": "field_movement_script_play",
-    "aliases": []
+    "from": "field_movement_script_play",
+    "to": "field_movement_script_play"
    },
    {
     "va": "0x1399c",
-    "from": "sub_1399C",
-    "to": "shape_sheet_decode_cache",
-    "aliases": []
+    "from": "shape_sheet_decode_cache",
+    "to": "shape_sheet_decode_cache"
    },
    {
     "va": "0x13a44",
-    "from": "sub_13A44",
-    "to": "field_cell_event_lookup",
-    "aliases": []
+    "from": "field_cell_event_lookup",
+    "to": "field_cell_event_lookup"
    },
    {
     "va": "0x13a9f",
-    "from": "sub_13A9F",
-    "to": "field_ai_unit_execute",
-    "aliases": [
-     "field_ai_unit_execute_core"
-    ]
+    "from": "field_ai_unit_execute",
+    "to": "field_ai_unit_execute"
    },
    {
     "va": "0x13e9c",
-    "from": "sub_13E9C",
-    "to": "field_ai_move_toward_nearest",
-    "aliases": [
-     "field_ai_move_toward_nearest_core"
-    ]
+    "from": "field_ai_move_toward_nearest",
+    "to": "field_ai_move_toward_nearest"
    },
    {
     "va": "0x14237",
-    "from": "sub_14237",
-    "to": "field_ai_physical_candidate_evaluate",
-    "aliases": []
+    "from": "field_ai_physical_candidate_evaluate",
+    "to": "field_ai_physical_candidate_evaluate"
    },
    {
     "va": "0x145cd",
-    "from": "sub_145CD",
-    "to": "field_opponent_zoc_build",
-    "aliases": []
+    "from": "field_opponent_zoc_build",
+    "to": "field_opponent_zoc_build"
    },
    {
     "va": "0x14625",
-    "from": "sub_14625",
-    "to": "field_opponent_zoc_mark_unit",
-    "aliases": []
+    "from": "field_opponent_zoc_mark_unit",
+    "to": "field_opponent_zoc_mark_unit"
    },
    {
     "va": "0x146a7",
-    "from": "sub_146A7",
-    "to": "field_cell_zoc_mark",
-    "aliases": []
+    "from": "field_cell_zoc_mark",
+    "to": "field_cell_zoc_mark"
    },
    {
     "va": "0x146d1",
-    "from": "sub_146D1",
-    "to": "field_friendly_destination_block",
-    "aliases": []
+    "from": "field_friendly_destination_block",
+    "to": "field_friendly_destination_block"
    },
    {
     "va": "0x14818",
-    "from": "sub_14818",
-    "to": "field_target_range_build",
-    "aliases": []
+    "from": "field_target_range_build",
+    "to": "field_target_range_build"
    },
    {
     "va": "0x14b78",
-    "from": "sub_14B78",
-    "to": "field_ai_move_toward_cell",
-    "aliases": [
-     "field_ai_move_toward_cell_core"
-    ]
+    "from": "field_ai_move_toward_cell",
+    "to": "field_ai_move_toward_cell"
    },
    {
     "va": "0x14ef0",
-    "from": "sub_14EF0",
-    "to": "field_ai_try_attack",
-    "aliases": []
+    "from": "field_ai_try_attack",
+    "to": "field_ai_try_attack"
    },
    {
     "va": "0x15055",
-    "from": "sub_15055",
-    "to": "field_ai_item_action_execute",
-    "aliases": []
+    "from": "field_ai_item_action_execute",
+    "to": "field_ai_item_action_execute"
    },
    {
     "va": "0x15311",
-    "from": "sub_15311",
-    "to": "field_ai_magic_action_execute",
-    "aliases": []
+    "from": "field_ai_magic_action_execute",
+    "to": "field_ai_magic_action_execute"
    },
    {
     "va": "0x1548e",
-    "from": "sub_1548E",
-    "to": "field_physical_exchange",
-    "aliases": []
+    "from": "field_physical_exchange",
+    "to": "field_physical_exchange"
    },
    {
     "va": "0x1567e",
-    "from": "sub_1567E",
-    "to": "field_ai_item_candidate_evaluate",
-    "aliases": []
+    "from": "field_ai_item_candidate_evaluate",
+    "to": "field_ai_item_candidate_evaluate"
    },
    {
     "va": "0x15880",
-    "from": "sub_15880",
-    "to": "field_ai_item_targets_score",
-    "aliases": []
+    "from": "field_ai_item_targets_score",
+    "to": "field_ai_item_targets_score"
    },
    {
     "va": "0x1598a",
-    "from": "sub_1598A",
-    "to": "field_ai_magic_candidate_evaluate",
-    "aliases": []
+    "from": "field_ai_magic_candidate_evaluate",
+    "to": "field_ai_magic_candidate_evaluate"
    },
    {
     "va": "0x15b77",
-    "from": "sub_15B77",
-    "to": "field_ai_magic_targets_score",
-    "aliases": []
+    "from": "field_ai_magic_targets_score",
+    "to": "field_ai_magic_targets_score"
    },
    {
     "va": "0x15da2",
-    "from": "sub_15DA2",
-    "to": "field_ai_magic_zero_byte_targets_score",
-    "aliases": []
+    "from": "field_ai_magic_zero_byte_targets_score",
+    "to": "field_ai_magic_zero_byte_targets_score"
    },
    {
     "va": "0x15df3",
-    "from": "sub_15DF3",
-    "to": "field_ai_behavior5_cell_find",
-    "aliases": []
+    "from": "field_ai_behavior5_cell_find",
+    "to": "field_ai_behavior5_cell_find"
    },
    {
     "va": "0x15f84",
-    "from": "sub_15F84",
-    "to": "text_dialog_render_tokens",
-    "aliases": []
+    "from": "text_dialog_render_tokens",
+    "to": "text_dialog_render_tokens"
    },
    {
     "va": "0x164e8",
-    "from": "sub_164E8",
-    "to": "text_dialog_glyph_step",
-    "aliases": []
+    "from": "text_dialog_glyph_step",
+    "to": "text_dialog_glyph_step"
    },
    {
     "va": "0x165ac",
-    "from": "sub_165AC",
-    "to": "dialog_box_open",
-    "aliases": []
+    "from": "dialog_box_open",
+    "to": "dialog_box_open"
    },
    {
     "va": "0x16886",
-    "from": "sub_16886",
-    "to": "blit_image",
-    "aliases": []
+    "from": "blit_image",
+    "to": "blit_image"
    },
    {
     "va": "0x168b6",
-    "from": "sub_168B6",
-    "to": "dialog_box_draw_tiles",
-    "aliases": []
+    "from": "dialog_box_draw_tiles",
+    "to": "dialog_box_draw_tiles"
    },
    {
     "va": "0x16b43",
-    "from": "sub_16B43",
-    "to": "dialog_box_close",
-    "aliases": []
+    "from": "dialog_box_close",
+    "to": "dialog_box_close"
    },
    {
     "va": "0x16e24",
-    "from": "sub_16E24",
-    "to": "dialog_text_scroll_up",
-    "aliases": []
+    "from": "dialog_text_scroll_up",
+    "to": "dialog_text_scroll_up"
    },
    {
     "va": "0x16f55",
-    "from": "sub_16F55",
-    "to": "field_empty_focus_menu_execute",
-    "aliases": []
+    "from": "field_empty_focus_menu_execute",
+    "to": "field_empty_focus_menu_execute"
    },
    {
     "va": "0x1728c",
-    "from": "sub_1728C",
-    "to": "field_options_menu_execute",
-    "aliases": []
+    "from": "field_options_menu_execute",
+    "to": "field_options_menu_execute"
    },
    {
     "va": "0x173e7",
-    "from": "sub_173E7",
-    "to": "field_command_first_enabled_select",
-    "aliases": []
+    "from": "field_command_first_enabled_select",
+    "to": "field_command_first_enabled_select"
    },
    {
     "va": "0x1741c",
-    "from": "sub_1741C",
-    "to": "field_command_menu_open",
-    "aliases": []
+    "from": "field_command_menu_open",
+    "to": "field_command_menu_open"
    },
    {
     "va": "0x176b4",
-    "from": "sub_176B4",
-    "to": "field_command_menu_close",
-    "aliases": []
+    "from": "field_command_menu_close",
+    "to": "field_command_menu_close"
    },
    {
     "va": "0x177fc",
-    "from": "sub_177FC",
-    "to": "field_command_menu_input",
-    "aliases": []
+    "from": "field_command_menu_input",
+    "to": "field_command_menu_input"
    },
    {
     "va": "0x17898",
-    "from": "sub_17898",
-    "to": "field_command_menu_wait_key",
-    "aliases": []
+    "from": "field_command_menu_wait_key",
+    "to": "field_command_menu_wait_key"
    },
    {
     "va": "0x179d5",
-    "from": "sub_179D5",
-    "to": "field_command_menu_draw",
-    "aliases": []
+    "from": "field_command_menu_draw",
+    "to": "field_command_menu_draw"
    },
    {
     "va": "0x17aa9",
-    "from": "sub_17AA9",
-    "to": "bios_tick_delay",
+    "from": "bios_tick_delay",
+    "to": "bios_tick_delay"
+   },
+   {
+    "va": "0x17aed",
+    "from": "sub_17AED",
+    "to": "field_unit_detail_present"
+   },
+   {
+    "va": "0x17d6f",
+    "from": "sub_17D6F",
+    "to": "field_stat_bar_columns_draw",
     "aliases": []
    },
    {
     "va": "0x17e0b",
-    "from": "sub_17E0B",
-    "to": "field_unit_detail_open",
-    "aliases": []
+    "from": "field_unit_detail_open",
+    "to": "field_unit_detail_open"
    },
    {
     "va": "0x17eef",
-    "from": "sub_17EEF",
-    "to": "field_unit_detail_draw",
-    "aliases": []
+    "from": "field_unit_detail_draw",
+    "to": "field_unit_detail_draw"
    },
    {
     "va": "0x17fc0",
-    "from": "sub_17FC0",
-    "to": "field_unit_detail_stats_draw",
-    "aliases": [
-     "field_unit_detail_stats_draw_entry"
-    ]
+    "from": "field_unit_detail_stats_draw",
+    "to": "field_unit_detail_stats_draw"
    },
    {
     "va": "0x182ad",
-    "from": "sub_182AD",
-    "to": "field_unit_detail_transition_left",
-    "aliases": []
+    "from": "field_unit_detail_transition_left",
+    "to": "field_unit_detail_transition_left"
    },
    {
     "va": "0x18312",
-    "from": "sub_18312",
-    "to": "field_unit_detail_transition_top",
-    "aliases": []
+    "from": "field_unit_detail_transition_top",
+    "to": "field_unit_detail_transition_top"
    },
    {
     "va": "0x1839b",
-    "from": "sub_1839B",
-    "to": "field_unit_detail_transition_bottom",
-    "aliases": []
+    "from": "field_unit_detail_transition_bottom",
+    "to": "field_unit_detail_transition_bottom"
    },
    {
     "va": "0x18409",
-    "from": "sub_18409",
-    "to": "field_unit_detail_transition_frame",
-    "aliases": []
+    "from": "field_unit_detail_transition_frame",
+    "to": "field_unit_detail_transition_frame"
    },
    {
     "va": "0x184c0",
-    "from": "sub_184C0",
-    "to": "field_unit_detail_equipment_draw",
+    "from": "field_unit_detail_equipment_draw",
+    "to": "field_unit_detail_equipment_draw"
+   },
+   {
+    "va": "0x18795",
+    "from": "sub_18795",
+    "to": "field_stat_bar_draw",
     "aliases": []
    },
    {
     "va": "0x187d6",
-    "from": "sub_187D6",
-    "to": "ui_number_draw",
-    "aliases": []
+    "from": "ui_number_draw",
+    "to": "ui_number_draw"
    },
    {
     "va": "0x18890",
-    "from": "sub_18890",
-    "to": "field_player_unit_action",
-    "aliases": []
+    "from": "field_player_unit_action",
+    "to": "field_player_unit_action"
    },
    {
     "va": "0x18d8c",
-    "from": "sub_18D8C",
-    "to": "field_player_command_execute",
-    "aliases": [
-     "field_player_command_execute_core"
-    ]
+    "from": "field_player_command_execute",
+    "to": "field_player_command_execute"
    },
    {
     "va": "0x19df7",
-    "from": "sub_19DF7",
-    "to": "field_secondary_menu_execute",
-    "aliases": []
+    "from": "field_secondary_menu_execute",
+    "to": "field_secondary_menu_execute"
    },
    {
     "va": "0x1a30b",
-    "from": "sub_1A30B",
-    "to": "field_turn_cycle_run",
-    "aliases": []
+    "from": "field_turn_cycle_run",
+    "to": "field_turn_cycle_run"
    },
    {
     "va": "0x1a813",
-    "from": "sub_1A813",
-    "to": "field_turn_event_check",
-    "aliases": []
+    "from": "field_turn_event_check",
+    "to": "field_turn_event_check"
    },
    {
     "va": "0x1a866",
-    "from": "sub_1A866",
-    "to": "field_phase_status_tick",
-    "aliases": []
+    "from": "field_phase_status_tick",
+    "to": "field_phase_status_tick"
    },
    {
     "va": "0x1acf3",
-    "from": "sub_1ACF3",
-    "to": "field_cell_info_panel_draw",
-    "aliases": [
-     "field_cell_info_panel_draw_entry"
-    ]
+    "from": "field_cell_info_panel_draw",
+    "to": "field_cell_info_panel_draw"
    },
    {
     "va": "0x1aeb1",
-    "from": "sub_1AEB1",
-    "to": "field_cell_info_modifier_draw",
-    "aliases": []
+    "from": "field_cell_info_modifier_draw",
+    "to": "field_cell_info_modifier_draw"
+   },
+   {
+    "va": "0x1af1e",
+    "from": "sub_1AF1E",
+    "to": "sub_1AF1E"
+   },
+   {
+    "va": "0x1af99",
+    "from": "sub_1AF99",
+    "to": "sub_1AF99"
+   },
+   {
+    "va": "0x1b019",
+    "from": "sub_1B019",
+    "to": "sub_1B019"
+   },
+   {
+    "va": "0x1b0ad",
+    "from": "sub_1B0AD",
+    "to": "sub_1B0AD"
+   },
+   {
+    "va": "0x1b14b",
+    "from": "sub_1B14B",
+    "to": "sub_1B14B"
+   },
+   {
+    "va": "0x1b1e7",
+    "from": "sub_1B1E7",
+    "to": "sub_1B1E7"
+   },
+   {
+    "va": "0x1b41d",
+    "from": "sub_1B41D",
+    "to": "sub_1B41D"
+   },
+   {
+    "va": "0x1b5f1",
+    "from": "sub_1B5F1",
+    "to": "sub_1B5F1"
    },
    {
     "va": "0x1b722",
-    "from": "sub_1B722",
-    "to": "field_unit_item_id_at",
-    "aliases": []
+    "from": "field_unit_item_id_at",
+    "to": "field_unit_item_id_at"
    },
    {
     "va": "0x1b750",
-    "from": "sub_1B750",
-    "to": "field_unit_combat_stats_recompute",
-    "aliases": [
-     "field_unit_combat_stats_recompute_entry",
-     "field_unit_combat_stats_recompute_runtime"
-    ]
+    "from": "field_unit_combat_stats_recompute",
+    "to": "field_unit_combat_stats_recompute"
    },
    {
     "va": "0x1b83d",
-    "from": "sub_1B83D",
-    "to": "field_equipped_item_slot_find",
-    "aliases": []
+    "from": "field_equipped_item_slot_find",
+    "to": "field_equipped_item_slot_find"
    },
    {
     "va": "0x1b8a6",
-    "from": "sub_1B8A6",
-    "to": "field_unit_inventory_count",
-    "aliases": []
+    "from": "field_unit_inventory_count",
+    "to": "field_unit_inventory_count"
+   },
+   {
+    "va": "0x1b8e7",
+    "from": "sub_1B8E7",
+    "to": "field_unit_inventory_slot_remove"
+   },
+   {
+    "va": "0x1b932",
+    "from": "sub_1B932",
+    "to": "field_unit_inventory_select"
+   },
+   {
+    "va": "0x1b9de",
+    "from": "sub_1B9DE",
+    "to": "field_unit_inventory_select_step"
+   },
+   {
+    "va": "0x1bb8c",
+    "from": "sub_1BB8C",
+    "to": "field_unit_inventory_item_append"
    },
    {
     "va": "0x1bbdc",
-    "from": "sub_1BBDC",
-    "to": "field_player_item_command_execute",
-    "aliases": [
-     "field_player_item_command_execute_core"
-    ]
+    "from": "field_player_item_command_execute",
+    "to": "field_player_item_command_execute"
+   },
+   {
+    "va": "0x1bffe",
+    "from": "sub_1BFFE",
+    "to": "field_unit_equipment_menu_execute"
+   },
+   {
+    "va": "0x1c142",
+    "from": "sub_1C142",
+    "to": "field_unit_equipment_slot_set"
+   },
+   {
+    "va": "0x1c1c3",
+    "from": "sub_1C1C3",
+    "to": "field_unit_can_equip_item"
    },
    {
     "va": "0x1c269",
-    "from": "sub_1C269",
-    "to": "field_unit_magic_list_build",
-    "aliases": [
-     "field_unit_magic_list_build_core"
-    ]
+    "from": "field_unit_magic_list_build",
+    "to": "field_unit_magic_list_build"
    },
    {
     "va": "0x1c2da",
-    "from": "sub_1C2DA",
-    "to": "field_actor_group_flash",
-    "aliases": [
-     "field_actor_group_flash_core"
-    ]
+    "from": "field_actor_group_flash",
+    "to": "field_actor_group_flash"
    },
    {
     "va": "0x1c75e",
-    "from": "sub_1C75E",
-    "to": "field_magic_damage_profile_apply",
-    "aliases": []
+    "from": "field_magic_damage_profile_apply",
+    "to": "field_magic_damage_profile_apply"
+   },
+   {
+    "va": "0x1c81f",
+    "from": "sub_1C81F",
+    "to": "field_magic_damage_apply"
    },
    {
     "va": "0x1c8ed",
-    "from": "sub_1C8ED",
-    "to": "field_magic_heal_apply",
+    "from": "field_magic_heal_apply",
+    "to": "field_magic_heal_apply"
+   },
+   {
+    "va": "0x1c916",
+    "from": "sub_1C916",
+    "to": "field_hp_heal_apply"
+   },
+   {
+    "va": "0x1c9dd",
+    "from": "sub_1C9DD",
+    "to": "field_mp_heal_apply",
     "aliases": []
+   },
+   {
+    "va": "0x1ca89",
+    "from": "sub_1CA89",
+    "to": "sub_1CA89"
    },
    {
     "va": "0x1cb94",
-    "from": "sub_1CB94",
-    "to": "map_scene_render_actors",
-    "aliases": []
+    "from": "map_scene_render_actors",
+    "to": "map_scene_render_actors"
+   },
+   {
+    "va": "0x1ceed",
+    "from": "sub_1CEED",
+    "to": "field_unit_magic_list_draw"
    },
    {
     "va": "0x1cff0",
-    "from": "sub_1CFF0",
-    "to": "field_player_magic_command_execute",
-    "aliases": [
-     "field_player_magic_command_execute_core"
-    ]
+    "from": "field_player_magic_command_execute",
+    "to": "field_player_magic_command_execute"
+   },
+   {
+    "va": "0x1d51d",
+    "from": "sub_1D51D",
+    "to": "field_player_magic_list_select_step"
    },
    {
     "va": "0x1d80b",
-    "from": "sub_1D80B",
-    "to": "field_side1_phase_execute",
-    "aliases": [
-     "field_side1_phase_execute_core"
-    ]
+    "from": "field_side1_phase_execute",
+    "to": "field_side1_phase_execute"
    },
    {
     "va": "0x1d8ba",
-    "from": "sub_1D8BA",
-    "to": "field_side0_phase_execute",
-    "aliases": [
-     "field_side0_phase_execute_core"
-    ]
+    "from": "field_side0_phase_execute",
+    "to": "field_side0_phase_execute"
    },
    {
     "va": "0x1da16",
-    "from": "sub_1DA16",
-    "to": "map_actor_blit_24x24",
-    "aliases": []
+    "from": "map_actor_blit_24x24",
+    "to": "map_actor_blit_24x24"
    },
    {
     "va": "0x1db65",
-    "from": "sub_1DB65",
-    "to": "field_defeated_units_finalize",
-    "aliases": [
-     "field_defeated_units_finalize_entry"
-    ]
+    "from": "field_defeated_units_finalize",
+    "to": "field_defeated_units_finalize"
+   },
+   {
+    "va": "0x1e292",
+    "from": "sub_1E292",
+    "to": "sub_1E292"
    },
    {
     "va": "0x1e856",
-    "from": "sub_1E856",
-    "to": "field_physical_attack_sequence",
-    "aliases": []
+    "from": "field_physical_attack_sequence",
+    "to": "field_physical_attack_sequence"
    },
    {
     "va": "0x1ecc7",
-    "from": "sub_1ECC7",
-    "to": "field_physical_attack_resolve",
-    "aliases": []
+    "from": "field_physical_attack_resolve",
+    "to": "field_physical_attack_resolve"
    },
    {
     "va": "0x1f0dc",
-    "from": "sub_1F0DC",
-    "to": "field_counterattack_is_available",
-    "aliases": []
+    "from": "field_counterattack_is_available",
+    "to": "field_counterattack_is_available"
    },
    {
     "va": "0x1f183",
-    "from": "sub_1F183",
-    "to": "field_unit_ignores_terrain_combat_modifier",
-    "aliases": []
+    "from": "field_unit_ignores_terrain_combat_modifier",
+    "to": "field_unit_ignores_terrain_combat_modifier"
    },
    {
     "va": "0x1f525",
-    "from": "sub_1F525",
-    "to": "palette_fade_in_light",
-    "aliases": []
+    "from": "palette_fade_in_light",
+    "to": "palette_fade_in_light"
    },
    {
     "va": "0x1f558",
-    "from": "sub_1F558",
-    "to": "field_view_render_scaled",
-    "aliases": [
-     "field_view_render_scaled_entry"
-    ]
+    "from": "field_view_render_scaled",
+    "to": "field_view_render_scaled"
+   },
+   {
+    "va": "0x1f6ef",
+    "from": "sub_1F6EF",
+    "to": "sub_1F6EF"
    },
    {
     "va": "0x1f73f",
-    "from": "sub_1F73F",
-    "to": "intro_cutaway",
-    "aliases": []
+    "from": "intro_cutaway",
+    "to": "intro_cutaway"
    },
    {
     "va": "0x1f81e",
-    "from": "sub_1F81E",
-    "to": "intro_anim_with_palette",
-    "aliases": []
+    "from": "intro_anim_with_palette",
+    "to": "intro_anim_with_palette"
    },
    {
     "va": "0x1f882",
-    "from": "sub_1F882",
-    "to": "palette_fade_out_dark",
-    "aliases": []
+    "from": "palette_fade_out_dark",
+    "to": "palette_fade_out_dark"
    },
    {
     "va": "0x1f894",
-    "from": "sub_1F894",
-    "to": "boot_intro_title_menu",
-    "aliases": [
-     "boot_intro_title",
-     "boot_intro_title_entry",
-     "title_action_menu"
-    ]
+    "from": "boot_intro_title_menu",
+    "to": "boot_intro_title_menu"
    },
    {
     "va": "0x1ff79",
-    "from": "sub_1FF79",
-    "to": "title_menu_draw",
-    "aliases": []
+    "from": "title_menu_draw",
+    "to": "title_menu_draw"
+   },
+   {
+    "va": "0x2000a",
+    "from": "sub_2000A",
+    "to": "sub_2000A"
    },
    {
     "va": "0x203bd",
-    "from": "sub_203BD",
-    "to": "dac_fill_rgb",
-    "aliases": []
+    "from": "dac_fill_rgb",
+    "to": "dac_fill_rgb"
    },
    {
     "va": "0x20421",
-    "from": "sub_20421",
-    "to": "animation_play",
+    "from": "animation_play",
+    "to": "animation_play"
+   },
+   {
+    "va": "0x205b4",
+    "from": "sub_205B4",
+    "to": "sub_205B4"
+   },
+   {
+    "va": "0x20c6f",
+    "from": "sub_20C6F",
+    "to": "field_item_use_effect_execute",
     "aliases": []
+   },
+   {
+    "va": "0x21082",
+    "from": "sub_21082",
+    "to": "field_item_permanent_stat_apply",
+    "aliases": []
+   },
+   {
+    "va": "0x211a4",
+    "from": "sub_211A4",
+    "to": "field_hp_heal_group_execute"
    },
    {
     "va": "0x21527",
-    "from": "sub_21527",
-    "to": "field_earthquake_effect",
-    "aliases": []
+    "from": "field_earthquake_effect",
+    "to": "field_earthquake_effect"
    },
    {
     "va": "0x22046",
-    "from": "sub_22046",
-    "to": "field_transition_lut_mask",
+    "from": "field_transition_lut_mask",
+    "to": "field_transition_lut_mask"
+   },
+   {
+    "va": "0x2218a",
+    "from": "sub_2218A",
+    "to": "field_actor_teleport_execute",
     "aliases": []
+   },
+   {
+    "va": "0x22e5c",
+    "from": "sub_22E5C",
+    "to": "sub_22E5C"
+   },
+   {
+    "va": "0x22ef6",
+    "from": "sub_22EF6",
+    "to": "sub_22EF6"
    },
    {
     "va": "0x233c6",
-    "from": "sub_233C6",
-    "to": "field_cutscene_setup_units_camera",
-    "aliases": []
+    "from": "field_cutscene_setup_units_camera",
+    "to": "field_cutscene_setup_units_camera"
    },
    {
     "va": "0x24618",
-    "from": "sub_24618",
-    "to": "field_stage_transition_effect",
-    "aliases": [
-     "field_stage_transition_effect_core"
-    ]
+    "from": "field_stage_transition_effect",
+    "to": "field_stage_transition_effect"
    },
    {
     "va": "0x25977",
-    "from": "sub_25977",
-    "to": "music_track_play",
-    "aliases": []
+    "from": "music_track_play",
+    "to": "music_track_play"
    },
    {
     "va": "0x25a96",
-    "from": "sub_25A96",
-    "to": "sfx_play",
-    "aliases": []
+    "from": "sfx_play",
+    "to": "sfx_play"
    },
    {
     "va": "0x25b45",
-    "from": "sub_25B45",
-    "to": "pal_mask_set",
-    "aliases": []
+    "from": "pal_mask_set",
+    "to": "pal_mask_set"
    },
    {
     "va": "0x25ebb",
-    "from": "sub_25EBB",
-    "to": "title_action_dispatch",
-    "aliases": []
+    "from": "title_action_dispatch",
+    "to": "title_action_dispatch"
    },
    {
     "va": "0x29300",
-    "from": "sub_29300",
-    "to": "field_manual_slot_dispatch",
-    "aliases": []
+    "from": "field_manual_slot_dispatch",
+    "to": "field_manual_slot_dispatch"
    },
    {
     "va": "0x29620",
-    "from": "sub_29620",
-    "to": "field_manual_slot_save",
-    "aliases": []
+    "from": "field_manual_slot_save",
+    "to": "sub_29620"
+   },
+   {
+    "va": "0x2968d",
+    "from": "sub_2968D",
+    "to": "sub_2968D"
    },
    {
     "va": "0x2986f",
-    "from": "sub_2986F",
-    "to": "field_manual_slot_load",
-    "aliases": []
+    "from": "field_manual_slot_load",
+    "to": "field_manual_slot_load"
    },
    {
     "va": "0x29bcb",
-    "from": "sub_29BCB",
-    "to": "field_manual_slot_picker",
-    "aliases": []
+    "from": "field_manual_slot_picker",
+    "to": "field_manual_slot_picker"
    },
    {
     "va": "0x2df01",
-    "from": "sub_2DF01",
-    "to": "palette_fade_to",
-    "aliases": []
+    "from": "palette_fade_to",
+    "to": "palette_fade_to"
    },
    {
     "va": "0x2e95b",
-    "from": "sub_2E95B",
-    "to": "fd2tmp_map_sprite_load",
-    "aliases": []
+    "from": "fd2tmp_map_sprite_load",
+    "to": "fd2tmp_map_sprite_load"
    },
    {
     "va": "0x2ff01",
-    "from": "sub_2FF01",
-    "to": "field_magic_battle_animation",
-    "aliases": [
-     "field_magic_battle_animation_core"
-    ]
+    "from": "field_magic_battle_animation",
+    "to": "field_magic_battle_animation"
    },
    {
     "va": "0x3231b",
-    "from": "sub_3231B",
-    "to": "new_game_opening_play",
-    "aliases": []
+    "from": "new_game_opening_play",
+    "to": "new_game_opening_play"
    },
    {
     "va": "0x32975",
-    "from": "sub_32975",
-    "to": "field_actor_hide",
-    "aliases": [
-     "field_ai_behavior7_hide_actor"
-    ]
+    "from": "field_actor_hide",
+    "to": "field_actor_hide"
    },
    {
     "va": "0x32999",
-    "from": "sub_32999",
-    "to": "field_actor_group_arrival_effect",
-    "aliases": []
+    "from": "field_actor_group_arrival_effect",
+    "to": "field_actor_group_arrival_effect"
    },
    {
     "va": "0x344f2",
-    "from": "sub_344F2",
-    "to": "field_actor_range_status_set",
-    "aliases": []
+    "from": "field_actor_range_status_set",
+    "to": "field_actor_range_status_set"
    },
    {
     "va": "0x34531",
-    "from": "sub_34531",
-    "to": "field_stage0_31_turn_action0",
-    "aliases": []
+    "from": "field_stage0_31_turn_action0",
+    "to": "field_stage0_31_turn_action0"
    },
    {
     "va": "0x3460b",
-    "from": "sub_3460B",
-    "to": "field_stage0_31_turn_action1",
-    "aliases": []
+    "from": "field_stage0_31_turn_action1",
+    "to": "field_stage0_31_turn_action1"
    },
    {
     "va": "0x34673",
-    "from": "sub_34673",
-    "to": "field_stage0_31_turn_action2",
-    "aliases": []
+    "from": "field_stage0_31_turn_action2",
+    "to": "field_stage0_31_turn_action2"
    },
    {
     "va": "0x346cd",
-    "from": "sub_346CD",
-    "to": "field_stage0_31_turn_action3",
-    "aliases": []
+    "from": "field_stage0_31_turn_action3",
+    "to": "field_stage0_31_turn_action3"
    },
    {
     "va": "0x34894",
-    "from": "sub_34894",
-    "to": "field_actor_is_hidden",
-    "aliases": []
+    "from": "field_actor_is_hidden",
+    "to": "field_actor_is_hidden"
    },
    {
     "va": "0x35b78",
-    "from": "sub_35B78",
-    "to": "field_camera_music_flash",
-    "aliases": []
+    "from": "field_camera_music_flash",
+    "to": "field_camera_music_flash"
    },
    {
     "va": "0x36e57",
-    "from": "sub_36E57",
-    "to": "afm_opcode_palette_raw",
-    "aliases": []
+    "from": "afm_opcode_palette_raw",
+    "to": "afm_opcode_palette_raw"
    },
    {
     "va": "0x36e65",
-    "from": "sub_36E65",
-    "to": "afm_opcode_palette_rle",
-    "aliases": []
+    "from": "afm_opcode_palette_rle",
+    "to": "afm_opcode_palette_rle"
    },
    {
     "va": "0x36ee0",
-    "from": "sub_36EE0",
-    "to": "afm_opcode_fill_framebuffer",
-    "aliases": []
+    "from": "afm_opcode_fill_framebuffer",
+    "to": "afm_opcode_fill_framebuffer"
    },
    {
     "va": "0x36f08",
-    "from": "sub_36F08",
-    "to": "afm_opcode_copy_framebuffer",
-    "aliases": []
+    "from": "afm_opcode_copy_framebuffer",
+    "to": "afm_opcode_copy_framebuffer"
    },
    {
     "va": "0x36f24",
-    "from": "sub_36F24",
-    "to": "afm_opcode_rle_framebuffer",
-    "aliases": []
+    "from": "afm_opcode_rle_framebuffer",
+    "to": "afm_opcode_rle_framebuffer"
    },
    {
     "va": "0x36f69",
-    "from": "sub_36F69",
-    "to": "afm_opcode_sparse_pixel",
-    "aliases": []
+    "from": "afm_opcode_sparse_pixel",
+    "to": "afm_opcode_sparse_pixel"
    },
    {
     "va": "0x36f82",
-    "from": "sub_36F82",
-    "to": "afm_opcode_sparse_run",
-    "aliases": []
+    "from": "afm_opcode_sparse_run",
+    "to": "afm_opcode_sparse_run"
    },
    {
     "va": "0x36fac",
-    "from": "sub_36FAC",
-    "to": "afm_opcode_sparse_literal",
-    "aliases": []
+    "from": "afm_opcode_sparse_literal",
+    "to": "afm_opcode_sparse_literal"
    },
    {
     "va": "0x36fd3",
-    "from": "sub_36FD3",
-    "to": "anim_buffer_init",
-    "aliases": []
+    "from": "anim_buffer_init",
+    "to": "anim_buffer_init"
    },
    {
     "va": "0x36ff4",
-    "from": "sub_36FF4",
-    "to": "anim_exec_bytecode",
-    "aliases": []
+    "from": "anim_exec_bytecode",
+    "to": "anim_exec_bytecode"
+   },
+   {
+    "va": "0x3706e",
+    "from": "malloc",
+    "to": "malloc"
+   },
+   {
+    "va": "0x37324",
+    "from": "fopen",
+    "to": "fopen"
    },
    {
     "va": "0x373ca",
-    "from": "sub_373CA",
-    "to": "file_read",
-    "aliases": []
+    "from": "file_read",
+    "to": "fread"
+   },
+   {
+    "va": "0x3759c",
+    "from": "fclose",
+    "to": "fclose"
+   },
+   {
+    "va": "0x3776e",
+    "from": "free",
+    "to": "free"
+   },
+   {
+    "va": "0x37910",
+    "from": "memset",
+    "to": "memset"
+   },
+   {
+    "va": "0x37940",
+    "from": "fseek",
+    "to": "fseek"
    },
    {
     "va": "0x382d6",
-    "from": "sub_382D6",
-    "to": "coro_yield",
-    "aliases": []
+    "from": "coro_yield",
+    "to": "coro_yield"
    },
    {
     "va": "0x382db",
-    "from": "sub_382DB",
-    "to": "coro_switch",
-    "aliases": []
+    "from": "coro_switch",
+    "to": "coro_switch"
    },
    {
     "va": "0x382e9",
-    "from": "sub_382E9",
-    "to": "event_pump",
-    "aliases": []
+    "from": "event_pump",
+    "to": "event_pump"
    },
    {
     "va": "0x39521",
-    "from": "sub_39521",
-    "to": "ail_init_sample",
-    "aliases": []
+    "from": "ail_init_sample",
+    "to": "ail_init_sample"
    },
    {
     "va": "0x39694",
-    "from": "sub_39694",
-    "to": "ail_set_sample_address",
-    "aliases": []
+    "from": "ail_set_sample_address",
+    "to": "ail_set_sample_address"
    },
    {
     "va": "0x39798",
-    "from": "sub_39798",
-    "to": "ail_start_sample",
-    "aliases": []
+    "from": "ail_start_sample",
+    "to": "ail_start_sample"
    },
    {
     "va": "0x39805",
-    "from": "sub_39805",
-    "to": "ail_end_sample",
-    "aliases": []
+    "from": "ail_end_sample",
+    "to": "ail_end_sample"
    },
    {
     "va": "0x39aae",
-    "from": "sub_39AAE",
-    "to": "ail_set_sample_loop_count",
-    "aliases": []
+    "from": "ail_set_sample_loop_count",
+    "to": "ail_set_sample_loop_count"
    },
    {
     "va": "0x3adf5",
-    "from": "sub_3ADF5",
-    "to": "ail_init_sequence",
-    "aliases": []
+    "from": "ail_init_sequence",
+    "to": "ail_init_sequence"
    },
    {
     "va": "0x3aeee",
-    "from": "sub_3AEEE",
-    "to": "ail_start_sequence",
-    "aliases": []
+    "from": "ail_start_sequence",
+    "to": "ail_start_sequence"
    },
    {
     "va": "0x3af5b",
-    "from": "sub_3AF5B",
-    "to": "ail_stop_sequence",
-    "aliases": []
+    "from": "ail_stop_sequence",
+    "to": "ail_stop_sequence"
    },
    {
     "va": "0x3b124",
-    "from": "sub_3B124",
-    "to": "ail_set_sequence_volume",
-    "aliases": []
+    "from": "ail_set_sequence_volume",
+    "to": "ail_set_sequence_volume"
    },
    {
     "va": "0x3b1a6",
-    "from": "sub_3B1A6",
-    "to": "ail_set_sequence_loop_count",
-    "aliases": []
+    "from": "ail_set_sequence_loop_count",
+    "to": "ail_set_sequence_loop_count"
+   },
+   {
+    "va": "0x3ccb4",
+    "from": "start",
+    "to": "start"
+   },
+   {
+    "va": "0x3e01d",
+    "from": "__delay",
+    "to": "__delay"
    },
    {
     "va": "0x4df09",
-    "from": "sub_4DF09",
-    "to": "save_checksum_sum",
-    "aliases": []
+    "from": "save_checksum_sum",
+    "to": "save_checksum_sum"
    },
    {
     "va": "0x4df28",
-    "from": "sub_4DF28",
-    "to": "save_xor_crypt",
-    "aliases": []
+    "from": "save_xor_crypt",
+    "to": "save_xor_crypt"
    },
    {
     "va": "0x4e016",
-    "from": "sub_4E016",
-    "to": "shape_blit_palette_lut_24x24",
-    "aliases": []
+    "from": "shape_blit_palette_lut_24x24",
+    "to": "shape_blit_palette_lut_24x24"
    },
    {
     "va": "0x4e0a2",
-    "from": "sub_4E0A2",
-    "to": "shape_blit_palette_lut_transparent_24x24",
-    "aliases": []
+    "from": "shape_blit_palette_lut_transparent_24x24",
+    "to": "shape_blit_palette_lut_transparent_24x24"
    },
    {
     "va": "0x4e127",
-    "from": "sub_4E127",
-    "to": "map_sprite_solid_blit_24",
-    "aliases": []
+    "from": "map_sprite_solid_blit_24",
+    "to": "map_sprite_solid_blit_24"
+   },
+   {
+    "va": "0x4e1a6",
+    "from": "sub_4E1A6",
+    "to": "sub_4E1A6"
+   },
+   {
+    "va": "0x4e310",
+    "from": "sub_4E310",
+    "to": "sub_4E310"
+   },
+   {
+    "va": "0x4e31c",
+    "from": "sub_4E31C",
+    "to": "sub_4E31C"
    },
    {
     "va": "0x4e381",
-    "from": "sub_4E381",
-    "to": "vsync_wait",
-    "aliases": []
+    "from": "vsync_wait",
+    "to": "bios_keyboard_buffer_clear"
    },
    {
     "va": "0x4e390",
-    "from": "sub_4E390",
-    "to": "field_reachable_cells_compute",
-    "aliases": []
+    "from": "field_reachable_cells_compute",
+    "to": "field_reachable_cells_compute"
    },
    {
     "va": "0x4e4f6",
-    "from": "sub_4E4F6",
-    "to": "field_path_find",
-    "aliases": []
+    "from": "field_path_find",
+    "to": "field_path_find"
+   },
+   {
+    "va": "0x4e84f",
+    "from": "sub_4E84F",
+    "to": "field_enemy_base_record_get"
    },
    {
     "va": "0x4e866",
-    "from": "sub_4E866",
-    "to": "field_magic_record_get",
-    "aliases": []
+    "from": "field_magic_record_get",
+    "to": "field_magic_record_get"
+   },
+   {
+    "va": "0x4e88e",
+    "from": "sub_4E88E",
+    "to": "field_equipment_profile_get"
    },
    {
     "va": "0x4e8a5",
-    "from": "sub_4E8A5",
-    "to": "field_movement_profile_get",
-    "aliases": []
+    "from": "field_movement_profile_get",
+    "to": "field_movement_profile_get"
    },
    {
     "va": "0x4e8bc",
-    "from": "sub_4E8BC",
-    "to": "field_item_record_get",
-    "aliases": []
+    "from": "field_item_record_get",
+    "to": "field_item_record_get"
    },
    {
     "va": "0x4e98d",
-    "from": "sub_4E98D",
-    "to": "blit_image_clipped",
-    "aliases": []
+    "from": "blit_image_clipped",
+    "to": "blit_image_clipped"
    },
    {
     "va": "0x4eb48",
-    "from": "sub_4EB48",
-    "to": "field_movement_script_ptr",
-    "aliases": []
+    "from": "field_movement_script_ptr",
+    "to": "field_movement_script_ptr"
    },
    {
     "va": "0x4ebe3",
-    "from": "sub_4EBE3",
-    "to": "field_rng_next",
-    "aliases": []
+    "from": "field_rng_next",
+    "to": "field_rng_next"
    },
    {
     "va": "0x4ebff",
-    "from": "sub_4EBFF",
-    "to": "lmi_rle_blit_forward",
-    "aliases": []
+    "from": "lmi_rle_blit_forward",
+    "to": "lmi_rle_blit_forward"
    },
    {
     "va": "0x4ec31",
-    "from": "sub_4EC31",
-    "to": "lmi_rle_blit_reverse",
-    "aliases": []
+    "from": "lmi_rle_blit_reverse",
+    "to": "lmi_rle_blit_reverse"
    },
    {
     "va": "0x4ed7a",
-    "from": "sub_4ED7A",
-    "to": "font_glyph_blit_16x16",
-    "aliases": []
+    "from": "font_glyph_blit_16x16",
+    "to": "font_glyph_blit_16x16"
    }
   ],
   "skipped": [],
@@ -1425,5 +1441,37 @@
     ]
    }
   ]
+ },
+ "actual_application_reports": [
+  "apply-verified-report.json",
+  "apply-b3-name-report.json",
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\actual-name-sync.json"
+ ],
+ "stack_check": {
+  "name": "watcom_stack_check",
+  "explicit_type": false,
+  "signature": null
+ },
+ "stat_bar_update": {
+  "method": "IDA Domain functions.set_name/set_comment; no prototypes or instruction writes",
+  "renamed": [
+   {
+    "va": "0x17d6f",
+    "from": "sub_17D6F",
+    "to": "field_stat_bar_columns_draw"
+   },
+   {
+    "va": "0x18795",
+    "from": "sub_18795",
+    "to": "field_stat_bar_draw"
+   }
+  ],
+  "commented": [
+   "0x17fc0",
+   "0x17d6f",
+   "0x18795"
+  ],
+  "readset": "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\readset.json",
+  "types_changed": false
  }
 }

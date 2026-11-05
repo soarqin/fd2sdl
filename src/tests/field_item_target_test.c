@@ -153,7 +153,7 @@ static int test_rejections_are_atomic(void) {
         fd2_field_game *g = &f.game;
         switch (which) {
             case 0: g->item_list_selected = 0; break; /* code0不是已支持草药。 */
-            case 1: slot(&g->units.items[0], 2, 0, 193); break;
+            case 1: slot(&g->units.items[0], 2, 0, 255); break;
             case 2: g->item_list_selected = 3; break;
             case 3: g->interaction = FD2_FIELD_INTERACTION_COMMAND; break;
             case 4: g->units.items[0].flags = FD2_FIELD_UNIT_FLAG_ACTED; break;
@@ -183,7 +183,7 @@ static int test_live_slot_and_load_owner(void) {
     memset(&snapshot, 0xa5, sizeof(snapshot));
     CHECK(fd2_field_game_export_battle_snapshot(g, &snapshot) == 0);
     CHECK(fd2_field_game_begin_item_targeting(g) == 0);
-    slot(&g->units.items[0], 2, 0, 193);
+    slot(&g->units.items[0], 2, 0, 255);
     fd2_field_game before = *g;
     CHECK(fd2_field_game_item_target_is_legal(g) == -1 && !memcmp(g, &before, sizeof(before)));
     CHECK(fd2_field_game_cycle_item_target(g) == -1 && !memcmp(g, &before, sizeof(before)));
@@ -227,7 +227,79 @@ static int test_frame1_and_range_lut(void) {
     close_fixture(&f); return 0;
 }
 
+static int test_area_cursor_resources_and_cross_range_node_owner(void) {
+    static const struct {uint8_t id, area;} cases[] = {{192,0},{210,1},{102,2},{79,4}};
+    for (size_t n = 0; n < sizeof(cases)/sizeof(cases[0]); n++) {
+        fixture f; CHECK(init(&f) == 0); fd2_field_game *g = &f.game;
+        uint8_t tile_pixels[576], cursor_pixels[20][576];
+        memset(tile_pixels, 10, sizeof(tile_pixels));
+        fd2_image tile = {24,24,tile_pixels};
+        g->terrain.frames = &tile; g->terrain.sheet.frame_count = 1;
+        g->visuals.cursor_frame_count = 20;
+        for (unsigned i = 0; i < 20; i++) {
+            memset(cursor_pixels[i], 100+(int)i, 576);
+            g->visuals.cursor_frames[i] = (fd2_image){24,24,cursor_pixels[i]};
+        }
+        slot(&g->units.items[0], 2, 0, cases[n].id);
+        CHECK(fd2_field_game_begin_item_targeting(g) == 0);
+        g->cursor_cell_x = 6; g->cursor_cell_y = 4;
+        fd2_vga vga = {0}; fd2_field_game before = *g;
+        fd2_field_game_render(g, &vga);
+        CHECK(g->move_range.nodes == before.move_range.nodes && !f.rng_calls);
+        unsigned center = vga.framebuffer[(4+4*24)*VGA_W+4+6*24];
+        CHECK(center == (cases[n].area == 0 ? 101u : cases[n].area == 1 ? 114u : cases[n].area == 2 ? 101u : 10u));
+        if (cases[n].area == 1) {
+            CHECK(vga.framebuffer[(4+3*24)*VGA_W+4+6*24] == 102);
+            CHECK(vga.framebuffer[(4+4*24)*VGA_W+4+5*24] == 103);
+            CHECK(vga.framebuffer[(4+4*24)*VGA_W+4+7*24] == 104);
+            CHECK(vga.framebuffer[(4+5*24)*VGA_W+4+6*24] == 105);
+        }
+        if (cases[n].area == 2) {
+            CHECK(vga.framebuffer[(4+2*24)*VGA_W+4+6*24] == 102);
+            CHECK(vga.framebuffer[(4+3*24)*VGA_W+4+5*24] == 106);
+            CHECK(vga.framebuffer[(4+3*24)*VGA_W+4+6*24] == 110);
+            CHECK(vga.framebuffer[(4+4*24)*VGA_W+4+5*24] == 111);
+        }
+        if (cases[n].area == 4) {
+            CHECK(fd2_field_path_is_destination(&g->move_range, 6,20));
+            CHECK(fd2_field_path_is_destination(&g->move_range, 20,6));
+            CHECK(!fd2_field_path_is_destination(&g->move_range, 7,7));
+            g->cursor_cell_x = g->cursor_cell_y = 6;
+            CHECK(fd2_field_game_move_cursor(g, 1,0) == 1 && fd2_field_game_move_cursor(g, 0,1) == 1);
+            CHECK(fd2_field_path_is_destination(&g->move_range, 7,7));
+            CHECK(fd2_field_game_item_target_is_legal(g) == 1); /* area4附近enemy，而非初始十字永久拒绝。 */
+        }
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_teleport_first_stage_excludes_whole_caster_cell(void) {
+    for (int neighbor = 0; neighbor < 2; neighbor++) {
+        fixture f; CHECK(init(&f) == 0); fd2_field_game *g = &f.game;
+        g->units.count = 2; g->units.items[1].x = neighbor ? 7 : 6; g->units.items[1].y = 6;
+        slot(&g->units.items[0], 2, 0, 101);
+        CHECK(fd2_field_game_begin_item_targeting(g) == 0);
+        CHECK(g->magic_target_count == (neighbor ? 1u : 0u));
+        CHECK(!fd2_field_path_is_destination(&g->move_range, 6,6));
+        CHECK(fd2_field_game_item_target_is_legal(g) == neighbor);
+        if (neighbor) CHECK(g->magic_target_candidates[0] == 1 && g->cursor_cell_x == 7);
+        else {
+            fd2_field_game before = *g;
+            CHECK(fd2_field_game_resolve_player_item(g) == -1 && !memcmp(&before,g,sizeof(before)) && !f.rng_calls);
+        }
+        close_fixture(&f);
+    }
+    fixture f; CHECK(init(&f) == 0);
+    f.game.units.count = 2; f.game.units.items[1].x = f.game.units.items[1].y = 6;
+    CHECK(fd2_field_game_begin_item_targeting(&f.game) == 0);
+    CHECK(fd2_field_path_is_destination(&f.game.move_range, 6,6) && fd2_field_game_item_target_is_legal(&f.game) == 1);
+    close_fixture(&f); return 0;
+}
+
 int main(void) {
+    CHECK(test_teleport_first_stage_excludes_whole_caster_cell() == 0);
+    CHECK(test_area_cursor_resources_and_cross_range_node_owner() == 0);
     CHECK(test_player_filter_raw_order_and_cycle() == 0);
     CHECK(test_first_121_and_no_target_slot() == 0);
     CHECK(test_outside_cancel_preserves_move_and_pending() == 0);

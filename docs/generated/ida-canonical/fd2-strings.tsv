@@ -177,7 +177,7 @@ ea	length	type	text
 0x5128c	22	0	Out of timer handles\n
 0x512a4	43	0	Minimum DMA buffer size too large for VDM\n
 0x512cf	39	0	FCould not allocate memory for driver\n
-0x512f6	24	0	;.DIG driver required\n
+0x512f6	24	0	;\r.DIG driver required\n
 0x5130e	36	0	teDigital sound hardware not found\n
 0x51332	34	0	 lCould not allocate DMA buffers\n
 0x51354	33	0	Could not allocate build buffer\n
@@ -211,7 +211,7 @@ ea	length	type	text
 0x51637	52	0	eDriver could not install timbre bank %u, patch %u\n
 0x5166b	52	0	MDriver could not install timbre bank %u, patch %u\n
 0x516a0	42	0	Insufficient memory for HWAVE descriptor\n
-0x516cc	36	0	Floating-point support not loaded\n
+0x516cc	36	0	Floating-point support not loaded\r\n
 0x51715	6	0	acosh
 0x51724	6	0	log10
 0x5172a	6	0	atanh
@@ -251,7 +251,7 @@ ea	length	type	text
 0x51ebf	6	0	%0.5d
 0x51f33	17	0	1111@@@@LW1119999
 0x51f53	19	0	@\n\n\n\n
-0x51f67	8	0	\t
+0x51f67	8	0	\r\r\r\r\t
 0x51f79	5	0	\t\t\t\t\n
 0x52006	8	0	    
 0x5200f	5	0	
@@ -268,12 +268,12 @@ ea	length	type	text
 0x526d8	19	0	,RRSTUVWXYZ0123453n
 0x52701	16	0	|&]"p,V5P7x$j<z2
 0x5271f	6	0	2!"4$/
-0x52796	18	0	Stack Overflow!\n
+0x52796	18	0	Stack Overflow!\r\n
 0x5361c	47	0	 "$&(*,.02468:<>@BDFHJLNPRTVXZ\^`bdfhjlnprtvxz|
 0x53698	7	0	SAMPLE
 0x601e0	5	0	.#%
-0x601f9	6	0	 *#80
-0x6021f	5	0	,5+
+0x601f9	6	0	 *#8\r0
+0x6021f	5	0	,5+\r
 0x60225	5	0	!,> 8
 0x60241	7	0	!*?&-46
 0x6025d	5	0	?"3,5
@@ -282,6 +282,6 @@ ea	length	type	text
 0x60284	5	0	 8*2%
 0x60299	5	0	+6?
 0x602a5	6	0	2/\n!"5
-0x622a5	5	0	\t\n
+0x622a5	5	0	\t\r\n
 0x6242f	5	0	!"-56
 0x625fd	5	0	'b9D

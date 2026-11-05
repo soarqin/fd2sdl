@@ -99,7 +99,7 @@
   {
    "check": "全部 IDA 函数位于 object1 范围内",
    "ok": true,
-   "detail": "outside=0 total=1308"
+   "detail": "outside=0 total=1307"
   },
   {
    "check": "函数最大结束地址不超过 object1 vsize 末尾",

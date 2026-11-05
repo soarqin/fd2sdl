@@ -406,6 +406,13 @@ static int test_magic_asset_owner(void) {
     CHECK(sheet[start] == 20 && sheet[start + 1] == 0 &&
           sheet[start + 2] == 8 && sheet[start + 3] == 0);
     CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    const size_t bar_frames[8] = {23, 26, 24, 25, 27, 28, 29, 30};
+    for (size_t i = 0; i < 8; i++) {
+        size_t offset = test_u32(sheet + 6 + bar_frames[i] * 4);
+        CHECK(assets.bars[i].width == 1 && assets.bars[i].height == 5);
+        CHECK(assets.bars[i].pixels != sheet + offset + 4);
+        CHECK(!memcmp(assets.bars[i].pixels, sheet + offset + 4, 5));
+    }
     CHECK(assets.magic_cost.width == 20 && assets.magic_cost.height == 8);
     CHECK(assets.magic_cost.pixels != sheet + start + 4);
     CHECK(memcmp(assets.magic_cost.pixels, sheet + start + 4, 160) == 0);
@@ -417,6 +424,13 @@ static int test_magic_asset_owner(void) {
     /* 像素长度仍合法，让raw decoder先分配；尺寸门失败须回收整owner。 */
     broken[start] = 40;
     broken[start + 2] = 4;
+    CHECK(fd2_field_info_assets_open_mem(&assets, broken, size) == -1);
+    for (size_t i = 0; i < sizeof(assets); i++) CHECK(((uint8_t *)&assets)[i] == 0);
+    CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    /* 最后一张bar已分配后才触发尺寸拒绝，先前所有owner必须一并释放。 */
+    memcpy(broken, sheet, size);
+    uint32_t late_bar = test_u32(sheet + 6 + 30 * 4);
+    broken[late_bar] = 5; broken[late_bar + 2] = 1;
     CHECK(fd2_field_info_assets_open_mem(&assets, broken, size) == -1);
     for (size_t i = 0; i < sizeof(assets); i++) CHECK(((uint8_t *)&assets)[i] == 0);
     CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
@@ -946,6 +960,101 @@ static int test_bad_inventory_does_not_hide_magic_upper_page(void) {
     return 0;
 }
 
+static int detail_region_equal(const fd2_vga *a, const fd2_vga *b,
+                               int x, int y, int width, int height) {
+    for (int row = 0; row < height; row++)
+        CHECK(!memcmp(a->framebuffer + (y + row) * VGA_STRIDE + x,
+                      b->framebuffer + (y + row) * VGA_STRIDE + x, (size_t)width));
+    return 0;
+}
+
+static void expected_detail_digits(fd2_vga *vga, const fd2_field_info_assets *assets,
+                                  int x, int y, const char *text, size_t bank) {
+    for (size_t i = 0; text[i]; i++)
+        fd2_map_sprite_blit(vga, &assets->digits[bank][(size_t)(text[i] - '0')],
+                            x + (int)i * 6, y, 0);
+}
+
+static int test_detail_signed_words_and_native_bars(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    const struct {
+        uint16_t current, maximum;
+        const char *digits, *max_digits;
+        size_t bank;
+        int length; /* 0空条、负值两cap、102全条；不是客户端unsigned近似。 */
+    } cases[] = {
+        {65516, 40, "000", "040", 1, -49},
+        {65517, 40, "000", "040", 1, -46},
+        {20, 40, "020", "040", 1, 51},
+        {0, 40, "000", "040", 1, 0},
+        {40, 40, "040", "040", 0, 102},
+        {65535, 65535, "000", "000", 0, 102},
+        {32768, 32768, "000", "000", 0, 102},
+        {65535, 100, "000", "100", 1, 0},
+        {1, 65535, "001", "000", 1, -100},
+        {1, 0, "001", "000", 1, -1000}, /* max0不调用17d6f。 */
+        {0, 0, "000", "000", 0, -1000}
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        fd2_field_unit unit;
+        empty_inventory(&unit);
+        unit.hp = unit.mp = cases[i].current;
+        unit.hp_max = unit.mp_max = cases[i].maximum;
+        fd2_field_unit before = unit;
+        fd2_vga actual = {0}, expected = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        memset(expected.framebuffer, 0xa5, sizeof(expected.framebuffer));
+        fd2_field_detail_draw(&actual, &fixture.assets, &fixture.font, &fixture.text, &unit, NULL);
+        fd2_map_sprite_blit(&expected, &fixture.assets.detail_top, 92, 7, -1);
+        for (size_t bank = 0; bank < 2; bank++) {
+            int y = bank ? 52 : 33;
+            int length = cases[i].length;
+            if (length == 0) {
+                for (int column = 1; column <= 101; column++)
+                    fd2_map_sprite_blit(&expected, &fixture.assets.bars[6], 198 + column, y, -1);
+                fd2_map_sprite_blit(&expected, &fixture.assets.bars[7], 300, y, -1);
+            } else if (length != -1000) {
+                fd2_map_sprite_blit(&expected, &fixture.assets.bars[bank], 198, y, -1);
+                for (int column = 1; column < length; column++)
+                    fd2_map_sprite_blit(&expected, &fixture.assets.bars[2 + bank * 2], 198 + column, y, -1);
+                fd2_map_sprite_blit(&expected, &fixture.assets.bars[3 + bank * 2],
+                                    198 + (length < 0 ? 1 : length), y, -1);
+            }
+            CHECK(detail_region_equal(&actual, &expected, 198, y, 103, 5) == 0);
+            expected_detail_digits(&expected, &fixture.assets, 267, bank ? 59 : 41, cases[i].digits, cases[i].bank);
+            expected_detail_digits(&expected, &fixture.assets, 293, bank ? 59 : 41, cases[i].max_digits, 0);
+            CHECK(detail_region_equal(&actual, &expected, 267, bank ? 59 : 41, 44, 8) == 0);
+        }
+        CHECK(!memcmp(&unit, &before, sizeof(unit)));
+    }
+    /* DX/四派生都是movsx WORD；LV/EX/MV仍是u8，255显示两位溢出93。 */
+    fd2_field_unit unit;
+    empty_inventory(&unit);
+    unit.hp = unit.hp_max = unit.mp = unit.mp_max = 1;
+    unit.accuracy = unit.attack = unit.evasion = unit.defense = 65535;
+    ((uint8_t *)&unit)[0x3e] = ((uint8_t *)&unit)[0x3f] = 0xff;
+    unit.level = unit.experience = unit.movement_points = 255;
+    unit.attack_status = unit.defense_status = unit.hit_evasion_status = 1;
+    fd2_field_unit before = unit;
+    fd2_vga actual = {0}, expected = {0};
+    fd2_field_detail_draw(&actual, &fixture.assets, &fixture.font, &fixture.text, &unit, NULL);
+    fd2_map_sprite_blit(&expected, &fixture.assets.detail_top, 92, 7, -1);
+    const int words[5][3] = {{117, 55, 1}, {117, 67, 2}, {157, 67, 2}, {117, 79, 2}, {157, 79, 2}};
+    for (size_t i = 0; i < 5; i++) {
+        expected_detail_digits(&expected, &fixture.assets, words[i][0], words[i][1], "000", (size_t)words[i][2]);
+        CHECK(detail_region_equal(&actual, &expected, words[i][0], words[i][1], 18, 8) == 0);
+    }
+    const int bytes[3][2] = {{157, 33}, {157, 44}, {157, 55}};
+    for (size_t i = 0; i < 3; i++) {
+        fd2_map_sprite_blit(&expected, &fixture.assets.two_digit_overflow, bytes[i][0], bytes[i][1], 0);
+        CHECK(detail_region_equal(&actual, &expected, bytes[i][0], bytes[i][1], 12, 8) == 0);
+    }
+    CHECK(!memcmp(&unit, &before, sizeof(unit)));
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
@@ -963,6 +1072,7 @@ int main(void) {
     CHECK(test_item_raw_icons_copy_zero_and_fallback_position() == 0);
     CHECK(test_item_list_preflight_leaves_all_state_unchanged() == 0);
     CHECK(test_bad_inventory_does_not_hide_magic_upper_page() == 0);
+    CHECK(test_detail_signed_words_and_native_bars() == 0);
     puts("field_info_test: ok");
     return 0;
 }

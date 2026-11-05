@@ -467,7 +467,7 @@ static int test_command_menu_model(void) {
     test_rng rng = {rolls, 1, 0};
     fd2_field_game game;
     init_game(&game);
-    /* 末槽Use code非0尚未支持，但密集已知库存仍允许Drop。 */
+    /* 已知193与192共享code5，扩展Use仍保留独立Drop能力。 */
     ((uint8_t *)&game.units.items[0])[0x19] = 193;
     if (configure(&game, &rng) != 0 ||
         fd2_field_game_refresh_commands(&game) != 0)
@@ -478,8 +478,8 @@ static int test_command_menu_model(void) {
                "attack enabled with legal target") ||
         expect(game.command_disabled[FD2_FIELD_COMMAND_MAGIC] &&
                !game.command_disabled[FD2_FIELD_COMMAND_ITEM] &&
-               !fd2_field_game_item_use_is_available(&game) && fd2_field_game_item_drop_is_available(&game),
-               "empty magic is disabled; unsupported Use can still enter Drop") ||
+               fd2_field_game_item_use_is_available(&game) && fd2_field_game_item_drop_is_available(&game),
+               "empty magic is disabled; known herb Use and Drop remain enabled") ||
         expect(!game.command_disabled[FD2_FIELD_COMMAND_WAIT],
                "wait remains enabled") ||
         expect(fd2_field_game_select_command_direction(

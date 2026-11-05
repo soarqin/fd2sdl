@@ -18,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src/tests"))
 from field_play_input_test import check_bitmap, wait_log
 
+B3_SCENARIOS = ("controls", "herb-full", "herb-injured", "drop-herb", "drop-weapon", "drop-armor", "drop-last",
+                "eqt-incompatible", "eqt-weapon", "give-cancel", "give-empty", "give-swap", "give-moved",
+                *(f"use-{code:02d}" for code in range(5, 25)), "use-area2", "use-23-mp0")
+
 
 def hashes(directory):
     return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -155,6 +159,10 @@ def check_browse_restored(expected, actual):
 
 class Suite:
     def __init__(self, args):
+        requested = getattr(args, "b3_scenarios", None)
+        if requested is not None:
+            if not getattr(args, "b3_only", False) or not requested or len(requested) != len(set(requested)) or any(name not in B3_SCENARIOS for name in requested):
+                raise ValueError("--b3-scenarios要求--b3-only且场景非空、无重复、全部已登记；未创建产物")
         self.args = args
         self.work = args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         original = (ROOT / "original_game").resolve()
@@ -506,10 +514,26 @@ class Suite:
                                          "expected_exit": expected_exit,
                                          "scope": "SDL main dispatch; not original gameplay acceptance"})
 
+    def item_cases(self):
+        """B3本阶段功能对照；也供大阶段完整套件调用，不借用历史收据。"""
+        for scenario in getattr(self.args, "b3_scenarios", None) or B3_SCENARIOS:
+            name = "original-item-" + scenario
+            self.command(name, [sys.executable, ROOT / "tools/run_original_item_list.py",
+                         "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                         "--dosbox", self.args.dosbox, "--scenario", scenario,
+                         "--artifacts", self.work / name], timeout=480)
+
     def run(self):
         before = hashes(ROOT / "original_game")
         self.report["original_hashes"] = before
         try:
+            if getattr(self.args, "b3_only", False):
+                if sys.platform != "win32":
+                    raise RuntimeError("B3原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
+                self.report["scope"] = "B3 changed/new item features only; historical full suite not rerun or inherited"
+                self.item_cases()
+                self.report["status"] = "passed"
+                return
             if sys.platform == "win32":
                 # 自然站位与边缘镜头是后续菜单/动作截图的共同前置。
                 self.command("original-opening", [sys.executable, ROOT / "tools/run_original_opening.py",
@@ -570,17 +594,7 @@ class Suite:
                              "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
                              "--dosbox", self.args.dosbox, "--scenario", scenario,
                              "--artifacts", self.work / name], timeout=480)
-            for name, scenario in (("original-item-controls", "controls"),
-                                   ("original-item-herb-full", "herb-full"),
-                                   ("original-item-herb-injured", "herb-injured"),
-                                   ("original-item-drop-herb", "drop-herb"),
-                                   ("original-item-drop-weapon", "drop-weapon"),
-                                   ("original-item-drop-armor", "drop-armor"),
-                                   ("original-item-drop-last", "drop-last")):
-                self.command(name, [sys.executable, ROOT / "tools/run_original_item_list.py",
-                             "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
-                             "--dosbox", self.args.dosbox, "--scenario", scenario,
-                             "--artifacts", self.work / name], timeout=480)
+            self.item_cases()
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before
@@ -596,6 +610,8 @@ def main():
     parser.add_argument("--config", default="Debug")
     parser.add_argument("--driver", type=Path)
     parser.add_argument("--dosbox", default=shutil.which("dosbox-x"))
+    parser.add_argument("--b3-only", action="store_true", help="仅运行本轮B3物品功能；历史完整实机回归留大阶段审查")
+    parser.add_argument("--b3-scenarios", nargs="+", help="仅在--b3-only下选择已登记场景；未知/重复在创建产物前拒绝")
     args = parser.parse_args()
     args.build_dir, args.game = args.build_dir.resolve(), args.game.resolve()
     if not args.driver:

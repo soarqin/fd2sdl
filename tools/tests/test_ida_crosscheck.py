@@ -28,6 +28,8 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
             self.assertEqual(hashlib.sha256((CANON / name).read_bytes()).hexdigest(),
                              digest, msg=name)
             self.assertNotIn(name, names)
+            if (CANON / name).suffix in (".json", ".tsv", ".c", ".md", ".txt"):
+                self.assertNotIn(b"\r\n", (CANON / name).read_bytes(), msg=name)
             names.add(name)
         self.assertEqual(names, {path.name for path in CANON.iterdir()
                                  if path.is_file() and path.name != "SHA256SUMS"})
@@ -97,12 +99,32 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
         with (CANON / "fd2-functions.tsv").open(encoding="utf-8") as f:
             for row in csv.DictReader(f, delimiter="\t"):
                 starts.add(int(row["start_ea"], 16))
-        self.assertEqual(len(starts), 1308)
+        # IDA9.5 does not identify the old21B putchar_0 wrapper at47678;
+        # its absence is a documented recognition difference, never a byte exception.
+        program = json.loads((CANON / "fd2-program.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(starts), program["function_count"])
         self.assertTrue(set(registry.CORRECTIONS) <= {e["va"] for e in reg["entries"]})
         for e in reg["entries"]:
             self.assertIn(e["va"], starts, msg=f"{e['va']:#x}")
             self.assertEqual(e["off"], e["va"] - OBJ1_LO)
             self.assertTrue(e["ida_name"])
+
+    def test_x87_reproduction_rejects_unverified_image_before_emulation(self):
+        import verify_fd2_x87_boost as x87
+        with self.assertRaisesRegex(ValueError, "SHA256"):
+            x87.verify(b"not the FD2 image")
+
+    def test_semantic_corrections_match_actual_ida_names(self):
+        import csv
+        reg = json.loads((CANON / "fd2-ida-function-registry.json").read_text(encoding="utf-8"))
+        with (CANON / "fd2-functions.tsv").open(encoding="utf-8") as source:
+            actual = {int(row["start_ea"], 16): row["name"] for row in csv.DictReader(source, delimiter="\t")}
+        for entry in reg["entries"]:
+            self.assertEqual(entry["ida_name"], actual[entry["va"]])
+            for correction in entry.get("corrections", []):
+                name = correction["now"]
+                if correction["target"] == "semantic_name" and name.isascii() and name.isidentifier():
+                    self.assertEqual(name, actual[entry["va"]], msg=hex(entry["va"]))
 
     def test_hexrays_failures_are_documented(self):
         rep = json.loads(

@@ -347,7 +347,7 @@ static int test_late_magic_glyph_rejects_first_page(void) {
     return 0;
 }
 static int test_preflight_and_load_cleanup(void) {
-    for (int fault = 0; fault < 6; fault++) {
+    for (int fault = 0; fault < 7; fault++) {
         reset();
         fd2_field_game game; fd2_vga vga;
         CHECK(open_game(&game, &vga) == 0);
@@ -360,6 +360,7 @@ static int test_preflight_and_load_cleanup(void) {
             case 3: game.info_assets.detail_top.height = 85; break;
             case 4: control.decode_failure = 1; break;
             case 5: control.fail_alloc = control.allocations + 1; break;
+            case 6: game.info_assets.bars[7].height = 4; break;
         }
         fd2_field_game before = game; fd2_vga pixels = vga;
         CHECK(fd2_field_game_open_detail(&game, 1) == -1);

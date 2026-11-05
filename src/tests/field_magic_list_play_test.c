@@ -112,11 +112,12 @@ static void modal_render(fd2_field_game *game, fd2_vga *vga) {
     memcpy(reference_background, vga->framebuffer, sizeof(reference_background));
     memset(&reference_page, 0, sizeof(reference_page));
     memcpy(reference_page.framebuffer, reference_background, sizeof(reference_background));
+    int raw = game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST ? game->item_give_recipient : game->selected_unit;
     fd2_field_detail_draw(&reference_page, &game->info_assets, &game->font,
-        &game->ui_text, &game->units.items[game->selected_unit], &reference_portraits[0]);
-    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST)
+        &game->ui_text, &game->units.items[raw], &reference_portraits[0]);
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST || game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST)
         (void)fd2_field_item_list_draw(&reference_page, &game->info_assets, &game->font,
-            &game->ui_text, &game->units.items[game->selected_unit], -1);
+            &game->ui_text, &game->units.items[raw], -1);
     else
         (void)fd2_field_magic_list_draw(&reference_page, &game->info_assets, &game->font,
             &game->ui_text, &game->units.items[game->selected_unit], -1);
@@ -164,6 +165,14 @@ static int modal_item_step(fd2_field_game *game, fd2_field_item_list_key key) {
             ((uint8_t *)&game->units.items[0])[0x0b + 2u * (size_t)game->item_list_selected] = 255;
     }
     if (result == -1 || (result == 1 && game->command_selected != 2)) {
+        controls.closing = 1;
+        controls.closing_start = controls.frames;
+    }
+    return result;
+}
+static int modal_give_step(fd2_field_game *game, fd2_field_item_list_key key) {
+    int result = fd2_field_game_item_give_list_step(game, key);
+    if (result == -1 || result == 1) {
         controls.closing = 1;
         controls.closing_start = controls.frames;
     }
@@ -289,6 +298,7 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_field_game_render modal_render
 #define fd2_field_game_magic_list_step modal_step
 #define fd2_field_game_item_list_step modal_item_step
+#define fd2_field_game_item_give_list_step modal_give_step
 #define fd2_field_game_equip_item modal_equip
 #define fd2_input_take_key modal_take_key
 #define fd2_field_game_animate_command modal_command
@@ -306,6 +316,7 @@ static void modal_present(fd2_vga *vga) {
 #undef fd2_field_game_render
 #undef fd2_field_game_magic_list_step
 #undef fd2_field_game_item_list_step
+#undef fd2_field_game_item_give_list_step
 #undef fd2_field_game_equip_item
 #undef fd2_input_take_key
 #undef fd2_field_game_animate_command
@@ -729,7 +740,7 @@ static int test_item_navigation_and_cancel_layers(void) {
             CHECK(fd2_field_game_end_item_list(&game) == 0);
             CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && game.item_list_selected == 0);
             CHECK(game.command_selected == 0 && game.command_disabled[0] == 0);
-            CHECK(game.command_disabled[1] && game.command_disabled[2] && !game.command_disabled[3]);
+            CHECK(game.command_disabled[1] && !game.command_disabled[2] && !game.command_disabled[3]);
             CHECK(fd2_field_game_end_item_menu(&game) == 0);
             CHECK(game.interaction == FD2_FIELD_INTERACTION_COMMAND);
             CHECK(game.command_disabled[FD2_FIELD_COMMAND_ITEM] == 0);
@@ -1229,7 +1240,7 @@ static int test_eqt_continuous_apply_repeat_incompatible_and_new_close_page(void
     before.item_list_selected = 3;
     CHECK(!memcmp(&game, &before, sizeof(game)) && !fd2_input_has_any_key(&vga.input));
     CHECK(fd2_field_game_end_item_list(&game) == 0 && game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
-    CHECK(!game.item_list_selected && game.command_disabled[2] && !fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(!game.item_list_selected && !game.command_disabled[2] && !fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.units.items[0].attack == 26 && game.pending_cell_event.valid);
     return released();
 }
@@ -1355,8 +1366,69 @@ static int test_eqt_potential_hidden_name_preflight_is_atomic(void) {
     return 0;
 }
 
+static int reset_give(fd2_field_game *game, fd2_vga *vga, int full) {
+    static uint32_t cells[24*24];
+    static fd2_terrain_attr attr;
+    CHECK(reset_item(game, vga, 3) == 0);
+    game->map.width = game->map.height = 24; game->map.cells = cells;
+    game->terrain.attrs = &attr; game->terrain.attr_count = 1;
+    game->units.count = 2;
+    game->units.items[1] = game->units.items[0]; game->units.items[1].x++;
+    set_items(&game->units.items[1], full ? 8 : 0);
+    if (full) game->units.items[1].data_09_1e[4] = 1;
+    game->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
+    game->command_selected = 1; game->command_disabled[1] = 0;
+    CHECK(fd2_field_game_confirm_item_menu(game) == 0);
+    return 0;
+}
+
+static int test_give_shared_modal_closes_before_target_and_full_swap(void) {
+    fd2_field_game game; fd2_vga vga;
+    CHECK(reset_give(&game, &vga, 1) == 0);
+    controls.keys_at[0] = (key_frame){13,SDL_SCANCODE_RETURN,SDL_SCANCODE_RIGHT}; controls.key_count = 1;
+    fd2_field_units before = game.units;
+    CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING && !game.item_transfer_committed);
+    CHECK(!memcmp(&before, &game.units, sizeof(before)) && controls.rng_calls == 1);
+    CHECK(!fd2_input_has_any_key(&vga.input) && released() == 0);
+    CHECK(fd2_field_game_resolve_item_give(&game) == 0 && game.interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST);
+    memset(&controls, 0, sizeof(controls));
+    controls.keys_at[0] = (key_frame){13,SDL_SCANCODE_DOWN,0};
+    controls.keys_at[1] = (key_frame){15,SDL_SCANCODE_RETURN,SDL_SCANCODE_RIGHT}; controls.key_count = 2;
+    CHECK(play_field_item_give_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_OK);
+    CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && game.item_transfer_committed);
+    CHECK(game.units.items[0].data_09_1e[6] == 1 && game.units.items[1].data_09_1e[16] == 192);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]) && controls.rng_calls == 2 && controls.command_calls == 1);
+    CHECK(!fd2_input_has_any_key(&vga.input) && released() == 0);
+    return 0;
+}
+
+static int test_give_full_modal_quit_cancel_and_postcommit_error(void) {
+    for (int fault = 0; fault < 5; fault++) {
+        fd2_field_game game; fd2_vga vga;
+        CHECK(reset_give(&game, &vga, 1) == 0);
+        CHECK(fd2_field_game_begin_item_give(&game) == 0);
+        CHECK(fd2_field_game_resolve_item_give(&game) == 0);
+        fd2_field_units before = game.units;
+        controls.keys_at[0] = (key_frame){13,fault == 0 ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN,0}; controls.key_count = 1;
+        if (fault == 1) controls.quit_frame = 14;
+        if (fault == 2) controls.quit_on_wait = 1;
+        if (fault == 3) controls.command_error = 1;
+        if (fault == 4) { game.info_assets.detail_icons[0].pixels = NULL; before = game.units; }
+        int result = play_field_item_give_selection(&game, &vga, NULL);
+        CHECK(result == (fault == 0 ? FD2_SCENE_RESULT_OK : fault <= 2 ? FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_ERROR));
+        if (fault != 3) CHECK(!memcmp(&before, &game.units, sizeof(before)) && !game.item_transfer_committed);
+        else CHECK(game.item_transfer_committed && game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && controls.command_calls == 1);
+        CHECK(!fd2_field_unit_has_acted(&game.units.items[0]) && released() == 0);
+        if (fault == 4) CHECK(!controls.rng_calls && !controls.frames);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
+    CHECK(test_give_shared_modal_closes_before_target_and_full_swap() == 0);
+    CHECK(test_give_full_modal_quit_cancel_and_postcommit_error() == 0);
     CHECK(test_navigation_and_cancel() == 0);
     CHECK(test_single_item_navigation_sound() == 0);
     CHECK(test_confirm_low_mp_and_other() == 0);

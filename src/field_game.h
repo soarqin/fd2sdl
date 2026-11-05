@@ -101,7 +101,10 @@ typedef enum {
     FD2_FIELD_INTERACTION_MAGIC_TARGETING,
     FD2_FIELD_INTERACTION_ITEM_MENU,
     FD2_FIELD_INTERACTION_ITEM_LIST,
-    FD2_FIELD_INTERACTION_ITEM_TARGETING
+    FD2_FIELD_INTERACTION_ITEM_TARGETING,
+    FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING,
+    FD2_FIELD_INTERACTION_ITEM_GIVE_LIST,
+    FD2_FIELD_INTERACTION_ITEM_TELEPORTING
 } fd2_field_interaction;
 
 /* field_unit_detail_present @0x17aed（原sub_17AED）：装备页任意键后，有法术才显示第二页。 */
@@ -176,7 +179,7 @@ typedef struct {
 
     /* field_player_command_execute @0x18d8c 的四向图形菜单旁路状态；
      * 0..3 固定为 attack/magic/item/wait。玩家法术仅开放已验证基础分支；
-     * 玩家物品仅开放已确认草药192，其余Use效果有独立能力门。 */
+     * 玩家物品按各子操作的当前数据支持门开放。 */
     int command_selected;
     uint8_t command_disabled[FD2_FIELD_COMMAND_COUNT];
     uint8_t command_highlight_phase;
@@ -188,8 +191,14 @@ typedef struct {
     int magic_list_selected;
     /* 1b932/1b9de的raw槽索引，ITEM_LIST/TARGETING共用；memset零态及成功Load
      * 均归0，不写SAV。ITEM_MENU复用上述command四向owner，语义为
-     * Use/Give/Equip/Drop；SDL目前仅Use可选，非原版能力表。 */
+     * Use/Give/Equip/Drop，disabled由各操作当前支持门计算。 */
     int item_list_selected;
+    /* Give满槽列表另选recipient raw槽；source仍由selected_unit/item_list_selected拥有。
+     * 53C53只表示本次18890内已转交，最终COMMAND取消仍须提交acted/lookup。
+     * 临时索引/标志不写SAV，成功Load与新行动入口清零。 */
+    int item_give_recipient;
+    int item_give_selected;
+    uint8_t item_transfer_committed;
     /* field_cell_selection_execute @0x115b6 的本次target局部轮询，
      * MAGIC/ITEM_TARGETING互斥借用候选buffer；id只归MAGIC。
      * 不复用browse的focus_cycle_unit，不写SAV。 */
@@ -370,7 +379,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game);
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
  * 只支持stage0与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
  * 正式COMMAND由item_is_available限制效果能力；低层纯session不混此门。
- * 正式菜单按能力开放Use/Drop，Give/Equip禁用；低层confirm借同一
+ * 正式菜单按各自能力开放Use/Give/Equip/Drop；confirm借同一
  * ITEM_LIST与command_selected区分mode1/0，不缓存槽ID。
  * list step的1只报告可确认，不提交handler。
  * begin/confirm/end成功0，拒绝-1；方向返回是否改变，拒绝-1；list step
@@ -393,16 +402,18 @@ int fd2_field_game_end_item_menu(fd2_field_game *game);
  * 宿主须先完整关闭列表；正式入口另重验Drop等待/数据能力。 */
 int fd2_field_game_resolve_item_drop(fd2_field_game *game);
 
-/* sub_1BFFE @0x1bffe、sub_1C142 @0x1c142、sub_1C1C3 @0x1c1c3（原登记同名）
- * 的纯装备子集，仅profile1及ITEM_LIST/command_selected2。
+/* field_unit_equipment_menu_execute @0x1bffe（原sub_1BFFE）、
+ * field_unit_equipment_slot_set @0x1c142（原sub_1C142）与
+ * field_unit_can_equip_item @0x1c1c3（原sub_1C1C3）
+ * 的装备应用，支持已确认profile0..28及ITEM_LIST/command_selected2。
  * 兼容项在80B shadow按原分组写flag，再验证dense-known结果并重算后交接；
  * 成功1仍留原页/同raw索引（已装备重选亦为1），不兼容0且不重算，数据拒绝-1。
  * 失败actor/UI无写；无目标/消耗/acted/MP/EX/移动/pending/RNG。
- * EQT取消由end_item_list返回菜单且不重算。正式EQT及play仍未开放。 */
+ * EQT取消由end_item_list返回菜单且不重算；宿主复用留页等待/重绘。 */
 int fd2_field_game_equip_item(fd2_field_game *game);
 
-/* 正式ITEM能力查询：Use/Drop任一可用即开放完整菜单；可见库存须密集
- * 且ID已知，Use的非零code仅192，Drop须全8槽可完成派生重算。
+/* 正式ITEM能力查询：Use/Give/Equip/Drop任一可用即开放菜单；可见库存须密集
+ * 且ID已知，Use支持表中code5..24，Drop/Give须全8槽可完成派生重算。
  * code0武器/装备可看列表，确认仍留页。要求stage0可行动玩家及共享RNG，
  * 不套MP/+27/移动后禁法/EX99门。查询不写状态或消费RNG。
  * COMMAND、ITEM_MENU与ITEM_TARGETING正式confirm均重新检查此门；
@@ -410,13 +421,26 @@ int fd2_field_game_equip_item(fd2_field_game *game);
 int fd2_field_game_item_is_available(const fd2_field_game *game);
 int fd2_field_game_item_use_is_available(const fd2_field_game *game);
 int fd2_field_game_item_drop_is_available(const fd2_field_game *game);
+int fd2_field_game_item_give_is_available(const fd2_field_game *game);
 
-/* sub_1BFFE @0x1bffe（原登记同名）的私有EQT等待查询：现profile1纯支持门
- * 加共享RNG有效性；不写状态/RNG。正式MENU仍灰2，COMMAND能力不OR此门。 */
+/* field_unit_equipment_menu_execute @0x1bffe（原sub_1BFFE）的EQT等待查询：已证职业支持门
+ * 加共享RNG有效性；不写状态/RNG。正式确认重验此门。 */
 int fd2_field_game_item_equip_is_available(const fd2_field_game *game);
 
-/* field_player_item_command_execute @0x1bbdc（原登记同名）的草药192
- * 普通area0目标session：用record+10/+12/+15，不套AI的+11或MAGIC门。
+/* field_player_item_command_execute @0x1bbdc的Give路径：range最大1/最小1、
+ * filter3；目标可HP0/acted，hidden不收。source槽不缓存ID，满槽另选recipient。
+ * begin/resolve/cancel成功0、数据拒绝-1；list step沿用-2/-1/0/1。
+ * resolve按当前owner完成空槽转交或交换，不acted；只重算sender，保留recipient派生。
+ * 任一Give取消也重算sender并回菜单；最终COMMAND取消见53C53合同。 */
+int fd2_field_game_begin_item_give(fd2_field_game *game);
+int fd2_field_game_item_give_target_is_legal(const fd2_field_game *game);
+int fd2_field_game_cycle_item_give_target(fd2_field_game *game);
+int fd2_field_game_resolve_item_give(fd2_field_game *game);
+int fd2_field_game_item_give_list_step(fd2_field_game *game, fd2_field_item_list_key key);
+int fd2_field_game_cancel_item_give(fd2_field_game *game);
+
+/* field_player_item_command_execute @0x1bbdc（原登记同名）的物品
+ * 目标session：用record+10/+12/+15，不套AI的+11或MAGIC门。
  * begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；
  * cycle为1消费一个槽（121只跳过focus）/0无候选/-1错误。
  * 只借move_range与target候选owner，不消费物品/MP/RNG，不提交动作；
@@ -426,9 +450,10 @@ int fd2_field_game_item_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_item_target(fd2_field_game *game);
 int fd2_field_game_cancel_item_targeting(fd2_field_game *game);
 
-/* sub_20C6F @0x20c6f（原登记同名）的草药192分支：目标/原槽/尾链
- * 全预检后逐目标恢复HP，移除原槽，再acted→lookup1→controller。
- * 返回0成功/-1预检拒绝或提交后冻结；不写MP/角色EX。
+/* field_item_use_effect_execute @0x20c6f（原sub_20C6F）的code5..24：
+ * 当前cast/area/filter、原槽、数据及尾链先预检，再按分支执行/移槽。
+ * code23首次合法确认只进入目的地选择，最终确认才MP u16扣费并移动。
+ * 返回0成功/-1预检拒绝或提交后冻结；角色EX不写，不借MAGIC奖励。
  * 仅恢复无未知掉落/必需handler的逻辑；音画/附加RNG仍另行验收。 */
 int fd2_field_game_resolve_player_item(fd2_field_game *game);
 
@@ -472,8 +497,8 @@ int fd2_field_game_commit_ai_item(
     const fd2_field_ai_item_candidate *plan);
 
 /* field_command_menu_input @code0 0x77fc：四方向直接选择固定图标，禁用项
- * 不移动选择；确认分派已接入的攻击／基础法术／待机；COMMAND取消才
- * 复用移动快照回退，本身不消费RNG。法术真实等待消费另由play负责。 */
+ * 不移动选择；确认分派攻击／基础法术／物品／待机；COMMAND取消无Give
+ * 提交时才回退移动，53C53非零则走acted/lookup/controller，不回滚库存。法术真实等待消费另由play负责。 */
 int fd2_field_game_refresh_commands(fd2_field_game *game);
 int fd2_field_game_select_command_direction(
     fd2_field_game *game, fd2_field_command_direction direction);

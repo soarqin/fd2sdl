@@ -219,7 +219,7 @@ def main() -> int:
             "checks": checks,
             "passed": len(checks) - len(failed),
             "failed": len(failed),
-        }, indent=1, ensure_ascii=False), encoding="utf-8")
+        }, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
         print(f"wrote {args.json}")
     return 1 if failed else 0
 

@@ -84,9 +84,9 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_magic_list.py` 的列表、伤害和治疗双端场景也已纳入总流程。正式输入必须经过列表和目标选择，仅确认一次施法，分别校验完整静态资源矩形、效果与MP／LV／EX；原版单端校准和配对输出口径不同，参数及夹具限制见[图形测试规范](gui-testing.md)。失焦补跑保留失败及来源，累计结果不能冒称单轮通过。
 
-`run_original_item_list.py` 支持B3原版单端校准及串行双端配对：默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消，完整31,955像素门；herb-full／herb-injured另验目标取消、单次Use及完整32,147像素HP／MP／LV／EX和两槽详情。受控派生不改站位，物品表来自严格LE原版，不以SDL为oracle。不传`--sdl`的校准成功仍为`ok=false/probe_only=true`；三个场景添加`--sdl`后还须通过双端实际PNG配对，已纳入总流程。Use后raw尾字节／完整RNG／演出声音仍未验。Windows命令、无窗口回归及守卫见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
+`run_original_item_list.py` 支持B3的Use／Give／Equip／Drop原版单端校准及串行双端配对。默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消；herb-full／herb-injured检查目标取消及单次Use详情。code5..24另有20项原表实例、真实item102双目标area2及code23零MP瞬移；它们验证实际效果、合法END与完整Save。受控位置、库存和身份差异在各自manifest明列，不冒充自然整关路线。物品表及期望取自严格LE／原码，不以SDL为oracle；不传`--sdl`仍是`ok=false/probe_only=true`单端校准，双端需各自资源门、实际PNG及终值／文件守卫全部通过。完整共享RNG／演出声音另验。Windows命令、逐场覆盖及无窗口回归见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
 
-`--scenario drop-herb`仅校准原版未装备草药192：Drop取消／一次删除、只读两槽、逐级取消与正常Save。真实保存支持该分支的raw16B／末ID和四派生量测；Use后raw16B、其他Drop物品与最后一项未验，SDL Drop仍禁用。此场景拒绝`--sdl`且不计入配对总数，写盘前后守卫及命令见同一规范。
+`--scenario drop-herb/drop-weapon/drop-armor/drop-last`各选一场，覆盖未装备草药、已装备武器／防具及最后一项。添加`--sdl`时先运行原版并清理，再运行SDL；四场均已登记实际双端配对及完整Save，核对raw16B、末ID、派生值和未知字节。取消、一次删除、删空回COMMAND、逐级取消与正式Save按同一规范执行；正式Drop已开放，早期仅原版校准的来源仍保留在阶段记录。
 
 ### Sanitizer（Linux／Clang）
 
@@ -128,7 +128,7 @@ cmake --build src/build --target fd2sdl --clean-first
 
 | 任务 | 操作手册 |
 |---|---|
-| 日常函数／指令／xref 查询 | [IDA Domain API／idalib](ida.md)：skills、环境、只读查询及授权发布 |
+| 日常函数／指令／xref 查询 | [IDA Domain API／idalib](ida.md)：skills、环境、隔离建库／查询及生成发布；项目数据库操作不再逐次授权 |
 | LE 重建、fixup 和完整字节检查 | [LE 镜像与验收](../reverse-engineering/le-validation.md)：产物、命令、独立性与失败条件 |
 | 从原版重导出，避免覆盖数据库 | [IDA 9.5 复现](../reverse-engineering/ida-bytecheck-9.5.md#复现与本地证据) |
 | 已加载映像／内存取证 | [DOSBox debugger](dosbox-debug.md)：当次 selector/base、转储和离线比较 |

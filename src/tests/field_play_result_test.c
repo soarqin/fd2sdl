@@ -111,6 +111,17 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
             game->item_list_selected = 2;
             game->command_selected = 0; /* Use不是顶层ATTACK。 */
             if (fd2_field_game_begin_item_targeting(game) != 0) return -1;
+        } else if (item_case == 4) {
+            for (unsigned slot = 0; slot < 8; slot++) {
+                ((uint8_t *)&game->units.items[0])[0x0a + slot*2] = 0x80;
+                ((uint8_t *)&game->units.items[2])[0x0a + slot*2] = 0x80;
+            }
+            ((uint8_t *)&game->units.items[0])[0x0a] = 0;
+            ((uint8_t *)&game->units.items[0])[0x0b] = 192;
+            game->units.items[2].x = 2; game->units.items[2].y = 1;
+            game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
+            game->command_selected = 1;
+            if (fd2_field_game_begin_item_give(game) != 0) return -1;
         } else game->pending_cell_event = (fd2_field_pending_cell_event){1,9,4};
         active_game = game;
         memcpy(unchanged_units, game->units.items, sizeof(unchanged_units));
@@ -304,7 +315,36 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
         if (item_frames == 1)
             item_initial_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
-        if (item_case == 2) {
+        if (item_case == 4) {
+            if (item_frames == 1) {
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_ESCAPE, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_SPACE, 1);
+            }
+            if (item_frames == 2) {
+                item_menu_checked = active_game->interaction == FD2_FIELD_INTERACTION_COMMAND &&
+                    active_game->command_selected == FD2_FIELD_COMMAND_WAIT &&
+                    active_game->item_transfer_committed && !fd2_field_unit_has_acted(&active_game->units.items[0]) &&
+                    !fd2_field_unit_inventory_count(&active_game->units.items[0]) &&
+                    fd2_field_unit_inventory_count(&active_game->units.items[2]) == 1 &&
+                    active_game->cursor_cell_x == 1 && active_game->cursor_cell_y == 1 &&
+                    !fd2_input_has_any_key(&vga->input);
+            }
+            if (item_frames == 3) {
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_ESCAPE, 1);
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+            }
+            if (item_frames == 4) {
+                item_finished_checked = active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
+                    active_game->selected_unit == -1 && active_game->item_transfer_committed &&
+                    active_game->units.items[0].x == 1 && active_game->units.items[0].y == 1 &&
+                    active_game->units.items[0].hp == 20 && active_game->units.items[0].experience == 99 &&
+                    active_game->units.items[0].direction == 3 && fd2_field_unit_has_acted(&active_game->units.items[0]) &&
+                    ((fd2_field_rng *)active_game->attack_rng_userdata)->state == item_initial_rng &&
+                    !fd2_input_has_any_key(&vga->input);
+                vga->input.quit_requested = 1;
+            }
+        } else if (item_case == 2) {
             if (item_frames == 1) fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
             if (item_frames == 2) {
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
@@ -475,7 +515,9 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
     if (controller_case || item_case) {
         if (item_case && active_game &&
             ((active_game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU && context != FD2_INPUT_CONTEXT_FIELD_COMMAND) ||
-             (active_game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING && context != FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING)))
+             ((active_game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING ||
+               active_game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING ||
+               active_game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING) && context != FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING)))
             item_context_bad = 1;
         return fd2_input_take_action(input, context, action);
     }
@@ -762,7 +804,7 @@ int main(void) {
         }
     }
     march_case = 0;
-    for (item_case = 1; item_case <= 3; item_case++) {
+    for (item_case = 1; item_case <= 4; item_case++) {
         item_frames = item_confirm_calls = item_context_bad = 0;
         item_menu_checked = item_invalid_checked = item_finished_checked = 0;
         vga.input.quit_requested = 0;
@@ -772,6 +814,7 @@ int main(void) {
         if (item_case == 1) CHECK(item_menu_checked && item_finished_checked && item_frames == 5);
         if (item_case == 2) CHECK(item_invalid_checked && item_finished_checked && item_frames == 5);
         if (item_case == 3) CHECK(item_confirm_calls == 0 && item_frames == 1);
+        if (item_case == 4) CHECK(item_menu_checked && item_finished_checked && item_frames == 4 && item_confirm_calls == 1);
     }
     item_case = 0;
     puts("field_play_result_test: ok");

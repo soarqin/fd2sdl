@@ -79,7 +79,7 @@ static int test_ids_states_animation_and_actor_overlay(void) {
             CHECK(check_frame(&f, 0, 0) == 0);
         }
     }
-    /* SDL支持Use/Drop；Give/EQT的禁用帧不是原版能力声明。 */
+    /* disabled是caller当前能力快照；合成配置验证任意禁用组合。 */
     f.game.command_selected = 0;
     f.game.command_disabled[1] = f.game.command_disabled[2] = 1;
     f.game.command_disabled[3] = 0;

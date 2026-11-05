@@ -112,7 +112,7 @@ xxd -g1 -s $((0x36014)) -l 128 original_game/FD2.EXE
 python3 -m unittest discover -s tools/tests -p test_ida_crosscheck.py
 ```
 
-二进制比较返回码为 `0` 才相同。`test_ida_crosscheck.py` 在两平台都检查发布清单覆盖范围和每个文件的 SHA-256，不需要运行 IDA，也不会刷新发布文件。它不等于重新运行完整机器码复核。不要为让校验通过而先刷新清单；清单变化必须来自授权发布流程。
+二进制比较返回码为 `0` 才相同。`test_ida_crosscheck.py` 在两平台都检查发布清单覆盖范围和每个文件的 SHA-256，不需要运行 IDA，也不会刷新发布文件。它不等于重新运行完整机器码复核。不要为让校验通过而先刷新清单；清单变化必须来自可追溯的生成发布流程，项目数据库操作不再逐次授权。
 
 ## 平台验收的边界
 

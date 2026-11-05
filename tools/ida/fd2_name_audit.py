@@ -241,6 +241,13 @@ def resolve(row: Row) -> None:
     row.note = "无候选命中 object1 函数"
 
 
+def ida_oracle() -> str:
+    paths = (IDA_FUNCS.parent / "ida-program.json", ROOT / "docs/generated/ida-canonical/fd2-program.json")
+    info = next((json.loads(path.read_text(encoding="utf-8")) for path in paths if path.exists()), {})
+    return (f"IDA Pro {info.get('ida_version', 'unknown')} {info.get('host_platform', 'historical host')} "
+            f"idalib ({info.get('loader_module', 'LE loader')} + metapc + Watcom FLIRT)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--names", type=Path, default=NAMES_MD,
@@ -291,7 +298,7 @@ def main() -> int:
     if args.json:
         payload = {
             "schema": "fd2-ida-name-audit-v1",
-            "oracle": "IDA Pro 9.4 idalib (loaders/lx.so + metapc + Watcom FLIRT)",
+            "oracle": ida_oracle(),
             "object1_range": [OBJ1_LO, OBJ1_HI],
             "legacy_dual_shift": LEGACY_DUAL_SHIFT,
             "stats": dict(stats),
@@ -299,7 +306,7 @@ def main() -> int:
         }
         args.json.parent.mkdir(parents=True, exist_ok=True)
         args.json.write_text(json.dumps(payload, indent=1, ensure_ascii=False),
-                             encoding="utf-8")
+                             encoding="utf-8", newline="\n")
         print(f"\nwrote {args.json}")
 
     if args.markdown:
@@ -312,7 +319,7 @@ def main() -> int:
             lines.append(f"| {r.line_no} | `{r.address_cell}` | {va} | {off} | "
                          f"`{fn}` | {r.resolution} | `{r.semantic_name}` |")
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        args.markdown.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         print(f"wrote {args.markdown}")
     return 0
 

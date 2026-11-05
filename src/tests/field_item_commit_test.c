@@ -164,12 +164,12 @@ static int test_preflight_errors_keep_all_owners_and_rng(void) {
         switch (which) {
             case 0: g->interaction = FD2_FIELD_INTERACTION_ITEM_LIST; break;
             case 1: g->item_list_selected = 0; break;
-            case 2: ((uint8_t *)&g->units.items[0])[0x0f] = 193; break;
+            case 2: ((uint8_t *)&g->units.items[0])[0x0f] = 255; break;
             case 3: ((uint8_t *)&g->units.items[0])[0x0c] = 0x80; break;
             case 4: g->attack_rng = NULL; break;
             case 5: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
-            case 6: g->units.items[1].hp_max = 0; break;
-            case 7: g->units.items[1].hp = 101; break;
+            case 6: g->units.items[1].movement_profile = 255; g->units.items[1].x = 255; break;
+            case 7: g->units.items[1].side = 0; break;
             case 8: g->units.items[1].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
             case 9: g->units.items[3].x = 255; break; /* 非目标晚raw也先检查。 */
             case 10: g->pending_cell_event = (fd2_field_pending_cell_event){1,9,0}; break;
@@ -320,16 +320,11 @@ static int test_formal_confirmation_rechecks_whole_list_but_cancel_does_not(void
         CHECK(fd2_field_game_refresh_commands(g) == 0 && !g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
         if (layer == 1) CHECK(fd2_field_game_confirm_cursor(g) == 0);
         if (layer == 2) CHECK(target(&f, 0) == 0);
-        /* 当前选中草药不变，只破坏另一可见Use项；不能靠旧cached能力放行。 */
-        ((uint8_t *)&g->units.items[0])[0x0b] = 193;
+        /* 当前选中草药不变，另一可见项成为未知ID时仍须重验。 */
+        ((uint8_t *)&g->units.items[0])[0x0b] = 255;
         fd2_field_game before = *g;
-        if (!layer) {
-            CHECK(fd2_field_game_confirm_cursor(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
-            CHECK(g->command_selected == 3 && g->command_disabled[0] && !g->command_disabled[3]);
-            CHECK(fd2_field_game_cancel_selection(g) == 1);
-        } else {
-            CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
-        }
+        CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.calls);
+        ((uint8_t *)&g->units.items[0])[0x0b] = 0;
         if (layer) {
             CHECK(fd2_field_game_cancel_selection(g) == 1);
             if (layer == 2) {
@@ -372,7 +367,169 @@ static int test_formal_route_returns_the_nonzero_actor_index(void) {
     close_fixture(&f); return 0;
 }
 
+static int start_item(fixture *f, uint8_t id) {
+    fd2_field_game *g = &f->game;
+    ((uint8_t *)&g->units.items[0])[0x0f] = id;
+    CHECK(fd2_field_game_item_use_is_available(g));
+    CHECK(fd2_field_game_begin_item_menu(g) == 0 && !g->command_disabled[0]);
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0);
+    g->item_list_selected = 2;
+    CHECK(fd2_field_game_begin_item_targeting(g) == 0);
+    return 0;
+}
+
+static int test_all_twenty_use_codes_keep_distinct_cost_and_tail(void) {
+    static const uint8_t ids[] = {192,196,197,198,199,200,206,210,211,212,213,214,94,95,96,56,38,57,101,79};
+    for (size_t n = 0; n < sizeof(ids); n++) {
+        fixture f; init(&f);
+        fd2_field_game *g = &f.game;
+        fd2_field_unit *actor = &g->units.items[0];
+        actor->experience = 99; actor->mp = 3; actor->mp_max = 100;
+        actor->attack = 16; actor->defense = 12; actor->accuracy = 80; actor->evasion = 5;
+        actor->text_id = 24;
+        actor->movement_points = 255;
+        actor->base_attack_le[0] = 10; actor->base_defense_le[0] = 20; actor->dexterity_le[0] = 30;
+        g->units.items[1].side = 0; g->units.items[1].x = 7; g->units.items[1].hp = g->units.items[1].hp_max = 1000;
+        const uint8_t *record = fd2_field_item_record_get(ids[n]);
+        unsigned code = record[0x0d];
+        if (code == 23) g->units.items[1].side = 1;
+        if (code == 6) actor->detail_status[0] = 5;
+        if (code == 7) { g->units.items[1].side = 1; g->units.items[1].detail_status[1] = 5; }
+        CHECK(start_item(&f, ids[n]) == 0);
+        if (code == 7) { g->cursor_cell_x = 7; g->cursor_cell_y = 6; }
+        if (code == 23) {
+            CHECK(fd2_field_game_resolve_player_item(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING && !f.calls);
+            g->cursor_cell_x = 7; g->cursor_cell_y = 7;
+        }
+        CHECK(fd2_field_game_resolve_player_item(g) == 0);
+        CHECK(g->selected_unit == -1 && fd2_field_unit_has_acted(actor) && actor->experience == 99 && actor->direction == 3);
+        CHECK(actor->mp == (code == 23 ? (uint16_t)(3-20) : code == 11 ? 75 : 3));
+        int removes = code == 5 || code == 6 || code == 7 || code == 11 ||
+            (code >= 8 && code <= 10) || (code >= 17 && code <= 19);
+        CHECK(fd2_field_unit_inventory_count(actor) == (removes ? 2u : 3u));
+        if (!removes) CHECK(((uint8_t *)actor)[0x0f] == ids[n]);
+        if (code == 5 || code == 13) CHECK(actor->hp == 42);
+        if (code == 6) CHECK(!actor->detail_status[0] && actor->hp == 29 && f.calls == 1);
+        if (code == 7) CHECK(!g->units.items[1].detail_status[1] && f.calls == 1);
+        if (code == 8) CHECK(actor->base_attack_le[0] == 19 && !f.calls);
+        if (code == 9) CHECK(actor->base_defense_le[0] == 29 && !f.calls);
+        if (code == 10) CHECK(actor->dexterity_le[0] == 37 && !f.calls);
+        if (code == 12) CHECK(actor->hit_evasion_status == 2 && actor->accuracy == 95 && actor->evasion == 20 && f.calls == 1);
+        if (code == 14) CHECK(g->units.items[1].hp == 991 && g->units.items[1].detail_status[1] == 2 && f.calls == 3);
+        if (code == 15) CHECK(actor->defense == 14 && actor->defense_status == 2 && f.calls == 1);
+        if (code == 16) CHECK(actor->attack == 19 && actor->attack_status == 2 && f.calls == 1);
+        if (code == 17) CHECK(actor->hp_max == 62 && actor->hp == 20 && !f.calls);
+        if (code == 18) CHECK(actor->mp_max == 120 && !f.calls);
+        if (code == 19) CHECK(actor->movement_points == 0 && actor->experience == 99 && !f.calls);
+        if (code == 20 || code == 21 || code == 24) CHECK(g->units.items[1].hp < 1000 && f.calls == 2);
+        if (code == 22) CHECK(g->units.items[1].hp == 991 && g->units.items[1].detail_status[2] == 2 && f.calls == 3);
+        if (code == 23) CHECK(g->units.items[1].x == 7 && g->units.items[1].y == 7 && actor->x == 6 && actor->y == 6 && !f.calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_use_area_empty_center_and_teleport_cancel(void) {
+    fixture f; init(&f);
+    fd2_field_game *g = &f.game;
+    CHECK(start_item(&f, 211) == 0);
+    g->cursor_cell_x = 6; g->cursor_cell_y = 7; /* 空中心，Manhattan1有caster。 */
+    CHECK(fd2_field_game_item_target_is_legal(g) == 1);
+    CHECK(fd2_field_game_resolve_player_item(g) == 0 && g->units.items[0].hp == 42 && f.calls == 1);
+    close_fixture(&f);
+    for (int gate = 0; gate < 3; gate++) {
+        init(&f); g = &f.game; g->units.items[0].text_id = 24; g->units.items[0].mp_max = 20;
+        if (gate == 0) g->units.items[0].text_id = 23;
+        if (gate == 1) g->units.items[0].mp_max = 19;
+        CHECK(start_item(&f, 101) == 0);
+        fd2_field_units before = g->units;
+        CHECK(fd2_field_game_resolve_player_item(g) == 0);
+        if (gate == 2) {
+            CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING);
+            g->cursor_cell_x = g->units.items[2].x; g->cursor_cell_y = g->units.items[2].y;
+            CHECK(fd2_field_game_item_target_is_legal(g) == 0);
+            CHECK(fd2_field_game_cancel_item_targeting(g) == 0);
+        }
+        CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && !g->item_list_selected && !f.calls);
+        CHECK(!memcmp(&before, &g->units, sizeof(before)) && g->cursor_cell_x == 6 && g->cursor_cell_y == 6);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_cure_heal_revive_prediction_and_no_status_consumption(void) {
+    for (int paralysis = 0; paralysis < 2; paralysis++) {
+        for (int status = 0; status < 2; status++) {
+            fixture f; init(&f); fd2_field_game *g = &f.game;
+            g->units.items[1].side = 2; g->units.items[1].hp = 0;
+            g->units.items[1].detail_status[paralysis] = status ? 5 : 0;
+            ((uint8_t *)&g->units.items[1])[0x31] = 0; /* 仅被实际复活才排除未知loot。 */
+            g->units.items[2].flags = 0x80;
+            g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1};
+            CHECK(start_item(&f, (uint8_t)(196+paralysis)) == 0);
+            g->cursor_cell_x = 5; g->cursor_cell_y = 6;
+            if (status) {
+                CHECK(fd2_field_game_resolve_player_item(g) == 0 && f.calls == 1);
+                CHECK(g->units.items[1].hp == 9 && !g->units.items[1].detail_status[paralysis]);
+                CHECK(g->active_side == 2 && !g->failure && !g->player_post_waiting_phase);
+            } else CHECK(reject_unchanged(&f) == 0 && !f.calls);
+            close_fixture(&f);
+        }
+        fixture f; init(&f); CHECK(start_item(&f, (uint8_t)(196+paralysis)) == 0);
+        CHECK(fd2_field_game_resolve_player_item(&f.game) == 0 && !f.calls);
+        CHECK(fd2_field_unit_inventory_count(&f.game.units.items[0]) == 2 && f.game.units.items[0].hp == 20);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_general_use_preflight_and_permanent_word_wrap(void) {
+    fixture f; init(&f);
+    CHECK(start_item(&f, 56) == 0);
+    f.game.units.items[1].side = 0; f.game.cursor_cell_x = 5; f.game.cursor_cell_y = 6;
+    f.game.units.items[1].movement_profile = 0;
+    CHECK(reject_unchanged(&f) == 0 && !f.calls);
+    close_fixture(&f);
+    init(&f); f.game.units.items[1].side = 0;
+    f.game.units.items[2] = f.game.units.items[1];
+    f.game.units.items[2].hp = 0; f.game.units.items[2].movement_profile = 0;
+    CHECK(start_item(&f, 56) == 0);
+    CHECK(reject_unchanged(&f) == 0 && !f.calls); /* 晚raw HP0也须先校damage profile。 */
+    close_fixture(&f);
+    init(&f); f.game.units.items[1].side = 0; f.game.units.items[1].hp = 1;
+    ((uint8_t *)&f.game.units.items[1])[0x31] = 0;
+    CHECK(start_item(&f, 56) == 0);
+    CHECK(reject_unchanged(&f) == 0 && !f.calls);
+    close_fixture(&f);
+    init(&f); CHECK(start_item(&f, 198) == 0);
+    ((uint8_t *)&f.game.units.items[0])[0x18] = 0xc0;
+    ((uint8_t *)&f.game.units.items[0])[0x19] = 255;
+    CHECK(reject_unchanged(&f) == 0 && !f.calls);
+    close_fixture(&f);
+    init(&f); f.game.units.items[0].base_attack_le[0] = f.game.units.items[0].base_attack_le[1] = 255;
+    CHECK(start_item(&f, 198) == 0);
+    CHECK(fd2_field_game_resolve_player_item(&f.game) == 0 && !f.calls);
+    CHECK(f.game.units.items[0].base_attack_le[0] == 8 && f.game.units.items[0].base_attack_le[1] == 0);
+    close_fixture(&f);
+    init(&f); f.game.units.items[0].hp_max = 65530;
+    CHECK(start_item(&f, 94) == 0);
+    CHECK(fd2_field_game_resolve_player_item(&f.game) == 0 && f.game.units.items[0].hp_max == 14 && f.game.units.items[0].hp == 20 && !f.calls);
+    close_fixture(&f);
+    static const uint8_t no_rng_ids[] = {196,197,206};
+    for (size_t i = 0; i < sizeof(no_rng_ids); i++) {
+        init(&f); CHECK(start_item(&f, no_rng_ids[i]) == 0);
+        f.game.attack_rng = NULL;
+        CHECK(reject_unchanged(&f) == 0 && !f.calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_cure_heal_revive_prediction_and_no_status_consumption() == 0);
+    CHECK(test_general_use_preflight_and_permanent_word_wrap() == 0);
+    CHECK(test_all_twenty_use_codes_keep_distinct_cost_and_tail() == 0);
+    CHECK(test_use_area_empty_center_and_teleport_cancel() == 0);
     CHECK(test_full_injured_and_ex99_keep_mp_ex_direction() == 0);
     CHECK(test_same_cell_raw_order_one_removal_and_no_wait_heal() == 0);
     CHECK(test_preflight_errors_keep_all_owners_and_rng() == 0);

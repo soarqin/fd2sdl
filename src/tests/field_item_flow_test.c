@@ -84,7 +84,7 @@ static void expected_menu(fd2_field_game *g) {
     g->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
     g->item_list_selected = 0; g->command_selected = 0;
     g->command_disabled[0] = 0;
-    g->command_disabled[1] = g->command_disabled[2] = 1;
+    g->command_disabled[1] = 1; g->command_disabled[2] = 0;
     g->command_disabled[3] = 0;
     g->command_highlight_phase = g->command_animation_phase = g->command_animation_opening = 0;
     g->last_command_highlight_ms = 0;
@@ -106,7 +106,7 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         CHECK(fd2_field_game_begin_item_menu(g) == 0);
         expected_menu(&expected);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
-        for (unsigned direction = 0; direction < 3; direction++) {
+        for (unsigned direction = 0; direction < 2; direction++) {
             CHECK(fd2_field_game_select_item_menu_direction(g, (fd2_field_command_direction)direction) == 0);
             CHECK(!memcmp(g, &expected, sizeof(expected))); /* Give/EQT仍禁用。 */
         }
@@ -206,12 +206,12 @@ static int test_rejections_have_no_write_set(void) {
     CHECK(!memcmp(g, &before, sizeof(before)));
     for (int selected = 1; selected < 4; selected++) {
         g->command_selected = selected;
-        if (selected == 3) g->command_disabled[3] = 1;
+        g->command_disabled[selected] = 1;
         before = *g;
         CHECK(fd2_field_game_confirm_item_menu(g) == -1 && !memcmp(g, &before, sizeof(before)));
     }
     g->command_selected = 0;
-    g->command_disabled[3] = 0;
+    g->command_disabled[0] = 0; g->command_disabled[3] = 0;
     CHECK(fd2_field_game_confirm_item_menu(g) == 0);
     g->item_list_selected = 8;
     before = *g;
@@ -230,6 +230,7 @@ static int test_load_and_snapshot_owner_boundaries(void) {
     CHECK(fd2_field_game_export_battle_snapshot(g, &snapshot) == 0);
     another = snapshot;
     g->item_list_selected = 2;
+    g->item_give_recipient = 1; g->item_give_selected = 6; g->item_transfer_committed = 1;
     CHECK(fd2_field_game_export_battle_snapshot(g, &another) == 0);
     CHECK(!memcmp(&snapshot, &another, sizeof(snapshot)));
     CHECK(fd2_field_game_begin_item_menu(g) == 0);
@@ -244,6 +245,7 @@ static int test_load_and_snapshot_owner_boundaries(void) {
     CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1 && g->item_list_selected == 0);
     CHECK(g->command_selected == -1 && g->move_path_length == 0 && !g->move_range.nodes && !g->pending_cell_event.valid);
+    CHECK(!g->item_transfer_committed && !g->item_give_recipient && !g->item_give_selected);
     CHECK(!memcmp(g->units.items, before.units.items, sizeof(g->units.items)) && f.rng_calls == 0);
     close_fixture(&f);
     return 0;
@@ -394,13 +396,16 @@ static int test_formal_use_drop_capabilities_and_cached_rechecks(void) {
     CHECK(fd2_field_game_item_use_is_available(g) && fd2_field_game_item_drop_is_available(g));
     CHECK(!memcmp(g, &before, sizeof(before)) && !f.rng_calls);
     slot(&g->units.items[0], 2, 0, 193);
-    CHECK(!fd2_field_game_item_use_is_available(g) && fd2_field_game_item_drop_is_available(g));
+    CHECK(fd2_field_game_item_use_is_available(g) && fd2_field_game_item_drop_is_available(g));
     CHECK(fd2_field_game_item_is_available(g));
     CHECK(fd2_field_game_begin_item_menu(g) == 0);
-    CHECK(g->command_selected == 3 && g->command_disabled[0] && !g->command_disabled[3]);
-    g->command_selected = 0; g->command_disabled[0] = 0; /* 旧cached Use不能借Drop能力确认。 */
+    CHECK(g->command_selected == 0 && !g->command_disabled[0] && !g->command_disabled[2] && !g->command_disabled[3]);
+    g->command_selected = 0;
+    before = *g;
+    slot(&g->units.items[0], 2, 0, 255); /* 未知ID不能借cached能力确认。 */
     before = *g;
     CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)));
+    slot(&g->units.items[0], 2, 0, 193);
     g->command_selected = 3;
     g->attack_rng = NULL;
     before = *g;
@@ -420,7 +425,7 @@ static int test_formal_use_drop_capabilities_and_cached_rechecks(void) {
     f.game.command_selected = 3; f.game.command_disabled[3] = 0;
     before = f.game;
     CHECK(fd2_field_game_confirm_cursor(&f.game) == -1 && !memcmp(&f.game, &before, sizeof(before)));
-    slot(&f.game.units.items[0], 2, 0, 193);
+    slot(&f.game.units.items[0], 2, 0, 255);
     CHECK(!fd2_field_game_item_is_available(&f.game)); /* Use与Drop的失败分别独立。 */
     close_fixture(&f);
     CHECK(!fd2_field_game_item_use_is_available(NULL) && !fd2_field_game_item_drop_is_available(NULL));
@@ -456,11 +461,9 @@ static int open_eqt(fixture *f, int second_weapon) {
     actor->attack = actor->defense = actor->accuracy = actor->evasion = 999;
     actor->experience = 99; actor->hp = 20; actor->mp = 7; actor->mp_max = 9;
     if (second_weapon) slot(actor, 2, 0, 1);
-    CHECK(fd2_field_game_begin_item_menu(g) == 0 && g->command_disabled[2]);
+    CHECK(fd2_field_game_begin_item_menu(g) == 0 && !g->command_disabled[2]);
     g->command_selected = 2; g->command_disabled[2] = 0;
-    fd2_field_game before = *g;
-    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)));
-    CHECK(fd2_field_game_confirm_item_menu(g) == 0); /* 只开纯session，正式入口仍拒EQT。 */
+    CHECK(fd2_field_game_confirm_cursor(g) == 0); /* 正式EQT与纯session共用同一owner。 */
     CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && g->command_selected == 2);
     return 0;
 }
@@ -556,7 +559,7 @@ static int test_eqt_rejections_are_atomic(void) {
         fd2_field_game *g = &f.game;
         g->item_list_selected = 2;
         if (which < 15) invalidate(g, which);
-        else if (which == 15) g->units.items[0].movement_profile = 5;
+        else if (which == 15) g->units.items[0].movement_profile = 29;
         else if (which == 16) g->item_list_selected = -1;
         else if (which == 17) g->item_list_selected = 3;
         else if (which == 18) g->command_selected = 0;
@@ -588,7 +591,113 @@ static int test_eqt_flags_and_stats_survive_outer_move_cancel(void) {
     return 0;
 }
 
+static int open_give(fixture *f, int full) {
+    CHECK(init(f, 0) == 0);
+    fd2_field_game *g = &f->game;
+    fd2_field_unit *receiver = &g->units.items[1];
+    receiver->side = 2; receiver->x = 5; receiver->y = 3;
+    receiver->attack = 777; receiver->defense = 888;
+    for (unsigned i = 0; i < 8; i++) slot(receiver, i, full ? 0 : 0x80, (uint8_t)(full ? i : 200+i));
+    CHECK(fd2_field_game_item_give_is_available(g));
+    CHECK(fd2_field_game_begin_item_menu(g) == 0 && !g->command_disabled[1]);
+    g->command_selected = 1;
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0);
+    g->item_list_selected = 2;
+    CHECK(fd2_field_game_begin_item_give(g) == 0);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING &&
+        g->cursor_cell_x == 5 && g->cursor_cell_y == 3);
+    return 0;
+}
+
+static int test_give_empty_and_sticky_action_tail(void) {
+    fixture f; CHECK(open_give(&f, 0) == 0);
+    fd2_field_game *g = &f.game;
+    fd2_field_unit receiver = g->units.items[1];
+    slot(&receiver, 0, 0, 192);
+    CHECK(fd2_field_game_confirm_cursor(g) == 0);
+    CHECK(!memcmp(&receiver, &g->units.items[1], sizeof(receiver)));
+    CHECK(fd2_field_unit_inventory_count(&g->units.items[0]) == 2 && g->item_transfer_committed == 1);
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU && !fd2_field_unit_has_acted(&g->units.items[0]));
+    CHECK(g->move_path_length == 2 && g->pending_cell_event.valid && !f.rng_calls);
+    /* 后续Give取消/Drop取消均不能抹掉先前53C53=1。 */
+    g->command_selected = 1;
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0);
+    CHECK(fd2_field_game_end_item_list(g) == 0 && g->item_transfer_committed);
+    g->command_selected = 3;
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0 && fd2_field_game_end_item_list(g) == 0 && g->item_transfer_committed);
+    CHECK(fd2_field_game_end_item_menu(g) == 0);
+    g->pending_cell_event = (fd2_field_pending_cell_event){0};
+    CHECK(fd2_field_game_cancel_selection(g) == 1);
+    CHECK(g->units.items[0].x == 4 && g->units.items[0].y == 3 && g->units.items[0].direction == 2);
+    CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && !f.rng_calls && g->selected_unit == -1);
+    CHECK(fd2_field_unit_inventory_count(&g->units.items[0]) == 2 && g->item_transfer_committed);
+    close_fixture(&f); return 0;
+}
+
+static int test_give_full_exchange_is_remove_append_sender_only_stats(void) {
+    fixture f; CHECK(open_give(&f, 1) == 0);
+    fd2_field_game *g = &f.game;
+    slot(&g->units.items[1], 4, 0x40, 4);
+    CHECK(fd2_field_game_resolve_item_give(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST);
+    CHECK(g->item_give_selected == 0 && !g->item_transfer_committed && g->cursor_cell_x == 4);
+    g->item_give_selected = 4;
+    CHECK(fd2_field_game_item_give_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1);
+    CHECK(fd2_field_game_resolve_item_give(g) == 0);
+    const uint8_t *raw = (const uint8_t *)&g->units.items[1];
+    CHECK(raw[0x0b+4*2] == 5 && raw[0x0b+7*2] == 192 && raw[0x0a+7*2] == 0);
+    CHECK(g->units.items[1].attack == 777 && g->units.items[1].defense == 888);
+    raw = (const uint8_t *)&g->units.items[0];
+    CHECK(raw[0x0f] == 4 && raw[0x0e] == 0 && g->item_transfer_committed);
+    CHECK(!fd2_field_unit_has_acted(&g->units.items[0]) && !f.rng_calls);
+    close_fixture(&f); return 0;
+}
+
+static int test_give_cancels_and_late_errors_are_atomic(void) {
+    for (int full = 0; full < 2; full++) {
+        fixture f; CHECK(open_give(&f, full) == 0);
+        fd2_field_game *g = &f.game;
+        fd2_field_unit recipient = g->units.items[1];
+        if (full) CHECK(fd2_field_game_resolve_item_give(g) == 0);
+        g->units.items[0].attack = 999;
+        CHECK(fd2_field_game_cancel_item_give(g) == 0);
+        CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_MENU && !g->item_transfer_committed);
+        CHECK(g->units.items[0].attack != 999 && !memcmp(&recipient, &g->units.items[1], sizeof(recipient)) && !f.rng_calls);
+        close_fixture(&f);
+    }
+    fixture f; CHECK(open_give(&f, 1) == 0);
+    CHECK(fd2_field_game_resolve_item_give(&f.game) == 0);
+    slot(&f.game.units.items[1], 7, 0, 255);
+    fd2_field_game before = f.game;
+    CHECK(fd2_field_game_resolve_item_give(&f.game) == -1 && !memcmp(&before, &f.game, sizeof(before)) && !f.rng_calls);
+    close_fixture(&f); return 0;
+}
+
+static int test_give_stack_first_visible_and_candidate_rules(void) {
+    fixture f; CHECK(open_give(&f, 0) == 0);
+    fd2_field_game *g = &f.game;
+    g->units.count = 3;
+    g->units.items[2] = g->units.items[1];
+    g->units.items[1].side = 0; /* 14742有side2，但12c0d取先出现的enemy。 */
+    CHECK(fd2_field_game_resolve_item_give(g) == 0);
+    CHECK(fd2_field_unit_inventory_count(&g->units.items[1]) == 1 && !fd2_field_unit_inventory_count(&g->units.items[2]));
+    close_fixture(&f);
+    CHECK(init(&f, 0) == 0); g = &f.game;
+    g->units.items[1].side = 2; g->units.items[1].x = 4; g->units.items[1].y = 3;
+    CHECK(!fd2_field_game_item_give_is_available(g)); /* 中心整格排除。 */
+    g->units.items[1].x = 5; g->units.items[1].hp = 0; g->units.items[1].flags = 0x80; g->units.items[1].unit_id = 121;
+    CHECK(fd2_field_game_item_give_is_available(g));
+    CHECK(fd2_field_game_begin_item_menu(g) == 0); g->command_selected = 1;
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0); g->item_list_selected = 2;
+    CHECK(fd2_field_game_begin_item_give(g) == 0 && g->magic_target_count == 1 && g->cursor_cell_x == 4);
+    CHECK(fd2_field_game_cycle_item_give_target(g) == 1 && g->cursor_cell_x == 4 && !f.rng_calls);
+    close_fixture(&f); return 0;
+}
+
 int main(void) {
+    CHECK(test_give_empty_and_sticky_action_tail() == 0);
+    CHECK(test_give_full_exchange_is_remove_append_sender_only_stats() == 0);
+    CHECK(test_give_cancels_and_late_errors_are_atomic() == 0);
+    CHECK(test_give_stack_first_visible_and_candidate_rules() == 0);
     CHECK(test_layers_preserve_move_pending_units_and_rng() == 0);
     CHECK(test_rejections_have_no_write_set() == 0);
     CHECK(test_load_and_snapshot_owner_boundaries() == 0);

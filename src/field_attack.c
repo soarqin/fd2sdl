@@ -229,6 +229,29 @@ int fd2_field_target_range_compute(fd2_field_path_result *result,
         fd2_field_movement_profile_get(FD2_FIELD_ATTACK_PROFILE);
     if (!costs) return -1;
 
+    /* field_target_range_build @0x14818：max>=16是半长max-16的十字，
+     * 不走地形传播，也不执行普通分支的minManhattan排除。 */
+    if (max_range >= 16u) {
+        size_t count = (size_t)map->width * (size_t)map->height;
+        if (count > SIZE_MAX / sizeof(fd2_field_path_node)) return -1;
+        fd2_field_path_node *nodes = calloc(count, sizeof(*nodes));
+        if (!nodes) return -1;
+        for (int y = 0; y < map->height; y++) for (int x = 0; x < map->width; x++) {
+            fd2_field_path_node *node = &nodes[(size_t)y * (size_t)map->width + (size_t)x];
+            int distance = abs(x - origin_x) + abs(y - origin_y);
+            node->distance = FD2_FIELD_PATH_UNREACHABLE;
+            node->previous = -1;
+            if ((x == origin_x || y == origin_y) && distance <= max_range - 16) {
+                node->distance = (uint32_t)distance;
+                node->can_stop = 1;
+            }
+        }
+        fd2_field_path_close(result);
+        result->nodes = nodes; result->width = map->width; result->height = map->height;
+        result->start_x = origin_x; result->start_y = origin_y; result->budget = max_range;
+        return 0;
+    }
+
     fd2_field_attack_range_context context = {map, terrain, costs};
     if (fd2_field_path_compute(result, map->width, map->height,
                                origin_x, origin_y, max_range,

@@ -66,6 +66,11 @@ int fd2_field_hp_heal_apply(
     fd2_field_unit *target, uint16_t power,
     fd2_field_magic_rng_fn rng, void *rng_userdata);
 
+/* field_mp_heal_apply @0x1c9dd（原sub_1C9DD）：与HP共享两段spread截断，
+ * 只改MP并夹到max；满MP仍耗一次RNG，mp_max==0的跳过由caller负责。 */
+int fd2_field_mp_heal_apply(fd2_field_unit *target, uint16_t power,
+    fd2_field_magic_rng_fn rng, void *rng_userdata);
+
 /* SDL无演出基础法术的单目标结果，不含MP／acted／死亡清理／升级。
  * experience_value是sub_1C81F @0x1c81f／sub_1C916 @0x1c916
  * （原登记同名）向53EC8累加的原始贡献，尚未按caster等级归一。 */

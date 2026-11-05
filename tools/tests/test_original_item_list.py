@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import struct
 import sys
@@ -35,7 +36,7 @@ class Fixture:
     def menu_frame(self, selected=0, *, give_enabled=False, actor_overlay=True, role="original"):
         image = Image.new("RGB", (320, 200))
         for item, command in enumerate((8, 9, 10, 11)):
-            disabled = (item in (1, 2) if role == "sdl" else item == 1) and not (item == 1 and give_enabled)
+            disabled = item == 1 and not give_enabled
             index = command * 3 + (2 if disabled else int(item == selected))
             part = self.assets["upper_commands"][index][0] if item == 0 and actor_overlay else self.assets["commands"][index]
             at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[item]))
@@ -52,6 +53,92 @@ class Fixture:
 
 
 class ResourceTest(Fixture, unittest.TestCase):
+    def test_native_signed_word_numbers_and_complete_positive_negative_mp_bars(self):
+        sheet = probe.archive_entry((ROOT / "original_game/FDOTHER.DAT").read_bytes(), 5)
+        for current, maximum, length in ((0, 40, 0), (1, 40, 3), (20, 40, 51), (40, 40, 102),
+                (65516, 40, -49), (65517, 40, -46), (0, 0, None)):
+            canvas = Image.new("P", (120, 12), 205); canvas.putpalette(self.assets["palette"]); expected = canvas.copy()
+            result = oracle.word_bar(canvas, sheet, current, maximum, 2, 3, 26)
+            def paste(frame, offset): expected.paste(oracle.raw_icon(sheet, frame, (1, 5), self.assets["palette"]), (2 + offset, 3))
+            if length is not None:
+                if length:
+                    paste(26, 0)
+                    for x in range(1, length): paste(27, x)
+                    paste(28, max(1, length))
+                else:
+                    for x in range(1, 102): paste(29, x)
+                    paste(30, 102)
+                self.assertEqual(result["native_length"], length)
+            else: self.assertFalse(result["drawn"])
+            self.assertEqual(canvas.tobytes(), expected.tobytes(), (current, maximum))
+        for current in (0, 1):
+            actor = bytearray(self.source[probe.UNITS:probe.UNITS + probe.STRIDE])
+            struct.pack_into("<HH", actor, 0x44, (current - 20) & 65535, 40)
+            _, templates, fields = oracle.inventory_templates(ROOT / "original_game", actor, self.assets)
+            self.assertEqual(fields["mp"], 65516 + current)
+            self.assertEqual(fields["signed_word_display"]["mp"]["signed_input"], current - 20)
+            self.assertEqual(fields["signed_word_display"]["mp"]["nonnegative_number_input"], 0)
+            self.assertEqual(templates["mp_bar"][1].size, (103, 5))
+            top = probe.sheet_frame(sheet, 20, lmi=True); top.putpalette(self.assets["palette"])
+            oracle.number(top, sheet, 0, 175, 52, 42, 3); oracle.number(top, sheet, 40, 201, 52, 31, 3)
+            self.assertEqual(templates["current_max_mp"][1].tobytes(), top.crop((175, 52, 219, 60)).tobytes())
+
+    def test_native_fixed_width_numbers_use_original_overflow_resources_at_boundaries(self):
+        from fd2_magic_list_oracle import digit as digit_resource
+        sheet = probe.archive_entry((ROOT / "original_game/FDOTHER.DAT").read_bytes(), 5)
+        for bank in (31, 42, 119):
+            for width, values in ((2, (-1, 0, 99, 100, 255)), (3, (-1, 0, 999, 1000, 65535))):
+                for value in values:
+                    canvas = Image.new("P", (40, 18), 205); canvas.putpalette(self.assets["palette"])
+                    expected = canvas.copy()
+                    oracle.number(canvas, sheet, value, 2, 3, bank, width)
+                    if value > (99 if width == 2 else 999):
+                        frame = 93 if width == 2 else bank + 10
+                        image = oracle.rle_icon(sheet, frame, (12 if width == 2 else 17 if bank == 119 else 18, 8), self.assets["palette"])
+                        expected.paste(image, (2, 3), image.point(lambda pixel: 255 if pixel else 0, mode="L"))
+                    else:
+                        for index, digit in enumerate(f"{max(value, 0):0{width}d}"):
+                            image = digit_resource(sheet, bank + int(digit))
+                            image.putpalette(self.assets["palette"])
+                            expected.paste(image, (2 + index * 6, 3), image.point(lambda pixel: 255 if pixel else 0, mode="L"))
+                    self.assertEqual(canvas.tobytes(), expected.tobytes(), (bank, width, value))
+        for experience in (99, 100, 255):
+            actor = bytearray(self.source[probe.UNITS:probe.UNITS + probe.STRIDE]); actor[0x3c] = experience
+            _, templates, fields = oracle.inventory_templates(ROOT / "original_game", actor, self.assets)
+            top = probe.sheet_frame(sheet, 20, lmi=True); top.putpalette(self.assets["palette"])
+            oracle.number(top, sheet, experience, 65, 37, 42, 2)
+            self.assertEqual(templates["experience"][1].tobytes(), top.crop((65, 37, 77, 45)).tobytes())
+            self.assertEqual(fields["experience"], experience)  # 原始字节不裁剪/按身份隐藏。
+
+    def test_all_29_equipment_profile_rows_match_strict_le_and_actual_c_table(self):
+        rows = oracle.equipment_rows(ROOT / "original_game/FD2.EXE")
+        self.assertEqual(len(rows), 203)
+        self.assertEqual(hashlib.sha256(rows).hexdigest(), oracle.EQUIPMENT_SHA256)
+        implementation = (ROOT / "src/field_item.c").read_text(encoding="utf-8")
+        match = re.search(r"profiles\[29\]\[7\]\s*=\s*\{(.*?)\n\s*\};", implementation, re.S)
+        self.assertIsNotNone(match)
+        stored = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})\b", match.group(1)))
+        self.assertEqual(stored, rows)
+        self.assertEqual(rows[:7], bytes.fromhex("ffffffffffff01"))
+        self.assertNotIn(1, rows[:6])  # 第7字节01不是许可类别。
+
+    def test_eight_raw_slots_two_columns_mp_and_no_primary_attribute_resources(self):
+        actor = bytearray(self.source[probe.UNITS:probe.UNITS + probe.STRIDE])
+        ids = (0, 132, 192, 206, 196, 1, 193, 198)
+        for slot, item in enumerate(ids):
+            actor[10 + slot * 2:12 + slot * 2] = bytes((0, item))
+        _, templates, fields = oracle.inventory_templates(ROOT / "original_game", actor, self.assets)
+        self.assertEqual([row["item_id"] for row in fields["slots"]], list(ids))
+        self.assertEqual(fields["slots"][3]["effect_frame"], 67)
+        self.assertEqual(fields["slots"][4]["effect_frame"], 41)
+        image = templates["selected_7"][1]
+        self.assertEqual(image.size, (310, 99))
+        self.assertNotEqual(image.tobytes(), templates["selected_3"][1].tobytes())
+        # 右列第五槽的category图必须完整复制到x=163，而不是继续画到第5行。
+        sheet = probe.archive_entry((ROOT / "original_game/FDOTHER.DAT").read_bytes(), 5)
+        icon = oracle.raw_icon(sheet, fields["slots"][4]["category_frame"], (24, 20), self.assets["palette"])
+        self.assertEqual(image.crop((158, 7, 182, 27)).tobytes(), icon.tobytes())
+
     def test_strict_le_table_and_real_start_three_slots(self):
         table, evidence = oracle.item_table(ROOT / "original_game/FD2.EXE")
         self.assertEqual((len(table), evidence["canonical_va"], evidence["object_offset"]), (4945, 0x602ad, 0x2ad))
@@ -99,18 +186,19 @@ class ResourceTest(Fixture, unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, 1)
 
-    def test_sdl_equipment_is_disabled_but_drop_is_enabled_with_full_frames(self):
+    def test_sdl_equip_and_drop_use_full_enabled_frames_and_reject_old_gray_equip(self):
         frame = self.menu_frame(role="sdl")
         result = probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, role="sdl")
-        self.assertEqual([item["frame"] for item in result["matches"]], [25, 29, 32, 33])
-        self.assertEqual(result["disabled"], [0, 1, 1, 0])
+        self.assertEqual([item["frame"] for item in result["matches"]], [25, 29, 30, 33])
+        self.assertEqual(result["disabled"], [0, 1, 0, 0])
         self.assertFalse(result["capability_equivalence_claimed"])
-        self.assertIsNone(probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields))
-        self.assertIsNone(probe.submenu_page(self.menu_frame(), self.assets, (52, 76), self.templates, self.fields, role="sdl"))
-        with self.assertRaises(ValueError):
-            probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, 2, role="sdl")
+        self.assertIsNotNone(probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields))
+        self.assertIsNone(probe.submenu_page(frame, self.assets, (52, 76), self.templates, self.fields, 2, role="sdl"))
+        gray = frame.copy()
+        gray.paste(self.assets["commands"][32].convert("RGB"), (76, 78))
+        self.assertIsNone(probe.submenu_page(gray, self.assets, (52, 76), self.templates, self.fields, role="sdl"))
         selected = probe.submenu_page(self.menu_frame(3, role="sdl"), self.assets, (52, 76), self.templates, self.fields, 3, role="sdl")
-        self.assertEqual([item["frame"] for item in selected["matches"]], [24, 29, 32, 34])
+        self.assertEqual([item["frame"] for item in selected["matches"]], [24, 29, 30, 34])
         disabled_drop = frame.copy()
         at = tuple(a + b for a, b in zip((52, 76), probe.MENU_OFFSETS[3]))
         disabled_drop.paste(self.assets["commands"][35].convert("RGB"), at)
@@ -185,12 +273,12 @@ class InputTest(Fixture, unittest.TestCase):
             checked = []
             def wait(capture, name, predicate, checkpoints, **kwargs):
                 if name.startswith("submenu-") and name != "submenu-cancel-command":
-                    selected = 3 if name == "submenu-down" else 0
+                    selected = {"submenu-right": 2, "submenu-down": 3}.get(name, 0)
                     detail = predicate(self.menu_frame(selected, role="sdl"))
                     self.assertIsNotNone(detail)
                     self.assertEqual(detail["selected"], selected)
                     self.assertEqual([item["frame"] for item in detail["matches"]],
-                                     [24, 29, 32, 34] if selected == 3 else [25, 29, 32, 33])
+                                     [24, 29, 30, 34] if selected == 3 else [24, 29, 31, 33] if selected == 2 else [25, 29, 30, 33])
                     checked.append(name)
                 return frame, {"focus_screen": [52, 76]}
             with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), patch.object(probe, "wait_state", side_effect=wait):
@@ -634,7 +722,7 @@ class DropTest(Fixture, unittest.TestCase):
                 # only-herb仍有EQT普通图30和Drop普通图33；不是[0,1,1,1]。
                 menu = self.menu_frame()
                 self.assertEqual(probe.submenu_page(menu, assets, (52, 76), templates, fields)["disabled"], [0, 1, 0, 0])
-                self.assertIsNone(probe.submenu_page(self.menu_frame(role="sdl"), assets, (52, 76), templates, fields))
+                self.assertIsNotNone(probe.submenu_page(self.menu_frame(role="sdl"), assets, (52, 76), templates, fields))
                 if scenario == "drop-last":
                     self.assertEqual(plan["after_fields"]["slots"], [])
                     command = Image.new("RGB", (320, 200))
@@ -676,7 +764,7 @@ class DropTest(Fixture, unittest.TestCase):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
                 self.protocol(Path(directory), scenario=scenario, case=case, role="sdl")
                 self.assertEqual(len(self.protocol_menu_checks), 4 if scenario == "drop-last" else 6)
-                self.assertTrue(all(disabled == [0, 1, 1, 0] for _, disabled, _ in self.protocol_menu_checks))
+                self.assertTrue(all(disabled == [0, 1, 0, 0] for _, disabled, _ in self.protocol_menu_checks))
                 self.assertEqual([selected for _, _, selected in self.protocol_menu_checks].count(3), 2)
 
     def test_all_new_drop_bad_sdl_paths_are_rejected_before_any_io(self):
@@ -766,6 +854,330 @@ class DropTest(Fixture, unittest.TestCase):
                 compared = probe.compare_paired_checkpoints(PairRGBTest.cases(folder, first, second, a, b), folder, assets, selection)
                 self.assertFalse(compared["ok"])
                 self.assertEqual(sum(r["bad_pixels"] for row in compared["checkpoints"] for r in row["static_regions"]), 1)
+
+
+class GiveTest(Fixture, unittest.TestCase):
+    def test_runtime_resources_and_exact_cancel_or_sticky_protocol(self):
+        original = ROOT / "original_game"
+        for scenario in probe.GIVE_SCENARIOS:
+            _, source, _ = probe.derive_give(self.source, (original / "START.SAV").read_bytes(), scenario)
+            _, _, assets, actor, selection, templates, fields = probe.prepare_controlled(original, source)
+            probe.prepare_give(original, source, assets, actor, selection, fields, scenario)
+            plan = assets["give"]
+            capture, report, labels = Mock(), {"kind": "original", "scenario": scenario}, []
+            def checkpoint(name, predicate, **kwargs):
+                labels.append(name)
+                return None, {}
+            with patch.object(probe, "measure_inventory_save") as measure, patch.object(probe, "execute_end") as end:
+                probe.exercise_give(capture, source, assets, actor, selection, templates, fields,
+                    None, b"", 0, report, checkpoint)
+            measure.assert_called_once()
+            self.assertEqual(end.call_count, int(scenario != "give-cancel"))
+            self.assertEqual(labels.count("give-command-cancel-selection"), int(scenario == "give-cancel"))
+            self.assertEqual(labels.count("give-recipient-immediate-detail"), int(scenario != "give-cancel"))
+            self.assertEqual(plan["steps"], [("DOWN", (52, 124))] if scenario == "give-moved" else [("LEFT", (28, 76))])
+            self.assertEqual(fields["submenu"]["disabled"], [0, 0, 0, 0])
+            if scenario != "give-cancel":
+                self.assertEqual(report["input_scope"]["give_success_count"], 1)
+            capture = Mock()
+            with self.assertRaises(TimeoutError):
+                probe.exercise_give(capture, source, assets, actor, selection, templates, fields,
+                    None, b"", 0, report, lambda *a, **k: (_ for _ in ()).throw(TimeoutError("gate")))
+            self.assertEqual([call.args[0] for call in capture.key.call_args_list], ["LEFT"])
+
+    def test_shared_cursor_distinguishes_acted_without_changing_unacted(self):
+        from run_original_player import cursor_assets, acted_sprite
+        source = bytearray(self.source)
+        source[probe.META + 1] = 1
+        normal, composites = cursor_assets(ROOT / "original_game/FDICON.B24", source, self.assets)
+        source[probe.UNITS + 5] |= 0x80
+        gray, gray_composites = cursor_assets(ROOT / "original_game/FDICON.B24", source, self.assets)
+        self.assertEqual(len(normal), 12)
+        self.assertEqual(len(gray), 12)
+        self.assertTrue(any(a.tobytes() != b.tobytes() for a, b in zip(normal, gray)))
+        for a, b in zip(normal, gray):
+            self.assertEqual(acted_sprite(a).tobytes(), b.tobytes())
+        again, again_composites = cursor_assets(ROOT / "original_game/FDICON.B24", self.source[:probe.META + 1] + bytes((1,)) + self.source[probe.META + 2:], self.assets)
+        self.assertEqual([x.tobytes() for x in normal], [x.tobytes() for x in again])
+        self.assertNotEqual(composites[0][0].tobytes(), gray_composites[0][0].tobytes())
+
+    def test_exact_fixtures_keep_roster_and_nonplayer_ai_visible(self):
+        base = self.source
+        encrypted = (ROOT / "original_game/START.SAV").read_bytes()
+        for scenario in probe.GIVE_SCENARIOS:
+            encoded, source, manifest = probe.derive_give(base, encrypted, scenario)
+            self.assertTrue(manifest["controlled_fixture"])
+            self.assertEqual(source[0x8a3:probe.UNITS], base[0x8a3:probe.UNITS])
+            self.assertEqual(source[probe.META:probe.META + 9], base[probe.META:probe.META + 9])
+            self.assertEqual(sum(source[:-4]), int.from_bytes(source[-4:], "little"))
+            for i in range(source[probe.META + 1]):
+                at = probe.UNITS + i * probe.STRIDE
+                if base[at + 6] != 2:
+                    self.assertEqual(source[at + 5], base[at + 5] | 4)
+                    self.assertEqual(source[at + 5] & 1, base[at + 5] & 1)
+            self.assertEqual(source[probe.UNITS + 9 * probe.STRIDE + 5], 5)
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "derived.SAV"; path.write_bytes(encoded)
+                self.assertEqual(probe.decode_save(path), source)
+            broken = bytearray(source); broken[0x8a3] ^= 1
+            with self.assertRaises(ValueError): probe.give_expected_source(ROOT / "original_game", broken, scenario)
+
+    def test_give_fifo_flags_sender_only_stats_and_sticky_after_end(self):
+        encrypted = (ROOT / "original_game/START.SAV").read_bytes()
+        for scenario in probe.GIVE_SCENARIOS:
+            _, source, _ = probe.derive_give(self.source, encrypted, scenario)
+            expected, fields = probe.give_expected_source(ROOT / "original_game", source, scenario)
+            sender = expected[probe.UNITS:probe.UNITS + probe.STRIDE]
+            recipient = expected[probe.UNITS + probe.STRIDE:probe.UNITS + 2 * probe.STRIDE]
+            if scenario == "give-cancel":
+                self.assertEqual(expected, source)
+            else:
+                self.assertEqual(expected[probe.META], 2)
+                self.assertEqual(sender[10:26].hex(), "408400c0003480008000800080c980c9" if scenario == "give-swap" else "408400c0800080008000800080c980c9")
+                self.assertEqual(recipient[10:26].hex(), "40a400c000c000c000c000c000c00000" if scenario == "give-swap" else "403440a4000080cc80cc80cc80cc80c1")
+                self.assertEqual(struct.unpack_from("<4H", sender, 0x48), (6, 12, 2, 2))
+            self.assertEqual(struct.unpack_from("<4H", recipient, 0x48), (11, 7, 86, 1))
+            self.assertEqual((sender[0x3c], recipient[0x3c]), (99, 99))
+            self.assertEqual(sender[:2], bytes((7, 15) if scenario == "give-moved" else (7, 14)))
+            self.assertFalse(fields["recipient_recomputed"])
+            self.assertEqual(fields["success_sticky_53c53"], scenario != "give-cancel")
+            self.assertEqual(expected[0x8a3:probe.UNITS], source[0x8a3:probe.UNITS])
+            self.assertEqual(expected[0x312b:-4], source[0x312b:-4])
+
+
+class UseMatrixTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.original = ROOT / "original_game"
+        cls.base = probe.decode_save(cls.original / "START.SAV")
+        cls.encrypted = (cls.original / "START.SAV").read_bytes()
+        cls.table, _ = oracle.item_table(cls.original / "FD2.EXE")
+        cls.cases = {}
+        for scenario in probe.USE_SCENARIOS:
+            encoded, source, manifest = probe.derive_use(cls.base, cls.encrypted, scenario, cls.table)
+            prepared = probe.prepare_controlled(cls.original, source)
+            _, _, assets, actor, _, _, fields = prepared
+            probe.prepare_use(cls.original, source, assets, actor, fields, scenario)
+            cls.cases[scenario] = (encoded, source, manifest, prepared)
+
+    def test_all_twenty_exact_manifests_native_tail_and_no_unknown_writes(self):
+        self.assertEqual(list(self.cases), [f"use-{code:02d}" for code in range(5, 25)] + ["use-area2", "use-23-mp0"])
+        for scenario, (encoded, source, manifest, prepared) in self.cases.items():
+            plan = prepared[2]["use"]; code = manifest["use_code"]
+            self.assertEqual(source[0x8a3:probe.UNITS], self.base[0x8a3:probe.UNITS])
+            self.assertEqual(source[probe.UNITS + 9 * probe.STRIDE + 5], 5)
+            self.assertEqual(manifest["item_id"], 102 if scenario == "use-area2" else probe.USE_ITEMS[code])
+            self.assertEqual(source[probe.UNITS + 15], manifest["item_id"])
+            self.assertEqual(bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.base, source)), encoded)
+            self.assertEqual(sum(source[:-4]), int.from_bytes(source[-4:], "little"))
+            for variant in plan["variants"]:
+                immediate, final = variant["source"], variant["final"]
+                self.assertEqual(immediate[probe.UNITS + 5] & 0x80, 0x80)
+                self.assertEqual(immediate[probe.UNITS + 0x3c], 99)
+                self.assertEqual(final[probe.META], 2)
+                self.assertEqual(final[0x8a3:probe.UNITS], source[0x8a3:probe.UNITS])
+                self.assertEqual(final[probe.UNITS + 12 * probe.STRIDE:probe.META], source[probe.UNITS + 12 * probe.STRIDE:probe.META])
+                self.assertEqual(final[probe.META + 1:probe.META + 18], source[probe.META + 1:probe.META + 18])
+                self.assertEqual(final[probe.META + 18:-4], source[probe.META + 18:-4])
+                self.assertEqual(sum(final[:-4]), int.from_bytes(final[-4:], "little"))
+            damaged = bytearray(source); damaged[0x312b] ^= 1
+            with self.assertRaises(ValueError): probe.use_outcomes(self.original, damaged, scenario)
+
+    def test_cure_restores_nine_before_clear_and_end_recipient_idle_heal(self):
+        for code, raw in ((6, 0), (7, 1)):
+            plan = self.cases[f"use-{code:02d}"][3][2]["use"]
+            immediate, final = plan["variants"][0]["source"], plan["variants"][0]["final"]
+            at = probe.UNITS + raw * probe.STRIDE
+            self.assertEqual(struct.unpack_from("<H", immediate, at + 0x40)[0], 29)
+            self.assertEqual(immediate[at + (0x25 if code == 6 else 0x26)], 0)
+            maximum = struct.unpack_from("<H", immediate, at + 0x42)[0]
+            self.assertEqual(struct.unpack_from("<H", final, at + 0x40)[0], 29 if raw == 0 else min(maximum, 29 + maximum // 5))
+            self.assertEqual(immediate[at + 0x44:at + 0x48], self.base[at + 0x44:at + 0x48])
+
+    def test_true_area2_two_targets_and_mp_underflow_keep_raw_owner_and_visible_metadata(self):
+        _, source, manifest, prepared = self.cases["use-area2"]
+        self.assertEqual((manifest["item_id"], manifest["use_code"], manifest["player_cast"], manifest["player_area"]), (102, 5, 4, 2))
+        self.assertEqual(manifest["final_target_raws"], [0, 1])
+        plan = prepared[2]["use"]
+        self.assertEqual([item["frame"] for item in plan["area2_markers"]], list(range(2, 14)))
+        self.assertEqual(len(plan["variants"]), 1)
+        for data in (plan["variants"][0]["source"], plan["variants"][0]["final"]):
+            self.assertEqual(struct.unpack_from("<HH", data, probe.UNITS + 0x40), (42, 42))
+            self.assertEqual(struct.unpack_from("<HH", data, probe.UNITS + probe.STRIDE + 0x40), (28, 28))
+            self.assertEqual(data[probe.UNITS + 0x3c], 99)
+        self.assertEqual([item["raw_actor"] for item in plan["extra_details"]], [1])
+        self.assertEqual(plan["extra_details"][0]["fields"]["hp"], 28)
+        for scenario, raw_mp, length in (("use-23", 20, 51), ("use-23-mp0", 65516, -49)):
+            plan = self.cases[scenario][3][2]["use"]
+            self.assertEqual(struct.unpack_from("<HH", plan["variants"][0]["final"], probe.UNITS + 0x44), (raw_mp, 40))
+            self.assertEqual([item["raw_actor"] for item in plan["extra_details"]], [0])
+            extra = plan["extra_details"][0]
+            self.assertTrue(extra["fields"]["require_word_bars"])
+            self.assertEqual(extra["fields"]["mp_bar"]["native_length"], length)
+            capture = Mock(); labels = []; report = {}
+            def checkpoint(name, predicate, **kwargs):
+                labels.append(name); return None, {}
+            probe.exercise_use_additional_details(capture, self.cases[scenario][1], self.cases[scenario][3][2], report, checkpoint)
+            self.assertIn("use-extra-0-f2-detail", labels)
+            self.assertIn("use-extra-0-detail-closed", labels)
+            self.assertEqual([call.args[0] for call in capture.key.call_args_list], ["LEFT", "LEFT", "F2", "ESC"])
+
+    def test_random_native_records_are_finite_not_rerolled_or_whole_save_allowlisted(self):
+        counts = {12: 4, 14: 5, 15: 4, 16: 4, 20: 26, 21: 13, 22: 5, 24: 51}
+        for code, expected in counts.items():
+            plan = self.cases[f"use-{code:02d}"][3][2]["use"]
+            self.assertEqual(len(plan["variants"]), expected)
+            self.assertFalse(plan["contract"]["rng_rerolled"])
+            raw = plan["contract"]["target_raw"]; at = probe.UNITS + raw * probe.STRIDE
+            if code in (14, 22):
+                self.assertEqual({struct.unpack_from("<H", variant["source"], at + 0x40)[0] for variant in plan["variants"]}, {11, 20})
+            if code in (12, 15, 16):
+                status = {12: 0x24, 15: 0x23, 16: 0x22}[code]
+                self.assertEqual({variant["source"][at + status] for variant in plan["variants"]}, {2, 3, 4, 5})
+                self.assertEqual({variant["final"][at + status] for variant in plan["variants"]}, {1, 2, 3, 4})
+
+    def test_all_twenty_protocols_have_one_use_confirmation_and_never_skip(self):
+        for scenario, (_, source, _, prepared) in self.cases.items():
+            _, _, assets, actor, selection, templates, fields = prepared
+            capture = Mock(); report = {"scenario": scenario, "kind": "original", "original_path": str(self.original), "checkpoints": []}
+            labels = []
+            def checkpoint(name, predicate, **kwargs):
+                labels.append(name)
+                if name == "use-immediate-f2-detail":
+                    return None, {"finite_native_outcome_indices": list(range(len(assets["use"]["variants"])))}
+                return None, {}
+            with patch.object(probe, "execute_end") as end, patch.object(probe, "measure_inventory_save") as save, \
+                    patch.object(probe, "exercise_use_additional_details") as extra:
+                probe.exercise_use(capture, source, assets, actor, selection, templates, fields, None, b"", 0, report, checkpoint)
+            self.assertEqual(labels.count("use-cancel-target"), 1)
+            self.assertEqual(labels.count("use-commit-target"), 1)
+            self.assertIn("use-target-cancel-list-zero", labels)
+            self.assertEqual(report["input_scope"]["valid_use_confirmations"], 1)
+            self.assertEqual(report["input_scope"]["post_use_skip_keys"], [])
+            end.assert_called_once(); save.assert_called_once()
+            extra.assert_called_once()
+            keys = [call.args[0] for call in capture.key.call_args_list]
+            self.assertNotIn("SPACE", keys)
+            if scenario in ("use-23", "use-23-mp0"):
+                self.assertIn("use23-destination-right", labels)
+                self.assertIn("use23-destination-cancel-list-zero", labels)
+                self.assertIn("use23-destination-cancel-item-zero", labels)
+                self.assertEqual(report["input_scope"]["destination_cancel_count"], 1)
+                self.assertEqual(keys.count("ENTER"), 9)  # 三次list/target＋两次首目标肯定/一次目的地肯定。
+
+    def test_all_target_modes_full_resources_and_negative_lut_cursor_detail(self):
+        for scenario, (_, source, _, prepared) in self.cases.items():
+            _, _, assets, actor, selection, templates, fields = prepared
+            plan = assets["use"]
+            frame = Image.new("RGB", (320, 200))
+            at = probe.screen(source, plan["center"])
+            if plan.get("area2_markers"):
+                sheet = probe.archive_entry((self.original / "FDOTHER.DAT").read_bytes(), 1)
+                for item in plan["area2_markers"]:
+                    # 先全部选择图，再按raw顺序绘actor；完整保留自然遮挡。
+                    image = probe.sheet_frame(sheet, item["frame"]); image.putpalette(assets["palette"])
+                    position = item["position"]
+                    if item["actor_composited"] and item["images"][0].height == 30: position = (position[0], position[1] + 6)
+                    frame.paste(image.convert("RGB"), position, image.point(lambda c: 255 if c else 0, mode="L"))
+            part = plan["target"]["templates"][0]
+            frame.paste(part.convert("RGB"), (at[0], at[1] - 6), part.point(lambda c: 255 if c else 0, mode="L"))
+            marker = dict(plan["center_ranges"])[plan["range"]["ranges"][0][0]] if plan["cursor_frame"] is None else plan["cursor"].crop((0, 18, 24, 24))
+            frame.paste(marker.convert("RGB"), (at[0], at[1] + 18))
+            if plan["range"]:
+                frame.paste(plan["range"]["ranges"][0][1].convert("RGB"), plan["range"]["position"])
+            if plan.get("area2_markers"):
+                sprites = (self.original / "FDICON.B24").read_bytes()
+                for raw in range(source[probe.META + 1]):
+                    record = source[probe.UNITS + raw * probe.STRIDE:probe.UNITS + (raw + 1) * probe.STRIDE]
+                    if record[5] & 1: continue
+                    image = probe.sheet_frame(sprites, record[7] * 12); image.putpalette(assets["palette"])
+                    position = probe.screen(source, tuple(record[:2]))
+                    frame.paste(image.convert("RGB"), (position[0], position[1] - 6), image.point(lambda c: 255 if c else 0, mode="L"))
+            detail = probe.use_target(frame, source, assets, templates, fields)
+            self.assertIsNotNone(detail, scenario)
+            if plan.get("area2_markers"):
+                self.assertEqual([row["frame"] for row in detail["selection_markers"]], list(range(2, 14)))
+                for item in plan["area2_markers"]:
+                    common = next(i for i, value in enumerate(item["static"].getdata()) if value)
+                    bad = frame.copy()
+                    bad.putpixel((item["position"][0] + common % item["static"].width,
+                                  item["position"][1] + common // item["static"].width), (255, 0, 255))
+                    self.assertIsNone(probe.use_target(bad, source, assets, templates, fields), item["frame"])
+            self.assertEqual(detail["selection_frame"], None if scenario == "use-24" else 14 if plan["contract"]["player_area"] == 1 else 1)
+            if plan["range"]:
+                bad = frame.copy(); bad.paste(plan["range"]["base"].convert("RGB"), plan["range"]["position"])
+                self.assertIsNone(probe.use_target(bad, source, assets, templates, fields), scenario)
+            bad = frame.copy(); bad.paste(Image.new("RGB", (24, 6), (255, 0, 255)), (at[0], at[1] + 18))
+            self.assertIsNone(probe.use_target(bad, source, assets, templates, fields), scenario)
+            variant = plan["variants"][0]
+            image = Image.new("RGB", (320, 200))
+            t, f = variant["detail_templates"], variant["detail_fields"]
+            for name in ("unselected", "actor_name", "current_max_hp", "current_max_mp", "level", "experience", "attack", "defense", "accuracy", "evasion", "dexterity", "movement", "status_25", "status_26", "status_27"):
+                position, resource = t[name]; image.paste(resource.convert("RGB"), position)
+            if f.get("require_word_bars"):
+                for name in ("hp_bar", "mp_bar"):
+                    position, resource = t[name]; image.paste(resource.convert("RGB"), position)
+            detail = probe.use_detail(image, assets)
+            self.assertIsNotNone(detail, scenario)
+            self.assertIn(0, detail["finite_native_outcome_indices"])
+            image.paste(Image.new("RGB", (44, 8), (255, 0, 255)), t["current_max_hp"][0])
+            self.assertIsNone(probe.use_detail(image, assets), scenario)
+
+    def test_post_use_navigation_checks_gray_occupant_and_lower_actor_without_mutating_initial_assets(self):
+        for scenario, world in (("use-07", (7, 14)), ("use-14", (7, 13)), ("use-23", (7, 14)), ("use-24", (7, 14))):
+            _, source, _, prepared = self.cases[scenario]
+            assets = prepared[2]; plan = assets["use"]
+            before_cursor = assets["cursor"].tobytes()
+            resources = list(plan["end_navigation"])
+            for extra in plan["extra_details"]: resources += extra["navigation"] + extra["return_navigation"]
+            resource = next(resource for _, resource in resources if resource["world"] == world)
+            image = Image.new("RGB", (320, 200))
+            at = probe.screen(source, world)
+            if "actor" in resource:
+                part = resource["actor"]["templates"][0]; position = (at[0], at[1] - 6)
+                normal = probe.actor_focus_resources(self.original, source, assets, resource["actor"]["raw_actor"], assets["cursor"])["templates"][0]
+            else:
+                self.assertEqual(resource["lower_raw_actor"], 0)
+                part = resource["composites"][0]; position = at
+                normal = probe.post_use_navigation_resources(self.original, source, assets, world)["composites"][0]
+            image.paste(part.convert("RGB"), position)
+            self.assertIsNotNone(probe.post_use_navigation_state(image, source, assets, resource), scenario)
+            self.assertIsNone(probe.RoundOracle(assets, at).closed_browse(image), scenario)
+            wrong = image.copy(); wrong.paste(normal.convert("RGB"), position)
+            self.assertIsNone(probe.post_use_navigation_state(wrong, source, assets, resource), scenario)
+            wrong = Image.new("RGB", (320, 200)); wrong.paste(assets["cursor"].convert("RGB"), at)
+            self.assertIsNone(probe.post_use_navigation_state(wrong, source, assets, resource), scenario)
+            self.assertEqual(assets["cursor"].tobytes(), before_cursor)
+
+    def test_finite_full_saves_allow_only_native_random_positions_between_ends(self):
+        from run_original_load import measuring_focus
+        for scenario in ("use-06", "use-12", "use-14", "use-20", "use-24"):
+            _, source, _, prepared = self.cases[scenario]
+            assets = prepared[2]; plan = assets["use"]
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory); cases = []
+                for role, variant in (("original", plan["variants"][0]), ("sdl", plan["variants"][-1])):
+                    measured = bytearray(variant["final"])
+                    measured[probe.META + 5:probe.META + 9] = measuring_focus(measured, plan["steps"])
+                    measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+                    encoded = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.base, measured))
+                    path = folder / (role + ".SAV"); path.write_bytes(encoded); digest = hashlib.sha256(encoded).hexdigest()
+                    cases.append({"kind": role, "completed_save": {"snapshot": str(path), "sha256": digest}, "use_measurement": {"snapshot_sha256": digest},
+                        "use_immediate_detail": {"finite_native_outcome_indices": [0 if role == "original" else len(plan["variants"]) - 1]}})
+                result = probe.compare_use_saves(cases, assets)
+                self.assertTrue(result["deterministic_container_bytes_equal"])
+                self.assertEqual(result["full_bytes_equal"], scenario == "use-06")
+                if scenario != "use-06":
+                    # 两个native结果各自合法，也不能把F2读A、Save写B当连续一致。
+                    cases[-1]["use_immediate_detail"]["finite_native_outcome_indices"] = [0]
+                    with self.assertRaises(AssertionError): probe.compare_use_saves(cases, assets)
+                    cases[-1]["use_immediate_detail"]["finite_native_outcome_indices"] = [len(plan["variants"]) - 1]
+                measured[0x312b] ^= 1  # 手工槽未知字节不可借随机HP/duration放宽。
+                measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+                encoded = bytes(a ^ b ^ c for a, b, c in zip(self.encrypted, self.base, measured)); path.write_bytes(encoded)
+                digest = hashlib.sha256(encoded).hexdigest()
+                cases[-1]["completed_save"]["sha256"] = digest; cases[-1]["use_measurement"]["snapshot_sha256"] = digest
+                with self.assertRaises(AssertionError): probe.compare_use_saves(cases, assets)
 
 
 class EquipmentTest(Fixture, unittest.TestCase):
@@ -900,12 +1312,8 @@ class EquipmentTest(Fixture, unittest.TestCase):
                 with self.assertRaises(AssertionError): self.protocol(Path(directory), scenario, unknown_save=True)
                 self.assertTrue((Path(directory) / "eqt-measured.SAV").is_file())
 
-    def test_eqt_is_original_only_and_final_guards_are_completed_save_guards(self):
+    def test_eqt_original_only_keeps_completed_save_guards(self):
         for scenario in self.cases:
-            with self.subTest(scenario=scenario), patch.object(Path, "mkdir") as mkdir, patch.object(Path, "read_bytes") as reads, \
-                    patch("subprocess.Popen") as popen, self.assertRaisesRegex(ValueError, "仅用于原版"):
-                probe.run(SimpleNamespace(root=ROOT, artifacts=Path("unused"), scenario=scenario, sdl=Path("unused.exe")))
-            mkdir.assert_not_called(); reads.assert_not_called(); popen.assert_not_called()
             for tamper in (False, True):
                 with tempfile.TemporaryDirectory() as directory:
                     result, _ = RunTest.model(self, Path(directory) / "new", scenario=scenario, final_save_change=tamper)
@@ -1075,6 +1483,27 @@ class RunTest(Fixture, unittest.TestCase):
 class PairingTest(Fixture, unittest.TestCase):
     model = RunTest.model
 
+    def test_equipment_pairs_compare_complete_saves_and_block_on_endpoint_failure(self):
+        for scenario in probe.EQUIPMENT_SCENARIOS:
+            for failure in ({}, {"final_save_change": True}, {"late_save_change": True}, {"drop_cache_difference": True}):
+                with self.subTest(scenario=scenario, failure=failure), tempfile.TemporaryDirectory() as directory:
+                    output = Path(directory) / "new"
+                    result, events = self.model(output, paired=True, scenario=scenario, **failure)
+                    self.assertEqual(result["ok"], not failure)
+                    self.assertEqual(result["probe_cases_passed"], not failure)
+                    self.assertFalse(result["probe_only"])
+                    if failure.get("final_save_change"):
+                        self.assertEqual(events, ["started-original", "closed-original"])
+                        self.assertFalse((output / "sdl").exists())
+                    else:
+                        self.assertEqual(events, ["started-original", "closed-original", "started-sdl", "closed-sdl"])
+                    if not failure:
+                        self.assertTrue(result["paired_equipment_save"]["full_encoded_bytes_equal"])
+                        self.assertTrue(result["paired_equipment_save"]["full_plaintext_bytes_equal"])
+                        self.assertFalse(result["paired_equipment_save"]["cache_or_navigation_normalized"])
+                        self.assertEqual((output / "original/eqt-measured.SAV").read_bytes(), (output / "sdl/eqt-measured.SAV").read_bytes())
+                        self.assertEqual(result["paired_terminal_values"]["original"], result["paired_terminal_values"]["sdl"])
+
     def test_four_drop_cases_use_same_fixture_then_compare_two_complete_real_save_artifacts(self):
         for scenario in probe.DROP_SCENARIOS:
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
@@ -1125,7 +1554,7 @@ class PairingTest(Fixture, unittest.TestCase):
                     cases.append({"kind": role, "completed_save": {"snapshot": str(path), "sha256": digest},
                                   "drop_measurement": {"snapshot_sha256": digest}})
                 if fault == "hash": Path(cases[0]["completed_save"]["snapshot"]).write_bytes(b"changed")
-                with self.assertRaises(AssertionError): probe.compare_drop_saves(cases)
+                with self.assertRaises(AssertionError): probe.compare_inventory_saves(cases, "drop_measurement")
 
     def test_each_scenario_runs_original_cleanup_before_sdl_same_fixture(self):
         for scenario in ("controls", "herb-full", "herb-injured"):
@@ -1139,9 +1568,9 @@ class PairingTest(Fixture, unittest.TestCase):
                 self.assertEqual((output / "original/game/FD2.SAV").read_bytes(), (output / "sdl/FD2.SAV").read_bytes())
                 self.assertTrue(all(case["status"] == "passed" and case["cleanup_passed"] and case["copy_save_unchanged_after_cleanup"] for case in result["cases"]))
                 self.assertEqual(result["cases"][0]["role_expected_submenu_disabled"], [0, 1, 0, 0])
-                self.assertEqual(result["cases"][1]["role_expected_submenu_disabled"], [0, 1, 1, 0])
+                self.assertEqual(result["cases"][1]["role_expected_submenu_disabled"], [0, 1, 0, 0])
                 self.assertTrue(all(case["application"]["sha256"] and case["tool_sources"] for case in result["cases"]))
-                self.assertFalse(result["known_capability_differences"]["cross_end_capability_equivalence_claimed"])
+                self.assertTrue(result["known_capability_differences"]["cross_end_capability_equivalence_claimed"])
                 for role in ("original", "sdl"):
                     self.assertEqual(json.loads((output / role / "comparison.json").read_bytes())["status"], "passed")
 
@@ -1320,7 +1749,7 @@ class PairRGBTest(Fixture, unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "PNG"):
                 probe.compare_paired_checkpoints(cases, root, self.assets, self.selection)
 
-    def test_capability_differences_are_full_per_endpoint_gates_and_explicit_not_equality(self):
+    def test_different_selection_is_explicit_and_only_same_frames_compare_rgb(self):
         a, b = self.menu_frame(2), self.menu_frame(role="sdl")
         da = probe.submenu_page(a, self.assets, (52, 76), self.templates, self.fields, 2)
         db = probe.submenu_page(b, self.assets, (52, 76), self.templates, self.fields, role="sdl")

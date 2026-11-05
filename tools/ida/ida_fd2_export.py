@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""用 idalib（IDA Pro 9.4）独立重建 FD2.EXE 分析基线并导出机器可读结果。
+"""用 idalib独立重建 FD2.EXE 分析基线并导出机器可读结果。
 
 本脚本的目的不是取代 `tools/rebuild_fd2_analysis.py`，而是提供 **第三个完全独立的
-LE loader 实现**（IDA 自带 `loaders/lx.so`）用于交叉印证：
+LE loader 实现**（IDA 自带 LE loader）用于交叉印证：
 
 - LE object → segment 布局（relbase、长度、类别）；
 - LE transfer entry；
@@ -244,7 +244,7 @@ def collect_strings() -> list[dict]:
 
 
 def write_tsv(path: Path, rows: list[dict], columns: list[str]) -> None:
-    with path.open("w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8", newline="\n") as f:
         f.write("\t".join(columns) + "\n")
         for r in rows:
             vals = []
@@ -260,7 +260,7 @@ def write_tsv(path: Path, rows: list[dict], columns: list[str]) -> None:
                     v = f"0x{v:x}"
                 elif isinstance(v, list):
                     v = ";".join(f"0x{a:x}-0x{b:x}" for a, b in v)
-                vals.append(str(v).replace("\t", "\\t").replace("\n", "\\n"))
+                vals.append(str(v).replace("\r", "\\r").replace("\t", "\\t").replace("\n", "\\n"))
             f.write("\t".join(vals) + "\n")
 
 
@@ -325,6 +325,8 @@ def main() -> int:
     program = {
         "schema": "fd2-ida-export-v1",
         "ida_version": idc.__EA64__ if False else ida_pro_version(),
+        "host_platform": sys.platform,
+        "loader_module": "loaders/lx.dll" if os.name == "nt" else "loaders/lx.so",
         "input_file": str(exe),
         "input_sha256": sha256(exe.read_bytes()),
         "file_type_name": ida_loader.get_file_type_name(),
@@ -354,7 +356,7 @@ def main() -> int:
     }
 
     (out / "ida-program.json").write_text(
-        json.dumps(program, indent=2, ensure_ascii=False), encoding="utf-8")
+        json.dumps(program, indent=2, ensure_ascii=False), encoding="utf-8", newline="\n")
     write_tsv(out / "ida-fixups.tsv", fixups,
               ["source_ea", "type", "size", "sel", "off", "displacement",
                "flags", "base", "value", "stored_bytes", "desc"])

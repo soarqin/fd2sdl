@@ -219,4 +219,4 @@ Watcom 会让多个函数共用同一段 `add esp,N; pop …; retn` 尾码，被
 
 Windows PowerShell 与 Linux bash 的命令统一维护在 [IDA 操作说明](../tools/ida.md#规范流程)，避免历史报告保留一套缺少专用解释器或末尾清单校验的旧流程。上表 `loaders/lx.so` 等记录仍是 Linux IDA 9.4 的历史输入身份，不作为 Windows loader 身份。
 
-建库、标注或发布前仍需取得授权；只读查询复用已有数据库。若只重跑静态字节比较，使用 [9.5 临时目录导出流程](ida-bytecheck-9.5.md#复现与本地证据)，不覆盖已标注数据库。
+当前项目所需的建库、标注、保存及发布可经 IDA Domain API／idalib 自主执行，不再逐次请求授权；优先复用已有数据库，在隔离目录保留来源与前后证据。若只重跑静态字节比较，使用 [9.5 临时目录导出流程](ida-bytecheck-9.5.md#复现与本地证据)，不覆盖已标注数据库。完整规则见[IDA 工具说明](../tools/ida.md)。

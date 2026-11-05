@@ -112,8 +112,9 @@ void fd2_field_info_assets_close(fd2_field_info_assets *assets) {
     fd2_image_free(&assets->detail_bottom);
     for (size_t i = 0; i < 2; i++) {
         fd2_image_free(&assets->affiliation[i]);
-        fd2_image_free(&assets->bars[i]);
     }
+    for (size_t i = 0; i < 8; i++)
+        fd2_image_free(&assets->bars[i]);
     for (size_t i = 0; i < 3; i++)
         fd2_image_free(&assets->status_icons[i]);
     for (size_t i = 0; i < 9; i++)
@@ -172,10 +173,14 @@ int fd2_field_info_assets_open_mem(fd2_field_info_assets *assets,
         decode_raw_frame(&assets->affiliation[1], data, size, frame_count, 54) != 0 ||
         decode_raw_frame(&assets->status_icons[0], data, size, frame_count, 55) != 0 ||
         decode_raw_frame(&assets->status_icons[1], data, size, frame_count, 56) != 0 ||
-        decode_raw_frame(&assets->status_icons[2], data, size, frame_count, 57) != 0 ||
-        decode_raw_frame(&assets->bars[0], data, size, frame_count, 23) != 0 ||
-        decode_raw_frame(&assets->bars[1], data, size, frame_count, 26) != 0)
+        decode_raw_frame(&assets->status_icons[2], data, size, frame_count, 57) != 0)
         goto fail;
+    const size_t bar_frames[8] = {23, 26, 24, 25, 27, 28, 29, 30};
+    for (size_t i = 0; i < 8; i++) {
+        if (decode_raw_frame(&assets->bars[i], data, size, frame_count, bar_frames[i]) != 0 ||
+            assets->bars[i].width != 1 || assets->bars[i].height != 5)
+            goto fail;
+    }
     for (size_t i = 0; i < 9; i++) {
         if (decode_raw_frame(&assets->detail_icons[i], data, size,
                              frame_count, 59u + i) != 0)
@@ -209,20 +214,23 @@ int fd2_field_info_assets_open(fd2_field_info_assets *assets,
 
 static void draw_digits(fd2_vga *vga,
                         const fd2_field_info_assets *assets,
-                        int x, int y, unsigned value, size_t count,
+                        int x, int y, int value, size_t count,
                         size_t bank) {
-    if (count == 3 && value > 999u) {
+    /* ui_number_draw @0x187d6（原登记同名）先把signed负数夹0。 */
+    if (value < 0) value = 0;
+    if (count == 3 && value > 999) {
         fd2_map_sprite_blit(vga, &assets->digit_overflow[bank], x, y, 0);
         return;
     }
-    if (count == 2 && value >= 100u) {
+    if (count == 2 && value >= 100) {
         fd2_map_sprite_blit(vga, &assets->two_digit_overflow, x, y, 0);
         return;
     }
+    unsigned remaining = (unsigned)value;
     unsigned divisor = count == 3 ? 100u : 10u;
     for (size_t i = 0; i < count; i++) {
-        unsigned digit = value / divisor;
-        value %= divisor;
+        unsigned digit = remaining / divisor;
+        remaining %= divisor;
         divisor /= 10u;
         fd2_map_sprite_blit(vga, &assets->digits[bank][digit], x, y, 0);
         x += 6;
@@ -456,25 +464,40 @@ int fd2_field_overview_draw(fd2_vga *vga,
 
 static void draw_detail_number_bank(fd2_vga *vga,
                                     const fd2_field_info_assets *assets,
-                                    int x, int y, unsigned value,
+                                    int x, int y, int value,
                                     size_t count, size_t bank) {
     draw_digits(vga, assets, x, y, value, count, bank);
 }
 
 static void draw_detail_number(fd2_vga *vga,
                                const fd2_field_info_assets *assets,
-                               int x, int y, unsigned value, size_t count) {
+                               int x, int y, int value, size_t count) {
     draw_detail_number_bank(vga, assets, x, y, value, count, 1);
 }
 
-static void draw_bar(fd2_vga *vga, const fd2_image *bar,
-                     int x, int y, unsigned current, unsigned maximum) {
-    if (!vga || !bar || maximum == 0) return;
-    unsigned width = current == 0 ? 0u :
-        (unsigned)((uint64_t)current * 101u / maximum) + 1u;
-    if (width > 102u) width = 102u;
-    for (unsigned i = 0; i < width; i++)
-        fd2_map_sprite_blit(vga, bar, x + (int)i, y, -1);
+static void draw_bar(fd2_vga *vga, const fd2_field_info_assets *assets,
+                     size_t bank, int x, int y, int current, int maximum) {
+    if (!vga || !assets || maximum == 0) return;
+    /* field_stat_bar_draw @0x18795（原sub_18795）signed idiv；
+     * field_stat_bar_columns_draw @0x17d6f（原sub_17D6F）负长仍画首cap和
+     * x+1尾cap，零长则画101列空条及尾cap。 */
+    int length = current == 0 ? 0 : current * 101 / maximum + 1;
+    if (length == 0) {
+        for (int i = 1; i <= 101; i++)
+            fd2_map_sprite_blit(vga, &assets->bars[6], x + i, y, -1);
+        fd2_map_sprite_blit(vga, &assets->bars[7], x + 102, y, -1);
+        return;
+    }
+    fd2_map_sprite_blit(vga, &assets->bars[bank], x, y, -1);
+    /* 原始WORD可使条越过102列；只裁实际VGA边界，不改有界画面内的长度。 */
+    for (int i = 1; i < length && x + i < VGA_W; i++)
+        fd2_map_sprite_blit(vga, &assets->bars[2 + bank * 2], x + i, y, -1);
+    fd2_map_sprite_blit(vga, &assets->bars[3 + bank * 2],
+                        x + (length > 1 ? length : 1), y, -1);
+}
+
+static int signed_detail_word(uint16_t value) {
+    return value < 0x8000u ? (int)value : (int)value - 0x10000;
 }
 
 static int item_detail(const uint8_t *item, uint8_t flags,
@@ -716,31 +739,35 @@ void fd2_field_detail_draw(fd2_vga *vga,
                                 194 + (int)i * 35, 68, 0);
     }
 
-    draw_bar(vga, &assets->bars[0], 198, 33, unit->hp, unit->hp_max);
-    draw_bar(vga, &assets->bars[1], 198, 52, unit->mp, unit->mp_max);
-    draw_detail_number_bank(vga, assets, 267, 41, unit->hp, 3,
+    /* field_unit_detail_stats_draw @0x17fc0（原登记同名）的movsx WORD：
+     * 详情与1acf3小面板的unsigned HP读取不同，LV/EX/MV仍按byte。 */
+    int hp = signed_detail_word(unit->hp), hp_max = signed_detail_word(unit->hp_max);
+    int mp = signed_detail_word(unit->mp), mp_max = signed_detail_word(unit->mp_max);
+    draw_bar(vga, assets, 0, 198, 33, hp, hp_max);
+    draw_bar(vga, assets, 1, 198, 52, mp, mp_max);
+    draw_detail_number_bank(vga, assets, 267, 41, hp, 3,
                             unit->hp == unit->hp_max ? 0u : 1u);
     draw_detail_number_bank(vga, assets, 293, 41,
-                            unit->hp_max, 3, 0u);
-    draw_detail_number_bank(vga, assets, 267, 59, unit->mp, 3,
+                            hp_max, 3, 0u);
+    draw_detail_number_bank(vga, assets, 267, 59, mp, 3,
                             unit->mp == unit->mp_max ? 0u : 1u);
     draw_detail_number_bank(vga, assets, 293, 59,
-                            unit->mp_max, 3, 0u);
+                            mp_max, 3, 0u);
     draw_detail_number(vga, assets, 157, 33, record[0x21], 2);
     draw_detail_number(vga, assets, 157, 44, record[0x3c], 2);
     draw_detail_number(vga, assets, 117, 55,
-                       (uint16_t)(record[0x3e] | (record[0x3f] << 8)), 3);
+                       signed_detail_word(rd_u16_le(record + 0x3e)), 3);
     draw_detail_number(vga, assets, 157, 55, unit->movement_points, 2);
     size_t hit_bank = record[0x24] == 0 ? 1u : 2u;
     draw_detail_number_bank(vga, assets, 117, 67,
-                            unit->accuracy, 3, hit_bank);
+                            signed_detail_word(unit->accuracy), 3, hit_bank);
     draw_detail_number_bank(vga, assets, 157, 67,
-                            unit->attack, 3,
+                            signed_detail_word(unit->attack), 3,
                             record[0x22] == 0 ? 1u : 2u);
     draw_detail_number_bank(vga, assets, 117, 79,
-                            unit->evasion, 3, hit_bank);
+                            signed_detail_word(unit->evasion), 3, hit_bank);
     draw_detail_number_bank(vga, assets, 157, 79,
-                            unit->defense, 3,
+                            signed_detail_word(unit->defense), 3,
                             record[0x23] == 0 ? 1u : 2u);
 
     if (items_ready) draw_item_list(vga, assets, font, rows, count, -1);

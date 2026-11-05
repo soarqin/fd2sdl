@@ -30,9 +30,10 @@ def cursor_assets(icon_path, source, assets):
     data = icon_path.read_bytes()
     if len(data) < 6 or struct.unpack_from("<HHH", data) != (24, 24, 1680):
         raise ValueError("FDICON directory unsupported")
-    identities = sorted({source[UNITS + i * STRIDE + 7] for i in range(source[META + 1])})
+    identities = sorted({(source[UNITS + i * STRIDE + 7], bool(source[UNITS + i * STRIDE + 5] & 0x80))
+                         for i in range(source[META + 1])})
     sprites, composites = [], []
-    for identity in identities:
+    for identity, is_acted in identities:
         for phase in range(12):
             index = identity * 12 + phase
             if index >= 1680:
@@ -42,6 +43,8 @@ def cursor_assets(icon_path, source, assets):
             if not 6 + 1680 * 4 <= start < end <= len(data):
                 raise ValueError("FDICON sprite bounds invalid")
             sprite = decode_image(struct.pack("<HH", 24, 24) + data[start:end])
+            if is_acted:
+                sprite = acted_sprite(sprite)
             sprite.putpalette(assets["palette"])
             sprites.append(sprite)
             # 当前格actor上移6px；下一格actor可能遮住空格cursor底缘。

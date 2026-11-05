@@ -172,7 +172,7 @@ static int test_support_rejections_preserve_outputs(void) {
     return 0;
 }
 
-static int test_equip_compatibility_profile1_subset(void) {
+static int test_equip_compatibility_full_table(void) {
     CHECK(fd2_field_item_equip_compatibility(1, 0) == 1);
     CHECK(fd2_field_item_equip_compatibility(1, 1) == 1);
     CHECK(fd2_field_item_equip_compatibility(1, 127) == 1);
@@ -180,15 +180,32 @@ static int test_equip_compatibility_profile1_subset(void) {
     CHECK(fd2_field_item_equip_compatibility(1, 132) == 1);
     CHECK(fd2_field_item_equip_compatibility(1, 192) == 0);
     for (unsigned profile = 0; profile <= UINT8_MAX; profile++)
-        if (profile != 1) CHECK(fd2_field_item_equip_compatibility((uint8_t)profile, 0) == -1);
+        if (profile >= 29) CHECK(fd2_field_item_equip_compatibility((uint8_t)profile, 0) == -1);
     for (unsigned id = FD2_FIELD_ITEM_COUNT; id <= UINT8_MAX; id++)
         CHECK(fd2_field_item_equip_compatibility(1, (uint8_t)id) == -1);
-    /* 已确认row前6B为01/15/16/ff/ff/ff；不扩到其他profile或第7B。 */
+    /* 原始29行独立边界向量；第7B为01，不能误当第七个许可。 */
+    CHECK(fd2_field_item_equip_compatibility(0, 0) == 0);
+    CHECK(fd2_field_item_equip_compatibility(2, 32) == 1);
+    CHECK(fd2_field_item_equip_compatibility(2, 0) == 0);
+    CHECK(fd2_field_item_equip_compatibility(5, 52) == 1);
+    CHECK(fd2_field_item_equip_compatibility(25, 72) == 1);
+    CHECK(fd2_field_item_equip_compatibility(26, 0) == 0);
+    CHECK(fd2_field_item_equip_compatibility(27, 0) == 0);
+    CHECK(fd2_field_item_equip_compatibility(28, 62) == 1);
     for (unsigned id = 0; id < FD2_FIELD_ITEM_COUNT; id++) {
         const uint8_t *record = fd2_field_item_record_get((uint8_t)id);
         int expected = record[0] == 1 || record[0] == 0x15 || record[0] == 0x16;
         CHECK(fd2_field_item_equip_compatibility(1, (uint8_t)id) == expected);
     }
+    static const uint64_t licenses[29] = {
+        UINT64_C(0x0), UINT64_C(0x600002), UINT64_C(0x1e00010), UINT64_C(0xe00008), UINT64_C(0x600020), UINT64_C(0x2200040), UINT64_C(0x2200040), UINT64_C(0x600004), UINT64_C(0x4202080), UINT64_C(0x600202), UINT64_C(0x1e00010), UINT64_C(0x1e00408), UINT64_C(0x601020), UINT64_C(0x2200040), UINT64_C(0x2200040), UINT64_C(0x600802), UINT64_C(0x4200080), UINT64_C(0xe00202), UINT64_C(0x1e00010), UINT64_C(0xe00008), UINT64_C(0xe00020), UINT64_C(0x2200040), UINT64_C(0x2200040), UINT64_C(0x600802), UINT64_C(0x4200080), UINT64_C(0x8000100), UINT64_C(0x0), UINT64_C(0x0), UINT64_C(0x4200080)
+    };
+    for (unsigned profile = 0; profile < 29; profile++)
+        for (unsigned id = 0; id < FD2_FIELD_ITEM_COUNT; id++) {
+            unsigned category = fd2_field_item_record_get((uint8_t)id)[0];
+            int expected = category < 64 && ((licenses[profile] >> category) & 1u);
+            CHECK(fd2_field_item_equip_compatibility((uint8_t)profile, (uint8_t)id) == expected);
+        }
     return 0;
 }
 
@@ -197,7 +214,7 @@ int main(void) {
     CHECK(test_navigation_boundaries() == 0);
     CHECK(test_confirmed_start_slot_sample_and_use_gate() == 0);
     CHECK(test_support_rejections_preserve_outputs() == 0);
-    CHECK(test_equip_compatibility_profile1_subset() == 0);
+    CHECK(test_equip_compatibility_full_table() == 0);
     puts("field_item_select_test: ok");
     return 0;
 }

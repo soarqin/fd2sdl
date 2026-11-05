@@ -8,7 +8,7 @@
 
 - 先读取 `ida-domain-api` skill；编写或执行脚本时同时使用 `ida-domain-scripting` skill，按其执行器流程查询数据库。
 - 新脚本优先使用 IDA Domain API。仅在 Domain API 缺少所需能力时局部调用低层 IDAPython，并说明原因；现有证据导出脚本不为统一 API 而重写。
-- 优先打开已有数据库，只读查询，不重复建库；需保存数据库修改时先取得开发者确认。下文的建库、标注和全量发布流程仅在需要更新证据基线时执行。
+- 优先复用已有数据库。2026-11-05 用户已撤销因旧 idat 流程而设的逐次授权要求：当前项目所需的建库、标注、保存、导出及数据库更新，通过 IDA Domain API／idalib 自主执行。使用隔离工作目录保留来源、日志和前后校验，不修改应用全局权限配置，不保存猜测类型。
 - 尽量不使用 `llvm-objdump`、r2 或 Ghidra 做日常逆向。独立 loader／结构验收仍保留，但只在确需独立证据或 IDA 能力不足时使用并记录原因。
 
 ## 环境
@@ -60,7 +60,7 @@ export IDA_LICENSE=keyfile=/path/to/idapro.hexlic
 全部输出落在被 Git 忽略的 `tools/ida-out/`；需要提交的证据产物由最后一步复制到
 `docs/generated/ida-canonical/`。
 
-以下流程会新建数据库并写入命名／原型，只在获准更新基线时执行。若只是重导出、比较字节，使用 [9.5 字节复核报告](../reverse-engineering/ida-bytecheck-9.5.md#复现与本地证据) 的临时目录流程，避免 exporter 清空已有的 `db/`。
+以下流程会新建数据库并写入已确认命名／原型，属于当前项目开发可自主执行的操作。若只是重导出、比较字节，使用 [9.5 字节复核报告](../reverse-engineering/ida-bytecheck-9.5.md#复现与本地证据) 的临时目录流程，避免 exporter 清空已有的 `db/`。重新生成前先检查脚本的真实输出位置，工作区、probe、缓存和临时目录均指向本轮隔离目录；历史路径不得冒充本轮运行证据。
 
 Windows PowerShell：
 
@@ -171,3 +171,25 @@ Linux bash：
 - `idalib` 只做静态分析；runtime 逐字节对照走 [DOSBox 转储](dosbox-debug.md)。
 - 伪 C 不等于原始源码。3 个手写汇编函数（`sub_34F38`、`__int7`、`__int7_pl3`）无法反编译，只能看反汇编。
 - 本流程不产生任何 DOSBox 行为、视觉或音频对照结论。
+
+## 2026-11-05 Windows B3 重导出
+
+本轮通过本机 IDA Pro 9.5／Hex-Rays 9.5.0.261026 的 Domain API／idalib，在独立 C: 目录创建、标注并重导出真实数据库；没有运行 GUI `ida`／`idat`。已发布产物记录实际 `win32`、`loaders/lx.dll` 来源，原有 Linux 9.5 与历史 9.4 报告仍分别保留。本地完整日志、数据库和读集入口为 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/ida-equipment/run-20261105_111831_688108/` 的 `final-validation.json`、`db-type-write-audit.json` 与 `b3-contract/README.md`；不提交数据库、镜像或临时报告。
+
+新库识别 1,307 个函数，比历史 9.4 少 `putchar_0 @0x47678` 的 21 字节函数登记；其余入口与结束地址完全相同。这是自动分析的识别差异，没有手工补造函数或豁免机器码：独立 LE／fixup／镜像检查仍为 21/21。已标注库与干净库的持久签名差异恰为历史已确认的 9 条原型，均重新核对本机全部调用点的清栈证据；新旧已发布 TSV 的持久签名无差异。`0x3702f` 保持中性名、无显式或猜测原型。Hex-Rays 临时副本与只读导出中的局部变量／参数推断不因此成为已确认 ABI，也没有保存回标注库。
+
+`ida_fd2_apply_registry_names.py` 将已确认 registry／`CORRECTIONS` 真正同步到数据库，必须显式指定 `--idb` 与 `--report`；按上述 skill 执行器调用后，再从该库重导出 TSV 与伪 C。它只改名字和注释，先检查完整入口／边界，不设置类型。仅运行登记表生成器不能代替这一步。生成器按实际 program export 写版本与 loader，文本固定 LF，TSV 对原字符串的 CR／TAB／LF 转义；全部文件完成后最后刷新、校验 `SHA256SUMS`。
+
+本轮详情显示复核又确认 `field_stat_bar_draw @0x18795`（原 `sub_18795`）与 `field_stat_bar_columns_draw @0x17d6f`（原 `sub_17D6F`）。两函数完整指令、调用者、signed WORD读取及 FDOTHER 原图支持新增命名；数据库实际应用两项更名后重新导出，registry 为230项，21项静态检查及12项发布／地址专项通过。持久类型仍仅原9条，未将本次推断签名保存为 ABI。详细收据由上述目录的 `current-stat-bars.txt` 指向 `stat-bars-20261105_141143_939626/`，与初次 B3 发布分开保存；只读分析和真实发布不增加 WGC 组数。
+
+AP／DP 临时增益另有可复跑的局部原码验收。`verify_fd2_x87_boost.py` 只接受已验证的 relocated relbase 镜像，执行原始算术块与 `__CHP`，不修指令或挂模拟 handler。在原初始化控制字 `0x127f` 下，两块代码分别穷举全部 65,536 个 u16 输入，均等价于整数增量 `(15 * old + 100) / 100`；这与属性重算的独立 `1.15` 舍入规则不同。Windows 本轮已执行；Linux 保留同参数复现方式，未在本轮执行：
+
+```powershell
+uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_boost.py --json C:/Temp/fd2-x87.json
+```
+
+```bash
+uv run --no-project --with unicorn python tools/ida/verify_fd2_x87_boost.py --json /tmp/fd2-x87.json
+```
+
+该局部执行不增加原版玩法、完整 UI RNG、FIGANI 或声音的运行验收范围。

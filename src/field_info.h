@@ -31,7 +31,7 @@ typedef struct {
     fd2_image detail_bottom; /* frame 21: 310×99 */
     fd2_image affiliation[2];/* frame 53/54 */
     fd2_image status_icons[3]; /* frame 55..57 */
-    fd2_image bars[2];       /* frame 23/26: HP/MP 1×5 色条 */
+    fd2_image bars[8];       /* 首cap23/26保索引0/1；其后24/25/27/28/29/30，均1×5 */
     fd2_image detail_icons[9]; /* frame 59..67 */
     fd2_image overview[4]; /* frame 133..136：回合、条件、人数、资源底板 */
     int ready;

@@ -267,6 +267,10 @@ static int test_magic_cast_cost_before_targets(void) {
             plan.cast_x, plan.cast_y, 0,
             targets, sizeof(targets), &target_count) == 0);
         if (record[4] != 0u) CHECK(target_count >= 2u);
+        size_t cure_calls = 0;
+        if (id == 20u || id == 21u)
+            for (size_t i = 0; i < target_count; i++)
+                if (game.units.items[targets[i]].detail_status[id - 20u]) cure_calls++;
         CHECK(game.units.items[0].mp == 200 && check.rng.cursor == 0);
         CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
         CHECK(game.units.items[0].mp == check.expected_mp && !check.wrong_mp);
@@ -274,7 +278,7 @@ static int test_magic_cast_cost_before_targets(void) {
         if (id != 20u && id != 21u)
             CHECK(check.rng.cursor > 0u);
         else
-            CHECK(check.rng.cursor == 0u);
+            CHECK(check.rng.cursor == cure_calls);
     }
     return 0;
 }

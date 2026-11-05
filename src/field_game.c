@@ -15,11 +15,12 @@
  * 物品层依据field_player_item_command_execute @0x1bbdc（原登记同名）、
  * field_unit_inventory_select @0x1b932（原sub_1B932）与
  * field_unit_inventory_select_step @0x1b9de（原sub_1B9DE）。
- * 草药提交依据sub_20C6F @0x20c6f（原登记同名，仅code5分支）、
+ * 物品提交依据field_item_use_effect_execute @0x20c6f（原sub_20C6F）、
  * field_hp_heal_group_execute @0x211a4（原sub_211A4）的逐目标HP恢复与
  * field_unit_inventory_slot_remove @0x1b8e7（原sub_1B8E7）。
- * 纯装备子集依据sub_1BFFE @0x1bffe、sub_1C142 @0x1c142、
- * sub_1C1C3 @0x1c1c3与sub_4E88E @0x4e88e（原登记同名）。
+ * 装备依据field_unit_equipment_menu_execute @0x1bffe（原sub_1BFFE）、
+ * field_unit_equipment_slot_set @0x1c142（原sub_1C142）与
+ * field_unit_can_equip_item @0x1c1c3（原sub_1C1C3）。
  */
 
 #include "field_game.h"
@@ -67,6 +68,25 @@ static int resolve_physical_exchange(fd2_field_game *game,
  * 分派pending。它不经过玩家 command menu。 */
 static int finish_ai_action(fd2_field_game *game, size_t actor_index);
 static void inventory_slot_remove(fd2_field_unit *unit, size_t slot_index);
+static int inventory_first_empty_add(fd2_field_unit *unit, uint8_t item_id);
+static int item_give_has_target(const fd2_field_game *game);
+static int finish_item_give_cancel(fd2_field_game *game, int restore_focus);
+static const uint8_t *item_target_record(const fd2_field_game *game);
+static int item_teleport_destination_is_legal(const fd2_field_game *game);
+
+/* field_selection_overlay_draw @0x122dc（原登记同名）display6写当前
+ * node+7=0；逻辑准备显式拥有此写集，纯renderer不暗改范围。 */
+static void prepare_item_cursor(fd2_field_game *game) {
+    if (game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING ||
+        !game->move_range.nodes) return;
+    const uint8_t *record = item_target_record(game);
+    if (!record || record[0x12] != 4 || game->cursor_cell_x < 0 || game->cursor_cell_y < 0 ||
+        game->cursor_cell_x >= game->move_range.width || game->cursor_cell_y >= game->move_range.height) return;
+    fd2_field_path_node *node = &game->move_range.nodes[
+        (size_t)game->cursor_cell_y * (size_t)game->move_range.width + (size_t)game->cursor_cell_x];
+    node->distance = 0;
+    node->can_stop = 1;
+}
 
 /* field_defeated_units_finalize @0x1db65（原登记同名）：有屏内可见死者
  * 才旋转全表可见死者，最终direction0；之后全部HP0 flags精确1。
@@ -1304,7 +1324,8 @@ static void render_move_selection(const fd2_field_game *game,
         (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
          game->interaction != FD2_FIELD_INTERACTION_TARGETING &&
          game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
-         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING) ||
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING) ||
         !game->move_range.nodes)
         return;
 
@@ -1331,7 +1352,8 @@ static void render_move_selection_overlay(const fd2_field_game *game,
         (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED &&
          game->interaction != FD2_FIELD_INTERACTION_TARGETING &&
          game->interaction != FD2_FIELD_INTERACTION_MAGIC_TARGETING &&
-         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING) ||
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING) ||
         !game->move_range.nodes)
         return;
     const uint8_t *lut = fd2_field_range_lut(
@@ -1365,14 +1387,37 @@ static void render_field_cursor(const fd2_field_game *game,
     /* field_selection_overlay_draw @0x122dc 在普通模式 1 调用
      * field_selection_sprite_blit @0x126f7，把 FDOTHER[1] frame 0
      * 以透明 SKIP 规则画在焦点格；顺序位于地形/范围之后、单位之前。 */
-    /* 1cff0/1bbdc将area0选择模式设为2，122dc改画frame1；仍先于actor。 */
-    size_t frame = (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING ||
-                    game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) ? 1u : 0u;
-    const fd2_image *cursor = fd2_field_cursor_frame(&game->visuals, frame);
-    if (!cursor) return;
-    fd2_map_sprite_blit(vga, cursor,
-                        game->cursor_cell_x * 24 - camera_x,
-                        game->cursor_cell_y * 24 - camera_y, 0);
+    unsigned display = 1;
+    if (game->interaction == FD2_FIELD_INTERACTION_MAGIC_TARGETING) display = 2;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) {
+        const uint8_t *record = item_target_record(game);
+        if (record) display = (unsigned)record[0x12] + 2u;
+    }
+    /* 122dc/126f7：每个格先做13×8视口门，再画完整24×24；actor后盖。
+     * display6只由prepare_item_cursor拥有node写集，本处无sprite。 */
+    static const int8_t sprites[][3] = {
+        {0,0,1},{0,-3,2},{-3,0,3},{3,0,4},{0,3,5},
+        {-1,-2,6},{-2,-1,6},{1,-2,7},{2,-1,7},
+        {-1,2,8},{-2,1,8},{1,2,9},{2,1,9},
+        {0,-2,10},{-2,0,11},{2,0,12},{0,2,13},
+        {-1,-1,15},{1,-1,16},{-1,1,17},{1,1,18}
+    };
+    static const int8_t radius2[][3] = {
+        {0,0,1},{0,-2,2},{-2,0,3},{2,0,4},{0,2,5},
+        {-1,-1,6},{1,-1,7},{-1,1,8},{1,1,9},
+        {0,-1,10},{-1,0,11},{1,0,12},{0,1,13}
+    };
+    static const int8_t radius1[][3] = {{0,0,14},{0,-1,2},{-1,0,3},{1,0,4},{0,1,5}};
+    int8_t one[1][3] = {{0,0,display == 1 ? 0 : 1}};
+    const int8_t (*parts)[3] = display == 3 ? radius1 : display == 4 ? radius2 : display == 5 ? sprites : one;
+    size_t count = display == 6 ? 0 : display == 3 ? 5 : display == 4 ? 13 : display == 5 ? 21 : 1;
+    for (size_t i = 0; i < count; i++) {
+        int x = game->cursor_cell_x + parts[i][0], y = game->cursor_cell_y + parts[i][1];
+        if (x < game->camera_cell_x || x >= game->camera_cell_x + 13 ||
+            y < game->camera_cell_y || y >= game->camera_cell_y + 8) continue;
+        const fd2_image *cursor = fd2_field_cursor_frame(&game->visuals, (size_t)parts[i][2]);
+        if (cursor) fd2_map_sprite_blit(vga, cursor, x * 24 - camera_x, y * 24 - camera_y, 0);
+    }
 }
 
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy) {
@@ -1407,6 +1452,7 @@ int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy) {
 
     game->cursor_cell_x = new_x;
     game->cursor_cell_y = new_y;
+    prepare_item_cursor(game);
     game->detail_acknowledged_unit = -1;
     if (game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED)
         (void)fd2_field_game_update_move_preview(game);
@@ -1513,6 +1559,8 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
     }
     /* field_player_unit_action @0x18890入口，原controller重入也清同一slot。 */
     game->pending_cell_event.valid = 0;
+    game->item_transfer_committed = 0;
+    game->item_give_recipient = game->item_give_selected = 0;
     return unit_index;
 }
 
@@ -1722,14 +1770,22 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         int unit_index = game->selected_unit;
         int available = game->command_selected == 0
             ? fd2_field_game_item_use_is_available(game)
+            : game->command_selected == 1 ? fd2_field_game_item_give_is_available(game)
+            : game->command_selected == 2 ? fd2_field_game_item_equip_is_available(game)
             : game->command_selected == 3 && fd2_field_game_item_drop_is_available(game);
         return available &&
             fd2_field_game_confirm_item_menu(game) == 0 ? unit_index : -1;
     }
-    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING) {
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING ||
+        game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING) {
         int unit_index = game->selected_unit;
         return fd2_field_game_item_use_is_available(game) &&
             fd2_field_game_resolve_player_item(game) == 0 ? unit_index : -1;
+    }
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING) {
+        int unit_index = game->selected_unit;
+        return fd2_field_game_item_give_is_available(game) &&
+            fd2_field_game_resolve_item_give(game) == 0 ? unit_index : -1;
     }
     return -1;
 }
@@ -1952,7 +2008,7 @@ static int item_menu_actor_is_valid(const fd2_field_game *game) {
 static int item_command_is_supported(const fd2_field_game *game, int command) {
     if (!item_menu_actor_is_valid(game)) return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
-    if (command == 2 || command == 3) {
+    if (command == 1 || command == 2 || command == 3) {
         if (command == 2) {
             const uint8_t *raw = (const uint8_t *)actor;
             if (fd2_field_item_equip_compatibility(actor->movement_profile, raw[0x0b]) < 0)
@@ -1965,7 +2021,7 @@ static int item_command_is_supported(const fd2_field_game *game, int command) {
         /* Drop无Use handler门，包含隐藏flag40的全8槽必须可重算。 */
         fd2_field_unit shadow = *actor;
         return fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) == 0;
+            known_status_stat_scale, NULL) == 0 && (command != 1 || item_give_has_target(game));
     }
     if (command != 0) return 0;
     const uint8_t *raw = (const uint8_t *)actor;
@@ -1973,8 +2029,8 @@ static int item_command_is_supported(const fd2_field_game *game, int command) {
     for (size_t i = 0; i < count; i++) {
         uint8_t id = raw[0x0bu + i * 2u];
         const uint8_t *record = fd2_field_item_record_get(id);
-        /* code0确认留列表；其余Use只开放192，不让未知handler进入正式UI。 */
-        if (record[0x0d] != 0 && id != 192) return 0;
+        /* 20c6f实际215记录仅code0与5..24；code0确认仍留页。 */
+        if (record[0x0d] && (record[0x0d] < 5 || record[0x0d] > 24)) return 0;
     }
     return 1;
 }
@@ -1991,15 +2047,22 @@ int fd2_field_game_item_equip_is_available(const fd2_field_game *game) {
     return game && game->attack_rng && item_command_is_supported(game, 2);
 }
 
+int fd2_field_game_item_give_is_available(const fd2_field_game *game) {
+    return game && game->attack_rng && item_command_is_supported(game, 1);
+}
+
 int fd2_field_game_item_is_available(const fd2_field_game *game) {
-    return fd2_field_game_item_use_is_available(game) || fd2_field_game_item_drop_is_available(game);
+    return fd2_field_game_item_use_is_available(game) || fd2_field_game_item_give_is_available(game) ||
+        fd2_field_game_item_equip_is_available(game) ||
+        fd2_field_game_item_drop_is_available(game);
 }
 
 static int enter_item_menu(fd2_field_game *game) {
     /* 原版非空库存仅按邻接目标禁Give；SDL的Use/Drop能力分别限制，
      * 纯session不执行等待，RNG有效性留正式入口查询。 */
     uint8_t disabled[FD2_FIELD_COMMAND_COUNT] = {
-        !item_command_is_supported(game, 0), 1, 1, !item_command_is_supported(game, 3)};
+        !item_command_is_supported(game, 0), !item_command_is_supported(game, 1), !item_command_is_supported(game, 2),
+        !item_command_is_supported(game, 3)};
     int selected = fd2_field_command_first_enabled(disabled);
     if (selected < 0) return -1;
     memcpy(game->command_disabled, disabled, sizeof(disabled));
@@ -2031,7 +2094,7 @@ int fd2_field_game_select_item_menu_direction(
 
 int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
-        (game->command_selected != 0 && game->command_selected != 2 && game->command_selected != 3) ||
+        game->command_selected < 0 || game->command_selected >= 4 ||
         game->command_disabled[game->command_selected] ||
         !item_command_is_supported(game, game->command_selected))
         return -1;
@@ -2042,7 +2105,7 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
 
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
-        (game->command_selected != 0 && game->command_selected != 2 && game->command_selected != 3))
+        game->command_selected < 0 || game->command_selected >= 4)
         return -2;
     return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
         &game->item_list_selected, key, game->command_selected == 0);
@@ -2090,7 +2153,7 @@ int fd2_field_game_equip_item(fd2_field_game *game) {
     uint8_t item_id = raw[0x0b + (size_t)selected * 2u];
     int compatible = fd2_field_item_equip_compatibility(shadow.movement_profile, item_id);
     if (compatible != 1) return compatible;
-    /* sub_1C142 @0x1c142（原登记同名）：按ID的<128/≥128组清整个flag，
+    /* field_unit_equipment_slot_set @0x1c142（原sub_1C142）：按ID的<128/≥128组清整个flag，
      * 再将selected写40；不是toggle，且不按category分组或跳过hidden。 */
     for (size_t slot = 0; slot < 8u; slot++) {
         size_t offset = 0x0a + slot * 2u;
@@ -2108,6 +2171,8 @@ int fd2_field_game_equip_item(fd2_field_game *game) {
 }
 
 int fd2_field_game_end_item_list(fd2_field_game *game) {
+    if (game && game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && game->command_selected == 1)
+        return finish_item_give_cancel(game, 0);
     if (game && game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST &&
         game->command_selected == 3)
         return finish_item_drop(game, 0);
@@ -2139,8 +2204,14 @@ static int target_focus_is_valid(const fd2_field_game *game) {
 }
 
 static int target_matches_filter(const fd2_field_unit *unit, uint8_t filter) {
-    return !fd2_field_unit_is_hidden(unit) &&
-        (filter == 0 ? unit->side == 0 : unit->side != 0);
+    if (fd2_field_unit_is_hidden(unit)) return 0;
+    switch (filter) {
+        case 0: return unit->side == 0;
+        case 1: return unit->side != 0;
+        case 2: return unit->side == 1;
+        case 3: return unit->side == 2;
+        default: return 0;
+    }
 }
 
 static int magic_target_matches(const fd2_field_unit *unit, uint8_t magic_id) {
@@ -2160,12 +2231,12 @@ static int magic_target_context_is_valid(const fd2_field_game *game) {
 
 /* 14818→115b6的范围/候选与focus顺序由法术、物品真实共用；
  * caller先检查各自actor、record、列表索引与焦点，不混用消费门。 */
-static int begin_target_selection(fd2_field_game *game, uint8_t cast,
+static int begin_target_selection(fd2_field_game *game, uint8_t cast, uint8_t minimum,
         uint8_t filter, fd2_field_interaction interaction, uint8_t magic_id) {
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
     if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
-            actor->x, actor->y, 0, cast) != 0)
+            actor->x, actor->y, minimum, cast) != 0)
         return -1;
     uint8_t candidates[FD2_FIELD_MAX_UNITS];
     size_t count = 0;
@@ -2209,7 +2280,7 @@ int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id)
             FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) != 1 || confirmed != magic_id)
         return -1;
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
-    return begin_target_selection(game, record[3], magic_id == 0 ? 0 : 1,
+    return begin_target_selection(game, record[3], 0, magic_id == 0 ? 0 : 1,
                                   FD2_FIELD_INTERACTION_MAGIC_TARGETING, magic_id);
 }
 
@@ -2274,8 +2345,8 @@ int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
     return 0;
 }
 
-/* 1bbdc在1bd14之前按raw槽读record；这里只开放已核草药192，
- * 使用player的cast+10/area+12/filter+15，不借AI的+11筛选。 */
+/* 1bbdc在1bd14之前按raw槽读record；使用player的cast+10/area+12/
+ * filter+15，不借AI的+11筛选；code0不得确认，1..4无已知记录。 */
 static const uint8_t *item_target_record(const fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->command_selected != 0) return NULL;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
@@ -2284,10 +2355,9 @@ static const uint8_t *item_target_record(const fd2_field_game *game) {
             FD2_FIELD_ITEM_LIST_KEY_CONFIRM, 1) != 1)
         return NULL;
     const uint8_t *raw = (const uint8_t *)actor;
-    if (raw[0x0bu + (size_t)selected * 2u] != 192) return NULL;
-    const uint8_t *record = fd2_field_item_record_get(192);
-    return record && record[0x0d] == 5 && record[0x10] == 1 &&
-        record[0x12] == 0 && record[0x15] == 1 ? record : NULL;
+    const uint8_t *record = fd2_field_item_record_get(raw[0x0bu + (size_t)selected * 2u]);
+    return record && record[0x0d] >= 5 && record[0x0d] <= 24 &&
+        record[0x12] <= 4 && record[0x15] <= 3 ? record : NULL;
 }
 
 static int item_target_context_is_valid(const fd2_field_game *game) {
@@ -2306,11 +2376,15 @@ int fd2_field_game_begin_item_targeting(fd2_field_game *game) {
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
     if (game->cursor_cell_x != actor->x || game->cursor_cell_y != actor->y)
         return -1;
-    return begin_target_selection(game, record[0x10], record[0x15],
+    int result = begin_target_selection(game, record[0x10], record[0x0d] == 23 ? 1 : 0, record[0x15],
                                   FD2_FIELD_INTERACTION_ITEM_TARGETING, 0);
+    if (!result) prepare_item_cursor(game);
+    return result;
 }
 
 int fd2_field_game_item_target_is_legal(const fd2_field_game *game) {
+    if (item_target_record(game) && game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING)
+        return item_teleport_destination_is_legal(game);
     if (!item_target_context_is_valid(game) || !game->move_range.nodes ||
         game->move_range.width != game->map.width || game->move_range.height != game->map.height)
         return -1;
@@ -2320,10 +2394,11 @@ int fd2_field_game_item_target_is_legal(const fd2_field_game *game) {
     if (!fd2_field_path_is_destination(&game->move_range,
             game->cursor_cell_x, game->cursor_cell_y))
         return 0;
+    const uint8_t *record = item_target_record(game);
     for (size_t i = 0; i < game->units.count; i++) {
         const fd2_field_unit *unit = &game->units.items[i];
-        if (target_matches_filter(unit, 1) &&
-            unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y)
+        if (target_matches_filter(unit, record[0x15]) &&
+            abs((int)unit->x - game->cursor_cell_x) + abs((int)unit->y - game->cursor_cell_y) <= record[0x12])
             return 1;
     }
     return 0;
@@ -2335,7 +2410,9 @@ int fd2_field_game_cycle_item_target(fd2_field_game *game) {
 }
 
 int fd2_field_game_cancel_item_targeting(fd2_field_game *game) {
-    if (!item_target_context_is_valid(game)) return -1;
+    if (!item_target_context_is_valid(game) &&
+        !(item_target_record(game) && game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING &&
+          target_focus_is_valid(game))) return -1;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
     if (focus_to(game, actor->x, actor->y) != 0) return -1;
     fd2_field_path_close(&game->move_range);
@@ -2349,6 +2426,181 @@ int fd2_field_game_cancel_item_targeting(fd2_field_game *game) {
     return 0;
 }
 
+/* 1bbdc→14818(max1,min1,filter3)：排除中心整格，HP0/acted与121仍计入。 */
+static int item_give_has_target(const fd2_field_game *game) {
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+            actor->x, actor->y, 1, 1) != 0) return 0;
+    int found = 0;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (fd2_field_unit_is_hidden(unit)) continue;
+        if (unit->x >= game->map.width || unit->y >= game->map.height) {
+            found = 0;
+            break;
+        }
+        if (target_matches_filter(unit, 3) &&
+            fd2_field_path_is_destination(&range, unit->x, unit->y)) found = 1;
+    }
+    fd2_field_path_close(&range);
+    return found;
+}
+
+static int give_source_is_valid(const fd2_field_game *game) {
+    if (!item_menu_actor_is_valid(game) || game->command_selected != 1) return 0;
+    int selected = game->item_list_selected;
+    return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
+        &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) == 0;
+}
+
+static int inventory_prefix_is_valid(const fd2_field_unit *unit) {
+    if (!fd2_field_unit_inventory_count(unit)) return 1;
+    int selected = 0;
+    return fd2_field_item_list_select_step(unit, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) == 0;
+}
+
+static void close_give_range(fd2_field_game *game) {
+    fd2_field_path_close(&game->move_range);
+    game->magic_target_id = 0;
+    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+    game->magic_target_count = game->magic_target_cycle = 0;
+}
+
+static int return_item_menu_or_command(fd2_field_game *game) {
+    game->item_give_recipient = game->item_give_selected = 0;
+    if (fd2_field_unit_inventory_count(&game->units.items[game->selected_unit]))
+        return enter_item_menu(game);
+    game->item_list_selected = 0;
+    game->interaction = FD2_FIELD_INTERACTION_COMMAND;
+    return fd2_field_game_refresh_commands(game);
+}
+
+int fd2_field_game_begin_item_give(fd2_field_game *game) {
+    if (!give_source_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        !item_command_is_supported(game, 1) || !target_focus_is_valid(game)) return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if (game->cursor_cell_x != actor->x || game->cursor_cell_y != actor->y) return -1;
+    int result = begin_target_selection(game, 1, 1, 3, FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING, 0);
+    if (result == 0) game->item_give_recipient = game->item_give_selected = 0;
+    return result;
+}
+
+static int give_cell_has_player(const fd2_field_game *game, int x, int y) {
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        if (target_matches_filter(unit, 3) && unit->x == x && unit->y == y) return 1;
+    }
+    return 0;
+}
+
+int fd2_field_game_item_give_target_is_legal(const fd2_field_game *game) {
+    if (!give_source_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING ||
+        !target_focus_is_valid(game)) return -1;
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+            actor->x, actor->y, 1, 1) != 0) return -1;
+    int legal = fd2_field_path_is_destination(&range, game->cursor_cell_x, game->cursor_cell_y) &&
+        give_cell_has_player(game, game->cursor_cell_x, game->cursor_cell_y);
+    fd2_field_path_close(&range);
+    return legal;
+}
+
+int fd2_field_game_cycle_item_give_target(fd2_field_game *game) {
+    if (!give_source_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING)
+        return -1;
+    return cycle_target_selection(game);
+}
+
+
+static int give_recipient_is_valid(const fd2_field_game *game, size_t recipient) {
+    if (recipient >= game->units.count || recipient == (size_t)game->selected_unit) return 0;
+    const fd2_field_unit *source = &game->units.items[game->selected_unit];
+    const fd2_field_unit *target = &game->units.items[recipient];
+    int distance = abs((int)source->x - target->x) + abs((int)source->y - target->y);
+    /* 12c0d在115b6之后另取第一raw可见actor；叠格时不能重筛side3目标。 */
+    return !fd2_field_unit_is_hidden(target) && target->x < game->map.width && target->y < game->map.height &&
+        distance == 1 && give_cell_has_player(game, target->x, target->y) &&
+        fd2_field_game_unit_at(game, target->x, target->y) == (int)recipient && inventory_prefix_is_valid(target);
+}
+
+int fd2_field_game_item_give_list_step(fd2_field_game *game, fd2_field_item_list_key key) {
+    if (!give_source_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_LIST ||
+        game->item_give_recipient < 0 || !give_recipient_is_valid(game, (size_t)game->item_give_recipient) ||
+        fd2_field_unit_inventory_count(&game->units.items[game->item_give_recipient]) != 8u) return -2;
+    return fd2_field_item_list_select_step(&game->units.items[game->item_give_recipient],
+        &game->item_give_selected, key, 0);
+}
+
+int fd2_field_game_resolve_item_give(fd2_field_game *game) {
+    if (!give_source_is_valid(game) || !target_focus_is_valid(game)) return -1;
+    int receiver;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING) {
+        if (fd2_field_game_item_give_target_is_legal(game) != 1) return -1;
+        receiver = fd2_field_game_unit_at(game, game->cursor_cell_x, game->cursor_cell_y);
+    } else if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST) {
+        if (fd2_field_game_item_give_list_step(game, FD2_FIELD_ITEM_LIST_KEY_OTHER) != 0) return -1;
+        receiver = game->item_give_recipient;
+    } else return -1;
+    if (receiver < 0 || !give_recipient_is_valid(game, (size_t)receiver)) return -1;
+    fd2_field_unit sender = game->units.items[game->selected_unit];
+    fd2_field_unit recipient = game->units.items[receiver];
+    if (sender.x >= game->map.width || sender.y >= game->map.height ||
+        fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0) return -1;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING &&
+        fd2_field_unit_inventory_count(&recipient) == 8u) {
+        /* 原版先恢复Give前focus，再打开recipient的mode0列表。 */
+        if (focus_to(game, sender.x, sender.y) != 0) return -1;
+        close_give_range(game);
+        game->item_give_recipient = receiver;
+        game->item_give_selected = 0;
+        game->interaction = FD2_FIELD_INTERACTION_ITEM_GIVE_LIST;
+        return 0;
+    }
+    const uint8_t *source_raw = (const uint8_t *)&sender;
+    uint8_t source_id = source_raw[0x0b + (size_t)game->item_list_selected * 2u];
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST) {
+        uint8_t received_id = ((const uint8_t *)&recipient)[0x0b + (size_t)game->item_give_selected * 2u];
+        inventory_slot_remove(&recipient, (size_t)game->item_give_selected);
+        if (inventory_first_empty_add(&recipient, source_id) != 1) return -1;
+        inventory_slot_remove(&sender, (size_t)game->item_list_selected);
+        if (inventory_first_empty_add(&sender, received_id) != 1) return -1;
+    } else {
+        if (inventory_first_empty_add(&recipient, source_id) != 1) return -1;
+        inventory_slot_remove(&sender, (size_t)game->item_list_selected);
+    }
+    /* 1bbdc只重算sender；recipient装备被交换时亦保留其原派生，不擅自修整。 */
+    if (!inventory_prefix_is_valid(&sender) || !inventory_prefix_is_valid(&recipient) ||
+        fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0) return -1;
+    if (focus_to(game, sender.x, sender.y) != 0) return -1;
+    game->units.items[game->selected_unit] = sender;
+    game->units.items[receiver] = recipient;
+    game->item_transfer_committed = 1;
+    close_give_range(game);
+    return return_item_menu_or_command(game);
+}
+
+static int finish_item_give_cancel(fd2_field_game *game, int restore_focus) {
+    if (!give_source_is_valid(game)) return -1;
+    fd2_field_unit sender = game->units.items[game->selected_unit];
+    if (fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0) return -1;
+    if (restore_focus) {
+        if (!target_focus_is_valid(game) || focus_to(game, sender.x, sender.y) != 0) return -1;
+        close_give_range(game);
+    }
+    game->units.items[game->selected_unit] = sender;
+    return return_item_menu_or_command(game);
+}
+
+int fd2_field_game_cancel_item_give(fd2_field_game *game) {
+    if (!game || (game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING &&
+        game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_LIST)) return -1;
+    return finish_item_give_cancel(game, 1);
+}
 static int player_basic_magic_list_is_supported(const fd2_field_game *game) {
     if (!magic_list_actor_is_valid(game) || game->stage != 0) return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
@@ -2370,24 +2622,27 @@ int fd2_field_game_magic_is_available(const fd2_field_game *game) {
 
 static int player_effect_tail_is_supported(const fd2_field_game *game,
                                             size_t actor_index,
-                                            int heals_focused_cell) {
-    const fd2_field_unit *actor = &game->units.items[actor_index];
+                                            const uint8_t *healed_targets,
+                                            size_t healed_count,
+                                            int clears_paralysis,
+                                            int final_x, int final_y) {
     uint8_t action;
     size_t slot;
     int found = fd2_field_cell_event_find(&game->map, &game->terrain,
-        &game->metadata, actor->x, actor->y, 1, &action, &slot);
+        &game->metadata, final_x, final_y, 1, &action, &slot);
     /* 最终match1覆盖旧pending；当前尚无已支持cell handler，不能在effect
      * 后才发现必经未知handler。特殊地形不是这些command的WAIT cell-action。 */
     if (found < 0 || found || game->pending_cell_event.valid) return 0;
     for (size_t i = 0; i < game->units.count; i++) {
         const fd2_field_unit *unit = &game->units.items[i];
+        int healed = 0;
+        for (size_t t = 0; t < healed_count; t++) if (healed_targets[t] == i) healed = 1;
         if (i != actor_index && unit->side == 2 &&
-            (unit->flags & 0x81u) == 0 && !unit->detail_status[1]) {
+            (unit->flags & 0x81u) == 0 && (!unit->detail_status[1] || (clears_paralysis && healed))) {
             /* 预测本次finalize后的flags，不改13565本体的无HP门契约。
              * 治疗同格HP0已通过maxHP预检，必先恢复存活；其他HP0将隐藏。 */
-            if (!unit->hp && !(heals_focused_cell &&
-                    unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y))
-                continue;
+            if (healed && !unit->hp_max) continue;
+            if (!unit->hp && !(healed && unit->hp_max)) continue;
             return 1;
         }
     }
@@ -2442,7 +2697,8 @@ int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
     }
     uint8_t maximum_gain;
     if (!count || fd2_field_magic_basic_reward_gain(actor, maximum_reward, &maximum_gain) != 0 ||
-        !player_effect_tail_is_supported(game, actor_index, id == 13)) return -1;
+        !player_effect_tail_is_supported(game, actor_index,
+            id == 13 ? targets : NULL, id == 13 ? count : 0, 0, actor->x, actor->y)) return -1;
 
     /* 1ca89的u16费用先于首目标effect/RNG；所有数据/整次奖励预检已完成。
      * SDL这里只执行已确认逻辑，不模拟2ff01附加抖动RNG或音画时序。 */
@@ -2468,57 +2724,182 @@ int fd2_field_game_resolve_player_magic(fd2_field_game *game) {
     return 0;
 }
 
+/* field_item_use_effect_execute @0x20c6f（原sub_20C6F）：目标收集用14818，确认用14742的Manhattan门，
+ * 两者不可合并。未知掉落描述符属于尚未接入的败亡交互，提交前拒绝。 */
+static int item_effect_may_kill(const uint8_t *record, const fd2_field_unit *unit) {
+    unsigned code = record[0x0d];
+    if (code == 20 || code == 21 || code == 24) {
+        uint16_t id = (uint16_t)fd2_field_item_i16(record, 0x0e);
+        const uint8_t *magic = id < 13 ? fd2_field_magic_record_get((uint8_t)id) : NULL;
+        uint32_t scale;
+        if (!magic || fd2_field_magic_damage_profile_scale(unit->movement_profile, &scale) != 0) return -1;
+        uint64_t base = (uint64_t)fd2_field_magic_u16(magic, 0) * scale / 10u;
+        return unit->hp <= base * 9u / 10u + base * 99u / 1000u;
+    }
+    if (!unit->hp) return 1;
+    if (code == 14 || code == 22)
+        return unit->hp <= 9 && unit->movement_profile != 25 && unit->movement_profile != 26 &&
+            !unit->detail_status[code == 14 ? 1 : 2];
+    return 0;
+}
+
+static int item_teleport_destination_is_legal(const fd2_field_game *game) {
+    if (!game->magic_target_count || !target_focus_is_valid(game)) return -1;
+    size_t raw = game->magic_target_candidates[0];
+    if (raw >= game->units.count) return -1;
+    const fd2_field_unit *unit = &game->units.items[raw];
+    if (fd2_field_unit_is_hidden(unit) || unit->x >= game->map.width || unit->y >= game->map.height) return -1;
+    const uint8_t *record = item_target_record(game);
+    const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (!record || !target_matches_filter(unit, record[0x15]) ||
+        fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+            actor->x, actor->y, 1, record[0x10]) != 0) return -1;
+    int in_cast = fd2_field_path_is_destination(&range, unit->x, unit->y);
+    fd2_field_path_close(&range);
+    if (!in_cast) return -1;
+    for (size_t i = 0; i < game->units.count; i++)
+        if (i != raw && !fd2_field_unit_is_hidden(&game->units.items[i]) &&
+            game->units.items[i].x == game->cursor_cell_x && game->units.items[i].y == game->cursor_cell_y) return 0;
+    uint8_t profile_id = unit->unit_id == 28 ? 1 : unit->movement_profile;
+    if (fd2_field_attack_unit_ignores_terrain_modifier(unit)) profile_id = 19;
+    const uint8_t *profile = fd2_field_movement_profile_get(profile_id);
+    uint16_t terrain = fd2_field_cell_terrain(fd2_field_map_cell(&game->map, game->cursor_cell_x, game->cursor_cell_y));
+    if (!profile || terrain >= game->terrain.attr_count ||
+        game->terrain.attrs[terrain].movement_cost_class >= FD2_FIELD_MOVEMENT_COST_CLASS_COUNT) return -1;
+    return profile[game->terrain.attrs[terrain].movement_cost_class] != 20;
+}
+
+/* field_item_permanent_stat_apply @0x21082（原sub_21082）的WORD写集；
+ * code19临时跨EX的进位由原helper恢复EX，等价只写MV低byte。 */
+static void apply_item_permanent_stat(fd2_field_unit *unit, unsigned code, uint16_t power) {
+    uint8_t *raw = (uint8_t *)unit;
+    size_t offset = code == 8 ? 0x37 : code == 9 ? 0x39 : code == 10 ? 0x3e :
+        code == 17 ? 0x42 : code == 18 ? 0x46 : 0x3b;
+    uint16_t value = (uint16_t)(raw[offset] | ((uint16_t)raw[offset + 1] << 8));
+    value = (uint16_t)(value + power); raw[offset] = (uint8_t)value;
+    if (code != 19) raw[offset + 1] = (uint8_t)(value >> 8);
+}
+
 int fd2_field_game_resolve_player_item(fd2_field_game *game) {
-    if (!item_target_context_is_valid(game) || !game->attack_rng) return -1;
+    const uint8_t *record = item_target_record(game);
+    if (!record || !game->attack_rng || !target_focus_is_valid(game) ||
+        (game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING &&
+         game->interaction != FD2_FIELD_INTERACTION_ITEM_TELEPORTING)) return -1;
     size_t actor_index = (size_t)game->selected_unit;
     fd2_field_unit *actor = &game->units.items[actor_index];
-    const uint8_t *record = item_target_record(game);
     size_t slot_index = (size_t)game->item_list_selected;
-    /* 提交重建当前geometry；目标期旧mask不是可直接信任的提交计划。 */
-    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
-    if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
-            actor->x, actor->y, 0, record[0x10]) != 0) return -1;
-    int legal_cell = fd2_field_path_is_destination(&range,
-        game->cursor_cell_x, game->cursor_cell_y);
-    fd2_field_path_close(&range);
-    if (!legal_cell) return -1;
+    unsigned code = record[0x0d];
+    uint16_t power = (uint16_t)fd2_field_item_i16(record, 0x0e);
     uint8_t targets[FD2_FIELD_MAX_UNITS];
     size_t count = 0;
+    int teleport = game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING;
+    if (teleport) {
+        if (code != 23 || actor->text_id != 24 || actor->mp_max < 20 ||
+            item_teleport_destination_is_legal(game) != 1) return -1;
+        targets[count++] = game->magic_target_candidates[0];
+    } else {
+        fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+        if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+                actor->x, actor->y, code == 23 ? 1 : 0, record[0x10]) != 0) return -1;
+        int legal = record[0x12] == 4 || fd2_field_path_is_destination(&range, game->cursor_cell_x, game->cursor_cell_y);
+        fd2_field_path_close(&range);
+        if (!legal || fd2_field_game_item_target_is_legal(game) != 1) return -1;
+        if (fd2_field_target_range_compute(&range, &game->map, &game->terrain,
+                game->cursor_cell_x, game->cursor_cell_y, 0, record[0x12]) != 0) return -1;
+        for (size_t i = 0; i < game->units.count; i++) {
+            const fd2_field_unit *unit = &game->units.items[i];
+            if (fd2_field_unit_is_hidden(unit)) continue;
+            if (unit->x >= game->map.width || unit->y >= game->map.height) {
+                fd2_field_path_close(&range); return -1;
+            }
+            if (target_matches_filter(unit, record[0x15]) && fd2_field_path_is_destination(&range, unit->x, unit->y))
+                targets[count++] = (uint8_t)i;
+        }
+        fd2_field_path_close(&range);
+        if (code == 23) {
+            if (actor->text_id != 24 || actor->mp_max < 20 || !count)
+                return fd2_field_game_cancel_item_targeting(game);
+            /* 1bbdc清旧cast LUT，115b6(mode6)保留首target焦点和普通frame0。
+             * 保留同一个候选owner的首raw目标，不新增slot/ID真值缓存。 */
+            fd2_field_path_close(&game->move_range);
+            memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+            memcpy(game->magic_target_candidates, targets, count);
+            game->magic_target_count = count; game->magic_target_cycle = 0;
+            game->interaction = FD2_FIELD_INTERACTION_ITEM_TELEPORTING;
+            return 0;
+        }
+    }
+    int heals = code == 5 || code == 13;
+    uint8_t healed_targets[FD2_FIELD_MAX_UNITS];
+    size_t healed_count = 0;
+    for (size_t t = 0; t < count; t++) {
+        const fd2_field_unit *unit = &game->units.items[targets[t]];
+        if (heals || ((code == 6 || code == 7) && unit->detail_status[code == 6 ? 0 : 1]))
+            healed_targets[healed_count++] = targets[t];
+    }
+    int growth = (code >= 8 && code <= 10) || (code >= 17 && code <= 19);
+    if (growth && !count) return -1;
     for (size_t i = 0; i < game->units.count; i++) {
         const fd2_field_unit *unit = &game->units.items[i];
         if (fd2_field_unit_is_hidden(unit)) continue;
         if (unit->x >= game->map.width || unit->y >= game->map.height) return -1;
-        int target = target_matches_filter(unit, record[0x15]) &&
-            unit->x == game->cursor_cell_x && unit->y == game->cursor_cell_y;
-        if (target) {
-            if (!unit->hp_max || unit->hp > unit->hp_max) return -1;
-            targets[count++] = (uint8_t)i;
-        } else if (!unit->hp && ((const uint8_t *)unit)[0x31] != 0xffu) {
-            /* 1b6b7扫描全表；同格HP0会被本草药救活，其他死者的未知
-             * 奖励描述符不能在提交后被静默忽略。 */
-            return -1;
+        int target = 0;
+        for (size_t t = 0; t < count; t++) if (targets[t] == i) target = 1;
+        int may_die = target ? item_effect_may_kill(record, unit) : !unit->hp;
+        if (may_die < 0) return -1;
+        for (size_t t = 0; t < healed_count; t++)
+            if (healed_targets[t] == i) may_die = !unit->hp_max;
+        if (may_die && ((const uint8_t *)unit)[0x31] != 0xff) return -1;
+    }
+    fd2_field_unit recomputed = *actor;
+    if (growth) {
+        /* 21082只写首target的WORD，19恢复跨WORD的EX；重算的是caster。 */
+        if (targets[0] == actor_index) apply_item_permanent_stat(&recomputed, code, power);
+        if (fd2_field_unit_combat_stats_recompute(&recomputed, known_item_stat_lookup, NULL,
+                known_status_stat_scale, NULL) != 0) return -1;
+    }
+    int final_x = teleport && targets[0] == actor_index ? game->cursor_cell_x : actor->x;
+    int final_y = teleport && targets[0] == actor_index ? game->cursor_cell_y : actor->y;
+    if (!player_effect_tail_is_supported(game, actor_index, healed_targets,
+            healed_count, code == 7, final_x, final_y)) return -1;
+    if (teleport) {
+        /* field_actor_teleport_execute @0x2218a（原sub_2218A）。 */
+        fd2_field_unit *target = &game->units.items[targets[0]];
+        int x = game->cursor_cell_x, y = game->cursor_cell_y;
+        (void)focus_to(game, actor->x, actor->y);
+        if (focus_to(game, target->x, target->y) != 0) return -1;
+        actor->mp = (uint16_t)(actor->mp - fd2_field_magic_record_get(23)[5]);
+        /* 22253只写arg2/arg3低byte到xy；临时255只属演出过程，不泄漏renderer。 */
+        target->x = (uint8_t)x; target->y = (uint8_t)y;
+        (void)focus_to(game, x, y);
+    } else if (growth) {
+        fd2_field_unit *target = &game->units.items[targets[0]];
+        apply_item_permanent_stat(target, code, power);
+        actor->attack = recomputed.attack; actor->accuracy = recomputed.accuracy;
+        actor->defense = recomputed.defense; actor->evasion = recomputed.evasion;
+    } else {
+        for (size_t i = 0; i < count; i++) {
+            fd2_field_unit *target = &game->units.items[targets[i]];
+            int effect = 0;
+            if (heals) effect = fd2_field_hp_heal_apply(target, power, game->attack_rng, game->attack_rng_userdata);
+            else if (code == 11) {
+                if (target->mp_max) effect = fd2_field_mp_heal_apply(target, power, game->attack_rng, game->attack_rng_userdata);
+            } else {
+                uint8_t id = code == 6 ? 20 : code == 7 ? 21 : code == 12 ? 19 : code == 14 ? 27 :
+                    code == 15 ? 18 : code == 16 ? 17 : code == 22 ? 22 : (uint8_t)power;
+                effect = fd2_field_magic_apply_known_effect(id, targets[i], &game->units, game->attack_rng, game->attack_rng_userdata);
+            }
+            if (effect < 0) { fail_action(game, actor_index); return -1; }
         }
     }
-    if (!count || !player_effect_tail_is_supported(game, actor_index, 1)) return -1;
-    uint16_t power = (uint16_t)record[0x0e] | ((uint16_t)record[0x0f] << 8);
-    /* field_hp_heal_group_execute @0x211a4（原sub_211A4）98B逐目标调用
-     * field_hp_heal_apply @0x1c916（原sub_1C916）；每target恰一次RNG。
-     * sub_20C6F @0x20c6f仅此code5分支随后移除原槽；其清零的是全局
-     * 53EC8，不是unit.EX，不能借MAGIC奖励或WAIT恢复尾链。 */
-    for (size_t i = 0; i < count; i++) {
-        if (fd2_field_hp_heal_apply(&game->units.items[targets[i]], power,
-                game->attack_rng, game->attack_rng_userdata) < 0) {
-            fail_action(game, actor_index);
-            return -1;
-        }
-    }
-    inventory_slot_remove(actor, slot_index);
+    if (code == 5 || code == 6 || code == 7 || code == 11 || growth)
+        inventory_slot_remove(actor, slot_index);
     finalize_zero_hp_units(game);
     game->battle_result = fd2_field_game_battle_result(game);
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     if (finish_unit_action_internal(game, PLAYER_ACTION_ITEM, 0) != 0) {
-        fail_action(game, actor_index);
-        return -1;
+        fail_action(game, actor_index); return -1;
     }
     return 0;
 }
@@ -2836,7 +3217,7 @@ int fd2_field_game_detail_upper_is_ready(const fd2_field_game *game,
         int h = i <= 9 || i == 12 ? 3 : 16;
         if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
     }
-    for (size_t i = 0; i < 2; i++)
+    for (size_t i = 0; i < 8; i++)
         if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
     for (size_t i = 0; i < 3; i++) {
         if (unit->detail_status[i] &&
@@ -3081,6 +3462,11 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         return fd2_field_game_cancel_magic_targeting(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TARGETING)
         return fd2_field_game_cancel_item_targeting(game) == 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING)
+        return fd2_field_game_cancel_item_targeting(game) == 0;
+    if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING ||
+        game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_LIST)
+        return fd2_field_game_cancel_item_give(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST)
         return fd2_field_game_end_item_list(game) == 0;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU)
@@ -3091,6 +3477,15 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
 
     fd2_field_unit *unit = &game->units.items[game->selected_unit];
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND) {
+        if (game->item_transfer_committed) {
+            /* field_player_unit_action @0x18890（原登记同名），指令VA 0x18adb：
+             * 53C53已置1时，移动与零步两路的COMMAND取消
+             * 均markacted→lookup1→controller；不回滚坐标或执行WAIT恢复。 */
+            size_t actor_index = (size_t)game->selected_unit;
+            int result = finish_unit_action_internal(game, PLAYER_ACTION_ITEM, 0);
+            if (result < 0 && game->failure == FD2_FIELD_FAILURE_NONE) fail_action(game, actor_index);
+            return result == 0;
+        }
         /* field_player_command_execute @0x18d8c 返回 -1 后，调用者恢复
          * 确认移动前的唯一坐标记录，再重新显示原移动范围。 */
         game->command_selected = -1;
@@ -3109,7 +3504,7 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         game->camera_pixel_offset_y = 0;
         game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
         /* 普通COMMAND取消返回0，controller重入18890后清pending。
-         * item transfer的53C53已提交例外尚未开放，不能套入本分支。 */
+         * 53C53已提交的Give例外已由上方分支独立处理。 */
         game->pending_cell_event.valid = 0;
         if (fd2_field_game_compute_move_range(
                 game, (size_t)game->selected_unit,
@@ -3329,7 +3724,8 @@ static int finish_unit_action_internal(fd2_field_game *game,
     size_t unit_index = (size_t)game->selected_unit;
     fd2_field_unit *unit = &game->units.items[unit_index];
     int side_is_actionable = unit_can_act_for_side(unit, game->active_side) ||
-        (kind == PLAYER_ACTION_PHYSICAL && unit->side == game->active_side && unit->hp == 0);
+        ((kind == PLAYER_ACTION_PHYSICAL || kind == PLAYER_ACTION_ITEM) &&
+         unit->side == game->active_side && unit->hp == 0);
     if (!side_is_actionable || fd2_field_unit_has_acted(unit)) return -1;
     /* 只有WAIT执行原地恢复；其他command各保留自己的方向/奖励边界。 */
     if (kind == PLAYER_ACTION_WAIT) {
@@ -3357,7 +3753,10 @@ static int finish_unit_action_internal(fd2_field_game *game,
         unit->experience = (uint8_t)(unit->experience + gain);
         game->magic_list_selected = 0;
     }
-    if (kind == PLAYER_ACTION_ITEM) game->item_list_selected = 0;
+    if (kind == PLAYER_ACTION_ITEM) {
+        game->item_list_selected = 0;
+        game->item_give_recipient = game->item_give_selected = 0;
+    }
     if (kind == PLAYER_ACTION_MAGIC || kind == PLAYER_ACTION_ITEM) {
         game->magic_target_id = 0;
         memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
@@ -4113,6 +4512,7 @@ static int ai_behavior5_target_find(const fd2_field_game *game,
     return 0;
 }
 
+/* field_unit_inventory_item_append @0x1bb8c（原sub_1BB8C）：首hidden槽整flag清0。 */
 static int inventory_first_empty_add(fd2_field_unit *unit, uint8_t item_id) {
     if (!unit) return -1;
     uint8_t *record = (uint8_t *)unit;

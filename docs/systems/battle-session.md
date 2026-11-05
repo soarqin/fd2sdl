@@ -69,21 +69,23 @@
 
 物品B3的已确认返回合同独立于MAGIC：Use列表取消使1bbdc返回0，18d8c重开ITEM子菜单；子菜单取消使1bbdc返回-1、18d8c返回0，再由18890重开COMMAND。Use目标取消先聚焦caster，再重开1b932列表并归0选项，保留临时移动及pending。53C53仅由Give完成分支置1，不能把它当作所有库存改变标志；装备／丢弃已提交变化也不能因为该值0而回滚。
 
-ITEM_MENU／ITEM_LIST 已接正式输入。子菜单复用四向 command 呈现状态，语义为 Use／Give／Equip／Drop；SDL 按各自能力开放 Use／Drop，Give／Equip 仍禁用，区别于原版真实 START 只禁用 Give。列表索引是独立临时 raw 槽，step 只报告可确认，不自行执行效果；列表完整关闭后才进入目标或提交 Drop。列表取消回 ITEM 首可用项，子菜单取消回 COMMAND 首可用项，两层均先于 COMMAND 原移动回滚分派。成功 Load 清索引并回浏览，失败保留所有旧 owner，不序列化新 UI 字段。
+ITEM_MENU／ITEM_LIST 共用正式输入与四向 command 呈现，语义为 Use／Give／Equip／Drop，各项独立重验能力。列表索引是临时 raw 槽，step 只报告可确认；列表完整关闭后才进入目标或提交 Drop／Give，Equip 成功确认继续原页。列表取消回 ITEM 首可用项，子菜单取消回 COMMAND 首可用项，两层均先于 COMMAND 原移动回滚分派。成功 Load 清列表、目标、收方及 Give 已提交标志并回浏览，失败保留所有旧 owner；这些临时字段不序列化。
 
-ITEM_TARGETING仅支持草药192的player cast1／area0／filter1，复用现move_range和互斥target候选buffer，不缓存第二份slot／物品真值。每次按当前raw槽重新查192，候选按raw顺序只过滤hidden和side0，不额外过滤HP0或acted；121占轮询槽但不移动焦点。法术与物品共享范围建立和轮换，保留各自record／列表／能力门。目标取消先完整聚焦使用者，再清目标owner、返回ITEM_LIST0，保留移动路径／origin、单位、pending和RNG。方向可以移出cast范围，合法性另查；目标层不自行提交动作，正式confirm_cursor仅在能力门与合法目标都通过后调用提交API。
+ITEM_TARGETING 每次按当前 raw 槽重新读取物品的玩家 cast／area／filter，复用 move_range 与互斥 target 候选 buffer，不缓存第二份 slot／物品真值。候选按 raw 顺序和原版 filter 收集，不额外过滤 HP0 或 acted；121 占轮询槽但不移动焦点。范围 LUT 与确认时的 Manhattan 判据分别保留，area 光标沿用 20 帧资源。目标取消先聚焦使用者、清目标 owner、返回 ITEM_LIST0，保留移动路径／origin、pending 和 RNG。法术与物品共享范围建立和轮换，保留各自 record／列表／能力门。
 
-草药提交按当前raw槽／record、重建范围、同格raw目标、完整可见坐标／HP数据及必经尾链预检后，才逐目标调用power40 HP helper并消费一次RNG，再移除所选槽一次、处理败亡、acted、最终lookup1及controller。不扣MP、不写unit EX、不做WAIT恢复或物理方向复位。可能恢复的同格HP0目标不会误因drop描述符拒绝；预测仍HP0的非目标未知loot先拒绝，phase预测保留controller原无HP门。提交后失败保留HP／压槽／已到达的acted与外部RNG，首错冻结，不退款、不重试。
+Use 按 `field_item_use_effect_execute @0x20c6f` 分派实际 code5..24。HP／MP 恢复、清状态、状态附加和法术伤害复用已确认的局部 effect；增长物品只写首目标的原始 WORD，并重算使用者，MOV 增长保留跨 WORD 的 EX 字节。code6／7 仅在对应状态存在时先恢复 9HP 再清状态，仍按原版消费一次物品；状态不存在时不消费效果 RNG。AP／DP 状态的直接增量与装备重算是两条不同公式，不合并舍入行为。
 
-正式 ITEM 能力查询无写入／RNG，仅接受 stage0 可行动玩家及连续已知库存，要求非空共享 RNG。Use 的非零 code 只允许 192，code0 普通装备只读；Drop 不套 Use handler 门，但含隐藏 flag40 的全部 8 槽必须可重算派生值。任一分支可用即开放 ITEM，再分别计算子菜单；仅支持 Drop 时默认选 Drop3。COMMAND、ITEM_MENU、列表进入及目标确认均重新检查各自能力，不能凭 Drop 可用提交 Use。LIST 由私有 modal 独占确认键，不能通过 confirm_cursor 跳过关闭过程。纯 session 菜单计算不消费或要求 RNG，正式等待入口才检查其可用性。查询不借用 MAGIC 的 MP、移动、unit+0x27 或升级门；能力失效本身不阻止原有取消，也不清除尚未提交的移动。
+Use 在首个 RNG／业务写入前预检全部目标、可能败亡的掉落描述符、最终格和必经尾链；清状态可能救活的 HP0 目标须纳入预测。只在原版规定的 code5／6／7／8／9／10／11／17／18／19 移槽一次，其余不消耗。原版物品尾清全局经验贡献，不清单位 EX；之后执行败亡、acted、最终 lookup1 和 controller，不做 WAIT 恢复或物理方向复位。提交后错误保留效果／压槽／已到达的 acted 与外部 RNG，首错冻结，不退款或重试。
 
-B3.4b1 的纯 Drop 会话已由 B3.4b2 接入正式 modal，复用 ITEM_LIST 和 command_selected3 表示 mode0，code0 装备也可确认；不增加第二份 slot／ID 状态，不进入 Use 目标。确认先在 80 字节 actor 副本移槽，确认或取消都调用既有四属性重算；隐藏但 equipped 的坏 ID 也须拒绝。全部成功后才交接 actor 与 UI：余项回 ITEM 首可用项，删空回 COMMAND 首可用项；重复确认拒绝。HP／MP、EX99、方向、acted、移动路径／原点、pending、镜头和外部 RNG 均保留，不执行动作／phase 收尾。已提交库存不会随之后的 COMMAND 移动取消回滚。
+code23 使用独立 ITEM_TELEPORTING 第二层：首目标 cast 排除中心整格，门为使用者 text_id24 且最大 MP 至少20；第二层选择目标可站立且无其他可见单位的目的格。任一层取消均返回使用者的 Use 列表0。成功时按原版 WORD 减 MP 并移动首 raw 目标，不另加当前 MP 门，不把中间演出坐标255写给常规 renderer；自身移动时预检最终目的格的事件。
 
-宿主完整关页后再分派 Use／Drop，关页期间收到退出则在不可逆提交前返回；资源错误优先报告错误。Drop 提交后菜单呈现失败保留库存及派生变化，不退款、不重试；两种返回 owner 均复用原菜单动画，caller 耗尽当前帧普通输入以免重复确认。四场正式 Drop 已通过原版／SDL WGC、完整 SAV 和取消返回比较，具体候选与证据见阶段日志；不扩展为 Equip／Give、完整 UI 随机流或音画验收。
+正式 ITEM 查询无写入／RNG，仅接受 stage0 可行动玩家和连续已知库存；正式等待入口另要求共享 RNG。code0 装备可查看，不能在 Use 确认。Drop／Give 不套 Use handler 门，包含隐藏 flag40 的全8槽须满足各自派生检查。Equip 许可来自原版29×7字节表，只比较每行前6字节，未知职业／物品拒绝。能力查询不借用 MAGIC 的移动、MP 或 unit+0x27 门，能力失效也不能阻止原有取消。
 
-B3.4c2 仅接纯 Equip：显式开启的低层 command_selected2 使用同一 ITEM_LIST／mode0，正式菜单及 confirm_cursor 仍拒绝 Equip。兼容查询只支持已取证的 profile1，读取静态许可行前6B；未知 profile／ID 返回错误，不把本行作为通用默认。兼容确认先查全8槽 equipped ID，再在80B shadow按 ID `<128`／`>=128` 两组清整个 flag、把选中 flag 写40；重选已装备项也执行同一规则，不是切换关闭。清 flag 可能把隐藏槽变可见，必须复查结果仍为连续已知库存，再重算四派生后一次交接。错误无 actor／UI 写入，不兼容不重算；成功留 LIST／原 raw 索引，取消仅回 ITEM 首可用项而不重算。HP／MP、EX、方向、移动／pending、acted及RNG均保持；之后取消移动保留已装备结果。真实留页重绘和正式能力开放属于c3／c4。
+Drop 用同一 ITEM_LIST／mode0，code0 可确认；确认先在80字节 actor 副本移槽，确认或取消均重算四属性。余项回 ITEM，删空回 COMMAND；不结束行动，之后取消移动保留丢弃结果。Equip 在80字节副本按 ID `<128`／`>=128` 清同组整个 flag、选中写40并重算；重选不是脱装。不兼容不重算，取消不重算，成功留原页／原 raw 索引。二者均在全部数据检查通过后交接，不改 HP／MP、EX、acted、pending 或移动 owner。
 
-B3.4c3 的私有呈现复用同一列表 owner，独立 Equip 等待查询只增加共享 RNG 门，未接入 COMMAND 的能力 OR 或正式菜单。兼容确认前耗尽当前帧普通键并再次检查退出，然后调用纯应用；成功后以 portrait0 重画上页和未选底板，更新当前 VGA 及同一关闭动画 page，再按原索引继续等待。不兼容只继续等待，保留当前眨眼画面；Esc 才关闭。潜在隐藏装备名称用80B临时记录在首帧前预检；失败恢复信息侧位，不写真实库存／VGA或消费输入／RNG。提交后退出及重绘失败保留装备结果，不退款或重试。未新增随机流、声音或缓存 owner；c4正式双端验收仍待完成。
+Give 用独立目标与收方列表层。相邻友军使该格可选，确认后按该格首个可见 raw 记录处理，不擅自增加 HP／acted 过滤。收方有空槽则压缩来源并追加；满8槽时打开 mode0 收方列表，双方各移除选中槽、以 flag0 追加交换 ID。只重算送方，保留收方原派生值；源列表、目标和交换列表取消均按原调用链重算送方并返回，不清已成功交接标志。53C53 对应的临时 `item_transfer_committed` 只在新的移动选择或成功 Load 时重置；成功 Give 后 COMMAND 取消保留移动及库存，并走不回血的物品行动尾。
+
+私有 modal 独占列表确认键；退出、资源错误和完整关页在不可逆提交前检查，caller 耗尽当前帧普通输入以免重复确认。Equip 留页复用同一 portrait／page owner，成功重画后继续原索引，不兼容保留当前眨眼画面。提交后重绘失败保留业务结果并冻结，不重试。实现与逻辑测试不等于原版运行验收；各冻结候选的双端 WGC、SAV 和精确随机范围见[阶段记录](../plans/stage-log.md)。
 
 MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
 

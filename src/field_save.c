@@ -250,6 +250,8 @@ int fd2_field_game_import_battle_snapshot(
     game->last_command_highlight_ms = 0;
     game->magic_list_selected = 0;
     game->item_list_selected = 0; /* 临时raw槽owner仅在成功Load交接时清除。 */
+    game->item_give_recipient = game->item_give_selected = 0;
+    game->item_transfer_committed = 0;
     game->magic_target_id = 0;
     memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
     game->magic_target_count = 0;

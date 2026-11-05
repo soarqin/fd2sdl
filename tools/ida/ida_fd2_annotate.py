@@ -117,8 +117,9 @@ def unique_stack_args(counter: collections.Counter) -> int | None:
 
 
 def run_probe(args) -> int:
-    work = Path("/tmp/fd2-ida-probe-db")
-    shutil.rmtree(work, ignore_errors=True)
+    work = args.probe.resolve().parent / "probe-db"
+    if work.exists():
+        raise FileExistsError("Use a new isolated probe output directory; preserve previous DB evidence")
     shutil.copytree(args.idb.parent, work)
     idapro.enable_console_messages(False)
     rc = idapro.open_database(str(work / args.idb.name), run_auto_analysis=False)
@@ -167,7 +168,7 @@ def run_probe(args) -> int:
             if idc.get_operand_type(errea, 0) != idc.o_near:
                 continue
             callee = idc.get_operand_value(errea, 0)
-            if callee in proposals or ida_nalt.is_userti(callee):
+            if callee == 0x3702F or callee in proposals or ida_nalt.is_userti(callee):
                 continue
             n = unique_stack_args(evidence.get(callee, collections.Counter()))
             if n is None:
@@ -211,7 +212,7 @@ def run_probe(args) -> int:
     }
     args.probe.parent.mkdir(parents=True, exist_ok=True)
     args.probe.write_text(json.dumps(payload, indent=1, ensure_ascii=False),
-                          encoding="utf-8")
+                          encoding="utf-8", newline="\n")
     print(f"wrote {args.probe}  (剩余失败 {len(cur)})")
     idapro.close_database(save=False)
     shutil.rmtree(work, ignore_errors=True)
@@ -250,6 +251,8 @@ def run_apply(args) -> int:
     applied, rejected = [], []
     for p in probe["prototypes"]:
         ea = int(p["callee"], 16)
+        if ea == 0x3702F:
+            raise ValueError("Forbidden explicit prototype for watcom_stack_check")
         if idc.SetType(ea, p["prototype"]):
             ida_nalt.set_userti(ea)   # 标记为已确认，后续反编译不再猜测
             applied.append(p)
@@ -336,7 +339,7 @@ def run_apply(args) -> int:
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=1, ensure_ascii=False),
-                              encoding="utf-8")
+                              encoding="utf-8", newline="\n")
         print(f"wrote {args.report}")
     idapro.close_database(save=True)
     return 0

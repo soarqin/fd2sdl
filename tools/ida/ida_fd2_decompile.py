@@ -43,6 +43,7 @@ def main() -> int:
 
     import ida_funcs
     import ida_hexrays
+    import ida_kernwin
     import ida_nalt
     import ida_typeinf
     import ida_lines
@@ -79,7 +80,7 @@ def main() -> int:
         tif = ida_typeinf.tinfo_t()
         proto = str(tif) if ida_nalt.get_tinfo(tif, f.start_ea) else ""
         header = (f"/* ---------------------------------------------------------------\n"
-                  f" * IDA 9.4 Hex-Rays: {name}\n"
+                  f" * IDA {ida_kernwin.get_kernel_version()} Hex-Rays: {name}\n"
                   f" * VA={f.start_ea:#x}..{f.end_ea:#x} OBJ=1 OFF={f.start_ea - 0x10000:#x}"
                   f" size={f.end_ea - f.start_ea:#x}"
                   + (f" [{', '.join(flags)}]" if flags else "") + "\n")
@@ -129,7 +130,7 @@ def main() -> int:
 
     import ida_ida, ida_loader
     banner = (
-        "/* FD2.EXE 反编译输出（IDA Pro 9.4 / Hex-Rays，idalib headless）\n"
+        f"/* FD2.EXE 反编译输出（IDA Pro {ida_kernwin.get_kernel_version()} / Hex-Rays，idalib headless）\n"
         " *\n"
         " * 生成方式：\n"
         " *   python3 tools/ida/ida_fd2_export.py\n"
@@ -155,7 +156,7 @@ def main() -> int:
     text = banner + "".join(chunks)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(text, encoding="utf-8")
+        args.out.write_text(text, encoding="utf-8", newline="\n")
         print(f"wrote {args.out} ({len(text)} bytes, {len(targets)} functions)")
     else:
         sys.stdout.write(text)

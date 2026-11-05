@@ -1,5 +1,6 @@
 /* field_player_magic_command_execute @0x1cff0（原登记同名）与
  * field_unit_inventory_select @0x1b932（原sub_1B932）的私有modal无窗口
+ * 回归及sub_1BFFE @0x1bffe（原登记同名）的EQT留页重绘；
  * 回归；单键步骤@0x1d51d／@0x1b9de、共享RNG等待@0x16c57。
  * 用真实DATO／字体／列表资源和正式core step，替换宿主时钟／呈现。
  * 验证列表到目标／COMMAND的返回编排，不提交施法，不作为原版运行对照。 */
@@ -35,6 +36,12 @@ static struct {
     fd2_field_game *drop_game;
     size_t drop_initial_count;
     int early_drop;
+    fd2_field_game *eqt_game;
+    fd2_vga *eqt_vga;
+    int eqt_apply_calls, eqt_outcomes[16], eqt_redraws, eqt_bad_redraw;
+    int eqt_confirm_pending, eqt_quit_on_drain, eqt_corrupt_on_confirm;
+    int eqt_bad_upper_after_apply, eqt_bad_lower_after_apply;
+    int eqt_quit_after_apply, eqt_quit_in_present;
     int fail_decode, wrong_portrait_size, step_error;
     int steps, indices[32], statuses[32], rng_calls, bad_cue;
     int closing_start, bad_transition;
@@ -151,9 +158,32 @@ static int modal_item_step(fd2_field_game *game, fd2_field_item_list_key key) {
         controls.indices[index] = game->item_list_selected;
         controls.statuses[index] = result;
     }
-    if (result == -1 || result == 1) {
+    if (result == 1 && game->command_selected == 2) {
+        controls.eqt_confirm_pending = 1;
+        if (controls.eqt_corrupt_on_confirm)
+            ((uint8_t *)&game->units.items[0])[0x0b + 2u * (size_t)game->item_list_selected] = 255;
+    }
+    if (result == -1 || (result == 1 && game->command_selected != 2)) {
         controls.closing = 1;
         controls.closing_start = controls.frames;
+    }
+    return result;
+}
+static int modal_take_key(fd2_input *input, fd2_input_event *event) {
+    int result = fd2_input_take_key(input, event);
+    if (!event && result && controls.eqt_confirm_pending && controls.eqt_quit_on_drain)
+        input->quit_requested = 1;
+    return result;
+}
+static int modal_equip(fd2_field_game *game) {
+    int result = fd2_field_game_equip_item(game);
+    int call = controls.eqt_apply_calls++;
+    if (call < 16) controls.eqt_outcomes[call] = result;
+    controls.eqt_confirm_pending = 0;
+    if (result == 1) {
+        if (controls.eqt_bad_upper_after_apply) game->info_assets.detail_top.pixels = NULL;
+        if (controls.eqt_bad_lower_after_apply) game->info_assets.detail_icons[0].pixels = NULL;
+        if (controls.eqt_quit_after_apply) controls.eqt_vga->input.quit_requested = 1;
     }
     return result;
 }
@@ -233,6 +263,22 @@ static void modal_present_timed(fd2_vga *vga, uint32_t interval) {
 }
 static void modal_present(fd2_vga *vga) {
     controls.presents++;
+    if (controls.eqt_game && !controls.closing) {
+        controls.eqt_redraws++;
+        fd2_vga expected = {0};
+        memcpy(expected.framebuffer, reference_background, sizeof(reference_background));
+        fd2_field_game *game = controls.eqt_game;
+        fd2_field_detail_draw(&expected, &game->info_assets, &game->font,
+            &game->ui_text, &game->units.items[0], &reference_portraits[0]);
+        if (fd2_field_item_list_draw(&expected, &game->info_assets, &game->font,
+                &game->ui_text, &game->units.items[0], -1) != 0 ||
+            memcmp(expected.framebuffer, vga->framebuffer, sizeof(expected.framebuffer)) != 0)
+            controls.eqt_bad_redraw = 1;
+        reference_page = expected; /* 后续关闭必须用新flag/数值，不是最初旧页。 */
+        modal_frame_input(vga, -2);
+        if (controls.eqt_quit_in_present) vga->input.quit_requested = 1;
+        return;
+    }
     modal_frame_input(vga, -1);
 }
 
@@ -243,6 +289,8 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_field_game_render modal_render
 #define fd2_field_game_magic_list_step modal_step
 #define fd2_field_game_item_list_step modal_item_step
+#define fd2_field_game_equip_item modal_equip
+#define fd2_input_take_key modal_take_key
 #define fd2_field_game_animate_command modal_command
 #define fd2_field_audio_play modal_audio
 #define fd2_field_water_tick modal_water
@@ -258,6 +306,8 @@ static void modal_present(fd2_vga *vga) {
 #undef fd2_field_game_render
 #undef fd2_field_game_magic_list_step
 #undef fd2_field_game_item_list_step
+#undef fd2_field_game_equip_item
+#undef fd2_input_take_key
 #undef fd2_field_game_animate_command
 #undef fd2_field_audio_play
 #undef fd2_field_water_tick
@@ -345,7 +395,7 @@ static int unchanged_game(const fd2_field_game *game, const fd2_field_game *befo
 }
 static int released(void) {
     CHECK(controls.live_buffers == 0 && controls.live_portraits == 0);
-    CHECK(!controls.deadline && !controls.bad_cue && !controls.bad_transition);
+    CHECK(!controls.deadline && !controls.bad_cue && !controls.bad_transition && !controls.eqt_bad_redraw);
     return 0;
 }
 static int test_navigation_and_cancel(void) {
@@ -1127,6 +1177,184 @@ static int test_list_cleanup_quit_precedes_drop_or_use_handoff(void) {
     return 0;
 }
 
+static void eqt_slot(fd2_field_unit *unit, size_t index, uint8_t flags, uint8_t id) {
+    uint8_t *raw = (uint8_t *)unit;
+    raw[0x0a + index * 2u] = flags;
+    raw[0x0b + index * 2u] = id;
+}
+
+static int reset_eqt(fd2_field_game *game, fd2_vga *vga) {
+    CHECK(reset_item(game, vga, 4) == 0);
+    fd2_field_unit *unit = &game->units.items[0];
+    unit->movement_profile = 1;
+    unit->base_attack_le[0] = 6; unit->base_defense_le[0] = 4; unit->dexterity_le[0] = 2;
+    unit->attack = 16; unit->defense = 12; unit->accuracy = 97; unit->evasion = 2;
+    unit->experience = 99;
+    eqt_slot(unit, 0, 0x40, 0); eqt_slot(unit, 1, 0x40, 132);
+    eqt_slot(unit, 2, 0, 1); eqt_slot(unit, 3, 0, 192);
+    game->command_selected = 2; /* 只设私有modal，正式MENU能力仍灰2。 */
+    controls.eqt_game = game; controls.eqt_vga = vga;
+    return 0;
+}
+
+static fd2_field_unit eqt_after(const fd2_field_unit *before) {
+    fd2_field_unit result = *before;
+    eqt_slot(&result, 0, 0, 0); eqt_slot(&result, 2, 0x40, 1);
+    result.attack = 26;
+    return result;
+}
+
+static int test_eqt_continuous_apply_repeat_incompatible_and_new_close_page(void) {
+    fd2_field_game game;
+    fd2_vga vga;
+    fd2_field_audio audio = {0};
+    CHECK(reset_eqt(&game, &vga) == 0);
+    fd2_field_game before = game;
+    controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_DOWN, 0};
+    controls.keys_at[1] = (key_frame){15, SDL_SCANCODE_DOWN, 0};
+    controls.keys_at[2] = (key_frame){17, SDL_SCANCODE_RETURN, SDL_SCANCODE_SPACE};
+    controls.keys_at[3] = (key_frame){19, SDL_SCANCODE_RETURN, 0};
+    controls.keys_at[4] = (key_frame){21, SDL_SCANCODE_DOWN, 0};
+    controls.keys_at[5] = (key_frame){23, SDL_SCANCODE_RETURN, 0};
+    controls.keys_at[6] = (key_frame){25, SDL_SCANCODE_ESCAPE, 0};
+    controls.key_count = 7;
+    uint8_t output = 0xa5;
+    CHECK(play_field_item_list(&game, &vga, &audio, &output) == FIELD_LIST_CANCELLED);
+    CHECK(output == 0xa5 && controls.frames == 37 && controls.closing_start == 25);
+    CHECK(controls.eqt_apply_calls == 3 && controls.eqt_outcomes[0] == 1 &&
+          controls.eqt_outcomes[1] == 1 && controls.eqt_outcomes[2] == 0);
+    CHECK(controls.eqt_redraws == 2 && controls.render_calls == 1);
+    CHECK(controls.rng_calls == 7 && controls.sound_calls == 3 && controls.steps == 8);
+    before.units.items[0] = eqt_after(&before.units.items[0]);
+    before.item_list_selected = 3;
+    CHECK(!memcmp(&game, &before, sizeof(game)) && !fd2_input_has_any_key(&vga.input));
+    CHECK(fd2_field_game_end_item_list(&game) == 0 && game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU);
+    CHECK(!game.item_list_selected && game.command_disabled[2] && !fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(game.units.items[0].attack == 26 && game.pending_cell_event.valid);
+    return released();
+}
+
+static int test_eqt_success_resets_portrait0_incompatible_keeps_blink(void) {
+    for (int compatible = 0; compatible < 2; compatible++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_eqt(&game, &vga) == 0);
+        game.item_list_selected = compatible ? 2 : 3;
+        controls.interval = 110;
+        controls.keys_at[0] = (key_frame){16, SDL_SCANCODE_RETURN, 0};
+        controls.keys_at[1] = (key_frame){17, SDL_SCANCODE_ESCAPE, 0};
+        controls.key_count = 2;
+        fd2_field_unit expected = game.units.items[0];
+        if (compatible) expected = eqt_after(&expected);
+        uint8_t output = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &output) == FIELD_LIST_CANCELLED);
+        CHECK(!memcmp(&game.units.items[0], &expected, sizeof(expected)) && output == 0xa5);
+        CHECK(controls.portrait_at_frame[16] == 3 && controls.portrait_at_frame[17] == (compatible ? 1 : 3));
+        CHECK(controls.eqt_redraws == compatible && controls.eqt_apply_calls == 1);
+        CHECK(controls.rng_calls == 2 && !controls.sound_calls && controls.render_calls == 1);
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
+static int test_eqt_quit_before_drain_commit_and_after_commit(void) {
+    for (int fault = 0; fault < 5; fault++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_eqt(&game, &vga) == 0);
+        game.item_list_selected = 2;
+        fd2_field_unit expected = game.units.items[0];
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, SDL_SCANCODE_SPACE};
+        controls.key_count = 1;
+        if (fault == 0) controls.quit_frame = 13;
+        if (fault == 1) controls.eqt_quit_on_drain = 1;
+        if (fault == 2) controls.eqt_quit_after_apply = 1;
+        if (fault == 3) controls.eqt_quit_in_present = 1;
+        if (fault == 4) {
+            controls.keys_at[1] = (key_frame){15, SDL_SCANCODE_ESCAPE, 0};
+            controls.key_count = 2;
+            controls.quit_frame = 16;
+        }
+        if (fault >= 2) expected = eqt_after(&expected);
+        uint8_t output = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &output) == FIELD_LIST_HOST_QUIT);
+        CHECK(output == 0xa5 && !memcmp(&game.units.items[0], &expected, sizeof(expected)));
+        CHECK(controls.eqt_apply_calls == (fault >= 2) && !controls.command_calls);
+        CHECK(game.interaction == FD2_FIELD_INTERACTION_ITEM_LIST && game.item_list_selected == 2);
+        CHECK(!game.event_total_count && !game.player_post_waiting_phase && game.pending_cell_event.valid);
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
+static int test_eqt_data_error_and_postcommit_redraw_error(void) {
+    for (int fault = 0; fault < 4; fault++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_eqt(&game, &vga) == 0);
+        game.item_list_selected = 2;
+        if (fault == 3) eqt_slot(&game.units.items[0], 7, 0xc0, 2); /* 合法名字，核心postdense拒绝。 */
+        fd2_field_unit expected = game.units.items[0];
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_RETURN, 0};
+        controls.key_count = 1;
+        if (fault == 0) {
+            controls.eqt_corrupt_on_confirm = 1;
+            eqt_slot(&expected, 2, 0, 255);
+        } else if (fault == 1) controls.eqt_bad_upper_after_apply = 1;
+        else if (fault == 2) controls.eqt_bad_lower_after_apply = 1;
+        if (fault == 1 || fault == 2) expected = eqt_after(&expected);
+        uint8_t output = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &output) == FIELD_LIST_ERROR);
+        CHECK(output == 0xa5 && !memcmp(&game.units.items[0], &expected, sizeof(expected)));
+        CHECK(controls.eqt_apply_calls == (fault != 0) && !controls.eqt_redraws && !controls.command_calls);
+        CHECK(controls.rng_calls == 1 && game.interaction == FD2_FIELD_INTERACTION_ITEM_LIST);
+        CHECK(game.item_list_selected == 2 && !fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
+static int test_eqt_potential_hidden_name_preflight_is_atomic(void) {
+    uint32_t cells[24 * 24] = {0};
+    fd2_terrain_attr attr = {0};
+    for (int equipped = 0; equipped < 2; equipped++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        CHECK(reset_eqt(&game, &vga) == 0);
+        /* 隐藏slot4，已装备时可被1c142唤醒；仅隐藏stale ID不参与绘制。 */
+        eqt_slot(&game.units.items[0], 4, equipped ? 0xc0 : 0x80, 2);
+        const uint8_t *tokens;
+        size_t count;
+        CHECK(fd2_text_entry_get_fragment(&game.ui_text, 183, &tokens, &count) == 0 && count > 1);
+        uint8_t *bad_text = malloc(game.ui_text.size);
+        CHECK(bad_text != NULL);
+        memcpy(bad_text, game.ui_text.data, game.ui_text.size);
+        size_t offset = (size_t)(tokens - game.ui_text.data);
+        bad_text[offset] = 1; bad_text[offset + 1] = 0xff;
+        game.ui_text.data = bad_text;
+        controls.real_render = 1;
+        game.map.width = game.map.height = 24; game.map.cells = cells;
+        game.terrain.attrs = &attr; game.terrain.attr_count = 1;
+        game.cursor_cell_x = game.units.items[0].x = 6;
+        game.cursor_cell_y = game.units.items[0].y = 17;
+        game.info_panel_right = 0;
+        fd2_field_game before = game;
+        fd2_vga old_vga = vga;
+        controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_ESCAPE, 0}; controls.key_count = 1;
+        uint8_t output = 0xa5;
+        CHECK(play_field_item_list(&game, &vga, NULL, &output) == (equipped ? FIELD_LIST_ERROR : FIELD_LIST_CANCELLED));
+        CHECK(output == 0xa5 && controls.render_calls == 1 && controls.panel_after_render == 1);
+        if (!equipped) before.info_panel_right = 1;
+        CHECK(!memcmp(&game, &before, sizeof(game)));
+        if (equipped) CHECK(!memcmp(&vga, &old_vga, sizeof(vga)) && !controls.rng_calls && !controls.frames);
+        else CHECK(controls.rng_calls == 1 && controls.frames == 25);
+        CHECK(!controls.eqt_apply_calls);
+        free(bad_text);
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
     CHECK(test_navigation_and_cancel() == 0);
@@ -1147,6 +1375,11 @@ int main(void) {
     CHECK(test_drop_closes_before_commit_and_reopens_actual_owner() == 0);
     CHECK(test_drop_errors_quit_and_postcommit_freeze() == 0);
     CHECK(test_list_cleanup_quit_precedes_drop_or_use_handoff() == 0);
+    CHECK(test_eqt_continuous_apply_repeat_incompatible_and_new_close_page() == 0);
+    CHECK(test_eqt_success_resets_portrait0_incompatible_keeps_blink() == 0);
+    CHECK(test_eqt_quit_before_drain_commit_and_after_commit() == 0);
+    CHECK(test_eqt_data_error_and_postcommit_redraw_error() == 0);
+    CHECK(test_eqt_potential_hidden_name_preflight_is_atomic() == 0);
     fd2_image_free(&reference_portraits[1]);
     fd2_image_free(&reference_portraits[0]);
     fd2_field_info_assets_close(&fixture.info_assets);

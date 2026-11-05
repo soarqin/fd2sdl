@@ -174,6 +174,7 @@ static int field_list_draw(fd2_vga *vga, const fd2_field_game *game,
 
 /* field_player_magic_command_execute @0x1cff0（原登记同名）与
  * field_unit_inventory_select @0x1b932（原sub_1B932）的列表呈现／等待；
+ * EQT留页依据sub_1BFFE @0x1bffe（原登记同名）。
  * 按键分别复用@0x1d51d（原sub_1D51D）与@0x1b9de（原sub_1B9DE）。
  * 不结束LIST、不扣资源、不提交临时移动或pending。
  * sub_16C57 @0x16c57每次等键入口和眨眼复位均消费session共享RNG；
@@ -193,6 +194,7 @@ static field_list_result play_field_unit_list(
         return FIELD_LIST_ERROR;
     if (kind == FIELD_LIST_ITEM &&
         !(game->command_selected == 0 ? fd2_field_game_item_use_is_available(game) :
+          game->command_selected == 2 ? fd2_field_game_item_equip_is_available(game) :
           game->command_selected == 3 && fd2_field_game_item_drop_is_available(game)))
         return FIELD_LIST_ERROR;
     uint8_t candidate_id = 0;
@@ -233,6 +235,17 @@ static field_list_result play_field_unit_list(
     memcpy(background, page->framebuffer, VGA_W * VGA_H);
     fd2_field_detail_draw(page, &game->info_assets, &game->font,
                           &game->ui_text, unit, &portraits[0]);
+    if (kind == FIELD_LIST_ITEM && game->command_selected == 2) {
+        /* 1c142整flag清0会唤醒hidden equipped；首帧前预检全部潜在名称。
+         * 只用80B临时记录，不预演装备或更改真实库存/信息面板owner。 */
+        fd2_field_unit visible = *unit;
+        uint8_t *raw = (uint8_t *)&visible;
+        for (size_t slot = 0; slot < 8u; slot++)
+            if ((raw[0x0a + slot * 2u] & 0xc0u) == 0xc0u)
+                raw[0x0a + slot * 2u] = 0;
+        if (field_list_draw(page, game, &visible, kind, -1) != 0)
+            goto done;
+    }
     if (field_list_draw(page, game, unit, kind, -1) != 0)
         goto done;
     /* 完整资源预检结束后才写实际VGA、耗键或消费RNG。 */
@@ -292,6 +305,38 @@ static field_list_result play_field_unit_list(
         int previous = field_list_selected(game, kind);
         int step = field_list_step(game, kind, event.key, &candidate_id);
         if (step == -2) goto done;
+        if (step == 1 && kind == FIELD_LIST_ITEM && game->command_selected == 2) {
+            /* sub_1BFFE确认仍留同页；耗尽本帧普通键，退出先于不可逆装备。 */
+            drain_frame_keys(vga);
+            if (fd2_input_take_quit(&vga->input)) {
+                result = FIELD_LIST_HOST_QUIT;
+                goto done;
+            }
+            if (!fd2_field_game_item_equip_is_available(game)) goto done;
+            int applied = fd2_field_game_equip_item(game);
+            if (applied < 0) goto done;
+            if (applied) {
+                if (fd2_input_take_quit(&vga->input)) {
+                    result = FIELD_LIST_HOST_QUIT;
+                    goto done;
+                }
+                if (!fd2_field_game_detail_upper_is_ready(game, unit)) goto done;
+                memcpy(page->framebuffer, vga->framebuffer, VGA_W * VGA_H);
+                /* 1bffe→17eef重画DATO首帧0及upper，再184c0(-1)重画底页。
+                 * 同时更新关闭动画的page，不能闪回换装前的flag/AP。 */
+                fd2_field_detail_draw(page, &game->info_assets, &game->font,
+                                      &game->ui_text, unit, &portraits[0]);
+                if (field_list_draw(page, game, unit, kind, -1) != 0)
+                    goto done;
+                memcpy(vga->framebuffer, page->framebuffer, VGA_W * VGA_H);
+                fd2_vga_present(vga);
+                if (fd2_input_take_quit(&vga->input)) {
+                    result = FIELD_LIST_HOST_QUIT;
+                    goto done;
+                }
+            }
+            continue;
+        }
         if (step != 0) {
             result = step == 1 ? FIELD_LIST_CONFIRMED : FIELD_LIST_CANCELLED;
             break;

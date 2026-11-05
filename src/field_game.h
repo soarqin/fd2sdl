@@ -411,6 +411,10 @@ int fd2_field_game_item_is_available(const fd2_field_game *game);
 int fd2_field_game_item_use_is_available(const fd2_field_game *game);
 int fd2_field_game_item_drop_is_available(const fd2_field_game *game);
 
+/* sub_1BFFE @0x1bffe（原登记同名）的私有EQT等待查询：现profile1纯支持门
+ * 加共享RNG有效性；不写状态/RNG。正式MENU仍灰2，COMMAND能力不OR此门。 */
+int fd2_field_game_item_equip_is_available(const fd2_field_game *game);
+
 /* field_player_item_command_execute @0x1bbdc（原登记同名）的草药192
  * 普通area0目标session：用record+10/+12/+15，不套AI的+11或MAGIC门。
  * begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；

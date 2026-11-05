@@ -421,6 +421,18 @@ B3.4a原版校准已独立提交`187871c`，继续在现有game会话接纯Drop�
 
 原版四函数保留中性sub及canonical依据，没有手改生成pC或声称完成新命名发布；项目／既有临时证据未找到数据库，隔离建库与真实生成方案已准备并按AGENTS发出单独授权请求。下一步c3在原modal内接确认后详情／列表重绘并继续等键，c4双端通过后才开放受支持正式Equip；Give、完整随机流／音画与整关后续仍未验。
 
+### B3.4c3 Equip 私有留页、重绘与退出边界
+
+纯会话已提交 `085e845`，继续在既有modal接Equip2，只有game实现／接口、play及既有modal TU共4个src文件。等待query复用纯支持门及共享RNG，COMMAND仍只OR Use／Drop，MENU2仍灰，confirm_cursor拒2。没有新字段、上下文、输入owner、模块、目标或生产测试入口。
+
+确认先drain本帧普通键，再take_quit及重验门，才调用纯API。兼容成功以发布 `sub_1BFFE→field_unit_detail_draw @0x17eef` 的portrait0重画详情／未选底板，当前VGA和同一关闭page均更新，留原索引继续等键；不兼容不重绘上页，保留现眨眼画面。Esc才走唯一关闭，confirmed输出不写。关闭page用换装后内容，不闪回旧flag/AP。潜在hidden+equipped名称在首帧前用80B临时visible记录借现renderer预检，正常hidden stale不误检；错误恢复info_panel owner且无真实VGA／输入／RNG写入。提交后的quit或upper/lower重绘错误保留actor，不退款、不重试；各路径释放既有背景、page及两portrait。
+
+作者独立fresh46core的4个既有target通过（3.21秒）；5组新增modal回归覆盖一次开关7键、连续成功／重复／不兼容、同帧Space排空、完整64K新页与关闭page、portrait3时成功复位／拒绝保留、5种quit时点、4种数据／晚绘制错误及资源释放。root冻结 `eqt-modal-c1/` 全新完整Windows构建，单轮57/57 CTest无跳过通过（input42.90、process12.21、总63.18秒）；10/10地址／发布专项（0.073秒）与510个canonical函数地址通过。两个connected独审无阻塞；新声音、精确墙钟及完整UI RNG没有因此验收。
+
+源326文件、原版50文件及当前4源文本前后守卫通过。程序SHA `0a070e5fedd526378c45ffa83a7b92280aa4311f0fb92f930d158f66a412542d`，driver `1443db5a1c65d09aa18bb2c3334f0a27cb7c873a042086433639a31c7a09bebd`。此程序只有私有Equip modal，没有新Equip WGC；34组仍严格属于64175正式Drop候选，不跨binary继承。本地公开程序仍为已验收64175。最新全量380项Python保留c1工具阶段来源，不冒称c3再跑。
+
+下一步c4先处理项目命名纪律：四函数仍引用原sub与canonical，项目及既有证据中没有数据库，不能用registry／SHA刷新代替真实pC导出。`ida-equipment-proposal.md`及更详细`ida-equipment/workflow-proposal/`已准备纯C临时工作区、四函数映射、真实版本provenance、缓存／probe隔离与生成校验步骤；建库／标注／导出尚未执行，AGENTS规定的单独授权请求仍待答复。授权后按真实生成结果同步注释／命名，再冻结正式Equip和双端工具，完整重跑新候选36组（旧34加Equip2），不得仅更模型计数或复用旧图形。B3整体、Give及完整音画／RNG／整关后续仍未完成。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

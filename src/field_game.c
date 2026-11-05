@@ -1987,6 +1987,10 @@ int fd2_field_game_item_drop_is_available(const fd2_field_game *game) {
     return game && game->attack_rng && item_command_is_supported(game, 3);
 }
 
+int fd2_field_game_item_equip_is_available(const fd2_field_game *game) {
+    return game && game->attack_rng && item_command_is_supported(game, 2);
+}
+
 int fd2_field_game_item_is_available(const fd2_field_game *game) {
     return fd2_field_game_item_use_is_available(game) || fd2_field_game_item_drop_is_available(game);
 }

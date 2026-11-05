@@ -83,6 +83,8 @@ B3.4b1 的纯 Drop 会话已由 B3.4b2 接入正式 modal，复用 ITEM_LIST 和
 
 B3.4c2 仅接纯 Equip：显式开启的低层 command_selected2 使用同一 ITEM_LIST／mode0，正式菜单及 confirm_cursor 仍拒绝 Equip。兼容查询只支持已取证的 profile1，读取静态许可行前6B；未知 profile／ID 返回错误，不把本行作为通用默认。兼容确认先查全8槽 equipped ID，再在80B shadow按 ID `<128`／`>=128` 两组清整个 flag、把选中 flag 写40；重选已装备项也执行同一规则，不是切换关闭。清 flag 可能把隐藏槽变可见，必须复查结果仍为连续已知库存，再重算四派生后一次交接。错误无 actor／UI 写入，不兼容不重算；成功留 LIST／原 raw 索引，取消仅回 ITEM 首可用项而不重算。HP／MP、EX、方向、移动／pending、acted及RNG均保持；之后取消移动保留已装备结果。真实留页重绘和正式能力开放属于c3／c4。
 
+B3.4c3 的私有呈现复用同一列表 owner，独立 Equip 等待查询只增加共享 RNG 门，未接入 COMMAND 的能力 OR 或正式菜单。兼容确认前耗尽当前帧普通键并再次检查退出，然后调用纯应用；成功后以 portrait0 重画上页和未选底板，更新当前 VGA 及同一关闭动画 page，再按原索引继续等待。不兼容只继续等待，保留当前眨眼画面；Esc 才关闭。潜在隐藏装备名称用80B临时记录在首帧前预检；失败恢复信息侧位，不写真实库存／VGA或消费输入／RNG。提交后退出及重绘失败保留装备结果，不退款或重试。未新增随机流、声音或缓存 owner；c4正式双端验收仍待完成。
+
 MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、非升级EX与必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、EX、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI、488奖励提示与附加呈现RNG仍按B4/B6验收。
 
 必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。

@@ -121,7 +121,7 @@ def prepare(original, fixture, *, source=None, after_use=False):
 def inventory_templates(original, actor, assets=None):
     """纯资源构图：调用者先验证完整来源/派生manifest，不接受任意SAV。
 
-    只覆盖本轮已核0/132/192的最多三项重排。空库存只供删空后的
+    只覆盖已核0/1/132/192的最多三项重排。空库存只供删空后的
     COMMAND/无列表判据，不把空页当原版会打开的列表。
     """
     if len(actor) != STRIDE or actor[7:9] != b"\0\0":
@@ -131,7 +131,7 @@ def inventory_templates(original, actor, assets=None):
     if count > 3 or any(bool(flags & 0x80) != (i >= count) for i, (flags, _) in enumerate(slots)):
         raise ValueError("物品构图仅覆盖最多三项的已确认密集库存")
     slots = slots[:count]
-    if any(item_id not in (0, 132, 192) for _, item_id in slots):
+    if any(item_id not in (0, 1, 132, 192) for _, item_id in slots):
         raise ValueError("物品构图包含本轮未校准的物品资源")
     table, evidence = item_table(original / "FD2.EXE")
     if assets is None:

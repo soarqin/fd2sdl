@@ -397,6 +397,18 @@ B3.4a原版校准已独立提交`187871c`，继续在现有game会话接纯Drop�
 
 这是 B3.4b2 的受支持正式 Drop 交付，不关闭整个 B3。下一小阶段为 B3.4c Equip 原版校准：先核职业许可、同类 flag 写集及确认后留页重绘，再接纯 session 和正式 modal；Give 及满槽交换独立处理。Use 后 acted 的全 raw16、完整 UI RNG／演出／声音、水色整帧同步、整关实战、结算和下一关仍未验，Linux 本轮未执行。
 
+### B3.4c1 Equip 兼容替换与拒绝的原版校准
+
+正式 Drop 已原子提交 `7fe8008`，本地程序更新为同一受验 64175；继续 Equip，未改 game／play、正式能力或默认配对组。新工具在独立副本使用现有资源 owner，把两个实际 caller 共用的测量导航／Save 提为单 helper；旧 Drop 按键、检查点、完整容器规则及末尾守卫不变。profile1 行 canonical `0x61891`／file `0x7a8a5` 的 `01 15 16 ff ff ff 01` 由严格 LE／fixup 取得，只比较前6B。依据复用已发布 IDA 的 `sub_1BFFE/1C1C3/4E88E/1C142` 及 xref／原码，没有新建或保存数据库，也未发布新函数名或伪 C。
+
+`C:/Users/Soar/AppData/Local/Temp/fd2sdl-b3-20261105/eqt-native-c1/` 冻结326文件，只更新三份物品工具及阶段计划。作者59/59专项（27.823秒）和2/2输出路径守卫（0.177秒）通过；root在冻结包全量380/380 Python（235.517秒，无跳过）通过。source程序没有新编译或新SDL Equip，57项CTest及34组图形仍保留Drop正式冻结候选来源，不当作本工具阶段重跑。
+
+`graphics-artifacts/20261105-093956-527508/summary.json` 两场原版首轮通过，均 `probe_only=true/ok=false/probe_cases_passed=true`。`eqt-incompatible` 使用exact START，草药192/category32确认Enter及Space后仍在slot2，raw16 `4000408400c0800080008000800080c9`、四派生16／12／97／2及全部玩法字节不变，实际SAV SHA `ef7c27c00e15835866622d53ee734fec008e70a11fbc5f1780421d4dbbd202c1`。`eqt-weapon` 明列隔离派生档，只把slot2 ID192改1及checksum，来源密文SHA `ec01712ee1c8055eeba4071554af0284f3b89a8fbac24e56d28666ac58e99b4c`；一次确认后仍选slot2，raw16 `000040844001800080008000800080c9`，四派生26／12／97／2，实际SAV SHA `9a27c6d4d76d404c1fd39e94d8c8bf50d768bfbcc4fad915e48d95a8b162dc6d`。相对派生来源的玩法写集仅 `0x12ad/0x12b1/0x12eb` 两个整flag及AP；不是消耗／压槽，也不置acted。
+
+两场均检查完整32,723像素页面、确认后留页、Esc回ITEM0、重开EQT0、逐级取消及一次合法Save，无Use／Drop／Give确认或END。整容器相对各自来源只出现已列玩法写集、测量focus及checksum，允许的active+2 cache实际0处变化；HP42/42、MP0/0、EX0、flags0、camera、roster、未知区及末ID均保持。取消不重算的调用结论来自发布伪C，本次一致初值不证明陈旧派生的动态写入缺席；两场仍非完整UI随机流／声音验证。
+
+原版PID41796／5192均正常exit0，外owner45380／Job5940 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0`。源326文件、原版50文件、fixture bytes／mtime、测量后snapshot／当前文件完成态及cleanup守卫通过。此批只关闭B3.4c1两个原版场景，不增加34组或开放Equip。接下来B3.4c2纯兼容查询／flag写集与重算、c3留页重绘及c4正式双端；Give、完整RNG／音画、水色、整关／结算／下一关仍未验。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

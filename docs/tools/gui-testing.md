@@ -42,6 +42,14 @@ Drop 双端还要求每端分别通过上述完整容器模型，再比较两份
 
 Drop 实测后的 raw16B 与 AP／DP／AC／EV 属于所列分支证据；Use 后 acted 的 raw16B 仍未直接量测。四场初始派生已正确，取消重算均无数值变化，调用依据仍来自机器码，不能据此声称观测到了取消重算写入。原版单端成功仍为 `ok=false/probe_only=true/probe_cases_passed=true`，不能增加双端计数。正式 Drop 候选已在 Windows 单轮 34 组图形回归中重新通过四场实际配对，冻结来源见阶段日志；Equip、Give、完整随机流／声音和整关流程未因此验收。
 
+### B3 Equip 原版校准
+
+同一 runner 增加 `--scenario eqt-incompatible` 与 `--scenario eqt-weapon`，命令及 `run-job 480000` 沿用上文；它们仅运行原版，`--sdl` 在读文件、创建产物及启动前拒绝。前者使用 exact START 的草药192，Enter／Space 后仍留 raw slot2；后者只在隔离副本把 slot2 的192改为武器1并重算 checksum，确认一次后完整页面仍选 slot2。每场 Esc 回 ITEM0，再开 EQT 验证归0，逐级取消到未行动浏览并合法 Save 一次。共享 Drop 的测量导航／Save owner 和完整容器检查，不扩大未知字节或 cache 的豁免范围。
+
+许可依据为原版 `sub_1C1C3 @0x1c1c3`／`sub_4E88E @0x4e88e` 的 profile1 行，canonical `0x61891`、7B `01 15 16 ff ff ff 01`；只比较前6B，第7B不作许可。`sub_1C142 @0x1c142` 按 ID `<128`／`>=128` 两组写整个 flag，不能按物品 category 代替。两场已通过 32,723 像素完整列表、派生数字和真实 SAV；武器场仅两个 flag 与 AP 改变为 26／12／97／2，不兼容场无玩法写。仍保留原 `sub_*` 登记名，没有宣称新语义命名或伪 C 已重新发布。
+
+成功仍为原版单端 `ok=false/probe_only=true/probe_cases_passed=true`。两场通过不增加正式 Drop 候选的34组，也不代表 SDL Equip 已接入、全部职业许可或完整换装／音画／RNG 已验。后续纯 session 与正式留页流程分别验收。
+
 已批准的短暂WGC捕获错误是独立的`wgc_transient`诊断记录，不能当业务检查点，也不能按名称后缀随意丢弃。比较器要求完整且唯一的业务名称集合；诊断须符合类型、捕获后端、错误白名单、原检查点关联、时序／PID、重试计数及附件SHA规则。诊断可以在两端数量不同；对应实际业务图仍须逐项完整通过。缺失、重复或伪装的检查点立即失败，不放宽像素门。
 
 ## 截图规范

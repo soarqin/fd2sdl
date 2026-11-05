@@ -768,6 +768,153 @@ class DropTest(Fixture, unittest.TestCase):
                 self.assertEqual(sum(r["bad_pixels"] for row in compared["checkpoints"] for r in row["static_regions"]), 1)
 
 
+class EquipmentTest(Fixture, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.encrypted = (ROOT / "original_game/START.SAV").read_bytes()
+        cls.encoded, cls.changed, cls.manifest = probe.derive_second_weapon(cls.source, cls.encrypted)
+        cls.cases = {}
+        for scenario in probe.EQUIPMENT_SCENARIOS:
+            source, focus, assets, actor, selection, templates, fields = probe.prepare(ROOT / "original_game")
+            if scenario == "eqt-weapon":
+                source = cls.changed
+                _, templates, updated = oracle.inventory_templates(ROOT / "original_game", source[probe.UNITS:probe.UNITS + probe.STRIDE], assets)
+                fields = dict(updated, submenu=fields["submenu"])
+            probe.prepare_equipment(ROOT / "original_game", source, assets, actor, fields, scenario)
+            cls.cases[scenario] = (source, focus, assets, actor, selection, templates, fields)
+
+    @staticmethod
+    def page(templates, selected):
+        frame = Image.new("RGB", (320, 200))
+        for name in (f"selected_{selected}", "actor_name", "current_max_hp", "current_max_mp", "level", "experience",
+                     "attack", "defense", "accuracy", "evasion"):
+            at, part = templates[name]; frame.paste(part.convert("RGB"), at)
+        return frame
+
+    def test_exact_fixture_and_permission_row_first_six(self):
+        self.assertEqual(hashlib.sha256(self.encoded).hexdigest(), "ec01712ee1c8055eeba4071554af0284f3b89a8fbac24e56d28666ac58e99b4c")
+        self.assertEqual([p["offset"] for p in self.manifest["plaintext_patches"]], [0x12b2, 0x59c7, 0x59c8])
+        for scenario, case in self.cases.items():
+            contract = case[-1]["equipment_contract"]
+            self.assertEqual(contract["profile"], 1)
+            self.assertEqual(contract["row_hex"], "011516ffffff01")
+            self.assertEqual(contract["allowed_categories"], [1, 21, 22, 255, 255, 255])
+            self.assertFalse(contract["seventh_byte_used"])
+            self.assertEqual(contract["compatible"], scenario == "eqt-weapon")
+        with self.assertRaises(ValueError):
+            oracle.prepare(ROOT / "original_game", ROOT / "original_game/START.SAV", source=self.changed)
+        for source, encoded in ((self.changed, self.encrypted), (self.source, self.encoded)):
+            with self.assertRaises(ValueError): probe.derive_second_weapon(source, encoded)
+        broken = bytearray(self.changed); broken[0x8a3] ^= 1
+        with self.assertRaises(ValueError): probe.equipment_expected_source(ROOT / "original_game", broken, "eqt-weapon")
+
+    def test_success_changes_only_flags_and_attack_incompatibility_changes_nothing(self):
+        for scenario, case in self.cases.items():
+            source, _, assets, _, _, _, _ = case
+            expected = assets["equipment"]["expected_source"]
+            diff = [i for i, (a, b) in enumerate(zip(source[:-4], expected[:-4])) if a != b]
+            self.assertEqual(diff, [0x12ad, 0x12b1, 0x12eb] if scenario == "eqt-weapon" else [])
+            self.assertEqual(expected[probe.UNITS + 10:probe.UNITS + 26].hex(),
+                "000040844001800080008000800080c9" if scenario == "eqt-weapon" else "4000408400c0800080008000800080c9")
+            self.assertEqual(list(struct.unpack_from("<4H", expected, probe.UNITS + 0x48)),
+                [26, 12, 97, 2] if scenario == "eqt-weapon" else [16, 12, 97, 2])
+            self.assertEqual(struct.unpack_from("<4H", expected, probe.UNITS + 0x40), (42, 42, 0, 0))
+            self.assertEqual(expected[probe.UNITS + 5], 0)
+            self.assertEqual(expected[probe.UNITS + 0x3c], 0)
+            self.assertEqual(expected[0x8a3:probe.UNITS], self.source[0x8a3:probe.UNITS])
+            measured = bytearray(expected)
+            measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3)); measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+            probe.check_load_measurement(expected, measured, assets["equipment"]["steps"])
+            for offset in (probe.META + 3, 0x8a3, probe.UNITS + 0x19, probe.UNITS + 5, probe.UNITS + 0x48):
+                bad = bytearray(measured); bad[offset] ^= 1; bad[-4:] = sum(bad[:-4]).to_bytes(4, "little")
+                with self.assertRaises(AssertionError): probe.check_load_measurement(expected, bad, assets["equipment"]["steps"])
+
+    def test_full_resource_flags_stats_selected_and_stale_page_rejection(self):
+        for scenario, case in self.cases.items():
+            plan = case[2]["equipment"]
+            for templates, fields in ((case[-2], case[-1]), (plan["after_templates"], plan["after_fields"])):
+                for selected in (0, 2):
+                    frame = self.page(templates, selected)
+                    detail = probe.equipment_page(frame, templates, fields, selected)
+                    self.assertEqual(detail["checked_pixels"], 32723)
+                    self.assertEqual(detail["list_mode"], 0)
+                    self.assertIsNone(probe.equipment_page(frame, templates, fields, 2 if selected == 0 else 0))
+                    for point in ((13, 101), (13, 145), (157, 67), (117, 67), (117, 79), (157, 79)):
+                        bad = frame.copy(); bad.putpixel(point, (255, 0, 255))
+                        self.assertIsNone(probe.equipment_page(bad, templates, fields, selected))
+            if scenario == "eqt-weapon":
+                stale = self.page(case[-2], 2)
+                self.assertIsNone(probe.equipment_page(stale, plan["after_templates"], plan["after_fields"], 2))
+
+    def protocol(self, folder, scenario, *, stop=None, unknown_save=False):
+        case = self.cases[scenario]
+        source, focus, assets, actor, selection, templates, fields = case
+        encoded_source = self.encoded if scenario == "eqt-weapon" else self.encrypted
+        save = folder / "FD2.SAV"; save.write_bytes(encoded_source)
+        measured = bytearray(assets["equipment"]["expected_source"])
+        measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
+        if unknown_save: measured[0x8a3] ^= 1
+        measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
+        encoded = bytes(a ^ b ^ c for a, b, c in zip(encoded_source, source, measured))
+        capture = Mock(last=Image.new("RGB", (320, 200)), artifacts=folder)
+        self.last_capture = capture
+        armed = [False]
+        def key(name):
+            if armed[0] and name == "ENTER": save.write_bytes(encoded); armed[0] = False
+        capture.key.side_effect = key
+        def wait(capture, name, predicate, checkpoints, **kwargs):
+            if name == stop: raise TimeoutError("equipment resource gate")
+            if name == "eqt-save-default-yes": armed[0] = True
+            if name in ("eqt-list-zero", "eqt-selected-slot1", "eqt-selected-slot2", "eqt-reopened-list-zero") or name.startswith("eqt-confirm-"):
+                after = name.startswith("eqt-confirm-") or name == "eqt-reopened-list-zero"
+                t = assets["equipment"]["after_templates"] if after else templates
+                selected = 0 if name.endswith("zero") else 1 if name == "eqt-selected-slot1" else 2
+                detail = predicate(self.page(t, selected)); self.assertIsNotNone(detail)
+                return capture.last, detail
+            return capture.last, {"focus_screen": [52, 76]}
+        report = {"kind": "original", "checkpoints": []}
+        with patch.object(probe, "wait_title"), patch.object(probe, "save_checkpoint"), patch.object(probe, "wait_state", side_effect=wait):
+            probe.exercise(capture, *case, {3: [capture.last] * 3}, save, encoded_source, save.stat().st_mtime_ns, report, scenario=scenario)
+        return capture, report
+
+    def test_protocol_stays_after_confirmation_then_reopens_zero_and_saves_once(self):
+        for scenario in self.cases:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                capture, report = self.protocol(Path(directory), scenario)
+                expected = ["UP", "ENTER", "Z", "ENTER", "ENTER", "ENTER", "RIGHT", "ENTER", "DOWN", "DOWN", "ENTER"]
+                if scenario == "eqt-incompatible": expected += ["SPACE"]
+                expected += ["ESC", "RIGHT", "ENTER", "ESC", "ESC", "ESC", "ESC", "LEFT", "ENTER", "ENTER", "LEFT", "ENTER", "ENTER"]
+                self.assertEqual([c.args[0] for c in capture.key.call_args_list], expected)
+                self.assertEqual(len(expected), 24 if scenario == "eqt-weapon" else 25)
+                self.assertTrue(report["equipment_measurement"]["runtime_raw_inventory_measured"])
+                self.assertEqual(report["input_scope"]["compatible_equipment_confirmations"], int(scenario == "eqt-weapon"))
+
+    def test_failed_resource_stops_keys_and_unknown_saved_bytes_are_preserved_then_rejected(self):
+        for scenario in self.cases:
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(TimeoutError): self.protocol(Path(directory), scenario, stop="eqt-confirm-1-stays-slot2")
+                self.assertEqual(len(self.last_capture.key.call_args_list), 11)
+                self.assertFalse((Path(directory) / "eqt-measured.SAV").exists())
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(AssertionError): self.protocol(Path(directory), scenario, unknown_save=True)
+                self.assertTrue((Path(directory) / "eqt-measured.SAV").is_file())
+
+    def test_eqt_is_original_only_and_final_guards_are_completed_save_guards(self):
+        for scenario in self.cases:
+            with self.subTest(scenario=scenario), patch.object(Path, "mkdir") as mkdir, patch.object(Path, "read_bytes") as reads, \
+                    patch("subprocess.Popen") as popen, self.assertRaisesRegex(ValueError, "仅用于原版"):
+                probe.run(SimpleNamespace(root=ROOT, artifacts=Path("unused"), scenario=scenario, sdl=Path("unused.exe")))
+            mkdir.assert_not_called(); reads.assert_not_called(); popen.assert_not_called()
+            for tamper in (False, True):
+                with tempfile.TemporaryDirectory() as directory:
+                    result, _ = RunTest.model(self, Path(directory) / "new", scenario=scenario, final_save_change=tamper)
+                    self.assertTrue(result["probe_only"] and not result["ok"])
+                    self.assertEqual(result["probe_cases_passed"], not tamper)
+                    self.assertEqual(result["copy_save_matches_completed_state_after_cleanup"], not tamper)
+                    self.assertNotIn("copy_save_unchanged_after_cleanup", result)
+
+
 class RunTest(Fixture, unittest.TestCase):
     def model(self, output, *, capture_error=False, cleanup_error=False, final_save_change=False, source_change=False, fixture_change=None,
               scenario="controls", complete_herb=False, paired=False, failure_role="original", late_save_change=False, rgb_ok=True,
@@ -818,26 +965,28 @@ class RunTest(Fixture, unittest.TestCase):
         if paired:
             args.sdl = ROOT / "tools/run_original_magic_list.py"
         prepared = (self.source, self.focus, self.assets, self.actor, self.selection, self.templates, self.fields)
-        if scenario != "controls" and scenario not in probe.DROP_SCENARIOS:
+        if scenario != "controls" and scenario not in probe.SAVED_SCENARIOS:
             source = oracle.derive_injured(probe.decode_save(fixture), fixture.read_bytes())[1] if scenario == "herb-injured" else None
             prepared = probe.prepare(ROOT / "original_game", source=source, herb=True)
         def exercise(*args, **kwargs):
             record = args[-1]
             if capture_error and record["kind"] == failure_role:
                 raise RuntimeError("first resource error")
-            if scenario in probe.DROP_SCENARIOS:
+            if scenario in probe.SAVED_SCENARIOS:
                 source, assets, save, data = args[1], args[3], args[-4], args[-3]
                 self.assertEqual(probe.decode_save(save), source)
-                measured = bytearray(assets["drop"]["expected_source"])
+                equipment = scenario in probe.EQUIPMENT_SCENARIOS
+                plan = assets["equipment" if equipment else "drop"]
+                measured = bytearray(plan["expected_source"])
                 measured[probe.META + 5:probe.META + 9] = bytes((6, 14, 1, 3))
                 if drop_cache_difference and record["kind"] == "sdl":
                     measured[probe.UNITS + 2] ^= 1
                 measured[-4:] = sum(measured[:-4]).to_bytes(4, "little")
                 encoded = bytes(a ^ b ^ c for a, b, c in zip(data, source, measured))
                 work = output / record["kind"] if paired else output
-                snapshot = work / "drop-measured.SAV"
+                snapshot = work / ("eqt-measured.SAV" if equipment else "drop-measured.SAV")
                 save.write_bytes(encoded); snapshot.write_bytes(encoded)
-                record["drop_measurement"] = {**probe.check_load_measurement(assets["drop"]["expected_source"], measured, assets["drop"]["steps"]),
+                record["equipment_measurement" if equipment else "drop_measurement"] = {**probe.check_load_measurement(plan["expected_source"], measured, plan["steps"]),
                     "runtime_raw_inventory_measured": True, "snapshot_sha256": hashlib.sha256(encoded).hexdigest(),
                     "measured_inventory_hex": measured[probe.UNITS + 10:probe.UNITS + 26].hex(),
                     "measured_derived_values": list(struct.unpack_from("<4H", measured, probe.UNITS + 0x48)),

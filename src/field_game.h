@@ -393,6 +393,14 @@ int fd2_field_game_end_item_menu(fd2_field_game *game);
  * 宿主须先完整关闭列表；正式入口另重验Drop等待/数据能力。 */
 int fd2_field_game_resolve_item_drop(fd2_field_game *game);
 
+/* sub_1BFFE @0x1bffe、sub_1C142 @0x1c142、sub_1C1C3 @0x1c1c3（原登记同名）
+ * 的纯装备子集，仅profile1及ITEM_LIST/command_selected2。
+ * 兼容项在80B shadow按原分组写flag，再验证dense-known结果并重算后交接；
+ * 成功1仍留原页/同raw索引（已装备重选亦为1），不兼容0且不重算，数据拒绝-1。
+ * 失败actor/UI无写；无目标/消耗/acted/MP/EX/移动/pending/RNG。
+ * EQT取消由end_item_list返回菜单且不重算。正式EQT及play仍未开放。 */
+int fd2_field_game_equip_item(fd2_field_game *game);
+
 /* 正式ITEM能力查询：Use/Drop任一可用即开放完整菜单；可见库存须密集
  * 且ID已知，Use的非零code仅192，Drop须全8槽可完成派生重算。
  * code0武器/装备可看列表，确认仍留页。要求stage0可行动玩家及共享RNG，

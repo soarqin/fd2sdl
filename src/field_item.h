@@ -41,4 +41,10 @@ int fd2_field_item_list_select_step(
 const uint8_t *fd2_field_item_record_get(uint8_t item_id);
 int16_t fd2_field_item_i16(const uint8_t *record, size_t offset);
 
+/* sub_1C1C3 @0x1c1c3与sub_4E88E @0x4e88e（原登记同名）的已证许可子集。
+ * 仅profile1：item category与0x61891前6B比较；第7B及其他profile未确认。
+ * 兼容1、不兼容0、未知profile/物品ID为-1；无状态写入或RNG。
+ * 不是完整原版职业表或EQT能力开放门。 */
+int fd2_field_item_equip_compatibility(uint8_t profile, uint8_t item_id);
+
 #endif /* FD2_FIELD_ITEM_H */

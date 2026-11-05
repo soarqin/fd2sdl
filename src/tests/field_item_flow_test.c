@@ -447,6 +447,147 @@ static int test_drop_inventory_survives_outer_movement_cancel(void) {
     return 0;
 }
 
+static int open_eqt(fixture *f, int second_weapon) {
+    CHECK(init(f, 0) == 0);
+    fd2_field_game *g = &f->game;
+    fd2_field_unit *actor = &g->units.items[0];
+    actor->movement_profile = 1;
+    actor->base_attack_le[0] = 6; actor->base_defense_le[0] = 4; actor->dexterity_le[0] = 2;
+    actor->attack = actor->defense = actor->accuracy = actor->evasion = 999;
+    actor->experience = 99; actor->hp = 20; actor->mp = 7; actor->mp_max = 9;
+    if (second_weapon) slot(actor, 2, 0, 1);
+    CHECK(fd2_field_game_begin_item_menu(g) == 0 && g->command_disabled[2]);
+    g->command_selected = 2; g->command_disabled[2] = 0;
+    fd2_field_game before = *g;
+    CHECK(fd2_field_game_confirm_cursor(g) == -1 && !memcmp(g, &before, sizeof(before)));
+    CHECK(fd2_field_game_confirm_item_menu(g) == 0); /* 只开纯session，正式入口仍拒EQT。 */
+    CHECK(g->interaction == FD2_FIELD_INTERACTION_ITEM_LIST && g->command_selected == 2);
+    return 0;
+}
+
+static int test_eqt_replaces_and_stays_on_same_raw_slot(void) {
+    fixture f;
+    CHECK(open_eqt(&f, 1) == 0);
+    fd2_field_game *g = &f.game;
+    g->attack_rng = NULL;
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_DOWN) == 0 && g->item_list_selected == 2);
+    CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1);
+    fd2_field_game expected = *g;
+    slot(&expected.units.items[0], 0, 0, 0); slot(&expected.units.items[0], 2, 0x40, 1);
+    expected.units.items[0].attack = 26; expected.units.items[0].defense = 12;
+    expected.units.items[0].accuracy = 97; expected.units.items[0].evasion = 2;
+    CHECK(fd2_field_game_equip_item(g) == 1 && !memcmp(g, &expected, sizeof(expected)));
+    CHECK(fd2_field_game_equip_item(g) == 1 && !memcmp(g, &expected, sizeof(expected))); /* 非toggle。 */
+    CHECK(g->move_range.nodes[17].distance == 7 && g->move_path[1] == 3 && !f.rng_calls);
+    close_fixture(&f);
+    return 0;
+}
+
+static int test_eqt_incompatible_and_cancel_do_not_recompute(void) {
+    for (int cancel = 0; cancel < 2; cancel++) {
+        fixture f;
+        CHECK(open_eqt(&f, 0) == 0);
+        fd2_field_game *g = &f.game;
+        g->item_list_selected = 2;
+        g->attack_rng = NULL;
+        fd2_field_game expected = *g;
+        CHECK(fd2_field_game_item_list_step(g, FD2_FIELD_ITEM_LIST_KEY_CONFIRM) == 1); /* mode0接受草药。 */
+        CHECK(fd2_field_game_equip_item(g) == 0 && !memcmp(g, &expected, sizeof(expected)));
+        CHECK(fd2_field_game_equip_item(g) == 0 && !memcmp(g, &expected, sizeof(expected)));
+        CHECK((cancel ? fd2_field_game_cancel_selection(g) : fd2_field_game_end_item_list(g)) == (cancel ? 1 : 0));
+        expected_menu(&expected);
+        CHECK(!memcmp(g, &expected, sizeof(expected)) && g->units.items[0].attack == 999 && !f.rng_calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_eqt_grouping_uses_item_id_and_whole_flag_byte(void) {
+    for (int armor = 0; armor < 2; armor++) {
+        fixture f;
+        CHECK(open_eqt(&f, 1) == 0);
+        fd2_field_game *g = &f.game;
+        slot(&g->units.items[0], 0, 0x65, 127); /* 127/128同category21但分组不同。 */
+        slot(&g->units.items[0], 1, 0x44, 132);
+        slot(&g->units.items[0], 2, 0x20, armor ? 128 : 1);
+        g->item_list_selected = 2;
+        fd2_field_game expected = *g;
+        slot(&expected.units.items[0], armor ? 1 : 0, 0, armor ? 132 : 127);
+        slot(&expected.units.items[0], 2, 0x40, armor ? 128 : 1);
+        expected.units.items[0].attack = armor ? 6 : 26;
+        expected.units.items[0].defense = armor ? 46 : 12;
+        expected.units.items[0].accuracy = armor ? 2 : 97;
+        expected.units.items[0].evasion = armor ? 7 : 2;
+        CHECK(fd2_field_game_equip_item(g) == 1 && !memcmp(g, &expected, sizeof(expected)) && !f.rng_calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_eqt_hidden_equipped_wakeup_requires_dense_known_result(void) {
+    for (int contiguous = 0; contiguous < 2; contiguous++) {
+        fixture f;
+        CHECK(open_eqt(&f, 1) == 0);
+        fd2_field_game *g = &f.game;
+        slot(&g->units.items[0], contiguous ? 3 : 7, 0xc0, 0);
+        g->item_list_selected = 2;
+        fd2_field_game expected = *g;
+        if (contiguous) {
+            slot(&expected.units.items[0], 0, 0, 0);
+            slot(&expected.units.items[0], 2, 0x40, 1);
+            slot(&expected.units.items[0], 3, 0, 0);
+            expected.units.items[0].attack = 26; expected.units.items[0].defense = 12;
+            expected.units.items[0].accuracy = 97; expected.units.items[0].evasion = 2;
+        }
+        CHECK(fd2_field_game_equip_item(g) == (contiguous ? 1 : -1));
+        CHECK(!memcmp(g, &expected, sizeof(expected)) && !f.rng_calls);
+        CHECK(fd2_field_unit_inventory_count(&g->units.items[0]) == (contiguous ? 4u : 3u));
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_eqt_rejections_are_atomic(void) {
+    CHECK(fd2_field_game_equip_item(NULL) == -1);
+    for (unsigned which = 0; which < 21; which++) {
+        fixture f;
+        CHECK(open_eqt(&f, 1) == 0);
+        fd2_field_game *g = &f.game;
+        g->item_list_selected = 2;
+        if (which < 15) invalidate(g, which);
+        else if (which == 15) g->units.items[0].movement_profile = 5;
+        else if (which == 16) g->item_list_selected = -1;
+        else if (which == 17) g->item_list_selected = 3;
+        else if (which == 18) g->command_selected = 0;
+        else if (which == 19) g->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
+        else {
+            slot(&g->units.items[0], 2, 0, 132);
+            slot(&g->units.items[0], 7, 0xc0, 255); /* 同组会清hidden，源lookup也必须先拒。 */
+        }
+        fd2_field_game before = *g;
+        CHECK(fd2_field_game_equip_item(g) == -1 && !memcmp(g, &before, sizeof(before)) && !f.rng_calls);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_eqt_flags_and_stats_survive_outer_move_cancel(void) {
+    fixture f;
+    CHECK(open_eqt(&f, 1) == 0);
+    fd2_field_game *g = &f.game;
+    g->units.items[0].movement_points = 3;
+    g->item_list_selected = 2;
+    CHECK(fd2_field_game_equip_item(g) == 1);
+    fd2_field_unit equipped = g->units.items[0];
+    CHECK(fd2_field_game_end_item_list(g) == 0 && fd2_field_game_end_item_menu(g) == 0);
+    CHECK(fd2_field_game_cancel_selection(g) == 1 && g->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    equipped.x = 2; equipped.y = 3; equipped.direction = 1; equipped.frame_phase = 0;
+    CHECK(!memcmp(&g->units.items[0], &equipped, sizeof(equipped)) && !f.rng_calls);
+    close_fixture(&f);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_layers_preserve_move_pending_units_and_rng() == 0);
     CHECK(test_rejections_have_no_write_set() == 0);
@@ -457,6 +598,12 @@ int main(void) {
     CHECK(test_drop_rejects_without_actor_or_owner_writes() == 0);
     CHECK(test_formal_use_drop_capabilities_and_cached_rechecks() == 0);
     CHECK(test_drop_inventory_survives_outer_movement_cancel() == 0);
+    CHECK(test_eqt_replaces_and_stays_on_same_raw_slot() == 0);
+    CHECK(test_eqt_incompatible_and_cancel_do_not_recompute() == 0);
+    CHECK(test_eqt_grouping_uses_item_id_and_whole_flag_byte() == 0);
+    CHECK(test_eqt_hidden_equipped_wakeup_requires_dense_known_result() == 0);
+    CHECK(test_eqt_rejections_are_atomic() == 0);
+    CHECK(test_eqt_flags_and_stats_survive_outer_move_cancel() == 0);
     puts("field_item_flow_test: ok");
     return 0;
 }

@@ -212,7 +212,7 @@ B3.4先做Drop：原版即使列表取消也重算派生字段，成功删除后
 | B3.4b1 纯Drop会话 | mode0列表、确认移槽／取消亦重算、失败无写入、删空返回COMMAND已接入；独立Windows完整构建及57项CTest通过，正式Drop仍禁用 |
 | B3.4b2 正式SDL Drop | Use／Drop 独立能力门、完整关页后提交及删空回 COMMAND 已接入；Windows 57 项 CTest、374 项 Python、同一新程序单轮 34 组图形回归通过，含 4 场实际 Drop 双端配对及完整 SAV 逐字节相同 |
 | B3.4c1 Equip 原版校准 | profile1 同类武器替换及草药不兼容拒绝两场原版 WGC／Save 已通过：换装后留索引2、AP26，拒绝无玩法写；取消重开0及完整容器守卫通过。仅单端，不增加34组或开放SDL Equip |
-| B3.4c2 Equip 纯会话 | 原版依据通过后接兼容查询、整 byte 装备 flag 写入及 shadow 重算；成功留在同一列表索引，不兼容无写，取消不套 Drop 重算；正式 Equip 保持禁用 |
+| B3.4c2 Equip 纯会话 | profile1兼容查询、整byte flag及shadow重算、成功留原索引、不兼容无写与取消不重算已完成；新程序单轮57项CTest及10项地址／发布检查通过，507个地址均canonical。正式Equip仍禁用，无SDL Equip配对 |
 | B3.4c3／c4 Equip 呈现与正式入口 | 在已有 modal 内重绘并继续列表；Use／Drop 回归及实际双端 Equip 验收通过后才开放受支持职业／库存，不把 c1 单端或 c2 逻辑通过当作正式配对 |
 | B3.4d Give | 先校准相邻友军空槽转交及取消，满槽交换单列分支；按双方库存、装备派生及外层返回语义接入，不套 Use／Drop 的目标与 acted 收尾 |
 

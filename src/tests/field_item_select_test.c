@@ -172,11 +172,32 @@ static int test_support_rejections_preserve_outputs(void) {
     return 0;
 }
 
+static int test_equip_compatibility_profile1_subset(void) {
+    CHECK(fd2_field_item_equip_compatibility(1, 0) == 1);
+    CHECK(fd2_field_item_equip_compatibility(1, 1) == 1);
+    CHECK(fd2_field_item_equip_compatibility(1, 127) == 1);
+    CHECK(fd2_field_item_equip_compatibility(1, 128) == 1);
+    CHECK(fd2_field_item_equip_compatibility(1, 132) == 1);
+    CHECK(fd2_field_item_equip_compatibility(1, 192) == 0);
+    for (unsigned profile = 0; profile <= UINT8_MAX; profile++)
+        if (profile != 1) CHECK(fd2_field_item_equip_compatibility((uint8_t)profile, 0) == -1);
+    for (unsigned id = FD2_FIELD_ITEM_COUNT; id <= UINT8_MAX; id++)
+        CHECK(fd2_field_item_equip_compatibility(1, (uint8_t)id) == -1);
+    /* 已确认row前6B为01/15/16/ff/ff/ff；不扩到其他profile或第7B。 */
+    for (unsigned id = 0; id < FD2_FIELD_ITEM_COUNT; id++) {
+        const uint8_t *record = fd2_field_item_record_get((uint8_t)id);
+        int expected = record[0] == 1 || record[0] == 0x15 || record[0] == 0x16;
+        CHECK(fd2_field_item_equip_compatibility(1, (uint8_t)id) == expected);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(test_count_preserves_raw_slots() == 0);
     CHECK(test_navigation_boundaries() == 0);
     CHECK(test_confirmed_start_slot_sample_and_use_gate() == 0);
     CHECK(test_support_rejections_preserve_outputs() == 0);
+    CHECK(test_equip_compatibility_profile1_subset() == 0);
     puts("field_item_select_test: ok");
     return 0;
 }

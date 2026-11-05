@@ -18,6 +18,8 @@
  * 草药提交依据sub_20C6F @0x20c6f（原登记同名，仅code5分支）、
  * field_hp_heal_group_execute @0x211a4（原sub_211A4）的逐目标HP恢复与
  * field_unit_inventory_slot_remove @0x1b8e7（原sub_1B8E7）。
+ * 纯装备子集依据sub_1BFFE @0x1bffe、sub_1C142 @0x1c142、
+ * sub_1C1C3 @0x1c1c3与sub_4E88E @0x4e88e（原登记同名）。
  */
 
 #include "field_game.h"
@@ -1950,8 +1952,17 @@ static int item_menu_actor_is_valid(const fd2_field_game *game) {
 static int item_command_is_supported(const fd2_field_game *game, int command) {
     if (!item_menu_actor_is_valid(game)) return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
-    if (command == 3) {
-        /* Drop无Use handler门，但包含隐藏flag40的全8槽必须可重算。 */
+    if (command == 2 || command == 3) {
+        if (command == 2) {
+            const uint8_t *raw = (const uint8_t *)actor;
+            if (fd2_field_item_equip_compatibility(actor->movement_profile, raw[0x0b]) < 0)
+                return 0;
+            for (size_t slot = 0; slot < 8u; slot++)
+                if ((raw[0x0a + slot * 2u] & 0x40u) &&
+                    !fd2_field_item_record_get(raw[0x0b + slot * 2u])) return 0;
+            return 1; /* 不兼容确认不执行1b750，先只校验全8槽lookup。 */
+        }
+        /* Drop无Use handler门，包含隐藏flag40的全8槽必须可重算。 */
         fd2_field_unit shadow = *actor;
         return fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
             known_status_stat_scale, NULL) == 0;
@@ -2016,7 +2027,7 @@ int fd2_field_game_select_item_menu_direction(
 
 int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_MENU ||
-        (game->command_selected != 0 && game->command_selected != 3) ||
+        (game->command_selected != 0 && game->command_selected != 2 && game->command_selected != 3) ||
         game->command_disabled[game->command_selected] ||
         !item_command_is_supported(game, game->command_selected))
         return -1;
@@ -2027,7 +2038,7 @@ int fd2_field_game_confirm_item_menu(fd2_field_game *game) {
 
 int fd2_field_game_item_list_step(fd2_field_game *game, fd2_field_item_list_key key) {
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
-        (game->command_selected != 0 && game->command_selected != 3))
+        (game->command_selected != 0 && game->command_selected != 2 && game->command_selected != 3))
         return -2;
     return fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
         &game->item_list_selected, key, game->command_selected == 0);
@@ -2063,18 +2074,47 @@ int fd2_field_game_resolve_item_drop(fd2_field_game *game) {
     return finish_item_drop(game, 1);
 }
 
+int fd2_field_game_equip_item(fd2_field_game *game) {
+    if (!item_command_is_supported(game, 2) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
+        game->command_selected != 2)
+        return -1;
+    fd2_field_unit shadow = game->units.items[game->selected_unit];
+    int selected = game->item_list_selected;
+    if (fd2_field_item_list_select_step(&shadow, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) != 0)
+        return -1;
+    uint8_t *raw = (uint8_t *)&shadow;
+    uint8_t item_id = raw[0x0b + (size_t)selected * 2u];
+    int compatible = fd2_field_item_equip_compatibility(shadow.movement_profile, item_id);
+    if (compatible != 1) return compatible;
+    /* sub_1C142 @0x1c142（原登记同名）：按ID的<128/≥128组清整个flag，
+     * 再将selected写40；不是toggle，且不按category分组或跳过hidden。 */
+    for (size_t slot = 0; slot < 8u; slot++) {
+        size_t offset = 0x0a + slot * 2u;
+        if ((raw[offset] & 0x40u) && ((item_id < 128u) == (raw[offset + 1u] < 128u)))
+            raw[offset] = 0;
+    }
+    raw[0x0a + (size_t)selected * 2u] = 0x40;
+    /* hidden equipped清0可能唤醒空洞；不能交接本SDL raw导航不支持的结果。 */
+    if (fd2_field_item_list_select_step(&shadow, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) != 0 ||
+        fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
+            known_status_stat_scale, NULL) != 0)
+        return -1;
+    game->units.items[game->selected_unit] = shadow;
+    return 1; /* 1bffe重绘并继续原页/原索引，不关闭或推进controller。 */
+}
+
 int fd2_field_game_end_item_list(fd2_field_game *game) {
     if (game && game->interaction == FD2_FIELD_INTERACTION_ITEM_LIST &&
         game->command_selected == 3)
         return finish_item_drop(game, 0);
     if (!item_menu_actor_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_LIST ||
-        game->command_selected != 0)
+        (game->command_selected != 0 && game->command_selected != 2))
         return -1;
     int selected = game->item_list_selected;
     if (fd2_field_item_list_select_step(&game->units.items[game->selected_unit],
-            &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 1) != 0)
+            &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, game->command_selected == 0) != 0)
         return -1;
-    /* 18d8c @0x19060在Use取消后重跑整个1bbdc，不返回COMMAND。 */
+    /* Use/EQT取消均重跑1bbdc；EQT的1bffe退出不调用1b750重算。 */
     return enter_item_menu(game);
 }
 

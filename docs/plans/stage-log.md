@@ -409,6 +409,18 @@ B3.4a原版校准已独立提交`187871c`，继续在现有game会话接纯Drop�
 
 原版PID41796／5192均正常exit0，外owner45380／Job5940 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0`。源326文件、原版50文件、fixture bytes／mtime、测量后snapshot／当前文件完成态及cleanup守卫通过。此批只关闭B3.4c1两个原版场景，不增加34组或开放Equip。接下来B3.4c2纯兼容查询／flag写集与重算、c3留页重绘及c4正式双端；Give、完整RNG／音画、水色、整关／结算／下一关仍未验。
 
+### B3.4c2 纯 Equip 兼容、整 flag 与留页会话
+
+原版两场已独立提交 `052e146`，继续在既有 field_item／game 中接纯子集，仅6个src文件，无play／struct／CMake或新测试目标。profile1行来自static原表而非stage0捕获默认，未知profile／ID明确拒绝；仅比较前6B。command_selected2复用mode0及ITEM_LIST，低层夹具可显式开启，正式菜单和confirm_cursor仍禁用Equip。
+
+应用先预检全8槽equipped ID，使用一个80B shadow按ID `<128`／`>=128`清整flag并选槽写40，复检dense-known结果、现有四派生重算全通过后再交接。不兼容返回0且不写、不重算；成功1仍LIST／原索引，已装备重选不toggle-off。取消不重算陈旧派生，也不走Drop尾。未知ID、隐藏equipped唤醒出空洞等晚错原子拒绝，不用仅清bit40来掩盖原版整byte写集。原库存已提交变化不随后续移动取消回滚；无RNG、MP／EX、acted、cell/controller尾链或额外slot／状态owner。
+
+作者独立fresh46core中的两个既有测试目标通过；root先修正数据VA注释的函数地址token写法，再从仅6个暂存源冻结 `eqt-core-c1/` 全新Windows构建，完整57/57 CTest无跳过通过（input43.14秒、process12.18秒、总63.36秒），10/10地址／发布检查（0.076秒）通过，507个函数地址均canonical。六组新flow及compat回归覆盖profile边界、整flag、127/128同category但不同ID组、连续隐藏唤醒允许／空洞拒绝、21种数据失败全game不变、取消陈旧派生、重复确认留页、外层移动取消保留和RNG NULL／0。独立connected审查无逻辑阻塞，数据注释问题已修，没有新增通用框架。
+
+源326文件及原版50文件前后守卫通过；当前6份src与受测冻结文本仅LF／CRLF差，额外注释修正已在本次编译前纳入。纯程序SHA `7d091257994333928bbd04bc43ca9e28b4f455462564ec313f0db1d1d15eefa8`，driver `029e33462533c92fb712f19c7799c07ae298752b1810513e5b926b607fd4eddd`。没有SDL Equip WGC，旧34组继续只属64175正式Drop候选，不继承为本纯程序验收；本地公开程序仍保留已验收64175。全量380项Python保留c1原版工具阶段来源，不冒称本切片再次全量执行。
+
+原版四函数保留中性sub及canonical依据，没有手改生成pC或声称完成新命名发布；项目／既有临时证据未找到数据库，隔离建库与真实生成方案已准备并按AGENTS发出单独授权请求。下一步c3在原modal内接确认后详情／列表重绘并继续等键，c4双端通过后才开放受支持正式Equip；Give、完整随机流／音画与整关后续仍未验。
+
 ## 本轮审查结论与后续
 
 已实现 B1 子阶段审查发现并安排修复：runtime 单位区 64 条与存档格式 96 条边界混用、首次保存不能创建活动文件、错误重建坏档会覆盖其他槽，以及外层 runner 超时绕过子进程清理。修复按所属小阶段提交；窗口清理采用原生 Job，删除未使用的旧截图热键分支。未为这些修复新增场景框架或另一套存档 codec。

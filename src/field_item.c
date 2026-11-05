@@ -2,7 +2,8 @@
  * 逆向依据：field_item_record_get @0x4e8bc 直接返回
  * DS:0x02ad + item_id*0x17；表在 corrected code0 0x684c1；
  * field_unit_inventory_count @0x1b8a6（原登记同名）的8槽计数；
- * field_unit_inventory_select_step @0x1b9de（原登记sub_1B9DE）的按键分派。 */
+ * field_unit_inventory_select_step @0x1b9de（原登记sub_1B9DE）的按键分派；
+ * sub_1C1C3 @0x1c1c3（原登记同名）经sub_4E88E @0x4e88e读取装备许可。 */
 
 #include "field_item.h"
 
@@ -227,6 +228,17 @@ static const uint8_t ITEM_RECORDS[FD2_FIELD_ITEM_COUNT][FD2_FIELD_ITEM_RECORD_SI
 const uint8_t *fd2_field_item_record_get(uint8_t item_id) {
     if ((size_t)item_id >= FD2_FIELD_ITEM_COUNT) return NULL;
     return ITEM_RECORDS[item_id];
+}
+
+int fd2_field_item_equip_compatibility(uint8_t profile, uint8_t item_id) {
+    const uint8_t *record = fd2_field_item_record_get(item_id);
+    if (profile != 1 || !record) return -1;
+    /* sub_4E88E的0x6188a+7*profile；仅确认profile1，数据VA 0x61891。
+     * sub_1C1C3只读前6B，第7B=1的语义未知，不扩为整张职业表。 */
+    static const uint8_t categories[6] = {1, 0x15, 0x16, 0xff, 0xff, 0xff};
+    for (size_t i = 0; i < sizeof(categories); i++)
+        if (record[0] == categories[i]) return 1;
+    return 0;
 }
 
 size_t fd2_field_unit_inventory_count(const fd2_field_unit *unit) {

@@ -186,7 +186,12 @@ static int auxiliary_open(fd2_field_game *game, fd2_vga *vga,
     return 0;
 }
 static void auxiliary_close(fd2_field_game *game) {
-    route_closed = live_game == game &&
+    /* B6 Play先解除同步演出借用；其余Game与RNG仍逐字保持。 */
+    int detached = !game->physical_present && !game->physical_present_userdata &&
+        !game->magic_present && !game->magic_present_userdata;
+    route_before.physical_present = NULL; route_before.physical_present_userdata = NULL;
+    route_before.magic_present = NULL; route_before.magic_present_userdata = NULL;
+    route_closed = detached && live_game == game &&
         memcmp(game, &route_before, sizeof(*game)) == 0 &&
         ((fd2_field_rng *)game->attack_rng_userdata)->state == route_rng_before;
 }

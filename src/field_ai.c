@@ -567,8 +567,9 @@ int fd2_field_ai_item_targets_score(
         for (size_t i = 0; i < targets->target_count; i++) {
             const fd2_field_unit *target =
                 &targets->units->items[targets->target_indices[i]];
-            if (threshold < target->hp)
-                total = score_add_saturating(total, 8);
+            /* field_ai_item_targets_score @0x15880（原登记同名）：
+             * 指令 VA 0x1597a 的 JGE 跳到 18 分，等值也包含在内。 */
+            total = score_add_saturating(total, threshold >= target->hp ? 18 : 8);
         }
     }
     *score = total;

@@ -148,7 +148,7 @@ Amiga AFM（Animation File Manager）V1.00。
 ```
 
 - `ANI.DAT`：9 个启动／场景 AFM 条目，由 `animation_play @0x20421` 读取。每帧先解码，再等待完整 `frame_delay`；不能扣除解码／上传耗时。启动调用顺序、调色板和 delay 见[启动流程](../reverse-engineering/boot-flow.md)。
-- `FIGANI.DAT`：外层容器有 408 项；容器解析成功不代表所有动作格式与演出语义已确认，不能从 ANI 直接外推。后续取证见战场工作包 B6。
+- `FIGANI.DAT` 使用独立的 part 目录格式，见下一小节；不能从 AFM 外推其指令或播放语义。
 - 已确认的启动 AFM opcode；以下函数均为 canonical VA：
 
 | opcode | handler | 语义 |
@@ -161,6 +161,24 @@ Amiga AFM（Animation File Manager）V1.00。
 | 7 | `afm_opcode_sparse_pixel @0x36f69` | 稀疏单点写入：`(offset:u16, value:u8)` |
 | 8 | `afm_opcode_sparse_run @0x36f82` | 稀疏等值 run：`(offset:u16, len:u8, value:u8)` |
 | 9 | `afm_opcode_sparse_literal @0x36fac` | 稀疏 literal：`(offset:u16, len:u8, bytes...)` |
+
+#### FIGANI part 目录
+
+依据 `sub_2EB9F @0x2eb9f`、`sub_2EBE1 @0x2ebe1`、`sub_30E9D @0x30e9d` 及本地全部 408 项资源。合法空条目为精确的三个字节 `00 00 0a`；其余条目有 8 字节头、`part_count` 个小端 DWORD 相对偏移及各 part。首偏移必须等于 `8 + part_count * 4`，后续偏移有序且不越界，末 part 延续至条目末尾。
+
+| 位置 | 大小 | 已确认用途 |
+|---|---|---|
+| 头 `+0` | 1 | part 数量 |
+| 头 `+1/+2/+4` | 各 1 | 分层模式、intro 结束索引、声音 bank selector；由具体播放分支解释 |
+| 头 `+3/+5..7` | 4 | 原样保留，不能按当前演员填默认值 |
+| part `+0/+2` | 各 2 | 无符号绘制坐标，不是宽高 |
+| part `+4/+5/+6/+7` | 各 1 | effect 标记、cue、duration、分层标志 |
+| part `+8` | 1 | 保留字节 |
+| part `+9` | 可变 | 带 WORD 宽高的既有 RLE 图像；最小 part 长度为 13 字节 |
+
+严格解析同时验证所有 part 的 RLE；保留显式颜色 0 与 SKIP 的区别。全部原资源为 264 个非空条目、144 个空哨兵，共 2,118 个 part。`intro_end > part_count` 或 `duration == 0` 不单独构成容器损坏：播放器必须根据自身循环检查准入，FX2 的零 duration 保留原 BYTE 计时回绕，不能补成 1。
+
+施法选择 `unit_id * 3 + 2`，只有空哨兵才退到 `+1`。`0x30e9d` 在 intro 区间内每遇 `part+4 == 1` 扣一次费用；合法演员可能有零个、一个或多个标记，不能把 unit9 的一次扣费推广到全部角色。最终选择仍为空或 intro 越界时拒绝相应播放，结构解析成功不代表该动作已开放。解析器与播放准入分别由 `figani.c` 和 Game／演出服务维护。
 
 ### 2.4 地形图块（TAI.DAT）✅ RLE 图像
 

@@ -1,6 +1,7 @@
 """图形测试调度器的无窗口回归；不启动 SDL、DOSBox 或截图程序。"""
 
 from pathlib import Path
+import json
 import hashlib
 import subprocess
 import struct
@@ -19,6 +20,13 @@ def model_planner(root):
     """仅登记测试占位文件；所有进程调用仍mock，绝不执行此文件。"""
     path = root / "model planner.exe"
     path.write_bytes(b"registration model; not an executable")
+    return path
+
+
+def model_audio_recorder(root):
+    """只供注册模型存在性检查；进程调用始终mock。"""
+    path = root / "fd2_process_audio_capture.exe"
+    path.write_bytes(b"registration model audio; not an executable")
     return path
 
 
@@ -570,7 +578,7 @@ class CommandTreeTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
         self.suite = runner.Suite(SimpleNamespace(
-            build_dir=root, driver=root / "input driver.exe", planner=model_planner(root)))
+            build_dir=root, driver=root / "input driver.exe", planner=model_planner(root), audio_recorder=model_audio_recorder(root)))
 
     def test_windows_command_has_suspended_job_owner_and_cleanup_deadline(self):
         with patch.object(runner.sys, "platform", "win32"), patch.object(
@@ -615,13 +623,15 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
                                                   game=root / "game.exe", config="Debug", dosbox="dosbox.exe",
-                                                  planner=model_planner(root)))
+                                                  planner=model_planner(root), audio_recorder=model_audio_recorder(root)))
             suite.command = Mock()
             for name in ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes"):
                 setattr(suite, name, Mock())
             with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}), \
-                    patch.object(runner.subprocess, "Popen", side_effect=AssertionError("model test must not launch processes")):
+                    patch.object(runner.subprocess, "Popen", side_effect=AssertionError("model test must not launch processes")), \
+                    patch.object(runner, "check_b6_comparison", return_value="model-only-not-executed") as verify_b6:
                 suite.run()
+            self.assertEqual(verify_b6.call_count, 3)
             pairs = [call for call in suite.command.call_args_list if call.args[0].startswith("original")]
             self.assertEqual([call.args[0] for call in pairs], [
                 "original-opening", "original-focus", "original", "original-battle-menu", "original-end-turn", "original-load", "original-leave", "original-overview", "original-player", "original-player-wait", "original-march", "original-f1", "original-result",
@@ -629,7 +639,7 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
                 "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last",
                 "original-item-eqt-incompatible", "original-item-eqt-weapon",
-                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"] + ["original-reward-" + name for name in runner.B4_SCENARIOS] + ["original-prepare-controlled"] + ["original-loot-" + name.removeprefix("loot-") for name in runner.B5_LOOT_SCENARIOS] + ["original-" + name for name in runner.B5_STAGE1_SCENARIOS] + ["original-natural-stage0"])
+                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"] + ["original-reward-" + name for name in runner.B4_SCENARIOS] + ["original-prepare-controlled"] + ["original-loot-" + name.removeprefix("loot-") for name in runner.B5_LOOT_SCENARIOS] + ["original-" + name for name in runner.B5_STAGE1_SCENARIOS] + ["original-natural-stage0"] + ["original-battle-animation-" + name for name in runner.B6_SCENARIOS])
             self.assertEqual([call.args[0] for call in suite.command.call_args_list[:4]],
                              ["original-opening", "original-focus", "background-input", "input"])
             background = [row for row in suite.command.call_args_list if row.args[0] == "background-input"]
@@ -688,7 +698,7 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
-                game=root / "game.exe", config="Debug", dosbox="dosbox.exe", planner=model_planner(root)))
+                game=root / "game.exe", config="Debug", dosbox="dosbox.exe", planner=model_planner(root), audio_recorder=model_audio_recorder(root)))
 
             def command(name, arguments, **kwargs):
                 if name == "background-input":
@@ -974,6 +984,151 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             self.assertEqual(suite.command.call_args.args[0], "original-natural-stage0")
 
 
+class B6SuiteTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.recorder = model_audio_recorder(self.root)
+
+    def args(self, **overrides):
+        values = dict(build_dir=self.root / "build", game=self.root / "game.exe",
+            driver=self.root / "driver.exe", dosbox="dosbox.exe", config="Debug", b6_only=True,
+            planner=self.root / "absent-planner.exe", b5_save_fixture=self.root / "absent-stage1.SAV")
+        values.update(overrides)
+        return SimpleNamespace(**values)
+
+    def suite(self, **overrides):
+        with patch.object(runner.sys, "platform", "win32"):
+            return runner.Suite(self.args(**overrides))
+
+    @staticmethod
+    def comparison(scenario):
+        return {"ok": True, "status": "passed", "scenario": scenario,
+            "verify_core_requested": True, "collected_only": False,
+            "core_verification": {"ok": True, "collection_guards_cleanup_passed": True,
+                "frame_passed": True, "sfx_passed": {"original": True, "sdl": True}},
+            "independent_frame_pairing": {"ok": True},
+            "core_sfx_observations": {role: {"minimum_core_sfx_supported": True}
+                for role in ("original", "sdl")}}
+
+    def execute_model(self, suite, mutate=None):
+        def collect(command, **unused):
+            scenario = command[command.index("--scenario") + 1]
+            artifacts = Path(command[command.index("--artifacts") + 1])
+            artifacts.mkdir(parents=True)
+            report = self.comparison(scenario)
+            if mutate is not None:
+                report = mutate(scenario, report)
+            if report is not None:
+                (artifacts / "comparison.json").write_text(json.dumps(report), encoding="utf-8")
+            return SimpleNamespace(returncode=0)
+        with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}), \
+                patch.object(runner.subprocess, "run", side_effect=collect) as execute, \
+                patch.object(runner.subprocess, "Popen", side_effect=AssertionError("pure model cannot launch windows")):
+            suite.run()
+        return execute.call_args_list
+
+    def test_three_core_commands_require_verified_frames_sfx_and_owned_cleanup(self):
+        suite = self.suite()
+        for name in ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes",
+                     "item_cases", "reward_cases", "transition_cases"):
+            setattr(suite, name, Mock(side_effect=AssertionError("B6-only must not run history")))
+        calls = self.execute_model(suite)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(suite.report["status"], "passed")
+        self.assertEqual(suite.report["registered_b6_scenarios"], list(runner.B6_SCENARIOS))
+        self.assertIsNone(suite.planner); self.assertIsNone(suite.stage1_fixture)
+        for row, scenario in zip(calls, runner.B6_SCENARIOS):
+            command = row.args[0]
+            self.assertEqual(command[:3], [str(suite.args.driver), "run-job", "600000"])
+            self.assertEqual(command[4], str(runner.ROOT / "tools/run_original_battle_animation.py"))
+            self.assertEqual(command[command.index("--scenario") + 1], scenario)
+            self.assertEqual(command[command.index("--audio-recorder") + 1], str(self.recorder.resolve()))
+            self.assertEqual(command[command.index("--sdl") + 1], str(suite.args.game))
+            self.assertEqual(command.count("--verify-core"), 1)
+            self.assertNotIn("--planner", command); self.assertNotIn("--save-fixture", command)
+            self.assertEqual(row.kwargs["timeout"], 615)
+        for case in suite.report["cases"]:
+            self.assertEqual(case["status"], "passed")
+            self.assertTrue(case["core_verification_passed"])
+            self.assertEqual(len(case["comparison_sha256"]), 64)
+
+    def test_subset_preserves_requested_order_and_explicit_recorder(self):
+        explicit = self.root / "explicit recorder.exe"; explicit.write_bytes(b"pure placeholder")
+        selected = ["player-heal13", "physical-full-hit"]
+        suite = self.suite(b6_scenarios=selected, audio_recorder=explicit)
+        calls = self.execute_model(suite)
+        self.assertEqual([row.args[0][row.args[0].index("--scenario") + 1] for row in calls], selected)
+        self.assertEqual(suite.audio_recorder, explicit.resolve())
+        self.assertTrue(all(row.args[0][row.args[0].index("--audio-recorder") + 1] == str(explicit.resolve()) for row in calls))
+
+    def test_invalid_or_cross_stage_selection_rejected_before_mkdir(self):
+        invalid = [{"b6_scenarios": ["unknown"]}, {"b6_scenarios": ["player-magic0"] * 2},
+            {"b6_scenarios": []}, {"b6_only": False, "b6_scenarios": ["player-magic0"]},
+            *({name: True} for name in ("b3_only", "b4_only", "b5_only")),
+            {"b3_scenarios": ["controls"]}, {"b4_scenarios": ["heal"]}, {"b5_scenarios": ["defeat"]}]
+        for overrides in invalid:
+            with self.subTest(overrides=overrides), patch.object(Path, "mkdir") as mkdir:
+                with self.assertRaises(ValueError):
+                    self.suite(**overrides)
+                mkdir.assert_not_called()
+
+    def test_missing_recorder_rejected_before_any_artifact(self):
+        for recorder in (self.root / "missing.exe", self.root):
+            with self.subTest(recorder=recorder), patch.object(Path, "mkdir") as mkdir:
+                with self.assertRaisesRegex(ValueError, "录音工具"):
+                    self.suite(audio_recorder=recorder)
+                mkdir.assert_not_called()
+        self.recorder.unlink()
+        with patch.object(Path, "mkdir") as mkdir, self.assertRaisesRegex(ValueError, "录音工具"):
+            self.suite()
+        mkdir.assert_not_called()
+
+    def test_exit_zero_without_actual_comparison_or_with_false_core_gates_never_passes(self):
+        fields = [("ok",), ("status",), ("scenario",), ("verify_core_requested",), ("collected_only",),
+            ("core_verification", "ok"), ("core_verification", "collection_guards_cleanup_passed"),
+            ("core_verification", "frame_passed"), ("independent_frame_pairing", "ok"),
+            *(("core_verification", "sfx_passed", role) for role in ("original", "sdl")),
+            *(("core_sfx_observations", role, "minimum_core_sfx_supported") for role in ("original", "sdl"))]
+        for field in [None, *fields, "malformed", "missing"]:
+            suite = self.suite(b6_scenarios=["player-magic0"])
+            def mutate(scenario, report):
+                if field is None: return None
+                if field == "malformed": return []
+                if field == "missing": return {"ok": True}
+                target = report
+                for key in field[:-1]: target = target[key]
+                target[field[-1]] = True if field == ("collected_only",) else "not-passed" if field in (("status",), ("scenario",)) else False
+                return report
+            with self.subTest(field=field), self.assertRaises((OSError, ValueError, AssertionError)):
+                self.execute_model(suite, mutate)
+            self.assertEqual(suite.report["status"], "failed")
+            self.assertEqual(suite.report["cases"][0]["status"], "failed")
+            self.assertTrue(suite.report["original_unchanged"])
+        report = self.comparison("player-magic0"); report["ok"] = 1
+        path = self.root / "integer-bool.json"; path.write_text(json.dumps(report), encoding="utf-8")
+        with self.assertRaisesRegex(AssertionError, "ok"):
+            runner.check_b6_comparison(path, "player-magic0")
+
+    def test_second_case_late_guard_failure_preserves_first_and_stops_third(self):
+        suite = self.suite()
+        def mutate(scenario, report):
+            if scenario == "player-magic0": report["core_verification"]["collection_guards_cleanup_passed"] = False
+            return report
+        with self.assertRaisesRegex(AssertionError, "cleanup_and_guards"):
+            self.execute_model(suite, mutate)
+        self.assertEqual([case["status"] for case in suite.report["cases"]], ["passed", "failed"])
+        self.assertEqual(suite.report["status"], "failed")
+
+    def test_other_platform_cannot_mark_b6_skipped_as_passed(self):
+        suite = self.suite()
+        with patch.object(runner.sys, "platform", "linux"), patch.object(runner, "hashes", return_value={}), \
+                patch.object(runner.subprocess, "run") as execute, self.assertRaisesRegex(RuntimeError, "未运行"):
+            suite.run()
+        execute.assert_not_called(); self.assertEqual(suite.report["status"], "failed")
+
+
 class WindowCleanupTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -985,7 +1140,7 @@ class WindowCleanupTest(unittest.TestCase):
         self.source_save.write_bytes(b"read-only source evidence")
         self.suite = runner.Suite(SimpleNamespace(
             build_dir=self.root / "build", game=self.root / "game.exe",
-            driver=self.root / "driver.exe", planner=model_planner(self.root)))
+            driver=self.root / "driver.exe", planner=model_planner(self.root), audio_recorder=model_audio_recorder(self.root)))
         self.suite.driver = Mock()
         self.process = Mock(pid=1234, returncode=None)
         self.process.poll.side_effect = lambda: self.process.returncode

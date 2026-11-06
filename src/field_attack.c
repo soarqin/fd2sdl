@@ -4,8 +4,11 @@
  * field_unit_item_id_at @0x1b722 与 field_target_range_build @0x14818。
  * 玩家攻击路径读取武器 record +0x0b/+0x0c，按 profile 0 传播范围，
  * 再以 side_filter=0 保留 side == 0 的可见目标。物理攻击本体同时确认
- * item effect 2 的命中前状态、effect 3 的双击、effect 4 的暴击加值、
+ * item effect 2 的命中前状态、effect 3 的序列追加、effect 4 的暴击加值、
  * 地形攻防百分比与免疫判定，以及邻接反击条件。
+ * 次数分支依据 field_physical_attack_sequence @0x1e856 与
+ * sub_2EBE1 @0x2ebe1 / sub_2F7B6 @0x2f7b6：完整演出可叠加至三击，
+ * 无演出最多两击；保留原登记名，不把播放 part 数解释成命中数。
  */
 #include "field_attack.h"
 
@@ -132,22 +135,51 @@ int fd2_field_attack_apply_pre_hit_effect(
     return 0;
 }
 
+int fd2_field_attack_sequence_max_count_for_mode(
+        const fd2_field_unit *attacker,
+        fd2_field_attack_sequence_mode mode,
+        uint8_t *strike_count) {
+    if (!attacker || !strike_count ||
+        (mode != FD2_FIELD_ATTACK_SEQUENCE_SHORT &&
+         mode != FD2_FIELD_ATTACK_SEQUENCE_FULL))
+        return -1;
+    const uint8_t *item = equipped_weapon_record(attacker);
+    if (!item) return -1;
+    *strike_count = mode == FD2_FIELD_ATTACK_SEQUENCE_FULL &&
+                   item[FD2_FIELD_ITEM_EFFECT_TYPE_OFFSET] ==
+                       FD2_FIELD_ITEM_DOUBLE_STRIKE_EFFECT ? 3 : 2;
+    return 0;
+}
+
+int fd2_field_attack_sequence_count_for_mode(
+        const fd2_field_unit *attacker,
+        fd2_field_attack_sequence_mode mode,
+        fd2_field_combat_rng_fn rng,
+        void *rng_userdata,
+        uint8_t *strike_count) {
+    if (!attacker || !rng || !strike_count ||
+        (mode != FD2_FIELD_ATTACK_SEQUENCE_SHORT &&
+         mode != FD2_FIELD_ATTACK_SEQUENCE_FULL))
+        return -1;
+    const uint8_t *item = equipped_weapon_record(attacker);
+    if (!item) return -1;
+    uint32_t double_roll = rng(rng_userdata) % 100u;
+    int extra_roll = double_roll < FD2_FIELD_DOUBLE_STRIKE_CHANCE;
+    int extra_weapon = item[FD2_FIELD_ITEM_EFFECT_TYPE_OFFSET] ==
+                       FD2_FIELD_ITEM_DOUBLE_STRIKE_EFFECT;
+    *strike_count = (uint8_t)(1 + (mode == FD2_FIELD_ATTACK_SEQUENCE_FULL
+        ? extra_roll + extra_weapon : (extra_roll || extra_weapon)));
+    return 0;
+}
+
 int fd2_field_attack_sequence_count(
         const fd2_field_unit *attacker,
         fd2_field_combat_rng_fn rng,
         void *rng_userdata,
         uint8_t *strike_count) {
-    if (!attacker || !rng || !strike_count) return -1;
-    const uint8_t *item = equipped_weapon_record(attacker);
-    if (!item) return -1;
-    uint32_t double_roll = rng(rng_userdata) % 100u;
-    *strike_count =
-        item[FD2_FIELD_ITEM_EFFECT_TYPE_OFFSET] ==
-                    FD2_FIELD_ITEM_DOUBLE_STRIKE_EFFECT ||
-                double_roll < FD2_FIELD_DOUBLE_STRIKE_CHANCE
-            ? 2
-            : 1;
-    return 0;
+    return fd2_field_attack_sequence_count_for_mode(
+        attacker, FD2_FIELD_ATTACK_SEQUENCE_SHORT, rng, rng_userdata,
+        strike_count);
 }
 
 int fd2_field_attack_counterattack_is_available(

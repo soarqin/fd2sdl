@@ -93,6 +93,8 @@ static void init_game(fd2_field_game *game,
     memset(attrs, 0, sizeof(*attrs));
     attrs[0].movement_cost_class = 0; /* profile1 class0成本1；class1成本20。 */
     game->ready = 1;
+    /* 既有夹具专测map法术/SHORT物理；FULL另用真实FIGANI/FDOTHER矩阵。 */
+    game->option_values[2] = 1;
     game->active_side = 0;
     game->selected_unit = -1;
     game->command_selected = -1;
@@ -1752,7 +1754,7 @@ static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
         fd2_field_ai_magic_candidate magic;fd2_field_ai_item_candidate item;
         if(item_case) {
             game.active_side=game.units.items[0].side=1;
-            /* Item AI仅对HP>power的目标评分；用非目标既存死者证明全表门。 */
+            /* 非致死HP>threshold取8分；用非目标既存死者证明全表loot门。 */
             game.units.items[1].hp=game.units.items[1].hp_max=300;
             ((uint8_t*)&game.units.items[1])[0x31]=0xff;
             game.units.count=3;set_unit(&game.units.items[2],0,7,7);
@@ -1773,8 +1775,8 @@ static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
     return 0;
 }
 /* 同步loot的非side2 mode0/1会直接终止队列，不能丢掉public direct尾。
- * 使用真实AI score/targets：item11只对HP>magic2.power250评分，故同格
- * HP300保证合法score，HP1记录证明实际击杀与descriptor收集。 */
+ * 使用真实AI score/targets：item11取magic2阈值250；同格HP1加18、
+ * HP300加8，共26。HP1记录证明实际击杀与descriptor收集。 */
 static int synchronous_item_fixture(fd2_field_game *game, uint32_t cells[64],
         fd2_terrain_attr attrs[1], test_rng *rng, uint8_t descriptor,
         fd2_field_ai_item_candidate *plan) {
@@ -1799,7 +1801,7 @@ static int synchronous_item_fixture(fd2_field_game *game, uint32_t cells[64],
     game->resource_value=5;game->experience_value=7;rng->owner=game;
     CHECK(fd2_field_ai_choose_item_candidate(&game->map,&game->terrain,&game->units,0,1,plan)==0);
     printf("sync fixture candidate item=%u score=%d target=%d,%d\n",plan->item_id,plan->score,plan->target_x,plan->target_y);
-    CHECK(plan->item_id==11 && plan->score==8);
+    CHECK(plan->item_id==11 && plan->score==26);
     uint8_t targets[FD2_FIELD_MAX_UNITS];size_t target_count=0;
     CHECK(fd2_field_ai_collect_item_targets(&game->map,&game->terrain,&game->units,0,11,
         plan->target_x,plan->target_y,1,targets,sizeof(targets),&target_count)==0 &&

@@ -505,15 +505,16 @@ static int signed_detail_word(uint16_t value) {
     return value < 0x8000u ? (int)value : (int)value - 0x10000;
 }
 
-int fd2_field_unit_summary_draw(fd2_vga *vga,
+int fd2_field_unit_summary_draw_at(fd2_vga *vga,
                                  const fd2_field_info_assets *assets,
                                  const fd2_font *font,
                                  const fd2_text_entry *text,
                                  const fd2_field_unit *unit,
-                                 int actor_relative_x) {
+                                 int x, int y) {
     if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
         !font->glyph_count || font->glyph_count > font->size / 32u ||
-        !text || !unit || !image_has_size(&assets->unit_summary, 149, 42))
+        !text || !unit || x < 0 || x > VGA_W - 149 ||
+        y < 0 || y > VGA_H - 42 || !image_has_size(&assets->unit_summary, 149, 42))
         return -1;
     for (size_t bank = 0; bank < 2; bank++) {
         for (size_t digit = 0; digit < 10; digit++) {
@@ -532,22 +533,31 @@ int fd2_field_unit_summary_draw(fd2_vga *vga,
     if (list_name(text, font, (size_t)unit->text_id + 1u, 7u, &name, &glyphs) != 0)
         return -1;
 
-    int x = actor_relative_x >= 7 ? 9 : 160;
     int hp = signed_detail_word(unit->hp), hp_max = signed_detail_word(unit->hp_max);
     int mp = signed_detail_word(unit->mp), mp_max = signed_detail_word(unit->mp_max);
     /* field_unit_summary_draw @0x18c6d先板、条、LV、当前值、姓名；0背景不预清。 */
-    fd2_map_sprite_blit(vga, &assets->unit_summary, x, 9, -1);
-    draw_bar(vga, assets, 0, x + 21, 31, hp, hp_max);
-    draw_bar(vga, assets, 1, x + 21, 40, mp, mp_max);
-    draw_digits(vga, assets, x + 132, 13, unit->level, 2, 0);
-    draw_digits(vga, assets, x + 126, 30, hp, 3,
+    fd2_map_sprite_blit(vga, &assets->unit_summary, x, y, -1);
+    draw_bar(vga, assets, 0, x + 21, y + 22, hp, hp_max);
+    draw_bar(vga, assets, 1, x + 21, y + 31, mp, mp_max);
+    draw_digits(vga, assets, x + 132, y + 4, unit->level, 2, 0);
+    draw_digits(vga, assets, x + 126, y + 21, hp, 3,
                 unit->hp == unit->hp_max ? 0u : 1u);
-    draw_digits(vga, assets, x + 126, 39, mp, 3,
+    draw_digits(vga, assets, x + 126, y + 30, mp, 3,
                 unit->mp == unit->mp_max ? 0u : 1u);
     for (size_t i = 0; i < glyphs; i++)
         fd2_font_draw_glyph(vga, font, fd2_text_token_at(name, i),
-                            x + 5 + (int)i * 16, 13, 205, 76, -1);
+                            x + 5 + (int)i * 16, y + 4, 205, 76, -1);
     return 0;
+}
+
+int fd2_field_unit_summary_draw(fd2_vga *vga,
+                                 const fd2_field_info_assets *assets,
+                                 const fd2_font *font,
+                                 const fd2_text_entry *text,
+                                 const fd2_field_unit *unit,
+                                 int actor_relative_x) {
+    return fd2_field_unit_summary_draw_at(vga, assets, font, text, unit,
+                                         actor_relative_x >= 7 ? 9 : 160, 9);
 }
 
 static int item_detail(const uint8_t *item, uint8_t flags,

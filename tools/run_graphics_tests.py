@@ -21,6 +21,7 @@ from field_play_input_test import check_bitmap, wait_log
 B3_SCENARIOS = ("controls", "herb-full", "herb-injured", "drop-herb", "drop-weapon", "drop-armor", "drop-last",
                 "eqt-incompatible", "eqt-weapon", "give-cancel", "give-empty", "give-swap", "give-moved",
                 *(f"use-{code:02d}" for code in range(5, 25)), "use-area2", "use-23-mp0")
+B6_SCENARIOS = ("physical-full-hit", "player-magic0", "player-heal13")
 B4_SCENARIOS = ("physical-cap", "physical-overwrite", "heal", "learn", "counter-multi", "status")
 B5_LOOT_SCENARIOS = ("chest-empty", "chest-swap", "chest-list-cancel", "chest-no", "chest-full-no",
                      "treasure-money", "loot-item", "loot-money", "loot-callback", "loot-story")
@@ -163,10 +164,38 @@ def check_browse_restored(expected, actual):
             raise AssertionError(f"confirmation did not restore browse pixels in {region}")
 
 
+def check_b6_comparison(path, scenario):
+    """exit0的采集器报告仍须三场核心帧/声音/cleanup门全部为真。"""
+    raw = path.read_bytes()
+    report = json.loads(raw)
+    if not isinstance(report, dict):
+        raise AssertionError("B6 comparison不是对象")
+    core = report.get("core_verification", {})
+    pair = report.get("independent_frame_pairing", {})
+    sound = report.get("core_sfx_observations", {})
+    if not all(isinstance(value, dict) for value in (core, pair, sound)):
+        raise AssertionError("B6 comparison缺少核心校验对象")
+    sfx = core.get("sfx_passed", {})
+    if not isinstance(sfx, dict) or not all(isinstance(sound.get(role), dict) for role in ("original", "sdl")):
+        raise AssertionError("B6 comparison缺少双端声音结果")
+    gates = {"ok": report.get("ok") is True, "status": report.get("status") == "passed",
+        "scenario": report.get("scenario") == scenario,
+        "verified": report.get("verify_core_requested") is True,
+        "not_collection_only": report.get("collected_only") is False,
+        "core": core.get("ok") is True,
+        "cleanup_and_guards": core.get("collection_guards_cleanup_passed") is True,
+        "frame": core.get("frame_passed") is True and pair.get("ok") is True}
+    for role in ("original", "sdl"):
+        gates["sfx_" + role] = sfx.get(role) is True and sound[role].get("minimum_core_sfx_supported") is True
+    if not all(gates.values()):
+        raise AssertionError("B6 comparison未通过：" + ", ".join(name for name, passed in gates.items() if not passed))
+    return hashlib.sha256(raw).hexdigest()
+
+
 class Suite:
     def __init__(self, args):
-        if sum(bool(getattr(args, name, False)) for name in ("b3_only", "b4_only", "b5_only")) > 1:
-            raise ValueError("--b3-only、--b4-only与--b5-only不能同时指定；未创建产物")
+        if sum(bool(getattr(args, name, False)) for name in ("b3_only", "b4_only", "b5_only", "b6_only")) > 1:
+            raise ValueError("--b3-only、--b4-only、--b5-only与--b6-only不能同时指定；未创建产物")
         requested = getattr(args, "b3_scenarios", None)
         if requested is not None:
             if not getattr(args, "b3_only", False) or not requested or len(requested) != len(set(requested)) or any(name not in B3_SCENARIOS for name in requested):
@@ -179,6 +208,10 @@ class Suite:
         if requested_b5 is not None:
             if not getattr(args, "b5_only", False) or not requested_b5 or len(requested_b5) != len(set(requested_b5)) or any(name not in B5_SCENARIOS for name in requested_b5):
                 raise ValueError("--b5-scenarios要求--b5-only且场景非空、无重复、全部已登记；未创建产物")
+        requested_b6 = getattr(args, "b6_scenarios", None)
+        if requested_b6 is not None:
+            if not getattr(args, "b6_only", False) or not requested_b6 or len(requested_b6) != len(set(requested_b6)) or any(name not in B6_SCENARIOS for name in requested_b6):
+                raise ValueError("--b6-scenarios要求--b6-only且场景非空、无重复、全部已登记；未创建产物")
         self.args = args
         self.work = args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         original = (ROOT / "original_game").resolve()
@@ -188,7 +221,7 @@ class Suite:
         self.stage1_fixture = None
         self.stage1_fixture_source = None
         self.planner = None
-        if not getattr(args, "b3_only", False) and not getattr(args, "b4_only", False):
+        if not any(getattr(args, name, False) for name in ("b3_only", "b4_only", "b6_only")):
             selected = requested_b5 or B5_SCENARIOS
             stage1_positions = [selected.index(name) for name in B5_STAGE1_SCENARIOS if name in selected]
             if stage1_positions:
@@ -211,6 +244,13 @@ class Suite:
                 self.planner = Path(planner).resolve()
                 if not self.planner.is_file():
                     raise ValueError("自然首关规划器不存在；先构建fd2_field_natural_plan或用--planner指定；未创建产物")
+        self.audio_recorder = None
+        if sys.platform == "win32" and not any(getattr(args, name, False) for name in ("b3_only", "b4_only", "b5_only")):
+            recorder = getattr(args, "audio_recorder", None)
+            self.audio_recorder = (Path(recorder) if recorder is not None else
+                Path(args.driver).parent / "fd2_process_audio_capture.exe").resolve()
+            if not self.audio_recorder.is_file():
+                raise ValueError("B6进程录音工具不存在；先构建fd2_process_audio_capture或用--audio-recorder指定；未创建产物")
         self.work.mkdir(parents=True)
         self.report = {"status": "failed", "platform": sys.platform, "cases": [],
                        "capture": "Windows.Graphics.Capture HWND (SDL and DOSBox)",
@@ -219,6 +259,9 @@ class Suite:
             self.report["b5_stage1_fixture"] = {"path": str(self.stage1_fixture), "source": self.stage1_fixture_source}
         if self.planner is not None:
             self.report["b5_planner"] = {"path": str(self.planner), "sha256": hashlib.sha256(self.planner.read_bytes()).hexdigest()}
+        if self.audio_recorder is not None:
+            self.report["b6_audio_recorder"] = {"path": str(self.audio_recorder),
+                "sha256": hashlib.sha256(self.audio_recorder.read_bytes()).hexdigest()}
         self.trace = self.work / "input-trace.jsonl"
 
     def record(self, **event):
@@ -241,6 +284,7 @@ class Suite:
         if result.returncode:
             raise RuntimeError(f"{name} exited {result.returncode}; see {log}")
         receipt["status"] = "passed"
+        return receipt
 
     def driver(self, process, command, *extra):
         if process.poll() is not None:
@@ -752,10 +796,35 @@ class Suite:
                 "--dosbox", self.args.dosbox, "--scenario", scenario,
                 "--artifacts", self.work / name], timeout=timeout)
 
+    def battle_animation_cases(self):
+        """B6最低三场正式配对；未匹配帧/声音或晚守卫失败不能由exit0冒充通过。"""
+        self.report["registered_b6_scenarios"] = list(B6_SCENARIOS)
+        for scenario in getattr(self.args, "b6_scenarios", None) or B6_SCENARIOS:
+            name = "original-battle-animation-" + scenario
+            artifacts = self.work / name
+            receipt = self.command(name, [sys.executable, ROOT / "tools/run_original_battle_animation.py",
+                "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                "--dosbox", self.args.dosbox, "--audio-recorder", self.audio_recorder,
+                "--scenario", scenario, "--verify-core", "--artifacts", artifacts], timeout=600)
+            try:
+                digest = check_b6_comparison(artifacts / "comparison.json", scenario)
+            except (OSError, ValueError, AssertionError) as error:
+                receipt.update(status="failed", error=str(error))
+                raise
+            receipt.update(comparison=str(artifacts / "comparison.json"), comparison_sha256=digest,
+                core_verification_passed=True)
+
     def run(self):
         before = hashes(ROOT / "original_game")
         self.report["original_hashes"] = before
         try:
+            if getattr(self.args, "b6_only", False):
+                if sys.platform != "win32":
+                    raise RuntimeError("B6核心原版/SDL帧声音配对当前要求Windows WGC与进程录音；未运行不能记为通过")
+                self.report["scope"] = "B6 three core physical/player0/heal13 full-frame and minimum SFX pairs only; no historical rerun; not full FX/A7 fidelity"
+                self.battle_animation_cases()
+                self.report["status"] = "passed"
+                return
             if getattr(self.args, "b5_only", False):
                 if sys.platform != "win32":
                     raise RuntimeError("B5原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
@@ -844,6 +913,7 @@ class Suite:
             self.item_cases()
             self.reward_cases()
             self.transition_cases(include_defeat=False)
+            self.battle_animation_cases()
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before
@@ -860,6 +930,7 @@ def main():
     parser.add_argument("--driver", type=Path)
     parser.add_argument("--planner", type=Path, help="自然首关只读规划器；默认查build-dir/CONFIG或单配置构建目录")
     parser.add_argument("--dosbox", default=shutil.which("dosbox-x"))
+    parser.add_argument("--audio-recorder", type=Path, help="B6进程录音工具；默认查driver同目录fd2_process_audio_capture.exe")
     parser.add_argument("--b3-only", action="store_true", help="仅运行本轮B3物品功能；历史完整实机回归留大阶段审查")
     parser.add_argument("--b3-scenarios", nargs="+", help="仅在--b3-only下选择已登记场景；未知/重复在创建产物前拒绝")
     parser.add_argument("--b4-only", action="store_true", help="仅运行本轮B4经验/成长/学习/状态与存档功能")
@@ -867,6 +938,8 @@ def main():
     parser.add_argument("--b5-only", action="store_true", help="仅运行本轮B5准备/败北/掉落/第二关/自然首关；不调用历史套件")
     parser.add_argument("--b5-scenarios", nargs="+", help="仅在--b5-only下选择已登记场景；未知/重复在创建产物前拒绝")
     parser.add_argument("--b5-save-fixture", type=Path, help="stage1子集无前置prepare时的独立只读实机SAV；默认复用本次prepare原版量测")
+    parser.add_argument("--b6-only", action="store_true", help="仅运行B6核心攻击/施法/治疗三场正式帧声音配对")
+    parser.add_argument("--b6-scenarios", nargs="+", help="仅在--b6-only下选择三场核心子集；未知/重复/空选择在创建产物前拒绝")
     args = parser.parse_args()
     args.build_dir, args.game = args.build_dir.resolve(), args.game.resolve()
     if not args.driver:

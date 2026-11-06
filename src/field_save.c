@@ -330,6 +330,10 @@ static void carry_runtime_owners(fd2_field_game *dst,
     dst->attack_target_userdata = src->attack_target_userdata;
     dst->attack_rng = src->attack_rng;
     dst->attack_rng_userdata = src->attack_rng_userdata;
+    dst->physical_present = src->physical_present;
+    dst->physical_present_userdata = src->physical_present_userdata;
+    dst->magic_present = src->magic_present;
+    dst->magic_present_userdata = src->magic_present_userdata;
     dst->attack_critical_base = src->attack_critical_base;
     dst->attack_critical_base_userdata = src->attack_critical_base_userdata;
     dst->progress_preflight = src->progress_preflight;

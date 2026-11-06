@@ -342,7 +342,69 @@ static int test_shared_contribution_write_points(void) {
     CHECK(value == 3 && rng.calls == 0);
     return 0;
 }
+static int test_raw_heal_uses_same_spread_even_at_full_hp(void) {
+    const uint16_t before_hp[] = {0, 20, 100};
+    for (size_t h = 0; h < 3; h++) {
+        for (uint32_t spread = 0; spread < 100; spread++) {
+            fd2_field_unit target = unit(9, 9, 2, before_hp[h], 100);
+            test_rng rolls = {{spread + 300u, 99}, 0, &target, target.hp, target.mp, 0};
+            fd2_field_magic_basic_result effect = {0};
+            uint32_t raw = 63u + spread * 70u / 1000u;
+            uint32_t expected_hp = before_hp[h] + raw;
+            if (expected_hp > 100) expected_hp = 100;
+            CHECK(fd2_field_magic_apply_player_basic_effect(13, &target,
+                    next_roll, &rolls, &effect) == 1);
+            CHECK(rolls.calls == 1 && !rolls.changed_before_rng);
+            CHECK(effect.raw_heal == raw && !effect.raw_damage);
+            CHECK(effect.hp_before == before_hp[h] && effect.hp_after == expected_hp);
+            CHECK(target.hp == expected_hp && target.mp == 100);
+            if (before_hp[h] == 100) CHECK(effect.raw_heal && !effect.experience_value);
+        }
+    }
+    return 0;
+}
+
+/* 结果接口与既有core在相同stream上的80B/贡献/写序相等；不冒称原版GUI。 */
+static int test_damage_result_all_known_ids_share_effect_and_rng(void) {
+    const uint8_t profiles[] = {1, 7, 19, 28};
+    const uint32_t rolls[][2] = {{0,0}, {0,99}, {99,99}};
+    for (uint8_t id = 0; id <= 12; id++) for (size_t p = 0; p < 4; p++) {
+        for (unsigned low_hp = 0; low_hp < 2; low_hp++) for (size_t r = 0; r < 3; r++) {
+            fd2_field_units old = {0}; old.count = 1;
+            old.items[0] = unit(96, profiles[p], 2, low_hp ? 1 : 28, 28);
+            fd2_field_unit actual = old.items[0], before = actual;
+            test_rng old_rng = {{rolls[r][0],rolls[r][1]},0,&old.items[0],before.hp,before.mp,0};
+            test_rng new_rng = {{rolls[r][0],rolls[r][1]},0,&actual,before.hp,before.mp,0};
+            uint32_t reward = 53;
+            int expected = fd2_field_magic_apply_known_effect_with_reward(id,0,&old,next_roll,&old_rng,&reward);
+            fd2_field_magic_basic_result result = {0};
+            CHECK(fd2_field_magic_apply_damage_result(id,&actual,next_roll,&new_rng,&result) == expected);
+            CHECK(expected >= 0 && !memcmp(&actual,&old.items[0],sizeof(actual)));
+            CHECK(new_rng.calls == old_rng.calls && !new_rng.changed_before_rng && !old_rng.changed_before_rng);
+            CHECK(result.hp_before == before.hp && result.hp_after == actual.hp);
+            CHECK(result.experience_value == reward-53 && !result.raw_heal);
+            CHECK(result.hit == expected);
+            if (result.hit) CHECK(actual.hp == (result.raw_damage >= before.hp ? 0 : before.hp-result.raw_damage));
+            else CHECK(!result.raw_damage && !result.experience_value && actual.hp == before.hp);
+        }
+    }
+    fd2_field_unit target = unit(96,7,2,28,28), before = target;
+    fd2_field_magic_basic_result result, untouched;
+    memset(&result,0xa5,sizeof(result));untouched=result;
+    test_rng rng = {{0,0},0,&target,28,100,0};
+    CHECK(fd2_field_magic_apply_damage_result(13,&target,next_roll,&rng,&result) == -1);
+    CHECK(fd2_field_magic_apply_damage_result(0,&target,NULL,&rng,&result) == -1);
+    CHECK(fd2_field_magic_apply_damage_result(0,&target,next_roll,&rng,NULL) == -1);
+    CHECK(!memcmp(&before,&target,sizeof(target)) && !memcmp(&untouched,&result,sizeof(result)) && !rng.calls);
+    target.flags |= FD2_FIELD_UNIT_FLAG_HIDDEN;before=target;
+    CHECK(fd2_field_magic_apply_damage_result(0,&target,next_roll,&rng,&result) == -1);
+    CHECK(!memcmp(&before,&target,sizeof(target)) && !memcmp(&untouched,&result,sizeof(result)) && !rng.calls);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_damage_result_all_known_ids_share_effect_and_rng() == 0);
+    CHECK(test_raw_heal_uses_same_spread_even_at_full_hp() == 0);
     CHECK(test_shared_hp_heal_power_and_write_set() == 0);
     CHECK(test_shared_contribution_write_points() == 0);
     CHECK(test_enemy_coefficient_table() == 0);

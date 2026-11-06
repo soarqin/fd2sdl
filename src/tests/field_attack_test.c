@@ -1,4 +1,6 @@
-/* field_target_range_build @0x14818 普通攻击范围测试。 */
+/* field_target_range_build @0x14818 普通攻击范围；
+ * field_physical_attack_sequence @0x1e856 与 sub_2EBE1 @0x2ebe1 的
+ * 次数分支回归。只验证计数，不是完整演出或原版实机三击验收。 */
 #include <stdio.h>
 #include <string.h>
 
@@ -30,7 +32,82 @@ static void equip_weapon(fd2_field_unit *unit, uint8_t item_id) {
     record[0x0b] = item_id;
 }
 
+static int test_sequence_modes(void) {
+    fd2_field_unit normal = {0}, type3 = {0}, no_weapon = {0};
+    equip_weapon(&normal, 20);
+    equip_weapon(&type3, 71);
+    /* type3 在 sub_2F7B6 @0x2f7b6 的指令VA 0x2f984 先写标记，0x2f98b 才取命中 RNG。
+     * accuracy=0 的必 miss 数值也不能让计数丢掉这次武器追加。 */
+    type3.accuracy = 0;
+    fd2_field_unit before_normal = normal, before_type3 = type3;
+    for (uint32_t roll = 0; roll < 100; roll++) {
+        const fd2_field_unit *units[] = {&normal, &type3};
+        for (size_t weapon = 0; weapon < 2; weapon++) {
+            const uint32_t rolls[] = {roll, UINT32_MAX};
+            effect_rng rng = {rolls, 2, 0};
+            uint8_t count = 0, maximum = 0;
+            CHECK(fd2_field_attack_sequence_max_count_for_mode(units[weapon],
+                FD2_FIELD_ATTACK_SEQUENCE_FULL, &maximum) == 0);
+            CHECK(maximum == (weapon ? 3 : 2) && rng.cursor == 0);
+            CHECK(fd2_field_attack_sequence_count_for_mode(units[weapon],
+                FD2_FIELD_ATTACK_SEQUENCE_FULL, effect_rng_next, &rng, &count) == 0);
+            CHECK(count == 1u + (roll < 3u) + weapon && count <= maximum &&
+                  rng.cursor == 1);
+            rng.cursor = 0;
+            CHECK(fd2_field_attack_sequence_max_count_for_mode(units[weapon],
+                FD2_FIELD_ATTACK_SEQUENCE_SHORT, &maximum) == 0);
+            CHECK(maximum == 2 && rng.cursor == 0);
+            CHECK(fd2_field_attack_sequence_count_for_mode(units[weapon],
+                FD2_FIELD_ATTACK_SEQUENCE_SHORT, effect_rng_next, &rng, &count) == 0);
+            CHECK(count == ((roll < 3u || weapon) ? 2 : 1) && count <= maximum &&
+                  rng.cursor == 1);
+            uint8_t short_count = count;
+            rng.cursor = 0;
+            CHECK(fd2_field_attack_sequence_count(units[weapon], effect_rng_next,
+                                                  &rng, &count) == 0);
+            CHECK(count == short_count && count <= 2 && rng.cursor == 1);
+        }
+    }
+    const uint32_t modulo_rolls[] = {102, 99};
+    effect_rng rng = {modulo_rolls, 2, 0};
+    uint8_t count = 0;
+    CHECK(fd2_field_attack_sequence_count_for_mode(&type3,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, effect_rng_next, &rng, &count) == 0);
+    CHECK(count == 3 && rng.cursor == 1);
+    CHECK(memcmp(&normal, &before_normal, sizeof(normal)) == 0);
+    CHECK(memcmp(&type3, &before_type3, sizeof(type3)) == 0);
+
+    rng.cursor = 0;
+    count = 0xa5;
+    CHECK(fd2_field_attack_sequence_count_for_mode(&type3,
+        (fd2_field_attack_sequence_mode)-1, effect_rng_next, &rng, &count) == -1);
+    CHECK(fd2_field_attack_sequence_count_for_mode(&type3,
+        (fd2_field_attack_sequence_mode)2, effect_rng_next, &rng, &count) == -1);
+    CHECK(fd2_field_attack_sequence_count_for_mode(&no_weapon,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, effect_rng_next, &rng, &count) == -1);
+    CHECK(fd2_field_attack_sequence_count_for_mode(NULL,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, effect_rng_next, &rng, &count) == -1);
+    CHECK(fd2_field_attack_sequence_count_for_mode(&type3,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, NULL, &rng, &count) == -1);
+    CHECK(fd2_field_attack_sequence_count_for_mode(&type3,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, effect_rng_next, &rng, NULL) == -1);
+    CHECK(fd2_field_attack_sequence_max_count_for_mode(&type3,
+        (fd2_field_attack_sequence_mode)-1, &count) == -1);
+    CHECK(fd2_field_attack_sequence_max_count_for_mode(&type3,
+        (fd2_field_attack_sequence_mode)2, &count) == -1);
+    CHECK(fd2_field_attack_sequence_max_count_for_mode(&no_weapon,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, &count) == -1);
+    CHECK(fd2_field_attack_sequence_max_count_for_mode(NULL,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, &count) == -1);
+    CHECK(fd2_field_attack_sequence_max_count_for_mode(&type3,
+        FD2_FIELD_ATTACK_SEQUENCE_FULL, NULL) == -1);
+    CHECK(rng.cursor == 0 && count == 0xa5);
+    CHECK(memcmp(&type3, &before_type3, sizeof(type3)) == 0);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_sequence_modes() == 0);
     uint32_t cells[25] = {0};
     fd2_terrain_attr attrs[2] = {{0}};
     attrs[0].movement_cost_class = 0;

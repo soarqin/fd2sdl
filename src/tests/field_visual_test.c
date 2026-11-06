@@ -206,11 +206,129 @@ static int test_palette_apply_clipping(void) {
     return 0;
 }
 
+/* 219ad/22046原kernel+真实sqrt/__CHP，CW127f，无hook：
+ * vectors SHA dc13930868b3a6ea792256e2da38e58f7118260eba42ce54846d0878aae3c0c5。
+ * 以下固定点/范围哈希来自原指令输出，不以被测整数公式重算预期。 */
+static uint64_t mask_hash_u32(uint64_t hash, uint32_t value) {
+    for (unsigned i = 0; i < 4; i++) {
+        hash ^= (value >> (8 * i)) & 255u;
+        hash *= UINT64_C(0x100000001b3);
+    }
+    return hash;
+}
+
+static int mask_border_unchanged(const fd2_vga *vga) {
+    for (int y = 0; y < VGA_H; y++) for (int x = 0; x < VGA_W; x++)
+        if (x < 4 || x >= 316 || y < 4 || y >= 196)
+            CHECK(vga->framebuffer[y * VGA_STRIDE + x] == 3);
+    return 0;
+}
+
+static int test_transition_native_rounding_and_vectors(void) {
+    fd2_vga vga = {0};
+    uint8_t lut[256];
+    for (unsigned i = 0; i < 256; i++) lut[i] = (uint8_t)(i + 1u);
+    static const struct { int radius, dy, half; } circle[] = {
+        {1,0,1}, {2,1,2}, {3,1,4}, {3,0,4}, {5,1,7},
+        {5,0,8}, {10,1,15}, {10,0,16}, {256,1,409},
+    };
+    for (size_t i = 0; i < sizeof(circle) / sizeof(circle[0]); i++) {
+        int cx = circle[i].half > 156 ? -100 : 156;
+        memset(vga.framebuffer, 3, sizeof(vga.framebuffer));
+        CHECK(fd2_field_transition_lut_before_actors(&vga, lut,
+                  cx, 96, circle[i].radius) == 0);
+        for (int x = 0; x < 312; x++)
+            CHECK(vga.framebuffer[(100-circle[i].dy)*VGA_STRIDE+x+4] ==
+                  (x >= cx-circle[i].half && x < cx+circle[i].half ? 4 : 3));
+        CHECK(mask_border_unchanged(&vga) == 0);
+    }
+    static const struct { int radius, half; } rectangle[] = {
+        {1,1}, {2,3}, {3,4}, {5,8}, {10,16}, {16,25},
+        {24,38}, {40,64}, {160,256}, {192,307}, {4096,6553},
+    };
+    for (size_t i = 0; i < sizeof(rectangle)/sizeof(rectangle[0]); i++) {
+        int cx = rectangle[i].radius == 4096 ? -6500 : 0;
+        memset(vga.framebuffer, 3, sizeof(vga.framebuffer));
+        CHECK(fd2_field_transition_lut_after_actors(&vga, lut,
+                  cx, 1, rectangle[i].radius) == 0);
+        for (int x = 0; x < 312; x++)
+            CHECK(vga.framebuffer[4*VGA_STRIDE+x+4] ==
+                  (x >= cx-rectangle[i].half && x < cx+rectangle[i].half ? 4 : 3));
+        CHECK(mask_border_unchanged(&vga) == 0);
+    }
+    /* r=2的上下端行严格排除，右端x为exclusive。 */
+    memset(vga.framebuffer, 3, sizeof(vga.framebuffer));
+    CHECK(fd2_field_transition_lut_before_actors(&vga,lut,10,10,2) == 0);
+    CHECK(vga.framebuffer[12*VGA_STRIDE+14] == 3);
+    CHECK(vga.framebuffer[16*VGA_STRIDE+14] == 3);
+    CHECK(vga.framebuffer[14*VGA_STRIDE+16] == 4);
+    CHECK(vga.framebuffer[14*VGA_STRIDE+17] == 3);
+
+    uint64_t circle_hash = UINT64_C(0xcbf29ce484222325);
+    for (unsigned radius = 1; radius <= 128; radius++) {
+        memset(vga.framebuffer, 3, sizeof(vga.framebuffer));
+        CHECK(fd2_field_transition_lut_before_actors(&vga,lut,0,0,(int)radius) == 0);
+        for (unsigned dy = 0; dy < radius; dy++) {
+            unsigned width = 0;
+            for (int x = 0; x < 312; x++)
+                width += vga.framebuffer[(dy+4)*VGA_STRIDE+x+4] == 4;
+            for (unsigned x = 0; x < 312; x++)
+                CHECK(vga.framebuffer[(dy+4)*VGA_STRIDE+x+4] == (x < width ? 4 : 3));
+            circle_hash = mask_hash_u32(circle_hash, radius);
+            circle_hash = mask_hash_u32(circle_hash, dy);
+            circle_hash = mask_hash_u32(circle_hash, width);
+        }
+    }
+    CHECK(circle_hash == UINT64_C(0xe1127548a75397c2)); /* 8256原指令三元组。 */
+    uint64_t rect_hash = UINT64_C(0xcbf29ce484222325);
+    for (unsigned radius = 1; radius <= 192; radius++) {
+        memset(vga.framebuffer, 3, sizeof(vga.framebuffer));
+        CHECK(fd2_field_transition_lut_after_actors(&vga,lut,0,1,(int)radius) == 0);
+        unsigned width = 0;
+        for (int x = 0; x < 312; x++) width += vga.framebuffer[4*VGA_STRIDE+x+4] == 4;
+        rect_hash = mask_hash_u32(rect_hash, radius);
+        rect_hash = mask_hash_u32(rect_hash, width);
+    }
+    CHECK(rect_hash == UINT64_C(0x56d3a7241525bf10));
+    return 0;
+}
+
+static int test_transition_invalid_and_extreme_clipping(void) {
+    fd2_vga vga, before;
+    memset(&vga, 3, sizeof(vga)); before = vga;
+    uint8_t lut[256], old_lut[256];
+    for (unsigned i = 0; i < 256; i++) lut[i] = (uint8_t)(i+1u);
+    memcpy(old_lut, lut, sizeof(lut));
+    static const int invalid[] = {INT_MIN, -1, 0, 4097, INT_MAX};
+    for (size_t i = 0; i < sizeof(invalid)/sizeof(invalid[0]); i++) {
+        CHECK(fd2_field_transition_lut_before_actors(&vga,lut,0,0,invalid[i]) == -1);
+        CHECK(fd2_field_transition_lut_after_actors(&vga,lut,0,0,invalid[i]) == -1);
+    }
+    CHECK(fd2_field_transition_lut_before_actors(NULL,lut,0,0,1) == -1);
+    CHECK(fd2_field_transition_lut_after_actors(NULL,lut,0,0,1) == -1);
+    CHECK(fd2_field_transition_lut_before_actors(&vga,NULL,0,0,1) == -1);
+    CHECK(fd2_field_transition_lut_after_actors(&vga,NULL,0,0,1) == -1);
+    CHECK(!memcmp(&vga,&before,sizeof(vga)));
+    CHECK(fd2_field_transition_lut_before_actors(&vga,lut,INT_MIN,INT_MAX,4096) == 0);
+    CHECK(fd2_field_transition_lut_after_actors(&vga,lut,INT_MAX,INT_MIN,4096) == 0);
+    CHECK(!memcmp(&vga,&before,sizeof(vga)) && !memcmp(lut,old_lut,sizeof(lut)));
+    CHECK(fd2_field_transition_lut_before_actors(&vga,lut,311,191,1) == 0);
+    CHECK(vga.framebuffer[195*VGA_STRIDE+314] == 4 &&
+          vga.framebuffer[195*VGA_STRIDE+315] == 4);
+    CHECK(mask_border_unchanged(&vga) == 0);
+    CHECK(!memcmp((uint8_t*)&vga+sizeof(vga.framebuffer),
+                  (uint8_t*)&before+sizeof(before.framebuffer),
+                  sizeof(vga)-sizeof(vga.framebuffer)));
+    return 0;
+}
+
 int main(void) {
     CHECK(test_resources_and_sequence() == 0);
     CHECK(test_terrain_animation_and_transparent_lut() == 0);
     CHECK(test_scaled_terrain_sampling() == 0);
     CHECK(test_palette_apply_clipping() == 0);
+    CHECK(test_transition_native_rounding_and_vectors() == 0);
+    CHECK(test_transition_invalid_and_extreme_clipping() == 0);
     puts("field visual tests: ok");
     return 0;
 }

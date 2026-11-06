@@ -80,6 +80,7 @@ typedef struct {
     uint16_t hp_after;
     uint32_t raw_damage; /* 命中伤害在HP夹零前的数值；miss／治疗为0。 */
     uint32_t experience_value;
+    uint32_t raw_heal; /* 1c916未夹顶恢复量，供1e0db浮字；满HP亦保留，不重复RNG。 */
 } fd2_field_magic_basic_result;
 
 /* 仅ID0伤害／ID13治疗。最坏原始经验贡献查询不耗RNG、不写target；
@@ -95,6 +96,10 @@ int fd2_field_magic_apply_player_basic_effect(
     uint8_t magic_id, fd2_field_unit *target,
     fd2_field_magic_rng_fn rng, void *rng_userdata,
     fd2_field_magic_basic_result *result);
+/* 既有0..12伤害core的结果投影：公式、贡献及RNG复用同一实现。
+ * 用于FULL AI；10..12保留免疫无RNG。不含MP/FX插值/acted/loot/能力开放。 */
+int fd2_field_magic_apply_damage_result(uint8_t magic_id, fd2_field_unit *target,
+    fd2_field_magic_rng_fn rng, void *userdata, fd2_field_magic_basic_result *result);
 
 /* field_player_command_execute @0x18d8c（原登记同名）的caster归一。
  * 这里只除level+(profile>8?30:0)，不混入controller cap99或1e292入口门。

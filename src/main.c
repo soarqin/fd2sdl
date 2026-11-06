@@ -904,6 +904,7 @@ int main(int argc, char **argv) {
                              &ui_sfx_bank, &battle_sfx_bank,
                              &arrival_sfx_bank);
         title_audio.primary_player = &pcm_player;
+        field_audio.secondary_player = &secondary_pcm_player;
         title_audio.secondary_player = &secondary_pcm_player;
         title_audio.bank = &title_sfx_bank;
         title_audio.letter_fly_bank = &title_letter_fly_sfx_bank;

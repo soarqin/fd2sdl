@@ -6,7 +6,7 @@
 
 ### PCM
 
-`sfx_play @0x25a96` 从嵌套 bank 的 offset 表取得样本地址和长度，先结束原 sample，再设置新样本及 loop count。index `-1` 仅停止。primary／secondary wrapper 对应不同 AIL handle，不代表固定资源 bank；换样本应复用各自 handle 的 replace 语义。
+`sfx_play @0x25a96` 从嵌套 bank 的 offset 表取得样本地址和长度，先结束原 sample，再设置新样本及 loop count；固定 primary AIL handle 为 `0x53ee4`。`sfx_play_secondary @0x25b45` 执行同样的 replace／stop 流程，但使用独立 handle `0x53ee8`。两者均保留 `0x53ef1`、`0x51e62` 和 `0x54133` 的原门，index `-1` 只停止。旧名 `pal_mask_set` 仅保留历史别名：完整指令中没有 DAC／palette 写入，不能据旧名解释为调色板操作。handle 不代表固定资源 bank。
 
 `ail_init_sample @0x39521` 直接初始化为 `11025 Hz`、loop count 1、pan 64；`sfx_play` 不覆盖 rate、format、volume 或 pan。现有样本路径为 unsigned 8-bit mono，字节中心为 `0x80`。循环参数 0 为无限，正数为总播放次数。全局默认音量仍待运行时确认。
 
@@ -18,7 +18,7 @@
 | FDOTHER[80] | SFX 1 actor flash；11 stage transition；13 earthquake |
 | FDOTHER[95] | 两次 stage 0 group arrival 均在 frame 1 播放 SFX 0 |
 
-FIGANI／动画 metadata 给出的 selector 动态决定 `DS:0x414b/0x4153` 对应 bank，不能登记为固定 FDOTHER entry。index `-1` 仍停止对应 sample handle。
+FIGANI／动画 metadata 与 caller 决定 bank；`0x5414b`、`0x54153` 是相应资源指针，不是固定 FDOTHER entry。index `-1` 停止对应 sample handle。
 
 已确认的战场效果：
 
@@ -29,6 +29,20 @@ FIGANI／动画 metadata 给出的 selector 动态决定 `DS:0x414b/0x4153` 对�
 | `field_earthquake_effect @0x21527` | 13，15,725 字节，约 1.426 s | `0,1,2,1` 循环 60 帧，前 43 帧每 6 帧重启样本 |
 
 标题滚动的 14 个阈值、闪电调色板和动画顺序见[启动流程](boot-flow.md)；脚步类别表、全局步态计数和逐字 BIOS tick 见[数据格式](../formats/data-formats.md)。不能为补音效另建播放器或在音频线程推进场景。
+
+### B6 战斗演出的 SFX 分派
+
+以下依据规范279项登记、完整原指令和局部原 kernel 执行；局部执行的绘图／音频调用被记录或替换，不等于真实窗口／声音验收。函数／全局均为 canonical VA，不沿用历史窗口地址。
+
+- 物理演出 `sub_2E2B0 @0x2e2b0` 为实际 attack FIGANI 条目调用 `sub_314DE @0x314de`：header `+4` selector `1..6` 对应 FDOTHER `48..53`，即 `47+selector`；零值不加载 bank。`sub_2EBE1 @0x2ebe1` 逐 part 读取 `+4` effect marker、`+5` cue、`+6` duration。intro 阶段按非零 cue 直接播放；主循环中的非零 cue 在普通 part 播原 cue，有 effect marker 时才按命中播原 cue、miss 改播样本0。受控 unit0 的 FIGANI1 为 selector5，part6 的 marker1／cue3，因此本场必杀动作声明52/3一次；不推广为任意双击或反击次数。
+- FULL `field_magic_battle_animation @0x2ff01` 的 magic IDs0..9 使用 bank 序列 `[82,82,83,84,85,86,87,88,89,90]`。这是 caller 的 FX bank 表，与角色 attack selector 独立。`sub_30E9D @0x30e9d` 在 casting part 的 marker精确为1时扣费并播该 FX bank 的样本0；其中24／28..30条件测试的是 **magic ID**，不能误读为 unit ID。
+- 本场 Magic0 的 unit9 施法项 `3*9+2` 为空，回退 FIGANI28，intro11仅 part6 为 marker1，先播82/0。`sub_2B996 @0x2b996` phase4在七条状态各等于3时播82/1，首目标对应主循环 tick3、5、7、9、11、13、15；phase5递增状态。miss同样执行视觉 phase／cue，不能根据有声推断命中；这些调用也不证明七个实例均能从录音唯一定位。
+- 法术13走地图 wrapper：`sub_21AD9 @0x21ad9` 先播 FDOTHER[80] 样本11，再执行过渡；`sub_21B18 @0x21b18` 进入 `sub_1C4CC @0x1c4cc`。原表 `0x51f33/0x51f54/0x51f75` 的 ID13值为57／7／12，故首个地图 FX 帧播12；随后 `field_actor_group_flash @0x1c2da` 入口播1，顺序为11→12→1。
+- FX7／8／9的部分调用使用 `sfx_play_secondary @0x25b45`，而其它调用仍可使用 primary。原 `0x53ee8` handle 与 AIL callees确认其为第二数字样本通道，不能翻译为 DAC 操作或把所有 cue 串到同一 replace handle。
+
+同一 handle 重播会替换未播完的样本；FULL 返回前还显式停止。82/1原始长度为13,424点（约1.218秒），重复调用间距仅两个主 tick，不能要求每次整样本播完，也不能把同一个相关峰复用为七个已观察时点。声明读集含52／80／82三个完整 bank、24个样本，其中80/0与82/0、80/3与80/4分别字节完全相同；波形只能证明相应 VOICE 字节等价类，不能据此唯一推断运行 bank／sample指针。
+
+资源须在首次播放前预检，bank存活到对应 handle 停止或其最后引用退休；静音、skip、无设备及宿主退出不能额外消耗业务 RNG 或重复提交效果。取证先等 WGC／进程音频 ready，正常停止并封好所有采集文件后再关闭目标，具体接口见[工具速查](../tools/README.md#连续画面与进程音频取证windows)。三核心的最低完整帧／有限SFX身份与录音内顺序已按实际及单列离线来源完成验收，来源见[阶段记录](../plans/stage-log.md#b6a6full-战斗演出与动态音效)；不扩为整段逐帧、全部重复cue、精确输入时延或A7保真，也不由纯kernel、资源SHA或采集exit0互相替代。
 
 ### XMIDI／OPL
 

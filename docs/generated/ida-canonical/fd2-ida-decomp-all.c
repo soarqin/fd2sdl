@@ -2915,7 +2915,7 @@ LABEL_3:
               field_unit_inventory_item_append(a4, v18);
           }
           *(_BYTE *)(dword_53AD5 + v7) = 1;
-          pal_mask_set(dword_53EEC, 12, 1);
+          sfx_play_secondary(dword_53EEC, 12, 1);
           field_completed_chest_tiles_apply();
           v11[52] = 7;
         }
@@ -3944,6 +3944,8 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
 // [勘误 evidence] 静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门 -> 本体不直接写MP，但map-effect表的damage/heal/status wrapper在逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。；依据: 权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。51d01的0..27 relocation表、21227/21b18/226ea等wrapper与30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。
 // [勘误 evidence] 20/21的22af6仅在状态非零时先1c916(target,10)耗一次spread RNG并写HP/累heal贡献，再清状态并加4*weightedLV。17/18/19首次buff加2*weightedLV；25只在acted真时清位并加8*weightedLV。22/26/27命中先1c81f写HP/累damage贡献，再duration RNG、写状态、加8*原LV。23在扣费后、迁移前加10*weightedLV。AI尾1546a及item21046仍清全局。；依据: 完整51d01表及22721/22866/22997/22af6/22c04/22d1b原始写xref；weightedLV仅target profile9..24加30。22dd6..22e0b锁duration RNG前已有damage贡献，不能只在整个effect后补写。buff增量仍沿本轮x87127f/PC53和u16全域局部执行证明的floor((old*15+100)/100)，非RNE结果。
 // [勘误 evidence] 评分门通过后15360先12d7b聚焦施术者，构造目标后153c2调用12cea聚焦53C27/53C2B选定中心，再清display进入效果。AOE中心不等于最后raw目标；不得把统一actor调度或直接cursor写入当作该调用序。名称与持久ABI保持。；依据: IDA9.5 Domain完整381B、13a9f/14ef0的xref、15360与153c2原call字节及权威全函数伪C共同确认；12d7b/12cea分别负责actor坐标与镜头留边。此为静态合同，AI法术修复的运行范围按实际候选／图形收据另记，不借物理C20失败冒称法术实跑。
+// [勘误 evidence] 15311在id<10且byte53af9==0时进入2ff01完整演出，其余走effect表；这不等于玩家1cff0的ID0配置分派。FULL费用沿caster FIGANI intro标记，FX、effect、jitter仍共用原RNG；AI contribution只在1546a尾清零。；依据: 完整15311及2ff01/1cff0/1ca89读集，原153f1附近分支和1546a写点；先前‘SDL仅无演出分支’是历史支持范围，不能当原版FULL无费用证据。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
+// [勘误 evidence] 聚焦施法中心后明确51A83=0，再分派2ff01或map effect；法术内部11cac返回页应沿caller的无cursor上下文，不能复用物理模式1返回页冒充。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 int __cdecl field_ai_magic_action_execute(int a1, int a2)
 {
   int v2; // eax
@@ -4010,6 +4012,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 //   历史地址列 `0x3a6a2`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] exchange后方向reset→败亡描述符→刷新→死亡清理→掉落→刷新，随后无额外HP门调用1e292给原防御者。caller不清53EC8、不作99cap；1e292入口hidden/等值level门可早退，早退不消费残留全局。；依据: 完整496B、13a9f/14ef0两caller及15627..1566a指令；53EC8完整xref无1548e/1e856/13a9f/14ef0初始化。Load10010/secondary19df7/END1a30b亦无清零写，不能从后来118ee/18dc4选择门推出Load必已清贡献。
 // [勘误 evidence] 完整exchange在154ad先12d7b聚焦攻击者，154c6才执行14b78移动，154de再12d7b聚焦所选防御者，然后进入交战；不能用直接写cursor代替12d7b→12cea的逐格镜头留边。13a9f没有统一动作聚焦，behavior8无动作也不能凭调度主动改焦点。名称与持久ABI不变。；依据: IDA9.5 Domain完整496B、13a9f/14ef0调用xref与154ad/154c6/154de原指令；12d7b在12da3调用12cea。B5 C20实际原版完成、SDL turn11 quiet失败，81块地形共46656px唯一确定SDL camera5,1，而原版0043 camera5,0的422px资源门及Save11保留Hero15,0。这是原动作聚焦遗漏的依据，不改变oracle或把后续修复预记为实机通过。
+// [勘误 evidence] 物理caller在攻击目标聚焦前设置51A83=1，2e2b0正常尾11cac(1)因而保留普通cursor。玩家18d8c亦沿18890的1进入，不能为修法术内部多余cursor而全局删除物理返回cursor。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 int __cdecl field_physical_exchange(int a1, int a2)
 {
   int v2; // esi
@@ -6668,7 +6671,7 @@ char __cdecl field_special_cell_execute(int a1)
         v15 = j___delay(200);
         return field_bottom_notice_close(v15, v7);
       }
-      pal_mask_set(dword_53EEC, 12, 1);
+      sfx_play_secondary(dword_53EEC, 12, 1);
       j___delay(300);
       v8 = dword_53A55;
       v9 = *(unsigned __int16 *)(dword_53A55 + 3 * (_DWORD)v1 + 84);
@@ -9394,6 +9397,7 @@ void __cdecl field_unit_magic_list_draw(int a1, int a2, int a3)
 // [field_player_magic_command_execute_core] `field_player_magic_command_execute` 的 `__chkstk` 后主体
 //   依据: 反编译确认其建立单位详情、枚举法术并进入选择循环；完整施法结算尚未移植。
 //   历史地址列 `0x4220e`（`0x1cffa` 是 __chkstk body，入口为 `0x1cff0`）；旧 Ghidra 名 `FUN_0004220e`；判定 chkstk-body
+// [勘误 evidence] 成功目标确认后先令51A83=0并11cac(0)，随后进入FULL或map handler；死亡及loot处理后才恢复1。不能在恢复13的57..63或浮字底页强制画普通光标。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
 {
   __int64 v1; // rax
@@ -10037,6 +10041,7 @@ int __cdecl sub_1DEBE(int a1, int a2, int a3)
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x214ad, 0x21548, 0x22721, 0x22997, 0x22aa8, 0x22c04
  * callees: 0x11eb0, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x4ebab
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_1DF58。53ec4非零时保存工作页，22帧逐次恢复底页并绘制已入队glyph，位置来自actor世界格及5202c固定纵向轨迹，帧后2ms，末500ms；无队列不播放。此处消费显示队列，不重算伤害/恢复或消耗effect RNG。；依据: 完整387B与20c6f/2111a等caller、1e0db四glyph队列写集和5202c数据xref；浮字轨迹与保存值/真实恢复净值分别登记。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 void sub_1DF58()
 {
   int i; // ebp
@@ -10086,6 +10091,7 @@ void sub_1DF58()
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x211a4, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x21b18, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22d1b
  * callees: 0x3702f, 0x37b29, 0x37b55
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_1E0DB。仅按原视区条件为一个actor追加4个十进制glyph槽，各槽有actor raw、5*i+2横移和字形索引；空白槽为0，53ec4加4。数值是caller提供的原始量，不在此按HP变化重算。；依据: 完整257B及21b18/物品等caller；sprintf长度及offset写集不等于确认原C ABI或扩展队列容量。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 void __cdecl sub_1E0DB(int a1, char a2, int a3)
 {
   unsigned int v3; // edi
@@ -10424,6 +10430,7 @@ int __cdecl sub_1E7F6(int a1, int a2, int a3, _DWORD *a4)
 // [field_physical_attack_sequence] 执行一击或两击的普通物理攻击序列
 //   依据: corrected code0 默认次数 1；武器 item `+0x09==3` 或必定消费的 `field_rng_next()%100 < 3` 时次数为 2。每击调用 `field_physical_attack_resolve`，目标 HP 归零即停止，返回目标剩余 HP。
 //   历史地址列 `0x43a6a`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 无演出1e856保留type3与3%追加机会合并、最多两击；完整2ebe1流程则独立的3%追加与type3各加一次，最多三击。type3追加在hit检查前确定，实际target HP0停止后续击；不能以跳过画帧来切换结算模式。；依据: 完整2ebe1/2f7b6及2ec34/2ecae/2ecc4/2ecd0/2ed0c/2ed14/2ed25/2ed2d和2f97f..984原指令读集；本次只确认同一RNG流的不同原caller规则，未将纯逻辑三击测试冒称原版已实际观测三击。
 void __cdecl field_physical_attack_sequence(int a1, int a2, _DWORD *a3)
 {
   int v3; // ebp
@@ -11284,7 +11291,7 @@ LABEL_32:
       memset(655360, 0, 64000);
       dac_apply_darkness(0, 255, 0);
       animation_play(1, 15, 1);
-      pal_mask_set(v28, 3, 1);
+      sfx_play_secondary(v28, 3, 1);
       pal_partial_set(0, 255, 64);
       v7 = blit_image(655360, 320, v25, 0);
       for ( m = 0; m <= 40; ++m )
@@ -12752,6 +12759,7 @@ int __cdecl sub_2189A(int a1, int a2, int a3)
  * callers: 0x2189a, 0x22046
  * callees: 0x3702f, 0x37932, 0x37af4, 0x3ca4c, 0x4deec
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_219AD。圆扫描线先原sqrt，再乘caller scale除binary6410.0，真实CHP临时RC向0并恢复CW；22046传16，2189a传12，两调用范围不能混为默认值。strict y端点和半开x跨度裁到312乘192；不是nearest整数圆。；依据: 完整241B及22046/2189a caller，原37af4/3ca4c和501f0常数；readset990a5773及vectors dc139308包含两个scale各65537向量和signed/CW复核。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 void __cdecl sub_219AD(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 {
   int v8; // ebx
@@ -12816,6 +12824,7 @@ void __cdecl sub_21A9E(int a1)
  * callers: 0x15311, 0x1cff0
  * callees: 0x21b18, 0x21eb1, 0x25a96, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_21AD9。恢复13入口先请求既有SFX11，再调用21eb1的(1,2)视觉序列，随后转21b18并固定magic_id13；不能把这些演出步骤当作第二次恢复/扣费。；依据: 完整63B及1cff0调用分派、21eb1/21b18 callees；SFX是否实际播放仍经原25a96设置门。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_21AD9(int a1, int a2, int a3)
 {
   watcom_stack_check(20);
@@ -12831,6 +12840,7 @@ int __cdecl sub_21AD9(int a1, int a2, int a3)
  * callers: 0x21ad9
  * callees: 0x1c2da, 0x1c4cc, 0x1c8ed, 0x1ca89, 0x1e0db, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_21B18。清浮字队列53ec4，先收集/聚焦和actor flash，再于目标循环前调用1ca89一次；逐raw目标执行恢复及1e0db入队。恢复原始量与夹顶后的HPdelta分开，满HP仍可有非零浮字原量，不能重抽spread或重复提交业务。；依据: 完整函数raw/xref、13记录和1c916/1e0db写集；跳向21190的共用尾不臆造独立ABI。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 void __cdecl sub_21B18(int a1, int a2, int a3, int a4)
 {
   int i; // esi
@@ -12903,6 +12913,7 @@ char __cdecl sub_21DB2(int a1, unsigned __int8 a2, int a3, int a4, int a5)
  * callers: 0x21ad9, 0x21b99, 0x2211c, 0x22153
  * callees: 0x11cac, 0x11eb0, 0x11eee, 0x22046, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_21EB1。工作页先生成terrain，9到1 LUT逐帧调用22046；半径按caller步进，停200ms后用最后半径作3到9 LUT，尾部重画当前地图。22046内部夹入actor/前景，不能以旧nearest/sqrt2几何或actor后统一mask替代。；依据: 完整405B、21ad9等caller及22046/219ad/CHP原码向量；只读合成不提交Game状态/RNG。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_21EB1(int a1, int a2)
 {
   int v2; // esi
@@ -12954,6 +12965,7 @@ int __cdecl sub_21EB1(int a1, int a2)
 // [field_transition_lut_mask] 对战场 buffer 应用圆形与中央矩形组合的 palette translation mask
 //   依据: corrected 机器码先调用两次圆形 scanline helper，再以 `radius/sqrt(2)` 宽度处理上半区；调用方传入 FDOTHER[3] 的 256 字节 LUT frame
 //   历史地址列 `0x4725a`；旧 Ghidra 名 `FUN_0004725a`；判定 exact
+// [勘误 evidence] 两次219ad都传scale16，CHP向零截断：扫描半宽floor(sqrt(r²-dy²)*16/10)，严格cy-r<y<cy+r且水平[cx-half,cx+half)，裁剪312×192；上半矩形半宽trunc(r*binary64(1.6))。第一次完整椭圆后于22077调用127a9重画actor/前景，再绘下半椭圆及上半矩形，三者不能在已合成actor后统一叠加。；依据: IDA9.5 Domain完整22046/219ad/37af4/3ca4c/2189a和常数501f0/50208；无hook无patch执行原sqrt/CHP，scale12/16各65537向量、rectangle4097向量、大半径1900向量及4RC×7 signed CHP/restored CW。读集SHA 990a57735c76ca975f3054cec7de8de3a22f72b929b0a7e6de5c7fbe518f9648，向量报告SHA dc13930868b3a6ea792256e2da38e58f7118260eba42ce54846d0878aae3c0c5。已测r<=4096的整数模型circle=isqrt(64*n/25),rectangle=8*r/5；不推广2189a的scale12或所有runtime控制字。
 int __usercall field_transition_lut_mask@<eax>(
         int a1@<ebp>,
         int a2@<edi>,
@@ -15144,7 +15156,7 @@ int __cdecl sfx_play(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: pal_mask_set
+ * IDA 9.5 Hex-Rays: sfx_play_secondary
  * VA=0x25b45..0x25bf4 OBJ=1 OFF=0x15b45 size=0xaf
  * callers: 0x13a9f, 0x190ac, 0x1f894, 0x2af28, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2d80d
  * callees: 0x3702f, 0x39521, 0x39694, 0x39798, 0x39805, 0x39aae
@@ -15152,7 +15164,9 @@ int __cdecl sfx_play(int a1, int a2, int a3)
 // [pal_mask_set] 调色板遮罩设置
 //   依据: boot_intro_title内调用
 //   历史地址列 `0x4ad59`；旧 Ghidra 名 `FUN_0002328d`；判定 exact
-int __cdecl pal_mask_set(int a1, int a2, int a3)
+// [勘误 semantic_name] sfx_play_secondary；依据: 完整175B及2cafc/2ccf4/2ce1a等xref：与25a96相同的三门及bank+6/+10取样流程，但固定AIL sample handle为53ee8而非53ee4。先ail_end_sample，index非-1再init/address/loop/start，完全没有palette写入；原pal_mask_set仅保留历史alias，不按函数大小或调用邻近命名。
+// [勘误 evidence] 第二AIL handle的数字样本replace/stop。保留原53ef1/51e62/54133三门，index=-1只停止；其它index按嵌套bank offset取u8无头样本并设置loop。与primary独立，不能因为名称曾含pal而转为DAC操作。；依据: 本次Domain完整25b45/25a96指令、字节及callers对照；参考data handle53ee8/53ee4与AIL callees直接确认。仅更正函数语义名，不写类型/推断ABI。
+int __cdecl sfx_play_secondary(int a1, int a2, int a3)
 {
   int result; // eax
   int v4; // eax
@@ -18518,7 +18532,7 @@ int sub_2AF28()
       v1 = -1;
     if ( v5 == 28 )
     {
-      pal_mask_set(dword_53EEC, 7, 1);
+      sfx_play_secondary(dword_53EEC, 7, 1);
       v14[v2] ^= 1u;
       v6 = 77;
       if ( sub_2B749(v14) == v0 )
@@ -18861,6 +18875,8 @@ int __cdecl sub_2B843(unsigned __int8 a1)
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2bf83, 0x2eb9f, 0x3702f, 0x37af4, 0x3cbd5, 0x3cbe8, 0x4ebe3
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2B996。Magic0特效dispatch的phase3初始化7条错开的-2*j状态，phase4/5按524ee层表分别绘制，phase5逐条加一，恰到9返回impact。2ff01调用方在命中effect之后、下一target之前为7个impact各消费一次1-rand()%3；RNG不在只读present层重抽。；依据: 完整4454B函数与2ff01/31266 callers；仅确认Magic0所用case3/4/5合同，其它magic dispatch未据地址/函数大小命名或声称已实现。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+// [勘误 evidence] 保留sub_2B996及原函数边界。524c6的ID0..6窗口分别为2b996/2bb33/2bd6c/2bfd9/2c217/2c441/2c67d，IDA均归此owner；已核全部phase0..8，不能再写仅Magic0。ID4/5 phase0各消费6个原16bit RNG，首target main各4个，过渡及后target继续同state并消费FX RNG；它们与effect hit/spread和impact jitter是不同调用点，skip、emit=NULL和静音不能省略。；依据: 十dispatch原raw窗口与29组真实FX时长/原RNG/math局部机器向量；0..6首impact为7/8/6/14/6/9/11，3/5/6后target分别可20/11/12。2c67d使用原sin/cos/CHP常数及非对称位置交换，不凭伪C转换猜ABI。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
 int __cdecl sub_2B996(int a1, int a2, int a3, int a4, char a5)
 {
   int i; // ebx
@@ -18923,6 +18939,7 @@ int __cdecl sub_2B996(int a1, int a2, int a3, int a4, char a5)
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2CAFC，524c6的ID7 owner。phase0设三条实际处理的age/slot及共享flip/next；phase2/5/8每两次推进，slot按5261e十位置轮换。phase6设stop只阻新slot，并继续16tick尾；main32tick，第一target7次impact、后续8次。primary/secondary cue分别走25a96/25b45，没有FX RNG。；依据: 完整504B、524c6 xref及原phase窗口向量；方向由side调整x+130，状态跨target/九tick过渡，不把返回impact次数误当HP分母5。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
 int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
 {
   int v5; // ebp
@@ -18967,7 +18984,7 @@ int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
             if ( k != 0 )
             {
               if ( k == 1 )
-                pal_mask_set(dword_54153, 1, 1);
+                sfx_play_secondary(dword_54153, 1, 1);
             }
             else
             {
@@ -19003,6 +19020,7 @@ int __cdecl sub_2CAFC(int a1, int a2, int a3, int a4, char a5)
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2CCF4，524c6的ID8 owner。phase0初始化16个-2*j age；phase2与5绘制52646的part offset并推进age，恰++age==4返回impact。phase3仅返回34，不会重置age；前导3tick/首target后状态保持，后target可0个impact。age原值0/4分别提交primary1/secondary2 cue，无FX RNG。；依据: 完整294B及真实side0/2多target原kernel；首target16impact，后两target均0，不能用effect raw after覆盖未由原impact写入的实际HP。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
 int __cdecl sub_2CCF4(int a1, int a2, int a3, int a4, char a5)
 {
   int v5; // esi
@@ -19028,7 +19046,7 @@ int __cdecl sub_2CCF4(int a1, int a2, int a3, int a4, char a5)
         if ( dword_540EE[j] == 0 )
           sfx_play(dword_54153, 1, 1);
         if ( dword_540EE[j] == 4 )
-          pal_mask_set(dword_54153, 2, 1);
+          sfx_play_secondary(dword_54153, 2, 1);
         if ( ++dword_540EE[j] == 4 )
           v5 = 1;
       }
@@ -19049,6 +19067,7 @@ int __cdecl sub_2CCF4(int a1, int a2, int a3, int a4, char a5)
  * callers: 0x2ff01, 0x31266
  * callees: 0x25a96, 0x25b45, 0x2eb9f, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2CE1A，524c6的ID9 owner。phase0 frame=1，phase3只返回60；phase5绘part(frame>>1)后递增byte，16<newframe<44返回impact，共27次；frame6/36分别提交primary1/secondary2 cue。前导/收尾各20tick并切换blink，不含FX RNG；不得把impact27当HP插值分母20。；依据: 完整278B与真实side0 FX44/31part局部向量；side非零表缺第十项、九tick过渡后的多target会越真实目录，相关stub失败原件保留且不列为合法29向量。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
 int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
 {
   watcom_stack_check(24);
@@ -19077,7 +19096,7 @@ int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
       }
       else if ( byte_5412E == 36 )
       {
-        pal_mask_set(dword_54153, 2, 1);
+        sfx_play_secondary(dword_54153, 2, 1);
       }
       return (unsigned __int8)++byte_5412E < 0x2Cu && (unsigned __int8)byte_5412E > 0x10u;
     case 6:
@@ -19372,7 +19391,7 @@ void __cdecl sub_2D80D(int a1, int a2, int a3, int a4)
     if ( a2 == 35 && k == 1 )
     {
 LABEL_13:
-      pal_mask_set(dword_54153, 2, k);
+      sfx_play_secondary(dword_54153, 2, k);
       goto LABEL_14;
     }
     if ( a2 == 33 && k == 6 )
@@ -19562,6 +19581,7 @@ int __usercall sub_2DFC8@<eax>(int a1@<edi>, int a2)
  * callers: 0x1548e, 0x18d8c, 0x31529, 0x35730
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f0dc, 0x1f525, 0x1f882, 0x25a96, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2ebe1, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2E2B0。完整物理场景按actor side及当前stage/terrain选择BG/TAI，加载两方FIGANI idle和攻击条目，按split字段走2e9a8/2ebe1，并在原反击门后交换双方继续；正常退出重取当前战场资源、重画地图和当前HP信息后渐亮。共享pop epilogue2e956不是独立入口。；依据: 完整1707B、1548e/18d8c等caller及52470/526e3相关表；terrain immune/profile例外与unit28分支直接来自原指令，不把stage0捕获当通用默认。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2E2B0(int a1, int a2)
 {
   int v2; // esi
@@ -19771,6 +19791,7 @@ int fd2tmp_map_sprite_load()
  * callers: 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ff01, 0x31c49
  * callees: 0x11d40, 0x11eb0, 0x2eb9f, 0x3702f, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2E9A8。按attacker side选择640stride工作页半边，i/j8到0以10px位移引入idle/TAI，逐帧dac darkness6*i；普通与split层不同。2e956为共享返回尾，不将跳转地址登记为新函数。；依据: 完整caller2e2b0与原指令，25a96音效门独立；逐通道减暗度不等于比例brightness。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2E9A8(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 {
   int j; // esi
@@ -19812,6 +19833,7 @@ int __cdecl sub_2E9A8(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
  * callers: 0x22e5c, 0x24336, 0x2b996, 0x2cafc, 0x2ccf4, 0x2ce1a, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2e9a8, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2fb2c, 0x2fe14, 0x2ff01, 0x30e9d, 0x311e5, 0x31266, 0x31529, 0x31c49, 0x35a0d
  * callees: 0x3702f, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] entry+8为part DWORD相对offset目录；part+0/+2是unsigned WORD绘制x/y，图像宽高及RLE从part+9开始，交给4e98d。保留sub_2EB9F，不把坐标当宽高。；依据: 完整函数及2ebe1/2e9a8/30e9d等caller；真实408条目、2118part逐项边界/RLE复核。合法三字节00000a空哨兵、intro_end大于count及duration0不据此一律判结构损坏。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2EB9F(int a1, int a2, int a3, int a4, int a5)
 {
   unsigned __int16 *v5; // eax
@@ -19828,6 +19850,7 @@ int __cdecl sub_2EB9F(int a1, int a2, int a3, int a4, int a5)
  * callers: 0x2e2b0
  * callees: 0x11eb0, 0x17aa9, 0x25a96, 0x2eb9f, 0x2f4d4, 0x2f631, 0x2f7b6, 0x2facd, 0x3702f, 0x3790a, 0x37910, 0x37ae5, 0x4ebe3
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2EBE1。完整物理流程先消费一次3%机会，再于首次2f7b6的type3标记额外加一，最多三击；HP0中止后击。part+4非零分段写HP并夹0，+5为cue，+6为本part绘制tick数，+7 bit0与side共同决定双层前后；idle计时器为byte，不能把duration0偷换成统一1tick。split与普通布局走不同640/400stride。；依据: 完整raw/xref、5266c/52684抖动表和2f7b6输出；以canonical VA定位原分支。输出结构只按原写集描述，不保存推断的C参数或结构类型；完整三击尚非原版运行验收。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2EBE1(int a1, int a2, unsigned __int8 *a3, _BYTE *a4, int a5, int a6, int a7, int a8)
 {
   int v8; // esi
@@ -20078,6 +20101,7 @@ LABEL_43:
  * callers: 0x2cf30, 0x2ebe1
  * callees: 0x11eb0, 0x2eb9f, 0x2facd, 0x3702f, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2F4D4。split切换的一侧按9到0再9到0两段，使用BG0/1/2交替与640stride工作页、32*i窗口偏移，中间清页重画actor信息和idle0。；依据: 完整函数及2ebe1 caller；与2f631方向/端点不同，不按相邻地址或大小推测ABI。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2F4D4(int a1, int a2, int a3, int a4, int a5)
 {
   int i; // esi
@@ -20111,6 +20135,7 @@ int __cdecl sub_2F4D4(int a1, int a2, int a3, int a4, int a5)
  * callers: 0x2ebe1
  * callees: 0x11eb0, 0x2eb9f, 0x2facd, 0x3702f, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2F631。反向split切换按1到9再1到10两段，使用工作页另一半、32*i偏移，并于中间清页重画背景/TAI/actor信息/idle0。；依据: 完整函数及2ebe1 caller，原首/末帧端点明确；不借2f4d4的10加10帧对称近似。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2F631(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int i; // esi
@@ -20145,6 +20170,7 @@ int __cdecl sub_2F631(int a1, int a2, int a3, int a4, int a5, int a6)
  * callers: 0x2ebe1
  * callees: 0x12e38, 0x1b722, 0x1b83d, 0x1f183, 0x3702f, 0x4e84f, 0x4e8bc, 0x4ebe3
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_2F7B6。计算完整物理单击的miss/critical/status/type3及raw damage输出，type3在命中前置标记；状态可在hit RNG前写入。玩家攻击敌方时按原门覆盖53ec8。本函数局部算HP余量用于贡献，但目标HP实写由2ebe1的part marker驱动。；依据: 完整raw、唯一2ebe1 caller、装备effect2/3/4及1e856共享公式对照；raw damage与HP夹0后的delta分开，未把单次formula测试提升为原版音画通过。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_2F7B6(int a1, int a2, _DWORD *a3)
 {
   unsigned __int8 *v3; // ebp
@@ -20424,6 +20450,9 @@ int __cdecl sub_2FE14(unsigned __int8 *a1, int a2, int a3)
 // [field_magic_battle_animation_core] `field_magic_battle_animation` 的 `__chkstk` 后主体
 //   依据: corrected dual `0x2ff01`；ID `>=32` 转专用流程，ID 24／28..31 转其他专用动画，常规分支覆盖 IDs 0..27。
 //   历史地址列 `0x5511f`（`0x2ff0b` 是 __chkstk body，入口为 `0x2ff01`）；旧 Ghidra 名 `FUN_0005511f`；判定 chkstk-body
+// [勘误 evidence] 保留规范名。caster按unit_id*3先取idle，施法取+2，首WORD零才退+1；30e9d仅遍历intro_end，part+4精确1才调用1ca89费用。player0..67真实资源52种一次、7/39四次、12/28/49两次、7种零次，4种最终仍empty；empty是合法容器哨兵而非可伪造part。费用按WORD逐次减，可回绕。玩家1cff0的ID0始终调此wrapper；AI15311的mode分派另验，不把物理FULL配置套在玩家0。Magic0的2b996 phase5在hit时给7个impact，effect RNG后/下一target前各消费一次1-rand()%3；miss不消费impact，skip/静音不能改这些业务次数。；依据: 完整2ff01/30e9d/1cff0/2b996 Domain及408条目元数据独立分类；player68 caster读集SHA1954de8e636ce19ef144444092ebd3cec9c118f618ad37ec5674e35fa3a2965c。实际unit9 selected28 intro11仅part6一次；这只是该actor，不是通用默认。通用player资源读集不扩大正式B2仅unit9的Magic0资格。当前新增说明是静态/局部证据，完整帧序及音效仍须B6_
+// [勘误 evidence] 保留field_magic_battle_animation。524c6按id选择十个phase0..8 handler，phase0/3/6返回循环数，1/2、4/5、7/8配对。状态跨全部target及31266九tick过渡保留；不能逐target重新init。effect后保存after并恢复before，只有raw伤害非零且phase5返回1才按526bc分母推进signed HP；达到分母后不再写HP，但每个后续impact仍消费1-rand()%3。ID8后项可effect有伤害而没有impact，HP仍为before。；依据: 完整2ff01与31266原写序；526bc十字节为7/8/6/13/6/6/5/5/16/20，不同于首target impact7/8/6/14/6/9/11/7/16/27。526c6只有side非零9项，526cf为side0十项；ID9用真实44号31part，后续target会请求part31+，SDL因此明确拒绝side非零9及9多target，不把越界draw stub当合法资源证据。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，__
+// [勘误 evidence] 正常尾部恢复地图时调用11cac(1)，该参数只控制刷新等待，不把51A83强制改1。玩家1cff0及AI15311均以51A83=0进入，故FULL法术返回页保持无cursor；物理2e2b0的显示上下文不同。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int8 *a4)
 {
   int i; // edi
@@ -20776,6 +20805,7 @@ int __cdecl sub_30E25(int a1, int a2)
  * callers: 0x2cf30, 0x2d80d, 0x2ff01
  * callees: 0x11eb0, 0x17aa9, 0x1ca89, 0x25a96, 0x2eb9f, 0x2facd, 0x3702f, 0x3790a, 0x37ae5, 0x4e8d3
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_30E9D。仅循环caster clip的intro_end；part+4精确1触发1ca89费用和状态板重画，费用不是按目标或固定一次。part+6控制逐tick绘制，side决定caster/idle先后，idle byte计时器自然回绕；duration0不执行本part内帧循环。；依据: 完整raw及2ff01 caller；68个player目录中52个一次、7个零次、3个两次、2个四次、4个最终empty，unit9空29退28且只part6标记一次。该目录结论不扩大B2资格。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_30E9D(int a1, int a2, int a3, _BYTE *a4, int a5, int a6, int a7, int a8)
 {
   int result; // eax
@@ -20966,6 +20996,7 @@ void __cdecl sub_31266(int a1, int a2, unsigned __int8 *a3, int a4, int a5, int 
  * callers: 0x2cf30, 0x2dfc8, 0x2e2b0
  * callees: 0x111ba, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留sub_314DE。非NULL clip且header+4非0时，以selector-1索引6字节ASCII 012345表，再按所得48到53号FDOTHER条目加载bank；0返回NULL。合法已证selector1到6，原函数无额外上界门，重写预检不能越表猜bank。；依据: 完整75B、2e2b0/2ff01等caller及真实408目录selector分类；未确认值明确拒绝，不根据bank文件大小邻近推断名称或音色。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 int __cdecl sub_314DE(int a1)
 {
   int v1; // edx

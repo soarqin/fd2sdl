@@ -162,7 +162,7 @@ ea	name	is_func	is_public
 0x25878	unknown_libname_3	0	0
 0x25977	music_track_play	1	0
 0x25a96	sfx_play	1	0
-0x25b45	pal_mask_set	1	0
+0x25b45	sfx_play_secondary	1	0
 0x25bf4	main	1	0
 0x25ebb	title_action_dispatch	1	0
 0x26152	field_town_prepare_execute	1	0

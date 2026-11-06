@@ -40,6 +40,41 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 无窗口验证同样按改动选择 CTest 和 Python 测试，物品工具可运行 `python -B -m unittest discover -s tools/tests -p test_original_item_list.py`。Linux 使用 `python3` 执行相同纯逻辑命令；本轮不在 Linux 运行上述 WGC 对照。大阶段统一实机回归移除 `--b3-only`，按后文完整套件执行。
 
+### B6 战斗演出采集与判据
+
+本阶段共有19种场景：3个核心最低帧／SFX场景（物理攻击／受击、玩家火炎术0、恢复术13），15个已确认 AI FULL0..9及合法多目标的业务／采集场景，以及1个`ai-item-score20`评分回归。受支持实现与既定最低验收已完成，实际来源为分候选运行及单列离线复核；不把19种场景一律称完整图声通过。仅测试这些新增与直接受影响的路径，不重跑 B0—B5 全套。正式玩家法术能力门不因演出模块存在而扩展。
+
+`tools/run_original_battle_animation.py` 在独立存档副本中按资源 ACK 操作原版，再清理并操作 SDL；由外层 owned Job 管理。默认是采集器：`collection_passed=true`／退出0只表示业务终态、保存与采集完整，顶层 `ok=false`／`collected_only=true` 不能当作正式图形通过。核心三场加 `--verify-core` 后，必须在两端窗口清理、最终来源守卫通过后，再检查实际完整帧 pair、两端最低 SFX 身份／顺序及 WAV 不变；缺一则 `ok=false` 并退出1。缺失画面或声音判据必须继续登记待对照。
+
+```powershell
+$Build = "$env:LOCALAPPDATA/fd2sdl-work/b6/build"
+$Driver = "$Build/Debug/fd2_field_play_input_driver.exe"
+$Recorder = "$Build/Debug/fd2_process_audio_capture.exe"
+& $Driver run-job 1800000 python -B tools/run_original_battle_animation.py --root . --sdl src/Debug/fd2sdl.exe --driver $Driver --audio-recorder $Recorder --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --scenario physical-full-hit --verify-core --artifacts "$Build/graphics-artifacts/b6-physical"
+```
+
+其他核心场景为 `player-magic0`、`player-heal13`。Suite 的 `--b6-only` 串行执行这三场并复核实际报告，`--b6-scenarios` 仅选择其中子集；可显式传 `--audio-recorder`，默认在 driver 同目录寻找。它不要求 B5 planner／fixture，阶段参数互斥，非法或重复选择在创建输出前拒绝。默认全套也登记三场；登记不表示已实测。命令中的构建／源码目录必须按[Windows 迭代构建约定](platforms.md)保持在 TEMP 之外；每次输出使用新目录。所示命令不是已经执行的证据，实际候选与结果登记在阶段记录。
+
+持续帧采集使用 `driver capture-series PID OUTDIR MAX_MS INTERVAL_MS`：一个 HWND／WGC session 复用 frame pool，保存原始 PNG、逐帧 PID／HWND／WGC 时间戳／客户区尺寸及 ready／summary。只保存新的递增时间戳，最多120秒／600帧；达到上限不能冒称完整动作采集。动画中的合法白帧／黑帧保留原件，但不能作为攻击或施法的正证。成功、失败与超时均显式 stop 采集 helper，正常等待后按本轮 PID 清理，不遗留到下一场。
+
+`fd2_battle_animation_frames.py` 从原始 FIGANI、BG、TAI、字体及已声明的80字节单位记录识别阶段。资源 SKIP／透明点仅用于识别，不删去跨端比较像素。物理要求顺序出现攻击→受击两个实际 pair；受击正门覆盖原版合法的非零 shake 5..1，不限于首个染色33的单 tick。当前 unit0 夹具的 part6 对应5／4、part7对应3／2、part8对应1，首击染色与后继普通态分别识别，split仍不支持。0要求两个不同施法姿态，13要求两个不同57..63地图特效。两端索引都前进，不以同图、近似重复图或空闲演员凑数；每个接受的 pair 仍比较完整64,000 RGB像素、最大差3，不改色、不按坏点增加掩码。未找到同态画面只记待证，不推断完整演出相同。
+
+恢复术13在持续 WGC 与声音 helper 均 ready 后、唯一确认键前，使用同一 series 的新完整 JSONL／PNG 等待合法 idle 非0→0边沿。非0必须正匹配 caster raw1／unit9 的 FDICON frame1或2，再由递增 index／WGC 时间戳的后续帧正匹配 frame0；黑帧或未匹配0不能代替非0。直接复用资源锚的实际裁切位置（frame0为125,94、403个不透明像素），核对同 PID／HWND，并在确认前复验完整目标状态；两张见证的 SHA 须绑定最终封存的同一 series。整个等待最多15秒，不另开捕获会话、不补键、不修改游戏时钟、像素容差或掩码。C6候选已实际通过此 ACK 及既有严格双端判据，但该边沿不是时钟锁，不保证后续特效必然同相；最终完整帧 pair 仍须独立通过，实际覆盖量另按运行收据登记。
+
+AI FULL夹具从实际玩家记录派生时，必须逐字列出 behavior字节+0x34设0及八个空物品槽（每槽 flags／ID为80／00），再按真实 dispatcher 触发；只调用法术评分查询不能证明 dispatcher 会执行。旧 C5夹具保留0xCE、低位behavior14，原版 `field_ai_unit_execute @0x13a9f` 走默认无动作分支，实际MP250未变而原期望248，因此旧失败保留。空槽只用于隔离候选来源，不能把该失败归因为物品选择或MP费用错误；新夹具仍按完整有限终态及原费用判据验收。
+
+`ai-item-score20`使用真实item56的AI code20／value0、Hero HP=max50，90%命中允许HP终值1..5或合法miss50；MP250及单槽不消费、其余容器仍严格。该项每端须有实际HP下降正证，合法miss单凭不变SAV不足以排除无动作，须记`inconclusive`并退出1，不重抽、补键或放宽有限域。C7两端实际下降且完整业务／保存／采集通过；这不等于ITEM全部地图FX／SFX配对。
+
+最终15个AI报告各含两个实际casting完整64000像素pair，共30组；三核心另有6组，总36组，物理2组为同raw离线重判，不增加运行次数。AI目标FX与完整声音未逐项配对，ITEM评分场景不计casting pair。AI来源为C6十四项与C8仅08multi复验，旧同格raw0／raw2复合漏项失败保留；八模块最新161项为联合结果，不是单轮fresh161。候选、SAV、Job与测试来源见[阶段记录](../plans/stage-log.md#b6a6full-战斗演出与动态音效)。
+
+声音分别保留原版 DOSBox 原生 WAV 与 SDL 的进程录音。后者用 Windows process-loopback include-tree，要求 build20348及以上；依据[Microsoft Application Loopback 示例](https://learn.microsoft.com/zh-cn/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)，SDK本地头为 `audioclientactivationparams.h`。设备／版本不支持时失败，不改录桌面混音。工具在 Start 后发 ready，使用 stop 文件完整关闭 WAV，记录 packet 时间戳、断续与 HRESULT，不创建新游戏窗口或改变焦点。
+
+`fd2_sfx_oracle.py` 使用已有 NumPy／SciPy，从独立 FDOTHER VOICE 原字节建立候选，核对声音身份及录音内 onset。前缀长度、候选和搜索窗须事先声明；静音、弱匹配、重复发生或不唯一身份不能冒充通过。原生 DOSBox WAV 没有 Windows 首 packet QPC，不能编造精确输入时延；只有实际时钟锚完整且无 packet 断续时才能计算相应调用区间。有限身份／顺序结果不等于 A7 逐样本音质、混音或完整墙钟保真。
+
+核心最低声音门另由 `fd2_core_sfx_gate.py` 消费采集前的声明：24个完整候选按 SHA 合为22组，统一使用前661个原始点（约60ms），在整份 WAV 找实际峰并于同一峰窗与其他完整 SHA 组竞争。相同原始字节只能证明声音等价类，不能分辨运行 bank 指针。0要求 CAST声音组后至少出现一个FX1声音组，不把同一峰复用为七次重播；13要求三个不同声音组按序。阈值、前缀和候选在实录前固定，完整重复次数、精确时延及 A7 始终单列。
+
+纯资源、机器码向量、无窗口测试、实际业务采集、实际完整帧 pair 及声音观察分别报告。Windows 专用 helper 的合同测试不激活 WGC／声音设备。Linux 可运行相应 C 与 Python 纯测试，本轮未执行；不以 Linux 缺少这些 Windows 接口阻塞当前平台，也不把缺失实机证据改写为通过。
+
 ### B4 经验、成长与状态
 
 `--b4-only` 仅运行本阶段六个场景：`physical-cap`（玩家奖励封顶99）、`physical-overwrite`（两击贡献覆盖而非累加）、`heal`（不升级）、`learn`（成长并学习17）、`counter-multi`（AI回合反击奖励630、连续六级）与 `status`（中毒及六类状态到期）。`--b4-scenarios` 可选择受修复影响的子集，必须与 `--b4-only` 合用；未知项、重复项及 B3/B4 组合在创建目录前拒绝。登记场景不代表实机通过，实际候选与结果见阶段记录。

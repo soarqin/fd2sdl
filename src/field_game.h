@@ -10,6 +10,7 @@
 #include "field_event.h"
 #include "field_ai.h"
 #include "field_combat.h"
+#include "field_battle.h"
 #include "field_command.h"
 #include "field_system_menu.h"
 #include "field_manual_slot.h"
@@ -247,6 +248,7 @@ struct fd2_field_game {
     fd2_archive fdshap_archive;
     fd2_archive dato_archive;
     fd2_archive fdtxt_archive;
+    fd2_archive figani_archive; /* 费用标记属于逻辑参数；Play借用同一只读归档。 */
     fd2_field_map map;
     fd2_field_metadata metadata;
     fd2_field_placements placements;
@@ -335,6 +337,11 @@ struct fd2_field_game {
     void *attack_target_userdata;
     fd2_field_combat_rng_fn attack_rng;
     void *attack_rng_userdata;
+    /* 借用Play的同步演出service；不拥有context，不写入SAV。 */
+    fd2_field_physical_present_fn physical_present;
+    void *physical_present_userdata;
+    fd2_field_magic_present_fn magic_present;
+    void *magic_present_userdata;
     fd2_field_critical_base_fn attack_critical_base;
     void *attack_critical_base_userdata;
     uint8_t last_attack_valid;
@@ -481,7 +488,25 @@ void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga);
 /* sub_1B1E7 @0x1b1e7（原登记 sub_1B1E7）的地图／actor 背景；
  * 不绘光标、范围或任何UI，也不改变信息面板的左右侧状态。 */
-void fd2_field_game_render_background(fd2_field_game *game, fd2_vga *vga);
+void fd2_field_game_render_background(const fd2_field_game *game, fd2_vga *vga);
+/* 原11cac(1)战斗返回页：当前terrain/actor/普通cursor/info，不画旧范围/modal。
+ * 纯投影，不提交panel-side、Game、RNG或present；normal/error退出分别由Play服务编排。 */
+void fd2_field_game_render_battle_return(const fd2_field_game *game, fd2_vga *vga);
+/* 原22046两次LUT之间重画actor/前景；312×192视区相对中心，半径1..4096。
+ * 不改Game/owner/RNG/present，非法参数无写入；复用field_visual的唯一几何实现。 */
+int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius);
+/* 只读当前时钟锚点的视觉相位投影；不提交Game/AI/RNG/输入。 */
+int fd2_field_game_render_phases_at(const fd2_field_game *game, uint64_t now_ms,
+    uint8_t *idle_phase, uint8_t *terrain_phase);
+void fd2_field_game_render_battle_return_at(const fd2_field_game *game,
+    fd2_vga *vga, uint64_t now_ms);
+/* 原1cff0/15311在法术演出及正常返回页保持51a83=0：保留当前地图/actor/info，
+ * 不绘cursor/range/modal；同样只读投影，不改Game、RNG或owner。 */
+void fd2_field_game_render_effect_background_at(const fd2_field_game *game,
+    fd2_vga *vga, uint64_t now_ms);
+int fd2_field_game_render_transition_mask_at(const fd2_field_game *game, fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius, uint64_t now_ms);
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
 /* 复现 field_controller_input @code0 0x17e7 的焦点轮换分支：跳过

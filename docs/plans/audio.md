@@ -39,11 +39,13 @@ Windows原版 controlled C10录音支持城镇10／酒店13／入场后19；最�
 
 ### A6：FIGANI 动态音效 bank（P2）
 
-依赖 B6 的 metadata／帧序证据，不按全局变量名猜固定资源号。
+依赖 B6 的 metadata／帧序证据，不按全局变量名猜固定资源号。当前受支持实现及既定最低验收**已完成**：已接物理 `47+selector`、FULL0..9的82／82／83..90及地图恢复术13的bank80，primary与`sfx_play_secondary @0x25b45`各有原handle owner；动态bank与样本在播放前预检，字节引用随source退休。具体语义见[音频依据](../reverse-engineering/audio.md)，最低实机范围见[阶段记录](stage-log.md#b6a6full-战斗演出与动态音效)。
 
-- [ ] 确认动态 selector、样本索引、handle replace／stop、循环和触发帧；复用现有 PCM 后端。
-- [ ] 明确演出跳过、换 bank、Load 和离场时的 source retirement；bank 字节活到最后一个引用 source retire，音频回调不做文件 I/O 或释放。
-- [ ] 验证同一动作无论完整播放、跳过、静音或无设备，逻辑和 RNG 均一致；失效 selector／坏样本不能伪装成成功解析。
+- [x] 确认动态 selector、样本索引、handle replace／stop、循环和触发帧；复用现有 PCM 后端。
+- [x] 明确演出跳过、换 bank、Load 和离场时的 source retirement；bank 字节活到最后一个引用 source retire，音频回调不做文件 I/O 或释放。
+- [x] 验证同一 FULL 动作在完整播放、主动跳过、静音或无设备时，业务和 RNG 均一致；SHORT 与 FULL 保留原本不同的攻击次数／FX随机流。失效 selector／坏样本不能伪装成成功解析。
+
+核心对照仅验证预先声明的有限 VOICE 身份及录音内有序存在，物理与Magic0、恢复术13分别登记实际／离线来源；相同样本字节只证明声音等价类，Magic0的七次重复实例未逐次验收。原版DOSBox WAV无首packet QPC，不声明精确输入时延；完整时序、全部声音、混音与A7仍待验。AI业务／SAV及取证报告的`collected_only=true`不等于其全部FX／声音已配对；新增ITEM评分场景也只证明该动作和完整终态。A6完成的是本阶段动态bank实现与核心最低声音门；AI的30组casting配对不扩为其目标FX或全部SFX通过，精确时序及A7继续单列。
 
 ### A7：保真与场景对照（P2）
 

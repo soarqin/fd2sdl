@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "field_game.h"
+#include "figani.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -12,25 +13,26 @@
 
 typedef struct {
     fd2_field_game game;
+    fd2_archive fdother;
     uint32_t cells[24 * 24];
     fd2_terrain_attr attr;
-    uint32_t rolls[8];
+    uint32_t rolls[32];
     size_t calls;
-    uint16_t observed_mp[8], first_target_hp[8];
-    uint8_t observed_acted[8];
+    uint16_t observed_mp[32], first_target_hp[32];
+    uint8_t observed_acted[32];
     int corrupt_cell;
 } fixture;
 
 static uint32_t rng(void *data) {
     fixture *f = data;
     size_t i = f->calls++;
-    if (i < 8) {
+    if (i < 32) {
         f->observed_mp[i] = f->game.units.items[0].mp;
         f->observed_acted[i] = (uint8_t)fd2_field_unit_has_acted(&f->game.units.items[0]);
         f->first_target_hp[i] = f->game.units.items[1].hp;
     }
     if (i == 0 && f->corrupt_cell) f->cells[6 * 24 + 6] = 1;
-    return f->rolls[i % 8];
+    return f->rolls[i % 32];
 }
 
 static void unit(fd2_field_unit *u, uint8_t id, uint8_t side, uint8_t x, uint8_t y) {
@@ -46,6 +48,12 @@ static void unit(fd2_field_unit *u, uint8_t id, uint8_t side, uint8_t x, uint8_t
 static void init(fixture *f) {
     memset(f, 0, sizeof(*f));
     fd2_field_game *g = &f->game;
+    if (fd2_archive_open(&f->fdother, "original_game/FDOTHER.DAT") != 0 ||
+        fd2_archive_open(&g->figani_archive, "original_game/FIGANI.DAT") != 0) {
+        fputs("magic fixture: required FIGANI.DAT unavailable\n", stderr);
+        exit(EXIT_FAILURE);
+    }
+    g->fdother = &f->fdother;
     g->ready = 1; g->active_side = 2; g->turn_number = 7;
     g->selected_unit = 0; g->detail_unit = -1; g->attack_target = -1;
     g->interaction = FD2_FIELD_INTERACTION_COMMAND;
@@ -78,6 +86,8 @@ static int target(fixture *f, uint8_t id) {
 }
 
 static void close_fixture(fixture *f) {
+    fd2_archive_close(&f->fdother);
+    fd2_archive_close(&f->game.figani_archive);
     fd2_field_metadata_close(&f->game.metadata);
     fd2_field_path_close(&f->game.move_range);
     free(f->game.move_path);
@@ -163,7 +173,7 @@ static int test_damage_kill_miss_and_nonlethal_reward(void) {
         } else if (which == 2) expected.items[1].hp = 55;
         CHECK(resolve_and_ack(g) == 0);
         CHECK(!memcmp(&expected, &g->units, sizeof(expected)));
-        CHECK(f.calls == (which == 1 ? 1u : 2u) && f.observed_mp[0] == 6 && !f.observed_acted[0]);
+        CHECK(f.calls == (which == 1 ? 1u : 9u) && f.observed_mp[0] == 6 && !f.observed_acted[0]);
         CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
         CHECK(g->active_side == 2 && g->turn_number == 7 && g->cursor_cell_x == 5 && g->cursor_cell_y == 6);
         CHECK(!g->move_range.nodes && !g->magic_target_count && !g->event_log_count);
@@ -185,9 +195,9 @@ static int test_same_cell_targets_are_raw_order_and_cost_once(void) {
         CHECK(resolve_and_ack(g) == 0);
         CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == (mixed ? 42 : 84));
         CHECK(g->units.items[1].hp == (mixed ? 28 : 0) && !g->units.items[4].hp);
-        CHECK(f.calls == (mixed ? 3u : 4u));
+        CHECK(f.calls == (mixed ? 10u : 18u));
         for (size_t i = 0; i < f.calls; i++) CHECK(f.observed_mp[i] == 6 && !f.observed_acted[i]);
-        CHECK(mixed || f.first_target_hp[2] == 0);
+        CHECK(mixed || f.first_target_hp[2] == 24); /* 原full首次impact先写28-28/7，再jitter。 */
         close_fixture(&f);
     }
     return 0;
@@ -219,16 +229,16 @@ static int test_reward_cap_and_last_player_controller(void) {
     g->units.items[4].level = 2;
     CHECK(target(&f, 0) == 0);
     CHECK(resolve_and_ack(g) == 0);
-    CHECK(g->units.items[0].experience == 99 && g->units.items[0].mp == 6 && f.calls == 6);
+    CHECK(g->units.items[0].experience == 99 && g->units.items[0].mp == 6 && f.calls == 27);
     close_fixture(&f);
     init(&f); g = &f.game;
     g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
     CHECK(target(&f, 0) == 0);
     CHECK(resolve_and_ack(g) == 0);
     CHECK(g->active_side == 1 && g->player_post_waiting_phase && g->player_post_actor == 0);
-    CHECK(g->units.items[0].experience == 42 && g->units.items[0].mp == 6 && f.calls == 2);
+    CHECK(g->units.items[0].experience == 42 && g->units.items[0].mp == 6 && f.calls == 9);
     CHECK(fd2_field_game_resume_player_controller(g) == 1);
-    CHECK(g->units.items[0].experience == 42 && f.calls == 2);
+    CHECK(g->units.items[0].experience == 42 && f.calls == 9);
     CHECK(unchanged_rejection(&f) == 0);
     close_fixture(&f); return 0;
 }
@@ -291,7 +301,7 @@ static int test_post_commit_failure_preserves_cost_effect_and_freezes(void) {
         CHECK(resolve_and_ack(g) == -1);
         CHECK(g->failure == (phase_failure ? FD2_FIELD_FAILURE_EVENT_EXECUTION : FD2_FIELD_FAILURE_EVENT_DATA));
         CHECK(g->units.items[0].mp == 6 && g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
-        CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && f.calls == 2);
+        CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && f.calls == 9);
         CHECK(g->units.items[0].experience == (phase_failure ? 42 : 0)); /* lookup先于EX写。 */
         CHECK(unchanged_rejection(&f) == 0);
         close_fixture(&f);
@@ -320,7 +330,7 @@ static int test_phase_prediction_hides_dead_players_but_keeps_healed_players(voi
     CHECK(g->units.items[0].mp == 5 && g->units.items[0].experience == 51);
     CHECK(g->units.items[2].hp == 42 && g->units.items[2].flags == 0);
     CHECK(g->active_side == 2 && !g->player_post_waiting_phase && !g->failure);
-    CHECK(g->event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY && f.calls == 2);
+    CHECK(g->event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY && f.calls == 2); /* 两个治疗目标各1次，无Magic0 impact。 */
     close_fixture(&f); return 0;
 }
 
@@ -374,12 +384,12 @@ static int test_formal_command_routes_basic_magic(void) {
     CHECK(fd2_field_game_confirm_cursor(g) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1);
     CHECK(ack_progress(g) == 0);
-    CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == 42 && f.calls == 2);
+    CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == 42 && f.calls == 9);
     CHECK(g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
     CHECK(fd2_field_unit_has_acted(&g->units.items[0]));
     fd2_field_game before = *g;
     CHECK(fd2_field_game_confirm_cursor(g) == -1);
-    CHECK(!memcmp(&before, g, sizeof(before)) && f.calls == 2);
+    CHECK(!memcmp(&before, g, sizeof(before)) && f.calls == 9);
     close_fixture(&f);
 
     init(&f);
@@ -401,7 +411,167 @@ static int test_formal_command_routes_basic_magic(void) {
     return 0;
 }
 
+typedef struct {
+    fixture *f;
+    int fail_phase;
+    unsigned seen[4];
+    unsigned target_calls;
+    size_t observed_calls[2];
+    int8_t jitters[2][7];
+} magic_observer;
+
+static int observe_magic(const fd2_field_game *game,
+        const fd2_field_magic_present_event *event, void *userdata) {
+    magic_observer *o = userdata;
+    CHECK(event->phase <= FD2_FIELD_MAGIC_PRESENT_FINISH);
+    o->seen[event->phase]++;
+    CHECK(game == &o->f->game && event->actor_index == 0);
+    if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+        CHECK(o->f->calls == 0 && event->actor_before->mp == 8);
+        CHECK(game->units.items[0].mp == 8 && event->targets && event->target_count);
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_CAST) {
+        CHECK(o->f->calls == 0 && event->actor_before->mp == 8);
+        CHECK(game->units.items[0].mp == (uint16_t)(8u -
+              fd2_field_magic_record_get(event->magic_id)[5] * event->cast_cost_count));
+        CHECK(!event->target_before && !event->result);
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_TARGET) {
+        CHECK(o->target_calls < 2 && event->actor_before && event->target_before && event->result);
+        CHECK(event->target_before->hp == event->result->hp_before);
+        CHECK(game->units.items[event->target_index].hp == event->result->hp_after);
+        CHECK(!fd2_field_unit_has_acted(&game->units.items[0]));
+        CHECK(event->impact_count == (event->magic_id == 0 && event->result->hit ? 7 : 0));
+        o->observed_calls[o->target_calls] = o->f->calls;
+        memcpy(o->jitters[o->target_calls], event->impact_jitter, event->impact_count);
+        o->target_calls++;
+    } else {
+        CHECK(!event->actor_before && !event->target_before && !event->result);
+        CHECK(event->action_failed == (o->fail_phase >= 0 &&
+              o->fail_phase != FD2_FIELD_MAGIC_PRESENT_FINISH));
+    }
+    return (int)event->phase == o->fail_phase ? -1 : 0;
+}
+
+static int test_full_magic_events_and_jitter_order(void) {
+    for (int present = 0; present < 2; present++) {
+        fixture f; init(&f);
+        fd2_field_game *g = &f.game;
+        g->units.count = 5;
+        unit(&g->units.items[4], 96, 0, 5, 6);
+        g->units.items[4].level = 2; g->units.items[4].movement_profile = 7;
+        /* 每个target两次effect RNG之后才是7个impact；下个target从9开始。 */
+        for (size_t i = 0; i < 7; i++) {
+            f.rolls[2 + i] = (uint32_t)i;
+            f.rolls[11 + i] = (uint32_t)(6 - i);
+        }
+        magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+        if (present) { g->magic_present = observe_magic; g->magic_present_userdata = &observer; }
+        CHECK(target(&f, 0) == 0 && resolve_and_ack(g) == 0);
+        CHECK(f.calls == 18 && !g->units.items[1].hp && !g->units.items[4].hp);
+        CHECK(g->units.items[0].mp == 6 && g->units.items[0].experience == 84);
+        CHECK(fd2_field_unit_has_acted(&g->units.items[0]));
+        if (present) {
+            CHECK(observer.seen[0] == 1 && observer.seen[1] == 1 &&
+                  observer.seen[2] == 2 && observer.seen[3] == 1);
+            CHECK(observer.observed_calls[0] == 9 && observer.observed_calls[1] == 18);
+            for (size_t i = 0; i < 7; i++) {
+                CHECK(f.first_target_hp[2 + i] == 28u - (unsigned)(i + 1u) * 28u / 7u);
+                CHECK(observer.jitters[0][i] == 1 - (int)(i % 3));
+                CHECK(observer.jitters[1][i] == 1 - (int)((6 - i) % 3));
+            }
+        }
+        close_fixture(&f);
+    }
+    for (int kind = 0; kind < 2; kind++) {
+        fixture f; init(&f);
+        magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+        f.game.magic_present = observe_magic; f.game.magic_present_userdata = &observer;
+        if (!kind) f.rolls[0] = 99; /* miss不生成7次抖动，也不能重试施法。 */
+        CHECK(target(&f, kind ? 13 : 0) == 0 && resolve_and_ack(&f.game) == 0);
+        CHECK(f.calls == 1 && observer.target_calls == 1 && observer.observed_calls[0] == 1);
+        CHECK(observer.seen[3] == 1);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_magic_present_failure_boundaries(void) {
+    for (int phase = FD2_FIELD_MAGIC_PRESENT_PREPARE;
+             phase <= FD2_FIELD_MAGIC_PRESENT_FINISH; phase++) {
+        fixture f; init(&f);
+        magic_observer observer = {&f, phase, {0}, 0, {0}, {{0}}};
+        f.game.magic_present = observe_magic; f.game.magic_present_userdata = &observer;
+        CHECK(target(&f, 0) == 0);
+        fd2_field_game before = f.game;
+        CHECK(fd2_field_game_resolve_player_magic(&f.game) == -1);
+        CHECK(observer.seen[0] == 1);
+        if (phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+            CHECK(!memcmp(&before, &f.game, sizeof(before)) && !f.calls);
+            CHECK(!observer.seen[1] && !observer.seen[2] && !observer.seen[3]);
+        } else {
+            CHECK(f.game.units.items[0].mp == 6 && f.game.failure == FD2_FIELD_FAILURE_ACTION);
+            CHECK(observer.seen[1] == 1 && observer.seen[3] == 1);
+            CHECK(f.calls == (phase == FD2_FIELD_MAGIC_PRESENT_CAST ? 0 : 9));
+            CHECK(f.game.units.items[1].hp == (phase == FD2_FIELD_MAGIC_PRESENT_CAST ? 28 : 0));
+            before = f.game;
+            unsigned finished = observer.seen[3];
+            CHECK(fd2_field_game_resolve_player_magic(&f.game) == -1);
+            CHECK(!memcmp(&before, &f.game, sizeof(before)) && observer.seen[3] == finished);
+        }
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+/* Game正式资格保持B2的unit9；仅私有RAM复制品改marker测试通用费用合同。
+ * 真正68角色的分布由figani测试、renderer测试与Domain读集各自验证。 */
+static int test_caster_cost_markers_zero_multiple_and_wrap(void) {
+    const struct { uint8_t count; uint16_t before, after; } cases[] = {
+        {1, 8, 6}, {0, 8, 8}, {2, 8, 4}, {4, 8, 0}, {4, 2, 65530}
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        for (int with_present = 0; with_present < 2; with_present++) {
+            fixture f; init(&f);
+            fd2_field_game *g = &f.game;
+            fd2_figani_magic_cast plan;
+            CHECK(fd2_figani_magic_cast_plan(&plan, &g->figani_archive, 9) == 0);
+            CHECK(plan.clip.intro_end >= cases[i].count);
+            for (size_t part_index = 0; part_index < plan.clip.intro_end; part_index++) {
+                fd2_figani_part part;
+                CHECK(fd2_figani_get_part(&plan.clip, part_index, &part) == 0);
+                /* image_data=part+9，marker=part+4，只改本fixture拥有的heap。 */
+                uint8_t *marker = (uint8_t *)part.image_data - 5;
+                *marker = (uint8_t)(part_index < cases[i].count);
+            }
+            g->units.items[0].mp = cases[i].before;
+            f.rolls[0] = 99;
+            magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+            if (with_present && cases[i].before == 8) {
+                g->magic_present = observe_magic; g->magic_present_userdata = &observer;
+            }
+            CHECK(target(&f, 0) == 0 && resolve_and_ack(g) == 0);
+            CHECK(g->units.items[0].mp == cases[i].after && f.calls == 1);
+            CHECK(g->units.items[1].hp == 28 && !g->failure);
+            if (with_present && cases[i].before == 8) CHECK(observer.seen[0] == 1 && observer.seen[3] == 1);
+            close_fixture(&f);
+        }
+    }
+    fixture f; init(&f);
+    CHECK(target(&f, 0) == 0);
+    size_t count = f.game.figani_archive.count;
+    f.game.figani_archive.count = 0;
+    fd2_field_units before = f.game.units;
+    CHECK(fd2_field_game_resolve_player_magic(&f.game) == -1 && !f.calls);
+    CHECK(f.game.failure == FD2_FIELD_FAILURE_ACTION && !memcmp(&before, &f.game.units, sizeof(before)));
+    CHECK(fd2_field_game_resolve_player_magic(&f.game) == -1 && !f.calls);
+    f.game.figani_archive.count = count;
+    close_fixture(&f);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_caster_cost_markers_zero_multiple_and_wrap() == 0);
+    CHECK(test_full_magic_events_and_jitter_order() == 0);
+    CHECK(test_magic_present_failure_boundaries() == 0);
     CHECK(test_capability_gate_does_not_use_mp() == 0);
     CHECK(test_damage_kill_miss_and_nonlethal_reward() == 0);
     CHECK(test_same_cell_targets_are_raw_order_and_cost_once() == 0);

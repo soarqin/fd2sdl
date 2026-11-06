@@ -34,8 +34,36 @@ int fd2_field_attack_apply_pre_hit_effect(
     void *rng_userdata,
     int *applied);
 
-/* field_physical_attack_sequence @0x1e856：每轮先消费一次 RNG；武器
- * effect type 3 或 rand()%100 < 3 时执行两击，否则一击。 */
+/* SDL 的逻辑分支选择，不是原版函数 ABI 或存档字段。跳过完整演出的
+ * 画面仍须使用 FULL，不能切到无演出的 SHORT 改变攻击次数。 */
+typedef enum {
+    FD2_FIELD_ATTACK_SEQUENCE_SHORT = 0,
+    FD2_FIELD_ATTACK_SEQUENCE_FULL = 1
+} fd2_field_attack_sequence_mode;
+
+/* 不消费 RNG 的次数上界，供整次动作的 loot 等死亡分支预检使用。
+ * SHORT 总是 2；FULL 仅 type3 武器为 3，其他武器为 2。
+ * 无效参数/模式/武器返回 -1 且不写 strike_count，不改 attacker。 */
+int fd2_field_attack_sequence_max_count_for_mode(
+    const fd2_field_unit *attacker,
+    fd2_field_attack_sequence_mode mode,
+    uint8_t *strike_count);
+
+/* 普通战斗序列的次数上限：先且仅消费一次 sequence RNG。
+ * SHORT：field_physical_attack_sequence @0x1e856，两条件均赋值 2；
+ * FULL：sub_2EBE1 @0x2ebe1，1 + (rand()%100 < 3) + (effect type == 3)。
+ * FULL 的 type3 标记由 sub_2F7B6 @0x2f7b6 在命中判定前写出，
+ * 首击 miss 也加一次；目标 HP0 的提前停止仍由执行者负责。
+ * 此接口不执行单击、预览或演出。无效参数/模式/武器返回 -1，
+ * 不消费 RNG，不写 strike_count；成功返回 0，不改 attacker。 */
+int fd2_field_attack_sequence_count_for_mode(
+    const fd2_field_unit *attacker,
+    fd2_field_attack_sequence_mode mode,
+    fd2_field_combat_rng_fn rng,
+    void *rng_userdata,
+    uint8_t *strike_count);
+
+/* 保留原接口与 SHORT 语义（field_physical_attack_sequence @0x1e856）。 */
 int fd2_field_attack_sequence_count(
     const fd2_field_unit *attacker,
     fd2_field_combat_rng_fn rng,

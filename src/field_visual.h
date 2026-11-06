@@ -39,6 +39,14 @@ void fd2_field_apply_palette_lut(fd2_vga *vga,
                                  int x, int y, int width, int height,
                                  const uint8_t lut[256]);
 
+/* field_transition_lut_mask @0x22046（原登记FUN_0004725a）：视区(4,4),312×192。
+ * 调用者须在两pass之间重画actor/actor前景；只改framebuffer。半宽按原CHP
+ * 向零截断，圆横比1.6；radius须1..4096，非法输入无写入。 */
+int fd2_field_transition_lut_before_actors(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius);
+int fd2_field_transition_lut_after_actors(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius);
+
 /* 只应用已确认水色到DAC224..239，不改变base palette或phase；非法输入原子拒绝。
  * tick由已确认战场等待caller显式调用；render/present不隐式推进。
  * now_ms以55ms宿主近似转换BIOS低16位，差>=2才推进一次，不追赶。 */

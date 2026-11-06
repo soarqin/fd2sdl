@@ -1276,6 +1276,45 @@ static int test_unit_summary_atomic_rejection(void) {
     return 0;
 }
 
+static int test_battle_summary_destinations(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0}, before = unit;
+    unit.hp = 31; unit.hp_max = 50; unit.mp = 8; unit.mp_max = 17;
+    unit.level = 12; before = unit;
+    fd2_vga source = {0};
+    memset(source.framebuffer, 0xa5, sizeof(source.framebuffer));
+    CHECK(fd2_field_unit_summary_draw(&source, &fixture.assets, &fixture.font,
+                                      &fixture.text, &unit, 7) == 0);
+    const int positions[][2] = {{171, 4}, {0, 154}};
+    for (size_t i = 0; i < 2; i++) {
+        int x = positions[i][0], y = positions[i][1];
+        fd2_vga actual = {0}, expected = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        memset(expected.framebuffer, 0xa5, sizeof(expected.framebuffer));
+        for (int row = 0; row < 42; row++)
+            memcpy(expected.framebuffer + (y + row) * VGA_STRIDE + x,
+                   source.framebuffer + (9 + row) * VGA_STRIDE + 9, 149);
+        CHECK(fd2_field_unit_summary_draw_at(&actual, &fixture.assets, &fixture.font,
+                                              &fixture.text, &unit, x, y) == 0);
+        CHECK(!memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)));
+        CHECK(!memcmp(&unit, &before, sizeof(unit)));
+    }
+    const int invalid[][2] = {{-1, 4}, {172, 4}, {0, -1}, {0, 159}};
+    for (size_t i = 0; i < 4; i++) {
+        fd2_vga actual = {0};
+        memset(&actual, 0xa5, sizeof(actual));
+        fd2_vga unchanged = actual;
+        CHECK(fd2_field_unit_summary_draw_at(&actual, &fixture.assets, &fixture.font,
+                                              &fixture.text, &unit,
+                                              invalid[i][0], invalid[i][1]) == -1);
+        CHECK(!memcmp(&actual, &unchanged, sizeof(actual)));
+        CHECK(!memcmp(&unit, &before, sizeof(unit)));
+    }
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
@@ -1298,6 +1337,7 @@ int main(void) {
     CHECK(test_unit_summary_native_panels() == 0);
     CHECK(test_unit_summary_signed_bars_and_numbers() == 0);
     CHECK(test_unit_summary_atomic_rejection() == 0);
+    CHECK(test_battle_summary_destinations() == 0);
     puts("field_info_test: ok");
     return 0;
 }

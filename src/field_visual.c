@@ -140,6 +140,61 @@ void fd2_field_apply_palette_lut(fd2_vga *vga,
     }
 }
 
+/* sub_219AD @0x219ad、field_transition_lut_mask @0x22046：原sqrt/CHP读集
+ * 与有限机器码向量确认floor(sqrt(n)*16/10)=isqrt(64*n/25)，不是nearest。
+ * 这里只支持22046已确认的scale16；2189a的scale12不是本接口的隐式默认。 */
+static uint64_t transition_isqrt(uint64_t value) {
+    uint64_t root = 0, bit = UINT64_C(1) << 62;
+    while (bit > value) bit >>= 2;
+    while (bit) {
+        if (value >= root + bit) {
+            value -= root + bit;
+            root = (root >> 1) + bit;
+        } else root >>= 1;
+        bit >>= 2;
+    }
+    return root;
+}
+
+static void transition_span(fd2_vga *vga, const uint8_t lut[256],
+                             int y, int64_t left, int64_t right) {
+    if (left < 0) left = 0;
+    if (right > 312) right = 312;
+    if (right <= left) return;
+    uint8_t *row = vga->framebuffer + (size_t)(y + 4) * VGA_STRIDE + 4;
+    for (int64_t x = left; x < right; x++) row[x] = lut[row[x]];
+}
+
+static void transition_circle(fd2_vga *vga, const uint8_t lut[256],
+    int cx, int cy, int radius, int first_row) {
+    int start = first_row < 0 ? 0 : first_row;
+    for (int y = start; y < 192; y++) {
+        int64_t dy = (int64_t)cy - y;
+        if (dy <= -radius || dy >= radius) continue;
+        uint64_t square = (uint64_t)((int64_t)radius * radius - dy * dy);
+        int64_t half = (int64_t)transition_isqrt(square * 64u / 25u);
+        transition_span(vga, lut, y, (int64_t)cx - half, (int64_t)cx + half);
+    }
+}
+
+int fd2_field_transition_lut_before_actors(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius) {
+    if (!vga || !lut || radius < 1 || radius > 4096) return -1;
+    transition_circle(vga, lut, center_x, center_y, radius, 0);
+    return 0;
+}
+
+int fd2_field_transition_lut_after_actors(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius) {
+    if (!vga || !lut || radius < 1 || radius > 4096) return -1;
+    transition_circle(vga, lut, center_x, center_y, radius, center_y);
+    int end = center_y < 192 ? center_y : 192;
+    int64_t half = (int64_t)radius * 8 / 5;
+    for (int y = 0; y < end; y++)
+        transition_span(vga, lut, y, (int64_t)center_x - half, (int64_t)center_x + half);
+    return 0;
+}
+
 /* sub_4E31C @0x4e31c（原登记 sub_4E31C）：DAC224..239固定水色窗口。
  * strict LE object3 canonical0x60003的有效读集93字节=16个RGB6+前15个重复。
  * 这里只保存等价的16色周期；不从FDOTHER初始palette猜色（其分量少1）。 */

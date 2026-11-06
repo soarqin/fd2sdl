@@ -81,6 +81,16 @@ int fd2_field_unit_summary_draw(fd2_vga *vga,
                                  const fd2_field_unit *unit,
                                  int actor_relative_x);
 
+/* sub_2FACD @0x2facd 调用 field_unit_summary_draw @0x18c6d（原sub_18C6D）：
+ * 战斗页按阵营选(171,4)/(0,154)。这里只提供同一原概要板的坐标入口；
+ * 所有资源与149x42范围完整预检，失败整个VGA不变，单位只读。 */
+int fd2_field_unit_summary_draw_at(fd2_vga *vga,
+                                 const fd2_field_info_assets *assets,
+                                 const fd2_font *font,
+                                 const fd2_text_entry *text,
+                                 const fd2_field_unit *unit,
+                                 int x, int y);
+
 /* 战况／胜败条件总览：sub_1B41D @0x1b41d、sub_1B5F1 @0x1b5f1。
  * 当前支持stage0/1的FDTXT[0]597/598、599/600普通字形条件。成功返回0；
  * 资源、文本或输入不受支持时返回 -1，framebuffer 保持不变。

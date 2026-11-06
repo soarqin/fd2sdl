@@ -97,6 +97,12 @@ if(NOT FD2SDL_SDL3_TARGET)
     message(FATAL_ERROR "SDL3 target was not created by system search or CPM.cmake fallback.")
 endif()
 
+# magic_fx 使用 sin/cos；引用 core 的 TARGET_OBJECTS 不传递链接依赖。
+# 在项目目标创建前显式链接 libm，覆盖主程序及同目录的状态机测试。
+if(UNIX)
+    link_libraries(m)
+endif()
+
 if(MSVC)
     add_compile_options(/utf-8 /experimental:c11atomics /std:c11)
 endif()
@@ -118,6 +124,9 @@ set(FD2SDL_CORE_SOURCES
     dialog_flow.c
     archive.c
     image.c
+    figani.c
+    battle_animation.c
+    magic_fx.c
     shape.c
     field.c
     field_unit.c
@@ -651,6 +660,7 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_game_attack COMMAND fd2_field_game_attack_test)
+    set_tests_properties(field_game_attack PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
     add_executable(fd2_field_magic_flow_test
         tests/field_magic_flow_test.c
@@ -689,6 +699,7 @@ if(BUILD_TESTING)
         target_compile_options(fd2_field_magic_commit_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME field_magic_commit COMMAND fd2_field_magic_commit_test)
+    set_tests_properties(field_magic_commit PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_field_game_failure_test
         tests/field_game_failure_test.c
@@ -800,6 +811,7 @@ if(BUILD_TESTING)
         target_compile_options(fd2_field_unit_render_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME field_unit_render COMMAND fd2_field_unit_render_test)
+    set_tests_properties(field_unit_render PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
     add_executable(fd2_field_game_system_menu_test
         tests/field_game_system_menu_test.c
@@ -946,7 +958,35 @@ if(BUILD_TESTING)
                 tests/field_play_input_driver.c tests/window_capture.cpp)
             # C++/WinRT 只用于测试工具，音乐生产后端保持 C++14。
             set_target_properties(fd2_field_play_input_driver PROPERTIES CXX_STANDARD 17)
-            target_link_libraries(fd2_field_play_input_driver PRIVATE user32 d3d11 dxgi windowsapp dwmapi)
+            target_link_libraries(fd2_field_play_input_driver PRIVATE
+                user32 d3d11 dxgi windowsapp dwmapi windowscodecs ole32 shell32)
+            add_executable(fd2_process_audio_capture tests/process_audio_capture_win.cpp)
+            target_link_libraries(fd2_process_audio_capture PRIVATE mmdevapi ole32 uuid)
+            if(MSVC)
+                target_link_options(fd2_process_audio_capture PRIVATE
+                    /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup)
+            elseif(MINGW)
+                target_link_options(fd2_process_audio_capture PRIVATE -mwindows -municode)
+            endif()
+            add_executable(fd2_process_audio_capture_test tests/process_audio_capture_test.cpp)
+            add_executable(fd2_window_capture_series_test tests/window_capture_series_test.cpp)
+            foreach(fd2_test IN ITEMS fd2_process_audio_capture fd2_process_audio_capture_test fd2_window_capture_series_test)
+                set_target_properties(${fd2_test} PROPERTIES CXX_STANDARD 17)
+                target_compile_definitions(${fd2_test} PRIVATE
+                    _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A00000A)
+                if(MSVC)
+                    target_compile_options(${fd2_test} PRIVATE /W4)
+                else()
+                    target_compile_options(${fd2_test} PRIVATE -Wall -Wextra -Wpedantic)
+                endif()
+            endforeach()
+            target_link_libraries(fd2_process_audio_capture_test PRIVATE mmdevapi ole32 uuid)
+            target_link_libraries(fd2_window_capture_series_test PRIVATE
+                user32 d3d11 dxgi windowsapp dwmapi windowscodecs ole32 shell32)
+            add_test(NAME process_audio_capture COMMAND fd2_process_audio_capture_test)
+            add_test(NAME window_capture_series COMMAND fd2_window_capture_series_test)
+            set_tests_properties(process_audio_capture window_capture_series PROPERTIES
+                TIMEOUT 30 LABELS "process;evidence")
             add_test(NAME graphics_job
                 COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_job_test.py
@@ -1224,6 +1264,32 @@ if(BUILD_TESTING)
             message(WARNING "field_play_input not registered: install X11, XTest and Xvfb")
         endif()
     endif()
+
+    add_executable(fd2_figani_test tests/figani_test.c figani.c image.c archive.c)
+    add_executable(fd2_field_magic_full_test
+        tests/field_magic_full_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    add_executable(fd2_magic_fx_test tests/magic_fx_test.c magic_fx.c)
+    add_executable(fd2_battle_animation_test
+        tests/battle_animation_test.c
+        figani.c magic_fx.c tile.c field_info.c field_visual.c field_item.c field_magic.c field_unit_base.c
+        field_unit_stats.c field_attack.c field_path.c field_move_profile.c
+        map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
+        audio_pcm.c audio.c)
+    foreach(fd2_test IN ITEMS fd2_figani_test fd2_magic_fx_test fd2_battle_animation_test fd2_field_magic_full_test)
+        target_include_directories(${fd2_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(${fd2_test} PRIVATE ${FD2SDL_SDL3_TARGET})
+        if(MSVC)
+            target_compile_options(${fd2_test} PRIVATE /W4)
+        else()
+            target_compile_options(${fd2_test} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+    endforeach()
+    add_test(NAME figani COMMAND fd2_figani_test)
+    add_test(NAME magic_fx COMMAND fd2_magic_fx_test)
+    add_test(NAME battle_animation COMMAND fd2_battle_animation_test)
+    add_test(NAME field_magic_full COMMAND fd2_field_magic_full_test)
+    set_tests_properties(figani magic_fx battle_animation field_magic_full PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/.. TIMEOUT 30)
 
     # 测试中的 assert 包含实际调用；Release 也必须执行，不能得到空跑假绿。
     get_directory_property(fd2_targets BUILDSYSTEM_TARGETS)

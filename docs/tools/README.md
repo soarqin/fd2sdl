@@ -109,7 +109,28 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 自然场景的规划器默认查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录；可用 `--planner` 覆盖，不存在时在窗口启动前拒绝。stage 1 默认使用本轮 `prepare-controlled` 生成的原版活动 Save；没有先运行准备场景时须提供独立只读 `--b5-save-fixture`。自然流程默认最多50轮，败北、重复语义状态或到达上限均保留失败，不重开／重抽；调度器只为原版首个实际阶段结束周期录一次音频，作为 A5 曲目身份／切换证据，不是 A7 保真。所有 WGC 场景串行运行，先清理原版再启 SDL，正常／错误／超时均清理本轮 Job，失败收据不覆盖。
 
-B5受支持范围已完成15项的实际证据验收；自然首关为不同来源的独立运行联合验证，不是完整Suite单轮通过。后台基础校准、旧失败与各冻结来源分别保留，大阶段统一审查及历史全面回归尚待执行。累计结果统一见[阶段记录](../plans/stage-log.md)。上述命令沿用已有参数；具体15项、Windows子集命令、存档前置、Linux无窗口／规划器兼容说明与未执行范围见 [B5 图形测试规范](gui-testing.md#b5-结算准备页与下一关)；本轮没有 Linux 图形或规划器验收结果。
+B5受支持范围已完成15项的实际证据验收；自然首关为不同来源的独立运行联合验证，不是完整Suite单轮通过。后台基础校准、旧失败与各冻结来源分别保留；其后的大阶段统一审查及历史全面回归现有独立完成记录，不反写为旧B5来源。累计结果统一见[阶段记录](../plans/stage-log.md)。上述命令沿用已有参数；具体15项、Windows子集命令、存档前置、Linux无窗口／规划器兼容说明与未执行范围见 [B5 图形测试规范](gui-testing.md#b5-结算准备页与下一关)；本轮没有 Linux 图形或规划器验收结果。
+
+### 连续画面与进程音频取证（Windows）
+
+B6 取证新增以下入口；采集成功不自行判定整段动画或声音一致。B6／A6受支持实现及既定最低验收已完成，场景总数19：3核心最低帧／SFX、15项AI最低casting与业务／保存／采集、1项`ai-item-score20`实际评分回归。AI由C6十四项＋C8仅08multi复验覆盖；完整生命周期与判据遵循[图形测试规范](gui-testing.md#b6-战斗演出采集与判据)，来源统一见[阶段记录](../plans/stage-log.md#b6a6full-战斗演出与动态音效)。进程音频使用 Windows process-loopback，要求系统 build **20348 或更新**；不回退到桌面录音，也不依赖前台窗口。
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2_field_play_input_driver fd2_process_audio_capture
+```
+
+以下是父 runner 异步启动 owned 子进程的参数格式，不是顺序阻塞执行的示例：
+
+| 程序 | 参数 | 上限与输出 |
+|---|---|---|
+| `fd2_field_play_input_driver` | `capture-series PID OUTDIR MAX_MS INTERVAL_MS` | 两个时长均为 `1..120000` ms，最多600帧；OUTDIR须不存在、父目录已存在 |
+| `fd2_process_audio_capture` | `PID WAV MAX_MS READY_FILE STOP_FILE` | `MAX_MS=1..120000`；三个绝对输出路径互异、原先不存在，父目录已存在；PCM16／stereo／44100 Hz |
+
+两者都在本轮 `driver run-job` 进程树内启动，父 runner 不激活游戏窗口。持续 WGC 复用同一 PID／HWND 会话，首张真实 PNG 与 `frames.jsonl` 落盘后才原子发布 `OUTDIR/ready.json`；父端等 ready 后才确认动作，创建 `OUTDIR/stop` 正常结束。帧按实际 WGC 时间戳去重和限制最小保存间距，不补旧图或承诺固定帧率；保留原始 RGB、渐黑／闪白和每帧尺寸／时间／owner信息，不以调色或裁掉随机区促成通过。
+
+进程音频 ready 绑定 PID、创建时间和进程树，记录 QPC／格式；ready 不等于已观察到首个 PCM packet。父端写 STOP_FILE 后等待 helper 封好 WAV 和最终 JSON，核对退出码、HRESULT、包时间和实际帧数，再关闭目标并完成 Job 清理。目标提前退出是失败；超时／600帧截断、未正常 stop 或强制清理不能记为完整采集。原版使用独立副本的 DOSBox 原生 HOST_W 录音；该 WAV 无首 packet QPC，只能据录音内时点比较，不虚构输入绝对延迟。Linux 没有这些 Windows 采集入口，本轮也无 Linux 对应执行结果。
+
+核心场景的`run_original_battle_animation.py --verify-core`仅接受`physical-full-hit`／`player-magic0`／`player-heal13`且必须有SDL端，完整清理与晚守卫后核对完整帧和两端最低SFX门，未满足退出1；不传该参数仍是`ok=false/collected_only=true`的采集报告。AI15场不因采集退出0升格为全FX／声音通过。Suite的`--b6-only`和核心子集参数复用此严格门，具体命令只在[GUI规范](gui-testing.md)维护。
 
 ### Sanitizer（Linux／Clang）
 
@@ -209,7 +230,7 @@ python3 tools/analyze_fd2_audio.py --extract-music-dir "$work/music"
 
 ### 离线音频对照
 
-两平台的比较脚本都只读取已有音频，另需 NumPy。capture 必须附确认的场景和调用依据，可由有判据的 DOSBox 自动取证产生。
+两平台的比较脚本都只读取已有音频；旧比较器需 NumPy，新的有限 SFX oracle 另需 SciPy。capture 必须附确认的场景和调用依据，可由有判据的 DOSBox 自动取证产生。
 
 `fd2_bgm_capture_probe TRACK SECONDS NEW_OUTPUT.wav` 使用当前正式XMIDI／AIL／Nuked九voice后端，生成44100 Hz、双声道16位离线参考；曲目范围0..19，时长1..120秒，输出路径必须不存在。从项目根目录执行：
 
@@ -239,6 +260,15 @@ python3 tools/compare_fd2_sfx_capture.py /tmp/capture.wav --sample 5
 bash tools/render_fd2_opl_prototype.sh 1   # 也可传 all；外部评估，不是运行依赖
 python3 tools/compare_fd2_music_capture.py /tmp/capture.wav /tmp/fd2-adlmidi-prototype/xmi
 ```
+
+`fd2_sfx_oracle.py` 从 FDOTHER 独立 VOICE 原字节建立候选，读取调用者预声明的查询 JSON；缺 `--wav` 只输出 pending。实际 WAV 须已关闭、至多120秒，格式为 PCM16 mono／stereo、44100／48000 Hz。依赖现有 `numpy`、`scipy`，不新增运行时游戏依赖。输出必须是新文件且位于原资源目录之外：
+
+```powershell
+python tools/fd2_sfx_oracle.py --fdother original_game/FDOTHER.DAT --request "$work/sfx-query.json" --wav "$work/closed.wav" --output "$work/sfx-observation.json"
+python tools/fd2_core_sfx_gate.py --original original_game --scenario player-magic0 --wav "$work/closed.wav" --output "$work/core-sfx.json"
+```
+
+Linux 离线分析使用相同参数并将 `python` 改为 `python3`；这不表示 Linux 采集已执行。查询窗、固定前缀和身份阈值须先声明，不能看波形后裁到好点。核心三场声明由 `fd2_battle_animation_sfx.declare()` 提供；`fd2_core_sfx_gate.py` 预声明固定60 ms前缀，并按完整样本 SHA 合并相同字节候选，只核有限 VOICE 字节身份及录音内有序存在，不证明重复 cue 的全部次数、运行 bank 指针、输入精确时延、整段声音或 A7 保真；未提供录音仍为 pending。实际游戏声音校准尚未取得，分析参数不登记为已通过的实机容差。
 
 `render_fd2_opl_prototype.sh` 是 Linux／Bash 外部评估脚本，不是 Windows 原生构建步骤，也不是运行依赖。Windows 可直接比较已有候选 WAV；需要重新生成历史原型时，在具有 Linux 编译器、CMake、Python 3 和 Git 的 WSL 中执行 Bash 命令，证据登记为 WSL／Linux 结果。原型需要上游源码、网络和本地构建工具，默认在 `/tmp/fd2-adlmidi-prototype` 工作，可通过 `FD2_ADLMIDI_WORK`／`FD2_ADLMIDI_EMULATOR` 调整；每次会重建其 `xmi/`，不要在该目录存放捕获证据。比较全部候选前先渲染 `all`。结果范围与已否决候选见[音频依据](../reverse-engineering/audio.md)。
 

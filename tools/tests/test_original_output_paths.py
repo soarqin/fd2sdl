@@ -43,6 +43,7 @@ class OriginalOutputPathTest(unittest.TestCase):
                                        planner=tool, driver=tool, dosbox=tool, max_turns=50,
                                        record_native_audio=False, original_evidence=None,
                                        scenario={"run_original_item_list": "controls",
+                                                 "run_original_battle_animation": "physical-full-hit",
                                                  "run_original_magic_list": "single",
                                                  "run_original_loot": "chest-empty",
                                                  "run_original_natural": "natural-stage0",
@@ -65,6 +66,9 @@ class OriginalOutputPathTest(unittest.TestCase):
                         values = {"round_assets": {}, "decode_save": {}, "build_pages": [],
                                   "geometry": {}, "title_templates": {}, "title_menu_counts": {},
                                   "load_menu_availability": {}, "hashes": {}}
+                    elif script.stem == "run_original_battle_animation":
+                        values = {"owned_job_required": None, "fingerprint": {},
+                                  "prepare_runtime": {}, "dependencies": {}}
                     preflight = [stack.enter_context(patch.object(module, name, return_value=value))
                                  for name, value in values.items()]
                     if inside:

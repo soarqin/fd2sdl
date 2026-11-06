@@ -127,6 +127,39 @@ def derive_heal(source,encrypted):
 
 def actor_focus_resources(original,source,assets,raw,cursor):
     record = source[UNITS+raw*STRIDE:UNITS+(raw+1)*STRIDE]
+    same = [(i, source[UNITS+i*STRIDE:UNITS+(i+1)*STRIDE])
+            for i in range(source[META+1])
+            if not source[UNITS+i*STRIDE+5]&1 and
+            source[UNITS+i*STRIDE:UNITS+i*STRIDE+2] == record[:2]]
+    if len(same) > 1:
+        # field_visible_actor_at_focus @0x12c0d（原登记同名）仍取首可见raw；
+        # sub_11CAC @0x11cac（原登记同名）先cursor，sub_127A9 @0x127a9再按raw叠同格。
+        if raw != same[0][0] or any(actor[4] for _,actor in same):
+            raise ValueError("同格焦点仅支持首可见raw的静止浏览，不猜行走/非首raw owner")
+        parts = []
+        for _,actor in same:
+            isolated = bytearray(source); isolated[META+1] = 1
+            isolated[UNITS:UNITS+STRIDE] = actor
+            sprites,_ = cursor_assets(original/"FDICON.B24",isolated,dict(assets,cursor=cursor))
+            parts.append((actor,sprites))
+        templates = []; phases = []; visible_pixels = []
+        for phase in range(3):
+            layers = [sprites[(actor[3]&3)*3+phase] for actor,sprites in parts]
+            visible = layers[0].point(lambda value: 255 if value else 0, mode="L")
+            image = Image.new("P",(24,30),0); image.putpalette(assets["palette"])
+            image.paste(cursor,(0,6),cursor.point(lambda value: 255 if value else 0, mode="L"))
+            for index,part in enumerate(layers):
+                mask = part.point(lambda value: 255 if value else 0, mode="L")
+                image.paste(part,(0,0),mask)
+                if index: visible.paste(0,(0,0),mask)
+            count = sum(value != 0 for value in visible.getdata())
+            if not count: continue  # 全遮盖须另有info正锚，不冒称已见首raw身份。
+            templates.append(image.crop((0,0,24,24))); phases.append(phase); visible_pixels.append(count)
+        if not templates: raise ValueError("首raw全遮盖，当前24行模板不能独立证明焦点身份")
+        return {"raw_actor":raw,"unit_id":record[7],"world":list(record[:2]),"templates":templates,
+                "composite_raw_actors":[i for i,_ in same],"shared_idle_phases":phases,
+                "first_actor_visible_pixels":visible_pixels,"full_actor_compared":False,
+                "template_rows":24}
     isolated = bytearray(source)
     isolated[META+1] = 1
     isolated[UNITS:UNITS+STRIDE] = record

@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "field_ai.h"
+#include "field_item.h"
 #include "field_magic.h"
 
 #define CHECK(expr) do { \
@@ -198,6 +199,59 @@ static void equip_weapon(fd2_field_unit *unit, uint8_t item_id) {
     record[0x0b] = item_id;
 }
 
+/* field_ai_item_targets_score @0x15880（原登记同名）：指令 VA 0x1597a
+ * 的 JGE 包含等值，跳到 18 分；测试只用真实 item/magic 表，不构造新记录。 */
+static int test_item_damage_threshold_boundaries(void) {
+    static const struct {
+        uint8_t item_id;
+        uint8_t code;
+        uint16_t threshold;
+    } cases[] = {{56, 20, 50}, {79, 24, 3}};
+    static const int32_t expected[] = {18, 18, 8};
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        const uint8_t *item = fd2_field_item_record_get(cases[c].item_id);
+        CHECK(item && item[0x0d] == cases[c].code);
+        uint16_t raw_value = (uint16_t)item[0x0e] |
+                             ((uint16_t)item[0x0f] << 8);
+        uint16_t threshold = cases[c].code == 24 ? raw_value :
+            fd2_field_magic_u16(fd2_field_magic_record_get((uint8_t)raw_value), 0);
+        CHECK(threshold == cases[c].threshold);
+
+        fd2_field_units units;
+        memset(&units, 0xa5, sizeof(units));
+        units.count = 3;
+        uint8_t ids[] = {2, 0, 1};
+        for (size_t i = 0; i < 3; i++) {
+            set_unit(&units, ids[i], (uint8_t)i, (uint8_t)(5 + i), 8);
+            units.items[ids[i]].hp = (uint16_t)(threshold + (int)i - 1);
+            units.items[ids[i]].text_id = (uint8_t)(20 + i);
+            units.items[ids[i]].ai_behavior_raw = (uint8_t)(0x80u | i);
+        }
+        fd2_field_units before = units;
+        const uint8_t ids_before[] = {2, 0, 1};
+        for (size_t i = 0; i < 3; i++) {
+            fd2_field_ai_score_targets targets = {&units, ids + i, 1};
+            int32_t score = -123456;
+            CHECK(fd2_field_ai_item_targets_score(cases[c].item_id, &targets, &score) == 0);
+            if (score != expected[i])
+                fprintf(stderr, "item=%u threshold=%u hp=%u expected=%ld actual=%ld\n",
+                        (unsigned)cases[c].item_id, (unsigned)threshold,
+                        (unsigned)units.items[ids[i]].hp,
+                        (long)expected[i], (long)score);
+            CHECK(score == expected[i]);
+            CHECK(memcmp(&units, &before, sizeof(units)) == 0);
+            CHECK(memcmp(ids, ids_before, sizeof(ids)) == 0);
+        }
+        fd2_field_ai_score_targets all = {&units, ids, 3};
+        int32_t score = -123456;
+        CHECK(fd2_field_ai_item_targets_score(cases[c].item_id, &all, &score) == 0);
+        CHECK(score == 44); /* 18 + 18 + 8，无阵营／text／behavior额外倍率。 */
+        CHECK(memcmp(&units, &before, sizeof(units)) == 0);
+        CHECK(memcmp(ids, ids_before, sizeof(ids)) == 0);
+    }
+    return 0;
+}
+
 static int test_magic_and_item_scoring(void) {
     fd2_field_units units = {0};
     set_unit(&units, 0, 0, 0, 0);
@@ -257,11 +311,11 @@ static int test_magic_and_item_scoring(void) {
     CHECK(score == 27);
 
     /* item 11: dispatch 20、raw value 2，先取 magic record 2 的
-     * u16 +0 == 250；只给 HP 严格大于 250 的目标 +8。 */
+     * u16 +0 == 250；HP等于250加18，严格大于250加8。 */
     units.items[0].hp = 250;
     units.items[1].hp = 251;
     CHECK(fd2_field_ai_item_targets_score(11, &targets, &score) == 0);
-    CHECK(score == 8);
+    CHECK(score == 26);
     CHECK(fd2_field_ai_item_targets_score(0, &targets, &score) == 0);
     CHECK(score == 0);
 
@@ -541,7 +595,8 @@ static int test_physical_candidate_and_dispatch(void) {
 }
 
 int main(void) {
-    if (test_magic_bitmap_query() != 0 ||
+    if (test_item_damage_threshold_boundaries() != 0 ||
+        test_magic_bitmap_query() != 0 ||
         test_behavior_and_nearest_target() != 0 ||
         test_destination_order() != 0 ||
         test_magic_and_item_scoring() != 0 ||

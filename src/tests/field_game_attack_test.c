@@ -1,7 +1,8 @@
-/* M6 无演出攻击状态机测试。
+/* M6 无演出攻击状态机与 B6 只读演出事件测试。
  * 覆盖 field_physical_exchange @0x1548e、field_physical_attack_sequence
  * @0x1e856 与 field_physical_attack_resolve @0x1ecc7：目标／武器预检、
  * 状态效果、双击、反击和固定 RNG 顺序。
+ * FULL 计数另据 sub_2EBE1 @0x2ebe1；这些无窗口测试不代表原版图形验收。
  */
 #include <stdio.h>
 #include <string.h>
@@ -680,23 +681,304 @@ static int test_miss_completes_action(void) {
     return 0;
 }
 
+typedef struct {
+    fd2_field_physical_phase phase;
+    size_t actor_index, target_index, rng_cursor;
+    uint8_t counter, strike, status_applied;
+    int failed;
+    fd2_field_failure failure;
+    fd2_field_unit actor_before, target_before;
+    fd2_field_attack_result result;
+    uint16_t actor_hp_after, target_hp_after;
+    uint8_t target_status_after;
+} physical_observation;
+
+typedef struct {
+    test_rng *rng;
+    physical_observation events[8];
+    size_t count, prepares, strikes, finishes;
+    int invalid, fail_phase, fail_strike, fail_cleanup;
+} physical_observer;
+
+/* 只复制同步借用的事件和读取 RNG 位置，不消费 RNG、重算 effect 或写 Game。 */
+static int observe_physical(const fd2_field_game *game,
+        const fd2_field_physical_event *event, void *userdata) {
+    physical_observer *observer = userdata;
+    if (!game || !event || !observer || observer->count >= 8 ||
+        event->actor_index >= game->units.count || event->target_index >= game->units.count) {
+        if (observer) observer->invalid = 1;
+        return -1;
+    }
+    physical_observation *seen = &observer->events[observer->count++];
+    seen->phase = event->phase;
+    seen->actor_index = event->actor_index;
+    seen->target_index = event->target_index;
+    seen->counter = event->counterattack;
+    seen->strike = event->strike_index;
+    seen->status_applied = event->pre_hit_status_applied;
+    seen->failed = event->action_failed;
+    seen->failure = game->failure;
+    seen->rng_cursor = observer->rng->cursor;
+    seen->actor_hp_after = game->units.items[event->actor_index].hp;
+    seen->target_hp_after = game->units.items[event->target_index].hp;
+    seen->target_status_after = game->units.items[event->target_index].detail_status[0];
+    if (event->phase == FD2_FIELD_PHYSICAL_PREPARE) {
+        observer->prepares++;
+        if (event->actor_before || event->target_before || event->result) observer->invalid = 1;
+    } else if (event->phase == FD2_FIELD_PHYSICAL_STRIKE) {
+        observer->strikes++;
+        if (!event->actor_before || !event->target_before || !event->result) {
+            observer->invalid = 1;
+            return -1;
+        }
+        seen->actor_before = *event->actor_before;
+        seen->target_before = *event->target_before;
+        seen->result = *event->result;
+    } else if (event->phase == FD2_FIELD_PHYSICAL_FINISH) observer->finishes++;
+    else observer->invalid = 1;
+    if (observer->invalid) return -1;
+    if (event->phase == FD2_FIELD_PHYSICAL_FINISH && observer->fail_cleanup) return -1;
+    return (int)event->phase == observer->fail_phase &&
+        (event->phase != FD2_FIELD_PHYSICAL_STRIKE ||
+         observer->strikes == (size_t)observer->fail_strike) ? -1 : 0;
+}
+
+static void attach_observer(fd2_field_game *game, physical_observer *observer,
+                            test_rng *rng) {
+    memset(observer, 0, sizeof(*observer));
+    observer->rng = rng;
+    observer->fail_phase = -1;
+    game->physical_present = observe_physical;
+    game->physical_present_userdata = observer;
+}
+
+static int begin_observed_attack(fd2_field_game *game, test_rng *rng,
+                                  physical_observer *observer) {
+    init_game(game);
+    game->units.items[0].hp = game->units.items[0].hp_max = 100;
+    game->units.items[1].hp = game->units.items[1].hp_max = 100;
+    game->units.items[0].defense = game->units.items[1].defense = 10;
+    equip_weapon(&game->units.items[0], 71);
+    attach_observer(game, observer, rng);
+    return configure(game, rng) || fd2_field_game_begin_attack(game) ? -1 : 0;
+}
+
+static int test_full_strike_events_and_short_selection(void) {
+    static const uint32_t rolls[] = {2, 0, 99, 0, 0, 99, 0, 0, 99, 0, 55};
+    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    fd2_field_game game;
+    physical_observer observer;
+    if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+    if (expect(game.option_values[2] == 0 && fd2_field_game_resolve_attack(&game) == 0,
+               "FULL option resolves type3 plus random third strike") ||
+        expect(observer.count == 5 && observer.prepares == 1 && observer.strikes == 3 &&
+               observer.finishes == 1 && !observer.invalid,
+               "one prepare, three committed strike events, one finish") ||
+        expect(observer.events[0].rng_cursor == 0 && observer.events[4].rng_cursor == 10,
+               "prepare is before sequence RNG; finish follows all committed RNG") ||
+        expect(game.last_attack_strikes == 3 && rng.cursor == 10 &&
+               game.units.items[1].hp == 73 && fd2_field_unit_has_acted(&game.units.items[0]),
+               "FULL three intermediate HP commits are retained")) return -1;
+    for (size_t i = 0; i < 3; i++) {
+        const physical_observation *seen = &observer.events[i + 1];
+        if (expect(seen->phase == FD2_FIELD_PHYSICAL_STRIKE && seen->actor_index == 0 &&
+                   seen->target_index == 1 && !seen->counter && seen->strike == i &&
+                   !seen->status_applied && seen->rng_cursor == 4 + 3 * i &&
+                   seen->actor_before.hp == 100 && seen->target_before.hp == 100 - 9 * i &&
+                   seen->result.hit && seen->result.damage == 9 &&
+                   seen->result.hp_after == 91 - 9 * i && seen->target_hp_after == 91 - 9 * i,
+                   "STRIKE receives its own before pair, index and already committed result")) return -1;
+    }
+    rng.cursor = 0;
+    if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+    game.option_values[2] = 1; /* 本例明确验证原 SHORT 选项，而非统一修改旧夹具。 */
+    if (expect(fd2_field_game_resolve_attack(&game) == 0 && game.last_attack_strikes == 2 &&
+               game.units.items[1].hp == 82 && rng.cursor == 7 && observer.count == 0,
+               "SHORT retains two-strike logic and never invokes the FULL presenter")) return -1;
+    rng.cursor = 0;
+    if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+    equip_weapon(&game.units.items[1], 0);
+    game.units.items[1].hp = 1;
+    if (expect(fd2_field_game_resolve_attack(&game) == 0 && game.last_attack_strikes == 1 &&
+               !game.last_counterattack_valid && rng.cursor == 4 && observer.count == 3 &&
+               observer.strikes == 1 && observer.finishes == 1 &&
+               observer.events[1].target_before.hp == 1 && observer.events[1].result.defeated &&
+               observer.events[1].target_hp_after == 0 && game.units.items[1].flags == 1,
+               "FULL lethal first strike still finishes exactly once and suppresses remaining strikes/counter")) return -1;
+    return 0;
+}
+
+static int test_full_status_before_and_counter_order(void) {
+    static const uint32_t rolls[] = {99, 9, 3, 0, 99, 0,
+                                    2, 0, 99, 0, 0, 99, 0, 0, 99, 0, 55};
+    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    fd2_field_game game;
+    physical_observer observer;
+    if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+    equip_weapon(&game.units.items[0], 4);
+    equip_weapon(&game.units.items[1], 71);
+    if (expect(fd2_field_game_resolve_attack(&game) == 0 && observer.count == 6 &&
+               observer.strikes == 4 && observer.finishes == 1 && !observer.invalid,
+               "initial status strike precedes the complete counter sequence") ||
+        expect(observer.events[1].status_applied && observer.events[1].target_before.detail_status[0] == 0 &&
+               observer.events[1].target_status_after == 5 && observer.events[1].rng_cursor == 6,
+               "event preserves pre-effect state while Game already contains status and damage") ||
+        expect(game.last_attack_strikes == 1 && game.last_counterattack_strikes == 3 &&
+               game.units.items[0].hp == 73 && game.units.items[1].hp == 91 && rng.cursor == 16 &&
+               !fd2_field_unit_has_acted(&game.units.items[1]),
+               "counter uses its own FULL count and does not spend the defender action")) return -1;
+    for (size_t i = 0; i < 3; i++) {
+        const physical_observation *seen = &observer.events[i + 2];
+        if (expect(seen->counter == 1 && seen->actor_index == 1 && seen->target_index == 0 &&
+                   seen->strike == i && !seen->status_applied &&
+                   seen->actor_before.detail_status[0] == 5 && seen->actor_before.hp == 91 &&
+                   seen->target_before.hp == 100 - 9 * i && seen->rng_cursor == 10 + 3 * i,
+                   "counter event indexes restart and preserve the earlier status write")) return -1;
+    }
+    return 0;
+}
+
+static int test_presenter_error_boundaries(void) {
+    static const uint32_t rolls[] = {2, 0, 99, 0, 0, 99, 0, 0, 99, 0, 55};
+    const int failures[] = {FD2_FIELD_PHYSICAL_PREPARE,
+                           FD2_FIELD_PHYSICAL_STRIKE, FD2_FIELD_PHYSICAL_FINISH};
+    for (size_t i = 0; i < sizeof(failures) / sizeof(failures[0]); i++) {
+        test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+        fd2_field_game game;
+        physical_observer observer;
+        if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+        observer.fail_phase = failures[i];
+        observer.fail_strike = 2;
+        observer.fail_cleanup = failures[i] == FD2_FIELD_PHYSICAL_STRIKE;
+        fd2_field_game before = game;
+        if (expect(fd2_field_game_resolve_attack(&game) == -1 && !observer.invalid,
+                   "presenter failure is returned without retrying or swallowing the error")) return -1;
+        if (failures[i] == FD2_FIELD_PHYSICAL_PREPARE) {
+            if (expect(memcmp(&game, &before, sizeof(game)) == 0 && rng.cursor == 0 &&
+                       observer.count == 1 && observer.finishes == 0,
+                       "PREPARE failure preserves whole Game and RNG, with no FINISH")) return -1;
+        } else {
+            size_t strikes = failures[i] == FD2_FIELD_PHYSICAL_STRIKE ? 2 : 3;
+            if (expect(observer.strikes == strikes && observer.finishes == 1 &&
+                       rng.cursor == 1 + 3 * strikes && game.units.items[1].hp == 100 - 9 * strikes &&
+                       game.failure == FD2_FIELD_FAILURE_ACTION && game.failure_notice.unit_index == 0,
+                       "post-commit failure retains HP/RNG and latches the original action failure") ||
+                expect(observer.events[observer.count - 1].failed ==
+                           (failures[i] == FD2_FIELD_PHYSICAL_STRIKE),
+                       "cleanup FINISH marks a preceding strike failure exactly once")) return -1;
+            if (failures[i] == FD2_FIELD_PHYSICAL_STRIKE &&
+                expect(observer.events[observer.count - 1].failure == FD2_FIELD_FAILURE_ACTION,
+                       "cleanup error cannot replace the already latched first error")) return -1;
+            before = game;
+            size_t events = observer.count;
+            if (expect(fd2_field_game_resolve_attack(&game) == -1 &&
+                       memcmp(&game, &before, sizeof(game)) == 0 && observer.count == events &&
+                       rng.cursor == 1 + 3 * strikes,
+                       "failed committed action cannot be retried or FINISH called twice")) return -1;
+        }
+        fd2_field_path_close(&game.move_range);
+    }
+    return 0;
+}
+
+static int test_mode_aware_unknown_loot_preflight(void) {
+    static const uint32_t rolls[] = {2, 0, 99, 0, 0, 99, 0,
+                                    2, 0, 99, 0, 0, 99, 0, 55};
+    for (int counter = 0; counter < 2; counter++) for (int type3 = 0; type3 < 2; type3++) {
+        test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+        fd2_field_game game;
+        physical_observer observer;
+        if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
+        equip_weapon(&game.units.items[0], !counter && type3 ? 71 : 0);
+        if (counter) equip_weapon(&game.units.items[1], type3 ? 71 : 0);
+        game.units.items[0].defense = game.units.items[1].defense = 0;
+        size_t victim = counter ? 0 : 1;
+        /* 地形后 AP21/DP0，单击实际18、最大19：45>2*19，而三击可致死。
+         * 无type3实际两击后HP9，不能粗略用FULL三击上界误拒。 */
+        game.units.items[victim].hp = game.units.items[victim].hp_max = 45;
+        ((uint8_t *)&game.units.items[victim])[0x31] = 9; /* 未支持 descriptor，不能进 RNG 后才拒。 */
+        fd2_field_game before = game;
+        int result = fd2_field_game_resolve_attack(&game);
+        if (type3) {
+            if (expect(result == -1 && rng.cursor == 0 && observer.count == 0 &&
+                       memcmp(&game, &before, sizeof(game)) == 0,
+                       "unknown loot at HP between two/three maximum hits rejects before PREPARE/RNG for either side")) return -1;
+        } else if (expect(result == 0 && game.units.items[victim].hp == 9 &&
+                          observer.prepares == 1 && observer.finishes == 1,
+                          "non-type3 FULL uses two-hit upper bound instead of falsely rejecting at three")) return -1;
+        fd2_field_path_close(&game.move_range);
+    }
+    return 0;
+}
+
+static int test_load_preserves_physical_present_owner(void) {
+    fd2_archive fdother = {0};
+    fd2_field_game game = {0}, next = {0};
+    test_rng rng = {NULL, 0, 0};
+    physical_observer observer;
+    fd2_save_battle_snapshot snapshot;
+    int result = -1;
+    if (expect(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0,
+               "owner fixture reads FDOTHER from the source-root cwd") ||
+        expect(fd2_field_game_open_resources(&game, &fdother, 0) == 0,
+               "owner fixture opens stage0 resources") ||
+        expect(fd2_field_game_load_active(&game, "original_game/START.SAV") == 0,
+               "owner fixture loads actual START") ||
+        expect(fd2_field_game_open_resources(&next, &fdother, 1) == 0,
+               "owner fixture opens stage1 resources")) goto done;
+    /* 仅隔离跨stage的owner交接，不冒称原32d18部署或原版运行证据。 */
+    next.units = game.units;
+    next.roster_count = game.roster_count;
+    memcpy(next.roster, game.roster, sizeof(next.roster));
+    for (size_t i = 0; i < next.units.count; i++) {
+        next.units.items[i].x = (uint8_t)(2 + i % 8);
+        next.units.items[i].y = (uint8_t)(10 + i / 8);
+    }
+    next.camera_cell_x = 0; next.camera_cell_y = 8;
+    next.cursor_cell_x = 5; next.cursor_cell_y = 13;
+    attach_observer(&game, &observer, &rng);
+    game.attack_rng = next_roll;
+    game.attack_rng_userdata = &rng;
+    if (expect(fd2_field_game_export_battle_snapshot(&next, &snapshot) == 0,
+               "owner fixture exports its controlled stage1 snapshot") ||
+        expect(fd2_field_game_import_battle_snapshot(&game, &snapshot) == 0,
+               "owner fixture imports stage1 transactionally")) goto done;
+    result = expect(game.stage == 1 && game.physical_present == observe_physical &&
+        game.physical_present_userdata == &observer && game.attack_rng_userdata == &rng &&
+        observer.count == 0 && rng.cursor == 0,
+        "successful cross-stage Load carries borrowed physical callback/context without calling it or RNG");
+done:
+    fd2_field_game_close(&next);
+    fd2_field_game_close(&game);
+    fd2_archive_close(&fdother);
+    return result;
+}
+
 int main(void) {
-    return test_weapon_required_with_range_hook() ||
-                   test_target_focus_and_cycle() ||
-                   test_target_selection_rejection_is_atomic() ||
-                   test_illegal_and_cancel() ||
-                   test_acted_preflight_rollback() ||
-                   test_hit_via_confirm_flow() ||
-                   test_pre_hit_effect_order() ||
-                   test_profile_critical_table() ||
-                   test_weapon_critical_bonus() ||
-                   test_unknown_terrain_class_fails_before_rng() ||
-                   test_terrain_modifiers_in_exchange() ||
-                   test_double_strike_sequence() ||
-                   test_lethal_first_strike_stops_exchange() ||
-                   test_adjacent_counterattack() ||
-                   test_command_menu_model() ||
-                   test_miss_completes_action()
-               ? 1
-               : 0;
+#define RUN_TEST(test) do { if (test() != 0) { \
+    fprintf(stderr, "field game attack case failed: %s\n", #test); \
+    return 1; } } while (0)
+    RUN_TEST(test_full_strike_events_and_short_selection);
+    RUN_TEST(test_full_status_before_and_counter_order);
+    RUN_TEST(test_presenter_error_boundaries);
+    RUN_TEST(test_mode_aware_unknown_loot_preflight);
+    RUN_TEST(test_load_preserves_physical_present_owner);
+    RUN_TEST(test_weapon_required_with_range_hook);
+    RUN_TEST(test_target_focus_and_cycle);
+    RUN_TEST(test_target_selection_rejection_is_atomic);
+    RUN_TEST(test_illegal_and_cancel);
+    RUN_TEST(test_acted_preflight_rollback);
+    RUN_TEST(test_hit_via_confirm_flow);
+    RUN_TEST(test_pre_hit_effect_order);
+    RUN_TEST(test_profile_critical_table);
+    RUN_TEST(test_weapon_critical_bonus);
+    RUN_TEST(test_unknown_terrain_class_fails_before_rng);
+    RUN_TEST(test_terrain_modifiers_in_exchange);
+    RUN_TEST(test_double_strike_sequence);
+    RUN_TEST(test_lethal_first_strike_stops_exchange);
+    RUN_TEST(test_adjacent_counterattack);
+    RUN_TEST(test_command_menu_model);
+    RUN_TEST(test_miss_completes_action);
+#undef RUN_TEST
+    return 0;
 }

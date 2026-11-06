@@ -31,6 +31,8 @@ typedef struct {
     const fd2_pcm_bank *battle_bank;
     const fd2_pcm_bank *arrival_bank;
     uint8_t footstep_counter;
+    /* 借用App既有secondary AIL handle；不会创建或转移音频所有权。 */
+    fd2_pcm_player *secondary_player;
 } fd2_field_audio;
 
 int fd2_field_sfx_resolve(fd2_field_sfx cue,

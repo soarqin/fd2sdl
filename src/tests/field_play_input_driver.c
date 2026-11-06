@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -330,6 +331,22 @@ static int tap(InputTarget *target, KeySym symbol, unsigned long delay_us) {
 }
 
 extern int fd2_capture_window(HWND window, const char *path);
+extern int fd2_capture_window_series(HWND window, DWORD pid, const wchar_t *directory,
+                                      unsigned long max_ms, unsigned long interval_ms);
+
+static int series_number(const char *text, unsigned long maximum, unsigned long *value) {
+    unsigned long n = 0;
+    if (!text || !*text) return -1;
+    for (; *text; ++text) {
+        if (*text < '0' || *text > '9') return -1;
+        unsigned long digit = (unsigned long)(*text - '0');
+        if (n > maximum / 10 || (n == maximum / 10 && digit > maximum % 10)) return -1;
+        n = n * 10 + digit;
+    }
+    if (!n) return -1;
+    *value = n;
+    return 0;
+}
 
 /* DOSBox-X 2026.10.01：F11(host)+W，仅投递到其窗口消息队列；
  * 始终W先松、F11后松，不改变用户全局键态或转移焦点。 */
@@ -419,6 +436,31 @@ static int drive_attack(InputTarget *display, int already_focused) {
 int main(int argc, char **argv) {
 #ifdef _WIN32
     if (argc > 1 && strcmp(argv[1], "run-job") == 0) return run_job(argc, argv);
+    if (argc > 1 && strcmp(argv[1], "capture-series") == 0) {
+        unsigned long series_pid = 0, max_ms = 0, interval_ms = 0;
+        if (argc != 6 || series_number(argv[2], MAXDWORD, &series_pid) != 0 ||
+            series_number(argv[4], 120000, &max_ms) != 0 ||
+            series_number(argv[5], 120000, &interval_ms) != 0) {
+            fprintf(stderr, "usage: capture-series PID OUTDIR MAX_MS INTERVAL_MS (1..120000ms; at most600frames)\n");
+            return 2;
+        }
+        SetProcessDPIAware();
+        InputTarget series_target = {NULL, (DWORD)series_pid, 0};
+        EnumWindows(find_window, (LPARAM)&series_target);
+        if (series_target.windows_found != 1u) {
+            fprintf(stderr, "capture-series requires exactly one owned visible window, count=%u\n",
+                    series_target.windows_found);
+            return 1;
+        }
+        /* 新命令直接保留Windows UTF16路径；不改变旧capture的参数/文件行为。 */
+        int wide_count = 0;
+        wchar_t **wide = CommandLineToArgvW(GetCommandLineW(), &wide_count);
+        if (!wide || wide_count != argc) { if (wide) LocalFree(wide); return 2; }
+        int result = fd2_capture_window_series(series_target.window, (DWORD)series_pid,
+                                                wide[3], max_ms, interval_ms);
+        LocalFree(wide);
+        return result;
+    }
     if (argc < 3 || argc > 4) {
         fprintf(stderr, "usage: %s wait|attack|wait-focused|attack-focused|close PID, or key|capture PID KEY|PATH\n", argv[0]);
         return 2;

@@ -160,13 +160,16 @@ static int heal_reward_ready(const fd2_field_unit *unit, int mp) {
 }
 
 static int heal_apply(fd2_field_unit *target, uint16_t power,
-        fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward, int mp) {
+        fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward, int mp,
+        uint32_t *raw_heal) {
     if (!target || !rng || (reward && !heal_reward_ready(target, mp))) return -1;
     uint16_t before = mp ? target->mp : target->hp;
     uint16_t maximum = mp ? target->mp_max : target->hp_max;
-    uint64_t updated = (uint64_t)before + spread_value(power, rng(userdata) % 100u);
+    uint64_t raw = spread_value(power, rng(userdata) % 100u);
+    uint64_t updated = (uint64_t)before + raw;
     uint16_t after = updated > maximum ? maximum : (uint16_t)updated;
     if (mp) target->mp = after; else target->hp = after;
+    if (raw_heal) *raw_heal = (uint32_t)raw;
     if (reward && target->unit_id < 75u) {
         int64_t value = (int64_t)((int32_t)after - before) * 40 *
             (mp ? target->level : reward_level(target)) / maximum;
@@ -177,19 +180,19 @@ static int heal_apply(fd2_field_unit *target, uint16_t power,
 
 int fd2_field_hp_heal_apply_with_reward(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward) {
-    return heal_apply(target, power, rng, userdata, reward, 0);
+    return heal_apply(target, power, rng, userdata, reward, 0, NULL);
 }
 int fd2_field_mp_heal_apply_with_reward(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward) {
-    return heal_apply(target, power, rng, userdata, reward, 1);
+    return heal_apply(target, power, rng, userdata, reward, 1, NULL);
 }
 int fd2_field_hp_heal_apply(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata) {
-    return heal_apply(target, power, rng, userdata, NULL, 0);
+    return heal_apply(target, power, rng, userdata, NULL, 0, NULL);
 }
 int fd2_field_mp_heal_apply(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata) {
-    return heal_apply(target, power, rng, userdata, NULL, 1);
+    return heal_apply(target, power, rng, userdata, NULL, 1, NULL);
 }
 
 static int damage_reward(const fd2_field_unit *target, uint32_t damage,
@@ -239,7 +242,7 @@ static int apply_damage_value(uint16_t value,
 static int apply_damage(uint8_t magic_id,
                         fd2_field_unit *target,
                         fd2_field_magic_rng_fn rng,
-                        void *rng_userdata, uint32_t *reward) {
+                        void *rng_userdata, uint32_t *reward, uint32_t *raw_damage) {
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
     if (!record) return -1;
     /* DS:0x1d01 的 IDs 0..8 wrappers 进入 0x55115 动画；其主体在
@@ -253,7 +256,26 @@ static int apply_damage(uint8_t magic_id,
         return 0;
     return apply_damage_value(
         fd2_field_magic_u16(record, 0), record[2], target,
-        rng, rng_userdata, NULL, reward);
+        rng, rng_userdata, raw_damage, reward);
+}
+
+/* sub_1C75E @0x1c75e / sub_1C81F @0x1c81f（原登记同名）：
+ * 为FULL AI提供一次已算effect结果；不重复公式或RNG，不承担动画插值写序。
+ * wrapper会按原2ff01恢复before并由FX impact推进HP，XP仍按本effect贡献。
+ * 本接口不因返回结果而扩大玩家MAGIC资格。 */
+int fd2_field_magic_apply_damage_result(uint8_t magic_id, fd2_field_unit *target,
+    fd2_field_magic_rng_fn rng, void *userdata, fd2_field_magic_basic_result *result) {
+    if (magic_id > 12u || !target || !rng || !result ||
+        fd2_field_magic_effect_reward_preflight(magic_id, target) != 0) return -1;
+    fd2_field_unit updated = *target;
+    fd2_field_magic_basic_result effect = {0};
+    effect.hp_before = target->hp;
+    int hit = apply_damage(magic_id, &updated, rng, userdata,
+        &effect.experience_value, &effect.raw_damage);
+    if (hit < 0) return -1;
+    effect.hit = (uint8_t)hit; effect.hp_after = updated.hp;
+    *target = updated; *result = effect;
+    return hit;
 }
 
 static int apply_raw_damage(uint32_t power, fd2_field_unit *target,
@@ -352,7 +374,9 @@ int fd2_field_magic_apply_player_basic_effect(
         hit = apply_damage_value(fd2_field_magic_u16(record, 0), record[2],
             &updated, rng, rng_userdata, &effect.raw_damage, NULL);
     } else {
-        hit = apply_heal(magic_id, &updated, rng, rng_userdata, NULL);
+        const uint8_t *record = fd2_field_magic_record_get(magic_id);
+        hit = heal_apply(&updated, fd2_field_magic_u16(record, 0), rng,
+            rng_userdata, NULL, 0, &effect.raw_heal);
     }
     if (hit < 0) return -1;
     effect.hit = (uint8_t)hit;
@@ -391,7 +415,7 @@ int fd2_field_magic_apply_known_effect_with_reward(
     if ((target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0) return -1;
     if (reward && fd2_field_magic_effect_reward_preflight(magic_id, target) != 0) return -1;
     if (magic_id <= 12u)
-        return apply_damage(magic_id, target, rng, rng_userdata, reward);
+        return apply_damage(magic_id, target, rng, rng_userdata, reward, NULL);
     if (magic_id <= 16u)
         return apply_heal(magic_id, target, rng, rng_userdata, reward);
     if (magic_id <= 19u) {

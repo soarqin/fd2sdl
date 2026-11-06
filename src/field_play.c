@@ -24,6 +24,7 @@
 #include <SDL3/SDL.h>
 
 #include "field_ai.h"
+#include "battle_animation.h"
 #include "field_attack.h"
 #include "field_game.h"
 #include "field_rng.h"
@@ -2761,6 +2762,22 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
 
+    /* B6同步服务属于本轮Play，借用App的两个PCM handle与FDOTHER。
+     * Game只提交结果与调用只读present；退出时先解除借用，再释放Game。 */
+    fd2_battle_animation battle = {0};
+    if (fd2_battle_animation_open(&battle, vga,
+            field_audio ? field_audio->player : NULL,
+            field_audio ? field_audio->secondary_player : NULL,
+            fdother, &game.figani_archive) != 0) {
+        fd2_field_game_close(&game);
+        return FD2_FIELD_PLAY_RETURN_ERROR;
+    }
+    fd2_battle_animation_set_skip(&battle, once);
+    game.physical_present = fd2_battle_animation_physical_present;
+    game.physical_present_userdata = &battle;
+    game.magic_present = fd2_battle_animation_magic_present;
+    game.magic_present_userdata = &battle;
+
     printf("field play: stage=%zu, map=%dx%d, units=%zu, camera=(%d,%d), "
            "cursor=(%d,%d), turn=%u, phase=%u, handoff=%s%s\n",
            game.stage, game.map.width, game.map.height, game.units.count,
@@ -2785,7 +2802,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     int running = 1;
     fd2_field_play_result play_result = FD2_FIELD_PLAY_RETURN_COMPLETE;
     while (running) {
-        if ((context && context->music_error) || game.failure != FD2_FIELD_FAILURE_NONE) {
+        if (battle.failed || (context && context->music_error) || game.failure != FD2_FIELD_FAILURE_NONE) {
             report_session_failure(&game);
             play_result = FD2_FIELD_PLAY_RETURN_ERROR;
             break;
@@ -3449,7 +3466,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     } else {
                         unit_index = fd2_field_game_confirm_cursor(&game);
                     }
-                    if (game.failure != FD2_FIELD_FAILURE_NONE) {
+                    if (battle.failed || game.failure != FD2_FIELD_FAILURE_NONE) {
                         report_session_failure(&game);
                         play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                         running = 0;
@@ -3645,7 +3662,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 case FD2_FIELD_ACTION_NONE:
                     break;
             }
-            if (game.failure != FD2_FIELD_FAILURE_NONE) {
+            if (battle.failed || game.failure != FD2_FIELD_FAILURE_NONE) {
                 report_session_failure(&game);
                 play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                 running = 0;
@@ -3691,6 +3708,11 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         context->experience_value = game.experience_value;
         context->message_number = game.message_number;
     }
+    game.physical_present = NULL;
+    game.physical_present_userdata = NULL;
+    game.magic_present = NULL;
+    game.magic_present_userdata = NULL;
+    fd2_battle_animation_close(&battle);
     fd2_field_game_close(&game);
     return play_result;
 }

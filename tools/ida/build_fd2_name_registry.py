@@ -1393,6 +1393,227 @@ CORRECTIONS.setdefault(0x12AC6, []).append({"target": "evidence",
            "与11eee底图→selection→127a9 actor→129ec局部恢复顺序一致。C22空格cursor反例只支持"
            "已测455/527/204像素及局部owner，不宣称所有遮挡/动画/RNG或新修复已实机通过。"})
 
+# B6：完整Domain指令/资源目录与局部原码向量；不是新的原版GUI验收。
+CORRECTIONS.setdefault(0x22046, []).append({
+    "target": "evidence", "was": "圆宽nearest且上半矩形radius/sqrt(2)，actor先于全部mask",
+    "now": "两次219ad都传scale16，CHP向零截断：扫描半宽floor(sqrt(r²-dy²)*16/10)，"
+           "严格cy-r<y<cy+r且水平[cx-half,cx+half)，裁剪312×192；上半矩形半宽"
+           "trunc(r*binary64(1.6))。第一次完整椭圆后于22077调用127a9重画actor/前景，"
+           "再绘下半椭圆及上半矩形，三者不能在已合成actor后统一叠加。",
+    "why": "IDA9.5 Domain完整22046/219ad/37af4/3ca4c/2189a和常数501f0/50208；"
+           "无hook无patch执行原sqrt/CHP，scale12/16各65537向量、rectangle4097向量、"
+           "大半径1900向量及4RC×7 signed CHP/restored CW。读集SHA "
+           "990a57735c76ca975f3054cec7de8de3a22f72b929b0a7e6de5c7fbe518f9648，"
+           "向量报告SHA dc13930868b3a6ea792256e2da38e58f7118260eba42ce54846d0878aae3c0c5。"
+           "已测r<=4096的整数模型circle=isqrt(64*n/25),rectangle=8*r/5；"
+           "不推广2189a的scale12或所有runtime控制字。"})
+CORRECTIONS.setdefault(0x2FF01, []).append({
+    "target": "evidence", "was": "费用可固定扣一次或由纯effect再次扣除；演出不消费共享RNG",
+    "now": "保留规范名。caster按unit_id*3先取idle，施法取+2，首WORD零才退+1；"
+           "30e9d仅遍历intro_end，part+4精确1才调用1ca89费用。player0..67真实资源"
+           "52种一次、7/39四次、12/28/49两次、7种零次，4种最终仍empty；empty是合法"
+           "容器哨兵而非可伪造part。费用按WORD逐次减，可回绕。玩家1cff0的ID0"
+           "始终调此wrapper；AI15311的mode分派另验，不把物理FULL配置套在玩家0。"
+           "Magic0的2b996 phase5在hit时给7个impact，effect RNG后/下一target前各消费"
+           "一次1-rand()%3；miss不消费impact，skip/静音不能改这些业务次数。",
+    "why": "完整2ff01/30e9d/1cff0/2b996 Domain及408条目元数据独立分类；"
+           "player68 caster读集SHA1954de8e636ce19ef144444092ebd3cec9c118f618ad37ec5674e35fa3a2965c。"
+           "实际unit9 selected28 intro11仅part6一次；这只是该actor，不是通用默认。"
+           "通用player资源读集不扩大正式B2仅unit9的Magic0资格。"
+           "当前新增说明是静态/局部证据，完整帧序及音效仍须B6运行验收；"
+           "旧entry/core记录只为历史alias，不支持把Watcom stack-check序言拆为独立函数。"})
+CORRECTIONS.setdefault(0x1E856, []).append({
+    "target": "evidence", "was": "所有物理播放模式最多两击",
+    "now": "无演出1e856保留type3与3%追加机会合并、最多两击；完整2ebe1流程则"
+           "独立的3%追加与type3各加一次，最多三击。type3追加在hit检查前确定，"
+           "实际target HP0停止后续击；不能以跳过画帧来切换结算模式。",
+    "why": "完整2ebe1/2f7b6及2ec34/2ecae/2ecc4/2ecd0/2ed0c/2ed14/2ed25/2ed2d"
+           "和2f97f..984原指令读集；本次只确认同一RNG流的不同原caller规则，"
+           "未将纯逻辑三击测试冒称原版已实际观测三击。"})
+
+# B6只补已读raw/xref/资源字段的依据；这些函数仍用IDA中性名，未确认ABI。
+_B6_NEUTRAL_EVIDENCE = {
+    0x2EB9F: (
+        "entry+8为part DWORD相对offset目录；part+0/+2是unsigned WORD绘制x/y，"
+        "图像宽高及RLE从part+9开始，交给4e98d。保留sub_2EB9F，不把坐标当宽高。",
+        "完整函数及2ebe1/2e9a8/30e9d等caller；真实408条目、2118part逐项边界/RLE复核。"
+        "合法三字节00000a空哨兵、intro_end大于count及duration0不据此一律判结构损坏。"),
+    0x2EBE1: (
+        "保留sub_2EBE1。完整物理流程先消费一次3%机会，再于首次2f7b6的type3标记"
+        "额外加一，最多三击；HP0中止后击。part+4非零分段写HP并夹0，+5为cue，"
+        "+6为本part绘制tick数，+7 bit0与side共同决定双层前后；idle计时器为byte，"
+        "不能把duration0偷换成统一1tick。split与普通布局走不同640/400stride。",
+        "完整raw/xref、5266c/52684抖动表和2f7b6输出；以canonical VA定位原分支。"
+        "输出结构只按原写集描述，不保存推断的C参数或结构类型；完整三击尚非原版运行验收。"),
+    0x2E2B0: (
+        "保留sub_2E2B0。完整物理场景按actor side及当前stage/terrain选择BG/TAI，"
+        "加载两方FIGANI idle和攻击条目，按split字段走2e9a8/2ebe1，并在原反击门后"
+        "交换双方继续；正常退出重取当前战场资源、重画地图和当前HP信息后渐亮。"
+        "共享pop epilogue2e956不是独立入口。",
+        "完整1707B、1548e/18d8c等caller及52470/526e3相关表；"
+        "terrain immune/profile例外与unit28分支直接来自原指令，不把stage0捕获当通用默认。"),
+    0x2F7B6: (
+        "保留sub_2F7B6。计算完整物理单击的miss/critical/status/type3及raw damage输出，"
+        "type3在命中前置标记；状态可在hit RNG前写入。玩家攻击敌方时按原门覆盖53ec8。"
+        "本函数局部算HP余量用于贡献，但目标HP实写由2ebe1的part marker驱动。",
+        "完整raw、唯一2ebe1 caller、装备effect2/3/4及1e856共享公式对照；"
+        "raw damage与HP夹0后的delta分开，未把单次formula测试提升为原版音画通过。"),
+    0x30E9D: (
+        "保留sub_30E9D。仅循环caster clip的intro_end；part+4精确1触发1ca89费用和"
+        "状态板重画，费用不是按目标或固定一次。part+6控制逐tick绘制，side决定"
+        "caster/idle先后，idle byte计时器自然回绕；duration0不执行本part内帧循环。",
+        "完整raw及2ff01 caller；68个player目录中52个一次、7个零次、3个两次、2个四次、"
+        "4个最终empty，unit9空29退28且只part6标记一次。该目录结论不扩大B2资格。"),
+    0x2B996: (
+        "保留sub_2B996。Magic0特效dispatch的phase3初始化7条错开的-2*j状态，"
+        "phase4/5按524ee层表分别绘制，phase5逐条加一，恰到9返回impact。"
+        "2ff01调用方在命中effect之后、下一target之前为7个impact各消费一次1-rand()%3；"
+        "RNG不在只读present层重抽。",
+        "完整4454B函数与2ff01/31266 callers；仅确认Magic0所用case3/4/5合同，"
+        "其它magic dispatch未据地址/函数大小命名或声称已实现。"),
+    0x21AD9: (
+        "保留sub_21AD9。恢复13入口先请求既有SFX11，再调用21eb1的(1,2)视觉序列，"
+        "随后转21b18并固定magic_id13；不能把这些演出步骤当作第二次恢复/扣费。",
+        "完整63B及1cff0调用分派、21eb1/21b18 callees；SFX是否实际播放仍经原25a96设置门。"),
+    0x21B18: (
+        "保留sub_21B18。清浮字队列53ec4，先收集/聚焦和actor flash，再于目标循环前"
+        "调用1ca89一次；逐raw目标执行恢复及1e0db入队。恢复原始量与夹顶后的HPdelta"
+        "分开，满HP仍可有非零浮字原量，不能重抽spread或重复提交业务。",
+        "完整函数raw/xref、13记录和1c916/1e0db写集；跳向21190的共用尾不臆造独立ABI。"),
+    0x21EB1: (
+        "保留sub_21EB1。工作页先生成terrain，9到1 LUT逐帧调用22046；"
+        "半径按caller步进，停200ms后用最后半径作3到9 LUT，尾部重画当前地图。"
+        "22046内部夹入actor/前景，不能以旧nearest/sqrt2几何或actor后统一mask替代。",
+        "完整405B、21ad9等caller及22046/219ad/CHP原码向量；只读合成不提交Game状态/RNG。"),
+    0x1DF58: (
+        "保留sub_1DF58。53ec4非零时保存工作页，22帧逐次恢复底页并绘制已入队glyph，"
+        "位置来自actor世界格及5202c固定纵向轨迹，帧后2ms，末500ms；无队列不播放。"
+        "此处消费显示队列，不重算伤害/恢复或消耗effect RNG。",
+        "完整387B与20c6f/2111a等caller、1e0db四glyph队列写集和5202c数据xref；"
+        "浮字轨迹与保存值/真实恢复净值分别登记。"),
+    0x1E0DB: (
+        "保留sub_1E0DB。仅按原视区条件为一个actor追加4个十进制glyph槽，"
+        "各槽有actor raw、5*i+2横移和字形索引；空白槽为0，53ec4加4。"
+        "数值是caller提供的原始量，不在此按HP变化重算。",
+        "完整257B及21b18/物品等caller；sprintf长度及offset写集不等于确认原C ABI或扩展队列容量。"),
+    0x219AD: (
+        "保留sub_219AD。圆扫描线先原sqrt，再乘caller scale除binary6410.0，"
+        "真实CHP临时RC向0并恢复CW；22046传16，2189a传12，两调用范围不能混为默认值。"
+        "strict y端点和半开x跨度裁到312乘192；不是nearest整数圆。",
+        "完整241B及22046/2189a caller，原37af4/3ca4c和501f0常数；"
+        "readset990a5773及vectors dc139308包含两个scale各65537向量和signed/CW复核。"),
+    0x2E9A8: (
+        "保留sub_2E9A8。按attacker side选择640stride工作页半边，i/j8到0以10px位移"
+        "引入idle/TAI，逐帧dac darkness6*i；普通与split层不同。2e956为共享返回尾，"
+        "不将跳转地址登记为新函数。",
+        "完整caller2e2b0与原指令，25a96音效门独立；逐通道减暗度不等于比例brightness。"),
+    0x2F4D4: (
+        "保留sub_2F4D4。split切换的一侧按9到0再9到0两段，使用BG0/1/2交替与"
+        "640stride工作页、32*i窗口偏移，中间清页重画actor信息和idle0。",
+        "完整函数及2ebe1 caller；与2f631方向/端点不同，不按相邻地址或大小推测ABI。"),
+    0x2F631: (
+        "保留sub_2F631。反向split切换按1到9再1到10两段，使用工作页另一半、"
+        "32*i偏移，并于中间清页重画背景/TAI/actor信息/idle0。",
+        "完整函数及2ebe1 caller，原首/末帧端点明确；不借2f4d4的10加10帧对称近似。"),
+    0x314DE: (
+        "保留sub_314DE。非NULL clip且header+4非0时，以selector-1索引6字节"
+        "ASCII 012345表，再按所得48到53号FDOTHER条目加载bank；0返回NULL。"
+        "合法已证selector1到6，原函数无额外上界门，重写预检不能越表猜bank。",
+        "完整75B、2e2b0/2ff01等caller及真实408目录selector分类；未确认值明确拒绝，"
+        "不根据bank文件大小邻近推断名称或音色。"),
+}
+for _va, (_now, _why) in _B6_NEUTRAL_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "未发布本次B6完整读集所确认的有限字段/时序",
+        "now": _now, "why": _why +
+        " 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。"
+        "仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。"})
+
+# B6后续FULL10：1..6是2b996内的dispatch窗口，不建立独立函数或猜测ABI。
+CORRECTIONS.setdefault(0x25B45, []).extend([{
+    "target": "semantic_name", "was": "pal_mask_set", "now": "sfx_play_secondary",
+    "why": "完整175B及2cafc/2ccf4/2ce1a等xref：与25a96相同的三门及"
+           "bank+6/+10取样流程，但固定AIL sample handle为53ee8而非53ee4。"
+           "先ail_end_sample，index非-1再init/address/loop/start，完全没有palette写入；"
+           "原pal_mask_set仅保留历史alias，不按函数大小或调用邻近命名。"}, {
+    "target": "evidence", "was": "调色板遮罩设置",
+    "now": "第二AIL handle的数字样本replace/stop。保留原53ef1/51e62/54133三门，"
+           "index=-1只停止；其它index按嵌套bank offset取u8无头样本并设置loop。"
+           "与primary独立，不能因为名称曾含pal而转为DAC操作。",
+    "why": "本次Domain完整25b45/25a96指令、字节及callers对照；参考data handle"
+           "53ee8/53ee4与AIL callees直接确认。仅更正函数语义名，不写类型/推断ABI。"}])
+_B6_FULL_FX_EVIDENCE = {
+    0x15311: (
+        "15311在id<10且byte53af9==0时进入2ff01完整演出，其余走effect表；"
+        "这不等于玩家1cff0的ID0配置分派。FULL费用沿caster FIGANI intro标记，"
+        "FX、effect、jitter仍共用原RNG；AI contribution只在1546a尾清零。",
+        "完整15311及2ff01/1cff0/1ca89读集，原153f1附近分支和1546a写点；"
+        "先前‘SDL仅无演出分支’是历史支持范围，不能当原版FULL无费用证据。"),
+    0x2FF01: (
+        "保留field_magic_battle_animation。524c6按id选择十个phase0..8 handler，"
+        "phase0/3/6返回循环数，1/2、4/5、7/8配对。状态跨全部target及31266九tick"
+        "过渡保留；不能逐target重新init。effect后保存after并恢复before，只有raw伤害非零"
+        "且phase5返回1才按526bc分母推进signed HP；达到分母后不再写HP，但每个后续"
+        "impact仍消费1-rand()%3。ID8后项可effect有伤害而没有impact，HP仍为before。",
+        "完整2ff01与31266原写序；526bc十字节为7/8/6/13/6/6/5/5/16/20，"
+        "不同于首target impact7/8/6/14/6/9/11/7/16/27。526c6只有side非零9项，"
+        "526cf为side0十项；ID9用真实44号31part，后续target会请求part31+，"
+        "SDL因此明确拒绝side非零9及9多target，不把越界draw stub当合法资源证据。"),
+    0x2B996: (
+        "保留sub_2B996及原函数边界。524c6的ID0..6窗口分别为2b996/2bb33/2bd6c/"
+        "2bfd9/2c217/2c441/2c67d，IDA均归此owner；已核全部phase0..8，不能再写仅Magic0。"
+        "ID4/5 phase0各消费6个原16bit RNG，首target main各4个，过渡及后target继续"
+        "同state并消费FX RNG；它们与effect hit/spread和impact jitter是不同调用点，"
+        "skip、emit=NULL和静音不能省略。",
+        "十dispatch原raw窗口与29组真实FX时长/原RNG/math局部机器向量；0..6"
+        "首impact为7/8/6/14/6/9/11，3/5/6后target分别可20/11/12。"
+        "2c67d使用原sin/cos/CHP常数及非对称位置交换，不凭伪C转换猜ABI。"),
+    0x2CAFC: (
+        "保留sub_2CAFC，524c6的ID7 owner。phase0设三条实际处理的age/slot及"
+        "共享flip/next；phase2/5/8每两次推进，slot按5261e十位置轮换。phase6设stop"
+        "只阻新slot，并继续16tick尾；main32tick，第一target7次impact、后续8次。"
+        "primary/secondary cue分别走25a96/25b45，没有FX RNG。",
+        "完整504B、524c6 xref及原phase窗口向量；方向由side调整x+130，"
+        "状态跨target/九tick过渡，不把返回impact次数误当HP分母5。"),
+    0x2CCF4: (
+        "保留sub_2CCF4，524c6的ID8 owner。phase0初始化16个-2*j age；phase2与5"
+        "绘制52646的part offset并推进age，恰++age==4返回impact。phase3仅返回34，"
+        "不会重置age；前导3tick/首target后状态保持，后target可0个impact。"
+        "age原值0/4分别提交primary1/secondary2 cue，无FX RNG。",
+        "完整294B及真实side0/2多target原kernel；首target16impact，后两target均0，"
+        "不能用effect raw after覆盖未由原impact写入的实际HP。"),
+    0x2CE1A: (
+        "保留sub_2CE1A，524c6的ID9 owner。phase0 frame=1，phase3只返回60；"
+        "phase5绘part(frame>>1)后递增byte，16<newframe<44返回impact，共27次；"
+        "frame6/36分别提交primary1/secondary2 cue。前导/收尾各20tick并切换blink，"
+        "不含FX RNG；不得把impact27当HP插值分母20。",
+        "完整278B与真实side0 FX44/31part局部向量；side非零表缺第十项、九tick"
+        "过渡后的多target会越真实目录，相关stub失败原件保留且不列为合法29向量。"),
+}
+for _va, (_now, _why) in _B6_FULL_FX_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "前批B6只发布Magic0或尚未发布FULL十handler的写序依据",
+        "now": _now, "why": _why +
+        " 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；"
+        "29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。"
+        "局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，"
+        "不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。"})
+
+
+# B6 C5真实地图演出核对：显示门由caller拥有，不把普通战斗返回页套到法术内部。
+_B6_EFFECT_DISPLAY_EVIDENCE = {
+    0x1CFF0: "成功目标确认后先令51A83=0并11cac(0)，随后进入FULL或map handler；死亡及loot处理后才恢复1。不能在恢复13的57..63或浮字底页强制画普通光标。",
+    0x2FF01: "正常尾部恢复地图时调用11cac(1)，该参数只控制刷新等待，不把51A83强制改1。玩家1cff0及AI15311均以51A83=0进入，故FULL法术返回页保持无cursor；物理2e2b0的显示上下文不同。",
+    0x15311: "聚焦施法中心后明确51A83=0，再分派2ff01或map effect；法术内部11cac返回页应沿caller的无cursor上下文，不能复用物理模式1返回页冒充。",
+    0x1548E: "物理caller在攻击目标聚焦前设置51A83=1，2e2b0正常尾11cac(1)因而保留普通cursor。玩家18d8c亦沿18890的1进入，不能为修法术内部多余cursor而全局删除物理返回cursor。",
+}
+for _va, _now in _B6_EFFECT_DISPLAY_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "战斗返回页统一强制普通cursor，未区分物理与法术caller显示上下文",
+        "now": _now,
+        "why": "完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。"})
+
+
 def write_checksums(directory: Path) -> None:
     import hashlib
 

@@ -270,6 +270,7 @@ static int test_phase_uses_shared_slot_and_clears_continuation(void) {
     g->pending_cell_event = (fd2_field_pending_cell_event){1, 99, 7};
     CHECK(fd2_field_game_finish_unit_action(g) == 0);
     CHECK(g->active_side == 1 && g->player_post_waiting_phase);
+    CHECK(g->ordinary_display_mode == 0); /* 13565等待AI整轮，不提前恢复cursor。 */
     CHECK(g->pending_cell_event.valid && g->pending_cell_event.action == 99);
     CHECK(fd2_field_game_resume_player_controller(g) == 1);
     fd2_field_game before = *g;
@@ -286,6 +287,7 @@ static int test_phase_uses_shared_slot_and_clears_continuation(void) {
     for (int guard = 0; g->active_side != 2 && guard < 8; guard++)
         CHECK(automatic_and_ack(g) == 1);
     CHECK(g->active_side == 2 && g->turn_number == 2);
+    CHECK(g->ordinary_display_mode == 1); /* 135ca最终恢复，与显式END分开。 */
     CHECK(!g->player_post_waiting_phase && !g->pending_cell_event.valid);
     CHECK(g->player_post_actor == 0 && g->event_log_count == 0 && f.rng_calls == 0);
     before = *g;
@@ -306,6 +308,7 @@ static int test_resume_reads_current_slot_original_actor_and_terminal(void) {
         /* 模拟已有phase写入当前slot；没有可用的成功cell handler，故未知时冻结。 */
         g->pending_cell_event = (fd2_field_pending_cell_event){1, 23, 4};
         CHECK(fd2_field_game_resume_player_controller(g) == -1);
+        CHECK(g->ordinary_display_mode == 1); /* terminal也先恢复，再分派当前slot。 */
         CHECK(g->failure_notice.unit_index == 2 && g->failure_notice.action == 23);
         CHECK(g->failure_notice.slot == 4 && g->failure_notice.x == 7);
         CHECK(g->player_post_waiting_phase && g->pending_cell_event.valid);
@@ -381,6 +384,18 @@ static int test_phase0_clear_precedes_event_and_status_failure(void) {
     return 0;
 }
 
+static int test_explicit_end_inherits_display_without_player_resume(void) {
+    for(uint8_t mode=0;mode<=1;mode++) {
+        fixture f;init(&f);fd2_field_game *g=&f.game;
+        g->ordinary_display_mode=mode;
+        CHECK(fd2_field_game_end_player_turn(g)==0 && !g->player_post_waiting_phase);
+        for(int guard=0;g->active_side!=2 && guard<8;guard++)CHECK(automatic_and_ack(g)==1);
+        CHECK(g->active_side==2 && g->turn_number==2 && g->ordinary_display_mode==mode);
+        CHECK(f.rng_calls==0);close_fixture(&f);
+    }
+    return 0;
+}
+
 int main(void) {
     if (test_zero_movement_command_and_cancel() ||
         test_full_path_last_match_and_cancel() ||
@@ -390,7 +405,8 @@ int main(void) {
         test_phase_uses_shared_slot_and_clears_continuation() ||
         test_phase_overwrites_player_slot_before_unknown_handler() ||
         test_phase0_clear_precedes_event_and_status_failure() ||
-        test_resume_reads_current_slot_original_actor_and_terminal()) return 1;
+        test_resume_reads_current_slot_original_actor_and_terminal() ||
+        test_explicit_end_inherits_display_without_player_resume()) return 1;
     puts("field_player_controller_test: ok");
     return 0;
 }

@@ -19,6 +19,8 @@ from run_original_magic_list import actor_focus_resources
 from run_original_player import acted_sprite, cursor_assets, exact_tile, screen, sheet_frame
 from run_original_reward import actor_view
 
+STAGE_DIMENSIONS = {0: (24, 24), 1: (27, 21), 2: (18, 26)}
+
 
 def actor(source, raw):
     if not 0 <= raw < source[META + 1]: raise ValueError("自然动作raw超出实际snapshot")
@@ -33,10 +35,14 @@ def view(source, world, camera=None):
     return result
 
 
-def validate_plan(plan, source):
+def validate_plan(plan, source, *, stage=0):
+    if stage not in (0, 1):
+        raise ValueError("自然规划仅已开放stage0/1；stage2初始活动不是整关支持")
+    width, height = STAGE_DIMENSIONS[stage]
     if (len(source) != 0x59cb or sum(source[:-4]) != int.from_bytes(source[-4:], "little") or
-            source[META + 2] != 0 or not 1 <= source[META + 1] <= 96 or not 1 <= source[META + 9] <= 32):
-        raise ValueError("自然规划需要完整checksum有效的实际stage0活动Save")
+            source[META + 2] != stage or not (11 if stage == 1 else 1) <= source[META + 1] <= 96 or
+            not 1 <= source[META + 9] <= 32):
+        raise ValueError("自然规划需要完整checksum有效且私有结果handler安全的实际stage活动Save")
     if (plan.get("planning_only") is not True or plan.get("original_acceptance") is not False or
             plan.get("query_side_effects") is not False or plan.get("source_turn") != source[META] or
             plan.get("source_active_count") != source[META + 1] or plan.get("source_roster_count") != source[META + 9]):
@@ -53,8 +59,8 @@ def validate_plan(plan, source):
         if record[6] != 2 or record[5] & 0x81 or record[0x26] or not int.from_bytes(record[0x40:0x42], "little"):
             raise ValueError("planner尝试操控不可行动的实际玩家")
         destination = action["destination"]
-        if len(destination) != 2 or any(not isinstance(x, int) or not 0 <= x < 24 for x in destination):
-            raise ValueError("自然目的地超出已确认24x24首关")
+        if len(destination) != 2 or any(type(x) is not int or not 0 <= x < limit for x, limit in zip(destination, (width, height))):
+            raise ValueError("自然目的地超出此stage原地图")
         if index:
             if action["kind"] != "wait":
                 raise ValueError("REST-tail必须是同轮剩余actor的WAIT")
@@ -70,8 +76,8 @@ def validate_plan(plan, source):
                 for direction in path:
                     x += (0, -1, 0, 1)[direction]
                     y += (1, 0, -1, 0)[direction]
-                    if not 0 <= x < 24 or not 0 <= y < 24:
-                        raise ValueError("REST主角query路径越出首关边界")
+                    if not 0 <= x < width or not 0 <= y < height:
+                        raise ValueError("REST主角query路径越出此stage边界")
                 if [x, y] != destination:
                     raise ValueError("REST主角query路径终点不同于目的地")
         disabled = action["command_disabled"]
@@ -252,10 +258,13 @@ def actor_browse_anywhere(frame, original, source, assets, raw=0, *, acted=None)
     if acted is not None:
         state[UNITS + raw * STRIDE + 5] = (state[UNITS + raw * STRIDE + 5] & 0x7f) | (0x80 if acted else 0)
     world = tuple(actor(state, raw)[:2]); found = []
+    dimensions = STAGE_DIMENSIONS.get(source[META + 2])
+    if dimensions is None: raise ValueError("焦点资源只已确认stage0/1及stage2初图")
+    width, height = dimensions
     for ry in range(8):
         for rx in range(13):
             camera = (world[0] - rx, world[1] - ry)
-            if not 0 <= camera[0] <= 11 or not 0 <= camera[1] <= 16: continue
+            if not 0 <= camera[0] <= width - 13 or not 0 <= camera[1] <= height - 8: continue
             candidate = view(state, world, camera)
             hit = focus_match(frame, original, candidate, assets)
             if hit and acted:
@@ -314,7 +323,9 @@ def command_match(frame, original, source, assets, raw, selected, disabled=None)
 
 
 def navigation(source, target):
-    reference = native_focus_reference(tuple(source[META + 3:META + 5]), tuple(source[META + 5:META + 7]), target)
+    dimensions = STAGE_DIMENSIONS.get(source[META + 2])
+    if dimensions is None: raise ValueError("逐格焦点只已确认stage0/1及stage2初图")
+    reference = native_focus_reference(tuple(source[META + 3:META + 5]), tuple(source[META + 5:META + 7]), target, dimensions)
     previous = tuple(source[META + 5:META + 7]); result = []
     for step in reference["steps"]:
         world = tuple(step["world"])
@@ -343,12 +354,22 @@ def _range_rectangle(position, panels):
     return max(boxes, key=lambda box: (box[2]-box[0])*(box[3]-box[1]), default=None)
 
 
+def _stage_map(original, source):
+    stage = source[META + 2]
+    if stage not in STAGE_DIMENSIONS:
+        raise ValueError("自然资源门只已确认stage0/1及stage2初始活动图")
+    field = (original / "FDFIELD.DAT").read_bytes()
+    data, meta = archive_entry(field, 3 * stage), archive_entry(field, 3 * stage + 1)
+    width, height = struct.unpack_from("<HH", data)
+    if (width, height) != STAGE_DIMENSIONS[stage] or len(data) != 4 + width * height * 4:
+        raise ValueError("自然资源门地图尺寸/完整长度不等于原stage记录")
+    return data, meta, width, height
+
+
 def range_probe(original, source, assets, raw, *, radius=None, minimum=0, allow_empty=False, physical_third_actors=()):
     """干燥地形的完整可见矩形正门；移动只用可达首步，cast沿profile0全1。"""
     unit = actor(source, raw); world = tuple(unit[:2])
-    field = (original / "FDFIELD.DAT").read_bytes(); data, meta = archive_entry(field, 0), archive_entry(field, 1)
-    width, height = struct.unpack_from("<HH", data)
-    if (width, height) != (24, 24): raise ValueError("自然范围只覆盖首关24x24")
+    data, meta, width, height = _stage_map(original, source)
     shape = (original / "FDSHAP.DAT").read_bytes(); tiles, attrs = archive_entry(shape, 2*meta[0]), archive_entry(shape, 2*meta[0]+1)
     profile, _ = movement_profile(original / "FD2.EXE", unit[0x20] if radius is None else 0)
     if radius is not None and profile != bytes([1])*20: raise ValueError("自然cast需已证全1 profile0")
@@ -376,8 +397,8 @@ def range_probe(original, source, assets, raw, *, radius=None, minimum=0, allow_
         for i in range(source[META+1]) if not actor(source,i)[5]&1]
     for head in heads:head[2] -= 6
     candidates = [];occupied_candidates=[]
-    for y in range(max(0,source[META+4]),min(24,source[META+4]+8)):
-        for x in range(max(0,source[META+3]),min(24,source[META+3]+13)):
+    for y in range(max(0,source[META+4]),min(height,source[META+4]+8)):
+        for x in range(max(0,source[META+3]),min(width,source[META+3]+13)):
             distance = abs(x-world[0])+abs(y-world[1])
             if radius is None and distance != 1 or radius is not None and not minimum <= distance <= radius: continue
             occupant=next((i for i in physical_third_actors if i!=raw and
@@ -614,14 +635,14 @@ def round_banner(original, assets, turn):
 
 def empty_tile(original, source, assets, frame):
     """从本端当前WGC选择可见干燥空格，随后才导航/开菜单，不猜AI位置。"""
-    field=(original/"FDFIELD.DAT").read_bytes();data,meta=archive_entry(field,0),archive_entry(field,1)
+    data,meta,width,height=_stage_map(original,source)
     shape=(original/"FDSHAP.DAT").read_bytes();tiles,attrs=archive_entry(shape,2*meta[0]),archive_entry(shape,2*meta[0]+1)
     origin=tuple(source[META+5:META+7]);choices=[]
     for ry in range(2,6):
         for rx in range(2,11):
             world=(source[META+3]+rx,source[META+4]+ry)
-            if not 0<=world[0]<24 or not 0<=world[1]<24:continue
-            cell=struct.unpack_from("<I",data,4+(24*world[1]+world[0])*4)[0];index=cell&1023
+            if not 0<=world[0]<width or not 0<=world[1]<height:continue
+            cell=struct.unpack_from("<I",data,4+(width*world[1]+world[0])*4)[0];index=cell&1023
             if cell>>10 or index*4+4>len(attrs) or attrs[index*4]:continue
             image=sheet_frame(tiles,index);pixels=bytes(image.getdata())
             if 0 in pixels or any(224<=p<240 for p in pixels):continue

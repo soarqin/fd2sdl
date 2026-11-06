@@ -114,6 +114,7 @@ ea	name	is_func	is_public
 0x1bffe	field_unit_equipment_menu_execute	1	0
 0x1c142	field_unit_equipment_slot_set	1	0
 0x1c1c3	field_unit_can_equip_item	1	0
+0x1c220	field_party_item_append	1	0
 0x1c269	field_unit_magic_list_build	1	0
 0x1c2da	field_actor_group_flash	1	0
 0x1c75e	field_magic_damage_profile_apply	1	0
@@ -155,6 +156,7 @@ ea	name	is_func	is_public
 0x2218a	field_actor_teleport_execute	1	0
 0x22e5c	field_defeat_game_over_present	1	0
 0x22ef6	field_stage0_victory_execute	1	0
+0x22f37	field_stage1_victory_play	1	0
 0x233c6	field_cutscene_setup_units_camera	1	0
 0x236a6	unknown_libname_1	0	0
 0x23f21	unknown_libname_2	0	0
@@ -182,6 +184,7 @@ ea	name	is_func	is_public
 0x32975	field_actor_hide	1	0
 0x32999	field_actor_group_arrival_effect	1	0
 0x32d18	field_stage1_entry_play	1	0
+0x32e8c	field_stage2_entry_play	1	0
 0x344f2	field_actor_range_status_set	1	0
 0x34531	field_stage0_31_turn_action0	1	0
 0x3460b	field_stage0_31_turn_action1	1	0

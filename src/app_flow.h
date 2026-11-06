@@ -61,7 +61,7 @@ typedef enum {
     FD2_APP_PREPARE_LEAVE_GAME = 3
 } fd2_app_prepare_result;
 fd2_app_flow fd2_app_flow_from_prepare(fd2_app_prepare_result result);
-/* play仅在stage0完整结算后返回胜利，并导出stage1准备owner。
+/* play仅在stage0/1完整结算后返回胜利，并导出已验证stage1/2准备owner。
  * active Load可跨关，不能再用进入play前的stage重复分派；gameover已播完。 */
 fd2_app_flow fd2_app_flow_after_battle(fd2_app_field_result result,
     int prepared_stage);

@@ -105,15 +105,15 @@ static int test_stage1(void) {
     free(g);fd2_archive_close(&ar);return 0;
 }
 static int test_script_bytes(void) {
-    /* 与原始EXE连续193B独立比对；canonicalVA62a3d对应已核file7ba51。 */
-    const size_t sizes[5]={49,25,35,39,45};
-    uint8_t bytes[193];FILE*f=fopen("original_game/FD2.EXE","rb");CHECK(f);
+    /* 与原始EXE连续299B独立比对；canonicalVA62a3d对应已核file7ba51。 */
+    const size_t sizes[11]={49,25,35,39,45,5,13,25,21,15,27};
+    uint8_t bytes[299];FILE*f=fopen("original_game/FD2.EXE","rb");CHECK(f);
     CHECK(!fseek(f,0x7ba51L,SEEK_SET) && fread(bytes,1,sizeof(bytes),f)==sizeof(bytes));CHECK(!fclose(f));
-    size_t at=0;for(size_t i=0;i<5;i++){const uint8_t*script=NULL;size_t size=0;
+    size_t at=0;for(size_t i=0;i<11;i++){const uint8_t*script=NULL;size_t size=0;
         CHECK(fd2_field_movement_script_get((uint8_t)(9+i),&script,&size)==0 && size==sizes[i]);
         CHECK(!memcmp(script,bytes+at,size));at+=size;}
     const uint8_t*script=(const uint8_t*)1;size_t size=1;
-    CHECK(fd2_field_movement_script_get(14,&script,&size)==-1 && !script && !size);
+    CHECK(fd2_field_movement_script_get(20,&script,&size)==-1 && !script && !size);
     return 0;
 }
 static int test_group_landing(void){
@@ -132,4 +132,80 @@ static int test_group_landing(void){
     units=before;t.bytes[1]=255;CHECK(fd2_field_units_append_group_placed(&units,&m,&p,&map,1,0)==-1);
     CHECK(!memcmp(&units,&before,sizeof(units)));return 0;
 }
-int main(void){CHECK(test_settlement()==0);CHECK(test_stage1()==0);CHECK(test_script_bytes()==0);CHECK(test_group_landing()==0);puts("field_stage_transition: settlement shadow/commit and real stage1 entry passed");return 0;}
+static int test_stage1_settlement_stage2(void) {
+    fd2_archive ar={0};CHECK(fd2_archive_open(&ar,"original_game/FDOTHER.DAT")==0);
+    fd2_save_manual_state state={0};state.stage_id=1;state.unit_count=5;state.gold_or_flags=321;
+    memset(state.unit_area,0x5a,sizeof(state.unit_area));
+    const uint8_t ids[5]={0,9,4,30,1};
+    for(size_t i=0;i<5;i++) {
+        fd2_field_unit u={0};CHECK(fd2_field_unit_persistent_create(&u,ids[i])==0);
+        memcpy(state.unit_area+i*sizeof(u),&u,sizeof(u));
+    }
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
+    CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
+    fd2_field_units projected,prior;memset(&projected,0x3d,sizeof(projected));prior=projected;
+    for(size_t i=11;i<21;i++)g->units.items[i].flags|=1;
+    CHECK(fd2_field_game_settlement_project_units(g,&projected)==-1);
+    CHECK(!memcmp(&projected,&prior,sizeof(prior))); /* 未经turn3必经事件不得提前结算。 */
+    fd2_field_game_close(g);CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
+    g->turn_number=3;CHECK(fd2_field_game_end_active_phase(g)==0 && g->units.count==27);
+    g->event_log[0].presentation_deferred=0;CHECK(fd2_field_game_progress_resume(g)==0);
+    for(size_t i=11;i<27;i++)g->units.items[i].flags|=1;
+    /* 奖励可给hidden玩家；raw0全满，raw1首空为slot3。 */
+    for(size_t i=0;i<g->units.count;i++)for(size_t slot=0;slot<8;slot++) {
+        uint8_t *r=(uint8_t*)&g->units.items[i];r[10+2*slot]=0;r[11+2*slot]=192;
+    }
+    g->units.items[1].flags|=1;((uint8_t*)&g->units.items[1])[16]=0x80;
+    fd2_field_units before=g->units;
+    CHECK(fd2_field_game_settlement_project_units(g,&projected)==0 && projected.count==28);
+    CHECK(!memcmp(&g->units,&before,sizeof(before)));
+    CHECK(((uint8_t*)&projected.items[1])[16]==0 && ((uint8_t*)&projected.items[1])[17]==198);
+    for(size_t i=0;i<5;i++)CHECK(projected.items[i].direction==0);
+    CHECK(projected.items[27].unit_id==8 && projected.items[27].direction==2);
+    fd2_save_manual_state out;memset(&out,0x6b,sizeof(out));
+    CHECK(fd2_field_game_settlement_prepare(g,&out)==0 && out.stage_id==2 && out.unit_count==6);
+    CHECK(out.gold_or_flags==321 && !memcmp(g->roster,state.unit_area,sizeof(g->roster)));
+    const fd2_field_unit *roster=(const fd2_field_unit*)out.unit_area;
+    CHECK(roster[5].unit_id==8 && roster[5].hp==roster[5].hp_max && roster[5].direction==2);
+    CHECK(!memcmp(out.unit_area+6*80,state.unit_area+6*80,sizeof(state.unit_area)-6*80));
+    /* 有村民死亡：fragment7分支不追加198；背包全满也必须静默保留库存。 */
+    g->units.items[5].flags|=1;
+    CHECK(fd2_field_game_settlement_project_units(g,&prior)==0 && ((uint8_t*)&prior.items[1])[16]==0x80);
+    g->units.items[5].flags&=(uint8_t)~1u;((uint8_t*)&g->units.items[1])[16]=0;
+    CHECK(fd2_field_game_settlement_project_units(g,&prior)==0);
+    for(size_t i=0;i<27;i++)CHECK(!memcmp((uint8_t*)&prior.items[i]+10,(uint8_t*)&g->units.items[i]+10,16));
+    ((uint8_t*)&g->units.items[1])[16]=0x80;
+    /* 坏group4装备、满roster均在写out和live之前拒绝。 */
+    size_t index=0;while(index<g->metadata.unit_template_count && g->metadata.unit_templates[index].bytes[0x15]!=4)index++;
+    CHECK(index<g->metadata.unit_template_count);
+    uint8_t equipment=g->metadata.unit_templates[index].bytes[5];g->metadata.unit_templates[index].bytes[5]=215;
+    fd2_save_manual_state oldout=out;
+    CHECK(fd2_field_game_settlement_commit(g,&out)==-1 && !memcmp(&oldout,&out,sizeof(out)) && g->ready);
+    g->metadata.unit_templates[index].bytes[5]=equipment;g->roster_count=32;
+    CHECK(fd2_field_game_settlement_prepare(g,&out)==-1 && !memcmp(&oldout,&out,sizeof(out)));
+    g->roster_count=5;CHECK(fd2_field_game_settlement_commit(g,&out)==0 && !g->ready && g->stage==2 && g->roster_count==6);
+    CHECK(fd2_field_game_settlement_commit(g,&out)==-1);
+    fd2_field_game_close(g);
+    CHECK(fd2_field_game_validate_manual_state(&out)==0);
+    CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==0);
+    CHECK(g->stage==2 && g->units.count==15 && g->roster_count==6 && g->map.width==18 && g->map.height==26);
+    CHECK(g->metadata.shape_index==2 && g->metadata.unknown_01==6 && g->metadata.unit_template_count==40);
+    CHECK(g->stage_runtime_entry_offset==0x23ac && g->ordinary_display_mode==1);
+    CHECK(!memcmp(g->roster,out.unit_area,sizeof(g->roster)) && (g->units.items[1].flags&1u));
+    for(size_t i=0;i<15;i++)CHECK(g->units.items[i].direction==0);
+    fd2_save_battle_snapshot snap;memset(&snap,0xa6,sizeof(snap));
+    CHECK(fd2_field_game_export_battle_snapshot(g,&snap)==0);
+    CHECK(fd2_field_game_import_battle_snapshot(g,&snap)==0 && g->stage_runtime_entry_offset==0x23ac);
+    CHECK(g->ordinary_display_mode==1 && !memcmp(g->roster,out.unit_area,sizeof(g->roster)));
+    /* 第二关已确认入口/浏览/存读档，未知turn3事件不由按钮或自动WAIT绕过。 */
+    prior=g->units;uint32_t turn=g->turn_number;uint8_t side=g->active_side;
+    CHECK(fd2_field_game_end_player_turn(g)==-1 && g->turn_number==turn && g->active_side==side);
+    CHECK(fd2_field_game_begin_player_controller(g,0)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
+    CHECK(fd2_field_game_complete_player_controller(g,0)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
+    snap.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=14;prior=g->units;
+    CHECK(fd2_field_game_import_battle_snapshot(g,&snap)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
+    fd2_field_game_close(g);out.unit_count=17;
+    CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==-1 && !g->ready && !g->map.cells);
+    free(g);fd2_archive_close(&ar);return 0;
+}
+int main(void){CHECK(test_settlement()==0);CHECK(test_stage1()==0);CHECK(test_script_bytes()==0);CHECK(test_group_landing()==0);CHECK(test_stage1_settlement_stage2()==0);puts("field_stage_transition: settlement projections, village branches and real stage1/2 entries passed");return 0;}

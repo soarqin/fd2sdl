@@ -75,11 +75,12 @@ static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
             int result = fd2_field_prepare_run(vga, fdother, context, save_path, audio);
             flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
             if (flow != FD2_APP_FLOW_BATTLE) break;
-            if (!context->has_preparation || context->preparation.stage_id != 1u)
+            if (!context->has_preparation ||
+                (context->preparation.stage_id != 1u && context->preparation.stage_id != 2u))
                 return FD2_APP_FLOW_ERROR;
-            stage = 1; handoff = NULL; load_active = 0;
+            stage = context->preparation.stage_id; handoff = NULL; load_active = 0;
         }
-        if (stage > 1u) return FD2_APP_FLOW_ERROR;
+        if (stage != 0u && stage != 1u && stage != 2u) return FD2_APP_FLOW_ERROR;
         fd2_field_play_result result = fd2_field_play_run_context(vga, fdother,
             stage, 0, handoff, audio, save_path, load_active, context);
         flow = fd2_app_flow_after_battle((fd2_app_field_result)result,
@@ -985,7 +986,9 @@ application_title:
             int title_continue_available =
                 fd2_save_file_open(&title_save, save_path) == 0 &&
                 fd2_save_file_get_battle_snapshot(&title_save, &title_snapshot) == 0 &&
-                title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] <= 1u;
+                (title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u ||
+                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 1u ||
+                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 2u);
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
                 &vga, bgm, title_audio_ptr, first_title, title_continue_available);
@@ -1013,7 +1016,9 @@ application_title:
                 fd2_save_file save = {0}; fd2_save_battle_snapshot snapshot;
                 if (fd2_save_file_open(&save, save_path) != 0 ||
                     fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
-                    snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] > 1u) {
+                    (snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 0u &&
+                     snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 1u &&
+                     snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 2u)) {
                     fprintf(stderr, "活动快照无法恢复：%s\n", save_path);
                     flow = FD2_APP_FLOW_ERROR;
                 } else {

@@ -1775,7 +1775,7 @@
      "status": "exact",
      "func_start": 154437,
      "func_end": 154612,
-     "ida_name": "pal_mask_set",
+     "ida_name": "sfx_play_secondary",
      "offset_in_func": 0,
      "is_lib": false
     },
@@ -1785,7 +1785,7 @@
      "status": "exact",
      "func_start": 154437,
      "func_end": 154612,
-     "ida_name": "pal_mask_set",
+     "ida_name": "sfx_play_secondary",
      "offset_in_func": 0,
      "is_lib": false
     }
@@ -1793,8 +1793,8 @@
    "resolution": "exact",
    "canonical_va": 154437,
    "legacy_body_va": null,
-   "ida_name": "pal_mask_set",
-   "note": "via ghidra-name FUN_+0x28b8 -> pal_mask_set"
+   "ida_name": "sfx_play_secondary",
+   "note": "via ghidra-name FUN_+0x28b8 -> sfx_play_secondary"
   },
   {
    "line_no": 64,
@@ -4945,7 +4945,7 @@
      "status": "exact",
      "func_start": 168704,
      "func_end": 169504,
-     "ida_name": "field_manual_slot_dispatch",
+     "ida_name": "field_hotel_menu_execute",
      "offset_in_func": 0,
      "is_lib": false
     },
@@ -4965,7 +4965,7 @@
      "status": "exact",
      "func_start": 168704,
      "func_end": 169504,
-     "ida_name": "field_manual_slot_dispatch",
+     "ida_name": "field_hotel_menu_execute",
      "offset_in_func": 0,
      "is_lib": false
     }
@@ -4973,8 +4973,8 @@
    "resolution": "exact",
    "canonical_va": 168704,
    "legacy_body_va": null,
-   "ida_name": "field_manual_slot_dispatch",
-   "note": "via evidence code0+0x10000 -> field_manual_slot_dispatch"
+   "ida_name": "field_hotel_menu_execute",
+   "note": "via evidence code0+0x10000 -> field_hotel_menu_execute"
   },
   {
    "line_no": 137,
@@ -4990,7 +4990,7 @@
      "status": "exact",
      "func_start": 169504,
      "func_end": 169613,
-     "ida_name": "sub_29620",
+     "ida_name": "field_roster_detail_select",
      "offset_in_func": 0,
      "is_lib": false
     },
@@ -5008,8 +5008,8 @@
    "resolution": "exact",
    "canonical_va": 169504,
    "legacy_body_va": null,
-   "ida_name": "sub_29620",
-   "note": "via address-cell literal -> sub_29620"
+   "ida_name": "field_roster_detail_select",
+   "note": "via address-cell literal -> field_roster_detail_select"
   },
   {
    "line_no": 138,
@@ -6855,7 +6855,7 @@
      "status": "interior",
      "func_start": 169504,
      "func_end": 169613,
-     "ida_name": "sub_29620",
+     "ida_name": "field_roster_detail_select",
      "offset_in_func": 50,
      "is_lib": false
     },

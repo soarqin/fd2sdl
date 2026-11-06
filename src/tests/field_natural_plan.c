@@ -65,8 +65,19 @@ static int potential_units(const fd2_field_game *g, fd2_field_units *out) {
     static const struct {size_t before,after;uint8_t group,script;} steps[]={
         {12,13,3,7},{13,14,7,8},{14,18,4,3},{18,23,5,4},{23,27,6,6}
     };
-    if(!g || !out || g->stage!=0 || g->units.count<12 || g->units.count>27)return -1;
+    if(!g || !out || g->stage>1 || g->units.count>27)return -1;
     *out=g->units;
+    if(g->stage==1) {
+        if(out->count!=21 && out->count!=27)return -1;
+        if(out->count==21) {
+            const uint8_t *script;size_t size;
+            if(fd2_field_units_append_group_placed(out,&g->metadata,&g->placements,&g->map,3,1)!=0 ||
+                out->count!=27 || fd2_field_movement_script_get(13,&script,&size)!=0 ||
+                fd2_field_movement_script_apply(out,script,size)!=0)return -1;
+        }
+        return 0;
+    }
+    if(out->count<12)return -1;
     for(size_t i=0;i<sizeof(steps)/sizeof(steps[0]);i++) {
         if(out->count>=steps[i].after)continue;
         if(out->count!=steps[i].before)return -1;
@@ -147,7 +158,7 @@ static void consider(natural_choices *choices, natural_action action) {
 
 static int choose(const fd2_field_game *g, natural_choices *choices) {
     memset(choices,0,sizeof(*choices));
-    if(g->stage!=0 || g->active_side!=2 || g->failure || g->interaction!=FD2_FIELD_INTERACTION_BROWSE ||
+    if(g->stage>1 || g->active_side!=2 || g->failure || g->interaction!=FD2_FIELD_INTERACTION_BROWSE ||
         g->loot.source || g->progress.resume || g->progress.notice.kind || g->player_post_waiting_phase)return -1;
     fd2_field_units potential;if(potential_units(g,&potential)!=0)return -1;
     int tank=-1; unsigned highest_dp=0;
@@ -445,9 +456,9 @@ int main(int argc,char **argv) {
     fd2_save_file save={0};fd2_save_battle_snapshot snapshot;fd2_archive fdother={0};fd2_field_game *g=calloc(1,sizeof(*g));
     int rc=1;
     if(!g || fd2_save_file_open(&save,path)!=0 || fd2_save_file_get_battle_snapshot(&save,&snapshot)!=0 ||
-        snapshot.meta[2]!=0 || fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")!=0 ||
-        fd2_field_game_open_resources(g,&fdother,0)!=0 || fd2_field_game_import_battle_snapshot(g,&snapshot)!=0) {
-        fprintf(stderr,"活动存档或第一关资源无效，未规划/未写入。\n");goto done;
+        snapshot.meta[2]>1 || fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")!=0 ||
+        fd2_field_game_open_resources(g,&fdother,snapshot.meta[2])!=0 || fd2_field_game_import_battle_snapshot(g,&snapshot)!=0) {
+        fprintf(stderr,"活动存档或已支持的关卡资源无效，未规划/未写入。\n");goto done;
     }
     fd2_field_rng rng;fd2_field_rng_seed(&rng,(uint16_t)seed);
     if(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,fd2_field_rng_next,&rng)!=0)goto done;

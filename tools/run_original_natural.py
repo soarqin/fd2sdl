@@ -44,14 +44,14 @@ class NaturalStopped(RuntimeError):
     pass
 
 
-def read_plan(planner, root, save):
+def read_plan(planner, root, save, *, stage=0):
     before, stamp = save.read_bytes(), save.stat().st_mtime_ns
     result = subprocess.run([str(planner), "--save", str(save.resolve())], cwd=root,
         text=True, encoding="utf-8", errors="strict", stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
     require_source_unchanged(save, before, stamp)
     if result.returncode: raise NaturalStopped("只读planner失败：" + result.stderr.strip())
     plan = json.loads(result.stdout)
-    validate_plan(plan, decode_save(save))
+    validate_plan(plan, decode_save(save), stage=stage)
     return plan
 
 
@@ -69,9 +69,13 @@ def sparse_match(frame, page, matcher, assets):
 
 class ProgressReader:
     """本首关有限的资源事件；只有已确认等键页才发送一键。"""
-    def __init__(self, original, source, assets, report):
+    def __init__(self, original, source, assets, report, *, stories=None, victory_fragment=9, cell_contract=None,
+            nonphase_story_fragments=(8, 9)):
         self.original, self.source, self.assets, self.report = original, source, assets, report
-        self.stories = stage0_pages(original, assets)
+        self.stories = stage0_pages(original, assets) if stories is None else stories
+        self.victory_fragment = victory_fragment
+        self.cell_contract = cell_contract
+        self.nonphase_story_fragments = nonphase_story_fragments
         self.rewards = required_reward_pages(original, assets, source)
         self.fragments = {fragment: [p for p in self.stories if p["fragment"] == fragment]
                           for fragment in sorted({p["fragment"] for p in self.stories})}
@@ -82,7 +86,7 @@ class ProgressReader:
         self.loot = []
         self.victory_text_complete = False
         self.defeat = result_templates(original, assets)
-        metadata = archive_entry((original / "FDFIELD.DAT").read_bytes(), 1)
+        metadata = archive_entry((original / "FDFIELD.DAT").read_bytes(), 3 * source[META + 2] + 1)
         portrait_ids={actor(source,i)[7] for i in range(source[META+1]) if actor(source,i)[6]==2 and not actor(source,i)[5]&1}
         portrait_ids.update(metadata[i+1] for i in range(0x83,len(metadata),26) if metadata[i] in (1,2))
         descriptors = {bytes(actor(source, i)[0x31:0x34]) for i in range(source[META + 1])}
@@ -112,7 +116,7 @@ class ProgressReader:
         cell_mode, cell_param = struct.unpack_from("<BH", metadata, 0x53 + index * 3)
         if (mode,parameter) != (cell_mode,cell_param): raise ValueError("planner特殊格参数不等于真实Save metadata")
         from fd2_loot_oracle import cell_contract
-        contract = cell_contract(self.original, tuple(action["destination"]))
+        contract = (cell_contract if self.cell_contract is None else self.cell_contract)(self.original, tuple(action["destination"]))
         chest = bool(contract["terrain_flags"] & 0x20)
         question = 421 if chest else 428
         result = (422 if chest else 429) if mode == 0 else (426 if chest else 430)
@@ -174,7 +178,7 @@ class ProgressReader:
             if self.story is None: self.story = (self.fragments[page["fragment"]],0)
             pages,index=self.story
             self.story=(pages,index+1) if index+1<len(pages) else None
-            if self.story is None and page["fragment"]==9:self.victory_text_complete=True
+            if self.story is None and page["fragment"]==self.victory_fragment:self.victory_text_complete=True
         elif signature[0]=="reward":
             if page["fragment"]==489:
                 # 1e292先489，再按1e529非零字段顺序等待；累计旧行不是新通知。
@@ -193,7 +197,9 @@ def navigate(capture, original, source, assets, bank, destination, checkpoint, p
     return source
 
 
-def save_active(capture, original, state, assets, bank, save, guard, report, checkpoint, prefix):
+def save_active(capture, original, state, assets, bank, save, guard, report, checkpoint, prefix, *, stage=0):
+    if stage not in (0, 1) or state[META + 2] != stage:
+        raise NaturalStopped("自然活动保存只开放此实际stage0/1；stage2不得借用END路径")
     tile=empty_tile(original,state,assets,capture.last)
     state=navigate(capture,original,state,assets,bank,tile["world"],checkpoint,prefix+"-to-empty")
     at=screen(state,tile["world"])
@@ -208,8 +214,9 @@ def save_active(capture, original, state, assets, bank, save, guard, report, che
     capture.key("ENTER");measured=wait_measured_save(save,*guard)
     guard[:]=[save.read_bytes(),save.stat().st_mtime_ns]
     checkpoint(prefix+"-saved-browse",menu.closed_browse)
-    if measured[META+2]!=0 or measured[META+1]>96 or measured[META+9]>32:
-        raise NaturalStopped("实际活动Save不是合法stage0；不再规划")
+    if (measured[META+2]!=stage or not (11 if stage == 1 else 1)<=measured[META+1]<=96 or
+            not 1<=measured[META+9]<=32 or sum(measured[:-4])!=int.from_bytes(measured[-4:],"little")):
+        raise NaturalStopped("实际活动Save不是checksum有效且私有handler安全的此stage；不再规划")
     if measured[0x312b:-4]!=before[0x312b:-4]:raise AssertionError("自然活动Save改写手工槽未知区域")
     if list(measured[META+3:META+9])!=list(state[META+3:META+9]):raise AssertionError("实际Save的camera/focus与逐键资源导航不同")
     if any(actor(measured,i)[5]&0x80 for i in range(measured[META+1]) if not actor(measured,i)[5]&1):
@@ -419,7 +426,7 @@ def wait_progress(capture, original, state, source_turn, assets, reader, report,
         if detail["kind"]=="natural_actual_defeat":
             raise NaturalStopped("实际自然战斗败北；完整资源检查点已保存，不重开或重抽RNG")
         if detail["kind"]=="natural_required_message":
-            if not phase and detail["signature"][0]=="story" and detail["signature"][1] not in (8,9):
+            if not phase and detail["signature"][0]=="story" and detail["signature"][1] not in getattr(reader,"nonphase_story_fragments",(8,9)):
                 raise NaturalStopped("非phase特殊剧情焦点合同未覆盖；未发送猜测ACK，未放宽完成格")
             reader.acknowledge(capture,detail,checkpoint)
         elif detail["kind"]=="natural_victory_dialogue_complete":return None

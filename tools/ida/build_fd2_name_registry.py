@@ -1614,6 +1614,83 @@ for _va, _now in _B6_EFFECT_DISPLAY_EVIDENCE.items():
         "why": "完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。"})
 
 
+# B7：结算、下一关真实表入口与普通cursor状态，只登记已核raw和数据读集。
+# 32e8c不是32d18的stack-check后主体；两个入口均有独立十字节序言和stage表fixup。
+_B7_STAGE_NAMES = {
+    0x22F37: ("sub_22F37", "field_stage1_victory_play",
+        "完整443B与main结果表51de9[1]。raw5..10任一hidden播本stage片段7；全部可见则"
+        "先完整片段6，再1c220(198)。PAN14,2、追加group4、delay100、script14、片段8；"
+        "之后mode0/delay200/script15/片段9，再mode0/delay200/PAN14,1/delay200/script16/"
+        "delay200/片段10。末尾112a5(8)先构造persistent，再11506按active同步，最后stage2。"
+        "首片段6/7调用前继承caller的51A83；两片首控制码均为-19/raw6，不筛hidden，"
+        "经165ac非零位置参数在165c4置0、165d6聚焦、165de置1。随后22fd4调用135dd，"
+        "135f2无条件置0；group4与script14不写该字段，所以片段8入口为0，不能称继承caller。"
+        "片段8内部可见说话人仍经165ac写0/1，返回后23021显式置0；片段9后23069再次置0，"
+        "再PAN/script16至片段10入口0。mode写入不等于立即重画VGA；165de之后无11cac，"
+        "16b43仅恢复缓存并移动marker，不写mode/重画战场，不能将逻辑1等同对话背景已有cursor。"),
+    0x1C220: ("sub_1C220", "field_party_item_append",
+        "完整73B，仅按active raw升序筛side2，不筛hidden/HP/acted；逐个调用1bb8c追加指定item，"
+        "遇首个非负返回就停。全满不写、不弹替换/取消；调用者22f37忽略返回。"
+        "奖励198在全部村民可见分支片段6完整返回后才发生，不是固定全队奖励或金额。"),
+    0x32E8C: ("sub_32E8C", "field_stage2_entry_play",
+        "stage入口表51d71[2]的fixup源51d79明确指向32e8c；独立push28/call3702f序言。"
+        "主块294B，尾部共享3312d..33140与33140..3314b，不猜ABI。205da后PAN3,17/"
+        "delay200/片段0；mode0/script18/group1/PAN3,6/delay200/script17/片段1；"
+        "mode0/script19/片段2；mode0/PAN3,17/片段3一次，再全方向reset、focus actor0。"
+        "FDFIELD[7]头2,6,40、group0空，六部署槽加group1九人得到15active。"
+        "此初始化不等于stage2 turn3 action9或整关已实现/验收。"),
+}
+for _va, (_was, _name, _why) in _B7_STAGE_NAMES.items():
+    CORRECTIONS.setdefault(_va, []).append({"target": "semantic_name", "was": _was,
+        "now": _name, "why": _why +
+        " 依据：B7隔离IDA Domain完整指令/xref、原LE fixup、FDFIELD/FDTXT与脚本14..19只读数据；"
+        "静态取证不替代后续原版实际流程。未写函数猜测原型。"})
+
+_B7_STAGE_EVIDENCE = {
+    0x32D18: ("1281B区间全属于单一stage1入口",
+        "旧32d18..33219误含六个有独立十字节序言和stage表fixup的入口。stage1主块止32e8c，"
+        "保共享33206文字尾与33140聚焦尾；32e8c为独立stage2入口，其它32fb2/33049/3314b/"
+        "33169仅修真实边界、保中性名。共同尾按实际jump连接，不造entry/core wrapper或改ABI。"),
+    0x34778: ("stage1 turn3的action索引为5",
+        "原FDFIELD[4]唯一回合记录是3,6,1，action表51b91[6]对应34778；此前说明中的5是"
+        "登记笔误，当前业务case6正确。六村民behavior4/锚点26,15与已确认script13语义不变。"),
+    0x26152: ("stage2可复用stage1的town底图及marker坐标",
+        "stage2准备记录623ac首byte2；原52405三资源为11/61/62，故使用FDOTHER62。"
+        "NoTown[2]=0，town曲10；stage2战场entry返回后main才请求primary19，alternate为1。"),
+    0x265EC: ("town五项marker总使用type0坐标",
+        "按准备记录type索引52363/52375的6B行；type2五项X为59/10/59/130/242、Y为"
+        "26/144/163/150/31，拷入VGA内区后各加4。底部62x26 panel及495+selector沿旧owner。"),
+    0x11506: ("新增unit8的persistent可以只用112a5默认值",
+        "22f37先112a5(8)，再11506按非零text8从active raw27整80B覆盖该新persistent；"
+        "清状态/flags、恢复HP/MP并重算。10c50在武器非FF的unit8模板下仅28..30九B未定义，"
+        "cache2另属运行值，二者须按各端active来源继承，不把新allocator或SDL零当原版固定值。"),
+    0x13A9F: ("AI纯移动和common tail总会恢复普通cursor1",
+        "common tail无51A83写。behavior3找到text目标并移动/恢复后强写0；4/7在移动前0，"
+        "5/10在tryattack失败后0；9移动保继承。14121/13e9c各自有0..1包裹，"
+        "13fd4仅实际恢复才0..1，不能让14b78通用几何helper无条件改模式。"),
+    0x14121: ("witness查询或同起点也写显示模式",
+        "只有实际存在不同格witness的分支先mode0再focus/move，正常返回恢复1；无witness或"
+        "同起点不写。正常零步移动也经过原恢复1，不据是否改坐标猜显示状态。"),
+    0x13E9C: ("nearest目标缺失或同起点也改显示模式",
+        "找到非自身坐标的最近敌目标后，mode0→focus actor→14b78→mode1；无目标或同起点"
+        "保持原模式。该nearest扫描不新增hidden/HP/acted过滤。"),
+    0x13FD4: ("AI恢复helper总会改显示模式",
+        "HP已满或record25/26状态非零直接返回且不写模式；仅实际恢复分支0→focus/HP恢复→1。"),
+    0x1CFF0: ("玩家Magic的演出末mode0会直接传至胜利回调",
+        "演出/loot阶段先mode0，但普通成功尾1d4b1明确恢复1再返回。"
+        "不得把Magic呈现FINISH页模式当成整个player caller完成后的持久普通模式。"),
+    0x13565: ("自动换phase早胜会保留最后AI动作模式",
+        "满足自动换轮条件后先mode0，调用1a30b返回后135ca无条件恢复1，即使AI阶段已提前胜败。"),
+    0x16F55: ("所有END/March返回都统一恢复普通cursor1",
+        "March分支17159恢复1；显式END分支调用turncycle后只恢复51AAC、不写51A83，"
+        "因此按真实AI分支或turncycle返回模式继承。main胜利亦不另写，22f37首片段据此呈现。"),
+}
+for _va, (_was, _now) in _B7_STAGE_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({"target": "evidence", "was": _was, "now": _now,
+        "why": "B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正"
+               "另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。"})
+
+
 def write_checksums(directory: Path) -> None:
     import hashlib
 

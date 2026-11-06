@@ -408,7 +408,7 @@ int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_field_overview *data) {
     if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
         font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
-        !data || data->stage > 1u || !data->units ||
+        !data || data->stage > 2u || !data->units ||
         data->units->count > FD2_FIELD_MAX_UNITS)
         return -1;
     for (size_t i = 0; i < 4; i++) {

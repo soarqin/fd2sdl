@@ -110,8 +110,8 @@ def overview_templates(original, source, palette):
             canvas.paste(image, (x + index * 6, y), image.point(lambda pixel: 255 if pixel else 0, mode="L"))
 
     stage, turn = source[META + 2], source[META]
-    if stage not in (0, 1):
-        raise ValueError("overview comparison currently supports stages 0 and 1 only")
+    if stage not in (0, 1, 2):
+        raise ValueError("overview comparison supports confirmed stages 0, 1 and stage2 initial activity only")
     resource = int.from_bytes(source[META + 10:META + 14], "little", signed=True)
     counts = overview_counts(source)
     number(stage + 1, 143, 24, 42, 2)

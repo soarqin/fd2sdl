@@ -68,4 +68,29 @@ static int test_hero_rest_and_primary_keep_known_and_future_coverage_minimal(voi
     fd2_field_path_close(&range);free(query);free(before);fd2_field_game_close(g);free(g);fd2_archive_close(&ar);
     return 0;
 }
-int main(void) {return test_hero_rest_and_primary_keep_known_and_future_coverage_minimal()==0?0:1;}
+static int test_stage1_preserves_hidden_roster_and_plans_real_dimensions(void) {
+    fd2_archive ar={0};CHECK(fd2_archive_open(&ar,"original_game/FDOTHER.DAT")==0);
+    fd2_save_manual_state state={0};state.stage_id=1;state.unit_count=5;
+    const uint8_t ids[5]={0,9,4,30,1};
+    for(size_t i=0;i<5;i++) {
+        fd2_field_unit u={0};CHECK(fd2_field_unit_persistent_create(&u,ids[i])==0);
+        if(i==1 || i==2 || i==4)u.flags|=1;
+        memcpy(state.unit_area+i*sizeof(u),&u,sizeof(u));
+    }
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
+    CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0 && g->map.width==27 && g->map.height==21);
+    fd2_field_game *before=malloc(sizeof(*g));CHECK(before);*before=*g;
+    fd2_field_units future;CHECK(potential_units(g,&future)==0 && future.count==27);
+    CHECK(!memcmp(future.items,g->units.items,21*sizeof(fd2_field_unit)));
+    natural_choices choices;CHECK(choose(g,&choices)==0 && choices.count>0);
+    for(size_t i=0;i<choices.count;i++) {
+        CHECK(choices.actions[i].actor==0 || choices.actions[i].actor==3);
+        CHECK(choices.actions[i].x>=0 && choices.actions[i].x<27 && choices.actions[i].y>=0 && choices.actions[i].y<21);
+    }
+    CHECK(!memcmp(before,g,sizeof(*g)));
+    g->units=future;CHECK(potential_units(g,&future)==0 && future.count==27);
+    g->units.count=22;CHECK(potential_units(g,&future)==-1);
+    free(before);fd2_field_game_close(g);free(g);fd2_archive_close(&ar);return 0;
+}
+int main(void) {return test_hero_rest_and_primary_keep_known_and_future_coverage_minimal()==0 &&
+    test_stage1_preserves_hidden_roster_and_plans_real_dimensions()==0?0:1;}

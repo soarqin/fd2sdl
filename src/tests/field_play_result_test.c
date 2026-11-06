@@ -10,6 +10,14 @@
 #include "scene.h"
 #include "test_temp.h"
 
+#undef fd2_field_game_settlement_prepare
+#undef fd2_field_game_settlement_commit
+#undef fd2_scene_play_stage1_victory
+int fd2_field_game_settlement_prepare(const fd2_field_game *, fd2_save_manual_state *);
+int fd2_field_game_settlement_commit(fd2_field_game *, fd2_save_manual_state *);
+int fd2_scene_play_stage1_victory(fd2_vga *, const fd2_archive *,
+    const fd2_field_game *, fd2_field_audio *, int);
+
 /* 仅测试TU在wrapper中复用正式input消费，不把注入脉冲变成手工action队列。 */
 #ifdef fd2_input_take_action
 #undef fd2_input_take_action
@@ -115,6 +123,39 @@ static int result_frame_load(void) { return result_frame_case >= 5; }
 static int result_frame_right(void) { return (result_frame_case - 1) & 1; }
 static int result_frame_quit_now(void) { return ((result_frame_case - 1) & 2) != 0; }
 
+static int settlement_case, settlement_prepares, settlement_scenes, settlement_commits, settlement_closes;
+static int settlement_protocol_ok;
+static fd2_field_play_context *settlement_context;
+static fd2_save_manual_state settlement_expected;
+
+int __wrap_fd2_field_game_settlement_prepare(const fd2_field_game *game,
+        fd2_save_manual_state *out) {
+    if (!settlement_case) return fd2_field_game_settlement_prepare(game,out);
+    settlement_prepares++;
+    if (game->stage!=1 || settlement_scenes || settlement_commits || settlement_context->has_preparation)
+        settlement_protocol_ok=0;
+    if (settlement_case==4) return -1;
+    *out=settlement_expected;return 0;
+}
+int __wrap_fd2_scene_play_stage1_victory(fd2_vga *vga, const fd2_archive *archive,
+        const fd2_field_game *game, fd2_field_audio *audio, int fast) {
+    if (!settlement_case) return fd2_scene_play_stage1_victory(vga,archive,game,audio,fast);
+    settlement_scenes++;
+    if (settlement_prepares!=1 || settlement_commits || settlement_context->has_preparation ||
+        game->stage!=1 || !game->ready) settlement_protocol_ok=0;
+    if (settlement_case==2) { vga->input.quit_requested=1;return FD2_SCENE_RESULT_HOST_QUIT; }
+    return settlement_case==3 ? FD2_SCENE_RESULT_ERROR : FD2_SCENE_RESULT_OK;
+}
+int __wrap_fd2_field_game_settlement_commit(fd2_field_game *game,
+        fd2_save_manual_state *out) {
+    if (!settlement_case) return fd2_field_game_settlement_commit(game,out);
+    settlement_commits++;
+    if (settlement_prepares!=1 || settlement_scenes!=1 || settlement_context->has_preparation ||
+        memcmp(out,&settlement_expected,sizeof(*out))) settlement_protocol_ok=0;
+    if (settlement_case==5) return -1;
+    *out=settlement_expected;game->stage=2;game->ready=0;return 0;
+}
+
 static int is_leave_case(void) {
     return terminal_case == 3 || terminal_case == 7 || terminal_case == 8;
 }
@@ -124,6 +165,19 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     (void)vga;
     (void)fdother;
     memset(game, 0, sizeof(*game));
+    if (settlement_case) {
+        game->ready=1;game->stage=stage;game->active_side=2;game->turn_number=17;
+        game->selected_unit=game->detail_unit=game->attack_target=-1;
+        game->map.width=27;game->map.height=21;game->units.count=27;
+        for(size_t i=0;i<27;i++)game->units.items[i].flags=1;
+        game->units.items[0].flags=0;game->units.items[0].side=2;
+        game->units.items[0].hp=game->units.items[0].hp_max=1;
+        for(size_t i=5;i<=10;i++) {
+            game->units.items[i].flags=0;game->units.items[i].side=1;
+            game->units.items[i].hp=game->units.items[i].hp_max=1;
+        }
+        active_game=game;return 0;
+    }
     if (result_frame_case) {
         fd2_input_init(&vga->input);
         game->ready = 1; game->stage = stage; game->active_side = 2; game->turn_number = 17;
@@ -792,6 +846,10 @@ int __wrap_fd2_field_game_animate_command(fd2_field_game *game,
     return fd2_field_game_animate_command(game, vga, opening, delay);
 }
 void __wrap_fd2_field_game_close(fd2_field_game *game) {
+    if (settlement_case) {
+        settlement_closes++;
+        if(game->units.count!=27 || game->units.items[0].hp!=1) settlement_protocol_ok=0;
+    }
     if (result_frame_case) {
         ++result_frame_final_seen;
         result_frame_final_interaction = game->interaction;
@@ -1171,10 +1229,48 @@ static int closing_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
     CHECK(failures==0);return 0;
 }
 
+static int stage1_settlement_frontend_test(fd2_vga *vga, fd2_archive *fdother) {
+    char path[FD2_TEST_PATH_MAX];fd2_save_file source={0},after={0};
+    CHECK(fd2_test_temp_path(path)==0 && fd2_save_file_create_empty(&source)==0 &&
+          fd2_save_file_write(&source,path)==0);
+    memset(&settlement_expected,0,sizeof(settlement_expected));
+    settlement_expected.stage_id=2;settlement_expected.unit_count=1;
+    memset(settlement_expected.unit_area,0x35,sizeof(settlement_expected.unit_area));
+    int failures=0;
+    for(settlement_case=1;settlement_case<=5;settlement_case++) {
+        fd2_field_play_context context;fd2_field_play_context_init(&context,NULL);
+        context.experience_value=77;context.message_number=998;fd2_field_rng_seed(&context.rng,0x1234);
+        memset(&context.preparation,0xa5,sizeof(context.preparation));
+        fd2_field_play_context before=context;settlement_context=&context;
+        settlement_prepares=settlement_scenes=settlement_commits=settlement_closes=0;settlement_protocol_ok=1;
+        vga->input.quit_requested=0;
+        fd2_field_play_result result=fd2_field_play_run_context(vga,fdother,1,0,NULL,NULL,path,0,&context);
+        CHECK(fd2_save_file_open(&after,path)==0);
+        int stable=after.size==source.size && !memcmp(after.data,source.data,source.size);
+        fd2_save_file_close(&after);
+        fd2_field_play_result expected=settlement_case==1?FD2_FIELD_PLAY_RETURN_VICTORY:
+            settlement_case==2?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
+        int okay=result==expected && settlement_protocol_ok && settlement_prepares==1 &&
+            settlement_scenes==(settlement_case==4?0:1) &&
+            settlement_commits==((settlement_case==1 || settlement_case==5)?1:0) && settlement_closes==1 && stable &&
+            context.experience_value==77 && context.message_number==998 && context.rng.state==before.rng.state;
+        if(settlement_case==1)okay=okay && context.has_preparation &&
+            !memcmp(&context.preparation,&settlement_expected,sizeof(settlement_expected));
+        else okay=okay && !context.has_preparation &&
+            !memcmp(&context.preparation,&before.preparation,sizeof(before.preparation));
+        printf("stage1 frontend case=%d result=%d prepare=%d scene=%d commit=%d close=%d SAV=%d pass=%d\n",
+            settlement_case,(int)result,settlement_prepares,settlement_scenes,settlement_commits,settlement_closes,stable,okay);
+        if(!okay)failures++;
+    }
+    settlement_case=0;settlement_context=NULL;fd2_save_file_close(&source);CHECK(remove(path)==0);
+    CHECK(!failures);return 0;
+}
+
 int main(void) {
     fd2_vga vga = {0};
     fd2_archive fdother = {0};
     CHECK(result_frame_barrier_test(&vga, &fdother) == 0);
+    CHECK(stage1_settlement_frontend_test(&vga, &fdother) == 0);
     CHECK(closing_frame_barrier_test(&vga, &fdother) == 0);
     automatic_failure = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==

@@ -54,7 +54,7 @@ git diff --check
 
 ### 图形自动化
 
-Windows 已验证按本轮 PID／HWND 投递窗口消息的后台输入：DOSBox-X 与 SDL 在其他应用持有前台时完成标题导航、END 确认框及取消返回浏览，仍使用 HWND WGC 和完整资源门。驱动不抢焦点、不退回前台 `SendInput`；该证据不覆盖物理键盘或 RawInput。支持范围及监测限制见[后台窗口消息校准](gui-testing.md#windows-hwnd-窗口消息后台输入已验证)，旧前台执行证据保留原来源。永久入口 `run_background_input_check.py` 最初等价迁移后又新增 HWND／PID 所有权保护，当前版已不与旧 GUI 候选 AST 等同；新增保护仅通过 13 项纯回归，没有新增 GUI 执行次数。
+Windows 已验证按本轮 PID／HWND 投递窗口消息的后台输入：DOSBox-X 与 SDL 在其他应用持有前台时完成标题导航、END 确认框及取消返回浏览，仍使用 HWND WGC 和完整资源门。驱动不抢焦点、不退回前台 `SendInput`；该证据不覆盖物理键盘或 RawInput。支持范围及监测限制见[后台窗口消息校准](gui-testing.md#windows-hwnd-窗口消息后台输入已验证)，旧前台执行证据保留原来源。永久入口 `run_background_input_check.py` 最初等价迁移后又新增 HWND／PID 所有权保护，已不与旧 GUI 候选 AST 等同；最初的 13 项纯回归与后来大阶段统一回归中的实际后台校准分别保留来源。
 
 独立后台校准必须由 `run-job 600000` 管理进程树，产物目录须为新目录；内部 `--sentinel` 不单独运行。Windows PowerShell：
 
@@ -72,9 +72,9 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 不验片头动画的场景允许仅在启动等待内发送 Esc 加速（首 1 秒、随后每 2 秒），完整标题资源门通过后立即停止；由场景决定是否启用，命令不增加参数。片头动画专项保持无 skip，并单列实际覆盖，不能把跳过片头当作动画通过。B5 标题 START 后的 117 页引导仍逐页资源 ACK 并核对自然站位，不使用启动 skip 绕过剧情；历史无 skip 证据保留原来源。开启skip本身不能替代该候选的实际验收。
 
-B5受支持范围已完成15个唯一场景；自然首关由旧完整原版、新门离线导航复核、短程双端校准和独立新SDL全链联合登记，非单轮同源配对。逐候选及Job来源见[图形规范](gui-testing.md#b5-结算准备页与下一关)与[阶段记录](../plans/stage-log.md)；大阶段统一审查和历史全面回归尚未执行。
+B5受支持范围已完成15个唯一场景；自然首关由旧完整原版、新门离线导航复核、短程双端校准和独立新SDL全链联合登记，非单轮同源配对。其后的大阶段统一审查和历史全面回归已有独立完成记录，不反写为旧 B5 的单轮来源。逐候选及 Job 来源见[图形规范](gui-testing.md#b5-结算准备页与下一关)与[阶段记录](../plans/stage-log.md)。
 
-默认完整 Windows 总流程先执行 `run_original_opening.py` 的自然新游戏引导交接，再执行 `run_original_focus.py` 的四向边缘聚焦与完整 COMMAND 显示，随后以 600 秒 Job 运行后台校准，再进入 input、标题、菜单和动作；B3／B4／B5-only 不调用后台历史回归，新增注册尚待大阶段实际 GUI 复测。前两项分别使用自然 START 与精确坐标派生副本，不能互相替代。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；END 确认框／取消不提交回合，不替代整回合的 phase／AI／随机结果验收。
+默认完整 Windows 总流程先执行 `run_original_opening.py` 的自然新游戏引导交接，再执行 `run_original_focus.py` 的四向边缘聚焦与完整 COMMAND 显示，随后以 600 秒 Job 运行后台校准，再进入 input、标题、菜单和动作；B3／B4／B5-only 不调用后台历史回归。后台注册已有大阶段实际 GUI 回归记录，后续阶段仍只测自身及直接受影响路径。前两项分别使用自然 START 与精确坐标派生副本，不能互相替代。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；END 确认框／取消不提交回合，不替代整回合的 phase／AI／随机结果验收。
 
 另以 `run_original_end_turn.py` 的真实 START 副本提交一次 END，识别 actor 0 最终焦点并正式 Save，比较回合、计数、配置等确定性字段；已加入总流程。相机、伤害和 AI 随机结果仍不作相等声明。
 
@@ -110,6 +110,17 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 自然场景的规划器默认查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录；可用 `--planner` 覆盖，不存在时在窗口启动前拒绝。stage 1 默认使用本轮 `prepare-controlled` 生成的原版活动 Save；没有先运行准备场景时须提供独立只读 `--b5-save-fixture`。自然流程默认最多50轮，败北、重复语义状态或到达上限均保留失败，不重开／重抽；调度器只为原版首个实际阶段结束周期录一次音频，作为 A5 曲目身份／切换证据，不是 A7 保真。所有 WGC 场景串行运行，先清理原版再启 SDL，正常／错误／超时均清理本轮 Job，失败收据不覆盖。
 
 B5受支持范围已完成15项的实际证据验收；自然首关为不同来源的独立运行联合验证，不是完整Suite单轮通过。后台基础校准、旧失败与各冻结来源分别保留；其后的大阶段统一审查及历史全面回归现有独立完成记录，不反写为旧B5来源。累计结果统一见[阶段记录](../plans/stage-log.md)。上述命令沿用已有参数；具体15项、Windows子集命令、存档前置、Linux无窗口／规划器兼容说明与未执行范围见 [B5 图形测试规范](gui-testing.md#b5-结算准备页与下一关)；本轮没有 Linux 图形或规划器验收结果。
+
+### B7 第二关与 stage 2 交接
+
+统一工具为 `run_original_stage1_complete.py`，不是 B5 的 `run_original_stage1.py`。当前接受 9 种场景：3 种受控胜利、`chest-129`／`chest-201`／`chest-193`、`villager-defeat`、`stage2-storage` 和 `natural-stage1`。B7既定9种场景已按实际候选完成双端验收，C14另复验两条结算分支的光标修复；来源与未覆盖范围见阶段记录。工具登记、纯测试和只读来源前检本身仍不等于场景通过。
+
+- 必填参数为 `--root`、`--driver`、`--dosbox`、`--save-fixture`、`--source-report`、`--scenario`、`--artifacts`；双端另传 `--sdl`。所有场景由 Windows `driver run-job` 串行管理，使用 WGC HWND 和后台定向输入；成功、失败、超时均按 owned PID 清理。
+- 3 种受控胜利与三箱使用已完成 script13／9 页 ACK 的真实 turn4／27 人原版来源。该旧受控源含主角 MOV40 加速值；三箱按确证原表与同身份自然记录恢复该主角 MOV4，单列 manifest，不把加速预算或捕获值作为通用默认。败北和自然整关使用已完成 25 页入场 ACK 的自然 stage 1 原版来源。`stage2-storage` 使用本次 B7 实际 stage 2 入场 Save、15 页 ACK 和同一原版端报告。不能混用顶层聚合报告或只复制一份 SAV。
+- `natural-stage1` 另需 `--planner EXE`，`--max-turns` 默认 60、允许 `1..100`。败北、停滞或超限保留失败，不重开或重抽。可选 `--public-app PATH` 只守卫该实际文件，不锁旧 SHA，也不代替待测 `--sdl`。
+- 每场 `--artifacts` 必须是独立新目录。Windows 的真实 DOSBox EXE、PowerShell 九场示例、来源准备及 Linux 对应纯测命令统一见 [B7 图形测试规范](gui-testing.md#b7-第二关续战村民结算与-stage-2-交接)。该配对工具仅支持 Windows WGC，本轮 Linux 未验。
+
+首结算页的576像素光标格可用 `tools/verify_stage1_settlement_cursor.py --root ROOT --artifacts CASE/artifacts --output NEW.json` 离线复核；输出必须新建，既有图、来源及报告不改。PowerShell／Bash完整命令和严格适用前置见上述B7图形规范；静态复核不算新GUI或连续时序验收。
 
 ### 连续画面与进程音频取证（Windows）
 

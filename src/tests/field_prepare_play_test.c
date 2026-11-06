@@ -44,7 +44,7 @@ static unsigned frame_number, quit_frame;
 static struct { unsigned frame; SDL_Scancode key; } pulses[20];
 static size_t pulse_count;
 static int music_tracks[20];
-static size_t music_count;
+static size_t music_stages[20], music_count;
 static unsigned fail_frame_allocation_at, sound_calls, fail_sound_call;
 static unsigned magic_draw_calls, fail_magic_draw_call, state_save_calls;
 static int probe_title, title_background_ok, title_palette_ok;
@@ -96,8 +96,9 @@ void prepare_test_deadline(fd2_vga *vga) { (void)vga; }
 
 int fd2_field_play_request_music(fd2_field_play_context *context,
         size_t stage, int track, const char *reason) {
-    (void)stage; (void)reason;
+    (void)reason;
     if (!context || !context->initialized || music_count >= 20) return -1;
+    music_stages[music_count] = stage;
     music_tracks[music_count++] = track;
     return 0;
 }
@@ -105,6 +106,7 @@ int fd2_field_play_request_music(fd2_field_play_context *context,
 static void controls(fd2_vga *vga) {
     fd2_input_init(&vga->input); clock_ms = 0; frame_number = quit_frame = 0;
     pulse_count = music_count = 0; memset(pulses, 0, sizeof(pulses));
+    memset(music_stages, 0, sizeof(music_stages));
     fail_frame_allocation_at = sound_calls = fail_sound_call = 0;
     magic_draw_calls = fail_magic_draw_call = state_save_calls = 0;
     probe_title = title_background_ok = title_palette_ok = 0;
@@ -201,7 +203,7 @@ static int title_cancel_and_load(fd2_archive *fdother,
     for (size_t i = 0; i < sizeof(vga->framebuffer); i++) CHECK(vga->framebuffer[i] == 0);
     controls(vga); pulse(70, SDL_SCANCODE_RETURN);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_DEPART);
-    CHECK(context.has_preparation && context.preparation.stage_id == 1 && context.preparation.unit_count == state->unit_count);
+    CHECK(context.has_preparation && context.preparation.stage_id == state->stage_id && context.preparation.unit_count == state->unit_count);
     CHECK(memcmp(context.preparation.unit_area, state->unit_area, sizeof(state->unit_area)) == 0);
     CHECK(context.experience_value == 631 && context.rng.state == 0x1234);
     controls(vga); quit_frame = 3;
@@ -411,6 +413,82 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
     return 0;
 }
 
+static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *stage1, fd2_vga *vga) {
+    fd2_save_manual_state state = *stage1;
+    state.stage_id = 2;
+    fd2_field_unit added = {0};
+    CHECK(fd2_field_unit_persistent_create(&added, 8) == 0);
+    CHECK(state.unit_count == 4); /* 本UI fixture来源START完整roster，不冒自然结算六人记录。 */
+    memcpy(state.unit_area + state.unit_count * 80u, &added, sizeof(added)); state.unit_count++;
+    CHECK(state.unit_count == 5);
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    CHECK(title_cancel_and_load(fdother, &state, vga) == 0);
+
+    fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
+    context.preparation = state; context.experience_value = 0xfeed1234u;
+    context.message_number = 123456; fd2_field_rng_seed(&context.rng, 0x4321);
+    fd2_field_play_context before = context;
+    controls(vga); quit_frame = 1;
+    CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_HOST_QUIT);
+    CHECK(!memcmp(&context,&before,sizeof(context)));
+    CHECK(music_count == 1 && music_tracks[0] == 10 && music_stages[0] == 2);
+
+    controls(vga); pulse(1,SDL_SCANCODE_LEFT); pulse(3,SDL_SCANCODE_LEFT);
+    pulse(4,SDL_SCANCODE_RETURN); pulse(10,SDL_SCANCODE_RETURN); quit_frame = 16;
+    CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_DEPART);
+    fd2_field_play_context expected_depart = before;
+    (void)fd2_field_rng_next(&expected_depart.rng); /* choice新等待入口的唯一一取；关闭段不再取。 */
+    CHECK(expected_depart.rng.state == 0x99aeu);
+    printf("stage2 depart RNG: before=%04x after=%04x expected=%04x\n",
+        before.rng.state, context.rng.state, expected_depart.rng.state);
+    CHECK(!memcmp(&context,&expected_depart,sizeof(context))); /* 仅已证等待RNG变化，无owner交接。 */
+    CHECK(music_count == 2 && music_tracks[0] == 10 && music_tracks[1] == -1 &&
+          music_stages[0] == 2 && music_stages[1] == 2);
+
+    controls(vga); context.preparation.stage_id = 3; before = context;
+    fd2_vga unchanged = *vga;
+    CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
+    CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
+          !memcmp(vga,&unchanged,sizeof(*vga)));
+    context.preparation = state; context.preparation.unit_area[7] = 255; before = context;
+    controls(vga); unchanged = *vga;
+    CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
+    CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
+          !memcmp(vga,&unchanged,sizeof(*vga)));
+
+    CHECK(town_type(1) == 0 && town_type(2) == 2 && town_type(3) == -1);
+    CHECK(prepare_town(assets,fdother,2) == 0);
+    fd2_image source62 = {0}; CHECK(fd2_image_decode_entry(&source62,fdother,62) == 0);
+    CHECK(image_size(&source62,320,200) && !memcmp(source62.pixels,assets->town_stage2.pixels,64000));
+    static const int x[5] = {59,10,59,130,242}, y[5] = {26,144,163,150,31};
+    for (int selected=0;selected<5;selected++) {
+        fd2_vga expected={0}, actual={0};
+        for (size_t row=0;row<192;row++) memcpy(expected.framebuffer+(row+4)*320+4,source62.pixels+row*320,312);
+        fd2_map_sprite_blit(&expected,&assets->town_panel,248,166,-1);
+        CHECK(text_draw(&expected,assets,(size_t)selected+495,256,172,205,74,0) == 0);
+        fd2_map_sprite_blit_frame(&expected,&assets->sprites,(size_t)state.unit_area[7]*12+1,x[selected]+4,y[selected]+4,0);
+        CHECK(fd2_field_prepare_draw_town(&actual,assets,&state,selected,1) == 0);
+        CHECK(!memcmp(actual.framebuffer,expected.framebuffer,sizeof(actual.framebuffer)));
+    }
+    fd2_image_free(&source62);
+    /* 缺无关62不影响stage1；stage2背景失败必须发生在Load准备owner交接前。 */
+    fd2_image_free(&assets->town_stage2);
+    uint32_t saved_offset=fdother->offsets[63]; fdother->offsets[63]=fdother->offsets[62];
+    CHECK(prepare_town(assets,fdother,1) == 0 && prepare_town(assets,fdother,2) == -1 && !assets->town_stage2.pixels);
+    char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0 && remove(path) == 0);
+    CHECK(fd2_save_manual_state_save(path,0,&state) == 0);
+    context.preparation=*stage1; context.has_preparation=1; before=context;
+    prepare_ui ui={vga,fdother,assets,&context,NULL,path,-1,0,-1};
+    controls(vga); pulse(6,SDL_SCANCODE_RETURN);
+    CHECK(slots_run(&ui,0,1) == -1);
+    CHECK(context.has_preparation && !memcmp(&context.preparation,&before.preparation,sizeof(before.preparation)) &&
+          context.experience_value==before.experience_value && context.rng.state==before.rng.state);
+    fdother->offsets[63]=saved_offset;
+    CHECK(remove(path) == 0 && prepare_town(assets,fdother,2) == 0);
+    return 0;
+}
+
 int main(void) {
     fd2_archive fdother = {0}; fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     fd2_vga *vga = calloc(1, sizeof(*vga)); fd2_save_manual_state state;
@@ -426,6 +504,7 @@ int main(void) {
     CHECK(depart_capacity_and_leave(&fdother, assets, &state, vga) == 0);
     CHECK(member_pages(&fdother, assets, &state, vga) == 0);
     CHECK(late_failures(&fdother, assets, &state, vga) == 0);
+    CHECK(stage2_preparation_routes(&fdother, assets, &state, vga) == 0);
     fd2_field_prepare_assets_close(assets); fd2_archive_close(&fdother); free(assets); free(vga);
     puts("field_prepare_play: real assets/pure draw/32-roster scroll/title cancel-load/save reopen/town hotel depart/quit passed (no GUI)");
     return 0;

@@ -992,6 +992,8 @@ static int test_stage1_manual_owner_preflight(void) {
     state.stage_id = 0;
     CHECK(fd2_field_game_validate_manual_state(&state) != 0);
     state.stage_id = 2;
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    state.stage_id = 3;
     CHECK(fd2_field_game_validate_manual_state(&state) != 0);
     state = before;
     state.unit_count = FD2_SAVE_MAX_UNITS + 1u;

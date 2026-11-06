@@ -67,8 +67,9 @@ int fd2_field_game_export_battle_snapshot(
         game->loot.source != 0u ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || game->stage > 1u ||
+        game->player_post_waiting_phase || game->stage > 2u ||
         (game->stage == 1u && game->units.count < 11u) ||
+        (game->stage == 2u && game->units.count != 15u) ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -142,8 +143,9 @@ static int validate_import(const fd2_field_game *game,
         return -1;
     size_t count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
-    if (stage != game->stage || stage > 1u || count == 0u ||
+    if (stage != game->stage || stage > 2u || count == 0u ||
         (stage == 1u && count < 11u) ||
+        (stage == 2u && count != 15u) ||
         snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
             FD2_SAVE_BATTLE_MAX_ROSTER ||
         count > FD2_SAVE_BATTLE_MAX_UNITS ||
@@ -240,7 +242,8 @@ static int import_current_stage(
     game->camera_pixel_offset_y = 0;
     game->units = loaded;
     /* sub_4E809 @0x4e809按stage-1取31B准备记录，stage0没有此行。 */
-    game->stage_runtime_entry_offset = game->stage == 1u ? 0x238du : 0u;
+    game->stage_runtime_entry_offset = game->stage ?
+        0x238du + (uint32_t)(game->stage - 1u) * 31u : 0u;
     /* sub_10010恢复完整32B，metadata仍只有16个已确认action槽。
      * 未使用高16B也是快照owner，跨容器保存时不得丢失。 */
     memcpy(game->cell_action_completed, snapshot->cell_state,
@@ -320,6 +323,7 @@ static int import_current_stage(
     game->last_terrain_visual_ms = 0;
     game->last_range_visual_ms = 0;
     game->battle_result = fd2_field_game_battle_result(game);
+    game->ordinary_display_mode = 1; /* sub_10010返回controller的普通cursor。 */
     return 0;
 }
 
@@ -350,7 +354,7 @@ static void carry_runtime_owners(fd2_field_game *dst,
 int fd2_field_game_import_battle_snapshot(
         fd2_field_game *game, const fd2_save_battle_snapshot *snapshot) {
     if (!game || !game->ready || !snapshot ||
-        snapshot->meta[FD2_SAVE_BATTLE_META_STAGE] > 1u) return -1;
+        snapshot->meta[FD2_SAVE_BATTLE_META_STAGE] > 2u) return -1;
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
     if (stage == game->stage) return import_current_stage(game, snapshot);
     /* font借FDOTHER的内存；必须沿用App活着的archive，不能关掉临时
@@ -385,7 +389,7 @@ static int snapshot_is_importable(const fd2_field_game *game,
         fd2_field_map_close(&map);
         return available;
     }
-    if (stage > 1u || !game->fdother) return 0;
+    if (stage > 2u || !game->fdother) return 0;
     fd2_field_game *resources = calloc(1, sizeof(*resources));
     if (!resources) return 0;
     int available = fd2_field_game_open_resources(resources, game->fdother, stage) == 0 &&
@@ -467,7 +471,8 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
     /* field_manual_slot_load @0x2986f恢复准备表，不运行1088d、不把slot
      * 当active。codec可保存32人；这里不添加出阵选择器的16人容量门。 */
-    if (!state || state->stage_id != 1u || state->unit_count > FD2_SAVE_MAX_UNITS ||
+    if (!state || (state->stage_id != 1u && state->stage_id != 2u) ||
+        state->unit_count > FD2_SAVE_MAX_UNITS ||
         !fd2_field_stage_prepare_record_get(state->stage_id)) return -1;
     fd2_archive fdother = {0};
     fd2_field_game *resources = calloc(1, sizeof(*resources));

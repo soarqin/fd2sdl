@@ -144,8 +144,8 @@ typedef struct {
     fd2_field_units units;
     fd2_field_overview data;
     uint8_t glyphs[64];
-    uint8_t tokens[16];
-    uint16_t offsets[601];
+    uint8_t tokens[24];
+    uint16_t offsets[603];
 } overview_fixture;
 
 static int make_image(fd2_image *image, int width, int height, uint8_t color) {
@@ -330,6 +330,19 @@ static int test_stage1_overview_conditions(void) {
     CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
     fixture.tokens[12] = 0;
     fixture.data.stage = 2;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.text.fragment_count = 603;
+    fixture.offsets[601] = 16; fixture.offsets[602] = 20;
+    fixture.tokens[18] = fixture.tokens[19] = 0xff;
+    fixture.tokens[20] = 1; fixture.tokens[22] = fixture.tokens[23] = 0xff;
+    CHECK(draw_overview(&vga, &fixture) == 0);
+    CHECK(check_number(&vga, 143, 24, "03", 50) == 0);
+    CHECK(vga.framebuffer[61 * VGA_STRIDE + 80] == 0xcd);
+    CHECK(vga.framebuffer[116 * VGA_STRIDE + 81] == 0xcd);
+    CHECK(!memcmp(&before, &fixture.units, sizeof(before)));
+    fixture.text.fragment_count = 602;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.text.fragment_count = 603;fixture.data.stage = 3;
     CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
     fd2_field_info_assets_close(&fixture.assets);
     return 0;

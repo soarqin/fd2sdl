@@ -48,6 +48,15 @@ int fd2_scene_play_field_event(fd2_vga *vga,
  * 坐标/镜头，不再次构造或结算单位。game须先由prepare_stage1预检。 */
 int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, fd2_field_audio *audio, int fast);
+/* field_stage2_entry_play @0x32e8c（原sub_32E8C）：六部署槽、group1及17..19脚本；
+ * 必须先由prepare_stage2完成本入口专用预检，错误/退出不交还部分动态状态。 */
+int fd2_scene_play_stage2_entry(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast);
+/* sub_22F37 @0x22f37（原登记同名）：只呈现Game只读结算投影；
+ * 首段继承Game ordinary_display_mode即本次51A83=0/1，fragment8之后清选择层。
+ * 成功/失败/宿主退出均不改Game、roster或准备owner；Play完整成功后再commit。 */
+int fd2_scene_play_stage1_victory(fd2_vga *vga, const fd2_archive *fdother,
+    const fd2_field_game *game, fd2_field_audio *audio, int fast);
 /* 22ef6/loot mode3借当前战场的完整FDTXT对白，不冒充UI0底框短消息。 */
 int fd2_scene_play_field_story(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, size_t fragment, fd2_field_audio *audio, int fast);

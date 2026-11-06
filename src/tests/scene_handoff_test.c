@@ -23,6 +23,25 @@ static int portrait_decode_calls, fail_portrait_decode_at;
 static int presents_at_portrait_failure;
 static size_t failed_portrait_identity;
 static fd2_vga *current_vga;
+static int trace_fragments;
+static size_t fragment_log[32], fragment_log_count, last_fragment;
+static const fd2_image *tracked_cursor;
+static unsigned cursor_by_fragment[16];
+
+static int scene_test_get_fragment(const fd2_text_entry *text, size_t fragment,
+        const uint8_t **tokens, size_t *count) {
+    if (trace_fragments) {
+        if (fragment_log_count < 32) fragment_log[fragment_log_count++] = fragment;
+        last_fragment = fragment;
+    }
+    return fd2_text_entry_get_fragment(text, fragment, tokens, count);
+}
+static void scene_test_sprite_blit(fd2_vga *vga, const fd2_image *image,
+        int x, int y, int transparent) {
+    if (image == tracked_cursor && last_fragment < 16) cursor_by_fragment[last_fragment]++;
+    fd2_map_sprite_blit(vga, image, x, y, transparent);
+}
+
 
 static int scene_test_archive_open(fd2_archive *archive, const char *path) {
     if (fail_archive_path && strcmp(path, fail_archive_path) == 0)
@@ -96,6 +115,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_scene_play_new_game_prologue scene_test_play_prologue
 #define fd2_scene_play_field_event scene_test_play_event
 #define fd2_scene_play_stage1_entry scene_test_stage1_entry
+#define fd2_scene_play_stage2_entry scene_test_stage2_entry
+#define fd2_scene_play_stage1_victory scene_test_stage1_victory
 #define fd2_scene_play_field_story scene_test_field_story
 #define fd2_scene_field_story_validate scene_test_story_validate
 #define fd2_scene_play_game_over scene_test_game_over
@@ -106,6 +127,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_archive_close scene_test_archive_close
 #define fd2_archive_get scene_test_archive_get
 #define fd2_portrait_decode_frame scene_test_portrait_decode_frame
+#define fd2_text_entry_get_fragment scene_test_get_fragment
+#define fd2_map_sprite_blit scene_test_sprite_blit
 #define fd2_vga_present scene_test_present
 #define fd2_vga_present_timed scene_test_present_timed
 #define fd2_delay_ms scene_test_delay
@@ -115,6 +138,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #undef fd2_scene_play_new_game_prologue
 #undef fd2_scene_play_field_event
 #undef fd2_scene_play_stage1_entry
+#undef fd2_scene_play_stage2_entry
+#undef fd2_scene_play_stage1_victory
 #undef fd2_scene_play_field_story
 #undef fd2_scene_field_story_validate
 #undef fd2_scene_play_game_over
@@ -125,6 +150,8 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #undef fd2_archive_close
 #undef fd2_archive_get
 #undef fd2_portrait_decode_frame
+#undef fd2_text_entry_get_fragment
+#undef fd2_map_sprite_blit
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_delay_ms
@@ -144,6 +171,8 @@ static void reset_controls(fd2_vga *vga) {
     portrait_decode_calls = fail_portrait_decode_at = 0;
     presents_at_portrait_failure = -1;
     failed_portrait_identity = (size_t)-1;
+    trace_fragments = 0; fragment_log_count = 0; last_fragment = 0;
+    tracked_cursor = NULL; memset(cursor_by_fragment, 0, sizeof(cursor_by_fragment));
     current_vga = vga;
 }
 
@@ -362,6 +391,141 @@ static int test_stage1_presentation(const fd2_archive *fdother) {
     return 0;
 }
 
+static int make_stage1_victory(fd2_field_game *game, fd2_vga *vga,
+        const fd2_archive *fdother, int missing_villager, int full) {
+    fd2_save_manual_state prepared={0};prepared.stage_id=1;prepared.unit_count=5;
+    const uint8_t ids[]={0,9,4,30,1};
+    for(size_t i=0;i<5;i++) {
+        fd2_field_unit unit={0};CHECK(fd2_field_unit_persistent_create(&unit,ids[i])==0);
+        memcpy(prepared.unit_area+i*80,&unit,80);
+    }
+    CHECK(fd2_field_game_prepare_stage1(game,fdother,&prepared)==0);
+    game->turn_number=3;CHECK(fd2_field_game_end_active_phase(game)==0);
+    CHECK(game->event_log_count==1 && game->units.count==27);
+    reset_controls(vga);
+    CHECK(scene_test_play_event(vga,fdother,game,&game->event_log[0],NULL,1)==0);
+    CHECK(fd2_field_game_progress_resume(game)==0);
+    for(size_t i=0;i<game->units.count;i++) {
+        if(game->units.items[i].side==0) {game->units.items[i].flags|=1;game->units.items[i].hp=0;}
+        if(full && game->units.items[i].side==2) memset((uint8_t*)&game->units.items[i]+10,0,16);
+    }
+    if(missing_villager)game->units.items[7].flags|=1;
+    CHECK(fd2_field_game_battle_result(game)==FD2_FIELD_BATTLE_VICTORY);
+    return 0;
+}
+
+static int test_stage1_victory_projection(const fd2_archive *fdother) {
+    fd2_field_game *game=calloc(1,sizeof(*game)), *before=calloc(1,sizeof(*before));CHECK(game&&before);
+    fd2_vga vga;
+    for(int variant=0;variant<3;variant++)for(unsigned display=0;display<=1;display++) {
+        CHECK(make_stage1_victory(game,&vga,fdother,variant==1,variant==2)==0);
+        game->ordinary_display_mode=(uint8_t)display;*before=*game;
+        reset_controls(&vga);trace_fragments=1;
+        tracked_cursor=fd2_field_cursor_frame(&game->visuals,0);
+        CHECK(scene_test_stage1_victory(&vga,fdother,game,NULL,1)==0);
+        CHECK(!memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+        const size_t first=variant==1?7u:6u;
+        const size_t expected[]={first,8,9,10,first,8,9,10};
+        CHECK(fragment_log_count==8 && !memcmp(fragment_log,expected,sizeof(expected)));
+        /* 165ac聚焦前清51A83，后写1但弹框/关闭只恢复缓存；
+         * 135dd随后PAN再清0，因此各fragment只有首个入场帧可继承cursor。 */
+        CHECK(cursor_by_fragment[first]==display);
+        CHECK(!cursor_by_fragment[8]);
+        CHECK(!cursor_by_fragment[9] && !cursor_by_fragment[10]);
+        int final_present=presents;
+        if(variant==0 && display==1) {
+            const int quit_frames[]={1,final_present};
+            for(size_t i=0;i<2;i++) {
+                reset_controls(&vga);quit_at_frame=quit_frames[i];
+                CHECK(scene_test_stage1_victory(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_HOST_QUIT);
+                CHECK(!memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+            }
+            reset_controls(&vga);fail_portrait_decode_at=1;
+            CHECK(scene_test_stage1_victory(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_ERROR);
+            CHECK(!presents && !memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+        }
+        fd2_field_game_close(game);
+    }
+    free(before);free(game);return 0;
+}
+
+/* 165ac/135dd局部显示状态与弹框缓存分开验证；不改真实Game或替换focus逻辑。 */
+static int test_stage1_dialog_display(const fd2_archive *fdother) {
+    fd2_field_game *game=calloc(1,sizeof(*game)), *before=calloc(1,sizeof(*before));
+    CHECK(game && before);
+    fd2_vga vga;CHECK(make_stage1_victory(game,&vga,fdother,0,0)==0);
+    *before=*game;
+    fd2_archive fdtxt={0};fd2_text_entry text={0};fd2_ui_sheet ui={0};
+    CHECK(fd2_archive_open(&fdtxt,"original_game/FDTXT.DAT")==0);
+    CHECK(fd2_text_entry_open_entry(&text,&fdtxt,2)==0);
+    CHECK(ui_sheet_open_fdother(&ui,fdother,5)==0);
+    const fd2_image *normal=fd2_field_cursor_frame(&game->visuals,0);CHECK(normal);
+    for(unsigned hidden=0;hidden<=1;hidden++)for(unsigned display=0;display<=1;display++) {
+        reset_controls(&vga);scene_host_quit_requested=0;
+        tracked_cursor=normal;trace_fragments=1;
+        fd2_scene_field_state state={0};
+        state.units=game->units;state.persistent=game->roster;state.persistent_count=game->roster_count;
+        state.camera_cell_x=game->camera_cell_x;state.camera_cell_y=game->camera_cell_y;
+        state.focus_cell_x=game->cursor_cell_x;state.focus_cell_y=game->cursor_cell_y;
+        state.ordinary_cursor=normal;state.cursor=display?normal:NULL;
+        fd2_field_unit_set_hidden(&state.units.items[6],hidden);
+        /* -19,6是直接raw，不因hidden跳过165ac；fast只略宿主等待。 */
+        CHECK(opening_text(&vga,&game->terrain,&game->map,&game->dato_archive,&ui,
+            &game->sprites,&state,&game->font,&text,NULL,6,1)==0);
+        CHECK(state.cursor==normal && !state.dialog_cursor_suppressed);
+        CHECK(cursor_by_fragment[6]==display);
+        CHECK(state.focus_cell_x==state.units.items[6].x &&
+              state.focus_cell_y==state.units.items[6].y);
+        unsigned drawn=cursor_by_fragment[6];
+        pan_camera_to(&vga,&game->terrain,&game->map,&game->sprites,&state,14,2,1);
+        CHECK(!state.cursor && !state.dialog_cursor_suppressed && cursor_by_fragment[6]==drawn);
+        /* hidden textID不会聚焦，a3=0保留当前mode，不把普通cursor自动打开。 */
+        fd2_dialog_state dialog={0};dialog.speaker_actor_idx=-1;
+        CHECK(set_dialog_area(&vga,&game->terrain,&game->map,&game->dato_archive,&ui,
+            &game->sprites,&state,&dialog,FD2_DIALOG_TOP,game->units.items[6].unit_id,-1,1,NULL)==0);
+        CHECK(!state.cursor && !state.dialog_cursor_suppressed);
+        /* 旧开场没有ordinary_cursor借用，零初始化仍始终无选择层。 */
+        state.ordinary_cursor=NULL;
+        CHECK(opening_text(&vga,&game->terrain,&game->map,&game->dato_archive,&ui,
+            &game->sprites,&state,&game->font,&text,NULL,6,1)==0);
+        CHECK(!state.cursor && !state.dialog_cursor_suppressed && cursor_by_fragment[6]==drawn);
+        CHECK(!memcmp(game,before,sizeof(*game)));
+    }
+    fd2_text_entry_close(&text);fd2_archive_close(&fdtxt);
+    fd2_field_game_close(game);free(before);free(game);return 0;
+}
+
+static int test_stage2_presentation(const fd2_archive *fdother) {
+    fd2_save_manual_state prepared={0};prepared.stage_id=2;prepared.unit_count=6;
+    const uint8_t ids[]={0,9,4,30,1,8};
+    for(size_t i=0;i<6;i++) {
+        fd2_field_unit unit={0};CHECK(fd2_field_unit_persistent_create(&unit,ids[i])==0);
+        memcpy(prepared.unit_area+i*80,&unit,80);
+    }
+    fd2_field_game *game=calloc(1,sizeof(*game)), *before=calloc(1,sizeof(*before));CHECK(game&&before);
+    CHECK(fd2_field_game_prepare_stage2(game,fdother,&prepared)==0);*before=*game;
+    fd2_vga vga;reset_controls(&vga);trace_fragments=1;
+    CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==0);
+    const size_t expected[]={0,1,2,3,0,1,2,3};
+    CHECK(fragment_log_count==8 && !memcmp(fragment_log,expected,sizeof(expected)));
+    CHECK(game->units.count==15 && game->stage==2 && game->turn_number==1 && game->active_side==2);
+    /* 32e8c fragment3 text8先聚焦(7,24)，12cea滚至map高26-8=18；
+     * 最后12d7b Hero(7,22)保rel(4,4)。镜头终态属于完整Scene的handoff，
+     * 不是只构造单位表的prepare_stage2或最后PAN(3,17)。 */
+    CHECK(game->cursor_cell_x==7 && game->cursor_cell_y==22 &&
+          game->camera_cell_x==3 && game->camera_cell_y==18);
+    CHECK(!memcmp(game->units.items,before->units.items,15*80) &&
+          !memcmp(game->roster,before->roster,sizeof(game->roster)) && archive_opens==archive_closes);
+    for(size_t i=0;i<15;i++)CHECK(game->units.items[i].direction==0);
+    *before=*game;reset_controls(&vga);quit_at_frame=1;
+    CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(!memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+    reset_controls(&vga);fail_portrait_decode_at=1;
+    CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_ERROR);
+    CHECK(!presents && !memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+    fd2_field_game_close(game);free(before);free(game);return 0;
+}
+
 static int test_turn_event_presentation(const fd2_archive *fdother) {
     /* 34778的fragment4实际有9个等待页；fast仅替换宿主等待，不跳资源/脚本。 */
     fd2_archive fdtxt={0};fd2_text_entry text={0};
@@ -451,7 +615,7 @@ static int test_turn_event_presentation(const fd2_archive *fdother) {
             state.units.count=first;
             fd2_field_units original=state.units;
             reset_controls(&vga);
-            CHECK(field_event_append_group(&vga,fdother,game,&state,3,0,NULL,1)==-1);
+            CHECK(field_event_append_group(&vga,fdother,game,&state,3,0,NULL,1,NULL)==-1);
             CHECK(!memcmp(&state.units,&original,sizeof(original)) && presents==0);
         }
         /* 借用静态属性不等于接受任意终态；脚本坐标不符仍须整80B拒绝。 */
@@ -542,6 +706,9 @@ int main(int argc, char **argv) {
     if(argc==2 && strcmp(argv[1],"--b5")==0) {
         CHECK(test_dialog_identity_lookup()==0);
         CHECK(test_stage1_presentation(&fdother)==0);
+        CHECK(test_stage1_victory_projection(&fdother)==0);
+        CHECK(test_stage1_dialog_display(&fdother)==0);
+        CHECK(test_stage2_presentation(&fdother)==0);
         CHECK(test_turn_event_presentation(&fdother)==0);
         CHECK(test_game_over_frames(&fdother)==0);
         fd2_archive_close(&fdother);

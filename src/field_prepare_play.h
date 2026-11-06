@@ -16,7 +16,7 @@ typedef enum {
 
 /* 城镇／酒店／四槽资源；规范VA及原登记名见实现头。图像拥有内存，font借FDOTHER。 */
 typedef struct {
-    fd2_image town, town_panel, hotel, slots;
+    fd2_image town, town_stage2, town_panel, hotel, slots;
     fd2_image hotel_icons[8];
     fd2_image hotel_portraits[4], depart_portraits[4];
     fd2_archive text_archive, dato;
@@ -44,6 +44,8 @@ int fd2_field_prepare_draw_roster(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_manual_state *state,
     int selected, size_t first, unsigned phase);
 
+/* 仅stage1/2准备状态；先做对应资源/整roster预检，1..16才可请求出阵。
+ * DEPART不消费准备owner；相应Game+Scene入口完整成功后才清has_preparation。 */
 fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga,
     const fd2_archive *fdother, fd2_field_play_context *context,
     const char *save_path, fd2_field_audio *audio);

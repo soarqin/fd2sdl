@@ -48,7 +48,7 @@ static int hotel_frame(fd2_image *out, const fd2_archive *fdother,
 
 void fd2_field_prepare_assets_close(fd2_field_prepare_assets *a) {
     if (!a) return;
-    fd2_image_free(&a->town); fd2_image_free(&a->town_panel);
+    fd2_image_free(&a->town); fd2_image_free(&a->town_stage2); fd2_image_free(&a->town_panel);
     fd2_image_free(&a->hotel); fd2_image_free(&a->slots);
     for (size_t i = 0; i < 8; i++) fd2_image_free(&a->hotel_icons[i]);
     for (size_t i = 0; i < 4; i++) {
@@ -94,6 +94,27 @@ fail:
     return -1;
 }
 
+/* 26152/265ec：4e809行[0]索引52405的[11,61,62]；仅本阶段已证type0/2。 */
+static int town_type(size_t stage) {
+    const uint8_t *row = fd2_field_stage_prepare_record_get(stage);
+    return row && ((stage == 1u && row[0] == 0u) ||
+                   (stage == 2u && row[0] == 2u)) ? row[0] : -1;
+}
+
+static int prepare_town(fd2_field_prepare_assets *a, const fd2_archive *fdother, size_t stage) {
+    if (!a || !a->ready || !fdother) return -1;
+    int type = town_type(stage);
+    if (type == 0) return image_size(&a->town, 320, 200) ? 0 : -1;
+    if (type != 2) return -1;
+    if (a->town_stage2.pixels) return image_size(&a->town_stage2, 320, 200) ? 0 : -1;
+    fd2_image shadow = {0};
+    if (fd2_image_decode_entry(&shadow, fdother, 62) != 0 || !image_size(&shadow, 320, 200)) {
+        fd2_image_free(&shadow); return -1;
+    }
+    a->town_stage2 = shadow;
+    return 0;
+}
+
 /* 15f84：此准备页读集仅普通glyph/-2/-6/-1；数字是FONT[0..9]，
  * 不是ui_number_draw的位图bank。额外控制码必须另有证据，不能跳过。 */
 static int text_draw(fd2_vga *vga, const fd2_field_prepare_assets *a, size_t fragment,
@@ -134,16 +155,23 @@ static int finish_frame(fd2_vga *vga, fd2_vga *frame, int result) {
 
 int fd2_field_prepare_draw_town(fd2_vga *vga, const fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, int selected, unsigned phase) {
-    static const uint8_t x[5] = {29, 41, 59, 154, 182};
-    static const uint8_t y[5] = {46, 109, 163, 139, 65};
-    if (!vga || !a || !a->ready || !state || state->stage_id != 1 ||
+    static const uint8_t x0[5] = {29, 41, 59, 154, 182};
+    static const uint8_t y0[5] = {46, 109, 163, 139, 65};
+    static const uint8_t x2[5] = {59, 10, 59, 130, 242};
+    static const uint8_t y2[5] = {26, 144, 163, 150, 31};
+    if (!vga || !a || !a->ready || !state ||
         state->unit_count > FD2_SAVE_MAX_UNITS || selected < 0 || selected > 4 || phase > 3 ||
-        !image_size(&a->town, 320, 200) || !image_size(&a->town_panel, 62, 26)) return -1;
+        !image_size(&a->town_panel, 62, 26)) return -1;
+    int type = town_type(state->stage_id);
+    if (type != 0 && type != 2) return -1;
+    const fd2_image *town = type == 0 ? &a->town : &a->town_stage2;
+    const uint8_t *x = type == 0 ? x0 : x2, *y = type == 0 ? y0 : y2;
+    if (!image_size(town, 320, 200)) return -1;
     if (state->unit_count && (size_t)state->unit_area[7] >= a->sprites.frame_count / 12u) return -1;
     fd2_vga *frame = new_frame(NULL); if (!frame) return -1;
     for (size_t row = 0; row < 192; row++)
         memcpy(frame->framebuffer + (row + 4u) * VGA_STRIDE + 4,
-               a->town.pixels + row * VGA_STRIDE, 312);
+               town->pixels + row * VGA_STRIDE, 312);
     fd2_map_sprite_blit(frame, &a->town_panel, 248, 166, -1);
     int result = text_draw(frame, a, (size_t)selected + 495u, 256, 172, 205, 74, 0);
     if (state->unit_count) fd2_map_sprite_blit_frame(frame, &a->sprites,
@@ -245,7 +273,8 @@ static int music(prepare_ui *ui, int track, const char *reason) {
             fd2_audio_set_bus_gain(ui->audio->player->audio, FD2_AUDIO_BUS_SFX,
                 ui->context->preparation.options[3] ? 1.0f : 0.0f) != 0) return -1;
     }
-    return fd2_field_play_request_music(ui->context, 1, track, reason);
+    size_t stage = ui->context->has_preparation ? ui->context->preparation.stage_id : 1u;
+    return fd2_field_play_request_music(ui->context, stage, track, reason);
 }
 static int present(prepare_ui *ui) {
     if (quit(ui)) return 1;
@@ -465,6 +494,7 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
                 memcpy(ui->vga->framebuffer, background, VGA_W * VGA_H);
                 continue;
             }
+            if (prepare_town(ui->assets, ui->fdother, loaded.stage_id) != 0) { result = -1; break; }
             if (!title_mode && !notice_ready(ui, 478)) { result = -1; break; }
             /* owner只在整场资源/数据预检成功且宿主未退出时交接。 */
             if (quit(ui)) { result = 1; break; }
@@ -686,12 +716,18 @@ static int hotel_run(prepare_ui *ui) {
 fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *fdother,
         fd2_field_play_context *context, const char *save_path, fd2_field_audio *audio) {
     if (!vga || !fdother || !context || !context->initialized || !save_path ||
-        !context->has_preparation || context->preparation.stage_id != 1 ||
+        !context->has_preparation ||
+        (context->preparation.stage_id != 1u && context->preparation.stage_id != 2u) ||
         context->preparation.unit_count > FD2_SAVE_MAX_UNITS) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_FIELD_PREPARE_HOST_QUIT;
+    if (fd2_field_game_validate_manual_state(&context->preparation) != 0)
+        return FD2_FIELD_PREPARE_ERROR;
     fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     if (!assets) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_field_prepare_assets_open(assets, fdother) != 0) { free(assets); return FD2_FIELD_PREPARE_ERROR; }
+    if (prepare_town(assets, fdother, context->preparation.stage_id) != 0) {
+        fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_ERROR;
+    }
     prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1};
     fd2_field_prepare_result result = FD2_FIELD_PREPARE_ERROR;
     if (music(&ui, 10, "town") != 0) goto done;

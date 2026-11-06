@@ -60,7 +60,8 @@ fd2_app_flow fd2_app_flow_from_prepare(fd2_app_prepare_result result) {
 fd2_app_flow fd2_app_flow_after_battle(fd2_app_field_result result,
         int prepared_stage) {
     if (result == FD2_APP_FIELD_VICTORY)
-        return prepared_stage == 1 ? FD2_APP_FLOW_PREPARE : FD2_APP_FLOW_ERROR;
+        return prepared_stage == 1 || prepared_stage == 2
+            ? FD2_APP_FLOW_PREPARE : FD2_APP_FLOW_ERROR;
     if (result == FD2_APP_FIELD_DEFEAT) return FD2_APP_FLOW_TITLE;
     return fd2_app_flow_from_field(result);
 }

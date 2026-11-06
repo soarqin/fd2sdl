@@ -40,6 +40,99 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 无窗口验证同样按改动选择 CTest 和 Python 测试，物品工具可运行 `python -B -m unittest discover -s tools/tests -p test_original_item_list.py`。Linux 使用 `python3` 执行相同纯逻辑命令；本轮不在 Linux 运行上述 WGC 对照。大阶段统一实机回归移除 `--b3-only`，按后文完整套件执行。
 
+### B7 第二关续战、村民结算与 stage 2 交接
+
+本节规定当前 B7 的判据，完成状态和不同候选的实际覆盖见[阶段记录](../plans/stage-log.md)。自然整关、受控结算、局部原码和 SDL 自测分别记账，不能用其中一种代替另一种。
+
+- 自然起点必须绑定已完成25页 stage 1 入场对白的原版报告、实际 PNG 摘要和真实活动存档，保留全部持久记录、成长及原有阵亡角色。规划器只给合法动作意图，每轮读取本端真实 Save 重规划，不将 SDL 模拟结果写回原版或用于推断其 RNG。
+- 受控胜利使用已完成第三回合脚本13及九页对白的原版 turn4／27人活动存档，逐字段登记夹具改动。脚本14／16固定引用 raw27，不能从21人提前胜利后重定向索引。村民全活、有伤亡、背包全满静默无奖分别验收；六名村民全隐藏走败北出口，不能进入胜利结算。
+- `0x22f37` 的完整 fragment6或7、8、9、10及全部移动脚本结束后，验证198的首 side2 空槽、角色8追加与 `0x11506` 同步，再验证 stage 2 准备页、四槽和实际入场。整容器比较列明本端旧记录和未知尾的保留范围；新构造记录的运行缓存与已证未初始化洞单列，不将猜测字节作为跨端固定值。
+- stage 2 准备页使用 type2／FDOTHER62及其五组标记坐标；真实入口为 `0x32e8c` 的六部署槽加九名 NPC。对白指令也会聚焦说话角色；必须按原 token、可见角色查找、PAN对焦点的平移和 `0x12cea` 逐格规则计算镜头，不能把最后一次 PAN 坐标当作最终镜头。先核15人终态，再验活动存读档；未恢复的第三回合 action9仍不开放。
+- 闪烁菜单的全普通帧只证明可见资源正确，记录 `selection_observed=false`。若未观察到预期项高亮，必须由随后唯一一次确认及完整后继业务页面证明选择；例如酒店 Save 必须打开完整保存槽页面。错误项高亮、双高亮、后继未到达均失败，不补键、不加重试来掩盖。地图边缘的屏外操作也不得记作已观察到高亮，须结合已证按键映射和唯一业务结果取证。
+- 三箱分别按原 map index／item ID验证拾取、完成位、原格再行动不重复领取和合法回合边界后的真实 Save。`0x190ac` 是 WAIT专有调用，不能以物品 Use替代开箱；拾取201不代表201的 Use效果已验收。
+- 每场使用冻结工具和程序；原版先行、SDL后行，均为 WGC HWND截图和 PID／HWND后台输入。启动前和关闭后核原版、只读来源、工具与程序摘要／修改时间，成功、失败及超时都清理本轮进程树。与场景无关的片头可按已验证按键跳过，结算及交接对白必须完整 ACK。
+
+统一入口为 `tools/run_original_stage1_complete.py`，接受以下9种`--scenario`。本阶段已分候选完成对应实际配对，C14另复验两条结算分支；入口登记和纯测试本身仍不表示实机通过，具体来源与边界只按阶段记录及各冻结报告登记。
+
+自然流程必须读取FDTXT2全部17个片段。死亡片段11／13／15和12／14／16各为一组完全相同的单页资源；只确认等价族、一次ACK和页面消失，不从相同画像猜唯一死亡raw，也不把死亡页计入固定30页结算。
+
+结算首6／7页还需检查地图背景：`tools/verify_stage1_settlement_cursor.py`只读已完成场景及原版资源，严格核raw6、下邻角色、tile73和实际镜头前置，比较光标格完整576像素的三种idle／有无光标六模板；两端分别唯一匹配无光标族才通过。它不生成或修改图像，不证明整张角色sprite、聚焦／PAN连续时序或全帧一致。输出须为新文件，原图、来源、资源和比较报告均保留晚守卫。
+
+Windows PowerShell 离线复核：
+
+```powershell
+python -B tools/verify_stage1_settlement_cursor.py --root . --artifacts C:/path/to/case/artifacts --output C:/path/to/new-report.json
+```
+
+Linux Bash 对应静态入口：
+
+```bash
+python3 -B tools/verify_stage1_settlement_cursor.py --root . --artifacts /path/to/case/artifacts --output /path/to/new-report.json
+```
+
+本轮只在Windows运行该离线复核。原C8含光标图是必须拒绝的负例；C14两分支新截图分别复核，不覆盖旧FAILED或旧派生报告。
+
+| 场景 ID | `--save-fixture` 与 `--source-report` 的前置 |
+|---|---|
+| `victory-all-villagers`、`victory-villager-loss`、`victory-full-inventory` | 原版实际 stage 1 turn4／27 人存档，以及同一原版端的 `comparison.json`；报告须证明 script13 的完整 9 页 ACK、来源守卫和正常清理。 |
+| `chest-129`、`chest-201`、`chest-193` | 同一类真实 turn4／27 人来源。只在隔离夹具中声明主角相邻位置、初始镜头和非玩家 AI gate；不改原版资源或用 SDL 生成来源。 |
+| `villager-defeat`、`natural-stage1` | 已完成 stage 1 入场 25 页 ACK 的原版实际存档及原版端报告；每页词元、资源检查点和相邻 PNG 的 SHA 必须对应。 |
+| `stage2-storage` | 本次 B7 完整交接产生的原版 `b7-stage2-entry.SAV` 与原版端报告；须有完整 15 页入场 ACK、对应 PNG、turn1／15 人／6 条持久记录及正常清理。不能用任意 stage 2 存档代替。 |
+
+来源报告必须是 `original/comparison.json`，不能传两端聚合报告。存档路径须与报告中的实际 `completed_save.snapshot` 一致；报告旁的剧情 PNG 也须保留，不能只复制一份 SAV 或拼接不同轮次的来源。
+
+三箱当前协议从原资源可行的相邻格真移入箱，确认前逐键检查目的格光标，再 WAIT 拾取；下轮移出一格 WAIT／END，再移回已完成格 WAIT／END，最终量测 turn7 的完整 Save。旧 turn4 受控源的主角含加速值 MOV40；局部原指令已复现该预算使路径递归工作区越界、覆盖 mode 并产生向右一步。三箱仅为同 unit0／profile1／装备0和132的主角，按原表 `0x61da1+7` 与真实自然来源双证显式恢复 MOV4，并将该字节纳入 manifest；不能将捕获值当作其他角色默认值，不能以加大预算来通过可达性。C9失败及C11未执行记录保留；新夹具已由C12的129和C13的201／193实际双端复验，三次真实WAIT／END及最终turn7量测通过。201 箱位于底行，WAIT 亮图在视区外时明确记录未观察到选择，依靠已证 DOWN 绝对映射及后继箱提示、acted／库存和最终 Save 正证。
+
+Windows PowerShell 示例在已构建的独立候选 `source` 根目录执行；源码和构建目录须在 TEMP 之外。先按实际候选调整 `$Build`，确保 App、driver 和 planner 均为本次冻结文件。下列两个历史路径是已有只读来源示例，可换成满足上表全部前置的本轮实际来源。DOSBox 使用 Scoop `current` 当前指向的真实 EXE，不能传 `shims/dosbox-x.exe`。
+
+```powershell
+$Root = (Get-Location).Path
+$Build = Join-Path $Root 'src/build-win'
+$Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
+$App = Join-Path $Root 'src/Debug/fd2sdl.exe'
+$Planner = Join-Path $Build 'Debug/fd2_field_natural_plan.exe'
+$Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
+$Runner = Join-Path $Root 'tools/run_original_stage1_complete.py'
+$Output = "$env:LOCALAPPDATA/fd2sdl-work/b7-evidence-new"
+
+$Turn4 = "$env:LOCALAPPDATA/Temp/fd2sdl-b5-preflight-20261105/stage1-paired-c4-turn3/artifacts/original/stage1-turn4-measured.SAV"
+$Turn4Report = Join-Path (Split-Path -Parent $Turn4) 'comparison.json'
+$Entry = "$env:LOCALAPPDATA/Temp/fd2sdl-major-regression-20261106-c8/build/graphics-artifacts/20261106-120753-960993/original-natural-stage0/original/natural-stage1-entry.SAV"
+$EntryReport = Join-Path (Split-Path -Parent $Entry) 'comparison.json'
+$Common = @('--root', $Root, '--driver', $Driver, '--dosbox', $Dosbox, '--sdl', $App)
+
+# 每场单独 owned Job；前一场失败立即停，不启动后续窗口。
+foreach ($Scenario in @('victory-all-villagers', 'victory-villager-loss', 'victory-full-inventory', 'chest-129', 'chest-201', 'chest-193')) {
+    & $Driver run-job 1800000 python -B $Runner @Common --scenario $Scenario --save-fixture $Turn4 --source-report $Turn4Report --artifacts "$Output/$Scenario"
+    if ($LASTEXITCODE -ne 0) { throw "B7 stopped: $Scenario" }
+}
+
+& $Driver run-job 1800000 python -B $Runner @Common --scenario villager-defeat --save-fixture $Entry --source-report $EntryReport --artifacts "$Output/villager-defeat"
+if ($LASTEXITCODE -ne 0) { throw 'B7 stopped: villager-defeat' }
+
+# 使用上面本次受控交接实际生成的原版端存档和报告。
+$Stage2 = "$Output/victory-all-villagers/original/b7-stage2-entry.SAV"
+$Stage2Report = Join-Path (Split-Path -Parent $Stage2) 'comparison.json'
+& $Driver run-job 1800000 python -B $Runner @Common --scenario stage2-storage --save-fixture $Stage2 --source-report $Stage2Report --artifacts "$Output/stage2-storage"
+if ($LASTEXITCODE -ne 0) { throw 'B7 stopped: stage2-storage' }
+
+& $Driver run-job 7200000 python -B $Runner @Common --scenario natural-stage1 --save-fixture $Entry --source-report $EntryReport --planner $Planner --max-turns 60 --artifacts "$Output/natural-stage1"
+if ($LASTEXITCODE -ne 0) { throw 'B7 stopped: natural-stage1' }
+```
+
+`$Output` 下各场目录必须尚不存在，且不能落在 `original_game` 或只读来源目录内。工具先校验来源、资源和必需程序，才创建场景产物和窗口；原版使用独立完整副本。自然流程的 `--planner` 为必填现存 EXE，`--max-turns` 默认为 60、允许 `1..100`；实际败北、停滞或达到上限均失败并保留现场，不重开、不调整 seed 或重抽 RNG。规划结果不充当玩法验收 oracle。
+
+`--sdl` 省略时只做原版校准，顶层 `ok=false`／`probe_only=true`，不能计作双端通过。可选 `--public-app PATH` 仅为该实际文件增加 SHA／mtime 守卫，不固定旧候选摘要，也不代替 `--sdl`。双端结果仍须每端业务、实际 PNG／Save、来源与工具晚守卫及 owned 清理全部通过；失败原报告不覆盖，修复后另建产物目录。
+
+Linux 只提供对应无窗口纯测试命令；本轮没有 Linux 执行记录。该配对 runner 明确要求 Windows WGC HWND 和 Windows owned Job，不能把 Bash 纯测当作 Linux 图形通过。
+
+```bash
+python3 -B -m unittest discover -s tools/tests -p 'test_stage1_complete_*.py'
+python3 -B -m unittest discover -s tools/tests -p 'test_stage1_branches.py'
+python3 -B -m unittest discover -s tools/tests -p 'test_stage1_natural*.py'
+python3 -B -m unittest discover -s tools/tests -p 'test_stage2_storage.py'
+```
+
 ### B6 战斗演出采集与判据
 
 本阶段共有19种场景：3个核心最低帧／SFX场景（物理攻击／受击、玩家火炎术0、恢复术13），15个已确认 AI FULL0..9及合法多目标的业务／采集场景，以及1个`ai-item-score20`评分回归。受支持实现与既定最低验收已完成，实际来源为分候选运行及单列离线复核；不把19种场景一律称完整图声通过。仅测试这些新增与直接受影响的路径，不重跑 B0—B5 全套。正式玩家法术能力门不因演出模块存在而扩展。

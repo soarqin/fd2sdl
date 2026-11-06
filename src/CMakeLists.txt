@@ -1021,6 +1021,9 @@ if(BUILD_TESTING)
         fd2_field_game_open=__wrap_fd2_field_game_open
         fd2_field_game_process_automatic_action_visual=__wrap_fd2_field_game_process_automatic_action_visual
         fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event
+        fd2_field_game_settlement_prepare=__wrap_fd2_field_game_settlement_prepare
+        fd2_field_game_settlement_commit=__wrap_fd2_field_game_settlement_commit
+        fd2_scene_play_stage1_victory=__wrap_fd2_scene_play_stage1_victory
         fd2_vga_present=__wrap_fd2_vga_present
         fd2_input_take_action=__wrap_fd2_input_take_action
         fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail

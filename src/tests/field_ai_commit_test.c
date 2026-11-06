@@ -1859,8 +1859,89 @@ static int test_item_async_loot_and_rejection_boundaries_remain(void) {
     return 0;
 }
 
+/* 13a9f各caller决定51A83，不由14b78或AI common tail统一恢复。
+ * 只跑一名actor，避免13565/回合返回的显式mode1掩盖中间结果。 */
+static int test_ai_ordinary_display_caller_boundaries(void) {
+    static const uint32_t rolls[32] = {0};
+    for (unsigned initial = 0; initial < 2; initial++) {
+        for (unsigned scenario = 0; scenario < 11; scenario++) {
+            test_rng rng = {rolls, 32, 0};
+            uint32_t cells[64];
+            fd2_terrain_attr attrs[2] = {{0}};
+            fd2_field_game game;
+            init_game(&game, cells, attrs, &rng);
+            game.stage = UINT8_MAX; /* 与本组无关的stage私有结果门不参与。 */
+            game.phase_ai_pass = 1;
+            game.ordinary_display_mode = (uint8_t)initial;
+            game.units.items[0].text_id = 96;
+            game.units.items[0].movement_points = 1;
+            game.units.items[0].ai_param_35 = 4;
+            game.units.items[0].ai_param_36 = 1;
+            game.units.items[1].x = game.units.items[1].y = 7;
+            unsigned expected = initial;
+            int must_move = 0;
+            switch (scenario) {
+                case 0: game.units.items[0].ai_behavior_raw = 8; break;
+                case 1: game.units.items[0].ai_behavior_raw = 2; break;
+                case 2:
+                    game.units.items[0].ai_behavior_raw = 2;
+                    game.units.items[0].hp = 30; expected = 1; break;
+                case 3:
+                    game.units.items[0].ai_behavior_raw = 4;
+                    expected = 0; must_move = 1; break;
+                case 4:
+                    game.units.items[0].ai_behavior_raw = 4;
+                    game.units.items[0].movement_points = 0; expected = 0; break;
+                case 5:
+                    game.units.items[0].ai_behavior_raw = 4;
+                    game.units.items[0].movement_points = 0;
+                    game.units.items[0].hp = 30; expected = 1; break;
+                case 6:
+                    game.units.items[0].ai_behavior_raw = 3;
+                    game.units.items[0].ai_param_35 = 0;
+                    expected = 0; must_move = 1; break;
+                case 7:
+                    game.units.items[0].ai_behavior_raw = 9;
+                    game.units.items[0].ai_param_35 = 0;
+                    must_move = 1; break; /* 9没有3的尾部强写0。 */
+                case 8:
+                    game.units.items[0].ai_behavior_raw = 1;
+                    expected = 1; must_move = 1; break; /* 14121 witness。 */
+                case 9:
+                    game.units.items[0].ai_behavior_raw = 0;
+                    game.units.items[0].movement_points = 2;
+                    game.units.items[1].x = 3; game.units.items[1].y = 1;
+                    game.units.items[1].flags = 1;
+                    game.units.count = 3;
+                    set_unit(&game.units.items[2], 2, 7, 7);
+                    game.units.items[2].text_id = 2;
+                    attrs[1].movement_cost_class = 1; game.terrain.attr_count = 2;
+                    for (int x = 0; x < 8; x++) cells[4 * 8 + x] = 1;
+                    /* witness不能穿墙；13e9c仍可取首个hidden近敌坐标。 */
+                    expected = 1; must_move = 1; break;
+                default:
+                    game.units.items[0].ai_behavior_raw = 7;
+                    expected = 0; must_move = 1; break;
+            }
+            CHECK(process_automatic_action_and_ack(&game) == 1);
+            if (game.ordinary_display_mode != expected)
+                fprintf(stderr, "AI display scenario=%u initial=%u expected=%u got=%u\n",
+                    scenario, initial, expected, game.ordinary_display_mode);
+            CHECK(game.ordinary_display_mode == expected);
+            CHECK(game.active_side == 0 && rng.cursor == 0 &&
+                  game.failure == FD2_FIELD_FAILURE_NONE);
+            if (must_move) CHECK(game.units.items[0].x != 1 || game.units.items[0].y != 1);
+            if (scenario == 2 || scenario == 5) CHECK(game.units.items[0].hp == 40);
+            if (scenario == 0) CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+            else CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+        }
+    }
+    return 0;
+}
+
 int main(void) {
-    if (test_item_async_loot_and_rejection_boundaries_remain() != 0 ||
+    if (test_ai_ordinary_display_caller_boundaries() != 0 ||
+        test_item_async_loot_and_rejection_boundaries_remain() != 0 ||
         test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once() != 0 ||
         test_ai_focus_before_effect_at_map_edge() != 0 ||
         test_ai_line_item_and_no_action_focus() != 0 ||

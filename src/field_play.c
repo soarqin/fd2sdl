@@ -954,7 +954,7 @@ static void overview_transition_frame(fd2_vga *vga, const uint8_t *overview,
  * 原版使用 input_check 与 @0x4e381 清BIOS队列；SDL只耗尽当前帧脉冲，
  * 不重置物理 held／repeat 状态。 */
 static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
-    if (!game || !vga || !game->ready || game->stage > 1u ||
+    if (!game || !vga || !game->ready || game->stage > 2u ||
         game->failure != FD2_FIELD_FAILURE_NONE || game->active_side != 2 ||
         game->selected_unit != -1 || game->detail_visible ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
@@ -2657,8 +2657,9 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         return FD2_FIELD_PLAY_RETURN_ERROR;
     int prepared_entry = context && context->has_preparation && !load_active;
     int opened = prepared_entry
-        ? (stage == 1 && context->preparation.stage_id == stage
-            ? fd2_field_game_prepare_stage1(&game, fdother, &context->preparation) : -1)
+        ? (context->preparation.stage_id != stage ? -1 :
+            stage == 1u ? fd2_field_game_prepare_stage1(&game, fdother, &context->preparation) :
+            stage == 2u ? fd2_field_game_prepare_stage2(&game, fdother, &context->preparation) : -1)
         : load_active ? fd2_field_game_open_resources(&game, fdother, stage)
         : fd2_field_game_open(&game, vga, fdother, stage);
     if (opened != 0) {
@@ -2709,8 +2710,9 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         fd2_vga_set_brightness(vga, 0);
     }
     if (prepared_entry) {
-        int entry_result = fd2_scene_play_stage1_entry(
-            vga, fdother, &game, field_audio, once);
+        int entry_result = stage == 1u
+            ? fd2_scene_play_stage1_entry(vga, fdother, &game, field_audio, once)
+            : fd2_scene_play_stage2_entry(vga, fdother, &game, field_audio, once);
         if (entry_result != FD2_SCENE_RESULT_OK) {
             fd2_field_game_close(&game);
             return entry_result == FD2_SCENE_RESULT_HOST_QUIT
@@ -3673,25 +3675,26 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     }
 
     if (context) {
-        /* 22ef6：本关整段对白结束后才同步persistent并推进stage。 */
+        /* 22ef6/22f37：本关整段对白/脚本成功后才交接下一准备owner。 */
         if (play_result == FD2_FIELD_PLAY_RETURN_VICTORY) {
             fd2_save_manual_state prepared;
             int scene_result = FD2_SCENE_RESULT_ERROR;
-            if (game.stage != 0u) {
-                fprintf(stderr, "第二关后的结算尚未开放，已停止跨关。\n");
+            if (game.stage != 0u && game.stage != 1u) {
+                fprintf(stderr, "当前关卡结算尚未开放，已停止跨关（stage=%zu）。\n", game.stage);
             } else if (fd2_field_game_settlement_prepare(&game, &prepared) == 0 &&
-                fd2_scene_field_story_validate(&game, 9) == 0 &&
+                (game.stage != 0u || fd2_scene_field_story_validate(&game, 9) == 0) &&
                 fd2_field_play_request_music(context, game.stage, -1, "victory") == 0) {
-                scene_result = fd2_scene_play_field_story(
-                    vga, fdother, &game, 9, field_audio, once);
+                scene_result = game.stage == 0u
+                    ? fd2_scene_play_field_story(vga, fdother, &game, 9, field_audio, once)
+                    : fd2_scene_play_stage1_victory(vga, fdother, &game, field_audio, once);
                 if (scene_result == FD2_SCENE_RESULT_OK) {
                     if (fd2_field_game_settlement_commit(&game, &prepared) != 0)
                         scene_result = FD2_SCENE_RESULT_ERROR;
                     else {
                         context->preparation = prepared;
                         context->has_preparation = 1;
-                        printf("field settlement: stage=1 persistent=%u resource=%u\n",
-                            prepared.unit_count, prepared.gold_or_flags);
+                        printf("field settlement: stage=%u persistent=%u resource=%u\n",
+                            prepared.stage_id, prepared.unit_count, prepared.gold_or_flags);
                         fflush(stdout);
                     }
                 }

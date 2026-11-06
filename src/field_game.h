@@ -392,6 +392,9 @@ struct fd2_field_game {
     uint64_t last_terrain_visual_ms;
     uint8_t range_visual_phase;
     uint64_t last_range_visual_ms;
+    /* 原51A83普通cursor模式0/1；保留显式END后AI的最终写点供结算继承。
+     * 不表示目标overlay的2..6，不进入SAV；Scene只读借用。 */
+    uint8_t ordinary_display_mode;
     int info_panel_right;
     fd2_field_battle_result battle_result;
     int ready;
@@ -455,7 +458,7 @@ int fd2_field_game_open(fd2_field_game *game,
                         fd2_vga *vga,
                         const fd2_archive *fdother,
                         size_t stage);
-/* 1088d/10010共用资源准备；只支持stage0/1，不构造单位、推进phase、
+/* 1088d/10010共用资源准备；只支持stage0/1/2，不构造单位、推进phase、
  * 写VGA/palette/RNG。输出须是新owner（先close旧Game），失败后可安全close。
  * fdother借用至game关闭；失败释放已取得资源。 */
 int fd2_field_game_open_resources(fd2_field_game *game,
@@ -465,10 +468,19 @@ int fd2_field_game_open_resources(fd2_field_game *game,
  * stage1只支持1..16 roster部署，超过16所需2af28尚未支持，拒绝而不截断。 */
 int fd2_field_game_prepare_stage1(fd2_field_game *game,
     const fd2_archive *fdother, const fd2_save_manual_state *state);
+/* field_stage2_entry_play @0x32e8c：仅已确认的stage2专用入口；
+ * 不以stage++或stage1部署模板替代，不改传入的准备owner。 */
+int fd2_field_game_prepare_stage2(fd2_field_game *game,
+    const fd2_archive *fdother, const fd2_save_manual_state *state);
+/* field_stage1_victory_play @0x22f37（原sub_22F37）的只读结算投影：
+ * 198奖励→group4→scripts14..16。
+ * stage0返回当前units；stage1完整预检后才写out，无Game/RNG/归档owner写入。 */
+int fd2_field_game_settlement_project_units(const fd2_field_game *game,
+    fd2_field_units *out);
 /* 准备Load的资源/记录纯预检，count0可显示；不代表可以出阵。 */
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state);
-/* 22ef6：fragment9结束前只prepare shadow；完整结束后才commit 11506
- * 持久同步与stage1。out整张0xa00，不带RNG或53EC8，不改source。 */
+/* 22ef6/22f37：完整结束前只prepare shadow；结束后commit 11506同步及下一准备stage。
+ * out整张0xa00；stage1先追加8号持久成员，不带RNG或53EC8，不改source。 */
 int fd2_field_game_settlement_prepare(const fd2_field_game *game,
     fd2_save_manual_state *out);
 int fd2_field_game_settlement_commit(fd2_field_game *game,

@@ -39,7 +39,7 @@ git diff --check
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
 - `field_info` 覆盖stage 0总览及物品纯列表：raw槽选中、空槽压行、全部215项、frame41缺省属性图、raw零色复制，以及完整预检失败全VGA不变；原详情与MAGIC上页组合另有回归。纯绘制测试不代替正式入口和原版WGC验收。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
-- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。另验纯Drop的mode0装备确认、确认／取消重算、末槽stale、删空回COMMAND、隐藏坏装备拒绝及RNG0；正式Drop仍禁用。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
+- `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。另验Drop的mode0装备确认、确认／取消重算、末槽stale、删空回COMMAND、隐藏坏装备拒绝及RNG0。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
 - `field_item_target` 覆盖草药192的纯目标范围、raw候选／121轮询、HP0／acted、取消聚焦回LIST0、坏末项及Load owner；合成光标／地形锁定frame1与LUT，不执行物品提交或代替WGC。
 - `field_item_commit` 覆盖草药逻辑提交的power40／逐目标RNG、压槽及stale ID、MP／EX保留、死亡／phase预测、重复拒绝、提交后错误冻结及正式能力查询／confirm_cursor分派；不借AI尾链，也不代替真实键盘可达性或原版raw字节量测。
 - `field_magic_list_play` 现同时覆盖法术／物品私有列表的真实按键等待逻辑，替换宿主时钟与呈现，不开窗口；检查共享RNG、开合、退出、释放和首错。`field_item_menu_render` 用合成资源检查ITEM IDs8–11、禁用图、高亮、动画与角色最后覆盖；二者均不是SDL物品WGC。
@@ -54,6 +54,14 @@ git diff --check
 
 ### 图形自动化
 
+Windows 已验证按本轮 PID／HWND 投递窗口消息的后台输入：DOSBox-X 与 SDL 在其他应用持有前台时完成标题导航、END 确认框及取消返回浏览，仍使用 HWND WGC 和完整资源门。驱动不抢焦点、不退回前台 `SendInput`；该证据不覆盖物理键盘或 RawInput。支持范围及监测限制见[后台窗口消息校准](gui-testing.md#windows-hwnd-窗口消息后台输入已验证)，旧前台执行证据保留原来源。永久入口 `run_background_input_check.py` 最初等价迁移后又新增 HWND／PID 所有权保护，当前版已不与旧 GUI 候选 AST 等同；新增保护仅通过 13 项纯回归，没有新增 GUI 执行次数。
+
+独立后台校准必须由 `run-job 600000` 管理进程树，产物目录须为新目录；内部 `--sentinel` 不单独运行。Windows PowerShell：
+
+```powershell
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
+```
+
 Windows（PowerShell）：
 
 ```powershell
@@ -62,7 +70,11 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 运行条件、Linux 对应入口和测试范围见[图形自动化测试](gui-testing.md)。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC 单窗口捕获。报告和截图写入构建目录下的 `graphics-artifacts/`，不提交仓库；自动化仅操作本次启动并识别的测试进程。原版 DOSBox 自动对照使用隔离副本及独立判据，不把 SDL 截图自检当作原版一致性证据。
 
-总流程先执行 `run_original_opening.py` 的自然新游戏引导交接，再执行 `run_original_focus.py` 的四向边缘聚焦与完整 COMMAND 显示，随后串行验证标题、菜单和动作。前两项分别使用自然 START 与精确坐标派生副本，不能互相替代。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；END 确认框／取消不提交回合，不替代整回合的 phase／AI／随机结果验收。
+不验片头动画的场景允许仅在启动等待内发送 Esc 加速（首 1 秒、随后每 2 秒），完整标题资源门通过后立即停止；由场景决定是否启用，命令不增加参数。片头动画专项保持无 skip，并单列实际覆盖，不能把跳过片头当作动画通过。B5 标题 START 后的 117 页引导仍逐页资源 ACK 并核对自然站位，不使用启动 skip 绕过剧情；历史无 skip 证据保留原来源。开启skip本身不能替代该候选的实际验收。
+
+B5受支持范围已完成15个唯一场景；自然首关由旧完整原版、新门离线导航复核、短程双端校准和独立新SDL全链联合登记，非单轮同源配对。逐候选及Job来源见[图形规范](gui-testing.md#b5-结算准备页与下一关)与[阶段记录](../plans/stage-log.md)；大阶段统一审查和历史全面回归尚未执行。
+
+默认完整 Windows 总流程先执行 `run_original_opening.py` 的自然新游戏引导交接，再执行 `run_original_focus.py` 的四向边缘聚焦与完整 COMMAND 显示，随后以 600 秒 Job 运行后台校准，再进入 input、标题、菜单和动作；B3／B4／B5-only 不调用后台历史回归，新增注册尚待大阶段实际 GUI 复测。前两项分别使用自然 START 与精确坐标派生副本，不能互相替代。单独复跑命令、快照前置条件和每项证据范围统一见图形测试规范；END 确认框／取消不提交回合，不替代整回合的 phase／AI／随机结果验收。
 
 另以 `run_original_end_turn.py` 的真实 START 副本提交一次 END，识别 actor 0 最终焦点并正式 Save，比较回合、计数、配置等确定性字段；已加入总流程。相机、伤害和 AI 随机结果仍不作相等声明。
 
@@ -80,13 +92,24 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 
 `run_original_load.py` 还逐键验证Z轮询raw0→1→2→3→0，再Load后仅按一次Z，必须回到raw0；之后按来源推导的无滚屏路径回原焦点，原完整存档测量门不增加allowlist。专属FDICON＋光标判据拒绝错误角色、裸角色／裸光标及歧义，缺ACK时不补按键。新增坏sprite编号和恢复胜败门属于SDL存档回归，畸形记录不送入DOSBox。
 
-`run_original_result.py` 已纳入总流程：从真实START只改已确认hidden位并重算checksum，保留完整派生manifest；原版按资源门逐键到达胜利首对白、败北frame0及自动GAME OVER frame1，SDL从同来源独立报告胜／败并自然exit2。测试不推进结算或回标题，不声称整关实战。共享进程helper只在本SDL场景显式接受exit2，其他窗口仍要求默认exit0，强制清理不得记为通过。单独运行使用与其他配对相同的 `driver run-job`、`--root/--game/--driver/--dosbox/--artifacts` 参数。
+`run_original_result.py --b5-defeat` 已纳入当前总流程：从真实START只改已确认hidden位并重算checksum，保留完整派生manifest；两端验证败北frame0、自动GAME OVER完整合成及返回标题，清理前必须已观察到标题。它不证明自然战败或胜利结算。省略该参数保留历史exit2能力门校准，不适用于已接入后续流程的正式App。单独运行使用与其他配对相同的 `driver run-job`、`--root/--game/--driver/--dosbox/--artifacts` 参数；强制清理不得记为通过。
 
 `run_original_magic_list.py` 的列表、伤害和治疗双端场景也已纳入总流程。正式输入必须经过列表和目标选择，仅确认一次施法，分别校验完整静态资源矩形、效果与MP／LV／EX；原版单端校准和配对输出口径不同，参数及夹具限制见[图形测试规范](gui-testing.md)。失焦补跑保留失败及来源，累计结果不能冒称单轮通过。
 
 `run_original_item_list.py` 支持B3的Use／Give／Equip／Drop原版单端校准及串行双端配对。默认controls检查真实START raw0的四向ITEM子菜单、三槽Use导航、code0拒绝与逐级取消；herb-full／herb-injured检查目标取消及单次Use详情。code5..24另有20项原表实例、真实item102双目标area2及code23零MP瞬移；它们验证实际效果、合法END与完整Save。受控位置、库存和身份差异在各自manifest明列，不冒充自然整关路线。物品表及期望取自严格LE／原码，不以SDL为oracle；不传`--sdl`仍是`ok=false/probe_only=true`单端校准，双端需各自资源门、实际PNG及终值／文件守卫全部通过。完整共享RNG／演出声音另验。Windows命令、逐场覆盖及无窗口回归见[物品菜单规范](gui-testing.md#b3物品菜单校准与双端配对)。
 
 `--scenario drop-herb/drop-weapon/drop-armor/drop-last`各选一场，覆盖未装备草药、已装备武器／防具及最后一项。添加`--sdl`时先运行原版并清理，再运行SDL；四场均已登记实际双端配对及完整Save，核对raw16B、末ID、派生值和未知字节。取消、一次删除、删空回COMMAND、逐级取消与正式Save按同一规范执行；正式Drop已开放，早期仅原版校准的来源仍保留在阶段记录。
+
+B5 的统一入口为 `--b5-only`，已登记准备／酒店四槽、正式败北、10类掉落／特殊格、stage 1 两场和 `natural-stage0`，共15项；完整套件默认也包含它们。用 `--b5-scenarios` 选择本阶段子集；未知、重复、空选择及与 B3／B4 的互斥组合在创建产物前拒绝。Windows 已核对的入口如下：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2sdl fd2_field_play_input_driver fd2_field_natural_plan --parallel
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
+```
+
+自然场景的规划器默认查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录；可用 `--planner` 覆盖，不存在时在窗口启动前拒绝。stage 1 默认使用本轮 `prepare-controlled` 生成的原版活动 Save；没有先运行准备场景时须提供独立只读 `--b5-save-fixture`。自然流程默认最多50轮，败北、重复语义状态或到达上限均保留失败，不重开／重抽；调度器只为原版首个实际阶段结束周期录一次音频，作为 A5 曲目身份／切换证据，不是 A7 保真。所有 WGC 场景串行运行，先清理原版再启 SDL，正常／错误／超时均清理本轮 Job，失败收据不覆盖。
+
+B5受支持范围已完成15项的实际证据验收；自然首关为不同来源的独立运行联合验证，不是完整Suite单轮通过。后台基础校准、旧失败与各冻结来源分别保留，大阶段统一审查及历史全面回归尚待执行。累计结果统一见[阶段记录](../plans/stage-log.md)。上述命令沿用已有参数；具体15项、Windows子集命令、存档前置、Linux无窗口／规划器兼容说明与未执行范围见 [B5 图形测试规范](gui-testing.md#b5-结算准备页与下一关)；本轮没有 Linux 图形或规划器验收结果。
 
 ### Sanitizer（Linux／Clang）
 
@@ -187,6 +210,20 @@ python3 tools/analyze_fd2_audio.py --extract-music-dir "$work/music"
 ### 离线音频对照
 
 两平台的比较脚本都只读取已有音频，另需 NumPy。capture 必须附确认的场景和调用依据，可由有判据的 DOSBox 自动取证产生。
+
+`fd2_bgm_capture_probe TRACK SECONDS NEW_OUTPUT.wav` 使用当前正式XMIDI／AIL／Nuked九voice后端，生成44100 Hz、双声道16位离线参考；曲目范围0..19，时长1..120秒，输出路径必须不存在。从项目根目录执行：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2_bgm_capture_probe
+& ./src/build-win/Debug/fd2_bgm_capture_probe.exe 10 20 "$env:TEMP/fd2-track10-new.wav"
+```
+
+```bash
+cmake --build src/build --target fd2_bgm_capture_probe
+./src/build/fd2_bgm_capture_probe 10 20 /tmp/fd2-track10-new.wav
+```
+
+该参考仅用于辨认曲目与切换边界；指纹排序、离线PCM或场景日志不等于原版音色／混音／逐样本相等，也不等于实时设备通过。Windows已有本地执行证据，Linux命令本轮未执行。
 
 Windows（PowerShell；先将路径换成实际捕获和候选目录）：
 

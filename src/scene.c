@@ -6,6 +6,9 @@
  * 以及原版实机对照。
  * B4底框复用field_bottom_notice_open @0x1956b（原sub_1956B）调用的
  * dialog_box_draw_tiles @0x168b6，箭头依据dialog_wait_key @0x16c57（原sub_16C57）。
+ * B5复现field_stage1_entry_play @0x32d18（原sub_32D18）、
+ * field_stage0_victory_execute @0x22ef6（原sub_22EF6）及
+ * field_defeat_game_over_present @0x22e5c（原sub_22E5C）的呈现顺序。
  */
 
 #include "scene.h"
@@ -20,6 +23,7 @@
 #include "field_unit.h"
 #include "field_unit_base.h"
 #include "font.h"
+#include "image.h"
 #include "map_sprite.h"
 #include "portrait.h"
 #include "text.h"
@@ -105,6 +109,9 @@ typedef struct {
     int focus_cell_y;
     /* DAT_00003a45：过场与正式战场共用的 0x50 字节单位记录表。 */
     fd2_field_units units;
+    /* 12c60在active完全未匹配时才查persistent；仅借当前Game，不造副本owner。 */
+    const fd2_field_unit *persistent;
+    size_t persistent_count;
     /* field_animation_phase_update @0x1297d 的全局 idle phase。静止 actor
      * 共用此相位；移动 actor 由 record offset 0x04 的步行相位覆盖。 */
     uint8_t idle_phase;
@@ -324,13 +331,21 @@ static uint16_t resolve_portrait_control(const fd2_scene_field_state *field_stat
     }
     if ((control == FD2_TEXT_TOP_PORTRAIT ||
          control == FD2_TEXT_BOTTOM_PORTRAIT) && arg != 0x27u) {
-        /* field_visible_actor_find_by_text_id @0x12c60 即使只找到隐藏
-         * actor，也保留其记录指针，供 token 路径读取 offset 0x07 立绘。 */
+        /* field_visible_actor_find_by_text_id @0x12c60（原登记同名）：
+         * 首个可见匹配优先；全hidden保最后匹配；active完全没有匹配才
+         * 从persistent保最后匹配。函数返回-1不等于记录指针为空。 */
+        const fd2_field_unit *matched = NULL;
         for (size_t i = 0; i < field_state->units.count; i++) {
             const fd2_field_unit *unit = &field_state->units.items[i];
-            if (unit->text_id == (uint8_t)arg)
-                return unit->unit_id;
+            if (unit->text_id == arg) {
+                matched = unit;
+                if (!fd2_field_unit_is_hidden(unit)) return unit->unit_id;
+            }
         }
+        if (matched) return matched->unit_id;
+        for (size_t i = 0; field_state->persistent && i < field_state->persistent_count; i++)
+            if (field_state->persistent[i].text_id == arg) matched = &field_state->persistent[i];
+        if (matched) return matched->unit_id;
     }
     return arg;
 }
@@ -346,6 +361,7 @@ static int resolve_speaker_actor(const fd2_scene_field_state *field_state,
 
     /* -17/-18 的下一 token 是 actor record offset 0x08 文本编号，
      * field_visible_actor_find_by_text_id @0x12c60 只返回未隐藏角色。 */
+    if (arg > UINT8_MAX) return -1;
     return fd2_field_units_find_visible_text_id(&field_state->units,
                                                 (uint8_t)arg);
 }
@@ -551,9 +567,10 @@ static void render_scene_base(fd2_vga *vga,
     opening_camera_pixels(map, field_state, &camera_x, &camera_y);
     fd2_terrain_render_field_base(vga, terrain, map, camera_x, camera_y);
     render_prologue_actors(vga, map, sprites, field_state);
-    /* map_scene_render_actors @0x1cb94 后由 FUN_00010134 调用
-     * map_tile_blit_visible @0x12ac6 重绘遮挡格。 */
-    fd2_terrain_render_field_overlay(vga, terrain, map, camera_x, camera_y, 0);
+    /* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）只恢复
+     * actor附近遮挡；空的建筑格不能覆盖后来绘制的选择框。 */
+    fd2_field_units_render_terrain_overlays(vga, terrain, map,
+        &field_state->units, camera_x, camera_y, 0, NULL, NULL);
     clear_field_view_border(vga);
 }
 
@@ -1772,10 +1789,41 @@ static int field_event_append_group(
         fd2_field_audio *audio,
         int fast) {
     size_t first = state->units.count;
-    if (fd2_field_units_append_group(&state->units, &game->metadata,
-                                     &game->placements, group) != 0 ||
-        state->units.count == first)
+    fd2_field_units shadow = state->units;
+    int force = game->stage == 1u && (group == 2u || group == 3u);
+    if (fd2_field_units_append_group_placed(&shadow, &game->metadata,
+            &game->placements, &game->map, group, force) != 0 ||
+        shadow.count == first || shadow.count > game->units.count)
         return -1;
+    /* field_unit_stage_template_append @0x10c50（原登记同名）：Game已提交
+     * 1b750派生值；Scene仅借同一身份的静态记录，按原placement重放移动。
+     * 持久角色可无template来源，不能把呈现模板索引当第二个业务owner。 */
+    for (size_t i = first; i < shadow.count; i++) {
+        fd2_field_unit initial = shadow.items[i];
+        const fd2_field_unit *committed = &game->units.items[i];
+        uint16_t source = game->units.source_template_indices[i];
+        if (initial.unit_id != committed->unit_id ||
+            initial.text_id != committed->text_id)
+            return -1;
+        if (source != FD2_FIELD_UNIT_NO_TEMPLATE) {
+            if (source != shadow.source_template_indices[i]) return -1;
+        } else {
+            size_t p = 0;
+            while (p < game->roster_count &&
+                   (game->roster[p].unit_id != committed->unit_id ||
+                    game->roster[p].text_id != committed->text_id)) p++;
+            if (p == game->roster_count) return -1;
+        }
+        shadow.items[i] = *committed;
+        shadow.items[i].x = initial.x;
+        shadow.items[i].y = initial.y;
+        shadow.items[i].direction = initial.direction;
+        shadow.items[i].frame_phase = initial.frame_phase;
+        fd2_field_unit_set_hidden(&shadow.items[i],
+                                  fd2_field_unit_is_hidden(&initial));
+        shadow.source_template_indices[i] = source;
+    }
+    state->units = shadow;
     if (!arrival_effect) {
         present_base_frame(vga, &game->terrain, &game->map,
                            &game->sprites, state);
@@ -1797,7 +1845,7 @@ static int field_event_move_script(
         int fast) {
     const uint8_t *script;
     size_t script_size;
-    if (fd2_field_stage0_movement_script_get(
+    if (fd2_field_movement_script_get(
             script_id, &script, &script_size) != 0)
         return -1;
     return play_opening_move_script(vga, &game->terrain, &game->map,
@@ -1812,9 +1860,12 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                fd2_field_audio *audio,
                                int fast) {
     if (!vga || !fdother || !game || !notice || !notice->handled ||
-        !notice->presentation_deferred || notice->kind != FD2_FIELD_EVENT_TURN ||
-        game->stage != 0 || notice->action > 3 ||
-        notice->presentation_unit_count > game->units.count)
+        !notice->presentation_deferred ||
+        (notice->kind != FD2_FIELD_EVENT_TURN && notice->kind != FD2_FIELD_EVENT_CELL) ||
+        !((game->stage == 0u && notice->action <= 4u) ||
+          (game->stage == 1u && notice->action == 6u)) ||
+        notice->presentation_unit_count > game->units.count ||
+        game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
         return FD2_SCENE_RESULT_ERROR;
     scene_host_quit_requested = 0;
 
@@ -1827,6 +1878,7 @@ int fd2_scene_play_field_event(fd2_vga *vga,
     memset(&state, 0, sizeof(state));
     int result = -1;
 
+    if (poll_scene_quit(vga)) goto done;
     if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
         fd2_archive_open(&dato, "original_game/DATO.DAT") != 0 ||
         fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
@@ -1839,6 +1891,8 @@ int fd2_scene_play_field_event(fd2_vga *vga,
     state.focus_cell_x = notice->presentation_focus_x;
     state.focus_cell_y = notice->presentation_focus_y;
     state.units = game->units;
+    state.persistent = game->roster;
+    state.persistent_count = game->roster_count;
     state.units.count = notice->presentation_unit_count;
     state.idle_phase = game->idle_phase;
 
@@ -1895,6 +1949,17 @@ int fd2_scene_play_field_event(fd2_vga *vga,
             MOVE(6);
             TEXT(6);
             break;
+        case 4:
+            /* sub_34738 @0x34738先改raw13.side，再显示本关fragment7。 */
+            TEXT(7);
+            break;
+        case 6:
+            /* sub_34778 @0x34778：强制原placement，不把53AFA当AI标志。 */
+            PAN(9, 1);
+            GROUP(3, 0);
+            MOVE(13);
+            TEXT(4);
+            break;
     }
 
 #undef TEXT
@@ -1902,7 +1967,8 @@ int fd2_scene_play_field_event(fd2_vga *vga,
 #undef GROUP
 #undef PAN
 
-    if (state.units.count != game->units.count) goto done;
+    if (scene_host_quit_requested || poll_scene_quit(vga) ||
+        state.units.count != game->units.count) goto done;
     for (size_t i = 0; i < game->units.count; i++) {
         if (memcmp(&state.units.items[i], &game->units.items[i],
                    sizeof(game->units.items[i])) != 0 ||
@@ -1929,6 +1995,284 @@ done:
     fd2_archive_close(&fdtxt);
     return scene_host_quit_requested
         ? FD2_SCENE_RESULT_HOST_QUIT : result;
+}
+
+/* field_stage1_entry_play @0x32d18（原sub_32D18）：业务先完成资源/脚本预检，此处重放同一组原始
+ * 脚本和完整对白。只把呈现的动态状态交还，不重算成长或重建持久表。 */
+int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast) {
+    if (!vga || !fdother || !game || !game->ready || game->stage != 1u ||
+        game->units.count != 21u || game->metadata.unknown_01 != 5u ||
+        game->placements.count < 5u || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
+        game->failure != FD2_FIELD_FAILURE_NONE)
+        return FD2_SCENE_RESULT_ERROR;
+    fd2_archive fdtxt = {0};
+    fd2_text_entry text = {0};
+    fd2_ui_sheet ui = {0};
+    fd2_scene_field_state state = {0};
+    int result = FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = 0;
+    if (poll_scene_quit(vga)) goto done;
+    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+        fd2_text_entry_open_entry(&text, &fdtxt, 2) != 0 ||
+        text.fragment_count < 4u || ui_sheet_open_fdother(&ui, fdother, 5) != 0)
+        goto done;
+    for (uint8_t id = 9; id <= 12; id++) {
+        const uint8_t *bytes;
+        size_t size;
+        if (fd2_field_movement_script_get(id, &bytes, &size) != 0 || !size)
+            goto done;
+    }
+    state.units = game->units;
+    state.persistent = game->roster;
+    state.persistent_count = game->roster_count;
+    state.units.count = 5;
+    state.idle_phase = game->idle_phase;
+    for (size_t i = 0; i < 5u; i++) {
+        if (i >= game->roster_count) {
+            /* 1088d未部署槽清整80B，仅flags=1；1366a仍会移动此hidden槽。 */
+            memset(&state.units.items[i], 0, sizeof(state.units.items[i]));
+            state.units.items[i].flags = 1;
+            state.units.walk_frames[i] = 1;
+            continue;
+        }
+        const fd2_field_placement *pos = &game->placements.records[
+            game->placements.count - 5u + i];
+        state.units.items[i].x = (uint8_t)pos->x;
+        state.units.items[i].y = (uint8_t)pos->y;
+        state.units.items[i].direction = 0;
+        state.units.items[i].frame_phase = 0;
+        state.units.walk_frames[i] = 1;
+    }
+    /* 205da先将镜头/焦点清零，展示部署帧并fade，再进入32d18。 */
+    fd2_vga_set_brightness(vga, 0x40);
+    present_base_frame(vga, &game->terrain, &game->map, &game->sprites, &state);
+    opening_palette_fade_in(vga, fast);
+#define ENTRY_CHECK() do { if (poll_scene_quit(vga)) goto done; } while (0)
+#define ENTRY_PAN(x, y) do { pan_camera_to(vga, &game->terrain, &game->map, \
+    &game->sprites, &state, (x), (y), fast); ENTRY_CHECK(); } while (0)
+#define ENTRY_MOVE(id) do { if (field_event_move_script(vga, game, &state, \
+    audio, (id), fast) != 0) goto done; ENTRY_CHECK(); } while (0)
+#define ENTRY_TEXT(id) do { if (opening_text(vga, &game->terrain, &game->map, \
+    &game->dato_archive, &ui, &game->sprites, &state, &game->font, &text, \
+    audio, (id), fast) != 0) goto done; ENTRY_CHECK(); } while (0)
+#define ENTRY_GROUP(id) do { if (field_event_append_group(vga, fdother, game, \
+    &state, (id), 0, audio, fast) != 0) goto done; ENTRY_CHECK(); } while (0)
+    ENTRY_CHECK();
+    ENTRY_PAN(13, 11);
+    ENTRY_MOVE(9); ENTRY_TEXT(0);
+    ENTRY_MOVE(10); ENTRY_TEXT(1);
+    ENTRY_GROUP(1); ENTRY_MOVE(11); ENTRY_TEXT(2);
+    for (size_t i = 0; i < state.units.count; i++) state.units.items[i].direction = 0;
+    ENTRY_PAN(6, 12); ENTRY_GROUP(2); ENTRY_MOVE(12);
+    for (size_t i = 0; i < state.units.count; i++) state.units.items[i].direction = 0;
+    ENTRY_TEXT(3);
+    focus_camera_on_actor(vga, &game->terrain, &game->map, &game->sprites,
+        &state, 0, fast);
+    ENTRY_CHECK();
+#undef ENTRY_GROUP
+#undef ENTRY_TEXT
+#undef ENTRY_MOVE
+#undef ENTRY_PAN
+#undef ENTRY_CHECK
+    fd2_field_handoff handoff = {0};
+    handoff.stage = 1;
+    handoff.units = state.units;
+    handoff.camera_cell_x = state.camera_cell_x;
+    handoff.camera_cell_y = state.camera_cell_y;
+    handoff.focus_cell_x = state.focus_cell_x;
+    handoff.focus_cell_y = state.focus_cell_y;
+    handoff.idle_phase = state.idle_phase;
+    handoff.valid = 1;
+    result = fd2_field_game_apply_handoff(game, &handoff);
+    if (result == 0) {
+        printf("stage1 entry: units=%zu camera=(%d,%d) cursor=(%d,%d) turn=%u\n",
+            game->units.count, game->camera_cell_x, game->camera_cell_y,
+            game->cursor_cell_x, game->cursor_cell_y, game->turn_number);
+        fflush(stdout);
+    }
+done:
+    fd2_text_entry_close(&text);
+    fd2_archive_close(&fdtxt);
+    return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+}
+
+int fd2_scene_field_story_validate(const fd2_field_game *game, size_t fragment) {
+    if (!game || !game->ready || game->stage > 1u || !game->font.glyphs ||
+        game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
+        return -1;
+    fd2_archive archive = {0};
+    fd2_text_entry text = {0};
+    const uint8_t *tokens;
+    size_t count;
+    int result = -1;
+    fd2_scene_field_state state = {0};
+    state.units = game->units;
+    state.persistent = game->roster;
+    state.persistent_count = game->roster_count;
+    if (fd2_archive_open(&archive, "original_game/FDTXT.DAT") != 0 ||
+        fd2_text_entry_open_entry(&text, &archive, game->stage + 1u) != 0 ||
+        fd2_text_entry_get_fragment(&text, fragment, &tokens, &count) != 0)
+        goto done;
+    for (size_t i = 0; i < count; i++) {
+        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
+        if (token == -1) { result = 0; break; }
+        if (token == -2 || token == -3) continue;
+        if (token >= 0) {
+            if ((unsigned)token >= game->font.glyph_count) goto done;
+            continue;
+        }
+        if (token < -20 || token > -17 || ++i >= count) goto done;
+        uint16_t argument = fd2_text_token_at(tokens, i);
+        if ((token == -19 || token == -20) && argument >= state.units.count)
+            goto done;
+        unsigned portrait = resolve_portrait_control(&state, token, argument);
+        for (unsigned frame = 0; frame < 4; frame++) {
+            fd2_image image = {0};
+            int valid = fd2_portrait_decode_frame(&image, &game->dato_archive,
+                portrait, frame) == 0 && image.width == 80 && image.height == 80;
+            fd2_image_free(&image);
+            if (!valid) goto done;
+        }
+    }
+done:
+    fd2_text_entry_close(&text);
+    fd2_archive_close(&archive);
+    return result;
+}
+
+int fd2_scene_play_field_story(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, size_t fragment, fd2_field_audio *audio, int fast) {
+    if (!vga || !fdother || !game || !game->ready || game->stage > 1u ||
+        game->failure != FD2_FIELD_FAILURE_NONE ||
+        fd2_scene_field_story_validate(game, fragment) != 0)
+        return FD2_SCENE_RESULT_ERROR;
+    fd2_archive fdtxt = {0};
+    fd2_text_entry text = {0};
+    fd2_ui_sheet ui = {0};
+    fd2_scene_field_state state = {0};
+    int result = FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = 0;
+    if (poll_scene_quit(vga)) goto done;
+    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+        fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
+        ui_sheet_open_fdother(&ui, fdother, 5) != 0 ||
+        fragment >= text.fragment_count)
+        goto done;
+    state.camera_cell_x = game->camera_cell_x;
+    state.camera_cell_y = game->camera_cell_y;
+    state.focus_cell_x = game->cursor_cell_x;
+    state.focus_cell_y = game->cursor_cell_y;
+    state.units = game->units;
+    state.persistent = game->roster;
+    state.persistent_count = game->roster_count;
+    state.idle_phase = game->idle_phase;
+    if (opening_text(vga, &game->terrain, &game->map, &game->dato_archive,
+            &ui, &game->sprites, &state, &game->font, &text, audio,
+            fragment, fast) != 0)
+        goto done;
+    /* 对白不提交单位属性。仅交还原对白产生的镜头、焦点与idle相位。 */
+    if (poll_scene_quit(vga)) goto done;
+    if (state.units.count != game->units.count ||
+        memcmp(state.units.items, game->units.items,
+            game->units.count * sizeof(game->units.items[0])) != 0)
+        goto done;
+    game->camera_cell_x = state.camera_cell_x;
+    game->camera_cell_y = state.camera_cell_y;
+    game->camera_pixel_offset_x = game->camera_pixel_offset_y = 0;
+    game->cursor_cell_x = clamp_int(state.focus_cell_x, 0, game->map.width - 1);
+    game->cursor_cell_y = clamp_int(state.focus_cell_y, 0, game->map.height - 1);
+    game->idle_phase = state.idle_phase;
+    result = FD2_SCENE_RESULT_OK;
+done:
+    fd2_text_entry_close(&text);
+    fd2_archive_close(&fdtxt);
+    return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+}
+
+/* 固定停顿只传播宿主关闭，不让普通按键跳过22e5c的1/9/36 tick。 */
+static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast) {
+    if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (fast) return FD2_SCENE_RESULT_OK;
+    uint64_t started = SDL_GetTicks();
+    while (SDL_GetTicks() - started < (uint64_t)ticks * FD2_BIOS_TICK_MS) {
+        fd2_vga_present_timed(vga, 16);
+        if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
+    }
+    return FD2_SCENE_RESULT_OK;
+}
+
+static int scene_result_fade(fd2_vga *vga, int fade_in, int fast) {
+    if (fast) {
+        fd2_vga_set_brightness(vga, fade_in ? 0 : 0x40);
+        return poll_scene_quit(vga) ? FD2_SCENE_RESULT_HOST_QUIT : 0;
+    }
+    for (int step = 0; step <= 0x40; step += 4) {
+        fd2_vga_set_brightness(vga, fade_in ? 0x40 - step : step);
+        fd2_vga_present_timed(vga, 12);
+        if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
+    }
+    return FD2_SCENE_RESULT_OK;
+}
+
+int fd2_scene_play_game_over(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_bgm_player *bgm, int fast) {
+    if (!vga || !fdother) return FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = 0;
+    if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
+    fd2_image images[2] = {{0}};
+    const uint8_t *data;
+    size_t size, offsets[2], ends[2];
+    uint16_t x[2], y[2];
+    int result = FD2_SCENE_RESULT_ERROR;
+    if (fd2_archive_get(fdother, 79, &data, &size) != 0 || size < 16 ||
+        rd_u16_le(data) != 2 || rd_u16_le(data + 2) != 2 || rd_u32_le(data + 4) != 0)
+        goto done;
+    /* sub_2EB9F @0x2eb9f的嵌图从9B头后开始；全部RLE先验，零色/skip不混用。 */
+    for (size_t i = 0; i < 2; i++) {
+        offsets[i] = rd_u32_le(data + 8 + i * 4u);
+        ends[i] = i == 0 ? rd_u32_le(data + 12) : size;
+        if (offsets[i] < 16 || ends[i] > size || ends[i] <= offsets[i] ||
+            ends[i] - offsets[i] < 13 ||
+            fd2_image_decode_buf(&images[i], data + offsets[i] + 9,
+                ends[i] - offsets[i] - 9) != 0)
+            goto done;
+        x[i] = rd_u16_le(data + offsets[i]);
+        y[i] = rd_u16_le(data + offsets[i] + 2);
+        if ((size_t)x[i] + (size_t)images[i].width > VGA_W ||
+            (size_t)y[i] + (size_t)images[i].height > VGA_H)
+            goto done;
+    }
+    if (bgm && fd2_bgm_stop(bgm) != 0) goto done;
+    if ((result = scene_fixed_ticks(vga, 1, fast)) != 0 ||
+        (result = scene_result_fade(vga, 0, fast)) != 0)
+        goto done;
+    /* 22e5c仅在第一帧之前clear0；第二帧必须复合到现有VGA。 */
+    memset(vga->framebuffer, 0, VGA_W * VGA_H);
+    for (size_t i = 0; i < 2; i++) {
+        for (int row = 0; row < images[i].height; row++)
+            memcpy(images[i].pixels + (size_t)row * (size_t)images[i].width,
+                vga->framebuffer + ((size_t)y[i] + (size_t)row) * VGA_STRIDE + x[i],
+                (size_t)images[i].width);
+        if (fd2_image_decode_rle_pixels(images[i].pixels, images[i].width,
+                images[i].height, data + offsets[i] + 13,
+                ends[i] - offsets[i] - 13) != 0) {
+            result = FD2_SCENE_RESULT_ERROR;
+            goto done;
+        }
+        for (int row = 0; row < images[i].height; row++)
+            memcpy(vga->framebuffer + ((size_t)y[i] + (size_t)row) * VGA_STRIDE + x[i],
+                images[i].pixels + (size_t)row * (size_t)images[i].width,
+                (size_t)images[i].width);
+        if (!fast) fd2_vga_present(vga);
+        if (poll_scene_quit(vga)) { result = FD2_SCENE_RESULT_HOST_QUIT; goto done; }
+        if (i == 0 && (result = scene_result_fade(vga, 1, fast)) != 0) goto done;
+        if ((result = scene_fixed_ticks(vga, i == 0 ? 9u : 36u, fast)) != 0) goto done;
+    }
+    result = FD2_SCENE_RESULT_OK;
+done:
+    for (size_t i = 0; i < 2; i++) fd2_image_free(&images[i]);
+    return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
 }
 
 int fd2_scene_play_new_game_prologue(fd2_vga *vga,

@@ -44,6 +44,19 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                fd2_field_audio *audio,
                                int fast);
 
+/* field_stage1_entry_play @0x32d18（原sub_32D18）：五个persistent部署槽的stage1开场；只交接动态
+ * 坐标/镜头，不再次构造或结算单位。game须先由prepare_stage1预检。 */
+int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast);
+/* 22ef6/loot mode3借当前战场的完整FDTXT对白，不冒充UI0底框短消息。 */
+int fd2_scene_play_field_story(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, size_t fragment, fd2_field_audio *audio, int fast);
+/* 当前单位身份解析所有立绘、字模和控制码，只读，不呈现/耗键/RNG。 */
+int fd2_scene_field_story_validate(const fd2_field_game *game, size_t fragment);
+/* field_defeat_game_over_present @0x22e5c（原sub_22E5C）：FDOTHER79两整帧与已证1/9/36 tick。 */
+int fd2_scene_play_game_over(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_bgm_player *bgm, int fast);
+
 /* B4的1956b滑入框复用168b6布局；纯绘制／资源校验，不采样输入或改game。
  * arrow_frame仅接受18/19，13表示按16c57擦除；正式战场map已载入。 */
 int fd2_scene_field_message_validate(const fd2_archive *fdother);

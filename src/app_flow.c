@@ -44,3 +44,23 @@ fd2_app_flow fd2_app_flow_from_field(fd2_app_field_result result) {
     }
     return FD2_APP_FLOW_ERROR;
 }
+
+/* main @0x25bf4与title_action_dispatch @0x25ebb的准备/结果分派。 */
+fd2_app_flow fd2_app_flow_from_prepare(fd2_app_prepare_result result) {
+    switch (result) {
+        case FD2_APP_PREPARE_DEPART: return FD2_APP_FLOW_BATTLE;
+        case FD2_APP_PREPARE_TITLE: return FD2_APP_FLOW_TITLE;
+        case FD2_APP_PREPARE_HOST_QUIT: return FD2_APP_FLOW_EXIT;
+        case FD2_APP_PREPARE_LEAVE_GAME: return FD2_APP_FLOW_LEAVE_GAME;
+        case FD2_APP_PREPARE_ERROR: return FD2_APP_FLOW_ERROR;
+    }
+    return FD2_APP_FLOW_ERROR;
+}
+
+fd2_app_flow fd2_app_flow_after_battle(fd2_app_field_result result,
+        int prepared_stage) {
+    if (result == FD2_APP_FIELD_VICTORY)
+        return prepared_stage == 1 ? FD2_APP_FLOW_PREPARE : FD2_APP_FLOW_ERROR;
+    if (result == FD2_APP_FIELD_DEFEAT) return FD2_APP_FLOW_TITLE;
+    return fd2_app_flow_from_field(result);
+}

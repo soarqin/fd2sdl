@@ -161,6 +161,7 @@ int fd2_field_move_range_compute(fd2_field_path_result *result,
 typedef struct {
     fd2_field_move_query_context query;
     fd2_field_move_path_mode mode;
+    int clear_unit_flags;
     int target_x;
     int target_y;
     uint8_t *best_remaining;
@@ -242,36 +243,39 @@ static void move_path_search_visit(fd2_field_move_path_search *search,
         }
         if (cost > remaining) continue;
         uint8_t next_remaining = (uint8_t)(remaining - cost);
-        int hostile = hostile_occupied(&search->query, nx, ny);
+        int hostile = !search->clear_unit_flags &&
+            hostile_occupied(&search->query, nx, ny);
         if (hostile && search->mode != FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS)
             continue;
-        if (hostile) {
-            /* mode 2 的 success callback 在普通 ZOC／destination 阻挡前
-             * 观察 hostile occupied cell。 */
-            search->witness_x = nx;
-            search->witness_y = ny;
-            search->found_witness = 1;
-            continue;
-        }
-
         size_t index = (size_t)ny * (size_t)search->query.map->width +
                        (size_t)nx;
         if (depth >= search->stack_capacity) continue;
         search->stack[depth] = direction[d];
         uint8_t turn_score = path_turn_score(search->stack, depth + 1u);
-        if (next_remaining < search->best_remaining[index]) continue;
-        if (next_remaining == search->best_remaining[index] &&
-            search->best_remaining[index] != 0u &&
-            (search->mode != FD2_FIELD_MOVE_PATH_EQUAL_ROUTE ||
-             turn_score <= search->best_turn_score[index]))
+        /* 原map byte7初值FF（signed -1），剩余0也是已访问的有效值。
+         * turn score只会取0..FC，用未用值FF标记未访问，无需增加owner。 */
+        if (search->best_turn_score[index] != UINT8_MAX &&
+            (next_remaining < search->best_remaining[index] ||
+             (next_remaining == search->best_remaining[index] &&
+              (search->mode != FD2_FIELD_MOVE_PATH_EQUAL_ROUTE ||
+               turn_score <= search->best_turn_score[index]))))
             continue;
 
         search->best_remaining[index] = next_remaining;
         search->best_turn_score[index] = turn_score;
+        if (hostile) {
+            /* field_path_find @0x4e4f6（原登记同名）：4e680先通过预算／
+             * 已访门，4e703再覆盖witness；4e6e5明确CLC，仍递归穿过
+             * hostile格，不能把它当成搜索终点或提前覆盖未准入的格。 */
+            search->witness_x = nx;
+            search->witness_y = ny;
+            search->found_witness = 1;
+        }
         /* mode 2 的 witness probe 由 path finder 自身识别 hostile cell，
          * 不应用普通 reachable-range 的 ZOC stop；否则永远无法越过首个
          * hostile 邻格观察 occupied cell。 */
-        if (search->mode != FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS &&
+        if (!search->clear_unit_flags &&
+            search->mode != FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS &&
             opponent_adjacent(&search->query, nx, ny)) {
             next_remaining = 0;
             search->best_remaining[index] = 0;
@@ -297,7 +301,11 @@ int fd2_field_move_path_find(const fd2_field_map *map,
         !terrain || !units || mover_index >= units->count ||
         !movement_profile_costs || movement_profile_cost_count == 0 ||
         movement_points > UINT8_MAX ||
-        mode > FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS || !path_length ||
+        ((unsigned)mode & ~7u) != 0u ||
+        ((unsigned)mode & 3u) > FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS ||
+        (((unsigned)mode & FD2_FIELD_MOVE_PATH_CLEAR_UNIT_FLAGS) != 0u &&
+         ((unsigned)mode & 3u) != FD2_FIELD_MOVE_PATH_EQUAL_ROUTE) ||
+        !path_length ||
         (mode != FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS &&
          (target_x < 0 || target_y < 0 || target_x >= map->width ||
           target_y >= map->height)))
@@ -322,7 +330,8 @@ int fd2_field_move_path_find(const fd2_field_map *map,
             .movement_profile_costs = movement_profile_costs,
             .movement_profile_cost_count = movement_profile_cost_count,
         },
-        .mode = mode,
+        .mode = (fd2_field_move_path_mode)((unsigned)mode & 3u),
+        .clear_unit_flags = ((unsigned)mode & FD2_FIELD_MOVE_PATH_CLEAR_UNIT_FLAGS) != 0u,
         .target_x = target_x,
         .target_y = target_y,
         .best_remaining = work,
@@ -335,6 +344,9 @@ int fd2_field_move_path_find(const fd2_field_map *map,
         .witness_x = -1,
         .witness_y = -1,
     };
+    memset(search.best_turn_score, UINT8_MAX, count);
+    search.best_turn_score[
+        (size_t)mover->y * (size_t)map->width + (size_t)mover->x] = 0;
     search.best_remaining[
         (size_t)mover->y * (size_t)map->width + (size_t)mover->x] =
         (uint8_t)movement_points;

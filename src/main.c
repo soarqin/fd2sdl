@@ -22,6 +22,7 @@
 #include "input.h"
 #include "field.h"
 #include "field_play.h"
+#include "field_prepare_play.h"
 #include "field_preview.h"
 #include "tile.h"
 #include "title.h"
@@ -40,16 +41,21 @@ _Static_assert((int)FD2_FIELD_PLAY_RETURN_COMPLETE == (int)FD2_APP_FIELD_COMPLET
                (int)FD2_FIELD_PLAY_RETURN_DEFEAT == (int)FD2_APP_FIELD_DEFEAT,
                "field/app flow result mapping changed");
 
-/* SDL 尚未接入本关胜败后续流程；显式停止，不冒充返回标题或下一关。 */
+_Static_assert((int)FD2_FIELD_PREPARE_ERROR == (int)FD2_APP_PREPARE_ERROR &&
+               (int)FD2_FIELD_PREPARE_DEPART == (int)FD2_APP_PREPARE_DEPART &&
+               (int)FD2_FIELD_PREPARE_TITLE == (int)FD2_APP_PREPARE_TITLE &&
+               (int)FD2_FIELD_PREPARE_HOST_QUIT == (int)FD2_APP_PREPARE_HOST_QUIT &&
+               (int)FD2_FIELD_PREPARE_LEAVE_GAME == (int)FD2_APP_PREPARE_LEAVE_GAME,
+               "prepare/app result ABI changed");
+
+/* 独立战场CLI不带App准备owner；只报告结果，不冒充已执行跨关链。 */
 static int field_result_status(fd2_field_play_result result, size_t stage) {
     switch (fd2_app_flow_from_field((fd2_app_field_result)result)) {
         case FD2_APP_FLOW_BATTLE_VICTORY:
-            fprintf(stderr, "战场 victory 已到达（stage=%zu），后续未实现："
-                            "stage 0 settlement not implemented\n", stage);
+            fprintf(stderr, "独立战场到达 victory（stage=%zu），未执行App跨关链。\n", stage);
             return 2;
         case FD2_APP_FLOW_BATTLE_DEFEAT:
-            fprintf(stderr, "战场 defeat 已到达（stage=%zu），后续未实现："
-                            "stage 0 defeat continuation not implemented\n", stage);
+            fprintf(stderr, "独立战场到达 defeat（stage=%zu），未执行App败北返回标题流程。\n", stage);
             return 2;
         case FD2_APP_FLOW_LEAVE_GAME:
         case FD2_APP_FLOW_EXIT:
@@ -57,6 +63,30 @@ static int field_result_status(fd2_field_play_result result, size_t stage) {
         default:
             return -1;
     }
+}
+
+/* main @0x25bf4：战斗资源由play关闭后才把persistent交准备页；
+ * 同一App context贯穿，START不重置运行期贡献、动态数字或随机流。 */
+static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
+        fd2_field_audio *audio, const char *save_path, fd2_field_play_context *context,
+        fd2_app_flow flow, size_t stage, const fd2_field_handoff *handoff, int load_active) {
+    while (flow == FD2_APP_FLOW_BATTLE || flow == FD2_APP_FLOW_PREPARE) {
+        if (flow == FD2_APP_FLOW_PREPARE) {
+            int result = fd2_field_prepare_run(vga, fdother, context, save_path, audio);
+            flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
+            if (flow != FD2_APP_FLOW_BATTLE) break;
+            if (!context->has_preparation || context->preparation.stage_id != 1u)
+                return FD2_APP_FLOW_ERROR;
+            stage = 1; handoff = NULL; load_active = 0;
+        }
+        if (stage > 1u) return FD2_APP_FLOW_ERROR;
+        fd2_field_play_result result = fd2_field_play_run_context(vga, fdother,
+            stage, 0, handoff, audio, save_path, load_active, context);
+        flow = fd2_app_flow_after_battle((fd2_app_field_result)result,
+            context->has_preparation ? context->preparation.stage_id : -1);
+        handoff = NULL; load_active = 0;
+    }
+    return flow;
 }
 
 /* FDOTHER.DAT 句柄（对应反编译 &DAT_00001a4d 全局槽） */
@@ -895,6 +925,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "audio: unavailable; continuing without sound\n");
     }
 
+    fd2_field_play_context app_context;
+    fd2_field_play_context_init(&app_context, bgm);
     int rc = 0;
     if (map_preview || map_preview_once) {
         rc = run_map_preview(&vga, map_preview_once, preview_stage);
@@ -916,17 +948,25 @@ int main(int argc, char **argv) {
             new_game_play_once, &handoff);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT)
             rc = 0;
-        else if (rc == 0)
-            rc = field_result_status(
-                fd2_field_play_run(&vga, &g_fdother, 0,
-                                   new_game_play_once, &handoff,
-                                   field_audio_ptr, save_path, 0), 0);
+        else if (rc == 0) {
+            if (new_game_play_once) {
+                rc = field_result_status(fd2_field_play_run(&vga, &g_fdother, 0,
+                    1, &handoff, field_audio_ptr, save_path, 0), 0);
+            } else {
+                fd2_app_flow flow = run_field_chain(&vga, &g_fdother, field_audio_ptr,
+                    save_path, &app_context, FD2_APP_FLOW_BATTLE, 0, &handoff, 0);
+                /* 原自然START链若败北，回实际标题；CLI不能把返回标题当作退出。 */
+                if (flow == FD2_APP_FLOW_TITLE) goto application_title;
+                rc = flow == FD2_APP_FLOW_EXIT || flow == FD2_APP_FLOW_LEAVE_GAME ? 0 : -1;
+            }
+        }
     } else if (prologue_preview || prologue_preview_once) {
         rc = fd2_scene_play_new_game_prologue(
             &vga, &g_fdother, bgm, field_audio_ptr,
             prologue_preview_once);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT) rc = 0;
     } else {
+application_title:
         /* 打开 ANI.DAT（对应 FUN_0001db69 @0x20421） */
         if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
             fprintf(stderr, "cannot open ANI.DAT\n");
@@ -935,75 +975,57 @@ int main(int argc, char **argv) {
         }
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
-        /* title_action_dispatch @0x25ebb（原登记 title_action_dispatch）：
-         * START=0，四槽 LOAD=1，活动快照 CONTINUE=2；原版也从标题进入
-         * 四槽 picker。SDL 的四槽标题流程尚未接入，不能改作退出或活动
-         * 快照恢复。肯定离场与宿主关闭分别记录来源，最终均正常退出。 */
-        int first_title = 1;
+        /* title_action_dispatch @0x25ebb：START直接自然开场，LOAD恢复准备，
+         * CONTINUE只恢复stage0/1活动快照；败北返回标题而不重播片头。 */
+        int first_title = !new_game_play;
         while (rc == 0) {
             fd2_save_file title_save = {0};
             fd2_save_battle_snapshot title_snapshot;
             int title_continue_available =
                 fd2_save_file_open(&title_save, save_path) == 0 &&
-                fd2_save_file_get_battle_snapshot(
-                    &title_save, &title_snapshot) == 0 &&
-                title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u;
+                fd2_save_file_get_battle_snapshot(&title_save, &title_snapshot) == 0 &&
+                title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] <= 1u;
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
-                &vga, bgm, title_audio_ptr, first_title,
-                title_continue_available);
+                &vga, bgm, title_audio_ptr, first_title, title_continue_available);
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
             if (flow == FD2_APP_FLOW_EXIT) break;
-            if (flow == FD2_APP_FLOW_ERROR) {
-                rc = -1;
-                break;
-            }
+            if (flow == FD2_APP_FLOW_ERROR) { rc = -1; break; }
+            size_t stage = 0;
+            int load_active = 0;
+            fd2_field_handoff handoff;
+            const fd2_field_handoff *opening = NULL;
             if (flow == FD2_APP_FLOW_LOAD_GAME) {
-                fprintf(stderr, "手工 LOAD 尚未实现，已返回标题；"
-                                "可选择 START 或可用的 CONTINUE。"
-                                "title manual load not implemented; staying at title\n");
-                continue;
-            }
-
-            fd2_field_play_result play_result =
-                FD2_FIELD_PLAY_RETURN_ERROR;
-            if (flow == FD2_APP_FLOW_START_NEW_GAME) {
-                fd2_field_handoff handoff;
-                rc = fd2_scene_play_new_game_prologue_handoff(
+                int result = fd2_field_prepare_load_title(&vga, &g_fdother,
+                    &app_context, save_path, field_audio_ptr);
+                flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
+                if (flow == FD2_APP_FLOW_BATTLE) flow = FD2_APP_FLOW_PREPARE;
+            } else if (flow == FD2_APP_FLOW_START_NEW_GAME) {
+                app_context.has_preparation = 0; /* 只废弃旧准备owner，不重置53EC8/53AE1/RNG。 */
+                int result = fd2_scene_play_new_game_prologue_handoff(
                     &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff);
-                if (rc == FD2_SCENE_RESULT_HOST_QUIT) {
-                    play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-                    rc = 0;
-                } else if (rc == 0)
-                    play_result = fd2_field_play_run(
-                        &vga, &g_fdother, 0, 0, &handoff,
-                        field_audio_ptr, save_path, 0);
+                flow = result == FD2_SCENE_RESULT_OK ? FD2_APP_FLOW_BATTLE :
+                    result == FD2_SCENE_RESULT_HOST_QUIT ? FD2_APP_FLOW_EXIT : FD2_APP_FLOW_ERROR;
+                if (result == FD2_SCENE_RESULT_OK) opening = &handoff;
             } else if (flow == FD2_APP_FLOW_CONTINUE_GAME) {
-                fd2_save_file save = {0};
-                fd2_save_battle_snapshot snapshot;
+                fd2_save_file save = {0}; fd2_save_battle_snapshot snapshot;
                 if (fd2_save_file_open(&save, save_path) != 0 ||
-                    fd2_save_file_get_battle_snapshot(
-                        &save, &snapshot) != 0) {
-                    fprintf(stderr, "cannot continue active save: %s\n",
-                            save_path);
-                    rc = -1;
-                } else if (snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 0) {
-                    fprintf(stderr, "unsupported saved stage: %u\n",
-                            snapshot.meta[FD2_SAVE_BATTLE_META_STAGE]);
-                    rc = -1;
+                    fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
+                    snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] > 1u) {
+                    fprintf(stderr, "活动快照无法恢复：%s\n", save_path);
+                    flow = FD2_APP_FLOW_ERROR;
                 } else {
-                    fd2_save_file_close(&save);
-                    /* field_play 打开完整 stage 资源后再事务化导入。 */
-                    play_result = fd2_field_play_run(
-                        &vga, &g_fdother, 0, 0, NULL,
-                        field_audio_ptr, save_path, 1);
+                    stage = snapshot.meta[FD2_SAVE_BATTLE_META_STAGE];
+                    load_active = 1;
+                    flow = FD2_APP_FLOW_BATTLE;
                 }
                 fd2_save_file_close(&save);
             }
-
-            if (rc != 0) break;
-            rc = field_result_status(play_result, 0);
+            flow = run_field_chain(&vga, &g_fdother, field_audio_ptr, save_path,
+                &app_context, flow, stage, opening, load_active);
+            if (flow == FD2_APP_FLOW_TITLE) continue;
+            if (flow != FD2_APP_FLOW_EXIT && flow != FD2_APP_FLOW_LEAVE_GAME) rc = -1;
             break;
         }
         fd2_archive_close(&g_ani);

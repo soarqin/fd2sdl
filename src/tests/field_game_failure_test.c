@@ -39,6 +39,7 @@ static void set_unit(fd2_field_unit *unit, uint8_t side, int x, int y) {
     uint8_t *record = (uint8_t *)unit;
     record[0x0a] = 0x40;
     record[0x0b] = 0;
+    record[0x31] = 0xff; /* 无掉落；0是合法物品队列，会先停在B5提示而非dispatch格事件。 */
 }
 
 static void init_game(fd2_field_game *game, uint32_t cells[64],
@@ -399,13 +400,26 @@ static int test_status_recompute_failure_stops_next_actor(void) {
     game.units.count = 3;
     set_unit(&game.units.items[2], 1, 5, 5);
     game.units.items[2].attack_status = 2;
-    CHECK(fd2_field_game_end_active_phase(&game) == -1);
+    /* 1a866先递减当前byte并呈现481，提示完成后才调用1b750。
+     * 坏装备必须在该真实重算边界冻结，不能略过提示或提前处理下一actor。 */
+    CHECK(fd2_field_game_end_active_phase(&game) == 0);
+    fd2_field_progress_notice notice;
+    CHECK(fd2_field_game_progress_peek(&game, &notice) == 1);
+    CHECK(notice.kind == FD2_FIELD_PROGRESS_STATUS && notice.fragment == 481 &&
+          notice.actor_index == 1 && notice.wait_ticks == 10);
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE);
+    CHECK(game.units.items[1].attack_status == 0 && game.units.items[1].attack == 200);
+    CHECK(game.units.items[2].attack_status == 2 && rng.calls == 0);
+    CHECK(fd2_field_game_progress_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_ACTION);
     CHECK(game.failure_notice.unit_index == 1);
     CHECK(game.units.items[1].attack_status == 0);
     CHECK(game.units.items[1].attack == 200);
     CHECK(game.units.items[2].attack_status == 2);
     CHECK(game.event_log_count == 0 && rng.calls == 0);
+    fd2_field_game frozen = game;
+    CHECK(fd2_field_game_progress_ack(&game) == -1);
+    CHECK(memcmp(&game, &frozen, sizeof(game)) == 0 && rng.calls == 0);
     return frozen_after_failure(&game, &rng);
 }
 

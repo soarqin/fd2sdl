@@ -37,6 +37,24 @@ def ida_provenance() -> str:
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x18B84: [{
+        "target": "semantic_name", "was": "sub_18B84",
+        "now": "field_unit_selection_summary_wait",
+        "why": "完整233B、18890唯一caller及115b6紧随调用：while(!input_check())逐BIOS tick重绘"
+               "terrain/selector/actor，再18c6d与下方cell板，最后复制page到VGA。相对X>=7时"
+               "上板(9,9)，否则(160,9)。发现下一键即返回而不读取/清键，由115b6消费同键；"
+               "最初选择键已由上层消费，不是持续UNIT_SELECTED板。原版多场6258px完整板及"
+               "首方向后板消失已独立重放；raw SHA ebabd1f40c050dff9b29b3bfc4a99f83b9a9988e938e65ee8c19537d56478326。",
+    }],
+    0x18C6D: [{
+        "target": "semantic_name", "was": "sub_18C6D",
+        "now": "field_unit_summary_draw",
+        "why": "完整287B及18b84/2facd共享caller：先FDOTHER5 frame22不透明149x42板，再画"
+               "HP/MP两条及数字、LV和actor.text_id+1名字。HP/MP及上限均signed16，LV为u8；"
+               "条起点(21,22)/(21,31)，LV(132,4)，HP/MP数字(126,21)/(126,30)，名字(5,4)。"
+               "1875d在current==max用bank31否则42；actor/cursor先画，板前景后覆盖，不裁掉"
+               "头部就冒称完整actor。raw SHA fa85a60e551fb589d541b39ff772e2427cd38e0462f7cd291c0e894a7b08f2af。",
+    }],
     0x16559: [{
         "target": "semantic_name", "was": "sub_16559",
         "now": "dialog_portrait_frame_draw",
@@ -1165,6 +1183,136 @@ CORRECTIONS: dict[int, list[dict]] = {
 
 
 
+# B5完整函数语义：源记录仍保留历史误名/说法，不反向改写历史证据。
+# 2026-11-05在既有9.5 Domain库完整读取函数、caller/callee及指令，
+# 原字节逐段严格LE映射复核；真实数据库应用/重导另有本阶段收据。
+_B5_CONFIRMED_NAMES = {
+    0x1145A: ("sub_1145A", "field_persistent_unit_combat_stats_recompute",
+        "完整172B；112a5持久构造与11506结算同步两caller。从base+37h/39h/3eh读取AP/DP/"
+        "命中基值，八槽仅按flag40累加item+1/+5/+3/+7，最终只写record+48h/4ah/4ch/4eh"
+        "四WORD并保留16位回绕。hidden槽仍可参与，不检查装备种类、不套战场1b750的状态"
+        "倍率、不动HP/MP或其它字节。"),
+    0x11506: ("sub_11506", "persistent_roster_sync_from_battle",
+        "完整176B；22ef6及后续结算caller。按active raw顺序嵌套roster按text_id同步整80B，"
+        "text_id0的hidden active不覆盖；清六状态、flags仅留hidden、存活HP和全部MP恢复max，"
+        "再1145a重算。不是按unit ID或side同步，未匹配和未用表尾不写。"),
+    0x12263: ("sub_12263", "field_completed_chest_tiles_apply",
+        "完整121B；10010活动Load与190ac特殊格完成caller。逐格只选terrain flags&60==20且"
+        "completed[cell.byte2&31]非零，将整个cell WORD模加1、byte2清0、byte3保留；"
+        "不改metadata或completed本身，不把40类宝藏也改图。"),
+    0x190AC: ("sub_190AC", "field_special_cell_execute",
+        "完整1215B；18d8c的WAIT后路径。flags20/40未完成格421/428确认；item分支422/429"
+        "文字完成后append并按成功标completed，满槽可经423选择替换，旧ID写回metadata参数，"
+        "425同时引用新名-4/旧名-5；money分支426/430或空参数427/431，param0保留既有"
+        "53AE1并仍加资源。完成后12263；No/Esc只412取消，不消费特殊格。"),
+    0x1AA1D: ("sub_1AA1D", "field_loot_descriptors_execute",
+        "完整726B；玩家physical/Magic/Item与AI physical/Magic的明确caller尾。按raw队列处理"
+        "3B descriptor：0文字432后append/满槽433替换，1文字435后加资源，2延时回调，3"
+        "本stage片段。mode0/1 recipient非side2立即结束整个队列；不重算装备stats。"
+        "0队列/早退共享22bbe普通epilogue，不是状态治愈调用；不固定Hex-Rays猜测ABI。"),
+    0x1B6B7: ("sub_1B6B7", "field_defeated_loot_collect",
+        "完整107B；物理、玩家Magic、Item尾caller。全active raw顺序收nonhidden、HP0、"
+        "descriptor.mode!=ff的完整3B；返回count经1b64d共享尾，不从伪C的void误推无返回值。"),
+    0x1B653: ("sub_1B653", "field_defeated_story_loot_collect",
+        "完整100B；15311 AI Magic专属caller。仅收nonhidden HP0且mode3的完整3B，"
+        "raw顺序与count共享尾1b64d；不能等同1b6b7收物品/金币/回调的完整集合。"),
+    0x22EF6: ("sub_22EF6", "field_stage0_victory_execute",
+        "完整65B；main的stage0结果分派。先完整呈现本关FDTXT[1]fragment9，再11506"
+        "同步持久表，最后stage=1。不是呈现到首句就可交接，也不是完整所有关卡结算。"),
+    0x22E5C: ("sub_22E5C", "field_defeat_game_over_present",
+        "完整154B；main败退caller。stopmusic→tick1→fadeout→loadFDOTHER79→clearVGA0→"
+        "frame0→fadein→tick9→frame1→tick36→释放。79两帧header+9 B24RLE保留skip，"
+        "frame1前不再次清屏、不另载palette，不能把decoded0一般化opaque0。"),
+    0x206C5: ("sub_206C5", "field_stage1_battle_result_check",
+        "完整66B；117e7/1a866与两AI outer的stage结果表xref。先205b4普通胜败检查，"
+        "再按raw5..10扫描hidden；六人全hidden时无条件结果设1败北，覆盖先前普通结果。"
+        "其中任一仍可见即返回，不检查HP/side或把villagers当persistent roster。"),
+    0x26152: ("sub_26152", "field_town_prepare_execute",
+        "完整1178B；main结算和标题手工LOADcaller。释放活动资源、从persistent重建FDICON，"
+        "按stage-1准备记录开五项town；NoTown另分支四槽/部署。type0的酒店/武器/出口/道具/"
+        "教会五项，左右反向循环，26x31完整表与FDOTHER10/11/13及495..499文本独立复核。"),
+    0x265EC: ("sub_265EC", "field_town_view_render",
+        "完整290B；26152逐键/4tick刷新caller。大buffer456stride先复制town底图，局部"
+        "244,162画62x26面板、252,168画495+selector，再首roster的FDICON phase0/1/2/1"
+        "marker；312x192拷贝至VGA4,4。不是五项命令图标sheet，不修改roster。"),
+    0x2670E: ("sub_2670E", "field_town_selection_execute",
+        "完整648B；26152选择确认caller。selector2用DATO75/fragment513确认并处理部署容量，"
+        "其它入口十步缩放/渐暗后分派酒店/店/教会，返回恢复town；复核全部分支但本B5"
+        "运行范围不因此宣称商店/教会和>16部署实现完成。"),
+    0x26996: ("sub_26996", "field_prepare_bottom_page_close",
+        "完整119B；标题、酒店、商店等底部选择页caller。i1..5调用1974c滑出静态页面，"
+        "恢复53C5F全屏初始背景并释放三个buffer；不是field_bottom_notice_close的战场刷新尾。"),
+    0x29300: ("field_manual_slot_dispatch", "field_hotel_menu_execute",
+        "完整800B；2670e酒店入口。13frame0背景、DATO129及585/586问候；四项分派"
+        "29620持久成员详情、2968d手工Save、2986f手工Load、415/416离开确认。"
+        "Esc回town，不把酒店退出项与此取消合并；全部26eda菜单输入与zoom-out尾已读。"),
+    0x29620: ("sub_29620", "field_roster_detail_select",
+        "完整109B；酒店29300/教会29daa的xref。设53F5E=roster_count，循环27d33成员选择"
+        "→17aed详情，返回恢复portrait origin并重载DATO129；取消退出。无Save/文件写入，"
+        "原误挂field_manual_slot_save已撤回，真正writer在2968d。"),
+    0x2968D: ("sub_2968D", "field_manual_slot_save",
+        "完整482B；26152/29300 caller。读完整22987B容器，经29bcb选择，将persistent整0xa00"
+        "和meta0..9写选槽，重算checksum/XOR后写盘；成功660需显式ACK，再重开保留selected，"
+        "Esc才结束writer。其余未知meta/其它slot保留，slot3尾4B与checksum交叠。"),
+    0x29AB2: ("sub_29AB2", "field_manual_slot_rows_draw",
+        "完整281B；29bcb四槽picker唯一caller。每行119+19*i，549 x10动态FONT数字，"
+        "empty514 x88，否则514+stage x40及550+stage x130；selected201/普通205，"
+        "shadow76/bg0。每行显式53AE1=i+1，整页后为4；不分配、不读取文件、不等键。"),
+    0x32D18: ("sub_32D18", "field_stage1_entry_play",
+        "完整1281B；main/标题的stage1入口。205da从camera/focus0初始化，PAN13,11，"
+        "脚本9/10、FDTXT[2]片段0/1、group1/脚本11/片段2，重置方向PAN6,12，"
+        "强制group2/脚本12/重置方向/片段3后focus actor0。25个已知等待及21几何由原始"
+        "脚本/placement独立构造；此命名不将逻辑近似camera或SDL ctor当原版oracle。"),
+    0x34778: ("sub_34778", "field_stage1_turn3_execute",
+        "完整160B；stage1 metadata的turn3 action5表xref。PAN9,1、延时100、强制追加group3、"
+        "脚本13、延时200、stage片段4，完整文字返回后raw5..10的AI锚点+35h/+36h设26/15。"
+        "不更改这六人的behavior字段，不把锚点更新提前到提示之前。"),
+    0x34738: ("sub_34738", "field_stage0_ally_side1_event",
+        "完整64B；stage0 descriptor/cell回调4表xref，1aa1d/190ac及controller/AI派发caller。"
+        "先写active raw13的side字节+6=1，再完整播放当前stage片段7；不追加persistent记录、"
+        "不将该actor直接设玩家side2，也不重写其它80B字段。"),
+}
+for _va, (_was, _now, _why) in _B5_CONFIRMED_NAMES.items():
+    CORRECTIONS.setdefault(_va, []).append({"target": "semantic_name", "was": _was,
+        "now": _now, "why": _why + " 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。"})
+CORRECTIONS.setdefault(0x4E809, []).append({"target": "evidence",
+    "was": "准备记录按stage*31或file旧偏移读取，可能推成29行",
+    "now": "完整24B原码先DEC stage再乘31，fixup指向canonical6238d；stage1对应row0。"
+           "直到下一独立getter626b3的完整806B为26行，安全query仅1..26；27..29由523e7"
+           "NoTown门跳过本getter，不能据此多读三行。保留现中性名，不猜getter ABI。",
+    "why": "4e809 raw 558bec8b450848ba1f000000f7e28d158d23000003c25dc3；"
+           "Domain4e819 fixup→object3:238d与strict LE逐段来源一致。"})
+CORRECTIONS.setdefault(0x12C60, []).append({"target": "evidence",
+    "was": "只查首个匹配active记录，hidden时丢弃portrait来源；无active就直接用text_id作DATO编号",
+    "now": "active按raw扫描，每次text_id匹配先保存全局record指针，首visible立即返回raw；"
+           "若全为hidden返回-1但保留最后匹配active指针。只有active完全无匹配才扫描persistent，"
+           "同样保留最后匹配。-17/-18据该指针+7取DATO；-1只阻止focus，不阻止portrait。"
+           "39仍走原特殊portrait分支。",
+    "why": "完整138B与15f84的-17/-18调用、已发布Domain指令；本B5Scene三类edge纯回归分别锁定"
+           "首visible、最后hidden与persistent fallback，不把这些纯测试当作全部原版运行。名称保持原登记。"})
+CORRECTIONS.setdefault(0x16C57, []).append({"target": "evidence",
+    "was": "所有等键页都带18/19箭头，或任意非0参数都启用箭头",
+    "now": "精确a1==1才首次画18、每3个2tick相位更新18/19，并在返回前用frame13擦除；"
+           "a1=0不画/不擦箭头，仍执行RNG%30+2、portrait0/3、水DAC及BIOS读键。"
+           "文字-3传1；190ac/1aa1d结果/获得消息的外部wait全部传0。",
+    "why": "完整461B三处显式==1比较及190ac/1aa1d全部wait实参；本B5chest-empty原版"
+           "实际422页累计文字5123px/portrait6400px均通过而无箭头，旧门失败收据保留；"
+           "修后对原填充+累计文字的140px无箭头区域严格比较，不删除像素门。"})
+for _va in (0x190AC, 0x1AA1D):
+    CORRECTIONS.setdefault(_va, []).append({"target": "evidence",
+        "was": "外部dialog_wait_key等同文字-3，或每个结果fragment都重新清空对话框",
+        "now": "外部等键均dialog_wait_key(0)，不带18/19箭头；同一bottom框保留先前文字。"
+               "190ac的421/428首行与422/429/426/430第二行必须累计，仅显式close→open才清页。",
+        "why": "已发布完整函数的696099/702179文字目的偏移、open/close调用与wait实参；"
+               "B5真实原版及对应SDLchest-empty/swap/list-cancel的资源门另在运行收据登记。"})
+CORRECTIONS.setdefault(0x1B41D, []).append({"target": "evidence",
+    "was": "当前SDL总览只开放stage0，stage1没有原资源内容合同",
+    "now": "原函数关卡数字为stage+1，胜/败条件为597+2*stage及598+2*stage；"
+           "stage1正常使用599/600，沿既有四底板/数字/资源/阵营人数owner。stage16另有私有分支，"
+           "不据此宣称所有关卡总览已通用验收。SDL本B5直接扩已证stage1，不新增禁用透明图例外。",
+    "why": "完整published sub_1B41D及1B5F1计数/原资源；C3准备链真实SDL在总览能力门处失败，"
+           "因此保两端原secondary0默认协议并修生产stage索引。该说明不替代其后实际双端验收。"})
+
 CORRECTIONS[0x1BBDC].append({'target': 'evidence',
  'was': 'Give可把side2候选直接当收方或交换保装备flag，变更后COMMAND取消仍回原格',
  'now': 'Give range1/minManhattan1/filter3排除整中心格，仅hidden/side门；确认后12c0d再取该格首可见raw(不重筛side)。空槽append '
@@ -1173,6 +1321,77 @@ CORRECTIONS[0x1BBDC].append({'target': 'evidence',
  'why': '完整1bbdc/1bb8c/1b8e7/18d8c/18890和新Domain指令/xref；1bbdc '
         'code23额外身份门读取text_id+8==24与mp_max+46h>=20，而非currentMP；首次目标后第二次selector6选空且可走目的地，display仍1/frame0。Use '
         'area确认14742为纯Manhattan，最终收集14818仍地形传播，两者不可合并。'})
+
+CORRECTIONS.setdefault(0x4E4F6, []).append({"target": "evidence",
+    "was": "mode2命中hostile后停止，或在剩余预算／已访问检查前覆盖witness；剩余0等同未访问",
+    "now": "4e680先减地形成本并以signed比较剩余预算，map byte7初值FF；有效剩余0第二次等值访问"
+           "也受mode!=1门拒绝。mode2通过该门后才由4e703记录hostile坐标，4e6e5明确CLC，"
+           "4e5cc继续穿过hostile递归，不受40阻挡或80 ZOC停止。名称和持久ABI不变。",
+    "why": "IDA9.5 Domain完整4e5cc/4e680/4e703原指令，4e6a5..b2及4e6de..e6的明确分支；"
+           "两敌单通道和2x2零剩余反例检出旧实现。B5 stage1真实十二坐标差异另需14b78清图长路"
+           "合同一并恢复，不能把局部修复单独称为整条路径原版通过。"})
+CORRECTIONS.setdefault(0x14B78, []).append({"target": "evidence",
+    "was": "预算28的mode1 long route仍从units重建占格／ZOC，因而不能到occupied请求anchor",
+    "now": "normal失败后14c53先4df4c清40/80及byte7，14c7d直接预算28/mode1探原anchor，"
+           "期间未调用145cd，所以长路没有单位阻挡／ZOC。14c9a再次clear后14ca6才重建145cd，"
+           "14cc7计算本回合range并扫描完整长路取最后可达格，随后友方终点阻断／排序／普通路径不变。"
+           "SDL clear-unit-flags组合位只表达此调用环境，不是新增原版mode。",
+    "why": "完整14b78 Domain指令与14121/13a9f调用链；同一真实C10派生stage1文件三END，"
+           "旧probe重现六终点偏差，两项修复后的六终点精确等于native的13,5/11,3/12,4/15,3/14,4/13,3，"
+           "该headless probe RNG0且源文件不变。真实双端重验仍按后续GUI收据单列。"})
+
+CORRECTIONS.setdefault(0x1548E, []).append({"target": "evidence",
+    "was": "AI物理提交只需改cursor，或可在actor调度层统一补一次聚焦",
+    "now": "完整exchange在154ad先12d7b聚焦攻击者，154c6才执行14b78移动，154de再12d7b"
+           "聚焦所选防御者，然后进入交战；不能用直接写cursor代替12d7b→12cea的逐格镜头留边。"
+           "13a9f没有统一动作聚焦，behavior8无动作也不能凭调度主动改焦点。名称与持久ABI不变。",
+    "why": "IDA9.5 Domain完整496B、13a9f/14ef0调用xref与154ad/154c6/154de原指令；"
+           "12d7b在12da3调用12cea。B5 C20实际原版完成、SDL turn11 quiet失败，81块地形共46656px"
+           "唯一确定SDL camera5,1，而原版0043 camera5,0的422px资源门及Save11保留Hero15,0。"
+           "这是原动作聚焦遗漏的依据，不改变oracle或把后续修复预记为实机通过。"})
+CORRECTIONS.setdefault(0x15311, []).append({"target": "evidence",
+    "was": "AI法术的聚焦可由统一调度或一次cursor赋值替代",
+    "now": "评分门通过后15360先12d7b聚焦施术者，构造目标后153c2调用12cea聚焦53C27/53C2B"
+           "选定中心，再清display进入效果。AOE中心不等于最后raw目标；不得把统一actor调度"
+           "或直接cursor写入当作该调用序。名称与持久ABI保持。",
+    "why": "IDA9.5 Domain完整381B、13a9f/14ef0的xref、15360与153c2原call字节及权威全函数"
+           "伪C共同确认；12d7b/12cea分别负责actor坐标与镜头留边。此为静态合同，"
+           "AI法术修复的运行范围按实际候选／图形收据另记，不借物理C20失败冒称法术实跑。"})
+CORRECTIONS.setdefault(0x15055, []).append({"target": "evidence",
+    "was": "AI物品提交只需给cursor赋值，或可在调度层统一聚焦",
+    "now": "150ba先12d7b聚焦使用者；普通range小于16分支1515b调用12cea聚焦53C37/53C3B"
+           "选定中心，随后152e5进入20c6f效果。range大于等于16另有15287缩放中心及152dd"
+           "首target聚焦，不能抹成普通分支或不顾原调用时点统一聚焦。名称与持久ABI不变。",
+    "why": "IDA9.5 Domain完整700B、14ef0调用xref、150ba/1515b/15287/152dd原call字节与"
+           "完整伪C分支一致；静态字节逐函数等于已验relocated镜像，raw-unrelocated摘要独立保留。"
+           "普通AI物品聚焦与后续效果/RNG是不同owner，不能以本轮修复预称完整演出或运行已验。"})
+
+CORRECTIONS.setdefault(0x129EC, []).extend([{
+    "target": "semantic_name", "was": "sub_129EC",
+    "now": "field_actor_terrain_overlays_draw",
+    "why": "IDA9.5 Domain完整218B与127a9/1366a/1db65/32999四caller，逐raw读取actor坐标、"
+           "direction+3与walking+4，过滤hidden/1f183后才调用12ac6重绘局部遮挡。原中性名保留"
+           "为历史登记，不据void伪C或旧自动fastcall类型猜ABI，也不修改持久类型。",
+}, {
+    "target": "evidence", "was": "terrain attr80可在actor绘制后全地图重画，连空格光标也应被覆盖",
+    "now": "只遍历非hidden且1f183返回0的actor，恢复自身(x,y)和上格(x,y-1)。walking+4非0时，"
+           "direction0另恢复(x,y+1)，1恢复(x-1,y)/(x-1,y-1)，2恢复(x,y-2)，其余恢复"
+           "(x+1,y)/(x+1,y-1)。无HP/acted额外过滤。1f183对unit28强制返回0，其余profile19或"
+           "race4/5跳过；没有actor的远处attr80格不会因本遍历盖住cursor。",
+    "why": "完整原函数及12ac6/1f183的Domain指令/xref逐项闭合。B5 C22 actualSave12两端存活"
+           "身份/位置同，world11,8附近无actor：原版裸cursor204px通过且拒cursor+281合成，"
+           "SDL却以455px FDSHAP281及527px合成通过、裸cursor坏132px。这个运行反例证明全图"
+           "overlay旧实现错误，不是oracle模板缺帧；修复候选的实际重验另行登记。",
+}])
+CORRECTIONS.setdefault(0x12AC6, []).append({"target": "evidence",
+    "was": "map_tile_blit_visible可独立遍历全图并使用通用terrain动画规则",
+    "now": "保留既名。它只绘caller指定格，接纳camera_x-1..camera_x+51A87及"
+           "camera_y-1..camera_y+51A8B+1且y非负的范围；读取cell低10位terrain_id，"
+           "仅attr08按53A40加2*phase，attr80才绘FDSHAP frame+1。cell.byte7==FF走原图，"
+           "否则按51A97[53C1F]作同一格LUT；本helper不决定actor邻域或全图遍历。",
+    "why": "IDA9.5 Domain完整327B及唯一caller129ec；12ac6原分支、sheet offset+10和byte7判断"
+           "与11eee底图→selection→127a9 actor→129ec局部恢复顺序一致。C22空格cursor反例只支持"
+           "已测455/527/204像素及局部owner，不宣称所有遮挡/动画/RNG或新修复已实机通过。"})
 
 def write_checksums(directory: Path) -> None:
     import hashlib

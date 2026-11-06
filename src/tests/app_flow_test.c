@@ -55,6 +55,20 @@ int main(void) {
           FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_from_field((fd2_app_field_result)-1) ==
           FD2_APP_FLOW_ERROR);
-    puts("app_flow_test: ok");
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,1)==FD2_APP_FLOW_PREPARE);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,-1)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,0)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,2)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_DEFEAT,-1)==FD2_APP_FLOW_TITLE);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_HOST_QUIT,1)==FD2_APP_FLOW_EXIT);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_LEAVE_GAME,1)==FD2_APP_FLOW_LEAVE_GAME);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_ERROR,1)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_from_prepare(FD2_APP_PREPARE_DEPART)==FD2_APP_FLOW_BATTLE);
+    CHECK(fd2_app_flow_from_prepare(FD2_APP_PREPARE_TITLE)==FD2_APP_FLOW_TITLE);
+    CHECK(fd2_app_flow_from_prepare(FD2_APP_PREPARE_HOST_QUIT)==FD2_APP_FLOW_EXIT);
+    CHECK(fd2_app_flow_from_prepare(FD2_APP_PREPARE_LEAVE_GAME)==FD2_APP_FLOW_LEAVE_GAME);
+    CHECK(fd2_app_flow_from_prepare(FD2_APP_PREPARE_ERROR)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_from_prepare((fd2_app_prepare_result)99)==FD2_APP_FLOW_ERROR);
+    puts("app_flow_test: title/prepare/0-to-1/gameover/host routes passed");
     return 0;
 }

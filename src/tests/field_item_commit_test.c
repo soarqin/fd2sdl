@@ -190,7 +190,7 @@ static int test_preflight_errors_keep_all_owners_and_rng(void) {
                 g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY; break;
             case 15:
                 g->units.items[3].hp = 0;
-                ((uint8_t *)&g->units.items[3])[0x31] = 0; break;
+                ((uint8_t *)&g->units.items[3])[0x31] = 4; break;
             case 16:
                 g->units.items[2].hp = 0;
                 g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1}; break;
@@ -290,7 +290,7 @@ static int test_formal_query_and_weapon_only_list(void) {
         init(&f); g = &f.game;
         switch (which) {
             case 0: g->attack_rng = NULL; break;
-            case 1: g->stage = 1; break;
+            case 1: g->stage = 2; break;
             case 2: g->active_side = 1; break;
             case 3: g->player_post_waiting_phase = 1; break;
             case 4: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
@@ -463,7 +463,7 @@ static int test_cure_heal_revive_prediction_and_no_status_consumption(void) {
             fixture f; init(&f); fd2_field_game *g = &f.game;
             g->units.items[1].side = 2; g->units.items[1].hp = 0;
             g->units.items[1].detail_status[paralysis] = status ? 5 : 0;
-            ((uint8_t *)&g->units.items[1])[0x31] = 0; /* 仅被实际复活才排除未知loot。 */
+            ((uint8_t *)&g->units.items[1])[0x31] = 4; /* 仅被实际复活才排除未知loot。 */
             g->units.items[2].flags = 0x80;
             g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1};
             CHECK(start_item(&f, (uint8_t)(196+paralysis)) == 0);
@@ -497,7 +497,7 @@ static int test_general_use_preflight_and_permanent_word_wrap(void) {
     CHECK(reject_unchanged(&f) == 0 && !f.calls); /* 晚raw HP0也须先校damage profile。 */
     close_fixture(&f);
     init(&f); f.game.units.items[1].side = 0; f.game.units.items[1].hp = 1;
-    ((uint8_t *)&f.game.units.items[1])[0x31] = 0;
+    ((uint8_t *)&f.game.units.items[1])[0x31] = 4;
     CHECK(start_item(&f, 56) == 0);
     CHECK(reject_unchanged(&f) == 0 && !f.calls);
     close_fixture(&f);

@@ -59,15 +59,25 @@ static int test_requested_anchor_precedes_destination_and_friend_block(void) {
 }
 
 static int test_whole_long_route_can_reenter_reachable_area(void) {
-    geometry_fixture f; geometry_init(&f);
-    fd2_field_game *g = &f.game;
-    g->units.items[0].movement_points = 4;
-    f.cells[3 * 8 + 2] = 1; /* long mode可过cost20；本回合该格不可达。 */
-    CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
-    /* 长路径越过(2,3)后，(3,3)经北/南绕行仍在4预算内。
-     * 未命中即break会丢该后续命中，并朝原anchor选(4,2)。 */
-    CHECK(g->units.items[0].x == 3 && g->units.items[0].y == 3);
-    CHECK(g->failure == FD2_FIELD_FAILURE_NONE && f.rng_calls == 0);
+    for (int occupied = 0; occupied <= 1; occupied++) {
+        geometry_fixture f; geometry_init(&f);
+        fd2_field_game *g = &f.game;
+        g->units.items[0].movement_points = 4;
+        f.cells[3 * 8 + 2] = 1; /* long mode可过cost20；本回合该格不可达。 */
+        if (occupied) {
+            g->units.items[1].x = 6; g->units.items[1].y = 3;
+            g->units.items[1].flags = 4; /* AI禁行动的对手仍可作为anchor。 */
+        }
+        fd2_field_unit target = g->units.items[1];
+        CHECK(commit_ai_move_toward_anchor(g, 0, 6, 3, NULL, 0, FIELD_PATH_BROWSE) == 1);
+        /* 长路径越过(2,3)后，(3,3)经北/南绕行仍在4预算内。
+         * 未命中即break会丢后续命中；未清40/80又到不了occupied anchor，
+         * 两种错误都会退化向原anchor选(4,2)。 */
+        CHECK(g->units.items[0].x == 3 && g->units.items[0].y == 3);
+        CHECK(!memcmp(&target, &g->units.items[1], sizeof(target)));
+        CHECK(g->failure == FD2_FIELD_FAILURE_NONE && f.rng_calls == 0);
+        CHECK(!fd2_field_unit_has_acted(&g->units.items[0]) && !g->event_log_count);
+    }
     return 0;
 }
 

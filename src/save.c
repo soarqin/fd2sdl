@@ -1,10 +1,11 @@
 /* 炎龙骑士团 2 SDL3 重写 - FD2.SAV 保留式读改写
  *
- * 逆向依据：save_checksum_sum @code0 0x3df09（dual 0x4df09）对
- * size-4 个明文字节求和；save_xor_crypt @code0 0x3df28
- * （dual 0x4df28）执行对称 XOR。战场写档路径 code0
- * 0x9f7a..0xa136 读取并解密完整 0x59cb 字节，更新状态、重算尾部
- * checksum，再加密写回。因此本实现不重建未知区域。
+ * 逆向依据：save_checksum_sum @0x4df09 / save_xor_crypt @0x4df28
+ *（原登记同名）对size-4明文字节求和／执行对称XOR。
+ * field_secondary_menu_execute @0x19df7（原登记同名）与
+ * field_manual_slot_save @0x2968d（原sub_2968D）分别
+ * 更新活动快照／手工槽；均读取完整0x59cb容器、重算checksum再写回。
+ * 未修改区域与未知字节始终保留，手工槽不重建活动战场。
  */
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
@@ -13,6 +14,7 @@
 
 #include "save.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,6 +114,22 @@ int fd2_save_file_open(fd2_save_file *save, const char *path) {
         save, encrypted, FD2_SAVE_FILE_SIZE);
     free(encrypted);
     return result;
+}
+
+int fd2_save_file_open_for_update(fd2_save_file *save, const char *path) {
+    if (!save || !path || save->data) return -1;
+    FILE *existing = fopen(path, "rb");
+    if (existing) {
+        if (fclose(existing) != 0) return -1;
+        return fd2_save_file_open(save, path);
+    }
+    if (errno != ENOENT || fd2_save_file_create_empty(save) != 0) return -1;
+    /* ff是空档哨兵，不是有效的actor/roster count；不建立可加载战场。 */
+    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;
+    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
+    wr_u32_le(save->data + save->size - FD2_SAVE_CHECKSUM_SIZE,
+              fd2_save_checksum_sum(save->data, save->size));
+    return 0;
 }
 
 void fd2_save_file_close(fd2_save_file *save) {
@@ -360,10 +378,12 @@ int fd2_save_file_get_manual_slot_raw(const fd2_save_file *save,
 int fd2_save_file_get_manual_slot(const fd2_save_file *save,
                                   size_t slot_index,
                                   fd2_save_manual_slot *slot) {
+    fd2_save_manual_slot loaded;
     if (!slot || !fd2_save_file_slot_valid(save, slot_index) ||
-        fd2_save_file_get_manual_slot_raw(save, slot_index, slot) != 0 ||
-        slot->meta[1] > FD2_SAVE_MAX_UNITS)
+        fd2_save_file_get_manual_slot_raw(save, slot_index, &loaded) != 0 ||
+        loaded.meta[1] > FD2_SAVE_MAX_UNITS)
         return -1;
+    *slot = loaded;
     return 0;
 }
 
@@ -393,6 +413,34 @@ int fd2_save_manual_slot_encode(fd2_save_manual_slot *slot,
     wr_u32_le(slot->meta + 2u, state->gold_or_flags);
     memcpy(slot->meta + 6u, state->options, sizeof(state->options));
     return 0;
+}
+
+int fd2_save_manual_state_load(const char *path, size_t slot_index,
+                              fd2_save_manual_state *out) {
+    if (!path || !out || slot_index >= FD2_SAVE_SLOT_COUNT) return -1;
+    fd2_save_file save = {0};
+    fd2_save_manual_slot slot;
+    int result = fd2_save_file_open(&save, path) == 0 &&
+                 fd2_save_file_get_manual_slot(&save, slot_index, &slot) == 0 &&
+                 fd2_save_manual_slot_decode(&slot, out) == 0 ? 0 : -1;
+    fd2_save_file_close(&save);
+    return result;
+}
+
+int fd2_save_manual_state_save(const char *path, size_t slot_index,
+                              const fd2_save_manual_state *state) {
+    if (!path || !state || slot_index >= FD2_SAVE_SLOT_COUNT ||
+        state->stage_id == 0xffu || state->unit_count > FD2_SAVE_MAX_UNITS)
+        return -1;
+    fd2_save_file save = {0};
+    fd2_save_manual_slot slot;
+    int result = fd2_save_file_open_for_update(&save, path) == 0 &&
+                 fd2_save_file_get_manual_slot_raw(&save, slot_index, &slot) == 0 &&
+                 fd2_save_manual_slot_encode(&slot, state) == 0 &&
+                 fd2_save_file_update_manual_slot(&save, slot_index, &slot) == 0 &&
+                 fd2_save_file_write(&save, path) == 0 ? 0 : -1;
+    fd2_save_file_close(&save);
+    return result;
 }
 
 int fd2_save_file_update_manual_slot(fd2_save_file *save, size_t slot_index,

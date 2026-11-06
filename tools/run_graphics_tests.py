@@ -22,6 +22,11 @@ B3_SCENARIOS = ("controls", "herb-full", "herb-injured", "drop-herb", "drop-weap
                 "eqt-incompatible", "eqt-weapon", "give-cancel", "give-empty", "give-swap", "give-moved",
                 *(f"use-{code:02d}" for code in range(5, 25)), "use-area2", "use-23-mp0")
 B4_SCENARIOS = ("physical-cap", "physical-overwrite", "heal", "learn", "counter-multi", "status")
+B5_LOOT_SCENARIOS = ("chest-empty", "chest-swap", "chest-list-cancel", "chest-no", "chest-full-no",
+                     "treasure-money", "loot-item", "loot-money", "loot-callback", "loot-story")
+B5_STAGE1_SCENARIOS = ("stage1-turn3", "stage1-villager-defeat")
+# CLI登记不代表实际执行或整阶段已验收；自然场景的随机战斗结果不要求逐byte相同。
+B5_SCENARIOS = ("prepare-controlled", "defeat", *B5_LOOT_SCENARIOS, *B5_STAGE1_SCENARIOS, "natural-stage0")
 
 
 def hashes(directory):
@@ -160,8 +165,8 @@ def check_browse_restored(expected, actual):
 
 class Suite:
     def __init__(self, args):
-        if getattr(args, "b3_only", False) and getattr(args, "b4_only", False):
-            raise ValueError("--b3-only与--b4-only不能同时指定；未创建产物")
+        if sum(bool(getattr(args, name, False)) for name in ("b3_only", "b4_only", "b5_only")) > 1:
+            raise ValueError("--b3-only、--b4-only与--b5-only不能同时指定；未创建产物")
         requested = getattr(args, "b3_scenarios", None)
         if requested is not None:
             if not getattr(args, "b3_only", False) or not requested or len(requested) != len(set(requested)) or any(name not in B3_SCENARIOS for name in requested):
@@ -170,16 +175,50 @@ class Suite:
         if requested_b4 is not None:
             if not getattr(args, "b4_only", False) or not requested_b4 or len(requested_b4) != len(set(requested_b4)) or any(name not in B4_SCENARIOS for name in requested_b4):
                 raise ValueError("--b4-scenarios要求--b4-only且场景非空、无重复、全部已登记；未创建产物")
+        requested_b5 = getattr(args, "b5_scenarios", None)
+        if requested_b5 is not None:
+            if not getattr(args, "b5_only", False) or not requested_b5 or len(requested_b5) != len(set(requested_b5)) or any(name not in B5_SCENARIOS for name in requested_b5):
+                raise ValueError("--b5-scenarios要求--b5-only且场景非空、无重复、全部已登记；未创建产物")
         self.args = args
         self.work = args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         original = (ROOT / "original_game").resolve()
         target = self.work.resolve()
         if target == original or original in target.parents:
             raise ValueError("测试产物不能写入 original_game/，请改用独立构建目录")
+        self.stage1_fixture = None
+        self.stage1_fixture_source = None
+        self.planner = None
+        if not getattr(args, "b3_only", False) and not getattr(args, "b4_only", False):
+            selected = requested_b5 or B5_SCENARIOS
+            stage1_positions = [selected.index(name) for name in B5_STAGE1_SCENARIOS if name in selected]
+            if stage1_positions:
+                explicit = getattr(args, "b5_save_fixture", None)
+                if explicit is not None:
+                    fixture = Path(explicit).resolve()
+                    if not fixture.is_file() or fixture == target or target in fixture.parents:
+                        raise ValueError("--b5-save-fixture必须是本轮输出目录外已存在的独立只读SAV；未创建产物")
+                    self.stage1_fixture, self.stage1_fixture_source = fixture, "explicit_readonly"
+                elif "prepare-controlled" in selected and selected.index("prepare-controlled") < min(stage1_positions):
+                    self.stage1_fixture = self.work / "original-prepare-controlled/original/stage1-entry-measured.SAV"
+                    self.stage1_fixture_source = "fresh_prepare_controlled_original"
+                else:
+                    raise ValueError("stage1场景需要先运行prepare-controlled，或显式--b5-save-fixture；未创建产物")
+            if "natural-stage0" in selected:
+                planner = getattr(args, "planner", None)
+                if planner is None:
+                    multi = args.build_dir / getattr(args, "config", "Debug") / "fd2_field_natural_plan.exe"
+                    planner = multi if multi.is_file() else args.build_dir / "fd2_field_natural_plan.exe"
+                self.planner = Path(planner).resolve()
+                if not self.planner.is_file():
+                    raise ValueError("自然首关规划器不存在；先构建fd2_field_natural_plan或用--planner指定；未创建产物")
         self.work.mkdir(parents=True)
         self.report = {"status": "failed", "platform": sys.platform, "cases": [],
                        "capture": "Windows.Graphics.Capture HWND (SDL and DOSBox)",
                        "processes": [], "scope": "SDL host regression and listed original checkpoints"}
+        if self.stage1_fixture is not None:
+            self.report["b5_stage1_fixture"] = {"path": str(self.stage1_fixture), "source": self.stage1_fixture_source}
+        if self.planner is not None:
+            self.report["b5_planner"] = {"path": str(self.planner), "sha256": hashlib.sha256(self.planner.read_bytes()).hexdigest()}
         self.trace = self.work / "input-trace.jsonl"
 
     def record(self, **event):
@@ -211,9 +250,10 @@ class Suite:
                        check=True, timeout=15)
 
     def key(self, process, *keys):
-        self.driver(process, "focus")
+        from run_original_comparison import Capture
+        capture = Capture(self.args.driver, process, self.work)
         for key in keys:
-            self.driver(process, "key", key)
+            capture.key(key)
 
     def capture(self, process, work, name):
         path = work / f"{name}.bmp"
@@ -230,7 +270,9 @@ class Suite:
             shutil.copyfile(save_fixture or ROOT / "original_game/FD2.SAV", save_path)
         env = os.environ.copy()
         env.update(SDL_AUDIODRIVER="dummy", SDL_VIDEODRIVER="windows",
-                   FD2SDL_SAVE_PATH=str(save_path), FD2SDL_FIELD_RNG_SEED="31256")
+                   FD2SDL_SAVE_PATH=str(save_path), FD2SDL_FIELD_RNG_SEED="31256",
+                   SDL_WINDOW_ACTIVATE_WHEN_SHOWN="0", SDL_WINDOW_ACTIVATE_WHEN_RAISED="0",
+                   SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS="0", SDL_WINDOWS_RAW_KEYBOARD="0")
         log = work / "game.log"
         with log.open("wb") as output:
             process = subprocess.Popen([str(self.args.game), *arguments], cwd=cwd,
@@ -466,60 +508,46 @@ class Suite:
                                      "round": 2, "confirmation_buttons": buttons})
 
     def main_title_routes(self):
+        """标题手工槽取消与活动Continue/离场；胜败后续由B5配对流程验收。"""
         from run_original_comparison import Capture, title_templates
+        from run_original_battle_menu import wait_state
+        from fd2_transition_oracle import resources, picker_image, picker_match
 
         source = self.work / "storage-cancel/FD2.SAV"
         plain = decode_save(source)
         title = title_templates(ROOT / "original_game/FDOTHER.DAT")[3][0]
-        fixtures = self.work / "terminal-fixtures"
-        fixtures.mkdir()
-        for route in ("leave", "victory", "defeat"):
-            fixture = source
-            if route != "leave":
-                fixture = fixtures / f"{route}-synthetic.SAV"
-                fixture.write_bytes(terminal_save_fixture(plain, route))
-            expected_exit = 0 if route == "leave" else 2
-            with self.window(f"main-{route}", [], expected_exit=expected_exit,
-                             save_fixture=fixture) as (process, work, log, save):
-                original = save.read_bytes()
-                capture = Capture(self.args.driver, process, work)
-                capture.key = lambda key: self.key(process, key)
-                capture.wait(title, startup=True, timeout=45).save(work / "title-before-load.png")
-                if route == "leave":
-                    self.key(process, "DOWN", "ENTER")
-                    wait_log(process, log, "title manual load not implemented; staying at title")
-                    capture.wait(title, blank_transition=True, timeout=20).save(work / "title-after-unsupported-manual-load.png")
-                    if save.read_bytes() != original:
-                        raise AssertionError("unsupported manual Load changed the save")
-                # 三项标题从START向上回绕到CONTINUE；LOAD是独立手工槽入口。
-                self.key(process, "UP", "ENTER")
-                if route == "leave":
-                    wait_log(process, log, "field play: stage=0")
-                    self.capture(process, work, "loaded-battle")
-                    # 保存的焦点(6,20)为空，parent→secondary→leave→Yes。
-                    self.key(process, "ENTER", "UP", "ENTER", "DOWN", "ENTER", "LEFT", "ENTER")
-                    wait_log(process, log, "field leave: exiting game")
-                    if process.wait(timeout=20) != 0:
-                        raise AssertionError("game leave did not naturally exit 0")
-                    text = log.read_text(encoding="utf-8", errors="replace")
-                    if text.count("field play: stage=0") != 1:
-                        raise AssertionError("game leave unexpectedly reentered battle")
-                else:
-                    if process.wait(timeout=20) != 2:
-                        raise AssertionError(f"{route} did not stop with explicit unsupported-continuation exit 2")
-                    text = log.read_text(encoding="utf-8", errors="replace")
-                    continuation = ("stage 0 settlement not implemented" if route == "victory"
-                                    else "stage 0 defeat continuation not implemented")
-                    if text.count(f"field battle: {route}, stage=0") != 1 or continuation not in text:
-                        raise AssertionError(f"{route} result was not distinctly dispatched to main")
-                    if text.count("field play: stage=0") != 1 or "field leave: exiting game" in text:
-                        raise AssertionError(f"{route} unexpectedly reentered a title/battle route")
-                if save.read_bytes() != original:
-                    raise AssertionError(f"main {route} route unexpectedly changed its save fixture")
-            self.report["cases"].append({"name": f"main-{route}", "status": "passed",
-                                         "synthetic_terminal_fixture": route != "leave",
-                                         "expected_exit": expected_exit,
-                                         "scope": "SDL main dispatch; not original gameplay acceptance"})
+        picker = picker_image(resources(ROOT / "original_game"), plain, 0)
+        checkpoints = []
+        with self.window("main-leave", [], expected_exit=0,
+                         save_fixture=source) as (process, work, log, save):
+            original = save.read_bytes()
+            capture = Capture(self.args.driver, process, work)
+            capture.key = lambda key: self.key(process, key)
+            capture.wait(title, startup=True, timeout=45).save(work / "title-before-load.png")
+            self.key(process, "DOWN", "ENTER")
+            wait_state(capture, "title-manual-picker", lambda frame: picker_match(frame, picker),
+                       checkpoints, allow_low_color_resource=True)
+            self.key(process, "ESC")
+            capture.wait(title, blank_transition=True, timeout=20).save(work / "title-after-picker-cancel.png")
+            if save.read_bytes() != original:
+                raise AssertionError("cancelled manual Load changed the save")
+            # 三项标题从START向上回绕到CONTINUE；LOAD是独立手工槽入口。
+            self.key(process, "UP", "ENTER")
+            wait_log(process, log, "field play: stage=0")
+            self.capture(process, work, "loaded-battle")
+            # 保存的焦点(6,20)为空，parent→secondary→leave→Yes。
+            self.key(process, "ENTER", "UP", "ENTER", "DOWN", "ENTER", "LEFT", "ENTER")
+            wait_log(process, log, "field leave: exiting game")
+            if process.wait(timeout=20) != 0:
+                raise AssertionError("game leave did not naturally exit 0")
+            text = log.read_text(encoding="utf-8", errors="replace")
+            if text.count("field play: stage=0") != 1:
+                raise AssertionError("game leave unexpectedly reentered battle")
+            if save.read_bytes() != original:
+                raise AssertionError("main leave route unexpectedly changed its save fixture")
+        self.report["cases"].append({"name": "main-leave", "status": "passed",
+                                     "checkpoints": checkpoints, "expected_exit": 0,
+                                     "scope": "SDL title manual-picker cancel, Continue and leave; not original acceptance"})
 
     def item_cases(self):
         """B3本阶段功能对照；也供大阶段完整套件调用，不借用历史收据。"""
@@ -539,10 +567,52 @@ class Suite:
                          "--dosbox", self.args.dosbox, "--scenario", scenario,
                          "--artifacts", self.work / name], timeout=900)
 
+    def transition_cases(self, *, include_defeat=True):
+        """B5已登记入口；完整套件的original-result已执行正式败北，不能重复。"""
+        self.report["registered_b5_scenarios"] = list(B5_SCENARIOS)
+        for scenario in getattr(self.args, "b5_scenarios", None) or B5_SCENARIOS:
+            if scenario == "defeat":
+                if include_defeat:
+                    self.command("original-result", [sys.executable, ROOT / "tools/run_original_result.py",
+                        "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                        "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-result",
+                        "--b5-defeat"], timeout=360)
+                continue
+            if scenario == "prepare-controlled":
+                name, script, timeout = "original-prepare-controlled", "run_original_transition.py", 1200
+            elif scenario == "natural-stage0":
+                name = "original-natural-stage0"
+                self.command(name, [sys.executable, ROOT / "tools/run_original_natural.py",
+                    "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                    "--dosbox", self.args.dosbox, "--planner", self.planner,
+                    "--scenario", scenario, "--record-native-audio", "--artifacts", self.work / name], timeout=7200)
+                continue
+            elif scenario in B5_STAGE1_SCENARIOS:
+                name = "original-" + scenario
+                self.command(name, [sys.executable, ROOT / "tools/run_original_stage1.py",
+                    "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                    "--dosbox", self.args.dosbox, "--save-fixture", self.stage1_fixture,
+                    "--scenario", scenario.removeprefix("stage1-"), "--artifacts", self.work / name],
+                    timeout=600 if scenario == "stage1-turn3" else 240)
+                continue
+            else:
+                name, script, timeout = "original-loot-" + scenario.removeprefix("loot-"), "run_original_loot.py", 900
+            self.command(name, [sys.executable, ROOT / "tools" / script,
+                "--root", ROOT, "--sdl", self.args.game, "--driver", self.args.driver,
+                "--dosbox", self.args.dosbox, "--scenario", scenario,
+                "--artifacts", self.work / name], timeout=timeout)
+
     def run(self):
         before = hashes(ROOT / "original_game")
         self.report["original_hashes"] = before
         try:
+            if getattr(self.args, "b5_only", False):
+                if sys.platform != "win32":
+                    raise RuntimeError("B5原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
+                self.report["scope"] = "B5 preparation, defeat, loot, stage1 and natural stage0 only; no historical suite rerun or inheritance; native audio is A5 identity/switch evidence, not A7 fidelity"
+                self.transition_cases()
+                self.report["status"] = "passed"
+                return
             if getattr(self.args, "b4_only", False):
                 if sys.platform != "win32":
                     raise RuntimeError("B4原版/SDL对照当前要求Windows WGC；没有运行或跳过为通过")
@@ -565,6 +635,9 @@ class Suite:
                 self.command("original-focus", [sys.executable, ROOT / "tools/run_original_focus.py",
                              "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                              "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-focus"], timeout=600)
+                self.command("background-input", [sys.executable, ROOT / "tools/run_background_input_check.py",
+                             "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
+                             "--dosbox", self.args.dosbox, "--artifacts", self.work / "background-input"], timeout=600)
             self.command("input", ["ctest", "--test-dir", self.args.build_dir, "-C", self.args.config,
                                    "--output-on-failure", "--no-tests=error", "-R", "^field_play_input$"])
             if sys.platform != "win32":
@@ -609,7 +682,8 @@ class Suite:
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-f1"], timeout=480)
             self.command("original-result", [sys.executable, ROOT / "tools/run_original_result.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
-                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-result"], timeout=360)
+                         "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-result",
+                         "--b5-defeat"], timeout=360)
             for name, scenario in (("original-magic-list", "single"),
                                    ("original-magic-damage", "damage"),
                                    ("original-magic-heal", "heal")):
@@ -619,6 +693,7 @@ class Suite:
                              "--artifacts", self.work / name], timeout=480)
             self.item_cases()
             self.reward_cases()
+            self.transition_cases(include_defeat=False)
             self.report["status"] = "passed"
         finally:
             self.report["original_unchanged"] = hashes(ROOT / "original_game") == before
@@ -633,11 +708,15 @@ def main():
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--config", default="Debug")
     parser.add_argument("--driver", type=Path)
+    parser.add_argument("--planner", type=Path, help="自然首关只读规划器；默认查build-dir/CONFIG或单配置构建目录")
     parser.add_argument("--dosbox", default=shutil.which("dosbox-x"))
     parser.add_argument("--b3-only", action="store_true", help="仅运行本轮B3物品功能；历史完整实机回归留大阶段审查")
     parser.add_argument("--b3-scenarios", nargs="+", help="仅在--b3-only下选择已登记场景；未知/重复在创建产物前拒绝")
     parser.add_argument("--b4-only", action="store_true", help="仅运行本轮B4经验/成长/学习/状态与存档功能")
     parser.add_argument("--b4-scenarios", nargs="+", help="仅在--b4-only下选择已登记场景；未知/重复在创建产物前拒绝")
+    parser.add_argument("--b5-only", action="store_true", help="仅运行本轮B5准备/败北/掉落/第二关/自然首关；不调用历史套件")
+    parser.add_argument("--b5-scenarios", nargs="+", help="仅在--b5-only下选择已登记场景；未知/重复在创建产物前拒绝")
+    parser.add_argument("--b5-save-fixture", type=Path, help="stage1子集无前置prepare时的独立只读实机SAV；默认复用本次prepare原版量测")
     args = parser.parse_args()
     args.build_dir, args.game = args.build_dir.resolve(), args.game.resolve()
     if not args.driver:

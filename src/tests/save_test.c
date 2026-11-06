@@ -402,6 +402,103 @@ static int test_original_save_if_available(void) {
     return 0;
 }
 
+/* sub_2968D @0x2968d完整persistent写集；不是活动快照恢复。 */
+static int test_manual_state_file_backend(void) {
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    uint8_t plain[FD2_SAVE_FILE_SIZE];
+    make_plain(plain);
+    fd2_save_file save = {0};
+    CHECK(fd2_save_file_create_empty(&save) == 0);
+    memcpy(save.data, plain, sizeof(plain));
+    CHECK(fd2_save_file_write(&save, path) == 0);
+    fd2_save_file_close(&save);
+
+    for (size_t selected = 0; selected < FD2_SAVE_SLOT_COUNT; selected++) {
+        CHECK(fd2_save_file_open(&save, path) == 0);
+        memcpy(plain, save.data, sizeof(plain));
+        fd2_save_file_close(&save);
+        fd2_save_manual_state state = {0}, loaded;
+        state.stage_id = 1;
+        state.unit_count = selected == 3u ? FD2_SAVE_MAX_UNITS : (uint8_t)selected;
+        state.gold_or_flags = 0xf0123400u + (uint32_t)selected;
+        for (size_t i = 0; i < sizeof(state.options); i++)
+            state.options[i] = (uint8_t)(selected * 5u + i);
+        for (size_t i = 0; i < sizeof(state.unit_area); i++)
+            state.unit_area[i] = (uint8_t)(i * 13u + selected);
+        fd2_save_manual_state unchanged = state;
+        CHECK(fd2_save_manual_state_save(path, selected, &state) == 0);
+        CHECK(memcmp(&state, &unchanged, sizeof(state)) == 0);
+        CHECK(fd2_save_manual_state_load(path, selected, &loaded) == 0);
+        CHECK(loaded.stage_id == 1 && loaded.unit_count == state.unit_count &&
+              loaded.gold_or_flags == state.gold_or_flags);
+        CHECK(memcmp(loaded.options, state.options, sizeof(state.options)) == 0);
+        CHECK(memcmp(loaded.unit_area, state.unit_area, sizeof(state.unit_area)) == 0);
+        CHECK(fd2_save_file_open(&save, path) == 0);
+        size_t begin = FD2_SAVE_SLOT_BASE + selected * FD2_SAVE_SLOT_SIZE;
+        for (size_t i = 0; i < sizeof(plain); i++) {
+            int written = (i >= begin && i < begin + FD2_SAVE_UNIT_TABLE_SIZE + 10u) ||
+                          i >= FD2_SAVE_FILE_SIZE - FD2_SAVE_CHECKSUM_SIZE;
+            if (!written) CHECK(save.data[i] == plain[i]);
+        }
+        CHECK(fd2_save_validate_plain(save.data, save.size) == 0);
+        fd2_save_file_close(&save);
+    }
+
+    /* 格式失败/空槽不能写半个输出，既有坏容器不得重建覆盖。 */
+    fd2_save_manual_state state = {0}, out, before;
+    state.stage_id = 1;
+    state.unit_count = 4;
+    memset(&out, 0xa5, sizeof(out));
+    before = out;
+    CHECK(fd2_save_manual_state_load(path, FD2_SAVE_SLOT_COUNT, &out) != 0);
+    CHECK(memcmp(&out, &before, sizeof(out)) == 0);
+    CHECK(fd2_save_file_open(&save, path) == 0);
+    size_t meta = FD2_SAVE_SLOT_BASE + FD2_SAVE_UNIT_TABLE_SIZE;
+    save.data[meta + 1u] = FD2_SAVE_MAX_UNITS + 1u;
+    put_u32le(save.data + save.size - FD2_SAVE_CHECKSUM_SIZE,
+              fd2_save_checksum_sum(save.data, save.size));
+    CHECK(fd2_save_file_write(&save, path) == 0);
+    fd2_save_manual_slot slot, slot_before;
+    memset(&slot, 0x5c, sizeof(slot)); slot_before = slot;
+    CHECK(fd2_save_file_get_manual_slot(&save, 0, &slot) != 0);
+    CHECK(memcmp(&slot, &slot_before, sizeof(slot)) == 0);
+    fd2_save_file_close(&save);
+    CHECK(fd2_save_manual_state_load(path, 0, &out) != 0);
+    CHECK(memcmp(&out, &before, sizeof(out)) == 0);
+    FILE *file = fopen(path, "wb");
+    CHECK(file != NULL);
+    const uint8_t corrupt[] = {0xa5, 0x01, 0x6f};
+    CHECK(fwrite(corrupt, 1, sizeof(corrupt), file) == sizeof(corrupt));
+    CHECK(fclose(file) == 0);
+    CHECK(fd2_save_manual_state_save(path, 0, &state) != 0);
+    CHECK(fd2_save_manual_state_load(path, 0, &out) != 0);
+    CHECK(memcmp(&out, &before, sizeof(out)) == 0);
+    file = fopen(path, "rb");
+    uint8_t actual[sizeof(corrupt)];
+    CHECK(file != NULL && fread(actual, 1, sizeof(actual), file) == sizeof(actual));
+    CHECK(fgetc(file) == EOF && fclose(file) == 0);
+    CHECK(memcmp(actual, corrupt, sizeof(actual)) == 0);
+    CHECK(remove(path) == 0);
+
+    /* ENOENT允许新建；坏参数在创建容器之前拒绝。 */
+    state.stage_id = 0xff;
+    CHECK(fd2_save_manual_state_save(path, 0, &state) != 0);
+    file = fopen(path, "rb"); CHECK(file == NULL);
+    state.stage_id = 1;
+    CHECK(fd2_save_manual_state_save(path, 3, &state) == 0);
+    CHECK(fd2_save_file_open(&save, path) == 0);
+    fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0xffu &&
+          snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 0 &&
+          snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == 0);
+    CHECK(!fd2_save_file_slot_valid(&save, 0) && fd2_save_file_slot_valid(&save, 3));
+    fd2_save_file_close(&save);
+    CHECK(remove(path) == 0);
+    return 0;
+}
+
 int main(void) {
     if (test_create_empty() != 0 ||
         test_xor_and_checksum() != 0 ||
@@ -411,6 +508,7 @@ int main(void) {
         test_slots_and_preservation() != 0 ||
         test_last_slot_overlap_and_zero_units() != 0 ||
         test_write_roundtrip_and_overwrite() != 0 ||
+        test_manual_state_file_backend() != 0 ||
 #if !defined(_WIN32)
         test_preexisting_tmp_symlink_is_ignored() != 0 ||
 #endif

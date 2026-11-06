@@ -57,7 +57,7 @@ def portraits(original,identity,palette,bottom):
     return images
 
 
-def build_pages(original,assets):
+def build_pages(original,assets,*,stage_plan=None,identities_by_stage=None,text_identities_by_stage=None):
     """精确维护16e24的像素mask；只要求已知文字写集，不猜空白背景。"""
     text_data = (original/"FDTXT.DAT").read_bytes()
     other = (original/"FDOTHER.DAT").read_bytes()
@@ -67,10 +67,13 @@ def build_pages(original,assets):
     for image in arrows:
         image.putpalette(assets["palette"])
     pages = []
-    for stage,count in ((32,6),(31,10),(0,3)):
+    default_plan = stage_plan is None
+    for stage,count in (((32,6),(31,10),(0,3)) if default_plan else stage_plan):
         metadata = archive_entry(field,3*stage+1)
         templates = [metadata[i:i+26] for i in range(0x83,len(metadata),26)]
         identities = ([0,9,4,30]+[t[1] for t in templates[:8]]) if stage==0 else [t[1] for t in templates]
+        if identities_by_stage is not None and stage in identities_by_stage:
+            identities = identities_by_stage[stage]
         for fragment,tokens in fragments(text_data,stage,count):
             canvas = Image.new("P",(320,200),0)
             canvas.putpalette(assets["palette"])
@@ -86,7 +89,13 @@ def build_pages(original,assets):
                 control,argument = speaker
                 identity = identities[argument] if control in (-19,-20) else argument
                 if control in (-17,-18) and argument!=39:
-                    identity = next((i for i in identities if i==argument),argument)
+                    if text_identities_by_stage is not None and stage in text_identities_by_stage:
+                        mapping = text_identities_by_stage[stage]
+                        if argument not in mapping:
+                            raise ValueError("dialogue speaker text_id missing from explicit actor mapping")
+                        identity = mapping[argument]
+                    else:
+                        identity = next((i for i in identities if i==argument),argument)
                 bottom = control in (-18,-20)
                 pages.append({"stage":stage,"fragment":fragment,"token_offset":index,
                     "reason":reason,"speaker_control":control,"speaker_argument":argument,
@@ -140,7 +149,7 @@ def build_pages(original,assets):
                 else:
                     raise ValueError(f"unknown text control {token}")
                 index += 1
-    if len(pages)!=117:
+    if default_plan and len(pages)!=117:
         raise ValueError("native opening wait contract changed")
     return pages
 

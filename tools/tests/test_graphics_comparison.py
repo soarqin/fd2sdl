@@ -125,20 +125,17 @@ class GraphicsComparisonTest(unittest.TestCase):
         self.assertTrue(receipts[0]["cleaned"])
         self.assertTrue(receipts[0]["forced_cleanup"])
 
-    def test_input_attempt_is_recorded_even_when_focus_or_delivery_fails(self):
-        for failed_call in (0, 1):
-            events = []
-            with self.subTest(failed_call=failed_call), tempfile.TemporaryDirectory() as directory:
-                capture = Capture(Path("driver"), Mock(pid=123), Path(directory), events)
-                outcomes = [RuntimeError("input failed")] if failed_call == 0 else [None, RuntimeError("input failed")]
-                with patch("run_original_comparison.driver_call", side_effect=outcomes):
-                    with self.assertRaisesRegex(RuntimeError, "input failed"):
-                        capture.key("DOWN")
-                logged = [json.loads(line) for line in (Path(directory) / "input-trace.jsonl").read_text().splitlines()]
-                self.assertEqual(logged, events)
-                self.assertEqual(len(events), 1)
-                self.assertEqual((events[0]["pid"], events[0]["key"]), (123, "DOWN"))
-
+    def test_input_attempt_is_recorded_when_background_delivery_fails(self):
+        events = []
+        with tempfile.TemporaryDirectory() as directory:
+            capture = Capture(Path("driver"), Mock(pid=123), Path(directory), events)
+            with patch("run_original_comparison.driver_call", side_effect=RuntimeError("input failed")):
+                with self.assertRaisesRegex(RuntimeError, "input failed"):
+                    capture.key("DOWN")
+            logged = [json.loads(line) for line in (Path(directory) / "input-trace.jsonl").read_text().splitlines()]
+            self.assertEqual(logged, events)
+            self.assertEqual(len(events), 1)
+            self.assertEqual((events[0]["pid"], events[0]["key"]), (123, "DOWN"))
 
 class TitleTransitionTest(unittest.TestCase):
     def test_known_blank_transition_retains_frame_and_waits_without_input(self):
@@ -219,6 +216,9 @@ class StartupGeometryTest(unittest.TestCase):
                 elif command == "key":
                     self.assertEqual(argument, "ESC")
                     escapes.append(clock.now)
+                    return 'fd2 input: '+json.dumps({"backend":"PostMessageW HWND","pid":123,"hwnd":"0x1",
+                        "key_down_sent":1,"key_up_sent":1,"down_tick_ms":100,"up_tick_ms":250,
+                        "ok":True,"error":0,"kind":"key","keys":1,"sent":1,"release":1})
             with patch("run_original_comparison.driver_call", side_effect=driver), \
                     patch("run_original_comparison.time.monotonic", side_effect=clock.monotonic), \
                     patch("run_original_comparison.time.sleep", side_effect=clock.sleep):
@@ -227,7 +227,8 @@ class StartupGeometryTest(unittest.TestCase):
             self.assertEqual(len(escapes), 1)
             self.assertGreaterEqual(escapes[0], 1)
             self.assertLess(escapes[0], 1.2)
-            self.assertEqual(commands[-3:], ["focus", "key", "capture"])
+            self.assertEqual(commands[-2:], ["key", "capture"])
+            self.assertNotIn("focus", commands)
             events = [json.loads(line) for line in (work / "capture-errors.jsonl").read_text().splitlines()]
             self.assertTrue(events)
             for event in events:
@@ -251,6 +252,9 @@ class StartupGeometryTest(unittest.TestCase):
                     logo.save(argument)
                 elif command == "key":
                     escapes.append(clock.now)
+                    return 'fd2 input: '+json.dumps({"backend":"PostMessageW HWND","pid":123,"hwnd":"0x1",
+                        "key_down_sent":1,"key_up_sent":1,"down_tick_ms":100,"up_tick_ms":250,
+                        "ok":True,"error":0,"kind":"key","keys":1,"sent":1,"release":1})
             with patch("run_original_comparison.driver_call", side_effect=driver), \
                     patch("run_original_comparison.time.monotonic", side_effect=clock.monotonic), \
                     patch("run_original_comparison.time.sleep", side_effect=clock.sleep):

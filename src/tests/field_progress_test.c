@@ -165,7 +165,7 @@ static int test_actual_ai_counter_reward_and_two_hit_preflight(void) {
     hero->attack=10;hero->accuracy=100;hero->defense=0;
     ((uint8_t*)hero)[10]=0x40;((uint8_t*)hero)[11]=71;
     enemy->x=8;enemy->y=14;enemy->hp=15;enemy->hp_max=15;enemy->defense=0;enemy->evasion=0;
-    ((uint8_t*)enemy)[0x31]=0; /* 单击最大9，双击18会触未知loot。 */
+    ((uint8_t*)enemy)[0x31]=4; /* 单击最大9，双击18会触未知loot。 */
     CHECK(fd2_field_game_begin_attack(&g)==0);g.cursor_cell_x=8;g.cursor_cell_y=14;
     fd2_field_game before=g;calls=0;
     CHECK(fd2_field_game_resolve_attack(&g)==-1 && !calls && memcmp(&g,&before,sizeof(g))==0);

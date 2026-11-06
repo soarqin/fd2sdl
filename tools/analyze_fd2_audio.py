@@ -2,7 +2,7 @@
 """转储 FD2 的 XMIDI 曲目与已确认数字样本 bank。
 
 逆向依据：
-- music_track_play @0x4ab8b 从 FDMUS handle 加载 track；
+- music_track_play @0x25977 从 FDMUS.DAT 文件名加载 track；
 - sfx_play @0x4acaa 按嵌套 offset 表提交样本地址与长度；
 - DAT_00003eec / DAT_00003b13 分别固定加载 FDOTHER[31]/[80]；
 - title_action_menu @code0 0xf8d6 加载 FDOTHER[77]，SFX 0/1/2/3 分别用于
@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import struct
 import sys
@@ -20,9 +21,14 @@ import wave
 from pathlib import Path
 from typing import Any
 
+from rebuild_fd2_analysis import (build_relbase_image, parse_le, parse_objects,
+                                  page_number_from_map_entry)
+
 MAGIC = b"LLLLLL"
 SFX_BANK_ENTRIES = (31, 77, 78, 80)
-STAGE_MUSIC_FILE_OFFSET = 0x76E73
+STAGE_MUSIC_PRIMARY_VA = 0x51E63
+STAGE_MUSIC_ALTERNATE_VA = 0x51E81
+FD2_EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 STAGE_MUSIC_COUNT = 30
 
 
@@ -61,15 +67,32 @@ def sample_summary(index: int, sample: bytes) -> dict[str, Any]:
 
 
 def stage_music_tables(fd2_exe: bytes) -> dict[str, Any]:
-    start = STAGE_MUSIC_FILE_OFFSET
-    end = start + STAGE_MUSIC_COUNT * 2
-    if len(fd2_exe) < end:
-        raise ValueError("FD2.EXE 不包含完整 stage music tables")
+    # 仅支持已核版本；先校验完整输入，避免畸形对象触发loader大分配。
+    # 51e5f是51e5d DWORD fixup的中间字节，旧0x76e73不是音乐表起点。
+    if hashlib.sha256(fd2_exe).hexdigest() != FD2_EXE_SHA256:
+        raise ValueError("stage music tables只支持已核FD2.EXE版本")
+    le = parse_le(fd2_exe)
+    objects = parse_objects(fd2_exe, le)
+    image = build_relbase_image(fd2_exe, le, objects)
+    owner = next(obj for obj in objects
+                 if obj.relbase <= STAGE_MUSIC_PRIMARY_VA < obj.relbase + obj.vsize)
+    relative = STAGE_MUSIC_PRIMARY_VA - owner.relbase
+    map_index = owner.page_map_index - 1 + relative // le.page_size
+    entry = le.le_off + le.objmap_off + map_index * 4
+    page_number = page_number_from_map_entry(fd2_exe[entry:entry + 4])
+    file_offset = (le.module_file_off + le.data_pages_off +
+                   (page_number - 1) * le.page_size + relative % le.page_size)
+    raw = bytes(image[STAGE_MUSIC_PRIMARY_VA:
+                      STAGE_MUSIC_ALTERNATE_VA + STAGE_MUSIC_COUNT])
     return {
-        "file_offset": start,
-        "code0_offset": start - 0x10E00,
-        "primary": list(fd2_exe[start:start + STAGE_MUSIC_COUNT]),
-        "alternate": list(fd2_exe[start + STAGE_MUSIC_COUNT:end]),
+        "file_offset": file_offset,
+        "primary_canonical_va": STAGE_MUSIC_PRIMARY_VA,
+        "alternate_canonical_va": STAGE_MUSIC_ALTERNATE_VA,
+        "primary": list(raw[:STAGE_MUSIC_COUNT]),
+        "alternate": list(raw[STAGE_MUSIC_COUNT:]),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "executable_sha256": FD2_EXE_SHA256,
+        "source": "parse_le/parse_objects/build_relbase_image raw-unrelocated",
     }
 
 

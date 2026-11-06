@@ -245,7 +245,7 @@ static int test_all_preflight_rejections_are_before_mp_and_rng(void) {
             case 3: g->units.items[1].unit_id = 136; break;
             case 4: g->units.items[1].movement_profile = 0; break;
             case 5: g->units.items[1].hp_max = 0; break;
-            case 6: ((uint8_t *)&g->units.items[1])[0x31] = 0; break;
+            case 6: ((uint8_t *)&g->units.items[1])[0x31] = 4; break;
             case 7: g->units.items[0].data_09_1e[0x15] |= 0x10; break; /* 未知bit36。 */
             case 8: g->attack_rng = NULL; break;
             case 9:

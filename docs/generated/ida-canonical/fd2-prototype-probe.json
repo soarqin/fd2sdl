@@ -61,5 +61,10 @@
   "source": "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b4-publication-20261105_155414_534319\\workspace\\docs\\generated\\ida-canonical\\fd2-ida-decomp-all.c",
   "sha256": "de1272523ecd0deec9993220a897df540e84bc4fa147eef6926ee0ed9b8fe546",
   "method": "count actual full export; no type proposals applied or saved in this phase"
+ },
+ "b5_failure_inventory": {
+  "source": "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\workspace\\docs\\generated\\ida-canonical\\fd2-ida-decomp-all.c",
+  "sha256": "e1af6dc37caa320f7477f195de061ec87020220b654abd5e7b278e5946943c37",
+  "method": "count actual full export; no type proposals applied/saved"
  }
 }

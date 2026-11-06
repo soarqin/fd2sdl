@@ -14,6 +14,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run_graphics_tests as runner
 
 
+def model_planner(root):
+    """仅登记测试占位文件；所有进程调用仍mock，绝不执行此文件。"""
+    path = root / "model planner.exe"
+    path.write_bytes(b"registration model; not an executable")
+    return path
+
+
 def encrypted_fixture(plain):
     """按 src/save.c 的对称 XOR 生成合成输入；预期明文由调用者提供。"""
     encrypted = bytearray(plain)
@@ -252,7 +259,7 @@ class CommandTreeTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
         self.suite = runner.Suite(SimpleNamespace(
-            build_dir=root, driver=root / "input driver.exe"))
+            build_dir=root, driver=root / "input driver.exe", planner=model_planner(root)))
 
     def test_windows_command_has_suspended_job_owner_and_cleanup_deadline(self):
         with patch.object(runner.sys, "platform", "win32"), patch.object(
@@ -296,7 +303,8 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
-                                                  game=root / "game.exe", config="Debug", dosbox="dosbox.exe"))
+                                                  game=root / "game.exe", config="Debug", dosbox="dosbox.exe",
+                                                  planner=model_planner(root)))
             suite.command = Mock()
             for name in ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes"):
                 setattr(suite, name, Mock())
@@ -310,9 +318,16 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 "original-item-controls", "original-item-herb-full", "original-item-herb-injured",
                 "original-item-drop-herb", "original-item-drop-weapon", "original-item-drop-armor", "original-item-drop-last",
                 "original-item-eqt-incompatible", "original-item-eqt-weapon",
-                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"] + ["original-reward-" + name for name in runner.B4_SCENARIOS])
-            self.assertEqual([call.args[0] for call in suite.command.call_args_list[:3]],
-                             ["original-opening", "original-focus", "input"])
+                "original-item-give-cancel", "original-item-give-empty", "original-item-give-swap", "original-item-give-moved"] + [f"original-item-use-{code:02d}" for code in range(5, 25)] + ["original-item-use-area2", "original-item-use-23-mp0"] + ["original-reward-" + name for name in runner.B4_SCENARIOS] + ["original-prepare-controlled"] + ["original-loot-" + name.removeprefix("loot-") for name in runner.B5_LOOT_SCENARIOS] + ["original-" + name for name in runner.B5_STAGE1_SCENARIOS] + ["original-natural-stage0"])
+            self.assertEqual([call.args[0] for call in suite.command.call_args_list[:4]],
+                             ["original-opening", "original-focus", "background-input", "input"])
+            background = [row for row in suite.command.call_args_list if row.args[0] == "background-input"]
+            self.assertEqual(len(background), 1)
+            self.assertEqual(background[0].args[1], [runner.sys.executable,
+                runner.ROOT / "tools/run_background_input_check.py", "--root", runner.ROOT,
+                "--game", suite.args.game, "--driver", suite.args.driver,
+                "--dosbox", suite.args.dosbox, "--artifacts", suite.work / "background-input"])
+            self.assertEqual(background[0].kwargs["timeout"], 600)
             by_name = {call.args[0]: call for call in pairs}
             for name, script, timeout in (
                     ("original-opening", "run_original_opening.py", 1500),
@@ -329,6 +344,8 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 self.assertEqual(call.kwargs["timeout"], timeout)
             wait_command = by_name["original-player-wait"].args[1]
             self.assertEqual(wait_command[wait_command.index("--scenario") + 1], "wait-full-hp")
+            self.assertIn("--b5-defeat", by_name["original-result"].args[1])
+            self.assertEqual(sum(row.args[0] == "original-result" for row in pairs), 1)
             for name, scenario, script in (
                     ("original-magic-list", "single", "run_original_magic_list.py"),
                     ("original-magic-damage", "damage", "run_original_magic_list.py"),
@@ -355,6 +372,32 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
                 self.assertEqual(command[command.index("--artifacts") + 1], suite.work / name)
                 self.assertEqual(case.kwargs["timeout"], 480)
                 self.assertNotIn("--save-fixture", command)
+
+    def test_background_guard_failure_stops_before_input_and_uses_owned_600_second_job(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            suite = runner.Suite(SimpleNamespace(build_dir=root, driver=root / "driver.exe",
+                game=root / "game.exe", config="Debug", dosbox="dosbox.exe", planner=model_planner(root)))
+
+            def command(name, arguments, **kwargs):
+                if name == "background-input":
+                    return runner.Suite.command(suite, name, arguments, **kwargs)
+
+            suite.command = Mock(side_effect=command)
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}), \
+                    patch.object(runner.subprocess, "run", return_value=SimpleNamespace(returncode=1)) as execute, \
+                    patch.object(runner.subprocess, "Popen", side_effect=AssertionError("model test must not launch processes")):
+                with self.assertRaisesRegex(RuntimeError, "background-input exited 1"):
+                    suite.run()
+            self.assertEqual([row.args[0] for row in suite.command.call_args_list],
+                ["original-opening", "original-focus", "background-input"])
+            self.assertEqual(execute.call_args.args[0][:3], [str(suite.args.driver), "run-job", "600000"])
+            self.assertEqual(execute.call_args.kwargs["timeout"], 615)
+            self.assertTrue(execute.call_args.kwargs["stdout"].closed)
+            self.assertEqual(suite.report["cases"][0]["name"], "background-input")
+            self.assertEqual(suite.report["cases"][0]["status"], "failed")
+            self.assertEqual(suite.report["status"], "failed")
+            self.assertTrue(suite.report["original_unchanged"])
 
     def test_b3_only_does_not_launch_historical_input_opening_or_host_cases(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -427,6 +470,198 @@ class OriginalSuiteRegistrationTest(unittest.TestCase):
             with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
             self.assertEqual([row.args[0] for row in suite.command.call_args_list], ["original-reward-status", "original-reward-learn"])
 
+    def test_b5_only_registers_real_cli_and_never_runs_history_or_older_stages(self):
+        from fd2_loot_oracle import SCENARIOS
+        self.assertEqual(runner.B5_LOOT_SCENARIOS, SCENARIOS)
+        self.assertEqual(runner.B5_SCENARIOS, ("prepare-controlled", "defeat", *SCENARIOS, *runner.B5_STAGE1_SCENARIOS, "natural-stage0"))
+        self.assertEqual(len(runner.B5_SCENARIOS), 15)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = SimpleNamespace(build_dir=root, b5_only=True, game=root / "game.exe",
+                driver=root / "driver.exe", dosbox="dosbox.exe", planner=model_planner(root))
+            suite = runner.Suite(args); suite.command = Mock()
+            old = ("host_windows", "first_save", "storage_and_cancel", "end_turn", "main_title_routes", "item_cases", "reward_cases")
+            for name in old: setattr(suite, name, Mock(side_effect=AssertionError("B5不得调用历史函数")))
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+            calls = suite.command.call_args_list
+            self.assertEqual([row.args[0] for row in calls], ["original-prepare-controlled", "original-result"] +
+                ["original-loot-" + name.removeprefix("loot-") for name in SCENARIOS] +
+                ["original-" + name for name in runner.B5_STAGE1_SCENARIOS] + ["original-natural-stage0"])
+            for row, scenario in zip(calls, runner.B5_SCENARIOS):
+                command = row.args[1]
+                self.assertEqual(command[command.index("--root") + 1], runner.ROOT)
+                self.assertEqual(command[command.index("--driver") + 1], args.driver)
+                self.assertEqual(command[command.index("--dosbox") + 1], args.dosbox)
+                self.assertEqual(command[command.index("--artifacts") + 1], suite.work / row.args[0])
+                self.assertNotIn("--original-evidence", command)
+                self.assertEqual("--record-native-audio" in command, scenario == "natural-stage0")
+                if scenario == "defeat":
+                    self.assertEqual(command[1], runner.ROOT / "tools/run_original_result.py")
+                    self.assertEqual(command[command.index("--game") + 1], args.game)
+                    self.assertIn("--b5-defeat", command)
+                    self.assertNotIn("--sdl", command)
+                    self.assertEqual(row.kwargs["timeout"], 360)
+                elif scenario in runner.B5_STAGE1_SCENARIOS:
+                    self.assertEqual(command[1], runner.ROOT / "tools/run_original_stage1.py")
+                    self.assertEqual(command[command.index("--sdl") + 1], args.game)
+                    self.assertEqual(command[command.index("--scenario") + 1], scenario.removeprefix("stage1-"))
+                    self.assertEqual(command[command.index("--save-fixture") + 1],
+                        suite.work / "original-prepare-controlled/original/stage1-entry-measured.SAV")
+                    self.assertEqual(row.kwargs["timeout"], 600 if scenario == "stage1-turn3" else 240)
+                elif scenario == "natural-stage0":
+                    self.assertEqual(command[1], runner.ROOT / "tools/run_original_natural.py")
+                    self.assertEqual(command[command.index("--sdl") + 1], args.game)
+                    self.assertEqual(command[command.index("--scenario") + 1], scenario)
+                    self.assertEqual(command[command.index("--planner") + 1], args.planner.resolve())
+                    self.assertNotIn("--max-turns", command)
+                    self.assertEqual(row.kwargs["timeout"], 7200)
+                else:
+                    self.assertEqual(command[command.index("--sdl") + 1], args.game)
+                    self.assertEqual(command[command.index("--scenario") + 1], scenario)
+                    self.assertEqual(command[1], runner.ROOT / "tools" / ("run_original_transition.py" if scenario == "prepare-controlled" else "run_original_loot.py"))
+                    self.assertEqual(row.kwargs["timeout"], 1200 if scenario == "prepare-controlled" else 900)
+            self.assertEqual(suite.report["status"], "passed")
+            self.assertIn("natural stage0", suite.report["scope"])
+            self.assertIn("not A7 fidelity", suite.report["scope"])
+            for name in old: getattr(suite, name).assert_not_called()
+
+    def test_b5_stage1_subset_requires_external_fixture_or_an_earlier_fresh_prepare(self):
+        from fd2_stage1_oracle import SCENARIOS
+        self.assertEqual(tuple(name.removeprefix("stage1-") for name in runner.B5_STAGE1_SCENARIOS), SCENARIOS)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for selected in (["stage1-turn3"], ["stage1-villager-defeat"], ["stage1-turn3", "prepare-controlled"]):
+                with patch.object(Path, "mkdir") as mkdir, self.assertRaisesRegex(ValueError, "prepare-controlled"):
+                    runner.Suite(SimpleNamespace(build_dir=root,b5_only=True,b5_scenarios=selected))
+                mkdir.assert_not_called()
+            fixture = root / "stage1-real-entry.SAV"; fixture.write_bytes(b"registration model; actual worker verifies contents")
+            original, stamp = fixture.read_bytes(), fixture.stat().st_mtime_ns
+            args = SimpleNamespace(build_dir=root,b5_only=True,b5_scenarios=["stage1-villager-defeat"],
+                b5_save_fixture=fixture,game=root/"game.exe",driver=root/"driver.exe",dosbox="dosbox.exe")
+            suite=runner.Suite(args);suite.command=Mock()
+            with patch.object(runner.sys,"platform","win32"),patch.object(runner,"hashes",return_value={}):suite.run()
+            self.assertEqual(suite.command.call_args.args[0],"original-stage1-villager-defeat")
+            command=suite.command.call_args.args[1]
+            self.assertEqual(command[command.index("--save-fixture")+1],fixture.resolve())
+            self.assertEqual(suite.report["b5_stage1_fixture"]["source"],"explicit_readonly")
+            self.assertEqual((fixture.read_bytes(),fixture.stat().st_mtime_ns),(original,stamp))
+            args.b5_save_fixture=root/"missing.SAV"
+            with patch.object(Path,"mkdir") as mkdir,self.assertRaisesRegex(ValueError,"只读SAV"):
+                runner.Suite(args)
+            mkdir.assert_not_called()
+            owned=root/"graphics-artifacts"/"fixed-run"/"FD2.SAV"
+            owned.parent.mkdir(parents=True);owned.write_bytes(b"owned output cannot be source")
+            args.b5_save_fixture=owned
+            with patch.object(runner,"datetime") as now,patch.object(Path,"mkdir") as mkdir,self.assertRaisesRegex(ValueError,"只读SAV"):
+                now.now.return_value.strftime.return_value="fixed-run"
+                runner.Suite(args)
+            mkdir.assert_not_called()
+
+    def test_b5_selection_rejects_unknown_duplicate_empty_or_cross_stage_flags_before_mkdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for overrides in ({"b5_only": True, "b5_scenarios": ["unknown"]},
+                    {"b5_only": True, "b5_scenarios": ["chest-empty", "chest-empty"]},
+                    {"b5_only": True, "b5_scenarios": []}, {"b5_scenarios": ["defeat"]},
+                    {"b3_only": True, "b5_only": True}, {"b4_only": True, "b5_only": True},
+                    {"b3_only": True, "b4_only": True, "b5_only": True},
+                    {"b5_only": True, "b3_scenarios": ["controls"]},
+                    {"b5_only": True, "b4_scenarios": ["heal"]}):
+                with self.subTest(overrides=overrides), patch.object(Path, "mkdir") as mkdir, self.assertRaises(ValueError):
+                    runner.Suite(SimpleNamespace(build_dir=root, **overrides))
+                mkdir.assert_not_called()
+
+    def test_b5_subset_preserves_requested_order_without_unselected_or_historical_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected = ["loot-money", "prepare-controlled", "defeat", "chest-no"]
+            suite = runner.Suite(SimpleNamespace(build_dir=root, b5_only=True, b5_scenarios=selected,
+                game=root / "game.exe", driver=root / "driver.exe", dosbox="dosbox.exe"))
+            suite.command = Mock()
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+            self.assertEqual([row.args[0] for row in suite.command.call_args_list], [
+                "original-loot-money", "original-prepare-controlled", "original-result", "original-loot-chest-no"])
+
+    def test_b5_nonwindows_or_failed_first_case_cannot_pass_or_run_following_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = SimpleNamespace(build_dir=root, b5_only=True, game=root / "game.exe", driver=root / "driver.exe", dosbox="dosbox.exe", planner=model_planner(root))
+            suite = runner.Suite(args); suite.command = Mock()
+            with patch.object(runner.sys, "platform", "linux"), patch.object(runner, "hashes", return_value={}):
+                with self.assertRaisesRegex(RuntimeError, "Windows WGC"): suite.run()
+            suite.command.assert_not_called(); self.assertEqual(suite.report["status"], "failed")
+            suite = runner.Suite(args); suite.command = Mock(side_effect=RuntimeError("prepare failed"))
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}):
+                with self.assertRaisesRegex(RuntimeError, "prepare failed"): suite.run()
+            self.assertEqual(suite.command.call_count, 1)
+            self.assertEqual(suite.command.call_args.args[0], "original-prepare-controlled")
+            self.assertEqual(suite.report["status"], "failed")
+
+    def test_natural_planner_discovers_multi_configuration_then_single_configuration(self):
+        for config, layouts, expected in (("Debug", ("Debug", "single"), "Debug"),
+                ("Release", ("Release",), "Release"), ("Debug", ("single",), "single")):
+            with self.subTest(config=config, layouts=layouts), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for layout in layouts:
+                    path = root / "fd2_field_natural_plan.exe" if layout == "single" else root / layout / "fd2_field_natural_plan.exe"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b"unexecuted planner model")
+                suite = runner.Suite(SimpleNamespace(build_dir=root, config=config, b5_only=True,
+                    b5_scenarios=["natural-stage0"], game=root/"game.exe", driver=root/"driver.exe", dosbox="dosbox.exe"))
+                suite.command = Mock()
+                with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}): suite.run()
+                path = root/"fd2_field_natural_plan.exe" if expected == "single" else root/expected/"fd2_field_natural_plan.exe"
+                command = suite.command.call_args.args[1]
+                self.assertEqual(suite.command.call_count, 1)
+                self.assertEqual(command[command.index("--planner") + 1], path.resolve())
+                self.assertEqual(suite.report["b5_planner"]["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+                self.assertEqual(suite.report["registered_b5_scenarios"], list(runner.B5_SCENARIOS))
+
+    def test_natural_explicit_planner_wins_and_uses_only_stable_cli_and_default_turn_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "fd2_field_natural_plan.exe").write_bytes(b"default not selected")
+            planner = model_planner(root)
+            suite = runner.Suite(SimpleNamespace(build_dir=root, planner=planner, b5_only=True,
+                b5_scenarios=["natural-stage0"], game=root/"game.exe", driver=root/"driver.exe", dosbox="dosbox.exe"))
+            suite.command = Mock()
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}), \
+                    patch.object(runner.subprocess, "Popen", side_effect=AssertionError("no GUI in registration test")):
+                suite.run()
+            row = suite.command.call_args
+            self.assertEqual(row.args[0], "original-natural-stage0")
+            self.assertEqual(row.args[1], [sys.executable, runner.ROOT/"tools/run_original_natural.py",
+                "--root", runner.ROOT, "--sdl", suite.args.game, "--driver", suite.args.driver,
+                "--dosbox", suite.args.dosbox, "--planner", planner.resolve(), "--scenario", "natural-stage0",
+                "--record-native-audio", "--artifacts", suite.work/"original-natural-stage0"])
+            self.assertEqual(row.kwargs["timeout"], 7200)
+            self.assertNotIn("--max-turns", row.args[1])
+
+    def test_natural_missing_or_directory_planner_rejects_before_artifacts_or_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for planner in (None, root/"missing.exe", root):
+                with self.subTest(planner=planner), patch.object(Path, "mkdir") as mkdir, \
+                        patch.object(runner.subprocess, "Popen") as popen, patch.object(runner.subprocess, "run") as run:
+                    with self.assertRaisesRegex(ValueError, "规划器不存在"):
+                        runner.Suite(SimpleNamespace(build_dir=root, b5_only=True,
+                            b5_scenarios=["natural-stage0"], planner=planner))
+                    mkdir.assert_not_called(); popen.assert_not_called(); run.assert_not_called()
+
+    def test_natural_failure_cannot_mark_passed_or_start_the_following_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            suite = runner.Suite(SimpleNamespace(build_dir=root, planner=model_planner(root), b5_only=True,
+                b5_scenarios=["natural-stage0", "loot-money"], game=root/"game.exe",
+                driver=root/"driver.exe", dosbox="dosbox.exe"))
+            suite.command = Mock(side_effect=RuntimeError("natural stopped before victory"))
+            with patch.object(runner.sys, "platform", "win32"), patch.object(runner, "hashes", return_value={}):
+                with self.assertRaisesRegex(RuntimeError, "natural stopped"):
+                    suite.run()
+            self.assertEqual(suite.report["status"], "failed")
+            self.assertEqual(suite.command.call_count, 1)
+            self.assertEqual(suite.command.call_args.args[0], "original-natural-stage0")
+
 
 class WindowCleanupTest(unittest.TestCase):
     def setUp(self):
@@ -439,7 +674,7 @@ class WindowCleanupTest(unittest.TestCase):
         self.source_save.write_bytes(b"read-only source evidence")
         self.suite = runner.Suite(SimpleNamespace(
             build_dir=self.root / "build", game=self.root / "game.exe",
-            driver=self.root / "driver.exe"))
+            driver=self.root / "driver.exe", planner=model_planner(self.root)))
         self.suite.driver = Mock()
         self.process = Mock(pid=1234, returncode=None)
         self.process.poll.side_effect = lambda: self.process.returncode

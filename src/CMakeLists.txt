@@ -159,6 +159,7 @@ target_include_directories(fd2sdl_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(fd2sdl
     main.c
     field_play.c
+    field_prepare_play.c
     $<TARGET_OBJECTS:fd2sdl_core>
 )
 target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -202,6 +203,7 @@ if(BUILD_TESTING)
     add_executable(fd2_main_title_resource_test
         tests/main_title_resource_test.c
         field_play.c
+        field_prepare_play.c
         $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_main_title_resource_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_main_title_resource_test PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -241,6 +243,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME field_manual_slot COMMAND fd2_field_manual_slot_test)
 
+
+    add_executable(fd2_field_stage_tables_test
+        tests/field_stage_tables_test.c field.c archive.c)
+    target_include_directories(fd2_field_stage_tables_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(fd2_field_stage_tables_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_stage_tables_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_stage_tables COMMAND fd2_field_stage_tables_test)
+    set_tests_properties(field_stage_tables PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_audio_test
         tests/audio_test.c
         audio.c
@@ -255,6 +271,51 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio COMMAND fd2_audio_test)
     set_tests_properties(audio PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+
+    add_executable(fd2_field_natural_plan
+        tests/field_natural_plan.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_natural_plan PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_natural_plan PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_target_properties(fd2_field_natural_plan PROPERTIES LINKER_LANGUAGE CXX)
+    if(MSVC)
+        target_compile_options(fd2_field_natural_plan PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_natural_plan PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME natural_plan_simulation COMMAND fd2_field_natural_plan
+        --save "${CMAKE_SOURCE_DIR}/../original_game/START.SAV" --simulate
+        --seed 0x7a18 --max-turns 100)
+    set_tests_properties(natural_plan_simulation PROPERTIES
+        TIMEOUT 60 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." LABELS "planning")
+
+    add_executable(fd2_field_natural_plan_test
+        tests/field_natural_plan_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_natural_plan_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_natural_plan_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_target_properties(fd2_field_natural_plan_test PROPERTIES LINKER_LANGUAGE CXX)
+    if(MSVC)
+        target_compile_options(fd2_field_natural_plan_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_natural_plan_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME natural_plan COMMAND fd2_field_natural_plan_test)
+    set_tests_properties(natural_plan PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." LABELS "planning")
+
+    add_executable(fd2_bgm_capture_probe
+        tests/bgm_capture_probe.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_bgm_capture_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bgm_capture_probe PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_target_properties(fd2_bgm_capture_probe PROPERTIES LINKER_LANGUAGE CXX)
+    if(MSVC)
+        target_compile_options(fd2_bgm_capture_probe PRIVATE /W4)
+    else()
+        target_compile_options(fd2_bgm_capture_probe PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(fd2_bgm_capture_probe PRIVATE m)
+    endif()
 
     add_executable(fd2_bgm_test
         tests/bgm_test.c
@@ -848,6 +909,32 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_growth COMMAND fd2_field_growth_test)
 
+    add_executable(fd2_field_persistent_stats_test
+        tests/field_persistent_stats_test.c
+        field_unit_base.c field_item.c field_unit_stats.c)
+    add_executable(fd2_field_stage_transition_test
+        tests/field_stage_transition_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    add_executable(fd2_field_loot_test
+        tests/field_loot_test.c
+        $<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.]>)
+    set_property(TARGET fd2_field_stage_transition_test fd2_field_loot_test
+        PROPERTY LINKER_LANGUAGE CXX)
+    foreach(fd2_b5_target fd2_field_persistent_stats_test
+            fd2_field_stage_transition_test fd2_field_loot_test)
+        target_include_directories(${fd2_b5_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(${fd2_b5_target} PRIVATE ${FD2SDL_SDL3_TARGET})
+        if(MSVC)
+            target_compile_options(${fd2_b5_target} PRIVATE /W4)
+        else()
+            target_compile_options(${fd2_b5_target} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+    endforeach()
+    add_test(NAME field_persistent_stats COMMAND fd2_field_persistent_stats_test)
+    add_test(NAME field_stage_transition COMMAND fd2_field_stage_transition_test)
+    add_test(NAME field_loot COMMAND fd2_field_loot_test)
+    set_tests_properties(field_persistent_stats field_stage_transition field_loot
+        PROPERTIES TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     if(WIN32)
         if(NOT Python3_Interpreter_FOUND)
             if(FD2SDL_REQUIRE_GUI_TESTS)
@@ -899,9 +986,12 @@ if(BUILD_TESTING)
         fd2_field_game_animate_detail=__wrap_fd2_field_game_animate_detail
         fd2_field_game_confirm_cursor=__wrap_fd2_field_game_confirm_cursor
         fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move
+        fd2_field_game_animate_system_menu=__wrap_fd2_field_game_animate_system_menu
+        fd2_field_game_execute_storage_action=__wrap_fd2_field_game_execute_storage_action
+        fd2_field_unit_summary_draw=__wrap_fd2_field_unit_summary_draw
         fd2_field_game_march=__wrap_fd2_field_game_march)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
-    set_tests_properties(field_play_result PROPERTIES TIMEOUT 5)
+    set_tests_properties(field_play_result PROPERTIES TIMEOUT 10)
 
     # 测试TU私有替身覆盖modal分配、呈现与输入，不给生产代码增加钩子。
     add_executable(fd2_field_play_overview_test
@@ -1023,6 +1113,20 @@ if(BUILD_TESTING)
     set_tests_properties(field_magic_list_play PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
+    add_executable(fd2_field_prepare_play_test
+        tests/field_prepare_play_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_prepare_play_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_prepare_play_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_prepare_play_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_prepare_play_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_prepare_play COMMAND fd2_field_prepare_play_test)
+    set_tests_properties(field_prepare_play PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_field_progress_play_test
         tests/field_progress_play_test.c
         $<TARGET_OBJECTS:fd2sdl_core>)
@@ -1076,6 +1180,9 @@ if(BUILD_TESTING)
         target_compile_options(fd2_scene_handoff_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME scene_handoff COMMAND fd2_scene_handoff_test)
+    add_test(NAME scene_transition COMMAND fd2_scene_handoff_test --b5)
+    set_tests_properties(scene_transition PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
     set_tests_properties(scene_handoff PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 

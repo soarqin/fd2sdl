@@ -1,6 +1,6 @@
-/* 正式 SDL 战场输入回归的宿主驱动：Windows SendInput／Linux XTest。
- * 序列沿用原有 stage 0 输入回归，只发送真实按键，不调用玩法 API。
- * Windows 按进程 ID 限定目标窗口，失焦立即停止；截图仅取该窗口客户区。
+/* 正式 SDL 战场输入回归的宿主驱动：Windows HWND消息／Linux XTest。
+ * 序列沿用原有 stage 0 输入回归，不调用玩法 API。Windows只向本PID
+ * 的窗口投递键盘消息，不激活窗口、不发送全局输入；截图仍为HWND WGC。
  */
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include <stdint.h>
 #else
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
@@ -19,7 +20,7 @@
 #include <string.h>
 
 #ifdef _WIN32
-typedef struct { HWND window; DWORD pid; } InputTarget;
+typedef struct { HWND window; DWORD pid; unsigned windows_found; } InputTarget;
 typedef WORD KeySym;
 #define XK_Return VK_RETURN
 #define XK_Down VK_DOWN
@@ -199,126 +200,143 @@ static BOOL CALLBACK find_window(HWND window, LPARAM param) {
     GetWindowThreadProcessId(window, &pid);
     if (pid == target->pid && IsWindowVisible(window) &&
         GetWindow(window, GW_OWNER) == NULL) {
-        target->window = window;
-        return FALSE;
+        if (!target->windows_found) target->window = window;
+        ++target->windows_found;
     }
     return TRUE;
 }
 
-static int focused(const InputTarget *target) {
-    DWORD pid = 0;
-    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
-    if (pid != target->pid || GetForegroundWindow() != target->window) {
-        char title[256] = {0};
-        GetWindowTextA(GetForegroundWindow(), title, sizeof(title));
-        fprintf(stderr, "target window lost focus; target=%lu foreground=%lu title=%s\n",
-                (unsigned long)target->pid, (unsigned long)pid, title);
-        return 0;
-    }
-    return 1;
-}
-
-static int focus(InputTarget *target) {
-    DWORD current_thread = GetCurrentThreadId();
-    MSG message;
-    /* AttachThreadInput 要求调用线程已有消息队列；只建立队列，不发送按键。 */
-    PeekMessage(&message, NULL, 0, 0, PM_NOREMOVE);
-    for (unsigned attempt = 0; attempt < 10; attempt++) {
-        DWORD owner = 0;
-        DWORD target_thread = GetWindowThreadProcessId(target->window, &owner);
-        if (!target_thread || owner != target->pid || !IsWindow(target->window)) {
-            fprintf(stderr, "target window no longer belongs to PID %lu\n", (unsigned long)target->pid);
-            return -1;
-        }
-        if (GetForegroundWindow() == target->window && !IsIconic(target->window))
-            return 0;
-        DWORD foreground_thread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-        BOOL attached_foreground = FALSE;
-        BOOL attached_target = FALSE;
-        if (foreground_thread && foreground_thread != current_thread)
-            attached_foreground = AttachThreadInput(current_thread, foreground_thread, TRUE);
-        if (target_thread != current_thread && target_thread != foreground_thread)
-            attached_target = AttachThreadInput(current_thread, target_thread, TRUE);
-        ShowWindow(target->window, SW_RESTORE);
-        BringWindowToTop(target->window);
-        SetForegroundWindow(target->window);
-        SetActiveWindow(target->window);
-        SetFocus(target->window);
-        if (attached_target) AttachThreadInput(current_thread, target_thread, FALSE);
-        if (attached_foreground) AttachThreadInput(current_thread, foreground_thread, FALSE);
-        Sleep(100);
-    }
-    return focused(target) ? 0 : -1;
-}
-
-static int keyboard_event(WORD symbol, INPUT *event) {
-    memset(event, 0, sizeof(*event));
-    event->type = INPUT_KEYBOARD;
-    event->ki.wScan = (WORD)MapVirtualKeyW(symbol, MAPVK_VK_TO_VSC);
-    if (!event->ki.wScan) return -1;
-    /* SDL1 读取 Windows 消息的扫描码，不能只填虚拟键而留下零扫描码。 */
-    event->ki.dwFlags = KEYEVENTF_SCANCODE;
+/* 定向消息只进入本PID所属HWND，不激活窗口或改变系统键盘状态。
+ * lParam保留真实扫描码／extended及up的previous/transition位；普通
+ * WM_KEYDOWN/UP供SDL2/3消息后端接收，不能把Post成功当资源ACK。 */
+static int key_message_lparam(WORD symbol, int down, LPARAM *parameter) {
+    UINT scan = MapVirtualKeyW(symbol, MAPVK_VK_TO_VSC);
+    if (!scan || !parameter) return -1;
+    DWORD value = 1u | ((scan & 0xffu) << 16);
     if (symbol == VK_UP || symbol == VK_DOWN || symbol == VK_LEFT ||
         symbol == VK_RIGHT || symbol == VK_HOME || symbol == VK_DELETE ||
         symbol == VK_INSERT || symbol == VK_PRIOR || symbol == VK_NEXT)
-        event->ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        value |= 1u << 24;
+    if (!down) value |= 3u << 30;
+    *parameter = (LPARAM)(LONG)value;
     return 0;
 }
 
-static int tap(InputTarget *display, KeySym symbol, unsigned long delay_us) {
-    /* 按键会正常关闭目标（例如肯定离场）；在注入前持有该进程身份，
-     * 释放按键后区分已退出和仍在运行却失焦，不用前台窗口猜退出。 */
-    HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, display->pid);
-    if (!process) {
-        fprintf(stderr, "key OpenProcess failed: pid=%lu error=%lu\n",
-                (unsigned long)display->pid, (unsigned long)GetLastError());
+static int post_owned_key(const InputTarget *target, WORD symbol, int down,
+                          LPARAM parameter) {
+    DWORD owner = 0;
+    if (!IsWindow(target->window) ||
+        !GetWindowThreadProcessId(target->window, &owner) || owner != target->pid) {
+        SetLastError(ERROR_INVALID_WINDOW_HANDLE);
         return -1;
     }
-    INPUT event;
-    if (!focused(display)) {
-        CloseHandle(process);
-        return -1;
+    return PostMessageW(target->window, down ? WM_KEYDOWN : WM_KEYUP,
+                         (WPARAM)symbol, parameter) ? 0 : -1;
+}
+
+static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
+                     unsigned long delay_us, int wave) {
+    HWND foreground_before = GetForegroundWindow();
+    ULONGLONG started = GetTickCount64(), down_tick = 0, up_tick = 0;
+    unsigned sent = 0, released = 0, release_retries = 0;
+    DWORD error = 0, target_exit_code = STILL_ACTIVE;
+    int release_not_needed = 0;
+    LPARAM down[2], up[2];
+    HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+                                  FALSE, target->pid);
+    if (!process) { error = GetLastError(); goto done; }
+    if (!symbols || !count || count > 2u) {
+        error = ERROR_INVALID_PARAMETER;
+        goto done;
     }
-    if (keyboard_event(symbol, &event) != 0) {
-        fprintf(stderr, "key has no scan code: virtual_key=%u\n", (unsigned)symbol);
-        CloseHandle(process);
-        return -1;
+    if (wave) {
+        wchar_t path[32768]; DWORD length = 32768;
+        if (!QueryFullProcessImageNameW(process, 0, path, &length)) {
+            error = GetLastError(); goto done;
+        }
+        const wchar_t *name = wcsrchr(path, L'\\');
+        if (_wcsicmp(name ? name + 1 : path, L"dosbox-x.exe") != 0) {
+            error = ERROR_INVALID_NAME; goto done;
+        }
     }
-    if (SendInput(1, &event, sizeof(event)) != 1) {
-        fprintf(stderr, "key down SendInput failed: pid=%lu virtual_key=%u error=%lu\n",
-                (unsigned long)display->pid, (unsigned)symbol, (unsigned long)GetLastError());
-        CloseHandle(process);
-        return -1;
+    for (unsigned i = 0; i < count; ++i) {
+        if (key_message_lparam(symbols[i], 1, &down[i]) != 0 ||
+            key_message_lparam(symbols[i], 0, &up[i]) != 0) {
+            error = ERROR_INVALID_PARAMETER; goto done;
+        }
     }
-    /* 跨过 Debug／WGC 后的短帧停顿，仍低于宿主 500 ms repeat 门。 */
-    Sleep(150);
-    event.ki.dwFlags |= KEYEVENTF_KEYUP;
-    /* 即使此时失焦，也必须配对释放本驱动刚按下的键。 */
-    if (SendInput(1, &event, sizeof(event)) != 1) {
-        fprintf(stderr, "key up SendInput failed: pid=%lu virtual_key=%u error=%lu\n",
-                (unsigned long)display->pid, (unsigned)symbol, (unsigned long)GetLastError());
-        CloseHandle(process);
-        return -1;
+    for (unsigned i = 0; i < count; ++i) {
+        ULONGLONG tick = GetTickCount64();
+        if (post_owned_key(target, symbols[i], 1, down[i]) != 0) {
+            error = GetLastError();
+            if (!error) error = ERROR_GEN_FAILURE;
+            break;
+        }
+        if (!sent) down_tick = tick;
+        ++sent;
     }
-    /* 按下／松开已配对，此时核对投递条件；后面的节奏等待期间允许
-     * 游戏完成提示并退出，不再要求一个已完成操作继续持有焦点。 */
-    DWORD state = WaitForSingleObject(process, 0);
-    int result = -1;
-    if (state == WAIT_OBJECT_0) {
-        fprintf(stderr, "key delivered; target exited: pid=%lu\n", (unsigned long)display->pid);
-        result = 0; /* 调用者仍须检查预期退出码与业务检查点。 */
-    } else if (state == WAIT_TIMEOUT) {
-        result = focused(display) ? 0 : -1;
-    } else {
-        fprintf(stderr, "key process wait failed: pid=%lu state=%lu error=%lu\n",
-                (unsigned long)display->pid, (unsigned long)state, (unsigned long)GetLastError());
+    /* 保持生产逐帧键态可见，仍低于500ms repeat门；不追加DOWN重试。 */
+    if (sent == count) Sleep(150);
+    for (unsigned i = sent; i > 0; --i) {
+        if (WaitForSingleObject(process, 0) == WAIT_OBJECT_0) break;
+        up_tick = GetTickCount64();
+        if (post_owned_key(target, symbols[i - 1], 0, up[i - 1]) == 0) {
+            ++released;
+        } else {
+            if (!error) {
+                error = GetLastError();
+                if (!error) error = ERROR_GEN_FAILURE;
+            }
+            /* 释放失败仅重试本轮已DOWN的同一PID/HWND；不触碰全局键态。 */
+            ++release_retries;
+            if (WaitForSingleObject(process, 0) != WAIT_OBJECT_0 &&
+                post_owned_key(target, symbols[i - 1], 0, up[i - 1]) == 0)
+                ++released;
+        }
     }
-    CloseHandle(process);
-    Sleep((DWORD)((delay_us + 999) / 1000));
+    if (sent == count && released != count &&
+        WaitForSingleObject(process, 0) == WAIT_OBJECT_0 &&
+        GetExitCodeProcess(process, &target_exit_code)) {
+        release_not_needed = 1;
+        up_tick = GetTickCount64(); /* 观察到退出／免release，不伪称已投递UP。 */
+    }
+    Sleep((DWORD)((delay_us + 999u) / 1000u));
+ done:
+    if (process) CloseHandle(process);
+    int result = !error && sent == count && count != 0u &&
+        (released == count || release_not_needed) ? 0 : -1;
+    fprintf(stderr, "fd2 input: {\"backend\":\"PostMessageW HWND\",\"pid\":%lu,"
+        "\"hwnd\":\"0x%llx\",\"kind\":\"%s\",\"keys\":%u,"
+        "\"key_down_sent\":%s,\"key_up_sent\":%s,\"sent\":%u,\"release\":%u,"
+        "\"foreground_before\":\"0x%llx\",\"foreground_after\":\"0x%llx\","
+        "\"down_tick_ms\":%llu,\"up_tick_ms\":%llu,\"elapsed_ms\":%llu,"
+        "\"release_retries\":%u,\"target_exited_before_release\":%s,"
+        "\"release_not_needed\":%s,\"target_exit_code\":%lu,\"error\":%lu,\"ok\":%s}\n",
+        (unsigned long)target->pid, (unsigned long long)(uintptr_t)target->window,
+        wave ? "wave" : "key", count,
+        sent == count && count ? "true" : "false", released == count && count ? "true" : "false",
+        sent, released, (unsigned long long)(uintptr_t)foreground_before,
+        (unsigned long long)(uintptr_t)GetForegroundWindow(),
+        (unsigned long long)down_tick, (unsigned long long)up_tick,
+        (unsigned long long)(GetTickCount64() - started), release_retries,
+        release_not_needed ? "true" : "false", release_not_needed ? "true" : "false",
+        (unsigned long)target_exit_code, (unsigned long)error, result == 0 ? "true" : "false");
+    fflush(stderr);
     return result;
 }
 
+static int tap(InputTarget *target, KeySym symbol, unsigned long delay_us) {
+    return tap_keys(target, &symbol, 1u, delay_us, 0);
+}
+
 extern int fd2_capture_window(HWND window, const char *path);
+
+/* DOSBox-X 2026.10.01：F11(host)+W，仅投递到其窗口消息队列；
+ * 始终W先松、F11后松，不改变用户全局键态或转移焦点。 */
+static int tap_native_wave_record(InputTarget *target) {
+    const WORD symbols[] = {VK_F11, 'W'};
+    return tap_keys(target, symbols, 2u, 100000u, 1);
+}
 
 static int capture(InputTarget *target, const char *path) {
     DWORD pid = 0;
@@ -402,28 +420,24 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     if (argc > 1 && strcmp(argv[1], "run-job") == 0) return run_job(argc, argv);
     if (argc < 3 || argc > 4) {
-        fprintf(stderr, "usage: %s wait|attack|wait-focused|attack-focused|focus|close PID, or key|capture PID KEY|PATH\n", argv[0]);
+        fprintf(stderr, "usage: %s wait|attack|wait-focused|attack-focused|close PID, or key|capture PID KEY|PATH\n", argv[0]);
         return 2;
     }
     char *end = NULL;
     unsigned long pid = strtoul(argv[2], &end, 10);
     if (!pid || !end || *end) return 2;
     SetProcessDPIAware();
-    InputTarget target = {NULL, (DWORD)pid};
+    InputTarget target = {NULL, (DWORD)pid, 0};
     EnumWindows(find_window, (LPARAM)&target);
-    if (!target.window) {
-        fprintf(stderr, "no visible window for PID %lu\n", pid);
-        return 1;
+    if (target.windows_found > 1u) {
+        fprintf(stderr, "ambiguous visible windows for PID %lu: count=%u\n",
+                pid, target.windows_found);
+        target.window = NULL;
     }
-    if (strcmp(argv[1], "close") == 0) {
-        DWORD owner = 0;
-        GetWindowThreadProcessId(target.window, &owner);
-        return owner == target.pid && PostMessage(target.window, WM_CLOSE, 0, 0) ? 0 : 1;
-    }
-    if (strcmp(argv[1], "focus") == 0) return focus(&target) == 0 ? 0 : 1;
-    if (strcmp(argv[1], "capture") == 0 && argc == 4)
-        return capture(&target, argv[3]) == 0 ? 0 : 1;
+    /* key失败也输出定向投递收据，窗口不存在时不改用其它对象。 */
     if (strcmp(argv[1], "key") == 0 && argc == 4) {
+        if (strcmp(argv[3], "HOST_W") == 0)
+            return tap_native_wave_record(&target) == 0 ? 0 : 1;
         const struct { const char *name; WORD key; } keys[] = {
             {"ENTER", VK_RETURN}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
             {"UP", VK_UP}, {"DOWN", VK_DOWN}, {"LEFT", VK_LEFT},
@@ -437,11 +451,21 @@ int main(int argc, char **argv) {
                 return tap(&target, keys[i].key, 250000) == 0 ? 0 : 1;
         return 2;
     }
+    if (!target.window) {
+        fprintf(stderr, "no visible window for PID %lu\n", pid);
+        return 1;
+    }
+    if (strcmp(argv[1], "close") == 0) {
+        DWORD owner = 0;
+        GetWindowThreadProcessId(target.window, &owner);
+        return owner == target.pid && PostMessageW(target.window, WM_CLOSE, 0, 0) ? 0 : 1;
+    }
+    if (strcmp(argv[1], "capture") == 0 && argc == 4)
+        return capture(&target, argv[3]) == 0 ? 0 : 1;
     int wait_mode = strcmp(argv[1], "wait") == 0 || strcmp(argv[1], "wait-focused") == 0;
     int attack_mode = strcmp(argv[1], "attack") == 0 || strcmp(argv[1], "attack-focused") == 0;
     if (!wait_mode && !attack_mode)
         return 2;
-    if (focus(&target) != 0) return 1;
     int already_focused = strcmp(argv[1], "wait-focused") == 0 ||
                           strcmp(argv[1], "attack-focused") == 0;
     int result = wait_mode

@@ -139,26 +139,48 @@ def hashes(directory: Path) -> dict[str, str]:
             for path in sorted(directory.rglob("*")) if path.is_file()}
 
 
+class DriverCallError(RuntimeError):
+    def __init__(self, message, diagnostic):
+        super().__init__(message)
+        self.diagnostic = diagnostic
+
+
 def driver_call(driver: Path, command: str, process: subprocess.Popen,
-                argument: str | Path | None = None) -> None:
+                argument: str | Path | None = None) -> str:
     if process.poll() is not None:
         raise RuntimeError(f"目标进程提前结束：PID {process.pid}，exit={process.returncode}")
     args = [str(driver), command, str(process.pid)]
     if argument is not None:
         args.append(str(argument))
-    result = subprocess.run(args, capture_output=True, text=True, timeout=15)
+    # 驱动诊断统一UTF-8；保留异常原始字节的转义，不能让Windows reader
+    # thread因ANSI窗口标题解码失败而把整段stderr丢成None。
+    result = subprocess.run(args, capture_output=True, text=True,
+                            encoding="utf-8", errors="backslashreplace", timeout=15)
     if result.returncode:
-        raise RuntimeError(f"窗口驱动 {command} 失败：{result.stdout or ''}{result.stderr or ''}"
-                           f" [PID={process.pid} exit={result.returncode} argument={argument!s}]")
+        raise DriverCallError(f"窗口驱动 {command} 失败：{result.stdout or ''}{result.stderr or ''}"
+                              f" [PID={process.pid} exit={result.returncode} argument={argument!s}]",
+                              result.stderr or "")
+    return result.stderr or ""
 
 
 @contextmanager
 def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
             receipts: list[dict], *, expected_exit=0):
     with log.open("w", encoding="utf-8") as stream:
-        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=stream)
+        launch = {}
+        if sys.platform == "win32":
+            # SDL2/3各自的show hint及Win32首次show均请求不激活；只作用本轮子进程。
+            env = dict(env, SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN="1",
+                       SDL_WINDOW_ACTIVATE_WHEN_SHOWN="0", SDL_WINDOW_ACTIVATE_WHEN_RAISED="0",
+                       SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS="0", SDL_WINDOWS_RAW_KEYBOARD="0")
+            startup = subprocess.STARTUPINFO()
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = 4  # SW_SHOWNOACTIVATE，保持窗口可见供HWND WGC捕获。
+            launch["startupinfo"] = startup
+        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=stream, **launch)
         receipt = {"pid": process.pid, "command": command, "log": str(log),
-                   "forced_cleanup": False, "cleaned": False, "expected_exit": expected_exit}
+                   "forced_cleanup": False, "cleaned": False, "expected_exit": expected_exit,
+                   "input_backend": "PostMessageW HWND"}
         receipts.append(receipt)
         body_failed = False
         try:
@@ -243,18 +265,63 @@ def verify_occlusion(capture: "Capture", output: Path) -> dict:
 
 
 class Capture:
-    def __init__(self, driver: Path, process: subprocess.Popen, artifacts: Path, trace=None):
+    def __init__(self, driver: Path, process: subprocess.Popen, artifacts: Path, trace=None,
+                 *, startup_skip=True):
         self.driver, self.process, self.artifacts = driver, process, artifacts
         self.last: Image.Image | None = None
         self.trace = trace if trace is not None else []
+        self.startup_skip = startup_skip
 
     def key(self, name: str) -> None:
         event = {"time": time.monotonic(), "pid": self.process.pid, "key": name}
         self.trace.append(event)
         with (self.artifacts / "input-trace.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event) + "\n")
-        driver_call(self.driver, "focus", self.process)
-        driver_call(self.driver, "key", self.process, name)
+        failure = None
+        delivery = {**event, "accepted":False}
+        try:
+            try:
+                diagnostic = driver_call(self.driver, "key", self.process, name)
+            except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+                failure = error
+                diagnostic = getattr(error, "diagnostic", str(error))
+            delivery.update(diagnostic=diagnostic, transport_ok=failure is None)
+            try:
+                receipts = [json.loads(line[len("fd2 input: "):]) for line in diagnostic.splitlines()
+                            if line.startswith("fd2 input: ")]
+            except (TypeError, ValueError) as error:
+                if failure is not None:
+                    raise failure
+                raise RuntimeError("窗口按键后台投递收据无法解析；未尝试前台输入") from error
+            delivery["receipts"] = receipts
+            if failure is not None:
+                raise failure
+            if len(receipts) != 1:
+                raise RuntimeError("窗口按键缺少唯一后台投递收据；未尝试前台输入")
+            receipt = receipts[0]
+            count = 2 if name == "HOST_W" else 1
+            kind = "wave" if name == "HOST_W" else "key"
+            exited_before_release = (isinstance(receipt, dict) and
+                receipt.get("target_exited_before_release") is True and
+                receipt.get("release_not_needed") is True and
+                type(receipt.get("target_exit_code")) is int and
+                self.process.poll() == receipt["target_exit_code"])
+            if (not isinstance(receipt, dict) or receipt.get("backend") != "PostMessageW HWND" or
+                    receipt.get("pid") != self.process.pid or not receipt.get("hwnd") or
+                    receipt.get("ok") is not True or receipt.get("error") != 0 or
+                    receipt.get("kind") != kind or receipt.get("keys") != count or
+                    receipt.get("sent") != count or receipt.get("key_down_sent") != 1 or
+                    ((receipt.get("key_up_sent") != 1 or receipt.get("release") != count)
+                     and not exited_before_release) or
+                    not isinstance(receipt.get("down_tick_ms"), int) or
+                    not isinstance(receipt.get("up_tick_ms"), int) or
+                    receipt["up_tick_ms"] < receipt["down_tick_ms"]):
+                raise RuntimeError("窗口按键后台投递收据无效；未尝试前台输入")
+            event["delivery"] = receipt
+            delivery.update(accepted=True, delivery=receipt)
+        finally:
+            with (self.artifacts / "input-delivery.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(delivery) + "\n")
 
     def frame(self) -> Image.Image:
         path = self.artifacts / f"window-{self.process.pid}-current.bmp"
@@ -319,7 +386,7 @@ class Capture:
             if frame is not None and compare(expected, frame)["ok"]:
                 require_content(frame)
                 return frame.copy()
-            if startup and time.monotonic() >= next_escape:
+            if startup and self.startup_skip and time.monotonic() >= next_escape:
                 self.key("ESC")  # 仅启动阶段跳过动画；已确认标题忽略 Esc。
                 next_escape = time.monotonic() + 2
             time.sleep(0.15)

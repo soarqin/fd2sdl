@@ -49,8 +49,13 @@ int fd2_field_unit_base_apply(fd2_field_unit *unit, uint8_t level);
 int fd2_field_unit_enemy_experience_coefficient(
     uint8_t unit_id, uint8_t *coefficient);
 
+/* field_persistent_unit_combat_stats_recompute @0x1145a（原sub_1145A）的持久记录装备派生：仅写48..4f的四个WORD，
+ * 忽略战场状态22..24，遍历全部8槽的flags40（包括同时flags80的槽）。
+ * 不构造单位、不改其余72B；成功0，NULL或未知已装备ID失败-1且整记录不变。 */
+int fd2_field_unit_persistent_stats_recompute(fd2_field_unit *unit);
+
 /* sub_112A5 @0x112a5（原登记同名）的持久玩家初始构造及
- * sub_1145A @0x1145a 装备派生。只改已确认写集；未写 raw 字节沿用
+ * field_persistent_unit_combat_stats_recompute @0x1145a（原sub_1145A） 装备派生。只改已确认写集；未写 raw 字节沿用
  * 输入记录。支持原版 player base 的 ID 0..31，失败时不修改记录。 */
 int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id);
 

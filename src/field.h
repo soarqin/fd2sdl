@@ -14,6 +14,23 @@
  *   (*(ushort *)(cell_ptr + 4) & 0x3ff)
  */
 
+/* sub_4E809 @0x4e809（原登记中性名）：31B城镇准备/商店记录，
+ * 数据VA0x6238d，按stage-1索引；完整26条至下一独立学习表0x626b3。
+ * SDL只支持这段已证数据，stage0/27+返回NULL；不是原getter的原生边界门。
+ * 不代表对应关卡或商店已开放。 */
+#define FD2_FIELD_PREPARE_RECORD_SIZE 31
+const uint8_t *fd2_field_stage_prepare_record_get(size_t stage);
+
+typedef struct {
+    uint8_t primary;
+    uint8_t alternate;
+} fd2_field_stage_music;
+
+/* music_track_play @0x25977与field_turn_cycle_run @0x1a30b读取
+ * 数据VA0x51e63/0x51e81的两张30B表；未知stage返回NULL。
+ * 纯查询不播放、不消费RNG，不由此解除关卡能力门。 */
+const fd2_field_stage_music *fd2_field_stage_music_get(size_t stage);
+
 typedef struct {
     int width;
     int height;

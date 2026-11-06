@@ -1,3 +1,6 @@
+/* FDSHAP地形绘制：field_view_render_tiles @0x11eee 与
+ * map_tile_blit_visible @0x12ac6（原FUN_0001020e）。角色附近的选择
+ * 由field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）调用方负责。 */
 #include "tile.h"
 
 #include <stdlib.h>
@@ -272,6 +275,25 @@ void fd2_terrain_render_field_base(fd2_vga *vga,
                                            camera_x, camera_y, 0, 0);
 }
 
+void fd2_terrain_render_field_overlay_cell(fd2_vga *vga,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int cell_x, int cell_y, int camera_x, int camera_y,
+    int anim_phase, const uint8_t lut[256]) {
+    if (!vga || !terrain || !map || !map->cells ||
+        cell_x < 0 || cell_y < 0 || cell_x >= map->width || cell_y >= map->height)
+        return;
+    size_t frame_index;
+    if (fd2_terrain_overlay_frame_from_cell(terrain,
+            fd2_field_map_cell(map, cell_x, cell_y), anim_phase, &frame_index) <= 0)
+        return;
+    const fd2_image *image = fd2_terrain_frame(terrain, frame_index);
+    int64_t x = (int64_t)cell_x * FD2_FIELD_TILE_STEP - camera_x;
+    int64_t y = (int64_t)cell_y * FD2_FIELD_TILE_STEP - camera_y;
+    if (x <= -24 || y <= -24 || x >= VGA_W || y >= VGA_H) return;
+    if (lut) fd2_tileset_blit_lut(vga, image, (int)x, (int)y, 0, lut);
+    else fd2_tileset_blit(vga, image, (int)x, (int)y, 0);
+}
+
 void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       const fd2_terrain_tileset *terrain,
                                       const fd2_field_map *map,
@@ -279,18 +301,12 @@ void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       int anim_phase) {
     if (!vga || !terrain || !map) return;
 
-    /* 遮挡层：复现 FUN_0001020e @0x12ac6 对地形表 flags 的处理。
-     * 原版在 actor 绘制后重绘附近遮挡格，使树冠/建筑位于角色上方。 */
+    /* 独立地图preview保留全图前景；正式战场与Scene使用actor-local
+     * owner选择cell，不能用这个无units参数的全图入口覆盖空格cursor。 */
     for (int y = 0; y < map->height; y++) {
         for (int x = 0; x < map->width; x++) {
-            uint32_t cell = fd2_field_map_cell(map, x, y);
-            size_t frame_idx;
-            int r = fd2_terrain_overlay_frame_from_cell(terrain, cell, anim_phase, &frame_idx);
-            if (r <= 0) continue;
-            const fd2_image *img = fd2_terrain_frame(terrain, frame_idx);
-            int sx = x * FD2_FIELD_TILE_STEP - camera_x;
-            int sy = y * FD2_FIELD_TILE_STEP - camera_y;
-            fd2_tileset_blit(vga, img, sx, sy, 0);
+            fd2_terrain_render_field_overlay_cell(vga, terrain, map,
+                x, y, camera_x, camera_y, anim_phase, NULL);
         }
     }
 }

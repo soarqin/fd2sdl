@@ -1335,6 +1335,111 @@
     "va": "0x4e821",
     "from": "sub_4E821",
     "to": "field_growth_record_get"
+   },
+   {
+    "va": "0x11506",
+    "from": "sub_11506",
+    "to": "persistent_roster_sync_from_battle"
+   },
+   {
+    "va": "0x12263",
+    "from": "sub_12263",
+    "to": "field_completed_chest_tiles_apply"
+   },
+   {
+    "va": "0x190ac",
+    "from": "sub_190AC",
+    "to": "field_special_cell_execute"
+   },
+   {
+    "va": "0x1aa1d",
+    "from": "sub_1AA1D",
+    "to": "field_loot_descriptors_execute"
+   },
+   {
+    "va": "0x1b653",
+    "from": "sub_1B653",
+    "to": "field_defeated_story_loot_collect"
+   },
+   {
+    "va": "0x1b6b7",
+    "from": "sub_1B6B7",
+    "to": "field_defeated_loot_collect"
+   },
+   {
+    "va": "0x22e5c",
+    "from": "sub_22E5C",
+    "to": "field_defeat_game_over_present"
+   },
+   {
+    "va": "0x22ef6",
+    "from": "sub_22EF6",
+    "to": "field_stage0_victory_execute"
+   },
+   {
+    "va": "0x26152",
+    "from": "sub_26152",
+    "to": "field_town_prepare_execute"
+   },
+   {
+    "va": "0x265ec",
+    "from": "sub_265EC",
+    "to": "field_town_view_render"
+   },
+   {
+    "va": "0x2670e",
+    "from": "sub_2670E",
+    "to": "field_town_selection_execute"
+   },
+   {
+    "va": "0x26996",
+    "from": "sub_26996",
+    "to": "field_prepare_bottom_page_close"
+   },
+   {
+    "va": "0x29300",
+    "from": "field_manual_slot_dispatch",
+    "to": "field_hotel_menu_execute"
+   },
+   {
+    "va": "0x29620",
+    "from": "sub_29620",
+    "to": "field_roster_detail_select"
+   },
+   {
+    "va": "0x2968d",
+    "from": "sub_2968D",
+    "to": "field_manual_slot_save"
+   },
+   {
+    "va": "0x29ab2",
+    "from": "sub_29AB2",
+    "to": "field_manual_slot_rows_draw"
+   },
+   {
+    "va": "0x32d18",
+    "from": "sub_32D18",
+    "to": "field_stage1_entry_play"
+   },
+   {
+    "va": "0x34778",
+    "from": "sub_34778",
+    "to": "field_stage1_turn3_execute"
+   },
+   {
+    "va": "0x1145a",
+    "from": "sub_1145A",
+    "to": "field_persistent_unit_combat_stats_recompute"
+   },
+   {
+    "va": "0x206c5",
+    "from": "sub_206C5",
+    "to": "field_stage1_battle_result_check"
+   },
+   {
+    "va": "0x34738",
+    "from": "sub_34738",
+    "to": "field_stage0_ally_side1_event"
    }
   ],
   "skipped": [],
@@ -1495,7 +1600,10 @@
   "apply-verified-report.json",
   "apply-b3-name-report.json",
   "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\stat-bars-20261105_141143_939626\\actual-name-sync.json",
-  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b4-publication-20261105_155414_534319\\actual-name-sync.json"
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b4-publication-20261105_155414_534319\\actual-name-sync.json",
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\actual-name-sync.json",
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\actual-name-sync-addition.json",
+  "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\actual-name-sync-stage-events.json"
  ],
  "stack_check": {
   "name": "watcom_stack_check",
@@ -1631,5 +1739,168 @@
    "C:/Users/Soar/AppData/Local/Temp/ida-x87-stat-scale-20261105_154802_431559"
   ],
   "note": "既有DB真实Domain应用11个完整语义名；仅保留原9已证持久类型。全量pC的临时推断不保存；本轮3个剩余失败由该真实导出统计，不沿用历史4个。"
+ },
+ "b5_update": {
+  "method": "IDA Domain functions.set_name/set_comment; no prototypes or instruction writes",
+  "renamed": [
+   {
+    "va": "0x11506",
+    "from": "sub_11506",
+    "to": "persistent_roster_sync_from_battle"
+   },
+   {
+    "va": "0x12263",
+    "from": "sub_12263",
+    "to": "field_completed_chest_tiles_apply"
+   },
+   {
+    "va": "0x190ac",
+    "from": "sub_190AC",
+    "to": "field_special_cell_execute"
+   },
+   {
+    "va": "0x1aa1d",
+    "from": "sub_1AA1D",
+    "to": "field_loot_descriptors_execute"
+   },
+   {
+    "va": "0x1b653",
+    "from": "sub_1B653",
+    "to": "field_defeated_story_loot_collect"
+   },
+   {
+    "va": "0x1b6b7",
+    "from": "sub_1B6B7",
+    "to": "field_defeated_loot_collect"
+   },
+   {
+    "va": "0x22e5c",
+    "from": "sub_22E5C",
+    "to": "field_defeat_game_over_present"
+   },
+   {
+    "va": "0x22ef6",
+    "from": "sub_22EF6",
+    "to": "field_stage0_victory_execute"
+   },
+   {
+    "va": "0x26152",
+    "from": "sub_26152",
+    "to": "field_town_prepare_execute"
+   },
+   {
+    "va": "0x265ec",
+    "from": "sub_265EC",
+    "to": "field_town_view_render"
+   },
+   {
+    "va": "0x2670e",
+    "from": "sub_2670E",
+    "to": "field_town_selection_execute"
+   },
+   {
+    "va": "0x26996",
+    "from": "sub_26996",
+    "to": "field_prepare_bottom_page_close"
+   },
+   {
+    "va": "0x29300",
+    "from": "field_manual_slot_dispatch",
+    "to": "field_hotel_menu_execute"
+   },
+   {
+    "va": "0x29620",
+    "from": "sub_29620",
+    "to": "field_roster_detail_select"
+   },
+   {
+    "va": "0x2968d",
+    "from": "sub_2968D",
+    "to": "field_manual_slot_save"
+   },
+   {
+    "va": "0x29ab2",
+    "from": "sub_29AB2",
+    "to": "field_manual_slot_rows_draw"
+   },
+   {
+    "va": "0x32d18",
+    "from": "sub_32D18",
+    "to": "field_stage1_entry_play"
+   },
+   {
+    "va": "0x34778",
+    "from": "sub_34778",
+    "to": "field_stage1_turn3_execute"
+   },
+   {
+    "va": "0x1145a",
+    "from": "sub_1145A",
+    "to": "field_persistent_unit_combat_stats_recompute"
+   },
+   {
+    "va": "0x206c5",
+    "from": "sub_206C5",
+    "to": "field_stage1_battle_result_check"
+   },
+   {
+    "va": "0x34738",
+    "from": "sub_34738",
+    "to": "field_stage0_ally_side1_event"
+   }
+  ],
+  "commented": [
+   "0x11506",
+   "0x12263",
+   "0x190ac",
+   "0x1aa1d",
+   "0x1b653",
+   "0x1b6b7",
+   "0x22e5c",
+   "0x22ef6",
+   "0x26152",
+   "0x265ec",
+   "0x2670e",
+   "0x26996",
+   "0x29300",
+   "0x29620",
+   "0x2968d",
+   "0x29ab2",
+   "0x32d18",
+   "0x34778",
+   "0x4e809",
+   "0x1145a",
+   "0x206c5",
+   "0x34738"
+  ],
+  "upstream_sha256": "d9052c7d25cb2bdf8981b4d8a9669a16f906d341c42bc70846f6a5da18f0467e",
+  "types_changed": false,
+  "full_export_functions": 1307,
+  "full_export_failures": [
+   {
+    "func": "0x34f38",
+    "name": "sub_34F38",
+    "err_ea": "0x34f38",
+    "desc": "positive sp value has been found"
+   },
+   {
+    "func": "0x4a0c4",
+    "name": "__int7_pl3",
+    "err_ea": "0x4a0dc",
+    "desc": "call analysis failed"
+   },
+   {
+    "func": "0x4a0e8",
+    "name": "__int7",
+    "err_ea": "0x4a0f8",
+    "desc": "call analysis failed"
+   }
+  ],
+  "contract_readsets": [
+   "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\functions.json",
+   "C:\\Users\\Soar\\AppData\\Local\\Temp\\fd2sdl-b3-20261105\\ida-equipment\\run-20261105_111831_688108\\b5-publication-20261105_190021_653020\\late-contracts\\functions.json",
+   "C:/Users/Soar/AppData/Local/Temp/ida-domain-20261105_175508_362590-b5-contracts"
+  ],
+  "scope": "21完整函数语义/22注释真正应用到既有9.5DB；不保存猜型，不将静态发布计作原版玩法验收"
  }
 }

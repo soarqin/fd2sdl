@@ -5,6 +5,7 @@
 #include <string.h>
 #include "archive.h"
 #include "app_flow.h"
+#include "field_prepare_play.h"
 #include "animation.h"
 #include "image.h"
 #include "input.h"
@@ -189,7 +190,37 @@ static int title_test_menu(int count, int selected, int highlighted,
     return fd2_title_draw_menu_frame(count, selected, highlighted, draw, userdata);
 }
 
+static fd2_field_play_context *chain_context;
+static fd2_field_play_result chain_results[3];
+static int chain_battles, chain_preparations;
+static size_t chain_stages[3];
+static int chain_loaded[3], chain_handoffs[3];
+static int chain_first_load_stage;
+static fd2_field_prepare_result chain_prepare_result;
+static fd2_field_play_result chain_battle(fd2_vga *vga, const fd2_archive *fdother,
+        size_t stage, int once, const fd2_field_handoff *handoff, fd2_field_audio *audio,
+        const char *save_path, int load_active, fd2_field_play_context *context) {
+    (void)vga;(void)fdother;(void)audio;(void)save_path;
+    if(context!=chain_context || once || chain_battles>=3)abort();
+    int index=chain_battles++;
+    chain_stages[index]=stage;chain_loaded[index]=load_active;chain_handoffs[index]=handoff!=NULL;
+    if(index==0 && chain_first_load_stage>=0)stage=(size_t)chain_first_load_stage;
+    context->rng.state++;context->experience_value+=2;context->message_number+=3;
+    if(stage==1u)context->has_preparation=0;
+    if(stage==0u && chain_results[index]==FD2_FIELD_PLAY_RETURN_VICTORY){
+        context->preparation.stage_id=1;context->preparation.unit_count=5;context->has_preparation=1;
+    }
+    return chain_results[index];
+}
+static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *fdother,
+        fd2_field_play_context *context, const char *save_path, fd2_field_audio *audio) {
+    (void)vga;(void)fdother;(void)save_path;(void)audio;
+    if(context!=chain_context)abort();chain_preparations++;return chain_prepare_result;
+}
+
 /* 只在此测试TU替换I/O；包含完整main，未增加生产hook或复制标题逻辑。 */
+#define fd2_field_play_run_context chain_battle
+#define fd2_field_prepare_run chain_prepare
 #define main fd2_program_main
 #define fd2_archive_get title_test_archive_get
 #define fd2_archive_open_mem title_test_archive_open_mem
@@ -336,6 +367,47 @@ static int run_intro_case(const intro_case *test) {
     return 0;
 }
 
+static void chain_reset(fd2_field_play_context *context) {
+    memset(context,0,sizeof(*context));context->initialized=1;
+    context->rng.state=0x1234;context->experience_value=7;context->message_number=99;
+    chain_context=context;chain_battles=chain_preparations=0;
+    chain_first_load_stage=-1;
+    memset(chain_results,0,sizeof(chain_results));chain_prepare_result=FD2_FIELD_PREPARE_DEPART;
+}
+static int test_app_chain(void) {
+    fd2_field_play_context context;fd2_field_handoff handoff={0};chain_reset(&context);
+    chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;chain_results[1]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,0,&handoff,0)==FD2_APP_FLOW_EXIT);
+    CHECK(chain_battles==2 && chain_preparations==1 && chain_stages[0]==0 && chain_stages[1]==1);
+    CHECK(chain_handoffs[0] && !chain_handoffs[1] && !chain_loaded[0] && !chain_loaded[1]);
+    CHECK(context.rng.state==0x1236 && context.experience_value==11 && context.message_number==105);
+    /* 第一场入口是stage1；战场Load恢复stage0，实际结算后仍交同一准备owner。 */
+    chain_reset(&context);chain_first_load_stage=0;
+    chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;chain_results[1]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_EXIT);
+    CHECK(chain_battles==2 && chain_preparations==1 && chain_stages[0]==1 && chain_stages[1]==1);
+    CHECK(chain_loaded[0] && !chain_loaded[1] && !chain_handoffs[0] && !chain_handoffs[1]);
+    CHECK(context.rng.state==0x1236 && context.experience_value==11 && context.message_number==105);
+    chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_DEFEAT;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_TITLE);
+    CHECK(chain_battles==1 && !chain_preparations && chain_stages[0]==1 && chain_loaded[0] && !chain_handoffs[0]);
+    chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,0)==FD2_APP_FLOW_ERROR);
+    CHECK(chain_battles==1 && !chain_preparations);
+    const fd2_field_prepare_result endings[]={FD2_FIELD_PREPARE_TITLE,FD2_FIELD_PREPARE_HOST_QUIT,FD2_FIELD_PREPARE_LEAVE_GAME,FD2_FIELD_PREPARE_ERROR};
+    const fd2_app_flow flows[]={FD2_APP_FLOW_TITLE,FD2_APP_FLOW_EXIT,FD2_APP_FLOW_LEAVE_GAME,FD2_APP_FLOW_ERROR};
+    for(size_t i=0;i<sizeof(endings)/sizeof(endings[0]);i++){
+        chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=1;
+        fd2_field_play_context before=context;chain_prepare_result=endings[i];
+        CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==flows[i]);
+        CHECK(!chain_battles && chain_preparations==1 && !memcmp(&context,&before,sizeof(context)));
+    }
+    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=2;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
+    CHECK(!chain_battles && chain_preparations==1);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc == 2) {
         for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
@@ -349,6 +421,7 @@ int main(int argc, char **argv) {
         if (run_case(cases[i])) return 1;
     for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
         if (run_intro_case(&intro_cases[i])) return 1;
-    puts("main_title_resource: 29 cases passed; no SDL initialization/window");
+    CHECK(test_app_chain()==0);
+    puts("main_title_resource: 29 resource cases + App chain passed; no SDL initialization/window");
     return 0;
 }

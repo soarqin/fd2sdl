@@ -5,7 +5,9 @@
 #include <stdint.h>
 
 #include "field.h"
+#include "field_path.h"
 #include "map_sprite.h"
+#include "tile.h"
 #include "vga.h"
 
 /* 战场单位运行时记录。
@@ -93,6 +95,12 @@ int fd2_field_units_append_group(fd2_field_units *units,
                                  const fd2_field_placements *placements,
                                  uint8_t group);
 
+/* 53AFA强制原placement；否则nearest free占格搜索，不读terrain成本。
+ * 原样shadow提交；Scene与业务共用，未知模板/无空格失败不写units。 */
+int fd2_field_units_append_group_placed(fd2_field_units *units,
+    const fd2_field_metadata *meta, const fd2_field_placements *placements,
+    const fd2_field_map *map, uint8_t group, int force);
+
 int fd2_field_unit_is_hidden(const fd2_field_unit *unit);
 void fd2_field_unit_set_hidden(fd2_field_unit *unit, int hidden);
 int fd2_field_unit_has_acted(const fd2_field_unit *unit);
@@ -114,5 +122,13 @@ void fd2_field_units_render(fd2_vga *vga,
                             const fd2_field_units *units,
                             int camera_x, int camera_y,
                             uint8_t idle_phase);
+
+/* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）：全表actor
+ * 绘完后，只恢复非hidden/非terrain-immune的本格、上格及行走附加格。
+ * range/lut只控制这些格的映色，不追加范围外的前景；不改units或range。 */
+void fd2_field_units_render_terrain_overlays(fd2_vga *vga,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    const fd2_field_units *units, int camera_x, int camera_y, int anim_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]);
 
 #endif /* FD2_FIELD_UNIT_H */

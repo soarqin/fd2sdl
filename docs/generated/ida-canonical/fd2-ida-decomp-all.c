@@ -127,7 +127,7 @@ void sub_10010()
         dword_53A59 = 0;
         LODWORD(v7) = music_track_play((unsigned __int8)byte_51E63[dword_53C03], 0);
         dword_51A83 = 0;
-        sub_12263(v7, HIDWORD(v7));
+        field_completed_chest_tiles_apply(v7, HIDWORD(v7));
         v9 = sub_11CAC(1);
         palette_fade_in_light(v9);
         for ( j = 0; j < 9; ++j )
@@ -728,19 +728,20 @@ int __cdecl sub_112A5(int a1)
   *(_WORD *)(v1 + 66) = v6;
   *(_WORD *)(v1 + 68) = v11;
   *(_WORD *)(v1 + 70) = v11;
-  result = sub_1145A(dword_53BFB);
+  result = field_persistent_unit_combat_stats_recompute(dword_53BFB);
   ++dword_53BFB;
   return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1145A
+ * IDA 9.5 Hex-Rays: field_persistent_unit_combat_stats_recompute
  * VA=0x1145a..0x11506 OBJ=1 OFF=0x145a size=0xac
  * callers: 0x112a5, 0x11506
  * callees: 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-int __cdecl sub_1145A(int a1)
+// [勘误 semantic_name] field_persistent_unit_combat_stats_recompute；依据: 完整172B；112a5持久构造与11506结算同步两caller。从base+37h/39h/3eh读取AP/DP/命中基值，八槽仅按flag40累加item+1/+5/+3/+7，最终只写record+48h/4ah/4ch/4eh四WORD并保留16位回绕。hidden槽仍可参与，不检查装备种类、不套战场1b750的状态倍率、不动HP/MP或其它字节。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int __cdecl field_persistent_unit_combat_stats_recompute(int a1)
 {
   __int16 *v1; // edi
   int i; // esi
@@ -776,12 +777,13 @@ int __cdecl sub_1145A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_11506
+ * IDA 9.5 Hex-Rays: persistent_roster_sync_from_battle
  * VA=0x11506..0x115b6 OBJ=1 OFF=0x1506 size=0xb0
  * callers: 0x22ef6, 0x22f37, 0x230f2, 0x232e8, 0x235f9, 0x23790, 0x237d5, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x24754, 0x24c1e, 0x24df2, 0x24e80, 0x250cc, 0x2548c
  * callees: 0x1145a, 0x34894, 0x3702f, 0x3771c, 0x37910
  * --------------------------------------------------------------- */
-void sub_11506()
+// [勘误 semantic_name] persistent_roster_sync_from_battle；依据: 完整176B；22ef6及后续结算caller。按active raw顺序嵌套roster按text_id同步整80B，text_id0的hidden active不覆盖；清六状态、flags仅留hidden、存活HP和全部MP恢复max，再1145a重算。不是按unit ID或side同步，未匹配和未用表尾不写。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void persistent_roster_sync_from_battle()
 {
   int i; // ebp
   int v1; // edi
@@ -804,7 +806,7 @@ void sub_11506()
         if ( *(_BYTE *)(v3 + 5) != 1 )
           *(_WORD *)(v3 + 64) = *(_WORD *)(v3 + 66);
         *(_WORD *)(v3 + 68) = *(_WORD *)(v3 + 70);
-        sub_1145A(j);
+        field_persistent_unit_combat_stats_recompute(j);
       }
     }
   }
@@ -1506,13 +1508,14 @@ LABEL_40:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_12263
+ * IDA 9.5 Hex-Rays: field_completed_chest_tiles_apply
  * VA=0x12263..0x122dc OBJ=1 OFF=0x2263 size=0x79
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x10010, 0x13a9f, 0x190ac, 0x35730, 0x35854, 0x35a0d
  * callees: 0x12e38, 0x3702f
  * --------------------------------------------------------------- */
-char sub_12263()
+// [勘误 semantic_name] field_completed_chest_tiles_apply；依据: 完整121B；10010活动Load与190ac特殊格完成caller。逐格只选terrain flags&60==20且completed[cell.byte2&31]非零，将整个cell WORD模加1、byte2清0、byte3保留；不改metadata或completed本身，不把40类宝藏也改图。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+char field_completed_chest_tiles_apply()
 {
   int v0; // eax
   int i; // esi
@@ -1682,7 +1685,7 @@ int sub_127A9()
     if ( is_hidden == 0 )
       is_hidden = sub_127E0(i);
   }
-  return sub_129EC(is_hidden);
+  return field_actor_terrain_overlays_draw(is_hidden);
 }
 
 
@@ -1795,13 +1798,15 @@ int field_animation_phase_update()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_129EC
+ * IDA 9.5 Hex-Rays: field_actor_terrain_overlays_draw
  * VA=0x129ec..0x12ac6 OBJ=1 OFF=0x29ec size=0xda
  * type: int __fastcall(_DWORD)
  * callers: 0x127a9, 0x1366a, 0x1db65, 0x32999
  * callees: 0x12ac6, 0x1f183, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void sub_129EC()
+// [勘误 semantic_name] field_actor_terrain_overlays_draw；依据: IDA9.5 Domain完整218B与127a9/1366a/1db65/32999四caller，逐raw读取actor坐标、direction+3与walking+4，过滤hidden/1f183后才调用12ac6重绘局部遮挡。原中性名保留为历史登记，不据void伪C或旧自动fastcall类型猜ABI，也不修改持久类型。
+// [勘误 evidence] 只遍历非hidden且1f183返回0的actor，恢复自身(x,y)和上格(x,y-1)。walking+4非0时，direction0另恢复(x,y+1)，1恢复(x-1,y)/(x-1,y-1)，2恢复(x,y-2)，其余恢复(x+1,y)/(x+1,y-1)。无HP/acted额外过滤。1f183对unit28强制返回0，其余profile19或race4/5跳过；没有actor的远处attr80格不会因本遍历盖住cursor。；依据: 完整原函数及12ac6/1f183的Domain指令/xref逐项闭合。B5 C22 actualSave12两端存活身份/位置同，world11,8附近无actor：原版裸cursor204px通过且拒cursor+281合成，SDL却以455px FDSHAP281及527px合成通过、裸cursor坏132px。这个运行反例证明全图overlay旧实现错误，不是oracle模板缺帧；修复候选的实际重验另行登记。
+void field_actor_terrain_overlays_draw()
 {
   int i; // edi
   int v1; // esi
@@ -1866,6 +1871,7 @@ LABEL_4:
 // [map_tile_blit_visible] 战场遮挡格重绘：从 FDFIELD cell 读取 `cell & 0x03ff`，查 FDSHAP 地形表 flags 后 blit 后一帧
 //   依据: 反编译读取 `SUB_00003a51 + (y*w+x)*4`、`DAT_00003a69 + terrain_id*4`；阶段 2 FDSHAP 地形映射验证
 //   历史地址列 `0x37cda`；旧 Ghidra 名 `FUN_0001020e`；判定 exact
+// [勘误 evidence] 保留既名。它只绘caller指定格，接纳camera_x-1..camera_x+51A87及camera_y-1..camera_y+51A8B+1且y非负的范围；读取cell低10位terrain_id，仅attr08按53A40加2*phase，attr80才绘FDSHAP frame+1。cell.byte7==FF走原图，否则按51A97[53C1F]作同一格LUT；本helper不决定actor邻域或全图遍历。；依据: IDA9.5 Domain完整327B及唯一caller129ec；12ac6原分支、sheet offset+10和byte7判断与11eee底图→selection→127a9 actor→129ec局部恢复顺序一致。C22空格cursor反例只支持已测455/527/204像素及局部owner，不宣称所有遮挡/动画/RNG或新修复已实机通过。
 int __cdecl map_tile_blit_visible(int a1, int a2, int a3)
 {
   int result; // eax
@@ -1947,6 +1953,7 @@ int field_visible_actor_at_focus()
 // [field_visible_actor_find_by_text_id] 按 actor record offset `0x08` 的文本编号查找未隐藏战场角色；只匹配隐藏角色时返回 `-1`
 //   依据: 反编译逐条比较 offset `0x08` 并调用 `field_actor_is_hidden`；`text_dialog_render_tokens` 的 `-17/-18` 路径另从匹配记录 offset `0x07` 读取 DATO 立绘
 //   历史地址列 `0x37e74`；旧 Ghidra 名 `FUN_000103a8`；判定 exact
+// [勘误 evidence] active按raw扫描，每次text_id匹配先保存全局record指针，首visible立即返回raw；若全为hidden返回-1但保留最后匹配active指针。只有active完全无匹配才扫描persistent，同样保留最后匹配。-17/-18据该指针+7取DATO；-1只阻止focus，不阻止portrait。39仍走原特殊portrait分支。；依据: 完整138B与15f84的-17/-18调用、已发布Domain指令；本B5Scene三类edge纯回归分别锁定首visible、最后hidden与persistent fallback，不把这些纯测试当作全部原版运行。名称保持原登记。
 int __cdecl field_visible_actor_find_by_text_id(int a1)
 {
   int v1; // ebx
@@ -2718,7 +2725,7 @@ int __cdecl field_movement_script_play(int a1)
             sub_127E0(m);
           dword_53A49 = v4;
         }
-        sub_129EC();
+        field_actor_terrain_overlays_draw();
         memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
         bios_tick_delay(2);
         v7 = sub_11CAC(0);
@@ -2909,7 +2916,7 @@ LABEL_3:
           }
           *(_BYTE *)(dword_53AD5 + v7) = 1;
           pal_mask_set(dword_53EEC, 12, 1);
-          sub_12263();
+          field_completed_chest_tiles_apply();
           v11[52] = 7;
         }
         goto LABEL_55;
@@ -3617,6 +3624,7 @@ int __cdecl sub_14B16(_BYTE *a1)
 //   依据: SDL 已接入 direct probe、固定预算 `0x1c` 的 mode-1 long route、最后可达 anchor、普通路径重建及六相位播放。
 //   历史地址列 `0x39d96`（`0x14b82` 是 __chkstk body，入口为 `0x14b78`）；旧 Ghidra 名 `Ghidra 未识别边界`；判定 chkstk-body
 // [勘误 evidence] 先排序合法终点再探路；long route遇不可达即停，tie为abs(dx-abs(dy)) -> 先normal probe原请求anchor，失败后以预算28/mode1仍探该anchor；完整扫描long route，以未做友方终点阻断的distance记录最后可达格，未命中继续。随后才range/friendly block/sort/final path。tie为abs(abs(dx)-abs(dy))，相等保留扫描先项。局部profile先immune→19，再text_id28→1，预算0合法且无HP门，不修改原actor profile。；依据: 权威伪C及原始局部指令14c3a/14c7d/14cd7/14d17/14d47。14e0c push使ESP=S-4，14e15 [esp+8]覆盖S+4为abs(dx)，14e19才弹参；14e27读回该值，旧非对称解释漏算ESP变化。新SDL合成回归与真实START四玩家几何对照，不等于整函数机器执行或March运行验收。
+// [勘误 evidence] normal失败后14c53先4df4c清40/80及byte7，14c7d直接预算28/mode1探原anchor，期间未调用145cd，所以长路没有单位阻挡／ZOC。14c9a再次clear后14ca6才重建145cd，14cc7计算本回合range并扫描完整长路取最后可达格，随后友方终点阻断／排序／普通路径不变。SDL clear-unit-flags组合位只表达此调用环境，不是新增原版mode。；依据: 完整14b78 Domain指令与14121/13a9f调用链；同一真实C10派生stage1文件三END，旧probe重现六终点偏差，两项修复后的六终点精确等于native的13,5/11,3/12,4/15,3/14,4/13,3，该headless probe RNG0且源文件不变。真实双端重验仍按后续GUI收据单列。
 int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
@@ -3820,6 +3828,7 @@ LABEL_23:
 // [field_ai_item_action_execute] 执行已选 AI 物品动作的范围、演出和效果提交
 //   依据: 正确 dual `0x15055`，最终调用正确 dual `0x20c6f(actor,slot,...)`。dispatcher 的 code 5/13 共用 `0x211a4`，逐目标把 item `u16 +0x0e` 传给恢复 core `0x1c916`；每目标消费一次 spread RNG，满 HP 仍消费。只有 code 5 在 `0x20d24` 调用 `field_unit_inventory_slot_remove @0x1b8e7`：左移后续双字节槽并只写末槽 flag `+0x18=0x80`，保留 `+0x19` stale item ID；code 13 保留原 slot。code 20/24 共用 `0x20f6d` wrapper，code 21 调用 `0x2111a`，三者把 value 作为 magic ID 传入 `0x1c75e` 且不移除。
 //   历史地址列 `0x3a269`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 150ba先12d7b聚焦使用者；普通range小于16分支1515b调用12cea聚焦53C37/53C3B选定中心，随后152e5进入20c6f效果。range大于等于16另有15287缩放中心及152dd首target聚焦，不能抹成普通分支或不顾原调用时点统一聚焦。名称与持久ABI不变。；依据: IDA9.5 Domain完整700B、14ef0调用xref、150ba/1515b/15287/152dd原call字节与完整伪C分支一致；静态字节逐函数等于已验relocated镜像，raw-unrelocated摘要独立保留。普通AI物品聚焦与后续效果/RNG是不同owner，不能以本轮修复预称完整演出或运行已验。
 int __cdecl field_ai_item_action_execute(int a1, int a2)
 {
   unsigned __int8 *v2; // edi
@@ -3934,6 +3943,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
 //   历史地址列 `0x3a525`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] 静态复核未发现actor+0x44扣除，record+5仅作为MP可用性门 -> 本体不直接写MP，但map-effect表的damage/heal/status wrapper在逐目标循环前调用1ca89扣一次；ID17的226ea实际传cost ID18。动画路径2ff01→30e9d按caster FIGANI每个part+4==1调用，不保证所有actor均恰一次。SDL当前修正范围仅为已确认无演出效果分支。；依据: 权威1ca89明确word(actor+44)-=record+5；原始1cab7..1cac1复核。51d01的0..27 relocation表、21227/21b18/226ea等wrapper与30f80..30f92证实真实调用。START unit9回退FIGANI28仅part6为1；不能用AI本体浅查或SDL旧mp不变测试推翻下层实际写集。
 // [勘误 evidence] 20/21的22af6仅在状态非零时先1c916(target,10)耗一次spread RNG并写HP/累heal贡献，再清状态并加4*weightedLV。17/18/19首次buff加2*weightedLV；25只在acted真时清位并加8*weightedLV。22/26/27命中先1c81f写HP/累damage贡献，再duration RNG、写状态、加8*原LV。23在扣费后、迁移前加10*weightedLV。AI尾1546a及item21046仍清全局。；依据: 完整51d01表及22721/22866/22997/22af6/22c04/22d1b原始写xref；weightedLV仅target profile9..24加30。22dd6..22e0b锁duration RNG前已有damage贡献，不能只在整个effect后补写。buff增量仍沿本轮x87127f/PC53和u16全域局部执行证明的floor((old*15+100)/100)，非RNE结果。
+// [勘误 evidence] 评分门通过后15360先12d7b聚焦施术者，构造目标后153c2调用12cea聚焦53C27/53C2B选定中心，再清display进入效果。AOE中心不等于最后raw目标；不得把统一actor调度或直接cursor写入当作该调用序。名称与持久ABI保持。；依据: IDA9.5 Domain完整381B、13a9f/14ef0的xref、15360与153c2原call字节及权威全函数伪C共同确认；12d7b/12cea分别负责actor坐标与镜头留边。此为静态合同，AI法术修复的运行范围按实际候选／图形收据另记，不借物理C20失败冒称法术实跑。
 int __cdecl field_ai_magic_action_execute(int a1, int a2)
 {
   int v2; // eax
@@ -3978,10 +3988,10 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
   {
     field_magic_battle_animation(a1, dword_53C2F, v6, v12);
   }
-  v9 = sub_1B653(v13);
+  v9 = field_defeated_story_loot_collect(v13);
   v10 = sub_11CAC(0);
   field_defeated_units_finalize(v10);
-  sub_1AA1D(dword_53C4B, v9, v13);
+  field_loot_descriptors_execute(dword_53C4B, v9, v13);
   sub_11CAC(0);
   dword_53EC8 = 0;
   dword_51A83 = 0;
@@ -3999,6 +4009,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 //   依据: corrected code0 `0x2a7b5..0x2a7bd` 以 `attacker,target,frames` 调用 `0x43a6a`；返回 HP 非 0 且 `field_counterattack_is_available` 返回 1 时，`0x2a81a..0x2a822` 交换 attacker/target 再调用。反击不写行动标志；SDL M7.3a 在计划重验和路径提交后复用该核心。
 //   历史地址列 `0x3a6a2`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] exchange后方向reset→败亡描述符→刷新→死亡清理→掉落→刷新，随后无额外HP门调用1e292给原防御者。caller不清53EC8、不作99cap；1e292入口hidden/等值level门可早退，早退不消费残留全局。；依据: 完整496B、13a9f/14ef0两caller及15627..1566a指令；53EC8完整xref无1548e/1e856/13a9f/14ef0初始化。Load10010/secondary19df7/END1a30b亦无清零写，不能从后来118ee/18dc4选择门推出Load必已清贡献。
+// [勘误 evidence] 完整exchange在154ad先12d7b聚焦攻击者，154c6才执行14b78移动，154de再12d7b聚焦所选防御者，然后进入交战；不能用直接写cursor代替12d7b→12cea的逐格镜头留边。13a9f没有统一动作聚焦，behavior8无动作也不能凭调度主动改焦点。名称与持久ABI不变。；依据: IDA9.5 Domain完整496B、13a9f/14ef0调用xref与154ad/154c6/154de原指令；12d7b在12da3调用12cea。B5 C20实际原版完成、SDL turn11 quiet失败，81块地形共46656px唯一确定SDL camera5,1，而原版0043 camera5,0的422px资源门及Save11保留Hero15,0。这是原动作聚焦遗漏的依据，不改变oracle或把后续修复预记为实机通过。
 int __cdecl field_physical_exchange(int a1, int a2)
 {
   int v2; // esi
@@ -4042,10 +4053,10 @@ int __cdecl field_physical_exchange(int a1, int a2)
     sub_2E2B0(a1, dword_53C4B);
   }
   field_all_actor_directions_reset();
-  v5 = sub_1B6B7(v8);
+  v5 = field_defeated_loot_collect(v8);
   v6 = sub_11CAC(0);
   field_defeated_units_finalize(v6);
-  sub_1AA1D(dword_53C4B, v5, v8);
+  field_loot_descriptors_execute(dword_53C4B, v5, v8);
   sub_11CAC(0);
   field_unit_experience_reward_execute(dword_53C4B);
   return 1;
@@ -5060,6 +5071,7 @@ void __cdecl dialog_box_close(int *a1, int a2)
  * callees: 0x10620, 0x16559, 0x1685c, 0x3702f, 0x370f0, 0x4e31c, 0x4ebe3
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] dialog_wait_key；依据: 完整461B与15f84/17aed/1b9de/1d51d等caller：读取一个BIOS键，可选18/19箭头；每次入口一次RNG%30+2，按2 BIOS tick门更新portrait0/3及重新取blink计时，并显式推进water DAC。正式map非NULL的bottom箭头为(191,181)，无map另分支为143。返回前读取并规范化扩展键；不猜测持久ABI。raw SHA 9ee45fd0d376c2f05cedeff838be5f13f7fcc8724000b152f1ad17f44c5b865e。
+// [勘误 evidence] 精确a1==1才首次画18、每3个2tick相位更新18/19，并在返回前用frame13擦除；a1=0不画/不擦箭头，仍执行RNG%30+2、portrait0/3、水DAC及BIOS读键。文字-3传1；190ac/1aa1d结果/获得消息的外部wait全部传0。；依据: 完整461B三处显式==1比较及190ac/1aa1d全部wait实参；本B5chest-empty原版实际422页累计文字5123px/portrait6400px均通过而无箭头，旧门失败收据保留；修后对原填充+累计文字的140px无箭头区域严格比较，不删除像素门。
 void __cdecl dialog_wait_key(int a1)
 {
   int v1; // esi
@@ -6310,7 +6322,7 @@ int __cdecl field_player_unit_action(int a1)
   field_friendly_destination_block(a1, 1);
   v19 = HIDWORD(qword_53AB1);
   v20 = qword_53AB1;
-  LODWORD(v4) = sub_18B84(a1);
+  LODWORD(v4) = field_unit_selection_summary_wait(a1);
   field_cell_selection_execute(v4, 4, 0, nullptr);
   v14 = v5;
   sub_4DF4C(dword_53A51);
@@ -6380,12 +6392,13 @@ LABEL_18:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_18B84
+ * IDA 9.5 Hex-Rays: field_unit_selection_summary_wait
  * VA=0x18b84..0x18c6d OBJ=1 OFF=0x8b84 size=0xe9
  * callers: 0x18890
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x122dc, 0x127a9, 0x1297d, 0x18c6d, 0x1acf3, 0x3702f, 0x4e31c
  * --------------------------------------------------------------- */
-void __usercall sub_18B84(int a1@<esi>, int a2)
+// [勘误 semantic_name] field_unit_selection_summary_wait；依据: 完整233B、18890唯一caller及115b6紧随调用：while(!input_check())逐BIOS tick重绘terrain/selector/actor，再18c6d与下方cell板，最后复制page到VGA。相对X>=7时上板(9,9)，否则(160,9)。发现下一键即返回而不读取/清键，由115b6消费同键；最初选择键已由上层消费，不是持续UNIT_SELECTED板。原版多场6258px完整板及首方向后板消失已独立重放；raw SHA ebabd1f40c050dff9b29b3bfc4a99f83b9a9988e938e65ee8c19537d56478326。
+void __usercall field_unit_selection_summary_wait(int a1@<esi>, int a2)
 {
   int v2; // edi
 
@@ -6404,7 +6417,7 @@ void __usercall sub_18B84(int a1@<esi>, int a2)
       field_view_render_tiles(dword_53A49 + 32904, 456, 13, 8, dword_53AA9, dword_53AAD);
       field_selection_overlay_draw();
       sub_127A9();
-      sub_18C6D(v2 + dword_53A49 + 32904, 456, a2);
+      field_unit_summary_draw(v2 + dword_53A49 + 32904, 456, a2);
       field_cell_info_panel_draw(dword_53A49 + 32904, 456);
       memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
       a1 = MEMORY[0x46C];
@@ -6415,12 +6428,13 @@ void __usercall sub_18B84(int a1@<esi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_18C6D
+ * IDA 9.5 Hex-Rays: field_unit_summary_draw
  * VA=0x18c6d..0x18d8c OBJ=1 OFF=0x8c6d size=0x11f
  * callers: 0x18b84, 0x2facd
  * callees: 0x15f84, 0x1875d, 0x18795, 0x187d6, 0x3702f, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_18C6D(int a1, int a2, int a3)
+// [勘误 semantic_name] field_unit_summary_draw；依据: 完整287B及18b84/2facd共享caller：先FDOTHER5 frame22不透明149x42板，再画HP/MP两条及数字、LV和actor.text_id+1名字。HP/MP及上限均signed16，LV为u8；条起点(21,22)/(21,31)，LV(132,4)，HP/MP数字(126,21)/(126,30)，名字(5,4)。1875d在current==max用bank31否则42；actor/cursor先画，板前景后覆盖，不裁掉头部就冒称完整actor。raw SHA fa85a60e551fb589d541b39ff772e2427cd38e0462f7cd291c0e894a7b08f2af。
+void __cdecl field_unit_summary_draw(int a1, int a2, int a3)
 {
   int v4; // esi
   int v5; // ebp
@@ -6559,7 +6573,7 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
     {
       if ( a3 == 0 )
         sub_13FD4(a1);
-      sub_190AC(a1);
+      field_special_cell_execute(a1);
       field_actor_mark_acted(a1);
     }
   }
@@ -6583,9 +6597,9 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
     sub_1F04A(a1, v14);
     sub_2E2B0(a1, v14);
     field_all_actor_directions_reset();
-    v15 = sub_1B6B7(v20);
+    v15 = field_defeated_loot_collect(v20);
     field_defeated_units_finalize(v15);
-    sub_1AA1D(a1, v15, v20);
+    field_loot_descriptors_execute(a1, v15, v20);
     v16 = field_actor_mark_acted(a1);
     bios_keyboard_buffer_clear(v16);
   }
@@ -6594,12 +6608,14 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_190AC
+ * IDA 9.5 Hex-Rays: field_special_cell_execute
  * VA=0x190ac..0x1956b OBJ=1 OFF=0x90ac size=0x4bf
  * callers: 0x18d8c
  * callees: 0x12263, 0x12e38, 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x197e5, 0x19953, 0x1b722, 0x1b8e7, 0x1b932, 0x1bb8c, 0x25b45, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f, 0x3790a, 0x4e381
  * --------------------------------------------------------------- */
-char __cdecl sub_190AC(int a1)
+// [勘误 semantic_name] field_special_cell_execute；依据: 完整1215B；18d8c的WAIT后路径。flags20/40未完成格421/428确认；item分支422/429文字完成后append并按成功标completed，满槽可经423选择替换，旧ID写回metadata参数，425同时引用新名-4/旧名-5；money分支426/430或空参数427/431，param0保留既有53AE1并仍加资源。完成后12263；No/Esc只412取消，不消费特殊格。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+// [勘误 evidence] 外部等键均dialog_wait_key(0)，不带18/19箭头；同一bottom框保留先前文字。190ac的421/428首行与422/429/426/430第二行必须累计，仅显式close→open才清页。；依据: 已发布完整函数的696099/702179文字目的偏移、open/close调用与wait实参；B5真实原版及对应SDLchest-empty/swap/list-cancel的资源门另在运行收据登记。
+char __cdecl field_special_cell_execute(int a1)
 {
   unsigned __int8 *v1; // edi
   char result; // al
@@ -6669,7 +6685,7 @@ char __cdecl sub_190AC(int a1)
           dialog_portrait_frame_draw(0);
           dialog_wait_key(0);
           field_bottom_notice_close(v10, v8);
-          return sub_12263();
+          return field_completed_chest_tiles_apply();
         }
         dialog_portrait_frame_draw(0);
         dialog_wait_key(0);
@@ -6754,7 +6770,7 @@ char __cdecl sub_190AC(int a1)
         field_bottom_notice_close(v16, v8);
         dword_53BF3 += dword_53AE1;
         v1[dword_53AD5] = 1;
-        return sub_12263();
+        return field_completed_chest_tiles_apply();
       }
       v17 = j___delay(200);
       field_bottom_notice_close(v17, v8);
@@ -7573,12 +7589,14 @@ int __cdecl field_phase_status_tick(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1AA1D
+ * IDA 9.5 Hex-Rays: field_loot_descriptors_execute
  * VA=0x1aa1d..0x1acf3 OBJ=1 OFF=0xaa1d size=0x2d6
  * callers: 0x15311, 0x1548e, 0x18d8c, 0x1cff0, 0x20c6f, 0x352ca, 0x35346, 0x355f0, 0x35730
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x197e5, 0x19953, 0x1b722, 0x1b8e7, 0x1b932, 0x1bb8c, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x34738, 0x34778, 0x34818, 0x348bb, 0x348ea, 0x34940, 0x34984, 0x349ec, 0x34a1e, 0x34a6c, 0x34b07, 0x34b2f, 0x34b6f, 0x34b9a, 0x34c52, 0x34c7a, 0x34cf1, 0x34d2f, 0x34d64, 0x34d92, 0x34dd0, 0x34eb3, 0x34f38, 0x34f74, 0x34fc2, 0x34fcc, 0x35009, 0x35022, 0x350be, 0x350c8, 0x35123, 0x35191, 0x351e6, 0x35258, 0x35298, 0x352ca, 0x35321, 0x35346, 0x353b5, 0x353e7, 0x353fa, 0x3540f, 0x35422, 0x35468, 0x3551c, 0x3553f, 0x355b7, 0x355f0, 0x35638, 0x35677, 0x356b3, 0x35730, 0x357dd, 0x35833, 0x35854, 0x35997, 0x359cb, 0x35a0d, 0x35bee, 0x35c1d, 0x35c40, 0x35cf1, 0x35d1e, 0x35d85, 0x35d9e, 0x35e0e, 0x35e5b, 0x35ec1, 0x35f48, 0x35f79, 0x35f88, 0x35fcf, 0x360b6, 0x36214, 0x36228, 0x3623c, 0x362b0, 0x362c5, 0x362e8, 0x363de, 0x36416, 0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e, 0x3702f, 0x3790a, 0x4e381
  * --------------------------------------------------------------- */
-void __cdecl sub_1AA1D(unsigned __int8 *a1, int a2, int a3)
+// [勘误 semantic_name] field_loot_descriptors_execute；依据: 完整726B；玩家physical/Magic/Item与AI physical/Magic的明确caller尾。按raw队列处理3B descriptor：0文字432后append/满槽433替换，1文字435后加资源，2延时回调，3本stage片段。mode0/1 recipient非side2立即结束整个队列；不重算装备stats。0队列/早退共享22bbe普通epilogue，不是状态治愈调用；不固定Hex-Rays猜测ABI。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+// [勘误 evidence] 外部等键均dialog_wait_key(0)，不带18/19箭头；同一bottom框保留先前文字。190ac的421/428首行与422/429/426/430第二行必须累计，仅显式close→open才清页。；依据: 已发布完整函数的696099/702179文字目的偏移、open/close调用与wait实参；B5真实原版及对应SDLchest-empty/swap/list-cancel的资源门另在运行收据登记。
+void __cdecl field_loot_descriptors_execute(unsigned __int8 *a1, int a2, int a3)
 {
   int v3; // eax
   int v4; // esi
@@ -8077,6 +8095,7 @@ void __usercall sub_1B1E7(int a1@<ebp>)
  * callees: 0x15f84, 0x16886, 0x187d6, 0x1b5f1, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 evidence] 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 -> 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。；依据: 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。
+// [勘误 evidence] 原函数关卡数字为stage+1，胜/败条件为597+2*stage及598+2*stage；stage1正常使用599/600，沿既有四底板/数字/资源/阵营人数owner。stage16另有私有分支，不据此宣称所有关卡总览已通用验收。SDL本B5直接扩已证stage1，不新增禁用透明图例外。；依据: 完整published sub_1B41D及1B5F1计数/原资源；C3准备链真实SDL在总览能力门处失败，因此保两端原secondary0默认协议并修生产stage索引。该说明不替代其后实际双端验收。
 void __cdecl sub_1B41D(int a1, int a2)
 {
   int v3; // eax
@@ -8132,12 +8151,13 @@ int __cdecl sub_1B5F1(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1B653
+ * IDA 9.5 Hex-Rays: field_defeated_story_loot_collect
  * VA=0x1b653..0x1b6b7 OBJ=1 OFF=0xb653 size=0x64
  * callers: 0x15311
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-void __cdecl sub_1B653(int a1)
+// [勘误 semantic_name] field_defeated_story_loot_collect；依据: 完整100B；15311 AI Magic专属caller。仅收nonhidden HP0且mode3的完整3B，raw顺序与count共享尾1b64d；不能等同1b6b7收物品/金币/回调的完整集合。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __cdecl field_defeated_story_loot_collect(int a1)
 {
   int v1; // esi
   int i; // ebx
@@ -8156,13 +8176,14 @@ void __cdecl sub_1B653(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1B6B7
+ * IDA 9.5 Hex-Rays: field_defeated_loot_collect
  * VA=0x1b6b7..0x1b722 OBJ=1 OFF=0xb6b7 size=0x6b
  * type: __int64 __cdecl(_DWORD)
  * callers: 0x1548e, 0x18d8c, 0x1cff0, 0x20c6f
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-void __cdecl sub_1B6B7(int a1)
+// [勘误 semantic_name] field_defeated_loot_collect；依据: 完整107B；物理、玩家Magic、Item尾caller。全active raw顺序收nonhidden、HP0、descriptor.mode!=ff的完整3B；返回count经1b64d共享尾，不从伪C的void误推无返回值。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __cdecl field_defeated_loot_collect(int a1)
 {
   int v1; // esi
   int i; // ebx
@@ -9511,10 +9532,10 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
       v21 = funcs_1541F[(unsigned __int8)v28[dword_53C57]]((int)a1, v10, (int)v26);
       sub_1D4F6(v21);
     }
-    sub_1B6B7((int)v27);
+    field_defeated_loot_collect((int)v27);
     v23 = v22;
     field_defeated_units_finalize(v22);
-    sub_1AA1D(a1, v23, (int)v27);
+    field_loot_descriptors_execute(a1, v23, (int)v27);
     dword_51A83 = 1;
     return 1;
   }
@@ -9929,7 +9950,7 @@ int field_defeated_units_finalize()
           sub_127E0(k);
         }
       }
-      sub_129EC();
+      field_actor_terrain_overlays_draw();
       memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
       bios_tick_delay(1);
     }
@@ -11720,12 +11741,13 @@ void sub_205DA()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_206C5
+ * IDA 9.5 Hex-Rays: field_stage1_battle_result_check
  * VA=0x206c5..0x20707 OBJ=1 OFF=0x106c5 size=0x42
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x3702f
  * --------------------------------------------------------------- */
-int sub_206C5()
+// [勘误 semantic_name] field_stage1_battle_result_check；依据: 完整66B；117e7/1a866与两AI outer的stage结果表xref。先205b4普通胜败检查，再按raw5..10扫描hidden；六人全hidden时无条件结果设1败北，覆盖先前普通结果。其中任一仍可见即返回，不检查HP/side或把villagers当persistent roster。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int field_stage1_battle_result_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12268,10 +12290,10 @@ LABEL_8:
 LABEL_55:
   dword_53EC8 = 0;
   sub_1D4F6();
-  sub_1B6B7((int)v17);
+  field_defeated_loot_collect((int)v17);
   v16 = v15;
   field_defeated_units_finalize();
-  sub_1AA1D(a1, v16, (int)v17);
+  field_loot_descriptors_execute(a1, v16, (int)v17);
 }
 
 
@@ -13598,13 +13620,14 @@ void sub_22E41()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_22E5C
+ * IDA 9.5 Hex-Rays: field_defeat_game_over_present
  * VA=0x22e5c..0x22ef6 OBJ=1 OFF=0x12e5c size=0x9a
  * callers: 0x25bf4
  * callees: 0x111ba, 0x17aa9, 0x1f525, 0x1f882, 0x25977, 0x2eb9f, 0x3702f, 0x37910
  * --------------------------------------------------------------- */
 // [勘误 evidence] 中性败北callback未登记独立资源门 -> 保留中性sub_22E5C：停音乐、淡出并清屏，以opaque方式画FDOTHER79 frame0，淡入并等9tick，再画frame1、等36tick。结果门校验使用完整320×200资源，不据此开放SDL败北后续。；依据: 权威22e5c→2eb9f(header+9)及本地嵌套资源；受控败北快照在原版controller后置到达该页。局部运行与B5后续分开登记。
-void sub_22E5C()
+// [勘误 semantic_name] field_defeat_game_over_present；依据: 完整154B；main败退caller。stopmusic→tick1→fadeout→loadFDOTHER79→clearVGA0→frame0→fadein→tick9→frame1→tick36→释放。79两帧header+9 B24RLE保留skip，frame1前不再次清屏、不另载palette，不能把decoded0一般化opaque0。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void field_defeat_game_over_present()
 {
   int v0; // ebx
 
@@ -13624,17 +13647,18 @@ void sub_22E5C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_22EF6
+ * IDA 9.5 Hex-Rays: field_stage0_victory_execute
  * VA=0x22ef6..0x22f37 OBJ=1 OFF=0x12ef6 size=0x41
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 evidence] stage0胜利callback只作为准备页迁移调用依据 -> 保留中性sub_22EF6：先呈现FDTXT[1]fragment9，之后11506同步持久表再写stage1。WGC仅校验首说话人4的两行和对话顶边，没有推进对白证明持久同步或下一关。；依据: 权威22ef6及严格LE结果callback表；受控胜利快照经原版controller取消后匹配2794字形／阴影像素和620顶边像素。这补本关结果分支证据，整关战斗和结算仍留B5／V1。
-void __usercall sub_22EF6(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_stage0_victory_execute；依据: 完整65B；main的stage0结果分派。先完整呈现本关FDTXT[1]fragment9，再11506同步持久表，最后stage=1。不是呈现到首句就可交接，也不是完整所有关卡结算。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __usercall field_stage0_victory_execute(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   text_dialog_render_tokens(a1, dword_53A79, 9, 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   dword_53C03 = 1;
 }
 
@@ -13683,7 +13707,7 @@ void __usercall sub_22F37(unsigned __int8 *a1@<edi>)
   j___delay(200);
   text_dialog_render_tokens(a1, dword_53A79, 10, 655360, 320, 205, 76, 74, 19, 1);
   sub_112A5(8);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   dword_53C03 = 2;
 }
 
@@ -13711,7 +13735,7 @@ void sub_230F2()
   *(_DWORD *)v0 = unk_520C8;
   *(_WORD *)&v0[4] = unk_520CC;
   v0[6] = unk_520CE;
-  sub_11506();
+  persistent_roster_sync_from_battle();
   if ( field_actor_is_hidden(6) != 0 )
   {
     text_dialog_render_tokens(&v1, dword_53A79, 6, 655360, 320, 205, 76, 74, 19, 1);
@@ -13766,7 +13790,7 @@ void sub_232E8()
   *(_DWORD *)v0 = unk_520F6;
   *(_DWORD *)&v0[4] = unk_520FA;
   v0[8] = unk_520FE;
-  sub_11506();
+  persistent_roster_sync_from_battle();
   if ( *(_BYTE *)(dword_53AD5 + 17) != 1 || field_actor_is_hidden(43) != 0 )
   {
     text_dialog_render_tokens(v1, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
@@ -13952,7 +13976,7 @@ int sub_235F9()
   dword_51A83 = 0;
   field_movement_script_play(37);
   text_dialog_render_tokens(v10, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   sub_112A5(11);
   result = sub_112A5(6);
   ++dword_53C03;
@@ -13970,7 +13994,7 @@ void __usercall sub_23790(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   text_dialog_render_tokens(a1, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   sub_112A5(14);
   JUMPOUT(0x231F2);
 }
@@ -14007,7 +14031,7 @@ int sub_237D5()
   text_dialog_render_tokens(v2, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
   field_movement_script_play(45);
   text_dialog_render_tokens(v2, dword_53A79, 4, 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   result = sub_112A5(17);
   ++dword_53C03;
   return result;
@@ -14027,7 +14051,7 @@ void __usercall sub_239BD(unsigned __int8 *a1@<edi>)
   watcom_stack_check(40);
   v1 = sub_33499(12);
   text_dialog_render_tokens(a1, dword_53A79, (unsigned __int8)((v1 ^ 1) + 12), 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   JUMPOUT(0x237C8);
 }
 
@@ -14059,7 +14083,7 @@ void sub_23A0A()
   }
   if ( v3 > 4u )
     v4 = 1;
-  sub_11506();
+  persistent_roster_sync_from_battle();
   if ( dword_53BEF > 18 || v4 == 1 || *(unsigned __int16 *)(dword_53A45 + 66) < 0x140u )
   {
     text_dialog_render_tokens((unsigned __int8 *)&v2, dword_53A79, 2, 655360, 320, 205, 76, 74, 19, 1);
@@ -14091,7 +14115,7 @@ int sub_23B5F()
   watcom_stack_check(88);
   *(_OWORD *)v2 = unk_521A3;
   v1 = unk_521B3;
-  sub_11506();
+  persistent_roster_sync_from_battle();
   if ( sub_33499(18) != 0 )
   {
     text_dialog_render_tokens(v2, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
@@ -14137,7 +14161,7 @@ int sub_23CD5()
   qmemcpy(v4, byte_521C3, 17);
   qmemcpy(v3, byte_521D4, 17);
   qmemcpy(v1, byte_521E5, sizeof(v1));
-  sub_11506();
+  persistent_roster_sync_from_battle();
   field_cutscene_setup_units_camera((int)v4, (int)v3, (unsigned int)v1, 0, 16, 17, 25, 8, 1, 0x400000012LL);
   text_dialog_render_tokens(v2, dword_53A79, 7, 655360, 320, 205, 76, 74, 19, 1);
   dword_51A83 = 0;
@@ -14165,7 +14189,7 @@ int sub_23CD5()
 void __usercall sub_23E39(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   text_dialog_render_tokens(a1, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
   JUMPOUT(0x231F2);
 }
@@ -14225,7 +14249,7 @@ void sub_23E74()
   text_dialog_render_tokens(v8, dword_53A79, 12, 655360, 320, 205, 76, 74, 19, 1);
   dword_51A83 = 0;
   sub_112A5(25);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   if ( dword_53BEF <= 15 )
   {
     field_actor_group_append(1);
@@ -14308,7 +14332,7 @@ void sub_240FA()
   }
   sub_112A5(24);
   sub_112A5(23);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   ++dword_53C03;
 }
 
@@ -14497,7 +14521,7 @@ void sub_24754()
     field_movement_script_play(72);
     field_actor_hide(17);
   }
-  sub_11506();
+  persistent_roster_sync_from_battle();
   ++dword_53C03;
   text_dialog_render_tokens(v2, dword_53A79, 14, 655360, 320, 205, 76, 74, 19, 1);
   j___delay(400);
@@ -14634,7 +14658,7 @@ void __usercall sub_24C1E(unsigned __int8 *a1@<edi>)
     ++i;
   }
   memset(655360, 0, 64000);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   ++dword_53C03;
 }
 
@@ -14683,7 +14707,7 @@ void __usercall sub_24DF2(unsigned __int8 *a1@<edi>)
   field_movement_script_play(75);
   text_dialog_render_tokens(a1, dword_53A79, 7, 655360, 320, 205, 76, 74, 19, 1);
   sub_112A5(26);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   JUMPOUT(0x237C8);
 }
 
@@ -14749,7 +14773,7 @@ void sub_24E80()
   dword_51A83 = 0;
   field_movement_script_play(80);
   text_dialog_render_tokens((unsigned __int8 *)&v3, dword_53A79, 11, 655360, 320, 205, 76, 74, 19, 1);
-  sub_11506();
+  persistent_roster_sync_from_battle();
   ++dword_53C03;
   JUMPOUT(0x15487);
 }
@@ -14853,7 +14877,7 @@ void sub_250CC()
     memset(655360, 255, 64000);
     palette_fade_out_dark();
     memset(655360, 0, 64000);
-    sub_11506();
+    persistent_roster_sync_from_battle();
     ++dword_53C03;
     sub_25089();
     JUMPOUT(0x1B5EA);
@@ -14960,7 +14984,7 @@ void __usercall sub_2548C(unsigned __int8 *a1@<edi>)
     pal_partial_set(0, 255, j);
     j___delay(4);
   }
-  sub_11506();
+  persistent_roster_sync_from_battle();
   ++dword_53C03;
 }
 
@@ -15236,7 +15260,7 @@ int __cdecl main(int argc, const char **argv, const char **envp)
         if ( dword_53ECC == 1 )
         {
           byte_51AAC = 0;
-          sub_22E5C();
+          field_defeat_game_over_present();
           byte_51AAC = 1;
           dword_53ECC = 0;
           i = 1;
@@ -15246,7 +15270,7 @@ int __cdecl main(int argc, const char **argv, const char **envp)
           byte_51AAC = 0;
           music_track_play(-1, 1);
           ((void (__usercall *)(unsigned __int8 *@<edi>))funcs_25E23[dword_53C03])((unsigned __int8 *)v16);
-          v17 = sub_26152();
+          v17 = field_town_prepare_execute();
           i = v17;
           if ( v17 != 0 )
           {
@@ -15360,7 +15384,7 @@ int title_action_dispatch()
       if ( dword_53C03 == 255 )
         v6 = 0;
     }
-    sub_26996();
+    field_prepare_bottom_page_close();
   }
   while ( v6 == 0 );
   free(v3);
@@ -15369,7 +15393,7 @@ int title_action_dispatch()
   if ( v6 == 1 )
   {
     byte_51AAC = 0;
-    LODWORD(v4) = sub_26152(v4, HIDWORD(v4));
+    LODWORD(v4) = field_town_prepare_execute(v4, HIDWORD(v4));
     v6 = v4;
     if ( (_DWORD)v4 == 0 )
     {
@@ -15384,13 +15408,14 @@ int title_action_dispatch()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26152
+ * IDA 9.5 Hex-Rays: field_town_prepare_execute
  * VA=0x26152..0x265ec OBJ=1 OFF=0x16152 size=0x49a
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10620, 0x11019, 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x1956b, 0x197e5, 0x19953, 0x1f525, 0x1f882, 0x25977, 0x25a96, 0x265ec, 0x2670e, 0x26996, 0x2968d, 0x2af28, 0x3702f, 0x3706e, 0x370f0, 0x37324, 0x3759c, 0x3776e, 0x37910, 0x4e381, 0x4e809, 0x4e98d
  * --------------------------------------------------------------- */
-bool sub_26152()
+// [勘误 semantic_name] field_town_prepare_execute；依据: 完整1178B；main结算和标题手工LOADcaller。释放活动资源、从persistent重建FDICON，按stage-1准备记录开五项town；NoTown另分支四槽/部署。type0的酒店/武器/出口/道具/教会五项，左右反向循环，26x31完整表与FDOTHER10/11/13及495..499文本独立复核。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+bool field_town_prepare_execute()
 {
   int v0; // esi
   int i; // ebx
@@ -15442,11 +15467,11 @@ bool sub_26152()
     v3 = v2;
     dword_53A51 = 0;
     sub_197E5();
-    sub_26996(0, v11);
+    field_prepare_bottom_page_close(0, v11);
     if ( v3 != -1 && dword_53C57 == 0 )
     {
       dword_53F66 = res_load((int)aFdotherDat, dword_53F66, 13);
-      sub_2968D(0);
+      field_manual_slot_save(0);
       free(dword_53F66);
     }
     do
@@ -15470,13 +15495,13 @@ bool sub_26152()
   free(v7);
   dword_53F5A = 0;
   dword_53F5A = res_load((int)aFdotherDat, 0, 10);
-  ((void (*)(void))sub_265EC)();
+  ((void (*)(void))field_town_view_render)();
   v8 = palette_fade_in_light();
   v9 = bios_keyboard_buffer_clear(v8);
   do
   {
 LABEL_22:
-    sub_265EC(v9);
+    field_town_view_render(v9);
     v10 = MEMORY[0x46C];
     while ( !input_check() )
     {
@@ -15522,7 +15547,7 @@ LABEL_22:
     {
       if ( dword_53F4A != 2 )
         sfx_play(dword_53EEC, 1, 3);
-      v12 = sub_2670E();
+      v12 = field_town_selection_execute();
     }
     v9 = v12;
   }
@@ -15533,13 +15558,14 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_265EC
+ * IDA 9.5 Hex-Rays: field_town_view_render
  * VA=0x265ec..0x2670e OBJ=1 OFF=0x165ec size=0x122
  * type: int __fastcall(_DWORD)
  * callers: 0x26152
  * callees: 0x11eb0, 0x15f84, 0x3702f, 0x3771c, 0x4e22a, 0x4e809, 0x4ebff
  * --------------------------------------------------------------- */
-int __usercall sub_265EC@<eax>(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_town_view_render；依据: 完整290B；26152逐键/4tick刷新caller。大buffer456stride先复制town底图，局部244,162画62x26面板、252,168画495+selector，再首roster的FDICON phase0/1/2/1marker；312x192拷贝至VGA4,4。不是五项命令图标sheet，不修改roster。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int __usercall field_town_view_render@<eax>(unsigned __int8 *a1@<edi>)
 {
   int v1; // eax
   unsigned __int8 v3; // [esp+4h] [ebp-8h]
@@ -15564,13 +15590,14 @@ int __usercall sub_265EC@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2670E
+ * IDA 9.5 Hex-Rays: field_town_selection_execute
  * VA=0x2670e..0x26996 OBJ=1 OFF=0x1670e size=0x288
  * type: int(void)
  * callers: 0x26152
  * callees: 0x11d40, 0x15f84, 0x16559, 0x1956b, 0x197e5, 0x19953, 0x25977, 0x26996, 0x279bc, 0x2921a, 0x29300, 0x29daa, 0x2af28, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e809
  * --------------------------------------------------------------- */
-void __usercall sub_2670E(int a1@<ebp>, unsigned __int8 *a2@<edi>)
+// [勘误 semantic_name] field_town_selection_execute；依据: 完整648B；26152选择确认caller。selector2用DATO75/fragment513确认并处理部署容量，其它入口十步缩放/渐暗后分派酒店/店/教会，返回恢复town；复核全部分支但本B5运行范围不因此宣称商店/教会和>16部署实现完成。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __usercall field_town_selection_execute(int a1@<ebp>, unsigned __int8 *a2@<edi>)
 {
   int v2; // eax
   int v3; // ebx
@@ -15592,7 +15619,7 @@ void __usercall sub_2670E(int a1@<ebp>, unsigned __int8 *a2@<edi>)
     v3 = v2;
     sub_197E5();
     dword_53A51 = 0;
-    sub_26996(v7, a1);
+    field_prepare_bottom_page_close(v7, a1);
     if ( v3 == -1 || dword_53C57 != 0 )
       goto LABEL_25;
     if ( dword_53C03 < 27 && dword_53BFB > 16 || dword_53C03 > 26 && dword_53BFB > 20 )
@@ -15646,7 +15673,7 @@ LABEL_24:
   else
   {
     music_track_play(13, 0);
-    field_manual_slot_dispatch(v5);
+    field_hotel_menu_execute(v5);
   }
   music_track_play(10, 0);
   goto LABEL_24;
@@ -15654,13 +15681,14 @@ LABEL_24:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26996
+ * IDA 9.5 Hex-Rays: field_prepare_bottom_page_close
  * VA=0x26996..0x26a0d OBJ=1 OFF=0x16996 size=0x77
  * type: int __cdecl(_DWORD, _DWORD)
  * callers: 0x25ebb, 0x26152, 0x2670e, 0x279bc, 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x29300, 0x29620, 0x2968d, 0x2986f, 0x29daa, 0x2a43e, 0x2aa00, 0x2ac7d, 0x2af28, 0x2b439, 0x31bdf
  * callees: 0x1974c, 0x3702f, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-int sub_26996()
+// [勘误 semantic_name] field_prepare_bottom_page_close；依据: 完整119B；标题、酒店、商店等底部选择页caller。i1..5调用1974c滑出静态页面，恢复53C5F全屏初始背景并释放三个buffer；不是field_bottom_notice_close的战场刷新尾。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int field_prepare_bottom_page_close()
 {
   int i; // ebx
 
@@ -16439,7 +16467,7 @@ void __cdecl sub_279BC(int a1)
     sub_26CE4(1);
     v5 = (unsigned __int8)sub_26A0D((int)v8);
     dword_53F5E = v5;
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v10 == 1 )
     {
       if ( dword_53C57 != 0 )
@@ -16903,7 +16931,7 @@ int __cdecl sub_2872B(int a1, int a2)
     v4 = sub_275E6(a1, a2, 0);
     dword_53F6A = dword_53C57;
     dword_53F6E = dword_53F4E;
-    result = sub_26996();
+    result = field_prepare_bottom_page_close();
     if ( v4 == -1 )
       return result;
     dword_53AD9 = *(unsigned __int8 *)(dword_53F6A + a2) + 181;
@@ -16957,7 +16985,7 @@ LABEL_11:
     if ( v16 == -1 || dword_53C57 == 1 )
     {
 LABEL_12:
-      sub_26996();
+      field_prepare_bottom_page_close();
     }
     else
     {
@@ -16977,7 +17005,7 @@ LABEL_12:
         dialog_portrait_frame_draw(0);
         goto LABEL_11;
       }
-      sub_26996();
+      field_prepare_bottom_page_close();
       if ( *v7 >= 0x20u )
       {
         dword_53F5E = dword_53BFB;
@@ -16989,7 +17017,7 @@ LABEL_12:
       }
       v10 = v9;
       dword_53F5E = v2;
-      sub_26996();
+      field_prepare_bottom_page_close();
       if ( v10 == 1 )
       {
         if ( field_unit_inventory_count(*((unsigned __int8 *)v14 + dword_53C57)) == 8 )
@@ -17038,7 +17066,7 @@ LABEL_12:
             field_unit_equipment_slot_set(v2, v13 - 1);
             field_unit_combat_stats_recompute(v2);
           }
-          LODWORD(v6) = sub_26996();
+          LODWORD(v6) = field_prepare_bottom_page_close();
         }
         sub_28B41(v6, HIDWORD(v6));
         sub_26B91(dword_53AE1);
@@ -17150,7 +17178,7 @@ int sub_28CBD()
   {
     dword_53F5E = dword_53BFB;
     v2 = sub_27D33();
-    result = sub_26996();
+    result = field_prepare_bottom_page_close();
     if ( v2 == -1 )
       return result;
     v4 = dword_53C57;
@@ -17187,7 +17215,7 @@ int sub_28CBD()
     if ( sub_275E6(v1, (int)v12, 1) == -1 )
       goto LABEL_8;
     v6 = dword_53C57;
-    sub_26996();
+    field_prepare_bottom_page_close();
     v7 = field_unit_item_id_at(v4, dword_53C57);
     dword_53AD9 = v7 + 181;
     dword_53AE1 = (3 * *(unsigned __int16 *)(field_item_record_get(v7) + 19)) >> 2;
@@ -17210,11 +17238,11 @@ int sub_28CBD()
     if ( v9 == -1 || dword_53C57 == 1 )
     {
 LABEL_8:
-      sub_26996();
+      field_prepare_bottom_page_close();
     }
     else
     {
-      sub_26996();
+      field_prepare_bottom_page_close();
       sub_28B41();
       sub_26A7A(dword_53AE1);
       field_unit_inventory_slot_remove(v4, v6);
@@ -17241,7 +17269,7 @@ void sub_28EFE()
   {
     dword_53F5E = dword_53BFB;
     v0 = sub_27D33();
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v0 == -1 )
       break;
     v1 = dword_53C67;
@@ -17279,10 +17307,10 @@ void __usercall sub_28F65(int a1@<edi>)
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 512, 693452, 320, 205, 76, 74, 19, 1);
     dialog_portrait_frame_draw(0);
     dialog_wait_key(1);
-    sub_26996();
+    field_prepare_bottom_page_close();
     dword_53F5E = dword_53BFB;
     v3 = sub_27D33();
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v3 == -1 )
       JUMPOUT(0x29619);
     a1 = dword_53C57;
@@ -17302,19 +17330,19 @@ void __usercall sub_28F65(int a1@<edi>)
     if ( sub_275E6(v2, (int)v8, 1) == -1 )
     {
 LABEL_9:
-      sub_26996();
+      field_prepare_bottom_page_close();
     }
     else
     {
       v5 = dword_53C57;
-      sub_26996();
+      field_prepare_bottom_page_close();
       field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 510, 693452, 320, 205, 76, 74, 19, 1);
       dialog_portrait_frame_draw(0);
       dialog_wait_key(1);
-      sub_26996();
+      field_prepare_bottom_page_close();
       v6 = sub_27D33();
-      sub_26996();
+      field_prepare_bottom_page_close();
       if ( v6 != -1 )
       {
         if ( field_unit_inventory_count(dword_53C57) == 8 )
@@ -17394,7 +17422,7 @@ int __cdecl sub_2921A(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: field_manual_slot_dispatch
+ * IDA 9.5 Hex-Rays: field_hotel_menu_execute
  * VA=0x29300..0x29620 OBJ=1 OFF=0x19300 size=0x320
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x1956b, 0x197e5, 0x19953, 0x1f525, 0x1f882, 0x26996, 0x26ce4, 0x26e38, 0x2921a, 0x29620, 0x2968d, 0x2986f, 0x3702f, 0x3771c, 0x3776e, 0x3790a, 0x4e809
@@ -17403,7 +17431,8 @@ int __cdecl sub_2921A(int a1, int a2, int a3, int a4)
 //   依据: 当前权威 code0 `0x19300` 的干净函数入口；其 selector `0..3` 分别调用 code0 `0x19620`（部队／单位选择页）、`0x1968d`（手工 Save）、`0x1986f`（手工 Load）和 FDTXT `0x19f/0x1a0` 的离开确认。四槽路径使用 `0x312b + selected * 0xa28`，不能解释为标题菜单新游戏分派。
 //   历史地址列 `0x29300`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] 普通战场的四槽手工存取dispatcher，可作为stage0菜单入口 -> 本函数属于城镇准备页的酒店，selector0为持久成员详情、1为2968d手工Save、2为2986f手工Load；不替换战场secondary19df7活动存取。实际可见入口与出阵恢复归B5，B1只完成归属研究。；依据: 26152→2670e的selector0→29300；FDTXT495..499为酒店/武器店/出口/道具店/教会，513为进入战场确认。原始293fb/2940e/29424分别调用29620/2968d/2986f；未冒称该准备页完整运行验收。
-int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
+// [勘误 semantic_name] field_hotel_menu_execute；依据: 完整800B；2670e酒店入口。13frame0背景、DATO129及585/586问候；四项分派29620持久成员详情、2968d手工Save、2986f手工Load、415/416离开确认。Esc回town，不把酒店退出项与此取消合并；全部26eda菜单输入与zoom-out尾已读。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int __cdecl field_hotel_menu_execute(unsigned __int8 *a1)
 {
   int v1; // esi
   int v2; // eax
@@ -17430,14 +17459,14 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
     if ( v7 == 1 )
       v1 = dword_53C57;
     sub_26CE4(1);
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v7 == 1 )
     {
       if ( dword_53C57 != 0 )
       {
         if ( v7 == dword_53C57 )
         {
-          sub_2968D(v7);
+          field_manual_slot_save(v7);
         }
         else if ( dword_53C57 == 2 )
         {
@@ -17455,15 +17484,15 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
           {
             text_dialog_render_tokens(a1, dword_53A7D, 416, 699532, 320, 205, 76, 74, 19, 1);
             j___delay(200);
-            sub_26996();
+            field_prepare_bottom_page_close();
             return 1;
           }
-          sub_26996();
+          field_prepare_bottom_page_close();
         }
       }
       else
       {
-        sub_29620();
+        field_roster_detail_select();
       }
       field_bottom_notice_open((unsigned __int8)byte_52387[0]);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
@@ -17491,7 +17520,7 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_29620
+ * IDA 9.5 Hex-Rays: field_roster_detail_select
  * VA=0x29620..0x2968d OBJ=1 OFF=0x19620 size=0x6d
  * type: int(void)
  * callers: 0x29300, 0x29daa
@@ -17502,7 +17531,8 @@ int __cdecl field_manual_slot_dispatch(unsigned __int8 *a1)
 //   历史地址列 `0x29620`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 semantic_name] field_manual_slot_save -> sub_29620；依据: 撤回旧误名，采用中性标识以覆盖历史save语义；完整109字节只设置53F5E并循环27d33成员选择→17aed详情，无文件读写、checksum或四槽picker。真正writer入口是2968d，不是Watcom序言/body拆分。
 // [勘误 evidence] 选择并写入四槽；依据却指code0x1968d -> 准备页的持久roster成员选择与详情循环；取消退出，原save注释挂错入口，不能沿用。保留原误名供追溯，不据此保存新的猜测ABI。；依据: 已发布29620..2968d调用27d33/17aed；原始293fb的selector0调用。2968d另有独立Watcom序言和完整writer写集，地址必须分别登记。
-int __usercall sub_29620@<eax>(int a1@<edi>)
+// [勘误 semantic_name] field_roster_detail_select；依据: 完整109B；酒店29300/教会29daa的xref。设53F5E=roster_count，循环27d33成员选择→17aed详情，返回恢复portrait origin并重载DATO129；取消退出。无Save/文件写入，原误挂field_manual_slot_save已撤回，真正writer在2968d。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int __usercall field_roster_detail_select@<eax>(int a1@<edi>)
 {
   int v1; // esi
   int result; // eax
@@ -17515,7 +17545,7 @@ int __usercall sub_29620@<eax>(int a1@<edi>)
   while ( 1 )
   {
     v1 = sub_27D33();
-    result = sub_26996();
+    result = field_prepare_bottom_page_close();
     v3 = dword_53C67;
     if ( v1 == -1 )
       break;
@@ -17528,13 +17558,14 @@ int __usercall sub_29620@<eax>(int a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2968D
+ * IDA 9.5 Hex-Rays: field_manual_slot_save
  * VA=0x2968d..0x2986f OBJ=1 OFF=0x1968d size=0x1e2
  * callers: 0x26152, 0x29300
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x29bcb, 0x3702f, 0x3706e, 0x37324, 0x373ca, 0x3759c, 0x3771c, 0x3776e, 0x377a3, 0x37910, 0x4df09, 0x4df28
  * --------------------------------------------------------------- */
 // [勘误 evidence] 中性sub_2968D未独立登记，writer语义误挂29620 -> 保留IDA中性sub_2968D：真正四槽手工writer，读取完整SAV后经29bcb选择，复制准备owner整张0xa00持久表并写meta0..9、checksum和XOR；未使用roster尾与未知meta保留，不从active表重建。；依据: 2968d独立入口、2940e/26331调用；原始29757..29791写当前stage、roster_count、资源和camera/effect/music/SFX，成功FDTXT660。22ef6先11506同步持久表再stage=1，main25e2a随后进入准备页，正常首个四槽保存阶段是1；没有stage0正式生成链或实机样本。
-int __cdecl sub_2968D(unsigned __int8 a1)
+// [勘误 semantic_name] field_manual_slot_save；依据: 完整482B；26152/29300 caller。读完整22987B容器，经29bcb选择，将persistent整0xa00和meta0..9写选槽，重算checksum/XOR后写盘；成功660需显式ACK，再重开保留selected，Esc才结束writer。其余未知meta/其它slot保留，slot3尾4B与checksum交叠。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+int __cdecl field_manual_slot_save(unsigned __int8 a1)
 {
   int v1; // ebx
   int v2; // esi
@@ -17583,14 +17614,14 @@ int __cdecl sub_2968D(unsigned __int8 a1)
       save_xor_crypt(v2, 22987);
       if ( byte_523E7[dword_53C03] == 0 )
       {
-        sub_26996();
+        field_prepare_bottom_page_close();
         field_bottom_notice_open((unsigned __int8)byte_52387[0]);
         text_dialog_render_tokens(v7, dword_53A7D, 660, 693452, 320, 205, 76, 74, 19, 1);
         dialog_portrait_frame_draw(0);
         dialog_wait_key(0);
       }
     }
-    sub_26996();
+    field_prepare_bottom_page_close();
   }
   while ( v5 != -1 );
   return free(v2);
@@ -17640,7 +17671,7 @@ int field_manual_slot_load()
   do
   {
     v4 = field_manual_slot_picker(v1, 1);
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v4 != -1 )
     {
       v5 = (int)&v1[2600 * dword_53C57 + 12587];
@@ -17677,7 +17708,7 @@ int field_manual_slot_load()
         }
         dialog_portrait_frame_draw(0);
         dialog_wait_key(0);
-        sub_26996();
+        field_prepare_bottom_page_close();
       }
     }
   }
@@ -17687,12 +17718,13 @@ int field_manual_slot_load()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_29AB2
+ * IDA 9.5 Hex-Rays: field_manual_slot_rows_draw
  * VA=0x29ab2..0x29bcb OBJ=1 OFF=0x19ab2 size=0x119
  * callers: 0x29bcb
  * callees: 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_29AB2(int a1, int a2, int a3)
+// [勘误 semantic_name] field_manual_slot_rows_draw；依据: 完整281B；29bcb四槽picker唯一caller。每行119+19*i，549 x10动态FONT数字，empty514 x88，否则514+stage x40及550+stage x130；selected201/普通205，shadow76/bg0。每行显式53AE1=i+1，整页后为4；不分配、不读取文件、不等键。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __cdecl field_manual_slot_rows_draw(int a1, int a2, int a3)
 {
   int i; // ebx
   int v4; // edi
@@ -17761,7 +17793,7 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
   memmove(dword_53C5F, 655360, 64000);
   memmove(dword_53C63, dword_53C5F, 64000);
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_29AB2(dword_53C57, dword_53C63, a1);
+  field_manual_slot_rows_draw(dword_53C57, dword_53C63, a1);
   sfx_play(dword_53EEC, 5, 1);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
@@ -17786,7 +17818,7 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
       if ( v4 == 72 && dword_53C57 != 0 )
       {
         sfx_play(dword_53EEC, 7, 1);
-        sub_29AB2(--dword_53C57, 655360, a1);
+        field_manual_slot_rows_draw(--dword_53C57, 655360, a1);
       }
       else if ( v4 == 28 || v4 == 57 )
       {
@@ -17800,7 +17832,7 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
     else
     {
       sfx_play(dword_53EEC, 7, 1);
-      sub_29AB2(++dword_53C57, 655360, a1);
+      field_manual_slot_rows_draw(++dword_53C57, 655360, a1);
     }
     if ( v2 != 0 )
       JUMPOUT(0x26A73);
@@ -17845,7 +17877,7 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
     if ( v5 == 1 )
       v2 = dword_53C57;
     sub_26CE4(1);
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v5 == 1 )
     {
       if ( dword_53C57 != 0 )
@@ -17865,7 +17897,7 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
       }
       else
       {
-        sub_29620((int)a1);
+        field_roster_detail_select((int)a1);
       }
       field_bottom_notice_open((unsigned __int8)byte_5238B);
       text_dialog_render_tokens(a1, dword_53A7D, 586, 693452, 320, 205, 76, 74, 19, 1);
@@ -18060,10 +18092,10 @@ int __usercall sub_2A43E@<eax>(unsigned __int8 *a1@<edi>)
     text_dialog_render_tokens(a1, dword_53A7D, 589, 693452, 320, 205, 76, 74, 19, 1);
     dialog_portrait_frame_draw(0);
     dialog_wait_key(1);
-    sub_26996();
+    field_prepare_bottom_page_close();
     sub_2A29D(v1, (int)v8);
     v4 = v3;
-    result = sub_26996();
+    result = field_prepare_bottom_page_close();
     if ( v4 == -1 )
       return result;
     field_bottom_notice_open((unsigned __int8)byte_5238B);
@@ -18077,7 +18109,7 @@ int __usercall sub_2A43E@<eax>(unsigned __int8 *a1@<edi>)
     if ( v7 == -1 || dword_53C57 != 0 )
     {
 LABEL_9:
-      sub_26996();
+      field_prepare_bottom_page_close();
     }
     else
     {
@@ -18093,7 +18125,7 @@ LABEL_9:
       *(_WORD *)(v5 + 64) = *(_WORD *)(v5 + 66);
       lmi_rle_blit_forward(dword_53C5F + 30405, *(_DWORD *)(dword_53F66 + 10) + dword_53F66, 320);
       ui_number_draw(dword_53C5F + 31696, 320, dword_53BF3, 31, 8);
-      sub_26996();
+      field_prepare_bottom_page_close();
       music_track_play(17, 1);
       sub_28B41();
       music_track_play(11, 1);
@@ -18103,7 +18135,7 @@ LABEL_9:
   text_dialog_render_tokens(a1, dword_53A7D, 588, 693452, 320, 205, 76, 74, 19, 1);
   dialog_portrait_frame_draw(0);
   dialog_wait_key(0);
-  return sub_26996();
+  return field_prepare_bottom_page_close();
 }
 
 
@@ -18257,11 +18289,11 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 592, 693452, 320, 205, 76, 74, 19, 1);
     dialog_portrait_frame_draw(0);
     dialog_wait_key(1);
-    v3 = sub_26996();
+    v3 = field_prepare_bottom_page_close();
     bios_keyboard_buffer_clear(v3);
     sub_2A857(v1, (int)v15, (int)v14);
     v5 = v4;
-    result = sub_26996();
+    result = field_prepare_bottom_page_close();
     if ( v5 == -1 )
       return result;
     field_bottom_notice_open((unsigned __int8)byte_5238B);
@@ -18274,7 +18306,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
     sub_19953();
     v9 = v8;
     sub_197E5();
-    sub_26996();
+    field_prepare_bottom_page_close();
     if ( v9 != -1 && dword_53C57 == 0 )
     {
       if ( v16 == 52 )
@@ -18309,7 +18341,7 @@ LABEL_12:
   text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 591, 693452, 320, 205, 76, 74, 19, 1);
   dialog_portrait_frame_draw(0);
   dialog_wait_key(0);
-  return sub_26996();
+  return field_prepare_bottom_page_close();
 }
 
 
@@ -18355,7 +18387,7 @@ int __cdecl sub_2AC7D(int a1)
     *(_BYTE *)(v1 + 59) += dword_53AE1;
   }
   field_unit_combat_stats_recompute(a1);
-  HIWORD(v10) = (unsigned int)sub_26996() >> 16;
+  HIWORD(v10) = (unsigned int)field_prepare_bottom_page_close() >> 16;
   *(_BYTE *)(v1 + 33) = 1;
   *(_BYTE *)(v1 + 60) = 0;
   *(_WORD *)(v1 + 64) = *(_WORD *)(v1 + 66);
@@ -18609,7 +18641,7 @@ LABEL_56:
   v12 = v11;
   dword_53A51 = 0;
   sub_197E5();
-  sub_26996();
+  field_prepare_bottom_page_close();
   if ( v12 == -1 || dword_53C57 != 0 )
     return 0;
   return v1;
@@ -18643,7 +18675,7 @@ int __usercall sub_2B439@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int
     dword_53A51 = 1;
     dialog_wait_key(0);
     dword_53A51 = 0;
-    sub_26996();
+    field_prepare_bottom_page_close();
   }
   return v5;
 }
@@ -20268,7 +20300,7 @@ void __cdecl sub_2FACD(int a1, int a2)
     v2 = 49280;
   if ( dword_53C03 == 24 && a2 == 17 )
     v2 = 49280;
-  sub_18C6D(a1 + v2, 320, a2);
+  field_unit_summary_draw(a1 + v2, 320, a2);
 }
 
 
@@ -21156,7 +21188,7 @@ int __usercall sub_31BDF@<eax>(unsigned __int8 *a1@<edi>, int a2, int a3)
   text_dialog_render_tokens(a1, dword_53A79, a3, 693524, 320, 205, 76, 74, 19, 1);
   dialog_portrait_frame_draw(0);
   dialog_wait_key(0);
-  v5 = sub_26996();
+  v5 = field_prepare_bottom_page_close();
   return bios_keyboard_buffer_clear(v5);
 }
 
@@ -21596,7 +21628,7 @@ int __cdecl field_actor_group_arrival_effect(int a1)
         v8 = dword_53A49 + 2280;
 LABEL_21:
         dword_53A49 = v8;
-        sub_129EC();
+        field_actor_terrain_overlays_draw();
 LABEL_22:
         v6 = memmove(v14, dword_53A49, (char *)&loc_2567F + 1);
         break;
@@ -21617,12 +21649,13 @@ LABEL_22:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_32D18
+ * IDA 9.5 Hex-Rays: field_stage1_entry_play
  * VA=0x32d18..0x33219 OBJ=1 OFF=0x22d18 size=0x501
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x11cac, 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
-void __usercall sub_32D18(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_stage1_entry_play；依据: 完整1281B；main/标题的stage1入口。205da从camera/focus0初始化，PAN13,11，脚本9/10、FDTXT[2]片段0/1、group1/脚本11/片段2，重置方向PAN6,12，强制group2/脚本12/重置方向/片段3后focus actor0。25个已知等待及21几何由原始脚本/placement独立构造；此命名不将逻辑近似camera或SDL ctor当原版oracle。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __usercall field_stage1_entry_play(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   sub_205DA();
@@ -22484,12 +22517,13 @@ void field_stage0_31_turn_action3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_34738
+ * IDA 9.5 Hex-Rays: field_stage0_ally_side1_event
  * VA=0x34738..0x34778 OBJ=1 OFF=0x24738 size=0x40
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_34738(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_stage0_ally_side1_event；依据: 完整64B；stage0 descriptor/cell回调4表xref，1aa1d/190ac及controller/AI派发caller。先写active raw13的side字节+6=1，再完整播放当前stage片段7；不追加persistent记录、不将该actor直接设玩家side2，也不重写其它80B字段。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __usercall field_stage0_ally_side1_event(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   *(_BYTE *)(dword_53A45 + 1046) = 1;
@@ -22498,12 +22532,13 @@ void __usercall sub_34738(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_34778
+ * IDA 9.5 Hex-Rays: field_stage1_turn3_execute
  * VA=0x34778..0x34818 OBJ=1 OFF=0x24778 size=0xa0
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
-void __usercall sub_34778(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_stage1_turn3_execute；依据: 完整160B；stage1 metadata的turn3 action5表xref。PAN9,1、延时100、强制追加group3、脚本13、延时200、stage片段4，完整文字返回后raw5..10的AI锚点+35/+36设26/15。不更改这六人的behavior字段，不把锚点更新提前到提示之前。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
+void __usercall field_stage1_turn3_execute(unsigned __int8 *a1@<edi>)
 {
   int i; // edx
   int v2; // ebx
@@ -23145,7 +23180,7 @@ void __cdecl sub_352CA(unsigned __int8 *a1)
   watcom_stack_check(52);
   *(_WORD *)v1 = unk_52742;
   v1[2] = unk_52744;
-  sub_1AA1D(a1, 1, (int)v1);
+  field_loot_descriptors_execute(a1, 1, (int)v1);
   text_dialog_render_tokens(&v2, dword_53A79, 11, 655360, 320, 205, 76, 74, 19, 1);
 }
 
@@ -23179,7 +23214,7 @@ void __cdecl sub_35346(unsigned __int8 *a1)
   LOWORD(v1[0]) = unk_52745;
   BYTE2(v1[0]) = unk_52747;
   text_dialog_render_tokens((unsigned __int8 *)v1 + 3, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
-  sub_1AA1D(a1, 1, (int)v1);
+  field_loot_descriptors_execute(a1, 1, (int)v1);
   v1[2] = 1;
   v1[1] = 19;
   v1[0] = 74;
@@ -23342,7 +23377,7 @@ void __cdecl sub_355F0(unsigned __int8 *a1)
   watcom_stack_check(52);
   LOWORD(v1[0]) = unk_52748;
   BYTE2(v1[0]) = unk_5274A;
-  sub_1AA1D(a1, 1, (int)v1);
+  field_loot_descriptors_execute(a1, 1, (int)v1);
   v1[2] = 1;
   v1[1] = 19;
   v1[0] = 74;
@@ -23421,9 +23456,9 @@ void __cdecl sub_35730(int a1)
     if ( field_actor_is_hidden(17) != 0 )
     {
       *(_BYTE *)dword_53AD5 = 1;
-      sub_12263();
+      field_completed_chest_tiles_apply();
       sub_11CAC(1);
-      sub_1AA1D(nullptr, 1, (int)v1);
+      field_loot_descriptors_execute(nullptr, 1, (int)v1);
     }
   }
   dword_53EC8 = 0;
@@ -23502,7 +23537,7 @@ char __cdecl sub_35854(int a1)
     field_bottom_notice_close();
     for ( i = 0; i < 5u; ++i )
       *(_BYTE *)(dword_53AD5 + i) = 1;
-    return sub_12263();
+    return field_completed_chest_tiles_apply();
   }
 }
 
@@ -23584,7 +23619,7 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
       }
       free(v3);
       *(_BYTE *)(dword_53AD5 + 12) = 1;
-      sub_12263();
+      field_completed_chest_tiles_apply();
       field_actor_group_append(1);
       sub_112A5(31);
       text_dialog_render_tokens(a1, dword_53A79, 4, 655360, 320, 205, 76, 74, 19, 1);
@@ -51018,6 +51053,7 @@ char __usercall sub_4E4BE@<al>(unsigned __int8 a1@<cl>, char *a2@<ebx>, int a3@<
 //   依据: 正确 dual `0x4e4f6`；递归邻域顺序为右、左、下、上。mode 0 保留首次路径，mode 1 在剩余成本相等时以递归方向变化数 `*4` 更新，mode 2 抵达 hostile occupied cell 时写 witness 坐标。
 //   历史地址列 `0x7370a`；旧 Ghidra 名 `FUN_0004bc3e`；判定 exact
 // [勘误 evidence] 普通路径起点与进入格是否同受ZOC门尚未区分 -> 初始化起点后直接递归，起点不经进入格ZOC门；normal/mode1的SDL实现已有该行为，不额外更改。mode2 hostile witness独立。；依据: 原始初始化/递归调用与4e680进入格门；合成回归检查normal、long route、witness和非法起点拒绝。公开API另补坐标/三倍缓冲分配界检查，不据此声明原版完整ABI或全函数机器执行通过。
+// [勘误 evidence] 4e680先减地形成本并以signed比较剩余预算，map byte7初值FF；有效剩余0第二次等值访问也受mode!=1门拒绝。mode2通过该门后才由4e703记录hostile坐标，4e6e5明确CLC，4e5cc继续穿过hostile递归，不受40阻挡或80 ZOC停止。名称和持久ABI不变。；依据: IDA9.5 Domain完整4e5cc/4e680/4e703原指令，4e6a5..b2及4e6de..e6的明确分支；两敌单通道和2x2零剩余反例检出旧实现。B5 stage1真实十二坐标差异另需14b78清图长路合同一并恢复，不能把局部修复单独称为整条路径原版通过。
 int __cdecl field_path_find(
         int a1,
         unsigned __int8 a2,
@@ -51362,6 +51398,7 @@ char *__cdecl field_magic_learning_record_get(int a1)
  * callers: 0x26152, 0x265ec, 0x2670e, 0x279bc, 0x29300, 0x2986f, 0x29daa
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 完整24B原码先DEC stage再乘31，fixup指向canonical6238d；stage1对应row0。直到下一独立getter626b3的完整806B为26行，安全query仅1..26；27..29由523e7NoTown门跳过本getter，不能据此多读三行。保留现中性名，不猜getter ABI。；依据: 4e809 raw 558bec8b450848ba1f000000f7e28d158d23000003c25dc3；Domain4e819 fixup→object3:238d与strict LE逐段来源一致。
 char *__cdecl sub_4E809(int a1)
 {
   return (char *)&unk_6238D + 31 * a1 - 31;

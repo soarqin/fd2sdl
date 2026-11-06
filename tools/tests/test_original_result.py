@@ -89,6 +89,37 @@ class ResultResourceTest(unittest.TestCase):
 
 
 class ResultInputTest(unittest.TestCase):
+    def test_b5_defeat_waits_for_composite_and_actual_title_without_extra_keys(self):
+        for first in (0,1):
+            capture=Mock();checkpoints=[]
+            def wait(capture,name,predicate,rows,**kwargs):
+                return None,{"kind":"native_defeat_resource","frame":1 if name.endswith("game-over") else first,
+                             "full_frame_pixels":64000}
+            with patch.object(result,"wait_title"),patch.object(result,"wait_state",side_effect=wait), \
+                 patch.object(result,"save_checkpoint") as saved:
+                found=result.exercise_sdl_defeat_continuation(capture,{}, {},{3:[None]*3},checkpoints)
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],["UP","ENTER"])
+            self.assertTrue(found["returned_title_before_cleanup"])
+            self.assertEqual(found["first_frame_observed"],first==0)
+            self.assertEqual(found["final_composite"]["full_frame_pixels"],64000)
+            self.assertEqual(capture.wait.call_args.kwargs,{"blank_transition":True,"timeout":45})
+            self.assertEqual(saved.call_count,1)
+
+    def test_b5_missing_composite_or_returned_title_remains_failure(self):
+        for failure in ("composite","title"):
+            capture=Mock()
+            if failure=="title":capture.wait.side_effect=[None,RuntimeError("missing title")]
+            def wait(capture,name,predicate,rows,**kwargs):
+                if failure=="composite" and name.endswith("game-over"):
+                    raise TimeoutError("missing composite")
+                return None,{"kind":"native_defeat_resource","frame":0 if failure=="composite" else 1}
+            with patch.object(result,"wait_title"),patch.object(result,"wait_state",side_effect=wait), \
+                 patch.object(result,"save_checkpoint") as saved:
+                with self.assertRaises((RuntimeError,TimeoutError)):
+                    result.exercise_sdl_defeat_continuation(capture,{}, {},{3:[None]*3},[])
+                saved.assert_not_called()
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],["UP","ENTER"])
+
     def test_each_original_step_is_acked_and_early_result_never_receives_extra_keys(self):
         titles = {3:[None,None,None]}
         for branch_at,expected in (("continued",["UP","ENTER"]),("focused",["UP","ENTER","Z"]),

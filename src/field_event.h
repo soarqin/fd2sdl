@@ -45,6 +45,9 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
 
 /* stage 0/31 action 0..3 使用的已确认 DAT_000027d8 脚本。
  * 返回 0 并提供只读字节流；未知 script_id 返回 -1。 */
+/* 已确认stage0脚本与stage1脚本9..13；未知ID拒绝，不推进演出。 */
+int fd2_field_movement_script_get(uint8_t script_id,
+    const uint8_t **script, size_t *script_size);
 int fd2_field_stage0_movement_script_get(uint8_t script_id,
                                          const uint8_t **script,
                                          size_t *script_size);

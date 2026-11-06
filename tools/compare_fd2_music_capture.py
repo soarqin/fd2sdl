@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""比较 DOSBox OPL capture 与 libADLMIDI 离线渲染的曲目指纹。
+"""比较 DOSBox OPL capture 与指定离线渲染的曲目指纹。
 
-render_dir 应包含 render_fd2_opl_prototype.sh all 生成的 trackNN.xmi.wav。
+render_dir应包含trackNN.xmi.wav；可由当前bgm_capture_probe或历史外部
+原型生成，调用方必须记录后端、源码与输入SHA，不能混淆两者的证据。
 直接波形相关适合相同／相近 emulator；短时谱分数辅助比较不同 OPL 实现。
 结果只能生成候选，仍需调用链或运行时资源指针独立确认。
 """

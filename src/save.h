@@ -69,8 +69,10 @@ typedef struct {
     uint8_t meta[FD2_SAVE_SLOT_META_SIZE];
 } fd2_save_manual_slot;
 
-/* 四槽 hand_save/hand_load 的运行期字段。unit_area 仍是原始完整 0xa00
- * 字节；这些字段只提供已确认的 meta owner，未知 meta 字节由 codec 保留。 */
+/* field_manual_slot_save @0x2968d（原sub_2968D）与
+ * field_manual_slot_load @0x2986f（原登记同名）的准备期唯一持久 owner。
+ * unit_area 是完整 0xa00 原始表，含未用尾；不含活动单位或回合。
+ * options 顺序为 camera/effect/music/SFX，未知 meta 由容器保留。 */
 typedef struct {
     uint8_t stage_id;
     uint8_t unit_count;
@@ -99,6 +101,9 @@ uint32_t fd2_save_checksum_sum(const uint8_t *data, size_t size);
 int fd2_save_validate_plain(const uint8_t *data, size_t size);
 
 int fd2_save_file_open(fd2_save_file *save, const char *path);
+/* 仅 ENOENT 新建。既有坏档/权限/读取错误拒绝；新档仅初始化活动区两
+ * 个 count 为0，stage仍ff。调用方更新成功后才原子写回，不提前落盘。 */
+int fd2_save_file_open_for_update(fd2_save_file *save, const char *path);
 /* 原版 hand_save 在 FD2.SAV 不存在时以 0xff 建立完整容器；该函数只
  * 创建明文内存 shadow，调用方仍需经 fd2_save_file_write() 原子写回。 */
 int fd2_save_file_create_empty(fd2_save_file *save);
@@ -136,6 +141,13 @@ int fd2_save_manual_slot_decode(const fd2_save_manual_slot *slot,
                                 fd2_save_manual_state *state);
 int fd2_save_manual_slot_encode(fd2_save_manual_slot *slot,
                                 const fd2_save_manual_state *state);
+/* 标题和酒店共享的四槽后端。load失败不写out；save仅写选定slot整张
+ * roster及meta[0..9]，保留其他字节，slot3尾由checksum覆盖。
+ * 这里只校验格式；stage资源/酒店兼容/部署支持门须在owner交接前另验。 */
+int fd2_save_manual_state_load(const char *path, size_t slot_index,
+                              fd2_save_manual_state *out);
+int fd2_save_manual_state_save(const char *path, size_t slot_index,
+                              const fd2_save_manual_state *state);
 /* meta_28[1] 必须等于 unit_count。兼容调用只覆盖提供的记录，其余单位
  * 区域保留原容器字节；正式手工 slot writer 使用上面的完整接口。 */
 int fd2_save_file_update_slot(fd2_save_file *save, size_t slot_index,

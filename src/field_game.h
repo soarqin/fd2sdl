@@ -169,6 +169,71 @@ typedef struct {
     size_t status_cursor;
 } fd2_field_progress;
 
+/* field_turn_cycle_run @0x1a30b 的同步音乐请求；-1只请求异步fade-stop。
+ * App持有音频设备，core不等待、不消费RNG，也不由此生成输入事件。 */
+typedef enum {
+    FD2_FIELD_MUSIC_PHASE_STOP = 0,
+    FD2_FIELD_MUSIC_PLAYER,
+    FD2_FIELD_MUSIC_ENEMY
+} fd2_field_music_reason;
+typedef void (*fd2_field_music_request_fn)(size_t stage, int track,
+    fd2_field_music_reason reason, void *userdata);
+
+/* field_loot_descriptors_execute @0x1aa1d（原sub_1AA1D） 与field_special_cell_execute @0x190ac（原sub_190AC）的有限业务续态。
+ * MESSAGE/CHOICE借同一底框；STORY是当前stage文本，不是FDTXT[0]。
+ * wait_ms是已证显式delay，真正等键/开关动画由play完成后reply。 */
+typedef enum {
+    FD2_FIELD_LOOT_NONE = 0,
+    FD2_FIELD_LOOT_MESSAGE,
+    FD2_FIELD_LOOT_CHOICE,
+    FD2_FIELD_LOOT_INVENTORY,
+    FD2_FIELD_LOOT_STORY,
+    FD2_FIELD_LOOT_DELAY,
+    FD2_FIELD_LOOT_FIELD_EVENT
+} fd2_field_loot_kind;
+typedef struct {
+    fd2_field_loot_kind kind;
+    size_t actor_index;
+    uint16_t fragment;
+    uint32_t value;
+    uint16_t wait_ms;
+    uint8_t item_id;
+    uint8_t old_item_id;
+    uint8_t open_box;
+    uint8_t append_line;
+    uint8_t close_box;
+    uint8_t wait_key;
+} fd2_field_loot_notice;
+typedef enum {
+    FD2_FIELD_LOOT_ACK = 0,
+    FD2_FIELD_LOOT_YES,
+    FD2_FIELD_LOOT_NO,
+    FD2_FIELD_LOOT_CANCEL,
+    FD2_FIELD_LOOT_SLOT
+} fd2_field_loot_reply;
+typedef int (*fd2_field_loot_preflight_fn)(const fd2_field_game *game,
+    const fd2_field_loot_notice *notice, void *userdata);
+/* 固定容量来自原active上限，没有资源/heap所有权；成功Load可直接清零。
+ * step/source/resume仅此两原函数续态内部使用，不进入SAV。 */
+typedef struct {
+    fd2_field_loot_notice notice;
+    uint8_t descriptors[FD2_FIELD_MAX_UNITS][3];
+    size_t count;
+    size_t cursor;
+    size_t actor_index;
+    size_t action_actor;
+    uint64_t raw_reward;
+    uint8_t source;
+    uint8_t step;
+    uint8_t action_kind;
+    uint8_t cell_index;
+    uint8_t cell_flags;
+    fd2_field_progress_resume resume;
+    uint8_t ai_common_tail;
+    uint8_t ai_after_magic;
+    uint8_t text_ready;
+} fd2_field_loot;
+
 /* 正式战场 session。
  *
  * 集中管理 stage 资源、单位、镜头、移动查询及后续交互状态。单位记录
@@ -176,6 +241,8 @@ typedef struct {
  * 确认，职业和其他战斗属性仍保留原始字节，不在 session 层猜测解释。
  */
 struct fd2_field_game {
+    /* 借用App/验证caller的FDOTHER；font等保留其raw视图，须晚于game关闭。 */
+    const fd2_archive *fdother;
     fd2_archive field_archive;
     fd2_archive fdshap_archive;
     fd2_archive dato_archive;
@@ -208,9 +275,8 @@ struct fd2_field_game {
     /* code0 0x9df7 的 selector 2 资源门；field_play 按宿主提供的
      * FD2.SAV 路径刷新，测试／宿主后端也可显式覆盖。 */
     int save_resource_available;
-    /* 原版 DS:0x3f56：stage-indexed 31-byte runtime table pointer 的
-     * SDL 旁路 owner。当前只支持 stage 0，保存其确认的 stage table
-     * entry offset，不把未知字段解释成 gameplay 状态。 */
+    /* 原版DS:0x3f56归城镇准备页；sub_4E809 @0x4e809按stage-1取31B行。
+     * 当前stage0活动session不绑定准备记录，本旁路值为0，不写SAV。 */
     uint32_t stage_runtime_entry_offset;
     fd2_font font;
     fd2_text_entry ui_text;
@@ -301,7 +367,8 @@ struct fd2_field_game {
      * keypad 5 轮换可聚焦的 side 2 actor，并按 raw actor index 回绕。 */
     size_t focus_cycle_unit;
     uint8_t phase_ai_pass;      /* side 0: 0=magic/item gate, 1=normal pass */
-    uint8_t cell_action_completed[FD2_FIELD_EVENT_SLOTS];
+    /* 205da清完整32B，active Load/Save整块恢复；metadata action仍只有16项。 */
+    uint8_t cell_action_completed[FD2_SAVE_BATTLE_CELL_STATE_SIZE];
     uint64_t phase_next_action_ms;
 
     fd2_field_event_notice event_log[FD2_FIELD_EVENT_LOG_CAPACITY];
@@ -329,10 +396,32 @@ struct fd2_field_game {
     uint8_t player_post_waiting_phase;
     /* 原53EC8只在已证调用点清/写；不进SAV，成功Load/END保留它。 */
     uint32_t experience_value;
+    /* 原53AE1动态数字；GAIN/LEVEL/GROWTH/毒伤/拾取按原写点共用，Load保留。 */
+    uint32_t message_number;
+    fd2_field_loot loot;
+    fd2_field_loot_preflight_fn loot_preflight;
+    void *loot_preflight_userdata;
+    fd2_field_music_request_fn music_request;
+    void *music_request_userdata;
     fd2_field_progress progress;
     fd2_field_progress_preflight_fn progress_preflight;
     void *progress_preflight_userdata;
 };
+
+int fd2_field_game_set_music_request(fd2_field_game *game,
+    fd2_field_music_request_fn request, void *userdata);
+int fd2_field_game_set_loot_preflight(fd2_field_game *game,
+    fd2_field_loot_preflight_fn preflight, void *userdata);
+/* peek同progress的1/0/-1；reply在完整当前呈现/关闭后调用一次。
+ * pending时禁止保存和普通行动；取消库存选择不撤销先前已提交效果。 */
+int fd2_field_game_loot_peek(const fd2_field_game *game,
+    fd2_field_loot_notice *notice);
+/* MESSAGE文字成功且宿主关闭已优先检查后、portrait0/等键之前调用。
+ * 432/422/429此时才append/置completed；其他MESSAGE只标记文本已完成。
+ * 0成功/-1拒绝，重复拒绝；MESSAGE最终ACK必须先经过此边界。 */
+int fd2_field_game_loot_text_ready(fd2_field_game *game);
+int fd2_field_game_loot_reply(fd2_field_game *game,
+    fd2_field_loot_reply reply, int raw_slot);
 
 /* 0成功/-1拒绝；注册只读资源校验，不变更当前贡献或进展。 */
 int fd2_field_game_set_progress_preflight(fd2_field_game *game,
@@ -359,6 +448,28 @@ int fd2_field_game_open(fd2_field_game *game,
                         fd2_vga *vga,
                         const fd2_archive *fdother,
                         size_t stage);
+/* 1088d/10010共用资源准备；只支持stage0/1，不构造单位、推进phase、
+ * 写VGA/palette/RNG。输出须是新owner（先close旧Game），失败后可安全close。
+ * fdother借用至game关闭；失败释放已取得资源。 */
+int fd2_field_game_open_resources(fd2_field_game *game,
+    const fd2_archive *fdother, size_t stage);
+/* 26152准备owner出阵到32d18：完整persistent表→5部署槽、group1/2和
+ * scripts9..12业务终态。无输入/演出；App播放开场后handoff镜头/焦点。
+ * stage1只支持1..16 roster部署，超过16所需2af28尚未支持，拒绝而不截断。 */
+int fd2_field_game_prepare_stage1(fd2_field_game *game,
+    const fd2_archive *fdother, const fd2_save_manual_state *state);
+/* 准备Load的资源/记录纯预检，count0可显示；不代表可以出阵。 */
+int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state);
+/* 22ef6：fragment9结束前只prepare shadow；完整结束后才commit 11506
+ * 持久同步与stage1。out整张0xa00，不带RNG或53EC8，不改source。 */
+int fd2_field_game_settlement_prepare(const fd2_field_game *game,
+    fd2_save_manual_state *out);
+int fd2_field_game_settlement_commit(fd2_field_game *game,
+    fd2_save_manual_state *out);
+/* field_completed_chest_tiles_apply @0x12263（原sub_12263）：对base map按完整completed32B重建flags20地形。
+ * 先验证所有输入/改变后的帧，失败不写map；不写resources/metadata/completed。 */
+int fd2_field_game_apply_completed_cells(const fd2_field_game *resources,
+    fd2_field_map *map, const uint8_t completed[FD2_SAVE_BATTLE_CELL_STATE_SIZE]);
 void fd2_field_game_close(fd2_field_game *game);
 
 /* 将过场的动态坐标、朝向、隐藏状态和镜头应用到已经从 FDFIELD 建立的
@@ -459,7 +570,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game);
 
 /* field_player_item_command_execute @0x1bbdc（原登记同名）、
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
- * 只支持stage0与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
+ * 只支持stage0/1与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
  * 正式COMMAND由item_is_available限制效果能力；低层纯session不混此门。
  * 正式菜单按各自能力开放Use/Give/Equip/Drop；confirm借同一
  * ITEM_LIST与command_selected区分mode1/0，不缓存槽ID。
@@ -496,7 +607,7 @@ int fd2_field_game_equip_item(fd2_field_game *game);
 
 /* 正式ITEM能力查询：Use/Give/Equip/Drop任一可用即开放菜单；可见库存须密集
  * 且ID已知，Use支持表中code5..24，Drop/Give须全8槽可完成派生重算。
- * code0武器/装备可看列表，确认仍留页。要求stage0可行动玩家及共享RNG，
+ * code0武器/装备可看列表，确认仍留页。要求stage0/1可行动玩家及共享RNG，
  * 不套MP/+27/移动后禁法/EX99门。查询不写状态或消费RNG。
  * COMMAND、ITEM_MENU与ITEM_TARGETING正式confirm均重新检查此门；
  * confirm_cursor成功返回原actor index，非法格/拒绝/错误返回-1。 */
@@ -548,10 +659,10 @@ int fd2_field_game_magic_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_magic_target(fd2_field_game *game);
 int fd2_field_game_cancel_magic_targeting(fd2_field_game *game);
 
-/* stage0基础法术能力门：所有列表项都须为已支持的0(unit9)/13；
+/* stage0/1基础法术能力门：列表可含其他已知项，逐项仅开放0(unit9)/13；
  * 不因低MP禁列表；正式COMMAND图标复用此门。resolve只从MAGIC_TARGETING提交，
  * 0成功/-1拒绝或已提交后冻结；拒绝预检不改业务状态/RNG，提交后不退款。
- * 当前只恢复无掉落、非升级逻辑，FIGANI/奖励提示/附加呈现RNG另行验收。 */
+ * 成长奖励由progress分段提交，已知掉落由loot接续；FIGANI附加呈现RNG另验。 */
 int fd2_field_game_magic_is_available(const fd2_field_game *game);
 int fd2_field_game_resolve_player_magic(fd2_field_game *game);
 
@@ -610,7 +721,7 @@ int fd2_field_game_execute_move(fd2_field_game *game,
                                 fd2_vga *vga,
                                 uint32_t frame_delay_ms);
 int fd2_field_game_finish_unit_action(fd2_field_game *game);
-/* @0x117e7 的玩家返回后置：stage0结果门→13565→当前pending分派/清空。
+/* @0x117e7 的玩家返回后置：本stage结果门→13565→当前pending分派/清空。
  * complete用于成功command、selection取消与Enter详情（F2不调用）。
  * resume返回1=phase尚未返回，0=无续行或已完成，-1=首错冻结。 */
 int fd2_field_game_complete_player_controller(fd2_field_game *game,
@@ -624,7 +735,7 @@ int fd2_field_game_end_player_turn(fd2_field_game *game);
 /* field_empty_focus_menu_execute @0x16f55（原登记同名）的批量行军。
  * 固定调用时的绝对focus anchor，raw顺序逐actor提交，不保存/回滚批次。
  * 0=全部提交并进入side1；1=宿主关闭（保留已提交事实）；-1=失败冻结。
- * 调用方负责FDTXT418提示与输入隔离；这里只开放正式stage0。 */
+ * 调用方负责FDTXT418提示与输入隔离；复用已恢复stage0/1的phase/event门。 */
 int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
                          uint32_t frame_delay_ms);
 int fd2_field_game_process_automatic_action(fd2_field_game *game);

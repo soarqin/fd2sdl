@@ -312,7 +312,7 @@ static int test_import_is_transactional(void) {
     CHECK(memcmp(target.option_values, game.option_values,
                  sizeof(target.option_values)) == 0);
     CHECK(target.resource_value == game.resource_value);
-    CHECK(target.stage_runtime_entry_offset == 0x238du);
+    CHECK(target.stage_runtime_entry_offset == 0u); /* stage0没有准备页row。 */
     CHECK(memcmp(target.system_menu.option_values, game.option_values,
                  sizeof(target.option_values)) == 0);
     CHECK(target.selected_unit == -1 && target.detail_unit == -1);
@@ -797,9 +797,12 @@ static int test_original_start_load_focus_and_sprite_bounds(void) {
     size_t hidden = 9u * FD2_FIELD_UNIT_RECORD_SIZE;
     candidate.unit_area[hidden + 5u] |= FD2_FIELD_UNIT_FLAG_HIDDEN;
     candidate.unit_area[hidden + 7u] = 255;
+    candidate.unit_area[hidden] = 254;
+    candidate.unit_area[hidden + 1u] = 255; /* 原stage1缺部署槽也可保越界hidden坐标。 */
     CHECK(fd2_field_game_import_battle_snapshot(&game, &candidate) == 0);
     CHECK(game.units.items[9].unit_id == 255 &&
-          fd2_field_unit_is_hidden(&game.units.items[9]));
+          fd2_field_unit_is_hidden(&game.units.items[9]) &&
+          game.units.items[9].x == 254 && game.units.items[9].y == 255);
 
     game.focus_cycle_unit = 3;
     CHECK(fd2_field_game_load_active(&game, "original_game/START.SAV") == 0);
@@ -940,7 +943,207 @@ static int test_progress_owner_load_and_save_boundaries(void) {
     FILE *unexpected=fopen(path,"rb");CHECK(unexpected==NULL);
     return 0;
 }
+
+static int load_preflight_probe(const fd2_field_game *game,
+        const fd2_field_progress_notice *notice, void *userdata) {
+    (void)game; (void)notice;
+    (*(unsigned *)userdata)++;
+    return -1; /* Load必须只借此owner，不能调用它推进奖励。 */
+}
+
+static int load_loot_probe(const fd2_field_game *game,
+        const fd2_field_loot_notice *notice, void *userdata) {
+    (void)game; (void)notice;
+    (*(unsigned *)userdata)++;
+    return -1;
+}
+
+static void load_music_probe(size_t stage, int track,
+        fd2_field_music_reason reason, void *userdata) {
+    (void)stage; (void)track; (void)reason;
+    (*(unsigned *)userdata)++;
+}
+
+static int test_stage1_manual_owner_preflight(void) {
+    fd2_save_file source = {0};
+    fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_save_file_open(&source, "original_game/START.SAV") == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&source, &snapshot) == 0);
+    fd2_save_manual_state state = {0};
+    state.stage_id = 1;
+    state.unit_count = snapshot.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT];
+    memcpy(state.unit_area, snapshot.roster, sizeof(state.unit_area));
+    state.gold_or_flags = 0x98765432u;
+    memcpy(state.options, (uint8_t[]){1, 0, 1, 0}, 4);
+    fd2_save_manual_state before = state;
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    CHECK(memcmp(&state, &before, sizeof(state)) == 0);
+    /* owner32与部署选择器容量独立；这里不得截断、造默认成员或拒17..32。 */
+    for (size_t i = state.unit_count; i < FD2_SAVE_MAX_UNITS; i++)
+        memcpy(state.unit_area + i * FD2_SAVE_UNIT_RECORD_SIZE,
+               state.unit_area, FD2_SAVE_UNIT_RECORD_SIZE);
+    state.unit_count = FD2_SAVE_MAX_UNITS;
+    before = state;
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    CHECK(memcmp(&state, &before, sizeof(state)) == 0);
+    state.unit_count = 0;
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    state = before;
+    state.stage_id = 0;
+    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    state.stage_id = 2;
+    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    state = before;
+    state.unit_count = FD2_SAVE_MAX_UNITS + 1u;
+    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    state = before;
+    state.unit_area[7] = 140; /* 普通可浏览持久成员必须有完整FDICON资源。 */
+    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    state = before;
+    state.unit_area[0x0a] = 0x40; state.unit_area[0x0b] = 255;
+    fd2_save_manual_state invalid = state;
+    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    CHECK(memcmp(&state, &invalid, sizeof(state)) == 0);
+    fd2_save_file_close(&source);
+    return 0;
+}
+
+static int test_cross_stage_active_owner_is_transactional(void) {
+    fd2_archive fdother = {0};
+    fd2_field_game game = {0}, stage1 = {0};
+    fd2_save_file source = {0};
+    fd2_save_battle_snapshot original, next;
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(fd2_save_file_open(&source, "original_game/START.SAV") == 0);
+    CHECK(fd2_save_file_get_battle_snapshot(&source, &original) == 0);
+    CHECK(fd2_field_game_open_resources(&game, &fdother, 0) == 0);
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &original) == 0);
+    /* 10010→12263：完成态不只是一组byte，必须从原地图重建；否则
+     * 同session再次载入未开启的旧档会留下已开箱底图。 */
+    uint32_t closed = fd2_field_map_cell(&game.map, 7, 13);
+    size_t cell_index = (closed >> 16) & 31u;
+    CHECK((game.terrain.attrs[fd2_field_cell_terrain(closed)].flags & 0x60u) == 0x20u);
+    fd2_save_battle_snapshot opened = original;
+    opened.cell_state[cell_index] = 1;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &opened) == 0);
+    CHECK(fd2_field_map_cell(&game.map, 7, 13) ==
+          ((closed & UINT32_C(0xff000000)) | (uint16_t)((uint16_t)closed + 1u)));
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &original) == 0);
+    CHECK(fd2_field_map_cell(&game.map, 7, 13) == closed);
+    CHECK(fd2_field_game_open_resources(&stage1, &fdother, 1) == 0);
+    /* 本夹具只隔离跨stage存取，不声称是32d18的真实stage1开场部署。 */
+    stage1.units = game.units;
+    stage1.roster_count = game.roster_count;
+    memcpy(stage1.roster, game.roster, sizeof(stage1.roster));
+    for (size_t i = 0; i < stage1.units.count; i++) {
+        stage1.units.items[i].x = (uint8_t)(i % 8u + 2u);
+        stage1.units.items[i].y = (uint8_t)(i % 5u + 10u);
+    }
+    stage1.turn_number = 6;
+    stage1.camera_cell_x = 3; stage1.camera_cell_y = 8;
+    stage1.cursor_cell_x = 8; stage1.cursor_cell_y = 13;
+    for (size_t i = 0; i < sizeof(stage1.cell_action_completed); i++)
+        stage1.cell_action_completed[i] = (uint8_t)(i * 7u + 3u);
+    stage1.resource_value = 1234567u;
+    next = original;
+    stage1.units.count = 10;
+    CHECK(fd2_field_game_export_battle_snapshot(&stage1, &next) != 0);
+    CHECK(memcmp(&next, &original, sizeof(next)) == 0);
+    stage1.units.count = game.units.count;
+    CHECK(fd2_field_game_export_battle_snapshot(&stage1, &next) == 0);
+    next.meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC] = 0x7fu;
+    next.meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA] = 4u;
+    CHECK(next.metadata[0] == 1 && stage1.metadata.unit_template_count == 40);
+    fd2_field_game_close(&stage1);
+
+    fd2_field_rng rng;
+    fd2_field_rng_seed(&rng, 0x5678);
+    unsigned preflight_calls = 0;
+    game.attack_rng = count_load_rng; game.attack_rng_userdata = &rng;
+    game.progress_preflight = load_preflight_probe;
+    game.progress_preflight_userdata = &preflight_calls;
+    game.loot_preflight = load_loot_probe;
+    game.loot_preflight_userdata = &preflight_calls;
+    game.music_request = load_music_probe;
+    game.music_request_userdata = &preflight_calls;
+    game.experience_value = 631;
+    game.message_number = 12345;
+    game.loot.notice.kind = FD2_FIELD_LOOT_MESSAGE;
+    game.loot.source = 1;
+    game.loot.step = 3;
+    game.pending_cell_event.valid = 1;
+    game.player_post_waiting_phase = 1;
+    game.focus_cycle_unit = 3;
+    load_rng_calls = 0;
+    fd2_save_battle_snapshot sentry = next, sentry_before = next;
+    CHECK(fd2_field_game_export_battle_snapshot(&game, &sentry) != 0);
+    CHECK(memcmp(&sentry, &sentry_before, sizeof(sentry)) == 0);
+    fd2_field_game before = game;
+    fd2_save_battle_snapshot bad = next;
+    bad.metadata[0] = 0; /* stage1标记不能配stage0 shape。 */
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &bad) != 0);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+    bad = next;
+    bad.unit_area[7] = 140; bad.unit_area[5] = 0;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &bad) != 0);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+    bad = next;
+    bad.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = FD2_FIELD_MAX_UNITS + 1u;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &bad) != 0);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+    bad = next;
+    bad.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 10;
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &bad) != 0);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(fd2_save_file_update_battle_snapshot(&source, &next) == 0);
+    CHECK(fd2_save_file_write(&source, path) == 0);
+    uint8_t bytes_before[FD2_SAVE_FILE_SIZE], bytes_after[FD2_SAVE_FILE_SIZE];
+    CHECK(read_save_bytes(path, bytes_before) == 0);
+    CHECK(fd2_field_game_save_resource_available(&game, path) == 1);
+    CHECK(memcmp(&game, &before, sizeof(game)) == 0);
+    CHECK(fd2_field_game_load_active(&game, path) == 0);
+    CHECK(game.stage == 1 && game.map.width == 27 && game.map.height == 21);
+    CHECK(game.metadata.shape_index == 1 && game.metadata.unit_template_count == 40);
+    CHECK(game.stage_runtime_entry_offset == 0x238du && game.turn_number == 6);
+    CHECK(game.fdother == &fdother && game.font.glyphs != NULL);
+    CHECK(game.experience_value == 631 && game.attack_rng == count_load_rng &&
+          game.attack_rng_userdata == &rng && game.progress_preflight == load_preflight_probe &&
+          game.progress_preflight_userdata == &preflight_calls);
+    CHECK(game.message_number == 12345 && game.loot_preflight == load_loot_probe &&
+          game.loot_preflight_userdata == &preflight_calls && game.music_request == load_music_probe &&
+          game.music_request_userdata == &preflight_calls && !game.loot.notice.kind && !game.loot.step);
+    CHECK(load_rng_calls == 0 && preflight_calls == 0 && rng.state == 0x5678);
+    CHECK(game.focus_cycle_unit == 0 && !game.pending_cell_event.valid &&
+          !game.player_post_waiting_phase && game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+    CHECK(memcmp(game.cell_action_completed, next.cell_state, sizeof(next.cell_state)) == 0);
+    fd2_save_battle_snapshot exported = original;
+    CHECK(fd2_field_game_export_battle_snapshot(&game, &exported) == 0);
+    CHECK(memcmp(exported.cell_state, next.cell_state, sizeof(next.cell_state)) == 0);
+    CHECK(memcmp(exported.roster, next.roster, sizeof(next.roster)) == 0);
+    CHECK(exported.meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC] == 0x7fu &&
+          exported.meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA] == 4u);
+    CHECK(memcmp(exported.unit_area, next.unit_area,
+                 game.units.count * FD2_SAVE_UNIT_RECORD_SIZE) == 0);
+    CHECK(read_save_bytes(path, bytes_after) == 0);
+    CHECK(memcmp(bytes_before, bytes_after, sizeof(bytes_before)) == 0);
+    /* 反向再次预备/交接，旧资源关闭一次；没有ctor、phase或intro副作用。 */
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &original) == 0);
+    CHECK(game.stage == 0 && game.stage_runtime_entry_offset == 0 &&
+          game.experience_value == 631 && game.attack_rng_userdata == &rng);
+    CHECK(fd2_field_game_import_battle_snapshot(&game, &next) == 0);
+    CHECK(load_rng_calls == 0 && preflight_calls == 0 && rng.state == 0x5678);
+    fd2_field_game_close(&game);
+    fd2_save_file_close(&source);
+    fd2_archive_close(&fdother);
+    CHECK(remove(path) == 0);
+    return 0;
+}
 int main(void) {
+    if (test_stage1_manual_owner_preflight() != 0 ||
+        test_cross_stage_active_owner_is_transactional() != 0) return 1;
     if (test_progress_owner_load_and_save_boundaries() != 0 ||
         test_export_preserves_unknown() != 0 ||
         test_runtime_unit_capacity() != 0 ||

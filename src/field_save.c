@@ -11,11 +11,11 @@
 
 #include "field_game.h"
 
-#include <errno.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "save.h"
+#include "portrait.h"
 
 static uint32_t rd_u32_le(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
@@ -64,9 +64,11 @@ int fd2_field_game_export_battle_snapshot(
         const fd2_field_game *game, fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready ||
         game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->loot.source != 0u ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || game->stage > 0xffu ||
+        game->player_post_waiting_phase || game->stage > 1u ||
+        (game->stage == 1u && game->units.count < 11u) ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -132,15 +134,16 @@ static int max_camera_cell(int map_cells, int view_cells) {
 static int validate_import(const fd2_field_game *game,
                            const fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready) return -1;
-    /* sub_10010 @0x10010 用 snapshot metadata[0] 选择 FDSHAP。
-     * SDL 只恢复当前已加载 stage 0，不在导入中猜测或重载其他资源。
-     * 模板长度沿用当前资源，不能把 0x8a3 的未知尾解析成可用模板。 */
+    /* sub_10010 @0x10010用snapshot metadata[0]选择FDSHAP。
+     * 这里只校验已准备好的对应stage资源；跨stage先打开独立owner。
+     * 模板长度来自资源，不能把0x8a3未知尾解析成可用模板。 */
     if (snapshot->metadata[0] != game->metadata.shape_index ||
         metadata_prefix_size(&game->metadata) == 0u)
         return -1;
     size_t count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
-    if (stage != game->stage || stage != 0u || count == 0u ||
+    if (stage != game->stage || stage > 1u || count == 0u ||
+        (stage == 1u && count < 11u) ||
         snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
             FD2_SAVE_BATTLE_MAX_ROSTER ||
         count > FD2_SAVE_BATTLE_MAX_UNITS ||
@@ -152,7 +155,8 @@ static int validate_import(const fd2_field_game *game,
         memcpy(&unit,
                snapshot->unit_area + i * FD2_FIELD_UNIT_RECORD_SIZE,
                sizeof(unit));
-        if (unit.x >= game->map.width || unit.y >= game->map.height)
+        if (!fd2_field_unit_is_hidden(&unit) &&
+            (unit.x >= game->map.width || unit.y >= game->map.height))
             return -1;
         /* 普通renderer只跳hidden，不按F1的unit121/race10过滤。
          * fdicon_cache_append_unit @0x11019每ID复制12帧；须完整容纳方向/idle。 */
@@ -182,7 +186,19 @@ static int validate_import(const fd2_field_game *game,
     return 0;
 }
 
-int fd2_field_game_import_battle_snapshot(
+static int prepare_saved_map(const fd2_field_game *game,
+        const fd2_save_battle_snapshot *snapshot, fd2_field_map *map) {
+    if (!game->map.cells) return 0; /* 纯记录codec调用不拥有可重建map。 */
+    if (fd2_field_map_open_stage(map, &game->field_archive, game->stage) != 0 ||
+        map->width != game->map.width || map->height != game->map.height ||
+        fd2_field_game_apply_completed_cells(game, map, snapshot->cell_state) != 0) {
+        fd2_field_map_close(map);
+        return -1;
+    }
+    return 0;
+}
+
+static int import_current_stage(
         fd2_field_game *game, const fd2_save_battle_snapshot *snapshot) {
     if (validate_import(game, snapshot) != 0) return -1;
 
@@ -191,6 +207,15 @@ int fd2_field_game_import_battle_snapshot(
     if (fd2_field_metadata_open_mem(&loaded_metadata, snapshot->metadata,
                                     metadata_prefix_size(&game->metadata)) != 0)
         return -1;
+    fd2_field_map loaded_map = {0};
+    /* sub_10010 @0x10010每次从FDFIELD重读闭箱底图再调sub_12263。
+     * 不能沿用当前已开箱map，否则Load旧档无法恢复闭箱。无map的纯记录
+     * 调用仍只转换codec；真实资源session必须先预备完整map shadow。 */
+    if (prepare_saved_map(game, snapshot, &loaded_map) != 0) {
+        fd2_field_map_close(&loaded_map);
+        fd2_field_metadata_close(&loaded_metadata);
+        return -1;
+    }
     fd2_field_units loaded = {0};
     loaded.count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     memcpy(loaded.items, snapshot->unit_area,
@@ -202,6 +227,10 @@ int fd2_field_game_import_battle_snapshot(
 
     fd2_field_metadata_close(&game->metadata);
     game->metadata = loaded_metadata;
+    if (loaded_map.cells) {
+        fd2_field_map_close(&game->map);
+        game->map = loaded_map;
+    }
     memcpy(game->roster, snapshot->roster, sizeof(game->roster));
     game->roster_count = snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT];
     fd2_field_path_close(&game->move_range);
@@ -210,10 +239,10 @@ int fd2_field_game_import_battle_snapshot(
     game->camera_pixel_offset_x = 0;
     game->camera_pixel_offset_y = 0;
     game->units = loaded;
-    game->stage_runtime_entry_offset = 0x238du +
-        (uint32_t)snapshot->meta[FD2_SAVE_BATTLE_META_STAGE] * 0x1fu;
-    /* 活动快照保存原版 0x20 字节 DAT_00003ad5。SDL 当前仅确认并拥有
-     * 前 16 个 FDFIELD cell-action slot，后 16 字节继续由容器保留。 */
+    /* sub_4E809 @0x4e809按stage-1取31B准备记录，stage0没有此行。 */
+    game->stage_runtime_entry_offset = game->stage == 1u ? 0x238du : 0u;
+    /* sub_10010恢复完整32B，metadata仍只有16个已确认action槽。
+     * 未使用高16B也是快照owner，跨容器保存时不得丢失。 */
     memcpy(game->cell_action_completed, snapshot->cell_state,
            sizeof(game->cell_action_completed));
     game->turn_number = snapshot->meta[FD2_SAVE_BATTLE_META_TURN];
@@ -230,13 +259,13 @@ int fd2_field_game_import_battle_snapshot(
     game->resource_value = rd_u32_le(
         snapshot->meta + FD2_SAVE_BATTLE_META_RESOURCE_VALUE);
     game->option_values[0] =
-        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC] ? 1u : 0u;
+        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC];
     game->option_values[1] =
-        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_SFX] ? 1u : 0u;
+        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_SFX];
     game->option_values[2] =
-        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_EFFECT] ? 1u : 0u;
+        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_EFFECT];
     game->option_values[3] =
-        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA] ? 1u : 0u;
+        snapshot->meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA];
 
     game->selected_unit = -1;
     fd2_image_free(&game->detail_portrait);
@@ -256,6 +285,7 @@ int fd2_field_game_import_battle_snapshot(
     game->item_transfer_committed = 0;
     /* Load不引用原53EC8；仅丢弃奖励/状态UI续态，experience_value保持。 */
     memset(&game->progress, 0, sizeof(game->progress));
+    memset(&game->loot, 0, sizeof(game->loot));
     game->magic_target_id = 0;
     memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
     game->magic_target_count = 0;
@@ -293,9 +323,74 @@ int fd2_field_game_import_battle_snapshot(
     return 0;
 }
 
+/* 只借外部owner，绝不保存/复制其RNG状态，也不调用它们做预检。 */
+static void carry_runtime_owners(fd2_field_game *dst,
+                                  const fd2_field_game *src) {
+    dst->attack_target_allowed = src->attack_target_allowed;
+    dst->attack_target_userdata = src->attack_target_userdata;
+    dst->attack_rng = src->attack_rng;
+    dst->attack_rng_userdata = src->attack_rng_userdata;
+    dst->attack_critical_base = src->attack_critical_base;
+    dst->attack_critical_base_userdata = src->attack_critical_base_userdata;
+    dst->progress_preflight = src->progress_preflight;
+    dst->progress_preflight_userdata = src->progress_preflight_userdata;
+    dst->loot_preflight = src->loot_preflight;
+    dst->loot_preflight_userdata = src->loot_preflight_userdata;
+    dst->music_request = src->music_request;
+    dst->music_request_userdata = src->music_request_userdata;
+    dst->experience_value = src->experience_value;
+    dst->message_number = src->message_number;
+    dst->save_resource_available = src->save_resource_available;
+}
+
+int fd2_field_game_import_battle_snapshot(
+        fd2_field_game *game, const fd2_save_battle_snapshot *snapshot) {
+    if (!game || !game->ready || !snapshot ||
+        snapshot->meta[FD2_SAVE_BATTLE_META_STAGE] > 1u) return -1;
+    size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
+    if (stage == game->stage) return import_current_stage(game, snapshot);
+    /* font借FDOTHER的内存；必须沿用App活着的archive，不能关掉临时
+     * archive后把悬空glyph指针交给新Game。资源准备不写VGA/phase。 */
+    if (!game->fdother) return -1;
+    fd2_field_game *loaded = calloc(1, sizeof(*loaded));
+    if (!loaded) return -1;
+    int result = fd2_field_game_open_resources(loaded, game->fdother, stage);
+    if (result == 0) {
+        carry_runtime_owners(loaded, game);
+        result = import_current_stage(loaded, snapshot);
+    }
+    if (result == 0) {
+        fd2_field_game old = *game;
+        *game = *loaded;
+        free(loaded);
+        fd2_field_game_close(&old);
+    } else {
+        fd2_field_game_close(loaded);
+        free(loaded);
+    }
+    return result;
+}
+
 static int snapshot_is_importable(const fd2_field_game *game,
                                   const fd2_save_battle_snapshot *snapshot) {
-    return validate_import(game, snapshot) == 0;
+    if (!game || !game->ready || !snapshot) return 0;
+    size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
+    fd2_field_map map = {0};
+    if (stage == game->stage) {
+        int available = validate_import(game, snapshot) == 0 && prepare_saved_map(game, snapshot, &map) == 0;
+        fd2_field_map_close(&map);
+        return available;
+    }
+    if (stage > 1u || !game->fdother) return 0;
+    fd2_field_game *resources = calloc(1, sizeof(*resources));
+    if (!resources) return 0;
+    int available = fd2_field_game_open_resources(resources, game->fdother, stage) == 0 &&
+                    validate_import(resources, snapshot) == 0 &&
+                    prepare_saved_map(resources, snapshot, &map) == 0;
+    fd2_field_map_close(&map);
+    fd2_field_game_close(resources);
+    free(resources);
+    return available;
 }
 
 int fd2_field_game_save_resource_available(const fd2_field_game *game,
@@ -310,29 +405,11 @@ int fd2_field_game_save_resource_available(const fd2_field_game *game,
     return available;
 }
 
-/* 只对不存在的路径新建；既有坏档、读取失败和权限错误必须保留原文件。 */
-static int open_save_for_update(fd2_save_file *save, const char *path) {
-    FILE *existing = fopen(path, "rb");
-    if (existing) {
-        if (fclose(existing) != 0) return -1;
-        return fd2_save_file_open(save, path);
-    }
-    if (errno != ENOENT || fd2_save_file_create_empty(save) != 0)
-        return -1;
-    /* 新容器的 0xff 是空记录哨兵，不是 reader 可读取的 255 条 actor。
-     * 只初始化已知 count，便于随后首次活动保存；空 stage 仍不允许加载。 */
-    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;
-    save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
-    wr_u32_le(save->data + save->size - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(save->data, save->size));
-    return 0;
-}
-
 int fd2_field_game_save_active(fd2_field_game *game, const char *path) {
     if (!game || !path || !game->ready) return -1;
     fd2_save_file save = {0};
     fd2_save_battle_snapshot snapshot;
-    if (open_save_for_update(&save, path) != 0) return -1;
+    if (fd2_save_file_open_for_update(&save, path) != 0) return -1;
     if (fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
         fd2_field_game_export_battle_snapshot(game, &snapshot) != 0 ||
         fd2_save_file_update_battle_snapshot(&save, &snapshot) != 0 ||
@@ -362,19 +439,12 @@ int fd2_field_game_load_active(fd2_field_game *game, const char *path) {
 int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     if (!game || !path || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->loot.source != 0u ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
         game->player_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
         game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;
-    fd2_save_file save = {0};
-    if (open_save_for_update(&save, path) != 0)
-        return -1;
-    fd2_save_manual_slot slot;
-    if (fd2_save_file_get_manual_slot_raw(&save, slot_index, &slot) != 0) {
-        fd2_save_file_close(&save);
-        return -1;
-    }
     fd2_save_manual_state state = {0};
     state.stage_id = (uint8_t)game->stage;
     state.unit_count = (uint8_t)game->roster_count;
@@ -384,21 +454,56 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
     state.options[1] = game->option_values[2];
     state.options[2] = game->option_values[0];
     state.options[3] = game->option_values[1];
-    /* sub_2968D @0x2968d（原登记中性名）从准备owner复制完整persistent表；
+    /* field_manual_slot_save @0x2968d（原sub_2968D）复制准备owner完整persistent表；
      * 本API只提供后端，不是战场入口。旧save误名@0x29620实际为详情选择。 */
     memcpy(state.unit_area, game->roster, sizeof(state.unit_area));
-    int result = fd2_save_manual_slot_encode(&slot, &state) == 0 &&
-                 fd2_save_file_update_manual_slot(
-                     &save, slot_index, &slot) == 0 &&
-                 fd2_save_file_write(&save, path) == 0 ? 0 : -1;
-    fd2_save_file_close(&save);
+    return fd2_save_manual_state_save(path, slot_index, &state);
+}
+
+int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
+    /* field_manual_slot_load @0x2986f恢复准备表，不运行1088d、不把slot
+     * 当active。codec可保存32人；这里不添加出阵选择器的16人容量门。 */
+    if (!state || state->stage_id != 1u || state->unit_count > FD2_SAVE_MAX_UNITS ||
+        !fd2_field_stage_prepare_record_get(state->stage_id)) return -1;
+    fd2_archive fdother = {0};
+    fd2_field_game *resources = calloc(1, sizeof(*resources));
+    if (!resources) return -1;
+    int result = fd2_archive_open(&fdother, "original_game/FDOTHER.DAT");
+    if (result == 0)
+        result = fd2_field_game_open_resources(resources, &fdother, state->stage_id);
+    fd2_vga *checked = result == 0 && state->unit_count ? calloc(1, sizeof(*checked)) : NULL;
+    if (result == 0 && state->unit_count && !checked) result = -1;
+    for (size_t i = 0; result == 0 && i < state->unit_count; i++) {
+        fd2_field_unit unit;
+        fd2_image portrait = {0};
+        memcpy(&unit, state->unit_area + i * sizeof(unit), sizeof(unit));
+        /* 准备页可浏览全部持久成员（不套战场hidden/F1过滤），先保证
+         * 资源组和1145a装备派生可用；预检只在80B副本上执行。 */
+        if ((size_t)unit.unit_id >= resources->sprites.frame_count / 12u ||
+            fd2_field_unit_persistent_stats_recompute(&unit) != 0 ||
+            !fd2_field_game_detail_upper_is_ready(resources, &unit) ||
+            fd2_portrait_decode_frame(&portrait, &resources->dato_archive, unit.unit_id, 0) != 0 ||
+            portrait.width != 80 || portrait.height != 80 ||
+            fd2_field_item_list_draw(checked, &resources->info_assets, &resources->font,
+                &resources->ui_text, &unit, -1) != 0 ||
+            (fd2_field_unit_magic_list_build(&unit, NULL, 0) &&
+             fd2_field_magic_list_draw(checked, &resources->info_assets, &resources->font,
+                &resources->ui_text, &unit, -1) != 0))
+            result = -1;
+        fd2_image_free(&portrait);
+    }
+    free(checked);
+    fd2_field_game_close(resources);
+    fd2_archive_close(&fdother);
+    free(resources);
     return result;
 }
 
 int fd2_field_game_load_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     /* field_manual_slot_load @0x2986f（原登记同名）只恢复城镇准备owner，
-     * 出阵后才按stage重建战场。B1.4e已厘清归属，实施留B5，仍拒绝假active恢复。 */
+     * 出阵后才按stage重建战场。此旧Game签名没有App准备owner，继续明确
+     * 拒绝假active恢复；正式标题/酒店用manual_state_load+validate交接。 */
     (void)game;
     (void)path;
     (void)slot_index;

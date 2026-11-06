@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-2026-11-04 的代码基线 `e9a2d81` 已有统一音频核心、PCM、现用 XMIDI/AIL/Nuked 后端，以及标题和新游戏过场接入。**A0～A4 不再是待重做的前置工作。** 跨系统顺序以[总计划](development.md#4-新优先级与依赖)为准；下一步是 P1 的 A5，随后为 P2 的 A6～A8。
+2026-11-04 的代码基线 `e9a2d81` 已有统一音频核心、PCM、现用 XMIDI/AIL/Nuked 后端，以及标题和新游戏过场接入。**A0～A4 不再是待重做的前置工作。** 跨系统顺序以[总计划](development.md#4-新优先级与依赖)为准；A5所需的场景编排与恢复边界现已随B5完成本阶段验收，随后为P2的A6～A8；大阶段统一审查和历史全面回归另行执行。
 
 | 工作包 | 已有能力 | 尚未覆盖 |
 |---|---|---|
@@ -10,7 +10,7 @@
 | A1：音频框架 | SDL3 device／stream、music/sfx bus、有界队列、retirement、null/offline 与错误降级 | 宿主和设备生命周期扩展归 A8 |
 | A2：PCM | 24 voice、U8 mono、rate conversion、replace／stop；标题、对白、脚步、菜单与已确认战场效果 cue | FIGANI 动态 bank 归 A6 |
 | A3：XMIDI/OPL | `bgm.cpp` 直接读取 `SAMPLE.AD`，现用组件化后端；播放、循环、替换和销毁测试 | 全场景与逐样本保真归 A7，不重做选型 |
-| A4：场景接入 | 标题 track 18、新游戏 track 11 及原版淡变；Load 应用 music/sfx bus 配置 | 战场切曲与 sequence 恢复归 A5，bus 恢复不等于完整音频恢复 |
+| A4：场景接入 | 标题 track 18、新游戏 track 11 及原版淡变；Load 应用 music/sfx bus 配置 | A5场景／phase与恢复边界已随B5验收，声音保真另验；bus 或曲目请求恢复不等于 sequence 播放位置恢复 |
 
 历史记录包含 Linux 原生、SDL dummy 和 MinGW 交叉构建。当前开发环境已迁移到 Windows，可在本机自动运行窗口输入、设备打开与关闭回归；执行范围与结果见[图形自动化测试](../tools/gui-testing.md)。Windows 实际声音保真、macOS 与未覆盖的设备生命周期仍须分别登记，不能由交叉构建或 dummy 通过替代。
 
@@ -28,10 +28,14 @@
 
 依赖 B0 和现有 A4，可与玩家动作独立推进；不是 FIGANI 的后置任务。
 
-- [ ] 在正式战场入口播放对应 stage primary；按 `field_turn_cycle_run @0x1a30b` 已确认的边界淡出、进入 alternate，并在新回合恢复 primary。stage 0 的 track 1/4 有静态依据，不按听感另选曲。
-- [ ] 在现有应用／场景编排处连接 BGM 引用或最小曲目请求；播放器仍由应用层持有，不让 `field_game`、绘制和音频回调共同维护当前曲目。
-- [ ] 明确标题 → 新游戏、Load → 战场、离场 → 标题、胜败 → 结果／下一关的替换与淡出；同曲不重启。恢复配置不应重置单位、phase 或 RNG。
-- [ ] 以 null/offline 后端断言请求顺序、loop count、淡变和 bus；真实输入检查 Load 与离场。自动捕获并比较原版对应场景时序，不能仅测试 PCM 有能量。
+B5 已接入应用持有的 BGM 请求：城镇 10、酒店 13、出城淡出、stage 0／1 入口与活动 Load 的 primary，以及 phase alternate／primary。沿用现有同曲不重启和音频 render 执行的 4 秒 stop 淡出；null/offline 逻辑与真实设备声音分别验证，不在 Game 或 SAV 新增 sequence 真值。
+
+Windows原版 controlled C10录音支持城镇10／酒店13／入场后19；最终自然项采用C25完整原版＋C27独立SDL全链联合证据，C25首phase的闭合录音30.704秒按六参考、五个固定窗口得到19／19／12／12／19首候选，支持静态19→12→19调用顺序。旧C2等失败流程的音频前缀仅保留当时范围，不能改写其业务结果。来源与限制见[音频依据](../reverse-engineering/audio.md#b5-windows-场景与-phase-录音)，实际冻结和独立Job见[阶段日志](stage-log.md)。这些证据未覆盖SDL实时声音、完整runtime曲目指针、绝对时序或A7保真。
+
+- [x] 在正式战场入口请求对应stage primary；按 `field_turn_cycle_run @0x1a30b` 边界淡出、进入alternate，再于新回合恢复primary。stage 0／1的19／12依据canonical表与调用者，不按听感另选曲。
+- [x] 在应用／场景编排连接BGM引用及同步曲目请求，播放器仍由应用持有；Game、绘制与音频回调不共同维护当前曲目真值。
+- [x] 标题／新游戏、Load、离场、胜败／下一关的替换与淡出已连接；同曲不重启，配置恢复不重置单位、phase或RNG。
+- [x] null／offline覆盖请求顺序、loop、淡变与bus；真实输入覆盖Load和离场，原生场景／phase录音提供已列曲目身份与切换证据。此项只完成A5编排验收，精确时序和声音保真继续归A7。
 
 ### A6：FIGANI 动态音效 bank（P2）
 

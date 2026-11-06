@@ -132,7 +132,7 @@ static int test_commit(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
 
     fd2_field_ai_physical_candidate plan;
     CHECK(build_plan(&game, &plan) == 0);
@@ -174,7 +174,7 @@ static int test_common_tail_resets_all_directions(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.units.items[0].ai_behavior_raw = 2;
     game.units.items[0].movement_points = 0;
     game.units.items[0].direction = 3;
@@ -197,7 +197,7 @@ static int test_automatic_mode0(void) {
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
     /* 该夹具直接构造非正式 session；stage 字段不参与 M7 调度。 */
-    game.stage = 1;
+    game.stage = UINT8_MAX;
 
     CHECK(process_automatic_action_and_ack(&game) == 1);
     CHECK(game.units.items[0].x == 2 && game.units.items[0].y == 1);
@@ -215,6 +215,116 @@ static int test_automatic_mode0(void) {
 static void teach_magic(fd2_field_unit *unit, uint8_t magic_id) {
     unit->data_09_1e[0x11u + magic_id / 8u] |=
         (uint8_t)(1u << (magic_id % 8u));
+}
+
+typedef struct {
+    test_rng rolls;
+    const fd2_field_game *game;
+    int x, y, camera_x, camera_y;
+    int wrong_focus;
+} focus_rng;
+
+static uint32_t focus_observing_roll(void *userdata) {
+    focus_rng *check = userdata;
+    if (check->game->cursor_cell_x != check->x || check->game->cursor_cell_y != check->y ||
+        check->game->camera_cell_x != check->camera_x || check->game->camera_cell_y != check->camera_y)
+        check->wrong_focus = 1;
+    return next_roll(&check->rolls);
+}
+
+/* 154ad/154de、15360/153c2、15055：先caster后目标的逐格聚焦必须
+ * 先于首效果RNG；不能用赋cursor或在phase尾强制居中替代。 */
+static int test_ai_focus_before_effect_at_map_edge(void) {
+    static const uint32_t rolls[16] = {0};
+    for (int kind = 0; kind < 3; kind++) for (int top = 0; top < 2; top++) {
+        uint32_t cells[24 * 24] = {0};
+        fd2_terrain_attr attrs[1];
+        fd2_field_game game;
+        focus_rng rng = {{rolls, 16, 0}, &game, 15, top ? 0 : 7, 5, top ? 0 : 2, 0};
+        init_game(&game, cells, attrs, &rng.rolls);
+        game.stage = UINT8_MAX; game.map.width = game.map.height = 24;
+        game.cursor_cell_x = 15; game.cursor_cell_y = top ? 1 : 0;
+        game.camera_cell_x = 5; game.camera_cell_y = top ? 1 : 0;
+        fd2_field_unit *caster = &game.units.items[0], *target = &game.units.items[1];
+        caster->x = target->x = 15; caster->y = top ? 1 : 8; target->y = top ? 0 : 7;
+        if (top) caster->unit_id = 121; /* 121只在115b6选择器跳focus，AI wrapper不跳。 */
+        caster->movement_points = 0; caster->mp = caster->mp_max = 10;
+        caster->attack = 20; target->attack = target->accuracy = 0;
+        caster->hp = caster->hp_max = target->hp = target->hp_max = 1000;
+        game.attack_rng = focus_observing_roll; game.attack_rng_userdata = &rng;
+        if (kind == 0) {
+            fd2_field_ai_physical_candidate plan;
+            CHECK(build_plan(&game, &plan) == 0 && plan.unit_index == 1);
+            fd2_field_ai_physical_candidate stale = plan; stale.destination_x--;
+            fd2_field_game before = game;
+            CHECK(fd2_field_game_commit_ai_physical(&game, 0, 0, &stale, NULL, 0) == -1);
+            CHECK(!memcmp(&game, &before, sizeof(game)) && rng.rolls.cursor == 0);
+            CHECK(fd2_field_game_commit_ai_physical(&game, 0, 0, &plan, NULL, 0) == 0);
+            CHECK(game.move_origin_camera_x == 5 && game.move_origin_camera_y == (top ? 1 : 2));
+        } else if (kind == 1) {
+            teach_magic(caster, 0);
+            fd2_field_ai_magic_candidate plan;
+            CHECK(fd2_field_ai_choose_magic_candidate(&game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+            CHECK(plan.cast_x == 15 && plan.cast_y == rng.y);
+            fd2_field_ai_magic_candidate stale = plan; stale.score++;
+            fd2_field_game before = game;
+            CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &stale) == -1);
+            CHECK(!memcmp(&game, &before, sizeof(game)) && rng.rolls.cursor == 0);
+            CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
+        } else {
+            uint8_t *record = (uint8_t *)caster;
+            memset(record + 0x0a, 0x80, 16); record[0x0a] = 0; record[0x0b] = 56;
+            fd2_field_ai_item_candidate plan;
+            CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+            CHECK(plan.item_id == 56 && plan.target_x == 15 && plan.target_y == rng.y);
+            fd2_field_ai_item_candidate stale = plan; stale.score++;
+            fd2_field_game before = game;
+            CHECK(fd2_field_game_commit_ai_item(&game, 0, 0, &stale) == -1);
+            CHECK(!memcmp(&game, &before, sizeof(game)) && rng.rolls.cursor == 0);
+            CHECK(fd2_field_game_commit_ai_item(&game, 0, 0, &plan) == 0);
+        }
+        CHECK(rng.rolls.cursor > 0 && !rng.wrong_focus);
+        CHECK(game.camera_cell_y == rng.camera_y && game.cursor_cell_y == rng.y);
+        CHECK(fd2_field_unit_has_acted(caster) && caster->x == 15 && caster->y == (top ? 1 : 8));
+    }
+    return 0;
+}
+
+static int test_ai_line_item_and_no_action_focus(void) {
+    static const uint32_t rolls[16] = {0};
+    uint32_t cells[24 * 24] = {0};
+    fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    focus_rng rng = {{rolls, 16, 0}, &game, 15, 7, 5, 1, 0};
+    init_game(&game, cells, attrs, &rng.rolls);
+    game.stage = UINT8_MAX; game.map.width = game.map.height = 24;
+    game.cursor_cell_x = 15; game.cursor_cell_y = 0; game.camera_cell_x = 5;
+    fd2_field_unit *caster = &game.units.items[0], *target = &game.units.items[1];
+    caster->x = target->x = 15; caster->y = 8; target->y = 7;
+    caster->hp = caster->hp_max = target->hp = target->hp_max = 1000;
+    uint8_t *record = (uint8_t *)caster;
+    memset(record + 0x0a, 0x80, 16); record[0x0a] = 0; record[0x0b] = 79;
+    game.attack_rng = focus_observing_roll; game.attack_rng_userdata = &rng;
+    fd2_field_ai_item_candidate plan;
+    CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain, &game.units, 0, 0, &plan) == 0);
+    CHECK(plan.item_id == 79 && plan.target_x == 15 && plan.target_y < 7);
+    /* 15055远端夹到y0，再focus首raw目标y7，最终camera1，不是直接center。 */
+    CHECK(fd2_field_game_commit_ai_item(&game, 0, 0, &plan) == 0);
+    CHECK(rng.rolls.cursor > 0 && !rng.wrong_focus);
+    CHECK(game.cursor_cell_y == 7 && game.camera_cell_y == 1);
+
+    init_game(&game, cells, attrs, &rng.rolls);
+    game.stage = UINT8_MAX; game.map.width = game.map.height = 24;
+    game.cursor_cell_x = 15; game.cursor_cell_y = 0; game.camera_cell_x = 5;
+    game.units.items[0].x = 2; game.units.items[0].y = 20;
+    game.units.items[0].ai_behavior_raw = 8;
+    game.units.items[0].direction = 3; rng.rolls.cursor = 0;
+    CHECK(process_automatic_action_and_ack(&game) == 1);
+    CHECK(game.cursor_cell_x == 15 && game.cursor_cell_y == 0 &&
+          game.camera_cell_x == 5 && game.camera_cell_y == 0);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]) &&
+          game.units.items[0].direction == 3 && rng.rolls.cursor == 0);
+    return 0;
 }
 
 static int test_magic_commit(void) {
@@ -267,7 +377,7 @@ static int test_magic_cast_cost_before_targets(void) {
         fd2_field_game game;
         test_rng unused = {rolls, 16, 0};
         init_game(&game, cells, attrs, &unused);
-        game.stage = 1;
+        game.stage = UINT8_MAX;
         game.units.count = 3;
         game.units.items[0].mp = game.units.items[0].mp_max = 200;
         teach_magic(&game.units.items[0], id);
@@ -790,7 +900,7 @@ static int test_shared_item_hp_core_preserves_caller_tail(void) {
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
         init_game(&game, cells, attrs, &rng);
-        game.stage = 1;
+        game.stage = UINT8_MAX;
         game.active_side = game.units.items[0].side = 1;
         game.attack_rng = count_heal_roll;
         game.units.items[0].hp = game.units.items[0].hp_max = 1000;
@@ -1048,6 +1158,55 @@ static int test_behavior11_magic_then_physical(void) {
     return 0;
 }
 
+/* B5的mode3剧情先完成，再从同一个scheduler入口续原AI11物理段。 */
+static int test_behavior11_loot_story_then_physical(void) {
+    static const uint32_t rolls[] = {0, 0, 50, 0, 99, 0};
+    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    uint32_t cells[64]; fd2_terrain_attr attrs[1]; fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.units.items[0].ai_behavior_raw = 11;
+    game.units.items[0].mp = game.units.items[0].mp_max = 10;
+    teach_magic(&game.units.items[0], 0);
+    game.units.items[1].hp = game.units.items[1].hp_max = 300;
+    game.units.count = 3; set_unit(&game.units.items[2], 0, 7, 7);
+    game.units.items[2].hp = 0;
+    ((uint8_t *)&game.units.items[2])[0x31] = 3;
+    ((uint8_t *)&game.units.items[2])[0x32] = 8;
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(game.loot.notice.kind == FD2_FIELD_LOOT_STORY && game.loot.notice.fragment == 8);
+    CHECK(game.units.items[1].hp == 255 && game.units.items[0].mp == 8 && rng.cursor == 2);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(fd2_field_game_loot_reply(&game, FD2_FIELD_LOOT_ACK, -1) == 0);
+    CHECK(!game.loot.notice.kind && game.loot.source && !game.experience_value);
+    CHECK(fd2_field_game_move_cursor(&game, 1, 0) == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
+    CHECK(!game.loot.source && game.units.items[1].hp < 255 && rng.cursor == 6);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]));
+    return 0;
+}
+
+static int test_behavior11_terminal_story_still_finishes_actor(void) {
+    static const uint32_t rolls[] = {0, 0};
+    test_rng rng = {rolls, 2, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    fd2_field_game game; init_game(&game,cells,attrs,&rng);
+    fd2_field_unit enemy=game.units.items[0],hero=game.units.items[1];
+    game.units.items[0]=hero;game.units.items[0].hp=1;
+    game.units.items[1]=enemy;game.units.items[1].ai_behavior_raw=11;
+    game.units.items[1].mp=game.units.items[1].mp_max=10;
+    teach_magic(&game.units.items[1],0);
+    game.units.count=3;set_unit(&game.units.items[2],0,7,7);game.units.items[2].hp=0;
+    ((uint8_t*)&game.units.items[2])[0x31]=3;((uint8_t*)&game.units.items[2])[0x32]=8;
+    CHECK(fd2_field_game_process_automatic_action(&game)==1);
+    CHECK(game.loot.notice.kind==FD2_FIELD_LOOT_STORY && rng.cursor==2);
+    CHECK(fd2_field_game_battle_result(&game)==FD2_FIELD_BATTLE_DEFEAT);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[1]));
+    CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==0 && game.loot.source);
+    CHECK(fd2_field_game_process_automatic_action(&game)==1);
+    CHECK(!game.loot.source && fd2_field_unit_has_acted(&game.units.items[1]) && rng.cursor==2);
+    CHECK(fd2_field_game_battle_result(&game)==FD2_FIELD_BATTLE_DEFEAT);
+    return 0;
+}
+
 static int test_behavior11_magic_without_physical_candidate(void) {
     static const uint32_t rolls[] = {0, 0};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
@@ -1135,7 +1294,7 @@ static int test_phase_status_tick(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.active_side = 2;
 
     /* enter_phase(1) must not touch the side 0 actor. */
@@ -1220,7 +1379,7 @@ static int test_behavior8_outer_loop_boundary(void) {
      * 不能置 acted，也不能调用全表 direction reset。outer loop 仍在下次
      * scheduler step 越过其余 raw actors 并推进到 side 0。 */
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.active_side = 1;
     game.units.count = 3;
     set_unit(&game.units.items[0], 1, 1, 1);
@@ -1246,7 +1405,7 @@ static int test_behavior8_outer_loop_boundary(void) {
      * phase cursor 保证下一次调用结束本轮，不能因 remaining_units 仍含
      * 该 actor 而重复执行或永久停留。 */
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.units.items[0].ai_behavior_raw = 8;
     game.units.items[0].direction = 3;
     game.units.items[1].direction = 2;
@@ -1271,7 +1430,7 @@ static int test_phase_acted_lifecycle(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.active_side = 2;
     game.units.items[0].side = 2;
     game.units.items[1].side = 1;
@@ -1344,7 +1503,7 @@ static int test_battle_result_query(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1; /* 先覆盖非 stage 0 的通用 side 存活查询。 */
+    game.stage = UINT8_MAX; /* 纯夹具用未开放stage哨兵覆盖通用side存活查询；不套stage1村民私有门。 */
 
     /* init_game 的 actor 0 为 side 0，actor 1 为 side 2。 */
     CHECK(fd2_field_game_battle_result(&game) ==
@@ -1374,7 +1533,7 @@ static int test_ai_cell_event_pending_then_tail(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.units.items[1].x = 4;
     game.units.items[1].y = 1;
     /* 中间格lookup0收集pending7，不立即dispatch；最终格lookup1
@@ -1404,7 +1563,7 @@ static int test_ai_cell_event_pending_then_tail(void) {
      * notice 后显式停机；不能继续执行下一个 actor。直接 commit API
      * 同样返回失败，并保留已提交动作和 acted。 */
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.units.items[1].x = 7;
     game.units.items[1].y = 7;
     game.units.items[0].ai_behavior_raw = 8;
@@ -1429,7 +1588,7 @@ static int test_ai_pending_last_match_and_no_path(void) {
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
         init_game(&game, cells, attrs, &rng);
-        game.stage = 1;
+        game.stage = UINT8_MAX;
         game.units.items[0].movement_points = 3;
         game.units.items[1].x = 5;
         cells[1u * 8u + 2u] = 1u << 16;
@@ -1481,7 +1640,7 @@ static int test_ai_pending_last_match_and_no_path(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     /* 相邻敌方ZOC禁止origin展开；预算仍有效，唯一候选是原地。 */
     game.units.items[0].movement_points = 1;
     game.units.items[1].x = 2;
@@ -1511,7 +1670,7 @@ static int test_ai_outer_pending_dispatch_without_rng(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.phase_ai_pass = 1;
     game.units.items[1].x = game.units.items[1].y = 7;
     game.units.items[0].ai_behavior_raw = 4;
@@ -1533,7 +1692,7 @@ static int test_ai_outer_pending_dispatch_without_rng(void) {
 
     /* 新actor调度起点清旧pending；无任何lookup命中不能沿用42。 */
     init_game(&game, cells, attrs, &rng);
-    game.stage = 1;
+    game.stage = UINT8_MAX;
     game.phase_ai_pass = 1;
     game.units.items[0].ai_behavior_raw = 2;
     game.units.items[0].movement_points = 0;
@@ -1577,13 +1736,18 @@ static int test_stale_plan(void) {
     return 0;
 }
 
+static int reject_story_resource(const fd2_field_game *game,
+        const fd2_field_loot_notice *notice, void *userdata) {
+    (void)game; (void)userdata; return notice->kind==FD2_FIELD_LOOT_STORY?-1:0;
+}
 static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
     static const uint32_t rolls[]={0,0};
     for(int item_case=0;item_case<2;item_case++) {
         test_rng r={rolls,2,0};uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
         init_game(&game,cells,attrs,&r);game.units.items[1].x=2;game.units.items[1].y=1;
         game.units.items[1].hp=10;game.units.items[1].hp_max=100;
-        ((uint8_t*)&game.units.items[1])[0x31]=0;
+        ((uint8_t*)&game.units.items[1])[0x31]=3;
+        game.loot_preflight=reject_story_resource;
         game.experience_value=7;
         fd2_field_ai_magic_candidate magic;fd2_field_ai_item_candidate item;
         if(item_case) {
@@ -1592,7 +1756,8 @@ static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
             game.units.items[1].hp=game.units.items[1].hp_max=300;
             ((uint8_t*)&game.units.items[1])[0x31]=0xff;
             game.units.count=3;set_unit(&game.units.items[2],0,7,7);
-            game.units.items[2].hp=0;((uint8_t*)&game.units.items[2])[0x31]=0;
+            game.units.items[2].hp=0;((uint8_t*)&game.units.items[2])[0x31]=2;
+            ((uint8_t*)&game.units.items[2])[0x32]=99;
             uint8_t *raw=(uint8_t*)&game.units.items[0];memset(raw+10,0x80,16);raw[10]=0;raw[11]=11;
             CHECK(fd2_field_ai_choose_item_candidate(&game.map,&game.terrain,&game.units,0,0,&item)==0);
         } else {
@@ -1601,12 +1766,16 @@ static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
         }
         fd2_field_game before=game;
         CHECK((item_case?fd2_field_game_commit_ai_item(&game,0,0,&item):fd2_field_game_commit_ai_magic(&game,0,0,&magic))==-1);
-        CHECK(r.cursor==0 && memcmp(&before,&game,sizeof(game))==0);
+        CHECK(r.cursor==0 && !memcmp(&before.units,&game.units,sizeof(game.units)) &&
+              game.experience_value==before.experience_value);
+        CHECK(game.failure==(item_case?FD2_FIELD_FAILURE_NONE:FD2_FIELD_FAILURE_ACTION));
     }
     return 0;
 }
 int main(void) {
-    if (test_ai_effect_unknown_loot_is_before_first_rng() != 0 ||
+    if (test_ai_focus_before_effect_at_map_edge() != 0 ||
+        test_ai_line_item_and_no_action_focus() != 0 ||
+        test_ai_effect_unknown_loot_is_before_first_rng() != 0 ||
         test_commit() != 0 ||
         test_ai_cell_event_pending_then_tail() != 0 ||
         test_ai_pending_last_match_and_no_path() != 0 ||
@@ -1631,6 +1800,8 @@ int main(void) {
         test_behavior5_cell_action_commit() != 0 ||
         test_behavior2_recover_after_queries() != 0 ||
         test_behavior11_magic_then_physical() != 0 ||
+        test_behavior11_loot_story_then_physical() != 0 ||
+        test_behavior11_terminal_story_still_finishes_actor() != 0 ||
         test_behavior11_magic_without_physical_candidate() != 0 ||
         test_behavior11_committed_magic_then_physical_failure_stops() != 0 ||
         test_behavior7_hide_on_arrival() != 0 ||

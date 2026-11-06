@@ -232,14 +232,17 @@ static int init_game(fd2_field_game *game) {
     CHECK(image_init(&game->info_assets.two_digit_overflow, 12, 8, 81) == 0);
     game->info_assets.ready = 1;
     static const uint8_t glyph[32] = {0x80};
-    static const uint8_t text[] = {0,0,0xff,0xff,0,0,0xff,0xff};
+    static const uint8_t text[] = {0,0,0xff,0xff,0,0,0xff,0xff,
+                                 0,0,0xff,0xff,0,0,0xff,0xff};
     game->font = (fd2_font){glyph, sizeof(glyph), 1};
-    game->ui_text.offsets = calloc(599, sizeof(*game->ui_text.offsets));
+    game->ui_text.offsets = calloc(601, sizeof(*game->ui_text.offsets));
     CHECK(game->ui_text.offsets != NULL);
     game->ui_text.offsets[598] = 4;
+    game->ui_text.offsets[599] = 8;
+    game->ui_text.offsets[600] = 12;
     game->ui_text.data = text;
     game->ui_text.size = sizeof(text);
-    game->ui_text.fragment_count = 599;
+    game->ui_text.fragment_count = 601;
     current_game = game;
     return 0;
 }
@@ -262,6 +265,7 @@ static int test_modal_keys_and_owner(void) {
         if (i == 0) close_frame = 24; /* 等到idle动画发生变化。 */
         fd2_field_game game;
         CHECK(init_game(&game) == 0);
+        if (i == sizeof(keys)/sizeof(keys[0])-1) game.stage = 1;
         fd2_field_game before = game;
         fd2_vga vga = {0};
         fd2_input_init(&vga.input);
@@ -321,7 +325,7 @@ static int test_modal_preconditions(void) {
         reset_controls();
         fd2_field_game game;
         CHECK(init_game(&game) == 0);
-        if (mode == 0) game.stage = 1;
+        if (mode == 0) game.stage = 2;
         if (mode == 1) game.active_side = 0;
         if (mode == 2) game.selected_unit = 0;
         if (mode == 3) game.interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;

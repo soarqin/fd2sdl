@@ -89,7 +89,9 @@ def run_case(args, name, mode, seed, expected):
     log = work / "game.log"
     env = os.environ.copy()
     env.update(SDL_VIDEODRIVER="windows", SDL_AUDIODRIVER="dummy",
-               FD2SDL_SAVE_PATH=str(work / "FD2.SAV"), FD2SDL_FIELD_RNG_SEED=str(seed))
+               FD2SDL_SAVE_PATH=str(work / "FD2.SAV"), FD2SDL_FIELD_RNG_SEED=str(seed),
+               SDL_WINDOW_ACTIVATE_WHEN_SHOWN="0", SDL_WINDOW_ACTIVATE_WHEN_RAISED="0",
+               SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS="0", SDL_WINDOWS_RAW_KEYBOARD="0")
     captures = []
 
     def driver(command, *extra):
@@ -109,7 +111,6 @@ def run_case(args, name, mode, seed, expected):
                                    stderr=subprocess.STDOUT)
         try:
             wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")
-            driver("focus")
             capture("start")
             focused_mode = focus_initial_actor(driver, process, log, mode)
             driver(focused_mode)

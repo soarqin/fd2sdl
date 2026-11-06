@@ -29,6 +29,7 @@ typedef struct {
     fd2_image detail_border[18]; /* frame 1..17：通用 UI 边框小块 */
     fd2_image detail_top;    /* frame 20: 223×86 */
     fd2_image detail_bottom; /* frame 21: 310×99 */
+    fd2_image unit_summary;  /* frame 22: 149×42，移动选择入口的临时概要板 */
     fd2_image affiliation[2];/* frame 53/54 */
     fd2_image status_icons[3]; /* frame 55..57 */
     fd2_image bars[8];       /* 首cap23/26保索引0/1；其后24/25/27/28/29/30，均1×5 */
@@ -68,8 +69,20 @@ void fd2_field_info_draw(fd2_vga *vga,
                          int attack_modifier,
                          int defense_modifier);
 
+/* field_unit_summary_draw @0x18c6d（原登记sub_18C6D）：姓名、LV、signed HP/MP与条形。
+ * actor_relative_x>=7画(9,9)，否则画(160,9)。完整预检后绘制，返回0；
+ * 资源／普通姓名不受支持时返回-1，整个VGA不变，unit与所有owner均只读。
+ * 仅纯绘制；18890→18b84首个未消费键前的出现／消失由play owner管理，
+ * 不在UNIT_SELECTED常驻，也不处理输入／RNG／present。 */
+int fd2_field_unit_summary_draw(fd2_vga *vga,
+                                 const fd2_field_info_assets *assets,
+                                 const fd2_font *font,
+                                 const fd2_text_entry *text,
+                                 const fd2_field_unit *unit,
+                                 int actor_relative_x);
+
 /* 战况／胜败条件总览：sub_1B41D @0x1b41d、sub_1B5F1 @0x1b5f1。
- * 当前只支持 stage 0 的 FDTXT[0] 597/598 普通字形条件。成功返回 0；
+ * 当前支持stage0/1的FDTXT[0]597/598、599/600普通字形条件。成功返回0；
  * 资源、文本或输入不受支持时返回 -1，framebuffer 保持不变。
  * 只叠加4块页面，不绘制地图、不提交玩法，也不播放开合或处理输入。 */
 int fd2_field_overview_draw(fd2_vga *vga,

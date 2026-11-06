@@ -11,6 +11,7 @@
  * 法术列表依据field_unit_magic_list_draw @0x1ceed（原登记sub_1CEED）及其调用者
  * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）；
  * 本模块只绘制，不接该单键UI步骤／提交。
+ * 临时单位概要板依据field_unit_summary_draw @0x18c6d（原登记sub_18C6D）。
  */
 
 #include "field_info.h"
@@ -110,6 +111,7 @@ void fd2_field_info_assets_close(fd2_field_info_assets *assets) {
         fd2_image_free(&assets->detail_border[i]);
     fd2_image_free(&assets->detail_top);
     fd2_image_free(&assets->detail_bottom);
+    fd2_image_free(&assets->unit_summary);
     for (size_t i = 0; i < 2; i++) {
         fd2_image_free(&assets->affiliation[i]);
     }
@@ -169,6 +171,8 @@ int fd2_field_info_assets_open_mem(fd2_field_info_assets *assets,
         decode_lmi_frame(&assets->detail_bottom, data, size, frame_count, 21) != 0 ||
         assets->detail_top.width != 223 || assets->detail_top.height != 86 ||
         assets->detail_bottom.width != 310 || assets->detail_bottom.height != 99 ||
+        decode_lmi_frame(&assets->unit_summary, data, size, frame_count, 22) != 0 ||
+        assets->unit_summary.width != 149 || assets->unit_summary.height != 42 ||
         decode_raw_frame(&assets->affiliation[0], data, size, frame_count, 53) != 0 ||
         decode_raw_frame(&assets->affiliation[1], data, size, frame_count, 54) != 0 ||
         decode_raw_frame(&assets->status_icons[0], data, size, frame_count, 55) != 0 ||
@@ -404,7 +408,7 @@ int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_field_overview *data) {
     if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
         font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
-        !data || data->stage != 0 || !data->units ||
+        !data || data->stage > 1u || !data->units ||
         data->units->count > FD2_FIELD_MAX_UNITS)
         return -1;
     for (size_t i = 0; i < 4; i++) {
@@ -419,13 +423,14 @@ int fd2_field_overview_draw(fd2_vga *vga,
                 return -1;
         }
     }
-    /* stage 0 为01，三阵营最多各64人，无两位溢出；回合可超过999。 */
+    /* sub_1B41D @0x1b41d（原登记同名）：stage+1及597/598+2*stage。
+     * 三阵营最多各64人，无两位溢出；回合可超过999。stage16特例未开放。 */
     if (!image_has_size(&assets->digit_overflow[1], 18, 8))
         return -1;
     const uint8_t *conditions[2];
     size_t glyph_counts[2];
     for (size_t i = 0; i < 2; i++) {
-        if (overview_fragment(text, font, 597u + i,
+        if (overview_fragment(text, font, 597u + data->stage * 2u + i,
                                &conditions[i], &glyph_counts[i]) != 0)
             return -1;
     }
@@ -443,7 +448,7 @@ int fd2_field_overview_draw(fd2_vga *vga,
     fd2_map_sprite_blit(vga, &assets->overview[1], 75, 37, -1);
     fd2_map_sprite_blit(vga, &assets->overview[2], 75, 155, -1);
     fd2_map_sprite_blit(vga, &assets->overview[3], 129, 172, -1);
-    draw_digits(vga, assets, 143, 24, 1, 2, 1);
+    draw_digits(vga, assets, 143, 24, (unsigned)data->stage + 1u, 2, 1);
     unsigned turn = data->turn_number <= INT32_MAX
         ? (unsigned)data->turn_number : 0u;
     draw_digits(vga, assets, 188, 24, turn, 3, 1);
@@ -498,6 +503,51 @@ static void draw_bar(fd2_vga *vga, const fd2_field_info_assets *assets,
 
 static int signed_detail_word(uint16_t value) {
     return value < 0x8000u ? (int)value : (int)value - 0x10000;
+}
+
+int fd2_field_unit_summary_draw(fd2_vga *vga,
+                                 const fd2_field_info_assets *assets,
+                                 const fd2_font *font,
+                                 const fd2_text_entry *text,
+                                 const fd2_field_unit *unit,
+                                 int actor_relative_x) {
+    if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
+        !font->glyph_count || font->glyph_count > font->size / 32u ||
+        !text || !unit || !image_has_size(&assets->unit_summary, 149, 42))
+        return -1;
+    for (size_t bank = 0; bank < 2; bank++) {
+        for (size_t digit = 0; digit < 10; digit++) {
+            if (!image_has_size(&assets->digits[bank][digit],
+                                digit == 1 ? 5 : 6, 8))
+                return -1;
+        }
+        if (!image_has_size(&assets->digit_overflow[bank], 18, 8)) return -1;
+    }
+    if (!image_has_size(&assets->two_digit_overflow, 12, 8)) return -1;
+    for (size_t i = 0; i < 8; i++)
+        if (!image_has_size(&assets->bars[i], 1, 5)) return -1;
+    const uint8_t *name;
+    size_t glyphs;
+    /* 当前已证姓名均为普通字形；最多7字，不能覆盖右侧LV字段。 */
+    if (list_name(text, font, (size_t)unit->text_id + 1u, 7u, &name, &glyphs) != 0)
+        return -1;
+
+    int x = actor_relative_x >= 7 ? 9 : 160;
+    int hp = signed_detail_word(unit->hp), hp_max = signed_detail_word(unit->hp_max);
+    int mp = signed_detail_word(unit->mp), mp_max = signed_detail_word(unit->mp_max);
+    /* field_unit_summary_draw @0x18c6d先板、条、LV、当前值、姓名；0背景不预清。 */
+    fd2_map_sprite_blit(vga, &assets->unit_summary, x, 9, -1);
+    draw_bar(vga, assets, 0, x + 21, 31, hp, hp_max);
+    draw_bar(vga, assets, 1, x + 21, 40, mp, mp_max);
+    draw_digits(vga, assets, x + 132, 13, unit->level, 2, 0);
+    draw_digits(vga, assets, x + 126, 30, hp, 3,
+                unit->hp == unit->hp_max ? 0u : 1u);
+    draw_digits(vga, assets, x + 126, 39, mp, 3,
+                unit->mp == unit->mp_max ? 0u : 1u);
+    for (size_t i = 0; i < glyphs; i++)
+        fd2_font_draw_glyph(vga, font, fd2_text_token_at(name, i),
+                            x + 5 + (int)i * 16, 13, 205, 76, -1);
+    return 0;
 }
 
 static int item_detail(const uint8_t *item, uint8_t flags,

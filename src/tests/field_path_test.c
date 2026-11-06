@@ -222,12 +222,79 @@ static int test_original_occupancy_policy(void) {
     return 0;
 }
 
+static int test_hostile_witness_crosses_occupied_cells(void) {
+    /* 4e680 mode2在记录hostile witness后CLC，继续向下一格递归。
+     * 两名敌人依次挡住单格通道；04只阻止其行动，不影响被探路命中。 */
+    uint32_t cells[5] = {0};
+    fd2_field_map map = {.width = 5, .height = 1, .cells = cells};
+    fd2_terrain_attr attrs[1] = {{.movement_cost_class = 0}};
+    fd2_terrain_tileset terrain = {.attrs = attrs, .attr_count = 1};
+    fd2_field_units units = {0};
+    units.count = 3;
+    units.items[0].side = 0;
+    units.items[1].side = 1; units.items[1].x = 2; units.items[1].flags = 4;
+    units.items[2].side = 2; units.items[2].x = 4;
+    fd2_field_units before = units;
+    uint8_t profile[1] = {1}, directions[5] = {0};
+    size_t length = 99;
+    int wx = -1, wy = -1;
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 4,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0, NULL, 0,
+        &length, &wx, &wy) == 1);
+    CHECK(length == 0 && wx == 4 && wy == 0);
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 3,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0, NULL, 0,
+        &length, &wx, &wy) == 1);
+    CHECK(wx == 2 && wy == 0); /* 第二敌人超预算，不可覆盖合法witness。 */
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 1,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0, NULL, 0,
+        &length, &wx, &wy) == 0);
+    CHECK(wx == -1 && wy == -1);
+    for (int mode = FD2_FIELD_MOVE_PATH_NORMAL;
+         mode <= FD2_FIELD_MOVE_PATH_EQUAL_ROUTE; mode++) {
+        CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 4,
+            (fd2_field_move_path_mode)mode, 3, 0, directions, sizeof(directions),
+            &length, NULL, NULL) == 0); /* 普通路径仍不能穿敌格或邻格ZOC。 */
+    }
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 4,
+        (fd2_field_move_path_mode)(FD2_FIELD_MOVE_PATH_EQUAL_ROUTE |
+            FD2_FIELD_MOVE_PATH_CLEAR_UNIT_FLAGS), 4, 0,
+        directions, sizeof(directions), &length, NULL, NULL) == 1);
+    CHECK(length == 4 && directions[0] == 3 && directions[1] == 3 &&
+          directions[2] == 3 && directions[3] == 3);
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 3,
+        (fd2_field_move_path_mode)(FD2_FIELD_MOVE_PATH_EQUAL_ROUTE |
+            FD2_FIELD_MOVE_PATH_CLEAR_UNIT_FLAGS), 4, 0,
+        directions, sizeof(directions), &length, NULL, NULL) == 0);
+    for (int invalid = 4; invalid <= 6; invalid += 2) {
+        length = 99; wx = 77; wy = 88;
+        CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 4,
+            (fd2_field_move_path_mode)invalid, 4, 0,
+            directions, sizeof(directions), &length, &wx, &wy) == -1);
+        CHECK(length == 99 && wx == 77 && wy == 88);
+    }
+    CHECK(!memcmp(&units, &before, sizeof(units)));
+    for (size_t i = 0; i < 5; i++) CHECK(cells[i] == 0);
+
+    /* R/L/D/U先以0剩余访问A(1,1)，再访问B(0,1)。B到A的等剩余
+     * 第二条路线必须被已访门拒绝；不能把有效0误当未访问而又覆盖A。 */
+    map.width = map.height = 2;
+    units.items[1].x = 1; units.items[1].y = 1;
+    units.items[2].x = 0; units.items[2].y = 1;
+    CHECK(fd2_field_move_path_find(&map, &terrain, &units, 0, profile, 1, 2,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0, NULL, 0,
+        &length, &wx, &wy) == 1);
+    CHECK(wx == 0 && wy == 1);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_weighted_path() == 0);
     CHECK(test_stop_and_transit() == 0);
     CHECK(test_budget_and_tie_order() == 0);
     CHECK(test_movement_profiles() == 0);
     CHECK(test_ai_path_modes() == 0);
+    CHECK(test_hostile_witness_crosses_occupied_cells() == 0);
     CHECK(test_original_occupancy_policy() == 0);
     puts("field path tests: ok");
     return 0;

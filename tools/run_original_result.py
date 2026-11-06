@@ -212,8 +212,8 @@ def selection_state(frame, assets, actor, probe):
     return None
 
 
-def exercise_original(capture, case, assets, templates, titles, focus, checkpoints):
-    wait_title(capture, titles[3][0])
+def exercise_original(capture, case, assets, templates, titles, focus, checkpoints, *, title_timeout=45):
+    wait_title(capture, titles[3][0], timeout=title_timeout)
     capture.key("UP")
     capture.wait(titles[3][2])
     capture.key("ENTER")
@@ -272,9 +272,32 @@ def exercise_sdl(capture, outcome, titles, log, checkpoints):
             "result_log":required,"continuation_boundary":reason,"post_continue_inputs":[]}
 
 
+def exercise_sdl_defeat_continuation(capture, assets, templates, titles, checkpoints):
+    """B5正式App：实际CONTINUE→完整GAME OVER合成→标题；中途不补键。"""
+    wait_title(capture,titles[3][0],timeout=90)
+    capture.key("UP");capture.wait(titles[3][2]);capture.key("ENTER")
+    def branch(frame):
+        return result_branch(frame,"defeat",assets,templates)
+    _, first=wait_state(capture,"defeat-sdl-result",branch,checkpoints,
+        timeout=30,allow_low_color_resource=True)
+    def complete(frame):
+        found=branch(frame)
+        return found if found and found["frame"]==1 else None
+    if first["frame"]!=1:
+        _, final=wait_state(capture,"defeat-sdl-game-over",complete,checkpoints,
+            timeout=15,allow_low_color_resource=True)
+    else:final=first
+    capture.wait(titles[3][0],blank_transition=True,timeout=45)
+    save_checkpoint(capture,"defeat-sdl-returned-title",capture.last,
+        {"kind":"full_title_resource","after_game_over":True},checkpoints)
+    return {"first_frame_observed":first["frame"]==0,"final_composite":final,
+        "returned_title_before_cleanup":True,"post_continue_inputs":[]}
+
+
 def run(args, *, probe_original=False):
     root, output = args.root.resolve(), args.artifacts.resolve()
     original = (root/"original_game").resolve()
+    b5_defeat=bool(getattr(args,"b5_defeat",False))
     fixture = (args.save_fixture or original/"START.SAV").resolve()
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入 original_game/")
@@ -286,6 +309,9 @@ def run(args, *, probe_original=False):
               "capture":"Windows.Graphics.Capture HWND only","platform":platform.platform(),
               "fixture":{"path":str(fixture),"sha256":hashlib.sha256(source_bytes).hexdigest(),"mtime_ns":source_mtime},
               "original_before":before,"inputs":[],"checkpoints":[],"processes":[],"cases":[],"derived_fixtures":[]}
+    if b5_defeat:
+        report["scope"]="B5 controlled defeat: native/SDL GAME OVER full-frame composite then actual title"
+        report["excluded"]="natural battle loss, exact BIOS timing, music/audio fidelity, victory settlement"
     try:
         report["binaries"] = {name:{"path":str(path.resolve()),
                                     "sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
@@ -296,7 +322,7 @@ def run(args, *, probe_original=False):
         templates = result_templates(original,assets)
         actors = focus_cycle_assets(original,source,assets)["actors"]
         derived = []
-        for outcome in ("victory","defeat"):
+        for outcome in (("defeat",) if b5_defeat else ("victory","defeat")):
             encrypted,plain,manifest = derive_terminal(source,source_bytes,outcome)
             actor = actors[manifest["controller_actor"]]
             probe = selection_probe(original,plain,actor["raw_actor"],assets)
@@ -333,14 +359,21 @@ def run(args, *, probe_original=False):
                 record = {"kind":kind,"outcome":outcome,"status":"failed"}
                 report["cases"].append(record)
                 log = work/"game.log"
-                with running(command,cwd,env,log,driver,report["processes"],expected_exit=0 if kind=="original" else 2) as process:
+                with running(command,cwd,env,log,driver,report["processes"],expected_exit=0 if kind=="original" or b5_defeat else 2) as process:
                     record["pid"] = process.pid
-                    capture = Capture(driver,process,work,report["inputs"])
+                    capture = Capture(driver,process,work,report["inputs"],
+                        **({"startup_skip":False} if b5_defeat else {}))
                     if kind == "original":
-                        record["observation"] = exercise_original(capture,case,assets,templates,titles,focus,report["checkpoints"])
+                        record["observation"] = exercise_original(capture,case,assets,templates,titles,focus,report["checkpoints"],
+                            **({"title_timeout":90} if b5_defeat else {}))
                         record["checkpoint_observed_before_host_cleanup"] = True
+                        if b5_defeat:
+                            capture.wait(titles[3][0],blank_transition=True,timeout=45)
+                            save_checkpoint(capture,"defeat-original-returned-title",capture.last,
+                                {"kind":"full_title_resource","after_game_over":True},report["checkpoints"])
+                            record["observation"]["returned_title_before_cleanup"]=True
                     else:
-                        record["observation"] = exercise_sdl(capture,outcome,titles,log,report["checkpoints"])
+                        record["observation"] = exercise_sdl_defeat_continuation(capture,assets,templates,titles,report["checkpoints"]) if b5_defeat else exercise_sdl(capture,outcome,titles,log,report["checkpoints"])
                     require_source_unchanged(save,case["bytes"],expected_mtime)
                 require_source_unchanged(save,case["bytes"],expected_mtime)
                 record.update(status="passed",save_bytes_and_mtime_unchanged=True)
@@ -362,6 +395,7 @@ def main():
     for option in ("root","game","driver","dosbox","artifacts"):
         parser.add_argument("--"+option,type=Path,required=True)
     parser.add_argument("--save-fixture",type=Path,help="只读真实START来源，只复制并按manifest派生")
+    parser.add_argument("--b5-defeat",action="store_true",help="验证正式败北演出后返回标题，替代旧exit2能力门")
     args = parser.parse_args()
     if sys.platform != "win32":
         parser.error("原版结果门对照要求 Windows WGC；未启动 GUI")

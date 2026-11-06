@@ -1,10 +1,11 @@
 /* 炎龙骑士团 2 SDL3 重写 - 通用单位基础属性派生
  *
- * 逆向依据：field_unit_stage_template_append @corrected dual 0x35e6e
- *（code0 0x25e6e）按 unit ID 选择两类静态表：ID < 0x44 使用 24 字节基础
+ * 逆向依据：field_unit_stage_template_append @0x10c50（原登记同名；
+ * 历史旧地址0x35e6e）按 unit ID 选择两类静态表：ID < 0x44 使用24字节基础
  * record + 11 字节成长 record；ID >= 0x44 使用 10 字节敌军 record。
  * 函数写入 0x1f/0x20/0x21、0x37/0x39/0x3e、0x3b 和 HP/MP 后调用
- * field_unit_combat_stats_recompute @0x1b750（entry 0x40964）。
+ * field_unit_combat_stats_recompute @0x1b750（原登记同名，
+ * 入口旧别名field_unit_combat_stats_recompute_entry）。
  * 敌军表／经验系数复用field_enemy_base_record_get @0x4e84f（原登记sub_4E84F）。
  */
 
@@ -402,7 +403,21 @@ int fd2_field_unit_reward_preview(
     return 1;
 }
 
-/* sub_112A5 @0x112a5 与 sub_1145A @0x1145a（原登记同名）：
+/* field_persistent_unit_combat_stats_recompute @0x1145a（原sub_1145A）不读战场状态22..24，只按flags40累计。
+ * 复用同一装备公式；安全int32和的最终WORD等价原逐WORD回绕。 */
+int fd2_field_unit_persistent_stats_recompute(fd2_field_unit *unit) {
+    if (!unit) return -1;
+    fd2_field_unit updated = *unit;
+    uint8_t *record = (uint8_t *)&updated;
+    memset(record + 0x22, 0, 3);
+    if (fd2_field_unit_combat_stats_recompute(
+            &updated, initial_item_stats, NULL, NULL, NULL) != 0)
+        return -1;
+    memcpy((uint8_t *)unit + 0x48, record + 0x48, 8);
+    return 0;
+}
+
+/* sub_112A5 @0x112a5 与 field_persistent_unit_combat_stats_recompute @0x1145a（原sub_1145A）：
  * 初始持久玩家只写58字节，装备派生后一次提交；保留其余raw字节。 */
 int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id) {
     if (!unit || unit_id >= ARRAY_COUNT(k_player_initial)) return -1;
@@ -433,8 +448,7 @@ int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id) {
     memcpy(record + 55, base + 55, 5);
     record[60] = 0;
     memcpy(record + 62, base + 62, 10);
-    if (fd2_field_unit_combat_stats_recompute(
-            &updated, initial_item_stats, NULL, NULL, NULL) != 0)
+    if (fd2_field_unit_persistent_stats_recompute(&updated) != 0)
         return -1;
     *unit = updated;
     return 0;

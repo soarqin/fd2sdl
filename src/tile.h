@@ -92,6 +92,12 @@ void fd2_terrain_render_field_overlay(fd2_vga *vga,
                                       const fd2_field_map *map,
                                       int camera_x, int camera_y,
                                       int anim_phase);
+/* map_tile_blit_visible @0x12ac6（原FUN_0001020e）：只恢复指定格的
+ * 透明遮挡帧；lut非NULL时沿原node+7分支映色，不遍历地图或选择actor。 */
+void fd2_terrain_render_field_overlay_cell(fd2_vga *vga,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int cell_x, int cell_y, int camera_x, int camera_y,
+    int anim_phase, const uint8_t lut[256]);
 void fd2_terrain_render_field_preview(fd2_vga *vga,
                                       const fd2_terrain_tileset *terrain,
                                       const fd2_field_map *map,

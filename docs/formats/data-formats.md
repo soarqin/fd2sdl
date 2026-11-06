@@ -124,10 +124,10 @@ IFF/EA IFF 8510 容器，Miles AIL 的 XMIDI。
 
 - 外层 `.DAT` 共 20 项：15 项有效 `FORM/XMID`，5 项为 `20 0d 0a` 哨兵。
 - 块类型：`XDIRINFO`（目录信息）、`XMID`（XMIDI 序列）。
-- stage 曲目表从 `FD2.EXE` file `0x76e73` 提取，共两组连续 30 字节；不要把旧工具按 `0x10e00` 推导的 `code0_offset` 当作规范地址：
-  - primary：`1,0,1,1,19,19,19,19,3,19,19,19,3,4,19,19,19,19,3,19,4,19,19,3,19,3,4,19,3,19`
-  - alternate：`4,19,19,8,12,12,1,12,6,12,12,1,6,4,12,1,12,1,6,12,8,12,12,6,12,6,8,12,6,1`
-- `field_turn_cycle_run @0x1a30b` 按 stage 索引两表；stage 0 为 primary track 1、alternate track 4。切曲和淡变语义见[音频调用依据](../reverse-engineering/audio.md)，实现状态见[音频计划](../plans/audio.md)。
+- stage 曲目表位于 canonical 数据 VA `0x51e63`（primary）及 `0x51e81`（alternate），各 30 字节；通过现有 LE loader 按 VA 提取。已核原版文件中的 primary 起点为 file `0x76e77`，两表完整 60 字节 SHA256 为 `55279696aca0a053c4e94ea451d486beb8a1e11594008a0236a556b62c5afb50`：
+  - primary：`19,19,19,19,3,19,19,19,3,4,19,19,19,19,3,19,4,19,19,3,19,3,4,19,3,19,4,19,19,8`
+  - alternate：`12,12,1,12,6,12,12,1,6,4,12,1,12,1,6,12,8,12,12,6,12,6,8,12,6,1,8,1,1,8`
+- `field_turn_cycle_run @0x1a30b` 按 stage 索引两表；stage 0 和 stage 1 均为 primary track 19、alternate track 12。旧 file `0x76e73` 对应 VA `0x51e5f`，处于 VA `0x51e5d` 的 DWORD relocation source 中间；它的前四字节不是配置前缀。不得用旧 `file - 0x10e00` 生成所谓 `code0_offset`。切曲实现与原版音频验收仍分别登记，不能由静态取表升格为运行通过。
 
 ### 2.3 动画格式（ANI.DAT；FIGANI.DAT 另列）
 
@@ -475,7 +475,11 @@ camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
 反向。第一项控制音乐音量淡入／静音，第二项控制 SFX 播放门；第三、四项
 的可见名称仍待 DOSBox 捕获确认，允许独立副本自动输入与取证。其余字节保持不透明。
 SDL 活动快照写入当前 session 的关卡 metadata 有效前缀、完整 `0xa00` 持久 roster、`meta[0..17]`、当前单位前缀和
-cell-state 前 16 字节。metadata 的 shape、事件／action 表及模板来自本关资源和 session；stage 0 有效长度为 `0x83+31*26=937`。metadata 未用尾及其他未拥有区域来自目标容器并逐字保留；roster 的未知尾则随整个表在 session 中恢复和写回，不能混用目标容器的旧尾。不能把整份旧关卡 metadata 当成无关字节保留，否则原版会按首字节选错 FDSHAP。导入时要求 metadata shape 与当前已加载资源一致，并只解析已确认的模板数。
+完整 32 字节 cell-state。metadata 的 shape、事件／action 表及模板来自本关资源和 session；stage 0 有效长度为 `0x83+31*26=937`，stage 1 为 `0x83+40*26=1171`。SDL 将 metadata 未用尾及其他未拥有区域从目标容器逐字保留；roster 的未知尾则随整个表在 session 中恢复和写回，不能混用目标容器的旧尾。不能把整份旧关卡 metadata 当成无关字节保留，否则原版会按首字节选错 FDSHAP。导入时要求 metadata shape 与目标关卡资源一致，并只解析已确认的模板数。
+
+原版 `field_secondary_menu_execute @0x19df7` 每次写出整块 `2211` 字节 metadata。新阶段资源较短时，其后的运行期内存尾部不能假设等于旧存档；B5 原版运行中已观察到 stage 1 的 `1171..2210` 区间变化。这部分不作为新建关卡的精确双端字节判据，也不猜默认值。已知前缀、完整持久表和各已确认字段仍严格比较；既有档案的未知字节由导入／保存 owner 保留。
+
+活动 Load 支持已恢复完整入口的 stage 0／1。先准备目标资源、从原地图重建网格，再按完成位应用 `field_completed_chest_tiles_apply @0x12263`（原 `sub_12263`），最后整体交接；失败保留当前 session。已开箱存档与旧未开箱存档双向恢复，不能在当前地图上重复增量加地形 ID。隐藏空部署槽可能经原脚本产生越界 byte 坐标，格式层保留该记录；可见单位仍要求有效地图坐标。
 
 不得要求 `meta[9] == meta[1]` 或 roster 不超过当前活动数量。原版 `START.SAV` 的两数为 `12/4`，本地 `FD2.SAV` 为 `27/31`；后者本关 side 2 仅 20 人，也不能按当前玩家数重算 roster。`sub_112A5 @0x112a5` 在 `dword_53BF7 + 80*dword_53BFB` 追加持久角色并递增其 count；`sub_11506 @0x11506` 按 text ID 将已确认持续状态回写该独立表。活动恢复 `sub_10010 @0x10010` 分别恢复两个表及其数量。此前将 `meta[9]` 认作冗余副本的结论已被这些原版数据与调用链反证。
 原版 loader 读回
@@ -524,13 +528,13 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 
 标题 `title_action_dispatch @0x25ebb` 的 START0／LOAD1／CONTINUE2 分别是新游戏、四槽持久恢复、活动快照恢复。标题 LOAD 恢复 roster、stage、资源和配置后进入 `sub_26152 @0x26152` 城镇／出阵准备；酒店经 `sub_2670E @0x2670e` selector 0 进入 `field_manual_slot_dispatch @0x29300`，其 selector 1／2 分别调用手工 Save `@0x2968d`／Load `@0x2986f`。这些路径不替换战场 secondary `@0x19df7` 的活动 Save/Load。`@0x29620` 实为持久成员选择／详情循环，旧 `field_manual_slot_save` 误名已由命名输入更正。
 
-手工 Save 无条件复制持久表的完整 `0xa00` 字节，不是当前活动 actor 表或 `roster_count` 条前缀；配置映射由原始 `0x26064..0x26098` 和 `0x29757..0x29791` 确认。SDL 已有保留式 codec、独立 picker 和持久表保存 API；尚未实现正确的准备页可见入口。B1.4e 已完成归属研究，实际可见四槽与关卡重建归 B5。
+手工 Save 无条件复制持久表的完整 `0xa00` 字节，不是当前活动 actor 表或 `roster_count` 条前缀；配置映射由原始 `0x26064..0x26098` 和 `0x29757..0x29791` 确认。B5 候选通过标题 LOAD 与酒店四槽 Save/Load 连接独立的 `fd2_save_manual_state` 准备状态；写回整张持久表与 `meta[0..9]`，保留其他区域及 slot 3 checksum 规则。实际恢复不经过活动快照导入，整体原版验收仍在进行，状态见[战场计划](../plans/battlefield.md#7-b5第一关结算到下一关p1)。
 
 `field_manual_slot_picker @0x29bcb` 从共享 `53C57` 读取当前选择，调用者首次先置 0；第二参控制规范化等待读键或直接 BIOS 读键，**不是初始槽 index**。SDL 自有 `initial_slot` 参数不表示原版 ABI。`sub_29AB2 @0x29ab2` 按 `y=0x77+index*0x13` 绘制纵向四项：前缀 FDTXT549，空槽514，有效槽 `514+stage` 和地点 `550+stage`；保存／读取成功分别为 FDTXT660／478。
 
-城镇手工 Load `@0x2986f` 只恢复准备状态，重建 FDICON cache 并设置 `DS:0x3f56 = 0x238d + stage*0x1f`，不会立即恢复战场。出阵后才调用对应 stage entry；四槽不含活动单位、回合、metadata、事件完成表、镜头或焦点。这些状态由关卡资源与脚本重建，`sub_205DA @0x205da` 初始化回合 1 并清 cell-completed。SDL 的手工 session Load 继续明确拒绝，不能以活动快照导入冒充；活动恢复仍单独维护 stage runtime entry owner。完整 FDICON bank 的预解码可复用，但不能替代准备／出阵的状态合同。
+城镇手工 Load `@0x2986f` 只恢复准备状态，重建 FDICON cache 并把 `DS:0x3f56` 指向对应准备记录：canonical 数据 VA 为 `0x6238d + (stage-1)*0x1f`，object3 内偏移为 `0x238d + (stage-1)*0x1f`；运行时指针按本次 loader 映射，不把偏移当作绝对地址，不会立即恢复战场。出阵后才调用对应 stage entry；四槽不含活动单位、回合、metadata、事件完成表、镜头或焦点。这些状态由关卡资源与脚本重建，`sub_205DA @0x205da` 初始化回合 1 并清 cell-completed。B5 的 App 准备页已按这条路径接入 stage 1；旧 `fd2_field_game_load_manual_slot` 没有准备状态接收者，仍明确拒绝，不能以活动快照导入冒充。准备记录由 `sub_4E809 @0x4e809` 先减一再乘 31；已确认完整范围是 stage 1..26 的 806 字节，至下一独立学习表 VA `0x626b3`，SHA256 `e6332bf1c878f962553757101e3b45422a51ac1eead96ddbb80381a44af3c094`。原 getter 没有主动范围门；SDL 查询对 stage 0／27 及以上返回拒绝，不读取相邻数据或猜默认值。stage 0 活动恢复不绑定城镇准备记录。完整 FDICON bank 的预解码可复用，但不能替代准备／出阵的状态合同。
 
-正常 START 经 `new_game_opening_play @0x3231b` 的 stage 32→31→0，不经过准备页。stage 0 胜利回调 `sub_22EF6 @0x22ef6` 先同步持久表，再写 stage 1，main 随后进入准备页，writer 保存当前 stage。因此正式首个四槽阶段是 1；标题虽只以 stage `0xff` 判空，也不拒绝 count 0，却没有正式生成 stage 0 手工槽的链或真实样本，不能把格式可编码值当作 B1 战场入口依据。
+正常 START 经 `new_game_opening_play @0x3231b` 的 stage 32→31→0，不经过准备页。stage 0 胜利回调 `field_stage0_victory_execute @0x22ef6`（原 `sub_22EF6`）先完整播放本关 fragment 9，再按 `persistent_roster_sync_from_battle @0x11506`（原 `sub_11506`）同步持久表并写 stage 1；main 随后进入准备页，writer 保存当前 stage。因此正式首个四槽阶段是 1；标题虽只以 stage `0xff` 判空，也不拒绝 count 0，却没有正式生成 stage 0 手工槽的链或真实样本，不能把格式可编码值当作战场入口依据。
 
 原版城镇手工读取 `@0x2986f` 先以 `slot+0xa00 == 0xff` 判空，再按 `byte523E7[stage]` 检查是否允许在商店内读取；不兼容时显示 FDTXT479。没有证据证明这些原版函数会安全拒绝坏 checksum 或畸形 count。SDL 的严格 `fd2_save_file_get_manual_slot()` 另外要求 count 在 `0..32`；`fd2_save_file_get_manual_slot_raw()` 仍保留空槽和未知字节，供正确 owner 的后续实现使用。截断、超长、checksum、slot 越界、无效标记、容量或阶段支持失败均须在 owner 交接前拒绝，不能截断或覆盖坏档。
 
@@ -618,7 +622,7 @@ if hit:
 
 外围 `field_physical_attack_sequence @0x43a6a` 每轮必定先消费一次 RNG。武器 item `+0x09 == 3`，或该次 `rand()%100 < 3` 时执行两击，否则一击；每击都重新执行上述物理核心，目标 HP 归零即停止。`field_physical_exchange @0x3a6a2` 在进攻序列后检查目标仍存活，并调用 `field_counterattack_is_available @0x442f0`：反击者 record `+0x26` 必须为 0、双方曼哈顿距离必须为 1、反击者首件已装备武器最小射程必须为 1。满足条件时交换双方，再执行完整的一／二击序列；反击本身不消费反击者的行动标志。
 
-每一击在命中判定前先处理地形。`map_cell_info_at @0x3804c` 返回结构的 `+0x05` 是 FDSHAP terrain attr byte 1，即 `movement_cost_class`；攻击者以该值索引 `DS:0x1a12`，防御者索引 `DS:0x1a2a`，均为 32 位百分比，计算 `stat += stat*percent/100` 后才进入暴击／伤害。`field_unit_ignores_terrain_combat_modifier @0x44397` 对 unit ID 28 强制返回 0；其他单位 movement profile 19 或 race 4/5 时返回 1 并跳过地形修正。战场信息面板在 `0x3ffe5/0x40005` 读取相同两张表；DOSBox debugger 在 battlefield overlay 已加载、`CS=0x0170`／flat `DS=0x0178` 时捕获到重定位后的访问地址 `0x1ada12/0x1ada2a`，完整六项分别为攻击 `{+5,0,-5,-5,-5,0}`、防御 `{0,0,+10,+10,-5,0}`。FDSHAP 全部奇数属性条目实际使用 class 0..5；stage 0 的 shape 0 只使用 0..2。SDL 已接入完整表，class >5 在消费 RNG 前拒绝。
+每一击在命中判定前先处理地形。`map_cell_info_at @0x3804c` 返回结构的 `+0x05` 是 FDSHAP terrain attr byte 1，即 `movement_cost_class`；攻击者以该值索引 `DS:0x1a12`，防御者索引 `DS:0x1a2a`，均为 32 位百分比，计算 `stat += stat*percent/100` 后才进入暴击／伤害。`field_unit_ignores_terrain_combat_modifier @0x1f183`（旧 dual 登记 `0x44397`）对 unit ID 28 强制返回 0；其他单位 movement profile 19 或 race 4/5 时返回 1 并跳过地形修正。战场信息面板在 `0x3ffe5/0x40005` 读取相同两张表；DOSBox debugger 在 battlefield overlay 已加载、`CS=0x0170`／flat `DS=0x0178` 时捕获到重定位后的访问地址 `0x1ada12/0x1ada2a`，完整六项分别为攻击 `{+5,0,-5,-5,-5,0}`、防御 `{0,0,+10,+10,-5,0}`。FDSHAP 全部奇数属性条目实际使用 class 0..5；stage 0 的 shape 0 只使用 0..2。SDL 已接入完整表，class >5 在消费 RNG 前拒绝。
 
 `field_rng_next @0x4ebe3` 是战斗路径使用的 16 位伪随机步进：`state = rol16(state + 0x9014, 3)`，返回新状态的低 16 位。DOSBox debugger 在 `field_rng_next` 第一次执行前于 `CS:0x0170:0x1aabe3` 中断，并从 flat `DS:0x0178:0x1ae7b8` 捕获 loader 初值 `0x7a18`。当前权威 code0 `0x15d90..0x15daf` 还确认：每次进入战场控制器前，原版先读取计时器，以其低 8 位为次数调用 `field_rng_next`。活动快照 writer `0x9f7a..0xa136` 和 loader `0x10..0x44b` 均不读写 `DS:0x27b8`；因此原版读档不是精确 RNG checkpoint，不存在可恢复的快照字段。SDL 的调用方持有状态与提交边界见[session 设计](../systems/battle-session.md)；捕获初值不等于各次实际进入战场时的随机状态。
 
@@ -654,7 +658,7 @@ repeat group_count:
 
 `field_actor_footstep_play @code0 0x22230` 在每格 phase 1..5 完成显示与 BIOS tick 等待后被调用，phase 6 后不调用；多人脚本只传 actor 列表首项。它先调用 `field_unit_ignores_terrain_combat_modifier @code0 0xf183`：该 helper 对 unit ID `0x1c` 返回 0，因此该 ID 仍走 profile 表；只有 movement profile `19` 或 race `4/5` 固定选择 FDOTHER[31] sample 10，并在全局 `DS:0x4132` 计数可被 6 整除时播放。其余单位用 record `+0x20` 的 1-based movement profile 索引 object2 `DS:0x2725` 的 29 字节类别表 `{1,1,2,1,0,0,1,1,1,1,2,1,0,0,3,1,1,1,3,1,0,0,1,1,1,1,1,1,1}`：类别 0/1 分别在计数可被 6/4 整除时播放 sample 9，其他类别在可被 9 整除时播放 sample 11；每次 helper 调用最后都将该 8 位计数加一。SDL 将计数保存在共享 `fd2_field_audio` 中，跨 stage 与后续 field event 持续，并通过 primary PCM handle 重启上一声。
 
-`DAT_000027d8` 指针表位于 object3；LE fixup 的 `target_offset` 直接映射为 object3 内偏移，再加 object3 relbase。按此映射可完整解码 script `0..10` 与开场脚本 `0x5a..0x69`；其中 script `3/4/6/7/8` 已用于 stage 0 回合事件，`0/1/2/5/0x5a..0x69` 与 `new_game_opening_play @code0 0x2231b` 的直接调用顺序一致。
+`DAT_000027d8` 指针表位于 object3；LE fixup 的 `target_offset` 直接映射为 object3 内偏移，再加 object3 relbase。按此映射可完整解码 script `0..13` 与开场脚本 `0x5a..0x69`；其中 `3/4/6/7/8` 用于 stage 0 回合事件，`0/1/2/5/0x5a..0x69` 与新游戏开场调用顺序一致，`9..12` 用于 stage 1 开场，`13` 用于该关 turn 3 事件。普通移动仍写 hidden 槽的方向和 byte 坐标，不能因渲染不显示而跳过脚本；未部署槽从全零加 hidden flag 开始，原 byte 运算可产生回绕坐标。
 
 `DS:0x1d71` 是关卡过场分发表，当前按 30 项处理；相邻 `DS:0x1de9` 是进入战场前的另一张分发表，不应混入 stage dispatch。`tools/analyze_fd2_stage_code.py` 默认使用 `tools/fd2_le_code0.bin`；object1 fixup target 直接进入 object1 code0；应采用 `dump_fd2_fixup_table.py` 输出的 `code0` 或 `dual` 地址。
 

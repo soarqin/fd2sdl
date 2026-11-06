@@ -134,10 +134,22 @@ class IdaCrosscheckArtifactTest(unittest.TestCase):
             actual = {int(row["start_ea"], 16): row["name"] for row in csv.DictReader(source, delimiter="\t")}
         for entry in reg["entries"]:
             self.assertEqual(entry["ida_name"], actual[entry["va"]])
-            for correction in entry.get("corrections", []):
-                name = correction["now"]
-                if correction["target"] == "semantic_name" and name.isascii() and name.isidentifier():
-                    self.assertEqual(name, actual[entry["va"]], msg=hex(entry["va"]))
+            decisions = [correction["now"] for correction in entry.get("corrections", [])
+                         if correction["target"] == "semantic_name" and
+                         correction["now"].isascii() and correction["now"].isidentifier()]
+            # 与真实apply_registry_names一致：后续完整证据可取代早期中性名，
+            # 历史撤回记录仍保留，不能要求两个不同名字同时成为当前IDA名。
+            if decisions:
+                self.assertEqual(decisions[-1], actual[entry["va"]], msg=hex(entry["va"]))
+
+    def test_roster_detail_historical_retraction_is_retained_but_not_current(self):
+        reg = json.loads((CANON / "fd2-ida-function-registry.json").read_text(encoding="utf-8"))
+        entry = next(row for row in reg["entries"] if row["va"] == 0x29620)
+        decisions = [row for row in entry["corrections"] if row["target"] == "semantic_name"]
+        self.assertEqual(decisions[0]["was"], "field_manual_slot_save")
+        self.assertEqual(decisions[0]["now"], "sub_29620")
+        self.assertEqual(decisions[-1]["now"], "field_roster_detail_select")
+        self.assertEqual(entry["ida_name"], decisions[-1]["now"])
 
     def test_hexrays_failures_are_documented(self):
         rep = json.loads(

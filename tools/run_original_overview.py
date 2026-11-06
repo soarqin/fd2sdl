@@ -110,8 +110,8 @@ def overview_templates(original, source, palette):
             canvas.paste(image, (x + index * 6, y), image.point(lambda pixel: 255 if pixel else 0, mode="L"))
 
     stage, turn = source[META + 2], source[META]
-    if stage != 0:
-        raise ValueError("overview comparison currently supports stage 0 only")
+    if stage not in (0, 1):
+        raise ValueError("overview comparison currently supports stages 0 and 1 only")
     resource = int.from_bytes(source[META + 10:META + 14], "little", signed=True)
     counts = overview_counts(source)
     number(stage + 1, 143, 24, 42, 2)
@@ -121,8 +121,8 @@ def overview_templates(original, source, palette):
         number(counts[side], x, 159, 42, 2)
     text = archive_entry((original / "FDTXT.DAT").read_bytes(), 0)
     font = archive_entry((original / "FDOTHER.DAT").read_bytes(), 4)
-    conditions = [draw_condition(canvas, text, font, 597, 80, 61),
-                  draw_condition(canvas, text, font, 598, 80, 116)]
+    conditions = [draw_condition(canvas, text, font, 597 + 2 * stage, 80, 61),
+                  draw_condition(canvas, text, font, 598 + 2 * stage, 80, 116)]
     return {"canvas": canvas, "conditions": conditions,
             "fields": {"stage": stage + 1, "turn": turn, "resource": max(0, resource),
                        "side_counts_left_to_right": [counts[0], counts[2], counts[1]]}}

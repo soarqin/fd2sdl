@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "field_game.h"
 #include "field_play.h"
 #include "field_rng.h"
 #include "scene.h"
+#include "test_temp.h"
 
 /* 仅测试TU在wrapper中复用正式input消费，不把注入脉冲变成手工action队列。 */
 #ifdef fd2_input_take_action
@@ -18,6 +20,15 @@ int fd2_input_take_action(fd2_input *, fd2_input_context, fd2_input_action *);
 #undef fd2_field_game_confirm_cursor
 int fd2_field_game_confirm_cursor(fd2_field_game *);
 #endif
+
+#undef fd2_field_game_animate_system_menu
+int fd2_field_game_animate_system_menu(fd2_field_game *, fd2_vga *, int, uint32_t);
+#undef fd2_field_game_execute_storage_action
+int fd2_field_game_execute_storage_action(fd2_field_game *, fd2_field_system_action,
+                                         const char *, size_t *);
+#undef fd2_field_unit_summary_draw
+int fd2_field_unit_summary_draw(fd2_vga *, const fd2_field_info_assets *,
+    const fd2_font *, const fd2_text_entry *, const fd2_field_unit *, int);
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -66,6 +77,13 @@ static int detail_close_animation_calls, detail_close_calls;
 static int item_case, item_frames, item_confirm_calls, item_context_bad;
 static int item_menu_checked, item_invalid_checked, item_finished_checked;
 static uint16_t item_initial_rng;
+static int remainder_case, remainder_scene, remainder_automatic, remainder_checked;
+static fd2_field_system_action storage_quit_action;
+static int storage_quit_error, storage_calls, storage_closing_frames;
+static int summary_case, summary_present, summary_draws, summary_confirms;
+static int summary_dispatches, summary_initial_consumed, summary_checked;
+static int summary_bad_owner;
+static uint16_t summary_rng;
 
 static int is_leave_case(void) {
     return terminal_case == 3 || terminal_case == 7 || terminal_case == 8;
@@ -76,6 +94,54 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     (void)vga;
     (void)fdother;
     memset(game, 0, sizeof(*game));
+    if (summary_case) {
+        fd2_input_init(&vga->input);
+        game->ready = 1; game->stage = stage; game->active_side = 2;
+        game->selected_unit = game->command_selected = game->detail_unit = -1;
+        game->map.width = game->map.height = 8;
+        game->units.count = 2;
+        game->units.items[0].x = game->cursor_cell_x = 1;
+        game->units.items[0].y = game->cursor_cell_y = 2;
+        game->units.items[0].side = 2; game->units.items[0].hp = 42;
+        game->units.items[1].x = game->units.items[1].y = 6;
+        game->units.items[1].side = 0; game->units.items[1].hp = 28;
+        game->pending_cell_event = (fd2_field_pending_cell_event){1,9,4};
+        active_game = game;
+        memcpy(unchanged_units, game->units.items, sizeof(unchanged_units));
+        return 0;
+    }
+    if (storage_quit_action) {
+        fd2_input_init(&vga->input);
+        game->ready = 1; game->stage = stage; game->active_side = 2;
+        game->selected_unit = game->command_selected = game->detail_unit = -1;
+        game->map.width = game->map.height = 24;
+        game->sprites.frame_count = 140u * 12u; /* synthetic resource capacity */
+        game->units.count = 2;
+        game->units.items[0].side = 2; game->units.items[0].hp = 42;
+        game->units.items[1].side = 0; game->units.items[1].hp = 28;
+        game->resource_value = 12345; game->turn_number = 7;
+        fd2_field_system_menu_init(&game->system_menu);
+        game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
+        game->system_menu.confirmation_action = storage_quit_action;
+        game->system_menu.confirmation_yes = 1;
+        game->system_menu.confirmation_return_page = FD2_FIELD_SYSTEM_PAGE_SECONDARY;
+        game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+        active_game = game;
+        return 0;
+    }
+    if (remainder_case) {
+        game->ready=1;game->stage=stage;game->active_side=0;game->turn_number=17;
+        game->selected_unit=game->command_selected=game->detail_unit=-1;
+        game->interaction=FD2_FIELD_INTERACTION_BROWSE;
+        game->units.count=2;
+        game->units.items[0].side=2;game->units.items[0].hp=1;
+        game->units.items[1].side=0;game->units.items[1].hp=1;
+        /* 在注册只读preflight之后，由剧情替身交回真实待续状态。 */
+        game->event_log_count=1;game->event_log[0].handled=1;
+        game->event_log[0].presentation_deferred=1;
+        active_game=game;
+        return 0;
+    }
     if (item_case) {
         fd2_input_init(&vga->input);
         game->ready = 1; game->stage = stage; game->active_side = 2;
@@ -272,6 +338,18 @@ int __wrap_fd2_field_game_process_automatic_action_visual(
     (void)game;
     (void)vga;
     (void)frame_delay_ms;
+    if (remainder_case) {
+        remainder_automatic++;
+        remainder_checked = game->loot.source == 3u &&
+            game->loot.notice.kind == FD2_FIELD_LOOT_NONE &&
+            game->phase_next_action_ms == 0 &&
+            fd2_field_game_battle_result(game) == FD2_FIELD_BATTLE_DEFEAT &&
+            !fd2_field_unit_has_acted(&game->units.items[1]);
+        /* 3仅为本TU的实际AI11 remainder fixture，不新增生产枚举。 */
+        memset(&game->loot,0,sizeof(game->loot));
+        fd2_field_unit_set_acted(&game->units.items[1],1);
+        return 1;
+    }
     if (march_case == 6) {
         march_phase_clean_parameter = clean_background;
         march_phase_called++;
@@ -304,11 +382,64 @@ int __wrap_fd2_scene_play_field_event(fd2_vga *vga,
     (void)notice;
     (void)audio;
     (void)fast;
+    if (remainder_case) {
+        remainder_scene++;
+        game->units.items[0].hp=0;game->units.items[0].flags=1;
+        game->loot.source=3;game->loot.notice.kind=FD2_FIELD_LOOT_NONE;
+        game->phase_next_action_ms=0; /* core tick被busy门挡住，不会补timer。 */
+        return FD2_SCENE_RESULT_OK;
+    }
     failure_called++;
     return scene_result;
 }
 
 void __wrap_fd2_vga_present(fd2_vga *vga) {
+    if (summary_case) {
+        ++summary_present;
+        for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
+            fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
+        if (summary_present == 1) {
+            summary_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
+            fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
+            if (summary_case == 5)
+                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
+        } else if (summary_present == 3 && summary_case != 5) {
+            fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_LSHIFT, 1);
+            if (summary_case == 4) vga->input.quit_requested = 1;
+        } else if (summary_present == 4 && summary_case != 5) {
+            fd2_input_set_test_key_state(&vga->input,
+                summary_case == 2 ? SDL_SCANCODE_A : SDL_SCANCODE_RIGHT, 1);
+        }
+        if (summary_present == (summary_case == 5 ? 2 : 5)) {
+            summary_checked = active_game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED &&
+                active_game->selected_unit == 0 && summary_confirms == 1 &&
+                active_game->cursor_cell_x == (summary_case == 2 ? 1 : 2) &&
+                active_game->cursor_cell_y == 2 && summary_dispatches == 1 &&
+                !memcmp(unchanged_units, active_game->units.items, sizeof(unchanged_units)) &&
+                ((fd2_field_rng *)active_game->attack_rng_userdata)->state == summary_rng &&
+                active_game->pending_cell_event.valid &&
+                active_game->pending_cell_event.action == 9 &&
+                active_game->pending_cell_event.source_slot == 4;
+            vga->input.quit_requested = 1;
+        }
+        fd2_input_begin_test_frame(&vga->input, (uint64_t)summary_present * 100u);
+        if (summary_present > 8) vga->input.quit_requested = 1;
+        return;
+    }
+    if (storage_quit_action) {
+        if (active_game->system_menu.animation_phase) {
+            storage_closing_frames++;
+            if (storage_closing_frames == 1) {
+                vga->input.quit_requested = 1;
+                if (storage_quit_error) active_game->failure = FD2_FIELD_FAILURE_EVENT_DATA;
+            }
+        }
+        return;
+    }
+    if (remainder_case) {
+        if (++action_sent > 5) vga->input.quit_requested=1;
+        return;
+    }
     if (item_case) {
         item_frames++;
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
@@ -510,8 +641,37 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
     }
 }
 
+int __wrap_fd2_field_game_animate_system_menu(fd2_field_game *game,
+        fd2_vga *vga, int opening, uint32_t frame_delay_ms) {
+    if (!storage_quit_action)
+        return fd2_field_game_animate_system_menu(game, vga, opening, frame_delay_ms);
+    if (opening) return -1;
+    /* 只替该测试的present：第一个closing帧收到quit，动画仍完整返回。 */
+    for (uint8_t phase = 1; phase <= 4; phase++) {
+        game->system_menu.animation_phase = phase;
+        __wrap_fd2_vga_present(vga);
+    }
+    game->system_menu.animation_phase = 0;
+    return 0;
+}
+
+int __wrap_fd2_field_game_execute_storage_action(fd2_field_game *game,
+        fd2_field_system_action action, const char *path, size_t *fragment) {
+    if (storage_quit_action) storage_calls++;
+    return fd2_field_game_execute_storage_action(game, action, path, fragment);
+}
+
 int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
+    if (summary_case) {
+        int result = fd2_input_take_action(input, context, action);
+        if (result && context == FD2_INPUT_CONTEXT_FIELD_MOVEMENT) {
+            summary_dispatches++;
+            if (*action != (summary_case == 2 ? FD2_INPUT_ACTION_NONE : FD2_INPUT_ACTION_RIGHT))
+                summary_bad_owner = 1;
+        }
+        return result;
+    }
     if (controller_case || item_case) {
         if (item_case && active_game &&
             ((active_game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU && context != FD2_INPUT_CONTEXT_FIELD_COMMAND) ||
@@ -522,6 +682,10 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
         return fd2_input_take_action(input, context, action);
     }
     (void)input;
+    if (storage_quit_action && action_sent++ == 0) {
+        *action = FD2_INPUT_ACTION_CONFIRM;
+        return 1;
+    }
     if ((is_leave_case() || terminal_case == 6 || march_case) && action_sent++ == 0) {
         *action = FD2_INPUT_ACTION_CONFIRM;
         return 1;
@@ -575,6 +739,13 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
 }
 
 int __wrap_fd2_field_game_confirm_cursor(fd2_field_game *game) {
+    if (summary_case) {
+        summary_confirms++;
+        if (game->interaction != FD2_FIELD_INTERACTION_BROWSE) summary_bad_owner = 1;
+        game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
+        game->selected_unit = 0;
+        return 0;
+    }
     if (item_case) {
         item_confirm_calls++;
         return fd2_field_game_confirm_cursor(game);
@@ -595,6 +766,21 @@ int __wrap_fd2_field_game_execute_move(fd2_field_game *game, fd2_vga *vga,
     (void)frame_delay_ms;
     failure_called++;
     return -1;
+}
+
+int __wrap_fd2_field_unit_summary_draw(fd2_vga *vga,
+        const fd2_field_info_assets *assets, const fd2_font *font,
+        const fd2_text_entry *text, const fd2_field_unit *unit, int relative_x) {
+    if (!summary_case)
+        return fd2_field_unit_summary_draw(vga, assets, font, text, unit, relative_x);
+    ++summary_draws;
+    if (active_game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED ||
+        active_game->selected_unit != 0 || unit != &active_game->units.items[0] ||
+        assets != &active_game->info_assets || font != &active_game->font ||
+        text != &active_game->ui_text || relative_x != 1 || fd2_input_has_any_key(&vga->input))
+        summary_bad_owner = 1;
+    if (summary_draws == 1) summary_initial_consumed = vga->input.frame_consumed[SDL_SCANCODE_RETURN];
+    return summary_case == 3 ? -1 : 0; /* 实际renderer另由field_info资源回归覆盖。 */
 }
 
 
@@ -635,6 +821,58 @@ int __wrap_fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
     if (march_case == 5) return 1;
     game->active_side = 1;
     if (march_case == 6) game->info_panel_right = 0;
+    return 0;
+}
+
+static int storage_close_quit_test(fd2_vga *vga, fd2_archive *fdother) {
+    char path[FD2_TEST_PATH_MAX];
+    fd2_save_file source = {0}, after = {0};
+    CHECK(fd2_test_temp_path(path) == 0);
+    fd2_save_battle_snapshot snapshot = {0};
+    fd2_field_unit units[2] = {0};
+    units[0].side = 2; units[0].hp = 30;
+    units[1].side = 0; units[1].hp = 20;
+    memcpy(snapshot.unit_area, units, sizeof(units));
+    snapshot.meta[FD2_SAVE_BATTLE_META_TURN] = 9;
+    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 2;
+    CHECK(fd2_save_file_create_empty(&source) == 0);
+    CHECK(fd2_save_file_update_battle_snapshot(&source, &snapshot) == 0);
+    const fd2_field_system_action actions[] = {
+        FD2_FIELD_SYSTEM_ACTION_SAVE, FD2_FIELD_SYSTEM_ACTION_LOAD
+    };
+    for (size_t i = 0; i < sizeof(actions) / sizeof(actions[0]); i++) {
+        for (storage_quit_error = 0; storage_quit_error <= 1; storage_quit_error++) {
+            CHECK(fd2_save_file_write(&source, path) == 0);
+            struct stat before_stat, after_stat;
+            CHECK(stat(path, &before_stat) == 0);
+            fd2_field_play_context context;
+            fd2_field_play_context_init(&context, NULL);
+            context.experience_value = 77; context.message_number = 998;
+            fd2_field_play_context before = context;
+            storage_quit_action = actions[i];
+            storage_calls = storage_closing_frames = action_sent = 0;
+            fd2_field_play_result result = fd2_field_play_run_context(vga, fdother,
+                0, 0, NULL, NULL, path, 0, &context);
+            int stable = fd2_save_file_open(&after, path) == 0 &&
+                after.size == source.size && !memcmp(after.data, source.data, source.size) &&
+                stat(path, &after_stat) == 0 && before_stat.st_mtime == after_stat.st_mtime &&
+                before_stat.st_size == after_stat.st_size;
+            fd2_save_file_close(&after);
+            int okay = result == (storage_quit_error ? FD2_FIELD_PLAY_RETURN_ERROR :
+                    FD2_FIELD_PLAY_RETURN_HOST_QUIT) && storage_calls == 0 &&
+                storage_closing_frames == 4 && action_sent == 1 && stable &&
+                !memcmp(&context, &before, sizeof(context));
+            if (!okay) {
+                fprintf(stderr, "storage close quit: action=%d error=%d result=%d calls=%d stable=%d\n",
+                    (int)actions[i], storage_quit_error, (int)result, storage_calls, stable);
+                fd2_save_file_close(&source); remove(path); return 1;
+            }
+        }
+    }
+    storage_quit_action = FD2_FIELD_SYSTEM_ACTION_NONE;
+    storage_quit_error = 0;
+    fd2_save_file_close(&source);
+    CHECK(remove(path) == 0);
     return 0;
 }
 
@@ -817,6 +1055,27 @@ int main(void) {
         if (item_case == 4) CHECK(item_menu_checked && item_finished_checked && item_frames == 4 && item_confirm_calls == 1);
     }
     item_case = 0;
+    remainder_case=1;remainder_scene=remainder_automatic=remainder_checked=action_sent=0;
+    vga.input.quit_requested=0;
+    CHECK(fd2_field_play_run(&vga,&fdother,0,0,NULL,NULL,NULL,0)==FD2_FIELD_PLAY_RETURN_DEFEAT);
+    CHECK(remainder_scene==1 && remainder_automatic==1 && remainder_checked);
+    CHECK(action_sent==2); /* 先render待续态，再render清source后的终态；没有普通键。 */
+    remainder_case=0;
+    CHECK(storage_close_quit_test(&vga, &fdother) == 0);
+    /* 真实BROWSE确认→首键等待；present替身仅生成真实input逐帧脉冲。 */
+    for (summary_case = 1; summary_case <= 5; summary_case++) {
+        summary_present = summary_draws = summary_confirms = summary_dispatches = 0;
+        summary_initial_consumed = summary_checked = summary_bad_owner = 0;
+        vga.input.quit_requested = 0;
+        CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
+              (summary_case == 3 ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT));
+        CHECK(!summary_bad_owner && summary_confirms == 1);
+        if (summary_case == 3) CHECK(summary_draws == 1 && summary_present == 1 && summary_dispatches == 0);
+        else if (summary_case == 4) CHECK(summary_draws == 2 && summary_present == 3 && summary_dispatches == 0);
+        else CHECK(summary_checked && summary_draws == (summary_case == 5 ? 0 : 3));
+        if (summary_case != 5) CHECK(summary_initial_consumed);
+    }
+    summary_case = 0;
     puts("field_play_result_test: ok");
     return 0;
 }

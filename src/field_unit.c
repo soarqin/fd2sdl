@@ -5,15 +5,54 @@
  * field_visible_actor_find_by_text_id @0x12c60，以及 FDFIELD metadata
  * 26 字节模板与 placement 的顺序匹配关系。战场单actor复现
  * sub_127E0 @0x127e0（原登记同名），acted映色依据sub_4E1A6
- * @0x4e1a6（原登记同名）；本切片尚未补raw26的横向抖动。
+ * @0x4e1a6（原登记同名）；129ec恢复全表actor附近遮挡格。
+ * 本切片尚未补raw26的横向抖动。
  */
 
 #include "field_unit.h"
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "field_unit_base.h"
+#include "field_attack.h"
+
+/* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC），经
+ * map_tile_blit_visible @0x12ac6（原FUN_0001020e）恢复角色附近遮挡。
+ * 必须在全表actor绘完后调用；不是把每个actor与前景交错绘制。 */
+void fd2_field_units_render_terrain_overlays(fd2_vga *vga,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    const fd2_field_units *units, int camera_x, int camera_y, int anim_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]) {
+    if (!vga || !terrain || !map || !units || units->count > FD2_FIELD_MAX_UNITS)
+        return;
+    for (size_t i = 0; i < units->count; i++) {
+        const fd2_field_unit *unit = &units->items[i];
+        if (fd2_field_unit_is_hidden(unit) ||
+            fd2_field_attack_unit_ignores_terrain_modifier(unit)) continue;
+        int x = unit->x, y = unit->y;
+        int cells[4][2] = {{x, y}, {x, y - 1}};
+        size_t count = 2;
+        if (unit->frame_phase != 0) {
+            if (unit->direction == 0 || unit->direction == 2) {
+                cells[count][0] = x;
+                cells[count++][1] = y + (unit->direction == 0 ? 1 : -2);
+            } else {
+                int neighbor = x + (unit->direction == 1 ? -1 : 1);
+                cells[count][0] = neighbor; cells[count++][1] = y;
+                cells[count][0] = neighbor; cells[count++][1] = y - 1;
+            }
+        }
+        for (size_t j = 0; j < count; j++) {
+            int cx = cells[j][0], cy = cells[j][1];
+            const uint8_t *colors = range && lut &&
+                fd2_field_path_is_destination(range, cx, cy) ? lut : NULL;
+            fd2_terrain_render_field_overlay_cell(vga, terrain, map,
+                cx, cy, camera_x, camera_y, anim_phase, colors);
+        }
+    }
+}
 
 _Static_assert(offsetof(fd2_field_unit, x) == 0x00, "unit.x offset");
 _Static_assert(offsetof(fd2_field_unit, y) == 0x01, "unit.y offset");
@@ -148,8 +187,8 @@ int fd2_field_units_append_template(fd2_field_units *units,
     unit.x = (uint8_t)placement->x;
     unit.y = (uint8_t)placement->y;
 
-    /* field_unit_stage_template_append @corrected dual 0x35e6e
-     *（code0 0x25e6e）重排模板，并从静态基础表派生战斗字段。 */
+    /* field_unit_stage_template_append @0x10c50（原登记同名）重排模板，
+     * 并从静态基础表派生战斗字段。 */
     if (fd2_field_unit_stage_template_apply(
             &unit, &meta->unit_templates[template_index]) != 0)
         return -1;
@@ -182,6 +221,41 @@ int fd2_field_units_append_group(fd2_field_units *units,
         units->count = initial_count;
         return -1;
     }
+    return 0;
+}
+
+/* field_unit_stage_template_append @0x10c50（原登记同名）与53AFA：
+ * 非force时按占格40找最近空格；距离平价取后出现的row-major格。 */
+int fd2_field_units_append_group_placed(fd2_field_units *units,
+        const fd2_field_metadata *meta, const fd2_field_placements *placements,
+        const fd2_field_map *map, uint8_t group, int force) {
+    if (!units || !meta || !placements || !map || !map->cells ||
+        map->width < 1 || map->height < 1 || map->width > 256 || map->height > 256 ||
+        units->count > FD2_FIELD_MAX_UNITS) return -1;
+    fd2_field_units shadow = *units;
+    for (size_t t = 0; t < meta->unit_template_count; t++) {
+        if (meta->unit_templates[t].bytes[0x15] != group) continue;
+        size_t raw = shadow.count;
+        if (fd2_field_units_append_template(&shadow, meta, placements, t) != 0) return -1;
+        fd2_field_unit *unit = &shadow.items[raw];
+        if (!force) {
+            unsigned best = 255u; /* 原最近格搜索初界255；无候选拒绝未初始化坐标。 */
+            int bx = -1, by = -1;
+            for (int y = 0; y < map->height; y++)
+                for (int x = 0; x < map->width; x++) {
+                    int occupied = 0;
+                    for (size_t i = 0; i < raw; i++)
+                        if (!fd2_field_unit_is_hidden(&shadow.items[i]) &&
+                            shadow.items[i].x == x && shadow.items[i].y == y) occupied = 1;
+                    if (occupied) continue;
+                    unsigned d = (unsigned)(abs(x - unit->x) + abs(y - unit->y));
+                    if (d <= best) { best = d; bx = x; by = y; }
+                }
+            if (bx < 0) return -1;
+            unit->x = (uint8_t)bx; unit->y = (uint8_t)by;
+        } else if (unit->x >= map->width || unit->y >= map->height) return -1;
+    }
+    *units = shadow;
     return 0;
 }
 

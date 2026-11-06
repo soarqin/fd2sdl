@@ -176,7 +176,8 @@ def save_checkpoint(capture, name, frame, detail, report):
                    "time": time.monotonic(), **detail})
 
 
-def wait_state(capture, name, predicate, report, *, timeout=15, transition=None):
+def wait_state(capture, name, predicate, report, *, timeout=15, transition=None,
+               allow_low_color_resource=False):
     deadline = time.monotonic() + timeout
     notice_seen = False
     retries = 0
@@ -214,7 +215,13 @@ def wait_state(capture, name, predicate, report, *, timeout=15, transition=None)
             continue
         detail = predicate(frame)
         if detail:
-            require_content(frame)
+            # 四槽picker完整26660像素的合法原版页只有15色；标题的32色
+            # 启发式不能替代该整页资源证明。仅调用者已完整匹配非空资源时
+            # 显式启用；捕获/尺寸/权限错误及本循环deadline一律保持原行为。
+            if not allow_low_color_resource:
+                require_content(frame)
+            else:
+                detail["low_color_complete_resource"] = True
             detail["cancellation_notice_observed"] = notice_seen
             detail["wgc_transient_retries"] = retries
             save_checkpoint(capture, name, frame, detail, report)

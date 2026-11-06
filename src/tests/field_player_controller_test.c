@@ -205,12 +205,12 @@ static int test_wait_recovery_and_special_cell_gate(void) {
         if (which == 2) g->units.items[0].detail_status[0] = 1;
         CHECK(command_at(&f, which == 3 ? 2 : 1, 1) == 0);
         if (which == 4) g->units.items[0].detail_status[1] = 1;
-        if (which == 5) f.attr.flags = 0x20;
+        if (which == 5) { f.attr.flags = 0x20; g->metadata.cell_actions[0].mode = 9; }
         uint16_t before = g->units.items[0].hp;
         if (which == 5) {
             g->pending_cell_event = (fd2_field_pending_cell_event){1, 7, 3};
             CHECK(fd2_field_game_finish_unit_action(g) == -1);
-            CHECK(g->failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+            CHECK(g->failure == FD2_FIELD_FAILURE_ACTION);
             CHECK(g->failure_notice.action == UINT8_MAX);
             CHECK(!fd2_field_unit_has_acted(&g->units.items[0]));
             CHECK(g->units.items[0].hp == before && g->pending_cell_event.action == 7);

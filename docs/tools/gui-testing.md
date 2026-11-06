@@ -4,6 +4,26 @@
 
 输出目录检查必须先解析 `original_game` 的实际目标，再拒绝写入该目录及其子目录，最后才能创建产物目录。候选源树常通过 junction 或符号链接复用原版资源，只比较表面路径不能保护实际证据目录。
 
+## Windows HWND 窗口消息后台输入（已验证）
+
+Windows 驱动按本轮 PID／HWND 定向投递 `WM_KEYDOWN`／`WM_KEYUP`，不抢回前台、不点击标题栏激活，也不退回全局 `SendInput`。2026-11-06 已在其他应用持有前台时完成 DOSBox-X 与 SDL 的标题导航、END 确认框及取消返回浏览校准；两端均通过实际 WGC 资源门并正常退出。该结论限定窗口消息输入，不代表物理键盘、RawInput 或完整运行时键态等价。
+
+- 输入只绑定本轮拥有的 PID 与对应 HWND，核实进程存活及窗口归属；目标不唯一、已退出或投递失败时停键并保留诊断，不向当前前台应用发送游戏键。
+- 截图继续使用同一 HWND 的 WGC，客户区尺寸、实际帧、资源像素门及失败处理不变。WGC 可在遮挡下捕获窗口，不等于后台输入也已有效。
+- 后台验收仍须有实际业务输入、逐键资源 ACK、取消／确认及正常清理，不能只凭消息投递成功、纯模型或日志。此次校准包含每次投键／捕获前后检查及 10 ms 前台采样，未观察到游戏取得前台；不声称覆盖短于采样间隔的瞬态，也不读取其他应用的键盘收据。
+
+后台基础双端校准及自然首关所需的实际后台来源现已完成。B5受支持范围累计15/15，其中自然项为C25完整原版＋344旧导航图最终门离线复核＋C26短程双端＋C27独立SDL完整START的联合证据，不是单轮同源配对。修复校准不增加业务场景计数，旧前台成功／失败保留原来源，不重标为后台通过；大阶段统一审查及历史全面回归尚待执行。
+
+永久入口为 `tools/run_background_input_check.py`，必须用拥有整个子进程树的 `run-job 600000` 包装，且每次使用尚不存在的产物目录。内部哨兵由脚本管理，不单独运行 `--sentinel`。Windows PowerShell：
+
+```powershell
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
+```
+
+永久脚本最初由已运行的私有校准脚本等价迁入，AST 对照与 10 项纯回归已通过。后续新增哨兵 HWND 的实际 PID 所有权检查，覆盖登记、审计、遮挡移动／恢复和关闭；失配时只清理自身子进程，不操作失配窗口。当前版已不与旧校准脚本 AST 等同，新增保护仅有 13 项纯回归证据，没有新增 GUI 执行次数；实际 GUI 证据仍来自原候选。`HOST_W` 录音只验证原版后台热键被识别，不代表 A5 曲目或 A7 声音保真验收。
+
+默认完整 Windows 套件已将该项注册在 opening／focus 之后、input 之前，由 `Suite.command` 以 600 秒 Job 管理；B3／B4／B5-only 不调用，当前永久版的新增 GUI 验收留待大阶段全面复测。
+
 ## 阶段测试范围
 
 2026-11-05 起，以 B3 及后续同级编号为最小阶段单元。阶段内部只运行本阶段新增、修改和共享代码直接受影响的场景；B3 的验收集合是物品 Use／Give／Equip／Drop 及相应取消、目标、保存和提交边界，不把标题、完整开场、F1、March 或全部基础法术作为每个内部步骤的重复前置。历史全量实机流程保留到大阶段完成后的统一审查执行，修复和精简后再验证提交。
@@ -107,6 +127,65 @@ Drop 实测后的 raw16B 与 AP／DP／AC／EV 属于所列分支证据；Use �
 
 有限集合来自严格 LE 原表和已确认原码，独立于 SDL 内置表；完整文件必须匹配其中一条完整结果，不能只放宽若干字节。即时 F2 匹配到的结果索引与该端最终 SAV 绑定，禁止在两个检查点各选一个互不对应的合法结果。每端独立选择自己的结果，不继承原版的随机值给 SDL。随机可见区域逐端通过完整资源门；两端实际 RGB 只比较明确不受该随机分支影响的区域，随机字段及其校验和差异单列，不宣称全文件、整帧或随机流已经对齐。具体通过组数及失败／补跑仍以[阶段记录](../plans/stage-log.md)为准。
 
+### B5 结算、准备页与下一关
+
+`--b5-only` 已统一登记以下 15 项，只运行 B5 自身场景；省略阶段参数的完整套件也包含这些入口。受支持范围现已完成15个唯一场景的原版／SDL证据验收：14项保留各自冻结／继承来源，自然首关采用不同工具来源的独立执行联合验证。没有把调度注册、纯测或定向续跑当作自然整关通过，也不称最终程序单轮fresh15场。实际候选、失败及独立Job由[阶段记录](../plans/stage-log.md)登记；大阶段统一审查与历史全面回归尚未执行。
+
+| 场景名 | 工具与范围 |
+|---|---|
+| `prepare-controlled` | `run_original_transition.py`：受控结算、准备／酒店四槽、出阵及实际 stage 1 活动 Save |
+| `defeat` | `run_original_result.py --b5-defeat`：受控败北、GAME OVER 与返回标题；不使用历史胜败 `exit 2` 能力门 |
+| `chest-empty`、`chest-swap`、`chest-list-cancel`、`chest-no`、`chest-full-no`、`treasure-money` | `run_original_loot.py`：特殊格空槽／满槽替换／取消／NO／财宝 |
+| `loot-item`、`loot-money`、`loot-callback`、`loot-story` | `run_original_loot.py`：物理败亡后的物品、资源、callback 4 与剧情 8 |
+| `stage1-turn3`、`stage1-villager-defeat` | `run_original_stage1.py`：实际 stage 1 入口存档派生，分别验证回合事件／总览及村民败北 |
+| `natural-stage0` | `run_original_natural.py`：自然 START 的 117 个等待点、首关实战、结算剧情、酒店手工 Save 及下一关可操作交接／活动 Save |
+
+`--b5-scenarios` 必须与 `--b5-only` 合用，按指定顺序执行；未知、重复、空选择及 B3／B4／B5 的互斥组合在创建产物目录前拒绝。以下沿用现有构建目标和 Windows PowerShell 参数；后台窗口消息驱动须使用本次已校准版本，自然首关的实际结果另行登记：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2sdl fd2_field_play_input_driver fd2_field_natural_plan --parallel
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios prepare-controlled stage1-turn3 stage1-villager-defeat
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios stage1-turn3 --b5-save-fixture 'C:/fd2-evidence/stage1-entry-measured.SAV'
+python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios natural-stage0 --planner src/build-win/Debug/fd2_field_natural_plan.exe
+```
+
+`--planner` 可省略，默认先查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录下的同名文件；显式路径优先。自然场景所需规划器不存在或指向目录时，在创建产物及启动任何窗口前拒绝。规划器只读取每轮实际 UI Save 以选择下一动作；它不是原版结果 oracle，不能用预估 HP 代替实际资源门或存档。
+
+完整套件以及同时选择 `prepare-controlled` 在前的 B5 子集，自动使用本轮 `original-prepare-controlled/original/stage1-entry-measured.SAV`。只选择 stage 1 场景、或把它放在准备场景之前时，必须显式提供 `--b5-save-fixture`：文件须已存在，且位于本轮输出目录之外。该参数只读，不替换原版目录中的文件。stage 1 工具实际接收 `--save-fixture`，还会检查入口身份、几何、初始化已知字段及完整来源清单；不绑定某台机器的历史临时文件 SHA，也不接受任意存档冒充已量测的入口。
+
+独立准备页工具另支持 `--original-evidence <已通过的原版comparison.json>`，严格校验原收据、来源／截图 SHA、进程清理和业务合同后，只执行本次 SDL。报告必须保留 `inherited_original=1`、`executed_sdl=1` 和 `fresh_pair=false`，不能把继承的原版端记为本轮新运行；新失败不被旧通过覆盖。统一调度默认不传此参数，仍执行原版→SDL。
+
+自然工具沿用 `--max-turns` 默认 50；独立 worker 允许 1..100，统一调度不另覆盖。正常败北、同一语义状态出现 4 次或达到回合上限均失败并保留现场，不重开、不改 seed、不重抽 RNG。原版与 SDL 分别从真实流程运行，允许实际随机战斗结果不同；最终身份与交接字段有独立检查，不能把这类自然场景写成整份 SAV、随机流或全帧 RGB 相等。
+
+自然 C15 受控续跑已跨过旧危险阶段并保存真实 Save6，但在治疗后的 REST 初选简表门超时，SDL 未启动，原失败保留。修正后的取证规则仅限本轮主动作的 `wait_progress` 已确认完成后、被草药192／code5或 Magic13 治疗的目标：保留其 raw 与完整原80字节记录，使用原 FONT 唯一识别 `0..sourceMax`（上限999）的三位 HP 显示，再重建完整6,258像素简表、数值条及前景角色检查；姓名、等级、HP上限和MP保持固定。该显示观察不回写来源、plan 或 SAV，也不证明治疗量或 RNG；其他角色及无简表路径仍用原判据。
+
+C16 从实际 Save7 CONTINUE 的双端修复校准已通过：两端来源 HP 为9，随后各自观察到显示42，完整简表6,258像素、角色／光标510像素与板外范围432像素均通过；原版范围相位8、SDL相位1分别合法，不声明同相。两端随后完成胜利、酒店手工 Save 和 stage 1 活动 Save，逐端自身 roster／初始化与文件守卫通过；跨端只比较已声明固定几何和 NPC 字段，不要求随机阵亡或整份 SAV 相等。下一 phase 后的两份实际 Save8 主角均为 `(9,13)`，原版 HP `22/42`、SDL HP `22/54`；这是另一个时点的逐端存档事实，不能混作治疗即时写集。该项仍是受控续关修复证据，不替代第15项连续 START 自然通关或 RNG 重放；C15原失败及离线正反例保留。
+
+C17 完整 START 在第7回合因物理探针只接受空格而预检停止，未发选择键；不能把周围占格推为目标不可达、战斗败北或输入错误。C18 受控续跑已双端验证物理范围的窄 fallback：仅在第三角色格、无下邻头部及信息板遮挡时，使用原 sprite 上移6像素后留下的完整 `24×6` 地形条；144像素仍须命中独立原 LUT 正向变化，不能比较 actor 着色或接受裸地冒充范围。首次／最终目标分别过门，提交完成另需完整435像素 caster acted 及原 quiet／光标门，裸地恢复本身不证明提交。该修复保持原来源和守卫，C17失败与C18受控通过分列，不能增加自然业务通过数。
+
+自然 C19 暴露的上边缘 COMMAND 判据须按真实裁切检查：原版 anchor 不限边，页面只拷贝到客户区 `(4,4,312,192)`；不能要求视口外的完整图标或角色矩形，也不能把裁切后的比较声称为完整四项能力。保存的最后通过资源图、Enter投递和未通过判据的过渡 BMP 分列，后者不能伪装为完成检查点。此次完整 START 失败及清理收据保留；修正判据不得通过更改策略避开边缘，或放宽实际可见像素与后继 WAIT／acted 门来求通过。
+
+C20 受控配对已实际通过这三组上边缘可见资源门，完整不可见的 Attack 项继续记为不可观察，不声称完整四项能力相等。随后 SDL 的 phase quiet 超时由独立地形资源确定相机偏差，属于 AI 聚焦实现问题；上边缘修复已过与后续业务失败分层保留。修正 AI 时保持原世界坐标、范围和 quiet 资源门，不以重试、补键或更换 oracle 相机求通过；本项受控证据不替代连续自然首关验收。
+
+C22 使用 App C12 已实际通过原失败 phase 的双端 camera `(5,0)` 资源门，但后续导航因另一项呈现错误失败，原报告保留。双方同源 Save12 的可见单位字段一致，空格 `(11,8)` 不在原版角色遮挡恢复点内；原版裸光标204像素通过，SDL 裸光标有132像素被前景覆盖，完整前景455像素及合成527像素则与 SDL 相符。该反证用于修正 actor-local 地形重画，不将合成图改成空格光标的新期望，也不放宽像素、范围、输入或最终来源守卫。两端正常退出清理只是清理证据，不挽救失败业务；C20 相机修复的实际范围与 C22 新失败分别登记，均不增加自然第15项通过数。
+
+C24 从同份实际 Save12 经正式 CONTINUE 的受控复验已双端通过，使用 App C13 和未改的 C22 观察判据。原屋顶格裸光标204像素、完整底图加光标576像素均通过；两端都拒绝前景281的455像素模板，错误覆盖仍有132像素反证。两端该张实际 PNG 的 SHA 相同，不扩为其他帧、随机流或整份 SAV 相同。原版135／SDL132个检查点及胜利→酒店手工 Save→stage 1 entry Save 均完成，来源／文件 mtime 与进程树清理守卫通过。本项仅登记修复校准通过，旧 C20／C22失败不改写；完整 START 自然首关仍是待验的第15项。
+
+C25 完整 START 的原版端通过931条总记录（912条业务资源、19条独立 WGC 诊断）并完成胜利及下一关实际 Save；SDL 通过117页引导后，在导航 `natural-0323-to-actor-2` 超时，448条记录包含末尾1条 timeout，不能称448项通过。原版正常完成不挽救整组失败，超时图也不算资源门通过。两端与外层 Job 均正常清理，来源／工具／规划器／mtime 守卫通过。随后确认旧导航候选把当前格之外的角色身体与固定 A/D 板混入比较，并漏掉自身上移6像素时的光标底部；只修取证模板，不改游戏、策略或按键，也不把截图归因为输入错误。
+
+最终导航门的63项模块纯回归、C25原版344张导航 PNG 离线复核与 C26 短程双端校准分别登记。C26 以只读实际 Save6 正式 CONTINUE，经同一合法路线取两端目标光标238／252像素正门，并独立比较完整右板 `69×34`、2,346像素 RGB，坏像素0／最大差0；不同头部合法相位不要求同相，不声称完整 actor 或全帧相等。原版27业务资源＋1条 WGC 诊断、SDL27业务资源及所有进程树／文件守卫通过；隔离 FD2.TMP 缓存变化单列，原50及实际 Save6不变。首个启动器版本在游戏启动前的 `dependencies` KeyError 另列测试工具错误，不算原版业务运行或失败。旧 C25FAILED仍保留，离线复核不是新GUI，短程通过也不代替新 SDL 完整 START；这三份来源当时只为联合登记备证，不自行增加第15项，既有原版 A5 音频范围亦不扩大。
+
+最终C27独立SDL新worker已完整START通过：851条总记录中849业务资源／2条WGC诊断，117页引导、11轮真实Save、胜利／城镇／酒店手工Save／下一关活动Save均完成，执行原版0次、SDL1次，原报告明确nonpaired。PID21848正常exit0／clean／noForce，实际独立Job59676 worker0、timeout／residual／forced0、cleaned1，来源及bundle守卫通过。该端与C25完整原版、344图离线复核和C26定向校准组成自然唯一第15项的派生联合索引；不修改C25旧FAILED、不把C27原报告改成pair，也不虚构共同Job或共同toolSources。
+
+最终26份实际SAV逐来源校验，各端自身完整持久表／四槽及1,509已知初始化字节通过，21名actor的固定身份／几何与16名NPC隐藏字段相同。raw2/unit4原版存活、SDL阵亡为各自真实战果，raw1均隐藏、raw3／4均可见；不要求跨端全SAV或共享RNG相等。C27仅使用的decode_save文本／AST虽与旧模块相同，master模块本身0ea5→b58仍单列，不称新Suite已执行。主15项支持范围完成；19条原历史失败与repair4通过／6失败保留，C1测试工具错误另列。B6音画、A7保真、stage1整关／后续关、未开放界面及大阶段审查／全历史回归仍未覆盖。
+
+自然场景由调度器传入 `--record-native-audio`，只在原版首个实际玩家阶段结束周期录一次音频，包含显式 END 或最后 WAIT 自动交接的路径；预期核查 primary 19 → alternate 12 → primary 19 的 A5 曲目身份／切换。SDL 不接收录音热键。存在录音文件不等于曲目已核对，也不代表 A7 音色、混音、精确时序或波形保真通过。
+
+掉落场景先完成业务及 END，再在 turn 2 合法 Save A；raw1 原地 WAIT 后必须检查 Save 禁用，随后 Load A、再 Save B。空格路线按实际占格、静态干燥地块及同镜头前置选择，每一步仍需资源确认，不能把物理场景中主角所在的 `(7,14)` 固定当空格。外部 `dialog_wait_key(0)` 不画箭头；421 提问与第二行 422 结果累计在同框，新开框才清页，不能通过裁切或放宽像素门掩盖文本生命周期差异。
+
+默认配对先运行原版，检查真实业务、最终文件守卫与正常清理后才运行 SDL；显式继承时按 `--original-evidence` 合同保留来源。任一失败立即停，不启动下一端／下一项。统一调度已逐项使用 Windows `run-job` 管理本轮进程树，成功、失败及超时均按[窗口清理](#窗口清理)处理；失败 PNG、trace、真实 Save 和原报告保留，新工具／补跑使用独立来源记录。未执行的场景不计通过，累计结果不能写成单轮完成。无窗口复核可单独运行 `test_graphics_runner.py`、`test_loot_oracle.py`、`test_original_stage1.py` 和 `test_original_natural.py`；这些测试不产生实机验收证据。
+
 ## 截图规范
 
 当前 Windows 截图统一使用 Windows Graphics Capture（WGC）的 HWND 单窗口接口，SDL 与 DOSBox-X 均执行同一规范。禁止使用全屏截图再裁切，也禁止通过 `GetDC(NULL)`／`BitBlt` 读取桌面作为单窗口证据；遮挡、其他窗口和桌面缩放会使结果不完整。捕获失败时保留错误，不切换截图方式绕过失败。
@@ -117,9 +196,15 @@ Drop 实测后的 raw16B 与 AP／DP／AC／EV 属于所列分支证据；Use �
 | Windows DOSBox-X 窗口 | `Windows.Graphics.Capture`，通过 HWND 指定本轮进程的窗口 | 验证客户区是 `320×200` 的整数倍率，不得混用历史截图 |
 | Linux SDL | 现有 Xvfb/XTest 输入回归 | 当前不生成原版像素对照证据；不得把日志回归登记为图像一致 |
 
-微软文档规定，Win32 的 [`CreateForWindow`](https://learn.microsoft.com/en-us/windows/win32/api/windows.graphics.capture.interop/nf-windows-graphics-capture-interop-igraphicscaptureiteminterop-createforwindow) 至少需要 Windows 10 1903。捕获实现使用窗口图像，不依赖窗口在桌面上未被遮挡；最小化、零尺寸、超时、设备或 API 不可用时明确失败。操作按键前仍必须确认窗口焦点，不能把按键发给其他应用。
+微软文档规定，Win32 的 [`CreateForWindow`](https://learn.microsoft.com/en-us/windows/win32/api/windows.graphics.capture.interop/nf-windows-graphics-capture-interop-igraphicscaptureiteminterop-createforwindow) 至少需要 Windows 10 1903。捕获实现使用窗口图像，不依赖窗口在桌面上未被遮挡；最小化、零尺寸、超时、设备或 API 不可用时明确失败。后台输入须校验绑定的 PID／HWND，不能根据当前前台窗口选择投键目标；后台能力仍按前述双端校准门验收。
 
-标题启动logo可能先出现720×400等非320×200整数倍率的有效WGC原图。这些帧只保留为`startup_geometry`诊断，不归一化、不作为检查点通过；同一有界启动等待保留既定Esc节拍（首1秒、随后2秒），只在尚未通过标题资源门时跳过启动动画。随后仍须取得合法整数倍率帧并匹配完整标题资源，才允许业务输入。`Capture.wait`直接拒绝小于320×200、非启动阶段的尺寸异常及未知错误，不由此推进Esc；调用者已有的有界尺寸重试不改变这个检查点要求。不能反复重建等待延长deadline或不断推迟Esc。普通页面淡出／淡入继续只等待，不发跳过键。
+标题启动 logo 可能先出现 720×400 等非 320×200 整数倍率的有效 WGC 原图。这些帧只保留为 `startup_geometry` 诊断，不归一化、不作为检查点通过。若场景不验片头动画，允许仅在启动等待内按 Esc 加速：首 1 秒后发送，随后每 2 秒一次；完整标题资源门一旦通过，立即停止启动跳过键，再发送业务键。是否启用由场景决定，不新增命令行参数，也不把这一允许规则登记为尚未实跑候选已通过。
+
+片头动画专项用例须设置 `Capture(..., startup_skip=False)`，在同一有界等待内不发送启动跳过键，并明确报告实际动画覆盖。两种路径都必须取得合法整数倍率帧并匹配完整标题资源；跳过片头的结果不算片头动画验收。B5 从标题选择 START 后的 stage 32／31／0 共 117 页引导仍逐页资源 ACK、每次只确认一次，并核对自然站位；启动 skip 不得延伸到这些剧情或绕过引导。历史无 skip 收据保留原候选及覆盖范围，不改写为新方式。`Capture.wait` 仍拒绝小于 320×200、非启动阶段的尺寸异常及未知错误；不能反复重建等待延长 deadline。普通页面淡出／淡入只等待，不发跳过键。
+
+标题的至少32色检查不适用于所有页面。四槽页只有15色，只有完整资源匹配成功后才可通过`allow_low_color_resource=True`登记；全黑、资源损坏和未知捕获错误仍不能通过，不能全局降低有效画面要求。
+
+历史前台驱动曾在每键前检查焦点，并以临时置顶／点击自身标题栏激活测试窗口；对应成功、失焦和清理收据保留当时来源。这不是后台输入机制，新流程不再依赖该策略，也不要求用户停止 InputDirector 或聊天。禁止为测试修改全局焦点设置或向其他应用投键。驱动诊断统一UTF-8，Python保留异常字节转义，避免中文窗口标题解码失败导致错误日志丢失。
 
 历史试验曾按 [DOSBox-X 2026.10.01 的官方截图绑定](https://github.com/joncampbell123/dosbox-x/blob/dosbox-x-v2026.10.01/src/hardware/hardware.cpp#L2313)尝试原生热键和独立 mapper，但未生成 PNG，未记为通过。随后用户确定 WGC 为截图规范；原生 PNG 不属于当前流程，也不是待完成的验收前置。报告将实际捕获方式记录为 WGC，不能登记为模拟器原生 PNG。
 
@@ -129,7 +214,7 @@ F1 动态标记使用完整帧判据识别相位；等待指定相位时，未�
 
 ## Windows 运行
 
-需要可交互、未锁定的 Windows SDR 桌面、CMake、MSVC 与含 C++/WinRT 的 Windows SDK、Python 3、Pillow，以及 DOSBox-X。当前截图使用 BGRA8 SDR，HDR 色彩保真未验证。游戏逻辑和 BGM 后端仍分别按 C11/C++14 构建，截图工具单独使用 C++17。命令从项目根目录运行：
+需要可交互、未锁定的 Windows SDR 桌面、CMake、MSVC 与含 C++/WinRT 的 Windows SDK、Python 3、Pillow，以及 DOSBox-X。当前截图使用 BGRA8 SDR，HDR 色彩保真未验证。游戏逻辑和 BGM 后端仍分别按 C11/C++14 构建，截图工具单独使用 C++17。以下是现有入口，未新增后台输入参数；驱动的实际支持范围见[后台窗口消息校准](#windows-hwnd-窗口消息后台输入已验证)。命令从项目根目录运行：
 
 ```powershell
 python -m pip install Pillow capstone
@@ -165,7 +250,7 @@ CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；
 
 自然流程保留同一来源 `FD2.SAV`，但从 START 进入，不加载该来源。来源为其他关卡时，原版可读取活动档，SDL 只可恢复当前支持的 stage 0，因此 Save 测量前的 Load 图标可不同；必须按各端前置完整验证普通或禁用图，不排除该图标。原版次级 Load 只看文件能否打开，不能套用标题 CONTINUE 的 stage `0xff` 门。该 runner 对 stage 0 来源暂只接受已验证的真实 START 完整快照，其余来源明确报工具范围限制；这不代表游戏拒绝其他合法 stage 0 存档。
 
-边缘场景从 START 副本只改 actor0 坐标及 checksum，保留原焦点／镜头，使用 Z 聚焦到左上和右下目标。以干燥静态地块唯一识别相机，再检查选择范围、COMMAND 四个完整图标及角色遮挡，最后逐级取消。合成坐标不冒称自然开场；原版可用命令与 SDL 开放能力分别登记。地图边界和 same-target 行为遵循原版，不要求所有焦点始终居中。总流程约需半小时，外部超时应至少预留 45 分钟，并用 `run-job` 管理本轮进程树。
+边缘场景从 START 副本只改 actor0 坐标及 checksum，保留原焦点／镜头，使用 Z 聚焦到左上和右下目标。以干燥静态地块唯一识别相机，再检查选择范围、COMMAND 四个完整图标及角色遮挡，最后逐级取消。合成坐标不冒称自然开场；原版可用命令与 SDL 开放能力分别登记。地图边界和 same-target 行为遵循原版，不要求所有焦点始终居中。完整套件时长随登记范围变化；旧集合的半小时／45分钟预算不适用于新增 B5 自然整关。外部总超时须覆盖所选场景的限时与清理时间，每项仍由 `run-job` 管理本轮进程树。
 
 ## Linux 运行
 
@@ -179,6 +264,14 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
 现有 XTest 序列覆盖移动后待机、完整回合、普通攻击与固定 seed 的致死双击。WGC 与 DOSBox-X 配对 runner 当前不能直接在 Linux 执行；当前 Windows 任务不要求补跑 Linux。以后在 Linux 开发时按当时适用的检查验收，保留图形捕获范围和未覆盖项，不能把未执行的平台写为已通过。
 
+B5 的纯 Python 回归和 C11 规划器保留 Linux 兼容入口，例如以下无窗口命令；本轮未在 Linux 执行。`natural_plan_simulation` 只运行 SDL 内存状态与业务提示 ACK，不运行 DOSBox、窗口输入或音频，不证明原版自然通关。
+
+```bash
+cmake --build src/build --target fd2_field_natural_plan --parallel
+ctest --test-dir src/build -R '^natural_plan_simulation$' --output-on-failure
+python3 -B -m unittest discover -s tools/tests -p test_graphics_runner.py
+```
+
 ## 场景与判据
 
 | 层 | 场景 | 通过依据 |
@@ -190,7 +283,7 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | SDL 系统菜单 | 移动取消、存档确认取消、Save → 改变状态／配置 → Load → 再次 Save → 继续行动 | 取消不提交行动／文件；校验 checksum、stage、turn 和配置；重写后快照与加载源一致，恢复后可待机 |
 | SDL 首次保存 | 无活动文件时从正式菜单 Save | 肯定前没有文件，肯定后 checksum、metadata、active／roster 独立数量有效，手工槽为空；不能只测已有文件覆盖 |
 | SDL END | Esc、NO、上下不切换、默认 YES 提交 | 取消后 WGC 稳定区域恢复浏览；只提交一次，side 1 → side 0 → turn 2 玩家阶段顺序正确，不自动再结束下一回合 |
-| SDL 应用分派 | 手工 LOAD 拒绝、CONTINUE、leave、合成 victory／defeat | 未实现的手工入口仍留标题；肯定 leave 自然退出 `0`；胜／败各自说明后续未实现并退出 `2`，不改存档。合成隐藏位夹具只证明 SDL 分派 |
+| SDL 应用分派 | 标题 LOAD 四槽页 → Esc → 标题 → CONTINUE → leave | 四槽完整资源页、取消回标题、正式 CONTINUE 及肯定 leave 自然退出 `0`；当前败北后续由 B5 独立配对检查 |
 | SDL 窗口生命周期 | 地图、单位预览、对话、新游戏交接期间关闭窗口 | 正式窗口产生有效帧，关闭被处理，进程正常退出 |
 | 原版配对 | 标题默认选择、上下移动、回绕、Esc 无副作用 | 原版与 SDL 的 WGC 单窗口帧在同一检查点比较；菜单变化与恢复均有断言；另测宿主遮挡不影响捕获 |
 | 原版 B1 菜单配对 | CONTINUE → 空焦点菜单 → END 默认 YES／Right 选 NO → Esc／NO 回浏览 → 重新开菜单 | 原版资源像素识别各检查点；YES/NO 必须采到对应选中高亮，取消后光标与静态面板区域恢复初始浏览，两份存档不变。菜单中March普通／高亮图也必须通过，肯定批次由独立场景验收 |
@@ -201,15 +294,16 @@ python3 -m unittest discover -s tools/tests -p 'test_*.py'
 | 原版 B1.4c1b 玩家取消 | 源快照定位actor0 → 一格合法移动 → COMMAND取消 → 恢复选择态 → Enter直接COMMAND → 取消回browse | 真实地图／profile／占用／ZOC选前置，范围LUT与资源证明状态；逐键ACK，bytes／mtime全程不变。COMMAND完整24×20图标及actor遮挡组合；另以满HP WAIT校验已行动映色／详情入口，未测全部runtime／RNG |
 | 原版 B1.4c2b 行军 | 固定START焦点，取消／NO／一次肯定 → 四玩家终点与整轮 → 正式Save | 双端真实输入及资源门；完整容器仅排除声明字段，未知区保留；不比较未对齐的AI／伤害／随机流 |
 | 原版 B1.4d F1 | 四场景开合、同标记相位、页内关闭窗口 | 每端完整64,000像素资源门、冻结合法水色；双端原始RGB水色周期未对齐，不宣称实际RGB相等 |
-| 原版 B1.3c 结果门 | START仅改hidden位派生，原版选择取消到胜利首对白／败北两帧；SDL独立结果exit2 | 完整manifest、逐键ACK、GAME OVER无键等待、自然退出及文件守卫；不证明整关实战或B5后续 |
+| 历史原版 B1.3c 结果门 | 当时 START 仅改 hidden 位派生，原版选择取消到胜利首对白／败北两帧；当时 SDL 独立结果 `exit 2` | 保留当时 manifest、逐键 ACK、GAME OVER 无键等待、自然退出及文件守卫；不提升为 B5 后续验收。当前正式 `--b5-defeat` 已替换该退出判据 |
 | 原版 B2 列表 | 同一START来源，正式MAGIC列表打开、取消与重开 | 双端完整31,603像素矩形、MP8/8及第0项，逐端资源／文件守卫；ITEM能力差异单列 |
 | 原版 B2 伤害 | 仅派生caster坐标，原地火炎术确认一次 | 目标与范围、击杀／acted组合门，caster MP6/8／LV1／EX42；不声明自然第一回合移动路线或FIGANI相等 |
 | 原版 B2 治疗 | 仅派生恢复术与受术者受伤，目标取消／轮换后确认一次 | HP42/42、MP5/8／LV1／EX20；Esc翻未选中法术详情页，再以完整静态地形证明最终关闭 |
 | 原版 B3 控制 | 同一START来源，ITEM／Use三槽导航、code0拒绝、逐级取消与重开 | 每端完整31,955像素资源门及配对；原版和SDL的Equip／Drop能力差异分别验完整图标，来源／mtime不变 |
 | 原版 B3 草药 | 自然满HP和仅HP20／EX99派生，各自目标取消后只用一次 | acted、HP42／MP0／EX0或99、剩余可见0／132，完整32,147像素详情门及干燥地形关页；未量测隐藏raw16B |
-| 后续原版配对 | 完整phase／AI／随机流、胜败后续、其他法术／物品、Equip／Drop／Give、战斗演出、声音 | 按下节逐项补充，不因当前控制场景通过而视为全部完成 |
+| B5 受支持范围已完成 | 准备／四槽、10类掉落／特殊格、stage 1 两场、自然首关与败北，共15项 | 15个唯一场景：14项既有双端来源＋自然首关不同来源联合；逐场资源／文件／清理门已核，非单轮fresh15，历史失败及实际Job另见阶段日志 |
+| 后续原版配对 | 未开放法术、后续关卡、完整 FIGANI、共享随机流与声音保真 | 按对应工作包补充，不因 B3／B4 或部分 B5 通过而视为全部完成 |
 
-前台焦点被外部窗口改变时，保留失焦诊断和失败收据，清理本轮窗口后再运行独立场景。若复用同一冻结候选已通过的场景，须核对二进制、测试源码、原版身份、原收据与截图SHA，并逐项登记来源；失败或跳过场景不能复用为通过。累计验收明确区分复用与本次执行，不写成单轮全绿，也不放宽投键、截图或清理判据。
+历史前台场景因外部窗口取得焦点而停止时，失焦诊断和失败收据仍保留。新的后台验收不通过抢回焦点或补键绕过错误；目标没有实际业务 ACK 时仍停键并保留现场。若复用同一冻结候选已通过的场景，须核对二进制、测试源码、原版身份、原收据与截图SHA，并逐项登记来源；失败或跳过场景不能复用为通过。累计验收明确区分复用与本次执行，不写成单轮全绿，也不放宽投键、截图或清理判据。
 
 `field_play_result` 用测试目标私有替身触发正式循环的自动动作失败、剧情失败、剧情宿主退出与移动失败；不向生产代码加测试钩子。此测试不是 DOSBox 行为对照。
 

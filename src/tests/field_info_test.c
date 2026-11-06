@@ -1,4 +1,5 @@
 /* field_unit_magic_list_draw @0x1ceed（原登记sub_1CEED）列表与现有详情资源回归。
+ * field_unit_summary_draw @0x18c6d（原登记sub_18C6D）含四张原版WGC资源参考。
  * field_player_magic_list_select_step @0x1d51d（原登记sub_1D51D）仅作
  * selected索引依据；本测试不调用选择／施法，不创建SDL窗口。 */
 #include <stdio.h>
@@ -8,6 +9,7 @@
 #include "field_info.h"
 #include "field_item.h"
 #include "field_magic.h"
+#include "portrait.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -142,8 +144,8 @@ typedef struct {
     fd2_field_units units;
     fd2_field_overview data;
     uint8_t glyphs[64];
-    uint8_t tokens[8];
-    uint16_t offsets[599];
+    uint8_t tokens[16];
+    uint16_t offsets[601];
 } overview_fixture;
 
 static int make_image(fd2_image *image, int width, int height, uint8_t color) {
@@ -177,7 +179,7 @@ static int init_overview_fixture(overview_fixture *fixture) {
     fixture->tokens[4] = 1;
     fixture->tokens[6] = fixture->tokens[7] = 0xff;
     fixture->offsets[598] = 4;
-    fixture->text = (fd2_text_entry){fixture->tokens, sizeof(fixture->tokens),
+    fixture->text = (fd2_text_entry){fixture->tokens, 8,
                                      fixture->offsets, 599};
     fixture->data = (fd2_field_overview){0, 1, 0, &fixture->units};
     return 0;
@@ -290,6 +292,46 @@ static int overview_rejects_unchanged(fd2_vga *vga,
     memcpy(before, vga->framebuffer, sizeof(before));
     CHECK(draw_overview(vga, fixture) == -1);
     CHECK(memcmp(before, vga->framebuffer, sizeof(before)) == 0);
+    return 0;
+}
+
+static int test_stage1_overview_conditions(void) {
+    overview_fixture fixture;
+    CHECK(init_overview_fixture(&fixture) == 0);
+    fixture.data.stage = 1;
+    fixture.text.size = sizeof(fixture.tokens);
+    fixture.text.fragment_count = 601;
+    fixture.offsets[599] = 8;
+    fixture.offsets[600] = 12;
+    /* 第二关两段字形与第一关相反，不能复用597/598条件。 */
+    fixture.tokens[8] = 1;
+    fixture.tokens[10] = fixture.tokens[11] = 0xff;
+    fixture.tokens[14] = fixture.tokens[15] = 0xff;
+    fixture.units.count = 3;
+    fixture.units.items[0].side = 0;
+    fixture.units.items[1].side = 1;
+    fixture.units.items[2].side = 2;
+    fd2_field_units before = fixture.units;
+    fd2_vga vga = {0};
+    CHECK(draw_overview(&vga, &fixture) == 0);
+    CHECK(check_number(&vga, 143, 24, "02", 50) == 0);
+    CHECK(vga.framebuffer[61 * VGA_STRIDE + 81] == 0xcd);
+    CHECK(vga.framebuffer[61 * VGA_STRIDE + 80] != 0xcd);
+    CHECK(vga.framebuffer[116 * VGA_STRIDE + 80] == 0xcd);
+    CHECK(vga.framebuffer[116 * VGA_STRIDE + 81] != 0xcd);
+    CHECK(check_number(&vga, 120, 159, "01", 50) == 0);
+    CHECK(check_number(&vga, 182, 159, "01", 50) == 0);
+    CHECK(check_number(&vga, 228, 159, "01", 50) == 0);
+    CHECK(!memcmp(&before, &fixture.units, sizeof(before)));
+    fixture.text.fragment_count = 600;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.text.fragment_count = 601;
+    fixture.tokens[12] = 2;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.tokens[12] = 0;
+    fixture.data.stage = 2;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fd2_field_info_assets_close(&fixture.assets);
     return 0;
 }
 
@@ -406,6 +448,14 @@ static int test_magic_asset_owner(void) {
     CHECK(sheet[start] == 20 && sheet[start + 1] == 0 &&
           sheet[start + 2] == 8 && sheet[start + 3] == 0);
     CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    fd2_image summary = {0};
+    size_t summary_start = test_u32(sheet + 6 + 22 * 4);
+    size_t summary_end = test_u32(sheet + 6 + 23 * 4);
+    CHECK(fd2_lmi_decode_image(&summary, sheet + summary_start,
+                               summary_end - summary_start) == 0);
+    CHECK(assets.unit_summary.width == 149 && assets.unit_summary.height == 42);
+    CHECK(assets.unit_summary.pixels != summary.pixels &&
+          !memcmp(assets.unit_summary.pixels, summary.pixels, 149u * 42u));
     const size_t bar_frames[8] = {23, 26, 24, 25, 27, 28, 29, 30};
     for (size_t i = 0; i < 8; i++) {
         size_t offset = test_u32(sheet + 6 + bar_frames[i] * 4);
@@ -427,6 +477,11 @@ static int test_magic_asset_owner(void) {
     CHECK(fd2_field_info_assets_open_mem(&assets, broken, size) == -1);
     for (size_t i = 0; i < sizeof(assets); i++) CHECK(((uint8_t *)&assets)[i] == 0);
     CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
+    memcpy(broken, sheet, size);
+    broken[summary_start] = 150;
+    CHECK(fd2_field_info_assets_open_mem(&assets, broken, size) == -1);
+    for (size_t i = 0; i < sizeof(assets); i++) CHECK(((uint8_t *)&assets)[i] == 0);
+    CHECK(fd2_field_info_assets_open(&assets, &other) == 0);
     /* 最后一张bar已分配后才触发尺寸拒绝，先前所有owner必须一并释放。 */
     memcpy(broken, sheet, size);
     uint32_t late_bar = test_u32(sheet + 6 + 30 * 4);
@@ -437,8 +492,11 @@ static int test_magic_asset_owner(void) {
     free(broken);
     fd2_archive_close(&other);
     CHECK(memcmp(assets.magic_cost.pixels, expected, sizeof(expected)) == 0);
+    CHECK(!memcmp(assets.unit_summary.pixels, summary.pixels, 149u * 42u));
+    fd2_image_free(&summary);
     fd2_field_info_assets_close(&assets);
-    CHECK(!assets.ready && !assets.magic_cost.pixels && !assets.magic_cost.width);
+    CHECK(!assets.ready && !assets.magic_cost.pixels && !assets.magic_cost.width &&
+          !assets.unit_summary.pixels && !assets.unit_summary.width);
     fd2_field_info_assets_close(&assets);
     return 0;
 }
@@ -1055,12 +1113,176 @@ static int test_detail_signed_words_and_native_bars(void) {
     return 0;
 }
 
+static uint64_t summary_hash(const fd2_vga *vga, int x) {
+    uint64_t value = UINT64_C(0xcbf29ce484222325);
+    for (int y = 9; y < 51; y++)
+        for (int column = x; column < x + 149; column++) {
+            value ^= vga->framebuffer[y * VGA_STRIDE + column];
+            value *= UINT64_C(0x100000001b3);
+        }
+    return value;
+}
+
+static int test_unit_summary_native_panels(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    /* 四张已存WGC的完整149×42资源参考（6258px各bad0、delta<=3）；
+     * native-summary-evidence.json SHA88a81c5a...759fc7c3。
+     * 固定indexed参考来自同原资源，不把RGB容差或旧图当SDL实机。 */
+    const struct { const char *record; int relative_x; uint64_t expected; } cases[] = {
+        {"0b0c06000000020303004020408080ff80ff80ff80ff80ff80ff00000000000102030000000000004b0000ff200000ff22ff00000000001e000f000400010b003600360000000000320011006a000b00", 7, UINT64_C(0xea94a4c18f53acee)},
+        {"090c00000000020000004000408400c080ff80ff80ff800080c90000000000010101000000000000c9c500c1c9c700c1ceff00c1cec1cb060004000400cc02002a002a000000000010000c0061000200", 6, UINT64_C(0xcc68854b399e7af7)},
+        {"071103000000021e1e00404840b280ff80ff80ff80ff80f180ed00000000000619010000000000003ff53ff518f5841010fff0ee10ed8407000600045cf50200290032000000000016000e005c000200", 0, UINT64_C(0x99775bdbffa2730b)},
+        {"070e00000000020000004000408400c080ff80ff80ff800080c90000000000010101000000000000c9c500c1c9c700c1ceff00c1cec1cb060004000400cc02002a002a000000000010000c0061000200", 12, UINT64_C(0xcc68854b399e7af7)}
+    };
+    fd2_field_info_assets assets_before = fixture.assets;
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        fd2_field_unit unit;
+        CHECK(strlen(cases[i].record) == sizeof(unit) * 2);
+        for (size_t j = 0; j < sizeof(unit); j++) {
+            const char *hex = "0123456789abcdef";
+            const char *hi = strchr(hex, cases[i].record[j * 2]);
+            const char *lo = strchr(hex, cases[i].record[j * 2 + 1]);
+            CHECK(hi && lo);
+            ((uint8_t *)&unit)[j] = (uint8_t)((hi - hex) * 16 + lo - hex);
+        }
+        fd2_field_unit before = unit;
+        fd2_vga actual = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        fd2_vga nonpixels = actual;
+        CHECK(fd2_field_unit_summary_draw(&actual, &fixture.assets, &fixture.font,
+                  &fixture.text, &unit, cases[i].relative_x) == 0);
+        int x = cases[i].relative_x >= 7 ? 9 : 160;
+        CHECK(summary_hash(&actual, x) == cases[i].expected);
+        for (int y = 0; y < VGA_H; y++)
+            for (int column = 0; column < VGA_W; column++)
+                if (y < 9 || y >= 51 || column < x || column >= x + 149)
+                    CHECK(actual.framebuffer[y * VGA_STRIDE + column] == 0xa5);
+        memcpy(nonpixels.framebuffer, actual.framebuffer, sizeof(actual.framebuffer));
+        CHECK(!memcmp(&actual, &nonpixels, sizeof(actual)));
+        CHECK(!memcmp(&unit, &before, sizeof(unit)));
+        CHECK(!memcmp(&fixture.assets, &assets_before, sizeof(assets_before)));
+    }
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static void expected_summary_bar(fd2_vga *vga, const fd2_field_info_assets *assets,
+                                  size_t bank, int x, int y, int length) {
+    if (length == -1000) return; /* max0：原调用不绘任何column。 */
+    if (length == 0) {
+        for (int i = 1; i <= 101; i++) expected_blit(vga->framebuffer, &assets->bars[6], x + i, y, -1);
+        expected_blit(vga->framebuffer, &assets->bars[7], x + 102, y, -1);
+    } else {
+        expected_blit(vga->framebuffer, &assets->bars[bank], x, y, -1);
+        for (int i = 1; i < length; i++) expected_blit(vga->framebuffer, &assets->bars[2 + 2 * bank], x + i, y, -1);
+        expected_blit(vga->framebuffer, &assets->bars[3 + 2 * bank], x + (length > 1 ? length : 1), y, -1);
+    }
+}
+
+static int test_unit_summary_signed_bars_and_numbers(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    const struct { uint16_t current, maximum; int length; size_t bank; const char *digits; } cases[] = {
+        {0, 40, 0, 1, "000"}, {40, 40, 102, 0, "040"}, {41, 50, 83, 1, "041"},
+        {65516, 40, -49, 1, "000"}, {65535, 65535, 102, 0, "000"},
+        {32768, 32768, 102, 0, "000"}, {1, 65535, -100, 1, "001"},
+        {1, 0, -1000, 1, "001"}, {0, 0, -1000, 0, "000"},
+        {1000, 1000, 102, 0, NULL}, {1001, 2000, 51, 1, NULL}
+    };
+    const uint8_t *name;
+    size_t names;
+    CHECK(fd2_text_entry_get_fragment(&fixture.text, 1, &name, &names) == 0);
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        fd2_field_unit unit = {0};
+        unit.hp = unit.mp = cases[i].current;
+        unit.hp_max = unit.mp_max = cases[i].maximum;
+        unit.level = 255;
+        /* 库存/状态不是本板资源依赖，不以详情或物品预检替代姓名预检。 */
+        memset(unit.data_09_1e, 0xff, sizeof(unit.data_09_1e));
+        fd2_field_unit before = unit;
+        for (int side = 0; side < 2; side++) {
+            int x = side ? 9 : 160;
+            fd2_vga actual = {0}, expected = {0};
+            memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+            memset(expected.framebuffer, 0xa5, sizeof(expected.framebuffer));
+            CHECK(fd2_field_unit_summary_draw(&actual, &fixture.assets, &fixture.font,
+                        &fixture.text, &unit, side ? 7 : 6) == 0);
+            expected_blit(expected.framebuffer, &fixture.assets.unit_summary, x, 9, -1);
+            expected_summary_bar(&expected, &fixture.assets, 0, x + 21, 31, cases[i].length);
+            expected_summary_bar(&expected, &fixture.assets, 1, x + 21, 40, cases[i].length);
+            expected_blit(expected.framebuffer, &fixture.assets.two_digit_overflow, x + 132, 13, 0);
+            for (int row = 0; row < 2; row++) {
+                int y = row ? 39 : 30;
+                if (cases[i].digits) expected_detail_digits(&expected, &fixture.assets, x + 126, y, cases[i].digits, cases[i].bank);
+                else expected_blit(expected.framebuffer, &fixture.assets.digit_overflow[cases[i].bank], x + 126, y, 0);
+            }
+            for (size_t j = 0; j < names; j++) {
+                uint16_t token = fd2_text_token_at(name, j);
+                if (token == 0xffff) break;
+                fd2_font_draw_glyph(&expected, &fixture.font, token, x + 5 + (int)j * 16, 13, 205, 76, -1);
+            }
+            CHECK(!memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)));
+            CHECK(!memcmp(&unit, &before, sizeof(unit)));
+        }
+    }
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
+static int test_unit_summary_atomic_rejection(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_unit unit = {0}, before = unit;
+    fd2_vga actual = {0};
+    memset(&actual, 0xa5, sizeof(actual));
+    fd2_vga unchanged = actual;
+#define SUMMARY_REJECT(font, text, actor) do { \
+    CHECK(fd2_field_unit_summary_draw(&actual, &fixture.assets, (font), (text), (actor), 7) == -1); \
+    CHECK(!memcmp(&actual, &unchanged, sizeof(actual))); \
+    CHECK(!memcmp(&unit, &before, sizeof(unit))); \
+} while (0)
+    fd2_image saved = fixture.assets.bars[7];
+    fixture.assets.bars[7].pixels = NULL;
+    SUMMARY_REJECT(&fixture.font, &fixture.text, &unit);
+    fixture.assets.bars[7] = saved;
+    saved = fixture.assets.digits[1][9];
+    fixture.assets.digits[1][9].width = 7;
+    SUMMARY_REJECT(&fixture.font, &fixture.text, &unit);
+    fixture.assets.digits[1][9] = saved;
+    saved = fixture.assets.unit_summary;
+    fixture.assets.unit_summary.height = 43;
+    SUMMARY_REJECT(&fixture.font, &fixture.text, &unit);
+    fixture.assets.unit_summary = saved;
+    fd2_font short_font = fixture.font;
+    short_font.glyph_count = 37; /* 姓名36合法、末字37失败，不能先画前字。 */
+    SUMMARY_REJECT(&short_font, &fixture.text, &unit);
+    short_font = fixture.font; short_font.size = 0;
+    SUMMARY_REJECT(&short_font, &fixture.text, &unit);
+    uint8_t bad_tokens[18];
+    memset(bad_tokens, 0, sizeof(bad_tokens));
+    for (size_t i = 0; i < 8; i++) bad_tokens[2 * i] = 36;
+    bad_tokens[16] = bad_tokens[17] = 0xff;
+    uint16_t offsets[2] = {0, 0};
+    fd2_text_entry bad_text = {bad_tokens, sizeof(bad_tokens), offsets, 2};
+    SUMMARY_REJECT(&fixture.font, &bad_text, &unit); /* 名称不能越过LV。 */
+    bad_tokens[2] = 0xfe; bad_tokens[3] = 0xff;
+    SUMMARY_REJECT(&fixture.font, &bad_text, &unit); /* 未证控制符。 */
+    SUMMARY_REJECT(NULL, &fixture.text, &unit);
+    SUMMARY_REJECT(&fixture.font, NULL, &unit);
+    SUMMARY_REJECT(&fixture.font, &fixture.text, NULL);
+#undef SUMMARY_REJECT
+    close_magic_fixture(&fixture);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
     CHECK(test_panel_layout() == 0);
     CHECK(test_overview_layout_and_counts() == 0);
     CHECK(test_overview_resource_numbers() == 0);
+    CHECK(test_stage1_overview_conditions() == 0);
     CHECK(test_overview_rejects_before_drawing() == 0);
     CHECK(test_text_fragment_span_rejection() == 0);
     CHECK(test_magic_asset_owner() == 0);
@@ -1073,6 +1295,9 @@ int main(void) {
     CHECK(test_item_list_preflight_leaves_all_state_unchanged() == 0);
     CHECK(test_bad_inventory_does_not_hide_magic_upper_page() == 0);
     CHECK(test_detail_signed_words_and_native_bars() == 0);
+    CHECK(test_unit_summary_native_panels() == 0);
+    CHECK(test_unit_summary_signed_bars_and_numbers() == 0);
+    CHECK(test_unit_summary_atomic_rejection() == 0);
     puts("field_info_test: ok");
     return 0;
 }

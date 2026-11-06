@@ -9,6 +9,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, call, patch
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run_graphics_tests as runner
@@ -251,6 +252,316 @@ class EndTurnEvidenceTest(unittest.TestCase):
         text = "\n".join(self.checkpoints + ("field phase: turn=3 phase=2 remaining=4",))
         with self.assertRaisesRegex(AssertionError, "second round"):
             runner.check_end_turn_log(text)
+
+
+class BattleStorageProtocolTest(unittest.TestCase):
+    """只模拟资源ACK/文件边界，不启动窗口，也不冒充实际像素验收。"""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.work = Path(self.temp.name)
+        self.save = self.work / "FD2.SAV"
+        self.log = self.work / "game.log"
+        self.log.write_text("")
+        self.suite = runner.Suite.__new__(runner.Suite)
+        self.suite.report = {"cases": []}
+        self.suite.args = SimpleNamespace(driver=self.work / "unexecuted-driver.exe")
+        self.suite.work = self.work
+        self.process = Mock()
+        self.events = []
+        self.capture = SimpleNamespace(key=lambda key: self.events.append(("key", key)),
+            artifacts=self.work, process=SimpleNamespace(pid=1234))
+        self.button_frame = Mock(name="modeled confirmation frame")
+        self.oracle = Mock()
+        self.oracle.closed_browse.return_value = {"kind": "browse"}
+        self.oracle.menu.return_value = {"kind": "parent"}
+        self.oracle.secondary.return_value = {"kind": "secondary"}
+        self.oracle.buttons.side_effect = lambda frame, selected=None: {"kind": "buttons"} if frame is None or selected != 1 else None
+        self.failed_gate = None
+
+        def checkpoint(name, predicate, **kwargs):
+            self.events.append(("gate", name))
+            frame = self.button_frame if name.endswith("first-selected-buttons") else None
+            detail = predicate(frame)
+            if name == self.failed_gate or not detail:
+                raise TimeoutError(name)
+            return frame, detail
+        self.checkpoint = checkpoint
+        self.suite.battle_probe = Mock(return_value=(self.capture, self.oracle, checkpoint))
+
+        @contextmanager
+        def window(*args, **kwargs):
+            yield self.process, self.work, self.log, self.save
+        self.suite.window = window
+
+    def keys(self):
+        return [value for kind, value in self.events if kind == "key"]
+
+    def test_first_save_moves_to_empty_cell_and_requires_each_ack_before_writing(self):
+        metadata = b"stage metadata"
+        plain = bytearray(0x59cb)
+        plain[:len(metadata)] = metadata
+        plain[0x30c3:0x30c6] = bytes((1, 12, 0))
+        plain[0x30cc] = 4
+        plain[0x312b:-4] = b"\xff" * (len(plain) - 4 - 0x312b)
+        plain[-4:] = sum(plain[:-4]).to_bytes(4, "little")
+
+        def key(key):
+            self.events.append(("key", key))
+            if self.keys().count("ENTER") == 4:
+                self.save.write_bytes(encrypted_fixture(plain))
+        self.capture.key = key
+        with patch.object(runner, "wait_log"), patch("run_original_comparison.archive_entry", return_value=metadata):
+            self.suite.first_save()
+        self.assertEqual(self.keys(), ["LEFT", "ENTER", "ENTER", "LEFT", "ENTER", "ENTER"])
+        self.assertLess(self.events.index(("gate", "first-save-empty-browse")), self.events.index(("key", "ENTER")))
+        self.assertIn(("gate", "first-save-first-selected-buttons"), self.events)
+        self.assertNotIn(("gate", "first-save-default-yes"), self.events)
+        self.assertEqual(self.oracle.secondary.call_args_list,
+                         [call(None, 0, load_available=False), call(None, 1, load_available=False)])
+        self.assertEqual(self.suite.report["cases"][0]["name"], "first-save")
+
+    def test_missing_empty_parent_or_secondary_ack_stops_before_the_next_key(self):
+        for gate, expected in (("first-save-empty-browse", ["LEFT"]),
+                ("first-save-parent", ["LEFT", "ENTER"]),
+                ("first-save-secondary", ["LEFT", "ENTER", "ENTER"]),
+                ("first-save-selected", ["LEFT", "ENTER", "ENTER", "LEFT"])):
+            with self.subTest(gate=gate), patch.object(runner, "wait_log"):
+                self.events.clear()
+                self.failed_gate = gate
+                with self.assertRaisesRegex(TimeoutError, gate):
+                    self.suite.first_save()
+                self.assertEqual(self.keys(), expected)
+                self.assertFalse(self.save.exists())
+                self.assertEqual(self.suite.report["cases"], [])
+
+    def test_observed_no_is_preserved_and_never_corrected_by_an_extra_left(self):
+        self.oracle.buttons.side_effect = lambda frame, selected=None: {"kind": "no"} if selected in (None, 1) else None
+        with patch.object(runner, "wait_log"), self.assertRaisesRegex(AssertionError, "explicit No observed"):
+            self.suite.first_save()
+        self.assertEqual(self.keys(), ["LEFT", "ENTER", "ENTER", "LEFT", "ENTER"])
+        self.assertIn(("gate", "first-save-first-selected-buttons"), self.events)
+        self.assertFalse(self.save.exists())
+
+    def confirmation_sequence(self, states):
+        frames = [Mock(name=state + "-frame") for state in states]
+        mapping = {id(frame): state for frame, state in zip(frames, states)}
+        def buttons(frame, selected=None):
+            state = mapping[id(frame)]
+            if selected is not None and state != ("yes" if selected == 0 else "no"):
+                return None
+            return {"kind": "confirmation", "selected": selected,
+                "matches": [{"frame": 49 if state == "yes" else 48},
+                            {"frame": 52 if state == "no" else 51}]}
+        self.oracle.buttons.side_effect = buttons
+        def checkpoint(name, predicate, **kwargs):
+            for frame in frames:
+                detail = predicate(frame)
+                if detail: return frame, detail
+            raise TimeoutError("single bounded wait exhausted")
+        return frames, Mock(side_effect=checkpoint)
+
+    def test_plain_buttons_then_yes_share_one_wait_and_preserve_earliest_frame(self):
+        frames, checkpoint = self.confirmation_sequence(["plain", "yes"])
+        self.suite.confirmation(self.capture, self.oracle, checkpoint, "plain-yes")
+        checkpoint.assert_called_once()
+        self.assertEqual(checkpoint.call_args.args[0], "plain-yes-first-selected-buttons")
+        frames[0].save.assert_called_once_with(self.work / "plain-yes-first-complete-buttons.png")
+        self.assertIsNone(self.suite.report["resource_checkpoints"][self.work.name][0]["selected"])
+        self.assertFalse(self.keys() or self.save.exists())
+
+    def test_plain_then_no_cannot_be_washed_by_later_yes(self):
+        frames, checkpoint = self.confirmation_sequence(["plain", "no", "yes"])
+        with self.assertRaisesRegex(AssertionError, "explicit No observed"):
+            self.suite.confirmation(self.capture, self.oracle, checkpoint, "plain-no-yes")
+        checkpoint.assert_called_once()
+        frames[0].save.assert_called_once_with(self.work / "plain-no-yes-first-complete-buttons.png")
+        frames[1].save.assert_called_once_with(self.work / "plain-no-yes-unexpected-no-buttons.png")
+        self.assertFalse(any(row.args[0] is frames[2] for row in self.oracle.buttons.call_args_list))
+        self.assertFalse(self.keys() or self.save.exists())
+
+    def test_first_complete_no_cannot_be_washed_by_later_yes(self):
+        frames, checkpoint = self.confirmation_sequence(["no", "yes"])
+        with self.assertRaisesRegex(AssertionError, "explicit No observed"):
+            self.suite.confirmation(self.capture, self.oracle, checkpoint, "first-no-later-yes")
+        checkpoint.assert_called_once()
+        self.assertEqual(frames[0].save.call_args_list, [call(self.work / "first-no-later-yes-first-complete-buttons.png"),
+            call(self.work / "first-no-later-yes-unexpected-no-buttons.png")])
+        self.assertFalse(any(row.args[0] is frames[1] for row in self.oracle.buttons.call_args_list))
+        self.assertFalse(self.keys() or self.save.exists())
+
+    def test_plain_buttons_cannot_restart_original_fifteen_second_deadline(self):
+        import run_original_battle_menu as menu
+        frames, unused = self.confirmation_sequence(["plain", "plain", "plain", "yes"])
+        clock = [0.0]
+        self.capture.last = None
+        iterator = iter(frames)
+        def capture_frame():
+            self.capture.last = next(iterator)
+            return self.capture.last
+        self.capture.frame = Mock(side_effect=capture_frame)
+        def checkpoint(name, predicate, **kwargs):
+            return menu.wait_state(self.capture, name, predicate, [], **kwargs)
+        observed = Mock(side_effect=checkpoint)
+        with patch.object(menu.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(menu.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0] + 5)):
+            with self.assertRaises(TimeoutError):
+                self.suite.confirmation(self.capture, self.oracle, observed, "plain-deadline")
+        observed.assert_called_once(); self.assertEqual(self.capture.frame.call_count, 3)
+        self.assertEqual(clock[0], 15)
+        self.assertFalse(any(row.args[0] is frames[3] for row in self.oracle.buttons.call_args_list))
+        self.assertFalse(self.keys() or self.save.exists())
+
+    def test_load_and_leave_choose_their_own_item_after_complete_secondary_ack(self):
+        for selected, direction in ((2, "RIGHT"), (3, "DOWN")):
+            with self.subTest(selected=selected):
+                self.events.clear()
+                self.oracle.secondary.reset_mock()
+                self.suite.storage_confirmation(self.capture, self.oracle, self.checkpoint,
+                                                "storage", selected, load_available=True)
+                self.assertEqual(self.keys(), ["ENTER", "ENTER", direction, "ENTER"])
+                self.assertEqual(self.oracle.secondary.call_args_list,
+                                 [call(None, 0, load_available=True), call(None, selected, load_available=True)])
+                self.assertEqual(self.events[-1], ("gate", "storage-first-selected-buttons"))
+
+    def test_end_turn_also_rejects_the_occupied_initial_focus_before_opening_parent(self):
+        self.save.write_bytes(b"isolated unchanged save")
+        self.failed_gate = "end-empty-browse"
+        with patch.object(runner, "wait_log"), self.assertRaisesRegex(TimeoutError, "end-empty-browse"):
+            self.suite.end_turn()
+        self.assertEqual(self.keys(), ["LEFT"])
+        self.assertEqual(self.save.read_bytes(), b"isolated unchanged save")
+        self.assertEqual(self.suite.report["cases"], [])
+
+    def test_end_cancel_no_and_ignored_vertical_keys_all_precede_the_only_yes_commit(self):
+        self.save.write_bytes(b"isolated unchanged save")
+        self.capture.last = None
+        self.suite.capture = Mock()
+        commits = []
+
+        def key(key):
+            if key == "ENTER" and self.events[-1] == ("gate", "end-submit-first-selected-buttons"):
+                commits.append(key)
+                self.log.write_text("\n".join(EndTurnEvidenceTest.checkpoints))
+            self.events.append(("key", key))
+        self.capture.key = key
+        with patch.object(runner, "wait_log", side_effect=lambda *args, **kwargs: self.log.read_text()), \
+                patch.object(runner, "check_confirmation_buttons", return_value={"resource": True}), \
+                patch("run_original_battle_menu.restored_browse", return_value={"kind": "browse"}), \
+                patch.object(runner.time, "sleep"):
+            self.suite.end_turn()
+        self.assertEqual(commits, ["ENTER"])
+        self.assertEqual(self.keys().count("LEFT"), 1)
+        for name in ("no-selected", "no-up-ignored", "no-down-ignored"):
+            self.assertIn(("gate", name + "-no"), self.events)
+            self.assertIn(("gate", name + "-browse"), self.events)
+        for name in ("no-up-ignored", "no-down-ignored"):
+            self.assertIn(("gate", name + "-still-no"), self.events)
+        self.assertEqual(self.save.read_bytes(), b"isolated unchanged save")
+
+    def test_title_continue_uses_measured_empty_focus_before_leave_and_rejects_a_different_source(self):
+        source = self.work / "storage-cancel/FD2.SAV"
+        source.parent.mkdir()
+        self.suite.key = lambda process, *keys: self.events.extend(("key", key) for key in keys)
+        title_capture = Mock()
+        self.process.wait.return_value = 0
+        self.log.write_text("field play: stage=0\nfield leave: exiting game\n")
+        for valid in (False, True):
+            with self.subTest(valid=valid):
+                plain = bytearray(0x59cb)
+                plain[0x30c6:0x30cc] = bytes((0, 15, 6 if valid else 7, 20, 6 if valid else 7, 5))
+                plain[-4:] = sum(plain[:-4]).to_bytes(4, "little")
+                encoded = encrypted_fixture(plain)
+                source.write_bytes(encoded)
+                self.save.write_bytes(encoded)
+                self.events.clear()
+                with patch.object(runner, "wait_log"), \
+                        patch("run_original_comparison.Capture", return_value=title_capture), \
+                        patch("run_original_comparison.title_templates", return_value={3: [object()]}), \
+                        patch("run_original_battle_menu.wait_state"), \
+                        patch("fd2_transition_oracle.resources"), patch("fd2_transition_oracle.picker_image"):
+                    if valid:
+                        self.suite.main_title_routes()
+                        self.assertEqual(self.keys()[-5:], ["ENTER", "ENTER", "DOWN", "ENTER", "ENTER"])
+                        self.assertIn(("gate", "loaded-battle-empty-browse"), self.events)
+                    else:
+                        with self.assertRaisesRegex(AssertionError, "empty focus/camera"):
+                            self.suite.main_title_routes()
+                        self.assertEqual(self.keys(), ["DOWN", "ENTER", "ESC", "UP", "ENTER"])
+                self.assertEqual(self.save.read_bytes(), encoded)
+
+    def test_storage_cancel_needs_resource_ack_without_inventing_down_or_escape_log_lines(self):
+        original = self.work / "original_game"
+        original.mkdir()
+        (original / "FDICON.B24").write_bytes(b"resource preflight mocked below")
+        plain = bytearray(0x59cb)
+        plain[-4:] = sum(plain[:-4]).to_bytes(4, "little")
+        (original / "START.SAV").write_bytes(encrypted_fixture(plain))
+        self.save.write_bytes(b"isolated source remains untouched")
+        stamp = self.save.stat().st_mtime_ns
+        self.oracle.assets = {"palette": [0] * 768, "commands": [Mock() for _ in range(3)]}
+        player = Mock()
+        player.selection.return_value = {"kind": "selected", "range": "positive LUT"}
+        player.browse.return_value = {"kind": "browse", "range": "original base"}
+
+        def log_contract(process, log, expected, **kwargs):
+            if expected != "field input ready: stage=0 turn=1 phase=2":
+                raise AssertionError("DOWN/ESC have no field cursor log contract")
+            return ""
+
+        for gate, keys in (("cancel-return-selection", ["Z", "ENTER", "DOWN", "ENTER", "ESC"]),
+                ("cancel-return-browse", ["Z", "ENTER", "DOWN", "ENTER", "ESC", "ESC"]),
+                ("cancel-save-first-selected-buttons", ["Z", "ENTER", "DOWN", "ENTER", "ESC", "ESC", "ENTER",
+                                            "ESC", "LEFT", "ENTER", "ENTER", "LEFT", "ENTER"])):
+            with self.subTest(gate=gate), patch.object(runner, "ROOT", self.work), \
+                    patch.object(runner, "wait_log", side_effect=log_contract) as log_wait, \
+                    patch("run_original_player.PlayerOracle", return_value=player), \
+                    patch("run_original_player.sheet_frame"), patch("run_original_player.upper_command_composite"), \
+                    patch("run_original_player.exact_tile", return_value={"checked_pixels": 6258}), \
+                    patch("run_original_end_turn.browse_anywhere", return_value={"focus_screen": [172, 124]}), \
+                    patch("run_original_end_turn.RoundOracle"), \
+                    patch("fd2_natural_oracle.selection_summary", return_value={"image": Mock(), "position": (9, 9)}), \
+                    patch("run_original_result.selection_probe", return_value={"world": (6, 20), "position": (148, 124),
+                          "base": Mock(), "ranges": [(1, Mock())]}):
+                self.events.clear()
+                self.failed_gate = gate
+                with self.assertRaisesRegex(TimeoutError, gate):
+                    self.suite.storage_and_cancel()
+                self.assertEqual(self.keys(), keys)
+                self.assertEqual(log_wait.call_count, 1)
+                self.assertEqual((self.save.read_bytes(), self.save.stat().st_mtime_ns),
+                                 (b"isolated source remains untouched", stamp))
+
+    def test_cancel_selection_positive_lut_and_browse_base_are_distinct_complete_resources(self):
+        from PIL import Image
+        from run_original_player import PlayerOracle
+        palette = [0] * 768
+        for index, color in enumerate(((20, 40, 60), (80, 100, 120), (140, 160, 180)), 1):
+            palette[index * 3:index * 3 + 3] = color
+
+        def indexed(size, color):
+            image = Image.new("P", size, color)
+            image.putpalette(palette)
+            return image
+
+        commands = [indexed((24, 20), 0) for _ in range(78)]
+        assets = {"commands": commands, "cursor": indexed((24, 24), 0),
+                  "leader_cursors": [indexed((24, 30), 3)],
+                  "upper_commands": {index: [commands[index]] for index in range(3)},
+                  "probe_base_tile": indexed((24, 24), 1)}
+        marked = indexed((24, 24), 2)
+        oracle = PlayerOracle(None, assets, [(1, marked)], {"leader_screen": [172, 124],
+            "leader_world": [7, 20], "destination_screen": [148, 124], "destination_world": [6, 20]})
+        frame = Image.new("RGB", (320, 200))
+        frame.paste(assets["leader_cursors"][0].convert("RGB"), (172, 118))
+        frame.paste(marked.convert("RGB"), (148, 124))
+        self.assertEqual(oracle.selection(frame)["checked_pixels"], 576)
+        self.assertIsNone(oracle.browse(frame))
+        frame.paste(assets["probe_base_tile"].convert("RGB"), (148, 124))
+        self.assertIsNone(oracle.selection(frame))
+        self.assertEqual(oracle.browse(frame)["base_tile"]["checked_pixels"], 576)
+        frame.putpixel((148, 124), (255, 255, 255))
+        self.assertIsNone(oracle.browse(frame))
 
 
 class CommandTreeTest(unittest.TestCase):

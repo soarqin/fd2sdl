@@ -277,26 +277,32 @@ static int test_secondary_dynamic_disabled(void) {
 }
 
 static int test_overview_stage_gate(void) {
-    fd2_field_game game;
-    test_rng rng = {0x13579bdfu, 0};
-    init_game(&game, &rng);
-    fd2_field_game before = game;
-    CHECK(fd2_field_game_open_system_menu(&game) == 0);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-    CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
-    CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
-    CHECK(fd2_field_game_confirm_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_NONE);
-    CHECK(business_state_unchanged(&game, &before));
-    game.stage = 1;
-    CHECK(fd2_field_game_open_system_menu(&game) == 0);
-    CHECK(fd2_field_game_confirm_system_menu(&game) ==
-          FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-    CHECK(game.system_menu.disabled[0] && game.system_menu.selected == 1);
-    CHECK(rng.calls == 0 && rng.state == 0x13579bdfu);
-    fd2_field_game_close(&game);
+    /* B5已开放stage 0/1的总览；stage 2仍无对应恢复依据。 */
+    for (uint8_t stage = 0; stage <= 2; stage++) {
+        fd2_field_game game;
+        test_rng rng = {0x13579bdfu, 0};
+        init_game(&game, &rng);
+        game.stage = stage;
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_open_system_menu(&game) == 0);
+        CHECK(fd2_field_game_confirm_system_menu(&game) ==
+              FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
+        if (stage <= 1) {
+            CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
+            CHECK(fd2_field_game_confirm_system_menu(&game) ==
+                  FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+            CHECK(fd2_field_game_confirm_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_NONE);
+        } else {
+            CHECK(game.system_menu.disabled[0] && game.system_menu.selected == 1);
+            CHECK(fd2_field_game_cancel_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_BACK);
+            CHECK(fd2_field_game_cancel_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_CANCEL);
+            CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+        }
+        CHECK(business_state_unchanged(&game, &before));
+        CHECK(rng.calls == 0 && rng.state == 0x13579bdfu);
+        fd2_field_game_close(&game);
+    }
     return 0;
 }
 
@@ -577,23 +583,30 @@ static int test_confirmation_buttons(void) {
     return 0;
 }
 
-static int test_march_other_stage_disabled(void) {
-    fd2_field_game game;
-    test_rng rng = {0x27182818u, 0};
-    init_game(&game, &rng);
-    game.stage = 1;
-    fd2_field_game before = game;
-    CHECK(fd2_field_game_open_system_menu(&game) == 0);
-    CHECK(game.system_menu.disabled[1]);
-    CHECK(fd2_field_game_select_system_menu_direction(
-              &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 0);
-    CHECK(business_state_unchanged(&game, &before) && rng.calls == 0);
-    fd2_field_game_close(&game);
+static int test_march_supported_stage_gate(void) {
+    const size_t stages[] = {0, 1, 2};
+    const int available[] = {1, 1, 0};
+    for (size_t i = 0; i < 3; i++) {
+        fd2_field_game game;
+        test_rng rng = {0x27182818u, 0};
+        init_game(&game, &rng);
+        game.stage = stages[i];
+        fd2_field_game before = game;
+        CHECK(fd2_field_game_open_system_menu(&game) == 0);
+        CHECK(game.system_menu.disabled[1] == !available[i]);
+        CHECK(fd2_field_game_select_system_menu_direction(
+                  &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == available[i]);
+        CHECK(business_state_unchanged(&game, &before) && rng.calls == 0);
+        CHECK(fd2_field_game_cancel_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_CANCEL);
+        CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
+        CHECK(business_state_unchanged(&game, &before) && rng.calls == 0);
+        fd2_field_game_close(&game);
+    }
     return 0;
 }
 
 int main(void) {
-    if (test_march_other_stage_disabled() || test_focus_cycle_and_confirm() != 0 || test_open_gate() != 0 ||
+    if (test_march_supported_stage_gate() || test_focus_cycle_and_confirm() != 0 || test_open_gate() != 0 ||
         test_layered_cancel() != 0 ||
         test_secondary_dynamic_disabled() != 0 ||
         test_overview_stage_gate() != 0 ||

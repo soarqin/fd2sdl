@@ -17,6 +17,7 @@ static int timed_frames, close_frame, quit_frame, modal_started, modal_done;
 static int background_calls, dynamic_seen, old_pulse_seen, bad_free;
 static int allocations, frees, fail_allocation, route_mode, action_queries;
 static int post_modal_queries, next_outer_present, hold_enter;
+static int menu_close_calls;
 static SDL_Scancode close_key;
 static void *allocated[2];
 static fd2_field_game *current_game;
@@ -138,6 +139,16 @@ static void overview_background(fd2_field_game *game, fd2_vga *vga) {
 }
 
 static int overview_open(fd2_field_game *, fd2_vga *, const fd2_archive *, size_t);
+static int overview_menu_close(fd2_field_game *game, fd2_vga *vga,
+                               int opening, uint32_t frame_delay_ms) {
+    /* 此夹具只拥有总览资源；菜单收框是明确替身，不让旧的缺资源错误被忽略。 */
+    CHECK(route_mode && game == current_game && vga && !opening && frame_delay_ms == 16);
+    CHECK(game->ready && game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU &&
+          game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY &&
+          game->system_menu.selected == 0);
+    menu_close_calls++;
+    return 0;
+}
 static int overview_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
     action_queries++;
@@ -154,6 +165,7 @@ static int overview_take_action(fd2_input *input, fd2_input_context context,
 #define fd2_vga_wait_frame_deadline overview_wait_deadline
 #define fd2_field_game_render_background overview_background
 #define fd2_field_game_open overview_open
+#define fd2_field_game_animate_system_menu overview_menu_close
 #define fd2_input_take_action overview_take_action
 #include "../field_play.c"
 #undef malloc
@@ -165,6 +177,7 @@ static int overview_take_action(fd2_input *input, fd2_input_context context,
 #undef fd2_vga_wait_frame_deadline
 #undef fd2_field_game_render_background
 #undef fd2_field_game_open
+#undef fd2_field_game_animate_system_menu
 #undef fd2_input_take_action
 
 static void reset_controls(void) {
@@ -173,6 +186,7 @@ static void reset_controls(void) {
     dynamic_seen = old_pulse_seen = bad_free = allocations = frees = 0;
     fail_allocation = route_mode = action_queries = post_modal_queries = 0;
     next_outer_present = route_owner_unchanged = 0;
+    menu_close_calls = 0;
     close_frame = 15;
     quit_frame = 0;
     close_key = SDL_SCANCODE_A;
@@ -423,6 +437,7 @@ static int test_public_loop_ends_input_frame(void) {
           FD2_FIELD_PLAY_RETURN_HOST_QUIT);
     CHECK(modal_done && next_outer_present == 1);
     CHECK(action_queries == 1 && post_modal_queries == 0);
+    CHECK(menu_close_calls == 1);
     CHECK(route_owner_unchanged && test_rng.state == 0x3141);
     CHECK(allocations == 2 && frees == 2 && !bad_free);
     return 0;

@@ -976,6 +976,8 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
     target_compile_definitions(fd2_field_play_result_test PRIVATE
+        fd2_field_game_close=__wrap_fd2_field_game_close
+        fd2_field_game_animate_command=__wrap_fd2_field_game_animate_command
         fd2_field_game_open=__wrap_fd2_field_game_open
         fd2_field_game_process_automatic_action_visual=__wrap_fd2_field_game_process_automatic_action_visual
         fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event

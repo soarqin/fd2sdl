@@ -5268,7 +5268,9 @@ static int commit_ai_item_internal(
     if (code == 5u) inventory_slot_remove(actor, plan->slot_index);
     int loot_result = begin_defeated_loot(game, actor_index, actor_index, PLAYER_ACTION_AI_ITEM, 0, 0);
     if (loot_result < 0) { fail_action(game, actor_index); return -1; }
-    if (loot_result) {
+    /* field_loot_descriptors_execute @0x1aa1d（原sub_1AA1D）的非side2 mode0/1
+     * 可同步终止队列，只有待续态才延后common tail。 */
+    if (loot_result && progress_pending(game)) {
         if (finish_action) { game->loot.resume = FD2_FIELD_PROGRESS_RESUME_AI_DIRECT; game->loot.ai_common_tail = 1; }
         return 0;
     }

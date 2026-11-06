@@ -1772,8 +1772,95 @@ static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
     }
     return 0;
 }
+/* 同步loot的非side2 mode0/1会直接终止队列，不能丢掉public direct尾。
+ * 使用真实AI score/targets：item11只对HP>magic2.power250评分，故同格
+ * HP300保证合法score，HP1记录证明实际击杀与descriptor收集。 */
+static int synchronous_item_fixture(fd2_field_game *game, uint32_t cells[64],
+        fd2_terrain_attr attrs[1], test_rng *rng, uint8_t descriptor,
+        fd2_field_ai_item_candidate *plan) {
+    init_game(game,cells,attrs,rng);
+    game->active_side=1;game->units.items[0].side=1;
+    game->units.items[0].direction=3;
+    uint8_t *raw=(uint8_t*)&game->units.items[0];
+    for(size_t slot=0;slot<8;slot++){raw[10+2*slot]=0x80;raw[11+2*slot]=0xff;}
+    raw[10]=0;raw[11]=11;
+    game->units.count=14;
+    for(size_t i=1;i<14;i++){set_unit(&game->units.items[i],0,7,7);game->units.items[i].flags=1;}
+    for(size_t i=1;i<=2;i++){
+        game->units.items[i].x=2;game->units.items[i].y=1;game->units.items[i].flags=0;
+        game->units.items[i].hp_max=300;game->units.items[i].direction=2;
+    }
+    game->units.items[1].hp=1;game->units.items[2].hp=300;
+    raw=(uint8_t*)&game->units.items[1];raw[0x31]=descriptor;
+    raw[0x32]=descriptor==0?192:descriptor==1?0xe8:8;raw[0x33]=descriptor==1?3:0;
+    game->units.items[13].side=2; /* 已知callback4用于数common tail dispatch。 */
+    cells[1*8+1]=1u<<16;
+    game->metadata.cell_lookup[0].event_code=4;game->metadata.cell_lookup[0].match_arg=1;
+    game->resource_value=5;game->experience_value=7;rng->owner=game;
+    CHECK(fd2_field_ai_choose_item_candidate(&game->map,&game->terrain,&game->units,0,1,plan)==0);
+    printf("sync fixture candidate item=%u score=%d target=%d,%d\n",plan->item_id,plan->score,plan->target_x,plan->target_y);
+    CHECK(plan->item_id==11 && plan->score==8);
+    uint8_t targets[FD2_FIELD_MAX_UNITS];size_t target_count=0;
+    CHECK(fd2_field_ai_collect_item_targets(&game->map,&game->terrain,&game->units,0,11,
+        plan->target_x,plan->target_y,1,targets,sizeof(targets),&target_count)==0 &&
+        target_count==2 && targets[0]==1 && targets[1]==2);
+    return 0;
+}
+static int test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once(void) {
+    int failures=0;
+    for(int scheduler=0;scheduler<=1;scheduler++)for(uint8_t mode=0;mode<2;mode++) {
+        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+        fd2_field_ai_item_candidate plan;
+        CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,mode,&plan)==0);
+        int result=scheduler?fd2_field_game_process_automatic_action(&game):
+            fd2_field_game_commit_ai_item(&game,0,1,&plan);
+        int okay=result==(scheduler?1:0) && !game.failure && !game.loot.source &&
+            !game.loot.notice.kind && !game.loot.resume && !game.progress.resume &&
+            fd2_field_unit_has_acted(&game.units.items[0]) &&
+            game.units.items[0].direction==0 && game.units.items[2].direction==0 &&
+            game.units.items[1].hp==0 && game.units.items[1].flags==1 && game.units.items[2].hp==75 &&
+            rng.cursor==4 && rng.first_experience==7 && !game.experience_value &&
+            game.resource_value==5 && game.event_log_count==1 && game.event_total_count==1 &&
+            game.event_log[0].action==4 && game.units.items[13].side==1;
+        printf("sync item tail scheduler=%d descriptor=%u result=%d acted=%d events=%zu hp=%u/%u rng=%zu loot_source=%u loot_resume=%u pass=%d\n",
+            scheduler,mode,result,fd2_field_unit_has_acted(&game.units.items[0]),game.event_log_count,
+            game.units.items[1].hp,game.units.items[2].hp,rng.cursor,game.loot.source,game.loot.resume,okay);
+        if(!okay)failures++;
+    }
+    CHECK(failures==0);return 0;
+}
+static int test_item_async_loot_and_rejection_boundaries_remain(void) {
+    static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+    uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;fd2_field_ai_item_candidate plan;
+    CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);
+    CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==0);
+    CHECK(game.loot.notice.kind==FD2_FIELD_LOOT_STORY && game.loot.notice.fragment==8 &&
+        game.loot.resume==FD2_FIELD_PROGRESS_RESUME_AI_DIRECT && game.loot.ai_common_tail &&
+        !fd2_field_unit_has_acted(&game.units.items[0]) && game.event_log_count==0 && rng.cursor==4);
+    fd2_field_game before=game;
+    CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_CANCEL,-1)==-1 &&
+        !memcmp(&before,&game,sizeof(game)) && rng.cursor==4);
+    CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==0);
+    CHECK(!game.loot.source && !game.progress.resume && fd2_field_unit_has_acted(&game.units.items[0]) &&
+        game.event_log_count==1 && game.event_total_count==1 && game.units.items[13].side==1 && rng.cursor==4);
+    before=game;
+    CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==-1 && !memcmp(&before,&game,sizeof(game)));
+    rng=(test_rng){rolls,16,0};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);
+    game.loot_preflight=reject_story_resource;before=game;
+    CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==-1 && game.failure==FD2_FIELD_FAILURE_ACTION &&
+        !memcmp(&game.units,&before.units,sizeof(game.units)) && rng.cursor==0 && game.experience_value==7 && !game.loot.source);
+    rng=(test_rng){rolls,16,0};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,0,&plan)==0);
+    ((uint8_t*)&game.units.items[0])[11]=38;before=game;
+    CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==-1 && !memcmp(&before,&game,sizeof(game)) && rng.cursor==0);
+    puts("async item resume/cancel/double ACK/preflight/stale boundaries: ok");
+    return 0;
+}
+
 int main(void) {
-    if (test_ai_focus_before_effect_at_map_edge() != 0 ||
+    if (test_item_async_loot_and_rejection_boundaries_remain() != 0 ||
+        test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once() != 0 ||
+        test_ai_focus_before_effect_at_map_edge() != 0 ||
         test_ai_line_item_and_no_action_focus() != 0 ||
         test_ai_effect_unknown_loot_is_before_first_rng() != 0 ||
         test_commit() != 0 ||

@@ -324,7 +324,7 @@ class F1SamplingTest(unittest.TestCase):
     def setUpClass(cls):
         cls.frames = probe.prepare(probe.ROOT / "original_game", probe.ROOT / "original_game/START.SAV")[5]
 
-    def test_fixed_sampling_aliases_110ms_pingpong_but_stagger_reaches_target_without_input(self):
+    def test_fixed_sampling_aliases_110ms_pingpong_but_adaptive_sampling_reaches_target_without_input(self):
         sequence = (7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7)
         def attempt(stagger):
             clock = [0]
@@ -362,9 +362,79 @@ class F1SamplingTest(unittest.TestCase):
         self.assertEqual(set(old_seen), {0, 7})
         new_time, _, samples = attempt(True)
         self.assertLess(new_time, 15000)
-        self.assertEqual([sample["delay_ms"] for sample in samples[:8]], [17, 43, 79, 131] * 2)
+        self.assertTrue(all(0 <= sample["delay_ms"] < 1792 for sample in samples))
+        self.assertTrue(all(sample["sampling_hint_pulse_ms"] == 112 for sample in samples[:-1]))
+        self.assertEqual(samples[1]["capture_interval_without_stagger_ms"], 880)
         self.assertTrue(samples[-1]["matched"])
         self.assertEqual((samples[-1]["observed_phase"], samples[-1]["delay_ms"]), (4, 0))
+
+    def test_c7_capture_costs_alias_old_four_delays_but_target_sampling_uses_observed_cadence(self):
+        # C7的相邻观察时间扣掉前一stagger和共享80ms，仍约424..466ms。
+        # 这里只重放观察成本的112ms模型，不能倒推原截图的确切宿主phase时钟。
+        costs = (434, 424, 435, 461, 450, 424, 450, 430, 465, 455, 451, 429,
+                 450, 455, 466, 446, 449, 440, 435, 445, 450, 439, 435, 430, 450)
+        sequence = (7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7)
+        def attempt(adaptive, offset=171, target=4):
+            clock, index, phase = [offset], [0], [None]
+            capture = Mock(last=None)
+            samples = []
+            def sleep(seconds):
+                clock[0] += round(seconds * 1000)
+            def frame():
+                clock[0] += costs[index[0] % len(costs)]
+                index[0] += 1
+                phase[0] = sequence[(clock[0] // 112) % len(sequence)]
+                capture.last = self.frames[phase[0]]
+                return capture.last
+            capture.frame.side_effect = frame
+            oracle = Mock()
+            oracle.match.side_effect = lambda image: {"pulse_phase": phase[0], "checked_pixels": 64000}
+            def old_sample(image):
+                detail = oracle.match(image)
+                if detail["pulse_phase"] == target:
+                    return detail
+                sleep((17, 43, 79, 131)[(index[0] - 1) % 4] / 1000)
+            predicate = probe.phase_sampler(oracle, samples, "target", target=target) if adaptive else old_sample
+            with patch.object(probe.time, "monotonic", side_effect=lambda: clock[0] / 1000), \
+                    patch.object(probe.time, "sleep", side_effect=sleep), \
+                    patch("run_original_battle_menu.save_checkpoint"):
+                if adaptive:
+                    _, detail = probe.wait_state(capture, "target", predicate, [])
+                    self.assertEqual(detail["pulse_phase"], target)
+                    self.assertLess(clock[0] - offset, 15000)
+                else:
+                    with self.assertRaises(TimeoutError):
+                        probe.wait_state(capture, "target", predicate, [])
+            capture.key.assert_not_called()
+            return samples
+        attempt(False)
+        samples = attempt(True)
+        self.assertTrue(any(sample.get("capture_interval_without_stagger_ms", 0) > 500 for sample in samples))
+        # 同一组实测成本的多个入场相位、两个原版目标均不需要补键。
+        for offset in (0, 171, 407, 833, 1258, 1717):
+            for target in (3, 4):
+                with self.subTest(offset=offset, target=target):
+                    attempt(True, offset, target)
+
+    def test_adaptive_timing_hint_never_substitutes_for_observed_target_or_deadline(self):
+        clock, samples = [0], []
+        capture = Mock(last=self.frames[2])
+        def frame():
+            clock[0] += 450
+            return capture.last
+        capture.frame.side_effect = frame
+        oracle = Mock()
+        oracle.match.return_value = {"pulse_phase": 2, "checked_pixels": 64000}
+        def sleep(seconds):
+            clock[0] += round(seconds * 1000)
+        with patch.object(probe.time, "monotonic", side_effect=lambda: clock[0] / 1000), \
+                patch.object(probe.time, "sleep", side_effect=sleep), \
+                patch("run_original_battle_menu.save_checkpoint"):
+            with self.assertRaises(TimeoutError):
+                probe.wait_state(capture, "target4", probe.phase_sampler(oracle, samples, "target4", target=4), [])
+        self.assertTrue(all(sample["observed_phase"] == 2 and not sample["matched"] for sample in samples))
+        self.assertTrue(all(0 <= sample["delay_ms"] < 1792 for sample in samples))
+        capture.key.assert_not_called()
 
     def test_distinct_sampling_records_excluded_phase_then_full_frame_change(self):
         clock, samples, delays = [0], [], []

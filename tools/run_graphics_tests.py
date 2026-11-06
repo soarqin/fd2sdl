@@ -343,16 +343,70 @@ class Suite:
                     raise RuntimeError(f"{name} did not close normally; see {log}")
             self.report["cases"].append({"name": name, "status": "passed"})
 
+    def battle_probe(self, process, work):
+        """CLI stage0的真实初位是unit0(7,20)，空格(6,20)屏坐标为(148,124)。"""
+        from run_original_comparison import Capture
+        from run_original_end_turn import RoundOracle, round_assets
+        from run_original_battle_menu import wait_state
+
+        capture = Capture(self.args.driver, process, work)
+        capture.key = lambda key: self.key(process, key)
+        assets = round_assets(ROOT / "original_game")
+        oracle = RoundOracle(assets, (148, 124))
+        checkpoints = self.report.setdefault("resource_checkpoints", {}).setdefault(work.name, [])
+
+        def checkpoint(name, predicate, **kwargs):
+            return wait_state(capture, name, predicate, checkpoints, **kwargs)
+        return capture, oracle, checkpoint
+
+    def confirmation(self, capture, oracle, checkpoint, name):
+        from run_original_battle_menu import save_checkpoint
+        checkpoints = self.report.setdefault("resource_checkpoints", {}).setdefault(capture.artifacts.name, [])
+        first_seen = False
+
+        def selected(frame):
+            nonlocal first_seen
+            detail = oracle.buttons(frame)
+            if not detail:
+                return None
+            if not first_seen:
+                save_checkpoint(capture, name + "-first-complete-buttons", frame, detail, checkpoints)
+                first_seen = True
+            no = oracle.buttons(frame, 1)
+            if no:
+                save_checkpoint(capture, name + "-unexpected-no-buttons", frame, no, checkpoints)
+                raise AssertionError(f"{name}: explicit No observed; original frame retained")
+            # 48/51是合法blink-off；在本次15秒等待内继续，不能推定YES或重开期限。
+            return oracle.buttons(frame, 0)
+
+        checkpoint(name + "-first-selected-buttons", selected)
+
+    def storage_confirmation(self, capture, oracle, checkpoint, name, selected,
+                             *, load_available):
+        capture.key("ENTER")
+        checkpoint(name + "-parent", lambda frame: oracle.menu(frame, 0))
+        capture.key("ENTER")
+        checkpoint(name + "-secondary", lambda frame: oracle.secondary(
+            frame, 0, load_available=load_available))
+        capture.key({1: "LEFT", 2: "RIGHT", 3: "DOWN"}[selected])
+        checkpoint(name + "-selected", lambda frame: oracle.secondary(
+            frame, selected, load_available=load_available))
+        capture.key("ENTER")
+        self.confirmation(capture, oracle, checkpoint, name)
+
     def first_save(self):
         with self.window("first-save", ["--field-play", "0"], save=False) as (process, work, log, save):
             wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")
+            capture, oracle, checkpoint = self.battle_probe(process, work)
             if save.exists():
                 raise AssertionError("first-save must start without a save file")
-            self.key(process, "ENTER", "UP", "ENTER", "LEFT", "ENTER")
-            self.capture(process, work, "confirmation")
+            capture.key("LEFT")
+            checkpoint("first-save-empty-browse", oracle.closed_browse)
+            self.storage_confirmation(capture, oracle, checkpoint, "first-save", 1,
+                                      load_available=False)
             if save.exists():
                 raise AssertionError("opening Save confirmation created a file")
-            self.key(process, "LEFT", "ENTER")
+            capture.key("ENTER")
             deadline = time.monotonic() + 15
             while not save.exists():
                 if time.monotonic() >= deadline:
@@ -366,43 +420,88 @@ class Suite:
             roster_count = check_roster_count(plain)
             if plain[0x312b:-4] != b"\xff" * (len(plain) - 4 - 0x312b):
                 raise AssertionError("first Save altered empty manual slots")
-            self.capture(process, work, "created")
+            checkpoint("first-save-created-browse", oracle.closed_browse)
         self.report["cases"].append({"name": "first-save", "status": "passed",
                                      "started_without_file": True, "roster_count": roster_count})
 
     def storage_and_cancel(self):
+        from run_original_end_turn import META, UNITS, RoundOracle, browse_anywhere
+        from run_original_load import wait_measured_save
+        from run_original_player import PlayerOracle, exact_tile, sheet_frame, upper_command_composite
+        from run_original_battle_menu import MENU_OFFSETS
+        from run_original_result import selection_probe
+        from fd2_natural_oracle import selection_summary
+
         with self.window("storage-cancel", ["--field-play", "0"]) as (process, work, log, save):
-            wait_log(process, log, "field play: stage=0")
+            wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")
+            capture, oracle, checkpoint = self.battle_probe(process, work)
             original = save.read_bytes()
-            self.key(process, "Z", "ENTER", "DOWN", "ENTER")
+            original_mtime = save.stat().st_mtime_ns
+            icons = (ROOT / "original_game/FDICON.B24").read_bytes()
+            sprites = [sheet_frame(icons, phase) for phase in range(12)]
+            for sprite in sprites:
+                sprite.putpalette(oracle.assets["palette"])
+            command_assets = dict(oracle.assets, upper_commands={index: [
+                upper_command_composite(oracle.assets["commands"][index], sprite) for sprite in sprites]
+                for index in range(3)})
+            # CLI初始Hero与真实START的姓名/LV1/HP42/MP0相同；这里只映射已知初位，
+            # 不把START敌军站位或完整80B当CLI会话预期。
+            summary_source = bytearray(decode_save(ROOT / "original_game/START.SAV"))
+            summary_source[META + 3:META + 5] = bytes((0, 15))
+            summary_source[UNITS:UNITS + 2] = bytes((7, 20))
+            summary = selection_summary(ROOT / "original_game", summary_source, oracle.assets, 0)
+            probe = selection_probe(ROOT / "original_game", summary_source, 0, oracle.assets)
+            if tuple(probe["world"]) != (6, 20):
+                raise ValueError("storage-cancel需要已确认空格6,20的独立移动范围资源")
+            command_assets["probe_base_tile"] = probe["base"]
+            player = PlayerOracle(summary_source, command_assets, probe["ranges"], {
+                "leader_screen": [172, 124], "leader_world": [7, 20],
+                "destination_screen": list(probe["position"]), "destination_world": list(probe["world"])})
+
+            def leader(frame):
+                found = browse_anywhere(frame, oracle.assets, leader=True)
+                return found if found and found["focus_screen"] == [172, 124] else None
+
+            def selected_summary(frame):
+                focused = player.selection(frame)
+                panel = exact_tile(frame, summary["image"], summary["position"])
+                return {"kind": "leader_selection_summary", "leader": focused, "panel": panel} if focused and panel else None
+
+            capture.key("Z")
+            checkpoint("cancel-leader-browse", leader)
+            capture.key("ENTER")
+            checkpoint("cancel-first-selection", selected_summary)
+            capture.key("DOWN")
+            destination = RoundOracle(oracle.assets, (172, 148))
+            checkpoint("cancel-move-focus", destination.browse)
+            capture.key("ENTER")
+            checkpoint("command-before-cancel", lambda frame: player.command(frame, (172, 148)))
             # 取消移动后菜单，再次选择同一actor：不能提交acted。
-            time.sleep(0.6)
-            self.capture(process, work, "command-before-cancel")
-            self.key(process, "ESC", "ESC", "ENTER")
-            time.sleep(0.4)
+            capture.key("ESC")
+            checkpoint("cancel-return-selection", player.selection)
+            capture.key("ESC")
+            checkpoint("cancel-return-browse", player.browse)
+            capture.key("ENTER")
+            checkpoint("cancel-reselected-same-actor", selected_summary)
             text = log.read_text(encoding="utf-8", errors="replace")
-            if "field action:" in text or save.read_bytes() != original:
+            if "field action:" in text or save.read_bytes() != original or save.stat().st_mtime_ns != original_mtime:
                 raise AssertionError("cancel committed action or changed save")
-            if "selected=0, interaction=1" not in text.splitlines()[-1]:
-                raise AssertionError("cancel did not allow selecting the same actor again")
-            self.key(process, "ESC")
+            capture.key("ESC")
+            checkpoint("cancel-final-browse", player.browse)
             # 焦点已回到unit 0 (7,20)，左邻格为空，进入parent/secondary。
-            self.key(process, "LEFT", "ENTER", "UP", "ENTER", "LEFT", "ENTER")
-            time.sleep(0.5)
-            self.capture(process, work, "save-confirm")
+            capture.key("LEFT")
+            checkpoint("storage-empty-browse", oracle.closed_browse)
+            # 本套件原FD2.SAV活动stage29不在正式Load范围；Save后才可Load。
+            self.storage_confirmation(capture, oracle, checkpoint, "cancel-save", 1, load_available=False)
             # 确认框默认左侧Yes；Esc取消必须逐字保留存档。
-            self.key(process, "ESC")
-            if save.read_bytes() != original:
+            capture.key("ESC")
+            checkpoint("cancel-save-browse", oracle.closed_browse)
+            if save.read_bytes() != original or save.stat().st_mtime_ns != original_mtime:
                 raise AssertionError("cancelled save changed the file")
-            self.key(process, "ENTER", "UP", "ENTER", "LEFT", "ENTER")
-            time.sleep(0.3)
-            self.key(process, "LEFT", "ENTER")
-            deadline = time.monotonic() + 15
-            while save.read_bytes() == original:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(f"Save did not write the isolated file; see {log}")
-                time.sleep(0.1)
-            plain = decode_save(save)
+            self.storage_confirmation(capture, oracle, checkpoint, "write-save", 1, load_available=False)
+            capture.key("ENTER")
+            plain = wait_measured_save(save, original, original_mtime)
+            checkpoint("saved-browse", oracle.closed_browse)
             original_plain_path = work / "before-save.SAV"
             original_plain_path.write_bytes(original)
             before_plain = decode_save(original_plain_path)
@@ -416,36 +515,70 @@ class Suite:
                 raise AssertionError("saved snapshot stage/turn/unit count mismatch")
             saved = save.read_bytes()
             saved_mtime = save.stat().st_mtime_ns
-            self.capture(process, work, "saved")
             # 确认成功/取消均回browse；结果文字只是短时覆盖层。
             # 配置立即提交：先证明music确实改变，再由Load恢复原快照的配置。
-            self.key(process, "ENTER", "RIGHT", "ENTER", "UP", "ENTER")
+            capture.key("ENTER")
+            checkpoint("options-parent", lambda frame: oracle.menu(frame, 0))
+            capture.key("RIGHT")
+            checkpoint("options-selected", lambda frame: oracle.menu(frame, 2))
+            capture.key("ENTER")
+
+            def options(frame, values):
+                matches = []
+                for index, command in enumerate((18 + (not values[0]), 20 + (not values[1]),
+                                                  22 + values[2], 24 + (not values[3]))):
+                    at = tuple(a + b for a, b in zip(oracle.focus, MENU_OFFSETS[index]))
+                    if index >= 2:  # 原disabled帧全透明；两项仍不可选，不冒充已开放。
+                        if oracle.choices(frame, (command * 3, command * 3 + 1), at):
+                            return None
+                        matches.append({"item": index, "disabled_transparent_resource": True})
+                    else:
+                        found = oracle.choices(frame, (command * 3 + (index == 0),), at)
+                        if not found:
+                            return None
+                        matches.append(found)
+                return {"kind": "options", "selected": 0, "matches": matches}
+
+            values = list(meta[16:18]) + list(meta[14:16])
+            checkpoint("options-before-toggle", lambda frame: options(frame, values))
+            capture.key("ENTER")
             wait_log(process, log, f"field option: index=0 value={1 - meta[16]}")
-            self.capture(process, work, "options-changed")
-            self.key(process, "ESC", "ESC")
-            self.key(process, "RIGHT", "RIGHT")
-            self.key(process, "ENTER", "UP", "ENTER", "RIGHT", "ENTER")
-            time.sleep(0.4)
-            self.key(process, "LEFT", "ENTER")
-            time.sleep(0.6)
-            self.capture(process, work, "loaded")
+            values[0] ^= 1
+            checkpoint("options-changed", lambda frame: options(frame, values))
+            capture.key("ESC")
+            checkpoint("options-return-parent", lambda frame: oracle.menu(frame, 0))
+            capture.key("ESC")
+            checkpoint("options-return-browse", oracle.closed_browse)
+            capture.key("RIGHT")
+            checkpoint("load-navigate-leader", leader)
+            capture.key("RIGHT")
+            load_oracle = RoundOracle(oracle.assets, (196, 124))
+            checkpoint("load-offset-browse", load_oracle.closed_browse)
+            self.storage_confirmation(capture, load_oracle, checkpoint, "load", 2, load_available=True)
+            capture.key("ENTER")
+            checkpoint("loaded-source-browse", oracle.closed_browse)
+            if save.read_bytes() != saved or save.stat().st_mtime_ns != saved_mtime:
+                raise AssertionError("Load unexpectedly rewrote its source save")
             # 再次保存恢复后的快照，位置/单位/配置必须与加载源一致。
-            self.key(process, "ENTER", "UP", "ENTER", "LEFT", "ENTER")
-            time.sleep(0.4)
-            self.key(process, "LEFT", "ENTER")
-            deadline = time.monotonic() + 15
-            while save.stat().st_mtime_ns == saved_mtime:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("restored snapshot was never saved again")
-                time.sleep(0.1)
+            self.storage_confirmation(capture, oracle, checkpoint, "restored-save", 1, load_available=True)
+            capture.key("ENTER")
+            wait_measured_save(save, saved, saved_mtime)
+            checkpoint("restored-save-browse", oracle.closed_browse)
             if save.read_bytes() != saved:
                 raise AssertionError("Load/Save did not restore identical snapshot bytes")
             text = log.read_text(encoding="utf-8", errors="replace")
             if "field save failed:" in text or "field load failed:" in text:
                 raise AssertionError(f"storage reported failure; see {log}")
-            self.capture(process, work, "restored")
             # 恢复后必须能继续真实行动；不能只验证codec往返或停在菜单中。
-            self.key(process, "RIGHT", "ENTER", "ENTER", "DOWN", "ENTER")
+            capture.key("RIGHT")
+            checkpoint("continued-leader", leader)
+            capture.key("ENTER")
+            checkpoint("continued-selection", selected_summary)
+            capture.key("ENTER")
+            checkpoint("continued-command", lambda frame: player.command(frame, (172, 124)))
+            capture.key("DOWN")
+            checkpoint("continued-wait-selected", lambda frame: player.command(frame, (172, 124), 3))
+            capture.key("ENTER")
             wait_log(process, log, "field action: unit=0 command=wait acted=1 remaining=3 phase=2")
             if save.read_bytes() != saved:
                 raise AssertionError("continuing after Load unexpectedly rewrote the save")
@@ -455,52 +588,65 @@ class Suite:
                                      "roster_count": roster_count})
 
     def end_turn(self):
+        from run_original_battle_menu import restored_browse
+
         with self.window("end-turn", ["--field-play", "0"]) as (process, work, log, save):
-            wait_log(process, log, "field play: stage=0")
+            wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")
+            capture, oracle, checkpoint = self.battle_probe(process, work)
             original = save.read_bytes()
-            from PIL import Image
-            browse = self.capture(process, work, "browse-before-confirmation")
-            with Image.open(browse) as image:
-                browse_image = image.copy()
-            # 初始焦点为空格；parent下方项为结束回合，先验证Esc取消。
-            self.key(process, "ENTER", "DOWN", "ENTER")
-            confirmation = self.capture(process, work, "confirmation")
-            with Image.open(confirmation) as image:
-                buttons = check_confirmation_buttons(image, ROOT / "original_game/FDOTHER.DAT")
-            self.key(process, "ESC")
+            original_mtime = save.stat().st_mtime_ns
+            capture.key("LEFT")
+            browse_image, _ = checkpoint("end-empty-browse", oracle.closed_browse)
+
+            def open_end(name):
+                capture.key("ENTER")
+                checkpoint(name + "-parent", lambda frame: oracle.menu(frame, 0))
+                capture.key("DOWN")
+                checkpoint(name + "-end-selected", lambda frame: oracle.menu(frame, 3))
+                capture.key("ENTER")
+                self.confirmation(capture, oracle, checkpoint, name)
+
+            def restored(name):
+                checkpoint(name, lambda frame: restored_browse(frame, browse_image, oracle),
+                           transition=oracle.cancellation_notice)
+
+            # 原初位在unit0；先空格资源ACK，再验证Esc/No都不提交。
+            open_end("end-cancel")
+            buttons = check_confirmation_buttons(capture.last, ROOT / "original_game/FDOTHER.DAT")
+            capture.key("ESC")
+            restored("end-cancelled-browse")
             cancelled = log.read_text(encoding="utf-8", errors="replace")
             if any(marker in cancelled for marker in ("field end turn:", "field phase:", "field action:")):
                 raise AssertionError("cancelled end-turn confirmation changed battle state")
-            if save.read_bytes() != original:
+            if save.read_bytes() != original or save.stat().st_mtime_ns != original_mtime:
                 raise AssertionError("cancelled end-turn confirmation changed the save")
-            cancelled_frame = self.capture(process, work, "cancelled")
-            with Image.open(cancelled_frame) as image:
-                check_browse_restored(browse_image, image)
             # Right选No；Up/Down被确认框忽略，不能把No切回Yes。
-            for name, keys in (
-                    ("no-selected", ("RIGHT", "ENTER")),
-                    ("no-up-ignored", ("RIGHT", "UP", "ENTER")),
-                    ("no-down-ignored", ("RIGHT", "DOWN", "ENTER"))):
+            for name, ignored in (("no-selected", None), ("no-up-ignored", "UP"),
+                                  ("no-down-ignored", "DOWN")):
                 # 每个确认框返回browse，下一次必须从parent重新进入。
-                self.key(process, "ENTER", "DOWN", "ENTER")
-                self.key(process, *keys)
+                open_end(name)
+                capture.key("RIGHT")
+                checkpoint(name + "-no", lambda frame: oracle.buttons(frame, 1))
+                if ignored:
+                    capture.key(ignored)
+                    checkpoint(name + "-still-no", lambda frame: oracle.buttons(frame, 1))
+                capture.key("ENTER")
+                restored(name + "-browse")
                 rejected = log.read_text(encoding="utf-8", errors="replace")
                 if any(marker in rejected for marker in ("field end turn:", "field phase:", "field action:")):
                     raise AssertionError(f"{name} end-turn confirmation changed battle state")
-                if save.read_bytes() != original:
+                if save.read_bytes() != original or save.stat().st_mtime_ns != original_mtime:
                     raise AssertionError(f"{name} end-turn confirmation changed the save")
-                rejected_frame = self.capture(process, work, name)
-                with Image.open(rejected_frame) as image:
-                    check_browse_restored(browse_image, image)
             # 重新打开后默认Yes，直接Enter只能提交一次。
-            self.key(process, "ENTER", "DOWN", "ENTER", "ENTER")
+            open_end("end-submit")
+            capture.key("ENTER")
             text = wait_log(process, log, "field phase: turn=2 phase=2 remaining=4")
             check_end_turn_log(text)
             self.capture(process, work, "next-player-round")
             # 保持一个输入脉冲只提交一次，不能自动再结束刚进入的玩家回合。
             time.sleep(0.6)
             check_end_turn_log(log.read_text(encoding="utf-8", errors="replace"))
-            if save.read_bytes() != original:
+            if save.read_bytes() != original or save.stat().st_mtime_ns != original_mtime:
                 raise AssertionError("end-turn unexpectedly wrote a save")
         self.report["cases"].append({"name": "end-turn", "status": "passed",
                                      "cancelled_before_commit": True, "no_before_commit": True,
@@ -533,10 +679,14 @@ class Suite:
                 raise AssertionError("cancelled manual Load changed the save")
             # 三项标题从START向上回绕到CONTINUE；LOAD是独立手工槽入口。
             self.key(process, "UP", "ENTER")
-            wait_log(process, log, "field play: stage=0")
-            self.capture(process, work, "loaded-battle")
+            wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")
+            capture, oracle, checkpoint = self.battle_probe(process, work)
+            if plain[0x30c6:0x30cc] != bytes((0, 15, 6, 20, 6, 5)):
+                raise AssertionError("main-leave source must preserve the measured empty focus/camera")
+            checkpoint("loaded-battle-empty-browse", oracle.closed_browse)
             # 保存的焦点(6,20)为空，parent→secondary→leave→Yes。
-            self.key(process, "ENTER", "UP", "ENTER", "DOWN", "ENTER", "LEFT", "ENTER")
+            self.storage_confirmation(capture, oracle, checkpoint, "leave", 3, load_available=True)
+            capture.key("ENTER")
             wait_log(process, log, "field leave: exiting game")
             if process.wait(timeout=20) != 0:
                 raise AssertionError("game leave did not naturally exit 0")

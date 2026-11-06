@@ -78,6 +78,16 @@ static void close_fixture(fixture *f) {
     free(f->game.move_path);
 }
 
+/* 本地map用于目标查询而非资源owner；这里只验纯记录Load及UI续态清除。
+ * 不放松真实地图重载；任意导入结果后都归还fixture原map借用指针。 */
+static int import_record_snapshot(fixture *f, const fd2_save_battle_snapshot *snapshot) {
+    uint32_t *cells = f->game.map.cells;
+    f->game.map.cells = NULL;
+    int result = fd2_field_game_import_battle_snapshot(&f->game, snapshot);
+    f->game.map.cells = cells;
+    return result;
+}
+
 static int test_player_filter_raw_order_and_cycle(void) {
     fixture f; CHECK(init(&f) == 0);
     fd2_field_game *g = &f.game;
@@ -193,9 +203,9 @@ static int test_live_slot_and_load_owner(void) {
     before = *g;
     CHECK(fd2_field_game_cycle_item_target(g) == -1 && !memcmp(g, &before, sizeof(before)));
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == -1 && !memcmp(g, &before, sizeof(before)));
+    CHECK(import_record_snapshot(&f, &snapshot) == -1 && !memcmp(g, &before, sizeof(before)));
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == 0);
+    CHECK(import_record_snapshot(&f, &snapshot) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && !g->item_list_selected);
     CHECK(!g->magic_target_id && !g->magic_target_count && !g->magic_target_cycle);
     for (size_t i = 0; i < sizeof(g->magic_target_candidates); i++) CHECK(!g->magic_target_candidates[i]);

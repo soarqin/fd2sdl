@@ -37,6 +37,8 @@ class MeasurementTest(unittest.TestCase):
         data = bytearray(self.source)
         data[march.META] = 2
         data[march.UNITS:march.UNITS + 2] = bytes((9, 12))
+        data[march.UNITS + 2 * 80:march.UNITS + 2 * 80 + 2] = bytes((6, 15))
+        data[march.UNITS + 11 * 80:march.UNITS + 11 * 80 + 2] = bytes((5, 15))
         data[march.META + 3:march.META + 9] = bytes((2, 11, 4, 16, 2, 5))
         return checksum(data)
 
@@ -76,7 +78,7 @@ class MeasurementTest(unittest.TestCase):
         first = self.measure(self.measured())
         data = bytearray(self.measured())
         data[march.UNITS + 2 * 80 + 2] = 7
-        data[march.UNITS + 2 * 80 + 0x40] -= 1
+        data[march.UNITS + 2 * 80 + 0x40] -= 17
         data[march.UNITS + 4 * 80] += 1
         second = self.measure(checksum(data))
         self.assertTrue(march.compare_player_geometry(first, second))
@@ -97,8 +99,9 @@ class MeasurementTest(unittest.TestCase):
 
     def test_hp0_flags_are_only_allowed_as_known_hidden_finalization(self):
         data = bytearray(self.measured())
-        offset = march.UNITS + 4 * 80
+        offset = march.UNITS + 11 * 80
         data[offset + 0x40:offset + 0x42] = b"\0\0"
+        data[march.UNITS + 2 * 80 + 0x3c] = 42
         with self.assertRaises(AssertionError):
             self.measure(checksum(data))
         data[offset + 5] = 1
@@ -106,6 +109,82 @@ class MeasurementTest(unittest.TestCase):
         data[offset + 5] = 3
         with self.assertRaises(AssertionError):
             self.measure(checksum(data))
+
+    def counter_case(self, loss, experience, incoming_hp=31):
+        data = bytearray(self.measured())
+        player, enemy = march.UNITS + 2 * 80, march.UNITS + 11 * 80
+        data[player + 0x3c] = experience
+        struct.pack_into("<H", data, player + 0x40, incoming_hp)
+        struct.pack_into("<H", data, enemy + 0x40, 28 - loss)
+        data[enemy + 5] = int(loss == 28)
+        return checksum(data)
+
+    def test_counter_each_exact_single_double_last_miss_pair_and_no_level_up(self):
+        legal = [(0, 0), (20, 0), (20, 30), (21, 0), (21, 31),
+                 (22, 0), (22, 33), (23, 0), (23, 34), (28, 42)]
+        for loss, experience in legal:
+            with self.subTest(loss=loss, experience=experience):
+                result = self.measure(self.counter_case(loss, experience))["counter_reward"]
+                self.assertEqual(result["legal_loss_experience_pairs"], [list(pair) for pair in legal])
+                self.assertEqual((result["enemy_hp_loss"], result["experience"]), (loss, experience))
+                self.assertFalse(result["level_up_possible"])
+                self.assertTrue(result["last_miss_overwrites_contribution_with_zero"])
+        for hp in (14, 31, 48):
+            self.measure(self.counter_case(20, 30, hp))
+
+    def test_counter_rejects_wrong_reward_actor_level_equipment_and_all_growth_fields(self):
+        for loss, experience in ((20, 29), (20, 31), (20, 41), (20, 42), (0, 30), (28, 41), (28, 99)):
+            with self.subTest(loss=loss, experience=experience), self.assertRaises(AssertionError):
+                self.measure(self.counter_case(loss, experience))
+        base = march.UNITS + 2 * 80
+        for offset in (march.UNITS + 0x3c, march.UNITS + 80 + 0x3c,
+                       base + 0x21, base + 0x0b, base + 0x22, base + 0x26,
+                       base + 0x37, base + 0x39, base + 0x3e, base + 0x42,
+                       base + 0x44, base + 0x46, base + 0x48, base + 0x1a):
+            data = bytearray(self.counter_case(20, 30))
+            data[offset] ^= 1
+            with self.subTest(offset=hex(offset)), self.assertRaises(AssertionError):
+                self.measure(checksum(data))
+
+    def test_counter_rejects_other_damage_sources_nonoriginal_hp_and_changed_pair_geometry(self):
+        for offset, value in ((march.UNITS + 10 * 80 + 0x40, 27),
+                              (march.UNITS + 80 + 0x40, 27),
+                              (march.UNITS + 2 * 80 + 0x40, 30),
+                              (march.UNITS + 11 * 80 + 0x40, 27),
+                              (march.UNITS + 2 * 80, 7),
+                              (march.UNITS + 11 * 80, 4)):
+            data = bytearray(self.counter_case(20, 30))
+            data[offset] = value
+            with self.subTest(offset=hex(offset)), self.assertRaises(AssertionError):
+                self.measure(checksum(data))
+
+    def test_counter_terrain_and_source_contract_cannot_be_replaced_by_arbitrary_counter_data(self):
+        for relative in (0x21, 0x0b, 0x26):
+            source = bytearray(self.source)
+            source[march.UNITS + 2 * 80 + relative] ^= 1
+            with self.subTest(relative=relative), self.assertRaisesRegex(AssertionError, "exact real START"):
+                march.counter_reward(checksum(source), self.counter_case(20, 30), self.original)
+        actual = march.archive_entry
+        shape = (self.original / "FDSHAP.DAT").read_bytes()
+        shape_id = actual((self.original / "FDFIELD.DAT").read_bytes(), 1)[0]
+
+        def changed_terrain(data, index):
+            result = actual(data, index)
+            if data == shape and index == shape_id * 2 + 1:
+                result = bytearray(result)
+                result[53 * 4 + 1] = 1
+            return result
+        with patch.object(march, "archive_entry", side_effect=changed_terrain), self.assertRaisesRegex(AssertionError, "terrain"):
+            self.measure(self.counter_case(20, 30))
+
+    def test_legal_counter_does_not_relax_unknown_roster_metadata_or_manual_slot_bytes(self):
+        for offset in (0, 936, 0x8a2, 0x8a3, march.UNITS - 1,
+                       march.UNITS + 2 * 80 + 0x28, march.UNITS + 12 * 80,
+                       0x30a3, march.META + 10, march.META + 17, march.META + 18, 0x312b, 0x59c6):
+            data = bytearray(self.counter_case(20, 30))
+            data[offset] ^= 1
+            with self.subTest(offset=hex(offset)), self.assertRaises(AssertionError):
+                self.measure(checksum(data))
 
 
 class PhaseAndNavigationTest(unittest.TestCase):

@@ -80,6 +80,16 @@ static void close_fixture(fixture *f) {
     free(f->game.move_path);
 }
 
+/* 合成map只用于选择查询；本Load段只验记录与临时owner，不声称地图重载。
+ * 调用期间显式移出map owner，并在成功/失败后归还fixture借用指针。 */
+static int import_record_snapshot(fixture *f, const fd2_save_battle_snapshot *snapshot) {
+    uint32_t *cells = f->game.map.cells;
+    f->game.map.cells = NULL;
+    int result = fd2_field_game_import_battle_snapshot(&f->game, snapshot);
+    f->game.map.cells = cells;
+    return result;
+}
+
 static void expected_menu(fd2_field_game *g) {
     g->interaction = FD2_FIELD_INTERACTION_ITEM_MENU;
     g->item_list_selected = 0; g->command_selected = 0;
@@ -108,7 +118,7 @@ static int test_layers_preserve_move_pending_units_and_rng(void) {
         CHECK(!memcmp(g, &expected, sizeof(expected)));
         for (unsigned direction = 0; direction < 2; direction++) {
             CHECK(fd2_field_game_select_item_menu_direction(g, (fd2_field_command_direction)direction) == 0);
-            CHECK(!memcmp(g, &expected, sizeof(expected))); /* Give/EQT仍禁用。 */
+            CHECK(!memcmp(g, &expected, sizeof(expected))); /* UP保持Use，LEFT的Give无邻格禁用。 */
         }
         CHECK(fd2_field_game_select_item_menu_direction(g, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1);
         expected.command_selected = 3;
@@ -165,7 +175,7 @@ static void invalidate(fd2_field_game *g, unsigned which) {
         case 8: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
         case 9: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
         case 10: g->units.items[0].hp = 0; break;
-        case 11: g->stage = 1; break;
+        case 11: g->stage = 2; break; /* B5已支持0/1，2仍未开放。 */
         case 12: for (unsigned i = 0; i < 8; i++) slot(&g->units.items[0], i, 0x80, 0xff); break;
         case 13: slot(&g->units.items[0], 1, 0x80, 0xff); break;
         case 14: slot(&g->units.items[0], 2, 0, 255); break;
@@ -238,11 +248,11 @@ static int test_load_and_snapshot_owner_boundaries(void) {
     g->item_list_selected = 2;
     fd2_field_game before = *g;
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == -1);
+    CHECK(import_record_snapshot(&f, &snapshot) == -1);
     CHECK(!memcmp(g, &before, sizeof(before)));
     CHECK(g->move_range.nodes[17].distance == 7 && g->move_path[1] == 3);
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == 0);
+    CHECK(import_record_snapshot(&f, &snapshot) == 0);
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1 && g->item_list_selected == 0);
     CHECK(g->command_selected == -1 && g->move_path_length == 0 && !g->move_range.nodes && !g->pending_cell_event.valid);
     CHECK(!g->item_transfer_committed && !g->item_give_recipient && !g->item_give_selected);

@@ -214,7 +214,7 @@ static int test_guards_and_host_quit_before_batch(void) {
     for (int which = 0; which < 5; which++) {
         fixture f; init(&f);
         fd2_field_game *g = &f.game;
-        if (which == 0) g->stage = 1;
+        if (which == 0) g->stage = 2; /* B5已开放0/1，2仍无对应stage handler。 */
         if (which == 1) g->active_side = 0;
         if (which == 2) g->player_post_waiting_phase = 1;
         if (which == 3) g->selected_unit = 0;
@@ -328,7 +328,7 @@ static int test_batch_background_policy_does_not_leak(void) {
         fixture f; init(&f);
         fd2_field_game *g = &f.game;
         fd2_vga vga = {0}; fd2_input_init(&vga.input);
-        g->stage = 1; g->active_side = 0; g->units.count = 2;
+        g->stage = 0; g->active_side = 0; g->units.count = 2;
         set_unit(&g->units.items[0], 0, 1, 6);
         set_unit(&g->units.items[1], 2, 4, 6);
         g->units.items[0].ai_behavior_raw = 0;

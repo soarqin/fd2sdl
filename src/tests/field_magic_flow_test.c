@@ -91,22 +91,43 @@ static void close_fixture(fixture *f) {
     free(f->game.move_path);
 }
 
+/* 本合成地图只供选择查询，不拥有FDFIELD资源。本例只验记录导入和UI owner，
+ * 不冒称地图重载；调用期间显式移出map owner，失败/成功都归还fixture的借用指针。 */
+static int import_record_snapshot(fixture *f, const fd2_save_battle_snapshot *snapshot) {
+    uint32_t *cells = f->game.map.cells;
+    f->game.map.cells = NULL;
+    int result = fd2_field_game_import_battle_snapshot(&f->game, snapshot);
+    f->game.map.cells = cells;
+    return result;
+}
+
 static int test_begin_navigation_confirm_and_cancel_preserve_owner(void) {
     for (int attack = 0; attack < 2; attack++) {
         fixture f;
         CHECK(init(&f, attack) == 0);
         fd2_field_game *g = &f.game;
+        /* 1/2/3的拒绝必须来自逐项支持门，不能被原8MP的费用不足掩盖。 */
+        g->units.items[0].mp = g->units.items[0].mp_max = 64;
         fd2_field_game expected = *g;
-        CHECK(g->command_disabled[FD2_FIELD_COMMAND_MAGIC] == 1);
+        CHECK(g->command_disabled[FD2_FIELD_COMMAND_MAGIC] == 0); /* 已支持的13仍可用。 */
         g->command_selected = FD2_FIELD_COMMAND_MAGIC;
         expected = *g;
-        CHECK(fd2_field_game_confirm_command(g) == -1);
-        CHECK(!memcmp(g, &expected, sizeof(expected)));
-        CHECK(fd2_field_game_begin_magic_list(g) == 0);
         expected.magic_list_selected = 0;
         expected.interaction = FD2_FIELD_INTERACTION_MAGIC_LIST;
+        CHECK(fd2_field_game_confirm_command(g) == 0);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
         uint8_t confirmed = 0xa5;
+        for (int selected = 0; selected < 4; selected++) {
+            /* unit18的0尚未开放，1/2/3也只显示；完整80B/MP/RNG不提交。 */
+            CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) == 0);
+            CHECK(confirmed == 0xa5 && !memcmp(g, &expected, sizeof(expected)) && f.rng_calls == 0);
+            CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_DOWN, &confirmed) == 0);
+            expected.magic_list_selected = selected + 1;
+            CHECK(!memcmp(g, &expected, sizeof(expected)));
+        }
+        CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_DOWN, &confirmed) == 0);
+        expected.magic_list_selected = 0;
+        CHECK(!memcmp(g, &expected, sizeof(expected)));
         CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_UP, &confirmed) == 0);
         expected.magic_list_selected = 4;
         CHECK(confirmed == 0xa5 && !memcmp(g, &expected, sizeof(expected)));
@@ -119,9 +140,9 @@ static int test_begin_navigation_confirm_and_cancel_preserve_owner(void) {
                         fd2_field_game_end_magic_list(g)) == (attack ? 1 : 0));
         expected.magic_list_selected = 0;
         expected.interaction = FD2_FIELD_INTERACTION_COMMAND;
-        /* 本fixture只有code0库存；MAGIC正式门拒1/2/3，ITEM仍可查看。 */
+        /* 未开放项不连带禁用13；ATTACK不可用时首项为MAGIC，ITEM仍可查看。 */
         CHECK(!g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
-        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_ITEM;
+        expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_MAGIC;
         expected.command_highlight_phase = 0;
         expected.command_animation_phase = 0;
         expected.command_animation_opening = 0;
@@ -275,11 +296,11 @@ static int test_load_resets_list_index_only_on_success(void) {
     g->magic_list_selected = 4;
     fd2_field_game before = *g;
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == -1);
+    CHECK(import_record_snapshot(&f, &snapshot) == -1);
     CHECK(!memcmp(g, &before, sizeof(before)));
     CHECK(g->move_range.nodes[17].distance == 7 && g->move_path[1] == 3);
     snapshot.metadata[0] ^= 1;
-    CHECK(fd2_field_game_import_battle_snapshot(g, &snapshot) == 0);
+    CHECK(import_record_snapshot(&f, &snapshot) == 0);
     CHECK(g->magic_list_selected == 0 && g->interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(g->selected_unit == -1 && g->move_path_length == 0 && !g->move_range.nodes);
     CHECK(g->units.items[0].mp == 8 && !fd2_field_unit_has_acted(&g->units.items[0]));

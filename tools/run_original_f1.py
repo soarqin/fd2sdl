@@ -7,6 +7,7 @@ field_view_render_scaled @0x1f558、sub_1F6EF @0x1f6ef。
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -14,13 +15,13 @@ import struct
 import sys
 import time
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from audit_fdicon_opaque_zero import audit_fdicon
 from rebuild_fd2_analysis import parse_le, parse_objects, build_relbase_image
-from run_original_comparison import Capture, archive_entry, compare, decode_image, driver_call, hashes, running, title_templates
+from run_original_comparison import TOLERANCE, Capture, archive_entry, compare, decode_image, driver_call, hashes, running, title_templates
 from run_original_battle_menu import wait_state, wait_title
 from run_original_end_turn import META, UNITS, STRIDE, RoundOracle, browse_anywhere, empty_focus_navigation, round_assets, validate_initial
 from run_original_load import require_source_unchanged
@@ -164,6 +165,7 @@ class FullFrameOracle:
 
     def _full_matches(self, actual, candidates):
         matches = []
+        actual = actual.convert("RGB")
         for cycle in candidates:
             expected_frames = self.frames
             if cycle is not None:
@@ -173,6 +175,10 @@ class FullFrameOracle:
                     image.putpalette(cycle["palette"])
                     expected_frames.append(image.convert("RGB"))
             for phase, expected in enumerate(expected_frames):
+                # PIL原生遍历整帧先拒错误候选，避免8/128次Python逐像素扫描
+                # 拖慢观察；成功候选仍用原compare登记全部64000像素。
+                if max(high for _, high in ImageChops.difference(expected, actual).getextrema()) > TOLERANCE:
+                    continue
                 result = compare(expected, actual)  # 完整64000像素，包含黑色与index0。
                 if result["ok"]:
                     matches.append((phase, cycle, expected_frames, result))
@@ -201,12 +207,14 @@ class FullFrameOracle:
 
 
 def phase_sampler(oracle, samples, name, *, target=None, excluded=()):
-    """仅错开F1观察时点；完整资源／水冻结门与共享wait_state的15s期限不变。"""
+    """按实际观察成本错开目标phase；完整资源门与共享15s期限不变。"""
     delays = (17, 43, 79, 131)
+    sequence = (7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7)
     attempt = 0
+    previous_time, previous_delay = None, 0
     excluded = tuple(excluded)
     def sample(frame):
-        nonlocal attempt
+        nonlocal attempt, previous_time, previous_delay
         record = {"name": name, "time": time.monotonic(), "observed_phase": None,
                   "target": target, "excluded": list(excluded), "matched": False, "delay_ms": 0}
         try:
@@ -220,6 +228,22 @@ def phase_sampler(oracle, samples, name, *, target=None, excluded=()):
             record["matched"] = (target is None or detail["pulse_phase"] == target) and detail["pulse_phase"] not in excluded
         if not record["matched"]:
             record["delay_ms"] = delays[attempt % len(delays)]
+            if target is not None and detail:
+                # SDL present16ms、pulse>=110ms，112ms只作调度提示，不作
+                # phase/时序通过判据。轮换两个方向的可能到达时点，避免慢WGC
+                # 加固定4项延迟持续漏掉同一phase；不改游戏时钟或发送键。
+                cost = max(0, (record["time"] - previous_time) * 1000 - previous_delay) if previous_time is not None else 112
+                arrivals = sorted({((end - start) % 16 or 16) * 112
+                                   for start, phase in enumerate(sequence) if phase == detail["pulse_phase"]
+                                   for end, phase in enumerate(sequence) if phase == target})
+                # cost已包含上一轮比较、80ms共享wait和下一次WGC；每个
+                # 候选只跨到下一周期，因此额外等待有界于1792ms。
+                arrivals = sorted(arrival + max(0, math.ceil((cost - arrival) / 1792)) * 1792
+                                  for arrival in arrivals)
+                record["capture_interval_without_stagger_ms"] = round(cost, 3)
+                record["sampling_hint_pulse_ms"] = 112
+                record["delay_ms"] = max(0, round(arrivals[attempt % len(arrivals)] - cost))
+            previous_time, previous_delay = record["time"], record["delay_ms"]
             attempt += 1
         samples.append(record)
         if not record["matched"]:

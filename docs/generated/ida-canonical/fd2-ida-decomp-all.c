@@ -1392,6 +1392,7 @@ int __cdecl memcpy_vga(int a1, int a2, int a3, int a4, int a5, int a6)
 // [field_view_render_tiles] 绘制标准 13×8 战场地形，并对可达格应用动画 palette LUT
 //   依据: 逐格读取 map node offset `0x07`；值不为 `0xff` 时，以 `DS:0x1a97[phase]` 选择 FDOTHER[3] 的 256 字节表并调用 `shape_blit_palette_lut_24x24`
 //   历史地址列 `0x3710c`（`0x11ef8` 是 __chkstk body，入口为 `0x11eee`）；旧 Ghidra 名 `FUN_0000f640 body`；判定 chkstk-body
+// major system-notice / visual-clock evidence: 函数首仅当BIOS当前tick!=53a00时翻转53a40一次并重取当前tick，不按经过周期奇偶补追。attrs08加2*53a40、10加53c0b/2、04加53a40；角色idle由1297d另管，范围LUT53c1f亦为独立门。 依据：既有完整11eee(885B)与1297d及tile flag分支；本次私有修复仅将55/275ms宿主近似的视觉锚按原调用点单次推进，不宣称BIOS时钟、全局RNG、水DAC或所有地形动画已同步。保持field_view_render_tiles既名/类型。
 void __cdecl field_view_render_tiles(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int v6; // ebx
@@ -1780,6 +1781,7 @@ void __cdecl sub_127E0(int a1)
 // [field_animation_phase_update] 按 BIOS tick 推进战场角色与地形动画 phase
 //   依据: `tick_delta > 4` 时推进共享 `DAT_00003c0b`；`map_actor_blit_24x24` 对 offset `0x04 == 0` 的 actor 使用该值并将 phase 3 映射为 1，约每 275 ms 切换一次
 //   历史地址列 `0x37b91`；旧 Ghidra 名 `FUN_000100c5`；判定 exact
+// major system-notice / visual-clock evidence: 1297d只在signed BIOS tick差>4或负数时把53c0b加一并模4，53c0f直接重取当前tick，不补追全部经过周期。另53c07每次调用加一模4，与11eee的地形开关53a40不同；不能把它们当同一时钟。11cac先调用1297d再绘tile/actor/1acf3面板；21eb1尾11cac→200ms→1c4cc首11cac后冻结FX背景，共用唯一视觉相位/last锚。 依据：既有canonical完整1297d(111B)/11cac/21eb1/1c4cc及validated relocated原字节。C4 heal13实际原/SDL同一FX59两页1678差异全部为idle1→2：actor1374+底栏304；各端整2346底栏源模型bad0/max3，无E0..EF。只作为视觉时钟差异与本轮图像归因，修复后的实机完整帧验收尚待；不改函数名/类型/ABI。
 int field_animation_phase_update()
 {
   int result; // eax
@@ -2825,6 +2827,7 @@ char __cdecl field_cell_event_lookup(int a1, int a2, int a3)
 //   历史地址列 `0x38cbd`（`0x13aa9` 是 __chkstk body，入口为 `0x13a9f`）；旧 Ghidra 名 `Ghidra 未识别边界`；判定 chkstk-body
 // [勘误 evidence] AI cell lookup只会产生最终格事件，物理／法术／物品事务可自行提前分派 -> normal common tail顺序为最终格match1 lookup→acted→全表方向reset；side outer随后按当前pending调用handler。最终未命中仍可保留沿途match0。behavior8显式early return继续跳过common tail。；依据: 已发布AI函数与side1/side0 outer，raw 0x13e6c..0x13e88 确认尾顺序；side1 0x1d85d..0x1d876同样传selector1，与行军共享移动播放器。未知handler只在真实分派边界冻结，不把已提交动作或外部RNG回滚成未发生。
 // [勘误 evidence] common tail无51A83写。behavior3找到text目标并移动/恢复后强写0；4/7在移动前0，5/10在tryattack失败后0；9移动保继承。14121/13e9c各自有0..1包裹，13fd4仅实际恢复才0..1，不能让14b78通用几何helper无条件改模式。；依据: B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。
+// major AI continuation/chest evidence: behavior11在13e1c调用15311后仍于13e26重新评估physical；priority>=6才13e39调用1548e，否则13e45调用14121，仅其未实际移动才13e52调用13fd4；不能因施法成功跳过后续。behavior5在tryattack失败后先于13c39调用12d7b聚焦caster，再检查completed和查找箱格，完成位已置或无箱格的fallback也保留该前置聚焦。实际到格后13d05写completed=1，13d1b调用12263即时将所有对应flags20地形WORD+1、清byte2并保留byte3，13d20再将actor+34整个byte写07。满库存不阻止完成位、开箱和behavior整byte写回；仍沿既有common tail执行最终格match1、acted和方向归零。 依据：原13a9f完整1021B、13e09..13e52和13c34..13d24原指令及12263写集；major隔离回归保留AI11五项旧红/两no-op、AI5真实FDSHAP闭248/开249七项旧红，修后同一field_ai_commit新构建通过。此处只补已存在函数证据，不新增ABI/类型/边界，不将headless回归提升为原版
 void __usercall field_ai_unit_execute(int a1@<ebp>, int a2@<edi>, int a3@<esi>, int a4, int a5)
 {
   _BYTE *v5; // ebx
@@ -5202,6 +5205,7 @@ int dialog_text_scroll_up()
 // [勘误 evidence] selector 3 已确认结束回合，但确认框按钮资源与布局尚未登记 -> selector 3 使用通用 sub_19953 @0x19953：默认选择索引 0，Left 选 0、Right 选 1，Up/Down 无分支。object2 VA 0x51eed/0x51ef1 的 dword 为 16/17，对应 FDOTHER[2] 的 YES 与 NO!；普通帧 48/51、高亮帧 49/52 均为 24×16。四步展开后，320×200 屏幕按钮左上角分别为 (232,168)/(264,168)。仅选中项叠加 dword_53C13/2，计数每 2 BIOS tick 在 0..3 循环；非选中项始终使用普通帧。sub_197E5 @0x197e5 使用同值表 0x51ee5/0x51ee9 收回按钮。；依据: 复用已发布权威伪 C 的 @0x16f55 调用链与 sub_19953 （6916..7028 行）及 published fd2-functions.tsv 边界；只读按现有 LE parser 提取原版 object2 表并核对 FDOTHER[2] raw 像素。屏幕坐标由 buffer 偏移 0x1a599+3±16、view 源 32904/stride 456 与目标屏幕 (4,4) 换算。保留中性 helper 名，未新建 IDB、改写伪 C 或发布新的 IDA 逆向基线。
 // [勘误 evidence] selector1批量行军尚未确认，可能只是结束回合或自动战斗 -> 417确认、418提示后保留绝对focus为固定anchor，按raw顺序仅处理flags&0x85为0且side2的actor，无HP门。每人focus→清pending→14b78(anchor,index,1)→dispatch当前match0→全表direction0→acted，无最终match1，无路也走尾。整批后才turncycle，无自动Save。；依据: 权威伪C及17104/1712d/17137/1713d/17154写序；17092 push0xc8→17097 call3790a→FLIRT __delay3e01d确认名义200ms，不声明宿主/DOS精确时长。51A83/51AAC在March及整轮phase关闭，SDL用私有呈现参数和play局部续行恢复，不增session/pending队列。
 // [勘误 evidence] March分支17159恢复1；显式END分支调用turncycle后只恢复51AAC、不写51A83，因此按真实AI分支或turncycle返回模式继承。main胜利亦不另写，22f37首片段据此呈现。；依据: B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。
+// major system-notice / visual-clock evidence: selector1 March调用1956b(raw0.unit_id)，selector3 END调用1956b(75)，不是空焦点actor查找/默认Hero。普通FDTXT417/419首提示push0xA9F23，418/420/412后提示push0xAB6E3；VGA基址0xA0000，原位置分别(99,127)/(99,146)。先1956b原tile底框+reverse portrait，再15f84原glyph(205/76/bg74,linepitch19)，16559(0)，19953/197e5控制YES/NO，196cb恢复初背景。不可用detail_bottom详情frame替代，亦不可把0xcd字前景填满框。 依据：既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。
 int field_empty_focus_menu_execute()
 {
   int v0; // ebx
@@ -6798,6 +6802,7 @@ char __cdecl field_special_cell_execute(int a1)
  * callees: 0x111ba, 0x168b6, 0x1974c, 0x3702f, 0x3706e, 0x3771c, 0x4ec31
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_bottom_notice_open；依据: 完整352B及系统确认/1a866/1e292等caller：分配三个64000B缓冲，保存初始VGA并拼310x86的bottom底板，载入DATO初帧reverse，i5..0以1974c(13*i+112)滑入。不是奖励专用；128..132有特殊origin。raw SHA e5b8b359f8371ce6513766b7d0badb2189dd8ea58af75a4e8abda637d0733026。
+// major system-notice / visual-clock evidence: 确认框/奖励/库存页共用notice owner：先完整保存初VGA，FDOTHER[5] tiles拼310x86 bottom，再DATO初帧reverse，非128..132由36887=(87,115)向左绘80列；特殊origin原表保留。三缓冲的静态初板用于关闭，不是detail_bottom(详情用99高帧)。原意无0xcd整块占位/独立palette切换。 依据：既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。
 int __cdecl field_bottom_notice_open(int a1)
 {
   int result; // eax
@@ -7095,6 +7100,7 @@ LABEL_57:
 // [勘误 evidence] SDL 活动快照只覆盖单位、cell state 和 meta，未登记开头 metadata owner -> 原版 Save 先把 dword_53A55 的 2211（0x8a3）字节 metadata 写到 FD2.SAV 明文开头，再把独立的 2560 字节持久 roster 写到 +0x8a3。活动恢复 sub_10010 @0x10010 原样读回 metadata，并用 metadata[0]*2 选择 FDSHAP。stage 0 的 FDFIELD[1] 已用长度为 937（0x83+31*26）字节，首三字节为 00 04 1e。SDL 导出须从当前 session 序列化头部、turn/cell 表和完整模板字节，不能沿用旧 stage 的 prefix；未使用 metadata 尾由目标容器保留，完整 roster（含未用 raw 尾）由 session 恢复并整表写回。+1/+2 不赋予未经确认的玩法语义。；依据: 复用已发布权威伪 C 的 @0x19df7 writer（7143..7145 行）与 sub_10010（68..90 行）读回／shape 选择；FDFIELD.DAT[1] 原始长度和首部只读复核。原版 WGC 对照暴露旧 stage 29 prefix 1d 14 46 与活动 stage 0 混用；未新建 IDB 或改写伪 C。
 // [勘误 evidence] 活动 meta[9]（DS:0x3bfb）被当作当前 actor count 的副本 -> meta[1] 为当前战场 actor count（DS:0x3beb，格式容量 96）；meta[9] 为独立持久 roster count（DS:0x3bfb，0x8a3 起 0xa00 字节、32 条 0x50 记录）。二者不要求相等，也不以当前 side 2 actor 数量或 active count 为 roster 上限。；依据: 已发布伪 C：sub_112A5 @0x112a5 在 dword_53bf7 + 80*dword_53bfb 追加记录并递增 roster count；sub_11506 @0x11506 对 active actor 遍历独立 roster 同步；@0x19df7 writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active 假设。保留中性函数名，未新建 IDB 或修改权威伪 C。
 // [勘误 evidence] SDL 将 secondary 肯定离场的 -1 建模为返回标题 -> selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。；依据: 已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。
+// major system-notice / visual-clock evidence: Save410/Load413/Leave415三条确认均1956b(75)，首提示同原dst0xA9F23；411/414/416或412追加同dst0xAB6E3，保原first prompt和portrait。410..420实际普通tokens不另含speaker控制；15f84/font4ed7a不减4/8坐标。 依据：既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。
 void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@<esi>, int a4, int a5, int a6, ...)
 {
   unsigned __int8 *v6; // edi
@@ -11213,7 +11219,7 @@ int palette_fade_out_dark()
 //   依据: r2 原始字节：从 `push ebx` @0x1cfe6 开始；corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)`，因此片头与标题共用循环 track 18；DOSBox 对照
 //   历史地址列 `0x44ab2`（`0x1f89e` 是 __chkstk body，入口为 `0x1f894`）；旧 Ghidra 名 `FUN_0001cfe6`；判定 chkstk-body
 // [title_action_menu] 标题 action 菜单；无活动快照时仅显示两项，有活动快照时插入 active snapshot load
-//   依据: 当前权威 code0 `0xf894`；`0xf8d6..0xf8e6` 将 FDOTHER[77] 保存到 local `+0x54`，后续标题音效均传入该 local：`0xfbb7..0xfbd6` 在 object2 `DS:0x204e` 的 14 个有效滚动阈值以 primary wrapper 重启 SFX 0；`0xfbd9..0xfc37` 在全部 14 个有效触发帧切换到 FDOTHER[102] 闪电调色板，并在 `local_4c` 逐帧计至 11 后恢复 FDOTHER[101]（11 个滚动帧）；`0xfd1c` 以 secondary wrapper 播放 SFX 3，`0xfe74/0xfe94` 以 primary wrapper 播放 SFX 2，`0xfed3` 播放 SFX 1。菜单先以 `FDTXT`/`FD2.SAV` 读取活动快照并检查 `meta[2] == 0`，再调用通用 six-entry selector `0x17d33`；确认后 `0xfef0..0xff30` 将选中项 normal/highlight 各显示 80 ms，交替 4 轮。该链不调用 `new_game_opening_play @0x2231b`，四槽 hand_load 仍属于 code0 `0x19300`
+//   依据: 当前权威 code0 `0xf894`；`0xf8d6..0xf8e6` 将 FDOTHER[77] 保存到 local `+0x54`，后续标题音效均传入该 local：`0xfbb7..0xfbd6` 在 object2 `DS:0x204e` 的 14 个有效滚动阈值以 primary wrapper 重启 SFX 0；`0xfbd9..0xfc37` 在全部 14 个有效触发帧切换到 FDOTHER[102] 闪电调色板，并在 `local_4c` 逐帧计至 11 后恢复 FDOTHER[101]（11 个滚动帧）；`0xfd1c` 以 secondary wrapper 播放 SFX 3，`0xfe74/0xfe94` 以 primary wrapper 播放 SFX 2，`0xfed3` 播放 SFX 1。菜单先以 `FDTXT`/`FD2.SAV` 读取活动快照并检查 `meta[2] == 0`，标题菜单自带 BIOS INT 16h/AH=10h 读取循环：scan 48h/50h 上下回绕，ASCII 0Dh/20h 或 scan E0h/52h 确认；其余键继续循环，ESC 没有取消或返回分支。完整 0x1f894..0x1ff79 不调用 six-entry selector；历史 code0 17d33 对应 canonical 27d33 的 shop selector，不能把其 ESC 取消推广至标题；确认后 `0xfef0..0xff30` 将选中项 normal/highlight 各显示 80 ms，交
 //   历史地址列 `0x1f894`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 semantic_name] boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 -> boot_intro_title_menu（同一函数）；依据: `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。
 // [勘误 evidence] corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` -> 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。；依据: IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。

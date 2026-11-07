@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 import wave
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from PIL import Image
@@ -21,10 +21,43 @@ ROOT=Path(__file__).resolve().parents[2]
 ORIGINAL=(ROOT/'original_game').resolve()
 
 
+# 旧19夹具golden：已验oracle源SHA0317eb0507d27d58a9ed6a20764c7c02e961d7f59dbca4c4697439bc0403dd87。
+# 整份encoded/plain转hex，加完整manifest；UTF-8 JSON按key排序、无空白、禁NaN，未删字段。
+LEGACY_19_FIXTURE_SHA256 = {
+    'ai-full-00': 'f90a1be20139622a435d90dc603926581d7d469a1f6a7a678d1f06d5eb1e2c8c',
+    'ai-full-01': '1a53131a7bb7044f21691dc6d4b0314fe93f3a17ce9d8eedb06b9c516498a0ec',
+    'ai-full-02': '9c49e401eb8e0117e30d07586c237eb07b9b1d525e1cb1723571f77565240d0b',
+    'ai-full-03': '3d8c23ff6335ca3251bc775cd2aa207c8545e9c1918b7e3bc01168c60050bfd4',
+    'ai-full-03-multi': '63dfe863f661e1239bb2439c1228494e85b34e768d3f724bf2d5af65e95965b4',
+    'ai-full-04': 'b4b101c17372cb863b9e8f10bded67900f9e6ca00eacea6e9827303930b96910',
+    'ai-full-05': '37b45623fece0b85c827035296f53934a2033c351ea579c2dd555d8444a2e1a2',
+    'ai-full-05-multi': '6df8348f6a2161742caa099d49ce6d36fc160f2002c06457e612b6dfa1099356',
+    'ai-full-06': '72fdaf8b3fb0b42a3f2058565cbefdc0a065f11f05eee6cd3ff689792df8f1d7',
+    'ai-full-06-multi': '0bb6d8b114541d429dcf7c59b2e209ba6e3fb0d70bd18378d51687019a374d83',
+    'ai-full-07': '27d5a076cea812ca9ae524eaf4714f3b50c11b2b60c199df9c737fbe5c5cc12a',
+    'ai-full-07-multi': '557c1b494a0bbefd441b83eafe59f30ae813f946805dba0dc4dae0b92bc87474',
+    'ai-full-08': 'b290192b879a5b967dd8e873bab6c41fbbb15e342665d4fa7f7d840d8a6752b7',
+    'ai-full-08-multi': 'fcb34071d9190877bc05aae9cddee5d9649362934df848bf381e7c259109ca64',
+    'ai-full-09': '5cb5b661851c7153bd6e956ee04e992fd4c7141f91ff86cc0123ec64f21651da',
+    'ai-item-score20': 'c72b0652bb7ccaf3a1ea9dd1f356fefd4ad512b6cbb16ca4d326ef75b197e77c',
+    'physical-full-hit': '3d4f534220ff75eaa8b28e06f4972e1c9c8239ff0c211ec588fe17af4ea81c58',
+    'player-heal13': 'fcf5389e1114a48d2518101d19a887149fd80659928420dbe6b5305664d1531e',
+    'player-magic0': '4768e09e981f912db469d5aea6ca116ad45572422140722c0afaa3679a21e87e'
+}
+# START是派生实际输入；其余SHA固定已验原版资源组，不分发任何资源字节。
+LEGACY_19_RESOURCE_SHA256 = {
+    'START.SAV': '2c89019b2a83f5460354597e15e860c075951241beb5c9a3dcb6551bb7ca5310',
+    'FD2.EXE': 'bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd',
+    'FDFIELD.DAT': '81310211c6e96ebd89e79648650696691c740229fa4095ece37e7226bc27b74d',
+    'FDOTHER.DAT': '882580dfa31bd22e069eb151b7a86a2b8dbcd8194ec755b00036c96a4a0e0667',
+    'FIGANI.DAT': 'c0cef326c5f8bc61252f03394140dbeed2280ddba0da99bfacdee1bf568846f8'
+}
+
+
 class BattleFixtureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.all={name:o.prepare(ORIGINAL,name) for name in o.SCENARIOS}
-    def test_exact_19_source_manifest_roundtrip_no_source_writes(self):
+    def test_exact_21_source_manifest_roundtrip_no_source_writes(self):
         before=r.fingerprint(ORIGINAL)
         for name,p in self.all.items():
             with self.subTest(name=name):
@@ -33,10 +66,10 @@ class BattleFixtureTest(unittest.TestCase):
                 self.assertEqual(actual,p['manifest']['plaintext_patches'])
                 self.assertEqual(p['source'][:o.UNITS],original[:o.UNITS])
                 self.assertEqual(p['source'][-4:],sum(p['source'][:-4]).to_bytes(4,'little'))
-                self.assertEqual(p['manifest']['options']['effect'],0)
+                self.assertEqual(p['manifest']['options']['effect'],1 if name in o.BUSINESS_SCENARIOS else 0)
                 self.assertEqual(p['manifest']['options']['music'],0)
                 self.assertEqual(p['manifest']['options']['sfx'],1)
-        self.assertEqual(len(self.all),19)
+        self.assertEqual(len(self.all),21)
         self.assertEqual(r.fingerprint(ORIGINAL),before)
     def test_ai_actual_single_spell_mov0_priority_and_raw_targets(self):
         for name,p in self.all.items():
@@ -175,6 +208,242 @@ class BattleFixtureTest(unittest.TestCase):
                 self.assertFalse(record['collection_passed'])
                 self.assertEqual(record['status'],'inconclusive' if failure=='none' else 'failed')
                 self.assertEqual(record['error'],'legal miss: no positive action evidence')
+
+
+class AI11RecoveryBusinessTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):cls.p=r.prepare_runtime(ORIGINAL,'ai-behavior11-recover')
+    def measured(self,hp=950):
+        data=bytearray(o.phase_end_model(self.p['source'],self.p['items']))
+        data[o.META+5:o.META+9]=bytes((7,14,2,3))
+        o._store(data,o.UNITS+0x40,hp)
+        o._store(data,o.UNITS+11*80+0x40,60)
+        o._store(data,o.UNITS+11*80+0x44,8)
+        steps=[('LEFT',r.screen(data,(6,14)))]
+        data[o.META+5:o.META+9]=measuring_focus(data,steps)
+        return o._checksum(data),steps
+    def test_actual_template_manifest_cost_and_no_invented_witness_claim(self):
+        p=self.p;c=o.actor(p['source'],11)
+        self.assertEqual((c[6],c[7],c[8],c[0x34],c[59],o._word(c,72)),(0,9,9,11,0,0))
+        self.assertEqual((o._word(c,64),o._word(c,66),o._word(c,68),o._word(c,70)),(40,100,10,10))
+        self.assertEqual(p['contract']['ai_plan']['targets'],[0]);self.assertEqual(p['contract']['ai_plan']['score'],12)
+        self.assertEqual(p['contract']['ai_plan']['physical_priority_upper_bound'],0)
+        self.assertFalse(p['manifest']['AI11_recovery_contract']['witness_absent_claimed'])
+        self.assertEqual(p['manifest']['options']['effect'],1);self.assertNotIn('frame_resources',p)
+        self.assertEqual(p['source'][:o.UNITS],o.decode_save(ORIGINAL/'START.SAV')[:o.UNITS])
+    def test_recovery_and_one_cost_are_hard_even_after_legal_miss(self):
+        for hp in (950,951,952,953,954,999):
+            data,steps=self.measured(hp);e=o.ai11_action_coverage(self.p,data,steps)
+            self.assertTrue(e['passed']);self.assertEqual((e['caster_HP'],e['caster_MP']),(60,8))
+            self.assertFalse(e['post_phase_acted_bit']);self.assertFalse(e['acted_transient_or_common_tail_write_count_observed'])
+            for offset,value in ((64,40),(64,80),(68,10),(68,6)):
+                wrong=bytearray(data);o._store(wrong,o.UNITS+11*80+offset,value)
+                with self.subTest(hp=hp,offset=offset,value=value),self.assertRaises(AssertionError):
+                    o.ai11_action_coverage(self.p,o._checksum(wrong),steps)
+        for hp in (0,949,955,998):
+            data,steps=self.measured(hp)
+            with self.subTest(hp=hp),self.assertRaises(AssertionError):o.check_measurement(self.p,data,steps)
+    def test_preflight_rejects_competing_actions_status_and_wrong_runtime_mode(self):
+        for offset,value in ((5,1),(5,4),(5,0x80),(7,8),(0x34,0),(0x3b,1),(0x48,1),(0x25,1),(0x1a,3),(0x0a,0),(0x40,41),(0x46,11)):
+            source=bytearray(self.p['source']);source[o.UNITS+11*80+offset]=value
+            with self.subTest(offset=offset),self.assertRaises(ValueError):o.ai11_recovery_preflight(o._checksum(source),self.p['magic'])
+        source=bytearray(self.p['source']);source[o.META+14]=0
+        with self.assertRaises(ValueError):o.ai11_recovery_preflight(o._checksum(source),self.p['magic'])
+    def test_unknown_bytes_position_acted_and_extra_cost_are_not_projection(self):
+        data,steps=self.measured()
+        for at in (10,0x8a4,o.UNITS+11*80,o.UNITS+11*80+5,o.UNITS+11*80+0x34,o.UNITS+11*80+0x4f,o.META):
+            wrong=bytearray(data);wrong[at]^=1
+            with self.subTest(at=at),self.assertRaises(AssertionError):o.check_measurement(self.p,o._checksum(wrong),steps)
+    def test_business_path_has_one_real_end_and_no_full_or_audio_collectors(self):
+        events=[]
+        cap=SimpleNamespace(key=lambda name:events.append(('key',name)),wait=Mock())
+        record={'kind':'original','checkpoints':[]}
+        def gate(capture,name,predicate,records,**options):events.append(('gate',name));return None,{}
+        with patch.object(r,'wait_title'),patch.object(r,'wait_state',side_effect=gate),patch.object(r,'require_source_unchanged'), \
+             patch.object(r.reward,'navigate'),patch.object(r,'wait_phase',side_effect=lambda *a:events.append(('phase','ready'))), \
+             patch.object(r,'measure',side_effect=lambda *a:events.append(('save','measured'))), \
+             patch.object(r,'AnimationCollectors') as collectors:
+            r.exercise(cap,self.p,Path('unused'),[b'',0],record,SimpleNamespace())
+        collectors.assert_not_called();self.assertTrue(record['collection_completed'])
+        first=events.index(('gate','b6-end-first-complete-buttons'))
+        self.assertEqual(events[first+1:], [('key','ENTER'),('phase','ready'),('save','measured')])
+        self.assertNotIn('animation_capture',record);self.assertNotIn('audio_capture',record)
+    def test_bad_button_or_phase_never_saves_or_marks_completed(self):
+        for fail in ('b6-end-first-complete-buttons','phase'):
+            events=[];record={'kind':'original','checkpoints':[]}
+            def gate(capture,name,predicate,records,**options):
+                if name==fail:raise TimeoutError('first failure')
+                return None,{}
+            def phase(*a):
+                if fail=='phase':raise TimeoutError('first failure')
+            with patch.object(r,'wait_title'),patch.object(r,'wait_state',side_effect=gate),patch.object(r,'require_source_unchanged'), \
+                 patch.object(r.reward,'navigate'),patch.object(r,'wait_phase',side_effect=phase),patch.object(r,'measure') as save, \
+                 patch.object(r,'AnimationCollectors') as collectors:
+                with self.assertRaisesRegex(TimeoutError,'first failure'):
+                    r.exercise(SimpleNamespace(key=events.append,wait=Mock()),self.p,Path('unused'),[b'',0],record,SimpleNamespace())
+            save.assert_not_called();collectors.assert_not_called();self.assertNotIn('collection_completed',record)
+    def test_legacy_19_fixtures_are_byte_identical(self):
+        for filename, expected in LEGACY_19_RESOURCE_SHA256.items():
+            with self.subTest(resource=filename):
+                self.assertEqual(hashlib.sha256((ORIGINAL/filename).read_bytes()).hexdigest(),expected)
+        self.assertEqual(len(LEGACY_19_FIXTURE_SHA256),19)
+        self.assertTrue(set(LEGACY_19_FIXTURE_SHA256).issubset(o.SCENARIOS))
+        for name, expected in sorted(LEGACY_19_FIXTURE_SHA256.items()):
+            with self.subTest(scenario=name):
+                encoded,plain,manifest=o.derive_fixture(ORIGINAL,name)
+                canonical=json.dumps({"encoded_hex":encoded.hex(),"plain_hex":plain.hex(),"manifest":manifest},
+                    sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode("utf-8")
+                self.assertEqual(hashlib.sha256(canonical).hexdigest(),expected)
+    def test_pair_success_remains_collected_only_and_late_failure_blocks_business(self):
+        for failure in ('none','recovery','cleanup','source'):
+            with tempfile.TemporaryDirectory() as temp:
+                folder=Path(temp);binary=folder/'not-executed.exe';binary.write_bytes(b'model')
+                args=SimpleNamespace(root=ROOT,artifacts=folder/'run',scenario='ai-behavior11-recover',driver=binary,dosbox=binary,sdl=binary,audio_recorder=None,verify_core=False,sdl_audio_source='app-mix')
+                roles=[]
+                @contextmanager
+                def running(command,cwd,env,log,driver,processes):
+                    role='original' if '-conf' in command else 'sdl';roles.append(role)
+                    self.assertNotIn('FD2SDL_APP_PCM_CAPTURE_DIR',env)
+                    row={'pid':42,'cleaned':True,'forced_cleanup':failure=='cleanup' and role=='sdl','exit_code':0};processes.append(row)
+                    yield SimpleNamespace(pid=42)
+                def exercise(capture,p,save,guard,record,args):
+                    if failure=='recovery' and record['kind']=='sdl':raise AssertionError('native HP60 not met')
+                    record.update(business_sequence_completed=True,collection_completed=True,ai11_action_business_evidence={'passed':True})
+                    if failure=='source' and record['kind']=='sdl':save.write_bytes(b'late drift')
+                with patch.object(r,'owned_job_required'),patch.object(r,'prepare_runtime',return_value=self.p), \
+                     patch.object(r,'running',running),patch.object(r,'exercise',side_effect=exercise), \
+                     patch.object(r.frame_oracle,'compare_sequences') as frame,patch.object(r,'AnimationCollectors') as collectors, \
+                     patch.object(r.subprocess,'Popen') as popen:
+                    report=r.run(args)
+                popen.assert_not_called();frame.assert_not_called();collectors.assert_not_called()
+                self.assertEqual(roles,['original','sdl']);self.assertFalse(report['ok']);self.assertTrue(report['collected_only'])
+                self.assertEqual(report['business_regression_passed'],failure=='none')
+                if failure!='none':self.assertFalse(report['collection_passed'])
+    def test_business_CLI_requires_paired_business_flag_and_keeps_okfalse(self):
+        import io
+        common=['runner','--root','root','--driver','driver','--dosbox','dosbox','--artifacts','new',
+                '--scenario','ai-behavior11-recover','--sdl','sdl']
+        for passed in (False,True):
+            report={'status':'collected','collection_passed':True,'ok':False,'collected_only':True,'business_regression_passed':passed}
+            with patch.object(sys,'argv',common),patch.object(r,'run',return_value=report) as run,patch.object(r,'windows_display_requirement',side_effect=lambda row:nullcontext(row)),patch.object(sys,'stdout',io.StringIO()):
+                self.assertEqual(r.main(),0 if passed else 1)
+                self.assertEqual(run.call_args.args[0].sdl_audio_source,'app-mix')
+
+    def test_verify_core_cannot_upgrade_this_business_case(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args=SimpleNamespace(root=ROOT,artifacts=Path(temp)/'new',scenario='ai-behavior11-recover',sdl=Path('fake'))
+            with patch.object(r.Path,'mkdir') as mkdir,patch.object(r.subprocess,'Popen') as popen:
+                with self.assertRaises(ValueError):r.run(args)
+                mkdir.assert_not_called();popen.assert_not_called()
+
+
+class AI5CellBusinessTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):cls.p=r.prepare_runtime(ORIGINAL,'ai-behavior5-chest')
+    def measured(self):
+        data=bytearray(o.phase_end_model(self.p['source'],self.p['items']));at=o.UNITS+11*80
+        data[at:at+2]=bytes((7,13));data[at+10:at+12]=bytes((0,192))
+        data[at+0x31:at+0x35]=bytes((0,192,0,7));data[o.CELL_STATE]=1
+        data[o.META+5:o.META+9]=bytes((7,14,2,3))
+        steps=[('LEFT',r.screen(data,(6,14)))];data[o.META+5:o.META+9]=measuring_focus(data,steps)
+        return o._checksum(data),steps
+    def test_actual_profile_and_manifest_one_step_then_whole07_inventory_completed(self):
+        p=self.p;c=o.actor(p['source'],11);chosen=p['contract']['ai_plan']
+        self.assertEqual((list(c[:2]),c[0x20],c[0x34],c[59],c[61]),([6,13],5,0xa5,1,0))
+        self.assertEqual(chosen['destination_cost'],1);self.assertEqual(chosen['one_step_direction'],3)
+        self.assertEqual(chosen['physical_priority_upper_bound'],0);self.assertEqual(c[26:31],bytes(5))
+        data,steps=self.measured();e=o.ai5_action_coverage(p,data,steps)
+        self.assertTrue(e['passed']);self.assertEqual(e['behavior_whole_byte'],7);self.assertEqual(e['completed0'],1)
+        self.assertFalse(e['focus_no_target_control_claimed']);self.assertNotIn('frame_resources',p)
+        for at,value in ((o.UNITS+11*80+0x34,0xa7),(o.CELL_STATE,0),(o.UNITS+11*80+0x0b,191),
+                         (o.UNITS+11*80+0x0c,0),(o.UNITS+11*80,6),(0x8a4,0),(o.UNITS+11*80+0x35,0)):
+            wrong=bytearray(data);wrong[at]=value
+            with self.subTest(at=at),self.assertRaises(AssertionError):o.ai5_action_coverage(p,o._checksum(wrong),steps)
+    def test_invalid_budget_status_completed_and_source_cell_identity_reject(self):
+        for offset,value in ((0,5),(5,4),(32,1),(0x34,5),(59,0),(59,2),(61,1),(26,1),(10,0),(64,27),(72,1)):
+            source=bytearray(self.p['source']);source[o.UNITS+11*80+offset]=value
+            with self.subTest(offset=offset),self.assertRaises(ValueError):o.ai5_cell_preflight(ORIGINAL,o._checksum(source))
+        source=bytearray(self.p['source']);source[o.CELL_STATE]=1
+        with self.assertRaises(ValueError):o.ai5_cell_preflight(ORIGINAL,o._checksum(source))
+    def test_full576_tile_contains_lower_head_and_rejects_closed_all_phases_and_corruption(self):
+        p=self.p;assets=p['ai5_opened_cell'];self.assertEqual(assets['raw_actor_order'],[0,11])
+        self.assertTrue(assets['lower_Hero_head_included']);self.assertFalse(assets['region_cropped_or_masked'])
+        self.assertEqual(assets['shared_idle_phases'],[0,2]);self.assertEqual(assets['minimum_opened_closed_positive_pixels'],24)
+        for image in assets['templates']:
+            frame=Image.new('RGB',(320,200));frame.paste(image.convert('RGB'),assets['position'])
+            hit=r.ai5_opened_cell_state(frame,p);self.assertEqual(hit['checked_pixels'],576);self.assertEqual(hit['max_channel_delta'],0)
+            wrong=frame.copy();x,y=assets['position'];old=wrong.getpixel((x,y));wrong.putpixel((x,y),tuple((v+100)%256 for v in old))
+            self.assertIsNone(r.ai5_opened_cell_state(wrong,p))
+        for image in assets['closed_templates']:
+            frame=Image.new('RGB',(320,200));frame.paste(image.convert('RGB'),assets['position'])
+            self.assertIsNone(r.ai5_opened_cell_state(frame,p))
+        # 相位1虽为真实opened资源，但只有23正差，不能代替最低24像素正证。
+        raw=bytearray(p['base_final']);raw[o.UNITS+5]|=1
+        changed=dict(p,base_final=o._checksum(raw))
+        with self.assertRaises(ValueError):r.ai5_opened_cell_resources(ORIGINAL,changed)
+    def test_independent_original_frames_include110_lower_Hero_head_pixels(self):
+        p=self.p;resources=p['ai5_opened_cell'];assets=p['assets']
+        icons=(ORIGINAL/'FDICON.B24').read_bytes();tiles=r.archive_entry((ORIGINAL/'FDSHAP.DAT').read_bytes(),0)
+        base=r.sheet_frame(tiles,249);base.putpalette(assets['palette'])
+        hero=r.sheet_frame(icons,0);hero.putpalette(assets['palette'])
+        caster=r.sheet_frame(icons,108);caster.putpalette(assets['palette'])
+        expected=base.copy();expected.paste(hero,(0,18),hero.point(lambda v:255 if v else 0,mode='L'))
+        expected.paste(caster,(0,-6),caster.point(lambda v:255 if v else 0,mode='L'))
+        frame=Image.new('RGB',(320,200));frame.paste(expected.convert('RGB'),resources['position'])
+        self.assertEqual(r.ai5_opened_cell_state(frame,p)['checked_pixels'],576)
+        missing=base.copy();missing.paste(caster,(0,-6),caster.point(lambda v:255 if v else 0,mode='L'))
+        self.assertEqual(sum(max(abs(a-b) for a,b in zip(x,y))>3 for x,y in zip(expected.convert('RGB').getdata(),missing.convert('RGB').getdata())),110)
+        frame.paste(missing.convert('RGB'),resources['position']);self.assertIsNone(r.ai5_opened_cell_state(frame,p))
+
+    def test_business_END_opened_gate_precedes_save_without_collectors_or_extra_key(self):
+        events=[];record={'kind':'original','checkpoints':[]}
+        def gate(capture,name,predicate,records,**options):events.append(('gate',name));return None,{'ok':True}
+        cap=SimpleNamespace(key=lambda name:events.append(('key',name)),wait=Mock())
+        with patch.object(r,'wait_title'),patch.object(r,'wait_state',side_effect=gate),patch.object(r,'require_source_unchanged'), \
+             patch.object(r.reward,'navigate'),patch.object(r,'wait_phase',side_effect=lambda *a:events.append(('phase','ready'))), \
+             patch.object(r,'measure',side_effect=lambda *a:events.append(('save','measured'))),patch.object(r,'AnimationCollectors') as collectors:
+            r.exercise(cap,self.p,Path('unused'),[b'',0],record,SimpleNamespace())
+        collectors.assert_not_called();self.assertTrue(record['opened_cell_live_visual']['ok'])
+        self.assertLess(events.index(('gate','major-ai5-live-opened-cell')),events.index(('save','measured')))
+        first=events.index(('gate','b6-end-first-complete-buttons'))
+        self.assertEqual(events[first+1:],[('key','ENTER'),('phase','ready'),('gate','major-ai5-live-opened-cell'),('save','measured')])
+    def test_unopened_or_missing_live_witness_cannot_write_Save(self):
+        for witness in (None,{}, {'ok':False}):
+            record={'kind':'original'}
+            if witness is not None:record['opened_cell_live_visual']=witness
+            with patch.object(r,'measure_inventory_save') as save:
+                with self.assertRaisesRegex(AssertionError,'Save前'):r.measure(SimpleNamespace(),self.p,Path('unused'),[b'',0],record,Mock())
+                save.assert_not_called()
+        def gate(capture,name,predicate,records,**options):
+            if name=='major-ai5-live-opened-cell':raise TimeoutError('closed tile first failure')
+            return None,{}
+        record={'kind':'original','checkpoints':[]}
+        with patch.object(r,'wait_title'),patch.object(r,'wait_state',side_effect=gate),patch.object(r,'require_source_unchanged'), \
+             patch.object(r.reward,'navigate'),patch.object(r,'wait_phase'),patch.object(r,'measure') as save:
+            with self.assertRaisesRegex(TimeoutError,'closed tile first failure'):
+                r.exercise(SimpleNamespace(key=Mock(),wait=Mock()),self.p,Path('unused'),[b'',0],record,SimpleNamespace())
+            save.assert_not_called();self.assertNotIn('collection_completed',record)
+
+
+    def test_pair_flag_requires_live_open_even_if_stubbed_SAV_claims_pass(self):
+        for opened in (False,True):
+            with tempfile.TemporaryDirectory() as temp:
+                folder=Path(temp);binary=folder/'not-executed.exe';binary.write_bytes(b'model')
+                args=SimpleNamespace(root=ROOT,artifacts=folder/'run',scenario='ai-behavior5-chest',driver=binary,dosbox=binary,sdl=binary,audio_recorder=None,verify_core=False)
+                @contextmanager
+                def running(command,cwd,env,log,driver,processes):
+                    processes.append({'pid':42,'cleaned':True,'forced_cleanup':False,'exit_code':0});yield SimpleNamespace(pid=42)
+                def exercise(capture,p,save,guard,record,args):
+                    record.update(business_sequence_completed=True,collection_completed=True,
+                        ai5_action_business_evidence={'passed':True,'live_opened_cell_checked_before_Save':True})
+                    if opened:record['opened_cell_live_visual']={'ok':True,'checked_pixels':576}
+                with patch.object(r,'owned_job_required'),patch.object(r,'prepare_runtime',return_value=self.p), \
+                     patch.object(r,'running',running),patch.object(r,'exercise',side_effect=exercise), \
+                     patch.object(r.frame_oracle,'compare_sequences') as fx,patch.object(r.subprocess,'Popen') as popen:
+                    report=r.run(args)
+                popen.assert_not_called();fx.assert_not_called();self.assertTrue(report['collection_passed'])
+                self.assertEqual(report['business_regression_passed'],opened)
+                self.assertFalse(report['ok']);self.assertTrue(report['collected_only'])
 
 
 class CaptureContractTest(unittest.TestCase):
@@ -447,7 +716,7 @@ class VerifyCoreTest(unittest.TestCase):
         for flag,ok,expected in ((False,False,0),(True,False,1),(True,True,0)):
             report={'status':'passed' if ok else 'collected','collection_passed':True,'ok':ok,'collected_only':not flag}
             with self.subTest(flag=flag,ok=ok),patch.object(sys,'argv',common+(['--verify-core'] if flag else [])), \
-                patch.object(r,'run',return_value=report),patch.object(sys,'stdout',io.StringIO()):
+                patch.object(r,'run',return_value=report),patch.object(r,'windows_display_requirement',side_effect=lambda row:nullcontext(row)),patch.object(sys,'stdout',io.StringIO()):
                 self.assertEqual(r.main(),expected)
     def test_strict_analysis_happens_only_after_both_game_contexts_close(self):
         prepared=o.prepare(ORIGINAL,'physical-full-hit');prepared['frame_resources']={};events=[]

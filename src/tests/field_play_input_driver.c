@@ -235,9 +235,42 @@ static int post_owned_key(const InputTarget *target, WORD symbol, int down,
                          (WPARAM)symbol, parameter) ? 0 : -1;
 }
 
+/* 仅防本轮窗口被普通点击激活；显式前台切换仍须由逐键门拒绝。
+ * 不修改用户键态，也不把此样式当硬件／RawInput隔离。 */
+static int owned_window_noactivate(const InputTarget *target,
+                                    LONG_PTR *before, LONG_PTR *after) {
+    DWORD owner = 0;
+    if (target->windows_found != 1u || !IsWindow(target->window) ||
+        !GetWindowThreadProcessId(target->window, &owner) || owner != target->pid) {
+        SetLastError(ERROR_INVALID_WINDOW_HANDLE);
+        return -1;
+    }
+    SetLastError(0);
+    *before = GetWindowLongPtrW(target->window, GWL_EXSTYLE);
+    if (!*before && GetLastError()) return -1;
+    LONG_PTR expected = *before | WS_EX_NOACTIVATE;
+    if (expected != *before) {
+        SetLastError(0);
+        if (!SetWindowLongPtrW(target->window, GWL_EXSTYLE, expected) && GetLastError())
+            return -1;
+    }
+    SetLastError(0);
+    *after = GetWindowLongPtrW(target->window, GWL_EXSTYLE);
+    if ((!*after && GetLastError()) || *after != expected ||
+        !GetWindowThreadProcessId(target->window, &owner) || owner != target->pid) {
+        if (!GetLastError()) SetLastError(ERROR_INVALID_STATE);
+        return -1;
+    }
+    return 0;
+}
+
 static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
                      unsigned long delay_us, int wave) {
     HWND foreground_before = GetForegroundWindow();
+    HWND foreground_after;
+    LONG_PTR style_before = 0, style_after = 0;
+    int noactivate_verified = 0;
+    int foreground_guard_failed = target->window && foreground_before == target->window;
     ULONGLONG started = GetTickCount64(), down_tick = 0, up_tick = 0;
     unsigned sent = 0, released = 0, release_retries = 0;
     DWORD error = 0, target_exit_code = STILL_ACTIVE;
@@ -250,6 +283,16 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         error = ERROR_INVALID_PARAMETER;
         goto done;
     }
+    if (foreground_guard_failed) {
+        error = ERROR_INVALID_STATE;
+        goto done;
+    }
+    if (owned_window_noactivate(target, &style_before, &style_after) != 0) {
+        error = GetLastError();
+        if (!error) error = ERROR_GEN_FAILURE;
+        goto done;
+    }
+    noactivate_verified = 1;
     if (wave) {
         wchar_t path[32768]; DWORD length = 32768;
         if (!QueryFullProcessImageNameW(process, 0, path, &length)) {
@@ -268,6 +311,11 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
     }
     for (unsigned i = 0; i < count; ++i) {
         ULONGLONG tick = GetTickCount64();
+        if (GetForegroundWindow() == target->window) {
+            foreground_guard_failed = 1;
+            error = ERROR_INVALID_STATE;
+            break;
+        }
         if (post_owned_key(target, symbols[i], 1, down[i]) != 0) {
             error = GetLastError();
             if (!error) error = ERROR_GEN_FAILURE;
@@ -278,6 +326,10 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
     }
     /* 保持生产逐帧键态可见，仍低于500ms repeat门；不追加DOWN重试。 */
     if (sent == count) Sleep(150);
+    if (target->window && GetForegroundWindow() == target->window) {
+        foreground_guard_failed = 1;
+        if (!error) error = ERROR_INVALID_STATE;
+    }
     for (unsigned i = sent; i > 0; --i) {
         if (WaitForSingleObject(process, 0) == WAIT_OBJECT_0) break;
         up_tick = GetTickCount64();
@@ -304,12 +356,20 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
     Sleep((DWORD)((delay_us + 999u) / 1000u));
  done:
     if (process) CloseHandle(process);
+    foreground_after = GetForegroundWindow();
+    /* 即使DOWN后变成前台，仍先完成上面的本轮UP，再报告失败。 */
+    if (target->window && foreground_after == target->window) {
+        foreground_guard_failed = 1;
+        if (!error) error = ERROR_INVALID_STATE;
+    }
     int result = !error && sent == count && count != 0u &&
         (released == count || release_not_needed) ? 0 : -1;
     fprintf(stderr, "fd2 input: {\"backend\":\"PostMessageW HWND\",\"pid\":%lu,"
         "\"hwnd\":\"0x%llx\",\"kind\":\"%s\",\"keys\":%u,"
         "\"key_down_sent\":%s,\"key_up_sent\":%s,\"sent\":%u,\"release\":%u,"
         "\"foreground_before\":\"0x%llx\",\"foreground_after\":\"0x%llx\","
+        "\"noactivate_style_before\":\"0x%llx\",\"noactivate_style_after\":\"0x%llx\","
+        "\"noactivate_verified\":%s,\"foreground_guard_ok\":%s,"
         "\"down_tick_ms\":%llu,\"up_tick_ms\":%llu,\"elapsed_ms\":%llu,"
         "\"release_retries\":%u,\"target_exited_before_release\":%s,"
         "\"release_not_needed\":%s,\"target_exit_code\":%lu,\"error\":%lu,\"ok\":%s}\n",
@@ -317,7 +377,10 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         wave ? "wave" : "key", count,
         sent == count && count ? "true" : "false", released == count && count ? "true" : "false",
         sent, released, (unsigned long long)(uintptr_t)foreground_before,
-        (unsigned long long)(uintptr_t)GetForegroundWindow(),
+        (unsigned long long)(uintptr_t)foreground_after,
+        (unsigned long long)style_before, (unsigned long long)style_after,
+        noactivate_verified ? "true" : "false",
+        target->window && !foreground_guard_failed ? "true" : "false",
         (unsigned long long)down_tick, (unsigned long long)up_tick,
         (unsigned long long)(GetTickCount64() - started), release_retries,
         release_not_needed ? "true" : "false", release_not_needed ? "true" : "false",

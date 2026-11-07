@@ -92,5 +92,52 @@ static int test_stage1_preserves_hidden_roster_and_plans_real_dimensions(void) {
     g->units.count=22;CHECK(potential_units(g,&future)==-1);
     free(before);fd2_field_game_close(g);free(g);fd2_archive_close(&ar);return 0;
 }
+static int test_plain_hero_escape_keeps_one_other_effect_and_source_intact(void) {
+    fd2_archive ar={0};CHECK(fd2_archive_open(&ar,"original_game/FDOTHER.DAT")==0);
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
+    CHECK(fd2_field_game_open_resources(g,&ar,0)==0);
+    uint32_t grass=fd2_field_map_cell(&g->map,7,14)&1023u;
+    for(int i=0;i<24*24;i++)g->map.cells[i]=grass;
+    fd2_field_units_clear(&g->units);g->units.count=12;
+    for(size_t i=0;i<12;i++)g->units.items[i].flags=1;
+    CHECK(fixture_unit(g,0,0,2,7,14)==0);
+    CHECK(fixture_unit(g,1,9,2,9,15)==0);
+    g->units.items[1].movement_profile=5;g->units.items[1].mp=g->units.items[1].mp_max=8;
+    ((uint8_t *)&g->units.items[1])[0x1a]=1;
+    CHECK(fixture_unit(g,3,30,2,15,15)==0);g->units.items[3].movement_points=0;
+    CHECK(fixture_unit(g,4,96,0,5,14)==0);
+    CHECK(fixture_unit(g,5,96,0,7,12)==0);
+    for(size_t i=4;i<=5;i++){g->units.items[i].attack=30;g->units.items[i].hp=g->units.items[i].hp_max=300;}
+    g->turn_number=2;g->active_side=2;g->interaction=FD2_FIELD_INTERACTION_BROWSE;
+    fd2_field_rng rng;fd2_field_rng_seed(&rng,0x7a18);
+    CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,fd2_field_rng_next,&rng)==0);
+    fd2_field_game *before=malloc(sizeof(*g));CHECK(before);*before=*g;uint16_t seed=rng.state;
+    uint32_t map_before[24*24];memcpy(map_before,g->map.cells,sizeof(map_before));
+    natural_choices choices;CHECK(choose(g,&choices)==0);
+    CHECK(choices.actions[0].kind==PLAN_WAIT && choices.actions[0].actor==0);
+    natural_turn turn;CHECK(plan_turn(g,&choices,&turn)==0 && turn.hero_then_effect && turn.count==3);
+    CHECK(plain_hero_escape(g,&turn.actions[0]));
+    CHECK(turn.actions[1].kind==PLAN_MAGIC && turn.actions[1].actor==1 && turn.actions[1].magic==0);
+    CHECK(turn.actions[2].kind==PLAN_WAIT && turn.actions[2].actor==3 && turn.actions[2].x==15 && turn.actions[2].y==15);
+    fd2_field_game *query=malloc(sizeof(*g));CHECK(query);*query=*g;
+    project_acted_intent(query,&turn.actions[0]);
+    CHECK(query->units.items[0].flags==(uint8_t)(g->units.items[0].flags|0x80));
+    fd2_field_unit projected=query->units.items[0];projected.x=g->units.items[0].x;projected.y=g->units.items[0].y;projected.flags=g->units.items[0].flags;
+    CHECK(!memcmp(&projected,&g->units.items[0],sizeof(projected)));
+    CHECK(!memcmp(query->units.items+1,g->units.items+1,(g->units.count-1)*sizeof(fd2_field_unit)));
+    fd2_field_path_result range=FD2_FIELD_PATH_RESULT_INITIALIZER;
+    CHECK(fd2_field_game_compute_move_range(query,1,&range)==0);
+    CHECK(!fd2_field_path_is_destination(&range,turn.actions[0].x,turn.actions[0].y));
+    CHECK(!memcmp(g,before,sizeof(*g)) && rng.state==seed);
+    CHECK(!memcmp(map_before,g->map.cells,sizeof(map_before)));
+    natural_action special=turn.actions[0];
+    g->map.cells[special.y*24+special.x]=248; /* 原stage0 flags20箱不能成为无效果前序WAIT。 */
+    CHECK(!plain_hero_escape(g,&special));
+    *g=*before;g->units.items[0].flags|=0x80;
+    CHECK(choose(g,&choices)==0 && plan_turn(g,&choices,&turn)==0 && !turn.hero_then_effect);
+    fd2_field_path_close(&range);free(query);free(before);fd2_field_game_close(g);free(g);fd2_archive_close(&ar);
+    return 0;
+}
 int main(void) {return test_hero_rest_and_primary_keep_known_and_future_coverage_minimal()==0 &&
-    test_stage1_preserves_hidden_roster_and_plans_real_dimensions()==0?0:1;}
+    test_stage1_preserves_hidden_roster_and_plans_real_dimensions()==0 &&
+    test_plain_hero_escape_keeps_one_other_effect_and_source_intact()==0?0:1;}

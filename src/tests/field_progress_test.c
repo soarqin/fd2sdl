@@ -139,6 +139,8 @@ static int test_controller_clear_and_learning_does_not_disable_basic(void) {
 }
 static int test_actual_ai_counter_reward_and_two_hit_preflight(void) {
     fd2_field_game g;init(&g);g.active_side=0;
+    /* B4两击奖励夹具使用SHORT；FULL的type3武器可与3%额外击叠为三击。 */
+    g.option_values[2]=1;
     fd2_field_unit *hero=&g.units.items[0],*enemy=&g.units.items[2];
     hero->unit_id=hero->text_id=0;hero->level=1;hero->hp=hero->hp_max=42;
     hero->attack=100;hero->accuracy=100;hero->defense=hero->evasion=0;
@@ -155,12 +157,14 @@ static int test_actual_ai_counter_reward_and_two_hit_preflight(void) {
     CHECK(plan.unit_index==0);
     CHECK(fd2_field_game_commit_ai_physical(&g,2,0,&plan,NULL,0)==0);
     CHECK(hero->hp==38 && enemy->hp==0 && enemy->flags==1);
+    CHECK(g.last_attack_strikes==2 && g.last_counterattack_strikes==1 && calls==9);
     CHECK(g.progress.notice.kind==FD2_FIELD_PROGRESS_GAIN && g.progress.notice.value==630);
     CHECK(g.progress.notice.actor_index==0 && hero->level==1 && hero->experience==0);
     CHECK(!fd2_field_unit_has_acted(enemy)); /* AI尾在奖励close之后。 */
     CHECK(drain(&g)==0 && hero->level==7 && hero->experience==30);
     CHECK(fd2_field_unit_has_acted(enemy) && g.experience_value==0 && hero->hp==38);
     init(&g);g.selected_unit=0;g.interaction=FD2_FIELD_INTERACTION_COMMAND;
+    g.option_values[2]=1; /* 同一SHORT双击死亡上界，预检仍须零RNG。 */
     hero=&g.units.items[0];enemy=&g.units.items[2];
     hero->attack=10;hero->accuracy=100;hero->defense=0;
     ((uint8_t*)hero)[10]=0x40;((uint8_t*)hero)[11]=71;
@@ -205,6 +209,8 @@ static int test_loaded_zero_movement_counter_scheduler(void) {
     enemy->attack = 3; enemy->accuracy = 100;
     hero->accuracy = 200; hero->defense = hero->evasion = 0;
     memcpy(initial.unit_area, units, sizeof(units));
+    /* 仅派生RAM夹具选SHORT，保留B4的MOV0/两击反击奖励合同；原START不写。 */
+    initial.meta[FD2_SAVE_BATTLE_META_OPTION_EFFECT] = 1;
     LOADED_CHECK(fd2_save_file_update_battle_snapshot(&fixture, &initial) == 0);
     LOADED_CHECK(fd2_test_temp_path(path) == 0 && fd2_save_file_write(&fixture, path) == 0);
     LOADED_CHECK(fd2_archive_open(&other, "original_game/FDOTHER.DAT") == 0);
@@ -212,7 +218,8 @@ static int test_loaded_zero_movement_counter_scheduler(void) {
     calls = 0;
     LOADED_CHECK(fd2_field_game_set_attack_hooks(&g, NULL, NULL, NULL, NULL, rng, NULL) == 0);
     LOADED_CHECK(fd2_field_game_load_active(&g, path) == 0);
-    LOADED_CHECK(g.units.items[11].movement_points == 0 && calls == 0);
+    LOADED_CHECK(g.units.items[11].movement_points == 0 && calls == 0 &&
+                 g.option_values[2] == 1);
     LOADED_CHECK(fd2_field_game_end_player_turn(&g) == 0);
     unsigned gains = 0, levels = 0, growths = 0, closes = 0, steps;
     for (steps = 0; steps < 256; steps++) {
@@ -255,7 +262,8 @@ static int test_loaded_zero_movement_counter_scheduler(void) {
                  persisted.level == 7 && persisted.experience == 30);
     LOADED_CHECK(memcmp(final.unit_area, g.units.items, 12 * sizeof(fd2_field_unit)) == 0);
     LOADED_CHECK(final.meta[FD2_SAVE_BATTLE_META_TURN] == 2 &&
-                 final.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 12);
+                 final.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] == 12 &&
+                 final.meta[FD2_SAVE_BATTLE_META_OPTION_EFFECT] == 1);
     LOADED_CHECK(memcmp(final.roster, initial.roster, sizeof(initial.roster)) == 0);
     LOADED_CHECK(memcmp(final.metadata, initial.metadata, sizeof(initial.metadata)) == 0);
     LOADED_CHECK(memcmp(final.unit_area + 12 * 80, initial.unit_area + 12 * 80,

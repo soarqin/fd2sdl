@@ -163,9 +163,34 @@ def driver_call(driver: Path, command: str, process: subprocess.Popen,
     return result.stderr or ""
 
 
+def quiet_game_command(command: list[str], env: dict):
+    """仅本轮游戏测试静音输出，保留仿真／混音；不改用户设置。"""
+    command, env = list(command), dict(env)
+    program = Path(command[0]).name.casefold()
+    native = program in ("dosbox-x", "dosbox-x.exe")
+    sdl = program in ("fd2sdl", "fd2sdl.exe")
+    if sdl:
+        env.setdefault("FD2SDL_TEST_AUDIO_QUIET", "1")
+        if env["FD2SDL_TEST_AUDIO_QUIET"] not in ("0", "1"):
+            raise ValueError("FD2SDL_TEST_AUDIO_QUIET只接受0或1")
+    ignored = []
+    if native:
+        # pinned X 先读 conf，再处理 -set；ENVIRON_LINKED 的同项环境变量更晚。
+        # 只隔离本轮 nosound 覆盖，记录变量名而不记录宿主环境值。
+        ignored = [key for key in env if key.casefold() == "dosbox_mixer_nosound"]
+        for key in ignored:
+            del env[key]
+        command += ["-set", "mixer nosound=true"]
+    return command, env, {"native_quiet_requested": native,
+        "native_quiet_backend": "DOSBox-X mixer nosound" if native else None,
+        "application_quiet_requested": sdl and env.get("FD2SDL_TEST_AUDIO_QUIET") == "1",
+        "ignored_native_quiet_overrides": ignored}
+
+
 @contextmanager
 def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
             receipts: list[dict], *, expected_exit=0):
+    command, env, quiet = quiet_game_command(command, env)
     with log.open("w", encoding="utf-8") as stream:
         launch = {}
         if sys.platform == "win32":
@@ -181,6 +206,7 @@ def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
         receipt = {"pid": process.pid, "command": command, "log": str(log),
                    "forced_cleanup": False, "cleaned": False, "expected_exit": expected_exit,
                    "input_backend": "PostMessageW HWND"}
+        receipt.update(quiet)
         receipts.append(receipt)
         body_failed = False
         try:

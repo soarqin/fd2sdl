@@ -15,11 +15,13 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
 import wave
 from contextlib import contextmanager
+from fd2_display_requirement import windows_display_requirement
 
 from PIL import Image
 
@@ -31,6 +33,7 @@ import fd2_battle_animation_frames as frame_oracle
 import fd2_sfx_oracle as sfx_oracle
 import fd2_battle_animation_sfx as sfx_declaration
 import fd2_core_sfx_gate as core_sfx
+from fd2_app_mix_capture import AppMixCapture
 from fd2_item_list_oracle import inventory_templates
 from fd2_reward_oracle import magic_page
 from run_graphics_tests import decode_save
@@ -135,12 +138,12 @@ class OwnedHelper:
         self.record["summary"]=read_json(self.record["stdout"])
         return self.record["summary"]
 
-def wav_info(path):
+def wav_info(path, expected_rate=44100):
     path=Path(path)
     with wave.open(str(path),"rb") as stream:
         channels,bits,rate,frames=stream.getnchannels(),stream.getsampwidth()*8,stream.getframerate(),stream.getnframes()
-        if stream.getcomptype()!="NONE" or (channels,bits,rate)!=(2,16,44100) or frames<=0:
-            raise AssertionError("本轮音频不是已关闭的44100/stereo/PCM16 WAV")
+        if stream.getcomptype()!="NONE" or (channels,bits,rate)!=(2,16,expected_rate) or frames<=0:
+            raise AssertionError(f"本轮音频不是已关闭的{expected_rate}/stereo/PCM16 WAV")
         payload=stream.readframes(frames)
     if len(payload)!=frames*4:raise AssertionError("WAV数据长度不等于已关闭header")
     samples=array.array("h",payload)
@@ -216,6 +219,10 @@ class AnimationCollectors:
         self.series=capture.artifacts/"animation-series"
         self.audio_ready=capture.artifacts/"audio-ready.json";self.audio_stop=capture.artifacts/"audio-stop"
         self.wav=capture.artifacts/"process-audio.wav"
+        self.app_mix = (AppMixCapture(capture.artifacts/'app-mix',capture.process.pid,CAPTURE_MAX_MS)
+            if record.get('kind')=='sdl' and getattr(args,'sdl_audio_source','process-loopback')=='app-mix' else None)
+        if self.app_mix:
+            self.audio_ready=self.app_mix.directory/'ready.json';self.audio_stop=self.app_mix.stop_path;self.wav=self.app_mix.wav
     def start(self):
         capture,record=self.capture,self.record
         if capture.process.poll() is not None:raise RuntimeError("目标已退出，未启动采集")
@@ -230,6 +237,8 @@ class AnimationCollectors:
         if record["kind"]=="original":
             record["native_audio"]={"enabled":True,"started":False,"stopped":False,"scope":"B6 SFX recording; source music0/sfx1, prior fade-tail silence not independently proven"}
             audio_toggle(capture,record)
+        elif self.app_mix:
+            record["audio_ready"]=self.app_mix.start(capture.process)
         else:
             slot={};record["audio_helper"]=slot
             helper=OwnedHelper(self.args.driver,[self.args.audio_recorder,capture.process.pid,self.wav,
@@ -243,6 +252,7 @@ class AnimationCollectors:
     def wait_heal_idle0(self,anchors,target_match,timeout=15):
         if type(timeout) not in (int,float) or not 0<timeout<=15:raise ValueError('heal idle ACK时限须0..15秒')
         if not self.started or self.ready is None:raise AssertionError('heal idle ACK必须在WGC/音频ready之后')
+        if self.app_mix:self.app_mix.assert_running(self.capture.process)
         started=time.monotonic();deadline=started+timeout
         ack={'completed':False,'timeout_seconds':timeout,'fresh_frames':0,'unknown_frames':0,
             'source_sprite_origin':[124,94],'idle0_resource_frame':108,'checked_pixels':anchors[0]['checked_pixels'],
@@ -253,6 +263,7 @@ class AnimationCollectors:
         last=baseline[0] if baseline else {'index':self.ready['first_index'],'wgc_timestamp_100ns':self.ready['wgc_timestamp_100ns']}
         ack['baseline']={key:last[key] for key in ('index','wgc_timestamp_100ns')}
         while time.monotonic()<deadline:
+            if self.app_mix:self.app_mix.assert_running(self.capture.process)
             if self.capture.process.poll() is not None or any(h.process is not None and h.process.poll() is not None for h in self.helpers):
                 raise RuntimeError('heal idle ACK期间目标或采集helper提前退出；未确认效果')
             latest=latest_series_frame(self.series,self.ready,self.capture.process.pid,last)
@@ -274,6 +285,7 @@ class AnimationCollectors:
         raise TimeoutError('heal idle ACK未在同一15秒内观察到新非0→0且target资源保持；未确认效果')
 
     def confirm(self):
+        if self.app_mix:self.app_mix.assert_running(self.capture.process)
         before=qpc_stamp();self.capture.key("ENTER");after=qpc_stamp()
         receipt=self.capture.trace[-1].get("delivery")
         if not receipt or receipt.get("hwnd")!=self.ready.get("hwnd"):
@@ -321,6 +333,16 @@ class AnimationCollectors:
                             if time.monotonic()>=deadline:raise
                             time.sleep(.05)
                     self.record["audio_capture"]={"role":"native DOSBox HOST_W","wav":info,"only_collection":True}
+                elif self.app_mix:
+                    receipt=self.app_mix.finish(self.capture.process)
+                    info=wav_info(self.wav,expected_rate=48000)
+                    summary=receipt['summary']
+                    if info['frames']!=summary['frames'] or info['data_bytes']!=summary['data_bytes']:
+                        raise AssertionError('app-mix封包/WAV计数不符')
+                    self.record['app_mix_capture']=receipt
+                    self.record['audio_capture']={'role':'application final mix before test suppression and OS session',
+                        'source_scope':'app_mix','wav':info,'app_mix_summary':summary,'only_collection':True,
+                        'suppress_device_output':True,'device_output_validated':False,'A8_validated':False}
                 else:
                     audio=self.record["audio_helper"]["summary"]
                     if (audio.get("ok") is not True or audio.get("target_pid")!=self.capture.process.pid or
@@ -375,9 +397,11 @@ def prepare_runtime(original, scenario):
     # 固定导航与目标必须在进程创建前完成资源构造。
     for start in (prepared['initial_focus'],(7,14),(8,14)):
         reward.focus_steps(prepared['source'],start,(6,14))
-    prepared['frame_resources']=frame_oracle.prepare_resources(original,prepared['source'],
-        prepared['manifest']['caster_raw'],prepared['manifest']['targets'],
-        kind='physical' if scenario=='physical-full-hit' else 'magic',magic_id=prepared['manifest']['magic_id'])
+    if scenario not in oracle.BUSINESS_SCENARIOS:
+        prepared['frame_resources']=frame_oracle.prepare_resources(original,prepared['source'],
+            prepared['manifest']['caster_raw'],prepared['manifest']['targets'],
+            kind='physical' if scenario=='physical-full-hit' else 'magic',magic_id=prepared['manifest']['magic_id'])
+    if scenario=='ai-behavior5-chest':prepared['ai5_opened_cell']=ai5_opened_cell_resources(original,prepared)
     if scenario=='player-heal13':
         anchors={}
         for rule in prepared['frame_resources']['rules']['map-heal']:
@@ -389,6 +413,62 @@ def prepare_runtime(original, scenario):
             raise ValueError('heal idle ACK不满足实际unit9/frame108资源前置')
         prepared['heal_idle_anchors']=anchors
     return prepared
+
+
+def ai5_opened_cell_resources(original, prepared):
+    """原248→249，完整格叠全部raw actor（含下格Hero头）；无动态FG的限定资源。"""
+    from run_original_player import cursor_assets
+    original=Path(original);source=prepared['base_final'];assets=prepared['assets']
+    tiles=archive_entry((original/'FDSHAP.DAT').read_bytes(),0)
+    attrs=archive_entry((original/'FDSHAP.DAT').read_bytes(),1)
+    at=screen(source,(7,13));focus=screen(source,tuple(source[META+5:META+7]))
+    if not (4<=at[0]<=292 and 4<=at[1]<=172) or focus!=(at[0],at[1]+24):
+        raise ValueError('AI5完整箱格与Hero光标须为已预检相邻内区，不能裁viewport')
+    for tile in (248,249):
+        begin=struct.unpack_from('<I',tiles,6+tile*4)[0];end=struct.unpack_from('<I',tiles,6+(tile+1)*4)[0]
+        _,mask=frame_oracle.rle_material(struct.pack('<HH',24,24)+tiles[begin:end])
+        if sum(value!=0 for value in mask.getdata())!=576:raise ValueError('AI5两地形帧须完整576原RLE写像素')
+    frames=[];raws=[]
+    for raw in range(source[META+1]):
+        actor=oracle.actor(source,raw)
+        if actor[5]&1:continue
+        x,y=screen(source,tuple(actor[:2]));offset=(x-at[0],y-6-at[1])
+        if not (-24<offset[0]<24 and -24<offset[1]<24):continue
+        if actor[4] or actor[3]!=0:raise ValueError('AI5观测只接受原common-tail清方向后的静止actor')
+        isolated=bytearray(source);isolated[META+1]=1;isolated[UNITS:UNITS+STRIDE]=actor
+        sprites,_=cursor_assets(original/'FDICON.B24',isolated,assets)
+        frames.append((raw,offset,sprites));raws.append(raw)
+    if raws!=[0,11] or attrs[248*4:249*4]!=bytes((32,0,4,0)) or attrs[249*4:250*4]!=bytes((0,0,4,0)):
+        raise ValueError('AI5当前完整格须raw0下格头→raw11本格原顺序，且箱248/249没有额外FG')
+    images={};rgb={}
+    for tile in (248,249):
+        images[tile]=[];rgb[tile]=[]
+        for phase in range(3):
+            image=sheet_frame(tiles,tile);image.putpalette(assets['palette'])
+            for raw,offset,sprites in frames:
+                sprite=sprites[phase];mask=sprite.point(lambda value:255 if value else 0,mode='L')
+                image.paste(sprite,offset,mask)
+            images[tile].append(image);rgb[tile].append(image.convert('RGB'))
+    differences=[]
+    for opened in rgb[249]:
+        for closed in rgb[248]:
+            differences.append(sum(any(abs(a-b)>3 for a,b in zip(x,y)) for x,y in zip(opened.getdata(),closed.getdata())))
+    phases=[phase for phase in range(3) if min(differences[phase*3:phase*3+3])>=24]
+    if not phases:raise ValueError('AI5完整格没有与所有closed相位至少24正差的可观测idle')
+    return {'position':at,'templates':[images[249][phase] for phase in phases],'shared_idle_phases':phases,
+        'closed_templates':images[248],'raw_actor_order':raws,'world':[7,13],'closed_tile':248,'opened_tile':249,
+        'checked_pixels':576,'opened_closed_positive_matrix':differences,
+        'minimum_opened_closed_positive_pixels':min(differences[phase*3+i] for phase in phases for i in range(3)),
+        'lower_Hero_head_included':True,'region_cropped_or_masked':False}
+
+
+def ai5_opened_cell_state(frame, prepared):
+    resources=prepared['ai5_opened_cell'];at=resources['position']
+    if any(exact_tile(frame,image,at) for image in resources['closed_templates']):return None
+    for phase,image in zip(resources['shared_idle_phases'],resources['templates']):
+        hit=exact_tile(frame,image,at)
+        if hit:return {key:value for key,value in resources.items() if key not in ('templates','closed_templates')}|dict(hit,ok=True,idle_phase=phase)
+    return None
 
 
 def target_state(frame, prepared):
@@ -425,6 +505,8 @@ def open_end(capture, prepared, checkpoint):
 
 
 def measure(capture, prepared, save, guard, record, checkpoint):
+    if prepared['scenario']=='ai-behavior5-chest' and record.get('opened_cell_live_visual',{}).get('ok') is not True:
+        raise AssertionError('AI5必须在Save前实见完整opened249格；不能只靠Load重建')
     final=prepared['base_final'];finite={}
     def candidates():
         expected,detail=oracle.project_final(prepared,decode_save(save))
@@ -437,6 +519,11 @@ def measure(capture, prepared, save, guard, record, checkpoint):
     record['b6_final_save'].update(finite)
     guard[:]=[save.read_bytes(),save.stat().st_mtime_ns]
     record['business_sequence_completed']=True
+    if prepared['scenario']=='ai-behavior11-recover':
+        record['ai11_action_business_evidence']=oracle.ai11_action_coverage(prepared,decode_save(save),plan['steps'])
+    if prepared['scenario']=='ai-behavior5-chest':
+        record['ai5_action_business_evidence']=oracle.ai5_action_coverage(prepared,decode_save(save),plan['steps'])
+        record['ai5_action_business_evidence']['live_opened_cell_checked_before_Save']=True
     if prepared['scenario']=='ai-item-score20':
         record['ai_item_action_positive_evidence']=oracle.item_action_coverage(prepared,decode_save(save),plan['steps'])
         if not record['ai_item_action_positive_evidence']['passed']:
@@ -455,9 +542,18 @@ def exercise(capture, prepared, save, guard, record, args):
     if scenario.startswith('ai-'):
         reward.navigate(capture,prepared,source,prepared['initial_focus'],(6,14),checkpoint,'b6-to-end')
         open_end(capture,prepared,checkpoint)
-        with AnimationCollectors(capture,args,record).active() as collectors:
-            collectors.confirm()
+        if scenario in oracle.BUSINESS_SCENARIOS:
+            record['collection_scope']='real WGC business checkpoints and full SAV; no continuous FULL/WAV collectors requested'
+            capture.key('ENTER')
             wait_phase(capture,prepared,checkpoint,record)
+            if scenario=='ai-behavior5-chest':
+                _,record['opened_cell_live_visual']=checkpoint('major-ai5-live-opened-cell',
+                    lambda frame:ai5_opened_cell_state(frame,prepared))
+            record['collection_completed']=True
+        else:
+            with AnimationCollectors(capture,args,record).active() as collectors:
+                collectors.confirm()
+                wait_phase(capture,prepared,checkpoint,record)
     else:
         raw=prepared['manifest']['caster_raw']
         for actor in prepared['source_actors'][:raw+1]:
@@ -521,6 +617,13 @@ def endpoint_guard(record,original,before,fixture,fixture_data,fixture_stamp,sav
             now=fingerprint(save.parent);initial=record['isolated_copy_initial'];mutable={'FD2.SAV','FD2.TMP'}
             checks['isolated_static_resources_unchanged']=all(now.get(name)==row for name,row in initial.items() if name not in mutable) and not (set(now)-set(initial)-mutable)
             record['isolated_working_cache']={'FD2.TMP_before':initial.get('FD2.TMP'),'FD2.TMP_after':now.get('FD2.TMP'),'excluded_only_work_copy_cache':True}
+        app_mix=record.get('app_mix_capture')
+        if app_mix:
+            checks['app_mix_artifacts_unchanged']=all(
+                Path(app_mix[key]['path']).is_file() and sha(app_mix[key]['path'])==app_mix[key]['sha256'] and
+                Path(app_mix[key]['path']).stat().st_size==app_mix[key]['size'] and
+                Path(app_mix[key]['path']).stat().st_mtime_ns==app_mix[key]['mtime_ns']
+                for key in ('ready_fact','summary_fact'))
         completed=record.get('completed_save')
         if completed:checks['completed_snapshot_unchanged']=Path(completed['snapshot']).is_file() and sha(completed['snapshot'])==completed['sha256']
     except (OSError,ValueError) as error:checks={'guard_read_error':False};record.setdefault('error',str(error))
@@ -584,18 +687,23 @@ def verify_core(report, prepared, output):
     return result
 
 
-def run(args):
+def run(args, *, _final_report=None):
     root,output=args.root.resolve(),args.artifacts.resolve();original=(root/'original_game').resolve()
     if output==original or original in output.parents:raise ValueError('产物不得位于原版只读目录或其解析后的子目录')
     if args.scenario not in oracle.SCENARIOS:raise ValueError('未知或原版不支持的B6场景')
     verify_requested=bool(getattr(args,'verify_core',False))
     if verify_requested and (args.sdl is None or args.scenario not in sfx_declaration.CORE_SCENARIOS):
         raise ValueError('--verify-core仅支持有SDL的核心三场；未创建产物或启动窗口')
+    audio_source=getattr(args,'sdl_audio_source','process-loopback')
+    if audio_source not in ('process-loopback','app-mix'):raise ValueError('未知SDL声音来源')
+    requested_audio_source=audio_source
+    if args.sdl is None or args.scenario in oracle.BUSINESS_SCENARIOS:
+        audio_source='not-requested'
     binaries={}
     for name in ('driver','dosbox','sdl','audio_recorder'):
         path=getattr(args,name,None)
         if path is None:
-            if name in ('driver','dosbox') or name=='audio_recorder' and args.sdl is not None:raise ValueError('缺少实际采集程序：'+name)
+            if name in ('driver','dosbox') or name=='audio_recorder' and audio_source=='process-loopback' and args.sdl is not None and args.scenario not in oracle.BUSINESS_SCENARIOS:raise ValueError('缺少实际采集程序：'+name)
             continue
         path=path.resolve()
         if not path.is_file():raise ValueError('实际采集程序不存在：'+name)
@@ -615,14 +723,23 @@ def run(args):
         'verify_core_requested':verify_requested,
         'paired_collected':False,'probe_only':args.sdl is None,'scenario':args.scenario,
         'scope':'strict native finite complete SAV + real input + transient raw WGC frames and closed WAV collection',
+        'sdl_audio_source':audio_source,'requested_sdl_audio_source':requested_audio_source,
+        'application_mix_is_not_device_output':audio_source=='app-mix',
         'pending':['independent complete animation frame equivalence','SFX identity/onset','A7 fidelity'],
         'shared_rng_aligned':False,'contract':prepared['contract'],'caster_metadata':prepared['caster_metadata'],
         'fixture_manifest':prepared['manifest'],'tool_sources':tools,'binaries':binaries,'original_before':before,'cases':[]}
+    if args.scenario in oracle.BUSINESS_SCENARIOS:
+        report.update(business_regression_passed=False,
+            scope='paired AI business regression via real END/WGC checkpoints/full SAV; not FX/SFX verification',
+            requested_collection='business checkpoints only; continuous WGC/WAV not requested')
     if verify_requested:report['core_sfx_predeclared_plan']=prepared['core_sfx_plan']
+    if _final_report is not None:_final_report['value']=report
     try:
         for kind in (('original',) if args.sdl is None else ('original','sdl')):
             work=output/kind;work.mkdir();env=os.environ.copy()
-            for key in ('SDL_VIDEODRIVER','SDL_AUDIODRIVER','FD2SDL_FIELD_RNG_SEED'):env.pop(key,None)
+            for key in ('SDL_VIDEODRIVER','SDL_AUDIODRIVER','FD2SDL_FIELD_RNG_SEED',
+                'FD2SDL_APP_PCM_CAPTURE_DIR','FD2SDL_APP_PCM_CAPTURE_MAX_MS','FD2SDL_APP_PCM_CAPTURE_QUIET',
+                'FD2SDL_TEST_AUDIO_QUIET'):env.pop(key,None)
             if kind=='original':
                 game=work/'game';shutil.copytree(original,game);save=game/'FD2.SAV';(work/'captures').mkdir()
                 config=work/'dosbox.conf'
@@ -634,6 +751,13 @@ def run(args):
                 command,cwd=[str(args.dosbox.resolve()),'-conf',str(config),'-noconsole'],work
             else:
                 save=work/'FD2.SAV';env['FD2SDL_SAVE_PATH']=str(save);command,cwd=[str(args.sdl.resolve())],root
+                if audio_source=='app-mix' and args.scenario not in oracle.BUSINESS_SCENARIOS:
+                    app_mix_dir=work/'app-mix';app_mix_dir.mkdir()
+                    env.update(FD2SDL_APP_PCM_CAPTURE_DIR=str(app_mix_dir),
+                        FD2SDL_APP_PCM_CAPTURE_MAX_MS=str(CAPTURE_MAX_MS),FD2SDL_APP_PCM_CAPTURE_QUIET='1')
+                elif audio_source=='process-loopback' and args.scenario not in oracle.BUSINESS_SCENARIOS:
+                    # 显式旧采集后端保留实际设备提交；系统mixer仍由用户控制。
+                    env['FD2SDL_TEST_AUDIO_QUIET']='0'
             save.write_bytes(prepared['encoded']);guard=[prepared['encoded'],save.stat().st_mtime_ns]
             record={'kind':kind,'status':'failed','ok':False,'collected_only':True,'collection_passed':False,
                 'checkpoints':[],'inputs':[],'processes':[],'initial_save_mtime_ns':guard[1]}
@@ -655,7 +779,10 @@ def run(args):
             if not record['collection_passed']:
                 if record.get('status')=='inconclusive':raise ActionCoverageInconclusive(record['error'])
                 raise AssertionError(record['error'])
-        if args.sdl is not None and args.scenario=='ai-item-score20':
+        if args.sdl is not None and args.scenario in oracle.BUSINESS_SCENARIOS:
+            report['independent_frame_pairing']={'ok':False,'scope':'AI business checkpoints and full SAV regression only',
+                'pending':['independent map FX/SFX pairing'],'whole_animation_equivalence':False}
+        elif args.sdl is not None and args.scenario=='ai-item-score20':
             report['independent_frame_pairing']={'ok':False,'scope':'AI ITEM地图路径，不按FULL casting识别器冒称配对',
                 'pending':['independent item map FX/SFX pairing'],'whole_animation_equivalence':False}
         elif args.sdl is not None:
@@ -685,13 +812,20 @@ def run(args):
         if not report['collection_passed']:
             report['status']='inconclusive' if report.get('failure_category')=='inconclusive_action_coverage' and all(report['final_guards'].values()) and all(all(c['guards'].values()) for c in report['cases']) else 'failed'
             report.setdefault('error','最终来源或清理守卫失败')
+        if args.scenario in oracle.BUSINESS_SCENARIOS:
+            evidence_key='ai11_action_business_evidence' if args.scenario=='ai-behavior11-recover' else 'ai5_action_business_evidence'
+            report['business_regression_passed']=bool(report['paired_collected'] and report['collection_passed'] and
+                all(c.get(evidence_key,{}).get('passed') is True and
+                    (args.scenario!='ai-behavior5-chest' or c.get('opened_cell_live_visual',{}).get('ok') is True and
+                     c.get(evidence_key,{}).get('live_opened_cell_checked_before_Save') is True) for c in report['cases']))
         if verify_requested:
             report['core_verification']=verify_core(report,prepared,output)
             report['ok']=report['core_verification']['ok']
             report['status']='passed' if report['ok'] else 'failed'
             report['pending']=['whole animation/every FX frame','complete audio/repeated cue counts','exact timing and A7 fidelity']
             if not report['ok']:report.setdefault('error',report['core_verification'].get('error','B6最低门未通过'))
-        (output/'comparison.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+        if _final_report is None:
+            (output/'comparison.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     return report
 
 
@@ -699,11 +833,45 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('root','driver','dosbox','artifacts'):parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--sdl',type=Path);parser.add_argument('--audio-recorder',type=Path)
+    parser.add_argument('--sdl-audio-source',choices=('process-loopback','app-mix'),default='app-mix',
+        help='默认app-mix安静采应用混音，不代表设备输出；显式process-loopback保留设备提交')
     parser.add_argument('--scenario',choices=oracle.SCENARIOS,required=True)
     parser.add_argument('--verify-core',action='store_true',help='核心三场双端在清理后强制最低完整帧及有限SFX门')
-    args=parser.parse_args();report=run(args)
+    args=parser.parse_args();display={};report=None;error=None;exit_code=0;final_report={}
+    # 只改本次新建的输出；OFF/未知与既有artifact失败不覆盖历史报告。
+    output_existed=args.artifacts.exists();run_started=False
+    try:
+        with windows_display_requirement(display):
+            run_started=True;report=run(args,_final_report=final_report)
+    except BaseException as caught:
+        error=caught
+        exit_code=(130 if isinstance(caught,KeyboardInterrupt) else
+                   caught.code if isinstance(caught,SystemExit) and isinstance(caught.code,int) and caught.code else 1)
+    comparison=args.artifacts/'comparison.json'
+    owns_output=run_started and not output_existed and args.artifacts.is_dir()
+    if report is None:report=final_report.get('value')
+    if report is None and owns_output and comparison.is_file():
+        try:report=read_json(comparison)
+        except (OSError,ValueError) as caught:display['report_read_error']={'type':type(caught).__name__,'message':str(caught)}
+    if report is None:
+        report={'status':'failed','collection_passed':False,'ok':False,'collected_only':not args.verify_core}
+    if error is not None:
+        report.update(status='failed',ok=False,collection_passed=False,paired_collected=False,
+                      business_regression_passed=False)
+        report.setdefault('error',str(error));report['entry_error']={'type':type(error).__name__,'message':str(error)}
+    report['display_requirement']=display
+    if owns_output:
+        try:
+            pending=comparison.with_name('comparison-display-pending.json')
+            pending.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            pending.replace(comparison)
+        except (OSError,ValueError) as caught:
+            report.update(status='failed',ok=False,collection_passed=False,business_regression_passed=False)
+            display['report_write_error']={'type':type(caught).__name__,'message':str(caught)};exit_code=1
     print(json.dumps({'status':report['status'],'collection_passed':report['collection_passed'],'ok':report['ok'],
-        'collected_only':report['collected_only']},ensure_ascii=False))
-    return 0 if (report['ok'] if args.verify_core else report['collection_passed']) else 1
+        'collected_only':report['collected_only'],'display_requirement':display},ensure_ascii=False))
+    passed=(report.get('business_regression_passed',False) if args.scenario in oracle.BUSINESS_SCENARIOS else
+            report['ok'] if args.verify_core else report['collection_passed'])
+    return exit_code or (0 if passed and report['status']!='failed' else 1)
 
 if __name__=='__main__':raise SystemExit(main())

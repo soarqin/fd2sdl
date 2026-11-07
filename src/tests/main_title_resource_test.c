@@ -206,7 +206,7 @@ static fd2_field_play_result chain_battle(fd2_vga *vga, const fd2_archive *fdoth
     chain_stages[index]=stage;chain_loaded[index]=load_active;chain_handoffs[index]=handoff!=NULL;
     if(index==0 && chain_first_load_stage>=0)stage=(size_t)chain_first_load_stage;
     context->rng.state++;context->experience_value+=2;context->message_number+=3;
-    if(stage==1u)context->has_preparation=0;
+    if(stage==1u || stage==2u)context->has_preparation=0;
     if(stage==0u && chain_results[index]==FD2_FIELD_PLAY_RETURN_VICTORY){
         context->preparation.stage_id=1;context->preparation.unit_count=5;context->has_preparation=1;
     }
@@ -391,20 +391,30 @@ static int test_app_chain(void) {
     chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_DEFEAT;
     CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_TITLE);
     CHECK(chain_battles==1 && !chain_preparations && chain_stages[0]==1 && chain_loaded[0] && !chain_handoffs[0]);
+    /* 仅返回VICTORY而没有提交准备owner仍必须报错，与B7开放stage1结算无关。 */
     chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;
     CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,0)==FD2_APP_FLOW_ERROR);
     CHECK(chain_battles==1 && !chain_preparations);
     const fd2_field_prepare_result endings[]={FD2_FIELD_PREPARE_TITLE,FD2_FIELD_PREPARE_HOST_QUIT,FD2_FIELD_PREPARE_LEAVE_GAME,FD2_FIELD_PREPARE_ERROR};
     const fd2_app_flow flows[]={FD2_APP_FLOW_TITLE,FD2_APP_FLOW_EXIT,FD2_APP_FLOW_LEAVE_GAME,FD2_APP_FLOW_ERROR};
-    for(size_t i=0;i<sizeof(endings)/sizeof(endings[0]);i++){
-        chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=1;
+    for(unsigned stage=1;stage<=2;stage++)for(size_t i=0;i<sizeof(endings)/sizeof(endings[0]);i++){
+        chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=(uint8_t)stage;
         fd2_field_play_context before=context;chain_prepare_result=endings[i];
         CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==flows[i]);
         CHECK(!chain_battles && chain_preparations==1 && !memcmp(&context,&before,sizeof(context)));
     }
-    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=2;
+    /* B7 stage2出阵成功后由Play消费prep owner；宿主退出不重复进入准备页。 */
+    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=2;context.preparation.unit_count=6;
+    chain_results[0]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_EXIT);
+    CHECK(chain_battles==1 && chain_preparations==1 && chain_stages[0]==2);
+    CHECK(!chain_loaded[0] && !chain_handoffs[0] && !context.has_preparation);
+    CHECK(context.preparation.stage_id==2 && context.preparation.unit_count==6);
+    CHECK(context.rng.state==0x1235 && context.experience_value==9 && context.message_number==102);
+    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=3;
+    fd2_field_play_context before=context;
     CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
-    CHECK(!chain_battles && chain_preparations==1);
+    CHECK(!chain_battles && chain_preparations==1 && !memcmp(&context,&before,sizeof(context)));
     return 0;
 }
 

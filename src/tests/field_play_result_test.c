@@ -114,6 +114,30 @@ static int result_frame_case, result_frame_samples, result_frame_outer;
 static int result_frame_in_close, result_frame_fired, result_frame_openings;
 static int result_frame_confirms, result_frame_browse_actions, result_frame_storage;
 static int result_frame_storage_success, result_frame_final_seen;
+static int result_frame_resources_closed;
+/* 19df7原push 0xAB6E3：结果字首，不复用旧placeholder的(14,120)。 */
+enum { RESULT_FRAME_GLYPH_OFFSET = 0xab6e3u - 0xa0000u };
+_Static_assert(RESULT_FRAME_GLYPH_OFFSET == 146u * VGA_STRIDE + 99u, "original result glyph destination");
+/* 所有确认结果夹具均提供原notice依赖；只测输入/提交边界，非字形/头像验收。 */
+static int open_notice_fixture(fd2_field_game *game, const fd2_archive *fdother) {
+    enum { fragments = FD2_FIELD_SYSTEM_TEXT_END_TURN_ACCEPTED + 1u };
+    static uint8_t tokens[fragments * 6u];
+    static const uint8_t glyph[32] = {0x80};
+    for (size_t i = 0; i < fragments; i++) {
+        uint16_t offset = (uint16_t)(fragments * 2u + i * 4u);
+        tokens[i * 2u] = (uint8_t)offset; tokens[i * 2u + 1u] = (uint8_t)(offset >> 8);
+        tokens[offset] = tokens[offset + 1u] = 0;
+        tokens[offset + 2u] = tokens[offset + 3u] = 0xff;
+    }
+    if (fd2_text_entry_open_mem(&game->ui_text, tokens, sizeof(tokens)) != 0) return -1;
+    game->font.glyphs = glyph; game->font.size = sizeof(glyph); game->font.glyph_count = 1;
+    game->fdother = fdother; /* 借主测试archive，Game只关闭自己的DATO和fragment offsets。 */
+    if (fd2_archive_open(&game->dato_archive, "original_game/DATO.DAT") != 0) {
+        fd2_text_entry_close(&game->ui_text); return -1;
+    }
+    return 0;
+}
+
 static uint16_t result_frame_rng, result_frame_final_rng;
 static uint8_t result_frame_final_x, result_frame_final_y;
 static uint32_t result_frame_final_experience;
@@ -200,14 +224,8 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         if (!result_frame_load())
             (void)fd2_field_system_menu_select_direction(&game->system_menu, FD2_FIELD_COMMAND_DIRECTION_RIGHT);
         game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
-        const size_t fragment = result_frame_load() ? FD2_FIELD_SYSTEM_TEXT_LOAD_ACCEPTED : FD2_FIELD_SYSTEM_TEXT_CANCELLED;
-        static const uint8_t tokens[] = {0,0,0xff,0xff};
-        static const uint8_t glyph[32] = {0x80};
-        game->ui_text.offsets = calloc(fragment + 1u, sizeof(*game->ui_text.offsets));
-        if (!game->ui_text.offsets) return -1;
-        game->ui_text.data = tokens; game->ui_text.size = sizeof(tokens);
-        game->ui_text.fragment_count = fragment + 1u;
-        game->font.glyphs = glyph; game->font.size = sizeof(glyph); game->font.glyph_count = 1;
+        /* map.cells仍NULL；Load继续覆盖snapshot codec，不冒真实地图重载。 */
+        if (open_notice_fixture(game, fdother) != 0) return -1;
         memcpy(result_frame_expected_units, result_frame_load() ? result_frame_saved_units : game->units.items,
             sizeof(result_frame_expected_units));
         active_game = game;
@@ -412,19 +430,7 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     if (is_leave_case() || march_case) {
         const size_t accepted_fragment = march_case ? FD2_FIELD_SYSTEM_TEXT_MARCH_ACCEPTED
                                                   : FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED;
-        /* 只有 FDTXT[416] 非空；一个测试字形的下左阴影用于识别
-         * 真正呈现，不依赖生产日志或额外测试钩子。offsets 归 session。 */
-        static const uint8_t text[] = {0, 0, 0xff, 0xff};
-        static const uint8_t glyph[32] = {0x80};
-        game->ui_text.offsets = calloc(
-            accepted_fragment + 1u, sizeof(*game->ui_text.offsets));
-        if (!game->ui_text.offsets) return -1;
-        game->ui_text.data = text;
-        game->ui_text.size = sizeof(text);
-        game->ui_text.fragment_count = accepted_fragment + 1u;
-        game->font.glyphs = glyph;
-        game->font.size = sizeof(glyph);
-        game->font.glyph_count = 1;
+        if (open_notice_fixture(game, fdother) != 0) return -1;
         if (terminal_case == 7) {
             if (leave_missing_resource == 0) game->ui_text.data = NULL;
             if (leave_missing_resource == 1) game->font.glyphs = NULL;
@@ -555,7 +561,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                 result_frame_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
             } else if (!result_frame_fired && active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
-                       vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
+                       vga->framebuffer[RESULT_FRAME_GLYPH_OFFSET] == 0xcd) {
                 result_frame_fired = 1; /* 真正结果文字present，而非closing帧。 */
                 fd2_input_set_test_key_state(&vga->input,
                     result_frame_right() ? SDL_SCANCODE_RIGHT : SDL_SCANCODE_RETURN, 1);
@@ -727,7 +733,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
     }
     if (march_case && active_game && active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
-        if (!march_called && vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
+        if (!march_called && vga->framebuffer[RESULT_FRAME_GLYPH_OFFSET] == 0xcd) {
             march_text_presented++;
             if (march_case == 2) vga->input.quit_requested = 1;
         } else if (march_called && march_case == 3) {
@@ -818,7 +824,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
     if (is_leave_case() && active_game &&
         active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE &&
-        vga->framebuffer[120u * VGA_STRIDE + 14u] == 0x4c) {
+        vga->framebuffer[RESULT_FRAME_GLYPH_OFFSET] == 0xcd) {
         ++leave_text_presented;
         leave_state_checked = active_game->turn_number == 17 &&
             active_game->active_side == 2 &&
@@ -846,6 +852,7 @@ int __wrap_fd2_field_game_animate_command(fd2_field_game *game,
     return fd2_field_game_animate_command(game, vga, opening, delay);
 }
 void __wrap_fd2_field_game_close(fd2_field_game *game) {
+    const fd2_archive *result_borrowed = result_frame_case ? game->fdother : NULL;
     if (settlement_case) {
         settlement_closes++;
         if(game->units.count!=27 || game->units.items[0].hp!=1) settlement_protocol_ok=0;
@@ -867,6 +874,8 @@ void __wrap_fd2_field_game_close(fd2_field_game *game) {
         closing_final_rng = ((fd2_field_rng *)game->attack_rng_userdata)->state;
     }
     fd2_field_game_close(game);
+    if (result_frame_case && !game->dato_archive.data && !game->ui_text.offsets &&
+        result_borrowed && result_borrowed->data) ++result_frame_resources_closed;
 }
 
 int __wrap_fd2_field_game_animate_system_menu(fd2_field_game *game,
@@ -1161,7 +1170,7 @@ static int result_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
         struct stat before_stat, after_stat; CHECK(stat(path, &before_stat) == 0);
         result_frame_samples = result_frame_outer = result_frame_in_close = result_frame_fired = 0;
         result_frame_openings = result_frame_confirms = result_frame_browse_actions = 0;
-        result_frame_storage = result_frame_storage_success = result_frame_final_seen = 0;
+        result_frame_storage = result_frame_storage_success = result_frame_final_seen = result_frame_resources_closed = 0;
         fd2_field_play_context context; fd2_field_play_context_init(&context, NULL);
         context.experience_value = 77; context.message_number = 998;
         fd2_field_play_result result = fd2_field_play_run_context(vga, fdother, 0,0,NULL,NULL,path,0,&context);
@@ -1171,7 +1180,7 @@ static int result_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
         fd2_save_file_close(&after);
         unsigned coordinate = result_frame_load() ? 1u : 3u;
         int okay = result == FD2_FIELD_PLAY_RETURN_HOST_QUIT && result_frame_fired == 1 &&
-            result_frame_final_seen == 1 && result_frame_openings == 0 && result_frame_confirms == 0 &&
+            result_frame_final_seen == 1 && result_frame_resources_closed == 1 && result_frame_openings == 0 && result_frame_confirms == 0 &&
             result_frame_browse_actions == 0 && result_frame_final_interaction == FD2_FIELD_INTERACTION_BROWSE &&
             result_frame_final_x == coordinate && result_frame_final_y == coordinate &&
             result_frame_storage == result_frame_load() && result_frame_storage_success == result_frame_load() &&
@@ -1269,6 +1278,7 @@ static int stage1_settlement_frontend_test(fd2_vga *vga, fd2_archive *fdother) {
 int main(void) {
     fd2_vga vga = {0};
     fd2_archive fdother = {0};
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
     CHECK(result_frame_barrier_test(&vga, &fdother) == 0);
     CHECK(stage1_settlement_frontend_test(&vga, &fdother) == 0);
     CHECK(closing_frame_barrier_test(&vga, &fdother) == 0);
@@ -1469,6 +1479,7 @@ int main(void) {
         if (summary_case != 5) CHECK(summary_initial_consumed);
     }
     summary_case = 0;
+    fd2_archive_close(&fdother);
     puts("field_play_result_test: ok");
     return 0;
 }

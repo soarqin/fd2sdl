@@ -21,6 +21,11 @@ typedef struct {
     int kind, actor, target, x, y, magic, slot, score, estimate;
 } natural_action;
 typedef struct { natural_action actions[8]; size_t count; } natural_choices;
+typedef struct {
+    natural_action actions[FD2_FIELD_MAX_UNITS];
+    size_t count;
+    int hero_then_effect;
+} natural_turn;
 
 static int distance(int x, int y, int tx, int ty) { return abs(x-tx)+abs(y-ty); }
 static int living(const fd2_field_unit *u) { return !(u->flags & 1u) && u->hp != 0; }
@@ -156,7 +161,19 @@ static void consider(natural_choices *choices, natural_action action) {
     choices->actions[at]=action;choices->count=count;
 }
 
-static int choose(const fd2_field_game *g, natural_choices *choices) {
+enum { CHOOSE_ALL, CHOOSE_EFFECTS, CHOOSE_HERO_ESCAPE };
+static int plain_hero_escape(const fd2_field_game *g, const natural_action *a) {
+    const fd2_field_unit *hero=&g->units.items[0];
+    if(a->kind!=PLAN_WAIT || a->actor!=0 || (a->x==hero->x && a->y==hero->y) ||
+        incoming(g,hero,hero->x,hero->y,-1)*2<(int)hero->hp ||
+        incoming(g,hero,a->x,a->y,-1)>=incoming(g,hero,hero->x,hero->y,-1))return 0;
+    uint16_t tid=fd2_field_cell_terrain(fd2_field_map_cell(&g->map,a->x,a->y));
+    uint8_t action;size_t slot;
+    /* 先行WAIT只投影移动/acted；不能偷偷执行财宝、箱或lookup1剧情。 */
+    return tid<g->terrain.attr_count && !(g->terrain.attrs[tid].flags&0x60u) &&
+        fd2_field_cell_event_find(&g->map,&g->terrain,&g->metadata,a->x,a->y,1,&action,&slot)==0;
+}
+static int choose_mode(const fd2_field_game *g, natural_choices *choices, int mode) {
     memset(choices,0,sizeof(*choices));
     if(g->stage>1 || g->active_side!=2 || g->failure || g->interaction!=FD2_FIELD_INTERACTION_BROWSE ||
         g->loot.source || g->progress.resume || g->progress.notice.kind || g->player_post_waiting_phase)return -1;
@@ -166,6 +183,7 @@ static int choose(const fd2_field_game *g, natural_choices *choices) {
         (tank<0 || g->units.items[i].defense>highest_dp)){tank=(int)i;highest_dp=g->units.items[i].defense;}
     for(size_t raw=0;raw<g->units.count;raw++) {
         const fd2_field_unit *u=&g->units.items[raw];if(!actionable(u))continue;
+        if(mode==CHOOSE_HERO_ESCAPE && raw!=0)continue;
         fd2_field_path_result range=FD2_FIELD_PATH_RESULT_INITIALIZER;
         if(fd2_field_game_compute_move_range(g,raw,&range)!=0)return -1;
         int hero_min=INT_MAX;
@@ -244,7 +262,8 @@ static int choose(const fd2_field_game *g, natural_choices *choices) {
             if(tid<g->terrain.attr_count && (g->terrain.attrs[tid].flags&0x60u) && index<16u &&
                 !g->cell_action_completed[index] && g->metadata.cell_actions[index].mode==0 &&
                 g->metadata.cell_actions[index].param==192 && slot<0)wait.score+=35;
-            consider(choices,wait);
+            if(mode!=CHOOSE_EFFECTS && (mode!=CHOOSE_HERO_ESCAPE || plain_hero_escape(g,&wait)))consider(choices,wait);
+            if(mode==CHOOSE_HERO_ESCAPE)continue;
             for(size_t target=0;target<g->units.count;target++) {
                 const fd2_field_unit *v=&g->units.items[target];if(!living(v))continue;
                 int md=distance(x,y,v->x,v->y);
@@ -281,6 +300,7 @@ static int choose(const fd2_field_game *g, natural_choices *choices) {
             }
         }
         fd2_field_path_close(&range);
+        if(mode==CHOOSE_HERO_ESCAPE)continue;
         uint8_t spells[40];size_t spell_count=fd2_field_unit_magic_list_build(u,spells,sizeof(spells));
         for(size_t s=0;s<spell_count && s<sizeof(spells);s++) {
             if(raw==0 && threat_coverage(&potential,u->x,u->y)!=hero_min)continue;
@@ -313,7 +333,43 @@ static int choose(const fd2_field_game *g, natural_choices *choices) {
             fd2_field_path_close(&cast);
         }
     }
-    if(!choices->count)consider(choices,(natural_action){PLAN_END,-1,-1,0,0,-1,-1,0,0});
+    if(!choices->count && mode==CHOOSE_ALL)consider(choices,(natural_action){PLAN_END,-1,-1,0,0,-1,-1,0,0});
+    return 0;
+}
+static int choose(const fd2_field_game *g, natural_choices *choices) {
+    return choose_mode(g,choices,CHOOSE_ALL);
+}
+static void project_acted_intent(fd2_field_game *query,const natural_action *a) {
+    project_primary_move(query,a);
+    if(a->actor>=0)query->units.items[a->actor].flags|=FD2_FIELD_UNIT_FLAG_ACTED;
+}
+static int plan_turn(const fd2_field_game *g,const natural_choices *choices,natural_turn *out) {
+    memset(out,0,sizeof(*out));
+    const natural_action *primary=&choices->actions[0];
+    fd2_field_game query=*g;
+    if(primary->kind==PLAN_WAIT && primary->actor==0 &&
+        (primary->x!=g->units.items[0].x || primary->y!=g->units.items[0].y)) {
+        natural_choices escape,effect;
+        if(choose_mode(g,&escape,CHOOSE_HERO_ESCAPE)!=0)return -1;
+        if(escape.count) {
+            project_acted_intent(&query,&escape.actions[0]);
+            if(choose_mode(&query,&effect,CHOOSE_EFFECTS)!=0)return -1;
+            if(effect.count) {
+                out->hero_then_effect=1;
+                out->actions[out->count++]=escape.actions[0];
+                out->actions[out->count++]=effect.actions[0];
+                for(size_t i=0;i<g->units.count;i++)if(i!=0 && (int)i!=effect.actions[0].actor && actionable(&g->units.items[i]))
+                    out->actions[out->count++]=(natural_action){PLAN_WAIT,(int)i,-1,g->units.items[i].x,g->units.items[i].y,-1,-1,0,0};
+                return 0;
+            }
+        }
+    }
+    out->actions[out->count++]=*primary;
+    query=*g;project_primary_move(&query,primary);
+    for(size_t i=0;i<g->units.count;i++)if((int)i!=primary->actor && actionable(&g->units.items[i])) {
+        if(plan_rest(&query,i,&out->actions[out->count])!=0)return -1;
+        out->count++;
+    }
     return 0;
 }
 
@@ -470,7 +526,23 @@ int main(int argc,char **argv) {
         }
         fd2_field_game before=*g;uint16_t state=rng.state;
         if(choose(g,&choices)!=0 || memcmp(g,&before,sizeof(*g)) || rng.state!=state)goto done;
-        printf("{\"planning_only\":true,\"original_acceptance\":false,\"source_turn\":%u,\"source_active_count\":%zu,\"source_roster_count\":%zu,\"query_side_effects\":false,\"rng_or_contribution_observed\":false,\"heuristic_not_guaranteed\":true,\"fire_reserve_reason\":\"retain final 2MP when enemy has a free melee neighbor and hero has no estimated incoming threat; allied reinforcements can otherwise block the last enemy\",\"next_action\":",g->turn_number,g->units.count,g->roster_count);
+        natural_turn turn;if(plan_turn(g,&choices,&turn)!=0)goto done;
+        printf("{\"planning_only\":true,\"original_acceptance\":false,\"source_turn\":%u,\"source_active_count\":%zu,\"source_roster_count\":%zu,\"query_side_effects\":false,\"rng_or_contribution_observed\":false,\"heuristic_not_guaranteed\":true,\"fire_reserve_reason\":\"retain final 2MP when enemy has a free melee neighbor and hero has no estimated incoming threat; allied reinforcements can otherwise block the last enemy\"",g->turn_number,g->units.count,g->roster_count);
+        if(turn.hero_then_effect) {
+            fd2_field_game query=*g;int remaining=0;
+            for(size_t i=0;i<g->units.count;i++)if((g->units.items[i].flags&0x81u)==0 &&
+                g->units.items[i].side==2 && !g->units.items[i].detail_status[1])remaining++;
+            printf(",\"turn_actions_policy\":\"hero_wait_then_effect\",\"turn_actions\":[");
+            for(size_t i=0;i<turn.count;i++) {
+                if(i)putchar(',');
+                print_action(g,&query,&turn.actions[i],--remaining==0);
+                project_acted_intent(&query,&turn.actions[i]);
+            }
+            printf("]}\n");
+            if(memcmp(g,&before,sizeof(*g)) || rng.state!=state)goto done;
+            rc=0;goto done;
+        }
+        printf(",\"next_action\":");
         print_action(g,g,&choices.actions[0],-1);printf(",\"ordered_candidates\":[");
         for(size_t i=0;i<choices.count;i++){if(i)putchar(',');print_action(g,g,&choices.actions[i],-1);}
         printf("],\"rest_tail\":[");int rest_count=0;
@@ -490,25 +562,21 @@ int main(int argc,char **argv) {
         unsigned count=0;int failed=0;
         while(g->turn_number<=max_turns && fd2_field_game_battle_result(g)==FD2_FIELD_BATTLE_ONGOING) {
             if(choose(g,&choices)!=0){failed=1;break;}
-            natural_action action=choices.actions[0];
+            natural_turn turn;if(plan_turn(g,&choices,&turn)!=0){failed=1;break;}
             uint32_t source_turn=g->turn_number;
             fd2_field_units source_units=g->units;
-            fd2_field_game source_game=*g,rest_query=*g;project_primary_move(&rest_query,&action);
-            natural_action rests[FD2_FIELD_MAX_UNITS];
-            for(size_t i=0;i<source_units.count;i++)if((int)i!=action.actor && actionable(&source_units.items[i]))
-                if(plan_rest(&rest_query,i,&rests[i])!=0){failed=1;break;}
-            if(failed)break;
-            if(count++)putchar(',');printf("{\"turn\":%u,\"action\":",g->turn_number);print_action(g,g,&action,-1);printf("}");
-            if(apply(g,&action)<0){fprintf(stderr,"apply failed: turn=%u kind=%s interaction=%d actor=%d target=%d\n",g->turn_number,kind_name(action.kind),g->interaction,action.actor,action.target);failed=1;break;}
-            if(settle(g)<0){failed=1;break;}
-            if(fd2_field_game_battle_result(g)!=FD2_FIELD_BATTLE_ONGOING)break;
-            for(size_t i=0;i<source_units.count && g->turn_number==source_turn && g->active_side==2;i++) {
-                if((int)i==action.actor || !actionable(&source_units.items[i]) || !actionable(&g->units.items[i]))continue;
-                if(g->units.items[i].unit_id!=source_units.items[i].unit_id || g->units.items[i].x!=source_units.items[i].x ||
-                    g->units.items[i].y!=source_units.items[i].y){failed=1;break;}
-                natural_action rest=rests[i];
-                if(count++)putchar(',');printf("{\"turn\":%u,\"role\":\"rest_tail\",\"action\":",g->turn_number);print_action(&source_game,&rest_query,&rest,-1);printf("}");
-                if(apply(g,&rest)<0 || settle(g)<0){failed=1;break;}
+            fd2_field_game source_game=*g,query=*g;
+            for(size_t step=0;step<turn.count && g->turn_number==source_turn && g->active_side==2;step++) {
+                natural_action action=turn.actions[step];int raw=action.actor;
+                if(raw>=0 && (!actionable(&g->units.items[raw]) ||
+                    g->units.items[raw].unit_id!=source_units.items[raw].unit_id ||
+                    g->units.items[raw].x!=source_units.items[raw].x ||
+                    g->units.items[raw].y!=source_units.items[raw].y)){failed=1;break;}
+                if(count++)putchar(',');printf("{\"turn\":%u,\"role\":\"%s\",\"action\":",g->turn_number,
+                    turn.hero_then_effect?"turn_actions":step?"rest_tail":"primary");
+                print_action(&source_game,&query,&action,-1);printf("}");
+                if(apply(g,&action)<0 || settle(g)<0){failed=1;break;}
+                project_acted_intent(&query,&action);
                 if(fd2_field_game_battle_result(g)!=FD2_FIELD_BATTLE_ONGOING)break;
             }
             if(failed || fd2_field_game_battle_result(g)!=FD2_FIELD_BATTLE_ONGOING)break;

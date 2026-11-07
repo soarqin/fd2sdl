@@ -507,6 +507,14 @@
      "source_line": 96
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "地形phase的一般描述",
+     "now": "函数首仅当BIOS当前tick!=53a00时翻转53a40一次并重取当前tick，不按经过周期奇偶补追。attrs08加2*53a40、10加53c0b/2、04加53a40；角色idle由1297d另管，范围LUT53c1f亦为独立门。",
+     "why": "既有完整11eee(885B)与1297d及tile flag分支；本次私有修复仅将55/275ms宿主近似的视觉锚按原调用点单次推进，不宣称BIOS时钟、全局RNG、水DAC或所有地形动画已同步。保持field_view_render_tiles既名/类型。"
+    }
+   ],
    "end_va": 74339,
    "is_lib": false,
    "prototype": "",
@@ -646,6 +654,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 228
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "约每275ms推进phase",
+     "now": "1297d只在signed BIOS tick差>4或负数时把53c0b加一并模4，53c0f直接重取当前tick，不补追全部经过周期。另53c07每次调用加一模4，与11eee的地形开关53a40不同；不能把它们当同一时钟。11cac先调用1297d再绘tile/actor/1acf3面板；21eb1尾11cac→200ms→1c4cc首11cac后冻结FX背景，共用唯一视觉相位/last锚。",
+     "why": "既有canonical完整1297d(111B)/11cac/21eb1/1c4cc及validated relocated原字节。C4 heal13实际原/SDL同一FX59两页1678差异全部为idle1→2：actor1374+底栏304；各端整2346底栏源模型bad0/max3，无E0..EF。只作为视觉时钟差异与本轮图像归因，修复后的实机完整帧验收尚待；不改函数名/类型/ABI。"
     }
    ],
    "end_va": 76268,
@@ -1355,6 +1371,12 @@
      "was": "AI纯移动和common tail总会恢复普通cursor1",
      "now": "common tail无51A83写。behavior3找到text目标并移动/恢复后强写0；4/7在移动前0，5/10在tryattack失败后0；9移动保继承。14121/13e9c各自有0..1包裹，13fd4仅实际恢复才0..1，不能让14b78通用几何helper无条件改模式。",
      "why": "B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。"
+    },
+    {
+     "target": "evidence",
+     "was": "behavior11施法成功后可直接结束，或behavior5仅置完成位并保留behavior高四位",
+     "now": "behavior11在13e1c调用15311后仍于13e26重新评估physical；priority>=6才13e39调用1548e，否则13e45调用14121，仅其未实际移动才13e52调用13fd4；不能因施法成功跳过后续。behavior5在tryattack失败后先于13c39调用12d7b聚焦caster，再检查completed和查找箱格，完成位已置或无箱格的fallback也保留该前置聚焦。实际到格后13d05写completed=1，13d1b调用12263即时将所有对应flags20地形WORD+1、清byte2并保留byte3，13d20再将actor+34整个byte写07。满库存不阻止完成位、开箱和behavior整byte写回；仍沿既有common tail执行最终格match1、acted和方向归零。",
+     "why": "原13a9f完整1021B、13e09..13e52和13c34..13d24原指令及12263写集；major隔离回归保留AI11五项旧红/两no-op、AI5真实FDSHAP闭248/开249七项旧红，修后同一field_ai_commit新构建通过。此处只补已存在函数证据，不新增ABI/类型/边界，不将headless回归提升为原版运行对照。"
     }
    ],
    "end_va": 81564,
@@ -2380,6 +2402,12 @@
     },
     {
      "target": "evidence",
+     "was": "系统notice首帧/稳态/结果使用详情底板或占位底色；caption坐标未由literal核算",
+     "now": "selector1 March调用1956b(raw0.unit_id)，selector3 END调用1956b(75)，不是空焦点actor查找/默认Hero。普通FDTXT417/419首提示push0xA9F23，418/420/412后提示push0xAB6E3；VGA基址0xA0000，原位置分别(99,127)/(99,146)。先1956b原tile底框+reverse portrait，再15f84原glyph(205/76/bg74,linepitch19)，16559(0)，19953/197e5控制YES/NO，196cb恢复初背景。不可用detail_bottom详情frame替代，亦不可把0xcd字前景填满框。",
+     "why": "既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。"
+    },
+    {
+     "target": "evidence",
      "was": "所有END/March返回都统一恢复普通cursor1",
      "now": "March分支17159恢复1；显式END分支调用turncycle后只恢复51AAC、不写51A83，因此按真实AI分支或turncycle返回模式继承。main胜利亦不另写，22f37首片段据此呈现。",
      "why": "B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。"
@@ -3216,6 +3244,12 @@
      "was": "sub_1956B",
      "now": "field_bottom_notice_open",
      "why": "完整352B及系统确认/1a866/1e292等caller：分配三个64000B缓冲，保存初始VGA并拼310x86的bottom底板，载入DATO初帧reverse，i5..0以1974c(13*i+112)滑入。不是奖励专用；128..132有特殊origin。raw SHA e5b8b359f8371ce6513766b7d0badb2189dd8ea58af75a4e8abda637d0733026。"
+    },
+    {
+     "target": "evidence",
+     "was": "系统notice首帧/稳态/结果使用详情底板或占位底色；caption坐标未由literal核算",
+     "now": "确认框/奖励/库存页共用notice owner：先完整保存初VGA，FDOTHER[5] tiles拼310x86 bottom，再DATO初帧reverse，非128..132由36887=(87,115)向左绘80列；特殊origin原表保留。三缓冲的静态初板用于关闭，不是detail_bottom(详情用99高帧)。原意无0xcd整块占位/独立palette切换。",
+     "why": "既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。"
     }
    ],
    "end_va": 104139,
@@ -3316,6 +3350,12 @@
      "was": "SDL 将 secondary 肯定离场的 -1 建模为返回标题",
      "now": "selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。",
      "why": "已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。"
+    },
+    {
+     "target": "evidence",
+     "was": "系统notice首帧/稳态/结果使用详情底板或占位底色；caption坐标未由literal核算",
+     "now": "Save410/Load413/Leave415三条确认均1956b(75)，首提示同原dst0xA9F23；411/414/416或412追加同dst0xAB6E3，保原first prompt和portrait。410..420实际普通tokens不另含speaker控制；15f84/font4ed7a不减4/8坐标。",
+     "why": "既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。"
     }
    ],
    "end_va": 107275,
@@ -5341,6 +5381,12 @@
      "was": "标题为 new-game/exit 两项，有活动快照时在中间插入恢复项",
      "now": "基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。",
      "why": "复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。"
+    },
+    {
+     "target": "evidence",
+     "was": "再调用通用 six-entry selector `0x17d33`",
+     "now": "标题菜单自带 BIOS INT 16h/AH=10h 读取循环：scan 48h/50h 上下回绕，ASCII 0Dh/20h 或 scan E0h/52h 确认；其余键继续循环，ESC 没有取消或返回分支。完整 0x1f894..0x1ff79 不调用 six-entry selector；历史 code0 17d33 对应 canonical 27d33 的 shop selector，不能把其 ESC 取消推广至标题",
+     "why": "完整1765B反编译与原始指令/完整callee集合双证；自有BIOS菜单循环的全部key compare/branch均保留在只读readset。只更正证据comment，不改原name/type，不新增GUI或声称实机ESC验收。"
     }
    ],
    "end_va": 130937,

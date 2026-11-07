@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from fd2_display_requirement import windows_display_requirement
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src/tests"))
@@ -873,7 +874,7 @@ class Suite:
             self.command("original-battle-menu", [sys.executable, ROOT / "tools/run_original_battle_menu.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-battle-menu",
-                         "--save-fixture", self.work / "storage-cancel/FD2.SAV"], timeout=300)
+                         "--capture-transitions", "--save-fixture", self.work / "storage-cancel/FD2.SAV"], timeout=300)
             self.command("original-end-turn", [sys.executable, ROOT / "tools/run_original_end_turn.py",
                          "--root", ROOT, "--game", self.args.game, "--driver", self.args.driver,
                          "--dosbox", self.args.dosbox, "--artifacts", self.work / "original-end-turn"], timeout=300)
@@ -960,16 +961,20 @@ def main():
         suite = Suite(args)
     except ValueError as exc:
         parser.error(str(exc))
+    exit_code = 0
     try:
-        suite.run()
-    except (OSError, RuntimeError, ValueError, AssertionError, subprocess.SubprocessError) as exc:
-        suite.report.update(status="failed", error=str(exc))
+        with windows_display_requirement(suite.report.setdefault("display_requirement", {})):
+            suite.run()
+    except BaseException as exc:
+        suite.report.update(status="failed", error=str(exc), error_type=type(exc).__name__)
         print(f"图形回归未通过：{exc}。查看 {suite.work / 'summary.json'} 后重跑。", file=sys.stderr)
+        exit_code = (130 if isinstance(exc, KeyboardInterrupt) else
+                     exc.code if isinstance(exc, SystemExit) and isinstance(exc.code, int) and exc.code else 1)
     finally:
         (suite.work / "summary.json").write_text(
             json.dumps(suite.report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(suite.work)
-    return 0 if suite.report["status"] == "passed" else 1
+    return exit_code or (0 if suite.report["status"] == "passed" else 1)
 
 
 if __name__ == "__main__":

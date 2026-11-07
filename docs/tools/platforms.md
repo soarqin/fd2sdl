@@ -20,9 +20,11 @@ CMake 配置包含编译器、生成器和绝对路径，不能跨平台复制�
 
 ### Windows 迭代构建的路径
 
-MSVC 的持续迭代源码、头文件和构建输出使用项目目录，或 `$env:LOCALAPPDATA/fd2sdl-work/` 下的独立工作目录；不要放在 `$env:TEMP`。本次实际发现头文件已更新、依赖它的旧对象仍未重新编译，导致模块对同一结构的布局不一致；`MSB8029` 也明确提示临时目录会影响增量构建。
+MSVC 的持续迭代源码、头文件和构建输出使用项目目录，或经当前 MSBuild 验证未排除的普通独立目录，例如 `E:/Projects/fd2sdl-work/`。不要使用 `$env:TEMP` 或 `$env:LOCALAPPDATA/fd2sdl-work/` 作为增量构建根目录；没有出现 `MSB8029` 也不证明依赖跟踪有效。
 
-出现这类失配时，先保留失败的二进制、日志与源码清单，再在非临时目录用完整冻结源码创建全新构建。不要只重新链接、修改断言或用补跑通过掩盖旧对象。冻结副本的一次全新构建保留其原路径和证据身份；测试存档、截图及报告仍可放临时目录，不因此要求重跑所有历史功能。
+本机 VS18 的公开 `FileTracker.FileIsExcludedFromDependencies()` 对规范化的 LocalAppData 工作路径及 Temp 路径均返回 `true`，对 `E:/Projects` 下路径返回 `false`；实际 `CL.read.1.tlog` 也缺少相应项目头文件和被包含的 `.cpp`。因此此前“离开 Temp、改放 LocalAppData 即可”的建议不充分，问题不限于 `.cpp` 包含方式。自选缓存目录时应核实实际路径是否被当前 FileTracker 排除。[FileTracker API](https://learn.microsoft.com/dotnet/api/microsoft.build.utilities.filetracker.fileisexcludedfromdependencies)
+
+出现源码已变而对象未重编时，先保留失败二进制、日志与源码清单，再在未排除目录用完整冻结源码创建全新构建，核对项目实际绑定及依赖记录。不要只重新链接、修改断言或重跑旧程序。历史全新构建或显式 Rebuild 的结果保留原路径和证据身份；它们不证明该目录适合后续增量构建。测试存档、截图及报告仍可放临时目录，不因此重跑所有历史功能。
 
 ## 换行与迁移
 

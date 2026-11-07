@@ -1278,4 +1278,118 @@ class NaturalTest(unittest.TestCase):
             with self.assertRaises(AssertionError,msg=mutation):runner.compare_entry_measurements(first,second)
 
 
+    def _hero_then_effect_plan(self):
+        plan=copy.deepcopy(self.plan)
+        hero=plan["rest_tail"][0]
+        hero.update(destination=[hero["destination"][0]+1,hero["destination"][1]],
+            reachable_path_directions=[3],hero_safety_reposition=True)
+        effect=plan["rest_tail"][1]
+        effect.update(kind="magic",magic_id=0,target_raw=4,target_record_hex=oracle.actor(self.source,4).hex())
+        tail=plan["rest_tail"][2]
+        plan.pop("next_action");plan.pop("rest_tail")
+        plan.update(turn_actions_policy="hero_wait_then_effect",turn_actions=[hero,effect,tail])
+        return plan
+
+    def test_turn_actions_is_one_hero_plain_wait_then_one_effect_with_original_records(self):
+        plan=self._hero_then_effect_plan();before=copy.deepcopy(plan);source=bytes(self.source)
+        actions=oracle.validate_plan(plan,self.source)
+        self.assertEqual([(a["actor_raw"],a["kind"]) for a in actions],[(0,"wait"),(1,"magic"),(2,"wait")])
+        self.assertEqual(plan,before);self.assertEqual(bytes(self.source),source)
+        self.assertEqual(actions[1]["actor_record_hex"],oracle.actor(source,1).hex())
+        self.assertEqual(oracle.validate_plan(self.plan,source),[self.plan["next_action"]]+self.plan["rest_tail"])
+
+    def test_turn_actions_rejects_mixed_legacy_more_effects_stale_source_and_unsafe_shape(self):
+        for fault in ("legacy","policy","hero","stationary","marker","special","noeffect","duplicate",
+                "twoeffects","tailmove","stale","target","path","notmapping"):
+            plan=self._hero_then_effect_plan();first,effect,tail=plan["turn_actions"]
+            if fault=="legacy":plan["next_action"]=copy.deepcopy(first)
+            elif fault=="policy":plan["turn_actions_policy"]="arbitrary_autoplayer"
+            elif fault=="hero":first["actor_raw"]=3
+            elif fault=="stationary":first["destination"]=list(oracle.actor(self.source,0)[:2])
+            elif fault=="marker":first["hero_safety_reposition"]=1
+            elif fault=="special":first["wait_cell_action"]={"index":1,"mode":1,"parameter":3000}
+            elif fault=="noeffect":effect["kind"]="wait"
+            elif fault=="duplicate":effect["actor_raw"]=0
+            elif fault=="twoeffects":tail.update(kind="magic",magic_id=0)
+            elif fault=="tailmove":tail["destination"][0]+=1
+            elif fault=="stale":effect["actor_record_hex"]="00"*80
+            elif fault=="target":effect["target_record_hex"]="00"*80
+            elif fault=="path":first["reachable_path_directions"]=[0]
+            else:plan["turn_actions"][1]=None
+            with self.subTest(fault=fault),self.assertRaises(ValueError):oracle.validate_plan(plan,self.source)
+
+    def test_followup_effect_uses_actual_desired_capability_and_requires_lit_before_confirm(self):
+        source,action,normal=self._rest_command_fixture((2,3,6,9))
+        source=bytearray(source);source[UNITS+11*STRIDE:UNITS+11*STRIDE+2]=bytes((9,15))
+        action.update(kind="magic",magic_id=0,target_raw=11,
+            target_query={"cast":5,"minimum":0,"area":0,"filter":0,"cursor_resource_frame":1})
+        _,_,disabled=self._rest_command_fixture((2,5,6,9))
+        for frame,expected in ((normal,"command-selected"),(disabled,"rest-command")):
+            capture=SimpleNamespace(key=Mock());observed=[]
+            def checkpoint(name,predicate,**kwargs):
+                if name in ("rest-command","command-selected"):
+                    observed.append(name);hit=predicate(frame)
+                    if hit is None:raise TimeoutError(name)
+                    return frame,hit
+                return None,{}
+            with self.subTest(expected=expected),self.assertRaisesRegex(TimeoutError,expected):
+                runner.perform_action(capture,self.original,source,action,self.assets,[],SimpleNamespace(),checkpoint,
+                    {"native_audio":{"enabled":False}},fresh=False)
+            keys=[call.args[0] for call in capture.key.call_args_list]
+            if expected=="command-selected":self.assertEqual(keys[-1],"LEFT")
+            else:self.assertNotIn("LEFT",keys[-1:])
+            self.assertNotIn("target-first-raw",observed)
+
+    def test_b5_b7_turn_actions_execute_once_and_save_only_after_complete_phase(self):
+        import fd2_stage1_natural as stage1
+        from test_stage1_complete_oracle import synthetic_entry
+        for b7 in (False,True):
+            state=synthetic_entry() if b7 else self.source
+            plan={"turn_actions_policy":"hero_wait_then_effect","turn_actions":[
+                {"kind":"wait","actor_raw":0}, {"kind":"magic","actor_raw":1,"magic_id":0,"target_raw":4},
+                {"kind":"wait","actor_raw":2,"predicted_phase_advance_after_wait":True}]}
+            with tempfile.TemporaryDirectory() as folder:
+                save=Path(folder)/"actual.SAV";shutil.copy2(self.original/"START.SAV",save)
+                guard=[save.read_bytes(),save.stat().st_mtime_ns];capture=SimpleNamespace(artifacts=Path(folder),key=Mock(),wait=Mock())
+                prepared={"original":self.original,"assets":self.assets,"source":state,"opening":[],"titles":{3:[None,None,None]},
+                    "geometry":{},"root":ROOT,"planner":Path("planner"),"max_turns":1,"stories":[]}
+                report={"kind":"original","title_menu_count":3,"checkpoints":[]};calls=[]
+                def perform(*args,**kwargs):calls.append(("action",args[3]["actor_raw"],kwargs["fresh"]));return state
+                def progress(*args,**kwargs):calls.append(("phase",kwargs["phase"]));return state
+                def save_after(*args,**kwargs):calls.append(("save",));raise TimeoutError("one final Save")
+                def checkpoint(cap,name,predicate,rows,**kwargs):rows.append({"name":name});return None,{}
+                with patch.object(runner,"wait_title"),patch.object(runner,"opening_exercise"), \
+                        patch.object(runner,"decode_save",return_value=state),patch.object(runner,"read_plan",return_value=plan), \
+                        patch.object(runner,"ProgressReader"),patch.object(runner,"cursor_bank",return_value=[]), \
+                        patch.object(runner,"perform_action",side_effect=perform),patch.object(runner,"wait_progress",side_effect=progress), \
+                        patch.object(runner,"end_phase") as end,patch.object(runner,"save_active",side_effect=save_after), \
+                        patch.object(stage1,"wait_title"),patch.object(stage1,"wait_state",side_effect=checkpoint), \
+                        patch.object(stage1,"Stage1ProgressReader",return_value=SimpleNamespace(victory_text_complete=False)), \
+                        patch.object(stage1.n,"cursor_bank",return_value=[]):
+                    with self.assertRaisesRegex(TimeoutError,"final Save"):
+                        if b7:stage1.exercise(capture,prepared,save,guard,report)
+                        else:runner.exercise(capture,self.original,Path("planner"),prepared,save,guard,report,1)
+                self.assertEqual(calls,[("action",0,True),("phase",False),("action",1,False),("phase",False),
+                    ("action",2,False),("phase",True),("save",)])
+                end.assert_not_called();self.assertEqual((save.read_bytes(),save.stat().st_mtime_ns),tuple(guard))
+
+    def test_turn_actions_first_wait_failure_does_not_start_effect_or_save(self):
+        plan=self._hero_then_effect_plan()
+        prepared={"assets":self.assets,"opening":[],"titles":{3:[None]},"geometry":{},"root":ROOT}
+        with tempfile.TemporaryDirectory() as folder:
+            save=Path(folder)/"actual.SAV";shutil.copy2(self.original/"START.SAV",save)
+            before,stamp=save.read_bytes(),save.stat().st_mtime_ns;seen=[]
+            def perform(*args,**kwargs):seen.append(args[3]["actor_raw"]);return args[2]
+            with patch.object(runner,"wait_title"),patch.object(runner,"opening_exercise"), \
+                    patch.object(runner,"read_plan",return_value=plan),patch.object(runner,"ProgressReader"), \
+                    patch.object(runner,"cursor_bank",return_value=[]),patch.object(runner,"perform_action",side_effect=perform), \
+                    patch.object(runner,"wait_progress",side_effect=TimeoutError("Hero WAIT not complete")), \
+                    patch.object(runner,"end_phase") as end,patch.object(runner,"save_active") as save_action:
+                with self.assertRaisesRegex(TimeoutError,"not complete"):
+                    runner.exercise(SimpleNamespace(artifacts=Path(folder)),self.original,Path("planner"),prepared,save,
+                        [before,stamp],{"title_menu_count":3,"checkpoints":[]},1)
+            self.assertEqual(seen,[0]);end.assert_not_called();save_action.assert_not_called()
+            self.assertEqual((save.read_bytes(),save.stat().st_mtime_ns),(before,stamp))
+
+
 if __name__=="__main__":unittest.main()

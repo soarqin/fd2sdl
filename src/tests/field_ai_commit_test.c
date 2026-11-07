@@ -11,6 +11,8 @@
 #include "field_ai.h"
 #include "field_game.h"
 #include "field_magic.h"
+#include "field_move.h"
+#include "field_move_profile.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -1035,9 +1037,11 @@ static int test_behavior5_cell_action_commit(void) {
     static const uint32_t rolls[] = {0};
     test_rng rng = {rolls, 1, 0};
     uint32_t cells[8 * 8];
-    fd2_terrain_attr attrs[1];
+    /* 闭箱0与开箱1：原测试只有一个attr且没有frame边界，无法检出12263遗漏。 */
+    fd2_terrain_attr attrs[2] = {{0}};
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
+    game.terrain.attr_count = game.terrain.sheet.frame_count = 2;
     game.units.items[0].ai_behavior_raw = 5;
     game.units.items[0].data_3d = 1;
     game.units.items[0].movement_points = 2;
@@ -1070,6 +1074,7 @@ static int test_behavior5_cell_action_commit(void) {
     /* 0x13cf8 忽略 inventory add 的返回值；满库存不能阻止完成位和
      * behavior 7 提交。 */
     init_game(&game, cells, attrs, &rng);
+    game.terrain.attr_count = game.terrain.sheet.frame_count = 2;
     game.units.items[0].ai_behavior_raw = 5;
     game.units.items[0].data_3d = 1;
     game.units.items[0].movement_points = 2;
@@ -1094,6 +1099,7 @@ static int test_behavior5_cell_action_commit(void) {
     /* 完成位已设置时，原版回跳 behavior 0 的攻击／移动 fallback；不能
      * 再次提交 cell action。 */
     init_game(&game, cells, attrs, &rng);
+    game.terrain.attr_count = game.terrain.sheet.frame_count = 2;
     game.units.items[0].ai_behavior_raw = 5;
     game.units.items[0].data_3d = 3;
     game.units.items[0].movement_points = 2;
@@ -1108,6 +1114,110 @@ static int test_behavior5_cell_action_commit(void) {
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     return 0;
+}
+
+/* 原13c39在完成位查询前聚焦；13d05/13d1b/13d20依次完成、开箱、整byte改7。
+ * 真实FDSHAP0闭248/开249取自START箱(7,13)，只在本地8x8几何中使用资源。 */
+static int test_behavior5_real_chest_and_focus(void) {
+    fd2_archive shape = {0};
+    fd2_terrain_tileset terrain = {0};
+    CHECK(fd2_archive_open(&shape, "original_game/FDSHAP.DAT") == 0);
+    CHECK(fd2_terrain_tileset_open(&terrain, &shape, 0) == 0);
+    CHECK(terrain.attr_count > 249 && terrain.sheet.frame_count > 249);
+    CHECK(terrain.attrs[248].flags == 0x20 && terrain.attrs[249].flags == 0);
+    CHECK(terrain.frames[248].pixels && terrain.frames[249].pixels);
+    size_t grass = 0;
+    while (grass < terrain.attr_count &&
+           (terrain.attrs[grass].flags || terrain.attrs[grass].movement_cost_class)) grass++;
+    CHECK(grass < terrain.attr_count);
+    int errors = 0;
+#define B5_EXPECT(value, text) do { if (!(value)) { \
+    fprintf(stderr, "behavior5 regression: %s\n", (text)); errors++; } } while (0)
+    static const uint32_t rolls[] = {0};
+    for (int full = 0; full <= 1; full++) {
+        test_rng rng = {rolls, 1, 0};
+        uint32_t cells[8 * 8]; fd2_terrain_attr unused[1]; fd2_field_game game;
+        init_game(&game, cells, unused, &rng);
+        game.terrain = terrain; /* 只借只读已解码资源，测试不close此Game。 */
+        for (size_t i = 0; i < 64; i++) cells[i] = (uint32_t)grass;
+        cells[10] = UINT32_C(0x6b0100f8); /* tile248/index1/未知cache byte3=6b。 */
+        game.units.items[0].ai_behavior_raw = 0xa5;
+        game.units.items[0].data_3d = 1;
+        game.units.items[1].x = game.units.items[1].y = 7;
+        game.metadata.cell_actions[1].mode = 0;
+        game.metadata.cell_actions[1].param = 192;
+        uint8_t *record = (uint8_t *)&game.units.items[0];
+        for (size_t slot = 0; slot < 8; slot++) {
+            record[10 + 2 * slot] = full ? 0 : 0x80;
+            record[11 + 2 * slot] = 192;
+        }
+        int result = process_automatic_action_and_ack(&game);
+        B5_EXPECT(result == 1, "valid chest action must complete");
+        B5_EXPECT(game.units.items[0].x == 2 && game.units.items[0].y == 1,
+                  "AI must reach the actual chest before completing it");
+        B5_EXPECT(cells[10] == UINT32_C(0x6b0000f9), full ?
+                  "full inventory still opens live248->249 and clearsindex1" :
+                  "successful loot must open live248->249 and clearindex1");
+        B5_EXPECT(record[52] == 7, "native overwrites full behavior byte A5->07");
+        B5_EXPECT(game.cell_action_completed[1] == 1 && record[49] == 0 && record[50] == 192,
+                  "native completion and descriptor write remain present");
+        B5_EXPECT(record[10] == 0 && record[11] == 192 && rng.cursor == 0,
+                  "inventory/raw item and RNG0 must remain correct");
+    }
+    {
+        test_rng rng = {rolls, 1, 0};
+        uint32_t cells[64], before_cells[64]; fd2_terrain_attr unused[1]; fd2_field_game game;
+        init_game(&game, cells, unused, &rng); game.terrain = terrain;
+        for (size_t i = 0; i < 64; i++) cells[i] = (uint32_t)grass;
+        cells[10] = UINT32_C(0x6b0100f8);
+        game.terrain.sheet.frame_count = 249; /* 闭248可读，缺开249；不改archive。 */
+        game.units.items[0].ai_behavior_raw = 0xa5; game.units.items[0].data_3d = 1;
+        game.units.items[1].x = game.units.items[1].y = 7;
+        game.metadata.cell_actions[1].mode = 0; game.metadata.cell_actions[1].param = 192;
+        memset((uint8_t *)&game.units.items[0] + 10, 0x80, 16);
+        fd2_field_units before = game.units;
+        memcpy(before_cells, cells, sizeof(cells));
+        uint8_t before_completed[sizeof(game.cell_action_completed)];
+        memcpy(before_completed, game.cell_action_completed, sizeof(before_completed));
+        int result = fd2_field_game_process_automatic_action(&game);
+        B5_EXPECT(result == -1 && game.failure != FD2_FIELD_FAILURE_NONE,
+                  "missing open249 must reject and freeze before movement/loot");
+        B5_EXPECT(!memcmp(&before, &game.units, sizeof(before)) &&
+                  !memcmp(before_cells, cells, sizeof(cells)) &&
+                  !memcmp(before_completed, game.cell_action_completed, sizeof(before_completed)),
+                  "preflight failure must not move, append, complete or edit map/behavior");
+        B5_EXPECT(rng.cursor == 0, "bad resource preflight must consume no RNG");
+        if (result < 0) {
+            fd2_field_units after = game.units;
+            B5_EXPECT(fd2_field_game_process_automatic_action(&game) == -1 &&
+                      !memcmp(&after, &game.units, sizeof(after)) && rng.cursor == 0,
+                      "frozen failure must not replay movement/loot/RNG");
+        }
+    }
+    {
+        test_rng rng = {rolls, 1, 0}; uint32_t cells[24 * 24];
+        fd2_terrain_attr unused[1]; fd2_field_game game;
+        init_game(&game, cells, unused, &rng); game.terrain = terrain;
+        for (size_t i = 0; i < 24 * 24; i++) cells[i] = (uint32_t)grass;
+        game.map.width = game.map.height = 24; game.units.count = 1;
+        game.units.items[0].ai_behavior_raw = 0xa5; game.units.items[0].data_3d = 1;
+        memset((uint8_t *)&game.units.items[0] + 10, 0x80, 16);
+        game.cell_action_completed[1] = 1;
+        game.cursor_cell_x = game.cursor_cell_y = 23;
+        game.camera_cell_x = 11; game.camera_cell_y = 16;
+        fd2_field_units wanted = game.units; wanted.items[0].flags |= 0x80;
+        B5_EXPECT(process_automatic_action_and_ack(&game) == 1,
+                  "completed-cell fallback still executes its common tail");
+        B5_EXPECT(game.cursor_cell_x == 1 && game.cursor_cell_y == 1 &&
+                  game.camera_cell_x == 0 && game.camera_cell_y == 0,
+                  "13c39 must focus caster even when completed1 and no target/fallback action");
+        B5_EXPECT(!memcmp(&wanted, &game.units, sizeof(wanted)) && rng.cursor == 0 &&
+                  game.cell_action_completed[1] == 1 && game.ordinary_display_mode == 0,
+                  "no-op fallback only adds native acted tail, not loot/HP/MP/RNG writes");
+    }
+#undef B5_EXPECT
+    fd2_terrain_tileset_close(&terrain); fd2_archive_close(&shape);
+    return errors ? 1 : 0;
 }
 
 static int test_behavior2_recover_after_queries(void) {
@@ -1133,6 +1243,131 @@ static int test_behavior2_recover_after_queries(void) {
     CHECK(game.active_side == 2);
     CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(rng.cursor == 0);
+    return 0;
+}
+
+static void hide_ai11_items(fd2_field_unit *unit) {
+    uint8_t *raw = (uint8_t *)unit;
+    for (size_t slot = 0; slot < 8; slot++) {
+        raw[0x0au + 2u * slot] = 0x80;
+        raw[0x0bu + 2u * slot] = 0xff;
+    }
+}
+
+static void init_ai11_fallback(fd2_field_game *game, uint32_t *cells,
+        fd2_terrain_attr *attrs, test_rng *rng, unsigned movement,
+        unsigned cost_class, unsigned hp, unsigned poison) {
+    init_game(game, cells, attrs, rng);
+    game->stage = UINT8_MAX; /* 纯AI事务夹具，不借stage1的六村民结果门。 */
+    attrs[0].movement_cost_class = (uint8_t)cost_class;
+    game->ordinary_display_mode = 1;
+    fd2_field_unit *caster = &game->units.items[0];
+    caster->ai_behavior_raw = 11;
+    caster->movement_points = (uint8_t)movement;
+    caster->hp = (uint16_t)hp; caster->hp_max = 100;
+    caster->mp = caster->mp_max = 10;
+    caster->attack = 0; caster->detail_status[0] = (uint8_t)poison;
+    caster->direction = 3; game->units.items[1].direction = 2;
+    hide_ai11_items(caster); teach_magic(caster, 0);
+    game->units.items[1].hp = game->units.items[1].hp_max = 300;
+}
+
+static int check_ai11_fallback_queries(fd2_field_game *game, int expected_witness) {
+    fd2_field_game before = *game;
+    fd2_field_ai_magic_candidate magic;
+    CHECK(fd2_field_ai_choose_magic_candidate(&game->map, &game->terrain,
+        &game->units, 0, 0, &magic) == 0 && magic.magic_id == 0 && magic.score >= 6);
+    fd2_field_ai_physical_candidate physical;
+    CHECK(build_plan(game, &physical) != 0 || physical.priority < 6);
+    const uint8_t *profile = fd2_field_movement_profile_get(1);
+    size_t ignored = 0; int x = -1, y = -1;
+    int witness = fd2_field_move_path_find(&game->map, &game->terrain,
+        &game->units, 0, profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, 28,
+        FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS, 0, 0, NULL, 64, &ignored, &x, &y);
+    CHECK(witness == expected_witness);
+    if (witness) CHECK(x == 3 && y == 1);
+    CHECK(memcmp(game, &before, sizeof(before)) == 0);
+    return 0;
+}
+
+/* 13a9f的13e45无cast成功门：无physical后仍14121，未实际移动才13fd4。 */
+static int ai11_fallback_case(const char *name, unsigned movement,
+        unsigned cost_class, unsigned hp, unsigned poison,
+        int witness, unsigned expected_x, unsigned expected_hp, int expected_mode) {
+    static const uint32_t rolls[16] = {0};
+    test_rng rng = {rolls, 16, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    fd2_field_game game;
+    init_ai11_fallback(&game, cells, attrs, &rng, movement, cost_class, hp, poison);
+    CHECK(check_ai11_fallback_queries(&game, witness) == 0 && rng.cursor == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
+    printf("AI11 %s: xy=%u,%u hp=%u mp=%u targetHP=%u mode=%u rng=%zu\n",
+        name, game.units.items[0].x, game.units.items[0].y, game.units.items[0].hp,
+        game.units.items[0].mp, game.units.items[1].hp, game.ordinary_display_mode, rng.cursor);
+    CHECK(game.units.items[1].hp == 255 && game.units.items[0].mp == 8 && rng.cursor == 2);
+    CHECK(game.units.items[0].x == expected_x && game.units.items[0].y == 1);
+    CHECK(game.units.items[0].hp == expected_hp);
+    CHECK(game.ordinary_display_mode == expected_mode && !game.experience_value);
+    CHECK(fd2_field_unit_has_acted(&game.units.items[0]) && !game.loot.source);
+    CHECK(game.units.items[0].direction == 0 && game.units.items[1].direction == 0);
+    CHECK(game.failure == FD2_FIELD_FAILURE_NONE && game.active_side == 0);
+    free(game.move_path);
+    return 0;
+}
+
+static int test_behavior11_post_cast_fallback_matrix(void) {
+    int failed = 0;
+    failed += ai11_fallback_case("MOV0 recovers", 0, 0, 40, 0, 1, 1, 60, 1);
+    failed += ai11_fallback_case("MOV1 moves without healing", 1, 0, 40, 0, 1, 2, 40, 1);
+    failed += ai11_fallback_case("cost20 no-witness recovers", 0, 1, 40, 0, 0, 1, 60, 1);
+    failed += ai11_fallback_case("cost20 fullHP no-op", 0, 1, 100, 0, 0, 1, 100, 0);
+    failed += ai11_fallback_case("cost20 poison no-op", 0, 1, 40, 1, 0, 1, 40, 0);
+    CHECK(failed == 0);
+    return 0;
+}
+
+static int ai11_story_fallback_case(unsigned movement) {
+    static const uint32_t rolls[16] = {0};
+    test_rng rng = {rolls, 16, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    fd2_field_game game; init_ai11_fallback(&game, cells, attrs, &rng, movement, 0, 40, 0);
+    game.stage = 0; /* 已有mode3/fragment8的合法纯续态合同。 */
+    CHECK(check_ai11_fallback_queries(&game, 1) == 0);
+    game.units.count = 3; set_unit(&game.units.items[2], 0, 7, 7);
+    game.units.items[2].hp = 0; game.units.items[2].direction = 1;
+    ((uint8_t *)&game.units.items[2])[0x31] = 3;
+    ((uint8_t *)&game.units.items[2])[0x32] = 8;
+    CHECK(fd2_field_game_process_automatic_action(&game) == 1);
+    CHECK(game.loot.notice.kind == FD2_FIELD_LOOT_STORY && game.loot.notice.fragment == 8);
+    CHECK(game.units.items[1].hp == 255 && game.units.items[0].mp == 8 && rng.cursor == 2);
+    CHECK(game.units.items[0].x == 1 && game.units.items[0].hp == 40);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(fd2_field_game_loot_reply(&game, FD2_FIELD_LOOT_ACK, -1) == 0);
+    CHECK(game.loot.source && !game.loot.notice.kind && !game.experience_value);
+    fd2_field_game paused = game;
+    CHECK(fd2_field_game_loot_reply(&game, FD2_FIELD_LOOT_ACK, -1) == -1);
+    CHECK(memcmp(&game, &paused, sizeof(paused)) == 0 && rng.cursor == 2);
+    CHECK(process_automatic_action_and_ack(&game) == 1);
+    printf("AI11 story MOV%u: xy=%u,%u hp=%u mp=%u targetHP=%u rng=%zu\n", movement,
+        game.units.items[0].x, game.units.items[0].y, game.units.items[0].hp,
+        game.units.items[0].mp, game.units.items[1].hp, rng.cursor);
+    CHECK(game.units.items[0].x == (movement ? 2 : 1) && game.units.items[0].y == 1);
+    CHECK(game.units.items[0].hp == (movement ? 40 : 60));
+    CHECK(game.units.items[1].hp == 255 && game.units.items[0].mp == 8 && rng.cursor == 2);
+    CHECK(!game.loot.source && fd2_field_unit_has_acted(&game.units.items[0]));
+    for (size_t i = 0; i < 3; i++) CHECK(game.units.items[i].direction == 0);
+    fd2_field_game committed = game;
+    CHECK(fd2_field_game_loot_reply(&game, FD2_FIELD_LOOT_ACK, -1) == -1);
+    CHECK(memcmp(&game, &committed, sizeof(committed)) == 0);
+    CHECK(process_automatic_action_and_ack(&game) == 1 && game.active_side == 2);
+    CHECK(!fd2_field_unit_has_acted(&game.units.items[0]));
+    CHECK(game.units.items[0].mp == 8 && game.units.items[1].hp == 255 && rng.cursor == 2);
+    free(game.move_path);
+    return 0;
+}
+
+static int test_behavior11_story_fallback_once(void) {
+    int failed = ai11_story_fallback_case(0);
+    failed += ai11_story_fallback_case(1);
+    CHECK(failed == 0);
     return 0;
 }
 
@@ -1940,6 +2175,9 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
 }
 
 int main(void) {
+    int ai11_regressions = test_behavior11_post_cast_fallback_matrix();
+    ai11_regressions += test_behavior11_story_fallback_once();
+    if (ai11_regressions) return 1;
     if (test_ai_ordinary_display_caller_boundaries() != 0 ||
         test_item_async_loot_and_rejection_boundaries_remain() != 0 ||
         test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once() != 0 ||
@@ -1968,6 +2206,7 @@ int main(void) {
         test_shared_item_hp_core_tail_failure_keeps_commit() != 0 ||
         test_item_commit() != 0 ||
         test_behavior5_cell_action_commit() != 0 ||
+        test_behavior5_real_chest_and_focus() != 0 ||
         test_behavior2_recover_after_queries() != 0 ||
         test_behavior11_magic_then_physical() != 0 ||
         test_behavior11_loot_story_then_physical() != 0 ||

@@ -122,61 +122,10 @@ static void field_phase_music(size_t stage, int track,
     (void)fd2_field_play_request_music(userdata, stage, track, name);
 }
 
-/* FDTXT[410..420] 当前只确认普通字形、0xfffe换行、0xffff结束。
- * 先验证完整span，避免后半段坏字形在提示已画出后才被静默跳过。 */
-static int system_confirmation_fragment(const fd2_field_game *game,
-                                          size_t fragment,
-                                          const uint8_t **tokens,
-                                          size_t *draw_count) {
-    if (!game || !game->ready || !game->font.glyphs ||
-        game->font.glyph_count == 0 ||
-        game->font.glyph_count > game->font.size / 32u)
-        return -1;
-    const uint8_t *data;
-    size_t count;
-    if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
-                                    &data, &count) != 0)
-        return -1;
-    for (size_t i = 0; i < count; i++) {
-        uint16_t token = fd2_text_token_at(data, i);
-        if (token == 0xffffu) {
-            *tokens = data;
-            *draw_count = i;
-            return 0;
-        }
-        if (token == 0xfffeu) continue;
-        if (token >= 0xff00u || token >= game->font.glyph_count)
-            return -1;
-    }
-    return -1;
-}
-
-static int play_system_confirmation_text(fd2_field_game *game,
-                                         fd2_vga *vga,
-                                         size_t fragment,
-                                         int fast) {
-    const uint8_t *tokens;
-    size_t token_count;
-    if (!vga || system_confirmation_fragment(
-            game, fragment, &tokens, &token_count) != 0)
-        return -1;
-    /* 预检已完成；这里只呈现已确定提示，不提交YES/NO或玩法。 */
-    for (int row = 0; row < 86; row++)
-        memset(vga->framebuffer + (112 + row) * VGA_STRIDE + 5,
-               0xcd, 310u);
-    int x = 15;
-    int y = 119;
-    for (size_t i = 0; i < token_count; i++) {
-        uint16_t token = fd2_text_token_at(tokens, i);
-        if (token == 0xfffeu) {
-            x = 15;
-            y += 16;
-            continue;
-        }
-        fd2_font_draw_glyph(vga, &game->font, token,
-                            x, y, 0xcd, 0x4c, -1);
-        x += 16;
-    }
+/* 16f55/19df7：沿用同一只读notice页，不能先present占位索引底色。 */
+static int play_system_confirmation_text(fd2_field_game *game, fd2_vga *vga,
+        size_t fragment, int fast) {
+    if (fd2_field_game_render_system_notice(game, vga, fragment) != 0) return -1;
     fd2_vga_present(vga);
     if (!fast) fd2_delay_ms(250);
     return 0;
@@ -887,7 +836,6 @@ static fd2_input_context field_input_context(const fd2_field_game *game) {
             return FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING;
         case FD2_FIELD_INTERACTION_TARGETING: return FD2_INPUT_CONTEXT_FIELD_TARGETING;
         case FD2_FIELD_INTERACTION_SYSTEM_MENU: return FD2_INPUT_CONTEXT_FIELD_SYSTEM_MENU;
-        case FD2_FIELD_INTERACTION_MANUAL_SLOT: return FD2_INPUT_CONTEXT_FIELD_MANUAL_SLOT;
         case FD2_FIELD_INTERACTION_AUXILIARY: return FD2_INPUT_CONTEXT_FIELD_AUXILIARY;
         default: return FD2_INPUT_CONTEXT_FIELD;
     }
@@ -2765,12 +2713,12 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     }
 
     /* B6同步服务属于本轮Play，借用App的两个PCM handle与FDOTHER。
-     * Game只提交结果与调用只读present；退出时先解除借用，再释放Game。 */
+     * present只读业务，原11cac点经窄接口推进同一Game视觉锚；退出先解除借用再释放。 */
     fd2_battle_animation battle = {0};
     if (fd2_battle_animation_open(&battle, vga,
             field_audio ? field_audio->player : NULL,
             field_audio ? field_audio->secondary_player : NULL,
-            fdother, &game.figani_archive) != 0) {
+            fdother, &game.figani_archive, &game) != 0) {
         fd2_field_game_close(&game);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
@@ -2956,9 +2904,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     break;
                 case FD2_FIELD_ACTION_CANCEL:
                     if (game.interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT) {
-                        (void)fd2_field_game_cancel_manual_slot_picker(&game);
-                    } else if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU) {
                         fd2_field_system_page page = game.system_menu.page;
                         /* Secondary/options cancel first closes the current
@@ -3167,50 +3112,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     game.detail_acknowledged_unit = -1;
                     fd2_field_interaction previous_interaction =
                         game.interaction;
-                    if (previous_interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT) {
-                        int slot = fd2_field_game_confirm_manual_slot_picker(
-                            &game);
-                        if (slot >= 0) {
-                            int success;
-                            size_t fragment = 0;
-                            if (game.manual_slot_picker.mode ==
-                                    FD2_FIELD_MANUAL_SLOT_MODE_SAVE) {
-                                success = fd2_field_game_save_manual_slot(
-                                    &game, save_path, (size_t)slot) == 0;
-                                fragment = success
-                                    ? FD2_FIELD_MANUAL_TEXT_SAVE_SUCCESS
-                                    : FD2_FIELD_SYSTEM_TEXT_SAVE_FAILURE;
-                                fd2_field_game_set_save_resource_available(
-                                    &game,
-                                    fd2_field_game_save_resource_available(
-                                        &game, save_path));
-                            } else {
-                                success = fd2_field_game_load_manual_slot(
-                                    &game, save_path, (size_t)slot) == 0;
-                                fragment = success
-                                    ? FD2_FIELD_MANUAL_TEXT_LOAD_SUCCESS
-                                    : FD2_FIELD_SYSTEM_TEXT_LOAD_FAILURE;
-                                if (success)
-                                    apply_field_audio_options(&game,
-                                                              field_audio);
-                            }
-                            game.manual_slot_result_fragment =
-                                (uint16_t)fragment;
-                            game.manual_slot_result_until_ms =
-                                fragment != 0 ? SDL_GetTicks() + 1000u : 0;
-                            if (fragment != 0)
-                                (void)play_system_confirmation_text(
-                                    &game, vga, fragment, once);
-                            if (!success)
-                                fprintf(stderr,
-                                        "field manual slot %s failed: %d\n",
-                                        game.manual_slot_picker.mode ==
-                                                FD2_FIELD_MANUAL_SLOT_MODE_SAVE
-                                            ? "save" : "load", slot);
-                        }
-                        break;
-                    }
                     if (previous_interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU) {
                         /* open/input/close primitive 的原版边界：确认后先按
@@ -3607,9 +3508,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 }
                 case FD2_FIELD_ACTION_LEFT:
                     if (game.interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT)
-                        (void)fd2_field_game_move_manual_slot_picker(&game, -1);
-                    else if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU)
                         (void)fd2_field_game_select_system_menu_direction(
                             &game, FD2_FIELD_COMMAND_DIRECTION_LEFT);
@@ -3621,9 +3519,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     break;
                 case FD2_FIELD_ACTION_RIGHT:
                     if (game.interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT)
-                        (void)fd2_field_game_move_manual_slot_picker(&game, 1);
-                    else if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU)
                         (void)fd2_field_game_select_system_menu_direction(
                             &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT);
@@ -3635,9 +3530,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     break;
                 case FD2_FIELD_ACTION_UP:
                     if (game.interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT)
-                        (void)fd2_field_game_move_manual_slot_picker(&game, -1);
-                    else if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU)
                         (void)fd2_field_game_select_system_menu_direction(
                             &game, FD2_FIELD_COMMAND_DIRECTION_UP);
@@ -3649,9 +3541,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     break;
                 case FD2_FIELD_ACTION_DOWN:
                     if (game.interaction ==
-                            FD2_FIELD_INTERACTION_MANUAL_SLOT)
-                        (void)fd2_field_game_move_manual_slot_picker(&game, 1);
-                    else if (game.interaction ==
                             FD2_FIELD_INTERACTION_SYSTEM_MENU)
                         (void)fd2_field_game_select_system_menu_direction(
                             &game, FD2_FIELD_COMMAND_DIRECTION_DOWN);

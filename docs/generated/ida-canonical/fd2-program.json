@@ -3,7 +3,7 @@
   "ida_version": "9.5",
   "host_platform": "win32",
   "loader_module": "loaders/lx.dll",
-  "input_file": "C:\\Users\\Soar\\AppData\\Local\\fd2sdl-work\\b7-stage1-master-20261106\\source\\original_game\\FD2.EXE",
+  "input_file": "C:\\Users\\Soar\\AppData\\Local\\fd2sdl-work\\major-b0-b7-20261106\\source\\original_game\\FD2.EXE",
   "input_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
   "file_type_name": "Linear Executable (LE)",
   "filetype_code": 8,

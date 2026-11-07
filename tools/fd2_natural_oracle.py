@@ -8,6 +8,7 @@ import struct
 
 from PIL import Image
 
+from fd2_battle_animation_frames import rle_material
 from fd2_movement_oracle import movement_profile
 from fd2_opening_oracle import build_pages, geometry as opening_geometry
 from fd2_reward_oracle import reward_pages, reward_tables
@@ -47,7 +48,22 @@ def validate_plan(plan, source, *, stage=0):
             plan.get("query_side_effects") is not False or plan.get("source_turn") != source[META] or
             plan.get("source_active_count") != source[META + 1] or plan.get("source_roster_count") != source[META + 9]):
         raise ValueError("planner不是此实际Save的纯查询")
-    actions = [plan["next_action"]] + plan.get("rest_tail", [])
+    ordered = "turn_actions" in plan
+    if ordered:
+        actions = plan["turn_actions"]
+        if (plan.get("turn_actions_policy") != "hero_wait_then_effect" or
+                "next_action" in plan or "rest_tail" in plan or not isinstance(actions, list) or
+                not 2 <= len(actions) <= source[META + 1] or
+                any(not isinstance(action, dict) for action in actions) or
+                actions[0].get("kind") != "wait" or actions[0].get("actor_raw") != 0 or
+                actions[0].get("destination") == list(actor(source, 0)[:2]) or
+                "wait_cell_action" in actions[0] or
+                actions[1].get("kind") not in ("attack", "magic", "herb")):
+            raise ValueError("turn_actions仅开放主角普通撤离WAIT、一次效果和其余原地WAIT")
+    else:
+        if "turn_actions_policy" in plan:
+            raise ValueError("turn_actions_policy不能脱离显式turn_actions")
+        actions = [plan["next_action"]] + plan.get("rest_tail", [])
     seen = set()
     for index, action in enumerate(actions):
         if action["kind"] == "end_turn" and index == 0: continue
@@ -61,7 +77,10 @@ def validate_plan(plan, source, *, stage=0):
         destination = action["destination"]
         if len(destination) != 2 or any(type(x) is not int or not 0 <= x < limit for x, limit in zip(destination, (width, height))):
             raise ValueError("自然目的地超出此stage原地图")
-        if index:
+        if ordered and index >= 2:
+            if action["kind"] != "wait" or list(record[:2]) != destination:
+                raise ValueError("turn_actions效果后的剩余actor必须原地WAIT")
+        if (index and not ordered) or (ordered and index == 0):
             if action["kind"] != "wait":
                 raise ValueError("REST-tail必须是同轮剩余actor的WAIT")
             if list(record[:2]) != destination:
@@ -206,6 +225,88 @@ def observed_summary(frame, original, source, assets, summary):
     return result
 
 
+def actor_foreground_resources(original, source, assets, raw, cursor):
+    """129ec/12ac6：静止actor本格、上格的原RLE前景，保持完整30行。
+
+    无前景仍走旧资源门。这里不猜行走附加格、相邻actor遮挡或动态水色。
+    RLE写点包括写入的颜色0，不能用非零颜色猜前景透明区。
+    """
+    unit = actor(source, raw)
+    # field_unit_ignores_terrain_combat_modifier @0x1f183：28例外，19/4/5免遮挡。
+    if unit[7] != 28 and (unit[32] == 19 or unit[31] in (4, 5)):
+        return None
+    stage = source[META + 2]
+    key = (str(original.resolve()), stage)
+    cache = assets.setdefault("_actor_foreground_maps", {})
+    if key not in cache:
+        field = (original / "FDFIELD.DAT").read_bytes()
+        data = archive_entry(field, 3 * stage)
+        metadata = archive_entry(field, 3 * stage + 1)
+        shape = (original / "FDSHAP.DAT").read_bytes()
+        cache[key] = (data, archive_entry(shape, 2 * metadata[0]),
+                      archive_entry(shape, 2 * metadata[0] + 1))
+    data, tiles, attrs = cache[key]
+    width, height = struct.unpack_from("<HH", data)
+    if STAGE_DIMENSIONS.get(stage) != (width, height):
+        raise ValueError("actor前景地图尺寸不符已确认stage")
+    x, y = unit[:2]
+    cells = []
+    for cy in (y - 1, y):
+        if not 0 <= x < width or not 0 <= cy < height:
+            return None  # 此处无完整上下两格，保留既有边缘资源判据。
+        cell = struct.unpack_from("<I", data, 4 + 4 * (cy * width + x))[0]
+        tile = cell & 1023
+        index = (cell >> 16) & 31
+        if attrs[4 * tile] & 0x60 == 0x20 and source[0x30a3 + index]:
+            tile = ((cell & 0xffff) + 1) & 1023
+        cells.append((cy, tile))
+    if not any(attrs[4 * tile] & 0x80 for _, tile in cells):
+        return None
+    if unit[4] or any(i != raw and not actor(source, i)[5] & 1 and
+            actor(source, i)[0] == x and abs(actor(source, i)[1] - y) <= 1
+            for i in range(source[META + 1])):
+        raise ValueError("actor前景完成门仅覆盖独立静止actor，不猜相邻/同格绘制顺序")
+    bases = []
+    overlays = []
+    for cy, tile in cells:
+        image = sheet_frame(tiles, tile)
+        image.putpalette(assets["palette"])
+        if attrs[4 * tile] & 0x1c or any(224 <= p < 240 for p in image.getdata()):
+            raise ValueError("actor前景完成门未覆盖动画/水DAC地形")
+        bases.append(image)
+        if attrs[4 * tile] & 0x80:
+            count = struct.unpack_from("<H", tiles, 4)[0]
+            if tile + 1 >= count:
+                raise ValueError("actor前景资源索引越界")
+            begin = struct.unpack_from("<I", tiles, 6 + 4 * (tile + 1))[0]
+            end = struct.unpack_from("<I", tiles, 6 + 4 * (tile + 2))[0] if tile + 2 < count else len(tiles)
+            part, mask = rle_material(struct.pack("<HH", 24, 24) + tiles[begin:end])
+            part.putpalette(assets["palette"])
+            if any(224 <= p < 240 for p, written in zip(part.getdata(), mask.getdata()) if written):
+                raise ValueError("actor前景含动态水DAC，不裁掉该区域")
+            overlays.append((cy, tile + 1, part, mask))
+    isolated = bytearray(source)
+    isolated[META + 1] = 1
+    isolated[UNITS:UNITS + STRIDE] = unit
+    isolated[UNITS + 5] &= 0x7f
+    normal, _ = cursor_assets(original / "FDICON.B24", isolated, assets)
+    def compose(sprite):
+        image = Image.new("P", (24, 30), 0)
+        image.putpalette(assets["palette"])
+        image.paste(bases[0].crop((0, 18, 24, 24)), (0, 0))
+        image.paste(bases[1], (0, 6))
+        image.paste(cursor, (0, 6), cursor.point(lambda p: 255 if p else 0, mode="L"))
+        image.paste(sprite, (0, 0), sprite.point(lambda p: 255 if p else 0, mode="L"))
+        for cy, _, part, mask in reversed(overlays):
+            image.paste(part, (0, 6 + 24 * (cy - y)), mask)
+        # 完整底图已恢复，颜色0也是真实像素；RGB使match_indexed不再跳过索引0。
+        return image.convert("RGB")
+    return {"templates": [compose(acted_sprite(image) if unit[5] & 0x80 else image) for image in normal],
+            "unacted_templates": [compose(image) for image in normal],
+            "foreground_entries": [entry for _, entry, _, _ in reversed(overlays)],
+            "template_rows": 30, "actor_tile": cells[1][1], "upper_tile": cells[0][1]}
+
+
 def focus_match(frame, original, source, assets, *, require_closed=True, cursor=None, summary=None):
     world, at = tuple(source[META + 5:META + 7]), screen(source, source[META + 5:META + 7])
     if not 4 <= at[0] <= 292 or not 4 <= at[1] <= 172: return None
@@ -220,8 +321,10 @@ def focus_match(frame, original, source, assets, *, require_closed=True, cursor=
             if summary is None:return None
         summary_hit=match_indexed(frame,summary["image"],summary["position"])
         if not summary_hit["ok"]:return None
+    foreground = None
     if raw is not None:
-        candidates = actor_focus_resources(original, source, assets, raw, actual_cursor)["templates"]
+        foreground = actor_foreground_resources(original, source, assets, raw, actual_cursor) if summary is None else None
+        candidates = foreground["templates"] if foreground else actor_focus_resources(original, source, assets, raw, actual_cursor)["templates"]
         if summary is not None:
             # 18b84明确先actor/cursor再18c6d；完整板是前景，不把盖住的头部当透明mask略过。
             x,y=at[0],at[1]-6;px,py=summary["position"];panel=summary["image"]
@@ -246,6 +349,16 @@ def focus_match(frame, original, source, assets, *, require_closed=True, cursor=
     result={"kind":"natural_resource_focus", "world":list(world), "focus_screen":list(at),
         "camera":list(source[META + 3:META + 5]), "raw_actor":raw, "cursor_actor":hit,
         "full_actor_compared":summary is None and hit["full_resource_compared"] if raw is not None else None}
+    if foreground:
+        result["actor_local_foreground"] = {key: foreground[key] for key in
+            ("foreground_entries", "template_rows", "actor_tile", "upper_tile")}
+        if actor(source, raw)[5] & 0x80:
+            rejected = [visible_match(frame, image, (at[0], at[1] - 6)) for image in foreground["unacted_templates"]]
+            if any(item["ok"] or item.get("bad_pixels", 0) < 24 for item in rejected):
+                return None
+            result["foreground_acted_witness"] = {**hit, "all_unacted_candidates_rejected": len(rejected),
+                "minimum_unacted_bad_pixels": min(item["bad_pixels"] for item in rejected),
+                "scope": "complete terrain/cursor/actor/foreground visible resource; no occlusion mask"}
     if summary_hit is not None:
         result["unit_summary"]={"position":list(summary["position"]),"full_resource":summary_hit,
             "fields":summary["fields"],"foreground_composited_over_actor":True}
@@ -268,12 +381,16 @@ def actor_browse_anywhere(frame, original, source, assets, raw=0, *, acted=None)
             candidate = view(state, world, camera)
             hit = focus_match(frame, original, candidate, assets)
             if hit and acted:
-                at=screen(candidate,world)
-                proof=visible_acted_resources(original,assets,actor(state,raw),(at[0],at[1]-6))
-                witness=next(({"frame":phase,**got} for phase,image in enumerate(proof["sprites"])
-                    if (got:=match_indexed(frame,image,proof["position"]))["ok"]),None)
-                if witness is None:continue
-                hit.update(visible_acted_witness=witness,full_actor_compared=proof["full_actor_compared"])
+                witness=hit.get("foreground_acted_witness")
+                if witness:
+                    hit.update(visible_acted_witness=witness)
+                else:
+                    at=screen(candidate,world)
+                    proof=visible_acted_resources(original,assets,actor(state,raw),(at[0],at[1]-6))
+                    witness=next(({"frame":phase,**got} for phase,image in enumerate(proof["sprites"])
+                        if (got:=match_indexed(frame,image,proof["position"]))["ok"]),None)
+                    if witness is None:continue
+                    hit.update(visible_acted_witness=witness,full_actor_compared=proof["full_actor_compared"])
             if hit: found.append((candidate, hit))
     return found[0] if len(found) == 1 else None
 

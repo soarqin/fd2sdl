@@ -28,6 +28,8 @@ class OriginalOutputPathTest(unittest.TestCase):
             source = b"read-only path-test fixture"
             for name in ("START.SAV", "FD2.SAV"):
                 (original / name).write_bytes(source)
+            source_report = original / "source-report.json"
+            source_report.write_text("{}", encoding="utf-8")
             tool = candidate / "tool.exe"
             tool.write_bytes(b"not executable; process calls are forbidden in this test")
             output = original / "new-artifacts" if inside else root / "safe-artifacts"
@@ -39,7 +41,7 @@ class OriginalOutputPathTest(unittest.TestCase):
             for script in sorted(TOOLS.glob("run_original_*.py")):
                 module = importlib.import_module(script.stem)
                 args = SimpleNamespace(root=candidate, artifacts=output,
-                                       save_fixture=original / "START.SAV", sdl=None,
+                                       save_fixture=original / "START.SAV", source_report=source_report, sdl=None,
                                        planner=tool, driver=tool, dosbox=tool, max_turns=50,
                                        record_native_audio=False, original_evidence=None,
                                        scenario={"run_original_item_list": "controls",
@@ -49,13 +51,14 @@ class OriginalOutputPathTest(unittest.TestCase):
                                                  "run_original_natural": "natural-stage0",
                                                  "run_original_reward": "physical-cap",
                                                  "run_original_stage1": "turn3",
+                                                 "run_original_stage1_complete": "victory-all-villagers",
                                                  "run_original_transition": "prepare-controlled"}.get(script.stem))
                 with self.subTest(script=script.name, inside=inside), ExitStack() as stack, \
                         patch.object(Path, "resolve", resolve), \
                         patch.object(Path, "mkdir", side_effect=MkdirReached) as mkdir, \
                         patch("subprocess.Popen", side_effect=AssertionError("unexpected process")) as popen, \
                         patch("subprocess.run", side_effect=AssertionError("unexpected process")) as process_run:
-                    # 本测试只覆盖输出路径；B4/B5较早的只读资源预检另有专项。
+                    # 本测试只覆盖输出路径；B4/B5/B7较早的只读资源预检另有专项。
                     # 参数与真实CLI一致，文件存在/读取/mtime仍使用本次临时文件。
                     values = {}
                     if script.stem in {"run_original_loot", "run_original_reward",
@@ -69,6 +72,10 @@ class OriginalOutputPathTest(unittest.TestCase):
                     elif script.stem == "run_original_battle_animation":
                         values = {"owned_job_required": None, "fingerprint": {},
                                   "prepare_runtime": {}, "dependencies": {}}
+                    elif script.stem == "run_original_stage1_complete":
+                        values = {"prepare": {"manifest": {"source_sha256": hashlib.sha256(source).hexdigest()},
+                                              "origin": {}},
+                                  "owned_job_required": None, "fingerprint": {}}
                     preflight = [stack.enter_context(patch.object(module, name, return_value=value))
                                  for name, value in values.items()]
                     if inside:

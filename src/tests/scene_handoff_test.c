@@ -121,6 +121,7 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_scene_field_story_validate scene_test_story_validate
 #define fd2_scene_play_game_over scene_test_game_over
 #define fd2_scene_field_message_validate scene_test_message_validate
+#define fd2_scene_field_notice_page scene_test_notice_page
 #define fd2_scene_field_message_box scene_test_message_box
 #define fd2_scene_field_message_arrow scene_test_message_arrow
 #define fd2_archive_open scene_test_archive_open
@@ -144,6 +145,7 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #undef fd2_scene_field_story_validate
 #undef fd2_scene_play_game_over
 #undef fd2_scene_field_message_validate
+#undef fd2_scene_field_notice_page
 #undef fd2_scene_field_message_box
 #undef fd2_scene_field_message_arrow
 #undef fd2_archive_open

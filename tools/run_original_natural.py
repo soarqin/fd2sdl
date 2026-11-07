@@ -299,12 +299,12 @@ def perform_action(capture, original, state, action, assets, bank, reader, check
     if fresh:
         checkpoint("command",lambda frame:command_match(frame,original,state,assets,raw,action["command_first_enabled"],action["command_disabled"]))
     else:
-        # 同轮主动作可能杀死邻敌，REST不能把轮初query的Attack可用性当实时事实。
-        # 179d5选中项在53C13=0时仍是普通帧；REST只确认实际可见图标且WAIT可用。
+        # 同轮前序动作之后不拿轮初query的能力/默认项当实时事实。
+        # 179d5的53C13=0允许普通帧；先完整检查本动作可用图标，方向后再验亮帧。
         # 不推断默认selected；177fc的DOWN绝对选择3，随后仍严格ACK亮帧10才确认。
         def rest_command(frame):
             result=command_match(frame,original,state,assets,raw,None)
-            if result is None or result["matches"][3]["frame"] not in (9,10):return None
+            if result is None or result["matches"][command_id]["frame"] not in (3*command_id,3*command_id+1):return None
             return dict(result,kind="natural_rest_actual_command",default_selection_compared=False,
                 source_query_not_used_for_post_effect_capability=True)
         checkpoint("rest-command",rest_command)
@@ -475,7 +475,8 @@ def exercise(capture, original, planner, prepared, save, guard, report, max_turn
         plan_path=capture.artifacts/f"turn-{state[META]:03d}-plan.json";plan_path.write_text(json.dumps(plan,ensure_ascii=False,indent=2),encoding="utf-8")
         report["natural_actions"].append({"turn":state[META],"plan":str(plan_path),"sha256":hashlib.sha256(plan_path.read_bytes()).hexdigest(),"planning_not_oracle":True})
         turn=state[META];reader=ProgressReader(original,state,assets,report)
-        actions=[plan["next_action"]]+plan.get("rest_tail",[]);completed_heals={}
+        actions=plan["turn_actions"] if "turn_actions" in plan else [plan["next_action"]]+plan.get("rest_tail",[])
+        completed_heals={}
         for index,action in enumerate(actions):
             completion={}
             if action["kind"]=="end_turn":state=end_phase(capture,original,state,assets,bank,reader,report,checkpoint);phase=True

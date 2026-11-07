@@ -279,7 +279,7 @@ python tools/fd2_sfx_oracle.py --fdother original_game/FDOTHER.DAT --request "$w
 python tools/fd2_core_sfx_gate.py --original original_game --scenario player-magic0 --wav "$work/closed.wav" --output "$work/core-sfx.json"
 ```
 
-Linux 离线分析使用相同参数并将 `python` 改为 `python3`；这不表示 Linux 采集已执行。查询窗、固定前缀和身份阈值须先声明，不能看波形后裁到好点。核心三场声明由 `fd2_battle_animation_sfx.declare()` 提供；`fd2_core_sfx_gate.py` 预声明固定60 ms前缀，并按完整样本 SHA 合并相同字节候选，只核有限 VOICE 字节身份及录音内有序存在，不证明重复 cue 的全部次数、运行 bank 指针、输入精确时延、整段声音或 A7 保真；未提供录音仍为 pending。实际游戏声音校准尚未取得，分析参数不登记为已通过的实机容差。
+Linux 离线分析使用相同参数并将 `python` 改为 `python3`；这不表示 Linux 采集已执行。查询窗、固定前缀和身份阈值须先声明，不能看波形后裁到好点。核心三场声明由 `fd2_battle_animation_sfx.declare()` 提供；`fd2_core_sfx_gate.py` 预声明固定60 ms前缀，并按完整样本 SHA 合并相同字节候选，只核有限 VOICE 字节身份及录音内有序存在，不证明重复 cue 的全部次数、运行 bank 指针、输入精确时延、整段声音或 A7 保真；未提供录音仍为 pending。B6三核心已有上述最低身份／顺序的实际校准；整段声音和精确时序的A7校准仍未完成，不能把这些分析参数当作完整保真容差。
 
 `render_fd2_opl_prototype.sh` 是 Linux／Bash 外部评估脚本，不是 Windows 原生构建步骤，也不是运行依赖。Windows 可直接比较已有候选 WAV；需要重新生成历史原型时，在具有 Linux 编译器、CMake、Python 3 和 Git 的 WSL 中执行 Bash 命令，证据登记为 WSL／Linux 结果。原型需要上游源码、网络和本地构建工具，默认在 `/tmp/fd2-adlmidi-prototype` 工作，可通过 `FD2_ADLMIDI_WORK`／`FD2_ADLMIDI_EMULATOR` 调整；每次会重建其 `xmi/`，不要在该目录存放捕获证据。比较全部候选前先渲染 `all`。结果范围与已否决候选见[音频依据](../reverse-engineering/audio.md)。
 

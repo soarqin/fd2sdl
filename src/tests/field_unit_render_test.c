@@ -301,8 +301,8 @@ static int test_magic_background_hides_cursor_without_writes(void) {
     unsigned calls = 0;
     game.attack_rng = return_rng; game.attack_rng_userdata = &calls;
     fd2_field_game before = game;
-    fd2_field_game_render_battle_return_at(&game, &pages[0], 1275);
-    fd2_field_game_render_effect_background_at(&game, &pages[1], 1275);
+    fd2_field_game_render_battle_return(&game, &pages[0]);
+    fd2_field_game_render_effect_background(&game, &pages[1]);
     size_t changed = 0;
     for (int y = 0; y < 200; y++) for (int x = 0; x < 320; x++) {
         if (pages[0].framebuffer[y * VGA_STRIDE + x] ==
@@ -314,10 +314,10 @@ static int test_magic_background_hides_cursor_without_writes(void) {
     }
     CHECK(changed == 24 * 24 && !memcmp(&game, &before, sizeof(game)) && !calls);
     memset(&pages[1], 0xa5, sizeof(pages[1])); pages[0] = pages[1];
-    fd2_field_game_render_effect_background_at(NULL, &pages[1], 1275);
-    fd2_field_game_render_effect_background_at(&game, NULL, 1275);
+    fd2_field_game_render_effect_background(NULL, &pages[1]);
+    fd2_field_game_render_effect_background(&game, NULL);
     game.ready = 0; before = game;
-    fd2_field_game_render_effect_background_at(&game, &pages[1], 1275);
+    fd2_field_game_render_effect_background(&game, &pages[1]);
     CHECK(!memcmp(&pages[0], &pages[1], sizeof(pages[0])));
     CHECK(!memcmp(&game, &before, sizeof(game)) && !calls);
     return 0;
@@ -501,61 +501,88 @@ static int test_transition_mask_actor_layer_and_preview(void) {
     return 0;
 }
 
-/* 对照后续真实tick的视觉相位/全页投影；copy仅是测试预期，不关闭共享资源。 */
+
+static int unchanged_except_visual(const fd2_field_game *g,const fd2_field_game *before) {
+    fd2_field_game *copy=malloc(sizeof(*copy));if(!copy)return 0;*copy=*g;
+    copy->idle_phase=before->idle_phase;copy->last_idle_ms=before->last_idle_ms;
+    copy->terrain_visual_phase=before->terrain_visual_phase;
+    copy->last_terrain_visual_ms=before->last_terrain_visual_ms;
+    int same=!memcmp(copy,before,sizeof(*copy));free(copy);return same;
+}
+
+/* 同一真实Game锚由普通tick和11cac点借用；页面读取当前相位，无第二套时钟。 */
 static int test_visual_phase_projection_during_blocking_animation(void) {
-    fd2_archive fdother = {0};
-    fd2_field_game *g = calloc(1, sizeof(*g)), *later = malloc(sizeof(*later));
-    fd2_field_game *before = malloc(sizeof(*before));
-    fd2_vga *pages = calloc(2, sizeof(*pages));
-    CHECK(g && later && before && pages);
-    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
-    CHECK(fd2_field_game_open_resources(g, &fdother, 0) == 0);
-    CHECK(fd2_field_game_load_active(g, "original_game/START.SAV") == 0);
-    g->active_side = 2; g->interaction = FD2_FIELD_INTERACTION_BROWSE;
-    g->idle_phase = 1; g->terrain_visual_phase = 0;
-    g->last_idle_ms = g->last_terrain_visual_ms = 1000;
-    const struct { uint64_t now; uint8_t idle, terrain; } cases[] = {
-        {0,1,0}, {999,1,0}, {1000,1,0}, {1054,1,0}, {1055,1,1},
-        {1274,1,0}, {1275,2,1}, {2100,1,0}
+    fd2_archive fdother={0};
+    fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));
+    fd2_vga *pages=calloc(2,sizeof(*pages));CHECK(g && before && pages);
+    CHECK(fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open_resources(g,&fdother,0)==0);
+    CHECK(fd2_field_game_load_active(g,"original_game/START.SAV")==0);
+    g->active_side=2;g->interaction=FD2_FIELD_INTERACTION_BROWSE;
+    g->cursor_cell_x=g->units.items[0].x;g->cursor_cell_y=g->units.items[0].y;
+    g->camera_cell_x=g->cursor_cell_x-4;g->camera_cell_y=g->cursor_cell_y-4;
+    g->idle_phase=g->terrain_visual_phase=0;
+    g->last_idle_ms=g->last_terrain_visual_ms=0;
+    unsigned calls=0;g->attack_rng=return_rng;g->attack_rng_userdata=&calls;
+    const struct { uint64_t now,last_idle,last_terrain;uint8_t idle,terrain; } cases[]={
+        {0,0,0,0,0},{1000,1000,1000,0,0},{4000,4000,4000,1,1},
+        {4200,4000,4200,1,0},{4475,4475,4475,2,1},
+        {100,100,100,3,0},{300,100,300,3,1},{375,375,375,0,0}
     };
-    unsigned calls = 0; g->attack_rng = return_rng; g->attack_rng_userdata = &calls;
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        uint8_t idle = 17, terrain = 19;
-        *later = *g; memcpy(before, g, sizeof(*before));
-        CHECK(fd2_field_game_render_phases_at(g, cases[i].now, &idle, &terrain) == 0);
-        CHECK(idle == cases[i].idle && terrain == cases[i].terrain);
-        CHECK(!memcmp(g, later, sizeof(*g)) && !calls);
-        if (cases[i].now < 1000) continue; /* 老tick不接受时钟倒退；新纯投影原子夹0。 */
-        fd2_field_game_tick(later, cases[i].now);
-        CHECK(later->idle_phase == idle && later->terrain_visual_phase == terrain);
-        fd2_field_game_render_battle_return(later, &pages[0]);
-        fd2_field_game_render_battle_return_at(g, &pages[1], cases[i].now);
-        CHECK(!memcmp(g, before, sizeof(*g)) && !calls);
-        CHECK(!memcmp(pages[0].framebuffer, pages[1].framebuffer, sizeof(pages[0].framebuffer)));
-        /* 真资源的无光标预期：只在测试副本移除cursor资产，info/actor仍走真实合成。 */
-        size_t cursor_count = later->visuals.cursor_frame_count;
-        later->visuals.cursor_frame_count = 0;
-        fd2_field_game_render_battle_return(later, &pages[0]);
-        later->visuals.cursor_frame_count = cursor_count;
-        fd2_field_game_render_effect_background_at(g, &pages[1], cases[i].now);
-        CHECK(!memcmp(g, before, sizeof(*g)) && !calls);
-        CHECK(!memcmp(pages[0].framebuffer, pages[1].framebuffer, sizeof(pages[0].framebuffer)));
-        const uint8_t *lut = fd2_field_lut_frame(&g->visuals, 7);
-        CHECK(lut && fd2_field_game_render_transition_mask(later, &pages[0], lut, 60, 60, 40) == 0);
-        CHECK(fd2_field_game_render_transition_mask_at(g, &pages[1], lut, 60, 60, 40, cases[i].now) == 0);
-        CHECK(!memcmp(g, before, sizeof(*g)) && !calls);
-        CHECK(!memcmp(pages[0].framebuffer, pages[1].framebuffer, sizeof(pages[0].framebuffer)));
+    uint32_t *cells=malloc((size_t)g->map.width*g->map.height*sizeof(*cells));CHECK(cells);
+    size_t map_bytes=(size_t)g->map.width*g->map.height*sizeof(*cells);
+    memcpy(cells,g->map.cells,map_bytes);
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        *before=*g;
+        CHECK(fd2_field_game_tick_visual(g,cases[i].now)==0);
+        CHECK(g->idle_phase==cases[i].idle && g->terrain_visual_phase==cases[i].terrain);
+        CHECK(g->last_idle_ms==cases[i].last_idle && g->last_terrain_visual_ms==cases[i].last_terrain);
+        CHECK(unchanged_except_visual(g,before) && !calls && !memcmp(cells,g->map.cells,map_bytes));
+        *before=*g;
+        fd2_field_game_render_effect_background(g,&pages[0]);
+        size_t cursor_count=g->visuals.cursor_frame_count;g->visuals.cursor_frame_count=0;
+        fd2_field_game_render_battle_return(g,&pages[1]);g->visuals.cursor_frame_count=cursor_count;
+        CHECK(!memcmp(pages[0].framebuffer,pages[1].framebuffer,64000));
+        CHECK(!memcmp(g,before,sizeof(*g)) && !calls);
+        /* 独立重画底栏：phase3按原1acf3映射1，HP数字及terrain不随idle改变。 */
+        fd2_vga *panel=calloc(1,sizeof(*panel));CHECK(panel);
+        uint32_t cell=fd2_field_map_cell(&g->map,g->cursor_cell_x,g->cursor_cell_y);
+        size_t frame;CHECK(fd2_terrain_base_frame_from_cell(&g->terrain,cell,&frame)==0);
+        const fd2_terrain_attr *attr=fd2_terrain_attr_get(&g->terrain,fd2_field_cell_terrain(cell));CHECK(attr);
+        int32_t attack,defense;CHECK(fd2_field_attack_terrain_modifiers(attr->movement_cost_class,&attack,&defense)==0);
+        fd2_field_unit *u=&g->units.items[0];
+        fd2_image unit={24,24,g->sprites.decoded_frames+((size_t)u->unit_id*12u+(g->idle_phase==3?1u:g->idle_phase))*576u};
+        fd2_field_info_draw(panel,&g->info_assets,0,fd2_terrain_frame(&g->terrain,frame),&unit,u->hp,u->hp_max,attack,defense);
+        for(int y=161;y<195;y++)CHECK(!memcmp(pages[0].framebuffer+y*320+5,panel->framebuffer+y*320+5,69));
+        free(panel);
     }
-    *later = *g;
-    uint8_t idle = 17, terrain = 19;
-    CHECK(fd2_field_game_render_phases_at(NULL, 1100, &idle, &terrain) == -1);
-    CHECK(fd2_field_game_render_phases_at(g, 1100, NULL, &terrain) == -1);
-    CHECK(idle == 17 && terrain == 19 && !memcmp(g, later, sizeof(*g)) && !calls);
-    free(before); free(later); free(pages); fd2_field_game_close(g); free(g); fd2_archive_close(&fdother);
-    return 0;
+    *before=*g;g->failure=FD2_FIELD_FAILURE_EVENT_DATA;before->failure=g->failure;
+    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,before,sizeof(*g)) && !calls);
+    g->failure=FD2_FIELD_FAILURE_NONE;g->ready=0;*before=*g;
+    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,before,sizeof(*g)));
+    CHECK(fd2_field_game_tick_visual(NULL,10000)==-1);
+    free(cells);free(before);free(pages);fd2_field_game_close(g);free(g);fd2_archive_close(&fdother);return 0;
+}
+
+/* 原1297d长时间无调用也只加一次，且下一次从新last计时。旧追赶循环真RED。 */
+static int test_normal_tick_single_visual_advance(void) {
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
+    g->ready=1;g->active_side=2;
+    fd2_field_game_tick(g,0);
+    CHECK(g->idle_phase==0 && g->last_idle_ms==0);
+    fd2_field_game_tick(g,1000);
+    CHECK(g->idle_phase==0 && g->last_idle_ms==1000);
+    fd2_field_game_tick(g,4000);
+    CHECK(g->idle_phase==1 && g->last_idle_ms==4000);
+    fd2_field_game_tick(g,4200);
+    CHECK(g->idle_phase==1 && g->last_idle_ms==4000);
+    fd2_field_game_tick(g,4475);
+    CHECK(g->idle_phase==2 && g->last_idle_ms==4475);
+    free(g);return 0;
 }
 
 int main(void) {
+    CHECK(test_normal_tick_single_visual_advance() == 0);
     CHECK(test_magic_background_hides_cursor_without_writes() == 0);
     CHECK(test_visual_phase_projection_during_blocking_animation() == 0);
     CHECK(test_battle_return_plain_cursor_and_invalid() == 0);

@@ -20,6 +20,7 @@ import run_original_stage1 as runner
 from fd2_transition_oracle import derive_prepare_fixture, entry_geometry, entry_initialized_records
 from run_original_end_turn import META, UNITS, STRIDE, round_assets
 from run_original_overview import overview_templates, match_overview
+import run_original_overview as overview
 
 
 class Stage1Test(unittest.TestCase):
@@ -94,8 +95,25 @@ class Stage1Test(unittest.TestCase):
         bad=expected["canvas"].convert("RGB");bad.putpixel((80,61),(255,0,255))
         self.assertIsNone(match_overview(bad,expected))
         source=bytearray(self.synthetic);source[META+2]=0
-        self.assertEqual([row["fragment"] for row in overview_templates(self.original,source,self.assets["palette"])["conditions"]],[597,598])
+        stage0=overview_templates(self.original,source,self.assets["palette"])
+        self.assertEqual(stage0["fields"],{"stage":1,"turn":1,"resource":0,"side_counts_left_to_right":[10,5,6]})
+        self.assertEqual([row["fragment"] for row in stage0["conditions"]],[597,598])
+        # B7开放stage2初始浏览；复用固定计数，只验证原601/602资源投影，不伪造entry来源。
         source[META+2]=2
+        stage2=overview_templates(self.original,source,self.assets["palette"])
+        self.assertEqual(stage2["fields"],{"stage":3,"turn":1,"resource":0,"side_counts_left_to_right":[10,5,6]})
+        self.assertEqual([row["fragment"] for row in stage2["conditions"]],[601,602])
+        frame=stage2["canvas"].convert("RGB");matched=match_overview(frame,stage2)
+        self.assertEqual(len(matched["rectangles"]),4)
+        self.assertEqual(sum(row["checked_pixels"] for row in matched["rectangles"]),25289)
+        bad=frame.copy();bad.putpixel((80,61),tuple((value+128)%256 for value in bad.getpixel((80,61))))
+        self.assertIsNone(match_overview(bad,stage2))
+        real_entry=overview.archive_entry
+        for index,message in ((5,"LMI"),(4,"glyph")):
+            with self.subTest(missing_resource=index),patch.object(overview,"archive_entry",
+                    side_effect=lambda data,entry,bad=index: b"" if entry==bad else real_entry(data,entry)):
+                with self.assertRaisesRegex(ValueError,message):overview_templates(self.original,source,self.assets["palette"])
+        source[META+2]=3
         with self.assertRaises(ValueError):overview_templates(self.original,source,self.assets["palette"])
 
     def test_turn3_pages_and_stage1_selection_preflight(self):

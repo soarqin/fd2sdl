@@ -496,7 +496,14 @@ void fd2_field_game_close(fd2_field_game *game);
 int fd2_field_game_apply_handoff(fd2_field_game *game,
                                  const fd2_field_handoff *handoff);
 
+/* 1297d/11eee视觉时钟唯一写口；仅idle/terrain相位及其last锚点四字段。
+ * 演出显式借Game调用，不能用普通tick代替而推进AI/菜单/提交业务。 */
+int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ms);
 void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
+/* 16f55/19df7系统notice的同一纯页面：首提示、稳态和结果共用。
+ * 原资源全预检；失败不写VGA，成功不改Game/RNG/palette或present。 */
+int fd2_field_game_render_system_notice(const fd2_field_game *game,
+    fd2_vga *vga, size_t fragment);
 void fd2_field_game_render(fd2_field_game *game, fd2_vga *vga);
 /* sub_1B1E7 @0x1b1e7（原登记 sub_1B1E7）的地图／actor 背景；
  * 不绘光标、范围或任何UI，也不改变信息面板的左右侧状态。 */
@@ -508,17 +515,9 @@ void fd2_field_game_render_battle_return(const fd2_field_game *game, fd2_vga *vg
  * 不改Game/owner/RNG/present，非法参数无写入；复用field_visual的唯一几何实现。 */
 int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius);
-/* 只读当前时钟锚点的视觉相位投影；不提交Game/AI/RNG/输入。 */
-int fd2_field_game_render_phases_at(const fd2_field_game *game, uint64_t now_ms,
-    uint8_t *idle_phase, uint8_t *terrain_phase);
-void fd2_field_game_render_battle_return_at(const fd2_field_game *game,
-    fd2_vga *vga, uint64_t now_ms);
-/* 原1cff0/15311在法术演出及正常返回页保持51a83=0：保留当前地图/actor/info，
- * 不绘cursor/range/modal；同样只读投影，不改Game、RNG或owner。 */
-void fd2_field_game_render_effect_background_at(const fd2_field_game *game,
-    fd2_vga *vga, uint64_t now_ms);
-int fd2_field_game_render_transition_mask_at(const fd2_field_game *game, fd2_vga *vga,
-    const uint8_t lut[256], int center_x, int center_y, int radius, uint64_t now_ms);
+/* 1cff0/15311的51a83=0页：当前地图/actor/info，无cursor/range/modal；
+ * 纯绘制，不另存时钟、不修改Game或RNG。 */
+void fd2_field_game_render_effect_background(const fd2_field_game *game, fd2_vga *vga);
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
 /* 复现 field_controller_input @code0 0x17e7 的焦点轮换分支：跳过

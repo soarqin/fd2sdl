@@ -294,7 +294,88 @@ def restored_browse(frame, baseline, oracle):
     return None
 
 
-def exercise(capture, prefix, oracle, titles, checkpoints, references=None):
+def _confirmation_phases(capture, directory, ready, oracle, selected, row):
+    from run_original_battle_animation import latest_series_frame
+    wanted = {48, 49} if selected == 0 else {51, 52}
+    observed = set()
+    last = None
+    deadline = time.monotonic() + 1.5
+    row["pre_cancel_phase_observations"] = []
+    while time.monotonic() < deadline:
+        if capture.process.poll() is not None:
+            raise RuntimeError("目标在取消前相位ACK退出；未发取消键")
+        sample = latest_series_frame(directory, ready, capture.process.pid, after=last)
+        if sample:
+            frame_row, image = sample
+            last = frame_row
+            detail = oracle.buttons(image)
+            if detail:
+                phase = detail["matches"][selected]["frame"]
+                if phase in wanted:
+                    observed.add(phase)
+                    row["pre_cancel_phase_observations"].append({**frame_row, "selected_resource_frame": phase})
+            if observed == wanted:
+                row["pre_cancel_phase_ack"] = True
+                return
+        time.sleep(0.02)
+    raise TimeoutError("取消前未在同series新鲜帧见normal/highlight两族；未发取消键")
+
+
+def capture_transition(capture, role, operation, key, rows, oracle):
+    from run_original_battle_animation import OwnedHelper, wait_ready, series_index
+    from fd2_confirmation_transitions import check_series
+    directory = capture.artifacts / (role + "-" + operation + "-transition")
+    if directory.exists():
+        raise ValueError("确认框series目录已存在，禁止覆盖")
+    row = {"role": role, "operation": operation, "key": key, "pid": capture.process.pid,
+           "directory": str(directory), "status": "failed"}
+    rows.append(row)
+    helper = OwnedHelper(capture.driver,
+        [capture.driver, "capture-series", capture.process.pid, directory, 8000, 1],
+        capture.artifacts, role + "-" + operation + "-series-helper", row)
+    first_error = None
+    ready = summary = None
+    try:
+        process = helper.start()
+        ready = wait_ready(directory / "ready.json", process, capture.process)
+        if ready.get("pid") != capture.process.pid or not ready.get("hwnd"):
+            raise AssertionError("确认框WGC ready owner不符；未发键")
+        row["ready"] = ready
+        if operation.endswith("-cancel"):
+            _confirmation_phases(capture, directory, ready, oracle,
+                0 if operation == "escape-cancel" else 1, row)
+        row["key_call_before"] = time.monotonic()
+        capture.key(key)  # 本操作唯一实际按键，不为采集增加业务键。
+        row["delivery"] = capture.trace[-1]["delivery"]
+        if row["delivery"].get("hwnd") != ready["hwnd"]:
+            raise AssertionError("确认框投键与持续WGC HWND不符")
+        row["key_call_after"] = time.monotonic()
+        time.sleep(0.65)
+    except BaseException as error:
+        first_error = error
+        row["error"] = str(error)
+    finally:
+        try:
+            if directory.exists():
+                (directory / "stop").write_text("stop\n", encoding="utf-8")
+        except BaseException as error:
+            row["stop_error"] = str(error)
+            if first_error is None: first_error = error
+        try:
+            summary = helper.finish()
+        except BaseException as error:
+            row["cleanup_error"] = str(error)
+            if first_error is None: first_error = error
+    if first_error is not None:
+        raise first_error
+    row["frames"] = series_index(directory, summary, ready, capture.process.pid)
+    row["status"] = "collected"
+    row["minimum_frame_check"] = check_series(row, oracle.assets)
+    if row["minimum_frame_check"]["known_flash_absent"] is not True:
+        raise AssertionError("确认框过渡采到大面积0xcd亮色占位；保留全部原帧，不启动后继")
+
+
+def exercise(capture, prefix, oracle, titles, checkpoints, references=None, *, transitions=None):
     wait_title(capture, titles[3][0])
     save_checkpoint(capture, prefix + "-title", capture.last, {"kind": "title", "selected": 0}, checkpoints)
     capture.key("UP")
@@ -318,12 +399,14 @@ def exercise(capture, prefix, oracle, titles, checkpoints, references=None):
         checkpoint(cycle + "-menu", lambda frame: oracle.menu(frame, 0))
         capture.key("DOWN")
         checkpoint(cycle + "-end-selected", lambda frame: oracle.menu(frame, 3))
-        capture.key("ENTER")
+        if transitions is None: capture.key("ENTER")
+        else: capture_transition(capture, prefix, cycle + "-open", "ENTER", transitions, oracle)
         checkpoint(cycle + "-default-yes", lambda frame: oracle.buttons(frame, 0))
         if cycle == "no":
             capture.key("RIGHT")
             checkpoint("no-selected", lambda frame: oracle.buttons(frame, 1))
-        capture.key(cancel)
+        if transitions is None: capture.key(cancel)
+        else: capture_transition(capture, prefix, cycle + "-cancel", cancel, transitions, oracle)
         checkpoint(cycle + "-cancelled-browse",
                    lambda frame: restored_browse(frame, observed["browse"], oracle),
                    transition=oracle.cancellation_notice)
@@ -357,6 +440,10 @@ def run(args):
     original, fixture = (root / "original_game").resolve(), args.save_fixture.resolve()
     if output == original or original in output.parents:
         raise ValueError("测试产物不能写入 original_game/")
+    capture_transitions = getattr(args, "capture_transitions", False)
+    if capture_transitions:
+        from run_original_battle_animation import owned_job_required
+        owned_job_required()
     output.mkdir(parents=True, exist_ok=False)
     before = hashes(original)
     fixture_bytes = fixture.read_bytes()
@@ -364,6 +451,13 @@ def run(args):
               "excluded": "END affirmative submission, phase, damage, RNG equivalence, map/background pixels, full-dialog portrait/text layout",
               "platform": platform.platform(), "capture": "Windows.Graphics.Capture HWND only",
               "original_before": before, "processes": [], "inputs": [], "checkpoints": []}
+    transitions = [] if capture_transitions else None
+    if capture_transitions:
+        result["transition_series"] = transitions
+        result["transition_collection_passed"] = False
+        result["steady_checks_passed"] = False
+        result["scope"] += "; minimum complete-panel transition pairing and all-frames known-flash gate"
+        result["excluded"] = "END affirmative submission, phase, damage, RNG equivalence, full transition frame/timing equality"
     try:
         stage_metadata = archive_entry((original / "FDFIELD.DAT").read_bytes(), 1)
         focus, meta = validate_fixture(fixture, stage_metadata[0])
@@ -395,7 +489,8 @@ def run(args):
         with running([str(args.dosbox.resolve()), "-conf", str(configuration), "-noconsole"],
                      output, environment, output / "dosbox.log", args.driver, result["processes"]) as process:
             capture = Capture(args.driver, process, output, result["inputs"])
-            references = exercise(capture, "original", oracle, titles, result["checkpoints"])
+            references = exercise(capture, "original", oracle, titles, result["checkpoints"],
+                **({"transitions": transitions} if capture_transitions else {}))
         copied_save = (game_copy / "FD2.SAV").read_bytes()
         result["original_copy_save_sha256"] = hashlib.sha256(copied_save).hexdigest()
         result["original_copy_save_unchanged"] = copied_save == fixture_bytes
@@ -405,12 +500,22 @@ def run(args):
         with running([str(args.game.resolve())], root, environment, output / "sdl.log",
                      args.driver, result["processes"]) as process:
             capture = Capture(args.driver, process, output, result["inputs"])
-            exercise(capture, "sdl", oracle, titles, result["checkpoints"], references)
+            exercise(capture, "sdl", oracle, titles, result["checkpoints"], references,
+                **({"transitions": transitions} if capture_transitions else {}))
         sdl_bytes = sdl_save.read_bytes()
         result["sdl_save_sha256"] = hashlib.sha256(sdl_bytes).hexdigest()
         result["sdl_save_unchanged"] = sdl_bytes == fixture_bytes
         if not result["sdl_save_unchanged"]:
             raise AssertionError("SDL 取消路径修改了隔离存档")
+        if capture_transitions:
+            from fd2_confirmation_transitions import verify
+            result["steady_checks_passed"] = True
+            result["transition_collection_passed"] = len(transitions) == 8 and all(
+                row.get("status") == "collected" for row in transitions)
+            result["transition_verification"] = verify(transitions, assets,
+                {str(original / name): before[name] for name in ("FDOTHER.DAT", "FDTXT.DAT")})
+            if not result["transition_collection_passed"] or not result["transition_verification"]["ok"]:
+                raise AssertionError("确认框最低过渡门失败：已知亮色占位或完整26660像素面板无配对")
         result["ok"] = True
     except Exception as error:
         result["error"] = str(error)
@@ -427,6 +532,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("root", "game", "driver", "dosbox", "artifacts", "save-fixture"):
         parser.add_argument("--" + option, type=Path, required=True)
+    parser.add_argument("--capture-transitions", action="store_true",
+        help="同owned窗口连续WGC确认框开/取消；所有帧亮色门及同操作完整面板最低配对")
     args = parser.parse_args()
     if sys.platform != "win32":
         parser.error("原版确认框对照要求 Windows WGC 窗口驱动；本机未启动 GUI")

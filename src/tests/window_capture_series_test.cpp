@@ -31,6 +31,20 @@ static int run_tests() {
     CHECK(series_timestamp(550000,last) && last==550000);
     CHECK(series_quote("\"\\\n")=="\"\\\"\\\\\\u000a\"");
     rejected=false;try{series_timestamp(549999,last);}catch(...){rejected=true;}CHECK(rejected && last==550000);
+    /* 用真实serializer验证只追加数值合同及时间序；不运行WGC或模拟采集吞吐。 */
+    const SeriesFrameMetrics timing{100,110,120,150,200,7};
+    const std::string fields=series_metrics_json(timing);
+    CHECK(fields.find("\"poll_started_qpc\":100")!=std::string::npos);
+    CHECK(fields.find("\"poll_finished_qpc\":110")!=std::string::npos);
+    CHECK(fields.find("\"copy_finished_qpc\":150")!=std::string::npos);
+    CHECK(fields.find("\"png_finished_qpc\":200")!=std::string::npos);
+    CHECK(fields.find("\"empty_polls_before_frame\":7")!=std::string::npos);
+    CHECK(series_metrics_json({0,0,0,0,0,0}).find("\"empty_polls_before_frame\":0")!=std::string::npos);
+    for (const auto &bad:{SeriesFrameMetrics{-1,110,120,150,200,7},
+        SeriesFrameMetrics{111,110,120,150,200,7},SeriesFrameMetrics{100,121,120,150,200,7},
+        SeriesFrameMetrics{100,110,151,150,200,7},SeriesFrameMetrics{100,110,120,201,200,7}}) {
+        rejected=false;try{(void)series_metrics_json(bad);}catch(...){rejected=true;}CHECK(rejected);
+    }
     OwnedDirectory owned(L"fd2-capture-series-pure-");
     const fs::path &root=owned.path;
     CHECK(CreateDirectoryW((root/L"original_game").c_str(),nullptr));

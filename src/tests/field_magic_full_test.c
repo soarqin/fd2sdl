@@ -114,7 +114,7 @@ static fixture *open_fixture(const fd2_archive *fdother,uint8_t id,size_t target
     g->attack_rng=random_value;g->attack_rng_userdata=f;
     f->zero=zero;fd2_field_rng_seed(&f->rng,seed);
     memset(f->vga->framebuffer,201,sizeof(f->vga->framebuffer));
-    if(fd2_battle_animation_open(&f->renderer,f->vga,NULL,NULL,fdother,&g->figani_archive)!=0)goto fail;
+    if(fd2_battle_animation_open(&f->renderer,f->vga,NULL,NULL,fdother,&g->figani_archive,g)!=0)goto fail;
     return f;
 fail:
     close_fixture(f);return NULL;
@@ -179,7 +179,12 @@ static int observe(const fd2_field_game *g,const fd2_field_magic_present_event *
         }
         int result=fd2_battle_animation_magic_present(g,&damaged,&f->renderer);
         f->renderer.fdother=old;
-        OCHECK(!memcmp(o->before,g,sizeof(*g)));
+        fd2_field_game *normalized=malloc(sizeof(*normalized));OCHECK(normalized);
+        *normalized=*g;
+        normalized->idle_phase=o->before->idle_phase;normalized->last_idle_ms=o->before->last_idle_ms;
+        normalized->terrain_visual_phase=o->before->terrain_visual_phase;
+        normalized->last_terrain_visual_ms=o->before->last_terrain_visual_ms;
+        int same=!memcmp(o->before,normalized,sizeof(*g));free(normalized);OCHECK(same);
         if(result!=0)return result;
     }
     return (int)eve->phase==o->fail_phase ? -1:0;

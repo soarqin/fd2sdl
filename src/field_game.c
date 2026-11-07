@@ -37,6 +37,7 @@
 #include "field_item.h"
 #include "field_magic.h"
 #include "portrait.h"
+#include "scene.h"
 #include "save.h"
 #include "field_unit_base.h"
 #include "field_unit_stats.h"
@@ -1407,25 +1408,35 @@ void fd2_field_game_close(fd2_field_game *game) {
     game->detail_acknowledged_unit = -1;
 }
 
-void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
-    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE) return;
+/* field_animation_phase_update @0x1297d（原同名）只在超4 BIOS tick时
+ * idle加一并重取last，不补追全部经过周期。11eee的terrain开关亦只在
+ * 本次观察到BIOS变化时翻一次；55/275ms仍是宿主近似，不声称DOS时钟同步。
+ * 仅这四个既有视觉字段可写；不推进AI/输入/RNG、菜单、单位或持久状态。 */
+int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ms) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
     if (game->last_idle_ms == 0) {
         game->last_idle_ms = now_ms;
     } else {
-        while (now_ms - game->last_idle_ms >= FD2_FIELD_IDLE_MS) {
+        if (now_ms < game->last_idle_ms ||
+            now_ms - game->last_idle_ms >= FD2_FIELD_IDLE_MS) {
             game->idle_phase = (uint8_t)((game->idle_phase + 1u) & 3u);
-            game->last_idle_ms += FD2_FIELD_IDLE_MS;
+            game->last_idle_ms = now_ms;
         }
     }
     if (game->last_terrain_visual_ms == 0) {
         game->last_terrain_visual_ms = now_ms;
     } else {
-        while (now_ms - game->last_terrain_visual_ms >=
-               FD2_FIELD_BIOS_TICK_MS) {
+        if (now_ms < game->last_terrain_visual_ms ||
+            now_ms - game->last_terrain_visual_ms >= FD2_FIELD_BIOS_TICK_MS) {
             game->terrain_visual_phase ^= 1u;
-            game->last_terrain_visual_ms += FD2_FIELD_BIOS_TICK_MS;
+            game->last_terrain_visual_ms = now_ms;
         }
     }
+    return 0;
+}
+
+void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms) {
+    if (fd2_field_game_tick_visual(game, now_ms) != 0) return;
     if (game->last_range_visual_ms == 0) {
         game->last_range_visual_ms = now_ms;
     } else {
@@ -1612,39 +1623,12 @@ static int render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
     return 0;
 }
 
-/* 原11cac调用点的视觉投影；55/275ms沿用现宿主近似，不假称DOS硬件时钟。
- * 只读Game中唯一时钟锚点；不复制Game、推进AI/事件/奖励或提交visual owner。
- * 下一次正常tick按同锚点自然追上，阻塞演出不会永久吞掉经过的时长。 */
-int fd2_field_game_render_phases_at(const fd2_field_game *game, uint64_t now_ms,
-    uint8_t *idle_phase, uint8_t *terrain_phase) {
-    if (!game || !game->ready || !idle_phase || !terrain_phase) return -1;
-    uint64_t idle_steps = game->last_idle_ms && now_ms >= game->last_idle_ms
-        ? (now_ms - game->last_idle_ms) / FD2_FIELD_IDLE_MS : 0;
-    uint64_t terrain_steps = game->last_terrain_visual_ms && now_ms >= game->last_terrain_visual_ms
-        ? (now_ms - game->last_terrain_visual_ms) / FD2_FIELD_BIOS_TICK_MS : 0;
-    *idle_phase = (uint8_t)((game->idle_phase + idle_steps) & 3u);
-    *terrain_phase = (uint8_t)(game->terrain_visual_phase ^ (terrain_steps & 1u));
-    return 0;
-}
-
-static void render_battle_map_at(const fd2_field_game *game,
-    fd2_vga *vga, uint64_t now_ms, int mode) {
-    uint8_t idle, terrain;
-    if (!vga || fd2_field_game_render_phases_at(game, now_ms, &idle, &terrain) != 0) return;
+/* field_player_magic_command_execute @0x1cff0及AI15311保持51a83=0。
+ * 由唯一Game视觉owner先在原11cac点推进；这里仅画当前相位，不另推时钟。 */
+void fd2_field_game_render_effect_background(const fd2_field_game *game, fd2_vga *vga) {
+    if (!game || !game->ready || !vga) return;
     memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
-    render_field(game, vga, mode, NULL, idle, terrain);
-}
-
-void fd2_field_game_render_battle_return_at(const fd2_field_game *game,
-    fd2_vga *vga, uint64_t now_ms) {
-    render_battle_map_at(game, vga, now_ms, 2);
-}
-
-/* field_player_magic_command_execute @0x1cff0（原sub_1CFF0）及AI 15311保持51a83=0，
- * 直到整次法术返回；11cac参数只控制水面更新，不代表光标开关。 */
-void fd2_field_game_render_effect_background_at(const fd2_field_game *game,
-    fd2_vga *vga, uint64_t now_ms) {
-    render_battle_map_at(game, vga, now_ms, 3);
+    render_field(game, vga, 3, NULL, game->idle_phase, game->terrain_visual_phase);
 }
 
 int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
@@ -1652,13 +1636,6 @@ int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *v
     if (!game) return -1;
     return render_transition_mask(game, vga, lut, center_x, center_y, radius,
         game->idle_phase, game->terrain_visual_phase);
-}
-
-int fd2_field_game_render_transition_mask_at(const fd2_field_game *game, fd2_vga *vga,
-    const uint8_t lut[256], int center_x, int center_y, int radius, uint64_t now_ms) {
-    uint8_t idle, terrain;
-    if (fd2_field_game_render_phases_at(game, now_ms, &idle, &terrain) != 0) return -1;
-    return render_transition_mask(game, vga, lut, center_x, center_y, radius, idle, terrain);
 }
 
 static void render_field_info(const fd2_field_game *game, fd2_vga *vga,
@@ -1832,32 +1809,68 @@ static void render_manual_slot_result(const fd2_field_game *game,
     }
 }
 
-static void render_system_result(const fd2_field_game *game,
-                                 fd2_vga *vga) {
-    if (!game || !vga || game->system_result_fragment == 0) return;
-    const fd2_image *dialog = &game->info_assets.detail_bottom;
-    if (dialog->pixels)
-        fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
-    const uint8_t *tokens;
-    size_t token_count;
-    if (fd2_text_entry_get_fragment(&game->ui_text,
-                                    game->system_result_fragment,
-                                    &tokens, &token_count) != 0)
-        return;
-    int x = 15;
-    int y = 119;
-    for (size_t i = 0; i < token_count; i++) {
-        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
-        if (token == -1) break;
-        if (token == -2) {
-            x = 15;
-            y += 16;
-        } else if (token >= 0 && x + 16 <= 315 && y + 16 <= 198) {
-            fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
-                                x, y, 0xcd, 0x4c, -1);
-            x += 16;
-        }
+static int system_notice_text(const fd2_field_game *game, size_t fragment,
+        const uint8_t **tokens, size_t *count) {
+    if (!game || !game->ready || !game->font.glyphs || !game->font.glyph_count ||
+        game->font.glyph_count > game->font.size / 32u ||
+        fd2_text_entry_get_fragment(&game->ui_text, fragment, tokens, count) != 0)
+        return -1;
+    for (size_t i = 0; i < *count; i++) {
+        uint16_t token = fd2_text_token_at(*tokens, i);
+        if (token == 0xffffu) { *count = i; return 0; }
+        if (token != 0xfffeu && (token >= 0xff00u || token >= game->font.glyph_count)) return -1;
     }
+    return -1;
+}
+
+static void system_notice_text_draw(const fd2_field_game *game, fd2_vga *vga,
+        const uint8_t *tokens, size_t count, int y) {
+    int x = 99;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(tokens, i);
+        if (token == 0xfffeu) { x = 99; y += 19; continue; }
+        fd2_font_draw_glyph(vga, &game->font, token, x, y, 0xcd, 0x4c, 0x4a);
+        x += 16;
+    }
+}
+
+/* field_empty_focus_menu_execute @0x16f55（原FUN_0001469d）、
+ * field_secondary_menu_execute @0x19df7（原FUN_0001753f）：
+ * notice75，只有March借raw0的unit_id；1956b→15f84→19953，无独立UI真值。 */
+int fd2_field_game_render_system_notice(const fd2_field_game *game,
+        fd2_vga *vga, size_t fragment) {
+    if (!game || !vga) return -1;
+    size_t prompt = fragment;
+    int result_line = 0;
+    switch (fragment) {
+        case 410: case 413: case 415: case 417: case 419: break;
+        case 411: case 414: case 416: case 418: case 420:
+            prompt = fragment - 1u; result_line = 1; break;
+        case 412:
+            prompt = game->system_menu.confirmation_prompt_fragment;
+            if (!(prompt == 410 || prompt == 413 || prompt == 415 || prompt == 417 || prompt == 419)) return -1;
+            result_line = 1; break;
+        default: return -1;
+    }
+    uint16_t portrait = 75;
+    if (prompt == 417) {
+        if (!game->units.count) return -1;
+        portrait = game->units.items[0].unit_id;
+    }
+    const uint8_t *prompt_tokens, *result_tokens = NULL;
+    size_t prompt_count, result_count = 0;
+    if (system_notice_text(game, prompt, &prompt_tokens, &prompt_count) != 0 ||
+        (result_line && system_notice_text(game, fragment, &result_tokens, &result_count) != 0) ||
+        fd2_scene_field_notice_page(vga, game->fdother, &game->dato_archive, portrait) != 0)
+        return -1;
+    system_notice_text_draw(game, vga, prompt_tokens, prompt_count, 127);
+    if (result_line) system_notice_text_draw(game, vga, result_tokens, result_count, 146);
+    return 0;
+}
+
+static void render_system_result(const fd2_field_game *game, fd2_vga *vga) {
+    if (game && vga && game->system_result_fragment)
+        (void)fd2_field_game_render_system_notice(game, vga, game->system_result_fragment);
 }
 
 static void render_field_system_menu(const fd2_field_game *game,
@@ -1866,9 +1879,8 @@ static void render_field_system_menu(const fd2_field_game *game,
             FD2_FIELD_INTERACTION_SYSTEM_MENU)
         return;
     if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION) {
-        const fd2_image *dialog = &game->info_assets.detail_bottom;
-        if (dialog->pixels)
-            fd2_map_sprite_blit(vga, dialog, 5, 112, 0);
+        if (fd2_field_game_render_system_notice(game, vga,
+                game->system_menu.confirmation_prompt_fragment) != 0) return;
         /* sub_19953 @0x19953：DS:0x1eed={16,17}，YES/NO 最终位置。
          * 复用 FDOTHER[2] 原图，选中项在 normal/highlight 间闪动。 */
         for (uint8_t choice = 0; choice < 2; choice++) {
@@ -1878,30 +1890,6 @@ static void render_field_system_menu(const fd2_field_game *game,
                 game->system_menu.highlight_phase);
             if (button)
                 fd2_map_sprite_blit(vga, button, 232 + choice * 32, 168, 0);
-        }
-        size_t fragment;
-        if (fd2_field_system_menu_get_confirmation_fragment(
-                &game->system_menu, FD2_FIELD_SYSTEM_CONFIRM_PROMPT,
-                &fragment) != 0)
-            return;
-        const uint8_t *tokens;
-        size_t token_count;
-        if (fd2_text_entry_get_fragment(&game->ui_text, fragment,
-                                        &tokens, &token_count) != 0)
-            return;
-        int x = 15;
-        int y = 119;
-        for (size_t i = 0; i < token_count; i++) {
-            int16_t token = (int16_t)fd2_text_token_at(tokens, i);
-            if (token == -1) break;
-            if (token == -2) {
-                x = 15;
-                y += 16;
-            } else if (token >= 0 && x + 16 <= 315 && y + 16 <= 198) {
-                fd2_font_draw_glyph(vga, &game->font, (uint16_t)token,
-                                    x, y, 0xcd, 0x4c, -1);
-                x += 16;
-            }
         }
         return;
     }
@@ -5007,9 +4995,9 @@ static int begin_defeated_loot(fd2_field_game *game, size_t recipient,
     return 1;
 }
 
-/* field_completed_chest_tiles_apply @0x12263（原sub_12263）：仅flags20地形，WORD模加1、byte2清0，byte3保留。 */
-int fd2_field_game_apply_completed_cells(const fd2_field_game *resources,
-        fd2_field_map *map, const uint8_t completed[FD2_SAVE_BATTLE_CELL_STATE_SIZE]) {
+/* SDL提交前的只读资源检查；与12263实际写回共用，不创建第二张地图owner。 */
+static int completed_cell_tiles_preflight(const fd2_field_game *resources,
+        const fd2_field_map *map, const uint8_t completed[FD2_SAVE_BATTLE_CELL_STATE_SIZE]) {
     if (!resources || !map || !map->cells || !completed || !resources->terrain.attrs ||
         map->width <= 0 || map->height <= 0 || (size_t)map->width > SIZE_MAX / (size_t)map->height) return -1;
     const fd2_terrain_tileset *terrain = &resources->terrain;
@@ -5024,6 +5012,15 @@ int fd2_field_game_apply_completed_cells(const fd2_field_game *resources,
             if (fd2_terrain_base_frame_from_cell(terrain, changed, &frame) != 0) return -1;
         }
     }
+    return 0;
+}
+
+/* field_completed_chest_tiles_apply @0x12263（原sub_12263）：仅flags20地形，WORD模加1、byte2清0，byte3保留。 */
+int fd2_field_game_apply_completed_cells(const fd2_field_game *resources,
+        fd2_field_map *map, const uint8_t completed[FD2_SAVE_BATTLE_CELL_STATE_SIZE]) {
+    if (completed_cell_tiles_preflight(resources, map, completed) != 0) return -1;
+    const fd2_terrain_tileset *terrain = &resources->terrain;
+    size_t count = (size_t)map->width * (size_t)map->height;
     for (size_t i = 0; i < count; i++) {
         uint32_t cell = map->cells[i];
         uint16_t id = fd2_field_cell_terrain(cell);
@@ -6040,8 +6037,10 @@ static int ai_behavior5_complete(fd2_field_game *game,
             (void)inventory_first_empty_add(actor, (uint8_t)action->param);
     }
     game->cell_action_completed[lookup_id] = 1u;
-    actor->ai_behavior_raw =
-        (uint8_t)((actor->ai_behavior_raw & 0xf0u) | 7u);
+    /* field_ai_unit_execute @0x13a9f（原登记field_ai_unit_execute；旧主体登记field_ai_unit_execute_core）：13d1b调用12263，
+     * 13d20随后整byte写07；不是仅更改低四位。开箱资源已在移动前验证。 */
+    if (complete_cell_tiles(game) != 0) return -1;
+    actor->ai_behavior_raw = 7u;
     return 0;
 }
 
@@ -6118,7 +6117,6 @@ static int run_ai_after_magic(fd2_field_game *game, size_t actor_index,
         if (cast) fail_action(game, actor_index);
         return -1;
     }
-    if (cast) return 1;
     int moved = commit_ai_hostile_witness(
         game, actor_index, vga, frame_delay_ms, mode);
     if (moved != 0) return moved;
@@ -6189,6 +6187,8 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                 game, actor_index, vga, frame_delay_ms, mode);
             if (attack != 0) return attack;
             game->ordinary_display_mode = 0;
+            /* 原13c39在completed/15df3查询前聚焦；fallback无动作仍保留镜头。 */
+            if (focus_to(game, actor->x, actor->y) != 0) return -1;
             int target_x = -1;
             int target_y = -1;
             int found = ai_behavior5_target_find(
@@ -6199,7 +6199,11 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
             if (found <= 0)
                 return run_mode0_action(
                     game, actor_index, vga, frame_delay_ms, mode);
-            if (focus_to(game, actor->x, actor->y) != 0) return -1;
+            uint8_t completed[sizeof(game->cell_action_completed)];
+            memcpy(completed, game->cell_action_completed, sizeof(completed));
+            completed[actor->data_3d] = 1u;
+            if (completed_cell_tiles_preflight(game, &game->map, completed) != 0)
+                return -1;
             int moved = commit_ai_move_toward_anchor(
                 game, actor_index, target_x, target_y,
                 vga, frame_delay_ms, mode);

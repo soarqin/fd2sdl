@@ -135,7 +135,7 @@ def exercise(capture, prepared, save, guard, report):
         reader = Stage1ProgressReader(original, state, assets, report, stories=prepared["stories"],
             victory_fragment=10, cell_contract=lambda orig, world: cell_contract(orig, world),
             nonphase_story_fragments=(6, 7, 8, 9, 10))
-        actions = [plan["next_action"]] + plan.get("rest_tail", [])
+        actions = plan["turn_actions"] if "turn_actions" in plan else [plan["next_action"]] + plan.get("rest_tail", [])
         completed_heals = {}
         for index, action in enumerate(actions):
             completion = {}

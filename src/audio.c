@@ -6,6 +6,7 @@
  */
 
 #include "audio.h"
+#include "audio_pcm_capture.h"
 
 #include <math.h>
 #include <stdatomic.h>
@@ -18,6 +19,9 @@
 #define FD2_AUDIO_COMMAND_CAPACITY 64u
 #define FD2_AUDIO_MIX_CHUNK 512u
 #define FD2_AUDIO_MAX_GAIN 16.0f
+
+/* 显式测试quiet：无observer时也只抑制提交，不改变真实mix/source推进。 */
+static const float fd2_test_audio_silence[FD2_AUDIO_MIX_CHUNK * 2u] = {0};
 
 typedef enum {
     FD2_AUDIO_COMMAND_PLAY,
@@ -45,6 +49,8 @@ struct fd2_audio {
     int sample_rate;
     SDL_AudioStream *stream;
     int discard_output;
+    int test_quiet;
+    fd2_audio_pcm_capture *capture;
     fd2_audio_voice voices[FD2_AUDIO_MAX_VOICES];
     float bus_gain[FD2_AUDIO_BUS_COUNT];
     float master_gain;
@@ -204,9 +210,12 @@ static void SDLCALL audio_stream_callback(void *userdata,
         size_t frames = (size_t)frames_left;
         if (frames > FD2_AUDIO_MIX_CHUNK) frames = FD2_AUDIO_MIX_CHUNK;
         render_chunk(audio, audio->mix_buffer, frames);
-        if (!SDL_PutAudioStreamData(stream, audio->mix_buffer,
+        const float *submitted = audio->test_quiet ? fd2_test_audio_silence
+            : fd2_audio_pcm_capture_submission(audio->capture, audio->mix_buffer, frames);
+        if (!submitted || !SDL_PutAudioStreamData(stream, submitted,
                                     (int)(frames * (size_t)frame_bytes)))
             return;
+        fd2_audio_pcm_capture_push(audio->capture, audio->mix_buffer, frames);
         frames_left -= (int)frames;
     }
 }
@@ -226,6 +235,23 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
     atomic_init(&audio->command_read, 0);
     atomic_init(&audio->command_write, 0);
 
+    const char *test_quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_TEST_AUDIO_QUIET");
+    if (test_quiet && strcmp(test_quiet, "0") && strcmp(test_quiet, "1")) {
+        free(audio); SDL_SetError("test audio quiet must be 0 or 1"); return NULL;
+    }
+    audio->test_quiet = test_quiet && strcmp(test_quiet, "1") == 0;
+
+    const char *capture_dir = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_DIR");
+    unsigned capture_ms = 45000;
+    if (capture_dir && *capture_dir) {
+        const char *value = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_MAX_MS");
+        if (value) {
+            char *end; unsigned long n = strtoul(value, &end, 10);
+            if (!*value || *end || !n || n > 120000) { free(audio); return NULL; }
+            capture_ms = (unsigned)n;
+        }
+        if (!open_device) { free(audio); SDL_SetError("app PCM requires real device callback"); return NULL; }
+    }
     if (open_device) {
         SDL_AudioSpec spec = {
             .format = SDL_AUDIO_F32,
@@ -235,9 +261,19 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
         audio->stream = SDL_OpenAudioDeviceStream(
             SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
             audio_stream_callback, audio);
+        if (capture_dir && *capture_dir) {
+            const char *quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_QUIET");
+            int suppress = audio->test_quiet || (quiet && strcmp(quiet, "1") == 0);
+            if ((quiet && strcmp(quiet,"0") && strcmp(quiet,"1")) || !audio->stream ||
+                !(audio->capture = fd2_audio_pcm_capture_open(capture_dir, sample_rate, capture_ms, suppress))) {
+                if (audio->stream) SDL_DestroyAudioStream(audio->stream);
+                free(audio); return NULL;
+            }
+        }
         if (audio->stream && !SDL_ResumeAudioStreamDevice(audio->stream)) {
             SDL_DestroyAudioStream(audio->stream);
             audio->stream = NULL;
+            if (audio->capture) { fd2_audio_pcm_capture_close(audio->capture); free(audio); return NULL; }
         }
         if (!audio->stream && !allow_null) {
             free(audio);
@@ -256,6 +292,8 @@ void fd2_audio_destroy(fd2_audio *audio) {
         SDL_DestroyAudioStream(audio->stream);
         audio->stream = NULL;
     }
+    fd2_audio_pcm_capture_close(audio->capture);
+    audio->capture = NULL;
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
         voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_DESTROYED);
     uint32_t read = atomic_load_explicit(&audio->command_read,

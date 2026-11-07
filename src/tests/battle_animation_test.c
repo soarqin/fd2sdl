@@ -16,7 +16,8 @@
 static unsigned frames, ticks, delays, cues, primary_stops, secondary_cues;
 static uint64_t fake_ms;
 Uint64 SDLCALL battle_test_ticks(void) { return fake_ms; }
-static unsigned quit_frame;
+static unsigned quit_frame,skip_frame;
+static fd2_battle_animation *skip_context;
 static int cue_failure;
 static size_t last_cue;
 static fd2_pcm_player *expected_primary;
@@ -50,6 +51,7 @@ static fd2_archive fdother, fdtxt, figani_fixture;
 void fd2_vga_clear(fd2_vga *vga,uint8_t fill) { memset(vga->framebuffer,fill,64000); }
 void fd2_vga_present(fd2_vga *vga) {
     frames++;
+    if(skip_context && skip_frame==frames)fd2_battle_animation_set_skip(skip_context,1);
     if (capture_sequence) for (size_t i=0;i<64000;i++)
         frame_digest=(frame_digest^vga->framebuffer[i])*UINT64_C(1099511628211);
     if (capture_first && captured_count++==0) memcpy(first_frame,vga->framebuffer,64000);
@@ -77,14 +79,26 @@ void fd2_field_game_render_battle_return(const fd2_field_game *current,fd2_vga *
     normal_return_calls++;map_background(current,vga);
     vga->framebuffer[319]=99; /* 仅替身的普通cursor可见标记；不是游戏cursor像素期望。 */
 }
-void fd2_field_game_render_effect_background_at(const fd2_field_game *current,fd2_vga *vga,uint64_t now) {
-    (void)now;effect_return_calls++;map_background(current,vga);
+void fd2_field_game_render_effect_background(const fd2_field_game *current,fd2_vga *vga) {effect_return_calls++;map_background(current,vga);
 }
-void fd2_field_game_render_battle_return_at(const fd2_field_game *g,fd2_vga *v,uint64_t now) {
-    (void)now;fd2_field_game_render_battle_return(g,v);
+static unsigned visual_calls;
+static uint64_t visual_stamps[64];
+/* 此处只校接线/退出；真正1297d/11eee实现由field_unit_render真实Game回归验证。 */
+int fd2_field_game_tick_visual(fd2_field_game *g,uint64_t now) {
+    if(!g || !g->ready || g->failure) return -1;
+    if(visual_calls<64)visual_stamps[visual_calls]=now;
+    visual_calls++;
+    if(!g->last_idle_ms)g->last_idle_ms=now;
+    else if(now<g->last_idle_ms || now-g->last_idle_ms>=275) {g->idle_phase=(g->idle_phase+1u)&3u;g->last_idle_ms=now;}
+    if(!g->last_terrain_visual_ms)g->last_terrain_visual_ms=now;
+    else if(now<g->last_terrain_visual_ms || now-g->last_terrain_visual_ms>=55) {g->terrain_visual_phase^=1u;g->last_terrain_visual_ms=now;}
+    return 0;
 }
-int fd2_field_game_render_phases_at(const fd2_field_game *g,uint64_t now,uint8_t *idle,uint8_t *terrain) {
-    (void)g;(void)now;*idle=3;*terrain=2;return 0;
+static int unchanged_except_visual(const fd2_field_game *g,const fd2_field_game *before) {
+    fd2_field_game *copy=malloc(sizeof(*copy));if(!copy)return 0;*copy=*g;
+    copy->idle_phase=before->idle_phase;copy->last_idle_ms=before->last_idle_ms;
+    copy->terrain_visual_phase=before->terrain_visual_phase;copy->last_terrain_visual_ms=before->last_terrain_visual_ms;
+    int same=!memcmp(copy,before,sizeof(*copy));free(copy);return same;
 }
 int fd2_input_take_quit(fd2_input *input) { return input->quit_requested; }
 int fd2_field_game_render_transition_mask(const fd2_field_game *current,fd2_vga *vga,
@@ -104,10 +118,6 @@ void fd2_vga_set_brightness(fd2_vga *vga,int darkness) {
         vga->dac[i]=(uint8_t)((v<<2)|(v>>4));
     }
 }
-int fd2_field_game_render_transition_mask_at(const fd2_field_game *g,fd2_vga *v,
-        const uint8_t lut[256],int x,int y,int r,uint64_t now) {
-    (void)now;return fd2_field_game_render_transition_mask(g,v,lut,x,y,r);
-}
 int battle_test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
         size_t index,int loops,float gain) {
     (void)bank;
@@ -123,7 +133,7 @@ int battle_test_pcm_stop(fd2_pcm_player *player) {
 int fd2_field_unit_is_hidden(const fd2_field_unit *u) { return (u->flags&1)!=0; }
 
 static void reset_observer(void) {
-    frames=ticks=delays=cues=primary_stops=quit_frame=wrong_stop=secondary_cues=0; cue_failure=0;
+    frames=ticks=delays=cues=primary_stops=quit_frame=wrong_stop=secondary_cues=0; cue_failure=0;skip_frame=0;skip_context=NULL;
     magic_watch=NULL;magic_hash_count=0;mask_calls=0;mask_failure=0;stale_wait200=0;capture_first=0;captured_count=0;
     watch=NULL;watched_count=0;dark_sample_count=bad_white_wait=delay2_calls=return_calls=0;
     normal_return_calls=effect_return_calls=0;
@@ -151,7 +161,10 @@ static int setup(fd2_battle_animation *ctx) {
     game.attack_rng=forbidden_rng;game.attack_rng_userdata=&business_rng_calls;
     actor(&game.units.items[0],0,2,1);actor(&game.units.items[1],96,0,2);
     memset(screen.framebuffer,71,64000);memset(screen.palette,13,768);memset(screen.dac,47,768);
-    return fd2_battle_animation_open(ctx,&screen,NULL,NULL,&fdother,&figani_fixture);
+    fake_ms=1000;visual_calls=0;game.ready=1;game.failure=FD2_FIELD_FAILURE_NONE;
+    game.idle_phase=game.terrain_visual_phase=0;
+    game.last_idle_ms=game.last_terrain_visual_ms=1000;
+    return fd2_battle_animation_open(ctx,&screen,NULL,NULL,&fdother,&figani_fixture,&game);
 }
 
 static int test_mask_and_clipping(void) {
@@ -538,6 +551,8 @@ static int test_magic_heal_raw_numbers_and_quit(void) {
     e.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
     CHECK(fd2_battle_animation_magic_present(&game,&e,&ctx)==0 && mask_calls==25 && cues==3 && last_cue==1 && !stale_wait200);
     CHECK(!normal_return_calls && effect_return_calls==3 && screen.framebuffer[319]==62);
+    CHECK(visual_calls==3 && visual_stamps[1]-visual_stamps[0]==200);
+    CHECK(game.idle_phase==2); /* 280ms首调用+1；200ms次调用不增，7FX后再+1。 */
     for (size_t i=0;i<9;i++) CHECK(mask_radius[9+i]==1+(int)i*2);
     for (size_t i=0;i<7;i++) CHECK(mask_radius[18+i]==17);
     size_t flash_at=(size_t)(4+24-6)*320u+4u+48u;
@@ -559,7 +574,7 @@ static int test_magic_heal_raw_numbers_and_quit(void) {
     fd2_vga *water=calloc(1,sizeof(*water));CHECK(water);
     CHECK(fd2_field_water_palette_apply(water,screen.field_water_phase)==0);
     CHECK(!memcmp(screen.dac+224*3,water->dac+224*3,16*3));free(water);
-    CHECK(!memcmp(&game,before,sizeof(game)) && !ctx.magic_exchange);
+    CHECK(unchanged_except_visual(&game,before) && !ctx.magic_exchange);
     fd2_battle_animation_close(&ctx);
     game.sprites.decoded_frames=real_frames;free(shadow_frames);
 
@@ -570,7 +585,7 @@ static int test_magic_heal_raw_numbers_and_quit(void) {
     e.phase=FD2_FIELD_MAGIC_PRESENT_TARGET;e.target_index=1;e.target_before=&game.units.items[1];e.result=&result;
     CHECK(fd2_battle_animation_magic_present(&game,&e,&ctx)==0 && frames==3);
     CHECK(magic_finish(&ctx,&e,0)==0 && frames==3 && !primary_stops && !ctx.magic_exchange);
-    CHECK(!normal_return_calls && !effect_return_calls);
+    CHECK(!normal_return_calls && !effect_return_calls && visual_calls==0);
     CHECK(!memcmp(screen.framebuffer,old->framebuffer,64000) && !memcmp(screen.dac,old->dac,768));
     fd2_battle_animation_close(&ctx);free(before);free(old);return 0;
 }
@@ -698,7 +713,7 @@ static int test_full_magic_all_handlers_and_persistent_state(void) {
         CHECK(!ctx.magic_exchange && primary_stops==1 && !wrong_stop);
         CHECK(!normal_return_calls && effect_return_calls==1 && screen.framebuffer[319]==62);
         secondary_total+=secondary_cues;
-        CHECK(!memcmp(&game,source,sizeof(game)) && !business_rng_calls);
+        CHECK(unchanged_except_visual(&game,source) && !business_rng_calls);
         fd2_battle_animation_close(&ctx);free(source);
     }
     CHECK(secondary_total>0);game.units.count=2;return 0;
@@ -803,7 +818,7 @@ static int test_full_magic_audio_gate_and_quit_replay(void) {
         hashes[off]=frame_digest;frame_counts[off]=frames;wait_counts[off]=ticks;delay_counts[off]=delays;
         CHECK(off ? (!cues && !secondary_cues && !primary_stops):
             (cues>0 && secondary_cues>0 && primary_stops==1));
-        CHECK(!wrong_stop && !memcmp(&game,source,sizeof(game)) && !business_rng_calls);
+        CHECK(!wrong_stop && unchanged_except_visual(&game,source) && !business_rng_calls);
         fd2_battle_animation_close(&ctx);
     }
     CHECK(hashes[0]==hashes[1] && frame_counts[0]==frame_counts[1] &&
@@ -834,6 +849,65 @@ static int test_full_magic_audio_gate_and_quit_replay(void) {
     fd2_battle_animation_close(&ctx);free(source);free(old);return 0;
 }
 
+static int test_visual_owner_and_early_exit(void) {
+    fd2_battle_animation ctx;CHECK(setup(&ctx)==0);
+    fd2_field_game *before=malloc(sizeof(game));CHECK(before);*before=game;
+    uint8_t targets[]={1};fd2_field_magic_present_event event=magic_event(13,targets,1);event.cast_cost_count=1;
+    ctx.visual_owner=before; /* 不得把回调const指针强转，或推进另一个Game的锚。 */
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==-1);
+    CHECK(!ctx.magic_exchange && !visual_calls && !memcmp(&game,before,sizeof(game)) && !frames);
+    ctx.visual_owner=&game;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && !visual_calls);
+    mask_failure=1;event.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==-1 && !visual_calls);
+    CHECK(magic_finish(&ctx,&event,1)==0 && !ctx.magic_exchange && !visual_calls);
+    CHECK(!memcmp(&game,before,sizeof(game)));fd2_battle_animation_close(&ctx);
+    CHECK(!ctx.visual_owner);
+    CHECK(setup(&ctx)==0);*before=game;event=magic_event(13,targets,1);event.cast_cost_count=1;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0);
+    screen.input.quit_requested=1;event.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && ctx.host_quit && !visual_calls);
+    CHECK(magic_finish(&ctx,&event,0)==0 && !visual_calls && !frames && !ctx.magic_exchange);
+    CHECK(!memcmp(&game,before,sizeof(game)));fd2_battle_animation_close(&ctx);free(before);return 0;
+}
+
+
+/* skip只停演出帧；已证11cac正常返回仍须推进同一视觉owner。 */
+static int test_skip_return_visual_clock(int magic) {
+    for(int late=1;late>=0;late--) {
+        fd2_battle_animation ctx;CHECK(setup(&ctx)==0);
+        fd2_field_game *before=malloc(sizeof(game));CHECK(before);*before=game;
+        uint8_t targets[]={1};fd2_field_magic_present_event m=magic_event(13,targets,1);m.cast_cost_count=1;
+        fd2_field_physical_event p=make_event(FD2_FIELD_PHYSICAL_PREPARE);
+        fd2_field_attack_result result={0};result.hit=1;result.rolled_damage=9;result.hp_after=33;
+        CHECK((magic ? fd2_battle_animation_magic_present(&game,&m,&ctx):
+            fd2_battle_animation_physical_present(&game,&p,&ctx))==0);
+        if(late) {skip_context=&ctx;skip_frame=2;} else fd2_battle_animation_set_skip(&ctx,1);
+        if(magic) {
+            m.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
+            CHECK(fd2_battle_animation_magic_present(&game,&m,&ctx)==0);
+        } else {
+            p.phase=FD2_FIELD_PHYSICAL_STRIKE;p.actor_before=&game.units.items[0];
+            p.target_before=&game.units.items[1];p.result=&result;
+            CHECK(fd2_battle_animation_physical_present(&game,&p,&ctx)==0);
+        }
+        CHECK(ctx.skip && !ctx.host_quit && !visual_calls);
+        CHECK(frames==(late?2u:0u));
+        if(late) fake_ms=5000; /* 宿主已经过阈值，但只在normal11cac点提交一次。 */
+        unsigned old_frames=frames,old_ticks=ticks,old_delays=delays,old_cues=cues;
+        CHECK((magic ? magic_finish(&ctx,&m,0):finish(&ctx,0))==0);
+        int correct=late ? game.idle_phase==1 && game.last_idle_ms==5000 &&
+            game.terrain_visual_phase==1 && game.last_terrain_visual_ms==5000 && visual_calls==1:
+            !memcmp(&game,before,sizeof(game));
+        int business_same=unchanged_except_visual(&game,before);
+        int no_more_frames=frames==old_frames && ticks==old_ticks && delays==old_delays && cues==old_cues;
+        int drawn=return_calls==1 && (magic?effect_return_calls==1:normal_return_calls==1);
+        fd2_battle_animation_close(&ctx);free(before);skip_context=NULL;
+        CHECK(correct && business_same && no_more_frames && drawn && !business_rng_calls);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")==0);
     CHECK(fd2_archive_open(&fdtxt,"original_game/FDTXT.DAT")==0);
@@ -857,6 +931,10 @@ int main(void) {
     CHECK(test_magic_zero_cost_metadata_and_skip()==0);
     CHECK(test_magic_zero_impacts_layers_and_targets()==0);
     CHECK(test_magic_heal_raw_numbers_and_quit()==0);
+    int physical_skip=test_skip_return_visual_clock(0);
+    int magic_skip=test_skip_return_visual_clock(1);
+    CHECK(physical_skip==0 && magic_skip==0);
+    CHECK(test_visual_owner_and_early_exit()==0);
     CHECK(test_magic_resource_error_and_tint()==0);
     CHECK(test_full_magic_all_handlers_and_persistent_state()==0);
     CHECK(test_full_magic_scope_tape_and_no_damage()==0);
@@ -866,5 +944,5 @@ int main(void) {
     CHECK(!business_rng_calls);
     CHECK(figani_fixture.data && figani_fixture.count==408); /* 服务未关闭借用的Game资源。 */
     fd2_archive_close(&figani_fixture);fd2_archive_close(&fdtxt);fd2_archive_close(&fdother);
-    puts("battle_animation: 15 headless groups PASS; no device/window/RNG/effect");return 0;
+    puts("battle_animation: 17 headless groups PASS; no device/window/RNG/effect");return 0;
 }

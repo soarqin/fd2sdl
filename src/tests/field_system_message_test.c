@@ -9,6 +9,12 @@
 #include "scene.h"
 #include "test_temp.h"
 
+/* 原17025/1707a push机器码独立期望，不引用生产renderer坐标常量。 */
+#define NOTICE_PROMPT_OFFSET (0xA9F23u - 0xA0000u)
+#define NOTICE_RESULT_OFFSET (0xAB6E3u - 0xA0000u)
+_Static_assert(NOTICE_PROMPT_OFFSET == 127u * VGA_STRIDE + 99u, "raw prompt address");
+_Static_assert(NOTICE_RESULT_OFFSET == 146u * VGA_STRIDE + 99u, "raw result address");
+
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
     return 1; } } while (0)
@@ -19,6 +25,8 @@ static int route_kind, bad_kind, in_route, actions, presents, delay_calls;
 static int backend_calls, backend_done, backend_result, closed;
 static int owner_ok, backend_rng_ok;
 static uint64_t mock_ms;
+static const uint8_t *expected_present_frame;
+static unsigned unexpected_present_frames;
 static uint32_t original_resource, submitted_resource;
 static uint32_t resource_at_close;
 static uint16_t rng_before_backend;
@@ -38,6 +46,15 @@ static void message_wait(fd2_vga *vga) {
 }
 static void message_present(fd2_vga *vga) {
     presents++;
+    if (expected_present_frame && memcmp(vga->framebuffer, expected_present_frame, VGA_W * VGA_H) != 0) {
+        unsigned count = 0; size_t first = 0;
+        for (size_t i = 0; i < VGA_W * VGA_H; i++) if (vga->framebuffer[i] != expected_present_frame[i]) {
+            if (!count) first = i; count++;
+        }
+        fprintf(stderr, "present mismatch count=%u first=(%zu,%zu) actual=%u expected=%u\n",
+            count, first % VGA_W, first / VGA_W, vga->framebuffer[first], expected_present_frame[first]);
+        unexpected_present_frames++;
+    }
     mock_ms += 16;
     if (in_route && backend_done) vga->input.quit_requested = 1;
 }
@@ -158,15 +175,17 @@ static void reset_controls(void) {
     backend_calls = backend_done = closed = owner_ok = backend_rng_ok = 0;
     backend_result = -99;
     mock_ms = 1000;
+    expected_present_frame = NULL; unexpected_present_frames = 0;
 }
 
 static int test_fragment_preflight_is_pixel_atomic(void) {
     uint8_t tokens[8] = {1,0,0xfe,0xff,0,0,0xff,0xff};
-    uint16_t offset = 0;
+    uint16_t offsets[421] = {0};
+    offsets[420] = sizeof(tokens);
     fd2_field_game game = {0};
     game.ready = 1;
     game.font = (fd2_font){glyph_bytes, sizeof(glyph_bytes), 2};
-    game.ui_text = (fd2_text_entry){tokens, sizeof(tokens), &offset, 1};
+    game.ui_text = (fd2_text_entry){tokens, sizeof(tokens), offsets, 421};
     for (int mode = 0; mode < 8; mode++) {
         reset_controls();
         fd2_vga vga = {0};
@@ -175,7 +194,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         memcpy(before, vga.framebuffer, sizeof(before));
         tokens[0] = 1; tokens[2] = 0xfe; tokens[3] = 0xff;
         tokens[6] = tokens[7] = 0xff;
-        game.ui_text.fragment_count = 1;
+        game.ui_text.fragment_count = 421;
         game.ui_text.size = sizeof(tokens);
         game.font.glyph_count = 2; game.font.size = sizeof(glyph_bytes);
         if (mode == 0) game.ui_text.fragment_count = 0;
@@ -186,19 +205,86 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         if (mode == 5) game.font.glyph_count = 0;
         if (mode == 6) game.ui_text.size = 7;
         if (mode == 7) game.ui_text.size = 0;
-        CHECK(play_system_confirmation_text(&game, &vga, 0, 0) == -1);
+        CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1);
         CHECK(memcmp(before, vga.framebuffer, sizeof(before)) == 0);
         CHECK(!presents && !delay_calls);
         tokens[4] = 0;
     }
     reset_controls();
     fd2_vga vga = {0};
-    game.ui_text.fragment_count = 1; game.ui_text.size = sizeof(tokens);
+    game.ui_text.fragment_count = 421; game.ui_text.size = sizeof(tokens);
     game.font.glyph_count = 2; game.font.size = sizeof(glyph_bytes);
     tokens[2] = 0xfe; tokens[3] = 0xff; tokens[6] = tokens[7] = 0xff;
-    CHECK(play_system_confirmation_text(&game, &vga, 0, 0) == 0);
-    CHECK(presents == 1 && delay_calls == 1);
-    CHECK(vga.framebuffer[112 * VGA_STRIDE + 5] == 0xcd);
+    fd2_archive fdother = {0};
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    game.fdother = &fdother;
+    CHECK(fd2_archive_open(&game.dato_archive, "original_game/DATO.DAT") == 0);
+    game.system_menu.confirmation_prompt_fragment = 419;
+    memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
+    for (size_t i = 0; i < sizeof(vga.palette); i++) {
+        vga.palette[i] = (uint8_t)(i % 64u);
+        vga.dac[i] = (uint8_t)(i % 256u);
+    }
+    uint8_t original_palette[VGA_PALETTE_SIZE], original_dac[VGA_PALETTE_SIZE];
+    memcpy(original_palette, vga.palette, sizeof(original_palette));
+    memcpy(original_dac, vga.dac, sizeof(original_dac));
+    fd2_vga *expected = calloc(1, sizeof(*expected));
+    fd2_field_game *game_before = malloc(sizeof(*game_before));
+    CHECK(expected && game_before);
+    memcpy(game_before, &game, sizeof(game));
+    memcpy(expected->framebuffer, vga.framebuffer, sizeof(vga.framebuffer));
+    CHECK(fd2_scene_field_message_box(expected, &fdother) == 0);
+    fd2_image portrait = {0};
+    CHECK(fd2_portrait_decode_frame(&portrait, &game.dato_archive, 75, 0) == 0);
+    CHECK(portrait.width == 80 && portrait.height == 80);
+    for (int row = 0; row < 80; row++) for (int col = 0; col < 80; col++)
+        expected->framebuffer[(115 + row) * VGA_STRIDE + 87 - col] = portrait.pixels[row * 80 + col];
+    fd2_image_free(&portrait);
+    fd2_font_draw_glyph(expected, &game.font, 1, NOTICE_PROMPT_OFFSET % VGA_STRIDE, NOTICE_PROMPT_OFFSET / VGA_STRIDE, 0xcd, 0x4c, 0x4a);
+    fd2_font_draw_glyph(expected, &game.font, 0, NOTICE_RESULT_OFFSET % VGA_STRIDE, NOTICE_RESULT_OFFSET / VGA_STRIDE, 0xcd, 0x4c, 0x4a);
+    /* 必须核首个真正present的整页，不能等下一轮稳态render掩盖亮色占位。 */
+    expected_present_frame = expected->framebuffer;
+    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == 0);
+    CHECK(presents == 1 && delay_calls == 1 && unexpected_present_frames == 0);
+    CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
+    CHECK(memcmp(vga.palette, original_palette, sizeof(original_palette)) == 0 &&
+          memcmp(vga.dac, original_dac, sizeof(original_dac)) == 0);
+    CHECK(memcmp(&game, game_before, sizeof(game)) == 0);
+    expected_present_frame = NULL;
+    for (int invalid = 0; invalid < 2; invalid++) {
+        fd2_archive empty = {0};
+        reset_controls();
+        game.fdother = invalid ? &empty : NULL;
+        memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
+        memset(expected->framebuffer, 0x77, sizeof(expected->framebuffer));
+        CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1);
+        CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
+        CHECK(!presents && !delay_calls);
+    }
+    /* 最后一张UI图损坏也须在落任何像素之前失败。只改本测试heap副本。 */
+    const uint8_t *sheet; size_t sheet_size;
+    CHECK(fd2_archive_get(&fdother, 5, &sheet, &sheet_size) == 0 && sheet_size > 86);
+    fd2_archive broken = fdother;
+    broken.data = malloc(fdother.size); CHECK(broken.data);
+    memcpy(broken.data, fdother.data, fdother.size);
+    const uint8_t *slot = sheet + 6 + 19 * 4;
+    size_t frame = (size_t)slot[0] | (size_t)slot[1] << 8 | (size_t)slot[2] << 16 | (size_t)slot[3] << 24;
+    CHECK(frame + 4 <= sheet_size);
+    size_t absolute = (size_t)(sheet - fdother.data) + frame;
+    broken.data[absolute] = broken.data[absolute + 1] = 0;
+    game.fdother = &broken;
+    reset_controls();
+    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
+    free(broken.data); game.fdother = &fdother;
+    size_t original_portraits = game.dato_archive.count;
+    game.dato_archive.count = 75; /* END仍须原75，不能改用Hero0回退。 */
+    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
+    game.dato_archive.count = original_portraits;
+    free(game_before); free(expected);
+    fd2_archive_close(&game.dato_archive);
+    fd2_archive_close(&fdother);
     return 0;
 }
 
@@ -262,16 +348,98 @@ static int test_real_required_fragments(void) {
     fd2_archive archive = {0}; fd2_field_game game = {0}; fd2_vga vga = {0};
     CHECK(fd2_archive_open(&archive, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_game_open(&game, &vga, &archive, 0) == 0);
-    for (size_t fragment = 410; fragment <= 420; fragment++) {
-        const uint8_t *tokens; size_t count;
-        CHECK(system_confirmation_fragment(&game, fragment, &tokens, &count) == 0);
-        CHECK(count != 0);
-    }
+    game.system_menu.confirmation_prompt_fragment = 419;
+    for (size_t fragment = 410; fragment <= 420; fragment++)
+        CHECK(fd2_field_game_render_system_notice(&game, &vga, fragment) == 0);
     fd2_field_game_close(&game); fd2_archive_close(&archive);
     return 0;
 }
 
+static uint32_t notice_rng(void *unused) { (void)unused; backend_rng_ok = 0; return 0; }
+
+static int expected_notice(fd2_vga *vga, fd2_field_game *game, unsigned portrait,
+        size_t prompt, size_t result) {
+    CHECK(fd2_scene_field_message_box(vga, game->fdother) == 0);
+    fd2_image image = {0};
+    CHECK(fd2_portrait_decode_frame(&image, &game->dato_archive, portrait, 0) == 0 && image.width == 80 && image.height == 80);
+    for (int y = 0; y < 80; y++) for (int x = 0; x < 80; x++)
+        vga->framebuffer[(115 + y) * VGA_STRIDE + 87 - x] = image.pixels[y * 80 + x];
+    fd2_image_free(&image);
+    size_t fragments[2] = {prompt, result};
+    for (unsigned line = 0; line < (result ? 2u : 1u); line++) {
+        const uint8_t *tokens; size_t count;
+        CHECK(fd2_text_entry_get_fragment(&game->ui_text, fragments[line], &tokens, &count) == 0);
+        size_t destination = line ? NOTICE_RESULT_OFFSET : NOTICE_PROMPT_OFFSET;
+        int x = (int)(destination % VGA_STRIDE), y = (int)(destination / VGA_STRIDE);
+        for (size_t i = 0; i < count; i++) {
+            uint16_t t = fd2_text_token_at(tokens, i); if (t == 0xffffu) break;
+            if (t == 0xfffeu) { x = (int)(destination % VGA_STRIDE); y += 19; continue; }
+            CHECK(t < game->font.glyph_count);
+            fd2_font_draw_glyph(vga, &game->font, t, x, y, 0xcd, 0x4c, 0x4a); x += 16;
+        }
+    }
+    return 0;
+}
+
+static int test_notice_resource_owner_and_stable_page(void) {
+    fd2_archive archive = {0};
+    fd2_field_game *game = calloc(1, sizeof(*game)), *before = malloc(sizeof(*before));
+    fd2_vga *vga = calloc(1, sizeof(*vga)), *expected = calloc(1, sizeof(*expected));
+    CHECK(game && before && vga && expected);
+    CHECK(fd2_archive_open(&archive, "original_game/FDOTHER.DAT") == 0 && fd2_field_game_open(game, vga, &archive, 0) == 0);
+    game->attack_rng = notice_rng; game->attack_rng_userdata = NULL;
+    backend_rng_ok = 1;
+    const size_t prompts[5] = {410, 413, 415, 417, 419};
+    for (unsigned i = 0; i < 5; i++) {
+        size_t prompt = prompts[i];
+        game->system_menu.confirmation_prompt_fragment = (uint16_t)prompt;
+        game->system_menu.confirmation_yes = 1;
+        unsigned portrait = prompt == 417 ? game->units.items[0].unit_id : 75;
+        for (unsigned kind = 0; kind < 3; kind++) {
+            size_t fragment = kind == 0 ? prompt : kind == 1 ? prompt + 1u : 412u;
+            memset(vga->framebuffer, 0x77, sizeof(vga->framebuffer));
+            memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
+            CHECK(expected_notice(expected, game, portrait, prompt, kind ? fragment : 0) == 0);
+            memcpy(before, game, sizeof(*before));
+            reset_controls(); backend_rng_ok = 1; expected_present_frame = expected->framebuffer;
+            CHECK(play_system_confirmation_text(game, vga, fragment, 0) == 0);
+            CHECK(presents == 1 && delay_calls == 1 && !unexpected_present_frames && backend_rng_ok);
+            CHECK(memcmp(before, game, sizeof(*before)) == 0);
+            expected_present_frame = NULL;
+        }
+        /* 稳态确认页复用同一notice，独立叠原YES/NO资源。 */
+        game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+        game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
+        fd2_field_game_render(game, vga);
+        memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
+        CHECK(expected_notice(expected, game, portrait, prompt, 0) == 0);
+        for (unsigned choice = 0; choice < 2; choice++) {
+            const fd2_image *button = fd2_field_command_frame_id(&game->command_assets,
+                (uint8_t)(16 + choice), choice == 0, 0, game->system_menu.highlight_phase);
+            CHECK(button); fd2_map_sprite_blit(expected, button, 232 + (int)choice * 32, 168, 0);
+        }
+        CHECK(memcmp(vga->framebuffer, expected->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
+        game->interaction = FD2_FIELD_INTERACTION_BROWSE;
+        game->system_result_fragment = (uint16_t)(prompt + 1u);
+        fd2_field_game_render(game, vga);
+        memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
+        CHECK(expected_notice(expected, game, portrait, prompt, prompt + 1u) == 0);
+        CHECK(memcmp(vga->framebuffer, expected->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
+        game->system_result_fragment = 0;
+    }
+    /* END固定75不依赖actor存在；March真实raw0来源为空必须原子拒绝。 */
+    game->units.count = 0;
+    CHECK(fd2_field_game_render_system_notice(game, vga, 419) == 0);
+    memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
+    CHECK(fd2_field_game_render_system_notice(game, vga, 417) == -1);
+    CHECK(memcmp(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
+    fd2_field_game_close(game); fd2_archive_close(&archive);
+    free(game); free(before); free(vga); free(expected);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_notice_resource_owner_and_stable_page() == 0);
     CHECK(test_fragment_preflight_is_pixel_atomic() == 0);
     CHECK(test_formal_errors_preserve_storage_facts() == 0);
     CHECK(test_real_required_fragments() == 0);

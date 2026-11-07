@@ -400,6 +400,35 @@ static int draw_portrait(fd2_vga *vga, const fd2_archive *dato,
     return 0;
 }
 
+/* field_bottom_notice_open @0x1956b（原sub_1956B）的静态页；不播放/提交输入。 */
+int fd2_scene_field_notice_page(fd2_vga *vga, const fd2_archive *fdother,
+        const fd2_archive *dato, uint16_t portrait_id) {
+    fd2_image portrait = {0};
+    if (!vga || fd2_scene_field_message_validate(fdother) != 0 ||
+        fd2_portrait_decode_frame(&portrait, dato, portrait_id, 0) != 0)
+        return -1;
+    if (portrait.width != 80 || portrait.height != 80) {
+        fd2_image_free(&portrait); return -1;
+    }
+    /* 1956b初始一律reverse；128..132原表位置，其余为右端(87,115)。 */
+    static const int origins[5] = {4283, 1707, 3939, 1398, 3644};
+    int origin = portrait_id >= 128 && portrait_id <= 132
+        ? origins[portrait_id - 128] : 36887;
+    int x = origin % VGA_STRIDE, y = origin / VGA_STRIDE;
+    if (fd2_scene_field_message_box(vga, fdother) != 0) {
+        fd2_image_free(&portrait); return -1;
+    }
+    for (int row = 0; row < portrait.height; row++)
+        for (int column = 0; column < portrait.width; column++) {
+            int dx = x - column, dy = y + row;
+            if (dx >= 0 && dx < VGA_W && dy >= 0 && dy < VGA_H)
+                vga->framebuffer[dy * VGA_STRIDE + dx] =
+                    portrait.pixels[(size_t)row * 80u + (size_t)column];
+        }
+    fd2_image_free(&portrait);
+    return 0;
+}
+
 static int clamp_int(int value, int lo, int hi) {
     if (value < lo) return lo;
     if (value > hi) return hi;

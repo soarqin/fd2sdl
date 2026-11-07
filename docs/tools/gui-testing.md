@@ -12,7 +12,7 @@ Windows 驱动按本轮 PID／HWND 定向投递 `WM_KEYDOWN`／`WM_KEYUP`，不�
 - 截图继续使用同一 HWND 的 WGC，客户区尺寸、实际帧、资源像素门及失败处理不变。WGC 可在遮挡下捕获窗口，不等于后台输入也已有效。
 - 后台验收仍须有实际业务输入、逐键资源 ACK、取消／确认及正常清理，不能只凭消息投递成功、纯模型或日志。此次校准包含每次投键／捕获前后检查及 10 ms 前台采样，未观察到游戏取得前台；不声称覆盖短于采样间隔的瞬态，也不读取其他应用的键盘收据。
 
-后台基础双端校准及自然首关所需的实际后台来源现已完成。B5受支持范围累计15/15，其中自然项为C25完整原版＋344旧导航图最终门离线复核＋C26短程双端＋C27独立SDL完整START的联合证据，不是单轮同源配对。修复校准不增加业务场景计数，旧前台成功／失败保留原来源，不重标为后台通过；大阶段统一审查及历史回归现已按81项登记范围完成：80项实际结果与1项March既有记录离线重判；具体候选与边界见阶段记录，不改写旧B5来源。
+后台基础双端校准及自然首关所需的实际后台来源现已完成。B5受支持范围累计15/15，其中自然项为C25完整原版＋344旧导航图最终门离线复核＋C26短程双端＋C27独立SDL完整START的联合证据，不是单轮同源配对。修复校准不增加业务场景计数，旧前台成功／失败保留原来源，不重标为后台通过；此前 B0—B5 大阶段统一审查及历史回归按81项登记范围完成：80项实际结果与1项March既有记录离线重判。该来源不代表后续 B0—B7 回归已完成；具体候选与边界见阶段记录，不改写旧B5来源。
 
 永久入口为 `tools/run_background_input_check.py`，必须用拥有整个子进程树的 `run-job 600000` 包装，且每次使用尚不存在的产物目录。内部哨兵由脚本管理，不单独运行 `--sentinel`。Windows PowerShell：
 
@@ -23,6 +23,22 @@ Windows 驱动按本轮 PID／HWND 定向投递 `WM_KEYDOWN`／`WM_KEYUP`，不�
 永久脚本最初由已运行的私有校准脚本等价迁入，AST 对照与 10 项纯回归已通过。后续新增哨兵 HWND 的实际 PID 所有权检查，覆盖登记、审计、遮挡移动／恢复和关闭；失配时只清理自身子进程，不操作失配窗口。当前版已不与旧校准脚本 AST 等同，新增保护仅有 13 项纯回归证据，没有新增 GUI 执行次数；实际 GUI 证据仍来自原候选。`HOST_W` 录音只验证原版后台热键被识别，不代表 A5 曲目或 A7 声音保真验收。
 
 默认完整 Windows 套件已将该项注册在 opening／focus 之后、input 之前，由 `Suite.command` 以 600 秒 Job 管理；B3／B4／B5-only 不调用，该永久版已在本轮统一回归的C2实际验证，保留原版／SDL四端点、遮挡哨兵及正常清理收据。
+
+## 地图前景与角色行动完成
+
+角色被屋檐等前景遮挡时，裸角色图不能作为行动完成判据。静止角色的本格、上格前景按 `field_actor_terrain_overlays_draw @0x129ec` 与 `map_tile_blit_visible @0x12ac6` 的原资源顺序合成，比较完整 `24×30` 区域；颜色索引0也属于实际像素，不能按角色遮罩略过。需要同时证明光标、镜头和行动后姿态，并拒绝所有可混淆的未行动姿态。无前景的格继续使用既有判据。
+
+当前新增模型仅覆盖独立静止角色，不覆盖行走、邻近角色重叠或动态水色；遇到这些前置明确报告未覆盖，不能裁掉遮挡区或扩大容差。`test_natural_foreground.py` 从原资源独立合成正反例，不依赖历史截图或本机路径。它是纯回归；原版同格校准及自然实战仍需各自的实际截图、输入和清理证据。
+
+```powershell
+python -B -m unittest discover -s tools/tests -p test_natural_foreground.py -v
+```
+
+```bash
+python3 -B -m unittest discover -s tools/tests -p test_natural_foreground.py -v
+```
+
+本轮只执行 Windows 命令，Linux 未执行。
 
 ## 阶段测试范围
 
@@ -83,7 +99,7 @@ python3 -B tools/verify_stage1_settlement_cursor.py --root . --artifacts /path/t
 
 三箱当前协议从原资源可行的相邻格真移入箱，确认前逐键检查目的格光标，再 WAIT 拾取；下轮移出一格 WAIT／END，再移回已完成格 WAIT／END，最终量测 turn7 的完整 Save。旧 turn4 受控源的主角含加速值 MOV40；局部原指令已复现该预算使路径递归工作区越界、覆盖 mode 并产生向右一步。三箱仅为同 unit0／profile1／装备0和132的主角，按原表 `0x61da1+7` 与真实自然来源双证显式恢复 MOV4，并将该字节纳入 manifest；不能将捕获值当作其他角色默认值，不能以加大预算来通过可达性。C9失败及C11未执行记录保留；新夹具已由C12的129和C13的201／193实际双端复验，三次真实WAIT／END及最终turn7量测通过。201 箱位于底行，WAIT 亮图在视区外时明确记录未观察到选择，依靠已证 DOWN 绝对映射及后继箱提示、acted／库存和最终 Save 正证。
 
-Windows PowerShell 示例在已构建的独立候选 `source` 根目录执行；源码和构建目录须在 TEMP 之外。先按实际候选调整 `$Build`，确保 App、driver 和 planner 均为本次冻结文件。下列两个历史路径是已有只读来源示例，可换成满足上表全部前置的本轮实际来源。DOSBox 使用 Scoop `current` 当前指向的真实 EXE，不能传 `shims/dosbox-x.exe`。
+Windows PowerShell 示例在已构建的独立候选 `source` 根目录执行；源码与增量构建须使用[未被 FileTracker 排除的目录](platforms.md#windows-迭代构建的路径)。先按实际候选调整 `$Build`，确保 App、driver 和 planner 均为本次冻结文件。下列两个历史路径是已有只读来源示例，可换成满足上表全部前置的本轮实际来源。DOSBox 使用 Scoop `current` 当前指向的真实 EXE，不能传 `shims/dosbox-x.exe`。
 
 ```powershell
 $Root = (Get-Location).Path
@@ -140,15 +156,25 @@ python3 -B -m unittest discover -s tools/tests -p 'test_stage2_storage.py'
 `tools/run_original_battle_animation.py` 在独立存档副本中按资源 ACK 操作原版，再清理并操作 SDL；由外层 owned Job 管理。默认是采集器：`collection_passed=true`／退出0只表示业务终态、保存与采集完整，顶层 `ok=false`／`collected_only=true` 不能当作正式图形通过。核心三场加 `--verify-core` 后，必须在两端窗口清理、最终来源守卫通过后，再检查实际完整帧 pair、两端最低 SFX 身份／顺序及 WAV 不变；缺一则 `ok=false` 并退出1。缺失画面或声音判据必须继续登记待对照。
 
 ```powershell
-$Build = "$env:LOCALAPPDATA/fd2sdl-work/b6/build"
+$Build = 'E:/Projects/fd2sdl-work/b6/build'
 $Driver = "$Build/Debug/fd2_field_play_input_driver.exe"
 $Recorder = "$Build/Debug/fd2_process_audio_capture.exe"
 & $Driver run-job 1800000 python -B tools/run_original_battle_animation.py --root . --sdl src/Debug/fd2sdl.exe --driver $Driver --audio-recorder $Recorder --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --scenario physical-full-hit --verify-core --artifacts "$Build/graphics-artifacts/b6-physical"
 ```
 
-其他核心场景为 `player-magic0`、`player-heal13`。Suite 的 `--b6-only` 串行执行这三场并复核实际报告，`--b6-scenarios` 仅选择其中子集；可显式传 `--audio-recorder`，默认在 driver 同目录寻找。它不要求 B5 planner／fixture，阶段参数互斥，非法或重复选择在创建输出前拒绝。默认全套也登记三场；登记不表示已实测。命令中的构建／源码目录必须按[Windows 迭代构建约定](platforms.md)保持在 TEMP 之外；每次输出使用新目录。所示命令不是已经执行的证据，实际候选与结果登记在阶段记录。
+其他核心场景为 `player-magic0`、`player-heal13`。Suite 的 `--b6-only` 串行执行这三场并复核实际报告，`--b6-scenarios` 仅选择其中子集；可显式传 `--audio-recorder`，默认在 driver 同目录寻找。它不要求 B5 planner／fixture，阶段参数互斥，非法或重复选择在创建输出前拒绝。默认全套也登记三场；登记不表示已实测。源码及增量构建目录遵循[Windows 迭代构建约定](platforms.md)，每次输出使用新目录。所示命令不是已经执行的证据，实际候选与结果登记在阶段记录。
 
 持续帧采集使用 `driver capture-series PID OUTDIR MAX_MS INTERVAL_MS`：一个 HWND／WGC session 复用 frame pool，保存原始 PNG、逐帧 PID／HWND／WGC 时间戳／客户区尺寸及 ready／summary。只保存新的递增时间戳，最多120秒／600帧；达到上限不能冒称完整动作采集。动画中的合法白帧／黑帧保留原件，但不能作为攻击或施法的正证。成功、失败与超时均显式 stop 采集 helper，正常等待后按本轮 PID 清理，不遗留到下一场。
+
+Windows 统一 Suite 与独立 B6 采集入口共用 `fd2_display_requirement.py`。它先只读确认本进程处于 active console，console／session 两个显示通知均为 on；off、dimmed、未知或通知清理失败时不申请、不启动窗口。随后一次性申请 `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`，在全部目标／helper 清理和来源 finally 完成后，由取得它的同一线程恢复 previous。申请、主流程、撤销及报告写入失败分别记录；撤销失败不能留下本次“passed”顶层报告，既有报告不得覆写。Linux 不调用这些 Windows API，本轮 Linux 未执行。
+
+该 API 可以 force on 并重置 idle，因此 on 先验不能省略；读取到申请不是 OS 原子操作，也不承诺用户主动休眠、屏保、硬终止或每个 present 都已覆盖。不改电源计划、不发送全局输入、不改用户混音器，不以重试唤醒替代环境条件。生命周期依据见 [Microsoft SetThreadExecutionState](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate)。临时需求的取得和撤销只支持对应宿主设施结论，不证明整段持续 on 或可靠固定帧率。
+
+静态窗口可能没有新的 WGC 帧。标题页等静态检查使用同 PID／HWND 的首尾离散 WGC 正证与无键观察区间，明确它不是连续帧验收；不能要求静态页凑帧，也不能拿旧帧冒充新的动态阶段。运动、受击等仍按同一 series 的真实新帧和既有完整像素门验收，不因静态采样调整而放宽。
+
+连续取帧变稀时，分别检查时间戳间隔、主动间隔过滤、重复时间戳、空 poll，以及 `frames.jsonl` 的 poll 开始／结束、到达、回读完成和 PNG 完成 QPC；summary 记录 QPC 频率及空 poll 总数。回读统计包含该段所有权／几何复核，PNG 完成只表示编码与文件写入关闭返回，不表示物理磁盘 flush。空 poll 不等于已证丢帧数，短处理时间也不能证明游戏或 DWM 的实际 present 频率。Windows 显示状态可只读记录；显示器 off 与稀疏采样同时出现不构成因果证明。必需阶段缺失时保留未通过，不拼接扫描线、不放宽像素门、不以重复执行直到通过来关闭失败，也不改用非 WGC 捕获。可以继续不依赖该缺失证据的业务验收，分别登记结果。
+
+对白收尾、确认选项出现／消失等短暂过渡须单独验收，不能只在文字稳定或按钮出现后截图。连续 WGC 必须先 ready 再发送触发键，覆盖首个提示帧、开合过程和后继页面，保留全部原始帧；不得跳过异常颜色帧后仅报告终态通过。按原版资源和实际阶段比较底框、肖像、文字位置及颜色索引，不假定两端时钟或帧数相同。明确实际采到的阶段、缺失阶段及完整帧差异；未采到每次原始 present 时，不声称过渡逐帧完全一致。无窗口回归也须检查首次 present 的真实像素与坏资源无半绘，不能把实现中的占位填色直接写成正确断言。
 
 `fd2_battle_animation_frames.py` 从原始 FIGANI、BG、TAI、字体及已声明的80字节单位记录识别阶段。资源 SKIP／透明点仅用于识别，不删去跨端比较像素。物理要求顺序出现攻击→受击两个实际 pair；受击正门覆盖原版合法的非零 shake 5..1，不限于首个染色33的单 tick。当前 unit0 夹具的 part6 对应5／4、part7对应3／2、part8对应1，首击染色与后继普通态分别识别，split仍不支持。0要求两个不同施法姿态，13要求两个不同57..63地图特效。两端索引都前进，不以同图、近似重复图或空闲演员凑数；每个接受的 pair 仍比较完整64,000 RGB像素、最大差3，不改色、不按坏点增加掩码。未找到同态画面只记待证，不推断完整演出相同。
 
@@ -160,7 +186,11 @@ AI FULL夹具从实际玩家记录派生时，必须逐字列出 behavior字节+
 
 最终15个AI报告各含两个实际casting完整64000像素pair，共30组；三核心另有6组，总36组，物理2组为同raw离线重判，不增加运行次数。AI目标FX与完整声音未逐项配对，ITEM评分场景不计casting pair。AI来源为C6十四项与C8仅08multi复验，旧同格raw0／raw2复合漏项失败保留；八模块最新161项为联合结果，不是单轮fresh161。候选、SAV、Job与测试来源见[阶段记录](../plans/stage-log.md#b6a6full-战斗演出与动态音效)。
 
-声音分别保留原版 DOSBox 原生 WAV 与 SDL 的进程录音。后者用 Windows process-loopback include-tree，要求 build20348及以上；依据[Microsoft Application Loopback 示例](https://learn.microsoft.com/zh-cn/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)，SDK本地头为 `audioclientactivationparams.h`。设备／版本不支持时失败，不改录桌面混音。工具在 Start 后发 ready，使用 stop 文件完整关闭 WAV，记录 packet 时间戳、断续与 HRESULT，不创建新游戏窗口或改变焦点。
+声音分别保留原版 DOSBox 原生 WAV 与 SDL 的实际应用混音。正式核心场景默认使用 `app-mix`：在真实音频回调中保留系统会话静音及测试输出抑制之前的混音，格式为48kHz、双声道PCM16；须有本轮 PID 的 ready、显式 stop、完整关闭的 WAV 与对应摘要。该来源没有 WASAPI packet 时间戳，不声明扬声器输出或 A8 已验证。业务场景及原版单端采集不创建 SDL 音频采集器。
+
+仅显式指定 `process-loopback` 时使用原有 Windows include-tree 进程录音，要求 build20348及以上；依据[Microsoft Application Loopback 示例](https://learn.microsoft.com/zh-cn/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)，SDK本地头为 `audioclientactivationparams.h`。该来源保留原44100Hz、packet时间戳、断续与HRESULT；不支持或系统静音导致声音门失败时如实记录，不改录桌面混音、不自动切换来源。工具仍须 ready 后采集、显式 stop 并完整关闭，不创建额外游戏窗口或改变焦点。
+
+自动测试默认安静运行，保留用户在系统混音器中的静音与音量，不为通过声音门擅自解除。新候选进程也不能依赖旧进程的静音设置来避免发声。应用混音取证可在真实音频回调中、系统会话静音之前采集最终 PCM，并单独抑制本轮测试的设备输出；回调不得执行文件 I/O、分配或无界等待，缓冲溢出、格式错误及缺少真实回调必须明确失败。报告须注明采集位置、PID、格式、设备输出是否被抑制及完整关闭状态；这类证据不能冒充 WASAPI 或扬声器输出。原版安静模式也须保留实际 emulation 和原生 WAV，并经实录验证后使用，不修改用户全局设备或混音器。
 
 `fd2_sfx_oracle.py` 使用已有 NumPy／SciPy，从独立 FDOTHER VOICE 原字节建立候选，核对声音身份及录音内 onset。前缀长度、候选和搜索窗须事先声明；静音、弱匹配、重复发生或不唯一身份不能冒充通过。原生 DOSBox WAV 没有 Windows 首 packet QPC，不能编造精确输入时延；只有实际时钟锚完整且无 packet 断续时才能计算相应调用区间。有限身份／顺序结果不等于 A7 逐样本音质、混音或完整墙钟保真。
 
@@ -545,7 +575,7 @@ Windows 基础、B0、B1.1、B1.2a、B1.2b 已分别从独立暂存候选构建�
 
 第 2～4 轮保留了驱动误报现场：SDL 正常关窗后，驱动在发送结束后的节奏等待末尾再次检查焦点，误判投递失败。Windows 驱动现于按下／松开配对完成时检查本轮进程句柄和焦点；后续等待期间不再发键，允许游戏完成提示后关窗。调用者仍独立检查正常退出码和业务检查点，目标仍在运行且失焦则失败。清理带来的退出不能计为自然退出。
 
-该项只关闭所列离场输入和应用去向合同。当前共用提示 helper 为 250 ms，原版该处为 200 ms；完整对话布局、精确时序和声音仍待 V1／A5。此前历史轮次中的「leave 回标题」为旧 SDL 行为，以上述原版纠正与本轮通过范围为准。
+该历史项只关闭所列离场输入和应用去向合同。当时共用提示 helper 为 250 ms，原版该处为 200 ms；本轮确认框布局与开合过渡另按前述连续采集要求和阶段记录验收，不能由这份旧输入证据推出。精确时序和完整声音仍须单列。此前历史轮次中的「leave 回标题」为旧 SDL 行为，以上述原版纠正与对应候选通过范围为准。
 
 ### B1 控制流程收口与字体前置：2026-11-04
 

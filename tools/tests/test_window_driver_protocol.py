@@ -13,6 +13,41 @@ import run_original_comparison as probe
 
 
 class DriverProtocolTest(unittest.TestCase):
+    def test_native_quiet_uses_last_override_without_changing_host_inputs(self):
+        for binary in ("C:/Tools/DOSBox-X.EXE", "/usr/bin/dosbox-x"):
+            command = [binary, "-conf", "owned.conf", "-noconsole", "-set", "mixer nosound=false"]
+            environment = {"DOSBOX_MIXER_nosound": "false", "DOSBOX_CPU_cycles": "20000", "kept": "value"}
+            before_command, before_env = list(command), dict(environment)
+            actual, child_env, receipt = probe.quiet_game_command(command, environment)
+            self.assertEqual(actual, command + ["-set", "mixer nosound=true"])
+            self.assertEqual(child_env, {"DOSBOX_CPU_cycles": "20000", "kept": "value"})
+            self.assertTrue(receipt["native_quiet_requested"])
+            self.assertEqual(receipt["ignored_native_quiet_overrides"], ["DOSBOX_MIXER_nosound"])
+            self.assertEqual(command, before_command)
+            self.assertEqual(environment, before_env)
+
+    def test_native_quiet_does_not_change_other_programs_or_user_audio_settings(self):
+        command, environment = ["python.exe"], {"DOSBOX_MIXER_nosound": "false"}
+        actual, child_env, receipt = probe.quiet_game_command(command, environment)
+        self.assertEqual((actual, child_env), (command, environment))
+        self.assertIsNot(actual, command)
+        self.assertIsNot(child_env, environment)
+        self.assertFalse(receipt["native_quiet_requested"])
+
+    def test_owned_sdl_test_is_quiet_without_observer_and_explicit_output_remains_distinct(self):
+        command, environment = ["C:/candidate/fd2sdl.exe"], {"kept": "value"}
+        actual, child_env, receipt = probe.quiet_game_command(command, environment)
+        self.assertEqual(actual, command)
+        self.assertEqual(child_env, {"kept": "value", "FD2SDL_TEST_AUDIO_QUIET": "1"})
+        self.assertTrue(receipt["application_quiet_requested"])
+        self.assertFalse(any(key.startswith("FD2SDL_APP_PCM_") for key in child_env))
+        self.assertEqual(environment, {"kept": "value"})
+        _, explicit, receipt = probe.quiet_game_command(command, {"FD2SDL_TEST_AUDIO_QUIET": "0"})
+        self.assertEqual(explicit["FD2SDL_TEST_AUDIO_QUIET"], "0")
+        self.assertFalse(receipt["application_quiet_requested"])
+        with self.assertRaises(ValueError):
+            probe.quiet_game_command(command, {"FD2SDL_TEST_AUDIO_QUIET": "invalid"})
+
     def test_utf8_and_unexpected_ansi_stderr_survive(self):
         native_run = subprocess.run
         process = Mock(pid=12345)
@@ -91,6 +126,28 @@ class DriverProtocolTest(unittest.TestCase):
                     else:
                         with self.assertRaisesRegex(RuntimeError, "后台投递收据无效"):
                             capture.key("ENTER")
+
+    def test_foreground_guard_failure_preserves_release_and_stops_without_retry(self):
+        for before, sent in (("0x1234", 0), ("0xabcd", 1)):
+            with self.subTest(sent=sent), tempfile.TemporaryDirectory() as directory:
+                diagnostic = self.receipt(ok=False, error=5023, sent=sent, release=sent,
+                    key_down_sent=bool(sent), key_up_sent=bool(sent),
+                    foreground_before=before, foreground_after="0x1234",
+                    noactivate_style_before="0xc0000", noactivate_style_after="0x80c0000",
+                    noactivate_verified=bool(sent), foreground_guard_ok=False)
+                result = subprocess.CompletedProcess([], 1, stderr=diagnostic, stdout="")
+                process = Mock(pid=12345)
+                process.poll.return_value = None
+                capture = probe.Capture(Path("driver.exe"), process, Path(directory))
+                with patch.object(probe.subprocess, "run", return_value=result) as run:
+                    with self.assertRaisesRegex(probe.DriverCallError, "exit=1"):
+                        capture.key("ENTER")
+                self.assertEqual(run.call_count, 1)
+                delivered = json.loads((Path(directory)/"input-delivery.jsonl").read_text())
+                self.assertFalse(delivered["accepted"])
+                self.assertFalse(delivered["transport_ok"])
+                self.assertEqual(delivered["receipts"][0]["release"], sent)
+                self.assertFalse(delivered["receipts"][0]["foreground_guard_ok"])
 
     def test_wave_requires_both_keys_and_failed_partial_receipt_is_preserved(self):
         process = Mock(pid=12345)

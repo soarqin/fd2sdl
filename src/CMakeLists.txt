@@ -112,6 +112,7 @@ set(FD2SDL_CORE_SOURCES
     title.c
     input.c
     audio.c
+    audio_pcm_capture.c
     audio_pcm.c
     bgm.cpp
     third_party/nukedopl3.c
@@ -269,6 +270,7 @@ if(BUILD_TESTING)
     add_executable(fd2_audio_test
         tests/audio_test.c
         audio.c
+        audio_pcm_capture.c
     )
     target_include_directories(fd2_audio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_audio_test PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -330,6 +332,7 @@ if(BUILD_TESTING)
         tests/bgm_test.c
         bgm.cpp
         audio.c
+        audio_pcm_capture.c
         archive.c
         third_party/nukedopl3.c
         third_party/model_ail.c
@@ -402,6 +405,7 @@ if(BUILD_TESTING)
         tests/audio_pcm_test.c
         audio_pcm.c
         audio.c
+        audio_pcm_capture.c
         field_audio.c
         archive.c
     )
@@ -830,6 +834,8 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_game_system_menu
         COMMAND fd2_field_game_system_menu_test)
+    set_tests_properties(field_game_system_menu PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     add_executable(fd2_field_save_test
         tests/field_save_test.c
@@ -865,6 +871,7 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_ai_commit COMMAND fd2_field_ai_commit_test)
+    set_tests_properties(field_ai_commit PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_field_unit_stats_test
         tests/field_unit_stats_test.c
@@ -948,6 +955,20 @@ if(BUILD_TESTING)
         PROPERTIES TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
     if(WIN32)
+        # 仅Win32宏桩，不创建窗口或依赖Python/WGC/SDL。
+        add_executable(fd2_field_play_input_driver_focus_test
+            tests/field_play_input_driver_focus_test.c)
+        target_link_libraries(fd2_field_play_input_driver_focus_test PRIVATE user32 shell32)
+        if(MSVC)
+            target_compile_options(fd2_field_play_input_driver_focus_test PRIVATE /W4)
+            target_compile_definitions(fd2_field_play_input_driver_focus_test PRIVATE
+                _CRT_SECURE_NO_WARNINGS)
+        else()
+            target_compile_options(fd2_field_play_input_driver_focus_test PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
+        add_test(NAME field_play_input_driver_focus COMMAND fd2_field_play_input_driver_focus_test)
+        set_tests_properties(field_play_input_driver_focus PROPERTIES TIMEOUT 30)
         if(NOT Python3_Interpreter_FOUND)
             if(FD2SDL_REQUIRE_GUI_TESTS)
                 message(FATAL_ERROR "Windows GUI tests require Python 3")
@@ -1036,7 +1057,8 @@ if(BUILD_TESTING)
         fd2_field_unit_summary_draw=__wrap_fd2_field_unit_summary_draw
         fd2_field_game_march=__wrap_fd2_field_game_march)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
-    set_tests_properties(field_play_result PROPERTIES TIMEOUT 10)
+    set_tests_properties(field_play_result PROPERTIES TIMEOUT 10
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..)
 
     # 测试TU私有替身覆盖modal分配、呈现与输入，不给生产代码增加钩子。
     add_executable(fd2_field_play_overview_test
@@ -1277,7 +1299,7 @@ if(BUILD_TESTING)
         figani.c magic_fx.c tile.c field_info.c field_visual.c field_item.c field_magic.c field_unit_base.c
         field_unit_stats.c field_attack.c field_path.c field_move_profile.c
         map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
-        audio_pcm.c audio.c)
+        audio_pcm.c audio.c audio_pcm_capture.c)
     foreach(fd2_test IN ITEMS fd2_figani_test fd2_magic_fx_test fd2_battle_animation_test fd2_field_magic_full_test)
         target_include_directories(${fd2_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_link_libraries(${fd2_test} PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -1293,6 +1315,27 @@ if(BUILD_TESTING)
     add_test(NAME field_magic_full COMMAND fd2_field_magic_full_test)
     set_tests_properties(figani magic_fx battle_animation field_magic_full PROPERTIES
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/.. TIMEOUT 30)
+
+    # 应用侧静音前PCM observer；全部为合成输入/设备调用mock，不开设备或GUI。
+    add_executable(fd2_audio_pcm_capture_test
+        tests/audio_pcm_capture_test.c audio.c audio_pcm_capture.c)
+    add_executable(fd2_audio_pcm_capture_hook_test
+        tests/audio_pcm_capture_hook_test.c audio_pcm_capture.c)
+    foreach(fd2_test IN ITEMS fd2_audio_pcm_capture_test fd2_audio_pcm_capture_hook_test)
+        target_include_directories(${fd2_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(${fd2_test} PRIVATE ${FD2SDL_SDL3_TARGET})
+        if(MSVC)
+            target_compile_options(${fd2_test} PRIVATE /W4)
+        else()
+            target_compile_options(${fd2_test} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+    endforeach()
+    add_test(NAME audio_pcm_capture_boundaries COMMAND fd2_audio_pcm_capture_test
+        "${CMAKE_CURRENT_BINARY_DIR}/pcm-boundary-artifacts")
+    add_test(NAME audio_pcm_capture_callback_order COMMAND fd2_audio_pcm_capture_hook_test
+        "${CMAKE_CURRENT_BINARY_DIR}/pcm-hook-artifacts")
+    set_tests_properties(audio_pcm_capture_boundaries audio_pcm_capture_callback_order
+        PROPERTIES TIMEOUT 15 LABELS "audio;unit")
 
     # 测试中的 assert 包含实际调用；Release 也必须执行，不能得到空跑假绿。
     get_directory_property(fd2_targets BUILDSYSTEM_TARGETS)

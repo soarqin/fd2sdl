@@ -304,6 +304,23 @@ bool series_timestamp(int64_t timestamp,int64_t &last_seen) {
     if (timestamp==last_seen) return false;
     last_seen=timestamp;return true;
 }
+/* 仅已保存帧的观测：不改变WGC/像素/采样选择，不把空poll或PNG耗时当成丢帧数。 */
+struct SeriesFrameMetrics {
+    int64_t poll_started_qpc,poll_finished_qpc,arrival_qpc,copy_finished_qpc,png_finished_qpc;
+    unsigned long long empty_polls_before_frame;
+};
+std::string series_metrics_json(const SeriesFrameMetrics &m) {
+    series_check(m.poll_started_qpc>=0 && m.poll_started_qpc<=m.poll_finished_qpc &&
+        m.poll_finished_qpc<=m.arrival_qpc && m.arrival_qpc<=m.copy_finished_qpc &&
+        m.copy_finished_qpc<=m.png_finished_qpc,"capture metrics QPC order invalid");
+    std::ostringstream out;
+    out << ",\"poll_started_qpc\":" << m.poll_started_qpc
+        << ",\"poll_finished_qpc\":" << m.poll_finished_qpc
+        << ",\"copy_finished_qpc\":" << m.copy_finished_qpc
+        << ",\"png_finished_qpc\":" << m.png_finished_qpc
+        << ",\"empty_polls_before_frame\":" << m.empty_polls_before_frame;
+    return out.str();
+}
 void series_png(IWICImagingFactory *factory,const fs::path &path,
                 UINT width,UINT height,const std::vector<BYTE> &bgra) {
     series_check(width && height && width<=8192 && height<=8192 &&
@@ -339,6 +356,7 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
     fs::path directory;
     bool created=false,started=false,ready=false;
     unsigned frames=0,duplicates=0,interval_skips=0;
+    unsigned long long empty_polls=0,empty_polls_before_frame=0;
     int64_t last_seen=-1,last_saved=-1,first_saved=-1;
     ULONGLONG begin=GetTickCount64();
     HRESULT status=S_OK;
@@ -386,8 +404,12 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
             if (GetLastError()!=ERROR_FILE_NOT_FOUND) winrt::throw_last_error();
             if (GetTickCount64()-begin>=max_ms) {reason="time_limit";break;}
             series_owner(window,pid);
+            LARGE_INTEGER poll_started{},poll_finished{};
+            QueryPerformanceCounter(&poll_started);
             SeriesFrame frame{capture.pool.TryGetNextFrame()};
+            QueryPerformanceCounter(&poll_finished);
             if (!frame.value) {
+                empty_polls++;empty_polls_before_frame++;
                 series_check(frames || GetTickCount64()-begin<5000,"WGC timed out before the first frame");
                 Sleep(2);continue;
             }
@@ -428,8 +450,11 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
             series_owner(window,pid);
             series_check(same_geometry(before,geometry(window)),"window geometry changed while copying a frame");
             frame.close(); /* 先归还WGC缓冲，再做PNG压缩和文件IO。 */
+            LARGE_INTEGER copy_finished{},png_finished{};
+            QueryPerformanceCounter(&copy_finished);
             wchar_t name[40];swprintf_s(name,L"frame%05u.png",frames);
             series_png(codec.get(),directory/name,static_cast<UINT>(width),static_cast<UINT>(height),pixels);
+            QueryPerformanceCounter(&png_finished);
             std::ostringstream row;
             row << "{\"index\":" << frames << ",\"file\":\"frame";
             char number[16];snprintf(number,sizeof(number),"%05u",frames);
@@ -438,9 +463,12 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
                 << ",\"client_width\":" << width << ",\"client_height\":" << height
                 << ",\"crop_x\":" << left << ",\"crop_y\":" << top << ",\"pid\":" << pid
                 << ",\"hwnd\":" << series_quote(window_id)
-                << ",\"arrival_tick_ms\":" << arrival_tick << ",\"arrival_qpc\":" << arrival_qpc.QuadPart << "}\n";
+                << ",\"arrival_tick_ms\":" << arrival_tick << ",\"arrival_qpc\":" << arrival_qpc.QuadPart
+                << series_metrics_json({poll_started.QuadPart,poll_finished.QuadPart,arrival_qpc.QuadPart,
+                    copy_finished.QuadPart,png_finished.QuadPart,empty_polls_before_frame}) << "}\n";
             auto line=row.str();series_write(index.value,line.data(),static_cast<DWORD>(line.size()));
             last_saved=timestamp;if (first_saved<0) first_saved=timestamp;frames++;
+            empty_polls_before_frame=0; /* 只有确实写入一条rawrow才重置；跳重/interval不重置。 */
             if (!ready) {
                 if (!FlushFileBuffers(index.value)) winrt::throw_last_error();
                 std::ostringstream text;text << "{\"ready\":true,\"pid\":" << pid
@@ -462,6 +490,7 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
         << ",\"session_started\":" << (started?"true":"false") << ",\"ready_published\":" << (ready?"true":"false")
         << ",\"frames\":" << frames << ",\"frame_limit\":600,\"max_ms\":" << max_ms << ",\"interval_ms\":" << interval_ms
         << ",\"duplicate_timestamps_skipped\":" << duplicates << ",\"interval_frames_skipped\":" << interval_skips
+        << ",\"empty_polls\":" << empty_polls << ",\"empty_polls_after_last_saved_frame\":" << empty_polls_before_frame
         << ",\"first_wgc_timestamp_100ns\":" << first_saved << ",\"last_wgc_timestamp_100ns\":" << last_saved
         << ",\"elapsed_ms\":" << GetTickCount64()-begin << ",\"stop_reason\":" << series_quote(reason)
         << ",\"pixel_format\":\"BGRA8-lossless-PNG\",\"color_filter\":false,\"frame_equivalence_claimed\":false"

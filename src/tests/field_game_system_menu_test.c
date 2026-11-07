@@ -277,17 +277,19 @@ static int test_secondary_dynamic_disabled(void) {
 }
 
 static int test_overview_stage_gate(void) {
-    /* B5已开放stage 0/1的总览；stage 2仍无对应恢复依据。 */
-    for (uint8_t stage = 0; stage <= 2; stage++) {
+    /* B7已开放stage0..2总览；stage2仍禁止March/END，stage3保持未开放。 */
+    for (uint8_t stage = 0; stage <= 3; stage++) {
         fd2_field_game game;
         test_rng rng = {0x13579bdfu, 0};
         init_game(&game, &rng);
         game.stage = stage;
         fd2_field_game before = game;
         CHECK(fd2_field_game_open_system_menu(&game) == 0);
+        CHECK(game.system_menu.disabled[1] == (stage > 1)); /* March */
+        CHECK(game.system_menu.disabled[3] == (stage > 1)); /* END */
         CHECK(fd2_field_game_confirm_system_menu(&game) ==
               FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-        if (stage <= 1) {
+        if (stage <= 2) {
             CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
             CHECK(fd2_field_game_confirm_system_menu(&game) ==
                   FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
@@ -564,6 +566,20 @@ static int test_confirmation_buttons(void) {
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION);
     game.system_menu.highlight_phase = 1;
+    /* 1956b→15f84→19953：按钮之前须有完整notice75/正文资源。
+     * 旧夹具仅4张按钮图；缺font/text时应拒绝且不得绘半页，而非绕过预检。 */
+    memset(vga->framebuffer, 0x75, sizeof(vga->framebuffer));
+    CHECK(fd2_field_game_render_system_notice(&game, vga,
+              game.system_menu.confirmation_prompt_fragment) == -1);
+    for (size_t i = 0; i < sizeof(vga->framebuffer); i++)
+        CHECK(vga->framebuffer[i] == 0x75);
+    fd2_archive fdother = {0};
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    game.fdother = &fdother; /* font借用此archive，晚于Game资源关闭。 */
+    CHECK(fd2_archive_open(&game.dato_archive, "original_game/DATO.DAT") == 0);
+    CHECK(fd2_archive_open(&game.fdtxt_archive, "original_game/FDTXT.DAT") == 0);
+    CHECK(fd2_font_open_fdother(&game.font, &fdother, 4) == 0);
+    CHECK(fd2_text_entry_open_entry(&game.ui_text, &game.fdtxt_archive, 0) == 0);
     fd2_field_game_render(&game, vga);
     CHECK(vga->framebuffer[168 * VGA_STRIDE + 232] == 11);
     CHECK(vga->framebuffer[183 * VGA_STRIDE + 255] == 11);
@@ -580,6 +596,7 @@ static int test_confirmation_buttons(void) {
     CHECK(rng.calls == 0);
     free(vga);
     fd2_field_game_close(&game);
+    fd2_archive_close(&fdother);
     return 0;
 }
 

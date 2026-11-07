@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fd2_item_list_oracle import START_SHA256, PLAIN_SHA256, item_table, use_effect_tables
 from fd2_movement_oracle import movement_profile
+from fd2_loot_oracle import cell_contract, CELL_STATE
 from fd2_reward_oracle import derive_fixture as reward_fixture, expected_state, reward_tables
 from run_graphics_tests import decode_save
 from run_original_comparison import archive_entry
@@ -20,7 +21,8 @@ from run_original_load import check_load_measurement
 from rebuild_fd2_analysis import parse_le, parse_objects, build_relbase_image
 
 SCENARIOS = ("physical-full-hit", "player-magic0", "player-heal13") + tuple(
-    f"ai-full-{i:02d}" for i in range(10)) + tuple(f"ai-full-{i:02d}-multi" for i in (3,5,6,7,8)) + ("ai-item-score20",)
+    f"ai-full-{i:02d}" for i in range(10)) + tuple(f"ai-full-{i:02d}-multi" for i in (3,5,6,7,8)) + ("ai-item-score20", "ai-behavior11-recover", "ai-behavior5-chest")
+BUSINESS_SCENARIOS = ("ai-behavior11-recover", "ai-behavior5-chest")
 
 
 def actor(source, raw):
@@ -71,19 +73,24 @@ def derive_fixture(original, scenario):
         _store(plain,UNITS+11*STRIDE+0x40,999);_store(plain,UNITS+11*STRIDE+0x42,999)
     else:
         item_action=scenario=="ai-item-score20"
-        magic_id=0 if item_action else int(scenario.split("-")[2]);multi=scenario.endswith("-multi");caster_raw=11;targets=[0,2] if multi else [0]
+        ai11=scenario=="ai-behavior11-recover";ai5=scenario=="ai-behavior5-chest"
+        magic_id=None if ai5 else 0 if item_action or ai11 else int(scenario.split("-")[2]);multi=scenario.endswith("-multi");caster_raw=11;targets=[] if ai5 else [0,2] if multi else [0]
         if magic_id==9 and multi:raise ValueError("ID9 multi原图包越界，不是合法演出夹具")
         for raw in range(base[META+1]):
             at=UNITS+raw*STRIDE
             if plain[at+6]!=2:plain[at+5]|=4
         caster=bytearray(actor(base,1));caster[:2]=bytes((8,14));caster[5]=0;caster[6]=0
         caster[0x1a:0x1f]=bytes(5)
-        if not item_action:caster[0x1a+magic_id//8]=1<<(magic_id%8)
+        if not item_action and not ai5:caster[0x1a+magic_id//8]=1<<(magic_id%8)
         # side0需要真实13a9f behavior0；玩家记录原+34=CE不能当普通AI。
-        caster[0x34]=0
+        caster[0x34]=0xa5 if ai5 else 11 if ai11 else 0
         caster[0x0a:0x1a]=bytes((0x80,0))*8  # 明列隔离库存，不据此解释旧C5未扣MP。
         if item_action:caster[0x0a:0x0c]=bytes((0,56))  # 原item56，唯一可见且未装备的非消耗攻击道具。
         caster[0x3b]=0;caster[0x31]=255;_store(caster,0x44,250);_store(caster,0x46,250);_store(caster,0x48,0)
+        if ai11:
+            _store(caster,0x40,40);_store(caster,0x42,100)
+            _store(caster,0x44,10);_store(caster,0x46,10)
+        if ai5:caster[:2]=bytes((6,13));caster[0x3b]=1;caster[0x3d]=0
         _patch_actor(plain,11,caster)
         for raw,where in ((1,(1,21)),(2,(2,21)),(3,(3,21))):plain[UNITS+raw*STRIDE:UNITS+raw*STRIDE+2]=bytes(where)
         if multi:plain[UNITS+2*STRIDE:UNITS+2*STRIDE+2]=bytes((7,14 if magic_id==8 else 15))
@@ -91,6 +98,8 @@ def derive_fixture(original, scenario):
             _store(plain,UNITS+raw*STRIDE+0x40,50 if item_action else 999)
             _store(plain,UNITS+raw*STRIDE+0x42,50 if item_action else 999)
     controlled=_options(plain)
+    if scenario in BUSINESS_SCENARIOS:
+        plain=bytearray(controlled);plain[META+14]=1;controlled=_checksum(plain)
     encoded=bytes(a^b^c for a,b,c in zip(encrypted,base,controlled))
     patches=[{"offset":i,"before":a,"after":b} for i,(a,b) in enumerate(zip(base,controlled)) if a!=b]
     allowed=set(range(UNITS,UNITS+base[META+1]*STRIDE))|{META+14,META+16,META+17}|set(range(len(base)-4,len(base)))
@@ -100,14 +109,26 @@ def derive_fixture(original, scenario):
         "source_plain_sha256":PLAIN_SHA256,"derived_sha256":hashlib.sha256(encoded).hexdigest(),
         "derived_plain_sha256":hashlib.sha256(controlled).hexdigest(),"plaintext_patches":patches,
         "caster_raw":caster_raw,"targets":targets,"magic_id":magic_id,"multi":multi,
-        "options":{"effect":0,"camera":controlled[META+15],"music":0,"sfx":1},
+        "options":{"effect":controlled[META+14],"camera":controlled[META+15],"music":0,"sfx":1},
         "unmodified_roster_slots_unknown_container":True,"natural_acquisition_or_battle_history":False,
         "controlled_AI_dispatch":None if not scenario.startswith("ai-") else {
             "canonical_dispatcher":"field_ai_unit_execute @0x13a9f",
-            "copied_player_behavior_before":actor(base,1)[0x34],"behavior_after":0,
+            "copied_player_behavior_before":actor(base,1)[0x34],"behavior_after":actor(controlled,11)[0x34],
             "inventory_before_hex":actor(base,1)[0x0a:0x1a].hex(),"inventory_after_hex":actor(controlled,11)[0x0a:0x1a].hex(),
             "inventory_policy":"eight explicit (flag80,id0) slots; native1b8a6 count0 excludes item candidates",
             "old_C5_explanation":"player behavior CE low14 takes13a9f default common tail, not magic; no MP formula relaxation"}}
+    if scenario=="ai-behavior5-chest":
+        manifest["AI5_cell_contract"]={"cell":cell_contract(original,(7,13)),"start":[6,13],"destination":[7,13],
+            "movement_profile":5,"movement_budget":1,"source_behavior":0xa5,"final_behavior_whole_byte":7,
+            "final_inventory_first_slot":[0,192],"live_opened_tile":249,"Load_reconstruction_only_accepted":False,
+            "focus_completed_or_no_target_control_claimed":False}
+    if scenario=="ai-behavior11-recover":
+        manifest["AI11_recovery_contract"]={"caster_HP_before":40,"caster_maxHP":100,"caster_HP_after":60,
+            "caster_MP_before":10,"caster_MP_after":8,"movement_budget":0,"effect_mode":"SHORT",
+            "native_branch":"13a9f case11: magic -> physical priority<6 -> 14121 return0 -> 13fd4 -> common tail",
+            "witness_absent_claimed":False,"witness_or_move_internal_return_observed":False,
+            "acted_transient_or_common_tail_write_count_observed":False,
+            "scope":"final full SAV recovery/cost/unchanged-position/turn2; exact intermediate tail remains C/raw evidence"}
     if scenario=="ai-item-score20":
         manifest.update(action="item",item_id=56,item_slot=0)
         manifest["controlled_AI_dispatch"]["inventory_policy"]="one explicit (flag0,id56) slot followed by seven (flag80,id0); no learned magic"
@@ -135,12 +156,12 @@ def ai_item_plan(source, record, magic):
         "accuracy":90,"guaranteed_hit":False,"hit_hp_after":[1,2,3,4,5],
         "legal_miss_hp_after":50,"positive_action_evidence_required":"each endpoint actual HP<50; legal miss alone inconclusive"}
 
-def ai_plan(source, magic):
+def ai_plan(source, magic, *, behavior=0):
     """1598a固定夹具：profile0全1、单magic、无移动/物品/物理主优先级。
     首个最高分按y/x扫描；不引用SDL planner作为验收oracle。
     """
     caster=actor(source,11);best=None
-    if caster[0x34]!=0:raise ValueError("AI fixture必须显式普通behavior0；不能仅查询magic绕过真实dispatcher")
+    if behavior not in (0,11) or caster[0x34]!=behavior:raise ValueError("AI fixture必须显式匹配已声明behavior；不能仅查询magic绕过真实dispatcher")
     if any(not caster[0x0a+2*slot]&0x80 for slot in range(8)):
         raise ValueError("AI fixture要求八槽明确空库存，排除独立item候选")
     power=_word(magic,0)
@@ -155,6 +176,49 @@ def ai_plan(source, magic):
     if not best or best["score"]<6:raise ValueError("受控AI魔法未达到原score>=6")
     return best
 
+def ai11_recovery_preflight(source, magic):
+    """限定真实B6 raw11/unit9模板；不把MOV0误称14121没有witness。"""
+    caster=actor(source,11);visible=[actor(source,i) for i in range(source[META+1])
+        if not actor(source,i)[5]&1 and actor(source,i)[6]!=0]
+    if (caster[7:9]!=bytes((9,9)) or caster[6]!=0 or caster[5]&0x85 or caster[0x34]!=11 or caster[0x3b]!=0 or
+        _word(caster,0x48)!=0 or caster[0x22:0x28]!=bytes(6) or
+        caster[0x1a:0x1f]!=bytes((1,0,0,0,0)) or caster[0x0a:0x1a]!=bytes((0x80,0))*8 or
+        (_word(caster,0x40),_word(caster,0x42),_word(caster,0x44),_word(caster,0x46))!=(40,100,10,10) or
+        source[META+14]!=1 or magic!=bytes((50,0,90,5,0,2,0))):
+        raise ValueError("AI11要求unit9/behavior11/MOV0/AP0/空库存/单magic0/SHORT及精确HP40/100、MP10/10")
+    if not visible or any(_word(u,0x40)<=len(visible) for u in visible):
+        raise ValueError("AI11目标HP须高于14237初始target-count上界，不能让AP0触发18分")
+    chosen=ai_plan(source,magic,behavior=11)
+    return {**chosen,"physical_priority_upper_bound":0,
+        "physical_basis":"14237 MOV0 only origin; AP0 cannot exceed nonnegative DP+2; all targetHP>visible count",
+        "after_magic_fallback_required":True,"MOV0_guarantees_no_position_change":True,
+        "witness_absent_claimed":False}
+
+
+def ai5_cell_preflight(original, source):
+    caster=actor(source,11);cell=cell_contract(original,(7,13))
+    if (caster[:2]!=bytes((6,13)) or caster[5]&0x85 or caster[6:9]!=bytes((0,9,9)) or caster[0x20]!=5 or
+        caster[0x34]!=0xa5 or caster[0x3b]!=1 or caster[0x3d]!=0 or caster[0x31]!=255 or
+        caster[0x1a:0x1f]!=bytes(5) or caster[0x0a:0x1a]!=bytes((0x80,0))*8 or _word(caster,0x48)!=0 or
+        caster[0x22:0x28]!=bytes(6) or _word(caster,0x40)!=_word(caster,0x42) or source[CELL_STATE]):
+        raise ValueError("AI5要求真实unit9/profile5、A5、MOV1、空槽/noMagic/AP0、满HP和未完成index0")
+    if cell!={"world":[7,13],"cell_word":248,"tile":248,"terrain_flags":32,"index":0,"mode":0,"parameter":192}:
+        raise ValueError("AI5仅本条原stage0箱格248/index0/item192")
+    profile,evidence=movement_profile(Path(original)/"FD2.EXE",5)
+    field=archive_entry((Path(original)/"FDFIELD.DAT").read_bytes(),0)
+    attrs=archive_entry((Path(original)/"FDSHAP.DAT").read_bytes(),1)
+    start=struct.unpack_from("<I",field,4+(13*24+6)*4)[0]
+    if start!=147 or attrs[147*4:148*4]!=bytes((0,0,4,0)) or profile[0]!=1 or attrs[248*4+1]!=0:
+        raise ValueError("AI5一步路径必须原草地147到箱248且profile5/class0实际cost1")
+    if any(not actor(source,i)[5]&1 and actor(source,i)[:2] in (bytes((6,13)),bytes((7,13)))
+        for i in range(source[META+1]) if i!=11):raise ValueError("AI5路径起点/箱格不能有其它可见actor")
+    visible=[actor(source,i) for i in range(source[META+1]) if not actor(source,i)[5]&1 and actor(source,i)[6]!=0]
+    if any(_word(u,0x40)<=len(visible) for u in visible):raise ValueError("AI5不可出现AP0的18分目标")
+    return {"action":"cell","center":[7,13],"targets":[],"cell":cell,"one_step_direction":3,
+        "source_profile":5,"profile_source":evidence,"destination_cost":profile[0],"physical_priority_upper_bound":0,
+        "magic_inventory_candidates":0,"focus_completed_or_no_target_control_claimed":False}
+
+
 def prepare(original, scenario):
     encoded,source,manifest=derive_fixture(original,scenario)
     effects,evidence=use_effect_tables(Path(original)/"FD2.EXE");items,item_evidence=item_table(Path(original)/"FD2.EXE")
@@ -167,26 +231,36 @@ def prepare(original, scenario):
         for key in ("immediate","final"):b4["model"][key]=_options(b4["model"][key])
         final=b4["model"]["final"]
     else:final=phase_end_model(source,items)
-    final=bytearray(final);final[META+5:META+9]=bytes((7,14,2,3));final=_checksum(final)
+    final=bytearray(final);final[META+5:META+9]=bytes((7,14,2,3))
+    if scenario=="ai-behavior11-recover":_store(final,UNITS+11*STRIDE+0x40,60)
+    if scenario=="ai-behavior5-chest":
+        at=UNITS+11*STRIDE;final[at:at+2]=bytes((7,13));final[at+0x0a:at+0x0c]=bytes((0,192))
+        final[at+0x31:at+0x35]=bytes((0,192,0,7));final[CELL_STATE]=1
+    final=_checksum(final)
     contract={"scenario":scenario,"caster_raw":caster_raw,"caster_id":caster[7],"caster_side":caster[6],
         "magic_id":magic_id,"targets":[{"raw":raw,"unit_id":actor(source,raw)[7],"world":list(actor(source,raw)[:2]),"record_hex":actor(source,raw).hex()} for raw in manifest["targets"]],
-        "source_records_hex":[actor(source,raw).hex() for raw in range(source[META+1])],"effect":0,"music":0,"sfx":1}
+        "source_records_hex":[actor(source,raw).hex() for raw in range(source[META+1])],"effect":source[META+14],"music":0,"sfx":1}
     item_action=scenario=="ai-item-score20"
     caster_meta=casting_metadata(Path(original),caster[7]) if magic_id is not None and magic_id!=13 and not item_action else None
     magic=effects["magic"][magic_id*7:(magic_id+1)*7] if magic_id is not None else None
     if manifest["scenario"].startswith("ai-"):
         costs,cost_evidence=movement_profile(Path(original)/"FD2.EXE",0)
         if costs!=bytes((1,))*20:raise ValueError("AI fixture需要已证profile0全1；不猜blocked-range")
-        chosen=ai_item_plan(source,items[56*23:57*23],magic) if item_action else ai_plan(source,magic)
+        chosen=(ai_item_plan(source,items[56*23:57*23],magic) if item_action else
+            ai11_recovery_preflight(source,magic) if scenario=="ai-behavior11-recover" else
+            ai5_cell_preflight(original,source) if scenario=="ai-behavior5-chest" else ai_plan(source,magic))
         if chosen["targets"]!=manifest["targets"]:raise ValueError("AI实际最高分目标集不等于该场contract")
-        if caster[0x3b]!=0 or _word(caster,0x48)!=0 or caster[6]!=0 or caster[7]!=9 or (not item_action and caster_meta["cost_count"]!=1):
+        if caster[0x3b]!=(1 if scenario=="ai-behavior5-chest" else 0) or _word(caster,0x48)!=0 or caster[6]!=0 or caster[7]!=9 or (magic_id is not None and not item_action and caster_meta["cost_count"]!=1):
             raise ValueError("AI caster/费用/物理优先级前置不满足")
         contract.update(ai_plan=chosen,profile0=cost_evidence)
         if item_action:
             contract.update(action="item",item_id=56,item_slot=0,item_record_hex=items[56*23:57*23].hex(),
                 no_MP_cost_or_slot_consumption=True,full_FIGANI_frame_or_sound_equivalence_claimed=False)
         camera=list(source[META+3:META+5]);focus=list(source[META+5:META+7])
-        for target in ((6,14),tuple(caster[:2]),tuple(chosen["center"]),(7,14)):
+        focus_path=[(6,14),tuple(caster[:2]),tuple(chosen["center"])]
+        if scenario=="ai-behavior11-recover":focus_path.append(tuple(caster[:2]))
+        focus_path.append((7,14))
+        for target in focus_path:
             projected=native_focus_reference(camera,focus,target);camera,focus=projected["camera"],list(target)
         if camera!=[5,11]:raise ValueError("本B6 fixture超出已准备的固定camera资源")
     return {"scenario":scenario,"encoded":encoded,"source":source,"manifest":manifest,"base_final":final,
@@ -201,7 +275,7 @@ def project_final(prepared, measured):
         raise AssertionError("B6真实SAV长度/checksum错误")
     source,scenario=prepared["source"],prepared["scenario"]
     expected=bytearray(prepared["base_final"]);selected=[]
-    if scenario not in ("physical-full-hit","player-heal13"):
+    if scenario not in ("physical-full-hit","player-heal13","ai-behavior5-chest"):
         identity=prepared["manifest"]["magic_id"];magic=prepared["magic"]
         for index,raw in enumerate(prepared["manifest"]["targets"]):
             target=actor(source,raw);before=_word(target,0x40);profile=target[0x20]
@@ -220,7 +294,8 @@ def project_final(prepared, measured):
             selected.append({"raw":raw,"hp_before":before,"hp_after":actual,"allowed_hp":sorted(allowed),
                 "hit_inferred_from_HP":None if identity==8 and index>0 else actual!=before})
         caster_raw=prepared["manifest"]["caster_raw"]
-        cost=0 if scenario=="ai-item-score20" else prepared["caster_metadata"]["cost_count"]*magic[5]
+        cost=(0 if scenario=="ai-item-score20" else magic[5] if scenario=="ai-behavior11-recover"
+              else prepared["caster_metadata"]["cost_count"]*magic[5])
         _store(expected,UNITS+caster_raw*STRIDE+0x44,_word(actor(source,caster_raw),0x44)-cost)
         if scenario=="player-magic0":
             target=actor(source,11);loss=_word(target,0x40)-selected[0]["hp_after"]
@@ -231,6 +306,27 @@ def project_final(prepared, measured):
             expected[UNITS+caster_raw*STRIDE+0x3c]=actor(source,caster_raw)[0x3c]+gain
     return _checksum(expected),{"independent_native_finite_targets":selected,"cross_endpoint_rng_aligned":False,
         "source_unknown_roster_manual_bytes_not_taken_from_measurement":True}
+
+
+def ai11_action_coverage(prepared, measured, steps):
+    if prepared["scenario"]!="ai-behavior11-recover":raise ValueError("AI11业务门仅用于该精确受控场景")
+    _,detail=check_measurement(prepared,measured,steps)
+    caster=actor(measured,11)
+    return {"passed":True,"caster_raw":11,"caster_HP":_word(caster,0x40),"caster_MP":_word(caster,0x44),
+        "caster_world":list(caster[:2]),"turn":measured[META],"post_phase_acted_bit":bool(caster[5]&0x80),
+        "independent_native_finite_targets":detail["independent_native_finite_targets"],
+        "full_SAV_except_declared_cache_and_measure_navigation":True,
+        "acted_transient_or_common_tail_write_count_observed":False,"witness_absent_claimed":False,
+        "whole_FX_or_SFX_claimed":False,"no_reroll_or_additional_input":True}
+
+
+def ai5_action_coverage(prepared, measured, steps):
+    if prepared["scenario"]!="ai-behavior5-chest":raise ValueError("AI5业务门仅用于该原stage0箱格")
+    _,detail=check_measurement(prepared,measured,steps);caster=actor(measured,11)
+    return {"passed":True,"caster_raw":11,"world":list(caster[:2]),"behavior_whole_byte":caster[0x34],
+        "completed0":measured[CELL_STATE],"inventory_hex":caster[0x0a:0x1a].hex(),"turn":measured[META],
+        "full_SAV_except_declared_cache_and_measure_navigation":True,"live_opened_tile_requires_separate_WGC_gate":True,
+        "transient_acted_or_tail_write_count_observed":False,"focus_no_target_control_claimed":False,"whole_FX_or_SFX_claimed":False}
 
 
 def item_action_coverage(prepared, measured, steps):

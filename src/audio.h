@@ -47,10 +47,23 @@ typedef struct {
 
 typedef struct fd2_audio fd2_audio;
 
+typedef enum {
+    FD2_AUDIO_ERROR_NONE,
+    FD2_AUDIO_ERROR_OPEN,
+    FD2_AUDIO_ERROR_RESUME,
+    FD2_AUDIO_ERROR_PUT,
+} fd2_audio_error;
+
+/* Open/Resume失败且allow_null非零时，本对象保持discard-null到销毁；
+ * 不自动重开或恢复播放位置。成功打开后的默认设备迁移仍由SDL负责。 */
 fd2_audio *fd2_audio_create(const fd2_audio_config *config);
 void fd2_audio_destroy(fd2_audio *audio);
+/* 仅表示持有stream，不保证设备当前可听或不存在历史写流错误。 */
 int fd2_audio_has_device(const fd2_audio *audio);
 int fd2_audio_sample_rate(const fd2_audio *audio);
+/* 读取本对象生命周期首个Open/Resume/Put错误，不清除、不关闭或重放source。
+ * 返回0；参数无效返回-1且不修改输出。严格create失败仍返回NULL。 */
+int fd2_audio_get_first_error(const fd2_audio *audio, fd2_audio_error *error);
 
 /* 单生产者命令入口。render/retire 可能在实时音频线程执行，必须有界且禁止
  * 文件 I/O、动态分配、锁等待和阻塞。source 及 userdata 必须保持有效，直至
@@ -59,7 +72,13 @@ int fd2_audio_sample_rate(const fd2_audio *audio);
 int fd2_audio_play_source(fd2_audio *audio, fd2_audio_bus bus,
                           fd2_audio_source source, float gain);
 int fd2_audio_stop_bus(fd2_audio *audio, fd2_audio_bus bus);
+/* bus配置只保留最新目标，不占PLAY/STOP/master的SPSC队列；每mix chunk
+ * 各读取一次。0表示接受目标，-1仅表示参数无效；不承诺逐条增益历史、
+ * 两个bus同步切换、物理输出或与PLAY/STOP逐命令的样本级顺序。 */
 int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain);
+/* 只读已接受目标，不表示设备已应用。无效参数返回-1且不修改输出。 */
+int fd2_audio_get_bus_gain_target(const fd2_audio *audio, fd2_audio_bus bus,
+                                  float *gain);
 /* MUSIC bus uses one replaceable source, matching music_track_play's
  * single active XMIDI sequence. */
 int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source,

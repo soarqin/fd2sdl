@@ -1,6 +1,6 @@
 # 分阶段提交与验证记录
 
-2026-11-05 用户修订推进规则：项目所需IDA Domain／idalib数据库操作不再逐次授权；B3及后续同级编号为最小交付／提交单元，阶段内部只测试自身新增、修改与直接受影响路径，大阶段结束再统一全面复测历史功能。完整 B3 至 B7 已按同等粒度分别交付，当前执行 B0—B7 大阶段统一审查与历史回归；不在内部功能完成时停报或提交。下文旧微阶段划分、当时的授权等待和重复全量实机计划仅为历史记录，不再构成当前要求；已有提交及实际测试范围保持原样。
+2026-11-05 用户修订推进规则：项目所需IDA Domain／idalib数据库操作不再逐次授权；B3及后续同级编号为最小交付／提交单元，阶段内部只测试自身新增、修改与直接受影响路径，大阶段结束再统一全面复测历史功能。完整 B3 至 B7 已按同等粒度分别交付，B0—B7 大阶段统一审查与历史回归已封存于 `8fdfb2f`；后续阶段另行登记，不在内部功能完成时停报或提交。下文旧微阶段划分、当时的授权等待和重复全量实机计划仅为历史记录，不再构成当前要求；已有提交及实际测试范围保持原样。
 
 B1 已列控制场景和用户反馈后的自然开场／边缘镜头补充复验均已通过，累计验收及补跑边界见下文。结果与菜单合同、原版运行证据、未开放页面分别登记。结算属于 B5，完整第一关的玩法／视觉／声音验收属于 V1，不因核心合同通过而自动关闭。
 
@@ -958,3 +958,37 @@ B0—B7当前支持范围至stage1自然实战、结算和stage2初始入场／�
 A7／A8代码在独立普通目录完成私有整合编译及定向纯测试，尚未合入本次生产代码。初次标题18采集错误地要求静态WGC series在8秒后仍有fresh帧，只取得一张完整标题，按原门FAILED并正常清理；其closed DRO／WAV／FILES后来只读解析通过，旧FAILED不覆盖。静态页面流程因此改为同PID唯一可见HWND的首末两次WGC资源正证，中间8秒无测试键／目标存活／后台，明确没有连续FPS或逐动画结论，不放宽动态B6图形门。
 
 修正后原版单端采集通过，Job35804全0／cleaned1，目标和原资源／工具／静态49及Save守卫全真。首末完整64000像素坏点0／最大差3，中间8.015秒无新增测试键；DRO8852字节／4352pairs／3748writes、WAV916884个44100Hz双声道PCM16样本帧，文件头尾闭合，非零样本1629446／peak24995。报告SHA`38a1ae061145235480be4dd8e08f3086e47f7cbb8876b989f952a9d3f8b191bf`。单次Capture接口没有capture-HWND返回元数据，owner证据限定为driver唯一可见PID及既有input HWND前后仍owned，不伪造字段。此项仅关闭采集流程，未证明loaded-driver指针、纯曲无SFX、SDL波形、精确时序、A7或A8完成；后续按音频工作包继续。
+
+## A8：宿主与设备生命周期
+
+本阶段从 `8fdfb2f` 独立提取本地降级与资源生命周期改动，按本阶段已明确的本地降级与资源生命周期范围交付；A7 的驱动调度、默认 PCM 增益、音色／响度与命名提案没有混入。以下音频 C3／C4／C5 指本地 `audio-head-8fdfb2-20261107-c*` 候选，不改写前文同编号的大阶段图形候选。
+
+### 实现与交付候选
+
+两个 bus 保存可合并的最新原子目标，PLAY／STOP／master 仍用原 SPSC 队列；读取目标不表示设备已应用。Open／Resume／Put 首错在对象生命周期内保留，只读查询不清错；callback 的 Put 失败还通过既有首错门使当前 AppMix summary 失败，采集结果保留提交失败，不把部分成功录音算完整通过。允许 null 时的首次打开／启动失败保持本轮 discard-null，不自动重开或恢复播放位置。
+
+`--field-play-once` 的旧内嵌玩法／绘制自测迁到既有无窗口测试，保留原断言和错误／quit 路径，使正式快速入口只验证本身。新增无效音频后端的实际主程序快速入口检查，保留正式 Game 和图形资源门。独立 SDL 内部 ABI probe 位于 `tools/testing/sdl-local-disconnect`，不成为 App 的私有 SDL 头依赖，不重新构建 SDL。
+
+最终交付树为 `E:/Projects/fd2sdl-work/a8-delivery-20261107`，基于 `8fdfb2f` 的独立 A8 提取；主程序 SHA256 `3521a0504385e5dabee8d8a36aafc9c00b2bda4374f19e5075c0d66e152f29e0`。全新 Windows Debug 构建后，10项定向 CTest 在4.96秒内通过；独立 SDK 的两个目标也全新编译，九组纯边界的1项 CTest及设备 probe dry 通过。707个源码地址均为 canonical，`git diff --check` 通过。结果位于本地 `a8-delivery-verification-20261107-c1/result.json`，不是历史全部测试的新一轮验收，也未重新执行 GUI／设备采集。
+
+独立审查修复了私有 ABI 再生产入口只固定库、未固定头文件的缺口：现在同时校验真实 `SDL_sysaudio.h`、`SDL_internal.h` 与生成配置头。C2实际验证坏头拒绝、匹配 SDK 接受；清除迁移测试的局部变量遮蔽警告后，只重编／补验 `field_unit_render`。另删除迁移测试中恒为真的可选参数及不可达分支，C3只重编／补验 `field_progress_play`。两项均通过，分别保留 C2／C3收据，不写成 fresh13 或重复全历史回归。独立 owner／错误／销毁／覆盖迁移复审无剩余阻断，正常 Play 路径没有改动。
+
+配置和编译 worker 均返回0，但 MSVC 留下所属 `vctip.exe`，外层 Job 记录 residual=1、forced=1、cleaned=1、result=125；对应 PID与完整映像路径已留在每份构建日志，不把编译成功改写成正常清理通过。CTest、dry、地址检查 Job 均正常0且无残留／强制清理。本轮原版独立副本50文件不变，主工作区未提交的两个 shell脚本和公开主程序未改。
+
+### 已有证据及复用边界
+
+本地收据均保留于 `C:/Users/Soar/source/repos/fd2sdl-work/` 或其明确记载的历史目录；不提交原资源、WAV、程序或报告。
+
+| 来源 | 可复用事实 | 限制 |
+|---|---|---|
+| `a7-three-scenes-gui-prep-20261107-c3/actual-four-episodes-c3-c3`；独立 QA `a7-four-episodes-actual-readonly-qa-20261107-c1/receipt.json`，SHA `1c1a50000b8d5518269db022a636e19965b13d0c05fa23abd305f4c73348ea59` | 音频 C3 的 options／Load 两个 SDL 目标，opening／END 四个双端目标，共六个正常关闭目标（四 SDL／两原版），含正式切曲、活动 Load、后台与关闭的共同 owner／pre-OS 采集 | 不是六个 SDL 目标或本交付树的 fresh GUI，不回填 C4 后续逐 Put 成功，也不证明 A7 音频保真 |
+| `a7-appmix-put-failure-connected-review-20261107-c1/receipt.json`，SHA `4ef504763b469a15799296d2812242a5cd7b8b9fc2a7a4519873aa42f601f150` | C4 中途 Put 失败使 summary 失败的真实红绿；lifecycle／boundaries 两项绿加修正重编后的 hook 一项绿 | 首次旧 mtime 导致 hook 未重编的失败原样保留；三项是联合资格，不称 fresh3 |
+| `audio-head-8fdfb2-20261107-c5/receipt.json`，SHA `1ab2e053f3f1a431aa8a0804cbc1659d7d3679db323efc46a54eba0d14cfd55d` | once 自测迁出、无效音频后端快速入口及两个受影响测试的三项通过 | 原 cursor／info 自测失败保留；不改正常 Play 的 A7 接线，不计新 GUI 或实际设备打开 |
+| `major-b0-b7-20261106/a8-device-actual-c2-receipt.json`（历史 LOCALAPPDATA 工作目录），SHA `93c61c69a67c50d005c9adb8cc67c0a9d6406992c2c88d06ca0a7210224d0acc` | 真实 WASAPI source 替换、两 bus 恢复、153 次成功 Put、三 source 各 retire 一次，Job41112 正常清理 | 是 API probe，不是正式 Game Load 或物理拔插 |
+| `a8-sdl-local-disconnect-prep-20261107-c4/actual-loss-c3-probe-c4-pure/receipt.json`，SHA `23104f884b54d1a8761153fd4ac4a4baceaeed46da23c183ca3459bf10aae589` | 继承 C3 已链接 probe 与 C4 九组纯回归；实际 WASAPI 48k／双声道 F32，151 callback＝151 Put＝151 success，非零设备提交0；三个 source 各 retire 一次 | 不称 fresh 双程序，不执行全局设备／混音器操作 |
+
+最后一项的同 logical／physical owner 前后保持，ref 取得／释放各一次，zombie0→1，Wait／GetBuffer／Play 三函数均切换；断连后 callback 与 Put 从1增至2，并继续到151。原 source 替换、两 bus 配置恢复、stop／retire／close 都发生在该进程的后续真实流程。Job28288 的 worker／result0，timeout／residual／forced0、cleaned1。独立只读 QA 收据 `a8-local-disconnect-actual-readonly-qa-20261107-c1/receipt.json` SHA `6eea5f5a1dda444ccace8e051e8c0aff43128d13878f7d76fd8713a0b6e0dae4` 复核 raw JSON／Job、573个可复核来源事实及已命名程序／收据；不将父端578输入计数伪称为另一次完整重建。
+
+### 未覆盖范围
+
+完成范围是当前 Windows 的本地降级与资源生命周期。稳定后台已有实际证据，真实前台→失焦切换未另取证；不新增自动暂停策略。原 SDL 的进程内 removed→Zombie 不等于实际物理拔插、WASAPI `AUDCLNT_E_DEVICE_INVALIDATED` 恢复成功或默认路由迁移。设备 probe 只提交等长零，未验证扬声器输出；任意未通知 SDL 的 callback 停滞不在本项保证内。Linux／macOS 和私有 SDK probe 的其它 ABI 未执行。A7 的响度、完整波形和绝对时序仍未关闭，不能由上述采集或生命周期结果替代。

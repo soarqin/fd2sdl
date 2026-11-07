@@ -129,6 +129,151 @@ static int test_ack(fd2_field_game *source) {
 #define fd2_field_game_progress_ack test_ack
 #define fd2_field_game_progress_resume test_resume
 #include "field_play.c"
+
+/* 原once攻击回放只属于本测试夹具：保留真实提交后progress的quit／数据错误门，
+ * 不再让正式单帧入口演练战斗。此处仍沿用本TU的present／clock／资源替身。 */
+static void init_validation_replay(fd2_field_game *replay,
+                                   const fd2_field_game *game) {
+    *replay = *game;
+    replay->move_range =
+        (fd2_field_path_result)FD2_FIELD_PATH_RESULT_INITIALIZER;
+    replay->move_path = NULL;
+    replay->move_path_capacity = 0;
+    replay->move_path_length = 0;
+    replay->move_preview_valid = 0;
+    replay->selected_unit = -1;
+    replay->command_selected = -1;
+    replay->attack_target = -1;
+    replay->last_attack_valid = 0;
+    replay->interaction = FD2_FIELD_INTERACTION_BROWSE;
+}
+
+static void close_validation_replay(fd2_field_game *replay) {
+    if (!replay) return;
+    fd2_field_path_close(&replay->move_range);
+    free(replay->move_path);
+    replay->move_path = NULL;
+    replay->move_path_capacity = 0;
+    replay->move_path_length = 0;
+}
+
+static int move_focus_to(fd2_field_game *game, int x, int y) {
+    if (!game) return -1;
+    while (game->cursor_cell_x != x) {
+        int dx = game->cursor_cell_x < x ? 1 : -1;
+        if (!fd2_field_game_move_cursor(game, dx, 0)) return -1;
+    }
+    while (game->cursor_cell_y != y) {
+        int dy = game->cursor_cell_y < y ? 1 : -1;
+        if (!fd2_field_game_move_cursor(game, 0, dy)) return -1;
+    }
+    return 0;
+}
+
+static int validate_attack_flow(const fd2_field_game *game,
+                                fd2_vga *vga, const fd2_archive *fdother,
+                                fd2_field_audio *audio) {
+    if (!game || !game->ready || game->active_side != 2u) return -1;
+    fd2_field_game replay;
+    init_validation_replay(&replay, game);
+    fd2_field_rng rng;
+    fd2_field_rng_seed(&rng, 0x7a18);
+    int result = -1;
+    const char *failed_stage = "attack hooks";
+    size_t attacker_index = SIZE_MAX;
+    fd2_field_ai_physical_candidate plan = {0};
+
+    if (fd2_field_game_set_attack_hooks(
+            &replay, NULL, NULL, NULL, NULL,
+            fd2_field_rng_next, &rng) != 0)
+        goto done;
+    failed_stage = "real candidate";
+    for (size_t i = 0; i < replay.units.count; i++) {
+        const fd2_field_unit *unit = &replay.units.items[i];
+        if (unit->side != 2u || fd2_field_unit_is_hidden(unit) ||
+            unit->hp == 0 || fd2_field_unit_has_acted(unit))
+            continue;
+        fd2_field_path_result move_range =
+            FD2_FIELD_PATH_RESULT_INITIALIZER;
+        int have_plan =
+            fd2_field_game_compute_move_range(&replay, i, &move_range) == 0 &&
+            fd2_field_ai_choose_physical_candidate(
+                &replay.map, &replay.terrain, &replay.units,
+                i, 1u, &move_range, &plan) == 0;
+        fd2_field_path_close(&move_range);
+        if (have_plan) {
+            attacker_index = i;
+            break;
+        }
+    }
+    if (attacker_index == SIZE_MAX ||
+        plan.unit_index >= replay.units.count) {
+        goto done;
+    }
+
+    /* 运行时 RNG 本来由战场入口播种；在可达候选确定后恢复同一初值，
+     * 让两个入口的命中／伤害断言保持确定，同时不改写任何单位属性。 */
+    fd2_field_rng_seed(&rng, 0x7a18);
+    failed_stage = "move and command";
+    fd2_field_unit *attacker = &replay.units.items[attacker_index];
+    fd2_field_unit *defender = &replay.units.items[plan.unit_index];
+    uint16_t defender_hp_before = defender->hp;
+    replay.cursor_cell_x = attacker->x;
+    replay.cursor_cell_y = attacker->y;
+    if (fd2_field_game_confirm_cursor(&replay) != (int)attacker_index ||
+        move_focus_to(&replay, plan.destination_x, plan.destination_y) != 0 ||
+        !replay.move_preview_valid ||
+        fd2_field_game_confirm_cursor(&replay) != (int)attacker_index ||
+        replay.interaction != FD2_FIELD_INTERACTION_MOVING ||
+        fd2_field_game_execute_move(&replay, NULL, 0) != 0 ||
+        replay.interaction != FD2_FIELD_INTERACTION_COMMAND)
+        goto done;
+
+    failed_stage = "target confirmation";
+    (void)fd2_field_game_select_command_direction(
+        &replay, FD2_FIELD_COMMAND_DIRECTION_UP);
+    if (replay.command_selected != FD2_FIELD_COMMAND_ATTACK ||
+        fd2_field_game_confirm_cursor(&replay) != (int)attacker_index ||
+        replay.interaction != FD2_FIELD_INTERACTION_TARGETING ||
+        !replay.move_range.nodes ||
+        !fd2_field_path_is_destination(
+            &replay.move_range, defender->x, defender->y) ||
+        move_focus_to(&replay, defender->x, defender->y) != 0 ||
+        fd2_field_game_confirm_cursor(&replay) != (int)attacker_index)
+        goto done;
+
+    failed_stage = "damage commit";
+    if (!replay.last_attack_valid || !replay.last_attack.hit ||
+        defender->hp >= defender_hp_before ||
+        !fd2_field_unit_has_acted(attacker) || replay.selected_unit != -1 ||
+        replay.interaction != FD2_FIELD_INTERACTION_BROWSE ||
+        replay.move_range.nodes != NULL)
+        goto done;
+
+    failed_stage = "acted gate";
+    /* once同样完成B4逻辑续态；fast不等待按键，不登记真实提示或RNG对照。 */
+    int progress_result = play_field_progress(&replay, vga, fdother, audio, 1);
+    if (progress_result != FD2_SCENE_RESULT_OK) {
+        if (progress_result == FD2_SCENE_RESULT_HOST_QUIT) result = FD2_SCENE_RESULT_HOST_QUIT;
+        goto done;
+    }
+    /* 攻击完成后的 acted 单位同样不能重新进入移动状态。 */
+    replay.cursor_cell_x = attacker->x;
+    replay.cursor_cell_y = attacker->y;
+    if (fd2_field_game_confirm_cursor(&replay) != -1 ||
+        replay.selected_unit != -1 ||
+        replay.interaction != FD2_FIELD_INTERACTION_BROWSE)
+        goto done;
+    result = 0;
+
+done:
+    if (result != 0 && result != FD2_SCENE_RESULT_HOST_QUIT)
+        fprintf(stderr, "field attack validation stopped at: %s\n",
+                failed_stage);
+    close_validation_replay(&replay);
+    return result;
+}
+
 #undef malloc
 #undef calloc
 #undef fd2_portrait_decode_frame
@@ -276,11 +421,11 @@ static void test_attack_validation_preserves_quit_result(void) {
     game.units.items[1].hp=10;
     ((uint8_t*)&game.units.items[0])[10]=0x40;((uint8_t*)&game.units.items[0])[11]=0;
     vga.input.quit_requested=1;
-    CHECK(validate_attack_flow(&game,1,&vga,&fixture_other,NULL)==FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(validate_attack_flow(&game,&vga,&fixture_other,NULL)==FD2_SCENE_RESULT_HOST_QUIT);
     CHECK(!acknowledged && !test_frames && !rng_calls && !live_images);
     /* 独立数据错误保持-1；不能只因同时有quit就把资源/数据失败洗成退出。 */
     game.map.cells=NULL;
-    CHECK(validate_attack_flow(&game,1,&vga,&fixture_other,NULL)==-1);
+    CHECK(validate_attack_flow(&game,&vga,&fixture_other,NULL)==-1);
     CHECK(!acknowledged && !test_frames && !rng_calls && !live_images);
 }
 /* B5共用同一底框：19953四步展开先吞入场键、No短停不等箭头、

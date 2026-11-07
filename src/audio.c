@@ -26,7 +26,6 @@ static const float fd2_test_audio_silence[FD2_AUDIO_MIX_CHUNK * 2u] = {0};
 typedef enum {
     FD2_AUDIO_COMMAND_PLAY,
     FD2_AUDIO_COMMAND_STOP_BUS,
-    FD2_AUDIO_COMMAND_BUS_GAIN,
     FD2_AUDIO_COMMAND_MASTER_GAIN,
 } fd2_audio_command_type;
 
@@ -52,7 +51,8 @@ struct fd2_audio {
     int test_quiet;
     fd2_audio_pcm_capture *capture;
     fd2_audio_voice voices[FD2_AUDIO_MAX_VOICES];
-    float bus_gain[FD2_AUDIO_BUS_COUNT];
+    _Atomic uint32_t bus_gain_bits[FD2_AUDIO_BUS_COUNT];
+    _Atomic int first_error;
     float master_gain;
     uint64_t next_serial;
     fd2_audio_command commands[FD2_AUDIO_COMMAND_CAPACITY];
@@ -64,6 +64,27 @@ struct fd2_audio {
 
 static int valid_gain(float gain) {
     return isfinite(gain) && gain >= 0.0f && gain <= FD2_AUDIO_MAX_GAIN;
+}
+
+/* 与队列索引共用无锁32位原子；callback不依赖原子float的实现。 */
+_Static_assert(sizeof(float) == sizeof(uint32_t), "SDL F32 requires 32-bit float");
+static uint32_t gain_bits(float gain) {
+    uint32_t bits;
+    memcpy(&bits, &gain, sizeof(bits));
+    return bits;
+}
+
+static float gain_from_bits(uint32_t bits) {
+    float gain;
+    memcpy(&gain, &bits, sizeof(gain));
+    return gain;
+}
+
+static void record_first_error(fd2_audio *audio, fd2_audio_error error) {
+    int expected = FD2_AUDIO_ERROR_NONE;
+    (void)atomic_compare_exchange_strong_explicit(
+        &audio->first_error, &expected, (int)error,
+        memory_order_release, memory_order_relaxed);
 }
 
 static void source_retire(fd2_audio_source source,
@@ -84,8 +105,6 @@ static int command_push(fd2_audio *audio, const fd2_audio_command *command) {
     if (audio->discard_output) {
         if (command->type == FD2_AUDIO_COMMAND_PLAY)
             source_retire(command->source, FD2_AUDIO_RETIRE_DROPPED);
-        else if (command->type == FD2_AUDIO_COMMAND_BUS_GAIN)
-            audio->bus_gain[command->bus] = command->gain;
         else if (command->type == FD2_AUDIO_COMMAND_MASTER_GAIN)
             audio->master_gain = command->gain;
         return 0;
@@ -148,9 +167,6 @@ static void command_apply(fd2_audio *audio,
                     voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_STOPPED);
             }
             break;
-        case FD2_AUDIO_COMMAND_BUS_GAIN:
-            audio->bus_gain[command->bus] = command->gain;
-            break;
         case FD2_AUDIO_COMMAND_MASTER_GAIN:
             audio->master_gain = command->gain;
             break;
@@ -172,6 +188,10 @@ static void commands_consume(fd2_audio *audio) {
 
 static void render_chunk(fd2_audio *audio, float *stereo, size_t frames) {
     commands_consume(audio);
+    float bus_gain[FD2_AUDIO_BUS_COUNT];
+    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++)
+        bus_gain[i] = gain_from_bits(atomic_load_explicit(
+            &audio->bus_gain_bits[i], memory_order_acquire));
     memset(stereo, 0, frames * 2u * sizeof(*stereo));
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
         fd2_audio_voice *voice = &audio->voices[i];
@@ -181,7 +201,7 @@ static void render_chunk(fd2_audio *audio, float *stereo, size_t frames) {
         size_t produced = voice->source.render(
             voice->source.userdata, audio->source_buffer, frames);
         if (produced > frames) produced = frames;
-        float gain = voice->gain * audio->bus_gain[voice->bus];
+        float gain = voice->gain * bus_gain[voice->bus];
         for (size_t sample = 0; sample < produced * 2u; sample++) {
             float value = audio->source_buffer[sample];
             if (isfinite(value)) stereo[sample] += value * gain;
@@ -212,9 +232,13 @@ static void SDLCALL audio_stream_callback(void *userdata,
         render_chunk(audio, audio->mix_buffer, frames);
         const float *submitted = audio->test_quiet ? fd2_test_audio_silence
             : fd2_audio_pcm_capture_submission(audio->capture, audio->mix_buffer, frames);
-        if (!submitted || !SDL_PutAudioStreamData(stream, submitted,
-                                    (int)(frames * (size_t)frame_bytes)))
+        if (!submitted) return;
+        if (!SDL_PutAudioStreamData(stream, submitted,
+                                    (int)(frames * (size_t)frame_bytes))) {
+            record_first_error(audio, FD2_AUDIO_ERROR_PUT);
+            fd2_audio_pcm_capture_put_failed(audio->capture);
             return;
+        }
         fd2_audio_pcm_capture_push(audio->capture, audio->mix_buffer, frames);
         frames_left -= (int)frames;
     }
@@ -229,11 +253,23 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
     if (!audio) return NULL;
     audio->sample_rate = sample_rate;
     audio->master_gain = 1.0f;
-    audio->bus_gain[FD2_AUDIO_BUS_MUSIC] = 1.0f;
-    audio->bus_gain[FD2_AUDIO_BUS_SFX] = 1.0f;
+    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++)
+        atomic_init(&audio->bus_gain_bits[i], gain_bits(1.0f));
+    atomic_init(&audio->first_error, FD2_AUDIO_ERROR_NONE);
     audio->next_serial = 1;
     atomic_init(&audio->command_read, 0);
     atomic_init(&audio->command_write, 0);
+    /* MSVC C11的*_LOCK_FREE宏为1，按实际对象验证，不能在callback回退到锁。 */
+    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++) {
+        if (!atomic_is_lock_free(&audio->bus_gain_bits[i])) {
+            free(audio); SDL_SetError("audio gain atomics are not lock-free"); return NULL;
+        }
+    }
+    if (!atomic_is_lock_free(&audio->first_error) ||
+        !atomic_is_lock_free(&audio->command_read) ||
+        !atomic_is_lock_free(&audio->command_write)) {
+        free(audio); SDL_SetError("audio state atomics are not lock-free"); return NULL;
+    }
 
     const char *test_quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_TEST_AUDIO_QUIET");
     if (test_quiet && strcmp(test_quiet, "0") && strcmp(test_quiet, "1")) {
@@ -261,6 +297,7 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
         audio->stream = SDL_OpenAudioDeviceStream(
             SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
             audio_stream_callback, audio);
+        if (!audio->stream) record_first_error(audio, FD2_AUDIO_ERROR_OPEN);
         if (capture_dir && *capture_dir) {
             const char *quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_QUIET");
             int suppress = audio->test_quiet || (quiet && strcmp(quiet, "1") == 0);
@@ -271,6 +308,7 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
             }
         }
         if (audio->stream && !SDL_ResumeAudioStreamDevice(audio->stream)) {
+            record_first_error(audio, FD2_AUDIO_ERROR_RESUME);
             SDL_DestroyAudioStream(audio->stream);
             audio->stream = NULL;
             if (audio->capture) { fd2_audio_pcm_capture_close(audio->capture); free(audio); return NULL; }
@@ -318,6 +356,13 @@ int fd2_audio_sample_rate(const fd2_audio *audio) {
     return audio ? audio->sample_rate : 0;
 }
 
+int fd2_audio_get_first_error(const fd2_audio *audio, fd2_audio_error *error) {
+    if (!audio || !error) return -1;
+    *error = (fd2_audio_error)atomic_load_explicit(
+        &audio->first_error, memory_order_acquire);
+    return 0;
+}
+
 int fd2_audio_play_source(fd2_audio *audio, fd2_audio_bus bus,
                           fd2_audio_source source, float gain) {
     if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT ||
@@ -353,12 +398,17 @@ int fd2_audio_stop_music(fd2_audio *audio) {
 int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain) {
     if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT || !valid_gain(gain))
         return -1;
-    fd2_audio_command command = {
-        .type = FD2_AUDIO_COMMAND_BUS_GAIN,
-        .bus = bus,
-        .gain = gain,
-    };
-    return command_push(audio, &command);
+    atomic_store_explicit(&audio->bus_gain_bits[bus], gain_bits(gain),
+                          memory_order_release);
+    return 0;
+}
+
+int fd2_audio_get_bus_gain_target(const fd2_audio *audio, fd2_audio_bus bus,
+                                  float *gain) {
+    if (!audio || !gain || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT) return -1;
+    *gain = gain_from_bits(atomic_load_explicit(
+        &audio->bus_gain_bits[bus], memory_order_acquire));
+    return 0;
 }
 
 int fd2_audio_set_master_gain(fd2_audio *audio, float gain) {

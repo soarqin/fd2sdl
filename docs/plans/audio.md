@@ -56,9 +56,17 @@ Windows原版 controlled C10录音支持城镇10／酒店13／入场后19；最�
 
 ### A8：宿主与设备生命周期（P2，配合 R1）
 
-- [ ] 固化失焦、关闭窗口、设备打开失败和设备丢失时的降级／销毁行为；不为该工作新增暂停或设备选择 UI。
-- [ ] 保持音频不可用时逻辑可运行，source 只 retire 一次，不悬空、不占满队列；主线程与 callback 的资源边界不变。
-- [ ] 在当前开发平台的实际设备上验证打开、播放、切曲、Load、关闭与错误路径；其他平台注明未执行，不阻塞当前平台验收。交叉构建和 SDL dummy 不替代当前平台设备实测。
+当前 Windows 受支持的本地降级与资源生命周期范围完成，独立于尚未关闭的 A7。交付树从 `8fdfb2f` 提取 A8 改动，不包含 A7 的 XMIDI 调度、原版驱动模型、默认 PCM 增益或命名发布。最终交付候选与定向测试结果见[阶段记录](stage-log.md#a8宿主与设备生命周期)。
+
+- [x] 固化后台运行、关闭窗口、设备打开失败和 SDL 本地断连通知后的降级／销毁行为；失焦不新增暂停策略，也不新增设备选择 UI。
+- [x] 保持音频不可用时逻辑可运行，source 只 retire 一次；两个 bus 的最新配置不再占用 PLAY／STOP／master 的 SPSC 队列。Open／Resume／Put 的生命周期首错可只读查询，Put 失败同时使当前 AppMix 取证失败，不关闭、重放或自动重开 source。
+- [x] 在 Windows 实际 WASAPI 流上验证打开、source 替换、两 bus 配置恢复、stop／retire／close，以及本进程原 SDL removed→Zombie 路径。正式切曲、活动 Load、后台与关窗沿用已列共同 owner 的实际来源，不把 API probe 的 source 替换称为正式 Game Load。
+
+Open／Resume 失败时，允许 null 的对象保持本轮 discard-null 到销毁，不承诺自动恢复或播放位置恢复。成功打开后的默认设备管理交给 SDL；本地断连通知后的 Zombie 继续消费 callback，避免把正常 SDL 断连等同于队列永远停滞。callback 不做文件 I/O、分配、关闭设备或无界等待。
+
+已有声音／资源记录和新交付候选的验证分开登记。设备 probe 为 `SDL_INIT_AUDIO`、48 kHz 双声道 F32、实际 render 后向设备提交等长零；本地断连一轮有 151 次 callback／Put／成功提交、三个 source 各 retire 一次，owner／ref 与正常 Job 清理均闭合。它证明 pre-OS 处理和进程内 SDL 生命周期，不证明扬声器输出。可复现入口见[工具速查](../tools/README.md#a8-音频生命周期验证)。
+
+真实前台→失焦事件、物理拔插、WASAPI `AUDCLNT_E_DEVICE_INVALIDATED` 恢复成功、实际默认路由迁移均未单独实测；稳定后台已有实际证据。Linux／macOS 本轮未执行，私有 SDL 内部 ABI probe 只支持已固定的 Windows x64 Debug。音色、响度、波形和绝对时序继续归 A7，不因 A8 的本地生命周期验收而关闭。
 
 ## 3. 验收标准
 

@@ -581,7 +581,89 @@ static int test_normal_tick_single_visual_advance(void) {
     free(g);return 0;
 }
 
+/* 原once特效组合检查迁入真实资源的无窗口夹具；timed=0、audio=NULL，
+ * 保留flash／earthquake／transition的错误门、快照差异与最终帧。 */
+static int validate_field_effects(fd2_field_game *game, fd2_vga *vga,
+                                  fd2_field_audio *field_audio) {
+    if (!game || !game->ready || !vga || game->units.count == 0) return -1;
+    int result = -1;
+    fd2_field_effect_frames effect_frames = {0};
+    uint8_t units[] = {0};
+    uint8_t invalid_unit[] = {(uint8_t)game->units.count};
+
+    if (fd2_field_game_prepare_actor_group_flash(
+            game, vga, invalid_unit, 1, 0xc0, &effect_frames) == 0 ||
+        effect_frames.storage != NULL ||
+        fd2_field_game_prepare_stage_transition(
+            game, vga, 0, 0, 0, 8, &effect_frames) == 0 ||
+        effect_frames.storage != NULL)
+        goto done;
+    if (fd2_field_game_prepare_stage_transition(
+            game, vga, INT_MIN, INT_MAX, 10, 8, &effect_frames) != 0)
+        goto done;
+    fd2_field_effect_frames_close(&effect_frames);
+
+    if (fd2_field_game_prepare_actor_group_flash(
+            game, vga, units, 1, 0xc0, &effect_frames) != 0 ||
+        !effect_frames.snapshots[0] || !effect_frames.snapshots[1] ||
+        memcmp(effect_frames.snapshots[0], effect_frames.snapshots[1], VGA_W * VGA_H) == 0 ||
+        fd2_field_effect_play(&effect_frames, vga, NULL, 0) != 0 ||
+        memcmp(vga->framebuffer, effect_frames.snapshots[0], VGA_W * VGA_H) != 0)
+        goto done;
+    fd2_field_effect_frames_close(&effect_frames);
+    if (fd2_field_game_play_actor_group_flash(
+            game, vga, field_audio, units, 1, 0xc0, 0) != 0)
+        goto done;
+
+    if (fd2_field_game_prepare_earthquake(game, vga, &effect_frames) != 0 ||
+        memcmp(effect_frames.snapshots[0], effect_frames.snapshots[1], VGA_W * VGA_H) == 0 ||
+        memcmp(effect_frames.snapshots[1], effect_frames.snapshots[2], VGA_W * VGA_H) == 0 ||
+        fd2_field_effect_play(&effect_frames, vga, NULL, 0) != 0 ||
+        /* 第 59 帧是 cycle[3]，应落在 source 1。 */
+        memcmp(vga->framebuffer, effect_frames.snapshots[1], VGA_W * VGA_H) != 0)
+        goto done;
+    fd2_field_effect_frames_close(&effect_frames);
+    if (fd2_field_game_play_earthquake(
+            game, vga, field_audio, 0) != 0)
+        goto done;
+
+    int center_x = (game->cursor_cell_x - game->camera_cell_x) * 24 + 12;
+    int center_y = (game->cursor_cell_y - game->camera_cell_y) * 24 + 16;
+    if (fd2_field_game_prepare_stage_transition(
+            game, vga, center_x, center_y, 10, 8, &effect_frames) != 0 ||
+        memcmp(effect_frames.snapshots[0], effect_frames.snapshots[8], VGA_W * VGA_H) == 0 ||
+        fd2_field_effect_play(&effect_frames, vga, NULL, 0) != 0 ||
+        memcmp(vga->framebuffer, effect_frames.snapshots[8], VGA_W * VGA_H) != 0)
+        goto done;
+    fd2_field_effect_frames_close(&effect_frames);
+    if (fd2_field_game_play_stage_transition(
+            game, vga, field_audio, center_x, center_y, 10, 8, 0) != 0)
+        goto done;
+    result = 0;
+
+done:
+    fd2_field_effect_frames_close(&effect_frames);
+    fd2_field_game_render(game, vga);
+    return result;
+}
+
+static int test_resource_effect_wrappers(void) {
+    fd2_archive fdother = {0};
+    fd2_field_game *game = calloc(1, sizeof(*game));
+    fd2_vga *vga = calloc(1, sizeof(*vga));
+    CHECK(game && vga);
+    CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(fd2_field_game_open(game, vga, &fdother, 0) == 0);
+    CHECK(validate_field_effects(game, vga, NULL) == 0);
+    fd2_field_game_close(game);
+    fd2_archive_close(&fdother);
+    free(vga);
+    free(game);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_resource_effect_wrappers() == 0);
     CHECK(test_normal_tick_single_visual_advance() == 0);
     CHECK(test_magic_background_hides_cursor_without_writes() == 0);
     CHECK(test_visual_phase_projection_during_blocking_animation() == 0);

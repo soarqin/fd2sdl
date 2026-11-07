@@ -28,7 +28,7 @@
 #define QUIET_TIMEOUT_MS 1000u
 
 enum { E_NONE, E_OWNER, E_STOP_EARLY, E_NO_CALLBACK, E_CAPACITY,
-       E_NONFINITE, E_FRAMES, E_IO, E_NOT_QUIET, E_HOST, E_TIME, E_START };
+       E_NONFINITE, E_FRAMES, E_IO, E_NOT_QUIET, E_HOST, E_TIME, E_START, E_AUDIO_PUT };
 struct fd2_audio_pcm_capture {
     SDL_Thread *thread;
     float *buffer;
@@ -46,7 +46,7 @@ static void fail(fd2_audio_pcm_capture *c,unsigned error) {
 static const char *error_name(unsigned e) {
     static const char *const names[]={"","wrong_start_pid","stop_before_ready","no_real_callback",
         "buffer_capacity","nonfinite_mix","invalid_chunk","io_error","callback_not_quiet",
-        "host_shutdown","time_limit","start_timeout"};
+        "host_shutdown","time_limit","start_timeout","audio_put_failed"};
     return e<sizeof(names)/sizeof(*names)?names[e]:"unknown_error";
 }
 static char *joined(const char *dir,const char *name) {
@@ -257,6 +257,13 @@ void fd2_audio_pcm_capture_push(fd2_audio_pcm_capture *c,const float *stereo,siz
             }
         }
     }
+    atomic_fetch_sub(&c->busy,1);
+}
+void fd2_audio_pcm_capture_put_failed(fd2_audio_pcm_capture *c) {
+    if(!c)return;
+    /* 与成功push使用同一接收窗口；quiet关闭门并等已进入的通知结束。 */
+    atomic_fetch_add(&c->busy,1);
+    if(atomic_load(&c->enabled))fail(c,E_AUDIO_PUT);
     atomic_fetch_sub(&c->busy,1);
 }
 void fd2_audio_pcm_capture_close(fd2_audio_pcm_capture *c) {

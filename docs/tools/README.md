@@ -52,6 +52,56 @@ git diff --check
 - Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。
 
+### A8 音频生命周期验证
+
+普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put 故障和队列压力；`audio_device_probe_finalization` 覆盖实际 probe 的末次提交错误；`audio_pcm_capture_callback_order` 检查 Put 失败不能留下成功 AppMix summary。`audio_unavailable_field_quick_entry` 启动真正主程序，以 dummy video 和无效音频后端验证 discard-null 快速入口，不算原生窗口或设备播放通过。交付候选的实际结果见[阶段记录](../plans/stage-log.md#a8宿主与设备生命周期)，以下命令不自行构成通过记录。
+
+Windows（PowerShell，已配置的 Visual Studio Debug 构建）：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2sdl fd2_audio_test fd2_audio_lifecycle_test fd2_audio_pcm_capture_test fd2_audio_pcm_capture_hook_test fd2_audio_device_probe_finalization_test fd2_audio_pcm_test fd2_bgm_test fd2_field_progress_play_test fd2_field_unit_render_test --parallel 4 -- /nodeReuse:false
+ctest --test-dir src/build-win -C Debug -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_callback_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
+```
+
+Linux 使用前文的独立 `src/build` 配置和构建，再运行同一组无窗口测试；本轮 Linux 未执行：
+
+```bash
+ctest --test-dir src/build -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_callback_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
+```
+
+实际设备 probe 不注册为自动 CTest。它只初始化 SDL audio，实际 render 后向设备提交等长零，检查 source 替换、两个 bus 恢复、stop／retire／close；不改变系统音量、默认端点或用户 session mixer。无参数或 `--dry-run` 不初始化 SDL。显式 `--execute 100..10000_MS` 才打开本进程的设备，须串行置于 owned Job：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2_audio_device_probe fd2_field_play_input_driver
+& ./src/build-win/Debug/fd2_field_play_input_driver.exe run-job 30000 ./src/build-win/Debug/fd2_audio_device_probe.exe --execute 1500
+```
+
+须核对 JSON `ok=true`、所有 Put 成功、非零设备提交为0、三个 source 各 retire 一次，以及进程／Job 正常关闭。source API 替换不等于正式 Game Load，quiet/pre-OS 不等于扬声器声音通过。
+
+#### 固定 SDL 内部 ABI 的本地断连 probe（仅 Windows x64 Debug）
+
+`tools/testing/sdl-local-disconnect` 独立链接现有 SDL 静态库，模拟该进程收到原 SDL removed 通知，不重编 SDL、不禁用系统端点。配置必须显式提供 `SDL3_DIR`、`SDL3_SOURCE_DIR` 和 `SDL3_BUILD_CONFIG_DIR`。目前只接受已验证 commit `2813f2630904ea29806fcfaeeb3287ed555e42e2` 的特定 Debug 静态库 SHA256 `5d920411374519962ce4dacbd04c86d210a4c71dea243e5d922779392dcbb090`，并校验 `SDL_sysaudio.h`、`SDL_internal.h` 和生成的 `SDL_build_config.h` 三个头文件摘要。即使 commit 相同，另一构建的库或配置头摘要不同也会拒绝；不回退到另一套 SDK 或 DLL。
+
+从项目根目录执行。下面路径是本机已验证依赖位置；其它环境必须先取得同版本源码、配置头和相同静态库：
+
+```powershell
+$sdlPackage = 'E:/Projects/fd2sdl/src/build-win/_deps/sdl3-build'
+$sdlSource = 'E:/Projects/fd2sdl/build/_deps/sdl3/2813f2630904ea29806fcfaeeb3287ed555e42e2'
+$sdlBuildConfig = "$sdlPackage/include-config-debug/build_config"
+cmake -S tools/testing/sdl-local-disconnect -B build-a8-sdk -G 'Visual Studio 18 2026' -A x64 "-DSDL3_DIR=$sdlPackage" "-DSDL3_SOURCE_DIR=$sdlSource" "-DSDL3_BUILD_CONFIG_DIR=$sdlBuildConfig"
+cmake --build build-a8-sdk --config Debug --target fd2_sdl_local_disconnect_test fd2_audio_device_loss_probe -- /nodeReuse:false /m:1
+ctest --test-dir build-a8-sdk -C Debug -R '^private_sdl_local_disconnect$' --output-on-failure
+./build-a8-sdk/Debug/fd2_audio_device_loss_probe.exe --dry-run
+```
+
+上述 CTest 只有九组纯边界检查，不初始化 SDL 或打开设备。实际本地断连验证须另行串行执行，不能把 dry 或纯测算设备通过：
+
+```powershell
+& ./src/build-win/Debug/fd2_field_play_input_driver.exe run-job 30000 ./build-a8-sdk/Debug/fd2_audio_device_loss_probe.exe --execute 1500
+```
+
+最终两行 JSON 都须 `ok=true`，并核同一 logical／physical owner、ref 成对、zombie0→1、Wait／GetBuffer／Play 三函数切换、断连后 callback／Put 继续、新 source／配置恢复／retire 及正常 Job 清理。probe 只操作本进程 SDL 对象；不证明真实拔插、WASAPI 恢复、默认路由迁移、完整波形或绝对时序。该私有 ABI 入口无 Linux 对应命令，不能移用其它 SDL 版本或 Release 库。
+
 ### 图形自动化
 
 Windows 已验证按本轮 PID／HWND 投递窗口消息的后台输入：DOSBox-X 与 SDL 在其他应用持有前台时完成标题导航、END 确认框及取消返回浏览，仍使用 HWND WGC 和完整资源门。驱动不抢焦点、不退回前台 `SendInput`；该证据不覆盖物理键盘或 RawInput。支持范围及监测限制见[后台窗口消息校准](gui-testing.md#windows-hwnd-窗口消息后台输入已验证)，旧前台执行证据保留原来源。永久入口 `run_background_input_check.py` 最初等价迁移后又新增 HWND／PID 所有权保护，已不与旧 GUI 候选 AST 等同；最初的 13 项纯回归与后来大阶段统一回归中的实际后台校准分别保留来源。

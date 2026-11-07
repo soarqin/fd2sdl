@@ -3,6 +3,7 @@
 
 # 本地构建产物
 /build/
+/build-a8-sdk/
 /src/build/
 /src/build-*/
 /src/Debug/

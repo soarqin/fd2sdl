@@ -283,6 +283,50 @@ if(BUILD_TESTING)
     add_test(NAME audio COMMAND fd2_audio_test)
     set_tests_properties(audio PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
 
+    # 单TU替换设备调用；故障/队列压力回归不打开实际设备。
+    add_executable(fd2_audio_lifecycle_test
+        tests/audio_lifecycle_test.c audio_pcm_capture.c)
+    target_include_directories(fd2_audio_lifecycle_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_lifecycle_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_lifecycle_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_audio_lifecycle_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME audio_lifecycle COMMAND fd2_audio_lifecycle_test)
+
+    # 正式快速入口：无效音频后端不得使玩法初始化失败；dummy video不算窗口验收。
+    add_test(NAME audio_unavailable_field_quick_entry
+        COMMAND ${CMAKE_COMMAND} -DAPP=$<TARGET_FILE:fd2sdl>
+            -DROOT=${CMAKE_CURRENT_SOURCE_DIR}/..
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/audio_unavailable_field_once.cmake)
+    set_tests_properties(audio_unavailable_field_quick_entry PROPERTIES
+        TIMEOUT 60 LABELS "audio;integration;headless")
+
+    # 仅显式--execute才打开真实设备，不注册为自动CTest，供owned串行实际验收。
+    add_executable(fd2_audio_device_probe
+        tests/audio_device_probe.c audio_pcm_capture.c)
+    target_include_directories(fd2_audio_device_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_device_probe PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_device_probe PRIVATE /W4)
+    else()
+        target_compile_options(fd2_audio_device_probe PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+
+    # 只替换平台调用，执行probe真实main/callback的late-Put收尾回归。
+    add_executable(fd2_audio_device_probe_finalization_test
+        tests/audio_device_probe_finalization_test.c audio_pcm_capture.c)
+    target_include_directories(fd2_audio_device_probe_finalization_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_device_probe_finalization_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_device_probe_finalization_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_audio_device_probe_finalization_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME audio_device_probe_finalization COMMAND fd2_audio_device_probe_finalization_test)
+    set_tests_properties(audio_device_probe_finalization PROPERTIES TIMEOUT 15)
+
     add_executable(fd2_field_natural_plan
         tests/field_natural_plan.c
         $<TARGET_OBJECTS:fd2sdl_core>)

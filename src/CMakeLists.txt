@@ -11,9 +11,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(FD2SDL_USE_SYSTEM_SDL3 "优先使用系统安装的 SDL3" ON)
-set(FD2SDL_SDL3_VERSION "3.2.12" CACHE STRING "CPM 回退下载的 SDL3 版本")
+set(FD2SDL_SDL3_VERSION "3.4.20" CACHE STRING "CPM 回退下载的 SDL3 版本")
 set(FD2SDL_SDL3_GIT_TAG "release-${FD2SDL_SDL3_VERSION}" CACHE STRING "CPM 回退下载的 SDL3 Git tag")
-set(FD2SDL_CPM_VERSION "0.40.8" CACHE STRING "自动下载的 CPM.cmake 版本")
+set(FD2SDL_CPM_VERSION "0.43.2" CACHE STRING "自动下载的 CPM.cmake 版本")
 
 # SDL3 获取策略：先找系统包（CMake config，其次 pkg-config），找不到再用 CPM.cmake 拉取源码。
 set(FD2SDL_SDL3_TARGET "")

@@ -100,10 +100,17 @@ int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
     memset(player, 0, sizeof(*player));
     player->audio = audio;
     player->source_rate = source_rate;
+    player->enabled = 1;
     for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
         atomic_init(&player->voices[i].state, FD2_PCM_VOICE_FREE);
         atomic_init(&player->voices[i].stop_requested, 0);
     }
+    return 0;
+}
+
+int fd2_pcm_player_set_enabled(fd2_pcm_player *player, int enabled) {
+    if (!player || !player->audio || (enabled != 0 && enabled != 1)) return -1;
+    player->enabled = enabled;
     return 0;
 }
 
@@ -159,13 +166,16 @@ fail:
 
 int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                  size_t sample_index, int loop_count, float gain) {
-    if (!player || !player->audio || !bank || loop_count < 0) return -1;
+    if (!player || !player->audio) return -1;
+    if (!player->enabled) return 0; /* 原wrapper在资源/stop之前检查51E62。 */
+    if (!bank || loop_count < 0) return -1;
     return play_on_voice(player, claim_voice(player), bank, sample_index,
                          loop_count, gain);
 }
 
 int fd2_pcm_stop(fd2_pcm_player *player) {
     if (!player || !player->audio) return -1;
+    if (!player->enabled) return 0;
     for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
         if (atomic_load_explicit(&player->voices[i].state,
                                  memory_order_acquire) == FD2_PCM_VOICE_ACTIVE)
@@ -177,7 +187,9 @@ int fd2_pcm_stop(fd2_pcm_player *player) {
 
 int fd2_pcm_play_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                          size_t sample_index, int loop_count, float gain) {
-    if (!player || !player->audio || !bank || loop_count < 0) return -1;
+    if (!player || !player->audio) return -1;
+    if (!player->enabled) return 0; /* 原wrapper在资源/stop之前检查51E62。 */
+    if (!bank || loop_count < 0) return -1;
     fd2_pcm_voice *voice = claim_voice(player);
     if (!voice) return -1;
     /* 先为新 cue 保留 voice，再停止该 AIL handle 的旧 voice。这样连续
@@ -198,4 +210,5 @@ void fd2_pcm_player_close(fd2_pcm_player *player) {
     if (!player) return;
     player->audio = NULL;
     player->source_rate = 0;
+    player->enabled = 0; /* AudioDestroy已无条件retire；不经cue stop门。 */
 }

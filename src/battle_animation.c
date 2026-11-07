@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "field_attack.h"
+#include "field_audio.h"
 #include "field_game.h"
 #include "field_info.h"
 #include "figani.h"
@@ -200,7 +201,7 @@ static void present(fd2_battle_animation *ctx, uint32_t ticks) {
 
 static int play_cue(fd2_battle_animation *ctx,const fd2_pcm_bank *bank,int enabled,uint8_t index) {
     if (stopped(ctx) || !ctx->primary || !enabled) return 0;
-    return fd2_pcm_play_replace(ctx->primary,bank,index,1,1.0f);
+    return fd2_pcm_play_replace(ctx->primary,bank,index,1,FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
 static int cue(fd2_battle_animation *ctx, const battle_clip *clip, uint8_t index) {
@@ -703,7 +704,7 @@ static int magic_fx_emit(const fd2_magic_fx_emission *event,void *userdata) {
     else return -1;
     if (!bank_sample_valid(&e->sound,event->index)) return -1;
     if (stopped(ctx) || !e->sfx_enabled || !player) return 0;
-    return fd2_pcm_play_replace(player,&e->sound,event->index,1,1.0f);
+    return fd2_pcm_play_replace(player,&e->sound,event->index,1,FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
 static int magic_fx_step(magic_fx_reader *r,uint8_t phase,int *native_return) {

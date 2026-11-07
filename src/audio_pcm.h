@@ -39,12 +39,17 @@ typedef struct {
 typedef struct {
     fd2_audio *audio;
     int source_rate;
+    int enabled; /* 51E62投影；主线程未来cue门，不是当前source增益。 */
     fd2_pcm_voice voices[FD2_PCM_MAX_VOICES];
 } fd2_pcm_player;
 
 /* source_rate 来自 AIL sample 初始化；FD2 的已确认默认值为 11025 Hz。 */
 int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
                         int source_rate);
+/* sfx_play @0x25a96（原FUN_000231de）/sfx_play_secondary @0x25b45
+ * （原FUN_0002328d）：只抑制后续play/replace/stop，不停既有source。
+ * 不影响AudioDestroy/owner退休；close仍要求Audio已先销毁。主线程调用。 */
+int fd2_pcm_player_set_enabled(fd2_pcm_player *player, int enabled);
 
 /* loop_count 遵循 Miles sample 语义：0=无限循环，正数=总播放次数。 */
 int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,

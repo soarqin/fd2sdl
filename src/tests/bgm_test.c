@@ -36,8 +36,8 @@ int main(void) {
         .fdmus_path = "original_game/FDMUS.DAT",
         .ail_bank_path = "original_game/SAMPLE.AD",
         .sample_rate = 48000,
-        /* 测试使用 1 voice，确保常规分配和抢占路径都被大量触发。 */
-        .voice_count = 1,
+        /* 使用已配置 SBPRO2 的真实 18 硬件默认；公平分配另有纯矩阵。 */
+        .voice_count = 0,
     };
     fd2_bgm_player *bgm = fd2_bgm_create(audio, &config);
     CHECK(bgm != NULL);
@@ -72,7 +72,11 @@ int main(void) {
     /* 原版 stop 是 4000 ms sequence fade，不是硬切。 */
     CHECK(render_energy(audio, 48000u) > 1.0);
     CHECK(render_energy(audio, 48000u * 4u) >= 0.0);
-    CHECK(render_energy(audio, 512) == 0.0);
+    /* 原 25977(-1) 只请求 sequence volume=0/4000ms，达到后不 stop。
+     * OPL 最大衰减不保证 PCM 按位全零；持续 source/寄存器写序由
+     * bgm_sequence_volume 同 TU 原机器码向量回归严格检查。 */
+    CHECK(render_energy(audio, 512) >= 0.0);
+    CHECK(fd2_bgm_current_track(bgm) == -1);
 
     /* destroy 顺序与 main 相同：audio retire 后才能释放 BGM source。 */
     fd2_audio_destroy(audio);

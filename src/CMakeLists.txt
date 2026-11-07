@@ -361,10 +361,12 @@ if(BUILD_TESTING)
 
     add_executable(fd2_bgm_capture_probe
         tests/bgm_capture_probe.c
+        tests/audio_probe_output.cpp
         $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_bgm_capture_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_bgm_capture_probe PRIVATE ${FD2SDL_SDL3_TARGET})
-    set_target_properties(fd2_bgm_capture_probe PROPERTIES LINKER_LANGUAGE CXX)
+    set_target_properties(fd2_bgm_capture_probe PROPERTIES LINKER_LANGUAGE CXX
+        CXX_STANDARD 17)
     if(MSVC)
         target_compile_options(fd2_bgm_capture_probe PRIVATE /W4)
     else()
@@ -391,6 +393,60 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME bgm COMMAND fd2_bgm_test)
     set_tests_properties(bgm PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+
+    # A7：SBPRO2/整数音量/32槽/配置开关；同TU，不导出调试API。
+    add_executable(fd2_bgm_sbpro2_test tests/bgm_sbpro2_test.cpp
+        audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_sequence_volume_test tests/bgm_sequence_volume_test.cpp
+        audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_native_sequence_test tests/bgm_native_sequence_test.cpp
+        audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_options_test tests/bgm_options_test.cpp
+        audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_audio_options_test tests/audio_options_test.c
+        audio.c audio_pcm_capture.c archive.c)
+    # 同TU离线观察真实Nuked写序；正式callback无日志或文件I/O。
+    add_executable(fd2_bgm_opl_trace_probe tests/bgm_opl_trace_probe.cpp
+        tests/audio_probe_output.cpp audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_opl_trace_probe_unhooked tests/bgm_opl_trace_probe.cpp
+        tests/audio_probe_output.cpp audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    set_target_properties(fd2_bgm_opl_trace_probe fd2_bgm_opl_trace_probe_unhooked
+        PROPERTIES CXX_STANDARD 17)
+    target_compile_definitions(fd2_bgm_opl_trace_probe_unhooked PRIVATE FD2_OPL_PROBE_UNHOOKED=1)
+    foreach(target fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test
+                   fd2_bgm_options_test fd2_audio_options_test
+                   fd2_bgm_opl_trace_probe fd2_bgm_opl_trace_probe_unhooked)
+        target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_link_libraries(${target} PRIVATE ${FD2SDL_SDL3_TARGET})
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4)
+        else()
+            target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+            target_link_libraries(${target} PRIVATE m)
+        endif()
+    endforeach()
+    add_test(NAME bgm_sbpro2 COMMAND fd2_bgm_sbpro2_test)
+    add_test(NAME bgm_sequence_volume COMMAND fd2_bgm_sequence_volume_test)
+    add_test(NAME bgm_native_sequence COMMAND fd2_bgm_native_sequence_test)
+    add_test(NAME bgm_options COMMAND fd2_bgm_options_test)
+    add_test(NAME audio_options COMMAND fd2_audio_options_test)
+    add_test(NAME bgm_opl_trace COMMAND fd2_bgm_opl_trace_probe --self-test
+        --original "${CMAKE_CURRENT_SOURCE_DIR}/../original_game")
+    add_test(NAME bgm_opl_trace_unhooked COMMAND fd2_bgm_opl_trace_probe_unhooked --self-test
+        --original "${CMAKE_CURRENT_SOURCE_DIR}/../original_game")
+    set_tests_properties(bgm_sbpro2 bgm_sequence_volume bgm_native_sequence bgm_options audio_options
+        bgm_opl_trace bgm_opl_trace_unhooked PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME audio_probe_output_paths
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/audio_probe_output_paths_test.py
+                --trace-probe $<TARGET_FILE:fd2_bgm_opl_trace_probe>
+                --wav-probe $<TARGET_FILE:fd2_bgm_capture_probe>
+                --original "${CMAKE_CURRENT_SOURCE_DIR}/../original_game")
+        set_tests_properties(audio_probe_output_paths PROPERTIES TIMEOUT 30
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+    endif()
 
     add_executable(fd2_title_test
         tests/title_test.c
@@ -1089,6 +1145,7 @@ if(BUILD_TESTING)
         fd2_field_game_settlement_prepare=__wrap_fd2_field_game_settlement_prepare
         fd2_field_game_settlement_commit=__wrap_fd2_field_game_settlement_commit
         fd2_scene_play_stage1_victory=__wrap_fd2_scene_play_stage1_victory
+        fd2_scene_play_game_over=__wrap_fd2_scene_play_game_over
         fd2_vga_present=__wrap_fd2_vga_present
         fd2_input_take_action=__wrap_fd2_input_take_action
         fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail
@@ -1099,7 +1156,11 @@ if(BUILD_TESTING)
         fd2_field_game_animate_system_menu=__wrap_fd2_field_game_animate_system_menu
         fd2_field_game_execute_storage_action=__wrap_fd2_field_game_execute_storage_action
         fd2_field_unit_summary_draw=__wrap_fd2_field_unit_summary_draw
-        fd2_field_game_march=__wrap_fd2_field_game_march)
+        fd2_field_game_march=__wrap_fd2_field_game_march
+        fd2_bgm_play=__wrap_fd2_bgm_play
+        fd2_bgm_stop=__wrap_fd2_bgm_stop
+        fd2_bgm_current_track=__wrap_fd2_bgm_current_track
+        fd2_bgm_set_music_enabled=__wrap_fd2_bgm_set_music_enabled)
     add_test(NAME field_play_result COMMAND fd2_field_play_result_test)
     set_tests_properties(field_play_result PROPERTIES TIMEOUT 10
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..)

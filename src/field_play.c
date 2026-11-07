@@ -92,6 +92,7 @@ void fd2_field_play_context_init(fd2_field_play_context *context,
     memset(context, 0, sizeof(*context));
     fd2_field_rng_seed(&context->rng, field_rng_initial_seed());
     context->bgm = bgm;
+    context->music_enabled = context->sfx_enabled = 1;
     context->initialized = 1;
 }
 
@@ -1148,17 +1149,20 @@ done:
 
 
 static void apply_field_audio_options(const fd2_field_game *game,
-                                      fd2_field_audio *field_audio) {
-    if (!game || !field_audio || !field_audio->player ||
-        !field_audio->player->audio)
-        return;
-    /* DS:0x1e61控制sequence音量，DS:0x1e62控制SFX；修改bus不重启曲目。 */
-    (void)fd2_audio_set_bus_gain(
-        field_audio->player->audio, FD2_AUDIO_BUS_MUSIC,
-        game->option_values[0] ? 1.0f : 0.0f);
-    (void)fd2_audio_set_bus_gain(
-        field_audio->player->audio, FD2_AUDIO_BUS_SFX,
-        game->option_values[1] ? 1.0f : 0.0f);
+        fd2_field_audio *field_audio, fd2_field_play_context *context, int fade_music) {
+    if (!game) return;
+    /* field_options_menu_execute @0x1728c（原同名登记）：toggle为1秒sequence渐变。
+     * sfx_play @0x25a96（原FUN_000231de）/sfx_play_secondary @0x25b45
+     * （原FUN_0002328d）：SFX关只gate未来cue；Load仅同步配置。 */
+    if (context) {
+        context->music_enabled = game->option_values[0];
+        context->sfx_enabled = game->option_values[1];
+        if (context->bgm) (void)fd2_bgm_set_music_enabled(context->bgm, context->music_enabled != 0, fade_music);
+    }
+    if (field_audio && field_audio->player && field_audio->player->audio)
+        (void)fd2_pcm_player_set_enabled(field_audio->player, game->option_values[1] != 0);
+    if (field_audio && field_audio->secondary_player && field_audio->secondary_player->audio)
+        (void)fd2_pcm_player_set_enabled(field_audio->secondary_player, game->option_values[1] != 0);
 }
 
 static void detail_phase_sfx(void *userdata, int opening, int phase) {
@@ -1714,6 +1718,13 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         fprintf(stderr, "cannot load stage %zu field game\n", stage);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
+    /* main @0x25bf4（原同名登记）→title_action_dispatch @0x25ebb
+     * （原同名登记）的START不重置51E61/62；只覆盖新场次的两个默认投影。 */
+    if (context && !load_active && !prepared_entry) {
+        game.option_values[0] = context->music_enabled;
+        game.option_values[1] = context->sfx_enabled;
+        fd2_field_system_menu_set_options(&game.system_menu, game.option_values);
+    }
     /* M6 已接入原版武器 record +0x0b/+0x0c 范围与 side==0 目标过滤。
      * loader 初值已捕获；原版每次进入战场控制循环前还会按计时器低
      * 8 位推进该流，活动快照未保存 RNG，因此读档不承诺续接同一序列。
@@ -1770,10 +1781,12 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     }
     fd2_field_game_set_save_resource_available(
         &game, fd2_field_game_save_resource_available(&game, save_path));
-    apply_field_audio_options(&game, field_audio);
+    apply_field_audio_options(&game, field_audio, context, 0);
     if (context) {
         const fd2_field_stage_music *music = fd2_field_stage_music_get(game.stage);
-        if (!music || fd2_field_play_request_music(context, game.stage,
+        if (!music ||
+            (load_active && fd2_field_play_request_music(context, game.stage, -1, "continue-stop") != 0) ||
+            fd2_field_play_request_music(context, game.stage,
                 music->primary, load_active ? "continue" : "entry") != 0) {
             fd2_field_game_close(&game);
             return FD2_FIELD_PLAY_RETURN_ERROR;
@@ -2202,7 +2215,8 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                             fd2_field_game_confirm_system_menu(&game);
                         if (system_action ==
                                 FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING) {
-                            apply_field_audio_options(&game, field_audio);
+                            apply_field_audio_options(&game, field_audio, context,
+                                                      game.system_menu.selected == 0);
                             unsigned index = game.system_menu.selected;
                             printf("field option: index=%u value=%u\n", index,
                                    game.option_values[index]);
@@ -2249,10 +2263,12 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                                FD2_FIELD_SYSTEM_ACTION_LOAD) {
                                 reported_event_count = 0;
                                 reported_dropped_events = 0;
-                                apply_field_audio_options(&game, field_audio);
+                                apply_field_audio_options(&game, field_audio, context, 0);
                                 if (context) {
                                     const fd2_field_stage_music *music = fd2_field_stage_music_get(game.stage);
-                                    if (!music || fd2_field_play_request_music(context,
+                                    if (!music ||
+                                        fd2_field_play_request_music(context, game.stage, -1, "active-load-stop") != 0 ||
+                                        fd2_field_play_request_music(context,
                                             game.stage, music->primary, "active-load") != 0) {
                                         play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                                         running = 0;

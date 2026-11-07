@@ -106,6 +106,37 @@ static int test_field_footstep_mapping(void) {
     return 0;
 }
 
+/* 原40240整个函数的独立机器码向量：volume100/pan64/type0，
+ * stereo16输出2/3的左右表均为(u-128)*202；不引用生产默认gain常量。 */
+static float original_default_u8(uint8_t value) {
+    return ((int)value - 128) * 202.0f / 32768.0f;
+}
+
+static int test_field_default_amplitude_table(void) {
+    uint8_t data[35 + 256];
+    make_index_bank(data, 6, 128); /* 最后sample5扩成完整0..255字节序列。 */
+    for (size_t i = 0; i < 256; i++) data[35 + i] = (uint8_t)i;
+    fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank, data, sizeof(data)) == 0);
+    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
+    fd2_audio *audio = fd2_audio_create(&config);
+    fd2_pcm_player player;
+    fd2_field_audio field_audio;
+    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
+    fd2_field_audio_init(&field_audio, &player, &bank, NULL, NULL);
+    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
+    float output[512];
+    CHECK(fd2_audio_render_offline(audio, output, 256) == 256);
+    for (size_t i = 0; i < 256; i++) {
+        CHECK(output[i * 2] == original_default_u8((uint8_t)i));
+        CHECK(output[i * 2 + 1] == original_default_u8((uint8_t)i));
+    }
+    fd2_audio_destroy(audio);
+    fd2_pcm_player_close(&player);
+    fd2_pcm_bank_close(&bank);
+    return 0;
+}
+
 static int test_field_audio_dispatch(void) {
     uint8_t ui_data[76], battle_data[76], arrival_data[16];
     fd2_pcm_bank ui_bank, battle_bank, arrival_bank;
@@ -128,18 +159,18 @@ static int test_field_audio_dispatch(void) {
     float output[2];
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 5.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(133)));
     CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DIALOG_GLYPH) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 2.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(130)));
     CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 11.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(139)));
     CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
     CHECK(field_audio.footstep_counter == 1);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 9.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(137)));
     for (int i = 0; i < 3; i++)
         CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
     CHECK(field_audio.footstep_counter == 4);
@@ -148,19 +179,19 @@ static int test_field_audio_dispatch(void) {
     CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
     CHECK(field_audio.footstep_counter == 5);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 9.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(137)));
     CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 0.5f));
+    CHECK(near(output[0], original_default_u8(192)));
     CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_FLASH) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 33.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(161)));
     CHECK(fd2_field_audio_play(
         &field_audio, FD2_FIELD_SFX_STAGE_TRANSITION) == 0);
     CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 43.0f / 128.0f));
+    CHECK(near(output[0], original_default_u8(171)));
 
     fd2_field_audio_init(&field_audio, &player, NULL, &battle_bank,
                          &arrival_bank);
@@ -357,6 +388,7 @@ static int test_resampling(void) {
 int main(void) {
     CHECK(test_field_sfx_mapping() == 0);
     CHECK(test_field_footstep_mapping() == 0);
+    CHECK(test_field_default_amplitude_table() == 0);
     CHECK(test_field_audio_dispatch() == 0);
     CHECK(test_one_shot_and_loop() == 0);
     CHECK(test_replacement_burst() == 0);

@@ -13,6 +13,7 @@ void prepare_test_deadline(fd2_vga *vga);
 static void *prepare_test_calloc(size_t count, size_t size);
 static int prepare_test_pcm_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
     size_t sample, int loop_count, float gain);
+static int prepare_test_bgm_option(fd2_bgm_player *, int, int);
 static int prepare_test_state_save(const char *path, size_t slot,
     const fd2_save_manual_state *state);
 static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *assets,
@@ -25,6 +26,7 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 #define fd2_vga_wait_frame_deadline prepare_test_deadline
 #define calloc prepare_test_calloc
 #define fd2_pcm_play_replace prepare_test_pcm_replace
+#define fd2_bgm_set_music_enabled prepare_test_bgm_option
 #define fd2_save_manual_state_save prepare_test_state_save
 #define fd2_field_magic_list_draw prepare_test_magic_draw
 #include "../field_prepare_play.c"
@@ -34,11 +36,16 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 #undef fd2_vga_wait_frame_deadline
 #undef calloc
 #undef fd2_pcm_play_replace
+#undef fd2_bgm_set_music_enabled
 #undef fd2_save_manual_state_save
 #undef fd2_field_magic_list_draw
 
 #define CHECK(expr) do { if (!(expr)) { fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #expr); return 1; } } while (0)
 
+static int option_sync_count, option_sync_enabled, option_sync_fade;
+static int prepare_test_bgm_option(fd2_bgm_player *player, int enabled, int fade) {
+    (void)player; option_sync_count++; option_sync_enabled=enabled; option_sync_fade=fade; return 0;
+}
 static uint64_t clock_ms;
 static unsigned frame_number, quit_frame;
 static struct { unsigned frame; SDL_Scancode key; } pulses[20];
@@ -46,6 +53,7 @@ static size_t pulse_count;
 static int music_tracks[20];
 static size_t music_stages[20], music_count;
 static unsigned fail_frame_allocation_at, sound_calls, fail_sound_call;
+static float sound_last_gain;
 static unsigned magic_draw_calls, fail_magic_draw_call, state_save_calls;
 static int probe_title, title_background_ok, title_palette_ok;
 static uint8_t expected_title_palette[VGA_PALETTE_SIZE];
@@ -57,7 +65,8 @@ static void *prepare_test_calloc(size_t count, size_t size) {
 }
 static int prepare_test_pcm_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
         size_t sample, int loop_count, float gain) {
-    (void)player; (void)bank; (void)sample; (void)loop_count; (void)gain;
+    (void)player; (void)bank; (void)sample; (void)loop_count;
+    sound_last_gain = gain;
     return ++sound_calls == fail_sound_call ? -1 : 0;
 }
 static int prepare_test_state_save(const char *path, size_t slot,
@@ -188,6 +197,7 @@ static int title_cancel_and_load(fd2_archive *fdother,
     CHECK(fd2_save_manual_state_save(path, 0, state) == 0);
     fd2_field_play_context context = {0}; context.initialized = 1;
     context.experience_value = 631; context.message_number = 99;
+    context.bgm = (fd2_bgm_player *)&context; option_sync_count=0;
     fd2_field_rng_seed(&context.rng, 0x1234);
     fd2_save_manual_state before = context.preparation;
     const uint8_t *palette; size_t palette_size;
@@ -200,10 +210,13 @@ static int title_cancel_and_load(fd2_archive *fdother,
     CHECK(!context.has_preparation && memcmp(&before, &context.preparation, sizeof(before)) == 0);
     CHECK(context.rng.state == 0x1234 && context.experience_value == 631);
     CHECK(title_background_ok && title_palette_ok);
+    CHECK(option_sync_count==0 && music_count==0);
     for (size_t i = 0; i < sizeof(vga->framebuffer); i++) CHECK(vga->framebuffer[i] == 0);
     controls(vga); pulse(70, SDL_SCANCODE_RETURN);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_DEPART);
     CHECK(context.has_preparation && context.preparation.stage_id == state->stage_id && context.preparation.unit_count == state->unit_count);
+    CHECK(option_sync_count==1 && option_sync_enabled==(state->options[2]!=0) && option_sync_fade==0 && music_count==0);
+    CHECK(context.music_enabled==(state->options[2]!=0) && context.sfx_enabled==(state->options[3]!=0));
     CHECK(memcmp(context.preparation.unit_area, state->unit_area, sizeof(state->unit_area)) == 0);
     CHECK(context.experience_value == 631 && context.rng.state == 0x1234);
     controls(vga); quit_frame = 3;
@@ -242,7 +255,7 @@ static int hotel_save_reopen(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.experience_value = 99;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 99;
     fd2_field_rng_seed(&context.rng, 17);
     prepare_ui ui = {vga, fdother, a, &context, NULL, path, -1, 0, -1};
     controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(13, SDL_SCANCODE_ESCAPE); pulse(19, SDL_SCANCODE_ESCAPE);
@@ -257,7 +270,7 @@ static int hotel_save_reopen(fd2_archive *fdother, fd2_field_prepare_assets *a,
 
 static int town_roundtrip(fd2_archive *fdother, const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.experience_value = 42; context.message_number = 7;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 42; context.message_number = 7;
     controls(vga);
     pulse(1, SDL_SCANCODE_RETURN); /* town0 ->hotel */
     pulse(6, SDL_SCANCODE_ESCAPE); /* hotel ->town */
@@ -285,7 +298,7 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.experience_value = 0xfeed1234u;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 0xfeed1234u;
     prepare_ui ui = {vga, fdother, a, &context, NULL, path, -1, 0, -1};
     controls(vga); pulse(6, SDL_SCANCODE_ESCAPE);
     CHECK(slots_run(&ui, 1, 0) == 0);
@@ -326,7 +339,7 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
 static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;
     for (size_t i = state->unit_count; i < 17; i++) memcpy(context.preparation.unit_area + i * 80u, state->unit_area, 80);
     context.preparation.unit_count = 17;
     fd2_save_manual_state before = context.preparation;
@@ -335,7 +348,7 @@ static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(fd2_field_prepare_run(vga, fdother, &context, "unused.SAV", NULL) == FD2_FIELD_PREPARE_HOST_QUIT);
     CHECK(memcmp(&context.preparation, &before, sizeof(before)) == 0 && context.preparation.unit_count == 17);
     CHECK(music_count == 3 && music_tracks[2] == 10); /* 确认Yes后人数门才回城。 */
-    context.preparation = *state;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;
     prepare_ui ui = {vga, fdother, a, &context, NULL, "unused.SAV", -1, 0, -1};
     controls(vga); pulse(5, SDL_SCANCODE_RIGHT); pulse(7, SDL_SCANCODE_RIGHT); pulse(9, SDL_SCANCODE_RIGHT);
     pulse(11, SDL_SCANCODE_RETURN); pulse(22, SDL_SCANCODE_RETURN);
@@ -347,7 +360,7 @@ static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_ass
 static int member_pages(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.experience_value = 321;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 321;
     prepare_ui ui = {vga, fdother, a, &context, NULL, "unused.SAV", -1, 0, -1};
     uint8_t before[VGA_W * VGA_H];
     memset(vga->framebuffer, 0x63, sizeof(vga->framebuffer)); memcpy(before, vga->framebuffer, sizeof(before));
@@ -376,7 +389,7 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
     uint8_t before[FD2_SAVE_FILE_SIZE], after[FD2_SAVE_FILE_SIZE];
     CHECK(read_container(path, before) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.experience_value = 321;
+    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 321;
     fd2_pcm_player player = {0}; fd2_pcm_bank bank = {0};
     fd2_field_audio audio = {0}; audio.player = &player; audio.ui_bank = &bank;
     prepare_ui ui = {vga, fdother, a, &context, &audio, path, -1, 0, -1};
@@ -426,7 +439,7 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(title_cancel_and_load(fdother, &state, vga) == 0);
 
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = state; context.experience_value = 0xfeed1234u;
+    context.preparation = state; context.music_enabled=state.options[2]!=0;context.sfx_enabled=state.options[3]!=0; context.experience_value = 0xfeed1234u;
     context.message_number = 123456; fd2_field_rng_seed(&context.rng, 0x4321);
     fd2_field_play_context before = context;
     controls(vga); quit_frame = 1;
@@ -451,7 +464,7 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
     CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
           !memcmp(vga,&unchanged,sizeof(*vga)));
-    context.preparation = state; context.preparation.unit_area[7] = 255; before = context;
+    context.preparation = state; context.music_enabled=state.options[2]!=0;context.sfx_enabled=state.options[3]!=0; context.preparation.unit_area[7] = 255; before = context;
     controls(vga); unchanged = *vga;
     CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
     CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
@@ -489,7 +502,50 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     return 0;
 }
 
+static int hotel_load_keeps_sequence(fd2_archive *fdother, fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state, fd2_vga *vga) {
+    char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path)==0 && remove(path)==0);
+    fd2_save_manual_state loaded=*state; loaded.options[2]=!state->options[2]; loaded.options[3]=!state->options[3];
+    CHECK(fd2_save_manual_state_save(path,0,&loaded)==0);
+    uint8_t before[FD2_SAVE_FILE_SIZE],after[FD2_SAVE_FILE_SIZE]; CHECK(read_container(path,before)==0);
+    fd2_field_play_context context={0};context.initialized=context.has_preparation=1;
+    context.preparation=*state;context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;context.bgm=(fd2_bgm_player *)&context;context.experience_value=99;
+    prepare_ui ui={vga,fdother,assets,&context,NULL,path,-1,0,-1};
+    controls(vga);option_sync_count=0;
+    CHECK(music(&ui,13,"hotel")==0);
+    pulse(6,SDL_SCANCODE_RETURN);pulse(13,SDL_SCANCODE_RETURN);
+    CHECK(slots_run(&ui,0,0)==2);
+    CHECK(option_sync_count==2 && option_sync_enabled==(loaded.options[2]!=0) && option_sync_fade==0);
+    CHECK(context.music_enabled==(loaded.options[2]!=0) && context.sfx_enabled==(loaded.options[3]!=0));
+    CHECK(music_count==1 && music_tracks[0]==13); /* Load不是退出酒店，不得发-1/10/13。 */
+    CHECK(!memcmp(&context.preparation,&loaded,sizeof(loaded)) && context.experience_value==99);
+    CHECK(read_container(path,after)==0 && !memcmp(before,after,sizeof(before)));
+    context.preparation.options[2]=2;context.preparation.options[3]=3;
+    CHECK(sync_audio_options(&ui)==0 && context.music_enabled==2 && context.sfx_enabled==3);
+    CHECK(option_sync_enabled==1 && option_sync_fade==0 && music_count==1);
+    CHECK(remove(path)==0);return 0;
+}
+
+/* 默认幅度来自原40240两输出表，不跟随生产macro计算期望。 */
+static int default_sound_gain(void) {
+    fd2_pcm_player player = {0}; fd2_pcm_bank bank = {0};
+    fd2_field_audio audio = {0}; fd2_field_play_context context = {0};
+    audio.player = &player; audio.ui_bank = &bank;
+    prepare_ui ui = {0}; ui.audio = &audio; ui.context = &context;
+    sound_calls = fail_sound_call = 0; sound_last_gain = 0;
+    CHECK(sound(&ui, 5) == 0);
+    CHECK(sound_calls == 1 && sound_last_gain == 101.0f / 128.0f);
+    context.has_preparation = 1; context.preparation.options[3] = 0;
+    CHECK(sound(&ui, 6) == 0 && sound_calls == 1);
+    context.preparation.options[3] = 1;
+    CHECK(sound(&ui, 6) == 0 && sound_calls == 2 &&
+          sound_last_gain == 101.0f / 128.0f);
+    sound_calls = 0;
+    return 0;
+}
+
 int main(void) {
+    CHECK(default_sound_gain() == 0);
     fd2_archive fdother = {0}; fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     fd2_vga *vga = calloc(1, sizeof(*vga)); fd2_save_manual_state state;
     CHECK(assets && vga && initial_state(&state) == 0);
@@ -499,6 +555,7 @@ int main(void) {
     CHECK(selector_test() == 0);
     CHECK(title_cancel_and_load(&fdother, &state, vga) == 0);
     CHECK(hotel_save_reopen(&fdother, assets, &state, vga) == 0);
+    CHECK(hotel_load_keeps_sequence(&fdother, assets, &state, vga) == 0);
     CHECK(town_roundtrip(&fdother, &state, vga) == 0);
     CHECK(failure_and_cancel(&fdother, assets, &state, vga) == 0);
     CHECK(depart_capacity_and_leave(&fdother, assets, &state, vga) == 0);

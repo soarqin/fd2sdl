@@ -121,7 +121,7 @@ void fd2_vga_set_brightness(fd2_vga *vga,int darkness) {
 int battle_test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
         size_t index,int loops,float gain) {
     (void)bank;
-    if ((player!=expected_primary && player!=expected_secondary) || loops!=1 || gain!=1.0f) return -1;
+    if ((player!=expected_primary && player!=expected_secondary) || loops!=1 || gain!=(101.0f/128.0f)) return -1;
     if (player==expected_secondary) secondary_cues++;
     cues++; last_cue=index;
     return cue_failure ? -1:0;

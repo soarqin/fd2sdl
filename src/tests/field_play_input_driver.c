@@ -84,6 +84,44 @@ static int wait_job_empty(HANDLE job, DWORD timeout) {
     return 0;
 }
 
+/* 只记录强制收尾前仍属于本轮 Job 的成员，不把 worker 返回前的快照当作被终止者。 */
+static void log_forced_job_members(HANDLE job) {
+    DWORD active = 0;
+    if (job_active_processes(job, &active) != 0) return;
+    for (unsigned attempt = 0; attempt < 3; attempt++) {
+        size_t bytes = sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST) +
+                       (size_t)active * sizeof(ULONG_PTR);
+        if (bytes > MAXDWORD) return;
+        JOBOBJECT_BASIC_PROCESS_ID_LIST *list = calloc(1, bytes);
+        if (!list) return;
+        BOOL queried = QueryInformationJobObject(job, JobObjectBasicProcessIdList,
+                                                 list, (DWORD)bytes, NULL);
+        if (!queried) {
+            DWORD error = GetLastError();
+            active = list->NumberOfAssignedProcesses;
+            free(list);
+            if (error == ERROR_MORE_DATA) continue;
+            fprintf(stderr, "fd2 job: forced_members_query_error=%lu\n", error);
+            return;
+        }
+        for (DWORD i = 0; i < list->NumberOfProcessIdsInList; i++) {
+            DWORD pid = (DWORD)list->ProcessIdList[i], length = 32768;
+            wchar_t image[32768] = {0};
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+            BOOL member = FALSE;
+            if (process && IsProcessInJob(process, job, &member) && member) {
+                BOOL named = QueryFullProcessImageNameW(process, 0, image, &length);
+                fprintf(stderr, "fd2 job: forced_member=%lu image=%ls image_error=%lu\n",
+                        pid, named ? image : L"<unavailable>", named ? 0 : GetLastError());
+            }
+            if (process) CloseHandle(process);
+        }
+        free(list);
+        return;
+    }
+    fprintf(stderr, "fd2 job: forced_members_changed_during_query=1\n");
+}
+
 static BOOL CALLBACK close_job_window(HWND window, LPARAM parameter) {
     DWORD pid = 0;
     GetWindowThreadProcessId(window, &pid);
@@ -178,6 +216,7 @@ static int run_job(int argc, char **argv) {
         cleaned = wait_job_empty(job, 5000) == 1;
         if (!cleaned) {
             forced = 1;
+            log_forced_job_members(job);
             if (!TerminateJobObject(job, 137))
                 fprintf(stderr, "cannot terminate owned job: error=%lu\n", GetLastError());
             cleaned = wait_job_empty(job, 5000) == 1;

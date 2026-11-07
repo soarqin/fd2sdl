@@ -992,3 +992,50 @@ A7／A8代码在独立普通目录完成私有整合编译及定向纯测试，�
 ### 未覆盖范围
 
 完成范围是当前 Windows 的本地降级与资源生命周期。稳定后台已有实际证据，真实前台→失焦切换未另取证；不新增自动暂停策略。原 SDL 的进程内 removed→Zombie 不等于实际物理拔插、WASAPI `AUDCLNT_E_DEVICE_INVALIDATED` 恢复成功或默认路由迁移。设备 probe 只提交等长零，未验证扬声器输出；任意未通知 SDL 的 callback 停滞不在本项保证内。Linux／macOS 和私有 SDK probe 的其它 ABI 未执行。A7 的响度、完整波形和绝对时序仍未关闭，不能由上述采集或生命周期结果替代。
+
+## A7：当前受支持音频行为与后端边界
+
+本阶段以 A8 提交 `ec8e699` 为基线，合入原 EVNT／SBPRO2分支、场景与选项／Load、PCM名义默认值及对应正规命名证据；保留 A8已提交的本地降级和资源 owner。不把内部向量、某次曲目采集或一个辅助函数拆成独立交付。
+
+### 2026-11-07 用户决策与完成口径
+
+用户选择「保留当前后端原始响度」：不为贴合 DOSBox增加 BGM补偿。另明确 MIDI/OPL解码音色与驱动／库有关，音色相似度不再作为本阶段门，也不新增这类测量。既有标题素材约2.1倍响度差异按后端边界保留；该素材混有 startup声音且缺同相纯曲锚，不据此推导所有曲目的倍率。原严格时序／完整波形记录不改值、不改判据，但不以新增音色测量无限阻塞当前行为范围交付。
+
+当前完成范围是事件解码、voice／controller、曲目循环／fade，以及已可达场景、选项和Load行为。它不等于所有游戏声音、完整波形或原硬件绝对时序一致。后续进入 R1 发布准备及其必需的阶段审查和真实平台前置；新玩法／场景另补自身证据。
+
+### 实现与原版依据
+
+原 EVNT／32 duration槽取代运行时 BW／XMIDI converter事件路径，保留第三方源码和许可证。按原首空槽、到期升序、同 tick复用、duration0、满表、EOT／loop及fade先后推进；20逻辑槽／默认18硬件channel按 SBPRO2.MDI双算子分支和 `SAMPLE.AD` 分配。channel9不另造硬件rhythm owner，无原caller的CC120 hard-off删除并保原ignored语义。
+
+Music开关按非零→0／零→1及原1秒sequence-volume淡变；SFX只门控后续cue／stop。UI可规范化显示，但一次只写被选中的raw配置字节。正曲同曲请求不重启，重复-1仍发原4秒fade；活动Load／CONTINUE成功后的stop→primary，与手工槽Load后的场景请求分别处理。App跨标题／准备／战场交接只保已提交配置，null路径也不丢标志；坏档保持SDL安全无副作用扩展。
+
+PCM默认值是另一个有原码依据的修复。`0x40240..0x404b2`完整原函数的256值向量确认volume100／pan64为每声道 `(u-128)*202`，volume127／0对照分别为 `*256`／0；应用cue名义gain改为 `101/128`，通用PCM显式gain不变。此结论不假设DIG master127，不把最终DAC／OS混音幅度称为已闭合；用户的BGM选择不禁止这项修复。六个实际cue调用点经连接复审，main的两个static点原阶段只编译／审查，不冒称它们已有新GUI。
+
+两个离线probe补齐输出保护：固定Title18的JSONL／metadata trace与原离线WAV共用C ABI小helper，按canonical原目录／实际parent共同预检并独占创建，拒绝已有、重名、原目录及指向原目录的junction别名，修复trace可写原资源及WAV先rb后wb的覆盖竞态。Windows传入UTF-8 argv；只有离线helper用C++17，正式runtime仍为C++14。新增路径回归仅在owned资源副本中执行，不修改原版50文件；最终定向结果在下节补录，不回写旧候选。
+
+### 分层证据与保留失败
+
+| 来源 | 实际支持范围 | 保留限制 |
+|---|---|---|
+| R3／R4原读集、局部原kernel和15首实际曲目一次／两次loop向量 | MIDI消息、duration槽、voice分配和整数sequence volume／fade | I/O／delay被记录或替换，不是实际PIC时序、载入指针或完整波形 |
+| 前文原版Title C2 closed DRO／WAV／FILES与后续写序消费者 | 预声明窗口3748/3748映射后寄存器写序通过 | writer含cache和同值过滤；严格PIC单一1ms相位交集为空，仍记RED，不改timer／sleep或裁区求绿 |
+| `a7-three-scenes-gui-prep-20261107-c3/actual-four-episodes-c3-c3`；独立QA `1c1a50000b8d5518269db022a636e19965b13d0c05fa23abd305f4c73348ea59` | options／Load共两个SDL；opening与END各一原版＋一SDL，共四目标；合计六目标（四SDL／两原版），覆盖正式资源、配置、完整SAV、切曲和正常关闭 | 不是六SDL或本新树fresh GUI；谱排名、carrier TL变化与采集闭合各保原范围，不冒完整wave或精确1秒轨迹 |
+| `a7-opening-end-offline-consumer-20261107-c1/receipt.json`，SHA `3c1a4945bd1177295d82bdc3f0cd7709bc6a960bf2569478e3fa839690b97e30` | 固定窗／六参考支持opening末11及END19→12→19的有限观察 | 原opening首窗18弱，不据短窗唯一认曲；不移窗或拟合增益 |
+| `a7-options-load-sound-readonly-20261107-c1/receipt.json`，SHA `ecf72430c13a5ad39c25bc8624492dfd31f7fbc8147375c8808d187cd6225d8f` | 配置、取消／肯定Load和有限menu VOICE观察，原TL衰减／恢复状态 | TL63不等于PCM绝对零；mute下不能声学排除restart，原SFX重开混曲窗margin不足的失败保留 |
+| `a7-sfx-reenable-gui-prep-20261107-c3/actual-sfx-reenable-c4-c3`；独立QA `380edbb5bfd2d57b791e6caca1d72fedeff89d96f84e0c9d8041c01378353695` | Music全程OFF的SFX00→01资源／Save，新SDL full2652点sample8身份分数0.97607；原13候选／0.8分数／0.05margin门不变 | 原声音显式复用旧失败C1的闭合录音，新原版只补业务／Save；是联合证据，不是fresh音频pair，不证明唯一ESC实例／绝对缺声或精确触发时刻 |
+
+所有路径均指本地 `C:/Users/Soar/source/repos/fd2sdl-work/` 的封存目录，原版、工具、WAV／DRO／PNG／SAV和late guard按各自收据绑定。旧C3长AppMix达到120秒容量后失败、同名PNG覆盖、SFX C1 Save高亮超时、C2初始parent亮相失败及后续修正分别保留，不把已完成业务或可复用闭合声音反写为旧全case通过。SFX C3保存的00→01两端完整容器同源，原版／SDL目标与采集helper均正常关闭；静音提交是pre-OS取证，不改用户mixer，也不证明扬声器输出。
+
+### 最终交付验证
+
+交付树 `E:/Projects/fd2sdl-work/a7-delivery-20261107` 基于 `ec8e699`，主程序 SHA256 `2dbab3cd7bf7cf054cbe85ec58a995b606739fa3c05cc677331e560545bd9bbc`。新 Windows Debug 构建的15项定向 CTest通过22.05秒；30项 DRO解析／比较 Python 和14项命名发布检查通过，当前720个源码地址 token均 canonical。293登记／1312函数的14文件发布取自已封生成器结果，11项SUMS匹配；发布时的源码地址快照707与本交付树720分开登记。
+
+首轮根汇总脚本错误假设新版CTest仍含“0 tests failed”字样，并误取内嵌Job收据；原脚本失败和C1结果不改。`a7-delivery-verification-20261107-c1-close/result.json`只读复核已闭合raw，确认真实外层Job62448全0、无残留／强制清理。两trace目标的固定短程PCM hash均为 `00d16e4f558bea67`，支持观察hook没有改变该短程输出，不是音色测量或原版波形门。
+
+阶段审查补齐两个离线probe的输出边界：canonical实际目录共同预检、原资源／重合／已有路径拒绝，独占创建取代WAV的rb→wb预查。旧程序在新反例上真实失败；C2重编仅三个probe目标，两trace自测通过，CLI停在测试自身的junction命令引号问题。修正后C3仅补跑该1项CTest，9个真实离线CLI用例全部通过0.66秒，含中文文件名、二输出共同预检及原目录junction拒绝。C2失败保留，不重复15项或任何历史GUI。资格合计16个唯一CTest，按上述候选联合覆盖；不是最后程序fresh18项。
+
+所有定向测试／静态检查Job正常0并清理；配置／编译worker0，但所属MSVC `vctip.exe`残留由本Job强制回收、outer125，日志保留PID和映像路径，不改记正常清理。移除了未注册的旧baseline测试分支，保留当前默认路径的全部断言；原版50文件副本与A8保护路径保持。当前复审没有剩余阻断。Linux本轮未执行。
+
+实际采集worker源码归档于 `tools/testing/a7-evidence/`：两套共11份原字节Python源，附来源、摘要及文本转换约束。它们是依赖原sealed C3／C4输入的历史重放源码，不能直接换当前二进制，也未注册为永久Suite；R1仍需补可配置的常规A7图形／音频回归入口。归档只做AST与原字节／Git blob核对，不新增GUI、录音或设备验收次数。
+
+当前支持范围据上述事件／业务证据与用户明确后端边界收口。完整波形、严格PIC／绝对时序、后续曲目／场景和其它平台仍未验；不因该事实抹去已有行为验收，也不将其写成全保真通过。A8 `ec8e699` 的host／设备边界继续有效，不被本阶段覆盖或重新命名。

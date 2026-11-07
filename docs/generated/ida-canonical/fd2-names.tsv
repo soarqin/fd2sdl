@@ -314,6 +314,7 @@ ea	name	is_func	is_public
 0x40090	_ctime	1	0
 0x400b3	ctime	1	0
 0x400cc	strcpy	1	0
+0x40240	ail_sample_volume_pan_tables_rebuild	1	0
 0x40684	jpt_40759	0	0
 0x40694	jpt_40929	0	0
 0x407e7	def_40759	0	0
@@ -322,6 +323,14 @@ ea	name	is_func	is_public
 0x418df	def_418C4	0	0
 0x41b5c	jpt_41BAA	0	0
 0x41dc2	def_41BAA	0	0
+0x424b0	ail_xmidi_vlq_read	1	0
+0x42980	ail_sequence_midi_message_dispatch	1	0
+0x42dd0	ail_sequence_pending_notes_release	1	0
+0x43160	ail_sequence_event_state_reset	1	0
+0x43230	ail_sequence_volume_controls_refresh	1	0
+0x43270	ail_mdi_sequences_timer_service	1	0
+0x447d0	ail_sequence_playback_stop	1	0
+0x449e0	ail_sequence_volume_fade_set	1	0
 0x46013	__math87_err	1	0
 0x4609b	__CMain	1	0
 0x460ea	__InitRtns	1	0

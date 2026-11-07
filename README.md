@@ -2,7 +2,7 @@
 
 使用原版数据，以 SDL3 重写《炎龙骑士团 2：黄金城传说》（Flame Dragon 2: Legend of Golden Castle，汉堂国际，1995）。运行重写版不需要原版 `FD2.EXE`。
 
-**项目仍在开发中**：已有片头、标题、新游戏过场、基础战斗、玩家法术和物品的已确认分支，以及经验、升级和学习流程。第一关完整结算、城镇／酒店准备页、四槽存取和下一关入场已完成受支持范围的原版对照；大阶段统一审查与历史全面回归尚待执行，完整战斗演出和声音保真尚未完成。实现与原版验收范围分别见[开发计划](docs/plans/development.md)。
+**项目仍在开发中**：已有片头、标题、新游戏过场、基础战斗、玩家法术和物品的已确认分支，以及经验、升级和学习流程。stage 1 自然实战、结算到 stage 2 入场／存取及 B0—B7 受支持范围的统一审查和历史回归已完成。音频完成当前事件／场景行为与本地设备生命周期范围；完整动画、后续玩法和全波形一致不在此声明内。实现与原版验收范围分别见[开发计划](docs/plans/development.md)。
 
 ## 准备与构建
 
@@ -75,7 +75,7 @@ Give 选择相邻目标，有空槽时直接转交，满槽时选择对方物品
 
 存档默认使用工作目录中的 `FD2.SAV`，可通过环境变量 `FD2SDL_SAVE_PATH` 指定其他路径。标题 CONTINUE 恢复 stage 0／1 活动快照及 stage 2 入场快照；标题 LOAD 和城镇酒店 Load 恢复四槽中的 stage 1／2 准备状态，出城后才重建战场。酒店可保存完整持久队伍；超过 16 人的出阵选择、商店和教会交易仍未开放。调试或兼容性验证请使用存档副本，不覆盖 `original_game/` 中的原始证据。
 
-正式应用流程已连接第一关胜利结算、准备页和下一关，败北流程返回标题；独立 `--field-play` 仍只报告胜／败并退出 `2`。战场 phase、城镇／酒店和 Load 后的音乐请求已接入 A5，曲目请求接通不代表音色、混音和时序保真通过。B5及所需A5场景请求已完成本阶段受支持验收，后续整关、完整音画及大阶段审查仍有边界，见[战场计划](docs/plans/battlefield.md#7-b5第一关结算到下一关p1)和[音频计划](docs/plans/audio.md)为准。
+正式应用流程已连接第一关胜利结算、准备页和下一关，败北流程返回标题；独立 `--field-play` 仍只报告胜／败并退出 `2`。A7 已核当前可达的事件、voice、曲目循环／fade及选项／Load行为，A8 已完成 Windows 本地降级和资源生命周期。2026-11-07 用户选择保留 Nuked 原始响度与音色，不以音色相似度作阶段门；这不等于完整波形或严格绝对时序相同，也不影响按原版模型修正 PCM 默认增益。后续范围与 R1 发布前置见[开发计划](docs/plans/development.md)和[音频计划](docs/plans/audio.md)。
 
 ## 测试与开发文档
 
@@ -106,4 +106,4 @@ ctest --test-dir src/build --output-on-failure
 
 - 原版游戏：汉堂国际（Dynasty International Information）。
 - 窗口、图形、输入与音频：[SDL3](https://www.libsdl.org/)。
-- 音乐播放：BW MIDI Sequencer、XMIDI converter、OPL AIL model 与 Nuked OPL3；上游版本及许可见[第三方组件清单](src/third_party/README.md)。
+- 音乐播放：原 EVNT／32 槽时序，`SAMPLE.AD` 音色表、OPL AIL model 与 Nuked OPL3；历史 BW／XMIDI converter 的来源及全部许可仍见[第三方组件清单](src/third_party/README.md)。

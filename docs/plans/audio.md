@@ -2,15 +2,15 @@
 
 ## 1. 当前基线
 
-2026-11-04 的代码基线 `e9a2d81` 已有统一音频核心、PCM、现用 XMIDI/AIL/Nuked 后端，以及标题和新游戏过场接入。**A0～A4 不再是待重做的前置工作。** 跨系统顺序以[总计划](development.md#4-新优先级与依赖)为准；A5所需的场景编排与恢复边界现已随B5完成本阶段验收，随后为P2的A6～A8；大阶段统一审查和历史全面回归另行执行。
+2026-11-04 的代码基线 `e9a2d81` 已有统一音频核心、PCM、XMIDI/AIL/Nuked 后端，以及标题和新游戏过场接入。**A0～A4 不再是待重做的前置工作。** A5 随 B5、A6 随 B6 完成各自支持范围，A8 已提交 `ec8e699`。本轮 A7 完成当前可达场景的受支持事件与声音行为验收，按 2026-11-07 用户选择保留后端原始响度，不把 MIDI/OPL 音色差异列为阶段门。跨系统顺序和后续 R1 见[总计划](development.md#4-新优先级与依赖)。
 
 | 工作包 | 已有能力 | 尚未覆盖 |
 |---|---|---|
-| A0：格式与调用链 | PCM 默认参数、固定／动态 bank；XMIDI、stage 曲目表及播放／淡变入口 | 其余场景映射、全局默认音量 |
-| A1：音频框架 | SDL3 device／stream、music/sfx bus、有界队列、retirement、null/offline 与错误降级 | 宿主和设备生命周期扩展归 A8 |
+| A0：格式与调用链 | PCM 默认参数与名义 sample 增益、固定／动态 bank；XMIDI、stage 曲目表及播放／淡变入口 | 未开放场景；最终 DAC／OS 混音不由名义增益推定 |
+| A1：音频框架 | SDL3 device／stream、music/sfx bus、有界队列、retirement、null/offline；A8 本地降级与生命周期完成 | 真拔插、WASAPI 恢复与默认路由迁移未单独实测 |
 | A2：PCM | 24 voice、U8 mono、rate conversion、replace／stop；标题、对白、脚步、菜单与已确认战场效果 cue | FIGANI 动态 bank 归 A6 |
-| A3：XMIDI/OPL | `bgm.cpp` 直接读取 `SAMPLE.AD`，现用组件化后端；播放、循环、替换和销毁测试 | 全场景与逐样本保真归 A7，不重做选型 |
-| A4：场景接入 | 标题 track 18、新游戏 track 11 及原版淡变；Load 应用 music/sfx bus 配置 | A5场景／phase与恢复边界已随B5验收，声音保真另验；bus 或曲目请求恢复不等于 sequence 播放位置恢复 |
+| A3：XMIDI/OPL | 原 EVNT／32 duration 槽、SBPRO2.MDI 20 逻辑槽／18 硬件 channel、整数音量／fade，读取 `SAMPLE.AD` 并由 Nuked 合成 | 保留原始响度与音色；完整波形、严格 PIC／绝对时序和后续场景未验 |
+| A4：场景接入 | 标题18、开场11、stage 0 的19／12／19及 Music／SFX、Load 接线 | 配置与曲目请求恢复不等于 sequence 播放位置恢复；证据按实际单端／联合来源登记 |
 
 历史记录包含 Linux 原生、SDL dummy 和 MinGW 交叉构建。当前开发环境已迁移到 Windows，可在本机自动运行窗口输入、设备打开与关闭回归；执行范围与结果见[图形自动化测试](../tools/gui-testing.md)。Windows 实际声音保真、macOS 与未覆盖的设备生命周期仍须分别登记，不能由交叉构建或 dummy 通过替代。
 
@@ -49,14 +49,20 @@ Windows原版 controlled C10录音支持城镇10／酒店13／入场后19；最�
 
 ### A7：保真与场景对照（P2）
 
-- [ ] 优先复核已可达的标题、过场、stage 0 primary/alternate，再随 B6 扩展战斗；不一次扩充所有曲目语义。
-- [ ] PCM 分别比较索引、时长、循环、replace 和触发帧；已有 SFX 5/8 波形结果只覆盖相应样本。继续确认全局默认音量。
-- [ ] XMIDI/OPL 分别比较 tempo、loop、program/control change、打击乐、voice 分配和响度；保留原型指纹与现用后端结果的区别，不把谱相似度等同逐样本一致。
-- [ ] 自动操作 DOSBox 独立副本，保留已确认场景的 capture、输入序列和状态证据；按已确认音效／曲目／触发点比较，不能将录到声音等同原版保真通过。所有原版捕获和转换产物只留本地。
+**完成口径：当前受支持行为范围完成，不是全游戏／全波形保真。** 2026-11-07 用户选择保留当前 Nuked 原始响度，不作 BGM 补偿；另明确 MIDI/OPL 音色受驱动与解码库影响，不再作为本阶段验收门，也不新增该类测量。已有标题固定素材约 2.1 倍响度差异保留为后端边界；它不是所有曲目的通用倍率，不据此拟合增益。最终交付树测试记录见[阶段日志](stage-log.md#a7当前受支持音频行为与后端边界)。
+
+- [x] 对标题18、自然 START 最初两段对白／script64 淡出／开场11、stage 0 一次 END 的19→12→19及 Round002完成实际资源／场景与有限声音观察。
+- [x] PCM 以原 `0x40240` 的256值名义表确认默认 sample volume100、pan64时的应用层 gain 为 `101/128`；通用 PCM 显式 gain 语义不变。代表性 once／replace／stop和启用后的31/8身份有单列证据，不能扩为全部实例或最终设备幅度。
+- [x] 按原 EVNT／32 duration 槽和 SBPRO2.MDI 分支修正事件、voice、controller、loop 与整数 fade；15首实际曲目一次／两次循环机器码向量通过。标题预声明窗口3748/3748映射寄存器写序通过，严格 PIC 时序比较仍为 RED；两者分别保存。
+- [x] Music 逐字节非零→0／零→1，使用原1秒 sequence-volume切换；SFX 只改变后续 cue／stop 门。成功活动 Load／CONTINUE 的 stop→primary、手工槽场景恢复及跨标题配置交接分别验证；未触及 raw 配置字节保留，坏档保持 SDL 的安全无副作用扩展。
+
+四 episodes 的六个实际目标是四 SDL／两原版，不是六 SDL。SFX重开C3采用旧失败运行的闭合原版声音、新原版业务／Save和新SDL窄场联合，不是 fresh 音频 pair；原失败报告不改记通过。所有 capture／输入／SAV 和工具事实按来源封存，纯解析、采集成功或谱排名不能互相替代。完整资料见[音频依据](../reverse-engineering/audio.md#a7-当前证据与限制)。
+
+本次选择只限定 BGM 的后端响度与音色，不禁止依据原版模型修复 PCM 默认值。完整 PCM／混音波形、严格 PIC／绝对输入时延、其它原版场景与全部重复 cue仍未验证；这些事实继续存档，不以新增音色测量无限延后当前 A7 交付，也不改写成已通过。后续进入 R1 发布准备及其必需的阶段审查；新玩法／场景随对应工作包补证。
 
 ### A8：宿主与设备生命周期（P2，配合 R1）
 
-当前 Windows 受支持的本地降级与资源生命周期范围完成，独立于尚未关闭的 A7。交付树从 `8fdfb2f` 提取 A8 改动，不包含 A7 的 XMIDI 调度、原版驱动模型、默认 PCM 增益或命名发布。最终交付候选与定向测试结果见[阶段记录](stage-log.md#a8宿主与设备生命周期)。
+当前 Windows 受支持的本地降级与资源生命周期范围已提交 `ec8e699`。A8 从 `8fdfb2f` 独立提取，不包含本次 A7 的 XMIDI 调度、原版驱动模型、默认 PCM 增益或命名发布。候选与定向测试结果见[阶段记录](stage-log.md#a8宿主与设备生命周期)。
 
 - [x] 固化后台运行、关闭窗口、设备打开失败和 SDL 本地断连通知后的降级／销毁行为；失焦不新增暂停策略，也不新增设备选择 UI。
 - [x] 保持音频不可用时逻辑可运行，source 只 retire 一次；两个 bus 的最新配置不再占用 PLAY／STOP／master 的 SPSC 队列。Open／Resume／Put 的生命周期首错可只读查询，Put 失败同时使当前 AppMix 取证失败，不关闭、重放或自动重开 source。
@@ -66,7 +72,7 @@ Open／Resume 失败时，允许 null 的对象保持本轮 discard-null 到销�
 
 已有声音／资源记录和新交付候选的验证分开登记。设备 probe 为 `SDL_INIT_AUDIO`、48 kHz 双声道 F32、实际 render 后向设备提交等长零；本地断连一轮有 151 次 callback／Put／成功提交、三个 source 各 retire 一次，owner／ref 与正常 Job 清理均闭合。它证明 pre-OS 处理和进程内 SDL 生命周期，不证明扬声器输出。可复现入口见[工具速查](../tools/README.md#a8-音频生命周期验证)。
 
-真实前台→失焦事件、物理拔插、WASAPI `AUDCLNT_E_DEVICE_INVALIDATED` 恢复成功、实际默认路由迁移均未单独实测；稳定后台已有实际证据。Linux／macOS 本轮未执行，私有 SDL 内部 ABI probe 只支持已固定的 Windows x64 Debug。音色、响度、波形和绝对时序继续归 A7，不因 A8 的本地生命周期验收而关闭。
+真实前台→失焦事件、物理拔插、WASAPI `AUDCLNT_E_DEVICE_INVALIDATED` 恢复成功、实际默认路由迁移均未单独实测；稳定后台已有实际证据。Linux／macOS 本轮未执行，私有 SDL 内部 ABI probe 只支持已固定的 Windows x64 Debug。后端响度／音色按 A7 的用户选择保留；完整波形和绝对时序仍未验，不能由 A8 的本地生命周期结果替代。
 
 ## 3. 验收标准
 

@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 284,
+ "canonical_functions": 293,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -8367,6 +8367,213 @@
    "aliases": [
     "delay_ms"
    ],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 262720,
+   "off": 197184,
+   "ida_name": "ail_sample_volume_pan_tables_rebuild",
+   "size": 626,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_40240",
+     "now": "ail_sample_volume_pan_tables_rebuild",
+     "why": "完整626B/40240..404b2，初始化pan表5360c[63/64]均128。先夹sample volume/pan0..127，非零volume+1；按输入有/无符号和driver output kind构建256项mono或左右缩放表，使用原SAR7整型顺序。FD2 startup3fca9仅一次经37f70→3f937置preference5=100；39521→414e0读此值并设rate11025/pan64，两FD2 SFX wrappers25a96/25b45只end/init/address/loop/start，无volume/pan/rate覆盖；volume/pan setters的另caller为45880内部数字MIDI分支。原函数无patch/无stub执行：U8mono、volume100/pan64、output2/3的L/R各256项都精确(u8-128)*202，即名义sample gain101/128；127与0为独立控制。只读sample驱动ptr/format/volume/pan、driver+24 output-kind和原pan表，不读DIG master127。C10六WAV十二个既有onset/661源点窗显示SDL单位幅度与原版约0.785..0.789差异，低能80/11及残差保留；该幅度观察不作为公式或通过阈值。driver/DAC/混音/重采样、最终PCM保真仍未由此关闭。rawSHA 7af1f72ed139c68aa2b347be39c514dc1497f4f82f72a9adabd9dd0fb353b4e1。"
+    }
+   ],
+   "end_va": 263346,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 271536,
+   "off": 206000,
+   "ida_name": "ail_xmidi_vlq_read",
+   "size": 45,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_424B0",
+     "now": "ail_xmidi_vlq_read",
+     "why": "完整45B，原bytes==validated relocated。完整VLQ读取：从传入游标逐byte累积7bit并前移，高位清零或达到4byte即返回；43270用于note duration及meta长度。实际全部FDMUS原字段已扫描；私有预检不接受未证更长编码或越界，不保存猜测参数类型。 raw SHA 4adfb87d832de5a180da5d5d3a8c2887d03abb6413d6b785ba1662cb37d010ad。"
+    }
+   ],
+   "end_va": 271581,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 272768,
+   "off": 207232,
+   "ida_name": "ail_sequence_midi_message_dispatch",
+   "size": 1094,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_42980",
+     "now": "ail_sequence_midi_message_dispatch",
+     "why": "完整1094B，原bytes==validated relocated。完整sequence MIDI分派：program/control/bend先427c0缓存原值，controller7乘sequence+34h后signed除127并夹0..127，经logical-to-driver映射及channel owner门送422c0。还含AIL控制hook/锁/分支；本FDMUS已用CC仅1/7/64，不把未用分支算实现或运行验收。 raw SHA b3fad1dcbc2b713bde3eeb65fab8333c43b1bcb74b924b3a6d71ba9ccc63a4ce。"
+    }
+   ],
+   "end_va": 273862,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 273872,
+   "off": 208336,
+   "ida_name": "ail_sequence_pending_notes_release",
+   "size": 198,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_42DD0",
+     "now": "ail_sequence_pending_notes_release",
+     "why": "完整198B，原bytes==validated relocated。升序遍历32个非−1槽，通过42980发送各channel/note的noteoff，清槽和pending count并flush；再按3845e条件请求383f1(3)。重复note不折bitmap，32满时第33个noteon已发后由43270调stop释放旧32；宿主delay/OPL IO未作运行保真声明。 raw SHA 9449c603edf4c4787545ea7b242ad52a47debd06d2252ef32b8fa7a6ada9af8f。"
+    }
+   ],
+   "end_va": 274070,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 274784,
+   "off": 209248,
+   "ida_name": "ail_sequence_event_state_reset",
+   "size": 171,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_43160",
+     "now": "ail_sequence_event_state_reset",
+     "why": "完整171B，原bytes==validated relocated。初始化16个channel恒等映射、1088B控制缓存为−1、loop stack与32duration channel槽为−1；重置pending count/delay/beat/+30callback计数。443d0和44790调用，不重装MDI driver默认值/RR/OPL。 raw SHA f0e658360d604620060397164bc27f427e796a57a7cb914ca39045d2789a97fc。"
+    }
+   ],
+   "end_va": 274955,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 274992,
+   "off": 209456,
+   "ida_name": "ail_sequence_volume_controls_refresh",
+   "size": 61,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_43230",
+     "now": "ail_sequence_volume_controls_refresh",
+     "why": "完整61B，原bytes==validated relocated。升序扫描16个logical channel的raw CC7缓存+350h，只在!=−1时经42980重发controller7；不为未缓存channel生成默认。449e0和43270的8callback门调用，映射由sequence+90h决定。 raw SHA b6ed14e0ce03becafd7a7c4a57f6fab95f6ab574454bb2b9783bc36368274096。"
+    }
+   ],
+   "end_va": 275053,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 275056,
+   "off": 209520,
+   "ida_name": "ail_mdi_sequences_timer_service",
+   "size": 1830,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_43270",
+     "now": "ail_mdi_sequences_timer_service",
+     "why": "完整1830B，原bytes==validated relocated。完整MDI timer遍历playing sequences；每callback +30计数后按tempo累计subtick，先32duration槽升序到期，再delay/EVNT；EOT保无限loop槽并跳本callback beat/volume/tempo fade；每8callback按缓存CC7刷新。43ad0把本函数注册到120Hz timer。全部15曲单次原kernel的事件和active-slot状态与私有执行器匹配；只声明当前资源默认100%tempo分支，不声称其余hook/宿主IO已恢复。 raw SHA c9ea914870d760db4bc8b1f86a55ac6c9c7d6d4d7126b227b63312fe589355a4。"
+    }
+   ],
+   "end_va": 276886,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 280528,
+   "off": 214992,
+   "ida_name": "ail_sequence_playback_stop",
+   "size": 193,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_447D0",
+     "now": "ail_sequence_playback_stop",
+     "why": "完整193B，原bytes==validated relocated。仅status4时改8，调用42dd0清本sequence pending槽，再按自身cache清pedal/锁/112。不是统一硬重置全部driver controller/voice，status2的重复stop不再发送释放；driver硬件release仍可继续。 raw SHA 676c29375b7ccbe454d2db4ac46bd067ac3f6917e4a930eac9fadbceb2d1ce6a。"
+    }
+   ],
+   "end_va": 280721,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 281056,
+   "off": 215520,
+   "ida_name": "ail_sequence_volume_fade_set",
+   "size": 128,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_449E0",
+     "now": "ail_sequence_volume_fade_set",
+     "why": "完整128B，原bytes==validated relocated。先写sequence target；current相等不刷新；duration0立即置current，否则acc=0、step_us=(1000*duration)/abs(diff)，随后43230重发当前音量。25977普通曲用0/0再127/2000，16/17直接127，-1用0/4000。原kernel证到0保持status4，不补endpoint flush。 raw SHA c864f750f39071e654d4c1311e33f3039b5ad55b56b919cba93cf6ab29a573d0。"
+    }
+   ],
+   "end_va": 281184,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
   },

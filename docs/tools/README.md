@@ -293,7 +293,7 @@ python3 tools/analyze_fd2_audio.py --extract-music-dir "$work/music"
 
 两平台的比较脚本都只读取已有音频；旧比较器需 NumPy，新的有限 SFX oracle 另需 SciPy。capture 必须附确认的场景和调用依据，可由有判据的 DOSBox 自动取证产生。
 
-`fd2_bgm_capture_probe TRACK SECONDS NEW_OUTPUT.wav` 使用当前正式XMIDI／AIL／Nuked九voice后端，生成44100 Hz、双声道16位离线参考；曲目范围0..19，时长1..120秒，输出路径必须不存在。从项目根目录执行：
+`fd2_bgm_capture_probe TRACK SECONDS NEW_OUTPUT.wav` 使用当前原 EVNT／AIL／Nuked 后端，20个逻辑槽、默认18个 OPL硬件channel，生成44100 Hz、双声道16位离线参考；曲目范围0..19，时长1..120秒，输出路径必须不存在。JSON明确输出 `logical_voices=20` 和 `opl_channels=18`，不能继续以旧九voice元数据登记新素材。从项目根目录执行：
 
 ```powershell
 cmake --build src/build-win --config Debug --target fd2_bgm_capture_probe
@@ -305,7 +305,54 @@ cmake --build src/build --target fd2_bgm_capture_probe
 ./src/build/fd2_bgm_capture_probe 10 20 /tmp/fd2-track10-new.wav
 ```
 
-该参考仅用于辨认曲目与切换边界；指纹排序、离线PCM或场景日志不等于原版音色／混音／逐样本相等，也不等于实时设备通过。Windows已有本地执行证据，Linux命令本轮未执行。
+该参考用于预先声明的曲目／切换观察，不保证原版混音或逐样本相同，也不等于实时设备通过。2026-11-07 用户选择保留 Nuked原始响度与音色，不新增补偿或音色相似度门；既有未匹配结果保留。Windows已有本地执行证据，Linux命令本轮未执行。
+
+`fd2_bgm_opl_trace_probe` 固定离线执行 Title18，输出真实 Nuked寄存器写序JSONL和metadata，不写WAV、不打开设备。`--frames` 为 `1..sample-rate*120`，`--sample-rate` 默认44100，`--block-frames` 默认512；unhooked目标是无记录对照，不是另一音频后端。
+
+两个离线probe共用 `audio_probe_output.h/.cpp` 的输出门：按canonical实际原资源目录和实际父目录检查，所有输出共同预检，拒绝原目录内路径、已有／重名目标及指向原目录的junction别名，再独占创建；不沿用先rb探测再wb覆盖的写法。Windows使用UTF-8 argv。只有该离线C ABI helper使用C++17，正式音乐runtime仍为C++14。输出须在已存在的独立目录，失败保留现场并返回非零，不覆盖原资源或旧证据。
+
+Windows（PowerShell，以下新输出路径不可已存在）：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2_bgm_opl_trace_probe fd2_bgm_opl_trace_probe_unhooked fd2_bgm_capture_probe -- /nodeReuse:false
+& ./src/build-win/Debug/fd2_bgm_opl_trace_probe.exe --original original_game --frames 44100 --trace "$work/title18-new.jsonl" --metadata "$work/title18-new.json" --sample-rate 44100 --block-frames 512
+ctest --test-dir src/build-win -C Debug -R '^(bgm_opl_trace|bgm_opl_trace_unhooked|audio_probe_output_paths)$' --output-on-failure
+```
+
+Linux（本轮未执行）：
+
+```bash
+cmake --build src/build --target fd2_bgm_opl_trace_probe fd2_bgm_opl_trace_probe_unhooked fd2_bgm_capture_probe --parallel
+./src/build/fd2_bgm_opl_trace_probe --original original_game --frames 44100 --trace "$work/title18-new.jsonl" --metadata "$work/title18-new.json" --sample-rate 44100 --block-frames 512
+ctest --test-dir src/build -R '^(bgm_opl_trace|bgm_opl_trace_unhooked|audio_probe_output_paths)$' --output-on-failure
+```
+
+短离线命令只复现输出与记录接口；标题3748写序的比较仍绑定其原预声明窗口／映射，不由任意1秒trace推定。路径测试在owned临时原资源副本中验证UTF-8及已有／原目录／重名／原目录别名拒绝，不向本树 `original_game/` 写入。
+
+#### A7 事件／voice与配置回归
+
+下列无窗口目标读取现有原资源，覆盖 SBPRO2.MDI分配、整数 sequence volume、原32 duration槽、loop／fade、选项与配置恢复。原机器码向量与新交付候选测试分开登记，不能将纯回归写成真实设备或完整声音通过。Windows（PowerShell）：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2_bgm_test fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test fd2_bgm_options_test fd2_audio_options_test fd2_audio_pcm_test --parallel 4 -- /nodeReuse:false
+ctest --test-dir src/build-win -C Debug -R '^(bgm|bgm_sbpro2|bgm_sequence_volume|bgm_native_sequence|bgm_options|audio_options|audio_pcm)$' --output-on-failure
+```
+
+Linux 使用独立构建目录；本轮未执行：
+
+```bash
+cmake --build src/build --target fd2_bgm_test fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test fd2_bgm_options_test fd2_audio_options_test fd2_audio_pcm_test --parallel
+ctest --test-dir src/build -R '^(bgm|bgm_sbpro2|bgm_sequence_volume|bgm_native_sequence|bgm_options|audio_options|audio_pcm)$' --output-on-failure
+```
+
+`tools/inspect_dro_v2.py` 只读解析已关闭的 DOSBox-X `b6abbd5` writer的未压缩 DRO v2，核对头、转换表、delay、bank／寄存器记录和完整长度；不播放、不调用模拟器、不恢复 loaded MDI pointer，也不判 PCM或A7行为通过。输出必须是原资源目录之外的全新文件，父目录已存在：
+
+```powershell
+python tools/inspect_dro_v2.py "$work/closed.dro" --output "$work/dro-structure-new.json"
+python -m unittest discover -s tools/tests -p test_dro_v2.py
+```
+
+Linux将 `python` 改为 `python3`，参数相同。writer的cache前缀、同值写过滤和尾静音未编码限制须保留，不能将结构有效或全部记录数量当完整端口史。实际标题、opening／END、options／Load和SFX重开使用[阶段记录](../plans/stage-log.md#a7当前受支持音频行为与后端边界)指向的封存 worker `commands.json` 与输入／程序事实；换候选后须重核来源，不盲重放旧fixture或把单端／联合来源称fresh pair。
 
 Windows（PowerShell；先将路径换成实际捕获和候选目录）：
 

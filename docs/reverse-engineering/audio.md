@@ -8,7 +8,9 @@
 
 `sfx_play @0x25a96` 从嵌套 bank 的 offset 表取得样本地址和长度，先结束原 sample，再设置新样本及 loop count；固定 primary AIL handle 为 `0x53ee4`。`sfx_play_secondary @0x25b45` 执行同样的 replace／stop 流程，但使用独立 handle `0x53ee8`。两者均保留 `0x53ef1`、`0x51e62` 和 `0x54133` 的原门，index `-1` 只停止。旧名 `pal_mask_set` 仅保留历史别名：完整指令中没有 DAC／palette 写入，不能据旧名解释为调色板操作。handle 不代表固定资源 bank。
 
-`ail_init_sample @0x39521` 直接初始化为 `11025 Hz`、loop count 1、pan 64；`sfx_play` 不覆盖 rate、format、volume 或 pan。现有样本路径为 unsigned 8-bit mono，字节中心为 `0x80`。循环参数 0 为无限，正数为总播放次数。全局默认音量仍待运行时确认。
+`ail_init_sample @0x39521` 直接初始化为 `11025 Hz`、loop count 1、pan 64；`sfx_play` 不覆盖 rate、format、volume 或 pan。现有样本路径为 unsigned 8-bit mono，字节中心为 `0x80`。循环参数0为无限，正数为总播放次数。已确认 sample 默认 volume100；这与最终 DIG master／DAC／OS 混音层分别登记。
+
+`ail_sample_volume_pan_tables_rebuild @0x40240` 的完整原函数 `0x40240..0x404b2` 执行向量逐项覆盖256个 U8 值：volume100／pan64的两种已测输出格式，每个声道均为 `(u-128)*202`；volume127对照为 `*256`，volume0为0。原过程使用非零 volume+1 和两次 SAR7，不是根据录音拟合 `100/127`。应用 cue 默认 gain 因而为 `101/128`，六个实际调用点共用这一默认值；通用 PCM 显式 gain1／.5 语义不变。原函数不读取 DIG master，不能补造 master127，也不能将名义 sample 层向量称为最终混音幅度已闭合。
 
 | bank | 已确认调用 |
 |---|---|
@@ -73,11 +75,17 @@ FIGANI／动画 metadata 与 caller 决定 bank；`0x5414b`、`0x54153` 是相�
 
 - `audio.[ch]` 管理一个 SDL3 device／stream、float32 stereo 混音、master/music/sfx 增益、有界单生产者命令队列和 null/offline 输出。
 - `audio_pcm.[ch]` 管理借用型 bank、24 项无分配 voice pool、rate conversion、replace／stop 和 retirement。
-- `bgm.cpp` 直接读取 `SAMPLE.AD`，驱动 BW sequencer、XMIDI converter、OPL AIL model 和 Nuked OPL；默认对应原版 9 个 OPL2 voice，不链接完整 libADLMIDI core。
+- `bgm.cpp` 直接按原 EVNT／32 duration 槽推进，读取 `SAMPLE.AD`，复现已配置 SBPRO2.MDI 的20个逻辑槽／默认18个 OPL3 硬件 channel及14字节双算子音色分支；复用 OPL AIL model 和 Nuked OPL3，不再在运行路径引用 BW sequencer／XMIDI converter，也不链接完整 libADLMIDI core。
 - 主线程准备资源；render/retire 回调禁止文件 I/O、动态分配、锁等待和阻塞。retire 只发布可回收状态，bank/source 数据必须活到最后一次引用退休。
 - 无设备时允许 null/discard 降级，但不能因此把坏资源解释为合法。音频不可用、静音或跳过演出不能改变单位、phase 或 RNG。
 
 播放器 API 以 `src/audio.h`、`audio_pcm.h`、`bgm.h` 为准，不另维护伪接口。失焦、Load、切曲与释放工作边界见[session 设计](../systems/battle-session.md)。
+
+转换后的 MIDI note-off 不能完整保留原首空槽、同 tick 到期顺序、零 duration、满32槽、EOT和 fade 的先后，因此只局部替换事件调度，不另换合成器。`ail_mdi_sequences_timer_service @0x43270` 及相连原函数的机器码向量覆盖15首实际曲目的一次／两次循环。20逻辑槽不等于20硬件 channel；已测 BD=`0xc0` 没开 bit5，channel9的音色映射仍走18-channel分配，不增加所谓五个硬件 rhythm owner。未处理的 CC120沿原驱动忽略，不保留无 caller的私有 hard-off 分支。
+
+Music 开关 `field_options_menu_execute @0x1728c` 对原字节执行零→1／非零→0，并请求1秒 sequence-volume渐变；不以整个 music bus 静音代替。SFX 开关只门控后续 cue／stop，不立即终止已提交样本。一次只提交被选择的配置字节，未触及 raw2／255等字节保留；当前 UI 规范化显示不是全表规范化写回。App／战场／准备状态只交接已经提交的配置，不创建第二个播放器真值。
+
+活动 Load 的 `field_secondary_menu_execute @0x19df7` 在肯定确认后于 `0x1a249` 请求 music(-1)，随后 `0x1a251` 调用活动载入；标题 CONTINUE 同样在快照／资源成功验证后 stop→stage primary。同一正曲请求仍不重启，但每次 `-1` 保留4秒 fade 请求，不能因缓存已为-1吞掉。标题／酒店手工槽 Load 恢复配置后由其城镇等场景调用者请求曲目，不凭 Load 一律加 stop或立即套一次 toggle。SDL 坏档保留既定安全无副作用扩展，不恢复原版不安全写序。
 
 B5 已通过应用持有的 `fd2_field_play_context` 连接城镇 10、酒店 13、出城淡出、stage 0／1 入口与活动 Load 的 primary，以及 phase alternate／primary 请求。stage 1 入场剧情完整返回后才请求 primary，不在剧情开始前提前播放。Game 只发同步曲目请求，绘制和音频回调不推进业务；手工 Load 恢复准备状态，出阵后按场景请求曲目，不从 SAV 恢复 sequence 播放位置。
 
@@ -93,7 +101,7 @@ DOSBox 0.74 的 44100 Hz mixer capture 已对照 FDOTHER[31] SFX 5/8。按 11025
 
 ### B5 Windows 场景与 phase 录音
 
-本轮在 Windows 上通过 DOSBox 原生 mixer capture 取得以下实际原版 PCM，并保留输入、WGC 状态、来源守卫和正常关闭收据。比较使用当前 SDL 后端离线渲染的 track 10／11／12／13／18／19 六个参考候选；参考文件、资源与实际 WAV 的来源分别校验。
+本轮在 Windows 上通过 DOSBox 原生 mixer capture 取得以下实际原版 PCM，并保留输入、WGC 状态、来源守卫和正常关闭收据。比较使用当时冻结的 SDL 后端离线渲染的 track 10／11／12／13／18／19 六个参考候选；参考文件、资源与实际 WAV 的来源分别校验。
 
 | 实际录音范围 | 可支持的有限结论 | 业务验收边界 |
 |---|---|---|
@@ -102,6 +110,16 @@ DOSBox 0.74 的 44100 Hz mixer capture 已对照 FDOTHER[31] SFX 5/8。按 11025
 | natural C25完整原版的首phase，录音30.704秒 | 六参考、五个固定窗口首候选为19／19／12／12／19，支持19→12→19；Round002资源ACK在录音receipt开始后24.625秒 | 原版端完整通过；自然项另联合新C27独立SDL完整链，旧C25顶层仍FAILED。只绑定该原生录音，不含SDL声音或A7 |
 
 C25最短0.22秒窗口中19与12分数接近，不能单凭该窗口唯一识别；五个窗口均按预先固定范围分析，没有为结果移动或拟合。这里的结论是六候选中的波形／频谱指纹排序，不能扩成完整曲库唯一识别或运行时资源指针追踪。参考片段匹配偏移不等于原版硬件切曲时刻；本轮也未录得对应 SDL 实时输出，未证明绝对时序、逐样本／混音一致或 A7 保真完成。历史失败与后续独立复验分别保留，实际收据索引见[阶段日志](../plans/stage-log.md)。
+
+### A7 当前证据与限制
+
+当前支持行为包括原 EVNT 事件／duration 槽、voice分配、program／controller、tempo／loop和整数 sequence fade，以及标题18→开场11、stage0的19→12→19、Music／SFX开关和成功／取消 Load。纯机器码状态对照、原版实际运行、SDL pre-OS声音与原始寄存器记录分别登记，不能互相代替。标题预声明窗口3748/3748映射后写序通过；同一记录的严格 PIC／单一1ms量化相位交集为空，仍记 RED，不改 timer／sleep或按坏点裁区求通过。
+
+`DBRAWOPL` v2包含 writer 的 cache前缀和同值写过滤，不是完整端口I/O史；FILES打开 `SBPRO2.MDI` 也不等于取得运行 driver pointer。已封标题 WAV混有 startup声音，DOSBox默认 DBOPL、FM scale1.5、49716→44100重采样／DC链与当前 Nuked不同；1.5是仿真器公共 scale，不是 FD2／MDI 应用默认值，不能直接给 Nuked乘1.5。
+
+2026-11-07 用户选择保留当前 Nuked原始响度与音色，不加 BGM补偿，不以 MIDI/OPL音色相似度作为本阶段门或新增此测量。既有标题固定素材约2.1倍差异保留为局部后端观察，不作为全曲库固定增益。这个选择不影响 PCM `101/128` 的原版名义模型修复；也不把完整波形、绝对时延或严格 PIC 的未过／未验事实改成通过。
+
+四 episodes共有六个目标（四 SDL、两原版），每端独立资源／输入／SAV／正常退出与 late guard闭合。SFX重开C3把旧失败运行的闭合原版声音、新原版00→01业务／Save与新SDL窄声音联合：原 full2652点、13候选、0.8分数／0.05 margin门不变。它不是fresh音频pair，也不把旧失败改记通过；OFF窗口未检出不能声明绝对无声，启用后的身份门不证明唯一ESC次数或精确触发时刻。原失败、单端、完整波形与后续场景的边界见[阶段日志](../plans/stage-log.md#a7当前受支持音频行为与后端边界)。
 
 ### 外部音乐原型
 

@@ -51,6 +51,24 @@ int fd2_field_unit_summary_draw(fd2_vga *, const fd2_field_info_assets *,
     } \
 } while (0)
 
+static int music_probe, music_request_count, music_option_count, music_last_enabled, music_last_fade;
+static int music_request_tracks[8];
+#undef fd2_scene_play_game_over
+int fd2_scene_play_game_over(fd2_vga *, const fd2_archive *, fd2_bgm_player *, int);
+static int app_option_probe;
+static uint8_t app_closed_music,app_closed_sfx;
+int __wrap_fd2_bgm_play(fd2_bgm_player *p, size_t track, int loops) {
+    (void)p; (void)loops; if(music_probe && music_request_count<8) music_request_tracks[music_request_count++]=(int)track; return 0;
+}
+int __wrap_fd2_bgm_stop(fd2_bgm_player *p) {
+    (void)p; if(music_probe && music_request_count<8) music_request_tracks[music_request_count++]=-1; return 0;
+}
+int __wrap_fd2_bgm_current_track(const fd2_bgm_player *p) {
+    (void)p; return music_probe && music_request_count ? music_request_tracks[music_request_count-1] : -1;
+}
+int __wrap_fd2_bgm_set_music_enabled(fd2_bgm_player *p,int enabled,int fade) {
+    (void)p; if(music_probe){music_option_count++;music_last_enabled=enabled;music_last_fade=fade;} return 0;
+}
 static int automatic_failure;
 static int movement_failure;
 static int action_sent;
@@ -410,6 +428,12 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     game->units.items[0].hp = 1;
     game->units.items[1].side = 0;
     game->units.items[1].hp = 1;
+    if(app_option_probe) {
+        /* 真open_resources/init_option_values的默认值，不能用memset的off掩盖重开缺口。 */
+        const uint8_t defaults[4]={1,1,0,1};
+        memcpy(game->option_values,defaults,sizeof(defaults));
+        fd2_field_system_menu_set_options(&game->system_menu,game->option_values);
+    }
     game->active_side = automatic_failure ? 0 : 2;
     game->phase_next_action_ms = 1;
     if (terminal_case == 1 || terminal_case == 5) game->units.items[1].hp = 0;
@@ -853,6 +877,7 @@ int __wrap_fd2_field_game_animate_command(fd2_field_game *game,
 }
 void __wrap_fd2_field_game_close(fd2_field_game *game) {
     const fd2_archive *result_borrowed = result_frame_case ? game->fdother : NULL;
+    if(app_option_probe){app_closed_music=game->option_values[0];app_closed_sfx=game->option_values[1];}
     if (settlement_case) {
         settlement_closes++;
         if(game->units.count!=27 || game->units.items[0].hp!=1) settlement_protocol_ok=0;
@@ -1171,7 +1196,8 @@ static int result_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
         result_frame_samples = result_frame_outer = result_frame_in_close = result_frame_fired = 0;
         result_frame_openings = result_frame_confirms = result_frame_browse_actions = 0;
         result_frame_storage = result_frame_storage_success = result_frame_final_seen = result_frame_resources_closed = 0;
-        fd2_field_play_context context; fd2_field_play_context_init(&context, NULL);
+        fd2_field_play_context context; fd2_field_play_context_init(&context, (fd2_bgm_player *)&context);
+        music_probe=1;music_request_count=music_option_count=0;music_last_fade=-1;
         context.experience_value = 77; context.message_number = 998;
         fd2_field_play_result result = fd2_field_play_run_context(vga, fdother, 0,0,NULL,NULL,path,0,&context);
         int stable = fd2_save_file_open(&after, path) == 0 && after.size == source.size &&
@@ -1186,7 +1212,11 @@ static int result_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
             result_frame_storage == result_frame_load() && result_frame_storage_success == result_frame_load() &&
             context.experience_value == 77 && context.message_number == 998 && result_frame_final_experience == 77 &&
             result_frame_rng == result_frame_final_rng && stable &&
-            !memcmp(result_frame_expected_units, result_frame_final_units, sizeof(result_frame_final_units));
+            !memcmp(result_frame_expected_units, result_frame_final_units, sizeof(result_frame_final_units)) &&
+            music_request_count==(result_frame_load()?3:1) && music_request_tracks[0]==19 &&
+            (!result_frame_load() || (music_request_tracks[1]==-1 && music_request_tracks[2]==19)) &&
+            music_option_count==(result_frame_load()?2:1) && music_last_fade==0 &&
+            (!result_frame_load() || (music_last_enabled==0 && !context.music_enabled && !context.sfx_enabled));
         printf("result-frame barrier case=%d load=%d right=%d quit=%d result=%d fired=%d browse_actions=%d confirms=%d openings=%d cursor=%u,%u XP=%u storage=%d/%d stable=%d pass=%d\n",
             result_frame_case, result_frame_load(), result_frame_right(), result_frame_quit_now(), (int)result,
             result_frame_fired, result_frame_browse_actions, result_frame_confirms, result_frame_openings,
@@ -1194,6 +1224,7 @@ static int result_frame_barrier_test(fd2_vga *vga, fd2_archive *fdother) {
             result_frame_storage,result_frame_storage_success,stable,okay);
         if (!okay) ++failures;
     }
+    music_probe=0;
     result_frame_case = 0; fd2_save_file_close(&source); remove(path); fd2_input_init(&vga->input);
     CHECK(failures == 0); return 0;
 }
@@ -1275,6 +1306,51 @@ static int stage1_settlement_frontend_test(fd2_vga *vga, fd2_archive *fdother) {
     CHECK(!failures);return 0;
 }
 
+int __wrap_fd2_scene_play_game_over(fd2_vga *vga,const fd2_archive *fdother,fd2_bgm_player *bgm,int fast) {
+    /* 本例只测Audio/App交接；fake field无GameOver图片，完整Scene由既有独立目标覆盖。 */
+    if(app_option_probe)return FD2_SCENE_RESULT_OK;
+    return fd2_scene_play_game_over(vga,fdother,bgm,fast);
+}
+static int app_audio_option_handoff_test(fd2_vga *vga,fd2_archive *fdother) {
+    fd2_field_play_context context;fd2_field_play_context_init(&context,NULL);
+    CHECK(context.music_enabled==1 && context.sfx_enabled==1);
+    context.music_enabled=context.sfx_enabled=0;app_option_probe=1;
+    terminal_case=2;vga->input.quit_requested=0;
+    CHECK(fd2_field_play_run_context(vga,fdother,0,0,NULL,NULL,NULL,0,&context)==FD2_FIELD_PLAY_RETURN_DEFEAT);
+    CHECK(!context.music_enabled && !context.sfx_enabled && !app_closed_music && !app_closed_sfx);
+    /* 同一App经历Title后新的START field入口，null/noDIG仍继承两个global flag。 */
+    terminal_case=0;vga->input.quit_requested=1;app_closed_music=app_closed_sfx=255;
+    CHECK(fd2_field_play_run_context(vga,fdother,0,0,NULL,NULL,NULL,0,&context)==FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+    CHECK(!context.music_enabled && !context.sfx_enabled && !app_closed_music && !app_closed_sfx);
+    /* codec保留合法容器的原byte；不能在跨Title重新开场时归一而污染后续Save。 */
+    context.music_enabled=2;context.sfx_enabled=3;
+    CHECK(fd2_field_play_run_context(vga,fdother,0,0,NULL,NULL,NULL,0,&context)==FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+    CHECK(context.music_enabled==2 && context.sfx_enabled==3 && app_closed_music==2 && app_closed_sfx==3);
+    app_option_probe=0;vga->input.quit_requested=0;return 0;
+}
+static int continue_audio_option_test(fd2_vga *vga) {
+    fd2_archive real={0};fd2_save_file save={0};fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_archive_open(&real,"original_game/FDOTHER.DAT")==0 && fd2_save_file_open(&save,"original_game/START.SAV")==0);
+    CHECK(fd2_save_file_get_battle_snapshot(&save,&snapshot)==0);
+    snapshot.meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC]=0;snapshot.meta[FD2_SAVE_BATTLE_META_OPTION_SFX]=0;
+    CHECK(fd2_save_file_update_battle_snapshot(&save,&snapshot)==0);
+    char path[FD2_TEST_PATH_MAX];CHECK(fd2_test_temp_path(path)==0 && fd2_save_file_write(&save,path)==0);
+    fd2_field_play_context context;fd2_field_play_context_init(&context,(fd2_bgm_player *)&context);
+    music_probe=app_option_probe=1;music_request_count=music_option_count=0;vga->input.quit_requested=1;
+    CHECK(fd2_field_play_run_context(vga,&real,0,0,NULL,NULL,path,1,&context)==FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+    CHECK(music_request_count==2 && music_request_tracks[0]==-1 && music_request_tracks[1]==19);
+    CHECK(music_option_count==1 && !music_last_enabled && !music_last_fade && !context.music_enabled && !context.sfx_enabled);
+    CHECK(!app_closed_music && !app_closed_sfx);
+    fd2_save_file after={0};CHECK(fd2_save_file_open(&after,path)==0 && after.size==save.size && !memcmp(after.data,save.data,save.size));
+    fd2_save_file_close(&after);fd2_save_file_close(&save);CHECK(remove(path)==0);
+    CHECK(fd2_test_temp_path(path)==0); /* strict empty/invalid Load: no stop, cache, request, or context write. */
+    fd2_field_play_context_init(&context,(fd2_bgm_player *)&context);fd2_field_play_context before=context;
+    music_request_count=music_option_count=0;
+    CHECK(fd2_field_play_run_context(vga,&real,0,0,NULL,NULL,path,1,&context)==FD2_FIELD_PLAY_RETURN_ERROR);
+    CHECK(!music_request_count && !music_option_count && !memcmp(&context,&before,sizeof(context)));
+    CHECK(remove(path)==0);fd2_archive_close(&real);music_probe=app_option_probe=0;vga->input.quit_requested=0;return 0;
+}
+
 int main(void) {
     fd2_vga vga = {0};
     fd2_archive fdother = {0};
@@ -1282,6 +1358,9 @@ int main(void) {
     CHECK(result_frame_barrier_test(&vga, &fdother) == 0);
     CHECK(stage1_settlement_frontend_test(&vga, &fdother) == 0);
     CHECK(closing_frame_barrier_test(&vga, &fdother) == 0);
+    CHECK(app_audio_option_handoff_test(&vga,&fdother)==0);
+    CHECK(continue_audio_option_test(&vga)==0);
+    failure_called=ordinary_automatic_clean=action_sent=0; /* 独立夹具的观测计数重新起点。 */
     automatic_failure = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==
           FD2_FIELD_PLAY_RETURN_ERROR);

@@ -28246,7 +28246,7 @@ void __usercall ail_stop_sequence(int a1@<eax>, int a2)
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_stop_sequence(0x%X)\n", a2);
-  sub_447D0(a2);
+  ail_sequence_playback_stop(a2);
   JUMPOUT(0x382CA);
 }
 
@@ -28306,7 +28306,7 @@ int __usercall ail_set_sequence_volume@<eax>(int a1@<eax>, int a2, int a3, int a
   v4 = ++dword_54178;
   if ( dword_54174 != 0 && (v4 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_set_sequence_volume(0x%X,%d,%d)\n", a2, a3, a4);
-  result = sub_449E0(a2, a3, a4);
+  result = ail_sequence_volume_fade_set(a2, a3, a4);
   --dword_54178;
   return result;
 }
@@ -33765,12 +33765,13 @@ void __cdecl sub_401C0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_40240
+ * IDA 9.5 Hex-Rays: ail_sample_volume_pan_tables_rebuild
  * VA=0x40240..0x404b2 OBJ=1 OFF=0x30240 size=0x272
  * callers: 0x414e0, 0x415d0, 0x41630, 0x41660
  * callees: -
  * --------------------------------------------------------------- */
-int *__cdecl sub_40240(int a1)
+// [A7 confirmed semantic] ail_sample_volume_pan_tables_rebuild (original sub_40240); 完整626B/40240..404b2，初始化pan表5360c[63/64]均128。先夹sample volume/pan0..127，非零volume+1；按输入有/无符号和driver output kind构建256项mono或左右缩放表，使用原SAR7整型顺序。FD2 startup3fca9仅一次经37f70→3f937置preference5=100；39521→414e0读此值并设rate11025/pan64，两FD2 SFX wrappers25a96/25b45只end/init/address/loop/start，无volume/pan/rate覆盖；volume/pan setters的另caller为45880内部数字MIDI分支。原函数无patch/无stub执行：U8mono、volume100/pan64、output2/3的L/R各256项都精确(u8-128)*202，即名义sample gain101/128；127与0为独立控制。只读sample驱动ptr/format/volume/pan、driver+24 output-kind和原pan表，不读DIG master127。C10六WAV十二个既有onset/661源点窗显示SDL单位幅度与原版约0.785..0.789差异，低能80/11及残差保留；该幅度观察不作为公式或通过阈值。driver/DAC/混音/重采
+int *__cdecl ail_sample_volume_pan_tables_rebuild(int a1)
 {
   int v1; // edx
   int v2; // esi
@@ -34793,7 +34794,7 @@ int *__cdecl sub_414E0(int *a1)
     v2 = dword_54320;
     a1[532] = 0;
     a1[16] = v2;
-    return sub_40240((int)a1);
+    return ail_sample_volume_pan_tables_rebuild((int)a1);
   }
   return result;
 }
@@ -34853,7 +34854,7 @@ int *__cdecl sub_415D0(int a1, int a2, int a3)
   {
     *(_DWORD *)(a1 + 52) = a2;
     *(_DWORD *)(a1 + 56) = a3;
-    return sub_40240(a1);
+    return ail_sample_volume_pan_tables_rebuild(a1);
   }
   return result;
 }
@@ -34924,7 +34925,7 @@ int *__cdecl sub_41630(int a1, int a2)
   if ( a1 != 0 && a2 != *(_DWORD *)(a1 + 64) )
   {
     *(_DWORD *)(a1 + 64) = a2;
-    return sub_40240(a1);
+    return ail_sample_volume_pan_tables_rebuild(a1);
   }
   return result;
 }
@@ -34961,7 +34962,7 @@ int *__cdecl sub_41660(int a1, int a2)
   if ( a1 != 0 && a2 != *(_DWORD *)(a1 + 68) )
   {
     *(_DWORD *)(a1 + 68) = a2;
-    return sub_40240(a1);
+    return ail_sample_volume_pan_tables_rebuild(a1);
   }
   return result;
 }
@@ -35906,12 +35907,13 @@ void __cdecl sub_423E0(int a1, char *a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_424B0
+ * IDA 9.5 Hex-Rays: ail_xmidi_vlq_read
  * VA=0x424b0..0x424dd OBJ=1 OFF=0x324b0 size=0x2d
  * callers: 0x43270, 0x452f0
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_424B0(_DWORD *a1)
+// [A7 confirmed semantic] ail_xmidi_vlq_read (original sub_424B0); 完整45B，原bytes==validated relocated。完整VLQ读取：从传入游标逐byte累积7bit并前移，高位清零或达到4byte即返回；43270用于note duration及meta长度。实际全部FDMUS原字段已扫描；私有预检不接受未证更长编码或越界，不保存猜测参数类型。 raw SHA 4adfb87d832de5a180da5d5d3a8c2887d03abb6413d6b785ba1662cb37d010ad。
+int __cdecl ail_xmidi_vlq_read(_DWORD *a1)
 {
   int v1; // eax
   int v2; // ecx
@@ -36250,12 +36252,13 @@ unsigned int __cdecl sub_427C0(int a1, char a2, unsigned int a3, unsigned __int8
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_42980
+ * IDA 9.5 Hex-Rays: ail_sequence_midi_message_dispatch
  * VA=0x42980..0x42dc6 OBJ=1 OFF=0x32980 size=0x446
  * callers: 0x42980, 0x42dd0, 0x42ea0, 0x42f50, 0x43230, 0x43270, 0x44f00, 0x450b0, 0x45240
  * callees: 0x3bddf, 0x3c4db, 0x3c5c0, 0x3c636, 0x422c0, 0x427c0, 0x42980, 0x42ea0
  * --------------------------------------------------------------- */
-void __cdecl sub_42980(int a1, char a2, unsigned int a3, int a4, int a5)
+// [A7 confirmed semantic] ail_sequence_midi_message_dispatch (original sub_42980); 完整1094B，原bytes==validated relocated。完整sequence MIDI分派：program/control/bend先427c0缓存原值，controller7乘sequence+34h后signed除127并夹0..127，经logical-to-driver映射及channel owner门送422c0。还含AIL控制hook/锁/分支；本FDMUS已用CC仅1/7/64，不把未用分支算实现或运行验收。 raw SHA b3fad1dcbc2b713bde3eeb65fab8333c43b1bcb74b924b3a6d71ba9ccc63a4ce。
+void __cdecl ail_sequence_midi_message_dispatch(int a1, char a2, unsigned int a3, int a4, int a5)
 {
   int v5; // ecx
   int v6; // edi
@@ -36310,9 +36313,9 @@ void __cdecl sub_42980(int a1, char a2, unsigned int a3, int a4, int a5)
       {
         if ( a3 <= 6 )
         {
-          sub_42980(a1, a2 & 0xF | 0xB0, 100, 0, 0);
-          sub_42980(a1, a2 & 0xF | 0xB0, 101, 0, 0);
-          sub_42980(a1, a2 & 0xF | 0xB0, 38, 0, 0);
+          ail_sequence_midi_message_dispatch(a1, a2 & 0xF | 0xB0, 100, 0, 0);
+          ail_sequence_midi_message_dispatch(a1, a2 & 0xF | 0xB0, 101, 0, 0);
+          ail_sequence_midi_message_dispatch(a1, a2 & 0xF | 0xB0, 38, 0, 0);
         }
         else if ( a3 == 7 )
         {
@@ -36472,12 +36475,13 @@ LABEL_31:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_42DD0
+ * IDA 9.5 Hex-Rays: ail_sequence_pending_notes_release
  * VA=0x42dd0..0x42e96 OBJ=1 OFF=0x32dd0 size=0xc6
  * callers: 0x447d0
  * callees: 0x382e9, 0x383f1, 0x3845e, 0x42980
  * --------------------------------------------------------------- */
-void __cdecl sub_42DD0(_DWORD *a1)
+// [A7 confirmed semantic] ail_sequence_pending_notes_release (original sub_42DD0); 完整198B，原bytes==validated relocated。升序遍历32个非−1槽，通过42980发送各channel/note的noteoff，清槽和pending count并flush；再按3845e条件请求383f1(3)。重复note不折bitmap，32满时第33个noteon已发后由43270调stop释放旧32；宿主delay/OPL IO未作运行保真声明。 raw SHA 9449c603edf4c4787545ea7b242ad52a47debd06d2252ef32b8fa7a6ada9af8f。
+void __cdecl ail_sequence_pending_notes_release(_DWORD *a1)
 {
   _DWORD *v1; // esi
   int v2; // edi
@@ -36496,7 +36500,7 @@ void __cdecl sub_42DD0(_DWORD *a1)
     if ( v3 != -1 )
     {
       ++v2;
-      sub_42980((int)a1, v3 | 0x80, v1[357], 0, 0);
+      ail_sequence_midi_message_dispatch((int)a1, v3 | 0x80, v1[357], 0, 0);
       v1[325] = -1;
     }
     ++v1;
@@ -36534,7 +36538,7 @@ void __cdecl sub_42EA0(int a1, int a2)
   {
     if ( a2 == *(_DWORD *)(v2 + 1300) )
     {
-      sub_42980(a1, *(_DWORD *)(v2 + 1300) | 0x80, *(_DWORD *)(v2 + 1428), 0, 0);
+      ail_sequence_midi_message_dispatch(a1, *(_DWORD *)(v2 + 1300) | 0x80, *(_DWORD *)(v2 + 1428), 0, 0);
       *(_DWORD *)(v2 + 1300) = -1;
     }
     v2 += 4;
@@ -36576,54 +36580,55 @@ void __cdecl sub_42F50(int a1, int a2)
 
   v2 = *(_DWORD *)(a1 + 4 * a2 + 592);
   if ( v2 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x72u, v2, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x72u, v2, 0);
   v3 = *(_DWORD *)(a1 + 4 * a2 + 208);
   if ( v3 != -1 )
-    sub_42980(a1, a2 | 0xC0, v3, 0, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xC0, v3, 0, 0);
   v4 = a1 + 4 * a2;
   v5 = *(_DWORD *)(v4 + 336);
   if ( v5 != -1 )
-    sub_42980(a1, a2 | 0xE0, *(_DWORD *)(v4 + 272), v5, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xE0, *(_DWORD *)(v4 + 272), v5, 0);
   v6 = *(_DWORD *)(a1 + 4 * a2 + 464);
   if ( v6 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x6Fu, v6, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x6Fu, v6, 0);
   v7 = *(_DWORD *)(a1 + 4 * a2 + 528);
   if ( v7 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x70u, v7, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x70u, v7, 0);
   v8 = *(_DWORD *)(a1 + 4 * a2 + 784);
   if ( v8 != -1 )
-    sub_42980(a1, a2 | 0xB0, 1u, v8, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 1u, v8, 0);
   v9 = *(_DWORD *)(a1 + 4 * a2 + 848);
   if ( v9 != -1 )
-    sub_42980(a1, a2 | 0xB0, 7u, v9, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 7u, v9, 0);
   v10 = *(_DWORD *)(a1 + 4 * a2 + 912);
   if ( v10 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0xAu, v10, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0xAu, v10, 0);
   v11 = *(_DWORD *)(a1 + 4 * a2 + 976);
   if ( v11 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0xBu, v11, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0xBu, v11, 0);
   v12 = *(_DWORD *)(a1 + 4 * a2 + 1040);
   if ( v12 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x40u, v12, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x40u, v12, 0);
   v13 = *(_DWORD *)(a1 + 4 * a2 + 1104);
   if ( v13 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x5Bu, v13, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x5Bu, v13, 0);
   v14 = *(_DWORD *)(a1 + 4 * a2 + 1168);
   if ( v14 != -1 )
-    sub_42980(a1, a2 | 0xB0, 0x5Du, v14, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 0x5Du, v14, 0);
   v15 = *(_DWORD *)(a1 + 4 * a2 + 1232);
   if ( v15 != -1 )
-    sub_42980(a1, a2 | 0xB0, 6u, v15, 0);
+    ail_sequence_midi_message_dispatch(a1, a2 | 0xB0, 6u, v15, 0);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_43160
+ * IDA 9.5 Hex-Rays: ail_sequence_event_state_reset
  * VA=0x43160..0x4320b OBJ=1 OFF=0x33160 size=0xab
  * callers: 0x44330, 0x443d0, 0x44790
  * callees: 0x37910
  * --------------------------------------------------------------- */
-_DWORD *__cdecl sub_43160(_DWORD *a1)
+// [A7 confirmed semantic] ail_sequence_event_state_reset (original sub_43160); 完整171B，原bytes==validated relocated。初始化16个channel恒等映射、1088B控制缓存为−1、loop stack与32duration channel槽为−1；重置pending count/delay/beat/+30callback计数。443d0和44790调用，不重装MDI driver默认值/RR/OPL。 raw SHA f0e658360d604620060397164bc27f427e796a57a7cb914ca39045d2789a97fc。
+_DWORD *__cdecl ail_sequence_event_state_reset(_DWORD *a1)
 {
   _DWORD *v1; // edx
   int i; // eax
@@ -36666,12 +36671,13 @@ _DWORD *__cdecl sub_43160(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_43230
+ * IDA 9.5 Hex-Rays: ail_sequence_volume_controls_refresh
  * VA=0x43230..0x4326d OBJ=1 OFF=0x33230 size=0x3d
  * callers: 0x43270, 0x449e0
  * callees: 0x42980
  * --------------------------------------------------------------- */
-void __cdecl sub_43230(int a1)
+// [A7 confirmed semantic] ail_sequence_volume_controls_refresh (original sub_43230); 完整61B，原bytes==validated relocated。升序扫描16个logical channel的raw CC7缓存+350h，只在!=−1时经42980重发controller7；不为未缓存channel生成默认。449e0和43270的8callback门调用，映射由sequence+90h决定。 raw SHA b6ed14e0ce03becafd7a7c4a57f6fab95f6ab574454bb2b9783bc36368274096。
+void __cdecl ail_sequence_volume_controls_refresh(int a1)
 {
   int v1; // esi
   int i; // edi
@@ -36682,19 +36688,20 @@ void __cdecl sub_43230(int a1)
   {
     v3 = *(_DWORD *)(v1 + 848);
     if ( v3 != -1 )
-      sub_42980(a1, i | 0xB0, 7u, v3, 0);
+      ail_sequence_midi_message_dispatch(a1, i | 0xB0, 7u, v3, 0);
     v1 += 4;
   }
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_43270
+ * IDA 9.5 Hex-Rays: ail_mdi_sequences_timer_service
  * VA=0x43270..0x43996 OBJ=1 OFF=0x33270 size=0x726
  * callers: 0x43ad0
  * callees: 0x3771c, 0x382e9, 0x3af5b, 0x42270, 0x424b0, 0x42980, 0x43230
  * --------------------------------------------------------------- */
-void __cdecl sub_43270(int *a1)
+// [A7 confirmed semantic] ail_mdi_sequences_timer_service (original sub_43270); 完整1830B，原bytes==validated relocated。完整MDI timer遍历playing sequences；每callback +30计数后按tempo累计subtick，先32duration槽升序到期，再delay/EVNT；EOT保无限loop槽并跳本callback beat/volume/tempo fade；每8callback按缓存CC7刷新。43ad0把本函数注册到120Hz timer。全部15曲单次原kernel的事件和active-slot状态与私有执行器匹配；只声明当前资源默认100%tempo分支，不声称其余hook/宿主IO已恢复。 raw SHA c9ea914870d760db4bc8b1f86a55ac6c9c7d6d4d7126b227b63312fe589355a4。
+void __cdecl ail_mdi_sequences_timer_service(int *a1)
 {
   int v1; // eax
   int v2; // eax
@@ -36792,7 +36799,7 @@ void __cdecl sub_43270(int *a1)
                 v7[389] = v8;
                 if ( v8 <= 0 )
                 {
-                  sub_42980(v6, v7[325] | 0x80, v7[357], 0, 0);
+                  ail_sequence_midi_message_dispatch(v6, v7[325] | 0x80, v7[357], 0, 0);
                   v9 = dword_543E0;
                   *(_DWORD *)(dword_543E0 + 4 * dword_543E8 + 1300) = -1;
                   v10 = *(_DWORD *)(v9 + 1296) - 1;
@@ -36833,7 +36840,7 @@ void __cdecl sub_43270(int *a1)
                   goto LABEL_41;
 LABEL_38:
                 dword_543DC = *(_DWORD *)(dword_543E0 + 20) + 1;
-                v27 = sub_424B0(&dword_543DC);
+                v27 = ail_xmidi_vlq_read(&dword_543DC);
                 v28 = *(char **)(dword_543E0 + 20);
                 dword_543D8 = dword_543DC - (_DWORD)v28 + v27;
                 v29 = v28;
@@ -36855,7 +36862,7 @@ LABEL_38:
                 v57 = (_DWORD *)(dword_543E0 + 20);
                 dword_543E4 = *(v14 - 1);
                 *(_DWORD *)(dword_543E0 + 20) = v14;
-                dword_543D8 = sub_424B0(v57);
+                dword_543D8 = ail_xmidi_vlq_read(v57);
                 if ( (unsigned int)dword_543E4 < 0x51 )
                 {
                   if ( dword_543E4 != 47 )
@@ -36929,7 +36936,7 @@ LABEL_37:
 LABEL_41:
                 dword_543FC = dword_543D4 & 0xF;
                 dword_543D4 &= 0xF0u;
-                sub_42980(
+                ail_sequence_midi_message_dispatch(
                   dword_543E0,
                   **(_BYTE **)(dword_543E0 + 20),
                   *(unsigned __int8 *)(*(_DWORD *)(dword_543E0 + 20) + 1),
@@ -36962,7 +36969,7 @@ LABEL_41:
                   *(_DWORD *)(v34 + 4 * v35 + 1300) = v36;
                   *(_DWORD *)(v34 + 4 * v35 + 1428) = *(unsigned __int8 *)(*(_DWORD *)(v34 + 20) + 1);
                   *(_DWORD *)(v34 + 20) += 3;
-                  *(_DWORD *)(dword_543E0 + 4 * dword_543E8 + 1556) = sub_424B0((_DWORD *)(v34 + 20));
+                  *(_DWORD *)(dword_543E0 + 4 * dword_543E8 + 1556) = ail_xmidi_vlq_read((_DWORD *)(v34 + 20));
                 }
                 else
                 {
@@ -37052,7 +37059,7 @@ LABEL_67:
             }
             while ( *(_DWORD *)(dword_543E0 + 52) != *(_DWORD *)(dword_543E0 + 56) );
             if ( (*(_BYTE *)(dword_543E0 + 48) & 7) == 0 )
-              sub_43230(dword_543E0);
+              ail_sequence_volume_controls_refresh(dword_543E0);
           }
           if ( *(_DWORD *)(dword_543E0 + 68) != *(_DWORD *)(dword_543E0 + 72) )
           {
@@ -37358,7 +37365,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
               v24[87] = 0;
             }
             while ( v24 != (int *)v25 );
-            sub_387BC(v25, (int)sub_43270);
+            sub_387BC(v25, (int)ail_mdi_sequences_timer_service);
             v3[3] = v26;
             if ( v26 == -1 )
             {
@@ -37633,7 +37640,7 @@ _DWORD *__cdecl sub_44330(int a1)
   {
     v4 = (_DWORD *)(1748 * v1 + *(_DWORD *)(a1 + 24));
     v4[1] = 2;
-    v5 = sub_43160(v4);
+    v5 = ail_sequence_event_state_reset(v4);
     sub_3806F((int)v5);
     return v4;
   }
@@ -37727,7 +37734,7 @@ unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
   a1[8] = 0;
   a1[9] = 0;
   a1[10] = 1;
-  sub_43160(a1);
+  ail_sequence_event_state_reset(a1);
   a1[5] = a1[4] + 8;
   v7 = dword_5433C;
   a1[13] = dword_5433C;
@@ -37827,7 +37834,7 @@ int __usercall sub_44790@<eax>(int result@<eax>, _DWORD *a2)
   if ( a2 != nullptr && a2[1] != 1 )
   {
     ail_stop_sequence(result, (int)a2);
-    sub_43160(a2);
+    ail_sequence_event_state_reset(a2);
     v2 = a2[4];
     a2[1] = 4;
     result = v2 + 8;
@@ -37838,12 +37845,13 @@ int __usercall sub_44790@<eax>(int result@<eax>, _DWORD *a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_447D0
+ * IDA 9.5 Hex-Rays: ail_sequence_playback_stop
  * VA=0x447d0..0x44891 OBJ=1 OFF=0x347d0 size=0xc1
  * callers: 0x3af5b
  * callees: 0x3c5c0, 0x422c0, 0x42dd0
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_447D0(_DWORD *a1)
+// [A7 confirmed semantic] ail_sequence_playback_stop (original sub_447D0); 完整193B，原bytes==validated relocated。仅status4时改8，调用42dd0清本sequence pending槽，再按自身cache清pedal/锁/112。不是统一硬重置全部driver controller/voice，status2的重复stop不再发送释放；driver硬件release仍可继续。 raw SHA 676c29375b7ccbe454d2db4ac46bd067ac3f6917e4a930eac9fadbceb2d1ce6a。
+void __cdecl __spoils<> ail_sequence_playback_stop(_DWORD *a1)
 {
   _DWORD *v1; // esi
   int v2; // eax
@@ -37854,7 +37862,7 @@ void __cdecl __spoils<> sub_447D0(_DWORD *a1)
   {
     v1 = a1;
     a1[1] = 8;
-    sub_42DD0(a1);
+    ail_sequence_pending_notes_release(a1);
     v3 = *a1;
     do
     {
@@ -37987,12 +37995,13 @@ int __cdecl sub_44970(_DWORD *a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_449E0
+ * IDA 9.5 Hex-Rays: ail_sequence_volume_fade_set
  * VA=0x449e0..0x44a60 OBJ=1 OFF=0x349e0 size=0x80
  * callers: 0x3b124
  * callees: 0x43230
  * --------------------------------------------------------------- */
-int __cdecl sub_449E0(_DWORD *a1, int a2, int a3)
+// [A7 confirmed semantic] ail_sequence_volume_fade_set (original sub_449E0); 完整128B，原bytes==validated relocated。先写sequence target；current相等不刷新；duration0立即置current，否则acc=0、step_us=(1000*duration)/abs(diff)，随后43230重发当前音量。25977普通曲用0/0再127/2000，16/17直接127，-1用0/4000。原kernel证到0保持status4，不补endpoint flush。 raw SHA c864f750f39071e654d4c1311e33f3039b5ad55b56b919cba93cf6ab29a573d0。
+int __cdecl ail_sequence_volume_fade_set(_DWORD *a1, int a2, int a3)
 {
   int v3; // ecx
   int result; // eax
@@ -38020,7 +38029,7 @@ int __cdecl sub_449E0(_DWORD *a1, int a2, int a3)
       {
         a1[13] = v3;
       }
-      sub_43230((int)a1);
+      ail_sequence_volume_controls_refresh((int)a1);
       result = *a1;
       --*(_DWORD *)(*a1 + 20);
     }
@@ -38606,7 +38615,7 @@ int __cdecl sub_44F00(_DWORD *a1)
             v11 = *(_DWORD *)(v10 + 1300);
             if ( v11 != -1 && v1 == *(_DWORD *)(v9 + 4 * v11 + 144) )
             {
-              sub_42980(v9, v11 | 0x80, *(_DWORD *)(v10 + 1428), 0, 0);
+              ail_sequence_midi_message_dispatch(v9, v11 | 0x80, *(_DWORD *)(v10 + 1428), 0, 0);
               *(_DWORD *)(v10 + 1300) = -1;
             }
             v10 += 4;
@@ -38671,7 +38680,7 @@ _DWORD *__cdecl sub_450B0(_DWORD *a1, int a2)
             v5 = *(_DWORD *)(v4 + 1300);
             if ( v5 != -1 && v9 == *(_DWORD *)(v3 + 4 * v5 + 144) )
             {
-              sub_42980(v3, v5 | 0x80, *(_DWORD *)(v4 + 1428), 0, 0);
+              ail_sequence_midi_message_dispatch(v3, v5 | 0x80, *(_DWORD *)(v4 + 1428), 0, 0);
               *(_DWORD *)(v4 + 1300) = -1;
             }
             v4 += 4;
@@ -38746,7 +38755,7 @@ void __cdecl sub_45240(int a1, int a2, int a3, unsigned int a4, int a5)
   ++*(_DWORD *)(a1 + 20);
   if ( a2 != 0 )
   {
-    sub_42980(a2, a3, a4, a5, 0);
+    ail_sequence_midi_message_dispatch(a2, a3, a4, a5, 0);
   }
   else if ( *(_DWORD *)(a1 + 416) == 0
          || (*(int (__cdecl **)(int, _DWORD, int, unsigned int, int))(a1 + 416))(a1, 0, a3, a4, a5) == 0 )
@@ -38780,7 +38789,7 @@ int __cdecl sub_452F0(_DWORD *a1, char *a2)
 
   ++a1[5];
   v5 = a2 + 1;
-  v2 = sub_424B0(&v5);
+  v2 = ail_xmidi_vlq_read(&v5);
   v6 = a2;
   v3 = v2 + v5 - a2;
   sub_42270((int)a1);

@@ -31,6 +31,9 @@ typedef struct {
     int has_preparation;
     int initialized;
     int music_error;
+    /* 51E61/51E62的App期原byte投影；当期来源仍为Game/prepare，消费才转bool。 */
+    uint8_t music_enabled;
+    uint8_t sfx_enabled;
 } fd2_field_play_context;
 
 void fd2_field_play_context_init(fd2_field_play_context *context,

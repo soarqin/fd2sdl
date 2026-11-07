@@ -5,6 +5,11 @@
 
 #include "audio_pcm.h"
 
+/* ail_sample_volume_pan_tables_rebuild @0x40240（原sub_40240）：
+ * sample默认volume100/pan64的U8→stereo16表为(u-128)*202。
+ * 这里只复现App cue的名义sample层，不表示DIG master、DAC或OS最终幅度。 */
+#define FD2_GAME_SFX_DEFAULT_GAIN (101.0f / 128.0f)
+
 typedef enum {
     FD2_FIELD_SFX_DETAIL_OPEN,
     FD2_FIELD_SFX_DETAIL_CLOSE,

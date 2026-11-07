@@ -137,7 +137,7 @@ int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue) {
                                  ? audio->battle_bank
                                  : audio->arrival_bank;
     if (!bank) return -1;
-    return fd2_pcm_play_replace(audio->player, bank, sample_index, 1, 1.0f);
+    return fd2_pcm_play_replace(audio->player, bank, sample_index, 1, FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
 int fd2_field_audio_stop(fd2_field_audio *audio) {

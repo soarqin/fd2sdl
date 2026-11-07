@@ -118,7 +118,7 @@ static int title_audio_play(fd2_title_audio *audio, fd2_title_sfx cue) {
     if (!player) return -1;
     /* 原版 primary／secondary sample handle 可同时存在；同一 handle 的
      * sfx_play 则先停止上一声再播放。 */
-    return fd2_pcm_play_replace(player, audio->bank, sample_index, 1, 1.0f);
+    return fd2_pcm_play_replace(player, audio->bank, sample_index, 1, FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
 static void title_letter_fly_audio_on_frame(void *userdata,
@@ -133,7 +133,7 @@ static void title_letter_fly_audio_on_frame(void *userdata,
     (void)fd2_pcm_play_replace(audio->primary_player,
                                audio->letter_fly_bank,
                                FD2_TITLE_LETTER_FLY_SFX_SAMPLE,
-                               1, 1.0f);
+                               1, FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
 static void title_letter_fly_audio_stop(fd2_title_audio *audio) {

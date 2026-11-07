@@ -264,15 +264,23 @@ static int sound(prepare_ui *ui, size_t sample) {
     if (ui->context->has_preparation && !ui->context->preparation.options[3]) return 0;
     if (!ui->audio || !ui->audio->player) return 0;
     if (!ui->audio->ui_bank) return -1;
-    return fd2_pcm_play_replace(ui->audio->player, ui->audio->ui_bank, sample, 1, 1.0f);
+    return fd2_pcm_play_replace(ui->audio->player, ui->audio->ui_bank, sample, 1, FD2_GAME_SFX_DEFAULT_GAIN);
+}
+static int sync_audio_options(prepare_ui *ui) {
+    if (ui->context->has_preparation) {
+        ui->context->music_enabled = ui->context->preparation.options[2];
+        ui->context->sfx_enabled = ui->context->preparation.options[3];
+        if (ui->context->bgm && fd2_bgm_set_music_enabled(ui->context->bgm,
+                ui->context->preparation.options[2] != 0, 0) != 0) return -1;
+        if (ui->audio && ui->audio->player && ui->audio->player->audio && fd2_pcm_player_set_enabled(ui->audio->player,
+                ui->context->preparation.options[3] != 0) != 0) return -1;
+        if (ui->audio && ui->audio->secondary_player && ui->audio->secondary_player->audio && fd2_pcm_player_set_enabled(ui->audio->secondary_player,
+                ui->context->preparation.options[3] != 0) != 0) return -1;
+    }
+    return 0;
 }
 static int music(prepare_ui *ui, int track, const char *reason) {
-    if (ui->audio && ui->audio->player && ui->audio->player->audio && ui->context->has_preparation) {
-        if (fd2_audio_set_bus_gain(ui->audio->player->audio, FD2_AUDIO_BUS_MUSIC,
-                ui->context->preparation.options[2] ? 1.0f : 0.0f) != 0 ||
-            fd2_audio_set_bus_gain(ui->audio->player->audio, FD2_AUDIO_BUS_SFX,
-                ui->context->preparation.options[3] ? 1.0f : 0.0f) != 0) return -1;
-    }
+    if (sync_audio_options(ui) != 0) return -1;
     size_t stage = ui->context->has_preparation ? ui->context->preparation.stage_id : 1u;
     return fd2_field_play_request_music(ui->context, stage, track, reason);
 }
@@ -500,6 +508,9 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
             if (quit(ui)) { result = 1; break; }
             ui->context->preparation = loaded;
             ui->context->has_preparation = 1;
+            /* field_manual_slot_load @0x2986f（原同名登记）只恢复flag；
+             * 酒店13不重开/不变音量，未来cue立即服从新flag。 */
+            if (sync_audio_options(ui) != 0) { result = -1; break; }
             printf("prepare load: slot=%d stage=%u roster=%u title=%d\n", selected,
                 loaded.stage_id, loaded.unit_count, title_mode); fflush(stdout);
             if (!title_mode) { result = notice(ui, 478, 1, 0); if (result != 0) break; }

@@ -2215,9 +2215,12 @@ fd2_field_system_action fd2_field_game_confirm_system_menu(
     game->last_system_action = fd2_field_system_menu_confirm(
         &game->system_menu);
     if (game->last_system_action ==
-             FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING)
-        memcpy(game->option_values, game->system_menu.option_values,
-               sizeof(game->option_values));
+             FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING) {
+        /* field_options_menu_execute @0x1728c（原FUN_000149d4）只写所选字节；
+         * 菜单的布尔显示投影不能改写其余存档配置。 */
+        size_t index = game->system_menu.selected;
+        game->option_values[index] = game->system_menu.option_values[index];
+    }
     refresh_system_menu_disabled(game);
     /* field_empty_focus_menu_execute @0x16f55（原登记 FUN_0001469d）
      * 与 secondary 的共享返回尾：确认／拒绝后均退出到浏览。 */

@@ -1,0 +1,2 @@
+*.py -text whitespace=cr-at-eol,-blank-at-eof
+SHA256SUMS text eol=lf

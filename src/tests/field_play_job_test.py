@@ -5,6 +5,7 @@ import ctypes
 from ctypes import wintypes
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,7 @@ def check(driver, artifacts):
                 if marker not in result.stderr:
                     raise AssertionError(f"{name}: missing {marker!r}: {result.stderr}")
             receipt["status"] = "passed"
+            return result.stderr
 
         arguments = ["", "with spaces", 'with"quote', "trailing\\", 'slash\\"quote']
         code = f"import sys; sys.exit(0 if sys.argv[1:] == {arguments!r} else 9)"
@@ -97,10 +99,22 @@ def check(driver, artifacts):
         for mode, expected, marker in (("timeout", 124, "timed_out=1"), ("orphan", 125, "residual=1")):
             log = work / f"{mode}-pids.txt"
             try:
-                run(mode + "-descendants", [sys.executable, str(worker), mode, str(log)],
-                    expected, timeout=1500, markers=(marker, "forced=1"))
+                diagnostic = run(mode + "-descendants", [sys.executable, str(worker), mode, str(log)],
+                                 expected, timeout=1500, markers=(marker, "forced=1"))
                 if not log.exists() or len(log.read_text().splitlines()) != 2:
                     raise AssertionError(f"{mode}: worker and grandchild were not both observed")
+                worker_pids = set(map(int, log.read_text().splitlines()))
+                expected_members = worker_pids.copy()
+                if mode == "orphan":
+                    expected_members.remove(int(log.read_text().splitlines()[0]))
+                rows = re.findall(r"forced_member=(\d+) image=(.+) image_error=(\d+)", diagnostic)
+                forced_members = {int(pid) for pid, _, _ in rows}
+                # Windows 可为每个隐藏 console 附带本轮 conhost；仍由整 Job 清空门核验。
+                if forced_members & worker_pids != expected_members or any(int(err) for _, _, err in rows):
+                    raise AssertionError(f"{mode}: actual forced members not identified: {diagnostic}")
+                for pid, image, _ in rows:
+                    if int(pid) in expected_members and not Path(image).samefile(sys.executable):
+                        raise AssertionError(f"{mode}: wrong image for owned worker {pid}: {image}")
                 alive = owned_survivors(log)
                 if alive:
                     raise AssertionError(f"{mode}: job leaked owned PIDs {alive}")

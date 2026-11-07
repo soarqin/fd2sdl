@@ -198,6 +198,60 @@ AI FULL夹具从实际玩家记录派生时，必须逐字列出 behavior字节+
 
 纯资源、机器码向量、无窗口测试、实际业务采集、实际完整帧 pair 及声音观察分别报告。Windows 专用 helper 的合同测试不激活 WGC／声音设备。Linux 可运行相应 C 与 Python 纯测试，本轮未执行；不以 Linux 缺少这些 Windows 接口阻塞当前平台，也不把缺失实机证据改写为通过。
 
+### A7 永久音频功能检查
+
+`tools/run_audio_checks.py` 独立运行以下五场，每场先完成新的原版端并正常关闭，再运行新的 SDL 端。入口复用当前资源、Save、后台输入和 WGC helper，不依赖历史私有 worker 的固定程序哈希，也未注册为默认完整 Suite 的音频场景。
+
+| `--scenarios` 名称 | 必须完成的功能路径 |
+|---|---|
+| `options` | Music／SFX 从 `11` 依次变为 `01→11→10→11`，每次切换后实际 Save，完整检查除声明配置及 checksum 外的字节不变 |
+| `active-load` | 保存 `11` 基线，现场切到 `00`；Load 的 Esc／NO 保持 `00` 且不写档，YES 恢复完整 `11` 基线 |
+| `opening` | 从标题 START 完成 stage 32 前两段共 29 个资源 ACK，停在 fragment 2 首个等待点，不确认该页；分别保留曲目 18／11 路径的观察窗 |
+| `end-turn` | 只肯定一次 END，核对 Round002／SDL 回合日志及新玩家浏览，实际 Save；记录 `19→12→19` 请求路径 |
+| `sfx-reenable` | Music 始终为 `0`，SFX 从 `0→1`，保存最终 `01`；额外以完整 2,652 点 sample 8、13 个候选及预声明的 `0.8`／`0.05` 门验证有限声音身份 |
+
+在包含该入口的源码根目录运行。准备完整只读 `original_game/`，工具从真实 START 派生已声明的焦点／配置副本，并保留未知字节；不支持的来源会在启动前拒绝。原版对照另需 `FD2.EXE` 与 DOSBox-X；普通 SDL 程序启动不需要 `FD2.EXE`。Python 依赖沿用 Pillow、NumPy 和 SciPy。App 与 driver 必须来自同一源码及构建配置；以下示例使用已配置的 Windows Release 构建。
+
+```powershell
+$Root = (Get-Location).Path
+$Build = Join-Path $Root 'src/build-win'
+cmake --build $Build --config Release --target fd2sdl fd2_field_play_input_driver
+if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
+$App = Join-Path $Root 'src/Release/fd2sdl.exe'
+$Driver = Join-Path $Build 'Release/fd2_field_play_input_driver.exe'
+$Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
+$Common = @('--root', $Root, '--game', $App, '--driver', $Driver, '--dosbox', $Dosbox)
+
+# 默认只核资源、来源与输出路径；不创建产物或调用进程／显示／设备 API。
+python -B tools/run_audio_checks.py @Common --artifacts "$env:TEMP/fd2-a7-audio-dry-new"
+
+# 默认五场；输出目录必须尚不存在，位于源码及原资源目录外，父目录须已存在。
+& $Driver run-job 3600000 python -B tools/run_audio_checks.py @Common --artifacts "$env:TEMP/fd2-a7-audio-all-new" --execute
+
+# 或仅选择所需场景，使用另一个新输出目录；不能与上面的实际运行并行。
+& $Driver run-job 3600000 python -B tools/run_audio_checks.py @Common --scenarios options active-load --artifacts "$env:TEMP/fd2-a7-audio-load-new" --execute
+```
+
+按实际安装位置替换 `$Dosbox`，使用 Scoop `current` 所指向的真实 EXE，不传 shim。省略 `--execute` 时，即使返回 `0`，报告也只是 `ready_not_executed`／`ok=false`。选择项必须非空且不重复；实际运行必须包在 owned `run-job` 内，不能直接裸跑 Python。任一端失败即停止后续端点，不自动补键或重试。成功、失败和超时均先显式停止录音及 WGC helper，再正常关闭本轮目标；必要的强制清理会保留记录，不能算正常通过。
+
+实际入口在首个窗口前共用 `fd2_display_requirement.py`：要求 active console，console／session 通知均为 ON；OFF、dimmed、未知或申请失败时不启动窗口。临时显示需求在全部清理及来源守卫结束后由同线程撤销，撤销失败不能记为通过。该前置不保证整段持续 ON 或固定 FPS，也不通过全局键鼠唤醒。原版以本轮 DOSBox-X `mixer nosound=true` 保留声音仿真和 `HOST_W` 原生 WAV；SDL 在真实回调中保留设备输出抑制前的 AppMix，同时向设备提交静音。两端都不改用户系统混音器的静音或音量，录音窗上限仍为 120 秒。
+
+需要高亮的菜单／确认框 ACK 使用同 PID／HWND 的 WGC series，按 `frames.jsonl` 顺序消费每一条完整记录，保留 PNG、时间戳、ready 和正常 stop 摘要。确认框两按钮都未高亮时，在同一 15 秒期限内继续等；一旦观察到明确 NO 立即失败，不能用后来 YES 覆盖。全部目标、helper、来源、隔离资源、二进制及关闭后的证据守卫通过，显示需求成功释放后，才发布 `comparison.json`。
+
+顶层 `ok=true` 仅表示所选场景的资源／Save／请求结果、正常清理和闭合音频采集通过；`sfx-reenable` 还必须通过上述有限 SFX 身份门。它不表示 BGM 音色、波形、设备或扬声器输出、绝对时序通过，也不证明 OFF 区间绝对无声或某次 ESC 与唯一声音实例一一对应。曲目请求日志不替代声学曲目身份；完整 A7 既有语义与原版证据仍按[音频计划](../plans/audio.md)分别登记。
+
+2026-11-07，18项纯测试及五场原版／SDL路径已按实际候选通过：`r1-audio-gui-20261107-c1` 的 options 两端，及修复采集器后的 `c2` 其余四场，两批共240个连续捕获 helper 正常退出。这不是同一 driver 的单轮五场；首轮 active-load 的采集器退出异常仍保留为失败。具体来源及音频范围见[阶段记录](../plans/stage-log.md#r1windows-本地交付许可与常规音频回归)。历史 `tools/testing/a7-evidence/` 冻结 worker 仍只对应各自封存输入和既有证据，不因永久入口存在而升级范围。以下纯测试可分别在 Windows／Linux 运行；本轮 Linux 未执行，实际 WGC／后台输入入口仅支持 Windows。
+
+本机 WER 在首轮停止捕获后记录 `GraphicsCapture.dll_unloaded` 的 execute AV。短命捕获 helper 现在于取得 activation factory 后，用完整 System32 路径及 [`GetModuleHandleExW(PIN)`](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandleexw)将已加载模块固定到进程退出；仍正常关闭 session、pool 和 COM，不使用延时、重试或截图回退。模块固定失败仍使捕获失败。内部异步线程晚于卸载的时序是日志支持的推断，未取得完整 dump 栈；修复后的实际单帧／连续捕获结果按新候选登记。
+
+```powershell
+python -B -m unittest discover -s tools/tests -p test_audio_checks.py -v
+```
+
+```bash
+python3 -B -m unittest discover -s tools/tests -p test_audio_checks.py -v
+```
+
 ### B4 经验、成长与状态
 
 `--b4-only` 仅运行本阶段六个场景：`physical-cap`（玩家奖励封顶99）、`physical-overwrite`（两击贡献覆盖而非累加）、`heal`（不升级）、`learn`（成长并学习17）、`counter-multi`（AI回合反击奖励630、连续六级）与 `status`（中毒及六类状态到期）。`--b4-scenarios` 可选择受修复影响的子集，必须与 `--b4-only` 合用；未知项、重复项及 B3/B4 组合在创建目录前拒绝。登记场景不代表实机通过，实际候选与结果见阶段记录。

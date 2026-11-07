@@ -2,6 +2,8 @@
 
 以下命令从项目根目录执行。命令按 PowerShell／Bash 标注，Python、环境变量、临时目录、二进制比较和历史绝对路径的转换见[跨平台约定](platforms.md)。先查本文及专题，不为回忆语法反复调用 `--help`；工具版本／行为改变后再修订对应命令。开发约束见 [AGENTS.md](../../AGENTS.md)，完整分类见[文档索引](../README.md)。
 
+Windows x64 本地 Release 的源码快照、实际 CMake／PE 依赖记录、白名单打包及离线重建命令统一见 [Windows Release](windows-release.md)。自有代码为 MIT，包保留第三方许可与匹配重建材料，不包含原资源，也不自动发布；Linux／macOS 发布未验。
+
 ## 构建与回归
 
 开发验收执行当前平台的适用检查即可；下列另一平台命令用于维护兼容说明，不是当前任务必须补跑的前置。未执行的平台如实登记，当前平台必测项仍须实际注册并通过。
@@ -344,6 +346,17 @@ Linux 使用独立构建目录；本轮未执行：
 cmake --build src/build --target fd2_bgm_test fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test fd2_bgm_options_test fd2_audio_options_test fd2_audio_pcm_test --parallel
 ctest --test-dir src/build -R '^(bgm|bgm_sbpro2|bgm_sequence_volume|bgm_native_sequence|bgm_options|audio_options|audio_pcm)$' --output-on-failure
 ```
+
+R1 将 options、active-load、opening、end-turn、sfx-reenable 迁入永久入口 `tools/run_audio_checks.py`。默认只读前置检查，不启动进程、不调用显示／设备 API，也不创建产物；`--execute` 才实际运行。需要现有 Pillow、NumPy／SciPy、已验证的 DOSBox-X、测试 driver 与只读原资源，输出须为新目录。Windows（PowerShell；将路径换成当次候选）：
+
+```powershell
+$driver = './src/build-win/Release/fd2_field_play_input_driver.exe'
+$audioArgs = @('--root', '.', '--game', './src/Release/fd2sdl.exe', '--driver', $driver, '--dosbox', 'C:/Tools/DOSBox-X/dosbox-x.exe', '--artifacts', 'C:/fd2sdl-evidence/audio-release-new')
+python tools/run_audio_checks.py @audioArgs
+& $driver run-job 1800000 python -B tools/run_audio_checks.py @audioArgs --execute
+```
+
+实际执行须串行且满足[显示与 owned 清理要求](gui-testing.md)。每场先原版后 SDL，原版资源／存档／采集门失败不启动 SDL。options 核四次开关及 Save 原字节；active-load 核 ESC／NO 不改 live 配置、YES 恢复完整基线；opening 只走 29 个等待点并停在 fragment 2 首等待；end-turn 只提交一次 END 并核 Round002／Save；sfx-reenable 在 Music0 下核 00→01 后有限完整样本身份。原版使用显式 HOST_W，SDL 使用真实 callback 的 pre-OS AppMix 并安静提交；闭合录音只算采集门，不把 BGM 音色、完整波形、绝对时序或扬声器输出写成通过。每个正式结果仍须核最终报告与 Job／来源守卫，不将默认 dry 当实机。
 
 `tools/inspect_dro_v2.py` 只读解析已关闭的 DOSBox-X `b6abbd5` writer的未压缩 DRO v2，核对头、转换表、delay、bank／寄存器记录和完整长度；不播放、不调用模拟器、不恢复 loaded MDI pointer，也不判 PCM或A7行为通过。输出必须是原资源目录之外的全新文件，父目录已存在：
 

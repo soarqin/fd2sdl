@@ -174,6 +174,21 @@ add_executable(fd2sdl
 )
 target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
 
+# 发布工具读取实际CMake目标；不能从扩展名或旧SDK推断静态/动态链接。
+if(WIN32)
+    get_target_property(fd2_release_sdl_target ${FD2SDL_SDL3_TARGET} ALIASED_TARGET)
+    if(NOT fd2_release_sdl_target)
+        set(fd2_release_sdl_target ${FD2SDL_SDL3_TARGET})
+    endif()
+    get_target_property(fd2_release_sdl_type ${fd2_release_sdl_target} TYPE)
+    file(TO_CMAKE_PATH "${SDL3_DIR}" fd2_release_sdl_package)
+    if(fd2_release_sdl_type STREQUAL "STATIC_LIBRARY" OR
+       fd2_release_sdl_type STREQUAL "SHARED_LIBRARY")
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/release-target-$<CONFIG>.json" CONTENT
+"{\n  \"schema\": \"fd2-release-cmake-target-v1\",\n  \"configuration\": \"$<CONFIG>\",\n  \"architecture\": \"${CMAKE_GENERATOR_PLATFORM}\",\n  \"pointer_size\": ${CMAKE_SIZEOF_VOID_P},\n  \"executable\": \"$<TARGET_FILE:fd2sdl>\",\n  \"source_root\": \"${CMAKE_CURRENT_SOURCE_DIR}/..\",\n  \"sdl_target\": \"${fd2_release_sdl_target}\",\n  \"sdl_type\": \"${fd2_release_sdl_type}\",\n  \"sdl_target_file\": \"$<TARGET_FILE:${fd2_release_sdl_target}>\",\n  \"sdl_link_file\": \"$<TARGET_LINKER_FILE:${fd2_release_sdl_target}>\",\n  \"sdl_package\": \"${fd2_release_sdl_package}\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER}\",\n  \"compiler_version\": \"${CMAKE_CXX_COMPILER_VERSION}\",\n  \"generator\": \"${CMAKE_GENERATOR}\"\n}\n")
+    endif()
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     option(FD2SDL_REQUIRE_GUI_TESTS "图形回归依赖不全时配置失败，避免静默缺测" OFF)
@@ -224,6 +239,20 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME main_title_resource COMMAND fd2_main_title_resource_test)
     set_tests_properties(main_title_resource PROPERTIES TIMEOUT 30)
+
+    add_executable(fd2_startup_resources_test
+        tests/startup_resources_test.c field_play.c field_prepare_play.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_startup_resources_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_startup_resources_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_startup_resources_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_startup_resources_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME startup_resources COMMAND fd2_startup_resources_test)
+    set_tests_properties(startup_resources PROPERTIES TIMEOUT 30
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 
     add_executable(fd2_save_test
         tests/save_test.c

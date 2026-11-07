@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <SDL3/SDL.h>
 
@@ -793,6 +794,66 @@ done:
     return result;
 }
 
+/* 宿主启动前置，不新增资源owner；正常加载仍负责条目与业务语义检查。 */
+enum {
+    STARTUP_TITLE = 1u,
+    STARTUP_MAP = 2u,
+    STARTUP_FIELD = 4u,
+    STARTUP_PROLOGUE = 8u,
+};
+
+static int check_startup_resources(unsigned mode, const char *directory,
+                                   FILE *errors) {
+    static const struct { const char *name; unsigned modes; int sprite; } files[] = {
+        {"FDOTHER.DAT", 15u, 0},
+        {"ANI.DAT", STARTUP_TITLE, 0},
+        {"FDFIELD.DAT", 15u, 0},
+        {"FDSHAP.DAT", 15u, 0},
+        {"DATO.DAT", STARTUP_TITLE | STARTUP_FIELD | STARTUP_PROLOGUE, 0},
+        {"FDTXT.DAT", STARTUP_TITLE | STARTUP_FIELD | STARTUP_PROLOGUE, 0},
+        {"FDICON.B24", STARTUP_TITLE | STARTUP_FIELD | STARTUP_PROLOGUE, 1},
+        {"FIGANI.DAT", STARTUP_TITLE | STARTUP_FIELD, 0},
+    };
+    if (!directory || !errors || !mode || (mode & ~15u)) return -1;
+    int failed = 0;
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        if (!(files[i].modes & mode)) continue;
+        char path[1024];
+        int written = snprintf(path, sizeof(path), "%s/%s", directory, files[i].name);
+        int opened = -1, error = ENAMETOOLONG;
+        if (written >= 0 && (size_t)written < sizeof(path)) {
+            /* FDICON旧接口未对每种格式错误设置errno，不能继承上一文件的ENOENT。 */
+            errno = 0;
+            if (files[i].sprite) {
+                fd2_map_sprite_bank bank = {0};
+                opened = fd2_map_sprite_bank_open(&bank, path);
+                error = errno;
+                fd2_map_sprite_bank_close(&bank);
+            } else {
+                fd2_archive archive = {0};
+                opened = fd2_archive_open(&archive, path);
+                error = errno;
+                fd2_archive_close(&archive);
+            }
+        }
+        if (opened == 0) continue;
+        if (!failed) fputs("无法启动：原版数据检查失败。\n", errors);
+        failed = 1;
+        if (error == ENOENT || error == ENOTDIR)
+            fprintf(errors, "  缺少文件：%s/%s\n", directory, files[i].name);
+        else if (error == EINVAL)
+            fprintf(errors, "  格式损坏：%s/%s\n", directory, files[i].name);
+        else
+            fprintf(errors, "  无法读取或格式损坏：%s/%s\n", directory, files[i].name);
+    }
+    if (failed) {
+        fprintf(errors, "请将合法取得的原版游戏数据放入 %s/，并从其上级目录启动。\n",
+                directory);
+        fputs("不需要 FD2.EXE；程序不会下载或修改原版数据。\n", errors);
+    }
+    return failed ? -1 : 0;
+}
+
 int main(int argc, char **argv) {
     int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
@@ -811,6 +872,15 @@ int main(int argc, char **argv) {
     const char *save_path = getenv("FD2SDL_SAVE_PATH");
     if (!save_path || save_path[0] == '\0')
         save_path = "FD2.SAV";
+
+    unsigned startup_mode = map_preview || map_preview_once ? STARTUP_MAP
+        : field_preview || field_preview_once || field_effect_play ||
+          field_play || field_play_once || new_game_play || new_game_play_once
+            ? STARTUP_FIELD
+        : prologue_preview || prologue_preview_once ? STARTUP_PROLOGUE
+        : STARTUP_TITLE;
+    if (check_startup_resources(startup_mode, "original_game", stderr) != 0)
+        return 1;
 
     fd2_input_install_interrupt_handlers();
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");

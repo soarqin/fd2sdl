@@ -1036,6 +1036,58 @@ PCM默认值是另一个有原码依据的修复。`0x40240..0x404b2`完整原�
 
 所有定向测试／静态检查Job正常0并清理；配置／编译worker0，但所属MSVC `vctip.exe`残留由本Job强制回收、outer125，日志保留PID和映像路径，不改记正常清理。移除了未注册的旧baseline测试分支，保留当前默认路径的全部断言；原版50文件副本与A8保护路径保持。当前复审没有剩余阻断。Linux本轮未执行。
 
-实际采集worker源码归档于 `tools/testing/a7-evidence/`：两套共11份原字节Python源，附来源、摘要及文本转换约束。它们是依赖原sealed C3／C4输入的历史重放源码，不能直接换当前二进制，也未注册为永久Suite；R1仍需补可配置的常规A7图形／音频回归入口。归档只做AST与原字节／Git blob核对，不新增GUI、录音或设备验收次数。
+实际采集worker源码归档于 `tools/testing/a7-evidence/`：两套共11份原字节Python源，附来源、摘要及文本转换约束。它们是依赖原sealed C3／C4输入的历史重放源码，不能直接换当前二进制，也未注册为永久Suite；常规入口由后续R1单独实现和验收，不能回填为本段新增次数。归档只做AST与原字节／Git blob核对，不新增GUI、录音或设备验收次数。
+
+## R1：Windows 本地交付、许可与常规音频回归
+
+2026-11-07，以 A7 `15d262a` 为基线，在独立工作树完成整个 R1；阶段内的实现、审查修复及定向验收一并提交。自有代码按用户明确选择采用 MIT，根 `LICENSE` 与 `THIRD_PARTY_NOTICES.md` 已接入。SDL、Nuked、AIL model 和历史第三方代码继续保留原许可；原版游戏、素材和反编译证据的原作品权利不由 MIT 授予，原资源不分发。
+
+本段本地证据根为 `C:/Users/Soar/source/repos/fd2sdl-work/`，工作树为 `E:/Projects/fd2sdl-work/r1-delivery-20261107`。Windows 是本轮验收平台，未执行 Linux／macOS，不声明跨平台发布通过。没有新逆向语义、IDA建库或机器码执行验收；本阶段使用既有原版业务／资源依据和新运行证据。
+
+### 实现与审查
+
+- 启动前按入口检查必需的 archive／B24；缺失、损坏和读取失败列出具体路径，在 SDL 窗口及音频初始化前退出，不下载或修改资源。FDMUS／SAMPLE 仍为可降级音频资源，BG／TAI仍由实际战斗路径加载；正式资源加载保留原 owner。
+- `record_windows_release.py` 连接构建前源码快照、实际 CMake typed SDL target、匹配 installed SDK 与 PE 依赖扫描；`package_windows_release.py` 只收完整 App 构建源码、实际 SDK、所需许可、主程序和明确支持的 SDL DLL。静态候选没有 SDL DLL，不从 System32 复制系统／VC DLL。
+- 复审修正实际 `original_game` junction 目标保护、Windows/Temp误判系统目录和 direct import 无依据放行；虚拟 API 仅支持八项明确 UCRT 合约并绑定实际 `ucrtbase.dll`，未知依赖拒绝。新扫描同时绑定 EXE 路径及 SHA，不复用旧 EXE 的扫描结果。
+- `run_audio_checks.py` 提供可配置的五场常规入口，默认 dry，显式 `--execute` 才启动本轮 owned 进程；每端新录音，后台输入、WGC 单窗口及有界清理。保留系统静音，SDL录设备提交前混音，DOSBox用本轮内部 `mixer nosound=true`。高亮 ACK 顺序读完整 JSONL，首次明确 NO 直接失败。
+- 复审补齐异常时先有界封闭录音、再关闭目标，首错不被收尾错误覆盖。未增加事件框架、后端选择、BGM增益补偿或音色门；常规工具复用现有 owner、oracle 和采集设施。
+
+### 构建与纯测试来源
+
+| 候选／记录 | 实际结果 |
+|---|---|
+| `r1-sdl-release-20261107-c1` | 从固定 SDL commit `2813f2630904ea29806fcfaeeb3287ed555e42e2` 新建真正 Release 静态 SDK并安装，不复用 Debug 库 |
+| `r1-app-release-20261107-c1` | Release 全目标构建；启动资源、标题资源、无音频快速入口3项CTest通过，原版50文件及源码守卫通过 |
+| `r1-headless-review-20261107-c1` | 88项非窗口 CTest 全过，30.87秒；唯一排除的实际 `field_play_input` 未改写为本轮通过。之后依赖扫描递归进系统可选 DLL 而失败，原记录保留；C2才修正系统递归边界 |
+| `r1-python-review-20261107-c1-tail.txt`及后续定向输出 | 首轮909项：906通过、2失败、1跳过。修正 JSONL夹具改写换行及已有输出断言后，18项音频＋17项记录器定向通过；记录器新增4项，17项打包器此前通过。当前 R1 新增52项纯测试按候选通过，不称新单轮913全绿；跳过项缺开发者本地LE种子中间物，不计通过 |
+| `r1-inspector-review-20261107-c3` | 真实22项 direct import／8项UCRT绑定通过；独立修改PE的缺失 `vendor-api-ms-plugin.dll` 被拒，隔离 junction 的真实资源目录写入被拒，原 EXE 未变 |
+| `r1-capture-fix-20261107-c2` | 只重建受影响 driver／纯捕获测试，`window_capture_series` 含新增模块PIN成功／失败 fake回归通过；无WGC／D3D／HWND调用。App及包内运行源码未变 |
+
+构建 worker 均为0；部分 MSVC 构建的外层返回125，日志明确仅回收本轮 `vctip.exe`，不称这些构建正常全零。真实测试和下面最终运行 Job 均另核退出／清理；不按进程名清理用户窗口。原版资源与历史失败未覆盖或删除。
+
+提交收尾只移除音频Python helper末尾多余空行，保留实测前原字节并核AST相同，不为该格式变化新增实机次数；App及包内源码不变。三份SDL／HIDAPI原许可中的空格及末尾空行按上游逐字节保留，Git空白检查只排除这三份原文。
+
+### 实际本地包与替换库重建
+
+`r1-package-qualification-20261107-c1/result.json` 记录实际源码快照→Release增量构建→新扫描→输入→241项载荷及清单。154项App源码／许可、81项匹配SDK、6项根文件；主程序 SHA256为 `1d97c068d54451e781d172934a76d5b96b847206ccbb8ca5c851a9768b0a2544`，SDL静态链接，无额外runtime DLL。VC++ x64运行库列为前置，不附系统目录副本。包不含原版数据、SAV、截图、录音、DRO或反编译输出，也不输出原版兼容TMP缓存。
+
+独立 `offline-copy` 用随包 `source`、`sdk/sdl` 和 `rebuild.ps1` 完成 `BUILD_TESTING=OFF` 的全量重建。子进程 HTTP／HTTPS／ALL代理指向不可达 loopback，无CPM或外部下载步骤；未修改系统防火墙，编译器／Windows SDK使用预安装工具。输出 `e7168261…139b` 不要求与原程序逐字节相同。再仅改 Nuked `OPL3_Reset` 的volatile标记，日志实际重编该源并重新链接，输出 `63e34915…a02a`；修改版未运行，原包逐文件摘要保持不变。这支持可替换源码并重链接，不扩写为修改后音画验收。
+
+本地 ZIP 为 `fd2sdl-windows-x64-release-r1-20261107.zip`，5,658,617字节，SHA256 `cb88a4ea62eac41d275515f28517c047e1f52807cc8276d462e261e26c974517`。`r1-final-review-20261107-c1/result.json` 核包内文件、ZIP完整性和源码／原版50文件守卫；实际资源前置的 dry 在拦截 `WinDLL` 与 `Popen` 时返回 `ready_not_executed`，不创建测试目录。包内工具保留 `offline_rebuild_verified_by_packager=false`，实际验证另存收据；没有上传、推送或对外发布。
+
+### 五场双端与无音频原生窗口
+
+同一 Release App 的实际五场由两个 driver 候选联合验收：
+
+- `r1-audio-gui-20261107-c1/comparison.json`：options两端通过，11→01→11→10→11及每次完整Save守卫；每端47个连续捕获helper。随后原版active-load的第19个series停止后摘要已写，但worker以 `0xC0000005` 退出，整份C1仍为失败。
+- WER `e115ce9e-4572-4064-b499-fb5deb295462` 定位 `GraphicsCapture.dll_unloaded`，版本10.0.26100.9549，execute AV offset0x105ac。捕获器在factory持引用时固定已加载System32模块到短命进程退出，保留正常session／pool／COM清理。内部异步卸载时序仍是推断，无完整dump栈，不称整个系统问题根因全部证明。
+- `r1-audio-gui-20261107-c2/comparison.json`：修复后只运行active-load、opening、end-turn、sfx-reenable，共8端及146个serieshelper，全过；开场各ACK29页后停在首次fragment2，Load覆盖ESC／NO保持00与YES恢复完整基线11，END至round002及19→12→19请求。所有录音均为本轮各端新采集，不继承旧WAV。
+- SFX仍为13候选、sample8完整2652点、阈值0.8／margin0.05：原版得分0.947826、次名0.805158；SDL0.976044、次名0.783745。只证明有限身份，重复次数、唯一ESC实例、绝对静音与精确时延仍未证明。
+
+五项合计10端、240个通过的serieshelper，另有开场／稳定画面的单帧WGC；这是分候选回归，不是同一driver单轮五场。C1失败及其PNG、WAV、输入／来源记录保留；C2通过不抹除它。最终C2外层Job为 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`，8端均正常关闭，显示需求同线程释放。此前C1的3个已启动目标也均正常关闭，无遗留或强制清理。
+
+`r1-native-null-20261107-c2` 另以包的独立运行副本、12个用户资源和无效SDL音频后端，从正式标题CONTINUE读隔离存档，WGC验证浏览→菜单→ESC返回，观察到discard null后端，资源、完整Save及二进制守卫通过，正常退出并释放显示需求。缺资源的 `play.cmd` 与损坏资源的正式启动均退出1并保留只读文件。早期 `r1-native-null-20261107-c1` 误以独立 `--field-play` 会读活动存档，预期光标错误而超时；日志显示实际debug初态，改走正式CONTINUE后才通过，旧失败保留。
+
+R1本地交付范围完成。历史B0—B7已审查，不因打包重跑全部旧GUI。未关闭原有END／跳页未定位症状、对白透明底图13像素差异、严格PIC／绝对时序、完整波形／物理输出、共享RNG／水色和后续关卡边界；本轮不复现旧症状不能当作已定位。stage2战斗、其它未开放功能及其它平台继续按各自工作包处理。
 
 当前支持范围据上述事件／业务证据与用户明确后端边界收口。完整波形、严格PIC／绝对时序、后续曲目／场景和其它平台仍未验；不因该事实抹去已有行为验收，也不将其写成全保真通过。A8 `ec8e699` 的host／设备边界继续有效，不被本阶段覆盖或重新命名。

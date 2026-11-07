@@ -98,9 +98,11 @@ ctest --test-dir src/build --output-on-failure
 
 ## License
 
-项目尚未指定顶层 `LICENSE`，不能据第三方组件的许可证推定整个项目的授权方式。音乐组件分别适用 MIT／LGPL 等许可证，详情与原文见[第三方组件清单](src/third_party/README.md)；对外发布前仍需落实项目许可和相应义务。
+项目自有代码采用 [MIT License](LICENSE)。第三方组件继续遵循各自的 zlib、MIT、LGPL 等许可，版权、许可原文和静态链接的可重建材料要求见[许可与第三方声明](THIRD_PARTY_NOTICES.md)。整个发布包不能仅标为 MIT 后省略第三方条款。
 
 原版游戏、图像、音乐及其他数据归原权利人所有，不随本项目分发。
+
+R1 提供 Windows x64 本地 Release 包及可替换 Nuked 后重建的源码／匹配 SDL SDK 材料，不自动上传或对外发布。启动、资源位置、实际依赖记录与离线重建步骤见 [Windows Release 说明](docs/tools/windows-release.md)；本地复制成功不等于发布验收或重链接验证通过。SDL 直接读取 `FDICON.B24`，不需要原版的 `FD2.TMP` 缓存；导出可交给 DOS 原版使用的 TMP 不在本轮支持范围。Linux／macOS 发布未验收，不据此阻塞本轮 Windows 定向验收，也不声明其他平台通过。
 
 ## Credits
 

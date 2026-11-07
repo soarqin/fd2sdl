@@ -19,7 +19,57 @@ struct OwnedDirectory {
         if(path.parent_path()==parent)fs::remove_all(path,error);
     }
 };
+
+/* 只验证生产helper的API合同；不加载DLL、不调用真实Windows API或WGC。
+ * fake必须收到系统绝对路径和PIN，不能误变成普通AddRef后再FreeLibrary。 */
+struct ModulePinFixture {
+    unsigned directory_calls=0,pin_calls=0;
+    UINT directory_result=19;
+    BOOL pin_result=TRUE;
+    HMODULE module=reinterpret_cast<HMODULE>(static_cast<UINT_PTR>(1));
+    DWORD flags=0;
+    std::wstring path;
+};
+static ModulePinFixture *pin_fixture=nullptr;
+static UINT WINAPI fake_system_directory(LPWSTR buffer,UINT capacity) {
+    ++pin_fixture->directory_calls;
+    constexpr wchar_t directory[]=L"C:\\Windows\\System32";
+    if (capacity>=sizeof(directory)/sizeof(directory[0]))
+        memcpy(buffer,directory,sizeof(directory));
+    return pin_fixture->directory_result;
+}
+static BOOL WINAPI fake_pin_module(DWORD flags,LPCWSTR path,HMODULE *module) {
+    ++pin_fixture->pin_calls;pin_fixture->flags=flags;pin_fixture->path=path;
+    *module=pin_fixture->module;
+    return pin_fixture->pin_result;
+}
+static int module_lifetime_tests() {
+    ModulePinFixture fixture;pin_fixture=&fixture;
+    pin_capture_module(fake_system_directory,fake_pin_module);
+    CHECK(fixture.directory_calls==1 && fixture.pin_calls==1);
+    CHECK(fixture.flags==GET_MODULE_HANDLE_EX_FLAG_PIN);
+    CHECK(fixture.path==L"C:\\Windows\\System32\\GraphicsCapture.dll");
+    for (UINT result:{0u,static_cast<UINT>(MAX_PATH+1)}) {
+        fixture={};fixture.directory_result=result;
+        bool rejected=false;
+        try {pin_capture_module(fake_system_directory,fake_pin_module);}
+        catch(const std::runtime_error &) {rejected=true;}
+        CHECK(rejected && fixture.directory_calls==1 && fixture.pin_calls==0);
+    }
+    for (bool missing_handle:{false,true}) {
+        fixture={};
+        if (missing_handle) fixture.module=nullptr;
+        else fixture.pin_result=FALSE;
+        bool rejected=false;
+        try {pin_capture_module(fake_system_directory,fake_pin_module);}
+        catch(const std::runtime_error &) {rejected=true;}
+        CHECK(rejected && fixture.directory_calls==1 && fixture.pin_calls==1);
+    }
+    pin_fixture=nullptr;
+    return 0;
+}
 static int run_tests() {
+    CHECK(module_lifetime_tests()==0);
     bool rejected=false;
     series_limits(1,1);series_limits(120000,120000);
     for (auto pair:{std::pair<unsigned long,unsigned long>{0,1},{120001,1},{1,0},{1,120001}}) {
@@ -76,7 +126,7 @@ static int run_tests() {
     CHECK(decoded==original); /* 包含alpha0下的非零RGB，不能量化、乘alpha或颜色归一。 */
     rejected=false;try{series_png(factory.get(),png,2,2,original);}catch(...){rejected=true;}CHECK(rejected);
     rejected=false;try{series_png(factory.get(),directory/L"bad.png",2,3,original);}catch(...){rejected=true;}CHECK(rejected);
-    printf("capture series pure: limits/timestamps/paths/atomic-ready/BGRA-PNG passed; no WGC/D3D/HWND invoked\n");
+    printf("capture series pure: module-PIN/limits/timestamps/paths/atomic-ready/BGRA-PNG passed; no WGC/D3D/HWND invoked\n");
     return 0;
 }
 

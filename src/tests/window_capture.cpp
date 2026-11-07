@@ -1,6 +1,10 @@
 /* SDL 宿主图形回归：Windows.Graphics.Capture 按 HWND 捕获独立窗口。
  * 依据 Microsoft CreateForWindow / CreateFreeThreaded / D3D11 interop 文档；
  * 不读取桌面 DC，不依赖前台或遮挡状态，不作为原版行为等价证据。
+ * 本机2026-11-07 WER记录关闭后GraphicsCapture.dll_unloaded的execute AV；
+ * 系统内部异步线程晚于COM卸载是时序推断，未取得dump完整栈。
+ * 依GetModuleHandleExW PIN合同固定该系统模块到短命helper退出，仍正常Close/CoUninitialize。
+ * https://learn.microsoft.com/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandleexw
  */
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -36,6 +40,26 @@ struct Apartment {
     Apartment() { winrt::init_apartment(winrt::apartment_type::multi_threaded); }
     ~Apartment() { winrt::uninit_apartment(); }
 };
+
+using SystemDirectoryFn = UINT (WINAPI *)(LPWSTR, UINT);
+using ModulePinFn = BOOL (WINAPI *)(DWORD, LPCWSTR, HMODULE *);
+
+/* CreateFreeThreaded有内部线程。拿到activation factory后，仅固定已加载的
+ * System32模块；不另行加载DLL、不延时、不跳过session/pool或COM的清理。
+ * 两个局部函数参数仅供无WGC的fake回归，不导出测试接口。 */
+void pin_capture_module(SystemDirectoryFn system_directory = GetSystemDirectoryW,
+                        ModulePinFn pin_module = GetModuleHandleExW) {
+    wchar_t directory[MAX_PATH + 1]{};
+    const UINT capacity = static_cast<UINT>(sizeof(directory) / sizeof(directory[0]));
+    const UINT length = system_directory(directory, capacity);
+    if (!length || length >= capacity)
+        throw std::runtime_error("cannot resolve System32 for GraphicsCapture.dll lifetime");
+    const std::wstring path = std::wstring(directory, length) + L"\\GraphicsCapture.dll";
+    HMODULE module = nullptr;
+    if (!pin_module(GET_MODULE_HANDLE_EX_FLAG_PIN, path.c_str(), &module) || !module)
+        throw std::runtime_error("cannot pin already-loaded System32 GraphicsCapture.dll until helper exit");
+    /* PIN依据API合同保持到进程退出，不调用FreeLibrary；不是COM/session owner。 */
+}
 
 struct Capture {
     Direct3D11CaptureFramePool pool{nullptr};
@@ -111,6 +135,7 @@ extern "C" int fd2_capture_window(HWND window, const char *path) {
             throw std::runtime_error("Windows.Graphics.Capture is not supported on this device");
         Geometry before = geometry(window);
         auto factory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+        pin_capture_module();
         GraphicsCaptureItem item{nullptr};
         winrt::check_hresult(factory->CreateForWindow(window, winrt::guid_of<GraphicsCaptureItem>(),
                                                       winrt::put_abi(item)));
@@ -374,6 +399,7 @@ extern "C" int fd2_capture_window_series(HWND window,DWORD pid,const wchar_t *ou
         Apartment apartment;
         series_check(GraphicsCaptureSession::IsSupported(),"Windows.Graphics.Capture is unavailable");
         auto factory=winrt::get_activation_factory<GraphicsCaptureItem,IGraphicsCaptureItemInterop>();
+        pin_capture_module();
         GraphicsCaptureItem item{nullptr};
         winrt::check_hresult(factory->CreateForWindow(window,winrt::guid_of<GraphicsCaptureItem>(),winrt::put_abi(item)));
         auto size=item.Size();

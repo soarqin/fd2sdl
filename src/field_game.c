@@ -28,6 +28,7 @@
 #include "magic_fx.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,6 +42,14 @@
 #include "save.h"
 #include "field_unit_base.h"
 #include "field_unit_stats.h"
+#include "static_flow.h"
+#include "static_data.h"
+#include "field_reward_flow.h"
+
+_Static_assert(FD2_FIELD_PROGRESS_GAIN == 1 && FD2_FIELD_PROGRESS_LEVEL == 2 &&
+               FD2_FIELD_PROGRESS_GROWTH == 3 && FD2_FIELD_PROGRESS_LEARN == 4 &&
+               FD2_FIELD_PROGRESS_CLOSE == 5,
+               "reward notice IDs must match the static flow contract");
 
 #define FD2_FIELD_BIOS_TICK_MS 55
 #define FD2_FIELD_IDLE_MS 275
@@ -324,7 +333,7 @@ static void refresh_secondary_menu_disabled(fd2_field_game *game) {
     if (!game) return;
     /* 总览沿1b41d的stage索引取已核条件；stage2只开放浏览/存读档。 */
     uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {0, 0, 0, 0};
-    disabled[0] = game->stage > 2u;
+    disabled[0] = !fd2_field_stage_is_supported(game->stage);
     if (!game->save_resource_available)
         disabled[2] = 1;
     for (size_t i = 0; i < game->units.count; i++) {
@@ -343,7 +352,7 @@ static void refresh_system_menu_disabled(fd2_field_game *game) {
         refresh_secondary_menu_disabled(game);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT) {
         /* stage2仅完成真实入场/存读档，turn3 action9尚未接入，不开放END。 */
-        const uint8_t disabled[] = {0, game->stage > 1u, 0, game->stage > 1u};
+        const uint8_t disabled[] = {0, !fd2_field_stage_battle_is_supported(game->stage), 0, !fd2_field_stage_battle_is_supported(game->stage)};
         fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_OPTIONS) {
         /* 后两项只确认过存档位，尚未实现其可见效果。 */
@@ -375,51 +384,55 @@ size_t fd2_field_game_remaining_units(const fd2_field_game *game,
     return count;
 }
 
-fd2_field_battle_result fd2_field_game_battle_result(
-        const fd2_field_game *game) {
+static const fd2_static_flow *stage_flow_get(const char *kind, size_t stage) {
+    char id[64];
+    int length = snprintf(id, sizeof(id), "stage.%s.%03zu", kind, stage);
+    return length > 0 && (size_t)length < sizeof(id)
+        ? fd2_static_flow_lookup("stage", id) : NULL;
+}
+
+/* sub_205B4 @0x205b4、field_stage1_battle_result_check @0x206c5（原sub_206C5）：
+ * 结果覆盖顺序与SDL既有HP防护均在冷图；default仅保留既有内部fallback身份。 */
+fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
     if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
-    int have_player = 0;
-    int have_hostile = 0;
-    for (size_t i = 0; i < game->units.count; i++) {
-        const fd2_field_unit *unit = &game->units.items[i];
-        if (fd2_field_unit_is_hidden(unit) || unit->hp == 0) continue;
-        if (unit->side == 2u) have_player = 1;
-        if (unit->side == 0u) have_hostile = 1;
+    const fd2_static_flow *flow = stage_flow_get("result", game->stage);
+    if (!flow) flow = fd2_static_flow_lookup("stage", "stage.result.default");
+    int pc = flow ? flow->entry : -1;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
+        if (!n || !(n->views & FD2_FLOW_LOGIC)) break;
+        int yes = 0;
+        if (!strcmp(n->op, "result_return")) {
+            if (n->args[0] >= FD2_FIELD_BATTLE_ONGOING && n->args[0] <= FD2_FIELD_BATTLE_DEFEAT)
+                return (fd2_field_battle_result)n->args[0];
+            break;
+        } else if (!strcmp(n->op, "result_count_at_least")) yes = game->units.count >= (size_t)n->args[0];
+        else if (!strcmp(n->op, "result_leader_dead")) {
+            size_t at = (size_t)n->args[0];
+            yes = at >= game->units.count || fd2_field_unit_is_hidden(&game->units.items[at]) ||
+                (n->args[1] && !game->units.items[at].hp);
+        } else if (!strcmp(n->op, "result_side_present")) {
+            for (size_t i = 0; i < game->units.count; i++) {
+                const fd2_field_unit *u = &game->units.items[i];
+                if (u->side == n->args[0] && !fd2_field_unit_is_hidden(u) && (!n->args[1] || u->hp)) yes = 1;
+            }
+        } else if (!strcmp(n->op, "result_all_hidden")) {
+            yes = 1;
+            for (int32_t i = n->args[0]; i <= n->args[1]; i++)
+                if ((size_t)i < game->units.count && !fd2_field_unit_is_hidden(&game->units.items[i])) yes = 0;
+        } else break;
+        pc = fd2_static_flow_edge(flow, n, yes ? FD2_FLOW_YES : FD2_FLOW_NO);
     }
-    if (game->stage == 0u) {
-        /* sub_205B4 @0x205b4（原登记中性名），DS:0x1b19[0]：先把
-         * 0x3ecc 设为 2；只要仍有可见 side 0 actor 就清回 0；随后
-         * actor 0（新游戏的主角）隐藏时覆盖为 1。这里直接暴露其
-         * 可观察结果，避免把未加载的 future group 当作胜负门。
-         * 原版只查hidden；HP0门是SDL内部防护，受控原版对照只改hidden位。 */
-        const fd2_field_unit *leader = game->units.count != 0
-            ? &game->units.items[0] : NULL;
-        if (!leader || fd2_field_unit_is_hidden(leader) || leader->hp == 0)
-            return FD2_FIELD_BATTLE_DEFEAT;
-        if (!have_hostile) return FD2_FIELD_BATTLE_VICTORY;
-        return FD2_FIELD_BATTLE_ONGOING;
-    }
-    if (game->stage == 1u) {
-        /* field_stage1_battle_result_check @0x206c5（原sub_206C5） 先调205b4，再由raw5..10全hidden覆盖为败。 */
-        const fd2_field_unit *leader = game->units.count ? &game->units.items[0] : NULL;
-        int villagers = 0;
-        if (game->units.count < 11u) return FD2_FIELD_BATTLE_DEFEAT;
-        for (size_t i = 5; i <= 10; i++)
-            if (!fd2_field_unit_is_hidden(&game->units.items[i])) villagers = 1;
-        if (!leader || fd2_field_unit_is_hidden(leader) || !villagers)
-            return FD2_FIELD_BATTLE_DEFEAT;
-        return have_hostile ? FD2_FIELD_BATTLE_ONGOING : FD2_FIELD_BATTLE_VICTORY;
-    }
-    if (!have_player) return FD2_FIELD_BATTLE_DEFEAT;
-    if (!have_hostile) return FD2_FIELD_BATTLE_VICTORY;
-    return FD2_FIELD_BATTLE_ONGOING;
+    /* 构建期已拒绝缺图/未知操作/环；此处只防御二进制内部定义损坏，不能伪造胜败。 */
+    fprintf(stderr, "corrupt internal battle result flow (stage=%zu)\n", game->stage);
+    abort();
 }
 
 /* field_unit_stage_template_append @0x10c50 的53AFA只控制重叠布点；
  * 默认搜索最近空占格，同行平价取后者。并非AI-ineligible flags04。 */
 static int append_group_units(const fd2_field_game *game, fd2_field_units *units,
                               uint8_t group, int force) {
-    if (!game || !units || game->stage > 2u ||
+    if (!game || !units || !fd2_field_stage_is_supported(game->stage) ||
         fd2_field_game_group_count(game, group)) return -1;
     fd2_field_units shadow = *units;
     if (fd2_field_units_append_group_placed(&shadow, &game->metadata,
@@ -453,75 +466,120 @@ static int apply_event_script(fd2_field_game *game,
                                             script_size);
 }
 
-static int execute_known_turn_event(fd2_field_game *game, uint8_t action) {
-    if (!game || !((game->stage == 0u && action <= 4u) ||
-                   (game->stage == 1u && action == 6u))) return -1;
+/* 事件绑定由冷定义ID决定；未知stage/action不创建默认流程。 */
+static const fd2_static_flow *known_event_flow(const fd2_field_game *game, uint8_t action) {
+    char id[64];
+    if (!game) return NULL;
+    int written = snprintf(id, sizeof(id), "stage.%03zu.action.%03u", game->stage, (unsigned)action);
+    if (written < 0 || (size_t)written >= sizeof(id)) return NULL;
+    return fd2_static_flow_lookup("scene", id);
+}
 
+static int cell_event_flow_supported(const fd2_field_game *game, uint8_t action, int minimum) {
+    const fd2_static_flow *flow = known_event_flow(game, action);
+    if (!flow) return 0;
+    for (size_t i = 0; i < flow->count; i++) {
+        const fd2_static_flow_node *node = &flow->nodes[i];
+        if (!strcmp(node->op, "capability"))
+            return node->args[0] && (!minimum || game->units.count >= (size_t)node->args[1]);
+    }
+    return 0;
+}
+
+/* 领域原语只执行单步；分支、参数、顺序和两视图由同一冷图给出。 */
+static int game_event_primitive(fd2_field_game *game, const fd2_static_flow_node *node) {
+    const int32_t *a = node->args;
+    if (!strcmp(node->op, "capability")) return 0;
+    if (!strcmp(node->op, "pan")) {
+        game->camera_cell_x = clamp_int(a[0], 0, max_camera_x(game));
+        game->camera_cell_y = clamp_int(a[1], 0, max_camera_y(game));
+        return 0;
+    }
+    if (!strcmp(node->op, "append_roster")) return append_persistent_player(game, (uint8_t)a[0]);
+    if (!strcmp(node->op, "append_group")) return append_stage_group(game, (uint8_t)a[0], a[1]);
+    if (!strcmp(node->op, "move")) return apply_event_script(game, (uint8_t)a[0]);
+    if (!strcmp(node->op, "assert_unit_count")) return game->units.count == (size_t)a[0] ? 0 : -1;
+    if (!strcmp(node->op, "set_side")) {
+        if (a[0] < 0 || (size_t)a[0] >= game->units.count) return -1;
+        game->units.items[a[0]].side = (uint8_t)a[1];
+        return 0;
+    }
+    if (!strcmp(node->op, "set_ai_target")) {
+        if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= game->units.count) return -1;
+        for (size_t i = (size_t)a[0]; i <= (size_t)a[1]; i++) {
+            game->units.items[i].ai_param_35 = (uint8_t)a[2];
+            game->units.items[i].ai_param_36 = (uint8_t)a[3];
+        }
+        return 0;
+    }
+    return -1;
+}
+
+static void snapshot_event_presentation(const fd2_field_game *game, fd2_field_event_notice *notice) {
+    notice->presentation_motion_valid = 0;
+    if (game->units.count > FD2_FIELD_MAX_UNITS) return;
+    notice->presentation_unit_count = (uint8_t)game->units.count;
+    notice->presentation_camera_x = (int16_t)game->camera_cell_x;
+    notice->presentation_camera_y = (int16_t)game->camera_cell_y;
+    notice->presentation_focus_x = (int16_t)game->cursor_cell_x;
+    notice->presentation_focus_y = (int16_t)game->cursor_cell_y;
+    notice->presentation_motion_valid = 1;
+    for (size_t i = 0; i < game->units.count; i++) {
+        const fd2_field_unit *unit = &game->units.items[i];
+        uint8_t *motion = notice->presentation_motion[i];
+        motion[0] = unit->x; motion[1] = unit->y;
+        motion[2] = unit->direction; motion[3] = unit->frame_phase;
+        motion[4] = game->units.walk_frames[i];
+    }
+}
+
+static int walk_event_flow(fd2_field_game *game, const fd2_static_flow *flow, int resources) {
+    if (!flow || game->units.count > FD2_FIELD_MAX_UNITS) return -1;
+    int pc = flow->entry;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        const fd2_static_flow_node *node = fd2_static_flow_at(flow, pc);
+        if (!node) return -1;
+        if (!strcmp(node->op, "end")) return 0;
+        if (resources && (node->views & FD2_FLOW_PRESENT) && !strcmp(node->op, "text") &&
+                fd2_scene_field_story_validate(game, (uint16_t)node->args[0]) != 0) return -1;
+        /* 资源预检只投影对白所需的新增身份；不得前移真实handler的
+         * count断言、移动或写点。其失败仍在原callback提交边界发生。 */
+        if (node->views & FD2_FLOW_LOGIC) {
+            if (resources) {
+                /* 与既有Play资源门同样只取得group文字身份，不前移装备
+                 * 派生、sprite或重复group的正式handler检查。 */
+                if (!strcmp(node->op, "append_group") &&
+                    fd2_field_units_append_group_placed(&game->units, &game->metadata,
+                        &game->placements, &game->map, (uint8_t)node->args[0], node->args[1]) != 0)
+                    return -1;
+            } else if (game_event_primitive(game, node) != 0) return -1;
+        }
+        pc = fd2_static_flow_edge(flow, node, FD2_FLOW_NEXT);
+    }
+    return -1;
+}
+
+int fd2_field_game_event_resources_validate(const fd2_field_game *game, uint8_t action) {
+    if (!game || !cell_event_flow_supported(game, action, 0)) return -1;
+    /* 只使用既有资源的借用视图；不close、不写live owner、不消费RNG。 */
+    fd2_field_game *shadow = malloc(sizeof(*shadow));
+    if (!shadow) return -1;
+    *shadow = *game;
+    int result = walk_event_flow(shadow, known_event_flow(game, action), 1);
+    free(shadow);
+    return result;
+}
+
+static int execute_known_turn_event(fd2_field_game *game, uint8_t action) {
+    const fd2_static_flow *flow = known_event_flow(game, action);
+    if (!flow) return -1;
     fd2_field_units saved_units = game->units;
     fd2_field_unit saved_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
     memcpy(saved_roster, game->roster, sizeof(saved_roster));
     size_t saved_roster_count = game->roster_count;
     int saved_camera_x = game->camera_cell_x;
     int saved_camera_y = game->camera_cell_y;
-    int result = -1;
-
-    /* field_stage0_31_turn_action0..3 @0x34531/0x3460b/0x34673/
-     * 0x346cd。session 先事务化提交 group、镜头和移动脚本；scene 演出层
-     * 再从 notice 的提交前快照重放镜头、移动、LMI1 与对话。 */
-    switch (action) {
-        case 6:
-            /* field_stage1_turn3_execute @0x34778（原sub_34778）：强制group3、script13，再使村民朝26,15逃离。 */
-            game->camera_cell_x = clamp_int(9, 0, max_camera_x(game));
-            game->camera_cell_y = clamp_int(1, 0, max_camera_y(game));
-            if (game->units.count != 21u || append_stage_group(game, 3, 1) != 0 ||
-                game->units.count != 27u ||
-                apply_event_script(game, 13) != 0) break;
-            for (size_t i = 5; i <= 10; i++) {
-                game->units.items[i].ai_param_35 = 26;
-                game->units.items[i].ai_param_36 = 15;
-            }
-            result = 0;
-            break;
-        case 4:
-            /* field_stage0_ally_side1_event @0x34738（原sub_34738）；fragment7由同一event notice交scene。 */
-            if (game->units.count <= 13u) break;
-            game->units.items[13].side = 1;
-            result = 0;
-            break;
-        case 0:
-            if (append_persistent_player(game, 1) != 0 ||
-                append_stage_group(game, 3, 0) != 0) break;
-            game->camera_cell_x = clamp_int(5, 0, max_camera_x(game));
-            game->camera_cell_y = clamp_int(8, 0, max_camera_y(game));
-            if (apply_event_script(game, 7) != 0 ||
-                append_stage_group(game, 7, 0) != 0 ||
-                apply_event_script(game, 8) != 0)
-                break;
-            result = 0;
-            break;
-        case 1:
-            game->camera_cell_x = clamp_int(11, 0, max_camera_x(game));
-            game->camera_cell_y = clamp_int(16, 0, max_camera_y(game));
-            if (append_stage_group(game, 4, 0) == 0 &&
-                apply_event_script(game, 3) == 0)
-                result = 0;
-            break;
-        case 2:
-            game->camera_cell_x = clamp_int(0, 0, max_camera_x(game));
-            game->camera_cell_y = clamp_int(16, 0, max_camera_y(game));
-            if (append_stage_group(game, 5, 0) == 0 &&
-                apply_event_script(game, 4) == 0)
-                result = 0;
-            break;
-        case 3:
-            game->camera_cell_x = clamp_int(11, 0, max_camera_x(game));
-            game->camera_cell_y = clamp_int(11, 0, max_camera_y(game));
-            if (append_stage_group(game, 6, 0) == 0 &&
-                apply_event_script(game, 6) == 0)
-                result = 0;
-            break;
-    }
-
+    int result = walk_event_flow(game, flow, 0);
     if (result != 0) {
         game->units = saved_units;
         memcpy(game->roster, saved_roster, sizeof(saved_roster));
@@ -568,7 +626,31 @@ static int progress_resource_ready(fd2_field_game *game,
     return 0;
 }
 
-/* 先用80B preview验证完整终态；资源回调只枚举可能提示，不执行呈现或写actor。 */
+static fd2_reward_cursor reward_cursor_get(const fd2_field_progress *progress) {
+    return (fd2_reward_cursor){progress->total, progress->level,
+        progress->growth_cursor, progress->learn_cursor, progress->flow_step};
+}
+
+static int advance_reward_progress(fd2_field_game *game) {
+    fd2_field_progress *progress = &game->progress;
+    if (progress->notice.actor_index >= game->units.count) return -1;
+    fd2_reward_cursor cursor = reward_cursor_get(progress);
+    fd2_reward_notice notice;
+    int result = fd2_reward_advance(fd2_reward_graph(), &game->units.items[progress->notice.actor_index],
+        game->experience_value, &cursor, &notice, known_item_stat_lookup, NULL,
+        known_status_stat_scale, NULL);
+    progress->total = cursor.total; progress->level = cursor.level;
+    progress->growth_cursor = cursor.growth_cursor; progress->learn_cursor = cursor.learn_cursor;
+    progress->flow_step = cursor.step;
+    if (result == 0) {
+        progress->notice = (fd2_field_progress_notice){(fd2_field_progress_kind)notice.kind,
+            progress->notice.actor_index, notice.fragment, notice.value, notice.magic_id, notice.wait_ticks};
+        if (notice.set_message) game->message_number = notice.value;
+    }
+    return result;
+}
+
+/* 资源预检消费与真实提交相同的图和单步原语，只操作80B局部记录。 */
 static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t gain) {
     if (actor_index >= game->units.count) return -1;
     const fd2_field_unit *unit = &game->units.items[actor_index];
@@ -576,34 +658,21 @@ static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t g
     int result = fd2_field_unit_reward_preview(unit, gain,
         known_status_stat_scale, NULL, &shadow);
     if (result <= 0) return result;
-    fd2_field_progress_notice notice = {FD2_FIELD_PROGRESS_GAIN, actor_index, 488, gain, 0, 0};
-    if (!progress_resource_ready(game, &notice)) return -1;
-    uint32_t total = unit->experience + gain;
-    fd2_field_unit level_source = *unit;
-    while (total >= 100u) {
-        fd2_field_unit_level_growth level;
-        if (fd2_field_unit_level_growth_prepare(&level_source, &level) != 0) return -1;
-        level_source.level = level.level;
-        notice.kind = FD2_FIELD_PROGRESS_LEVEL; notice.fragment = 489;
-        notice.value = level.level;
-        if (!progress_resource_ready(game, &notice)) return -1;
-        for (size_t i = 0; i < 5u; i++) {
-            if (!level.growth[i]) continue;
-            notice.kind = FD2_FIELD_PROGRESS_GROWTH; notice.fragment = (uint16_t)(490u + i);
-            notice.value = level.growth[i];
-            if (!progress_resource_ready(game, &notice)) return -1;
-        }
-        for (size_t i = 0; i < level.learned_count; i++) {
-            notice.kind = FD2_FIELD_PROGRESS_LEARN; notice.fragment = 587;
-            notice.value = 0; notice.magic_id = level.learned_magic[i];
-            if (!progress_resource_ready(game, &notice)) return -1;
-        }
-        total -= 100u;
-        if (level_source.level == 30u ||
-            ((unit->unit_id == 30u || unit->unit_id == 31u) && level_source.level == 99u)) total = 0;
+    const fd2_static_flow *flow = fd2_reward_graph();
+    if (!flow) return -1;
+    fd2_reward_cursor cursor = {0}; cursor.step = flow->entry;
+    shadow = *unit;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        fd2_reward_notice value;
+        result = fd2_reward_advance(flow, &shadow, gain, &cursor, &value,
+            known_item_stat_lookup, NULL, known_status_stat_scale, NULL);
+        if (result == 1) return 1;
+        if (result != 0) return -1;
+        fd2_field_progress_notice notice = {(fd2_field_progress_kind)value.kind,
+            actor_index, value.fragment, value.value, value.magic_id, value.wait_ticks};
+        if (!progress_resource_ready(game, &notice) || fd2_reward_ack(flow, &cursor) != 0) return -1;
     }
-    notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_CLOSE, actor_index, 0, 0, 0, 11};
-    return progress_resource_ready(game, &notice) ? 1 : -1;
+    return -1;
 }
 
 static int begin_reward(fd2_field_game *game, size_t actor_index,
@@ -613,13 +682,13 @@ static int begin_reward(fd2_field_game *game, size_t actor_index,
     int checked = preflight_reward(game, actor_index, game->experience_value);
     if (checked <= 0) return checked;
     memset(&game->progress, 0, sizeof(game->progress));
-    game->progress.notice = (fd2_field_progress_notice){
-        FD2_FIELD_PROGRESS_GAIN, actor_index, 488, game->experience_value, 0, 0};
-    game->message_number = game->experience_value; /* 1e292写53AE1后绘488。 */
-    game->progress.total = game->units.items[actor_index].experience + game->experience_value;
+    const fd2_static_flow *flow = fd2_reward_graph();
+    if (!flow) return -1;
+    game->progress.flow_step = flow->entry;
+    game->progress.notice.actor_index = actor_index;
     game->progress.resume = resume;
     game->progress.resume_actor = resume_actor;
-    return 1;
+    return advance_reward_progress(game) == 0 ? 1 : -1;
 }
 
 int fd2_field_game_progress_peek(const fd2_field_game *game,
@@ -633,85 +702,27 @@ int fd2_field_game_progress_peek(const fd2_field_game *game,
     return 1;
 }
 
-static int reward_next_level(fd2_field_game *game) {
-    fd2_field_progress *progress = &game->progress;
-    if (progress->total < 100u) {
-        progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_CLOSE,
-            progress->notice.actor_index, 0, 0, 0, 11};
-        return 0;
-    }
-    fd2_field_unit *unit = &game->units.items[progress->notice.actor_index];
-    if (fd2_field_unit_level_growth_prepare(unit, &progress->level) != 0) return -1;
-    unit->level = progress->level.level; /* 原489提示之前先INC byte。 */
-    progress->growth_cursor = progress->learn_cursor = 0;
-    progress->notice.kind = FD2_FIELD_PROGRESS_LEVEL;
-    progress->notice.fragment = 489; progress->notice.value = unit->level;
-    game->message_number = unit->level;
-    progress->notice.magic_id = progress->notice.wait_ticks = 0;
-    return 0;
-}
-
-static int reward_next_field(fd2_field_game *game) {
-    fd2_field_progress *progress = &game->progress;
-    fd2_field_unit *unit = &game->units.items[progress->notice.actor_index];
-    while (progress->growth_cursor < 5u) {
-        uint8_t index = progress->growth_cursor;
-        if (!progress->level.growth[index]) { progress->growth_cursor++; continue; }
-        progress->notice.kind = FD2_FIELD_PROGRESS_GROWTH;
-        progress->notice.fragment = (uint16_t)(490u + index);
-        progress->notice.value = progress->level.growth[index];
-        game->message_number = progress->notice.value;
-        return 0; /* 原1e529必须等本条提示返回才ADD WORD。 */
-    }
-    if (progress->learn_cursor < progress->level.learned_count) {
-        uint8_t id = progress->level.learned_magic[progress->learn_cursor];
-        uint8_t *raw = (uint8_t *)unit;
-        raw[0x1au + id / 8u] |= (uint8_t)(1u << (id % 8u));
-        progress->notice.kind = FD2_FIELD_PROGRESS_LEARN;
-        progress->notice.fragment = 587; progress->notice.value = 0;
-        progress->notice.magic_id = id;
-        return 0;
-    }
-    if (fd2_field_unit_combat_stats_recompute(unit, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0) return -1;
-    progress->total -= 100u;
-    if (unit->level == 30u ||
-        ((unit->unit_id == 30u || unit->unit_id == 31u) && unit->level == 99u)) progress->total = 0;
-    return reward_next_level(game);
-}
-
 int fd2_field_game_progress_ack(fd2_field_game *game) {
     fd2_field_progress_notice notice;
     if (fd2_field_game_progress_peek(game, &notice) != 1) return -1;
     int result = 0;
     if (notice.kind == FD2_FIELD_PROGRESS_STATUS) {
-        if (notice.fragment != 487 && fd2_field_unit_combat_stats_recompute(
-                &game->units.items[notice.actor_index], known_item_stat_lookup, NULL,
-                known_status_stat_scale, NULL) != 0) result = -1;
-        else result = advance_status_progress(game);
-    } else if (notice.kind == FD2_FIELD_PROGRESS_GAIN) result = reward_next_level(game);
-    else if (notice.kind == FD2_FIELD_PROGRESS_LEVEL) result = reward_next_field(game);
-    else if (notice.kind == FD2_FIELD_PROGRESS_GROWTH) {
-        static const size_t offsets[5] = {0x37, 0x39, 0x3e, 0x42, 0x46};
-        size_t i = game->progress.growth_cursor;
-        if (i >= 5u) result = -1;
-        else {
-            uint8_t *raw = (uint8_t *)&game->units.items[notice.actor_index];
-            size_t at = offsets[i];
-            uint16_t value = (uint16_t)(raw[at] | (uint16_t)raw[at + 1u] << 8);
-            value = (uint16_t)(value + game->progress.level.growth[i]);
-            raw[at] = (uint8_t)value; raw[at + 1u] = (uint8_t)(value >> 8);
-            game->progress.growth_cursor++;
-            result = reward_next_field(game);
-        }
-    } else if (notice.kind == FD2_FIELD_PROGRESS_LEARN) {
-        game->progress.learn_cursor++;
-        result = reward_next_field(game);
-    } else if (notice.kind == FD2_FIELD_PROGRESS_CLOSE) {
+        const fd2_static_flow *flow = fd2_static_flow_lookup("progress", "phase.status");
+        const fd2_static_flow_node *node = fd2_static_flow_at(flow, game->progress.flow_step);
+        int next = node && !strcmp(node->op, "status_notice")
+            ? fd2_static_flow_edge(flow, node, FD2_FLOW_ACK) : -1;
+        if (next < 0) result = -1;
+        else { game->progress.flow_step = (uint8_t)next; result = advance_status_progress(game); }
+    } else {
+        fd2_reward_cursor cursor = reward_cursor_get(&game->progress);
+        const fd2_static_flow_node *node = fd2_static_flow_at(fd2_reward_graph(), cursor.step);
+        if (!node || node->args[0] != notice.kind || fd2_reward_ack(fd2_reward_graph(), &cursor) != 0) result = -1;
+        else { game->progress.flow_step = cursor.step; result = advance_reward_progress(game); }
+    }
+    if (result == 1) {
         fd2_field_progress_resume resume = game->progress.resume;
         size_t actor = game->progress.resume_actor;
         int common_tail = game->progress.ai_common_tail;
-        game->units.items[notice.actor_index].experience = (uint8_t)game->progress.total;
         game->experience_value = 0;
         memset(&game->progress, 0, sizeof(game->progress));
         if (resume == FD2_FIELD_PROGRESS_RESUME_PLAYER)
@@ -726,7 +737,7 @@ int fd2_field_game_progress_ack(fd2_field_game *game) {
                     fd2_field_game_resume_player_controller(game) < 0) result = -1;
             }
         }
-    } else result = -1;
+    }
     if (result < 0 && game->failure == FD2_FIELD_FAILURE_NONE) fail_action(game, notice.actor_index);
     return result < 0 ? -1 : 0;
 }
@@ -775,6 +786,7 @@ static void record_turn_events(fd2_field_game *game) {
             .slot = matches[i].slot,
         };
         if (reserve_event_notice(game, &notice) != 0) return;
+        snapshot_event_presentation(game, &notice);
         int handled = execute_known_turn_event(game, matches[i].action) == 0;
         notice.handled = (uint8_t)handled;
         notice.presentation_deferred = (uint8_t)handled;
@@ -784,8 +796,7 @@ static void record_turn_events(fd2_field_game *game) {
         append_event_notice(game, &notice);
         if (!handled) {
             fail_session(game,
-                !((game->stage == 0u && matches[i].action <= 4u) ||
-                  (game->stage == 1u && matches[i].action == 6u))
+                !known_event_flow(game, matches[i].action)
                     ? FD2_FIELD_FAILURE_EVENT_UNSUPPORTED
                     : FD2_FIELD_FAILURE_EVENT_EXECUTION, &notice);
             return;
@@ -840,12 +851,12 @@ static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index)
     notice.presentation_focus_x = (int16_t)game->cursor_cell_x;
     notice.presentation_focus_y = (int16_t)game->cursor_cell_y;
     if (reserve_event_notice(game, &notice) != 0) return -1;
-    if (!((game->stage == 0u && notice.action == 4u) ||
-          (game->stage == 1u && notice.action == 6u))) {
+    if (!cell_event_flow_supported(game, notice.action, 0)) {
         append_event_notice(game, &notice);
         fail_session(game, FD2_FIELD_FAILURE_EVENT_UNSUPPORTED, &notice);
         return -1;
     }
+    snapshot_event_presentation(game, &notice);
     if (execute_known_turn_event(game, notice.action) != 0) {
         append_event_notice(game, &notice);
         fail_session(game, FD2_FIELD_FAILURE_EVENT_EXECUTION, &notice);
@@ -858,56 +869,107 @@ static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index)
 
 /* field_phase_status_tick @0x1a866（原登记同名）：提示只借同一B4续态，
  * 每raw/byte的写入、聚焦与重算保持原序；没有新的状态UI RNG。 */
-static int advance_status_progress(fd2_field_game *game) {
-    fd2_field_progress *progress = &game->progress;
-    while (progress->status_pass == 0u) {
-        while (progress->status_cursor < game->units.count) {
-            size_t i = progress->status_cursor++;
-            fd2_field_unit *unit = &game->units.items[i];
-            if (unit->side != progress->status_side || fd2_field_unit_is_hidden(unit) ||
-                !unit->detail_status[0]) continue;
-            uint16_t damage = (uint16_t)(unit->hp_max / 10u);
-            game->message_number = damage;
-            unit->hp = unit->hp > damage ? (uint16_t)(unit->hp - damage) : 0u;
-            if (focus_to(game, unit->x, unit->y) != 0) { fail_action(game, i); return -1; }
-            progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_STATUS, i, 487, damage, 0, 10};
+static int run_status_flow(fd2_field_game *game, fd2_field_progress *progress,
+        fd2_field_units *units, int preflight) {
+    const fd2_static_flow *flow = fd2_static_flow_lookup("progress", "phase.status");
+    const uint8_t side = progress->status_side;
+    int pc = progress->flow_step;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
+        if (!n || !(n->views & FD2_FLOW_LOGIC)) return -1;
+        progress->flow_step = (uint8_t)pc;
+        fd2_field_unit *unit = progress->status_cursor < units->count
+            ? &units->items[progress->status_cursor] : NULL;
+        uint8_t *timer = unit && progress->status_byte && progress->status_byte <= 6u
+            ? &unit->attack_status + progress->status_byte - 1u : NULL;
+        unsigned port = FD2_FLOW_NEXT;
+        const char *op = n->op;
+        if (!strcmp(op, "status_poison_reset")) {
+            progress->status_pass = 0; progress->status_cursor = progress->status_byte = 0;
+        } else if (!strcmp(op, "status_actor_available"))
+            port = unit ? FD2_FLOW_YES : FD2_FLOW_NO;
+        else if (!strcmp(op, "status_actor_matches")) {
+            if (!unit) return -1;
+            port = unit->side == side && !fd2_field_unit_is_hidden(unit) ? FD2_FLOW_YES : FD2_FLOW_NO;
+        } else if (!strcmp(op, "status_poison_active")) {
+            if (!unit) return -1;
+            port = unit->detail_status[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
+        } else if (!strcmp(op, "status_poison_damage")) {
+            if (!unit || n->args[0] <= 0) return -1;
+            uint16_t damage = (uint16_t)(unit->hp_max / (uint32_t)n->args[0]);
+            if (!preflight) game->message_number = damage;
+            unit->hp = unit->hp > damage ? (uint16_t)(unit->hp - damage) : 0;
+            progress->notice.value = damage;
+        } else if (!strcmp(op, "status_focus")) {
+            if (!unit) return -1;
+            progress->notice.actor_index = progress->status_cursor;
+            if (!preflight && focus_to(game, unit->x, unit->y) != 0) {
+                fail_action(game, progress->status_cursor); return -1;
+            }
+        } else if (!strcmp(op, "status_actor_next")) {
+            progress->status_cursor++; progress->status_byte = 0;
+        } else if (!strcmp(op, "status_finalize")) {
+            if (!preflight) finalize_zero_hp_units(game);
+            else for (size_t i = 0; i < units->count; i++) if (!units->items[i].hp) units->items[i].flags = 1;
+        } else if (!strcmp(op, "status_result")) {
+            if (!preflight) game->battle_result = fd2_field_game_battle_result(game);
+        } else if (!strcmp(op, "status_timer_reset")) {
+            progress->status_pass = 1; progress->status_cursor = progress->status_byte = 0;
+        } else if (!strcmp(op, "status_byte_available"))
+            port = progress->status_byte < n->args[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
+        else if (!strcmp(op, "status_byte_select")) {
+            if (progress->status_byte >= 6u) return -1;
+            progress->status_byte++;
+        } else if (!strcmp(op, "status_timer_nonzero")) {
+            if (!timer) return -1;
+            port = *timer ? FD2_FLOW_YES : FD2_FLOW_NO;
+        } else if (!strcmp(op, "status_timer_decrement")) {
+            if (!timer || !*timer) return -1;
+            --*timer;
+        } else if (!strcmp(op, "status_timer_expired")) {
+            if (!timer) return -1;
+            port = *timer == 0 ? FD2_FLOW_YES : FD2_FLOW_NO;
+        } else if (!strcmp(op, "status_recompute")) {
+            if (!unit || (!preflight && fd2_field_unit_combat_stats_recompute(unit,
+                    known_item_stat_lookup, NULL, known_status_stat_scale, NULL) != 0)) return -1;
+        } else if (!strcmp(op, "status_notice")) {
+            if (!unit || (n->args[1] && !timer)) return -1;
+            uint32_t value = n->args[1] ? 0 : progress->notice.value;
+            uint16_t fragment = (uint16_t)(n->args[0] + (n->args[1] ? progress->status_byte - 1u : 0u));
+            progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_STATUS,
+                progress->status_cursor, fragment, value, 0, (uint8_t)n->args[2]};
             return 0;
-        }
-        finalize_zero_hp_units(game);
-        game->battle_result = fd2_field_game_battle_result(game);
-        progress->status_pass = 1;
-        progress->status_cursor = progress->status_byte = 0;
+        } else if (!strcmp(op, "status_side_is")) port = side == n->args[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
+        else if (!strcmp(op, "status_tracks_differ")) {
+            const fd2_field_stage_music *music = fd2_field_stage_music_get(game->stage);
+            port = music && music->primary != music->alternate ? FD2_FLOW_YES : FD2_FLOW_NO;
+        } else if (!strcmp(op, "status_enemy_music")) {
+            const fd2_field_stage_music *music = fd2_field_stage_music_get(game->stage);
+            if (!music) return -1;
+            if (!preflight) request_music(game, music->alternate, FD2_FIELD_MUSIC_ENEMY);
+        } else if (!strcmp(op, "status_clear")) memset(progress, 0, sizeof(*progress));
+        else if (!strcmp(op, "status_have_actor")) port = units->count ? FD2_FLOW_YES : FD2_FLOW_NO;
+        else if (!strcmp(op, "status_focus_leader")) {
+            if (!units->count) return -1;
+            if (!preflight) {
+                game->focus_cycle_unit = 0;
+                if (focus_to(game, units->items[0].x, units->items[0].y) != 0) {
+                    fail_action(game, 0); return -1;
+                }
+            }
+        } else if (!strcmp(op, "status_finish")) { memset(progress, 0, sizeof(*progress)); return 1; }
+        else return -1;
+        pc = fd2_static_flow_edge(flow, n, port);
+        if (pc < 0) return -1;
     }
-    while (progress->status_cursor < game->units.count) {
-        size_t i = progress->status_cursor;
-        fd2_field_unit *unit = &game->units.items[i];
-        if (unit->side != progress->status_side || fd2_field_unit_is_hidden(unit)) {
-            progress->status_cursor++; progress->status_byte = 0; continue;
-        }
-        while (progress->status_byte < 6u) {
-            uint8_t index = progress->status_byte++;
-            uint8_t *status = &unit->attack_status;
-            if (!status[index] || --status[index] != 0u) continue;
-            if (focus_to(game, unit->x, unit->y) != 0) { fail_action(game, i); return -1; }
-            progress->notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_STATUS, i,
-                (uint16_t)(481u + index), 0, 0, 10};
-            return 0; /* close/ack后1b750，才继续下个byte。 */
-        }
-        progress->status_cursor++; progress->status_byte = 0;
-    }
-    uint8_t side = progress->status_side;
-    if (side == 0u) {
-        const fd2_field_stage_music *music = fd2_field_stage_music_get(game->stage);
-        if (music && music->primary != music->alternate)
-            request_music(game, music->alternate, FD2_FIELD_MUSIC_ENEMY);
-    }
-    memset(progress, 0, sizeof(*progress));
-    if (side == 2u && game->units.count) {
-        game->focus_cycle_unit = 0;
-        const fd2_field_unit *leader = &game->units.items[0];
-        if (focus_to(game, leader->x, leader->y) != 0) { fail_action(game, 0); return -1; }
-    }
-    return 0;
+    return -1;
+}
+
+static int advance_status_progress(fd2_field_game *game) {
+    int result = run_status_flow(game, &game->progress, &game->units, 0);
+    if (result < 0 && game->failure == FD2_FIELD_FAILURE_NONE)
+        fail_action(game, game->progress.notice.actor_index);
+    return result < 0 ? -1 : 0;
 }
 
 int fd2_field_game_progress_resume(fd2_field_game *game) {
@@ -924,24 +986,24 @@ int fd2_field_game_progress_resume(fd2_field_game *game) {
 static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
     if (!game || game->failure != FD2_FIELD_FAILURE_NONE) return;
     if (progress_pending(game)) { fail_action(game, 0); return; }
-    /* 完整可预测资源在第一笔HP/计时写入前检查；未知数据仍按原写点报首错。 */
-    for (size_t i = 0; i < game->units.count; i++) {
-        const fd2_field_unit *unit = &game->units.items[i];
-        if (unit->side != side || fd2_field_unit_is_hidden(unit)) continue;
-        uint16_t damage = unit->detail_status[0] ? (uint16_t)(unit->hp_max / 10u) : 0;
-        fd2_field_progress_notice notice = {FD2_FIELD_PROGRESS_STATUS, i, 487, damage, 0, 10};
-        if (unit->detail_status[0] && !progress_resource_ready(game, &notice)) { fail_action(game, i); return; }
-        if (unit->hp <= damage) continue; /* 毒扫描尾统一finalize后不再递减死者。 */
-        const uint8_t *status = &unit->attack_status;
-        for (size_t index = 0; index < 6u; index++) {
-            if (status[index] != 1u) continue;
-            notice.fragment = (uint16_t)(481u + index); notice.value = 0;
-            if (!progress_resource_ready(game, &notice)) { fail_action(game, i); return; }
-        }
+    const fd2_static_flow *flow = fd2_static_flow_lookup("progress", "phase.status");
+    if (!flow) { fail_action(game, 0); return; }
+    /* 同图只模拟可预测写入以枚举资源；focus及派生错误保留其原实际写点。 */
+    fd2_field_units units = game->units;
+    fd2_field_progress preview = {0}; preview.status_side = side; preview.flow_step = flow->entry;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        int result = run_status_flow(game, &preview, &units, 1);
+        if (result == 1) break;
+        if (result < 0 || !progress_resource_ready(game, &preview.notice)) { fail_action(game, preview.notice.actor_index); return; }
+        const fd2_static_flow_node *node = fd2_static_flow_at(flow, preview.flow_step);
+        int next = fd2_static_flow_edge(flow, node, FD2_FLOW_ACK);
+        if (next < 0 || budget + 1u == FD2_FLOW_STEP_BUDGET) { fail_action(game, preview.notice.actor_index); return; }
+        preview.flow_step = (uint8_t)next;
     }
     memset(&game->progress, 0, sizeof(game->progress));
     game->progress.resume = FD2_FIELD_PROGRESS_RESUME_PHASE;
     game->progress.status_side = side;
+    game->progress.flow_step = flow->entry;
     (void)fd2_field_game_progress_resume(game);
 }
 
@@ -1061,7 +1123,7 @@ int fd2_field_game_open_resources(fd2_field_game *game,
     game->detail_acknowledged_unit = -1;
 
     /* 仅stage0..2有独立已恢复入口；资源准备不开放未知后续handler。 */
-    if (stage > 2) return -1;
+    if (!fd2_field_stage_is_supported(stage)) return -1;
 
     if (fd2_archive_open(&game->field_archive,
                          "original_game/FDFIELD.DAT") != 0 ||
@@ -1197,43 +1259,131 @@ fail:
     return -1;
 }
 
-int fd2_field_game_prepare_stage1(fd2_field_game *game,
-        const fd2_archive *fdother, const fd2_save_manual_state *state) {
-    if (prepare_deployment(game, fdother, state, 1, 5) != 0) return -1;
-    game->camera_cell_x = 13; game->camera_cell_y = 11;
-    if (apply_event_script(game, 9) != 0 || apply_event_script(game, 10) != 0 ||
-        append_stage_group(game, 1, 0) != 0 || game->units.count != 11u ||
-        apply_event_script(game, 11) != 0) goto fail;
-    for (size_t i = 0; i < game->units.count; i++) game->units.items[i].direction = 0;
-    game->camera_cell_x = 6; game->camera_cell_y = 12;
-    if (append_stage_group(game, 2, 1) != 0 || game->units.count != 21u ||
-        apply_event_script(game, 12) != 0) goto fail;
-    for (size_t i = 0; i < game->units.count; i++) game->units.items[i].direction = 0;
-    if (focus_to(game, game->units.items[0].x, game->units.items[0].y) != 0) goto fail;
-    game->ordinary_display_mode = 1;
+/* persistent_roster_sync_from_battle @0x11506：固定记录投影算法，不决定剧情分支。 */
+static int settlement_roster_sync(const fd2_field_units *units, fd2_save_manual_state *state) {
+    for (size_t i = 0; i < units->count; i++) {
+        const fd2_field_unit *active = &units->items[i];
+        for (size_t j = 0; j < state->unit_count; j++) {
+            fd2_field_unit persistent;
+            memcpy(&persistent, state->unit_area + j * sizeof(persistent), sizeof(persistent));
+            if (active->text_id != persistent.text_id ||
+                (!persistent.text_id && fd2_field_unit_is_hidden(active))) continue;
+            persistent = *active;
+            memset((uint8_t *)&persistent + 0x22, 0, 6);
+            persistent.flags &= 1u;
+            if (persistent.flags != 1u) persistent.hp = persistent.hp_max;
+            persistent.mp = persistent.mp_max;
+            if (fd2_field_unit_persistent_stats_recompute(&persistent) != 0) return -1;
+            memcpy(state->unit_area + j * sizeof(persistent), &persistent, sizeof(persistent));
+        }
+    }
     return 0;
-fail:
+}
+
+typedef struct {
+    const fd2_field_game *resources;
+    fd2_field_game *entry_game;
+    fd2_field_units *units;
+    const fd2_archive *fdother;
+    const fd2_save_manual_state *deployment;
+    fd2_save_manual_state *prepared;
+} stage_flow_context;
+
+/* entry/victory/settlement共用冷节点；Scene只消费相同来源的present视图。 */
+static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *context) {
+    if (!flow || !context || !context->resources || !context->units) return -1;
+    int pc = flow->entry;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
+        if (!n) return -1;
+        unsigned port = FD2_FLOW_NEXT;
+        if (n->views & FD2_FLOW_LOGIC) {
+            fd2_field_units *units = context->units;
+            fd2_field_game *entry = context->entry_game;
+            fd2_save_manual_state *state = context->prepared;
+            const char *op = n->op;
+            if (!strcmp(op, "preflight_before_music") || !strcmp(op, "victory_music")) {
+                /* App owner消费线性前缀；这里仅投影单位，不能切曲。 */
+            } else if (!strcmp(op, "stage_setup")) {
+                if (!entry || !context->deployment || prepare_deployment(entry, context->fdother,
+                        context->deployment, (size_t)n->args[0], (size_t)n->args[1]) != 0 ||
+                        entry->metadata.unknown_01 != n->args[3]) return -1;
+            } else if (!strcmp(op, "pan")) {
+                if (!entry) return -1;
+                entry->camera_cell_x = n->args[0]; entry->camera_cell_y = n->args[1];
+            } else if (!strcmp(op, "move")) {
+                const uint8_t *script; size_t size;
+                if (fd2_field_movement_script_get((uint8_t)n->args[0], &script, &size) != 0 ||
+                    fd2_field_movement_script_apply(units, script, size) != 0) return -1;
+            } else if (!strcmp(op, "append_group")) {
+                if (append_group_units(context->resources, units, (uint8_t)n->args[0], n->args[1]) != 0) return -1;
+            } else if (!strcmp(op, "reset_directions")) {
+                for (size_t i = 0; i < units->count; i++) units->items[i].direction = 0;
+            } else if (!strcmp(op, "focus_actor")) {
+                size_t at = (size_t)n->args[0];
+                if (!entry || at >= units->count || focus_to(entry, units->items[at].x, units->items[at].y) != 0) return -1;
+            } else if (!strcmp(op, "assert_unit_count")) {
+                if (units->count != (size_t)n->args[0]) return -1;
+            } else if (!strcmp(op, "display_mode")) {
+                if (!entry) return -1;
+                entry->ordinary_display_mode = (uint8_t)n->args[0];
+            } else if (!strcmp(op, "assert_roster_capacity")) {
+                if (context->resources->roster_count + (size_t)n->args[0] > FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+            } else if (!strcmp(op, "branch_any_hidden")) {
+                int hidden = 0;
+                if (n->args[0] > n->args[1] || (size_t)n->args[1] >= units->count) return -1;
+                for (int32_t i = n->args[0]; i <= n->args[1]; i++)
+                    if (fd2_field_unit_is_hidden(&units->items[i])) hidden = 1;
+                port = hidden ? FD2_FLOW_YES : FD2_FLOW_NO;
+            } else if (!strcmp(op, "grant_party_item")) {
+                for (size_t i = 0; i < units->count; i++)
+                    if (units->items[i].side == 2u && inventory_first_empty_add(&units->items[i], (uint8_t)n->args[0]) == 1) break;
+            } else if (!strcmp(op, "next_stage")) {
+                if (!state) return -1;
+                state->stage_id = (uint8_t)n->args[0];
+            } else if (!strcmp(op, "roster_append")) {
+                if (!state || state->unit_count >= FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+                fd2_field_unit added;
+                uint8_t *target = state->unit_area + state->unit_count * sizeof(added);
+                memcpy(&added, target, sizeof(added));
+                if (fd2_field_unit_persistent_create(&added, (uint8_t)n->args[0]) != 0) return -1;
+                memcpy(target, &added, sizeof(added)); state->unit_count++;
+            } else if (!strcmp(op, "roster_sync")) {
+                if (!state || settlement_roster_sync(units, state) != 0) return -1;
+            } else if (!strcmp(op, "end")) return 0;
+            else return -1;
+        }
+        pc = fd2_static_flow_edge(flow, n, port);
+        if (pc < 0) return -1;
+    }
+    return -1;
+}
+
+static int prepare_stage_flow(fd2_field_game *game, const fd2_archive *fdother,
+        const fd2_save_manual_state *state, const fd2_static_flow *flow) {
+    if (!game) return -1;
+    memset(game, 0, sizeof(*game));
+    stage_flow_context context = {game, game, &game->units, fdother, state, NULL};
+    if (run_stage_logic(flow, &context) == 0) return 0;
     fd2_field_game_close(game);
     return -1;
 }
 
-/* field_stage2_entry_play @0x32e8c（原sub_32E8C）：script18先于group1；
- * 最后script19后统一归零方向，不能借stage1模板或凭stage++构造站位。 */
+int fd2_field_game_prepare_stage(fd2_field_game *game,
+        const fd2_archive *fdother, const fd2_save_manual_state *state) {
+    return prepare_stage_flow(game, fdother, state,
+        state ? stage_flow_get("entry", state->stage_id) : NULL);
+}
+
+int fd2_field_game_prepare_stage1(fd2_field_game *game,
+        const fd2_archive *fdother, const fd2_save_manual_state *state) {
+    return prepare_stage_flow(game, fdother, state, stage_flow_get("entry", 1));
+}
+
+/* field_stage2_entry_play @0x32e8c（原sub_32E8C）：script18先于group1的顺序由图保留。 */
 int fd2_field_game_prepare_stage2(fd2_field_game *game,
         const fd2_archive *fdother, const fd2_save_manual_state *state) {
-    if (prepare_deployment(game, fdother, state, 2, 6) != 0) return -1;
-    game->camera_cell_x = 3; game->camera_cell_y = 17;
-    if (apply_event_script(game, 18) != 0 || append_stage_group(game, 1, 0) != 0 ||
-        game->units.count != 15u) goto fail;
-    game->camera_cell_x = 3; game->camera_cell_y = 6;
-    if (apply_event_script(game, 17) != 0 || apply_event_script(game, 19) != 0) goto fail;
-    for (size_t i = 0; i < game->units.count; i++) game->units.items[i].direction = 0;
-    if (focus_to(game, game->units.items[0].x, game->units.items[0].y) != 0) goto fail;
-    game->ordinary_display_mode = 1;
-    return 0;
-fail:
-    fd2_field_game_close(game);
-    return -1;
+    return prepare_stage_flow(game, fdother, state, stage_flow_get("entry", 2));
 }
 
 /* field_stage1_victory_play @0x22f37（原sub_22F37）：只读投影原版提交顺序；
@@ -1241,33 +1391,13 @@ fail:
  * 不排除hidden或acted角色，满员背包无提示且不重算装备派生值。 */
 int fd2_field_game_settlement_project_units(const fd2_field_game *game,
         fd2_field_units *out) {
-    if (!game || !out || !game->ready || game->stage > 1u ||
+    if (!game || !out || !game->ready || !fd2_field_stage_battle_is_supported(game->stage) ||
         game->failure != FD2_FIELD_FAILURE_NONE || progress_pending(game) ||
         game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
         fd2_field_game_battle_result(game) != FD2_FIELD_BATTLE_VICTORY) return -1;
     fd2_field_units shadow = game->units;
-    if (game->stage == 1u) {
-        /* script14引用group4新增raw27；自然turn3增援前的21人不能跳过必经事件。 */
-        if (shadow.count != 27u ||
-            game->roster_count >= FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
-        int all_alive = 1;
-        for (size_t i = 5; i <= 10; i++)
-            if (fd2_field_unit_is_hidden(&shadow.items[i])) all_alive = 0;
-        if (all_alive) {
-            for (size_t i = 0; i < shadow.count; i++) {
-                if (shadow.items[i].side == 2u &&
-                    inventory_first_empty_add(&shadow.items[i], 198) == 1) break;
-            }
-        }
-        if (append_group_units(game, &shadow, 4, 0) != 0 || shadow.count != 28u)
-            return -1;
-        for (uint8_t id = 14; id <= 16; id++) {
-            const uint8_t *script;
-            size_t size;
-            if (fd2_field_movement_script_get(id, &script, &size) != 0 ||
-                fd2_field_movement_script_apply(&shadow, script, size) != 0) return -1;
-        }
-    }
+    stage_flow_context context = {game, NULL, &shadow, NULL, NULL, NULL};
+    if (run_stage_logic(stage_flow_get("victory", game->stage), &context) != 0) return -1;
     *out = shadow;
     return 0;
 }
@@ -1278,35 +1408,13 @@ int fd2_field_game_settlement_prepare(const fd2_field_game *game,
     fd2_field_units units;
     if (!out || fd2_field_game_settlement_project_units(game, &units) != 0) return -1;
     fd2_save_manual_state shadow = {0};
-    shadow.stage_id = (uint8_t)(game->stage + 1u);
     shadow.unit_count = (uint8_t)game->roster_count;
     shadow.gold_or_flags = game->resource_value;
     shadow.options[0] = game->option_values[3]; shadow.options[1] = game->option_values[2];
     shadow.options[2] = game->option_values[0]; shadow.options[3] = game->option_values[1];
     memcpy(shadow.unit_area, game->roster, sizeof(game->roster));
-    if (game->stage == 1u) {
-        fd2_field_unit added;
-        memcpy(&added, shadow.unit_area + game->roster_count * sizeof(added), sizeof(added));
-        if (fd2_field_unit_persistent_create(&added, 8) != 0) return -1;
-        memcpy(shadow.unit_area + game->roster_count * sizeof(added), &added, sizeof(added));
-        shadow.unit_count++;
-    }
-    for (size_t i = 0; i < units.count; i++) {
-        const fd2_field_unit *active = &units.items[i];
-        for (size_t j = 0; j < shadow.unit_count; j++) {
-            fd2_field_unit persistent;
-            memcpy(&persistent, shadow.unit_area + j * sizeof(persistent), sizeof(persistent));
-            if (active->text_id != persistent.text_id ||
-                (!persistent.text_id && fd2_field_unit_is_hidden(active))) continue;
-            persistent = *active;
-            memset((uint8_t *)&persistent + 0x22, 0, 6);
-            persistent.flags &= 1u;
-            if (persistent.flags != 1u) persistent.hp = persistent.hp_max;
-            persistent.mp = persistent.mp_max;
-            if (fd2_field_unit_persistent_stats_recompute(&persistent) != 0) return -1;
-            memcpy(shadow.unit_area + j * sizeof(persistent), &persistent, sizeof(persistent));
-        }
-    }
+    stage_flow_context context = {game, NULL, &units, NULL, NULL, &shadow};
+    if (run_stage_logic(stage_flow_get("settlement", game->stage), &context) != 0) return -1;
     *out = shadow;
     return 0;
 }
@@ -2147,7 +2255,7 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
 
 int fd2_field_game_begin_player_controller(fd2_field_game *game, size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->stage > 1u ||
+        !fd2_field_stage_battle_is_supported(game->stage) ||
         progress_pending(game) ||
         game->active_side != 2 || game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
         actor_index >= game->units.count ||
@@ -2606,7 +2714,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game) {
 static int item_actor_is_valid(const fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
         progress_pending(game) ||
-        game->stage > 1 || game->player_post_waiting_phase || game->active_side != 2 ||
+        !fd2_field_stage_battle_is_supported(game->stage) || game->player_post_waiting_phase || game->active_side != 2 ||
         game->units.count > FD2_FIELD_MAX_UNITS || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count)
         return 0;
@@ -3219,7 +3327,7 @@ int fd2_field_game_cancel_item_give(fd2_field_game *game) {
     return finish_item_give_cancel(game, 1);
 }
 static int player_basic_magic_list_is_supported(const fd2_field_game *game) {
-    if (!magic_list_actor_is_valid(game) || game->stage > 1) return 0;
+    if (!magic_list_actor_is_valid(game) || !fd2_field_stage_battle_is_supported(game->stage)) return 0;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
     uint8_t ids[40];
     size_t count = fd2_field_unit_magic_list_build(actor, ids, sizeof(ids));
@@ -3253,8 +3361,7 @@ static int player_effect_tail_is_supported(const fd2_field_game *game,
     if (found < 0) return 0;
     int have_pending = found || game->pending_cell_event.valid;
     uint8_t pending = found ? action : game->pending_cell_event.action;
-    if (have_pending && !((game->stage == 0u && pending == 4u && game->units.count > 13u) ||
-                          (game->stage == 1u && pending == 6u && game->units.count >= 11u))) return 0;
+    if (have_pending && !cell_event_flow_supported(game, pending, 1)) return 0;
     if (have_pending && game->event_log_count >= FD2_FIELD_EVENT_LOG_CAPACITY) return 0;
     for (size_t i = 0; i < game->units.count; i++) {
         const fd2_field_unit *unit = &game->units.items[i];
@@ -3278,8 +3385,7 @@ static int player_effect_tail_is_supported(const fd2_field_game *game,
         count > FD2_FIELD_EVENT_LOG_CAPACITY - game->event_log_count)
         return 0;
     for (size_t i = 0; i < count; i++)
-        if (!((game->stage == 0u && matches[i].action <= 4u) ||
-              (game->stage == 1u && matches[i].action == 6u))) return 0;
+        if (!known_event_flow(game, matches[i].action)) return 0;
     return 1;
 }
 
@@ -4667,7 +4773,7 @@ int fd2_field_game_resume_player_controller(fd2_field_game *game) {
 int fd2_field_game_complete_player_controller(fd2_field_game *game,
                                                size_t actor_index) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->stage > 1u ||
+        !fd2_field_stage_battle_is_supported(game->stage) ||
         progress_pending(game) ||
         actor_index >= game->units.count ||
         game->player_post_waiting_phase || game->active_side != 2 ||
@@ -4704,129 +4810,17 @@ static int complete_player_controller_tail(fd2_field_game *game, size_t actor_in
 
 /* field_special_cell_execute @0x190ac（原sub_190AC）：先验证全部可能提示和全图12263写集，
  * 首次WAIT恢复/RNG之后才进入CHOICE；No也正常完成WAIT。 */
-static int preflight_player_wait_cell(fd2_field_game *game, size_t actor_index) {
-    const fd2_field_unit *unit = &game->units.items[actor_index];
-    uint32_t cell = fd2_field_map_cell(&game->map, unit->x, unit->y);
-    const fd2_terrain_attr *attr = fd2_terrain_attr_get(&game->terrain, fd2_field_cell_terrain(cell));
-    if (!game->map.cells || unit->x >= game->map.width || unit->y >= game->map.height || !attr) {
-        /* 新WAIT预检仍沿lookup1报告坏地图的EVENT_DATA来源；不消费恢复/RNG。 */
-        (void)collect_pending_cell_event(game, actor_index, 1);
-        return -1;
-    }
-    uint8_t flags = attr->flags & 0x60u;
-    size_t index = (cell >> 16) & 31u;
-    if (!flags || game->cell_action_completed[index]) return 0;
-    if (game->stage > 1u || index >= FD2_FIELD_EVENT_SLOTS) { fail_action(game, actor_index); return -1; }
-    const fd2_field_cell_action *action = &game->metadata.cell_actions[index];
-    if (action->mode > 1u || (action->mode == 0u &&
-        (action->param > UINT8_MAX || !fd2_field_item_record_get((uint8_t)action->param) ||
-         !inventory_visible_is_known(unit)))) { fail_action(game, actor_index); return -1; }
-    for (int y=0;y<game->map.height;y++) for(int x=0;x<game->map.width;x++) {
-        uint32_t c=fd2_field_map_cell(&game->map,x,y);
-        uint16_t id=fd2_field_cell_terrain(c);
-        if(id>=game->terrain.attr_count) { fail_action(game,actor_index);return -1; }
-        if((game->terrain.attrs[id].flags&0x60u)==0x20u &&
-           (game->cell_action_completed[(c>>16)&31u] || ((c>>16)&31u)==index)) {
-            uint32_t changed=(c&UINT32_C(0xff000000))|(uint16_t)((uint16_t)c+1u);
-            size_t frame;
-            if(fd2_terrain_base_frame_from_cell(&game->terrain,changed,&frame)!=0) {
-                fail_action(game,actor_index);return -1;
-            }
-        }
-    }
-    fd2_field_loot_notice n={0};n.actor_index=actor_index;n.value=action->param;
-    n.item_id=(uint8_t)action->param;n.open_box=1;n.kind=FD2_FIELD_LOOT_CHOICE;
-    n.fragment=(flags&0x20u)?421:428;
-    if(!loot_resource_ready(game,&n))return -1;
-    n.kind=FD2_FIELD_LOOT_MESSAGE;n.fragment=412;n.open_box=0;n.append_line=n.close_box=1;n.wait_ms=200;
-    if(!loot_resource_ready(game,&n))return -1;
-    n.wait_ms=0;n.wait_key=1;
-    if(action->mode==0u) {
-        n.fragment=(flags&0x20u)?422:429;
-        if(!loot_resource_ready(game,&n))return -1;
-        n.kind=FD2_FIELD_LOOT_CHOICE;n.fragment=423;n.open_box=1;n.append_line=0;n.close_box=0;n.wait_key=0;
-        if(!loot_resource_ready(game,&n))return -1;
-        n.kind=FD2_FIELD_LOOT_MESSAGE;n.fragment=424;n.open_box=0;n.append_line=n.close_box=1;n.wait_ms=200;
-        if(!loot_resource_ready(game,&n))return -1;
-        n.fragment=425;n.open_box=n.wait_key=1;n.append_line=0;n.wait_ms=0;
-        /* 425同时读旧/新名字；所有可选raw在首次VGA/RNG前逐一验证。 */
-        const uint8_t *raw=(const uint8_t*)unit;
-        for(size_t slot=0;slot<8;slot++) if(!(raw[0x0a+slot*2]&0x80u)) {
-            n.old_item_id=raw[0x0b+slot*2];
-            if(!loot_resource_ready(game,&n))return -1;
-        }
-        n.kind=FD2_FIELD_LOOT_INVENTORY;n.fragment=0;
-        if(!loot_resource_ready(game,&n))return -1;
-    } else {
-        n.fragment=(uint16_t)(((flags&0x20u)?426u:430u)+(action->param?0u:1u));
-        n.value=action->param?action->param:game->message_number;
-        if(!loot_resource_ready(game,&n))return -1;
-    }
-    return 0;
-}
+static int loot_flow_preflight_cell(fd2_field_game *game, size_t actor_index);
 
+static int loot_flow_finish_unit_action(fd2_field_game *game, player_action_kind kind,
+        uint64_t raw_reward);
 static int finish_unit_action_internal(fd2_field_game *game,
-                                       player_action_kind kind,
-                                       uint64_t magic_raw_reward) {
+        player_action_kind kind, uint64_t magic_raw_reward) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        progress_pending(game) ||
-        game->player_post_waiting_phase || game->selected_unit < 0 ||
+        progress_pending(game) || game->player_post_waiting_phase || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
-        game->interaction != FD2_FIELD_INTERACTION_COMMAND)
-        return -1;
-
-    size_t unit_index = (size_t)game->selected_unit;
-    fd2_field_unit *unit = &game->units.items[unit_index];
-    int side_is_actionable = unit_can_act_for_side(unit, game->active_side) ||
-        ((kind == PLAYER_ACTION_PHYSICAL || kind == PLAYER_ACTION_ITEM) &&
-         unit->side == game->active_side && unit->hp == 0);
-    if (!side_is_actionable || fd2_field_unit_has_acted(unit)) return -1;
-    /* 只有WAIT执行原地恢复；其他command各保留自己的方向/奖励边界。 */
-    if (kind == PLAYER_ACTION_WAIT) {
-        if (preflight_player_wait_cell(game, unit_index) != 0) return -1;
-        /* sub_13FD4 @0x13fd4：只有原地WAIT恢复，非零路径即使绕回也不恢复。 */
-        if (game->move_path_length == 0u &&
-            recover_stationary_unit(game, unit_index) < 0)
-            return -1;
-        int cell = begin_wait_cell(game, unit_index);
-        if (cell != 0) return cell < 0 ? -1 : 0;
-    }
-    if (kind == PLAYER_ACTION_PHYSICAL)
-        for (size_t i = 0; i < game->units.count; i++)
-            game->units.items[i].direction = 0;
-    /* 普通成功command先acted，18890才最终lookup1，再交回controller。 */
-    fd2_field_unit_set_acted(unit, 1);
-    uint32_t gain = 0;
-    if (kind == PLAYER_ACTION_MAGIC &&
-        fd2_field_magic_reward_normalize(unit, magic_raw_reward, &gain) != 0) {
-        fail_action(game, unit_index);
-        return -1;
-    }
-    if (kind == PLAYER_ACTION_MAGIC) game->experience_value = gain;
-    if (kind == PLAYER_ACTION_ITEM) game->experience_value = 0;
-    if (collect_pending_cell_event(game, unit_index, 1) < 0) return -1;
-    /* 18d8c先归一，18890 lookup1后controller117e7才调用1e292写EX。
-     * 成长路径已整体预检；提示/portrait/11tick由progress逐条ack。 */
-    if (kind == PLAYER_ACTION_MAGIC) {
-        game->magic_list_selected = 0;
-    }
-    if (kind == PLAYER_ACTION_ITEM) {
-        game->item_list_selected = 0;
-        game->item_give_recipient = game->item_give_selected = 0;
-    }
-    if (kind == PLAYER_ACTION_PHYSICAL || kind == PLAYER_ACTION_MAGIC ||
-        kind == PLAYER_ACTION_ITEM) {
-        game->magic_target_id = 0;
-        memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
-        game->magic_target_count = 0;
-        game->magic_target_cycle = 0;
-    }
-    clear_move_query(game);
-    game->selected_unit = -1;
-    game->command_selected = -1;
-    game->interaction = FD2_FIELD_INTERACTION_BROWSE;
-    game->ordinary_display_mode = 1; /* 18890/1d4b1成功command交回普通cursor。 */
-    return fd2_field_game_complete_player_controller(game, unit_index);
+        game->interaction != FD2_FIELD_INTERACTION_COMMAND) return -1;
+    return loot_flow_finish_unit_action(game, kind, magic_raw_reward);
 }
 
 int fd2_field_game_finish_unit_action(fd2_field_game *game) {
@@ -4837,166 +4831,7 @@ int fd2_field_game_finish_unit_action(fd2_field_game *game) {
 /* field_loot_descriptors_execute @0x1aa1d（原sub_1AA1D） / field_special_cell_execute @0x190ac（原sub_190AC）：业务停点保留在原写入边界。
  * 不把UI等键、全屏剧情或背包选择伪装成同步副作用。 */
 enum { LOOT_SOURCE_DEFEAT = 1, LOOT_SOURCE_CELL = 2, LOOT_SOURCE_AI_REMAINDER = 3 };
-enum { LOOT_STEP_NEXT = 1, LOOT_STEP_ITEM_ADDED, LOOT_STEP_ITEM_FULL,
-    LOOT_STEP_FULL_DELAY, LOOT_STEP_FULL_CHOICE, LOOT_STEP_SLOT,
-    LOOT_STEP_DECLINED, LOOT_STEP_MONEY, LOOT_STEP_CALLBACK_DELAY,
-    LOOT_STEP_EVENT, LOOT_STEP_STORY, LOOT_STEP_SLOT_CANCEL_DELAY,
-    LOOT_STEP_CELL_CHOICE = 20, LOOT_STEP_CELL_NO_DELAY, LOOT_STEP_CELL_NO,
-    LOOT_STEP_CELL_YES_DELAY, LOOT_STEP_CELL_ITEM_ADDED, LOOT_STEP_CELL_ITEM_FULL,
-    LOOT_STEP_CELL_FULL_DELAY, LOOT_STEP_CELL_FULL_CHOICE, LOOT_STEP_CELL_SLOT,
-    LOOT_STEP_CELL_SWAP_DELAY, LOOT_STEP_CELL_SWAPPED, LOOT_STEP_CELL_MONEY,
-    LOOT_STEP_CELL_CANCEL_DELAY };
-
-static int loot_resource_ready(fd2_field_game *game, const fd2_field_loot_notice *notice) {
-    if (!game->loot_preflight || !game->loot_preflight(game, notice, game->loot_preflight_userdata)) return 1;
-    fail_action(game, notice->actor_index);
-    return 0;
-}
-
-int fd2_field_game_set_loot_preflight(fd2_field_game *game,
-        fd2_field_loot_preflight_fn preflight, void *userdata) {
-    if (!game || !game->ready || progress_pending(game)) return -1;
-    game->loot_preflight = preflight; game->loot_preflight_userdata = userdata;
-    return 0;
-}
-
-static int inventory_visible_is_known(const fd2_field_unit *unit) {
-    const uint8_t *raw = (const uint8_t *)unit;
-    for (size_t i = 0; i < 8u; i++)
-        if (!(raw[0x0au + i * 2u] & 0x80u) && !fd2_field_item_record_get(raw[0x0bu + i * 2u])) return 0;
-    return 1;
-}
-
-static int loot_descriptor_preflight(fd2_field_game *game, size_t recipient,
-                                     const uint8_t descriptor[3]) {
-    if (!game || !descriptor || recipient >= game->units.count) return -1;
-    uint8_t mode = descriptor[0];
-    if (mode == 0xffu) return 0; /* 无descriptor无需stage-private handler。 */
-    if (game->stage > 1u) return -1;
-    uint16_t value = (uint16_t)(descriptor[1] | (uint16_t)descriptor[2] << 8);
-    /* 1aa1d的mode0/1 side门会结束整个队列；不是非法数据。 */
-    if (mode < 2u && game->units.items[recipient].side != 2u) return 0;
-    fd2_field_loot_notice n = {0}; n.actor_index = recipient; n.value = value;
-    n.open_box = n.close_box = n.wait_key = 1;
-    if (mode == 0u) {
-        if (value > UINT8_MAX || !fd2_field_item_record_get((uint8_t)value) ||
-            !inventory_visible_is_known(&game->units.items[recipient])) return -1;
-        n.kind = FD2_FIELD_LOOT_MESSAGE; n.item_id = (uint8_t)value; n.fragment = 432;
-        if (!loot_resource_ready(game, &n)) return -1;
-        n.kind = FD2_FIELD_LOOT_CHOICE; n.fragment = 433; n.close_box = 0; n.wait_key = 0;
-        if (!loot_resource_ready(game, &n)) return -1;
-        n.kind = FD2_FIELD_LOOT_MESSAGE; n.fragment = 434; n.append_line = 1;
-        n.open_box = 0; n.close_box = 1; n.wait_ms = 200;
-        if (!loot_resource_ready(game, &n)) return -1;
-        n.kind = FD2_FIELD_LOOT_INVENTORY; n.fragment = 0; n.wait_ms = 0;
-        return loot_resource_ready(game, &n) ? 0 : -1;
-    }
-    if (mode == 1u) { n.kind = FD2_FIELD_LOOT_MESSAGE; n.fragment = 435; }
-    else if (mode == 2u) {
-        if (!((game->stage == 0u && value == 4u && game->units.count > 13u) ||
-              (game->stage == 1u && value == 6u && game->units.count >= 11u)) ||
-            game->event_log_count >= FD2_FIELD_EVENT_LOG_CAPACITY) return -1;
-        n.kind = FD2_FIELD_LOOT_FIELD_EVENT; n.fragment = value;
-    } else if (mode == 3u) {
-        n.kind = FD2_FIELD_LOOT_STORY; n.fragment = value;
-    } else return -1;
-    return loot_resource_ready(game, &n) ? 0 : -1;
-}
-
-static void loot_notice(fd2_field_game *game, fd2_field_loot_kind kind,
-        uint16_t fragment, unsigned step, int open, int line, int close, int key, uint16_t delay) {
-    fd2_field_loot *loot = &game->loot;
-    loot->step = (uint8_t)step;
-    loot->text_ready = 0;
-    loot->notice = (fd2_field_loot_notice){0};
-    loot->notice.kind = kind; loot->notice.actor_index = loot->actor_index;
-    loot->notice.fragment = fragment;
-    loot->notice.open_box = (uint8_t)open; loot->notice.append_line = (uint8_t)line;
-    loot->notice.close_box = (uint8_t)close; loot->notice.wait_key = (uint8_t)key; loot->notice.wait_ms = delay;
-    if (loot->cursor < loot->count) {
-        const uint8_t *d = loot->descriptors[loot->cursor];
-        loot->notice.value = (uint16_t)(d[1] | (uint16_t)d[2] << 8);
-        loot->notice.item_id = d[1];
-    }
-}
-
-static int finish_loot(fd2_field_game *game) {
-    fd2_field_loot saved = game->loot;
-    memset(&game->loot, 0, sizeof(game->loot));
-    player_action_kind kind = (player_action_kind)saved.action_kind;
-    if (kind == PLAYER_ACTION_AI_PHYSICAL) {
-        int reward = begin_reward(game, saved.actor_index, saved.resume, saved.action_actor);
-        if (reward < 0) return -1;
-        if (reward) { game->progress.ai_common_tail = saved.ai_common_tail; return 0; }
-    } else if (kind == PLAYER_ACTION_AI_MAGIC) {
-        game->experience_value = 0; /* 15311指令VA1546a在loot后清零。 */
-        if (saved.ai_after_magic) {
-            saved.notice.kind = FD2_FIELD_LOOT_NONE;
-            saved.source = LOOT_SOURCE_AI_REMAINDER;
-            game->loot = saved;
-            return 0; /* 下次带VGA的原scheduler入口继续同一actor物理段。 */
-        }
-    } else if (kind < PLAYER_ACTION_AI_PHYSICAL) {
-        return finish_unit_action_internal(game, kind, saved.raw_reward);
-    }
-    if (saved.resume == FD2_FIELD_PROGRESS_RESUME_AI_DIRECT ||
-        saved.resume == FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER) {
-        if (saved.ai_common_tail && finish_ai_action(game, saved.action_actor) != 0) return -1;
-        if (dispatch_pending_cell_event(game, saved.action_actor) != 0) return -1;
-        game->battle_result = fd2_field_game_battle_result(game);
-        if (game->battle_result != FD2_FIELD_BATTLE_ONGOING &&
-            fd2_field_game_resume_player_controller(game) < 0) return -1;
-    }
-    return 0;
-}
-
-static int advance_loot(fd2_field_game *game) {
-    fd2_field_loot *loot = &game->loot;
-    while (loot->cursor < loot->count) {
-        const uint8_t *d = loot->descriptors[loot->cursor];
-        uint16_t value = (uint16_t)(d[1] | (uint16_t)d[2] << 8);
-        fd2_field_unit *actor = &game->units.items[loot->actor_index];
-        if (d[0] < 2u && actor->side != 2u) break;
-        if (d[0] == 0u) {
-            fd2_field_unit shadow = *actor;
-            int added = inventory_first_empty_add(&shadow, d[1]);
-            loot_notice(game, FD2_FIELD_LOOT_MESSAGE, 432,
-                added == 1 ? LOOT_STEP_ITEM_ADDED : LOOT_STEP_ITEM_FULL, 1,0,1,1,0);
-        } else if (d[0] == 1u) {
-            game->message_number = value;
-            loot_notice(game, FD2_FIELD_LOOT_MESSAGE, 435, LOOT_STEP_MONEY, 1,0,1,1,0);
-        } else if (d[0] == 2u) {
-            loot_notice(game, FD2_FIELD_LOOT_DELAY, 0, LOOT_STEP_CALLBACK_DELAY, 0,0,0,0,200);
-        } else if (d[0] == 3u) {
-            loot_notice(game, FD2_FIELD_LOOT_STORY, value, LOOT_STEP_STORY, 0,0,0,0,0);
-        } else return -1;
-        return 0;
-    }
-    return finish_loot(game);
-}
-
-/* caller先collect后finalize；AI15311只收mode3，其actor实参不参与该分支。 */
-static int begin_defeated_loot(fd2_field_game *game, size_t recipient,
-        size_t action_actor, player_action_kind kind, uint64_t raw_reward, int magic_collector) {
-    if (game->loot.notice.kind != FD2_FIELD_LOOT_NONE || recipient >= game->units.count) return -1;
-    fd2_field_loot loot = {0};
-    loot.actor_index = recipient; loot.action_actor = action_actor;
-    loot.action_kind = (uint8_t)kind; loot.raw_reward = raw_reward; loot.source = LOOT_SOURCE_DEFEAT;
-    for (size_t i = 0; i < game->units.count; i++) {
-        const fd2_field_unit *unit = &game->units.items[i];
-        const uint8_t *raw = (const uint8_t *)unit;
-        if (fd2_field_unit_is_hidden(unit) || unit->hp || raw[0x31] == 0xffu ||
-            (magic_collector && raw[0x31] != 3u)) continue;
-        if (loot_descriptor_preflight(game, recipient, raw + 0x31) != 0) return -1;
-        memcpy(loot.descriptors[loot.count++], raw + 0x31, 3);
-    }
-    finalize_zero_hp_units(game);
-    game->battle_result = fd2_field_game_battle_result(game);
-    if (!loot.count) return 0;
-    game->loot = loot;
-    if (advance_loot(game) != 0) return -1;
-    return 1;
-}
+#include "field_loot_flow.h"
 
 /* SDL提交前的只读资源检查；与12263实际写回共用，不创建第二张地图owner。 */
 static int completed_cell_tiles_preflight(const fd2_field_game *resources,
@@ -5037,169 +4872,6 @@ static int complete_cell_tiles(fd2_field_game *game) {
     return fd2_field_game_apply_completed_cells(game, &game->map, game->cell_action_completed);
 }
 
-static int finish_cell(fd2_field_game *game, int completed) {
-    if (completed) {
-        game->cell_action_completed[game->loot.cell_index] = 1;
-        if (complete_cell_tiles(game) != 0) return -1;
-    }
-    return finish_loot(game);
-}
-
-static int begin_wait_cell(fd2_field_game *game, size_t actor_index) {
-    const fd2_field_unit *actor = &game->units.items[actor_index];
-    uint32_t cell = fd2_field_map_cell(&game->map, actor->x, actor->y);
-    uint8_t flags = game->terrain.attrs[fd2_field_cell_terrain(cell)].flags & 0x60u;
-    uint8_t index = (uint8_t)((cell >> 16) & 31u);
-    if (!flags || game->cell_action_completed[index]) return 0;
-    fd2_field_loot *loot = &game->loot; memset(loot,0,sizeof(*loot));
-    loot->source = LOOT_SOURCE_CELL; loot->actor_index = loot->action_actor = actor_index;
-    loot->action_kind = PLAYER_ACTION_WAIT_COMPLETE;
-    loot->cell_index = index; loot->cell_flags = flags; loot->count = 1;
-    const fd2_field_cell_action *action = &game->metadata.cell_actions[index];
-    loot->descriptors[0][0] = action->mode; loot->descriptors[0][1] = (uint8_t)action->param;
-    loot->descriptors[0][2] = (uint8_t)(action->param >> 8);
-    loot_notice(game, FD2_FIELD_LOOT_CHOICE, (flags & 0x20u) ? 421 : 428,
-        LOOT_STEP_CELL_CHOICE,1,0,0,0,0);
-    return 1;
-}
-
-int fd2_field_game_loot_peek(const fd2_field_game *game, fd2_field_loot_notice *notice) {
-    if (!game || !game->ready || !notice || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
-    if (game->loot.notice.kind == FD2_FIELD_LOOT_NONE) return 0;
-    if (game->loot.notice.kind > FD2_FIELD_LOOT_FIELD_EVENT || game->loot.actor_index >= game->units.count) return -1;
-    *notice = game->loot.notice;
-    return 1;
-}
-
-static int execute_loot_callback(fd2_field_game *game) {
-    const fd2_field_loot *loot = &game->loot;
-    fd2_field_event_notice event = {.kind=FD2_FIELD_EVENT_CELL,
-        .turn_number=game->turn_number,.phase=game->active_side,
-        .action=loot->descriptors[loot->cursor][1],.unit_index=(uint8_t)loot->actor_index,
-        .presentation_unit_count=(uint8_t)game->units.count,
-        .presentation_camera_x=(int16_t)game->camera_cell_x,
-        .presentation_camera_y=(int16_t)game->camera_cell_y,
-        .presentation_focus_x=(int16_t)game->cursor_cell_x,
-        .presentation_focus_y=(int16_t)game->cursor_cell_y,.slot=SIZE_MAX};
-    if (reserve_event_notice(game,&event) != 0 || execute_known_turn_event(game,event.action) != 0) return -1;
-    event.handled = event.presentation_deferred = 1;
-    append_event_notice(game,&event);
-    loot_notice(game,FD2_FIELD_LOOT_FIELD_EVENT,event.action,LOOT_STEP_EVENT,0,0,0,0,0);
-    return 0;
-}
-
-int fd2_field_game_loot_text_ready(fd2_field_game *game) {
-    fd2_field_loot_notice notice;
-    if (fd2_field_game_loot_peek(game, &notice) != 1 ||
-        notice.kind != FD2_FIELD_LOOT_MESSAGE || game->loot.text_ready) return -1;
-    fd2_field_loot *loot = &game->loot;
-    if (loot->step == LOOT_STEP_ITEM_ADDED || loot->step == LOOT_STEP_ITEM_FULL ||
-        loot->step == LOOT_STEP_CELL_ITEM_ADDED || loot->step == LOOT_STEP_CELL_ITEM_FULL) {
-        fd2_field_unit shadow = game->units.items[loot->actor_index];
-        int added = inventory_first_empty_add(&shadow, notice.item_id);
-        int expected = loot->step == LOOT_STEP_ITEM_ADDED || loot->step == LOOT_STEP_CELL_ITEM_ADDED;
-        if ((added == 1) != expected) { fail_action(game, loot->actor_index); return -1; }
-        if (added == 1) {
-            game->units.items[loot->actor_index] = shadow;
-            if (loot->source == LOOT_SOURCE_CELL) game->cell_action_completed[loot->cell_index] = 1;
-        }
-    }
-    loot->text_ready = 1;
-    return 0;
-}
-
-int fd2_field_game_loot_reply(fd2_field_game *game, fd2_field_loot_reply reply, int raw_slot) {
-    fd2_field_loot_notice n;
-    if (fd2_field_game_loot_peek(game,&n) != 1) return -1;
-    fd2_field_loot *loot=&game->loot;
-    if (n.kind == FD2_FIELD_LOOT_MESSAGE && !loot->text_ready) return -1;
-    int choice = n.kind == FD2_FIELD_LOOT_CHOICE;
-    int inventory = n.kind == FD2_FIELD_LOOT_INVENTORY;
-    if ((choice && reply != FD2_FIELD_LOOT_YES && reply != FD2_FIELD_LOOT_NO && reply != FD2_FIELD_LOOT_CANCEL) ||
-        (inventory && reply != FD2_FIELD_LOOT_SLOT && reply != FD2_FIELD_LOOT_CANCEL) ||
-        (!choice && !inventory && reply != FD2_FIELD_LOOT_ACK)) return -1;
-    uint16_t value=(uint16_t)(loot->descriptors[loot->cursor][1] | (uint16_t)loot->descriptors[loot->cursor][2]<<8);
-    fd2_field_unit *actor=&game->units.items[loot->actor_index];
-    int result=0;
-    switch(loot->step) {
-    case LOOT_STEP_ITEM_ADDED: case LOOT_STEP_DECLINED: case LOOT_STEP_STORY: case LOOT_STEP_EVENT:
-        loot->cursor++; result=advance_loot(game); break;
-    case LOOT_STEP_MONEY:
-        game->resource_value += game->message_number;
-        loot->cursor++; result=advance_loot(game); break;
-    case LOOT_STEP_ITEM_FULL:
-        loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_FULL_DELAY,0,0,0,0,100); break;
-    case LOOT_STEP_FULL_DELAY:
-        loot_notice(game,FD2_FIELD_LOOT_CHOICE,433,LOOT_STEP_FULL_CHOICE,1,0,0,0,0); break;
-    case LOOT_STEP_FULL_CHOICE:
-        if(reply==FD2_FIELD_LOOT_YES) loot_notice(game,FD2_FIELD_LOOT_INVENTORY,0,LOOT_STEP_SLOT,0,0,1,0,0);
-        else loot_notice(game,FD2_FIELD_LOOT_MESSAGE,434,LOOT_STEP_DECLINED,0,1,1,0,200);
-        break;
-    case LOOT_STEP_SLOT:
-        if(reply==FD2_FIELD_LOOT_CANCEL) { loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_SLOT_CANCEL_DELAY,0,0,0,0,100); break; }
-        if(raw_slot<0 || raw_slot>=8 || (((uint8_t*)actor)[0x0a+raw_slot*2]&0x80u)) return -1;
-        inventory_slot_remove(actor,(size_t)raw_slot);
-        if(inventory_first_empty_add(actor,(uint8_t)value)!=1) result=-1;
-        else { loot->cursor++; result=advance_loot(game); } break;
-    case LOOT_STEP_SLOT_CANCEL_DELAY:
-        loot_notice(game,FD2_FIELD_LOOT_MESSAGE,434,LOOT_STEP_DECLINED,1,0,1,0,200); break;
-    case LOOT_STEP_CALLBACK_DELAY: result=execute_loot_callback(game); break;
-    case LOOT_STEP_CELL_CHOICE:
-        if(reply==FD2_FIELD_LOOT_YES) loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_CELL_YES_DELAY,0,0,0,0,300);
-        else loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_CELL_NO_DELAY,0,0,0,0,100);
-        break;
-    case LOOT_STEP_CELL_NO_DELAY:
-        loot_notice(game,FD2_FIELD_LOOT_MESSAGE,412,LOOT_STEP_CELL_NO,0,1,1,0,200); break;
-    case LOOT_STEP_CELL_NO: result=finish_cell(game,0); break;
-    case LOOT_STEP_CELL_YES_DELAY:
-        if(loot->descriptors[0][0]==0u) {
-            fd2_field_unit shadow = *actor;
-            int added=inventory_first_empty_add(&shadow,(uint8_t)value);
-            loot_notice(game,FD2_FIELD_LOOT_MESSAGE,(loot->cell_flags&0x20u)?422:429,
-                added==1?LOOT_STEP_CELL_ITEM_ADDED:LOOT_STEP_CELL_ITEM_FULL,0,1,1,1,0);
-        } else {
-            if(value) game->message_number=value;
-            uint16_t fragment=(uint16_t)(((loot->cell_flags&0x20u)?426u:430u)+(value?0u:1u));
-            loot_notice(game,FD2_FIELD_LOOT_MESSAGE,fragment,LOOT_STEP_CELL_MONEY,0,1,1,1,0);
-            game->loot.notice.value=game->message_number;
-        }
-        break;
-    case LOOT_STEP_CELL_ITEM_ADDED: result=finish_cell(game,1); break;
-    case LOOT_STEP_CELL_ITEM_FULL:
-        loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_CELL_FULL_DELAY,0,0,0,0,100); break;
-    case LOOT_STEP_CELL_FULL_DELAY:
-        loot_notice(game,FD2_FIELD_LOOT_CHOICE,423,LOOT_STEP_CELL_FULL_CHOICE,1,0,0,0,0); break;
-    case LOOT_STEP_CELL_FULL_CHOICE:
-        if(reply==FD2_FIELD_LOOT_YES) loot_notice(game,FD2_FIELD_LOOT_INVENTORY,0,LOOT_STEP_CELL_SLOT,0,0,1,0,0);
-        else loot_notice(game,FD2_FIELD_LOOT_MESSAGE,424,LOOT_STEP_CELL_NO,0,1,1,0,200);
-        break;
-    case LOOT_STEP_CELL_SLOT:
-        if(reply==FD2_FIELD_LOOT_CANCEL) { loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_CELL_CANCEL_DELAY,0,0,0,0,100);break; }
-        if(raw_slot<0 || raw_slot>=8 || (((uint8_t*)actor)[0x0a+raw_slot*2]&0x80u)) return -1;
-        { uint8_t old=((uint8_t*)actor)[0x0b+raw_slot*2];
-          inventory_slot_remove(actor,(size_t)raw_slot);
-          if(inventory_first_empty_add(actor,(uint8_t)value)!=1) { result=-1;break; }
-          game->metadata.cell_actions[loot->cell_index].param=old;
-          loot_notice(game,FD2_FIELD_LOOT_DELAY,0,LOOT_STEP_CELL_SWAP_DELAY,0,0,0,0,100);
-          loot->notice.old_item_id=old;
-        } break;
-    case LOOT_STEP_CELL_SWAP_DELAY:
-        { uint8_t old=loot->notice.old_item_id;
-          loot_notice(game,FD2_FIELD_LOOT_MESSAGE,425,LOOT_STEP_CELL_SWAPPED,1,0,1,1,0);
-          loot->notice.old_item_id=old;
-        } break;
-    case LOOT_STEP_CELL_CANCEL_DELAY:
-        loot_notice(game,FD2_FIELD_LOOT_MESSAGE,424,LOOT_STEP_CELL_NO,1,0,1,0,200);break;
-    case LOOT_STEP_CELL_SWAPPED: result=finish_cell(game,0);break;
-    case LOOT_STEP_CELL_MONEY:
-        game->resource_value+=game->message_number;
-        result=finish_cell(game,1);break;
-    default: return -1;
-    }
-    if(result<0 && game->failure==FD2_FIELD_FAILURE_NONE) fail_action(game,n.actor_index);
-    return result<0?-1:0;
-}
-
 int fd2_field_game_end_active_phase(fd2_field_game *game) {
     /* 快速逻辑回归专用的 phase skip；正式玩家输入不调用此全 acted 路径。 */
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
@@ -5217,7 +4889,7 @@ int fd2_field_game_end_active_phase(fd2_field_game *game) {
 
 int fd2_field_game_end_player_turn(fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->stage > 1u ||
+        !fd2_field_stage_battle_is_supported(game->stage) ||
         progress_pending(game) ||
         game->active_side != 2u || game->player_post_waiting_phase ||
         game->selected_unit >= 0 ||
@@ -5855,7 +5527,7 @@ done:
  * 当前actor失败前的路径和之前完成者均已提交，不能退回成普通取消。 */
 int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
                          uint32_t frame_delay_ms) {
-    if (!game || !game->ready || game->stage > 1u || progress_pending(game) ||
+    if (!game || !game->ready || !fd2_field_stage_battle_is_supported(game->stage) || progress_pending(game) ||
         game->failure != FD2_FIELD_FAILURE_NONE || game->active_side != 2u ||
         game->player_post_waiting_phase || game->selected_unit >= 0 ||
         game->detail_visible || game->interaction != FD2_FIELD_INTERACTION_BROWSE ||
@@ -6304,11 +5976,7 @@ int fd2_field_game_process_automatic_action_visual(
             set_ai_continuation(game, saved.resume, saved.action_actor, saved.ai_common_tail);
             return 1;
         }
-        if (saved.ai_common_tail && finish_ai_action(game, saved.action_actor) != 0) return -1;
-        if (dispatch_pending_cell_event(game, saved.action_actor) != 0) return -1;
-        game->battle_result = fd2_field_game_battle_result(game);
-        if (game->battle_result != FD2_FIELD_BATTLE_ONGOING &&
-            fd2_field_game_resume_player_controller(game) < 0) return -1;
+        if (loot_flow_resume_ai_tail(game, &saved) != 0) return -1;
         return 1;
     }
     if (!game || !game->ready || progress_pending(game) || game->active_side == 2 ||

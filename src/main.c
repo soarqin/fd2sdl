@@ -66,6 +66,11 @@ static int field_result_status(fd2_field_play_result result, size_t stage) {
     }
 }
 
+static int stage_has_preparation(size_t stage) {
+    fd2_field_stage_capability capability;
+    return fd2_field_stage_capability_get(stage, &capability) == 0 && capability.preparation_slots;
+}
+
 /* main @0x25bf4：战斗资源由play关闭后才把persistent交准备页；
  * 同一App context贯穿，START不重置运行期贡献、动态数字或随机流。 */
 static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
@@ -77,11 +82,11 @@ static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
             flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
             if (flow != FD2_APP_FLOW_BATTLE) break;
             if (!context->has_preparation ||
-                (context->preparation.stage_id != 1u && context->preparation.stage_id != 2u))
+                !stage_has_preparation(context->preparation.stage_id))
                 return FD2_APP_FLOW_ERROR;
             stage = context->preparation.stage_id; handoff = NULL; load_active = 0;
         }
-        if (stage != 0u && stage != 1u && stage != 2u) return FD2_APP_FLOW_ERROR;
+        if (!fd2_field_stage_is_supported(stage)) return FD2_APP_FLOW_ERROR;
         fd2_field_play_result result = fd2_field_play_run_context(vga, fdother,
             stage, 0, handoff, audio, save_path, load_active, context);
         flow = fd2_app_flow_after_battle((fd2_app_field_result)result,

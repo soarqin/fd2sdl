@@ -903,7 +903,7 @@ static void overview_transition_frame(fd2_vga *vga, const uint8_t *overview,
  * 原版使用 input_check 与 @0x4e381 清BIOS队列；SDL只耗尽当前帧脉冲，
  * 不重置物理 held／repeat 状态。 */
 static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
-    if (!game || !vga || !game->ready || game->stage > 2u ||
+    if (!game || !vga || !game->ready || !fd2_field_stage_is_supported(game->stage) ||
         game->failure != FD2_FIELD_FAILURE_NONE || game->active_side != 2 ||
         game->selected_unit != -1 || game->detail_visible ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
@@ -1361,17 +1361,8 @@ static int loot_resources_preflight(const fd2_field_game *game,
         return -1;
     if (notice->kind == FD2_FIELD_LOOT_STORY)
         return fd2_scene_field_story_validate(game, notice->fragment);
-    if (notice->kind == FD2_FIELD_LOOT_FIELD_EVENT) {
-        if (game->stage == 0 && notice->fragment == 4)
-            return fd2_scene_field_story_validate(game, 7);
-        if (game->stage == 1 && notice->fragment == 6) {
-            fd2_field_game shadow = *game;
-            if (fd2_field_units_append_group_placed(&shadow.units, &game->metadata,
-                    &game->placements, &game->map, 3, 1) != 0) return -1;
-            return fd2_scene_field_story_validate(&shadow, 4);
-        }
-        return -1;
-    }
+    if (notice->kind == FD2_FIELD_LOOT_FIELD_EVENT)
+        return fd2_field_game_event_resources_validate(game, (uint8_t)notice->fragment);
     const fd2_field_unit *unit = &game->units.items[notice->actor_index];
     if (notice->kind == FD2_FIELD_LOOT_INVENTORY) {
         fd2_vga *page = calloc(1, sizeof(*page));
@@ -1699,6 +1690,29 @@ fd2_field_play_result fd2_field_play_run(fd2_vga *vga,
         field_audio, save_path, load_active, NULL);
 }
 
+/* App仅解释胜利流程的线性owner前缀；资源预检/切曲的顺序和曲目均是冷数据。 */
+static int begin_victory_flow(fd2_field_game *game, fd2_field_play_context *context) {
+    char id[64];
+    int written = snprintf(id, sizeof(id), "stage.victory.%03zu", game->stage);
+    if (written < 0 || (size_t)written >= sizeof(id)) return -1;
+    const fd2_static_flow *flow = fd2_field_stage_flow_find(id);
+    int pc = flow ? flow->entry : -1;
+    int music_requested = 0;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        const fd2_static_flow_node *node = fd2_static_flow_at(flow, pc);
+        if (!node) return -1;
+        if (!strcmp(node->op, "preflight_before_music")) {
+            if (fd2_scene_stage_victory_validate(game) != 0) return -1;
+        } else if (!strcmp(node->op, "victory_music")) {
+            if (fd2_field_play_request_music(context, game->stage, node->args[0], "victory") != 0)
+                return -1;
+            music_requested = 1;
+        } else return music_requested ? 0 : -1;
+        pc = fd2_static_flow_edge(flow, node, FD2_FLOW_NEXT);
+    }
+    return -1;
+}
+
 fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                        const fd2_archive *fdother, size_t stage, int once,
                        const fd2_field_handoff *handoff,
@@ -1710,8 +1724,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     int prepared_entry = context && context->has_preparation && !load_active;
     int opened = prepared_entry
         ? (context->preparation.stage_id != stage ? -1 :
-            stage == 1u ? fd2_field_game_prepare_stage1(&game, fdother, &context->preparation) :
-            stage == 2u ? fd2_field_game_prepare_stage2(&game, fdother, &context->preparation) : -1)
+            fd2_field_game_prepare_stage(&game, fdother, &context->preparation))
         : load_active ? fd2_field_game_open_resources(&game, fdother, stage)
         : fd2_field_game_open(&game, vga, fdother, stage);
     if (opened != 0) {
@@ -1769,9 +1782,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         fd2_vga_set_brightness(vga, 0);
     }
     if (prepared_entry) {
-        int entry_result = stage == 1u
-            ? fd2_scene_play_stage1_entry(vga, fdother, &game, field_audio, once)
-            : fd2_scene_play_stage2_entry(vga, fdother, &game, field_audio, once);
+        int entry_result = fd2_scene_play_stage_entry(vga, fdother, &game, field_audio, once);
         if (entry_result != FD2_SCENE_RESULT_OK) {
             fd2_field_game_close(&game);
             return entry_result == FD2_SCENE_RESULT_HOST_QUIT
@@ -2657,14 +2668,11 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         if (play_result == FD2_FIELD_PLAY_RETURN_VICTORY) {
             fd2_save_manual_state prepared;
             int scene_result = FD2_SCENE_RESULT_ERROR;
-            if (game.stage != 0u && game.stage != 1u) {
+            if (!fd2_field_stage_battle_is_supported(game.stage)) {
                 fprintf(stderr, "当前关卡结算尚未开放，已停止跨关（stage=%zu）。\n", game.stage);
             } else if (fd2_field_game_settlement_prepare(&game, &prepared) == 0 &&
-                (game.stage != 0u || fd2_scene_field_story_validate(&game, 9) == 0) &&
-                fd2_field_play_request_music(context, game.stage, -1, "victory") == 0) {
-                scene_result = game.stage == 0u
-                    ? fd2_scene_play_field_story(vga, fdother, &game, 9, field_audio, once)
-                    : fd2_scene_play_stage1_victory(vga, fdother, &game, field_audio, once);
+                begin_victory_flow(&game, context) == 0) {
+                scene_result = fd2_scene_play_stage_victory(vga, fdother, &game, field_audio, once);
                 if (scene_result == FD2_SCENE_RESULT_OK) {
                     if (fd2_field_game_settlement_commit(&game, &prepared) != 0)
                         scene_result = FD2_SCENE_RESULT_ERROR;

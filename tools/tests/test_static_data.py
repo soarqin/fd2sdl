@@ -58,6 +58,17 @@ class StaticDataTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate.validate_document(document)
 
+    def test_movement_actor_capacity_checked_before_generation(self):
+        document = self.document()
+        table = document["tables"][0]
+        table.update(dimensions=[5], values=[1, 1, 1, 63, 0])
+        table["source"]["script_id"] = 42
+        generate.render(generate.validate_document(document), "0"*64)
+        for actor in (64, 255):
+            table["values"][3] = actor
+            with self.subTest(actor=actor), self.assertRaisesRegex(ValueError, "actor/direction"):
+                generate.render(generate.validate_document(document), "0"*64)
+
     def test_cross_table_references_reject_unknown_ids(self):
         tables = {t["name"]: t["values"] for path in (ROOT / "data/static/tables").glob("*.json")
                   for t in generate.load_json(path)["tables"]}

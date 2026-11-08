@@ -1,0 +1,3100 @@
+{
+  "schema_version": 1,
+  "domain": "loot",
+  "source": {
+    "kind": "existing_confirmed_definition",
+    "file": "src/field_game.c",
+    "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+    "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
+    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记"
+  },
+  "operations": {
+    "emit": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 1,
+          "max": 6
+        },
+        {
+          "name": "fragment",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "name": "flags",
+          "min": 0,
+          "max": 15
+        },
+        {
+          "name": "delay",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "name": "fragment_ref",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "value_ref",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "probe": {
+      "args": []
+    },
+    "probe_slots": {
+      "args": []
+    },
+    "ready": {
+      "args": []
+    },
+    "end": {
+      "args": [
+        {
+          "name": "result",
+          "min": -1,
+          "max": 1
+        }
+      ]
+    },
+    "fail": {
+      "args": []
+    },
+    "collect_reset": {
+      "args": []
+    },
+    "branch_collect_more": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_collect_hidden": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_collect_hp": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_collect_mode": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_magic_collector": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "descriptor_preflight": {
+      "args": []
+    },
+    "collect_append": {
+      "args": []
+    },
+    "collect_next": {
+      "args": []
+    },
+    "finalize_defeated": {
+      "args": []
+    },
+    "battle_result_refresh": {
+      "args": []
+    },
+    "branch_collect_count": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "collect_commit": {
+      "args": []
+    },
+    "branch_has_descriptor": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_descriptor_mode": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_actor_side": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_inventory_capacity": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "inventory_add_checked": {
+      "args": []
+    },
+    "inventory_assert_full": {
+      "args": []
+    },
+    "branch_slot_valid": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "inventory_remove": {
+      "args": []
+    },
+    "inventory_add": {
+      "args": []
+    },
+    "message_value_set": {
+      "args": []
+    },
+    "resource_add_message": {
+      "args": []
+    },
+    "descriptor_next": {
+      "args": []
+    },
+    "event_dispatch": {
+      "args": []
+    },
+    "branch_cell_flags": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_cell_completed": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "cell_init": {
+      "args": []
+    },
+    "branch_cell_chest": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "cell_mark_complete": {
+      "args": []
+    },
+    "inventory_remember": {
+      "args": []
+    },
+    "cell_store_remembered": {
+      "args": []
+    },
+    "cell_tiles_apply": {
+      "args": []
+    },
+    "branch_descriptor_value": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "loot_snapshot_clear": {
+      "args": []
+    },
+    "branch_action_kind": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "reward_begin": {
+      "args": []
+    },
+    "branch_last_result": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "reward_common_set": {
+      "args": []
+    },
+    "experience_clear": {
+      "args": []
+    },
+    "branch_ai_after_magic": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "ai_remainder_restore": {
+      "args": []
+    },
+    "player_finish": {
+      "args": []
+    },
+    "branch_resume": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_ai_common": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "ai_finish": {
+      "args": []
+    },
+    "pending_dispatch": {
+      "args": []
+    },
+    "branch_battle_result": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "player_controller_resume": {
+      "args": []
+    },
+    "branch_stage": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "item_validate": {
+      "args": []
+    },
+    "branch_unit_count": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_notice_count": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_cell_index": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "cell_tiles_validate": {
+      "args": []
+    },
+    "return_result": {
+      "args": []
+    },
+    "branch_actor_can_act": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_actor_active_side": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_actor_hp": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_actor_acted": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "wait_cell_preflight": {
+      "args": []
+    },
+    "branch_path_length": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "stationary_recover": {
+      "args": []
+    },
+    "wait_cell_begin": {
+      "args": []
+    },
+    "directions_reset": {
+      "args": []
+    },
+    "actor_mark_acted": {
+      "args": []
+    },
+    "magic_reward_normalize": {
+      "args": []
+    },
+    "experience_store_normalized": {
+      "args": []
+    },
+    "pending_collect_final": {
+      "args": []
+    },
+    "magic_list_reset": {
+      "args": []
+    },
+    "item_selection_reset": {
+      "args": []
+    },
+    "targets_reset": {
+      "args": []
+    },
+    "command_release": {
+      "args": []
+    },
+    "player_controller_complete": {
+      "args": []
+    }
+  },
+  "flows": [
+    {
+      "id": "loot",
+      "entry": "drop.begin",
+      "entries": {
+        "drop.advance": "drop.advance",
+        "cell.begin": "cell.begin",
+        "loot.finish": "loot.finish",
+        "preflight.drop": "preflight.drop",
+        "preflight.cell": "preflight.cell"
+      },
+      "nodes": [
+        {
+          "id": "drop.begin",
+          "op": "collect_reset",
+          "args": [],
+          "on": {
+            "next": "collect.more",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.more",
+          "op": "branch_collect_more",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "collect.visible",
+            "no": "collect.finalize",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.visible",
+          "op": "branch_collect_hidden",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "collect.dead",
+            "no": "collect.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.dead",
+          "op": "branch_collect_hp",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "collect.has_descriptor",
+            "no": "collect.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.has_descriptor",
+          "op": "branch_collect_mode",
+          "args": [
+            1,
+            255
+          ],
+          "on": {
+            "yes": "collect.magic_filter",
+            "no": "collect.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.magic_filter",
+          "op": "branch_magic_collector",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "collect.check",
+            "no": "collect.story_only",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.story_only",
+          "op": "branch_collect_mode",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "collect.check",
+            "no": "collect.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.check",
+          "op": "descriptor_preflight",
+          "args": [],
+          "on": {
+            "next": "collect.copy",
+            "error": "reject"
+          }
+        },
+        {
+          "id": "collect.copy",
+          "op": "collect_append",
+          "args": [],
+          "on": {
+            "next": "collect.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.next",
+          "op": "collect_next",
+          "args": [],
+          "on": {
+            "next": "collect.more",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.finalize",
+          "op": "finalize_defeated",
+          "args": [],
+          "on": {
+            "next": "collect.result",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.result",
+          "op": "battle_result_refresh",
+          "args": [],
+          "on": {
+            "next": "collect.any",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.any",
+          "op": "branch_collect_count",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "collect.commit",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.commit",
+          "op": "collect_commit",
+          "args": [],
+          "on": {
+            "next": "drop.advance",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.advance",
+          "op": "branch_has_descriptor",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "drop.mode01",
+            "no": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.mode01",
+          "op": "branch_descriptor_mode",
+          "args": [
+            2,
+            2
+          ],
+          "on": {
+            "yes": "drop.player",
+            "no": "drop.mode2",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.player",
+          "op": "branch_actor_side",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "drop.mode0",
+            "no": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.mode0",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "drop.capacity",
+            "no": "drop.money.set",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.capacity",
+          "op": "branch_inventory_capacity",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "drop.received",
+            "no": "drop.full",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.mode2",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "drop.callback.delay",
+            "no": "drop.mode3",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.mode3",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "drop.story",
+            "no": "failure",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.received.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "drop.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.received",
+          "op": "emit",
+          "args": [
+            1,
+            432,
+            13,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "drop.grant"
+          }
+        },
+        {
+          "id": "drop.grant",
+          "op": "inventory_add_checked",
+          "args": [],
+          "on": {
+            "next": "drop.received.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.full.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "drop.full.delay",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.full",
+          "op": "emit",
+          "args": [
+            1,
+            432,
+            13,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "drop.assert_full"
+          }
+        },
+        {
+          "id": "drop.assert_full",
+          "op": "inventory_assert_full",
+          "args": [],
+          "on": {
+            "next": "drop.full.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.full.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "drop.ask_swap"
+          }
+        },
+        {
+          "id": "drop.ask_swap",
+          "op": "emit",
+          "args": [
+            2,
+            433,
+            1,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "yes": "drop.pick",
+            "no": "drop.declined",
+            "cancel": "drop.declined"
+          }
+        },
+        {
+          "id": "drop.declined.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "drop.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.declined",
+          "op": "emit",
+          "args": [
+            1,
+            434,
+            6,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "drop.declined.ready"
+          }
+        },
+        {
+          "id": "drop.pick",
+          "op": "emit",
+          "args": [
+            3,
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "slot": "drop.valid_slot",
+            "cancel": "drop.cancel.delay"
+          }
+        },
+        {
+          "id": "drop.valid_slot",
+          "op": "branch_slot_valid",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "drop.remove",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.remove",
+          "op": "inventory_remove",
+          "args": [],
+          "on": {
+            "next": "drop.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.add",
+          "op": "inventory_add",
+          "args": [],
+          "on": {
+            "next": "drop.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.cancel.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "drop.cancelled"
+          }
+        },
+        {
+          "id": "drop.cancelled.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "drop.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.cancelled",
+          "op": "emit",
+          "args": [
+            1,
+            434,
+            5,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "drop.cancelled.ready"
+          }
+        },
+        {
+          "id": "drop.money.set",
+          "op": "message_value_set",
+          "args": [],
+          "on": {
+            "next": "drop.money",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.money.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "drop.money.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.money",
+          "op": "emit",
+          "args": [
+            1,
+            435,
+            13,
+            0,
+            0,
+            1
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "drop.money.ready"
+          }
+        },
+        {
+          "id": "drop.money.add",
+          "op": "resource_add_message",
+          "args": [],
+          "on": {
+            "next": "drop.next",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.next",
+          "op": "descriptor_next",
+          "args": [],
+          "on": {
+            "next": "drop.advance",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.callback.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "drop.callback"
+          }
+        },
+        {
+          "id": "drop.callback",
+          "op": "event_dispatch",
+          "args": [],
+          "on": {
+            "next": "drop.event",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.event",
+          "op": "emit",
+          "args": [
+            6,
+            0,
+            0,
+            0,
+            1,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "drop.next"
+          }
+        },
+        {
+          "id": "drop.story",
+          "op": "emit",
+          "args": [
+            4,
+            0,
+            0,
+            0,
+            1,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "drop.next"
+          }
+        },
+        {
+          "id": "cell.begin",
+          "op": "branch_cell_flags",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.not_done",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.not_done",
+          "op": "branch_cell_completed",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "cell.init",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.init",
+          "op": "cell_init",
+          "args": [],
+          "on": {
+            "next": "cell.chest",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.ask_chest",
+            "no": "cell.ask_other",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.ask_chest",
+          "op": "emit",
+          "args": [
+            2,
+            421,
+            1,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "yes": "cell.yes.delay",
+            "no": "cell.no.delay",
+            "cancel": "cell.no.delay"
+          }
+        },
+        {
+          "id": "cell.ask_other",
+          "op": "emit",
+          "args": [
+            2,
+            428,
+            1,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "yes": "cell.yes.delay",
+            "no": "cell.no.delay",
+            "cancel": "cell.no.delay"
+          }
+        },
+        {
+          "id": "cell.no.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.no"
+          }
+        },
+        {
+          "id": "cell.no.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.no",
+          "op": "emit",
+          "args": [
+            1,
+            412,
+            6,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.no.ready"
+          }
+        },
+        {
+          "id": "cell.yes.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            300,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.mode"
+          }
+        },
+        {
+          "id": "cell.mode",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "cell.capacity",
+            "no": "cell.money.nonzero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.capacity",
+          "op": "branch_inventory_capacity",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.received.chest",
+            "no": "cell.full.chest",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.received.chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.received.422",
+            "no": "cell.received.429",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.full.422",
+            "no": "cell.full.429",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.received.422.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.complete",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.received.422",
+          "op": "emit",
+          "args": [
+            1,
+            422,
+            14,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.grant.422"
+          }
+        },
+        {
+          "id": "cell.grant.422",
+          "op": "inventory_add_checked",
+          "args": [],
+          "on": {
+            "next": "cell.mark.422",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.mark.422",
+          "op": "cell_mark_complete",
+          "args": [],
+          "on": {
+            "next": "cell.received.422.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.422.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.full.delay",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.422",
+          "op": "emit",
+          "args": [
+            1,
+            422,
+            14,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.assert.422"
+          }
+        },
+        {
+          "id": "cell.assert.422",
+          "op": "inventory_assert_full",
+          "args": [],
+          "on": {
+            "next": "cell.full.422.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.received.429.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.complete",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.received.429",
+          "op": "emit",
+          "args": [
+            1,
+            429,
+            14,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.grant.429"
+          }
+        },
+        {
+          "id": "cell.grant.429",
+          "op": "inventory_add_checked",
+          "args": [],
+          "on": {
+            "next": "cell.mark.429",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.mark.429",
+          "op": "cell_mark_complete",
+          "args": [],
+          "on": {
+            "next": "cell.received.429.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.429.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.full.delay",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.429",
+          "op": "emit",
+          "args": [
+            1,
+            429,
+            14,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.assert.429"
+          }
+        },
+        {
+          "id": "cell.assert.429",
+          "op": "inventory_assert_full",
+          "args": [],
+          "on": {
+            "next": "cell.full.429.ready",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.full.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.ask_swap"
+          }
+        },
+        {
+          "id": "cell.ask_swap",
+          "op": "emit",
+          "args": [
+            2,
+            423,
+            1,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "yes": "cell.pick",
+            "no": "cell.declined",
+            "cancel": "cell.declined"
+          }
+        },
+        {
+          "id": "cell.declined.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.declined",
+          "op": "emit",
+          "args": [
+            1,
+            424,
+            6,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.declined.ready"
+          }
+        },
+        {
+          "id": "cell.pick",
+          "op": "emit",
+          "args": [
+            3,
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "slot": "cell.valid_slot",
+            "cancel": "cell.cancel.delay"
+          }
+        },
+        {
+          "id": "cell.valid_slot",
+          "op": "branch_slot_valid",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.remember",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.remember",
+          "op": "inventory_remember",
+          "args": [],
+          "on": {
+            "next": "cell.remove",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.remove",
+          "op": "inventory_remove",
+          "args": [],
+          "on": {
+            "next": "cell.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.add",
+          "op": "inventory_add",
+          "args": [],
+          "on": {
+            "next": "cell.store_old",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.store_old",
+          "op": "cell_store_remembered",
+          "args": [],
+          "on": {
+            "next": "cell.swap.delay",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.swap.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.swapped"
+          }
+        },
+        {
+          "id": "cell.swapped.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.swapped",
+          "op": "emit",
+          "args": [
+            1,
+            425,
+            13,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.swapped.ready"
+          }
+        },
+        {
+          "id": "cell.cancel.delay",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            100,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.cancelled"
+          }
+        },
+        {
+          "id": "cell.cancelled.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.cancelled",
+          "op": "emit",
+          "args": [
+            1,
+            424,
+            5,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.cancelled.ready"
+          }
+        },
+        {
+          "id": "cell.complete",
+          "op": "cell_mark_complete",
+          "args": [],
+          "on": {
+            "next": "cell.tiles",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.tiles",
+          "op": "cell_tiles_apply",
+          "args": [],
+          "on": {
+            "next": "loot.finish",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.nonzero",
+          "op": "branch_descriptor_value",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.money.set",
+            "no": "cell.money.chest.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.set",
+          "op": "message_value_set",
+          "args": [],
+          "on": {
+            "next": "cell.money.chest",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.money.426",
+            "no": "cell.money.430",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.chest.zero",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "cell.money.427",
+            "no": "cell.money.431",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.426.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.money.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.426",
+          "op": "emit",
+          "args": [
+            1,
+            426,
+            14,
+            0,
+            0,
+            1
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.money.426.ready"
+          }
+        },
+        {
+          "id": "cell.money.427.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.money.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.427",
+          "op": "emit",
+          "args": [
+            1,
+            427,
+            14,
+            0,
+            0,
+            1
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.money.427.ready"
+          }
+        },
+        {
+          "id": "cell.money.430.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.money.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.430",
+          "op": "emit",
+          "args": [
+            1,
+            430,
+            14,
+            0,
+            0,
+            1
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.money.430.ready"
+          }
+        },
+        {
+          "id": "cell.money.431.ready",
+          "op": "ready",
+          "args": [],
+          "on": {
+            "ack": "cell.money.add",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money.431",
+          "op": "emit",
+          "args": [
+            1,
+            431,
+            14,
+            0,
+            0,
+            1
+          ],
+          "on": {
+            "error": "failure",
+            "text_ready": "cell.money.431.ready"
+          }
+        },
+        {
+          "id": "cell.money.add",
+          "op": "resource_add_message",
+          "args": [],
+          "on": {
+            "next": "cell.complete",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "loot.finish",
+          "op": "loot_snapshot_clear",
+          "args": [],
+          "on": {
+            "next": "finish.physical",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.physical",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            5
+          ],
+          "on": {
+            "yes": "finish.reward",
+            "no": "finish.magic",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.reward",
+          "op": "reward_begin",
+          "args": [],
+          "on": {
+            "next": "finish.reward.pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.reward.pending",
+          "op": "branch_last_result",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "finish.reward.common",
+            "no": "finish.resume.direct",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.reward.common",
+          "op": "reward_common_set",
+          "args": [],
+          "on": {
+            "next": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.magic",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            6
+          ],
+          "on": {
+            "yes": "finish.ex.clear",
+            "no": "finish.player",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.ex.clear",
+          "op": "experience_clear",
+          "args": [],
+          "on": {
+            "next": "finish.magic.after",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.magic.after",
+          "op": "branch_ai_after_magic",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "finish.restore",
+            "no": "finish.resume.direct",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.restore",
+          "op": "ai_remainder_restore",
+          "args": [],
+          "on": {
+            "next": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.player",
+          "op": "branch_action_kind",
+          "args": [
+            2,
+            5
+          ],
+          "on": {
+            "yes": "finish.player.action",
+            "no": "finish.resume.direct",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.player.action",
+          "op": "player_finish",
+          "args": [],
+          "on": {
+            "next": "return.result",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.resume.direct",
+          "op": "branch_resume",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "finish.common",
+            "no": "finish.resume.scheduler",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.resume.scheduler",
+          "op": "branch_resume",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "finish.common",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.common",
+          "op": "branch_ai_common",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "finish.common.action",
+            "no": "finish.pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.common.action",
+          "op": "ai_finish",
+          "args": [],
+          "on": {
+            "next": "finish.pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.pending",
+          "op": "pending_dispatch",
+          "args": [],
+          "on": {
+            "next": "finish.result",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.result",
+          "op": "battle_result_refresh",
+          "args": [],
+          "on": {
+            "next": "finish.ongoing",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.ongoing",
+          "op": "branch_battle_result",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "return.zero",
+            "no": "finish.controller",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.controller",
+          "op": "player_controller_resume",
+          "args": [],
+          "on": {
+            "next": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            255
+          ],
+          "on": {
+            "yes": "return.zero",
+            "no": "preflight.drop.stage",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.stage",
+          "op": "branch_stage",
+          "args": [
+            2,
+            2
+          ],
+          "on": {
+            "yes": "preflight.drop.mode01",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.mode01",
+          "op": "branch_descriptor_mode",
+          "args": [
+            2,
+            2
+          ],
+          "on": {
+            "yes": "preflight.drop.side",
+            "no": "preflight.drop.mode2",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.side",
+          "op": "branch_actor_side",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "preflight.drop.mode0",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.mode0",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "preflight.drop.item",
+            "no": "preflight.drop.money",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.mode2",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "preflight.event.stage0",
+            "no": "preflight.drop.mode3",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.mode3",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "preflight.drop.story",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.item",
+          "op": "item_validate",
+          "args": [],
+          "on": {
+            "next": "preflight.drop.432",
+            "error": "reject"
+          }
+        },
+        {
+          "id": "preflight.drop.432",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.received",
+            "yes": "preflight.drop.433",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.433",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.ask_swap",
+            "yes": "preflight.drop.434",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.434",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.declined",
+            "yes": "preflight.drop.pick",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.pick",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.pick",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.money.probe",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.money",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.drop.story",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.story",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.stage0",
+          "op": "branch_stage",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "preflight.event.action4",
+            "no": "preflight.event.stage1",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.action4",
+          "op": "branch_descriptor_value",
+          "args": [
+            0,
+            4
+          ],
+          "on": {
+            "yes": "preflight.event.count14",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.count14",
+          "op": "branch_unit_count",
+          "args": [
+            3,
+            14
+          ],
+          "on": {
+            "yes": "preflight.event.capacity",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.stage1",
+          "op": "branch_stage",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "preflight.event.action6",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.action6",
+          "op": "branch_descriptor_value",
+          "args": [
+            0,
+            6
+          ],
+          "on": {
+            "yes": "preflight.event.count11",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.count11",
+          "op": "branch_unit_count",
+          "args": [
+            3,
+            11
+          ],
+          "on": {
+            "yes": "preflight.event.capacity",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.capacity",
+          "op": "branch_notice_count",
+          "args": [
+            2,
+            64
+          ],
+          "on": {
+            "yes": "preflight.event.notice",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.notice",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "drop.event",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell",
+          "op": "branch_cell_flags",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.done",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.done",
+          "op": "branch_cell_completed",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.stage",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.stage",
+          "op": "branch_stage",
+          "args": [
+            2,
+            2
+          ],
+          "on": {
+            "yes": "preflight.cell.index",
+            "no": "failure",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.index",
+          "op": "branch_cell_index",
+          "args": [
+            2,
+            16
+          ],
+          "on": {
+            "yes": "preflight.cell.mode",
+            "no": "failure",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.mode",
+          "op": "branch_descriptor_mode",
+          "args": [
+            2,
+            2
+          ],
+          "on": {
+            "yes": "preflight.cell.mode0",
+            "no": "failure",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.mode0",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.item",
+            "no": "preflight.cell.tiles",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.item",
+          "op": "item_validate",
+          "args": [],
+          "on": {
+            "next": "preflight.cell.tiles",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.tiles",
+          "op": "cell_tiles_validate",
+          "args": [],
+          "on": {
+            "next": "preflight.cell.chest",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.ask421",
+            "no": "preflight.cell.ask428",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.ask421",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.ask_chest",
+            "yes": "preflight.cell.no",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.ask428",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.ask_other",
+            "yes": "preflight.cell.no",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.no",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.no",
+            "yes": "preflight.cell.item_mode",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.item_mode",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.item_chest",
+            "no": "preflight.cell.money_nonzero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.item_chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.422",
+            "no": "preflight.cell.429",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.422",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.received.422",
+            "yes": "preflight.cell.swap",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.429",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.received.429",
+            "yes": "preflight.cell.swap",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.swap",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.ask_swap",
+            "yes": "preflight.cell.decline",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.decline",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.declined",
+            "yes": "preflight.cell.old",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.old",
+          "op": "probe_slots",
+          "args": [],
+          "on": {
+            "next": "cell.swapped",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.money_nonzero",
+          "op": "branch_descriptor_value",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.money.set",
+            "no": "preflight.cell.money_chest_zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.money_chest",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.426",
+            "no": "preflight.cell.430",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.money_chest_zero",
+          "op": "branch_cell_chest",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "preflight.cell.427",
+            "no": "preflight.cell.431",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.426",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.money.426",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.427",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.money.427",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.430",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.money.430",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.431",
+          "op": "probe",
+          "args": [],
+          "on": {
+            "next": "cell.money.431",
+            "yes": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "reject",
+          "op": "end",
+          "args": [
+            -1
+          ],
+          "on": {}
+        },
+        {
+          "id": "return.zero",
+          "op": "end",
+          "args": [
+            0
+          ],
+          "on": {}
+        },
+        {
+          "id": "return.result",
+          "op": "return_result",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "preflight.drop.money",
+          "op": "message_value_set",
+          "args": [],
+          "on": {
+            "next": "preflight.drop.money.probe",
+            "error": "reject"
+          }
+        },
+        {
+          "id": "preflight.cell.money.set",
+          "op": "message_value_set",
+          "args": [],
+          "on": {
+            "next": "preflight.cell.money_chest",
+            "error": "failure"
+          }
+        }
+      ]
+    },
+    {
+      "id": "action.finish",
+      "entry": "start",
+      "nodes": [
+        {
+          "id": "start",
+          "op": "branch_actor_can_act",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "acted",
+            "no": "special.physical",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "special.physical",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "special.side",
+            "no": "special.item",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "special.item",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "special.side",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "special.side",
+          "op": "branch_actor_active_side",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "special.zero_hp",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "special.zero_hp",
+          "op": "branch_actor_hp",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "acted",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "acted",
+          "op": "branch_actor_acted",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "kind.wait",
+            "no": "reject",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "kind.wait",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "wait.preflight",
+            "no": "kind.physical",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "wait.preflight",
+          "op": "wait_cell_preflight",
+          "args": [],
+          "on": {
+            "next": "wait.stationary",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "wait.stationary",
+          "op": "branch_path_length",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "wait.recover",
+            "no": "wait.cell",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "wait.recover",
+          "op": "stationary_recover",
+          "args": [],
+          "on": {
+            "next": "wait.cell",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "wait.cell",
+          "op": "wait_cell_begin",
+          "args": [],
+          "on": {
+            "next": "wait.started",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "wait.started",
+          "op": "branch_last_result",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "yes": "done",
+            "no": "kind.physical",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "kind.physical",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "physical.reset",
+            "no": "action.acted",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "physical.reset",
+          "op": "directions_reset",
+          "args": [],
+          "on": {
+            "next": "action.acted",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "action.acted",
+          "op": "actor_mark_acted",
+          "args": [],
+          "on": {
+            "next": "kind.magic",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "kind.magic",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "magic.normalize",
+            "no": "kind.item",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "magic.normalize",
+          "op": "magic_reward_normalize",
+          "args": [],
+          "on": {
+            "next": "magic.experience",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "magic.experience",
+          "op": "experience_store_normalized",
+          "args": [],
+          "on": {
+            "next": "pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "kind.item",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "item.experience",
+            "no": "pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "item.experience",
+          "op": "experience_clear",
+          "args": [],
+          "on": {
+            "next": "pending",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "pending",
+          "op": "pending_collect_final",
+          "args": [],
+          "on": {
+            "next": "cleanup.magic",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cleanup.magic",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            2
+          ],
+          "on": {
+            "yes": "magic.list",
+            "no": "cleanup.item",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "magic.list",
+          "op": "magic_list_reset",
+          "args": [],
+          "on": {
+            "next": "targets",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cleanup.item",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            3
+          ],
+          "on": {
+            "yes": "item.selection",
+            "no": "cleanup.physical",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "item.selection",
+          "op": "item_selection_reset",
+          "args": [],
+          "on": {
+            "next": "targets",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cleanup.physical",
+          "op": "branch_action_kind",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "targets",
+            "no": "release",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "targets",
+          "op": "targets_reset",
+          "args": [],
+          "on": {
+            "next": "release",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "release",
+          "op": "command_release",
+          "args": [],
+          "on": {
+            "next": "controller",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "controller",
+          "op": "player_controller_complete",
+          "args": [],
+          "on": {
+            "next": "result",
+            "error": "result"
+          }
+        },
+        {
+          "id": "result",
+          "op": "return_result",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [
+            0
+          ],
+          "on": {}
+        },
+        {
+          "id": "reject",
+          "op": "end",
+          "args": [
+            -1
+          ],
+          "on": {}
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    }
+  ]
+}

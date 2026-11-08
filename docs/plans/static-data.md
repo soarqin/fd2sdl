@@ -2,6 +2,8 @@
 
 状态：**已获授权连续实施 SD1—SD3，当前进展见[阶段记录](stage-log.md)**。调研日期：2026-11-08；调研代码基线：`88b47d7`，包含 R1 `678ee13`。2026-11-09 用户批准在本会话完成三个阶段及本地集成；优化完成后不自动启动后续玩法开发。优先级入口见[总计划](development.md#4-新优先级与依赖)。
 
+本页保留调研时的盘点与设计样例；已落地的 JSON 字段、命令和执行边界以[冷定义工具](../tools/static-data.md)及代码为准。示例用于说明完整编排范围，不作为第二份可编辑定义。
+
 ## 1. 目标、推荐与完成边界
 
 冷数据包括不可变的游戏定义，也包括**事件驱动本身：触发条件、分支、执行顺序、交互等待、取消路径和动作编排**。脚本描述的是运行时如何变化，脚本本身仍是冷数据。例如满包换物的「满包判断 → 是否交换 → 选槽／取消 → 换物 → 提示」应可通过修改静态流程定义改变；不能仅将物品 ID 外置，或用一个 `native_full_inventory_handler` 名称包住原有分支就算完成。
@@ -18,7 +20,7 @@
 - R1 已完成 Windows x64 本地发布、MIT 与第三方重建材料范围；不是待续的 B3。仓库没有已命名的 R2／B8。stage 2 目前只有真实入场、浏览、详情、总览和存取，战斗提交与 END 未开放，见[战场计划 §9](battlefield.md#9-b7按场景扩展的剩余能力p2必经项随时前移)。
 - 逆向只引用[当前 IDA 伪 C](../generated/ida-canonical/fd2-ida-decomp-all.c)、[命名表](../reverse-engineering/function-names.md)和实现中登记的证据。已读取 `ida-domain-api` 与[IDA 规范](../tools/ida.md)，本次复用既有导出，不操作数据库、不重新确认函数命名。地址均按[canonical relbase VA](../reverse-engineering/address-mapping.md)理解，旧分析工具的 dual／code0 注释不能直接抄作新规范地址。
 
-本树没有 `original_game/`。本次仅只读使用 `E:/Projects/fd2sdl/original_game/` 的共享证据；未修改主工作区、原资源、存档或数据库：
+调研时本树尚无 `original_game/`，只读使用 `E:/Projects/fd2sdl/original_game/` 的共享证据；实施时在隔离树建立只读使用的目录联接供现有测试定位。原资源、存档及数据库不写入、不提交：
 
 | 文件 | SHA-256 | 本次用途 |
 |---|---|---|

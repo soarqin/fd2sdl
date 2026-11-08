@@ -5,18 +5,23 @@ project(fd2sdl C CXX)
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 set(FD2_STATIC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 file(GLOB FD2_STATIC_TABLES CONFIGURE_DEPENDS "${FD2_STATIC_ROOT}/data/static/tables/*.json")
+file(GLOB FD2_STATIC_FLOWS CONFIGURE_DEPENDS "${FD2_STATIC_ROOT}/data/static/flows/*.json")
 set(FD2_STATIC_INCLUDE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(FD2_STATIC_OUTPUTS "${FD2_STATIC_INCLUDE_ROOT}/static_data/sources.json")
 foreach(input IN LISTS FD2_STATIC_TABLES)
     get_filename_component(stem "${input}" NAME_WE)
     list(APPEND FD2_STATIC_OUTPUTS "${FD2_STATIC_INCLUDE_ROOT}/static_data/${stem}.inc")
 endforeach()
+foreach(input IN LISTS FD2_STATIC_FLOWS)
+    get_filename_component(stem "${input}" NAME_WE)
+    list(APPEND FD2_STATIC_OUTPUTS "${FD2_STATIC_INCLUDE_ROOT}/static_data/${stem}_flows.inc")
+endforeach()
 add_custom_command(OUTPUT ${FD2_STATIC_OUTPUTS}
     COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/static_data/generate.py"
         --root "${FD2_STATIC_ROOT}" --output "${FD2_STATIC_INCLUDE_ROOT}/static_data"
     COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${FD2_STATIC_OUTPUTS}
     DEPENDS "${FD2_STATIC_ROOT}/tools/static_data/generate.py"
-        "${FD2_STATIC_ROOT}/data/static/manifest.json" ${FD2_STATIC_TABLES}
+        "${FD2_STATIC_ROOT}/data/static/manifest.json" ${FD2_STATIC_TABLES} ${FD2_STATIC_FLOWS}
     VERBATIM)
 add_custom_target(fd2_static_data DEPENDS ${FD2_STATIC_OUTPUTS})
 include_directories("${FD2_STATIC_INCLUDE_ROOT}")
@@ -127,6 +132,11 @@ if(MSVC)
     add_compile_options(/utf-8 /experimental:c11atomics /std:c11)
 endif()
 
+# 所有消费端（包括独立列源测试）链接同一份只读流程实例。
+add_library(fd2_static_definitions STATIC static_data.c)
+target_include_directories(fd2_static_definitions PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+link_libraries(fd2_static_definitions)
+
 set(FD2SDL_CORE_SOURCES
     app_flow.c
     title.c
@@ -236,6 +246,8 @@ if(BUILD_TESTING)
     add_executable(fd2_app_flow_test
         tests/app_flow_test.c
         app_flow.c
+        field.c
+        archive.c
     )
     target_include_directories(fd2_app_flow_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     if(MSVC)
@@ -1193,7 +1205,7 @@ if(BUILD_TESTING)
         fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event
         fd2_field_game_settlement_prepare=__wrap_fd2_field_game_settlement_prepare
         fd2_field_game_settlement_commit=__wrap_fd2_field_game_settlement_commit
-        fd2_scene_play_stage1_victory=__wrap_fd2_scene_play_stage1_victory
+        fd2_scene_play_stage_victory=__wrap_fd2_scene_play_stage_victory
         fd2_scene_play_game_over=__wrap_fd2_scene_play_game_over
         fd2_vga_present=__wrap_fd2_vga_present
         fd2_input_take_action=__wrap_fd2_input_take_action
@@ -1522,4 +1534,6 @@ if(BUILD_TESTING)
         --output "${FD2_STATIC_INCLUDE_ROOT}/static_data" --check)
     add_test(NAME static_data_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_data.py)
+    add_test(NAME static_flow_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_flows.py)
 endif()

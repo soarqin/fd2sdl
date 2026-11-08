@@ -4,10 +4,39 @@
  * 与field_turn_cycle_run @0x1a30b，均为纯只读数据，不推进session。 */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include "static_flow.h"
 
 /* 原表字节与来源由 data/static/tables/stage.json 维护。 */
 #include "static_data/stage.inc"
+#include "static_data.h"
+
+const fd2_static_flow *fd2_field_stage_flow_find(const char *id) {
+    return fd2_static_flow_lookup("stage", id);
+}
+
+int fd2_field_stage_capability_get(size_t stage, fd2_field_stage_capability *out) {
+    char id[64];
+    int written = snprintf(id, sizeof(id), "stage.capability.%03zu", stage);
+    if (!out || written < 0 || (size_t)written >= sizeof(id)) return -1;
+    const fd2_static_flow *flow = fd2_static_flow_lookup("stage", id);
+    const fd2_static_flow_node *node = fd2_static_flow_at(flow, flow ? flow->entry : -1);
+    if (!node || strcmp(node->op, "stage_capability")) return -1;
+    *out = (fd2_field_stage_capability){(uint8_t)node->args[0], (uint8_t)node->args[1],
+        (uint8_t)node->args[2], (uint8_t)node->args[3]};
+    return 0;
+}
+
+int fd2_field_stage_is_supported(size_t stage) {
+    fd2_field_stage_capability capability;
+    return fd2_field_stage_capability_get(stage, &capability) == 0;
+}
+
+int fd2_field_stage_battle_is_supported(size_t stage) {
+    fd2_field_stage_capability capability;
+    return fd2_field_stage_capability_get(stage, &capability) == 0 && capability.battle_enabled;
+}
 
 const uint8_t *fd2_field_stage_prepare_record_get(size_t stage) {
     if (stage == 0 || stage > sizeof(k_stage_prepare) / sizeof(k_stage_prepare[0]))

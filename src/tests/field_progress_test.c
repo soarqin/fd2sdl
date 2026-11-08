@@ -5,6 +5,7 @@
 #include <string.h>
 #include "field_game.h"
 #include "field_ai.h"
+#include "field_reward_flow.h"
 #include "test_temp.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"CHECK failed %s:%d: %s\n",__FILE__,__LINE__,#x); return 1; } } while (0)
 static uint32_t cells[24*24];
@@ -78,6 +79,7 @@ static int test_raw_cap_early_return_and_multi_level(void) {
     /* AI1548e没有player cap99；本测试构造其实际续态起点，不使用player complete。 */
     g.progress.notice=(fd2_field_progress_notice){FD2_FIELD_PROGRESS_GAIN,0,488,630,0,0};
     g.progress.total=630;
+    g.progress.flow_step=(uint8_t)fd2_static_flow_label(fd2_reward_graph(),"gain");
     CHECK(drain(&g)==0 && g.units.items[0].level==10 && g.units.items[0].experience==30);
     init(&g);g.experience_value=630;CHECK(fd2_field_game_complete_player_controller(&g,0)==0);
     CHECK(g.progress.notice.value==99 && g.experience_value==99);CHECK(drain(&g)==0 && g.units.items[0].experience==99);

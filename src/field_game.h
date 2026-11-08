@@ -50,6 +50,10 @@ typedef struct {
     uint8_t handled;
     uint8_t presentation_deferred;
     uint8_t presentation_unit_count;
+    /* 仅扩展现有notice前态，不进SAV：同一移动原语也能重放已有actor。
+     * x/y/direction/frame_phase/walk_frame；其它logic-only字段借用提交后值。 */
+    uint8_t presentation_motion_valid;
+    uint8_t presentation_motion[FD2_FIELD_MAX_UNITS][5];
     int16_t presentation_camera_x;
     int16_t presentation_camera_y;
     int16_t presentation_focus_x;
@@ -160,6 +164,7 @@ typedef struct {
     fd2_field_unit_level_growth level;
     uint8_t growth_cursor;
     uint8_t learn_cursor;
+    uint8_t flow_step; /* 冷流程节点游标，仍归progress，不进入SAV。 */
     fd2_field_progress_resume resume;
     size_t resume_actor;
     uint8_t ai_common_tail;
@@ -422,6 +427,9 @@ int fd2_field_game_set_music_request(fd2_field_game *game,
     fd2_field_music_request_fn request, void *userdata);
 int fd2_field_game_set_loot_preflight(fd2_field_game *game,
     fd2_field_loot_preflight_fn preflight, void *userdata);
+
+/* 只读冷事件资源预检；借用现有owner构造旁路值，不写live状态或RNG。 */
+int fd2_field_game_event_resources_validate(const fd2_field_game *game, uint8_t action);
 /* peek同progress的1/0/-1；reply在完整当前呈现/关闭后调用一次。
  * pending时禁止保存和普通行动；取消库存选择不撤销先前已提交效果。 */
 int fd2_field_game_loot_peek(const fd2_field_game *game,
@@ -463,9 +471,11 @@ int fd2_field_game_open(fd2_field_game *game,
  * fdother借用至game关闭；失败释放已取得资源。 */
 int fd2_field_game_open_resources(fd2_field_game *game,
     const fd2_archive *fdother, size_t stage);
-/* 26152准备owner出阵到32d18：完整persistent表→5部署槽、group1/2和
- * scripts9..12业务终态。无输入/演出；App播放开场后handoff镜头/焦点。
- * stage1只支持1..16 roster部署，超过16所需2af28尚未支持，拒绝而不截断。 */
+/* 准备owner按stage.entry图构建业务终态，无输入/演出；完整成功后才交App播放。
+ * 32d18/32e8c的部署槽与group/script顺序来自同一冷定义，超过16的部署仍拒绝。 */
+int fd2_field_game_prepare_stage(fd2_field_game *game,
+    const fd2_archive *fdother, const fd2_save_manual_state *state);
+/* stage1兼容入口，仍要求输入stage1；不再复制一套编排。 */
 int fd2_field_game_prepare_stage1(fd2_field_game *game,
     const fd2_archive *fdother, const fd2_save_manual_state *state);
 /* field_stage2_entry_play @0x32e8c：仅已确认的stage2专用入口；

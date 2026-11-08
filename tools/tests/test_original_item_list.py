@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 import struct
 import sys
@@ -18,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import fd2_item_list_oracle as oracle
 import run_original_item_list as probe
+from static_data.verify_unit_tables import check_table
 
 
 class Fixture:
@@ -110,15 +110,14 @@ class ResourceTest(Fixture, unittest.TestCase):
             self.assertEqual(templates["experience"][1].tobytes(), top.crop((65, 37, 77, 45)).tobytes())
             self.assertEqual(fields["experience"], experience)  # 原始字节不裁剪/按身份隐藏。
 
-    def test_all_29_equipment_profile_rows_match_strict_le_and_actual_c_table(self):
+    def test_all_29_equipment_profile_rows_match_strict_le_and_cold_definition(self):
         rows = oracle.equipment_rows(ROOT / "original_game/FD2.EXE")
         self.assertEqual(len(rows), 203)
         self.assertEqual(hashlib.sha256(rows).hexdigest(), oracle.EQUIPMENT_SHA256)
-        implementation = (ROOT / "src/field_item.c").read_text(encoding="utf-8")
-        match = re.search(r"profiles\[29\]\[7\]\s*=\s*\{(.*?)\n\s*\};", implementation, re.S)
-        self.assertIsNotNone(match)
-        stored = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})\b", match.group(1)))
-        self.assertEqual(stored, rows)
+        document = json.loads((ROOT / "data/static/tables/items.json").read_text(encoding="utf-8"))
+        table, = [table for table in document["tables"] if table["name"] == "profiles"]
+        # 预期来自严格LE的独立读集，不解析生成C，也不导入生产生成器。
+        check_table(table, ("profiles", "uint8_t", (29, 7), 0x6188A), rows)
         self.assertEqual(rows[:7], bytes.fromhex("ffffffffffff01"))
         self.assertNotIn(1, rows[:6])  # 第7字节01不是许可类别。
 

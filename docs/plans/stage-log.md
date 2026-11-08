@@ -1115,3 +1115,40 @@ Windows 原生新构建位于本树 `src/build-win`，VS18／MSVC 19.51、Window
 `build/sd1-offline/source-files-final.json` 记录仅按更新后的 source_inventory 复制的 165 个 App 构建输入；独立 `source` 不含 tests、原资源、EXE 或开发生成目录，以 `BUILD_TESTING=OFF` 完成 Release 干净生成／编译。使用 R1 installed SDL SDK `E:/Projects/fd2sdl-work/r1-delivery-20261107/build/sdk/cmake`（3.2.12、Release 静态库 SHA `df524931…49c0`），日志无 CPM／网络下载步骤；未重新打包／发布，不改写 R1 历史包身份。复审后的 JSON 仅重排记录格式，assert 解析值完全一致；最终 schema／引用与离线重建再次通过，没有为格式和生成器拒绝检查重复运行 GUI。
 
 Linux 本轮未执行。未运行新的局部原机器码、未执行全部历史 GUI；统一全量历史回归留在 SD3。下一步直接进入 SD2 的全部当前受支持事件驱动数据化，不启动新玩法。
+
+
+## SD2：当前受支持事件驱动进入冷定义（2026-11-09）
+
+从 SD1 `6b24b33` 连续实施；未开放新玩法、未改变 SAV 格式、未替换 session／库存／单位 owner。四个领域的 30 份真实流程共 517 节点，六个 runtime 入口以 bindings 共用事件节点；生成定义在 `static_data.c` 仅编译一份。数据表示和修改流程见[冷定义工具](../tools/static-data.md)。
+
+### 实现与边界
+
+- `scene.json` 保存六种既有回合／普通格事件、自然 stage32→31→0、初始化和 game over；删除原逐 stage/action 手写编排。Game、Scene 与资源预检消费同一节点来源，逻辑与呈现视图明确。notice 仅新增旧运动状态快照，避免对已提交单位重复移动，不增加新热状态 owner 或持久字段。
+- `stage.json` 保存 stage0／1 结果与覆盖顺序、胜利／结算、stage1／2 入场及当前支持门。App 的预检／停音乐前后关系、入场亮度／呈现／淡入也进入冷节点。stage2 入场、准备和浏览存取继续可用，战斗／END 继续拒绝。
+- `loot.json` 的主图与 `action.finish` 共 212 节点：条件、空位／满包分支、选择／取消、text_ready／ACK、掉落／特殊格、奖励／AI 续行及动作种类的收尾顺序均由边控制。领域叶保留库存操作、既有恢复算法和 owner／controller API；不再把旧特殊格、满包交换或 command 收尾整体包成 native handler。
+- `progress.json` 保存奖励门、等级／成长／学习的写点与提示，以及毒伤、timer 到期、聚焦、重算和 phase 续行的顺序。预检、单位奖励预览与实提交流程共用图；执行游标沿用当前 loot／progress 内存，不写 SAV。
+- 36 条原移动脚本成为唯一冷流，共 794 byte；原 getter ID 门继续保留。独立来源验证器以严格 LE／fixup 定位，不使用 JSON 自报地址和长度作为 expected。
+
+### 审查与自动检查
+
+生成器增加有限操作／参数／端口 ABI、跨图／脚本引用、别名、必需 runtime ID、两视图、入口／可达／退出、结果查询无环与有界扫描检查。真实图边变异测试证明满包选择、动作收尾顺序和入场前缀确由数据改变；新增 Scene 复用绑定证明同一组节点在另一 stage/action 入口重放，不新增生产 C 分支、不开放 stage2 战斗。
+
+自审修复：资源预检不能前移正式 handler 的单位数／装备断言；旧 actor 移动需要呈现前态；stage0 与 stage1 胜利的预检／停音乐顺序不同；纯预检即使坏边也不能写 live owner；领域叶自查索引／槽；同步 `action.finish` 不能保存另一图的等待 PC；controller 普通 `-1` 原样返回，不额外锁存 ACTION。保留失败日志后复验，没有放宽原语义判据。
+
+Windows Debug 构建成功。`test-sd2-c5.log` 64/64；后续新增 schema／别名／淡入测试的 C6 为 64/65，新测试误认终点 label 导致一项失败；改为按真实 end 操作查找后，C7 受影响 14/14；最后 controller 边修复的 C8 受影响 5/5。当前 65 个阶段定向检查均有通过结果，不称 C6 单轮全绿。`test-sd2-static-c6.log` 的 SD2 生成／来源测试 26/26；另有 SD3 审计测试单独登记。
+
+Python 全库审查首轮 935 项，1 失败、1 跳过：旧装备许可测试仍解析已删除的 C 数组；改为冷 JSON 对独立 strict LE 读集后，整个装备模块 76/76。该轮其余测试通过；跳过的 `test_current_object1_anchor_and_chkstk_evidence` 缺开发者本地 LE 种子中间产物，不计通过。首轮失败和定向修复日志保留，不宣称单轮无跳过全绿。
+
+单位等独立来源 8,528 byte、准备等 973 byte、36 脚本 794 byte 全部相同，另核 11 cue 和坏数据拒绝；这属于只读来源验证，不是新原机器码执行。`build/sd2-offline-final/source-files.json` 冻结仅发布白名单的 175 份 App 输入；全新 `BUILD_TESTING=OFF` Release 构建通过，与当前源码逐份 SHA 相同。使用 R1 已装 SDL3.2.12 Release SDK，无原资源／EXE／开发生成目录／测试源码或网络下载依赖，不重打 R1 历史包。
+
+### 代表原版对照与阶段完成
+
+第一次 GUI 预检 `20261109-014707-020926` 因显示 off/未知未开窗口；Job 无遗留。恢复 ON 后，`20261109-020527-122173` 的准备／入场、箱子空位、满包交换通过，选槽取消因 E: 空间不足（WinError 112）中断，owned Job 全部清理。只将本任务图形证据移至 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-sd-20261109-tranquil/graphics-artifacts` 并保留原路径 junction；2,446 文件的 SHA／大小／mtime 全部一致，收据为同 C: 任务根的 `graphics-move-receipt.json`，源码和增量构建仍在 E:。
+
+`20261109-021840-631904` 补跑的选槽取消、事件回调和剧情双端比较均 `ok=true`。之后执行预算中断，stage1-turn3 无完成报告，未将其或未执行的村民败北记为通过；续接核实无残留测试进程后只补这两项：`20261109-022816-989517` 的 turn3 增援和村民败北均通过，原资源守卫通过、display 正常 released、Job 为 `0/0/0/0/1/0`（worker_exit／timed_out／residual／forced／cleaned／result）。
+
+`20261109-023329-476319` 的 counter-multi／learn／status 三种成长与状态场景全部双端通过。随后使用本轮 turn3 原版端的 completed Save（SHA `2942f66c…7ddd3`）和同目录 source report，在 C: 任务根 `sd2-representatives/` 完成 victory-all-villagers 与 victory-villager-loss 两条胜利／结算／stage2 入场与保存对照，顶层 `ok=true`、端点与最终守卫通过。串行总收据 `sd2-representatives/receipt.json` 的三项退出0、显示需求释放；外 Job 正常退出且无超时、遗留或强制清理。使用 WGC HWND／后台投键，未改混音器或电源计划。
+
+上述检查完成后 SD2 按完整阶段提交，直接继续 SD3；全部失败／中断产物保留，没有重复重放已有通过报告的用例。此处证明当前定义迁移及所列业务／资源判据，不提升为原版全画面、完整音频、绝对时序或全关卡等价。
+
+Linux 未执行；未证明全关事件语义或原版完整音画等价。全量受支持历史回归与本地集成仍由 SD3 收口，完成后不自动续跑新玩法。

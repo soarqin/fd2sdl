@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "field_unit_base.h"
+#include "field_reward_flow.h"
 
 #define CHECK(condition) do { if (!(condition)) { \
     fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #condition); exit(1); \
@@ -190,7 +191,7 @@ static void test_preflight_errors_do_not_write(void) {
     CHECK(fd2_field_unit_reward_preview(&unit, 1, NULL, NULL, NULL) == -1);
     CHECK(fd2_field_unit_reward_preview(&unit, INT32_MAX, NULL, NULL, &output) == -1); unchanged(&output, &output_before);
     for (unsigned id = 68; id <= 255; id++) {
-        unit.unit_id = id; before = unit;
+        unit.unit_id = (uint8_t)id; before = unit;
         CHECK(fd2_field_unit_level_growth_prepare(&unit, &plan) == -1 && memcmp(&plan, &old_plan, sizeof(plan)) == 0);
         CHECK(fd2_field_unit_reward_preview(&unit, 5, NULL, NULL, &output) == -1);
         unchanged(&unit, &before); unchanged(&output, &output_before);
@@ -224,6 +225,44 @@ static void test_preflight_errors_do_not_write(void) {
     groups++;
 }
 
+static void test_reward_data_controls_branch_and_ack_edge(void) {
+    const fd2_static_flow *original = fd2_reward_graph();
+    CHECK(original && original->count <= 254u);
+    fd2_static_flow_node nodes[254];
+    memcpy(nodes, original->nodes, original->count * sizeof(nodes[0]));
+    fd2_static_flow flow = *original; flow.nodes = nodes;
+    fd2_field_unit unit = actor(9, 1, 0), expected;
+    CHECK(fd2_field_unit_reward_preview(&unit, 200, NULL, NULL, &expected) == 1);
+    CHECK(expected.level == 3 && expected.experience == 0);
+    int gain = fd2_static_flow_label(&flow, "gain");
+    int close = fd2_static_flow_label(&flow, "close");
+    CHECK(gain >= 0 && close >= 0);
+    /* 仅改冷图ACK边：奖励直接进入关框，C执行器不得仍硬跑升级分支。 */
+    nodes[gain].edges[FD2_FLOW_ACK] = (int16_t)close;
+    fd2_reward_cursor cursor = {0}; cursor.step = flow.entry;
+    fd2_reward_notice notice;
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 0);
+    CHECK(notice.fragment == 488 && fd2_reward_ack(&flow, &cursor) == 0);
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 0);
+    CHECK(notice.kind == 5 && fd2_reward_ack(&flow, &cursor) == 0);
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 1);
+    CHECK(unit.level == 1 && unit.experience == 200);
+    /* 修改gate参数立即改变入口；未知操作和错误PC必须失败且不写单位。 */
+    memcpy(nodes, original->nodes, original->count * sizeof(nodes[0]));
+    nodes[flow.entry].args[0] = 1;
+    unit = actor(9, 1, 0); expected = unit; cursor = (fd2_reward_cursor){0}; cursor.step = flow.entry;
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 2);
+    unchanged(&unit, &expected);
+    nodes[flow.entry].op = "unknown_required_operation";
+    cursor.step = flow.entry;
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == -1);
+    unchanged(&unit, &expected);
+    cursor.step = 255;
+    CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == -1);
+    unchanged(&unit, &expected);
+    groups++;
+}
+
 int main(void) {
     CHECK(sizeof(fd2_field_unit) == 80);
     test_complete_tables(748, 11, 1, UINT64_C(0x12a56491fb722c5a));
@@ -231,6 +270,7 @@ int main(void) {
     test_fixed_upper_and_write_set(); test_nonlevel_and_entry_gates();
     test_native_loop_boundaries(); test_learning_and_five_byte_preservation();
     test_word_wrap_equipment_and_alias(); test_preflight_errors_do_not_write();
+    test_reward_data_controls_branch_and_ack_edge();
     printf("field_growth_test: %u groups passed; pure logic, no UI\n", groups);
     return 0;
 }

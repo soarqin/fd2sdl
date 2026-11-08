@@ -17,6 +17,7 @@
 
 #include "field_item.h"
 #include "field_unit_stats.h"
+#include "field_reward_flow.h"
 
 #define ARRAY_COUNT(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -103,44 +104,21 @@ int fd2_field_unit_reward_preview(
         fd2_field_unit_stat_scale_fn scale, void *scale_userdata,
         fd2_field_unit *out) {
     if (!source || !out) return -1;
-    /* field_unit_experience_reward_execute @0x1e292（原sub_1E292）：只有精确等值门，早退不消费
-     * 全局贡献。此纯函数连out也不写，由game保留各caller的53EC8 owner。 */
-    uint8_t limit = source->unit_id == 30u || source->unit_id == 31u ? 99u : 40u;
-    if (!gain || (source->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) || source->level == limit)
-        return 0;
-    if (source->unit_id >= ARRAY_COUNT(k_growth_records) ||
-        gain > INT32_MAX - (uint32_t)source->experience)
-        return -1;
-    uint32_t total = source->experience + gain;
     fd2_field_unit updated = *source;
-    const uint8_t offsets[5] = {0x37, 0x39, 0x3e, 0x42, 0x46};
-    while (total >= 100u) {
-        fd2_field_unit_level_growth level;
-        if (fd2_field_unit_level_growth_prepare(&updated, &level) != 0)
-            return -1;
-        updated.level = level.level;
-        uint8_t *raw = (uint8_t *)&updated;
-        for (size_t i = 0; i < ARRAY_COUNT(offsets); i++) {
-            size_t offset = offsets[i];
-            uint16_t value = (uint16_t)(raw[offset] | (uint16_t)raw[offset + 1u] << 8);
-            wr_u16(raw, offset, (uint32_t)value + level.growth[i]);
-        }
-        for (size_t i = 0; i < level.learned_count; i++) {
-            uint8_t id = level.learned_magic[i];
-            raw[0x1au + id / 8u] |= (uint8_t)(1u << (id % 8u));
-        }
-        if (fd2_field_unit_combat_stats_recompute(&updated,
-                initial_item_stats, NULL, scale, scale_userdata) != 0)
-            return -1;
-        total -= 100u;
-        /* 原循环只在新level30或特殊ID新99清余数；不擅加新level40门。 */
-        if (updated.level == 30u ||
-            ((updated.unit_id == 30u || updated.unit_id == 31u) && updated.level == 99u))
-            total = 0;
+    const fd2_static_flow *flow = fd2_reward_graph();
+    if (!flow) return -1;
+    fd2_reward_cursor cursor = {0};
+    cursor.step = flow->entry;
+    fd2_reward_notice notice;
+    for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        int result = fd2_reward_advance(flow, &updated, gain, &cursor, &notice,
+            initial_item_stats, NULL, scale, scale_userdata);
+        if (result == 2) return 0;
+        if (result < 0) return -1;
+        if (result == 1) { *out = updated; return 1; }
+        if (fd2_reward_ack(flow, &cursor) != 0) return -1;
     }
-    updated.experience = (uint8_t)total;
-    *out = updated;
-    return 1;
+    return -1;
 }
 
 /* field_persistent_unit_combat_stats_recompute @0x1145a（原sub_1145A）不读战场状态22..24，只按flags40累计。

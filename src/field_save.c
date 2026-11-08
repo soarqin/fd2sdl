@@ -17,6 +17,12 @@
 #include "save.h"
 #include "portrait.h"
 
+static int stage_snapshot_supported(size_t stage, size_t count) {
+    fd2_field_stage_capability capability;
+    return fd2_field_stage_capability_get(stage, &capability) == 0 &&
+        count >= capability.minimum_units && (!capability.exact_units || count == capability.exact_units);
+}
+
 static uint32_t rd_u32_le(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -67,9 +73,7 @@ int fd2_field_game_export_battle_snapshot(
         game->loot.source != 0u ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || game->stage > 2u ||
-        (game->stage == 1u && game->units.count < 11u) ||
-        (game->stage == 2u && game->units.count != 15u) ||
+        game->player_post_waiting_phase || !stage_snapshot_supported(game->stage, game->units.count) ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -143,9 +147,7 @@ static int validate_import(const fd2_field_game *game,
         return -1;
     size_t count = snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
-    if (stage != game->stage || stage > 2u || count == 0u ||
-        (stage == 1u && count < 11u) ||
-        (stage == 2u && count != 15u) ||
+    if (stage != game->stage || !stage_snapshot_supported(stage, count) || count == 0u ||
         snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
             FD2_SAVE_BATTLE_MAX_ROSTER ||
         count > FD2_SAVE_BATTLE_MAX_UNITS ||
@@ -389,7 +391,7 @@ static int snapshot_is_importable(const fd2_field_game *game,
         fd2_field_map_close(&map);
         return available;
     }
-    if (stage > 2u || !game->fdother) return 0;
+    if (!fd2_field_stage_is_supported(stage) || !game->fdother) return 0;
     fd2_field_game *resources = calloc(1, sizeof(*resources));
     if (!resources) return 0;
     int available = fd2_field_game_open_resources(resources, game->fdother, stage) == 0 &&
@@ -471,8 +473,9 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
     /* field_manual_slot_load @0x2986f恢复准备表，不运行1088d、不把slot
      * 当active。codec可保存32人；这里不添加出阵选择器的16人容量门。 */
-    if (!state || (state->stage_id != 1u && state->stage_id != 2u) ||
-        state->unit_count > FD2_SAVE_MAX_UNITS ||
+    fd2_field_stage_capability capability;
+    if (!state || fd2_field_stage_capability_get(state->stage_id, &capability) != 0 ||
+        !capability.preparation_slots || state->unit_count > FD2_SAVE_MAX_UNITS ||
         !fd2_field_stage_prepare_record_get(state->stage_id)) return -1;
     fd2_archive fdother = {0};
     fd2_field_game *resources = calloc(1, sizeof(*resources));

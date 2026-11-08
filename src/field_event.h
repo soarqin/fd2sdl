@@ -43,8 +43,9 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
                                     const uint8_t *script,
                                     size_t script_size);
 
-/* DAT_000027d8 中已确认的 stage 0/31、stage 1 和 stage 2 移动脚本。
- * stage 1 使用 9..16，stage 2 使用 17..19；返回 0 并提供只读字节流，
+/* DAT_000027d8 中已确认的新游戏开场、stage 0/31、stage 1 和 stage 2 脚本。
+ * 开场使用0/1/2/5及0x5a..0x69，stage 1 使用9..16，stage 2 使用17..19；
+ * 返回0并提供只读字节流，
  * 未知 script_id 返回 -1，不推进演出。 */
 int fd2_field_movement_script_get(uint8_t script_id,
     const uint8_t **script, size_t *script_size);

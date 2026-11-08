@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "domain": "stage",
+  "source": {
+    "kind": "existing_confirmed_definition",
+    "file": "src/field_game.c",
+    "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+    "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
+    "evidence": "field_stage1_entry_play @0x32d18; field_stage2_entry_play @0x32e8c; field_stage1_victory_play @0x22f37; field_stage1_battle_result_check @0x206c5; src/scene.c confirmed presentation order; result.default is existing SDL fallback, not original stage2 acceptance",
+    "related_sources": [
+      {
+        "file": "src/scene.c",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "baseline_source_sha256": "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
+        "evidence": "fd2_scene_play_stage1_entry / stage2_entry / stage1_victory presentation order",
+        "kind": "existing_confirmed_definition"
+      }
+    ]
+  },
+  "operations": {
+    "stage_setup": {"args": [{"name": "stage", "min": 1, "max": 32}, {"name": "slots", "min": 1, "max": 16}, {"name": "final_count", "min": 1, "max": 64}, {"name": "unknown01", "min": 0, "max": 255}]},
+    "pan": {"args": [{"name": "x", "min": 0, "max": 255}, {"name": "y", "min": 0, "max": 255}]},
+    "move": {"args": [{"name": "script_id", "min": 0, "max": 255}, {"name": "fade", "min": 0, "max": 1}]},
+    "text": {"args": [{"name": "fragment", "min": 0, "max": 65535}]},
+    "delay": {"args": [{"name": "milliseconds", "min": 0, "max": 65535}]},
+    "append_group": {"args": [{"name": "group", "min": 0, "max": 255}, {"name": "force", "min": 0, "max": 1}, {"name": "arrival_effect", "min": 0, "max": 1}]},
+    "reset_directions": {"args": []},
+    "focus_actor": {"args": [{"name": "raw_actor", "min": 0, "max": 63}]},
+    "assert_unit_count": {"args": [{"name": "count", "min": 1, "max": 64}]},
+    "display_mode": {"args": [{"name": "mode", "min": 0, "max": 1}]},
+    "branch_any_hidden": {"args": [{"name": "first", "min": 0, "max": 63}, {"name": "last", "min": 0, "max": 63}]},
+    "grant_party_item": {"args": [{"name": "item", "min": 0, "max": 214}]},
+    "copy_projected_inventory": {"args": []},
+    "cursor_visible": {"args": [{"name": "visible", "min": 0, "max": 1}]},
+    "assert_roster_capacity": {"args": [{"name": "extra", "min": 0, "max": 32}]},
+    "next_stage": {"args": [{"name": "stage", "min": 1, "max": 255}]},
+    "roster_append": {"args": [{"name": "unit_id", "min": 0, "max": 31}]},
+    "roster_sync": {"args": []},
+    "end": {"args": []},
+    "result_count_at_least": {"args": [{"name": "count", "min": 1, "max": 64}]},
+    "result_leader_dead": {"args": [{"name": "raw_actor", "min": 0, "max": 63}, {"name": "include_hp_zero", "min": 0, "max": 1}]},
+    "result_side_present": {"args": [{"name": "side", "min": 0, "max": 2}, {"name": "require_hp", "min": 0, "max": 1}]},
+    "result_return": {"args": [{"name": "result", "min": 0, "max": 2}]},
+    "result_all_hidden": {"args": [{"name": "first", "min": 0, "max": 63}, {"name": "last", "min": 0, "max": 63}]},
+    "stage_capability": {"args": [{"name": "battle_enabled", "min": 0, "max": 1}, {"name": "min_active_count", "min": 0, "max": 64}, {"name": "exact_active_count", "min": 0, "max": 64}, {"name": "preparation_slots", "min": 0, "max": 16}]},
+    "inherit_cursor": {"args": []},
+    "commit_view": {"args": []},
+    "preflight_before_music": {"args": []},
+    "victory_music": {"args": [{"name": "track", "min": -1, "max": 31}]},
+    "present_base": {"args": []},
+    "palette_fade_in": {"args": [{"name": "fast_present", "min": 0, "max": 1}]},
+    "brightness": {"args": [{"name": "darkness", "min": 0, "max": 64}]}
+  },
+  "flows": [
+    {
+      "id": "stage.entry.001",
+      "entry": "setup",
+      "nodes": [
+        {"id": "setup", "op": "stage_setup", "args": [1, 5, 21, 5], "on": {"next": "entry_dark"}, "views": ["logic", "present"]},
+        {"id": "entry_dark", "op": "brightness", "args": [64], "on": {"next": "entry_present"}, "views": ["present"]},
+        {"id": "entry_present", "op": "present_base", "args": [], "on": {"next": "entry_fade"}, "views": ["present"]},
+        {"id": "entry_fade", "op": "palette_fade_in", "args": [0], "on": {"next": "camera_a"}, "views": ["present"]},
+        {"id": "camera_a", "op": "pan", "args": [13, 11], "on": {"next": "move9"}, "views": ["logic", "present"]},
+        {"id": "move9", "op": "move", "args": [9, 0], "on": {"next": "text0"}, "views": ["logic", "present"]},
+        {"id": "text0", "op": "text", "args": [0], "on": {"next": "move10"}, "views": ["present"]},
+        {"id": "move10", "op": "move", "args": [10, 0], "on": {"next": "text1"}, "views": ["logic", "present"]},
+        {"id": "text1", "op": "text", "args": [1], "on": {"next": "group1"}, "views": ["present"]},
+        {"id": "group1", "op": "append_group", "args": [1, 0, 0], "on": {"next": "count11"}, "views": ["logic", "present"]},
+        {"id": "count11", "op": "assert_unit_count", "args": [11], "on": {"next": "move11"}, "views": ["logic"]},
+        {"id": "move11", "op": "move", "args": [11, 0], "on": {"next": "text2"}, "views": ["logic", "present"]},
+        {"id": "text2", "op": "text", "args": [2], "on": {"next": "directions_a"}, "views": ["present"]},
+        {"id": "directions_a", "op": "reset_directions", "args": [], "on": {"next": "camera_b"}, "views": ["logic", "present"]},
+        {"id": "camera_b", "op": "pan", "args": [6, 12], "on": {"next": "group2"}, "views": ["logic", "present"]},
+        {"id": "group2", "op": "append_group", "args": [2, 1, 0], "on": {"next": "count21"}, "views": ["logic", "present"]},
+        {"id": "count21", "op": "assert_unit_count", "args": [21], "on": {"next": "move12"}, "views": ["logic"]},
+        {"id": "move12", "op": "move", "args": [12, 0], "on": {"next": "directions_b"}, "views": ["logic", "present"]},
+        {"id": "directions_b", "op": "reset_directions", "args": [], "on": {"next": "text3"}, "views": ["logic", "present"]},
+        {"id": "text3", "op": "text", "args": [3], "on": {"next": "leader"}, "views": ["present"]},
+        {"id": "leader", "op": "focus_actor", "args": [0], "on": {"next": "display"}, "views": ["logic", "present"]},
+        {"id": "display", "op": "display_mode", "args": [1], "on": {"next": "end"}, "views": ["logic"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "stage.entry.002",
+      "entry": "setup",
+      "nodes": [
+        {"id": "setup", "op": "stage_setup", "args": [2, 6, 15, 6], "on": {"next": "entry_dark"}, "views": ["logic", "present"]},
+        {"id": "entry_dark", "op": "brightness", "args": [64], "on": {"next": "entry_present"}, "views": ["present"]},
+        {"id": "entry_present", "op": "present_base", "args": [], "on": {"next": "entry_fade"}, "views": ["present"]},
+        {"id": "entry_fade", "op": "palette_fade_in", "args": [0], "on": {"next": "camera_a"}, "views": ["present"]},
+        {"id": "camera_a", "op": "pan", "args": [3, 17], "on": {"next": "delay_a"}, "views": ["logic", "present"]},
+        {"id": "delay_a", "op": "delay", "args": [200], "on": {"next": "text0"}, "views": ["present"]},
+        {"id": "text0", "op": "text", "args": [0], "on": {"next": "move18"}, "views": ["present"]},
+        {"id": "move18", "op": "move", "args": [18, 0], "on": {"next": "group1"}, "views": ["logic", "present"]},
+        {"id": "group1", "op": "append_group", "args": [1, 0, 0], "on": {"next": "count15"}, "views": ["logic", "present"]},
+        {"id": "count15", "op": "assert_unit_count", "args": [15], "on": {"next": "camera_b"}, "views": ["logic"]},
+        {"id": "camera_b", "op": "pan", "args": [3, 6], "on": {"next": "delay_b"}, "views": ["logic", "present"]},
+        {"id": "delay_b", "op": "delay", "args": [200], "on": {"next": "move17"}, "views": ["present"]},
+        {"id": "move17", "op": "move", "args": [17, 0], "on": {"next": "text1"}, "views": ["logic", "present"]},
+        {"id": "text1", "op": "text", "args": [1], "on": {"next": "move19"}, "views": ["present"]},
+        {"id": "move19", "op": "move", "args": [19, 0], "on": {"next": "text2"}, "views": ["logic", "present"]},
+        {"id": "text2", "op": "text", "args": [2], "on": {"next": "camera_c"}, "views": ["present"]},
+        {"id": "camera_c", "op": "pan", "args": [3, 17], "on": {"next": "text3"}, "views": ["present"]},
+        {"id": "text3", "op": "text", "args": [3], "on": {"next": "directions"}, "views": ["present"]},
+        {"id": "directions", "op": "reset_directions", "args": [], "on": {"next": "leader"}, "views": ["logic", "present"]},
+        {"id": "leader", "op": "focus_actor", "args": [0], "on": {"next": "display"}, "views": ["logic", "present"]},
+        {"id": "display", "op": "display_mode", "args": [1], "on": {"next": "end"}, "views": ["logic"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "stage.victory.000",
+      "entry": "app_preflight",
+      "nodes": [
+        {"id": "app_preflight", "op": "preflight_before_music", "args": [], "on": {"next": "app_music"}, "views": ["logic"]},
+        {"id": "app_music", "op": "victory_music", "args": [-1], "on": {"next": "text9"}, "views": ["logic"]},
+        {"id": "text9", "op": "text", "args": [9], "on": {"next": "commit_view"}, "views": ["present"]},
+        {"id": "commit_view", "op": "commit_view", "args": [], "on": {"next": "end"}, "views": ["present"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "stage.victory.001",
+      "entry": "app_music",
+      "nodes": [
+        {"id": "app_music", "op": "victory_music", "args": [-1], "on": {"next": "count27"}, "views": ["logic"]},
+        {"id": "count27", "op": "assert_unit_count", "args": [27], "on": {"next": "capacity"}, "views": ["logic"]},
+        {"id": "capacity", "op": "assert_roster_capacity", "args": [1], "on": {"next": "inherit_cursor"}, "views": ["logic"]},
+        {"id": "inherit_cursor", "op": "inherit_cursor", "args": [], "on": {"next": "villagers"}, "views": ["present"]},
+        {"id": "villagers", "op": "branch_any_hidden", "args": [5, 10], "on": {"yes": "some_dead", "no": "all_alive"}, "views": ["logic", "present"]},
+        {"id": "some_dead", "op": "text", "args": [7], "on": {"next": "camera_a"}, "views": ["present"]},
+        {"id": "all_alive", "op": "text", "args": [6], "on": {"next": "reward"}, "views": ["present"]},
+        {"id": "reward", "op": "grant_party_item", "args": [198], "on": {"next": "copy_reward"}, "views": ["logic"]},
+        {"id": "copy_reward", "op": "copy_projected_inventory", "args": [], "on": {"next": "camera_a"}, "views": ["present"]},
+        {"id": "camera_a", "op": "pan", "args": [14, 2], "on": {"next": "group4"}, "views": ["present"]},
+        {"id": "group4", "op": "append_group", "args": [4, 0, 0], "on": {"next": "count28"}, "views": ["logic", "present"]},
+        {"id": "count28", "op": "assert_unit_count", "args": [28], "on": {"next": "delay_a"}, "views": ["logic"]},
+        {"id": "delay_a", "op": "delay", "args": [100], "on": {"next": "move14"}, "views": ["present"]},
+        {"id": "move14", "op": "move", "args": [14, 0], "on": {"next": "text8"}, "views": ["logic", "present"]},
+        {"id": "text8", "op": "text", "args": [8], "on": {"next": "cursor_a"}, "views": ["present"]},
+        {"id": "cursor_a", "op": "cursor_visible", "args": [0], "on": {"next": "delay_b"}, "views": ["present"]},
+        {"id": "delay_b", "op": "delay", "args": [200], "on": {"next": "move15"}, "views": ["present"]},
+        {"id": "move15", "op": "move", "args": [15, 0], "on": {"next": "text9"}, "views": ["logic", "present"]},
+        {"id": "text9", "op": "text", "args": [9], "on": {"next": "cursor_b"}, "views": ["present"]},
+        {"id": "cursor_b", "op": "cursor_visible", "args": [0], "on": {"next": "delay_c"}, "views": ["present"]},
+        {"id": "delay_c", "op": "delay", "args": [200], "on": {"next": "camera_b"}, "views": ["present"]},
+        {"id": "camera_b", "op": "pan", "args": [14, 1], "on": {"next": "delay_d"}, "views": ["present"]},
+        {"id": "delay_d", "op": "delay", "args": [200], "on": {"next": "move16"}, "views": ["present"]},
+        {"id": "move16", "op": "move", "args": [16, 0], "on": {"next": "delay_e"}, "views": ["logic", "present"]},
+        {"id": "delay_e", "op": "delay", "args": [200], "on": {"next": "text10"}, "views": ["present"]},
+        {"id": "text10", "op": "text", "args": [10], "on": {"next": "end"}, "views": ["present"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "stage.settlement.000",
+      "entry": "next_stage",
+      "nodes": [
+        {"id": "next_stage", "op": "next_stage", "args": [1], "on": {"next": "sync"}, "views": ["logic"]},
+        {"id": "sync", "op": "roster_sync", "args": [], "on": {"next": "end"}, "views": ["logic"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.settlement.001",
+      "entry": "next_stage",
+      "nodes": [
+        {"id": "next_stage", "op": "next_stage", "args": [2], "on": {"next": "join_party"}, "views": ["logic"]},
+        {"id": "join_party", "op": "roster_append", "args": [8], "on": {"next": "sync"}, "views": ["logic"]},
+        {"id": "sync", "op": "roster_sync", "args": [], "on": {"next": "end"}, "views": ["logic"]},
+        {"id": "end", "op": "end", "args": [], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.result.000",
+      "entry": "leader",
+      "nodes": [
+        {"id": "leader", "op": "result_leader_dead", "args": [0, 1], "on": {"yes": "defeat", "no": "hostile"}, "views": ["logic"]},
+        {"id": "hostile", "op": "result_side_present", "args": [0, 1], "on": {"yes": "ongoing", "no": "victory"}, "views": ["logic"]},
+        {"id": "defeat", "op": "result_return", "args": [2], "on": {}, "views": ["logic"]},
+        {"id": "victory", "op": "result_return", "args": [1], "on": {}, "views": ["logic"]},
+        {"id": "ongoing", "op": "result_return", "args": [0], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.result.001",
+      "entry": "count",
+      "nodes": [
+        {"id": "count", "op": "result_count_at_least", "args": [11], "on": {"yes": "leader", "no": "defeat"}, "views": ["logic"]},
+        {"id": "leader", "op": "result_leader_dead", "args": [0, 0], "on": {"yes": "defeat", "no": "villagers"}, "views": ["logic"]},
+        {"id": "villagers", "op": "result_all_hidden", "args": [5, 10], "on": {"yes": "defeat", "no": "hostile"}, "views": ["logic"]},
+        {"id": "hostile", "op": "result_side_present", "args": [0, 1], "on": {"yes": "ongoing", "no": "victory"}, "views": ["logic"]},
+        {"id": "defeat", "op": "result_return", "args": [2], "on": {}, "views": ["logic"]},
+        {"id": "victory", "op": "result_return", "args": [1], "on": {}, "views": ["logic"]},
+        {"id": "ongoing", "op": "result_return", "args": [0], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.result.default",
+      "entry": "player",
+      "nodes": [
+        {"id": "player", "op": "result_side_present", "args": [2, 1], "on": {"yes": "hostile", "no": "defeat"}, "views": ["logic"]},
+        {"id": "hostile", "op": "result_side_present", "args": [0, 1], "on": {"yes": "ongoing", "no": "victory"}, "views": ["logic"]},
+        {"id": "defeat", "op": "result_return", "args": [2], "on": {}, "views": ["logic"]},
+        {"id": "victory", "op": "result_return", "args": [1], "on": {}, "views": ["logic"]},
+        {"id": "ongoing", "op": "result_return", "args": [0], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.000",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "stage_capability", "args": [1, 0, 0, 0], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.001",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "stage_capability", "args": [1, 11, 0, 5], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.002",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "stage_capability", "args": [0, 0, 15, 6], "on": {}, "views": ["logic"]}
+      ]
+    }
+  ]
+}

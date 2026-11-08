@@ -12,11 +12,11 @@
 
 #undef fd2_field_game_settlement_prepare
 #undef fd2_field_game_settlement_commit
-#undef fd2_scene_play_stage1_victory
+#undef fd2_scene_play_stage_victory
 int fd2_field_game_settlement_prepare(const fd2_field_game *, fd2_save_manual_state *);
 int fd2_field_game_settlement_commit(fd2_field_game *, fd2_save_manual_state *);
-int fd2_scene_play_stage1_victory(fd2_vga *, const fd2_archive *,
-    const fd2_field_game *, fd2_field_audio *, int);
+int fd2_scene_play_stage_victory(fd2_vga *, const fd2_archive *,
+    fd2_field_game *, fd2_field_audio *, int);
 
 /* 仅测试TU在wrapper中复用正式input消费，不把注入脉冲变成手工action队列。 */
 #ifdef fd2_input_take_action
@@ -179,9 +179,9 @@ int __wrap_fd2_field_game_settlement_prepare(const fd2_field_game *game,
     if (settlement_case==4) return -1;
     *out=settlement_expected;return 0;
 }
-int __wrap_fd2_scene_play_stage1_victory(fd2_vga *vga, const fd2_archive *archive,
-        const fd2_field_game *game, fd2_field_audio *audio, int fast) {
-    if (!settlement_case) return fd2_scene_play_stage1_victory(vga,archive,game,audio,fast);
+int __wrap_fd2_scene_play_stage_victory(fd2_vga *vga, const fd2_archive *archive,
+        fd2_field_game *game, fd2_field_audio *audio, int fast) {
+    if (!settlement_case) return fd2_scene_play_stage_victory(vga,archive,game,audio,fast);
     settlement_scenes++;
     if (settlement_prepares!=1 || settlement_commits || settlement_context->has_preparation ||
         game->stage!=1 || !game->ready) settlement_protocol_ok=0;

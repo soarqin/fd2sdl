@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "domain": "scene",
+  "source": {
+    "file": "src/scene.c",
+    "kind": "existing_confirmed_definition",
+    "baseline_commit": "6b24b33bfc13ac38087d1fed1cdc940fdc7b8147",
+    "baseline_source_sha256": "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
+    "evidence": "new_game_opening_play @0x3231b、stage handlers @0x34531/0x3460b/0x34673/0x346cd/0x34738/0x34778、field_defeat_game_over_present @0x22e5c；保留既有SDL提交及呈现边界"
+  },
+  "operations": {
+    "end": {"args": []},
+    "pan": {"args": [{"name": "x", "min": 0, "max": 255}, {"name": "y", "min": 0, "max": 255}]},
+    "move": {"args": [{"name": "script_id", "min": 0, "max": 255}, {"name": "fade", "min": 0, "max": 1}]},
+    "text": {"args": [{"name": "fragment", "min": 0, "max": 65535}]},
+    "delay": {"args": [{"name": "ms", "min": 0, "max": 65535}]},
+    "sleep_ms": {"args": [{"name": "ms", "min": 0, "max": 65535}]},
+    "append_roster": {"args": [{"name": "unit_id", "min": 0, "max": 255}]},
+    "append_group": {"args": [{"name": "group", "min": 0, "max": 255}, {"name": "force", "min": 0, "max": 1}, {"name": "arrival", "min": 0, "max": 1}]},
+    "set_side": {"args": [{"name": "raw", "min": 0, "max": 63}, {"name": "side", "min": 0, "max": 2}]},
+    "set_ai_target": {"args": [{"name": "first", "min": 0, "max": 63}, {"name": "last", "min": 0, "max": 63}, {"name": "x", "min": 0, "max": 255}, {"name": "y", "min": 0, "max": 255}]},
+    "actor_hidden": {"args": [{"name": "first", "min": 0, "max": 63}, {"name": "last", "min": 0, "max": 63}, {"name": "hidden", "min": 0, "max": 1}]},
+    "ensure_count": {"args": [{"name": "count", "min": 0, "max": 64}]},
+    "limit_count": {"args": [{"name": "count", "min": 0, "max": 64}]},
+    "reset_directions": {"args": []},
+    "focus_actor": {"args": [{"name": "raw", "min": 0, "max": 63}]},
+    "bgm": {"args": [{"name": "track", "min": -1, "max": 19}]},
+    "fade": {"args": [{"name": "in", "min": 0, "max": 1}]},
+    "brightness": {"args": [{"name": "darkness", "min": 0, "max": 64}]},
+    "move_up": {"args": [{"name": "raw", "min": 0, "max": 63}, {"name": "steps", "min": 0, "max": 255}]},
+    "arrival": {"args": [{"name": "first", "min": 0, "max": 63}, {"name": "end", "min": 1, "max": 64}]},
+    "init_player": {"args": [{"name": "actor", "min": 0, "max": 63}, {"name": "unit_id", "min": 0, "max": 255}, {"name": "tail", "min": 0, "max": 64}, {"name": "ordinal", "min": 0, "max": 63}]},
+    "init_templates": {"args": [{"name": "first", "min": 0, "max": 255}, {"name": "count", "min": -1, "max": 255}, {"name": "actor_base", "min": 0, "max": 63}, {"name": "stop_zero", "min": 0, "max": 1}, {"name": "hidden", "min": 0, "max": 1}]},
+    "opening_stage": {"args": [{"name": "stage", "min": 0, "max": 32}]},
+    "fixed_ticks": {"args": [{"name": "ticks", "min": 0, "max": 65535}]},
+    "clear_screen": {"args": []},
+    "gameover_frame": {"args": [{"name": "index", "min": 0, "max": 1}]},
+    "capability": {"args": [{"name": "cell_allowed", "min": 0, "max": 1}, {"name": "min_preflight_count", "min": 0, "max": 64}]},
+    "assert_unit_count": {"args": [{"name": "count", "min": 0, "max": 64}]},
+    "render_base": {"args": []},
+    "present_base": {"args": []},
+    "palette_fade_in": {"args": [{"name": "fast_present", "min": 0, "max": 1}]}
+  },
+  "bindings": {"stage.000.action.000": "event.action.000", "stage.000.action.001": "event.action.001", "stage.000.action.002": "event.action.002", "stage.000.action.003": "event.action.003", "stage.000.action.004": "event.action.004", "stage.001.action.006": "event.action.006"},
+  "flows": [
+    {
+      "id": "event.action.000",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [0, 0], "on": {"next": "append_roster_00"}, "views": ["logic"]},
+        {"id": "append_roster_00", "op": "append_roster", "args": [1], "on": {"next": "append_group_01"}, "views": ["logic"]},
+        {"id": "append_group_01", "op": "append_group", "args": [3, 0, 0], "on": {"next": "pan_02"}, "views": ["logic", "present"]},
+        {"id": "pan_02", "op": "pan", "args": [5, 8], "on": {"next": "delay_03"}, "views": ["logic", "present"]},
+        {"id": "delay_03", "op": "delay", "args": [100], "on": {"next": "move_04"}, "views": ["present"]},
+        {"id": "move_04", "op": "move", "args": [7, 0], "on": {"next": "text_05"}, "views": ["logic", "present"]},
+        {"id": "text_05", "op": "text", "args": [11], "on": {"next": "append_group_06"}, "views": ["present"]},
+        {"id": "append_group_06", "op": "append_group", "args": [7, 0, 0], "on": {"next": "delay_07"}, "views": ["logic", "present"]},
+        {"id": "delay_07", "op": "delay", "args": [100], "on": {"next": "move_08"}, "views": ["present"]},
+        {"id": "move_08", "op": "move", "args": [8, 0], "on": {"next": "text_09"}, "views": ["logic", "present"]},
+        {"id": "text_09", "op": "text", "args": [3], "on": {"next": "end_10"}, "views": ["present"]},
+        {"id": "end_10", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "event.action.001",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [0, 0], "on": {"next": "pan_00"}, "views": ["logic"]},
+        {"id": "pan_00", "op": "pan", "args": [11, 16], "on": {"next": "append_group_01"}, "views": ["logic", "present"]},
+        {"id": "append_group_01", "op": "append_group", "args": [4, 0, 1], "on": {"next": "move_02"}, "views": ["logic", "present"]},
+        {"id": "move_02", "op": "move", "args": [3, 0], "on": {"next": "text_03"}, "views": ["logic", "present"]},
+        {"id": "text_03", "op": "text", "args": [4], "on": {"next": "end_04"}, "views": ["present"]},
+        {"id": "end_04", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "event.action.002",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [0, 0], "on": {"next": "pan_00"}, "views": ["logic"]},
+        {"id": "pan_00", "op": "pan", "args": [0, 16], "on": {"next": "append_group_01"}, "views": ["logic", "present"]},
+        {"id": "append_group_01", "op": "append_group", "args": [5, 0, 1], "on": {"next": "move_02"}, "views": ["logic", "present"]},
+        {"id": "move_02", "op": "move", "args": [4, 0], "on": {"next": "text_03"}, "views": ["logic", "present"]},
+        {"id": "text_03", "op": "text", "args": [5], "on": {"next": "end_04"}, "views": ["present"]},
+        {"id": "end_04", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "event.action.003",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [0, 0], "on": {"next": "pan_00"}, "views": ["logic"]},
+        {"id": "pan_00", "op": "pan", "args": [11, 11], "on": {"next": "append_group_01"}, "views": ["logic", "present"]},
+        {"id": "append_group_01", "op": "append_group", "args": [6, 0, 0], "on": {"next": "move_02"}, "views": ["logic", "present"]},
+        {"id": "move_02", "op": "move", "args": [6, 0], "on": {"next": "text_03"}, "views": ["logic", "present"]},
+        {"id": "text_03", "op": "text", "args": [6], "on": {"next": "end_04"}, "views": ["present"]},
+        {"id": "end_04", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "event.action.004",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [1, 14], "on": {"next": "set_side_00"}, "views": ["logic"]},
+        {"id": "set_side_00", "op": "set_side", "args": [13, 1], "on": {"next": "text_01"}, "views": ["logic"]},
+        {"id": "text_01", "op": "text", "args": [7], "on": {"next": "end_02"}, "views": ["present"]},
+        {"id": "end_02", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
+      ]
+    },
+    {
+      "id": "event.action.006",
+      "entry": "capability",
+      "nodes": [
+        {"id": "capability", "op": "capability", "args": [1, 11], "on": {"next": "pan_00"}, "views": ["logic"]},
+        {"id": "pan_00", "op": "pan", "args": [9, 1], "on": {"next": "before_reinforcement"}, "views": ["logic", "present"]},
+        {"id": "append_group_01", "op": "append_group", "args": [3, 1, 0], "on": {"next": "after_reinforcement"}, "views": ["logic", "present"]},
+        {"id": "move_02", "op": "move", "args": [13, 0], "on": {"next": "text_03"}, "views": ["logic", "present"]},
+        {"id": "text_03", "op": "text", "args": [4], "on": {"next": "set_ai_target_04"}, "views": ["present"]},
+        {"id": "set_ai_target_04", "op": "set_ai_target", "args": [5, 10, 26, 15], "on": {"next": "end_05"}, "views": ["logic"]},
+        {"id": "end_05", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]},
+        {"id": "before_reinforcement", "op": "assert_unit_count", "args": [21], "on": {"next": "append_group_01"}, "views": ["logic"]},
+        {"id": "after_reinforcement", "op": "assert_unit_count", "args": [27], "on": {"next": "move_02"}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "scene.init.000",
+      "entry": "init_player_00",
+      "nodes": [
+        {"id": "init_player_00", "op": "init_player", "args": [0, 0, 4, 0], "on": {"next": "init_player_01"}, "views": ["present"]},
+        {"id": "init_player_01", "op": "init_player", "args": [1, 9, 4, 1], "on": {"next": "init_player_02"}, "views": ["present"]},
+        {"id": "init_player_02", "op": "init_player", "args": [2, 4, 4, 2], "on": {"next": "init_player_03"}, "views": ["present"]},
+        {"id": "init_player_03", "op": "init_player", "args": [3, 30, 4, 3], "on": {"next": "init_templates_04"}, "views": ["present"]},
+        {"id": "init_templates_04", "op": "init_templates", "args": [0, 8, 4, 0, 1], "on": {"next": "end_05"}, "views": ["present"]},
+        {"id": "end_05", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.init.031",
+      "entry": "init_templates_00",
+      "nodes": [
+        {"id": "init_templates_00", "op": "init_templates", "args": [0, 5, 0, 0, 0], "on": {"next": "actor_hidden_01"}, "views": ["present"]},
+        {"id": "actor_hidden_01", "op": "actor_hidden", "args": [2, 4, 1], "on": {"next": "limit_count_02"}, "views": ["present"]},
+        {"id": "limit_count_02", "op": "limit_count", "args": [2], "on": {"next": "end_03"}, "views": ["present"]},
+        {"id": "end_03", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.init.032",
+      "entry": "init_templates_00",
+      "nodes": [
+        {"id": "init_templates_00", "op": "init_templates", "args": [0, -1, 0, 1, 0], "on": {"next": "end_01"}, "views": ["present"]},
+        {"id": "end_01", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.opening.032",
+      "entry": "entry_render",
+      "nodes": [
+        {"id": "entry_render", "op": "render_base", "args": [], "on": {"next": "entry_fade"}, "views": ["present"]},
+        {"id": "entry_fade", "op": "palette_fade_in", "args": [1], "on": {"next": "pan_00"}, "views": ["present"]},
+        {"id": "pan_00", "op": "pan", "args": [3, 34], "on": {"next": "move_01"}, "views": ["present"]},
+        {"id": "move_01", "op": "move", "args": [99, 0], "on": {"next": "move_up_02"}, "views": ["present"]},
+        {"id": "move_up_02", "op": "move_up", "args": [2, 15], "on": {"next": "text_03"}, "views": ["present"]},
+        {"id": "text_03", "op": "text", "args": [0], "on": {"next": "move_up_04"}, "views": ["present"]},
+        {"id": "move_up_04", "op": "move_up", "args": [2, 13], "on": {"next": "text_05"}, "views": ["present"]},
+        {"id": "text_05", "op": "text", "args": [1], "on": {"next": "bgm_06"}, "views": ["present"]},
+        {"id": "bgm_06", "op": "bgm", "args": [-1], "on": {"next": "move_07"}, "views": ["present"]},
+        {"id": "move_07", "op": "move", "args": [100, 1], "on": {"next": "pan_08"}, "views": ["present"]},
+        {"id": "pan_08", "op": "pan", "args": [0, 43], "on": {"next": "bgm_09"}, "views": ["present"]},
+        {"id": "bgm_09", "op": "bgm", "args": [11], "on": {"next": "fade_10"}, "views": ["present"]},
+        {"id": "fade_10", "op": "fade", "args": [1], "on": {"next": "move_11"}, "views": ["present"]},
+        {"id": "move_11", "op": "move", "args": [101, 0], "on": {"next": "text_12"}, "views": ["present"]},
+        {"id": "text_12", "op": "text", "args": [2], "on": {"next": "move_13"}, "views": ["present"]},
+        {"id": "move_13", "op": "move", "args": [102, 0], "on": {"next": "text_14"}, "views": ["present"]},
+        {"id": "text_14", "op": "text", "args": [3], "on": {"next": "move_15"}, "views": ["present"]},
+        {"id": "move_15", "op": "move", "args": [103, 0], "on": {"next": "text_16"}, "views": ["present"]},
+        {"id": "text_16", "op": "text", "args": [4], "on": {"next": "move_17"}, "views": ["present"]},
+        {"id": "move_17", "op": "move", "args": [104, 0], "on": {"next": "text_18"}, "views": ["present"]},
+        {"id": "text_18", "op": "text", "args": [5], "on": {"next": "move_19"}, "views": ["present"]},
+        {"id": "move_19", "op": "move", "args": [105, 1], "on": {"next": "end_20"}, "views": ["present"]},
+        {"id": "end_20", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.opening.031",
+      "entry": "entry_render",
+      "nodes": [
+        {"id": "entry_render", "op": "render_base", "args": [], "on": {"next": "entry_fade"}, "views": ["present"]},
+        {"id": "entry_fade", "op": "palette_fade_in", "args": [1], "on": {"next": "pan_00"}, "views": ["present"]},
+        {"id": "pan_00", "op": "pan", "args": [5, 42], "on": {"next": "move_01"}, "views": ["present"]},
+        {"id": "move_01", "op": "move", "args": [90, 0], "on": {"next": "text_02"}, "views": ["present"]},
+        {"id": "text_02", "op": "text", "args": [0], "on": {"next": "move_03"}, "views": ["present"]},
+        {"id": "move_03", "op": "move", "args": [91, 0], "on": {"next": "text_04"}, "views": ["present"]},
+        {"id": "text_04", "op": "text", "args": [1], "on": {"next": "move_05"}, "views": ["present"]},
+        {"id": "move_05", "op": "move", "args": [92, 0], "on": {"next": "text_06"}, "views": ["present"]},
+        {"id": "text_06", "op": "text", "args": [2], "on": {"next": "actor_hidden_07"}, "views": ["present"]},
+        {"id": "actor_hidden_07", "op": "actor_hidden", "args": [2, 3, 0], "on": {"next": "ensure_count_08"}, "views": ["present"]},
+        {"id": "ensure_count_08", "op": "ensure_count", "args": [4], "on": {"next": "pan_09"}, "views": ["present"]},
+        {"id": "pan_09", "op": "pan", "args": [4, 41], "on": {"next": "text_10"}, "views": ["present"]},
+        {"id": "text_10", "op": "text", "args": [3], "on": {"next": "move_11"}, "views": ["present"]},
+        {"id": "move_11", "op": "move", "args": [93, 0], "on": {"next": "text_12"}, "views": ["present"]},
+        {"id": "text_12", "op": "text", "args": [4], "on": {"next": "actor_hidden_13"}, "views": ["present"]},
+        {"id": "actor_hidden_13", "op": "actor_hidden", "args": [2, 2, 1], "on": {"next": "actor_hidden_14"}, "views": ["present"]},
+        {"id": "actor_hidden_14", "op": "actor_hidden", "args": [4, 4, 0], "on": {"next": "ensure_count_15"}, "views": ["present"]},
+        {"id": "ensure_count_15", "op": "ensure_count", "args": [5], "on": {"next": "text_16"}, "views": ["present"]},
+        {"id": "text_16", "op": "text", "args": [5], "on": {"next": "move_17"}, "views": ["present"]},
+        {"id": "move_17", "op": "move", "args": [94, 0], "on": {"next": "text_18"}, "views": ["present"]},
+        {"id": "text_18", "op": "text", "args": [6], "on": {"next": "move_19"}, "views": ["present"]},
+        {"id": "move_19", "op": "move", "args": [95, 0], "on": {"next": "text_20"}, "views": ["present"]},
+        {"id": "text_20", "op": "text", "args": [7], "on": {"next": "move_21"}, "views": ["present"]},
+        {"id": "move_21", "op": "move", "args": [96, 0], "on": {"next": "text_22"}, "views": ["present"]},
+        {"id": "text_22", "op": "text", "args": [8], "on": {"next": "move_23"}, "views": ["present"]},
+        {"id": "move_23", "op": "move", "args": [97, 0], "on": {"next": "text_24"}, "views": ["present"]},
+        {"id": "text_24", "op": "text", "args": [9], "on": {"next": "move_25"}, "views": ["present"]},
+        {"id": "move_25", "op": "move", "args": [98, 1], "on": {"next": "end_26"}, "views": ["present"]},
+        {"id": "end_26", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.opening.000",
+      "entry": "entry_render",
+      "nodes": [
+        {"id": "entry_render", "op": "render_base", "args": [], "on": {"next": "entry_fade"}, "views": ["present"]},
+        {"id": "entry_fade", "op": "palette_fade_in", "args": [1], "on": {"next": "pan_00"}, "views": ["present"]},
+        {"id": "pan_00", "op": "pan", "args": [4, 12], "on": {"next": "move_01"}, "views": ["present"]},
+        {"id": "move_01", "op": "move", "args": [0, 0], "on": {"next": "delay_02"}, "views": ["present"]},
+        {"id": "delay_02", "op": "delay", "args": [200], "on": {"next": "text_03"}, "views": ["present"]},
+        {"id": "text_03", "op": "text", "args": [0], "on": {"next": "delay_04"}, "views": ["present"]},
+        {"id": "delay_04", "op": "delay", "args": [200], "on": {"next": "pan_05"}, "views": ["present"]},
+        {"id": "pan_05", "op": "pan", "args": [0, 0], "on": {"next": "arrival_06"}, "views": ["present"]},
+        {"id": "arrival_06", "op": "arrival", "args": [4, 8], "on": {"next": "move_07"}, "views": ["present"]},
+        {"id": "move_07", "op": "move", "args": [1, 0], "on": {"next": "pan_08"}, "views": ["present"]},
+        {"id": "pan_08", "op": "pan", "args": [0, 15], "on": {"next": "arrival_09"}, "views": ["present"]},
+        {"id": "arrival_09", "op": "arrival", "args": [8, 12], "on": {"next": "move_10"}, "views": ["present"]},
+        {"id": "move_10", "op": "move", "args": [2, 0], "on": {"next": "text_11"}, "views": ["present"]},
+        {"id": "text_11", "op": "text", "args": [1], "on": {"next": "delay_12"}, "views": ["present"]},
+        {"id": "delay_12", "op": "delay", "args": [200], "on": {"next": "move_13"}, "views": ["present"]},
+        {"id": "move_13", "op": "move", "args": [5, 0], "on": {"next": "actor_hidden_14"}, "views": ["present"]},
+        {"id": "actor_hidden_14", "op": "actor_hidden", "args": [9, 9, 1], "on": {"next": "delay_15"}, "views": ["present"]},
+        {"id": "delay_15", "op": "delay", "args": [100], "on": {"next": "text_16"}, "views": ["present"]},
+        {"id": "text_16", "op": "text", "args": [2], "on": {"next": "reset_directions_17"}, "views": ["present"]},
+        {"id": "reset_directions_17", "op": "reset_directions", "args": [], "on": {"next": "sleep_ms_18"}, "views": ["present"]},
+        {"id": "sleep_ms_18", "op": "sleep_ms", "args": [20], "on": {"next": "focus_actor_19"}, "views": ["present"]},
+        {"id": "focus_actor_19", "op": "focus_actor", "args": [0], "on": {"next": "end_20"}, "views": ["present"]},
+        {"id": "end_20", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.new_game",
+      "entry": "opening_stage_00",
+      "nodes": [
+        {"id": "opening_stage_00", "op": "opening_stage", "args": [32], "on": {"next": "opening_stage_01"}, "views": ["present"]},
+        {"id": "opening_stage_01", "op": "opening_stage", "args": [31], "on": {"next": "opening_stage_02"}, "views": ["present"]},
+        {"id": "opening_stage_02", "op": "opening_stage", "args": [0], "on": {"next": "brightness_03"}, "views": ["present"]},
+        {"id": "brightness_03", "op": "brightness", "args": [0], "on": {"next": "delay_04"}, "views": ["present"]},
+        {"id": "delay_04", "op": "delay", "args": [800], "on": {"next": "end_05"}, "views": ["present"]},
+        {"id": "end_05", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    },
+    {
+      "id": "scene.game_over",
+      "entry": "bgm_00",
+      "nodes": [
+        {"id": "bgm_00", "op": "bgm", "args": [-1], "on": {"next": "fixed_ticks_01"}, "views": ["present"]},
+        {"id": "fixed_ticks_01", "op": "fixed_ticks", "args": [1], "on": {"next": "fade_02"}, "views": ["present"]},
+        {"id": "fade_02", "op": "fade", "args": [0], "on": {"next": "clear_screen_03"}, "views": ["present"]},
+        {"id": "clear_screen_03", "op": "clear_screen", "args": [], "on": {"next": "gameover_frame_04"}, "views": ["present"]},
+        {"id": "gameover_frame_04", "op": "gameover_frame", "args": [0], "on": {"next": "fade_05"}, "views": ["present"]},
+        {"id": "fade_05", "op": "fade", "args": [1], "on": {"next": "fixed_ticks_06"}, "views": ["present"]},
+        {"id": "fixed_ticks_06", "op": "fixed_ticks", "args": [9], "on": {"next": "gameover_frame_07"}, "views": ["present"]},
+        {"id": "gameover_frame_07", "op": "gameover_frame", "args": [1], "on": {"next": "fixed_ticks_08"}, "views": ["present"]},
+        {"id": "fixed_ticks_08", "op": "fixed_ticks", "args": [36], "on": {"next": "end_09"}, "views": ["present"]},
+        {"id": "end_09", "op": "end", "args": [], "on": {}, "views": ["present"]}
+      ]
+    }
+  ]
+}

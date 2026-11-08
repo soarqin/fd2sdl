@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "archive.h"
+#include "static_flow.h"
 
 /* FDFIELD.DAT 战场地图读取
  *
@@ -30,6 +31,18 @@ typedef struct {
  * 数据VA0x51e63/0x51e81的两张30B表；未知stage返回NULL。
  * 纯查询不播放、不消费RNG，不由此解除关卡能力门。 */
 const fd2_field_stage_music *fd2_field_stage_music_get(size_t stage);
+
+/* SDL当前支持范围的冷声明，不是对原版全部关卡能力的推断。 */
+typedef struct {
+    uint8_t battle_enabled;
+    uint8_t minimum_units;
+    uint8_t exact_units;
+    uint8_t preparation_slots;
+} fd2_field_stage_capability;
+int fd2_field_stage_capability_get(size_t stage, fd2_field_stage_capability *out);
+int fd2_field_stage_is_supported(size_t stage);
+int fd2_field_stage_battle_is_supported(size_t stage);
+const fd2_static_flow *fd2_field_stage_flow_find(const char *id);
 
 typedef struct {
     int width;

@@ -5,6 +5,10 @@
 #include "field_game.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"CHECK %s:%d: %s\n",__FILE__,__LINE__,#x); return -1; } } while(0)
 
+static uint32_t count_event_rng(void *userdata) {
+    unsigned *calls=userdata;(*calls)++;return 0;
+}
+
 static int test_settlement(void) {
     fd2_field_game *g = calloc(1,sizeof(*g)); CHECK(g);
     g->ready=1;g->stage=0;g->active_side=2;g->interaction=FD2_FIELD_INTERACTION_BROWSE;
@@ -81,6 +85,25 @@ static int test_stage1(void) {
     CHECK(fd2_field_game_battle_result(g)==FD2_FIELD_BATTLE_DEFEAT);
     fd2_field_game_close(g);
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
+    /* 原资源门仅raw追加group3以校验文字身份；count断言仍属正式callback。 */
+    g->units.count=18;g->turn_number=3;
+    unsigned rng_calls=0;
+    CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,count_event_rng,&rng_calls)==0);
+    fd2_field_units before_resources=g->units;
+    fd2_field_unit before_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
+    memcpy(before_roster,g->roster,sizeof(before_roster));
+    size_t before_roster_count=g->roster_count;
+    CHECK(fd2_field_game_event_resources_validate(g,6)==0);
+    CHECK(!memcmp(&before_resources,&g->units,sizeof(before_resources)) &&
+          !memcmp(before_roster,g->roster,sizeof(before_roster)) &&
+          g->roster_count==before_roster_count && rng_calls==0 &&
+          g->failure==FD2_FIELD_FAILURE_NONE);
+    CHECK(fd2_field_game_end_player_turn(g)==-1);
+    CHECK(g->failure==FD2_FIELD_FAILURE_EVENT_EXECUTION && g->active_side==1 &&
+          g->failure_notice.action==6 && g->units.count==18 &&
+          g->event_log_count==1 && !g->event_log[0].handled);
+    fd2_field_game_close(g);
+    CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
     size_t bad_template=0;
     while(bad_template<g->metadata.unit_template_count &&
           g->metadata.unit_templates[bad_template].bytes[0x15]!=3)bad_template++;
@@ -88,8 +111,16 @@ static int test_stage1(void) {
     g->metadata.unit_templates[bad_template].bytes[5]=215; /* 未知装备派生不可提交半组。 */
     fd2_field_units before_group=g->units;
     g->turn_number=3;
+    rng_calls=0;
+    CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,count_event_rng,&rng_calls)==0);
+    memcpy(before_roster,g->roster,sizeof(before_roster));
+    CHECK(fd2_field_game_event_resources_validate(g,6)==0 && rng_calls==0);
+    CHECK(!memcmp(&before_group,&g->units,sizeof(before_group)) &&
+          !memcmp(before_roster,g->roster,sizeof(before_roster)) &&
+          g->roster_count==before_roster_count);
     CHECK(fd2_field_game_end_player_turn(g)==-1);
-    CHECK(!memcmp(&before_group,&g->units,sizeof(before_group)));
+    CHECK(g->failure==FD2_FIELD_FAILURE_EVENT_EXECUTION &&
+          !memcmp(&before_group,&g->units,sizeof(before_group)));
     fd2_field_game_close(g);
     state.unit_count=4;
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);

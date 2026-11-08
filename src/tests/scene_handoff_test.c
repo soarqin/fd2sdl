@@ -6,6 +6,7 @@
 #include <string.h>
 #include "scene.h"
 #include "portrait.h"
+#include "static_data.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -27,6 +28,19 @@ static int trace_fragments;
 static size_t fragment_log[32], fragment_log_count, last_fragment;
 static const fd2_image *tracked_cursor;
 static unsigned cursor_by_fragment[16];
+static int current_darkness, presented_darkness[32];
+static const fd2_static_flow *bound_flow_override;
+
+static const fd2_static_flow *scene_test_flow_lookup(const char *domain, const char *id) {
+    if (bound_flow_override && !strcmp(domain,"scene") && !strcmp(id,bound_flow_override->id))
+        return bound_flow_override;
+    return fd2_static_flow_lookup(domain,id);
+}
+
+static void scene_test_brightness(fd2_vga *vga, int darkness) {
+    current_darkness=darkness;
+    fd2_vga_set_brightness(vga,darkness);
+}
 
 static int scene_test_get_fragment(const fd2_text_entry *text, size_t fragment,
         const uint8_t **tokens, size_t *count) {
@@ -87,6 +101,7 @@ static int scene_test_portrait_decode_frame(fd2_image *image,
 }
 
 static void scene_test_present(fd2_vga *vga) {
+    if (presents < 32) presented_darkness[presents]=current_darkness;
     presents++;
     test_ms += 17;
     /* 非 fast 退出用例自动确认所有对白；不创建 SDL 窗口或注入宿主键。 */
@@ -116,6 +131,9 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_scene_play_field_event scene_test_play_event
 #define fd2_scene_play_stage1_entry scene_test_stage1_entry
 #define fd2_scene_play_stage2_entry scene_test_stage2_entry
+#define fd2_scene_stage_victory_validate scene_test_stage_victory_validate
+#define fd2_scene_play_stage_entry scene_test_stage_entry
+#define fd2_scene_play_stage_victory scene_test_stage_victory
 #define fd2_scene_play_stage1_victory scene_test_stage1_victory
 #define fd2_scene_play_field_story scene_test_field_story
 #define fd2_scene_field_story_validate scene_test_story_validate
@@ -132,14 +150,19 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #define fd2_map_sprite_blit scene_test_sprite_blit
 #define fd2_vga_present scene_test_present
 #define fd2_vga_present_timed scene_test_present_timed
+#define fd2_vga_set_brightness scene_test_brightness
 #define fd2_delay_ms scene_test_delay
 #define SDL_GetTicks scene_test_ticks
+#define fd2_static_flow_lookup scene_test_flow_lookup
 #include "../scene.c"
 #undef fd2_scene_play_new_game_prologue_handoff
 #undef fd2_scene_play_new_game_prologue
 #undef fd2_scene_play_field_event
 #undef fd2_scene_play_stage1_entry
 #undef fd2_scene_play_stage2_entry
+#undef fd2_scene_stage_victory_validate
+#undef fd2_scene_play_stage_entry
+#undef fd2_scene_play_stage_victory
 #undef fd2_scene_play_stage1_victory
 #undef fd2_scene_play_field_story
 #undef fd2_scene_field_story_validate
@@ -156,8 +179,10 @@ static uint64_t scene_test_ticks(void) { return test_ms; }
 #undef fd2_map_sprite_blit
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
+#undef fd2_vga_set_brightness
 #undef fd2_delay_ms
 #undef SDL_GetTicks
+#undef fd2_static_flow_lookup
 
 static void reset_controls(fd2_vga *vga) {
     memset(vga, 0, sizeof(*vga));
@@ -175,6 +200,8 @@ static void reset_controls(fd2_vga *vga) {
     failed_portrait_identity = (size_t)-1;
     trace_fragments = 0; fragment_log_count = 0; last_fragment = 0;
     tracked_cursor = NULL; memset(cursor_by_fragment, 0, sizeof(cursor_by_fragment));
+    current_darkness=0;memset(presented_darkness,-1,sizeof(presented_darkness));
+    bound_flow_override=NULL;
     current_vga = vga;
 }
 
@@ -351,6 +378,45 @@ static int test_portrait_decode_error_has_no_handoff(const fd2_archive *fdother)
     return 0;
 }
 
+/* 从真实冷图截取入场前缀；fast帧合同和正常17帧不由C隐藏编排补齐。 */
+static int test_scene_entry_prefix(const fd2_field_game *game) {
+    const char *ids[]={"stage.entry.001","scene.opening.032"};
+    for (size_t kind=0;kind<2;kind++) {
+        const fd2_static_flow *source=scene_flow_find(ids[kind]);CHECK(source);
+        fd2_static_flow_node *nodes=malloc(source->count*sizeof(*nodes));CHECK(nodes);
+        memcpy(nodes,source->nodes,source->count*sizeof(*nodes));
+        fd2_static_flow flow=*source;flow.nodes=nodes;
+        int entry=fd2_static_flow_label(&flow,kind ? "entry_render" : "entry_dark");CHECK(entry>=0);
+        flow.entry=(uint8_t)entry;
+        int fade=fd2_static_flow_label(&flow,"entry_fade");
+        int end=-1;
+        for (size_t i=0;i<flow.count;i++) if (!strcmp(nodes[i].op,"end")) end=(int)i;
+        CHECK(fade>=0 && end>=0);
+        nodes[fade].edges[FD2_FLOW_NEXT]=(int16_t)end;
+        fd2_vga vga;fd2_scene_field_state state={0};state.units=game->units;
+        scene_flow_context context={0};context.vga=&vga;context.game=game;
+        context.terrain=&game->terrain;context.map=&game->map;
+        context.sprites=&game->sprites;context.state=&state;
+        for (int fast=0;fast<=1;fast++) {
+            reset_controls(&vga);scene_host_quit_requested=0;context.fast=fast;
+            CHECK(scene_flow_run(&context,&flow)==0 && current_darkness==0);
+            CHECK(presents==(fast ? 1 : kind ? 17 : 18));
+            if (fast) CHECK(presented_darkness[0]==(kind ? 0 : 64));
+            else for (int i=0;i<17;i++) CHECK(presented_darkness[i+(kind ? 0 : 1)]==64-4*i);
+        }
+        if (!kind) {
+            int present=fd2_static_flow_label(&flow,"entry_present");CHECK(present>=0);
+            nodes[flow.entry].edges[FD2_FLOW_NEXT]=(int16_t)fade;
+            nodes[fade].edges[FD2_FLOW_NEXT]=(int16_t)present;
+            nodes[present].edges[FD2_FLOW_NEXT]=(int16_t)end;
+            reset_controls(&vga);scene_host_quit_requested=0;context.fast=1;
+            CHECK(scene_flow_run(&context,&flow)==0 && presents==1 && presented_darkness[0]==0);
+        }
+        free(nodes);
+    }
+    return 0;
+}
+
 static int test_stage1_presentation(const fd2_archive *fdother) {
     fd2_save_manual_state prepared={0};
     prepared.stage_id=1;prepared.unit_count=5;prepared.gold_or_flags=1234;
@@ -362,6 +428,7 @@ static int test_stage1_presentation(const fd2_archive *fdother) {
     }
     fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
     CHECK(fd2_field_game_prepare_stage1(game,fdother,&prepared)==0);
+    CHECK(test_scene_entry_prefix(game)==0);
     fd2_field_units expected=game->units;
     fd2_vga vga;reset_controls(&vga);
     CHECK(scene_test_stage1_entry(&vga,fdother,game,NULL,1)==0);
@@ -601,6 +668,22 @@ static int test_turn_event_presentation(const fd2_archive *fdother) {
               game->message_number==before->message_number);
         CHECK(archive_opens==2 && archive_closes==2 && presents>0);
         int final_present=presents;
+        if (stage) {
+            const fd2_static_flow *shared=fd2_static_flow_lookup("scene","event.action.006");
+            const fd2_static_flow *bound=fd2_static_flow_lookup("scene","stage.001.action.006");
+            CHECK(shared && bound && shared->nodes==bound->nodes && shared->count==bound->count &&
+                  shared->entry==bound->entry);
+            /* 仅本私有TU临时绑定另一action；用真实资源/notice重放同一节点数组。 */
+            fd2_static_flow rebound=*shared;rebound.id="stage.001.action.042";
+            *game=*before;game->event_log[0].action=42;reset_controls(&vga);
+            bound_flow_override=&rebound;
+            int rebound_result=scene_test_play_event(&vga,fdother,game,&game->event_log[0],NULL,1);
+            bound_flow_override=NULL;
+            CHECK(rebound_result==FD2_SCENE_RESULT_OK && !game->event_log[0].presentation_deferred);
+            CHECK(!memcmp(&game->units,&before->units,sizeof(game->units)) &&
+                  !memcmp(game->roster,before->roster,sizeof(game->roster)) &&
+                  !fd2_field_stage_battle_is_supported(2));
+        }
         if (!stage) {
             /* 同ID的持久角色以Game来源为准，不能强套呈现模板idx9。 */
             *game=*before;game->units.source_template_indices[12]=FD2_FIELD_UNIT_NO_TEMPLATE;
@@ -617,7 +700,7 @@ static int test_turn_event_presentation(const fd2_archive *fdother) {
             state.units.count=first;
             fd2_field_units original=state.units;
             reset_controls(&vga);
-            CHECK(field_event_append_group(&vga,fdother,game,&state,3,0,NULL,1,NULL)==-1);
+            CHECK(field_event_append_group(&vga,fdother,game,&state,3,1,0,NULL,1,NULL)==-1);
             CHECK(!memcmp(&state.units,&original,sizeof(original)) && presents==0);
         }
         /* 借用静态属性不等于接受任意终态；脚本坐标不符仍须整80B拒绝。 */
@@ -702,9 +785,100 @@ static int test_game_over_frames(const fd2_archive *fdother) {
     return 0;
 }
 
+static int test_scene_existing_actor_motion(const fd2_archive *fdother) {
+    fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
+    fd2_vga vga;reset_controls(&vga);
+    CHECK(fd2_field_game_open(game,&vga,fdother,0)==0);
+    fd2_field_event_notice notice={0};notice.presentation_unit_count=(uint8_t)game->units.count;
+    notice.presentation_camera_x=(int16_t)game->camera_cell_x;notice.presentation_camera_y=(int16_t)game->camera_cell_y;
+    notice.presentation_focus_x=(int16_t)game->cursor_cell_x;notice.presentation_focus_y=(int16_t)game->cursor_cell_y;
+    for (size_t i=0;i<game->units.count;i++) {
+        const fd2_field_unit *u=&game->units.items[i];uint8_t *m=notice.presentation_motion[i];
+        m[0]=u->x;m[1]=u->y;m[2]=u->direction;m[3]=u->frame_phase;m[4]=game->units.walk_frames[i];
+    }
+    const uint8_t *script;size_t size;
+    CHECK(fd2_field_movement_script_get(0,&script,&size)==0);
+    CHECK(fd2_field_movement_script_apply(&game->units,script,size)==0);
+    game->units.items[0].side=1;game->units.items[0].ai_param_35=37; /* logic-only后态必须保留。 */
+    fd2_static_flow_node nodes[]={
+        {"move_existing","move",{0,0},{1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_LOGIC|FD2_FLOW_PRESENT},
+        {"done","end",{0},{-1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_LOGIC|FD2_FLOW_PRESENT}
+    };
+    fd2_static_flow flow={"test.scene.existing_actor",nodes,2,0};
+    fd2_scene_field_state state={0};scene_flow_context context={0};
+    context.vga=&vga;context.terrain=&game->terrain;context.map=&game->map;context.sprites=&game->sprites;
+    context.state=&state;context.game=game;context.fast=1;scene_host_quit_requested=0;
+    CHECK(scene_event_state_init(&state,game,&notice)==0 && scene_flow_run(&context,&flow)==0);
+    CHECK(state.units.items[0].y!=game->units.items[0].y); /* 未恢复前态的旧路径会双移。 */
+    notice.presentation_motion_valid=1;reset_controls(&vga);scene_host_quit_requested=0;
+    CHECK(scene_event_state_init(&state,game,&notice)==0 && scene_flow_run(&context,&flow)==0);
+    CHECK(!memcmp(state.units.items,game->units.items,game->units.count*sizeof(game->units.items[0])));
+    CHECK(!memcmp(state.units.walk_frames,game->units.walk_frames,game->units.count));
+    CHECK(state.units.items[0].side==1 && state.units.items[0].ai_param_35==37);
+    fd2_field_game_close(game);free(game);return 0;
+}
+
+/* 改冷节点边会改变路径；业务条件只读入口快照，logic视图不二次呈现。 */
+static int test_scene_flow_graph(void) {
+    fd2_static_flow_node nodes[] = {
+        {"hide","actor_hidden",{0,0,1},{1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT},
+        {"branch","branch_any_hidden",{0,0},{-1,2,3,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT},
+        {"three","ensure_count",{3},{4,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT},
+        {"two","ensure_count",{2},{4,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT},
+        {"done","end",{0},{-1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT}
+    };
+    fd2_static_flow flow={"test.scene.branch",nodes,5,0};
+    fd2_scene_field_state state={0}; state.units.count=1;
+    scene_flow_context context={0}; context.state=&state; context.fast=1;
+    scene_host_quit_requested=0;
+    CHECK(scene_flow_run(&context,&flow)==0 && state.units.count==2);
+    CHECK(fd2_field_unit_is_hidden(&state.units.items[0]));
+    memset(&state,0,sizeof(state));state.units.count=1;
+    nodes[1].edges[FD2_FLOW_NO]=2;
+    CHECK(scene_flow_run(&context,&flow)==0 && state.units.count==3);
+    memset(&state,0,sizeof(state));state.units.count=1;
+    nodes[0].views=FD2_FLOW_LOGIC;
+    CHECK(scene_flow_run(&context,&flow)==0 && state.units.count==3);
+    CHECK(!fd2_field_unit_is_hidden(&state.units.items[0]));
+    nodes[0].views=FD2_FLOW_PRESENT;nodes[0].op="unknown";
+    fd2_scene_field_state before=state;
+    CHECK(scene_flow_run(&context,&flow)==-1 && !memcmp(&before,&state,sizeof(state)));
+    nodes[0].op="ensure_count";nodes[0].args[0]=1;nodes[0].edges[FD2_FLOW_NEXT]=0;
+    CHECK(scene_flow_run(&context,&flow)==-1); /* 预算耗尽不能被当作正常结束。 */
+    return 0;
+}
+
+static int test_scene_flow_view_commit(void) {
+    fd2_field_game *owner=calloc(1,sizeof(*owner)); CHECK(owner);
+    owner->map.width=owner->map.height=10;owner->units.count=1;
+    owner->camera_pixel_offset_x=4;owner->camera_pixel_offset_y=5;
+    fd2_scene_field_state state={0};state.units=owner->units;
+    state.camera_cell_x=2;state.camera_cell_y=3;
+    state.focus_cell_x=11;state.focus_cell_y=-2;state.idle_phase=7;
+    fd2_static_flow_node nodes[]={
+        {"commit","commit_view",{0},{1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT},
+        {"done","end",{0},{-1,-1,-1,-1,-1,-1,-1,-1},FD2_FLOW_PRESENT}
+    };
+    fd2_static_flow flow={"test.scene.commit",nodes,2,0};
+    scene_flow_context context={0};context.state=&state;context.game=owner;context.mutable_game=owner;
+    scene_host_quit_requested=0;
+    CHECK(scene_flow_run(&context,&flow)==0);
+    CHECK(owner->camera_cell_x==2 && owner->camera_cell_y==3 && owner->cursor_cell_x==9 && owner->cursor_cell_y==0);
+    CHECK(owner->camera_pixel_offset_x==0 && owner->camera_pixel_offset_y==0 && owner->idle_phase==7);
+    CHECK(!memcmp(owner->units.items,state.units.items,sizeof(owner->units.items)));
+    context.mutable_game=NULL;state.camera_cell_x=4;
+    CHECK(scene_flow_run(&context,&flow)==-1 && owner->camera_cell_x==2);
+    context.mutable_game=owner;state.units.items[0].hp=1;
+    CHECK(scene_flow_run(&context,&flow)==-1 && owner->camera_cell_x==2);
+    free(owner);return 0;
+}
+
 int main(int argc, char **argv) {
+    CHECK(test_scene_flow_graph()==0);
+    CHECK(test_scene_flow_view_commit()==0);
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(test_scene_existing_actor_motion(&fdother)==0);
     if(argc==2 && strcmp(argv[1],"--b5")==0) {
         CHECK(test_dialog_identity_lookup()==0);
         CHECK(test_stage1_presentation(&fdother)==0);

@@ -97,8 +97,9 @@ fail:
 /* 26152/265ec：4e809行[0]索引52405的[11,61,62]；仅本阶段已证type0/2。 */
 static int town_type(size_t stage) {
     const uint8_t *row = fd2_field_stage_prepare_record_get(stage);
-    return row && ((stage == 1u && row[0] == 0u) ||
-                   (stage == 2u && row[0] == 2u)) ? row[0] : -1;
+    fd2_field_stage_capability capability;
+    return row && fd2_field_stage_capability_get(stage, &capability) == 0 &&
+        capability.preparation_slots && (row[0] == 0u || row[0] == 2u) ? row[0] : -1;
 }
 
 static int prepare_town(fd2_field_prepare_assets *a, const fd2_archive *fdother, size_t stage) {
@@ -728,7 +729,7 @@ fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *
         fd2_field_play_context *context, const char *save_path, fd2_field_audio *audio) {
     if (!vga || !fdother || !context || !context->initialized || !save_path ||
         !context->has_preparation ||
-        (context->preparation.stage_id != 1u && context->preparation.stage_id != 2u) ||
+        town_type(context->preparation.stage_id) < 0 ||
         context->preparation.unit_count > FD2_SAVE_MAX_UNITS) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_FIELD_PREPARE_HOST_QUIT;
     if (fd2_field_game_validate_manual_state(&context->preparation) != 0)

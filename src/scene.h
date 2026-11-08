@@ -44,6 +44,15 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                fd2_field_audio *audio,
                                int fast);
 
+/* 只读核当前胜利图的投影、脚本、文本和cursor资源，不呈现或切曲。 */
+int fd2_scene_stage_victory_validate(const fd2_field_game *game);
+
+/* 按当前stage的同源冷流程执行，缺少已支持绑定明确失败。 */
+int fd2_scene_play_stage_entry(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast);
+int fd2_scene_play_stage_victory(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast);
+
 /* field_stage1_entry_play @0x32d18（原sub_32D18）：五个persistent部署槽的stage1开场；只交接动态
  * 坐标/镜头，不再次构造或结算单位。game须先由prepare_stage1预检。 */
 int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,

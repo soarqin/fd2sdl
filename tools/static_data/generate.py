@@ -19,6 +19,7 @@ INTEGER_TYPES = {
     "int": (-2147483648, 2147483647),
 }
 STRUCT_TYPES = {"fd2_field_stage_music": ["uint8_t", "uint8_t"]}
+PORTS = ("next", "yes", "no", "cancel", "ack", "text_ready", "slot", "error")
 
 
 def reject_duplicates(pairs):
@@ -31,7 +32,11 @@ def reject_duplicates(pairs):
 
 
 def load_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates,
+    return decode_json(path.read_bytes())
+
+
+def decode_json(raw):
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicates,
                       parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
 
 
@@ -120,15 +125,260 @@ def render(document, input_digest):
         lines.append(f"static const {table['c_type']} {table['name']}{dimensions} = {{")
         lines.extend("    " + initializer(row) + "," for row in table["values"])
         lines.extend(["};", ""])
+    scripts = [t for t in document["tables"] if "script_id" in t["source"]]
+    if scripts:
+        ids = set()
+        lines.append("static const fd2_static_movement_script k_movement_scripts[] = {")
+        for table in sorted(scripts, key=lambda t: t["source"]["script_id"]):
+            identity = table["source"]["script_id"]
+            if type(identity) is not int or not 0 <= identity <= 255 or identity in ids:
+                raise ValueError("invalid/duplicate movement script ID")
+            ids.add(identity)
+            data = table["values"]
+            if table["c_type"] != "uint8_t" or len(table["dimensions"]) != 1:
+                raise ValueError("movement script must be a byte stream")
+            at = 1
+            for _ in range(data[0]):
+                if at + 2 > len(data):
+                    raise ValueError("truncated movement group")
+                count = data[at+1]
+                at += 2
+                if at + count*2 > len(data) or any(data[pos] >= 64 for pos in range(at, at+count*2, 2)) or any(data[pos] > 3 for pos in range(at+1, at+count*2, 2)):
+                    raise ValueError("invalid movement actor/direction pairs")
+                at += count*2
+            if at != len(data):
+                raise ValueError("movement stream not completely consumed")
+            name = table["name"]
+            lines.append(f"    {{{identity}, {name}, sizeof({name})}},")
+        lines.extend(["};", ""])
     return "\n".join(lines).encode("utf-8")
+
+
+def validate_source(source, sources, label):
+    if not isinstance(source, dict) or not isinstance(source.get("evidence"), str) or not source["evidence"].strip():
+        raise ValueError(f"{label}: source evidence required")
+    source_key = source.get("file", "")
+    source_hash = source.get("file_sha256")
+    if source.get("kind") == "existing_confirmed_definition":
+        source_key += "@" + source.get("baseline_commit", "")
+        source_hash = source.get("baseline_source_sha256")
+    if source_key not in sources or source_hash != sources[source_key]["sha256"]:
+        raise ValueError(f"{label}: unknown/mismatched source identity")
+    related = source.get("related_sources", [])
+    if not isinstance(related, list):
+        raise ValueError(f"{label}: related_sources must be a list")
+    for identity in related:
+        validate_source(identity, sources, label + " related source")
+
+
+def validate_flows(document):
+    """有限图结构和固定参数契约；不会执行脚本或推断未实现的领域语义。"""
+    required = {"schema_version", "domain", "source", "operations", "flows"}
+    if not isinstance(document, dict) or not required <= document.keys() or set(document) - required - {"bindings"}:
+        raise ValueError("unknown/missing flow document field")
+    if type(document["schema_version"]) is not int or document["schema_version"] != SCHEMA_VERSION:
+        raise ValueError("unsupported flow schema")
+    if not isinstance(document["domain"], str) or not re.fullmatch(r"[a-z][a-z0-9_]*", document["domain"]):
+        raise ValueError("invalid flow domain")
+    operations = document["operations"]
+    if not isinstance(operations, dict) or not operations:
+        raise ValueError("operation contracts required")
+    for name, spec in operations.items():
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not isinstance(spec, dict) or set(spec) != {"args"}:
+            raise ValueError(f"invalid operation contract: {name}")
+        if not isinstance(spec["args"], list) or len(spec["args"]) > 8:
+            raise ValueError(f"invalid operation argument count: {name}")
+        for argument in spec["args"]:
+            if not isinstance(argument, dict) or set(argument) != {"name", "min", "max"} or not re.fullmatch(r"[a-z][a-z0-9_]*", argument["name"]):
+                raise ValueError(f"invalid argument contract: {name}")
+            if any(type(argument[k]) is not int for k in ("min", "max")) or not -2147483648 <= argument["min"] <= argument["max"] <= 2147483647:
+                raise ValueError(f"invalid argument range: {name}")
+    if not isinstance(document["flows"], list) or not document["flows"]:
+        raise ValueError("nonempty flows required")
+    flow_ids = set()
+    for flow in document["flows"]:
+        if not isinstance(flow, dict) or not {"id", "entry", "nodes"} <= flow.keys() or set(flow) - {"id", "entry", "entries", "nodes"}:
+            raise ValueError("invalid flow fields")
+        if not isinstance(flow["id"], str) or not re.fullmatch(r"[a-z0-9_.-]+", flow["id"]) or flow["id"] in flow_ids:
+            raise ValueError("invalid/duplicate flow ID")
+        flow_ids.add(flow["id"])
+        nodes = flow["nodes"]
+        if not isinstance(nodes, list) or not 1 <= len(nodes) <= 254:
+            raise ValueError("flow node capacity exceeded")
+        ids = set()
+        for node in nodes:
+            if not isinstance(node, dict) or not {"id", "op", "args", "on"} <= node.keys() or set(node) - {"id", "op", "args", "on", "views"}:
+                raise ValueError("unknown/missing node fields")
+            if not isinstance(node["id"], str) or not re.fullmatch(r"[a-z0-9_.-]+", node["id"]) or node["id"] in ids:
+                raise ValueError("invalid/duplicate node ID")
+            ids.add(node["id"])
+            if node["op"] not in operations:
+                raise ValueError(f"unregistered operation: {node['op']}")
+            arguments = operations[node["op"]]["args"]
+            if not isinstance(node["args"], list) or len(node["args"]) != len(arguments) or any(
+                    type(v) is not int or not a["min"] <= v <= a["max"] for v, a in zip(node["args"], arguments)):
+                raise ValueError(f"invalid node arguments: {node['id']}")
+            if not isinstance(node["on"], dict) or set(node["on"]) - set(PORTS):
+                raise ValueError(f"invalid node ports: {node['id']}")
+            views = node.get("views", ["logic", "present"])
+            if not isinstance(views, list) or not views or len(set(views)) != len(views) or set(views) - {"logic", "present"}:
+                raise ValueError("invalid node execution views")
+        entries = flow.get("entries", {})
+        if not isinstance(entries, dict) or any(not isinstance(k, str) or not re.fullmatch(r"[a-z0-9_.-]+", k) for k in entries):
+            raise ValueError("invalid external entry labels")
+        roots = [flow["entry"], *entries.values()]
+        if any(not isinstance(n, str) or n not in ids for n in roots):
+            raise ValueError("unknown entry node")
+        if any(not isinstance(edge, str) or edge not in ids for node in nodes for edge in node["on"].values()):
+            raise ValueError("unknown edge target")
+        seen, pending = set(), list(roots)
+        by_id = {n["id"]: n for n in nodes}
+        while pending:
+            current = pending.pop()
+            if current not in seen:
+                seen.add(current)
+                pending.extend(by_id[current]["on"].values())
+        if seen != ids:
+            raise ValueError(f"unreachable flow nodes: {sorted(ids-seen)}")
+        # 循环可表示原来的遍历；消费端每次推进均受不可配置预算限制。
+        # 全图必须有明确出口，不能把闭合循环误当成功结束。
+        terminals = {n["id"] for n in nodes if not n["on"]}
+        can_finish = set(terminals)
+        while True:
+            expanded = can_finish | {n["id"] for n in nodes if set(n["on"].values()) & can_finish}
+            if expanded == can_finish:
+                break
+            can_finish = expanded
+        if ids - can_finish:
+            raise ValueError(f"flow has no reachable exit: {sorted(ids-can_finish)}")
+    bindings = document.get("bindings", {})
+    if not isinstance(bindings, dict):
+        raise ValueError("flow bindings must be an object")
+    for alias, target in bindings.items():
+        if not isinstance(alias, str) or not re.fullmatch(r"[a-z0-9_.-]+", alias) or alias in flow_ids:
+            raise ValueError("invalid/duplicate flow binding ID")
+        # 只指向同文件的真实流程；不允许别名链、循环或悬空引用。
+        if not isinstance(target, str) or target not in flow_ids:
+            raise ValueError("flow binding must target a real flow")
+    return document
+
+
+def flow_index(document):
+    """别名保留同一个节点对象；仅增加稳定运行ID，不复制可编辑定义。"""
+    flows = {flow["id"]: flow for flow in document["flows"]}
+    return {**flows, **{alias: flows[target] for alias, target in document.get("bindings", {}).items()}}
+
+
+def render_flows(document, digest):
+    domain = document["domain"]
+    lines = ["/* 冷流程生成定义，禁止手改；原语语义由领域 C 模块提供。 */",
+             f"/* JSON SHA256={digest} */"]
+    for i, flow in enumerate(document["flows"]):
+        ids = {n["id"]: j for j, n in enumerate(flow["nodes"])}
+        lines.append(f"static const fd2_static_flow_node k_{domain}_nodes_{i}[] = {{")
+        for node in flow["nodes"]:
+            args = node["args"] + [0] * (8-len(node["args"]))
+            edges = [ids[node["on"][port]] if port in node["on"] else -1 for port in PORTS]
+            views = sum({"logic": 1, "present": 2}[v] for v in node.get("views", ["logic", "present"]))
+            lines.append("    {" + json.dumps(node["id"]) + ", " + json.dumps(node["op"]) + ", " + initializer(args) + ", " + initializer(edges) + f", {views}" + "},")
+        lines.append("};")
+    lines.append(f"static const fd2_static_flow k_{domain}_flows[] = {{")
+    for i, flow in enumerate(document["flows"]):
+        entry = next(j for j, node in enumerate(flow["nodes"]) if node["id"] == flow["entry"])
+        lines.append("    {" + json.dumps(flow["id"]) + f", k_{domain}_nodes_{i}, {len(flow['nodes'])}, {entry}" + "},")
+    indices = {flow["id"]: i for i, flow in enumerate(document["flows"])}
+    for alias, target in sorted(document.get("bindings", {}).items()):
+        i = indices[target]
+        flow = document["flows"][i]
+        entry = next(j for j, node in enumerate(flow["nodes"]) if node["id"] == flow["entry"])
+        lines.append("    {" + json.dumps(alias) + f", k_{domain}_nodes_{i}, {len(flow['nodes'])}, {entry}" + "},")
+    lines.extend(["};", f"#define FD2_{domain.upper()}_FLOW_COUNT (sizeof(k_{domain}_flows)/sizeof(k_{domain}_flows[0]))", ""])
+    return "\n".join(lines).encode("utf-8")
+
+
+def validate_flow_contract(document, contract, script_ids, all_flows):
+    if not isinstance(contract, dict) or set(contract) != {"operation_abi_sha256", "ports", "required_ids"}:
+        raise ValueError("invalid consumer flow contract")
+    digest = hashlib.sha256(json.dumps(document["operations"], sort_keys=True).encode("utf-8")).hexdigest()
+    if contract["operation_abi_sha256"] != digest:
+        raise ValueError("flow operation ABI differs from consumer contract")
+    if not isinstance(contract["required_ids"], list) or not contract["required_ids"] or len(set(contract["required_ids"])) != len(contract["required_ids"]) or any(not isinstance(v, str) for v in contract["required_ids"]):
+        raise ValueError("required flow IDs must be a nonempty unique list")
+    flows = flow_index(document)
+    if not set(contract["required_ids"]) <= flows.keys():
+        raise ValueError("required runtime flow missing")
+    for flow in document["flows"]:
+        if document["domain"] == "progress" or flow["id"].startswith("stage.result."):
+            if any(n.get("views", ["logic", "present"]) != ["logic"] for n in flow["nodes"]):
+                raise ValueError("progress/result nodes must use logic view")
+        for node in flow["nodes"]:
+            variants = contract["ports"].get(node["op"], [])
+            if sorted(node["on"]) not in variants:
+                raise ValueError(f"{flow['id']}/{node['id']}: ports violate primitive contract")
+            if node["op"] == "move" and node["args"][0] not in script_ids:
+                raise ValueError("unknown movement script reference")
+            if node["op"] == "opening_stage":
+                stage = node["args"][0]
+                if any(f"scene.{kind}.{stage:03d}" not in all_flows for kind in ("init", "opening")):
+                    raise ValueError("opening stage references missing flows")
+            if node["op"] in {"actor_hidden", "set_ai_target", "branch_any_hidden", "result_all_hidden"} and node["args"][0] > node["args"][1]:
+                raise ValueError("invalid actor range")
+        if flow["id"].startswith("stage.victory."):
+            app_ops = {"preflight_before_music", "victory_music"}
+            by_id = {n["id"]: n for n in flow["nodes"]}
+            current, prefix = flow["entry"], set()
+            while by_id[current]["op"] in app_ops:
+                if current in prefix:
+                    raise ValueError("cyclic App prefix")
+                prefix.add(current)
+                n = by_id[current]
+                if n.get("views") != ["logic"] or set(n["on"]) != {"next"}:
+                    raise ValueError("App prefix must be a linear logic declaration")
+                current = n["on"]["next"]
+            app_nodes = [n for n in flow["nodes"] if n["op"] in app_ops]
+            if {n["id"] for n in app_nodes} != prefix or sum(n["op"] == "victory_music" for n in app_nodes) != 1 or sum(n["op"] == "preflight_before_music" for n in app_nodes) > 1:
+                raise ValueError("victory flow must declare one music request in its App prefix")
+        if flow["id"].startswith("stage.capability."):
+            n = flow["nodes"][0]
+            if len(flow["nodes"]) != 1 or n["op"] != "stage_capability" or n.get("views") != ["logic"] or n["on"]:
+                raise ValueError("stage capability must be a single logic declaration")
+            battle, minimum, exact, slots = n["args"]
+            if exact and (exact < minimum or exact < slots):
+                raise ValueError("stage capability unit bounds inconsistent")
+            identity = flow["id"].rsplit(".", 1)[1]
+            if slots:
+                entry = all_flows.get("stage.entry." + identity)
+                setup = [n for n in entry["nodes"] if n["op"] == "stage_setup"] if entry else []
+                if len(setup) != 1 or setup[0]["args"][1] != slots:
+                    raise ValueError("capability/entry preparation slots inconsistent")
+            if battle and any("stage." + kind + "." + identity not in all_flows for kind in ("result", "victory", "settlement")):
+                raise ValueError("battle capability lacks result/victory/settlement flows")
+        if flow["id"].startswith("stage.result."):
+            if any(not n["op"].startswith("result_") or (not n["on"] and n["op"] != "result_return") for n in flow["nodes"]):
+                raise ValueError("result flow requires result predicates and explicit result terminals")
+            by_id = {n["id"]: n for n in flow["nodes"]}
+            done, visiting = set(), set()
+            def visit(identity):
+                if identity in visiting:
+                    raise ValueError("result flow cycle is not a valid query")
+                if identity in done:
+                    return
+                visiting.add(identity)
+                for target in by_id[identity]["on"].values():
+                    visit(target)
+                visiting.remove(identity)
+                done.add(identity)
+            visit(flow["entry"])
 
 
 def generate(root: Path, output: Path, check=False):
     if output.resolve().is_relative_to((root / "original_game").resolve()) or output.resolve().is_relative_to((root / "data").resolve()):
         raise ValueError("output must not overwrite source definitions or original_game")
     manifest_path = root / "data/static/manifest.json"
-    manifest = load_json(manifest_path)
-    if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "table_files", "sources", "table_contracts"} or type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION:
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = decode_json(manifest_bytes)
+    inputs = {manifest_path: manifest_bytes}
+    if not isinstance(manifest, dict) or set(manifest) - {"schema_version", "table_files", "sources", "table_contracts", "flow_files", "flow_contracts"} or not {"schema_version", "table_files", "sources", "table_contracts"} <= manifest.keys() or type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION:
         raise ValueError("invalid static manifest")
     sources = manifest["sources"]
     if not isinstance(sources, dict) or not sources or any(
@@ -144,20 +394,27 @@ def generate(root: Path, output: Path, check=False):
     if not isinstance(manifest["table_contracts"], dict) or set(manifest["table_contracts"]) != set(files):
         raise ValueError("table contracts must cover every input exactly")
     expected_outputs = {Path(name).stem + ".inc" for name in files}
+    flow_files = manifest.get("flow_files", [])
+    actual_flows = {p.name for p in (root / "data/static/flows").glob("*.json")}
+    if not isinstance(flow_files, list) or len(set(flow_files)) != len(flow_files) or set(flow_files) != actual_flows:
+        raise ValueError("flow manifest coverage mismatch")
+    expected_outputs |= {Path(name).stem + "_flows.inc" for name in flow_files}
     extras = {path.name for path in output.glob("*.inc")} - expected_outputs
     if extras:
         raise ValueError(f"obsolete generated headers must be removed explicitly: {sorted(extras)}")
     outputs = {}
-    receipt = {"schema_version": SCHEMA_VERSION, "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(), "tables": []}
+    receipt = {"schema_version": SCHEMA_VERSION, "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "tables": []}
     names = set()
     tables = {}
+    script_ids = set()
     for name in sorted(files):
         if not re.fullmatch(r"[a-z][a-z0-9_]*\.json", name):
             raise ValueError(f"unsafe table file: {name}")
         path = root / "data/static/tables" / name
         raw = path.read_bytes()
+        inputs[path] = raw
         digest = hashlib.sha256(raw).hexdigest()
-        document = validate_document(load_json(path))
+        document = validate_document(decode_json(raw))
         contracts = manifest["table_contracts"][name]
         if not isinstance(contracts, dict) or set(contracts) != {t["name"] for t in document["tables"]}:
             raise ValueError(f"{name}: ABI table coverage differs from manifest")
@@ -176,11 +433,45 @@ def generate(root: Path, output: Path, check=False):
                 raise ValueError(f"duplicate global table name: {table['name']}")
             names.add(table["name"])
             tables[table["name"]] = table["values"]
+            if "script_id" in source:
+                script_ids.add(source["script_id"])
             receipt["tables"].append({"file": name, "name": table["name"], "dimensions": table["dimensions"], "input_sha256": digest, "source": table["source"]})
         outputs[Path(name).stem + ".inc"] = render(document, digest)
     validate_references(tables)
+    receipt["flows"] = []
+    global_ids = set()
+    flow_documents = {}
+    for name in sorted(flow_files):
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*\.json", name):
+            raise ValueError("invalid flow file name")
+        path = root / "data/static/flows" / name
+        raw = path.read_bytes()
+        inputs[path] = raw
+        document = validate_flows(decode_json(raw))
+        if document["domain"] != path.stem:
+            raise ValueError("flow domain/file mismatch")
+        validate_source(document["source"], sources, name)
+        flow_documents[name] = document
+        for identity in flow_index(document):
+            if identity in global_ids:
+                raise ValueError("duplicate global flow ID")
+            global_ids.add(identity)
+        digest = hashlib.sha256(raw).hexdigest()
+        outputs[path.stem + "_flows.inc"] = render_flows(document, digest)
+        receipt["flows"].append({"file": name, "input_sha256": digest, "source": document["source"],
+            "flow_count": len(document["flows"]), "runtime_flow_count": len(flow_index(document)),
+            "bindings": document.get("bindings", {}),
+            "node_count": sum(len(f["nodes"]) for f in document["flows"])})
+    contracts = manifest.get("flow_contracts", {})
+    if set(contracts) != set(flow_files):
+        raise ValueError("flow consumer contracts must cover every domain")
+    all_flows = {identity: flow for d in flow_documents.values() for identity, flow in flow_index(d).items()}
+    for name, document in flow_documents.items():
+        validate_flow_contract(document, contracts[name], script_ids, all_flows)
     outputs["sources.json"] = (json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     # 全部输入验证成功后才更新任何输出，坏数据不能留下半套新定义。
+    if any(path.read_bytes() != data for path, data in inputs.items()):
+        raise ValueError("static inputs changed during generation")
     for name, data in outputs.items():
         path = output / name
         if path.exists() and path.read_bytes() == data:

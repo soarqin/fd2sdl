@@ -5,6 +5,7 @@
 ## 开发计划
 
 - [总计划](plans/development.md)：当前基线、**统一开发优先级**、依赖和验收门。
+- [静态数据层与事件流程](plans/static-data.md)：R1 后、下一轮玩法开发前的调研及 SD1—SD3 计划；覆盖冷定义、可修改的事件分支与编排、提取／验证和存档边界。
 - [战场工作包](plans/battlefield.md)：B0～B7 的范围和验收。
 - [音频工作包](plans/audio.md)：A0～A4 已有基线及 A5～A8 后续工作。
 

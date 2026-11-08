@@ -12,63 +12,22 @@
 
 #include <string.h>
 
-static const uint8_t k_footstep_classes[] = {
-    1, 1, 2, 1, 0, 0, 1, 1, 1, 1,
-    2, 1, 0, 0, 3, 1, 1, 1, 3, 1,
-    0, 0, 1, 1, 1, 1, 1, 1, 1,
-};
+/* 原profile表及已确认cue投影见 data/static/tables/field_audio.json。 */
+#include "static_data/field_audio.inc"
+
+_Static_assert(FD2_FIELD_SFX_EARTHQUAKE + 1 ==
+    sizeof(k_sfx_cues) / sizeof(k_sfx_cues[0]),
+    "SFX cue table must follow fd2_field_sfx");
 
 int fd2_field_sfx_resolve(fd2_field_sfx cue,
                           fd2_field_sfx_bank *bank,
                           size_t *sample_index) {
     if (!bank || !sample_index) return -1;
-    switch (cue) {
-        case FD2_FIELD_SFX_DETAIL_OPEN:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 5;
-            return 0;
-        case FD2_FIELD_SFX_DETAIL_CLOSE:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 6;
-            return 0;
-        case FD2_FIELD_SFX_COMMAND_MENU:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 8;
-            return 0;
-        case FD2_FIELD_SFX_DIALOG_GLYPH:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 2;
-            return 0;
-        case FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 9;
-            return 0;
-        case FD2_FIELD_SFX_FOOTSTEP_SAMPLE_10:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 10;
-            return 0;
-        case FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11:
-            *bank = FD2_FIELD_SFX_BANK_UI;
-            *sample_index = 11;
-            return 0;
-        case FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL:
-            *bank = FD2_FIELD_SFX_BANK_ARRIVAL;
-            *sample_index = 0;
-            return 0;
-        case FD2_FIELD_SFX_ACTOR_GROUP_FLASH:
-            *bank = FD2_FIELD_SFX_BANK_BATTLE;
-            *sample_index = 1;
-            return 0;
-        case FD2_FIELD_SFX_STAGE_TRANSITION:
-            *bank = FD2_FIELD_SFX_BANK_BATTLE;
-            *sample_index = 11;
-            return 0;
-        case FD2_FIELD_SFX_EARTHQUAKE:
-            *bank = FD2_FIELD_SFX_BANK_BATTLE;
-            *sample_index = 13;
-            return 0;
-    }
-    return -1;
+    if ((unsigned)cue >= sizeof(k_sfx_cues) / sizeof(k_sfx_cues[0]))
+        return -1;
+    *bank = (fd2_field_sfx_bank)k_sfx_cues[cue][0];
+    *sample_index = k_sfx_cues[cue][1];
+    return 0;
 }
 
 int fd2_field_footstep_resolve(uint8_t unit_id,

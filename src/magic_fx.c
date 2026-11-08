@@ -8,18 +8,14 @@
 #include <math.h>
 #include <string.h>
 
+#include "static_data/magic_fx.inc"
+
 int fd2_magic_fx_parameters_get(uint8_t id, uint8_t side,
         fd2_magic_fx_parameters *out) {
-    static const uint16_t friendly[9] = {18,19,26,39,22,24,32,37,28};
-    static const uint16_t hostile[10] = {20,21,27,43,23,25,33,38,30,44};
-    static const uint8_t banks[10] = {82,82,83,84,85,86,87,88,89,90};
-    static const uint8_t hp[10] = {7,8,6,13,6,6,5,5,16,20};
-    static const uint8_t samples[10] = {2,2,4,3,2,2,4,2,3,3};
-    static const uint16_t parts[10] = {16,30,18,33,14,12,10,5,32,31};
     if (!out || id >= 10u || (side && id == 9u)) return -1;
-    fd2_magic_fx_parameters value = {side ? friendly[id] : hostile[id],
-        banks[id], hp[id], samples[id], id > 3u ? 176u : 32u,
-        id == 8u ? 19u : id > 3u ? 15u : 11u, parts[id]};
+    fd2_magic_fx_parameters value = {side ? k_fx_friendly_clips[id] : k_fx_hostile_clips[id],
+        k_fx_banks[id], k_fx_hp_denominators[id], k_fx_sample_counts[id], k_fx_hit_frame_bases[id],
+        k_fx_return_lut_bases[id], k_fx_minimum_parts[id]};
     *out = value;
     return 0;
 }
@@ -69,11 +65,6 @@ static int32_t next_age(int32_t age) {
 }
 
 static int rain(fx_call *c, int *out) {
-    static const int32_t x0[7] = {40,70,120,80,50,100,70};
-    static const int32_t y0[7] = {0,-10,-20,0,-15,-5,0};
-    static const uint8_t front[7] = {0,0,1,0,1,0,0};
-    static const int32_t x1[8] = {-59,-39,0,39,55,39,0,-39};
-    static const int32_t y1[8] = {-10,-24,-30,-24,-10,4,10,4};
     fd2_magic_fx *fx = c->fx;
     int32_t *age = fx->state.rain.age;
     *out = 0;
@@ -86,13 +77,13 @@ static int rain(fx_call *c, int *out) {
             if (!fx->id && c->phase == 4u && age[i] == 3) PRIMARY(1);
             if (age[i] >= 0 && age[i] < (fx->id ? 15 : 16)) {
                 if (!fx->id) {
-                    if (front[i] == (c->phase == 4u))
-                        DRAW(age[i], x0[i] + (fx->side ? 0 : 148), y0[i]);
+                    if (k_fx_rain0_front[i] == (c->phase == 4u))
+                        DRAW(age[i], k_fx_rain0_x[i] + (fx->side ? 0 : 148), k_fx_rain0_y[i]);
                 } else {
                     int opposite = (c->phase == 4u ? i >= 4u : i < 4u);
                     size_t position = opposite ? (i + 4u) % 8u : i;
                     DRAW(age[i] + (opposite ? 15 : 0),
-                        x1[position] + 80 + (fx->side ? 0 : 148), y1[position]);
+                        k_fx_rain1_x[position] + 80 + (fx->side ? 0 : 148), k_fx_rain1_y[position]);
                 }
             }
         }
@@ -153,9 +144,6 @@ static int wheel(fx_call *c, int *out) {
 }
 
 static int shower(fx_call *c, int *out) {
-    static const int32_t x[12] = {30,0,70,40,130,70,-30,30,110,80,-10,30};
-    static const uint8_t y[12] = {0,10,0,20,5,20,0,10,0,18,0,10};
-    static const uint8_t part[12] = {22,0,0,0,0,0,11,0,22,0,0,0};
     fd2_magic_fx *fx = c->fx;
     int32_t *age = fx->state.particles.age, *slot = fx->state.particles.slot;
     *out = 0;
@@ -169,11 +157,11 @@ static int shower(fx_call *c, int *out) {
         fx->state.particles.flip = (uint8_t)((fx->state.particles.flip + 1u) % 2u);
         for (size_t i = 0; i < 12u; i++) {
             int32_t at = slot[i]; if (at < 0 || at >= 12) return -1;
-            if (age[i] >= 0 && age[i] < 11) DRAW(age[i] + part[at], x[at] + (fx->side ? 0 : 20), -(int32_t)y[at]);
+            if (age[i] >= 0 && age[i] < 11) DRAW(age[i] + k_fx_shower_parts[at], k_fx_shower_x[at] + (fx->side ? 0 : 20), -(int32_t)k_fx_shower_y[at]);
             if (!fx->state.particles.flip) {
-                if (!age[i] && part[at]) PRIMARY(2);
+                if (!age[i] && k_fx_shower_parts[at]) PRIMARY(2);
                 age[i] = next_age(age[i]);
-                if (age[i] == 3) { if (!part[at]) SECONDARY(1); *out = 1; }
+                if (age[i] == 3) { if (!k_fx_shower_parts[at]) SECONDARY(1); *out = 1; }
                 if (age[i] == 11 && !fx->state.particles.stop) {
                     fx->state.particles.next = (uint8_t)((fx->state.particles.next + 1u) % 12u);
                     slot[i] = fx->state.particles.next; age[i] = 0;
@@ -185,7 +173,6 @@ static int shower(fx_call *c, int *out) {
 }
 
 static int dust(fx_call *c, int *out) {
-    static const int32_t x[10] = {30,50,70,40,80,100,70,30,60,90};
     fd2_magic_fx *fx = c->fx;
     int32_t *age = fx->state.particles.age, *slot = fx->state.particles.slot;
     int fifth = fx->id == 5u;
@@ -202,7 +189,7 @@ static int dust(fx_call *c, int *out) {
         for (size_t i = 0; i < 6u; i++) {
             int32_t at = slot[i]; if (at < 0 || at >= 10) return -1;
             if (age[i] >= 0 && age[i] < (fifth ? 6 : 7))
-                DRAW(age[i] + fx->state.particles.variant[i], x[at] + (fx->side ? 0 : 143), 0);
+                DRAW(age[i] + fx->state.particles.variant[i], k_fx_dust_x[at] + (fx->side ? 0 : 143), 0);
             if (!age[i]) {
                 if (!fifth || !i) PRIMARY(1);
                 else if (i == 3u) SECONDARY(1);
@@ -220,8 +207,6 @@ static int dust(fx_call *c, int *out) {
 }
 
 static int orbit(fx_call *c, int *out) {
-    static const int32_t dx[5] = {10,8,3,0,0};
-    static const int32_t dy[5] = {10,8,3,0,0};
     fd2_magic_fx *fx = c->fx;
     *out = 0;
     if (c->phase == 0u) {
@@ -258,8 +243,8 @@ static int orbit(fx_call *c, int *out) {
             if (part == 1u) fx->state.orbit.spark[i] = 5;
             int late = c->phase == 5u;
             if ((!fx->side && late) || (fx->side && ((late && i > 1u) || (!late && i < 2u)))) {
-                int32_t ox = !fx->side && part < 3u ? -dx[part] : dx[part];
-                int32_t oy = !fx->side && part < 3u ? 0 : dy[part];
+                int32_t ox = !fx->side && part < 3u ? -k_fx_orbit_dx[part] : k_fx_orbit_dx[part];
+                int32_t oy = !fx->side && part < 3u ? 0 : k_fx_orbit_dy[part];
                 DRAW(part, fx->state.orbit.x[i] + ox, fx->state.orbit.y[i] + oy);
             }
         }
@@ -282,7 +267,6 @@ static int orbit(fx_call *c, int *out) {
 }
 
 static int surge(fx_call *c, int *out) {
-    static const int32_t x[10] = {30,-10,70,20,100,130,40,80,110,60};
     fd2_magic_fx *fx = c->fx;
     int32_t *age = fx->state.particles.age, *slot = fx->state.particles.slot;
     *out = 0;
@@ -295,7 +279,7 @@ static int surge(fx_call *c, int *out) {
         fx->state.particles.flip = (uint8_t)((fx->state.particles.flip + 1u) % 2u);
         for (size_t i = 0; i < 3u; i++) {
             int32_t at = slot[i]; if (at < 0 || at >= 10) return -1;
-            if (age[i] >= 0 && age[i] <= 4) DRAW(age[i], x[at] + (fx->side ? 0 : 130), 0);
+            if (age[i] >= 0 && age[i] <= 4) DRAW(age[i], k_fx_surge_x[at] + (fx->side ? 0 : 130), 0);
             if (!fx->state.particles.flip) {
                 if (age[i] == 1) { if (!i) PRIMARY(1); else if (i == 1u) SECONDARY(1); }
                 age[i] = next_age(age[i]);
@@ -310,7 +294,6 @@ static int surge(fx_call *c, int *out) {
     return 0;
 }
 static int burst(fx_call *c, int *out) {
-    static const uint8_t offsets[16] = {0,8,24,16,8,0,24,16,0,8,24,16,8,0,24,16};
     int32_t *age = c->fx->state.burst.age;
     *out = 0;
     if (c->phase == 0u) { for (size_t i = 0; i < 16u; i++) age[i] = -(int32_t)(2u*i); *out = 3; }
@@ -318,7 +301,7 @@ static int burst(fx_call *c, int *out) {
     else if (c->phase == 6u) *out = 2;
     else if (c->phase == 2u || c->phase == 5u) {
         for (size_t i = 0; i < 16u; i++) {
-            if (age[i] >= 0 && age[i] < 8) DRAW(age[i] + offsets[i], 0, 0);
+            if (age[i] >= 0 && age[i] < 8) DRAW(age[i] + k_fx_burst_offsets[i], 0, 0);
             if (!age[i]) PRIMARY(1);
             if (age[i] == 4) SECONDARY(2);
             age[i] = next_age(age[i]);

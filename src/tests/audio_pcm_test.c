@@ -74,9 +74,13 @@ static int test_field_sfx_mapping(void) {
         CHECK(fd2_field_sfx_resolve(cases[i].cue, &bank, &sample) == 0);
         CHECK(bank == cases[i].bank && sample == cases[i].sample);
     }
-    fd2_field_sfx_bank bank;
-    size_t sample;
+    fd2_field_sfx_bank bank = FD2_FIELD_SFX_BANK_ARRIVAL;
+    size_t sample = SIZE_MAX;
     CHECK(fd2_field_sfx_resolve((fd2_field_sfx)99, &bank, &sample) != 0);
+    CHECK(fd2_field_sfx_resolve((fd2_field_sfx)-1, &bank, &sample) != 0);
+    CHECK(fd2_field_sfx_resolve(FD2_FIELD_SFX_DETAIL_OPEN, NULL, &sample) != 0);
+    CHECK(fd2_field_sfx_resolve(FD2_FIELD_SFX_DETAIL_OPEN, &bank, NULL) != 0);
+    CHECK(bank == FD2_FIELD_SFX_BANK_ARRIVAL && sample == SIZE_MAX);
     return 0;
 }
 

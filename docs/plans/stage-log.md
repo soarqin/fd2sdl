@@ -1091,3 +1091,27 @@ PCM默认值是另一个有原码依据的修复。`0x40240..0x404b2`完整原�
 R1本地交付范围完成。历史B0—B7已审查，不因打包重跑全部旧GUI。未关闭原有END／跳页未定位症状、对白透明底图13像素差异、严格PIC／绝对时序、完整波形／物理输出、共享RNG／水色和后续关卡边界；本轮不复现旧症状不能当作已定位。stage2战斗、其它未开放功能及其它平台继续按各自工作包处理。
 
 当前支持范围据上述事件／业务证据与用户明确后端边界收口。完整波形、严格PIC／绝对时序、后续曲目／场景和其它平台仍未验；不因该事实抹去已有行为验收，也不将其写成全保真通过。A8 `ec8e699` 的host／设备边界继续有效，不被本阶段覆盖或重新命名。
+
+
+## SD1：静态冷表来源、严格生成与构建链（2026-11-09）
+
+用户已将原调研任务扩展为在同一工作树连续实施 SD1—SD3。SD1 从 `c6d2c57` 开始；主分支仍为 `88b47d7`，主树未跟踪的 `FD2.SAV` 保留。仅在隔离工作树建立指向原资源的只读使用 junction，所有测试产物写本树 build 或 runner 隔离目录。
+
+### 实现与来源
+
+- `data/static/manifest.json` 和九份 table JSON 成为 43 张当前已确认冷表的唯一编辑来源；CMake 用 Python 3.9+ 标准库生成私有 `const` include。所有本目录目标均依赖生成步骤，包含独立列出 `.c` 的测试。现有 getter、原 ID 与支持门保留，不为单纯转接增加查询包装模块。
+- 单位基础与初始库存共用 32×24 raw base，成长和敌表也读唯一 raw 记录，删除重复私有结构投影；保留初始构造与运行成长的不同公式、未知 byte、提交写序与失败不写合同。其它范围为物品／装备、法术／移动、准备／曲目、地形／暴击、脚步／cue、FX／战斗演出参数。
+- 生成器校验重复键／符号、类型／数值、固定消费 ABI、来源身份引用和已解码跨表引用；先验证全部输入再写输出。错误或旧 `.inc` 残留明确拒绝。复审发现并修复了「同时缩短维度和值仍通过」与「删除定义后旧头仍被消费」两项风险，已加负例。
+- 发布源码白名单包含静态 JSON 和生成器；开发／重建需要 Python，但运行不需要 Python、JSON 或原 EXE。工具说明与规范入口同步。SD2 的事件条件、分支、顺序及等待尚未据此宣布完成。
+
+### 实际验证
+
+Windows 原生新构建位于本树 `src/build-win`，VS18／MSVC 19.51、Windows SDK 10.0.26100、Python 3.12.10。使用已有系统 SDL 3.2.12 SDK；当前仓库 CPM fallback 为 3.4.20，本次没有下载或声称验证该版本。构建成功，当前注册 91 项 CTest；本阶段按直接影响范围执行 61 项 field／scene／FX／animation／audio_pcm／static_data 等回归，61/61 通过，不称 91 项全部执行。
+
+独立来源验证器不导入生产生成器：单位等 9 表 8,528/8,528 byte；准备等 6 表 973/973 byte；另核 11/11 cue 映射和 11 个内存变异拒绝。二者使用指定 EXE SHA `bb35004c…8861cd` 的严格 LE 页读集，不是原机器码执行。FX／演出参数逐值对原 C blob 及非数据 token 核对，沿用既有原局部向量判据，不把其值计入原 EXE 字节数。Python 静态数据／单位验证器单测 11 项、发布包和来源 producer 各 17 项通过。最终另执行两个生成／schema CTest，通过。
+
+`src/build-win/graphics-artifacts/20261109-001822-237073` 保存本次 Suite `--b6-only`：物理 FULL hit、玩家 magic0、heal13 三种场景均有新原版／SDL 采集，三个 aggregate comparison 的 core_verification.ok 均为 true，包括规定完整 64,000 像素资源／相位帧 pair 和各端有限 SFX 身份／录音顺序。不是整个动画、完整动作音频、所有 FX0 实例、精确时序或 A7 全保真。Suite owned Job 收据为 `worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1`；WGC 单窗口、后台 PID/HWND 输入与临时显示需求均走原规范，未改混音器。
+
+`build/sd1-offline/source-files-final.json` 记录仅按更新后的 source_inventory 复制的 165 个 App 构建输入；独立 `source` 不含 tests、原资源、EXE 或开发生成目录，以 `BUILD_TESTING=OFF` 完成 Release 干净生成／编译。使用 R1 installed SDL SDK `E:/Projects/fd2sdl-work/r1-delivery-20261107/build/sdk/cmake`（3.2.12、Release 静态库 SHA `df524931…49c0`），日志无 CPM／网络下载步骤；未重新打包／发布，不改写 R1 历史包身份。复审后的 JSON 仅重排记录格式，assert 解析值完全一致；最终 schema／引用与离线重建再次通过，没有为格式和生成器拒绝检查重复运行 GUI。
+
+Linux 本轮未执行。未运行新的局部原机器码、未执行全部历史 GUI；统一全量历史回归留在 SD3。下一步直接进入 SD2 的全部当前受支持事件驱动数据化，不启动新玩法。

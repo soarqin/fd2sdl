@@ -6,6 +6,8 @@ Windows x64 本地 Release 的源码快照、实际 CMake／PE 依赖记录、�
 
 ## 构建与回归
 
+冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。
+
 开发验收执行当前平台的适用检查即可；下列另一平台命令用于维护兼容说明，不是当前任务必须补跑的前置。未执行的平台如实登记，当前平台必测项仍须实际注册并通过。
 
 Windows（PowerShell，Visual Studio Debug）：

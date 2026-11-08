@@ -17,6 +17,8 @@
 #include "magic_fx.h"
 #include "portrait.h"
 
+#include "static_data/battle_animation.inc"
+
 typedef struct {
     fd2_image image;
     uint8_t *opaque; /* RLE写入掩码；literal 0仍不透明，不能用零像素替代SKIP。 */
@@ -46,9 +48,6 @@ struct fd2_battle_animation_exchange {
     uint8_t idle_part, idle_ticks, shake;
     int tint;
 };
-
-static const int shake_x[6] = {0,4,9,14,18,14};
-static const int shake_y[6] = {0,2,4,6,8,10};
 
 static void image_close(battle_image *image) {
     fd2_image_free(&image->image);
@@ -743,9 +742,6 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
             &e->caster_idle,&e->target_idle[0],&e->terrain);
     }
     uint8_t idle=0,elapsed=0;unsigned flashes=0;
-    static const uint8_t color[10][3]={
-        {63,0,0},{63,0,0},{63,0,0},{63,0,0},{43,50,60},
-        {43,50,60},{43,50,60},{43,50,60},{63,63,63},{35,16,8}};
     const uint8_t *record=fd2_field_magic_record_get(e->id);
     if (!record) return -1;
     for (size_t i=0;i<e->casting.clip.intro_end;i++) {
@@ -766,7 +762,7 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
             if (!stopped(ctx)) memcpy(ctx->vga->framebuffer,e->work,64000);
             if (flashes) {
                 if (!stopped(ctx)) {
-                    dac0(ctx,color[e->id][0],color[e->id][1],color[e->id][2]);present(ctx,0);
+                    dac0(ctx,k_battle_cast_colors[e->id][0],k_battle_cast_colors[e->id][1],k_battle_cast_colors[e->id][2]);present(ctx,0);
                     if (!stopped(ctx)) fd2_delay_ms(30);
                     dac0(ctx,0,0,0);
                 }
@@ -885,7 +881,6 @@ static int magic_target_full(const fd2_field_game *game,const fd2_field_magic_pr
     if (magic_fx_step(&reader,3,&duration)!=0 || duration<0 || duration>UINT16_MAX) return -1;
     e->idle_part=e->idle_ticks=0;
     size_t impact=0;unsigned hp_step=1;
-    static const int dx[4]={6,4,2,0},dy[4]={-3,-2,-1,0};
     /* 2ff01取damage helper的raw返回；命中但raw0仍走无染色/无jitter分支。 */
     int damaging=event->result->raw_damage!=0;
     for (int frame=0;frame<duration;frame++) {
@@ -896,7 +891,7 @@ static int magic_target_full(const fd2_field_game *game,const fd2_field_magic_pr
             e->casting.clip.part_count-1u,0,0,-1);
         if (damaging) {
             magic_work_idle(e,reader.origin,&e->target_idle[index],
-                e->shake_sign*dx[e->shake_phase],dy[e->shake_phase],
+                e->shake_sign*k_battle_magic_shake_x[e->shake_phase],k_battle_magic_shake_y[e->shake_phase],
                 e->fx_parameters.hit_frame_base+(e->tint_phase<<8));
             if (--e->tint_phase==1) e->tint_phase=8;
             if (e->shake_phase!=3) e->shake_phase++;
@@ -954,7 +949,6 @@ static int magic_target(const fd2_field_game *game,const fd2_field_magic_present
 
 static int floating_heals(const fd2_field_game *game,fd2_battle_animation *ctx) {
     fd2_battle_magic_exchange *e=ctx->magic_exchange;
-    static const uint8_t curve[25]={15,15,15,15,7,3,1,0,0,1,3,7,15,15,11,9,8,8,9,11,15,15,15,15,15};
     if (refresh_map(game,ctx,&e->board)!=0) return -1;
     int any=0;
     for (size_t i=0;i<e->count;i++) if (e->units[i].x>=game->camera_cell_x &&
@@ -973,7 +967,7 @@ static int floating_heals(const fd2_field_game *game,fd2_battle_animation *ctx) 
                 const battle_image *digit=&e->digits[(size_t)(digits[next++]-'0')];
                 blit(ctx->vga->framebuffer+1284,312,192,320,digit,
                     ((int)u->x-game->camera_cell_x)*24+2+(int)slot*5,
-                    ((int)u->y-game->camera_cell_y)*24+(int)curve[frame+slot]-3,-1);
+                    ((int)u->y-game->camera_cell_y)*24+(int)k_battle_heal_curve[frame+slot]-3,-1);
             }
         }
         present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(2);

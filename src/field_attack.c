@@ -17,6 +17,9 @@
 #include "field_item.h"
 #include "field_move_profile.h"
 
+/* 地形百分比与profile暴击原表见 data/static/tables/attack.json。 */
+#include "static_data/attack.inc"
+
 #define FD2_FIELD_EQUIPMENT_SLOT_COUNT 8u
 #define FD2_FIELD_EQUIPMENT_FLAGS_OFFSET 0x0au
 #define FD2_FIELD_EQUIPMENT_ITEM_OFFSET 0x0bu
@@ -209,13 +212,11 @@ int fd2_field_attack_unit_ignores_terrain_modifier(
 int fd2_field_attack_terrain_modifiers(uint8_t movement_cost_class,
                                        int32_t *attack_percent,
                                        int32_t *defense_percent) {
-    static const int32_t attack[] = {5, 0, -5, -5, -5, 0};
-    static const int32_t defense[] = {0, 0, 10, 10, -5, 0};
-    if (!attack_percent || !defense_percent ||
-        movement_cost_class >= sizeof(attack) / sizeof(attack[0]))
+    if (!attack_percent || !defense_percent || movement_cost_class >=
+        sizeof(k_terrain_attack_percent) / sizeof(k_terrain_attack_percent[0]))
         return -1;
-    *attack_percent = attack[movement_cost_class];
-    *defense_percent = defense[movement_cost_class];
+    *attack_percent = k_terrain_attack_percent[movement_cost_class];
+    *defense_percent = k_terrain_defense_percent[movement_cost_class];
     return 0;
 }
 
@@ -232,16 +233,11 @@ int fd2_field_attack_apply_terrain_modifier(uint32_t stat,
 
 int fd2_field_attack_base_critical_chance(
         const fd2_field_unit *attacker, uint8_t *base_chance) {
-    static const uint8_t critical_by_profile[] = {
-        5, 3, 3, 5, 3, 3, 0, 18, 5, 3,
-        3, 12, 3, 3, 12, 10, 6, 3, 3, 7,
-        3, 3, 30, 18, 0, 0, 0, 0, 0, 0,
-    };
     if (!attacker || !base_chance || attacker->movement_profile == 0 ||
         attacker->movement_profile >
-            sizeof(critical_by_profile) / sizeof(critical_by_profile[0]))
+            sizeof(k_critical_by_profile) / sizeof(k_critical_by_profile[0]))
         return -1;
-    *base_chance = critical_by_profile[attacker->movement_profile - 1u];
+    *base_chance = k_critical_by_profile[attacker->movement_profile - 1u];
     return 0;
 }
 

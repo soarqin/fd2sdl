@@ -54,6 +54,8 @@
 
 ## 文件与提交
 
+- 已迁移冷表以 `data/static/` 为唯一编辑输入，经构建期生成；不得修改 `.inc` 或把表值写回业务模块。新增定义须补来源、消费尺寸契约和已解码引用校验；独立原字节对照与生成器自检分开，见[冷定义工具](docs/tools/static-data.md)。事件编排的后续迁移按[SD 工作包](docs/plans/static-data.md)执行，不以表迁移代替流程数据化。
+
 - `original_game/` 中的游戏、截图、存档和 dump 是本地只读证据，不修改、不提交。写入验证使用独立副本。
 - 不提交构建输出、`src/fd2sdl`／`src/fd2sdl.exe`／`src/Debug/`／`src/Release/`、图形测试截图与报告、`tools/*.bin`、`tools/ida-out/`、IDA 数据库、大型中间导出，以及 `.omo/`、`.pi-subagents/`、`.codegraph/`。可再生产物提交脚本，不提交镜像。
 - 发布的 IDA 证据由生成器写入 `docs/generated/ida-canonical/`；所有产物写完后最后刷新并校验 `SHA256SUMS`。刷新清单不等于重新验证语义。

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "shake_x",
+      "c_type": "int",
+      "dimensions": [6],
+      "values": [0, 4, 9, 14, 18, 14],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "shake_x",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    },
+    {
+      "name": "shake_y",
+      "c_type": "int",
+      "dimensions": [6],
+      "values": [0, 2, 4, 6, 8, 10],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "shake_y",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    },
+    {
+      "name": "k_battle_cast_colors",
+      "c_type": "uint8_t",
+      "dimensions": [10, 3],
+      "values": [
+        [63, 0, 0],
+        [63, 0, 0],
+        [63, 0, 0],
+        [63, 0, 0],
+        [43, 50, 60],
+        [43, 50, 60],
+        [43, 50, 60],
+        [43, 50, 60],
+        [63, 63, 63],
+        [35, 16, 8]
+      ],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "magic_cast_full.color",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    },
+    {
+      "name": "k_battle_magic_shake_x",
+      "c_type": "int",
+      "dimensions": [4],
+      "values": [6, 4, 2, 0],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "magic_target_full.dx",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    },
+    {
+      "name": "k_battle_magic_shake_y",
+      "c_type": "int",
+      "dimensions": [4],
+      "values": [-3, -2, -1, 0],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "magic_target_full.dy",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    },
+    {
+      "name": "k_battle_heal_curve",
+      "c_type": "uint8_t",
+      "dimensions": [25],
+      "values": [15, 15, 15, 15, 7, 3, 1, 0, 0, 1, 3, 7, 15, 15, 11, 9, 8, 8, 9, 11, 15, 15, 15, 15, 15],
+      "source": {
+        "kind": "existing_confirmed_definition",
+        "file": "src/battle_animation.c",
+        "symbol": "floating_heals.curve",
+        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
+        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
+        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
+      }
+    }
+  ]
+}

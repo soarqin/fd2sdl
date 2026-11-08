@@ -1,6 +1,26 @@
 cmake_minimum_required(VERSION 3.16)
 project(fd2sdl C CXX)
 
+# 已确认冷定义以 JSON 为唯一输入；构建不读取 FD2.EXE 或原版资源。
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+set(FD2_STATIC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
+file(GLOB FD2_STATIC_TABLES CONFIGURE_DEPENDS "${FD2_STATIC_ROOT}/data/static/tables/*.json")
+set(FD2_STATIC_INCLUDE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(FD2_STATIC_OUTPUTS "${FD2_STATIC_INCLUDE_ROOT}/static_data/sources.json")
+foreach(input IN LISTS FD2_STATIC_TABLES)
+    get_filename_component(stem "${input}" NAME_WE)
+    list(APPEND FD2_STATIC_OUTPUTS "${FD2_STATIC_INCLUDE_ROOT}/static_data/${stem}.inc")
+endforeach()
+add_custom_command(OUTPUT ${FD2_STATIC_OUTPUTS}
+    COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/static_data/generate.py"
+        --root "${FD2_STATIC_ROOT}" --output "${FD2_STATIC_INCLUDE_ROOT}/static_data"
+    COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${FD2_STATIC_OUTPUTS}
+    DEPENDS "${FD2_STATIC_ROOT}/tools/static_data/generate.py"
+        "${FD2_STATIC_ROOT}/data/static/manifest.json" ${FD2_STATIC_TABLES}
+    VERBATIM)
+add_custom_target(fd2_static_data DEPENDS ${FD2_STATIC_OUTPUTS})
+include_directories("${FD2_STATIC_INCLUDE_ROOT}")
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 14)
@@ -1488,3 +1508,18 @@ endif()
 set_target_properties(fd2sdl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# 部分回归独立列出 .c，不经过 core；统一保证头生成先于任何本目录编译。
+get_directory_property(fd2_static_consumers BUILDSYSTEM_TARGETS)
+foreach(consumer IN LISTS fd2_static_consumers)
+    if(NOT consumer STREQUAL "fd2_static_data")
+        add_dependencies(${consumer} fd2_static_data)
+    endif()
+endforeach()
+if(BUILD_TESTING)
+    add_test(NAME static_data_generated COMMAND ${Python3_EXECUTABLE} -B
+        "${FD2_STATIC_ROOT}/tools/static_data/generate.py" --root "${FD2_STATIC_ROOT}"
+        --output "${FD2_STATIC_INCLUDE_ROOT}/static_data" --check)
+    add_test(NAME static_data_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_data.py)
+endif()

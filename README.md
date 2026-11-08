@@ -6,7 +6,7 @@
 
 ## 准备与构建
 
-需要 CMake 3.16+、C11／C++14 编译器，以及合法取得的原版游戏数据。Windows 使用带 C++ 桌面开发组件和 Windows SDK 的 Visual Studio Build Tools；图形测试驱动另需 C++17 与 C++/WinRT SDK。Linux 使用 GCC 或 Clang。将数据文件放入 `original_game/`；本仓库不分发原版资源。
+需要 CMake 3.16+、Python 3.9+（仅标准库，用于构建期生成冷定义）、C11／C++14 编译器，以及合法取得的原版游戏数据。Windows 使用带 C++ 桌面开发组件和 Windows SDK 的 Visual Studio Build Tools；图形测试驱动另需 C++17 与 C++/WinRT SDK。Linux 使用 GCC 或 Clang。将数据文件放入 `original_game/`；本仓库不分发原版资源。
 
 从项目根目录执行。两平台使用独立构建目录，不复用另一平台的 `CMakeCache.txt`。
 

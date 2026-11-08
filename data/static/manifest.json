@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "table_files": [
+    "attack.json",
+    "battle_animation.json",
+    "field_audio.json",
+    "items.json",
+    "magic.json",
+    "magic_fx.json",
+    "movement.json",
+    "stage.json",
+    "unit_base.json"
+  ],
+  "sources": {
+    "FD2.EXE": {
+      "sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+      "view": "canonical LE relbase, strict page/fixup parser; existing reconstructed definitions only"
+    },
+    "src/battle_animation.c@c6d2c576b196286f2d94129cf00b0fae6832c65b": {
+      "sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d",
+      "view": "existing confirmed C definition; original byte/semantic evidence remains in file header"
+    },
+    "src/magic_fx.c@c6d2c576b196286f2d94129cf00b0fae6832c65b": {
+      "sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a",
+      "view": "existing confirmed C definition; original byte/semantic evidence remains in file header"
+    }
+  },
+  "table_contracts": {
+    "attack.json": {
+      "k_terrain_attack_percent": {
+        "c_type": "int32_t",
+        "dimensions": [
+          6
+        ]
+      },
+      "k_terrain_defense_percent": {
+        "c_type": "int32_t",
+        "dimensions": [
+          6
+        ]
+      },
+      "k_critical_by_profile": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          30
+        ]
+      }
+    },
+    "battle_animation.json": {
+      "shake_x": {
+        "c_type": "int",
+        "dimensions": [
+          6
+        ]
+      },
+      "shake_y": {
+        "c_type": "int",
+        "dimensions": [
+          6
+        ]
+      },
+      "k_battle_cast_colors": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          10,
+          3
+        ]
+      },
+      "k_battle_magic_shake_x": {
+        "c_type": "int",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_magic_shake_y": {
+        "c_type": "int",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_heal_curve": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          25
+        ]
+      }
+    },
+    "field_audio.json": {
+      "k_footstep_classes": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          29
+        ]
+      },
+      "k_sfx_cues": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          11,
+          2
+        ]
+      }
+    },
+    "items.json": {
+      "ITEM_RECORDS": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          215,
+          23
+        ]
+      },
+      "profiles": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          29,
+          7
+        ]
+      }
+    },
+    "magic.json": {
+      "MAGIC_RECORDS": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          36,
+          7
+        ]
+      },
+      "MAGIC_DAMAGE_PROFILE_SCALES": {
+        "c_type": "uint32_t",
+        "dimensions": [
+          28
+        ]
+      }
+    },
+    "magic_fx.json": {
+      "k_fx_friendly_clips": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_fx_hostile_clips": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_banks": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_hp_denominators": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_sample_counts": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_minimum_parts": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_rain0_x": {
+        "c_type": "int32_t",
+        "dimensions": [
+          7
+        ]
+      },
+      "k_fx_rain0_y": {
+        "c_type": "int32_t",
+        "dimensions": [
+          7
+        ]
+      },
+      "k_fx_rain0_front": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          7
+        ]
+      },
+      "k_fx_rain1_x": {
+        "c_type": "int32_t",
+        "dimensions": [
+          8
+        ]
+      },
+      "k_fx_rain1_y": {
+        "c_type": "int32_t",
+        "dimensions": [
+          8
+        ]
+      },
+      "k_fx_shower_x": {
+        "c_type": "int32_t",
+        "dimensions": [
+          12
+        ]
+      },
+      "k_fx_shower_y": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          12
+        ]
+      },
+      "k_fx_shower_parts": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          12
+        ]
+      },
+      "k_fx_dust_x": {
+        "c_type": "int32_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_orbit_dx": {
+        "c_type": "int32_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_fx_orbit_dy": {
+        "c_type": "int32_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_fx_surge_x": {
+        "c_type": "int32_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_burst_offsets": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          16
+        ]
+      },
+      "k_fx_hit_frame_bases": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          10
+        ]
+      },
+      "k_fx_return_lut_bases": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          10
+        ]
+      }
+    },
+    "movement.json": {
+      "k_profiles": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          29,
+          20
+        ]
+      }
+    },
+    "stage.json": {
+      "k_stage_prepare": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          26,
+          31
+        ]
+      },
+      "k_stage_music": {
+        "c_type": "fd2_field_stage_music",
+        "dimensions": [
+          30
+        ]
+      }
+    },
+    "unit_base.json": {
+      "k_player_base_records": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          32,
+          24
+        ]
+      },
+      "k_enemy_records": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          68,
+          10
+        ]
+      },
+      "k_growth_records": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          68,
+          11
+        ]
+      },
+      "k_learning_records": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          20,
+          12
+        ]
+      }
+    }
+  }
+}

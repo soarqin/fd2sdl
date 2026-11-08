@@ -35,6 +35,7 @@
 ## 工具操作
 
 - [工具速查](tools/README.md)：构建、测试、调试入口和常用数据工具。
+- [冷定义工具](tools/static-data.md)：JSON 唯一输入、构建期生成、消费契约与独立原字节校验。
 - [跨平台命令约定](tools/platforms.md)：Windows PowerShell／Linux Bash、构建输出、Python、环境变量和只读二进制检查。
 - [图形自动化测试](tools/gui-testing.md)：SDL 原生窗口、真实按键、截图、退出与隔离存档的验证流程。
 - [IDA Domain API／idalib](tools/ida.md)：环境、只读查询、授权发布流程与陷阱。

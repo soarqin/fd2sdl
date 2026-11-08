@@ -87,6 +87,8 @@ class ReleasePackageTest(unittest.TestCase):
         paths = {row["path"] for row in result["files"]}
         self.assertIn("source/src/third_party/nukedopl3.c", paths)
         self.assertIn("source/src/third_party/LICENSE.nukedopl3", paths)
+        self.assertIn("source/data/static/manifest.json", paths)
+        self.assertIn("source/tools/static_data/generate.py", paths)
         self.assertIn("sdk/sdl/lib/SDL3-static.lib", paths)
         self.assertIn("sdk/sdl/include/SDL3/SDL.h", paths)
         self.assertNotIn("bin/SDL3.dll", paths)

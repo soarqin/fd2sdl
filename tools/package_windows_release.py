@@ -17,6 +17,7 @@ import struct
 SCHEMA = "fd2-windows-release-inputs-v1"
 CODE_EXTENSIONS = {".c", ".cpp", ".h", ".hpp", ".inl", ".inc", ".ipp", ".tcc", ".cmake", ".in"}
 REQUIRED_SOURCE = {"LICENSE", "README.md", "src/CMakeLists.txt", "src/main.c",
+                   "data/static/manifest.json", "tools/static_data/generate.py",
                    "src/third_party/nukedopl3.c", "src/third_party/nukedopl3.h",
                    "src/third_party/LICENSE.nukedopl3"}
 # 仅发布说明：main启动/音乐路径与battle_animation的BG/TAI读取，不作第二套runtime校验。
@@ -67,6 +68,12 @@ def _tree(root: Path):
 def _source_allowed(relative: str) -> bool:
     parts = PurePosixPath(relative).parts
     name = parts[-1]
+    if relative == "tools/static_data/generate.py":
+        return True
+    if parts[:2] == ("data", "static"):
+        return relative == "data/static/manifest.json" or (
+            len(parts) == 4 and parts[2] in {"tables", "flows", "stages"} and
+            Path(name).suffix.lower() == ".json")
     if len(parts) == 1:
         return name in {"LICENSE", "README.md", ".gitattributes", "THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md"}
     if parts[0] != "src" or (len(parts) > 2 and parts[1] not in {"third_party", "cmake"}):
@@ -106,6 +113,12 @@ def source_inventory(root: Path | str) -> list[dict]:
             if _link(src / name):
                 raise ValueError("source subtree must not be linked")
             paths += [path for path in _tree(src / name) if _source_allowed(path.relative_to(root).as_posix())]
+    for subtree in ("data/static", "tools/static_data"):
+        path = root / subtree
+        if path.is_dir():
+            if _link(path):
+                raise ValueError("static source subtree must not be linked")
+            paths += [entry for entry in _tree(path) if _source_allowed(entry.relative_to(root).as_posix())]
     entries = _inventory(root, paths)
     names = {entry["path"] for entry in entries}
     if not REQUIRED_SOURCE <= names or len(names & {"THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md"}) != 1:
@@ -195,7 +208,8 @@ def _player_readme() -> bytes:
             "\n\n本包不包含这些资源、SAV、截图、录音或dump。\n\n"
             "## 重建与许可\n\n自有代码使用MIT；第三方许可见THIRD_PARTY_NOTICES.md及source/src/third_party。"
             "完整App构建源码在source，实际SDL开发SDK在sdk/sdl。另安装清单记录的Visual Studio C/C++工具链、"
-            "Windows SDK和CMake后，可替换Nuked源码，再执行`./rebuild.ps1`；无需下载SDL。\n\n"
+            "Windows SDK、CMake和Python 3.9+后，可替换Nuked源码，再执行`./rebuild.ps1`；无需下载SDL或Python包。"
+            "data/static中的冷定义和tools/static_data/generate.py随源码提供，构建期生成C数据；运行游戏无需Python。\n\n"
             "source/README.md保留仓库原文，但本包是App-only构建材料；必须使用BUILD_TESTING=OFF，"
             "不能照仓库默认测试命令构建未随包提供的tests。rebuild.ps1已设置该选项。\n\n"
             "打包器不运行构建或游戏；离线重建、替换库重链接与发布验收须另留实际收据。"

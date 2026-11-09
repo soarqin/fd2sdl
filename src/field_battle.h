@@ -13,26 +13,51 @@ struct fd2_field_game;
 typedef enum {
     FD2_FIELD_PHYSICAL_PREPARE = 0,
     FD2_FIELD_PHYSICAL_STRIKE,
-    FD2_FIELD_PHYSICAL_FINISH
+    FD2_FIELD_PHYSICAL_FINISH,
+    FD2_FIELD_PHYSICAL_SHORT_BEGIN,
+    FD2_FIELD_PHYSICAL_COUNTER_REFRESH,
+    FD2_FIELD_PHYSICAL_RECOVERY_STEP,
+    FD2_FIELD_PHYSICAL_SHORT_MAP
 } fd2_field_physical_phase;
+
+typedef enum {
+    FD2_FIELD_PHYSICAL_MODE_FULL = 0,
+    FD2_FIELD_PHYSICAL_MODE_SHORT,
+    FD2_FIELD_PHYSICAL_MODE_RECOVERY
+} fd2_field_physical_present_mode;
+
+typedef enum {
+    FD2_FIELD_RECOVERY_WAIT = 0,
+    FD2_FIELD_RECOVERY_CUE,
+    FD2_FIELD_RECOVERY_ACTOR
+} fd2_field_recovery_step;
 
 typedef struct {
     fd2_field_physical_phase phase;
+    fd2_field_physical_present_mode presentation_mode;
     size_t actor_index;
     size_t target_index;
     uint8_t counterattack;
     uint8_t strike_index;
     uint8_t pre_hit_status_applied;
     /* 本击提交前的只读记录；仅在同步callback期间有效，不可保留指针。
-     * STRIKE的game已提交本击，present不能从最终HP反推此前状态。 */
+     * STRIKE的game已提交本击，present不能从最终HP反推此前状态。
+     * resource_only PREPARE可借用同身份的目的格投影，检查未来BG/TAI环境。 */
     const fd2_field_unit *actor_before;
     const fd2_field_unit *target_before;
     const fd2_field_attack_result *result;
     int action_failed; /* FINISH即使此前失败也调用，以释放本次演出资源。 */
+    /* AI后续恢复在首动作RNG前只读预检；成功即释放借用scope，不绘图或写owner。 */
+    uint8_t resource_only;
+    /* RECOVERY_STEP的顺序、等待与参数来自stationary.recover冷图。
+     * WAIT为BIOS tick；CUE为field bank索引；ACTOR为1da16模式2/0。 */
+    fd2_field_recovery_step recovery_step;
+    uint16_t step_value;
 } fd2_field_physical_event;
 
 /* PREPARE完整预检在本次首个业务RNG前；成功后恰一次FINISH。
- * STRIKE只呈现已算结果，不写game、不消费RNG、不再次调用effect。
+ * 普通STRIKE只呈现已算结果，不写game、不消费RNG、不再次调用effect。
+ * RECOVERY在STEP三次等待后才由Game写HP；没有伤害result或浮字。
  * 返回0成功/-1呈现失败；提交后的失败不得回滚或重新尝试动作。
  * 宿主quit由present owner锁存并停止后续画帧，原子动作完成后由Play分派。
  * full-mode skip仅跳过画帧/cue，不能改成原版short-mode的结算规则。 */
@@ -46,18 +71,48 @@ typedef enum {
     FD2_FIELD_MAGIC_PRESENT_PREPARE = 0,
     FD2_FIELD_MAGIC_PRESENT_CAST,
     FD2_FIELD_MAGIC_PRESENT_TARGET,
-    FD2_FIELD_MAGIC_PRESENT_FINISH
+    FD2_FIELD_MAGIC_PRESENT_FINISH,
+    FD2_FIELD_MAGIC_PRESENT_STEP,
+    FD2_FIELD_MAGIC_PRESENT_TELEPORT_OUT,
+    FD2_FIELD_MAGIC_PRESENT_TELEPORT_IN,
+    FD2_FIELD_MAGIC_PRESENT_POPUP_CLEAR,
+    FD2_FIELD_MAGIC_PRESENT_TELEPORT_OUT_COMMIT,
+    FD2_FIELD_MAGIC_PRESENT_TELEPORT_IN_COMMIT,
+    FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP
 } fd2_field_magic_present_phase;
+
+typedef enum {
+    FD2_FIELD_MAGIC_MODE_FULL = 0,
+    FD2_FIELD_MAGIC_MODE_MAP,
+    FD2_FIELD_MAGIC_MODE_DERIVED,
+    FD2_FIELD_MAGIC_MODE_COMPOSITE
+} fd2_field_magic_present_mode;
+
+typedef enum {
+    FD2_FIELD_MAGIC_ACTION_MAGIC = 0,
+    FD2_FIELD_MAGIC_ACTION_ITEM
+} fd2_field_magic_action_kind;
 
 #define FD2_FIELD_MAGIC_IMPACT_CAPACITY 64u
 
 typedef struct {
     fd2_field_magic_present_phase phase;
+    fd2_field_magic_present_mode presentation_mode;
+    fd2_field_magic_action_kind action_kind;
     size_t actor_index;
     uint8_t magic_id;
+    uint8_t effect_id;
+    uint8_t item_code;
+    uint16_t item_power;
+    uint8_t group_pass;
+    uint16_t part_index;
+    uint8_t marker_count;
+    const fd2_field_unit *target_after;
+    int destination_x, destination_y;
     uint8_t cast_cost_count; /* PREPARE前从真实caster intro导出；13固定wrapper一次。 */
     const uint8_t *targets; /* 仅同步调用期间借用完整目标序列。 */
     size_t target_count;
+    size_t effect_target_count; /* 0=全部；MAP9/永久stat仅首项，FX仍使用完整目标组。 */
     size_t target_index;
     const fd2_field_unit *actor_before;
     const fd2_field_unit *target_before;

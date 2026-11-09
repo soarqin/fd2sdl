@@ -46,6 +46,17 @@ int fd2_field_transition_lut_before_actors(fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius);
 int fd2_field_transition_lut_after_actors(fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius);
+/* 22253/22547/22656的radius固定11，first_row独立变化；旧接口等价row0。 */
+int fd2_field_transition_lut_before_actors_from(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius, int first_row);
+int fd2_field_transition_lut_after_actors_from(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius, int first_row);
+/* 2189a→219ad固定scale12的单圆；不包含22046的actor重画或矩形。 */
+int fd2_field_transition_lut_circle12(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius);
+/* 127e0的53a04/53a08独立共享抖动门，与1297d的idle相位不同。
+ * 原低WORD tick变化才翻0/1一次；App视觉owner，不入Game/SAV/RNG。 */
+int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ms);
 
 /* 只应用已确认水色到DAC224..239，不改变base palette或phase；非法输入原子拒绝。
  * tick由已确认战场等待caller显式调用；render/present不隐式推进。

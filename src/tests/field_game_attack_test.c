@@ -683,6 +683,7 @@ static int test_miss_completes_action(void) {
 
 typedef struct {
     fd2_field_physical_phase phase;
+    fd2_field_physical_present_mode mode;
     size_t actor_index, target_index, rng_cursor;
     uint8_t counter, strike, status_applied;
     int failed;
@@ -711,6 +712,7 @@ static int observe_physical(const fd2_field_game *game,
     }
     physical_observation *seen = &observer->events[observer->count++];
     seen->phase = event->phase;
+    seen->mode = event->presentation_mode;
     seen->actor_index = event->actor_index;
     seen->target_index = event->target_index;
     seen->counter = event->counterattack;
@@ -735,6 +737,13 @@ static int observe_physical(const fd2_field_game *game,
         seen->target_before = *event->target_before;
         seen->result = *event->result;
     } else if (event->phase == FD2_FIELD_PHYSICAL_FINISH) observer->finishes++;
+    else if (event->presentation_mode == FD2_FIELD_PHYSICAL_MODE_SHORT &&
+        (event->phase == FD2_FIELD_PHYSICAL_SHORT_MAP ||
+         event->phase == FD2_FIELD_PHYSICAL_SHORT_BEGIN ||
+         event->phase == FD2_FIELD_PHYSICAL_COUNTER_REFRESH)) {
+        if (!event->actor_before || !event->target_before || event->result) observer->invalid=1;
+        else { seen->actor_before=*event->actor_before;seen->target_before=*event->target_before; }
+    }
     else observer->invalid = 1;
     if (observer->invalid) return -1;
     if (event->phase == FD2_FIELD_PHYSICAL_FINISH && observer->fail_cleanup) return -1;
@@ -791,10 +800,13 @@ static int test_full_strike_events_and_short_selection(void) {
     }
     rng.cursor = 0;
     if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
-    game.option_values[2] = 1; /* 本例明确验证原 SHORT 选项，而非统一修改旧夹具。 */
-    if (expect(fd2_field_game_resolve_attack(&game) == 0 && game.last_attack_strikes == 2 &&
-               game.units.items[1].hp == 82 && rng.cursor == 7 && observer.count == 0,
-               "SHORT retains two-strike logic and never invokes the FULL presenter")) return -1;
+    game.option_values[2] = 1;
+    /* 原18d8c无53af9读取，玩家始终调用2e2b0；不能据旧SDL全局门造SHORT来源。 */
+    if (expect(fd2_field_game_resolve_attack(&game) == 0 && game.last_attack_strikes == 3 &&
+               game.units.items[1].hp == 73 && rng.cursor == 10 && observer.count == 5 &&
+               observer.events[0].mode == FD2_FIELD_PHYSICAL_MODE_FULL &&
+               observer.strikes == 3 && observer.finishes == 1,
+               "player option nonzero retains FULL count/RNG and FULL presentation")) return -1;
     rng.cursor = 0;
     if (begin_observed_attack(&game, &rng, &observer) != 0) return -1;
     equip_weapon(&game.units.items[1], 0);
@@ -805,6 +817,136 @@ static int test_full_strike_events_and_short_selection(void) {
                observer.events[1].target_before.hp == 1 && observer.events[1].result.defeated &&
                observer.events[1].target_hp_after == 0 && game.units.items[1].flags == 1,
                "FULL lethal first strike still finishes exactly once and suppresses remaining strikes/counter")) return -1;
+    return 0;
+}
+
+static int test_ai_short_present_order(void) {
+    static const uint32_t rolls[]={2,0,99,0,0,99,0,99,0,99,0,55};
+    test_rng rng={rolls,sizeof(rolls)/sizeof(rolls[0]),0};
+    fd2_field_game game;physical_observer observer;
+    init_game(&game);game.stage=UINT8_MAX;game.active_side=0;game.option_values[2]=1;
+    game.selected_unit=-1;game.interaction=FD2_FIELD_INTERACTION_BROWSE;
+    game.units.items[0].side=0;game.units.items[1].side=2;
+    game.units.items[2].flags=FD2_FIELD_UNIT_FLAG_HIDDEN;
+    game.units.items[0].hp=game.units.items[0].hp_max=100;
+    game.units.items[1].hp=game.units.items[1].hp_max=100;
+    game.units.items[0].defense=game.units.items[1].defense=10;
+    game.units.items[0].movement_profile=game.units.items[1].movement_profile=7;
+    equip_weapon(&game.units.items[0],71);equip_weapon(&game.units.items[1],0);
+    attach_observer(&game,&observer,&rng);
+    game.attack_rng=next_roll;game.attack_rng_userdata=&rng;
+    fd2_field_path_result range=FD2_FIELD_PATH_RESULT_INITIALIZER;
+    fd2_field_ai_physical_candidate plan={0};
+    int chosen=fd2_field_game_compute_move_range(&game,0,&range);
+    if (!chosen) chosen=fd2_field_ai_choose_physical_candidate(
+        &game.map,&game.terrain,&game.units,0,0,&range,&plan);
+    fd2_field_path_close(&range);
+    if (expect(chosen==0 && plan.unit_index==1,"SHORT source fixture selects adjacent defender") ||
+        expect(fd2_field_game_commit_ai_physical(&game,0,0,&plan,NULL,0)==0,
+               "AI1548e exposes normal SHORT presenter") ||
+        expect(observer.count==8 && observer.strikes==3 && observer.prepares==1 &&
+               observer.finishes==1 && !observer.invalid,"SHORT map/panels/counter refresh are bounded events") ||
+        expect(observer.events[0].mode==FD2_FIELD_PHYSICAL_MODE_SHORT && observer.events[0].rng_cursor==0 &&
+               observer.events[1].phase==FD2_FIELD_PHYSICAL_SHORT_MAP && observer.events[1].rng_cursor==0 &&
+               observer.events[1].actor_before.direction==3 && observer.events[1].target_before.direction==0 &&
+               observer.events[2].phase==FD2_FIELD_PHYSICAL_SHORT_BEGIN && observer.events[2].rng_cursor==0 &&
+               observer.events[2].actor_before.direction==3 && observer.events[2].target_before.direction==1,
+               "original map redraw precedes defender face and panel opening before RNG") ||
+        expect(observer.events[3].target_hp_after==91 && observer.events[4].target_hp_after==82 &&
+               observer.events[3].actor_before.direction==0 && observer.events[3].target_before.direction==0 &&
+               observer.events[5].phase==FD2_FIELD_PHYSICAL_COUNTER_REFRESH && observer.events[5].rng_cursor==7 &&
+               observer.events[5].actor_before.direction==3 && observer.events[5].target_before.direction==1,
+               "SHORT resets before attacks then faces both before counter RNG") ||
+        expect(game.last_attack_strikes==2 && game.last_counterattack_strikes==1 && rng.cursor==11 &&
+               game.units.items[1].hp==82 && game.units.items[0].hp==91,
+               "SHORT OR/type3 two-strike algorithm retains independent counter result and RNG")) return -1;
+    return 0;
+}
+
+typedef struct {
+    test_rng *rng;
+    uint16_t old_hp,new_hp;
+    size_t prepares,steps,finishes;
+    int fail_phase,invalid;
+} recovery_observer;
+
+static int observe_recovery(const fd2_field_game *game,
+        const fd2_field_physical_event *event, void *userdata) {
+    recovery_observer *observer=userdata;
+    if (!game || !event || !observer || event->presentation_mode!=FD2_FIELD_PHYSICAL_MODE_RECOVERY ||
+        event->actor_index!=0 || event->target_index!=0 || event->result || observer->rng->cursor) return -1;
+    if ((event->phase==FD2_FIELD_PHYSICAL_PREPARE || event->phase==FD2_FIELD_PHYSICAL_RECOVERY_STEP) &&
+        (game->active_side!=2 || game->selected_unit!=(int)event->actor_index ||
+         game->interaction!=FD2_FIELD_INTERACTION_COMMAND || game->units.items[event->actor_index].side!=2))
+        observer->invalid=1; /* 正式WAIT的面板owner在恢复后才由loot尾清理。 */
+    if (event->phase==FD2_FIELD_PHYSICAL_PREPARE) {
+        observer->prepares++;
+        if (game->units.items[0].hp!=observer->old_hp || game->ordinary_display_mode!=1) observer->invalid=1;
+    } else if (event->phase==FD2_FIELD_PHYSICAL_RECOVERY_STEP) {
+        static const unsigned steps[]={0,1,2,0,2,0},values[]={1,4,2,1,0,1};
+        size_t i=observer->steps++;
+        if (i>=6 || (unsigned)event->recovery_step!=steps[i] || event->step_value!=values[i] ||
+            game->units.items[0].hp!=observer->old_hp || game->ordinary_display_mode!=0 ||
+            game->cursor_cell_x!=game->units.items[0].x || game->cursor_cell_y!=game->units.items[0].y)
+            observer->invalid=1;
+    } else if (event->phase==FD2_FIELD_PHYSICAL_FINISH) {
+        observer->finishes++;
+        if (!event->action_failed && (game->units.items[0].hp!=observer->new_hp ||
+            game->ordinary_display_mode!=1 || observer->steps!=6)) observer->invalid=1;
+    } else observer->invalid=1;
+    return observer->invalid || (int)event->phase==observer->fail_phase ? -1:0;
+}
+
+static int test_wait_recovery_original_commit_order(void) {
+    static const uint16_t pairs[][3]={{40,100,60},{110,100,100},{1,0,0}};
+    for (size_t i=0;i<sizeof(pairs)/sizeof(pairs[0]);i++) {
+        test_rng rng={NULL,0,0};fd2_field_game game;init_game(&game);
+        game.ordinary_display_mode=1;game.cursor_cell_x=game.cursor_cell_y=0;
+        game.units.items[0].hp=pairs[i][0];game.units.items[0].hp_max=pairs[i][1];
+        recovery_observer observer={.rng=&rng,.old_hp=pairs[i][0],.new_hp=pairs[i][2],.fail_phase=-1};
+        game.physical_present=observe_recovery;game.physical_present_userdata=&observer;
+        if (configure(&game,&rng)!=0 ||
+            expect(fd2_field_game_finish_unit_action(&game)==0,"normal WAIT executes the original recovery cold sequence") ||
+            expect(observer.prepares==1 && observer.steps==6 && observer.finishes==1 && !observer.invalid && !rng.cursor &&
+                   game.units.items[0].hp==pairs[i][2],"three waits precede HP commit, including over-max and zero-max")) return -1;
+    }
+    for (int gate=0;gate<3;gate++) {
+        test_rng rng={NULL,0,0};fd2_field_game game;init_game(&game);game.ordinary_display_mode=1;
+        game.units.items[0].hp=gate ? 40:100;game.units.items[0].hp_max=100;
+        if (gate) game.units.items[0].detail_status[gate-1]=3;
+        recovery_observer observer={.rng=&rng,.fail_phase=-1};
+        game.physical_present=observe_recovery;game.physical_present_userdata=&observer;
+        if (configure(&game,&rng)!=0 ||
+            expect(fd2_field_game_finish_unit_action(&game)==0 && !observer.prepares && !observer.steps &&
+                   !observer.finishes && !observer.invalid && !rng.cursor && game.ordinary_display_mode==1,
+                   "equal HP or raw25/raw26 blocks without mode or presentation write")) return -1;
+    }
+    test_rng rng={NULL,0,0};fd2_field_game game;init_game(&game);game.ordinary_display_mode=1;
+    game.units.items[0].hp=40;game.units.items[0].hp_max=100;game.cursor_cell_x=game.cursor_cell_y=0;
+    recovery_observer rejected={.rng=&rng,.old_hp=40,.new_hp=60,.fail_phase=FD2_FIELD_PHYSICAL_PREPARE};
+    game.physical_present=observe_recovery;game.physical_present_userdata=&rejected;
+    if (configure(&game,&rng)!=0) return -1;
+    fd2_field_units before=game.units;
+    if (expect(fd2_field_game_finish_unit_action(&game)==-1 && rejected.prepares==1 && !rejected.steps &&
+               !rejected.finishes && !rejected.invalid && !rng.cursor && !memcmp(&before,&game.units,sizeof(before)) &&
+               game.ordinary_display_mode==1 && game.cursor_cell_x==0 && game.cursor_cell_y==0,
+               "recovery PREPARE error precedes HP, acted, focus, mode and RNG writes")) return -1;
+    const int failures[]={FD2_FIELD_PHYSICAL_RECOVERY_STEP,FD2_FIELD_PHYSICAL_FINISH};
+    for (size_t i=0;i<sizeof(failures)/sizeof(failures[0]);i++) {
+        init_game(&game);game.ordinary_display_mode=1;game.cursor_cell_x=game.cursor_cell_y=0;
+        game.units.items[0].hp=40;game.units.items[0].hp_max=100;
+        recovery_observer failed={.rng=&rng,.old_hp=40,.new_hp=60,.fail_phase=failures[i]};
+        game.physical_present=observe_recovery;game.physical_present_userdata=&failed;
+        if (configure(&game,&rng)!=0) return -1;
+        if (expect(fd2_field_game_finish_unit_action(&game)==-1 && failed.prepares==1 && failed.finishes==1 &&
+                   !failed.invalid && !rng.cursor && game.failure==FD2_FIELD_FAILURE_ACTION &&
+                   game.units.items[0].hp==(i ? 60u:40u) && failed.steps==(i ? 6u:1u),
+                   "recovery STEP failure cleans once before HP; FINISH failure preserves committed HP")) return -1;
+        size_t callbacks=failed.prepares+failed.steps+failed.finishes;
+        if (expect(fd2_field_game_finish_unit_action(&game)==-1 &&
+                   callbacks==failed.prepares+failed.steps+failed.finishes && game.units.items[0].hp==(i ? 60u:40u),
+                   "failed atomic recovery cannot retry HP or presentation")) return -1;
+    }
     return 0;
 }
 
@@ -896,7 +1038,8 @@ static int test_mode_aware_unknown_loot_preflight(void) {
         /* 地形后 AP21/DP0，单击实际18、最大19：45>2*19，而三击可致死。
          * 无type3实际两击后HP9，不能粗略用FULL三击上界误拒。 */
         game.units.items[victim].hp = game.units.items[victim].hp_max = 45;
-        ((uint8_t *)&game.units.items[victim])[0x31] = 9; /* 未支持 descriptor，不能进 RNG 后才拒。 */
+        ((uint8_t *)&game.units.items[victim])[0x31] = 2;
+        ((uint8_t *)&game.units.items[victim])[0x32] = 255; /* 真正原表外callback；4..255 descriptor已证no-op。 */
         fd2_field_game before = game;
         int result = fd2_field_game_resolve_attack(&game);
         if (type3) {
@@ -959,6 +1102,8 @@ int main(void) {
     fprintf(stderr, "field game attack case failed: %s\n", #test); \
     return 1; } } while (0)
     RUN_TEST(test_full_strike_events_and_short_selection);
+    RUN_TEST(test_ai_short_present_order);
+    RUN_TEST(test_wait_recovery_original_commit_order);
     RUN_TEST(test_full_status_before_and_counter_order);
     RUN_TEST(test_presenter_error_boundaries);
     RUN_TEST(test_mode_aware_unknown_loot_preflight);

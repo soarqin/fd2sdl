@@ -96,28 +96,40 @@ int fd2_figani_get_part(const fd2_figani_clip *clip, size_t index,
     return 0;
 }
 
-/* field_magic_battle_animation @0x2ff01 / sub_30E9D @0x30e9d（原登记同名）：
- * 从真实条目导出费用标记，不能把unit9的一次费用当所有caster默认值。 */
-int fd2_figani_magic_cast_plan(fd2_figani_magic_cast *out,
-    const fd2_archive *archive, uint8_t unit_id) {
+/* field_magic_battle_animation @0x2ff01 / sub_30E9D @0x30e9d、
+ * sub_2CF30 @0x2cf30 / sub_2D80D @0x2d80d（原登记同名）：
+ * 按各wrapper读取真实条目及标记，不能把unit9费用或普通回退当通用默认。 */
+int fd2_figani_magic_action_plan(fd2_figani_magic_cast *out,
+    const fd2_archive *archive, uint8_t unit_id, uint8_t magic_id) {
     if (!out || !archive) return -1;
+    int ordinary = magic_id < 10u;
+    if (!ordinary && magic_id != 24u && (magic_id < 28u || magic_id > 35u))
+        return -1;
     fd2_figani_magic_cast plan = {0};
-    plan.selected_entry = (size_t)unit_id * 3u + 2u;
+    plan.selected_entry = (size_t)unit_id * 3u + (magic_id >= 32u ? 1u : 2u);
     if (fd2_figani_open_entry(&plan.clip, archive, plan.selected_entry) != 0)
         return -1;
-    if (plan.clip.empty) {
+    if (ordinary && plan.clip.empty) {
         plan.selected_entry--;
         if (fd2_figani_open_entry(&plan.clip, archive, plan.selected_entry) != 0)
             return -1;
     }
     if (!plan.clip.empty) {
         if (plan.clip.intro_end > plan.clip.part_count) return -1;
-        for (size_t i = 0; i < plan.clip.intro_end; i++) {
+        for (size_t i = 0; i < plan.clip.part_count; i++) {
             fd2_figani_part part;
             if (fd2_figani_get_part(&plan.clip, i, &part) != 0) return -1;
-            if (part.effect_marker == 1u) plan.cost_marker_count++;
+            if (part.effect_marker == 1u) {
+                if (i < plan.clip.intro_end) plan.cost_marker_count++;
+                else plan.effect_marker_count++;
+            }
         }
     }
     *out = plan;
     return 0;
+}
+
+int fd2_figani_magic_cast_plan(fd2_figani_magic_cast *out,
+    const fd2_archive *archive, uint8_t unit_id) {
+    return fd2_figani_magic_action_plan(out, archive, unit_id, 0);
 }

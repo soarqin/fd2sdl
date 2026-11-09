@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import shutil
 import struct
+import statistics
 import subprocess
 import sys
 import time
@@ -212,6 +213,24 @@ def latest_series_frame(directory,ready,pid,after=None):
     return {**last,'path':str(png),'sha256':hashlib.sha256(raw).hexdigest()},frame
 
 
+def animation_capture_interval(args):
+    interval=getattr(args,"animation_capture_interval_ms",CAPTURE_INTERVAL_MS)
+    if type(interval) is not int or not 16<=interval<=67:
+        raise ValueError("持续采集请求间隔必须是16..67的整数毫秒")
+    return interval
+
+
+def observed_series_intervals(frames):
+    if len(frames)<2:
+        raise ValueError("实际采集间隔至少需要两帧原时间戳")
+    stamps=[row["wgc_timestamp_100ns"] for row in frames]
+    if any(type(stamp) is not int for stamp in stamps) or any(a>=b for a,b in zip(stamps,stamps[1:])):
+        raise ValueError("实际WGC时间戳必须是严格递增整数")
+    intervals=[(b-a)/10000 for a,b in zip(stamps,stamps[1:])]
+    return {"count":len(intervals),"minimum_ms":min(intervals),"median_ms":statistics.median(intervals),
+        "maximum_ms":max(intervals),"basis":"consecutive saved WGC timestamps; requested cadence is not actual frame rate"}
+
+
 class AnimationCollectors:
     def __init__(self,capture,args,record):
         self.capture,self.args,self.record=capture,args,record
@@ -225,15 +244,17 @@ class AnimationCollectors:
             self.audio_ready=self.app_mix.directory/'ready.json';self.audio_stop=self.app_mix.stop_path;self.wav=self.app_mix.wav
     def start(self):
         capture,record=self.capture,self.record
+        interval=animation_capture_interval(self.args)
         if capture.process.poll() is not None:raise RuntimeError("目标已退出，未启动采集")
         slot={};record["series_helper"]=slot
         helper=OwnedHelper(self.args.driver,[self.args.driver,"capture-series",capture.process.pid,
-            self.series,CAPTURE_MAX_MS,CAPTURE_INTERVAL_MS],capture.artifacts,"series-helper",slot)
+            self.series,CAPTURE_MAX_MS,interval],capture.artifacts,"series-helper",slot)
         self.helpers.append(helper);process=helper.start()
         self.ready=wait_ready(self.series/"ready.json",process,capture.process)
         if self.ready.get("pid")!=capture.process.pid or not self.ready.get("hwnd"):raise AssertionError("持续WGC ready owner错误")
         record["animation_capture"]={"ready":self.ready,"capture_backend":"Windows.Graphics.Capture HWND",
-            "full_frame_equivalence_validated":False,"raw_PNG_preserved":True}
+            "full_frame_equivalence_validated":False,"raw_PNG_preserved":True,
+            "requested_interval_ms":interval}
         if record["kind"]=="original":
             record["native_audio"]={"enabled":True,"started":False,"stopped":False,"scope":"B6 SFX recording; source music0/sfx1, prior fade-tail silence not independently proven"}
             audio_toggle(capture,record)
@@ -314,6 +335,8 @@ class AnimationCollectors:
                 self.record["animation_capture"].update(summary=summary,
                     summary_path=str(self.series/"summary.json"),summary_sha256=sha(self.series/"summary.json"),
                     frames=series_index(self.series,summary,self.ready,self.capture.process.pid))
+                self.record["animation_capture"]["observed_intervals"]=observed_series_intervals(
+                    self.record["animation_capture"]["frames"])
                 ack=self.record.get('heal13_idle0_ack',{})
                 if ack.get('completed'):
                     frames={row['index']:row for row in self.record['animation_capture']['frames']}

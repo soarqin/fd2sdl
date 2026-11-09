@@ -256,6 +256,33 @@
         "evidence": "field_magic_learning_record_get @0x4e7f2; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
         "view": "raw-unrelocated"
       }
+    },
+    {
+      "name": "k_player_base_alias_views",
+      "c_type": "uint16_t",
+      "dimensions": [
+        2,
+        3
+      ],
+      "values": [
+        [
+          48,
+          0,
+          384
+        ],
+        [
+          66,
+          1,
+          68
+        ]
+      ],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "kind": "confirmed_source_views",
+        "evidence": "field_unit_stage_template_append @0x10c50 -> field_player_base_record_get @0x4e838: 0x61da1+24*ID. Only actual stage32 group0 ID48/66 constructors are admitted. Columns: ID, source (0 growth/1 stage_prepare), byte offset. ID48 window0x62221/24B SHA256=bfef19b0338364ddd43878b5fb056b1bdd97e7cd3ad4993dfbd417bc942295d4; ID66 window0x623d1/24B SHA256=60c3c148b1b763c26e5fad19c143174857ec7d1148ebc4fb4f58545f088f12f1. See docs/reverse-engineering/common-battle-semantics.md section4.1; no new base table."
+      }
     }
   ]
 }

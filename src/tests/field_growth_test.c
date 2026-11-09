@@ -189,7 +189,6 @@ static void test_preflight_errors_do_not_write(void) {
     CHECK(fd2_field_unit_level_growth_prepare(&unit, NULL) == -1);
     CHECK(fd2_field_unit_reward_preview(NULL, 1, NULL, NULL, &output) == -1); unchanged(&output, &output_before);
     CHECK(fd2_field_unit_reward_preview(&unit, 1, NULL, NULL, NULL) == -1);
-    CHECK(fd2_field_unit_reward_preview(&unit, INT32_MAX, NULL, NULL, &output) == -1); unchanged(&output, &output_before);
     for (unsigned id = 68; id <= 255; id++) {
         unit.unit_id = (uint8_t)id; before = unit;
         CHECK(fd2_field_unit_level_growth_prepare(&unit, &plan) == -1 && memcmp(&plan, &old_plan, sizeof(plan)) == 0);
@@ -222,6 +221,42 @@ static void test_preflight_errors_do_not_write(void) {
     CHECK(fd2_field_unit_reward_preview(&unit, 5, scale_stat, &context, &output) == 1);
     CHECK(context.calls == 2 && output.attack == 113 && output.defense == 212);
     CHECK(output.attack_status == 2 && output.defense_status == 3);
+    groups++;
+}
+
+static void test_signed_reward_bits_and_ack(void) {
+    const uint32_t gains[]={UINT32_MAX,UINT32_MAX-99u,UINT32_MAX-199u,INT32_MAX};
+    for (size_t i=0;i<sizeof(gains)/sizeof(gains[0]);i++) {
+        fd2_field_unit unit=actor(9,4,95), before=unit, output=sentinel();
+        fd2_field_unit expected=unit;
+        expected.experience=(uint8_t)((uint32_t)unit.experience+gains[i]);
+        CHECK(fd2_field_unit_reward_preview(&unit,gains[i],NULL,NULL,&output)==1);
+        unchanged(&unit,&before);unchanged(&output,&expected);
+        fd2_reward_cursor cursor={0};const fd2_static_flow *flow=fd2_reward_graph();
+        CHECK(flow);cursor.step=flow->entry;fd2_reward_notice notice;
+        CHECK(fd2_reward_advance(flow,&unit,gains[i],&cursor,&notice,NULL,NULL,NULL,NULL)==0);
+        CHECK(notice.kind==1 && notice.fragment==488 && notice.value==gains[i]);
+        unchanged(&unit,&before);
+        CHECK(fd2_reward_ack(flow,&cursor)==0);
+        CHECK(fd2_reward_advance(flow,&unit,gains[i],&cursor,&notice,NULL,NULL,NULL,NULL)==0);
+        CHECK(notice.kind==5 && notice.wait_ticks==11);unchanged(&unit,&before);
+        CHECK(fd2_reward_ack(flow,&cursor)==0);
+        CHECK(fd2_reward_advance(flow,&unit,gains[i],&cursor,&notice,NULL,NULL,NULL,NULL)==1);
+        unchanged(&unit,&expected);
+    }
+    /* 负total没有growth读取，不凭无升级路径拒绝原正常actor域。 */
+    fd2_field_unit unit=actor(68,1,1),expected=unit,output;
+    expected.experience=0;
+    CHECK(fd2_field_unit_reward_preview(&unit,UINT32_MAX,NULL,NULL,&output)==1);
+    unchanged(&output,&expected);
+    /* EX低byte回绕可>99；下一次负gain仍按signed total判升级，不看gain符号。 */
+    unit=actor(9,4,95);fd2_field_unit first,second;
+    CHECK(fd2_field_unit_reward_preview(&unit,UINT32_MAX-99u,NULL,NULL,&first)==1);
+    CHECK(first.level==4 && first.experience==251);
+    CHECK(fd2_field_unit_reward_preview(&first,UINT32_MAX,NULL,NULL,&second)==1);
+    CHECK(second.level==6 && second.experience==50);
+    CHECK(fd2_field_unit_reward_preview(&unit,155,NULL,NULL,&expected)==1);
+    unchanged(&second,&expected);
     groups++;
 }
 
@@ -271,6 +306,7 @@ int main(void) {
     test_native_loop_boundaries(); test_learning_and_five_byte_preservation();
     test_word_wrap_equipment_and_alias(); test_preflight_errors_do_not_write();
     test_reward_data_controls_branch_and_ack_edge();
+    test_signed_reward_bits_and_ack();
     printf("field_growth_test: %u groups passed; pure logic, no UI\n", groups);
     return 0;
 }

@@ -146,6 +146,9 @@ static int loot_descriptor_preflight(fd2_field_game *game, size_t recipient,
     fd2_loot_flow_context ctx = {0}; ctx.game = game; ctx.actor = recipient;
     ctx.preflight = ctx.override = 1; memcpy(ctx.descriptor, descriptor, 3);
     ctx.message_number = game->message_number;
+    /* G2：1aa1d 的4..255是逐项default，不触发物品/文本/回调预检；
+     * defeated collector的255哨兵仍由collect.has_descriptor冷分支处理。
+     * 原BIOS清键由宿主逐帧输入消费边界承担，不额外等键或耗RNG。 */
     return loot_flow_run(&ctx, fd2_static_flow_label(loot_flow(), "preflight.drop"));
 }
 

@@ -37,6 +37,50 @@ def ida_provenance() -> str:
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x13fd4: [{"target": "semantic_name", "was": "sub_13FD4",
+               "now": "field_stationary_recover_present_apply",
+               "why": "完整333B、13a9f/18d8c callers及13fd4/1da16/31号样本bank来源：单单位静止恢复，三个wait后才写HP；不推ABI/类型。"}],
+    0x1e611: [{"target": "semantic_name", "was": "sub_1E611",
+               "now": "field_short_counter_refresh",
+               "why": "完整296B与1548e caller：重画地图、48号双面板、固定55及HP条；不是反击箭头。caller仅三实参而callee读第四项，未初始化读取单列安全边界，不补猜参。"}],
+    0x1e739: [{"target": "semantic_name", "was": "sub_1E739",
+               "now": "field_short_hp_bar_draw",
+               "why": "完整189B、1e611/1e7f6/1e98c xref及FDOTHER5列23/24/25、29/30：按给定宽绘HP条，不推ABI/类型。"}],
+    0x1e7f6: [{"target": "semantic_name", "was": "sub_1E7F6",
+               "now": "field_short_hp_bar_scaled",
+               "why": "完整96B与1e739/1eb05/1e611调用：非零HP按69*HP/maxHP+1绘条，零HP跳过；不推ABI/类型。"}],
+    0x1e98c: [{"target": "semantic_name", "was": "sub_1E98C",
+               "now": "field_short_strike_present",
+               "why": "完整377B、1e856/1e739/1da16 callers与61955的21指针/84B序列：武器FX、命中/失误声、64色solid与逐列HP条，不推ABI/类型。"}],
+    0x1eb05: [{"target": "semantic_name", "was": "sub_1EB05",
+               "now": "field_short_panels_present",
+               "why": "完整293B、1548e caller、1ec2a与FDOTHER6：39..48十帧面板，反击可用才有第二面板，25ms步进；1e7f6初始HP条只有VGA写，无独立wait/flip；SDL不为初条新增零时长上传，而在首STRIKE上传条+实体+FX并按原时长等待。不推ABI/类型。"}],
+    0x1ec2a: [{"target": "semantic_name", "was": "sub_1EC2A",
+               "now": "field_short_panels_layout",
+               "why": "完整157B、1eb05唯一caller及地图坐标/镜头边界计算，确认SHORT面板布局，不推ABI/类型。"}],
+    0x2cf30: [{
+        "target": "semantic_name",
+        "was": "sub_2CF30",
+        "now": "field_derived_magic_full_execute",
+        "why": "2ff01按24/28..31调用，完整Domain/caller/FIGANI fixed slot2和逐part写集核对；G2实际C核心与原1c81f差分另登记，未推ABI/类型。",
+    }, {
+        "target": "evidence",
+        "was": "未区分派生物理量与普通profile倍率伤害",
+        "now": "signed AP乘24:15/28:20/29:12/30..31:18后除10减signed DP，直接1c81f；保存signed旧HP、核心贡献先提交再恢复HP，caster每个effect part marker以BYTE计数写oldHP-damage*count/divisor（28除8，其余1），duration0仍处理marker。intro每marker费用，固定FIGANI unit*3+2无普通fallback。",
+        "why": "G1完整battle读集、2cf30全部分支与原FIGANI资源；G2状态/晚失败/skip回归。原版运行范围另列，不将局部代码差分当完整演出验收。",
+    }],
+    0x2d80d: [{
+        "target": "semantic_name",
+        "was": "sub_2D80D",
+        "now": "field_composite_magic_full_execute",
+        "why": "2ff01对32..35调用；完整Domain/xref、FIGANI fixed slot1、FDOTHER65..68与bank91..94及回图全组写序共同确认，不推ABI/类型。",
+    }, {
+        "target": "evidence",
+        "was": "复合效果的目标组与费用边界尚未完整区分",
+        "now": "先完成fixed FIGANI unit*3+1及intro每marker费用，再专用FX/回地图；32走record32伤害；33先全组清25..27再全组恢复800；34全组AP→清浮字→DP→清浮字→HIT/EV；35全组毒26→清浮字→禁法22→清浮字→麻痹27。组内复用core，不重复wrapper费用；不得逐目标合并三次效果。",
+        "why": "完整2ddca..2deec指令、原表/资源与G2冷图/组顺序回归，运行范围另列。",
+    }],
+
     0x1297D: [{
         "target": "evidence", "was": "约每275ms推进phase",
         "now": "1297d只在signed BIOS tick差>4或负数时把53c0b加一并模4，"
@@ -299,6 +343,11 @@ CORRECTIONS: dict[int, list[dict]] = {
                "5d9de2950a3c2f9ce7f68142e139d94176a175328ea9867dd3654abe2d3ef75b；"
                "levelcap为ID30/31等于99、其它等于40，不扩为>=。"
                "完整Domain与原字节/xref确认语义，原版提示/等待RNG运行验收另登记。",
+    }, {
+        "target": "evidence",
+        "was": "只核对非负gain的奖励路径",
+        "now": "gain及EX临时total按signed DWORD比较，gain非零负值仍先显示488；仅当signed total<100时跳过升级/重算，等待11tick及关闭后写EX低byte。负gain可将EX回绕为大于99，后续奖励仍按EXbyte+signed gain判断，不能以负号提前终止循环。正常尾清53EC8，入口早退保留；controller的99上限也是signed比较。",
+        "why": "独立Domain/strictLE读117e7/1e292及18d8c的SAR/IDIV与JLE/JL锚；readset SHA25972023958fdcf06d8052424ea5e1241038a0bed93d3a054313ee96e015e7ee。保留原字段位型，不猜ABI。",
     }],
     0x17AED: [{
         "target": "semantic_name", "was": "sub_17AED",
@@ -657,6 +706,11 @@ CORRECTIONS: dict[int, list[dict]] = {
                "完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。",
         "why": "权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败"
                "原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。",
+    }, {
+        "target": "evidence",
+        "was": "未记录当前身份与旧TMP cache在Load后的关系",
+        "now": "1035c清53BDF；1036a..1039c按raw actor顺序读取+7当前unit ID调用11019，并于10391重写+2；103a9..103cb写新FD2.TMP。热身份变更可保留旧cache sprite，但Load会按当前ID重建。SDL保留原80B、以派生旁路表示新class，不承诺旧TMP保持。",
+        "why": "2026-11-10 Domain窄读10010/11019/2548c/34dd0共2911B与strictLE一致；readset SHA eff244cac03080c8b394489275fbf10018b80b95e31d27f2d4239a3ea10ac84e。未改原型/边界。",
     }],
     0x11019: [{
         "target": "evidence",
@@ -767,6 +821,11 @@ CORRECTIONS: dict[int, list[dict]] = {
                "sub_127A9负责全表与遮挡；179d5末尾call127e0。真实原版"
                "COMMAND截图上图标底6行由FDICON actor0 frame1覆盖，完整"
                "20行资源合成476像素bad0、delta<=3；不是截图缺失。",
+    }, {
+        "target": "evidence",
+        "was": "raw26视觉仍未实现的旧切片状态",
+        "now": "原127f1..12810比较BIOS低WORD与53A08，tick变化只翻53A04低byte一次；128e7..128ef在actor+26非零时加共享0/1px，12914后同条件强制frame0。不改业务坐标、状态或RNG，acted映色及原层序独立。SDL用App VGA视觉owner对应；运行精度按阶段收据，不把接口存在当原版整帧通过。",
+        "why": "完整413B原指令 SHA68b24e0d28affff7c08ed4eb1df55f3a558021c170f77019191b5f0f8b5094e4；G1完整读集与G2 clock/render回归。",
     }],
     0x4E1A6: [{
         "target": "evidence",
@@ -964,6 +1023,11 @@ CORRECTIONS: dict[int, list[dict]] = {
                "0x4ee01/0x4ee03 令 ebx=stride-1，0x4ee1e/0x4ee20/0x4ee23 "
                "依次写 fg 与两处阴影。九处现有生产调用均为 "
                "shadow=0x4c、bg=-1；未重命名数据库或改写权威伪 C。",
+    }, {
+        "target": "evidence",
+        "was": "未区分原负数字形越界与合法字体索引",
+        "now": "除glyph10特判外按font+32*index取字模；15f84的-6用%d格式，逐unsigned字符减48，负号得到index-3。font是111ba malloc整entry后fread并直接返回的base（25ce0存53a75），前96B不在该owner内。SDL负数反馈使用原FDOTHER[5]132负号资源安全投影；不读取owner外字节，不宣称与原负号未知像素等价。",
+        "why": "15f84/4ed7a/111ba及25bf4 loader完整Domain与strictLE；FDOTHER4为58368B=1824*32、SHA3d9493f204254c58600f2b08beb47e372d2aa950d686a97f7ed73aa1f709c871。没有原版崩溃实测结论。",
     }],
     0x112A5: [{
         "target": "evidence",
@@ -1636,6 +1700,25 @@ for _va, (_now, _why) in _B6_FULL_FX_EVIDENCE.items():
         "不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。"})
 
 
+# G2追加：原机器指令与真实Game逐RNG差分，更新历史B6安全门的当前处理。
+_G2_MAP_ACTION_EVIDENCE = {
+    0x13FD4: "HP==max或raw25/26非零立即返回0，早退不写mode/focus/HP。其余mode0/focus/wait1，FDOTHER31 cue4，1da16 mode2闪烁/copy/wait1，mode0正常/copy/wait1，然后HP=min(old+max/5,max)、mode1、返回1。max/5可为0但成功仍封顶，max0且oldHP非0写HP0；无RNG或浮字。12cea总调用11cac(0)，信息板由51AAB选项及caller的51AAC上下文共同决定：玩家WAIT保留、AI END关闭，不能一概使用纯背景。",
+    0x18D8C: "玩家物理分支直接2e2b0，未读53af9，算法及呈现均始终FULL；仅AI1548e按53af9选择1e856/1e98c SHORT或2e2b0 FULL。不能仅改renderer而保玩家SHORT攻击/RNG算法。",
+    0x1548E: "SHORT先face主动者、mode0/map刷新/mode1，按初始合法反击face目标；1eb05后重置方向再1e856。目标存活且仍可反击才双方face、1e611、反击1e856，最后重置方向。155f3..155fb只push三实参，15600仅清0xc；1e611读arg_C不是已提供第四参。",
+    0x1E611: "重画地图及普通actor、FDOTHER6 frame48面板，再1e739固定宽55；接着1e6a8读取caller未提供第四实参并用作单位索引。SDL最小安全扩展仅省这一次未定义索引HP条，保固定55与明确arg8第二面板HP条，不把未知栈值猜成actor。其余顺序保留，不称原未定义像素等价。1e640直call11eee会推进独立地形53A40门，1e648的127a9推进App raw26抖动；不调用1297d或水DAC门，不应把所有视觉时钟一起推进或全部冻结。",
+    0x1E98C: "武器类别21指针落到6段有界84B序列，每段(frame,cue)对。hit首帧1da16 mode2在stride320上产生solid64、第二帧正常；miss无solid且声4，cue255无声。FX80ms保存/恢复背景；oldWidth=70*oldHP/oldmax，逐列递减到69*newHP/oldmax+1，8ms一步，无伤害浮字。原SHORT样本bank64由1a7bd加载，非Magic bank80。",
+    0x1EB05: "FDOTHER6面板39..48共10次25ms，前9次保存/恢复底图，末次保留；其后1e7f6初始HP条直接写VGA，无额外等待或flip。SDL先写CPU HP条，和首次STRIKE的solid64及FX6合并上传，保80ms，不添加零时长中间present。",
+    0x1DA16: "24x24专用actor绘制使用已缓存sprite与direction*3，idle/walk phase3映为1（不同于普通127e0的3映2），walking位移乘4；不套raw26抖动或acted灰色。solid实际使用stride低字节：456为200、SHORT VGA320为64，第四色参被4e127忽略。已证静止direction5以class*12+15+phase访问下一cache class的frame3+phase，必须按真实cache映射，不以unit ID加1；SHORT旧5在face/reset前不能被资源预检误拒。",
+    0x2FF01: "G2取消历史ID9多target整动作拒绝：原目标收集逐actor，不按格去重。完整2ff01目标循环、完整31266九tick过渡、2ce1a和真实4ebe3已与public Game逐RNG快照差分；effect/贡献先提交、HP恢复后仅impact插值，后续无impact不可补写coreAfter。原局部指针数组域比较限1/2/5/8目标，C95仅容量边界。非side0的FULL9缺selector仍单列域限制；正常9来源十个模板全side0，玩家9本来走MAP。",
+    0x2CE1A: "BYTE frame跨目标及九tick过渡延续：首target60tick为1到61、27impact；过渡到70，第二target核心与贡献照常但60tick无impact；后续BYTE回绕可再有impact。实际FDOTHER44仅31part，SDL只省beam越目录的DRAW，保全部计数/cue/impact与RNG，不伪造缺图或禁用多target。有效目录/其它FX/有效DRAW失败仍严格拒绝。",
+}
+for _va, _now in _G2_MAP_ACTION_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "历史SHORT/恢复反馈未接线或FULL9多target整动作安全门",
+        "now": _now,
+        "why": "完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。",
+    })
+
 # B6 C5真实地图演出核对：显示门由caller拥有，不把普通战斗返回页套到法术内部。
 _B6_EFFECT_DISPLAY_EVIDENCE = {
     0x1CFF0: "成功目标确认后先令51A83=0并11cac(0)，随后进入FULL或map handler；死亡及loot处理后才恢复1。不能在恢复13的57..63或浮字底页强制画普通光标。",
@@ -1810,6 +1893,29 @@ for _va, _old, _name, _contract in (
         "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；" +
                _contract + "。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。",
     })
+
+
+CORRECTIONS.setdefault(0x1C2DA, []).append({
+    "target": "evidence", "was": "caller颜色表值等于最终实体flash色",
+    "now": "caller仍传51f15[effectID]，但4e127实际忽略第四个颜色参数；"
+           "map stride456低BYTE被复制到AH并填全部RLE写点，所以此路径的有效色恒为200。"
+           "30B原表13=192/17=146/18=72/19=216/22=35是未生效参数，不能用它替代最终色。",
+    "why": "完整Domain1c2da caller及4e127原callee交叉复核；"
+           "原callee读取arg8为EDX步幅，4e13b读取同一arg8为EAX，4e13e mov ah,al，"
+           "后续mov al,ah而未读argC。原34连续WGC实体完整写mask的blue色与palette200一致，"
+           "推翻只按caller推断的146/72/216。原51f15..51f33 SHA256 "
+           "c09f95968698a256f582dab5bf428e1b495d54a8be6ce0df20406248477dcf0c保留为来源，"
+           "不保留无真实消费者的新增冷表；有效200另作有证呈现常量。",
+})
+CORRECTIONS.setdefault(0x4E127, []).append({
+    "target": "evidence", "was": "按caller第四个palette index填非透明像素",
+    "now": "真实原指令同时以arg8作行步幅和填色低BYTE，不读取argC。"
+           "repeat/alternate/literal的原写点均填stride&255，skip只推进；"
+           "本地图caller步幅0x1c8，故有效色200，不是51f15参数或SDL自身surface步幅。",
+    "why": "Domain完整127B手写解码器及1c2da/1da16全部caller；"
+           "原伪C将a3同时用于rowstride与color的异常由真实指令确认，未改猜测ABI/签名。"
+           "完整127B SHA256 a466fe4c6e5b855925dc413ea0adb227686799bfe0aa2c186a8d6237bd3dcb09；局部机器码及定向原件证据范围另列G2，非完整全帧/音频验收。",
+})
 
 
 def main() -> int:

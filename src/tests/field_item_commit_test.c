@@ -190,7 +190,8 @@ static int test_preflight_errors_keep_all_owners_and_rng(void) {
                 g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY; break;
             case 15:
                 g->units.items[3].hp = 0;
-                ((uint8_t *)&g->units.items[3])[0x31] = 4; break;
+                ((uint8_t *)&g->units.items[3])[0x31] = 2;
+                ((uint8_t *)&g->units.items[3])[0x32] = 255; break;
             case 16:
                 g->units.items[2].hp = 0;
                 g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1}; break;
@@ -378,6 +379,70 @@ static int start_item(fixture *f, uint8_t id) {
     return 0;
 }
 
+typedef struct {
+    fixture *f;
+    fd2_field_units before;
+    uint8_t item_id, code;
+    unsigned prepared, cast, targets, popup, finished, teleport[4];
+    int fail_phase;
+    size_t visual_count, effect_count;
+} item_observer;
+
+static int observe_item(const fd2_field_game *g,
+        const fd2_field_magic_present_event *e, void *userdata) {
+    item_observer *seen = userdata;
+    CHECK(e->action_kind == FD2_FIELD_MAGIC_ACTION_ITEM && e->item_code == seen->code &&
+        e->presentation_mode == FD2_FIELD_MAGIC_MODE_MAP);
+    CHECK(e->actor_index == 0 && !fd2_field_unit_has_acted(&g->units.items[0]));
+    if (e->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+        CHECK(!seen->prepared && !seen->f->calls && !memcmp(&seen->before, &g->units, sizeof(g->units)));
+        seen->prepared++;
+        seen->visual_count = e->target_count;
+        seen->effect_count = e->effect_target_count ? e->effect_target_count : e->target_count;
+    } else if (e->phase == FD2_FIELD_MAGIC_PRESENT_CAST) {
+        CHECK(seen->prepared == 1 && !seen->cast && !seen->f->calls &&
+            !memcmp(&seen->before, &g->units, sizeof(g->units)));
+        seen->cast++;
+    } else if (e->phase == FD2_FIELD_MAGIC_PRESENT_TARGET) {
+        CHECK(seen->cast == 1 && !seen->popup && e->result && e->target_before && e->target_after);
+        CHECK(((const uint8_t *)&g->units.items[0])[0x0f] == seen->item_id);
+        CHECK(e->result->hp_after == g->units.items[e->target_index].hp);
+        if (seen->code == 19) CHECK(g->units.items[0].experience == 100);
+        seen->targets++;
+    } else if (e->phase == FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP) {
+        CHECK(seen->targets == seen->effect_count && !seen->popup);
+        CHECK(((const uint8_t *)&g->units.items[0])[0x0f] == seen->item_id);
+        if (seen->code == 19) CHECK(g->units.items[0].experience == 100);
+        if (seen->code == 8) CHECK(g->units.items[0].attack == seen->before.items[0].attack);
+        seen->popup++;
+    } else if (e->phase == FD2_FIELD_MAGIC_PRESENT_FINISH) {
+        CHECK(seen->prepared && !seen->finished);
+        if (!e->action_failed) {
+            CHECK(!g->experience_value);
+            CHECK(seen->code == 23 ? !seen->popup : seen->popup == 1);
+            CHECK(g->units.items[0].experience == seen->before.items[0].experience);
+        }
+        seen->finished++;
+    } else {
+        unsigned index = e->phase == FD2_FIELD_MAGIC_PRESENT_TELEPORT_OUT ? 0 :
+            e->phase == FD2_FIELD_MAGIC_PRESENT_TELEPORT_OUT_COMMIT ? 1 :
+            e->phase == FD2_FIELD_MAGIC_PRESENT_TELEPORT_IN ? 2 : 3;
+        CHECK(seen->code == 23 && e->target_before && e->target_after);
+        if (index == 0) CHECK(e->target_after->x == e->target_before->x && e->target_after->y == e->target_before->y);
+        if (index == 1 || index == 2) CHECK(e->target_after->x == 255 && e->target_after->y == 255);
+        if (index == 3) CHECK(e->target_after->x == e->destination_x && e->target_after->y == e->destination_y);
+        seen->teleport[index]++;
+    }
+    return seen->fail_phase == (int)e->phase + 1 ? -1 : 0;
+}
+
+static void attach_item_observer(fixture *f, uint8_t id, item_observer *seen) {
+    memset(seen, 0, sizeof(*seen));
+    seen->f = f; seen->before = f->game.units; seen->item_id = id;
+    seen->code = fd2_field_item_record_get(id)[0x0d];
+    f->game.magic_present = observe_item; f->game.magic_present_userdata = seen;
+}
+
 static int test_all_twenty_use_codes_keep_distinct_cost_and_tail(void) {
     static const uint8_t ids[] = {192,196,197,198,199,200,206,210,211,212,213,214,94,95,96,56,38,57,101,79};
     for (size_t n = 0; n < sizeof(ids); n++) {
@@ -401,7 +466,13 @@ static int test_all_twenty_use_codes_keep_distinct_cost_and_tail(void) {
             CHECK(fd2_field_game_resolve_player_item(g) == 0 && g->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING && !f.calls);
             g->cursor_cell_x = 7; g->cursor_cell_y = 7;
         }
+        item_observer seen;
+        attach_item_observer(&f, ids[n], &seen);
         CHECK(fd2_field_game_resolve_player_item(g) == 0);
+        CHECK(seen.prepared == 1 && seen.finished == 1);
+        if (code == 23) CHECK(seen.teleport[0] == 1 && seen.teleport[1] == 1 &&
+            seen.teleport[2] == 1 && seen.teleport[3] == 1 && !seen.cast && !seen.targets);
+        else CHECK(seen.cast == 1 && seen.targets == seen.effect_count && seen.popup == 1);
         CHECK(g->selected_unit == -1 && fd2_field_unit_has_acted(actor) && actor->experience == 99 && actor->direction == 3);
         CHECK(actor->mp == (code == 23 ? (uint16_t)(3-20) : code == 11 ? 75 : 3));
         int removes = code == 5 || code == 6 || code == 7 || code == 11 ||
@@ -426,6 +497,38 @@ static int test_all_twenty_use_codes_keep_distinct_cost_and_tail(void) {
         if (code == 23) CHECK(g->units.items[1].x == 7 && g->units.items[1].y == 7 && actor->x == 6 && actor->y == 6 && !f.calls);
         close_fixture(&f);
     }
+    return 0;
+}
+
+static int test_item_presentation_preflight_and_popup_failure(void) {
+    for (int prepare = 0; prepare < 2; prepare++) {
+        fixture f; init(&f); CHECK(start_item(&f, 192) == 0);
+        item_observer seen; attach_item_observer(&f, 192, &seen);
+        seen.fail_phase = (prepare ? FD2_FIELD_MAGIC_PRESENT_PREPARE : FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP) + 1;
+        fd2_field_game before = f.game;
+        CHECK(fd2_field_game_resolve_player_item(&f.game) == -1);
+        if (prepare) CHECK(!memcmp(&before, &f.game, sizeof(before)) && !f.calls && !seen.finished);
+        else {
+            CHECK(f.calls == 1 && f.game.units.items[0].hp == 42 &&
+                ((uint8_t *)&f.game.units.items[0])[0x0f] == 192 &&
+                !fd2_field_unit_has_acted(&f.game.units.items[0]) && seen.finished == 1);
+            CHECK(f.game.failure == FD2_FIELD_FAILURE_ACTION);
+            fd2_field_game stopped = f.game;
+            CHECK(fd2_field_game_resolve_player_item(&f.game) == -1 && !memcmp(&stopped, &f.game, sizeof(stopped)));
+        }
+        close_fixture(&f);
+    }
+    fixture f; init(&f);
+    f.game.units.items[2].x = f.game.units.items[0].x;
+    f.game.units.items[2].y = f.game.units.items[0].y;
+    f.game.units.items[0].base_attack_le[0] = 10;
+    CHECK(start_item(&f, 198) == 0);
+    item_observer seen; attach_item_observer(&f, 198, &seen);
+    fd2_field_unit second = f.game.units.items[2];
+    CHECK(fd2_field_game_resolve_player_item(&f.game) == 0 && !f.calls);
+    CHECK(seen.visual_count == 2 && seen.effect_count == 1 && seen.targets == 1 &&
+        !memcmp(&second, &f.game.units.items[2], sizeof(second)));
+    close_fixture(&f);
     return 0;
 }
 
@@ -463,7 +566,8 @@ static int test_cure_heal_revive_prediction_and_no_status_consumption(void) {
             fixture f; init(&f); fd2_field_game *g = &f.game;
             g->units.items[1].side = 2; g->units.items[1].hp = 0;
             g->units.items[1].detail_status[paralysis] = status ? 5 : 0;
-            ((uint8_t *)&g->units.items[1])[0x31] = 4; /* 仅被实际复活才排除未知loot。 */
+            ((uint8_t *)&g->units.items[1])[0x31] = 2; /* 仅实际复活才排除表外callback。 */
+            ((uint8_t *)&g->units.items[1])[0x32] = 255;
             g->units.items[2].flags = 0x80;
             g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1};
             CHECK(start_item(&f, (uint8_t)(196+paralysis)) == 0);
@@ -497,7 +601,8 @@ static int test_general_use_preflight_and_permanent_word_wrap(void) {
     CHECK(reject_unchanged(&f) == 0 && !f.calls); /* 晚raw HP0也须先校damage profile。 */
     close_fixture(&f);
     init(&f); f.game.units.items[1].side = 0; f.game.units.items[1].hp = 1;
-    ((uint8_t *)&f.game.units.items[1])[0x31] = 4;
+    ((uint8_t *)&f.game.units.items[1])[0x31] = 2;
+    ((uint8_t *)&f.game.units.items[1])[0x32] = 255;
     CHECK(start_item(&f, 56) == 0);
     CHECK(reject_unchanged(&f) == 0 && !f.calls);
     close_fixture(&f);
@@ -526,6 +631,7 @@ static int test_general_use_preflight_and_permanent_word_wrap(void) {
 }
 
 int main(void) {
+    CHECK(test_item_presentation_preflight_and_popup_failure() == 0);
     CHECK(test_cure_heal_revive_prediction_and_no_status_consumption() == 0);
     CHECK(test_general_use_preflight_and_permanent_word_wrap() == 0);
     CHECK(test_all_twenty_use_codes_keep_distinct_cost_and_tail() == 0);

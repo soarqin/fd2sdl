@@ -159,14 +159,21 @@ def load_definitions(directory):
     return flows, aliases, provenance
 
 
-def validate_definition_sources(provenance, repository=ROOT):
-    """只对照Git对象中的历史源，不要求当前C与迁移前源码相同。"""
+def validate_definition_sources(provenance, repository=ROOT, source_files=None):
+    """历史定义校验Git blob；新逆向定义必须有实读的同身份原EXE。"""
     verified = {}
     for document in provenance:
         pending = [document["source"]]
         while pending:
             record = pending.pop()
             pending.extend(record.get("related_sources", []))
+            if record.get("kind") == "canonical_disassembly":
+                payload = (source_files or {}).get("FD2.EXE")
+                if (record.get("file") != "FD2.EXE" or record.get("file_sha256") != EXE_SHA256 or
+                        not record.get("evidence") or not isinstance(payload, bytes) or digest(payload) != EXE_SHA256):
+                    raise ValueError("canonical definition source lacks matching original executable bytes")
+                verified["FD2.EXE"] = digest(payload)
+                continue
             commit, file = record.get("baseline_commit", ""), record.get("file", "")
             if (record.get("kind") != "existing_confirmed_definition" or not record.get("evidence")
                     or not re.fullmatch(r"[a-f0-9]{40}", commit)
@@ -304,7 +311,8 @@ def scan_movement_structure(data):
             return result
         pairs = [list(data[offset:offset + 2]) for offset in range(at, at + count * 2, 2)]
         actors.update(actor for actor, _ in pairs if actor >= ACTOR_LIMIT)
-        directions.update(direction for _, direction in pairs if direction > 3)
+        directions.update(direction for _, direction in pairs
+                          if direction > 3 and not (mode == 0x80 and direction == 5))
         result["groups"].append({"mode": mode, "pair_count": count, "pairs": pairs})
         at += count * 2
     result.update(complete=True, consumed_length=at, actors_outside_current_capacity=sorted(actors),
@@ -483,30 +491,38 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
     by_id = defaultdict(list)
     for index, (_, _, unit) in enumerate(placements): by_id[unit].append(index)
     ordinal, templates = Counter(), []
+    effective_count = metadata["unknown_02"]
+    if effective_count > len(metadata["templates"]):
+        errors.append("metadata byte2 effective template count exceeds retained template resource")
     required_groups = {node["args"][0] for _, flow in bound_stage_flows(stage, flows, aliases)
                        for node in flow["nodes"] if node["op"] == "append_group"}
     for index, template in enumerate(metadata["templates"]):
         unit = template[1]
         candidates = by_id[unit]
-        placement = candidates[ordinal[unit]] if ordinal[unit] < len(candidates) else None
+        legacy_placement = candidates[ordinal[unit]] if ordinal[unit] < len(candidates) else None
         ordinal[unit] += 1
-        required = template[21] in required_groups
-        if required and placement is None:
-            errors.append(f"template {index}: bound append_group needs a missing same-ID ordinal placement")
+        consumed = index < effective_count
+        placement = index if consumed and index < len(placements) else None
+        required = consumed and template[21] in required_groups
+        if consumed and placement is None:
+            errors.append(f"template {index}: effective prefix needs a missing same-index placement")
         drop = descriptor(template[22], int.from_bytes(template[23:25], "little"), stage, enabled, fragments, flows, aliases)
         if drop["classification"] != "unused_descriptor": requirements.append(drop)
         templates.append({"index": index, "entry_offset": 0x83 + index * 26, "raw_hex": template.hex(),
                           "unit_id": unit, "group": template[21], "placement_index": placement,
                           "required_by_bound_append_group": required,
-                          "placement_relation": "same_id_ordinal" if placement is not None else "unresolved_no_fallback",
+                          "effective_template": consumed,
+                          "placement_relation": "same_index_low_byte" if placement is not None else
+                              "missing_effective_index" if consumed else "resource_tail_not_consumed",
+                          "placement_coordinates_low_byte": [placements[index][0] & 255,placements[index][1] & 255] if placement is not None else None,
+                          "legacy_id_ordinal_placement_index": legacy_placement,
                           "drop": drop})
     # 只做当前已有冷定义的引用检查；不根据IDA命名推导新事件语义。
     for key, flow in bound_stage_flows(stage, flows, aliases):
         for node in flow["nodes"]:
             op, args = node["op"], node["args"]
             if op == "move" and args[0] not in SCRIPT_IDS: errors.append(f"{key}/{node['id']}: unsupported movement script")
-            if op == "append_group" and not any(t[21] == args[0] for t in metadata["templates"]):
-                errors.append(f"{key}/{node['id']}: no source template for group")
+            # 原10b4e没有匹配group时正常返回；保留空group，而非编造资源依赖。
             if op == "text" and not 0 <= args[0] < fragments: errors.append(f"{key}/{node['id']}: text fragment out of range")
     stages = {}
     for table, kind in (("stage_runtime_result", "result"), ("stage_entry", "entry"), ("stage_victory", "victory")):
@@ -528,7 +544,8 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
                     "length": len(grid), "sha256": digest(grid), "raw_hex": grid.hex(), "event_cells": event_cells},
             "metadata": {"entry": stage * 3 + 1, "file_offset": meta_offset, "length": len(raw_meta), "sha256": digest(raw_meta),
                          "raw_hex": raw_meta.hex(), "shape_index": metadata["shape"], "unknown_01": metadata["unknown_01"],
-                         "unknown_02": metadata["unknown_02"], "turn_slots": turns, "cell_lookup_slots": lookups,
+                         "unknown_02": metadata["unknown_02"], "effective_template_count": effective_count,
+                         "retained_template_count": len(templates), "turn_slots": turns, "cell_lookup_slots": lookups,
                          "cell_action_slots": actions, "templates": templates},
             "placements": {"entry": stage * 3 + 2, "file_offset": placement_offset, "length": len(raw_placement),
                            "sha256": digest(raw_placement), "raw_hex": raw_placement.hex(), "records": [list(p) for p in placements]},
@@ -556,7 +573,7 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
     if any(type(stage) is not int or not 0 <= stage < 33 for stage in selected) or not selected:
         raise ValueError("stage selection must be in0..32")
     flows, aliases, definition_sources = load_definitions(definitions)
-    baseline_sources = validate_definition_sources(definition_sources)
+    baseline_sources = validate_definition_sources(definition_sources, source_files=sources)
     tables, gap, functions, ida_sources = read_dispatch(original / "FD2.EXE", ida_directory)
     scripts = source_scripts(original / "FD2.EXE")
     movement_table = read_movement_table(original / "FD2.EXE", scripts)
@@ -569,7 +586,7 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
             "flow_bindings": aliases, "ida_evidence_sources": ida_sources,
             "dispatch_tables": tables, "adjacent_nonpointer_bytes": gap, "function_catalog": functions,
             "movement_sources": {str(i): {"canonical_va": hex(s.canonical_va), "length": len(s.data), "sha256": digest(s.data), "raw_hex": s.data.hex()} for i, s in scripts.items()},
-            "movement_source_scope": "movement_sources is the 36-ID runtime strict subset; movement_pointer_table preserves all 106 source slots and the complete raw payload",
+            "movement_source_scope": "movement_sources contains all 106 reviewed counted streams; movement_pointer_table separately preserves all source slots and the complete 2898-byte raw candidate payload (counted stream sum 2896, overlapping/remaining candidates retained). Runtime grammar availability does not enable stage bindings",
             "movement_pointer_table": movement_table,
             "stages": rows, "summary": {"resource_entries": len(field), "resource_stage_groups": 33,
                 "selected_stage_groups": len(rows), "primary_dispatch_slots": sum(tables[name]["count"] for name in tables if name != "adjacent_magic"),
@@ -580,6 +597,9 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
                 "templates": sum(len(r["metadata"]["templates"]) for r in rows),
                 "placements": sum(len(r["placements"]["records"]) for r in rows),
                 "unresolved_template_placements": sum(t["placement_index"] is None for r in rows for t in r["metadata"]["templates"]),
+                "placement_count_compatibility_note": "unresolved_template_placements retains the historical missing-consumption count; use the effective/tail counts to distinguish current meaning",
+                "unresolved_effective_template_placements": sum(t["effective_template"] and t["placement_index"] is None for r in rows for t in r["metadata"]["templates"]),
+                "unconsumed_resource_template_tails": sum(not t["effective_template"] for r in rows for t in r["metadata"]["templates"]),
                 "default_turn255_candidates": sum(t["default_fill"] for r in rows for t in r["metadata"]["turn_slots"]),
                 "active_classification_counts": dict(sum((Counter(r["active_classification_counts"]) for r in rows), Counter())),
                 "bound_definitions_closed_stages": [r["stage"] for r in rows if r["bound_definitions_closed"]],

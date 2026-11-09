@@ -3,6 +3,7 @@
  * impact表取原机器kernel向量；真实资源只读。此测试不启动SDL/窗口/音频设备，
  * 不把skip/quit的离屏重放当作原版画面、声音或随机流实机验收。 */
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include "battle_animation.h"
@@ -101,7 +102,7 @@ static fixture *open_fixture(const fd2_archive *fdother,uint8_t id,size_t target
     place(&g->units.items[3],97,side ? 0:2,9,15);
     place(&g->units.items[4],96,0,23,21);
     if(targets==1)g->units.items[3].flags=FD2_FIELD_UNIT_FLAG_HIDDEN;
-    /* radius0原collector允许同格的不同raw；ID8是合法共享FX续态，ID9应拒绝。 */
+    /* radius0原collector允许同格不同raw；8/9均保留跨target共享FX续态。 */
     if(id>=8 && targets>1) { g->units.items[3].x=9;g->units.items[3].y=14; }
     g->units.items[1].data_09_1e[0x11u+id/8u]=(uint8_t)(1u<<(id%8u));
     g->active_side=side;g->selected_unit=g->attack_target=g->detail_unit=-1;
@@ -249,7 +250,7 @@ static int compare_modes(const fd2_archive *fdother,uint8_t id,size_t count,int 
             if(mode==1)*observer_result=*current;
             else CHECK(!memcmp(&observer_result->events,&current->events,sizeof(current->events))); }
     }
-    if(zero && id==8 && count>1) {
+    if(zero && (id==8 || id==9) && count>1) {
         CHECK(observer_result->events.impacts[1]==0 && observer_result->events.effect[1].raw_damage>0);
         CHECK(observer_result->events.effect[1].hp_after<observer_result->events.effect[1].hp_before);
         CHECK(observer_result->events.target_hp[1]==observer_result->events.effect[1].hp_before);
@@ -308,31 +309,171 @@ static int test_rejection_and_postcommit_failure(const fd2_archive *fdother) {
     plan.score++;
     CHECK(fd2_field_game_commit_ai_magic(f->game,1,0,&plan)==-1 && !f->calls);
     CHECK(!memcmp(whole,f->game,sizeof(*whole)));free(whole);close_fixture(f);
-    /* 不可播放metadata在业务effect前拒绝；无猜测fallback或重复施法。 */
-    for(int kind=0;kind<2;kind++) {
-        f=open_fixture(fdother,9,kind ? 1:2,1,0,kind ? 1:0);CHECK(f);
-        CHECK(query(f,9,&plan)==0 && f->target_count==(size_t)(kind ? 1:2));
+    /* FULL9也预检全部真实目标，坏后项不能先扣费／结算首项。 */
+    f=open_fixture(fdother,9,2,1,0,0);CHECK(f);CHECK(query(f,9,&plan)==0);
+    f->game->units.items[3].movement_profile=29;
+    whole=malloc(sizeof(*whole));CHECK(whole);*whole=*f->game;
+    CHECK(fd2_field_game_commit_ai_magic(f->game,1,0,&plan)==-1 && !f->calls);
+    CHECK(!memcmp(whole,f->game,sizeof(*whole)));free(whole);close_fixture(f);
+    /* 非side0的原selector9不在9项表内，预检仍无业务／RNG写。 */
+    {
+        f=open_fixture(fdother,9,1,1,0,1);CHECK(f);
+        CHECK(query(f,9,&plan)==0 && f->target_count==1);
         before=f->game->units;
-        CHECK(fd2_field_game_commit_ai_magic(f->game,1,(uint8_t)kind,&plan)==-1 && !f->calls);
+        CHECK(fd2_field_game_commit_ai_magic(f->game,1,1,&plan)==-1 && !f->calls);
         CHECK(!memcmp(&before,&f->game->units,sizeof(before)));
         CHECK(f->game->failure==FD2_FIELD_FAILURE_ACTION);
         close_fixture(f);
     }
     return 0;
 }
-int main(void) {
+/* --full9-probe：真实public AI提交入口至execute_full_magic的FINISH只读快照。
+ * 原码比较工具可从JSONL取完整输入80B，避免另造同公式的Python结算模型。
+ * count95仅C容量边界；原wrapper局部目标指针域的原码比较另限1/2/5/8。 */
+typedef struct {
+    fd2_field_game *game;
+    fd2_field_rng rng;
+    size_t count,calls,next;
+    uint8_t targets[FD2_FIELD_MAX_UNITS];
+    sample trace[SAMPLE_CAP];
+    uint16_t all_hp[SAMPLE_CAP][FD2_FIELD_MAX_UNITS];
+    fd2_field_units finish;
+    fd2_field_magic_basic_result effects[FD2_FIELD_MAX_UNITS];
+    uint16_t hp_after[FD2_FIELD_MAX_UNITS];
+    uint8_t impacts[FD2_FIELD_MAX_UNITS];
+    int8_t jitter[FD2_FIELD_MAX_UNITS][FD2_FIELD_MAGIC_IMPACT_CAPACITY];
+    uint32_t finish_contribution;
+    unsigned prepared,casted,finished;
+    uint8_t cost_count;
+    int overflow,bad;
+} full9_probe;
+
+static uint32_t probe_random(void *data) {
+    full9_probe *p=data;
+    uint32_t value=fd2_field_rng_next(&p->rng);
+    if(p->calls>=SAMPLE_CAP) { p->overflow=1;return value; }
+    size_t n=p->calls++;
+    p->trace[n].value=value;p->trace[n].xp=p->game->experience_value;
+    p->trace[n].mp=p->game->units.items[1].mp;
+    for(size_t i=0;i<p->count;i++)p->all_hp[n][i]=p->game->units.items[p->targets[i]].hp;
+    return value;
+}
+static int probe_present(const fd2_field_game *game,
+        const fd2_field_magic_present_event *event,void *data) {
+    full9_probe *p=data;
+    if(game!=p->game || event->actor_index!=1 || event->magic_id!=9 ||
+            event->target_count!=p->count || memcmp(event->targets,p->targets,p->count))goto bad;
+    if(event->phase==FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+        if(p->calls || game->experience_value || p->prepared++)goto bad;
+        p->cost_count=event->cast_cost_count;
+    } else if(event->phase==FD2_FIELD_MAGIC_PRESENT_CAST) {
+        if(!p->prepared || p->calls || p->casted++)goto bad;
+    } else if(event->phase==FD2_FIELD_MAGIC_PRESENT_TARGET) {
+        if(!p->casted || p->next>=p->count || event->target_index!=p->targets[p->next] ||
+                !event->result || event->impact_count>FD2_FIELD_MAGIC_IMPACT_CAPACITY)goto bad;
+        size_t n=p->next++;
+        p->effects[n]=*event->result;p->hp_after[n]=game->units.items[event->target_index].hp;
+        p->impacts[n]=(uint8_t)event->impact_count;
+        memcpy(p->jitter[n],event->impact_jitter,event->impact_count);
+    } else if(event->phase==FD2_FIELD_MAGIC_PRESENT_FINISH) {
+        if(p->next!=p->count || event->action_failed || p->finished++)goto bad;
+        p->finish=game->units;p->finish_contribution=game->experience_value;
+    } else goto bad;
+    return 0;
+bad:
+    p->bad=1;return -1;
+}
+static void print_units(const fd2_field_units *units) {
+    putchar('[');
+    for(size_t i=0;i<units->count;i++) {
+        if(i)putchar(',');
+        putchar('"');
+        const uint8_t *raw=(const uint8_t *)&units->items[i];
+        for(size_t j=0;j<sizeof(units->items[i]);j++)printf("%02x",(unsigned)raw[j]);
+        putchar('"');
+    }
+    putchar(']');
+}
+static int probe_case(const fd2_archive *fdother,size_t count,uint16_t seed) {
+    CHECK(count>0 && count<FD2_FIELD_MAX_UNITS);
+    fixture *f=open_fixture(fdother,9,1,0,seed,0);CHECK(f);
+    full9_probe *p=calloc(1,sizeof(*p));CHECK(p);p->game=f->game;p->count=count;
+    fd2_field_game *g=f->game;
+    fd2_field_unit source=g->units.items[0];g->units.count=count+1u;
+    size_t next=0;
+    for(size_t i=0;i<g->units.count;i++) {
+        g->units.items[i]=source;
+        place(&g->units.items[i],(uint8_t)(i==1u ? 107u:i ? 73u:0u),
+            (uint8_t)(i==1u ? 0u:2u),(uint8_t)(i==1u ? 8u:9u),14);
+        g->units.items[i].hp=g->units.items[i].hp_max=5000;
+        g->units.items[i].mp=g->units.items[i].mp_max=5000;
+        if(i!=1u)p->targets[next++]=(uint8_t)i;
+    }
+    g->units.items[1].data_09_1e[0x12]=2; /* 仅技能9，正常source caster107。 */
+    g->experience_value=0;g->attack_rng=probe_random;g->attack_rng_userdata=p;
+    g->magic_present=probe_present;g->magic_present_userdata=p;fd2_field_rng_seed(&p->rng,seed);
+    fd2_figani_magic_cast cast;
+    CHECK(fd2_figani_magic_cast_plan(&cast,&g->figani_archive,107)==0 && !cast.clip.empty);
+    fd2_field_ai_magic_candidate plan;
+    CHECK(fd2_field_ai_choose_magic_candidate(&g->map,&g->terrain,&g->units,1,0,&plan)==0);
+    CHECK(plan.magic_id==9 && plan.score>=6);
+    fd2_field_units *before=malloc(sizeof(*before));CHECK(before);*before=g->units;
+    CHECK(fd2_field_game_commit_ai_magic(g,1,0,&plan)==0 && !p->bad && !p->overflow &&
+        p->finished==1 && p->next==count && !g->failure);
+    CHECK(p->finish.items[1].mp==(uint16_t)(5000u-30u*cast.cost_marker_count));
+    if(count==2u && seed==9u) {
+        CHECK(p->effects[0].hit && p->effects[1].hit && p->effects[1].raw_damage>0);
+        CHECK(p->effects[1].hp_after<p->effects[1].hp_before && p->effects[1].experience_value>0);
+        CHECK(p->impacts[1]==0 && p->hp_after[1]==p->effects[1].hp_before);
+    }
+    printf("{\"case_id\":\"full9-count%zu-seed%u\",\"seed\":%u,\"count\":%zu,",count,seed,seed,count);
+    printf("\"caster_index\":1,\"caster_unit_id\":107,\"cast_entry\":%zu,\"cast_cost_count\":%u,",cast.selected_entry,p->cost_count);
+    printf("\"target_indices\":[");for(size_t i=0;i<count;i++)printf("%s%u",i ? ",":"",p->targets[i]);
+    printf("],\"input_units_hex\":");print_units(before);
+    printf(",\"finish_units_hex\":");print_units(&p->finish);
+    printf(",\"mp\":%u,\"contribution\":%" PRIu32 ",\"rng_final\":%u,\"rng_trace\":[",
+        p->finish.items[1].mp,p->finish_contribution,p->rng.state);
+    for(size_t n=0;n<p->calls;n++) {
+        printf("%s{\"value\":%" PRIu32 ",\"mp_before\":%u,\"contribution_before\":%" PRIu32 ",\"hp\":[",
+            n ? ",":"",p->trace[n].value,p->trace[n].mp,p->trace[n].xp);
+        for(size_t i=0;i<count;i++)printf("%s%u",i ? ",":"",p->all_hp[n][i]);
+        printf("]}");
+    }
+    printf("],\"target_events\":[");
+    for(size_t n=0;n<count;n++) {
+        const fd2_field_magic_basic_result *e=&p->effects[n];
+        printf("%s{\"target_index\":%u,\"hit\":%u,\"hp_before\":%u,\"hp_after\":%u,\"core_after\":%u,\"raw_damage\":%" PRIu32 ",\"contribution\":%" PRIu32 ",\"impact_jitter\":[",
+            n ? ",":"",p->targets[n],e->hit,e->hp_before,p->hp_after[n],e->hp_after,e->raw_damage,e->experience_value);
+        for(size_t j=0;j<p->impacts[n];j++)printf("%s%d",j ? ",":"",p->jitter[n][j]);
+        printf("]}");
+    }
+    puts("]}");free(before);free(p);close_fixture(f);return 0;
+}
+static int full9_probe_cases(const fd2_archive *fdother) {
+    static const size_t counts[]={1,2,5,8,FD2_FIELD_MAX_UNITS-1u};
+    static const uint16_t seeds[]={0,1,0x7a18,0xffff};
+    for(size_t i=0;i<sizeof(counts)/sizeof(counts[0]);i++)
+        for(size_t j=0;j<sizeof(seeds)/sizeof(seeds[0]);j++)CHECK(probe_case(fdother,counts[i],seeds[j])==0);
+    CHECK(probe_case(fdother,2,9)==0); /* 原RNG选择：第二命中仍无HP impact。 */
+    return 0;
+}
+int main(int argc,char **argv) {
     fd2_archive fdother={0};CHECK(fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")==0);
+    if(argc==2 && !strcmp(argv[1],"--full9-probe")) {
+        int result=full9_probe_cases(&fdother);fd2_archive_close(&fdother);return result;
+    }
+    CHECK(argc==1);
     for(uint8_t id=0;id<10;id++) {
         CHECK(compare_modes(&fdother,id,1,1,0)==0);
         CHECK(compare_modes(&fdother,id,1,0,0x7a18)==0);
     }
-    const uint8_t multi[]={3,5,6,7,8};
+    const uint8_t multi[]={3,5,6,7,8,9};
     for(size_t i=0;i<sizeof(multi);i++) {
         CHECK(compare_modes(&fdother,multi[i],2,1,0)==0);
         CHECK(compare_modes(&fdother,multi[i],2,0,0x1234)==0);
     }
     CHECK(test_rejection_and_postcommit_failure(&fdother)==0);
     fd2_archive_close(&fdother);
-    puts("field_magic_full_test: 10 singles/5 multis x 2 streams x 4 modes, failure boundaries passed (headless only)");
+    puts("field_magic_full_test: 10 singles/6 multis x 2 streams x 4 modes, failure boundaries passed (headless only)");
     return 0;
 }

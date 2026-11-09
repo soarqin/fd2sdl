@@ -217,10 +217,63 @@ static int late_callback_errors_are_not_success_or_second_commit(void) {
     CHECK(value==12345 && calls==1);
     return 0;
 }
+/* 2ce1a原BYTE状态和31266的4+5次phase4/5共用；目录外只略画图。
+ * 独立按原比较点检查全部256状态，不以一次首target成功覆盖回绕。 */
+static int beam_cross_target_bounds_and_wrap(void) {
+    static const unsigned counts[] = {2,5,96};
+    for(size_t c=0;c<sizeof(counts)/sizeof(counts[0]);c++) {
+        fd2_magic_fx fx,skipped;
+        CHECK(fd2_magic_fx_init(&fx,9,0,(fd2_magic_fx_parts){durations_zero,31})==0);
+        skipped=fx;
+        int value,skip_value;
+        CHECK(fd2_magic_fx_step(&fx,0,NULL,NULL,NULL,NULL,&value)==0 && value==20);
+        CHECK(fd2_magic_fx_step(&skipped,0,NULL,NULL,NULL,NULL,&skip_value)==0);
+        unsigned counter=1,total_impacts=0;
+        for(unsigned target=0;target<counts[c];target++) {
+            CHECK(fd2_magic_fx_step(&fx,3,NULL,NULL,NULL,NULL,&value)==0 && value==60);
+            CHECK(fd2_magic_fx_step(&skipped,3,NULL,NULL,NULL,NULL,&skip_value)==0);
+            CHECK(fx.state.beam.frame==counter);
+            unsigned impacts=0;
+            for(unsigned frame=0;frame<60u+(target+1u<counts[c] ? 9u:0u);frame++) {
+                observed events={0};events.phase=4;
+                CHECK(fd2_magic_fx_step(&fx,4,NULL,NULL,emitted,&events,&value)==0);
+                CHECK(events.emissions==1 && value==0);
+                CHECK(fd2_magic_fx_step(&skipped,4,NULL,NULL,NULL,NULL,&skip_value)==0);
+                events.phase=5;events.emissions=0;
+                unsigned expected_events=(counter/2u<31u)+(counter==6u || counter==36u);
+                CHECK(fd2_magic_fx_step(&fx,5,NULL,NULL,emitted,&events,&value)==0);
+                CHECK(fd2_magic_fx_step(&skipped,5,NULL,NULL,NULL,NULL,&skip_value)==0);
+                counter=(counter+1u)&255u;
+                CHECK(fx.state.beam.frame==counter && value==(counter>16u && counter<44u));
+                CHECK(events.emissions==expected_events && !events.rng_count && value==skip_value);
+                CHECK(!memcmp(&fx,&skipped,sizeof(fx)));
+                if(frame<60u && value==1)impacts++;
+            }
+            if(!target)CHECK(impacts==27);
+            if(target==1u)CHECK(impacts==0);
+            if(target==4u)CHECK(impacts==22);
+            total_impacts+=impacts;
+        }
+        if(counts[c]>=5u)CHECK(total_impacts>27u);
+    }
+    fd2_magic_fx fx,before;observed events={0};int value=12345;
+    memset(&fx,0xa5,sizeof(fx));before=fx;
+    CHECK(fd2_magic_fx_init(&fx,9,0,(fd2_magic_fx_parts){durations_zero,30})==-1);
+    CHECK(!memcmp(&fx,&before,sizeof(fx)) && !events.emissions && !events.rng_count);
+    CHECK(fd2_magic_fx_init(&fx,9,0,(fd2_magic_fx_parts){durations_zero,31})==0);
+    fx.state.beam.frame=62;unsigned calls=0;
+    CHECK(fd2_magic_fx_step(&fx,5,NULL,NULL,fail_emit,&calls,&value)==0);
+    CHECK(!calls && value==0 && fx.state.beam.frame==63);
+    fx.state.beam.frame=60;before=fx;value=12345;
+    CHECK(fd2_magic_fx_step(&fx,5,NULL,NULL,fail_emit,&calls,&value)==-1);
+    CHECK(calls==1 && value==12345 && !memcmp(&fx,&before,sizeof(fx)));
+    return 0;
+}
 int main(void) {
     CHECK(parameters_and_invalid_inputs()==0);
     CHECK(duration_zero_and_part_bounds()==0);
     CHECK(late_callback_errors_are_not_success_or_second_commit()==0);
+    CHECK(beam_cross_target_bounds_and_wrap()==0);
     CHECK(native_vectors_and_replay()==0);
     puts("magic_fx: 29 original-kernel vectors; emitted/skip/read-only replay agree");
     return 0;

@@ -1,6 +1,6 @@
 # 战场 session、动作提交与场景交接设计
 
-本文约束现有模块的后续扩展，补齐审查发现的状态、失败和验收边界，不要求重写引擎。基线为 `e9a2d81`；标注「待实施」的内容是设计决定，不是现有能力声明。优先级见 [`../plans/development.md`](../plans/development.md)，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
+本文约束现有模块的后续扩展，补齐状态、失败和验收边界，不要求重写引擎。设计始于 `e9a2d81`；2026-11-10 按 G2 源码更新通用战斗合同，保留各历史阶段原有验收范围。源码已实现、静态／局部原码验证与原版运行验收分别登记，本文不代替阶段完成收据。优先级见 [`../plans/development.md`](../plans/development.md)，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
 
 ## 1. 现有模块与状态所有权
 
@@ -20,9 +20,10 @@
 ### 持久与临时状态
 
 - 原版单位始终是 `fd2_field_unit` 的 `0x50` 字节记录。玩法字段写入唯一记录，不能再保存第二份 HP、坐标或装备真值。
-- 模板新建、开场构造、完整存档恢复和派生重算是不同层，不存在可代替全部路径的通用构造器。当前基础表覆盖角色 ID `0..31`、敌军 ID `68..135`；无对应 record 的 ID 明确拒绝，stage 0 捕获值只作夹具，不是通用默认值。
+- 模板新建、开场构造、完整存档恢复、转职和派生重算是不同层，不存在可代替全部路径的通用构造器。基础表覆盖角色 ID `0..31`、敌军 ID `68..135`；G2 另支持原实际调用的 ID48／66 相邻读取窗，不能将其命名为新基础表或推广成任意 ID32..67 新建。成长／转职具有自己的有效域；stage 0 捕获值只作夹具，不是通用默认值。模板有效前缀与部署位置读取原 metadata byte2／byte1，不用资源总条数或同 ID 次序代替同索引 placement。
 - FDICON 负责地图帧，DATO 当前只确认是立绘包，FIGANI 负责战斗演出；不能拿立绘索引猜属性或复用 TMP cache class 当职业。
 - phase cursor、范围／路径、菜单、演出快照、计时与 sprite cache 是 SDL 临时或派生状态，不直接序列化。
+- 地图 sprite 使用原 cache 映射；热身份改写不自动换图。Load 按当前 ID 和活动 raw 顺序重建派生 cache，保留存档的完整80B与 raw cache byte，不增加 SAV 字段。方向5等超出普通12帧组的读取只接受有来源的 cache 映射与资源窗，不能取模成方向0..3或猜 ID+1。
 - `option_values` 与 `resource_value` 已有 session owner。配置是逐次 toggle 立即提交：未修改时退出不能改状态，已确认 toggle 后退出也不能擅自回滚。
 - `fd2_field_game` 含有拥有所有权的指针；结构体浅复制不等于可独立关闭的 session，也不等于外部 RNG 的快照。不能关闭两个共享资源的副本。
 
@@ -57,15 +58,26 @@
 - 已有 behavior 11 的法术 → 物理具有分段提交语义：后段失败不能撤销已消费 RNG 的前段。新玩家动作也不能默认沿用 AI tail。
 - acted、cell event、死亡清理、stage handler 与 phase 推进各执行一次；顺序按相应原版路径确认，不能笼统合成一个所有命令共用的结束函数。
 
-当前AI无演出法术在完整预检后、首target effect前扣一次MP；ID17按原wrapper使用费用记录18。费用不放入逐目标纯effect，多目标不重复扣，miss／免疫／状态无变化仍消费，后置失败不退款。原版FIGANI分支按caster part标记触发，不能由此宣称所有动画演员恰扣一次；动画与玩家指令仍按B2／B6各自证据开放。
+地图法术按原 wrapper 在 CAST 前或后扣一次 MP，均先于逐目标 effect；顺序及费用记录来自冷表，ID17读记录18。费用不放入逐目标纯 effect，miss／免疫／状态无变化仍消费，后置失败不退款。FULL／派生／复合法术按真实 caster FIGANI intro 中 part marker 精确等于1的次数扣费，允许零次、多次与 WORD 回绕，不将 unit9 的一次扣费推广为全体默认。完整合同见[通用战斗语义](../reverse-engineering/common-battle-semantics.md)。
 
 单位详情沿用独立 `detail_unit`／portrait owner，页索引只在装备与未选中法术详情间切换，不复用行动列表或selected_unit。打开前预检两页必需资源，失败保留现有详情与portrait；成功Load释放详情并重置临时页，失败Load保持原session。F2详情不推进controller，Enter路径只在最终关闭后推进。
 
-### 玩家法术／物品扩展（B2/B3）
+### 玩家法术与物品（B2／B3 基础及 G2 扩展）
 
 在现有交互状态中区分列表选择、施法中心／目标确认和返回路径，不将攻击专用 `TARGETING` 未加区分地用于全部命令。列表可用性取自原版玩家入口，已确认范围和 effect helper 可复用。
 
-列表状态已接入：MAGIC_LIST保存临时索引，step不负责关闭，取消关闭后才回COMMAND。原版18890对非零路径禁法，只有unit ID18／19／34例外；此门与空法术、record+0x27禁止状态共同检查。低MP只阻止当前项确认。正式入口限 stage 0／1 并要求共享RNG、至少一个可提交的0（caster unit9已有费用标记证据）／13；其他已知ID可显示／导航，但逐项确认仍拒绝未实现效果，不能因新学17就禁用原有0／13。未知位36..39及超出现有12项可见布局仍拒绝，不从AI支持表推断玩家全能力。
+MAGIC_LIST 保存临时索引，step 不负责关闭，取消关闭后才回 COMMAND。原版18890对非零路径禁法，只有 unit ID18／19／34例外；此门与空法术、record+0x27禁止状态共同检查。低 MP 只阻止当前项确认。正式入口沿当前 stage battle capability（现为 stage0／1），要求共享 RNG，并支持正常有来源的技能 ID0..30、32..35；每名 caster 仍必须实际持有该位，资源在 PREPARE 独立预检。ID31为空名且无正常赋值源，36..39无记录；G1 已核初始／模板／学习／转职闭包最多12项，不为外部任意 SAV 发明分页或未知技能。这里开放的是通用动作能力，未开放 stage2及后续关卡 handler。
+
+| 正常调用路径 | 模式合同 |
+|---|---|
+| 玩家0..8 | 始终 FULL，不随 SHORT 选项转地图版 |
+| 玩家9..23、25..27 | 原地图 wrapper；玩家9只提交首目标，FX仍收到完整原目标组 |
+| 玩家24、28..30 | 派生 FULL；固定 caster FIGANI +2条目，signed AP／DP伤害及逐 part HP写点，不走普通命中／profile倍率 |
+| 玩家32..35 | 固定 caster FIGANI +1及专用演出后回地图，按冷图执行复合组；33先清全部目标状态，34／35按原组间清浮字 |
+| AI0..9 | `option_values[2]==0` 才 FULL，否则地图版；地图9仍只提交首目标 |
+| AI其它正常可选项 | 继续按原 candidate 评分与地图 wrapper；23／24／25／28..35没有正分正常候选，不造可执行计划 |
+
+系统菜单已开放效果选项2，并按原 byte XOR1提交，保留非规范原值；配置与 Load 决定 AI 动作模式。玩家物理始终 FULL，算法与呈现均不读取该选项。信息板选项3仍归 G4。FULL9 的多目标继续执行原共享计数、效果与 RNG；只有 beam 请求超出真实31项目录的 DRAW 被省略。非 side0 的 FULL9 缺合法 selector，保留独立域限制；玩家9走 MAP。不能用相邻资源或伪造图像填补原未定义读取。
 
 物品B3的已确认返回合同独立于MAGIC：Use列表取消使1bbdc返回0，18d8c重开ITEM子菜单；子菜单取消使1bbdc返回-1、18d8c返回0，再由18890重开COMMAND。Use目标取消先聚焦caster，再重开1b932列表并归0选项，保留临时移动及pending。53C53仅由Give完成分支置1，不能把它当作所有库存改变标志；装备／丢弃已提交变化也不能因为该值0而回滚。
 
@@ -73,15 +85,17 @@ ITEM_MENU／ITEM_LIST 共用正式输入与四向 command 呈现，语义为 Use
 
 ITEM_TARGETING 每次按当前 raw 槽重新读取物品的玩家 cast／area／filter，复用 move_range 与互斥 target 候选 buffer，不缓存第二份 slot／物品真值。候选按 raw 顺序和原版 filter 收集，不额外过滤 HP0 或 acted；121 占轮询槽但不移动焦点。范围 LUT 与确认时的 Manhattan 判据分别保留，area 光标沿用 20 帧资源。目标取消先聚焦使用者、清目标 owner、返回 ITEM_LIST0，保留移动路径／origin、pending 和 RNG。法术与物品共享范围建立和轮换，保留各自 record／列表／能力门。
 
-Use 按 `field_item_use_effect_execute @0x20c6f` 分派实际 code5..24。HP／MP 恢复、清状态、状态附加和法术伤害复用已确认的局部 effect；增长物品只写首目标的原始 WORD，并重算使用者，MOV 增长保留跨 WORD 的 EX 字节。code6／7 仅在对应状态存在时先恢复 9HP 再清状态，仍按原版消费一次物品；状态不存在时不消费效果 RNG。AP／DP 状态的直接增量与装备重算是两条不同公式，不合并舍入行为。
+Use 按 `field_item_use_effect_execute @0x20c6f` 分派实际 code5..24。HP／MP恢复、清状态、状态附加和法术伤害复用局部 effect；增长物品只写首目标的原始 WORD，浮字后仅重算使用者并压槽，MOV增长跨 EX 的临时高 byte 要等 helper 返回后才恢复。code6／7仅在对应状态存在时先按 power10恢复（含 spread RNG）再清状态；仍消费一次物品，状态不存在时不消费效果 RNG。MPmax0的 code11只显示 MISS，不恢复、不取 RNG。AP／DP状态的直接增量与装备重算是两条不同公式，不合并舍入行为。
+
+Item 与 Magic 共用有界同步呈现接口，但保留 `action_kind`／use code／power和实际效果目标数：code5／13只有 effect13地图 FX及闪烁，不套完整 Magic13的大 mask；20／24固定 ramp、21固定双色，不按 value的 Magic ID猜样式。永久 stat 的 FX消费完整原目标组，业务与红色原 power浮字只用首项。`item.effect` 冷图控制 CAST→逐目标结果→POPUP_GROUP→条件重算／耗槽／恢复 EX→清贡献；code23调用既有传送冷图。TARGET只排结果，POPUP_GROUP播放后才继续写库存或EX，FINISH不重复播放或提交。
 
 Use 在首个 RNG／业务写入前预检全部目标、可能败亡的掉落描述符、最终格和必经尾链；清状态可能救活的 HP0 目标须纳入预测。只在原版规定的 code5／6／7／8／9／10／11／17／18／19 移槽一次，其余不消耗。原版物品尾清全局经验贡献，不清单位 EX；之后执行败亡、acted、最终 lookup1 和 controller，不做 WAIT 恢复或物理方向复位。提交后错误保留效果／压槽／已到达的 acted 与外部 RNG，首错冻结，不退款或重试。
 
 AI物品的掉落入口返回非零不等于仍有待续态：`field_loot_descriptors_execute @0x1aa1d` 的 mode0／1 可以同步终止。只有实际 `progress_pending` 才延后 common tail；同步、直接提交、scheduler和异步恢复各自恰执行一次，不遗漏 acted／贡献清零，也不补跑已完成的尾。
 
-code23 使用独立 ITEM_TELEPORTING 第二层：首目标 cast 排除中心整格，门为使用者 text_id24 且最大 MP 至少20；第二层选择目标可站立且无其他可见单位的目的格。任一层取消均返回使用者的 Use 列表0。成功时按原版 WORD 减 MP 并移动首 raw 目标，不另加当前 MP 门，不把中间演出坐标255写给常规 renderer；自身移动时预检最终目的格的事件。
+code23使用独立 ITEM_TELEPORTING 第二层：首目标 cast排除中心整格，门为使用者 text_id24且最大MP至少20；第二层选择目标可站立且无其他可见单位的目的格。任一层取消均返回使用者的Use列表0。成功按原WORD减MP并移动首raw目标，不另加当前MP门。传送按 OUT前画→坐标255→OUT_COMMIT→IN前画→写目的坐标→IN_COMMIT同步；临时255属于Game原写点，只交专用投影，不能交给常规可见actor绘制。自身移动时预检最终目的格事件。
 
-正式 ITEM 查询无写入／RNG，仅接受 stage0 可行动玩家和连续已知库存；正式等待入口另要求共享 RNG。code0 装备可查看，不能在 Use 确认。Drop／Give 不套 Use handler 门，包含隐藏 flag40 的全8槽须满足各自派生检查。Equip 许可来自原版29×7字节表，只比较每行前6字节，未知职业／物品拒绝。能力查询不借用 MAGIC 的移动、MP 或 unit+0x27 门，能力失效也不能阻止原有取消。
+正式 ITEM 查询无写入／RNG，接受当前 battle capability内的可行动玩家和连续已知库存；正式等待入口另要求共享 RNG。code0装备可查看，不能在Use确认。Drop／Give不套Use handler门，包含隐藏flag40的全8槽须满足各自派生检查。Equip许可来自原版29×7字节表，只比较每行前6字节，未知职业／物品拒绝。能力查询不借用MAGIC的移动、MP或unit+0x27门，能力失效也不能阻止原有取消。
 
 Drop 用同一 ITEM_LIST／mode0，code0 可确认；确认先在80字节 actor 副本移槽，确认或取消均重算四属性。余项回 ITEM，删空回 COMMAND；不结束行动，之后取消移动保留丢弃结果。Equip 在80字节副本按 ID `<128`／`>=128` 清同组整个 flag、选中写40并重算；重选不是脱装。不兼容不重算，取消不重算，成功留原页／原 raw 索引。二者均在全部数据检查通过后交接，不改 HP／MP、EX、acted、pending 或移动 owner。
 
@@ -91,23 +105,29 @@ Give 用独立目标与收方列表层。相邻友军使该格可选，确认后
 
 普通物理目标同样复用14818／115b6的互斥范围和raw候选owner：按武器min／max与filter0建立范围，首次聚焦首raw，Z／小键盘5先递增再取槽；121占槽而不移动焦点。取消先回actor，再清候选／范围并重开COMMAND，成功尾同样清cache。候选不额外滤HP0／acted，提交仍沿独立物理有效门重验。移动预算0可保留原点，不得在game wrapper整体拒绝而令AI错过原地攻击。
 
-MAGIC_TARGETING复用cast范围而独立持有法术及raw候选索引；0／13仅area0，方向可离开范围，确认时重建当前范围与全部同格filter目标。完整效果／贡献上界、无掉落支持门、B4成长及必需消息资源和必经事件预检先于费用／RNG；miss仍扣费并行动，多目标只扣一次。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、奖励续态、controller顺序执行。预测phase必须考虑本次死亡清理后仍可行动的玩家，不能给13565本体添加HP门。FIGANI与完整附加呈现随机流仍归B6，B4消息的本阶段运行对照另登记。
+MAGIC_TARGETING复用cast范围及raw候选owner，确认时从当前坐标重建几何和effect目标，不相信旧缓存。普通area支持多目标；cast0围绕caster收组，保留mode4／5的非空／空确认、原点及不轮换候选合同；30按原轴线逐格取首可见side0，空格或其它side不终止，同中心按向下扫描。MAGIC_TELEPORTING保留23第二层目的地选择，使用frame1；Item23同层用普通frame0，取消均回各自列表0，不能合并UI合同。复合34成功保留选择中心焦点，不自动回caster。
 
-必须先明确：玩家 MP 扣除时点、施法失败／无目标的处理、目标阵营、物品使用与库存移除的关系。AI `field_ai_magic_action_execute @0x15311` 已有的 MP 可用性门不证明玩家扣 MP 规则；已确认 AI item code `13/20/21/24` 不消耗，也不证明玩家同名物品一律不消耗。玩家证据入口为 `field_player_magic_command_execute @0x1cff0` 与 `field_player_item_command_execute @0x1bbdc`，登记见 [`../reverse-engineering/function-names.md`](../reverse-engineering/function-names.md)。
+效果／费用／必要呈现、贡献资源分支、可能败亡描述符和必经事件均先预检。预测phase要按本次最终隐藏／恢复／清状态／acted结果判断；20／21仅把原对应状态非0的目标当作会恢复，不能将所有HP0友军当作被救活，也不能给13565本体添加HP门。收尾独立于WAIT恢复及物理方向复位，按效果／败亡、acted、归一、最终lookup1、奖励续态、controller执行。正常费用按对应wrapper或intro marker消费，不能统一成「每个多目标动作恰一次」。
+
+玩家与AI仍分别以 `field_player_magic_command_execute @0x1cff0`、`field_player_item_command_execute @0x1bbdc`、`field_ai_magic_action_execute @0x15311` 和物品dispatcher为依据，不能仅由一个caller推广所有费用／失败合同。逐族写集及有效来源见[通用战斗语义](../reverse-engineering/common-battle-semantics.md)，函数登记见[规范命名表](../reverse-engineering/function-names.md)。
 
 ### 奖励与状态续态（B4）
 
-`experience_value` 对应原全局53EC8，与单位EX、消息动态数字53AE1分别处理。物理每击按原门覆盖该值；法术／物品共享效果在HP／MP写入后立即累加，负状态的伤害贡献必须先于后续duration RNG。恢复贡献以signed实际差计算，old超过max再cap产生的负差按DWORD回绕，不能夹成0。玩家controller先cap99，AI物理尾没有该cap；AI法术和物品在原尾清零，不能移到首效果前。活动Load不清贡献，也不将其写入SAV。
+`experience_value` 对应原全局53EC8，与单位EX、消息动态数字53AE1分别处理。物理每击按原门覆盖该值；法术／物品共享效果在HP／MP写入后立即累加，负状态的伤害贡献必须先于后续duration RNG。恢复贡献以signed实际差计算，old超过max再cap产生的负差按DWORD回绕，不能夹成0或拒绝所有超上限HP。玩家按signed除法归一，controller仅将signed大于99者封顶；AI物理尾没有该cap，AI法术和物品在原尾清零，不能移到首效果前。活动Load不清贡献，也不将其写入SAV。
+
+0／13的纯奖励上下界查询复用原公式枚举100个spread，不取真实RNG；超上限HP时，伤害贡献在kill门可能从raw比例跳回full，不能只查spread99。多目标按DWORD回绕和signed断点作保守区间预检，负上界不转成正99；该连续包络及独立负值资源分支不是精确的整组RNG可达集合。来源和保守范围见[通用战斗语义 §8](../reverse-engineering/common-battle-semantics.md#8-g2-追加signed-派生伤害负贡献与动态数字边界)。
 
 `field_unit_experience_reward_execute @0x1e292` 无side门。贡献0、hidden或精确等级cap（ID30／31等于99、其他等于40）早退并保留全局。成长支持已有ID0..67记录，不套创建器0..31门；未知成长数据或不安全的signed运算在提交前拒绝。普通40仅为入口门，循环只在新等级30或特殊ID新99清余值，不能另加每级>=40门。
 
 game保存一个有界续态，play只持有背景／空底板／四帧立绘。LEVEL前先写level；每个非零成长量先提示／ACK，返回后才写WORD；学习先OR位，再显示587。每级末重算，最终自动等待和关闭后才写EX、清全局。最大HP／MP增长不改当前值。资源预检可用80字节纯副本，不能提前交接最终单位或消费RNG。
 
+非零负gain继续显示原signed数字，按实际 `EX byte + signed gain` 判断升级；通常旧EX<100时不升级，最终EX低byte仍可回绕到>99，下一次不能套「负gain永不升级」。原负号会读到字体owner外；G2保留业务、RNG与EX写集，以已证FDOTHER[5] frame132安全投影负号，正数字形不变。负号属于明确的安全呈现扩展，不声明原版像素等价，也不因其原版缺陷禁用合法负power法术。
+
 中毒按raw actor先扣 `maxHP/10`、聚焦、显示487；全部毒伤后才死亡清理。六状态byte逐项递减，恰归零就聚焦→481..486→等待／关闭→重算，再处理下一byte。失败或宿主退出不ACK后续写点；保留已提交HP、计时、成长及外部RNG，不假回滚。入口quit先于core resume，scroll／开合中途quit停止并释放缓冲。
 
 成长固定取pair第二byte，无成长RNG。489／490..494的-3以任意键ACK，488／587和481..487无-3，487的-2只换行。`dialog_wait_key @0x16c57` 每次入口与眨眼复位耗共享RNG；`field_notice_wait_ticks @0x1e5c0` 自身不耗该RNG。宿主55／110ms门是BIOS时钟适配，跨框嘴型相位、完整音画／随机流仍未声明一致。
 
-本阶段六组实际WGC来源为C4四组＋C5两组，消息资源、详情和完整Save／WAIT／Load／Save均通过；不是最新程序重新跑六组。SDL回合编号横幅未图形对齐，使用有序phase日志与后续真实WGC／完整SAV核验，不把日志当横幅像素；完整FIGANI、跨框嘴型相位和共享RNG等价仍不声明。最终C6仅修AI结果误用玩家HP前值的printf下溢诊断，业务、RNG和呈现不变，无新GUI。
+B4当时六组实际WGC来源为C4四组＋C5两组，消息资源、详情和完整Save／WAIT／Load／Save均通过；不是G2或最新程序重新跑六组。SDL回合编号横幅未图形对齐，使用有序phase日志与后续真实WGC／完整SAV核验，不把日志当横幅像素；当时未声明完整FIGANI、跨框嘴型相位或共享RNG等价。最终C6仅修AI结果误用玩家HP前值的printf下溢诊断，业务、RNG和呈现不变，无新GUI。
 
 大阶段输入复审另保留两项既存风险：非ITEM的COMMAND关闭动画返回值仍有被忽略的调用，动画期间宿主quit可能先执行WAIT再退出；历史首次END确认落到NO的原因仍未定位。B4新提示的入口／scroll quit已单独处理，不把本阶段定向运行当作这两项已修或全历史输入回归。
 
@@ -182,7 +202,7 @@ B5 的交接顺序应先确认原版 callback、持续单位字段和剧情，�
 | 保存数据 | 本关 metadata、独立持久 roster、活动单位、cell state、stage/turn、镜头／焦点、配置及保留区 | 持久 roster、已确认 meta、配置及未知尾部 |
 | 当前可恢复关卡 | stage 0／1 及 stage 2 入场的15人活动快照，跨 stage 先准备资源再交换 | App 恢复 stage 1／2 准备状态；旧 Game 手工 Load API 仍拒绝导入活动 session |
 
-runtime `FD2_FIELD_MAX_UNITS` 当前为 64。**64／96／32 是三种不同边界，不能统一为一个猜测值，更不能保存时截断。** 跨关卡前必须确认实际 roster 与对应原版存档路径的关系。
+runtime `FD2_FIELD_MAX_UNITS` 已按原 malloc `0x1e00`恢复为96条，与活动快照容量一致；持久 roster仍独立为32条，不能保存时截断或用当前side2人数替代。64是旧SDL实现上限，不能继续作为原版容量。容量恢复不自动开放尚无场景／事件支持的关卡。
 
 活动 meta[1] 与 meta[9] 分别属于当前 actor 和持久 roster，不能互相约束或由当前 side 2 人数重算。持久记录按 text ID 表达跨关身份，新游戏按原版构造顺序建立；活动部署再设置位置、运行期 cache 和临时状态。未知字节在加载／保存往返中保留，不能从活动记录盲拷来构造新持久角色。
 
@@ -202,10 +222,10 @@ F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain�
 - 活动快照的关卡 metadata 有独立 owner：保存本关有效前缀，保留未使用尾；加载先检查 shape 与当前资源相符，并按本关已知模板数准备临时 metadata，全部预检成功后交接。不能仅更新 stage 数字却沿用旧关卡数据头。
 - 同关卡恢复复用现有事务导入。跨关卡恢复先准备独立候选 session，验证成功后再切换资源、调色板、音频及 owner；不能因资源准备失败留下半个新关卡。
 - 活动快照没有独立的 active-side 或 RNG checkpoint；原版恢复回玩家控制器边界，SDL 应清理 phase cursor、路径、菜单、演出和计时，按已确认入口处理随机流。不新增未知字段来追求读档后 RNG 序列相同。
-- 成功活动 Load 把焦点轮询起点重置为0，失败保持旧 owner；该值不从 SAV 读取。普通可见 actor 必须在当前 FDICON bank 中容纳完整12帧组，不能只验证当前idle帧，也不能套用F1的unit121／race10参与者过滤。hidden未知ID继续保留；这不等于原版畸形hidden记录也安全。
+- 成功活动Load把焦点轮询起点重置为0，失败保持旧owner；该值不从SAV读取。普通可见actor的映射cache必须在当前FDICON bank容纳完整12帧组，原方向5另验实际跨cache读取窗，不能只检查当前idle帧或套用F1的unit121／race10过滤。hidden未知ID继续保留；这不等于原版畸形hidden记录也安全。
 - 成功恢复清奖励／状态续态，但保留不属于SAV的全局经验贡献；失败保持原owner。奖励、状态、phase或详情忙态拒绝保存，不能把中间写点导出成正常边界。
 - 恢复不能把存档单位再次经过新建构造器重置 HP/MP、装备或等级，也不能再次播放已完成的增援事件。未知 meta、未使用单位尾部及未拥有的 cell-state 字节继续保留。
-- `FD2.TMP` cache class 不是职业。SDL 用稳定 unit ID／FDICON 重建运行期缓存；磁盘 TMP 互操作是否属于发布交付另行确认。
+- `FD2.TMP` cache class不是职业。热身份写入保留旧cache图形，Load则按原 `0x10010→0x11019` 用当前ID／raw顺序重建旁路cache；保留原80B及存档raw2，不保存旧TMP历史或增添SAV字段。磁盘TMP文件互操作不因旁路重建而自动完成。
 - 写回继续使用同目录独占临时文件与受检替换；失败不破坏原档。临时文件唯一不等于多进程更新锁，目前不宣称多个游戏进程并发写档安全。
 
 恢复成功后应用音频 bus 配置，并由 A5 已接入的场景编排请求对应曲目。活动 Load 不重播开场；准备状态 Load 回到酒店／城镇，出阵完成后才请求战场 primary。曲目请求、sequence 生命周期和声音保真分别验收，不能把音量恢复或曲目请求成功当作原版音色／时序一致。
@@ -214,17 +234,26 @@ F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain�
 
 已确认逻辑结果只提交一次。FIGANI 接入时复用现有确定性结算，演出用提交前快照和已确定的逐击结果展示过程；从原版动画内分离出的 effect 调用必须检查，不能又结算一次。跳过动画、完整播放、静音和 null device 不得改变最终单位、phase 或 RNG 次数。
 
-B6 的 Game 仍是唯一业务与随机数 owner。物理动作分 PREPARE、逐击 STRIKE 和一次 FINISH；预检先于费用／随机数，呈现失败后不重复已提交的攻击。FULL 按两项独立条件最多三击，SHORT 保留原 OR 条件最多两击；配置切换模式与“跳过当前 FULL 呈现”不同。后者不改变 Game 使用的 FULL 规则或随机数调用。
+B6／G2 的 Game 仍是唯一业务与随机数 owner。物理动作分资源 PREPARE、冷图中的地图／面板步骤、逐击 STRIKE 和一次 FINISH；预检先于费用／随机数，呈现失败后不重复已提交的攻击。玩家物理始终 FULL；AI 才按选项选 FULL 或 SHORT。FULL 按两项独立条件最多三击，SHORT 保留原 OR 条件最多两击；跳过当前呈现不改变所选算法或随机数调用。
 
-FULL 法术0..9由 Game 按原 phase0..8 推进同一个 `magic_fx` 状态，并记录每段 FX 随机数。效果、贡献、HP 插值与抖动随机数按原先后交错；呈现端只读重放该段 FX 记录，不能再调用业务 RNG 或 effect。HP 插值达到分母上限之后，后续有效 impact 仍消耗抖动随机数。效果计算得到的 HP 与最终可见 HP 分别记录：原8的后续目标可有贡献却没有 impact，不能强行补写效果 HP。原9多目标会越过现有 FX44 的合法 part，预检拒绝；非 side0 的原9 selector 未确认，不猜相邻值。玩家开放门仍限既有0／13及其已确认演员，通用演出能力不自动开放其余玩家法术。
+`progress.json` 的 `physical.full`、`physical.short` 和 `stationary.recover` 定义顺序及分支。SHORT 先地图刷新、反击朝向、39..48面板，再复位方向和攻击；存活且仍可反击才重画并反击。`1e611` 是地图与 HP 面板重画，不是箭头；其 caller 只传三实参，callee 却读取第四项。SDL 省略这次未定义索引的 HP 条，保留固定55和明确的第二条，不猜栈值。SHORT 的武器序列、FDOTHER64样本、solid64与逐列HP条由有限呈现器完成。counter只推进11eee的地形两字段及App jitter，不推进idle/walk或水DAC。
 
-Game 持有 FIGANI 原始归档；演出服务借用该字段地址，活动动作期间禁止 Load／close。物理／FULL 才按需读取 BG／TAI，地图13不要求无关背景。主、次 PCM 播放器均由 App 持有，动态样本借用 App 的 FDOTHER，直到 voice retire 后才释放。音效开关只抑制 cue／stop，不跳过资源检查；Game 不依赖音频设备是否存在。
+单单位静止恢复在 HP==max 或 raw+0x25／0x26 非零时立即返回，不改显示／焦点／HP。成功顺序是隐藏光标、聚焦、wait1、FDOTHER31声4、solid200、wait1、正常sprite、wait1，最后提交夹到 max 的 HP 并恢复显示；无浮字、无 RNG。恢复与 SHORT 共用现有同步物理呈现接口及 owner，恢复不借用 Magic13。首背景按已证caller及option3区分玩家WAIT信息板与AI纯背景，不另建SAV标志。AI11可能先施法再物理／恢复，所需资源以只读 probe 在首个 RNG 前保守预检；它不预测第二行动，缺资源时可能早于实际分支拒绝。
+
+资源 callback／resource-only probe 自身不写 Game、VGA 或 PCM。正式 AI 法术提交在 PREPARE 前已沿原序聚焦 caster／中心、设置显示上下文并清理 pending；资源拒绝保证单位、MP、贡献与 RNG 尚未提交，不保证整个公开提交调用的 Game 字节不变。不能把局部 PREPARE 快照断言扩大为 cursor／camera／失败 owner 的纯回滚，也不为此引入第二套视图状态。
+
+FULL法术0..9由Game按原phase0..8推进同一个 `magic_fx` 状态，并记录每段FX随机数。效果、贡献、HP插值与抖动随机数按原先后交错；呈现端只读重放记录，不能再调用业务RNG或effect。HP插值到分母上限后，后续有效impact仍耗抖动随机数。effect HP与最终可见HP分别记录：原8及9的后续目标可有贡献却无impact，不能补写HP。FULL9 的 BYTE 计数跨目标及完整九tick过渡保留，回绕后仍可产生impact；省略不存在的part绘制不会跳过计数、cue或业务。真实原目标循环／过渡／RNG与实际 C 的差分范围见[通用战斗语义 §9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
+
+G2沿同一同步 `magic_present` 接口提供FULL／MAP／DERIVED／COMPOSITE四模式。PREPARE先完整检查资源，禁止推进Game/RNG或借可写信息板owner更新布局；CAST、TARGET、STEP及传送四阶段借用当前结果／before／after投影。派生效果由Game先算core贡献、恢复旧HP，再按原caster每part marker写HP，duration0也保留写点；renderer只绘对应片段。32..35回地图后，各组CAST与组间POPUP_CLEAR遵循冷图。Item以action_kind区分来源，POPUP_GROUP显式控制浮字结束位置；这些同步栈结果不形成另一套持久事件队列。
+
+Game持有FIGANI原始归档；演出服务借用该字段地址，活动动作期间禁止Load／close。物理／FULL／派生／复合专用演出才按需读取BG／TAI，纯地图或Item恢复不要求无关背景。主、次PCM播放器均由App持有，动态样本借用App的FDOTHER，直到voice retire后才释放。音效开关只抑制cue／stop，不跳过必需资源检查；Game不依赖音频设备是否存在。
 
 Play 结束按“解绑两个呈现回调、关闭服务、关闭 Game”释放；错误锁存后走真实 ERROR，宿主退出走 HOST_QUIT。普通结束用只读地图返回绘制重建当前场景，退出／错误恢复动作前 VGA 快照。物理返回页保留普通光标；法术地图特效及正常返回页按1cff0／15311的51a83=0隐藏光标，仍绘当前角色、前景与信息板，不带范围或菜单。11cac的参数控制水面更新，不能当作光标开关。地图阶段投影读取同一时钟锚点，不调用 Game tick、AI 或 RNG；水色仍只在已确认 caller 更新，不能用每个 present 暗中推进。
 
 | 情况 | 处理原则 |
 |---|---|
-| 动作尚未确认或预检失败 | 拒绝本次动作，保留来源页和原状态 |
+| 查询或确认前预检失败 | 拒绝本次动作，保留来源页和原状态 |
+| AI已进入原提交序列、资源PREPARE失败 | 单位／MP／贡献／RNG尚未提交；原序已执行的聚焦、显示／pending及失败owner不承诺整Game字节回滚 |
 | Save/Load 文件无效或写入失败 | 报告本次存储失败，保留原文件和可用 session；不冒充成功 |
 | 必需玩法资源／handler 损坏或不支持 | 明确失败；不静默跳帧、改成待机或伪造成功 |
 | 设备不可用 | 使用已有 null/discard 音频降级，保留逻辑；不把设备失败等同于资源合法 |
@@ -238,6 +267,16 @@ BGM 仍由应用层持有。A5 已连接 stage 0／1 的 primary/alternate、城
 ## 7. 验证要求
 
 事件驱动的冷定义位于 `data/static/flows/`，由同一份生成节点供逻辑、呈现和预检消费。条件、顺序、等待及取消路径由数据决定；有限领域原语保留现有单位／资源 owner、事务及写点。`loot.step` 和 `progress.flow_step` 是当前 session 的热游标，notice 的运动快照只供已提交事件呈现；它们均不写入 SAV。事件流的结构与来源检查见[冷定义工具](../tools/static-data.md)，不能用其通过代替原版运行或声音验收。
+
+G2新增验证分三类，不能由其中一类推出另两类通过：
+
+| 证据 | 已覆盖的合同与限制 |
+|---|---|
+| SDL无窗口逻辑／输入适配测试 | `field_magic`／`field_magic_reward`／`field_magic_commit`覆盖正常技能族、费用、raw顺序、范围0／轴线30／传送、复合组、signed贡献与预检失败；`field_item_commit`覆盖20种use code、临时WORD／EX、浮字前后耗物顺序与失败冻结；`field_ai_commit`覆盖原candidate门与MAP9完整FX组／首效果目标。真实FIGANI／FDOTHER作为只读资源不等于真实窗口输入或原版逐帧对照 |
+| SDL无窗口呈现／资源测试 | `battle_animation`／`figani`／`field_visual`及列表／progress play测试验证借用结果、marker、模式／Item来源、四段传送、零duration、显式浮字组及资源错误；`field_game_system_menu`验证效果配置正式选项与原byte XOR1。它们不证明宿主WGC、全音画时序或任意caster／场景均已实机覆盖 |
+| 独立局部原机器码对照 | 原 `0x1c81f`与生产派生API独立C harness的23,040向量比对完整80B、贡献、raw伤害、RNG数及HP→贡献写序；只替换明确的栈检查／RNG夹具。不覆盖FIGANI wrapper、marker插值、SDL窗口或DOSBox运行；具体来源和工具见G2阶段记录及取证脚本 |
+
+本次合同文档更新不增加GUI通过结论。新增正式SDL输入、DOSBox代表场景、WGC与双端SAV按各候选的实际收据另列；B2／B3／B4／B6的历史结果保留原程序与场景身份，不因G2源域扩大而自动覆盖所有新路径。Windows是本轮执行平台，Linux兼容说明与未执行项继续独立登记。
 
 - 同一状态与注入 RNG 序列下，纯查询／提交前拒绝逐字段不变；取消检查业务状态及各级返回路径，真实UI等待按已确认调用点断言RNG消费，不能要求退款。成功动作只提交一次，并断言RNG消费次数。
 - 故障注入区分提交前与提交后，验证没有自动重放、额外 phase、双重释放或原档损坏。

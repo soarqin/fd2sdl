@@ -3,10 +3,10 @@
  * 逆向依据：DAT_00003a45 的 0x50 字节单位记录、
  * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
  * field_visible_actor_find_by_text_id @0x12c60，以及 FDFIELD metadata
- * 26 字节模板与 placement 的顺序匹配关系。战场单actor复现
+ * 26 字节模板与同索引 placement（metadata+2为有效前缀）。战场单actor复现
  * sub_127E0 @0x127e0（原登记同名），acted映色依据sub_4E1A6
  * @0x4e1a6（原登记同名）；129ec恢复全表actor附近遮挡格。
- * 本切片尚未补raw26的横向抖动。
+ * raw26从VGA共享BIOS tick旁路读取0/1px抖动，不写业务坐标。
  */
 
 #include "field_unit.h"
@@ -111,6 +111,45 @@ void fd2_field_units_clear(fd2_field_units *units) {
     if (units) memset(units, 0, sizeof(*units));
 }
 
+/* fdicon_cache_append_unit @0x11019（原登记同名）：同ID复用首次插入class。 */
+int fd2_field_units_sprite_cache_append(fd2_field_units *units, size_t actor) {
+    if (!units || actor >= units->count || units->count > FD2_FIELD_MAX_UNITS ||
+        units->sprite_cache_count > FD2_FIELD_MAX_UNITS) return -1;
+    size_t cache = 0;
+    while (cache < units->sprite_cache_count &&
+        units->sprite_cache_ids[cache] != units->items[actor].unit_id) cache++;
+    if (cache == FD2_FIELD_MAX_UNITS) return -1;
+    if (units->sprite_cache_count == 0) units->sprite_cache_exact = 1;
+    if (cache == units->sprite_cache_count) {
+        units->sprite_cache_ids[cache] = units->items[actor].unit_id;
+        units->sprite_cache_count++;
+    }
+    units->items[actor].sprite_cache_class = (uint8_t)cache;
+    units->sprite_cache_classes[actor] = (uint8_t)cache;
+    return 0;
+}
+
+/* sub_10010 @0x10010: Load忽略已存class，按当前actor顺序和当前unit ID重建。
+ * SDL保持SAV的80B，原重写record+2的结果仅放runtime旁路。 */
+int fd2_field_units_sprite_cache_restore(fd2_field_units *units) {
+    if (!units || units->count > FD2_FIELD_MAX_UNITS) return -1;
+    uint8_t ids[FD2_FIELD_MAX_UNITS];
+    uint8_t classes[FD2_FIELD_MAX_UNITS] = {0};
+    memset(ids,0xff,sizeof(ids));
+    size_t count=0;
+    for (size_t i=0;i<units->count;i++) {
+        size_t slot=0;
+        while (slot<count && ids[slot]!=units->items[i].unit_id) slot++;
+        if (slot==count) ids[count++]=units->items[i].unit_id;
+        classes[i]=(uint8_t)slot;
+    }
+    memcpy(units->sprite_cache_ids,ids,sizeof(ids));
+    memcpy(units->sprite_cache_classes,classes,sizeof(classes));
+    units->sprite_cache_count=count;
+    units->sprite_cache_exact=1;
+    return 0;
+}
+
 int fd2_field_unit_init(fd2_field_unit *unit,
                         uint8_t unit_id, uint8_t text_id, uint8_t side,
                         int x, int y) {
@@ -129,14 +168,40 @@ int fd2_field_unit_init(fd2_field_unit *unit,
 int fd2_field_units_set(fd2_field_units *units, size_t index,
                         uint8_t unit_id, uint8_t text_id, uint8_t side,
                         int x, int y) {
-    if (!units || index >= FD2_FIELD_MAX_UNITS)
+    if (!units || index >= FD2_FIELD_MAX_UNITS || units->count > FD2_FIELD_MAX_UNITS ||
+        units->sprite_cache_count > FD2_FIELD_MAX_UNITS)
         return -1;
+    fd2_field_units saved = *units;
     if (fd2_field_unit_init(&units->items[index], unit_id, text_id, side,
                             x, y) != 0)
         return -1;
     units->walk_frames[index] = 1;
     units->source_template_indices[index] = FD2_FIELD_UNIT_NO_TEMPLATE;
     if (units->count <= index) units->count = index + 1;
+    if (fd2_field_units_sprite_cache_append(units, index) != 0) {
+        *units = saved;
+        return -1;
+    }
+    return 0;
+}
+
+int fd2_field_unit_template_count(const fd2_field_metadata *meta, size_t *count) {
+    if (!meta || !count || meta->unknown_02 > meta->unit_template_count ||
+        (meta->unknown_02 && !meta->unit_templates)) return -1;
+    *count = meta->unknown_02;
+    return 0;
+}
+
+int fd2_field_unit_deployment_position(const fd2_field_metadata *meta,
+        const fd2_field_placements *placements, size_t ordinal,
+        uint8_t *x, uint8_t *y) {
+    size_t count;
+    if (!placements || !x || !y ||
+        fd2_field_unit_template_count(meta, &count) != 0 ||
+        ordinal >= meta->unknown_01 || count > placements->count ||
+        ordinal >= placements->count - count || !placements->records) return -1;
+    *x = (uint8_t)placements->records[count + ordinal].x;
+    *y = (uint8_t)placements->records[count + ordinal].y;
     return 0;
 }
 
@@ -144,27 +209,14 @@ static int placement_for_template(const fd2_field_metadata *meta,
                                   const fd2_field_placements *placements,
                                   size_t template_index,
                                   const fd2_field_placement **out) {
-    if (!meta || !placements || !out ||
-        template_index >= meta->unit_template_count)
+    size_t count;
+    if (!placements || !out ||
+        fd2_field_unit_template_count(meta, &count) != 0 ||
+        template_index >= count || template_index >= placements->count ||
+        !placements->records)
         return -1;
-
-    uint8_t unit_id = meta->unit_templates[template_index].bytes[1];
-    size_t ordinal = 0;
-    for (size_t i = 0; i < template_index; i++) {
-        if (meta->unit_templates[i].bytes[1] == unit_id)
-            ordinal++;
-    }
-
-    for (size_t i = 0; i < placements->count; i++) {
-        if (placements->records[i].unit_id != unit_id)
-            continue;
-        if (ordinal == 0) {
-            *out = &placements->records[i];
-            return 0;
-        }
-        ordinal--;
-    }
-    return -1;
+    *out = &placements->records[template_index];
+    return 0;
 }
 
 int fd2_field_units_append_template(fd2_field_units *units,
@@ -179,9 +231,6 @@ int fd2_field_units_append_template(fd2_field_units *units,
     if (placement_for_template(meta, placements, template_index,
                                &placement) != 0)
         return -1;
-    if (placement->x > 0xffu || placement->y > 0xffu)
-        return -1;
-
     fd2_field_unit unit;
     memset(&unit, 0, sizeof(unit));
     unit.x = (uint8_t)placement->x;
@@ -193,11 +242,14 @@ int fd2_field_units_append_template(fd2_field_units *units,
             &unit, &meta->unit_templates[template_index]) != 0)
         return -1;
 
-    size_t index = units->count;
-    units->items[index] = unit;
-    units->walk_frames[index] = 1;
-    units->source_template_indices[index] = (uint16_t)template_index;
-    units->count++;
+    fd2_field_units shadow = *units;
+    size_t index = shadow.count;
+    shadow.items[index] = unit;
+    shadow.walk_frames[index] = 1;
+    shadow.source_template_indices[index] = (uint16_t)template_index;
+    shadow.count++;
+    if (fd2_field_units_sprite_cache_append(&shadow, index) != 0) return -1;
+    *units = shadow;
     return 0;
 }
 
@@ -205,22 +257,41 @@ int fd2_field_units_append_group(fd2_field_units *units,
                                  const fd2_field_metadata *meta,
                                  const fd2_field_placements *placements,
                                  uint8_t group) {
-    if (!units || !meta || !placements) return -1;
-
-    size_t initial_count = units->count;
-    for (size_t i = 0; i < meta->unit_template_count; i++) {
+    size_t count;
+    if (!units || !placements || units->count > FD2_FIELD_MAX_UNITS ||
+        fd2_field_unit_template_count(meta, &count) != 0) return -1;
+    fd2_field_units shadow = *units;
+    for (size_t i = 0; i < count; i++) {
         if (meta->unit_templates[i].bytes[0x15] != group)
             continue;
-        if (fd2_field_units_append_template(units, meta, placements, i) == 0)
-            continue;
-        for (size_t j = initial_count; j < units->count; j++) {
-            memset(&units->items[j], 0, sizeof(units->items[j]));
-            units->walk_frames[j] = 0;
-            units->source_template_indices[j] = FD2_FIELD_UNIT_NO_TEMPLATE;
-        }
-        units->count = initial_count;
-        return -1;
+        if (fd2_field_units_append_template(&shadow, meta, placements, i) != 0)
+            return -1;
     }
+    *units = shadow;
+    return 0;
+}
+
+int fd2_field_units_project_group_identity(fd2_field_units *projection,
+        const fd2_field_metadata *meta, const fd2_field_placements *placements,
+        uint8_t group) {
+    size_t count;
+    if (!projection || projection->count>FD2_FIELD_MAX_UNITS ||
+        fd2_field_unit_template_count(meta,&count)!=0) return -1;
+    fd2_field_units shadow=*projection;
+    for (size_t i=0;i<count;i++) {
+        if (meta->unit_templates[i].bytes[0x15]!=group) continue;
+        const fd2_field_placement *position;
+        if (shadow.count>=FD2_FIELD_MAX_UNITS ||
+            placement_for_template(meta,placements,i,&position)!=0) return -1;
+        size_t actor=shadow.count;
+        const uint8_t *tpl=meta->unit_templates[i].bytes;
+        if (fd2_field_unit_init(&shadow.items[actor],tpl[1],tpl[1],tpl[0],
+                (uint8_t)position->x,(uint8_t)position->y)!=0) return -1;
+        shadow.walk_frames[actor]=1;
+        shadow.source_template_indices[actor]=(uint16_t)i;
+        shadow.count++;
+    }
+    *projection=shadow;
     return 0;
 }
 
@@ -232,8 +303,10 @@ int fd2_field_units_append_group_placed(fd2_field_units *units,
     if (!units || !meta || !placements || !map || !map->cells ||
         map->width < 1 || map->height < 1 || map->width > 256 || map->height > 256 ||
         units->count > FD2_FIELD_MAX_UNITS) return -1;
+    size_t count;
+    if (fd2_field_unit_template_count(meta, &count) != 0) return -1;
     fd2_field_units shadow = *units;
-    for (size_t t = 0; t < meta->unit_template_count; t++) {
+    for (size_t t = 0; t < count; t++) {
         if (meta->unit_templates[t].bytes[0x15] != group) continue;
         size_t raw = shadow.count;
         if (fd2_field_units_append_template(&shadow, meta, placements, t) != 0) return -1;
@@ -287,7 +360,7 @@ void fd2_field_unit_set_acted(fd2_field_unit *unit, int acted) {
 
 int fd2_field_units_find_visible_text_id(const fd2_field_units *units,
                                          uint8_t text_id) {
-    if (!units) return -1;
+    if (!units || units->count>FD2_FIELD_MAX_UNITS) return -1;
     for (size_t i = 0; i < units->count; i++) {
         const fd2_field_unit *unit = &units->items[i];
         if (!fd2_field_unit_is_hidden(unit) && unit->text_id == text_id)
@@ -296,26 +369,115 @@ int fd2_field_units_find_visible_text_id(const fd2_field_units *units,
     return -1;
 }
 
+/* callback内联写（235f9/3332b/34dd0/351e6等）与field_actor_range_status_set
+ * @0x344f2（原登记同名）。这里只执行一个有界领域写点，不合并事件顺序。 */
+int fd2_field_units_field_write(fd2_field_units *units, size_t first, size_t last,
+        fd2_field_unit_field field, fd2_field_unit_write operation, uint16_t value) {
+    if (!units || units->count > FD2_FIELD_MAX_UNITS || first > last ||
+        last >= units->count || operation < FD2_UNIT_SET || operation > FD2_UNIT_OR)
+        return -1;
+    size_t offset;
+    switch (field) {
+        case FD2_UNIT_X: offset=offsetof(fd2_field_unit,x); break;
+        case FD2_UNIT_Y: offset=offsetof(fd2_field_unit,y); break;
+        case FD2_UNIT_DIRECTION: offset=offsetof(fd2_field_unit,direction); break;
+        case FD2_UNIT_FRAME_PHASE: offset=offsetof(fd2_field_unit,frame_phase); break;
+        case FD2_UNIT_FLAGS: offset=offsetof(fd2_field_unit,flags); break;
+        case FD2_UNIT_SIDE: offset=offsetof(fd2_field_unit,side); break;
+        case FD2_UNIT_ID: offset=offsetof(fd2_field_unit,unit_id); break;
+        case FD2_UNIT_TEXT_ID: offset=offsetof(fd2_field_unit,text_id); break;
+        case FD2_UNIT_ATTACK_STATUS: offset=offsetof(fd2_field_unit,attack_status); break;
+        case FD2_UNIT_DEFENSE_STATUS: offset=offsetof(fd2_field_unit,defense_status); break;
+        case FD2_UNIT_HIT_STATUS: offset=offsetof(fd2_field_unit,hit_evasion_status); break;
+        case FD2_UNIT_STATUS_25: offset=offsetof(fd2_field_unit,detail_status); break;
+        case FD2_UNIT_STATUS_26: offset=offsetof(fd2_field_unit,detail_status)+1u; break;
+        case FD2_UNIT_STATUS_27: offset=offsetof(fd2_field_unit,detail_status)+2u; break;
+        case FD2_UNIT_DESCRIPTOR: offset=offsetof(fd2_field_unit,data_28_33)+9u; break;
+        case FD2_UNIT_AI_RAW: offset=offsetof(fd2_field_unit,ai_behavior_raw); break;
+        case FD2_UNIT_AI_PARAM_35: offset=offsetof(fd2_field_unit,ai_param_35); break;
+        case FD2_UNIT_AI_PARAM_36: offset=offsetof(fd2_field_unit,ai_param_36); break;
+        case FD2_UNIT_HP: offset=offsetof(fd2_field_unit,hp); break;
+        case FD2_UNIT_MP: offset=offsetof(fd2_field_unit,mp); break;
+        default: return -1;
+    }
+    int word = field == FD2_UNIT_HP || field == FD2_UNIT_MP;
+    if (!word && value > UINT8_MAX) return -1;
+    for (size_t i=first;i<=last;i++) {
+        uint8_t *record=(uint8_t *)&units->items[i];
+        uint16_t old=record[offset];
+        if (word) old|=(uint16_t)record[offset+1u]<<8;
+        uint16_t changed=operation==FD2_UNIT_SET ? value :
+            operation==FD2_UNIT_AND ? (uint16_t)(old&value) : (uint16_t)(old|value);
+        record[offset]=(uint8_t)changed;
+        if (word) record[offset+1u]=(uint8_t)(changed>>8);
+    }
+    return 0;
+}
+
+int fd2_field_units_ai_behavior_write(fd2_field_units *units,
+        size_t first, size_t last, uint8_t value) {
+    if (!units || units->count > FD2_FIELD_MAX_UNITS || first > last ||
+        last >= units->count) return -1;
+    for (size_t i=first;i<=last;i++)
+        units->items[i].ai_behavior_raw=(uint8_t)((units->items[i].ai_behavior_raw&0xf0u)|value);
+    return 0;
+}
+
 size_t fd2_field_unit_frame_index(const fd2_field_unit *unit,
                                   uint8_t walk_frame,
                                   uint8_t idle_phase) {
-    if (!unit) return SIZE_MAX;
+    if (!unit || unit->direction > 3u) return SIZE_MAX;
     uint8_t frame = unit->frame_phase != 0 ? walk_frame : idle_phase;
+    if (frame>3u) return SIZE_MAX;
     if (frame == 3) frame = 1;
+    if (unit->detail_status[1]) frame = 0;
     return (size_t)unit->unit_id * 12u +
-           (size_t)(unit->direction & 3u) * 3u +
+           (size_t)unit->direction * 3u +
            (size_t)frame;
 }
 
-void fd2_field_unit_render(fd2_vga *vga,
+size_t fd2_field_unit_cached_sprite_id(const fd2_field_units *units, size_t actor) {
+    if (!units || units->count > FD2_FIELD_MAX_UNITS || actor >= units->count)
+        return SIZE_MAX;
+    size_t cache=units->sprite_cache_classes[actor];
+    if (units->sprite_cache_exact && units->sprite_cache_count <= FD2_FIELD_MAX_UNITS &&
+        cache < units->sprite_cache_count && units->sprite_cache_ids[cache] != 0xffu)
+        return units->sprite_cache_ids[cache];
+    return units->items[actor].unit_id;
+}
+
+size_t fd2_field_unit_cached_frame_index(const fd2_field_units *units,
+        size_t actor, uint8_t idle_phase) {
+    size_t sprite=fd2_field_unit_cached_sprite_id(units,actor);
+    if (sprite==SIZE_MAX) return SIZE_MAX;
+    const fd2_field_unit *unit = &units->items[actor];
+    if (unit->direction <= 3u) {
+        size_t frame=fd2_field_unit_frame_index(unit,units->walk_frames[actor],idle_phase);
+        if (frame==SIZE_MAX) return SIZE_MAX;
+        return sprite*12u + frame%12u;
+    }
+    if (unit->direction != 5u || unit->frame_phase != 0 || !units->sprite_cache_exact ||
+        units->sprite_cache_count > FD2_FIELD_MAX_UNITS) return SIZE_MAX;
+    size_t cache = (size_t)units->sprite_cache_classes[actor] + 1u;
+    if (cache >= units->sprite_cache_count || units->sprite_cache_ids[cache] == 0xffu)
+        return SIZE_MAX;
+    if (idle_phase>3u) return SIZE_MAX;
+    uint8_t frame = idle_phase == 3u ? 1u : idle_phase;
+    if (unit->detail_status[1]) frame=0;
+    return (size_t)units->sprite_cache_ids[cache] * 12u + 3u + frame;
+}
+
+static void render_frame(fd2_vga *vga,
                            const fd2_map_sprite_bank *sprites,
                            const fd2_field_unit *unit, uint8_t walk_frame,
-                           int camera_x, int camera_y, uint8_t idle_phase) {
+                           int camera_x, int camera_y, uint8_t idle_phase,
+                           size_t frame_idx) {
+    (void)walk_frame; (void)idle_phase;
     if (!vga || !sprites || !sprites->decoded_frames || !unit ||
         fd2_field_unit_is_hidden(unit)) return;
-    size_t frame_idx = fd2_field_unit_frame_index(unit, walk_frame, idle_phase);
     if (frame_idx >= sprites->frame_count) return;
     int64_t sx = (int64_t)unit->x * 24 - camera_x;
+    if (unit->detail_status[1]) sx += vga->actor_jitter_phase & 1u;
     int64_t sy = (int64_t)unit->y * 24 - camera_y - 6;
     int64_t pixel_step = (int64_t)unit->frame_phase * 4;
     switch (unit->direction & 3u) {
@@ -340,6 +502,22 @@ void fd2_field_unit_render(fd2_vga *vga,
     fd2_map_sprite_blit(vga, &image, (int)sx, (int)sy, 0);
 }
 
+void fd2_field_unit_render(fd2_vga *vga, const fd2_map_sprite_bank *sprites,
+        const fd2_field_unit *unit, uint8_t walk_frame,
+        int camera_x, int camera_y, uint8_t idle_phase) {
+    render_frame(vga, sprites, unit, walk_frame, camera_x, camera_y, idle_phase,
+        fd2_field_unit_frame_index(unit, walk_frame, idle_phase));
+}
+
+void fd2_field_units_render_actor(fd2_vga *vga,
+        const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+        size_t actor, int camera_x, int camera_y, uint8_t idle_phase, int offset_y) {
+    size_t frame = fd2_field_unit_cached_frame_index(units, actor, idle_phase);
+    if (frame == SIZE_MAX) return;
+    render_frame(vga, sprites, &units->items[actor], units->walk_frames[actor],
+        camera_x, camera_y - offset_y, idle_phase, frame);
+}
+
 void fd2_field_units_render(fd2_vga *vga,
                             const fd2_map_sprite_bank *sprites,
                             const fd2_field_units *units,
@@ -351,8 +529,7 @@ void fd2_field_units_render(fd2_vga *vga,
     size_t order_count = 0;
     for (size_t i = 0; i < units->count && i < FD2_FIELD_MAX_UNITS; i++) {
         const fd2_field_unit *unit = &units->items[i];
-        size_t frame_idx = fd2_field_unit_frame_index(
-            unit, units->walk_frames[i], idle_phase);
+        size_t frame_idx = fd2_field_unit_cached_frame_index(units, i, idle_phase);
         if (fd2_field_unit_is_hidden(unit) || frame_idx >= sprites->frame_count)
             continue;
 
@@ -371,8 +548,7 @@ void fd2_field_units_render(fd2_vga *vga,
 
     for (size_t oi = 0; oi < order_count; oi++) {
         size_t unit_index = order[oi];
-        const fd2_field_unit *unit = &units->items[unit_index];
-        fd2_field_unit_render(vga, sprites, unit, units->walk_frames[unit_index],
-                              camera_x, camera_y, idle_phase);
+        fd2_field_units_render_actor(vga, sprites, units, unit_index,
+                              camera_x, camera_y, idle_phase, 0);
     }
 }

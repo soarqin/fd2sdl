@@ -155,6 +155,34 @@ G3 的冷定义应控制服务分支、提示、ACK、每级取消去向、物�
 | stage31 | 31 | 30 | index30／unit76／group10，共1条 | index30在原group循环外；placement总数30，不能把越界补默认坐标 |
 | stage32 | 40 | 30 | index30..39／unit96／group255，共10条 | 这10条均在原group循环外；不是凭group255名称判断无用 |
 
-上述分类解释12条为何不具备原正常group消费所需的位置；**不删除资源尾、不将整个来源报告改成全部语义通过**。当前SDL `src/field_unit.c` 的 `placement_for_template` 使用unit ID／ordinal匹配，`metadata.unit_template_count`主要来自原资源长度；它与原版按有效计数／同索引消费不是同一个合同。当前受支持夹具可能因前缀恰好同序而通过，不能推广为跨关正确。
+上述分类解释12条为何不具备原正常group消费所需的位置；**不删除资源尾、不将整个来源报告改成全部语义通过**。G1核查时SDL `src/field_unit.c` 的 `placement_for_template` 使用unit ID／ordinal匹配，`metadata.unit_template_count`主要来自原资源长度；它与原版按有效计数／同索引消费不是同一个合同。当时受支持夹具可能因前缀恰好同序而通过，不能推广为跨关正确。
 
-这是G2必须修复的通用初始化缺口：区分保留的完整raw模板区与有效可消费前缀，按原有效计数划分模板位置／玩家部署位置，按原同索引和低byte语义消费坐标，保留有效SAV metadata的owner。不把修复藏为stage0／31／32特判。验收应包含同ID重复、placement第3个WORD与template ID不相等但索引位置合法、有效前缀与额外尾、不同部署名额、活动Load有效metadata和失败不写；定向原版fixture比较完整活动表／持久表／坐标／派生和初始化顺序。修复实施和原版动态验证仍未执行，不能以此补读关闭G2。
+这是G2必须修复的通用初始化缺口：区分保留的完整raw模板区与有效可消费前缀，按原有效计数划分模板位置／玩家部署位置，按原同索引和低byte语义消费坐标，保留有效SAV metadata的owner。不把修复藏为stage0／31／32特判。验收包含同ID重复、placement第3个WORD与template ID不相等但索引位置合法、有效前缀与额外尾、不同部署名额、活动Load有效metadata和失败不写；定向原版fixture比较完整活动表／持久表／坐标／派生和初始化顺序。G1只有静态取证；G2实施与验证边界见下节。
+
+## 10. G2 单位运行时合同
+
+`FD2_FIELD_MAX_UNITS`恢复原96条，单位记录仍为80B。`fd2_field_unit_template_count`从原metadata byte2取有效前缀，并拒绝超过保留模板资源的计数；group追加和Scene初始化按该前缀消费同索引placement的坐标低byte。部署位置由同一前缀终点加roster序号取得，原byte1限制部署名额。资源总条数、完整placement第三WORD和尾部记录仍由原owner保留。追加或构造失败在副本中结束，不清写调用方原有尾部。
+
+对白资源预检单独使用`fd2_field_units_project_group_identity`在借用副本投影身份／位置，不做基础／装备派生或cache登记。这个副本不能提交为真实单位；坏装备、外部hook等错误仍在正式callback原构造写点处理，不因补齐构造器而前移业务失败门。
+
+基础构造保留0..31／68..135域，并加入stage32真实调用的48／66读窗。`unit_base.json`只记录两条alias视图：48→growth+384、66→stage_prepare+68；生成器从唯一冷源投影24B，不新建可编辑基础表，不开放其它32..67构造。模板构造在base之后完成原`0x1b750`的装备派生，成功后才能追加actor；未知基础源或坏装备不会留下部分单位。`field_unit_render_test`直接读取原EXE基础／成长／敌军／装备原窗，对33组资源的1887条有效模板逐项计算基础和四项派生WORD，独立于生产JSON／getter。此为静态原源字段比对，不是1887次原版运行。
+
+`field_event`提供全部106条已核计数流，仍不解除stage／callback支持门。全106流计数长度合计2896B，原指针候选payload仍为2898B；二者分别报告，不改写SD3历史。script24读取13B跨下一候选边界，script84只消费5B、候选余4B保留。96 actor、原pair数组32上限和完整消费校验在执行前完成；actor越界、坏方向／截断不写单位。原mode0不更新朝向；mode80零步保留raw5，所选actor仅在演出工作页上抬12px、等待2tick后恢复正常页，业务格坐标不变。
+
+### 10.1 原cache顺序与活动Load
+
+`fdicon_cache_append_unit @0x11019`按首次出现的unit ID去重，原`sub_127E0 @0x127e0`按`class*12+direction*3+frame`取帧。SDL在`fd2_field_units`旁路保留相同cache序列／runtime class；会话内所有方向优先投影该映射。因而`0x2548c`／`0x34dd0`只写unit ID而未重建cache时，地图仍显示旧cache sprite；raw5跨到下一原class的方向1帧，不能改成unit ID+1或`direction&3`。缺少目标class时明确拒绝该呈现，不猜帧。
+
+原活动Load并不恢复旧cache：`sub_10010 @0x10010`在`0x1035c`清cache计数，`0x1036a..0x1039c`逐raw读取当前`actor+7`调用`0x11019`，在`0x10391`重写原record+2，随后写新的`FD2.TMP`。SDL的`fd2_field_units_sprite_cache_restore`复现该顺序，但将新class写入可重建旁路，保留SAV全部80B及旧raw+2。有效原档、旧SDL全0 class档采用相同Load合同。热改身份前仍旧sprite，保存后Load按新ID重建sprite，是原版自身的可见变化；不承诺跨Load保留旧TMP画面，不新增SAV字段。
+
+该结论另有四函数Domain窄读集：`10010/11019/2548c/34dd0`共2911B与strict LE镜像逐字一致，`build/g2/cache-load-evidence.json` SHA256 `eff244cac03080c8b394489275fbf10018b80b95e31d27f2d4239a3ea10ac84e`。可通过`tools/ida/g2_unit_runtime_evidence.py`的`collect(db, output, strict_image)`复取；工具不保存数据库，原字节报告保持ignored。
+
+### 10.2 有限事件写点和证据边界
+
+`fd2_field_units_field_write`只接受已列举的坐标／方向／frame／flags／阵营／身份／六状态／descriptor／AI／HP／MP字段及SET／AND／OR。`fd2_field_units_ai_behavior_write`复现`0x344f2`的`(old&0xf0)|arg`，不把AI34误当通用状态。参数范围和写点先完整校验，错误不写单位；这些原语不接收任意地址或offset，也不自动隐藏HP0、结算掉落或重算属性。原事件要求的派生、败亡、掉落与ACK顺序仍须在G4领域执行器及S绑定中按原冷图接线，不能用单字段写宣称整段事件已经完成。
+
+raw26视觉复用VGA App级共享tick锚：frame强制0、水平0／1px相位，不改actor坐标或RNG；Scene hidden分支快照使用96条有界数组，避免64位位移截断。signed奖励贡献保留DWORD bits，原signed total低于100（含负数）沿冷图488提示／ACK、11tick关闭／ACK、EX低byte提交，不升级、不降级或重算。低byte回绕可使EX大于99；后续奖励仍以signed total判断，不能按gain负号跳过升级。例如EX95减100写251，再减1仍以total250升级两次后余50。
+
+当前可复核的独立原源检查包括9张原表8528B、两条构造alias窗48B和106条脚本2896B；magic新增四张有限投影另由`verify_magic_contracts`核语义来源，不混算为这里的原字节表。SDL自动回归、局部原机器码与DOSBox/WGC动态对照分别记在G2阶段收据。本文没有把无窗口自测或源码构造批量比对标成新的原版动态通过；stage32 alias、raw5临时页、raw26状态和新增完整构造路径的代表性运行验收仍须由主执行者串行留证。
+
+2026-11-10单位子域的Windows/MSVC Debug定向构建与CTest为6/6：`field_event`、`field_unit_render`、`field_unit_base`、`field_growth`、`field_stage_transition`、`scene_handoff`。其中`field_unit_render`包含上述1887条模板源字段／四项装备派生比对，`scene_handoff`包含96条hidden快照分支及现有开场交接；均不启动窗口。冷定义／来源保护的58项Python回归通过；G2 native夹具模块另有6项完整SAV有限门负例通过，仅是oracle自检。Linux、DOSBox/WGC及真实输入不由这些结果代替；G2整体状态仍以统一计划与主执行者实际收据为准。

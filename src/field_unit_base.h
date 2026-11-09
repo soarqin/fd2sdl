@@ -29,9 +29,10 @@ int fd2_field_unit_level_growth_prepare(
 /* field_unit_experience_reward_execute @0x1e292（原sub_1E292）的纯终态预检，不代替原提示前后逐步写序。
  * 0=原入口早退（gain0/hidden/精确等值levelcap），1=写入out，-1=SDL拒绝。
  * 0/-1均不写out；source在out不是其显式别名时不变，支持out==source。
- * gain按已证非负signed-int
- * 范围检查，不给玩家加cap99：caller仍负责117e7/1548e各自归属和贡献生命周期。
- * 活跃奖励仅支持已有成长row的ID0..67；逐级WORD相加、学习OR和既有装备派生在80B副本完成。
+ * gain保存原signed DWORD bits（含负贡献），total按DWORD加法及signed比较；
+ * 不给玩家加cap99：caller仍负责117e7/1548e各自归属和贡献生命周期。
+ * 实际升级才要求已有成长row；负total只写EX byte，不降级、不重算。
+ * 逐级WORD相加、学习OR和既有装备派生在80B副本完成。
  * 当前HP/MP、未知字节不改；状态缩放借既有回调。没有RNG、音画、53EC8或session写入。 */
 int fd2_field_unit_reward_preview(
     const fd2_field_unit *source, uint32_t gain,
@@ -42,6 +43,8 @@ int fd2_field_unit_reward_preview(
  * 当前登记已由 stage 0、新游戏存档或运行时构造器交叉验证的 unit ID；
  * 未登记 ID 返回 -1，且不修改记录。 */
 int fd2_field_unit_base_apply(fd2_field_unit *unit, uint8_t level);
+/* 原32条base加stage32实际调用的48/66相邻24B窗口；无源的新建ID返回NULL。 */
+const uint8_t *fd2_field_unit_base_record_get(uint8_t unit_id);
 
 /* field_enemy_base_record_get @0x4e84f（原登记sub_4E84F）：object3 VA0x61af9的68条
  * 10-byte敌军record，sub_1C81F @0x1c81f读取末字节经验系数。
@@ -59,8 +62,8 @@ int fd2_field_unit_persistent_stats_recompute(fd2_field_unit *unit);
  * 输入记录。支持原版 player base 的 ID 0..31，失败时不修改记录。 */
 int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id);
 
-/* 将 FDFIELD 26 字节模板按原版 stage constructor 重排到新单位记录，
- * 并调用基础表等级派生。保留调用方预设的 x/y；失败时不修改记录。 */
+/* 将 FDFIELD 26 字节模板按原10c50重排、基础等级派生及最终1b750装备派生。
+ * 初始六状态清零，不用外部缩放；保留预设x/y，坏装备/基础源失败不写记录。 */
 int fd2_field_unit_stage_template_apply(
     fd2_field_unit *unit,
     const fd2_field_unit_template *template_record);

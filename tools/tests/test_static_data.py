@@ -1,5 +1,6 @@
 """冷定义生成器拒绝坏输入；生产表由独立原版来源另行核对。"""
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import tempfile
@@ -61,10 +62,10 @@ class StaticDataTest(unittest.TestCase):
     def test_movement_actor_capacity_checked_before_generation(self):
         document = self.document()
         table = document["tables"][0]
-        table.update(dimensions=[5], values=[1, 1, 1, 63, 0])
+        table.update(dimensions=[5], values=[1, 1, 1, 95, 0])
         table["source"]["script_id"] = 42
         generate.render(generate.validate_document(document), "0"*64)
-        for actor in (64, 255):
+        for actor in (96, 255):
             table["values"][3] = actor
             with self.subTest(actor=actor), self.assertRaisesRegex(ValueError, "actor/direction"):
                 generate.render(generate.validate_document(document), "0"*64)
@@ -82,6 +83,18 @@ class StaticDataTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "reference"):
                 generate.validate_references(tables)
             tables[name][0][column] = old
+
+    def test_constructor_alias_projection_has_only_reviewed_source_windows(self):
+        tables = {t["name"]: t["values"] for path in (ROOT / "data/static/tables").glob("*.json")
+                  for t in generate.load_json(path)["tables"]}
+        self.assertEqual([len(row) for row in generate.constructor_alias_records(tables)],[24,24])
+        for row,column,value in ((0,0,40),(0,1,2),(0,2,750),(1,2,800)):
+            changed=copy.deepcopy(tables);changed["k_player_base_alias_views"][row][column]=value
+            with self.subTest(row=row,column=column), self.assertRaisesRegex(ValueError,"alias reference"):
+                generate.constructor_alias_records(changed)
+        changed=copy.deepcopy(tables);changed["k_stage_prepare"]=[]
+        with self.assertRaisesRegex(ValueError,"source extent"):
+            generate.constructor_alias_records(changed)
 
     def test_manifest_sources_contracts_and_stale_output_rejected(self):
         with tempfile.TemporaryDirectory() as name:

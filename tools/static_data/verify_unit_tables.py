@@ -36,6 +36,7 @@ TABLES = {
     ),
     "movement": (("k_profiles", "uint8_t", (29, 20), 0x61646),),
 }
+MAGIC_CONTRACT_TABLES = ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS", "MAGIC_MAP_TARGET_LIMITS", "MAGIC_MAP_COST_BEFORE_CAST")
 
 
 def source_range(data: bytes, va: int, size: int) -> bytes:
@@ -110,7 +111,8 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
     for stem, specs in TABLES.items():
         document = json.loads((tables_dir / f"{stem}.json").read_text(encoding="utf-8"))
         tables = document.get("tables")
-        if document.get("schema_version") != 1 or not isinstance(tables, list) or len(tables) != len(specs):
+        expected_count = len(specs) + (1 if stem == "unit_base" else len(MAGIC_CONTRACT_TABLES) if stem == "magic" else 0)
+        if document.get("schema_version") != 1 or not isinstance(tables, list) or len(tables) != expected_count:
             raise ValueError(f"{stem}: 格式版本或表集合不符")
         for table, spec in zip(tables, specs):
             count = 1
@@ -120,7 +122,42 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
             check_table(table, spec, source_range(data, spec[3], size))
             checked += 1
             total += size
-    return {"ok": True, "tables": checked, "source_bytes": total, "executable_sha256": EXE_SHA256}
+        if stem == "magic":
+            for table,name in zip(tables[len(specs):],MAGIC_CONTRACT_TABLES):
+                if (table.get("name"),table.get("c_type"),table.get("dimensions")) != (name,"uint8_t",[28]):
+                    raise ValueError("magic contract: 新增有限投影的名称／类型／维度不符")
+                values=table.get("values");source=table.get("source",{})
+                if (not isinstance(values,list) or len(values)!=28 or
+                        any(type(value) is not int or not 0<=value<=255 for value in values) or
+                        source.get("file")!="FD2.EXE" or source.get("file_sha256")!=EXE_SHA256 or not source.get("evidence")):
+                    raise ValueError("magic contract: 投影整数／原EXE来源不符")
+    unit = json.loads((tables_dir / "unit_base.json").read_text(encoding="utf-8"))["tables"]
+    stage = json.loads((tables_dir / "stage.json").read_text(encoding="utf-8"))["tables"]
+    windows = {identity: source_range(data, 0x61DA1 + 24 * identity, 24) for identity in (48, 66)}
+    check_constructor_alias_views(unit, stage, windows)
+    return {"ok": True, "tables": checked, "source_bytes": total,
+            "constructor_alias_views": len(windows), "constructor_alias_bytes": 48,
+            "extra_magic_contracts":len(MAGIC_CONTRACT_TABLES),
+            "executable_sha256": EXE_SHA256}
+
+
+def check_constructor_alias_views(unit_tables, stage_tables, expected):
+    """独立固定getter地址和实际调用ID，不导入生成器的投影实现。"""
+    unit = {table["name"]: table for table in unit_tables}
+    stage = {table["name"]: table for table in stage_tables}
+    alias = unit.get("k_player_base_alias_views", {})
+    if (alias.get("c_type"), alias.get("dimensions"), alias.get("values")) != (
+            "uint16_t", [2, 3], [[48, 0, 384], [66, 1, 68]]):
+        raise ValueError("constructor alias: 未确认的构造ID／来源／偏移")
+    source = alias.get("source", {})
+    if source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256 or not source.get("evidence"):
+        raise ValueError("constructor alias: 来源身份缺失")
+    # 48读growth+384，66读stage_prepare+68；两个getter窗均非新基础表。
+    growth = bytes(number for row in unit["k_growth_records"]["values"] for number in row)
+    preparation = bytes(number for row in stage["k_stage_prepare"]["values"] for number in row)
+    for identity, payload, offset in ((48, growth, 384), (66, preparation, 68)):
+        if set(expected) != {48, 66} or payload[offset:offset + 24] != expected[identity]:
+            raise ValueError("constructor alias: 投影字节与独立getter原窗不符")
 
 
 if __name__ == "__main__":

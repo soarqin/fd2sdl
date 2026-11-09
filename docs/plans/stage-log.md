@@ -1354,3 +1354,50 @@ Windows新App为 `eedd635302b71b6fa1cfd91bae77bd259a2d01866139eeb18ee628c9cfb6e1
 交叉复审实际发现并修复：分类器遗漏containing chunk的保护、未决family误算通过、共享尾的文本／地图／masked AI及回合条件漏归类；临时计划激活／恢复期间的用户切换竞态增加写前复查和最终核验。OS缺少计划切换CAS，仍如实记录最后检查至调用间的系统竞态，不宣称原子恢复。最终专项复审无剩余来源归属阻塞；376callee闭包由采集者核查，复审者未独立重跑，不扩为双重执行签名。
 
 G1 完成门限于本审计来源的语义族分类与必要依据；`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled`仍为false。没有局部原机器码执行、新服务原版运行、所有对话参数轨迹或Linux验收。G2—G5尚未完成，接续G2完整战斗机制与必要动作呈现；本阶段不解除玩法支持门、不开始S。
+
+## G2 通用战斗机制与动作呈现（2026-11-10）
+
+以下前段保留阶段内候选身份；最终收口见本节末尾，不将中间检查点误作当前状态。G1提交`5b9619f`保持已集成；G3—G5未实施，S未启动。当前矩阵覆盖更新和剩余阶段门见[审计§9](common-logic-audit.md)。
+
+已执行Windows/MSVC Debug定向27项CTest（包含96容量／同索引构造／cache、成长、法术／Item提交与失败、呈现、存档和直接受影响的旧资格断言），当前均通过；不是G5全历史回归。冷定义当前168表、五域36流程／565节点／6绑定，原9单位表8528B＋alias48B、106脚本2896消费字节独立核验。具体后续候选的呈现修复仍需其自身直接复测，不把此前27项视为未来改动已通过。
+
+局部原码已执行descriptor default760例／BIOS清队771次；派生核心1c81f与实际C API 23040向量一致，包含完整80B、贡献DWORD与RNG次数，未直接观察C中间写序。原4e127完整127B又经180向量验证，其arg_C颜色被忽略，实际按stride低BYTE填色；含literal0／alternate／skip与全部目标guard／写地址。三类局部执行都不能替代DOSBox实机或完整呈现验收。
+
+`build/g2/native-teleport23-01/`已双端通过首层／目的地层取消和完整22987B存档门；`native-derived28-01/`已双端通过真实stage22 unit19模板派生、固定FIGANI59八effect marker、相关HP／EX候选、唯一奖励值488自动页与一次END后的全存档；原件PNG身份补核为`derived28-reward-identity.json`。`native-composite34-02/`和`-03/`业务／存档均过，但呈现门没有通过，不能据业务pass签动作呈现。它们均正常清理owned进程、保持原资源和存档守卫、同线程释放显示需求；未改电源计划或混音器。
+
+当前34离线原件门从原资源证明intro157→special67→三组FX／flash／绿浮字的顺序。SDL旧192常色不符；首次按caller色表146／72／216修改也被完整callee与原截图反证，随后撤除这个无真实消费者的新增表，改为fixed456域有效常量200。动态stride的1da16其它caller须分别处理，不能照抄200。原`native-composite34-01/`因脚本误将含125透明像素的回合横幅当不透明矩形而超时，保留失败、没有盲发额外键，后按原透明写mask修正；该失败不记产品bug或通过。
+
+最终200共享getter已经Game与MAP／Item共用，新增6色参数×3裁切全像素／owner回归及最终5项CTest通过。`native-composite34-04/`业务门及`composite34-04-visual-callee-gate.json`双端11个有序资源阶段均过；`native-teleport23-success-01/`成功目的地／MP／焦点／一次END全存档双端过；`native-item-use-05-01/`、`-19-01/`、`-20-01/`三代表正式路径及独立cache门均过。112项相关Python源／发布／schema／oracle回归通过。所有目标正常清理，无强制退出／残留，显示需求释放；这仍不是全动态RGB或声音等价。
+
+上述为前一保存点的候选与证据。后续已接续的代码、修复和未闭合门见下节；该检查点尚未提交／集成。END批量恢复与回合通知编排仍归G4，G2的必要单动作反馈不得由此延期。
+
+
+### G2 接续：SHORT、单恢复及 FULL9（2026-11-10）
+
+SHORT AI物理现有面板、HP条、六武器FX族、bank64声音、实体64与反击重画；恢复复用同一有限同步服务，bank31/cue4、实体200→normal及三wait后HP提交。`progress.json`新增三个流程，现171表、五域39流程／606节点／6绑定。玩家物理经完整caller核实始终FULL，已同时修正算法与呈现分派；`1e611`是地图／面板重画，原第四实参未提供，安全省略该未知索引HP条，保有证固定55及明确第二条。来源和有效域见[通用战斗语义§9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
+
+FULL9移除整动作多目标灰门，只对不存在的beam part省绘制，保共享BYTE／原效果／贡献／HP插值／RNG。真实public Game探针21例在`full9-c-probe-21.jsonl`，SHA256 `d2ded3e6a09f3aeb63d5418f1eaf233e6e39624a38c4dd82570db5bb6f5bb203`；其中17例原机器码对照全等，最终复审收据`build/g2/full9-wrapper-comparison-final.json`，其余四例95目标只属C容量。原完整31266、2ce1a、伤害core与真实RNG执行，绘制／音频／等待为显式替身。C侧为每次RNG前及TARGET／FINISH观察，没有逐C内存写trace或renderer调用；原目录外请求与C省绘制的证据分开。旧16例与初版17例收据保留原身份。
+
+本次先在同一候选重建并通过六项直接相关CTest（attack、AI commit、progress、magic FX、battle animation、full magic）；随后交叉审查发现raw5合法缓存状态被新renderer过早拒绝，修复并定向重建，battle_animation现30组、field_unit_render／field_progress_play三项同轮通过。只读资源probe修复了AI11先magic后physical／恢复的晚资源失败；只读资源身份按scene去重，不新增planner或持久缓存。当前源／发布／flow／新恢复工具31项Python通过。旧27项、112项与七组双端按其自身候选保留，不记本轮全量或G5回归。
+
+原生恢复首轮`native-recovery-01/`在原端有序实体200→normal和bank31/cue4身份门通过，但测试包装器误将`source_guard`传给`wait_state`，保存门未完成，SDL未启动。修复包装器后，第二轮`native-recovery-02/`声音门通过而未捕获solid200，仍未开始SDL。两轮均source守卫true、owned进程正常退出、无残留／强制清理、显示需求同线程释放，原计划／混音器未动；两轮均不算双端通过。新增真实Save协议纯回归及可选采样间隔：旧共享请求默认33ms不变，恢复固定请求16ms，收据分别记请求与真实WGC时间戳间隔，不把请求频率当实际帧率。
+
+`native-recovery-03/`以新16ms请求完成实体normal→solid200→normal、bank31/cue4与全22987B存档双端门，source/owned清理/显示释放均true；两端实际时间戳中位间隔分别33.35／16.68ms。随后实际PNG复审发现SDL恢复页多info板，旧实体ROI门不覆盖此差异。正在只改恢复背景投影并增加原地图tile正门，保留03为旧信息板负例，不把它扩为全画面通过。
+
+`native-recovery-04/`新增独立原FDFIELD/FDSHAP tile156的完整576px正门，实体solid／normal-after均与背景同时匹配；原03离线通过、旧SDL03被525/576像素差拒绝。当时恢复首背景改现有mode0；反击按tiles＋127a9顺序重画，但当时冻结terrain的判断后来被11eee完整callee反证，最终修正见下文。App原raw26 jitter门保留，SHORT_MAP原11cac点不动。30组呈现及相关play定向CTest通过；04原版／SDL的实体、背景、bank31/cue4和全22987B均真通过，source／owned正常清理／同线程显示释放true，无电源计划或混音器改动。App SHA256为`f1137e10ae3481f4d15491b30b6146d290199773cc79f8dff3bfbdaa3716f288`。仍不承诺全动态RGB或精确音频时序。
+
+上述为收口前检查点；最终状态如下。
+
+### G2 最终定向验收、复审与提交门
+
+SHORT01原版全门通过，SDL业务／声音／面板／后续FX通过，但80ms首FX落在100ms采集间隙内，未捕获完整solid64，不记双端通过。独立CPU探针核真实Game／资源的首呈现449个不透明点（436个64＋13个FX6）全等，只替换时钟／present／音频，不当作WGC。SHORT02试图外部改640客户端，Win32返回true但SDL固定960未变，SDL动作未执行；失败工具与SDK源码摘录归档于`build/g2/short-resize-attempt/`，永久工具已删除resize路径，未加产品窗口功能。
+
+原1eb05只等待十次25ms；1e7f6初始HP条直接写VGA，无独立等待／翻页。撤除SDL新增的零时长中间上传后，HP条仍先写CPU，首次STRIKE与实体64／FX6一并上传，80ms不变。`native-short-03/`默认960×600双端通过：全22987B、HP42→31、面板／完整实体454点（441个64＋13个FX6）／后续FX／HP条及bank64声3。声音身份分数原版0.9764235、SDL0.9883871；source守卫、owned正常退出／无残留、同线程显示释放均true，无计划／混音器改动。实际App为`cdcc279ad5e628e40c161dd20cd6d47e9135ea277bf8619ff43ef4db5429def8`。
+
+最后来源复审还修正两处上下文：玩家WAIT的12cea总刷新，信息板须结合option3与COMMAND／selected／side2 caller保留，AI END抑制；仅在现有exchange局部表达，不新增Game或SAV字段。1e611中的11eee会推进53A40地形门，故counter仅推进terrain两字段及127a9的App jitter，不推进1297d idle/walk或水DAC。真实Game提取原地形逻辑，覆盖55ms／同tick／长间隔不追赶／时间倒退／非法对象和组合字段写集；呈现31组覆盖caller八组合与counter写集。最终构建和4项直接CTest（attack、AI commit、unit render、battle animation）通过，记录`build/g2/final-counter-terrain-{build,ctest}.log`。保留既有一条测试常量cast警告，未宣称零警告。恢复04及SHORT03保持各自实际二进制身份；后者没有反击，不称最终counter已原生跑过。
+
+最终相关Python 49项通过；实际Domain数据库已再次应用注释、保存、导出及重新反编译，1312函数边界／原型和全部segment字节不变，314条命名登记、2项既有Hex-Rays失败保留。最后刷新11项SHA256SUMS，发布交叉校验14项通过。171表生成检查及runtime独立源门（11表、10额外cue、22负例拒绝）通过；这些不是重跑静态LE全验或原版运行。
+
+正常caster专门门以32base／68growth／20learning／合法转职、1887有效模板和408FIGANI核50个玩家FULL组合、238模板实例／30独立组合均非empty。原FIGANI count是BYTE，+1为split；初次WORD诊断被真实split1头与目录反证，未进入产品。stage13 unit103／30的零分／MAP排除单列；任意外部SAV或未来来源不在声明内。FULL9最终差分也使用BYTE／split，17例原机器码全等，95目标四例仅C容量，报告`full9-wrapper-comparison-final.json`。
+
+G2最终保留171表、五域39流程／606节点／6绑定；冷图、有限领域操作、现有热owner／80B／SAV／RNG合同无新平行状态。交叉复审修复了raw5、solid stride、caller信息板、初始上传及counter时钟问题；无剩余已识别G2机制阻塞。完成G2阶段提交后接续G3，不等待“继续”。阶段Git身份与本地FF／主程序重建／用户存档守卫写入ignored `build/g2/local-integration.json`；G3—G5仍未完成，S未启动。早期27项CTest／112项Python、七组新增双端与本节补充按各自候选联合成立，不冒充最终程序单轮全历史、全RGB／波形、Linux或G5回归。

@@ -44,6 +44,11 @@ int fd2_field_magic_list_select_step(
  * 字段在 AI 评分层暂按原始 offset 使用，避免提前赋予玩法语义。 */
 const uint8_t *fd2_field_magic_record_get(uint8_t magic_id);
 uint16_t fd2_field_magic_u16(const uint8_t *record, size_t offset);
+typedef struct {
+    uint8_t effect_id, cost_id, target_limit, cost_before_cast;
+} fd2_field_magic_map_profile;
+/* 51d01真实28槽wrapper合同投影；24的别名与17费用、首目标限制来自冷定义。 */
+int fd2_field_magic_map_profile_get(uint8_t id, fd2_field_magic_map_profile *out);
 
 /* field_magic_damage_profile_apply @0x1c75e 使用的 object2 DS:0x1f96
  * 28 项 u32 倍率表；索引 0 对应 profile 1。 */
@@ -80,14 +85,17 @@ typedef struct {
     uint16_t hp_after;
     uint32_t raw_damage; /* 命中伤害在HP夹零前的数值；miss／治疗为0。 */
     uint32_t experience_value;
-    uint32_t raw_heal; /* 1c916未夹顶恢复量，供1e0db浮字；满HP亦保留，不重复RNG。 */
+    uint32_t raw_heal; /* 原绿色浮字量：恢复未夹顶量／AP、DP原增量／命中15。 */
+    int32_t signed_damage; /* 2cf30的signed伤害投影；普通伤害与raw_damage相同。 */
 } fd2_field_magic_basic_result;
 
 /* 仅ID0伤害／ID13治疗。最坏原始经验贡献查询不耗RNG、不写target；
- * 未知敌军系数、坏profile／HP等失败时不写output。调用方先以uint64
- * 累加全部目标上界，再经reward_normalize预检，之后才扣MP和执行效果。 */
+ * 未知敌军系数、坏profile／除零域等失败时不写output；保留hp>max时
+ * signed负恢复贡献。多目标按DWORD累计，再归一／预检正负提示分支。 */
 int fd2_field_magic_basic_reward_max(
     uint8_t magic_id, const fd2_field_unit *target, uint32_t *experience_value);
+int fd2_field_magic_basic_reward_bounds(uint8_t magic_id,
+    const fd2_field_unit *target, int32_t *minimum, int32_t *maximum);
 
 /* 复用既有效果公式／RNG；返回1命中、0miss、-1拒绝（不写结果）。
  * 单目标结果只提交target HP与output，不扣MP、不写caster EX。
@@ -101,9 +109,25 @@ int fd2_field_magic_apply_player_basic_effect(
 int fd2_field_magic_apply_damage_result(uint8_t magic_id, fd2_field_unit *target,
     fd2_field_magic_rng_fn rng, void *userdata, fd2_field_magic_basic_result *result);
 
+/* 地图共享core的单目标提交及只读结果。override=-1取原record，非负仅
+ * 用于复合33的HP恢复800；保留实际owner写点，不能用结果再次提交。
+ * 目标组顺序、费用、浮字清除与复合分支由冷图和Game负责。 */
+int fd2_field_magic_apply_effect_result(uint8_t id, uint8_t index,
+    fd2_field_units *units, int32_t power_override, fd2_field_magic_rng_fn rng,
+    void *userdata, uint32_t *owner, fd2_field_magic_basic_result *result);
+/* 2cf30→1c81f：signed AP倍率减signed DP，不经过命中/profile倍率；
+ * core先写HP与贡献，Game随后恢复旧HP并按caster每个marker推进。
+ * 结果signed_damage为min(rawDamage,signed oldHP)，供原BYTE marker计数。 */
+int fd2_field_magic_derived_preflight(uint8_t id,
+    const fd2_field_unit *caster, const fd2_field_unit *target);
+int fd2_field_magic_apply_derived_result(uint8_t id,
+    const fd2_field_unit *caster, fd2_field_unit *target,
+    fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner,
+    fd2_field_magic_basic_result *result);
+
 /* field_player_command_execute @0x18d8c（原登记同名）的caster归一。
  * 这里只除level+(profile>8?30:0)，不混入controller cap99或1e292入口门。
- * 当前可见奖励仅支持非负signed32贡献；raw_sum>INT32_MAX／除数0拒绝。
+ * raw_sum是原DWORD位型，按signed32除法向0截断；超DWORD／除数0拒绝。
  * 失败不写value，无单位/RNG副作用；Item丢弃贡献不使用此门。 */
 int fd2_field_magic_reward_normalize(
     const fd2_field_unit *caster, uint64_t raw_sum, uint32_t *value);
@@ -122,6 +146,11 @@ int fd2_field_hp_heal_apply_with_reward(fd2_field_unit *target, uint16_t power,
     fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner);
 int fd2_field_mp_heal_apply_with_reward(fd2_field_unit *target, uint16_t power,
     fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner);
+/* 211a4及20c6f/code11的恢复结果；raw_heal保留原浮字的spread值。
+ * MPmax==0由code11 caller在core前跳过，不在此改变1c9dd合同。 */
+int fd2_field_magic_apply_heal_result(fd2_field_unit *target, uint16_t power,
+    int restore_mp, fd2_field_magic_rng_fn rng, void *userdata,
+    uint32_t *owner, fd2_field_magic_basic_result *result);
 int fd2_field_magic_apply_known_effect_with_reward(uint8_t id, uint8_t index,
     fd2_field_units *units, fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner);
 

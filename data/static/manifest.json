@@ -75,7 +75,7 @@
       "k_battle_cast_colors": {
         "c_type": "uint8_t",
         "dimensions": [
-          10,
+          36,
           3
         ]
       },
@@ -95,6 +95,111 @@
         "c_type": "uint8_t",
         "dimensions": [
           25
+        ]
+      },
+      "k_battle_map_fx_start": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          33
+        ]
+      },
+      "k_battle_map_fx_count": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          33
+        ]
+      },
+      "k_battle_map_fx_cue": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          33
+        ]
+      },
+      "k_battle_popup_miss": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_composite_red": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_composite_green": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_composite_blue": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_composite_banks": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_battle_map_damage_tint": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          30
+        ]
+      },
+      "k_battle_map_solid_color": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          1
+        ]
+      },
+      "k_battle_map_extra_cues": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          10,
+          3
+        ]
+      },
+      "k_battle_default_scene": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          30
+        ]
+      },
+      "k_battle_heal_masks": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4,
+          2
+        ]
+      },
+      "k_battle_item_presentations": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          20,
+          3
+        ]
+      },
+      "k_battle_short_fx_offsets": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          21
+        ]
+      },
+      "k_battle_short_fx_sequences": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          84
+        ]
+      },
+      "k_battle_map_action_parameters": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          9
         ]
       }
     },
@@ -139,6 +244,30 @@
       },
       "MAGIC_DAMAGE_PROFILE_SCALES": {
         "c_type": "uint32_t",
+        "dimensions": [
+          28
+        ]
+      },
+      "MAGIC_MAP_EFFECT_IDS": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          28
+        ]
+      },
+      "MAGIC_MAP_COST_IDS": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          28
+        ]
+      },
+      "MAGIC_MAP_TARGET_LIMITS": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          28
+        ]
+      },
+      "MAGIC_MAP_COST_BEFORE_CAST": {
+        "c_type": "uint8_t",
         "dimensions": [
           28
         ]
@@ -324,6 +453,13 @@
           20,
           12
         ]
+      },
+      "k_player_base_alias_views": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          2,
+          3
+        ]
       }
     },
     "movement_scripts.json": {
@@ -447,6 +583,426 @@
           27
         ]
       },
+      "k_movement_script_14": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          45
+        ]
+      },
+      "k_movement_script_15": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          31
+        ]
+      },
+      "k_movement_script_16": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_17": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          19
+        ]
+      },
+      "k_movement_script_18": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          13
+        ]
+      },
+      "k_movement_script_19": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_1a": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_1b": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_1c": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          193
+        ]
+      },
+      "k_movement_script_1d": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          39
+        ]
+      },
+      "k_movement_script_1e": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          87
+        ]
+      },
+      "k_movement_script_1f": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          23
+        ]
+      },
+      "k_movement_script_20": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_21": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          23
+        ]
+      },
+      "k_movement_script_22": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          21
+        ]
+      },
+      "k_movement_script_23": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_24": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_25": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_26": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          17
+        ]
+      },
+      "k_movement_script_27": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_28": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          71
+        ]
+      },
+      "k_movement_script_29": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          137
+        ]
+      },
+      "k_movement_script_2a": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          27
+        ]
+      },
+      "k_movement_script_2b": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          19
+        ]
+      },
+      "k_movement_script_2c": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          19
+        ]
+      },
+      "k_movement_script_2d": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_2e": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          53
+        ]
+      },
+      "k_movement_script_2f": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_30": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          25
+        ]
+      },
+      "k_movement_script_31": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_32": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_33": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_34": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_35": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          35
+        ]
+      },
+      "k_movement_script_36": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          37
+        ]
+      },
+      "k_movement_script_37": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          7
+        ]
+      },
+      "k_movement_script_38": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          13
+        ]
+      },
+      "k_movement_script_39": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_3a": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_3b": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          91
+        ]
+      },
+      "k_movement_script_3c": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_3d": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_3e": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_3f": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          17
+        ]
+      },
+      "k_movement_script_40": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          21
+        ]
+      },
+      "k_movement_script_41": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_42": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          201
+        ]
+      },
+      "k_movement_script_43": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          67
+        ]
+      },
+      "k_movement_script_44": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          15
+        ]
+      },
+      "k_movement_script_45": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_46": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          7
+        ]
+      },
+      "k_movement_script_47": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_48": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_49": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_4a": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          19
+        ]
+      },
+      "k_movement_script_4b": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_4c": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          107
+        ]
+      },
+      "k_movement_script_4d": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_4e": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          13
+        ]
+      },
+      "k_movement_script_4f": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_50": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          15
+        ]
+      },
+      "k_movement_script_51": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_52": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_53": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_54": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_movement_script_55": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          121
+        ]
+      },
+      "k_movement_script_56": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          137
+        ]
+      },
+      "k_movement_script_57": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          43
+        ]
+      },
+      "k_movement_script_58": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          9
+        ]
+      },
+      "k_movement_script_59": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          69
+        ]
+      },
       "k_movement_script_5a": {
         "c_type": "uint8_t",
         "dimensions": [
@@ -549,7 +1105,8 @@
     "loot.json",
     "progress.json",
     "scene.json",
-    "stage.json"
+    "stage.json",
+    "magic.json"
   ],
   "flow_contracts": {
     "progress.json": {
@@ -787,13 +1344,76 @@
           [
             "ack"
           ]
+        ],
+        "action_prepare": [
+          [
+            "next"
+          ]
+        ],
+        "action_display": [
+          [
+            "next"
+          ]
+        ],
+        "action_present": [
+          [
+            "next"
+          ]
+        ],
+        "action_face": [
+          [
+            "next"
+          ]
+        ],
+        "action_reset_directions": [
+          [
+            "next"
+          ]
+        ],
+        "action_sequence": [
+          [
+            "next"
+          ]
+        ],
+        "action_counter_ready": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "action_done": [
+          []
+        ],
+        "recovery_needed": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "recovery_focus": [
+          [
+            "next"
+          ]
+        ],
+        "recovery_step": [
+          [
+            "next"
+          ]
+        ],
+        "recovery_hp_commit": [
+          [
+            "next"
+          ]
         ]
       },
       "required_ids": [
         "reward",
-        "phase.status"
+        "phase.status",
+        "stationary.recover",
+        "physical.full",
+        "physical.short"
       ],
-      "operation_abi_sha256": "29d6ea4e154fad04704d0c141744a6a5811ad636c49ef2e8667777d839174e09"
+      "operation_abi_sha256": "a85f4f4dced28dc5b18c2aeee52fb2bda8b8caf35e5d095b2c346fca07d35056"
     },
     "scene.json": {
       "ports": {
@@ -967,10 +1587,10 @@
         "scene.new_game",
         "scene.game_over"
       ],
-      "operation_abi_sha256": "36a51a941e90b26357f05865fac15595c593c1a7d481b240446965a2a3d472ad"
+      "operation_abi_sha256": "d66d1ba4c771f9239f9c607e68e275794b865391c42f07a2e02f1250a2d7e56b"
     },
     "stage.json": {
-      "operation_abi_sha256": "e5e03e9d0afbe1872a5933771a0a69afe9084ce2d089f8ad26a277d3706a6caa",
+      "operation_abi_sha256": "31fddc5a9b72a7da6b6e83fcd51b3c7cb577854787e3275570f85fbc520492a8",
       "ports": {
         "stage_setup": [
           [
@@ -1688,6 +2308,128 @@
           "finish.common"
         ]
       }
+    },
+    "magic.json": {
+      "operation_abi_sha256": "8edbfad063b728857ae19f61d9dacc963fe448deeb23e5fbbe4d1d4d416797a5",
+      "ports": {
+        "effect_group": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "status_clear_group": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "popup_clear": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "done": [
+          []
+        ],
+        "fail": [
+          []
+        ],
+        "teleport_focus": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_position": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "display_mode": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_present": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_cost_reward": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_code_in": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "item_cast": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_effect_group": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_popup_group": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_recompute_caster": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_consume_slot": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_restore_ex": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_clear_reward": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_teleport": [
+          [
+            "error",
+            "next"
+          ]
+        ]
+      },
+      "required_ids": [
+        "magic.effect.032",
+        "magic.effect.033",
+        "magic.effect.034",
+        "magic.effect.035",
+        "magic.effect.023",
+        "item.effect"
+      ]
     }
   }
 }

@@ -178,7 +178,7 @@ Amiga AFM（Animation File Manager）V1.00。
 
 严格解析同时验证所有 part 的 RLE；保留显式颜色 0 与 SKIP 的区别。全部原资源为 264 个非空条目、144 个空哨兵，共 2,118 个 part。`intro_end > part_count` 或 `duration == 0` 不单独构成容器损坏：播放器必须根据自身循环检查准入，FX2 的零 duration 保留原 BYTE 计时回绕，不能补成 1。
 
-施法选择 `unit_id * 3 + 2`，只有空哨兵才退到 `+1`。`0x30e9d` 在 intro 区间内每遇 `part+4 == 1` 扣一次费用；合法演员可能有零个、一个或多个标记，不能把 unit9 的一次扣费推广到全部角色。最终选择仍为空或 intro 越界时拒绝相应播放，结构解析成功不代表该动作已开放。解析器与播放准入分别由 `figani.c` 和 Game／演出服务维护。
+普通FULL法术0..9选择 `unit_id*3+2`，仅该条为空哨兵才退到+1；派生24／28..31固定+2，复合32..35固定+1，不套普通fallback。31没有正常技能赋值源，资源格式可解析不等于该技能开放。`0x30e9d`在intro内每遇 `part+4==1`扣一次费用，允许零个／多个标记与WORD回绕。派生caller另按intro后的part marker推进HP，duration0也保留此写点；不能把unit9的一次扣费推广为全部角色。最终empty或intro越界仍在相应播放前拒绝；解析与动作准入分别由 `figani.c` 和Game／演出服务维护。
 
 ### 2.4 地形图块（TAI.DAT）✅ RLE 图像
 
@@ -243,7 +243,7 @@ placement 条目（`stage*3+2`）当前确认：
 
 原版 `field_unit_stage_template_append @0x10c50` 以**相同模板序号**读取 placement 的 x/y WORD，写入单位坐标时取低字节；不按末 WORD 或模板 ID 搜索。`field_actor_group_append @0x10b4e` 仅遍历 metadata byte 2 指定的有效前缀；`field_stage_initialize @0x1088d` 从该前缀之后读取玩家出阵坐标。末 WORD 与模板 ID 在许多记录中相同只是资源现象，不能作为通用关联规则。例如 stage 32 前五个模板 `(side,id)` 为 `(2,48),(2,66),(2,0),(0,0),(0,4)`，同序 placement 为 `(7,5,48),(10,5,66),(8,42,0),(4,46,0),(13,47,4)`。
 
-stage 0／31 原始模板区各有31条，但 byte 2 为30；stage 32 原始区有40条，有效前缀也是30。共12条前缀外模板不是缺失 placement 的有效单位，不应按文件长度额外构造。stage 0 从 placement 序号30起的四个玩家位置为 `(7,20),(10,21),(8,22),(11,23)`，单位 ID 由新游戏队伍提供。来源、完整初始化链及 SDL 旧 ID 顺序匹配／按长度消费的待修缺口见[准备语义 §9](../reverse-engineering/common-preparation-semantics.md#9-追加发现原模板计数和-placement-索引合同)；格式结论不代表 G2 修复已经交付。
+stage0／31原始模板区各31条、byte2为30；stage32原始40条、有效前缀也为30。全部33组共1,899条资源模板，其中1,887条实际前缀与同索引placement均配对；12条未消费尾保留，不额外构造。stage0从placement序号30起的四个玩家位置为 `(7,20),(10,21),(8,22),(11,23)`，ID由新游戏队伍提供。G2的Game／Scene／group构造已沿该前缀与索引合同，完整来源及旧差异见[准备语义 §9](../reverse-engineering/common-preparation-semantics.md#9-追加发现原模板计数和-placement-索引合同)；实现与各场景原版验收仍分别登记。
 
 SDL 运行时使用 `fd2_field_unit` 保留原版 `DAT_00003a45` 的 0x50 字节记录布局，单位数组也保持 0x50 字节步长；步态帧和模板来源序号属于 SDL 派生状态，存放在旁路数组中。DOSBox 运行时捕获的 `field_unit_stage_template_append @0x35e6e` 证明，26 字节模板不是直接复制到 record `0x06..0x1f`：placement 提供 `x/y`，模板 byte `0/1/4` 提供 side、unit ID、level，byte `5..12` 被重排为 8 个装备槽，byte `13..16` 写入 record `0x1a..0x1d`，其他已确认 AI 字段写入 `0x31..0x36/0x3d`。模板 byte `0x15` 只由 group loader 用于选择加入批次，不存入 0x50 字节记录；SDL 通过 `source_template_indices` 旁路数组保留来源和 group 查询。
 
@@ -307,7 +307,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - record `0x22/0x23/0x24` 非零时，AP/DP/HIT+EV 改用 FDOTHER[5] frame119..128的状态数字颜色，三位溢出为frame129，原图17×8，不能强制按普通溢出图的18×8解码。`0x25..0x27` 分别在非零时绘制frame55..57，固定位置为`(194+35*i,68)`（i=0..2），缺少前一状态时不压紧排列。
 - `field_unit_detail_equipment_draw @0x184c0` 遍历 `0x0a..0x19` 的 8 个raw槽；flag bit `0x80` 表示不显示，bit `0x40` 表示已装备。名称使用 FDTXT[0] fragment `item_id+0xb5`。显示位置按可见项压行，每列4项；高亮仍比较原raw槽索引，不能把显示序号写回库存或压实存档。
 - 该绘制函数的无主属性分支使用FDOTHER[5] frame41（18×8），位置为名称`+(68,4)`，不是frame93两位溢出图。raw分类／属性frames59..67经`0x1685c→0x4ed0b`完整复制，索引0也写入；当前数字RLE frames41／42..52经实际流审计无opaque0，不能将这一缓存约定推广到其它资源。物品ID108..122的名称合法为空。
-- `field_item_record_get @0x4e8bc` 证明完整物品表是 `DS:0x02ad + item_id*0x17` 的23字节记录。连续表的canonical object3 VA为`0x602ad`，`FD2.EXE` file offset为`0x792c1`，共215条有效记录；SDL将其内置于`src/field_item.c`，详情页和战斗属性重算共用。旧`corrected code0 0x684c1`是历史视图，不用于新的地址操作。
+- `field_item_record_get @0x4e8bc`证明完整物品表是 `DS:0x02ad + item_id*0x17` 的23字节记录。连续表canonical VA为 `0x602ad`，file `0x792c1`，共215条；唯一编辑输入为 `data/static/tables/items.json`，`field_item.c` getter、详情及战斗重算共用生成表。旧corrected code0 `0x684c1`是历史视图，不用于新的地址操作。
 - 玩家草药192使用 record `+0x0d=5`、`u16 +0x0e=40`、cast `+0x10=1`、area `+0x12=0`、filter `+0x15=1`；不要把 AI 的 `+0x11` 筛选字段用于玩家。`field_unit_inventory_slot_remove @0x1b8e7`（原 `sub_1B8E7`）对后续 `(7-slot)*2` 字节做 memmove，最后仅 `+0x18=0x80`，保留 `+0x19` 的 stale ID，不按可见项压实。历史 Drop 四场已有完整 SAV／尾槽量测；Use 的画面、原始字节和具体分支分别登记，不能相互代替。
 - `field_unit_inventory_item_append @0x1bb8c`（原 `sub_1BB8C`）查找首个 flag bit80 置位的槽，整 flag 写0，再写 ID；满8槽时失败。Give 的满槽交换是双方各移除后追加，不是原位交换两组字节；只重算送方派生值。返回与外层行动合同见[session 设计](../systems/battle-session.md)。
 - `field_equipment_profile_get @0x4e88e`（原 `sub_4E88E`）读取 canonical `0x6188a..0x61955` 的29×7字节表；`field_unit_can_equip_item @0x1c1c3`（原 `sub_1C1C3`）只比较每行前6字节与物品 record 首字节，第7字节保持未知。`field_unit_equipment_slot_set @0x1c142`（原 `sub_1C142`）按 ID `<128`／`>=128` 分组，清同组已装备槽的整个 flag，再将选中 flag 写40；不能改成按分类分组或仅清 bit40。整表来自严格 LE 原始数据，具体实机场景范围见[阶段记录](../plans/stage-log.md)。
@@ -315,8 +315,8 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - `field_reachable_cells_compute @0x4e390` 无MOV0拒绝门，起点node `+7`先写预算（0亦合法）；`field_friendly_destination_block @0x146d1`排除mover自身，`sub_14B16 @0x14b16`按非ff收集，故预算0原点仍能参加`field_ai_physical_candidate_evaluate @0x14237`的武器范围／邻敌判断。不能把“不移动”解释为“不能攻击”；对应回归与实机场景见阶段记录。
 - `field_target_range_build @0x14818` 以 movement profile0 传播普通范围，再按 Manhattan 距离排除小于最小范围的格；max≥16 分支则直接建立半长 `max-16` 的十字，不走地形传播或普通 min 排除。side filter 为 `0→side0`、`1→side!=0`、`2→side1`、`3→side2`；玩家普通攻击传0。收集仅保留未隐藏且匹配 filter 的 actor，单位不阻断范围传播。SDL 普通物理确认额外拒绝 HP0；玩家物品／法术沿各自原版路径保留 HP0 和 acted 目标，不能把物理门推广到共享范围查询。
 - `field_ai_physical_candidate_evaluate @0x14237`把上述武器范围应用到 actor 的每个可停留移动格，并按行优先格序、actor 表序枚举 `(destination,target)`。候选主优先级只取 `0/8/18`；次分数在每个 destination 开始时从目标数初始化，当前累计分数大于当前目标 HP 时取 `18` 并将分数翻倍，否则当移动格地形修正后的 attack 与目标格地形修正后的 defense 之差大于 2 时取 `8`。同优先级仅当次分数严格更大才替换，完全平价保留先遇到者；同一 destination 的后续 target 会继承前一 target 的翻倍、反击调整和 `*3/2` 结果。`field_ai_try_attack @0x3a104` 再比较物理／法术／物品三类 signed score：三项都 `<6` 时无动作；`magic==item>physical` 固定选 magic，三项完全相等则返回成功但不调用提交 helper。
-- `field_magic_record_get @0x4e866` 返回 `DS:0x19fd + magic_id*7`。36 条静态记录位于 object3 `DS:0x19fd` / `FD2.EXE` file offset `0x7aa11`；字段 `+0` 为 AI tie/阈值用 `u16`，`+3/+4` 分别控制施法中心与目标范围，`+5` 与 actor `+0x44` MP 比较，`+6` 参与 side filter。SDL 将原始表内置于 `src/field_magic.c`，未确认字段继续按 offset 表述。`sub_1CA89 @0x1ca89` 还把 actor `+0x44` 的 u16 减去所选费用记录 `+5` 的 u8；不夹零、没有额外门或 RNG。无演出 damage／heal／status wrapper 在逐目标循环前调用一次；ID17 的 `sub_226EA @0x226ea` 实际传费用 ID18（当前两者费用均5）。旧“只有MP gate、不扣费”结论已撤回，见生成命名勘误。
-- 当前 SDL 已支持的 AI 无演出法术在全部候选／目标／profile／handler 预检后、首个目标效果前扣一次费用；多目标、miss、免疫或状态未变化不重复扣或退款，提交后失败保留已扣值。未知handler仍预检拒绝。动画 `sub_2FF01 @0x2ff01` 经 `sub_30E9D @0x30e9d` 按每个 caster part `+4==1` 调扣费；实际 FIGANI 回退条目存在零个或多个标记，不能把“整次一次”推广为全部动画语义。START unit9／ID0所用entry28仅part6一个标记，仍不替代玩家列表、取消与其他演员的B2／B6验收。
+- `field_magic_record_get @0x4e866`返回canonical VA `0x619fd + magic_id*7`的36条记录（file `0x7aa11`）。`+0`是由effect族解释的u16 power／AI tie阈值，伤害族以+2作命中率，+3／+4为cast／area，+5为费用byte，+6为side filter。编辑输入为 `data/static/tables/magic.json`，不能写回业务C常量。`sub_1CA89 @0x1ca89`只以WORD减所选费用记录+5，不夹零、不取RNG；地图17实际用费用18，地图24原分派别名16。玩家24另走派生FULL，不能由地图表别名推导其正式费用。
+- 地图28槽的effect／cost／目标上限／费用相对CAST顺序，分别由4张decoded-dispatch投影记录；它们依据原fixup与wrapper调用锚点，不是额外原连续表。MAP9／23只提交首目标，MAP9的FX仍使用原完整目标组；其它地图族按raw顺序。费用一次且先于effect，miss／免疫／无状态不退款。普通FULL、派生及复合则经 `sub_30E9D @0x30e9d`按intro marker扣费。玩家0..8始终FULL、9及普通地图族不随SHORT变换；AI0..9按效果选项选择FULL／MAP。32..35及23／Item的分组、等待／呈现边界和写序见有限 `magic.json` 流与[session合同](../systems/battle-session.md)，不把原28槽表长度当作全部36项技能的范围。
 - `DS:0x1f96` 的 28 项 `u32` magic profile scale 已由正确 bound-LE object2 page 静态恢复：`{10,10,10,10,7,7,10,10,10,10,9,10,5,5,8,10,6,8,10,9,5,5,10,8,8,4,10,7}`。其 file offset 为 `0x76faa`。旧 `0x10e00` page base 在同一逻辑地址读到指令流，现已确认是 page extraction 错误，不需要制作特殊存档。
 - `field_ai_magic_targets_score @0x3ad8b` 按 magic ID 分派：`0..12` 对每个目标按 `HP >= record.u16(+0)` 取 `8/24`，`text_id==0` 再乘 `1.5`；`13..16` 按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`（严格小于 `1/3` 才取 `8`，严格小于 `1/2` 取 `3`），actor `+0x34 bit0` 翻倍；`17..22、26、27` 按 `+0x22..+0x27` 原始字节和已知法术位图评分。`field_ai_magic_candidate_evaluate @0x3ab9e` 严格高分替换；平分只在 record `u16 +0` 严格更大时替换。
 - `field_ai_item_targets_score @0x3aa94` 只识别 item `+0x0d` code `5/13/20/21/24`。code `5/13` 在目标循环内按当前 HP 与最大 HP 的 `1/3`、`1/2` 边界取 `8/3/0`，并受目标 `+0x34 bit7` 三倍修正；`code 20/21` 先把 `+0x0e` 作为 magic ID 查询 7 字节表的 `u16 +0`，code `24` 直接使用该值，再对当前 HP 严格大于阈值的目标计分。`field_ai_item_candidate_evaluate @0x3a892` 仅在新分数严格更大时替换，分数为 0 时坐标／槽位不视为有效候选。SDL 的 M7.2 保持纯查询，不提交移动、效果、消耗、RNG 或 acted/phase 状态。
@@ -488,12 +488,10 @@ sum(plain[0:0x59c7]) == u32le(plain[0x59c7:0x59cb]) == 0x004527c1
 
 `meta[0..8]` 的当前确认映射：`turn_number、unit_count、stage_id、camera_x、
 camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
-是持久 roster 的独立数量（`DS:0x3bfb`），范围 `0..32`；活动数量对应 `DS:0x3beb`，格式容量为 96。`meta[10..13]` 是
+是持久 roster 的独立数量（`DS:0x3bfb`），范围 `0..32`；活动数量对应 `DS:0x3beb`，原malloc与格式容量均为96，G2的SDL活动运行上限也已恢复96，不沿用旧64。`meta[10..13]` 是
 `DAT_00003bf3` 的 32 位资源值，`meta[14..17]` 依次对应 `DS:0x3af9、0x1aab、
 0x1e61、0x1e62` 四个配置字节。options loop @code0 `0x735b..0x73e2`
-确认四个 selector 都立即翻转对应字节；第三项仅在 command-ID 显示条件上
-反向。第一项控制音乐音量淡入／静音，第二项控制 SFX 播放门；第三、四项
-的可见名称仍待 DOSBox 捕获确认，允许独立副本自动输入与取证。其余字节保持不透明。
+确认四个selector均立即对原byte作XOR1，保留非0／1值；第三项仅在command-ID显示条件上反向。第一项控制音乐音量淡入／静音，第二项控制SFX；第三项是原动作FULL／SHORT调用选择，G2已接正式选项与Load。第四项信息板设置仍归G4；具体可见标签及运行覆盖以实际WGC收据为准。其余字节保持不透明。
 SDL 活动快照写入当前 session 的关卡 metadata 有效前缀、完整 `0xa00` 持久 roster、`meta[0..17]`、当前单位前缀和
 完整 32 字节 cell-state。metadata 的 shape、事件／action 表及模板来自本关资源和 session；stage 0 有效长度为 `0x83+31*26=937`，stage 1 为 `0x83+40*26=1171`。SDL 将 metadata 未用尾及其他未拥有区域从目标容器逐字保留；roster 的未知尾则随整个表在 session 中恢复和写回，不能混用目标容器的旧尾。不能把整份旧关卡 metadata 当成无关字节保留，否则原版会按首字节选错 FDSHAP。导入时要求 metadata shape 与目标关卡资源一致，并只解析已确认的模板数。
 
@@ -567,16 +565,16 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 0x00   1      map_x
 0x01   1      map_y
 0x02   1      map_sprite_cache_class，按 `class*12` 取 FD2.TMP；随 stage 重建，不是稳定职业号
-0x03   1      direction，FUN_0000b168 @0x42c34 移动绘制时使用
+0x03   1      direction，sub_127E0 @0x127e0 按原byte选帧，特殊值不取模
 0x05   1      flags，bit0 为不可见/失效；bit7 为本阶段已行动
 0x06   1      side/camp，0 敌方，2 我方等
-0x07   1      DATO 立绘编号
-0x08   1      名称/文本编号；当前样本与 0x07 相同
+0x07   1      unit_id，参与基础/成长、DATO/FIGANI及地图资源选择
+0x08   1      text_id，名称/跨关身份；转职或热身份改变不随unit_id重写
 0x1a   5      magic_bits，40bit；学习按原byte／bit位置OR，不重建整表
 0x20   1      movement_profile，`field_movement_profile_get` 按该值选择 20 字节地形成本表
 0x21   1      level
 0x22   6      attack/defense/hit+evasion/poison/paralysis/magic禁止计时byte
-0x34   1      ai_behavior_raw；低半字节已确认分支为 behavior 0..5、7..11，mode 6 未确认
+0x34   1      ai_behavior_raw；低半字节已确认分支0..5、7..11，6无已证合法handler，不自动补行为
 0x35   1      ai_param_35；具体语义随 behavior 解释
 0x36   1      ai_param_36；具体语义随 behavior 解释
 0x37   2      base_attack，装备／状态派生的上游
@@ -601,7 +599,7 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 3. 存档加载按单位数逐字恢复完整 `0x50` 字节记录；恢复路径不能重新套用新建默认值，否则会覆盖 HP、MP、装备和剧情状态。
 4. `field_unit_combat_stats_recompute @0x1b750` 从 `0x37/0x39/0x3e` 读取三项基础值，从 `0x0a..0x19` 遍历 8 个装备槽，并写入 `0x48/0x4a/0x4c/0x4e`。装备槽 flag bit `0x40` 表示已装备；装备表 record `+1/+3/+5/+7` 分别累加 attack/accuracy/defense/evasion。record `0x24` 非零时，accuracy 和 evasion 的共同基础值加 15；`0x22/0x23` 分别触发攻击和防御的 x87 比例修正。
 
-DOSBox 对 stage 构造器的 CPU 捕获确认了完整写入顺序，并以 unit 96 level 2 得到 `(profile,move,hp,mp,base attack,base defense,base accuracy)=(7,4,28,0,14,2,2)`，与既有 stage 0 捕获一致；unit 1 level 2 得到 HP 46，与本地 stage 2 存档一致。当前 `src/field_unit_base.c` 登记构造器已确认的完整同格式索引范围：角色 ID `0..31` 与敌军 ID `68..135`；没有对应基础 record 的 ID `32..67` 事务化失败。最终装备派生仍由 `field_unit_stats` 完成，装备查询或状态缩放回调缺失时不写 `0x48..0x4f`。
+DOSBox历史CPU捕获中unit96 level2为 `(profile,move,hp,mp,base attack,base defense,base accuracy)=(7,4,28,0,14,2,2)`，unit1 level2的HP46与原档一致。普通基础表域仍为角色0..31及敌军68..135；G2另按原stage32实际构造调用支持ID48／66的两个24B相邻读取窗，来源分别落在成长表／准备表内部，不能命名成新角色基础表或推广其余32..67新建。9张原单位／物品／法术／移动表的独立读集为8,528B，两alias另计48B。成长／转职32..67不因此受新建门限制。最终装备派生由 `field_unit_stats`完成，缺必需数据时保留原记录。
 
 ### 运行中成长、经验与状态字节
 
@@ -654,7 +652,7 @@ if hit:
 
 ### 3.2 战场过场移动脚本（EXE 指针表）✅ 解释器格式
 
-`field_movement_script_play @0x3887e` 通过 `field_movement_script_ptr @0x73d5c` 从 `DAT_000027d8 + script_id*4` 取脚本指针。脚本字节流格式已由反编译确认：
+`field_movement_script_play @0x1366a`（原登记同名）通过 `field_movement_script_ptr @0x4eb48` 从canonical VA `0x627d8 + script_id*4` 取脚本指针。脚本字节流格式为：
 
 ```
 u8 group_count
@@ -678,7 +676,7 @@ repeat group_count:
 
 `field_actor_footstep_play @code0 0x22230` 在每格 phase 1..5 完成显示与 BIOS tick 等待后被调用，phase 6 后不调用；多人脚本只传 actor 列表首项。它先调用 `field_unit_ignores_terrain_combat_modifier @code0 0xf183`：该 helper 对 unit ID `0x1c` 返回 0，因此该 ID 仍走 profile 表；只有 movement profile `19` 或 race `4/5` 固定选择 FDOTHER[31] sample 10，并在全局 `DS:0x4132` 计数可被 6 整除时播放。其余单位用 record `+0x20` 的 1-based movement profile 索引 object2 `DS:0x2725` 的 29 字节类别表 `{1,1,2,1,0,0,1,1,1,1,2,1,0,0,3,1,1,1,3,1,0,0,1,1,1,1,1,1,1}`：类别 0/1 分别在计数可被 6/4 整除时播放 sample 9，其他类别在可被 9 整除时播放 sample 11；每次 helper 调用最后都将该 8 位计数加一。SDL 将计数保存在共享 `fd2_field_audio` 中，跨 stage 与后续 field event 持续，并通过 primary PCM handle 重启上一声。
 
-`DAT_000027d8` 指针表位于 object3；LE fixup 的 `target_offset` 直接映射为 object3 内偏移，再加 object3 relbase。按此映射可完整解码 script `0..13` 与开场脚本 `0x5a..0x69`；其中 `3/4/6/7/8` 用于 stage 0 回合事件，`0/1/2/5/0x5a..0x69` 与新游戏开场调用顺序一致，`9..12` 用于 stage 1 开场，`13` 用于该关 turn 3 事件。普通移动仍写 hidden 槽的方向和 byte 坐标，不能因渲染不显示而跳过脚本；未部署槽从全零加 hidden flag 开始，原 byte 运算可产生回绕坐标。
+指针表canonical VA `0x627d8`共106槽／424B，LE fixup目标按object3 relbase解释。G2已独立核106条计数流，消费长度总和2,896B；完整原候选payload `0x62980..0x634d2`为2,898B，重叠和未消费尾分别保留。script24按计数跨下一指针2B，script84余4B不能当作额外group。原mode三族为普通移动、设置方向并等待、mode80临时抬图；移动坐标direction0下／1左／3右／其它上，raw方向保留，direction5的实际cache读窗另验，不取模修值。actor最大83落96活动容量内，调用仍须检查当次count；普通移动保留hidden槽的方向及BYTE坐标回绕。106条有限语法支持不自动开放全部stage绑定，0..19／90..105的历史运行身份与新族定向验收分列。
 
 `DS:0x1d71` 是关卡过场分发表，当前按 30 项处理；相邻 `DS:0x1de9` 是进入战场前的另一张分发表，不应混入 stage dispatch。`tools/analyze_fd2_stage_code.py` 默认使用 `tools/fd2_le_code0.bin`；object1 fixup target 直接进入 object1 code0；应采用 `dump_fd2_fixup_table.py` 输出的 `code0` 或 `dual` 地址。
 
@@ -718,7 +716,7 @@ FD2.TMP 会在 stage 初始化时原地重写，不能作为跨 stage 的稳定�
 | 31 | `0→0, 1→4, 2→75, 3→30, 4→9` |
 | 0 | `0→0, 1→9, 2→4, 3→30, 4→96` |
 
-三份缓存中的压缩帧与 FDICON.B24 对应 unit id 的帧字节一致。SDL 版因此直接按 unit id 读取 FDICON.B24，不依赖 DOSBox 最后一次运行遗留的 FD2.TMP。
+三份历史缓存的压缩帧与FDICON.B24对应ID字节一致。SDL直接读取FDICON，但G2按原cache class→ID旁路映射选帧；热身份改变保留旧图，不能改成总以当前unit ID选帧。原Load `0x10010`逐raw当前ID重新调用 `0x11019`，故Load后按新ID重建映射；SDL保留完整80B及存档raw2，仅重建旁路，不增加SAV字段或依赖DOSBox旧TMP文件。普通方向和已证direction5跨cache读取均由实际映射校验；raw26非0时由共享视觉tick给0／1横移并强制组内frame0，不消费业务RNG。
 
 移动阶段使用 actor record offset `0x04` 的 `1..6` 相位，每帧沿方向偏移 4 px，第 6 帧跨满 24 px。`field_animation_phase_update @0x37b91` 约每 275 ms 推进共享 idle 相位；`map_actor_blit_24x24 @0x42c34` 对 offset `0x04 == 0` 的所有静止 actor 使用该全局相位，并将 phase 3 映射回 phase 1，因此某个角色移动时，其他角色仍以 `0,1,2,1` 序列播放 idle 动画。
 

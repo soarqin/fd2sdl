@@ -1465,7 +1465,7 @@ if(BUILD_TESTING)
         figani.c magic_fx.c tile.c field_info.c field_visual.c field_item.c field_magic.c field_unit_base.c
         field_unit_stats.c field_attack.c field_path.c field_move_profile.c
         map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
-        audio_pcm.c audio.c audio_pcm_capture.c)
+        audio_pcm.c audio.c audio_pcm_capture.c field_effect.c field_audio.c)
     foreach(fd2_test IN ITEMS fd2_figani_test fd2_magic_fx_test fd2_battle_animation_test fd2_field_magic_full_test)
         target_include_directories(${fd2_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_link_libraries(${fd2_test} PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -1536,4 +1536,16 @@ if(BUILD_TESTING)
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_data.py)
     add_test(NAME static_flow_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_flows.py)
+    add_test(NAME inventory_source_gate COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_inventory_sources.py)
+    add_test(NAME g2_battle_oracle COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_battle_oracle.py)
+    add_test(NAME g2_battle_runner_guards COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_battle_runner.py)
+    add_test(NAME g2_derived_oracle COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_derived_oracle.py)
+    add_test(NAME g2_item_runner_guards COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_item_runner.py)
+    add_test(NAME g2_composite_frame_gate COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_composite_frames.py)
 endif()

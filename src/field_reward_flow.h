@@ -19,6 +19,13 @@ typedef struct {
     uint32_t value;
 } fd2_reward_notice;
 
+/* 原奖励贡献/临时total为signed DWORD，接口保存原bits；避免依赖uint32→int32
+ * 越界转换的实现定义行为，也不把负贡献当巨额正奖励。 */
+static inline int32_t fd2_reward_signed(uint32_t bits) {
+    return bits <= INT32_MAX ? (int32_t)bits :
+        (int32_t)(-1 - (int64_t)(UINT32_MAX - bits));
+}
+
 static inline const fd2_static_flow *fd2_reward_graph(void) {
     return fd2_static_flow_lookup("progress", "reward");
 }
@@ -48,11 +55,13 @@ static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit
             port = gain && !(unit->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) && unit->level != limit
                 ? FD2_FLOW_YES : FD2_FLOW_NO;
         } else if (!strcmp(op, "reward_validate")) {
-            if (!fd2_field_unit_growth_record_get(unit->unit_id) ||
-                gain > INT32_MAX - (uint32_t)unit->experience) return -1;
-        } else if (!strcmp(op, "reward_total_init")) cursor->total = unit->experience + gain;
+            uint32_t total=(uint32_t)unit->experience + gain;
+            /* 不升级时原函数不读growth/learning；负值仅经提示与EX byte写回。 */
+            if (fd2_reward_signed(total) >= 100 &&
+                !fd2_field_unit_growth_record_get(unit->unit_id)) return -1;
+        } else if (!strcmp(op, "reward_total_init")) cursor->total = (uint32_t)unit->experience + gain;
         else if (!strcmp(op, "reward_total_at_least"))
-            port = cursor->total >= (uint32_t)n->args[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
+            port = fd2_reward_signed(cursor->total) >= n->args[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
         else if (!strcmp(op, "reward_level_prepare")) {
             if (fd2_field_unit_level_growth_prepare(unit, &cursor->level) != 0) return -1;
             unit->level = cursor->level.level;
@@ -82,7 +91,7 @@ static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit
         else if (!strcmp(op, "reward_recompute")) {
             if (fd2_field_unit_combat_stats_recompute(unit, lookup, lookup_data, scale, scale_data) != 0) return -1;
         } else if (!strcmp(op, "reward_total_subtract")) {
-            if (cursor->total < (uint32_t)n->args[0]) return -1;
+            if (fd2_reward_signed(cursor->total) < n->args[0]) return -1;
             cursor->total -= (uint32_t)n->args[0];
         } else if (!strcmp(op, "reward_stop_level"))
             port = unit->level == n->args[0] ||

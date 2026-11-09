@@ -784,3 +784,39 @@ F2及敌方／已行动Enter进入详情时，头像晚解码或开合动画分�
 B1关闭后，B2.1a仅把现AI五字节／40bit枚举共享到field_magic，实际AI caller复用；没有玩家UI状态，正式MAGIC继续禁用。独立fresh全构建及43/43 CTest单轮通过（含真实输入），另10/10源码地址／发布检查通过。容量0／截断／NULL、全40位、未知36..39、真实AI状态／MP门与输出不变都有回归；函数没有RNG依赖。
 
 本阶段没有新增原版列表或施法运行，不把B1前一冻结基线的231项Python／22组WGC冒称为本次共享查询后的整套复跑。下一阶段先按真实START caster raw1的资源门校准列表、确认选择和Esc返回COMMAND，再接提交；恢复术13并非原START能力，另列来源和验收。
+
+
+## G2 通用战斗的定向验收
+
+本节索引阶段代表，不把它们当作G5全历史回归。实际候选、原版／SDL范围、失败和修复以[阶段记录](../plans/stage-log.md)及各个冻结收据为准。`--prepare-only`只生成独立资源／业务声明，不启动窗口、不计通过。
+
+| 工具 | 正式路径和判据 |
+|---|---|
+| `run_g2_battle_check.py` | 传送23两层取消／成功、复合34有序资源与派生28的关联HP／EX／奖励页；每个命名代表独立输出 |
+| `run_g2_item_check.py` | Item05／19／20代表；复用原B3有限结果，再校验来源及各端原Load cache规则 |
+| `run_g2_map_action_check.py` | AI11施法后静止恢复；normal→solid200→normal与独立完整576px静态tile同时匹配、bank31/cue4及完整22987B |
+| `run_g2_short_check.py` | 原真实弓手两格非致死AI物理；面板→命中时的完整实体64／原FX6合成→后续武器FX→合法HP条，miss分支独立；bank64/cue3或4与全22987B。不走原反击未提供第四实参路径 |
+
+实体、面板和FX从原资源及原指令写序生成期望；不得从本轮截图生成模板。SHORT的实体64先画，再被原FX6覆盖13个点，门检查完整opaque域的两源合成，不删除这些点或要求未曾present的纯色瞬态。部分最初面板／FX原帧正像素不足24，已在运行前排除最低身份锚；不声称全部十面板帧或全部动画RGB一致。HP条保留原raw零像素，不能只检查非黑内容。
+
+共享 `AnimationCollectors` 请求间隔默认保持33ms；G2短动作显式请求16ms，类型必须是16..67整数。每端记录请求值及连续WGC时间戳间隔统计；请求16ms不保证每16ms产生原件。缺实体、错顺序或漏短闪仍失败，不能凭声音或程序未崩溃代签画面。初版恢复包装器错误、漏闪以及旧SDL信息板虽通过实体ROI却被独立背景门拒绝，均保留各自实际来源。
+
+Windows PowerShell（从项目根执行，每个目录必须尚不存在；前一场失败即停）：
+
+```powershell
+$Driver = 'src/build-win/Debug/fd2_field_play_input_driver.exe'
+$App = 'src/Debug/fd2sdl.exe'
+$Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
+& $Driver run-job 600000 python -B tools/run_g2_map_action_check.py --root . --sdl $App --driver $Driver --dosbox $Dosbox --artifacts build/g2/recovery-new
+if ($LASTEXITCODE -ne 0) { throw 'G2 recovery failed; inspect the retained receipt' }
+& $Driver run-job 600000 python -B tools/run_g2_short_check.py --root . --sdl $App --driver $Driver --dosbox $Dosbox --artifacts build/g2/short-new
+if ($LASTEXITCODE -ne 0) { throw 'G2 SHORT failed; inspect the retained receipt' }
+```
+
+输出路径先拒绝原资源真实目录及已存在目录；全输入闭包、二进制、夹具、原目录和每张PNG／WAV均绑定身份。成功、失败和超时都清理本轮owned进程并由同线程释放显示需求；用户的唤醒／临时电源授权按前文执行，不改混音器。
+
+当前只有Windows原生结果。Linux维护相同源／oracle纯测入口，本轮未执行，不将以下命令当作Linux图形通过：
+
+```bash
+python3 -B -m unittest tools.tests.test_g2_map_action tools.tests.test_g2_short_oracle tools.tests.test_g2_short_runner
+```

@@ -317,6 +317,41 @@ static int test_actual_magic_cast_plans(const char *path) {
     return 0;
 }
 
+static int test_magic_action_selector_and_markers(void) {
+    uint8_t data[53] = {0, 0, 10};
+    make_clip(data + 3);
+    data[3 + 2] = 1;
+    data[3 + 20] = 1;
+    data[3 + 36] = 1;
+    data[3 + 38] = 0; /* duration0仍保留effect marker。 */
+    data[50] = 0; data[51] = 0; data[52] = 10;
+    uint32_t offsets[] = {0, 3, 50};
+    fd2_archive archive = {data, sizeof(data), offsets, 3, 0};
+    fd2_figani_magic_cast plan;
+    CHECK(fd2_figani_magic_action_plan(&plan, &archive, 0, 0) == 0);
+    CHECK(plan.selected_entry == 1 && !plan.clip.empty);
+    CHECK(plan.cost_marker_count == 1 && plan.effect_marker_count == 1);
+    for (unsigned id = 24; id <= 31; id++) {
+        if (id > 24 && id < 28) continue;
+        CHECK(fd2_figani_magic_action_plan(&plan, &archive, 0, (uint8_t)id) == 0);
+        CHECK(plan.selected_entry == 2 && plan.clip.empty);
+        CHECK(!plan.cost_marker_count && !plan.effect_marker_count);
+    }
+    for (unsigned id = 32; id <= 35; id++) {
+        CHECK(fd2_figani_magic_action_plan(&plan, &archive, 0, (uint8_t)id) == 0);
+        CHECK(plan.selected_entry == 1 && !plan.clip.empty);
+        CHECK(plan.cost_marker_count == 1 && plan.effect_marker_count == 1);
+    }
+    fd2_figani_magic_cast untouched;
+    memset(&plan, 0xa5, sizeof(plan)); untouched = plan;
+    CHECK(fd2_figani_magic_action_plan(&plan, &archive, 0, 23) == -1);
+    CHECK(!memcmp(&plan, &untouched, sizeof(plan)));
+    data[3 + 2] = 3;
+    CHECK(fd2_figani_magic_action_plan(&plan, &archive, 0, 32) == -1);
+    CHECK(!memcmp(&plan, &untouched, sizeof(plan)));
+    return 0;
+}
+
 int main(int argc, char **argv) {
     /* 原版数据检查是本 target 的必需项；缺资源必须失败，不悄悄 skip。 */
     if (argc > 2) {
@@ -326,8 +361,9 @@ int main(int argc, char **argv) {
     const char *path = argc == 2 ? argv[1] : "original_game/FIGANI.DAT";
     if (test_fields_and_borrowing() != 0 || test_empty_and_error_atomicity() != 0 ||
         test_rle_and_image_boundaries() != 0 || test_actual_figani(path) != 0 ||
-        test_actual_magic_cast_plans(path) != 0)
+        test_actual_magic_cast_plans(path) != 0 ||
+        test_magic_action_selector_and_markers() != 0)
         return 1;
-    puts("FIGANI parser: 5 groups passed");
+    puts("FIGANI parser: 6 groups passed");
     return 0;
 }

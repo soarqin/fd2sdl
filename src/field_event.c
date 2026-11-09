@@ -100,6 +100,7 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
         if (pos + 2u > script_size) return -1;
         uint8_t mode = script[pos++];
         uint8_t actor_count = script[pos++];
+        if (actor_count > 32u) return -1; /* 原1366a两组32B局部数组。 */
         size_t pair_bytes = (size_t)actor_count * 2u;
         if (pair_bytes > script_size - pos) return -1;
         const uint8_t *pairs = script + pos;
@@ -108,8 +109,9 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
         for (size_t i = 0; i < actor_count; i++) {
             uint8_t actor = pairs[i * 2u];
             uint8_t direction = pairs[i * 2u + 1u];
-            if (actor >= updated.count || direction > 3u) return -1;
-            updated.items[actor].direction = direction;
+            if (actor >= updated.count ||
+                (direction > 3u && !(mode == 0x80u && direction == 5u))) return -1;
+            if (mode != 0) updated.items[actor].direction = direction;
         }
         if ((mode & 0x80u) != 0) continue;
 

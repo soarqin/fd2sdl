@@ -69,6 +69,182 @@
         "evidence": "field_magic_damage_profile_apply @0x1c75e; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
         "view": "raw-unrelocated"
       }
+    },
+    {
+      "name": "MAGIC_MAP_EFFECT_IDS",
+      "c_type": "uint8_t",
+      "dimensions": [
+        28
+      ],
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        16,
+        25,
+        26,
+        27
+      ],
+      "source": {
+        "kind": "decoded_dispatch_projection",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_dispatch_va": "0x51d01",
+        "evidence": "28槽原地图分派及完整wrapper：24与16同22153故effect/cost均16；17的226ea明扣18；9/23仅首raw，其余按整目标组。G1 common-battle-semantics §2；G2独立校验器核原fixup/常量投影，不包含玩家24专用FULL分支。"
+      }
+    },
+    {
+      "name": "MAGIC_MAP_COST_IDS",
+      "c_type": "uint8_t",
+      "dimensions": [
+        28
+      ],
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        18,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        16,
+        25,
+        26,
+        27
+      ],
+      "source": {
+        "kind": "decoded_dispatch_projection",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_dispatch_va": "0x51d01",
+        "evidence": "28槽原地图分派及完整wrapper：24与16同22153故effect/cost均16；17的226ea明扣18；9/23仅首raw，其余按整目标组。G1 common-battle-semantics §2；G2独立校验器核原fixup/常量投影，不包含玩家24专用FULL分支。"
+      }
+    },
+    {
+      "name": "MAGIC_MAP_TARGET_LIMITS",
+      "c_type": "uint8_t",
+      "dimensions": [
+        28
+      ],
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "source": {
+        "kind": "decoded_dispatch_projection",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_dispatch_va": "0x51d01",
+        "evidence": "28槽原地图分派及完整wrapper：24与16同22153故effect/cost均16；17的226ea明扣18；9/23仅首raw，其余按整目标组。G1 common-battle-semantics §2；G2独立校验器核原fixup/常量投影，不包含玩家24专用FULL分支。"
+      }
+    },
+    {
+      "name": "MAGIC_MAP_COST_BEFORE_CAST",
+      "c_type": "uint8_t",
+      "dimensions": [
+        28
+      ],
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1
+      ],
+      "source": {
+        "kind": "decoded_dispatch_projection",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_dispatch_va": "0x51d01",
+        "evidence": "完整地图wrapper调用次序：9..12/17..23/25..27先费用再actor flash/visual；0..8/13..16先visual/flash，24别名16亦后扣。G1完整读集及G2逐指令复核；不混入玩家FULL intro marker合同。"
+      }
     }
   ]
 }

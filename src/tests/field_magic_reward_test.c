@@ -192,8 +192,10 @@ static int test_caster_normalization_caps_and_errors(void) {
     uint32_t gain = 0xa5;
     CHECK(fd2_field_magic_reward_normalize(&caster, 1000, &gain) == 0 && gain == 333);
     CHECK(fd2_field_magic_reward_normalize(&caster, 10, &gain) == 0 && gain == 3);
+    CHECK(fd2_field_magic_reward_normalize(&caster, (uint32_t)-10, &gain) == 0 && gain == (uint32_t)-3);
+    CHECK(fd2_field_magic_reward_normalize(&caster, UINT32_MAX, &gain) == 0 && gain == 0);
     gain = 0xa5;
-    CHECK(fd2_field_magic_reward_normalize(&caster, UINT32_MAX, &gain) == -1 && gain == 0xa5);
+    CHECK(fd2_field_magic_reward_normalize(&caster, (uint64_t)UINT32_MAX + 1u, &gain) == -1 && gain == 0xa5);
     CHECK(fd2_field_magic_reward_normalize(NULL, 0, &gain) == -1 && gain == 0xa5);
     CHECK(fd2_field_magic_reward_normalize(&caster, 0, NULL) == -1);
     caster.level = 0;
@@ -205,7 +207,7 @@ static int test_caster_normalization_caps_and_errors(void) {
 static int test_maximum_query_matches_effect_and_existing_rng(void) {
     for (unsigned magic = 0; magic <= 13; magic += 13) {
         for (unsigned profile = 1; profile <= 28; profile++) {
-            const uint16_t initial_hp[] = {10,49,50,100,400};
+            const uint16_t initial_hp[] = {10,49,50,100,400,401,UINT16_MAX};
             for (size_t hp = 0; hp < sizeof(initial_hp) / sizeof(initial_hp[0]); hp++) {
                 fd2_field_unit original = unit(magic == 0 ? 68 : 9,
                     (uint8_t)profile, 3, initial_hp[hp], 400);
@@ -259,13 +261,26 @@ static int test_multi_target_preflight_and_no_upgrade_rng(void) {
     CHECK(caster.experience == 97 && caster.mp == 100 && rng.calls == 4);
     return 0;
 }
+static int test_over_max_bounds_keep_kill_discontinuity_and_negative_heal(void) {
+    fd2_field_unit target = unit(68,1,3,49,1);
+    int32_t low = 1, high = -1;
+    CHECK(fd2_field_magic_basic_reward_bounds(0, &target, &low, &high) == 0 && low == 0 && high == 4320);
+    test_rng rng = {{0,79},0,NULL,0,0,0};
+    fd2_field_magic_basic_result result;
+    CHECK(fd2_field_magic_apply_player_basic_effect(0, &target, next_roll, &rng, &result) == 1);
+    CHECK(result.raw_damage == 48 && target.hp == 1 && result.experience_value == 4320 && rng.calls == 2);
+    target = unit(9,1,3,110,100);
+    CHECK(fd2_field_magic_basic_reward_bounds(13, &target, &low, &high) == 0 && low == -12 && high == -12);
+    CHECK(fd2_field_magic_basic_reward_bounds(13, &target, NULL, &high) == -1 && high == -12);
+    return 0;
+}
 static int test_rejection_preserves_target_result_and_rng(void) {
     for (int fault = 0; fault < 8; fault++) {
         fd2_field_unit target = unit(68,1,3,50,100);
         uint8_t magic = 0;
         switch (fault) {
             case 0: target.hp_max = 0; break;
-            case 1: target.hp = 101; break;
+            case 1: magic = 13; target.hp_max = 0; break;
             case 2: target.flags = FD2_FIELD_UNIT_FLAG_HIDDEN; break;
             case 3: target.movement_profile = 0; break;
             case 4: target.movement_profile = 29; break;
@@ -403,6 +418,7 @@ static int test_damage_result_all_known_ids_share_effect_and_rng(void) {
 }
 
 int main(void) {
+    CHECK(test_over_max_bounds_keep_kill_discontinuity_and_negative_heal() == 0);
     CHECK(test_damage_result_all_known_ids_share_effect_and_rng() == 0);
     CHECK(test_raw_heal_uses_same_spread_even_at_full_hp() == 0);
     CHECK(test_shared_hp_heal_power_and_write_set() == 0);

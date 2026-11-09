@@ -2,7 +2,7 @@
 
 当前内置的已确认冷表位于 `data/static/tables/*.json`，有限事件图位于 `data/static/flows/*.json`；清单与消费契约在 `data/static/manifest.json`。现有 item、magic、unit、movement、stage 等 getter 保留。构建期生成私有 `const` 表；流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。各 SD 阶段是否通过验收，以[阶段记录](../plans/stage-log.md)为准，不能以生成成功代替。
 
-SD 大阶段当前落地 79 张冷表、四域 30 份流程及 518 个节点、6 个共享绑定。正式 START 的 Game 初始化与 Scene 前态使用同一个 `scene.init.000` 的视图，不能另在 C 中固定初始成员、group 或派生数值。数据修改仍须重新构建；现有已支持组合与尚未解码的后续事件分别登记，不因结构提取成功扩大玩法支持门。
+SD历史基线为79张冷表、四域30份流程、518个节点及6个共享绑定。G2当前生成器实际校验168张表、五域36份流程定义、565个节点、6个共享绑定（含绑定共42个运行入口）；新增有限magic／Item流与地图wrapper投影不构成通用VM。正式START的Game初始化与Scene前态继续共用 `scene.init.000`。数据修改仍须重建；结构／来源检查不自动开放后续关卡，实际阶段验收见[阶段记录](../plans/stage-log.md)。
 
 ## 构建与修改
 
@@ -25,6 +25,8 @@ python -B tools/static_data/generate.py --output src/build-win/generated/static_
 python -B tools/static_data/verify_unit_tables.py original_game/FD2.EXE
 python -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --self-test
 python -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE
+python -B tools/static_data/verify_magic_contracts.py original_game/FD2.EXE --self-test
+python -B tools/static_data/verify_runtime_tables.py original_game/FD2.EXE --self-test
 python -B -m unittest discover -s tools/tests -p 'test_static*.py'
 ```
 
@@ -35,16 +37,20 @@ python3 -B tools/static_data/generate.py --output src/build/generated/static_dat
 python3 -B tools/static_data/verify_unit_tables.py original_game/FD2.EXE
 python3 -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --self-test
 python3 -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE
+python3 -B tools/static_data/verify_magic_contracts.py original_game/FD2.EXE --self-test
+python3 -B tools/static_data/verify_runtime_tables.py original_game/FD2.EXE --self-test
 python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 ```
 
-当前独立读集覆盖单位／成长／学习／物品／装备许可／法术／移动共 8,528 byte，准备／音乐／地形／暴击／脚步共 973 byte，36 条移动脚本共 794 byte，另核 11 项 cue 映射。FX 与战斗演出参数的迁移有原 C blob 身份和既有业务回归，不混入这个原字节统计。
+当前单位／成长／学习／物品／装备许可／法术／移动独立读集仍为9张原表、8,528 byte；另验ID48／66两份实际构造alias窗，共48 byte，不能混称新增基础表。准备／音乐／地形／暴击／脚步原973 byte及11项cue映射保留原身份。移动脚本已扩大为106条、计数消费总和2,896 byte，独立保留的完整候选payload为2,898 byte；跨流重叠和未消费尾分别保留，不能用两个总数之差猜尾部归属。
+
+地图法术4张28槽合同投影分别表达effect别名、费用记录、效果目标上限和费用相对CAST的顺序；`verify_magic_contracts.py`独立核28个fixup及原call／jump／标量锚点，并与审查过的wrapper合同相联。它们不是4张原连续字节表，也不声称自动证明全部wrapper控制流。动作／Item呈现投影由 `verify_runtime_tables.py`核原字节与已审调用常量；迁移的C参数仍保留原blob身份，不混入8,528 byte统计。
 
 ## 事件图的编辑边界
 
 脚本本身是冷数据。触发条件、分支、等待、取消、动作顺序与提示参数均由图定义；库存、选择、完成位、执行游标及单位状态仍由现有 Game／loot／progress／session 持有。SAV 不增加流程版本或执行位置，不序列化中途提示。活动 Load 仍重建原有边界状态。
 
-四个领域共用节点结构，但各自只接受当前已确认的固定操作：
+五个领域共用节点结构，但各自只接受当前已确认的固定操作：
 
 | 文件 | 冷定义范围 | 代码保留的职责 |
 |---|---|---|
@@ -52,6 +58,7 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 | `stage.json` | 支持门、入场、结果查询、胜利、结算、交接及音乐／预检顺序 | 原 session 的建立、替换与错误返回 |
 | `loot.json` | 掉落、特殊格、满包换物、取消、text_ready／ACK、奖励／controller 续接 | 库存槽操作、原动作提交与 owner 边界 |
 | `progress.json` | 奖励门、成长／学习提示与写点、毒伤／到期处理顺序 | 已确认成长计算、装备重算、RNG 与原单位写入 |
+| `magic.json` | 32..35复合组、23传送的焦点／费用／四段呈现／坐标写点，以及Item组效果／浮字／重算／耗槽／恢复EX顺序 | 既有有限effect core、同步结果投影、Game的HP／MP／贡献与库存owner；不重放业务提交 |
 
 每个 `operations` 条目定义参数名和范围；`flows` 使用稳定字符串 ID，节点用 `op`、有序 `args` 与命名出口 `on` 表达。`entry` 是默认入口，`entries` 仅声明既有 API 的其它入口。`views` 可限定 `logic` 或 `present`；省略则供两端投影。不能把两端各维护一份流程，也不能用一个 native 操作封装完整事件状态机。
 
@@ -96,17 +103,17 @@ python3 -B tools/static_data/audit_stage_data.py --stage 0 --stage 1 --require-s
 python3 -B tools/static_data/audit_stage_data.py --require-supported --output build/sd3-audit/required-all.json
 ```
 
-第二、三条对当前原资源均应返回非零，并保留阻塞报告。默认 `(255,255,0)` 在当前 C 查询的 turn255／phase0 会命中；尚未证实原版可达性或可忽略性，故逐槽保留并纳入严格阻塞。`bound_definitions_closed` 仅说明排除这些未证默认项后，已列非默认定义／引用集合是否闭合；当前 0／1 为 true，不代表所有可达语义已支持。`--require-supported` 还拒绝默认 turn255 候选、其它未知／未开放语义和引用错误，当前 0..32 均不通过。结构提取始终带 `semantic_complete=false`。stage 2 的 `entry_supported=true` 与 `battle_enabled=false` 分别登记，不否定既有入场、准备和浏览存取。
+第二、三条对当前原资源均应返回非零，并保留阻塞报告。默认 `(255,255,0)` 在turn255／phase0命中；G1已确认原DWORD回合无255上限、分派无action255哨兵，其表外读值不是合法code fixup。SDL保留原槽并在该边界显式拒绝，不补callback255或假定永远不到255；原版运行后果未据此宣称已测。`bound_definitions_closed`仅说明排除默认候选后的已绑定集合闭合，当前0／1为true；`--require-supported`仍拒绝默认候选、其它未知／未开放语义及引用错误，当前0..32均不通过。报告保留 `semantic_complete=false`。stage2入场支持与战斗禁用分别登记。
 
 这里的 `entry_supported` 对应原战场 entry 分发表；stage31／32 没有该表的槽，不用它判定 `scene.new_game` 中已支持的开场段落。开场链及两端实际运行证据另按对应冷图和阶段记录核对。
 
-本来源版本有 99 条有效资源项／33 组，turn、lookup、action 各保留 528 槽，1,899 个模板和 2,322 个 placement。12 条未配对模板保留为 `unresolved_no_fallback`：stage 0／31 的 group10 各一条、stage32 的 group255 十条；不猜最近 placement，已绑定 append_group 真正需要时才构成活动引用错误。
+本来源版本有99条有效资源项／33组，turn、lookup、action各保留528槽，原始1,899个模板和2,322个placement。G1／G2按metadata有效模板前缀及同索引位置复核，实际消费1,887个模板，无有效模板缺位置；stage0／31各一条、stage32十条共12条是前缀外原始尾，继续保留。历史兼容字段中的12项 unresolved 不再表示有效运行模板未知，不猜最近位置或据尾部group强行追加。
 
 实际事件 callback 表是 `0x51b91` 起 90 项；其后 `0x51cf9/0x51cfd` 为两个值 18 的无 fixup DWORD，`0x51d01` 起是独立的 28 项 magic 表。另三张 result／entry／victory 各 30 项，主要分派共 180 槽；加 magic 共 208 个分派槽，目标可能重复，均有已发布 IDA chunk owner。函数边界／原字节覆盖不证明未知 handler 或 CFG 的语义，不将邻接区域合算为 120 个事件。
 
 移动指针表另按完整106槽／424 byte盘点（`0x627d8..0x62980`），保留 `0x62980..0x634d2` 的2,898 byte原始payload。报告 `movement_pointer_table` 逐槽保存fixup、原DWORD、目标、下一不同目标形成的候选跨度及计数观察；候选跨度不等于已证分配边界。ID24的计数读取跨下一目标、ID84保留4 byte尾、其它项的原始actor字段可到83、direction可为5；均原样保留，不清洗、不判原资源坏。
 
-其中只有原36个ID／794 byte继续通过现有严格runtime验证并接入；另70项只标 `source_structure_only`、`runtime_supported=false`，不自动扩大当前64单位容量或开放玩法。完整指针／payload覆盖不等于106条脚本语义已解码；当前getter支持门、冷表与C执行器保持原范围。
+G2的106条计数流均通过严格runtime语法／原字节校验，合计2,896 byte，getter与有限执行器覆盖原三种mode；活动容量恢复96。direction5保留原cache跨帧读取语义与资源校验，不取模改值；脚本引用还须小于当次实际actor count。106条语法可执行不等于所有stage触发绑定、资源或原版运行已通过，不能据此开启S阶段关卡。
 
 v3 报告保守潜在需求集合共 1,171 条记录引用，含重复：51 条有当前已支持定义，468 条属于已知类型／定义但未开放，652 条未明确绑定或未解码；后者含 450 条默认 turn255 潜在匹配。它们不是 1,171 个不同事件，也不是执行轨迹覆盖率。当前仅 0／1 的 `bound_definitions_closed` 为 true；严格支持集合为空。v2 的 721 条计数保留为排除默认填充的历史范围，不能当作严格全范围通过。已解码引用无错误不等于所有未知 raw 引用均有效。
 
@@ -133,3 +140,24 @@ python3 -B -m unittest discover -s tools/tests -p test_audit_common_scope.py
 ```
 
 输出分别保留 208 个分发表槽、1,171 条保守引用、106 条脚本和 12 条模板尾。缺少审查、实际 owner／chunk 不符或语义族为未决均不得记为完成；结构数、分类数与运行支持数分别统计。`classification_complete=true` 只表示当前来源全部有归属，`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled` 仍为 false；它不能解除任何游戏支持门。新增 byte／CFG／数据语义先更新证据与审查记录，实施时再把真实条件、分支、等待、取消和写点写进唯一冷定义。
+
+
+## G2 正常 caster 与 FIGANI 源域
+
+`audit_caster_domain.py` 将32个原base、68个growth、20行learning、合法转职保留路径及1,887个有效模板的技能位图，按玩家／AI真实分派与FIGANI选槽交叉。只读严格身份原资源，不以SDL冷表作期望；普通选槽可按原规则回退，派生／复合固定槽不能借普通回退吞掉empty。
+
+Windows PowerShell：
+
+```powershell
+python -B tools/static_data/audit_caster_domain.py --output build/g2/caster-source-domain-final.json
+python -B -m unittest tools.tests.test_audit_caster_domain
+```
+
+Linux Bash（本轮未执行）：
+
+```bash
+python3 -B tools/static_data/audit_caster_domain.py --output build/g2/caster-source-domain-final.json
+python3 -B -m unittest tools.tests.test_audit_caster_domain
+```
+
+当前固定原资源结果为50个玩家FULL技能组合、238个模板FULL实例／30个独立组合，均选到非empty。stage13／unit103／技能30的固定槽确实empty，但原AI评分为0且该ID走MAP分派，必须在报告中保留排除依据，不能藏入成功统计。MAP不读取caster FIGANI；玩家9与AI9的分派不同。此门复用G1的位图写入owner闭包，未覆盖任意外部SAV、注入位图、未来新增技能来源、真实图像／声音或原版运行。修改来源或分派时需重审对应域，不能由旧报告推定新组合合法。

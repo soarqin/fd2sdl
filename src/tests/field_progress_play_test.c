@@ -308,7 +308,8 @@ static void test_resources(void) {
     CHECK(progress_text_prepare(&fixture_game, &notice, &text) == 0);
     CHECK(text.count == 9 && text.tokens[4] == 6 && text.tokens[5] == 3 && text.tokens[6] == 0);
     CHECK(progress_resources_preflight(&fixture_game, &notice, &fixture_other) == 0 && live_images == 0 && rng_calls == 0);
-    notice.value = UINT32_MAX; CHECK(progress_text_prepare(&fixture_game, &notice, &text) == -1);
+    notice.value = UINT32_MAX; CHECK(progress_text_prepare(&fixture_game, &notice, &text) == 0);
+    CHECK(text.tokens[4]==FIELD_TEXT_SAFE_MINUS && text.tokens[5]==1);
     notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_LEARN, 0, 587, 0, 17, 0};
     CHECK(progress_resources_preflight(&fixture_game, &notice, &fixture_other) == 0);
     notice.magic_id = 36; CHECK(progress_resources_preflight(&fixture_game, &notice, &fixture_other) == -1);
@@ -329,6 +330,31 @@ static void test_resources(void) {
     for (size_t i = 0; i < sizeof(pixels.framebuffer); i++) CHECK(pixels.framebuffer[i] == 0xa5);
     CHECK(progress_resources_preflight(&fixture_game, &notice, &damaged) == -1 && live_images == 0);
     free(damaged.data);
+}
+static void test_signed_number_safe_projection(void) {
+    fd2_vga vga;reset(&vga);
+    field_progress_text text;
+    fd2_field_progress_notice notice={FD2_FIELD_PROGRESS_GAIN,0,488,UINT32_C(0x80000000),0,0};
+    CHECK(progress_text_prepare(&fixture_game,&notice,&text)==0);
+    CHECK(text.tokens[4]==FIELD_TEXT_SAFE_MINUS && text.tokens[5]==2 &&
+          text.tokens[14]==8); /* -2147483648，保留完整signed DWORD。 */
+    fd2_field_unit before=fixture_game.units.items[0];
+    field_progress_box box={0};
+    field_progress_text number={{FIELD_TEXT_SAFE_MINUS,1},2};
+    CHECK(field_text_play(&box,&fixture_game,&vga,&fixture_other,NULL,&number,10,10,1)==FD2_SCENE_RESULT_OK);
+    int visible=0;
+    for (int y=0;y<VGA_H;y++) for (int x=0;x<VGA_W;x++) {
+        if (x>=10 && x<26 && y>=10 && y<26) visible|=vga.framebuffer[y*VGA_W+x]!=0x4a;
+        if (x<10 || x>=42 || y<10 || y>=27) CHECK(vga.framebuffer[y*VGA_W+x]==0x55);
+    }
+    CHECK(visible && !rng_calls && !test_frames && !memcmp(&before,&fixture_game.units.items[0],sizeof(before)));
+    reset(&vga);vga.input.quit_requested=1;
+    CHECK(field_text_play(&box,&fixture_game,&vga,&fixture_other,NULL,&number,10,10,1)==FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(!rng_calls && !memcmp(&before,&fixture_game.units.items[0],sizeof(before)));
+    fd2_image minus=fixture_game.info_assets.signs[1];
+    fixture_game.info_assets.signs[1].pixels=NULL;
+    CHECK(progress_text_prepare(&fixture_game,&notice,&text)==-1);
+    fixture_game.info_assets.signs[1]=minus;
 }
 static void test_box_and_wait(void) {
     fd2_vga vga;
@@ -549,6 +575,7 @@ int main(void) {
     CHECK(fd2_archive_open(&fixture_game.dato_archive, "original_game/DATO.DAT") == 0);
     CHECK(fd2_text_entry_open_entry(&fixture_game.ui_text, &fixture_game.fdtxt_archive, 0) == 0);
     CHECK(fd2_font_open_fdother(&fixture_game.font, &fixture_other, 4) == 0);
+    CHECK(fd2_field_info_assets_open(&fixture_game.info_assets,&fixture_other)==0);
     fixture_game.ready = 1; fixture_game.units.count = 1; fixture_game.attack_rng = test_rng;
     fixture_game.map.cells = calloc(1, sizeof(*fixture_game.map.cells)); CHECK(fixture_game.map.cells != NULL);
     for (unsigned i = 0; i < 2; i++) {
@@ -557,11 +584,12 @@ int main(void) {
         for (int row = 0; row < 10; row++)
             memcpy(arrow_pixels[i] + row * 14, page.framebuffer + (181 + row) * VGA_STRIDE + 191, 14);
     }
-    test_resources(); test_box_and_wait(); test_script_boundary();
+    test_resources(); test_signed_number_safe_projection(); test_box_and_wait(); test_script_boundary();
     test_attack_validation_preserves_quit_result(); test_loot_presentation_contract();
     test_loot_accumulated_text_and_no_arrow_wait();
     test_loot_ui_commit_boundary();
     free(fixture_game.map.cells); fd2_text_entry_close(&fixture_game.ui_text);
+    fd2_field_info_assets_close(&fixture_game.info_assets);
     fd2_archive_close(&fixture_game.dato_archive); fd2_archive_close(&fixture_game.fdtxt_archive); fd2_archive_close(&fixture_other);
     puts("field_progress_play_test: ok (resources, wait/RNG, staged ACK, cleanup; no GUI)");
     return 0;

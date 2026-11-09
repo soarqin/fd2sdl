@@ -43,8 +43,8 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
                                     const uint8_t *script,
                                     size_t script_size);
 
-/* DAT_000027d8 中已确认的新游戏开场、stage 0/31、stage 1 和 stage 2 脚本。
- * 开场使用0/1/2/5及0x5a..0x69，stage 1 使用9..16，stage 2 使用17..19；
+/* 原0x627d8的全106条计数流。该getter不解除任何stage/事件支持门。
+ * mode80/raw5保留原朝向与cache跨class语义，不规范化为普通四方向。
  * 返回0并提供只读字节流，
  * 未知 script_id 返回 -1，不推进演出。 */
 int fd2_field_movement_script_get(uint8_t script_id,

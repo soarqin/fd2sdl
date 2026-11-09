@@ -144,13 +144,13 @@ static int test_script_bytes(void) {
         CHECK(fd2_field_movement_script_get((uint8_t)(9+i),&script,&size)==0 && size==sizes[i]);
         CHECK(!memcmp(script,bytes+at,size));at+=size;}
     const uint8_t*script=(const uint8_t*)1;size_t size=1;
-    CHECK(fd2_field_movement_script_get(20,&script,&size)==-1 && !script && !size);
+    CHECK(fd2_field_movement_script_get(106,&script,&size)==-1 && !script && !size);
     return 0;
 }
 static int test_group_landing(void){
     fd2_field_unit_template t={{0}};t.bytes[0]=1;t.bytes[1]=134;t.bytes[4]=3;t.bytes[5]=0xff;t.bytes[6]=0x80;
     for(size_t i=7;i<13;i++)t.bytes[i]=0xff;t.bytes[0x15]=1;t.bytes[0x16]=0xff;
-    fd2_field_metadata m={0};m.unit_templates=&t;m.unit_template_count=1;
+    fd2_field_metadata m={0};m.unit_templates=&t;m.unit_template_count=1;m.unknown_02=1;
     fd2_field_placement pos={1,1,134};fd2_field_placements p={1,&pos};
     uint32_t cells[9]={0};fd2_field_map map={3,3,cells};fd2_field_units units={0};
     for(int y=0;y<3;y++)for(int x=0;x<3;x++){if(y==1 && x!=1)continue;
@@ -202,7 +202,7 @@ static int test_stage1_settlement_stage2(void) {
     /* 有村民死亡：fragment7分支不追加198；背包全满也必须静默保留库存。 */
     g->units.items[5].flags|=1;
     CHECK(fd2_field_game_settlement_project_units(g,&prior)==0 && ((uint8_t*)&prior.items[1])[16]==0x80);
-    g->units.items[5].flags&=(uint8_t)~1u;((uint8_t*)&g->units.items[1])[16]=0;
+    g->units.items[5].flags&=0xfeu;((uint8_t*)&g->units.items[1])[16]=0;
     CHECK(fd2_field_game_settlement_project_units(g,&prior)==0);
     for(size_t i=0;i<27;i++)CHECK(!memcmp((uint8_t*)&prior.items[i]+10,(uint8_t*)&g->units.items[i]+10,16));
     ((uint8_t*)&g->units.items[1])[16]=0x80;

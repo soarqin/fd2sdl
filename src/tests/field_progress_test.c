@@ -125,18 +125,30 @@ static int test_turn_deferred_then_poison_six_byte_sequence(void) {
     CHECK(!g.progress.resume && u->hp==35 && g.experience_value==77 && !calls);
     return 0;
 }
-static int test_controller_clear_and_learning_does_not_disable_basic(void) {
+static int test_controller_clear_and_new_learning_keeps_selection_read_only(void) {
     fd2_field_game g;init(&g);g.experience_value=44;
     CHECK(fd2_field_game_begin_player_controller(&g,0)==0 && g.experience_value==0);
     g.selected_unit=0;g.interaction=FD2_FIELD_INTERACTION_COMMAND;
     ((uint8_t*)&g.units.items[0])[0x1a]=1;((uint8_t*)&g.units.items[0])[0x1b]=0x20;((uint8_t*)&g.units.items[0])[0x1c]=2;
     CHECK(fd2_field_game_magic_is_available(&g)==1);
     CHECK(fd2_field_game_begin_magic_list(&g)==0);g.magic_list_selected=2;
+    fd2_field_game before=g;
     uint8_t output=0xa5;
-    CHECK(fd2_field_game_magic_list_step(&g,FD2_FIELD_MAGIC_LIST_KEY_CONFIRM,&output)==0 && output==0xa5);
-    CHECK(g.interaction==FD2_FIELD_INTERACTION_MAGIC_LIST && g.magic_list_selected==2);
+    CHECK(fd2_field_game_magic_list_step(&g,FD2_FIELD_MAGIC_LIST_KEY_CONFIRM,&output)==1 && output==17);
+    CHECK(memcmp(&g,&before,sizeof(g))==0 && !calls);
+    CHECK(fd2_field_game_magic_list_step(&g,FD2_FIELD_MAGIC_LIST_KEY_CANCEL,&output)==-1 && output==17);
+    CHECK(memcmp(&g,&before,sizeof(g))==0 && !calls); /* caller关页前不改任何owner。 */
     g.magic_list_selected=1;
+    before=g;
     CHECK(fd2_field_game_magic_list_step(&g,FD2_FIELD_MAGIC_LIST_KEY_CONFIRM,&output)==1 && output==13);
+    CHECK(memcmp(&g,&before,sizeof(g))==0 && !calls);
+    CHECK(fd2_field_game_end_magic_list(&g)==0 && g.interaction==FD2_FIELD_INTERACTION_COMMAND &&
+        g.magic_list_selected==0 && !calls);
+    CHECK(memcmp(&g.units,&before.units,sizeof(g.units))==0 &&
+        g.experience_value==before.experience_value && g.turn_number==before.turn_number &&
+        g.active_side==before.active_side && g.cursor_cell_x==before.cursor_cell_x &&
+        g.cursor_cell_y==before.cursor_cell_y && g.move_path==before.move_path &&
+        !memcmp(&g.pending_cell_event,&before.pending_cell_event,sizeof(g.pending_cell_event)));
     return 0;
 }
 static int test_actual_ai_counter_reward_and_two_hit_preflight(void) {
@@ -166,12 +178,13 @@ static int test_actual_ai_counter_reward_and_two_hit_preflight(void) {
     CHECK(drain(&g)==0 && hero->level==7 && hero->experience==30);
     CHECK(fd2_field_unit_has_acted(enemy) && g.experience_value==0 && hero->hp==38);
     init(&g);g.selected_unit=0;g.interaction=FD2_FIELD_INTERACTION_COMMAND;
-    g.option_values[2]=1; /* 同一SHORT双击死亡上界，预检仍须零RNG。 */
+    g.option_values[2]=1; /* 玩家18d8c仍FULL；未知死亡callback的完整上界先于RNG。 */
     hero=&g.units.items[0];enemy=&g.units.items[2];
     hero->attack=10;hero->accuracy=100;hero->defense=0;
     ((uint8_t*)hero)[10]=0x40;((uint8_t*)hero)[11]=71;
     enemy->x=8;enemy->y=14;enemy->hp=15;enemy->hp_max=15;enemy->defense=0;enemy->evasion=0;
-    ((uint8_t*)enemy)[0x31]=4; /* 单击最大9，双击18会触未知loot。 */
+    ((uint8_t*)enemy)[0x31]=2; ((uint8_t*)enemy)[0x32]=255;
+    /* 单击最大9，FULL两/三击会触原表外callback；mode4已证default no-op。 */
     CHECK(fd2_field_game_begin_attack(&g)==0);g.cursor_cell_x=8;g.cursor_cell_y=14;
     fd2_field_game before=g;calls=0;
     CHECK(fd2_field_game_resolve_attack(&g)==-1 && !calls && memcmp(&g,&before,sizeof(g))==0);
@@ -331,6 +344,6 @@ int main(void) {
     CHECK(test_raw_cap_early_return_and_multi_level()==0);
     CHECK(test_late_resource_preflight_before_any_growth()==0);
     CHECK(test_turn_deferred_then_poison_six_byte_sequence()==0);
-    CHECK(test_controller_clear_and_learning_does_not_disable_basic()==0);
+    CHECK(test_controller_clear_and_new_learning_keeps_selection_read_only()==0);
     puts("field progress tests: ok (headless ACK only)");return 0;
 }

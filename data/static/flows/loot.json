@@ -6,7 +6,7 @@
     "file": "src/field_game.c",
     "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
     "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记"
+    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记；G2依据完整1aa1d switch补mode4..255 default推进，collector255哨兵另保留；通用0/1/3预检不以stage编号拒绝，callback仍按真实绑定核查。"
   },
   "operations": {
     "emit": {
@@ -873,7 +873,7 @@
           ],
           "on": {
             "yes": "drop.story",
-            "no": "failure",
+            "no": "drop.next",
             "error": "failure"
           }
         },
@@ -2142,25 +2142,12 @@
           "id": "preflight.drop",
           "op": "branch_descriptor_mode",
           "args": [
-            0,
-            255
+            3,
+            4
           ],
           "on": {
             "yes": "return.zero",
-            "no": "preflight.drop.stage",
-            "error": "failure"
-          }
-        },
-        {
-          "id": "preflight.drop.stage",
-          "op": "branch_stage",
-          "args": [
-            2,
-            2
-          ],
-          "on": {
-            "yes": "preflight.drop.mode01",
-            "no": "reject",
+            "no": "preflight.drop.mode01",
             "error": "failure"
           }
         },
@@ -2225,7 +2212,7 @@
           ],
           "on": {
             "yes": "preflight.drop.story",
-            "no": "reject",
+            "no": "return.zero",
             "error": "failure"
           }
         },

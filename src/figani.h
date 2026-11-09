@@ -51,6 +51,7 @@ typedef struct {
     fd2_figani_clip clip; /* 借用archive；empty是合法哨兵，不能伪造为有part。 */
     size_t selected_entry;
     uint8_t cost_marker_count;
+    uint8_t effect_marker_count;
 } fd2_figani_magic_cast;
 
 /* 2ff01先取unit_id*3+2，empty才退+1；30e9d仅在intro_end内part+4==1
@@ -58,5 +59,12 @@ typedef struct {
  * 区分合法容器与未支持播放。无分配所有权、RNG、费用写入；失败输出不变。 */
 int fd2_figani_magic_cast_plan(fd2_figani_magic_cast *out,
     const fd2_archive *archive, uint8_t unit_id);
+
+/* 2ff01普通0..9沿用上述回退；2cf30的24/28..31固定slot2，
+ * 2d80d的32..35固定slot1，不因空条目改选另一动作。只读资源计划不开放
+ * caller的法术有效域。effect_marker_count只数intro之后的part+4==1，
+ * 包含duration0；Game按各part原顺序提交，呈现层不得据此再次结算。 */
+int fd2_figani_magic_action_plan(fd2_figani_magic_cast *out,
+    const fd2_archive *archive, uint8_t unit_id, uint8_t magic_id);
 
 #endif /* FD2_FIGANI_H */

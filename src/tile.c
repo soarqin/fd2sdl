@@ -355,7 +355,7 @@ void fd2_terrain_render_field_scaled_animated(
             int64_t cell_x = fixed_cell_floor(source_x, &rem_x);
             if (cell_x >= 0 && cell_x < map->width &&
                 cell_y >= 0 && cell_y < map->height) {
-                uint32_t cell = fd2_field_map_cell(map, cell_x, cell_y);
+                uint32_t cell = fd2_field_map_cell(map, (int)cell_x, (int)cell_y);
                 size_t frame_index;
                 if (fd2_terrain_base_frame_from_cell_animated(
                         terrain, cell, terrain_phase, actor_phase,

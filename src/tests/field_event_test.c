@@ -86,6 +86,25 @@ static int test_stage0_scripts(void) {
     size_t size = 1;
     CHECK(fd2_field_stage0_movement_script_get(5, &script, &size) == -1);
     CHECK(script == NULL && size == 0);
+    /* 全106条独立原源已另由verify_movement_scripts逐字核对；这里检查热执行域。 */
+    for (unsigned id=0;id<106;id++) {
+        fd2_field_units units={0}; units.count=FD2_FIELD_MAX_UNITS;
+        CHECK(fd2_field_movement_script_get((uint8_t)id,&script,&size)==0);
+        CHECK(fd2_field_movement_script_apply(&units,script,size)==0);
+    }
+    fd2_field_units units={0}; units.count=96;
+    units.items[1].x=21;units.items[1].y=19;
+    CHECK(fd2_field_movement_script_get(24,&script,&size)==0 && size==13);
+    CHECK(fd2_field_movement_script_apply(&units,script,size)==0);
+    CHECK(units.items[1].direction==5 && units.items[1].x==21 && units.items[1].y==19);
+    fd2_field_units before=units;
+    const uint8_t bad[]={1,0x80,1,96,0};
+    CHECK(fd2_field_movement_script_apply(&units,bad,sizeof(bad))==-1);
+    CHECK(!memcmp(&before,&units,sizeof(units)));
+    const uint8_t too_many[]={1,0x80,33};
+    CHECK(fd2_field_movement_script_apply(&units,too_many,sizeof(too_many))==-1);
+    CHECK(!memcmp(&before,&units,sizeof(units)));
+    CHECK(fd2_field_movement_script_get(106,&script,&size)==-1 && !script && !size);
     return 0;
 }
 

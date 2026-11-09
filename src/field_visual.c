@@ -141,8 +141,8 @@ void fd2_field_apply_palette_lut(fd2_vga *vga,
 }
 
 /* sub_219AD @0x219ad、field_transition_lut_mask @0x22046：原sqrt/CHP读集
- * 与有限机器码向量确认floor(sqrt(n)*16/10)=isqrt(64*n/25)，不是nearest。
- * 这里只支持22046已确认的scale16；2189a的scale12不是本接口的隐式默认。 */
+ * 与有限机器码向量确认向零截断：scale16用isqrt(64*n/25)，
+ * 2189a的scale12用isqrt(36*n/25)，不是nearest。 */
 static uint64_t transition_isqrt(uint64_t value) {
     uint64_t root = 0, bit = UINT64_C(1) << 62;
     while (bit > value) bit >>= 2;
@@ -166,33 +166,62 @@ static void transition_span(fd2_vga *vga, const uint8_t lut[256],
 }
 
 static void transition_circle(fd2_vga *vga, const uint8_t lut[256],
-    int cx, int cy, int radius, int first_row) {
+    int cx, int cy, int radius, int first_row, unsigned square_scale) {
     int start = first_row < 0 ? 0 : first_row;
     for (int y = start; y < 192; y++) {
         int64_t dy = (int64_t)cy - y;
         if (dy <= -radius || dy >= radius) continue;
         uint64_t square = (uint64_t)((int64_t)radius * radius - dy * dy);
-        int64_t half = (int64_t)transition_isqrt(square * 64u / 25u);
+        int64_t half = (int64_t)transition_isqrt(square * square_scale / 25u);
         transition_span(vga, lut, y, (int64_t)cx - half, (int64_t)cx + half);
     }
 }
 
 int fd2_field_transition_lut_before_actors(fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius) {
-    if (!vga || !lut || radius < 1 || radius > 4096) return -1;
-    transition_circle(vga, lut, center_x, center_y, radius, 0);
-    return 0;
+    return fd2_field_transition_lut_before_actors_from(vga,lut,center_x,center_y,radius,0);
 }
 
 int fd2_field_transition_lut_after_actors(fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius) {
+    return fd2_field_transition_lut_after_actors_from(vga,lut,center_x,center_y,radius,0);
+}
+
+int fd2_field_transition_lut_before_actors_from(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius, int first_row) {
+    if (!vga || !lut || radius<1 || radius>4096 || first_row<0 || first_row>192) return -1;
+    transition_circle(vga,lut,center_x,center_y,radius,first_row,64);
+    return 0;
+}
+
+int fd2_field_transition_lut_after_actors_from(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius, int first_row) {
     if (!vga || !lut || radius < 1 || radius > 4096) return -1;
-    transition_circle(vga, lut, center_x, center_y, radius, center_y);
+    if (first_row<0 || first_row>192) return -1;
+    transition_circle(vga, lut, center_x, center_y, radius, center_y, 64);
     int end = center_y < 192 ? center_y : 192;
     int64_t half = (int64_t)radius * 8 / 5;
-    for (int y = 0; y < end; y++)
+    for (int y = first_row; y < end; y++)
         transition_span(vga, lut, y, (int64_t)center_x - half, (int64_t)center_x + half);
     return 0;
+}
+
+/* sub_2189A @0x2189a直接调用sub_219AD @0x219ad(scale12)，
+ * 不经过22046的actor插入点／第二圆与矩形。 */
+int fd2_field_transition_lut_circle12(fd2_vga *vga,
+    const uint8_t lut[256], int center_x, int center_y, int radius) {
+    if (!vga || !lut || radius < 1 || radius > 4096) return -1;
+    transition_circle(vga, lut, center_x, center_y, radius, 0, 36);
+    return 0;
+}
+
+int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ms) {
+    if (!vga || vga->actor_jitter_phase>1u) return -1;
+    uint16_t tick=(uint16_t)(now_ms/55u);
+    if (tick==vga->actor_jitter_tick) return 0;
+    vga->actor_jitter_tick=tick;
+    vga->actor_jitter_phase^=1u;
+    return 1;
 }
 
 /* sub_4E31C @0x4e31c（原登记 sub_4E31C）：DAC224..239固定水色窗口。

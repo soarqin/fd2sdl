@@ -1,0 +1,758 @@
+{
+  "schema_version": 1,
+  "domain": "magic",
+  "source": {
+    "kind": "canonical_disassembly",
+    "file": "FD2.EXE",
+    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+    "evidence": "sub_2D80D @0x2d80d / 0x2ddca..0x2deec；完整Domain读集与strict LE/fixup逐chunk一致。G1 common-battle-semantics §3.4确认全组raw顺序和清浮字边界；费用由外层intro marker一次链负责，组内不重复wrapper扣费。；23按2218a/22253的22547位置写点分OUT/IN前后四段同步，费用/贡献、临时255、display及focus顺序均为冷节点。；G2 Item20c6f/21082外层FX→原effect→浮字→条件caster重算→条件移槽→code19恢复EX→清贡献由item.effect控制；code23嵌入既有023冷图，原UI资格/首层display与Magic分开。"
+  },
+  "operations": {
+    "effect_group": {
+      "args": [
+        {
+          "name": "effect_id",
+          "min": -1,
+          "max": 35
+        },
+        {
+          "name": "power_override",
+          "min": -1,
+          "max": 32767
+        }
+      ]
+    },
+    "status_clear_group": {
+      "args": [
+        {
+          "name": "offset",
+          "min": 37,
+          "max": 39
+        },
+        {
+          "name": "count",
+          "min": 1,
+          "max": 3
+        }
+      ]
+    },
+    "popup_clear": {
+      "args": []
+    },
+    "done": {
+      "args": []
+    },
+    "fail": {
+      "args": []
+    },
+    "teleport_focus": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "teleport_position": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "display_mode": {
+      "args": [
+        {
+          "name": "mode",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "teleport_present": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 3
+        }
+      ]
+    },
+    "teleport_cost_reward": {
+      "args": []
+    },
+    "item_code_in": {
+      "args": [
+        {
+          "name": "mask",
+          "min": 0,
+          "max": 1048575
+        }
+      ]
+    },
+    "item_cast": {
+      "args": []
+    },
+    "item_effect_group": {
+      "args": []
+    },
+    "item_popup_group": {
+      "args": []
+    },
+    "item_recompute_caster": {
+      "args": []
+    },
+    "item_consume_slot": {
+      "args": []
+    },
+    "item_restore_ex": {
+      "args": []
+    },
+    "item_clear_reward": {
+      "args": []
+    },
+    "item_teleport": {
+      "args": []
+    }
+  },
+  "flows": [
+    {
+      "id": "magic.effect.032",
+      "entry": "step.0",
+      "nodes": [
+        {
+          "id": "step.0",
+          "op": "effect_group",
+          "args": [
+            32,
+            -1
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic.effect.033",
+      "entry": "step.0",
+      "nodes": [
+        {
+          "id": "step.0",
+          "op": "status_clear_group",
+          "args": [
+            37,
+            3
+          ],
+          "on": {
+            "next": "step.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.1",
+          "op": "effect_group",
+          "args": [
+            13,
+            800
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic.effect.034",
+      "entry": "step.0",
+      "nodes": [
+        {
+          "id": "step.0",
+          "op": "effect_group",
+          "args": [
+            17,
+            -1
+          ],
+          "on": {
+            "next": "step.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.1",
+          "op": "popup_clear",
+          "args": [],
+          "on": {
+            "next": "step.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.2",
+          "op": "effect_group",
+          "args": [
+            18,
+            -1
+          ],
+          "on": {
+            "next": "step.3",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.3",
+          "op": "popup_clear",
+          "args": [],
+          "on": {
+            "next": "step.4",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.4",
+          "op": "effect_group",
+          "args": [
+            19,
+            -1
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic.effect.035",
+      "entry": "step.0",
+      "nodes": [
+        {
+          "id": "step.0",
+          "op": "effect_group",
+          "args": [
+            26,
+            -1
+          ],
+          "on": {
+            "next": "step.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.1",
+          "op": "popup_clear",
+          "args": [],
+          "on": {
+            "next": "step.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.2",
+          "op": "effect_group",
+          "args": [
+            22,
+            -1
+          ],
+          "on": {
+            "next": "step.3",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.3",
+          "op": "popup_clear",
+          "args": [],
+          "on": {
+            "next": "step.4",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.4",
+          "op": "effect_group",
+          "args": [
+            27,
+            -1
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic.effect.023",
+      "entry": "step.0",
+      "nodes": [
+        {
+          "id": "step.0",
+          "op": "teleport_focus",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "step.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.1",
+          "op": "teleport_cost_reward",
+          "args": [],
+          "on": {
+            "next": "step.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.2",
+          "op": "teleport_present",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "step.3",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.3",
+          "op": "teleport_position",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "step.4",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.4",
+          "op": "teleport_present",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.5",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.5",
+          "op": "display_mode",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "step.6",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.6",
+          "op": "teleport_focus",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.7",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.7",
+          "op": "teleport_present",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "step.8",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.8",
+          "op": "teleport_position",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.9",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.9",
+          "op": "teleport_present",
+          "args": [
+            3
+          ],
+          "on": {
+            "next": "step.10",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "step.10",
+          "op": "display_mode",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item.effect",
+      "entry": "is_teleport",
+      "nodes": [
+        {
+          "id": "is_teleport",
+          "op": "item_code_in",
+          "args": [
+            262144
+          ],
+          "on": {
+            "yes": "teleport",
+            "no": "cast",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "teleport",
+          "op": "item_teleport",
+          "args": [],
+          "on": {
+            "next": "clear_reward",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "cast",
+          "op": "item_cast",
+          "args": [],
+          "on": {
+            "next": "effect",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "effect",
+          "op": "item_effect_group",
+          "args": [],
+          "on": {
+            "next": "popup",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "popup",
+          "op": "item_popup_group",
+          "args": [],
+          "on": {
+            "next": "is_permanent",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "is_permanent",
+          "op": "item_code_in",
+          "args": [
+            28728
+          ],
+          "on": {
+            "yes": "recompute",
+            "no": "consumes",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "recompute",
+          "op": "item_recompute_caster",
+          "args": [],
+          "on": {
+            "next": "consumes",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "consumes",
+          "op": "item_code_in",
+          "args": [
+            28799
+          ],
+          "on": {
+            "yes": "consume",
+            "no": "restores_ex",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "consume",
+          "op": "item_consume_slot",
+          "args": [],
+          "on": {
+            "next": "restores_ex",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "restores_ex",
+          "op": "item_code_in",
+          "args": [
+            16384
+          ],
+          "on": {
+            "yes": "restore_ex",
+            "no": "clear_reward",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "restore_ex",
+          "op": "item_restore_ex",
+          "args": [],
+          "on": {
+            "next": "clear_reward",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "clear_reward",
+          "op": "item_clear_reward",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "fail",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        }
+      ]
+    }
+  ]
+}

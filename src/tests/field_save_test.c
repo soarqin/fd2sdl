@@ -129,7 +129,7 @@ static int test_runtime_unit_capacity(void) {
         CHECK(snapshot.unit_area[i] == 0xa5);
     fd2_save_battle_snapshot before = snapshot;
     const size_t invalid_counts[] = {
-        FD2_FIELD_MAX_UNITS + 1u, FD2_SAVE_BATTLE_MAX_UNITS, SIZE_MAX};
+        FD2_FIELD_MAX_UNITS + 1u, FD2_SAVE_BATTLE_MAX_UNITS + 1u, SIZE_MAX};
     for (size_t i = 0; i < sizeof(invalid_counts) / sizeof(invalid_counts[0]); i++) {
         game.units.count = invalid_counts[i];
         CHECK(fd2_field_game_export_battle_snapshot(&game, &snapshot) != 0);
@@ -160,6 +160,33 @@ static int test_roster_capacity_is_independent(void) {
     CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) != 0);
     CHECK(memcmp(&target, &before, sizeof(target)) == 0);
     fd2_field_metadata_close(&target.metadata);
+    return 0;
+}
+
+static int test_import_rebuilds_cache_without_rewriting_records(void) {
+    for (int legacy = 0; legacy < 2; legacy++) {
+        fd2_field_game source, target;
+        init_game(&source); init_game(&target);
+        for (size_t i = 0; i < source.units.count; i++) {
+            source.units.items[i].sprite_cache_class = legacy ? 0 : (uint8_t)i;
+            source.units.items[i].direction = source.units.items[i].frame_phase = 0;
+        }
+        fd2_save_battle_snapshot snapshot;
+        memset(&snapshot, 0xa5, sizeof(snapshot));
+        CHECK(fd2_field_game_export_battle_snapshot(&source, &snapshot) == 0);
+        CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
+        CHECK(target.units.sprite_cache_count == 3);
+        CHECK(target.units.sprite_cache_exact == 1);
+        CHECK(!memcmp(target.units.items, snapshot.unit_area, 3 * FD2_FIELD_UNIT_RECORD_SIZE));
+        for (size_t i = 0; i < target.units.count; i++) {
+            CHECK(target.units.sprite_cache_ids[i] == 20u + i);
+            CHECK(fd2_field_unit_cached_frame_index(&target.units, i, 0) == (20u + i) * 12u);
+        }
+        fd2_save_battle_snapshot exported = snapshot;
+        CHECK(fd2_field_game_export_battle_snapshot(&target, &exported) == 0);
+        CHECK(!memcmp(exported.unit_area, snapshot.unit_area, sizeof(snapshot.unit_area)));
+        fd2_field_metadata_close(&target.metadata);
+    }
     return 0;
 }
 
@@ -928,7 +955,8 @@ static int test_progress_owner_load_and_save_boundaries(void) {
     fd2_save_battle_snapshot before_sentry=sentry;
     CHECK(fd2_field_game_export_battle_snapshot(&target,&sentry)!=0);
     CHECK(memcmp(&sentry,&before_sentry,sizeof(sentry))==0);
-    fd2_save_battle_snapshot invalid=snapshot;invalid.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=65;
+    fd2_save_battle_snapshot invalid=snapshot;
+    invalid.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=FD2_FIELD_MAX_UNITS+1u;
     fd2_field_game before=target;
     CHECK(fd2_field_game_import_battle_snapshot(&target,&invalid)!=0);
     CHECK(memcmp(&target,&before,sizeof(target))==0);
@@ -1150,6 +1178,7 @@ int main(void) {
         test_export_preserves_unknown() != 0 ||
         test_runtime_unit_capacity() != 0 ||
         test_roster_capacity_is_independent() != 0 ||
+        test_import_rebuilds_cache_without_rewriting_records() != 0 ||
         test_first_active_save() != 0 ||
         test_first_manual_then_active_save() != 0 ||
         test_loaded_roster_survives_save_to_other_files() != 0 ||

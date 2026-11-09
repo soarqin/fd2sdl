@@ -163,3 +163,97 @@ action255读取地址为 `0x51b91+255*4=0x51f8d`。独立LE／Domain均读到四
 | 有效域归类 | 全事件单位字段／法术位图写点、31／36..39来源、模板48／66的完整构造写集／实际消费域和名单容量与父任务分类账联结；未知不能直接宣称无需求。已有成长／状态／移动门的静态事实不重新包装为本轮运行通过 |
 
 本次已完成静态域的28槽分派、关键caller、特殊effect与转职增量读集；**未运行SDL自动测试、局部原机器码或DOSBox／WGC**。G1是否完成由总任务的来源分类与必要代表性运行证据共同判断；本文件不能单独签核G1，更不证明G2—G5完成。新语义命名候选仅交根代理统一复核、写入命名输入并经Domain应用／生成；本文保留中性原名，未手改生成伪C。
+
+## 8. G2 追加：signed 派生伤害、负贡献与动态数字边界
+
+2026-11-10。以下是 G2 实现时追加的静态核实，不改写前述 G1 验证范围。继续使用本节首列的原 EXE、独立 battle 数据库与 `g1_battle_readset.collect` 的完整 chunk／strict LE＋fixup 比对，未保存数据库或反编译类型。源库复核摘要仍为 `f3fb61198b00660e17e3b131be1339350c345209fbbb4d8b38fc07bd2d0ede53`。
+
+### 8.1 负贡献继续按原 signed 算术处理
+
+`0x2cf30` 计算 signed AP 倍率减 signed DP 后，`0x1c81f` 的 power 可以为负。后者仍按两次 signed 除法计算 spread，并以零扩展旧 HP 减该伤害，结果负才夹零；没有 maxHP 上限。因此负 power 不能擅自改成零伤害。敌军贡献乘法取 DWORD 低位，再作 signed 除法／ADD。
+
+`0x2cf30` 在恢复旧 HP 前另以 signed 比较将返回伤害封顶到 signed oldHP；后续 marker 使用这一封顶量，而非无条件使用 rawDamage。BYTE marker 递增和28的除数8保持不变。
+
+追加读取 `0x117e7`、`0x1e292` 的完整函数：
+
+- `0x19039..0x19045`（G1 已有 `0x18d8c` 读集）以 `sar/idiv` 对贡献作 signed 归一。
+- `0x11959..0x11962` 使用 `cmp 99 / jle`，只封顶大于99的 signed 值，负值不改成99。
+- `0x1e2c9` 只排除零贡献；非零且未隐藏／未达等值等级上限时，仍显示488并令临时值为 EX byte＋signed gain。
+- `0x1e414..0x1e419` 以实际 signed total `<100` 跳过升级。旧 EX<100 时负 gain 只等11 tick、关闭框，在 `0x1e513..0x1e517` 写 EX 低 byte，再清全局贡献；该低 byte 回绕可能产生 EX>99，下一次必须按实际 total 判断，不能把所有负 gain 固定为「不升级」。未观察到退级分支。
+
+本地读集为 `C:/Users/Soar/AppData/Local/Temp/fd2-g2-reward-be0726b5a6cb46639ade266f730a85f3/readset.json`，SHA256 `25972023958fdcf06d8052424ea5e1241038a0bed93d3a054313ee96e015e7ee`。这不是机器码执行或原版负贡献实机验收。
+
+G2 的恢复预检不能沿用 B2 的 `HP≤maxHP` 假设：派生负伤害以及永久 maxHP 的 WORD 回绕可留下超上限 HP，`0x1c916` 仍恢复并夹到 maxHP，贡献可为负。多目标贡献按 DWORD 累计，预检也须保留该回绕；signed 负上界不能以 unsigned `>99` 变成无关的正99升级预检。超上限 HP 下伤害贡献还有 kill 断点：profile1、level3、enemy68、HP49／max1 时，spread79伤48而贡献4320，spread99杀死只给完整90。纯范围查询因此复用公式枚举100个 spread 的 signed 上下界，再按多目标 DWORD 符号断点预检，不把最后一个 spread 冒充所有域的最大值。该查询不调用真实 RNG、不改单位或贡献 owner。
+
+### 8.2 原负数字形读取越出字体 owner
+
+负 gain 的业务写集与其数字呈现必须分开。`0x15f84` 在 `0x160ae..0x160be` 用原 `%d` 格式（VA `0x5014c`），逐字符在 `0x1610a..0x16119` 作 `movzx char; sub 0x30` 后交给 `font_glyph_blit_16x16 @0x4ed7a`。`'-'` 因而生成 glyph index `-3`。后者仅特判 glyph10，随后在 `0x4edf0..0x4edf9` 直接按 index×32 加字体基址，没有负号映射。
+
+字体不是指向整个 FDOTHER 文件的内窗：`0x25ccb..0x25ce0` 加载 FDOTHER[4]，将 `res_load` 返回基址直接写入 `0x53a75`。`res_load @0x111ba` 在 `0x1124a..0x11258` 只为该 entry 长度分配缓冲，`0x11284..0x1128e` 从 entry 起点读满该缓冲，`0x1129f` 原样返回基址，未分配或初始化前缀。
+
+本机只读 FDOTHER.DAT 的 SHA256 为 `882580dfa31bd22e069eb151b7a86a2b8dbcd8194ec755b00036c96a4a0e0667`。entry4 文件偏移47095、长度58368，恰为1824×32B，entry SHA256 为 `3d9493f204254c58600f2b08beb47e372d2aa950d686a97f7ed73aa1f709c871`。因此 glyph−3 的32B读窗位于字体 owner 前96B，不属于该 owner 的已定义资源前缀；文件中 entry 前的字节不会被 loader 一并载入。
+
+完整函数／资源依据：
+
+- `0x15f84 / 0x4ed7a / 0x111ba` 及辅助 caller 读集：`C:/Users/Soar/AppData/Local/Temp/fd2-g2-glyph-53dc1eee08e34557b793d32705fb8a5a/readset.json`，SHA256 `d751ae0a0cad09f4bc5299327f4c9a7bd9d6a96ffe63866c2cffc1c4f57eb07c`。
+- `0x25bf4` 字体 loader caller 与 `%d` 原字节读集：`C:/Users/Soar/AppData/Local/Temp/fd2-g2-glyph-owner-c27226f3130343a8a3572025f88b2651/readset.json`，SHA256 `74829c5e66ce649b9792fbb4b81f0dd15191d9fa7dbb32f0c9f2e6ed06c36689`。
+
+此结论只证明静态 owner 外读取，不宣称已观察到原版崩溃或确定像素。G2 保留原 signed 业务、RNG、等待和 EX 低 byte 写集，不因该呈现缺陷禁止合法负 power 动作。负号采用有来源的安全数值呈现扩展，其像素不列为原版等价；正数字形沿原路径。具体扩展资源及 SDL／原版代表性验证由 G2 交付记录登记。
+
+### 8.3 Item 共用 core 时仍保留各自呈现与提交顺序
+
+`field_item_use_effect_execute @0x20c6f`（原 `sub_20C6F`）的完整1043B及其玩家 `0x1bbdc`／AI `0x15055` caller，不能由「同样恢复 HP」推导成完整 Magic13 wrapper。对应已发布 canonical 函数与下表 helper 的完整调用体是本节依据，未新增原版运行证据。
+
+| use code | 原呈现／业务 helper | 特有合同 |
+|---|---|---|
+| 5、13 | `field_hp_heal_group_execute @0x211a4` | effect13 的 `0x1c4cc`＋`0x1c2da` 后逐目标 `0x1c916` 与绿色 raw 恢复数字；不调用 `0x21ad9`／`0x21eb1` 大 mask。仅5耗物 |
+| 6、7 | `0x22af6`，effect20／21 | 只在原状态非零时恢复、清状态、取 RNG；浮字组结束后耗物 |
+| 8、9、10、17、18、19 | `field_item_permanent_stat_apply @0x21082`（原 `sub_21082`） | FX17／18／19／13／13／19及闪烁消费完整 raw 目标组；只对首目标的指定 WORD 加 power，显示红94原 power 数字。浮字后仅重算 caster，再压源槽。19先保留跨 MV／EX 的完整 WORD 进位，helper 返回后由 `0x20c6f` 恢复首目标旧 EX，不能提前省略临时高 byte |
+| 11 | `0x1c4cc(effect13)`＋`0x1c2da`＋`0x1c9dd` | MPmax 为0时显示 MISS，不恢复、不取 RNG；否则显示 raw MP 恢复数字。整组浮字后耗物 |
+| 12、14、15、16、22 | effect19／27／18／17／22 的共享 group core | 不扣 MP、不耗物；继续保留对应状态重复、免疫与 RNG 写点 |
+| 20、24 | `0x1c4cc(value)`＋`0x1cd17`＋`0x1c75e` | 无论 value 是否4..12，都使用原 ramp 染色；不得据 Magic ID 自动改成双色闪烁或震动／大 mask wrapper。不耗物 |
+| 21 | `0x2111a`→`0x1cac7`→`0x1c75e` | 无论 value 是否0..3，都使用原双色闪烁。不耗物 |
+| 23 | `field_actor_teleport_execute @0x2218a`（原 `sub_2218A`）→`0x22253` | 复用 Magic23 的费用／贡献与四段坐标写点；Item 选点保持普通 frame0，与玩家 Magic23 第二层 frame1 区分。不耗物 |
+
+外层 `item.effect` 冷图明确组织 cast→effect group→popup group→按 use-code mask 重算／耗物／还原 EX→清全局贡献；23调用既有 `magic.effect.023` 冷图后清贡献。栈上的同步结果与旧 EX 只服务本次原 owner 提交，不写入存档、不新增事件 VM。`0x21046` 清的是全局贡献，之后才释放地图效果资源并进入败亡／掉落；成功 acted 仍由各 caller 负责。呈现 PREPARE 在这些写点与首 RNG 前完成；后续失败保留已提交业务并冻结，不能重复扣费或耗物。
+
+### 8.4 复合34成功保留目标中心焦点
+
+`0x1cff0` 普通34支路在 `0x1d2f3` 后按选择中心建效果组，`0x1d43c` 调 FULL；`0x2ff01` 的 ID≥32 分支直接进入 `0x2d80d`。后者完整 body 及三组 buff core、`0x1c4cc`／`0x1c2da`／`0x1df58` 没有 focus 全局写，也不调用 `field_focus_move_to @0x12cea`／`field_focus_move_to_actor @0x12d7b`。成功返回 `0x1d48d` 收集、`0x1d497` 清败亡、`0x1d4a9` 掉落后恢复普通显示模式，不自动回 caster。
+
+零步玩家尾 `0x19021` 标 acted／归一、`0x18b66` 最终格事件查询也不移动焦点；经验无需成长、无剧情／掉落且其余玩家仍可行动时，controller 后置不改变焦点。因此代表夹具 caster(7,14)、选择中心(11,14)、camera(5,11)在34成功后焦点仍为(11,14)。同一夹具的23取消由 `0x1d3da` 明确回 caster(7,14)，不能共用导航起点。这是 G1 完整读集的控制流结论；实际 WGC／Save 导航及对照范围由 G2 运行记录另列。
+
+## 9. G2 SHORT、恢复与 FULL9 跨目标补充
+
+本节更新历史 B6 的实现边界，不改写当时的运行证据。完整17函数 Domain 读集为 `build/g2/runtime-continuation-domain.json`，SHA256 `a3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86`，包括原指令、CFG、xref 与数据；各函数字节与严格 LE fixup 后镜像一致。样本 owner 另以完整 `0x25bf4`／`0x1a7bd`／`0x1a7f1` 及两个全局的全部 xref 确认，读集 `build/g2/short-bank-domain.json` SHA256 `31fae39ea52de86eaa4d724d1cc6757a6bdd8593b8cba9251bcbe72182f4fda8`。以下是静态／局部代码结论，新增原版 WGC 和声音验收仍按阶段记录分别登记。
+
+### 9.1 玩家物理、AI SHORT 与静止恢复
+
+玩家 `0x18d8c` 直接调用 `0x2e2b0`，两者均不读效果选项 `0x53af9`，因此玩家物理始终采用 FULL 的攻击次数、RNG 与呈现。只有 AI `0x1548e` 在选项非零时调用 SHORT；不能只改画面而仍给玩家执行 SHORT 算法。
+
+| 原调用／数据 | 确认的顺序与有效域 |
+|---|---|
+| `0x1548e → 0x1eb05 → 0x1e856` | 主动者朝向、mode0地图刷新、mode1；反击合法才给防御者朝向；双面板后复位方向再攻击。防御者存活且仍可反击才给双方朝向、调用 `0x1e611` 并反击，最后复位方向 |
+| `0x1eb05`／`0x1ec2a` | FDOTHER6 frames39..48，十帧各25ms；前九帧保存／恢复背景，最后48保留。防御者面板必有，主动者面板仅在可反击时有；位置按朝向与屏幕边界计算 |
+| `0x1e7f6`／`0x1e739` | 非零 HP 初始宽 `69*HP/maxHP+1`；使用 FDOTHER5 的原1×5列，保留空条70列与非空尾71列的差异。SHORT 的非零 HP／maxHP0是原除零域，不猜条长 |
+| `0x1e98c`／`0x61955` | 武器类别21指针投影为6段共84B的 `(frame,cue)` 序列。hit首帧专用actor solid64、第二帧正常；miss无solid。cue255无声，其余hit用原cue、miss用4，样本 owner 为 FDOTHER64。每个FX保存背景、显示80ms后恢复；HP条从 `70*oldHP/oldmax` 递减至 `69*newHP/oldmax+1`，每列8ms，无伤害浮字 |
+| `0x13fd4` | HP==max 或 raw+0x25／0x26 非零立即返回0，不改显示／焦点／HP。其余 mode0、聚焦、wait1、FDOTHER31声4、专用actor solid200/copy/wait1、正常actor/copy/wait1，最后 `HP=min(old+max/5,max)`、mode1、返回1。max/5增量可为0，成功仍执行封顶；max0且oldHP非0会写HP0；无 RNG、无浮字 |
+| `0x1da16 → 0x4e127` | 使用缓存 sprite、朝向×3与当前 walk／idle；phase3映为1，区别于普通actor的3映2；不套raw26抖动或acted灰色。`0x4e127` 忽略调用方颜色参数，solid取stride低byte：恢复456→200，SHORT直VGA320→64。已证静止raw5取下一缓存class的frame3+phase，按真实cache映射，不按unit ID加1；SHORT的旧方向先由冷图face/reset改写，PREPARE不能提前按旧5拒绝 |
+
+`0x1e611` 是反击前的地图与面板重画，不是箭头。`0x155f3..0x155fb` 只压入三个实参，`0x15600` 只清理12B，但 `0x1e6a8` 读取第四实参并用作单位索引。该栈值没有初始化合同。SDL 的最小安全扩展省略这一次 HP 读取，保留此前固定宽55与明确 arg8 的第二条；不将猜测单位、栈值或这部分像素称为原版等价。它直调 `11eee`，故独立地形 `53A40` 门仍须推进；`127a9` 的App raw26抖动门也保留。该点不调用 `1297d` 或水DAC门，不能将全部Game时钟一起推进或全部冻结。
+
+冷图 `stationary.recover`、`physical.full`、`physical.short` 负责分支、顺序、等待和 HP 提交。资源 PREPARE 保持只读，Game 仍是业务／RNG owner。AI11先施法再物理／恢复的可能资源在首个 RNG 前作保守环境预检，避免已施法后才缺资源；它不重选行动或调用第二套 planner，缺资源时可早于实际不会发生的恢复分支拒绝。有效原资源不因此缩小动作范围。
+
+### 9.2 FULL9 延续原跨目标业务，仅限制不存在的绘制
+
+正常9来源十个有效模板全部 side0；玩家9本来走 MAP。来源闭包与 stage24 同格增援的真实写点在 `build/g2/full9-reachability-notes.md`，没有宣称已取得自然整关双目标 FULL9 trace。原 `0x14818` 按 actor 收集，同格可有多目标；不能以 area0 或缺少完整自然轨迹新增 count1 门。
+
+`0x2ce1a` 的 BYTE frame跨全部目标及完整 `0x31266` 九tick过渡延续。首目标60tick从1到61，27次impact，HP分母20；过渡到70。第二目标仍执行命中／伤害核心与贡献，但60tick无impact，HP恢复成旧值后保持。更后目标 BYTE 回绕可再次产生impact。原核心结果与最终 HP 必须分开，不能补写。
+
+FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e712e` 的真实目录只有31part。过渡首先请求合法part30，随后请求31以上。SDL 仅省略 beam 超目录的 DRAW，继续全部 frame、cue、impact、核心与 RNG；其它 FX、有效 part 绘制失败及初始化资源检查仍严格处理。非 side0 FULL9 缺 selector 是独立来源边界，不能用相邻值填补。
+
+`tools/ida/verify_fd2_full9_wrapper.py` 执行未 patch 的原 `0x2ff01` 目标循环、完整 `0x31266`、`0x2ce1a`、`0x1c75e/0x1c81f` 与真实 `0x4ebe3`，只替换绘制、声音、等待和栈探测。17例（目标1／2／5／8×四seed，加双命中 seed9）与真实 `fd2_field_game_commit_ai_magic` 的 FINISH 全80B、每次 RNG 前全部目标HP／MP／贡献、核心结果和impact抖动全等，收据 `build/g2/full9-wrapper-comparison-final.json`。seed9第二目标核心HP4049且贡献非零，最终HP仍5000。另四例95目标只验证 C 容量，不扩大原wrapper局部数组有效域，也不将 stub 绘制称为原版像素／声音或 DOSBox 验收。
+
+该差分逐次记录原机器码的 HP／贡献内存写；C 侧观察每次 RNG 前状态以及 TARGET／FINISH 边界，没有逐次 C 内存写 trace，也未调用 renderer。报告中的目录外 DRAW 数仅为原请求，C 的省绘制由独立 FX／renderer 测试验证。
+
+普通玩家WAIT与AI恢复共用13fd4，但背景上下文不同：12cea入口无条件11cac，玩家COMMAND/selected/side2的既有同步caller在非零option3时保常驻板；END整轮抑制门关闭AI信息板。本次只用局部exchange沿现有caller辨别，不新建Game字段或SAV；G4仍须完成全局设置／抑制门。SHORT初始HP条1e7f6只写VGA，无独立等待或翻页；SDL省去该处多余的零时长上传，首STRIKE统一上传HP条、实体64与FX6后保持原80ms。

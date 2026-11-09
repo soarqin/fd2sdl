@@ -322,6 +322,50 @@ static int test_transition_invalid_and_extreme_clipping(void) {
     return 0;
 }
 
+static int test_transition_circle12(void) {
+    fd2_vga vga, before;
+    memset(&vga, 3, sizeof(vga)); before = vga;
+    uint8_t lut[256];
+    for (unsigned i=0;i<256;i++) lut[i]=(uint8_t)(i+1u);
+    CHECK(fd2_field_transition_lut_circle12(&vga,lut,100,100,5)==0);
+    /* 已确认原sqrt/scale12/CHP：r5，dy0..4半宽6/5/5/4/3；端点不写。 */
+    static const int half[]={6,5,5,4,3};
+    for (int dy=-5;dy<=5;dy++) for (int x=90;x<110;x++) {
+        int distance=dy<0 ? -dy:dy;
+        int painted=distance<5 && x>=100-half[distance] && x<100+half[distance];
+        CHECK(vga.framebuffer[(100+dy+4)*VGA_STRIDE+x+4]==(painted ? 4:3));
+    }
+    CHECK(mask_border_unchanged(&vga)==0);
+    vga=before;
+    CHECK(fd2_field_transition_lut_circle12(&vga,lut,0,0,0)==-1);
+    CHECK(fd2_field_transition_lut_circle12(&vga,lut,0,0,4097)==-1);
+    CHECK(fd2_field_transition_lut_circle12(&vga,NULL,0,0,5)==-1);
+    CHECK(!memcmp(&vga,&before,sizeof(vga)));
+    CHECK(fd2_field_transition_lut_before_actors_from(&vga,lut,100,100,5,99)==0);
+    CHECK(fd2_field_transition_lut_after_actors_from(&vga,lut,100,100,5,99)==0);
+    CHECK(vga.framebuffer[(98+4)*VGA_STRIDE+104]==3);
+    CHECK(vga.framebuffer[(99+4)*VGA_STRIDE+104]==5);
+    CHECK(vga.framebuffer[(100+4)*VGA_STRIDE+104]==5);
+    vga=before;
+    CHECK(fd2_field_transition_lut_before_actors_from(&vga,lut,100,100,5,-1)==-1);
+    CHECK(fd2_field_transition_lut_after_actors_from(&vga,lut,100,100,5,193)==-1);
+    CHECK(!memcmp(&vga,&before,sizeof(vga)));
+    return 0;
+}
+
+static int test_actor_visual_shared_tick(void) {
+    fd2_vga vga;memset(&vga,0,sizeof(vga));
+    CHECK(fd2_field_actor_visual_tick(&vga,0)==0 && vga.actor_jitter_phase==0);
+    CHECK(fd2_field_actor_visual_tick(&vga,55)==1 && vga.actor_jitter_phase==1);
+    CHECK(fd2_field_actor_visual_tick(&vga,109)==0 && vga.actor_jitter_phase==1);
+    CHECK(fd2_field_actor_visual_tick(&vga,5500)==1 && vga.actor_jitter_phase==0);
+    vga.actor_jitter_tick=65535;
+    CHECK(fd2_field_actor_visual_tick(&vga,UINT64_C(65536)*55u)==1);
+    CHECK(vga.actor_jitter_tick==0 && vga.actor_jitter_phase==1);
+    CHECK(fd2_field_actor_visual_tick(NULL,0)==-1);
+    return 0;
+}
+
 int main(void) {
     CHECK(test_resources_and_sequence() == 0);
     CHECK(test_terrain_animation_and_transparent_lut() == 0);
@@ -329,6 +373,8 @@ int main(void) {
     CHECK(test_palette_apply_clipping() == 0);
     CHECK(test_transition_native_rounding_and_vectors() == 0);
     CHECK(test_transition_invalid_and_extreme_clipping() == 0);
+    CHECK(test_transition_circle12() == 0);
+    CHECK(test_actor_visual_shared_tick() == 0);
     puts("field visual tests: ok");
     return 0;
 }

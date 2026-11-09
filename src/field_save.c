@@ -228,6 +228,14 @@ static int import_current_stage(
         loaded.walk_frames[i] = 1;
         loaded.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
     }
+    /* G2：10010读档后按raw actor顺序／当前ID重建cache，不信存档旧class。
+     * SDL以旁路表达重建class，保留原80B（也兼容旧SDL全0的raw+2）。
+     * 必须先于live交接；失败仍保留原session及其资源owner。 */
+    if (fd2_field_units_sprite_cache_restore(&loaded) != 0) {
+        fd2_field_map_close(&loaded_map);
+        fd2_field_metadata_close(&loaded_metadata);
+        return -1;
+    }
 
     fd2_field_metadata_close(&game->metadata);
     game->metadata = loaded_metadata;

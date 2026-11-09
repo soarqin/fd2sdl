@@ -359,6 +359,88 @@ static int test_magic_commit(void) {
 }
 
 typedef struct {
+    test_rng *rng;
+    fd2_field_magic_action_kind kind;
+    uint8_t code;
+    unsigned prepared, cast, targets, popup, finished;
+    size_t visual_count, effect_count;
+} ai_map_observer;
+
+static int observe_ai_map(const fd2_field_game *game,
+        const fd2_field_magic_present_event *event, void *userdata) {
+    ai_map_observer *seen = userdata;
+    CHECK(event->action_kind == seen->kind && event->presentation_mode == FD2_FIELD_MAGIC_MODE_MAP);
+    CHECK(seen->kind == FD2_FIELD_MAGIC_ACTION_MAGIC ? event->magic_id == 9 : event->item_code == seen->code);
+    CHECK(!fd2_field_unit_has_acted(&game->units.items[event->actor_index]));
+    if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+        CHECK(!seen->rng->cursor && !seen->prepared);
+        seen->visual_count = event->target_count;
+        seen->effect_count = event->effect_target_count ? event->effect_target_count : event->target_count;
+        seen->prepared++;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_CAST) {
+        CHECK(seen->prepared == 1 && !seen->rng->cursor && !seen->cast);
+        seen->cast++;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_TARGET) {
+        CHECK(seen->cast == 1 && !seen->popup && event->result && event->target_before && event->target_after);
+        CHECK(event->target_after == &game->units.items[event->target_index]);
+        seen->targets++;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP) {
+        CHECK(seen->kind == FD2_FIELD_MAGIC_ACTION_ITEM && seen->targets == seen->effect_count);
+        seen->popup++;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_FINISH) {
+        CHECK(!event->action_failed && seen->targets == seen->effect_count && !seen->finished);
+        CHECK(seen->kind == FD2_FIELD_MAGIC_ACTION_ITEM ? seen->popup == 1 : !seen->popup);
+        seen->finished++;
+    } else CHECK(0);
+    return 0;
+}
+
+static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
+    static const uint32_t rolls[16] = {0};
+    test_rng rng = {rolls, 16, 0};
+    uint32_t cells[8 * 8]; fd2_terrain_attr attrs[1]; fd2_field_game game;
+    init_game(&game, cells, attrs, &rng);
+    game.stage = UINT8_MAX; game.units.count = 3;
+    game.units.items[0].mp = game.units.items[0].mp_max = 1000;
+    teach_magic(&game.units.items[0], 9);
+    game.units.items[1].x = 2; game.units.items[1].y = 1;
+    game.units.items[1].hp = game.units.items[1].hp_max = 1000;
+    game.units.items[2] = game.units.items[1];
+    game.units.items[2].movement_profile = 0; /* 原MAP9根本不读后项profile。 */
+    ai_map_observer seen = {&rng, FD2_FIELD_MAGIC_ACTION_MAGIC, 0};
+    game.magic_present = observe_ai_map; game.magic_present_userdata = &seen;
+    fd2_field_ai_magic_candidate plan;
+    CHECK(fd2_field_ai_choose_magic_candidate(&game.map, &game.terrain, &game.units, 0, 0, &plan) == 0 && plan.magic_id == 9);
+    CHECK(fd2_field_game_commit_ai_magic(&game, 0, 0, &plan) == 0);
+    CHECK(seen.visual_count == 2 && seen.effect_count == 1 && seen.targets == 1 &&
+        seen.prepared == 1 && seen.finished == 1 && rng.cursor == 2);
+    CHECK(game.units.items[1].hp < 1000 && game.units.items[2].hp == 1000);
+    static const uint8_t ids[] = {192,40,56,38,79};
+    for (size_t i = 0; i < sizeof(ids); i++) {
+        rng = (test_rng){rolls,16,0}; init_game(&game, cells, attrs, &rng);
+        game.stage = UINT8_MAX; game.active_side = game.units.items[0].side = 1;
+        const uint8_t *item = fd2_field_item_record_get(ids[i]);
+        int heals = item[0x0d] == 5 || item[0x0d] == 13;
+        game.units.items[0].hp = game.units.items[0].hp_max = 1000;
+        game.units.items[0].mp = 7;
+        game.units.items[1].side = heals ? 1 : 2;
+        game.units.items[1].x = 2; game.units.items[1].y = 1;
+        game.units.items[1].hp = heals ? 10 : 1000; game.units.items[1].hp_max = 1000;
+        uint8_t *raw = (uint8_t *)&game.units.items[0];
+        memset(raw + 0x0a, 0x80, 0x10); raw[0x0a] = 0; raw[0x0b] = ids[i];
+        seen = (ai_map_observer){&rng, FD2_FIELD_MAGIC_ACTION_ITEM, item[0x0d]};
+        game.magic_present = observe_ai_map; game.magic_present_userdata = &seen;
+        fd2_field_ai_item_candidate candidate;
+        CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain,
+            &game.units, 0, heals ? 1 : 0, &candidate) == 0 && candidate.score >= 6);
+        CHECK(fd2_field_game_commit_ai_item(&game, 0, heals ? 1 : 0, &candidate) == 0);
+        CHECK(seen.prepared == 1 && seen.cast == 1 && seen.finished == 1 && seen.popup == 1);
+        CHECK(game.units.items[0].mp == 7 && !game.experience_value);
+    }
+    return 0;
+}
+
+typedef struct {
     test_rng rng;
     const fd2_field_unit *actor;
     uint16_t expected_mp;
@@ -374,7 +456,7 @@ static uint32_t cost_observing_roll(void *userdata) {
 static int test_magic_cast_cost_before_targets(void) {
     static const uint32_t rolls[16] = {0};
     for (uint8_t id = 0; id < 28u; id++) {
-        /* 23/24尚未开放；25的AI评分恒0，不伪造可提交candidate。 */
+        /* 23/24/25的原AI评分恒0，不以玩家已支持来伪造AI candidate。 */
         if (id >= 23u && id <= 25u) continue;
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
@@ -1290,6 +1372,90 @@ static int check_ai11_fallback_queries(fd2_field_game *game, int expected_witnes
     return 0;
 }
 
+typedef struct {
+    test_rng *rng;
+    size_t probes,prepares,steps,finishes,at_prepare;
+    uint16_t hp_before;
+    int fail_probe,invalid;
+} recovery_probe_observer;
+
+static int observe_recovery_probe(const fd2_field_game *game,
+        const fd2_field_physical_event *event, void *userdata) {
+    recovery_probe_observer *observer=userdata;
+    if (!game || !event || !observer || event->presentation_mode!=FD2_FIELD_PHYSICAL_MODE_RECOVERY ||
+        event->actor_index!=0 || event->target_index!=0 || event->result) return -1;
+    if ((event->phase==FD2_FIELD_PHYSICAL_PREPARE || event->phase==FD2_FIELD_PHYSICAL_RECOVERY_STEP) &&
+        (game->active_side!=0 || game->units.items[event->actor_index].side!=0 ||
+         (game->selected_unit==(int)event->actor_index && game->interaction==FD2_FIELD_INTERACTION_COMMAND)))
+        observer->invalid=1; /* AI恢复不借用玩家COMMAND面板owner。 */
+    if (event->resource_only) {
+        observer->probes++;
+        if (event->phase!=FD2_FIELD_PHYSICAL_PREPARE || observer->rng->cursor ||
+            game->units.items[0].hp!=40 || game->ordinary_display_mode!=1) observer->invalid=1;
+        return observer->invalid || observer->fail_probe ? -1:0;
+    }
+    if (event->phase==FD2_FIELD_PHYSICAL_PREPARE) {
+        observer->prepares++;observer->hp_before=game->units.items[0].hp;
+        observer->at_prepare=observer->rng->cursor;
+    } else if (event->phase==FD2_FIELD_PHYSICAL_RECOVERY_STEP) {
+        static const unsigned steps[]={0,1,2,0,2,0},values[]={1,4,2,1,0,1};
+        size_t i=observer->steps++;
+        if (i>=6 || (unsigned)event->recovery_step!=steps[i] || event->step_value!=values[i] ||
+            game->units.items[0].hp!=observer->hp_before || observer->rng->cursor!=observer->at_prepare ||
+            game->ordinary_display_mode!=0) observer->invalid=1;
+    } else if (event->phase==FD2_FIELD_PHYSICAL_FINISH) {
+        observer->finishes++;
+        if (event->action_failed || game->units.items[0].hp!=observer->hp_before+20 ||
+            observer->steps!=6 || game->ordinary_display_mode!=1) observer->invalid=1;
+    } else observer->invalid=1;
+    return observer->invalid ? -1:0;
+}
+
+static int test_ai_recovery_probe_before_effects(void) {
+    for (int cure=0;cure<2;cure++) for (int reject=0;reject<2;reject++) {
+        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+        init_ai11_fallback(&game,cells,attrs,&rng,0,0,40,cure ? 3u:0u);
+        fd2_field_unit *actor=&game.units.items[0];
+        if (cure) {
+            memset(actor->data_09_1e+0x11u,0,5);teach_magic(actor,20);
+            fd2_field_ai_magic_candidate plan;
+            CHECK(fd2_field_ai_choose_magic_candidate(&game.map,&game.terrain,&game.units,0,0,&plan)==0 &&
+                plan.magic_id==20 && plan.score>=6);
+        } else { actor->ai_behavior_raw=2;memset(actor->data_09_1e+0x11u,0,5); }
+        recovery_probe_observer seen={.rng=&rng,.fail_probe=reject};
+        game.physical_present=observe_recovery_probe;game.physical_present_userdata=&seen;
+        fd2_field_units before=game.units;uint16_t mp=actor->mp;
+        CHECK(fd2_field_game_process_automatic_action(&game)==(reject ? -1:1));
+        CHECK(seen.probes==1 && !seen.invalid);
+        if (reject) {
+            CHECK(!seen.prepares && !seen.steps && !seen.finishes && !rng.cursor &&
+                !memcmp(&before,&game.units,sizeof(before)) && actor->mp==mp &&
+                game.ordinary_display_mode==1 && game.failure==FD2_FIELD_FAILURE_ACTION);
+        } else {
+            /* cure20原power10在RNG0恢复9并清毒，后续13fd4再加maxHP/5。 */
+            CHECK(seen.prepares==1 && seen.steps==6 && seen.finishes==1 &&
+                actor->hp==(cure ? 69u:60u) && rng.cursor==(cure ? 1u:0u) &&
+                fd2_field_unit_has_acted(actor) && !actor->detail_status[0]);
+        }
+        free(game.move_path);
+    }
+    /* 这是保守环境预检：缺bank31可早拒本来会攻击而不恢复的行为0，
+     * 不自称精确预测最终分支；probe本身无mode/focus/HP/MP/RNG副作用。 */
+    static const uint32_t rolls[]={50,0,99,0};test_rng rng={rolls,4,0};
+    uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+    init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;game.ordinary_display_mode=1;
+    game.units.items[0].hp=40;game.units.items[0].hp_max=100;
+    fd2_field_ai_physical_candidate plan;CHECK(build_plan(&game,&plan)==0 && plan.priority>=6);
+    recovery_probe_observer rejected={.rng=&rng,.fail_probe=1};
+    game.physical_present=observe_recovery_probe;game.physical_present_userdata=&rejected;
+    fd2_field_units before=game.units;
+    CHECK(fd2_field_game_process_automatic_action(&game)==-1 && rejected.probes==1 &&
+        !rejected.invalid && !rejected.prepares && !rng.cursor &&
+        !memcmp(&before,&game.units,sizeof(before)) && game.ordinary_display_mode==1);
+    return 0;
+}
+
 /* 13a9f的13e45无cast成功门：无physical后仍14121，未实际移动才13fd4。 */
 static int ai11_fallback_case(const char *name, unsigned movement,
         unsigned cost_class, unsigned hp, unsigned poison,
@@ -1368,6 +1534,68 @@ static int test_behavior11_story_fallback_once(void) {
     int failed = ai11_story_fallback_case(0);
     failed += ai11_story_fallback_case(1);
     CHECK(failed == 0);
+    return 0;
+}
+
+typedef struct {
+    test_rng *rng;
+    unsigned scene_mask;
+    size_t probes,prepares,finishes;
+    int reject_scene_one,invalid;
+    fd2_field_physical_present_mode mode;
+} followup_physical_observer;
+
+static int observe_followup_physical(const fd2_field_game *game,
+        const fd2_field_physical_event *event, void *userdata) {
+    followup_physical_observer *seen=userdata;
+    if (!game || !event || !seen || event->presentation_mode!=seen->mode) return -1;
+    if (event->resource_only) {
+        seen->probes++;
+        if (event->phase!=FD2_FIELD_PHYSICAL_PREPARE || !event->actor_before || !event->target_before ||
+            seen->rng->cursor || game->units.items[0].mp!=100 || game->units.items[1].hp!=300 ||
+            event->actor_before->unit_id!=game->units.items[0].unit_id ||
+            memcmp(event->target_before,&game->units.items[1],sizeof(fd2_field_unit))) seen->invalid=1;
+        if (!seen->invalid) {
+            uint16_t terrain=fd2_field_cell_terrain(fd2_field_map_cell(&game->map,
+                event->actor_before->x,event->actor_before->y));
+            if (terrain>=game->terrain.attr_count) seen->invalid=1;
+            else {
+                unsigned scene=game->terrain.attrs[terrain].attr2;
+                if (scene>1) seen->invalid=1;
+                else { seen->scene_mask|=1u<<scene;if (scene==1 && seen->reject_scene_one) return -1; }
+            }
+        }
+    } else if (event->phase==FD2_FIELD_PHYSICAL_PREPARE) seen->prepares++;
+    else if (event->phase==FD2_FIELD_PHYSICAL_FINISH) seen->finishes++;
+    return seen->invalid ? -1:0;
+}
+
+static int test_ai11_physical_environment_probe_before_magic(void) {
+    for (int full=0;full<2;full++) for (int reject=0;reject<2;reject++) {
+        static const uint32_t rolls[]={0,0,50,0,99,0};test_rng rng={rolls,6,0};
+        uint32_t cells[64];fd2_terrain_attr attrs[2];fd2_field_game game;
+        init_game(&game,cells,attrs,&rng);game.option_values[2]=(uint8_t)!full;
+        attrs[1]=attrs[0];attrs[1].attr2=1;game.terrain.attr_count=2;
+        cells[1u*8u+4u]=1; /* 同一目标的另一个可能攻击地形，不是施法前best格。 */
+        game.units.items[0].ai_behavior_raw=11;game.units.items[0].mp=game.units.items[0].mp_max=100;
+        /* MAP10不随选项转FULL，让本夹具只观察后续物理的mode差异。 */
+        teach_magic(&game.units.items[0],10);game.units.items[1].hp=game.units.items[1].hp_max=300;
+        /* 同资源身份的远端单位不能重复开同scene；其坐标仍可引入新环境，
+         * 因此只能共享seen集合，不能整体略过这个actor。 */
+        game.units.items[2]=game.units.items[1];game.units.items[2].x=game.units.items[2].y=7;
+        game.units.count=3;
+        followup_physical_observer seen={.rng=&rng,.reject_scene_one=reject,
+            .mode=full ? FD2_FIELD_PHYSICAL_MODE_FULL:FD2_FIELD_PHYSICAL_MODE_SHORT};
+        game.physical_present=observe_followup_physical;game.physical_present_userdata=&seen;
+        fd2_field_units before=game.units;
+        CHECK(fd2_field_game_process_automatic_action(&game)==(reject ? -1:1));
+        CHECK(seen.probes==2 && seen.scene_mask==3 && !seen.invalid);
+        if (reject) CHECK(!rng.cursor && !seen.prepares && !seen.finishes &&
+            !memcmp(&before,&game.units,sizeof(before)) && game.failure==FD2_FIELD_FAILURE_ACTION);
+        else CHECK(seen.prepares==1 && seen.finishes==1 && rng.cursor==6 &&
+            game.units.items[0].mp==82 && game.units.items[1].hp<255);
+        free(game.move_path);
+    }
     return 0;
 }
 
@@ -2175,6 +2403,9 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
 }
 
 int main(void) {
+    if (test_ai11_physical_environment_probe_before_magic() != 0) return 1;
+    if (test_ai_recovery_probe_before_effects() != 0) return 1;
+    if (test_ai_map9_full_visual_list_and_item_present_owner() != 0) return 1;
     int ai11_regressions = test_behavior11_post_cast_fallback_matrix();
     ai11_regressions += test_behavior11_story_fallback_once();
     if (ai11_regressions) return 1;

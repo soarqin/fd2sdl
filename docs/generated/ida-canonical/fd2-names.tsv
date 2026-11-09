@@ -38,6 +38,7 @@ ea	name	is_func	is_public
 0x13a44	field_cell_event_lookup	1	0
 0x13a9f	field_ai_unit_execute	1	0
 0x13e9c	field_ai_move_toward_nearest	1	0
+0x13fd4	field_stationary_recover_present_apply	1	0
 0x14237	field_ai_physical_candidate_evaluate	1	0
 0x145cd	field_opponent_zoc_build	1	0
 0x14625	field_opponent_zoc_mark_unit	1	0
@@ -134,7 +135,13 @@ ea	name	is_func	is_public
 0x1e292	field_unit_experience_reward_execute	1	0
 0x1e529	field_growth_stat_present_apply	1	0
 0x1e5c0	field_notice_wait_ticks	1	0
+0x1e611	field_short_counter_refresh	1	0
+0x1e739	field_short_hp_bar_draw	1	0
+0x1e7f6	field_short_hp_bar_scaled	1	0
 0x1e856	field_physical_attack_sequence	1	0
+0x1e98c	field_short_strike_present	1	0
+0x1eb05	field_short_panels_present	1	0
+0x1ec2a	field_short_panels_layout	1	0
 0x1ecc7	field_physical_attack_resolve	1	0
 0x1f0dc	field_counterattack_is_available	1	0
 0x1f183	field_unit_ignores_terrain_combat_modifier	1	0
@@ -188,6 +195,8 @@ ea	name	is_func	is_public
 0x2ae0e	field_promotion_candidates_build	1	0
 0x2af28	field_deployment_select_execute	1	0
 0x2b777	persistent_roster_selection_reorder	1	0
+0x2cf30	field_derived_magic_full_execute	1	0
+0x2d80d	field_composite_magic_full_execute	1	0
 0x2df01	palette_fade_to	1	0
 0x2e95b	fd2tmp_map_sprite_load	1	0
 0x2ff01	field_magic_battle_animation	1	0

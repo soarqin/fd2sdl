@@ -13,9 +13,10 @@
 int fd2_magic_fx_parameters_get(uint8_t id, uint8_t side,
         fd2_magic_fx_parameters *out) {
     if (!out || id >= 10u || (side && id == 9u)) return -1;
+    if (k_fx_hit_frame_bases[id]>UINT8_MAX || k_fx_return_lut_bases[id]>UINT8_MAX) return -1;
     fd2_magic_fx_parameters value = {side ? k_fx_friendly_clips[id] : k_fx_hostile_clips[id],
-        k_fx_banks[id], k_fx_hp_denominators[id], k_fx_sample_counts[id], k_fx_hit_frame_bases[id],
-        k_fx_return_lut_bases[id], k_fx_minimum_parts[id]};
+        k_fx_banks[id], k_fx_hp_denominators[id], k_fx_sample_counts[id], (uint8_t)k_fx_hit_frame_bases[id],
+        (uint8_t)k_fx_return_lut_bases[id], k_fx_minimum_parts[id]};
     *out = value;
     return 0;
 }
@@ -321,7 +322,10 @@ static int beam(fx_call *c, int *out) {
     case 3: *out = 60; break;
     case 4: DRAW(0, 0, 0); break;
     case 5:
-        DRAW(fx->state.beam.frame >> 1, 0, 0);
+        /* 2ce1a/31266：BYTE跨target续增会越过FX44的31part；仅略无定义画帧，
+         * 不阻断cue、回绕或impact。其它FX和真实part的emit错误仍严格传播。 */
+        if ((size_t)(fx->state.beam.frame >> 1) < fx->parts.part_count)
+            DRAW(fx->state.beam.frame >> 1, 0, 0);
         if (fx->state.beam.frame == 6u) PRIMARY(1);
         else if (fx->state.beam.frame == 36u) SECONDARY(2);
         fx->state.beam.frame++;

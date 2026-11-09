@@ -46,7 +46,7 @@ class StaticMovementScriptsTest(unittest.TestCase):
                 parse_stream(self.stream[:stop])
 
     def test_bad_direction_and_actor_rejected_even_if_hash_updated(self):
-        for actor, direction in ((0, 4), (64, 2)):
+        for actor, direction in ((0, 4), (96, 2)):
             table = copy.deepcopy(self.table)
             table["values"][3:5] = [actor, direction]
             table["source"]["sha256"] = hashlib.sha256(bytes(table["values"])).hexdigest()
@@ -75,7 +75,7 @@ class StaticMovementScriptsTest(unittest.TestCase):
             table[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 check_table(table, 0, self.expected)
-        for identity in (-1, 20, 0x59, 0x6A, True):
+        for identity in (-1, 0x6A, True):
             with self.subTest(identity=identity), self.assertRaises(ValueError):
                 check_table(self.table, identity, self.expected)
 
@@ -99,6 +99,14 @@ class StaticMovementScriptsTest(unittest.TestCase):
             executable.write_bytes(b"bad executable")
             with self.assertRaisesRegex(ValueError, "身份不符"):
                 source_scripts(executable)
+
+    def test_original_capacity_and_raw5_only_zero_mode(self):
+        self.assertEqual(parse_stream(bytes([1, 0x80, 1, 95, 5])), bytes([1, 0x80, 1, 95, 5]))
+        for data in (bytes([1, 0x80, 1, 96, 5]), bytes([1, 0x81, 1, 1, 5]),
+                     bytes([1, 1, 1, 1, 5]), bytes([1, 0x80, 1, 1, 4]),
+                     bytes([1, 0x80, 33]) + bytes([0, 0]) * 33):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                parse_stream(data)
 
 
 if __name__ == "__main__":

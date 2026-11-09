@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "field_magic.h"
+#include "field_unit_base.h"
 
 #define CHECK(expr) do { if (!(expr)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #expr); \
@@ -186,7 +187,114 @@ static int test_cures_heal_before_clear_and_require_rng_only_when_active(void) {
     return 0;
 }
 
+typedef struct {
+    unsigned calls;
+    uint32_t values[3];
+    const fd2_field_unit *target;
+    const uint32_t *owner;
+    uint32_t expected_damage_reward;
+    int wrong_write_order;
+} result_rng_state;
+
+static uint32_t result_rng(void *data) {
+    result_rng_state *state = data;
+    if (state->calls == 2 && state->target &&
+        (state->target->hp != 11 || *state->owner != state->expected_damage_reward ||
+         state->target->detail_status[2] != 0)) state->wrong_write_order = 1;
+    return state->values[state->calls++];
+}
+
+static int test_extended_results_preserve_core_write_order_and_raw_amounts(void) {
+    fd2_field_units units = {0}; units.count = 1;
+    fd2_field_unit *unit = &units.items[0];
+    unit->unit_id = 9; unit->movement_profile = 1; unit->level = 3;
+    unit->hp = 1000; unit->hp_max = 1000;
+    result_rng_state state = {0};
+    fd2_field_magic_basic_result effect;
+    uint32_t owner = 0;
+    CHECK(fd2_field_magic_apply_effect_result(32, 0, &units, -1,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(state.calls == 2 && unit->hp == 280 && effect.raw_damage == 720 && effect.hit);
+    CHECK(effect.hp_before == 1000 && effect.hp_after == 280 && !effect.raw_heal);
+    state = (result_rng_state){0}; unit->hp = 1000;
+    CHECK(fd2_field_magic_apply_effect_result(13, 0, &units, 800,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(state.calls == 1 && unit->hp == 1000 && effect.raw_heal == 720 && effect.experience_value == 0);
+    state = (result_rng_state){0}; unit->attack = 100;
+    CHECK(fd2_field_magic_apply_effect_result(17, 0, &units, -1,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(unit->attack == 116 && effect.raw_heal == 16 && effect.experience_value == 6 && state.calls == 1);
+    state = (result_rng_state){0}; unit->unit_id = 68; unit->hp = 20; unit->hp_max = 100;
+    uint8_t coefficient;
+    CHECK(fd2_field_unit_enemy_experience_coefficient(68, &coefficient) == 0);
+    owner = 7;
+    state.target = unit; state.owner = &owner;
+    state.expected_damage_reward = 7u + 9u * 3u * coefficient / 100u;
+    CHECK(fd2_field_magic_apply_effect_result(22, 0, &units, -1,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(state.calls == 3 && !state.wrong_write_order && unit->detail_status[2] == 2);
+    CHECK(owner == state.expected_damage_reward + 24u && effect.raw_damage == 9);
+    fd2_field_unit before = *unit; fd2_field_magic_basic_result sentinel;
+    memset(&sentinel, 0x5a, sizeof(sentinel)); effect = sentinel;
+    CHECK(fd2_field_magic_apply_effect_result(17, 0, &units, 800,
+        result_rng, &state, &owner, &effect) == -1);
+    CHECK(!memcmp(unit, &before, sizeof(before)) && !memcmp(&effect, &sentinel, sizeof(effect)) && state.calls == 3);
+    return 0;
+}
+
+static int test_derived_damage_uses_signed_ap_dp_and_caps_only_for_markers(void) {
+    fd2_field_unit caster = {0}, target = {0};
+    caster.attack = 200; target.unit_id = 9; target.defense = 50;
+    target.hp = target.hp_max = 100;
+    result_rng_state state = {0}; fd2_field_magic_basic_result effect;
+    uint32_t owner = 19;
+    CHECK(fd2_field_magic_apply_derived_result(28, &caster, &target,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(state.calls == 1 && target.hp == 0 && effect.raw_damage == 315 && effect.signed_damage == 100);
+    CHECK(owner == 19 && caster.attack == 200);
+    caster.attack = 10; target.defense = 30; target.hp = 90;
+    state = (result_rng_state){0}; state.values[0] = 50;
+    CHECK(fd2_field_magic_apply_derived_result(29, &caster, &target,
+        result_rng, &state, &owner, &effect) == 1);
+    CHECK(state.calls == 1 && target.hp == 106 && effect.signed_damage == -16 &&
+        effect.raw_damage == (uint32_t)-16); /* 1c81f不把负power/超过maxHP夹零。 */
+    fd2_field_unit before = target;
+    CHECK(fd2_field_magic_apply_derived_result(27, &caster, &target,
+        result_rng, &state, &owner, &effect) == -1);
+    CHECK(state.calls == 1 && !memcmp(&target, &before, sizeof(target)));
+    return 0;
+}
+
+static int test_item_heal_result_keeps_raw_popup_and_signed_mp_reward(void) {
+    fd2_field_unit target = {0};
+    target.unit_id = 9; target.level = 3; target.movement_profile = 12;
+    target.hp = 17; target.hp_max = 100; target.mp = 98; target.mp_max = 100;
+    result_rng_state state = {0}; fd2_field_magic_basic_result result;
+    uint32_t owner = 11;
+    CHECK(fd2_field_magic_apply_heal_result(&target, 20, 1, result_rng,
+        &state, &owner, &result) == 1);
+    CHECK(state.calls == 1 && target.mp == 100 && target.hp == 17 && result.raw_heal == 18 &&
+        result.hp_before == 17 && result.hp_after == 17 && result.hit &&
+        result.experience_value == 2 && owner == 13); /* MP贡献只用level，不加转职30。 */
+    target.mp = 110;
+    CHECK(fd2_field_magic_apply_heal_result(&target, 20, 1, result_rng,
+        &state, &owner, &result) == 1);
+    CHECK(state.calls == 2 && target.mp == 100 && result.raw_heal == 18 &&
+        result.experience_value == (uint32_t)-12 && owner == 1);
+    fd2_field_unit before = target;
+    memset(&result, 0x5a, sizeof(result)); fd2_field_magic_basic_result sentinel = result;
+    target.mp_max = 0; before = target;
+    CHECK(fd2_field_magic_apply_heal_result(&target, 20, 1, result_rng,
+        &state, &owner, &result) == -1);
+    CHECK(state.calls == 2 && owner == 1 && !memcmp(&target, &before, sizeof(before)) &&
+        !memcmp(&result, &sentinel, sizeof(result)));
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_item_heal_result_keeps_raw_popup_and_signed_mp_reward() == 0);
+    CHECK(test_extended_results_preserve_core_write_order_and_raw_amounts() == 0);
+    CHECK(test_derived_damage_uses_signed_ap_dp_and_caps_only_for_markers() == 0);
     CHECK(test_cures_heal_before_clear_and_require_rng_only_when_active() == 0);
     CHECK(test_boost_native_fpu_floor_vectors_and_wrap() == 0);
     CHECK(test_navigation_boundaries() == 0);

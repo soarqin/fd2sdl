@@ -141,9 +141,9 @@ def render(document, input_digest):
             for _ in range(data[0]):
                 if at + 2 > len(data):
                     raise ValueError("truncated movement group")
-                count = data[at+1]
+                mode, count = data[at:at+2]
                 at += 2
-                if at + count*2 > len(data) or any(data[pos] >= 64 for pos in range(at, at+count*2, 2)) or any(data[pos] > 3 for pos in range(at+1, at+count*2, 2)):
+                if count > 32 or at + count*2 > len(data) or any(data[pos] >= 96 for pos in range(at, at+count*2, 2)) or any(data[pos] > 3 and not (mode == 0x80 and data[pos] == 5) for pos in range(at+1, at+count*2, 2)):
                     raise ValueError("invalid movement actor/direction pairs")
                 at += count*2
             if at != len(data):
@@ -152,6 +152,21 @@ def render(document, input_digest):
             lines.append(f"    {{{identity}, {name}, sizeof({name})}},")
         lines.extend(["};", ""])
     return "\n".join(lines).encode("utf-8")
+
+
+def constructor_alias_records(tables):
+    """原getter的两条实际调用窗；值仅投影既有唯一冷源，不再编辑一份byte。"""
+    views = tables["k_player_base_alias_views"]
+    if views != [[48, 0, 384], [66, 1, 68]]:
+        raise ValueError("constructor alias reference domain differs from reviewed original callers")
+    sources = [tables["k_growth_records"], tables["k_stage_prepare"]]
+    flattened = [[byte for row in rows for byte in row] for rows in sources]
+    result = []
+    for identity, kind, offset in views:
+        if kind >= len(flattened) or offset < 0 or offset + 24 > len(flattened[kind]):
+            raise ValueError("constructor alias reference out of source extent")
+        result.append(flattened[kind][offset:offset + 24])
+    return result
 
 
 def validate_source(source, sources, label):
@@ -461,6 +476,17 @@ def generate(root: Path, output: Path, check=False):
             receipt["tables"].append({"file": name, "name": table["name"], "dimensions": table["dimensions"], "input_sha256": digest, "source": table["source"]})
         outputs[Path(name).stem + ".inc"] = render(document, digest)
     validate_references(tables)
+    aliases = constructor_alias_records(tables)
+    projection = {"schema_version": SCHEMA_VERSION, "tables": [{
+        "name": "k_player_base_alias_records", "c_type": "uint8_t",
+        "dimensions": [len(aliases), 24], "values": aliases,
+        "source": {"evidence": "derived from k_player_base_alias_views and the unique growth/stage_prepare definitions"}}]}
+    projection_bytes = json.dumps({"views": tables["k_player_base_alias_views"],
+        "records": aliases}, sort_keys=True).encode("utf-8")
+    outputs["unit_base.inc"] += b"\n" + render(projection, hashlib.sha256(projection_bytes).hexdigest())
+    receipt["projections"] = [{"name": "k_player_base_alias_records",
+        "specification": "k_player_base_alias_views", "inputs": ["k_growth_records", "k_stage_prepare"],
+        "dimensions": [len(aliases), 24], "sha256": hashlib.sha256(bytes(sum(aliases, []))).hexdigest()}]
     receipt["flows"] = []
     global_ids = set()
     flow_documents = {}

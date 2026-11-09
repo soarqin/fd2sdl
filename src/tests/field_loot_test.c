@@ -479,15 +479,36 @@ static const uint8_t expected_startup_roster[4][80] = {
     },
 };
 
-static int test_initial_units_match_old_compiled_records(void) {
+static void corrected_startup_records(uint8_t expected[12][80]) {
+    /* 原11019按4玩家再group1/2去重，模板1b750初始装备派生。
+     * 独立原EXE物品表及既有oracle确认96的四WORD为24/4/97/2。
+     * 保留旧编译快照作其余字段的基准，不拿被测结果填期望。 */
+    const uint8_t classes[12] = {0,1,2,3,4,4,4,4,4,4,4,4};
+    const uint8_t stats[8] = {24,0,4,0,97,0,2,0};
+    memcpy(expected, expected_startup_units, sizeof(expected_startup_units));
+    for (size_t i = 0; i < 12; i++) {
+        expected[i][2] = classes[i];
+        if (i >= 4) memcpy(expected[i] + 0x48, stats, sizeof(stats));
+    }
+}
+
+static int test_initial_units_match_corrected_original_contract(void) {
     fd2_field_game *g = calloc(1, sizeof(*g)); CHECK(g);
     fd2_archive ar = {0}; fd2_vga vga = {0};
     CHECK(fd2_archive_open(&ar, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_game_open(g, &vga, &ar, 0) == 0);
     CHECK(g->units.count == 12 && g->roster_count == 4);
     const uint8_t zero[80] = {0};
+    uint8_t corrected[12][80]; corrected_startup_records(corrected);
     for (size_t i = 0; i < FD2_FIELD_MAX_UNITS; i++) {
-        CHECK(!memcmp(&g->units.items[i], i < 12 ? expected_startup_units[i] : zero, 80));
+        uint8_t expected[80];
+        memcpy(expected, i < 12 ? corrected[i] : zero, sizeof(expected));
+        if (memcmp(&g->units.items[i], expected, 80)) {
+            const uint8_t *actual = (const uint8_t *)&g->units.items[i];
+            for (size_t j = 0; j < 80; j++) if (actual[j] != expected[j])
+                fprintf(stderr, "startup raw%zu +%02zx: expected=%02x actual=%02x\n", i, j, expected[j], actual[j]);
+        }
+        CHECK(!memcmp(&g->units.items[i], expected, 80));
         CHECK(g->units.walk_frames[i] == (i < 12));
         uint16_t source = i < 4 ? FD2_FIELD_UNIT_NO_TEMPLATE : i < 12 ? (uint16_t)(i - 4) : 0;
         CHECK(g->units.source_template_indices[i] == source);
@@ -522,8 +543,11 @@ static int test_initial_units_follow_shared_cold_choices(void) {
     fd2_field_unit expected;
     memcpy(&expected, expected_startup_roster[2], sizeof(expected)); expected.attack++;
     CHECK(!memcmp(&g->roster[1], &expected, sizeof(expected)));
-    const fd2_field_placement *position = &g->placements.records[g->placements.count - 4 + 1];
+    size_t effective_templates;
+    CHECK(fd2_field_unit_template_count(&g->metadata, &effective_templates) == 0);
+    const fd2_field_placement *position = &g->placements.records[effective_templates + 1];
     expected.x = (uint8_t)position->x; expected.y = (uint8_t)position->y;
+    expected.sprite_cache_class = 1; /* 冷图交换9/4，第二个新ID仍是cache slot1。 */
     CHECK(!memcmp(&g->units.items[1], &expected, sizeof(expected)));
     CHECK(g->units.items[2].unit_id == 9 && g->roster[2].unit_id == 9);
     for (size_t i = 4; i < g->units.count; i++)
@@ -535,7 +559,8 @@ static int test_initial_units_follow_shared_cold_choices(void) {
     unsigned calls = 0; g->attack_rng = rng; g->attack_rng_userdata = &calls;
     CHECK(load_initial_units(g, source) == 0 && calls == 0);
     CHECK(g->units.count == 12 && g->units.source_template_indices[4] == 0);
-    CHECK(!memcmp(g->units.items, expected_startup_units, sizeof(expected_startup_units)));
+    uint8_t corrected[12][80]; corrected_startup_records(corrected);
+    CHECK(!memcmp(g->units.items, corrected, sizeof(corrected)));
     fd2_field_game_close(g);
     /* hidden=0是不额外隐藏，不应清除构造算法已经给出的hidden。 */
     startup_test_template_hidden = 1;
@@ -569,7 +594,39 @@ static int test_initial_units_reject_bad_or_missing_logic_definitions(void) {
     }
     fd2_field_game_close(g); fd2_archive_close(&ar); free(g); free(nodes); return 0;
 }
-int main(void){CHECK(test_initial_units_match_old_compiled_records()==0);
+/* 原1aa1d switch default必须继续后续descriptor；255在collector单独排除。
+ * 同时核对纯预检无stage特判／资源查询／RNG／业务写，不能只接受mode203。 */
+static int test_descriptor_default_and_collector_sentinel(void) {
+    fd2_field_game *g = calloc(1, sizeof(*g)); fd2_archive ar; unsigned calls = 0;
+    CHECK(g && fixture(g, &ar, &calls) == 0);
+    g->stage = 14;
+    fd2_field_units before = g->units;
+    for (unsigned mode = 4; mode <= 255; mode++) {
+        uint8_t d[3] = {(uint8_t)mode, 255, 255};
+        CHECK(loot_descriptor_preflight(g, 0, d) == 0);
+        CHECK(!memcmp(&g->units, &before, sizeof(before)) && calls == 0);
+        CHECK(g->resource_value == 5 && g->loot.count == 0 && g->event_log_count == 0);
+    }
+    /* 普通物品／金钱预检取决于领域数据与呈现资源，不取决于stage编号。
+     * 此处是stage0资源逻辑夹具，不声明已适配stage14剧情。 */
+    const uint8_t item_drop[3] = {0, 192, 0}, money_drop[3] = {1, 57, 0};
+    CHECK(loot_descriptor_preflight(g, 0, item_drop) == 0);
+    CHECK(loot_descriptor_preflight(g, 0, money_drop) == 0);
+    CHECK(!memcmp(&g->units, &before, sizeof(before)) && calls == 0 && g->resource_value == 5);
+    g->stage = 0;
+    CHECK(add_dead(g, 2, 203, UINT16_MAX) == 0);
+    CHECK(add_dead(g, 3, 255, UINT16_MAX) == 0);
+    CHECK(add_dead(g, 4, 1, 57) == 0);
+    CHECK(begin_defeated_loot(g, 0, 0, PLAYER_ACTION_ITEM, 0, 0) == 1);
+    CHECK(g->loot.count == 2 && g->loot.cursor == 1 && g->loot.notice.fragment == 435);
+    CHECK(calls == 0 && g->resource_value == 5 && g->event_log_count == 0);
+    CHECK(reply(g, FD2_FIELD_LOOT_ACK, -1) == 0 && g->resource_value == 62);
+    CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && calls == 0);
+    CHECK(reply(g, FD2_FIELD_LOOT_ACK, -1) == -1 && g->resource_value == 62);
+    fd2_field_game_close(g); fd2_archive_close(&ar); free(g); return 0;
+}
+
+int main(void){CHECK(test_initial_units_match_corrected_original_contract()==0);
     CHECK(test_initial_units_follow_shared_cold_choices()==0);
     CHECK(test_initial_units_reject_bad_or_missing_logic_definitions()==0);
     CHECK(test_defeated_item_and_money()==0);CHECK(test_full_swap_and_no()==0);CHECK(test_callback_and_story()==0);
@@ -580,4 +637,5 @@ int main(void){CHECK(test_initial_units_match_old_compiled_records()==0);
     CHECK(test_bad_edges_cannot_bypass_primitive_bounds_or_preflight()==0);
     CHECK(test_action_finish_kind_branch_comes_from_cold_flow()==0);
     CHECK(test_controller_rejection_preserves_existing_failure_boundary()==0);
+    CHECK(test_descriptor_default_and_collector_sentinel()==0);
     puts("field_loot: data-driven branches, queued drops, callbacks, cells and write boundaries passed");return 0;}

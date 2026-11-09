@@ -16,13 +16,13 @@
  * map_scene_render_actors @0x1cb94、map_actor_blit_24x24 @0x1da16、
  * field_visible_actor_find_by_text_id @0x12c60 分别读取坐标、精灵、
  * 隐藏标志及文本编号。FDFIELD stage metadata 的 26 字节模板与
- * placement 已确认按 unit ID 和出现次序匹配；原版 stage constructor
+ * placement 按有效模板数（metadata+2）和相同索引读取；原版 stage constructor
  * 将 26 字节模板重排为身份、装备和 AI 字段，再按等级派生基础属性。
  * field_ai_unit_execute @0x13a9f 进一步确认 record +0x34 低半字节为
  * behavior selector，并在入口读取 +0x35/+0x36 作为模式参数。
  */
 #define FD2_FIELD_UNIT_RECORD_SIZE 0x50
-#define FD2_FIELD_MAX_UNITS 64
+#define FD2_FIELD_MAX_UNITS 96
 #define FD2_FIELD_UNIT_NO_TEMPLATE UINT16_MAX
 #define FD2_FIELD_UNIT_FLAG_HIDDEN 0x01u
 #define FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE 0x04u /* AI entry flags &0x05 gate */
@@ -33,7 +33,7 @@ typedef struct {
     uint8_t x;                  /* 0x00: 地图格 X */
     uint8_t y;                  /* 0x01: 地图格 Y */
     uint8_t sprite_cache_class; /* 0x02: FD2.TMP 运行期 cache class */
-    uint8_t direction;          /* 0x03: 0下、1左、2上、3右 */
+    uint8_t direction;          /* 0x03: 普通0下1左2上3右；mode80保留已证raw5 */
     uint8_t frame_phase;        /* 0x04: 移动相位 1..6；0 为静止 */
     uint8_t flags;              /* 0x05: bit0 隐藏，bit2 AI 不可执行，bit7 acted */
     uint8_t side;               /* 0x06: 阵营 */
@@ -72,8 +72,23 @@ typedef struct {
     fd2_field_unit items[FD2_FIELD_MAX_UNITS];
     uint8_t walk_frames[FD2_FIELD_MAX_UNITS];
     uint16_t source_template_indices[FD2_FIELD_MAX_UNITS];
+    /* 11042原cache去重顺序的资源投影；不写入80B单位记录或SAV扩展。 */
+    uint8_t sprite_cache_ids[FD2_FIELD_MAX_UNITS];
+    uint8_t sprite_cache_classes[FD2_FIELD_MAX_UNITS];
+    uint8_t sprite_cache_exact; /* 仅有证构造/Load顺序才能用于跨class方向。 */
+    size_t sprite_cache_count;
     size_t count;
 } fd2_field_units;
+
+/* fdicon_cache_append_unit @0x11019：登记已构造actor；同ID复用class。
+ * restore复现10010的Load：按当前actor/ID顺序重新建cache，仅写旁路，
+ * 不信存档raw+2、不尝试找旧TMP，全部80B保留。未知目标class拒绝绘制。 */
+int fd2_field_units_sprite_cache_append(fd2_field_units *units, size_t actor);
+int fd2_field_units_sprite_cache_restore(fd2_field_units *units);
+size_t fd2_field_unit_cached_frame_index(const fd2_field_units *units,
+    size_t actor, uint8_t idle_phase);
+/* 信息板固定朝向帧也读原cache身份，不能随hot unit_id写提前换sprite。 */
+size_t fd2_field_unit_cached_sprite_id(const fd2_field_units *units, size_t actor);
 
 void fd2_field_units_clear(fd2_field_units *units);
 
@@ -84,8 +99,14 @@ int fd2_field_units_set(fd2_field_units *units, size_t index,
                         uint8_t unit_id, uint8_t text_id, uint8_t side,
                         int x, int y);
 
-/* 按模板序号定位同序号 unit_id 的 placement，并复现原版模板重排与
- * 基础属性派生。相同 unit_id 按出现次序一一匹配。 */
+/* 1088d/10b4e的有效模板前缀；资源尾和未知字节保留，不能按资源长度遍历。
+ * 失败-1不写count；成功0。 */
+int fd2_field_unit_template_count(const fd2_field_metadata *meta, size_t *count);
+/* 10a5b从有效模板数后开始取玩家出阵位置；仅读坐标低byte。 */
+int fd2_field_unit_deployment_position(const fd2_field_metadata *meta,
+    const fd2_field_placements *placements, size_t ordinal, uint8_t *x, uint8_t *y);
+
+/* 10c85按相同模板索引读取placement坐标低byte，不按第三WORD的ID匹配。 */
 int fd2_field_units_append_template(fd2_field_units *units,
                                     const fd2_field_metadata *meta,
                                     const fd2_field_placements *placements,
@@ -94,6 +115,11 @@ int fd2_field_units_append_group(fd2_field_units *units,
                                  const fd2_field_metadata *meta,
                                  const fd2_field_placements *placements,
                                  uint8_t group);
+/* 仅供对白资源预检的借用副本：投影身份/坐标/source索引，不作基础/装备派生
+ * 或cache登记，不可当作可提交的真实单位。原handler仍在自己的写点完整构造。 */
+int fd2_field_units_project_group_identity(fd2_field_units *projection,
+    const fd2_field_metadata *meta, const fd2_field_placements *placements,
+    uint8_t group);
 
 /* 53AFA强制原placement；否则nearest free占格搜索，不读terrain成本。
  * 原样shadow提交；Scene与业务共用，未知模板/无空格失败不写units。 */
@@ -107,6 +133,22 @@ int fd2_field_unit_has_acted(const fd2_field_unit *unit);
 void fd2_field_unit_set_acted(fd2_field_unit *unit, int acted);
 int fd2_field_units_find_visible_text_id(const fd2_field_units *units,
                                          uint8_t text_id);
+/* 已确认事件写点的有限typed字段。SET/AND/OR只操作指定字段，
+ * 不接收offset/地址；重算、败亡、掉落和呈现由原owner的冷顺序调用。 */
+typedef enum {
+    FD2_UNIT_X, FD2_UNIT_Y, FD2_UNIT_DIRECTION, FD2_UNIT_FRAME_PHASE,
+    FD2_UNIT_FLAGS, FD2_UNIT_SIDE, FD2_UNIT_ID, FD2_UNIT_TEXT_ID,
+    FD2_UNIT_ATTACK_STATUS, FD2_UNIT_DEFENSE_STATUS, FD2_UNIT_HIT_STATUS,
+    FD2_UNIT_STATUS_25, FD2_UNIT_STATUS_26, FD2_UNIT_STATUS_27,
+    FD2_UNIT_DESCRIPTOR, FD2_UNIT_AI_RAW, FD2_UNIT_AI_PARAM_35, FD2_UNIT_AI_PARAM_36,
+    FD2_UNIT_HP, FD2_UNIT_MP
+} fd2_field_unit_field;
+typedef enum { FD2_UNIT_SET, FD2_UNIT_AND, FD2_UNIT_OR } fd2_field_unit_write;
+int fd2_field_units_field_write(fd2_field_units *units, size_t first, size_t last,
+    fd2_field_unit_field field, fd2_field_unit_write operation, uint16_t value);
+/* 344f2: AI34 = arg | (old & f0)，arg是原BYTE，不擅自截断到低4位。 */
+int fd2_field_units_ai_behavior_write(fd2_field_units *units,
+    size_t first, size_t last, uint8_t value);
 size_t fd2_field_unit_frame_index(const fd2_field_unit *unit,
                                   uint8_t walk_frame,
                                   uint8_t idle_phase);
@@ -122,6 +164,10 @@ void fd2_field_units_render(fd2_vga *vga,
                             const fd2_field_units *units,
                             int camera_x, int camera_y,
                             uint8_t idle_phase);
+/* 单actor路径也使用同一原cache映射；offset_y仅是当前演出的工作页偏移。 */
+void fd2_field_units_render_actor(fd2_vga *vga,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase, int offset_y);
 
 /* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）：全表actor
  * 绘完后，只恢复非hidden/非terrain-immune的本格、上格及行走附加格。

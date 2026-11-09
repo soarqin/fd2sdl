@@ -52,7 +52,7 @@ static int init(fixture *f, int attack_available) {
     actor->mp = actor->mp_max = 8;
     actor->data_09_1e[1] = 0x40; /* 已装备weapon52，range1。 */
     actor->data_09_1e[2] = 52;
-    learn(actor, 0); learn(actor, 1); learn(actor, 2); learn(actor, 3); learn(actor, 13);
+    learn(actor, 0); learn(actor, 1); learn(actor, 2); learn(actor, 3); learn(actor, 13); learn(actor, 17);
     fd2_field_unit *enemy = &g->units.items[1];
     enemy->x = (uint8_t)(attack_available ? 5 : 12); enemy->y = 3;
     enemy->side = 0; enemy->unit_id = 96; enemy->movement_profile = 7;
@@ -106,10 +106,11 @@ static int test_begin_navigation_confirm_and_cancel_preserve_owner(void) {
         fixture f;
         CHECK(init(&f, attack) == 0);
         fd2_field_game *g = &f.game;
-        /* 1/2/3的拒绝必须来自逐项支持门，不能被原8MP的费用不足掩盖。 */
+        /* G2的0/1/2/3/13/17均有资格确认；足额MP避免混入费用不足门。
+         * 此处只确认列表返回值，不执行targeting、FIGANI或effect。 */
         g->units.items[0].mp = g->units.items[0].mp_max = 64;
         fd2_field_game expected = *g;
-        CHECK(g->command_disabled[FD2_FIELD_COMMAND_MAGIC] == 0); /* 已支持的13仍可用。 */
+        CHECK(g->command_disabled[FD2_FIELD_COMMAND_MAGIC] == 0);
         g->command_selected = FD2_FIELD_COMMAND_MAGIC;
         expected = *g;
         expected.magic_list_selected = 0;
@@ -117,30 +118,27 @@ static int test_begin_navigation_confirm_and_cancel_preserve_owner(void) {
         CHECK(fd2_field_game_confirm_command(g) == 0);
         CHECK(!memcmp(g, &expected, sizeof(expected)));
         uint8_t confirmed = 0xa5;
-        for (int selected = 0; selected < 4; selected++) {
-            /* unit18的0尚未开放，1/2/3也只显示；完整80B/MP/RNG不提交。 */
-            CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) == 0);
-            CHECK(confirmed == 0xa5 && !memcmp(g, &expected, sizeof(expected)) && f.rng_calls == 0);
+        static const uint8_t ids[] = {0,1,2,3,13,17};
+        for (size_t selected = 0; selected < sizeof(ids); selected++) {
+            CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) == 1);
+            CHECK(confirmed == ids[selected] && !memcmp(g, &expected, sizeof(expected)) && f.rng_calls == 0);
             CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_DOWN, &confirmed) == 0);
-            expected.magic_list_selected = selected + 1;
+            expected.magic_list_selected = (int)((selected + 1u) % sizeof(ids));
             CHECK(!memcmp(g, &expected, sizeof(expected)));
         }
-        CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_DOWN, &confirmed) == 0);
-        expected.magic_list_selected = 0;
-        CHECK(!memcmp(g, &expected, sizeof(expected)));
         CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_UP, &confirmed) == 0);
-        expected.magic_list_selected = 4;
-        CHECK(confirmed == 0xa5 && !memcmp(g, &expected, sizeof(expected)));
+        expected.magic_list_selected = 5;
+        CHECK(confirmed == 17 && !memcmp(g, &expected, sizeof(expected)));
         CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CONFIRM, &confirmed) == 1);
-        CHECK(confirmed == 13 && !memcmp(g, &expected, sizeof(expected)));
+        CHECK(confirmed == 17 && !memcmp(g, &expected, sizeof(expected)));
         CHECK(fd2_field_game_magic_list_step(g, FD2_FIELD_MAGIC_LIST_KEY_CANCEL, &confirmed) == -1);
-        CHECK(confirmed == 13 && !memcmp(g, &expected, sizeof(expected)));
+        CHECK(confirmed == 17 && !memcmp(g, &expected, sizeof(expected)));
         /* 宿主完成关闭动画才end；另一轮检查统一Esc分派也只关闭列表。 */
         CHECK((attack ? fd2_field_game_cancel_selection(g) :
                         fd2_field_game_end_magic_list(g)) == (attack ? 1 : 0));
         expected.magic_list_selected = 0;
         expected.interaction = FD2_FIELD_INTERACTION_COMMAND;
-        /* 未开放项不连带禁用13；ATTACK不可用时首项为MAGIC，ITEM仍可查看。 */
+        /* ATTACK不可用时首项为MAGIC；列表取消不改其它command能力。 */
         CHECK(!g->command_disabled[FD2_FIELD_COMMAND_ITEM]);
         expected.command_selected = attack ? FD2_FIELD_COMMAND_ATTACK : FD2_FIELD_COMMAND_MAGIC;
         expected.command_highlight_phase = 0;

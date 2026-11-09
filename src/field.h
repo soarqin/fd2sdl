@@ -75,8 +75,8 @@ typedef struct {
 
 typedef struct {
     uint8_t shape_index;
-    uint8_t unknown_01;
-    uint8_t unknown_02;
+    uint8_t unknown_01; /* 原53BE7：玩家出阵槽数（保留codec字段名）。 */
+    uint8_t unknown_02; /* 原53BE3：有效模板前缀数，非资源总条数。 */
     fd2_field_turn_event turn_events[FD2_FIELD_EVENT_SLOTS];
     fd2_field_cell_lookup cell_lookup[FD2_FIELD_EVENT_SLOTS];
     fd2_field_cell_action cell_actions[FD2_FIELD_EVENT_SLOTS];
@@ -87,7 +87,7 @@ typedef struct {
 typedef struct {
     uint16_t x;
     uint16_t y;
-    uint16_t unit_id; /* 匹配 metadata 26 字节模板 offset 0x01 */
+    uint16_t unit_id; /* 原第三WORD保留；10c50不以此匹配模板。 */
 } fd2_field_placement;
 
 typedef struct {

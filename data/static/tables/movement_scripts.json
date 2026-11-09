@@ -1514,6 +1514,1196 @@
         "sha256": "3a189b3ff75f7bc54d169faa5841b289f99fd0e8f6192564843d1c568aef8939",
         "evidence": "field_movement_script_ptr @0x4eb48 / field_movement_script_play @0x1366a; existing supported entry/event scripts"
       }
+    },
+    {
+      "name": "k_movement_script_14",
+      "c_type": "uint8_t",
+      "dimensions": [45],
+      "values": [4, 1, 7, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 1, 6, 0, 2, 1, 2, 2, 1, 3, 1, 4, 3, 5, 3, 1, 3, 0, 2, 2, 2, 4, 2, 129, 2, 3, 2, 5, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62b68",
+        "pointer_table_va": "0x627d8",
+        "script_id": 20,
+        "length": 45,
+        "sha256": "f53c0bd0e857463ac753037623748985fee46621669e4d067a7d9e24969b3af0",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_15",
+      "c_type": "uint8_t",
+      "dimensions": [31],
+      "values": [3, 1, 7, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 1, 4, 0, 2, 1, 2, 2, 2, 3, 2, 1, 1, 0, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62b95",
+        "pointer_table_va": "0x627d8",
+        "script_id": 21,
+        "length": 31,
+        "sha256": "a9a4559d70f785933693c3e79dd3fe1e0fa68bbe11b7645be32c6f8ff94ddc96",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_16",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 1, 1, 41, 0, 2, 1, 41, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62bb4",
+        "pointer_table_va": "0x627d8",
+        "script_id": 22,
+        "length": 9,
+        "sha256": "7a9eb7e0cbd173877341744e7c28a8274e7cfcb76d7135737c34296e7fdea04c",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_17",
+      "c_type": "uint8_t",
+      "dimensions": [19],
+      "values": [2, 1, 5, 43, 0, 44, 1, 45, 1, 46, 3, 47, 3, 1, 2, 44, 0, 46, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62bbd",
+        "pointer_table_va": "0x627d8",
+        "script_id": 23,
+        "length": 19,
+        "sha256": "040a3fcbeeb69712e0aae20ebf12847916aeb76ea9a79774ff3ebb93f8a43d08",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_18",
+      "c_type": "uint8_t",
+      "dimensions": [13],
+      "values": [1, 128, 5, 48, 0, 49, 0, 50, 0, 51, 0, 1, 5],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62bd0",
+        "pointer_table_va": "0x627d8",
+        "script_id": 24,
+        "length": 13,
+        "sha256": "897aa3f85aed2a0fb87d1c59fcca932da1ab514e13e2ad301430a55bd995d42d",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_19",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 5, 1, 33, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62bdb",
+        "pointer_table_va": "0x627d8",
+        "script_id": 25,
+        "length": 5,
+        "sha256": "0ee9bc4ae868063fcd917905e23e8035fa1ec1dec235655d95b8fee860a212ec",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1a",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 5, 1, 33, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62be0",
+        "pointer_table_va": "0x627d8",
+        "script_id": 26,
+        "length": 5,
+        "sha256": "872fa0af225e234b5734dd00a7edec0b17fccd2cb79fbcf048f33c9bf5da37bb",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1b",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 3, 1, 34, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62be5",
+        "pointer_table_va": "0x627d8",
+        "script_id": 27,
+        "length": 5,
+        "sha256": "6cb0905f61b9abc6cec2c70ca9d5bd0e869c08cd9426d79940ce1fed5e4a97d2",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1c",
+      "c_type": "uint8_t",
+      "dimensions": [193],
+      "values": [15, 7, 8, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 1, 7, 18, 1, 19, 3, 20, 3, 21, 0, 22, 0, 23, 0, 24, 0, 1, 7, 18, 1, 19, 3, 20, 3, 21, 1, 22, 3, 23, 3, 24, 3, 2, 3, 20, 3, 23, 3, 24, 3, 2, 1, 24, 3, 129, 7, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 4, 8, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 1, 7, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 1, 7, 10, 1, 11, 1, 12, 3, 13, 3, 14, 0, 15, 0, 16, 0, 2, 4, 11, 1, 13, 3, 15, 1, 16, 3, 129, 6, 10, 0, 11, 0, 12, 0, 13, 0, 15, 0, 16, 0, 2, 4, 25, 0, 26, 0, 27, 0, 28, 0, 1, 4, 25, 1, 26, 3, 27, 0, 28, 0, 2, 4, 25, 1, 26, 3, 27, 1, 28, 3, 129, 4, 25, 0, 26, 0, 27, 0, 28, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62bea",
+        "pointer_table_va": "0x627d8",
+        "script_id": 28,
+        "length": 193,
+        "sha256": "15b636ea135b05bb166e965c900227c3a799bdeb0707e7dd6260e902e21de732",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1d",
+      "c_type": "uint8_t",
+      "dimensions": [39],
+      "values": [4, 2, 5, 29, 0, 30, 0, 31, 0, 32, 0, 33, 0, 1, 4, 29, 1, 30, 1, 31, 3, 32, 3, 1, 4, 29, 0, 30, 2, 31, 0, 32, 2, 129, 2, 30, 0, 32, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62cab",
+        "pointer_table_va": "0x627d8",
+        "script_id": 29,
+        "length": 39,
+        "sha256": "cd759f720ce564de3004df0f04ed84a17bf3b0e1435b189771de1161b8dd5435",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1e",
+      "c_type": "uint8_t",
+      "dimensions": [87],
+      "values": [8, 2, 1, 43, 1, 1, 2, 43, 1, 35, 1, 1, 4, 43, 1, 35, 1, 36, 1, 37, 1, 1, 7, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 1, 9, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 40, 1, 41, 1, 1, 10, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 40, 1, 41, 1, 42, 1, 136, 1, 43, 1, 136, 1, 43, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62cd2",
+        "pointer_table_va": "0x627d8",
+        "script_id": 30,
+        "length": 87,
+        "sha256": "04084ede4303a2dc9a297ab3b0bf43c1a89c7ed06194e8e94ab19289af79c9a6",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_1f",
+      "c_type": "uint8_t",
+      "dimensions": [23],
+      "values": [1, 5, 10, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d29",
+        "pointer_table_va": "0x627d8",
+        "script_id": 31,
+        "length": 23,
+        "sha256": "e12fd3477a645591007f5b9cf83e0c0f834ad9826d69de3d88a807cbb1d6d279",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_20",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 4, 1, 28, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d40",
+        "pointer_table_va": "0x627d8",
+        "script_id": 32,
+        "length": 5,
+        "sha256": "221bd1c572ac97b1b08af105c56fd52863c0dd44fc5e59313a3e96557dc2a235",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_21",
+      "c_type": "uint8_t",
+      "dimensions": [23],
+      "values": [4, 1, 2, 5, 2, 28, 1, 1, 1, 5, 2, 1, 2, 5, 2, 28, 3, 5, 2, 5, 2, 28, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d45",
+        "pointer_table_va": "0x627d8",
+        "script_id": 33,
+        "length": 23,
+        "sha256": "3a225e61acfc0e31cf2b8723896fda4c1f2778196046df86debf2fdb66b15794",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_22",
+      "c_type": "uint8_t",
+      "dimensions": [21],
+      "values": [1, 7, 9, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 6, 2, 7, 2, 8, 2, 9, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d5c",
+        "pointer_table_va": "0x627d8",
+        "script_id": 34,
+        "length": 21,
+        "sha256": "2f041758065449aa1268e56a0fc2efd8bac1f9a31cdda116655c56d9c9f0a5d5",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_23",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 3, 1, 5, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d71",
+        "pointer_table_va": "0x627d8",
+        "script_id": 35,
+        "length": 5,
+        "sha256": "47ebb7618f8caf2c64cd6115704f782a3ebbe32c3a39f8f059c9cf19fa35ab1b",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_24",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 5, 1, 47, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d76",
+        "pointer_table_va": "0x627d8",
+        "script_id": 36,
+        "length": 5,
+        "sha256": "11d72cc1d9aa28ab513d367b33fa72ae838285468b2f4916c68d14f5f1172530",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_25",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 1, 1, 5, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d7b",
+        "pointer_table_va": "0x627d8",
+        "script_id": 37,
+        "length": 5,
+        "sha256": "8f42c38e42d23a00db6199044379a90e1c592c2ff8d79ff202f91918d1849010",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_26",
+      "c_type": "uint8_t",
+      "dimensions": [17],
+      "values": [4, 3, 1, 38, 0, 1, 1, 38, 1, 3, 1, 38, 0, 132, 1, 38, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d80",
+        "pointer_table_va": "0x627d8",
+        "script_id": 38,
+        "length": 17,
+        "sha256": "1fea5a8d62c70ee94530b4f1190f8a2dbea94f22596e88490e84c3872ad7ec0b",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_27",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 136, 1, 8, 2, 128, 1, 8, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d91",
+        "pointer_table_va": "0x627d8",
+        "script_id": 39,
+        "length": 9,
+        "sha256": "8b06549ae6ea51eec54cd865c11598d789251f040675dccb631615bb347d8f7b",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_28",
+      "c_type": "uint8_t",
+      "dimensions": [71],
+      "values": [8, 4, 1, 14, 0, 134, 1, 14, 1, 134, 1, 14, 3, 132, 1, 14, 2, 128, 1, 14, 2, 2, 10, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 1, 11, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 138, 1, 14, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62d9a",
+        "pointer_table_va": "0x627d8",
+        "script_id": 40,
+        "length": 71,
+        "sha256": "d933b7d7c61ef9b07d86b3d81736f3b528c50fbca373557b2a758df09685048e",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_29",
+      "c_type": "uint8_t",
+      "dimensions": [137],
+      "values": [9, 1, 2, 13, 2, 0, 2, 1, 6, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 0, 2, 1, 9, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 0, 2, 1, 12, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 5, 2, 4, 2, 3, 2, 0, 2, 1, 14, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 5, 2, 4, 2, 3, 2, 2, 2, 1, 2, 0, 2, 1, 4, 9, 2, 8, 1, 7, 3, 6, 3, 2, 6, 11, 3, 10, 3, 9, 3, 6, 3, 5, 1, 4, 3, 1, 5, 13, 3, 9, 3, 0, 1, 1, 1, 2, 3, 2, 1, 10, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62de1",
+        "pointer_table_va": "0x627d8",
+        "script_id": 41,
+        "length": 137,
+        "sha256": "cfd711a3b1669b124c6f23f854fd62ffe85b1f3be95e8918ca68641545ae9a92",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2a",
+      "c_type": "uint8_t",
+      "dimensions": [27],
+      "values": [2, 1, 7, 25, 1, 26, 1, 27, 3, 28, 3, 30, 0, 31, 0, 32, 0, 1, 4, 25, 1, 27, 0, 30, 1, 31, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62e6a",
+        "pointer_table_va": "0x627d8",
+        "script_id": 42,
+        "length": 27,
+        "sha256": "f9a194b38cba0201cd2a7a42450710696c0725d84fd9b3c9c86843d160a0c7b7",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2b",
+      "c_type": "uint8_t",
+      "dimensions": [19],
+      "values": [2, 1, 5, 33, 1, 34, 1, 35, 3, 36, 3, 37, 0, 1, 2, 33, 0, 36, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62e85",
+        "pointer_table_va": "0x627d8",
+        "script_id": 43,
+        "length": 19,
+        "sha256": "3315e707b9fa0e5a7393ee84cd9b158784af333e206961e7bf154195fb9f65f4",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2c",
+      "c_type": "uint8_t",
+      "dimensions": [19],
+      "values": [2, 1, 5, 39, 1, 44, 1, 41, 3, 42, 3, 43, 0, 1, 2, 39, 0, 41, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62e98",
+        "pointer_table_va": "0x627d8",
+        "script_id": 44,
+        "length": 19,
+        "sha256": "fa5635628f030996b338fcc8f2337f74d8207e3300ecd3feed76cb3557f181c9",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2d",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 128, 1, 8, 2, 134, 1, 8, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62eab",
+        "pointer_table_va": "0x627d8",
+        "script_id": 45,
+        "length": 9,
+        "sha256": "e1eb3311c94a60f01f487c17391c76c3d17ceb41d8f9d37f59d7f35289297d79",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2e",
+      "c_type": "uint8_t",
+      "dimensions": [53],
+      "values": [3, 1, 11, 61, 0, 62, 1, 63, 2, 64, 2, 65, 1, 66, 1, 67, 1, 68, 1, 69, 0, 70, 0, 71, 0, 1, 8, 62, 1, 63, 1, 66, 1, 67, 1, 68, 1, 69, 0, 70, 1, 71, 1, 1, 4, 62, 0, 66, 1, 68, 2, 70, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62eb4",
+        "pointer_table_va": "0x627d8",
+        "script_id": 46,
+        "length": 53,
+        "sha256": "070cb4af7477adc6e80c300a01dd542223ff088bac13c25f45369856fafbd671",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_2f",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 4, 1, 67, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62ee9",
+        "pointer_table_va": "0x627d8",
+        "script_id": 47,
+        "length": 5,
+        "sha256": "58f64c1b82e996915bd6cf457faca1df2cff486ab63af25623bae2a40344e4dd",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_30",
+      "c_type": "uint8_t",
+      "dimensions": [25],
+      "values": [6, 134, 1, 64, 3, 134, 1, 64, 1, 134, 1, 64, 2, 134, 1, 64, 1, 134, 1, 64, 0, 128, 1, 64, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62eee",
+        "pointer_table_va": "0x627d8",
+        "script_id": 48,
+        "length": 25,
+        "sha256": "a792a528ecffaaa6ec016e006b6438edd43cac2d110dfb7679ac2a09cd6ae397",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_31",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 5, 1, 65, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f07",
+        "pointer_table_va": "0x627d8",
+        "script_id": 49,
+        "length": 5,
+        "sha256": "350f3f6764b93c051587dbb7e8d2bf348e1f5fe2b482e29ec5b488aa382a504c",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_32",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 5, 1, 52, 0, 143, 1, 52, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f0c",
+        "pointer_table_va": "0x627d8",
+        "script_id": 50,
+        "length": 9,
+        "sha256": "4744f690c0e7e13a6e0edddd9bc97c63367491aef63deece388902f9d85aa744",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_33",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 5, 1, 61, 0, 132, 1, 61, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f15",
+        "pointer_table_va": "0x627d8",
+        "script_id": 51,
+        "length": 9,
+        "sha256": "b10be9a0c501f8495869d0cc3da113b32a1ef59e1b1481cbeac718d14cd5c433",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_34",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 5, 1, 60, 0, 132, 1, 60, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f1e",
+        "pointer_table_va": "0x627d8",
+        "script_id": 52,
+        "length": 9,
+        "sha256": "8ac47fc5ba35d2af37d55bb0745cfc735d6d7edf71799d78eb438f1115711a90",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_35",
+      "c_type": "uint8_t",
+      "dimensions": [35],
+      "values": [1, 133, 16, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f27",
+        "pointer_table_va": "0x627d8",
+        "script_id": 53,
+        "length": 35,
+        "sha256": "dc2b1172d120c6cf5774c09ddb00727af3f4393c9a9764c9087a2dd6d8157429",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_36",
+      "c_type": "uint8_t",
+      "dimensions": [37],
+      "values": [6, 136, 2, 16, 2, 17, 2, 136, 2, 16, 0, 17, 0, 136, 2, 16, 2, 17, 2, 136, 2, 16, 3, 17, 3, 136, 2, 16, 1, 17, 1, 128, 2, 16, 1, 17, 1],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f4a",
+        "pointer_table_va": "0x627d8",
+        "script_id": 54,
+        "length": 37,
+        "sha256": "c1079b79ea5dc84836f4e05de446642e26589a06d4bdb481ded82a8fe30f0133",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_37",
+      "c_type": "uint8_t",
+      "dimensions": [7],
+      "values": [1, 143, 2, 16, 3, 17, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f6f",
+        "pointer_table_va": "0x627d8",
+        "script_id": 55,
+        "length": 7,
+        "sha256": "d6b16105e54106013d91972565888921d4a144688317168cbf311f26cee192a2",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_38",
+      "c_type": "uint8_t",
+      "dimensions": [13],
+      "values": [3, 1, 1, 1, 3, 1, 1, 1, 2, 132, 1, 1, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f76",
+        "pointer_table_va": "0x627d8",
+        "script_id": 56,
+        "length": 13,
+        "sha256": "72317903d18c8d6eb9feed8876a377ae7cc08b3f0659e34a7073b8a5f723c005",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_39",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 136, 1, 16, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f83",
+        "pointer_table_va": "0x627d8",
+        "script_id": 57,
+        "length": 5,
+        "sha256": "79363ccff017922dfefcffa43bcddf291c541d564decf052c85de832373a937a",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3a",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 136, 1, 16, 1],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f88",
+        "pointer_table_va": "0x627d8",
+        "script_id": 58,
+        "length": 5,
+        "sha256": "7affacd7482ce5031a79703b29ebc610d024700db0e1bf9cc3535e5b2473cc38",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3b",
+      "c_type": "uint8_t",
+      "dimensions": [91],
+      "values": [8, 1, 5, 53, 1, 54, 0, 55, 0, 56, 0, 57, 0, 1, 5, 53, 1, 54, 1, 55, 0, 56, 0, 57, 0, 1, 5, 53, 1, 54, 1, 55, 1, 56, 0, 57, 0, 1, 4, 54, 1, 55, 1, 56, 1, 57, 0, 1, 6, 55, 1, 56, 1, 57, 1, 58, 0, 59, 0, 60, 0, 1, 5, 56, 1, 57, 1, 58, 1, 59, 0, 60, 0, 1, 4, 57, 1, 58, 1, 59, 1, 60, 0, 4, 3, 58, 1, 59, 1, 60, 1],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62f8d",
+        "pointer_table_va": "0x627d8",
+        "script_id": 59,
+        "length": 91,
+        "sha256": "6a15461b0a6fd757d9dc69787eceed113d3c1b372fce03c0893925717838e6fc",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3c",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 5, 1, 83, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62fe8",
+        "pointer_table_va": "0x627d8",
+        "script_id": 60,
+        "length": 5,
+        "sha256": "ef8b34ba7ee73cc0fa9f2d4ab64aa4de503816d5019a384e8a76c8bf98f3e97d",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3d",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 1, 1, 1, 1],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62fed",
+        "pointer_table_va": "0x627d8",
+        "script_id": 61,
+        "length": 5,
+        "sha256": "377a23f52c6b357696238c3318f677a082dd3430bb6691042bd550a5cda28ebb",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3e",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 136, 1, 1, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62ff2",
+        "pointer_table_va": "0x627d8",
+        "script_id": 62,
+        "length": 5,
+        "sha256": "d48cd52f6af730abbe7fb26a76f3d3f7646adb1f6020e9781f6309ac0de2e710",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_3f",
+      "c_type": "uint8_t",
+      "dimensions": [17],
+      "values": [4, 1, 1, 0, 2, 134, 1, 0, 2, 128, 1, 16, 0, 132, 1, 16, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x62ff7",
+        "pointer_table_va": "0x627d8",
+        "script_id": 63,
+        "length": 17,
+        "sha256": "b72af1ff40331507e6a55fde705719954596fda7a6e628668bf20623c2a91df2",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_40",
+      "c_type": "uint8_t",
+      "dimensions": [21],
+      "values": [5, 1, 1, 0, 0, 129, 1, 0, 2, 1, 1, 16, 0, 1, 1, 16, 1, 132, 1, 16, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63008",
+        "pointer_table_va": "0x627d8",
+        "script_id": 64,
+        "length": 21,
+        "sha256": "ed93ce34688886151f1bb3856d7e3602a992a2b42971da29c098d3974b5f312a",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_41",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 2, 1, 1, 2, 134, 1, 1, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6301d",
+        "pointer_table_va": "0x627d8",
+        "script_id": 65,
+        "length": 9,
+        "sha256": "f92622a2b2e6dc135a78ece0c4a93faca2fca29de4f4be397286219ee18dee1c",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_42",
+      "c_type": "uint8_t",
+      "dimensions": [201],
+      "values": [50, 3, 1, 0, 2, 130, 1, 0, 0, 5, 1, 2, 2, 1, 1, 2, 3, 130, 1, 2, 0, 5, 1, 3, 2, 130, 1, 3, 0, 1, 1, 4, 2, 1, 1, 4, 3, 5, 1, 4, 2, 130, 1, 4, 0, 5, 1, 5, 2, 130, 1, 5, 0, 1, 1, 6, 1, 4, 1, 6, 2, 130, 1, 6, 0, 5, 1, 7, 2, 130, 1, 7, 0, 1, 1, 8, 1, 4, 1, 8, 2, 130, 1, 8, 0, 2, 1, 9, 2, 1, 1, 9, 3, 2, 1, 9, 2, 1, 1, 9, 1, 2, 1, 9, 2, 130, 1, 9, 0, 4, 1, 10, 2, 1, 1, 10, 1, 1, 1, 10, 2, 130, 1, 10, 0, 4, 1, 11, 2, 2, 1, 11, 1, 130, 1, 11, 0, 4, 1, 12, 2, 1, 1, 12, 3, 2, 1, 12, 2, 130, 1, 12, 0, 2, 1, 13, 2, 1, 1, 13, 1, 2, 1, 13, 2, 1, 1, 13, 3, 1, 1, 13, 2, 130, 1, 13, 0, 5, 1, 14, 2, 130, 1, 14, 0, 5, 1, 72, 2, 130, 1, 72, 0, 5, 1, 15, 2, 130, 1, 15, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63026",
+        "pointer_table_va": "0x627d8",
+        "script_id": 66,
+        "length": 201,
+        "sha256": "3c016be962b411ae102fdafd74587e8a85576eddf84bbd614e42e0204fa97e98",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_43",
+      "c_type": "uint8_t",
+      "dimensions": [67],
+      "values": [3, 1, 15, 1, 0, 2, 0, 3, 0, 4, 0, 5, 2, 6, 2, 7, 2, 8, 1, 9, 1, 10, 1, 11, 1, 12, 3, 13, 3, 14, 3, 15, 3, 1, 11, 2, 0, 3, 0, 4, 0, 6, 1, 7, 3, 9, 1, 10, 0, 11, 0, 13, 3, 14, 0, 15, 0, 1, 4, 3, 1, 4, 3, 11, 1, 15, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x630ef",
+        "pointer_table_va": "0x627d8",
+        "script_id": 67,
+        "length": 67,
+        "sha256": "ab03edb4365238514c6a36c9bc9a90b95e07d6450a6a9ee160d83af79227eeaf",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_44",
+      "c_type": "uint8_t",
+      "dimensions": [15],
+      "values": [3, 136, 2, 16, 2, 17, 2, 128, 1, 16, 2, 132, 1, 16, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63132",
+        "pointer_table_va": "0x627d8",
+        "script_id": 68,
+        "length": 15,
+        "sha256": "079f7374655d641fd33ba5ea337656b67febf5ae74cf405ed22d15369a564eb4",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_45",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 128, 1, 17, 2, 132, 1, 17, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63141",
+        "pointer_table_va": "0x627d8",
+        "script_id": 69,
+        "length": 9,
+        "sha256": "c832e65b6dbbe08cd25782707efb389ec169052f59349cada39f9867f282ce46",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_46",
+      "c_type": "uint8_t",
+      "dimensions": [7],
+      "values": [1, 2, 2, 16, 0, 17, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6314a",
+        "pointer_table_va": "0x627d8",
+        "script_id": 70,
+        "length": 7,
+        "sha256": "d737caac099be46b5f8fdf9b13f188a65516482b4839862b2035314c71779336",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_47",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 4, 1, 16, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63151",
+        "pointer_table_va": "0x627d8",
+        "script_id": 71,
+        "length": 5,
+        "sha256": "fe4ab4044e36f159fa16728d4723524461fa7d5f34bfb717fda5840ce68fc6dc",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_48",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 4, 1, 17, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63156",
+        "pointer_table_va": "0x627d8",
+        "script_id": 72,
+        "length": 5,
+        "sha256": "2c0e2c0e25249321954d2b53b34bd37531c7e4d91ec11531ec3ee728d0bfd0ad",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_49",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 143, 1, 0, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6315b",
+        "pointer_table_va": "0x627d8",
+        "script_id": 73,
+        "length": 5,
+        "sha256": "88594e674a6d6187119c0cd89aefade7434cf88bd36458d48aacb26e09018943",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4a",
+      "c_type": "uint8_t",
+      "dimensions": [19],
+      "values": [1, 4, 8, 62, 2, 63, 2, 64, 2, 65, 2, 66, 2, 67, 2, 68, 2, 69, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63160",
+        "pointer_table_va": "0x627d8",
+        "script_id": 74,
+        "length": 19,
+        "sha256": "4f41b859902a9e8edb3a93a12a9dd3f1675f36050cfed4e657b486402764e290",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4b",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 4, 1, 70, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63173",
+        "pointer_table_va": "0x627d8",
+        "script_id": 75,
+        "length": 5,
+        "sha256": "752190da20b6518163ed407611b9ddc2dd92d0831d9c10c8b2a5f46167b250d1",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4c",
+      "c_type": "uint8_t",
+      "dimensions": [107],
+      "values": [5, 1, 15, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 3, 11, 3, 12, 3, 13, 3, 14, 3, 1, 12, 0, 2, 1, 2, 2, 1, 3, 3, 5, 1, 6, 1, 7, 1, 8, 1, 10, 3, 11, 3, 12, 3, 13, 3, 1, 8, 0, 1, 1, 3, 5, 1, 6, 2, 7, 2, 10, 3, 11, 2, 12, 2, 1, 2, 6, 2, 11, 2, 132, 11, 0, 2, 1, 2, 2, 2, 3, 2, 5, 2, 8, 2, 9, 2, 10, 2, 13, 2, 14, 2, 15, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63178",
+        "pointer_table_va": "0x627d8",
+        "script_id": 76,
+        "length": 107,
+        "sha256": "d3b64b00661fa0f7c8e46a2205f61f963e90d87ca755b394b4376cbc20991a9f",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4d",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 1, 1, 1, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x631e3",
+        "pointer_table_va": "0x627d8",
+        "script_id": 77,
+        "length": 5,
+        "sha256": "663e7cb88573caf2ca72ff650898df379f9467e90d2aeaaf0cba97ce5dc73967",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4e",
+      "c_type": "uint8_t",
+      "dimensions": [13],
+      "values": [3, 1, 1, 2, 2, 1, 1, 2, 1, 132, 1, 2, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x631e8",
+        "pointer_table_va": "0x627d8",
+        "script_id": 78,
+        "length": 13,
+        "sha256": "fafa4f67c57711696de53930bcc133b647220372beb1bfe98c4ebae53d053559",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_4f",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 132, 1, 0, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x631f5",
+        "pointer_table_va": "0x627d8",
+        "script_id": 79,
+        "length": 5,
+        "sha256": "5fdbf1d2fe408dd6b2dc8ce3c5dc5f4cb474950867b92c7063fdf9bb2ce916fb",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_50",
+      "c_type": "uint8_t",
+      "dimensions": [15],
+      "values": [3, 1, 1, 0, 3, 1, 1, 0, 2, 5, 2, 0, 2, 2, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x631fa",
+        "pointer_table_va": "0x627d8",
+        "script_id": 80,
+        "length": 15,
+        "sha256": "ac1fbb9a01302106b7f5efbb825bb7ea543372404d4ada5e2be8db5a4ff5e8c4",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_51",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 143, 1, 0, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63209",
+        "pointer_table_va": "0x627d8",
+        "script_id": 81,
+        "length": 5,
+        "sha256": "820a557a0c9396da2beb3012fd01eb1e9676b92ec63f742e1f4b678ad938479d",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_52",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 136, 1, 1, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6320e",
+        "pointer_table_va": "0x627d8",
+        "script_id": 82,
+        "length": 5,
+        "sha256": "7eb0983e9c0b1fc5c1b533923ddb633a85e1815ca56840419b74e59d22bc949f",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_53",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 1, 1, 0, 2, 132, 1, 0, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63213",
+        "pointer_table_va": "0x627d8",
+        "script_id": 83,
+        "length": 9,
+        "sha256": "d733e71e1b8ab08a49642e0dd3438fb8840e19476636ca0b0885fd4747abfb96",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_54",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [1, 2, 1, 1, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6321c",
+        "pointer_table_va": "0x627d8",
+        "script_id": 84,
+        "length": 5,
+        "sha256": "d0fe8ba9a8338f45150ae14ea4179b692e68b8521aae48d5471f9dad4c8b429a",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_55",
+      "c_type": "uint8_t",
+      "dimensions": [121],
+      "values": [3, 136, 19, 0, 1, 2, 2, 3, 3, 4, 1, 5, 3, 6, 2, 7, 3, 8, 3, 9, 1, 10, 3, 11, 3, 12, 1, 13, 3, 14, 1, 15, 3, 16, 2, 17, 1, 18, 3, 19, 1, 136, 19, 0, 3, 2, 1, 3, 2, 4, 3, 5, 1, 6, 3, 7, 2, 8, 2, 9, 3, 10, 2, 11, 1, 12, 2, 13, 2, 14, 3, 15, 1, 16, 1, 17, 3, 18, 2, 19, 2, 136, 19, 0, 2, 2, 3, 3, 1, 4, 2, 5, 2, 6, 1, 7, 1, 8, 1, 9, 2, 10, 1, 11, 2, 12, 3, 13, 1, 14, 2, 15, 2, 16, 3, 17, 2, 18, 1, 19, 3],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63225",
+        "pointer_table_va": "0x627d8",
+        "script_id": 85,
+        "length": 121,
+        "sha256": "648211559f5cf88babbfc898ddc474f23d4708aac4a62e43ab3a20fa92118b8e",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_56",
+      "c_type": "uint8_t",
+      "dimensions": [137],
+      "values": [5, 1, 19, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 1, 10, 1, 11, 1, 12, 1, 13, 1, 14, 3, 15, 3, 16, 3, 17, 3, 18, 3, 1, 16, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 10, 2, 11, 1, 12, 1, 13, 1, 15, 2, 16, 3, 17, 3, 18, 3, 1, 11, 0, 2, 1, 2, 2, 2, 3, 1, 4, 1, 5, 3, 6, 3, 12, 1, 13, 2, 17, 3, 18, 2, 1, 4, 0, 1, 2, 3, 4, 1, 6, 3, 136, 13, 0, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 9, 2, 11, 2, 12, 2, 14, 2, 16, 2, 17, 2, 19, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6329e",
+        "pointer_table_va": "0x627d8",
+        "script_id": 86,
+        "length": 137,
+        "sha256": "05a19a949a7a4d5428d8bc86e35bc8190903c00a709ca3d94a2d98ce94a9057b",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_57",
+      "c_type": "uint8_t",
+      "dimensions": [43],
+      "values": [1, 129, 20, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2, 16, 2, 17, 2, 18, 2, 19, 2],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63327",
+        "pointer_table_va": "0x627d8",
+        "script_id": 87,
+        "length": 43,
+        "sha256": "1714c33bbd2e99a775883d03c8ac500f6c8896c5efadf1c772d4047dd34ea5a8",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_58",
+      "c_type": "uint8_t",
+      "dimensions": [9],
+      "values": [2, 143, 1, 1, 2, 132, 1, 1, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x63352",
+        "pointer_table_va": "0x627d8",
+        "script_id": 88,
+        "length": 9,
+        "sha256": "779a29a9c50d792b2f2b3fd75212f0a9c79ef1384b9218738855eebc94ee912e",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
+    },
+    {
+      "name": "k_movement_script_59",
+      "c_type": "uint8_t",
+      "dimensions": [69],
+      "values": [3, 143, 1, 0, 0, 143, 1, 0, 0, 5, 29, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 25, 0, 26, 0, 27, 0, 28, 0, 29, 0, 30, 0],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x6335b",
+        "pointer_table_va": "0x627d8",
+        "script_id": 89,
+        "length": 69,
+        "sha256": "229dc506f8de1f9d09e2be2fcbe73ccedf84576429c7a75eb76751f756a1a121",
+        "evidence": "field_movement_script_ptr @0x4eb48; field_movement_script_play @0x1366a; G1 common-battle-semantics.md: original96actors, mode80 raw direction5, counted stream (not next-pointer span)"
+      }
     }
   ]
 }

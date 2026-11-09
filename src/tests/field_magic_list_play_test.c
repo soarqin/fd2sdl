@@ -1000,6 +1000,12 @@ static int test_item_selection_handoffs_and_context(void) {
     CHECK(fd2_input_action_for_key(field_input_context(&game), FD2_INPUT_KEY_Z) == FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
     CHECK(fd2_input_action_for_key(field_input_context(&game), FD2_INPUT_KEY_KEYPAD_5) == FD2_INPUT_ACTION_FIELD_FOCUS_CYCLE);
     CHECK(fd2_input_action_for_key(field_input_context(&game), FD2_INPUT_KEY_ESCAPE) == FD2_INPUT_ACTION_CANCEL);
+    fd2_field_interaction previous=game.interaction;
+    game.interaction=FD2_FIELD_INTERACTION_MAGIC_TELEPORTING;
+    CHECK(field_input_context(&game)==FD2_INPUT_CONTEXT_FIELD_MAGIC_TARGETING);
+    CHECK(fd2_input_action_for_key(field_input_context(&game),FD2_INPUT_KEY_ESCAPE)==FD2_INPUT_ACTION_CANCEL);
+    CHECK(fd2_input_action_for_key(field_input_context(&game),FD2_INPUT_KEY_ENTER)==FD2_INPUT_ACTION_CONFIRM);
+    game.interaction=previous;
     CHECK(released() == 0);
     CHECK(fd2_field_game_move_cursor(&game, 1, 0) == 1);
     CHECK(fd2_field_game_cancel_item_targeting(&game) == 0);

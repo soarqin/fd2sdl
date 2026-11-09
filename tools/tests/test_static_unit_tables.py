@@ -6,7 +6,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "static_data"))
-from verify_unit_tables import EXE_SHA256, check_table, source_range
+from verify_unit_tables import EXE_SHA256, check_table, source_range, check_constructor_alias_views
 
 
 class StaticUnitTablesTest(unittest.TestCase):
@@ -58,6 +58,21 @@ class StaticUnitTablesTest(unittest.TestCase):
     def test_different_executable_is_rejected_before_parsing(self):
         with self.assertRaisesRegex(ValueError, "身份不符"):
             source_range(b"LE damaged or different version", 0x619FD, 3)
+
+    def test_constructor_alias_checks_independent_bytes_and_fixed_call_domain(self):
+        values=[[i % 251 for i in range(row*11,(row+1)*11)] for row in range(68)]
+        unit=[{"name":"k_growth_records","values":values},
+              {"name":"k_player_base_alias_views","c_type":"uint16_t","dimensions":[2,3],
+               "values":[[48,0,384],[66,1,68]],"source":{"file":"FD2.EXE","file_sha256":EXE_SHA256,"evidence":"synthetic"}}]
+        stage=[{"name":"k_stage_prepare","values":[[i % 241 for i in range(row*31,(row+1)*31)] for row in range(26)]}]
+        expected={48:bytes(i%251 for i in range(384,408)),66:bytes(i%241 for i in range(68,92))}
+        check_constructor_alias_views(unit,stage,expected)
+        for mutate in (lambda u,s:u[1]["values"][0].__setitem__(0,40),
+                       lambda u,s:u[1]["values"][1].__setitem__(1,2),
+                       lambda u,s:u[0]["values"][34].__setitem__(10,255),
+                       lambda u,s:s[0]["values"][2].__setitem__(6,255)):
+            changed,other=copy.deepcopy(unit),copy.deepcopy(stage);mutate(changed,other)
+            with self.assertRaises(ValueError):check_constructor_alias_views(changed,other,expected)
 
 
 if __name__ == "__main__":

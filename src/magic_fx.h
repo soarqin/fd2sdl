@@ -68,6 +68,8 @@ int fd2_magic_fx_init(fd2_magic_fx *fx, uint8_t id, uint8_t side,
 /* phase为原0..8；成功0并写原返回值，错误-1且out未写。
  * emit=NULL照常推进/消费全部FX RNG。4/5需要rng返回0..65535；
  * emit错误或RNG契约错误发生后不回滚已消费RNG/已发event，caller锁存错误。
+ * FULL9共享BYTE跨target/9tick过渡会请求FX44目录外part：只省略该绘制，
+ * 保留声音/计数/impact；这是缺失原资源的显式安全边界，不补造画帧。
  * 不执行effect、HP插值或impact jitter；phase5返回1由caller按原条件处理。 */
 int fd2_magic_fx_step(fd2_magic_fx *fx, uint8_t phase,
     fd2_magic_fx_rng_fn rng, void *rng_userdata,

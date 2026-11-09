@@ -6,7 +6,7 @@
     "file": "src/field_game.c",
     "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
     "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_unit_experience_reward_execute @0x1e292; field_growth_stat_present_apply @0x1e529; field_phase_status_tick @0x1a866; docs/generated/ida-canonical/fd2-ida-decomp-all.c"
+    "evidence": "field_unit_experience_reward_execute @0x1e292; field_growth_stat_present_apply @0x1e529; field_phase_status_tick @0x1a866; docs/generated/ida-canonical/fd2-ida-decomp-all.c. G2: gain/total preserve signed DWORD bits, original signed total<100 follows gain488 ACK -> close11tick ACK -> EX low-byte commit without level/growth/recompute, including negative contribution; ordering and branch edges remain defined here. stationary.recover: sub_13FD4 @0x13fd4 HP!=max/raw25/raw26 gate; mode0/focus/wait1/cue4/actor2/wait1/actor0/wait1/HP clamp/mode1, no number or RNG. physical.full: player18d8c always calls2e2b0; AI1548e does so only option53af9=0. physical.short: AI1548e face/map/optional counter-face/1eb05 panels/reset/1e856 attack; surviving counter gate then face both/1e611/counter1e856/reset. Existing per-sequence core retains each mode's distinct extra-strike RNG rules."
   },
   "operations": {
     "reward_gate": {"args": [{"name": "normal_limit", "min": 1, "max": 255}, {"name": "special_id_a", "min": 0, "max": 67}, {"name": "special_id_b", "min": 0, "max": 67}, {"name": "special_limit", "min": 1, "max": 255}]},
@@ -53,7 +53,19 @@
     "status_have_actor": {"args": []},
     "status_focus_leader": {"args": []},
     "status_finish": {"args": []},
-    "status_notice": {"args": [{"name": "fragment", "min": 0, "max": 65535}, {"name": "value_source", "min": 0, "max": 1}, {"name": "wait_ticks", "min": 0, "max": 255}]}
+    "status_notice": {"args": [{"name": "fragment", "min": 0, "max": 65535}, {"name": "value_source", "min": 0, "max": 1}, {"name": "wait_ticks", "min": 0, "max": 255}]},
+    "action_prepare": {"args": []},
+    "action_display": {"args": [{"name": "mode", "min": 0, "max": 1}]},
+    "action_present": {"args": [{"name": "phase", "min": 2, "max": 6}]},
+    "action_face": {"args": [{"name": "reverse", "min": 0, "max": 1}]},
+    "action_reset_directions": {"args": []},
+    "action_sequence": {"args": [{"name": "counterattack", "min": 0, "max": 1}]},
+    "action_counter_ready": {"args": [{"name": "require_hp", "min": 0, "max": 1}]},
+    "action_done": {"args": []},
+    "recovery_needed": {"args": []},
+    "recovery_focus": {"args": []},
+    "recovery_step": {"args": [{"name": "step", "min": 0, "max": 2}, {"name": "value", "min": 0, "max": 65535}]},
+    "recovery_hp_commit": {"args": [{"name": "divisor", "min": 1, "max": 65535}]}
   },
   "flows": [
     {
@@ -121,6 +133,65 @@
         {"id": "have_actor", "op": "status_have_actor", "args": [], "on": {"yes": "focus_leader", "no": "finish"}, "views": ["logic"]},
         {"id": "focus_leader", "op": "status_focus_leader", "args": [], "on": {"next": "finish"}, "views": ["logic"]},
         {"id": "finish", "op": "status_finish", "args": [], "on": {}, "views": ["logic"]}
+      ]
+    },
+    {
+      "id": "stationary.recover",
+      "entry": "needed",
+      "nodes": [
+        {"id":"needed","op":"recovery_needed","args":[],"on":{"yes":"prepare","no":"done"},"views":["logic"]},
+        {"id":"prepare","op":"action_prepare","args":[],"on":{"next":"hide"},"views":["logic"]},
+        {"id":"hide","op":"action_display","args":[0],"on":{"next":"focus"},"views":["logic"]},
+        {"id":"focus","op":"recovery_focus","args":[],"on":{"next":"wait.before"},"views":["logic"]},
+        {"id":"wait.before","op":"recovery_step","args":[0,1],"on":{"next":"sound"},"views":["logic"]},
+        {"id":"sound","op":"recovery_step","args":[1,4],"on":{"next":"solid"},"views":["logic"]},
+        {"id":"solid","op":"recovery_step","args":[2,2],"on":{"next":"wait.solid"},"views":["logic"]},
+        {"id":"wait.solid","op":"recovery_step","args":[0,1],"on":{"next":"normal"},"views":["logic"]},
+        {"id":"normal","op":"recovery_step","args":[2,0],"on":{"next":"wait.normal"},"views":["logic"]},
+        {"id":"wait.normal","op":"recovery_step","args":[0,1],"on":{"next":"hp"},"views":["logic"]},
+        {"id":"hp","op":"recovery_hp_commit","args":[5],"on":{"next":"show"},"views":["logic"]},
+        {"id":"show","op":"action_display","args":[1],"on":{"next":"finish"},"views":["logic"]},
+        {"id":"finish","op":"action_present","args":[2],"on":{"next":"done"},"views":["logic"]},
+        {"id":"done","op":"action_done","args":[],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id":"physical.full",
+      "entry":"prepare",
+      "nodes":[
+        {"id":"prepare","op":"action_prepare","args":[],"on":{"next":"show"},"views":["logic"]},
+        {"id":"show","op":"action_display","args":[1],"on":{"next":"face"},"views":["logic"]},
+        {"id":"face","op":"action_face","args":[0],"on":{"next":"attack"},"views":["logic"]},
+        {"id":"attack","op":"action_sequence","args":[0],"on":{"next":"counter"},"views":["logic"]},
+        {"id":"counter","op":"action_counter_ready","args":[1],"on":{"yes":"counter.attack","no":"finish"},"views":["logic"]},
+        {"id":"counter.attack","op":"action_sequence","args":[1],"on":{"next":"finish"},"views":["logic"]},
+        {"id":"finish","op":"action_present","args":[2],"on":{"next":"reset"},"views":["logic"]},
+        {"id":"reset","op":"action_reset_directions","args":[],"on":{"next":"done"},"views":["logic"]},
+        {"id":"done","op":"action_done","args":[],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id":"physical.short",
+      "entry":"prepare",
+      "nodes":[
+        {"id":"prepare","op":"action_prepare","args":[],"on":{"next":"face"},"views":["logic"]},
+        {"id":"face","op":"action_face","args":[0],"on":{"next":"hide"},"views":["logic"]},
+        {"id":"hide","op":"action_display","args":[0],"on":{"next":"map"},"views":["logic"]},
+        {"id":"map","op":"action_present","args":[6],"on":{"next":"show"},"views":["logic"]},
+        {"id":"show","op":"action_display","args":[1],"on":{"next":"initial.counter"},"views":["logic"]},
+        {"id":"initial.counter","op":"action_counter_ready","args":[0],"on":{"yes":"face.defender","no":"begin"},"views":["logic"]},
+        {"id":"face.defender","op":"action_face","args":[1],"on":{"next":"begin"},"views":["logic"]},
+        {"id":"begin","op":"action_present","args":[3],"on":{"next":"reset.before"},"views":["logic"]},
+        {"id":"reset.before","op":"action_reset_directions","args":[],"on":{"next":"attack"},"views":["logic"]},
+        {"id":"attack","op":"action_sequence","args":[0],"on":{"next":"counter"},"views":["logic"]},
+        {"id":"counter","op":"action_counter_ready","args":[1],"on":{"yes":"counter.face.attacker","no":"reset.after"},"views":["logic"]},
+        {"id":"counter.face.attacker","op":"action_face","args":[0],"on":{"next":"counter.face.defender"},"views":["logic"]},
+        {"id":"counter.face.defender","op":"action_face","args":[1],"on":{"next":"counter.refresh"},"views":["logic"]},
+        {"id":"counter.refresh","op":"action_present","args":[4],"on":{"next":"counter.attack"},"views":["logic"]},
+        {"id":"counter.attack","op":"action_sequence","args":[1],"on":{"next":"reset.after"},"views":["logic"]},
+        {"id":"reset.after","op":"action_reset_directions","args":[],"on":{"next":"finish"},"views":["logic"]},
+        {"id":"finish","op":"action_present","args":[2],"on":{"next":"done"},"views":["logic"]},
+        {"id":"done","op":"action_done","args":[],"on":{},"views":["logic"]}
       ]
     }
   ]

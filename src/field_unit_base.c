@@ -10,7 +10,7 @@
  * G1确认field_promotion_record_get @0x4e7dd（原sub_4E7DD）、
  * field_promotion_candidates_build @0x2ae0e（原sub_2AE0E）与
  * field_promotion_growth_execute @0x2ac7d（原sub_2AC7D）：转职增量不是普通构造。
- * 当前尚未实现转职；stage32的48/66合法跨表读取与Scene回退差异留G2闭合，
+ * stage32的48/66复用相邻原成长/准备字节的已证24B窗口，
  * 不将相邻成长/准备字节命名为另一张基础表。见common-battle-semantics.md。
  */
 
@@ -75,6 +75,19 @@ const uint8_t *fd2_field_unit_growth_record_get(uint8_t unit_id) {
 const uint8_t *fd2_field_unit_learning_record_get(uint8_t selector) {
     return selector < ARRAY_COUNT(k_learning_records)
         ? k_learning_records[selector] : NULL;
+}
+
+/* sub_4E838 @0x4e838（原登记同名）基础getter的实际构造读域。
+ * 48/66的窗口身份与调用域保存在冷alias视图；不开放其它32..67新建。 */
+const uint8_t *fd2_field_unit_base_record_get(uint8_t unit_id) {
+    if (unit_id < ARRAY_COUNT(k_player_base_records))
+        return k_player_base_records[unit_id];
+    for (size_t i = 0; i < ARRAY_COUNT(k_player_base_alias_views); i++) {
+        const uint16_t *view = k_player_base_alias_views[i];
+        if (view[0] != unit_id) continue;
+        return k_player_base_alias_records[i];
+    }
+    return NULL;
 }
 
 int fd2_field_unit_level_growth_prepare(
@@ -217,7 +230,8 @@ int fd2_field_unit_stage_template_apply(
     record[0x3c] = updated.side == 2 ? 0 : 0xff;
     record[0x3d] = tpl[0x02];
 
-    if (fd2_field_unit_base_apply(&updated, tpl[0x04]) != 0)
+    if (fd2_field_unit_base_apply(&updated, tpl[0x04]) != 0 ||
+        fd2_field_unit_combat_stats_recompute(&updated,initial_item_stats,NULL,NULL,NULL) != 0)
         return -1;
     *unit = updated;
     return 0;
@@ -234,18 +248,18 @@ int fd2_field_unit_base_apply(fd2_field_unit *unit, uint8_t level) {
     uint32_t defense;
     uint32_t accuracy;
 
-    if (updated.unit_id < ARRAY_COUNT(k_player_base_records)) {
-        const uint8_t *base = k_player_base_records[updated.unit_id];
+    const uint8_t *player_base = fd2_field_unit_base_record_get(updated.unit_id);
+    if (player_base && updated.unit_id < ARRAY_COUNT(k_growth_records)) {
         const uint8_t *growth = k_growth_records[updated.unit_id];
         uint32_t level_minus_one = (uint32_t)level - 1u;
-        hp = rd_u16(base, 3) + (uint32_t)growth[6] * level_minus_one;
-        mp = rd_u16(base, 5) + (uint32_t)growth[8] * level_minus_one;
-        attack = rd_u16(base, 18) + (uint32_t)growth[0] * level;
-        defense = rd_u16(base, 20) + (uint32_t)growth[2] * level;
-        accuracy = rd_u16(base, 22) + (uint32_t)growth[4] * level;
-        record[0x1f] = base[0];
-        updated.movement_profile = base[1];
-        updated.movement_points = base[7];
+        hp = rd_u16(player_base, 3) + (uint32_t)growth[6] * level_minus_one;
+        mp = rd_u16(player_base, 5) + (uint32_t)growth[8] * level_minus_one;
+        attack = rd_u16(player_base, 18) + (uint32_t)growth[0] * level;
+        defense = rd_u16(player_base, 20) + (uint32_t)growth[2] * level;
+        accuracy = rd_u16(player_base, 22) + (uint32_t)growth[4] * level;
+        record[0x1f] = player_base[0];
+        updated.movement_profile = player_base[1];
+        updated.movement_points = player_base[7];
         goto commit;
     }
 

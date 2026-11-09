@@ -23,6 +23,7 @@
 #include "field.h"
 #include "field_unit.h"
 #include "field_unit_base.h"
+#include "field_visual.h"
 #include "font.h"
 #include "image.h"
 #include "map_sprite.h"
@@ -435,24 +436,23 @@ static int clamp_int(int value, int lo, int hi) {
     return value;
 }
 
-static void opening_actor_set(fd2_scene_field_state *state,
+static int opening_actor_set(fd2_scene_field_state *state,
                               size_t actor_idx,
                               uint16_t unit_id,
                               int x,
                               int y) {
-    if (!state || unit_id > 0xffu) return;
-    /* 开场的 text_id 与 unit/DATO id 相同；正式关卡模板会分别填入
-     * record offset 0x07/0x08。脚步选择读取 record +0x1f/+0x20，
-     * 因此尽量从已确认的原版静态基础表补齐 race/profile；无基础表的
-     * 特殊过场角色仍保留零值，与原版 unit ID 0x1c 特判分支分开。 */
-    if (fd2_field_units_set(&state->units, actor_idx,
+    if (!state || unit_id > 0xffu) return -1;
+    /* 原开场身份/属性使用同一构造源，未知ID必须失败，不能回退零属性。 */
+    fd2_field_units shadow = state->units;
+    if (fd2_field_units_set(&shadow, actor_idx,
                             (uint8_t)unit_id, (uint8_t)unit_id, 0,
-                            x, y) == 0)
-        (void)fd2_field_unit_base_apply(
-            &state->units.items[actor_idx], 1);
+                            x, y) != 0 ||
+        fd2_field_unit_base_apply(&shadow.items[actor_idx], 1) != 0) return -1;
+    state->units = shadow;
+    return 0;
 }
 
-static void opening_actor_set_template(
+static int opening_actor_set_template(
         fd2_scene_field_state *state,
         size_t actor_idx,
         const fd2_field_unit_template *template_record,
@@ -461,13 +461,14 @@ static void opening_actor_set_template(
         size_t template_idx) {
     if (!state || !template_record || actor_idx >= FD2_FIELD_MAX_UNITS ||
         x < 0 || x > 0xff || y < 0 || y > 0xff)
-        return;
+        return -1;
 
     fd2_field_unit unit;
     memset(&unit, 0, sizeof(unit));
     unit.x = (uint8_t)x;
     unit.y = (uint8_t)y;
     if (fd2_field_unit_stage_template_apply(&unit, template_record) == 0) {
+        fd2_field_units saved = state->units;
         state->units.items[actor_idx] = unit;
         state->units.walk_frames[actor_idx] = 1;
         state->units.source_template_indices[actor_idx] =
@@ -476,10 +477,13 @@ static void opening_actor_set_template(
                 : FD2_FIELD_UNIT_NO_TEMPLATE;
         if (state->units.count <= actor_idx)
             state->units.count = actor_idx + 1;
-        return;
+        if (fd2_field_units_sprite_cache_append(&state->units, actor_idx) != 0) {
+            state->units = saved;
+            return -1;
+        }
+        return 0;
     }
-
-    opening_actor_set(state, actor_idx, template_record->bytes[1], x, y);
+    return -1;
 }
 
 static int init_opening_field_state(fd2_scene_field_state *state, size_t stage,
@@ -514,6 +518,7 @@ static void render_prologue_actors(fd2_vga *vga,
     int camera_y = 0;
     if (!field_state) return;
     opening_camera_pixels(map, field_state, &camera_x, &camera_y);
+    fd2_field_actor_visual_tick(vga, SDL_GetTicks());
     fd2_field_units_render(vga, sprites, &field_state->units,
                            camera_x, camera_y, field_state->idle_phase);
 }
@@ -1246,6 +1251,27 @@ static int opening_actor_move_up_follow_camera(
     return 0;
 }
 
+static int movement_script_preflight(const fd2_field_units *units,
+        const uint8_t *script, size_t script_len, uint8_t idle_phase) {
+    if (!units || !script || !script_len) return -1;
+    /* 一次检查完整流及全部actor域，错误不留下半段演出的热状态。 */
+    fd2_field_units checked = *units;
+    if (fd2_field_movement_script_apply(&checked, script, script_len) != 0) return -1;
+    size_t check_at=1;
+    for (size_t group=0;group<script[0];group++) {
+        uint8_t mode=script[check_at++],count=script[check_at++];
+        for (size_t i=0;i<count;i++,check_at+=2) {
+            size_t actor=script[check_at];uint8_t direction=script[check_at+1u];
+            if (mode && direction>3u) {
+                fd2_field_units view=*units;
+                view.items[actor].direction=direction;
+                if (fd2_field_unit_cached_frame_index(&view,actor,idle_phase)==SIZE_MAX) return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 static int play_opening_move_script(fd2_vga *vga,
                                     const fd2_terrain_tileset *terrain,
                                     const fd2_field_map *map,
@@ -1256,7 +1282,8 @@ static int play_opening_move_script(fd2_vga *vga,
                                     size_t script_len,
                                     int fade_out,
                                     int fast) {
-    if (!script || script_len == 0) return -1;
+    if (!state || !script || script_len == 0) return -1;
+    if (movement_script_preflight(&state->units,script,script_len,state->idle_phase) != 0) return -1;
     size_t pos = 1;
     uint8_t group_count = script[0];
     int darkness = 1;
@@ -1271,13 +1298,37 @@ static int play_opening_move_script(fd2_vga *vga,
 
         for (uint8_t i = 0; i < actor_count; i++) {
             uint8_t actor_id = pairs[i * 2];
-            if (actor_id < state->units.count)
-                state->units.items[actor_id].direction = pairs[i * 2 + 1] & 3u;
+            if (mode && actor_id < state->units.count)
+                state->units.items[actor_id].direction = pairs[i * 2 + 1];
         }
 
         if (mode & 0x80u) {
             int frames = mode & 0x7fu;
-            if (frames == 0) frames = 1;
+            if (frames == 0) {
+                /* 1366a/1374b：原工作页指针-5472，即所选actor临时上抬12px。
+                 * 按raw顺序画全表（不是普通深度排序），位置和frame_phase不写回。 */
+                if (!fast) {
+                    fd2_delay_ms(FD2_BIOS_TICK_MS);
+                    int camera_x, camera_y;
+                    opening_camera_pixels(map,state,&camera_x,&camera_y);
+                    fd2_field_actor_visual_tick(vga,SDL_GetTicks());
+                    fd2_terrain_render_field_base(vga,terrain,map,camera_x,camera_y);
+                    for (size_t raw=0;raw<state->units.count;raw++) {
+                        int selected=0;
+                        for (size_t i=0;i<actor_count;i++) if (pairs[i*2u]==raw) selected=1;
+                        fd2_field_units_render_actor(vga,sprites,&state->units,raw,
+                            camera_x,camera_y,state->idle_phase,selected ? -12 : 0);
+                    }
+                    fd2_field_units_render_terrain_overlays(vga,terrain,map,&state->units,
+                        camera_x,camera_y,0,NULL,NULL);
+                    clear_field_view_border(vga);
+                    fd2_vga_present_timed(vga,FD2_BIOS_TICK_MS*2);
+                    fd2_vga_wait_frame_deadline(vga);
+                    opening_advance_idle(state,FD2_BIOS_TICK_MS*3);
+                    present_base_frame(vga,terrain,map,sprites,state);
+                }
+                continue;
+            }
             if (!fast) {
                 for (int frame = 0; frame < frames; frame++) {
                     present_base_frame_timed(vga, terrain, map, sprites,
@@ -1512,11 +1563,11 @@ static int scene_flow_run(scene_flow_context *c, const fd2_static_flow *flow);
 static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *flow) {
     if (!c || !flow) return -1;
     /* 分支读取入口快照，不让呈现中的移动或库存投影重新选择业务路径。 */
-    uint64_t hidden = 0;
+    uint8_t hidden[FD2_FIELD_MAX_UNITS] = {0};
     size_t initial_count = c->state ? c->state->units.count : 0;
     if (initial_count > FD2_FIELD_MAX_UNITS) return -1;
     for (size_t i = 0; i < initial_count; i++)
-        if (fd2_field_unit_is_hidden(&c->state->units.items[i])) hidden |= UINT64_C(1) << i;
+        hidden[i] = (uint8_t)fd2_field_unit_is_hidden(&c->state->units.items[i]);
     int pc = flow->entry;
     while (c->flow_steps++ < FD2_FLOW_STEP_BUDGET) {
         const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
@@ -1590,25 +1641,24 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (!field || opening_actor_arrival(c->vga,c->fdother,c->terrain,c->map,c->sprites,
                     c->state,c->audio,(size_t)a[0],(size_t)a[1],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "init_player")) {
-            if (!c->state || !c->placements) return -1;
-            size_t base=c->placements->count >= (size_t)a[2] ? c->placements->count-(size_t)a[2] : 0;
-            size_t index=base+(size_t)a[3];
-            if (index < c->placements->count) {
-                const fd2_field_placement *p=&c->placements->records[index];
-                opening_actor_set(c->state,(size_t)a[0],(uint16_t)a[1],p->x,p->y);
-            }
+            uint8_t x, y;
+            if (!c->state || fd2_field_unit_deployment_position(c->metadata,
+                    c->placements,(size_t)a[3],&x,&y) != 0 ||
+                opening_actor_set(c->state,(size_t)a[0],(uint16_t)a[1],x,y) != 0) return -1;
         } else if (!strcmp(n->op, "init_templates")) {
             if (!c->state || !c->placements || !c->metadata || a[0] < 0) return -1;
-            size_t end=a[1] < 0 ? c->placements->count : (size_t)a[0]+(size_t)a[1];
-            if (end > c->placements->count) end=c->placements->count;
+            size_t count;
+            if (fd2_field_unit_template_count(c->metadata,&count) != 0 ||
+                count > c->placements->count || !c->placements->records) return -1;
+            size_t end=a[1] < 0 ? count : (size_t)a[0]+(size_t)a[1];
+            if (end > count) return -1;
             for (size_t i=(size_t)a[0];i<end;i++) {
                 const fd2_field_placement *p=&c->placements->records[i];
                 if (a[3] && !p->x && !p->y) break;
                 size_t actor=(size_t)a[2]+i-(size_t)a[0];
                 if (actor >= FD2_FIELD_MAX_UNITS) return -1;
-                if (i < c->metadata->unit_template_count)
-                    opening_actor_set_template(c->state,actor,&c->metadata->unit_templates[i],p->x,p->y,i);
-                else opening_actor_set(c->state,actor,p->unit_id,p->x,p->y);
+                if (opening_actor_set_template(c->state,actor,&c->metadata->unit_templates[i],
+                    (uint8_t)p->x,(uint8_t)p->y,i) != 0) return -1;
                 if (a[4]) fd2_field_unit_set_hidden(&c->state->units.items[actor],1);
             }
         } else if (!strcmp(n->op, "opening_stage")) {
@@ -1626,7 +1676,7 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "branch_any_hidden")) {
             if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= initial_count) return -1;
             int any=0;
-            for (int32_t i=a[0];i<=a[1];i++) if (hidden & (UINT64_C(1) << i)) any=1;
+            for (int32_t i=a[0];i<=a[1];i++) if (hidden[i]) any=1;
             pc=fd2_static_flow_edge(flow,n,any ? FD2_FLOW_YES : FD2_FLOW_NO);
             continue;
         } else if (!strcmp(n->op, "copy_projected_inventory")) {
@@ -1957,9 +2007,9 @@ static int scene_flow_preflight(const fd2_field_game *game,
         const fd2_field_units *projected, const fd2_static_flow *flow) {
     if (!game || !flow || game->units.count > FD2_FIELD_MAX_UNITS) return -1;
     fd2_field_units preview=game->units;
-    uint64_t hidden=0;
+    uint8_t hidden[FD2_FIELD_MAX_UNITS]={0};
     for (size_t i=0;i<game->units.count;i++)
-        if (fd2_field_unit_is_hidden(&game->units.items[i])) hidden |= UINT64_C(1)<<i;
+        hidden[i]=(uint8_t)fd2_field_unit_is_hidden(&game->units.items[i]);
     int pc=flow->entry;
     for (unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
         const fd2_static_flow_node *n=fd2_static_flow_at(flow,pc);
@@ -1969,7 +2019,7 @@ static int scene_flow_preflight(const fd2_field_game *game,
         if (!strcmp(n->op,"branch_any_hidden")) {
             if (n->args[0] < 0 || n->args[1] < n->args[0] || (size_t)n->args[1] >= game->units.count) return -1;
             int any=0;
-            for (int32_t i=n->args[0];i<=n->args[1];i++) if (hidden & (UINT64_C(1)<<i)) any=1;
+            for (int32_t i=n->args[0];i<=n->args[1];i++) if (hidden[i]) any=1;
             pc=fd2_static_flow_edge(flow,n,any ? FD2_FLOW_YES : FD2_FLOW_NO);
             continue;
         }
@@ -1978,7 +2028,8 @@ static int scene_flow_preflight(const fd2_field_game *game,
             if (game->ordinary_display_mode > 1u || !cursor || cursor->width != 24 || cursor->height != 24) return -1;
         } else if (!strcmp(n->op,"move")) {
             const uint8_t *bytes; size_t size;
-            if (fd2_field_movement_script_get((uint8_t)n->args[0],&bytes,&size) != 0 || !size) return -1;
+            if (fd2_field_movement_script_get((uint8_t)n->args[0],&bytes,&size) != 0 ||
+                movement_script_preflight(&preview,bytes,size,0) != 0) return -1;
         } else if (!strcmp(n->op,"append_group") && projected) {
             size_t first=preview.count;
             if (fd2_field_units_append_group_placed(&preview,&game->metadata,&game->placements,

@@ -378,14 +378,27 @@ static int test_preflight_and_load_cleanup(void) {
     CHECK(fd2_save_file_open(&source, "original_game/START.SAV") == 0);
     CHECK(fd2_save_file_get_battle_snapshot(&source, &snapshot) == 0);
     fd2_save_file_close(&source);
-    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 65;
+    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 97;
     fd2_field_game before = game;
     CHECK(fd2_field_game_import_battle_snapshot(&game, &snapshot) == -1);
     CHECK(!memcmp(&game, &before, sizeof(game)));
-    snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = 12;
-    CHECK(fd2_field_game_import_battle_snapshot(&game, &snapshot) == 0);
-    CHECK(!game.detail_visible && game.detail_page == FD2_FIELD_DETAIL_EQUIPMENT &&
-        game.detail_unit == -1 && !game.detail_portrait.pixels && game.detail_acknowledged_unit == -1);
+    /* 65已经是合法活动容量；明确构造hidden尾，不能让未初始化尾的
+     * 坐标/身份错误替代容量门。完整80B保留，不重建单位业务字段。 */
+    for (size_t i = 12; i < 96; i++) {
+        memcpy(snapshot.unit_area + i * 80u, snapshot.unit_area, 80u);
+        snapshot.unit_area[i * 80u] = snapshot.unit_area[i * 80u + 1u] = 255;
+        snapshot.unit_area[i * 80u + 5u] = 1;
+        snapshot.unit_area[i * 80u + 0x28u] = 0xa5;
+    }
+    const uint8_t counts[] = {65,96,12};
+    for (size_t i = 0; i < sizeof(counts); i++) {
+        if (i) CHECK(fd2_field_game_open_detail(&game, 1) == 0);
+        snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT] = counts[i];
+        CHECK(fd2_field_game_import_battle_snapshot(&game, &snapshot) == 0);
+        CHECK(game.units.count == counts[i] && !memcmp(game.units.items, snapshot.unit_area, counts[i] * 80u));
+        CHECK(!game.detail_visible && game.detail_page == FD2_FIELD_DETAIL_EQUIPMENT &&
+            game.detail_unit == -1 && !game.detail_portrait.pixels && game.detail_acknowledged_unit == -1);
+    }
     fd2_field_game_close(&game);
     CHECK(!control.buffers);
     return 0;

@@ -112,12 +112,27 @@ class StaticStageAuditTest(unittest.TestCase):
         self.assertFalse(row["selected_semantics_supported"])
         template = row["metadata"]["templates"][0]
         self.assertIsNone(template["placement_index"])
-        self.assertEqual(template["placement_relation"], "unresolved_no_fallback")
+        self.assertEqual(template["placement_relation"], "resource_tail_not_consumed")
+        self.assertFalse(template["effective_template"])
         fixture[3]["stage.entry.000"] = flow("stage.entry.000", "append_group", [10, 0, 0])
+        metadata=bytearray(fixture[0][1][1]);metadata[2]=1
+        fixture[0][1]=(20,bytes(metadata))
         row = audit.audit_stage(0, *fixture)
         self.assertFalse(row["bound_definitions_closed"])
         self.assertFalse(row["selected_semantics_supported"])
-        self.assertIn("missing same-ID", row["reference_errors"][0])
+        self.assertIn("missing same-index", row["reference_errors"][0])
+
+    def test_effective_count_same_index_low_byte_and_retained_legacy_observation(self):
+        fixture=list(stage_fixture());metadata=bytearray(fixture[0][1][1]);metadata[2]=1
+        fixture[0][1]=(20,bytes(metadata));fixture[0][2]=(200,struct.pack("<HHHH",1,0x102,0x203,99))
+        row=audit.audit_stage(0,*fixture);template=row["metadata"]["templates"][0]
+        self.assertEqual(template["placement_index"],0)
+        self.assertEqual(template["placement_coordinates_low_byte"],[2,3])
+        self.assertEqual(template["placement_relation"],"same_index_low_byte")
+        self.assertIsNone(template["legacy_id_ordinal_placement_index"])
+        self.assertTrue(row["bound_definitions_closed"])
+        metadata[2]=2;fixture[0][1]=(20,bytes(metadata))
+        self.assertIn("count exceeds",audit.audit_stage(0,*fixture)["reference_errors"][0])
 
     def test_default_turn255_is_a_strict_blocker_even_when_bound_definitions_close(self):
         row = audit.audit_stage(0, *stage_fixture())
@@ -168,13 +183,15 @@ class StaticStageAuditTest(unittest.TestCase):
         self.assertFalse(row["battle_enabled"])
         self.assertFalse(row["selected_semantics_supported"])
 
-    def test_same_unit_id_uses_ordinal_not_one_reused_position(self):
+    def test_same_unit_id_keeps_distinct_index_and_legacy_observation(self):
         fixture = list(stage_fixture())
         raw = fixture[0][1][1]
-        fixture[0][1] = (20, raw + raw[0x83:])
+        raw=bytearray(raw + raw[0x83:]);raw[2]=2
+        fixture[0][1] = (20, bytes(raw))
         fixture[0][2] = (200, struct.pack("<HHHHHHH", 2, 2, 3, 76, 4, 5, 76))
         row = audit.audit_stage(0, *fixture)
         self.assertEqual([item["placement_index"] for item in row["metadata"]["templates"]], [0, 1])
+        self.assertEqual([item["legacy_id_ordinal_placement_index"] for item in row["metadata"]["templates"]], [0,1])
 
     def test_aliases_reuse_one_graph_without_implicit_cross_stage_support(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -311,6 +328,20 @@ class StaticStageAuditTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, r"hash mismatch: .*src/field\.c"):
                 audit.validate_definition_sources(provenance)
 
+    def test_canonical_definition_requires_actual_original_identity(self):
+        record={"kind":"canonical_disassembly","file":"FD2.EXE", "file_sha256":audit.digest(b"fixture"),
+                "evidence":"synthetic canonical instruction evidence"}
+        with mock.patch.object(audit,"EXE_SHA256",audit.digest(b"fixture")):
+            self.assertEqual(audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"}),
+                             {"FD2.EXE":audit.digest(b"fixture")})
+            for payload in (None,{}, {"FD2.EXE":b"changed"}):
+                with self.assertRaisesRegex(ValueError,"matching original"):
+                    audit.validate_definition_sources([{"source":record}],source_files=payload)
+            for key,value in (("file","other.exe"),("file_sha256","0"*64),("evidence","")):
+                changed=dict(record);changed[key]=value
+                with self.assertRaises(ValueError):
+                    audit.validate_definition_sources([{"source":changed}],source_files={"FD2.EXE":b"fixture"})
+
     def test_require_supported_fails_closed_and_keeps_written_report(self):
         report = {"structural_success": True, "semantic_complete": False,
                   "stages": [{"stage": 7, "selected_semantics_supported": False}]}
@@ -365,13 +396,13 @@ class FullMovementSourceTest(unittest.TestCase):
         self.assertEqual(report["records"][-1]["pointer_va"], "0x6297c")
         self.assertEqual(report["payload"]["length"], 2898)
         self.assertEqual(bytes.fromhex(report["payload"]["raw_hex"]), raw[0x2980:])
-        self.assertEqual(report["summary"]["runtime_strict_streams"], 36)
-        self.assertEqual(report["summary"]["runtime_unknown_or_unopened"], 70)
+        self.assertEqual(report["summary"]["runtime_strict_streams"], 106)
+        self.assertEqual(report["summary"]["runtime_unknown_or_unopened"], 0)
         self.assertFalse(report["semantic_complete"])
         for row in report["records"][20:90]:
-            self.assertFalse(row["runtime_supported"])
-            self.assertFalse(row["semantic_decoded"])
-            self.assertEqual(row["stream_syntax_status"], "source_structure_only")
+            self.assertTrue(row["runtime_supported"])
+            self.assertTrue(row["semantic_decoded"])
+            self.assertEqual(row["stream_syntax_status"], "runtime_strict_verified")
 
     def test_missing_last_fixup_wrong_owner_and_outside_initialized_source_fail(self):
         raw, fixups, runtime = self.fixture()
@@ -392,6 +423,7 @@ class FullMovementSourceTest(unittest.TestCase):
     def test_duplicate_targets_keep_both_pointer_records_and_candidate_is_not_boundary(self):
         raw, fixups, runtime = self.fixture()
         fixups[audit.POINTER_TABLE_VA + 21 * 4] = fixups[audit.POINTER_TABLE_VA + 20 * 4]
+        runtime[21]=runtime[20]
         report = self.read(raw, fixups, runtime)
         self.assertEqual(report["count"], 106)
         first, second = report["records"][20:22]
@@ -401,42 +433,42 @@ class FullMovementSourceTest(unittest.TestCase):
         self.assertEqual(first["candidate_span"]["length"], 10)
         self.assertEqual(first["candidate_relation"], "candidate_tail_retained")
 
-    def test_cross_target_tail_actor83_and_direction5_are_preserved_unknown(self):
+    def test_cross_target_tail_actor83_and_zero_raw5_retain_candidate_bytes(self):
         raw, fixups, runtime = self.fixture()
         start = audit.MOVEMENT_PAYLOAD_VA - 0x60000
         raw[start + 24 * 5:start + 24 * 5 + 5] = bytes((1, 0x80, 2, 48, 0))
         raw[start + 25 * 5 + 1] = 5  # ID24按原计数读入下一目标头部的(1,5)。
         raw[start + 60 * 5 + 3] = 83
         raw[start + 84 * 5] = 0  # 仅消费group_count，候选余4 byte仍须保存。
+        for identity,size in ((24,7),(25,5),(60,5),(84,1)):
+            offset=start+identity*5
+            runtime[identity]=SimpleNamespace(canonical_va=0x60000+offset,data=bytes(raw[offset:offset+size]))
         report = self.read(raw, fixups, runtime)
         row24, row60, row84 = (report["records"][i] for i in (24, 60, 84))
         self.assertEqual(row24["candidate_relation"], "crosses_next_target")
         self.assertEqual(row24["candidate_span"]["length"], 5)
         self.assertEqual(row24["counted_structure_observation"]["consumed_length"], 7)
-        self.assertEqual(row24["counted_structure_observation"]["unconfirmed_directions"], [5])
-        self.assertEqual(row60["counted_structure_observation"]["actors_outside_current_capacity"], [83])
+        self.assertEqual(row24["counted_structure_observation"]["unconfirmed_directions"], [])
+        self.assertEqual(row60["counted_structure_observation"]["actors_outside_current_capacity"], [])
         self.assertEqual(row84["candidate_relation"], "candidate_tail_retained")
         self.assertEqual(row84["candidate_span"]["raw_hex"], raw[start + 84 * 5:start + 85 * 5].hex())
         for row in (row24, row60, row84):
-            self.assertFalse(row["runtime_supported"])
-            self.assertFalse(row["semantic_decoded"])
+            self.assertTrue(row["runtime_supported"])
+            self.assertTrue(row["semantic_decoded"])
         self.assertEqual(report["payload"]["raw_hex"], raw[0x2980:].hex())
 
     def test_unresolved_counted_structure_keeps_raw_source_without_runtime_success(self):
         raw, fixups, runtime = self.fixture()
         fixups[audit.POINTER_TABLE_VA + 84 * 4] = (3, len(raw) - 1, 0x60000 + len(raw) - 1)
         raw[-1] = 1
-        report = self.read(raw, fixups, runtime)
-        row = report["records"][84]
-        self.assertEqual(row["candidate_relation"], "unresolved_counted_structure")
-        self.assertFalse(row["counted_structure_observation"]["complete"])
-        self.assertEqual(row["candidate_span"]["raw_hex"], "01")
-        self.assertFalse(row["runtime_supported"])
+        self.assertFalse(audit.scan_movement_structure(bytes(raw[-1:]))["complete"])
+        with self.assertRaisesRegex(ValueError,"runtime strict"):
+            self.read(raw,fixups,runtime)
 
     def test_current_runtime_subset_cannot_bypass_existing_strict_constraints(self):
         raw, fixups, runtime = self.fixture()
         start = audit.MOVEMENT_PAYLOAD_VA - 0x60000
-        for actor, direction in ((83, 0), (0, 5)):
+        for actor, direction in ((96, 0), (0, 5)):
             changed = bytearray(raw)
             changed[start + 3:start + 5] = bytes((actor, direction))
             forged = dict(runtime)

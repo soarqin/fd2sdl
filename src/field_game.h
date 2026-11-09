@@ -110,7 +110,8 @@ typedef enum {
     FD2_FIELD_INTERACTION_ITEM_TARGETING,
     FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING,
     FD2_FIELD_INTERACTION_ITEM_GIVE_LIST,
-    FD2_FIELD_INTERACTION_ITEM_TELEPORTING
+    FD2_FIELD_INTERACTION_ITEM_TELEPORTING,
+    FD2_FIELD_INTERACTION_MAGIC_TELEPORTING
 } fd2_field_interaction;
 
 /* field_unit_detail_present @0x17aed（原sub_17AED）：装备页任意键后，有法术才显示第二页。 */
@@ -506,7 +507,10 @@ void fd2_field_game_close(fd2_field_game *game);
 int fd2_field_game_apply_handoff(fd2_field_game *game,
                                  const fd2_field_handoff *handoff);
 
-/* 1297d/11eee视觉时钟唯一写口；仅idle/terrain相位及其last锚点四字段。
+/* field_view_render_tiles @0x11eee（原同名）首部的terrain-only写口：仅terrain
+ * 相位及其last锚点；反击1e611直调该域，不推进idle、菜单、RNG或持久状态。 */
+int fd2_field_game_tick_terrain_visual(fd2_field_game *game, uint64_t now_ms);
+/* 1297d/11eee组合视觉时钟写口；仅idle/terrain相位及其last锚点四字段。
  * 演出显式借Game调用，不能用普通tick代替而推进AI/菜单/提交业务。 */
 int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ms);
 void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
@@ -528,6 +532,10 @@ int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *v
 /* 1cff0/15311的51a83=0页：当前地图/actor/info，无cursor/range/modal；
  * 纯绘制，不另存时钟、不修改Game或RNG。 */
 void fd2_field_game_render_effect_background(const fd2_field_game *game, fd2_vga *vga);
+/* 22253的terrain→FX→actor工作页顺序；仅画地形，不画actor/cursor/UI或推进时钟。 */
+void fd2_field_game_render_effect_tiles(const fd2_field_game *game, fd2_vga *vga);
+/* 同一工作页追加actors与terrain遮挡；不重新画tiles或UI、不推进时钟。 */
+void fd2_field_game_render_effect_actors(const fd2_field_game *game, fd2_vga *vga);
 int fd2_field_game_move_camera(fd2_field_game *game, int dx, int dy);
 int fd2_field_game_move_cursor(fd2_field_game *game, int dx, int dy);
 /* 复现 field_controller_input @code0 0x17e7 的焦点轮换分支：跳过
@@ -696,8 +704,9 @@ int fd2_field_game_cancel_item_targeting(fd2_field_game *game);
  * 仅恢复无未知掉落/必需handler的逻辑；音画/附加RNG仍另行验收。 */
 int fd2_field_game_resolve_player_item(fd2_field_game *game);
 
-/* field_player_magic_command_execute @0x1cff0 的普通area0选择；当前只支持
- * ID0/13。begin/cancel成功0、拒绝-1；legal为1合法/0当前格不合法/-1错误；
+/* field_player_magic_command_execute @0x1cff0 的record范围/目标选择：
+ * 普通area、自身范围、30轴线与23双选择。begin/cancel成功0、拒绝-1；
+ * legal为1合法/0当前格不合法/-1错误；
  * cycle为1消费一个候选槽（121只跳过focus）/0无候选/-1错误。
  * 这些接口不扣MP、不提交效果/acted/controller；方向可离开cast范围。 */
 int fd2_field_game_begin_magic_targeting(fd2_field_game *game, uint8_t magic_id);
@@ -705,8 +714,10 @@ int fd2_field_game_magic_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_magic_target(fd2_field_game *game);
 int fd2_field_game_cancel_magic_targeting(fd2_field_game *game);
 
-/* stage0/1基础法术能力门：列表可含其他已知项，逐项仅开放0(unit9)/13；
- * 不因低MP禁列表；正式COMMAND图标复用此门。resolve只从MAGIC_TARGETING提交，
+/* 当前已支持battle stage内的正常法术能力门：0..30、32..35；31及36..39
+ * 无正常赋值来源，保持边界。caster/资源在实际动作PREPARE独立预检；
+ * 不因低MP禁列表；正式COMMAND图标复用此门。resolve从MAGIC_TARGETING提交，23
+ * 先进入MAGIC_TELEPORTING目的地选择；任一取消回列表，确认前无费用/效果RNG。
  * 0成功/-1拒绝或已提交后冻结；拒绝预检不改业务状态/RNG，提交后不退款。
  * 成长奖励由progress分段提交，已知掉落由loot接续；FIGANI附加呈现RNG另验。 */
 int fd2_field_game_magic_is_available(const fd2_field_game *game);

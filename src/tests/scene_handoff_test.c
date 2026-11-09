@@ -898,6 +898,18 @@ static int test_scene_flow_graph(void) {
     CHECK(scene_flow_run(&context,&flow)==-1 && !memcmp(&before,&state,sizeof(state)));
     nodes[0].op="ensure_count";nodes[0].args[0]=1;nodes[0].edges[FD2_FLOW_NEXT]=0;
     CHECK(scene_flow_run(&context,&flow)==-1); /* 预算耗尽不能被当作正常结束。 */
+    /* hidden快照不再以uint64位移，原raw65..95不会与0..31混叠。 */
+    nodes[0].op="branch_any_hidden";nodes[0].args[0]=65;nodes[0].args[1]=95;
+    nodes[0].edges[FD2_FLOW_YES]=2;nodes[0].edges[FD2_FLOW_NO]=3;
+    nodes[2].op=nodes[3].op="limit_count";
+    flow.entry=0;state.units.count=96;
+    fd2_field_unit_set_hidden(&state.units.items[65],1);
+    scene_host_quit_requested=0;context.flow_steps=0;
+    CHECK(scene_flow_run(&context,&flow)==0 && state.units.count==3);
+    state.units.count=96;fd2_field_unit_set_hidden(&state.units.items[65],0);
+    fd2_field_unit_set_hidden(&state.units.items[1],1);
+    context.flow_steps=0;
+    CHECK(scene_flow_run(&context,&flow)==0 && state.units.count==2);
     return 0;
 }
 

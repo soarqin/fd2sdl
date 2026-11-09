@@ -56,6 +56,12 @@ git diff --check
 - Windows `graphics_job` 实际检查 worker／子孙进程的退出和超时清理；图形 runner 通过驱动 `run-job` 约束子进程树，正常场景的强制清理仍判失败。
 - `test_ida_crosscheck` 不需要 IDA，检查发布完整性、报告结构和源码规范地址；不等于重新跑完整 IDA 字节对照。
 
+### G2 通用动作的定向验证
+
+G2 的正式 CONTINUE／动作／Save、原资源视觉门、最低声音身份及完整SAV检查见[图形规范](gui-testing.md#g2-通用战斗的定向验收)。`run_g2_battle_check.py`、`run_g2_item_check.py`、`run_g2_map_action_check.py`、`run_g2_short_check.py` 复用同一 owned Job／WGC／后台输入和显示恢复设施；准备模式、采集完成和实际判据通过分开登记。
+
+`verify_fd2_full9_wrapper.py` 是局部原机器码工具，读取严格 relocated 镜像、固定Domain读集与实际 C JSONL；`--image`／`--readset` 可指定已有只读证据位置。它执行原目标循环、完整过渡和真实RNG，与C每次RNG前及TARGET／FINISH边界比较；不执行真实renderer、声音或DOSBox，不能代替上面的窗口验收。原95目标没有据此验证；该组只属C容量。当前源与收据见[战斗语义§9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
+
 ### A8 音频生命周期验证
 
 普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put 故障和队列压力；`audio_device_probe_finalization` 覆盖实际 probe 的末次提交错误；`audio_pcm_capture_callback_order` 检查 Put 失败不能留下成功 AppMix summary。`audio_unavailable_field_quick_entry` 启动真正主程序，以 dummy video 和无效音频后端验证 discard-null 快速入口，不算原生窗口或设备播放通过。交付候选的实际结果见[阶段记录](../plans/stage-log.md#a8宿主与设备生命周期)，以下命令不自行构成通过记录。

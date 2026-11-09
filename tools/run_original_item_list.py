@@ -633,7 +633,7 @@ def prepare_give(original, source, assets, actor, probe, fields, scenario):
         "end_banner": round_two_template(original / "FDOTHER.DAT", assets["palette"]), "endpoint": endpoint}
 
 
-def use_range_probe(original, source, assets, cast, area, center):
+def use_range_probe(original, source, assets, cast, area, center, *, caster_raw=0, require_lut_frames=()):
     """仅这些stage0 profile0/all-one场景；避开actor、选择sprite、overlay与水色。"""
     if cast == 0:
         return None
@@ -648,7 +648,9 @@ def use_range_probe(original, source, assets, cast, area, center):
     lut_sheet = archive_entry((original / "FDOTHER.DAT").read_bytes(), 3)
     count = struct.unpack_from("<H", lut_sheet, 4)[0]
     occupied = {tuple(source[UNITS + i * STRIDE:UNITS + i * STRIDE + 2]) for i in range(source[META + 1]) if not source[UNITS + i * STRIDE + 5] & 1}
-    caster = tuple(source[UNITS:UNITS + 2])
+    if type(caster_raw) is not int or not 0 <= caster_raw < source[META+1]:
+        raise ValueError("range probe caster越出实际活动表")
+    caster = tuple(source[UNITS+caster_raw*STRIDE:UNITS+caster_raw*STRIDE+2])
     cx, cy = source[META + 3:META + 5]
     for y in range(cy + 1, min(height, cy + 7)):
         for x in range(cx + 1, min(width, cx + 12)):
@@ -678,7 +680,7 @@ def use_range_probe(original, source, assets, cast, area, center):
                 image = Image.frombytes("P", (24, 24), bytes(lut[p] for p in pixels)); image.putpalette(assets["palette"])
                 if exact_tile(base.convert("RGB"), image, (0, 0)) is None:
                     ranges.append((phase, image))
-            if ranges:
+            if ranges and set(require_lut_frames) <= {phase for phase,_ in ranges}:
                 return {"position": screen(source, (x, y)), "world": (x, y), "base": base, "ranges": ranges}
     raise ValueError("Use场景缺少不被sprite/actor/水色覆盖的正向range LUT资源门")
 

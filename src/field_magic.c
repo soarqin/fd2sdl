@@ -44,6 +44,14 @@ const uint8_t *fd2_field_magic_record_get(uint8_t magic_id) {
     return MAGIC_RECORDS[magic_id];
 }
 
+int fd2_field_magic_map_profile_get(uint8_t id, fd2_field_magic_map_profile *out) {
+    if (id >= 28u || !out) return -1;
+    fd2_field_magic_map_profile profile = {MAGIC_MAP_EFFECT_IDS[id], MAGIC_MAP_COST_IDS[id],
+        MAGIC_MAP_TARGET_LIMITS[id], MAGIC_MAP_COST_BEFORE_CAST[id]};
+    *out = profile;
+    return 0;
+}
+
 int fd2_field_magic_list_select_step(
         const fd2_field_unit *unit, int *selected, fd2_field_magic_list_key key,
         uint8_t *confirmed_id) {
@@ -148,6 +156,20 @@ int fd2_field_mp_heal_apply_with_reward(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward) {
     return heal_apply(target, power, rng, userdata, reward, 1, NULL);
 }
+int fd2_field_magic_apply_heal_result(fd2_field_unit *target, uint16_t power,
+        int restore_mp, fd2_field_magic_rng_fn rng, void *userdata,
+        uint32_t *owner, fd2_field_magic_basic_result *result) {
+    if (!target || !result || (restore_mp != 0 && restore_mp != 1)) return -1;
+    fd2_field_magic_basic_result effect = {0};
+    effect.hp_before = target->hp;
+    uint32_t previous = owner ? *owner : 0;
+    int hit = heal_apply(target, power, rng, userdata, owner, restore_mp, &effect.raw_heal);
+    if (hit < 0) return -1;
+    effect.hit = (uint8_t)hit; effect.hp_after = target->hp;
+    effect.experience_value = owner ? *owner - previous : 0;
+    *result = effect;
+    return hit;
+}
 int fd2_field_hp_heal_apply(fd2_field_unit *target, uint16_t power,
         fd2_field_magic_rng_fn rng, void *userdata) {
     return heal_apply(target, power, rng, userdata, NULL, 0, NULL);
@@ -194,9 +216,9 @@ static int apply_damage_value(uint16_t value,
     if (damage > target->hp) damage = target->hp;
     target->hp = (uint16_t)(target->hp - (uint16_t)damage);
     if (reward) {
-        uint32_t value;
-        if (damage_reward(target, (uint32_t)spread_value(power, spread), &value) != 0) return -1;
-        *reward += value;
+        uint32_t contribution;
+        if (damage_reward(target, (uint32_t)spread_value(power, spread), &contribution) != 0) return -1;
+        *reward += contribution;
     }
     return 1;
 }
@@ -227,7 +249,7 @@ static int apply_damage(uint8_t magic_id,
  * 本接口不因返回结果而扩大玩家MAGIC资格。 */
 int fd2_field_magic_apply_damage_result(uint8_t magic_id, fd2_field_unit *target,
     fd2_field_magic_rng_fn rng, void *userdata, fd2_field_magic_basic_result *result) {
-    if (magic_id > 12u || !target || !rng || !result ||
+    if ((magic_id > 12u && magic_id != 32u) || !target || !rng || !result ||
         fd2_field_magic_effect_reward_preflight(magic_id, target) != 0) return -1;
     fd2_field_unit updated = *target;
     fd2_field_magic_basic_result effect = {0};
@@ -236,14 +258,16 @@ int fd2_field_magic_apply_damage_result(uint8_t magic_id, fd2_field_unit *target
         &effect.experience_value, &effect.raw_damage);
     if (hit < 0) return -1;
     effect.hit = (uint8_t)hit; effect.hp_after = updated.hp;
+    effect.signed_damage = (int32_t)effect.raw_damage;
     *target = updated; *result = effect;
     return hit;
 }
 
 static int apply_raw_damage(uint32_t power, fd2_field_unit *target,
-        fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward) {
+        fd2_field_magic_rng_fn rng, void *userdata, uint32_t *reward, uint32_t *raw_damage) {
     if (!target || !rng) return -1;
     uint32_t damage = (uint32_t)spread_value(power, rng(userdata) % 100u);
+    if (raw_damage) *raw_damage = damage;
     target->hp = damage >= target->hp ? 0 : (uint16_t)(target->hp - damage);
     if (reward) {
         uint32_t value;
@@ -256,15 +280,16 @@ static int apply_raw_damage(uint32_t power, fd2_field_unit *target,
 static int apply_heal(uint8_t magic_id,
                       fd2_field_unit *target,
                       fd2_field_magic_rng_fn rng,
-                      void *rng_userdata, uint32_t *reward) {
+                      void *rng_userdata, uint32_t *reward,
+                      int32_t power_override, uint32_t *raw_heal) {
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
     if (!target || !record || !rng) return -1;
     /* DS:0x1d01[13..16] wrappers @0x21ad9/0x21b99/0x2211c/0x22153
      * 最终都逐目标调用 0x1c8ed→0x1c916。该 core 直接取 record u16 +0，
      * 不做命中或 profile 免疫；每个目标仅消费一次 spread RNG，即使
      * HP 已满也照常消费，最后把结果 cap 到 hp_max。 */
-    return fd2_field_hp_heal_apply_with_reward(target, fd2_field_magic_u16(record, 0),
-                                   rng, rng_userdata, reward);
+    return heal_apply(target, power_override < 0 ? fd2_field_magic_u16(record, 0) :
+        (uint16_t)power_override, rng, rng_userdata, reward, 0, raw_heal);
 }
 
 /* sub_1C81F／sub_1C916（原登记同名）：damage用未夹HP的rawDamage，
@@ -294,28 +319,42 @@ static int basic_experience_value(uint8_t magic_id,
     return 0;
 }
 
-int fd2_field_magic_basic_reward_max(
-        uint8_t magic_id, const fd2_field_unit *target, uint32_t *value) {
-    if (!target || !value || (magic_id != 0 && magic_id != 13) ||
+int fd2_field_magic_basic_reward_bounds(uint8_t magic_id,
+        const fd2_field_unit *target, int32_t *minimum, int32_t *maximum) {
+    if (!target || !minimum || !maximum || (magic_id != 0 && magic_id != 13) ||
         (target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) ||
-        target->hp_max == 0 || target->hp > target->hp_max)
+        fd2_field_magic_effect_reward_preflight(magic_id, target) != 0)
         return -1;
     const uint8_t *record = fd2_field_magic_record_get(magic_id);
     uint32_t power = fd2_field_magic_u16(record, 0);
-    uint32_t damage = 0;
-    uint16_t hp_after;
     if (magic_id == 0) {
         uint32_t scale;
         if (fd2_field_magic_damage_profile_scale(target->movement_profile, &scale) != 0 ||
             scaled_damage_power((uint16_t)power, scale, &power) != 0)
             return -1;
-        damage = (uint32_t)spread_value(power, 99);
-        hp_after = damage >= target->hp ? 0 : (uint16_t)(target->hp - damage);
-    } else {
-        uint64_t hp = (uint64_t)target->hp + spread_value(power, 99);
-        hp_after = hp > target->hp_max ? target->hp_max : (uint16_t)hp;
     }
-    return basic_experience_value(magic_id, target, hp_after, damage, value);
+    int32_t low = magic_id == 0 ? 0 : INT32_MAX, high = INT32_MIN;
+    /* HP>max时，伤害的kill门会把较大的raw/HPmax贡献改成full；
+     * 因而spread99不必最大。只枚举100个纯算术输入，不取真实RNG。 */
+    for (unsigned spread = 0; spread < 100; spread++) {
+        uint32_t raw = (uint32_t)spread_value(power, spread), value;
+        uint16_t after = magic_id == 0 ? (raw >= target->hp ? 0 : (uint16_t)(target->hp - raw)) :
+            ((uint32_t)target->hp + raw > target->hp_max ? target->hp_max : (uint16_t)(target->hp + raw));
+        if (basic_experience_value(magic_id, target, after, magic_id == 0 ? raw : 0, &value) != 0) return -1;
+        int32_t signed_value = (int32_t)value;
+        if (signed_value < low) low = signed_value;
+        if (signed_value > high) high = signed_value;
+    }
+    *minimum = low; *maximum = high;
+    return 0;
+}
+
+int fd2_field_magic_basic_reward_max(
+        uint8_t magic_id, const fd2_field_unit *target, uint32_t *value) {
+    int32_t low, high;
+    if (!value || fd2_field_magic_basic_reward_bounds(magic_id, target, &low, &high) != 0) return -1;
+    *value = (uint32_t)high;
+    return 0;
 }
 
 int fd2_field_magic_apply_player_basic_effect(
@@ -353,10 +392,11 @@ int fd2_field_magic_apply_player_basic_effect(
 
 int fd2_field_magic_reward_normalize(
         const fd2_field_unit *caster, uint64_t raw_sum, uint32_t *value) {
-    if (!caster || !value || raw_sum > INT32_MAX) return -1;
+    if (!caster || !value || raw_sum > UINT32_MAX) return -1;
     unsigned divisor = caster->level + (caster->movement_profile > 8u ? 30u : 0u);
     if (divisor == 0) return -1;
-    *value = (uint32_t)(raw_sum / divisor);
+    /* 19039..45 sar/idiv：53ec8为DWORD位型，负贡献按signed除法向0截断。 */
+    *value = (uint32_t)((int32_t)(uint32_t)raw_sum / (int32_t)divisor);
     return 0;
 }
 
@@ -366,20 +406,21 @@ static uint16_t add_status_scaled_stat(uint16_t value) {
     return (uint16_t)(value + (uint16_t)(((uint32_t)value * 15u + 100u) / 100u));
 }
 
-int fd2_field_magic_apply_known_effect_with_reward(
+static int apply_known_effect_internal(
         uint8_t magic_id,
         uint8_t target_unit_index,
         fd2_field_units *units,
         fd2_field_magic_rng_fn rng,
-        void *rng_userdata, uint32_t *reward) {
+        void *rng_userdata, uint32_t *reward, int32_t power_override,
+        uint32_t *raw_damage, uint32_t *raw_heal) {
     if (!units || (size_t)target_unit_index >= units->count) return -1;
     fd2_field_unit *target = &units->items[target_unit_index];
     if ((target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0) return -1;
     if (reward && fd2_field_magic_effect_reward_preflight(magic_id, target) != 0) return -1;
-    if (magic_id <= 12u)
-        return apply_damage(magic_id, target, rng, rng_userdata, reward, NULL);
+    if (magic_id <= 12u || magic_id == 32u)
+        return apply_damage(magic_id, target, rng, rng_userdata, reward, raw_damage);
     if (magic_id <= 16u)
-        return apply_heal(magic_id, target, rng, rng_userdata, reward);
+        return apply_heal(magic_id, target, rng, rng_userdata, reward, power_override, raw_heal);
     if (magic_id <= 19u) {
         /* 0x226ea/0x2282f/0x22960：状态为 0 时直接消费一次 RNG，
          * 把 RNG%4+2 写入 +0x22/+0x23/+0x24；没有 50% gate。 */
@@ -390,13 +431,16 @@ int fd2_field_magic_apply_known_effect_with_reward(
         if (!rng) return -1;
         *status = (uint8_t)(rng(rng_userdata) % 4u + 2u);
         if (magic_id == 17u) {
+            if (raw_heal) *raw_heal = ((uint32_t)target->attack * 15u + 100u) / 100u;
             target->attack = add_status_scaled_stat(target->attack);
         } else if (magic_id == 18u) {
+            if (raw_heal) *raw_heal = ((uint32_t)target->defense * 15u + 100u) / 100u;
             target->defense = add_status_scaled_stat(target->defense);
         } else {
             /* 0x22a47/0x22a4c 是 16 位 add，溢出按原机自然回绕。 */
             target->accuracy = (uint16_t)(target->accuracy + 15u);
             target->evasion = (uint16_t)(target->evasion + 15u);
+            if (raw_heal) *raw_heal = 15u;
         }
         if (reward) *reward += 2u * reward_level(target);
         return 1;
@@ -405,7 +449,7 @@ int fd2_field_magic_apply_known_effect_with_reward(
         /* 22a85→22af6：状态非零先1c916(power10)，再清状态；
          * HP满亦耗一次spread RNG；无状态时不恢复、不消费。 */
         if (target->detail_status[0] == 0u) return 0;
-        if (fd2_field_hp_heal_apply_with_reward(target, 10u, rng, rng_userdata, reward) < 0) return -1;
+        if (heal_apply(target, 10u, rng, rng_userdata, reward, 0, raw_heal) < 0) return -1;
         target->detail_status[0] = 0;
         if (reward) *reward += 4u * reward_level(target);
         return 1;
@@ -413,7 +457,7 @@ int fd2_field_magic_apply_known_effect_with_reward(
     if (magic_id == 21u) {
         /* 0x22bc6 wrapper 同一 core，offset 改为 +0x26。 */
         if (target->detail_status[1] == 0u) return 0;
-        if (fd2_field_hp_heal_apply_with_reward(target, 10u, rng, rng_userdata, reward) < 0) return -1;
+        if (heal_apply(target, 10u, rng, rng_userdata, reward, 0, raw_heal) < 0) return -1;
         target->detail_status[1] = 0;
         if (reward) *reward += 4u * reward_level(target);
         return 1;
@@ -433,7 +477,7 @@ int fd2_field_magic_apply_known_effect_with_reward(
         if (rng(rng_userdata) % 100u >= 50u) return 0;
         /* 0x22dd0：成功 gate 后直接调用 0x1c81f(target,10)，不走
          * profile scale 或 hit roll；随后再消费 RNG 写 duration。 */
-        if (apply_raw_damage(10u, target, rng, rng_userdata, reward) < 0)
+        if (apply_raw_damage(10u, target, rng, rng_userdata, reward, raw_damage) < 0)
             return -1;
         *status = (uint8_t)(rng(rng_userdata) % 4u + 2u);
         if (reward) *reward += 8u * target->level;
@@ -443,12 +487,36 @@ int fd2_field_magic_apply_known_effect_with_reward(
         /* 0x22c04：逐目标 test flags&0x80；命中时仅执行 flags&=0x7f，
          * 其他 flag bits 保持，且不消费 RNG。 */
         if ((target->flags & FD2_FIELD_UNIT_FLAG_ACTED) == 0u) return 0;
-        target->flags &= (uint8_t)~FD2_FIELD_UNIT_FLAG_ACTED;
+        target->flags = (uint8_t)(target->flags & 0x7fu);
         if (reward) *reward += 8u * reward_level(target);
         return 1;
     }
-    /* IDs 23/24、28..35 的特殊 handler 尚无完整 gameplay 语义。 */
+    /* 23的坐标/费用由Game；24/28..31的signed AP-DP由独立core。
+     * 33..35的分组编排由magic冷图，不能在单目标core隐藏整段流程。 */
     return -1;
+}
+
+int fd2_field_magic_apply_known_effect_with_reward(uint8_t id, uint8_t index,
+        fd2_field_units *units, fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner) {
+    return apply_known_effect_internal(id, index, units, rng, userdata, owner, -1, NULL, NULL);
+}
+
+int fd2_field_magic_apply_effect_result(uint8_t id, uint8_t index,
+        fd2_field_units *units, int32_t power_override, fd2_field_magic_rng_fn rng,
+        void *userdata, uint32_t *owner, fd2_field_magic_basic_result *result) {
+    if (!units || index >= units->count || !result || power_override < -1 ||
+        power_override > 32767 || (power_override >= 0 && (id < 13u || id > 16u))) return -1;
+    fd2_field_magic_basic_result effect = {0};
+    effect.hp_before = units->items[index].hp;
+    uint32_t previous = owner ? *owner : 0;
+    int hit = apply_known_effect_internal(id, index, units, rng, userdata, owner,
+        power_override, &effect.raw_damage, &effect.raw_heal);
+    if (hit < 0) return -1;
+    effect.hit = (uint8_t)hit; effect.hp_after = units->items[index].hp;
+    effect.experience_value = owner ? *owner - previous : 0;
+    effect.signed_damage = (int32_t)effect.raw_damage;
+    *result = effect;
+    return hit;
 }
 
 int fd2_field_magic_apply_known_effect(uint8_t id, uint8_t index,
@@ -459,7 +527,7 @@ int fd2_field_magic_apply_known_effect(uint8_t id, uint8_t index,
 /* RNG前只核本分支实际会引用的贡献除数/敌方系数；免疫/已有状态不假查。 */
 int fd2_field_magic_effect_reward_preflight(uint8_t id, const fd2_field_unit *unit) {
     if (!unit || (unit->flags & FD2_FIELD_UNIT_FLAG_HIDDEN)) return -1;
-    int damage = id <= 12u;
+    int damage = id <= 12u || id == 32u;
     if (id >= 10u && id <= 12u && fd2_field_attack_unit_ignores_terrain_modifier(unit)) return 0;
     if (id == 22u || id == 26u || id == 27u) {
         uint8_t status = unit->detail_status[id == 22u ? 2 : id == 26u ? 0 : 1];
@@ -468,7 +536,7 @@ int fd2_field_magic_effect_reward_preflight(uint8_t id, const fd2_field_unit *un
     }
     if (damage) {
         uint32_t power = 10, scale;
-        if (id <= 12u && (fd2_field_magic_damage_profile_scale(unit->movement_profile, &scale) != 0 ||
+        if ((id <= 12u || id == 32u) && (fd2_field_magic_damage_profile_scale(unit->movement_profile, &scale) != 0 ||
             scaled_damage_power(fd2_field_magic_u16(fd2_field_magic_record_get(id), 0), scale, &power) != 0)) return -1;
         if (unit->unit_id >= 68u) {
             uint8_t coefficient;
@@ -481,4 +549,58 @@ int fd2_field_magic_effect_reward_preflight(uint8_t id, const fd2_field_unit *un
     if (id == 20u || id == 21u)
         return !unit->detail_status[id - 20u] || heal_reward_ready(unit, 0) ? 0 : -1;
     return (id >= 17u && id <= 19u) || id == 25u ? 0 : -1;
+}
+
+/* field_derived_magic_full_execute @0x2cf30（原sub_2CF30）→
+ * field_magic_damage_apply @0x1c81f（原sub_1C81F）。
+ * AP/DP均movsx WORD；HP核心先以零扩展WORD相减并夹负，奖励imul低32位
+ * 再signed idiv。随后caller以signed oldHP封顶返回伤害，再按marker写回。 */
+static int derived_power(uint8_t id, const fd2_field_unit *caster,
+        const fd2_field_unit *target, int32_t *power) {
+    int ratio = id == 24u ? 15 : id == 28u ? 20 : id == 29u ? 12 : 18;
+    if (!caster || !target || !power ||
+        (id != 24u && (id < 28u || id > 31u))) return -1;
+    *power = (int32_t)(int16_t)caster->attack * ratio / 10 - (int16_t)target->defense;
+    return 0;
+}
+
+int fd2_field_magic_derived_preflight(uint8_t id,
+        const fd2_field_unit *caster, const fd2_field_unit *target) {
+    int32_t power;
+    if (derived_power(id, caster, target, &power) != 0 ||
+        (target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN)) return -1;
+    if (target->unit_id >= 68u) {
+        uint8_t coefficient;
+        if (!target->hp_max || fd2_field_unit_enemy_experience_coefficient(
+                target->unit_id, &coefficient) != 0) return -1;
+    }
+    return 0;
+}
+
+int fd2_field_magic_apply_derived_result(uint8_t id,
+        const fd2_field_unit *caster, fd2_field_unit *target,
+        fd2_field_magic_rng_fn rng, void *userdata, uint32_t *owner,
+        fd2_field_magic_basic_result *result) {
+    if (!rng || !result || fd2_field_magic_derived_preflight(id, caster, target) != 0) return -1;
+    int32_t power;
+    if (derived_power(id, caster, target, &power) != 0) return -1;
+    fd2_field_magic_basic_result effect = {0};
+    effect.hit = 1; effect.hp_before = target->hp;
+    int32_t damage = 9 * power / 10 + power * (int32_t)(rng(userdata) % 100u) / 1000;
+    int32_t after = (int32_t)target->hp - damage;
+    if (after < 0) after = 0;
+    target->hp = (uint16_t)after;
+    effect.hp_after = target->hp;
+    effect.raw_damage = (uint32_t)damage;
+    effect.signed_damage = damage > (int16_t)effect.hp_before ? (int16_t)effect.hp_before : damage;
+    if (target->unit_id >= 68u) {
+        uint8_t coefficient;
+        (void)fd2_field_unit_enemy_experience_coefficient(target->unit_id, &coefficient);
+        int32_t full = (int32_t)target->level * coefficient;
+        int32_t value = after ? (int32_t)((uint32_t)((int64_t)damage * full)) / target->hp_max : full;
+        effect.experience_value = (uint32_t)value;
+        if (owner) *owner += effect.experience_value;
+    }
+    *result = effect;
+    return 1;
 }

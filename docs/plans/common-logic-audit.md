@@ -142,3 +142,29 @@ G5 必须逐项回答并附清单：
 G1 已完成本审计来源范围的语义族归属；原计划文档交付的验证边界仍按 §7 保留，不改写为当时已执行。新增依据见[战斗](../reverse-engineering/common-battle-semantics.md)、[准备](../reverse-engineering/common-preparation-semantics.md)、[事件来源](../reverse-engineering/common-event-semantics.md)及[共享运行](../reverse-engineering/common-runtime-semantics.md)。来源账的 `classification_complete` 仅表示已归属，不提升 `all_game_semantic_complete`／`original_runtime_executed`／`new_gameplay_enabled`；三者仍为 false。正常资源／START／升级／合法转职来源的法术列表最多12项已闭合，不推广任意外部 SAV。
 
 G2 当前须处理原96 actor域、有效模板计数及同索引位置、stage32有效ID48／66构造窗、零步方向5、完整合法战斗效果／模式及其必要呈现。G3 服务写集已获静态依据，原版服务运行待阶段内完成；G4 共享页历史、动态文本环境及设置／等待等实现与运行门保留。G1 的 Windows 唤醒／WGC核验、纯测、真实 IDA 发布及未执行边界见[阶段记录](stage-log.md#g1-通用语义取证与来源分类2026-11-10)。没有因来源已分类而开放新关或新玩法。
+
+## 9. G2 实施与验收收口（2026-11-10）
+
+本节覆盖§3的初始审计状态，不改写当时的验证历史。当前隔离树已完成下列 G2 范围及本阶段定向验收，接续 G3。阶段提交与本地集成以阶段记录及本地收据为准。顺序继续由总计划规定。
+
+| 关联项 | 当前实现及来源 | 已有验证／仍需完成 |
+|---|---|---|
+| C02／C03／C05／C06／C16 | 原96 actor域、metadata有效前缀／同索引位置、48／66构造alias、106计数脚本、raw5跨cache读取和Load按当前身份重建旁侧cache；原80B／SAV不扩字段 | 原9表8528B＋alias48B、1887有效模板、106脚本2896消费／2898原payload独立检查；27项定向CTest包含相关域。12原尾仍保留，不是有效模板未解；不宣称106脚本逐条原版运行 |
+| C04／C07—C12／C14／C21／C24 | 正常来源玩家0..30、32..35，AI候选与FULL／MAP分派、范围0／轴线30、复合32..35、传送23四段、Item20类及必要呈现／费用／奖励／提交尾；冷图进入magic域，效果选项2正式可切换 | 27项当前阶段定向CTest、正常ID/20类Item和失败冻结回归；原1c81f与真实C 23040向量差分。23两层取消、34业务、28的关联HP／EX与自动奖励页均有双端原生输入／全22987B存档证据；23实际成功、Item05／19／20代表和34有序资源门已双端通过；SHORT／恢复已接新冷图及有限呈现，FULL9原码17例闭合；恢复背景红绿与04双端门、SHORT03正式AI动作双端门均已闭合 |
+| C15 | descriptor执行default4..255继续队列、无业务／RNG，不把collector255哨兵当已执行；撤除generic0／1／3的无依据stage门，具体callback绑定仍留其范围 | 760组原机器码默认分支、771次真实BIOS清队与SDL冷图回归；不把此证据提升为全部callback已实现 |
+| C03／C04／C09／C23 | signed恢复贡献、DWORD累计／归一、HP超过max、状态治疗后存活预测及负数安全显示 | 复审修复三项预检错误；负号使用已有资源安全投影，明确原字体owner越界的安全扩展，不宣称原版负号像素等价 |
+| C24／C26 | FULL／派生／复合／MAP及Item有限呈现消费，primary尾停、caster/cache资源身份、raw26共享时钟 | 新34离线资源门发现旧SDL实体flash为192；首次按caller表改色又被完整callee反证推翻。原4e127忽略arg_C，按原stride低byte填色；180组独立机器码通过。fixed456域应200，动态stride域另核；最终共用getter／Game真像素回归和34-04双端11阶段原件门已通过，不沿用旧业务pass作呈现通过 |
+
+本次续接已补 SHORT AI 物理面板／HP条／六武器FX及声音、WAIT／AI静止恢复三wait写序与反馈，均进入现有有限呈现器；玩家物理经完整caller核实始终FULL，已修正算法与呈现分派。`1e611`是面板重画，不是反击箭头；未提供第四实参的HP条读取采用最小安全省略，保有证固定55及第二条。FULL9撤销多target整动作门，只省不存在的beam part绘制，保原跨target HP／贡献／RNG；17组真实原机器码与public Game差分已通过，95目标另四例仅C容量。冷定义现171表、五域39流程／606节点／6绑定。当前候选重建后六项直接相关CTest通过；早前27项、112项Python及7组双端保留各自来源，不能冒充当前候选全量或G5回归。
+
+G2 的 SHORT 正式 AI 动作代表已补齐，完整动作域／正式入口／冷定义／支持门已复审并修复本次发现的问题。23实际成功、Item05／19／20及34有序资源门已通过，不重新列为待办。新原义和安全边界见[通用战斗语义§9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。G3的转职／复活／交易／出阵，以及G4的共享菜单／条件／等待／底图／水色仍为待实现，不随G2机制接口存在而通过。
+
+原`0x51a97`20步范围色周期为0..10..1，当前SDL的历史子集是G4共享呈现缺口；23目的地层用全部原实际LUT均异底图的完整ROI证明范围已经撤除，未据此宣称周期等价。现有G1分类账仍保留622绑定、388通用缺口、450原表外等原分类计数；这是来源归属，不能自动当作当前产品实现覆盖率。
+
+恢复代表`native-recovery-04/`已双端通过：实体有序200→normal、bank31/cue4、576px独立地图tile及全22987B源域存档。旧03 SDL信息板由纯原资源门拒绝；AI恢复背景使用纯背景，玩家WAIT按已证caller及option3保留信息板，恢复不额外tick。counter按11eee只推进地形两字段，再按127a9推进App raw26抖动；不推进idle/walk或水DAC。SHORT_MAP原11cac点保留。此结论仍是已列资源／声音／业务代表，不扩大为整帧或精确时序一致。
+
+正常caster的专门源门由`tools/static_data/audit_caster_domain.py`可复跑：32base／68growth／20learning及合法转职、1887有效模板×408FIGANI，50个玩家FULL组合、238个模板FULL实例／30独立组合均非empty；stage13 unit103／30的原AI零分／MAP分派排除单列。当前收据`build/g2/caster-source-domain-final.json`；不外推到任意SAV或未来新增来源，也不替代演出／声音。
+
+`native-short-03/`在默认960×600窗口双端通过：面板→实体64与FX6完整合成→后续FX→HP条，bank64声3与全22987B；完整实体454个不透明点中441点为solid64、13点为FX覆盖。SHORT01的漏采、02的外部resize失败与CPU首帧诊断均保留，不作为通过。初始HP条按原1e7f6先写CPU、与首次STRIKE一并上传，未加延时或改80ms。
+
+最终counter修正后4项直接CTest通过，battle_animation为31组；真实Game字段级测试核对地形55ms边界、时间倒退／长间隔、无追赶及组合时钟等价。最终Python与IDA发布校验另见阶段记录。原生代表按各自实际App身份保留，SHORT03是无反击场景，不被扩成最终counter原生验收。G2闭合的是已识别战斗域与本阶段新增反馈，不是G5全历史回归、所有动作逐像素／完整声音或Linux通过。

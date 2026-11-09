@@ -21,10 +21,10 @@ from dump_fd2_fixup_table import collect_internal_offset_fixups
 from rebuild_fd2_analysis import parse_le, parse_objects
 from verify_unit_tables import EXE_SHA256, source_range
 
-SCRIPT_IDS = (*range(20), *range(0x5A, 0x6A))
+SCRIPT_IDS = tuple(range(106))
 POINTER_TABLE_VA = 0x627D8
-ACTOR_LIMIT = 64  # 现有0x50记录表的容量，不把具体关卡人数当脚本全局上界。
-EXPECTED_SOURCE_BYTES = 794
+ACTOR_LIMIT = 96  # 原10010/1088d分配7680B，不能以当前某一关人数缩小全局域。
+EXPECTED_SOURCE_BYTES = 2896
 GETTER_EVIDENCE = "field_movement_script_ptr @0x4eb48"
 PLAYER_EVIDENCE = "field_movement_script_play @0x1366a"
 
@@ -45,13 +45,15 @@ def parse_stream(data: bytes, *, complete: bool = True) -> bytes:
             raise ValueError("移动脚本group/mode截断")
         # mode所有位均有含义：bit7为等待／朝向模式，低7位为数量。
         mode, count = data[at:at + 2]
+        if count > 32:
+            raise ValueError("移动脚本pair数量越出原32B栈数组")
         at += 2
         end = at + count * 2
         if end > len(data):
             raise ValueError("移动脚本actor/direction对截断")
         for offset in range(at, end, 2):
             actor, direction = data[offset:offset + 2]
-            if actor >= ACTOR_LIMIT or direction > 3:
+            if actor >= ACTOR_LIMIT or (direction > 3 and not (mode == 0x80 and direction == 5)):
                 raise ValueError("移动脚本actor或direction越界")
         at = end
     if complete and at != len(data):
@@ -86,7 +88,7 @@ def source_scripts(executable: Path) -> dict[int, ScriptSource]:
             raise ValueError(f"script{identity}: fixup目标越出初始化源页")
         result[identity] = ScriptSource(target[2], parse_stream(payload[at:], complete=False))
     if sum(len(script.data) for script in result.values()) != EXPECTED_SOURCE_BYTES:
-        raise ValueError("36条已确认移动脚本的独立读集不等于794字节")
+        raise ValueError("106条已确认移动脚本的独立读集长度不符")
     return result
 
 
@@ -125,7 +127,7 @@ def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
             not isinstance(document["tables"], list)):
         raise ValueError("移动脚本JSON格式不符")
     if set(expected) != set(SCRIPT_IDS):
-        raise ValueError("独立源读集必须覆盖固定36个已支持ID")
+        raise ValueError("独立源读集必须覆盖固定106个已确认ID")
     records = {}
     for table in document["tables"]:
         identity = table.get("source", {}).get("script_id") if isinstance(table, dict) and isinstance(table.get("source"), dict) else None
@@ -133,7 +135,7 @@ def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
             raise ValueError("移动脚本ID未知／缺失／重复")
         records[identity] = table
     if set(records) != set(SCRIPT_IDS):
-        raise ValueError("移动脚本集合未覆盖固定36个已支持ID")
+        raise ValueError("移动脚本集合未覆盖固定106个已确认ID")
     for identity in SCRIPT_IDS:
         check_table(records[identity], identity, expected[identity])
 

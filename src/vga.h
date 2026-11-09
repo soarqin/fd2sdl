@@ -40,6 +40,9 @@ typedef struct {
      * 原版object3 60000/60002，仅VGA初始化归零，不写SAV。 */
     uint16_t field_water_last_tick;
     uint8_t field_water_phase;
+    /* sub_127E0 @0x127e0：共享BIOS tick锚与raw26水平0/1px相位，不进SAV。 */
+    uint16_t actor_jitter_tick;
+    uint8_t actor_jitter_phase;
 } fd2_vga;
 
 /* 初始化 VGA + SDL 窗口/渲染器 */

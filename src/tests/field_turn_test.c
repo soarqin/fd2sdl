@@ -180,6 +180,42 @@ static int test_unknown_event_preserves_recovery_and_stops_status(void) {
     return reject_without_changes(&game, &rng_calls);
 }
 
+static int test_default_ff_slot_matches_turn255_and_fails_as_required_event(void) {
+    fd2_field_game game;
+    size_t rng_calls = 0;
+    init_game(&game, &rng_calls);
+    game.turn_number = 255;
+    game.active_side = 1;
+    for (size_t i = 0; i < FD2_FIELD_EVENT_SLOTS; i++)
+        game.metadata.turn_events[i] = (fd2_field_turn_event){255, 255, 0};
+    /* 若把默认外观当空槽跳过，后续已知action4会误写raw13.side。 */
+    game.metadata.turn_events[1] = (fd2_field_turn_event){255, 4, 0};
+    game.units.count = 14;
+    game.units.items[13] = (fd2_field_unit){.side = 2, .flags = 0x84, .hp = 50, .hp_max = 50};
+    game.units.items[0].flags = 0xa0;
+    game.units.items[12].flags = 0x80;
+    game.units.items[12].detail_status[0] = 2;
+    game.units.items[12].attack_status = 1;
+    fd2_field_turn_event_match matches[FD2_FIELD_EVENT_SLOTS];
+    CHECK(fd2_field_turn_events_find(&game.metadata, 255, 0, matches, FD2_FIELD_EVENT_SLOTS) == FD2_FIELD_EVENT_SLOTS);
+    CHECK(matches[0].slot == 0 && matches[0].action == 255);
+    CHECK(end_active_phase_and_ack(&game) == -1);
+    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+    CHECK(game.active_side == 0 && game.turn_number == 255);
+    /* side1结束时的全表clear-acted已提交；事件失败后的毒伤/状态不执行。 */
+    CHECK(game.units.items[0].flags == 0x20 && game.units.items[11].flags == 0);
+    CHECK(game.units.items[12].flags == 0 && game.units.items[12].hp == 30 &&
+          game.units.items[12].detail_status[0] == 2 && game.units.items[12].attack_status == 1);
+    CHECK(game.units.items[13].side == 2 && game.units.items[13].flags == 0x04);
+    CHECK(game.failure_notice.kind == FD2_FIELD_EVENT_TURN &&
+          game.failure_notice.turn_number == 255 && game.failure_notice.phase == 0 &&
+          game.failure_notice.action == 255 && game.failure_notice.slot == 0);
+    CHECK(game.event_log_count == 1 && game.event_total_count == 1 &&
+          game.unhandled_event_count == 1 && !game.event_log[0].handled &&
+          !game.event_log[0].presentation_deferred && rng_calls == 0);
+    return reject_without_changes(&game, &rng_calls);
+}
+
 static int test_capacity_stops_before_handler(void) {
     fd2_field_game game;
     size_t rng_calls = 0;
@@ -393,6 +429,7 @@ int main(void) {
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
         test_unknown_event_preserves_recovery_and_stops_status() ||
+        test_default_ff_slot_matches_turn255_and_fails_as_required_event() ||
         test_capacity_stops_before_handler() ||
         test_fast_skip_is_separate() ||
         test_new_round_restores_leader_focus_and_cycle() ||

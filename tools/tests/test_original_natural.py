@@ -50,6 +50,172 @@ class NaturalTest(unittest.TestCase):
         cls.encoded=(cls.original/"START.SAV").read_bytes();cls.assets=round_assets(cls.original)
         cls.plan=test_plan(cls.source)
 
+    def _arrival_source(self):
+        source=bytearray(self.source);source[META:META+3]=bytes((3,12,0))
+        source[UNITS:UNITS+2]=bytes((11,12));source[UNITS+3]=0;source[UNITS+5]=0
+        return oracle.view(source,(11,12),(4,11))
+
+    def _arrival_frame(self, source, *, drop=None, hero_id=0, hero_direction=0, acted=False, reverse=False):
+        # 独立重建原资源参考图，不用待验matcher返回的模板作expected。
+        from run_original_player import cursor_assets, sheet_frame
+        from run_original_comparison import archive_entry
+        import struct
+        data,metadata,width,height=oracle._stage_map(self.original,source)
+        sheet=archive_entry((self.original/"FDSHAP.DAT").read_bytes(),2*metadata[0])
+        image=Image.new("P",(24,30),0);image.putpalette(self.assets["palette"])
+        for y in (11,12):
+            tile=struct.unpack_from("<I",data,4+4*(y*width+11))[0]&1023
+            part=sheet_frame(sheet,tile);part.putpalette(self.assets["palette"])
+            image.paste(part.crop((0,18,24,24)) if y==11 else part,(0,0 if y==11 else 6))
+        def sprite(identity, phase, is_acted=False):
+            isolated=bytearray(source);isolated[META+1]=1;isolated[UNITS+7]=identity
+            isolated[UNITS+5]=0x80 if is_acted else 0
+            return cursor_assets(self.original/"FDICON.B24",isolated,self.assets)[0][phase]
+        layers=[("cursor",self.assets["cursor"],(0,6))]
+        actors=[("raw0",sprite(hero_id,3*hero_direction+1,acted),(0,0)),("raw13",sprite(3,1),(0,0))]
+        layers+=list(reversed(actors)) if reverse else actors
+        layers.append(("raw12",sprite(1,1),(0,24)))
+        for name,part,at in layers:
+            if name!=drop:image.paste(part,at,part.point(lambda pixel:255 if pixel else 0,mode="L"))
+        frame=Image.new("RGB",(320,200));frame.paste(image.convert("RGB"),(172,22))
+        return frame
+
+    def test_arrival_full_720_projection_and_layer_identity_negative_gates(self):
+        source=self._arrival_source();before=bytes(source)
+        resources=oracle.stage0_turn3_arrival_resources(self.original,source,self.assets)
+        self.assertEqual([(a["raw"],a["unit_id"],a["position"]) for a in resources["arrivals"]],
+                         [(12,1,[11,13]),(13,3,[11,12])])
+        frame=self._arrival_frame(source)
+        result=oracle.stage0_arrival_browse_anywhere(frame,self.original,source,self.assets,resources)
+        self.assertIsNotNone(result)
+        current,detail=result
+        self.assertEqual((detail["camera"],detail["composite_ROI"]),([4,11],[172,22,24,30]))
+        self.assertEqual((detail["complete_opaque_resource"]["checked_pixels"],detail["complete_opaque_resource"]["bad_pixels"]),(720,0))
+        self.assertEqual(detail["raw0_visible_pixels"],38)
+        self.assertGreaterEqual(detail["missing_raw0_negative"]["bad_pixels"],24)
+        self.assertEqual((bytes(source),current[META+1]),(before,12))
+        self.assertEqual(current[UNITS:UNITS+12*STRIDE],source[UNITS:UNITS+12*STRIDE])
+        for options in ({"drop":name} for name in ("raw0","raw13","raw12","cursor")):
+            with self.subTest(options=options):
+                self.assertIsNone(oracle.stage0_arrival_browse_anywhere(self._arrival_frame(source,**options),self.original,source,self.assets,resources))
+        for options in ({"hero_id":9},{"acted":True},{"hero_direction":1},{"hero_direction":2},{"hero_direction":3},{"reverse":True}):
+            with self.subTest(options=options):
+                self.assertIsNone(oracle.stage0_arrival_browse_anywhere(self._arrival_frame(source,**options),self.original,source,self.assets,resources))
+        bad=frame.copy();bad.putpixel((173,23),(255,0,255))
+        self.assertIsNone(oracle.stage0_arrival_browse_anywhere(bad,self.original,source,self.assets,resources))
+
+    def test_arrival_fallback_preserves_old_path_and_rejects_unknown_overlap(self):
+        source=self._arrival_source();resources=oracle.stage0_turn3_arrival_resources(self.original,source,self.assets)
+        away=bytearray(source);away[UNITS:UNITS+2]=bytes((7,12));sentinel=object()
+        with patch.object(oracle,"actor_browse_anywhere",return_value=sentinel) as old:
+            self.assertIs(oracle.stage0_arrival_browse_anywhere(None,self.original,away,self.assets,resources),sentinel)
+        self.assertIsNone(resources["templates"]);old.assert_called_once_with(None,self.original,away,self.assets,0,acted=False)
+        extra=bytearray(source);extra[UNITS+STRIDE:UNITS+STRIDE+2]=bytes((11,11));extra[UNITS+STRIDE+5]=0
+        with self.assertRaisesRegex(ValueError,"未建模"):
+            oracle.stage0_arrival_browse_anywhere(None,self.original,extra,self.assets,resources)
+        adjacent=bytearray(source);adjacent[UNITS:UNITS+2]=bytes((11,13))
+        with self.assertRaisesRegex(ValueError,"其它"):
+            oracle.stage0_arrival_browse_anywhere(None,self.original,adjacent,self.assets,resources)
+
+    def _saved_arrival_source(self):
+        source=self._arrival_source();source[META:META+3]=bytes((4,14,0))
+        for raw,identity,world in ((12,1,(11,13)),(13,3,(11,12))):
+            at=UNITS+raw*STRIDE;source[at:at+STRIDE]=bytes(STRIDE)
+            source[at:at+2]=bytes(world);source[at+6]=2;source[at+7:at+9]=bytes((identity,identity))
+        return source
+
+    def test_saved_same_cell_navigation_full_720_and_source_owner_negatives(self):
+        source=self._saved_arrival_source();before=bytes(source);frame=self._arrival_frame(source)
+        result=oracle.stage0_saved_same_cell_cursor_match(frame,self.original,source,self.assets)
+        self.assertIsNotNone(result);self.assertEqual(result["complete_opaque_resource"]["checked_pixels"],720)
+        self.assertEqual((result["complete_opaque_resource"]["bad_pixels"],result["raw0_visible_pixels"]),(0,38))
+        self.assertEqual(bytes(source),before)
+        for fault in ("turn","stage","count","focus","hero_move","id","textid","direction","walking","acted","hidden","side","unknown_neighbour"):
+            changed=bytearray(source)
+            if fault=="turn":changed[META]=5
+            elif fault=="stage":changed[META+2]=1
+            elif fault=="count":changed[META+1]=15
+            elif fault=="focus":changed[META+5]=10
+            elif fault=="hero_move":changed[UNITS]=10
+            elif fault=="id":changed[UNITS+13*STRIDE+7]=9
+            elif fault=="textid":changed[UNITS+13*STRIDE+8]=9
+            elif fault=="direction":changed[UNITS+12*STRIDE+3]=1
+            elif fault=="walking":changed[UNITS+13*STRIDE+4]=1
+            elif fault=="acted":changed[UNITS+5]|=0x80
+            elif fault=="hidden":changed[UNITS+12*STRIDE+5]|=1
+            elif fault=="side":changed[UNITS+13*STRIDE+6]=0
+            else:
+                changed[UNITS+STRIDE:UNITS+STRIDE+2]=bytes((11,11));changed[UNITS+STRIDE+5]=0
+            with self.subTest(fault=fault):
+                self.assertIsNone(oracle.stage0_saved_same_cell_cursor_match(frame,self.original,changed,self.assets))
+        for drop in ("raw0","raw13","raw12","cursor"):
+            self.assertIsNone(oracle.stage0_saved_same_cell_cursor_match(self._arrival_frame(source,drop=drop),self.original,source,self.assets),drop)
+
+    def test_navigation_tries_old_gate_first_and_only_then_saved_same_cell(self):
+        source=self._saved_arrival_source();source=oracle.view(source,(10,13),(4,11))
+        capture=SimpleNamespace(key=Mock());frame=Image.new("RGB",(320,200));new={"kind":"new"}
+        def checkpoint(name,predicate):return frame,predicate(frame)
+        with patch.object(runner,"cursor_match",return_value={"kind":"old"}), \
+             patch.object(runner,"stage0_saved_same_cell_cursor_match") as fallback:
+            result=runner.navigate(capture,self.original,source,self.assets,[],(11,12),checkpoint,"to-actor")
+            fallback.assert_not_called();self.assertEqual(list(result[META+5:META+7]),[11,12])
+        capture.key.reset_mock()
+        with patch.object(runner,"cursor_match",side_effect=[{"kind":"old"},None]) as old, \
+             patch.object(runner,"stage0_saved_same_cell_cursor_match",return_value=new) as fallback:
+            result=runner.navigate(capture,self.original,source,self.assets,[],(11,12),checkpoint,"to-actor")
+            self.assertEqual(old.call_count,2);fallback.assert_called_once()
+            self.assertEqual([call.args[0] for call in capture.key.call_args_list],["RIGHT","UP"])
+            self.assertEqual(list(result[META+5:META+7]),[11,12])
+
+    def test_arrival_ack_gate_is_local_complete_ordered_and_outside_stage1(self):
+        source=self._arrival_source();report={"resource_acknowledgements":[]}
+        reader=runner.ProgressReader(self.original,source,self.assets,report)
+        expected=[{"signature":["story",p["fragment"],p["token_offset"]],"key":"ENTER"}
+                  for p in reader.fragments[11]+reader.fragments[3]]
+        self.assertIsNone(reader.phase_arrival_resources(3))
+        report["resource_acknowledgements"]=expected[:-1]
+        self.assertIsNone(reader.phase_arrival_resources(3))
+        report["resource_acknowledgements"]=list(reversed(expected))
+        self.assertIsNone(reader.phase_arrival_resources(3))
+        report["resource_acknowledgements"]=expected
+        self.assertIsNotNone(reader.phase_arrival_resources(3))
+        self.assertIsNone(reader.phase_arrival_resources(2))
+        reader.source=bytearray(source);reader.source[META+2]=1
+        with patch.object(runner,"stage0_turn3_arrival_resources") as loader:
+            self.assertIsNone(reader.phase_arrival_resources(3));loader.assert_not_called()
+
+    def test_arrival_joint_actual_save_rejects_wrong_actors_and_any_visible_acted(self):
+        source=self._arrival_source();resources=oracle.stage0_turn3_arrival_resources(self.original,source,self.assets)
+        measured=bytearray(source);measured[META:META+3]=bytes((4,14,0))
+        for raw in range(14):measured[UNITS+raw*STRIDE+5]&=0x7f
+        for arrival in resources["arrivals"]:
+            at=UNITS+arrival["raw"]*STRIDE;measured[at:at+STRIDE]=bytes(STRIDE)
+            measured[at:at+2]=bytes(arrival["position"]);measured[at+7]=arrival["unit_id"]
+        for fault in (None,"count","id","position","hidden","arrival_acted","other_acted"):
+            actual=bytearray(measured)
+            if fault=="count":actual[META+1]=13
+            if fault=="id":actual[UNITS+12*STRIDE+7]=9
+            if fault=="position":actual[UNITS+13*STRIDE]+=1
+            if fault=="hidden":actual[UNITS+12*STRIDE+5]|=1
+            if fault=="arrival_acted":actual[UNITS+12*STRIDE+5]|=0x80
+            if fault=="other_acted":actual[UNITS+5]|=0x80
+            actual[-4:]=sum(actual[:-4]).to_bytes(4,"little")
+            with tempfile.TemporaryDirectory() as directory:
+                save=Path(directory)/"actual.SAV";save.write_bytes(b"synthetic actual UI bytes")
+                report={"actual_turn_saves":[],"arrival_projection":{"source_turn":3,"visual_arrivals":resources["arrivals"],"actual_ui_save_verified":False}}
+                capture=SimpleNamespace(last=None,key=Mock(),artifacts=Path(directory))
+                with patch.object(runner,"empty_tile",return_value={"world":[11,12],"focused":None}), \
+                     patch.object(runner,"navigate",return_value=source),patch.object(runner,"RoundOracle"), \
+                     patch.object(runner,"decode_save",return_value=bytes(source)),patch.object(runner,"wait_measured_save",return_value=actual):
+                    if fault is None:
+                        result=runner.save_active(capture,self.original,source,self.assets,[],save,[save.read_bytes(),save.stat().st_mtime_ns],report,Mock(),"turn-004")
+                        self.assertIs(result,actual);self.assertTrue(report["arrival_projection"]["actual_ui_save_verified"])
+                        self.assertTrue(report["arrival_projection_save_checks"][0]["passed"])
+                    else:
+                        with self.assertRaises(runner.NaturalStopped,msg=fault):
+                            runner.save_active(capture,self.original,source,self.assets,[],save,[save.read_bytes(),save.stat().st_mtime_ns],report,Mock(),"turn-004")
+                        self.assertFalse(report["arrival_projection"]["actual_ui_save_verified"])
+
     def test_actual_snapshot_records_and_stationary_rest_contract(self):
         actions=oracle.validate_plan(self.plan,self.source)
         self.assertEqual([a["actor_raw"] for a in actions],[3,0,1,2])

@@ -109,6 +109,91 @@ class StaticFlowTest(unittest.TestCase):
                 generator.generate(root, output)
             self.assertEqual(before, {p.name: p.read_bytes() for p in output.iterdir()})
 
+    def test_loot_contract_requires_logic_view_but_accepts_default_and_both(self):
+        document = generator.load_json(ROOT / "data/static/flows/loot.json")
+        contract = generator.load_json(ROOT / "data/static/manifest.json")["flow_contracts"]["loot.json"]
+        for flow_index in range(len(document["flows"])):
+            for views in (None, ["logic"], ["logic", "present"], ["present"]):
+                data = copy.deepcopy(document)
+                node = data["flows"][flow_index]["nodes"][0]
+                if views is None:
+                    node.pop("views", None)
+                else:
+                    node["views"] = views
+                generator.validate_flows(data)
+                with self.subTest(flow=data["flows"][flow_index]["id"], views=views):
+                    if views == ["present"]:
+                        with self.assertRaisesRegex(ValueError, "loot nodes must include logic"):
+                            generator.validate_flow_contract(data, contract, set(), generator.flow_index(data))
+                    else:
+                        generator.validate_flow_contract(data, contract, set(), generator.flow_index(data))
+
+    def test_external_node_labels_reject_synchronized_renames_but_allow_internal_rename(self):
+        original = generator.load_json(ROOT / "data/static/flows/loot.json")
+        contract = generator.load_json(ROOT / "data/static/manifest.json")["flow_contracts"]["loot.json"]
+        labels = ("preflight.drop", "preflight.cell", "cell.begin", "drop.begin", "finish.common")
+        self.assertCountEqual(contract["required_labels"]["loot"], labels)
+        for old in (*labels, "preflight.cell.ask421"):
+            with self.subTest(label=old):
+                data = copy.deepcopy(original)
+                flow = next(flow for flow in data["flows"] if flow["id"] == "loot")
+                renamed = old + ".renamed"
+                for node in flow["nodes"]:
+                    if node["id"] == old:
+                        node["id"] = renamed
+                    node["on"] = {port: renamed if target == old else target for port, target in node["on"].items()}
+                if flow["entry"] == old:
+                    flow["entry"] = renamed
+                # entries键即使保持原名，也不能替代C实际查询的真实node.id。
+                flow["entries"] = {key: renamed if target == old else target for key, target in flow.get("entries", {}).items()}
+                generator.validate_flows(data)
+                if old in labels:
+                    with self.assertRaisesRegex(ValueError, "required external node label missing") as error:
+                        generator.validate_flow_contract(data, contract, set(), generator.flow_index(data))
+                    self.assertIn(old, str(error.exception))
+                else:
+                    generator.validate_flow_contract(data, contract, set(), generator.flow_index(data))
+
+    def test_required_node_label_contract_is_optional_and_strict(self):
+        document = generator.load_json(ROOT / "data/static/flows/loot.json")
+        contract = generator.load_json(ROOT / "data/static/manifest.json")["flow_contracts"]["loot.json"]
+        legacy = copy.deepcopy(contract)
+        del legacy["required_labels"]
+        generator.validate_flow_contract(document, legacy, set(), generator.flow_index(document))
+        for labels in ([], {"missing": ["preflight.drop"]}, {"loot": []},
+                       {"loot": ["preflight.drop", "preflight.drop"]}, {"loot": [0]}, {"loot": [["preflight.drop"]]}):
+            with self.subTest(labels=labels), self.assertRaises(ValueError):
+                generator.validate_flow_contract(document, dict(contract, required_labels=labels), set(), generator.flow_index(document))
+        with self.assertRaisesRegex(ValueError, "invalid consumer"):
+            generator.validate_flow_contract(document, dict(contract, unknown_field=1), set(), generator.flow_index(document))
+
+    def test_game_initialization_view_matches_its_consumer(self):
+        document = generator.load_json(ROOT / "data/static/flows/scene.json")
+        contract = generator.load_json(ROOT / "data/static/manifest.json")["flow_contracts"]["scene.json"]
+        scripts = {table["source"]["script_id"] for table in generator.load_json(
+            ROOT / "data/static/tables/movement_scripts.json")["tables"]}
+
+        def check(data):
+            generator.validate_flow_contract(data, contract, scripts, generator.flow_index(data))
+
+        check(document)
+        initial = generator.flow_index(document)["scene.init.000"]
+        for node in initial["nodes"]:
+            if node["op"] not in {"init_player", "init_templates", "end"}:
+                continue
+            with self.subTest(node=node["id"]):
+                bad = copy.deepcopy(document)
+                next(n for n in generator.flow_index(bad)["scene.init.000"]["nodes"]
+                     if n["id"] == node["id"])["views"] = ["present"]
+                with self.assertRaisesRegex(ValueError, "initialization nodes must include logic"):
+                    check(bad)
+        bad = copy.deepcopy(document)
+        hidden = next(n for n in generator.flow_index(bad)["scene.init.000"]["nodes"]
+                      if n["op"] == "actor_hidden")
+        hidden["views"] = ["logic", "present"]
+        with self.assertRaisesRegex(ValueError, "unsupported Game initialization"):
+            check(bad)
+
     def test_consumer_contract_rejects_missing_runtime_flow_bad_ports_and_references(self):
         manifest = generator.load_json(ROOT / "data/static/manifest.json")
         docs = {p.name: generator.load_json(p) for p in (ROOT / "data/static/flows").glob("*.json")}

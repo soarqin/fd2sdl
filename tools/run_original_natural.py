@@ -19,7 +19,8 @@ from PIL import Image
 
 from fd2_natural_oracle import (actor, actor_browse_anywhere, action_completion_resources, action_completion_match, command_match, cursor_bank,
     cursor_match, empty_tile, focus_match, navigation, range_match, range_probe, selection_summary,
-    required_reward_pages, round_banner, semantic_digest, stage0_pages, validate_plan, view,
+    required_reward_pages, round_banner, semantic_digest, stage0_pages, stage0_turn3_arrival_resources,
+    stage0_arrival_browse_anywhere, stage0_saved_same_cell_cursor_match, validate_plan, view,
     visible_resource, visible_acted_resources)
 from fd2_opening_oracle import build_pages, geometry, page_match as story_match
 from fd2_reward_oracle import magic_page, page_match as reward_match
@@ -83,6 +84,8 @@ class ProgressReader:
         self.reward = None
         self.last_ack = None
         self.ack_disappeared = True
+        self.phase_ack_start = len(report.get("resource_acknowledgements", []))
+        self.phase_arrival = None
         self.loot = []
         self.victory_text_complete = False
         self.defeat = result_templates(original, assets)
@@ -188,11 +191,32 @@ class ProgressReader:
                 pages,index=self.reward
                 self.reward=(pages,index+1) if index+1<len(pages) else None
 
+    def phase_arrival_resources(self, source_turn):
+        """仅完整turn3两段剧情后的绘制来源；各端phase证据由调用者把关。"""
+        if (source_turn != 3 or self.source[META] != 3 or self.source[META + 2] != 0 or
+                self.source[META + 1] != 12 or self.story is not None or self.reward is not None):
+            return None
+        pages = self.fragments.get(11, []) + self.fragments.get(3, [])
+        if not self.fragments.get(11) or not self.fragments.get(3):
+            return None
+        expected = [("story", page["fragment"], page["token_offset"]) for page in pages]
+        acknowledgements = self.report.get("resource_acknowledgements", [])[self.phase_ack_start:]
+        actual = [tuple(row.get("signature", ())) for row in acknowledgements
+                  if row.get("signature", ()) and row["signature"][0] == "story"]
+        if actual != expected:
+            return None
+        if self.phase_arrival is None:
+            self.phase_arrival = stage0_turn3_arrival_resources(self.original, self.source, self.assets)
+        return self.phase_arrival
+
 
 def navigate(capture, original, source, assets, bank, destination, checkpoint, prefix):
     for i,(key,state) in enumerate(navigation(source,destination)):
         capture.key(key)
-        checkpoint(f"{prefix}-{i}",lambda frame,s=state:cursor_match(frame,assets,bank,screen(s,s[META+5:META+7])))
+        def match_cursor(frame, state=state):
+            found=cursor_match(frame,assets,bank,screen(state,state[META+5:META+7]))
+            return found if found is not None else stage0_saved_same_cell_cursor_match(frame,original,state,assets)
+        checkpoint(f"{prefix}-{i}",match_cursor)
         source=state
     return source
 
@@ -224,6 +248,31 @@ def save_active(capture, original, state, assets, bank, save, guard, report, che
     snapshot=capture.artifacts/(prefix+".SAV");snapshot.write_bytes(guard[0])
     report["actual_turn_saves"].append({"turn":measured[META],"snapshot":str(snapshot),
         "sha256":hashlib.sha256(guard[0]).hexdigest(),"manual_slots_preserved":True,"planning_source":"actual UI Save only"})
+    projection = report.get("arrival_projection")
+    if projection is not None and not projection.get("actual_ui_save_verified"):
+        observed = []
+        for expected in projection["visual_arrivals"]:
+            raw = expected["raw"]
+            if raw >= measured[META + 1]:
+                observed.append({"raw":raw,"missing":True})
+                continue
+            unit = actor(measured,raw)
+            observed.append({"raw":raw,"unit_id":unit[7],"position":list(unit[:2]),
+                             "visible":not bool(unit[5]&1),"unacted":not bool(unit[5]&0x80)})
+        valid = (stage == 0 and measured[META] == 4 and measured[META + 1] == 14 and
+                 [row["raw"] for row in projection["visual_arrivals"]] == [12,13] and
+                 all(not actual.get("missing") and actual["unit_id"] == expected["unit_id"] and
+                     actual["position"] == expected["position"] and actual["visible"] and actual["unacted"]
+                     for actual,expected in zip(observed,projection["visual_arrivals"])))
+        evidence = {"snapshot":str(snapshot),"sha256":hashlib.sha256(guard[0]).hexdigest(),
+                    "turn":measured[META],"active_count":measured[META + 1],
+                    "expected":projection["visual_arrivals"],"observed":observed,"passed":valid,
+                    "planning_source":"actual UI Save only","HP_AI_or_hidden_inferred":False}
+        report.setdefault("arrival_projection_save_checks",[]).append(evidence)
+        projection["actual_ui_save"] = evidence
+        if not valid:
+            raise NaturalStopped("到场绘制资源与下一次正式UI Save的raw12/13身份、位置或未行动状态不符；不再规划")
+        projection["actual_ui_save_verified"] = True
     return measured
 
 
@@ -403,7 +452,12 @@ def wait_progress(capture, original, state, source_turn, assets, reader, report,
                 detail=action_completion_match(frame,state,assets,ready_target)
                 found=(state,detail) if detail else None
             else:
-                found=actor_browse_anywhere(frame,original,state,assets,raw,acted=False if phase else True)
+                gate = getattr(reader, "phase_arrival_resources", None)
+                arrival = gate(source_turn) if phase and (report["kind"]=="sdl" or seen_banner) and gate is not None else None
+                if arrival is not None:
+                    found=stage0_arrival_browse_anywhere(frame,original,state,assets,arrival)
+                else:
+                    found=actor_browse_anywhere(frame,original,state,assets,raw,acted=False if phase else True)
             if found:
                 current,detail=found;now=time.monotonic()
                 committed=bool(detail.get("caster_acted_sprite")) if not phase and ready_target else True
@@ -431,6 +485,13 @@ def wait_progress(capture, original, state, source_turn, assets, reader, report,
             reader.acknowledge(capture,detail,checkpoint)
         elif detail["kind"]=="natural_victory_dialogue_complete":return None
         else:
+            resource = detail.get("resource", {})
+            if resource.get("kind") == "natural_arrival_composite_focus":
+                report["arrival_projection"] = {"source_turn":source_turn,
+                    "original_count_retained":resource["original_count_retained"],
+                    "visual_arrivals":[{"raw":item["raw"],"unit_id":item["unit_id"],"position":list(item["position"])}
+                                       for item in resource["visual_arrivals"]],
+                    "actual_ui_save_verified":False,"HP_AI_or_hidden_inferred":False}
             if phase:audio_toggle(capture,report)
             return detail["state"]
     raise NaturalStopped("自然同一步提示超过有限上界，未继续发键")

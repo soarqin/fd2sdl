@@ -395,6 +395,172 @@ def actor_browse_anywhere(frame, original, source, assets, raw=0, *, acted=None)
     return found[0] if len(found) == 1 else None
 
 
+def stage0_turn3_arrival_resources(original, source, assets):
+    """34531已知到场的纯绘制读集；DAT+EXE独立取源，不构造新80B热记录。
+
+    原版127a9按raw绘制，SDL按y/x稳定排序；本例同格顺序一致，11cac先画cursor。本合同仅补
+    raw0被新raw13同格覆盖、其下邻raw12头部覆盖cursor的完整24x30资源。
+    canonical导出22581..22613：34531在fragment3后调用134e4；2438..2460
+    仅把全表direction写0。7447..7449：phase2事件/status后focus_actor(0)。
+    """
+    if tuple(source[META:META+3]) != (3,12,0) or actor(source,0)[7:9] != b"\0\0":
+        raise ValueError("到场视觉合同只接受stage0真实turn3/count12/raw0身份")
+    from fd2_opening_oracle import parse_le, parse_objects, build_relbase_image, collect_internal_offset_fixups
+    executable = original / "FD2.EXE"
+    encoded = executable.read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd":
+        raise ValueError("到场脚本EXE身份不符")
+    le = parse_le(encoded); objects = parse_objects(encoded,le)
+    raw = build_relbase_image(encoded,le,objects); fixups = collect_internal_offset_fixups(executable)
+    field = (original / "FDFIELD.DAT").read_bytes()
+    metadata, placement = archive_entry(field,1), archive_entry(field,2)
+    if (len(metadata)-0x83)%26 or len(placement) != 2+6*struct.unpack_from("<H",placement)[0]:
+        raise ValueError("到场DAT模板/布点不完整")
+    arrivals=[]
+    for group, script_id, identity in ((3,7,1),(7,8,3)):
+        indices=[i for i in range((len(metadata)-0x83)//26) if metadata[0x83+26*i+21]==group]
+        if len(indices)!=1:raise ValueError("到场组不是已确认的单actor")
+        index=indices[0]; template=metadata[0x83+26*index:0x83+26*(index+1)]
+        if template[1]!=identity:raise ValueError("到场actor身份变化")
+        xy=list(struct.unpack_from("<HH",placement,2+6*index))
+        item={"raw":12+len(arrivals),"unit_id":identity,"position":xy,"template_index":index,"group":group}
+        arrivals.append(item)
+        obj,offset,address=fixups[0x627d8+4*script_id]
+        if obj!=3 or not 0x60000<=address<len(raw):raise ValueError("到场脚本fixup owner不符")
+        at=address+1
+        for _ in range(raw[address]):
+            mode,count=raw[at:at+2];at+=2
+            pairs=raw[at:at+2*count];at+=2*count
+            if len(pairs)!=2*count:raise ValueError("到场脚本截断")
+            for target,direction in zip(pairs[::2],pairs[1::2]):
+                if target!=item["raw"] or direction>3:raise ValueError("到场脚本包含合同之外actor/方向")
+                if mode<128:
+                    dx,dy=((0,1),(-1,0),(0,-1),(1,0))[direction]
+                    xy[0]+=mode*dx;xy[1]+=mode*dy
+        item["script"]={"id":script_id,"canonical_va":hex(address),"sha256":hashlib.sha256(raw[address:at]).hexdigest()}
+    if [item["position"] for item in arrivals] != [[11,13],[11,12]]:
+        raise ValueError("到场端点不属于已证明的同格/下邻组合")
+    world=tuple(arrivals[1]["position"])
+    return {"world":list(world),"arrivals":arrivals,"templates":None,
+            "source_scope":"independent FDFIELD/FDSHAP/FDICON and FD2.EXE fixups; render-only, no hot records or Save writes"}
+
+
+def _stage0_arrival_templates(original, source, assets, resources):
+    """仅已证明的实际重叠需要此完整底图；无关焦点保留原资源路径。"""
+    world=tuple(resources["world"])
+    data,meta,width,height=_stage_map(original,source)
+    shape=(original/"FDSHAP.DAT").read_bytes();tiles=archive_entry(shape,2*meta[0]);attrs=archive_entry(shape,2*meta[0]+1)
+    base=Image.new("P",(24,30),0);base.putpalette(assets["palette"])
+    terrain=[]
+    for y in (world[1]-1,world[1]):
+        tile=struct.unpack_from("<I",data,4+4*(y*width+world[0]))[0]&1023
+        image=sheet_frame(tiles,tile);image.putpalette(assets["palette"])
+        if attrs[4*tile]&0x9c or any(224<=pixel<240 for pixel in image.getdata()):
+            raise ValueError("到场完整底图不覆盖动画/水DAC/前景")
+        upper=y==world[1]-1
+        base.paste(image.crop((0,18,24,24)) if upper else image,(0,0 if upper else 6))
+        terrain.append({"world":[world[0],y],"tile":tile})
+    banks={}
+    for identity in (0,1,3):
+        isolated=bytearray(source);isolated[META+1]=1;isolated[UNITS+7]=identity;isolated[UNITS+5]=0
+        banks[identity]=cursor_assets(original/"FDICON.B24",isolated,assets)[0]
+    templates=[]
+    # 134e4恢复静止朝下；各自sprite完整资源必须匹配，不能让方向成为don't-care。
+    for phase in range(3):
+        hero, lower, same = banks[0][phase],banks[1][phase],banks[3][phase]
+        visible=hero.point(lambda pixel:255 if pixel else 0,mode="L")
+        visible.paste(0,(0,0),same.point(lambda pixel:255 if pixel else 0,mode="L"))
+        visible_pixels=sum(bool(pixel) for pixel in visible.getdata())
+        if visible_pixels<24:raise ValueError("到场组合缺少首raw独立可见身份，不能用新actor替代")
+        pictures=[]
+        for include_hero in (True,False):
+            image=base.copy()
+            layers=[(assets["cursor"],(0,6))]
+            if include_hero:layers.append((hero,(0,0)))
+            layers += [(same,(0,0)),(lower,(0,24))]
+            for part,at in layers:image.paste(part,at,part.point(lambda pixel:255 if pixel else 0,mode="L"))
+            pictures.append(image.convert("RGB"))
+        templates.append({"phase":phase,"image":pictures[0],"without_raw0":pictures[1],"raw0_visible_pixels":visible_pixels})
+    resources["terrain"]=terrain
+    return templates
+
+
+def stage0_arrival_browse_anywhere(frame, original, source, assets, resources):
+    """完整720像素及首raw缺失负锚；返回原count12 view，真实热状态等待正式Save。"""
+    if tuple(source[META:META+3]) != (3,12,0) or actor(source,0)[7:9] != b"\0\0":
+        raise ValueError("到场视觉投影来源越界")
+    world=tuple(actor(source,0)[:2])
+    if list(world)!=resources["world"]:
+        if any(item["position"][0]==world[0] and abs(item["position"][1]-world[1])<=1 for item in resources["arrivals"]):
+            raise ValueError("到场actor与焦点形成尚未证明的其它同格/相邻组合")
+        return actor_browse_anywhere(frame,original,source,assets,0,acted=False)
+    if any(not actor(source,i)[5]&1 and actor(source,i)[0]==world[0] and
+           abs(actor(source,i)[1]-world[1])<=1 for i in range(1,source[META+1])):
+        raise ValueError("到场焦点另有未建模actor重叠，不能忽略")
+    if resources["templates"] is None:
+        resources["templates"]=_stage0_arrival_templates(original,source,assets,resources)
+    if not dialogs_absent(frame,assets):return None
+    found=[]
+    for ry in range(1,8):
+        for rx in range(13):
+            camera=(world[0]-rx,world[1]-ry)
+            if not 0<=camera[0]<=11 or not 0<=camera[1]<=16:continue
+            candidate=view(source,world,camera);at=screen(candidate,world);where=(at[0],at[1]-6)
+            if not menu_absent(frame,assets,at):continue
+            for template in resources["templates"]:
+                hit=match_indexed(frame,template["image"],where)
+                if not hit["ok"]:continue
+                rejected=match_indexed(frame,template["without_raw0"],where)
+                if rejected["bad_pixels"]<24:continue
+                detail={"kind":"natural_arrival_composite_focus","world":list(world),"camera":list(camera),
+                    "focus_screen":list(at),"raw_actor":0,"full_actor_compared":False,"composite_ROI":[*where,24,30],
+                    "complete_opaque_resource":hit,"shared_idle_phase":template["phase"],
+                    "raw0_visible_pixels":template["raw0_visible_pixels"],"missing_raw0_negative":rejected,
+                    "visual_arrivals":resources["arrivals"],"original_count_retained":source[META+1],
+                    "HP_AI_or_hidden_inferred":False,"source_scope":resources["source_scope"]}
+                found.append((candidate,detail))
+    return found[0] if len(found)==1 else None
+
+
+def stage0_saved_same_cell_cursor_match(frame, original, source, assets):
+    """正式turn4 Save已确认的首动作导航；不扩大通用cursor_bank组合空间。
+
+    必须先尝试旧cursor_match。这里只读实际14人源中的静止未行动raw0/12/13，
+    复用上一phase同一完整720绘制器；离开同格或任一动作后即不适用。
+    """
+    if tuple(source[META:META+3])!=(4,14,0) or tuple(source[META+5:META+7])!=(11,12):return None
+    expected=((0,0,(11,12)),(12,1,(11,13)),(13,3,(11,12)))
+    for raw,identity,world in expected:
+        unit=actor(source,raw)
+        if (tuple(unit[:2])!=world or unit[3] or unit[4] or unit[5]&0x81 or
+                unit[6]!=2 or unit[7:9]!=bytes((identity,identity))):return None
+    if any(i not in (0,12,13) and not actor(source,i)[5]&1 and actor(source,i)[0]==11 and
+           abs(actor(source,i)[1]-12)<=1 for i in range(14)):return None
+    at=screen(source,(11,12));where=(at[0],at[1]-6)
+    if (not 4<=where[0]<=292 or not 4<=where[1]<=166 or
+            not dialogs_absent(frame,assets) or not menu_absent(frame,assets,at)):return None
+    # 以真实源绘制字段缓存，不把后续动作或另一个snapshot的actor状态混入。
+    key=tuple(bytes(actor(source,raw)) for raw,_,_ in expected)
+    cache=assets.setdefault("_saved_same_cell_navigation",{})
+    if key not in cache:
+        resources={"world":[11,12],"arrivals":[{"raw":raw,"unit_id":identity,"position":list(world)}
+                   for raw,identity,world in expected[1:]]}
+        cache[key]=_stage0_arrival_templates(original,source,assets,resources)
+    matches=[]
+    for template in cache[key]:
+        hit=match_indexed(frame,template["image"],where)
+        if not hit["ok"]:continue
+        rejected=match_indexed(frame,template["without_raw0"],where)
+        if rejected["bad_pixels"]<24:continue
+        matches.append({"kind":"natural_saved_same_cell_navigation","focus_screen":list(at),
+            "world":[11,12],"camera":list(source[META+3:META+5]),"composite_ROI":[*where,24,30],
+            "complete_opaque_resource":hit,"shared_idle_phase":template["phase"],
+            "raw0_visible_pixels":template["raw0_visible_pixels"],"missing_raw0_negative":rejected,
+            "actual_saved_actor_fields":[{"raw":raw,"record_hex":bytes(actor(source,raw)).hex()} for raw,_,_ in expected],
+            "source_turn":4,"source_count":14,"HP_AI_or_hidden_inferred":False})
+    return matches[0] if len(matches)==1 else None
+
+
 def command_match(frame, original, source, assets, raw, selected, disabled=None):
     view_assets = actor_view(original, source, assets, raw)
     at = screen(source, actor(source, raw)[:2])

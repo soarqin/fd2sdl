@@ -126,12 +126,13 @@
       "id": "scene.init.000",
       "entry": "init_player_00",
       "nodes": [
-        {"id": "init_player_00", "op": "init_player", "args": [0, 0, 4, 0], "on": {"next": "init_player_01"}, "views": ["present"]},
-        {"id": "init_player_01", "op": "init_player", "args": [1, 9, 4, 1], "on": {"next": "init_player_02"}, "views": ["present"]},
-        {"id": "init_player_02", "op": "init_player", "args": [2, 4, 4, 2], "on": {"next": "init_player_03"}, "views": ["present"]},
-        {"id": "init_player_03", "op": "init_player", "args": [3, 30, 4, 3], "on": {"next": "init_templates_04"}, "views": ["present"]},
-        {"id": "init_templates_04", "op": "init_templates", "args": [0, 8, 4, 0, 1], "on": {"next": "end_05"}, "views": ["present"]},
-        {"id": "end_05", "op": "end", "args": [], "on": {}, "views": ["present"]}
+        {"id": "init_player_00", "op": "init_player", "args": [0, 0, 4, 0], "on": {"next": "init_player_01"}, "views": ["logic", "present"]},
+        {"id": "init_player_01", "op": "init_player", "args": [1, 9, 4, 1], "on": {"next": "init_player_02"}, "views": ["logic", "present"]},
+        {"id": "init_player_02", "op": "init_player", "args": [2, 4, 4, 2], "on": {"next": "init_player_03"}, "views": ["logic", "present"]},
+        {"id": "init_player_03", "op": "init_player", "args": [3, 30, 4, 3], "on": {"next": "init_templates_04"}, "views": ["logic", "present"]},
+        {"id": "init_templates_04", "op": "init_templates", "args": [0, 8, 4, 0, 0], "on": {"next": "hide_opening_templates"}, "views": ["logic", "present"]},
+        {"id": "hide_opening_templates", "op": "actor_hidden", "args": [4, 11, 1], "on": {"next": "end_05"}, "views": ["present"]},
+        {"id": "end_05", "op": "end", "args": [], "on": {}, "views": ["logic", "present"]}
       ]
     },
     {

@@ -198,48 +198,7 @@ static int append_persistent_player(fd2_field_game *game, uint8_t unit_id) {
     return 0;
 }
 
-static int load_stage0_units(fd2_field_game *game) {
-    /* new_game_opening_play @0x3231b 在进入 stage 0 前把四名玩家
-     * 0/9/4/30 放在 placement 末四个玩家槽；随后
-     * field_actor_group_arrival_effect @0x32999 依次加入 group 1/2；
-     * 组内 actor 由 field_unit_stage_template_append @0x10c50 的模板重排
-     * 与基础表等级公式构造。 */
-    static const uint8_t player_ids[] = {0, 9, 4, 30};
-    fd2_field_units *units = &game->units;
-    const fd2_field_metadata *meta = &game->metadata;
-    const fd2_field_placements *placements = &game->placements;
-    if (placements->count < 4) return -1;
-
-    fd2_field_units_clear(units);
-    game->roster_count = 0;
-    size_t player_base = placements->count - 4;
-    for (size_t i = 0; i < sizeof(player_ids); i++) {
-        const fd2_field_placement *placement =
-            &placements->records[player_base + i];
-        if (append_persistent_player(game, player_ids[i]) != 0 ||
-            fd2_field_units_set(units, units->count,
-                                player_ids[i], player_ids[i], 2,
-                                placement->x, placement->y) != 0) {
-            fd2_field_units_clear(units);
-            return -1;
-        }
-        /* sub_1088D @0x1088d 从持久记录实例化 active，再写部署坐标、
-         * cache 与交互字段；不把 active 状态反向作为 roster 初始化。 */
-        fd2_field_unit *active = &units->items[i];
-        *active = game->roster[i];
-        active->x = (uint8_t)placement->x;
-        active->y = (uint8_t)placement->y;
-        active->direction = active->frame_phase = 0;
-        ((uint8_t *)active)[0x31] = 0xff;
-    }
-    if (fd2_field_units_append_group(units, meta, placements, 1) != 0 ||
-        fd2_field_units_append_group(units, meta, placements, 2) != 0 ||
-        units->count != 12) {
-        fd2_field_units_clear(units);
-        return -1;
-    }
-    return 0;
-}
+static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow);
 
 size_t fd2_field_game_group_count(const fd2_field_game *game, uint8_t group) {
     size_t count = 0;
@@ -253,41 +212,17 @@ size_t fd2_field_game_group_count(const fd2_field_game *game, uint8_t group) {
     return count;
 }
 
-static int validate_stage0_units(const fd2_field_game *game) {
-    static const uint8_t player_ids[] = {0, 9, 4, 30};
-    static const uint8_t equipment[][4] = {
-        {0, 132, 192, 0xff}, {52, 164, 0xff, 0xff},
-        {20, 128, 0xff, 0xff}, {72, 178, 0xff, 0xff},
-    };
-    static const uint16_t stats[][4] = {
-        {16, 12, 97, 2}, {11, 7, 86, 1},
-        {26, 6, 92, 2}, {22, 14, 92, 2},
-    };
-    if (!game || game->units.count != 12 ||
-        fd2_field_game_group_count(game, 1) != 4 ||
-        fd2_field_game_group_count(game, 2) != 4)
+static int validate_initial_units(const fd2_field_game *game) {
+    if (!game || !game->units.count || game->units.count > FD2_FIELD_MAX_UNITS ||
+        !game->roster_count || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
 
     for (size_t i = 0; i < game->units.count; i++) {
-        if (i < sizeof(player_ids)) {
-            const fd2_field_unit *player = &game->units.items[i];
-            const uint8_t *record = (const uint8_t *)player;
-            if (player->unit_id != player_ids[i] ||
-                game->units.source_template_indices[i] !=
-                    FD2_FIELD_UNIT_NO_TEMPLATE ||
-                record[0x0b] != equipment[i][0] ||
-                record[0x0d] != equipment[i][1] ||
-                record[0x0f] != equipment[i][2] ||
-                record[0x11] != equipment[i][3] ||
-                player->attack != stats[i][0] ||
-                player->defense != stats[i][1] ||
-                player->accuracy != stats[i][2] ||
-                player->evasion != stats[i][3])
-                return -1;
-        } else if (game->units.source_template_indices[i] !=
-                   (uint16_t)(i - 4)) {
+        uint16_t source = game->units.source_template_indices[i];
+        if (source != FD2_FIELD_UNIT_NO_TEMPLATE &&
+            (source >= game->metadata.unit_template_count ||
+             game->units.items[i].unit_id != game->metadata.unit_templates[source].bytes[1]))
             return -1;
-        }
         if (fd2_field_unit_frame_index(&game->units.items[i],
                                        game->units.walk_frames[i], 0) >=
                 game->sprites.frame_count ||
@@ -1189,7 +1124,7 @@ int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     if (!game) return -1;
     if (!vga || stage != 0u) { memset(game, 0, sizeof(*game)); return -1; }
     if (fd2_field_game_open_resources(game, fdother, stage) != 0) return -1;
-    if (load_stage0_units(game) != 0 || validate_stage0_units(game) != 0)
+    if (load_initial_units(game, fd2_static_flow_lookup("scene", "scene.init.000")) != 0)
         goto fail;
     const uint8_t *palette;
     size_t palette_size;
@@ -1197,6 +1132,8 @@ int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         goto fail;
     fd2_vga_set_palette(vga, palette);
     fd2_vga_set_brightness(vga, 0);
+    /* 无handoff的field-play使用旧battle视口；自然START随后由同源开场的
+     * handoff覆盖camera/cursor/idle，不以这里的调试入口值约束冷图。 */
     game->camera_cell_y = clamp_int(15, 0, max_camera_y(game));
     game->cursor_cell_x = clamp_int(6, 0, game->map.width - 1);
     game->cursor_cell_y = clamp_int(game->camera_cell_y + 4, 0, game->map.height - 1);
@@ -1304,6 +1241,39 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
             const char *op = n->op;
             if (!strcmp(op, "preflight_before_music") || !strcmp(op, "victory_music")) {
                 /* App owner消费线性前缀；这里仅投影单位，不能切曲。 */
+            } else if (!strcmp(op, "init_player")) {
+                size_t actor = (size_t)n->args[0], tail = (size_t)n->args[2], ordinal = (size_t)n->args[3];
+                if (!entry || n->args[0] < 0 || actor != units->count || actor >= FD2_FIELD_MAX_UNITS ||
+                    n->args[1] < 0 || n->args[1] > UINT8_MAX || n->args[2] <= 0 ||
+                    tail > entry->placements.count || n->args[3] < 0 || ordinal >= tail)
+                    return -1;
+                const fd2_field_placement *position = &entry->placements.records[entry->placements.count - tail + ordinal];
+                if (position->x >= entry->map.width || position->y >= entry->map.height ||
+                    append_persistent_player(entry, (uint8_t)n->args[1]) != 0 ||
+                    fd2_field_units_set(units, actor, (uint8_t)n->args[1], (uint8_t)n->args[1], 2,
+                        position->x, position->y) != 0) return -1;
+                /* 1088d仍先创建persistent，再拷贝active；成员和部署引用取同一冷图。 */
+                fd2_field_unit *active = &units->items[actor];
+                *active = entry->roster[entry->roster_count - 1u];
+                active->x = (uint8_t)position->x; active->y = (uint8_t)position->y;
+                active->direction = active->frame_phase = 0;
+                ((uint8_t *)active)[0x31] = 0xff;
+            } else if (!strcmp(op, "init_templates")) {
+                if (!entry || n->args[0] < 0 || n->args[1] < -1 || n->args[2] < 0 ||
+                    (size_t)n->args[2] != units->count || n->args[3] < 0 || n->args[3] > 1 ||
+                    n->args[4] < 0 || n->args[4] > 1) return -1;
+                size_t first = (size_t)n->args[0];
+                size_t end = n->args[1] < 0 ? entry->placements.count : first + (size_t)n->args[1];
+                if (end > entry->placements.count) end = entry->placements.count;
+                if (end > entry->metadata.unit_template_count || first > end) return -1;
+                for (size_t i = first; i < end; i++) {
+                    const fd2_field_placement *position = &entry->placements.records[i];
+                    if (n->args[3] && !position->x && !position->y) break;
+                    size_t actor = units->count;
+                    if (fd2_field_units_append_template(units, &entry->metadata, &entry->placements, i) != 0)
+                        return -1;
+                    if (n->args[4]) fd2_field_unit_set_hidden(&units->items[actor], 1);
+                }
             } else if (!strcmp(op, "stage_setup")) {
                 if (!entry || !context->deployment || prepare_deployment(entry, context->fdother,
                         context->deployment, (size_t)n->args[0], (size_t)n->args[1]) != 0 ||
@@ -1357,6 +1327,17 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
         if (pc < 0) return -1;
     }
     return -1;
+}
+
+/* new_game_opening_play @0x3231b：Scene与Game共用初始成员和模板选择，
+ * 仅Scene消费present-only的开场前藏显；Game不重放对白和移动。 */
+static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow) {
+    if (!game || !flow) return -1;
+    fd2_field_units_clear(&game->units);
+    game->roster_count = 0;
+    stage_flow_context context = {game, game, &game->units, NULL, NULL, NULL};
+    if (run_stage_logic(flow, &context) != 0) return -1;
+    return validate_initial_units(game);
 }
 
 static int prepare_stage_flow(fd2_field_game *game, const fd2_archive *fdother,

@@ -2,6 +2,8 @@
 
 当前内置的已确认冷表位于 `data/static/tables/*.json`，有限事件图位于 `data/static/flows/*.json`；清单与消费契约在 `data/static/manifest.json`。现有 item、magic、unit、movement、stage 等 getter 保留。构建期生成私有 `const` 表；流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。各 SD 阶段是否通过验收，以[阶段记录](../plans/stage-log.md)为准，不能以生成成功代替。
 
+SD 大阶段当前落地 79 张冷表、四域 30 份流程及 518 个节点、6 个共享绑定。正式 START 的 Game 初始化与 Scene 前态使用同一个 `scene.init.000` 的视图，不能另在 C 中固定初始成员、group 或派生数值。数据修改仍须重新构建；现有已支持组合与尚未解码的后续事件分别登记，不因结构提取成功扩大玩法支持门。
+
 ## 构建与修改
 
 正常 CMake 构建自动使用 Python 3.9+ 标准库，将数据生成到各平台独立构建目录的 `generated/static_data/`。Release 运行无需 Python、JSON 文件或 `FD2.EXE`；构建需要 JSON 和生成器，离线源码清单已包含这些材料。命令见[工具速查](README.md)。
@@ -66,6 +68,48 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 Game 先提交逻辑、Scene 再呈现的既有合同保持。notice 只增加呈现所需的旧位置／方向／步态快照，避免重放移动两次；单位与资源 owner 不变。原动作确认、事务校验、存档拒绝中途状态及宿主输入分派属于稳定引擎边界；事件图调用这些边界，不能复制它们，也不能借它们隐藏事件分支。
 
+正式 START 的初始成员、部署槽引用和模板选择也由 `scene.init.000` 共用定义。Game 消费 logic 视图，继续调用原 persistent 创建、active 拷贝和模板构造算法；Scene 的开场前隐藏由单独的 present-only 节点表达。生产代码不再保留旧四人成员、group 顺序、装备或派生属性的固定值断言。默认数值兼容性由独立来源与回归核对，运行时仍拒绝无效模板、精灵、profile 和越界引用。初始化节点缺少 logic 视图或带有 Game 未支持的逻辑操作时，构建校验直接拒绝。
+
 生成器拒绝未知操作、非法参数／出口、悬空引用、不可达节点、没有退出的闭环、缺失的必需流程以及消费 ABI 变化；有意的有界扫描循环在运行时另受步数预算保护。结果查询必须是有显式结果终点的无环只读图。动作执行出错或遇未知操作沿现有失败路径停止，不能把未解码项当空事件成功。
 
 修改数值或边不需要改 C；新增领域语义才需要更新最小原语、消费契约及独立回归。`manifest.json` 的 ABI 摘要固定操作参数合同，出口集合固定执行器接受的端口；它们不是第二份事件流程。原 FDFIELD 触发槽、metadata 与当前库存等引用仍读取现有资源／热值，不再抄成另一张静态触发表。
+
+`required_labels` 还固定 C API 实际查找的外部节点入口。当前 loot 的 preflight.drop、preflight.cell、cell.begin、drop.begin、finish.common 不可仅同步图内引用后随意改名；缺失即构建校验失败。普通内部节点仍可重命名／重排。`entries` 的可达性声明不能代替真实 node.id 的消费合同。
+
+## 批量来源与覆盖审计
+
+`audit_stage_data.py` 只读提取 FDFIELD 的全部组、原始槽／模板／placement、地图实际格引用，以及严格 LE fixup 分发表目标。它校验原文件身份、已发布 IDA 的清单／EXE 身份／函数 chunk 与历史 Git 源 blob；报告保留源跨度、摘要、未知字节和未覆盖项。schema、固定操作 ABI、出口和引用复用生产校验，原始 EXE／DAT 预期从独立读集取得，不取生成 C 作为 expected。
+
+Windows PowerShell：
+
+```powershell
+python -B tools/static_data/audit_stage_data.py --output build/sd3-audit/full.json
+python -B tools/static_data/audit_stage_data.py --stage 0 --stage 1 --require-supported --output build/sd3-audit/supported.json
+python -B tools/static_data/audit_stage_data.py --require-supported --output build/sd3-audit/required-all.json
+```
+
+Linux Bash（本轮未执行）：
+
+```bash
+python3 -B tools/static_data/audit_stage_data.py --output build/sd3-audit/full.json
+python3 -B tools/static_data/audit_stage_data.py --stage 0 --stage 1 --require-supported --output build/sd3-audit/supported.json
+python3 -B tools/static_data/audit_stage_data.py --require-supported --output build/sd3-audit/required-all.json
+```
+
+第二、三条对当前原资源均应返回非零，并保留阻塞报告。默认 `(255,255,0)` 在当前 C 查询的 turn255／phase0 会命中；尚未证实原版可达性或可忽略性，故逐槽保留并纳入严格阻塞。`bound_definitions_closed` 仅说明排除这些未证默认项后，已列非默认定义／引用集合是否闭合；当前 0／1 为 true，不代表所有可达语义已支持。`--require-supported` 还拒绝默认 turn255 候选、其它未知／未开放语义和引用错误，当前 0..32 均不通过。结构提取始终带 `semantic_complete=false`。stage 2 的 `entry_supported=true` 与 `battle_enabled=false` 分别登记，不否定既有入场、准备和浏览存取。
+
+这里的 `entry_supported` 对应原战场 entry 分发表；stage31／32 没有该表的槽，不用它判定 `scene.new_game` 中已支持的开场段落。开场链及两端实际运行证据另按对应冷图和阶段记录核对。
+
+本来源版本有 99 条有效资源项／33 组，turn、lookup、action 各保留 528 槽，1,899 个模板和 2,322 个 placement。12 条未配对模板保留为 `unresolved_no_fallback`：stage 0／31 的 group10 各一条、stage32 的 group255 十条；不猜最近 placement，已绑定 append_group 真正需要时才构成活动引用错误。
+
+实际事件 callback 表是 `0x51b91` 起 90 项；其后 `0x51cf9/0x51cfd` 为两个值 18 的无 fixup DWORD，`0x51d01` 起是独立的 28 项 magic 表。另三张 result／entry／victory 各 30 项，主要分派共 180 槽；加 magic 共 208 个分派槽，目标可能重复，均有已发布 IDA chunk owner。函数边界／原字节覆盖不证明未知 handler 或 CFG 的语义，不将邻接区域合算为 120 个事件。
+
+移动指针表另按完整106槽／424 byte盘点（`0x627d8..0x62980`），保留 `0x62980..0x634d2` 的2,898 byte原始payload。报告 `movement_pointer_table` 逐槽保存fixup、原DWORD、目标、下一不同目标形成的候选跨度及计数观察；候选跨度不等于已证分配边界。ID24的计数读取跨下一目标、ID84保留4 byte尾、其它项的原始actor字段可到83、direction可为5；均原样保留，不清洗、不判原资源坏。
+
+其中只有原36个ID／794 byte继续通过现有严格runtime验证并接入；另70项只标 `source_structure_only`、`runtime_supported=false`，不自动扩大当前64单位容量或开放玩法。完整指针／payload覆盖不等于106条脚本语义已解码；当前getter支持门、冷表与C执行器保持原范围。
+
+v3 报告保守潜在需求集合共 1,171 条记录引用，含重复：51 条有当前已支持定义，468 条属于已知类型／定义但未开放，652 条未明确绑定或未解码；后者含 450 条默认 turn255 潜在匹配。它们不是 1,171 个不同事件，也不是执行轨迹覆盖率。当前仅 0／1 的 `bound_definitions_closed` 为 true；严格支持集合为空。v2 的 721 条计数保留为排除默认填充的历史范围，不能当作严格全范围通过。已解码引用无错误不等于所有未知 raw 引用均有效。
+
+常规新关接入：运行批量审计 → 核实 `reuse_candidates` 与原 callback／条件 → 将确认的组合加入唯一 `bindings`／定义 → 运行生成与引用检查、同输入状态／轨迹差分 → 仅对新增语义选代表原版场景。复用候选不会自动转为支持。新增未知控制流先保留源函数／chunk 和阻塞原因，再补最小领域原语及测试；不静默跳过、不写逐关 C handler，也不复制已有 DAT 表。
+
+报告含原始资源／代码字节，只放 ignored 的本地构建证据目录；不提交、不进入发布包。离线 App 构建不依赖该审计工具、Git 历史、IDA 产物或原版文件。

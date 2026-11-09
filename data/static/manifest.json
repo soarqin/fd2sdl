@@ -1678,7 +1678,16 @@
       "required_ids": [
         "loot",
         "action.finish"
-      ]
+      ],
+      "required_labels": {
+        "loot": [
+          "preflight.drop",
+          "preflight.cell",
+          "cell.begin",
+          "drop.begin",
+          "finish.common"
+        ]
+      }
     }
   }
 }

@@ -1152,3 +1152,168 @@ Python 全库审查首轮 935 项，1 失败、1 跳过：旧装备许可测试�
 上述检查完成后 SD2 按完整阶段提交，直接继续 SD3；全部失败／中断产物保留，没有重复重放已有通过报告的用例。此处证明当前定义迁移及所列业务／资源判据，不提升为原版全画面、完整音频、绝对时序或全关卡等价。
 
 Linux 未执行；未证明全关事件语义或原版完整音画等价。全量受支持历史回归与本地集成仍由 SD3 收口，完成后不自动续跑新玩法。
+
+## SD3：批量来源审计与统一收口（2026-11-09）
+
+以下按时间保留实施、失败和续接记录；最终结论与候选范围见本节末的「SD3 最终验收与提交门」。早期的「当前」只描述其记录时点，不覆盖最终结论。
+
+SD2 已提交 `ecb154a`，本阶段不自动开放新玩法。`audit_stage_data.py` 对真实四份原文件身份、严格 LE／fixup 分发表和已发布 IDA 清单／chunk／历史 C blob 作只读核对；schema／消费 ABI 复用生产校验，不另维护事件真值。实际使用与 Windows／Linux 命令见[冷定义工具](../tools/static-data.md)。
+
+`build/sd3-audit/root-full-v3.json` 复核 33 组／99 项资源、三类各 528 槽、1,899 模板、2,322 placement；主要分派 180 槽与独立 magic 28 槽共 208 槽均有 IDA chunk owner，目标可能重复。90 项 event callback 后的两个 DWORD 和 28 项 magic 表不再误算为事件 callback。12 条未配对模板原样保留，不用邻近／stage0 值兜底。
+
+自审将 450 条默认 `(255,255,0)` 改列为 turn255／phase0 的潜在匹配：未证明可忽略，故进入严格阻塞。v3 潜在集合共 1,171 条记录引用（含重复），51 supported／652 unmapped／468 unopened；不是不同事件数或执行覆盖率。仅 stage0／1 的 `bound_definitions_closed` 为 true，含义限于排除未证默认填充后的已列集合；严格语义支持集合为空，`semantic_complete=false`。stage2 单列 entry_supported=true／battle_enabled=false。v2 及早期结构报告保留，不回写成严格全范围通过。
+
+独立执行 v3 全表结构审计 exit0、0／1 的严格审计按预期 exit1；无未知项静默转为成功。原始来源／chunk 字节不是原指令执行或未知 CFG 解码。新增工具负例和现有静态检查已通过，另收紧 loot 只读定义必须含 logic 视图，防止合法结构直到执行才暴露不受支持视图；当前生成内容与 SD2 基线相同。
+
+当前尚未完成本优化大阶段统一历史回归或本地集成，不能以工具就绪宣布 SD3 完成。验收计划冻结为当前全部 CTest／Python、默认完整 WGC Suite、追加 B7 八场、AI 十八场、五项常规音频及正式无设备 CONTINUE；已有 A7／B6 的 collection-only 与原版完整声音／动画等价边界继续分开登记。只有实际运行报告通过后才补本阶段完成记录并提交。
+
+### 已执行的统一检查与续接点
+
+- 最终 Debug 候选构建成功，App SHA `2d3392bf19df00d55be59b25a0017e352ebb728eeae2d2d7da2cd33e8e1c3b6d`；新增实际 C 回归确认默认 turn255 槽匹配后为 EVENT_UNSUPPORTED，保留此前已提交写点、阻止后续 handler／毒伤／状态／RNG，不因填充外观静默成功。
+- 统一 CTest 排除唯一由完整图形 Suite 执行的 `field_play_input`，其余 91/91 通过（76.14 s）。记录在 C: 任务根 `ctest/{ctest.log,receipt.json}`，外 Job 无遗留／强制清理，显示需求 released。当前共注册92项，不能在 Suite 输入项尚未完成时称92项全部通过。
+- `build/sd3-python-full.log` 单轮955项，954通过／1跳过（257.125 s）；跳过仍为开发者本地 LE 种子中间产物缺失，不记通过。SD3 schema门及原数据生成／来源／ABI／审计负例均包含在本轮。
+- C: 任务根 `native-null/comparison.json` 为当前 App 的正式标题 CONTINUE→浏览→菜单→ESC，无效 SDL 音频后端下通过；观察到 null 后端，discard 依据当前源码合同，不伪称观测到不存在的独立计数器。原资源、二进制、完整隔离 SAV 守卫及进程／显示清理通过。不是物理拔插或音色保真验收。
+- 相对 SD2 的 App-only 源码仅生成器增加 schema 拒绝门，生成四域内容与 SD2 完全相同；离线副本更新该生成器后，175份输入与当前 source_inventory 全同，79表生成 check 通过。收据 `build/sd2-offline-final/source-files-sd3.json` 保留，不把此前干净 Release 构建改写为另一平台／另一 SDK。
+
+完整图形批次于本地03:00启动，单次后台串行进程 PID30548，启动身份在 C: 任务根 `history-launch.json`，逐项总收据 `history/receipt.json`，标准日志 `history.{stdout,stderr}.log`。入口是本树 ignored 的 `build/run-sd3-history.py`，不是周期任务；每个子任务独立 owned Job、有界超时、失败即停。续接必须先核此 PID／启动身份及总收据，活跃时继续观察，完成项不重放。当前批次收据只覆盖其28个任务，早先声明的 native-null 缺口由上述独立新收据补足，不回写原批次声明。
+
+03:14 续记：完整 Suite 产物为 `20261109-030047-878167`，自然开场、焦点／镜头、后台输入已通过；`input.log` 的 `field_play_input` 为1/1通过（48.09 s），owned Job 正常清理。至此92项注册 CTest 均有本轮通过结果（91项批次＋Suite单独1项），不是单轮92项调用；其余图形／业务／音频历史批次仍进行中。
+
+冻结期间只读自审另发现一个需在提交前补齐的 schema 门：C 通过 `fd2_static_flow_label` 使用 loot 的五个固定入口（preflight.drop／preflight.cell／cell.begin／drop.begin／finish.common），当前合同只固定 flow ID；同步重命名 node 及图内引用仍可通过生成，直到运行时才拒绝。当前定义未改名，故不影响正在运行的候选。待本批次结束后仅补 `required_labels` 消费合同及逐项负例，核对生成值／C／图均未改变后定向复验；不为此打断冻结批次或重放全部 GUI。具体清单保存在 ignored 的 `build/sd3-required-labels-plan.md`。
+
+另确认移动指针表的全表盘点仍须补齐：`0x627d8..0x62980` 连续106个 object3 fixup（424 B），原 getter 没有106项检查／分区；当前36条／794 B只是已有运行支持子集，未包含 ID20..89。全表 payload 至 object3 端 `0x634d2`。部分项存在候选跨度交叠、未消费尾或 actor≥64，不能直接套当前runtime parser判原资源损坏，更不能自动扩容／开放玩法。待当前冻结批次结束后补 audit-only 的106槽／原始payload／候选跨度／解码与支持分类，保留未知，并加相应负例；不改变已支持36条或C执行逻辑。只读原证据为 ignored `build/sd3-audit/movement-full-table-readonly.json`，实施清单为 `build/sd3-movement-coverage-plan.md`。这些待修正项完成前，SD3不得提交为完成。
+
+### 04:20 批次中断及已落地修正
+
+默认 Suite 在 `original-item-use-19` 的原版端 `use-commit-selected-slot2` 超时后停止，SDL尚未启动。原summary保留53个passed及1个failed，8个直接宿主窗口场景已全部正常清理；外层Job无遗留／强制清理。失败37个raw帧均为720×400，尺寸门正确拒绝，DOSBox日志亦为 final=720x400；最后有效PNG是先前槽0，不代表UP没收到。只读诊断确认非法raw图的游戏区域吻合槽2模板，但不将裁切诊断计为合法验收。没有确认Use，也未进入待测物品效果阶段；此记录不证明原版UI循环的RNG消费不变。尺寸变化的底层原因未证，不放宽尺寸／容差或补发按键。
+
+批次退出释放显示需求后，定向use19重跑的 `20261109-041941-288364` 检测console/session非ON或未知，未申请显示需求、未创建窗口，Job正常清理；等待显示恢复后仅补失败与未执行范围，不重放原53个通过项。原后台PID30548已退出，不能当仍在运行；下一轮使用新的续接入口与新收据，保留原failure。
+
+当前批次已停止并解除冻结后，已应用两个经过独立候选测试的工具补丁：`required_labels`固定五个外部node入口；完整移动来源补106指针／2,898 byte payload及70个未知项分类。`build/sd3-static-final.log` 50/50通过；`root-full-final.json`结构审计通过、`root-strict-final.json`严格审计按预期非零。ID24跨候选边界、ID84尾4字节、原actor最高83和direction5等原样保留，不开放新玩法。
+
+`build/sd3-final-c-equality.json` 核对14个生成C include逐字节未变，App仍为2d3392bf…1c3b6d；两个补丁不改C执行器／冷图／运行支持集合，原通过图形证据继续有效。离线175份App输入同步当前manifest／生成器后再次全同，14个C include保持不变，收据 `source-files-sd3-final.json`。只做工具与schema定向复验，不重跑已经通过的历史GUI。SD3整体仍未完成，尚待图形／音频续接及本地集成。
+
+04:28 续接入口已准备并通过无GUI模拟：`build/resume-sd3-history.py`，计划／操作说明为 `build/sd3-resume-plan.json`、`build/sd3-resume-instructions.md`。只跳过旧summary的53个passed，从use19开始执行默认Suite剩余31项，再接原历史计划其余27任务；8个宿主UI场景所属5个方法整体跳过，防止重做副作用。旧证据不覆盖，新summary逐case记录复用或新执行，后续Entry／Turn4按实际端报告的completed_save定位。
+
+恢复ON后的单次命令为 `python -B build/resume-sd3-history.py --artifacts C:/Users/Soar/AppData/Local/Temp/fd2sdl-sd-20261109-tranquil/history-resume --execute`，目标尚未创建。无GUI模拟验证在 `build/sd3-resume-smoke/20261109-042724-152436/verification.json`；明确登记4项schema／audit源码变化，其它冻结GUI工具／原资源／二进制守卫不放宽。04:25只读显示快照的console/session均为OFF，未申请显示需求或启动窗口，当前无残留测试进程。等待显示恢复后按此入口继续，不再调用原全量入口重放53项；完成剩余验收、审查和SD3提交后才本地集成，主树目前仍为88b47d7且保留未跟踪FD2.SAV。
+
+### 再次续接的非窗口复审
+
+新一轮只读预检仍为active console、console/session均OFF，无残留测试进程；没有申请显示需求、启动窗口、循环唤醒或重复已有全量检查。核实SD1／SD2提交及SD3差异，主树仍88b47d7、FD2.SAV未跟踪，App仍2d3392bf…1c3b6d。`build/sd3-audit-guide.md` 标明为合并前草稿并指向正式指南，避免把草稿当当前验收结论。
+
+复审修复独立来源核验的一处兼容缺口：生产schema允许递归related_sources，旧audit只核root和一层child；现改pending栈遍历全部层级并复用Git blob缓存。正确嵌套leaf／重复缓存／伪摘要leaf拒绝的定向模块22/22通过，未重跑全量、构建或GUI。当前四域来源树最大深度为2（root＋child），原报告所核blob无遗漏，历史报告保留。当前audit／test SHA分别为a1ccc8f7…e9715b、fd4a58fc…35c9a5。
+
+ignored续接helper的B6断点也已补：旧core passed后用其实际旧comparison复核，不在新空目录误查；无GUI模拟分别验证已有1／2个core时只派发余下2／1个。当前53项尚未含B6，此修正不改变已有运行证据。另继续核对summary身份绑定和B7／AI／audio外层断点，完成后同步续接说明；所有模拟均不调用真实窗口／显示／subprocess，不改原Suite或原history。当前实际环境卡点仍是显示OFF，剩余验收未完成前不提交SD3或本地集成。
+
+本轮非窗口收尾完成：`build/resume-sd3-history.py` 已补显式summary与所选history的完整fact绑定；已passed的Suite／B7／AI／audio按报告身份、资格及来源文件逐项复核后复用，恢复Entry／Turn4／stage2来源链，收据标reused。最终无GUI模拟 `build/sd3-resume-final-smoke/20261109-044725-734427/verification.json` 覆盖当前53项、B6部分完成、错summary拒绝、B7／AI尾段断点、28个outer全部复用零runner及音频封闭文件篡改拒绝。Entry／Turn4语义oracle和B6内容检查器在模拟中替换，不能把模拟计为真实玩法通过；正式执行仍调用原验证器。
+
+helper SHA为90184f8f…e88f32，原history仍a8aa57d8…8cd94，完整身份在 `build/sd3-resume-helper-frozen.json`。当前仍用上面的初次续接命令；若未来再次中断，须传最近失败的 `--history-receipt` 和新的 `--artifacts`，不能重开原全量入口。说明已同步 `build/sd3-resume-instructions.md`。本轮未重跑已有92项CTest或Python全库、未启动任何窗口、未改主树；仍需本机点亮显示并进入活动桌面后才继续剩余真实验收，SD3提交与本地集成保持未完成。
+
+### 11:20 显示恢复与原版输入诊断
+
+用户本轮明确授权直接唤醒屏幕，故本次允许一次显示电源 ON 请求；没有修改通用入口的 OFF 拒绝门。只读核实进程仍在 active console session 1，输入桌面为 Default，屏保未运行，未发现 request override。`powercfg /requests` 因缺管理员权限未取得结果，不据此判断请求计账。ES 请求及单次显示 ON 消息曾出现父进程 ON、子入口再次 OFF；未开游戏窗口，失败收据保留为 C: 任务根 `wake-resume-{first,second}-attempt.json` 和 `history-resume/receipt.json`。
+
+随后以具名 PowerCreateRequest 分别申请 SystemRequired／DisplayRequired，持有句柄期间两次 snapshot 均 ON，原续接入口独立 ON 门也通过。没有全局输入、改电源计划或混音器；结束后两个请求均 Clear、句柄关闭，详见 `wake-process-request-receipt.json`。此运行从原53项通过证据之后续接，产物 `20261109-112055-014276`，原版 use-19 在 raw0-zero-move-command 超时，SDL未启动；外层收据 `history-resume-process-request/receipt.json`，来源守卫保持不变、owned窗口正常清理。
+
+本次合法640×400截图仍为移动选择态，资源范围LUT由6变化为9，非旧帧冻结；原资源oracle离线复核没有把浏览态误判为选择态，也不是COMMAND选项／容差错误。第二ENTER的后台PostMessage收据成功，但缺实际业务ACK，不能声称原版已消费或判为SDL产品回归。保留此前720×400尺寸失败和本次输入失败，不改判据、不补键；先单独复核当前环境的后台业务输入。SD3仍未完成，不提前提交或集成。
+
+独立后台校准 `input-recalibration/artifacts/comparison.json` 通过，原版／SDL业务、WGC、原资源及二进制守卫、owned清理与前台哨兵均通过，外Job为0／0／0／0／1／0，显示需求已释放；没有修改输入工具或等待时序。11:27启动单次续接PID23476，启动身份为 `history-resume-after-input-launch.json`，总收据将写入 `history-resume-after-input/receipt.json`；本批次Suite为 `20261109-112757-938838`。use19与use20现已双端通过，确认次数仍为各一次，原失败原因不因此宣称已定位。正在补其余未执行项，原53项不重放。
+
+11:40检查点：use19／20／21／22／23／24及area2共7项新配对通过，联合summary累计60项passed，正在执行use23-mp0。summary在每项结束时原子保存；批次结束前保留历史status，不把进行中快照当整个Suite完成。独立只读复审覆盖SD3来源／严格拒绝／消费合同、loot与action.finish取消和ACK写点、reward／status顺序、SAV／Load原owner边界，以及CMake／发布源码／开发规范一致性；没有新增必须修改项，也没有重跑全库或把静态复审计为运行验收。
+
+11:58检查点：本次剩余物品8项和成长／状态6项均已通过，联合summary累计67项passed（复用53＋新执行14），当前进入original-prepare-controlled。用例来源仍为同一App 2d3392bf…1c3b6d及冻结工具，未改等待／按键或判据；后续17项默认Suite及27个outer任务尚未全部执行，不计SD3整体通过。活动进程／续接位置以本批次summary、启动身份与最终receipt为准。
+
+12:29检查点：准备入场和10项拾取／特殊格／取消／掉落／回调／剧情均已通过，联合summary累计78项passed（复用53＋新执行25），当前进入original-stage1-turn3。默认Suite尚余stage1-turn3、villager-defeat、natural-stage0与三个B6核心；之后仍需原计划27个outer任务。SD1为6b24b33、SD2为ecb154a；SD3没有提前提交或本地集成。C:可用约287 GB、E:约32 GB，证据仍通过原junction写C:，未移动源码或增量构建。
+
+12:40检查点：stage1-turn3与villager-defeat均已双端通过，累计80项passed；natural-stage0的原版已完成完整引导并进入第3回合，SDL端及后续B6／outer尚待执行。活动PID仍为23476；ignored的 `build/sd3-active-checkpoint.json` 汇集启动身份、续接收据和主树保护点，供实际进程／收据复核，不代替本轮最终结果。
+
+### 13:15 复审补齐正式 START 初始化的唯一来源
+
+后续覆盖复审发现 SD2 的一处遗漏：`load_stage0_units/validate_stage0_units` 仍在正式 START 的 Game 路径保留四人、末四槽、group1／2、12人及旧装备／派生属性数值锁，与 `scene.init.000` 形成第二份冷定义。合法修改冷表或初始成员可能在 handoff 前被旧 C 断言拒绝。确认后未再继续旧候选全套：只对本轮 owned 原版 PID31296 正常 close，保留原版 natural 的第8回合等中间证据、不计本场通过。`history-resume-after-input/receipt.json` 于本地12:53完成，旧冻结守卫通过，Job无超时／残留／强制清理；80项passed保持原来源。中止原因单列 `review-stop-natural.json`，不伪称原版自然流程已完成。
+
+修复让 Game 消费 `scene.init.000` 的 logic 视图，继续使用原 persistent／active 与模板构造算法。Scene 以额外的 present-only actor_hidden 保持开场前态；args hidden=0仍表示不覆盖构造已有hidden，不能错误清除原模板位。删除旧生产成员／group／人数／装备／属性锁，只保留资源合法性与引用边界。无handoff调试入口的旧camera／cursor seed保留，正式 START仍由开场handoff覆盖，不把两种生命周期混为一份配置。当前图增加1节点，其它流程与13份非scene生成include保持不变。
+
+Windows新App为 `eedd635302b71b6fa1cfd91bae77bd259a2d01866139eeb18ee628c9cfb6e187`，planner为 `0ad2b3b5e4ee3c29e0b2fc4d34a41c09d533700d3442669610a93ce8fffeff46`。6项受影响CTest通过，日志 `build/sd3-startup-fix-tests.log`；静态数据模块52/52通过，日志 `build/sd3-startup-static-tests.log`，未重复全库历史检查。新增回归覆盖完整旧记录、同源成员／模板变异、派生属性变动、原hidden位保留、错误引用和视图拒绝；没有增加生产测试入口或公共ABI。
+
+实际旧core与新core分别经无窗口 public Game open导出全部units／roster／未用槽／步态／模板索引及count，7,888 byte逐字节相同，SHA为 `0f64854938e211872c559f4e59b8cd5228d361c5a9a9bba4f2c924c31c32b01f`。另在独立JSON副本把item0 AP10→11，严格生成后仅重编相应item模块，正式初始化成功、AP16→17，仅active／persistent对应两个字节变化；生产JSON未改，其余13份生成include相同。实际证据为 C:任务根 `startup-fix-equivalence.json` 及 `before-startup-fix/`，不是新增原版执行或完整GUI通过。
+
+旧App／planner与源已归档。新 ignored 入口 `build/resume-sd3-after-startup-fix.py` 以精确修复见证和默认等价结果限定继承旧80项，明确旧binary来源；不会把这些记录改写为新App执行。新候选仍须补自然流程、B6和27个outer任务，全部完成前不提交SD3或本地集成。独立续接审查还收紧实际所选工具与真实JSON／生成收据的匹配，不放宽资源或GUI判据。
+
+### 13:50 非窗口收尾及真实显示卡点
+
+新定义下的33组结构审计再次通过，引用错误0；106移动槽／36已支持流／70未知或未开放、450默认turn255候选及1,171条保守记录引用的分类均未改变。0／1严格审计仍按预期返回1，不把结构成功提升为语义全覆盖。报告为 `build/sd3-audit/root-{full,strict}-startup-fixed.json`。
+
+离线副本原缓存指向的外部R1 SDK目录已不存在，重建在重新配置时误入网络回退并失败；旧失败日志 `build/sd3-offline-startup-fixed-build.log` 保留。随后只读确认本地SDL源码为release-3.2.12，实际Git HEAD为 `5ac37a8ffcf89da390404c1016833d56e2d67ae4`（2813…是既有缓存目录名），用本任务普通E:构建目录重建并安装自有静态SDK。App关闭测试、显式使用该SDK及disconnected配置后，当前175份源码的独立Release重建通过；81份SDK文件、安装库与实际构建库SHA一致，CMake配置无原source／build／安装根绝对引用，14份生成include与当前Debug候选逐字节相同。证据 `build/sd3-offline-startup-fixed-receipt.json`；Release App SHA为 `e813c86ca8dd1a526eacfa64c1f5b0ab6637d1367d2b98945a0c88b107fcd5e1`。未生成新发布包，未改写旧R1身份，也未把这次构建计为Release原生运行通过。
+
+软件显示唤醒于13:29再次出现after1s均ON、5s均OFF；未启动游戏。13:38只做一次不同的受控诊断：真实ON后才创建本轮owned可见／noactivate／非topmost辅助窗并处理消息，5s后仍OFF，未开游戏；辅助窗正常销毁，SystemRequired／DisplayRequired均Clear且handle关闭。收据 `wake-startup-fix-receipt.json`、`wake-startup-visible-receipt.json` 保留，无循环唤醒、全局键鼠、混音器或电源计划修改。
+
+只读检查为active console、Default输入桌面、屏保未运行、AC供电；当前Balanced方案ALLOWDISPLAY AC/DC均1，VIDEOIDLE AC为300秒。InputDirector可读的屏保同步及其它匹配DWORD均0，未取得的受保护子键不改权限；没有证据将显示反复OFF归因于该工具。对应C:诊断JSON保留。已发一次环境动作请求：在测试机活动桌面实际移动鼠标／按Shift以重置空闲，未重复询问唤醒授权。
+
+新helper最终SHA为 `8e172bc32edb0e4f49718cf1a9ddaf1889e59d0a9a352dc0cf2f31610039275f`；23项无GUI合成检查及真实dry-plan通过。实际修复见证为C:任务根 `startup-fix-witness.json`，SHA `1c6aa24c57e5ef7f553c02ca231990fa71084c2a30c25a69ed7114deef0b9a8e`。新的 `history-after-startup-fix/` 尚未创建、没有活动owned测试窗口／进程。恢复稳定ON后按 `build/sd3-resume-instructions.md` 的新入口补剩余natural／B6和27个outer；80项保持旧App范围来源。SD3仍未提交／未集成，主树保护和不续后续玩法的要求不变。
+
+### 14:56 授权唤醒、临时常亮与新候选续测
+
+用户本轮明确允许唤醒显示器并临时修改电源计划。14:33 原 Balanced 的副本已成功把 AC 显示／睡眠超时设为 0，DC 和原方案不变；一次 SC_MONITORPOWER 后仍出现 1 秒 ON／5 秒 OFF，因此没有启动游戏，随后恢复原方案并删除副本。收据 `power-enabled-20261109-1433/receipt.json` 保留。硬件 D6 与持续系统通知的只读检查未证实通知实现有取值错误，不放宽 ON 门。
+
+14:55 在确认没有游戏／driver 窗口进程后，执行一次用户授权的零位移鼠标唤醒，未按键或点击。SendInput 插入 1 条 MOVE(0,0)，LastInputInfo 从旧空闲值更新，指针保持 `(1491,201)`；这是本次显示唤醒，不是游戏输入回退。真实 1 秒和 5 秒 console／session 均 ON，临时副本 `b6aab6d7-6d56-4f20-9523-da5eda76065e` 的 AC 超时仍为 0 后才启动 owned 验收 Job；游戏输入继续绑定 PID／HWND。原方案为 `381b4222-f694-41f0-9685-ff5bb260df2e`，父监督进程负责子 Job 全部退出后恢复／删除临时副本，最终恢复结果尚待收据。
+
+监督 PID8068、外层 driver PID45432，于14:55:54启动当前 eedd6353 候选；正式总收据为 C:任务根 `history-after-startup-fix/receipt.json`，Suite 为 `20261109-145556-429077`，当前原版 natural-stage0 进行中。临时电源及唤醒收据为 `idle-wake-power-20261109-1454/receipt.json`；本地薄封装及5项纯模拟只属于测试宿主设施，不进入产品或放宽冻结输入。新批次继续限定继承旧80项，只补4项Suite及27个outer任务，完成前不提交SD3或本地集成。
+
+15:07 续记：原版在实际第4回合横幅后，于 `natural-0132-settle-15` 等待静止焦点门超时；SDL端未启动，尚无新增整场通过。最后 fragment3／token364 的 ENTER down／up 各一次且投递成功，此后没有补键；合法640×400 WGC帧及全部剧情ACK保留。最后实际活动Save仍为turn3，不能把计划、本地坐标投影或失败画面当作turn4完整热状态。当前正在离线诊断资源焦点门，不通过放宽尺寸／像素、猜测HP／AI状态或直接重抽RNG处理。
+
+本轮总收据仍为failed、冻结输入守卫true；全部owned Job无超时／残留／强制清理。监督finally已恢复原Balanced方案，删除本轮临时副本，原AC／DC值不变，详见同一电源收据。联合summary保留旧80项passed和本项failed，B6／B7／AI／音频尚未执行。后续输入不变时使用同候选续接入口及本轮最终收据；若验证器确需修正，先保留旧源／证据并审查新的来源边界。SD3提交和本地集成继续保持未完成。
+
+### 15:49 修正已证到场重叠的自然验证门并续测
+
+独立原 DAT／EXE 复核定位镜头 `(4,11)`：action0 的 group3／脚本7 追加 raw12／unit1 至 `(11,13)`，group7／脚本8 追加 raw13／unit3 至 `(11,12)`；本轮主角恰好停在后一格，旧 count12 焦点模板不含新到场遮挡。按原资源合成完整 `24×30` 地形、光标、同格与下邻精灵，在既有通道容差3下720像素坏点0，主角仍有38个可见像素；缺主角、缺其它层、错身份、方向、acted、层序或地形的13项负例均拒绝。证据为 C:任务根 `natural-arrival-focus-proof-20261109-152843-230287/receipt.json`。它只解释原失败帧，不是重新执行或完整新回合热状态。
+
+修正仅涉及 `fd2_natural_oracle.py`、`run_original_natural.py` 和其现有测试文件。只有各端本轮完整ACK fragment11、3且满足原版自身round4横幅／SDL既有phase日志门时，才读取独立源构造该视觉组合；SDL当前不存在对应横幅演出，不伪造横幅通过。无关焦点保留旧路径，未知重叠、前景／水色继续拒绝。返回的仍是count12源及视觉坐标，后续真实UI Save须联证14人、raw12／13的身份／坐标／可见／未行动，并继续检查所有可见单位acted清除，不能把视觉投影回灌SAV。
+
+72项自然纯测及6＋4项第二关共用回归通过；实际失败PNG再由新验证器离线通过，正式round4 UI Save仍待真实执行。实际命令／退出码／输出和新旧三文件facts登记于 `natural-arrival-focus-validation-20261109-154602-345628.json`；没有另存raw stdout日志，不把其结构化记录说成原始日志。游戏App、planner、C／JSON和生成结果未改，不重复92项CTest／Python全库。
+
+由于本次仍只有原80项passed、没有任何新增整场passed，复用既有入口建立独立新来源见证 `startup-and-arrival-focus-witness.json`（SHA `ee33d582cbdf135db600ad8e0a973a3807a5ecc071015acf055584a74dccb648`），精确保护初始化6＋工具3项映射、旧源归档、全部失败／纯测／原帧证据与原见证；原 `1c6aa24c…` 及冻结helper不改。不是同候选下忽略工具变化，也不丢弃新通过项。新来源只读计划通过后，于15:49启动监督PID39632／owned外层driver31324，临时方案 `f249bbb1-ef9e-4baa-ae70-0711bd6a1b80`；1秒／5秒均真实ON。总收据为 `history-after-arrival-focus-fix/receipt.json`，Suite为 `20261109-154923-490010`。当前重新执行未通过的完整natural，再接3项B6及27个outer；新批次若中断，固定本见证并用同候选入口续接，不能重放已通过项。SD3尚未提交／本地集成。
+
+15:58 检查点：原版已通过旧超时焦点，正式UI Save生成 `original-natural-stage0/original/turn-004.SAV`；独立解码实测turn4/count14，raw0为unit0／`(11,12)`，raw12为unit1／`(11,13)`，raw13为unit3／`(11,12)`，所有可见单位acted均清除。新验证器已据该真实Save继续规划，本次同格修正取得原版实际联合证据。整场natural及SDL端仍进行中，不新增整场passed或提前记SD3完成。
+
+本批次随后在 `natural-0142-to-actor-1` 导航UP进入同一重叠格时停止，SDL仍未启动。普通导航的单actor／上下两带模板尚不含同格两个actor，原失败帧保留；不是第一条720像素／真实Save门失效。真实turn4快照SHA为 `9b7bb5b76b086e5ed7bb45dc124ccec1e176817573852fb0944de194a88f4d41`，其联合校验在最终comparison中为true。原版owned窗口正常清理，监督39632已恢复Balanced、删除f249临时方案，原值不变；总收据failed但冻结输入守卫true，整场passed仍为原80项。
+
+16:09 继续收口导航工具：基于该端正式Save确认的14人源，复用完整同格资源，在普通光标门未命中时补该已证组合；不改C／JSON／App或扩展未知重叠。旧ee33见证、三文件及本轮失败先归档，再建立新的明确来源epoch后续跑。阶段记录中的15:58局部通过保持其实际范围，不提升为整场natural或SD3完成。
+
+16:22 续测：导航修正只在旧cursor门失败、stage0/turn4/count14及raw0／12／13的静止、未行动、身份／坐标完全符合时复用既有720像素绘制器；未知邻居和变化后的动作状态不借该门通过。实际0142失败帧与真实Save离线通过，74＋6＋4项纯测通过且三份raw日志保留。下一ENTER的原版 `0x18b84` 和SDL只在此步骤绘制全场再叠摘要，没有COMMAND阶段的selected尾画；既有同格顶24行及完整6258像素摘要预检通过，但不把合成预检称为下一ENTER实机执行。最终三源及证据在 `same-cell-navigation-validation-20261109-161657-012572.json`，测试后仅纠正一处docstring来源措辞：原版127a9直接按raw绘制，SDL按y/x稳定排序；本例同格raw顺序一致，下邻头与本格sprite像素区不相交，既有720结果不变。
+
+新见证为 `startup-and-arrival-navigation-witness.json`（SHA `82641f7f44b0b11359ab2f7c7bdabc852cb7bcb8640d8a8f7f0a605f57d5a691`），仍9映射／167当前源；只更新工具3项after，保持原before及old80锚，严格保护ee33、实际Save／PNG、84项日志和增量diff等。旧epoch的36个live事实经真实归档核验，其余1466事实仍在原路径核验，未修改事实API或冻结helper。只读计划通过后于16:22:48启动监督PID45376／外层driver32708，Suite `20261109-162256-509737`，总收据 `history-after-arrival-navigation-fix/receipt.json`。临时方案c2e7cf78及1秒／5秒真实ON登记于 `arrival-navigation-power-20261109-1623/receipt.json`，最终恢复待该监督收据。整场natural／余下验收继续运行，SD3仍未提交／集成。
+
+16:35 检查点：当前原版已到第6回合；第4回合的真实Save、同格导航、选择、主角移动及下一角色攻击目标等资源门已连续实机通过，确认W2导航补充门实际可达，原有selection门无需改动。仍是自然实战prefix，SDL及整场结算待继续，不新增整场passed。
+
+16:42 检查点：原版natural整场已通过，含8回合自然战斗、胜利对白、城镇结算、准备、stage1入场与正式Save；原资源／夹具／mtime／planner／工具／owned清理守卫均true。新入场来源为该端 `natural-stage1-entry.SAV`，SHA `c2ba6b6f3711e38fe1e3a89a7ac187a85e8b53ab63706fc644179a9d3638c6f9`。原版窗口已正常退出，SDL于16:41:18串行启动完整对应流程；配对及整批仍进行中，尚不计一项配对passed。
+
+17:04 检查点：natural双端整场及既有比较门均passed，累计81项（旧App限定来源80＋当前eedd/W2新执行1）。两端各据自身真实Save独立规划；原版最后规划回合8、SDL为12，不声称随机战斗过程／RNG同轨。两端完整胜利／结算／准备／stage1入场、存档与清理均通过；SDL入场Save SHA为 `c8da043ea811fed6494df557acd079b796e244b2bae83ed4d73e6f7e5124ba4f`，原版新来源仍c2ba6b6f…。随后继续3项B6核心与27个outer任务。今后有新整场passed，必须同候选续接并继承W2及最新收据，不再重开初始化过渡丢失新证据。
+
+18:05 检查点：默认 Suite 已完成84项（旧App限定来源80＋当前eedd/W2新执行4），3项B6核心和自然首关均通过。当前外层的村民全存活／损失／满包结算、箱子129／201／193及stage2存取共7项也已通过；natural-stage1原版端已通过，SDL端仍在自然战斗中，不计配对完成。余下18项AI、5场景音频及当前App的native-null尚待执行。当前总收据仍running，监督45376仍持有本轮临时方案，最终恢复结果未出。
+
+本轮另以只读方式完成冷定义、生产消费、生成契约、来源审计及原热状态／SAV owner的收口复审，未发现新增阻塞；不把该审查计为运行验收。主树仍为master@88b47d7，唯一未跟踪的根FD2.SAV摘要仍为 `b0dd9349f449d252910994d796434efa14a1149de8a4ea116de22e0ec62965d7`。待全部验收后再提交完整SD3并集成，仅保留本任务提交，不重放已通过场景。
+
+18:28 检查点：natural-stage1已双端passed，含自然胜利、村民分支、结算、stage2入场和活动Save；最终原资源、来源、工具／二进制及快照文件守卫均true。8项B7全部通过，18项AI中full00..07已通过8项，full08进行中。默认84项及所有新整项来源继续保持W2/eedd界定；音频5场景、当前App native-null、最终SD3提交和主树集成仍未完成。
+
+18:45 检查点：18项AI全部passed，含full00..09、full03／05／06／07／08多目标、item-score20、behavior11-recover及behavior5-chest；每项原版／SDL、完成Save与封闭采集证据均由现有资格器检查。当前audio-five正在执行，尚不计5场景完成。没有为此重复92项CTest／Python全库或更改App；SD3仍待音频、当前候选native-null及最终提交／集成。
+
+### SD3 最终验收与提交门（2026-11-09）
+
+18:56，SD1—SD3 的已批准实现及当前 Windows 支持范围验收完成。SD3 补齐全部33组／真实分发表的独立来源、引用与语义分类审计，收紧外部流程入口／logic视图契约，验证默认turn255明确拒绝；统一审查发现的正式START重复初始化已修复。最终为79张冷表、四域30份流程／518节点及6个共享绑定；条件、分支、顺序、等待、取消和写点由冷定义控制，领域算法与原热owner／SAV边界保留。未留下生产双后端、重复手写编排或通用脚本VM，也未开放stage2战斗或后续玩法。
+
+| 验收层次 | 实际完成范围与证据 | 结论边界 |
+|---|---|---|
+| SDL 与纯回归 | 92项CTest均有通过结果（91项批次＋Suite中的输入1项）；Python955项为954通过／1跳过。初始化修复后另有6项受影响CTest、52项静态数据回归；自然验证器最终74＋6＋4项纯测及实际旧失败帧离线复核通过 | 各候选／修复范围按上述时间记录，不说成最终App单轮重跑全部；LE开发者种子缺失的1项仍为跳过 |
+| 原资源与静态／局部对照 | `build/sd3-audit/root-full-startup-fixed.json` 完成33组／99项、三类各528槽、1,899模板／2,322 placements及真实分发表闭合；完整106移动槽／2,898 byte payload与36条可运行脚本分开。已解码引用错误0；严格0／1检查按预期exit1 | 12条placement未配对、70条结构级移动记录及450条默认turn255候选继续隔离；1,171条保守引用按51支持／468未开放／652未知或未绑定分类。原字节／IDA chunk不是局部原指令执行或所有关卡语义等价 |
+| 默认WGC Suite | `graphics-artifacts/20261109-162256-509737/summary.json` 共84项passed；继承原App `2d3392bf…1c3b6d` 的80项，当前App `eedd6353…b6e187`／W2新执行自然首关＋3项B6核心共4项 | 80项保留原二进制和工具来源，经7,888 byte默认初始化等价、其它13份include未变及精确来源见证限定继承；不是当前App fresh84项。原版首关8回合、SDL12回合，不声明RNG同轨 |
+| 当前候选追加原版／SDL | `history-after-arrival-navigation-fix/receipt.json` 的8项B7、18项AI、音频5场景全部passed；音频为10个双端记录，封闭证据及来源守卫全部true。B7自然第二关已完成胜利、村民分支、结算和stage2入场／存取 | 该收据仍原样为 `passed_with_declared_gap`，其声明的native-null缺口由下一行单独闭合，不回写旧报告 |
+| 正式无设备降级 | `native-null-startup-fixed/comparison.json` 由当前App实际运行标题CONTINUE→浏览→菜单→ESC，observed_null_backend／observed_continue及全部8项守卫true，正常退出0 | 十二项资源隔离副本，无FD2.EXE、debug入口或dummy video；discard由原代码合同支持，没有独立计数器观察，不是物理拔插验收 |
+| 构建／离线材料 | 当前175份App源码、81份自建installed SDL SDK及14份生成include核验，独立Release离线重建通过；`build/sd3-offline-startup-fixed-receipt.json` | 新Release SHA `e813c86c…fcd5e1`；不冒称新发布包、Release原生运行或Linux验收，不改写旧R1 SDK身份 |
+
+上述C:证据相对 `C:/Users/Soar/AppData/Local/Temp/fd2sdl-sd-20261109-tranquil/`；原E:图形路径继续通过junction定位，迁移的2,446个文件核验与所有旧失败均保留。`build/sd3-final-closure-w2.json` 严格复核28个外层收据、223项冻结输入、84项默认结果、10项音频记录、当前native-null和两份最终电源收据，闭合当前声明的历史支持范围；没有改写旧80项为新运行。
+
+全部外层Job均无超时、残留或强制清理，显示需求已由各owner线程释放。两次最终批次仅在用户明确授权下使用一次零位移空闲重置及独立临时AC常亮方案；游戏输入始终是PID／HWND后台消息。监督45376和32776均正常完成，临时方案c2e7cf78与1b397a65已删除，原Balanced `381b4222-f694-41f0-9685-ff5bb260df2e` 恢复且原AC／DC参数不变。混音器未更改；实测没有遗留SDL／DOSBox／驱动窗口进程。
+
+收口复审覆盖唯一冷来源、实际消费ABI、别名／引用、来源递归、取消／失败／重复通知与text_ready／ACK写点、原session和SAV owner、CMake及离线分发清单，未发现剩余阻塞；已删除正式START的重复数值锁。SD3按一个完整阶段提交，本地集成只允许本任务的计划／SD1／SD2／SD3提交，主树用户FD2.SAV须保留。实际提交与集成HEAD、主树构建和隔离快检结果另记 `build/sd3-local-integration.json` 及最终交付，不在文档中预填自身提交哈希。
+
+未覆盖边界保持：Linux／macOS未执行；完整音画／波形、绝对时序、物理设备拔插和所有未知关卡语义未验。既有collection-only／严格PIC时序等限制仍沿原记录，不由本次行为回归提升为全保真。没有需用户先作决定的技术取舍，也不自动开始SD之后的新玩法阶段。

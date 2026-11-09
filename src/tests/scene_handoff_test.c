@@ -205,6 +205,59 @@ static void reset_controls(fd2_vga *vga) {
     current_vga = vga;
 }
 
+/* 初始成员/模板两端同源；present-only藏显不改变Game默认战斗状态。 */
+static int test_shared_initialization_definition(const fd2_archive *fdother) {
+    fd2_field_game *resources = calloc(1, sizeof(*resources)); CHECK(resources);
+    CHECK(fd2_field_game_open_resources(resources, fdother, 0) == 0);
+    fd2_vga vga;
+    reset_controls(&vga); scene_host_quit_requested = 0;
+    fd2_scene_field_state state;
+    CHECK(init_opening_field_state(&state, 0, &resources->map,
+        &resources->metadata, &resources->placements) == 0);
+    CHECK(state.units.count == 12 && presents == 0);
+    static const uint8_t ids[] = {0, 9, 4, 30};
+    for (size_t i = 0; i < state.units.count; i++) {
+        const fd2_field_unit *unit = &state.units.items[i];
+        const fd2_field_placement *position = &resources->placements.records[
+            i < 4 ? resources->placements.count - 4 + i : i - 4];
+        CHECK(unit->unit_id == (i < 4 ? ids[i] : resources->metadata.unit_templates[i - 4].bytes[1]));
+        CHECK(unit->x == position->x && unit->y == position->y);
+        CHECK(unit->direction == 0 && unit->frame_phase == 0);
+        CHECK(fd2_field_unit_is_hidden(unit) == (i >= 4));
+        CHECK(state.units.walk_frames[i] == 1);
+        CHECK(state.units.source_template_indices[i] == (i < 4 ? FD2_FIELD_UNIT_NO_TEMPLATE : i - 4));
+    }
+    const fd2_static_flow *source = scene_flow_find("scene.init.000"); CHECK(source);
+    fd2_static_flow_node *nodes = malloc(source->count * sizeof(*nodes)); CHECK(nodes);
+    memcpy(nodes, source->nodes, source->count * sizeof(*nodes));
+    fd2_static_flow changed = *source; changed.nodes = nodes;
+    int first = fd2_static_flow_label(source, "init_player_01");
+    int second = fd2_static_flow_label(source, "init_player_02");
+    int templates = fd2_static_flow_label(source, "init_templates_04");
+    int hidden = fd2_static_flow_label(source, "hide_opening_templates");
+    CHECK(first >= 0 && second >= 0 && templates >= 0 && hidden >= 0);
+    CHECK(nodes[first].views == (FD2_FLOW_LOGIC | FD2_FLOW_PRESENT));
+    CHECK(nodes[templates].views == (FD2_FLOW_LOGIC | FD2_FLOW_PRESENT));
+    CHECK(nodes[hidden].views == FD2_FLOW_PRESENT);
+    nodes[first].args[1] = source->nodes[second].args[1];
+    nodes[second].args[1] = source->nodes[first].args[1];
+    nodes[templates].args[1] = 7;
+    nodes[hidden].args[1] = 10;
+    bound_flow_override = &changed;
+    CHECK(init_opening_field_state(&state, 0, &resources->map,
+        &resources->metadata, &resources->placements) == 0);
+    bound_flow_override = NULL;
+    CHECK(state.units.count == 11 && state.units.items[1].unit_id == 4 && state.units.items[2].unit_id == 9);
+    for (size_t i = 4; i < state.units.count; i++) {
+        CHECK(state.units.source_template_indices[i] == i - 4);
+        CHECK(state.units.items[i].x == resources->placements.records[i - 4].x);
+        CHECK(state.units.items[i].y == resources->placements.records[i - 4].y);
+        CHECK(fd2_field_unit_is_hidden(&state.units.items[i]));
+    }
+    CHECK(presents == 0);
+    free(nodes); fd2_field_game_close(resources); free(resources); return 0;
+}
+
 static int test_natural_stage0_handoff(const fd2_archive *fdother,
                                       int *final_present) {
     static const uint8_t expected[][4] = {
@@ -878,6 +931,7 @@ int main(int argc, char **argv) {
     CHECK(test_scene_flow_view_commit()==0);
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(test_shared_initialization_definition(&fdother) == 0);
     CHECK(test_scene_existing_actor_motion(&fdother)==0);
     if(argc==2 && strcmp(argv[1],"--b5")==0) {
         CHECK(test_dialog_identity_lookup()==0);

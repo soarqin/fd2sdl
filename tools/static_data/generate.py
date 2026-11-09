@@ -297,7 +297,8 @@ def render_flows(document, digest):
 
 
 def validate_flow_contract(document, contract, script_ids, all_flows):
-    if not isinstance(contract, dict) or set(contract) != {"operation_abi_sha256", "ports", "required_ids"}:
+    required = {"operation_abi_sha256", "ports", "required_ids"}
+    if not isinstance(contract, dict) or not required <= contract.keys() or set(contract) - required - {"required_labels"}:
         raise ValueError("invalid consumer flow contract")
     digest = hashlib.sha256(json.dumps(document["operations"], sort_keys=True).encode("utf-8")).hexdigest()
     if contract["operation_abi_sha256"] != digest:
@@ -307,11 +308,33 @@ def validate_flow_contract(document, contract, script_ids, all_flows):
     flows = flow_index(document)
     if not set(contract["required_ids"]) <= flows.keys():
         raise ValueError("required runtime flow missing")
+    labels = contract.get("required_labels", {})
+    if not isinstance(labels, dict):
+        raise ValueError("required node labels must be an object")
+    for identity, names in labels.items():
+        if not isinstance(identity, str) or identity not in flows:
+            raise ValueError("required node labels reference unknown flow")
+        if not isinstance(names, list) or not names or any(
+                not isinstance(name, str) or not re.fullmatch(r"[a-z0-9_.-]+", name) for name in names) or len(set(names)) != len(names):
+            raise ValueError("required node labels must be a nonempty unique ID list")
+        actual = {node["id"] for node in flows[identity]["nodes"]}
+        for name in names:
+            if name not in actual:
+                raise ValueError(f"required external node label missing: {identity}/{name}")
     for flow in document["flows"]:
         if document["domain"] == "progress" or flow["id"].startswith("stage.result."):
             if any(n.get("views", ["logic", "present"]) != ["logic"] for n in flow["nodes"]):
                 raise ValueError("progress/result nodes must use logic view")
         for node in flow["nodes"]:
+            if document["domain"] == "loot" and "logic" not in node.get("views", ["logic", "present"]):
+                raise ValueError("loot nodes must include logic view")
+            if document["domain"] == "scene" and flow["id"] == "scene.init.000":
+                logic_ops = {"init_player", "init_templates", "end"}
+                logic = "logic" in node.get("views", ["logic", "present"])
+                if node["op"] in logic_ops and not logic:
+                    raise ValueError("Game initialization nodes must include logic view")
+                if logic and node["op"] not in logic_ops:
+                    raise ValueError("unsupported Game initialization logic operation")
             variants = contract["ports"].get(node["op"], [])
             if sorted(node["on"]) not in variants:
                 raise ValueError(f"{flow['id']}/{node['id']}: ports violate primitive contract")

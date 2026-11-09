@@ -113,3 +113,23 @@ v3 报告保守潜在需求集合共 1,171 条记录引用，含重复：51 条�
 常规新关接入：运行批量审计 → 核实 `reuse_candidates` 与原 callback／条件 → 将确认的组合加入唯一 `bindings`／定义 → 运行生成与引用检查、同输入状态／轨迹差分 → 仅对新增语义选代表原版场景。复用候选不会自动转为支持。新增未知控制流先保留源函数／chunk 和阻塞原因，再补最小领域原语及测试；不静默跳过、不写逐关 C handler，也不复制已有 DAT 表。
 
 报告含原始资源／代码字节，只放 ignored 的本地构建证据目录；不提交、不进入发布包。离线 App 构建不依赖该审计工具、Git 历史、IDA 产物或原版文件。
+
+## G1 通用机制来源分类
+
+`audit_common_scope.py` 复用上面的原资源／LE／fixup／发布证据核验，再按[经审查的来源账](../reverse-engineering/common-event-semantics.md)映射原 source ID 与通用机制。审查输入是 `docs/reverse-engineering/common-scope-review.json`，包含原文件／分发表／函数 chunk 摘要和显式语义族；它不含原字节切片，不参与 App 构建，不是一份可执行剧情定义或平行优先级。
+
+Windows PowerShell：
+
+```powershell
+python -B tools/static_data/audit_common_scope.py --output build/g1/common-scope.json --require-classified
+python -B -m unittest discover -s tools/tests -p test_audit_common_scope.py
+```
+
+Linux Bash（本轮未执行）：
+
+```bash
+python3 -B tools/static_data/audit_common_scope.py --output build/g1/common-scope.json --require-classified
+python3 -B -m unittest discover -s tools/tests -p test_audit_common_scope.py
+```
+
+输出分别保留 208 个分发表槽、1,171 条保守引用、106 条脚本和 12 条模板尾。缺少审查、实际 owner／chunk 不符或语义族为未决均不得记为完成；结构数、分类数与运行支持数分别统计。`classification_complete=true` 只表示当前来源全部有归属，`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled` 仍为 false；它不能解除任何游戏支持门。新增 byte／CFG／数据语义先更新证据与审查记录，实施时再把真实条件、分支、等待、取消和写点写进唯一冷定义。

@@ -7,6 +7,11 @@
  * field_unit_combat_stats_recompute @0x1b750（原登记同名，
  * 入口旧别名field_unit_combat_stats_recompute_entry）。
  * 敌军表／经验系数复用field_enemy_base_record_get @0x4e84f（原登记sub_4E84F）。
+ * G1确认field_promotion_record_get @0x4e7dd（原sub_4E7DD）、
+ * field_promotion_candidates_build @0x2ae0e（原sub_2AE0E）与
+ * field_promotion_growth_execute @0x2ac7d（原sub_2AC7D）：转职增量不是普通构造。
+ * 当前尚未实现转职；stage32的48/66合法跨表读取与Scene回退差异留G2闭合，
+ * 不将相邻成长/准备字节命名为另一张基础表。见common-battle-semantics.md。
  */
 
 #include "field_unit_base.h"

@@ -172,9 +172,11 @@ $Recorder = "$Build/Debug/fd2_process_audio_capture.exe"
 
 持续帧采集使用 `driver capture-series PID OUTDIR MAX_MS INTERVAL_MS`：一个 HWND／WGC session 复用 frame pool，保存原始 PNG、逐帧 PID／HWND／WGC 时间戳／客户区尺寸及 ready／summary。只保存新的递增时间戳，最多120秒／600帧；达到上限不能冒称完整动作采集。动画中的合法白帧／黑帧保留原件，但不能作为攻击或施法的正证。成功、失败与超时均显式 stop 采集 helper，正常等待后按本轮 PID 清理，不遗留到下一场。
 
-Windows 统一 Suite 与独立 B6 采集入口共用 `fd2_display_requirement.py`。它先只读确认本进程处于 active console，console／session 两个显示通知均为 on；off、dimmed、未知或通知清理失败时不申请、不启动窗口。随后一次性申请 `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`，在全部目标／helper 清理和来源 finally 完成后，由取得它的同一线程恢复 previous。申请、主流程、撤销及报告写入失败分别记录；撤销失败不能留下本次“passed”顶层报告，既有报告不得覆写。Linux 不调用这些 Windows API，本轮 Linux 未执行。
+Windows 统一 Suite 与独立 B6 采集入口共用 `fd2_display_requirement.py`。2026-11-09 用户已授权在需要持续点亮时主动唤醒、取得临时显示需求，必要时临时修改电源计划／相关超时。原「OFF 不申请、不唤醒、不改计划」约束由本授权替代；此前各批次的历史授权与失败记录保持原范围。启动前核实活动 console 和输入桌面；显示 OFF 可作一次有记录的唤醒，之后必须核实 console／session 均 ON，再以实际 WGC 尺寸／内容门确认采集可用，不把请求收据当作可用证明。锁屏、非活动会话、无效通知或恢复失败仍不得伪造通过。
 
-该 API 可以 force on 并重置 idle，因此 on 先验不能省略；读取到申请不是 OS 原子操作，也不承诺用户主动休眠、屏保、硬终止或每个 present 都已覆盖。不改电源计划、不发送全局输入、不改用户混音器，不以重试唤醒替代环境条件。生命周期依据见 [Microsoft SetThreadExecutionState](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate)。临时需求的取得和撤销只支持对应宿主设施结论，不证明整段持续 on 或可靠固定帧率。
+显示需求使用 `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`，全部目标／helper 清理和来源 finally 完成后由取得它的同一线程恢复 previous。若该需求不足以维持本轮显示，先记录原活动方案 GUID、供电方式和拟修改项的 AC／DC 原值，优先复制原方案并只修改当前供电方式下必需的超时，不改原方案或无关设置；记录临时 GUID、命令结果和实际查询值。清理时恢复原活动方案、删除本轮副本并重新查询原值；若用户期间另行换方案，先保留并报告冲突，不能覆盖用户选择冒称恢复。恢复证据写入本轮持久收据；异常中断后在开下一轮窗口前先核对和恢复本任务遗留计划。硬终止不能保证 finally，必须保留恢复记录，禁止注册周期唤醒／后台跟进任务。
+
+该 API 可以 force on 并重置 idle；读取、唤醒和申请不是 OS 原子操作，也不承诺用户主动休眠、屏保、硬终止或每个 present 都已覆盖。若使用零位移输入重置空闲，只能作为已授权且单独记录的显示唤醒，核对指针不移动，不发送游戏键、不点击、不充当 PID／HWND 游戏输入回退。唤醒后重新核验显示与 WGC，失败保留证据，不循环补唤醒。用户混音器保持不变。生命周期依据见 [Microsoft SetThreadExecutionState](https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate)。临时需求的取得和撤销只支持对应宿主设施结论，不证明整段持续 ON 或可靠固定帧率。
 
 静态窗口可能没有新的 WGC 帧。标题页等静态检查使用同 PID／HWND 的首尾离散 WGC 正证与无键观察区间，明确它不是连续帧验收；不能要求静态页凑帧，也不能拿旧帧冒充新的动态阶段。运动、受击等仍按同一 series 的真实新帧和既有完整像素门验收，不因静态采样调整而放宽。
 
@@ -240,7 +242,7 @@ python -B tools/run_audio_checks.py @Common --artifacts "$env:TEMP/fd2-a7-audio-
 
 按实际安装位置替换 `$Dosbox`，使用 Scoop `current` 所指向的真实 EXE，不传 shim。省略 `--execute` 时，即使返回 `0`，报告也只是 `ready_not_executed`／`ok=false`。选择项必须非空且不重复；实际运行必须包在 owned `run-job` 内，不能直接裸跑 Python。任一端失败即停止后续端点，不自动补键或重试。成功、失败和超时均先显式停止录音及 WGC helper，再正常关闭本轮目标；必要的强制清理会保留记录，不能算正常通过。
 
-实际入口在首个窗口前共用 `fd2_display_requirement.py`：要求 active console，console／session 通知均为 ON；OFF、dimmed、未知或申请失败时不启动窗口。临时显示需求在全部清理及来源守卫结束后由同线程撤销，撤销失败不能记为通过。该前置不保证整段持续 ON 或固定 FPS，也不通过全局键鼠唤醒。原版以本轮 DOSBox-X `mixer nosound=true` 保留声音仿真和 `HOST_W` 原生 WAV；SDL 在真实回调中保留设备输出抑制前的 AppMix，同时向设备提交静音。两端都不改用户系统混音器的静音或音量，录音窗上限仍为 120 秒。
+实际入口在首个窗口前共用 `fd2_display_requirement.py`，显示唤醒与必要临时电源设置按上文新授权／恢复规范执行，实际 active console、活动桌面、console／session ON 与 WGC 判据仍须满足。临时显示需求在全部清理及来源守卫结束后由同线程撤销，撤销失败不能记为通过。该前置不保证整段持续 ON 或固定 FPS。原版以本轮 DOSBox-X `mixer nosound=true` 保留声音仿真和 `HOST_W` 原生 WAV；SDL 在真实回调中保留设备输出抑制前的 AppMix，同时向设备提交静音。两端都不改用户系统混音器的静音或音量，录音窗上限仍为 120 秒。
 
 需要高亮的菜单／确认框 ACK 使用同 PID／HWND 的 WGC series，按 `frames.jsonl` 顺序消费每一条完整记录，保留 PNG、时间戳、ready 和正常 stop 摘要。确认框两按钮都未高亮时，在同一 15 秒期限内继续等；一旦观察到明确 NO 立即失败，不能用后来 YES 覆盖。全部目标、helper、来源、隔离资源、二进制及关闭后的证据守卫通过，显示需求成功释放后，才发布 `comparison.json`。
 

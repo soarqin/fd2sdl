@@ -1,10 +1,10 @@
-"""Windows图形测试临时显示需求；仅已ON时取得，主线程finally恢复原要求。
+"""Windows图形测试临时显示需求；授权主动点亮，主线程finally恢复原要求。
 
 测试宿主设施，不属于FD2原版ABI。基于Microsoft SetThreadExecutionState及
-已核的console/session显示通知；不改变powerplan、输入、焦点或截图判据。
-DISPLAY_REQUIRED可force ON，故先验必须明确ON；查询与申请并非原子操作。
+已核的console/session显示通知。授权的独立zero MOVE仅用于重置显示空闲，
+不投游戏键、不点击、不改焦点；显式临时电源副本由独立journal恢复。
 """
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import ctypes
 import os
 import sys
@@ -125,13 +125,95 @@ def _set_execution_state(flags):
     return {"return_value": result, "last_error": int(ctypes.get_last_error())}
 
 
+def _input_desktop():
+    from ctypes import wintypes
+    user = ctypes.WinDLL("user32.dll", use_last_error=True)
+    user.OpenInputDesktop.argtypes = [ctypes.c_uint32, wintypes.BOOL, ctypes.c_uint32]
+    user.OpenInputDesktop.restype = ctypes.c_void_p
+    user.GetUserObjectInformationW.argtypes = [ctypes.c_void_p, ctypes.c_int,
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32)]
+    user.GetUserObjectInformationW.restype = wintypes.BOOL
+    user.CloseDesktop.argtypes = [ctypes.c_void_p]
+    user.CloseDesktop.restype = wintypes.BOOL
+    handle = user.OpenInputDesktop(0, False, 1)  # DESKTOP_READOBJECTS，只读查询。
+    if not handle:
+        return {"ok": False, "open_error": ctypes.get_last_error()}
+    result = {"ok": False}
+    try:
+        name, needed = ctypes.create_unicode_buffer(256), ctypes.c_uint32()
+        valid = bool(user.GetUserObjectInformationW(handle, 2, name,
+            ctypes.sizeof(name), ctypes.byref(needed)))
+        result.update(query_ok=valid, name=name.value if valid else None,
+                      query_error=ctypes.get_last_error() if not valid else 0)
+    finally:
+        result["closed"] = bool(user.CloseDesktop(handle))
+    result["ok"] = result.get("query_ok") is True and result["closed"] and result["name"] == "Default"
+    return result
+
+
+def _reset_display_idle():
+    """仅发送一次相对零位移MOVE；记录真实指针及LastInputInfo，不做补发。"""
+    from ctypes import wintypes
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG),
+            ("data", wintypes.DWORD), ("flags", wintypes.DWORD),
+            ("time", wintypes.DWORD), ("extra", ctypes.c_size_t)]
+    class KEYBDINPUT(ctypes.Structure):
+        _fields_ = [("vk", wintypes.WORD), ("scan", wintypes.WORD),
+            ("flags", wintypes.DWORD), ("time", wintypes.DWORD), ("extra", ctypes.c_size_t)]
+    class HARDWAREINPUT(ctypes.Structure):
+        _fields_ = [("msg", wintypes.DWORD), ("low", wintypes.WORD), ("high", wintypes.WORD)]
+    class PAYLOAD(ctypes.Union):
+        _fields_ = [("mouse", MOUSEINPUT), ("keyboard", KEYBDINPUT), ("hardware", HARDWAREINPUT)]
+    class INPUT(ctypes.Structure):
+        _fields_ = [("type", wintypes.DWORD), ("payload", PAYLOAD)]
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+    user = ctypes.WinDLL("user32.dll", use_last_error=True)
+    user.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+    user.GetCursorPos.restype = wintypes.BOOL
+    user.GetLastInputInfo.argtypes = [ctypes.POINTER(LASTINPUTINFO)]
+    user.GetLastInputInfo.restype = wintypes.BOOL
+    user.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+    user.SendInput.restype = wintypes.UINT
+    def sample():
+        point, last = wintypes.POINT(), LASTINPUTINFO()
+        last.cbSize = ctypes.sizeof(last)
+        cursor_ok = bool(user.GetCursorPos(ctypes.byref(point)))
+        idle_ok = bool(user.GetLastInputInfo(ctypes.byref(last)))
+        return {"ok": cursor_ok and idle_ok, "cursor_ok": cursor_ok, "idle_ok": idle_ok,
+            "point": [int(point.x), int(point.y)] if cursor_ok else None,
+            "last_input_tick": int(last.dwTime) if idle_ok else None}
+    result = {"kind": "display-idle-reset-only", "before": sample(),
+              "dx": 0, "dy": 0, "flags": 1, "count": 1, "inserted": 0}
+    if not result["before"]["ok"]:
+        result["ok"] = False
+        return result
+    event = INPUT()
+    event.payload.mouse.flags = 1  # MOUSEEVENTF_MOVE，无键、按钮或绝对坐标。
+    result["inserted"] = int(user.SendInput(1, ctypes.byref(event), ctypes.sizeof(event)))
+    result["after"] = sample()
+    result["pointer_unchanged"] = result["before"]["point"] == result["after"]["point"]
+    result["idle_timestamp_changed"] = result["before"]["last_input_tick"] != result["after"]["last_input_tick"]
+    result["ok"] = result["inserted"] == 1 and result["after"]["ok"] and result["pointer_unchanged"]
+    return result
+
+
 def _windows_calls():
     return SimpleNamespace(snapshot=_display_snapshot, set_state=_set_execution_state,
-                           thread_id=threading.get_native_id)
+        desktop=_input_desktop, reset_idle=_reset_display_idle,
+        wait=time.sleep, thread_id=threading.get_native_id)
+
+
+def _on(snapshot):
+    return (snapshot.get("session_query_ok") is True and
+        snapshot.get("same_as_active_console") is True and snapshot.get("SM_REMOTESESSION") == 0 and
+        all(snapshot.get(key, {}).get("ok") is True and snapshot[key].get("state") == 1
+            for key in ("console_display", "session_display")))
 
 
 @contextmanager
-def windows_display_requirement(record):
+def windows_display_requirement(record, *, power_journal=None):
     """一次入口一次申请；异常仍先完成body的owned清理，再同线程撤销。
 
     record由入口最终写入报告。硬终止不保证Python finally，不伪造released。
@@ -145,16 +227,25 @@ def windows_display_requirement(record):
     api = _windows_calls()
     owner = api.thread_id()
     record.update(status="checking", pid=os.getpid(), owner_thread_id=owner)
+    previous = None
     try:
+        if power_journal is not None:
+            from fd2_display_power import recover_video_idle
+            recover_video_idle(record.setdefault("power", {}), power_journal)
         before = api.snapshot()
         record["before"] = before
-        on = (before.get("session_query_ok") is True and before.get("same_as_active_console") is True
-              and before.get("SM_REMOTESESSION") == 0 and
-              all(before.get(key, {}).get("ok") is True and before[key].get("state") == 1
-                  for key in ("console_display", "session_display")))
-        if not on:
-            record["status"] = "blocked_not_on"
-            raise RuntimeError("console/session显示非ON或未知；未申请显示需求、未启动窗口")
+        interactive = (before.get("session_query_ok") is True and
+            before.get("same_as_active_console") is True and before.get("SM_REMOTESESSION") == 0)
+        notifications = all(before.get(key, {}).get("ok") is True
+                            for key in ("console_display", "session_display"))
+        if not interactive or not notifications:
+            record["status"] = "blocked_environment"
+            raise RuntimeError("非活动console或显示通知无效；未启动窗口")
+        record["input_desktop"] = api.desktop()
+        if record["input_desktop"].get("ok") is not True:
+            record["status"] = "blocked_environment"
+            raise RuntimeError("活动输入桌面不可用或未解锁；未启动窗口")
+        record["wake_requested"] = not _on(before)
         record["requested"] = True
         record["acquire"] = {"flags": REQUIRED_FLAGS, "thread_id": owner,
                              "time_ns": time.monotonic_ns()}
@@ -165,18 +256,48 @@ def windows_display_requirement(record):
         previous = acquired["return_value"]
         record.update(acquired=True, status="held", previous_state=previous)
     except BaseException as error:
-        if record["status"] != "blocked_not_on":
+        if record["status"] != "blocked_environment":
             record["status"] = "failed"
         record["acquire_error"] = _error(error)
         raise
     body_error = None
     try:
-        yield record
+        if record["wake_requested"]:
+            # 有界的一次申请后核验；不循环唤醒，不向游戏或前台投键。
+            record["after_wake"] = api.snapshot()
+            if not _on(record["after_wake"]):
+                # 先复核桌面再独立重置显示空闲；绝不作为游戏输入回退。
+                record["desktop_before_idle_reset"] = api.desktop()
+                if record["desktop_before_idle_reset"].get("ok") is not True:
+                    raise RuntimeError("活动输入桌面不可用；未发送显示唤醒输入")
+                record["separate_wake_API_called"] = True
+                record["idle_reset"] = api.reset_idle()
+                if record["idle_reset"].get("ok") is not True:
+                    raise RuntimeError("零位移显示唤醒失败或指针变化；未补发，未启动窗口")
+                record["idle_reset_wait_seconds"] = 1.0
+                api.wait(1.0)
+                record["after_idle_reset"] = api.snapshot()
+                if not _on(record["after_idle_reset"]):
+                    raise RuntimeError("一次零位移唤醒后console/session仍非ON；已停止并恢复显示需求")
+            record["desktop_after_wake"] = api.desktop()
+            if record["desktop_after_wake"].get("ok") is not True:
+                raise RuntimeError("主动点亮后活动输入桌面不可用；未启动窗口")
+        power_scope = nullcontext()
+        if power_journal is not None:
+            from fd2_display_power import temporary_video_idle
+            record["before_power"] = api.snapshot()
+            record["desktop_before_power"] = api.desktop()
+            if not _on(record["before_power"]) or record["desktop_before_power"].get("ok") is not True:
+                raise RuntimeError("临时电源副本前显示或Default桌面未确认；未修改方案")
+            power_scope = temporary_video_idle(record["power"], power_journal)
+        with power_scope:
+            yield record
     except BaseException as error:
         body_error = error
         record["body_error"] = _error(error)
         raise
     finally:
+        record["powerplan_changed"] = record.get("power", {}).get("changed", False)
         release_error = None
         try:
             current = api.thread_id()

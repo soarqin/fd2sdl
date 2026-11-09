@@ -1767,6 +1767,51 @@ def write_checksums(directory: Path) -> None:
                                         encoding="utf-8", newline="\n")
 
 
+CORRECTIONS.setdefault(0x34F38, []).append({
+    "target": "evidence", "was": "只有5B前缀，Hex-Rays无法反编译",
+    "now": "event_callback[32]的入口34f38是push28h并自然落入34f3d..34f74共享尾；"
+           "与350be的push28h/jmp34f3d共用stack_check、append_group(1)、text(fragment1)和ret。"
+           "不能据旧5B主chunk判为no-op；补共享tail引用但保留350be的原owner，不扩大成吞并其它入口的函数。",
+    "why": "G1 Domain逐指令/现chunkowner与strict LE/fixup表51c11→34f38双证；"
+           "完整60B SHA256 cf7734a4bca09f70340a01c1b01bfc9ae3a80002b7f58c8f1aca7329dffc5ab0；"
+           "原返回清栈与350be同尾证据见common-event-semantics.md及本地34f38-boundary.json。",
+})
+
+# G1：完整 Domain 指令／CFG／xref 与独立 LE 原字节交叉确认；不登记猜测 ABI。
+# 取消与提交细节见 common-preparation-semantics.md、common-battle-semantics.md。
+for _va, _old, _name, _contract in (
+    (0x279BC, "sub_279BC", "field_shop_menu_execute",
+     "2670e的武器/道具/隐藏店caller；四项依次购买、出售、装备、准备态转交，保留选择"),
+    (0x2872B, "sub_2872B", "field_shop_buy_execute",
+     "商品价格取23B record+19；确认/资金/收件/容量门后追加物品，可选装备，最后扣钱"),
+    (0x28CBD, "sub_28CBD", "field_shop_sell_execute",
+     "成员与原槽选择，价格floor(3*price/4)；YES后先加钱再移槽、重算送方"),
+    (0x28F65, "sub_28F65", "field_prepare_item_give_execute",
+     "商店/教会共同caller；无相邻门，满包拒绝不交换；先移槽再追加，仅重算送方"),
+    (0x29DAA, "sub_29DAA", "field_church_menu_execute",
+     "2670e selector4；四项成员详情、准备态转交、复活、转职，非额外治疗服务"),
+    (0x2A43E, "sub_2A43E", "field_church_revive_execute",
+     "hidden候选；费用word(52397+2*profile)*level；YES先扣钱再flags整byte清0、HP=max，MP保留"),
+    (0x2AA00, "sub_2AA00", "field_church_promote_execute",
+     "2ae0e选唯一目标，确认后删所需道具、演出、写profile/id、重建cache、2ac7d增量；无扣钱"),
+    (0x2AF28, "sub_2AF28", "field_deployment_select_execute",
+     "stage<27选15同伴否则19，raw0保留；选满先稳定重排，再必选成员门/前置重排/最终确认；最终NO不撤销排序"),
+    (0x2B777, "sub_2B777", "persistent_roster_selection_reorder",
+     "完整0xa00临时副本；raw0保留，选中raw1..稳定前置，其余稳定后置，不减人数、不改80B记录"),
+    (0x2AE0E, "sub_2AE0E", "field_promotion_candidates_build",
+     "level>=20且ID<18并!=7；目标ID+32，持指定物改+50，unit9持90优先52，候选顺raw"),
+    (0x2AC7D, "sub_2AC7D", "field_promotion_growth_execute",
+     "新ID成长pair第二byte，AP/DP/DX/maxHP/maxMP逐项提示ACK后写，移动BYTE增量；末重算/level1/EX0/HPMP满，不重学法术"),
+    (0x4E7DD, "sub_4E7DD", "field_promotion_record_get",
+     "返回615fe+2*(target_id-32)，至61646恰36条2B；profile与移动增量，非玩家基础表"),
+):
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "semantic_name", "was": _old, "now": _name,
+        "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；" +
+               _contract + "。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。",
+    })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

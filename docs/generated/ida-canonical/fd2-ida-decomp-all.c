@@ -15508,7 +15508,7 @@ bool field_town_prepare_execute()
     do
     {
       dword_53A45 = dword_53BF7;
-      v4 = sub_2AF28();
+      v4 = field_deployment_select_execute();
       dword_53A45 = 0;
     }
     while ( v4 == 0 );
@@ -15657,7 +15657,7 @@ void __usercall field_town_selection_execute(int a1@<ebp>, unsigned __int8 *a2@<
     if ( dword_53C03 < 27 && dword_53BFB > 16 || dword_53C03 > 26 && dword_53BFB > 20 )
     {
       dword_53A45 = dword_53BF7;
-      v4 = sub_2AF28();
+      v4 = field_deployment_select_execute();
       dword_53A45 = 0;
       if ( v4 == 0 )
 LABEL_25:
@@ -15684,7 +15684,7 @@ LABEL_25:
     if ( dword_53F4A == 4 )
     {
       music_track_play(11, 0);
-      sub_29DAA(v5);
+      field_church_menu_execute(v5);
     }
     else
     {
@@ -15699,7 +15699,7 @@ LABEL_24:
         music_track_play(15, 0);
       else
         music_track_play(14, 0);
-      sub_279BC(v5);
+      field_shop_menu_execute(v5);
     }
   }
   else
@@ -16439,12 +16439,13 @@ int sub_278E7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_279BC
+ * IDA 9.5 Hex-Rays: field_shop_menu_execute
  * VA=0x279bc..0x27d33 OBJ=1 OFF=0x179bc size=0x377
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x187d6, 0x1956b, 0x1f525, 0x1f882, 0x26996, 0x26a0d, 0x26ce4, 0x26e38, 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x2921a, 0x3702f, 0x3771c, 0x3776e, 0x3790a, 0x4e809, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_279BC(int a1)
+// [勘误 semantic_name] field_shop_menu_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2670e的武器/道具/隐藏店caller；四项依次购买、出售、装备、准备态转交，保留选择。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+void __cdecl field_shop_menu_execute(int a1)
 {
   unsigned __int8 *v1; // edi
   int v2; // esi
@@ -16506,7 +16507,7 @@ void __cdecl sub_279BC(int a1)
       {
         if ( v10 == dword_53C57 )
         {
-          sub_28CBD();
+          field_shop_sell_execute();
         }
         else if ( dword_53C57 == 2 )
         {
@@ -16514,12 +16515,12 @@ void __cdecl sub_279BC(int a1)
         }
         else
         {
-          sub_28F65();
+          field_prepare_item_give_execute();
         }
       }
       else
       {
-        sub_2872B(v5, v8);
+        field_shop_buy_execute(v5, v8);
       }
       field_bottom_notice_open((unsigned __int8)byte_52387[dword_53F4A]);
       if ( dword_53F4A == 1 )
@@ -16917,12 +16918,13 @@ void __cdecl sub_28632(int a1, int a2, int *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2872B
+ * IDA 9.5 Hex-Rays: field_shop_buy_execute
  * VA=0x2872b..0x28b41 OBJ=1 OFF=0x1872b size=0x416
  * callers: 0x279bc
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x197e5, 0x19953, 0x1b750, 0x1b8a6, 0x1bb8c, 0x1c142, 0x1c1c3, 0x26996, 0x26b91, 0x275e6, 0x27738, 0x27d33, 0x27f4a, 0x28b41, 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-int __cdecl sub_2872B(int a1, int a2)
+// [勘误 semantic_name] field_shop_buy_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；商品价格取23B record+19；确认/资金/收件/容量门后追加物品，可选装备，最后扣钱。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int __cdecl field_shop_buy_execute(int a1, int a2)
 {
   int v2; // edi
   int v3; // esi
@@ -17177,13 +17179,14 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_28CBD
+ * IDA 9.5 Hex-Rays: field_shop_sell_execute
  * VA=0x28cbd..0x28efe OBJ=1 OFF=0x18cbd size=0x241
  * type: int(void)
  * callers: 0x279bc
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x197e5, 0x19953, 0x1b722, 0x1b750, 0x1b8e7, 0x26996, 0x26a7a, 0x275e6, 0x27738, 0x27d33, 0x28b41, 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-int sub_28CBD()
+// [勘误 semantic_name] field_shop_sell_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；成员与原槽选择，价格floor(3*price/4)；YES后先加钱再移槽、重算送方。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int field_shop_sell_execute()
 {
   int i; // edx
   int v1; // ebx
@@ -17314,13 +17317,14 @@ void sub_28EFE()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_28F65
+ * IDA 9.5 Hex-Rays: field_prepare_item_give_execute
  * VA=0x28f65..0x2921a OBJ=1 OFF=0x18f65 size=0x2b5
  * type: int(void)
  * callers: 0x279bc, 0x29daa
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x1b722, 0x1b750, 0x1b8a6, 0x1b8e7, 0x1bb8c, 0x26996, 0x275e6, 0x27738, 0x27d33, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_28F65(int a1@<edi>)
+// [勘误 semantic_name] field_prepare_item_give_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；商店/教会共同caller；无相邻门，满包拒绝不交换；先移槽再追加，仅重算送方。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+void __usercall field_prepare_item_give_execute(int a1@<edi>)
 {
   int i; // edx
   int v2; // ebx
@@ -17873,12 +17877,13 @@ void __cdecl field_manual_slot_picker(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_29DAA
+ * IDA 9.5 Hex-Rays: field_church_menu_execute
  * VA=0x29daa..0x2a07a OBJ=1 OFF=0x19daa size=0x2d0
  * callers: 0x2670e
  * callees: 0x111ba, 0x11d40, 0x15f84, 0x16559, 0x16886, 0x187d6, 0x1956b, 0x1f525, 0x1f882, 0x26996, 0x26ce4, 0x26e38, 0x28f65, 0x2921a, 0x29620, 0x2a43e, 0x2aa00, 0x3702f, 0x3771c, 0x3790a, 0x4e809, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_29DAA(unsigned __int8 *a1)
+// [勘误 semantic_name] field_church_menu_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2670e selector4；四项成员详情、准备态转交、复活、转职，非额外治疗服务。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+void __cdecl field_church_menu_execute(unsigned __int8 *a1)
 {
   int v1; // esi
   int v2; // ebx
@@ -17916,15 +17921,15 @@ void __cdecl sub_29DAA(unsigned __int8 *a1)
       {
         if ( v5 == dword_53C57 )
         {
-          sub_28F65((int)a1);
+          field_prepare_item_give_execute((int)a1);
         }
         else if ( dword_53C57 == 2 )
         {
-          sub_2A43E();
+          field_church_revive_execute();
         }
         else if ( dword_53C57 == 3 )
         {
-          sub_2AA00();
+          field_church_promote_execute();
         }
       }
       else
@@ -18097,13 +18102,14 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A43E
+ * IDA 9.5 Hex-Rays: field_church_revive_execute
  * VA=0x2a43e..0x2a694 OBJ=1 OFF=0x1a43e size=0x256
  * type: int(void)
  * callers: 0x29daa
  * callees: 0x15f84, 0x16559, 0x16c57, 0x187d6, 0x1956b, 0x197e5, 0x19953, 0x25977, 0x26996, 0x26b91, 0x28b41, 0x2a07a, 0x2a29d, 0x3702f, 0x4ebff
  * --------------------------------------------------------------- */
-int __usercall sub_2A43E@<eax>(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_church_revive_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；hidden候选；费用word(52397+2*profile)*level；YES先扣钱再flags整byte清0、HP=max，MP保留。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int __usercall field_church_revive_execute@<eax>(unsigned __int8 *a1@<edi>)
 {
   int v1; // ebx
   int result; // eax
@@ -18208,7 +18214,7 @@ void __cdecl sub_2A694(int a1, int a2, int a3, int a4, int a5)
     text_dialog_render_tokens(v7, dword_53A7D, v7[8] + 1, v9 + 40, 320, v8, 76, 0, 0, 0);
     text_dialog_render_tokens(v7, dword_53A7D, v7[32] + 150, v9 + 130, 320, v8, 76, 0, 0, 0);
     text_dialog_render_tokens(v7, dword_53A7D, 593, v9 + 175, 320, v8, 76, 0, 0, 0);
-    v6 = (unsigned __int8 *)sub_4E7DD(*(unsigned __int8 *)(a5 + i + dword_53F4E));
+    v6 = (unsigned __int8 *)field_promotion_record_get(*(unsigned __int8 *)(a5 + i + dword_53F4E));
     text_dialog_render_tokens(v7, dword_53A7D, *v6 + 150, v9 + 239, 320, v8, 76, 0, 0, 0);
   }
 }
@@ -18284,13 +18290,14 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2AA00
+ * IDA 9.5 Hex-Rays: field_church_promote_execute
  * VA=0x2aa00..0x2ac7d OBJ=1 OFF=0x1aa00 size=0x27d
  * type: int(void)
  * callers: 0x29daa
  * callees: 0x11019, 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x197e5, 0x19953, 0x1b8e7, 0x25977, 0x26996, 0x2a857, 0x2ac7d, 0x2ae0e, 0x2aedb, 0x2fb2c, 0x3702f, 0x37324, 0x3759c, 0x3776e, 0x4e381, 0x4e7dd
  * --------------------------------------------------------------- */
-int __usercall sub_2AA00@<eax>(int a1@<edi>)
+// [勘误 semantic_name] field_church_promote_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2ae0e选唯一目标，确认后删所需道具、演出、写profile/id、重建cache、2ac7d增量；无扣钱。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int __usercall field_church_promote_execute@<eax>(int a1@<edi>)
 {
   int v1; // esi
   int result; // eax
@@ -18314,7 +18321,7 @@ int __usercall sub_2AA00@<eax>(int a1@<edi>)
   v17 = a1;
   while ( 1 )
   {
-    v1 = sub_2AE0E(v15, v14);
+    v1 = field_promotion_candidates_build(v15, v14);
     if ( v1 == 0 )
       break;
     field_bottom_notice_open((unsigned __int8)byte_5238B);
@@ -18356,7 +18363,7 @@ LABEL_12:
       music_track_play(16, 1);
       sub_2FB2C(a1, v16);
       music_track_play(11, 0);
-      *(_BYTE *)(v6 + 32) = *(_BYTE *)sub_4E7DD(v16);
+      *(_BYTE *)(v6 + 32) = *(_BYTE *)field_promotion_record_get(v16);
       *(_BYTE *)(v6 + 7) = v16;
       if ( dword_53A61 != 0 )
         free(dword_53A61);
@@ -18365,7 +18372,7 @@ LABEL_12:
       for ( i = 0; i < dword_53BFB; ++i )
         fdicon_cache_append_unit(*(unsigned __int8 *)(dword_53BF7 + 80 * i + 7), v11);
       fclose(v11);
-      v13 = sub_2AC7D(a1);
+      v13 = field_promotion_growth_execute(a1);
       bios_keyboard_buffer_clear(v13);
     }
   }
@@ -18378,12 +18385,13 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2AC7D
+ * IDA 9.5 Hex-Rays: field_promotion_growth_execute
  * VA=0x2ac7d..0x2ae0e OBJ=1 OFF=0x1ac7d size=0x191
  * callers: 0x2aa00
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x1b750, 0x1e529, 0x26996, 0x3702f, 0x4e381, 0x4e7dd, 0x4e821
  * --------------------------------------------------------------- */
-int __cdecl sub_2AC7D(int a1)
+// [勘误 semantic_name] field_promotion_growth_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；新ID成长pair第二byte，AP/DP/DX/maxHP/maxMP逐项提示ACK后写，移动BYTE增量；末重算/level1/EX0/HPMP满，不重学法术。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int __cdecl field_promotion_growth_execute(int a1)
 {
   int v1; // esi
   unsigned __int8 *v2; // edi
@@ -18410,7 +18418,7 @@ int __cdecl sub_2AC7D(int a1)
   v6 = field_growth_stat_present_apply((_WORD *)(v1 + 62), (int)(v2 + 4), 492, v5);
   v7 = field_growth_stat_present_apply((_WORD *)(v1 + 66), (int)(v2 + 6), 493, v6);
   v8 = field_growth_stat_present_apply((_WORD *)(v1 + 70), (int)(v2 + 8), 494, v7);
-  v9 = *(unsigned __int8 *)(sub_4E7DD(*(unsigned __int8 *)(v1 + 7)) + 1);
+  v9 = *(unsigned __int8 *)(field_promotion_record_get(*(unsigned __int8 *)(v1 + 7)) + 1);
   if ( v9 != 0 )
   {
     dword_53AE1 = v9;
@@ -18430,12 +18438,13 @@ int __cdecl sub_2AC7D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2AE0E
+ * IDA 9.5 Hex-Rays: field_promotion_candidates_build
  * VA=0x2ae0e..0x2aedb OBJ=1 OFF=0x1ae0e size=0xcd
  * callers: 0x2aa00
  * callees: 0x2aedb, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_2AE0E(int a1, int a2)
+// [勘误 semantic_name] field_promotion_candidates_build；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；level>=20且ID<18并!=7；目标ID+32，持指定物改+50，unit9持90优先52，候选顺raw。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int __cdecl field_promotion_candidates_build(int a1, int a2)
 {
   int v2; // esi
   int v3; // ebx
@@ -18491,13 +18500,14 @@ int __cdecl sub_2AEDB(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2AF28
+ * IDA 9.5 Hex-Rays: field_deployment_select_execute
  * VA=0x2af28..0x2b439 OBJ=1 OFF=0x1af28 size=0x511
  * type: int(void)
  * callers: 0x26152, 0x2670e
  * callees: 0x11019, 0x15f84, 0x16559, 0x16886, 0x18409, 0x1956b, 0x197e5, 0x19953, 0x25a96, 0x25b45, 0x26996, 0x2b439, 0x2b4fb, 0x2b67f, 0x2b749, 0x2b777, 0x2b843, 0x33499, 0x3702f, 0x3706e, 0x37324, 0x3759c, 0x3771c, 0x3776e, 0x37910, 0x4e381, 0x4ebff
  * --------------------------------------------------------------- */
-int sub_2AF28()
+// [勘误 semantic_name] field_deployment_select_execute；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；stage<27选15同伴否则19，raw0保留；选满先稳定重排，再必选成员门/前置重排/最终确认；最终NO不撤销排序。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+int field_deployment_select_execute()
 {
   int v0; // ebp
   int v1; // edi
@@ -18556,7 +18566,7 @@ int sub_2AF28()
       if ( sub_2B749(v14) == v0 )
       {
         v1 = 1;
-        sub_2B777(v14);
+        persistent_roster_selection_reorder(v14);
       }
     }
     if ( v6 == 75 )
@@ -18815,12 +18825,13 @@ void __cdecl sub_2B749(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B777
+ * IDA 9.5 Hex-Rays: persistent_roster_selection_reorder
  * VA=0x2b777..0x2b843 OBJ=1 OFF=0x1b777 size=0xcc
  * callers: 0x2af28
  * callees: 0x3702f, 0x3706e, 0x3771c
  * --------------------------------------------------------------- */
-void __cdecl sub_2B777(int a1)
+// [勘误 semantic_name] persistent_roster_selection_reorder；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；完整0xa00临时副本；raw0保留，选中raw1..稳定前置，其余稳定后置，不减人数、不改80B记录。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+void __cdecl persistent_roster_selection_reorder(int a1)
 {
   int v1; // esi
   int v2; // edi
@@ -23106,9 +23117,16 @@ void sub_34EB3()
  * IDA 9.5 Hex-Rays: sub_34F38
  * VA=0x34f38..0x34f3d OBJ=1 OFF=0x24f38 size=0x5
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
- * callees: -
+ * callees: 0x10b4e, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
-/* Hex-Rays 无法反编译（positive sp value has been found @ 0x34f38）；该函数为手写汇编，请用 --asm 查看反汇编。 */
+// [勘误 evidence] event_callback[32]的入口34f38是push28h并自然落入34f3d..34f74共享尾；与350be的push28h/jmp34f3d共用stack_check、append_group(1)、text(fragment1)和ret。不能据旧5B主chunk判为no-op；补共享tail引用但保留350be的原owner，不扩大成吞并其它入口的函数。；依据: G1 Domain逐指令/现chunkowner与strict LE/fixup表51c11→34f38双证；完整60B SHA256 cf7734a4bca09f70340a01c1b01bfc9ae3a80002b7f58c8f1aca7329dffc5ab0；原返回清栈与350be同尾证据见common-event-semantics.md及本地34f38-boundary.json。
+void __usercall sub_34F38(unsigned __int8 *a1@<edi>)
+{
+  watcom_stack_check(40);
+  field_actor_group_append(1);
+  text_dialog_render_tokens(a1, dword_53A79, 1, 655360, 320, 205, 76, 74, 19, 1);
+}
+
 
 /* ---------------------------------------------------------------
  * IDA 9.5 Hex-Rays: sub_34F74
@@ -51549,12 +51567,13 @@ char __cdecl sub_4E795(_BYTE *a1, __int16 *a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4E7DD
+ * IDA 9.5 Hex-Rays: field_promotion_record_get
  * VA=0x4e7dd..0x4e7f2 OBJ=1 OFF=0x3e7dd size=0x15
  * callers: 0x2a694, 0x2aa00, 0x2ac7d
  * callees: -
  * --------------------------------------------------------------- */
-char *__cdecl sub_4E7DD(int a1)
+// [勘误 semantic_name] field_promotion_record_get；依据: G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；返回615fe+2*(target_id-32)，至61646恰36条2B；profile与移动增量，非玩家基础表。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。
+char *__cdecl field_promotion_record_get(int a1)
 {
   return (char *)&unk_615FE + 2 * a1 - 64;
 }

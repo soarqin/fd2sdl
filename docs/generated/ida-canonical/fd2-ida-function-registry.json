@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 293,
+ "canonical_functions": 306,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -6246,6 +6246,98 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 162236,
+   "off": 96700,
+   "ida_name": "field_shop_menu_execute",
+   "size": 887,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_279BC",
+     "now": "field_shop_menu_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2670e的武器/道具/隐藏店caller；四项依次购买、出售、装备、准备态转交，保留选择。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 163123,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 165675,
+   "off": 100139,
+   "ida_name": "field_shop_buy_execute",
+   "size": 1046,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2872B",
+     "now": "field_shop_buy_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；商品价格取23B record+19；确认/资金/收件/容量门后追加物品，可选装备，最后扣钱。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 166721,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 167101,
+   "off": 101565,
+   "ida_name": "field_shop_sell_execute",
+   "size": 577,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_28CBD",
+     "now": "field_shop_sell_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；成员与原槽选择，价格floor(3*price/4)；YES后先加钱再移槽、重算送方。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 167678,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 167781,
+   "off": 102245,
+   "ida_name": "field_prepare_item_give_execute",
+   "size": 693,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_28F65",
+     "now": "field_prepare_item_give_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；商店/教会共同caller；无相邻门，满包拒绝不交换；先移槽再追加，仅重算送方。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 168474,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 168704,
    "off": 103168,
    "ida_name": "field_hotel_menu_execute",
@@ -6467,6 +6559,167 @@
    "historical_names": [
     "field_manual_slot_picker"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 171434,
+   "off": 105898,
+   "ida_name": "field_church_menu_execute",
+   "size": 720,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_29DAA",
+     "now": "field_church_menu_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2670e selector4；四项成员详情、准备态转交、复活、转职，非额外治疗服务。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 172154,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 173118,
+   "off": 107582,
+   "ida_name": "field_church_revive_execute",
+   "size": 598,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A43E",
+     "now": "field_church_revive_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；hidden候选；费用word(52397+2*profile)*level；YES先扣钱再flags整byte清0、HP=max，MP保留。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 173716,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 174592,
+   "off": 109056,
+   "ida_name": "field_church_promote_execute",
+   "size": 637,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2AA00",
+     "now": "field_church_promote_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；2ae0e选唯一目标，确认后删所需道具、演出、写profile/id、重建cache、2ac7d增量；无扣钱。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 175229,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 175229,
+   "off": 109693,
+   "ida_name": "field_promotion_growth_execute",
+   "size": 401,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2AC7D",
+     "now": "field_promotion_growth_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；新ID成长pair第二byte，AP/DP/DX/maxHP/maxMP逐项提示ACK后写，移动BYTE增量；末重算/level1/EX0/HPMP满，不重学法术。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 175630,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 175630,
+   "off": 110094,
+   "ida_name": "field_promotion_candidates_build",
+   "size": 205,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2AE0E",
+     "now": "field_promotion_candidates_build",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；level>=20且ID<18并!=7；目标ID+32，持指定物改+50，unit9持90优先52，候选顺raw。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 175835,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 175912,
+   "off": 110376,
+   "ida_name": "field_deployment_select_execute",
+   "size": 1297,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2AF28",
+     "now": "field_deployment_select_execute",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；stage<27选15同伴否则19，raw0保留；选满先稳定重排，再必选成员门/前置重排/最终确认；最终NO不撤销排序。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 177209,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 178039,
+   "off": 112503,
+   "ida_name": "persistent_roster_selection_reorder",
+   "size": 204,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B777",
+     "now": "persistent_roster_selection_reorder",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；完整0xa00临时副本；raw0保留，选中raw1..稳定前置，其余稳定后置，不减人数、不改80B记录。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 178243,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -7302,6 +7555,29 @@
    "historical_names": [
     "field_actor_is_hidden"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216888,
+   "off": 151352,
+   "ida_name": "sub_34F38",
+   "size": 5,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "只有5B前缀，Hex-Rays无法反编译",
+     "now": "event_callback[32]的入口34f38是push28h并自然落入34f3d..34f74共享尾；与350be的push28h/jmp34f3d共用stack_check、append_group(1)、text(fragment1)和ret。不能据旧5B主chunk判为no-op；补共享tail引用但保留350be的原owner，不扩大成吞并其它入口的函数。",
+     "why": "G1 Domain逐指令/现chunkowner与strict LE/fixup表51c11→34f38双证；完整60B SHA256 cf7734a4bca09f70340a01c1b01bfc9ae3a80002b7f58c8f1aca7329dffc5ab0；原返回清栈与350be同尾证据见common-event-semantics.md及本地34f38-boundary.json。"
+    }
+   ],
+   "end_va": 216893,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -8914,6 +9190,29 @@
    "historical_names": [
     "field_path_find"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 321501,
+   "off": 255965,
+   "ida_name": "field_promotion_record_get",
+   "size": 21,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4E7DD",
+     "now": "field_promotion_record_get",
+     "why": "G1 IDA9.5 Domain完整函数/CFG/xref及独立strict LE合法fixup逐字节相同；返回615fe+2*(target_id-32)，至61646恰36条2B；profile与移动增量，非玩家基础表。来源与有效域见docs/reverse-engineering/common-preparation-semantics.md及common-battle-semantics.md；静态取证不冒充原版运行。"
+    }
+   ],
+   "end_va": 321522,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []

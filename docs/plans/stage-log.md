@@ -1334,3 +1334,23 @@ Windows新App为 `eedd635302b71b6fa1cfd91bae77bd259a2d01866139eeb18ee628c9cfb6e1
 关键剩余通用范围包括：其余合法玩家／AI法术和完整动作族、派生形态／转职写集、>16人出阵、商店／教会服务、未开放设置、未解输入与事件合同、Round横幅／raw26状态抖动／跨框提示及共享缓冲来源。它们不能凭当前场景通过或继续禁用宣告完整。G1须分类全部来源未知和未审计服务；通用未决阻塞相应阶段，确证只有参数／绑定的内容才进 S。G5完成门及残余表见审计 §6，不承诺未取证的全游戏绝对完整。
 
 本次没有已确认且必须由用户先决定的重大技术取舍；采用既有冷定义、有限领域执行器和热 owner，不建 VM／事件总线，不实施全部缺口。文档按一个独立提交交付并仅集成本地主项目，实际提交哈希／集成 HEAD 随本次交付报告，不预填自身哈希；不修改原 SD 工作树或启动其后续开发，不做远程推送。
+
+## G1 通用语义取证与来源分类（2026-11-10）
+
+计划 `b4c4bfa` 集成后，用户授权在原 `silent-hopper` 工作树连续实施 G1—G5，替代此前仅做审计的范围；不自动开始 S。G1 保留原 SD1—SD3 完成历史，按28项矩阵追到真实分发表、共享尾、字段写点和有效域。新增依据为[战斗](../reverse-engineering/common-battle-semantics.md)、[准备服务](../reverse-engineering/common-preparation-semantics.md)、[事件来源](../reverse-engineering/common-event-semantics.md)、[共享运行](../reverse-engineering/common-runtime-semantics.md)。
+
+| 本阶段成果／实测 | 范围与结论 |
+|---|---|
+| 逐源分类 | `audit_common_scope.py --require-classified` 实际通过；208分发表槽、1171保守引用、106移动槽、12前缀外模板共1497行。622仅缺绑定、388通用缺口、450原表外、1执行default无业务操作、36既有支持脚本；未归属为0。原结构审计仍保留语义false，不把分类通过提升成全部冷图还原／新玩法开放 |
+| 领域与有效域 | 确认96 actor原容量、metadata有效模板计数／同索引placement、stage32有效ID48／66的邻接构造窗、script24零步方向5、450 turn255潜在表外调用。正常初始／学习／合法转职的位图来源经376个非FLIRT外部callee闭包及owner核对，最大12法术；不推广任意外部SAV。买卖／复活／转职／出阵16或20人及选满后取消的写点已静态确认，产品实现分别留G2／G3 |
+| 共享运行归属 | G是原版browse无操作；Esc／Z／KP5共享轮换、设置XOR、Round／raw26／嘴型／水色及动态token有共同规则。13透明像素有先前资源写入，归G4共享页历史／绘制顺序，准确最终色及修复未验。旧END症状仍待定位，不宣告消失 |
+| 实际IDA发布 | 三组Domain只读证据与严格LE／fixup镜像逐chunk一致；独立副本真实应用12名称和34f38共享尾后再导出。1312函数原型／边界未变，306登记，2项既有Hex-Rays失败；11项清单校验通过。原350be尾owner保留；无原字节修改、猜测类型持久化或新fixup基线 |
+| SDL与工具验证 | Windows Debug程序及后台输入driver构建通过。106项本阶段Python专项通过（来源分类12、G1读集／共享尾24、显示／电源38、音频冻结18、发布14）；719处源码地址全为canonical。未执行SDL全历史CTest或G5统一回归 |
+| Windows原版／SDL定向运行 | 新显示路径首次仅ES请求未唤醒OFF的失败保留；单次零位移空闲重置后实测OFF→ON、Default桌面、指针不变、同线程释放。随后串行双端标题／菜单后台输入和WGC门通过，4个owned目标正常退出，无强制清理／残留；原资源、二进制、来源守卫true。仅覆盖既有入口校准，不是新服务／法术或全历史验收 |
+| 电源授权与恢复 | AGENTS及图形规范已纳入用户主动唤醒和必要临时计划授权。默认只申请显示需求；可选临时副本采用写前日志、owner身份／冲突检查、失败恢复。真实原计划／AC300／DC180只读ABI通过；本轮未切换电源计划，38项显示／电源纯测包含恢复竞态。原Balanced不变、混音器未动；临时方案写入路径尚未原生实测，不冒称通过 |
+
+证据保留于 ignored 的 `build/g1/`：`common-scope-final.json`、`common-scope-receipt.json`、`source-inventory-final.json`、`ida/`、`display-native.json`（失败）、`display-native-idle-reset.json`、`display-background/comparison.json`、`display-wgc-receipt.json`、`power-native-readonly.json`。早期读集中的伪C摘要保留采集时Git输入身份，不替换成此次新导出的摘要。
+
+交叉复审实际发现并修复：分类器遗漏containing chunk的保护、未决family误算通过、共享尾的文本／地图／masked AI及回合条件漏归类；临时计划激活／恢复期间的用户切换竞态增加写前复查和最终核验。OS缺少计划切换CAS，仍如实记录最后检查至调用间的系统竞态，不宣称原子恢复。最终专项复审无剩余来源归属阻塞；376callee闭包由采集者核查，复审者未独立重跑，不扩为双重执行签名。
+
+G1 完成门限于本审计来源的语义族分类与必要依据；`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled`仍为false。没有局部原机器码执行、新服务原版运行、所有对话参数轨迹或Linux验收。G2—G5尚未完成，接续G2完整战斗机制与必要动作呈现；本阶段不解除玩法支持门、不开始S。

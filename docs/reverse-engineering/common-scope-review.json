@@ -1,0 +1,3637 @@
+{
+  "schema": "fd2-common-scope-review-v1",
+  "review_date": "2026-11-10",
+  "exe_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+  "source_sha256": {
+    "FD2.EXE": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+    "FDFIELD.DAT": "81310211c6e96ebd89e79648650696691c740229fa4095ece37e7226bc27b74d",
+    "FDSHAP.DAT": "901b70ea82d5d977192759fad510921ffe16a0ab6af6ab7c32757de03e30aa3c",
+    "FDTXT.DAT": "b47e39ee727482528da061a8705f5cdee8a9cf759447aeda298afe17d9dd8bcc"
+  },
+  "dispatch_sha256": {
+    "stage_runtime_result": "9d1f34bf7f946a48abab6a104a7e043f58b1779d7a3c29d10d286d55ab8d02eb",
+    "event_callback": "87e84d5394b064a58a096dc589059ab7deedbeaea5c9c9a9ddf17895dd35f1c9",
+    "adjacent_magic": "f25c38e50b485f321a3b56091ffe977f40f4e5743022efa4c45cc19547d3f7cb",
+    "stage_entry": "90db40f21d6701dae893c64f4b00696dd0ad0b04faee6d54bfc3261f3ae3d203",
+    "stage_victory": "5dac416eaef8207b340dfa6115a069b7b766f082d7e1f05d264ffcee1b591a7d"
+  },
+  "review_boundary": "primitive-family classification with static evidence; not complete flow translation, G2-G4 implementation or original runtime acceptance",
+  "canonical_text_provenance_only": "343eedea5ecb7c6542b070f783f35a7c378fb1d59a75e816f9ae81c95687b006",
+  "function_chunks": {
+    "0x205b4": [
+      {
+        "canonical_va": "0x205b4",
+        "length": 38,
+        "sha256": "038b1c01feeb0b780de2f2b4ad78cd0bd8fb6b29590dd56d7fd82b643a2b001c"
+      },
+      {
+        "canonical_va": "0x2067d",
+        "length": 72,
+        "sha256": "56f56fb06821c5dabd7111e838ebba7d6cfb32a9b730888323df6229c7aae668"
+      }
+    ],
+    "0x206c5": [
+      {
+        "canonical_va": "0x206c5",
+        "length": 66,
+        "sha256": "4fec4d4ebf6149c987730b2f8302cb10df96b47d3516c67d2b331859a70e86a1"
+      }
+    ],
+    "0x20707": [
+      {
+        "canonical_va": "0x20707",
+        "length": 54,
+        "sha256": "f5027a8c5e4080c6a1a9c743378ea3003afeeb8ae68329c205742f508764d6cf"
+      }
+    ],
+    "0x2073d": [
+      {
+        "canonical_va": "0x2073d",
+        "length": 40,
+        "sha256": "9b48c8ea2d82c491753edac5812b754b636481e4239efaa90f8b7a9d10993cfd"
+      }
+    ],
+    "0x20765": [
+      {
+        "canonical_va": "0x20765",
+        "length": 189,
+        "sha256": "4508214e04e3cceeb250d3502c8a08e0c4f02022a5735a4033d565deee93485f"
+      }
+    ],
+    "0x20822": [
+      {
+        "canonical_va": "0x20822",
+        "length": 40,
+        "sha256": "e48c815b17b3a0a0eb76f1c6a0f33519322bc1df2e052d587cb56f33b0bc3be9"
+      }
+    ],
+    "0x2084a": [
+      {
+        "canonical_va": "0x2084a",
+        "length": 40,
+        "sha256": "078763e7ac36227aad6a6ccee32b057fa75dcf5ba0a388413a1b192a5ed41a04"
+      }
+    ],
+    "0x20872": [
+      {
+        "canonical_va": "0x20872",
+        "length": 93,
+        "sha256": "45132121f4ea14de72d41fad38cd6c4d3b25edd30b26a3f8e769cc0a9eb49045"
+      }
+    ],
+    "0x208cf": [
+      {
+        "canonical_va": "0x208cf",
+        "length": 87,
+        "sha256": "19d6d84690b2f523e1a19171ea9aac3950c8e9840d3cb48b88df82b689a1d8a9"
+      }
+    ],
+    "0x20926": [
+      {
+        "canonical_va": "0x20926",
+        "length": 49,
+        "sha256": "a18eade54f10ae145521dd66a03aca335460ccc88c2713de0d3434c14b1253e4"
+      }
+    ],
+    "0x20957": [
+      {
+        "canonical_va": "0x20957",
+        "length": 250,
+        "sha256": "2840f44fe72ac995824cf95ee6fdccff4c9a4e20b8adcc1e6bdc177c6181c34b"
+      }
+    ],
+    "0x20a51": [
+      {
+        "canonical_va": "0x20a51",
+        "length": 54,
+        "sha256": "c2f5dbd9935f7468463ecac5eb0c896567ed48b603ee1b971c5afcca3faa14d4"
+      }
+    ],
+    "0x20a87": [
+      {
+        "canonical_va": "0x20a87",
+        "length": 40,
+        "sha256": "3a6b1b84873e43476ec46664a70eb69cc9cbc02b8e01b934a38ab4e525d04890"
+      }
+    ],
+    "0x20aaf": [
+      {
+        "canonical_va": "0x20aaf",
+        "length": 101,
+        "sha256": "a5fe8db8effc988532ecd9303001fa055328e2eaaa0fd35d1332b1bda741aac5"
+      }
+    ],
+    "0x20b14": [
+      {
+        "canonical_va": "0x20b14",
+        "length": 40,
+        "sha256": "cdd8c483d6c649eb6ff8e79e19db2bb020de876ab19feebcc76c7b8c1d2e2aa6"
+      }
+    ],
+    "0x20b3c": [
+      {
+        "canonical_va": "0x20b3c",
+        "length": 54,
+        "sha256": "9579906d5c3f28342b487a86bb09f0bc13f068402b7921d8a3109daccc89cc13"
+      }
+    ],
+    "0x20b72": [
+      {
+        "canonical_va": "0x20b72",
+        "length": 131,
+        "sha256": "d694aa5743ba113e8455ad86e89e447e6cf1a79eeeda06ab2c146fcfd7e4185b"
+      }
+    ],
+    "0x20bf5": [
+      {
+        "canonical_va": "0x20bf5",
+        "length": 122,
+        "sha256": "af451e1de0c6497c0cbe4a204bfb0fac8a47c21f8a089beefa350819cac4ca0d"
+      }
+    ],
+    "0x34531": [
+      {
+        "canonical_va": "0x34531",
+        "length": 218,
+        "sha256": "40fe6618481b2bde268a4f1b776cebdcaf937fd80436de5c5d52c1864573c64a"
+      }
+    ],
+    "0x3460b": [
+      {
+        "canonical_va": "0x3460b",
+        "length": 104,
+        "sha256": "6e210c27d6cf8973d6a49850a889bf16d1dcfb028e57c0e121c74938b3b12196"
+      }
+    ],
+    "0x34673": [
+      {
+        "canonical_va": "0x34673",
+        "length": 90,
+        "sha256": "4e854f5e0220b54bed858c95917bc3eac128dc4c39b6fc2c4ec206c7303792b9"
+      }
+    ],
+    "0x346cd": [
+      {
+        "canonical_va": "0x346cd",
+        "length": 107,
+        "sha256": "112da54826e81a2ac35f973effacf4128dd9a793c9c9c1b6d364ce1606bb691b"
+      }
+    ],
+    "0x34738": [
+      {
+        "canonical_va": "0x34738",
+        "length": 64,
+        "sha256": "7a3c46013acd8d979e1e317d7f3d49d6b2a4dbeb3fba03a43334f1a9ed37a42e"
+      }
+    ],
+    "0x350be": [
+      {
+        "canonical_va": "0x350be",
+        "length": 10,
+        "sha256": "6d5932bf45fd9ee90f0f4cd505a72b90c78cc6dc744d4f56a39959fbe805cc16"
+      },
+      {
+        "canonical_va": "0x34f3d",
+        "length": 55,
+        "sha256": "4ca8dfcb0f4a032b8cb2985c1110ca3bde8f4642ea5aa5d7363d89b41a6d9818"
+      }
+    ],
+    "0x34778": [
+      {
+        "canonical_va": "0x34778",
+        "length": 160,
+        "sha256": "ee8937455de514693282efd0229699b82546e103d2c4b6143744e482dcf2c35d"
+      }
+    ],
+    "0x350c8": [
+      {
+        "canonical_va": "0x350c8",
+        "length": 91,
+        "sha256": "2e1cc58fb6f7a88b22e994a579073ed772f6d468212174cbba345b76b9cfdbfa"
+      }
+    ],
+    "0x35123": [
+      {
+        "canonical_va": "0x35123",
+        "length": 110,
+        "sha256": "9ca295701b5335ddba2bd5188e3f81dcf7a5ad37702351a729caa5a7dc219503"
+      }
+    ],
+    "0x34818": [
+      {
+        "canonical_va": "0x34818",
+        "length": 124,
+        "sha256": "1da5d7a2c52cad809fa2987a2653f9755f3cd48b92f37032e954cda33d4db7c2"
+      }
+    ],
+    "0x35191": [
+      {
+        "canonical_va": "0x35191",
+        "length": 85,
+        "sha256": "24e536dcb606d72e306183434b131453479a0e104fd75f31845aa8ef72e44876"
+      }
+    ],
+    "0x348bb": [
+      {
+        "canonical_va": "0x348bb",
+        "length": 47,
+        "sha256": "4fff0770f84f1fefa527fa6723183b275ace6abf435a423d649b7f6504fa0712"
+      }
+    ],
+    "0x348ea": [
+      {
+        "canonical_va": "0x348ea",
+        "length": 86,
+        "sha256": "e1952039817b884c914670244ba8bbe51715224949f5052da01a7f0dc5bf758c"
+      }
+    ],
+    "0x351e6": [
+      {
+        "canonical_va": "0x351e6",
+        "length": 114,
+        "sha256": "6596bcffebddb7cae738d052efc3694ade4a476bc5f087f32701dee4a140b8ac"
+      }
+    ],
+    "0x34940": [
+      {
+        "canonical_va": "0x34940",
+        "length": 68,
+        "sha256": "b61f852dcd332762226cfab898ca40ace87b575f2263b7066b054ed478584af9"
+      }
+    ],
+    "0x34984": [
+      {
+        "canonical_va": "0x34984",
+        "length": 104,
+        "sha256": "b1adacaf18958b39cd35ca9ceccd3ace4f710dada2c839e8aa2dd5d0821dfe8d"
+      }
+    ],
+    "0x349ec": [
+      {
+        "canonical_va": "0x349ec",
+        "length": 50,
+        "sha256": "8620427ee059b95e82962eb8735d4bbef4f15d89db8d7edafbc34cde5a5e8ced"
+      }
+    ],
+    "0x34a1e": [
+      {
+        "canonical_va": "0x34a1e",
+        "length": 78,
+        "sha256": "74e91a28f8ed0483c19bf12800fab1efd8ae89e96459c3acc38fa782539bf5c0"
+      }
+    ],
+    "0x35258": [
+      {
+        "canonical_va": "0x35258",
+        "length": 64,
+        "sha256": "e61d933e5f09686256ecb2fca5c1e70eb45019b60dbf2791626477380e3c2f1d"
+      }
+    ],
+    "0x34a6c": [
+      {
+        "canonical_va": "0x34a6c",
+        "length": 155,
+        "sha256": "1be0228021504bbdc48cbe0045268fa787d177180fc7835271b058a7534787f3"
+      }
+    ],
+    "0x34b07": [
+      {
+        "canonical_va": "0x34b07",
+        "length": 40,
+        "sha256": "458e5d9ad3e2dbfa6005a44e9cd97abd4f454f671d5c0cce95076e499c72705d"
+      }
+    ],
+    "0x34b2f": [
+      {
+        "canonical_va": "0x34b2f",
+        "length": 64,
+        "sha256": "7e17360e1175902be0cc0a3803f86f221d77d840b966bfb3fa167ddccbe20588"
+      }
+    ],
+    "0x34b6f": [
+      {
+        "canonical_va": "0x34b6f",
+        "length": 267,
+        "sha256": "784acb68e5944e3e49490bdd673ec256339b8aacf8ffa2a3ce6104ebcb4223e4"
+      },
+      {
+        "canonical_va": "0x35f6e",
+        "length": 10,
+        "sha256": "512c48a142e506b89b99ff31517b17168a77fbc3638c4525117ec2c4744e3f5c"
+      }
+    ],
+    "0x34c7a": [
+      {
+        "canonical_va": "0x34c7a",
+        "length": 119,
+        "sha256": "543c8c487a368691904dd9420afb317d7ebec2a3abf0a4148dbf1fa4eb0b7473"
+      }
+    ],
+    "0x34cf1": [
+      {
+        "canonical_va": "0x34cf1",
+        "length": 62,
+        "sha256": "2af81a14aa1cb45d19c92386c768e71babdf5e28c70358975e00065581ecfde6"
+      }
+    ],
+    "0x34d2f": [
+      {
+        "canonical_va": "0x34d2f",
+        "length": 53,
+        "sha256": "0c3742da86f3d36cddbf43bd8a76a32eec6ecf5f41ea9656b840b10f6b44b6cc"
+      }
+    ],
+    "0x34d64": [
+      {
+        "canonical_va": "0x34d64",
+        "length": 46,
+        "sha256": "6aa1ca280442145ba1d2e38b663cc2f7c45e43117193418ee7b945aea7c37719"
+      }
+    ],
+    "0x34d92": [
+      {
+        "canonical_va": "0x34d92",
+        "length": 62,
+        "sha256": "916534db302434895ad9241cf8914af21e25c08f763b1e206cdcbfd0a5350b68"
+      }
+    ],
+    "0x34dd0": [
+      {
+        "canonical_va": "0x34dd0",
+        "length": 227,
+        "sha256": "e31844d30fc26b1b06cdefeb54443cf171e18f3d95ac5b8ad21a242f864f1dea"
+      }
+    ],
+    "0x34eb3": [
+      {
+        "canonical_va": "0x34eb3",
+        "length": 133,
+        "sha256": "ca10482d1ae0c44f9f4eeda22589561c8c0e50f4e085fe956cee4e47fe6310fe"
+      }
+    ],
+    "0x34f38": [
+      {
+        "canonical_va": "0x34f38",
+        "length": 5,
+        "sha256": "4fe9c2b6c9f7f9a5d8bb0e8a5e922cd8836207a826dded4c8082943e4694a392"
+      },
+      {
+        "canonical_va": "0x34f3d",
+        "length": 55,
+        "sha256": "4ca8dfcb0f4a032b8cb2985c1110ca3bde8f4642ea5aa5d7363d89b41a6d9818"
+      }
+    ],
+    "0x34f74": [
+      {
+        "canonical_va": "0x34f74",
+        "length": 78,
+        "sha256": "746fbe7de419b712fd928ff48ce2f7dec0229664b75e432b4360e403a969ab2e"
+      }
+    ],
+    "0x34fc2": [
+      {
+        "canonical_va": "0x34fc2",
+        "length": 10,
+        "sha256": "d6616a2c0b39b6b66f9e474a906d1a49920b898a21794bd3be77720af7ff941c"
+      }
+    ],
+    "0x34fcc": [
+      {
+        "canonical_va": "0x34fcc",
+        "length": 61,
+        "sha256": "98af55a662f7780af2195b3bca5f39dc8e6d6a1cbbb886b9e70a765b290247d8"
+      }
+    ],
+    "0x35009": [
+      {
+        "canonical_va": "0x35009",
+        "length": 25,
+        "sha256": "cda3071ba872eab37f6c6751bce4ea33ec866a243ea131fcf76775b5241469eb"
+      }
+    ],
+    "0x35022": [
+      {
+        "canonical_va": "0x35022",
+        "length": 156,
+        "sha256": "5d7d47b7830ea5b4792fe472881afa71bf32b2488a00f17cdc00650333f464a7"
+      },
+      {
+        "canonical_va": "0x35f6e",
+        "length": 10,
+        "sha256": "512c48a142e506b89b99ff31517b17168a77fbc3638c4525117ec2c4744e3f5c"
+      }
+    ],
+    "0x35298": [
+      {
+        "canonical_va": "0x35298",
+        "length": 50,
+        "sha256": "87af02a3531a7ff9bd8d9a6be14e987f7cfab3d9eb1f3191ed0bf996ba8c11d7"
+      }
+    ],
+    "0x352ca": [
+      {
+        "canonical_va": "0x352ca",
+        "length": 87,
+        "sha256": "fcfe8163e6e43a0630b52a9aa8dce877511f5e6f26a63117b914541414f12a55"
+      }
+    ],
+    "0x35321": [
+      {
+        "canonical_va": "0x35321",
+        "length": 37,
+        "sha256": "dfe05af4a3cbb8f394f9c57425a7fe903ab9ec99cfc983adcaf95fc55285591d"
+      }
+    ],
+    "0x35346": [
+      {
+        "canonical_va": "0x35346",
+        "length": 111,
+        "sha256": "12ff26e4bba5009d33095e29ca614467fcfc0ec5db4f76bd75ac8163d01fb152"
+      }
+    ],
+    "0x353b5": [
+      {
+        "canonical_va": "0x353b5",
+        "length": 50,
+        "sha256": "5bf1664d26c397a3d1256808622d11114feeb5ecc85c620b7e2350ff3d08588c"
+      }
+    ],
+    "0x353e7": [
+      {
+        "canonical_va": "0x353e7",
+        "length": 19,
+        "sha256": "409cb9699bed3f8500789c91ba5af79ac759dce0be9ba105f06888547128a30b"
+      }
+    ],
+    "0x353fa": [
+      {
+        "canonical_va": "0x353fa",
+        "length": 21,
+        "sha256": "13ee1f243b32b3552a43a907a62611b7d404e6734a066b25b25f70f062e9ee8c"
+      }
+    ],
+    "0x3540f": [
+      {
+        "canonical_va": "0x3540f",
+        "length": 19,
+        "sha256": "d72fa81bc684ae6fa524b01971fa2f507ff97326c5d5f6833ddee59690950be4"
+      }
+    ],
+    "0x35422": [
+      {
+        "canonical_va": "0x35422",
+        "length": 70,
+        "sha256": "d8cd31b0977d6f33ee75ab5ceef1eccec753d2f0b53f1d1df1855841409354e8"
+      }
+    ],
+    "0x35468": [
+      {
+        "canonical_va": "0x35468",
+        "length": 180,
+        "sha256": "00295aa52ac814aae9ce4b721cd6c891c38f018c4f8897b6914b8da86b160d8b"
+      }
+    ],
+    "0x3551c": [
+      {
+        "canonical_va": "0x3551c",
+        "length": 35,
+        "sha256": "8c49a1c6c46138bfc3c62df283e3d564d47c09a63a6ac4f41acbfee3921f4abb"
+      }
+    ],
+    "0x3553f": [
+      {
+        "canonical_va": "0x3553f",
+        "length": 120,
+        "sha256": "004ed38b17e8b4bb8fc38cc65ca28d82cac1eec579a96e6d9a1b865d10f36acc"
+      },
+      {
+        "canonical_va": "0x35d76",
+        "length": 15,
+        "sha256": "c74d6f9753e25d581c3223465b117f825cbed3ee57dbd45cf799f18d7c427bf7"
+      }
+    ],
+    "0x355b7": [
+      {
+        "canonical_va": "0x355b7",
+        "length": 57,
+        "sha256": "c3e671855f6c5bcdf05884124d328de091f876845cdda4a0aad21c0ff1151570"
+      }
+    ],
+    "0x355f0": [
+      {
+        "canonical_va": "0x355f0",
+        "length": 72,
+        "sha256": "e78526c13fc9d1ed99605642c9d3f2cdf000a1e2233469402246bc935aed8354"
+      }
+    ],
+    "0x35638": [
+      {
+        "canonical_va": "0x35638",
+        "length": 63,
+        "sha256": "d74d15cc0079555c3e749064bd52b7d0df53d376d43a9d8177299a5e4847cd18"
+      }
+    ],
+    "0x35677": [
+      {
+        "canonical_va": "0x35677",
+        "length": 60,
+        "sha256": "314871da8571e828d6e6696d3ef63e80fb55b3966db7e70c9d41e0f60e197738"
+      }
+    ],
+    "0x356b3": [
+      {
+        "canonical_va": "0x356b3",
+        "length": 111,
+        "sha256": "8ce599d715f05231216f7c54765ef1916824b8afd55e91883d1c9bee1d872de4"
+      }
+    ],
+    "0x35730": [
+      {
+        "canonical_va": "0x35730",
+        "length": 173,
+        "sha256": "e831cb1134c78d71f26edd10752ab7f874fbba78021c2c21f03f08fff168b334"
+      }
+    ],
+    "0x357dd": [
+      {
+        "canonical_va": "0x357dd",
+        "length": 86,
+        "sha256": "6ea6fe690a8cf6476abd65bf1a0cad66308a6c764d4124ef0ae50599c2e41805"
+      }
+    ],
+    "0x35833": [
+      {
+        "canonical_va": "0x35833",
+        "length": 33,
+        "sha256": "585b070605e85913b830ffa43572bbb88256eff2209957816f1b354cad5962d5"
+      }
+    ],
+    "0x35854": [
+      {
+        "canonical_va": "0x35854",
+        "length": 323,
+        "sha256": "9e832539a680d22e4950e19436b540193c81afeea8b8acc755e2587f34a4b341"
+      }
+    ],
+    "0x35997": [
+      {
+        "canonical_va": "0x35997",
+        "length": 52,
+        "sha256": "0fe6f406f19f0edcddde3d8e05e435a0a9a0b3712aca51c0b4192f4310c8c0e8"
+      }
+    ],
+    "0x359cb": [
+      {
+        "canonical_va": "0x359cb",
+        "length": 66,
+        "sha256": "4d3fb11fe80b7b884964905ef4d46460b5db46bb0fcb52933a69a1a8cedef69d"
+      }
+    ],
+    "0x35a0d": [
+      {
+        "canonical_va": "0x35a0d",
+        "length": 363,
+        "sha256": "753a922a9e47c257cd54b2c15cc844ae4f830b2a8c17d1220bcd0420155ebcc0"
+      }
+    ],
+    "0x35bee": [
+      {
+        "canonical_va": "0x35bee",
+        "length": 47,
+        "sha256": "5e609e9bc552b1c7e90d752998b001f47dc4265e0a05b4cb5ec7d4afd521daf1"
+      }
+    ],
+    "0x35c1d": [
+      {
+        "canonical_va": "0x35c1d",
+        "length": 35,
+        "sha256": "16897cdf5fd880c9e703544c6b5a55c123fe2c9878007033667df41f31ac13a1"
+      }
+    ],
+    "0x35c40": [
+      {
+        "canonical_va": "0x35c40",
+        "length": 177,
+        "sha256": "f9ce050b114098817f8be83e0dac4e861e27ed5e23a383b24d4da1c78fa67df2"
+      }
+    ],
+    "0x35cf1": [
+      {
+        "canonical_va": "0x35cf1",
+        "length": 45,
+        "sha256": "dfdb42ec873c55e7b88886a994ff744b877cb7d8d292e87b7c5ed94fa9ab707a"
+      }
+    ],
+    "0x35d1e": [
+      {
+        "canonical_va": "0x35d1e",
+        "length": 88,
+        "sha256": "c483061e3731333769986d8f206785937e149fdbb7acaee51e61978b1800bb79"
+      }
+    ],
+    "0x35d85": [
+      {
+        "canonical_va": "0x35d85",
+        "length": 25,
+        "sha256": "e9d781bfe795bf7abe21f6ed06edaa7ac14b9b93e48e9524b5f827151630d017"
+      }
+    ],
+    "0x35d9e": [
+      {
+        "canonical_va": "0x35d9e",
+        "length": 112,
+        "sha256": "c6658fa91eed835488cc4f47472f85fbdb35f7686cfdf8115a50ddcaab07c612"
+      }
+    ],
+    "0x35e0e": [
+      {
+        "canonical_va": "0x35e0e",
+        "length": 77,
+        "sha256": "c20615b884febc42b3fe1ce0778f56196e0ea2e21ed8cd8806a8c0eb5d27822e"
+      }
+    ],
+    "0x35e5b": [
+      {
+        "canonical_va": "0x35e5b",
+        "length": 102,
+        "sha256": "133a88f6b310a998eecab863ddcc2db3172b3d948a4a89984a965102bae4ad21"
+      }
+    ],
+    "0x35ec1": [
+      {
+        "canonical_va": "0x35ec1",
+        "length": 79,
+        "sha256": "d013250018a72bb801e21313adf60a089409aeb0fbbc66eba9bb432185896e25"
+      }
+    ],
+    "0x35f48": [
+      {
+        "canonical_va": "0x35f48",
+        "length": 38,
+        "sha256": "f17340e55605dbcaac63bee3d995e83f6550c7b33608125762d0f86bfaa4b1b1"
+      }
+    ],
+    "0x35f79": [
+      {
+        "canonical_va": "0x35f79",
+        "length": 15,
+        "sha256": "57541f25ad1b4c33a89497fa63dad08ac2d9bd5db0eb9519e62bc57c2ea00e9f"
+      }
+    ],
+    "0x35f88": [
+      {
+        "canonical_va": "0x35f88",
+        "length": 71,
+        "sha256": "7f151464d60b7f0a7b45118b03239a92b442160afce0d30b705f4f8a32b7fe7a"
+      }
+    ],
+    "0x35fcf": [
+      {
+        "canonical_va": "0x35fcf",
+        "length": 231,
+        "sha256": "45a8888197277f0a1198690def61f1fbd95ed298685f0602b40973972d50b2d2"
+      }
+    ],
+    "0x360b6": [
+      {
+        "canonical_va": "0x360b6",
+        "length": 250,
+        "sha256": "b086f28420cd09b9e19daf576fc1ea86c5d957f31205b5c89903fbc7351d019d"
+      }
+    ],
+    "0x36214": [
+      {
+        "canonical_va": "0x36214",
+        "length": 20,
+        "sha256": "c26386ca2256bb1c174abb2c790f66cd9922e1e0b717afffb2aad9b2eca5e5e6"
+      }
+    ],
+    "0x36228": [
+      {
+        "canonical_va": "0x36228",
+        "length": 20,
+        "sha256": "791591ed0753ac39e8999b329baacc35d50064ad32dbbeaf0a53c5d72078a2b5"
+      }
+    ],
+    "0x3623c": [
+      {
+        "canonical_va": "0x3623c",
+        "length": 116,
+        "sha256": "f28022dfcaca70df12c2e75e2f3d9a0d5f96fbbd0fbc4d08ed3d6377f0602831"
+      }
+    ],
+    "0x362b0": [
+      {
+        "canonical_va": "0x362b0",
+        "length": 21,
+        "sha256": "ce7a2da32e62ba6b8c1cc0eb63bc8de0f52487cc5aca3a65f55aec4c3cc68291"
+      }
+    ],
+    "0x362c5": [
+      {
+        "canonical_va": "0x362c5",
+        "length": 35,
+        "sha256": "6de4991ba39ab2033998d81c4c20a95169e720922588c1511d766fc8328eda4b"
+      }
+    ],
+    "0x362e8": [
+      {
+        "canonical_va": "0x362e8",
+        "length": 246,
+        "sha256": "15cd7c12dc337c6a818b4439ea3d5fbd3012f61c3189664d7a40bc82bb27b7db"
+      }
+    ],
+    "0x363de": [
+      {
+        "canonical_va": "0x363de",
+        "length": 56,
+        "sha256": "57bbee82cc4826b334cfd1e9df0bd06ec5a0cd7b167291543f79292cdfefbafe"
+      }
+    ],
+    "0x36416": [
+      {
+        "canonical_va": "0x36416",
+        "length": 24,
+        "sha256": "93346fd23d86b5c16ebee5844ee4feb936d1502591b28d2ca1ded283adb5baa2"
+      }
+    ],
+    "0x3642e": [
+      {
+        "canonical_va": "0x3642e",
+        "length": 11,
+        "sha256": "320be17529df5e7fd4357f3d732bae63c9a63fbf93da1d31145ad71f8251cd52"
+      }
+    ],
+    "0x36439": [
+      {
+        "canonical_va": "0x36439",
+        "length": 7,
+        "sha256": "3a622dc28161899d044e99e65bbd8adec409fc92ebd54087ef00d1148c9cd865"
+      }
+    ],
+    "0x36440": [
+      {
+        "canonical_va": "0x36440",
+        "length": 7,
+        "sha256": "255f7e961c2199c70f39774edcd285ff0aa3324628765a646ee02ee94ce6efcb"
+      }
+    ],
+    "0x36447": [
+      {
+        "canonical_va": "0x36447",
+        "length": 7,
+        "sha256": "834469b1ec8d5ecf9e7cac72522a8ff2c547a1995a9a96dce2aa9f3f16b323ec"
+      }
+    ],
+    "0x3644e": [
+      {
+        "canonical_va": "0x3644e",
+        "length": 7,
+        "sha256": "f6c7555fb7ecfec296caf1089030b188beeddf4378e1277717069f82ab44ea8a"
+      }
+    ],
+    "0x21206": [
+      {
+        "canonical_va": "0x21206",
+        "length": 33,
+        "sha256": "9c4e59861f7f7c988d9328ec4fb044c8e8f6a3d2f58508d8e998aef70a44863a"
+      }
+    ],
+    "0x2134b": [
+      {
+        "canonical_va": "0x2134b",
+        "length": 25,
+        "sha256": "80035175cc34d073b1e0e7a9de7a378ba3d6bb11cc63d1545478ef10a07b5db4"
+      }
+    ],
+    "0x21364": [
+      {
+        "canonical_va": "0x21364",
+        "length": 25,
+        "sha256": "2299211d5a41d0cbd0ddde0b924483c5a62a28cfa2b832b6ce54136b91c98d11"
+      }
+    ],
+    "0x2137d": [
+      {
+        "canonical_va": "0x2137d",
+        "length": 25,
+        "sha256": "8a6386ef80d6c7526dbcd08e5f1bf1ea4fd24ce0af4cb643580984648e40b7b6"
+      }
+    ],
+    "0x21396": [
+      {
+        "canonical_va": "0x21396",
+        "length": 33,
+        "sha256": "0691fdf7e42cc001e1d1bec5d70c5639f55d053f04a4e5a0c130f47b22883783"
+      }
+    ],
+    "0x21449": [
+      {
+        "canonical_va": "0x21449",
+        "length": 25,
+        "sha256": "9a85cbb95a027bd49a10cdce28f62b19e833b23439362289742dfd17a9df38ef"
+      }
+    ],
+    "0x21462": [
+      {
+        "canonical_va": "0x21462",
+        "length": 25,
+        "sha256": "57f6f54979fa6439420305d35d506fe88b85368b5adf6daa0d27ba515aab2e58"
+      }
+    ],
+    "0x2147b": [
+      {
+        "canonical_va": "0x2147b",
+        "length": 25,
+        "sha256": "34f8fd5db56d2db5c61813fcfbb9f8c8e14dfc19740f526574494312e105e318"
+      }
+    ],
+    "0x21494": [
+      {
+        "canonical_va": "0x21494",
+        "length": 25,
+        "sha256": "ecd552d6cccbeefe494ce7af27201ac32925b9bcac68de6e69dbd3a08a14bef8"
+      }
+    ],
+    "0x214ad": [
+      {
+        "canonical_va": "0x214ad",
+        "length": 122,
+        "sha256": "ae2c44b3e6c1429d8629ff4f3d10a81895e4833cd88a78c4e75b375ebb24230a"
+      }
+    ],
+    "0x21527": [
+      {
+        "canonical_va": "0x21527",
+        "length": 33,
+        "sha256": "4d08a07f3e01d24bc5eaee1939268dadb5c9c6badcc037bbfa7affb570510c82"
+      }
+    ],
+    "0x2185f": [
+      {
+        "canonical_va": "0x2185f",
+        "length": 59,
+        "sha256": "2e786df0f550be59d217378913a2766916a5a69ed075e3c2192f4dcf91552099"
+      }
+    ],
+    "0x21a9e": [
+      {
+        "canonical_va": "0x21a9e",
+        "length": 59,
+        "sha256": "fd5be428da38d17ff43123cb658c5810878c3de10541a43c4a7bb77af8d6184c"
+      }
+    ],
+    "0x21ad9": [
+      {
+        "canonical_va": "0x21ad9",
+        "length": 63,
+        "sha256": "50eb131af419037de1f8e5579b6e21ee473bc23fede87bbe9e0e5f56279e4b17"
+      }
+    ],
+    "0x21b99": [
+      {
+        "canonical_va": "0x21b99",
+        "length": 55,
+        "sha256": "d763cc64b6050387ba4493bce81bcdb6f5d67a4e50bf7b301fdbc76c15d480d5"
+      }
+    ],
+    "0x2211c": [
+      {
+        "canonical_va": "0x2211c",
+        "length": 55,
+        "sha256": "0ae2f9017376c171753fd64b3c47173971060d64ad8015df070501baffbee99e"
+      }
+    ],
+    "0x22153": [
+      {
+        "canonical_va": "0x22153",
+        "length": 55,
+        "sha256": "f8cf806be76dfc778a2dd3945f87c16db0c2bffa013af3bccc90b995b914e4e7"
+      }
+    ],
+    "0x226ea": [
+      {
+        "canonical_va": "0x226ea",
+        "length": 55,
+        "sha256": "2fab4778712ce3fd0cbe681de46b254ac686edda50415c0364d3280e5a18505a"
+      }
+    ],
+    "0x2282f": [
+      {
+        "canonical_va": "0x2282f",
+        "length": 55,
+        "sha256": "97cd9ecf843d1201dfebb81031e6cc82feb3cdfa0cc42677e9bbefdf8d16e623"
+      }
+    ],
+    "0x22960": [
+      {
+        "canonical_va": "0x22960",
+        "length": 55,
+        "sha256": "2469b8b6407354aae0a5099df076b42da8ae423e4223e3b007c6ab9165d66593"
+      }
+    ],
+    "0x22a85": [
+      {
+        "canonical_va": "0x22a85",
+        "length": 35,
+        "sha256": "96341f0e655e1a4bb787135361c5d37ebef7456ff89a5e5648ec8ca8c8badc68"
+      }
+    ],
+    "0x22bc6": [
+      {
+        "canonical_va": "0x22bc6",
+        "length": 27,
+        "sha256": "46cd7810180fdaecab47e41e6bea76e90ab55bb27bf0f24836cd53e6a69a9740"
+      }
+    ],
+    "0x22be1": [
+      {
+        "canonical_va": "0x22be1",
+        "length": 35,
+        "sha256": "c4e86f818a647a70549c2597ae1a662e781651b453858c619c9b29e9c3555bb5"
+      }
+    ],
+    "0x2218a": [
+      {
+        "canonical_va": "0x2218a",
+        "length": 201,
+        "sha256": "0581fb6f1739a3ffdd98289fef0889b9ef90b3b01c1e8ad0c84ab1d475b40769"
+      }
+    ],
+    "0x22c04": [
+      {
+        "canonical_va": "0x22c04",
+        "length": 187,
+        "sha256": "6ac0229afa85aab2aca61d04d3cebd69c003eccd9dca7d13b061f6ad51be16bf"
+      }
+    ],
+    "0x22cbf": [
+      {
+        "canonical_va": "0x22cbf",
+        "length": 27,
+        "sha256": "c09dda9043a275e7ec82c54ba33193d8012e178b71bb75a4ca6d4a53a009fbd4"
+      }
+    ],
+    "0x22e41": [
+      {
+        "canonical_va": "0x22e41",
+        "length": 27,
+        "sha256": "59d303fe94e3f2f93552ed26ae809dfdb8dabadcafe653d819d39058de17e111"
+      }
+    ],
+    "0x3231b": [
+      {
+        "canonical_va": "0x3231b",
+        "length": 1626,
+        "sha256": "d3077563157b8422e265ef3e2f8b523fc125d2cd5900e06f6e35bff99fa63143"
+      }
+    ],
+    "0x32d18": [
+      {
+        "canonical_va": "0x32d18",
+        "length": 372,
+        "sha256": "951b505f3499609a4d02e80998ac590c11627d309b965ba49087a93d80172973"
+      },
+      {
+        "canonical_va": "0x33140",
+        "length": 11,
+        "sha256": "069f726f47a83d5fd48c720cc85408927bc17338cc527a9bbf89b8098712b8ed"
+      },
+      {
+        "canonical_va": "0x33206",
+        "length": 19,
+        "sha256": "924017cd18944cfd01f28bdaff730baec28ad39b2827bc94914e4c3a072cdfcc"
+      }
+    ],
+    "0x32e8c": [
+      {
+        "canonical_va": "0x32e8c",
+        "length": 294,
+        "sha256": "588d47dcec5a358f4682c903345014cbc71e2d488b59a2b7378b48e89e448245"
+      },
+      {
+        "canonical_va": "0x3312d",
+        "length": 19,
+        "sha256": "fbed14b1693e8eccb80960f9d6bdc741cacb674ee0a49c3b6f7f335b28ebae26"
+      },
+      {
+        "canonical_va": "0x33140",
+        "length": 11,
+        "sha256": "069f726f47a83d5fd48c720cc85408927bc17338cc527a9bbf89b8098712b8ed"
+      }
+    ],
+    "0x32fb2": [
+      {
+        "canonical_va": "0x32fb2",
+        "length": 151,
+        "sha256": "dcb993d4f72cc66023849b3830854804ba182b65d17a846f830f9e7bbcaf6c4f"
+      },
+      {
+        "canonical_va": "0x3312d",
+        "length": 19,
+        "sha256": "fbed14b1693e8eccb80960f9d6bdc741cacb674ee0a49c3b6f7f335b28ebae26"
+      }
+    ],
+    "0x33049": [
+      {
+        "canonical_va": "0x33049",
+        "length": 228,
+        "sha256": "807e9fb2764dafb4f8be64688bcf2c842ab9c6d8dc24d4bfc71884e430673b59"
+      },
+      {
+        "canonical_va": "0x3312d",
+        "length": 19,
+        "sha256": "fbed14b1693e8eccb80960f9d6bdc741cacb674ee0a49c3b6f7f335b28ebae26"
+      },
+      {
+        "canonical_va": "0x33140",
+        "length": 11,
+        "sha256": "069f726f47a83d5fd48c720cc85408927bc17338cc527a9bbf89b8098712b8ed"
+      }
+    ],
+    "0x3314b": [
+      {
+        "canonical_va": "0x3314b",
+        "length": 30,
+        "sha256": "75bb0c9775c0a1b1199864ec8ca676ab1cddd826a414119c9beb590e92de1b5f"
+      },
+      {
+        "canonical_va": "0x3344d",
+        "length": 30,
+        "sha256": "0365972d092f522230e925eb8918e1b0419c56ca23767895d22ec8ea7cd3eb4d"
+      }
+    ],
+    "0x33169": [
+      {
+        "canonical_va": "0x33169",
+        "length": 157,
+        "sha256": "d5e175cf914405c920217c4857cf5fb36ed7ead7dee95ac0cf32be53cfa28f23"
+      },
+      {
+        "canonical_va": "0x33140",
+        "length": 11,
+        "sha256": "069f726f47a83d5fd48c720cc85408927bc17338cc527a9bbf89b8098712b8ed"
+      },
+      {
+        "canonical_va": "0x33206",
+        "length": 19,
+        "sha256": "924017cd18944cfd01f28bdaff730baec28ad39b2827bc94914e4c3a072cdfcc"
+      }
+    ],
+    "0x33219": [
+      {
+        "canonical_va": "0x33219",
+        "length": 100,
+        "sha256": "e98d3132d85da63083061e7bd924963d51016a08851cb3ec14d3e31f12e48fff"
+      }
+    ],
+    "0x3327d": [
+      {
+        "canonical_va": "0x3327d",
+        "length": 174,
+        "sha256": "b9da0fc8a79389c6959e8db77eb1de643e9c2bc4d511adebb7cec53f5d1ea6db"
+      }
+    ],
+    "0x3332b": [
+      {
+        "canonical_va": "0x3332b",
+        "length": 60,
+        "sha256": "c536dbfc63d49ed6bee3eac77b96b8f25e4774e84861bfc947a24c58871738a9"
+      },
+      {
+        "canonical_va": "0x33206",
+        "length": 19,
+        "sha256": "924017cd18944cfd01f28bdaff730baec28ad39b2827bc94914e4c3a072cdfcc"
+      },
+      {
+        "canonical_va": "0x3344d",
+        "length": 30,
+        "sha256": "0365972d092f522230e925eb8918e1b0419c56ca23767895d22ec8ea7cd3eb4d"
+      }
+    ],
+    "0x33367": [
+      {
+        "canonical_va": "0x33367",
+        "length": 142,
+        "sha256": "5b9f05be24612d647931b1eca79fc5a51a10cb2e9552b174991484f30323f8d7"
+      }
+    ],
+    "0x333f5": [
+      {
+        "canonical_va": "0x333f5",
+        "length": 88,
+        "sha256": "2722015c0f98023ede05b3a2ef6e9f68cc57f5c34290003666a7fcd414aa91b2"
+      }
+    ],
+    "0x3346b": [
+      {
+        "canonical_va": "0x3346b",
+        "length": 17,
+        "sha256": "00361f8186c490a30f338ff3312f43f26200ba52fa6847e9624a67d53883246a"
+      },
+      {
+        "canonical_va": "0x3344d",
+        "length": 30,
+        "sha256": "0365972d092f522230e925eb8918e1b0419c56ca23767895d22ec8ea7cd3eb4d"
+      }
+    ],
+    "0x3347c": [
+      {
+        "canonical_va": "0x3347c",
+        "length": 29,
+        "sha256": "eb5bc52785cad9702f398976385735df444dc7d6c52afc45a5338cb6e496e44b"
+      },
+      {
+        "canonical_va": "0x3344d",
+        "length": 30,
+        "sha256": "0365972d092f522230e925eb8918e1b0419c56ca23767895d22ec8ea7cd3eb4d"
+      }
+    ],
+    "0x334d9": [
+      {
+        "canonical_va": "0x334d9",
+        "length": 199,
+        "sha256": "8eee9a5253ac071bb37b13959eb4a7b82d82c1d73286e4fbc927a58af59deb9c"
+      }
+    ],
+    "0x335a0": [
+      {
+        "canonical_va": "0x335a0",
+        "length": 10,
+        "sha256": "1b1046488563316d66217aa3d1982b23e03f6db138d235c464e33c6479b4ccba"
+      }
+    ],
+    "0x335aa": [
+      {
+        "canonical_va": "0x335aa",
+        "length": 48,
+        "sha256": "79dbf3fcce1ae8b659d52baeb137423f57697f52738d7d70e43c3a5972057e50"
+      },
+      {
+        "canonical_va": "0x3344d",
+        "length": 30,
+        "sha256": "0365972d092f522230e925eb8918e1b0419c56ca23767895d22ec8ea7cd3eb4d"
+      }
+    ],
+    "0x335da": [
+      {
+        "canonical_va": "0x335da",
+        "length": 154,
+        "sha256": "cde5fa5f77b836b5854ac4e76ce067f95c97873049898748cbacbb7a1f1427b5"
+      }
+    ],
+    "0x33674": [
+      {
+        "canonical_va": "0x33674",
+        "length": 10,
+        "sha256": "37f06a81675b7d78bda9cda1ba1945a1eeaa6337c4e3d9c20a73d7426dd4df39"
+      }
+    ],
+    "0x3367e": [
+      {
+        "canonical_va": "0x3367e",
+        "length": 34,
+        "sha256": "2e0c45d4346191f82c86f15a8b1d09c896b8cb144bd64ae6d1407a9e4004f149"
+      }
+    ],
+    "0x336a0": [
+      {
+        "canonical_va": "0x336a0",
+        "length": 548,
+        "sha256": "f492fe4eb7b7905f81584eddfa9a423729a39b4134777dde592fedb61a492a7c"
+      }
+    ],
+    "0x338c4": [
+      {
+        "canonical_va": "0x338c4",
+        "length": 166,
+        "sha256": "079c16b3bc1410cb95a4d69b6b24f46a96e0d97d5b84870d03f8101908a18d4c"
+      }
+    ],
+    "0x3396a": [
+      {
+        "canonical_va": "0x3396a",
+        "length": 324,
+        "sha256": "102db8c9be679f2f2a2094472c94c8ed46c2d12aef3ee62b7b84ed624e2b690e"
+      }
+    ],
+    "0x33aae": [
+      {
+        "canonical_va": "0x33aae",
+        "length": 67,
+        "sha256": "20af79c1027a814cb748bf26f38793381e3420f41f30b12d103374942cbdaaaf"
+      }
+    ],
+    "0x33af1": [
+      {
+        "canonical_va": "0x33af1",
+        "length": 428,
+        "sha256": "79cbaf120e5f1bd8c2bf5cb01df5b49d5872f0bb6474fa46ed67b636f4543893"
+      }
+    ],
+    "0x33c9d": [
+      {
+        "canonical_va": "0x33c9d",
+        "length": 285,
+        "sha256": "aac45e32bf1601a817346f36855653a47cebabcf4c254cf33523b6ae383f0eb1"
+      }
+    ],
+    "0x33dba": [
+      {
+        "canonical_va": "0x33dba",
+        "length": 130,
+        "sha256": "0ab195e203c593c8e4ae5abcf97aeb597786cb14e5953a47d7c87cd8771855f8"
+      }
+    ],
+    "0x33e3c": [
+      {
+        "canonical_va": "0x33e3c",
+        "length": 316,
+        "sha256": "9deff89a0dd278d614cf5ab425685dcfbd71720ee4c9bd43635b0eb7a3743fbd"
+      }
+    ],
+    "0x22ef6": [
+      {
+        "canonical_va": "0x22ef6",
+        "length": 65,
+        "sha256": "702341a88e1a9649cd463da2cc0d1bf088bdf2f967a5f585518dcb2a191ae786"
+      }
+    ],
+    "0x22f37": [
+      {
+        "canonical_va": "0x22f37",
+        "length": 443,
+        "sha256": "e58c909f0aac07eeb9e0613f8fd0c3c0ab35f5cc86e8fa8e41b7cdd6d2de94df"
+      }
+    ],
+    "0x230f2": [
+      {
+        "canonical_va": "0x230f2",
+        "length": 420,
+        "sha256": "1f50d6a2809eda9f65a1c4622b61f7fe4bcabe9a5a6b7adb46c65374e7dc2f12"
+      }
+    ],
+    "0x23296": [
+      {
+        "canonical_va": "0x23296",
+        "length": 82,
+        "sha256": "71781c4c684636c62c60acef6f22bbed0a639aa70cc85e085a75210220c3dbda"
+      }
+    ],
+    "0x232e8": [
+      {
+        "canonical_va": "0x232e8",
+        "length": 222,
+        "sha256": "954b72497a0c16377edf21873f61945a3947218f10ce2d460b1bbe67a0d3c945"
+      }
+    ],
+    "0x234bb": [
+      {
+        "canonical_va": "0x234bb",
+        "length": 257,
+        "sha256": "d4951ca1c408cc060eeec369db1ccb16fa813c62e20107939aaa900442bf231e"
+      }
+    ],
+    "0x235bc": [
+      {
+        "canonical_va": "0x235bc",
+        "length": 61,
+        "sha256": "522d6db2a32378af05aa8c2b514526b85d87dc162b9f061e1b671eca006e6172"
+      }
+    ],
+    "0x235f9": [
+      {
+        "canonical_va": "0x235f9",
+        "length": 407,
+        "sha256": "94111788decddaddda3ef974378524f78eedac8170f9abdff4b2fe7076ca40d6"
+      }
+    ],
+    "0x23790": [
+      {
+        "canonical_va": "0x23790",
+        "length": 69,
+        "sha256": "8eccb149d9e374ad31ac90aba420180b72564d1a60867c1d29fdfaad2fc02ef5"
+      }
+    ],
+    "0x237d5": [
+      {
+        "canonical_va": "0x237d5",
+        "length": 488,
+        "sha256": "3a46f3b44d8f2ec6e76b3def9ee824b23c85c886702a2ab17e75e0a47f7b624b"
+      }
+    ],
+    "0x239bd": [
+      {
+        "canonical_va": "0x239bd",
+        "length": 77,
+        "sha256": "fb07aca0b6197e01607ada60ac83d683c0446085729278da278974ae50a3b2c4"
+      }
+    ],
+    "0x23a0a": [
+      {
+        "canonical_va": "0x23a0a",
+        "length": 341,
+        "sha256": "00e6490933363ab55957f2d62ae24bf4467a57743dcb6c7eab229203bd980e4c"
+      }
+    ],
+    "0x23b5f": [
+      {
+        "canonical_va": "0x23b5f",
+        "length": 374,
+        "sha256": "50a1694d7e4138eae7ae335bd1a4f0dc7ca8a50a8fbacc8dae007f15583cb849"
+      }
+    ],
+    "0x23cd5": [
+      {
+        "canonical_va": "0x23cd5",
+        "length": 356,
+        "sha256": "9acb12abfae328a2871cfb88704d63d718fb0baaaa626eb3e9f9fff72117ec62"
+      }
+    ],
+    "0x23e39": [
+      {
+        "canonical_va": "0x23e39",
+        "length": 59,
+        "sha256": "68438a7d9cf9cad2a9c4cecbeb6140d9d604038cb89a1aa2ccd3f6fb149b6401"
+      }
+    ],
+    "0x23e74": [
+      {
+        "canonical_va": "0x23e74",
+        "length": 646,
+        "sha256": "e06b2cc6b554a10546ba16e3fa593cb71b1189887b90ec6fd3b732acff402539"
+      }
+    ],
+    "0x240fa": [
+      {
+        "canonical_va": "0x240fa",
+        "length": 572,
+        "sha256": "c69f5f7349fe2e482361f2798d9ca887ffb5303486112c2af8d608a1e78dcc81"
+      }
+    ],
+    "0x244b6": [
+      {
+        "canonical_va": "0x244b6",
+        "length": 354,
+        "sha256": "82dfeba2ff4e586e6b50aeeed73174dbdada1140ebc00ffa9f30d46f8cf68467"
+      }
+    ],
+    "0x24754": [
+      {
+        "canonical_va": "0x24754",
+        "length": 960,
+        "sha256": "6234821b5799c27782bc070354822df0cb6fb22ff804d09ada54ceee0a4f91e5"
+      }
+    ],
+    "0x24c1e": [
+      {
+        "canonical_va": "0x24c1e",
+        "length": 260,
+        "sha256": "1666475f9a6970239b76934de6509d8528e2e71f3319226538e6924470065776"
+      }
+    ],
+    "0x24df2": [
+      {
+        "canonical_va": "0x24df2",
+        "length": 142,
+        "sha256": "580b80bfd2187072d9fc9db40e137f1bf7137e53cd9f8b5d07545161a4fae36d"
+      }
+    ],
+    "0x24e80": [
+      {
+        "canonical_va": "0x24e80",
+        "length": 466,
+        "sha256": "c26a7eddd2d9576190113d88f8b7d1ad5fe1383d1392450e441c3412008cb7fc"
+      }
+    ],
+    "0x250cc": [
+      {
+        "canonical_va": "0x250cc",
+        "length": 920,
+        "sha256": "97c8ddbee5b67ed873bcb8d6116f4f91a892e3590b6ccb0c375de8ca8157eccb"
+      }
+    ],
+    "0x25464": [
+      {
+        "canonical_va": "0x25464",
+        "length": 40,
+        "sha256": "94eab91145d46cbccd4dce7432e3ef0d146abf9bd88eb97af780029585740f68"
+      }
+    ],
+    "0x2548c": [
+      {
+        "canonical_va": "0x2548c",
+        "length": 715,
+        "sha256": "dff7b41bbc5e6b854299c601507a7946b97692c2249ecb3fb9c16f07c5549fb6"
+      }
+    ],
+    "0x25757": [
+      {
+        "canonical_va": "0x25757",
+        "length": 544,
+        "sha256": "80852db4f97428caa9b9cfb15fdf0470860b8f8719aef2ec1493a8c9002028cb"
+      }
+    ]
+  },
+  "families": {
+    "scene_binding": {
+      "state": "known_rule",
+      "next": "S",
+      "description": "已确认领域动作的固定编成、group、对白、坐标、顺序和原版真正场景特例；需逐实例数据和S验收"
+    },
+    "result_known": {
+      "state": "known_rule",
+      "next": "S",
+      "description": "已有隐藏位/阵营/范围全部隐藏条件与胜败分支；具体raw/条件组合属场景"
+    },
+    "loot_known": {
+      "state": "known_rule",
+      "next": "S",
+      "description": "descriptor0物品/1钱/3对白及满包取消等已有共享规则；具体绑定仍需S验证"
+    },
+    "movement_known": {
+      "state": "known_rule",
+      "next": "S",
+      "description": "已确认1366a计数语法、mode/方向规则的新脚本参数；不据结构读取开放关卡"
+    },
+    "indexed_initialization": {
+      "state": "common_gap",
+      "next": "G2",
+      "description": "原metadata+2模板前缀/同索引placement、96actor与stage32真实构造别名来源"
+    },
+    "unit_mutation": {
+      "state": "common_gap",
+      "next": "G2",
+      "description": "有界raw/range单位字段typed写、masked AI低4位/高位、状态/HP/身份/恢复及其派生写序"
+    },
+    "movement_operand": {
+      "state": "common_gap",
+      "next": "G2",
+      "description": "原96actor有效域及script24 mode80零步姿态/方向5资源帧语义，不能规范化方向"
+    },
+    "magic_effect": {
+      "state": "common_gap",
+      "next": "G2",
+      "description": "36记录/28地图分派的玩家与AI有效效果族、模式/费用/候选/演出完整能力"
+    },
+    "event_predicate": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "turn/roster/item/hot-state条件和原版比较宽度，分支冷定义而非大handler"
+    },
+    "event_hot_state": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "既有32byte事件完成/hot-state owner的有界查询、设置/递增及重复门"
+    },
+    "turn_schedule": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "按当前DWORD回合加N再写原turn BYTE/重排事件槽；禁止新增平行调度owner"
+    },
+    "metadata_map": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "原metadata/地图资源与格完成/地形修改及场景资源owner切换"
+    },
+    "roster_inventory": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "事件对指定actor/队伍道具增删、持久成员招募/离队/同步及完整原字段保留"
+    },
+    "nested_loot": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "事件调用descriptor/回调/物理效果的嵌套等待、取消、奖励和一次性提交"
+    },
+    "scene_shared": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "共享批量cutscene单位坐标/镜头、转场/闪烁/滚动资源等待等有限领域能力，固定剧情留S"
+    },
+    "callback_guard": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "90槽外callback255原非代码地址间接调用；SDL保留源并显式安全拒绝，不发明handler"
+    },
+    "descriptor_default": {
+      "state": "common_gap",
+      "next": "G2",
+      "description": "原1aa1d mode4..254 default逐项无业务操作而保留清键；mode255 collector哨兵独立"
+    },
+    "original_noop": {
+      "state": "known_rule",
+      "next": "S",
+      "description": "完整机器码确认只有stackcheck/return的无业务回调，含共享尾"
+    },
+    "dialog_environment": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "C23：实际text消费者的跨框mouth_phase/共享等待RNG与水色调用环境；具体文本/剧情实例仍S"
+    },
+    "map_presentation_environment": {
+      "state": "common_gap",
+      "next": "G4",
+      "description": "C25：pan/move实际消费者的共享工作页/透明底图按原绘序保留；3231b已证13像素下界；具体地图参数仍S"
+    }
+  },
+  "target_groups": [
+    {
+      "table": "adjacent_magic",
+      "targets": [
+        "0x21206",
+        "0x2134b",
+        "0x21364",
+        "0x2137d",
+        "0x21396",
+        "0x21449",
+        "0x21462",
+        "0x2147b",
+        "0x21494",
+        "0x214ad",
+        "0x21527",
+        "0x2185f",
+        "0x21a9e",
+        "0x21ad9",
+        "0x21b99",
+        "0x2211c",
+        "0x22153",
+        "0x2218a",
+        "0x226ea",
+        "0x2282f",
+        "0x22960",
+        "0x22a85",
+        "0x22bc6",
+        "0x22be1",
+        "0x22c04",
+        "0x22cbf",
+        "0x22e41"
+      ],
+      "families": [
+        "magic_effect"
+      ],
+      "basis": [
+        "独立magic28槽，按common-battle-semantics逐族有效域/费用/目标/演出；不当event action90..117"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34531",
+        "0x3460b",
+        "0x34778",
+        "0x35022",
+        "0x357dd"
+      ],
+      "families": [
+        "dialog_environment",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "实际text15f84消费者的C23共享执行环境依赖；不提前实现本根剧情",
+        "实际pan135dd/move1366a消费者的C25工作页owner/原绘序依赖；常量实例留S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34673",
+        "0x346cd",
+        "0x34d2f",
+        "0x34eb3",
+        "0x34fcc",
+        "0x350c8",
+        "0x355b7",
+        "0x356b3"
+      ],
+      "families": [
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "实际pan135dd/move1366a消费者的C25工作页owner/原绘序依赖；常量实例留S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35321"
+      ],
+      "families": [
+        "dialog_environment",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "实际pan135dd/move1366a消费者的C25工作页owner/原绘序依赖；常量实例留S",
+        "共享34f65→34f6b text或34c57→34f65尾，已按原完整指令复核C23"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34738",
+        "0x34f38",
+        "0x350be",
+        "0x35422"
+      ],
+      "families": [
+        "dialog_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "实际text15f84消费者的C23共享执行环境依赖；不提前实现本根剧情"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x348bb",
+        "0x349ec",
+        "0x34b07"
+      ],
+      "families": [
+        "dialog_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "共享34885→3488b call15f84，不能以catalog缺直接callee漏掉C23"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34b9a"
+      ],
+      "families": [
+        "dialog_environment",
+        "event_predicate",
+        "map_presentation_environment",
+        "scene_binding",
+        "unit_mutation"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "34b6f共享chunk内344f2(8,28,0)，原AI34字段范围写",
+        "34b6f共享chunk内turn<15条件，不能只列append实例",
+        "34b6f共享chunk内text4及后续条件text消费者C23",
+        "34b6f共享chunk的pan/move/hide；35833→3571a call135dd，实际C25工作页环境"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34c52",
+        "0x34fc2",
+        "0x35298",
+        "0x353b5"
+      ],
+      "families": [
+        "dialog_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "共享34f65→34f6b text或34c57→34f65尾，已按原完整指令复核C23"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x353e7",
+        "0x353fa",
+        "0x3540f",
+        "0x36416"
+      ],
+      "families": [
+        "scene_binding",
+        "unit_mutation"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "共享3528d/3528f call344f2：原AI34 masked range写，非纯剧情绑定"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35833"
+      ],
+      "families": [
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "已确认append/group/move/text/focus/side/AI target固定组合及共享尾；scene动作执行器已有对应有限能力",
+        "34b6f共享chunk的pan/move/hide；35833→3571a call135dd，实际C25工作页环境"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34818",
+        "0x34b2f",
+        "0x35468",
+        "0x3553f"
+      ],
+      "families": [
+        "event_predicate"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x348ea",
+        "0x34cf1",
+        "0x35191"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34940",
+        "0x34984",
+        "0x34a1e",
+        "0x34d64",
+        "0x34d92",
+        "0x34f74",
+        "0x35009",
+        "0x351e6",
+        "0x35258",
+        "0x3551c",
+        "0x35677",
+        "0x35997",
+        "0x359cb"
+      ],
+      "families": [
+        "unit_mutation"
+      ],
+      "basis": [
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34a6c",
+        "0x34b6f"
+      ],
+      "families": [
+        "event_predicate",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34c7a"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x34dd0"
+      ],
+      "families": [
+        "event_hot_state",
+        "turn_schedule",
+        "unit_mutation"
+      ],
+      "basis": [
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35123"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "roster_inventory"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原指定actor物品append/remove与条件；不是一律party首空槽"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x352ca",
+        "0x35346",
+        "0x355f0"
+      ],
+      "families": [
+        "nested_loot"
+      ],
+      "basis": [
+        "原callback直接调用1aa1d descriptor并可能包含物理结算/死亡/notice续接，嵌套不是整段native handler"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35638",
+        "0x35c1d",
+        "0x35d1e",
+        "0x35f48",
+        "0x35f79",
+        "0x362b0",
+        "0x363de"
+      ],
+      "families": [
+        "scene_shared"
+      ],
+      "basis": [
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35730"
+      ],
+      "families": [
+        "event_hot_state",
+        "nested_loot",
+        "unit_mutation"
+      ],
+      "basis": [
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原callback直接调用1aa1d descriptor并可能包含物理结算/死亡/notice续接，嵌套不是整段native handler"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35854"
+      ],
+      "families": [
+        "event_hot_state",
+        "metadata_map"
+      ],
+      "basis": [
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "map_cell_info_at/完成位/原地形刷新，保留owner与原格索引"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35a0d"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "metadata_map",
+        "roster_inventory"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原指定actor物品append/remove与条件；不是一律party首空槽",
+        "map_cell_info_at/完成位/原地形刷新，保留owner与原格索引"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35bee",
+        "0x35cf1",
+        "0x35e0e"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "turn_schedule"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35c40",
+        "0x35ec1"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35d85"
+      ],
+      "families": [
+        "turn_schedule"
+      ],
+      "basis": [
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35d9e"
+      ],
+      "families": [
+        "event_hot_state",
+        "scene_shared"
+      ],
+      "basis": [
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35e5b"
+      ],
+      "families": [
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35f88"
+      ],
+      "families": [
+        "event_predicate",
+        "scene_shared",
+        "turn_schedule"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x35fcf"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "scene_shared",
+        "turn_schedule"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x360b6"
+      ],
+      "families": [
+        "event_hot_state",
+        "event_predicate",
+        "scene_shared",
+        "turn_schedule",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x36214",
+        "0x36228"
+      ],
+      "families": [
+        "event_hot_state"
+      ],
+      "basis": [
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x3623c"
+      ],
+      "families": [
+        "turn_schedule",
+        "unit_mutation"
+      ],
+      "basis": [
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x362c5"
+      ],
+      "families": [
+        "event_hot_state",
+        "turn_schedule"
+      ],
+      "basis": [
+        "32byte cell-state owner上半区16..21及完成位条件/写/递增，保留原SAV字段",
+        "原metadata turn槽写当前DWORD round+0/1/2后截BYTE；动作与phase/回合有效域合同待实现"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x362e8"
+      ],
+      "families": [
+        "event_predicate",
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原callback含actor隐藏/side/turn/库存或hot-state条件，真实分支需冷定义",
+        "344f2按range masked写AI34低4位；内联ai35/36/flags/身份/HP及35f10败亡range，typed mutation须G2",
+        "原flash/teleport/palette/wait等共享helper及共享尾，固定调用参数仍属S"
+      ]
+    },
+    {
+      "table": "event_callback",
+      "targets": [
+        "0x3642e",
+        "0x36439",
+        "0x36440",
+        "0x36447",
+        "0x3644e"
+      ],
+      "families": [
+        "original_noop"
+      ],
+      "basis": [
+        "Domain完整指令确认push4→shared36433 stackcheck→ret，无业务写；不能按短小猜no-op"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x3231b",
+        "0x32d18",
+        "0x32e8c",
+        "0x32fb2",
+        "0x33049",
+        "0x33169",
+        "0x33219",
+        "0x33367",
+        "0x335da",
+        "0x338c4"
+      ],
+      "families": [
+        "dialog_environment",
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry实际text消费者C23；callee仅用于定位，逐根条件/顺序已审查",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x3314b",
+        "0x3346b",
+        "0x335a0",
+        "0x33674"
+      ],
+      "families": [
+        "indexed_initialization",
+        "scene_binding"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x333f5",
+        "0x3347c",
+        "0x3367e",
+        "0x33aae"
+      ],
+      "families": [
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x3327d",
+        "0x3332b"
+      ],
+      "families": [
+        "dialog_environment",
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry内联写单位direction/flags/status和范围；不重构热单位",
+        "原entry实际text消费者C23；callee仅用于定位，逐根条件/顺序已审查",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x334d9"
+      ],
+      "families": [
+        "dialog_environment",
+        "event_predicate",
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry有33499持久text成员条件",
+        "原entry实际text消费者C23；callee仅用于定位，逐根条件/顺序已审查",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x335aa"
+      ],
+      "families": [
+        "event_predicate",
+        "indexed_initialization",
+        "scene_binding"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry有33499持久text成员条件"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x336a0",
+        "0x33c9d"
+      ],
+      "families": [
+        "dialog_environment",
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding",
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry内联写单位direction/flags/status和范围；不重构热单位",
+        "原entry引用地图视觉/转场/瞬移与共享flash helper；定值场景组合不提前实现",
+        "原entry实际text消费者C23；callee仅用于定位，逐根条件/顺序已审查",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_entry",
+      "targets": [
+        "0x3396a",
+        "0x33af1",
+        "0x33dba",
+        "0x33e3c"
+      ],
+      "families": [
+        "dialog_environment",
+        "indexed_initialization",
+        "map_presentation_environment",
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原entry及其共享尾→205da/1088d初始化合同；G2先修索引/有效构造域，固定group/对白/顺序留S",
+        "原entry引用地图视觉/转场/瞬移与共享flash helper；定值场景组合不提前实现",
+        "原entry实际text消费者C23；callee仅用于定位，逐根条件/顺序已审查",
+        "原entry实际pan/move消费者C25；实例剧情留S"
+      ]
+    },
+    {
+      "table": "stage_runtime_result",
+      "targets": [
+        "0x205b4",
+        "0x206c5",
+        "0x20707",
+        "0x2073d",
+        "0x20822",
+        "0x2084a",
+        "0x208cf",
+        "0x20a51",
+        "0x20a87",
+        "0x20aaf",
+        "0x20b14",
+        "0x20b3c"
+      ],
+      "families": [
+        "result_known"
+      ],
+      "basis": [
+        "原result根及205be共享尾：hidden/raw范围/side与结果覆盖；常量和组合是实例"
+      ]
+    },
+    {
+      "table": "stage_runtime_result",
+      "targets": [
+        "0x20765",
+        "0x20872",
+        "0x20926",
+        "0x20957",
+        "0x20b72",
+        "0x20bf5"
+      ],
+      "families": [
+        "event_predicate"
+      ],
+      "basis": [
+        "原result根含turn阈值、持久成员/事件hot-state以及条件对白；需要共享谓词而非通用全灭"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x22ef6",
+        "0x23790",
+        "0x23e39"
+      ],
+      "families": [
+        "dialog_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "实际text15f84消费者的C23共享执行环境依赖；具体对白/顺序留S"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x22f37",
+        "0x24df2"
+      ],
+      "families": [
+        "dialog_environment",
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "实际text15f84消费者的C23共享执行环境依赖；具体对白/顺序留S",
+        "实际pan135dd/move1366a消费者的C25共享工作页依赖"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x23296"
+      ],
+      "families": [
+        "map_presentation_environment",
+        "scene_binding"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "实际pan135dd/move1366a消费者的C25共享工作页依赖"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x25464"
+      ],
+      "families": [
+        "scene_binding"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x230f2",
+        "0x231bc",
+        "0x231f9",
+        "0x232e8",
+        "0x23a0a",
+        "0x23b5f"
+      ],
+      "families": [
+        "event_predicate",
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "原victory含hidden/turn/roster/item/HP等分支，不以参数搬迁替代条件能力"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x234bb",
+        "0x237d5",
+        "0x2389f",
+        "0x238dc",
+        "0x23cd5",
+        "0x244b6",
+        "0x24c1e"
+      ],
+      "families": [
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x235bc",
+        "0x235f9",
+        "0x23e74",
+        "0x2548c"
+      ],
+      "families": [
+        "scene_binding",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "原victory内联单位坐标/方向/flags/status/身份写及零HP/败亡helper"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x239bd"
+      ],
+      "families": [
+        "event_predicate",
+        "scene_binding"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "原victory含hidden/turn/roster/item/HP等分支，不以参数搬迁替代条件能力"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x240fa"
+      ],
+      "families": [
+        "event_predicate",
+        "roster_inventory",
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "原victory含hidden/turn/roster/item/HP等分支，不以参数搬迁替代条件能力",
+        "原victory含指定inventory移除/party grant或持久成员条件/同步链，已有单纯roster_append保留"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x24754"
+      ],
+      "families": [
+        "event_predicate",
+        "metadata_map",
+        "roster_inventory",
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "原victory含hidden/turn/roster/item/HP等分支，不以参数搬迁替代条件能力",
+        "原victory含指定inventory移除/party grant或持久成员条件/同步链，已有单纯roster_append保留",
+        "24754加载原69地图/46/47地形并重建map owner；具体资源ID是S参数"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x24e80"
+      ],
+      "families": [
+        "scene_binding",
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "原victory内联单位坐标/方向/flags/status/身份写及零HP/败亡helper"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x250cc"
+      ],
+      "families": [
+        "event_predicate",
+        "roster_inventory",
+        "scene_binding",
+        "scene_shared",
+        "unit_mutation"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "原victory内联单位坐标/方向/flags/status/身份写及零HP/败亡helper",
+        "原victory含hidden/turn/roster/item/HP等分支，不以参数搬迁替代条件能力",
+        "原victory含指定inventory移除/party grant或持久成员条件/同步链，已有单纯roster_append保留"
+      ]
+    },
+    {
+      "table": "stage_victory",
+      "targets": [
+        "0x25757"
+      ],
+      "families": [
+        "indexed_initialization",
+        "scene_binding",
+        "scene_shared"
+      ],
+      "basis": [
+        "原victory根/共享尾已检查，具体剧情、奖励条件参数、group/脚本和下一stage仍属S",
+        "233c6批量单位位置/朝向和镜头原写集；24618/24d22/24d4d等视觉共享helper与等待",
+        "25757显式跨场景1088d初始化，同索引/有效容量域前置G2"
+      ]
+    }
+  ],
+  "callback_out_of_table": {
+    "reviewed_actions": [
+      255
+    ],
+    "basis": "1a813 has no ff sentinel; action255→51f8d u32=02030500 has no code fixup and lies outside canonical code; explicit SDL safety failure G4"
+  },
+  "descriptor_default": {
+    "reviewed_modes": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150,
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158,
+      159,
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199,
+      200,
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211,
+      212,
+      213,
+      214,
+      215,
+      216,
+      217,
+      218,
+      219,
+      220,
+      221,
+      222,
+      223,
+      224,
+      225,
+      226,
+      227,
+      228,
+      229,
+      230,
+      231,
+      232,
+      233,
+      234,
+      235,
+      236,
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      251,
+      252,
+      253,
+      254
+    ],
+    "basis": "1aa1d switch default increments descriptor and clears BIOS keys; collector skips255 separately; source stage14/template33 mode203 is a no-business operation"
+  },
+  "movement": [
+    {
+      "id": 0,
+      "source_va": "0x62980",
+      "state": "existing_supported",
+      "counted_length": 27,
+      "common_dependencies": []
+    },
+    {
+      "id": 1,
+      "source_va": "0x6299b",
+      "state": "existing_supported",
+      "counted_length": 11,
+      "common_dependencies": []
+    },
+    {
+      "id": 2,
+      "source_va": "0x629a6",
+      "state": "existing_supported",
+      "counted_length": 43,
+      "common_dependencies": []
+    },
+    {
+      "id": 3,
+      "source_va": "0x629d1",
+      "state": "existing_supported",
+      "counted_length": 31,
+      "common_dependencies": []
+    },
+    {
+      "id": 4,
+      "source_va": "0x629f0",
+      "state": "existing_supported",
+      "counted_length": 17,
+      "common_dependencies": []
+    },
+    {
+      "id": 5,
+      "source_va": "0x62a01",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 6,
+      "source_va": "0x62a06",
+      "state": "existing_supported",
+      "counted_length": 21,
+      "common_dependencies": []
+    },
+    {
+      "id": 7,
+      "source_va": "0x62a1b",
+      "state": "existing_supported",
+      "counted_length": 21,
+      "common_dependencies": []
+    },
+    {
+      "id": 8,
+      "source_va": "0x62a30",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 9,
+      "source_va": "0x62a3d",
+      "state": "existing_supported",
+      "counted_length": 49,
+      "common_dependencies": []
+    },
+    {
+      "id": 10,
+      "source_va": "0x62a6e",
+      "state": "existing_supported",
+      "counted_length": 25,
+      "common_dependencies": []
+    },
+    {
+      "id": 11,
+      "source_va": "0x62a87",
+      "state": "existing_supported",
+      "counted_length": 35,
+      "common_dependencies": []
+    },
+    {
+      "id": 12,
+      "source_va": "0x62aaa",
+      "state": "existing_supported",
+      "counted_length": 39,
+      "common_dependencies": []
+    },
+    {
+      "id": 13,
+      "source_va": "0x62ad1",
+      "state": "existing_supported",
+      "counted_length": 45,
+      "common_dependencies": []
+    },
+    {
+      "id": 14,
+      "source_va": "0x62afe",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 15,
+      "source_va": "0x62b03",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 16,
+      "source_va": "0x62b10",
+      "state": "existing_supported",
+      "counted_length": 25,
+      "common_dependencies": []
+    },
+    {
+      "id": 17,
+      "source_va": "0x62b29",
+      "state": "existing_supported",
+      "counted_length": 21,
+      "common_dependencies": []
+    },
+    {
+      "id": 18,
+      "source_va": "0x62b3e",
+      "state": "existing_supported",
+      "counted_length": 15,
+      "common_dependencies": []
+    },
+    {
+      "id": 19,
+      "source_va": "0x62b4d",
+      "state": "existing_supported",
+      "counted_length": 27,
+      "common_dependencies": []
+    },
+    {
+      "id": 20,
+      "source_va": "0x62b68",
+      "state": "known_rule_new_binding",
+      "counted_length": 45,
+      "common_dependencies": []
+    },
+    {
+      "id": 21,
+      "source_va": "0x62b95",
+      "state": "known_rule_new_binding",
+      "counted_length": 31,
+      "common_dependencies": []
+    },
+    {
+      "id": 22,
+      "source_va": "0x62bb4",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 23,
+      "source_va": "0x62bbd",
+      "state": "known_rule_new_binding",
+      "counted_length": 19,
+      "common_dependencies": []
+    },
+    {
+      "id": 24,
+      "source_va": "0x62bd0",
+      "state": "common_operand_gap",
+      "counted_length": 13,
+      "common_dependencies": [
+        "raw_direction5_mode128_render"
+      ]
+    },
+    {
+      "id": 25,
+      "source_va": "0x62bdb",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 26,
+      "source_va": "0x62be0",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 27,
+      "source_va": "0x62be5",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 28,
+      "source_va": "0x62bea",
+      "state": "known_rule_new_binding",
+      "counted_length": 193,
+      "common_dependencies": []
+    },
+    {
+      "id": 29,
+      "source_va": "0x62cab",
+      "state": "known_rule_new_binding",
+      "counted_length": 39,
+      "common_dependencies": []
+    },
+    {
+      "id": 30,
+      "source_va": "0x62cd2",
+      "state": "known_rule_new_binding",
+      "counted_length": 87,
+      "common_dependencies": []
+    },
+    {
+      "id": 31,
+      "source_va": "0x62d29",
+      "state": "known_rule_new_binding",
+      "counted_length": 23,
+      "common_dependencies": []
+    },
+    {
+      "id": 32,
+      "source_va": "0x62d40",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 33,
+      "source_va": "0x62d45",
+      "state": "known_rule_new_binding",
+      "counted_length": 23,
+      "common_dependencies": []
+    },
+    {
+      "id": 34,
+      "source_va": "0x62d5c",
+      "state": "known_rule_new_binding",
+      "counted_length": 21,
+      "common_dependencies": []
+    },
+    {
+      "id": 35,
+      "source_va": "0x62d71",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 36,
+      "source_va": "0x62d76",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 37,
+      "source_va": "0x62d7b",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 38,
+      "source_va": "0x62d80",
+      "state": "known_rule_new_binding",
+      "counted_length": 17,
+      "common_dependencies": []
+    },
+    {
+      "id": 39,
+      "source_va": "0x62d91",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 40,
+      "source_va": "0x62d9a",
+      "state": "known_rule_new_binding",
+      "counted_length": 71,
+      "common_dependencies": []
+    },
+    {
+      "id": 41,
+      "source_va": "0x62de1",
+      "state": "known_rule_new_binding",
+      "counted_length": 137,
+      "common_dependencies": []
+    },
+    {
+      "id": 42,
+      "source_va": "0x62e6a",
+      "state": "known_rule_new_binding",
+      "counted_length": 27,
+      "common_dependencies": []
+    },
+    {
+      "id": 43,
+      "source_va": "0x62e85",
+      "state": "known_rule_new_binding",
+      "counted_length": 19,
+      "common_dependencies": []
+    },
+    {
+      "id": 44,
+      "source_va": "0x62e98",
+      "state": "known_rule_new_binding",
+      "counted_length": 19,
+      "common_dependencies": []
+    },
+    {
+      "id": 45,
+      "source_va": "0x62eab",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 46,
+      "source_va": "0x62eb4",
+      "state": "common_operand_gap",
+      "counted_length": 53,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 47,
+      "source_va": "0x62ee9",
+      "state": "common_operand_gap",
+      "counted_length": 5,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 48,
+      "source_va": "0x62eee",
+      "state": "common_operand_gap",
+      "counted_length": 25,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 49,
+      "source_va": "0x62f07",
+      "state": "common_operand_gap",
+      "counted_length": 5,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 50,
+      "source_va": "0x62f0c",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 51,
+      "source_va": "0x62f15",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 52,
+      "source_va": "0x62f1e",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 53,
+      "source_va": "0x62f27",
+      "state": "known_rule_new_binding",
+      "counted_length": 35,
+      "common_dependencies": []
+    },
+    {
+      "id": 54,
+      "source_va": "0x62f4a",
+      "state": "known_rule_new_binding",
+      "counted_length": 37,
+      "common_dependencies": []
+    },
+    {
+      "id": 55,
+      "source_va": "0x62f6f",
+      "state": "known_rule_new_binding",
+      "counted_length": 7,
+      "common_dependencies": []
+    },
+    {
+      "id": 56,
+      "source_va": "0x62f76",
+      "state": "known_rule_new_binding",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 57,
+      "source_va": "0x62f83",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 58,
+      "source_va": "0x62f88",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 59,
+      "source_va": "0x62f8d",
+      "state": "known_rule_new_binding",
+      "counted_length": 91,
+      "common_dependencies": []
+    },
+    {
+      "id": 60,
+      "source_va": "0x62fe8",
+      "state": "common_operand_gap",
+      "counted_length": 5,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 61,
+      "source_va": "0x62fed",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 62,
+      "source_va": "0x62ff2",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 63,
+      "source_va": "0x62ff7",
+      "state": "known_rule_new_binding",
+      "counted_length": 17,
+      "common_dependencies": []
+    },
+    {
+      "id": 64,
+      "source_va": "0x63008",
+      "state": "known_rule_new_binding",
+      "counted_length": 21,
+      "common_dependencies": []
+    },
+    {
+      "id": 65,
+      "source_va": "0x6301d",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 66,
+      "source_va": "0x63026",
+      "state": "common_operand_gap",
+      "counted_length": 201,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 67,
+      "source_va": "0x630ef",
+      "state": "known_rule_new_binding",
+      "counted_length": 67,
+      "common_dependencies": []
+    },
+    {
+      "id": 68,
+      "source_va": "0x63132",
+      "state": "known_rule_new_binding",
+      "counted_length": 15,
+      "common_dependencies": []
+    },
+    {
+      "id": 69,
+      "source_va": "0x63141",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 70,
+      "source_va": "0x6314a",
+      "state": "known_rule_new_binding",
+      "counted_length": 7,
+      "common_dependencies": []
+    },
+    {
+      "id": 71,
+      "source_va": "0x63151",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 72,
+      "source_va": "0x63156",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 73,
+      "source_va": "0x6315b",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 74,
+      "source_va": "0x63160",
+      "state": "common_operand_gap",
+      "counted_length": 19,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 75,
+      "source_va": "0x63173",
+      "state": "common_operand_gap",
+      "counted_length": 5,
+      "common_dependencies": [
+        "runtime_capacity_96"
+      ]
+    },
+    {
+      "id": 76,
+      "source_va": "0x63178",
+      "state": "known_rule_new_binding",
+      "counted_length": 107,
+      "common_dependencies": []
+    },
+    {
+      "id": 77,
+      "source_va": "0x631e3",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 78,
+      "source_va": "0x631e8",
+      "state": "known_rule_new_binding",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 79,
+      "source_va": "0x631f5",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 80,
+      "source_va": "0x631fa",
+      "state": "known_rule_new_binding",
+      "counted_length": 15,
+      "common_dependencies": []
+    },
+    {
+      "id": 81,
+      "source_va": "0x63209",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 82,
+      "source_va": "0x6320e",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 83,
+      "source_va": "0x63213",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 84,
+      "source_va": "0x6321c",
+      "state": "known_rule_new_binding",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 85,
+      "source_va": "0x63225",
+      "state": "known_rule_new_binding",
+      "counted_length": 121,
+      "common_dependencies": []
+    },
+    {
+      "id": 86,
+      "source_va": "0x6329e",
+      "state": "known_rule_new_binding",
+      "counted_length": 137,
+      "common_dependencies": []
+    },
+    {
+      "id": 87,
+      "source_va": "0x63327",
+      "state": "known_rule_new_binding",
+      "counted_length": 43,
+      "common_dependencies": []
+    },
+    {
+      "id": 88,
+      "source_va": "0x63352",
+      "state": "known_rule_new_binding",
+      "counted_length": 9,
+      "common_dependencies": []
+    },
+    {
+      "id": 89,
+      "source_va": "0x6335b",
+      "state": "known_rule_new_binding",
+      "counted_length": 69,
+      "common_dependencies": []
+    },
+    {
+      "id": 90,
+      "source_va": "0x633a0",
+      "state": "existing_supported",
+      "counted_length": 29,
+      "common_dependencies": []
+    },
+    {
+      "id": 91,
+      "source_va": "0x633bd",
+      "state": "existing_supported",
+      "counted_length": 17,
+      "common_dependencies": []
+    },
+    {
+      "id": 92,
+      "source_va": "0x633ce",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 93,
+      "source_va": "0x633d3",
+      "state": "existing_supported",
+      "counted_length": 53,
+      "common_dependencies": []
+    },
+    {
+      "id": 94,
+      "source_va": "0x63408",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 95,
+      "source_va": "0x63415",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 96,
+      "source_va": "0x63422",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 97,
+      "source_va": "0x6342f",
+      "state": "existing_supported",
+      "counted_length": 15,
+      "common_dependencies": []
+    },
+    {
+      "id": 98,
+      "source_va": "0x6343e",
+      "state": "existing_supported",
+      "counted_length": 85,
+      "common_dependencies": []
+    },
+    {
+      "id": 99,
+      "source_va": "0x63493",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 100,
+      "source_va": "0x63498",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 101,
+      "source_va": "0x6349d",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 102,
+      "source_va": "0x634a2",
+      "state": "existing_supported",
+      "counted_length": 13,
+      "common_dependencies": []
+    },
+    {
+      "id": 103,
+      "source_va": "0x634af",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 104,
+      "source_va": "0x634b4",
+      "state": "existing_supported",
+      "counted_length": 5,
+      "common_dependencies": []
+    },
+    {
+      "id": 105,
+      "source_va": "0x634b9",
+      "state": "existing_supported",
+      "counted_length": 25,
+      "common_dependencies": []
+    }
+  ],
+  "placement_tails": {
+    "stage:00:template:030": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:31:template:030": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:030": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:031": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:032": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:033": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:034": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:035": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:036": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:037": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:038": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    },
+    "stage:32:template:039": {
+      "effective_template_count": 30,
+      "basis": "10995 reads metadata+2; 10bcc loops i<count; 10c85 uses same indexed placement, not unit-ID ordinal. Keep raw tail; G2 must correct indexed initialization."
+    }
+  },
+  "evidence_documents": [
+    "docs/reverse-engineering/common-event-semantics.md",
+    "docs/reverse-engineering/common-battle-semantics.md",
+    "docs/reverse-engineering/common-preparation-semantics.md",
+    "docs/reverse-engineering/common-runtime-semantics.md"
+  ]
+}

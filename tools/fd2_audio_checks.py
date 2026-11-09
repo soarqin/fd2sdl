@@ -311,7 +311,7 @@ def load_tools(root):
     sys.path.insert(0, str(root/'tools'))
     names = ('run_original_comparison', 'run_original_battle_menu', 'run_original_end_turn',
              'run_graphics_tests', 'run_original_load', 'run_original_battle_animation',
-             'fd2_app_mix_capture', 'fd2_display_requirement', 'fd2_sfx_oracle',
+             'fd2_app_mix_capture', 'fd2_display_requirement', 'fd2_display_power', 'fd2_sfx_oracle',
              'run_background_input_check')
     result={name: importlib.import_module(name) for name in names}
     if any(Path(module.__file__).resolve().parent!=(root/'tools').resolve() for module in result.values()):

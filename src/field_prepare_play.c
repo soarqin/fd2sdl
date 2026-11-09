@@ -4,7 +4,14 @@
  * field_manual_slot_save @0x2968d（原sub_2968D）、field_manual_slot_load @0x2986f（原登记同名）、
  * field_manual_slot_rows_draw @0x29ab2（原sub_29AB2）与field_manual_slot_picker @0x29bcb（原登记同名）。
  * 只借App准备owner；四槽绝不恢复为active。原版资源和布局来自已发布
- * canonical伪C及独立Domain/raw读集，不声称完整原版时序/RNG等价。 */
+ * canonical伪C及独立Domain/raw读集，不声称完整原版时序/RNG等价。
+ * G1新增静态依据（尚未实现服务）：field_shop_menu_execute @0x279bc（原sub_279BC）、
+ * field_shop_buy_execute @0x2872b（原sub_2872B）、field_shop_sell_execute @0x28cbd（原sub_28CBD）、
+ * field_prepare_item_give_execute @0x28f65（原sub_28F65）、field_church_menu_execute
+ * @0x29daa（原sub_29DAA）、field_church_revive_execute @0x2a43e（原sub_2A43E）、
+ * field_church_promote_execute @0x2aa00（原sub_2AA00）、field_deployment_select_execute
+ * @0x2af28（原sub_2AF28）及persistent_roster_selection_reorder @0x2b777（原sub_2B777）。
+ * 取消/排序/物品和资金的分段写点见common-preparation-semantics.md，不能套统一无写取消。 */
 #include "field_prepare_play.h"
 
 #include <stdio.h>

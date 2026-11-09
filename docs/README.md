@@ -31,6 +31,8 @@
 - [IDA 9.5 字节与局部实现复核](reverse-engineering/ida-bytecheck-9.5.md)：从原版重导出、RLE／菜单机器码差分、修复及限制。
 - [启动流程](reverse-engineering/boot-flow.md)：片头、ANI、调色板和标题调用链。
 - [音频调用与对照](reverse-engineering/audio.md)：bank、曲目、cue 与局部捕获依据。
+- [通用战斗语义](reverse-engineering/common-battle-semantics.md)、[准备服务](reverse-engineering/common-preparation-semantics.md)、[共享控制与呈现](reverse-engineering/common-runtime-semantics.md)：G1 的完整原指令／调用／数据读集结论及实施合同；静态取证与原版运行分别登记。
+- [通用事件来源分类](reverse-engineering/common-event-semantics.md)：分发表、保守引用、移动脚本和模板尾逐源归属；审查输入为 `common-scope-review.json`，不代替流程翻译或通用实现验收。
 - [Ghidra 结构验收](reverse-engineering/ghidra-reconstruction.md)：仅按需复核 block、权限、relocation 和确定性，不是日常语义基线。
 
 ## 工具操作

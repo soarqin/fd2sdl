@@ -201,7 +201,7 @@ TAI.DAT 使用 FDOTHER.DAT[0] 调色板显示。条目内容是战斗/地形相�
 |----------|------|
 | `stage*3 + 0` | 地图网格 cell 表 |
 | `stage*3 + 1` | stage metadata：地形包编号、阶段事件表、cell 事件表、单位模板 |
-| `stage*3 + 2` | 单位/对象 placement：坐标 + unit_id（模板查找键） |
+| `stage*3 + 2` | 单位/对象 placement：按模板序号提供坐标，末 WORD 原样保留 |
 
 地图网格条目：
 
@@ -219,12 +219,12 @@ stage metadata 条目（`stage*3+1`）当前确认：
 ```
 偏移   长度       字段
 0x00   1          shape_index，FDSHAP 地形包编号
-0x01   1          unknown_01，待确认
-0x02   1          unknown_02，待确认
+0x01   1          deployment_count，出阵位置数量
+0x02   1          template_count，实际消费的模板数量
 0x03   16*3       turn_events：u8 turn, u8 action, u8 phase
 0x33   16*2       cell_lookup：u8 event_code, u8 match_arg
 0x53   16*3       cell_actions：u8 mode, u16 param；behavior 5 以 actor +0x3d 作为 0-based cell action slot，到达对应 lookup 格后，mode<2 写 actor +0x31/+0x32，mode 0 还把 param 作为 item ID 加入首个空库存槽
-0x83   26*N       unit_templates，单位/对象模板记录，N=(size-0x83)/26
+0x83   26*R       unit_templates，原始模板区；R=(size-0x83)/26，实际仅消费前 template_count 条
 ```
 
 `field_cell_event_lookup @0x13a44` 将 cell 第 2 字节低 5 位解释为 1-based `cell_lookup` ID；SDL 对已确认的16项作边界校验。ID 为0、地形 flags `&0x60!=0`、event code 为`0xff`或`match_arg`不符时不命中。命中只覆盖 `DS:0x1a8f` 的单个 pending code，未命中不清旧值；它不执行 handler。`field_actor_path_play @0x13488` 的四方向共享尾每步都以 match0 查询，玩家和AI共用，没有event-free AI分支；完整路径保留最后一次匹配，后续未命中仍保留。AI normal common tail 再作最终格match1，随后acted与全表方向reset，side1／0 outer才按当前pending调用`DS:0x1b91`的handler，再执行stage handler。
@@ -238,10 +238,12 @@ placement 条目（`stage*3+2`）当前确认：
 ```
 偏移   长度       字段
 0x00   2          count，u16 LE
-0x02   6*count    records：u16 x, u16 y, u16 unit_id/template_key
+0x02   6*count    records：u16 x, u16 y, u16 annotation（原样保留，不作模板查找键）
 ```
 
-placement 的 `unit_id` 与 26 字节模板的 offset `0x01`（actor/unit ID）匹配；模板 offset `0x00` 是 side/camp。相同 ID 多次出现时按模板表顺序消耗。例如 stage 32 前五个模板的 `(side,id)` 为 `(2,48),(2,66),(2,0),(0,0),(0,4)`，对应 placement `(7,5,48),(10,5,66),(8,42,0),(4,46,0),(13,47,4)`。stage 0 末尾四条 `unit_id=0` 是新游戏四名玩家的槽位 `(7,20),(10,21),(8,22),(11,23)`，其 unit ID 在进入关卡前由新游戏流程写入为 `0,9,4,30`。
+原版 `field_unit_stage_template_append @0x10c50` 以**相同模板序号**读取 placement 的 x/y WORD，写入单位坐标时取低字节；不按末 WORD 或模板 ID 搜索。`field_actor_group_append @0x10b4e` 仅遍历 metadata byte 2 指定的有效前缀；`field_stage_initialize @0x1088d` 从该前缀之后读取玩家出阵坐标。末 WORD 与模板 ID 在许多记录中相同只是资源现象，不能作为通用关联规则。例如 stage 32 前五个模板 `(side,id)` 为 `(2,48),(2,66),(2,0),(0,0),(0,4)`，同序 placement 为 `(7,5,48),(10,5,66),(8,42,0),(4,46,0),(13,47,4)`。
+
+stage 0／31 原始模板区各有31条，但 byte 2 为30；stage 32 原始区有40条，有效前缀也是30。共12条前缀外模板不是缺失 placement 的有效单位，不应按文件长度额外构造。stage 0 从 placement 序号30起的四个玩家位置为 `(7,20),(10,21),(8,22),(11,23)`，单位 ID 由新游戏队伍提供。来源、完整初始化链及 SDL 旧 ID 顺序匹配／按长度消费的待修缺口见[准备语义 §9](../reverse-engineering/common-preparation-semantics.md#9-追加发现原模板计数和-placement-索引合同)；格式结论不代表 G2 修复已经交付。
 
 SDL 运行时使用 `fd2_field_unit` 保留原版 `DAT_00003a45` 的 0x50 字节记录布局，单位数组也保持 0x50 字节步长；步态帧和模板来源序号属于 SDL 派生状态，存放在旁路数组中。DOSBox 运行时捕获的 `field_unit_stage_template_append @0x35e6e` 证明，26 字节模板不是直接复制到 record `0x06..0x1f`：placement 提供 `x/y`，模板 byte `0/1/4` 提供 side、unit ID、level，byte `5..12` 被重排为 8 个装备槽，byte `13..16` 写入 record `0x1a..0x1d`，其他已确认 AI 字段写入 `0x31..0x36/0x3d`。模板 byte `0x15` 只由 group loader 用于选择加入批次，不存入 0x50 字节记录；SDL 通过 `source_template_indices` 旁路数组保留来源和 group 查询。
 

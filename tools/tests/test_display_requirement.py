@@ -10,6 +10,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 with patch('ctypes.WinDLL', side_effect=AssertionError('纯测禁止真实Windows API'), create=True):
@@ -24,7 +25,7 @@ def on():
 
 
 class FakeWindows:
-    def __init__(self, state=None, *, acquire_fail=False, release_fail=False):
+    def __init__(self, state=None, *, acquire_fail=False, release_fail=False, after_wake=None):
         self.state = on() if state is None else state
         self.acquire_fail, self.release_fail = acquire_fail, release_fail
         self.previous = display.ES_CONTINUOUS | 1
@@ -32,6 +33,21 @@ class FakeWindows:
         self.tid = 37
         self.events = []
         self.sets = []
+        self.after_wake = after_wake
+        self.desktop_result = {"ok": True, "name": "Default"}
+        self.reset_result = {"ok": True, "pointer_unchanged": True}
+        self.after_reset = None
+
+    def reset_idle(self):
+        self.events.append('zero_move')
+        if self.after_reset is not None: self.state = self.after_reset
+        return copy.deepcopy(self.reset_result)
+
+    def wait(self, seconds):
+        self.events.append(('wait', seconds))
+
+    def desktop(self):
+        return copy.deepcopy(self.desktop_result)
 
     def snapshot(self):
         self.events.append('query')
@@ -47,6 +63,8 @@ class FakeWindows:
         if fail:
             return dict(return_value=0, last_error=5 if len(self.sets) == 1 else 31)
         previous, self.current = self.current, flags
+        if len(self.sets) == 1 and self.after_wake is not None:
+            self.state = self.after_wake
         return dict(return_value=previous, last_error=0)
 
 
@@ -166,10 +184,8 @@ class DisplayContextTest(PureTest):
         self.assertTrue(record['conditional_acquire_not_atomic'])
         self.assertFalse(record['separate_wake_API_called'])
 
-    def test_off_dim_unknown_remote_and_bad_notifications_never_request_or_enter(self):
+    def test_remote_and_bad_notifications_never_request_or_enter(self):
         bad = []
-        for value in (0, 2, None):
-            state = on(); state['console_display']['state'] = value; bad.append(state)
         for key, value in (('same_as_active_console', False), ('session_query_ok', False),
                            ('SM_REMOTESESSION', 1)):
             state = on(); state[key] = value; bad.append(state)
@@ -178,11 +194,79 @@ class DisplayContextTest(PureTest):
             with self.subTest(state=state):
                 api = FakeWindows(state); record = {}; body = Mock()
                 with patch.object(display, '_windows_calls', return_value=api):
-                    with self.assertRaisesRegex(RuntimeError, '显示非ON或未知'):
+                    with self.assertRaisesRegex(RuntimeError, '非活动console或显示通知无效'):
                         with display.windows_display_requirement(record): body()
                 body.assert_not_called()
                 self.assertEqual(api.sets, [])
                 self.assertFalse(record['requested'] or record['acquired'] or record['released'])
+
+    def test_off_and_dim_authorized_once_then_recheck_before_body(self):
+        for value in (0, 2):
+            state = on(); state['console_display']['state'] = value
+            api = FakeWindows(state, after_wake=on()); record = {}
+            with patch.object(display, '_windows_calls', return_value=api):
+                with display.windows_display_requirement(record): api.events.append('body')
+            self.assertEqual(api.events, ['query', ('set', display.REQUIRED_FLAGS),
+                'query', 'body', ('set', api.previous)])
+            self.assertTrue(record['wake_requested'] and record['released'])
+            self.assertEqual(record['after_wake']['console_display']['state'], 1)
+
+    def test_failed_wake_does_not_enter_and_restores_requirement_without_retry(self):
+        state = on(); state['console_display']['state'] = 0
+        api = FakeWindows(state); record = {}; body = Mock()
+        with patch.object(display, '_windows_calls', return_value=api):
+            with self.assertRaisesRegex(RuntimeError, '仍非ON'):
+                with display.windows_display_requirement(record): body()
+        body.assert_not_called()
+        self.assertEqual(api.sets, [display.REQUIRED_FLAGS, api.previous])
+        self.assertTrue(record['released'])
+        self.assertEqual(record['status'], 'failed')
+        self.assertEqual(api.events.count('zero_move'), 1)
+
+    def test_zero_move_once_then_verified_on_and_default_desktop(self):
+        state = on(); state['console_display']['state'] = 0
+        api = self.fake(FakeWindows(state)); api.after_reset = on()
+        record = {}
+        with display.windows_display_requirement(record): api.events.append('body')
+        self.assertEqual(api.events, ['query', ('set', display.REQUIRED_FLAGS), 'query',
+            'zero_move', ('wait', 1.0), 'query', 'body', ('set', api.previous)])
+        self.assertTrue(record['separate_wake_API_called'] and record['released'])
+
+    def test_zero_move_failure_and_cancellation_never_retry_or_enter(self):
+        for error in (None, KeyboardInterrupt()):
+            state = on(); state['console_display']['state'] = 0
+            api = FakeWindows(state); api.reset_result = {'ok': False}
+            if error is not None: api.wait = Mock(side_effect=error); api.reset_result = {'ok': True}
+            record = {}; body = Mock()
+            with patch.object(display, '_windows_calls', return_value=api):
+                with self.assertRaises(KeyboardInterrupt if error else RuntimeError):
+                    with display.windows_display_requirement(record): body()
+            body.assert_not_called()
+            self.assertEqual(api.events.count('zero_move'), 1)
+            self.assertTrue(record['released'])
+
+    def test_explicit_power_journal_recovers_before_display_and_restores_before_release(self):
+        import fd2_display_power as power
+        api = self.fake(FakeWindows()); record = {}
+        def recover(row, path): api.events.append('recover_previous')
+        @contextmanager
+        def scope(row, path):
+            api.events.append('power_copy'); row['changed'] = True
+            try: yield row
+            finally: api.events.append('power_restore'); row['restored'] = True
+        with patch.object(power, 'recover_video_idle', side_effect=recover), patch.object(power, 'temporary_video_idle', side_effect=scope):
+            with display.windows_display_requirement(record, power_journal='fixture.json'):
+                api.events.append('owned_cleanup')
+        self.assertEqual(api.events, ['recover_previous', 'query', ('set', display.REQUIRED_FLAGS),
+            'query', 'power_copy', 'owned_cleanup', 'power_restore', ('set', api.previous)])
+        self.assertTrue(record['powerplan_changed'] and record['power']['restored'] and record['released'])
+
+    def test_locked_desktop_never_wakes_or_enters(self):
+        api = self.fake(FakeWindows()); api.desktop_result = {'ok': False, 'name': 'Winlogon'}
+        record = {}
+        with self.assertRaisesRegex(RuntimeError, '输入桌面不可用'):
+            with display.windows_display_requirement(record): self.fail('entered')
+        self.assertEqual(api.sets, [])
 
     def test_acquire_failure_retains_actual_error_without_release_or_body(self):
         api = self.fake(FakeWindows(acquire_fail=True)); record = {}; body = Mock()
@@ -368,7 +452,7 @@ class EntryScopeTest(PureTest):
                 self.assertEqual(result, expected); self.assertEqual(saved['status'], 'failed')
                 self.assertTrue(saved['display_requirement']['released'])
 
-    def test_standalone_off_or_unknown_never_runs_or_creates_output(self):
+    def test_standalone_unsuccessful_wake_never_runs_or_creates_output(self):
         for state in (0, None):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as temp:
                 snapshot = on(); snapshot['session_display']['state'] = state
@@ -376,7 +460,9 @@ class EntryScopeTest(PureTest):
                 with patch.object(display, '_windows_calls', return_value=api):
                     result, saved, stdout, called = self.collector(Path(temp), api)
                 self.assertEqual(result, 1); self.assertIsNone(saved); called.assert_not_called()
-                self.assertEqual(api.sets, []); self.assertFalse(stdout['display_requirement']['requested'])
+                self.assertEqual(api.sets, [display.REQUIRED_FLAGS, api.previous])
+                self.assertTrue(stdout['display_requirement']['requested'])
+                self.assertTrue(stdout['display_requirement']['released'])
 
     def test_standalone_existing_artifact_is_never_rewritten(self):
         api = self.fake(FakeWindows())

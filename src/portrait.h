@@ -6,6 +6,10 @@
 #include "archive.h"
 #include "image.h"
 
+/* 1956b的特殊notice origin；16559以该位置正向重画，普通36887以右端反向画。
+ * 冷定义唯一来源，不改变portrait或调用方的消息owner。 */
+unsigned fd2_portrait_notice_origin(unsigned portrait_id);
+
 /* DATO.DAT 角色立绘包
  *
  * 逆向依据：FUN_000136cc @0x15f84 遇到 FDTXT 控制码 -0x11..-0x14

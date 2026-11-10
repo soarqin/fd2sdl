@@ -1918,6 +1918,85 @@ CORRECTIONS.setdefault(0x4E127, []).append({
 })
 
 
+# G3：准备领域完整Domain指令/CFG/xref与strict LE逐chunk相同；这里只登记
+# 名称和证据，不写猜测ABI/Hex-Rays类型，不触发数据库或发布输出。
+_G3_PREPARATION_NAMES = (
+    (0x26A0D, "sub_26A0D", "field_shop_stock_copy",
+     "完整109B，279bc唯一caller。selector1从31B准备行+3复制至多12项，3从+15/5从+23至多8项，ff停；不是新库存owner。"),
+    (0x26A7A, "sub_26A7A", "field_prepare_money_add_present",
+     "完整279B，28cbd caller；先格式化旧signed DWORD precision8，再26ab5模2^32加钱，随后逐列九切片滚动。47例局部原码/C门含完整正值循环和有界DWORD回绕写点；负号越目录像素不作等价。"),
+    (0x26B91, "sub_26B91", "field_prepare_money_subtract_present",
+     "完整266B，2872b/2a43e caller；26bcc先模2^32扣钱，再逐列递减滚动；共享26b8a返回尾。复活真实入口证明扣钱早于flags整byte清0和HP=max，不推UI等待RNG等价。"),
+    (0x26C9B, "sub_26C9B", "field_prepare_money_strip_draw",
+     "完整73B，26a7a/26b91两caller；从服务归档raw frame2读6字节步进的数字切片，再复制9行到指定stride目的页，不是通用数字格式化。"),
+    (0x26CE4, "sub_26CE4", "field_prepare_menu_transition",
+     "完整340B，商店/酒店/教会三caller；保存64000页，清201,169的104x20带，四图标按原四offset及四相位缩放位移进入/退出；不选择命令、不改roster。"),
+    (0x26E38, "sub_26E38", "field_prepare_menu_select",
+     "完整162B，279bc/29300/29daa；每轮26eda(0)，左右将53c57在0..3循环并cue0，Enter/Space确认、Esc返回；不是无RNG查询。"),
+    (0x26EDA, "sub_26EDA", "field_prepare_picker_wait_key",
+     "完整415B，菜单/商品/成员/购买候选/复活/转职picker六caller；入口一次共享RNG%50+8，highlight初2，按2 BIOS tick推进27079及立绘0/3，blink后RNG%30+2；读BIOS键并规范扩展确认/取消。"),
+    (0x27079, "sub_27079", "field_prepare_picker_tick_draw",
+     "完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。"),
+    (0x272D0, "sub_272D0", "field_shop_items_draw",
+     "完整790B，275e6/27738 caller；两列三行商品/库存，item+181名字、分类/属性图及bank42主值，服务frame15钱图及bank119五位售价；a5非零为floor3price/4。不是库存写入。"),
+    (0x275E6, "sub_275E6", "field_shop_item_select",
+     "完整338B，买/卖/转交caller；26eda(1)等待，两列六项窗口及上下两行滚动，边界不循环；确认/取消通过原53c57返回，不把压缩显示行重新映射到raw库存槽。"),
+    (0x27738, "sub_27738", "field_shop_item_page_open",
+     "完整222B，买/卖/转交caller；分配三个64000B页面，服务frame16底板与272d0内容，1974c的5..0六相位入场；实际导航由275e6，不是整购买handler。"),
+    (0x27816, "sub_27816", "field_prepare_rows_shift_up",
+     "完整209B，五类列表picker共享；284x80区域内容连续三次上移6像素/10ms，再上移8像素并清73，合一行26px；名字按像素方向，不混淆选项向下。"),
+    (0x278E7, "sub_278E7", "field_prepare_rows_shift_down",
+     "完整213B，与27816同五caller；反向拷贝保护重叠，内容三次下移6像素/10ms，再下移8像素并清73；不改first/选择索引。"),
+    (0x27D33, "sub_27D33", "field_prepare_member_select",
+     "完整535B，买/卖/装备/转交/酒店与教会详情caller；重置first/selection0，分配并滑入成员页，26eda(3)共享等待，两列raw roster导航，Enter确认/Esc取消。"),
+    (0x27F4A, "sub_27F4A", "field_shop_equipment_recipient_select",
+     "完整449B，2872b唯一caller；三行兼容候选及2825b四属性预览，26eda(2)，上下单行滚动且有效移动cue0；不装备、不扣钱。"),
+    (0x2810B, "sub_2810B", "field_prepare_members_draw",
+     "完整336B，27079/27d33；两列至多六名，cache目录raw_index*12+共享idle相位，4e29c将sprite skip填73，姓名按text+1并高亮；不按当前unitID另建cache。"),
+    (0x2825B, "sub_2825B", "field_shop_equipment_recipients_draw",
+     "完整943B，27f4a唯一caller；三行候选raw映射，28632出AP/DP/HIT/EV四DWORD预览，与现派生WORD比较选数字bank，服务frames18..22标签/箭头，不写live属性。"),
+    (0x28632, "sub_28632", "field_shop_item_stats_preview",
+     "完整249B及26e30共享返回尾，2825b唯一caller；signed基础AP/DP/DX加新物品效果，再只保留record.kind<=20/>20相反组旧flags40装备，依次输出四DWORD。不同于1b750状态缩放和ID128装备分组。"),
+    (0x28B41, "sub_28B41", "field_prepare_service_animate",
+     "完整380B，购买/出售/复活caller；selector1五帧、3单帧、4九帧与原渐白、5七帧，读取各服务归档23起帧，保固定BIOS等待/末清键；不在本函数扣钱或写actor。"),
+    (0x28EFE, "sub_28EFE", "field_prepare_equipment_execute",
+     "完整103B及28efc共享返回，279bc caller；循环27d33选持久成员→26996关页→1bffe装备，保存恢复portrait origin并重载当前服务头像；Esc退出。不把整个循环作为SDL native业务叶。"),
+    (0x2A07A, "sub_2A07A", "field_revive_candidates_build",
+     "完整72B，2a43e唯一caller；逐raw调用34894，仅flags bit0为1收索引，不加HP0/side/acted门。原码/C五组count0/1/7/16/32及hidden且HP非零输出一致。"),
+    (0x2A0C2, "sub_2A0C2", "field_revive_candidates_draw",
+     "完整475B及26e30共享返回，2a29d唯一caller；三行候选cache sprite、名字/种族/profile和费用，profile-1引用52399与52397+2*profile同地址；候选布局本身不清flags/HP。"),
+    (0x2A29D, "sub_2A29D", "field_revive_candidate_select",
+     "完整417B，2a43e唯一caller；三缓冲与六步滑入，26eda(2)等待，三行上下/滚动及确认/Esc，无有效移动cue0调用，不在picker恢复单位。"),
+    (0x2A694, "sub_2A694", "field_promotion_candidates_draw",
+     "完整451B，2a857唯一caller；三行旧身份sprite/text/profile、593及4e7dd目标profile+150，目标由已建候选数组传入；不构造新单位，不写身份。"),
+    (0x2A857, "sub_2A857", "field_promotion_candidate_select",
+     "完整425B，2aa00唯一caller；三行候选上下边界和滚动，26eda(2)共享RNG等待，确认/取消；与复活列表一样未播放移动cue0，不发明普通/特殊二选一。"),
+    (0x2AEDB, "sub_2AEDB", "field_unit_item_slot_find_prefix",
+     "完整77B，转职候选/耗物及若干stage根共享；先1b8a6数可见槽，再1b722直接查raw[0..count-1]同ID，返回首raw槽或-1。不能改成扫全8槽跳hidden；非仅转职服务。"),
+    (0x2B439, "sub_2B439", "field_deployment_required_member_check",
+     "完整194B，2af28 caller；扫描已排前缀raw1..15/19的text ID，缺失才头像75/动态名字/657与16c57(0)，返回有无；不自动补选、不回滚此前排序。"),
+    (0x2B4FB, "sub_2B4FB", "field_deployment_selection_draw",
+     "完整388B及2b434共享返回，2af28/2b67f；复制底页，画名额/剩余数、1297d共享idle、当前raw+1详情和10列同伴网格。已选普通sprite下移3px、未选灰阶；不改变选择位图。"),
+    (0x2B67F, "sub_2B67F", "field_deployment_selection_wait_key",
+     "完整202B，2af28唯一caller；输入未就绪时BIOS tick变化才2b4fb重绘并复制页，读取键后规范Enter/Space及扩展确认、Delete取消；本体不调用业务RNG。"),
+    (0x2B749, "sub_2B749", "field_deployment_selection_count",
+     "完整46B及26ed6共享返回，2af28/2b4fb；数count-1个同伴选择byte的非零项，不含raw0、不判断名额/必须成员；返回由caller比较15/19。"),
+    (0x2B843, "sub_2B843", "persistent_roster_text_front",
+     "完整339B，2af28 caller；扫描raw1..count-1取最后匹配text ID，以完整a00副本把它稳定移到raw1，其余相对顺序保留，随后按新UID序重建FDICON。47例原码/C门包含重复text，修正SDL先匹配即返回；原缺失匹配的未定义写域不开放。"),
+    (0x2FB2C, "sub_2FB2C", "field_promotion_visual_execute",
+     "完整744B，2aa00唯一caller；保存画面/fadeout/wait1，旧FIGANI idle的9帧入场/16tick循环，20步渐白，新idle首帧offset200/24tick，再fadeout还原/fadein。BG0..2为320x100，工作页stride640；不写单位、不扣物/钱、不调用业务RNG或音效。"),
+    (0x2FE14, "sub_2FE14", "field_promotion_idle_cycle",
+     "完整237B，2fb2c唯一caller；局部BG先加一mod3，每tick绘当前idle part，按原duration推进并在BYTE count回0，wait1；duration0不补1，age非BYTE回绕。正常16→48新idle为三字节empty，SDL仅略未定义sprite目录/时长读取，保BG/等待，非原未定义像素等价。"),
+)
+for _va, _old, _name, _contract in _G3_PREPARATION_NAMES:
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "semantic_name", "was": _old, "now": _name,
+        "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；" + _contract +
+               " 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，"
+               "来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。",
+    })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

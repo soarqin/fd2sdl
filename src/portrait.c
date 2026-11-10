@@ -8,6 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "static_data/preparation.inc"
+
+unsigned fd2_portrait_notice_origin(unsigned portrait_id) {
+    return portrait_id >= 128u && portrait_id <= 132u
+        ? k_prepare_notice_portrait_origins[portrait_id - 128u] : 36887u;
+}
+
 static uint16_t rd_u16_le(const uint8_t *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }

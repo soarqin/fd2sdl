@@ -10,7 +10,11 @@
  * @0x1e98c（原sub_1E98C）、field_short_counter_refresh @0x1e611（原sub_1E611）；
  * field_stationary_recover_present_apply @0x13fd4（原sub_13FD4）。顺序由Game冷图调度，
  * 本服务只消费已提交结果／明确的恢复STEP，不取得业务写权或RNG。
- * 表VA0x52470/0x5266c/0x52684/0x526e3已由只读Domain与relocated字节核对。 */
+ * 表VA0x52470/0x5266c/0x52684/0x526e3已由只读Domain与relocated字节核对。
+ * G3规范命名（完整Domain函数/xref/原资源依据，非ABI推断）：
+ * field_promotion_visual_execute @0x2fb2c（原登记 sub_2FB2C）。
+ * field_promotion_idle_cycle @0x2fe14（原登记 sub_2FE14）。
+ */
 #include "battle_animation.h"
 
 #include <stdio.h>
@@ -335,11 +339,14 @@ static void copy_board(fd2_battle_animation_exchange *e, int stride, int offset)
 }
 
 /* dac_apply_darkness @0x11d40逐通道减暗度；不复用旧VGA比例近似。 */
-static void apply_darkness(fd2_battle_animation *ctx, int darkness) {
+static void apply_darkness_vga(fd2_vga *vga, int darkness) {
     for (size_t i=0;i<768;i++) {
-        uint8_t v=(uint8_t)(ctx->vga->palette[i]>darkness ? ctx->vga->palette[i]-darkness:0);
-        ctx->vga->dac[i]=(uint8_t)((v<<2)|(v>>4));
+        uint8_t v=(uint8_t)(vga->palette[i]>darkness ? vga->palette[i]-darkness:0);
+        vga->dac[i]=(uint8_t)((v<<2)|(v>>4));
     }
+}
+static void apply_darkness(fd2_battle_animation *ctx, int darkness) {
+    apply_darkness_vga(ctx->vga,darkness);
 }
 
 static void fade(fd2_battle_animation *ctx, int in) {
@@ -2019,4 +2026,146 @@ void fd2_battle_animation_close(fd2_battle_animation *ctx) {
     if (ctx->magic_exchange && ctx->vga) (void)magic_restore(ctx,NULL,0,NULL);
     fd2_archive_close(&ctx->backgrounds);
     fd2_archive_close(&ctx->terrain_images);memset(ctx,0,sizeof(*ctx));
+}
+
+/* sub_2FB2C @0x2fb2c / sub_2FE14 @0x2fe14（原登记同名）：
+ * 冷图调度有限视觉阶段，BG/FIGANI只借App，整个scope不读写单位或取RNG。 */
+struct fd2_prepare_promotion {
+    fd2_vga *vga;
+    battle_image background[3];
+    battle_clip old_idle,new_idle;
+    uint8_t saved[64000],palette[768],dac[768],work[128000];
+    int status;
+};
+
+static int promotion_quit(fd2_prepare_promotion *scope) {
+    if (fd2_input_take_quit(&scope->vga->input)) scope->status=-2;
+    return scope->status;
+}
+
+static int promotion_present(fd2_prepare_promotion *scope,unsigned wait) {
+    if (promotion_quit(scope)) return scope->status;
+    fd2_vga_present(scope->vga);
+    if (!promotion_quit(scope) && wait) fd2_wait_ticks(wait);
+    return promotion_quit(scope);
+}
+
+static int promotion_fade(fd2_prepare_promotion *scope,int in) {
+    for (int i=0;i<(in ? 65:64);i++) {
+        if (promotion_quit(scope)) return scope->status;
+        apply_darkness_vga(scope->vga,in ? 64-i:i);
+        if (promotion_present(scope,0)) return scope->status;
+        fd2_delay_ms(2);
+    }
+    return promotion_quit(scope);
+}
+
+static void promotion_frame(fd2_prepare_promotion *scope,const battle_clip *clip,
+        size_t part,unsigned background,unsigned x) {
+    memset(scope->work,0,sizeof(scope->work));
+    blit(scope->work,640,200,640,&scope->background[background],0,50,-1);
+    /* 16→48的FIGANI144为原empty哨兵；不伪造part，不读取owner外目录。 */
+    if (!clip->clip.empty) part_draw(scope->work,640,200,640,clip,part,(int)x,0,-1);
+    copy_pixels(scope->vga->framebuffer,320,scope->work,640);
+}
+
+static int promotion_idle_open(battle_clip *out,const fd2_archive *figani,size_t entry) {
+    if (fd2_figani_open_entry(&out->clip,figani,entry)!=0) return -1;
+    return out->clip.empty ? 0:clip_open_visual(out,figani,entry);
+}
+
+int fd2_prepare_promotion_open(fd2_prepare_promotion **out,fd2_vga *vga,
+        const fd2_archive *backgrounds,const fd2_archive *figani,
+        uint8_t old_unit_id,uint8_t new_unit_id) {
+    if (!out || *out || !vga || !backgrounds || !figani) return -1;
+    fd2_prepare_promotion *scope=calloc(1,sizeof(*scope));
+    if (!scope) return -1;
+    scope->vga=vga;
+    memcpy(scope->saved,vga->framebuffer,sizeof(scope->saved));
+    memcpy(scope->palette,vga->palette,sizeof(scope->palette));
+    memcpy(scope->dac,vga->dac,sizeof(scope->dac));
+    if (promotion_idle_open(&scope->old_idle,figani,(size_t)old_unit_id*3u)!=0 ||
+        promotion_idle_open(&scope->new_idle,figani,(size_t)new_unit_id*3u)!=0) goto fail;
+    for (size_t i=0;i<3;i++)
+        if (image_entry(&scope->background[i],backgrounds,i)!=0 ||
+            scope->background[i].image.width>640 || scope->background[i].image.height>200) goto fail;
+    *out=scope;return 0;
+fail:
+    fd2_prepare_promotion_close(scope,0);return -1;
+}
+
+int fd2_prepare_promotion_step(fd2_prepare_promotion *scope,
+        fd2_prepare_promotion_phase phase,unsigned value) {
+    if (!scope || !scope->vga) return -1;
+    if (scope->status) return scope->status;
+    /* 参数先全验，坏冷节点不改视觉；阶段顺序只属于caller冷图。 */
+    if ((phase==FD2_PREPARE_PROMOTION_BEGIN && value>255u) ||
+        (phase==FD2_PREPARE_PROMOTION_OLD_ENTER && (!value || value>33u)) ||
+        ((phase==FD2_PREPARE_PROMOTION_OLD_IDLE || phase==FD2_PREPARE_PROMOTION_NEW_IDLE) && value>4096u) ||
+        (phase==FD2_PREPARE_PROMOTION_WHITE && value>256u) ||
+        (phase==FD2_PREPARE_PROMOTION_NEW_FRAME && value>320u) ||
+        (phase==FD2_PREPARE_PROMOTION_RESTORE && value) ||
+        (unsigned)phase>FD2_PREPARE_PROMOTION_RESTORE) return -1;
+    if (promotion_quit(scope)) return scope->status;
+    if (phase==FD2_PREPARE_PROMOTION_BEGIN) {
+        if (promotion_fade(scope,0)) return scope->status;
+        for (unsigned i=0;i<value;i++) {
+            if (promotion_quit(scope)) return scope->status;
+            fd2_wait_ticks(1);
+        }
+    } else if (phase==FD2_PREPARE_PROMOTION_OLD_ENTER) {
+        unsigned background=0;
+        for (unsigned i=value;i-->0;) {
+            if (promotion_quit(scope)) return scope->status;
+            background=(background+1u)%3u;
+            promotion_frame(scope,&scope->old_idle,0,background,i*10u);
+            apply_darkness_vga(scope->vga,(int)(6u*i));
+            if (promotion_present(scope,0)) return scope->status;
+        }
+    } else if (phase==FD2_PREPARE_PROMOTION_OLD_IDLE || phase==FD2_PREPARE_PROMOTION_NEW_IDLE) {
+        const battle_clip *clip=phase==FD2_PREPARE_PROMOTION_OLD_IDLE ? &scope->old_idle:&scope->new_idle;
+        unsigned background=0,part=0,age=0;
+        for (unsigned i=0;i<value;i++) {
+            if (promotion_quit(scope)) return scope->status;
+            background=(background+1u)%3u;
+            promotion_frame(scope,clip,part,background,0);
+            /* 2fe14 duration0不补1，也不按BYTE回绕age；源有界tick中保持原part。 */
+            if (!clip->clip.empty && ++age==clip->parts[part].part.duration) {
+                age=0;if (++part==clip->clip.part_count) part=0;
+            }
+            if (promotion_present(scope,1)) return scope->status;
+        }
+    } else if (phase==FD2_PREPARE_PROMOTION_WHITE) {
+        for (unsigned step=0;step<value;step++) {
+            if (promotion_quit(scope)) return scope->status;
+            for (size_t i=0;i<768;i++) {
+                unsigned channel=scope->vga->palette[i]+step*3u;
+                if (channel>63u) channel=63u;
+                scope->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
+            }
+            if (promotion_present(scope,0)) return scope->status;
+            fd2_delay_ms(10);
+        }
+    } else if (phase==FD2_PREPARE_PROMOTION_NEW_FRAME) {
+        promotion_frame(scope,&scope->new_idle,0,0,value);
+        apply_darkness_vga(scope->vga,0);
+        return promotion_present(scope,0);
+    } else if (phase==FD2_PREPARE_PROMOTION_RESTORE) {
+        if (promotion_fade(scope,0)) return scope->status;
+        memcpy(scope->vga->framebuffer,scope->saved,sizeof(scope->saved));
+        return promotion_fade(scope,1);
+    }
+    return promotion_quit(scope);
+}
+
+void fd2_prepare_promotion_close(fd2_prepare_promotion *scope,int restore_visual) {
+    if (!scope) return;
+    if (restore_visual && scope->vga) {
+        memcpy(scope->vga->framebuffer,scope->saved,sizeof(scope->saved));
+        memcpy(scope->vga->palette,scope->palette,sizeof(scope->palette));
+        memcpy(scope->vga->dac,scope->dac,sizeof(scope->dac));
+    }
+    clip_close(&scope->old_idle);clip_close(&scope->new_idle);
+    for (size_t i=0;i<3;i++) image_close(&scope->background[i]);
+    free(scope);
 }

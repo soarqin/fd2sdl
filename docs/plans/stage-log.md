@@ -1401,3 +1401,82 @@ SHORT01原版全门通过，SDL业务／声音／面板／后续FX通过，但80
 正常caster专门门以32base／68growth／20learning／合法转职、1887有效模板和408FIGANI核50个玩家FULL组合、238模板实例／30独立组合均非empty。原FIGANI count是BYTE，+1为split；初次WORD诊断被真实split1头与目录反证，未进入产品。stage13 unit103／30的零分／MAP排除单列；任意外部SAV或未来来源不在声明内。FULL9最终差分也使用BYTE／split，17例原机器码全等，95目标四例仅C容量，报告`full9-wrapper-comparison-final.json`。
 
 G2最终保留171表、五域39流程／606节点／6绑定；冷图、有限领域操作、现有热owner／80B／SAV／RNG合同无新平行状态。交叉复审修复了raw5、solid stride、caller信息板、初始上传及counter时钟问题；无剩余已识别G2机制阻塞。完成G2阶段提交后接续G3，不等待“继续”。阶段Git身份与本地FF／主程序重建／用户存档守卫写入ignored `build/g2/local-integration.json`；G3—G5仍未完成，S未启动。早期27项CTest／112项Python、七组新增双端与本节补充按各自候选联合成立，不冒充最终程序单轮全历史、全RGB／波形、Linux或G5回归。
+
+## G3 持久队伍与准备服务（进行中，未提交／未集成）
+
+G2完整阶段提交为`61d58560174b8c2893a1e33a76b4bdf07fbd754e`；本地master由G1快进，主App Windows Debug重建通过，用户FD2.SAV摘要`b0dd9349f449d252910994d796434efa14a1149de8a4ea116de22e0ec62965d7`未变。主树仍只留原未跟踪FD2.SAV，无远程推送。15个生成include正文一致；五份raw JSON SHA注释因主树CRLF checkout不同，初次逐byte相同断言失败后逐项确认只有这64hex注释变化，JSON值及生成C正文不变，没有伪造两App同摘要。完整集成见`build/g2/local-integration.json`。
+
+G3现有候选采用同一preparation owner；新增纯领域分写、通用原库存／1b750 adapter、准备表、真实服务资源及动态文本共享，不新建运行期队伍或SAV字段。首批build及五项CTest通过，记录`build/g3/service-domain-{build,ctest}.log`；分别为prepare_item、unit_stats、prepare_play、text_expand和直接受影响progress_play。第二批prepare领域7组、field_info与转职scope测试通过，prepare_play新数字门因误要求字形1也为6x8失败；原三bank字形1确为5x8，其余6x8，修复后field_info／prepare_play两项重建复测通过，旧失败`prepare-promotion-ctest.log`保留，修复收据`service-number-fix-{build,ctest}.log`。后续源修及新页面仍需自身验证，不沿用旧候选通过。
+
+来源复审确认：28cbd／28f65列表压缩可见ID，但提交仍同rank直接raw，不作反向映射；self满8拒，非满同一80B先移再追加flag0、只重算送方。密集保持只是明确前提下的有限原语性质，未冒称穷尽全部事件直接store；新准备原语不以密集假设拒已知稀疏。28632比较专用DWORD预览不套1b750状态／窄化。资金signed JGE与回绕业务、滚动sprintf首8字符及187d6末态负数夹0三层分开，尚须完整滚动取证／呈现验收。
+
+本阶段尚未完成：全部准备冷flow／服务正式输入、16／20选阵和NoTown、必须成员／隐藏键、金额动画、合法empty转职idle图形安全域、必要双端P1—P6与双向SAV、最终来源／支持门复审及完整G3提交集成。最新源域和未提交内容续接于ignored `build/g3/CONTINUE.md`，G4／G5未开始，S未启动；上述纯测试与局部源阅读不能替代原版运行或G5历史回归。
+
+G3本轮最终保存点：187输入表、六域41流程／907节点／12绑定；preparation的services221节点／deployment80节点已定义并注册查询，但69项有限op尚未由正式prepare_ui消费，不能把图结构通过当服务已实现。独立源337B及服务／部署／portrait锚、7个坏输入拒绝通过；源／图／oracle共18项Python通过，13组受控fixture只为预期模型，P5后期／P6没有post-action酒店Save。一次CLI误用不存在的test_static_preparation_flows模块已保留失败日志，改为实际test_preparation_flows后通过，不作产品修复。
+
+最后源复审修正service四头像的特殊origin：128..132原1956b／16559各有位置，不得套酒店107,5。五原点迁入唯一冷表，portrait getter供Game提示与准备共用；后续frame0为正向，首次notice reverse仍须正式UI实现。复审也将准备Load预检的Game资源载体删去，使用只持必要档案／字体／sprite／info的小资源owner，Game及准备共用纯详情上页门，不伪造ready Game。新成员／复活／选阵纯页及preview遵4e29c将skip填73，选阵仍按4e22a／4e1a6分别普通／灰色。转职16→48真实empty idle只省未定义sprite／目录读取，保BG／固定等待／渐变与外层业务；不提升为原未定义像素等价。
+
+这些改动后实际构建工作树Debug App及相关targets通过，8项定向CTest再次通过（info、save、prepare、prepare_view、stage_transition、prepare_play、progress_play、battle_animation），记录`build/g3/checkpoint-{build,ctest}.log`；测试输出最后去除过时的硬编码“31组”字样，逻辑未改。此前source-view八项还包含共享库存原语直接影响的attack／item_commit。此联合证据不计G5全历史或G3正式服务验收。当前所有子agent冻结、无G3 GUI／电源改动，G3内容继续未提交／未集成，后续从`build/g3/CONTINUE.md`接正式UI／源差分／双端验收，不自动开始S。
+
+
+### G3 正式服务接线续接（2026-11-10，阶段仍未完成）
+
+在同一 `silent-hopper` 工作树续接，保留 G1 `5b9619f`、G2 `61d5856` 已集成状态。G3 未提交／未集成，G4／G5 未开始。正式准备入口已消费 76 个有限 op；services 247 节点、deployment 80 节点，仍借唯一持久 roster／资金／RNG owner。NoTown 与26行城镇来源独立于 battle 支持门，不开放晚关战场。
+
+源复审修正：购买／Give目标作为显式冷参数；装备选择／兼容／写入循环展开到图；490..494文本内部 -3 已负责 ACK，移除重复等待；music 第二参数保 loop_count；服务入场 sfx1／loop3 与音乐由冷图编排。26996只释放底页，DATO／origin保留给后续26eda；成员／装备详情临时借四帧当前头像与原3208坐标。酒店Load拒NoTown，成功Load重建精灵目录；无效目录只省未定义sprite，不拒整服务。2b843重复text取最后匹配，完整持久表保留。
+
+本轮 `formal-service-build-01.log` 构建及六项定向CTest通过。随后新增完整服务图的menu→product回归，暴露并修复菜单后漏26996及raw图标零色应复制；`formal-service-build-04.log` 与 `formal-service-ctest-04.log` 覆盖修后正式整图。局部原码差分探针、其余业务／原版验收仍在进行，不计G5全历史回归。
+
+Windows原版 `build/g3/native-p1-buy-yes-04/` 的original端完成标题LOAD→购买武器／选择装备→酒店Save，全22987B符合独立模型，来源和正常清理守卫通过；SDL欢迎页后exit1，整场失败，不记双端通过。该冷图关闭底页缺口修复后，以严格复核原工具／资源／真实PNG／完整Save的 `--original-evidence` 继承此原版成功端，仅复测SDL。新旧来源分别保留，不能把旧原版PASS提升为新SDL或全G3通过。
+
+图形运行申请必要显示需求并确认实际WGC；已结束的03／04各owned窗口正常清理，需求同线程释放，未修改电源计划／混音器，用户FD2.SAV摘要保持原值。正在进行的05结果与最终续接状态以 `build/g3/CONTINUE.md` 和各收据为准；不把运行中或模型输出记验收完成。
+
+### G3 定向验收与审查修复（2026-11-10，候选）
+
+正式 `prepare_ui` 已消费 76 项有限 op；services 为 247 节点、deployment 为 85 节点，187 张输入表。新增 NoTown 保存 caller 参数后的 ABI 为 `cbf4db56f301521f2152c72539580a6264802afbd914118b9f96d0d71782e5ec`。旧 69 op／221／80 节点的保存点保留为开发历史，不再描述当前实现。G3 尚未提交／集成，G4／G5 尚未开始。
+
+当前正式验收分开记账：
+
+| 范围 | 本地证据 | 已通过与限制 |
+|---|---|---|
+| P1 购买四分支 | `native-p1-buy-yes-05`、`native-p1-buy-equip-no-06`、`native-p1-buy-insufficient-06`、`native-p1-buy-full-06` | 原版／SDL 正式输入、必要页面及完整 22987 字节 Save；非逐帧／完整声音等价 |
+| P2 出售与自给 | `native-p2-sell-equipped-06`、`native-p2-self-give-07` | 已装备品出售、自给 raw 移除／追加及完整 Save；不同成员和独立 EQT 路径另补 |
+| P3／P4 | `native-p3-revive-09`、`native-p3-revive-insufficient-09`、`native-p4-promote-normal-10`、`native-p4-promote-special90-10` | 原费用／flags／HP、原耗物／各通知增量／终态与全 Save；无候选真实等待先正验，不用额外键代替就绪 |
+| P5／P6 | `native-deploy17-01`、`native-deploy21-sdl-06`、`native-notown22-01` | 17／21 人选阵最终 NO 与重入、缺必需成员；同一安全点原版单 RAM 与 SDL 停态 PDB 核完整热 owner，全 SAV 与 mtime 不写 |
+| 双向手工存档 | `cross-save-native-01` | 两端实际交易输出交给另一端正式 LOAD，再 Save 新槽；全文件、源槽、active 和未知尾保护，不以同模型双跑冒充互通 |
+| 返回音乐状态 | `native-audio-p3-01`、`native-audio-p4-01` | 真实等待中原版 RPC／SDL PDB 量得曲 11、loop 1／0、完整 FDMUS 资源及播放状态；瞬时 17／16 仍属原 caller 必经路径推断和旧 WAV 候选，未声称 PC 轨迹／全波形 |
+
+P5 的旧 SDL02—05 都通过页面，失败分别在观察器协议或输出：05 已正确取得 PDB 类型、2572 字节长度及字段地址，`.writemem` 无法创建文件；改为同一 CDB 停态内经本轮进程句柄一次完整 `ReadProcessMemory` 后，06 完整 owner 验收通过。记录 PID／映像／地址／长度／SHA，拒绝短读并正常 detach；未改成扫描猜 roster 或把前置 Save 当后态。原版独立成功端只在严格复核工具、数据、截图和 dump 身份后继承，来源与当前 SDL 身份分列。
+
+审查修复包括 Give 按原出售型列表显示 3/4 价、`16e24` 仅作两个合法 origin 的 CPU 滚屏而不新增 96 ms／采样、`2ac7d` 的 MV 行用 y176、不重复滚屏，以及每次 prefix 重排后显式重绑 sprite 目录。完整转职已采集序列的离线内容门见 `promotion-series-content-03`：四端均有完整旧／新身份及有定义的 320×50 白化带，按真实 PNG／PID／HWND／SHA 核序；普通原版未命中完整白化帧，限制保留，不升格为全帧等价。
+
+后续审查发现 NoTown YES 保存不能借酒店消费模式：原 `26152→2968d(0)→29bcb` 直接读键，不耗 `16c57` 等待 RNG／画 129，且非零 NoTown 跳过 660 及其 ACK。现以冷 `manual_save(caller_kind)` 指定原消费者，不按 stage 重建业务分支；酒店与标题合同保留。另复核 `4ed34→4ed4f` 确为零透明，撤销此前把菜单／确认 raw 图统一完整复制的误判，完整背景合成门覆盖透明角；`4ed0b` 真正 raw 复制的零色行为不改。
+
+修后 Windows Debug App 和六个直接 target 构建、CTest 6/6 通过，见 `notown-transparent-{build,ctest}-01.log`；包含存档、部署交接、准备领域／页面／完整 UI 及转职 scope。新增 NoTown 纯测以坏 660 文本验证不应预检或显示，核一次写档、无多余 ACK、RNG／上半页／贡献不变；透明绘制以非零底色核完整 64000 字节。Python 费用页的 120000→前五字符边界修后 18/18，通过日志 `fee-width-python-02.log`；首次测试夹具把 immutable bytes 当可写所致失败保留，不是产品失败。
+
+独立原 x86—C 差分为 47 个正例和 6 个负例，含原库存、费用、重排、复活／转职分写；UI／libc／资源 hook 的限制单列，不冒称 UI RNG 或声音等价。IDA 已从最新 G2 发布库隔离复制，真实应用／保存 33 项新命名，347 项登记、1312 个函数边界／签名守卫不变；21 项静态检查、14 项交叉检查和最后 SHA 清单通过。两处历史 Hex-Rays 库函数失败保留，源库未改，未新作严格运行时 BSS 验收。
+
+隐藏入口完整像素门、NoTown YES 实际 Save、独立装备及不同成员转交正由本阶段补验；当前纯测／采集／模型均不能代替这些运行证据。各结束 Job 正常清理，显示需求释放；本轮未修改电源计划或混音器。Linux 未执行。完整 G3 门关闭后才作一次阶段提交及本地集成，随后连续 G4→G5，不自动 S。
+
+### G3 阶段收口（2026-11-10）
+
+上述剩余门已关闭。G3 的完整成果包括持久队伍／16—20 人选择、原库存与交易、教会复活／转职、服务必需的冷流程／等待／取消、完整页面和金额／转职呈现、真实四槽保存及跨场景 roster 合同。业务状态仍沿 App／Game 原 owner、原 SAV 和 RNG，不增加 VM、事件总线或第二业务状态。各旧候选和失败记录保留；本节不把它们改写为同一次最终二进制全历史通过。
+
+新增正式证据（均在 `build/g3/`）：
+
+- `native-eqt-reselect-01`：两次装备确认及完整中间属性／库存页、重选和 Esc，再实际酒店 Save；双方全 22987 字节通过，中间强门防止最终恢复原字节造成假通过。
+- `native-give-different-01`：收件取消后重新选择，raw2→raw0 真正不同成员转交，收方 7→8 槽、只重算送方、钱不改，再全 Save 通过。
+- `hidden-entry-native-03`：Shift+F1→caption500→独立 Enter→bank63 六商品页，取消返回及整档／mtime 不写，两端通过。01 的原版严格角点门错误、02 的 SDL 修饰键丢失均保留为失败。
+- `native-notown-save-02`：NoTown 410 默认 YES，完整 21 人一次存入槽 1，不经 660／额外 ACK 直接回已更新槽页，再 Esc 到完整选阵页；全容器原槽、active、未知尾均符合原 writer 写集。01 的新工具漏标已知低色槽页而在确认前退出，修为只有完整原资源匹配才接收，未降低像素门；6 项纯测包含白屏及改单点拒绝。
+- `promotion-series-content-05`：正式只读工具从实际四端 WGC 序列核完整旧／新身份、原定义 320×50 白化带和返回页的有序轨迹。普通原版完整白化帧仍未命中，限制保留。
+- `money-series-content-02`：购买减钱、出售加钱、复活减钱的三组六端，完整 48×9 原 raw 数字条 ROI 核前值→至少一个与前／末态均不同的滚动切片→后值；实际整档另解为同一后值。原资源、源码字节、PNG／PID／HWND／SHA 均封存，不声称全部 phase 时序或波形等价。
+
+收口又修正保存提交边界：原 `2968d` 确认后先真实 writer，再进入可中断 `26996` 收框；酒店先纯预检 660 资源，NoTown 不预检／显示该消息。新回归覆盖酒店／NoTown×收框 hostquit／cue 错误，均恰好一次真实写盘、完整载回、未授权容器字节不变；坏 660 酒店零写。独立源复审通过，Load 继续先收框后交接。
+
+后台组合键故障来自当前 Windows SDL 的 pump 末端 `GetKeyState` Shift 修正：传输成功后 SDL 物理快照已无 Shift。现只为 F1—F12 首按保存修饰元数据，仍需本帧键态脉冲才能消费、下次 present 过期，keyup／失焦清除，repeat 用本帧物理位；没有普通键 FIFO、额外脉冲或全局键态修改。`input_test` 的真实 SDL event-poll 路径加受控键态覆盖未读过期、UP、失焦和 repeat；独立只读审查及上述隐藏正式入口通过。
+
+最终共享修改后 `save-edge-modifier-{build,ctest}-01.log` 的 App／2 项 CTest 通过，`final-shared-header-{build,ctest}.log` 的 5 项直接 CTest 重建通过。5 个新增内容／入口工具的最终联合纯测为 24/24，日志 `final-new-tools-python.log`；此前 Python、47+6 局部原码和实际 Domain 发布保各自范围。图形／业务、局部机器码与 SDL 自测分别记账，不合称 G5 回归。
+
+本阶段完成门已关闭；完整 32 条部署投影、未出阵尾和结算回投由原构造来源、C 回归及既有正式交接联合验证，17／21 人最终 NO 代表不扩成整段后期 entry／settlement 的原生通过。曲 11 返回 owner 实测与中途 17／16 必经源调用／录音候选的层级继续分列。所有 owned 窗口正常清理，显示需求已释放，未更改电源计划／混音器；用户原 FD2.SAV 摘要保持 `b0dd9349f449d252910994d796434efa14a1149de8a4ea116de22e0ec62965d7`。Linux、逐帧完整白化／全部相位、全波形及严格运行时 BSS 未新增验收。
+
+此次作一个完整 G3 提交，不拆微提交；提交与主树安全集成／重建记录在 Git 及 `build/g3/local-integration.json`，不远程推送。之后连续进入 G4，随后 G5 统一审查、全历史回归和消冗；S 尚未启动，通用总完成门尚未签核。

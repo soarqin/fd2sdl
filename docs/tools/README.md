@@ -62,6 +62,36 @@ G2 的正式 CONTINUE／动作／Save、原资源视觉门、最低声音身份�
 
 `verify_fd2_full9_wrapper.py` 是局部原机器码工具，读取严格 relocated 镜像、固定Domain读集与实际 C JSONL；`--image`／`--readset` 可指定已有只读证据位置。它执行原目标循环、完整过渡和真实RNG，与C每次RNG前及TARGET／FINISH边界比较；不执行真实renderer、声音或DOSBox，不能代替上面的窗口验收。原95目标没有据此验证；该组只属C容量。当前源与收据见[战斗语义§9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
 
+### G3 准备服务的定向验证
+
+G3 复用同一 owned Job、后台输入、WGC 单窗及显示需求恢复设施，证据范围见[准备服务依据](../reverse-engineering/common-preparation-semantics.md#11-g3-实现与证据补记)及阶段记录。产物目录必须是新目录，原资源和用户存档只读；以下命令本身不构成通过。
+
+| 入口 | 验证对象与运行方式 |
+|---|---|
+| `run_g3_prepare_check.py` | P1—P4 正式服务／酒店 Save、独立整档预期；`--prepare-only` 不开窗口，实际运行须外层 `run-job` |
+| `run_g3_deployment_check.py` | P5／P6 选阵最终 NO／缺必需成员；原版 RPC 与 SDL 匹配 PDB 的停态完整 owner 读取，不用选择前存档作后态 |
+| `run_g3_inventory_check.py` | `eqt-reselect`、`give-different-cancel` 的中间完整页及实际酒店 Save；默认仅准备，`--run` 才运行 |
+| `run_g3_hidden_entry_check.py`、`run_g3_notown_save_check.py` | 隐藏 Shift+F1 浏览／整档不写、NoTown YES／21 人新槽保存／零额外 ACK；默认仅准备，`--execute` 才运行 |
+| `run_g3_cross_save_check.py` | 输入已实际通过的服务报告 `--evidence`，从各端真实 measured.SAV 正式交叉 LOAD／新槽 Save；默认仅准备 |
+| `run_g3_audio_runtime_check.py` | P3／P4 真实等待中的单次曲目／序列 owner 读取；不录音，不额外 ACK，不把混合 WAV 候选当曲目身份 |
+| `run_g3_promotion_content_check.py`、`run_g3_money_content_check.py` | 只读 `--reports` 指定的既有连续 PNG、PID／HWND／SHA、全 SAV 与原资源，核有序实际内容；不开新窗口，不改旧报告 |
+
+Windows（PowerShell）的无窗口准备及纯测试示例：
+
+```powershell
+python -B tools/run_g3_prepare_check.py --root . --scenario p1-buy-equip-yes --artifacts build/g3/prepare-NEW --prepare-only
+python -B -m unittest discover -s tools/tests -p test_g3_notown_save_check.py -v
+```
+
+Linux（Bash）使用相同原资源和独立产物目录：
+
+```bash
+python3 -B tools/run_g3_prepare_check.py --root . --scenario p1-buy-equip-yes --artifacts build/g3/linux-prepare-NEW --prepare-only
+python3 -B -m unittest discover -s tools/tests -p test_g3_notown_save_check.py -v
+```
+
+上述 Linux 示例为兼容操作说明，本轮未执行 Linux。当前原版／SDL 实机和 CDB／WGC 观察器只登记 Windows 已执行范围。低色槽页只有完整原 310×86 资源像素门匹配时才接收，不把白屏／单色帧当标题通过。原版 RPC 每次重新解析本轮 owner／代码锚；SDL 观察器读取同一停止态 PDB 地址及有界完整长度，拒短读并正常 detach，不扫描内存猜 roster。
+
 ### A8 音频生命周期验证
 
 普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put 故障和队列压力；`audio_device_probe_finalization` 覆盖实际 probe 的末次提交错误；`audio_pcm_capture_callback_order` 检查 Put 失败不能留下成功 AppMix summary。`audio_unavailable_field_quick_entry` 启动真正主程序，以 dummy video 和无效音频后端验证 discard-null 快速入口，不算原生窗口或设备播放通过。交付候选的实际结果见[阶段记录](../plans/stage-log.md#a8宿主与设备生命周期)，以下命令不自行构成通过记录。

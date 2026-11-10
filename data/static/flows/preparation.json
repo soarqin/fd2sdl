@@ -1,0 +1,5028 @@
+{
+  "schema_version": 1,
+  "domain": "preparation",
+  "source": {
+    "file": "FD2.EXE",
+    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+    "kind": "decoded_domain_control_flow",
+    "evidence": "G1 full Domain2872b/28cbd/28efe/28f65/279bc/29daa/2a43e/2aa00/2ac7d/2af28/26152 and strictLE bytes; common-preparation-semantics. Finite UI/domain operations only; transient selection stays in prepare_ui and business in original roster owner. Conditional action routing/ACK/cancel and every inventory/money/promotion/reorder write order are defined here. SDL-only preflight precedes first irreversible write; late error preserves committed bytes. Growth490..494 source text ends -3/-1: their ACK is inside show_message(16c57 mode1), so no duplicate external wait;596 retains external mode0 ACK. 1e529 clears BIOS buffer separately before each nonzero growth text; zero skips do not clear and596 has no added clear. 29620 detail selection/repeat/cancel is cold; detail_member only presents already selected raw member, no hidden roster handler. 26152 nondeployment confirm plays primary FDOTHER31 sample1/loop3 before2670e music stop. UI bank strict monotonic-offset parse has13 entries0..12 (31771B SHA5f871c2348d76bf35cb52b0f04029dfdb765471ad1d6543479e7dfd3b3e19504); first offset62 includes a nonoffset gap, not14 samples. 2b843 after every text-front reorder frees/rebuilds FDICON at2b92f..2b98d; five prefix sites therefore each have explicit cache_rebuild, including separate9/cache then29/cache in stage25. Original machine front traces record the complete post-reorder UID append sequence; no cache operation is hidden inside prefix_reorder. 2ac7d movement596 draws at the line returned by1e529 without another16e24 scroll. show_message layout5 is actor growth-line direct/no-scroll; only movement.say uses it, with original external mode0 ACK retained. NoTown26152@2632f calls2968d(0):29bcb direct BIOS input has no16c57 RNG/blink;2968d@297f7..297fe skips660/ACK whenNoTown. manual_save caller_kind0 preserves this role;1 is the existing hotel wait/feedback caller. Same original save owner and selected-slot repeat are retained."
+  },
+  "operations": {
+    "service_resources": {
+      "args": []
+    },
+    "service_is_church": {
+      "args": []
+    },
+    "menu_pick": {
+      "args": []
+    },
+    "stock_prepare": {
+      "args": []
+    },
+    "product_is_equipment": {
+      "args": []
+    },
+    "has_money": {
+      "args": []
+    },
+    "inventory_full": {
+      "args": [
+        {
+          "name": "target",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "item_append": {
+      "args": [
+        {
+          "name": "target",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "item_remove": {
+      "args": []
+    },
+    "item_capture": {
+      "args": []
+    },
+    "equipment_set": {
+      "args": [
+        {
+          "name": "slot_source",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "recompute": {
+      "args": []
+    },
+    "money_add": {
+      "args": []
+    },
+    "money_sub": {
+      "args": []
+    },
+    "close_page": {
+      "args": []
+    },
+    "service_animate": {
+      "args": []
+    },
+    "revive_flags_clear": {
+      "args": []
+    },
+    "revive_hp": {
+      "args": []
+    },
+    "money_redraw": {
+      "args": []
+    },
+    "promotion_item_consume": {
+      "args": []
+    },
+    "promotion_identity": {
+      "args": []
+    },
+    "cache_rebuild": {
+      "args": []
+    },
+    "growth_nonzero": {
+      "args": []
+    },
+    "growth_commit": {
+      "args": []
+    },
+    "movement_prepare": {
+      "args": []
+    },
+    "movement_commit": {
+      "args": []
+    },
+    "promotion_finalize": {
+      "args": []
+    },
+    "clear_keys": {
+      "args": []
+    },
+    "detail_member": {
+      "args": []
+    },
+    "selection_reset": {
+      "args": []
+    },
+    "pick_companion": {
+      "args": []
+    },
+    "selection_toggle": {
+      "args": []
+    },
+    "selection_full": {
+      "args": []
+    },
+    "selection_cursor_next": {
+      "args": []
+    },
+    "selection_reorder": {
+      "args": []
+    },
+    "selection_open": {
+      "args": []
+    },
+    "selection_close": {
+      "args": []
+    },
+    "is_notown": {
+      "args": []
+    },
+    "roster_exceeds_quota": {
+      "args": []
+    },
+    "empty_screen": {
+      "args": []
+    },
+    "selected_is": {
+      "args": [
+        {
+          "name": "command",
+          "min": 0,
+          "max": 3
+        }
+      ]
+    },
+    "selector_is": {
+      "args": [
+        {
+          "name": "selector",
+          "min": 0,
+          "max": 5
+        }
+      ]
+    },
+    "pick_member": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 4
+        }
+      ]
+    },
+    "pick_item": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "pick_product": {
+      "args": []
+    },
+    "build_candidates": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 3
+        }
+      ]
+    },
+    "price_prepare": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 2
+        }
+      ]
+    },
+    "notice_open": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 2
+        }
+      ]
+    },
+    "message_name": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 5
+        }
+      ]
+    },
+    "show_message": {
+      "args": [
+        {
+          "name": "source",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "index",
+          "min": 0,
+          "max": 760
+        },
+        {
+          "name": "layout",
+          "min": 0,
+          "max": 5
+        }
+      ]
+    },
+    "wait_key": {
+      "args": [
+        {
+          "name": "mode",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "confirm": {
+      "args": []
+    },
+    "preflight": {
+      "args": [
+        {
+          "name": "kind",
+          "min": 0,
+          "max": 6
+        }
+      ]
+    },
+    "music": {
+      "args": [
+        {
+          "name": "track",
+          "min": -1,
+          "max": 28
+        },
+        {
+          "name": "loop_count",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "promotion_visual": {
+      "args": [
+        {
+          "name": "phase",
+          "min": 0,
+          "max": 6
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 4096
+        }
+      ]
+    },
+    "growth_select": {
+      "args": [
+        {
+          "name": "index",
+          "min": 0,
+          "max": 4
+        }
+      ]
+    },
+    "stage_is": {
+      "args": [
+        {
+          "name": "stage",
+          "min": 0,
+          "max": 32
+        }
+      ]
+    },
+    "stage_at_least": {
+      "args": [
+        {
+          "name": "stage",
+          "min": 0,
+          "max": 32
+        }
+      ]
+    },
+    "roster_has_text": {
+      "args": [
+        {
+          "name": "text_id",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "required_member": {
+      "args": [
+        {
+          "name": "text_id",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "prefix_reorder": {
+      "args": [
+        {
+          "name": "text_id",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "quota_set": {
+      "args": [
+        {
+          "name": "total",
+          "min": 16,
+          "max": 20
+        }
+      ]
+    },
+    "deployment_mode": {
+      "args": [
+        {
+          "name": "notown",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "darkness": {
+      "args": [
+        {
+          "name": "value",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "manual_save": {
+      "args": [
+        {
+          "name": "caller_kind",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "finish": {
+      "args": [
+        {
+          "name": "result",
+          "min": -1,
+          "max": 1
+        }
+      ]
+    },
+    "service_page": {
+      "args": [
+        {
+          "name": "mode",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "service_exit": {
+      "args": []
+    },
+    "equipment_open": {
+      "args": []
+    },
+    "pick_equipment_slot": {
+      "args": []
+    },
+    "equipment_compatible": {
+      "args": []
+    },
+    "equipment_redraw": {
+      "args": []
+    },
+    "equipment_close": {
+      "args": []
+    },
+    "service_enter": {
+      "args": []
+    },
+    "service_transition": {
+      "args": [
+        {
+          "name": "mode",
+          "min": 0,
+          "max": 0
+        }
+      ]
+    },
+    "sfx": {
+      "args": [
+        {
+          "name": "sample",
+          "min": 0,
+          "max": 12
+        },
+        {
+          "name": "loop_count",
+          "min": 1,
+          "max": 3
+        }
+      ]
+    }
+  },
+  "flows": [
+    {
+      "id": "services",
+      "entry": "open",
+      "nodes": [
+        {
+          "id": "open",
+          "op": "service_resources",
+          "args": [],
+          "on": {
+            "next": "entry.sfx",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "kind",
+          "op": "service_is_church",
+          "args": [],
+          "on": {
+            "yes": "church.welcome",
+            "no": "shop.welcome.kind",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.welcome",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "church.welcome.money",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.hello",
+          "op": "show_message",
+          "args": [
+            0,
+            585,
+            0
+          ],
+          "on": {
+            "next": "menu.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.welcome.kind",
+          "op": "selector_is",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "shop.weapon",
+            "no": "shop.other",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.weapon",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "shop.weapon.money",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.weapon.hello",
+          "op": "show_message",
+          "args": [
+            0,
+            501,
+            0
+          ],
+          "on": {
+            "next": "stock",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.other",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "shop.other.money",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.other.hello",
+          "op": "show_message",
+          "args": [
+            0,
+            440,
+            0
+          ],
+          "on": {
+            "next": "stock",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "stock",
+          "op": "stock_prepare",
+          "args": [],
+          "on": {
+            "next": "menu.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.open",
+          "op": "service_page",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "menu.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.pick",
+          "op": "menu_pick",
+          "args": [],
+          "on": {
+            "slot": "menu.close",
+            "cancel": "menu.cancel.slide",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.close",
+          "op": "service_page",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "menu.page.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.kind",
+          "op": "service_is_church",
+          "args": [],
+          "on": {
+            "yes": "church.0",
+            "no": "shop.0",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.0",
+          "op": "selected_is",
+          "args": [
+            0
+          ],
+          "on": {
+            "yes": "buy.pick",
+            "no": "shop.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.1",
+          "op": "selected_is",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "sell.member",
+            "no": "shop.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.2",
+          "op": "selected_is",
+          "args": [
+            2
+          ],
+          "on": {
+            "yes": "equip.member",
+            "no": "give.notice",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.0",
+          "op": "selected_is",
+          "args": [
+            0
+          ],
+          "on": {
+            "yes": "church.detail.pick",
+            "no": "church.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.1",
+          "op": "selected_is",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "give.notice",
+            "no": "church.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.2",
+          "op": "selected_is",
+          "args": [
+            2
+          ],
+          "on": {
+            "yes": "revive.build",
+            "no": "promote.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.detail.pick",
+          "op": "pick_member",
+          "args": [
+            0
+          ],
+          "on": {
+            "slot": "church.detail.close",
+            "cancel": "church.detail.cancel",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.detail.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "church.detail.show",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.detail.show",
+          "op": "detail_member",
+          "args": [],
+          "on": {
+            "next": "church.detail.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.detail.cancel",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "service.return",
+          "op": "service_is_church",
+          "args": [],
+          "on": {
+            "yes": "church.return.open",
+            "no": "shop.return.kind",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.return.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "church.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.return",
+          "op": "show_message",
+          "args": [
+            0,
+            586,
+            0
+          ],
+          "on": {
+            "next": "menu.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.return.kind",
+          "op": "selector_is",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "shop.return.open.weapon",
+            "no": "shop.return.open.other",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.return.open.weapon",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "shop.return.weapon",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.return.weapon",
+          "op": "show_message",
+          "args": [
+            0,
+            503,
+            0
+          ],
+          "on": {
+            "next": "menu.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.return.open.other",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "shop.return.other",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.return.other",
+          "op": "show_message",
+          "args": [
+            0,
+            440,
+            0
+          ],
+          "on": {
+            "next": "menu.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "leave",
+          "op": "service_exit",
+          "args": [],
+          "on": {
+            "next": "exit.music",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "finish",
+          "args": [
+            0
+          ],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.pick",
+          "op": "pick_product",
+          "args": [],
+          "on": {
+            "slot": "buy.close.product",
+            "cancel": "buy.close.cancel",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.close.cancel",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.close.product",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "buy.price",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.price",
+          "op": "price_prepare",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.name",
+          "op": "message_name",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.build",
+          "op": "build_candidates",
+          "args": [
+            0
+          ],
+          "on": {
+            "yes": "buy.ask.open",
+            "no": "buy.none.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.none.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.none",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.none",
+          "op": "show_message",
+          "args": [
+            1,
+            2,
+            0
+          ],
+          "on": {
+            "next": "buy.none.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.none.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "buy.retry",
+            "cancel": "buy.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.retry",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "buy.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.ask.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.ask",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.ask",
+          "op": "show_message",
+          "args": [
+            1,
+            0,
+            0
+          ],
+          "on": {
+            "next": "buy.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "buy.money",
+            "no": "buy.retry",
+            "cancel": "buy.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.money",
+          "op": "has_money",
+          "args": [],
+          "on": {
+            "yes": "buy.close.ask",
+            "no": "buy.poor",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.poor",
+          "op": "show_message",
+          "args": [
+            1,
+            1,
+            1
+          ],
+          "on": {
+            "next": "buy.none.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.close.ask",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "buy.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.member",
+          "op": "pick_member",
+          "args": [
+            1
+          ],
+          "on": {
+            "slot": "buy.close.member",
+            "cancel": "buy.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.close.member",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "buy.full",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.full",
+          "op": "inventory_full",
+          "args": [
+            0
+          ],
+          "on": {
+            "yes": "buy.full.name",
+            "no": "buy.preflight",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.full.name",
+          "op": "message_name",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "buy.full.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.full.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.full.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.full.say",
+          "op": "show_message",
+          "args": [
+            3,
+            0,
+            0
+          ],
+          "on": {
+            "next": "buy.none.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.preflight",
+          "op": "preflight",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.append",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.append",
+          "op": "item_append",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.equipment",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equipment",
+          "op": "product_is_equipment",
+          "args": [],
+          "on": {
+            "yes": "buy.equip.open",
+            "no": "buy.animate",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.equip.ask",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.ask",
+          "op": "show_message",
+          "args": [
+            1,
+            3,
+            0
+          ],
+          "on": {
+            "next": "buy.equip.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "buy.equip.set",
+            "no": "buy.equip.close",
+            "cancel": "buy.equip.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.set",
+          "op": "equipment_set",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "buy.equip.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.recompute",
+          "op": "recompute",
+          "args": [],
+          "on": {
+            "next": "buy.equip.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.equip.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "buy.animate",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.animate",
+          "op": "service_animate",
+          "args": [],
+          "on": {
+            "next": "buy.pay",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "buy.pay",
+          "op": "money_sub",
+          "args": [],
+          "on": {
+            "next": "buy.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.member",
+          "op": "pick_member",
+          "args": [
+            0
+          ],
+          "on": {
+            "slot": "sell.member.close",
+            "cancel": "sell.return.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.return.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.member.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "sell.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.build",
+          "op": "build_candidates",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "sell.item",
+            "no": "sell.empty.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.empty.name",
+          "op": "message_name",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "sell.empty.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.empty.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "sell.empty",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.empty",
+          "op": "show_message",
+          "args": [
+            2,
+            1,
+            0
+          ],
+          "on": {
+            "next": "sell.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "sell.retry",
+            "cancel": "sell.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.retry",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "sell.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.item",
+          "op": "pick_item",
+          "args": [
+            0
+          ],
+          "on": {
+            "slot": "sell.item.close",
+            "cancel": "sell.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.item.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "sell.price",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.price",
+          "op": "price_prepare",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "sell.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.name",
+          "op": "message_name",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "sell.ask.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.ask.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "sell.ask",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.ask",
+          "op": "show_message",
+          "args": [
+            2,
+            0,
+            0
+          ],
+          "on": {
+            "next": "sell.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "sell.preflight",
+            "no": "sell.retry",
+            "cancel": "sell.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.preflight",
+          "op": "preflight",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "sell.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "sell.animate",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.animate",
+          "op": "service_animate",
+          "args": [],
+          "on": {
+            "next": "sell.money",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.money",
+          "op": "money_add",
+          "args": [],
+          "on": {
+            "next": "sell.remove",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.remove",
+          "op": "item_remove",
+          "args": [],
+          "on": {
+            "next": "sell.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "sell.recompute",
+          "op": "recompute",
+          "args": [],
+          "on": {
+            "next": "sell.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.member",
+          "op": "pick_member",
+          "args": [
+            0
+          ],
+          "on": {
+            "slot": "equip.close",
+            "cancel": "equip.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.return",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "equip.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.item",
+          "op": "pick_equipment_slot",
+          "args": [],
+          "on": {
+            "slot": "equip.compatible",
+            "cancel": "equip.detail.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.notice",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "give.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.say",
+          "op": "show_message",
+          "args": [
+            0,
+            512,
+            0
+          ],
+          "on": {
+            "next": "give.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "give.close",
+            "cancel": "give.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.member",
+          "op": "pick_member",
+          "args": [
+            0
+          ],
+          "on": {
+            "slot": "give.member.close",
+            "cancel": "give.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.return",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.member.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.build",
+          "op": "build_candidates",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "give.item",
+            "no": "give.empty.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.empty.name",
+          "op": "message_name",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "give.empty.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.empty.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "give.empty",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.empty",
+          "op": "show_message",
+          "args": [
+            0,
+            511,
+            0
+          ],
+          "on": {
+            "next": "give.retry.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.retry.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "give.retry",
+            "cancel": "give.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.retry",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.notice",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.item",
+          "op": "pick_item",
+          "args": [
+            1
+          ],
+          "on": {
+            "slot": "give.item.close",
+            "cancel": "give.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.item.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.receiver.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "give.receiver.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver.say",
+          "op": "show_message",
+          "args": [
+            0,
+            510,
+            0
+          ],
+          "on": {
+            "next": "give.receiver.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "give.receiver.close",
+            "cancel": "give.receiver.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.receiver",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver",
+          "op": "pick_member",
+          "args": [
+            2
+          ],
+          "on": {
+            "slot": "give.receiver.finish",
+            "cancel": "give.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.receiver.finish",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "give.full",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.full",
+          "op": "inventory_full",
+          "args": [
+            1
+          ],
+          "on": {
+            "yes": "give.full.name",
+            "no": "give.preflight",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.full.name",
+          "op": "message_name",
+          "args": [
+            3
+          ],
+          "on": {
+            "next": "give.full.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.full.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "give.full.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.full.say",
+          "op": "show_message",
+          "args": [
+            3,
+            0,
+            0
+          ],
+          "on": {
+            "next": "give.retry.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.preflight",
+          "op": "preflight",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "give.capture",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.capture",
+          "op": "item_capture",
+          "args": [],
+          "on": {
+            "next": "give.remove",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.remove",
+          "op": "item_remove",
+          "args": [],
+          "on": {
+            "next": "give.append",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.append",
+          "op": "item_append",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "give.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "give.recompute",
+          "op": "recompute",
+          "args": [],
+          "on": {
+            "next": "give.notice",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.build",
+          "op": "build_candidates",
+          "args": [
+            2
+          ],
+          "on": {
+            "yes": "revive.open",
+            "no": "revive.none.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.none.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "revive.none",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.none",
+          "op": "show_message",
+          "args": [
+            0,
+            588,
+            0
+          ],
+          "on": {
+            "next": "revive.none.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.none.ack",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "revive.return",
+            "cancel": "revive.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.return",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "revive.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.say",
+          "op": "show_message",
+          "args": [
+            0,
+            589,
+            0
+          ],
+          "on": {
+            "next": "revive.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "revive.close",
+            "cancel": "revive.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "revive.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.member",
+          "op": "pick_member",
+          "args": [
+            3
+          ],
+          "on": {
+            "slot": "revive.member.close",
+            "cancel": "revive.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.member.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "revive.price",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.price",
+          "op": "price_prepare",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "revive.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.name",
+          "op": "message_name",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "revive.ask.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.ask.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "revive.ask",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.ask",
+          "op": "show_message",
+          "args": [
+            0,
+            590,
+            0
+          ],
+          "on": {
+            "next": "revive.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "revive.money",
+            "no": "revive.retry",
+            "cancel": "revive.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.retry",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "revive.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.money",
+          "op": "has_money",
+          "args": [],
+          "on": {
+            "yes": "revive.preflight",
+            "no": "revive.poor",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.poor",
+          "op": "show_message",
+          "args": [
+            0,
+            504,
+            1
+          ],
+          "on": {
+            "next": "revive.poor.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.poor.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "revive.retry",
+            "cancel": "revive.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.preflight",
+          "op": "preflight",
+          "args": [
+            3
+          ],
+          "on": {
+            "next": "revive.pay",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.pay",
+          "op": "money_sub",
+          "args": [],
+          "on": {
+            "next": "revive.flags",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.flags",
+          "op": "revive_flags_clear",
+          "args": [],
+          "on": {
+            "next": "revive.hp",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.hp",
+          "op": "revive_hp",
+          "args": [],
+          "on": {
+            "next": "revive.money.draw",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.money.draw",
+          "op": "money_redraw",
+          "args": [],
+          "on": {
+            "next": "revive.finish.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.finish.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "revive.music",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.music",
+          "op": "music",
+          "args": [
+            17,
+            1
+          ],
+          "on": {
+            "next": "revive.animate",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.animate",
+          "op": "service_animate",
+          "args": [],
+          "on": {
+            "next": "revive.return.music",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "revive.return.music",
+          "op": "music",
+          "args": [
+            11,
+            1
+          ],
+          "on": {
+            "next": "revive.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.build",
+          "op": "build_candidates",
+          "args": [
+            3
+          ],
+          "on": {
+            "yes": "promote.open",
+            "no": "promote.none.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.none.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "promote.none",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.none",
+          "op": "show_message",
+          "args": [
+            0,
+            591,
+            0
+          ],
+          "on": {
+            "next": "promote.none.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.none.ack",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "promote.return",
+            "cancel": "promote.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.return",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "service.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "promote.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.say",
+          "op": "show_message",
+          "args": [
+            0,
+            592,
+            0
+          ],
+          "on": {
+            "next": "promote.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.ack",
+          "op": "wait_key",
+          "args": [
+            1
+          ],
+          "on": {
+            "ack": "promote.close",
+            "cancel": "promote.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "promote.keys",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.member",
+          "op": "pick_member",
+          "args": [
+            4
+          ],
+          "on": {
+            "slot": "promote.member.close",
+            "cancel": "promote.return",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.member.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "promote.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.name",
+          "op": "message_name",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "promote.ask.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.ask.open",
+          "op": "notice_open",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "promote.ask",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.ask",
+          "op": "show_message",
+          "args": [
+            0,
+            594,
+            0
+          ],
+          "on": {
+            "next": "promote.ask.keys",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.ask.keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "promote.confirm.close",
+            "no": "promote.retry",
+            "cancel": "promote.retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.retry",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "promote.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.confirm.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "promote.preflight",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.preflight",
+          "op": "preflight",
+          "args": [
+            4
+          ],
+          "on": {
+            "next": "promote.consume",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.consume",
+          "op": "promotion_item_consume",
+          "args": [],
+          "on": {
+            "next": "promote.music",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.music",
+          "op": "music",
+          "args": [
+            16,
+            1
+          ],
+          "on": {
+            "next": "promote.visual.0",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.0",
+          "op": "promotion_visual",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "next": "promote.visual.1",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.1",
+          "op": "promotion_visual",
+          "args": [
+            1,
+            9
+          ],
+          "on": {
+            "next": "promote.visual.2",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.2",
+          "op": "promotion_visual",
+          "args": [
+            2,
+            16
+          ],
+          "on": {
+            "next": "promote.visual.3",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.3",
+          "op": "promotion_visual",
+          "args": [
+            3,
+            20
+          ],
+          "on": {
+            "next": "promote.visual.4",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.4",
+          "op": "promotion_visual",
+          "args": [
+            4,
+            200
+          ],
+          "on": {
+            "next": "promote.visual.5",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.5",
+          "op": "promotion_visual",
+          "args": [
+            5,
+            24
+          ],
+          "on": {
+            "next": "promote.visual.6",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.visual.6",
+          "op": "promotion_visual",
+          "args": [
+            6,
+            0
+          ],
+          "on": {
+            "next": "promote.return.music",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.return.music",
+          "op": "music",
+          "args": [
+            11,
+            0
+          ],
+          "on": {
+            "next": "promote.identity",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.identity",
+          "op": "promotion_identity",
+          "args": [],
+          "on": {
+            "next": "promote.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "promote.growth.keys",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.open",
+          "op": "notice_open",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "promote.profile.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.profile.name",
+          "op": "message_name",
+          "args": [
+            4
+          ],
+          "on": {
+            "next": "promote.growth.hello",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.hello",
+          "op": "show_message",
+          "args": [
+            0,
+            595,
+            2
+          ],
+          "on": {
+            "next": "promote.growth.clear",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.0.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.0.select",
+          "op": "growth_select",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "promote.growth.0.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.0.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.growth.0.clear",
+            "no": "promote.growth.1.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.0.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.0.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.0.say",
+          "op": "show_message",
+          "args": [
+            0,
+            490,
+            3
+          ],
+          "on": {
+            "next": "promote.growth.0.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.0.commit",
+          "op": "growth_commit",
+          "args": [],
+          "on": {
+            "next": "promote.growth.1.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.1.select",
+          "op": "growth_select",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "promote.growth.1.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.1.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.growth.1.clear",
+            "no": "promote.growth.2.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.1.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.1.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.1.say",
+          "op": "show_message",
+          "args": [
+            0,
+            491,
+            3
+          ],
+          "on": {
+            "next": "promote.growth.1.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.1.commit",
+          "op": "growth_commit",
+          "args": [],
+          "on": {
+            "next": "promote.growth.2.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.2.select",
+          "op": "growth_select",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "promote.growth.2.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.2.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.growth.2.clear",
+            "no": "promote.growth.3.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.2.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.2.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.2.say",
+          "op": "show_message",
+          "args": [
+            0,
+            492,
+            3
+          ],
+          "on": {
+            "next": "promote.growth.2.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.2.commit",
+          "op": "growth_commit",
+          "args": [],
+          "on": {
+            "next": "promote.growth.3.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.3.select",
+          "op": "growth_select",
+          "args": [
+            3
+          ],
+          "on": {
+            "next": "promote.growth.3.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.3.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.growth.3.clear",
+            "no": "promote.growth.4.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.3.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.3.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.3.say",
+          "op": "show_message",
+          "args": [
+            0,
+            493,
+            3
+          ],
+          "on": {
+            "next": "promote.growth.3.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.3.commit",
+          "op": "growth_commit",
+          "args": [],
+          "on": {
+            "next": "promote.growth.4.select",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.4.select",
+          "op": "growth_select",
+          "args": [
+            4
+          ],
+          "on": {
+            "next": "promote.growth.4.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.4.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.growth.4.clear",
+            "no": "promote.movement.prepare",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.4.clear",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.growth.4.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.4.say",
+          "op": "show_message",
+          "args": [
+            0,
+            494,
+            3
+          ],
+          "on": {
+            "next": "promote.growth.4.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.4.commit",
+          "op": "growth_commit",
+          "args": [],
+          "on": {
+            "next": "promote.movement.prepare",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.movement.prepare",
+          "op": "movement_prepare",
+          "args": [],
+          "on": {
+            "next": "promote.movement.nonzero",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.movement.nonzero",
+          "op": "growth_nonzero",
+          "args": [],
+          "on": {
+            "yes": "promote.movement.say",
+            "no": "promote.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.movement.say",
+          "op": "show_message",
+          "args": [
+            0,
+            596,
+            5
+          ],
+          "on": {
+            "next": "promote.movement.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.movement.ack",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "promote.movement.commit",
+            "cancel": "promote.movement.commit",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.movement.commit",
+          "op": "movement_commit",
+          "args": [],
+          "on": {
+            "next": "promote.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.recompute",
+          "op": "recompute",
+          "args": [],
+          "on": {
+            "next": "promote.growth.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.growth.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "promote.finalize",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.finalize",
+          "op": "promotion_finalize",
+          "args": [],
+          "on": {
+            "next": "promote.final.keys",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "promote.final.keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "promote.build",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "finish",
+          "args": [
+            -1
+          ],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.open",
+          "op": "equipment_open",
+          "args": [],
+          "on": {
+            "next": "equip.item",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.compatible",
+          "op": "equipment_compatible",
+          "args": [],
+          "on": {
+            "yes": "equip.precheck",
+            "no": "equip.item",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.precheck",
+          "op": "preflight",
+          "args": [
+            6
+          ],
+          "on": {
+            "next": "equip.set",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.set",
+          "op": "equipment_set",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "equip.recompute",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.recompute",
+          "op": "recompute",
+          "args": [],
+          "on": {
+            "next": "equip.redraw",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.redraw",
+          "op": "equipment_redraw",
+          "args": [],
+          "on": {
+            "next": "equip.item",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "equip.detail.close",
+          "op": "equipment_close",
+          "args": [],
+          "on": {
+            "next": "equip.member",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.stop",
+          "op": "music",
+          "args": [
+            -1,
+            0
+          ],
+          "on": {
+            "next": "entry.transition",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.transition",
+          "op": "service_transition",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "entry.church",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.church",
+          "op": "service_is_church",
+          "args": [],
+          "on": {
+            "yes": "entry.music.church",
+            "no": "entry.drug",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.drug",
+          "op": "selector_is",
+          "args": [
+            3
+          ],
+          "on": {
+            "yes": "entry.music.drug",
+            "no": "entry.music.other",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.music.church",
+          "op": "music",
+          "args": [
+            11,
+            0
+          ],
+          "on": {
+            "next": "entry.present",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.music.drug",
+          "op": "music",
+          "args": [
+            15,
+            0
+          ],
+          "on": {
+            "next": "entry.present",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.music.other",
+          "op": "music",
+          "args": [
+            14,
+            0
+          ],
+          "on": {
+            "next": "entry.present",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.present",
+          "op": "service_enter",
+          "args": [],
+          "on": {
+            "next": "kind",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "exit.music",
+          "op": "music",
+          "args": [
+            10,
+            0
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "church.welcome.money",
+          "op": "money_redraw",
+          "args": [],
+          "on": {
+            "next": "church.hello",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.weapon.money",
+          "op": "money_redraw",
+          "args": [],
+          "on": {
+            "next": "shop.weapon.hello",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "shop.other.money",
+          "op": "money_redraw",
+          "args": [],
+          "on": {
+            "next": "shop.other.hello",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "entry.sfx",
+          "op": "sfx",
+          "args": [
+            1,
+            3
+          ],
+          "on": {
+            "next": "entry.stop",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.page.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "menu.kind",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.cancel.slide",
+          "op": "service_page",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "menu.cancel.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "menu.cancel.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "leave",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        }
+      ],
+      "entries": {
+        "buy": "buy.pick",
+        "sell": "sell.member",
+        "equip": "equip.member",
+        "give": "give.notice",
+        "revive": "revive.build",
+        "promote": "promote.build"
+      }
+    },
+    {
+      "id": "deployment",
+      "entry": "town.entry",
+      "nodes": [
+        {
+          "id": "town.entry",
+          "op": "deployment_mode",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "town.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.open",
+          "op": "notice_open",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "town.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.say",
+          "op": "show_message",
+          "args": [
+            0,
+            513,
+            2
+          ],
+          "on": {
+            "next": "town.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "town.close.yes",
+            "no": "town.close.no",
+            "cancel": "town.close.no",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.close.no",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "rejected",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.close.yes",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "quota.stage",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "quota.stage",
+          "op": "stage_at_least",
+          "args": [
+            27
+          ],
+          "on": {
+            "yes": "quota20",
+            "no": "quota16",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "quota20",
+          "op": "quota_set",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "count",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "quota16",
+          "op": "quota_set",
+          "args": [
+            16
+          ],
+          "on": {
+            "next": "count",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "count",
+          "op": "roster_exceeds_quota",
+          "args": [],
+          "on": {
+            "yes": "select.start",
+            "no": "accepted",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.mode",
+          "op": "deployment_mode",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "select.quota",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.mode",
+          "op": "deployment_mode",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "notown.screen",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.screen",
+          "op": "empty_screen",
+          "args": [],
+          "on": {
+            "next": "notown.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.open",
+          "op": "notice_open",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "notown.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.say",
+          "op": "show_message",
+          "args": [
+            0,
+            410,
+            4
+          ],
+          "on": {
+            "next": "notown.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "notown.close.save",
+            "no": "notown.close.skip",
+            "cancel": "notown.close.skip",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.close.save",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "notown.save",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.save",
+          "op": "manual_save",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "select.quota",
+            "cancel": "select.quota",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.close.skip",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "select.quota",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.quota",
+          "op": "stage_at_least",
+          "args": [
+            27
+          ],
+          "on": {
+            "yes": "select.quota20",
+            "no": "select.quota16",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.quota20",
+          "op": "quota_set",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "select.start",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.quota16",
+          "op": "quota_set",
+          "args": [
+            16
+          ],
+          "on": {
+            "next": "select.start",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.start",
+          "op": "preflight",
+          "args": [
+            5
+          ],
+          "on": {
+            "next": "select.reset",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.reset",
+          "op": "selection_reset",
+          "args": [],
+          "on": {
+            "next": "select.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.open",
+          "op": "selection_open",
+          "args": [],
+          "on": {
+            "next": "select.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.pick",
+          "op": "pick_companion",
+          "args": [],
+          "on": {
+            "slot": "select.toggle",
+            "cancel": "select.cancel.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.toggle",
+          "op": "selection_toggle",
+          "args": [],
+          "on": {
+            "next": "select.full",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.full",
+          "op": "selection_full",
+          "args": [],
+          "on": {
+            "yes": "select.reorder",
+            "no": "select.next",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.next",
+          "op": "selection_cursor_next",
+          "args": [],
+          "on": {
+            "next": "select.pick",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.reorder",
+          "op": "selection_reorder",
+          "args": [],
+          "on": {
+            "next": "select.done.next",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.done.next",
+          "op": "selection_cursor_next",
+          "args": [],
+          "on": {
+            "next": "select.done.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.done.close",
+          "op": "selection_close",
+          "args": [],
+          "on": {
+            "next": "select.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.cancel.close",
+          "op": "selection_close",
+          "args": [],
+          "on": {
+            "next": "retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "select.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "required.16",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.16",
+          "op": "stage_is",
+          "args": [
+            16
+          ],
+          "on": {
+            "yes": "required.16.has",
+            "no": "required.17",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.16.has",
+          "op": "roster_has_text",
+          "args": [
+            18
+          ],
+          "on": {
+            "yes": "required.text18",
+            "no": "prefix.17",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.text18",
+          "op": "required_member",
+          "args": [
+            18
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.17",
+          "op": "stage_is",
+          "args": [
+            17
+          ],
+          "on": {
+            "yes": "required.text9",
+            "no": "required.19",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.19",
+          "op": "stage_is",
+          "args": [
+            19
+          ],
+          "on": {
+            "yes": "required.text9",
+            "no": "required.late",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.late",
+          "op": "stage_at_least",
+          "args": [
+            26
+          ],
+          "on": {
+            "yes": "required.text9",
+            "no": "required.18",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.text9",
+          "op": "required_member",
+          "args": [
+            9
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.18",
+          "op": "stage_is",
+          "args": [
+            18
+          ],
+          "on": {
+            "yes": "required.text16",
+            "no": "required.20",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.text16",
+          "op": "required_member",
+          "args": [
+            16
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.20",
+          "op": "stage_is",
+          "args": [
+            20
+          ],
+          "on": {
+            "yes": "required.text21",
+            "no": "required.21",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.text21",
+          "op": "required_member",
+          "args": [
+            21
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.21",
+          "op": "stage_is",
+          "args": [
+            21
+          ],
+          "on": {
+            "yes": "required.text24",
+            "no": "required.22",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.22",
+          "op": "stage_is",
+          "args": [
+            22
+          ],
+          "on": {
+            "yes": "required.text24",
+            "no": "required.25",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.text24",
+          "op": "required_member",
+          "args": [
+            24
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.25",
+          "op": "stage_is",
+          "args": [
+            25
+          ],
+          "on": {
+            "yes": "required.25.first",
+            "no": "prefix.17",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.25.first",
+          "op": "required_member",
+          "args": [
+            9
+          ],
+          "on": {
+            "yes": "required.25.second",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.25.second",
+          "op": "required_member",
+          "args": [
+            29
+          ],
+          "on": {
+            "yes": "prefix.17",
+            "no": "required.failure.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.17",
+          "op": "stage_is",
+          "args": [
+            17
+          ],
+          "on": {
+            "yes": "prefix.text9",
+            "no": "prefix.19",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.19",
+          "op": "stage_is",
+          "args": [
+            19
+          ],
+          "on": {
+            "yes": "prefix.text9",
+            "no": "prefix.late",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.late",
+          "op": "stage_at_least",
+          "args": [
+            26
+          ],
+          "on": {
+            "yes": "prefix.text9",
+            "no": "prefix.20",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.20",
+          "op": "stage_is",
+          "args": [
+            20
+          ],
+          "on": {
+            "yes": "prefix.text21",
+            "no": "prefix.21",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.21",
+          "op": "stage_is",
+          "args": [
+            21
+          ],
+          "on": {
+            "yes": "prefix.text24",
+            "no": "prefix.22",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.22",
+          "op": "stage_is",
+          "args": [
+            22
+          ],
+          "on": {
+            "yes": "prefix.text24",
+            "no": "prefix.25",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.25",
+          "op": "stage_is",
+          "args": [
+            25
+          ],
+          "on": {
+            "yes": "prefix.25.first",
+            "no": "deploy.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text9",
+          "op": "prefix_reorder",
+          "args": [
+            9
+          ],
+          "on": {
+            "next": "prefix.text9.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text9.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "deploy.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text21",
+          "op": "prefix_reorder",
+          "args": [
+            21
+          ],
+          "on": {
+            "next": "prefix.text21.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text21.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "deploy.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text24",
+          "op": "prefix_reorder",
+          "args": [
+            24
+          ],
+          "on": {
+            "next": "prefix.text24.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.text24.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "deploy.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.25.first",
+          "op": "prefix_reorder",
+          "args": [
+            9
+          ],
+          "on": {
+            "next": "prefix.25.first.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.25.first.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "prefix.25.second",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.25.second",
+          "op": "prefix_reorder",
+          "args": [
+            29
+          ],
+          "on": {
+            "next": "prefix.25.second.cache",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "prefix.25.second.cache",
+          "op": "cache_rebuild",
+          "args": [],
+          "on": {
+            "next": "deploy.open",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.open",
+          "op": "notice_open",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "deploy.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.say",
+          "op": "show_message",
+          "args": [
+            0,
+            658,
+            2
+          ],
+          "on": {
+            "next": "deploy.keys",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "deploy.confirm",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.confirm",
+          "op": "confirm",
+          "args": [],
+          "on": {
+            "yes": "deploy.close.yes",
+            "no": "deploy.close.no",
+            "cancel": "deploy.close.no",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.close.yes",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "accepted",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "deploy.close.no",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "retry",
+          "op": "is_notown",
+          "args": [],
+          "on": {
+            "yes": "select.quota",
+            "no": "rejected",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "accepted",
+          "op": "is_notown",
+          "args": [],
+          "on": {
+            "yes": "notown.dark",
+            "no": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "notown.dark",
+          "op": "darkness",
+          "args": [
+            255
+          ],
+          "on": {
+            "next": "done",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "finish",
+          "args": [
+            1
+          ],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "rejected",
+          "op": "finish",
+          "args": [
+            0
+          ],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "failure",
+          "op": "finish",
+          "args": [
+            -1
+          ],
+          "on": {},
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.failure.open",
+          "op": "notice_open",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "required.failure.name",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.failure.name",
+          "op": "message_name",
+          "args": [
+            5
+          ],
+          "on": {
+            "next": "required.failure.say",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.failure.say",
+          "op": "show_message",
+          "args": [
+            0,
+            657,
+            2
+          ],
+          "on": {
+            "next": "required.failure.ack",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.failure.ack",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "required.failure.close",
+            "cancel": "required.failure.close",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "required.failure.close",
+          "op": "close_page",
+          "args": [],
+          "on": {
+            "next": "retry",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        }
+      ],
+      "entries": {
+        "select": "select.mode",
+        "notown": "notown.mode"
+      }
+    }
+  ],
+  "bindings": {
+    "selector.001": "services",
+    "selector.003": "services",
+    "selector.004": "services",
+    "selector.005": "services",
+    "town.departure": "deployment",
+    "notown.departure": "deployment"
+  }
+}

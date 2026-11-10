@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "field_game.h"
+#include "field_prepare.h"
+#include "field_prepare_item.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"CHECK %s:%d: %s\n",__FILE__,__LINE__,#x); return -1; } } while(0)
 
 static uint32_t count_event_rng(void *userdata) {
@@ -132,7 +134,14 @@ static int test_stage1(void) {
     CHECK(fd2_field_game_apply_handoff(g,&handoff)==0 && g->stage_runtime_entry_offset==0x238du);
     fd2_field_game_close(g);state.unit_count=0;
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==-1 && !g->ready && !g->map.cells);
-    state.unit_count=17;CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==-1);
+    for(size_t i=5;i<17;i++) {
+        fd2_field_unit u={0};CHECK(fd2_field_unit_persistent_create(&u,(uint8_t)i)==0);
+        memcpy(state.unit_area+i*80,&u,80);
+    }
+    state.unit_count=17;fd2_save_manual_state untouched=state;
+    CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0 && g->roster_count==17 && g->units.count==21);
+    CHECK(!memcmp(g->roster,state.unit_area,sizeof(g->roster)) && !memcmp(&state,&untouched,sizeof(state)));
+    fd2_field_game_close(g);
     free(g);fd2_archive_close(&ar);return 0;
 }
 static int test_script_bytes(void) {
@@ -235,8 +244,74 @@ static int test_stage1_settlement_stage2(void) {
     CHECK(fd2_field_game_complete_player_controller(g,0)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
     snap.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=14;prior=g->units;
     CHECK(fd2_field_game_import_battle_snapshot(g,&snap)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
-    fd2_field_game_close(g);out.unit_count=17;
+    fd2_field_game_close(g);
+    for(size_t i=out.unit_count;i<32;i++) {
+        fd2_field_unit u={0};CHECK(fd2_field_unit_persistent_create(&u,(uint8_t)i)==0);
+        memcpy(out.unit_area+i*80,&u,80);
+    }
+    out.unit_count=32;fd2_save_manual_state untouched=out;
+    CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==0 && g->roster_count==32 && g->units.count==15);
+    CHECK(!memcmp(g->roster,out.unit_area,sizeof(g->roster)) && !memcmp(&out,&untouched,sizeof(out)));
+    fd2_field_game_close(g);out.unit_count=33;
     CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==-1 && !g->ready && !g->map.cells);
     free(g);fd2_archive_close(&ar);return 0;
 }
-int main(void){CHECK(test_settlement()==0);CHECK(test_stage1()==0);CHECK(test_script_bytes()==0);CHECK(test_group_landing()==0);CHECK(test_stage1_settlement_stage2()==0);puts("field_stage_transition: settlement projections, village branches and real stage1/2 entries passed");return 0;}
+/* 用实际未开放关的只读资源核通用1088d投影，不运行其entry/剧情/AI。 */
+static int test_full_roster_deployment_projection(void) {
+    fd2_archive fields={0},other={0};CHECK(fd2_archive_open(&fields,"original_game/FDFIELD.DAT")==0);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    fd2_save_manual_state state={0};memset(state.unit_area,0xa9,sizeof(state.unit_area));state.unit_count=32;
+    for(size_t i=0;i<32;i++) {
+        fd2_field_unit u={0};CHECK(fd2_field_unit_persistent_create(&u,(uint8_t)i)==0);
+        u.sprite_cache_class=99;u.direction=3;u.frame_phase=5;u.side=1;
+        memset((uint8_t *)&u+0x22,7,6);memcpy(state.unit_area+i*80,&u,80);
+    }
+    const uint8_t stages[]={12,13,27};
+    for(size_t test=0;test<sizeof(stages);test++) {
+        size_t stage=stages[test];state.stage_id=(uint8_t)stage;
+        fd2_field_map map={0};fd2_field_metadata metadata={0};fd2_field_placements placements={0};
+        CHECK(fd2_field_map_open_stage(&map,&fields,stage)==0 && fd2_field_metadata_open_stage(&metadata,&fields,stage)==0 &&
+            fd2_field_placements_open_stage(&placements,&fields,stage)==0);
+        for(int text2=0;text2<2;text2++) {
+            state.unit_area[6u*80u+8u]=(uint8_t)(text2 ? 2:6);fd2_save_manual_state before=state;
+            fd2_field_units units;memset(&units,0xa5,sizeof(units));
+            CHECK(fd2_field_prepare_deployment_project(&state,stage,&map,&metadata,&placements,&units)==0);
+            CHECK(units.count==metadata.unknown_01 && !memcmp(&state,&before,sizeof(state)));
+            size_t consumed=0;
+            for(size_t active=0;active<units.count;active++) {
+                fd2_field_unit expected={0};
+                if(stage==12 && active==6 && !text2) expected.flags=1;
+                else {
+                    memcpy(&expected,state.unit_area+consumed*80u,80);
+                    CHECK(fd2_field_unit_deployment_position(&metadata,&placements,consumed,&expected.x,&expected.y)==0);
+                    expected.direction=expected.frame_phase=0;expected.side=2;((uint8_t *)&expected)[0x31]=255;
+                    memset((uint8_t *)&expected+0x22,0,6);CHECK(fd2_field_prepare_item_recompute(&expected)==0);
+                    expected.sprite_cache_class=(uint8_t)consumed;consumed++;
+                }
+                CHECK(!memcmp(&units.items[active],&expected,80));
+                CHECK(units.walk_frames[active]==1 && units.source_template_indices[active]==FD2_FIELD_UNIT_NO_TEMPLATE);
+            }
+            CHECK(consumed==units.count-(stage==12 && !text2 ? 1u:0u));
+            if(stage==27) CHECK(units.count==20 && consumed==20);
+            if(stage==12 && !text2) {
+                size_t templates;CHECK(fd2_field_unit_template_count(&metadata,&templates)==0);
+                fd2_field_placement saved=placements.records[templates+units.count-1u];
+                placements.records[templates+units.count-1u].x=(uint16_t)map.width;
+                placements.records[templates+units.count-1u].y=(uint16_t)map.height;
+                fd2_field_units projected;
+                CHECK(fd2_field_prepare_deployment_project(&state,stage,&map,&metadata,&placements,&projected)==0 && !memcmp(&projected,&units,sizeof(units)));
+                placements.records[templates+units.count-1u]=saved;
+            }
+            fd2_field_units unchanged=units;fd2_save_manual_state invalid=state;invalid.unit_count=33;
+            CHECK(fd2_field_prepare_deployment_project(&invalid,stage,&map,&metadata,&placements,&units)==-1 && !memcmp(&units,&unchanged,sizeof(units)));
+        }
+        fd2_field_placements_close(&placements);fd2_field_metadata_close(&metadata);fd2_field_map_close(&map);
+    }
+    /* 准备就绪不生成未知entry/capability，也不打开stage27整关。 */
+    state.stage_id=27;fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
+    CHECK(fd2_field_game_validate_manual_state(&state)==0);
+    CHECK(!fd2_field_stage_is_supported(27) && !fd2_field_stage_battle_is_supported(27));
+    CHECK(fd2_field_game_prepare_stage(game,&other,&state)==-1 && !game->ready && !game->map.cells);
+    free(game);fd2_archive_close(&other);fd2_archive_close(&fields);return 0;
+}
+int main(void){CHECK(test_settlement()==0);CHECK(test_stage1()==0);CHECK(test_script_bytes()==0);CHECK(test_group_landing()==0);CHECK(test_stage1_settlement_stage2()==0);CHECK(test_full_roster_deployment_projection()==0);puts("field_stage_transition: full roster/deployment gates, settlement and real stage1/2 entries passed");return 0;}

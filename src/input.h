@@ -41,6 +41,7 @@ typedef struct {
     fd2_input_key key;
     SDL_Scancode source;
     uint8_t repeat;
+    uint16_t modifiers; /* 首按用该键DOWN的修饰位，repeat用本帧物理位；不生成modifier键。 */
 } fd2_input_event;
 
 typedef struct {
@@ -54,6 +55,11 @@ typedef struct {
     bool test_key_state[SDL_SCANCODE_COUNT];
     int use_test_key_state;
     int quit_requested;
+    uint16_t frame_modifiers;
+    /* 只携带F1..F12首按的修饰元数据，不产生/排队按键脉冲；下次present即过期。
+     * SDL Windows pump末端会按GetKeyState清Shift，后台定向消息需保原DOWN修饰位。 */
+    uint16_t pending_function_modifiers[12], frame_function_modifiers[12];
+    uint16_t pending_function_mask;
 } fd2_input;
 
 typedef enum {
@@ -110,6 +116,9 @@ void fd2_input_set_test_key_state(fd2_input *input, SDL_Scancode source,
 void fd2_input_begin_test_frame(fd2_input *input, uint64_t now_ms);
 
 int fd2_input_take_quit(fd2_input *input);
+/* 准备31B记录比较INT16 AH功能键scan；仅映射F1..F12及Shift/Ctrl/Alt。
+ * 不模拟BIOS FIFO，不改变其它上下文的key或modifier消费。 */
+uint8_t fd2_input_function_scan(const fd2_input_event *event);
 fd2_input_action fd2_input_action_for_key(fd2_input_context context,
                                           fd2_input_key key);
 

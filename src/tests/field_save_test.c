@@ -1022,7 +1022,22 @@ static int test_stage1_manual_owner_preflight(void) {
     state.stage_id = 2;
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
     state.stage_id = 3;
-    CHECK(fd2_field_game_validate_manual_state(&state) != 0);
+    CHECK(fd2_field_game_validate_manual_state(&state) == 0);
+    CHECK(!fd2_field_stage_is_supported(3) && !fd2_field_stage_battle_is_supported(3));
+    /* 26行普通准备及NoTown27..29只验全局浏览资源，不读取未支持战场。
+     * 所有完整32人/金额原bits/unknown尾不变，codec与entry支持门保持独立。 */
+    for (uint8_t stage=1;stage<30;stage++) {
+        state.stage_id=stage;fd2_save_manual_state unchanged=state;
+        CHECK(fd2_field_game_validate_manual_state(&state)==0);
+        CHECK(!memcmp(&state,&unchanged,sizeof(state)));
+        if (stage>=3) CHECK(!fd2_field_stage_is_supported(stage));
+    }
+    CHECK(!fd2_field_stage_prepare_record_get(27));
+    const uint8_t invalid_stages[]={0,30,31,32,255};
+    for (size_t i=0;i<sizeof(invalid_stages);i++) {
+        state.stage_id=invalid_stages[i];fd2_save_manual_state unchanged=state;
+        CHECK(fd2_field_game_validate_manual_state(&state)!=0 && !memcmp(&state,&unchanged,sizeof(state)));
+    }
     state = before;
     state.unit_count = FD2_SAVE_MAX_UNITS + 1u;
     CHECK(fd2_field_game_validate_manual_state(&state) != 0);

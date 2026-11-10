@@ -198,15 +198,19 @@ B5 的交接顺序应先确认原版 callback、持续单位字段和剧情，�
 | 项 | 活动快照 | 四槽手工存档 |
 |---|---|---|
 | 原始单位区 | `0x1e00` 字节，格式容量 96 条 | 每槽 `0xa00` 字节，格式容量 32 条 |
-| 入口 | 标题 CONTINUE／secondary Save/Load | 标题 LOAD／酒店 `field_hotel_menu_execute @0x29300`；B5 候选已接入 |
+| 入口 | 标题 CONTINUE／secondary Save/Load | 标题 LOAD／酒店 `field_hotel_menu_execute @0x29300`；NoTown 的独立保存入口 |
 | 保存数据 | 本关 metadata、独立持久 roster、活动单位、cell state、stage/turn、镜头／焦点、配置及保留区 | 持久 roster、已确认 meta、配置及未知尾部 |
-| 当前可恢复关卡 | stage 0／1 及 stage 2 入场的15人活动快照，跨 stage 先准备资源再交换 | App 恢复 stage 1／2 准备状态；旧 Game 手工 Load API 仍拒绝导入活动 session |
+| 当前可恢复关卡 | stage 0／1 及 stage 2 入场的15人活动快照，跨 stage 先准备资源再交换 | App 恢复原准备行／NoTown 定义及资源就绪的 stage 1—29 准备状态；酒店拒绝 NoTown 目标；旧 Game 手工 Load API 仍拒绝导入活动 session |
 
 runtime `FD2_FIELD_MAX_UNITS` 已按原 malloc `0x1e00`恢复为96条，与活动快照容量一致；持久 roster仍独立为32条，不能保存时截断或用当前side2人数替代。64是旧SDL实现上限，不能继续作为原版容量。容量恢复不自动开放尚无场景／事件支持的关卡。
 
 活动 meta[1] 与 meta[9] 分别属于当前 actor 和持久 roster，不能互相约束或由当前 side 2 人数重算。持久记录按 text ID 表达跨关身份，新游戏按原版构造顺序建立；活动部署再设置位置、运行期 cache 和临时状态。未知字节在加载／保存往返中保留，不能从活动记录盲拷来构造新持久角色。
 
 session 持有完整 `0xa00` raw roster，包括未用尾；活动与手工保存均写出这整张表。加载 A 后保存到 B 或新文件时，roster 尾来自 A，metadata 未用尾仍由目标容器保留。这两个保留规则不能混为一条。
+
+G3 准备服务直接消费 App 的完整持久表、资金和共享 RNG；31 个同伴选择位按原 16／20 名额稳定重排，未出阵记录不截断。冷定义掌握服务分支／取消／等待和写点，UI 缓存不成为第二业务 owner。准备状态可恢复不等于相应战场已开放；晚关资源、事件和剧情支持门保留。
+
+四槽保存 `2968d` 在确认后先完成一次真实写盘，再进入可中断收框；酒店成功提示 660 的资源须在提交前预检。收框失败或宿主退出保留已写结果，不重试、不伪造回滚。NoTown 原 caller 直接读键，跳过酒店等待 RNG／头像 129及 660 ACK，保存后仍在同一选槽位置；Load 保持先收框、完整校验／资源准备成功后才交换 owner。原 SAV 布局和未知尾合同均不变。
 
 水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。当前接普通战场等待、总览稳定等待、共享路径步态和B4奖励／状态的按键及自动等待；剧情／其余通用对话尚未全接，不能称全部caller已完成。
 

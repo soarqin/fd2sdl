@@ -473,7 +473,8 @@ int fd2_field_game_open(fd2_field_game *game,
 int fd2_field_game_open_resources(fd2_field_game *game,
     const fd2_archive *fdother, size_t stage);
 /* 准备owner按stage.entry图构建业务终态，无输入/演出；完整成功后才交App播放。
- * 32d18/32e8c的部署槽与group/script顺序来自同一冷定义，超过16的部署仍拒绝。 */
+ * 32d18/32e8c的部署槽与group/script顺序来自同一冷定义；完整32人roster
+ * 保留，实际active名额取metadata，未支持stage仍无entry图。 */
 int fd2_field_game_prepare_stage(fd2_field_game *game,
     const fd2_archive *fdother, const fd2_save_manual_state *state);
 /* stage1兼容入口，仍要求输入stage1；不再复制一套编排。 */
@@ -488,7 +489,8 @@ int fd2_field_game_prepare_stage2(fd2_field_game *game,
  * stage0返回当前units；stage1完整预检后才写out，无Game/RNG/归档owner写入。 */
 int fd2_field_game_settlement_project_units(const fd2_field_game *game,
     fd2_field_units *out);
-/* 准备Load的资源/记录纯预检，count0可显示；不代表可以出阵。 */
+/* 准备Load的全局单位浏览资源/记录纯预检；已证26行town或NoTown，count0
+ * 可显示。不载入stage地图/handler、不代表可以出阵或支持该关活动快照。 */
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state);
 /* 22ef6/22f37：完整结束前只prepare shadow；结束后commit 11506同步及下一准备stage。
  * out整张0xa00；stage1先追加8号持久成员，不带RNG或53EC8，不改source。 */

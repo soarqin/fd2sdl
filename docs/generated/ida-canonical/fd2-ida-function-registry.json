@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 314,
+ "canonical_functions": 347,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -6460,6 +6460,305 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 158221,
+   "off": 92685,
+   "ida_name": "field_shop_stock_copy",
+   "size": 109,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26A0D",
+     "now": "field_shop_stock_copy",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整109B，279bc唯一caller。selector1从31B准备行+3复制至多12项，3从+15/5从+23至多8项，ff停；不是新库存owner。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 158330,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 158330,
+   "off": 92794,
+   "ida_name": "field_prepare_money_add_present",
+   "size": 279,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26A7A",
+     "now": "field_prepare_money_add_present",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整279B，28cbd caller；先格式化旧signed DWORD precision8，再26ab5模2^32加钱，随后逐列九切片滚动。47例局部原码/C门含完整正值循环和有界DWORD回绕写点；负号越目录像素不作等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 158609,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 158609,
+   "off": 93073,
+   "ida_name": "field_prepare_money_subtract_present",
+   "size": 266,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26B91",
+     "now": "field_prepare_money_subtract_present",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整266B，2872b/2a43e caller；26bcc先模2^32扣钱，再逐列递减滚动；共享26b8a返回尾。复活真实入口证明扣钱早于flags整byte清0和HP=max，不推UI等待RNG等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 158875,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 158875,
+   "off": 93339,
+   "ida_name": "field_prepare_money_strip_draw",
+   "size": 73,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26C9B",
+     "now": "field_prepare_money_strip_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整73B，26a7a/26b91两caller；从服务归档raw frame2读6字节步进的数字切片，再复制9行到指定stride目的页，不是通用数字格式化。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 158948,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 158948,
+   "off": 93412,
+   "ida_name": "field_prepare_menu_transition",
+   "size": 340,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26CE4",
+     "now": "field_prepare_menu_transition",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整340B，商店/酒店/教会三caller；保存64000页，清201,169的104x20带，四图标按原四offset及四相位缩放位移进入/退出；不选择命令、不改roster。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 159288,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 159288,
+   "off": 93752,
+   "ida_name": "field_prepare_menu_select",
+   "size": 162,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26E38",
+     "now": "field_prepare_menu_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整162B，279bc/29300/29daa；每轮26eda(0)，左右将53c57在0..3循环并cue0，Enter/Space确认、Esc返回；不是无RNG查询。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 159450,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 159450,
+   "off": 93914,
+   "ida_name": "field_prepare_picker_wait_key",
+   "size": 415,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_26EDA",
+     "now": "field_prepare_picker_wait_key",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整415B，菜单/商品/成员/购买候选/复活/转职picker六caller；入口一次共享RNG%50+8，highlight初2，按2 BIOS tick推进27079及立绘0/3，blink后RNG%30+2；读BIOS键并规范扩展确认/取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 159865,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 159865,
+   "off": 94329,
+   "ida_name": "field_prepare_picker_tick_draw",
+   "size": 599,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_27079",
+     "now": "field_prepare_picker_tick_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 160464,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 160464,
+   "off": 94928,
+   "ida_name": "field_shop_items_draw",
+   "size": 790,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_272D0",
+     "now": "field_shop_items_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整790B，275e6/27738 caller；两列三行商品/库存，item+181名字、分类/属性图及bank42主值，服务frame15钱图及bank119五位售价；a5非零为floor3price/4。不是库存写入。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 161254,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 161254,
+   "off": 95718,
+   "ida_name": "field_shop_item_select",
+   "size": 338,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_275E6",
+     "now": "field_shop_item_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整338B，买/卖/转交caller；26eda(1)等待，两列六项窗口及上下两行滚动，边界不循环；确认/取消通过原53c57返回，不把压缩显示行重新映射到raw库存槽。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 161592,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 161592,
+   "off": 96056,
+   "ida_name": "field_shop_item_page_open",
+   "size": 222,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_27738",
+     "now": "field_shop_item_page_open",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整222B，买/卖/转交caller；分配三个64000B页面，服务frame16底板与272d0内容，1974c的5..0六相位入场；实际导航由275e6，不是整购买handler。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 161814,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 161814,
+   "off": 96278,
+   "ida_name": "field_prepare_rows_shift_up",
+   "size": 209,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_27816",
+     "now": "field_prepare_rows_shift_up",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整209B，五类列表picker共享；284x80区域内容连续三次上移6像素/10ms，再上移8像素并清73，合一行26px；名字按像素方向，不混淆选项向下。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 162023,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 162023,
+   "off": 96487,
+   "ida_name": "field_prepare_rows_shift_down",
+   "size": 213,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_278E7",
+     "now": "field_prepare_rows_shift_down",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整213B，与27816同五caller；反向拷贝保护重叠，内容三次下移6像素/10ms，再下移8像素并清73；不改first/选择索引。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 162236,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 162236,
    "off": 96700,
    "ida_name": "field_shop_menu_execute",
@@ -6475,6 +6774,121 @@
     }
    ],
    "end_va": 163123,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 163123,
+   "off": 97587,
+   "ida_name": "field_prepare_member_select",
+   "size": 535,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_27D33",
+     "now": "field_prepare_member_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整535B，买/卖/装备/转交/酒店与教会详情caller；重置first/selection0，分配并滑入成员页，26eda(3)共享等待，两列raw roster导航，Enter确认/Esc取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 163658,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 163658,
+   "off": 98122,
+   "ida_name": "field_shop_equipment_recipient_select",
+   "size": 449,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_27F4A",
+     "now": "field_shop_equipment_recipient_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整449B，2872b唯一caller；三行兼容候选及2825b四属性预览，26eda(2)，上下单行滚动且有效移动cue0；不装备、不扣钱。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 164107,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 164107,
+   "off": 98571,
+   "ida_name": "field_prepare_members_draw",
+   "size": 336,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2810B",
+     "now": "field_prepare_members_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整336B，27079/27d33；两列至多六名，cache目录raw_index*12+共享idle相位，4e29c将sprite skip填73，姓名按text+1并高亮；不按当前unitID另建cache。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 164443,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 164443,
+   "off": 98907,
+   "ida_name": "field_shop_equipment_recipients_draw",
+   "size": 943,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2825B",
+     "now": "field_shop_equipment_recipients_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整943B，27f4a唯一caller；三行候选raw映射，28632出AP/DP/HIT/EV四DWORD预览，与现派生WORD比较选数字bank，服务frames18..22标签/箭头，不写live属性。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 165386,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 165426,
+   "off": 99890,
+   "ida_name": "field_shop_item_stats_preview",
+   "size": 249,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_28632",
+     "now": "field_shop_item_stats_preview",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整249B及26e30共享返回尾，2825b唯一caller；signed基础AP/DP/DX加新物品效果，再只保留record.kind<=20/>20相反组旧flags40装备，依次输出四DWORD。不同于1b750状态缩放和ID128装备分组。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 165675,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -6506,6 +6920,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 166721,
+   "off": 101185,
+   "ida_name": "field_prepare_service_animate",
+   "size": 380,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_28B41",
+     "now": "field_prepare_service_animate",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整380B，购买/出售/复活caller；selector1五帧、3单帧、4九帧与原渐白、5七帧，读取各服务归档23起帧，保固定BIOS等待/末清键；不在本函数扣钱或写actor。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 167101,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 167101,
    "off": 101565,
    "ida_name": "field_shop_sell_execute",
@@ -6521,6 +6958,29 @@
     }
    ],
    "end_va": 167678,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 167678,
+   "off": 102142,
+   "ida_name": "field_prepare_equipment_execute",
+   "size": 103,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_28EFE",
+     "now": "field_prepare_equipment_execute",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整103B及28efc共享返回，279bc caller；循环27d33选持久成员→26996关页→1bffe装备，保存恢复portrait origin并重载当前服务头像；Esc退出。不把整个循环作为SDL native业务叶。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 167781,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -6801,6 +7261,75 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 172154,
+   "off": 106618,
+   "ida_name": "field_revive_candidates_build",
+   "size": 72,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A07A",
+     "now": "field_revive_candidates_build",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整72B，2a43e唯一caller；逐raw调用34894，仅flags bit0为1收索引，不加HP0/side/acted门。原码/C五组count0/1/7/16/32及hidden且HP非零输出一致。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 172226,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 172226,
+   "off": 106690,
+   "ida_name": "field_revive_candidates_draw",
+   "size": 475,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A0C2",
+     "now": "field_revive_candidates_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整475B及26e30共享返回，2a29d唯一caller；三行候选cache sprite、名字/种族/profile和费用，profile-1引用52399与52397+2*profile同地址；候选布局本身不清flags/HP。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 172701,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 172701,
+   "off": 107165,
+   "ida_name": "field_revive_candidate_select",
+   "size": 417,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A29D",
+     "now": "field_revive_candidate_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整417B，2a43e唯一caller；三缓冲与六步滑入，26eda(2)等待，三行上下/滚动及确认/Esc，无有效移动cue0调用，不在picker恢复单位。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 173118,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 173118,
    "off": 107582,
    "ida_name": "field_church_revive_execute",
@@ -6816,6 +7345,52 @@
     }
    ],
    "end_va": 173716,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 173716,
+   "off": 108180,
+   "ida_name": "field_promotion_candidates_draw",
+   "size": 451,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A694",
+     "now": "field_promotion_candidates_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整451B，2a857唯一caller；三行旧身份sprite/text/profile、593及4e7dd目标profile+150，目标由已建候选数组传入；不构造新单位，不写身份。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 174167,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 174167,
+   "off": 108631,
+   "ida_name": "field_promotion_candidate_select",
+   "size": 425,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2A857",
+     "now": "field_promotion_candidate_select",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整425B，2aa00唯一caller；三行候选上下边界和滚动，26eda(2)共享RNG等待，确认/取消；与复活列表一样未播放移动cue0，不发明普通/特殊二选一。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 174592,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -6893,6 +7468,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 175835,
+   "off": 110299,
+   "ida_name": "field_unit_item_slot_find_prefix",
+   "size": 77,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2AEDB",
+     "now": "field_unit_item_slot_find_prefix",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整77B，转职候选/耗物及若干stage根共享；先1b8a6数可见槽，再1b722直接查raw[0..count-1]同ID，返回首raw槽或-1。不能改成扫全8槽跳hidden；非仅转职服务。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 175912,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 175912,
    "off": 110376,
    "ida_name": "field_deployment_select_execute",
@@ -6916,6 +7514,98 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 177209,
+   "off": 111673,
+   "ida_name": "field_deployment_required_member_check",
+   "size": 194,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B439",
+     "now": "field_deployment_required_member_check",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整194B，2af28 caller；扫描已排前缀raw1..15/19的text ID，缺失才头像75/动态名字/657与16c57(0)，返回有无；不自动补选、不回滚此前排序。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 177403,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 177403,
+   "off": 111867,
+   "ida_name": "field_deployment_selection_draw",
+   "size": 388,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B4FB",
+     "now": "field_deployment_selection_draw",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整388B及2b434共享返回，2af28/2b67f；复制底页，画名额/剩余数、1297d共享idle、当前raw+1详情和10列同伴网格。已选普通sprite下移3px、未选灰阶；不改变选择位图。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 177791,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 177791,
+   "off": 112255,
+   "ida_name": "field_deployment_selection_wait_key",
+   "size": 202,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B67F",
+     "now": "field_deployment_selection_wait_key",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整202B，2af28唯一caller；输入未就绪时BIOS tick变化才2b4fb重绘并复制页，读取键后规范Enter/Space及扩展确认、Delete取消；本体不调用业务RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 177993,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 177993,
+   "off": 112457,
+   "ida_name": "field_deployment_selection_count",
+   "size": 46,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B749",
+     "now": "field_deployment_selection_count",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整46B及26ed6共享返回，2af28/2b4fb；数count-1个同伴选择byte的非零项，不含raw0、不判断名额/必须成员；返回由caller比较15/19。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 178039,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 178039,
    "off": 112503,
    "ida_name": "persistent_roster_selection_reorder",
@@ -6931,6 +7621,29 @@
     }
    ],
    "end_va": 178243,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 178243,
+   "off": 112707,
+   "ida_name": "persistent_roster_text_front",
+   "size": 339,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2B843",
+     "now": "persistent_roster_text_front",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整339B，2af28 caller；扫描raw1..count-1取最后匹配text ID，以完整a00副本把它稳定移到raw1，其余相对顺序保留，随后按新UID序重建FDICON。47例原码/C门包含重复text，修正SDL先匹配即返回；原缺失匹配的未定义写域不开放。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 178582,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -7314,6 +8027,52 @@
     }
    ],
    "end_va": 195277,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 195372,
+   "off": 129836,
+   "ida_name": "field_promotion_visual_execute",
+   "size": 744,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2FB2C",
+     "now": "field_promotion_visual_execute",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整744B，2aa00唯一caller；保存画面/fadeout/wait1，旧FIGANI idle的9帧入场/16tick循环，20步渐白，新idle首帧offset200/24tick，再fadeout还原/fadein。BG0..2为320x100，工作页stride640；不写单位、不扣物/钱、不调用业务RNG或音效。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 196116,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 196116,
+   "off": 130580,
+   "ida_name": "field_promotion_idle_cycle",
+   "size": 237,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2FE14",
+     "now": "field_promotion_idle_cycle",
+     "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整237B，2fb2c唯一caller；局部BG先加一mod3，每tick绘当前idle part，按原duration推进并在BYTE count回0，wait1；duration0不补1，age非BYTE回绕。正常16→48新idle为三字节empty，SDL仅略未定义sprite目录/时长读取，保BG/等待，非原未定义像素等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    }
+   ],
+   "end_va": 196353,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],

@@ -8,6 +8,8 @@
 
 #include "field_item.h"
 
+#include <string.h>
+
 #include "static_data/items.inc"
 
 _Static_assert(sizeof(ITEM_RECORDS) == FD2_FIELD_ITEM_COUNT * FD2_FIELD_ITEM_RECORD_SIZE &&
@@ -39,6 +41,40 @@ size_t fd2_field_unit_inventory_count(const fd2_field_unit *unit) {
         if ((record[0x0au + slot * 2u] & 0x80u) == 0) count++;
     }
     return count;
+}
+
+/* field_unit_inventory_slot_remove @0x1b8e7（原sub_1B8E7）：含hidden/stale的
+ * 完整后续pair左移，只写末flag80；原末ID不清ff。 */
+int fd2_field_unit_inventory_slot_remove(fd2_field_unit *unit, size_t raw_slot) {
+    if (!unit || raw_slot>=8u) return -1;
+    uint8_t *raw=(uint8_t *)unit;
+    memmove(raw+0x0a+2u*raw_slot,raw+0x0c+2u*raw_slot,2u*(7u-raw_slot));
+    raw[0x18]=0x80;return 0;
+}
+
+/* field_unit_inventory_item_append @0x1bb8c（原sub_1BB8C）：按raw0..7找首
+ * hidden，flag整byte写0，再写ID。返回0满包是共享C API适配，不写其它字段。 */
+int fd2_field_unit_inventory_item_append(fd2_field_unit *unit, uint8_t item_id) {
+    if (!unit) return -1;
+    uint8_t *raw=(uint8_t *)unit;
+    for (size_t slot=0;slot<8u;slot++) {
+        size_t at=0x0a+2u*slot;
+        if (!(raw[at]&0x80u)) continue;
+        raw[at]=0;raw[at+1u]=item_id;return 1;
+    }
+    return 0;
+}
+
+/* field_unit_equipment_slot_set @0x1c142（原sub_1C142）：按ID的<128/>=128
+ * 分组清整flag，再selected写40；不查询职业、跳hidden或重算。 */
+int fd2_field_unit_equipment_slot_set(fd2_field_unit *unit, size_t raw_slot) {
+    if (!unit || raw_slot>=8u) return -1;
+    uint8_t *raw=(uint8_t *)unit;uint8_t item=raw[0x0b+2u*raw_slot];
+    for (size_t slot=0;slot<8u;slot++) {
+        size_t at=0x0a+2u*slot;
+        if ((raw[at]&0x40u) && ((item<128u)==(raw[at+1u]<128u))) raw[at]=0;
+    }
+    raw[0x0a+2u*raw_slot]=0x40;return 0;
 }
 
 int fd2_field_item_list_select_step(

@@ -67,8 +67,7 @@ static int field_result_status(fd2_field_play_result result, size_t stage) {
 }
 
 static int stage_has_preparation(size_t stage) {
-    fd2_field_stage_capability capability;
-    return fd2_field_stage_capability_get(stage, &capability) == 0 && capability.preparation_slots;
+    return fd2_field_prepare_stage_supported(stage);
 }
 
 /* main @0x25bf4：战斗资源由play关闭后才把persistent交准备页；

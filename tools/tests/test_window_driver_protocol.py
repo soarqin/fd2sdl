@@ -173,6 +173,42 @@ class DriverProtocolTest(unittest.TestCase):
             self.assertEqual(records[-1]["receipts"][0]["sent"],1)
             self.assertEqual(records[-1]["receipts"][0]["error"],5)
 
+    def test_all_function_chords_require_exact_two_key_contract(self):
+        process=Mock(pid=12345);process.poll.return_value=None
+        with tempfile.TemporaryDirectory() as directory:
+            capture=probe.Capture(Path('driver.exe'),process,Path(directory))
+            for prefix,modifier,base in (('SHIFT',0x10,84),('CTRL',0x11,94),('ALT',0x12,104)):
+                for function in range(1,11):
+                    name=f'{prefix}_F{function}'
+                    contract={'modifier_vk':modifier,'function_vk':0x70+function-1,'bios_scan_expected':base+function-1}
+                    self.assertEqual(probe.key_chord_contract(name),contract)
+                    diagnostic=self.receipt(kind='chord',keys=2,sent=2,release=2,**contract)
+                    with patch.object(probe,'driver_call',return_value=diagnostic) as driver:
+                        capture.key(name)
+                    driver.assert_called_once_with(Path('driver.exe'),'key',process,name)
+                    self.assertEqual(capture.trace[-1]['delivery']['foreground_after'],'0xef12')
+            rows=[json.loads(line) for line in (Path(directory)/'input-delivery.jsonl').read_text().splitlines()]
+            self.assertEqual(len(rows),30);self.assertTrue(all(row['accepted'] for row in rows))
+
+    def test_chord_wrong_modifier_scan_partial_and_ordinary_receipt_are_rejected(self):
+        expected={'modifier_vk':0x10,'function_vk':0x70,'bios_scan_expected':84}
+        bad=[{}, {'modifier_vk':0x11}, {'function_vk':0x71}, {'bios_scan_expected':85},
+            {'keys':1}, {'sent':1}, {'release':1}, {'kind':'wave'}, {'kind':'key'}]
+        process=Mock(pid=12345);process.poll.return_value=None
+        with tempfile.TemporaryDirectory() as directory:
+            capture=probe.Capture(Path('driver.exe'),process,Path(directory))
+            for i,changes in enumerate(bad):
+                fields=dict(kind='chord',keys=2,sent=2,release=2,**expected)
+                fields.update(changes)
+                if i==0:fields.pop('bios_scan_expected')
+                with patch.object(probe,'driver_call',return_value=self.receipt(**fields)) as driver:
+                    with self.assertRaisesRegex(RuntimeError,'后台投递收据无效'):capture.key('SHIFT_F1')
+                self.assertEqual(driver.call_count,1)
+            self.assertTrue(all(not json.loads(line)['accepted'] for line in
+                (Path(directory)/'input-delivery.jsonl').read_text().splitlines()))
+        for name in ('SHIFT_F0','SHIFT_F01','SHIFT_F11','ALT_F10_','CTRL_SHIFT_F1','shift_F1','SHIFT_F1\n'):
+            self.assertIsNone(probe.key_chord_contract(name))
+
     @unittest.skipUnless(sys.platform == "win32", "Windows 子进程显示参数")
     def test_background_launch_does_not_mutate_parent_environment(self):
         process = Mock(pid=12345)

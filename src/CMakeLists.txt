@@ -170,6 +170,9 @@ set(FD2SDL_CORE_SOURCES
     field_combat.c
     field_rng.c
     field_item.c
+    field_prepare_item.c
+    field_prepare.c
+    field_prepare_view.c
     field_magic.c
     field_unit_stats.c
     field_event.c
@@ -1036,7 +1039,7 @@ if(BUILD_TESTING)
 
     add_executable(fd2_field_unit_stats_test
         tests/field_unit_stats_test.c
-        field_unit_stats.c
+        field_unit_stats.c field_item.c
     )
     target_include_directories(fd2_field_unit_stats_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -1050,6 +1053,44 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_unit_stats COMMAND fd2_field_unit_stats_test)
+
+    add_executable(fd2_text_expand_test tests/text_expand_test.c text.c archive.c)
+    target_include_directories(fd2_text_expand_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME text_expand COMMAND fd2_text_expand_test)
+
+    add_executable(fd2_field_prepare_item_test
+        tests/field_prepare_item_test.c field_prepare_item.c field_item.c field_unit_stats.c)
+    target_include_directories(fd2_field_prepare_item_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_prepare_item_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_prepare_item COMMAND fd2_field_prepare_item_test)
+
+    add_executable(fd2_field_prepare_test
+        tests/field_prepare_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_prepare_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_prepare_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_prepare COMMAND fd2_field_prepare_test)
+
+    add_executable(fd2_preparation_domain_probe
+        ../tools/ida/preparation_domain_probe.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_preparation_domain_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_preparation_domain_probe PRIVATE ${FD2SDL_SDL3_TARGET})
+
+    add_executable(fd2_field_prepare_flow_domain_test
+        tests/field_prepare_flow_domain_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_prepare_flow_domain_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_prepare_flow_domain_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_prepare_flow_domain COMMAND fd2_field_prepare_flow_domain_test)
+
+    add_executable(fd2_field_play_key_chord_test tests/field_play_key_chord_test.c)
+    add_test(NAME field_play_key_chord COMMAND fd2_field_play_key_chord_test)
+
+    add_executable(fd2_field_prepare_view_test
+        tests/field_prepare_view_test.c field_prepare_play.c field_play.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_prepare_view_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_prepare_view_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_prepare_view COMMAND fd2_field_prepare_view_test)
+    set_tests_properties(field_prepare_view PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_field_unit_base_test
         tests/field_unit_base_test.c

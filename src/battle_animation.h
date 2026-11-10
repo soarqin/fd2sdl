@@ -60,4 +60,29 @@ int fd2_battle_animation_physical_present(const struct fd2_field_game *game,
 int fd2_battle_animation_magic_present(const struct fd2_field_game *game,
     const fd2_field_magic_present_event *event, void *userdata);
 
+/* 2fb2c/2fe14：准备期转职只借App资源和VGA，不建立Game或业务owner。
+ * open耗物前完成所有clip/BG解析且不改VGA；冷图决定阶段/次数，音乐仍归caller。
+ * 无业务RNG/音效；Esc不构成skip，host quit返回-2，其它错误-1。
+ * BEGIN value=等待tick；ENTER=入场帧数；IDLE=循环tick；WHITE=渐白帧数；
+ * NEW_FRAME=水平偏移；RESTORE须value0。默认源参数1/9/16/20/200/24/0。
+ * close(restore=1)只恢复视觉快照，不能回滚调用方已提交的物品/身份。 */
+/* 原合法16→48的FIGANI144为empty：仅省缺失sprite/目录读取，保BG/等待；
+ * 这是原owner外图形读取的安全扩展，不宣称其未定义像素等价。 */
+typedef struct fd2_prepare_promotion fd2_prepare_promotion;
+typedef enum {
+    FD2_PREPARE_PROMOTION_BEGIN,
+    FD2_PREPARE_PROMOTION_OLD_ENTER,
+    FD2_PREPARE_PROMOTION_OLD_IDLE,
+    FD2_PREPARE_PROMOTION_WHITE,
+    FD2_PREPARE_PROMOTION_NEW_FRAME,
+    FD2_PREPARE_PROMOTION_NEW_IDLE,
+    FD2_PREPARE_PROMOTION_RESTORE
+} fd2_prepare_promotion_phase;
+int fd2_prepare_promotion_open(fd2_prepare_promotion **out, fd2_vga *vga,
+    const fd2_archive *backgrounds, const fd2_archive *figani,
+    uint8_t old_unit_id, uint8_t new_unit_id);
+int fd2_prepare_promotion_step(fd2_prepare_promotion *scope,
+    fd2_prepare_promotion_phase phase, unsigned value);
+void fd2_prepare_promotion_close(fd2_prepare_promotion *scope, int restore);
+
 #endif

@@ -119,6 +119,10 @@ static void clear_key_lifecycle(fd2_input *input) {
     memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
     memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
     memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
+    input->frame_modifiers=0;
+    input->pending_function_mask=0;
+    memset(input->pending_function_modifiers,0,sizeof(input->pending_function_modifiers));
+    memset(input->frame_function_modifiers,0,sizeof(input->frame_function_modifiers));
     memset(input->next_repeat_ms, 0, sizeof(input->next_repeat_ms));
 }
 
@@ -134,6 +138,13 @@ void fd2_input_poll_host_events(fd2_input *input) {
         } else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
             clear_key_lifecycle(input);
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
+            if (input && !event.key.repeat && event.key.scancode>=SDL_SCANCODE_F1 &&
+                    event.key.scancode<=SDL_SCANCODE_F12) {
+                unsigned index=(unsigned)(event.key.scancode-SDL_SCANCODE_F1);
+                input->pending_function_modifiers[index]=(uint16_t)(event.key.mod &
+                    (SDL_KMOD_SHIFT|SDL_KMOD_CTRL|SDL_KMOD_ALT));
+                input->pending_function_mask|=(uint16_t)(1u<<index);
+            }
             if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
                 (event.key.scancode == SDL_SCANCODE_C ||
                  event.key.scancode == SDL_SCANCODE_PAUSE)) {
@@ -143,8 +154,11 @@ void fd2_input_poll_host_events(fd2_input *input) {
                 request_host_quit();
                 if (input) input->quit_requested = 1;
             }
+        } else if (event.type==SDL_EVENT_KEY_UP && input &&
+                event.key.scancode>=SDL_SCANCODE_F1 && event.key.scancode<=SDL_SCANCODE_F12) {
+            input->pending_function_mask&=(uint16_t)~(1u<<(event.key.scancode-SDL_SCANCODE_F1));
         }
-        /* 普通 key event 仅用于 SDL 内部键态更新；不转存为游戏事件。 */
+        /* 不转存普通key事件。F键元数据也只有物理帧脉冲存在时才可消费。 */
     }
 }
 
@@ -153,6 +167,10 @@ static void begin_frame_from_state(fd2_input *input, const bool *state,
     memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
     memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
     memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
+    input->frame_modifiers=0;
+    if(state[SDL_SCANCODE_LSHIFT] || state[SDL_SCANCODE_RSHIFT])input->frame_modifiers|=SDL_KMOD_SHIFT;
+    if(state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_RCTRL])input->frame_modifiers|=SDL_KMOD_CTRL;
+    if(state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT])input->frame_modifiers|=SDL_KMOD_ALT;
 
     for (int i = 1; i < SDL_SCANCODE_COUNT; i++) {
         SDL_Scancode scancode = (SDL_Scancode)i;
@@ -174,6 +192,14 @@ static void begin_frame_from_state(fd2_input *input, const bool *state,
             input->next_repeat_ms[i] = now_ms + FD2_INPUT_REPEAT_MS;
         }
     }
+    for (unsigned i=0;i<12u;i++) {
+        unsigned source=(unsigned)SDL_SCANCODE_F1+i;
+        input->frame_function_modifiers[i]=input->frame_modifiers;
+        if ((input->pending_function_mask&(1u<<i)) && input->frame_trigger[source] &&
+                !input->frame_repeat[source])
+            input->frame_function_modifiers[i]=input->pending_function_modifiers[i];
+    }
+    input->pending_function_mask=0;
 }
 
 void fd2_input_begin_frame(fd2_input *input) {
@@ -216,6 +242,8 @@ int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
             event->source = (SDL_Scancode)i;
             event->key = key_from_scancode((SDL_Scancode)i);
             event->repeat = input->frame_repeat[i] ? 1u : 0u;
+            event->modifiers=i>=SDL_SCANCODE_F1 && i<=SDL_SCANCODE_F12 ?
+                input->frame_function_modifiers[i-SDL_SCANCODE_F1]:input->frame_modifiers;
         }
         return 1;
     }
@@ -225,6 +253,19 @@ int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
 int fd2_input_observe_any_key(fd2_input *input) {
     fd2_input_event ignored;
     return fd2_input_take_key(input, &ignored);
+}
+
+uint8_t fd2_input_function_scan(const fd2_input_event *event) {
+    if(!event || event->source<SDL_SCANCODE_F1 || event->source>SDL_SCANCODE_F12)return 0;
+    unsigned index=(unsigned)(event->source-SDL_SCANCODE_F1);
+    if(index<10u) {
+        unsigned base=event->modifiers&SDL_KMOD_ALT ? 104u:
+            event->modifiers&SDL_KMOD_CTRL ? 94u:event->modifiers&SDL_KMOD_SHIFT ? 84u:59u;
+        return (uint8_t)(base+index);
+    }
+    unsigned base=event->modifiers&SDL_KMOD_ALT ? 139u:
+        event->modifiers&SDL_KMOD_CTRL ? 137u:event->modifiers&SDL_KMOD_SHIFT ? 135u:133u;
+    return (uint8_t)(base+index-10u);
 }
 
 fd2_input_action fd2_input_action_for_key(fd2_input_context context,

@@ -151,67 +151,22 @@ typedef struct {
     unsigned glyph_counter;
 } field_progress_box;
 
-typedef struct {
-    uint16_t tokens[128];
-    size_t count;
-} field_progress_text;
+typedef fd2_text_expanded field_progress_text;
+typedef fd2_text_parameters field_text_parameters;
+#define FIELD_TEXT_SAFE_MINUS FD2_TEXT_SAFE_MINUS
 
-/* 安全呈现扩展：原%d负号经glyph-3读font分配区外。只在展开结果中插入
- * 此内部token，借FDOTHER[5] frame132；原资源token不能直接请求它。 */
-#define FIELD_TEXT_SAFE_MINUS 0xffefu
-
-static int progress_text_append(field_progress_text *text, uint16_t token,
-                                 const fd2_font *font) {
-    if (text->count >= sizeof(text->tokens) / sizeof(text->tokens[0]) ||
-        (token < 0xff00u && token >= font->glyph_count)) return -1;
-    text->tokens[text->count++] = token;
-    return 0;
-}
-
-typedef struct {
-    uint32_t value;
-    size_t new_fragment;
-    size_t old_fragment;
-} field_text_parameters;
-
+/* 与准备服务共用纯展开；安全负号资源仍由当前Game呈现owner验证。 */
 static int field_text_expand(const fd2_field_game *game,
-                                 const field_text_parameters *parameters,
-                                 size_t fragment, unsigned depth,
-                                 field_progress_text *text) {
-    const uint8_t *tokens;
-    size_t count;
-    if (depth > 1 || fd2_text_entry_get_fragment(
-            &game->ui_text, fragment, &tokens, &count) != 0) return -1;
-    for (size_t i = 0; i < count; i++) {
-        uint16_t token = fd2_text_token_at(tokens, i);
-        if (token == 0xffffu) return 0;
-        if (token == 0xfffau) { /* 15f84的-6：十进制字符直接选字模0..9。 */
-            char number[16];
-            int32_t value=parameters->value<=INT32_MAX ? (int32_t)parameters->value
-                : -1-(int32_t)(UINT32_MAX-parameters->value);
-            if (value<0) {
-                const fd2_image *minus=&game->info_assets.signs[1];
-                if (!minus->pixels || minus->width<1 || minus->width>16 ||
-                    minus->height<1 || minus->height>16) return -1;
-            }
-            snprintf(number, sizeof(number), "%ld", (long)value);
-            for (size_t j = 0; number[j]; j++)
-                if (progress_text_append(text, number[j]=='-' ? FIELD_TEXT_SAFE_MINUS:
-                        (uint16_t)(number[j] - '0'), &game->font) != 0)
-                    return -1;
-        } else if (token == 0xfffcu || token == 0xfffbu) {
-            /* 15f84的-4/-5嵌入动态片段；-2/-3仍是换行/等待续行。 */
-            size_t nested = token == 0xfffcu
-                ? parameters->new_fragment : parameters->old_fragment;
-            if (depth || nested == SIZE_MAX ||
-                field_text_expand(game, parameters, nested, depth + 1, text) != 0)
-                return -1;
-        } else {
-            if (token >= 0xff00u && token != 0xfffeu && token != 0xfffdu) return -1;
-            if (progress_text_append(text, token, &game->font) != 0) return -1;
-        }
+        const field_text_parameters *parameters, size_t fragment,
+        unsigned depth, field_progress_text *text) {
+    if (depth || fd2_text_expand(&game->ui_text, game->font.glyph_count,
+            parameters, fragment, text) != 0) return -1;
+    for (size_t i = 0; i < text->count; i++) if (text->tokens[i] == FIELD_TEXT_SAFE_MINUS) {
+        const fd2_image *minus = &game->info_assets.signs[1];
+        if (!minus->pixels || minus->width < 1 || minus->width > 16 ||
+            minus->height < 1 || minus->height > 16) return -1;
     }
-    return -1;
+    return 0;
 }
 
 static int progress_text_prepare(const fd2_field_game *game,
@@ -302,10 +257,9 @@ static int progress_box_transition(field_progress_box *box, fd2_vga *vga,
 static int progress_box_open(field_progress_box *box, fd2_field_game *game,
                               fd2_vga *vga, const fd2_archive *fdother,
                               size_t actor_index, int fast) {
-    static const int special_origins[5] = {4283, 1707, 3939, 1398, 3644};
     if (!box || box->page || actor_index >= game->units.count) return -1;
     unsigned id = game->units.items[actor_index].unit_id;
-    box->portrait_origin = id >= 128 && id <= 132 ? special_origins[id - 128] : 36887;
+    box->portrait_origin = (int)fd2_portrait_notice_origin(id);
     box->row = 2;
     box->background = malloc(VGA_W * VGA_H);
     box->page = calloc(1, sizeof(*box->page));

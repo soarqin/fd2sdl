@@ -14328,7 +14328,7 @@ void sub_240FA()
 {
   int v0; // ebx
   int v1; // ebx
-  int v2; // eax
+  int prefix; // eax
   _BYTE v3[25]; // [esp+0h] [ebp-68h] BYREF
   unsigned __int8 v4[3]; // [esp+19h] [ebp-4Fh] BYREF
   _BYTE v5[28]; // [esp+1Ch] [ebp-4Ch] BYREF
@@ -14347,7 +14347,7 @@ void sub_240FA()
   {
     for ( j = 0; j < 0x10u; ++j )
     {
-      if ( sub_2AEDB(j, i) != -1 )
+      if ( field_unit_item_slot_find_prefix(j, i) != -1 )
         ++v0;
     }
   }
@@ -14360,9 +14360,9 @@ void sub_240FA()
         v1 = j;
         if ( j >= 0x10u )
           break;
-        v2 = sub_2AEDB(j, i);
-        if ( v2 != -1 )
-          field_unit_inventory_slot_remove(v1, v2);
+        prefix = field_unit_item_slot_find_prefix(j, i);
+        if ( prefix != -1 )
+          field_unit_inventory_slot_remove(v1, prefix);
       }
     }
     field_party_item_append(100);
@@ -14617,7 +14617,7 @@ int __cdecl sub_24B14(int a1)
   watcom_stack_check(20);
   for ( i = 0; i < 16; ++i )
   {
-    if ( sub_2AEDB(i, a1) != -1 )
+    if ( field_unit_item_slot_find_prefix(i, a1) != -1 )
       return 1;
   }
   return -1;
@@ -15757,12 +15757,13 @@ int field_prepare_bottom_page_close()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26A0D
+ * IDA 9.5 Hex-Rays: field_shop_stock_copy
  * VA=0x26a0d..0x26a7a OBJ=1 OFF=0x16a0d size=0x6d
  * callers: 0x279bc
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_26A0D(int a1)
+// [勘误 semantic_name] field_shop_stock_copy；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整109B，279bc唯一caller。selector1从31B准备行+3复制至多12项，3从+15/5从+23至多8项，ff停；不是新库存owner。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_shop_stock_copy(int a1)
 {
   int v1; // ebp
   int v2; // edi
@@ -15799,12 +15800,13 @@ int __cdecl sub_26A0D(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26A7A
+ * IDA 9.5 Hex-Rays: field_prepare_money_add_present
  * VA=0x26a7a..0x26b91 OBJ=1 OFF=0x16a7a size=0x117
  * callers: 0x28cbd
  * callees: 0x26c9b, 0x3702f, 0x3790a, 0x37b29
  * --------------------------------------------------------------- */
-int __cdecl sub_26A7A(int a1)
+// [勘误 semantic_name] field_prepare_money_add_present；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整279B，28cbd caller；先格式化旧signed DWORD precision8，再26ab5模2^32加钱，随后逐列九切片滚动。47例局部原码/C门含完整正值循环和有界DWORD回绕写点；负号越目录像素不作等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_prepare_money_add_present(int a1)
 {
   int i; // esi
   int result; // eax
@@ -15848,7 +15850,10 @@ int __cdecl sub_26A7A(int a1)
         {
           if ( v9[n + 20] != 0 )
           {
-            sub_26C9B(6 * n + 686736, 320, (unsigned __int8)v9[n + 20] + 9 * (unsigned __int8)v9[n]);
+            field_prepare_money_strip_draw(
+              6 * n + 686736,
+              320,
+              (unsigned __int8)v9[n + 20] + 9 * (unsigned __int8)v9[n]);
             if ( ++v9[n + 20] == 10 && ++v9[n] == 10 )
               v9[n] = 0;
           }
@@ -15863,12 +15868,13 @@ int __cdecl sub_26A7A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26B91
+ * IDA 9.5 Hex-Rays: field_prepare_money_subtract_present
  * VA=0x26b91..0x26c9b OBJ=1 OFF=0x16b91 size=0x10a
  * callers: 0x2872b, 0x2a43e
  * callees: 0x26c9b, 0x3702f, 0x3790a, 0x37b29
  * --------------------------------------------------------------- */
-void __cdecl sub_26B91(int a1)
+// [勘误 semantic_name] field_prepare_money_subtract_present；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整266B，2872b/2a43e caller；26bcc先模2^32扣钱，再逐列递减滚动；共享26b8a返回尾。复活真实入口证明扣钱早于flags整byte清0和HP=max，不推UI等待RNG等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_prepare_money_subtract_present(int a1)
 {
   int i; // esi
   int j; // esi
@@ -15911,7 +15917,10 @@ void __cdecl sub_26B91(int a1)
         for ( n = 0; n < 8; ++n )
         {
           if ( v7[n + 20] != 0 )
-            sub_26C9B(6 * n + 686736, 320, 9 * (unsigned __int8)v8[n] + (unsigned __int8)v7[n + 20]-- - 1);
+            field_prepare_money_strip_draw(
+              6 * n + 686736,
+              320,
+              9 * (unsigned __int8)v8[n] + (unsigned __int8)v7[n + 20]-- - 1);
         }
         j___delay(10);
       }
@@ -15923,12 +15932,13 @@ void __cdecl sub_26B91(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26C9B
+ * IDA 9.5 Hex-Rays: field_prepare_money_strip_draw
  * VA=0x26c9b..0x26ce4 OBJ=1 OFF=0x16c9b size=0x49
  * callers: 0x26a7a, 0x26b91
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-__int64 __cdecl sub_26C9B(int a1, int a2, int a3)
+// [勘误 semantic_name] field_prepare_money_strip_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整73B，26a7a/26b91两caller；从服务归档raw frame2读6字节步进的数字切片，再复制9行到指定stride目的页，不是通用数字格式化。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+__int64 __cdecl field_prepare_money_strip_draw(int a1, int a2, int a3)
 {
   __int64 result; // rax
   int v5; // ebx
@@ -15947,12 +15957,13 @@ __int64 __cdecl sub_26C9B(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26CE4
+ * IDA 9.5 Hex-Rays: field_prepare_menu_transition
  * VA=0x26ce4..0x26e38 OBJ=1 OFF=0x16ce4 size=0x154
  * callers: 0x279bc, 0x29300, 0x29daa
  * callees: 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4ed34
  * --------------------------------------------------------------- */
-int __cdecl sub_26CE4(int a1)
+// [勘误 semantic_name] field_prepare_menu_transition；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整340B，商店/酒店/教会三caller；保存64000页，清201,169的104x20带，四图标按原四offset及四相位缩放位移进入/退出；不选择命令、不改roster。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_prepare_menu_transition(int a1)
 {
   int i; // esi
   int v2; // ebp
@@ -15990,12 +16001,13 @@ int __cdecl sub_26CE4(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26E38
+ * IDA 9.5 Hex-Rays: field_prepare_menu_select
  * VA=0x26e38..0x26eda OBJ=1 OFF=0x16e38 size=0xa2
  * callers: 0x279bc, 0x29300, 0x29daa
  * callees: 0x25a96, 0x26eda, 0x3702f
  * --------------------------------------------------------------- */
-int sub_26E38()
+// [勘误 semantic_name] field_prepare_menu_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整162B，279bc/29300/29daa；每轮26eda(0)，左右将53c57在0..3循环并cue0，Enter/Space确认、Esc返回；不是无RNG查询。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int field_prepare_menu_select()
 {
   int v0; // ebx
   int v1; // eax
@@ -16004,7 +16016,7 @@ int sub_26E38()
   v0 = 0;
   do
   {
-    v1 = sub_26EDA(0);
+    v1 = field_prepare_picker_wait_key(0);
     switch ( v1 )
     {
       case 75:
@@ -16034,12 +16046,13 @@ int sub_26E38()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_26EDA
+ * IDA 9.5 Hex-Rays: field_prepare_picker_wait_key
  * VA=0x26eda..0x27079 OBJ=1 OFF=0x16eda size=0x19f
  * callers: 0x26e38, 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
  * callees: 0x10620, 0x16559, 0x27079, 0x3702f, 0x370f0, 0x4ebe3, 0x4ed34
  * --------------------------------------------------------------- */
-int __cdecl sub_26EDA(int a1)
+// [勘误 semantic_name] field_prepare_picker_wait_key；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整415B，菜单/商品/成员/购买候选/复活/转职picker六caller；入口一次共享RNG%50+8，highlight初2，按2 BIOS tick推进27079及立绘0/3，blink后RNG%30+2；读BIOS键并规范扩展确认/取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_prepare_picker_wait_key(int a1)
 {
   int v1; // edi
   int i; // esi
@@ -16058,7 +16071,7 @@ int __cdecl sub_26EDA(int a1)
   v10 = MEMORY[0x46C];
   v1 = field_rng_next(MEMORY[0x46C]) % 50 + 8;
   dword_53F52 = 2;
-  sub_27079(&v9, a1);
+  field_prepare_picker_tick_draw(&v9, a1);
   if ( a1 == 0 )
   {
     for ( i = 0; i < 4; ++i )
@@ -16075,7 +16088,7 @@ int __cdecl sub_26EDA(int a1)
     {
       if ( ++dword_53F52 == 4 )
         dword_53F52 = 0;
-      sub_27079(&v9, a1);
+      field_prepare_picker_tick_draw(&v9, a1);
       if ( v11 != 0 )
       {
         v4 = dialog_portrait_frame_draw(0);
@@ -16110,12 +16123,13 @@ int __cdecl sub_26EDA(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_27079
+ * IDA 9.5 Hex-Rays: field_prepare_picker_tick_draw
  * VA=0x27079..0x272d0 OBJ=1 OFF=0x17079 size=0x257
  * callers: 0x26eda
  * callees: 0x2810b, 0x3702f, 0x4e29c, 0x4ebff, 0x4ed34
  * --------------------------------------------------------------- */
-int __cdecl sub_27079(int a1, int a2)
+// [勘误 semantic_name] field_prepare_picker_tick_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_prepare_picker_tick_draw(int a1, int a2)
 {
   int result; // eax
   int v3; // ebp
@@ -16138,7 +16152,7 @@ int __cdecl sub_27079(int a1, int a2)
     case 1:
     case 3:
       if ( a2 == 3 )
-        sub_2810B(dword_53C57, 655360);
+        field_prepare_members_draw(dword_53C57, 655360);
       if ( dword_53F4E != 0 )
         lmi_rle_blit_forward(694058, *(_DWORD *)(dword_53F66 + 4 * (dword_53F52 / 2 + 11) + 6) + dword_53F66, 320);
       else
@@ -16183,12 +16197,13 @@ int __cdecl sub_27079(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_272D0
+ * IDA 9.5 Hex-Rays: field_shop_items_draw
  * VA=0x272d0..0x275e6 OBJ=1 OFF=0x172d0 size=0x316
  * callers: 0x275e6, 0x27738
  * callees: 0x15f84, 0x1685c, 0x16886, 0x187d6, 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-int __cdecl sub_272D0(int a1, int a2, int a3, int a4, char a5)
+// [勘误 semantic_name] field_shop_items_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整790B，275e6/27738 caller；两列三行商品/库存，item+181名字、分类/属性图及bank42主值，服务frame15钱图及bank119五位售价；a5非零为floor3price/4。不是库存写入。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_shop_items_draw(int a1, int a2, int a3, int a4, char a5)
 {
   int result; // eax
   int i; // esi
@@ -16295,12 +16310,13 @@ LABEL_23:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_275E6
+ * IDA 9.5 Hex-Rays: field_shop_item_select
  * VA=0x275e6..0x27738 OBJ=1 OFF=0x175e6 size=0x152
  * callers: 0x2872b, 0x28cbd, 0x28f65
  * callees: 0x25a96, 0x26eda, 0x272d0, 0x27816, 0x278e7, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_275E6(int a1, int a2, char a3)
+// [勘误 semantic_name] field_shop_item_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整338B，买/卖/转交caller；26eda(1)等待，两列六项窗口及上下两行滚动，边界不循环；确认/取消通过原53c57返回，不把压缩显示行重新映射到raw库存槽。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_shop_item_select(int a1, int a2, char a3)
 {
   int v3; // edi
   int v4; // eax
@@ -16309,7 +16325,7 @@ int __cdecl sub_275E6(int a1, int a2, char a3)
   v3 = 0;
   do
   {
-    v4 = sub_26EDA(1);
+    v4 = field_prepare_picker_wait_key(1);
     switch ( v4 )
     {
       case 77:
@@ -16335,7 +16351,7 @@ LABEL_11:
           if ( dword_53C57 < dword_53F4E )
           {
             dword_53F4E -= 2;
-            sub_278E7();
+            field_prepare_rows_shift_down();
           }
           goto LABEL_7;
         }
@@ -16349,10 +16365,10 @@ LABEL_5:
           if ( dword_53C57 - dword_53F4E >= 6 )
           {
             dword_53F4E += 2;
-            sub_27816();
+            field_prepare_rows_shift_up();
           }
 LABEL_7:
-          sub_272D0(a1, a2, dword_53C57, 655360, a3);
+          field_shop_items_draw(a1, a2, dword_53C57, 655360, a3);
         }
         break;
       case 28:
@@ -16372,12 +16388,13 @@ LABEL_7:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_27738
+ * IDA 9.5 Hex-Rays: field_shop_item_page_open
  * VA=0x27738..0x27816 OBJ=1 OFF=0x17738 size=0xde
  * callers: 0x2872b, 0x28cbd, 0x28f65
  * callees: 0x1974c, 0x272d0, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_27738(int a1, int a2, char a3)
+// [勘误 semantic_name] field_shop_item_page_open；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整222B，买/卖/转交caller；分配三个64000B页面，服务frame16底板与272d0内容，1974c的5..0六相位入场；实际导航由275e6，不是整购买handler。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_shop_item_page_open(int a1, int a2, char a3)
 {
   int i; // ebx
 
@@ -16388,20 +16405,21 @@ void __cdecl sub_27738(int a1, int a2, char a3)
   memmove(dword_53C5F, 655360, 64000);
   memmove(dword_53C63, dword_53C5F, 64000);
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_272D0(a1, a2, dword_53C57, dword_53C63, a3);
+  field_shop_items_draw(a1, a2, dword_53C57, dword_53C63, a3);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_27816
+ * IDA 9.5 Hex-Rays: field_prepare_rows_shift_up
  * VA=0x27816..0x278e7 OBJ=1 OFF=0x17816 size=0xd1
  * type: int(void)
  * callers: 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
  * callees: 0x3702f, 0x3771c, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
-int sub_27816()
+// [勘误 semantic_name] field_prepare_rows_shift_up；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整209B，五类列表picker共享；284x80区域内容连续三次上移6像素/10ms，再上移8像素并清73，合一行26px；名字按像素方向，不混淆选项向下。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int field_prepare_rows_shift_up()
 {
   int result; // eax
   int i; // esi
@@ -16428,13 +16446,14 @@ int sub_27816()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_278E7
+ * IDA 9.5 Hex-Rays: field_prepare_rows_shift_down
  * VA=0x278e7..0x279bc OBJ=1 OFF=0x178e7 size=0xd5
  * type: int(void)
  * callers: 0x275e6, 0x27d33, 0x27f4a, 0x2a29d, 0x2a857
  * callees: 0x3702f, 0x3771c, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
-int sub_278E7()
+// [勘误 semantic_name] field_prepare_rows_shift_down；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整213B，与27816同五caller；反向拷贝保护重叠，内容三次下移6像素/10ms，再下移8像素并清73；不改first/选择索引。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int field_prepare_rows_shift_down()
 {
   int result; // eax
   int i; // esi
@@ -16515,12 +16534,12 @@ void __cdecl field_shop_menu_execute(int a1)
   while ( 1 )
   {
     dword_53C57 = (int)v1;
-    sub_26CE4(0);
-    v10 = sub_26E38();
+    field_prepare_menu_transition(0);
+    v10 = field_prepare_menu_select();
     if ( v10 == 1 )
       v1 = (unsigned __int8 *)dword_53C57;
-    sub_26CE4(1);
-    v5 = (unsigned __int8)sub_26A0D((int)v8);
+    field_prepare_menu_transition(1);
+    v5 = (unsigned __int8)field_shop_stock_copy((int)v8);
     dword_53F5E = v5;
     field_prepare_bottom_page_close();
     if ( v10 == 1 )
@@ -16533,7 +16552,7 @@ void __cdecl field_shop_menu_execute(int a1)
         }
         else if ( dword_53C57 == 2 )
         {
-          sub_28EFE();
+          field_prepare_equipment_execute();
         }
         else
         {
@@ -16578,12 +16597,13 @@ void __cdecl field_shop_menu_execute(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_27D33
+ * IDA 9.5 Hex-Rays: field_prepare_member_select
  * VA=0x27d33..0x27f4a OBJ=1 OFF=0x17d33 size=0x217
  * callers: 0x2872b, 0x28cbd, 0x28efe, 0x28f65, 0x29620
  * callees: 0x1974c, 0x25a96, 0x26eda, 0x27816, 0x278e7, 0x2810b, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
  * --------------------------------------------------------------- */
-int sub_27D33()
+// [勘误 semantic_name] field_prepare_member_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整535B，买/卖/装备/转交/酒店与教会详情caller；重置first/selection0，分配并滑入成员页，26eda(3)共享等待，两列raw roster导航，Enter确认/Esc取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int field_prepare_member_select()
 {
   int v0; // esi
   int i; // ebx
@@ -16599,12 +16619,12 @@ int sub_27D33()
   dword_53F4E = 0;
   dword_53C57 = 0;
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_2810B(dword_53C57, dword_53C63);
+  field_prepare_members_draw(dword_53C57, dword_53C63);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   do
   {
-    v2 = sub_26EDA(3);
+    v2 = field_prepare_picker_wait_key(3);
     switch ( v2 )
     {
       case 77:
@@ -16630,7 +16650,7 @@ LABEL_13:
           if ( dword_53C57 < dword_53F4E )
           {
             dword_53F4E -= 2;
-            sub_278E7();
+            field_prepare_rows_shift_down();
           }
           goto LABEL_9;
         }
@@ -16644,10 +16664,10 @@ LABEL_7:
           if ( dword_53C57 - dword_53F4E >= 6 )
           {
             dword_53F4E += 2;
-            sub_27816();
+            field_prepare_rows_shift_up();
           }
 LABEL_9:
-          sub_2810B(dword_53C57, 655360);
+          field_prepare_members_draw(dword_53C57, 655360);
         }
         break;
       case 28:
@@ -16667,12 +16687,13 @@ LABEL_9:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_27F4A
+ * IDA 9.5 Hex-Rays: field_shop_equipment_recipient_select
  * VA=0x27f4a..0x2810b OBJ=1 OFF=0x17f4a size=0x1c1
  * callers: 0x2872b
  * callees: 0x1974c, 0x25a96, 0x26eda, 0x27816, 0x278e7, 0x2825b, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_27F4A(int a1, int a2, int a3)
+// [勘误 semantic_name] field_shop_equipment_recipient_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整449B，2872b唯一caller；三行兼容候选及2825b四属性预览，26eda(2)，上下单行滚动且有效移动cue0；不装备、不扣钱。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_shop_equipment_recipient_select(int a1, int a2, int a3)
 {
   int v3; // esi
   int i; // ebx
@@ -16688,12 +16709,12 @@ void __cdecl sub_27F4A(int a1, int a2, int a3)
   dword_53F4E = 0;
   dword_53C57 = 0;
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_2825B(a1, a2, a3, dword_53C57, dword_53C63);
+  field_shop_equipment_recipients_draw(a1, a2, a3, dword_53C57, dword_53C63);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
-    v5 = sub_26EDA(2);
+    v5 = field_prepare_picker_wait_key(2);
     switch ( v5 )
     {
       case 80:
@@ -16703,10 +16724,10 @@ void __cdecl sub_27F4A(int a1, int a2, int a3)
           if ( ++dword_53C57 - dword_53F4E >= 3 )
           {
             ++dword_53F4E;
-            sub_27816();
+            field_prepare_rows_shift_up();
           }
 LABEL_8:
-          sub_2825B(a1, a2, a3, dword_53C57, 655360);
+          field_shop_equipment_recipients_draw(a1, a2, a3, dword_53C57, 655360);
         }
         break;
       case 72:
@@ -16716,7 +16737,7 @@ LABEL_8:
         if ( --dword_53C57 < dword_53F4E )
         {
           --dword_53F4E;
-          sub_278E7();
+          field_prepare_rows_shift_down();
         }
         goto LABEL_8;
       case 28:
@@ -16736,12 +16757,13 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2810B
+ * IDA 9.5 Hex-Rays: field_prepare_members_draw
  * VA=0x2810b..0x2825b OBJ=1 OFF=0x1810b size=0x150
  * callers: 0x27079, 0x27d33
  * callees: 0x15f84, 0x3702f, 0x4e29c
  * --------------------------------------------------------------- */
-void __cdecl sub_2810B(int a1, int a2)
+// [勘误 semantic_name] field_prepare_members_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整336B，27079/27d33；两列至多六名，cache目录raw_index*12+共享idle相位，4e29c将sprite skip填73，姓名按text+1并高亮；不按当前unitID另建cache。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_prepare_members_draw(int a1, int a2)
 {
   int i; // esi
   unsigned __int8 *v3; // edi
@@ -16788,12 +16810,13 @@ void __cdecl sub_2810B(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2825B
+ * IDA 9.5 Hex-Rays: field_shop_equipment_recipients_draw
  * VA=0x2825b..0x2860a OBJ=1 OFF=0x1825b size=0x3af
  * callers: 0x27f4a
  * callees: 0x15f84, 0x187d6, 0x2860a, 0x28632, 0x3702f, 0x4e29c, 0x4ebff
  * --------------------------------------------------------------- */
-int __cdecl sub_2825B(int a1, int a2, int a3, int a4, int a5)
+// [勘误 semantic_name] field_shop_equipment_recipients_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整943B，27f4a唯一caller；三行候选raw映射，28632出AP/DP/HIT/EV四DWORD预览，与现派生WORD比较选数字bank，服务frames18..22标签/箭头，不写live属性。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_shop_equipment_recipients_draw(int a1, int a2, int a3, int a4, int a5)
 {
   int result; // eax
   int i; // ebp
@@ -16832,7 +16855,7 @@ int __cdecl sub_2825B(int a1, int a2, int a3, int a4, int a5)
   for ( i = 0; i < v23; ++i )
   {
     v7 = *(unsigned __int8 *)(a2 + i + dword_53F4E);
-    sub_28632(v7, a3, &v16);
+    field_shop_item_stats_preview(v7, a3, &v16);
     v8 = 80 * v7 + dword_53A45;
     v26 = *(unsigned __int16 *)(v8 + 72);
     v25 = *(unsigned __int16 *)(v8 + 74);
@@ -16893,12 +16916,13 @@ int __cdecl sub_2860A(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_28632
+ * IDA 9.5 Hex-Rays: field_shop_item_stats_preview
  * VA=0x28632..0x2872b OBJ=1 OFF=0x18632 size=0xf9
  * callers: 0x2825b
  * callees: 0x3702f, 0x4e8bc
  * --------------------------------------------------------------- */
-void __cdecl sub_28632(int a1, int a2, int *a3)
+// [勘误 semantic_name] field_shop_item_stats_preview；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整249B及26e30共享返回尾，2825b唯一caller；signed基础AP/DP/DX加新物品效果，再只保留record.kind<=20/>20相反组旧flags40装备，依次输出四DWORD。不同于1b750状态缩放和ID128装备分组。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_shop_item_stats_preview(int a1, int a2, int *a3)
 {
   unsigned __int8 *v3; // eax
   int v4; // ebp
@@ -16983,8 +17007,8 @@ int __cdecl field_shop_buy_execute(int a1, int a2)
   {
     dword_53C57 = dword_53F6A;
     dword_53F4E = dword_53F6E;
-    sub_27738(a1, a2, 0);
-    v4 = sub_275E6(a1, a2, 0);
+    field_shop_item_page_open(a1, a2, 0);
+    v4 = field_shop_item_select(a1, a2, 0);
     dword_53F6A = dword_53C57;
     dword_53F6E = dword_53F4E;
     result = field_prepare_bottom_page_close();
@@ -17065,11 +17089,11 @@ LABEL_12:
       if ( *v7 >= 0x20u )
       {
         dword_53F5E = dword_53BFB;
-        v9 = sub_27D33();
+        v9 = field_prepare_member_select();
       }
       else
       {
-        sub_27F4A(v3, (int)v14, *(unsigned __int8 *)(dword_53F6A + a2));
+        field_shop_equipment_recipient_select(v3, (int)v14, *(unsigned __int8 *)(dword_53F6A + a2));
       }
       v10 = v9;
       dword_53F5E = v2;
@@ -17124,8 +17148,8 @@ LABEL_12:
           }
           LODWORD(v6) = field_prepare_bottom_page_close();
         }
-        sub_28B41(v6, HIDWORD(v6));
-        sub_26B91(dword_53AE1);
+        field_prepare_service_animate(v6, HIDWORD(v6));
+        field_prepare_money_subtract_present(dword_53AE1);
       }
     }
   }
@@ -17133,13 +17157,14 @@ LABEL_12:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_28B41
+ * IDA 9.5 Hex-Rays: field_prepare_service_animate
  * VA=0x28b41..0x28cbd OBJ=1 OFF=0x18b41 size=0x17c
  * type: int __fastcall(_DWORD, _DWORD)
  * callers: 0x2872b, 0x28cbd, 0x2a43e
  * callees: 0x11df2, 0x16559, 0x16886, 0x17aa9, 0x3702f, 0x3790a, 0x4e381
  * --------------------------------------------------------------- */
-int sub_28B41()
+// [勘误 semantic_name] field_prepare_service_animate；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整380B，购买/出售/复活caller；selector1五帧、3单帧、4九帧与原渐白、5七帧，读取各服务归档23起帧，保固定BIOS等待/末清键；不在本函数扣钱或写actor。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int field_prepare_service_animate()
 {
   int v0; // eax
   int i; // ebx
@@ -17234,7 +17259,7 @@ int field_shop_sell_execute()
   while ( 1 )
   {
     dword_53F5E = dword_53BFB;
-    v2 = sub_27D33();
+    v2 = field_prepare_member_select();
     result = field_prepare_bottom_page_close();
     if ( v2 == -1 )
       return result;
@@ -17267,9 +17292,9 @@ int field_shop_sell_execute()
     }
     dword_53C57 = 0;
     dword_53F4E = 0;
-    sub_27738(v1, (int)v12, 1);
+    field_shop_item_page_open(v1, (int)v12, 1);
     dword_53F5E = v1;
-    if ( sub_275E6(v1, (int)v12, 1) == -1 )
+    if ( field_shop_item_select(v1, (int)v12, 1) == -1 )
       goto LABEL_8;
     v6 = dword_53C57;
     field_prepare_bottom_page_close();
@@ -17300,8 +17325,8 @@ LABEL_8:
     else
     {
       field_prepare_bottom_page_close();
-      sub_28B41();
-      sub_26A7A(dword_53AE1);
+      field_prepare_service_animate();
+      field_prepare_money_add_present(dword_53AE1);
       field_unit_inventory_slot_remove(v4, v6);
       field_unit_combat_stats_recompute(v4);
     }
@@ -17310,13 +17335,14 @@ LABEL_8:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_28EFE
+ * IDA 9.5 Hex-Rays: field_prepare_equipment_execute
  * VA=0x28efe..0x28f65 OBJ=1 OFF=0x18efe size=0x67
  * type: int(void)
  * callers: 0x279bc
  * callees: 0x111ba, 0x1bffe, 0x26996, 0x27d33, 0x3702f
  * --------------------------------------------------------------- */
-void sub_28EFE()
+// [勘误 semantic_name] field_prepare_equipment_execute；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整103B及28efc共享返回，279bc caller；循环27d33选持久成员→26996关页→1bffe装备，保存恢复portrait origin并重载当前服务头像；Esc退出。不把整个循环作为SDL native业务叶。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void field_prepare_equipment_execute()
 {
   int v0; // ebx
   int v1; // ebx
@@ -17325,7 +17351,7 @@ void sub_28EFE()
   while ( 1 )
   {
     dword_53F5E = dword_53BFB;
-    v0 = sub_27D33();
+    v0 = field_prepare_member_select();
     field_prepare_bottom_page_close();
     if ( v0 == -1 )
       break;
@@ -17367,7 +17393,7 @@ void __usercall field_prepare_item_give_execute(int a1@<edi>)
     dialog_wait_key(1);
     field_prepare_bottom_page_close();
     dword_53F5E = dword_53BFB;
-    v3 = sub_27D33();
+    v3 = field_prepare_member_select();
     field_prepare_bottom_page_close();
     if ( v3 == -1 )
       JUMPOUT(0x29619);
@@ -17383,9 +17409,9 @@ void __usercall field_prepare_item_give_execute(int a1@<edi>)
       break;
     dword_53C57 = 0;
     dword_53F4E = 0;
-    sub_27738(v2, (int)v8, 1);
+    field_shop_item_page_open(v2, (int)v8, 1);
     dword_53F5E = v2;
-    if ( sub_275E6(v2, (int)v8, 1) == -1 )
+    if ( field_shop_item_select(v2, (int)v8, 1) == -1 )
     {
 LABEL_9:
       field_prepare_bottom_page_close();
@@ -17399,7 +17425,7 @@ LABEL_9:
       dialog_portrait_frame_draw(0);
       dialog_wait_key(1);
       field_prepare_bottom_page_close();
-      v6 = sub_27D33();
+      v6 = field_prepare_member_select();
       field_prepare_bottom_page_close();
       if ( v6 != -1 )
       {
@@ -17512,11 +17538,11 @@ int __cdecl field_hotel_menu_execute(unsigned __int8 *a1)
   do
   {
     dword_53C57 = v1;
-    sub_26CE4(0);
-    v7 = sub_26E38();
+    field_prepare_menu_transition(0);
+    v7 = field_prepare_menu_select();
     if ( v7 == 1 )
       v1 = dword_53C57;
-    sub_26CE4(1);
+    field_prepare_menu_transition(1);
     field_prepare_bottom_page_close();
     if ( v7 == 1 )
     {
@@ -17602,7 +17628,7 @@ int __usercall field_roster_detail_select@<eax>(int a1@<edi>)
   dword_53F5E = dword_53BFB;
   while ( 1 )
   {
-    v1 = sub_27D33();
+    v1 = field_prepare_member_select();
     result = field_prepare_bottom_page_close();
     v3 = dword_53C67;
     if ( v1 == -1 )
@@ -17931,11 +17957,11 @@ void __cdecl field_church_menu_execute(unsigned __int8 *a1)
   while ( 1 )
   {
     dword_53C57 = v2;
-    sub_26CE4(0);
-    v5 = sub_26E38();
+    field_prepare_menu_transition(0);
+    v5 = field_prepare_menu_select();
     if ( v5 == 1 )
       v2 = dword_53C57;
-    sub_26CE4(1);
+    field_prepare_menu_transition(1);
     field_prepare_bottom_page_close();
     if ( v5 == 1 )
     {
@@ -17984,12 +18010,13 @@ void __cdecl field_church_menu_execute(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A07A
+ * IDA 9.5 Hex-Rays: field_revive_candidates_build
  * VA=0x2a07a..0x2a0c2 OBJ=1 OFF=0x1a07a size=0x48
  * callers: 0x2a43e
  * callees: 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_2A07A(int a1)
+// [勘误 semantic_name] field_revive_candidates_build；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整72B，2a43e唯一caller；逐raw调用34894，仅flags bit0为1收索引，不加HP0/side/acted门。原码/C五组count0/1/7/16/32及hidden且HP非零输出一致。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_revive_candidates_build(int a1)
 {
   int i; // ebx
   unsigned __int8 v3; // [esp+0h] [ebp-Ch]
@@ -18006,12 +18033,13 @@ int __cdecl sub_2A07A(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A0C2
+ * IDA 9.5 Hex-Rays: field_revive_candidates_draw
  * VA=0x2a0c2..0x2a29d OBJ=1 OFF=0x1a0c2 size=0x1db
  * callers: 0x2a29d
  * callees: 0x15f84, 0x1685c, 0x187d6, 0x3702f, 0x4e29c
  * --------------------------------------------------------------- */
-void __cdecl sub_2A0C2(int a1, int a2, unsigned __int8 *a3, int a4)
+// [勘误 semantic_name] field_revive_candidates_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整475B及26e30共享返回，2a29d唯一caller；三行候选cache sprite、名字/种族/profile和费用，profile-1引用52399与52397+2*profile同地址；候选布局本身不清flags/HP。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_revive_candidates_draw(int a1, int a2, unsigned __int8 *a3, int a4)
 {
   unsigned __int8 *i; // edi
   int v5; // ebp
@@ -18055,12 +18083,13 @@ void __cdecl sub_2A0C2(int a1, int a2, unsigned __int8 *a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A29D
+ * IDA 9.5 Hex-Rays: field_revive_candidate_select
  * VA=0x2a29d..0x2a43e OBJ=1 OFF=0x1a29d size=0x1a1
  * callers: 0x2a43e
  * callees: 0x1974c, 0x26eda, 0x27816, 0x278e7, 0x2a0c2, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_2A29D(int a1, int a2)
+// [勘误 semantic_name] field_revive_candidate_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整417B，2a43e唯一caller；三缓冲与六步滑入，26eda(2)等待，三行上下/滚动及确认/Esc，无有效移动cue0调用，不在picker恢复单位。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_revive_candidate_select(int a1, int a2)
 {
   int v2; // esi
   int i; // ebx
@@ -18078,12 +18107,12 @@ void __cdecl sub_2A29D(int a1, int a2)
   dword_53F62 = a2;
   dword_53F5E = a1;
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_2A0C2(a1, dword_53C63, (unsigned __int8 *)dword_53C57, a2);
+  field_revive_candidates_draw(a1, dword_53C63, (unsigned __int8 *)dword_53C57, a2);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
-    v4 = sub_26EDA(2);
+    v4 = field_prepare_picker_wait_key(2);
     switch ( v4 )
     {
       case 72:
@@ -18092,10 +18121,10 @@ void __cdecl sub_2A29D(int a1, int a2)
           if ( --dword_53C57 < dword_53F4E )
           {
             --dword_53F4E;
-            sub_278E7();
+            field_prepare_rows_shift_down();
           }
 LABEL_8:
-          sub_2A0C2(a1, 655360, (unsigned __int8 *)dword_53C57, a2);
+          field_revive_candidates_draw(a1, 655360, (unsigned __int8 *)dword_53C57, a2);
         }
         break;
       case 80:
@@ -18104,7 +18133,7 @@ LABEL_8:
         if ( ++dword_53C57 - dword_53F4E >= 3 )
         {
           ++dword_53F4E;
-          sub_27816();
+          field_prepare_rows_shift_up();
         }
         goto LABEL_8;
       case 28:
@@ -18145,7 +18174,7 @@ int __usercall field_church_revive_execute@<eax>(unsigned __int8 *a1@<edi>)
   watcom_stack_check(80);
   while ( 1 )
   {
-    v1 = sub_2A07A((int)v8);
+    v1 = field_revive_candidates_build((int)v8);
     if ( v1 == 0 )
       break;
     field_bottom_notice_open((unsigned __int8)byte_5238B);
@@ -18153,7 +18182,7 @@ int __usercall field_church_revive_execute@<eax>(unsigned __int8 *a1@<edi>)
     dialog_portrait_frame_draw(0);
     dialog_wait_key(1);
     field_prepare_bottom_page_close();
-    sub_2A29D(v1, (int)v8);
+    field_revive_candidate_select(v1, (int)v8);
     v4 = v3;
     result = field_prepare_bottom_page_close();
     if ( v4 == -1 )
@@ -18180,14 +18209,14 @@ LABEL_9:
         dialog_wait_key(1);
         goto LABEL_9;
       }
-      sub_26B91(dword_53AE1);
+      field_prepare_money_subtract_present(dword_53AE1);
       *(_BYTE *)(v5 + 5) = 0;
       *(_WORD *)(v5 + 64) = *(_WORD *)(v5 + 66);
       lmi_rle_blit_forward(dword_53C5F + 30405, *(_DWORD *)(dword_53F66 + 10) + dword_53F66, 320);
       ui_number_draw(dword_53C5F + 31696, 320, dword_53BF3, 31, 8);
       field_prepare_bottom_page_close();
       music_track_play(17, 1);
-      sub_28B41();
+      field_prepare_service_animate();
       music_track_play(11, 1);
     }
   }
@@ -18200,12 +18229,13 @@ LABEL_9:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A694
+ * IDA 9.5 Hex-Rays: field_promotion_candidates_draw
  * VA=0x2a694..0x2a857 OBJ=1 OFF=0x1a694 size=0x1c3
  * callers: 0x2a857
  * callees: 0x15f84, 0x3702f, 0x4e29c, 0x4e7dd
  * --------------------------------------------------------------- */
-void __cdecl sub_2A694(int a1, int a2, int a3, int a4, int a5)
+// [勘误 semantic_name] field_promotion_candidates_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整451B，2a857唯一caller；三行旧身份sprite/text/profile、593及4e7dd目标profile+150，目标由已建候选数组传入；不构造新单位，不写身份。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_promotion_candidates_draw(int a1, int a2, int a3, int a4, int a5)
 {
   int i; // esi
   unsigned __int8 *v6; // eax
@@ -18243,12 +18273,13 @@ void __cdecl sub_2A694(int a1, int a2, int a3, int a4, int a5)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2A857
+ * IDA 9.5 Hex-Rays: field_promotion_candidate_select
  * VA=0x2a857..0x2aa00 OBJ=1 OFF=0x1a857 size=0x1a9
  * callers: 0x2aa00
  * callees: 0x1974c, 0x26eda, 0x27816, 0x278e7, 0x2a694, 0x3702f, 0x3706e, 0x3771c, 0x4ebff
  * --------------------------------------------------------------- */
-void __cdecl sub_2A857(int a1, int a2, int a3)
+// [勘误 semantic_name] field_promotion_candidate_select；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整425B，2aa00唯一caller；三行候选上下边界和滚动，26eda(2)共享RNG等待，确认/取消；与复活列表一样未播放移动cue0，不发明普通/特殊二选一。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_promotion_candidate_select(int a1, int a2, int a3)
 {
   int v3; // esi
   int i; // ebx
@@ -18266,12 +18297,12 @@ void __cdecl sub_2A857(int a1, int a2, int a3)
   dword_53F62 = a2;
   dword_53F5E = a1;
   lmi_rle_blit_forward(dword_53C63 + 35845, *(_DWORD *)(dword_53F66 + 70) + dword_53F66, 320);
-  sub_2A694(a1, dword_53C63, dword_53C57, a2, a3);
+  field_promotion_candidates_draw(a1, dword_53C63, dword_53C57, a2, a3);
   for ( i = 5; i >= 0; --i )
     field_bottom_notice_slide_draw(13 * i + 112, dword_53C5B, dword_53C63);
   while ( 1 )
   {
-    v5 = sub_26EDA(2);
+    v5 = field_prepare_picker_wait_key(2);
     switch ( v5 )
     {
       case 72:
@@ -18280,10 +18311,10 @@ void __cdecl sub_2A857(int a1, int a2, int a3)
           if ( --dword_53C57 < dword_53F4E )
           {
             --dword_53F4E;
-            sub_278E7();
+            field_prepare_rows_shift_down();
           }
 LABEL_8:
-          sub_2A694(a1, 655360, dword_53C57, a2, a3);
+          field_promotion_candidates_draw(a1, 655360, dword_53C57, a2, a3);
         }
         break;
       case 80:
@@ -18292,7 +18323,7 @@ LABEL_8:
         if ( ++dword_53C57 - dword_53F4E >= 3 )
         {
           ++dword_53F4E;
-          sub_27816();
+          field_prepare_rows_shift_up();
         }
         goto LABEL_8;
       case 28:
@@ -18330,7 +18361,7 @@ int __usercall field_church_promote_execute@<eax>(int a1@<edi>)
   int v7; // eax
   int v8; // eax
   int v9; // ebx
-  int v10; // eax
+  int prefix; // eax
   int v11; // ebp
   int i; // esi
   int v13; // eax
@@ -18352,7 +18383,7 @@ int __usercall field_church_promote_execute@<eax>(int a1@<edi>)
     dialog_wait_key(1);
     v3 = field_prepare_bottom_page_close();
     bios_keyboard_buffer_clear(v3);
-    sub_2A857(v1, (int)v15, (int)v14);
+    field_promotion_candidate_select(v1, (int)v15, (int)v14);
     v5 = v4;
     result = field_prepare_bottom_page_close();
     if ( v5 == -1 )
@@ -18372,18 +18403,18 @@ int __usercall field_church_promote_execute@<eax>(int a1@<edi>)
     {
       if ( v16 == 52 )
       {
-        v10 = sub_2AEDB(a1, 90);
+        prefix = field_unit_item_slot_find_prefix(a1, 90);
       }
       else
       {
         if ( v16 < 50 )
           goto LABEL_12;
-        v10 = sub_2AEDB(a1, (unsigned __int8)byte_523D5[*(unsigned __int8 *)(v6 + 7)]);
+        prefix = field_unit_item_slot_find_prefix(a1, (unsigned __int8)byte_523D5[*(unsigned __int8 *)(v6 + 7)]);
       }
-      field_unit_inventory_slot_remove(a1, v10);
+      field_unit_inventory_slot_remove(a1, prefix);
 LABEL_12:
       music_track_play(16, 1);
-      sub_2FB2C(a1, v16);
+      field_promotion_visual_execute(a1, v16);
       music_track_play(11, 0);
       *(_BYTE *)(v6 + 32) = *(_BYTE *)field_promotion_record_get(v16);
       *(_BYTE *)(v6 + 7) = v16;
@@ -18485,9 +18516,9 @@ int __cdecl field_promotion_candidates_build(int a1, int a2)
       *(_BYTE *)(v7 + a1) = i;
       v4 = (_BYTE *)(a2 + v7);
       *v4 = v3 + 32;
-      if ( sub_2AEDB(i, (unsigned __int8)byte_523D5[v3]) != -1 )
+      if ( field_unit_item_slot_find_prefix(i, (unsigned __int8)byte_523D5[v3]) != -1 )
         *v4 = v3 + 50;
-      if ( v3 == 9 && sub_2AEDB(i, 90) != -1 )
+      if ( v3 == 9 && field_unit_item_slot_find_prefix(i, 90) != -1 )
         *(_BYTE *)(a2 + v7) = 52;
       ++v7;
     }
@@ -18497,12 +18528,13 @@ int __cdecl field_promotion_candidates_build(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2AEDB
+ * IDA 9.5 Hex-Rays: field_unit_item_slot_find_prefix
  * VA=0x2aedb..0x2af28 OBJ=1 OFF=0x1aedb size=0x4d
  * callers: 0x240fa, 0x24b14, 0x2aa00, 0x2ae0e, 0x35a0d
  * callees: 0x1b722, 0x1b8a6, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_2AEDB(int a1, int a2)
+// [勘误 semantic_name] field_unit_item_slot_find_prefix；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整77B，转职候选/耗物及若干stage根共享；先1b8a6数可见槽，再1b722直接查raw[0..count-1]同ID，返回首raw槽或-1。不能改成扫全8槽跳hidden；非仅转职服务。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_unit_item_slot_find_prefix(int a1, int a2)
 {
   int v2; // esi
   int i; // ebx
@@ -18566,7 +18598,7 @@ int field_deployment_select_execute()
   lmi_rle_blit_forward(v15 + 2332, *(_DWORD *)(dword_53A81 + 86) + dword_53A81, 320);
   lmi_rle_blit_forward(v15 + 30085, *(_DWORD *)(dword_53A81 + 90) + dword_53A81, 320);
   blit_image(v15 + 2245, 320, dword_53A81, 137);
-  v3 = ((int (__cdecl *)(int, int, _BYTE *, _DWORD))sub_2B4FB)(v15, v0, v14, 0);
+  v3 = ((int (__cdecl *)(int, int, _BYTE *, _DWORD))field_deployment_selection_draw)(v15, v0, v14, 0);
   for ( i = 11; i >= 0; --i )
   {
     if ( i == 11 || i == 5 )
@@ -18576,7 +18608,7 @@ int field_deployment_select_execute()
   bios_keyboard_buffer_clear(v3);
   do
   {
-    v5 = sub_2B67F(v17, v0, v14, v2);
+    v5 = field_deployment_selection_wait_key(v17, v0, v14, v2);
     v6 = v5;
     if ( v5 == 1 )
       v1 = -1;
@@ -18585,7 +18617,7 @@ int field_deployment_select_execute()
       sfx_play_secondary(dword_53EEC, 7, 1);
       v14[v2] ^= 1u;
       v6 = 77;
-      if ( sub_2B749(v14) == v0 )
+      if ( field_deployment_selection_count(v14) == v0 )
       {
         v1 = 1;
         persistent_roster_selection_reorder(v14);
@@ -18613,7 +18645,7 @@ int field_deployment_select_execute()
       sfx_play(dword_53EEC, 0, 1);
       v2 += 10;
     }
-    ((void (__cdecl *)(int, int, _BYTE *, int))sub_2B4FB)(v17, v0, v14, v2);
+    ((void (__cdecl *)(int, int, _BYTE *, int))field_deployment_selection_draw)(v17, v0, v14, v2);
     memmove(655360, dword_53C63, 64000);
   }
   while ( v1 == 0 );
@@ -18638,31 +18670,31 @@ int field_deployment_select_execute()
     fclose(v16);
     if ( dword_53C03 == 16 && sub_33499(18) != 0 )
     {
-      v9 = sub_2B439(v0, 18);
+      v9 = field_deployment_required_member_check(v0, 18);
     }
     else if ( dword_53C03 == 17 || dword_53C03 == 19 || dword_53C03 > 25 )
     {
-      v9 = sub_2B439(v0, 9);
+      v9 = field_deployment_required_member_check(v0, 9);
     }
     else
     {
       switch ( dword_53C03 )
       {
         case 18:
-          v9 = sub_2B439(v0, 16);
+          v9 = field_deployment_required_member_check(v0, 16);
           break;
         case 20:
-          v9 = sub_2B439(v0, 21);
+          v9 = field_deployment_required_member_check(v0, 21);
           break;
         case 21:
         case 22:
-          v9 = sub_2B439(v0, 24);
+          v9 = field_deployment_required_member_check(v0, 24);
           break;
         case 25:
-          v1 = sub_2B439(v0, 9);
+          v1 = field_deployment_required_member_check(v0, 9);
           if ( v1 == 0 )
             goto LABEL_56;
-          v9 = sub_2B439(v0, 29);
+          v9 = field_deployment_required_member_check(v0, 29);
           break;
         default:
           goto LABEL_56;
@@ -18675,22 +18707,22 @@ LABEL_56:
     return 0;
   if ( dword_53C03 == 17 || dword_53C03 == 19 || dword_53C03 > 25 )
   {
-    sub_2B843(9);
+    persistent_roster_text_front(9);
   }
   else
   {
     switch ( dword_53C03 )
     {
       case 20:
-        sub_2B843(21);
+        persistent_roster_text_front(21);
         break;
       case 21:
       case 22:
-        sub_2B843(24);
+        persistent_roster_text_front(24);
         break;
       case 25:
-        sub_2B843(9);
-        sub_2B843(29);
+        persistent_roster_text_front(9);
+        persistent_roster_text_front(29);
         break;
       default:
         break;
@@ -18713,12 +18745,13 @@ LABEL_56:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B439
+ * IDA 9.5 Hex-Rays: field_deployment_required_member_check
  * VA=0x2b439..0x2b4fb OBJ=1 OFF=0x1b439 size=0xc2
  * callers: 0x2af28
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x3702f
  * --------------------------------------------------------------- */
-int __usercall sub_2B439@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int8 a3)
+// [勘误 semantic_name] field_deployment_required_member_check；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整194B，2af28 caller；扫描已排前缀raw1..15/19的text ID，缺失才头像75/动态名字/657与16c57(0)，返回有无；不自动补选、不回滚此前排序。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __usercall field_deployment_required_member_check@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int8 a3)
 {
   int i; // edx
   unsigned __int8 v5; // [esp+0h] [ebp-8h]
@@ -18746,12 +18779,13 @@ int __usercall sub_2B439@<eax>(unsigned __int8 *a1@<edi>, int a2, unsigned __int
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B4FB
+ * IDA 9.5 Hex-Rays: field_deployment_selection_draw
  * VA=0x2b4fb..0x2b67f OBJ=1 OFF=0x1b4fb size=0x184
  * callers: 0x2af28, 0x2b67f
  * callees: 0x1297d, 0x17fc0, 0x187d6, 0x2b749, 0x3702f, 0x3771c, 0x4e1a6, 0x4e22a
  * --------------------------------------------------------------- */
-void __cdecl sub_2B4FB(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8)
+// [勘误 semantic_name] field_deployment_selection_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整388B及2b434共享返回，2af28/2b67f；复制底页，画名额/剩余数、1297d共享idle、当前raw+1详情和10列同伴网格。已选普通sprite下移3px、未选灰阶；不改变选择位图。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_deployment_selection_draw(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8)
 {
   int v8; // eax
   int v9; // edi
@@ -18762,8 +18796,8 @@ void __cdecl sub_2B4FB(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
   watcom_stack_check(40);
   memmove(dword_53C63, a1, 64000);
   ui_number_draw(dword_53C63 + 11261, 320, a2, 31, 2);
-  sub_2B749(a3);
-  v8 = sub_2B749(a3);
+  field_deployment_selection_count(a3);
+  v8 = field_deployment_selection_count(a3);
   ui_number_draw(dword_53C63 + 23421, 320, a6 - v8, 42, 2);
   field_animation_phase_update();
   v9 = dword_53C0B;
@@ -18788,12 +18822,21 @@ void __cdecl sub_2B4FB(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B67F
+ * IDA 9.5 Hex-Rays: field_deployment_selection_wait_key
  * VA=0x2b67f..0x2b749 OBJ=1 OFF=0x1b67f size=0xca
  * callers: 0x2af28
  * callees: 0x10620, 0x2b4fb, 0x3702f, 0x370f0, 0x3771c
  * --------------------------------------------------------------- */
-int __usercall sub_2B67F@<eax>(int a1@<ebx>, int a2@<ebp>, int a3@<edi>, int a4@<esi>, int a5, int a6, int a7, int a8)
+// [勘误 semantic_name] field_deployment_selection_wait_key；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整202B，2af28唯一caller；输入未就绪时BIOS tick变化才2b4fb重绘并复制页，读取键后规范Enter/Space及扩展确认、Delete取消；本体不调用业务RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __usercall field_deployment_selection_wait_key@<eax>(
+        int a1@<ebx>,
+        int a2@<ebp>,
+        int a3@<edi>,
+        int a4@<esi>,
+        int a5,
+        int a6,
+        int a7,
+        int a8)
 {
   int v9; // [esp-10h] [ebp-10h]
   int v10; // [esp-Ch] [ebp-Ch]
@@ -18810,7 +18853,7 @@ int __usercall sub_2B67F@<eax>(int a1@<ebx>, int a2@<ebp>, int a3@<edi>, int a4@
     if ( MEMORY[0x46C] != dword_53F46 )
     {
       dword_53F46 = MEMORY[0x46C];
-      sub_2B4FB(a5, a6, a7, a8, v9, v10, v11, v12);
+      field_deployment_selection_draw(a5, a6, a7, a8, v9, v10, v11, v12);
       memmove(655360, dword_53C63, 64000);
     }
   }
@@ -18825,12 +18868,13 @@ int __usercall sub_2B67F@<eax>(int a1@<ebx>, int a2@<ebp>, int a3@<edi>, int a4@
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B749
+ * IDA 9.5 Hex-Rays: field_deployment_selection_count
  * VA=0x2b749..0x2b777 OBJ=1 OFF=0x1b749 size=0x2e
  * callers: 0x2af28, 0x2b4fb
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_2B749(int a1)
+// [勘误 semantic_name] field_deployment_selection_count；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整46B及26ed6共享返回，2af28/2b4fb；数count-1个同伴选择byte的非零项，不含raw0、不判断名额/必须成员；返回由caller比较15/19。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+void __cdecl field_deployment_selection_count(int a1)
 {
   int v1; // ebx
   int i; // eax
@@ -18879,12 +18923,13 @@ void __cdecl persistent_roster_selection_reorder(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2B843
+ * IDA 9.5 Hex-Rays: persistent_roster_text_front
  * VA=0x2b843..0x2b996 OBJ=1 OFF=0x1b843 size=0x153
  * callers: 0x2af28
  * callees: 0x11019, 0x3702f, 0x3706e, 0x37324, 0x3759c, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-int __cdecl sub_2B843(unsigned __int8 a1)
+// [勘误 semantic_name] persistent_roster_text_front；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整339B，2af28 caller；扫描raw1..count-1取最后匹配text ID，以完整a00副本把它稳定移到raw1，其余相对顺序保留，随后按新UID序重建FDICON。47例原码/C门包含重复text，修正SDL先匹配即返回；原缺失匹配的未定义写域不开放。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl persistent_roster_text_front(unsigned __int8 a1)
 {
   int i; // ebx
   int v2; // esi
@@ -20387,12 +20432,13 @@ void __cdecl sub_2FACD(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2FB2C
+ * IDA 9.5 Hex-Rays: field_promotion_visual_execute
  * VA=0x2fb2c..0x2fe14 OBJ=1 OFF=0x1fb2c size=0x2e8
  * callers: 0x2aa00
  * callees: 0x111ba, 0x11d40, 0x11df2, 0x11eb0, 0x17aa9, 0x1f525, 0x1f882, 0x2eb9f, 0x2fe14, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
-int __cdecl sub_2FB2C(int a1, int a2)
+// [勘误 semantic_name] field_promotion_visual_execute；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整744B，2aa00唯一caller；保存画面/fadeout/wait1，旧FIGANI idle的9帧入场/16tick循环，20步渐白，新idle首帧offset200/24tick，再fadeout还原/fadein。BG0..2为320x100，工作页stride640；不写单位、不扣物/钱、不调用业务RNG或音效。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_promotion_visual_execute(int a1, int a2)
 {
   int v2; // ebp
   int v3; // edi
@@ -20427,7 +20473,7 @@ int __cdecl sub_2FB2C(int a1, int a2)
     memcpy_vga(655360, 320, v3, 640, 320, 200);
     dac_apply_darkness(0, 255, 6 * i);
   }
-  sub_2FE14(v9, v3, 16);
+  field_promotion_idle_cycle(v9, v3, 16);
   for ( j = 0; j < 20; ++j )
   {
     pal_partial_set(0, 255, 3 * j);
@@ -20438,7 +20484,7 @@ int __cdecl sub_2FB2C(int a1, int a2)
   sub_2EB9F(v8, 0, v3 + 10 * j, 640, -1);
   memcpy_vga(655360, 320, v3, 640, 320, 200);
   dac_apply_darkness(0, 255, 0);
-  sub_2FE14(v8, v3, 24);
+  field_promotion_idle_cycle(v8, v3, 24);
   palette_fade_out_dark();
   memmove(655360, v7, 64000);
   palette_fade_in_light();
@@ -20453,12 +20499,13 @@ int __cdecl sub_2FB2C(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2FE14
+ * IDA 9.5 Hex-Rays: field_promotion_idle_cycle
  * VA=0x2fe14..0x2ff01 OBJ=1 OFF=0x1fe14 size=0xed
  * callers: 0x2fb2c
  * callees: 0x11eb0, 0x17aa9, 0x2eb9f, 0x3702f, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
-int __cdecl sub_2FE14(unsigned __int8 *a1, int a2, int a3)
+// [勘误 semantic_name] field_promotion_idle_cycle；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整237B，2fb2c唯一caller；局部BG先加一mod3，每tick绘当前idle part，按原duration推进并在BYTE count回0，wait1；duration0不补1，age非BYTE回绕。正常16→48新idle为三字节empty，SDL仅略未定义sprite目录/时长读取，保BG/等待，非原未定义像素等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+int __cdecl field_promotion_idle_cycle(unsigned __int8 *a1, int a2, int a3)
 {
   int result; // eax
   int v4; // esi
@@ -23808,7 +23855,7 @@ int __cdecl sub_359CB(int a1)
  * --------------------------------------------------------------- */
 void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
 {
-  int v2; // eax
+  int prefix; // eax
   int v3; // esi
   int i; // ebx
 
@@ -23816,8 +23863,8 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
   if ( *(_BYTE *)(dword_53AD5 + 12) == 0 )
   {
     field_bottom_notice_open(*(unsigned __int8 *)(80 * a2 + dword_53A45 + 7));
-    v2 = sub_2AEDB(a2, 208);
-    if ( v2 == -1 )
+    prefix = field_unit_item_slot_find_prefix(a2, 208);
+    if ( prefix == -1 )
     {
       text_dialog_render_tokens(a1, dword_53A79, 2, 693535, 320, 205, 76, 74, 19, 1);
       dialog_portrait_frame_draw(0);
@@ -23826,7 +23873,7 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
     }
     else
     {
-      field_unit_inventory_slot_remove(a2, v2);
+      field_unit_inventory_slot_remove(a2, prefix);
       text_dialog_render_tokens(a1, dword_53A79, 3, 693535, 320, 205, 76, 74, 19, 1);
       dialog_wait_key(0);
       field_bottom_notice_close();

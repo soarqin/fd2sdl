@@ -290,6 +290,16 @@ def verify_occlusion(capture: "Capture", output: Path) -> dict:
             raise ctypes.WinError(ctypes.get_last_error())
 
 
+def key_chord_contract(name):
+    """owned driver组合键协议；BIOS字段是预期映射，实际游戏响应另验。"""
+    for prefix,modifier,base in (('SHIFT',0x10,84),('CTRL',0x11,94),('ALT',0x12,104)):
+        for function in range(1,11):
+            if name==f'{prefix}_F{function}':
+                return {'modifier_vk':modifier,'function_vk':0x70+function-1,
+                    'bios_scan_expected':base+function-1}
+    return None
+
+
 class Capture:
     def __init__(self, driver: Path, process: subprocess.Popen, artifacts: Path, trace=None,
                  *, startup_skip=True):
@@ -325,8 +335,9 @@ class Capture:
             if len(receipts) != 1:
                 raise RuntimeError("窗口按键缺少唯一后台投递收据；未尝试前台输入")
             receipt = receipts[0]
-            count = 2 if name == "HOST_W" else 1
-            kind = "wave" if name == "HOST_W" else "key"
+            chord = key_chord_contract(name)
+            count = 2 if name == "HOST_W" or chord else 1
+            kind = "wave" if name == "HOST_W" else "chord" if chord else "key"
             exited_before_release = (isinstance(receipt, dict) and
                 receipt.get("target_exited_before_release") is True and
                 receipt.get("release_not_needed") is True and
@@ -336,6 +347,7 @@ class Capture:
                     receipt.get("pid") != self.process.pid or not receipt.get("hwnd") or
                     receipt.get("ok") is not True or receipt.get("error") != 0 or
                     receipt.get("kind") != kind or receipt.get("keys") != count or
+                    (chord is not None and any(receipt.get(k) != v for k,v in chord.items())) or
                     receipt.get("sent") != count or receipt.get("key_down_sent") != 1 or
                     ((receipt.get("key_up_sent") != 1 or receipt.get("release") != count)
                      and not exited_before_release) or

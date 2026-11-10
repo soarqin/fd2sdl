@@ -21,6 +21,7 @@
 #include <string.h>
 
 #ifdef _WIN32
+#include "field_play_key_chord.h"
 typedef struct { HWND window; DWORD pid; unsigned windows_found; } InputTarget;
 typedef WORD KeySym;
 #define XK_Return VK_RETURN
@@ -304,7 +305,7 @@ static int owned_window_noactivate(const InputTarget *target,
 }
 
 static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
-                     unsigned long delay_us, int wave) {
+                     unsigned long delay_us, int wave, unsigned bios_scan_expected) {
     HWND foreground_before = GetForegroundWindow();
     HWND foreground_after;
     LONG_PTR style_before = 0, style_after = 0;
@@ -411,9 +412,11 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         "\"noactivate_verified\":%s,\"foreground_guard_ok\":%s,"
         "\"down_tick_ms\":%llu,\"up_tick_ms\":%llu,\"elapsed_ms\":%llu,"
         "\"release_retries\":%u,\"target_exited_before_release\":%s,"
-        "\"release_not_needed\":%s,\"target_exit_code\":%lu,\"error\":%lu,\"ok\":%s}\n",
+        "\"release_not_needed\":%s,\"target_exit_code\":%lu,"
+        "\"modifier_vk\":%u,\"function_vk\":%u,\"bios_scan_expected\":%u,"
+        "\"error\":%lu,\"ok\":%s}\n",
         (unsigned long)target->pid, (unsigned long long)(uintptr_t)target->window,
-        wave ? "wave" : "key", count,
+        wave ? "wave" : bios_scan_expected ? "chord" : "key", count,
         sent == count && count ? "true" : "false", released == count && count ? "true" : "false",
         sent, released, (unsigned long long)(uintptr_t)foreground_before,
         (unsigned long long)(uintptr_t)foreground_after,
@@ -423,13 +426,16 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         (unsigned long long)down_tick, (unsigned long long)up_tick,
         (unsigned long long)(GetTickCount64() - started), release_retries,
         release_not_needed ? "true" : "false", release_not_needed ? "true" : "false",
-        (unsigned long)target_exit_code, (unsigned long)error, result == 0 ? "true" : "false");
+        (unsigned long)target_exit_code,
+        bios_scan_expected && symbols && count == 2u ? (unsigned)symbols[0] : 0u,
+        bios_scan_expected && symbols && count == 2u ? (unsigned)symbols[1] : 0u,
+        bios_scan_expected, (unsigned long)error, result == 0 ? "true" : "false");
     fflush(stderr);
     return result;
 }
 
 static int tap(InputTarget *target, KeySym symbol, unsigned long delay_us) {
-    return tap_keys(target, &symbol, 1u, delay_us, 0);
+    return tap_keys(target, &symbol, 1u, delay_us, 0, 0);
 }
 
 extern int fd2_capture_window(HWND window, const char *path);
@@ -454,7 +460,7 @@ static int series_number(const char *text, unsigned long maximum, unsigned long 
  * 始终W先松、F11后松，不改变用户全局键态或转移焦点。 */
 static int tap_native_wave_record(InputTarget *target) {
     const WORD symbols[] = {VK_F11, 'W'};
-    return tap_keys(target, symbols, 2u, 100000u, 1);
+    return tap_keys(target, symbols, 2u, 100000u, 1, 0);
 }
 
 static int capture(InputTarget *target, const char *path) {
@@ -582,6 +588,13 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "key") == 0 && argc == 4) {
         if (strcmp(argv[3], "HOST_W") == 0)
             return tap_native_wave_record(&target) == 0 ? 0 : 1;
+        fd2_driver_key_chord chord;
+        if (fd2_driver_key_chord_parse(argv[3], &chord) == 0) {
+            const WORD symbols[] = {chord.modifier_vk, chord.function_vk};
+            /* 复用HOST_W的modifier先DOWN、function先UP以及owner/失焦门。
+             * bios_scan_expected只声明候选键表，必须另验原版实际响应。 */
+            return tap_keys(&target, symbols, 2u, 250000u, 0, chord.bios_scan_expected) == 0 ? 0 : 1;
+        }
         const struct { const char *name; WORD key; } keys[] = {
             {"ENTER", VK_RETURN}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
             {"UP", VK_UP}, {"DOWN", VK_DOWN}, {"LEFT", VK_LEFT},

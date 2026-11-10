@@ -14,6 +14,14 @@
  * NULL返回0；查询不修改单位或消费RNG。 */
 size_t fd2_field_unit_inventory_count(const fd2_field_unit *unit);
 
+/* 1b8e7/1bb8c/1c142的共享raw写点，不带选择、派生、兼容、RNG或行动尾。
+ * remove成功0/坏槽-1，移所有后续pair且末flag80、末ID保留；append成功1、
+ * 满槽0、NULL-1，首hidden整flag0；set成功0/坏槽-1，同ID<128组清带40整flag，
+ * selected写40，包含hidden40。原byte ID不在这些写原语中重解释或归一。 */
+int fd2_field_unit_inventory_slot_remove(fd2_field_unit *unit, size_t raw_slot);
+int fd2_field_unit_inventory_item_append(fd2_field_unit *unit, uint8_t item_id);
+int fd2_field_unit_equipment_slot_set(fd2_field_unit *unit, size_t raw_slot);
+
 /* SDL动作枚举，不是BIOS扫描码；Enter/Space由宿主统一为CONFIRM。 */
 typedef enum {
     FD2_FIELD_ITEM_LIST_KEY_OTHER = 0,

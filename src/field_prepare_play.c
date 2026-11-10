@@ -20,8 +20,16 @@
 
 #include "field_game.h"
 #include "field_magic.h"
+#include "field_prepare.h"
+#include "field_prepare_item.h"
+#include "field_prepare_view.h"
+#include "battle_animation.h"
+#include "static_data.h"
 #include "portrait.h"
 #include "scene.h"
+
+/* 原表由准备领域和页面各自只读消费，不维护第二份冷数据。 */
+#include "static_data/preparation.inc"
 
 static uint16_t read16(const uint8_t *p) {
     return (uint16_t)(p[0] | (uint16_t)p[1] << 8);
@@ -53,9 +61,122 @@ static int hotel_frame(fd2_image *out, const fd2_archive *fdother,
     return 0;
 }
 
+/* 279bc/29daa消费相同+6目录；12/63是嵌套DAT，14/29是LMI1。
+ * 两种容器均用真实边界，不用首offset反推LMI1的显式count。 */
+static int service_frame(fd2_image *out, const fd2_archive *fdother,
+        size_t resource, size_t index, int format) {
+    const uint8_t *data, *part; size_t size, length;
+    if (fd2_archive_get(fdother, resource, &data, &size) != 0 || size < 10u) return -1;
+    if (!memcmp(data, FD2_ARCHIVE_MAGIC, FD2_ARCHIVE_MAGIC_LEN)) {
+        fd2_archive nested = {0};
+        if (fd2_archive_open_mem(&nested, data, size) != 0) return -1;
+        int result = fd2_archive_get(&nested, index, &part, &length);
+        fd2_archive_close(&nested);
+        if (result != 0) return -1;
+    } else {
+        if (memcmp(data, "LMI1", 4)) return -1;
+        size_t count = read16(data + 4);
+        if (index >= count || count > (size - 6u) / 4u) return -1;
+        size_t start = read32(data + 6u + index * 4u);
+        size_t end = index + 1u < count ? read32(data + 10u + index * 4u) : size;
+        if (start < 6u + count * 4u || end <= start || end > size) return -1;
+        part = data + start; length = end - start;
+    }
+    if (!format) return fd2_image_decode_buf(out, part, length);
+    if (format == 1) return fd2_lmi_decode_image(out, part, length);
+    int width = format == 2 ? 24 : 6, height = format == 2 ? 20 : format == 4 ? 99 : 8;
+    size_t pixels = (size_t)width * (size_t)height;
+    if ((format != 2 && format != 3 && format != 4) || length != pixels + 4u ||
+        read16(part) != width || read16(part + 2) != height) return -1;
+    out->pixels = malloc(pixels);
+    if (!out->pixels) return -1;
+    out->width = width; out->height = height;
+    memcpy(out->pixels, part + 4, pixels);
+    return 0;
+}
+
+static void service_assets_close(fd2_field_prepare_service_assets *service) {
+    fd2_image_free(&service->background); fd2_image_free(&service->money_panel);
+    fd2_image_free(&service->roster_page);
+    fd2_image_free(&service->price_icon); fd2_image_free(&service->preview_arrow);
+    fd2_image_free(&service->money_strip);
+    for (size_t i = 0; i < 5; i++) fd2_image_free(&service->scroll_arrows[i]);
+    for (size_t i = 0; i < 9; i++) fd2_image_free(&service->animation_frames[i]);
+    for (size_t i = 0; i < 4; i++) fd2_image_free(&service->preview_labels[i]);
+    for (size_t i = 0; i < 8; i++) fd2_image_free(&service->icons[i]);
+    for (size_t i = 0; i < 4; i++) fd2_image_free(&service->portraits[i]);
+    memset(service, 0, sizeof(*service));
+}
+
+int fd2_field_prepare_assets_open_service(fd2_field_prepare_assets *a,
+        const fd2_archive *fdother, int selector) {
+    if (!a || !a->ready || !fdother ||
+        (selector != 1 && selector != 3 && selector != 4 && selector != 5)) return -1;
+    fd2_field_prepare_service_assets shadow = {0};
+    size_t resource = k_prepare_town_service_entries[selector];
+    if (resource == 255u ||
+        service_frame(&shadow.background, fdother, resource, 0, 0) != 0 ||
+        service_frame(&shadow.money_panel, fdother, resource, 1, 1) != 0 ||
+        service_frame(&shadow.roster_page, fdother, resource, 16, 1) != 0 ||
+        !image_size(&shadow.background, 320, 200) ||
+        !image_size(&shadow.money_panel, 63, 15) ||
+        !image_size(&shadow.roster_page, 310, 86)) goto fail;
+    for (size_t i = 0; i < 8; i++)
+        if (service_frame(&shadow.icons[i], fdother, resource, i + 3u, 2) != 0) goto fail;
+    for (size_t i = 0; i < 4; i++)
+        if (fd2_portrait_decode_frame(&shadow.portraits[i], &a->dato,
+                k_prepare_town_portraits[selector], i) != 0 ||
+                !image_size(&shadow.portraits[i], 80, 80)) goto fail;
+    /* 1685c ->4ed0b：frame15是6x8 raw；18..22由2825b用LMI读取。 */
+    if (service_frame(&shadow.price_icon, fdother, resource, 15, 3) != 0) goto fail;
+    if (service_frame(&shadow.money_strip, fdother, resource, 2, 4) != 0) goto fail;
+    for (size_t i = 0; i < 5; i++)
+        if (service_frame(&shadow.scroll_arrows[i], fdother, resource,
+                i < 4u ? 11u + i : 17u, 1) != 0) goto fail;
+    if (selector != 4) {
+        for (size_t i = 0; i < 4; i++)
+            if (service_frame(&shadow.preview_labels[i], fdother, resource, 18u + i, 1) != 0) goto fail;
+        if (service_frame(&shadow.preview_arrow, fdother, resource, 22, 1) != 0) goto fail;
+    }
+    const uint8_t *sheet; size_t sheet_size, count;
+    if (fd2_archive_get(fdother, resource, &sheet, &sheet_size) != 0) goto fail;
+    if (!memcmp(sheet, FD2_ARCHIVE_MAGIC, FD2_ARCHIVE_MAGIC_LEN)) {
+        fd2_archive nested = {0};
+        if (fd2_archive_open_mem(&nested, sheet, sheet_size) != 0) goto fail;
+        count = nested.count; fd2_archive_close(&nested);
+    } else count = read16(sheet + 4);
+    if (count < 24u || count > 32u) goto fail;
+    shadow.animation_count = count - 23u;
+    for (size_t i = 0; i < shadow.animation_count; i++)
+        if (service_frame(&shadow.animation_frames[i], fdother, resource, 23u + i, 0) != 0) goto fail;
+    shadow.selector = selector; shadow.ready = 1;
+    service_assets_close(&a->service); a->service = shadow;
+    return 0;
+fail:
+    service_assets_close(&shadow);
+    return -1;
+}
+
+int fd2_field_prepare_assets_bind_roster(fd2_field_prepare_assets *a,
+        const fd2_save_manual_state *state) {
+    if (!a || !a->ready || !state || state->unit_count > FD2_SAVE_MAX_UNITS) return -1;
+    uint8_t ids[FD2_SAVE_MAX_UNITS]; size_t count = 0;
+    for (size_t i = 0; i < state->unit_count; i++) {
+        uint8_t id = state->unit_area[i * FD2_SAVE_UNIT_RECORD_SIZE + 7u];
+        if ((size_t)id * 12u + 11u >= a->sprites.frame_count) return -1;
+        size_t j = 0; while (j < count && ids[j] != id) j++;
+        if (j == count) ids[count++] = id;
+    }
+    memcpy(a->sprite_cache_ids, ids, count); a->sprite_cache_count = count;
+    a->sprite_cache_ready = 1;
+    return 0;
+}
+
 void fd2_field_prepare_assets_close(fd2_field_prepare_assets *a) {
     if (!a) return;
+    service_assets_close(&a->service);
     fd2_image_free(&a->town); fd2_image_free(&a->town_stage2); fd2_image_free(&a->town_panel);
+    fd2_image_free(&a->town_type1);
     fd2_image_free(&a->hotel); fd2_image_free(&a->slots);
     for (size_t i = 0; i < 8; i++) fd2_image_free(&a->hotel_icons[i]);
     for (size_t i = 0; i < 4; i++) {
@@ -101,54 +222,61 @@ fail:
     return -1;
 }
 
-/* 26152/265ec：4e809行[0]索引52405的[11,61,62]；仅本阶段已证type0/2。 */
+/* 26152/265ec：准备能力独立于战场handler；NoTown先于普通31byte行。 */
+static int prepare_is_notown(size_t stage) {
+    return stage<sizeof(k_prepare_no_town) && k_prepare_no_town[stage]!=0;
+}
+static int prepare_stage_valid(size_t stage) {
+    return stage>0u && stage<sizeof(k_prepare_no_town) &&
+        (prepare_is_notown(stage) || fd2_field_stage_prepare_record_get(stage));
+}
 static int town_type(size_t stage) {
     const uint8_t *row = fd2_field_stage_prepare_record_get(stage);
-    fd2_field_stage_capability capability;
-    return row && fd2_field_stage_capability_get(stage, &capability) == 0 &&
-        capability.preparation_slots && (row[0] == 0u || row[0] == 2u) ? row[0] : -1;
+    return !prepare_is_notown(stage) && row && row[0]<=2u ? row[0] : -1;
 }
 
 static int prepare_town(fd2_field_prepare_assets *a, const fd2_archive *fdother, size_t stage) {
     if (!a || !a->ready || !fdother) return -1;
+    if (prepare_is_notown(stage)) return 0;
     int type = town_type(stage);
     if (type == 0) return image_size(&a->town, 320, 200) ? 0 : -1;
-    if (type != 2) return -1;
-    if (a->town_stage2.pixels) return image_size(&a->town_stage2, 320, 200) ? 0 : -1;
+    if (type != 1 && type != 2) return -1;
+    fd2_image *target=type==1 ? &a->town_type1:&a->town_stage2;
+    if (target->pixels) return image_size(target, 320, 200) ? 0 : -1;
     fd2_image shadow = {0};
-    if (fd2_image_decode_entry(&shadow, fdother, 62) != 0 || !image_size(&shadow, 320, 200)) {
+    if (fd2_image_decode_entry(&shadow, fdother, k_prepare_town_background_entries[type]) != 0 || !image_size(&shadow, 320, 200)) {
         fd2_image_free(&shadow); return -1;
     }
-    a->town_stage2 = shadow;
+    *target = shadow;
     return 0;
 }
 
-/* 15f84：此准备页读集仅普通glyph/-2/-6/-1；数字是FONT[0..9]，
- * 不是ui_number_draw的位图bank。额外控制码必须另有证据，不能跳过。 */
+/* 15f84：片段展开复用战场纯能力；-3等待由冷流程owner处理，纯页不得吞掉。 */
+static int text_draw_parameters(fd2_vga *vga, const fd2_field_prepare_assets *a,
+        size_t fragment, int x, int y, uint8_t fg, int bg,
+        const fd2_text_parameters *parameters) {
+    int origin = x; fd2_text_expanded expanded;
+    if (!a->font.glyphs || a->font.glyph_count > a->font.size / 32u ||
+        fd2_text_expand(&a->text, a->font.glyph_count, parameters, fragment, &expanded) != 0) return -1;
+    for (size_t i = 0; i < expanded.count; i++) {
+        uint16_t token = expanded.tokens[i];
+        if (token == 0xfffeu) { y += 19; x = origin; continue; }
+        if (token == 0xfffdu || x < 0 || x + 16 > VGA_W || y < 0 || y + 17 > VGA_H) return -1;
+        if (token == FD2_TEXT_SAFE_MINUS) {
+            const fd2_image *minus = &a->info.signs[1];
+            if (!minus->pixels || minus->width < 1 || minus->width > 16 ||
+                minus->height < 1 || minus->height > 16) return -1;
+            fd2_map_sprite_blit(vga, minus, x, y, 0);
+        } else fd2_font_draw_glyph(vga, &a->font, token, x, y, fg, 76, bg);
+        x += 16;
+    }
+    return 0;
+}
+
 static int text_draw(fd2_vga *vga, const fd2_field_prepare_assets *a, size_t fragment,
         int x, int y, uint8_t fg, int bg, uint32_t number) {
-    const uint8_t *tokens; size_t count; int origin = x;
-    if (!a->font.glyphs || a->font.glyph_count > a->font.size / 32u ||
-        fd2_text_entry_get_fragment(&a->text, fragment, &tokens, &count) != 0) return -1;
-    for (size_t i = 0; i < count; i++) {
-        int16_t token = (int16_t)fd2_text_token_at(tokens, i);
-        if (token == -1) return 0;
-        if (token == -2) { y += 19; x = origin; continue; }
-        if (token == -6) {
-            char digits[12]; int n = snprintf(digits, sizeof(digits), "%d", (int32_t)number);
-            if (n < 0 || n >= (int)sizeof(digits)) return -1;
-            for (int j = 0; j < n; j++) {
-                if (digits[j] < '0' || digits[j] > '9' || x < 0 || x + 16 > VGA_W || y < 0 || y + 17 > VGA_H)
-                    return -1;
-                fd2_font_draw_glyph(vga, &a->font, (uint16_t)(digits[j] - '0'), x, y, fg, 76, bg); x += 16;
-            }
-        } else {
-            if (token < 0 || (size_t)token >= a->font.glyph_count || x < 0 || x + 16 > VGA_W || y < 0 || y + 17 > VGA_H)
-                return -1;
-            fd2_font_draw_glyph(vga, &a->font, (uint16_t)token, x, y, fg, 76, bg); x += 16;
-        }
-    }
-    return count == 0 ? 0 : -1;
+    fd2_text_parameters parameters = {number, SIZE_MAX, SIZE_MAX};
+    return text_draw_parameters(vga, a, fragment, x, y, fg, bg, &parameters);
 }
 
 static fd2_vga *new_frame(const fd2_vga *source) {
@@ -163,17 +291,13 @@ static int finish_frame(fd2_vga *vga, fd2_vga *frame, int result) {
 
 int fd2_field_prepare_draw_town(fd2_vga *vga, const fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, int selected, unsigned phase) {
-    static const uint8_t x0[5] = {29, 41, 59, 154, 182};
-    static const uint8_t y0[5] = {46, 109, 163, 139, 65};
-    static const uint8_t x2[5] = {59, 10, 59, 130, 242};
-    static const uint8_t y2[5] = {26, 144, 163, 150, 31};
     if (!vga || !a || !a->ready || !state ||
-        state->unit_count > FD2_SAVE_MAX_UNITS || selected < 0 || selected > 4 || phase > 3 ||
+        state->unit_count > FD2_SAVE_MAX_UNITS || selected < 0 || selected > 5 || phase > 3 ||
         !image_size(&a->town_panel, 62, 26)) return -1;
     int type = town_type(state->stage_id);
-    if (type != 0 && type != 2) return -1;
-    const fd2_image *town = type == 0 ? &a->town : &a->town_stage2;
-    const uint8_t *x = type == 0 ? x0 : x2, *y = type == 0 ? y0 : y2;
+    if (type < 0 || type > 2) return -1;
+    const fd2_image *town = type == 0 ? &a->town : type==1 ? &a->town_type1:&a->town_stage2;
+    const uint8_t *x=k_prepare_town_x[type],*y=k_prepare_town_y[type];
     if (!image_size(town, 320, 200)) return -1;
     if (state->unit_count && (size_t)state->unit_area[7] >= a->sprites.frame_count / 12u) return -1;
     fd2_vga *frame = new_frame(NULL); if (!frame) return -1;
@@ -204,6 +328,42 @@ int fd2_field_prepare_draw_hotel(fd2_vga *vga, const fd2_field_prepare_assets *a
             size_t index = (size_t)i * 2u + (i == selected && highlight ? 1u : 0u);
             if (!image_size(&a->hotel_icons[index], 24, 20)) { result = -1; break; }
             fd2_map_sprite_blit(frame, &a->hotel_icons[index], 201 + i * 26, 169, 0);
+        }
+    }
+    return finish_frame(vga, frame, result);
+}
+
+int fd2_field_prepare_draw_service(fd2_vga *vga, const fd2_field_prepare_assets *a,
+        const fd2_archive *fdother, const fd2_save_manual_state *state,
+        int selected, unsigned highlight, unsigned portrait, size_t fragment) {
+    if (!vga || !a || !a->ready || !fdother || !state ||
+        state->unit_count > FD2_SAVE_MAX_UNITS || !a->service.ready ||
+        (a->service.selector != 1 && a->service.selector != 3 &&
+         a->service.selector != 4 && a->service.selector != 5) ||
+        selected < -1 || selected > 3 || highlight > 1u || portrait > 3u ||
+        !image_size(&a->service.background, 320, 200) ||
+        !image_size(&a->service.money_panel, 63, 15) ||
+        !image_size(&a->service.portraits[portrait], 80, 80)) return -1;
+    fd2_vga *frame = new_frame(NULL); if (!frame) return -1;
+    fd2_map_sprite_blit(frame, &a->service.background, 0, 0, 0);
+    fd2_map_sprite_blit(frame, &a->service.money_panel, 5, 95, -1);
+    /* 279bc/29daa ->187d6：signed负值画0，至少8位，超过8位取前8。
+     * 这只是末态数字；26a7a/26b91的金额滚动另由服务流程消费。 */
+    char digits[11];
+    unsigned value = state->gold_or_flags <= INT32_MAX ? state->gold_or_flags : 0u;
+    (void)snprintf(digits, sizeof(digits), "%08u", value);
+    for (size_t i = 0; i < 8; i++)
+        fd2_map_sprite_blit(frame, &a->info.digits[0][digits[i] - '0'], 16 + (int)i * 6, 99, 0);
+    unsigned origin = fd2_portrait_notice_origin(k_prepare_town_portraits[a->service.selector]);
+    fd2_map_sprite_blit(frame, &a->service.portraits[portrait], (int)(origin % VGA_STRIDE), (int)(origin / VGA_STRIDE), -1);
+    int result = fd2_scene_field_message_box(frame, fdother);
+    if (!result) result = text_draw(frame, a, fragment, 12, 119, 205, 74, 0);
+    if (!result && selected >= 0) {
+        for (int row = 169; row < 189; row++) memset(frame->framebuffer + row * VGA_STRIDE + 201, 74, 104);
+        for (int i = 0; i < 4; i++) {
+            size_t index = (size_t)i * 2u + (i == selected && highlight ? 1u : 0u);
+            if (!image_size(&a->service.icons[index], 24, 20)) { result = -1; break; }
+            fd2_map_sprite_blit(frame, &a->service.icons[index], 201 + i * 26, 169, 0);
         }
     }
     return finish_frame(vga, frame, result);
@@ -241,9 +401,15 @@ int fd2_field_prepare_draw_roster(fd2_vga *vga, const fd2_field_prepare_assets *
     int result = 0;
     for (size_t i = 0; i < count; i++) {
         const uint8_t *unit = state->unit_area + (i + first) * FD2_SAVE_UNIT_RECORD_SIZE;
-        if ((size_t)unit[7] >= a->sprites.frame_count / 12u) { result = -1; break; }
+        uint8_t sprite=0;int cached;
+        if(a->sprite_cache_ready) {
+            if(a->sprite_cache_count>FD2_SAVE_MAX_UNITS){result=-1;break;}
+            cached=i+first<a->sprite_cache_count;
+            if(cached)sprite=a->sprite_cache_ids[i+first];
+        } else cached=fd2_field_prepare_cached_sprite_id(state,i+first,&sprite);
+        if(cached<0 || (cached && (size_t)sprite>=a->sprites.frame_count/12u)){result=-1;break;}
         int col = (int)(i % 2u) * 132, row = (int)(i / 2u) * 26;
-        fd2_map_sprite_blit_frame(frame, &a->sprites, (size_t)unit[7] * 12u + (phase == 3 ? 1u : phase),
+        if(cached)fd2_map_sprite_blit_frame(frame, &a->sprites, (size_t)sprite * 12u + (phase == 3 ? 1u : phase),
             14 + col, 117 + row, 0);
         result = text_draw(frame, a, (size_t)unit[8] + 1u, 40 + col, 121 + row,
             i + first == (size_t)selected ? 201 : 205, -1, 0);
@@ -251,6 +417,36 @@ int fd2_field_prepare_draw_roster(fd2_vga *vga, const fd2_field_prepare_assets *
     }
     return finish_frame(vga, frame, result);
 }
+
+typedef struct {
+    /* 原prepare UI的临时选择/图游标与视觉资源，不复制真实roster/资金/RNG。 */
+    int selector, selected_command, product_index, product_first;
+    uint8_t stock[12], candidates[FD2_SAVE_MAX_UNITS], visible_items[8];
+    uint8_t selection[FD2_SAVE_MAX_UNITS - 1u];
+    size_t stock_count, candidate_count, item_count, first;
+    int member, receiver, raw_slot, member_kind, item_kind, cursor;
+    uint8_t product_id, captured_item, required_text;
+    uint32_t price, previous_money;
+    size_t new_fragment, old_fragment, quota;
+    fd2_field_prepare_promotion promotion;
+    unsigned growth_index, growth_line;
+    uint16_t growth_delta;
+    int notown_mode, done, result, host_quit, irreversible, running;
+    uint64_t input_epoch;
+    fd2_input_event deferred_key;
+    int deferred_key_ready;
+    uint8_t *page_background, *town_background;
+    fd2_vga *page;
+    fd2_image notice_portraits[4], selection_label, selection_cursor;
+    const fd2_image *active_portraits; /* 借service assets，或本结构的notice图。 */
+    unsigned notice_origin, sprite_phase, highlight_phase, glyph_counter, mouth_phase;
+    int notice_open, page_kind, picker_mode, equipment_selected;
+    fd2_image equipment_portraits[4];
+    const fd2_image *equipment_previous_portraits;
+    unsigned equipment_previous_origin;
+    fd2_archive promotion_backgrounds, promotion_figani;
+    fd2_prepare_promotion *promotion_visual;
+} prepare_service;
 
 typedef struct {
     fd2_vga *vga;
@@ -262,17 +458,29 @@ typedef struct {
     int menu_selected; /* -1非hotel四图标等待，不是持久owner。 */
     size_t roster_first;
     int roster_selected;
+    prepare_service service;
 } prepare_ui;
 
 static int quit(prepare_ui *ui) { return fd2_input_take_quit(&ui->vga->input); }
 static void drain(prepare_ui *ui) {
     while (fd2_input_take_key(&ui->vga->input, NULL)) {}
 }
-static int sound(prepare_ui *ui, size_t sample) {
+static int sound_loop(prepare_ui *ui,size_t sample,int loop_count) {
+    if(loop_count<1 || loop_count>3)return -1;
     if (ui->context->has_preparation && !ui->context->preparation.options[3]) return 0;
     if (!ui->audio || !ui->audio->player) return 0;
     if (!ui->audio->ui_bank) return -1;
-    return fd2_pcm_play_replace(ui->audio->player, ui->audio->ui_bank, sample, 1, FD2_GAME_SFX_DEFAULT_GAIN);
+    return fd2_pcm_play_replace(ui->audio->player, ui->audio->ui_bank, sample, loop_count, FD2_GAME_SFX_DEFAULT_GAIN);
+}
+static int sound(prepare_ui *ui,size_t sample){return sound_loop(ui,sample,1);}
+/* 2af28切换同伴用secondary7，紧接右移primary0，不能在同一voice互相替掉。 */
+static int prepare_service_selection_sound(prepare_ui *ui,size_t sample,int secondary) {
+    if(!secondary)return sound(ui,sample);
+    if(ui->context->has_preparation && !ui->context->preparation.options[3])return 0;
+    if(!ui->audio || !ui->audio->secondary_player)return 0;
+    if(!ui->audio->ui_bank)return -1;
+    return fd2_pcm_play_replace(ui->audio->secondary_player,ui->audio->ui_bank,
+        sample,1,FD2_GAME_SFX_DEFAULT_GAIN);
 }
 static int sync_audio_options(prepare_ui *ui) {
     if (ui->context->has_preparation) {
@@ -446,8 +654,16 @@ static int choice(prepare_ui *ui, int depart) {
     return result; /* 0 yes /2 no or cancel /1 hostquit /-1 resource */
 }
 
-/* 返回0退出picker，2成功Load，1宿主退出，-1错；Save成功继续同一slot。 */
-static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
+enum { PREPARE_SLOT_HOTEL, PREPARE_SLOT_TITLE, PREPARE_SLOT_NOTOWN_SAVE };
+
+/* 26152 @2632f传0给2968d：NoTown的29bcb直接BIOS读键，且297f7
+ * 跳过660/16c57反馈；酒店29300传1。调用来源由cold/manual入口给出，
+ * 不按当前stage重建分支。返回0退出picker，2成功Load，1宿主退出，-1错。 */
+static int slots_run(prepare_ui *ui, int save_mode, int consumer) {
+    if ((consumer!=PREPARE_SLOT_HOTEL && consumer!=PREPARE_SLOT_TITLE && consumer!=PREPARE_SLOT_NOTOWN_SAVE) ||
+        (consumer==PREPARE_SLOT_TITLE && save_mode) || (consumer==PREPARE_SLOT_NOTOWN_SAVE && !save_mode)) return -1;
+    int title_mode=consumer==PREPARE_SLOT_TITLE;
+    int hotel_wait=consumer==PREPARE_SLOT_HOTEL;
     fd2_save_file save = {0};
     int opened = save_mode ? fd2_save_file_open_for_update(&save, ui->save_path) :
                             fd2_save_file_open(&save, ui->save_path);
@@ -467,7 +683,7 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
         if (result != 0) break;
         for (;;) {
             fd2_input_event event;
-            result = read_key(ui, &event, !title_mode, !title_mode);
+            result = read_key(ui, &event, hotel_wait, hotel_wait);
             if (result != 0) break;
             if (event.key == FD2_INPUT_KEY_UP && selected > 0) selected--;
             else if (event.key == FD2_INPUT_KEY_DOWN && selected < 3) selected++;
@@ -481,21 +697,29 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
             if (present(ui)) { result = 1; break; }
         }
         if (result != 0) break;
-        result = bottom_slide(ui, background, page->framebuffer, 0);
-        if (result != 0) break;
-        if (quit(ui)) { result = 1; break; }
         if (save_mode) {
-            if (!notice_ready(ui, 660)) { result = -1; break; }
+            if (hotel_wait && !notice_ready(ui, 660)) { result = -1; break; }
+            /* field_manual_slot_save @0x2968d（原sub_2968D）在29bcb确认后
+             * 先写完整SAV，297f7之后才26996收框。收框退出/失败不撤销写入，
+             * 也不再次提交；酒店660资源仍在不可逆写入前预检。 */
             if (fd2_save_manual_state_save(ui->save_path, (size_t)selected,
                     &ui->context->preparation) != 0) { result = -1; break; }
             fd2_save_file_close(&save);
             if (fd2_save_file_open(&save, ui->save_path) != 0) { result = -1; break; }
             printf("prepare save: slot=%d stage=%u roster=%u\n", selected,
                 ui->context->preparation.stage_id, ui->context->preparation.unit_count); fflush(stdout);
-            result = notice(ui, 660, 1, 0);
+            result = bottom_slide(ui, background, page->framebuffer, 0);
             if (result != 0) break;
+            if (quit(ui)) { result = 1; break; }
+            if (hotel_wait) {
+                result = notice(ui, 660, 1, 0);
+                if (result != 0) break;
+            }
             memcpy(ui->vga->framebuffer, background, VGA_W * VGA_H);
         } else {
+            result = bottom_slide(ui, background, page->framebuffer, 0);
+            if (result != 0) break;
+            if (quit(ui)) { result = 1; break; }
             fd2_save_manual_state loaded;
             if (fd2_save_manual_state_load(ui->save_path, (size_t)selected, &loaded) != 0) {
                 /* 空槽是正常未提交，格式错误由严格后端拒绝而不改owner。 */
@@ -503,7 +727,8 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
                 memcpy(ui->vga->framebuffer, background, VGA_W * VGA_H);
                 continue;
             }
-            if (fd2_field_game_validate_manual_state(&loaded) != 0) {
+            if (fd2_field_game_validate_manual_state(&loaded) != 0 ||
+                (!title_mode && prepare_is_notown(loaded.stage_id))) {
                 if (title_mode) { result = -1; break; }
                 result = notice(ui, 479, 1, 0);
                 if (result != 0) break;
@@ -514,6 +739,7 @@ static int slots_run(prepare_ui *ui, int save_mode, int title_mode) {
             if (!title_mode && !notice_ready(ui, 478)) { result = -1; break; }
             /* owner只在整场资源/数据预检成功且宿主未退出时交接。 */
             if (quit(ui)) { result = 1; break; }
+            if(fd2_field_prepare_assets_bind_roster(ui->assets,&loaded)!=0){result=-1;break;}
             ui->context->preparation = loaded;
             ui->context->has_preparation = 1;
             /* field_manual_slot_load @0x2986f（原同名登记）只恢复flag；
@@ -561,38 +787,41 @@ static void detail_bottom(uint8_t *dst, const uint8_t *page,
         page + (94 + row) * VGA_STRIDE + 5, 310);
 }
 
+static int prepare_service_wait_key(prepare_ui *ui,fd2_input_event *event,int mode);
+
 static int member_detail(prepare_ui *ui, size_t index) {
     if (index >= ui->context->preparation.unit_count) return -1;
     fd2_field_unit unit;
     memcpy(&unit, ui->context->preparation.unit_area + index * sizeof(unit), sizeof(unit));
     uint8_t *background = malloc(VGA_W * VGA_H);
     fd2_vga *page = new_frame(ui->vga);
-    fd2_image portrait = {0};
+    fd2_image portraits[4] = {{0}};
+    const fd2_image *previous_portraits=ui->service.active_portraits;
+    unsigned previous_origin=ui->service.notice_origin;
     if (!background || !page) { free(background); free(page); return -1; }
     memcpy(background, ui->vga->framebuffer, VGA_W * VGA_H);
-    fd2_field_game borrowed = {0}; /* 只借纯绘制资源；禁止close此结构。 */
-    borrowed.ready = 1;
-    borrowed.info_assets = ui->assets->info; borrowed.font = ui->assets->font;
-    borrowed.ui_text = ui->assets->text;
     int result = -1;
-    if (!fd2_field_game_detail_upper_is_ready(&borrowed, &unit) ||
-        fd2_portrait_decode_frame(&portrait, &ui->assets->dato, unit.unit_id, 0) != 0 ||
-        !image_size(&portrait, 80, 80) ||
+    if (!fd2_field_detail_upper_is_ready(&ui->assets->info,&ui->assets->font,&ui->assets->text,&unit) ||
         fd2_field_item_list_draw(page, &ui->assets->info, &ui->assets->font,
             &ui->assets->text, &unit, -1) != 0) goto done;
+    for(size_t frame=0;frame<4u;frame++)
+        if(fd2_portrait_decode_frame(&portraits[frame],&ui->assets->dato,unit.unit_id,frame)!=0 ||
+            !image_size(&portraits[frame],80,80))goto done;
     size_t magic_count = fd2_field_unit_magic_list_build(&unit, NULL, 0);
     if (magic_count && fd2_field_magic_list_draw(page, &ui->assets->info,
         &ui->assets->font, &ui->assets->text, &unit, -1) != 0) goto done;
     fd2_field_detail_draw(page, &ui->assets->info, &ui->assets->font,
-        &ui->assets->text, &unit, &portrait);
-    if (sound(ui, 5) != 0) goto done;
+        &ui->assets->text, &unit, &portraits[0]);
+    ui->service.active_portraits=portraits;ui->service.notice_origin=3208u;
     drain(ui);
     for (int phase = 11; phase >= 0; phase--) {
+        int cue=fd2_field_detail_sfx_for_phase(1,phase);
+        if(cue>=0 && sound(ui,(size_t)cue)!=0)goto done;
         fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
         if (present(ui)) { result = 1; goto done; }
     }
     fd2_input_event event;
-    result = read_key(ui, &event, 1, 0);
+    result = prepare_service_wait_key(ui,&event,0);
     if (result != 0) goto done;
     if (magic_count) {
         if (sound(ui, 6) != 0) { result = -1; goto done; }
@@ -606,11 +835,12 @@ static int member_detail(prepare_ui *ui, size_t index) {
             detail_bottom(ui->vga->framebuffer, page->framebuffer, background, phase);
             if (present(ui)) { result = 1; goto done; }
         }
-        result = read_key(ui, &event, 1, 0);
+        result = prepare_service_wait_key(ui,&event,0);
         if (result != 0) goto done;
     }
-    if (sound(ui, 6) != 0) { result = -1; goto done; }
     for (int phase = 0; phase < 12; phase++) {
+        int cue=fd2_field_detail_sfx_for_phase(0,phase);
+        if(cue>=0 && sound(ui,(size_t)cue)!=0){result=-1;goto done;}
         fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
         if (present(ui)) { result = 1; goto done; }
     }
@@ -618,7 +848,9 @@ static int member_detail(prepare_ui *ui, size_t index) {
     result = present(ui);
 done:
     fd2_vga_wait_frame_deadline(ui->vga);
-    free(page); free(background); fd2_image_free(&portrait);
+    ui->service.active_portraits=previous_portraits;ui->service.notice_origin=previous_origin;
+    free(page); free(background);
+    for(size_t frame=0;frame<4u;frame++)fd2_image_free(&portraits[frame]);
     return result;
 }
 
@@ -713,7 +945,7 @@ static int hotel_run(prepare_ui *ui) {
         if (result != 0) return result;
         if (cancel_key(event.key)) return 0;
         if (selected == 0) result = roster_run(ui);
-        else if (selected == 1 || selected == 2) result = slots_run(ui, selected == 1, 0);
+        else if (selected == 1 || selected == 2) result = slots_run(ui, selected == 1, PREPARE_SLOT_HOTEL);
         else {
             result = choice(ui, 0);
             if (result == 0) {
@@ -732,11 +964,56 @@ static int hotel_run(prepare_ui *ui) {
     }
 }
 
+#include "field_prepare_service_present.h"
+#include "field_prepare_service_pick.h"
+#include "field_prepare_service_flow.h"
+
+/* 279bc/29daa/2af28只消费prepare领域有限图；每次真实输入重开损坏图预算。
+ * UI资源全属本次调用，roster/资金/数字/RNG始终沿现App owner。 */
+static int prepare_service_execute(prepare_ui *ui,const char *flow_id,
+        const char *entry,int selector) {
+    const fd2_static_flow *flow=fd2_static_flow_lookup("preparation",flow_id);
+    int pc=flow && entry ? fd2_static_flow_label(flow,entry):flow ? flow->entry:-1;
+    if(!flow || pc<0)return -1;
+    memset(&ui->service,0,sizeof(ui->service));
+    prepare_service *s=&ui->service;
+    s->selector=selector;s->member=-1;s->receiver=-1;s->running=1;
+    s->new_fragment=SIZE_MAX;s->old_fragment=SIZE_MAX;
+    unsigned steps=0;uint64_t epoch=0;int result=-1;
+    while(steps++<FD2_FLOW_STEP_BUDGET) {
+        const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+        if(!node)break;
+        if(quit(ui)){s->host_quit=1;break;}
+        unsigned port=FD2_FLOW_NEXT;
+        int handled=prepare_service_domain(ui,node,&port);
+        if(!handled)handled=prepare_service_pick(ui,node,&port);
+        if(!handled)handled=prepare_service_ui(ui,node,&port);
+        if(handled<0) {
+            if(!s->host_quit)fprintf(stderr,"准备流程失败：%s/%s op=%s port=%u committed=%d\n",
+                flow_id,node->id,node->op,port,s->irreversible);
+            break;
+        }
+        if(!handled) {
+            fprintf(stderr,"未知准备操作：%s/%s/%s\n",flow_id,node->id,node->op);break;
+        }
+        if(s->done){result=s->result;break;}
+        if(s->input_epoch!=epoch){epoch=s->input_epoch;steps=0;}
+        pc=fd2_static_flow_edge(flow,node,port);
+        if(pc<0){fprintf(stderr,"准备流程缺少出口：%s/%s port=%u\n",flow_id,node->id,port);break;}
+    }
+    if(s->host_quit)result=-2;
+    prepare_service_cleanup(ui);
+    s->running=0;
+    return result;
+}
+
+int fd2_field_prepare_stage_supported(size_t stage) { return prepare_stage_valid(stage); }
+
 fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *fdother,
         fd2_field_play_context *context, const char *save_path, fd2_field_audio *audio) {
     if (!vga || !fdother || !context || !context->initialized || !save_path ||
         !context->has_preparation ||
-        town_type(context->preparation.stage_id) < 0 ||
+        !prepare_stage_valid(context->preparation.stage_id) ||
         context->preparation.unit_count > FD2_SAVE_MAX_UNITS) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_FIELD_PREPARE_HOST_QUIT;
     if (fd2_field_game_validate_manual_state(&context->preparation) != 0)
@@ -744,13 +1021,20 @@ fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *
     fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     if (!assets) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_field_prepare_assets_open(assets, fdother) != 0) { free(assets); return FD2_FIELD_PREPARE_ERROR; }
-    if (prepare_town(assets, fdother, context->preparation.stage_id) != 0) {
+    if (prepare_town(assets, fdother, context->preparation.stage_id) != 0 ||
+        fd2_field_prepare_assets_bind_roster(assets,&context->preparation)!=0) {
         fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_ERROR;
     }
     prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1};
     fd2_field_prepare_result result = FD2_FIELD_PREPARE_ERROR;
+    if(prepare_is_notown(context->preparation.stage_id)) {
+        int subresult=prepare_service_execute(&ui,"deployment","notown.mode",2);
+        result=subresult==1 ? FD2_FIELD_PREPARE_DEPART:subresult==-2 ?
+            FD2_FIELD_PREPARE_HOST_QUIT:FD2_FIELD_PREPARE_ERROR;
+        goto done;
+    }
     if (music(&ui, 10, "town") != 0) goto done;
-    int selected = 0; unsigned phase = 0; uint64_t last = SDL_GetTicks();
+    int selected = 0,preview_track=0; unsigned phase = 0; uint64_t last = SDL_GetTicks();
     drain(&ui);
     for (;;) {
         if (fd2_field_prepare_draw_town(vga, assets, &context->preparation, selected, phase) != 0) break;
@@ -760,30 +1044,36 @@ fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *
         if (!fd2_input_take_key(&vga->input, &event)) continue;
         drain(&ui);
         if (event.key == FD2_INPUT_KEY_RIGHT || event.key == FD2_INPUT_KEY_LEFT) {
-            selected = (selected + (event.key == FD2_INPUT_KEY_RIGHT ? 4 : 1)) % 5;
+            selected = event.key==FD2_INPUT_KEY_RIGHT ? (selected<=0 ? 4:selected-1):
+                (selected>=4 ? 0:selected+1);
             if (sound(&ui, 0) != 0) break;
-        } else if (confirm_key(event.key)) {
-            if (selected != 0 && selected != 2) {
-                fprintf(stderr, "当前准备页尚未开放此商店：selector=%d，保留城镇选择。\n", selected);
-                continue;
+        } else {
+            if(event.key==FD2_INPUT_KEY_G) {
+                preview_track=(preview_track+1)%10;
+                if(music(&ui,preview_track,"town-preview")!=0)break;
+            } else {
+                const uint8_t *record=fd2_field_stage_prepare_record_get(context->preparation.stage_id);
+                if(record && record[1]==selected && record[2]==fd2_input_function_scan(&event))selected=5;
             }
-            if (music(&ui, -1, "town-enter") != 0) break;
+            if(!confirm_key(event.key))continue;
             int subresult;
             if (selected == 0) {
+                if(sound_loop(&ui,1,3)!=0)break;
+                if (music(&ui,-1,"town-enter")!=0)break;
                 subresult = hotel_run(&ui);
                 if (subresult == 3) { result = FD2_FIELD_PREPARE_LEAVE_GAME; break; }
+                if(subresult==1)subresult=-2;
+            } else if(selected==2) {
+                if (music(&ui,-1,"town-enter")!=0)break;
+                subresult=prepare_service_execute(&ui,"deployment",NULL,2);
+                if(subresult==1){result=FD2_FIELD_PREPARE_DEPART;break;}
             } else {
-                subresult = choice(&ui, 1);
-                if (subresult == 0) {
-                    if (!context->preparation.unit_count || context->preparation.unit_count > 16u) {
-                        fprintf(stderr, "当前出阵尚不支持此队伍人数：%u；保留完整持久表。\n", context->preparation.unit_count);
-                    } else { result = FD2_FIELD_PREPARE_DEPART; break; }
-                }
-                if (subresult == 2) subresult = 0;
+                subresult=prepare_service_execute(&ui,"services",NULL,selected);
             }
-            if (subresult == 1) { result = FD2_FIELD_PREPARE_HOST_QUIT; break; }
+            if (subresult == -2) { result = FD2_FIELD_PREPARE_HOST_QUIT; break; }
             if (subresult < 0) break;
-            if (music(&ui, 10, "town-return") != 0) break;
+            /* services的退出冷图已请求10/0，不能在这里重启同一曲。 */
+            if ((selected==0 || selected==2) && music(&ui, 10, "town-return") != 0) break;
         }
     }
 done:
@@ -823,7 +1113,7 @@ fd2_field_prepare_result fd2_field_prepare_load_title(fd2_vga *vga,
     fd2_vga_set_palette(vga, palette);
     fd2_vga_clear(vga, 0);
     fd2_vga_set_brightness(vga, 0);
-    int result = slots_run(&ui, 0, 1);
+    int result = slots_run(&ui, 0, PREPARE_SLOT_TITLE);
     fd2_field_prepare_assets_close(assets); free(assets);
     return result == 2 ? FD2_FIELD_PREPARE_DEPART : result == 1 ? FD2_FIELD_PREPARE_HOST_QUIT :
         result == 0 ? FD2_FIELD_PREPARE_TITLE : FD2_FIELD_PREPARE_ERROR;

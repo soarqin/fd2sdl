@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 static uint16_t rd_u16_le(const uint8_t *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -70,6 +71,50 @@ int fd2_text_entry_get_fragment(const fd2_text_entry *txt, size_t fragment_idx,
 
 uint16_t fd2_text_token_at(const uint8_t *tokens, size_t token_idx) {
     return rd_u16_le(tokens + token_idx * 2);
+}
+
+/* 既有field_play受限展开的共享实现；原依据text_dialog_render_tokens @0x15f84。
+ * 不绘制、不等待、不写动态消息owner，也不消费RNG。 */
+static int expanded_append(fd2_text_expanded *out, uint16_t token, size_t glyph_count) {
+    if (out->count >= FD2_TEXT_EXPANDED_CAPACITY ||
+        (token < 0xff00u && token >= glyph_count)) return -1;
+    out->tokens[out->count++] = token;
+    return 0;
+}
+
+static int expand_fragment(const fd2_text_entry *entry, size_t glyph_count,
+        const fd2_text_parameters *parameters, size_t fragment, unsigned depth,
+        fd2_text_expanded *out) {
+    const uint8_t *tokens; size_t count;
+    if (depth > 1 || fd2_text_entry_get_fragment(entry, fragment, &tokens, &count) != 0) return -1;
+    for (size_t i = 0; i < count; i++) {
+        uint16_t token = fd2_text_token_at(tokens, i);
+        if (token == 0xffffu) return 0;
+        if (token == 0xfffau) {
+            char number[16];
+            int32_t value = parameters->value <= INT32_MAX ? (int32_t)parameters->value
+                : -1 - (int32_t)(UINT32_MAX - parameters->value);
+            (void)snprintf(number, sizeof(number), "%ld", (long)value);
+            for (size_t j = 0; number[j]; j++)
+                if (expanded_append(out, number[j] == '-' ? FD2_TEXT_SAFE_MINUS :
+                        (uint16_t)(number[j] - '0'), glyph_count) != 0) return -1;
+        } else if (token == 0xfffcu || token == 0xfffbu) {
+            size_t nested = token == 0xfffcu ? parameters->new_fragment : parameters->old_fragment;
+            if (depth || nested == SIZE_MAX ||
+                expand_fragment(entry, glyph_count, parameters, nested, depth + 1, out) != 0) return -1;
+        } else {
+            if (token >= 0xff00u && token != 0xfffeu && token != 0xfffdu) return -1;
+            if (expanded_append(out, token, glyph_count) != 0) return -1;
+        }
+    }
+    return -1;
+}
+
+int fd2_text_expand(const fd2_text_entry *entry, size_t glyph_count,
+        const fd2_text_parameters *parameters, size_t fragment, fd2_text_expanded *out) {
+    if (!entry || !glyph_count || !parameters || !out) return -1;
+    memset(out, 0, sizeof(*out));
+    return expand_fragment(entry, glyph_count, parameters, fragment, 0, out);
 }
 
 void fd2_text_entry_close(fd2_text_entry *txt) {

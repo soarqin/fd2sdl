@@ -9,6 +9,7 @@
     "magic_fx.json",
     "movement.json",
     "movement_scripts.json",
+    "preparation.json",
     "stage.json",
     "unit_base.json"
   ],
@@ -1099,14 +1100,119 @@
           25
         ]
       }
+    },
+    "preparation.json": {
+      "k_prepare_no_town": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          30
+        ]
+      },
+      "k_prepare_revive_coefficients": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          29
+        ]
+      },
+      "k_prepare_promotion_records": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          36,
+          2
+        ]
+      },
+      "k_prepare_special_items": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          18
+        ]
+      },
+      "k_prepare_town_x": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          3,
+          6
+        ]
+      },
+      "k_prepare_town_y": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          3,
+          6
+        ]
+      },
+      "k_prepare_town_portraits": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          6
+        ]
+      },
+      "k_prepare_town_background_entries": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          3
+        ]
+      },
+      "k_prepare_service_return_prefix": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          5
+        ]
+      },
+      "k_prepare_menu_slide_offsets": {
+        "c_type": "int32_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_prepare_menu_cursor_offsets": {
+        "c_type": "int32_t",
+        "dimensions": [
+          4
+        ]
+      },
+      "k_prepare_buy_messages": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          4,
+          6
+        ]
+      },
+      "k_prepare_sell_messages": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          2,
+          6
+        ]
+      },
+      "k_prepare_town_service_entries": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          6
+        ]
+      },
+      "k_prepare_deployment_roster_gate": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          1,
+          4
+        ]
+      },
+      "k_prepare_notice_portrait_origins": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          5
+        ]
+      }
     }
   },
   "flow_files": [
     "loot.json",
+    "magic.json",
+    "preparation.json",
     "progress.json",
     "scene.json",
-    "stage.json",
-    "magic.json"
+    "stage.json"
   ],
   "flow_contracts": {
     "progress.json": {
@@ -1590,7 +1696,7 @@
       "operation_abi_sha256": "d66d1ba4c771f9239f9c607e68e275794b865391c42f07a2e02f1250a2d7e56b"
     },
     "stage.json": {
-      "operation_abi_sha256": "31fddc5a9b72a7da6b6e83fcd51b3c7cb577854787e3275570f85fbc520492a8",
+      "operation_abi_sha256": "8678729c3de02e65720aa5dcf0b7ae54a8157266451c69b067c2e546fd279d6f",
       "ports": {
         "stage_setup": [
           [
@@ -2430,6 +2536,515 @@
         "magic.effect.023",
         "item.effect"
       ]
+    },
+    "preparation.json": {
+      "operation_abi_sha256": "cbf4db56f301521f2152c72539580a6264802afbd914118b9f96d0d71782e5ec",
+      "ports": {
+        "service_resources": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "service_is_church": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "menu_pick": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "stock_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "product_is_equipment": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "has_money": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "inventory_full": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "item_append": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_remove": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "item_capture": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "equipment_set": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "recompute": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "money_add": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "money_sub": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "close_page": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "service_animate": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "revive_flags_clear": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "revive_hp": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "money_redraw": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "promotion_item_consume": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "promotion_identity": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cache_rebuild": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "growth_nonzero": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "growth_commit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "movement_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "movement_commit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "promotion_finalize": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "clear_keys": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_member": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selection_reset": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "pick_companion": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "selection_toggle": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selection_full": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "selection_cursor_next": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selection_reorder": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selection_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selection_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "is_notown": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "roster_exceeds_quota": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "empty_screen": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "selected_is": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "selector_is": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "pick_member": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "pick_item": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "pick_product": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "build_candidates": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "price_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "notice_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "message_name": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "show_message": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "wait_key": [
+          [
+            "ack",
+            "cancel",
+            "error"
+          ]
+        ],
+        "confirm": [
+          [
+            "cancel",
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "preflight": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "music": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "promotion_visual": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "growth_select": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "stage_is": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "stage_at_least": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "roster_has_text": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "required_member": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "prefix_reorder": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "quota_set": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "deployment_mode": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "darkness": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "manual_save": [
+          [
+            "cancel",
+            "error",
+            "next"
+          ]
+        ],
+        "finish": [
+          []
+        ],
+        "service_page": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "service_exit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "equipment_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "pick_equipment_slot": [
+          [
+            "cancel",
+            "error",
+            "slot"
+          ]
+        ],
+        "equipment_compatible": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "equipment_redraw": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "equipment_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "service_enter": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "service_transition": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "sfx": [
+          [
+            "error",
+            "next"
+          ]
+        ]
+      },
+      "required_ids": [
+        "services",
+        "deployment",
+        "selector.001",
+        "selector.003",
+        "selector.004",
+        "selector.005",
+        "town.departure",
+        "notown.departure"
+      ],
+      "required_labels": {
+        "services": [
+          "buy.pick",
+          "sell.member",
+          "equip.member",
+          "give.notice",
+          "revive.build",
+          "promote.build"
+        ],
+        "deployment": [
+          "town.entry",
+          "select.mode",
+          "notown.mode"
+        ]
+      }
     }
   }
 }

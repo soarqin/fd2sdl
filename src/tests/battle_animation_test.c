@@ -1702,6 +1702,101 @@ static int test_recovery_caller_info_context(void) {
     free(before);free(expected);return 0;
 }
 
+static int test_prepare_promotion_scope_and_sequence(void) {
+    reset_observer();
+    fd2_archive bg={0};CHECK(fd2_archive_open(&bg,"original_game/BG.DAT")==0);
+    fd2_vga *saved=malloc(sizeof(screen));CHECK(saved);*saved=screen;
+    fd2_field_game *before=malloc(sizeof(game));CHECK(before);*before=game;
+    fd2_prepare_promotion *scope=NULL;
+    fd2_archive short_figani=figani_fixture;short_figani.count=156;
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&short_figani,9,52)<0 && !scope);
+    CHECK(!memcmp(saved,&screen,sizeof(screen)) && !frames);
+    fd2_archive short_bg=bg;short_bg.count=2;
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&short_bg,&figani_fixture,9,52)<0 && !scope);
+    CHECK(!memcmp(saved,&screen,sizeof(screen)) && !frames);
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&figani_fixture,9,52)==0 && scope);
+    CHECK(!memcmp(saved,&screen,sizeof(screen)) && !frames);
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_OLD_ENTER,34)<0);
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_RESTORE,1)<0);
+    CHECK(!memcmp(saved,&screen,sizeof(screen)) && !frames);
+    static const struct { fd2_prepare_promotion_phase phase;unsigned value; } sequence[]={
+        {FD2_PREPARE_PROMOTION_BEGIN,1},{FD2_PREPARE_PROMOTION_OLD_ENTER,9},
+        {FD2_PREPARE_PROMOTION_OLD_IDLE,16},{FD2_PREPARE_PROMOTION_WHITE,20},
+        {FD2_PREPARE_PROMOTION_NEW_FRAME,200},{FD2_PREPARE_PROMOTION_NEW_IDLE,24},
+        {FD2_PREPARE_PROMOTION_RESTORE,0}};
+    for (size_t i=0;i<sizeof(sequence)/sizeof(sequence[0]);i++)
+        CHECK(fd2_prepare_promotion_step(scope,sequence[i].phase,sequence[i].value)==0);
+    CHECK(frames==263 && ticks==41 && delays==586);
+    CHECK(!memcmp(saved->framebuffer,screen.framebuffer,64000));
+    CHECK(!memcmp(saved->palette,screen.palette,768));
+    for (size_t i=0;i<768;i++) CHECK(screen.dac[i]==(uint8_t)((screen.palette[i]<<2)|(screen.palette[i]>>4)));
+    CHECK(!memcmp(before,&game,sizeof(game)) && !business_rng_calls && !cues && !primary_stops);
+    fd2_prepare_promotion_close(scope,0);scope=NULL;
+    *saved=screen;reset_observer();
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&figani_fixture,9,52)==0);
+    quit_frame=2;
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_BEGIN,1)==-2 && frames==2);
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_OLD_IDLE,16)==-2);
+    fd2_prepare_promotion_close(scope,1);
+    CHECK(!memcmp(saved->framebuffer,screen.framebuffer,64000) && !memcmp(saved->palette,screen.palette,768) &&
+        !memcmp(saved->dac,screen.dac,768) && !memcmp(before,&game,sizeof(game)));
+    fd2_archive_close(&bg);free(saved);free(before);return 0;
+}
+
+static int test_prepare_promotion_duration_and_safe_parameters(void) {
+    reset_observer();fd2_archive bg={0};CHECK(fd2_archive_open(&bg,"original_game/BG.DAT")==0);
+    fd2_prepare_promotion *scope=NULL;
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&figani_fixture,9,52)==0);
+    uint8_t *expected=calloc(64000,1);CHECK(expected);
+    scope->old_idle.parts[0].part.duration=0;
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_OLD_IDLE,2)==0);
+    expected_image(expected,&scope->background[2],0,50);
+    expected_image(expected,&scope->old_idle.parts[0].drawing,
+        scope->old_idle.parts[0].part.x,scope->old_idle.parts[0].part.y);
+    CHECK(!memcmp(expected,screen.framebuffer,64000) && frames==2 && ticks==2);
+    for (size_t i=0;i<scope->old_idle.clip.part_count;i++) scope->old_idle.parts[i].part.duration=1;
+    unsigned count=(unsigned)scope->old_idle.clip.part_count+1u;
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_OLD_IDLE,count)==0);
+    memset(expected,0,64000);
+    expected_image(expected,&scope->background[count%3u],0,50);
+    expected_image(expected,&scope->old_idle.parts[0].drawing,
+        scope->old_idle.parts[0].part.x,scope->old_idle.parts[0].part.y);
+    CHECK(!memcmp(expected,screen.framebuffer,64000));
+    /* 安全有界参数不锁死默认9/16/20/200/24，也不把Esc当跳过。 */
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_NEW_FRAME,0)==0);
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_WHITE,0)==0);
+    CHECK(fd2_prepare_promotion_step(scope,FD2_PREPARE_PROMOTION_NEW_IDLE,0)==0);
+    CHECK(!cues && !business_rng_calls);
+    fd2_prepare_promotion_close(scope,1);fd2_archive_close(&bg);free(expected);return 0;
+}
+
+static int test_prepare_promotion_empty_idle_only_omits_sprite(void) {
+    fd2_archive bg={0};CHECK(fd2_archive_open(&bg,"original_game/BG.DAT")==0);
+    uint8_t *expected=calloc(64000,1);CHECK(expected);
+    /* 16→48真实合法路径；old48仅检验资源helper对同一哨兵的对称安全边界。 */
+    for (int variant=0;variant<2;variant++) {
+        reset_observer();fd2_prepare_promotion *scope=NULL;
+        CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&figani_fixture,
+            variant ? 48:16,variant ? 52:48)==0);
+        const battle_clip *empty=variant ? &scope->old_idle:&scope->new_idle;
+        CHECK(empty->clip.empty && !empty->parts);
+        CHECK(fd2_prepare_promotion_step(scope,variant ? FD2_PREPARE_PROMOTION_OLD_IDLE:
+            FD2_PREPARE_PROMOTION_NEW_IDLE,24)==0 && frames==24 && ticks==24);
+        memset(expected,0,64000);expected_image(expected,&scope->background[0],0,50);
+        CHECK(!memcmp(expected,screen.framebuffer,64000) && !cues && !business_rng_calls);
+        CHECK(fd2_prepare_promotion_step(scope,variant ? FD2_PREPARE_PROMOTION_OLD_ENTER:
+            FD2_PREPARE_PROMOTION_NEW_FRAME,variant ? 9:200)==0);
+        CHECK(!memcmp(expected,screen.framebuffer,64000));
+        fd2_prepare_promotion_close(scope,1);
+    }
+    /* 三字节哨兵不可扩成四字节“空资源”以吞掉坏格式。 */
+    fd2_prepare_promotion *scope=NULL;uint32_t next=figani_fixture.offsets[145];
+    figani_fixture.offsets[145]=figani_fixture.offsets[144]+4u;
+    CHECK(fd2_prepare_promotion_open(&scope,&screen,&bg,&figani_fixture,16,48)<0 && !scope);
+    figani_fixture.offsets[145]=next;
+    fd2_archive_close(&bg);free(expected);return 0;
+}
+
 int main(void) {
     CHECK(fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")==0);
     CHECK(fd2_archive_open(&fdtxt,"original_game/FDTXT.DAT")==0);
@@ -1748,11 +1843,14 @@ int main(void) {
     CHECK(test_short_six_weapon_families_and_miss()==0);
     CHECK(test_recovery_steps_zero_max_skip_and_quit()==0);
     CHECK(test_recovery_caller_info_context()==0);
+    CHECK(test_prepare_promotion_scope_and_sequence()==0);
+    CHECK(test_prepare_promotion_duration_and_safe_parameters()==0);
+    CHECK(test_prepare_promotion_empty_idle_only_omits_sprite()==0);
     free(map_captured);map_captured=NULL;
     fd2_field_visuals_close(&game.visuals);fd2_map_sprite_bank_close(&game.sprites);
     fd2_text_entry_close(&game.ui_text);fd2_field_info_assets_close(&game.info_assets);
     CHECK(!business_rng_calls);
     CHECK(figani_fixture.data && figani_fixture.count==408); /* 服务未关闭借用的Game资源。 */
     fd2_archive_close(&figani_fixture);fd2_archive_close(&fdtxt);fd2_archive_close(&fdother);
-    puts("battle_animation: 31 headless groups PASS; no device/window/RNG/effect");return 0;
+    puts("battle_animation: headless groups PASS; no device/window/RNG/effect");return 0;
 }

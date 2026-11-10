@@ -21,6 +21,10 @@ SDL 版不复制 BIOS FIFO，也不保存跨帧 `KEY_DOWN`。宿主适配采用�
 
 `500 ms`／`92 ms` 是 PC/AT 常见默认 typematic 的宿主近似值，不是从 `FD2.EXE` 提取的游戏常量。
 
+准备页的隐藏入口另需 F1—F12 的 BIOS 修饰扫描码。首按只附带该 F 键 `SDL_EVENT_KEY_DOWN.mod` 的有限元数据；仍须当前 present 从键态生成该键脉冲才可读取，下一 present 无条件过期，keyup／失焦也清除。repeat 使用当前帧物理修饰位。此元数据不生成动作、不保存普通键、不建立 BIOS FIFO。原因是当前 Windows SDL 在 pump 末端按 `GetKeyState(VK_LSHIFT/RSHIFT)` 修正 Shift；合法后台定向消息已在 DOWN 中携带 Shift，但此时全局物理键态可为未按，单读修正后的 `SDL_GetKeyboardState()` 会把原 Shift+F1 错作 F1。
+
+G3 的实际后台组合键验收将输送收据与业务响应分开：原版／SDL 均须先从酒店焦点切到隐藏焦点及 caption500，再由独立 Enter 进入 bank63 商店。其余来源组合键保留纯映射／条件验证范围，不因 Shift+F1 一例通过而声称全部逐键实机通过。窗口不激活，不设置全局键态；未读取首按、keyup、失焦及 repeat 的过期行为由 `input_test` 回归。
+
 ## 2. 原版依据
 
 ### 2.1 `input_check`

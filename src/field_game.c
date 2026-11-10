@@ -37,6 +37,7 @@
 #include "field_move.h"
 #include "field_move_profile.h"
 #include "field_item.h"
+#include "field_prepare.h"
 #include "field_magic.h"
 #include "portrait.h"
 #include "scene.h"
@@ -163,35 +164,6 @@ static void finalize_zero_hp_units(fd2_field_game *game) {
         if (rotate && !fd2_field_unit_is_hidden(unit)) unit->direction = 0;
         unit->flags = 1;
     }
-}
-
-static int known_item_stat_lookup(void *userdata, uint8_t item_id,
-                                  fd2_field_item_stat_effect *effect) {
-    (void)userdata;
-    if (!effect) return -1;
-    const uint8_t *record = fd2_field_item_record_get(item_id);
-    if (!record) return -1;
-    effect->attack = fd2_field_item_i16(record, 1);
-    effect->accuracy = fd2_field_item_i16(record, 3);
-    effect->defense = fd2_field_item_i16(record, 5);
-    effect->evasion = fd2_field_item_i16(record, 7);
-    return 0;
-}
-
-static int known_status_stat_scale(void *userdata,
-                                   fd2_field_unit_scaled_stat stat,
-                                   int32_t value,
-                                   int32_t *scaled_value) {
-    (void)userdata;
-    (void)stat;
-    if (!scaled_value) return -1;
-    /* field_unit_combat_stats_recompute @0x1b750（原登记同名）的两段
-     * 1b7ef/1b80a：原CW127f乘binary64 1.15后，__CHP临时向0截断。
-     * 原码全域[-65536,65535]已对照；volatile固定乘积53bit舍入，勿用115/100。 */
-    volatile double product = (double)value * 1.15;
-    if (product < INT32_MIN || product > INT32_MAX) return -1;
-    *scaled_value = (int32_t)product;
-    return 0;
 }
 
 static int append_persistent_player(fd2_field_game *game, uint8_t unit_id) {
@@ -385,7 +357,7 @@ static int append_group_units(const fd2_field_game *game, fd2_field_units *units
         if (fd2_field_unit_cached_frame_index(&shadow, i, 0) >=
             game->sprites.frame_count ||
             fd2_field_unit_combat_stats_recompute(&shadow.items[i],
-                known_item_stat_lookup, NULL, known_status_stat_scale, NULL) != 0)
+                fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL) != 0)
             return -1;
     }
     *units = shadow;
@@ -578,8 +550,8 @@ static int advance_reward_progress(fd2_field_game *game) {
     fd2_reward_cursor cursor = reward_cursor_get(progress);
     fd2_reward_notice notice;
     int result = fd2_reward_advance(fd2_reward_graph(), &game->units.items[progress->notice.actor_index],
-        game->experience_value, &cursor, &notice, known_item_stat_lookup, NULL,
-        known_status_stat_scale, NULL);
+        game->experience_value, &cursor, &notice, fd2_field_unit_original_item_stats, NULL,
+        fd2_field_unit_original_status_scale, NULL);
     progress->total = cursor.total; progress->level = cursor.level;
     progress->growth_cursor = cursor.growth_cursor; progress->learn_cursor = cursor.learn_cursor;
     progress->flow_step = cursor.step;
@@ -597,7 +569,7 @@ static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t g
     const fd2_field_unit *unit = &game->units.items[actor_index];
     fd2_field_unit shadow;
     int result = fd2_field_unit_reward_preview(unit, gain,
-        known_status_stat_scale, NULL, &shadow);
+        fd2_field_unit_original_status_scale, NULL, &shadow);
     if (result <= 0) return result;
     const fd2_static_flow *flow = fd2_reward_graph();
     if (!flow) return -1;
@@ -606,7 +578,7 @@ static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t g
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         fd2_reward_notice value;
         result = fd2_reward_advance(flow, &shadow, gain, &cursor, &value,
-            known_item_stat_lookup, NULL, known_status_stat_scale, NULL);
+            fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL);
         if (result == 1) return 1;
         if (result != 0) return -1;
         fd2_field_progress_notice notice = {(fd2_field_progress_kind)value.kind,
@@ -872,7 +844,7 @@ static int run_status_flow(fd2_field_game *game, fd2_field_progress *progress,
             port = *timer == 0 ? FD2_FLOW_YES : FD2_FLOW_NO;
         } else if (!strcmp(op, "status_recompute")) {
             if (!unit || (!preflight && fd2_field_unit_combat_stats_recompute(unit,
-                    known_item_stat_lookup, NULL, known_status_stat_scale, NULL) != 0)) return -1;
+                    fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL) != 0)) return -1;
         } else if (!strcmp(op, "status_notice")) {
             if (!unit || (n->args[1] && !timer)) return -1;
             uint32_t value = n->args[1] ? 0 : progress->notice.value;
@@ -1159,7 +1131,7 @@ static int prepare_deployment(fd2_field_game *game, const fd2_archive *fdother,
     if (!game) return -1;
     memset(game, 0, sizeof(*game));
     if (!fdother || !state || !slots || slots > FD2_FIELD_MAX_UNITS || state->stage_id != stage ||
-        !state->unit_count || state->unit_count > 16u) return -1;
+        !state->unit_count || state->unit_count > FD2_SAVE_MAX_UNITS) return -1;
     if (fd2_field_game_open_resources(game, fdother, stage) != 0) return -1;
     if (game->metadata.unknown_01 != slots) goto fail;
     memcpy(game->roster, state->unit_area, sizeof(game->roster));
@@ -1171,34 +1143,12 @@ static int prepare_deployment(fd2_field_game *game, const fd2_archive *fdother,
     game->option_values[2] = state->options[1];
     game->option_values[3] = state->options[0];
     fd2_field_system_menu_set_options(&game->system_menu, game->option_values);
-    fd2_field_units_clear(&game->units);
-    game->units.count = slots;
-    for (size_t i = 0; i < slots; i++) {
-        uint8_t x, y;
-        if (fd2_field_unit_deployment_position(&game->metadata, &game->placements, i, &x, &y) != 0 ||
-            x >= game->map.width || y >= game->map.height) goto fail;
-        fd2_field_unit *unit = &game->units.items[i];
-        game->units.walk_frames[i] = 1;
-        game->units.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
-        if (i >= game->roster_count) {
-            /* 1088d缺席槽仅zero80/flags1；后续1366a仍按raw移动它。 */
-            unit->flags = 1;
-            continue;
-        }
-        *unit = game->roster[i];
-        unit->x = x; unit->y = y;
-        unit->direction = unit->frame_phase = 0;
-        unit->side = 2;
-        ((uint8_t *)unit)[0x31] = 0xff;
-        memset((uint8_t *)unit + 0x22, 0, 6);
-        game->units.walk_frames[i] = 1;
-        game->units.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
-        if (fd2_field_unit_frame_index(unit, 1, 0) >= game->sprites.frame_count ||
-            fd2_field_unit_combat_stats_recompute(unit, known_item_stat_lookup, NULL,
-                known_status_stat_scale, NULL) != 0 ||
-            fd2_field_units_sprite_cache_append(&game->units, i) != 0) goto fail;
-    }
-    game->units.count = slots;
+    /* 1088d @10ae1..10b20：有限冷gate决定是否消费；跳空时roster和
+     * placement都不前进，不能以active序号猜持久前缀的位置。 */
+    if (fd2_field_prepare_deployment_project(state,stage,&game->map,&game->metadata,
+            &game->placements,&game->units)!=0) goto fail;
+    for (size_t i=0;i<game->units.count;i++)
+        if (fd2_field_unit_cached_frame_index(&game->units,i,0)>=game->sprites.frame_count) goto fail;
     return 0;
 fail:
     fd2_field_game_close(game);
@@ -2778,8 +2728,8 @@ static int item_command_is_supported(const fd2_field_game *game, int command) {
         }
         /* Drop无Use handler门，包含隐藏flag40的全8槽必须可重算。 */
         fd2_field_unit shadow = *actor;
-        return fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) == 0 && (command != 1 || item_give_has_target(game));
+        return fd2_field_unit_combat_stats_recompute(&shadow, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) == 0 && (command != 1 || item_give_has_target(game));
     }
     if (command != 0) return 0;
     const uint8_t *raw = (const uint8_t *)actor;
@@ -2882,8 +2832,8 @@ static int finish_item_drop(fd2_field_game *game, int confirmed) {
             FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) != 0)
         return -1;
     if (confirmed) inventory_slot_remove(&shadow, (size_t)selected);
-    if (fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0)
+    if (fd2_field_unit_combat_stats_recompute(&shadow, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) != 0)
         return -1;
     game->units.items[game->selected_unit] = shadow;
     if (fd2_field_unit_inventory_count(&shadow)) {
@@ -2913,16 +2863,11 @@ int fd2_field_game_equip_item(fd2_field_game *game) {
     if (compatible != 1) return compatible;
     /* field_unit_equipment_slot_set @0x1c142（原sub_1C142）：按ID的<128/≥128组清整个flag，
      * 再将selected写40；不是toggle，且不按category分组或跳过hidden。 */
-    for (size_t slot = 0; slot < 8u; slot++) {
-        size_t offset = 0x0a + slot * 2u;
-        if ((raw[offset] & 0x40u) && ((item_id < 128u) == (raw[offset + 1u] < 128u)))
-            raw[offset] = 0;
-    }
-    raw[0x0a + (size_t)selected * 2u] = 0x40;
+    if (fd2_field_unit_equipment_slot_set(&shadow,(size_t)selected)!=0) return -1;
     /* hidden equipped清0可能唤醒空洞；不能交接本SDL raw导航不支持的结果。 */
     if (fd2_field_item_list_select_step(&shadow, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) != 0 ||
-        fd2_field_unit_combat_stats_recompute(&shadow, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0)
+        fd2_field_unit_combat_stats_recompute(&shadow, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) != 0)
         return -1;
     game->units.items[game->selected_unit] = shadow;
     return 1; /* 1bffe重绘并继续原页/原索引，不关闭或推进controller。 */
@@ -3379,8 +3324,8 @@ int fd2_field_game_resolve_item_give(fd2_field_game *game) {
     fd2_field_unit sender = game->units.items[game->selected_unit];
     fd2_field_unit recipient = game->units.items[receiver];
     if (sender.x >= game->map.width || sender.y >= game->map.height ||
-        fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0) return -1;
+        fd2_field_unit_combat_stats_recompute(&sender, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) != 0) return -1;
     if (game->interaction == FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING &&
         fd2_field_unit_inventory_count(&recipient) == 8u) {
         /* 原版先恢复Give前focus，再打开recipient的mode0列表。 */
@@ -3405,8 +3350,8 @@ int fd2_field_game_resolve_item_give(fd2_field_game *game) {
     }
     /* 1bbdc只重算sender；recipient装备被交换时亦保留其原派生，不擅自修整。 */
     if (!inventory_prefix_is_valid(&sender) || !inventory_prefix_is_valid(&recipient) ||
-        fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0) return -1;
+        fd2_field_unit_combat_stats_recompute(&sender, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) != 0) return -1;
     if (focus_to(game, sender.x, sender.y) != 0) return -1;
     game->units.items[game->selected_unit] = sender;
     game->units.items[receiver] = recipient;
@@ -3418,8 +3363,8 @@ int fd2_field_game_resolve_item_give(fd2_field_game *game) {
 static int finish_item_give_cancel(fd2_field_game *game, int restore_focus) {
     if (!give_source_is_valid(game)) return -1;
     fd2_field_unit sender = game->units.items[game->selected_unit];
-    if (fd2_field_unit_combat_stats_recompute(&sender, known_item_stat_lookup, NULL,
-            known_status_stat_scale, NULL) != 0) return -1;
+    if (fd2_field_unit_combat_stats_recompute(&sender, fd2_field_unit_original_item_stats, NULL,
+            fd2_field_unit_original_status_scale, NULL) != 0) return -1;
     if (restore_focus) {
         if (!target_focus_is_valid(game) || focus_to(game, sender.x, sender.y) != 0) return -1;
         close_give_range(game);
@@ -4286,8 +4231,8 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
     if (growth) {
         /* 21082只写首target的WORD，19恢复跨WORD的EX；重算的是caster。 */
         if (targets[0] == actor_index) apply_item_permanent_stat(&recomputed, code, power);
-        if (fd2_field_unit_combat_stats_recompute(&recomputed, known_item_stat_lookup, NULL,
-                known_status_stat_scale, NULL) != 0) return -1;
+        if (fd2_field_unit_combat_stats_recompute(&recomputed, fd2_field_unit_original_item_stats, NULL,
+                fd2_field_unit_original_status_scale, NULL) != 0) return -1;
     }
     int final_x = teleport && targets[0] == actor_index ? game->cursor_cell_x : actor->x;
     int final_y = teleport && targets[0] == actor_index ? game->cursor_cell_y : actor->y;
@@ -4809,41 +4754,8 @@ static int detail_fragment_ready(const fd2_field_game *game, size_t fragment,
  * 不把法术列表已清掉的装备内容变成其必需资源。 */
 int fd2_field_game_detail_upper_is_ready(const fd2_field_game *game,
                                     const fd2_field_unit *unit) {
-    if (!game || !game->ready || !unit) return 0;
-    const fd2_field_info_assets *assets = &game->info_assets;
-#define MAGIC_IMAGE(image, w, h) \
-    ((image).pixels && (image).width == (w) && (image).height == (h))
-    if (!assets->ready || !game->font.glyphs ||
-        game->font.glyph_count == 0 ||
-        game->font.glyph_count > game->font.size / 32u ||
-        !MAGIC_IMAGE(assets->detail_top, 223, 86) ||
-        !MAGIC_IMAGE(assets->affiliation[unit->side == 0], 29, 24))
-        return 0;
-    for (size_t i = 1; i < 18; i++) {
-        int w = i <= 4 || i == 10 || i == 11 || i >= 14 ? 3 : 16;
-        int h = i <= 9 || i == 12 ? 3 : 16;
-        if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
-    }
-    for (size_t i = 0; i < 8; i++)
-        if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
-    for (size_t i = 0; i < 3; i++) {
-        if (unit->detail_status[i] &&
-            !MAGIC_IMAGE(assets->status_icons[i], 24, 20)) return 0;
-        if (!MAGIC_IMAGE(assets->digit_overflow[i], i == 2 ? 17 : 18, 8)) return 0;
-        for (size_t digit = 0; digit < 10; digit++)
-            if (!MAGIC_IMAGE(assets->digits[i][digit], digit == 1 ? 5 : 6, 8))
-                return 0;
-    }
-    if (!MAGIC_IMAGE(assets->two_digit_overflow, 12, 8)) return 0;
-#undef MAGIC_IMAGE
-    const size_t fragments[] = {(size_t)unit->text_id + 1u,
-        (size_t)unit->race + 0x8cu, (size_t)unit->movement_profile + 0x96u};
-    for (size_t i = 0; i < 3; i++) {
-        const uint8_t *tokens;
-        size_t count;
-        if (!detail_fragment_ready(game, fragments[i], &tokens, &count)) return 0;
-    }
-    return 1;
+    return game && game->ready && fd2_field_detail_upper_is_ready(
+        &game->info_assets, &game->font, &game->ui_text, unit);
 }
 
 static int detail_resources_ready(const fd2_field_game *game,
@@ -5736,16 +5648,7 @@ int fd2_field_game_commit_ai_magic(
 }
 
 static void inventory_slot_remove(fd2_field_unit *unit, size_t slot_index) {
-    uint8_t *record = (uint8_t *)unit;
-    if (!unit || slot_index >= 8u) return;
-    for (size_t slot = slot_index; slot + 1u < 8u; slot++) {
-        record[0x0au + slot * 2u] = record[0x0cu + slot * 2u];
-        record[0x0bu + slot * 2u] = record[0x0du + slot * 2u];
-    }
-    /* field_unit_inventory_slot_remove @0x1b8e7（原sub_1B8E7）以memmove
-     * 左移 (7-slot)*2 字节，最后只写 flag byte +0x18=0x80；+0x19 的
-     * item ID 保留为不可见 stale 值，不能擅自规范化为 0xff。 */
-    record[0x18u] = 0x80u;
+    (void)fd2_field_unit_inventory_slot_remove(unit,slot_index);
 }
 
 static int commit_ai_item_internal(
@@ -6154,16 +6057,8 @@ static int ai_behavior5_target_find(const fd2_field_game *game,
 
 /* field_unit_inventory_item_append @0x1bb8c（原sub_1BB8C）：首hidden槽整flag清0。 */
 static int inventory_first_empty_add(fd2_field_unit *unit, uint8_t item_id) {
-    if (!unit) return -1;
-    uint8_t *record = (uint8_t *)unit;
-    for (size_t slot = 0; slot < 8u; slot++) {
-        uint8_t *flags = &record[0x0au + slot * 2u];
-        if ((*flags & 0x80u) == 0u) continue;
-        *flags = 0u;
-        record[0x0bu + slot * 2u] = item_id;
-        return 1;
-    }
-    return -1;
+    int result=fd2_field_unit_inventory_item_append(unit,item_id);
+    return result==0 ? -1:result; /* 保留既有Game满包-1合同。 */
 }
 
 static int ai_behavior5_complete(fd2_field_game *game,

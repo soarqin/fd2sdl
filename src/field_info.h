@@ -135,6 +135,17 @@ void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_text_entry *text,
                            const fd2_field_unit *unit,
                            const fd2_image *portrait);
+/* 17fc0的共享统计层；底图/portrait/库存仍由调用方绘制。不改单位或RNG。 */
+void fd2_field_detail_stats_draw(fd2_vga *vga,
+    const fd2_field_info_assets *assets, const fd2_font *font,
+    const fd2_text_entry *text, const fd2_field_unit *unit);
+/* 187d6的数字窄口：bank0/1/2、1..8位，signed负值归0；2/3位沿原overflow。
+ * 其它位数取格式化的前N字符。完整资源/几何预检，失败不写VGA。 */
+int fd2_field_info_number_draw(fd2_vga *vga, const fd2_field_info_assets *assets,
+    int x, int y, int32_t value, size_t count, size_t bank);
+/* 同一详情上页的纯资源门，准备Load不必建立活动Game。1就绪/0拒绝。 */
+int fd2_field_detail_upper_is_ready(const fd2_field_info_assets *assets,
+    const fd2_font *font, const fd2_text_entry *text, const fd2_field_unit *unit);
 
 /* field_unit_detail_transition_frame @0x18409：phase 11→0 打开，
  * 0→11 关闭；每帧从 background 重建三段开合画面。 */

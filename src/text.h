@@ -32,6 +32,20 @@ int  fd2_text_entry_get_fragment(const fd2_text_entry *txt, size_t fragment_idx,
 
 uint16_t fd2_text_token_at(const uint8_t *tokens, size_t token_idx);
 
+/* 15f84的有限片段展开；复用战场提示与准备服务，不解释流程或拥有热状态。
+ * -4/-5仅展开一层动态片段，-6按signed DWORD展开数字，保留-2/-3给呈现owner。
+ * SAFE_MINUS只由数字展开产生，资源流不能直接请求；使用者验证/绘制安全负号。
+ * 成功0，坏字形/递归/控制码/容量返回-1；out为临时工作结果，失败须丢弃。 */
+#define FD2_TEXT_SAFE_MINUS 0xffefu
+#define FD2_TEXT_EXPANDED_CAPACITY 128u
+typedef struct { uint32_t value; size_t new_fragment, old_fragment; } fd2_text_parameters;
+typedef struct {
+    uint16_t tokens[FD2_TEXT_EXPANDED_CAPACITY];
+    size_t count;
+} fd2_text_expanded;
+int fd2_text_expand(const fd2_text_entry *entry, size_t glyph_count,
+    const fd2_text_parameters *parameters, size_t fragment, fd2_text_expanded *out);
+
 void fd2_text_entry_close(fd2_text_entry *txt);
 
 #endif /* FD2_TEXT_H */

@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
@@ -115,6 +116,47 @@ def validate_references(tables):
     for row in tables["k_learning_records"]:
         for magic in row[1::2]:
             reference(magic, len(tables["MAGIC_RECORDS"]), "learned magic", sentinel=255)
+
+
+def preparation_views(tables):
+    """只从唯一冷源派生费用引用mask及重叠的第六项返回提示。"""
+    names = {"k_prepare_revive_coefficients", "k_prepare_promotion_records",
+             "k_prepare_special_items", "k_prepare_service_return_prefix",
+             "k_prepare_town_background_entries", "k_prepare_town_service_entries",
+             "k_prepare_deployment_roster_gate"}
+    if not names <= tables.keys():
+        raise ValueError("missing preparation projection inputs")
+    coefficients = tables["k_prepare_revive_coefficients"]
+    prefix = tables["k_prepare_service_return_prefix"]
+    if len(coefficients) != 29 or len(prefix) != 5:
+        raise ValueError("preparation projection source extent differs")
+    valid = [0] * len(coefficients)
+    for profile in ([row[1] for row in tables["k_player_base_records"]] +
+                    [row[0] for row in tables["k_prepare_promotion_records"]]):
+        if not 1 <= profile < len(valid):
+            raise ValueError("invalid preparation revive profile reference")
+        valid[profile] = 1
+    item_count = len(tables["ITEM_RECORDS"])
+    for item in tables["k_prepare_special_items"]:
+        if item != 255 and not 0 <= item < item_count:
+            raise ValueError("invalid preparation promotion item reference")
+    for row in tables["k_stage_prepare"]:
+        if not 0 <= row[0] < len(tables["k_prepare_town_background_entries"]):
+            raise ValueError("invalid preparation town type reference")
+        for item in row[3:]:
+            if item != 255 and not 0 <= item < item_count:
+                raise ValueError("invalid preparation stock item reference")
+    if len(tables["k_prepare_town_service_entries"]) != 6 or tables["k_prepare_town_service_entries"][2] != 255:
+        raise ValueError("departure selector cannot load a preparation service asset")
+    for first, last, slot, text in tables["k_prepare_deployment_roster_gate"]:
+        if first > last or not 0 <= slot < 96:
+            raise ValueError("invalid preparation deployment gate reference")
+    return [
+        {"name": "k_prepare_revive_profile_valid", "c_type": "uint8_t", "dimensions": [29],
+         "values": valid, "source": {"evidence": "derived from unique base32/promotion36 profile references; profile0 remains invalid"}},
+        {"name": "k_prepare_service_return_fragments", "c_type": "uint16_t", "dimensions": [6],
+         "values": prefix + coefficients[:1], "source": {"evidence": "5238d prefix5 plus unique52397 neighboring word; no duplicated editable bytes"}},
+    ]
 
 
 def render(document, input_digest):
@@ -487,6 +529,17 @@ def generate(root: Path, output: Path, check=False):
     receipt["projections"] = [{"name": "k_player_base_alias_records",
         "specification": "k_player_base_alias_views", "inputs": ["k_growth_records", "k_stage_prepare"],
         "dimensions": [len(aliases), 24], "sha256": hashlib.sha256(bytes(sum(aliases, []))).hexdigest()}]
+    prepared = preparation_views(tables)
+    projection = {"schema_version": SCHEMA_VERSION, "tables": prepared}
+    projection_bytes = json.dumps(projection, sort_keys=True).encode("utf-8")
+    outputs["preparation.inc"] += b"\n" + render(projection, hashlib.sha256(projection_bytes).hexdigest())
+    for table, projection_inputs in zip(prepared, (
+            ["k_player_base_records", "k_prepare_promotion_records"],
+            ["k_prepare_service_return_prefix", "k_prepare_revive_coefficients"])):
+        raw = (bytes(table["values"]) if table["c_type"] == "uint8_t" else
+               struct.pack("<6H", *table["values"]))
+        receipt["projections"].append({"name": table["name"], "inputs": projection_inputs,
+            "dimensions": table["dimensions"], "sha256": hashlib.sha256(raw).hexdigest()})
     receipt["flows"] = []
     global_ids = set()
     flow_documents = {}

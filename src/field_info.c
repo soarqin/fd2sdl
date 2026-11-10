@@ -216,6 +216,10 @@ int fd2_field_info_assets_open(fd2_field_info_assets *assets,
     return fd2_field_info_assets_open_mem(assets, data, size);
 }
 
+static int image_has_size(const fd2_image *image, int width, int height) {
+    return image->pixels && image->width == width && image->height == height;
+}
+
 static void draw_digits(fd2_vga *vga,
                         const fd2_field_info_assets *assets,
                         int x, int y, int value, size_t count,
@@ -239,6 +243,28 @@ static void draw_digits(fd2_vga *vga,
         fd2_map_sprite_blit(vga, &assets->digits[bank][digit], x, y, 0);
         x += 6;
     }
+}
+
+int fd2_field_info_number_draw(fd2_vga *vga, const fd2_field_info_assets *assets,
+        int x, int y, int32_t value, size_t count, size_t bank) {
+    if (!vga || !assets || !assets->ready || bank > 2u || !count || count > 8u ||
+        x < 0 || y < 0 || x > VGA_W - (int)count * 6 || y > VGA_H - 8) return -1;
+    for (size_t i = 0; i < 10; i++)
+        if (!image_has_size(&assets->digits[bank][i], i == 1u ? 5 : 6, 8)) return -1;
+    if (count == 3u && value > 999) {
+        const fd2_image *overflow = &assets->digit_overflow[bank];
+        if (!image_has_size(overflow, bank == 2u ? 17 : 18, 8)) return -1;
+        fd2_map_sprite_blit(vga, overflow, x, y, 0); return 0;
+    }
+    if (count == 2u && value > 99) {
+        if (!image_has_size(&assets->two_digit_overflow, 12, 8)) return -1;
+        fd2_map_sprite_blit(vga, &assets->two_digit_overflow, x, y, 0); return 0;
+    }
+    char number[11];
+    (void)snprintf(number, sizeof(number), "%0*u", (int)count, value < 0 ? 0u : (unsigned)value);
+    for (size_t i = 0; i < count; i++)
+        fd2_map_sprite_blit(vga, &assets->digits[bank][number[i] - '0'], x + (int)i * 6, y, 0);
+    return 0;
 }
 
 static void draw_modifier(fd2_vga *vga,
@@ -291,9 +317,7 @@ static void draw_fragment(fd2_vga *vga, const fd2_font *font,
     }
 }
 
-static int image_has_size(const fd2_image *image, int width, int height) {
-    return image->pixels && image->width == width && image->height == height;
-}
+
 
 static int list_name(const fd2_text_entry *text, const fd2_font *font,
                        size_t fragment, size_t maximum_glyphs,
@@ -766,26 +790,51 @@ static void draw_detail_portrait_border(
 #undef BORDER_TILE
 }
 
-void fd2_field_detail_draw(fd2_vga *vga,
-                           const fd2_field_info_assets *assets,
-                           const fd2_font *font,
-                           const fd2_text_entry *text,
-                           const fd2_field_unit *unit,
-                           const fd2_image *portrait) {
-    if (!vga || !assets || !assets->ready || !font || !text || !unit)
-        return;
-    item_list_row rows[8];
-    size_t count;
-    /* F2 owner先预检完整详情；MAGIC owner仅需上页，并将完整覆盖下页。
-     * 因而坏库存不能阻止本void入口绘制上页；下页只在准备成功后绘制。
-     * 需要库存错误返回／整VGA原子性的调用者使用item_list_draw。 */
-    int items_ready = prepare_item_list(assets, font, text, unit, -1, rows, &count) == 0;
-    /* field_unit_detail_draw @0x17eef：先用通用 UI 小块拼 portrait
-     * 边框，再绘制 portrait (8,10)、属性框 (92,7) 与装备框 (5,94)。 */
-    draw_detail_portrait_border(vga, assets);
-    if (portrait) fd2_map_sprite_blit(vga, portrait, 8, 10, -1);
-    fd2_map_sprite_blit(vga, &assets->detail_top, 92, 7, -1);
+/* 准备浏览与活动详情共用17fc0的只读上页资源门；无需伪造ready Game。 */
+int fd2_field_detail_upper_is_ready(const fd2_field_info_assets *assets,
+        const fd2_font *font, const fd2_text_entry *text, const fd2_field_unit *unit) {
+    if (!assets || !font || !text || !unit) return 0;
+#define MAGIC_IMAGE(image, w, h) \
+    ((image).pixels && (image).width == (w) && (image).height == (h))
+    if (!assets->ready || !font->glyphs ||
+        font->glyph_count == 0 ||
+        font->glyph_count > font->size / 32u ||
+        !MAGIC_IMAGE(assets->detail_top, 223, 86) ||
+        !MAGIC_IMAGE(assets->affiliation[unit->side == 0], 29, 24))
+        return 0;
+    for (size_t i = 1; i < 18; i++) {
+        int w = i <= 4 || i == 10 || i == 11 || i >= 14 ? 3 : 16;
+        int h = i <= 9 || i == 12 ? 3 : 16;
+        if (!MAGIC_IMAGE(assets->detail_border[i], w, h)) return 0;
+    }
+    for (size_t i = 0; i < 8; i++)
+        if (!MAGIC_IMAGE(assets->bars[i], 1, 5)) return 0;
+    for (size_t i = 0; i < 3; i++) {
+        if (unit->detail_status[i] &&
+            !MAGIC_IMAGE(assets->status_icons[i], 24, 20)) return 0;
+        if (!MAGIC_IMAGE(assets->digit_overflow[i], i == 2 ? 17 : 18, 8)) return 0;
+        for (size_t digit = 0; digit < 10; digit++)
+            if (!MAGIC_IMAGE(assets->digits[i][digit], digit == 1 ? 5 : 6, 8))
+                return 0;
+    }
+    if (!MAGIC_IMAGE(assets->two_digit_overflow, 12, 8)) return 0;
+#undef MAGIC_IMAGE
+    const size_t fragments[] = {(size_t)unit->text_id + 1u,
+        (size_t)unit->race + 0x8cu, (size_t)unit->movement_profile + 0x96u};
+    for (size_t i = 0; i < 3; i++) {
+        const uint8_t *tokens;
+        size_t count;
+        if (list_name(text, font, fragments[i], SIZE_MAX, &tokens, &count) != 0) return 0;
+    }
+    return 1;
+}
 
+/* field_unit_detail_stats_draw @0x17fc0（原登记同名）；准备选阵/预览借同一
+ * 统计绘制，不带portrait/底页/库存，也不写单位或消息owner。 */
+void fd2_field_detail_stats_draw(fd2_vga *vga,
+        const fd2_field_info_assets *assets, const fd2_font *font,
+        const fd2_text_entry *text, const fd2_field_unit *unit) {
+    if (!vga || !assets || !assets->ready || !font || !text || !unit) return;
     const uint8_t *record = (const uint8_t *)unit;
     draw_fragment(vga, font, text, (size_t)unit->text_id + 1u, 99, 13);
     draw_fragment(vga, font, text, (size_t)record[0x1f] + 0x8cu, 211, 13);
@@ -829,6 +878,30 @@ void fd2_field_detail_draw(fd2_vga *vga,
     draw_detail_number_bank(vga, assets, 157, 79,
                             signed_detail_word(unit->defense), 3,
                             record[0x23] == 0 ? 1u : 2u);
+
+}
+
+void fd2_field_detail_draw(fd2_vga *vga,
+                           const fd2_field_info_assets *assets,
+                           const fd2_font *font,
+                           const fd2_text_entry *text,
+                           const fd2_field_unit *unit,
+                           const fd2_image *portrait) {
+    if (!vga || !assets || !assets->ready || !font || !text || !unit)
+        return;
+    item_list_row rows[8];
+    size_t count;
+    /* F2 owner先预检完整详情；MAGIC owner仅需上页，并将完整覆盖下页。
+     * 因而坏库存不能阻止本void入口绘制上页；下页只在准备成功后绘制。
+     * 需要库存错误返回／整VGA原子性的调用者使用item_list_draw。 */
+    int items_ready = prepare_item_list(assets, font, text, unit, -1, rows, &count) == 0;
+    /* field_unit_detail_draw @0x17eef：先用通用 UI 小块拼 portrait
+     * 边框，再绘制 portrait (8,10)、属性框 (92,7) 与装备框 (5,94)。 */
+    draw_detail_portrait_border(vga, assets);
+    if (portrait) fd2_map_sprite_blit(vga, portrait, 8, 10, -1);
+    fd2_map_sprite_blit(vga, &assets->detail_top, 92, 7, -1);
+
+    fd2_field_detail_stats_draw(vga, assets, font, text, unit);
 
     if (items_ready) draw_item_list(vga, assets, font, rows, count, -1);
 }

@@ -16,6 +16,8 @@
 
 #include "save.h"
 #include "portrait.h"
+#include "field_prepare_item.h"
+#include "static_data/preparation.inc"
 
 static int stage_snapshot_supported(size_t stage, size_t count) {
     fd2_field_stage_capability capability;
@@ -478,19 +480,47 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
     return fd2_save_manual_state_save(path, slot_index, &state);
 }
 
+/* 准备页只借全局单位浏览资源，不用未支持战场作可关闭的假session，
+ * 也不为打开26行town/NoTown而扩大stage.capability/active快照支持门。 */
+typedef struct {
+    fd2_archive dato_archive, fdtxt_archive;
+    fd2_text_entry ui_text;
+    fd2_font font;
+    fd2_map_sprite_bank sprites;
+    fd2_field_info_assets info_assets;
+} manual_resources;
+
+static void manual_resources_close(manual_resources *resources) {
+    fd2_field_info_assets_close(&resources->info_assets);
+    fd2_map_sprite_bank_close(&resources->sprites);
+    fd2_text_entry_close(&resources->ui_text);
+    fd2_archive_close(&resources->fdtxt_archive);
+    fd2_archive_close(&resources->dato_archive);
+    memset(resources, 0, sizeof(*resources));
+}
+
+static int manual_resources_open(manual_resources *resources,const fd2_archive *fdother) {
+    if (fd2_archive_open(&resources->dato_archive,"original_game/DATO.DAT")!=0 ||
+        fd2_archive_open(&resources->fdtxt_archive,"original_game/FDTXT.DAT")!=0 ||
+        fd2_text_entry_open_entry(&resources->ui_text,&resources->fdtxt_archive,0)!=0 ||
+        fd2_font_open_fdother(&resources->font,fdother,4)!=0 ||
+        fd2_map_sprite_bank_open(&resources->sprites,"original_game/FDICON.B24")!=0 ||
+        fd2_field_info_assets_open(&resources->info_assets,fdother)!=0) return -1;
+    const uint8_t *palette;size_t size;
+    if (fd2_archive_get(fdother,0,&palette,&size)!=0 || size<768) return -1;
+    return 0;
+}
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
     /* field_manual_slot_load @0x2986f恢复准备表，不运行1088d、不把slot
      * 当active。codec可保存32人；这里不添加出阵选择器的16人容量门。 */
-    fd2_field_stage_capability capability;
-    if (!state || fd2_field_stage_capability_get(state->stage_id, &capability) != 0 ||
-        !capability.preparation_slots || state->unit_count > FD2_SAVE_MAX_UNITS ||
-        !fd2_field_stage_prepare_record_get(state->stage_id)) return -1;
+    if (!state || state->unit_count>FD2_SAVE_MAX_UNITS || state->stage_id>=sizeof(k_prepare_no_town) ||
+        (!k_prepare_no_town[state->stage_id] && !fd2_field_stage_prepare_record_get(state->stage_id))) return -1;
     fd2_archive fdother = {0};
-    fd2_field_game *resources = calloc(1, sizeof(*resources));
+    manual_resources *resources = calloc(1, sizeof(*resources));
     if (!resources) return -1;
     int result = fd2_archive_open(&fdother, "original_game/FDOTHER.DAT");
     if (result == 0)
-        result = fd2_field_game_open_resources(resources, &fdother, state->stage_id);
+        result = manual_resources_open(resources,&fdother);
     fd2_vga *checked = result == 0 && state->unit_count ? calloc(1, sizeof(*checked)) : NULL;
     if (result == 0 && state->unit_count && !checked) result = -1;
     for (size_t i = 0; result == 0 && i < state->unit_count; i++) {
@@ -498,10 +528,11 @@ int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
         fd2_image portrait = {0};
         memcpy(&unit, state->unit_area + i * sizeof(unit), sizeof(unit));
         /* 准备页可浏览全部持久成员（不套战场hidden/F1过滤），先保证
-         * 资源组和1145a装备派生可用；预检只在80B副本上执行。 */
+         * 全局资源组和服务1b750派生可用；预检只在80B副本上执行。 */
         if ((size_t)unit.unit_id >= resources->sprites.frame_count / 12u ||
-            fd2_field_unit_persistent_stats_recompute(&unit) != 0 ||
-            !fd2_field_game_detail_upper_is_ready(resources, &unit) ||
+            fd2_field_prepare_item_recompute(&unit) != 0 ||
+            !fd2_field_detail_upper_is_ready(&resources->info_assets, &resources->font,
+                &resources->ui_text, &unit) ||
             fd2_portrait_decode_frame(&portrait, &resources->dato_archive, unit.unit_id, 0) != 0 ||
             portrait.width != 80 || portrait.height != 80 ||
             fd2_field_item_list_draw(checked, &resources->info_assets, &resources->font,
@@ -513,7 +544,7 @@ int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
         fd2_image_free(&portrait);
     }
     free(checked);
-    fd2_field_game_close(resources);
+    manual_resources_close(resources);
     fd2_archive_close(&fdother);
     free(resources);
     return result;

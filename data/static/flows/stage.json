@@ -18,7 +18,7 @@
     ]
   },
   "operations": {
-    "stage_setup": {"args": [{"name": "stage", "min": 1, "max": 32}, {"name": "slots", "min": 1, "max": 16}, {"name": "final_count", "min": 1, "max": 96}, {"name": "unknown01", "min": 0, "max": 255}]},
+    "stage_setup": {"args": [{"name": "stage", "min": 1, "max": 32}, {"name": "slots", "min": 1, "max": 20}, {"name": "final_count", "min": 1, "max": 96}, {"name": "unknown01", "min": 0, "max": 255}]},
     "pan": {"args": [{"name": "x", "min": 0, "max": 255}, {"name": "y", "min": 0, "max": 255}]},
     "move": {"args": [{"name": "script_id", "min": 0, "max": 255}, {"name": "fade", "min": 0, "max": 1}]},
     "text": {"args": [{"name": "fragment", "min": 0, "max": 65535}]},
@@ -42,7 +42,7 @@
     "result_side_present": {"args": [{"name": "side", "min": 0, "max": 2}, {"name": "require_hp", "min": 0, "max": 1}]},
     "result_return": {"args": [{"name": "result", "min": 0, "max": 2}]},
     "result_all_hidden": {"args": [{"name": "first", "min": 0, "max": 95}, {"name": "last", "min": 0, "max": 95}]},
-    "stage_capability": {"args": [{"name": "battle_enabled", "min": 0, "max": 1}, {"name": "min_active_count", "min": 0, "max": 96}, {"name": "exact_active_count", "min": 0, "max": 96}, {"name": "preparation_slots", "min": 0, "max": 16}]},
+    "stage_capability": {"args": [{"name": "battle_enabled", "min": 0, "max": 1}, {"name": "min_active_count", "min": 0, "max": 96}, {"name": "exact_active_count", "min": 0, "max": 96}, {"name": "preparation_slots", "min": 0, "max": 20}]},
     "inherit_cursor": {"args": []},
     "commit_view": {"args": []},
     "preflight_before_music": {"args": []},

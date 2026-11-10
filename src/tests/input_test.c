@@ -299,6 +299,61 @@ static int test_detail_any_ordinary_key(void) {
     return 0;
 }
 
+static int test_preparation_function_scan(void) {
+    const struct { SDL_Scancode modifier,key;uint8_t expected; } cases[]={
+        {SDL_SCANCODE_LSHIFT,SDL_SCANCODE_F1,84},{SDL_SCANCODE_RSHIFT,SDL_SCANCODE_F10,93},
+        {SDL_SCANCODE_LCTRL,SDL_SCANCODE_F2,95},{SDL_SCANCODE_RCTRL,SDL_SCANCODE_F10,103},
+        {SDL_SCANCODE_LALT,SDL_SCANCODE_F3,106},{SDL_SCANCODE_RALT,SDL_SCANCODE_F9,112},
+        {SDL_SCANCODE_LSHIFT,SDL_SCANCODE_F11,135},{SDL_SCANCODE_LALT,SDL_SCANCODE_F12,140},
+        {SDL_SCANCODE_UNKNOWN,SDL_SCANCODE_F1,59},{SDL_SCANCODE_LSHIFT,SDL_SCANCODE_A,0}};
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        fd2_input input;fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input,cases[i].modifier,1);
+        fd2_input_set_test_key_state(&input,cases[i].key,1);
+        fd2_input_begin_test_frame(&input,0);fd2_input_event event;
+        CHECK(fd2_input_take_key(&input,&event));
+        CHECK(event.source==cases[i].key && fd2_input_function_scan(&event)==cases[i].expected);
+        CHECK(!fd2_input_take_key(&input,&event)); /* modifier不成为独立游戏输入。 */
+    }
+    CHECK(fd2_input_function_scan(NULL)==0);
+    return 0;
+}
+
+static int test_function_down_metadata_expires_without_queuing_keys(void) {
+    CHECK(SDL_Init(SDL_INIT_EVENTS));
+    fd2_input input;fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);
+    SDL_Event event={0};event.type=SDL_EVENT_KEY_DOWN;event.key.scancode=SDL_SCANCODE_F1;
+    event.key.mod=SDL_KMOD_SHIFT;CHECK(SDL_PushEvent(&event));
+    /* SDL Windows修正后的键态已经无Shift；DOWN本身仍携原修饰位。 */
+    fd2_input_poll_host_events(&input);fd2_input_begin_test_frame(&input,0);
+    fd2_input_event key;CHECK(fd2_input_take_key(&input,&key) && fd2_input_function_scan(&key)==84);
+    fd2_input_begin_test_frame(&input,500);
+    CHECK(fd2_input_take_key(&input,&key) && key.repeat && fd2_input_function_scan(&key)==59);
+
+    fd2_input_init(&input);fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);
+    CHECK(SDL_PushEvent(&event));fd2_input_poll_host_events(&input);
+    fd2_input_begin_test_frame(&input,0); /* 不读首帧，下一帧不得补发。 */
+    fd2_input_begin_test_frame(&input,1);CHECK(!fd2_input_take_key(&input,&key));
+    fd2_input_begin_test_frame(&input,500);
+    CHECK(fd2_input_take_key(&input,&key) && fd2_input_function_scan(&key)==59);
+
+    fd2_input_init(&input);fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);
+    CHECK(SDL_PushEvent(&event));event.type=SDL_EVENT_KEY_UP;CHECK(SDL_PushEvent(&event));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,0);
+    fd2_input_poll_host_events(&input);fd2_input_begin_test_frame(&input,0);
+    CHECK(!fd2_input_take_key(&input,&key));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);fd2_input_begin_test_frame(&input,1);
+    CHECK(fd2_input_take_key(&input,&key) && fd2_input_function_scan(&key)==59);
+
+    fd2_input_init(&input);fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);
+    event.type=SDL_EVENT_KEY_DOWN;CHECK(SDL_PushEvent(&event));
+    event.type=SDL_EVENT_WINDOW_FOCUS_LOST;CHECK(SDL_PushEvent(&event));
+    fd2_input_poll_host_events(&input);fd2_input_begin_test_frame(&input,0);
+    CHECK(fd2_input_take_key(&input,&key) && fd2_input_function_scan(&key)==59);
+    SDL_Quit();return 0;
+}
+
 int main(void) {
     if (test_context_mappings() != 0 ||
         test_movement_cancel_scancodes() != 0 ||
@@ -311,6 +366,8 @@ int main(void) {
         test_release_repress_is_new_press() != 0 ||
         test_observe_consumes_current_frame_only() != 0 ||
         test_modifier_not_game_key() != 0 ||
+        test_preparation_function_scan() != 0 ||
+        test_function_down_metadata_expires_without_queuing_keys() != 0 ||
         test_quit_request() != 0)
         return 1;
     puts("input_test: ok");

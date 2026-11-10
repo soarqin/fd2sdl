@@ -144,6 +144,28 @@ int main(void) {
     CHECK(tap_native_wave_record(&target) == -1 && down_count == 2 && up_count == 2);
     CHECK(up_keys[0] == 'W' && up_keys[1] == VK_F11);
 
+    /* 新modifier组合直接走同一真实driver函数；这里只替Win32调用，不发键。
+     * 特别核实DOWN顺序和逆序UP，以及仅modifier发出后的失败释放。 */
+    const char *chord_names[] = {"SHIFT_F1", "CTRL_F2", "ALT_F3"};
+    const WORD modifier_keys[] = {VK_SHIFT, VK_CONTROL, VK_MENU};
+    for (unsigned i=0;i<3u;i++) {
+        fd2_driver_key_chord chord;
+        CHECK(fd2_driver_key_chord_parse(chord_names[i], &chord) == 0);
+        const WORD symbols[] = {chord.modifier_vk, chord.function_vk};
+        reset();
+        CHECK(tap_keys(&target, symbols, 2u, 250000u, 0, chord.bios_scan_expected) == 0);
+        CHECK(down_count == 2 && up_count == 2 && set_calls == 1 && closed == 1);
+        CHECK(down_keys[0] == modifier_keys[i] && down_keys[1] == VK_F1+i);
+        CHECK(up_keys[0] == VK_F1+i && up_keys[1] == modifier_keys[i]);
+        CHECK(foreground != test_window && sleep150 == 1 && sleep250 == 1);
+        reset(); focus_on_down = 1;
+        CHECK(tap_keys(&target, symbols, 2u, 250000u, 0, chord.bios_scan_expected) == -1);
+        CHECK(down_count == 1 && up_count == 1 && down_keys[0] == modifier_keys[i] && up_keys[0] == modifier_keys[i]);
+        reset(); fake_owner_pid = 99;
+        CHECK(tap_keys(&target, symbols, 2u, 250000u, 0, chord.bios_scan_expected) == -1);
+        CHECK(down_count == 0 && up_count == 0 && closed == 1);
+    }
+
     reset(); fail_up = 1;
     CHECK(tap(&target, VK_RETURN, 250000) == -1 && down_count == 1 && up_count == 0);
     reset(); exited = 1;

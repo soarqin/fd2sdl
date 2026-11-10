@@ -7,8 +7,43 @@
  */
 
 #include "field_unit_stats.h"
+#include "field_item.h"
 
+#include <limits.h>
 #include <string.h>
+
+int fd2_field_unit_original_item_stats(void *userdata, uint8_t item_id,
+                                      fd2_field_item_stat_effect *effect) {
+    (void)userdata;
+    if (!effect) return -1;
+    const uint8_t *record = fd2_field_item_record_get(item_id);
+    if (!record) return -1;
+    effect->attack = fd2_field_item_i16(record, 1);
+    effect->accuracy = fd2_field_item_i16(record, 3);
+    effect->defense = fd2_field_item_i16(record, 5);
+    effect->evasion = fd2_field_item_i16(record, 7);
+    return 0;
+}
+
+int fd2_field_unit_original_status_scale(void *userdata,
+                                        fd2_field_unit_scaled_stat stat,
+                                        int32_t value, int32_t *scaled_value) {
+    (void)userdata;
+    (void)stat;
+    if (!scaled_value) return -1;
+    /* field_unit_combat_stats_recompute @0x1b750（原登记同名）的两段
+     * 1b7ef/1b80a：原CW127f乘binary64 1.15后，__CHP临时向0截断。
+     * 原码全域[-65536,65535]已对照；volatile固定乘积53bit舍入，勿用115/100。 */
+    volatile double product = (double)value * 1.15;
+    if (product < INT32_MIN || product > INT32_MAX) return -1;
+    *scaled_value = (int32_t)product;
+    return 0;
+}
+
+int fd2_field_unit_combat_stats_recompute_original(fd2_field_unit *unit) {
+    return fd2_field_unit_combat_stats_recompute(unit,
+        fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL);
+}
 
 static int16_t read_i16(const uint8_t *record, size_t offset) {
     int16_t value;

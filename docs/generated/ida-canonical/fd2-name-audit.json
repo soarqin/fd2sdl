@@ -8490,7 +8490,7 @@
      "status": "interior",
      "func_start": 167101,
      "func_end": 167678,
-     "ida_name": "sub_28CBD",
+     "ida_name": "field_shop_sell_execute",
      "offset_in_func": 56,
      "is_lib": false
     },
@@ -8535,7 +8535,7 @@
      "status": "interior",
      "func_start": 167101,
      "func_end": 167678,
-     "ida_name": "sub_28CBD",
+     "ida_name": "field_shop_sell_execute",
      "offset_in_func": 87,
      "is_lib": false
     },

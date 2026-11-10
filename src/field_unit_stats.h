@@ -27,7 +27,7 @@ typedef int (*fd2_field_item_stat_lookup_fn)(void *userdata,
                                              fd2_field_item_stat_effect *effect);
 
 /* record[0x22]/[0x23] 非零时，原版会对攻击/防御执行 x87 比例修正。
- * 该比例和舍入边界尚未完整提取，由上层注入已确认实现。 */
+ * 允许注入独立策略；原已证策略由下方original adapter提供。 */
 typedef int (*fd2_field_unit_stat_scale_fn)(void *userdata,
                                             fd2_field_unit_scaled_stat stat,
                                             int32_t value,
@@ -49,5 +49,13 @@ int fd2_field_unit_combat_stats_recompute(
     void *lookup_userdata,
     fd2_field_unit_stat_scale_fn scale,
     void *scale_userdata);
+
+/* 1b750原始23B物品派生和1b7ef/1b80a x87策略：共享Game既有实现，
+ * 不更换owner，不等同不读22..24的1145a。callback ABI供原增量执行器借用。 */
+int fd2_field_unit_original_item_stats(void *userdata, uint8_t item_id,
+    fd2_field_item_stat_effect *effect);
+int fd2_field_unit_original_status_scale(void *userdata,
+    fd2_field_unit_scaled_stat stat, int32_t value, int32_t *scaled_value);
+int fd2_field_unit_combat_stats_recompute_original(fd2_field_unit *unit);
 
 #endif /* FD2_FIELD_UNIT_STATS_H */

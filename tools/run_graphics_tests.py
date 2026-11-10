@@ -36,6 +36,24 @@ def hashes(directory):
             for p in sorted(directory.rglob("*")) if p.is_file()}
 
 
+def options_resource_state(frame, oracle, values, selected=0):
+    """1728c四项均已正式开放；原raw零/非零决定相邻ID，不接受disabled替代。"""
+    from run_original_battle_menu import MENU_OFFSETS
+    if len(values) != 4 or any(type(value) is not int or not 0 <= value <= 255 for value in values):
+        raise ValueError("设置raw值必须是四个原byte")
+    if type(selected) is not int or not 0 <= selected < 4:
+        raise ValueError("设置选择索引无效")
+    commands = (18 + (values[0] == 0), 20 + (values[1] == 0),
+                22 + (values[2] != 0), 24 + (values[3] == 0))
+    matches = []
+    for index, command in enumerate(commands):
+        at = tuple(a + b for a, b in zip(oracle.focus, MENU_OFFSETS[index]))
+        found = oracle.choices(frame, (command * 3 + (index == selected),), at)
+        if not found: return None
+        matches.append(found)
+    return {"kind": "options", "selected": selected, "raw_values": list(values), "matches": matches}
+
+
 def decode_save(path):
     """仅检查已登记的 XOR/checksum 与活动快照；不构造原版状态。"""
     data = bytearray(path.read_bytes())
@@ -569,20 +587,7 @@ class Suite:
             capture.key("ENTER")
 
             def options(frame, values):
-                matches = []
-                for index, command in enumerate((18 + (not values[0]), 20 + (not values[1]),
-                                                  22 + values[2], 24 + (not values[3]))):
-                    at = tuple(a + b for a, b in zip(oracle.focus, MENU_OFFSETS[index]))
-                    if index >= 2:  # 原disabled帧全透明；两项仍不可选，不冒充已开放。
-                        if oracle.choices(frame, (command * 3, command * 3 + 1), at):
-                            return None
-                        matches.append({"item": index, "disabled_transparent_resource": True})
-                    else:
-                        found = oracle.choices(frame, (command * 3 + (index == 0),), at)
-                        if not found:
-                            return None
-                        matches.append(found)
-                return {"kind": "options", "selected": 0, "matches": matches}
+                return options_resource_state(frame, oracle, values, 0)
 
             values = list(meta[16:18]) + list(meta[14:16])
             checkpoint("options-before-toggle", lambda frame: options(frame, values))

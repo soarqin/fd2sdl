@@ -21,12 +21,13 @@ typedef enum {
 } fd2_field_play_result;
 
 /* 22ef6→11506→26152的应用期交接。准备页独占完整persistent表；战场
- * 运行时该副本休眠，active仍只归game。三个运行期值不进入原版SAV。 */
+ * 运行时该副本休眠，active仍只归game；RNG、贡献与动态文字值不进原版SAV。 */
 typedef struct {
     fd2_save_manual_state preparation;
     fd2_field_rng rng;
     uint32_t experience_value;
     uint32_t message_number;
+    uint32_t message_new_fragment, message_old_fragment;
     fd2_bgm_player *bgm; /* 借App，关闭战场/准备页都不销毁播放器。 */
     int has_preparation;
     int initialized;

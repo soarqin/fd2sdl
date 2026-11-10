@@ -35,6 +35,8 @@ typedef struct {
     fd2_image bars[8];       /* 首cap23/26保索引0/1；其后24/25/27/28/29/30，均1×5 */
     fd2_image detail_icons[9]; /* frame 59..67 */
     fd2_image overview[4]; /* frame 133..136：回合、条件、人数、资源底板 */
+    fd2_image round_banner[9]; /* frame83..91：10010/1a30b同一LMI横幅 */
+    fd2_image phase_labels[3]; /* frame80/81/82：player/phase/enemy */
     int ready;
 } fd2_field_info_assets;
 

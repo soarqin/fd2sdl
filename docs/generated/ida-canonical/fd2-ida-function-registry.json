@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 347,
+ "canonical_functions": 372,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -388,6 +388,29 @@
    "historical_names": [
     "field_controller_input"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 72876,
+   "off": 7340,
+   "ida_name": "sub_11CAC",
+   "size": 148,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "保留中性sub_11CAC。11cbc cmp原实参0，11cc1 JNZ跳过11cc3 call4e31c；故raw0推进water，非0跳过。参数不是普通显示51A83开关，也不是刷新等待；其余1297d、11eee、122dc、127a9、1acf3及VGA投影仍按原序。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
+    }
+   ],
+   "end_va": 73024,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -1232,6 +1255,14 @@
      "source_line": 214
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "pan每个镜头格都调用11cac(0)，包括两方向移动；共享工作页和water随该原caller刷新，不把所有Scene render统一套skip-water，也不在纯delay虚构刷新。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
+    }
+   ],
    "end_va": 79466,
    "is_lib": false,
    "prototype": "",
@@ -1260,6 +1291,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 215
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "脚本相位的11cac实参按当前53AFB选择：0或64时传0，非0非64传1；渐暗可在同脚本内到64而切回0。高位wait及上抬恢复分支传0；1398a脚本尾固定传1。尾仍重画一次但跳water，不能把它当普通相位刷新或省掉。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
     }
    ],
    "end_va": 80284,
@@ -1932,6 +1971,12 @@
      "was": "战斗返回页统一强制普通cursor，未区分物理与法术caller显示上下文",
      "now": "物理caller在攻击目标聚焦前设置51A83=1，2e2b0正常尾11cac(1)因而保留普通cursor。玩家18d8c亦沿18890的1进入，不能为修法术内部多余cursor而全局删除物理返回cursor。",
      "why": "完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。"
+    },
+    {
+     "target": "evidence",
+     "was": "G4共享页／刷新caller顺序待逐条闭合",
+     "now": "完整1548e..1567e原指令中SHORT15616与FULL15624共同汇15627：1562f调用1b6b7收集descriptor，1563b以实参0调用11cac，15643调用1db65清死亡，15652调用1aa1d，1565c再次以0调用11cac，最后1566a调用1e292奖励。两次外围水色刷新适用于全部AI物理，不仅SHORT；它们不代替2e2b0 FULL演出内部的raw1尾。空descriptor count0同样经过1aa1d返回后的第二次刷新。",
+     "why": "1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。"
     }
    ],
    "end_va": 87678,
@@ -3343,6 +3388,52 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 104421,
+   "off": 38885,
+   "ida_name": "field_choice_buttons_close",
+   "size": 366,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_197E5",
+     "now": "field_choice_buttons_close",
+     "why": "主366B及17e03..17e0b共享8B epilogue，12个原caller及FDOTHER5按钮：53a51>1才地图重画，保bottom页桥、四步收回与310x86恢复；不改变原owner/ABI。"
+    }
+   ],
+   "end_va": 104787,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 104787,
+   "off": 39251,
+   "ida_name": "field_choice_buttons_wait",
+   "size": 1188,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_19953",
+     "now": "field_choice_buttons_wait",
+     "why": "主1188B及13fcc..13fd4共享8B返回尾、12个原caller、16f55/1aa1d/准备服务链：默认selector0、snapshot/四步展开、先查键后tick，blink RNG+2/+10、共享phase/tick，确认/取消清phase；不推类型。"
+    }
+   ],
+   "end_va": 105975,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 105975,
    "off": 40439,
    "ida_name": "field_secondary_menu_execute",
@@ -4563,6 +4654,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 117447,
+   "off": 51911,
+   "ida_name": "sub_1CAC7",
+   "size": 205,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "伪C把第二次actor绘制误分成另外一组count/list及寄存器实参",
+     "now": "保留中性sub_1CAC7。完整205B在LMI74与75两次调用1cb94时读取同一组原栈槽：1cad5/1cad9与1cafc/1cb00均为ff74241c，依次传page/count/list/74或75。本函数不读取EBP/EDI的入值；2111a及213b7各显式push四个栈参数，不据伪C保存六参或寄存器ABI。",
+     "why": "G1 Domain完整chunk/xref严格原镜像等同，函数SHA1210d0b96be5275f3c893984bfe3d908a20c309b62187c2d352f76b036654741；G4 effect-page-owner-source.json的count0/1/16/96四组原Unicorn调用捕获，两次callee同count/list，EBP/EDI poisoned入值保持。替身仅capture绘制/等待/资源，不证明图像或玩法native，不改名/类型/边界。"
+    }
+   ],
+   "end_va": 117652,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 117652,
    "off": 52116,
    "ida_name": "map_scene_render_actors",
@@ -4580,6 +4694,14 @@
      "resolution": "chkstk-body",
      "legacy_body_va": 117662,
      "source_line": 148
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "据调用者伪C寄存器变量推断第二次角色绘制使用其他队伍",
+     "now": "保留map_scene_render_actors。自身prologue从栈加载count/list；1cac7以同一count/list依次传LMI74/75，不能把伪C的EBP/EDI变量当另一组队伍或另一个原owner。相同actor列表的两种绘制由真实page调用者安排。",
+     "why": "完整387B Domain读集及strict LE SHA7bf45203e80d5f3002b3c2a562aca93bbd0f52eefbd04c194a09b40464f239c6；1cac7两处push/call和2111a/213b7原xref/四栈参一致；G4四组局部CPU捕获仅核调用与栈，绘制被capture，未证明完整像素或正式触发。不改原名/持久类型或函数边界。"
     }
    ],
    "end_va": 118039,
@@ -5341,6 +5463,75 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 127436,
+   "off": 61900,
+   "ida_name": "field_phase_title_enter",
+   "size": 318,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_1F1CC",
+     "now": "field_phase_title_enter",
+     "why": "完整318B/1a30b唯一caller与FDOTHER5标签80..82：7次滑入后保VGA到53a49 raw prefix；factor1..16马赛克、DAC16..255减暗0..15、每帧1tick，末BIOS清键，不推ABI。"
+    }
+   ],
+   "end_va": 127754,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 127754,
+   "off": 62218,
+   "ida_name": "field_phase_title_leave",
+   "size": 291,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_1F30A",
+     "now": "field_phase_title_leave",
+     "why": "完整291B/1a30b唯一caller：factor17..1与DAC暗度16..0逐tick，11eee/127a9重画原页，5次滑出；不调用1297d、不推ABI。"
+    }
+   ],
+   "end_va": 128045,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 128045,
+   "off": 62509,
+   "ida_name": "field_phase_title_slide_frame",
+   "size": 214,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_1F42D",
+     "now": "field_phase_title_slide_frame",
+     "why": "主214B/1f1cc和1f30a callers及184ba共享6B epilogue：双标签在456stride页(85-offset,82)/(165+offset,82)，投影312x192、1tick后恢复两矩形。不把尾跳转误为新ABI。"
+    }
+   ],
+   "end_va": 128259,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 128293,
    "off": 62757,
    "ida_name": "palette_fade_in_light",
@@ -5752,6 +5943,29 @@
     }
    ],
    "end_va": 132570,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 132570,
+   "off": 67034,
+   "ida_name": "sub_205DA",
+   "size": 163,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "保留中性sub_205DA。独立entry完整边界205da..2067d，初始化后首次11cac明确传1，该刷新跳water。局部原CPU验证只执行到此次调用，constructor/memset为替身，不扩大为完整入场业务或像素验收。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
+    }
+   ],
+   "end_va": 132733,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -8135,6 +8349,12 @@
      "was": "战斗返回页统一强制普通cursor，未区分物理与法术caller显示上下文",
      "now": "正常尾部恢复地图时调用11cac(1)，该参数只控制刷新等待，不把51A83强制改1。玩家1cff0及AI15311均以51A83=0进入，故FULL法术返回页保持无cursor；物理2e2b0的显示上下文不同。",
      "why": "完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "纠正前批‘11cac参数只控制刷新等待’：FULL法术正常尾确实调用11cac(1)，原1跳water，原0才调用4e31c。该参数不写51A83；玩家1cff0与AI15311以mode0进入，因此正常返回仍沿caller无cursor环境。物理和其它caller须分别按源值接水色，不能通过强制mode1或每present更新water替代。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
     }
    ],
    "end_va": 200229,
@@ -8224,6 +8444,12 @@
      "was": "完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态",
      "now": "stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和镜头交给战场；部署调试入口跳过script0也不等于自然开场。",
      "why": "权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+     "now": "new_game_opening_play既有cold j_delay只是原等待；不能为sleep_ms或每次呈现额外调用11cac。本条仅补既有caller的等待边界说明，不宣称新提取整函数或新增开场运行证据。",
+     "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
     }
    ],
    "end_va": 207221,
@@ -8306,6 +8532,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 221
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "G4共享页／刷新caller顺序待逐条闭合",
+     "now": "完整32999..32d18及FDOTHER9实际12part独立执行：153216B整页snapshot后每帧restore、LMI写53A49再投影；frame6投影后上抬新actor8px并FG存下一base，frame7投影后11eee并上抬5px存base，frame8投影后11eee/127a9存base；尾保frame11工作页。该caller不新增11cac/1297d/water/info，不能把12帧简化为6帧或把最后页回滚成到达前base。",
+     "why": "1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。"
     }
    ],
    "end_va": 208152,
@@ -8603,6 +8837,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 215274,
+   "off": 149738,
+   "ida_name": "field_event_state16_ai7_once",
+   "size": 86,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_348EA",
+     "now": "field_event_state16_ai7_once",
+     "why": "完整86B/callback表；state16为0时AI24..27 masked7、story3、state16=1。"
+    }
+   ],
+   "end_va": 215360,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 216888,
    "off": 151352,
    "ida_name": "sub_34F38",
@@ -8626,9 +8883,216 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 217379,
+   "off": 151843,
+   "ida_name": "field_event_item89_grant_once",
+   "size": 110,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35123",
+     "now": "field_event_item89_grant_once",
+     "why": "完整110B/callback表；caller raw0/库存非8/state16为0时先append89、story11、再state16=1。"
+    }
+   ],
+   "end_va": 217489,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217802,
+   "off": 152266,
+   "ida_name": "field_event_item211_story11",
+   "size": 87,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_352CA",
+     "now": "field_event_item211_story11",
+     "why": "完整87B/callback表/descriptor52742；调用1aa1d(count1)后story11；共享尾3530d/3531b。"
+    }
+   ],
+   "end_va": 217889,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217926,
+   "off": 152390,
+   "ida_name": "field_event_story3_item213_story11",
+   "size": 111,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35346",
+     "now": "field_event_story3_item213_story11",
+     "why": "完整主111B及352ca共享尾/callback表/descriptor52745；先story3再1aa1d(count1)后story11。"
+    }
+   ],
+   "end_va": 218037,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218608,
+   "off": 153072,
+   "ida_name": "field_event_item101_story11",
+   "size": 72,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_355F0",
+     "now": "field_event_item101_story11",
+     "why": "完整主72B及352ca共享尾/callback表/descriptor52748；1aa1d(count1)后story11。"
+    }
+   ],
+   "end_va": 218680,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218680,
+   "off": 153144,
+   "ida_name": "field_event_turn_group_pair_camera_flash",
+   "size": 63,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35638",
+     "now": "field_event_turn_group_pair_camera_flash",
+     "why": "完整63B/callback表；两次AL(turn-14)*2/+1后MOVZX，分别35b78(2,11)/(26,11)。"
+    }
+   ],
+   "end_va": 218743,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218743,
+   "off": 153207,
+   "ida_name": "field_event_story5_defeat_tail18",
+   "size": 60,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35677",
+     "now": "field_event_story5_defeat_tail18",
+     "why": "完整60B/callback表；story5后35f10(18)，无额外ACK/清键。"
+    }
+   ],
+   "end_va": 218803,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218928,
+   "off": 153392,
+   "ida_name": "field_event_actor17_exchange_item11_once",
+   "size": 173,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35730",
+     "now": "field_event_actor17_exchange_item11_once",
+     "why": "完整主173B及3531b epilogue/callback表/descriptor5274b；caller0与state0门，2e2b0(17,0)/finalize，hidden17后state0/tiles/refresh/loot raw0 item11，最后贡献0；pC nullptr实际integer0，不推指针ABI。"
+    }
+   ],
+   "end_va": 219101,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 219220,
+   "off": 153684,
+   "ida_name": "field_event_cell_reward_complete_first_five",
+   "size": 323,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35854",
+     "now": "field_event_cell_reward_complete_first_five",
+     "why": "完整323B/callback表/5B5274e；完整cell BYTE2选物，wait0后append/close，再state0..4=1与12263。"
+    }
+   ],
+   "end_va": 219543,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 219661,
+   "off": 154125,
+   "ida_name": "field_event_key208_recruit31",
+   "size": 363,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35A0D",
+     "now": "field_event_key208_recruit31",
+     "why": "完整363B/callback表/FDOTHER45；state12门，移item208在文本/ACK前，59帧后完成格与group1/roster31，非整功能新API。"
+    }
+   ],
+   "end_va": 220024,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 220024,
    "off": 154488,
-   "ida_name": "field_camera_music_flash",
+   "ida_name": "field_camera_group_append_flash",
    "size": 118,
    "legacy": [
     "0x5ad8c"
@@ -8645,12 +9109,91 @@
      "source_line": 223
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "field_camera_music_flash",
+     "now": "field_camera_group_append_flash",
+     "why": "主118B及35722..35730共享14B尾，与33c9d/33dba/35638/35c1d/35c40/35d1e/35d9e/35e5b/35f48/35f88调用；pan→group(BYTEarg8)→300ms→pal255→200ms→pal0→11cac(0)→400ms，无music_track_play；纠正旧名music推断。"
+    }
+   ],
    "end_va": 220142,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "field_camera_music_flash"
    ],
+   "aliases": [
+    "field_camera_music_flash"
+   ],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220686,
+   "off": 155150,
+   "ida_name": "field_event_side_state_turn_slot2_once",
+   "size": 77,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35E0E",
+     "now": "field_event_side_state_turn_slot2_once",
+     "why": "完整77B/callback表；caller side!=0/state17=0/state18!=0时slot2=now、state17=1。"
+    }
+   ],
+   "end_va": 220763,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220944,
+   "off": 155408,
+   "ida_name": "field_actor_tail_defeat_apply",
+   "size": 56,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_35F10",
+     "now": "field_actor_tail_defeat_apply",
+     "why": "完整56B；2548c/35677/35c40/35ec1调用；从给定raw到count写HP WORD0后1db65统一败亡。"
+    }
+   ],
+   "end_va": 221000,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221756,
+   "off": 156220,
+   "ida_name": "field_event_turn_slot2_random_pair",
+   "size": 116,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3623C",
+     "now": "field_event_turn_slot2_random_pair",
+     "why": "完整116B/callback表；slot2=now+1后单次4ebe3，同v/v+1模3标记两个acted，不取两次RNG。"
+    }
+   ],
+   "end_va": 221872,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -9957,6 +10500,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 319308,
+   "off": 253772,
+   "ida_name": "field_map_runtime_cell_bits_reset",
+   "size": 56,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4DF4C",
+     "now": "field_map_runtime_cell_bits_reset",
+     "why": "完整56B；10010/1088d/24754及AI调用；逐cell byte3=ff/BYTE2&1f/BYTE1&3，不推ABI。"
+    }
+   ],
+   "end_va": 319364,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 319510,
    "off": 253974,
    "ida_name": "shape_blit_palette_lut_24x24",
@@ -10548,6 +11114,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 322393,
+   "off": 256857,
+   "ida_name": "field_phase_mosaic_visible_copy",
+   "size": 82,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4EB59",
+     "now": "field_phase_mosaic_visible_copy",
+     "why": "完整82B/1f1cc与1f30a callers，320stride(4,4)的312x192复制；DL/DH按factor分块重复采样、MUL取低WORD。原phase有效factor1..17，不推猜测签名。"
+    }
+   ],
+   "end_va": 322475,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 322531,
    "off": 256995,
    "ida_name": "field_rng_next",
@@ -10633,6 +11222,52 @@
    "historical_names": [
     "lmi_rle_blit_reverse"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 322868,
+   "off": 257332,
+   "ida_name": "image_raw_zero_transparent_blit",
+   "size": 27,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4ED34",
+     "now": "image_raw_zero_transparent_blit",
+     "why": "完整27B wrapper/9个caller：设WORD stride627a3，在4ed47真实CALL4ed4f，随后popa/pop ebp/RET；并非fallthrough拆分，不推ABI。"
+    }
+   ],
+   "end_va": 322895,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 322895,
+   "off": 257359,
+   "ida_name": "image_raw_zero_transparent_rows",
+   "size": 43,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4ED4F",
+     "now": "image_raw_zero_transparent_rows",
+     "why": "完整43B/唯一caller4ed34/独立RET：读原WORD宽高、逐raw byte仅非0写目标、按共享WORD stride换行，两个JNZ控制列/行；不是RLE解码，不保存Hex-Rays参数猜测。"
+    }
+   ],
+   "end_va": 322938,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []

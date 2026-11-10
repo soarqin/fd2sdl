@@ -518,37 +518,211 @@ void fd2_field_units_render_actor(fd2_vga *vga,
         camera_x, camera_y - offset_y, idle_phase, frame);
 }
 
+/* sub_127E0 @0x127e0（原登记同名）的纯绘制叶；actor/camera均不写。
+ * 原可见门含一格外沿，实际owner写入不先裁到312×192视窗。 */
+static int page_actor_source(const fd2_map_sprite_bank *sprites,
+    const fd2_field_units *units, size_t actor, int camera_x, int camera_y,
+    uint8_t idle_phase, uint8_t cursor_phase,const uint8_t **source, size_t *length) {
+    if (!sprites || !units || units->count > FD2_FIELD_MAX_UNITS ||
+        actor >= units->count || idle_phase > 3u || cursor_phase>3u) return -1;
+    const fd2_field_unit *unit=&units->items[actor];
+    if (fd2_field_unit_is_hidden(unit) ||
+        (int64_t)unit->x < (int64_t)camera_x-1 ||
+        (int64_t)unit->x > (int64_t)camera_x+13 ||
+        (int64_t)unit->y < (int64_t)camera_y-1 ||
+        (int64_t)unit->y > (int64_t)camera_y+9) return 0;
+    /* 127e0直接借53C07，不写原walk owner。 */
+    size_t frame;
+    if(unit->frame_phase) {
+        size_t sprite=fd2_field_unit_cached_sprite_id(units,actor);
+        if(sprite==SIZE_MAX || unit->direction>3u)return -1;
+        unsigned phase=unit->detail_status[1]?0u:cursor_phase==3u?1u:cursor_phase;
+        frame=sprite*12u+unit->direction*3u+phase;
+    } else {
+        if(unit->direction==5 && units->sprite_cache_exact &&
+            units->sprite_cache_count<=FD2_FIELD_MAX_UNITS) {
+            size_t cache=(size_t)units->sprite_cache_classes[actor]+1u;
+            if(cache>=units->sprite_cache_count || units->sprite_cache_ids[cache]==0xffu)
+                return 0; /* 已证raw5静止的TMP越目录图形，不拒业务。 */
+        }
+        frame=fd2_field_unit_cached_frame_index(units,actor,idle_phase);
+    }
+    /* 原class/ID可指到未定义图形目录外；已证业务仍继续，仅省该actor像素。
+     * 有效目录内坏offset/RLE仍是资源错误，不能掩盖。 */
+    if(frame!=SIZE_MAX && frame>=sprites->frame_count)return 0;
+    if (fd2_map_sprite_frame_source(sprites,frame,source,length) != 0 ||
+        fd2_field_page_validate_rle(24,24,*source,*length) != 0) return -1;
+    return 1;
+}
+
+int fd2_field_units_render_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
+    uint8_t cursor_phase,uint8_t jitter_phase, int offset_y) {
+    if (!page || jitter_phase > 1u) return -1;
+    const uint8_t *source;
+    size_t length;
+    int visible=page_actor_source(sprites,units,actor,camera_x,camera_y,
+        idle_phase,cursor_phase,&source,&length);
+    if (visible<=0) return visible;
+    const fd2_field_unit *unit=&units->items[actor];
+    int64_t x=FD2_FIELD_PAGE_VIEW_X+((int64_t)unit->x-camera_x)*24;
+    int64_t y=FD2_FIELD_PAGE_VIEW_Y-6+((int64_t)unit->y-camera_y)*24+offset_y;
+    if (unit->detail_status[1]) x+=jitter_phase;
+    int distance=(int)unit->frame_phase*4;
+    if (unit->direction==0) y+=distance;
+    else if (unit->direction==1) x-=distance;
+    else if (unit->direction==2) y-=distance;
+    else x+=distance;
+    if (x<=-24 || y<=-24 || x>=FD2_FIELD_PAGE_STRIDE ||
+        y>=FD2_FIELD_PAGE_HEIGHT) return 0;
+    uint8_t acted[256];
+    const uint8_t *lut=NULL;
+    if (fd2_field_unit_has_acted(unit)) {
+        for(size_t i=0;i<256;i++) acted[i]=(uint8_t)((i&7u)+24u);
+        lut=acted;
+    }
+    return fd2_field_page_blit_rle(page,(int)x,(int)y,24,24,source,length,lut);
+}
+
+int fd2_field_map_action_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+    size_t actor,int camera_x,int camera_y,uint8_t idle_phase,
+    uint8_t cursor_phase,unsigned mode) {
+    if(!page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+        actor>=units->count || idle_phase>3 || cursor_phase>3 ||
+        (mode!=0 && mode!=2))return -1;
+    const fd2_field_unit *u=&units->items[actor];
+    if((int64_t)u->x<(int64_t)camera_x-1 ||
+        (int64_t)u->x>(int64_t)camera_x+13 ||
+        (int64_t)u->y<(int64_t)camera_y-1 ||
+        (int64_t)u->y>(int64_t)camera_y+9)return 0;
+    unsigned phase=u->frame_phase ? cursor_phase:idle_phase;
+    if(phase==3)phase=1;
+    size_t sprite=fd2_field_unit_cached_sprite_id(units,actor);
+    if(sprite==SIZE_MAX)return -1;
+    if(u->direction>3) {
+        /* 原cacheClass*12+direction*3的有证raw5跨class域。 */
+        size_t cache=(size_t)units->sprite_cache_classes[actor]+1u;
+        if(u->direction!=5 || u->frame_phase || !units->sprite_cache_exact ||
+            units->sprite_cache_count>FD2_FIELD_MAX_UNITS)return -1;
+        if(cache>=units->sprite_cache_count || units->sprite_cache_ids[cache]==0xffu)
+            return 0; /* 仅已证raw5静止跨TMP末尾的未定义图形。 */
+        sprite=units->sprite_cache_ids[cache];
+    }
+    size_t frame=sprite*12u+(u->direction>3 ? 3u:u->direction*3u)+phase;
+    if(frame>=sprites->frame_count)return 0; /* 同127e0的有界省绘制域。 */
+    const uint8_t *source;size_t length;
+    if(fd2_map_sprite_frame_source(sprites,frame,&source,&length)!=0 ||
+        fd2_field_page_validate_rle(24,24,source,length)!=0)return -1;
+    int64_t x=72+((int64_t)u->x-camera_x)*24;
+    int64_t y=66+((int64_t)u->y-camera_y)*24;
+    int step=(int)u->frame_phase*4;
+    if(u->direction==0)y+=step;
+    else if(u->direction==1)x-=step;
+    else if(u->direction==2)y-=step;
+    else x+=step;
+    if(x<=-24 || y<=-24 || x>=FD2_FIELD_PAGE_STRIDE ||
+        y>=FD2_FIELD_PAGE_HEIGHT)return 0;
+    uint8_t solid[256];
+    if(mode==2)memset(solid,FD2_FIELD_PAGE_STRIDE&255,sizeof(solid));
+    return fd2_field_page_blit_rle(page,(int)x,(int)y,24,24,source,length,
+        mode==2?solid:NULL);
+}
+
+/* 1c2da/1cb94/1cd17固定dir0、idle3→2；不同于127e0的idle3→1。
+ * 1cac7给1cb94的74/75页显式重复同一count/list栈槽，非EBP/EDI第二组。 */
+int fd2_field_fixed_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+    size_t actor,int camera_x,int camera_y,uint8_t idle_phase,const uint8_t lut[256]) {
+    if(!page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+        actor>=units->count || idle_phase>3)return -1;
+    const fd2_field_unit *u=&units->items[actor];
+    if((int64_t)u->x<(int64_t)camera_x-1 || (int64_t)u->x>(int64_t)camera_x+13 ||
+        (int64_t)u->y<(int64_t)camera_y-1 || (int64_t)u->y>(int64_t)camera_y+9)return 0;
+    size_t sprite=fd2_field_unit_cached_sprite_id(units,actor);
+    if(sprite==SIZE_MAX)return -1;
+    size_t frame=sprite*12u+(idle_phase==3?2:idle_phase);
+    if(frame>=sprites->frame_count)return 0;
+    const uint8_t *source;size_t length;
+    if(fd2_map_sprite_frame_source(sprites,frame,&source,&length)!=0 ||
+        fd2_field_page_validate_rle(24,24,source,length)!=0)return -1;
+    return fd2_field_page_blit_rle(page,72+((int)u->x-camera_x)*24,
+        66+((int)u->y-camera_y)*24,24,24,source,length,lut);
+}
+
+int fd2_field_flash_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+    size_t actor,int camera_x,int camera_y,uint8_t idle_phase) {
+    uint8_t solid[256];memset(solid,FD2_FIELD_PAGE_STRIDE&255,sizeof(solid));
+    return fd2_field_fixed_page_actor(page,sprites,units,actor,camera_x,camera_y,idle_phase,solid);
+}
+
+int fd2_field_units_render_page(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    int camera_x, int camera_y, uint8_t idle_phase,uint8_t cursor_phase,uint8_t jitter_phase) {
+    if (!page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+        idle_phase>3u || cursor_phase>3u || jitter_phase>1u) return -1;
+    /* 先验全表可见资源，坏后项不留下前项的半绘制。 */
+    for(size_t i=0;i<units->count;i++) {
+        const uint8_t *source; size_t length;
+        if(page_actor_source(sprites,units,i,camera_x,camera_y,idle_phase,cursor_phase,
+                &source,&length)<0) return -1;
+    }
+    for(size_t i=0;i<units->count;i++)
+        if(fd2_field_units_render_page_actor(page,sprites,units,i,camera_x,camera_y,
+                idle_phase,cursor_phase,jitter_phase,0)<0) return -1;
+    return 0;
+}
+
+int fd2_field_units_render_page_terrain_overlays(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    const fd2_field_units *units, int camera_x, int camera_y, int anim_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]) {
+    if(!page || !terrain || !map || !units || units->count>FD2_FIELD_MAX_UNITS)
+        return -1;
+    for(size_t i=0;i<units->count;i++) {
+        const fd2_field_unit *unit=&units->items[i];
+        if(fd2_field_unit_is_hidden(unit) ||
+            fd2_field_attack_unit_ignores_terrain_modifier(unit)) continue;
+        int x=unit->x,y=unit->y;
+        int cells[4][2]={{x,y},{x,y-1}};
+        size_t count=2;
+        if(unit->frame_phase) {
+            if(unit->direction==0 || unit->direction==2) {
+                cells[count][0]=x;
+                cells[count++][1]=y+(unit->direction==0?1:-2);
+            } else {
+                int neighbor=x+(unit->direction==1?-1:1);
+                cells[count][0]=neighbor;cells[count++][1]=y;
+                cells[count][0]=neighbor;cells[count++][1]=y-1;
+            }
+        }
+        for(size_t j=0;j<count;j++) {
+            int cx=cells[j][0],cy=cells[j][1];
+            /* map_tile_blit_visible门与actor外沿相同，不能画远处遮挡。 */
+            if((int64_t)cx<(int64_t)camera_x-1 ||
+                (int64_t)cx>(int64_t)camera_x+13 ||
+                (int64_t)cy<(int64_t)camera_y-1 ||
+                (int64_t)cy>(int64_t)camera_y+9) continue;
+            const uint8_t *colors=range&&lut&&
+                fd2_field_path_is_destination(range,cx,cy)?lut:NULL;
+            if(fd2_terrain_render_page_overlay_cell(page,terrain,map,
+                    cx,cy,camera_x,camera_y,anim_phase,colors)!=0) return -1;
+        }
+    }
+    return 0;
+}
+
 void fd2_field_units_render(fd2_vga *vga,
                             const fd2_map_sprite_bank *sprites,
                             const fd2_field_units *units,
                             int camera_x, int camera_y,
                             uint8_t idle_phase) {
-    if (!vga || !sprites || !units) return;
-
-    size_t order[FD2_FIELD_MAX_UNITS];
-    size_t order_count = 0;
-    for (size_t i = 0; i < units->count && i < FD2_FIELD_MAX_UNITS; i++) {
-        const fd2_field_unit *unit = &units->items[i];
-        size_t frame_idx = fd2_field_unit_cached_frame_index(units, i, idle_phase);
-        if (fd2_field_unit_is_hidden(unit) || frame_idx >= sprites->frame_count)
-            continue;
-
-        size_t pos = order_count++;
-        order[pos] = i;
-        while (pos > 0) {
-            const fd2_field_unit *a = &units->items[order[pos - 1]];
-            const fd2_field_unit *b = &units->items[order[pos]];
-            if (a->y < b->y || (a->y == b->y && a->x <= b->x)) break;
-            size_t temp = order[pos - 1];
-            order[pos - 1] = order[pos];
-            order[pos] = temp;
-            pos--;
-        }
-    }
-
-    for (size_t oi = 0; oi < order_count; oi++) {
-        size_t unit_index = order[oi];
-        fd2_field_units_render_actor(vga, sprites, units, unit_index,
-                              camera_x, camera_y, idle_phase, 0);
-    }
+    if (!vga || !sprites || !units || units->count > FD2_FIELD_MAX_UNITS) return;
+    /* sub_127A9 @0x127a9（原登记同名）严格raw顺序；上下行走时
+     * 后actor可覆盖前actor，不能按坐标另排深度。129ec由caller随后恢复。 */
+    for (size_t i = 0; i < units->count; i++)
+        fd2_field_units_render_actor(vga,sprites,units,i,
+            camera_x,camera_y,idle_phase,0);
 }

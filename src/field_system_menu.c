@@ -1,4 +1,4 @@
-/* 炎龙骑士团 2 SDL3 重写 - 战场 field-level 系统菜单骨架
+/* 炎龙骑士团 2 SDL3 重写 - 战场 field-level 系统菜单
  *
  * 机器码依据：
  * - field_empty_focus_menu_execute @0x16f55（原登记 FUN_0001469d），
@@ -9,13 +9,34 @@
  *   base IDs {18,20,22,24}，按状态生成相邻 ID；
  * - sub_19953 @0x19953：确认框默认 YES，左右选择，上下不切换。
  *
- * 本文件只实现可测试的选择和动作分派，不猜测未由 DOSBox 确认的
- * 中文标签、存档槽交互和应用级退出。图形资源由共享的完整
- * FDOTHER[2] loader 提供，四相位开合动画由 field_game 接入。
+ * 本文件持有页面选择/raw选项投影与共享高亮窄原语；FDTXT标签、
+ * 19953确认冷图、存储与应用退出由正式Play消费，原owner只提交一次。
+ * 图形资源由共享的完整FDOTHER[2] loader提供，不维护另一套标签表。
  */
 #include "field_system_menu.h"
 
 #include <string.h>
+
+int fd2_field_system_menu_highlight_tick(uint32_t *phase, uint32_t *last_tick,
+        uint32_t tick, int confirm) {
+    if (!phase || !last_tick || phase == last_tick || (confirm != 0 && confirm != 1)) return -1;
+    uint32_t gate = confirm ? 2u : 4u, limit = confirm ? 4u : 2u;
+    /* 178c4/CWDE与19b1e/MOVSX只取BDA低WORD，后以DWORD减锚。
+     * 显式保sign-extension bits，避免把完整BDA DWORD或无符号WORD代入。 */
+    tick &= 0xffffu;
+    if (tick & 0x8000u) tick |= 0xffff0000u;
+    if ((uint32_t)(tick - *last_tick) < gate) return 0;
+    /* field_command_menu_wait_key @0x17898（原登记同名）与
+     * sub_19953 @0x19953：共享原DWORD，不能替换为while追赶或modulo。 */
+    (*phase)++;
+    if (*phase == limit) *phase = 0;
+    *last_tick = tick;
+    return 1;
+}
+
+void fd2_field_system_menu_highlight_finish(uint32_t *phase) {
+    if (phase) *phase = 0;
+}
 
 static void set_ids(fd2_field_system_menu *menu) {
     static const uint8_t parent_ids[FD2_FIELD_SYSTEM_MENU_COUNT] = {
@@ -54,7 +75,7 @@ void fd2_field_system_menu_init(fd2_field_system_menu *menu) {
     menu->page = FD2_FIELD_SYSTEM_PAGE_PARENT;
     menu->selected = 0;
     /* object 2 loader 初值：DS:0x1e61=1、0x1e62=1、0x3af9=0、
-     * 0x1aab=1。这里只保存位值；配置语义仍由后续 M8.3 确认。 */
+     * 0x1aab=1。前两项归一翻转，后两项保原byte XOR1。 */
     menu->option_values[0] = 1;
     menu->option_values[1] = 1;
     menu->option_values[2] = 0;
@@ -79,8 +100,9 @@ void fd2_field_system_menu_set_options(
         fd2_field_system_menu *menu,
         const uint8_t values[FD2_FIELD_SYSTEM_MENU_COUNT]) {
     if (!menu || !values) return;
-    for (size_t i = 0; i < FD2_FIELD_SYSTEM_MENU_COUNT; i++)
-        menu->option_values[i] = values[i] ? 1u : 0u;
+    /* field_options_menu_execute @0x1728c（原FUN_000149d4）：标签按
+     * 零/非零投影，51aab与53af9自身保留raw byte，不能先布尔化。 */
+    memcpy(menu->option_values, values, sizeof(menu->option_values));
     set_ids(menu);
 }
 
@@ -227,9 +249,10 @@ fd2_field_system_action fd2_field_system_menu_confirm(
                 return FD2_FIELD_SYSTEM_ACTION_OPEN_CONFIRMATION;
         }
     } else if (menu->page == FD2_FIELD_SYSTEM_PAGE_OPTIONS) {
-        /* options loop @code0 0x735b..0x73e2：四个 selector 均立即翻转
-         * 对应字节并回到同一页；第三项只在 command-ID 显示条件上反向。 */
-        menu->option_values[index] ^= 1u;
+        /* field_options_menu_execute @0x1728c（原FUN_000149d4）：
+         * 前两项按==0归一；173a5/173ba为后两项XOR1。 */
+        if (index < 2u) menu->option_values[index] = menu->option_values[index] == 0u;
+        else menu->option_values[index] ^= 1u;
         set_ids(menu);
         return FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING;
     }

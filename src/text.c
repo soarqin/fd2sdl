@@ -82,7 +82,20 @@ static int expanded_append(fd2_text_expanded *out, uint16_t token, size_t glyph_
     return 0;
 }
 
-static int expand_fragment(const fd2_text_entry *entry, size_t glyph_count,
+int fd2_text_expand_number(uint32_t value, size_t glyph_count,
+        fd2_text_expanded *out) {
+    if (!glyph_count || !out) return -1;
+    fd2_text_expanded result={0};char number[16];
+    int32_t signed_value=value<=INT32_MAX ? (int32_t)value:
+        -1-(int32_t)(UINT32_MAX-value);
+    (void)snprintf(number,sizeof(number),"%ld",(long)signed_value);
+    for (size_t i=0;number[i];i++)
+        if (expanded_append(&result,number[i]=='-' ? FD2_TEXT_SAFE_MINUS:
+                (uint16_t)(number[i]-'0'),glyph_count)!=0) return -1;
+    *out=result;return 0;
+}
+
+static int expand_fragment(const fd2_text_entry *entry, const fd2_text_entry *names, size_t glyph_count,
         const fd2_text_parameters *parameters, size_t fragment, unsigned depth,
         fd2_text_expanded *out) {
     const uint8_t *tokens; size_t count;
@@ -91,17 +104,14 @@ static int expand_fragment(const fd2_text_entry *entry, size_t glyph_count,
         uint16_t token = fd2_text_token_at(tokens, i);
         if (token == 0xffffu) return 0;
         if (token == 0xfffau) {
-            char number[16];
-            int32_t value = parameters->value <= INT32_MAX ? (int32_t)parameters->value
-                : -1 - (int32_t)(UINT32_MAX - parameters->value);
-            (void)snprintf(number, sizeof(number), "%ld", (long)value);
-            for (size_t j = 0; number[j]; j++)
-                if (expanded_append(out, number[j] == '-' ? FD2_TEXT_SAFE_MINUS :
-                        (uint16_t)(number[j] - '0'), glyph_count) != 0) return -1;
+            fd2_text_expanded number;
+            if (fd2_text_expand_number(parameters->value,glyph_count,&number)!=0) return -1;
+            for (size_t j=0;j<number.count;j++)
+                if (expanded_append(out,number.tokens[j],glyph_count)!=0) return -1;
         } else if (token == 0xfffcu || token == 0xfffbu) {
             size_t nested = token == 0xfffcu ? parameters->new_fragment : parameters->old_fragment;
             if (depth || nested == SIZE_MAX ||
-                expand_fragment(entry, glyph_count, parameters, nested, depth + 1, out) != 0) return -1;
+                expand_fragment(names, names, glyph_count, parameters, nested, depth + 1, out) != 0) return -1;
         } else {
             if (token >= 0xff00u && token != 0xfffeu && token != 0xfffdu) return -1;
             if (expanded_append(out, token, glyph_count) != 0) return -1;
@@ -112,9 +122,15 @@ static int expand_fragment(const fd2_text_entry *entry, size_t glyph_count,
 
 int fd2_text_expand(const fd2_text_entry *entry, size_t glyph_count,
         const fd2_text_parameters *parameters, size_t fragment, fd2_text_expanded *out) {
-    if (!entry || !glyph_count || !parameters || !out) return -1;
+    return fd2_text_expand_banked(entry, entry, glyph_count, parameters, fragment, out);
+}
+
+int fd2_text_expand_banked(const fd2_text_entry *primary, const fd2_text_entry *names,
+        size_t glyph_count, const fd2_text_parameters *parameters, size_t fragment,
+        fd2_text_expanded *out) {
+    if (!primary || !names || !glyph_count || !parameters || !out) return -1;
     memset(out, 0, sizeof(*out));
-    return expand_fragment(entry, glyph_count, parameters, fragment, 0, out);
+    return expand_fragment(primary, names, glyph_count, parameters, fragment, 0, out);
 }
 
 void fd2_text_entry_close(fd2_text_entry *txt) {

@@ -37,6 +37,75 @@ def ida_provenance() -> str:
 # 原始说法保留在 `records[].purpose/evidence` 中，更正以独立字段附加，
 # 便于追溯「谁在什么依据下改了什么」。详见 docs/reverse-engineering/ida-crosscheck.md。
 CORRECTIONS: dict[int, list[dict]] = {
+    0x4ed34: [{"target": "semantic_name", "was": "sub_4ED34",
+               "now": "image_raw_zero_transparent_blit",
+               "why": "完整27B wrapper/9个caller：设WORD stride627a3，在4ed47真实CALL4ed4f，随后popa/pop ebp/RET；并非fallthrough拆分，不推ABI。"}],
+    0x4ed4f: [{"target": "semantic_name", "was": "sub_4ED4F",
+               "now": "image_raw_zero_transparent_rows",
+               "why": "完整43B/唯一caller4ed34/独立RET：读原WORD宽高、逐raw byte仅非0写目标、按共享WORD stride换行，两个JNZ控制列/行；不是RLE解码，不保存Hex-Rays参数猜测。"}],
+    0x197e5: [{"target": "semantic_name", "was": "sub_197E5",
+               "now": "field_choice_buttons_close",
+               "why": "主366B及17e03..17e0b共享8B epilogue，12个原caller及FDOTHER5按钮：53a51>1才地图重画，保bottom页桥、四步收回与310x86恢复；不改变原owner/ABI。"}],
+    0x19953: [{"target": "semantic_name", "was": "sub_19953",
+               "now": "field_choice_buttons_wait",
+               "why": "主1188B及13fcc..13fd4共享8B返回尾、12个原caller、16f55/1aa1d/准备服务链：默认selector0、snapshot/四步展开、先查键后tick，blink RNG+2/+10、共享phase/tick，确认/取消清phase；不推类型。"}],
+    0x4df4c: [{"target": "semantic_name", "was": 'sub_4DF4C',
+               "now": 'field_map_runtime_cell_bits_reset',
+               "why": '完整56B；10010/1088d/24754及AI调用；逐cell byte3=ff/BYTE2&1f/BYTE1&3，不推ABI。'}],
+    0x35f10: [{"target": "semantic_name", "was": 'sub_35F10',
+               "now": 'field_actor_tail_defeat_apply',
+               "why": '完整56B；2548c/35677/35c40/35ec1调用；从给定raw到count写HP WORD0后1db65统一败亡。'}],
+    0x3623c: [{"target": "semantic_name", "was": 'sub_3623C',
+               "now": 'field_event_turn_slot2_random_pair',
+               "why": '完整116B/callback表；slot2=now+1后单次4ebe3，同v/v+1模3标记两个acted，不取两次RNG。'}],
+    0x348ea: [{"target": "semantic_name", "was": 'sub_348EA',
+               "now": 'field_event_state16_ai7_once',
+               "why": '完整86B/callback表；state16为0时AI24..27 masked7、story3、state16=1。'}],
+    0x35123: [{"target": "semantic_name", "was": 'sub_35123',
+               "now": 'field_event_item89_grant_once',
+               "why": '完整110B/callback表；caller raw0/库存非8/state16为0时先append89、story11、再state16=1。'}],
+    0x35e0e: [{"target": "semantic_name", "was": 'sub_35E0E',
+               "now": 'field_event_side_state_turn_slot2_once',
+               "why": '完整77B/callback表；caller side!=0/state17=0/state18!=0时slot2=now、state17=1。'}],
+    0x35854: [{"target": "semantic_name", "was": 'sub_35854',
+               "now": 'field_event_cell_reward_complete_first_five',
+               "why": '完整323B/callback表/5B5274e；完整cell BYTE2选物，wait0后append/close，再state0..4=1与12263。'}],
+    0x35a0d: [{"target": "semantic_name", "was": 'sub_35A0D',
+               "now": 'field_event_key208_recruit31',
+               "why": '完整363B/callback表/FDOTHER45；state12门，移item208在文本/ACK前，59帧后完成格与group1/roster31，非整功能新API。'}],
+    0x352ca: [{"target": "semantic_name", "was": 'sub_352CA',
+               "now": 'field_event_item211_story11',
+               "why": '完整87B/callback表/descriptor52742；调用1aa1d(count1)后story11；共享尾3530d/3531b。'}],
+    0x35346: [{"target": "semantic_name", "was": 'sub_35346',
+               "now": 'field_event_story3_item213_story11',
+               "why": '完整主111B及352ca共享尾/callback表/descriptor52745；先story3再1aa1d(count1)后story11。'}],
+    0x355f0: [{"target": "semantic_name", "was": 'sub_355F0',
+               "now": 'field_event_item101_story11',
+               "why": '完整主72B及352ca共享尾/callback表/descriptor52748；1aa1d(count1)后story11。'}],
+    0x35730: [{"target": "semantic_name", "was": 'sub_35730',
+               "now": 'field_event_actor17_exchange_item11_once',
+               "why": '完整主173B及3531b epilogue/callback表/descriptor5274b；caller0与state0门，2e2b0(17,0)/finalize，hidden17后state0/tiles/refresh/loot raw0 item11，最后贡献0；pC nullptr实际integer0，不推指针ABI。'}],
+    0x35677: [{"target": "semantic_name", "was": 'sub_35677',
+               "now": 'field_event_story5_defeat_tail18',
+               "why": '完整60B/callback表；story5后35f10(18)，无额外ACK/清键。'}],
+    0x35638: [{"target": "semantic_name", "was": 'sub_35638',
+               "now": 'field_event_turn_group_pair_camera_flash',
+               "why": '完整63B/callback表；两次AL(turn-14)*2/+1后MOVZX，分别35b78(2,11)/(26,11)。'}],
+    0x35b78: [{"target": "semantic_name", "was": 'field_camera_music_flash',
+               "now": 'field_camera_group_append_flash',
+               "why": '主118B及35722..35730共享14B尾，与33c9d/33dba/35638/35c1d/35c40/35d1e/35d9e/35e5b/35f48/35f88调用；pan→group(BYTEarg8)→300ms→pal255→200ms→pal0→11cac(0)→400ms，无music_track_play；纠正旧名music推断。'}],
+    0x1f1cc: [{"target": "semantic_name", "was": 'sub_1F1CC',
+               "now": 'field_phase_title_enter',
+               "why": '完整318B/1a30b唯一caller与FDOTHER5标签80..82：7次滑入后保VGA到53a49 raw prefix；factor1..16马赛克、DAC16..255减暗0..15、每帧1tick，末BIOS清键，不推ABI。'}],
+    0x1f30a: [{"target": "semantic_name", "was": 'sub_1F30A',
+               "now": 'field_phase_title_leave',
+               "why": '完整291B/1a30b唯一caller：factor17..1与DAC暗度16..0逐tick，11eee/127a9重画原页，5次滑出；不调用1297d、不推ABI。'}],
+    0x1f42d: [{"target": "semantic_name", "was": 'sub_1F42D',
+               "now": 'field_phase_title_slide_frame',
+               "why": '主214B/1f1cc和1f30a callers及184ba共享6B epilogue：双标签在456stride页(85-offset,82)/(165+offset,82)，投影312x192、1tick后恢复两矩形。不把尾跳转误为新ABI。'}],
+    0x4eb59: [{"target": "semantic_name", "was": 'sub_4EB59',
+               "now": 'field_phase_mosaic_visible_copy',
+               "why": '完整82B/1f1cc与1f30a callers，320stride(4,4)的312x192复制；DL/DH按factor分块重复采样、MUL取低WORD。原phase有效factor1..17，不推猜测签名。'}],
     0x13fd4: [{"target": "semantic_name", "was": "sub_13FD4",
                "now": "field_stationary_recover_present_apply",
                "why": "完整333B、13a9f/18d8c callers及13fd4/1da16/31号样本bank来源：单单位静止恢复，三个wait后才写HP；不推ABI/类型。"}],
@@ -1995,6 +2064,67 @@ for _va, _old, _name, _contract in _G3_PREPARATION_NAMES:
                " 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，"
                "来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。",
     })
+
+
+# G4：原调用指令与局部CPU栈捕获纠正Hex-Rays寄存器伪参，不写猜测类型。
+CORRECTIONS.setdefault(0x1CAC7, []).append({
+    "target": "evidence", "was": "伪C把第二次actor绘制误分成另外一组count/list及寄存器实参",
+    "now": "保留中性sub_1CAC7。完整205B在LMI74与75两次调用1cb94时读取同一组原栈槽："
+           "1cad5/1cad9与1cafc/1cb00均为ff74241c，依次传page/count/list/74或75。"
+           "本函数不读取EBP/EDI的入值；2111a及213b7各显式push四个栈参数，不据伪C保存六参或寄存器ABI。",
+    "why": "G1 Domain完整chunk/xref严格原镜像等同，函数SHA1210d0b96be5275f3c893984bfe3d908a20c309b62187c2d352f76b036654741；"
+           "G4 effect-page-owner-source.json的count0/1/16/96四组原Unicorn调用捕获，两次callee同count/list，"
+           "EBP/EDI poisoned入值保持。替身仅capture绘制/等待/资源，不证明图像或玩法native，不改名/类型/边界。",
+})
+CORRECTIONS.setdefault(0x1CB94, []).append({
+    "target": "evidence", "was": "据调用者伪C寄存器变量推断第二次角色绘制使用其他队伍",
+    "now": "保留map_scene_render_actors。自身prologue从栈加载count/list；1cac7以同一count/list依次传LMI74/75，"
+           "不能把伪C的EBP/EDI变量当另一组队伍或另一个原owner。相同actor列表的两种绘制由真实page调用者安排。",
+    "why": "完整387B Domain读集及strict LE SHA7bf45203e80d5f3002b3c2a562aca93bbd0f52eefbd04c194a09b40464f239c6；"
+           "1cac7两处push/call和2111a/213b7原xref/四栈参一致；G4四组局部CPU捕获仅核调用与栈，"
+           "绘制被capture，未证明完整像素或正式触发。不改原名/持久类型或函数边界。",
+})
+
+
+_G4_WATER_CALLER_EVIDENCE = {
+    0x11CAC: "保留中性sub_11CAC。11cbc cmp原实参0，11cc1 JNZ跳过11cc3 call4e31c；"
+              "故raw0推进water，非0跳过。参数不是普通显示51A83开关，也不是刷新等待；"
+              "其余1297d、11eee、122dc、127a9、1acf3及VGA投影仍按原序。",
+    0x135DD: "pan每个镜头格都调用11cac(0)，包括两方向移动；共享工作页和water随该原caller刷新，"
+              "不把所有Scene render统一套skip-water，也不在纯delay虚构刷新。",
+    0x1366A: "脚本相位的11cac实参按当前53AFB选择：0或64时传0，非0非64传1；"
+              "渐暗可在同脚本内到64而切回0。高位wait及上抬恢复分支传0；1398a脚本尾固定传1。"
+              "尾仍重画一次但跳water，不能把它当普通相位刷新或省掉。",
+    0x205DA: "保留中性sub_205DA。独立entry完整边界205da..2067d，初始化后首次11cac明确传1，"
+              "该刷新跳water。局部原CPU验证只执行到此次调用，constructor/memset为替身，"
+              "不扩大为完整入场业务或像素验收。",
+    0x2FF01: "纠正前批‘11cac参数只控制刷新等待’：FULL法术正常尾确实调用11cac(1)，"
+              "原1跳water，原0才调用4e31c。该参数不写51A83；玩家1cff0与AI15311以mode0进入，"
+              "因此正常返回仍沿caller无cursor环境。物理和其它caller须分别按源值接水色，"
+              "不能通过强制mode1或每present更新water替代。",
+    0x3231B: "new_game_opening_play既有cold j_delay只是原等待；不能为sleep_ms或每次呈现额外调用11cac。"
+              "本条仅补既有caller的等待边界说明，不宣称新提取整函数或新增开场运行证据。",
+}
+for _va, _now in _G4_WATER_CALLER_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
+        "now": _now,
+        "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；"
+               "205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，"
+               "核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；"
+               "只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。",
+    })
+
+
+
+_G4_FINAL_OWNER_EVIDENCE = {
+    0x1548E: "完整1548e..1567e原指令中SHORT15616与FULL15624共同汇15627：1562f调用1b6b7收集descriptor，1563b以实参0调用11cac，15643调用1db65清死亡，15652调用1aa1d，1565c再次以0调用11cac，最后1566a调用1e292奖励。两次外围水色刷新适用于全部AI物理，不仅SHORT；它们不代替2e2b0 FULL演出内部的raw1尾。空descriptor count0同样经过1aa1d返回后的第二次刷新。",
+    0x32999: "完整32999..32d18及FDOTHER9实际12part独立执行：153216B整页snapshot后每帧restore、LMI写53A49再投影；frame6投影后上抬新actor8px并FG存下一base，frame7投影后11eee并上抬5px存base，frame8投影后11eee/127a9存base；尾保frame11工作页。该caller不新增11cac/1297d/water/info，不能把12帧简化为6帧或把最后页回滚成到达前base。"
+}
+for _va, _now in _G4_FINAL_OWNER_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "G4共享页／刷新caller顺序待逐条闭合", "now": _now,
+        "why": "1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。"})
 
 
 def main() -> int:

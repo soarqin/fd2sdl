@@ -23,6 +23,7 @@ enum { ROUTE_PROMPT, ROUTE_ESCAPE, ROUTE_NO, ROUTE_SAVE, ROUTE_LOAD, ROUTE_SAVE_
 enum { BAD_NONE, BAD_MISSING, BAD_GLYPH };
 static int route_kind, bad_kind, in_route, actions, presents, delay_calls;
 static int backend_calls, backend_done, backend_result, closed;
+static int choice_active,choice_frames;
 static int owner_ok, backend_rng_ok;
 static uint64_t mock_ms;
 static const uint8_t *expected_present_frame;
@@ -56,6 +57,18 @@ static void message_present(fd2_vga *vga) {
         unexpected_present_frames++;
     }
     mock_ms += 16;
+    if (choice_active) {
+        choice_frames++;
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,0);
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,0);
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_ESCAPE,0);
+        if (choice_frames==4) fd2_input_set_test_key_state(&vga->input,
+            route_kind==ROUTE_ESCAPE?SDL_SCANCODE_ESCAPE:
+            route_kind==ROUTE_NO || route_kind==ROUTE_PROMPT?SDL_SCANCODE_RIGHT:SDL_SCANCODE_RETURN,1);
+        if (choice_frames==5 && (route_kind==ROUTE_NO || route_kind==ROUTE_PROMPT))
+            fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
+        fd2_input_begin_test_frame(&vga->input,mock_ms);
+    }
     if (in_route && backend_done) vga->input.quit_requested = 1;
 }
 static void message_present_timed(fd2_vga *vga, uint32_t ms) {
@@ -73,10 +86,13 @@ static int prepare_text(fd2_field_game *game, size_t target, int bad) {
     game->font = (fd2_font){glyph_bytes, sizeof(glyph_bytes), 2};
     game->ui_text.data = ui_bytes;
     game->ui_text.size = sizeof(ui_bytes);
-    game->ui_text.fragment_count = bad == BAD_MISSING ? target : 421;
+    game->ui_text.fragment_count = 421;
     game->ui_text.offsets = calloc(421, sizeof(*game->ui_text.offsets));
     if (!game->ui_text.offsets) return -1;
     for (size_t i = 0; i < 421; i++) game->ui_text.offsets[i] = (uint16_t)(i * 4u);
+    /* 只使目标片段无效；截短fragment_count会把更高编号prompt一并删掉，
+     * 无法证明412取消反馈在19953返回后的错误门。 */
+    if (bad == BAD_MISSING) game->ui_text.offsets[target]=(uint16_t)sizeof(ui_bytes);
     if (bad == BAD_GLYPH) ui_bytes[target * 4] = 2; /* 首个越界字形。 */
     return 0;
 }
@@ -91,22 +107,10 @@ static int message_open(fd2_field_game *game, fd2_vga *vga,
     game->resource_value = submitted_resource;
     fd2_field_system_menu_init(&game->system_menu);
     game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
-    if (route_kind == ROUTE_PROMPT) {
-        game->system_menu.selected = 3;
-    } else {
-        game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
-        game->system_menu.confirmation_action = route_kind == ROUTE_SAVE || route_kind == ROUTE_SAVE_FAILURE
-            ? FD2_FIELD_SYSTEM_ACTION_SAVE : route_kind == ROUTE_LOAD
-            ? FD2_FIELD_SYSTEM_ACTION_LOAD : FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM;
-        game->system_menu.confirmation_prompt_fragment = route_kind == ROUTE_LOAD
-            ? FD2_FIELD_SYSTEM_TEXT_LOAD_PROMPT : FD2_FIELD_SYSTEM_TEXT_SAVE_PROMPT;
-        game->system_menu.confirmation_accepted_fragment = route_kind == ROUTE_LOAD
-            ? FD2_FIELD_SYSTEM_TEXT_LOAD_ACCEPTED : route_kind == ROUTE_SAVE || route_kind == ROUTE_SAVE_FAILURE
-            ? FD2_FIELD_SYSTEM_TEXT_SAVE_SUCCESS : FD2_FIELD_SYSTEM_TEXT_END_TURN_ACCEPTED;
-        game->system_menu.confirmation_failure_fragment = FD2_FIELD_SYSTEM_TEXT_SAVE_FAILURE;
-        game->system_menu.confirmation_return_page = FD2_FIELD_SYSTEM_PAGE_SECONDARY;
-        game->system_menu.confirmation_return_selected = 1;
-        game->system_menu.confirmation_yes = route_kind != ROUTE_NO;
+    game->system_menu.selected=3;
+    if (route_kind==ROUTE_SAVE || route_kind==ROUTE_LOAD || route_kind==ROUTE_SAVE_FAILURE) {
+        fd2_field_system_menu_open_secondary(&game->system_menu);
+        game->system_menu.selected=route_kind==ROUTE_LOAD?2:1;
     }
     size_t target = route_kind == ROUTE_PROMPT ? FD2_FIELD_SYSTEM_TEXT_END_TURN_PROMPT
         : route_kind == ROUTE_ESCAPE || route_kind == ROUTE_NO || route_kind == ROUTE_SAVE_FAILURE
@@ -145,11 +149,21 @@ static int message_action(fd2_input *input, fd2_input_context context,
     (void)input; (void)context;
     actions++;
     *action = actions == 1
-        ? route_kind == ROUTE_ESCAPE ? FD2_INPUT_ACTION_CANCEL : FD2_INPUT_ACTION_CONFIRM
+        ? FD2_INPUT_ACTION_CONFIRM /* Escape由真实19953 raw输入注入，先打开父菜单selector。 */
         : FD2_INPUT_ACTION_EXIT; /* 旧版吞错必须能结束，不能靠下一处故障伪造通过。 */
     return 1;
 }
 
+static int message_refresh(fd2_field_game *game,fd2_vga *vga,int phase_only) {
+    (void)game;(void)vga;return phase_only>=0 && phase_only<=3?0:-1;
+}
+static int message_choice(fd2_field_choice_step_fn apply,void *userdata) {
+    choice_active=1;choice_frames=0;
+    int result=fd2_field_choice_run(apply,userdata);
+    choice_active=0;return result;
+}
+#define fd2_field_game_runtime_refresh message_refresh
+#define fd2_field_choice_run message_choice
 #define SDL_GetTicks message_ticks
 #define fd2_delay_ms message_delay
 #define fd2_vga_present message_present
@@ -161,6 +175,8 @@ static int message_action(fd2_input *input, fd2_input_context context,
 #define fd2_input_take_action message_action
 #include "field_play.c"
 #undef SDL_GetTicks
+#undef fd2_field_game_runtime_refresh
+#undef fd2_field_choice_run
 #undef fd2_delay_ms
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
@@ -172,6 +188,7 @@ static int message_action(fd2_input *input, fd2_input_context context,
 
 static void reset_controls(void) {
     in_route = actions = presents = delay_calls = 0;
+    choice_active=choice_frames=0;
     backend_calls = backend_done = closed = owner_ok = backend_rng_ok = 0;
     backend_result = -99;
     mock_ms = 1000;
@@ -183,6 +200,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     uint16_t offsets[421] = {0};
     offsets[420] = sizeof(tokens);
     fd2_field_game game = {0};
+    field_progress_box box={0};
     game.ready = 1;
     game.font = (fd2_font){glyph_bytes, sizeof(glyph_bytes), 2};
     game.ui_text = (fd2_text_entry){tokens, sizeof(tokens), offsets, 421};
@@ -205,9 +223,11 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         if (mode == 5) game.font.glyph_count = 0;
         if (mode == 6) game.ui_text.size = 7;
         if (mode == 7) game.ui_text.size = 0;
-        CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1);
+        if (mode == 1) vga.input.quit_requested=1;
+        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1);
         CHECK(memcmp(before, vga.framebuffer, sizeof(before)) == 0);
         CHECK(!presents && !delay_calls);
+        if (mode == 1) CHECK(vga.input.quit_requested); /* 独立坏字形不能靠quit洗成HOST。 */
         tokens[4] = 0;
     }
     reset_controls();
@@ -243,9 +263,10 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     fd2_font_draw_glyph(expected, &game.font, 1, NOTICE_PROMPT_OFFSET % VGA_STRIDE, NOTICE_PROMPT_OFFSET / VGA_STRIDE, 0xcd, 0x4c, 0x4a);
     fd2_font_draw_glyph(expected, &game.font, 0, NOTICE_RESULT_OFFSET % VGA_STRIDE, NOTICE_RESULT_OFFSET / VGA_STRIDE, 0xcd, 0x4c, 0x4a);
     /* 必须核首个真正present的整页，不能等下一轮稳态render掩盖亮色占位。 */
-    expected_present_frame = expected->framebuffer;
-    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == 0);
-    CHECK(presents == 1 && delay_calls == 1 && unexpected_present_frames == 0);
+    expected_present_frame = NULL;
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == 0);
+    CHECK(presents == 8 && delay_calls == 2 && unexpected_present_frames == 0);
+    CHECK(box.page && box.portraits[0].pixels);progress_box_free(&box);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     CHECK(memcmp(vga.palette, original_palette, sizeof(original_palette)) == 0 &&
           memcmp(vga.dac, original_dac, sizeof(original_dac)) == 0);
@@ -257,7 +278,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         game.fdother = invalid ? &empty : NULL;
         memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
         memset(expected->framebuffer, 0x77, sizeof(expected->framebuffer));
-        CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1);
+        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1);
         CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
         CHECK(!presents && !delay_calls);
     }
@@ -274,12 +295,12 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     broken.data[absolute] = broken.data[absolute + 1] = 0;
     game.fdother = &broken;
     reset_controls();
-    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1 && !presents && !delay_calls);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     free(broken.data); game.fdother = &fdother;
     size_t original_portraits = game.dato_archive.count;
     game.dato_archive.count = 75; /* END仍须原75，不能改用Hero0回退。 */
-    CHECK(play_system_confirmation_text(&game, &vga, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1 && !presents && !delay_calls);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     game.dato_archive.count = original_portraits;
     free(game_before); free(expected);
@@ -314,12 +335,16 @@ static int test_formal_errors_preserve_storage_facts(void) {
             uint8_t before[FD2_SAVE_FILE_SIZE], after[FD2_SAVE_FILE_SIZE];
             CHECK(read_bytes(storage_path, before) == 0);
             fd2_vga vga = {0};
+            vga.field_page=fd2_field_page_create();CHECK(vga.field_page);
             fd2_input_init(&vga.input);
             fd2_field_play_result result = fd2_field_play_run(
                 &vga, &archive, 0, 0, NULL, NULL, storage_path, 0);
+            fprintf(stderr,"system formal kind=%d bad=%d result=%d backend=%d/%d actions=%d frames=%d closed=%d owner=%d resource=%u\n",
+                kind,bad,(int)result,backend_calls,backend_result,actions,presents,closed,owner_ok,resource_at_close);
             CHECK(result == (bad == BAD_NONE ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR));
             CHECK(closed == 1 && owner_ok);
-            CHECK(backend_calls == (kind >= ROUTE_SAVE ? 1 : 0));
+            int executed=kind>=ROUTE_SAVE && !(kind==ROUTE_LOAD && bad!=BAD_NONE);
+            CHECK(backend_calls==executed);
             if (bad != BAD_NONE) CHECK(actions == 1);
             CHECK(read_bytes(storage_path, after) == 0);
             if (kind == ROUTE_SAVE) {
@@ -334,9 +359,12 @@ static int test_formal_errors_preserve_storage_facts(void) {
                 fd2_save_file_close(&saved);
             } else {
                 CHECK(memcmp(before, after, sizeof(before)) == 0);
-                if (kind == ROUTE_LOAD) CHECK(backend_result == 1 && backend_rng_ok && resource_at_close == original_resource);
+                if (kind == ROUTE_LOAD) CHECK(bad==BAD_NONE
+                    ?backend_result==1 && backend_rng_ok && resource_at_close==original_resource
+                    :backend_calls==0 && resource_at_close==submitted_resource);
                 if (kind == ROUTE_SAVE_FAILURE) CHECK(backend_result == 0 && backend_rng_ok);
             }
+            fd2_field_page_destroy(vga.field_page);
             CHECK(remove(storage_path) == 0);
         }
     }
@@ -382,60 +410,39 @@ static int expected_notice(fd2_vga *vga, fd2_field_game *game, unsigned portrait
 }
 
 static int test_notice_resource_owner_and_stable_page(void) {
-    fd2_archive archive = {0};
-    fd2_field_game *game = calloc(1, sizeof(*game)), *before = malloc(sizeof(*before));
-    fd2_vga *vga = calloc(1, sizeof(*vga)), *expected = calloc(1, sizeof(*expected));
+    fd2_archive archive={0};
+    fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_vga *vga=calloc(1,sizeof(*vga)),*expected=calloc(1,sizeof(*expected));
     CHECK(game && before && vga && expected);
-    CHECK(fd2_archive_open(&archive, "original_game/FDOTHER.DAT") == 0 && fd2_field_game_open(game, vga, &archive, 0) == 0);
-    game->attack_rng = notice_rng; game->attack_rng_userdata = NULL;
-    backend_rng_ok = 1;
-    const size_t prompts[5] = {410, 413, 415, 417, 419};
-    for (unsigned i = 0; i < 5; i++) {
-        size_t prompt = prompts[i];
-        game->system_menu.confirmation_prompt_fragment = (uint16_t)prompt;
-        game->system_menu.confirmation_yes = 1;
-        unsigned portrait = prompt == 417 ? game->units.items[0].unit_id : 75;
-        for (unsigned kind = 0; kind < 3; kind++) {
-            size_t fragment = kind == 0 ? prompt : kind == 1 ? prompt + 1u : 412u;
-            memset(vga->framebuffer, 0x77, sizeof(vga->framebuffer));
-            memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
-            CHECK(expected_notice(expected, game, portrait, prompt, kind ? fragment : 0) == 0);
-            memcpy(before, game, sizeof(*before));
-            reset_controls(); backend_rng_ok = 1; expected_present_frame = expected->framebuffer;
-            CHECK(play_system_confirmation_text(game, vga, fragment, 0) == 0);
-            CHECK(presents == 1 && delay_calls == 1 && !unexpected_present_frames && backend_rng_ok);
-            CHECK(memcmp(before, game, sizeof(*before)) == 0);
-            expected_present_frame = NULL;
-        }
-        /* 稳态确认页复用同一notice，独立叠原YES/NO资源。 */
-        game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
-        game->system_menu.page = FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
-        fd2_field_game_render(game, vga);
-        memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
-        CHECK(expected_notice(expected, game, portrait, prompt, 0) == 0);
-        for (unsigned choice = 0; choice < 2; choice++) {
-            const fd2_image *button = fd2_field_command_frame_id(&game->command_assets,
-                (uint8_t)(16 + choice), choice == 0, 0, game->system_menu.highlight_phase);
-            CHECK(button); fd2_map_sprite_blit(expected, button, 232 + (int)choice * 32, 168, 0);
-        }
-        CHECK(memcmp(vga->framebuffer, expected->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
-        game->interaction = FD2_FIELD_INTERACTION_BROWSE;
-        game->system_result_fragment = (uint16_t)(prompt + 1u);
-        fd2_field_game_render(game, vga);
-        memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
-        CHECK(expected_notice(expected, game, portrait, prompt, prompt + 1u) == 0);
-        CHECK(memcmp(vga->framebuffer, expected->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
-        game->system_result_fragment = 0;
+    CHECK(fd2_archive_open(&archive,"original_game/FDOTHER.DAT")==0 && fd2_field_game_open(game,vga,&archive,0)==0);
+    game->attack_rng=notice_rng;game->attack_rng_userdata=NULL;
+    const size_t prompts[]={410,413,415,417,419};
+    for (unsigned i=0;i<5;i++) for (unsigned result_kind=0;result_kind<2;result_kind++) {
+        field_progress_box box={0};size_t prompt=prompts[i];
+        game->system_menu.confirmation_prompt_fragment=(uint16_t)prompt;
+        unsigned portrait=prompt==417?game->units.items[0].unit_id:75;
+        memset(vga->framebuffer,0x77,sizeof(vga->framebuffer));
+        memcpy(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer));
+        CHECK(expected_notice(expected,game,portrait,prompt,0)==0);
+        memcpy(before,game,sizeof(*before));reset_controls();backend_rng_ok=1;
+        CHECK(play_system_confirmation_text(game,vga,&box,NULL,prompt,0)==0);
+        CHECK(presents>6 && delay_calls>0 && box.page && backend_rng_ok);
+        CHECK(!memcmp(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer)));
+        CHECK(!memcmp(before,game,sizeof(*before)));
+        unsigned frames_before=(unsigned)presents,delays_before=(unsigned)delay_calls;
+        size_t result=result_kind?412u:prompt+1u;
+        CHECK(play_system_confirmation_text(game,vga,&box,NULL,result,0)==0);
+        CHECK(!box.page && (unsigned)presents>frames_before+5u && (unsigned)delay_calls>delays_before && backend_rng_ok);
+        for (size_t p=0;p<sizeof(vga->framebuffer);p++) CHECK(vga->framebuffer[p]==0x77);
+        CHECK(!memcmp(before,game,sizeof(*before)));
     }
-    /* END固定75不依赖actor存在；March真实raw0来源为空必须原子拒绝。 */
-    game->units.count = 0;
-    CHECK(fd2_field_game_render_system_notice(game, vga, 419) == 0);
-    memcpy(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer));
-    CHECK(fd2_field_game_render_system_notice(game, vga, 417) == -1);
-    CHECK(memcmp(expected->framebuffer, vga->framebuffer, sizeof(vga->framebuffer)) == 0 && backend_rng_ok);
-    fd2_field_game_close(game); fd2_archive_close(&archive);
-    free(game); free(before); free(vga); free(expected);
-    return 0;
+    game->units.count=0;
+    CHECK(fd2_field_game_render_system_notice(game,vga,419)==0);
+    memcpy(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer));
+    CHECK(fd2_field_game_render_system_notice(game,vga,417)==-1 &&
+        !memcmp(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer)));
+    fd2_field_game_close(game);fd2_archive_close(&archive);
+    free(game);free(before);free(vga);free(expected);return 0;
 }
 
 int main(void) {

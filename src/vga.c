@@ -16,6 +16,10 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
                                      SDL_TEXTUREACCESS_STREAMING,
                                      VGA_W, VGA_H);
     if (!vga->texture) return -1;
+    vga->field_page=fd2_field_page_create();
+    if(!vga->field_page) {
+        SDL_DestroyTexture(vga->texture);vga->texture=NULL;return -1;
+    }
     return 0;
 }
 
@@ -77,11 +81,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
     }
 }
 
-static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* 每次呈现后采样一次当前物理键态，生成且仅生成该呈现帧的
-     * IsPressed／repeat 脉冲；上一呈现帧未读脉冲在此丢弃。 */
-    fd2_input_begin_frame(&vga->input);
-
+void fd2_vga_upload_current_frame(fd2_vga *vga) {
+    if(!vga || !vga->renderer || !vga->texture)return;
     uint32_t colors[256];
     for (int i = 0; i < 256; i++) {
         colors[i] = 0xff000000u |
@@ -102,6 +103,12 @@ static void fd2_vga_present_impl(fd2_vga *vga) {
     SDL_UnlockTexture(vga->texture);
     SDL_RenderTexture(vga->renderer, vga->texture, NULL, NULL);
     SDL_RenderPresent(vga->renderer);
+}
+
+static void fd2_vga_present_impl(fd2_vga *vga) {
+    /* 只有游戏帧present生成输入脉冲；帧内字形/嘴型再上传不重采键。 */
+    fd2_input_begin_frame(&vga->input);
+    fd2_vga_upload_current_frame(vga);
 }
 
 static void fd2_delay_until(uint64_t deadline_ns) {
@@ -197,6 +204,7 @@ int fd2_input_check(fd2_vga *vga) {
 }
 
 void fd2_vga_close(fd2_vga *vga) {
+    fd2_field_page_destroy(vga->field_page);vga->field_page=NULL;
     if (vga->texture) SDL_DestroyTexture(vga->texture);
     vga->texture = NULL;
 }

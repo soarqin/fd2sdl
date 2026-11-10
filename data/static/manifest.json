@@ -3,13 +3,16 @@
   "table_files": [
     "attack.json",
     "battle_animation.json",
+    "common_event.json",
     "field_audio.json",
+    "field_background.json",
     "items.json",
     "magic.json",
     "magic_fx.json",
     "movement.json",
     "movement_scripts.json",
     "preparation.json",
+    "runtime.json",
     "stage.json",
     "unit_base.json"
   ],
@@ -1204,13 +1207,59 @@
           5
         ]
       }
+    },
+    "runtime.json": {
+      "k_field_range_sequence": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          20
+        ]
+      }
+    },
+    "common_event.json": {
+      "k_common_event_nested_descriptors": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          4,
+          3
+        ]
+      },
+      "k_common_event_cell_items": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          5
+        ]
+      }
+    },
+    "field_background.json": {
+      "k_field_background_config": {
+        "c_type": "uint16_t",
+        "dimensions": [
+          33,
+          4
+        ]
+      },
+      "k_field_background_wave": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          16
+        ]
+      },
+      "k_field_background_scroll_initial": {
+        "c_type": "uint8_t",
+        "dimensions": [
+          1
+        ]
+      }
     }
   },
   "flow_files": [
+    "common_event.json",
     "loot.json",
     "magic.json",
     "preparation.json",
     "progress.json",
+    "runtime.json",
     "scene.json",
     "stage.json"
   ],
@@ -1696,7 +1745,7 @@
       "operation_abi_sha256": "d66d1ba4c771f9239f9c607e68e275794b865391c42f07a2e02f1250a2d7e56b"
     },
     "stage.json": {
-      "operation_abi_sha256": "8678729c3de02e65720aa5dcf0b7ae54a8157266451c69b067c2e546fd279d6f",
+      "operation_abi_sha256": "3a68b41f7aac2a6e844e63b3d46ad86e86bd787ae750f62c05f61646292799cb",
       "ports": {
         "stage_setup": [
           [
@@ -1856,6 +1905,55 @@
           [
             "next"
           ]
+        ],
+        "branch_event_byte": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_turn": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_actor": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_hidden_count": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_roster_text": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_item": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_item_occurrences": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
         ]
       },
       "required_ids": [
@@ -1874,7 +1972,7 @@
       ]
     },
     "loot.json": {
-      "operation_abi_sha256": "d3c23d74c4ca0e5a6b5236435d722d07d6041501b7e1c258dfbd8f203a5d4f02",
+      "operation_abi_sha256": "f5e0d466d7311a506a7d09e12a3bd3db925dfe3b441bc6b63adc0d6fbd24e408",
       "ports": {
         "collect_reset": [
           [
@@ -2070,6 +2168,13 @@
             "next"
           ]
         ],
+        "branch_known_common_event": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
         "branch_cell_flags": [
           [
             "error",
@@ -2224,13 +2329,6 @@
             "next"
           ]
         ],
-        "branch_stage": [
-          [
-            "error",
-            "no",
-            "yes"
-          ]
-        ],
         "item_validate": [
           [
             "error",
@@ -2241,6 +2339,19 @@
           [
             "error",
             "next",
+            "yes"
+          ]
+        ],
+        "event_common_preflight": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "branch_stage": [
+          [
+            "error",
+            "no",
             "yes"
           ]
         ],
@@ -2286,6 +2397,19 @@
         ],
         "fail": [
           []
+        ],
+        "branch_collect_action_kind": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "runtime_refresh": [
+          [
+            "error",
+            "next"
+          ]
         ],
         "branch_actor_can_act": [
           [
@@ -2395,6 +2519,24 @@
           ]
         ],
         "player_controller_complete": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cell_cue_preflight": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cell_callback_preflight": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cell_open_cue": [
           [
             "error",
             "next"
@@ -3045,6 +3187,712 @@
           "notown.mode"
         ]
       }
+    },
+    "runtime.json": {
+      "operation_abi_sha256": "87d939eb3dc5d08f13792062cd68fb27d5212928af0e34bd2473b54195d6263e",
+      "ports": {
+        "round_frame": [
+          [
+            "next"
+          ]
+        ],
+        "round_wait_ms": [
+          [
+            "next"
+          ]
+        ],
+        "round_restore_vga": [
+          [
+            "next"
+          ]
+        ],
+        "round_number": [
+          [
+            "next"
+          ]
+        ],
+        "round_map_background": [
+          [
+            "next"
+          ]
+        ],
+        "round_drop": [
+          [
+            "next"
+          ]
+        ],
+        "round_wait_ticks": [
+          [
+            "next"
+          ]
+        ],
+        "round_refresh": [
+          [
+            "next"
+          ]
+        ],
+        "round_finish": [
+          []
+        ],
+        "phase_parameters": [
+          [
+            "next"
+          ]
+        ],
+        "phase_slide": [
+          [
+            "next"
+          ]
+        ],
+        "phase_capture_prefix": [
+          [
+            "next"
+          ]
+        ],
+        "phase_mosaic": [
+          [
+            "next"
+          ]
+        ],
+        "phase_darkness": [
+          [
+            "next"
+          ]
+        ],
+        "phase_clear_keys": [
+          [
+            "next"
+          ]
+        ],
+        "phase_hold": [
+          [
+            "next"
+          ]
+        ],
+        "phase_redraw": [
+          [
+            "next"
+          ]
+        ],
+        "turn_recovery_wait": [
+          [
+            "next"
+          ]
+        ],
+        "turn_recovery_highlight": [
+          [
+            "next"
+          ]
+        ],
+        "turn_recovery_cue": [
+          [
+            "next"
+          ]
+        ],
+        "turn_recovery_commit": [
+          [
+            "next"
+          ]
+        ],
+        "turn_recovery_project": [
+          [
+            "next"
+          ]
+        ],
+        "turn_refresh": [
+          [
+            "next"
+          ],
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "turn_enter_phase": [
+          [
+            "next"
+          ]
+        ],
+        "turn_stop_if_different": [
+          [
+            "next"
+          ]
+        ],
+        "turn_enemy_title": [
+          [
+            "next"
+          ]
+        ],
+        "turn_clear_acted": [
+          [
+            "next"
+          ]
+        ],
+        "turn_increment": [
+          [
+            "next"
+          ]
+        ],
+        "turn_player_title": [
+          [
+            "next"
+          ]
+        ],
+        "turn_display_mode": [
+          [
+            "next"
+          ]
+        ],
+        "turn_primary_music": [
+          [
+            "next"
+          ]
+        ],
+        "turn_round": [
+          [
+            "next"
+          ]
+        ],
+        "turn_focus_reset": [
+          [
+            "next"
+          ]
+        ],
+        "turn_focus_zero": [
+          [
+            "next"
+          ]
+        ],
+        "turn_clear_keys": [
+          [
+            "next"
+          ]
+        ],
+        "turn_done": [
+          []
+        ],
+        "choice_begin": [
+          [
+            "next"
+          ]
+        ],
+        "choice_snapshot": [
+          [
+            "next"
+          ]
+        ],
+        "choice_has_field": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "choice_field_redraw": [
+          [
+            "next"
+          ]
+        ],
+        "choice_draw": [
+          [
+            "next"
+          ]
+        ],
+        "choice_wait_key": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "choice_read_key": [
+          [
+            "ack",
+            "cancel",
+            "next"
+          ]
+        ],
+        "choice_tick": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "choice_blink": [
+          [
+            "next"
+          ]
+        ],
+        "choice_steady": [
+          [
+            "next"
+          ]
+        ],
+        "choice_finish": [
+          [
+            "next"
+          ]
+        ],
+        "choice_done": [
+          []
+        ],
+        "defeat_has_visible": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "defeat_mark_hidden": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_begin": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_rotate_actors": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_rotate_page": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_wait": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_base": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_cue": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeat_finish": [
+          []
+        ],
+        "defeat_fail": [
+          []
+        ],
+        "defeat_rotate_project": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_wait": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_has_magic": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "detail_flip": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "detail_done": [
+          []
+        ],
+        "detail_fail": [
+          []
+        ]
+      },
+      "required_ids": [
+        "round",
+        "phase",
+        "turncycle",
+        "choice",
+        "runtime.defeat",
+        "runtime.detail"
+      ],
+      "required_labels": {
+        "phase": [
+          "player",
+          "enemy"
+        ],
+        "turncycle": [
+          "player_done",
+          "side1_done",
+          "side0_done",
+          "player_ready",
+          "done"
+        ],
+        "choice": [
+          "begin",
+          "snapshot.begin",
+          "field.begin",
+          "redraw.begin",
+          "wait",
+          "read",
+          "tick",
+          "field.tick",
+          "redraw.tick",
+          "blink",
+          "field.copy",
+          "snapshot.tick",
+          "steady",
+          "finish",
+          "field.close",
+          "redraw.close",
+          "done"
+        ]
+      }
+    },
+    "common_event.json": {
+      "operation_abi_sha256": "0d8a6f4b35afdd6ff29e6673ec480bb5a30601d85a28bf019cbfb2bc90d37162",
+      "ports": {
+        "end": [
+          []
+        ],
+        "fail": [
+          []
+        ],
+        "branch_caller": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_event_byte": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_turn": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_actor": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_hidden_count": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_roster_text": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_item": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_item_occurrences": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "event_byte_write": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "event_byte_from_count": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "turn_relative": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "event_item_append": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "event_item_remove": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "event_item_consume": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cell_item_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "unit_field_write": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "unit_ai_write": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "mark_random_pair": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "story": [
+          [
+            "ack",
+            "error"
+          ]
+        ],
+        "clear_keys": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "notice_actor": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "message": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "portrait_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "wait_key": [
+          [
+            "ack",
+            "error"
+          ]
+        ],
+        "close_box": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "completed_cells": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "roster_append": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "roster_sync": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "grant_party_item": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "map_replace": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "raw_animation": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "append_group": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "pan": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "move": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "physical_exchange": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "finalize_defeated": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "refresh_map": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "contribution_clear": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "loot_child": [
+          [
+            "ack",
+            "error"
+          ]
+        ],
+        "map_reset_cells": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "background_rebuild": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "brightness": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "unit_hp_zero_tail": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "append_group_source": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "story_source": [
+          [
+            "ack",
+            "error"
+          ]
+        ]
+      },
+      "required_ids": [
+        "common.state.once",
+        "common.inventory.once",
+        "common.turn.relative",
+        "common.random.pair",
+        "common.item.collection",
+        "common.cell.grant",
+        "common.key.consume",
+        "common.loot.child.0",
+        "common.loot.child.1",
+        "common.loot.child.2",
+        "common.loot.physical",
+        "common.map.replace",
+        "common.defeat.tail",
+        "common.group.turn.source",
+        "common.story.state.source"
+      ]
     }
   }
 }

@@ -12,10 +12,13 @@ typedef struct {
     const fd2_static_flow *flow;
     fd2_field_loot pending, saved;
     size_t actor, scan;
-    int magic_collector, raw_slot, last, started, preflight, override;
+    int magic_collector, raw_slot, last, started, preflight, override, child;
     uint8_t descriptor[3], cell_index, cell_flags, remembered;
     uint32_t message_number, normalized_reward;
 } fd2_loot_flow_context;
+
+static int common_event_callback_begin(fd2_field_game *game, uint8_t action, size_t actor);
+static int common_event_child_resume(fd2_field_game *game);
 
 static const fd2_static_flow *loot_flow(void) {
     return fd2_static_flow_lookup("loot", "loot");
@@ -24,6 +27,7 @@ static const fd2_static_flow *loot_flow(void) {
 static const uint8_t *loot_flow_descriptor(const fd2_loot_flow_context *ctx) {
     const fd2_field_loot *loot = &ctx->game->loot;
     if (ctx->override) return ctx->descriptor;
+    if (ctx->child) return loot->child.descriptor;
     return loot->cursor < loot->count ? loot->descriptors[loot->cursor] : ctx->descriptor;
 }
 
@@ -68,7 +72,7 @@ static int loot_flow_query(fd2_loot_flow_context *ctx, int field, int *out) {
     const fd2_field_unit *u = ctx->actor < g->units.count ? &g->units.items[ctx->actor] : NULL;
     const fd2_field_unit *scan = ctx->scan < g->units.count ? &g->units.items[ctx->scan] : NULL;
     switch (field) {
-    case 0: *out = l->cursor < l->count; break;
+    case 0: *out = ctx->child ? l->child.active : l->cursor < l->count; break;
     case 1: *out = d[0]; break;
     case 2: if (!u) return -1; *out = u->side; break;
     case 3: { if (!u) return -1; fd2_field_unit shadow = *u;
@@ -101,6 +105,12 @@ static int loot_flow_query(fd2_loot_flow_context *ctx, int field, int *out) {
     case 28: if (!u) return -1; *out = u->hp; break;
     case 29: if (!u) return -1; *out = fd2_field_unit_has_acted(u); break;
     case 30: *out = (int)g->move_path_length; break;
+    case 31: {
+        unsigned value=(unsigned)d[1] | (unsigned)d[2]<<8;
+        *out=value<=UINT8_MAX && known_common_event_flow(g,(uint8_t)value)!=NULL;
+        break;
+    }
+    case 32: *out = ctx->pending.action_kind; break;
     default: return -1;
     }
     return 0;
@@ -122,7 +132,8 @@ static int loot_flow_operation(const char *op, int branch) {
         "wait_cell_preflight", "stationary_recover", "wait_cell_begin", "directions_reset",
         "actor_mark_acted", "magic_reward_normalize", "experience_store_normalized", "magic_list_reset",
         "item_selection_reset", "targets_reset", "command_release", "player_controller_complete",
-        "pending_collect_final"
+        "pending_collect_final", "event_common_preflight", "runtime_refresh",
+        "cell_callback_preflight", "cell_cue_preflight", "cell_open_cue"
     };
     static const char *const queries[] = {
         "branch_has_descriptor", "branch_descriptor_mode", "branch_actor_side", "branch_inventory_capacity",
@@ -132,7 +143,8 @@ static int loot_flow_operation(const char *op, int branch) {
         "branch_collect_mode", "branch_magic_collector", "branch_collect_count", "branch_cell_flags",
         "branch_cell_completed", "branch_stage", "branch_cell_index", "branch_slot_valid",
         "branch_unit_count", "branch_notice_count", "branch_actor_can_act", "branch_actor_active_side",
-        "branch_actor_hp", "branch_actor_acted", "branch_path_length"
+        "branch_actor_hp", "branch_actor_acted", "branch_path_length", "branch_known_common_event",
+        "branch_collect_action_kind"
     };
     const char *const *names = branch ? queries : actions;
     size_t count = branch ? sizeof(queries) / sizeof(queries[0]) : sizeof(actions) / sizeof(actions[0]);
@@ -173,12 +185,19 @@ static int execute_loot_callback(fd2_field_game *game) {
     const fd2_field_loot *l = &game->loot;
     if (l->count > FD2_FIELD_MAX_UNITS || l->cursor >= l->count ||
         l->actor_index >= game->units.count) return -1;
+    unsigned action=l->descriptors[l->cursor][1] | (unsigned)l->descriptors[l->cursor][2]<<8;
+    /* 原0x51b91的90项callback止于0x51cf9，之后是非指针18/18。
+     * 190ac/1aa1d都读完整WORD；晚坏描述符不能截低BYTE误调用另一handler。 */
+    if(action>=90u)return -1;
+    int common = common_event_callback_begin(game, (uint8_t)action, l->actor_index);
+    if (common < 0) return -1;
+    if (common > 0) return 0;
     fd2_field_event_notice e = {.kind = FD2_FIELD_EVENT_CELL, .turn_number = game->turn_number,
-        .phase = game->active_side, .action = l->descriptors[l->cursor][1],
+        .phase = game->active_side, .action = (uint8_t)action,
         .unit_index = (uint8_t)l->actor_index, .slot = SIZE_MAX};
     if (reserve_event_notice(game, &e) != 0) return -1;
     snapshot_event_presentation(game, &e);
-    if (execute_known_turn_event(game, e.action) != 0) return -1;
+    if (execute_known_turn_event(game, e.action, l->actor_index) != 0) return -1;
     e.handled = e.presentation_deferred = 1;
     append_event_notice(game, &e);
     return 0;
@@ -198,7 +217,7 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
         if (ctx->scan >= g->units.count || ctx->pending.count >= FD2_FIELD_MAX_UNITS) return -1;
         memcpy(ctx->pending.descriptors[ctx->pending.count++], (const uint8_t *)&g->units.items[ctx->scan] + 0x31, 3); break;
     case 3: ctx->scan++; break;
-    case 4: finalize_zero_hp_units(g); break;
+    case 4: return finalize_zero_hp_units(g);
     case 5: g->battle_result = fd2_field_game_battle_result(g); break;
     case 6: *l = ctx->pending; ctx->started = 1; break;
     case 7: { if (!u || value > UINT8_MAX || !fd2_field_item_record_get(d[1])) return -1;
@@ -219,7 +238,7 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
     case 11:
         if (ctx->preflight) ctx->message_number = value; else g->message_number = value; break;
     case 12: g->resource_value += g->message_number; break;
-    case 13: l->cursor++; break;
+    case 13: if (ctx->child) l->child.active = 0; else l->cursor++; break;
     case 14: return execute_loot_callback(g);
     case 15:
         if (ctx->cell_index >= FD2_FIELD_EVENT_SLOTS) return -1;
@@ -280,6 +299,33 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
         ctx->last = fd2_field_game_complete_player_controller(g, ctx->actor);
         return ctx->last < 0 ? -1 : 0;
     case 44: return collect_pending_cell_event(g, ctx->actor, 1) < 0 ? -1 : 0;
+    case 45: {
+        const fd2_static_flow *common=value<=UINT8_MAX ? known_common_event_flow(g,(uint8_t)value):NULL;
+        /* 1aa1d的mode2使用原caller；这里只读核已绑定common资源，
+         * 不经过legacy stage/count/notice门，不启动callback或抽RNG。 */
+        return common && ctx->actor<g->units.count ? common_event_preflight_flow(g,common,ctx->actor):-1;
+    }
+    /* AI1548e的SHORT/FULL都在1563b、1565c调用11cac(0)：
+     * 先collect再清死亡；全部descriptor结束后才第二次刷新和奖励。 */
+    case 46: return turn_present(g, FD2_FIELD_RUNTIME_REFRESH, 0);
+    case 47: {
+        /* 190ac的非0/1 mode都按完整WORD调用90项callback表，不能当drop story。
+         * 用既有mode2只读入口复用common/legacy实际绑定和资源门。 */
+        if(value>=90u)return -1;
+        uint8_t callback[3]={2,d[1],d[2]};
+        return loot_descriptor_preflight(g,ctx->actor,callback);
+    }
+    case 48: {
+        if(!g->option_values[1])return 0;
+        const uint8_t *data,*sample;size_t size,length;
+        fd2_archive bank={0};
+        if(!g->fdother || fd2_archive_get(g->fdother,31,&data,&size)!=0 ||
+            fd2_archive_open_mem(&bank,data,size)!=0)return -1;
+        int valid=bank.count>12 && fd2_archive_get(&bank,12,&sample,&length)==0 &&
+            length>0 && length<=UINT32_MAX;
+        fd2_archive_close(&bank);return valid?0:-1;
+    }
+    case 49: return turn_present(g,FD2_FIELD_RUNTIME_CELL_OPEN_CUE,12);
     default: return -1;
     }
     return 0;
@@ -293,13 +339,18 @@ static int loot_flow_run(fd2_loot_flow_context *ctx, int pc) {
         ctx->cell_index >= FD2_SAVE_BATTLE_CELL_STATE_SIZE) goto failure;
     const fd2_static_flow *flow = ctx->flow ? ctx->flow : loot_flow();
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        if (!ctx->preflight && ctx->game->runtime_host_quit) return 0;
         const fd2_static_flow_node *node = fd2_static_flow_at(flow, pc);
         if (!node || !(node->views & FD2_FLOW_LOGIC)) break;
+        /* 子只执行caller-local这一条descriptor；不走父战斗奖励/controller尾。 */
+        if (ctx->child && !ctx->game->loot.child.active && !strcmp(node->op, "branch_has_descriptor"))
+            return 0;
         unsigned port = FD2_FLOW_NEXT;
         int query = loot_flow_operation(node->op, 1);
         int action = loot_flow_operation(node->op, 0);
         /* 冷图可改边，但纯预检不能因此获得写live owner的能力。 */
-        if (ctx->preflight && !(query >= 0 || action == 11 || action == 29 || action == 30 ||
+        if (ctx->preflight && !(query >= 0 || action == 11 || action == 29 || action == 30 || action == 45 ||
+            action == 47 || action == 48 ||
             !strcmp(node->op, "probe") || !strcmp(node->op, "probe_slots") ||
             !strcmp(node->op, "end") || !strcmp(node->op, "fail"))) goto failure;
         if (query >= 0) {
@@ -318,16 +369,32 @@ static int loot_flow_run(fd2_loot_flow_context *ctx, int pc) {
             }
         } else if (action >= 0) {
             if (action == 31) return ctx->last;
+            if ((action == 14 || action == 27) && !ctx->child) {
+                ctx->game->loot.step = (uint8_t)pc;
+                if(action==27)ctx->game->loot.actor_index=ctx->actor;
+            }
             if (loot_flow_action(ctx, action) < 0) port = FD2_FLOW_ERROR;
+            else if (action == 14 && ctx->game->event_resume.active) return 0;
+            else if (action == 27 && ctx->game->event_resume.active) {
+                ctx->game->event_resume.completion=FD2_EVENT_COMPLETE_LOOT_PENDING;
+                return 0;
+            }
         } else if (!strcmp(node->op, "emit")) {
             /* action.finish是同步API；只有原loot图可以持有等待PC。 */
             if (ctx->flow) goto failure;
-            ctx->game->loot.notice = loot_flow_notice(ctx, node);
-            ctx->game->loot.step = (uint8_t)pc; ctx->game->loot.text_ready = 0;
+            if (ctx->child) {
+                ctx->game->loot.child.notice = loot_flow_notice(ctx, node);
+                ctx->game->loot.child.step = (uint8_t)pc; ctx->game->loot.child.text_ready = 0;
+            } else {
+                ctx->game->loot.notice = loot_flow_notice(ctx, node);
+                ctx->game->loot.step = (uint8_t)pc; ctx->game->loot.text_ready = 0;
+            }
             return 0;
         } else if (!strcmp(node->op, "ready")) {
             if (ctx->flow) goto failure;
-            ctx->game->loot.step = (uint8_t)pc; ctx->game->loot.text_ready = 1;
+            if (ctx->child) {
+                ctx->game->loot.child.step = (uint8_t)pc; ctx->game->loot.child.text_ready = 1;
+            } else { ctx->game->loot.step = (uint8_t)pc; ctx->game->loot.text_ready = 1; }
             return 0;
         } else if (!strcmp(node->op, "probe") || !strcmp(node->op, "probe_slots")) {
             const fd2_static_flow_node *target = fd2_static_flow_at(flow, fd2_static_flow_edge(flow, node, FD2_FLOW_NEXT));
@@ -397,6 +464,12 @@ static int begin_defeated_loot(fd2_field_game *game, size_t recipient,
 
 int fd2_field_game_loot_peek(const fd2_field_game *game, fd2_field_loot_notice *notice) {
     if (!game || !game->ready || !notice || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    if (game->event_resume.active) {
+        if (!game->event_resume.child_wait) return 0;
+        if (!game->loot.child.active || game->loot.child.actor_index >= game->units.count ||
+            game->loot.child.notice.kind == FD2_FIELD_LOOT_NONE) return -1;
+        *notice = game->loot.child.notice; return 1;
+    }
     if (game->loot.notice.kind == FD2_FIELD_LOOT_NONE) return 0;
     if (game->loot.notice.kind > FD2_FIELD_LOOT_FIELD_EVENT || game->loot.actor_index >= game->units.count) return -1;
     *notice = game->loot.notice; return 1;
@@ -404,8 +477,11 @@ int fd2_field_game_loot_peek(const fd2_field_game *game, fd2_field_loot_notice *
 
 static fd2_loot_flow_context loot_flow_reply_context(fd2_field_game *game, int slot) {
     fd2_loot_flow_context ctx = {0}; ctx.game = game; ctx.actor = game->loot.actor_index;
+    ctx.child = game->event_resume.active && game->event_resume.child_wait;
+    if (ctx.child) ctx.actor = game->loot.child.actor_index;
     ctx.cell_index = game->loot.cell_index; ctx.cell_flags = game->loot.cell_flags;
-    ctx.remembered = game->loot.notice.old_item_id; ctx.raw_slot = slot;
+    ctx.remembered = ctx.child ? game->loot.child.notice.old_item_id : game->loot.notice.old_item_id;
+    ctx.raw_slot = slot;
     return ctx;
 }
 
@@ -428,9 +504,11 @@ static int loot_flow_resume_ai_tail(fd2_field_game *game, const fd2_field_loot *
 
 int fd2_field_game_loot_text_ready(fd2_field_game *game) {
     fd2_field_loot_notice n;
-    if (fd2_field_game_loot_peek(game, &n) != 1 || n.kind != FD2_FIELD_LOOT_MESSAGE || game->loot.text_ready) return -1;
+    int child = game && game->event_resume.active && game->event_resume.child_wait;
+    if (fd2_field_game_loot_peek(game, &n) != 1 || n.kind != FD2_FIELD_LOOT_MESSAGE ||
+        (child ? game->loot.child.text_ready : game->loot.text_ready)) return -1;
     const fd2_static_flow *flow = loot_flow();
-    const fd2_static_flow_node *node = fd2_static_flow_at(flow, game->loot.step);
+    const fd2_static_flow_node *node = fd2_static_flow_at(flow, child ? game->loot.child.step : game->loot.step);
     int pc = fd2_static_flow_edge(flow, node, FD2_FLOW_TEXT_READY);
     if (pc < 0) return -1;
     fd2_loot_flow_context ctx = loot_flow_reply_context(game, -1);
@@ -439,7 +517,9 @@ int fd2_field_game_loot_text_ready(fd2_field_game *game) {
 
 int fd2_field_game_loot_reply(fd2_field_game *game, fd2_field_loot_reply reply, int raw_slot) {
     fd2_field_loot_notice n;
-    if (fd2_field_game_loot_peek(game, &n) != 1 || (n.kind == FD2_FIELD_LOOT_MESSAGE && !game->loot.text_ready)) return -1;
+    int child = game && game->event_resume.active && game->event_resume.child_wait;
+    if (fd2_field_game_loot_peek(game, &n) != 1 || (n.kind == FD2_FIELD_LOOT_MESSAGE &&
+        !(child ? game->loot.child.text_ready : game->loot.text_ready))) return -1;
     int choice = n.kind == FD2_FIELD_LOOT_CHOICE;
     int inventory = n.kind == FD2_FIELD_LOOT_INVENTORY;
     if ((choice && reply != FD2_FIELD_LOOT_YES && reply != FD2_FIELD_LOOT_NO && reply != FD2_FIELD_LOOT_CANCEL) ||
@@ -448,9 +528,38 @@ int fd2_field_game_loot_reply(fd2_field_game *game, fd2_field_loot_reply reply, 
     static const uint8_t ports[] = {FD2_FLOW_ACK, FD2_FLOW_YES, FD2_FLOW_NO, FD2_FLOW_CANCEL, FD2_FLOW_SLOT};
     if ((unsigned)reply >= sizeof(ports)) return -1;
     const fd2_static_flow *flow = loot_flow();
-    const fd2_static_flow_node *node = fd2_static_flow_at(flow, game->loot.step);
+    const fd2_static_flow_node *node = fd2_static_flow_at(flow, child ? game->loot.child.step : game->loot.step);
     int pc = fd2_static_flow_edge(flow, node, ports[reply]);
     if (pc < 0) return -1;
     fd2_loot_flow_context ctx = loot_flow_reply_context(game, raw_slot);
-    return loot_flow_run(&ctx, pc);
+    int result = loot_flow_run(&ctx, pc);
+    if (result == 0 && child && !game->loot.child.active) return common_event_child_resume(game);
+    return result;
+}
+
+static int loot_flow_begin_event_child(fd2_field_game *game, size_t actor, const uint8_t descriptor[3]) {
+    if (!game || !game->event_resume.active || !game->event_resume.child_wait ||
+        game->loot.child.active || actor >= game->units.count ||
+        loot_descriptor_preflight(game, actor, descriptor) != 0) return -1;
+    memset(&game->loot.child, 0, sizeof(game->loot.child));
+    memcpy(game->loot.child.descriptor, descriptor, 3);
+    game->loot.child.actor_index = actor; game->loot.child.active = 1;
+    fd2_loot_flow_context ctx = {0}; ctx.game = game; ctx.actor = actor; ctx.child = 1;
+    return loot_flow_run(&ctx, fd2_static_flow_label(loot_flow(), "drop.advance"));
+}
+
+static int loot_flow_resume_event_callback(fd2_field_game *game) {
+    const fd2_static_flow *flow = loot_flow();
+    const fd2_static_flow_node *node = fd2_static_flow_at(flow, game->loot.step);
+    if (!node || strcmp(node->op, "event_dispatch")) return -1;
+    fd2_loot_flow_context ctx = loot_flow_reply_context(game, -1);
+    return loot_flow_run(&ctx, fd2_static_flow_edge(flow, node, FD2_FLOW_NEXT));
+}
+
+static int loot_flow_resume_event_pending(fd2_field_game *game) {
+    const fd2_static_flow *flow=loot_flow();
+    const fd2_static_flow_node *node=fd2_static_flow_at(flow,game->loot.step);
+    if(!node || strcmp(node->op,"pending_dispatch"))return -1;
+    fd2_loot_flow_context ctx=loot_flow_reply_context(game,-1);
+    return loot_flow_run(&ctx,fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT));
 }

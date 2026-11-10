@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "k_field_background_config",
+      "c_type": "uint16_t",
+      "dimensions": [
+        33,
+        4
+      ],
+      "values": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          15,
+          320,
+          200
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          16,
+          462,
+          226
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          35,
+          408,
+          276
+        ],
+        [
+          2,
+          40,
+          408,
+          256
+        ],
+        [
+          3,
+          42,
+          312,
+          192
+        ],
+        [
+          1,
+          15,
+          320,
+          200
+        ],
+        [
+          1,
+          15,
+          320,
+          200
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          46,
+          462,
+          244
+        ],
+        [
+          1,
+          55,
+          320,
+          200
+        ],
+        [
+          1,
+          55,
+          320,
+          200
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "kind": "decoded_dispatch_projection",
+        "canonical_ranges": [
+          "0x10652",
+          "0x11eee"
+        ],
+        "evidence": "sub_10652完整571B switch及field_view_render_tiles完整885B：kind0无底图，1 raw320x200波纹，2双RLE半图拼canvas，3 312x192滚动。stage索引不是关卡支持门；field_background.c消费kind/entry/width/height，不在C重写stage分支。G1 scope-callee-closure与canonical原callee/xref，结构投影不冒充原内嵌表。"
+      }
+    },
+    {
+      "name": "k_field_background_wave",
+      "c_type": "uint8_t",
+      "dimensions": [
+        16
+      ],
+      "values": [
+        2,
+        3,
+        3,
+        4,
+        4,
+        4,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 3,
+        "canonical_va": "0x627c8",
+        "length": 16,
+        "sha256": "3c3439c5862441b82e7934b587be8ed5f8249eb1aa45b25fabded6472b6dd57e",
+        "view": "raw-unrelocated",
+        "evidence": "sub_4EEE0 @0x4eee0每行以phase索引原16byte波纹位移，然后phase+1模16；原raw320stride+4，输出312px/row、行尾8byte不写。"
+      }
+    },
+    {
+      "name": "k_field_background_scroll_initial",
+      "c_type": "uint8_t",
+      "dimensions": [
+        1
+      ],
+      "values": [
+        1
+      ],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 2,
+        "canonical_va": "0x51a10",
+        "length": 1,
+        "sha256": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a",
+        "view": "raw-unrelocated",
+        "evidence": "sub_24D22 @0x24d22的byte_51A10原文件初值1；a1非0只改速度，a1为0按当前速度向下轮转312x192。10652重建不复位此App字段。"
+      }
+    }
+  ]
+}

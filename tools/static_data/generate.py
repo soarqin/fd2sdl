@@ -102,6 +102,9 @@ def validate_references(tables):
     required = {"k_profiles", "k_player_base_records", "k_enemy_records", "ITEM_RECORDS", "k_growth_records", "k_learning_records", "MAGIC_RECORDS"}
     if not required <= tables.keys():
         raise ValueError(f"missing referenced tables: {sorted(required-tables.keys())}")
+    if "k_field_range_sequence" not in tables or len(tables["k_field_range_sequence"])!=20 or any(
+            not 0<=frame<23 for frame in tables["k_field_range_sequence"]):
+        raise ValueError("invalid original range LUT reference")
     def reference(value, count, label, sentinel=None, first=0):
         if value != sentinel and not first <= value < first + count:
             raise ValueError(f"invalid {label} reference: {value}")
@@ -275,6 +278,15 @@ def validate_flows(document):
             if not isinstance(node["args"], list) or len(node["args"]) != len(arguments) or any(
                     type(v) is not int or not a["min"] <= v <= a["max"] for v, a in zip(node["args"], arguments)):
                 raise ValueError(f"invalid node arguments: {node['id']}")
+            if document["domain"] in {"common_event", "stage"}:
+                op,a=node["op"],node["args"]
+                if op in {"branch_hidden_count","unit_field_write","unit_ai_write","event_byte_write",
+                        "event_item_consume","branch_item_occurrences"} and a[0]>a[1]:
+                    raise ValueError("invalid common event actor/state interval")
+                if op in {"event_item_consume","branch_item_occurrences"} and a[2]>a[3]:
+                    raise ValueError("invalid common event item interval")
+                if op=="unit_field_write" and a[2]<18 and a[4]>255:
+                    raise ValueError("invalid common event BYTE field value")
             if not isinstance(node["on"], dict) or set(node["on"]) - set(PORTS):
                 raise ValueError(f"invalid node ports: {node['id']}")
             views = node.get("views", ["logic", "present"])
@@ -323,6 +335,9 @@ def validate_flows(document):
 def flow_index(document):
     """别名保留同一个节点对象；仅增加稳定运行ID，不复制可编辑定义。"""
     flows = {flow["id"]: flow for flow in document["flows"]}
+    for target in document.get("bindings", {}).values():
+        if target not in flows:
+            raise ValueError(f"required runtime flow binding target missing: {target}")
     return {**flows, **{alias: flows[target] for alias, target in document.get("bindings", {}).items()}}
 
 

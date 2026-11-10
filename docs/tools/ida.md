@@ -249,3 +249,38 @@ C22 的实际空格光标遮挡反例随后促成 `field_actor_terrain_overlays_
 本地收据在 `build/g1/ida/publication/`：`signature-guard.json`核对全部1312函数原型和边界未变，未把反编译猜测类型保存回库；实际名称、函数及伪C导出再由生成器发布。独立差分复审只见12项名称及34f38共享尾的预期变化，350be主体不变。最后刷新并逐项校验11项 `SHA256SUMS`。发布14项和共享尾前置8项测试通过；当前源码719处canonical地址检查通过。
 
 本次不是新静态fixup基线，也没有局部原机器码执行。SDL／DOSBox定向WGC只验证已有标题／菜单的后台输入与新显示保持路径，不代表新服务／法术已运行通过；Linux未执行。
+
+### G4 共用事件、阵营标题与确认框发布（2026-11-10）
+
+本轮复制 G3 已发布库到 `build/g4/ida/publication/FD2.EXE.i64`，首批通过 Domain／idalib 实际保存 23 项确认名称和 23 项依据注释：15 项事件来源、4 项阵营标题来源，以及 `197e5`／`19953` 确认框与 `4ed34`／`4ed4f` 原色透明绘制。首批规范登记为 369 项，函数仍为 1312 个。命名输入在 `build_fd2_name_registry.py::CORRECTIONS`，实现注释保留 canonical VA 和原登记名。
+
+`4ed34` 是完整 27B wrapper，`4ed47` 有真实 CALL 到独立 43B／RET 的 `4ed4f`；该划分同时有入口、指令、调用者与原资源透明零写掩码依据。`1f42d` 的 `184ba..184c0`、`197e5` 的 `17e03..17e0b`、`19953` 的 `13fcc..13fd4` 是既有共享栈清理尾，分别保留 `18409`、`17d6f`、`13e9c` 的原 owner；没有为尾跳转新增函数或猜测 ABI。
+
+两次实际应用前后，全部 1312 个持久签名、函数边界及 chunk 集合均相同。保存前不反编译；最终全量 TSV／伪 C 使用已保存库重新导出，伪 C 仍有两项既有手写汇编失败。G3 源库哈希未变。完整收据为 `build/g4/ida/publication/receipt.json`、`source-guard.json` 和两次 `signature-guard*.json`；新增只读来源为 `build/g4/ida/runtime-choice-names-01/` 的 14 函数／4859B 指令及两个共享时钟读集。
+
+严格 LE 静态交叉核对 21/21、发布专项 14/14 通过；所有发布文件完成后最后刷新并逐项核验 11 项 `SHA256SUMS`。历史 annotation／prototype probe 原样保留，新名称以本次真实 apply 收据登记。此发布不增加 ABI、运行时 BSS、SDL／DOSBox WGC 或 Linux 的验收范围；相应玩法和呈现仍按 G4 阶段收据判定。
+
+随后通过同库的第三次 Domain 保存追加 `1cac7`／`1cb94` 两条调用证据，新增更名0项，该次为370项规范登记、23项实际更名及25项依据注释。`1cac7`保持中性名；完整205B中两次`1cb94`都从同一栈槽取count/list，再分别使用LMI74/75。`2111a`／`213b7`的四栈参、callee自身加载及count0/1/16/96四组原CPU栈捕获共同纠正伪C的EBP/EDI伪参，不保存猜测ABI。新增登记只因该中性函数首次附有可追溯证据，不代表新增玩法。
+
+`signature-guard-effect-evidence.json`逐chunk核这两个完整函数，并再次确认全部1312函数签名、边界和chunk集合不变；绘制／等待等callee在局部CPU检查中被捕获或省略，范围限调用和栈。实际重新导出、全量伪C、21项LE与14项发布检查完成后，最后刷新并核验11项SHA清单；最终收据仍为`build/g4/ida/publication/receipt.json`，未增加原版WGC场景或类型变更。
+
+调用／栈证据的可提交复现器为 [`verify_effect_owner_source.py`](../../tools/ida/verify_effect_owner_source.py)，只读输入显式指定，不依赖脚本内的本机绝对路径。`--readset`使用已取得的Domain完整读集，`--image`使用独立严格relocated镜像；12个函数的完整chunk及hash固定，缺函数、短chunk、共享尾缺失、改字节或镜像身份不同均拒绝。新输出才可写，4项来源正反例不加载Unicorn；实际4组CPU向量另由下列命令执行，不混为GUI验收。
+
+```powershell
+uv run --no-project --with unicorn python tools/ida/verify_effect_owner_source.py --readset build/g1/ida/preparation/scope-callee-closure.json --image E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin --output build/g4/effect-page-owner-source-repro.json
+```
+
+```bash
+uv run --no-project --with unicorn python tools/ida/verify_effect_owner_source.py --readset build/g1/ida/preparation/scope-callee-closure.json --image /path/to/fd2_le_relocated_relbase.bin --output build/g4/effect-page-owner-source-repro.json
+```
+
+Windows本轮永久复现器的12函数／4组CPU及4项来源测试已实际通过；Linux命令仅作兼容说明、未执行。原Domain读集、镜像和大型导出不随源码分发。
+
+随后水色调用复核为6个既有函数追加证据：`11cac`／`135dd`／`1366a`／`205da`／`2ff01`／`3231b`。原`11cac`实参0才调用`4e31c`，非0跳过；pan每格为0，脚本相位按原fade状态选择0／1、尾固定1，entry首刷新为1。`2ff01`前批“参数只控制刷新等待”纠正为水色门，仍不写`51A83`；既有开场纯delay不增加刷新。新永久[`verify_fd2_scene_water.py`](../../tools/ida/verify_fd2_scene_water.py)以4个完整函数hash和10组原指令向量核参数；绘制、DAC、脚步、等待及构造均为明确替身。
+
+该批通过Domain实际保存0更名／6注释并重新全量导出，截至该批累计为**372项规范登记、23项G4更名、31项G4依据注释应用、1312函数**。新增登记的`11cac`／`205da`保持中性名；`signature-guard-water-evidence.json`核6个目标的完整chunk原字节与全部持久签名／边界／chunks前后不变，`3231b`只补已有等待边界、不宣称新整函数语义提取。最后21项LE、14项发布及11项SHA逐项检查通过，实际最终库与清单SHA见同一`receipt.json`；未重做此前25项已闭合注释的取证或扩大原生范围。
+
+
+最终页 owner 调用复核仅为两个既有名称追加证据：`field_physical_exchange @0x1548e` 的 SHORT／FULL 都经 `1562f collect → 1563b refresh(0) → 15643 finalize → 15652 descriptor → 1565c refresh(0) → 1566a reward`，不把外围两次刷新缩成 SHORT 特例；`field_actor_group_arrival_effect @0x32999` 按原 12 part 逐帧先投影，再在 6／7／8 后更新后续 base，并保留末帧工作页。前者复用 G2 完整 Domain chunk；后者复用 G1 完整 chunk，并由永久 [`verify_fd2_arrival_owner.py`](../../tools/ida/verify_fd2_arrival_owner.py) 执行原 caller，记录 12 次投影、页目标及参数。绘图、PCM、分配、拷贝和 append 均为显式替身，不声称像素、业务或 WGC 等价。
+
+该增量实际保存 0 更名／2 注释，全部 1312 函数的持久签名、边界及 chunk 集合不变，保存前未调用反编译。重新导出后最终仍为 **372 项规范登记、23 项 G4 更名、33 次 G4 依据注释应用**；两项既有汇编反编译失败保留。`apply-final-owner-evidence.json`／`signature-guard-final-owner-evidence.json` 与最终 `receipt.json` 记录本次范围。21 项严格 LE、14 项发布回归及 11 项 SHA 清单逐项校验通过。数据库和大型读集留在 ignored 工作目录，未修改 G3 源库。

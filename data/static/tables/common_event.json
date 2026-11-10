@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "k_common_event_nested_descriptors",
+      "c_type": "uint8_t",
+      "dimensions": [4, 3],
+      "values": [[0, 211, 0], [0, 213, 0], [0, 101, 0], [0, 11, 0]],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_va": "0x52742",
+        "sha256": "9f78d1a5186c0274ff429e8ae056473d0c843272739cc5263bb42a268837455e",
+        "evidence": "12B caller-local descriptor copies at sub_352CA @0x352ca, sub_35346 @0x35346, sub_355F0 @0x355f0, sub_35730 @0x35730; each invokes 1aa1d once with count1. Row3 recipient is integer raw0, not nullable pointer. Modes0 only; shared-tail context is separately retained in the flow."
+      }
+    },
+    {
+      "name": "k_common_event_cell_items",
+      "c_type": "uint8_t",
+      "dimensions": [5],
+      "values": [29, 43, 51, 61, 71],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_va": "0x5274e",
+        "sha256": "d3ac66045c2d94bfc0384170ba3b559469aa55986989e713edc20f576707eb02",
+        "evidence": "sub_35854 @0x35854 copies DWORD5274e and BYTE52752 into its 5B local table; indexes by complete map cell BYTE2, prepares item+181 text token, waits0, appends item, closes, sets state0..4, applies12263. Index outside0..4 is an explicit safe rejection, not low5bit normalization."
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@
  * field_manual_slot_rows_draw @0x29ab2（原sub_29AB2）与field_manual_slot_picker @0x29bcb（原登记同名）。
  * 只借App准备owner；四槽绝不恢复为active。原版资源和布局来自已发布
  * canonical伪C及独立Domain/raw读集，不声称完整原版时序/RNG等价。
- * G1新增静态依据（尚未实现服务）：field_shop_menu_execute @0x279bc（原sub_279BC）、
+ * G3服务实施依据：field_shop_menu_execute @0x279bc（原sub_279BC）、
  * field_shop_buy_execute @0x2872b（原sub_2872B）、field_shop_sell_execute @0x28cbd（原sub_28CBD）、
  * field_prepare_item_give_execute @0x28f65（原sub_28F65）、field_church_menu_execute
  * @0x29daa（原sub_29DAA）、field_church_revive_execute @0x2a43e（原sub_2A43E）、
@@ -23,6 +23,7 @@
 #include "field_prepare.h"
 #include "field_prepare_item.h"
 #include "field_prepare_view.h"
+#include "field_visual.h"
 #include "battle_animation.h"
 #include "static_data.h"
 #include "portrait.h"
@@ -427,7 +428,7 @@ typedef struct {
     int member, receiver, raw_slot, member_kind, item_kind, cursor;
     uint8_t product_id, captured_item, required_text;
     uint32_t price, previous_money;
-    size_t new_fragment, old_fragment, quota;
+    size_t quota;
     fd2_field_prepare_promotion promotion;
     unsigned growth_index, growth_line;
     uint16_t growth_delta;
@@ -439,7 +440,7 @@ typedef struct {
     fd2_vga *page;
     fd2_image notice_portraits[4], selection_label, selection_cursor;
     const fd2_image *active_portraits; /* 借service assets，或本结构的notice图。 */
-    unsigned notice_origin, sprite_phase, highlight_phase, glyph_counter, mouth_phase;
+    unsigned notice_origin, sprite_phase, highlight_phase;
     int notice_open, page_kind, picker_mode, equipment_selected;
     fd2_image equipment_portraits[4];
     const fd2_image *equipment_previous_portraits;
@@ -601,57 +602,109 @@ static int notice_ready(prepare_ui *ui, size_t fragment) {
     return valid;
 }
 
-static int choice(prepare_ui *ui, int depart) {
-    fd2_vga *page = new_frame(ui->vga);
-    if (!page) return -1;
-    int result = fd2_scene_field_message_box(page, ui->fdother);
-    if (depart) {
-        const fd2_image *portrait = &ui->assets->depart_portraits[0];
-        /* 1956b默认36887是右端，实际镜像覆盖x8..87。 */
-        for (int y = 0; y < 80; y++) for (int x = 0; x < 80; x++)
-            page->framebuffer[(115 + y) * VGA_STRIDE + 8 + x] = portrait->pixels[y * 80 + 79 - x];
-    }
-    if (!result) result = text_draw(page, ui->assets, depart ? 513u : 415u,
-        depart ? 95 : 12, 119, 205, 74, ui->context->message_number);
-    if (result != 0) { free(page); return -1; }
-    int selected = 0;
-    prepare_wait waiting = {0};
-    drain(ui);
-    for (int step = 1; step <= 4; step++) {
-        memcpy(ui->vga->framebuffer, page->framebuffer, VGA_W * VGA_H);
-        fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[49], 248 - step * 4, 168, 0);
-        fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[51], 248 + step * 4, 168, 0);
-        if (present(ui)) { free(page); return 1; }
-    }
-    for (;;) {
-        if (quit(ui)) { result = 1; break; }
+/* 已有服务确认仍借该唯一19953消费者；这些窄呈现/输入叶的定义在下方
+ * service private header，不改变deferred key或input_epoch的原owner。 */
+static int prepare_service_take_key(prepare_ui *ui,fd2_input_event *event);
+static int prepare_service_host_quit(prepare_ui *ui);
+static int prepare_service_present(prepare_ui *ui,unsigned ms);
+static int prepare_service_portrait(prepare_ui *ui,fd2_vga *dst,unsigned frame,int opening);
+
+typedef struct {
+    prepare_ui *ui;
+    fd2_vga *page;
+    uint32_t counter;
+    int depart,selected,blinking,result;
+    int service;
+    unsigned *port;
+} prepare_choice_scope;
+
+static int prepare_choice_draw(prepare_choice_scope *scope,int displacement,unsigned phase) {
+    prepare_ui *ui=scope->ui;
+    memcpy(ui->vga->framebuffer,scope->page->framebuffer,VGA_W*VGA_H);
+    fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[
+        48u+(scope->selected==0 && phase/2u)],248-displacement,168,0);
+    fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[
+        51u+(scope->selected==1 && phase/2u)],248+displacement,168,0);
+    if (fd2_field_page_choice_bottom_write(ui->vga->field_page,ui->vga->framebuffer,
+            sizeof(ui->vga->framebuffer))!=0 ||
+        fd2_field_page_project(ui->vga->field_page,72,72,ui->vga->framebuffer,
+            sizeof(ui->vga->framebuffer))!=0) return -1;
+    return (scope->service?prepare_service_present(ui,16):present(ui))?3:0;
+}
+static int prepare_choice_step(fd2_field_choice_step step,int value,void *userdata) {
+    prepare_choice_scope *scope=userdata;prepare_ui *ui=scope->ui;
+    if (scope->service?prepare_service_host_quit(ui):quit(ui)) return 3;
+    if (step==FD2_FIELD_CHOICE_BEGIN) {
+        scope->selected=0;scope->blinking=0;
+        scope->counter=fd2_field_rng_next(&ui->context->rng)%30u+2u;
+    } else if (step==FD2_FIELD_CHOICE_DRAW || step==FD2_FIELD_CHOICE_STEADY)
+        return prepare_choice_draw(scope,value,step==FD2_FIELD_CHOICE_STEADY?ui->vga->menu_highlight_phase:0);
+    else if (step==FD2_FIELD_CHOICE_WAIT_KEY) return
+        (scope->service && ui->service.deferred_key_ready) || fd2_input_has_any_key(&ui->vga->input)?1:0;
+    else if (step==FD2_FIELD_CHOICE_READ_KEY) {
         fd2_input_event event;
-        int read = read_key_state(ui, &event, 1, !depart, &waiting);
-        if (read) { result = read; break; }
-        if (event.key == FD2_INPUT_KEY_LEFT) selected = 0;
-        else if (event.key == FD2_INPUT_KEY_RIGHT) selected = 1;
-        else if (cancel_key(event.key)) { result = 2; break; }
-        else if (confirm_key(event.key)) { result = selected == 0 ? 0 : 2; break; }
-        memcpy(ui->vga->framebuffer, page->framebuffer, VGA_W * VGA_H);
-        fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[selected == 0 ? 49 : 48], 232, 168, 0);
-        fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[selected == 1 ? 52 : 51], 264, 168, 0);
-        if (present(ui)) { result = 1; break; }
-    }
-    if (result == 0 || result == 2) {
-        for (int step = 1; step <= 4; step++) {
-            memcpy(ui->vga->framebuffer, page->framebuffer, VGA_W * VGA_H);
-            fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[48], 232 + step * 4, 168, 0);
-            fd2_map_sprite_blit(ui->vga, &ui->assets->commands.frames[51], 264 - step * 4, 168, 0);
-            if (present(ui)) { result = 1; break; }
+        if (!(scope->service?prepare_service_take_key(ui,&event):fd2_input_take_key(&ui->vga->input,&event))) return -1;
+        if (event.key==FD2_INPUT_KEY_LEFT) scope->selected=0;
+        else if (event.key==FD2_INPUT_KEY_RIGHT) scope->selected=1;
+        else if (cancel_key(event.key)) {
+            scope->result=2;if(scope->port)*scope->port=FD2_FLOW_CANCEL;return 2;
+        } else if (confirm_key(event.key)) {
+            scope->result=scope->selected?2:0;
+            if(scope->port)*scope->port=scope->selected?FD2_FLOW_NO:FD2_FLOW_YES;return 1;
         }
-        if (result != 1) {
-            memcpy(ui->vga->framebuffer, page->framebuffer, VGA_W * VGA_H);
-            if (present(ui)) result = 1;
-            drain(ui);
+    } else if (step==FD2_FIELD_CHOICE_TICK) {
+        uint64_t now=SDL_GetTicks();
+        (void)fd2_field_water_tick(ui->vga,now);
+        int due=fd2_field_system_menu_highlight_tick(&ui->vga->menu_highlight_phase,
+            &ui->vga->menu_highlight_tick,(uint32_t)(now/55u),1);
+        if (due<0) return -1;
+        if (due) return 1;
+        return (scope->service?prepare_service_present(ui,16):present(ui))?3:0;
+    } else if (step==FD2_FIELD_CHOICE_BLINK) {
+            unsigned portrait=0;
+            if (scope->blinking) {
+                scope->counter=fd2_field_rng_next(&ui->context->rng)%30u+10u;
+                scope->blinking=0;
+            } else if (scope->counter--==0u) {portrait=3;scope->blinking=1;}
+            if (scope->service) {
+                if(prepare_service_portrait(ui,scope->page,portrait,0)!=0)return -1;
+            } else if (scope->depart) {
+                const fd2_image *image=&ui->assets->depart_portraits[portrait];
+                for (int y=0;y<80;y++) for (int x=0;x<80;x++)
+                    scope->page->framebuffer[(115+y)*VGA_STRIDE+8+x]=image->pixels[y*80+79-x];
+            } else fd2_map_sprite_blit(scope->page,&ui->assets->hotel_portraits[portrait],107,5,-1);
+    } else if (step==FD2_FIELD_CHOICE_HAS_FIELD) return 0;
+    else if (step==FD2_FIELD_CHOICE_FIELD_REDRAW) return -1; /* 准备已free53A51，只有0/1。 */
+    else if (step==FD2_FIELD_CHOICE_SNAPSHOT)
+        return fd2_field_page_choice_snapshot_write(ui->vga->field_page,
+            scope->page->framebuffer,sizeof(scope->page->framebuffer));
+    else if (step==FD2_FIELD_CHOICE_FINISH)
+        fd2_field_system_menu_highlight_finish(&ui->vga->menu_highlight_phase);
+    else return -1;
+    return 0;
+}
+
+static int choice(prepare_ui *ui, int depart) {
+    fd2_vga *page=new_frame(ui->vga);
+    if (!page) return -1;
+    int result=fd2_scene_field_message_box(page,ui->fdother);
+    if (depart) {
+        const fd2_image *portrait=&ui->assets->depart_portraits[0];
+        for (int y=0;y<80;y++) for (int x=0;x<80;x++)
+            page->framebuffer[(115+y)*VGA_STRIDE+8+x]=portrait->pixels[y*80+79-x];
+    }
+    if (!result) result=text_draw(page,ui->assets,depart?513u:415u,
+        depart?95:12,119,205,74,ui->context->message_number);
+    prepare_choice_scope scope={ui,page,0,depart,0,0,2};
+    if (!result) {
+        int played=fd2_field_choice_run(prepare_choice_step,&scope);
+        result=played>0?1:played<0?-1:scope.result;
+        if (!played) {
+            memcpy(ui->vga->framebuffer,page->framebuffer,VGA_W*VGA_H);
+            fd2_vga_upload_current_frame(ui->vga);drain(ui);
         }
     }
-    free(page);
-    return result; /* 0 yes /2 no or cancel /1 hostquit /-1 resource */
+    free(page);return result;
 }
 
 enum { PREPARE_SLOT_HOTEL, PREPARE_SLOT_TITLE, PREPARE_SLOT_NOTOWN_SAVE };
@@ -978,7 +1031,6 @@ static int prepare_service_execute(prepare_ui *ui,const char *flow_id,
     memset(&ui->service,0,sizeof(ui->service));
     prepare_service *s=&ui->service;
     s->selector=selector;s->member=-1;s->receiver=-1;s->running=1;
-    s->new_fragment=SIZE_MAX;s->old_fragment=SIZE_MAX;
     unsigned steps=0;uint64_t epoch=0;int result=-1;
     while(steps++<FD2_FLOW_STEP_BUDGET) {
         const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);

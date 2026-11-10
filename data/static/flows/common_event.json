@@ -1,0 +1,1896 @@
+{
+  "schema_version": 1,
+  "domain": "common_event",
+  "source": {
+    "file": "FD2.EXE",
+    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+    "kind": "decoded_control_flow",
+    "evidence": "G4 finite reusable event rules and deliberately unbound source fixtures: complete348ea/35123/35e0e/3623c/35854/35a0d/352ca/35346/355f0/35730, and the item-consumption portion240fa. Complete shared tails3530d/3531b were checked in G1 Domain scope-root-readset. No stage/action bindings or new stage capability are added. source fixture is not all-game source translation or native acceptance. The post-resource-replacement excerpt24754 retains separate4df4c map reset,10652 background rebuild and all following pan/palette/move/story steps; it does not translate the earlier stage-specific cutscene. Complete35677 invokes story5 then35f10(18), whose HP WORD loop and unified defeated-finalize call are separate cold nodes. Dynamic excerpts common.group.turn.source (35833@3583d through10b4e call, shared tail excluded) and common.story.state.source (362e8@3631a through15f84 call, surrounding camera/action choreography excluded) bind the finite source getters to real domain consumption; not complete callbacks."
+  },
+  "operations": {
+    "end": {
+      "args": []
+    },
+    "fail": {
+      "args": []
+    },
+    "branch_caller": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "raw_actor",
+          "min": 0,
+          "max": 95
+        }
+      ]
+    },
+    "branch_event_byte": {
+      "args": [
+        {
+          "name": "index",
+          "min": 0,
+          "max": 31
+        },
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "branch_turn": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "threshold",
+          "min": -2147483648,
+          "max": 2147483647
+        }
+      ]
+    },
+    "branch_actor": {
+      "args": [
+        {
+          "name": "actor",
+          "min": -1,
+          "max": 95
+        },
+        {
+          "name": "field",
+          "min": 0,
+          "max": 7
+        },
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "branch_hidden_count": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "count",
+          "min": 0,
+          "max": 96
+        }
+      ]
+    },
+    "branch_roster_text": {
+      "args": [
+        {
+          "name": "text_id",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "branch_item": {
+      "args": [
+        {
+          "name": "actor",
+          "min": -1,
+          "max": 95
+        },
+        {
+          "name": "item",
+          "min": 0,
+          "max": 214
+        }
+      ]
+    },
+    "branch_item_occurrences": {
+      "args": [
+        {
+          "name": "first_actor",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last_actor",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "first_item",
+          "min": 0,
+          "max": 214
+        },
+        {
+          "name": "last_item",
+          "min": 0,
+          "max": 214
+        },
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "count",
+          "min": 0,
+          "max": 20640
+        }
+      ]
+    },
+    "event_byte_write": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 31
+        },
+        {
+          "name": "last",
+          "min": 0,
+          "max": 31
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "add",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "event_byte_from_count": {
+      "args": [
+        {
+          "name": "index",
+          "min": 0,
+          "max": 31
+        },
+        {
+          "name": "subtract",
+          "min": 0,
+          "max": 96
+        }
+      ]
+    },
+    "turn_relative": {
+      "args": [
+        {
+          "name": "slot",
+          "min": 0,
+          "max": 15
+        },
+        {
+          "name": "delta",
+          "min": 0,
+          "max": 2
+        }
+      ]
+    },
+    "event_item_append": {
+      "args": [
+        {
+          "name": "actor",
+          "min": -1,
+          "max": 95
+        },
+        {
+          "name": "item",
+          "min": -1,
+          "max": 214
+        }
+      ]
+    },
+    "event_item_remove": {
+      "args": [
+        {
+          "name": "actor",
+          "min": -1,
+          "max": 95
+        },
+        {
+          "name": "item",
+          "min": -1,
+          "max": 214
+        }
+      ]
+    },
+    "event_item_consume": {
+      "args": [
+        {
+          "name": "first_actor",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last_actor",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "first_item",
+          "min": 0,
+          "max": 214
+        },
+        {
+          "name": "last_item",
+          "min": 0,
+          "max": 214
+        }
+      ]
+    },
+    "cell_item_prepare": {
+      "args": []
+    },
+    "unit_field_write": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "field",
+          "min": 0,
+          "max": 19
+        },
+        {
+          "name": "operation",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "unit_ai_write": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "mark_random_pair": {
+      "args": [
+        {
+          "name": "base_state_index",
+          "min": 0,
+          "max": 31
+        }
+      ]
+    },
+    "story": {
+      "args": [
+        {
+          "name": "fragment",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "clear_keys": {
+      "args": []
+    },
+    "notice_actor": {
+      "args": [
+        {
+          "name": "actor",
+          "min": -1,
+          "max": 95
+        }
+      ]
+    },
+    "message": {
+      "args": [
+        {
+          "name": "fragment",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "name": "bank",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 199
+        }
+      ]
+    },
+    "portrait_frame": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 0,
+          "max": 3
+        }
+      ]
+    },
+    "wait_key": {
+      "args": [
+        {
+          "name": "mode",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "close_box": {
+      "args": []
+    },
+    "completed_cells": {
+      "args": []
+    },
+    "roster_append": {
+      "args": [
+        {
+          "name": "unit_id",
+          "min": 0,
+          "max": 31
+        }
+      ]
+    },
+    "roster_sync": {
+      "args": []
+    },
+    "grant_party_item": {
+      "args": [
+        {
+          "name": "item",
+          "min": 0,
+          "max": 214
+        }
+      ]
+    },
+    "map_replace": {
+      "args": [
+        {
+          "name": "field_entry",
+          "min": 0,
+          "max": 98
+        },
+        {
+          "name": "shape",
+          "min": 0,
+          "max": 32
+        }
+      ]
+    },
+    "raw_animation": {
+      "args": [
+        {
+          "name": "entry",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "first",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "name": "count",
+          "min": 1,
+          "max": 65535
+        },
+        {
+          "name": "ticks",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "name": "x",
+          "min": -320,
+          "max": 320
+        },
+        {
+          "name": "y",
+          "min": -200,
+          "max": 200
+        },
+        {
+          "name": "tint",
+          "min": -1,
+          "max": 255
+        }
+      ]
+    },
+    "append_group": {
+      "args": [
+        {
+          "name": "group",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "force",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "pan": {
+      "args": [
+        {
+          "name": "x",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "move": {
+      "args": [
+        {
+          "name": "script_id",
+          "min": 0,
+          "max": 105
+        },
+        {
+          "name": "fade",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "physical_exchange": {
+      "args": [
+        {
+          "name": "attacker",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "defender",
+          "min": 0,
+          "max": 95
+        }
+      ]
+    },
+    "finalize_defeated": {
+      "args": []
+    },
+    "refresh_map": {
+      "args": [
+        {
+          "name": "skip_water",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "contribution_clear": {
+      "args": []
+    },
+    "loot_child": {
+      "args": [
+        {
+          "name": "descriptor_index",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "recipient",
+          "min": -1,
+          "max": 95
+        }
+      ]
+    },
+    "map_reset_cells": {
+      "args": []
+    },
+    "background_rebuild": {
+      "args": []
+    },
+    "brightness": {
+      "args": [
+        {
+          "name": "darkness",
+          "min": 0,
+          "max": 64
+        }
+      ]
+    },
+    "unit_hp_zero_tail": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 2147483647
+        }
+      ]
+    },
+    "append_group_source": {
+      "args": [
+        {
+          "name": "source",
+          "min": 0,
+          "max": 9
+        },
+        {
+          "name": "force",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "story_source": {
+      "args": [
+        {
+          "name": "source",
+          "min": 0,
+          "max": 9
+        }
+      ]
+    }
+  },
+  "flows": [
+    {
+      "id": "common.state.once",
+      "entry": "gate",
+      "nodes": [
+        {
+          "id": "gate",
+          "op": "branch_event_byte",
+          "args": [
+            16,
+            0,
+            0
+          ],
+          "on": {
+            "yes": "ai",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "ai",
+          "op": "unit_ai_write",
+          "args": [
+            24,
+            27,
+            7
+          ],
+          "on": {
+            "next": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            3
+          ],
+          "on": {
+            "ack": "commit",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "commit",
+          "op": "event_byte_write",
+          "args": [
+            16,
+            16,
+            1,
+            0
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.inventory.once",
+      "entry": "caller",
+      "nodes": [
+        {
+          "id": "caller",
+          "op": "branch_caller",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "capacity",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "capacity",
+          "op": "branch_actor",
+          "args": [
+            0,
+            7,
+            1,
+            8
+          ],
+          "on": {
+            "yes": "gate",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "gate",
+          "op": "branch_event_byte",
+          "args": [
+            16,
+            0,
+            0
+          ],
+          "on": {
+            "yes": "grant",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "grant",
+          "op": "event_item_append",
+          "args": [
+            0,
+            89
+          ],
+          "on": {
+            "yes": "say",
+            "no": "failed",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            11
+          ],
+          "on": {
+            "ack": "commit",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "commit",
+          "op": "event_byte_write",
+          "args": [
+            16,
+            16,
+            1,
+            0
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.turn.relative",
+      "entry": "side",
+      "nodes": [
+        {
+          "id": "side",
+          "op": "branch_actor",
+          "args": [
+            -1,
+            1,
+            1,
+            0
+          ],
+          "on": {
+            "yes": "gate",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "gate",
+          "op": "branch_event_byte",
+          "args": [
+            17,
+            0,
+            0
+          ],
+          "on": {
+            "yes": "enabled",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "enabled",
+          "op": "branch_event_byte",
+          "args": [
+            18,
+            1,
+            0
+          ],
+          "on": {
+            "yes": "schedule",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "schedule",
+          "op": "turn_relative",
+          "args": [
+            2,
+            0
+          ],
+          "on": {
+            "next": "commit",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "commit",
+          "op": "event_byte_write",
+          "args": [
+            17,
+            17,
+            1,
+            0
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.random.pair",
+      "entry": "schedule",
+      "nodes": [
+        {
+          "id": "schedule",
+          "op": "turn_relative",
+          "args": [
+            2,
+            1
+          ],
+          "on": {
+            "next": "mark",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "mark",
+          "op": "mark_random_pair",
+          "args": [
+            21
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.item.collection",
+      "entry": "count",
+      "nodes": [
+        {
+          "id": "count",
+          "op": "branch_item_occurrences",
+          "args": [
+            0,
+            15,
+            209,
+            214,
+            0,
+            6
+          ],
+          "on": {
+            "yes": "consume",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "consume",
+          "op": "event_item_consume",
+          "args": [
+            0,
+            15,
+            209,
+            214
+          ],
+          "on": {
+            "next": "grant",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "grant",
+          "op": "grant_party_item",
+          "args": [
+            100
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.cell.grant",
+      "entry": "keys",
+      "nodes": [
+        {
+          "id": "keys",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "notice",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "notice",
+          "op": "notice_actor",
+          "args": [
+            -1
+          ],
+          "on": {
+            "next": "full",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "full",
+          "op": "branch_actor",
+          "args": [
+            -1,
+            7,
+            0,
+            8
+          ],
+          "on": {
+            "yes": "full.say",
+            "no": "item",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "full.say",
+          "op": "message",
+          "args": [
+            480,
+            0,
+            99,
+            127
+          ],
+          "on": {
+            "next": "full.portrait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "full.portrait",
+          "op": "portrait_frame",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "full.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "full.wait",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "full.close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "full.close",
+          "op": "close_box",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item",
+          "op": "cell_item_prepare",
+          "args": [],
+          "on": {
+            "next": "item.say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item.say",
+          "op": "message",
+          "args": [
+            422,
+            0,
+            99,
+            127
+          ],
+          "on": {
+            "next": "item.portrait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item.portrait",
+          "op": "portrait_frame",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "item.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item.wait",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "item.grant",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item.grant",
+          "op": "event_item_append",
+          "args": [
+            -1,
+            -1
+          ],
+          "on": {
+            "yes": "item.close",
+            "no": "failed",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "item.close",
+          "op": "close_box",
+          "args": [],
+          "on": {
+            "next": "complete",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "complete",
+          "op": "event_byte_write",
+          "args": [
+            0,
+            4,
+            1,
+            0
+          ],
+          "on": {
+            "next": "tiles",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "tiles",
+          "op": "completed_cells",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.key.consume",
+      "entry": "gate",
+      "nodes": [
+        {
+          "id": "gate",
+          "op": "branch_event_byte",
+          "args": [
+            12,
+            0,
+            0
+          ],
+          "on": {
+            "yes": "notice",
+            "no": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "notice",
+          "op": "notice_actor",
+          "args": [
+            -1
+          ],
+          "on": {
+            "next": "has.key",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "has.key",
+          "op": "branch_item",
+          "args": [
+            -1,
+            208
+          ],
+          "on": {
+            "yes": "consume",
+            "no": "absent.say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "absent.say",
+          "op": "message",
+          "args": [
+            2,
+            1,
+            95,
+            119
+          ],
+          "on": {
+            "next": "absent.portrait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "absent.portrait",
+          "op": "portrait_frame",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "absent.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "absent.wait",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "absent.close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "absent.close",
+          "op": "close_box",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "consume",
+          "op": "event_item_remove",
+          "args": [
+            -1,
+            208
+          ],
+          "on": {
+            "yes": "used.say",
+            "no": "failed",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "used.say",
+          "op": "message",
+          "args": [
+            3,
+            1,
+            95,
+            119
+          ],
+          "on": {
+            "next": "used.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "used.wait",
+          "op": "wait_key",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "used.close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "used.close",
+          "op": "close_box",
+          "args": [],
+          "on": {
+            "next": "animation",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "animation",
+          "op": "raw_animation",
+          "args": [
+            45,
+            0,
+            59,
+            2,
+            36,
+            151,
+            -1
+          ],
+          "on": {
+            "next": "complete",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "complete",
+          "op": "event_byte_write",
+          "args": [
+            12,
+            12,
+            1,
+            0
+          ],
+          "on": {
+            "next": "tiles",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "tiles",
+          "op": "completed_cells",
+          "args": [],
+          "on": {
+            "next": "group",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "group",
+          "op": "append_group",
+          "args": [
+            1,
+            0
+          ],
+          "on": {
+            "next": "roster",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "roster",
+          "op": "roster_append",
+          "args": [
+            31
+          ],
+          "on": {
+            "next": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            4
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.loot.child.0",
+      "entry": "child",
+      "nodes": [
+        {
+          "id": "child",
+          "op": "loot_child",
+          "args": [
+            0,
+            -1
+          ],
+          "on": {
+            "ack": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            11
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.loot.child.1",
+      "entry": "before",
+      "nodes": [
+        {
+          "id": "before",
+          "op": "story",
+          "args": [
+            3
+          ],
+          "on": {
+            "ack": "child",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "child",
+          "op": "loot_child",
+          "args": [
+            1,
+            -1
+          ],
+          "on": {
+            "ack": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            11
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.loot.child.2",
+      "entry": "child",
+      "nodes": [
+        {
+          "id": "child",
+          "op": "loot_child",
+          "args": [
+            2,
+            -1
+          ],
+          "on": {
+            "ack": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            11
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.loot.physical",
+      "entry": "caller",
+      "nodes": [
+        {
+          "id": "caller",
+          "op": "branch_caller",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "yes": "gate",
+            "no": "clear",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "gate",
+          "op": "branch_event_byte",
+          "args": [
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "yes": "say",
+            "no": "clear",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            0
+          ],
+          "on": {
+            "ack": "physical",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "physical",
+          "op": "physical_exchange",
+          "args": [
+            17,
+            0
+          ],
+          "on": {
+            "next": "finalize",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "finalize",
+          "op": "finalize_defeated",
+          "args": [],
+          "on": {
+            "next": "hidden",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "hidden",
+          "op": "branch_actor",
+          "args": [
+            17,
+            0,
+            1,
+            0
+          ],
+          "on": {
+            "yes": "complete",
+            "no": "clear",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "complete",
+          "op": "event_byte_write",
+          "args": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "on": {
+            "next": "tiles",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "tiles",
+          "op": "completed_cells",
+          "args": [],
+          "on": {
+            "next": "refresh",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "refresh",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "child",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "child",
+          "op": "loot_child",
+          "args": [
+            3,
+            0
+          ],
+          "on": {
+            "ack": "clear",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "clear",
+          "op": "contribution_clear",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.map.replace",
+      "entry": "map",
+      "nodes": [
+        {
+          "id": "map",
+          "op": "map_replace",
+          "args": [
+            69,
+            23
+          ],
+          "on": {
+            "next": "cells",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "cells",
+          "op": "map_reset_cells",
+          "args": [],
+          "on": {
+            "next": "background",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "background",
+          "op": "background_rebuild",
+          "args": [],
+          "on": {
+            "next": "pan.a",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "pan.a",
+          "op": "pan",
+          "args": [
+            14,
+            29
+          ],
+          "on": {
+            "next": "brightness",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "brightness",
+          "op": "brightness",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "move.a",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "move.a",
+          "op": "move",
+          "args": [
+            73,
+            0
+          ],
+          "on": {
+            "next": "pan.b",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "pan.b",
+          "op": "pan",
+          "args": [
+            14,
+            14
+          ],
+          "on": {
+            "next": "move.b",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "move.b",
+          "op": "move",
+          "args": [
+            73,
+            0
+          ],
+          "on": {
+            "next": "move.c",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "move.c",
+          "op": "move",
+          "args": [
+            73,
+            0
+          ],
+          "on": {
+            "next": "say",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            17
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.defeat.tail",
+      "entry": "say",
+      "nodes": [
+        {
+          "id": "say",
+          "op": "story",
+          "args": [
+            5
+          ],
+          "on": {
+            "ack": "hp",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "hp",
+          "op": "unit_hp_zero_tail",
+          "args": [
+            18
+          ],
+          "on": {
+            "next": "finalize",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "finalize",
+          "op": "finalize_defeated",
+          "args": [],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.group.turn.source",
+      "entry": "append",
+      "nodes": [
+        {
+          "id": "append",
+          "op": "append_group_source",
+          "args": [
+            0,
+            0
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.story.state.source",
+      "entry": "say",
+      "nodes": [
+        {
+          "id": "say",
+          "op": "story_source",
+          "args": [
+            9
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    }
+  ]
+}

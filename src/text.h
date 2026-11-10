@@ -45,6 +45,15 @@ typedef struct {
 } fd2_text_expanded;
 int fd2_text_expand(const fd2_text_entry *entry, size_t glyph_count,
     const fd2_text_parameters *parameters, size_t fragment, fd2_text_expanded *out);
+/* 15f84主正文可来自当前stage，-4/-5仍索引同一UI0 names；复用同一展开器。 */
+int fd2_text_expand_banked(const fd2_text_entry *primary, const fd2_text_entry *names,
+    size_t glyph_count, const fd2_text_parameters *parameters, size_t fragment,
+    fd2_text_expanded *out);
+/* 15f84的-6路径：独立展开同一个signed DWORD，供长Scene流逐项消费。
+ * SAFE_MINUS保持来源标记，不能与原资源的-17说话人控制码混为一谈。
+ * 不依赖伪造的临时FDTXT片段，不绘制/等待/读取输入或RNG。 */
+int fd2_text_expand_number(uint32_t value, size_t glyph_count,
+    fd2_text_expanded *out);
 
 void fd2_text_entry_close(fd2_text_entry *txt);
 

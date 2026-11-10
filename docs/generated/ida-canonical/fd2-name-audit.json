@@ -8400,7 +8400,7 @@
      "status": "exact",
      "func_start": 220024,
      "func_end": 220142,
-     "ida_name": "field_camera_music_flash",
+     "ida_name": "field_camera_group_append_flash",
      "offset_in_func": 0,
      "is_lib": false
     },
@@ -8410,7 +8410,7 @@
      "status": "exact",
      "func_start": 220024,
      "func_end": 220142,
-     "ida_name": "field_camera_music_flash",
+     "ida_name": "field_camera_group_append_flash",
      "offset_in_func": 0,
      "is_lib": false
     }
@@ -8418,8 +8418,8 @@
    "resolution": "exact",
    "canonical_va": 220024,
    "legacy_body_va": null,
-   "ida_name": "field_camera_music_flash",
-   "note": "via ghidra-name FUN_+0x28b8 -> field_camera_music_flash"
+   "ida_name": "field_camera_group_append_flash",
+   "note": "via ghidra-name FUN_+0x28b8 -> field_camera_group_append_flash"
   },
   {
    "line_no": 224,

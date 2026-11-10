@@ -92,6 +92,8 @@ static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
             context->has_preparation ? context->preparation.stage_id : -1);
         handoff = NULL; load_active = 0;
     }
+    /* 手工Load取消／返回标题亦结束本次main临时信息板跨度。 */
+    vga->info_panel_suppressed=0;
     return flow;
 }
 
@@ -858,6 +860,22 @@ static int check_startup_resources(unsigned mode, const char *directory,
     return failed ? -1 : 0;
 }
 
+static uint32_t app_scene_rng(void *userdata) {
+    return fd2_field_rng_next(&((fd2_field_play_context *)userdata)->rng);
+}
+
+static int play_app_prologue(fd2_vga *vga,const fd2_archive *fdother,
+        fd2_bgm_player *bgm,fd2_field_audio *audio,int once,
+        fd2_field_handoff *handoff,fd2_field_play_context *context) {
+    fd2_scene_runtime runtime={app_scene_rng,context,{context->message_number,
+        context->message_new_fragment,context->message_old_fragment}};
+    vga->info_panel_suppressed=1; /* START的main跨度延续至entry/primary。 */
+    int result=fd2_scene_play_new_game_prologue_handoff_with_runtime(
+        vga,fdother,bgm,audio,once,handoff,&runtime);
+    if (result!=FD2_SCENE_RESULT_OK) vga->info_panel_suppressed=0;
+    return result;
+}
+
 int main(int argc, char **argv) {
     int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
@@ -1019,9 +1037,9 @@ int main(int argc, char **argv) {
         rc = field_result_status(play_result, preview_stage);
     } else if (new_game_play || new_game_play_once) {
         fd2_field_handoff handoff;
-        rc = fd2_scene_play_new_game_prologue_handoff(
+        rc = play_app_prologue(
             &vga, &g_fdother, bgm, field_audio_ptr,
-            new_game_play_once, &handoff);
+            new_game_play_once, &handoff,&app_context);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT)
             rc = 0;
         else if (rc == 0) {
@@ -1037,9 +1055,9 @@ int main(int argc, char **argv) {
             }
         }
     } else if (prologue_preview || prologue_preview_once) {
-        rc = fd2_scene_play_new_game_prologue(
+        rc = play_app_prologue(
             &vga, &g_fdother, bgm, field_audio_ptr,
-            prologue_preview_once);
+            prologue_preview_once,NULL,&app_context);
         if (rc == FD2_SCENE_RESULT_HOST_QUIT) rc = 0;
     } else {
 application_title:
@@ -1075,14 +1093,16 @@ application_title:
             fd2_field_handoff handoff;
             const fd2_field_handoff *opening = NULL;
             if (flow == FD2_APP_FLOW_LOAD_GAME) {
+                vga.info_panel_suppressed=1; /* 260de..26112：through26152/entry/primary。 */
                 int result = fd2_field_prepare_load_title(&vga, &g_fdother,
                     &app_context, save_path, field_audio_ptr);
                 flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
                 if (flow == FD2_APP_FLOW_BATTLE) flow = FD2_APP_FLOW_PREPARE;
             } else if (flow == FD2_APP_FLOW_START_NEW_GAME) {
+                vga.info_panel_suppressed=1; /* 25f04..25f2e：throughopening/entry/primary。 */
                 app_context.has_preparation = 0; /* 只废弃旧准备owner，不重置53EC8/53AE1/RNG。 */
-                int result = fd2_scene_play_new_game_prologue_handoff(
-                    &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff);
+                int result = play_app_prologue(
+                    &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff,&app_context);
                 flow = result == FD2_SCENE_RESULT_OK ? FD2_APP_FLOW_BATTLE :
                     result == FD2_SCENE_RESULT_HOST_QUIT ? FD2_APP_FLOW_EXIT : FD2_APP_FLOW_ERROR;
                 if (result == FD2_SCENE_RESULT_OK) opening = &handoff;

@@ -384,14 +384,37 @@ static int test_phase0_clear_precedes_event_and_status_failure(void) {
     return 0;
 }
 
-static int test_explicit_end_inherits_display_without_player_resume(void) {
+static int test_explicit_end_reaches_source_player_ready_display(void) {
     for(uint8_t mode=0;mode<=1;mode++) {
         fixture f;init(&f);fd2_field_game *g=&f.game;
         g->ordinary_display_mode=mode;
+        g->focus_cycle_unit=2;
         CHECK(fd2_field_game_end_player_turn(g)==0 && !g->player_post_waiting_phase);
         for(int guard=0;g->active_side!=2 && guard<8;guard++)CHECK(automatic_and_ack(g)==1);
-        CHECK(g->active_side==2 && g->turn_number==2 && g->ordinary_display_mode==mode);
+        /* END入口不强写51A83；完整1a30b的player_ready尾固定回1，
+         * 不依赖13565/controller resume来补这项共享显示写点。 */
+        CHECK(g->active_side==2 && g->turn_number==2 && g->ordinary_display_mode==1);
+        CHECK(g->focus_cycle_unit==0); /* 1a781：新玩家回合清53ae9。 */
         CHECK(f.rng_calls==0);close_fixture(&f);
+    }
+    return 0;
+}
+
+static int test_browse_cycle_original_eligibility_only(void) {
+    /* field_controller_input @0x117e7（原登记同名）1180d..1185e：
+     * 只查flags&0x85和side2；HP0、raw26或其它flag不额外剔除。
+     * 同格focus避免把独立相机运动副作用混入资格门写集。 */
+    for(unsigned side=0;side<3u;side++)for(unsigned flags=0;flags<256u;flags++) {
+        fixture f;init(&f);fd2_field_game *g=&f.game;
+        g->units.count=1;g->units.items[0].side=(uint8_t)side;
+        g->units.items[0].flags=(uint8_t)flags;g->units.items[0].hp=0;
+        g->units.items[0].detail_status[1]=0x42;g->detail_acknowledged_unit=2;
+        fd2_field_game before=*g;
+        int eligible=side==2u && !(flags&0x85u);
+        CHECK(fd2_field_game_cycle_focus(g)==(eligible?0:-1));
+        if(eligible)before.detail_acknowledged_unit=-1;
+        CHECK(!memcmp(g,&before,sizeof(before)) && f.rng_calls==0);
+        close_fixture(&f);
     }
     return 0;
 }
@@ -406,7 +429,8 @@ int main(void) {
         test_phase_overwrites_player_slot_before_unknown_handler() ||
         test_phase0_clear_precedes_event_and_status_failure() ||
         test_resume_reads_current_slot_original_actor_and_terminal() ||
-        test_explicit_end_inherits_display_without_player_resume()) return 1;
+        test_browse_cycle_original_eligibility_only() ||
+        test_explicit_end_reaches_source_player_ready_display()) return 1;
     puts("field_player_controller_test: ok");
     return 0;
 }

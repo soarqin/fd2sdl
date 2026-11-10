@@ -31,7 +31,7 @@ static struct {
     int command_openings[8];
     int closing, quit_frame, quit_final, quit_on_wait, deadline;
     int allocations, live_buffers, fail_alloc, decode_calls, live_portraits;
-    int real_render, panel_after_render;
+    int real_render, panel_after_render, real_water, loot_consumer;
     fd2_vga *quit_during_render;
     fd2_field_game *drop_game;
     size_t drop_initial_count;
@@ -77,6 +77,12 @@ static void *modal_malloc(size_t size) {
     if (memory) controls.live_buffers++;
     return memory;
 }
+static void *modal_calloc(size_t count, size_t size) {
+    if (size && count > SIZE_MAX / size) return NULL;
+    void *memory = modal_malloc(count * size);
+    if (memory) memset(memory, 0, count * size);
+    return memory;
+}
 static void modal_free(void *memory) {
     if (memory) controls.live_buffers--;
     free(memory);
@@ -102,12 +108,7 @@ static void modal_image_free(fd2_image *image) {
     }
     fd2_image_free(image);
 }
-static void modal_render(fd2_field_game *game, fd2_vga *vga) {
-    controls.render_calls++;
-    if (controls.real_render)
-        fd2_field_game_render(game, vga);
-    else
-        memset(vga->framebuffer, 0x33, sizeof(vga->framebuffer));
+static void modal_reference(const fd2_field_game *game, fd2_vga *vga) {
     controls.panel_after_render = game->info_panel_right;
     memcpy(reference_background, vga->framebuffer, sizeof(reference_background));
     memset(&reference_page, 0, sizeof(reference_page));
@@ -123,9 +124,21 @@ static void modal_render(fd2_field_game *game, fd2_vga *vga) {
             &game->ui_text, &game->units.items[game->selected_unit], -1);
     if (controls.quit_during_render) controls.quit_during_render->input.quit_requested = 1;
 }
+static void modal_render(fd2_field_game *game, fd2_vga *vga) {
+    controls.render_calls++;
+    if (controls.real_render) fd2_field_game_render(game, vga);
+    else memset(vga->framebuffer, 0x33, sizeof(vga->framebuffer));
+    modal_reference(game, vga);
+}
+static void modal_preview(const fd2_field_game *game, fd2_vga *vga) {
+    controls.render_calls++;
+    if (controls.real_render) fd2_field_game_render_preview(game, vga);
+    else memset(vga->framebuffer, 0x33, sizeof(vga->framebuffer));
+    modal_reference(game, vga);
+}
 static int modal_water(fd2_vga *vga, uint64_t now) {
-    (void)vga; (void)now;
     controls.water_calls++;
+    if (controls.real_water) return fd2_field_water_tick(vga, now);
     return 0; /* 独立water owner已有回归；此处只检查无键等待调用边界。 */
 }
 static int modal_audio(fd2_field_audio *audio, fd2_field_sfx cue) {
@@ -180,6 +193,10 @@ static int modal_give_step(fd2_field_game *game, fd2_field_item_list_key key) {
 }
 static int modal_take_key(fd2_input *input, fd2_input_event *event) {
     int result = fd2_input_take_key(input, event);
+    if (result && event && controls.loot_consumer && event->key == FD2_INPUT_KEY_ESCAPE) {
+        controls.closing = 1;
+        controls.closing_start = controls.frames;
+    }
     if (!event && result && controls.eqt_confirm_pending && controls.eqt_quit_on_drain)
         input->quit_requested = 1;
     return result;
@@ -292,10 +309,12 @@ static void modal_present(fd2_vga *vga) {
 }
 
 #define malloc modal_malloc
+#define calloc modal_calloc
 #define free modal_free
 #define fd2_portrait_decode_frame modal_decode
 #define fd2_image_free modal_image_free
 #define fd2_field_game_render modal_render
+#define fd2_field_game_render_preview modal_preview
 #define fd2_field_game_magic_list_step modal_step
 #define fd2_field_game_item_list_step modal_item_step
 #define fd2_field_game_item_give_list_step modal_give_step
@@ -310,10 +329,12 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_vga_wait_frame_deadline modal_wait
 #include "field_play.c"
 #undef malloc
+#undef calloc
 #undef free
 #undef fd2_portrait_decode_frame
 #undef fd2_image_free
 #undef fd2_field_game_render
+#undef fd2_field_game_render_preview
 #undef fd2_field_game_magic_list_step
 #undef fd2_field_game_item_list_step
 #undef fd2_field_game_item_give_list_step
@@ -406,7 +427,10 @@ static int unchanged_game(const fd2_field_game *game, const fd2_field_game *befo
 }
 static int released(void) {
     CHECK(controls.live_buffers == 0 && controls.live_portraits == 0);
-    CHECK(!controls.deadline && !controls.bad_cue && !controls.bad_transition && !controls.eqt_bad_redraw);
+    CHECK(!controls.deadline);
+    CHECK(!controls.bad_cue);
+    CHECK(!controls.bad_transition);
+    CHECK(!controls.eqt_bad_redraw);
     return 0;
 }
 static int test_navigation_and_cancel(void) {
@@ -955,17 +979,16 @@ static int test_real_renderer_preflight_panel_owner(void) {
                     outcome == 2 ? FIELD_LIST_CONFIRMED :
                     outcome == 3 ? FIELD_LIST_CANCELLED : FIELD_LIST_HOST_QUIT;
                 CHECK(result == expected);
-                CHECK(controls.render_calls == 1 && controls.panel_after_render == !initial_side);
+                CHECK(controls.render_calls == 1 && controls.panel_after_render == initial_side);
                 CHECK(selected == (outcome == 2 ? 0 : 0xa5));
                 if (outcome <= 1) {
-                    /* 真renderer已换侧，晚错仍须恢复整个session与普通键。 */
+                    /* 真实preview可绘制换侧，但不提交Game侧位；晚错仍保整个session与键。 */
                     CHECK(memcmp(&game, &before, sizeof(game)) == 0);
                     if (outcome == 1) vga_before.input.quit_requested = 1;
                     CHECK(memcmp(&vga, &vga_before, sizeof(vga)) == 0);
                     CHECK(!controls.frames && !controls.presents && !controls.rng_calls);
                     CHECK(fd2_input_has_any_key(&vga.input));
                 } else {
-                    before.info_panel_right = !initial_side;
                     CHECK(unchanged_game(&game, &before));
                     CHECK(controls.frames > 0 && controls.rng_calls == (outcome == 4 ? 0 : 1));
                 }
@@ -1362,8 +1385,7 @@ static int test_eqt_potential_hidden_name_preflight_is_atomic(void) {
         controls.keys_at[0] = (key_frame){13, SDL_SCANCODE_ESCAPE, 0}; controls.key_count = 1;
         uint8_t output = 0xa5;
         CHECK(play_field_item_list(&game, &vga, NULL, &output) == (equipped ? FIELD_LIST_ERROR : FIELD_LIST_CANCELLED));
-        CHECK(output == 0xa5 && controls.render_calls == 1 && controls.panel_after_render == 1);
-        if (!equipped) before.info_panel_right = 1;
+        CHECK(output == 0xa5 && controls.render_calls == 1 && controls.panel_after_render == 0);
         CHECK(!memcmp(&game, &before, sizeof(game)));
         if (equipped) CHECK(!memcmp(&vga, &old_vga, sizeof(vga)) && !controls.rng_calls && !controls.frames);
         else CHECK(controls.rng_calls == 1 && controls.frames == 25);
@@ -1433,8 +1455,58 @@ static int test_give_full_modal_quit_cancel_and_postcommit_error(void) {
     return 0;
 }
 
+/* 真实1d51d/1b9de/1b932 consumer共享16c57：map raw26不写，
+ * water仍按原2tick门推进，眨眼和两次RNG不能因“冻结地图”一并省略。 */
+static int test_modal_wait_clock_domains(void) {
+    for (int kind = 0; kind < 4; kind++) {
+        fd2_field_game game;
+        fd2_vga vga;
+        if (kind == 0) reset(&game, &vga);
+        else if (kind == 2) CHECK(reset_eqt(&game, &vga) == 0);
+        else CHECK(reset_item(&game, &vga, 1) == 0);
+        controls.real_water = 1;
+        controls.keys_at[0] = (key_frame){45, SDL_SCANCODE_ESCAPE, 0};
+        controls.key_count = 1;
+        vga.actor_jitter_tick = 0xa123;
+        vga.actor_jitter_phase = 1;
+        vga.field_water_phase = 3;
+        vga.field_visual.actor_idle_phase = 2;
+        vga.field_visual.actor_idle_tick = 0x1234;
+        vga.field_visual.cursor_phase = 3;
+        vga.field_visual.terrain_phase = 1;
+        vga.field_visual.terrain_tick = 0x5678;
+        vga.field_visual.range_phase = 7;
+        vga.field_visual.range_tick = 0x9876;
+        game.visual_owner = &vga.field_visual;
+        fd2_field_visual_state visual_before = vga.field_visual;
+        fd2_field_units units_before = game.units;
+        uint8_t output = 0xa5;
+        if (kind == 0)
+            CHECK(play_field_magic_list(&game, &vga, NULL, &output) == FIELD_LIST_CANCELLED);
+        else if (kind < 3)
+            CHECK(play_field_item_list(&game, &vga, NULL, &output) == FIELD_LIST_CANCELLED);
+        else {
+            /* mode0获得库存同样画真实detail/item页；只替换输入／时钟／present。 */
+            modal_render(&game, &vga);
+            controls.loot_consumer = 1;
+            int selected = 9;
+            CHECK(loot_inventory_select(&game, &vga, NULL, 0, &selected) == FD2_SCENE_RESULT_OK);
+            CHECK(selected == -1);
+        }
+        CHECK(output == 0xa5 && !memcmp(&units_before, &game.units, sizeof(units_before)));
+        CHECK(vga.actor_jitter_tick == 0xa123 && vga.actor_jitter_phase == 1);
+        CHECK(!memcmp(&visual_before, &vga.field_visual, sizeof(visual_before)));
+        CHECK(controls.water_calls == 33 && vga.field_water_phase == 8 && vga.field_water_last_tick == 11);
+        CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 640);
+        CHECK(controls.portrait_at_frame[34] == 3 && controls.portrait_at_frame[41] == 1);
+        CHECK(released() == 0);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(open_fixture() == 0);
+    CHECK(test_modal_wait_clock_domains() == 0);
     CHECK(test_give_shared_modal_closes_before_target_and_full_swap() == 0);
     CHECK(test_give_full_modal_quit_cancel_and_postcommit_error() == 0);
     CHECK(test_navigation_and_cancel() == 0);

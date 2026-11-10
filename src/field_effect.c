@@ -115,14 +115,48 @@ uint8_t *fd2_field_effect_snapshot(fd2_field_effect_frames *frames,
 
 void fd2_field_effect_frames_close(fd2_field_effect_frames *frames) {
     if (!frames) return;
+    for(size_t i=0;i<FD2_FIELD_EFFECT_MAX_SNAPSHOTS;i++)
+        fd2_field_page_destroy(frames->page_snapshots[i]);
     free(frames->storage);
     memset(frames, 0, sizeof(*frames));
 }
 
-int fd2_field_effect_play(const fd2_field_effect_frames *frames,
+int fd2_field_effect_frames_take_page(fd2_field_effect_frames *frames,
+    size_t index,fd2_field_page *page) {
+    if(!frames || !frames->storage || !page || index>=frames->snapshot_count ||
+        frames->snapshot_count>FD2_FIELD_EFFECT_MAX_SNAPSHOTS ||
+        frames->page_snapshots[index])return -1;
+    for(size_t i=0;i<frames->snapshot_count;i++)
+        if(frames->page_snapshots[i]==page)return -1;
+    frames->page_snapshots[index]=page;return 0;
+}
+
+int fd2_field_effect_apply_page_frame(const fd2_field_effect_frames *frames,
+    fd2_vga *vga,size_t frame) {
+    if(!frames || !frames->storage || !vga ||
+        frames->snapshot_count!=required_snapshots(frames->effect) ||
+        frames->snapshot_count>FD2_FIELD_EFFECT_MAX_SNAPSHOTS ||
+        fd2_field_effect_source_index(frames->effect,frame)<0)return -1;
+    int has_pages=0;
+    for(size_t i=0;i<frames->snapshot_count;i++)has_pages|=frames->page_snapshots[i]!=NULL;
+    if(!has_pages)return 0; /* 旧独立VGA fixture不冒充App页路径。 */
+    size_t index;
+    if(frames->effect==FD2_FIELD_EFFECT_ACTOR_GROUP_FLASH) {
+        if(frame)return 0;
+        index=1;
+    } else if(frames->effect==FD2_FIELD_EFFECT_EARTHQUAKE) {
+        if(frame)return 0;
+        index=0;
+    } else index=frame;
+    if(index>=frames->snapshot_count || !frames->page_snapshots[index] || !vga->field_page)
+        return -1;
+    return fd2_field_page_copy_pixels(vga->field_page,frames->page_snapshots[index]);
+}
+
+int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
                           fd2_vga *vga,
                           fd2_field_audio *audio,
-                          int timed) {
+                          int timed,fd2_field_effect_frame_fn apply,void *userdata) {
     size_t required = frames ? required_snapshots(frames->effect) : 0;
     if (!frames || !frames->storage || !vga || required == 0 ||
         frames->snapshot_count != required ||
@@ -130,6 +164,7 @@ int fd2_field_effect_play(const fd2_field_effect_frames *frames,
         return -1;
     size_t frame_count = fd2_field_effect_frame_count(frames->effect);
     for (size_t frame = 0; frame < frame_count; frame++) {
+        if(fd2_input_take_quit(&vga->input))return 1;
         fd2_field_sfx cue;
         if (audio && fd2_field_effect_sfx(frames->effect, frame, &cue) == 0)
             (void)fd2_field_audio_play(audio, cue);
@@ -137,6 +172,13 @@ int fd2_field_effect_play(const fd2_field_effect_frames *frames,
                 frames->snapshot_count, frames->bytes_per_snapshot,
                 frames->effect, frame) != 0)
             return -1;
+        if(fd2_field_effect_apply_page_frame(frames,vga,frame)!=0)return -1;
+        if(apply) {
+            int result=apply(frames->effect,frame,
+                (size_t)fd2_field_effect_source_index(frames->effect,frame),vga,userdata);
+            if(result)return result>0?1:-1;
+        }
+        if(fd2_input_take_quit(&vga->input))return 1;
         if (!timed) continue;
         if (frames->effect == FD2_FIELD_EFFECT_ACTOR_GROUP_FLASH) {
             if (frame < 10) fd2_vga_present_timed(vga, 55);
@@ -146,7 +188,13 @@ int fd2_field_effect_play(const fd2_field_effect_frames *frames,
         } else {
             fd2_vga_present_timed(vga, 5);
         }
+        if(fd2_input_take_quit(&vga->input))return 1;
     }
     if (timed) fd2_vga_wait_frame_deadline(vga);
-    return 0;
+    return fd2_input_take_quit(&vga->input)?1:0;
+}
+
+int fd2_field_effect_play(const fd2_field_effect_frames *frames,fd2_vga *vga,
+    fd2_field_audio *audio,int timed) {
+    return fd2_field_effect_play_hooked(frames,vga,audio,timed,NULL,NULL);
 }

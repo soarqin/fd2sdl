@@ -49,12 +49,18 @@ class RewardProtocolTest(unittest.TestCase):
         def phase_log(*args, **kwargs):
             phase_reads.append([name for name, _ in seen])
             return phase_text
+        def active_load(capture, prepared, saved, save, guard, report):
+            # 此层只验reward业务的调用顺序；连续WGC/原Round判据另在下类真测。
+            capture.key("ENTER")
+            wait(capture, "b4-load-round", lambda frame: None, report["checkpoints"])
+            wait(capture, "b4-loaded-browse", lambda frame: None, report["checkpoints"])
         with tempfile.TemporaryDirectory() as temp:
             capture.artifacts = Path(temp)
             save = Path(temp) / "FD2.SAV"; save.write_bytes(b"isolated")
             guard = [b"isolated", save.stat().st_mtime_ns]
             with patch.object(runner, "wait_state", side_effect=wait), patch.object(runner, "wait_title"), \
                     patch.object(runner, "require_source_unchanged"), patch.object(runner, "save_measure", return_value=source), \
+                    patch.object(runner, "observe_active_load", side_effect=active_load), \
                     patch("field_play_input_test.wait_log", side_effect=phase_log):
                 try:
                     runner.exercise(capture, self.prepared[scenario], save, guard, report)
@@ -72,6 +78,8 @@ class RewardProtocolTest(unittest.TestCase):
                 self.assertEqual(names.count("b4-load-default-yes"), 1)
                 self.assertLess(names.index("b4-before-save-detail"), names.index("b4-wait-mutated"))
                 self.assertLess(names.index("b4-wait-mutated"), names.index("b4-load-default-yes"))
+                self.assertLess(names.index("b4-load-default-yes"), names.index("b4-load-round"))
+                self.assertLess(names.index("b4-load-round"), names.index("b4-loaded-browse"))
                 self.assertLess(names.index("b4-load-default-yes"), names.index("b4-after-load-detail"))
                 self.assertTrue(report["save_load"]["real_wait_before_load"])
                 self.assertTrue(report["save_load"]["whole_plaintext_equal"])
@@ -217,10 +225,10 @@ class RewardFinalGuardTest(unittest.TestCase):
                 self.assertFalse(record["probe_cases_passed"])
                 self.assertEqual(record["error"], "earlier business failure")
 
-    def run_model(self, temp, *, paired, fail_role=None):
+    def run_model(self, temp, *, paired, fail_role=None, kind="pair"):
         output = Path(temp) / "output"
         args = SimpleNamespace(root=ROOT, artifacts=output, sdl=Path(__file__) if paired else None,
-            scenario="heal", driver=Path(__file__), dosbox=Path(__file__))
+            scenario="heal", driver=Path(__file__), dosbox=Path(__file__), kind=kind)
         starts, hashes_calls = [], [0]
         @contextmanager
         def running(command, cwd, env, log, driver, processes):
@@ -261,6 +269,24 @@ class RewardFinalGuardTest(unittest.TestCase):
                 self.assertEqual(report["probe_only"], not paired)
                 self.assertEqual(starts, ["original", "sdl"] if paired else ["original"])
 
+    def test_single_sdl_is_new_endpoint_without_inheriting_original(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report, starts, output = self.run_model(temp, paired=True, kind="sdl")
+            self.assertEqual(starts, ["sdl"])
+            self.assertEqual(report["requested_endpoints"], ["sdl"])
+            self.assertEqual(report["status"], "endpoint_passed")
+            self.assertTrue(report["probe_only"] and report["probe_cases_passed"])
+            self.assertFalse(report["ok"] or report["paired_result"])
+            self.assertNotIn("paired", report)
+            self.assertFalse((output / "original").exists())
+
+    def test_single_sdl_late_save_failure_cannot_pass_endpoint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report, starts, _ = self.run_model(temp, paired=True, kind="sdl", fail_role="sdl")
+            self.assertEqual(starts, ["sdl"])
+            self.assertFalse(report["ok"] or report["paired_result"] or report["probe_cases_passed"])
+            self.assertEqual(report["status"], "failed")
+
     def test_late_original_copy_mtime_blocks_sdl_and_late_sdl_revokes_top_pass(self):
         for failed in ("original", "sdl"):
             with self.subTest(failed=failed), tempfile.TemporaryDirectory() as temp:
@@ -273,6 +299,93 @@ class RewardFinalGuardTest(unittest.TestCase):
                 self.assertFalse(record["copy_save_matches_completed_state"])
                 self.assertTrue((output / failed / "comparison.json").is_file())
                 if failed == "original": self.assertFalse((output / "sdl").exists())
+
+
+class RewardLoadSourceTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.prepared = runner.prepare(ORIGINAL, "status")
+
+    def test_actual_saved_turn_round_uses_original_full_banner_and_digits(self):
+        palette = self.prepared["assets"]["palette"]
+        two = runner.load_round_template(ORIGINAL, palette, 2)
+        self.assertEqual(two.tobytes(), runner.round_two_template(ORIGINAL / "FDOTHER.DAT", palette).tobytes())
+        self.assertEqual(two.size, (87, 20))
+        correct = Image.new("RGB", (320, 200)); correct.paste(two.convert("RGB"), (120, 84))
+        self.assertIsNotNone(runner.load_round_state(correct, two, 2))
+        wrong = Image.new("RGB", (320, 200))
+        wrong.paste(runner.load_round_template(ORIGINAL, palette, 3).convert("RGB"), (120, 84))
+        self.assertIsNone(runner.load_round_state(wrong, two, 2))
+        partial = Image.new("RGB", (320, 200)); partial.paste(two.crop((0, 0, 40, 20)).convert("RGB"), (120, 84))
+        self.assertIsNone(runner.load_round_state(partial, two, 2))
+        for bad in (0, 256, True):
+            with self.assertRaises(ValueError): runner.load_round_template(ORIGINAL, palette, bad)
+
+    def test_every_partial_dialog_close_is_rejected_despite_local_cursor_match(self):
+        # 专门保留原事故：旧browse局部predicate已经成功，y164仍不能当就绪。
+        with patch.object(runner, "resource_browse", return_value=lambda frame: {"kind": "browse"}):
+            predicate = runner.loaded_browse_state(self.prepared, self.prepared["model"]["final"], (6, 14))
+        plain = Image.new("RGB", (320, 200), (4, 8, 12))
+        self.assertTrue(predicate(plain)["dialog_all_phase_edges_absent"])
+        border = self.prepared["assets"]["dialog_top"].convert("RGB")
+        for y in (112, 125, 138, 151, 164, 177):
+            frame = plain.copy(); frame.paste(border, (5, y))
+            with self.subTest(y=y): self.assertIsNone(predicate(frame))
+        with patch.object(runner, "resource_browse", return_value=lambda frame: None):
+            self.assertIsNone(runner.loaded_browse_state(self.prepared,
+                self.prepared["model"]["final"], (6, 14))(plain))
+
+    def run_observer(self, fail=None):
+        import run_g4_detail_check as continuous
+        seen = []; cleared = []
+        capture = SimpleNamespace(key=Mock())
+        saved = bytearray(self.prepared["model"]["final"]); saved[runner.META] = 7
+        report = {"checkpoints": []}
+        @contextmanager
+        def series(capture, evidence):
+            evidence["detail_series"] = {"model_only": True}
+            try: yield {"model_only": True}
+            finally: cleared.append(True)
+        def checkpoint(capture, scope, name, predicate, points, **kwargs):
+            seen.append(name)
+            if name == fail: raise TimeoutError("required resource missing")
+            if name == "b4-load-round":
+                frame = Image.new("RGB", (320, 200))
+                image = runner.load_round_template(ORIGINAL, self.prepared["assets"]["palette"], 7)
+                frame.paste(image.convert("RGB"), (120, 84))
+                result = predicate(frame)
+                self.assertIsNotNone(result)
+                self.assertEqual(result["turn"], 7)  # 实际Save，不是prepared.model的2。
+            else: result = {"kind": "browse"}
+            points.append({"name": name, **result})
+        with patch.object(continuous, "detail_series", side_effect=series), \
+                patch.object(continuous, "series_checkpoint", side_effect=checkpoint), \
+                patch.object(runner, "require_source_unchanged") as guard:
+            try:
+                runner.observe_active_load(capture, self.prepared, saved, Path("Save"), [b"whole", 123], report)
+            except TimeoutError:
+                if fail is None: raise
+        return capture, report, seen, cleared, guard.call_count
+
+    def test_round_is_observed_before_browse_and_only_one_confirmation_is_sent(self):
+        capture, report, seen, cleared, guards = self.run_observer()
+        self.assertEqual(seen, ["b4-load-round", "b4-loaded-browse"])
+        self.assertEqual(capture.key.call_args_list, [unittest.mock.call("ENTER")])
+        self.assertEqual([row["name"] for row in report["checkpoints"]], seen)
+        self.assertEqual((cleared, guards), ([True], 2))
+
+    def test_missing_or_wrong_round_stops_without_navigation_or_extra_ack(self):
+        capture, report, seen, cleared, guards = self.run_observer("b4-load-round")
+        self.assertEqual(seen, ["b4-load-round"])
+        self.assertEqual(capture.key.call_args_list, [unittest.mock.call("ENTER")])
+        self.assertEqual((report["checkpoints"], cleared, guards), ([], [True], 0))
+
+    def test_browse_timeout_keeps_round_proof_and_stops_helper_without_extra_key(self):
+        capture, report, seen, cleared, guards = self.run_observer("b4-loaded-browse")
+        self.assertEqual(seen, ["b4-load-round", "b4-loaded-browse"])
+        self.assertEqual(capture.key.call_args_list, [unittest.mock.call("ENTER")])
+        self.assertEqual([row["name"] for row in report["checkpoints"]], ["b4-load-round"])
+        self.assertEqual((cleared, guards), ([True], 1))
 
 
 if __name__ == "__main__": unittest.main()

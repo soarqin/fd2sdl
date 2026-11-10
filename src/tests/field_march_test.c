@@ -35,6 +35,7 @@ static void init(fixture *f) {
     memset(g->metadata.turn_events, 0xff, sizeof(g->metadata.turn_events));
     memset(g->metadata.cell_lookup, 0xff, sizeof(g->metadata.cell_lookup));
     g->ready = 1; g->turn_number = 1; g->active_side = 2;
+    g->option_values[3] = 1; /* 原51AAB用户门允许，March的51AAC独立测。 */
     g->selected_unit = g->command_selected = g->attack_target = g->detail_unit = -1;
     g->interaction = FD2_FIELD_INTERACTION_BROWSE;
     g->map.width = g->map.height = 8; g->map.cells = f->cells;
@@ -82,6 +83,7 @@ static int test_fixed_anchor_and_whole_round(void) {
     CHECK(fd2_field_unit_has_acted(&g->units.items[1]));
     CHECK(g->selected_unit == -1 && g->interaction == FD2_FIELD_INTERACTION_BROWSE);
     CHECK(g->active_side == 1 && g->turn_number == 1);
+    CHECK(g->ordinary_display_mode==0 && g->march_post_waiting_phase);
     CHECK(!g->player_post_waiting_phase && !g->pending_cell_event.valid);
     CHECK(g->units.items[0].direction == 0 && g->units.items[1].direction == 0);
     /* 输入owner只能等待phase，不能再调用玩家入口。 */
@@ -89,6 +91,7 @@ static int test_fixed_anchor_and_whole_round(void) {
     for (int guard = 0; g->active_side != 2 && guard < 8; guard++)
         CHECK(fd2_field_game_process_automatic_action(g) == 1);
     CHECK(g->active_side == 2 && g->turn_number == 2);
+    CHECK(g->ordinary_display_mode==1 && !g->march_post_waiting_phase);
     CHECK(!fd2_field_unit_has_acted(&g->units.items[0]));
     CHECK(!fd2_field_unit_has_acted(&g->units.items[1]));
     CHECK(g->cursor_cell_x == 3 && g->cursor_cell_y == 1);

@@ -14,11 +14,16 @@ int fd2_field_units_append_template(fd2_field_units *units, const fd2_field_meta
     const fd2_field_placements *placements, size_t template_index);
 static const fd2_static_flow *loot_test_override;
 static const fd2_static_flow *startup_test_override;
+static const fd2_static_flow *common_test_override;
+static const fd2_static_flow *defeat_test_override;
 static int startup_test_stat_delta;
 static int startup_test_template_hidden;
 const fd2_static_flow *loot_test_flow_lookup(const char *domain, const char *id) {
     if (loot_test_override && !strcmp(domain, "loot") && !strcmp(id, loot_test_override->id)) return loot_test_override;
     if (startup_test_override && !strcmp(domain, "scene") && !strcmp(id, startup_test_override->id)) return startup_test_override;
+    /* 非shipping绑定夹具：真实callback39→352ca来源图，不改生产stage表。 */
+    if (common_test_override && !strcmp(domain,"common_event") && !strcmp(id,"stage.000.action.039")) return common_test_override;
+    if (defeat_test_override && !strcmp(domain,"runtime") && !strcmp(id,"runtime.defeat")) return defeat_test_override;
     return fd2_static_flow_lookup(domain, id);
 }
 int startup_test_persistent_create(fd2_field_unit *unit, uint8_t unit_id) {
@@ -56,6 +61,210 @@ static int add_dead(fd2_field_game*g,size_t i,uint8_t mode,uint16_t value){
     CHECK(fd2_field_units_set(&g->units,i,96,96,0,9,14)==0);
     fd2_field_unit*u=&g->units.items[i];u->hp=0;u->hp_max=20;
     uint8_t*r=(uint8_t*)u;r[0x31]=mode;r[0x32]=(uint8_t)value;r[0x33]=(uint8_t)(value>>8);
+    return 0;
+}
+typedef struct {
+    unsigned count, quit_at;
+    uint32_t final_resource;
+    size_t dead;
+    int check_child, defeat_refresh;
+} outer_refresh_log;
+static int check_outer_refresh(fd2_field_game *g,fd2_field_runtime_present_step step,
+        int value,void *userdata) {
+    outer_refresh_log *log=userdata;
+    if(step>=FD2_FIELD_RUNTIME_DEFEAT_BEGIN) {
+        if(step==FD2_FIELD_RUNTIME_DEFEAT_CLOSE)log->defeat_refresh=1;
+        return 0;
+    }
+    if(step==FD2_FIELD_RUNTIME_REFRESH && log->defeat_refresh) {log->defeat_refresh=0;return 0;}
+    CHECK(step==FD2_FIELD_RUNTIME_REFRESH && value==0 && log->count<2);
+    log->count++;
+    CHECK(!g->progress.notice.kind && !g->event_resume.active && !g->loot.child.active);
+    CHECK(!g->loot.source && !g->loot.count && !g->loot.notice.kind);
+    CHECK(fd2_field_unit_is_hidden(&g->units.items[log->dead])==(log->count==2));
+    CHECK(g->resource_value==(log->count==1 ? 5u:log->final_resource));
+    if(log->check_child && log->count==2) {
+        int found=0;
+        const uint8_t *raw=(const uint8_t *)&g->units.items[1];
+        for(unsigned i=0;i<8;i++) if(!(raw[10+i*2]&0x80u) && raw[11+i*2]==211) found++;
+        CHECK(found==1);
+    }
+    return log->quit_at==log->count ? 1:0;
+}
+typedef struct {
+    unsigned calls,rotations,actors,projects,waits,frames,closes,quit_at,fail_at;
+    fd2_field_unit initial[5],halted[5];
+    int stopped;
+} defeat_trace;
+static void defeat_fixture(fd2_field_game *g,defeat_trace *t) {
+    memset(g,0,sizeof(*g));g->ready=1;g->units.count=5;
+    for(size_t i=0;i<5;i++) {
+        g->units.items[i].x=g->units.items[i].y=1;
+        g->units.items[i].direction=(uint8_t)(i%3+1);
+        g->units.items[i].flags=0x40;
+    }
+    g->units.items[1].hp=10;g->units.items[2].flags=0x81;
+    g->units.items[3].x=g->units.items[3].y=200; /* 离屏死者仍逐raw旋转。 */
+    memcpy(t->initial,g->units.items,sizeof(t->initial));
+}
+static int defeat_present(fd2_field_game *g,fd2_field_runtime_present_step step,
+        int value,void *userdata) {
+    defeat_trace *t=userdata;t->calls++;
+    if(t->stopped) {
+        CHECK(step==FD2_FIELD_RUNTIME_DEFEAT_CLOSE && !memcmp(t->halted,g->units.items,sizeof(t->halted)));
+        t->closes++;return 0;
+    }
+    if(step==FD2_FIELD_RUNTIME_DEFEAT_BEGIN) {
+        CHECK(t->calls==1 && !memcmp(t->initial,g->units.items,sizeof(t->initial)));
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_PAGE) {
+        CHECK(t->rotations<13 && t->projects==t->rotations);t->rotations++;t->actors=0;
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_ACTOR) {
+        const int expected[]={0,1,3,4};CHECK(t->actors<4 && value==expected[t->actors++]);
+        CHECK(t->rotations>=1 && t->rotations<=13);
+        for(unsigned i=0;i<5;i++) {
+            const fd2_field_unit *u=&g->units.items[i];
+            unsigned direction=t->initial[i].direction;
+            if(i!=1 && i!=2)direction=i<=(unsigned)value ? (t->rotations-1)%4:
+                t->rotations>1 ? (t->rotations-2)%4:t->initial[i].direction;
+            CHECK(u->direction==direction && u->flags==t->initial[i].flags);
+        }
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_PROJECT) {
+        CHECK(t->actors==4 && t->projects+1==t->rotations);t->projects++;
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_WAIT) {
+        CHECK(value==1);t->waits++;
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_BASE || step==FD2_FIELD_RUNTIME_DEFEAT_CUE ||
+              step==FD2_FIELD_RUNTIME_DEFEAT_FRAME || step==FD2_FIELD_RUNTIME_REFRESH) {
+        CHECK(t->rotations==13 && t->projects==13);
+        for(unsigned i=0;i<5;i++) CHECK(g->units.items[i].flags==(i==1?t->initial[i].flags:1));
+        CHECK(g->units.items[2].direction==t->initial[2].direction &&
+            g->units.items[1].direction==t->initial[1].direction);
+        if(step==FD2_FIELD_RUNTIME_DEFEAT_FRAME)CHECK(value==(int)(68+t->frames++));
+        if(step==FD2_FIELD_RUNTIME_REFRESH)CHECK(t->closes==1 && t->frames==12 && t->waits==25);
+    } else if(step==FD2_FIELD_RUNTIME_DEFEAT_CLOSE) {
+        CHECK(t->frames==12 && t->waits==25);t->closes++;
+    } else CHECK(0);
+    if(t->calls==t->quit_at || t->calls==t->fail_at) {
+        memcpy(t->halted,g->units.items,sizeof(t->halted));t->stopped=1;
+        return t->calls==t->quit_at ? 1:-1;
+    }
+    return 0;
+}
+static int test_defeat_exact_write_order_and_cancellation(void) {
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);defeat_trace t={0};defeat_fixture(g,&t);
+    g->runtime_present=defeat_present;g->runtime_present_userdata=&t;
+    CHECK(finalize_zero_hp_units(g)==0 && t.rotations==13 && t.frames==12 && t.closes==1 && !g->runtime_host_quit);
+    unsigned boundaries=t.calls;CHECK(boundaries>100);
+    for(unsigned stop=1;stop<=boundaries;stop++) {
+        t=(defeat_trace){.quit_at=stop};defeat_fixture(g,&t);
+        g->runtime_present=defeat_present;g->runtime_present_userdata=&t;
+        CHECK(finalize_zero_hp_units(g)==1 && g->runtime_host_quit && t.stopped && t.closes==1 &&
+            !g->failure && !memcmp(t.halted,g->units.items,sizeof(t.halted)));
+        CHECK(finalize_zero_hp_units(g)==1 && !memcmp(t.halted,g->units.items,sizeof(t.halted)));
+    }
+    for(unsigned stop=1;stop<=boundaries;stop+=17) {
+        t=(defeat_trace){.fail_at=stop};defeat_fixture(g,&t);
+        g->runtime_present=defeat_present;g->runtime_present_userdata=&t;
+        CHECK(finalize_zero_hp_units(g)==-1 && !g->runtime_host_quit && t.closes==1 &&
+            !memcmp(t.halted,g->units.items,sizeof(t.halted)));
+    }
+    /* 没有屏内见证者时保全部方向，只精确写HP0 flags1，不调任何呈现。 */
+    t=(defeat_trace){0};defeat_fixture(g,&t);g->camera_cell_x=g->camera_cell_y=100;
+    g->runtime_present=defeat_present;g->runtime_present_userdata=&t;
+    CHECK(finalize_zero_hp_units(g)==0 && !t.calls);
+    for(unsigned i=0;i<5;i++)CHECK(g->units.items[i].direction==t.initial[i].direction &&
+        g->units.items[i].flags==(i==1?t.initial[i].flags:1));
+    /* 无callback只跑同图热写，终态不依赖呈现注册。 */
+    t=(defeat_trace){0};defeat_fixture(g,&t);CHECK(finalize_zero_hp_units(g)==0);
+    CHECK(g->units.items[0].direction==0 && g->units.items[3].direction==0 &&
+        g->units.items[2].direction==t.initial[2].direction);
+    const fd2_static_flow *flow=fd2_static_flow_lookup("runtime","runtime.defeat");CHECK(flow);
+    fd2_static_flow bad=*flow;fd2_static_flow_node *nodes=malloc(flow->count*sizeof(*nodes));CHECK(nodes);
+    memcpy(nodes,flow->nodes,flow->count*sizeof(*nodes));bad.nodes=nodes;nodes[flow->entry].op="unknown";
+    defeat_test_override=&bad;t=(defeat_trace){0};defeat_fixture(g,&t);
+    CHECK(finalize_zero_hp_units(g)==-1 && !memcmp(t.initial,g->units.items,sizeof(t.initial)));
+    defeat_test_override=NULL;free(nodes);free(g);return 0;
+}
+static int test_defeat_three_callers_stop_at_host_quit(void) {
+    for(unsigned caller=0;caller<3;caller++) for(int error=0;error<2;error++) {
+        fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
+        defeat_trace t={.quit_at=error?0u:3u,.fail_at=error?3u:0u};defeat_fixture(g,&t);
+        g->runtime_present=defeat_present;g->runtime_present_userdata=&t;
+        if(caller==0) {
+            /* 只进collect.finalize，原pending尚未commit，停止不能跑result/descriptor。 */
+            fd2_loot_flow_context ctx={0};ctx.game=g;ctx.actor=0;
+            CHECK(loot_flow_run(&ctx,fd2_static_flow_label(loot_flow(),"collect.finalize"))==(error?-1:0));
+            CHECK(!ctx.started && !g->loot.source && !g->loot.notice.kind);
+        } else if(caller==1) {
+            const fd2_static_flow *flow=fd2_static_flow_lookup("progress","phase.status");CHECK(flow);
+            g->progress.flow_step=(uint8_t)fd2_static_flow_label(flow,"finalize");
+            g->progress.status_pass=77;
+            CHECK(run_status_flow(g,&g->progress,&g->units,0)==(error?-1:0) && g->progress.status_pass==77 &&
+                g->progress.flow_step==(uint8_t)fd2_static_flow_label(flow,"finalize"));
+        } else {
+            const fd2_static_flow *flow=fd2_static_flow_lookup("common_event","common.defeat.tail");CHECK(flow);
+            int pc=fd2_static_flow_label(flow,"finalize");
+            g->event_resume=(fd2_field_event_resume){.flow=flow,.pc=pc,.actor=0,.active=1};
+            CHECK(common_event_run(g)==(error?-1:0) && g->event_resume.active);
+            if(!error)CHECK(g->event_resume.pc==pc);
+        }
+        CHECK(g->runtime_host_quit==!error && (!g->failure || error) && t.closes==1 &&
+            !memcmp(t.halted,g->units.items,sizeof(t.halted)));
+        free(g);
+    }
+    return 0;
+}
+/* 原1548e的两条路径都走collect→refresh0→finalize→descriptor→refresh0→reward。
+ * 实际冷图／Game owner测试，不代替WGC或原版时钟对照。 */
+static int test_ai_physical_outer_refresh(void) {
+    for(int mode=0;mode<2;mode++) for(int descriptor=0;descriptor<2;descriptor++)
+    for(unsigned quit=0;quit<3;quit++) {
+        fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
+        CHECK(g && fixture(g,&ar,&calls)==0);
+        CHECK(add_dead(g,2,descriptor?1:255,25)==0);
+        g->option_values[2]=(uint8_t)mode;
+        /* 走真实exchange wrapper，固定两方为合法零伤害以只核外围尾序。 */
+        g->units.items[0].attack=g->units.items[1].attack=0;
+        g->units.items[0].accuracy=g->units.items[1].accuracy=0;
+        outer_refresh_log log={0,quit,descriptor?30u:5u,2,0};
+        g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;
+        CHECK(resolve_physical_exchange(g,0,1,0)==0 && log.count== (quit==1?1u:descriptor?1u:2u));
+        CHECK(!g->failure);
+        if(quit==1) {
+            CHECK(g->runtime_host_quit && !g->loot.source && !g->loot.notice.kind &&
+                !fd2_field_unit_is_hidden(&g->units.items[2]) && g->resource_value==5 && !g->progress.notice.kind);
+        } else if(descriptor) {
+            CHECK(g->loot.notice.fragment==435 && g->resource_value==5);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && log.count==2);
+        }
+        CHECK(g->runtime_host_quit==(quit!=0));
+        CHECK(!g->progress.notice.kind && !g->loot.notice.kind && !g->loot.source);
+        CHECK(g->resource_value==(quit==1?5u:log.final_resource));
+        fd2_field_game_close(g);fd2_archive_close(&ar);free(g);
+    }
+    /* 首／次刷新宿主退出不能启动奖励；正奖励也必须等第二次刷新返回。 */
+    for(unsigned quit=0;quit<3;quit++) {
+        fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
+        CHECK(g && fixture(g,&ar,&calls)==0 && add_dead(g,2,1,25)==0);
+        outer_refresh_log log={0,quit,30,2,0};
+        g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;g->experience_value=5;
+        CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_AI_PHYSICAL,0,0)==(quit==1?0:1));
+        if(quit!=1)CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && log.count==2);
+        CHECK(g->runtime_host_quit==(quit!=0) && !g->failure && !calls);
+        CHECK((g->progress.notice.kind!=FD2_FIELD_PROGRESS_NONE)==(quit==0));
+        CHECK(g->resource_value==(quit==1?5u:30u));
+        fd2_field_game_close(g);fd2_archive_close(&ar);free(g);
+    }
+    for(int kind=PLAYER_ACTION_AI_MAGIC;kind<=PLAYER_ACTION_AI_ITEM;kind++)
+    for(int descriptor=0;descriptor<2;descriptor++) {
+        fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
+        CHECK(g && fixture(g,&ar,&calls)==0 && add_dead(g,2,descriptor?1:255,25)==0);
+        outer_refresh_log log={0,0,30,2,0};
+        g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;
+        CHECK(begin_defeated_loot(g,1,0,(player_action_kind)kind,0,0)==descriptor);
+        if(descriptor)CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+        CHECK(!log.count && !g->runtime_host_quit && !g->failure && !calls);
+        fd2_field_game_close(g);fd2_archive_close(&ar);free(g);
+    }
     return 0;
 }
 static int test_defeated_item_and_money(void){
@@ -110,6 +319,206 @@ static int test_callback_and_story(void){
     CHECK(g->loot.notice.kind==FD2_FIELD_LOOT_STORY && g->loot.notice.fragment==8);
     CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && calls==0);
     fd2_field_game_close(g);fd2_archive_close(&ar);free(g);return 0;
+}
+static int common_resource_calls,common_resource_reject;
+static int common_resource_check(const fd2_field_game *g,const fd2_static_flow_node *node,void *ctx) {
+    (void)g;(void)ctx;common_resource_calls++;
+    return common_resource_reject || strcmp(node->op,"story") || node->args[0]!=11 ? -1:0;
+}
+typedef struct { unsigned calls;int quit,error; } cell_cue_trace;
+static int cell_cue_present(fd2_field_game *g,fd2_field_runtime_present_step step,int value,void *userdata) {
+    cell_cue_trace *t=userdata;(void)g;
+    CHECK(step==FD2_FIELD_RUNTIME_CELL_OPEN_CUE && value==12);t->calls++;
+    return t->error?-1:t->quit?1:0;
+}
+static int test_cross_stage_cell_resources_and_cancel(void) {
+    const size_t stages[]={2,6};const uint8_t x[]={14,17},y[]={25,10},modes[]={0,1};
+    const uint16_t values[]={45,5000};
+    for(unsigned scenario=0;scenario<2;scenario++) {
+        fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));fd2_archive ar;unsigned calls=0;
+        CHECK(g && before && fixture(g,&ar,&calls)==0);
+        /* 只加载原资源的窄机制夹具，不走S关卡entry或开放battle门。 */
+        fd2_field_map_close(&g->map);fd2_field_metadata_close(&g->metadata);fd2_terrain_tileset_close(&g->terrain);
+        CHECK(fd2_field_map_open_stage(&g->map,&g->field_archive,stages[scenario])==0 &&
+            fd2_field_metadata_open_stage(&g->metadata,&g->field_archive,stages[scenario])==0 &&
+            fd2_terrain_tileset_open_stage(&g->terrain,&g->fdshap_archive,&g->field_archive,stages[scenario])==0);
+        g->stage=stages[scenario];g->units.items[0].x=x[scenario];g->units.items[0].y=y[scenario];
+        uint32_t cell=fd2_field_map_cell(&g->map,x[scenario],y[scenario]);unsigned index=cell>>16&31;
+        CHECK(index<16 && g->metadata.cell_actions[index].mode==modes[scenario] &&
+            g->metadata.cell_actions[index].param==values[scenario]);
+        cell_cue_trace trace={0};g->runtime_present=cell_cue_present;g->runtime_present_userdata=&trace;
+        *before=*g;CHECK(loot_flow_preflight_cell(g,0)==0 && !memcmp(before,g,sizeof(*g)) && !calls && !trace.calls);
+        CHECK(!fd2_field_stage_battle_is_supported(g->stage) && begin_wait_cell(g,0)==1);
+        CHECK(g->loot.notice.kind==FD2_FIELD_LOOT_CHOICE);
+        CHECK(reply(g,FD2_FIELD_LOOT_CANCEL,-1)==0 && g->loot.notice.wait_ms==100);
+        CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.fragment==412 && g->loot.notice.wait_ms==200);
+        CHECK(fd2_field_game_loot_text_ready(g)==0 && g->loot.text_ready && !trace.calls && !calls &&
+            !g->cell_action_completed[index] && g->resource_value==before->resource_value &&
+            !memcmp(&g->units,&before->units,sizeof(g->units)) && fd2_field_map_cell(&g->map,x[scenario],y[scenario])==cell);
+        /* 停在返回原outer controller前；正式S战斗入口仍明确拒绝。 */
+        CHECK(fd2_field_game_complete_player_controller(g,0)==-1);
+        fd2_field_game_close(g);fd2_archive_close(&ar);free(before);free(g);
+    }
+    return 0;
+}
+static int test_cell_callback_full_word_cold_order(void) {
+    const uint8_t modes[]={2,3,255};
+    for(unsigned variant=0;variant<3;variant++) for(int cancel=0;cancel<2;cancel++) {
+        fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));fd2_archive ar;unsigned calls=0;
+        CHECK(g && before && fixture(g,&ar,&calls)==0);
+        g->units.items[0].x=7;g->units.items[0].y=13;
+        g->metadata.cell_actions[0].mode=modes[variant];g->metadata.cell_actions[0].param=39;
+        common_test_override=fd2_static_flow_lookup("common_event","common.loot.child.0");CHECK(common_test_override);
+        common_resource_reject=0;g->event_preflight=common_resource_check;
+        cell_cue_trace trace={0};g->runtime_present=cell_cue_present;g->runtime_present_userdata=&trace;
+        *before=*g;CHECK(loot_flow_preflight_cell(g,0)==0 && !memcmp(g,before,sizeof(*g)) && !trace.calls);
+        CHECK(begin_wait_cell(g,0)==1 && g->loot.notice.fragment==421);
+        CHECK(reply(g,cancel?FD2_FIELD_LOOT_CANCEL:FD2_FIELD_LOOT_YES,-1)==0);
+        if(cancel) {
+            CHECK(!trace.calls && g->loot.notice.wait_ms==100);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.fragment==412);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && !g->loot.source && !g->event_resume.active);
+        } else {
+            CHECK(trace.calls==1 && g->loot.notice.wait_ms==300 && !g->loot.notice.close_box && !g->event_resume.active);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && !g->loot.notice.close_box && g->loot.notice.wait_ms==200);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.close_box && !g->loot.notice.wait_ms);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->event_resume.child_wait && g->event_resume.actor==0);
+            CHECK(fd2_field_game_loot_text_ready(g)==0 && fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+            CHECK(g->event_resume.active && !g->event_resume.child_wait);
+            CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && !g->event_resume.active && !g->loot.source);
+        }
+        CHECK(trace.calls==(unsigned)!cancel && !g->cell_action_completed[0] && !g->event_log_count &&
+            !g->failure && !calls && g->resource_value==5 && fd2_field_unit_has_acted(&g->units.items[0]));
+        CHECK(fd2_field_unit_inventory_count(&g->units.items[0])==
+            fd2_field_unit_inventory_count(&before->units.items[0])+(cancel?0:1));
+        CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==-1 && trace.calls==(unsigned)!cancel);
+        common_test_override=NULL;fd2_field_game_close(g);fd2_archive_close(&ar);free(before);free(g);
+    }
+    for(int failure=0;failure<4;failure++) {
+        fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));fd2_archive ar;unsigned calls=0;
+        CHECK(g && before && fixture(g,&ar,&calls)==0);g->units.items[0].x=7;g->units.items[0].y=13;
+        g->metadata.cell_actions[0].mode=2;g->metadata.cell_actions[0].param=failure?0x127:0;
+        common_test_override=fd2_static_flow_lookup("common_event","common.loot.child.0");
+        common_resource_reject=0;g->event_preflight=common_resource_check;
+        cell_cue_trace trace={0};g->runtime_present=cell_cue_present;g->runtime_present_userdata=&trace;
+        if(failure<2) {
+            *before=*g;CHECK(loot_flow_preflight_cell(g,0)==-1 && !memcmp(g,before,sizeof(*g)) && !trace.calls && !calls);
+        } else {
+            g->metadata.cell_actions[0].param=39;trace.quit=failure==2;trace.error=failure==3;
+            CHECK(loot_flow_preflight_cell(g,0)==0 && begin_wait_cell(g,0)==1);
+            fd2_field_units units=g->units;
+            CHECK(reply(g,FD2_FIELD_LOOT_YES,-1)==(failure==2?0:-1) && trace.calls==1 &&
+                g->runtime_host_quit==(failure==2) && !g->event_resume.active &&
+                !memcmp(&g->units,&units,sizeof(units)) && !g->cell_action_completed[0]);
+            CHECK(g->failure==(failure==3?FD2_FIELD_FAILURE_ACTION:FD2_FIELD_FAILURE_NONE));
+        }
+        common_test_override=NULL;fd2_field_game_close(g);fd2_archive_close(&ar);free(before);free(g);
+    }
+    return 0;
+}
+static int test_callback_late_bad_word_keeps_committed_prefix(void) {
+    for(int cell=0;cell<2;cell++) {
+        fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
+        CHECK(g && fixture(g,&ar,&calls)==0);
+        common_test_override=fd2_static_flow_lookup("common_event","common.loot.child.0");CHECK(common_test_override);
+        common_resource_reject=0;g->event_preflight=common_resource_check;
+        cell_cue_trace trace={0};g->runtime_present=cell_cue_present;g->runtime_present_userdata=&trace;
+        if(cell) {
+            g->units.items[0].x=7;g->units.items[0].y=13;
+            g->metadata.cell_actions[0].mode=2;g->metadata.cell_actions[0].param=39;
+            CHECK(loot_flow_preflight_cell(g,0)==0 && begin_wait_cell(g,0)==1);
+            CHECK(reply(g,FD2_FIELD_LOOT_YES,-1)==0 && trace.calls==1 && g->loot.notice.wait_ms==300);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.wait_ms==200);
+            CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.close_box);
+        } else {
+            CHECK(add_dead(g,2,2,39)==0);
+            CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_ITEM,0,0)==1 && g->loot.notice.wait_ms==200 &&
+                g->units.items[2].flags==1);
+        }
+        g->loot.descriptors[g->loot.cursor][2]=1; /* 已预检39，晚坏成WORD0x0127。 */
+        fd2_field_units committed=g->units;uint32_t resource=g->resource_value;
+        CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==-1 && g->failure==FD2_FIELD_FAILURE_ACTION &&
+            !g->event_resume.active && !g->event_log_count && !calls &&
+            !memcmp(&committed,&g->units,sizeof(committed)) && g->resource_value==resource &&
+            !g->cell_action_completed[0] && g->loot.cursor==0 && g->loot.descriptors[0][2]==1 &&
+            trace.calls==(unsigned)cell);
+        common_test_override=NULL;fd2_field_game_close(g);fd2_archive_close(&ar);free(g);
+    }
+    return 0;
+}
+static int test_common_callback_preflight_and_parent_child(void) {
+    const fd2_static_flow *source=fd2_static_flow_lookup("common_event","common.loot.child.0");CHECK(source);
+    for(int full=0;full<2;full++) {
+        fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));
+        fd2_archive ar;unsigned calls=0;CHECK(g && before && fixture(g,&ar,&calls)==0);
+        common_test_override=source;common_resource_calls=common_resource_reject=0;
+        g->event_preflight=common_resource_check;
+        g->event_log_count=FD2_FIELD_EVENT_LOG_CAPACITY;
+        uint8_t descriptor[]={2,39,0};*before=*g;
+        CHECK(loot_descriptor_preflight(g,1,descriptor)==0 && common_resource_calls==1 && calls==0);
+        CHECK(!memcmp(g,before,sizeof(*g))); /* caller1/count2/full legacy log合法，纯预检不写。 */
+        common_resource_reject=1;
+        CHECK(loot_descriptor_preflight(g,1,descriptor)==-1 && !memcmp(g,before,sizeof(*g)) && !calls);
+        common_resource_reject=0;common_test_override=NULL;
+        CHECK(loot_descriptor_preflight(g,1,descriptor)==-1 && !memcmp(g,before,sizeof(*g)));
+        common_test_override=source;descriptor[2]=1;
+        CHECK(loot_descriptor_preflight(g,1,descriptor)==-1 && !memcmp(g,before,sizeof(*g)));
+        descriptor[2]=0;
+        uint8_t *raw=(uint8_t *)&g->units.items[1];
+        if(full)for(unsigned i=0;i<8;i++){raw[10+i*2]=0;raw[11+i*2]=(uint8_t)i;}
+        fd2_field_unit original=g->units.items[1];
+        CHECK(add_dead(g,2,2,39)==0 && add_dead(g,3,1,25)==0);
+        CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_ITEM,0,0)==1 && g->loot.count==2);
+        CHECK(g->loot.notice.kind==FD2_FIELD_LOOT_DELAY && reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+        CHECK(g->event_resume.active && g->event_resume.from_loot==1 && g->event_resume.actor==1 &&
+            g->event_resume.child_wait && g->loot.child.actor_index==1 && g->loot.cursor==0);
+        uint8_t parent[sizeof(g->loot.descriptors)];memcpy(parent,g->loot.descriptors,sizeof(parent));
+        fd2_field_loot_notice notice;
+        CHECK(fd2_field_game_loot_peek(g,&notice)==1 && notice.fragment==432 && notice.item_id==211);
+        CHECK(fd2_field_game_loot_text_ready(g)==0 && fd2_field_game_loot_text_ready(g)==-1);
+        CHECK(fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+        if(full) {
+            CHECK(fd2_field_game_loot_peek(g,&notice)==1 && notice.kind==FD2_FIELD_LOOT_DELAY);
+            CHECK(fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+            CHECK(fd2_field_game_loot_peek(g,&notice)==1 && notice.kind==FD2_FIELD_LOOT_CHOICE);
+            CHECK(fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_CANCEL,-1)==0);
+            CHECK(fd2_field_game_loot_text_ready(g)==0 && fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+            CHECK(!memcmp(&original,&g->units.items[1],sizeof(original)));
+        } else CHECK(fd2_field_unit_inventory_count(&g->units.items[1])==
+            fd2_field_unit_inventory_count(&original)+1);
+        fd2_static_flow_node node;size_t actor;
+        CHECK(!g->event_resume.child_wait && fd2_field_game_common_event_peek(g,&node,&actor)==1 &&
+            actor==1 && !strcmp(node.op,"story") && node.args[0]==11);
+        CHECK(g->loot.count==2 && !g->loot.cursor && !memcmp(parent,g->loot.descriptors,sizeof(parent)));
+        CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && !g->event_resume.active);
+        /* common已呈现，不再emit legacy FIELD_EVENT；父直接到下一money。 */
+        CHECK(g->loot.cursor==1 && g->loot.notice.kind==FD2_FIELD_LOOT_MESSAGE && g->loot.notice.fragment==435);
+        CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==-1 && g->resource_value==5);
+        CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->resource_value==30 && !g->loot.source && !calls);
+        CHECK(g->event_log_count==FD2_FIELD_EVENT_LOG_CAPACITY && !g->failure);
+        CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==-1 && g->resource_value==30);
+        common_test_override=NULL;fd2_field_game_close(g);fd2_archive_close(&ar);free(g);free(before);
+    }
+    return 0;
+}
+static int test_ai_physical_child_does_not_finish_parent(void) {
+    fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
+    CHECK(g && fixture(g,&ar,&calls)==0);
+    common_test_override=fd2_static_flow_lookup("common_event","common.loot.child.0");CHECK(common_test_override);
+    common_resource_calls=common_resource_reject=0;g->event_preflight=common_resource_check;
+    CHECK(add_dead(g,2,2,39)==0 && add_dead(g,3,1,25)==0);
+    outer_refresh_log log={0,0,30,2,1};
+    g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;g->experience_value=5;
+    CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_AI_PHYSICAL,0,0)==1 && log.count==1);
+    CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->event_resume.child_wait && log.count==1);
+    CHECK(fd2_field_game_loot_text_ready(g)==0 && fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
+    CHECK(!g->event_resume.child_wait && g->event_resume.active && !g->loot.cursor && log.count==1 &&
+        !g->progress.notice.kind && g->loot.action_kind==PLAYER_ACTION_AI_PHYSICAL);
+    CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && g->loot.cursor==1 && log.count==1);
+    CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && log.count==2 && g->resource_value==30 &&
+        g->progress.notice.kind!=FD2_FIELD_PROGRESS_NONE && !g->event_resume.active && !g->loot.source);
+    CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==-1 && log.count==2 && !calls && !g->failure);
+    common_test_override=NULL;fd2_field_game_close(g);fd2_archive_close(&ar);free(g);return 0;
 }
 static int test_wait_cell(int mode,int full,int accept){
     fd2_field_game*g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;CHECK(fixture(g,&ar,&calls)==0);
@@ -627,9 +1036,17 @@ static int test_descriptor_default_and_collector_sentinel(void) {
 }
 
 int main(void){CHECK(test_initial_units_match_corrected_original_contract()==0);
+    CHECK(test_cross_stage_cell_resources_and_cancel()==0);
+    CHECK(test_cell_callback_full_word_cold_order()==0);
+    CHECK(test_callback_late_bad_word_keeps_committed_prefix()==0);
+    CHECK(test_defeat_exact_write_order_and_cancellation()==0);
+    CHECK(test_defeat_three_callers_stop_at_host_quit()==0);
+    CHECK(test_ai_physical_outer_refresh()==0);
     CHECK(test_initial_units_follow_shared_cold_choices()==0);
     CHECK(test_initial_units_reject_bad_or_missing_logic_definitions()==0);
     CHECK(test_defeated_item_and_money()==0);CHECK(test_full_swap_and_no()==0);CHECK(test_callback_and_story()==0);
+    CHECK(test_common_callback_preflight_and_parent_child()==0);
+    CHECK(test_ai_physical_child_does_not_finish_parent()==0);
     CHECK(test_wait_cell(0,0,0)==0);CHECK(test_wait_cell(0,0,1)==0);CHECK(test_wait_cell(0,1,1)==0);CHECK(test_wait_cell(1,0,1)==0);
     CHECK(test_resource_error_before_wait()==0);CHECK(test_music_and_message_owner()==0);
     CHECK(test_graph_choice_and_unknown_operation()==0);CHECK(test_invalid_reply_and_slot_are_read_only()==0);

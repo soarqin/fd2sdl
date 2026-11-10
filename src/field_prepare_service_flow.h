@@ -40,7 +40,7 @@ static int prepare_domain_preflight(prepare_ui *ui,int kind) {
     if (kind==5) {
         if ((s->quota!=16u && s->quota!=20u) || state->unit_count<s->quota) return -1;
         if (prepare_service_selection_resources(ui)!=0 || prepare_service_notice_ready(ui,75)!=0) return -1;
-        fd2_text_parameters parameters={ui->context->message_number,s->new_fragment,s->old_fragment};
+        fd2_text_parameters parameters={ui->context->message_number,ui->context->message_new_fragment,ui->context->message_old_fragment};
         if (prepare_service_text_ready(ui,658,&parameters,95,119)!=0) return -1;
         /* 2b439可能在已排序后失败；所有未来动态名字从同一冷图读取，
          * 不把关卡必须成员列表再抄进C，也不等首写后才发现坏文本。 */
@@ -63,7 +63,7 @@ static int prepare_domain_preflight(prepare_ui *ui,int kind) {
         const uint8_t *record=fd2_field_item_record_get(s->product_id);
         if (!record || fd2_field_prepare_item_append(&source,s->product_id)!=1) return -1;
         if (record[0]<32u) {
-            fd2_text_parameters parameters={s->price,(size_t)s->product_id+181u,s->old_fragment};
+            fd2_text_parameters parameters={s->price,(size_t)s->product_id+181u,ui->context->message_old_fragment};
             if (s->selector<0 || s->selector>=6 ||
                 prepare_service_notice_ready(ui,k_prepare_town_portraits[s->selector])!=0 ||
                 prepare_service_text_ready(ui,k_prepare_buy_messages[3][s->selector],&parameters,12,119)!=0 ||
@@ -92,7 +92,7 @@ static int prepare_domain_preflight(prepare_ui *ui,int kind) {
         if (prepare_domain_read(&shadow,s->member,&source)!=0 || fd2_field_prepare_item_recompute(&source)!=0) return -1;
         prepare_domain_write(&shadow,s->member,&source);
         if (fd2_field_prepare_promotion_finalize(&shadow,&plan)!=0 || prepare_domain_identity_resources(ui,plan.target_unit_id)!=0) return -1;
-        fd2_text_parameters parameters={0,(size_t)source.movement_profile+150u,s->old_fragment};
+        fd2_text_parameters parameters={0,(size_t)source.movement_profile+150u,ui->context->message_old_fragment};
         if (prepare_service_text_ready(ui,595,&parameters,95,119)!=0) return -1;
         unsigned line=1;
         for (unsigned gain=0;gain<6u;gain++) {
@@ -180,7 +180,7 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
             else if (kind==4) fragment=(size_t)unit.movement_profile+150u;
             else goto fatal;
         }
-        s->new_fragment=fragment;
+        ui->context->message_new_fragment=(uint32_t)fragment;
     } else if (!strcmp(op,"inventory_full")) {
         if (node->args[0]<0 || node->args[0]>1 || prepare_domain_read(state,node->args[0] ? s->receiver:s->member,&unit)!=0) goto fatal;
         next=fd2_field_unit_inventory_count(&unit)==8u ? FD2_FLOW_YES:FD2_FLOW_NO;

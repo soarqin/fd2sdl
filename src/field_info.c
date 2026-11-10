@@ -123,6 +123,10 @@ void fd2_field_info_assets_close(fd2_field_info_assets *assets) {
         fd2_image_free(&assets->detail_icons[i]);
     for (size_t i = 0; i < 4; i++)
         fd2_image_free(&assets->overview[i]);
+    for (size_t i = 0; i < 9; i++)
+        fd2_image_free(&assets->round_banner[i]);
+    for (size_t i = 0; i < 3; i++)
+        fd2_image_free(&assets->phase_labels[i]);
     memset(assets, 0, sizeof(*assets));
 }
 
@@ -197,6 +201,17 @@ int fd2_field_info_assets_open_mem(fd2_field_info_assets *assets,
             assets->overview[i].height != overview_sizes[i][1])
             goto fail;
     }
+    /* sub_10010 @0x10010及field_turn_cycle_run @0x1a30b（原
+     * FUN_00017a53）经sub_15F0E读83..91；4ebab是零透明LMI，
+     * 不是地形RLE。与原数字bank42一起由同一info资源owner持有。 */
+    for (size_t i = 0; i < 9; i++)
+        if (decode_lmi_frame(&assets->round_banner[i], data, size, frame_count,
+                             83u + i) != 0) goto fail;
+    /* sub_1F1CC/sub_1F30A @0x1f1cc/0x1f30a实际caller只传80/82，
+     * 两者均再叠81；78/79没有此调用来源，不发明额外phase。 */
+    for (size_t i = 0; i < 3; i++)
+        if (decode_lmi_frame(&assets->phase_labels[i], data, size, frame_count,
+                             80u + i) != 0) goto fail;
     assets->ready = 1;
     return 0;
 

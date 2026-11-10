@@ -7,6 +7,15 @@
 #include "field_game.h"
 #include "field_handoff.h"
 #include "vga.h"
+#include "text.h"
+
+/* App/Game借用：Scene不自seed、不另存消息值或视觉phase。-4/-5实际查UI0，
+ * -6使用message_number；new/old/value均是原App DWORD的当前投影。 */
+typedef struct {
+    fd2_field_combat_rng_fn rng;
+    void *rng_userdata;
+    fd2_text_parameters text;
+} fd2_scene_runtime;
 
 typedef enum {
     FD2_SCENE_RESULT_OK = 0,
@@ -34,6 +43,10 @@ int fd2_scene_play_new_game_prologue_handoff(
         fd2_field_audio *audio,
         int once,
         fd2_field_handoff *handoff);
+int fd2_scene_play_new_game_prologue_handoff_with_runtime(
+    fd2_vga *vga, const fd2_archive *fdother, fd2_bgm_player *bgm,
+    fd2_field_audio *audio, int once, fd2_field_handoff *handoff,
+    const fd2_scene_runtime *runtime);
 
 /* 播放 stage 0/31 turn action 的镜头、登场 LMI1、移动和 FDTXT 对话。
  * notice 中保存状态事务提交前的单位数与镜头；成功后清除 deferred。 */
@@ -43,6 +56,15 @@ int fd2_scene_play_field_event(fd2_vga *vga,
                                fd2_field_event_notice *notice,
                                fd2_field_audio *audio,
                                int fast);
+/* common_event冷图的一次有限呈现op；PC/分支/ACK归原Game续态。
+ * pan/move/story逐已发生写点交还原motion owner，失败/退出不伪造终态。
+ * 不解释整事件handler，不执行message/choice或任何业务交易。 */
+int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
+    fd2_field_game *game,const fd2_static_flow_node *node,
+    fd2_field_audio *audio,int fast);
+/* common领域的只读叶预检；不套关卡绑定支持门，不推进视觉/输入/RNG。 */
+int fd2_scene_common_step_validate(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node);
 
 /* 只读核当前胜利图的投影、脚本、文本和cursor资源，不呈现或切曲。 */
 int fd2_scene_stage_victory_validate(const fd2_field_game *game);

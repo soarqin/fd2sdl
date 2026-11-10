@@ -236,17 +236,7 @@ static int prepare_service_read_key(prepare_ui *ui,fd2_input_event *event,
 /* dialog_text_scroll_up @0x16e24（原登记同名）：仅两种对话origin。
  * 原五次3px和一次4px都是CPU写入，每步只清一底行；无wait/flip/键采样。 */
 static int prepare_service_scroll(prepare_ui *ui) {
-    unsigned origin=ui->service.notice_origin;
-    if(origin!=1832u && origin!=36887u)return 0;
-    int x=origin==1832u ? 14:94,y=origin==1832u ? 9:119;
-    for (int step=0;step<6;step++) {
-        int delta=step<5 ? 3:4;
-        for (int row=0;row<72;row++)
-            memmove(ui->vga->framebuffer+(y+row)*VGA_STRIDE+x,
-                ui->vga->framebuffer+(y+row+delta)*VGA_STRIDE+x,208);
-        memset(ui->vga->framebuffer+(y+72)*VGA_STRIDE+x+1,74,208);
-    }
-    return 0;
+    return fd2_dialog_scroll_pixels(ui->vga->framebuffer,sizeof(ui->vga->framebuffer),ui->service.notice_origin);
 }
 /* sub_27816 @0x27816 / sub_278E7 @0x278e7：列表窗口(10,115)284x80，
  * 三次6px+10ms，再8px；末步紧接原内容重绘，不额外增加末态等待。 */
@@ -303,7 +293,7 @@ static int prepare_service_notice_ready(prepare_ui *ui,unsigned portrait_id) {
 }
 static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
     prepare_service *s=&ui->service;fd2_text_expanded expanded;
-    fd2_text_parameters parameters={ui->context->message_number,s->new_fragment,s->old_fragment};
+    fd2_text_parameters parameters={ui->context->message_number,ui->context->message_new_fragment,ui->context->message_old_fragment};
     if (prepare_service_text_ready(ui,fragment,&parameters,x,y)!=0 ||
         fd2_text_expand(&ui->assets->text,ui->assets->font.glyph_count,&parameters,fragment,&expanded)!=0) return -1;
     int base_x=x,base_y=y,row=0,slow=1;
@@ -342,9 +332,12 @@ static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
             if(prepare_service_take_key(ui,&event)) {s->deferred_key=event;s->deferred_key_ready=1;slow=0;}
         }
         if (slow) {
-            if (++s->glyph_counter==2u) {
-                s->glyph_counter=0;s->mouth_phase=(s->mouth_phase+1u)&3u;
-                if (prepare_service_portrait(ui,ui->vga,s->mouth_phase==3u ? 1u:s->mouth_phase,0)!=0) return -1;
+            unsigned phase;
+            int redraw=fd2_dialog_visual_glyph_step(&ui->vga->dialog_visual,&phase);
+            if(redraw<0)return -1;
+            if(redraw) {
+                if(prepare_service_portrait(ui,ui->vga,phase,0)!=0)return -1;
+                fd2_vga_upload_current_frame(ui->vga);
             }
             if (sound(ui,2)!=0) return -1;
             if (prepare_service_present(ui,55)) return 1;
@@ -485,46 +478,18 @@ static int prepare_service_zoom(prepare_ui *ui,int phase) {
     fd2_vga_set_brightness(ui->vga,4*phase);return prepare_service_present(ui,16);
 }
 
+/* 19953/197e5与field/NoTown共用同一runtime.choice。服务只借现有
+ * deferred key、input_epoch、画像与冷confirm出口，不保存第二选择状态。 */
 static int prepare_service_confirm(prepare_ui *ui,unsigned *port) {
+    if(!ui || !port)return -1;
     fd2_vga *base=new_frame(ui->vga);if(!base)return -1;
     if(ui->service.page)memcpy(ui->service.page->framebuffer,ui->vga->framebuffer,VGA_W*VGA_H);
-    int selected=0,result=0,blink=0;unsigned countdown=fd2_field_rng_next(&ui->context->rng)%30u+2u;
-    uint64_t last=SDL_GetTicks();unsigned phase=0;
-    for (int step=1;step<=4;step++) {
+    prepare_choice_scope scope={0};scope.ui=ui;scope.page=base;scope.service=1;scope.port=port;
+    int result=fd2_field_choice_run(prepare_choice_step,&scope);
+    if(!result) {
         memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[49],248-step*4,168,0);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[51],248+step*4,168,0);
-        if(prepare_service_present(ui,16)){result=1;goto done;}
+        fd2_vga_upload_current_frame(ui->vga);
     }
-    for (;;) {
-        fd2_input_event event;
-        if(prepare_service_host_quit(ui)){result=1;goto done;}
-        if(prepare_service_take_key(ui,&event)) {
-            if(cancel_key(event.key)){*port=FD2_FLOW_CANCEL;break;}
-            if(confirm_key(event.key)){*port=selected ? FD2_FLOW_NO:FD2_FLOW_YES;break;}
-            if(event.key==FD2_INPUT_KEY_LEFT)selected=0;
-            if(event.key==FD2_INPUT_KEY_RIGHT)selected=1;
-        }
-        uint64_t now=SDL_GetTicks();(void)fd2_field_water_tick(ui->vga,now);
-        if(now-last>=110u) {
-            phase=(phase+1u)&3u;last=now;
-            if(blink){countdown=fd2_field_rng_next(&ui->context->rng)%30u+10u;blink=0;
-                if(prepare_service_portrait(ui,base,0,0)!=0){result=-1;goto done;}}
-            else if(countdown--==0u){blink=1;if(prepare_service_portrait(ui,base,3,0)!=0){result=-1;goto done;}}
-        }
-        memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[selected==0 && phase/2u ? 49:48],232,168,0);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[selected==1 && phase/2u ? 52:51],264,168,0);
-        if(prepare_service_present(ui,16)){result=1;goto done;}
-    }
-    for (int step=1;step<=4;step++) {
-        memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[48],232+step*4,168,0);
-        fd2_map_sprite_blit(ui->vga,&ui->assets->commands.frames[51],264-step*4,168,0);
-        if(prepare_service_present(ui,16)){result=1;goto done;}
-    }
-    memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
-done:
     free(base);return result;
 }
 

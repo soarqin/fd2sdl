@@ -86,7 +86,7 @@ void sub_10010()
       v5 = 2 * *(unsigned __int8 *)dword_53A55;
       dword_53A5D = res_load(aFdshapDat, dword_53A5D, v5);
       dword_53A69 = res_load(aFdshapDat, dword_53A69, v5 + 1);
-      sub_4DF4C(dword_53A51);
+      field_map_runtime_cell_bits_reset(dword_53A51);
       dword_53BE7 = *(unsigned __int8 *)(dword_53A55 + 1);
       dword_53BE3 = *(unsigned __int8 *)(dword_53A55 + 2);
       dword_53BEB = *(unsigned __int8 *)(v0 + 12484);
@@ -309,7 +309,7 @@ int __cdecl sub_1088D(int a1)
   v1 = 2 * *(unsigned __int8 *)dword_53A55;
   dword_53A5D = res_load(aFdshapDat, dword_53A5D, v1);
   dword_53A69 = res_load(aFdshapDat, dword_53A69, v1 + 1);
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   dword_53BE7 = *(unsigned __int8 *)(dword_53A55 + 1);
   dword_53BE3 = *(unsigned __int8 *)(dword_53A55 + 2);
   dword_53BEB = dword_53BE7;
@@ -467,7 +467,7 @@ int __cdecl field_unit_stage_template_append(int a1, int a2)
       }
     }
   }
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   v5 = (_BYTE *)(dword_53A55 + 26 * a1);
   v6 = v5 + 131;
   v17 = (unsigned __int8)v5[132];
@@ -1262,6 +1262,7 @@ int sub_11C59()
  * callers: 0x10010, 0x117e7, 0x11aa8, 0x11b48, 0x11b9b, 0x11bfa, 0x11c59, 0x12cea, 0x12dac, 0x135dd, 0x1366a, 0x13a9f, 0x15055, 0x15311, 0x1548e, 0x16f55, 0x18d8c, 0x196cb, 0x19df7, 0x1a30b, 0x1bbdc, 0x1c4cc, 0x1cac7, 0x1cff0, 0x1db65, 0x2000a, 0x205da, 0x20c6f, 0x21082, 0x2111a, 0x214ad, 0x21548, 0x2189a, 0x21eb1, 0x22721, 0x22997, 0x22af6, 0x22c04, 0x22d1b, 0x233c6, 0x235f9, 0x23e74, 0x24b4d, 0x24c1e, 0x25757, 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ff01, 0x3231b, 0x32d18, 0x33049, 0x336a0, 0x33c9d, 0x33faf, 0x34531, 0x3460b, 0x34673, 0x346cd, 0x35730, 0x35b78
  * callees: 0x11eb0, 0x11eee, 0x122dc, 0x127a9, 0x1297d, 0x1acf3, 0x3702f, 0x4e31c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留中性sub_11CAC。11cbc cmp原实参0，11cc1 JNZ跳过11cc3 call4e31c；故raw0推进water，非0跳过。参数不是普通显示51A83开关，也不是刷新等待；其余1297d、11eee、122dc、127a9、1acf3及VGA投影仍按原序。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 int __cdecl sub_11CAC(int a1)
 {
   int v1; // eax
@@ -2549,6 +2550,7 @@ int sub_13565()
 // [field_camera_pan_to] 将 `DAT_00003aa9/03aad` 镜头格坐标逐步平移到目标 x/y，并同步 `DAT_00003ab1/03ab5`
 //   依据: 反编译确认先完成 X 再完成 Y；每格调用 `FUN_0000f3f4(0)` 与 `vsync_wait`
 //   历史地址列 `0x387f1`；旧 Ghidra 名 `FUN_00010d25`；判定 exact
+// [勘误 evidence] pan每个镜头格都调用11cac(0)，包括两方向移动；共享工作页和water随该原caller刷新，不把所有Scene render统一套skip-water，也不在纯delay虚构刷新。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 void __cdecl field_camera_pan_to(int a1, int a2)
 {
   int v2; // eax
@@ -2599,6 +2601,7 @@ void __cdecl field_camera_pan_to(int a1, int a2)
 // [field_movement_script_play] 播放单位移动/朝向脚本，更新 `DAT_00003a45` actor 的 x/y、direction 与 frame_phase
 //   依据: 每格 6 个 4 px 相位且各等待 1 BIOS tick；`DAT_00003afb!=0/0x40` 时同步递增 DAC 暗度
 //   历史地址列 `0x3887e`；旧 Ghidra 名 `FUN_00010db2`；判定 exact
+// [勘误 evidence] 脚本相位的11cac实参按当前53AFB选择：0或64时传0，非0非64传1；渐暗可在同脚本内到64而切回0。高位wait及上抬恢复分支传0；1398a脚本尾固定传1。尾仍重画一次但跳water，不能把它当普通相位刷新或省掉。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 int __cdecl field_movement_script_play(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -3134,11 +3137,11 @@ void __cdecl sub_14121(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
   field_opponent_zoc_build(a2);
   if ( field_path_find(v11, v9, retaddr, 28, &a1, 0, 0, 2, dword_53A51, dword_53A69) == 255 )
   {
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
   }
   else
   {
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     v12 = (unsigned __int8)a1;
     v13 = BYTE1(a1);
     if ( (unsigned __int8)a1 != v9 || (void *)BYTE1(a1) != retaddr )
@@ -3231,7 +3234,7 @@ int __cdecl field_ai_physical_candidate_evaluate(int a1, int a2)
     field_reachable_cells_compute(v9, v7, v20, v6, dword_53A51, dword_53A69);
     field_friendly_destination_block(a1, a2);
     v24 = sub_14B16(v26);
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     v31 = malloc(100);
     for ( i = 0; i < v24; ++i )
     {
@@ -3248,7 +3251,7 @@ int __cdecl field_ai_physical_candidate_evaluate(int a1, int a2)
       }
       v11 = field_target_range_build(v35, v36, v31, v23, v22, v25);
       v30 = v11;
-      sub_4DF4C(dword_53A51);
+      field_map_runtime_cell_bits_reset(dword_53A51);
       if ( v11 != 0 )
       {
         for ( j = 0; j < v30; ++j )
@@ -3687,11 +3690,11 @@ int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
   field_opponent_zoc_build(a4);
   if ( field_path_find(v6, a4, v22, a3, v7, v33, v34, 0, dword_53A51, dword_53A69) == 255 )
   {
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     v26 = field_path_find(v6, a4, v22, 28, v7, v33, v34, 1, dword_53A51, dword_53A69);
     if ( v26 != 255 )
     {
-      sub_4DF4C(dword_53A51);
+      field_map_runtime_cell_bits_reset(dword_53A51);
       field_opponent_zoc_build(v36);
       field_reachable_cells_compute(v6, a4, v22, a3, dword_53A51, dword_53A69);
       v8 = a4;
@@ -3730,7 +3733,7 @@ int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
       v34 = v30;
     }
   }
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   field_opponent_zoc_build(v36);
   field_reachable_cells_compute(a2, a4, v22, a3, dword_53A51, dword_53A69);
   field_friendly_destination_block(v35, v36);
@@ -3756,10 +3759,10 @@ int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
       v25 = v18;
     }
   }
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   field_opponent_zoc_build(v36);
   v19 = field_path_find(a2, a4, v22, a3, v24, v29, v31, 0, dword_53A51, dword_53A69);
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   if ( v19 != 0 )
     field_actor_path_play(v35, v24, v19);
   free(v24);
@@ -3881,7 +3884,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
     sub_149F8(dword_53C37, dword_53C3B, (int)v14, v13, v15 - 16, 0);
   }
   v7 = v6;
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   j___delay(200);
   dword_51A83 = *(unsigned __int8 *)(v4 + 18) + 2;
   if ( v15 >= 0x10u )
@@ -3931,7 +3934,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
       sub_11CAC(1);
       bios_tick_delay(1);
     }
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     bios_tick_delay(2);
     field_focus_move_to_actor(v14[0]);
   }
@@ -3988,7 +3991,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
   field_target_range_build(dword_53C27, dword_53C2B, (int)v12, *(unsigned __int8 *)(v3 + 4), 0, v4);
   v6 = v5;
   v14 = v5;
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   j___delay(200);
   dword_51A83 = *(unsigned __int8 *)(v3 + 4) + 2;
   field_focus_move_to(dword_53C27, dword_53C2B);
@@ -4028,6 +4031,7 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 // [勘误 evidence] 完整exchange在154ad先12d7b聚焦攻击者，154c6才执行14b78移动，154de再12d7b聚焦所选防御者，然后进入交战；不能用直接写cursor代替12d7b→12cea的逐格镜头留边。13a9f没有统一动作聚焦，behavior8无动作也不能凭调度主动改焦点。名称与持久ABI不变。；依据: IDA9.5 Domain完整496B、13a9f/14ef0调用xref与154ad/154c6/154de原指令；12d7b在12da3调用12cea。B5 C20实际原版完成、SDL turn11 quiet失败，81块地形共46656px唯一确定SDL camera5,1，而原版0043 camera5,0的422px资源门及Save11保留Hero15,0。这是原动作聚焦遗漏的依据，不改变oracle或把后续修复预记为实机通过。
 // [勘误 evidence] 物理caller在攻击目标聚焦前设置51A83=1，2e2b0正常尾11cac(1)因而保留普通cursor。玩家18d8c亦沿18890的1进入，不能为修法术内部多余cursor而全局删除物理返回cursor。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 // [勘误 evidence] SHORT先face主动者、mode0/map刷新/mode1，按初始合法反击face目标；1eb05后重置方向再1e856。目标存活且仍可反击才双方face、1e611、反击1e856，最后重置方向。155f3..155fb只push三实参，15600仅清0xc；1e611读arg_C不是已提供第四参。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] 完整1548e..1567e原指令中SHORT15616与FULL15624共同汇15627：1562f调用1b6b7收集descriptor，1563b以实参0调用11cac，15643调用1db65清死亡，15652调用1aa1d，1565c再次以0调用11cac，最后1566a调用1e292奖励。两次外围水色刷新适用于全部AI物理，不仅SHORT；它们不代替2e2b0 FULL演出内部的raw1尾。空descriptor count0同样经过1aa1d返回后的第二次刷新。；依据: 1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。
 int __cdecl field_physical_exchange(int a1, int a2)
 {
   int v2; // esi
@@ -4140,7 +4144,7 @@ int __cdecl field_ai_item_candidate_evaluate(int a1, int a2)
       {
         field_target_range_build(v17, SHIDWORD(v17), 0, v5, v4, 0);
         v16 = sub_14B16(v18);
-        sub_4DF4C(dword_53A51);
+        field_map_runtime_cell_bits_reset(dword_53A51);
         for ( j = 0; j < v16; ++j )
         {
           v12 = &v18[2 * j];
@@ -4156,7 +4160,7 @@ int __cdecl field_ai_item_candidate_evaluate(int a1, int a2)
           else
             sub_149F8(v21, v22, (int)v13, v17, v8 - 16, 0);
           v10 = v9;
-          sub_4DF4C(dword_53A51);
+          field_map_runtime_cell_bits_reset(dword_53A51);
           if ( v10 != 0 )
           {
             v11 = field_ai_item_targets_score(v19, v10, v13);
@@ -4299,7 +4303,7 @@ int __cdecl field_ai_magic_candidate_evaluate(int a1, int a2)
       {
         field_reachable_cells_compute(v18, v17, v16, *((unsigned __int8 *)v4 + 3), dword_53A51, dword_53A69);
         v19 = sub_14B16(v20);
-        sub_4DF4C(dword_53A51);
+        field_map_runtime_cell_bits_reset(dword_53A51);
         for ( j = 0; j < v19; ++j )
         {
           v10 = &v20[2 * j];
@@ -4311,7 +4315,7 @@ int __cdecl field_ai_magic_candidate_evaluate(int a1, int a2)
             v7 = *((_BYTE *)v5 + 6) == 0;
           field_target_range_build(v24, v22, (int)v12, *((unsigned __int8 *)v5 + 4), 0, v7);
           v23 = v8;
-          sub_4DF4C(dword_53A51);
+          field_map_runtime_cell_bits_reset(dword_53A51);
           if ( v23 != 0 )
           {
             v9 = field_ai_magic_targets_score((unsigned __int8)v13[i], v23, v12);
@@ -4541,7 +4545,7 @@ void __cdecl sub_15E9E(__int16 *a1, int a2, int a3, int a4, int a5)
   v6 = a4 + a3 * a5;
   v7 = malloc(v5 * v8 + 8);
   sub_4ECBF(v7, v8, v5, a2, v6, a3);
-  sub_4ED34(a2 + v6, a1, a3);
+  image_raw_zero_transparent_blit(a2 + v6, a1, a3);
   JUMPOUT(0x22BBE);
 }
 
@@ -5255,9 +5259,9 @@ int field_empty_focus_menu_execute()
       field_bottom_notice_open(*(unsigned __int8 *)(dword_53A45 + 7));
       text_dialog_render_tokens(v20, dword_53A7D, 417, 696099, 320, 205, 76, 74, 19, 1);
       v3 = dialog_portrait_frame_draw(0);
-      v4 = sub_19953(v3);
+      v4 = field_choice_buttons_wait(v3);
       v5 = v4;
-      sub_197E5(v4, HIDWORD(v4), v4);
+      field_choice_buttons_close(v4, HIDWORD(v4), v4);
       if ( v5 == 1 && dword_53C57 == 0 )
       {
         text_dialog_render_tokens(v20, dword_53A7D, 418, 702179, 320, 205, 76, 74, 19, 1);
@@ -5294,9 +5298,9 @@ int field_empty_focus_menu_execute()
       field_bottom_notice_open(75);
       text_dialog_render_tokens(v20, dword_53A7D, 419, 696099, 320, 205, 76, 74, 19, 1);
       v13 = dialog_portrait_frame_draw(0);
-      v14 = sub_19953(v13);
+      v14 = field_choice_buttons_wait(v13);
       v15 = v14;
-      sub_197E5(v14, HIDWORD(v14), v14);
+      field_choice_buttons_close(v14, HIDWORD(v14), v14);
       if ( v15 == 1 && dword_53C57 == 0 )
       {
         text_dialog_render_tokens(v20, dword_53A7D, 420, 702179, 320, 205, 76, 74, 19, 1);
@@ -5451,7 +5455,7 @@ void __cdecl field_command_menu_open(
     a3 += 2280;
     sub_17643(v14);
     for ( j = 0; j < 4; ++j )
-      sub_4ED34(
+      image_raw_zero_transparent_blit(
         &(&retaddr)[j][v12],
         dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * (3 * *(_DWORD *)(a11 + 4 * j) + 2 * *(_DWORD *)(v11 + 4 * j))),
         456);
@@ -5553,7 +5557,7 @@ void __cdecl field_command_menu_close(int a1, int a2)
     v8 -= 2280;
     sub_17643();
     for ( j = 0; j < 4; ++j )
-      sub_4ED34(
+      image_raw_zero_transparent_blit(
         v2 + *(&v5 + j),
         dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * (3 * *(_DWORD *)(a1 + 4 * j) + 2 * *(_DWORD *)(a2 + 4 * j))),
         456);
@@ -5691,7 +5695,7 @@ void __cdecl field_command_menu_draw(int a1, int a2)
     v5 = 3 * *(_DWORD *)(a1 + 4 * i) + 2 * *(_DWORD *)(a2 + 4 * i);
     if ( i == dword_53C57 )
       v5 += dword_53C13;
-    sub_4ED34(v8 + v2 + 456 * v3 + v6[i], dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * v5), 456);
+    image_raw_zero_transparent_blit(v8 + v2 + 456 * v3 + v6[i], dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * v5), 456);
   }
   if ( v7 != -1 )
     sub_127E0(v7);
@@ -6345,7 +6349,7 @@ int __cdecl field_player_unit_action(int a1)
   LODWORD(v4) = field_unit_selection_summary_wait(a1);
   field_cell_selection_execute(v4, 4, 0, nullptr);
   v14 = v5;
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   if ( v14 == -1 )
   {
     field_focus_move_to(v20, v19);
@@ -6355,7 +6359,7 @@ int __cdecl field_player_unit_action(int a1)
   field_opponent_zoc_build(1);
   v6 = field_path_find(v3, v20, v19, v16, v17, qword_53AB1, HIDWORD(qword_53AB1), 0, dword_53A51, dword_53A69);
   v15 = v6;
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   dword_51A83 = 0;
   field_focus_move_to(v20, v19);
   dword_51A83 = 1;
@@ -6547,7 +6551,7 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
     field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), 0, v24, v25, 0);
     if ( v6 == 0 )
       *a2 = 1;
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
   }
   field_command_first_enabled_select((int)a2);
   field_command_menu_open((int)&v21, (int)a2, v20[0], v20[1], v20[2], v20[3], v20[4], v20[5], v20[6], v20[7], v20[8]);
@@ -6607,7 +6611,7 @@ int __cdecl field_player_command_execute(int a1, _DWORD *a2, int a3)
     field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), v10, v24, v25, 0);
     field_cell_selection_execute(v10, 0, v10, v11);
     v13 = v12;
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     free(v11);
     if ( v13 == -1 )
     {
@@ -6679,9 +6683,9 @@ char __cdecl field_special_cell_execute(int a1)
       else
         text_dialog_render_tokens(v1, dword_53A7D, 428, 696099, 320, 205, 76, 74, 19, 1);
       v4 = dialog_portrait_frame_draw(0);
-      v5 = sub_19953(v4);
+      v5 = field_choice_buttons_wait(v4);
       v6 = v5;
-      sub_197E5(v5, HIDWORD(v5), v5);
+      field_choice_buttons_close(v5, HIDWORD(v5), v5);
       if ( v6 != 1 || dword_53C57 != 0 )
       {
         j___delay(100);
@@ -6715,9 +6719,9 @@ char __cdecl field_special_cell_execute(int a1)
         field_bottom_notice_open(*(unsigned __int8 *)(v3 + 7));
         text_dialog_render_tokens(v1, dword_53A7D, 423, 696099, 320, 205, 76, 74, 19, 1);
         v12 = dialog_portrait_frame_draw(0);
-        v13 = sub_19953(v12);
+        v13 = field_choice_buttons_wait(v12);
         v21 = v13;
-        v14 = sub_197E5(v13, HIDWORD(v13), v9);
+        v14 = field_choice_buttons_close(v13, HIDWORD(v13), v9);
         if ( v21 != 1 || dword_53C57 != 0 )
         {
           text_dialog_render_tokens(v1, dword_53A7D, 424, 702179, 320, 205, 76, 74, 19, 1);
@@ -6899,13 +6903,14 @@ void __cdecl field_bottom_notice_slide_draw(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_197E5
+ * IDA 9.5 Hex-Rays: field_choice_buttons_close
  * VA=0x197e5..0x19953 OBJ=1 OFF=0x97e5 size=0x16e
  * type: int __fastcall(_DWORD, _DWORD, _DWORD)
  * callers: 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x26152, 0x2670e, 0x2872b, 0x28cbd, 0x29300, 0x2a43e, 0x2aa00, 0x2af28
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x3702f, 0x3771c, 0x4ed34
  * --------------------------------------------------------------- */
-void sub_197E5()
+// [勘误 semantic_name] field_choice_buttons_close；依据: 主366B及17e03..17e0b共享8B epilogue，12个原caller及FDOTHER5按钮：53a51>1才地图重画，保bottom页桥、四步收回与310x86恢复；不改变原owner/ABI。
+void field_choice_buttons_close()
 {
   char *v0; // edi
   int i; // ebp
@@ -6939,7 +6944,7 @@ void sub_197E5()
       ++v2;
     }
     for ( j = 0; j < 2; ++j )
-      sub_4ED34(&v0[*(&v6 + j)], dword_53A89 + *(_DWORD *)(12 * v5[j] + dword_53A89), 456);
+      image_raw_zero_transparent_blit(&v0[*(&v6 + j)], dword_53A89 + *(_DWORD *)(12 * v5[j] + dword_53A89), 456);
     memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
   }
   for ( k = 0; k < 86; ++k )
@@ -6949,13 +6954,14 @@ void sub_197E5()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_19953
+ * IDA 9.5 Hex-Rays: field_choice_buttons_wait
  * VA=0x19953..0x19df7 OBJ=1 OFF=0x9953 size=0x4a4
  * type: __int64 __fastcall(_DWORD)
  * callers: 0x16f55, 0x190ac, 0x19df7, 0x1aa1d, 0x26152, 0x2670e, 0x2872b, 0x28cbd, 0x29300, 0x2a43e, 0x2aa00, 0x2af28
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x3702f, 0x370f0, 0x3771c, 0x4e31c, 0x4ebe3, 0x4ebff, 0x4ec31, 0x4ed34
  * --------------------------------------------------------------- */
-void sub_19953()
+// [勘误 semantic_name] field_choice_buttons_wait；依据: 主1188B及13fcc..13fd4共享8B返回尾、12个原caller、16f55/1aa1d/准备服务链：默认selector0、snapshot/四步展开、先查键后tick，blink RNG+2/+10、共享phase/tick，确认/取消清phase；不推类型。
+void field_choice_buttons_wait()
 {
   int v0; // eax
   int v1; // ebp
@@ -7006,7 +7012,7 @@ void sub_19953()
       ++v4;
     }
     for ( k = 0; k < 2; ++k )
-      sub_4ED34(&v2[*(&v15 + k)], dword_53A89 + *(_DWORD *)(12 * v14[k] + dword_53A89), 456);
+      image_raw_zero_transparent_blit(&v2[*(&v15 + k)], dword_53A89 + *(_DWORD *)(12 * v14[k] + dword_53A89), 456);
     memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
   }
   while ( 1 )
@@ -7063,7 +7069,7 @@ void sub_19953()
           v13 = 3 * v14[ii];
           if ( ii == dword_53C57 )
             v13 += dword_53C13 / 2;
-          sub_4ED34(&v2[*(&v15 + ii)], dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * v13), 456);
+          image_raw_zero_transparent_blit(&v2[*(&v15 + ii)], dword_53A89 + *(_DWORD *)(dword_53A89 + 4 * v13), 456);
         }
         memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
       }
@@ -7189,9 +7195,9 @@ void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@
         field_bottom_notice_open(75);
         text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 410, 696099, 320, 205, 76, 74, 19, 1);
         dialog_portrait_frame_draw(0);
-        sub_19953();
+        field_choice_buttons_wait();
         v14 = v13;
-        sub_197E5();
+        field_choice_buttons_close();
         if ( v14 == 1 && dword_53C57 == 0 )
         {
           v15 = malloc(22987);
@@ -7272,9 +7278,9 @@ LABEL_33:
         field_bottom_notice_open(75);
         text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 413, 696099, 320, 205, 76, 74, 19, 1);
         dialog_portrait_frame_draw(0);
-        sub_19953();
+        field_choice_buttons_wait();
         v20 = v19;
-        sub_197E5();
+        field_choice_buttons_close();
         if ( v20 == 1 && dword_53C57 == 0 )
         {
           text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 414, 702179, 320, 205, 76, 74, 19, 1);
@@ -7291,9 +7297,9 @@ LABEL_33:
     field_bottom_notice_open(75);
     text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 415, 696099, 320, 205, 76, 74, 19, 1);
     dialog_portrait_frame_draw(0);
-    sub_19953();
+    field_choice_buttons_wait();
     v22 = v21;
-    sub_197E5();
+    field_choice_buttons_close();
     if ( v22 != 1 || dword_53C57 != 0 )
       JUMPOUT(0x1716F);
     text_dialog_render_tokens((unsigned __int8 *)&v24, dword_53A7D, 416, 702179, 320, 205, 76, 74, 19, 1);
@@ -7398,9 +7404,9 @@ void field_turn_cycle_run()
     {
       if ( byte_51E63[dword_53C03] != byte_51E81[dword_53C03] )
         music_track_play(-1, 0);
-      sub_1F1CC(82);
+      field_phase_title_enter(82);
       j___delay(20);
-      sub_1F30A(82);
+      field_phase_title_leave(82);
       field_all_actors_clear_acted();
       sub_11CAC(0);
       field_turn_event_check(0);
@@ -7418,9 +7424,9 @@ void field_turn_cycle_run()
           ++dword_53BEF;
           if ( v15 != v16 )
             music_track_play(-1, 0);
-          sub_1F1CC(80);
+          field_phase_title_enter(80);
           j___delay(150);
-          sub_1F30A(80);
+          field_phase_title_leave(80);
           dword_51A83 = 0;
           field_all_actors_clear_acted();
           sub_11CAC(0);
@@ -7686,9 +7692,9 @@ LABEL_24:
         field_bottom_notice_open(*(unsigned __int8 *)(v4 + 7));
         text_dialog_render_tokens(a1, dword_53A7D, 433, 696099, 320, 205, 76, 74, 19, 1);
         dialog_portrait_frame_draw(0);
-        sub_19953();
+        field_choice_buttons_wait();
         v9 = v6;
-        sub_197E5();
+        field_choice_buttons_close();
         if ( v9 != 1 || dword_53C57 != 0 )
         {
           text_dialog_render_tokens(a1, dword_53A7D, 434, 702179, 320, 205, 76, 74, 19, 1);
@@ -8568,7 +8574,7 @@ int __cdecl field_player_item_command_execute(int a1)
     return -1;
   field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), 0, 1, 1, 3);
   v4 = v3;
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   if ( v4 == 0 )
     DWORD1(v19) = 1;
   field_command_first_enabled_select((int)&v19);
@@ -8603,7 +8609,7 @@ int __cdecl field_player_item_command_execute(int a1)
         LODWORD(v1) = (unsigned __int8)v7[21];
         field_cell_selection_execute(v1, v1, v16, (unsigned __int8 *)v17);
         v8 = v1;
-        sub_4DF4C(dword_53A51);
+        field_map_runtime_cell_bits_reset(dword_53A51);
         dword_51A83 = 1;
         field_target_range_build(
           qword_53AB1,
@@ -8613,7 +8619,7 @@ int __cdecl field_player_item_command_execute(int a1)
           0,
           (unsigned __int8)v7[21]);
         v23 = v1;
-        sub_4DF4C(dword_53A51);
+        field_map_runtime_cell_bits_reset(dword_53A51);
         if ( v7[13] == 23 )
         {
           v9 = 80 * a1 + dword_53A45;
@@ -8670,7 +8676,7 @@ int __cdecl field_player_item_command_execute(int a1)
     field_cell_selection_execute(v10, 3, v10, v11);
     v20 = v12;
     v13 = field_visible_actor_at_focus();
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     field_focus_move_to(v22, SHIDWORD(v22));
     free(v11);
     if ( v20 != -1 )
@@ -9213,6 +9219,7 @@ int __cdecl sub_1CA89(int a1, int a2)
  * callers: 0x2111a, 0x213b7
  * callees: 0x11cac, 0x11eb0, 0x1cb94, 0x3702f, 0x3706e, 0x3776e, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留中性sub_1CAC7。完整205B在LMI74与75两次调用1cb94时读取同一组原栈槽：1cad5/1cad9与1cafc/1cb00均为ff74241c，依次传page/count/list/74或75。本函数不读取EBP/EDI的入值；2111a及213b7各显式push四个栈参数，不据伪C保存六参或寄存器ABI。；依据: G1 Domain完整chunk/xref严格原镜像等同，函数SHA1210d0b96be5275f3c893984bfe3d908a20c309b62187c2d352f76b036654741；G4 effect-page-owner-source.json的count0/1/16/96四组原Unicorn调用捕获，两次callee同count/list，EBP/EDI poisoned入值保持。替身仅capture绘制/等待/资源，不证明图像或玩法native，不改名/类型/边界。
 void __cdecl sub_1CAC7(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int v6; // esi
@@ -9245,6 +9252,7 @@ void __cdecl sub_1CAC7(int a1, int a2, int a3, int a4, int a5, int a6)
 // [map_scene_render_actors] 遍历单位表，将可见单位按 24×24 帧绘制到战场视窗缓存
 //   依据: 反编译按 `DAT_00003a45 + idx*0x50` 读取 x/y/class，并用 FD2.TMP 偏移表 blit
 //   历史地址列 `0x41db2`（`0x1cb9e` 是 __chkstk body，入口为 `0x1cb94`）；旧 Ghidra 名 `FUN_0000a2e6`；判定 chkstk-body
+// [勘误 evidence] 保留map_scene_render_actors。自身prologue从栈加载count/list；1cac7以同一count/list依次传LMI74/75，不能把伪C的EBP/EDI变量当另一组队伍或另一个原owner。相同actor列表的两种绘制由真实page调用者安排。；依据: 完整387B Domain读集及strict LE SHA7bf45203e80d5f3002b3c2a562aca93bbd0f52eefbd04c194a09b40464f239c6；1cac7两处push/call和2111a/213b7原xref/四栈参一致；G4四组局部CPU捕获仅核调用与栈，绘制被capture，未证明完整像素或正式触发。不改原名/持久类型或函数边界。
 int __cdecl map_scene_render_actors(int a1, int a2, int a3, int a4)
 {
   int i; // esi
@@ -9489,10 +9497,10 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
     field_cell_selection_execute(v1, v1, v24, (unsigned __int8 *)v26);
     v8 = v11;
     v9 = v11;
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, v6[4], 0, v6[6]);
     v10 = v11;
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     if ( v8 != -1 )
     {
       LODWORD(v11) = LOBYTE(v26[0]);
@@ -9529,14 +9537,14 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
     LODWORD(v1) = v7[6];
     field_cell_selection_execute(v1, v1, v25, (unsigned __int8 *)v26);
     v9 = v14;
-    sub_4DF4C(dword_53A51);
+    field_map_runtime_cell_bits_reset(dword_53A51);
     if ( v28[dword_53C57] == 30 )
       sub_149F8(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, __SPAIR64__(v29, v13), v7[3] - 16, 1);
     else
       field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, v7[4], 0, v7[6]);
     v10 = v15;
   }
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   if ( v9 == -1 )
   {
     dword_51A83 = 0;
@@ -10902,12 +10910,13 @@ bool __cdecl field_unit_ignores_terrain_combat_modifier(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1F1CC
+ * IDA 9.5 Hex-Rays: field_phase_title_enter
  * VA=0x1f1cc..0x1f30a OBJ=1 OFF=0xf1cc size=0x13e
  * callers: 0x1a30b
  * callees: 0x11d40, 0x15f0e, 0x17aa9, 0x1f42d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e381, 0x4eb59
  * --------------------------------------------------------------- */
-int __cdecl sub_1F1CC(int a1)
+// [勘误 semantic_name] field_phase_title_enter；依据: 完整318B/1a30b唯一caller与FDOTHER5标签80..82：7次滑入后保VGA到53a49 raw prefix；factor1..16马赛克、DAC16..255减暗0..15、每帧1tick，末BIOS清键，不推ABI。
+int __cdecl field_phase_title_enter(int a1)
 {
   int v1; // ebp
   int v2; // esi
@@ -10922,14 +10931,14 @@ int __cdecl sub_1F1CC(int a1)
   v2 = malloc(64000);
   memmove(v2, 655360, 64000);
   for ( i = 4; i >= 0; --i )
-    sub_1F42D(25 * i, a1);
-  sub_1F42D(1, a1);
-  sub_1F42D(0, a1);
+    field_phase_title_slide_frame(25 * i, a1);
+  field_phase_title_slide_frame(1, a1);
+  field_phase_title_slide_frame(0, a1);
   memmove(dword_53A49, v2, 64000);
   memset(v2, 0, 64000);
   for ( j = 0; j < 16; ++j )
   {
-    sub_4EB59(v1, v2, dword_53A49);
+    field_phase_mosaic_visible_copy(v1, v2, dword_53A49);
     sub_15F0E(dword_53A81, v2, 320, 89, 86, a1);
     free(v5);
     sub_15F0E(dword_53A81, v2, 320, 169, 86, 81);
@@ -10945,12 +10954,13 @@ int __cdecl sub_1F1CC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1F30A
+ * IDA 9.5 Hex-Rays: field_phase_title_leave
  * VA=0x1f30a..0x1f42d OBJ=1 OFF=0xf30a size=0x123
  * callers: 0x1a30b
  * callees: 0x11d40, 0x11eee, 0x127a9, 0x15f0e, 0x17aa9, 0x1f42d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4eb59
  * --------------------------------------------------------------- */
-int __cdecl sub_1F30A(int a1)
+// [勘误 semantic_name] field_phase_title_leave；依据: 完整291B/1a30b唯一caller：factor17..1与DAC暗度16..0逐tick，11eee/127a9重画原页，5次滑出；不调用1297d、不推ABI。
+int __cdecl field_phase_title_leave(int a1)
 {
   int v1; // ebp
   int v2; // esi
@@ -10966,7 +10976,7 @@ int __cdecl sub_1F30A(int a1)
   memset(v2, 0, 64000);
   for ( i = 16; i >= 0; --i )
   {
-    sub_4EB59(v1, v2, dword_53A49);
+    field_phase_mosaic_visible_copy(v1, v2, dword_53A49);
     sub_15F0E(dword_53A81, v2, 320, 89, 86, a1);
     free(v4);
     sub_15F0E(dword_53A81, v2, 320, 169, 86, 81);
@@ -10980,18 +10990,19 @@ int __cdecl sub_1F30A(int a1)
   field_view_render_tiles(dword_53A49 + 32904, 456, 13, 8, dword_53AA9, dword_53AAD);
   result = sub_127A9();
   for ( j = 0; j <= 4; ++j )
-    result = sub_1F42D(25 * j, a1);
+    result = field_phase_title_slide_frame(25 * j, a1);
   return result;
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1F42D
+ * IDA 9.5 Hex-Rays: field_phase_title_slide_frame
  * VA=0x1f42d..0x1f503 OBJ=1 OFF=0xf42d size=0xd6
  * callers: 0x1f1cc, 0x1f30a
  * callees: 0x11eb0, 0x15e71, 0x15f0e, 0x17aa9, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_1F42D(int a1, int a2)
+// [勘误 semantic_name] field_phase_title_slide_frame；依据: 主214B/1f1cc和1f30a callers及184ba共享6B epilogue：双标签在456stride页(85-offset,82)/(165+offset,82)，投影312x192、1tick后恢复两矩形。不把尾跳转误为新ABI。
+void __cdecl field_phase_title_slide_frame(int a1, int a2)
 {
   int v2; // eax
   int v3; // esi
@@ -11764,6 +11775,7 @@ int sub_205B4()
  * callers: 0x3231b, 0x32d18, 0x32e8c, 0x32fb2, 0x33049, 0x3314b, 0x33169, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3346b, 0x3347c, 0x334d9, 0x335aa, 0x335da, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c
  * callees: 0x1088d, 0x11cac, 0x1f525, 0x3702f, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保留中性sub_205DA。独立entry完整边界205da..2067d，初始化后首次11cac明确传1，该刷新跳water。局部原CPU验证只执行到此次调用，constructor/memset为替身，不扩大为完整入场业务或像素验收。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 void sub_205DA()
 {
   watcom_stack_check(20);
@@ -14592,7 +14604,7 @@ void sub_24754()
   dword_53A51 = res_load((int)aFdfieldDat, dword_53A51, 69);
   dword_53A5D = res_load((int)aFdshapDat, dword_53A5D, 46);
   dword_53A69 = res_load((int)aFdshapDat, dword_53A69, 47);
-  sub_4DF4C(dword_53A51);
+  field_map_runtime_cell_bits_reset(dword_53A51);
   sub_10652();
   field_camera_pan_to(14, 29);
   pal_partial_set(0, 255, 0);
@@ -14984,7 +14996,7 @@ void __usercall sub_2548C(unsigned __int8 *a1@<edi>)
 
   v1 = (unsigned __int64)watcom_stack_check(44) >> 32;
   text_dialog_render_tokens(a1, dword_53A79, 10, 655360, 320, 205, 76, 74, 19, 1);
-  sub_35F10(20);
+  field_actor_tail_defeat_apply(20);
   v2 = dword_53A45 + 1600;
   *(_BYTE *)(dword_53A45 + 1607) = 126;
   *(_BYTE *)(v2 + 8) = 126;
@@ -15516,10 +15528,10 @@ bool field_town_prepare_execute()
     text_dialog_render_tokens((unsigned __int8 *)&v11 + 3, dword_53A7D, 410, 693540, 320, 205, 76, 74, 19, 1);
     dialog_portrait_frame_draw(0);
     dword_53A51 = 1;
-    sub_19953();
+    field_choice_buttons_wait();
     v3 = v2;
     dword_53A51 = 0;
-    sub_197E5();
+    field_choice_buttons_close();
     field_prepare_bottom_page_close(0, v11);
     if ( v3 != -1 && dword_53C57 == 0 )
     {
@@ -15669,9 +15681,9 @@ void __usercall field_town_selection_execute(int a1@<ebp>, unsigned __int8 *a2@<
     text_dialog_render_tokens(a2, dword_53A7D, 513, 693535, 320, 205, 76, 74, 19, 1);
     dword_53A51 = 1;
     dialog_portrait_frame_draw(0);
-    sub_19953();
+    field_choice_buttons_wait();
     v3 = v2;
-    sub_197E5();
+    field_choice_buttons_close();
     dword_53A51 = 0;
     field_prepare_bottom_page_close(v7, a1);
     if ( v3 == -1 || dword_53C57 != 0 )
@@ -15988,9 +16000,9 @@ int __cdecl field_prepare_menu_transition(int a1)
     {
       v5 = *(_DWORD *)(dword_53F66 + 4 * (2 * k + 3) + 6) + dword_53F66;
       if ( a1 != 0 )
-        sub_4ED34(v2 + *((_DWORD *)&v7 + k) / (j + 1), v5, 320);
+        image_raw_zero_transparent_blit(v2 + *((_DWORD *)&v7 + k) / (j + 1), v5, 320);
       else
-        sub_4ED34(v2 + *((_DWORD *)&v7 + k) / (4 - j), v5, 320);
+        image_raw_zero_transparent_blit(v2 + *((_DWORD *)&v7 + k) / (4 - j), v5, 320);
     }
     memmove(655360, dword_53A49, 64000);
   }
@@ -16079,7 +16091,10 @@ int __cdecl field_prepare_picker_wait_key(int a1)
       v3 = 2 * i + 3;
       if ( i == dword_53C57 )
         v3 = 2 * i + 4;
-      sub_4ED34(*((_DWORD *)&v9 + i) + 709680, *(_DWORD *)(dword_53F66 + 4 * v3 + 6) + dword_53F66, 320);
+      image_raw_zero_transparent_blit(
+        *((_DWORD *)&v9 + i) + 709680,
+        *(_DWORD *)(dword_53F66 + 4 * v3 + 6) + dword_53F66,
+        320);
     }
   }
   do
@@ -16145,7 +16160,7 @@ int __cdecl field_prepare_picker_tick_draw(int a1, int a2)
   switch ( a2 )
   {
     case 0:
-      return sub_4ED34(
+      return image_raw_zero_transparent_blit(
                *(_DWORD *)(a1 + 4 * dword_53C57) + 709680,
                *(_DWORD *)(dword_53F66 + 4 * (2 * dword_53C57 + 3 + result) + 6) + dword_53F66,
                320);
@@ -17059,9 +17074,9 @@ LABEL_11:
       19,
       1);
     dialog_portrait_frame_draw(0);
-    sub_19953();
+    field_choice_buttons_wait();
     v16 = v8;
-    sub_197E5();
+    field_choice_buttons_close();
     if ( v16 == -1 || dword_53C57 == 1 )
     {
 LABEL_12:
@@ -17137,9 +17152,9 @@ LABEL_12:
             1);
           dialog_portrait_frame_draw(0);
           v2 = *((unsigned __int8 *)v14 + dword_53C57);
-          sub_19953();
+          field_choice_buttons_wait();
           v12 = v11;
-          sub_197E5();
+          field_choice_buttons_close();
           if ( v12 != -1 && dword_53C57 == 0 )
           {
             v13 = field_unit_inventory_count(v2);
@@ -17314,9 +17329,9 @@ int field_shop_sell_execute()
       19,
       1);
     dialog_portrait_frame_draw(0);
-    sub_19953();
+    field_choice_buttons_wait();
     v9 = v8;
-    sub_197E5();
+    field_choice_buttons_close();
     if ( v9 == -1 || dword_53C57 == 1 )
     {
 LABEL_8:
@@ -17561,9 +17576,9 @@ int __cdecl field_hotel_menu_execute(unsigned __int8 *a1)
           field_bottom_notice_open((unsigned __int8)byte_52387[0]);
           text_dialog_render_tokens(a1, dword_53A7D, 415, 693452, 320, 205, 76, 74, 19, 1);
           dialog_portrait_frame_draw(0);
-          sub_19953();
+          field_choice_buttons_wait();
           v3 = v2;
-          sub_197E5();
+          field_choice_buttons_close();
           if ( v3 != -1 && dword_53C57 == 0 )
           {
             text_dialog_render_tokens(a1, dword_53A7D, 416, 699532, 320, 205, 76, 74, 19, 1);
@@ -18192,9 +18207,9 @@ int __usercall field_church_revive_execute@<eax>(unsigned __int8 *a1@<edi>)
     dword_53AD9 = *(unsigned __int8 *)(v5 + 8) + 1;
     dword_53AE1 = word_52397[*(unsigned __int8 *)(v5 + 32)] * *(unsigned __int8 *)(v5 + 33);
     text_dialog_render_tokens(a1, dword_53A7D, 590, 693452, 320, 205, 76, 74, 19, 1);
-    sub_19953();
+    field_choice_buttons_wait();
     v7 = v6;
-    sub_197E5();
+    field_choice_buttons_close();
     if ( v7 == -1 || dword_53C57 != 0 )
     {
 LABEL_9:
@@ -18395,9 +18410,9 @@ int __usercall field_church_promote_execute@<eax>(int a1@<edi>)
     dword_53AD9 = *(unsigned __int8 *)(v6 + 7) + 1;
     text_dialog_render_tokens((unsigned __int8 *)a1, dword_53A7D, 594, 693452, 320, 205, 76, 74, 19, 1);
     bios_keyboard_buffer_clear(v7);
-    sub_19953();
+    field_choice_buttons_wait();
     v9 = v8;
-    sub_197E5();
+    field_choice_buttons_close();
     field_prepare_bottom_page_close();
     if ( v9 != -1 && dword_53C57 == 0 )
     {
@@ -18733,10 +18748,10 @@ LABEL_56:
   v10 = dialog_portrait_frame_draw(0);
   dword_53A51 = 1;
   bios_keyboard_buffer_clear(v10);
-  sub_19953();
+  field_choice_buttons_wait();
   v12 = v11;
   dword_53A51 = 0;
-  sub_197E5();
+  field_choice_buttons_close();
   field_prepare_bottom_page_close();
   if ( v12 == -1 || dword_53C57 != 0 )
     return 0;
@@ -20557,6 +20572,7 @@ int __cdecl field_promotion_idle_cycle(unsigned __int8 *a1, int a2, int a3)
 // [勘误 evidence] 保留field_magic_battle_animation。524c6按id选择十个phase0..8 handler，phase0/3/6返回循环数，1/2、4/5、7/8配对。状态跨全部target及31266九tick过渡保留；不能逐target重新init。effect后保存after并恢复before，只有raw伤害非零且phase5返回1才按526bc分母推进signed HP；达到分母后不再写HP，但每个后续impact仍消费1-rand()%3。ID8后项可effect有伤害而没有impact，HP仍为before。；依据: 完整2ff01与31266原写序；526bc十字节为7/8/6/13/6/6/5/5/16/20，不同于首target impact7/8/6/14/6/9/11/7/16/27。526c6只有side非零9项，526cf为side0十项；ID9用真实44号31part，后续target会请求part31+，SDL因此明确拒绝side非零9及9多target，不把越界draw stub当合法资源证据。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，__
 // [勘误 evidence] 正常尾部恢复地图时调用11cac(1)，该参数只控制刷新等待，不把51A83强制改1。玩家1cff0及AI15311均以51A83=0进入，故FULL法术返回页保持无cursor；物理2e2b0的显示上下文不同。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 // [勘误 evidence] G2取消历史ID9多target整动作拒绝：原目标收集逐actor，不按格去重。完整2ff01目标循环、完整31266九tick过渡、2ce1a和真实4ebe3已与public Game逐RNG快照差分；effect/贡献先提交、HP恢复后仅impact插值，后续无impact不可补写coreAfter。原局部指针数组域比较限1/2/5/8目标，C95仅容量边界。非side0的FULL9缺selector仍单列域限制；正常9来源十个模板全side0，玩家9本来走MAP。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] 纠正前批‘11cac参数只控制刷新等待’：FULL法术正常尾确实调用11cac(1)，原1跳water，原0才调用4e31c。该参数不写51A83；玩家1cff0与AI15311以mode0进入，因此正常返回仍沿caller无cursor环境。物理和其它caller须分别按源值接水色，不能通过强制mode1或每present更新water替代。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int8 *a4)
 {
   int i; // edi
@@ -21536,6 +21552,7 @@ LABEL_12:
 //   依据: 当前权威 code0 直接反汇编确认 stage、FDTXT fragment、镜头、移动脚本和 actor group 时序；标题 track 18 继续覆盖最初两段对白，`0x223dd..0x223e1` 才请求 4 秒淡出，movement script 0x64 渐暗后，`0x22413..0x22417` 调用 `music_track_play(11,0)`；DOSBox 对话截图与 OPL capture 交叉验证 opening track 11
 //   历史地址列 `code0 0x2231b（dual 0x3231b）`；旧 Ghidra 名 `FUN_0002fa63`；判定 exact
 // [勘误 evidence] 完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态 -> stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和镜头交给战场；部署调试入口跳过script0也不等于自然开场。；依据: 权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。
+// [勘误 evidence] new_game_opening_play既有cold j_delay只是原等待；不能为sleep_ms或每次呈现额外调用11cac。本条仅补既有caller的等待边界说明，不宣称新提取整函数或新增开场运行证据。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 void __usercall new_game_opening_play(unsigned __int8 *a1@<edi>)
 {
   unsigned __int8 i; // bl
@@ -21681,6 +21698,7 @@ int __cdecl field_actor_hide(int a1)
 // [field_actor_group_arrival_effect] 加入一组关卡 actor，并用 FDOTHER[9] 的 12 帧 LMI1 动画播放登场特效
 //   依据: 新游戏 stage 0 两次调用参数 1/2；canonical code0 `0x22999` / VA `0x32999` 先加载 FDOTHER[95] 与 FDOTHER[9]，`0x22bc0..0x22bd4` 在 frame counter 等于 1 时经 primary wrapper 播放 bank 95 sample 0；调用点 `0x2289b/0x228bb` 分别加入 group 1/2
 //   历史地址列 `0x57bad`；旧 Ghidra 名 `FUN_000300e1`；判定 exact
+// [勘误 evidence] 完整32999..32d18及FDOTHER9实际12part独立执行：153216B整页snapshot后每帧restore、LMI写53A49再投影；frame6投影后上抬新actor8px并FG存下一base，frame7投影后11eee并上抬5px存base，frame8投影后11eee/127a9存base；尾保frame11工作页。该caller不新增11cac/1297d/water/info，不能把12帧简化为6帧或把最后页回滚成到达前base。；依据: 1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。
 int __cdecl field_actor_group_arrival_effect(int a1)
 {
   int v1; // edi
@@ -22386,8 +22404,8 @@ void __usercall sub_33C9D(unsigned __int8 *a1@<edi>)
   field_all_actor_directions_reset();
   text_dialog_render_tokens(a1, dword_53A79, 0, 655360, 320, 205, 76, 74, 19, 1);
   dword_51A83 = 0;
-  field_camera_music_flash(0, 16, 6);
-  field_camera_music_flash(7, 16, 7);
+  field_camera_group_append_flash(0, 16, 6);
+  field_camera_group_append_flash(7, 16, 7);
   dword_51A83 = 1;
   JUMPOUT(0x33594);
 }
@@ -22407,7 +22425,7 @@ void __usercall sub_33DBA(unsigned __int8 *a1@<edi>)
   field_camera_pan_to(9, 56);
   field_movement_script_play(86);
   text_dialog_render_tokens(a1, dword_53A79, 7, 655360, 320, 205, 76, 74, 19, 1);
-  field_camera_music_flash(9, 19, 8);
+  field_camera_group_append_flash(9, 19, 8);
   JUMPOUT(0x3312D);
 }
 
@@ -22874,12 +22892,13 @@ void sub_348BB()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_348EA
+ * IDA 9.5 Hex-Rays: field_event_state16_ai7_once
  * VA=0x348ea..0x34940 OBJ=1 OFF=0x248ea size=0x56
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
-int __usercall sub_348EA@<eax>(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_event_state16_ai7_once；依据: 完整86B/callback表；state16为0时AI24..27 masked7、story3、state16=1。
+int __usercall field_event_state16_ai7_once@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
 
@@ -23333,12 +23352,13 @@ void sub_350C8()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35123
+ * IDA 9.5 Hex-Rays: field_event_item89_grant_once
  * VA=0x35123..0x35191 OBJ=1 OFF=0x25123 size=0x6e
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1b8a6, 0x1bb8c, 0x3702f
  * --------------------------------------------------------------- */
-int __usercall sub_35123@<eax>(unsigned __int8 *a1@<edi>, int a2)
+// [勘误 semantic_name] field_event_item89_grant_once；依据: 完整110B/callback表；caller raw0/库存非8/state16为0时先append89、story11、再state16=1。
+int __usercall field_event_item89_grant_once@<eax>(unsigned __int8 *a1@<edi>, int a2)
 {
   int result; // eax
 
@@ -23433,12 +23453,13 @@ void sub_35298()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_352CA
+ * IDA 9.5 Hex-Rays: field_event_item211_story11
  * VA=0x352ca..0x35321 OBJ=1 OFF=0x252ca size=0x57
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1aa1d, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_352CA(unsigned __int8 *a1)
+// [勘误 semantic_name] field_event_item211_story11；依据: 完整87B/callback表/descriptor52742；调用1aa1d(count1)后story11；共享尾3530d/3531b。
+void __cdecl field_event_item211_story11(unsigned __int8 *a1)
 {
   _BYTE v1[3]; // [esp-Ch] [ebp-Ch] BYREF
   unsigned __int8 v2; // [esp-9h] [ebp-9h] BYREF
@@ -23467,12 +23488,13 @@ void sub_35321()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35346
+ * IDA 9.5 Hex-Rays: field_event_story3_item213_story11
  * VA=0x35346..0x353b5 OBJ=1 OFF=0x25346 size=0x6f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1aa1d, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_35346(unsigned __int8 *a1)
+// [勘误 semantic_name] field_event_story3_item213_story11；依据: 完整主111B及352ca共享尾/callback表/descriptor52745；先story3再1aa1d(count1)后story11。
+void __cdecl field_event_story3_item213_story11(unsigned __int8 *a1)
 {
   _DWORD v1[3]; // [esp-Ch] [ebp-Ch] BYREF
 
@@ -23631,12 +23653,13 @@ void sub_355B7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_355F0
+ * IDA 9.5 Hex-Rays: field_event_item101_story11
  * VA=0x355f0..0x35638 OBJ=1 OFF=0x255f0 size=0x48
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x1aa1d, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_355F0(unsigned __int8 *a1)
+// [勘误 semantic_name] field_event_item101_story11；依据: 完整主72B及352ca共享尾/callback表/descriptor52748；1aa1d(count1)后story11。
+void __cdecl field_event_item101_story11(unsigned __int8 *a1)
 {
   _DWORD v1[3]; // [esp-Ch] [ebp-Ch] BYREF
 
@@ -23652,30 +23675,32 @@ void __cdecl sub_355F0(unsigned __int8 *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35638
+ * IDA 9.5 Hex-Rays: field_event_turn_group_pair_camera_flash
  * VA=0x35638..0x35677 OBJ=1 OFF=0x25638 size=0x3f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
-int sub_35638()
+// [勘误 semantic_name] field_event_turn_group_pair_camera_flash；依据: 完整63B/callback表；两次AL(turn-14)*2/+1后MOVZX，分别35b78(2,11)/(26,11)。
+int field_event_turn_group_pair_camera_flash()
 {
   watcom_stack_check(16);
-  field_camera_music_flash(2, 11, 2 * (dword_53BEF - 14));
-  return field_camera_music_flash(26, 11, 2 * (dword_53BEF - 14) + 1);
+  field_camera_group_append_flash(2, 11, 2 * (dword_53BEF - 14));
+  return field_camera_group_append_flash(26, 11, 2 * (dword_53BEF - 14) + 1);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35677
+ * IDA 9.5 Hex-Rays: field_event_story5_defeat_tail18
  * VA=0x35677..0x356b3 OBJ=1 OFF=0x25677 size=0x3c
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35f10, 0x3702f
  * --------------------------------------------------------------- */
-int __usercall sub_35677@<eax>(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_event_story5_defeat_tail18；依据: 完整60B/callback表；story5后35f10(18)，无额外ACK/清键。
+int __usercall field_event_story5_defeat_tail18@<eax>(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   text_dialog_render_tokens(a1, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
-  return sub_35F10(18);
+  return field_actor_tail_defeat_apply(18);
 }
 
 
@@ -23701,12 +23726,13 @@ void sub_356B3()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35730
+ * IDA 9.5 Hex-Rays: field_event_actor17_exchange_item11_once
  * VA=0x35730..0x357dd OBJ=1 OFF=0x25730 size=0xad
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x11cac, 0x12263, 0x15f84, 0x1aa1d, 0x1db65, 0x2e2b0, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_35730(int a1)
+// [勘误 semantic_name] field_event_actor17_exchange_item11_once；依据: 完整主173B及3531b epilogue/callback表/descriptor5274b；caller0与state0门，2e2b0(17,0)/finalize，hidden17后state0/tiles/refresh/loot raw0 item11，最后贡献0；pC nullptr实际integer0，不推指针ABI。
+void __cdecl field_event_actor17_exchange_item11_once(int a1)
 {
   _BYTE v1[3]; // [esp-Ch] [ebp-Ch] BYREF
   unsigned __int8 v2; // [esp-9h] [ebp-9h] BYREF
@@ -23764,12 +23790,13 @@ void sub_35833()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35854
+ * IDA 9.5 Hex-Rays: field_event_cell_reward_complete_first_five
  * VA=0x35854..0x35997 OBJ=1 OFF=0x25854 size=0x143
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x12263, 0x12e38, 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x196cb, 0x1b8a6, 0x1bb8c, 0x3702f, 0x4e381
  * --------------------------------------------------------------- */
-char __cdecl sub_35854(int a1)
+// [勘误 semantic_name] field_event_cell_reward_complete_first_five；依据: 完整323B/callback表/5B5274e；完整cell BYTE2选物，wait0后append/close，再state0..4=1与12263。
+char __cdecl field_event_cell_reward_complete_first_five(int a1)
 {
   int v1; // eax
   unsigned __int8 v3; // bl
@@ -23848,12 +23875,13 @@ int __cdecl sub_359CB(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35A0D
+ * IDA 9.5 Hex-Rays: field_event_key208_recruit31
  * VA=0x35a0d..0x35b78 OBJ=1 OFF=0x25a0d size=0x16b
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x111ba, 0x112a5, 0x12263, 0x15f84, 0x16559, 0x16c57, 0x17aa9, 0x1956b, 0x196cb, 0x1b8e7, 0x2aedb, 0x2eb9f, 0x3702f, 0x3776e
  * --------------------------------------------------------------- */
-void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
+// [勘误 semantic_name] field_event_key208_recruit31；依据: 完整363B/callback表/FDOTHER45；state12门，移item208在文本/ACK前，59帧后完成格与group1/roster31，非整功能新API。
+void __usercall field_event_key208_recruit31(unsigned __int8 *a1@<edi>, int a2)
 {
   int prefix; // eax
   int v3; // esi
@@ -23895,7 +23923,7 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: field_camera_music_flash
+ * IDA 9.5 Hex-Rays: field_camera_group_append_flash
  * VA=0x35b78..0x35bee OBJ=1 OFF=0x25b78 size=0x76
  * callers: 0x33c9d, 0x33dba, 0x35638, 0x35c1d, 0x35c40, 0x35d1e, 0x35d9e, 0x35e5b, 0x35f48, 0x35f88
  * callees: 0x10b4e, 0x11cac, 0x11df2, 0x135dd, 0x3702f, 0x3790a
@@ -23903,7 +23931,8 @@ void __usercall sub_35A0D(unsigned __int8 *a1@<edi>, int a2)
 // [field_camera_music_flash] 平移镜头后调用音乐/场景函数并做白闪/恢复
 //   依据: 反编译顺序调用 `field_camera_pan_to`、`FUN_0000e296`、延时、`pal_partial_set`
 //   历史地址列 `0x5ad8c`；旧 Ghidra 名 `FUN_000332c0`；判定 exact
-int __cdecl field_camera_music_flash(int a1, int a2, unsigned __int8 a3)
+// [勘误 semantic_name] field_camera_group_append_flash；依据: 主118B及35722..35730共享14B尾，与33c9d/33dba/35638/35c1d/35c40/35d1e/35d9e/35e5b/35f48/35f88调用；pan→group(BYTEarg8)→300ms→pal255→200ms→pal0→11cac(0)→400ms，无music_track_play；纠正旧名music推断。
+int __cdecl field_camera_group_append_flash(int a1, int a2, unsigned __int8 a3)
 {
   watcom_stack_check(16);
   field_camera_pan_to(a1, a2);
@@ -23948,7 +23977,7 @@ int sub_35BEE()
 void sub_35C1D()
 {
   watcom_stack_check(16);
-  field_camera_music_flash(3, 27, 1u);
+  field_camera_group_append_flash(3, 27, 1u);
   JUMPOUT(0x3566E);
 }
 
@@ -23969,15 +23998,15 @@ int __usercall sub_35C40@<eax>(unsigned __int8 *a1@<edi>)
   if ( v1 == 1 )
   {
     text_dialog_render_tokens(a1, dword_53A79, 1, 655360, 320, 205, 76, 74, 19, 1);
-    field_camera_music_flash(9, 44, 3u);
-    field_camera_music_flash(0, 9, 4u);
-    field_camera_music_flash(17, 9, 5u);
+    field_camera_group_append_flash(9, 44, 3u);
+    field_camera_group_append_flash(0, 9, 4u);
+    field_camera_group_append_flash(17, 9, 5u);
     dword_51A83 = 1;
   }
   else if ( v1 == 2 )
   {
     text_dialog_render_tokens(a1, dword_53A79, 2, 655360, 320, 205, 76, 74, 19, 1);
-    sub_35F10(16);
+    field_actor_tail_defeat_apply(16);
   }
   result = dword_53AD5;
   ++*(_BYTE *)(dword_53AD5 + 16);
@@ -24017,7 +24046,7 @@ void __usercall sub_35D1E(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   text_dialog_render_tokens(a1, dword_53A79, 3, 655360, 320, 205, 76, 74, 19, 1);
-  field_camera_music_flash(17, 18, 1u);
+  field_camera_group_append_flash(17, 18, 1u);
   JUMPOUT(0x35D76);
 }
 
@@ -24051,7 +24080,7 @@ int __usercall sub_35D9E@<eax>(unsigned __int8 *a1@<edi>)
 
   watcom_stack_check(40);
   text_dialog_render_tokens(a1, dword_53A79, 4, 655360, 320, 205, 76, 74, 19, 1);
-  field_camera_music_flash(14, 7, 2u);
+  field_camera_group_append_flash(14, 7, 2u);
   text_dialog_render_tokens(a1, dword_53A79, 6, 655360, 320, 205, 76, 74, 19, 1);
   result = dword_53AD5;
   *(_BYTE *)(dword_53AD5 + 18) = 1;
@@ -24060,12 +24089,13 @@ int __usercall sub_35D9E@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35E0E
+ * IDA 9.5 Hex-Rays: field_event_side_state_turn_slot2_once
  * VA=0x35e0e..0x35e5b OBJ=1 OFF=0x25e0e size=0x4d
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_35E0E(int a1)
+// [勘误 semantic_name] field_event_side_state_turn_slot2_once；依据: 完整77B/callback表；caller side!=0/state17=0/state18!=0时slot2=now、state17=1。
+int __cdecl field_event_side_state_turn_slot2_once(int a1)
 {
   int result; // eax
 
@@ -24096,8 +24126,8 @@ void __usercall sub_35E5B(unsigned __int8 *a1@<edi>)
   watcom_stack_check(40);
   field_actor_range_status_set(41, 45, 0);
   text_dialog_render_tokens(a1, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
-  field_camera_music_flash(8, 7, 3u);
-  field_camera_music_flash(4, 7, 4u);
+  field_camera_group_append_flash(8, 7, 3u);
+  field_camera_group_append_flash(4, 7, 4u);
   JUMPOUT(0x35D55);
 }
 
@@ -24116,7 +24146,7 @@ int __usercall sub_35EC1@<eax>(unsigned __int8 *a1@<edi>)
   if ( *(_BYTE *)(dword_53AD5 + 19) != 0 )
   {
     text_dialog_render_tokens(a1, dword_53A79, 2, 655360, 320, 205, 76, 74, 19, 1);
-    sub_35F10(20);
+    field_actor_tail_defeat_apply(20);
   }
   result = dword_53AD5;
   ++*(_BYTE *)(dword_53AD5 + 19);
@@ -24125,12 +24155,13 @@ int __usercall sub_35EC1@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_35F10
+ * IDA 9.5 Hex-Rays: field_actor_tail_defeat_apply
  * VA=0x35f10..0x35f48 OBJ=1 OFF=0x25f10 size=0x38
  * callers: 0x2548c, 0x35677, 0x35c40, 0x35ec1
  * callees: 0x1db65, 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_35F10(int a1)
+// [勘误 semantic_name] field_actor_tail_defeat_apply；依据: 完整56B；2548c/35677/35c40/35ec1调用；从给定raw到count写HP WORD0后1db65统一败亡。
+int __cdecl field_actor_tail_defeat_apply(int a1)
 {
   watcom_stack_check(8);
   while ( a1 < dword_53BEB )
@@ -24148,8 +24179,8 @@ int __cdecl sub_35F10(int a1)
 void sub_35F48()
 {
   watcom_stack_check(16);
-  field_camera_music_flash(4, 35, 2u);
-  field_camera_music_flash(14, 35, 3u);
+  field_camera_group_append_flash(4, 35, 2u);
+  field_camera_group_append_flash(14, 35, 3u);
   JUMPOUT(0x35F6E);
 }
 
@@ -24189,7 +24220,7 @@ void sub_35F79()
 void sub_35F88()
 {
   watcom_stack_check(16);
-  field_camera_music_flash(10, 29, *(_BYTE *)(dword_53AD5 + 16));
+  field_camera_group_append_flash(10, 29, *(_BYTE *)(dword_53AD5 + 16));
   if ( *(_BYTE *)(dword_53AD5 + 16) != 7 )
     *(_BYTE *)(dword_53A55 + 3) = dword_53BEF + 1;
   JUMPOUT(0x35CE8);
@@ -24339,12 +24370,13 @@ int sub_36228()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3623C
+ * IDA 9.5 Hex-Rays: field_event_turn_slot2_random_pair
  * VA=0x3623c..0x362b0 OBJ=1 OFF=0x2623c size=0x74
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x13512, 0x3702f, 0x4ebe3
  * --------------------------------------------------------------- */
-int sub_3623C()
+// [勘误 semantic_name] field_event_turn_slot2_random_pair；依据: 完整116B/callback表；slot2=now+1后单次4ebe3，同v/v+1模3标记两个acted，不取两次RNG。
+int field_event_turn_slot2_random_pair()
 {
   int v0; // eax
   int v1; // ebx
@@ -50430,12 +50462,13 @@ char __cdecl save_xor_crypt(char *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4DF4C
+ * IDA 9.5 Hex-Rays: field_map_runtime_cell_bits_reset
  * VA=0x4df4c..0x4df84 OBJ=1 OFF=0x3df4c size=0x38
  * callers: 0x10010, 0x1088d, 0x10c50, 0x14121, 0x14237, 0x14b78, 0x15055, 0x15311, 0x1567e, 0x1598a, 0x18890, 0x18d8c, 0x1bbdc, 0x1cff0, 0x24754
  * callees: -
  * --------------------------------------------------------------- */
-char __cdecl sub_4DF4C(unsigned __int8 *a1)
+// [勘误 semantic_name] field_map_runtime_cell_bits_reset；依据: 完整56B；10010/1088d/24754及AI调用；逐cell byte3=ff/BYTE2&1f/BYTE1&3，不推ABI。
+char __cdecl field_map_runtime_cell_bits_reset(unsigned __int8 *a1)
 {
   int v1; // ecx
   _BYTE *v2; // edi
@@ -52169,12 +52202,13 @@ int __cdecl field_movement_script_ptr(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4EB59
+ * IDA 9.5 Hex-Rays: field_phase_mosaic_visible_copy
  * VA=0x4eb59..0x4ebab OBJ=1 OFF=0x3eb59 size=0x52
  * callers: 0x1f1cc, 0x1f30a
  * callees: -
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_4EB59(int a1, int a2, int a3)
+// [勘误 semantic_name] field_phase_mosaic_visible_copy；依据: 完整82B/1f1cc与1f30a callers，320stride(4,4)的312x192复制；DL/DH按factor分块重复采样、MUL取低WORD。原phase有效factor1..17，不推猜测签名。
+void __cdecl __spoils<> field_phase_mosaic_visible_copy(int a1, int a2, int a3)
 {
   _BYTE *v3; // esi
   _BYTE *v4; // edi
@@ -52495,26 +52529,28 @@ void __cdecl sub_4ED0B(char *a1, _WORD *a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4ED34
+ * IDA 9.5 Hex-Rays: image_raw_zero_transparent_blit
  * VA=0x4ed34..0x4ed4f OBJ=1 OFF=0x3ed34 size=0x1b
  * callers: 0x15e9e, 0x1741c, 0x176b4, 0x179d5, 0x197e5, 0x19953, 0x26ce4, 0x26eda, 0x27079
  * callees: 0x4ed4f
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_4ED34(int a1, int a2, __int16 a3)
+// [勘误 semantic_name] image_raw_zero_transparent_blit；依据: 完整27B wrapper/9个caller：设WORD stride627a3，在4ed47真实CALL4ed4f，随后popa/pop ebp/RET；并非fallthrough拆分，不推ABI。
+void __cdecl __spoils<> image_raw_zero_transparent_blit(int a1, int a2, __int16 a3)
 {
   word_627A3 = a3;
-  sub_4ED4F();
+  image_raw_zero_transparent_rows();
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4ED4F
+ * IDA 9.5 Hex-Rays: image_raw_zero_transparent_rows
  * VA=0x4ed4f..0x4ed7a OBJ=1 OFF=0x3ed4f size=0x2b
  * type: int(void)
  * callers: 0x4ed34
  * callees: -
  * --------------------------------------------------------------- */
-char __usercall sub_4ED4F@<al>(_BYTE *a1@<edi>, __int16 *a2@<esi>)
+// [勘误 semantic_name] image_raw_zero_transparent_rows；依据: 完整43B/唯一caller4ed34/独立RET：读原WORD宽高、逐raw byte仅非0写目标、按共享WORD stride换行，两个JNZ控制列/行；不是RLE解码，不保存Hex-Rays参数猜测。
+char __usercall image_raw_zero_transparent_rows@<al>(_BYTE *a1@<edi>, __int16 *a2@<esi>)
 {
   __int16 v2; // ax
   _WORD *v3; // esi

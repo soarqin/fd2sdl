@@ -1480,3 +1480,66 @@ P5 的旧 SDL02—05 都通过页面，失败分别在观察器协议或输出�
 本阶段完成门已关闭；完整 32 条部署投影、未出阵尾和结算回投由原构造来源、C 回归及既有正式交接联合验证，17／21 人最终 NO 代表不扩成整段后期 entry／settlement 的原生通过。曲 11 返回 owner 实测与中途 17／16 必经源调用／录音候选的层级继续分列。所有 owned 窗口正常清理，显示需求已释放，未更改电源计划／混音器；用户原 FD2.SAV 摘要保持 `b0dd9349f449d252910994d796434efa14a1149de8a4ea116de22e0ec62965d7`。Linux、逐帧完整白化／全部相位、全波形及严格运行时 BSS 未新增验收。
 
 此次作一个完整 G3 提交，不拆微提交；提交与主树安全集成／重建记录在 Git 及 `build/g3/local-integration.json`，不远程推送。之后连续进入 G4，随后 G5 统一审查、全历史回归和消冗；S 尚未启动，通用总完成门尚未签核。
+
+## G4 共享流程、菜单与运行（2026-11-10）
+
+本阶段续接已提交并集成的 G3 `08f61f6`，在同一 `silent-hopper` 工作树完成共享执行器、正式消费者及对应定向取证。保留 G1—G3 与 SD 历史，不重做原阶段，也没有开放 S 战斗或增加生产 common stage 绑定。来源合同见[共享运行语义 §8—9](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)、[session](../systems/battle-session.md)和[冷定义工具](../tools/static-data.md)。本记录只签 G4 工作包的已识别实现与下述证据范围；G5 尚未开始，通用总完成门未签。
+
+| 本阶段实现 | 来源、owner 与实际边界 |
+|---|---|
+| 唯一 App 工作页与共享视觉 | main／Game／Scene／Play／准备页共借153216B page，保选择框、透明 LUT、地形／range、raw26、菜单高亮、水色及嘴型 DWORD 的调用者写点；不把 App 字段写入 SAV，活动 Load／新 Game不重置共享历史。确认框的整 snapshot／bottom 双复制及原0透明写有窄桥，不回灌任意整页 |
+| 水色与场景合同 | 原11cac参数0才调用4e31c，非0跳过；Game runtime_refresh mode0为含水普通刷新、mode3为对应原实参1的无水刷新，common参数名为skip_water。移动／脚本尾／entry／纯delay分别按完整caller接线。arrival保12帧App页和新actor基底写序，尾不额外加1297d／water／11cac；背景重建、换图、视口投影沿现有限服务 |
+| 回合、阵营与整组恢复 | runtime冷图驱动两个Round caller、82／80标题、END／自动整轮／March和整组HP→normal→acted顺序；统一处理等待、临时信息门与caller hold。活动Load不增回合、不重跑phase2事件；热队伍、贡献、RNG及一次提交仍归原Game |
+| 设置、输入与文本 | 四项设置保原raw byte和各自归一／XOR写法；第4项与App临时51AAC构成双门并在低左右焦点切换板侧。G无操作，Esc／Z／KP5按已证资格和索引轮换。动态正文／UI0名称分bank复用原展开器；跨文本嘴型用App owner，普通等待不凭日志替代底框或立绘 |
+| 共享modal与真实反馈 | system／loot／prepare确认共消费有限choice图；详情两次16c57等待、两页与portrait0／3随正式F2／acted Enter交付。hostquit锁存与真实错误分别传播，Core ACK／reply返回后立即截断，防无notice忙循环或继续奖励；清理不把ERROR洗成HOST |
+| common事件父子续态 | 47 op／15 flow／115 node，无生产stage绑定。冷图决定分支、写序、等待、ACK／取消和晚错冻结；Game保父PC／真实actor／item，原loot owner只加深度1 child槽，不复制Game／roster／RNG。正式turn、player／AI、March、loot和const结果查询均接有限域；资源预检无业务／RNG副作用 |
+| 死亡、AI物理尾和特殊格 | 1db65按冷图13次逐raw方向写／绘制，之后HP0 flags精确1，再12次消散、cue3、清理和refresh0；30锚只限未定义FX绘制，不截单位业务。AI physical kind5两次outer refresh0保持collect后／finalize前及descriptor后／reward前，child不借父尾。特殊格0／1移除无原义stage<2内门；其余mode按cue12→300ms→200ms→close→完整WORD callback(actor)，90项表域预检及执行时重验，未知绑定仍拒绝 |
+| 等待与原时钟 | 3790a固定延时不推进actor／water或清键；loot MESSAGE的外wait0也无额外入口clear，最后一帧合法pulse可由真实16c57消费者读取。1e5c0限时等待保持do water→查键→signed WORD差值→必要第二次读钟→尾clear，STATUS在文本后由caller清键，CLOSE保已排键。列表等待删多余raw26、保water／blink RNG；总览按原入口TJR／稳态AWTJR顺序推进，不借通用tick补不相关deadline |
+
+最终冷输入为 **193表、8域62流程／1390节点／12绑定**；runtime为68 op、6图321节点，loot为88 op、2图227节点。12绑定仍是已支持准备／Scene范围，不把common的未绑定规则或结构提取计为新关完成。冷定义、分支／顺序／等待／取消仍以 `data/static/` 为唯一输入，没有通用VM、事件总线、第二套热状态、SAV格式或RNG owner。
+
+### SDL、独立原码与发布验证
+
+本阶段按改动直接影响范围分候选构建和验证，没有重放无关全历史用例。`notice-wait-ctest-19.log` 的 progress／play_result／detail三项通过；`queued-key-ctest-20.log` 新增固定延时末帧与真实TEXT_READY后脉冲消费回归通过，旧吞键会在blink RNG前立即断言，另有帧上限。`modal-clock-ctest-21.log` 六项中 visual／player_controller／unit_render／progress四项通过，overview／magic_list两个旧夹具失败：前者缺新正式bind所需资源，后者仍hook旧render、未构造正式只读preview。保留21失败原件，未放松原完整像素／owner断言；明确补dispatcher测试替身及正式preview后，`modal-clock-fixture-ctest-22.log` 两项定向通过。其他direct CTest按各自 `build/g4/*ctest*.log` 的候选身份保留，不合算成一次G5全量回归。
+
+`current-g4-python-22.log` 为6组新G4 runner／oracle共 **48项通过**；`current-source-python-22.log` 为reward协议／四设置／死亡原码源门／特殊格／notice源门共 **38项通过**。此前冷schema、runtime原字节、common来源及资源预检专项仍保各自原范围。193表独立生成检查通过，源码地址核887处均为canonical；这些不等于真实游戏运行。
+
+| 独立原码或源验证 | 本轮实际范围，不能外推部分 |
+|---|---|
+| `common-event-machine-01.json` | 实际30类 C／原x86局部差分：完整35e0e／3623c／4df4c及登记helper、20926有限分支；C观察96×80B／32B状态／48B事件／cells边界和每次真实RNG前状态，不是逐C内存写trace或全部15图 |
+| `visual-clock-native.json`／`page-lut-native.json` | 20类时钟差分，以及2例／1152像素工作页LUT差分；名字含native不代表窗口，收据明确不作SDL／DOSBox运行等价 |
+| `scene-water-original-calls.json`／`arrival-owner-original-calls.json` | 10类原水色分支／caller参数，以及完整32999的12次投影和owner重定向；绘制／PCM／分配等替身边界保留 |
+| `defeat-original-cpu.json` | 完整1db65有／无见证者两类，逐raw方向和flags实写、25／0次等待、12 LMI、后6次临时页恢复、cue3与尾refresh0；原画图和声音为替身 |
+| `special-cell-original-cpu-02.json` | 完整190ac的9类callback前缀、No、caller与WORD；高WORD在间接调用前停止。90项分发表和原地图引用另核，slot12 `(2,0)` 初始未引用不被当成无需求或no-op |
+| `notice-wait-machine-comparison-19.json` | 完整1e5c0九类与实际C helper差分，锁已有键、0tick、有符号跨界及第二次读钟；不是精确BIOS墙钟／WGC |
+| `effect-page-owner-source-repro.json` | 12个完整函数和count 0／1／16／96的实际原指令stack／参数委托；不保存伪C猜测ABI或宣称像素／PCM通过 |
+
+IDA已用隔离Domain数据库实际应用23个名称及33次G4注释，最终372登记／1312函数，持久签名／边界／chunk不变，不在保存前固化Hex-Rays猜测类型。原G3数据库不变；21项严格LE、14项发布专项和最终11项SHA清单通过，2项既有反编译失败保留。最终数据库SHA256为`b7ad629195bad11a70d4a6919d396cd8220a1a48d11b9175b6bd352504eb782d`；最后生成并逐项核验的`SHA256SUMS`摘要为`a886d6e3be05d484dc0f1ac770784de5a0c5652e61016eaab100cc316be9971b`。发布收据在 `build/g4/ida/publication/receipt.json`；命名／哈希通过不增加原版运行范围。
+
+### Windows 原版／SDL 定向验收
+
+以下均保留各自真实二进制、输入、WGC／原资源判据、保存及清理身份。`fresh_pair=false` 是复用已通过原端与新SDL端的端点比对，没有重新启动一组双端，也没有把原任务整体失败改写成通过。
+
+| 实际收据 | 结论与限制 |
+|---|---|
+| `runtime-endpoint-comparison.json` | 原02成功端＋SDL03：Round001 Load→一次END→82→80→Round002、HP40／28与完整encoded Save相同。`fresh_pair=false`，原02整体含SDL失败仍为failed |
+| `controls-native-02/comparison.json` | browse资格／轮换／设置三代表共六端通过，含G、Esc／Z／KP5、信息板完整OFF两侧ROI、低左右侧位及实际Save／Load raw选项恢复；不是全部键／typematic或共享RNG轨迹 |
+| `details-native-15/`＋`details-sdl-series-18/`，`detail-endpoint-comparison.json` | 原15 F2／acted Enter两成功端与SDL18两成功端拼接，12完整portrait页0→3→0及无箭头；F2实际整档raw_equal，acted只签Save禁用／磁盘mtime。`fresh_pair=false`，原15的SDL眨眼超时及整体failed保留；不签native PC／完整热owner／精确RNG |
+| `common-defeat-native-18/`／`common-full-native-20/` | empty与满包Cancel各真实双端通过：原真实callback39，对照非shipping SDL alias，child211一次授予或取消、父story11、完整Save。18另通过13旋转／12消散及cue3有限身份；alias始终不是生产stage绑定、任意common图或S开放 |
+| `short-native-12/`、`teleport-native-20/` | AI SHORT弓代表以及Teleport23成功正式路径双端通过，对应原资源／HP或MP／焦点／完整Save等有限门；不等于重跑G2全部动作族 |
+| `status-endpoint-comparison.json` | 原20与SDL22各44检查点：成长／学习／七状态页、真实WAIT→Load→Save，encoded整档相同，摘要`c3f8e52ef1871ae665da959e9a53d466020087e9574b9a8881baabe1d80472f0`。`fresh_pair=false`；原20整体SDL失败保留，SDL22是明确endpoint/probe而非新双端 `ok=true` |
+| `overview-native-22/` | START总览稳态矩形／字段／状态、任意键关闭、只读业务与宿主退出双端通过；开合瞬态像素、整地图idle和完整声音不在门内 |
+| `opening-native-22/` | 自然START→stage32／31／0，两端各117个原资源已证wait，首次browse及正式UI Save通过；不签整Scene逐像素、共享RNG或未知raw／roster全等 |
+| `prepare-confirm-native-02/` | p1-buy-equip-no正式共享确认的原／SDL业务、页面和SAV通过；收据明确 `audio_identity_pending`，不把它升级为新cue／曲目身份通过 |
+
+失败迭代原件继续保留：原runtime复制目录的FD2.TMP被错误列为静态输入、common首次speaker前置不合法导致story11 oracle超时、details旧SDL眨眼及状态旧SDL端失败等都没有抹成通过。修复只改各自来源／前置／消费者或夹具，未以截图反造原义、额外ACK或继续禁用整能力掩盖缺口。后续通过按表中实际候选和端点范围覆盖，不覆盖失败时未到达的检查点。
+
+本轮所有原生目标按owned Job串行控制，最终均正常清理，无强制清理／残留，原资源与存档守卫真；显示需求恢复／释放结果随收据保留，未修改用户混音器或本轮无关系统设置。未以临时唤醒请求代替WGC可用校验，未新增周期轮询／跟进任务。用户原FD2.SAV、主树集成与重建摘要由最终集成收据再核，不预填未执行结果；本阶段不远程推送。
+
+### G4 收口与 G5 首项阻塞
+
+本阶段实质审查修复了共享页写点、水色方向、详情漏wait／眨眼、死亡完整呈现、cell非原义stage门／callback／cue12／WORD晚重验、AI物理外围刷新、hostquit续态忙循环，以及错误raw26和两处无源清键；未决通用机制没有改名为S残余。冷流程／有限执行器与原热owner合同保持，G4按完整阶段独立提交；实际提交哈希、安全集成与主程序重建由Git及最终本地集成收据记录，不预填自身提交。
+
+**G5尚未开始，首项阻塞是跨帧输入语义审查。**本次只恢复App当前仍可见pulse的消费边界；原BIOS可以保留固定延时／滑入中更早到达的普通键，现App在新帧重建脉冲，二者尚不能称全等。G5须先核早到确认／取消对后继16c57／choice／callback、blink RNG、额外等待、一次提交与交互的影响，并据证据闭合必要缺口；不得另建第二输入owner或通用事件系统，须在现input owner按实际原caller闭合保留／清键，不能把该差异归为纯图形精度或未经审查签通用总门。随后才按统一计划复核28项、正式入口／支持门和当前Windows所有已支持历史功能，修复去冗后提交。S不自动开始。
+
+Linux／macOS、全部15 common图原生、完整共享RNG轨迹、全像素／全音画／绝对时序、设备路由及严格运行时BSS等仍按既有边界未验；未取证的全游戏绝对完整不作承诺。当前没有需用户重选的重大架构／行为取舍。

@@ -72,10 +72,14 @@ int fd2_field_game_export_battle_snapshot(
         const fd2_field_game *game, fd2_save_battle_snapshot *snapshot) {
     if (!game || !snapshot || !game->ready ||
         game->failure != FD2_FIELD_FAILURE_NONE ||
+        game->detail_visible ||
+        game->runtime_host_quit ||
         game->loot.source != 0u ||
+        game->event_resume.active ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || !stage_snapshot_supported(game->stage, game->units.count) ||
+        game->player_post_waiting_phase || game->march_post_waiting_phase ||
+        !stage_snapshot_supported(game->stage, game->units.count) ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -301,6 +305,9 @@ static int import_current_stage(
     /* Load不引用原53EC8；仅丢弃奖励/状态UI续态，experience_value保持。 */
     memset(&game->progress, 0, sizeof(game->progress));
     memset(&game->loot, 0, sizeof(game->loot));
+    memset(&game->event_resume, 0, sizeof(game->event_resume));
+    game->runtime_host_quit = 0;
+    game->march_post_waiting_phase = 0;
     game->magic_target_id = 0;
     memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
     game->magic_target_count = 0;
@@ -350,6 +357,12 @@ static void carry_runtime_owners(fd2_field_game *dst,
     dst->physical_present_userdata = src->physical_present_userdata;
     dst->magic_present = src->magic_present;
     dst->magic_present_userdata = src->magic_present_userdata;
+    dst->runtime_present = src->runtime_present;
+    dst->runtime_present_userdata = src->runtime_present_userdata;
+    dst->event_preflight = src->event_preflight;
+    dst->event_preflight_userdata = src->event_preflight_userdata;
+    dst->visual_owner = src->visual_owner;
+    dst->visual_now_ms = src->visual_now_ms;
     dst->attack_critical_base = src->attack_critical_base;
     dst->attack_critical_base_userdata = src->attack_critical_base_userdata;
     dst->progress_preflight = src->progress_preflight;
@@ -360,6 +373,8 @@ static void carry_runtime_owners(fd2_field_game *dst,
     dst->music_request_userdata = src->music_request_userdata;
     dst->experience_value = src->experience_value;
     dst->message_number = src->message_number;
+    dst->message_new_fragment = src->message_new_fragment;
+    dst->message_old_fragment = src->message_old_fragment;
     dst->save_resource_available = src->save_resource_available;
 }
 
@@ -426,7 +441,9 @@ int fd2_field_game_save_resource_available(const fd2_field_game *game,
 }
 
 int fd2_field_game_save_active(fd2_field_game *game, const char *path) {
-    if (!game || !path || !game->ready) return -1;
+    /* 同步17aed期间不形成保存边界；正式输入不会进入SYSTEM，此门也
+     * 保护直接后端调用，且须在尝试打开/新建目标容器之前拒绝。 */
+    if (!game || !path || !game->ready || game->detail_visible) return -1;
     fd2_save_file save = {0};
     fd2_save_battle_snapshot snapshot;
     if (fd2_save_file_open_for_update(&save, path) != 0) return -1;
@@ -459,10 +476,11 @@ int fd2_field_game_load_active(fd2_field_game *game, const char *path) {
 int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
                                     size_t slot_index) {
     if (!game || !path || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
-        game->loot.source != 0u ||
+        game->detail_visible ||
+        game->runtime_host_quit || game->loot.source != 0u || game->event_resume.active || game->loot.child.active ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
+        game->player_post_waiting_phase || game->march_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
         game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;
     fd2_save_manual_state state = {0};

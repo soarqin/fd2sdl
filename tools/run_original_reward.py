@@ -23,9 +23,9 @@ from PIL import Image
 from fd2_reward_oracle import (SCENARIOS, derive_fixture, expected_state, reward_tables,
     reward_pages, page_match, magic_page)
 from fd2_item_list_oracle import inventory_templates
-from run_original_comparison import Capture, archive_entry, hashes, running, title_templates
+from run_original_comparison import Capture, archive_entry, decode_image, hashes, running, title_templates
 from run_original_battle_menu import wait_state, wait_title, match_indexed
-from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, round_assets, round_two_template, check_round_phase_log
+from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, round_assets, round_two_template, check_round_phase_log, decode_lmi
 from run_original_focus import native_focus_reference
 from run_original_load import focused_actor, require_source_unchanged, check_load_measurement
 from run_original_player import PlayerOracle, screen, sheet_frame, upper_command_composite, exact_tile
@@ -161,6 +161,73 @@ def quiet_browse(prepared, source, world, report, name):
         state["samples"] += 1
         return dict(result, resource_quiet=dict(state)) if now - state["first"] >= 2 and state["samples"] >= 2 else None
     return match
+
+
+def load_round_template(original, palette, turn):
+    """10010→1a30b：从原LMI91和数字42..51合成实际Save回合，不读SDL表。"""
+    if type(turn) is not int or not 1 <= turn <= 255:
+        raise ValueError("B4活动Load需要有效原byte回合")
+    sheet = archive_entry((original / "FDOTHER.DAT").read_bytes(), 5)
+    if sheet[:4] != b"LMI1" or len(sheet) < 6:
+        raise ValueError("B4活动Load原LMI目录无效")
+    count = struct.unpack_from("<H", sheet, 4)[0]
+    boundary = 6 + 4 * count
+    if count <= 91 or boundary > len(sheet):
+        raise ValueError("B4活动Load缺原Round资源")
+    def frame(index, decoder):
+        lo, hi = struct.unpack_from("<II", sheet, 6 + 4 * index)
+        if not boundary <= lo < hi <= len(sheet):
+            raise ValueError("B4活动Load原Round资源越界")
+        return decoder(sheet[lo:hi])
+    image = frame(91, decode_lmi)
+    if image.size != (87, 20): raise ValueError("B4原Round尺寸无效")
+    for digit, x in zip(map(int, f"{turn:03d}"), (51, 57, 63)):
+        number = frame(42 + digit, decode_image)
+        if number.width > 6 or number.height != 8:
+            raise ValueError("B4原Round数字尺寸无效")
+        image.paste(number, (x, 7), number.point(lambda value: 255 if value else 0, mode="L"))
+    image.putpalette(palette)
+    return image
+
+
+def load_round_state(frame, template, turn):
+    found = match_indexed(frame, template, (120, 84))
+    return dict(kind="active_load_round_resource", turn=turn, frame91_and_three_digits=True,
+                **found) if found["ok"] else None
+
+
+def loaded_browse_state(prepared, source, world):
+    browse = resource_browse(prepared, source, world)
+    def match(frame):
+        # 196cb关闭phase1..5仍是输入忙段；只排(5,112)会误认phase4为浏览。
+        for y in (112, 125, 138, 151, 164, 177):
+            if match_indexed(frame, prepared["assets"]["dialog_top"], (5, y))["ok"]:
+                return None
+        found = browse(frame)
+        return dict(found, dialog_all_phase_edges_absent=True,
+                    after_matching_round_observed=True) if found else None
+    return match
+
+
+def observe_active_load(capture, prepared, saved, save, guard, report):
+    # 复用已验连续WGC/逐条消费/closed-series来源绑定，不重建采集或输入框架。
+    # 延后import避免B6 runner复用reward时的模块循环；不启动其它流程。
+    from run_g4_detail_check import detail_series, series_checkpoint
+    turn = saved[META]
+    template = load_round_template(prepared["original"], prepared["assets"]["palette"], turn)
+    evidence = {"checkpoints": []}
+    report["active_load"] = evidence
+    try:
+        with detail_series(capture, evidence) as scope:
+            capture.key("ENTER")  # 本场唯一Load肯定；ready之前不投递。
+            series_checkpoint(capture, scope, "b4-load-round",
+                lambda frame: load_round_state(frame, template, turn), evidence["checkpoints"])
+            require_source_unchanged(save, *guard)
+            series_checkpoint(capture, scope, "b4-loaded-browse",
+                loaded_browse_state(prepared, saved, (6, 14)), evidence["checkpoints"])
+            require_source_unchanged(save, *guard)
+    finally:
+        report["checkpoints"].extend(evidence["checkpoints"])
 
 
 def observe_pages(capture, prepared, checkpoint, report):
@@ -338,8 +405,7 @@ def exercise(capture, prepared, save, guard, report):
     capture.key("ENTER"); checkpoint("b4-load-secondary", lambda frame: oracle.secondary(frame, 0, save_available=False))
     capture.key("RIGHT"); checkpoint("b4-load-selected", lambda frame: oracle.secondary(frame, 2, save_available=False))
     capture.key("ENTER"); checkpoint("b4-load-default-yes", lambda frame: oracle.buttons(frame, 0))
-    capture.key("ENTER")
-    checkpoint("b4-loaded-browse", resource_browse(prepared, final, (6, 14)), timeout=45)
+    observe_active_load(capture, prepared, saved, save, guard, report)
     navigate(capture, prepared, final, (6, 14), world, checkpoint, "b4-to-loaded-detail")
     show_detail(capture, prepared, checkpoint, report, prefix="b4-after-load")
     navigate(capture, prepared, final, world, (7, 14), checkpoint, "b4-loaded-return-leader")
@@ -372,12 +438,18 @@ def run(args):
         raise ValueError("B4产物不能写入original_game或其解析后的子目录")
     if args.scenario not in SCENARIOS: raise ValueError("未知B4场景")
     if args.sdl is not None and not args.sdl.is_file(): raise ValueError("--sdl程序不存在；未创建产物或启动窗口")
+    kind = getattr(args, "kind", "pair")
+    if kind not in ("pair", "sdl"): raise ValueError("B4端点选择无效")
+    if kind == "sdl" and args.sdl is None:
+        raise ValueError("B4单SDL校准需要--sdl；未创建产物或启动窗口")
+    endpoints = ("sdl",) if kind == "sdl" else ("original",) if args.sdl is None else ("original", "sdl")
     prepared = prepare(original, args.scenario)
     output.mkdir(parents=True, exist_ok=False)
     before = hashes(original)
     fixture = original / "START.SAV"
     fixture_data, fixture_stamp = fixture.read_bytes(), fixture.stat().st_mtime_ns
-    report = {"ok": False, "probe_only": args.sdl is None, "probe_cases_passed": False, "status": "failed",
+    report = {"ok": False, "probe_only": len(endpoints) != 2, "paired_result": False,
+        "requested_endpoints": list(endpoints), "probe_cases_passed": False, "status": "failed",
         "scenario": args.scenario, "scope": "controlled native B4 experience/growth/learning/status; resource ACK, complete detail bars, legitimate Save/WAIT/Load/Save",
         "excluded": "natural progression, entire FIGANI/timing/audio, shared RNG alignment, raw unpersisted contribution memory",
         "capture_backend": "Windows.Graphics.Capture HWND", "derived_fixture": prepared["manifest"],
@@ -389,13 +461,16 @@ def run(args):
         for name in ("fd2_reward_oracle", "fd2_item_list_oracle", "run_original_item_list", "run_original_magic_list", "run_original_comparison", "run_original_end_turn")}
     report["tool_sources"]["run_original_reward"] = {"path": str(Path(__file__).resolve()),
         "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    for name in ("run_g4_detail_check", "run_g4_runtime_check", "run_original_battle_animation"):
+        source = Path(__file__).resolve().with_name(name + ".py")
+        report["tool_sources"][name] = {"path": str(source), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
     (output / "fixture-manifest.json").write_text(json.dumps(prepared["manifest"], ensure_ascii=False, indent=2), encoding="utf-8")
     controlled_path = output / "controlled.SAV"
     controlled_path.write_bytes(prepared["encoded"])
     if decode_save(controlled_path) != prepared["source"]:
         raise AssertionError("B4 exact manifest XOR/checksum往返不符；未启动窗口")
     try:
-        for kind in (("original",) if args.sdl is None else ("original", "sdl")):
+        for kind in endpoints:
             work = output / kind; work.mkdir()
             env = os.environ.copy()
             for name in ("SDL_VIDEODRIVER", "SDL_AUDIODRIVER"): env.pop(name, None)
@@ -433,9 +508,9 @@ def run(args):
                                             if p.is_file() and p.suffix.lower() in (".png", ".bmp", ".sav")}
                 (work / "comparison.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
             if not record["probe_cases_passed"]: raise AssertionError(record["error"])
-        if args.sdl is not None:
+        if len(endpoints) == 2:
             report["paired"] = compare_endpoints(report["cases"], output, prepared)
-        report["status"], report["probe_cases_passed"] = "passed", True
+        report["status"], report["probe_cases_passed"] = ("endpoint_passed" if endpoints == ("sdl",) else "passed"), True
     except Exception as error:
         report.setdefault("error", str(error))
     finally:
@@ -451,7 +526,8 @@ def run(args):
             endpoint_guard(record, original, before, fixture, fixture_data, fixture_stamp, save, [expected, stamp])
             (work / "comparison.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
         report["probe_cases_passed"] = report["probe_cases_passed"] and all(record["probe_cases_passed"] for record in report["cases"]) and report["original_unchanged"] and report["fixture_unchanged"]
-        report["ok"] = args.sdl is not None and report["probe_cases_passed"] and len(report["cases"]) == 2
+        report["ok"] = len(endpoints) == 2 and report["probe_cases_passed"] and len(report["cases"]) == 2
+        report["paired_result"] = report["ok"]
         if not report["probe_cases_passed"]:
             report["status"] = "failed"
             report.setdefault("error", next((case["error"] for case in report["cases"] if "error" in case), "B4端点未全部完成或最终守卫失败"))
@@ -511,6 +587,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("root", "driver", "dosbox", "artifacts"): parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--sdl", type=Path)
+    parser.add_argument("--kind", choices=("pair", "sdl"), default="pair",
+                        help="默认原版→SDL；sdl只登记本轮单端，不继承旧原版通过")
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
     args = parser.parse_args()
     if sys.platform != "win32": parser.error("B4原版对照需要Windows WGC；未启动窗口")

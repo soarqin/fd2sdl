@@ -13,6 +13,85 @@
 #include <string.h>
 
 #include "shape.h"
+#include "static_data/runtime.inc"
+
+_Static_assert(sizeof(k_field_range_sequence)==FD2_FIELD_RANGE_PHASE_COUNT,
+               "original range phase count");
+
+static int32_t visual_signed_bits(uint32_t bits) {
+    return bits <= INT32_MAX ? (int32_t)bits :
+        (int32_t)((int64_t)bits - INT64_C(0x100000000));
+}
+
+static int32_t visual_bios_tick(uint64_t now_ms) {
+    uint32_t low=(uint32_t)(now_ms/55u)&0xffffu;
+    return low<0x8000u ? (int32_t)low : (int32_t)low-0x10000;
+}
+
+int fd2_field_visual_actor_step(fd2_field_visual_state *state,uint64_t now_ms) {
+    if(!state || state->actor_idle_phase>=4 || state->cursor_phase>=4)return -1;
+    int32_t tick=visual_bios_tick(now_ms);
+    int32_t delta=visual_signed_bits((uint32_t)tick-state->actor_idle_tick);
+    if(delta>4 || delta<0) {
+        state->actor_idle_phase=(state->actor_idle_phase+1u)&3u;
+        state->actor_idle_tick=(uint32_t)tick;
+    }
+    state->cursor_phase=(state->cursor_phase+1u)&3u;
+    return 1; /* cursor在同tick调用也实际推进。 */
+}
+
+int fd2_field_visual_tiles_step(fd2_field_visual_state *state,uint64_t now_ms,
+        int32_t range_override) {
+    if(!state || state->terrain_phase>1 || state->range_phase>=20 ||
+        range_override < -1 || range_override>=20)return -1;
+    int changed=0;
+    int32_t tick=visual_bios_tick(now_ms);
+    if((uint32_t)tick!=state->terrain_tick) {
+        state->terrain_phase^=1u;
+        state->terrain_tick=(uint32_t)tick;
+        changed=1;
+    }
+    if(range_override!=-1) {
+        changed|=state->range_phase!=(uint32_t)range_override;
+        state->range_phase=(uint32_t)range_override;
+    } else if(visual_signed_bits((uint32_t)tick-state->range_tick)>2 ||
+              tick<visual_signed_bits(state->range_tick)) {
+        state->range_phase++;
+        if(state->range_phase==20)state->range_phase=0;
+        state->range_tick=(uint32_t)tick;
+        changed=1;
+    }
+    return changed;
+}
+
+/* 22046只改53A49内区，VGA几何叶的(4,4)正好对应page(72,72)。 */
+static int transition_page(fd2_field_page *page,const uint8_t lut[256],
+    int x,int y,int radius,int first_row,int operation) {
+    if(!page)return -1;
+    fd2_vga scratch={0};
+    uint8_t *view=scratch.framebuffer+1284;
+    if(fd2_field_page_read(page,72,72,312,192,view,
+        sizeof(scratch.framebuffer)-1284,320)!=0)return -1;
+    int result=operation==0?fd2_field_transition_lut_before_actors_from(
+        &scratch,lut,x,y,radius,first_row):operation==1?
+        fd2_field_transition_lut_after_actors_from(&scratch,lut,x,y,radius,first_row):
+        fd2_field_transition_lut_circle12(&scratch,lut,x,y,radius);
+    return result?result:fd2_field_page_write(page,72,72,312,192,view,
+        sizeof(scratch.framebuffer)-1284,320);
+}
+
+int fd2_field_transition_page_before_actors_from(fd2_field_page *page,
+    const uint8_t lut[256],int x,int y,int radius,int first_row) {
+    return transition_page(page,lut,x,y,radius,first_row,0);
+}
+int fd2_field_transition_page_after_actors_from(fd2_field_page *page,
+    const uint8_t lut[256],int x,int y,int radius,int first_row) {
+    return transition_page(page,lut,x,y,radius,first_row,1);
+}
+int fd2_field_transition_page_circle12(fd2_field_page *page,
+    const uint8_t lut[256],int x,int y,int radius) {
+    return transition_page(page,lut,x,y,radius,0,2);
+}
 
 static uint16_t rd_u16_le(const uint8_t *p) {
     return (uint16_t)p[0] | (uint16_t)((uint16_t)p[1] << 8);
@@ -113,14 +192,10 @@ const uint8_t *fd2_field_range_lut(const fd2_field_visuals *visuals,
                                    size_t phase) {
     /* DS:0x1a97，20 个 phase 对 FDOTHER[3] LUT frame 的选择表。
      * field_view_render_tiles @0x11eee 每 3 个 BIOS tick 前进一步。 */
-    static const uint8_t sequence[FD2_FIELD_RANGE_PHASE_COUNT] = {
-        8, 1, 0, 0, 0, 4, 2, 5, 1, 0,
-        0, 0, 4, 2, 5, 1, 0, 0, 0, 4,
-    };
     if (!visuals || visuals->range_lut_count != FD2_FIELD_RANGE_LUT_COUNT)
         return NULL;
     return fd2_field_lut_frame(
-        visuals, sequence[phase % FD2_FIELD_RANGE_PHASE_COUNT]);
+        visuals, k_field_range_sequence[phase % FD2_FIELD_RANGE_PHASE_COUNT]);
 }
 
 void fd2_field_apply_palette_lut(fd2_vga *vga,

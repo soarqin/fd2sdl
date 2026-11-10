@@ -169,6 +169,40 @@ void fd2_field_units_render_actor(fd2_vga *vga,
     const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
     size_t actor, int camera_x, int camera_y, uint8_t idle_phase, int offset_y);
 
+/* sub_127E0/127A9的原工作页版本。camera为格；raw顺序不按y/x排序。
+ * idle/cursor/jitter均借App；移动帧取53C07，不能用局部六步数组重置。
+ * offset_y只用于有证演出。
+ * 不画前景/选择/UI、不投影、不改unit/cache/时钟。错误返回-1。 */
+int fd2_field_units_render_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
+    uint8_t cursor_phase, uint8_t jitter_phase, int offset_y);
+/* map_actor_blit_24x24 @0x1da16（原同名）：原1a30b/静止恢复专用叶。
+ * 不读hidden/acted/raw26；frame_phase非0选共享53C07，否则53C0B，3→1。
+ * mode0原色，mode2按原stride低BYTE填200；不等待/投影/推进任何phase。 */
+int fd2_field_map_action_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
+    uint8_t cursor_phase, unsigned mode);
+/* field_actor_group_flash @0x1c2da：固定direction0，idle3→2，solid200；
+ * 不套hidden/acted/raw26/frame_phase。只画显式传入raw，不投影/推进clock。 */
+int fd2_field_flash_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+    size_t actor,int camera_x,int camera_y,uint8_t idle_phase);
+/* 1cb94/1cd17/1c2da共同固定dir0、idle3→2叶；hidden由caller按各源筛，
+ * lut=NULL原色，非NULL只映真实RLE写点，不画FG或推进jitter。 */
+int fd2_field_fixed_page_actor(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+    size_t actor,int camera_x,int camera_y,uint8_t idle_phase,const uint8_t lut[256]);
+int fd2_field_units_render_page(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    int camera_x, int camera_y, uint8_t idle_phase, uint8_t cursor_phase,
+    uint8_t jitter_phase);
+int fd2_field_units_render_page_terrain_overlays(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    const fd2_field_units *units, int camera_x, int camera_y, int anim_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]);
+
 /* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）：全表actor
  * 绘完后，只恢复非hidden/非terrain-immune的本格、上格及行走附加格。
  * range/lut只控制这些格的映色，不追加范围外的前景；不改units或range。 */

@@ -92,6 +92,53 @@ python3 -B -m unittest discover -s tools/tests -p test_g3_notown_save_check.py -
 
 上述 Linux 示例为兼容操作说明，本轮未执行 Linux。当前原版／SDL 实机和 CDB／WGC 观察器只登记 Windows 已执行范围。低色槽页只有完整原 310×86 资源像素门匹配时才接收，不把白屏／单色帧当标题通过。原版 RPC 每次重新解析本轮 owner／代码锚；SDL 观察器读取同一停止态 PDB 地址及有界完整长度，拒短读并正常 detach，不扫描内存猜 roster。
 
+### G4 共享流程、输入与呈现的定向验证
+
+G4 继续使用 owned Job、PID／HWND 后台输入、WGC 单窗口与显示需求恢复。下列四个 runner **默认只准备**，加 `--run` 才执行；实际运行还须提供 `--sdl`／`--driver`／`--dosbox`，并由外层 `run-job` 串行约束进程。输出使用新目录，原资源和用户存档只读；不能把准备成功、单端成功或旧端点拼接写成一次新双端通过。实际候选与失败历史见[阶段日志](../plans/stage-log.md#g4-共享流程菜单与运行2026-11-10)，来源见[共享运行语义](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)。
+
+| 工具 | 验证范围与限制 |
+|---|---|
+| `run_g4_runtime_check.py` | 活动 Load 的 Round001、一次 END 的阵营82→80→Round002、整组恢复 HP40／28及正式 Save；`--kind original`／`sdl`只记录本轮单端，不继承旧配对 |
+| `run_g4_controls_check.py` | `browse-gates`、`browse-cycle`、`settings-panel-load`；G 无操作、Esc／Z／KP5轮换、四项设置图标、信息板双侧／开关与完整活动 Save／Load。OFF 页匹配本轮原版两侧完整 ROI，不以局部边框缺失当作关闭 |
+| `run_g4_detail_check.py` | `f2-magic`／`enter-acted-magic` 正式详情的两页与 portrait0→3→0；F2 走实际 Save，acted Enter 保原 Save 禁用门及磁盘／mtime 守卫；不读取 native PC 或完整热 owner |
+| `run_g4_common_event_check.py` | `child39-empty`／`child39-full-cancel`，原版真实 callback39与非 shipping SDL alias；child211、父story11、一次提交与整档。实际 `--sdl` 须用独立 `fd2_g4_common_event_fixture`，不修改生产 stage 绑定；`--capture-defeat` 另核13旋转／12消散和 cue3 有限身份 |
+| `audit_g4_render_source.py`、`audit_g4_common_event_identity.py` | 原 FDTXT／FDOTHER 的动态 token、名称、RLE skip／opaque0及有限身份引用；只读资源，不是执行或窗口证据 |
+| `fd2_g4_defeat_oracle.py` | 原资源、有效单位域及声明写集构成的死亡序列判据，由 common runner 使用；独立来源模型不等于真实采集结果 |
+
+自然开场及总览复用 `run_original_opening.py`／`run_original_overview.py`；状态／成长复用既有 reward runner，普通箱子和准备确认复用原场景 runner。它们的实际入口、保存协议与原生限制仍见[图形规范](gui-testing.md)，不另造一套 G4 图形框架。
+
+Windows（PowerShell）仅准备与纯测试示例：
+
+```powershell
+python -B tools/run_g4_controls_check.py --root . --artifacts build/g4/controls-NEW
+python -B tools/run_g4_detail_check.py --root . --scenario f2-magic --artifacts build/g4/detail-NEW
+python -B tools/run_g4_common_event_check.py --root . --scenario child39-empty --capture-defeat --artifacts build/g4/common-NEW
+python -B -m unittest discover -s tools/tests -p 'test_g4_*.py' -v
+python -B -m unittest tools.tests.test_original_reward tools.tests.test_graphics_options tools.tests.test_defeat_original_cpu tools.tests.test_special_cell_source tools.tests.test_notice_wait_source -v
+```
+
+Linux（Bash）的准备／纯测试兼容示例如下；本轮未执行 Linux，也不把 Windows WGC runner 的 `--run` 外推为 Linux 已验：
+
+```bash
+python3 -B tools/run_g4_controls_check.py --root . --artifacts build/g4/linux-controls-NEW
+python3 -B -m unittest discover -s tools/tests -p 'test_g4_*.py' -v
+python3 -B -m unittest tools.tests.test_special_cell_source tools.tests.test_notice_wait_source -v
+```
+
+局部原码与冷定义验证分开运行。`tools/ida/` 下这些工具使用 Unicorn 执行严格 loader-relocated 原镜像，按各工具声明替换绘制、音频、分配或输入边界，**不是 IDA GUI／DOSBox／WGC 验收**。`--image` 指向已有只读严格镜像；需要 `--readset` 的工具还须提供其指定的完整 Domain 导出，不能混用 raw-unrelocated 文件窗口。输出须选新文件。
+
+| 局部原码工具 | 已登记的有限范围 |
+|---|---|
+| `verify_fd2_visual_clocks.py`、`verify_fd2_page_lut.py` | 20类共享时钟 C／原码差分；2例、1152像素的工作页 LUT 局部差分，分别保其替身边界 |
+| `verify_effect_owner_source.py` | 12个完整函数及4类 count 的 stack／count／list 委托；不持久化猜测 ABI |
+| `verify_fd2_scene_water.py` | 10类原 `11cac` 分支／移动脚本／entry 实参；0允许水色、非0跳过 |
+| `verify_fd2_arrival_owner.py` | 完整32999 caller 的12次投影与工作页重定向；没有额外尾刷新／水色 |
+| `verify_fd2_defeat_flow.py` | 完整1db65的有／无见证者两类，逐 raw方向／flags、25次等待及12 LMI写序；视觉叶为替身 |
+| `verify_fd2_special_cell.py` | 完整190ac的9类 callback前缀、完整WORD与真实caller，另核90项表及原地图引用；高WORD在间接call前停止 |
+| `verify_fd2_notice_wait.py` | 完整1e5c0九类 signed WORD／已有键／两次读钟／尾清键；`--c-probe` 执行真实私有Play测试的 `--notice-wait-json`，省略它不算 C 差分 |
+
+共同事件独立源验证与30类 C／原码探针入口、runtime／common 冷图的逐 op 端口门见[冷定义工具](static-data.md)及[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)。notice 的实际复现命令也列在该文 §9.6。G4 定向通过不等于 G5 全历史回归；更早多帧 BIOS 键缓存与当前 App 帧脉冲差异仍须作为输入／RNG／交互边界单独审查。
+
 ### A8 音频生命周期验证
 
 普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put 故障和队列压力；`audio_device_probe_finalization` 覆盖实际 probe 的末次提交错误；`audio_pcm_capture_callback_order` 检查 Put 失败不能留下成功 AppMix summary。`audio_unavailable_field_quick_entry` 启动真正主程序，以 dummy video 和无效音频后端验证 discard-null 快速入口，不算原生窗口或设备播放通过。交付候选的实际结果见[阶段记录](../plans/stage-log.md#a8宿主与设备生命周期)，以下命令不自行构成通过记录。

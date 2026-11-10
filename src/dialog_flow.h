@@ -10,6 +10,41 @@ enum {
     FD2_DIALOG_LINE_PITCH = 19,
 };
 
+/* text_dialog_glyph_step @0x164e8的53A14/53A10为App全局DWORD。
+ * VGA初始化时置0；闭嘴、换人、关闭框、活动/手工Load都不复位。
+ * 不保存于SAV，不在每个dialog/progress/prepare局部另存一份。 */
+typedef struct {
+    uint32_t glyph_counter;
+    uint32_t mouth_phase;
+} fd2_dialog_visual_state;
+
+/* 仅实际逐字helper调用：每两次glyph递增mouth(0..3)，显示3映射1。
+ * 返回1才需重画portrait并写draw_phase；0只推进glyph，不改输出；
+ * -1坏参数/非法正常域，state/output均不写。cue2与wait1由真实caller执行。 */
+int fd2_dialog_visual_glyph_step(fd2_dialog_visual_state *state,
+    unsigned *draw_phase);
+
+typedef uint32_t (*fd2_dialog_random_fn)(void *userdata);
+/* 16c57局部等待状态，不跨wait保存，不是另一个App mouth owner。
+ * BIOS两tick采用现宿主110ms近似，逾时一次只推进一次，不追赶。 */
+typedef struct {
+    uint64_t last_ms;
+    uint32_t countdown;
+    uint8_t blink_closed, arrow_frame, arrow_ticks, arrow_mode;
+} fd2_dialog_wait_state;
+typedef struct {
+    int portrait; /* -1不画，0睁眼，3闭眼；不写共享mouth DWORD。 */
+    int arrow;    /* -1不画，否则18/19。 */
+} fd2_dialog_wait_visual;
+int fd2_dialog_wait_begin(fd2_dialog_wait_state *state, uint64_t now_ms,
+    int arrow_mode, fd2_dialog_random_fn rng, void *userdata);
+int fd2_dialog_wait_update(fd2_dialog_wait_state *state, uint64_t now_ms,
+    fd2_dialog_random_fn rng, void *userdata, fd2_dialog_wait_visual *visual);
+/* dialog_text_scroll_up @0x16e24：仅原portrait origin1832/36887有写。
+ * 208×72按5次3px+1次4px上卷，底一行填74；其余origin成功no-op。
+ * 仅CPU复制，无present/wait/RNG/input；有效origin要求完整64000B显示页。 */
+int fd2_dialog_scroll_pixels(uint8_t *pixels, size_t size, unsigned origin);
+
 typedef enum {
     FD2_DIALOG_FLOW_NONE = 0,
     FD2_DIALOG_FLOW_WAIT_BEFORE_SPEAKER,

@@ -30,11 +30,34 @@ int main(void) {
     CHECK(fd2_text_expand(&entry,100,&p,0,&guarded.out) == 0);
     static const uint16_t min_digits[] = {FD2_TEXT_SAFE_MINUS,2,1,4,7,4,8,3,6,4,8};
     CHECK(!memcmp(guarded.out.tokens+5,min_digits,sizeof(min_digits)));
+    fd2_text_expanded number,unchanged;
+    CHECK(fd2_text_expand_number(UINT32_C(0x80000000),100,&number)==0 &&
+        number.count==sizeof(min_digits)/sizeof(min_digits[0]) && !memcmp(number.tokens,min_digits,sizeof(min_digits)));
+    CHECK(fd2_text_expand_number(0,100,&number)==0 && number.count==1 && number.tokens[0]==0);
+    CHECK(fd2_text_expand_number(UINT32_MAX,100,&number)==0 && number.count==2 &&
+        number.tokens[0]==FD2_TEXT_SAFE_MINUS && number.tokens[1]==1);
+    unchanged=number;
+    CHECK(fd2_text_expand_number(9,9,&number)==-1 && !memcmp(&number,&unchanged,sizeof(number)));
+    CHECK(fd2_text_expand_number(1,0,&number)==-1 && !memcmp(&number,&unchanged,sizeof(number)));
+    CHECK(fd2_text_expand_number(1,100,NULL)==-1);
     p.new_fragment=3; CHECK(fd2_text_expand(&entry,100,&p,0,&guarded.out) == -1);
     p.new_fragment=SIZE_MAX; CHECK(fd2_text_expand(&entry,100,&p,0,&guarded.out) == -1);
     CHECK(fd2_text_expand(&entry,100,&p,4,&guarded.out) == -1);
     CHECK(fd2_text_expand(&entry,100,&p,5,&guarded.out) == -1);
     CHECK(fd2_text_expand(&entry,30,&p,1,&guarded.out) == -1);
+    uint8_t stage_raw[12]={0};
+    static const uint16_t stage_tokens[]={50,0xfffc,0xfffb,0xfffa,0xffff};
+    word(stage_raw,2);
+    for(size_t i=0;i<5;i++)word(stage_raw+2+i*2,stage_tokens[i]);
+    fd2_text_entry stage={0};CHECK(fd2_text_entry_open_mem(&stage,stage_raw,sizeof(stage_raw))==0);
+    p=(fd2_text_parameters){7,1,2};
+    CHECK(fd2_text_expand_banked(&stage,&entry,100,&p,0,&guarded.out)==0);
+    static const uint16_t banked_expected[]={50,30,31,40,7};
+    CHECK(guarded.out.count==5 && !memcmp(guarded.out.tokens,banked_expected,sizeof(banked_expected)));
+    CHECK(fd2_text_expand(&stage,100,&p,0,&guarded.out)==-1);
+    p.new_fragment=3;
+    CHECK(fd2_text_expand_banked(&stage,&entry,100,&p,0,&guarded.out)==-1);
+    fd2_text_entry_close(&stage);
     CHECK(guarded.a == 0x12345678u && guarded.b == 0x87654321u && !memcmp(raw,saved,sizeof(raw)));
     fd2_text_entry_close(&entry);
     /* 容量溢出严格拒绝并保外侧guard，不能吞掉多余提示。 */

@@ -116,6 +116,13 @@ int fd2_field_game_prepare_earthquake(fd2_field_game *current,fd2_vga *vga,
     for (size_t i=0;i<3;i++) memset(fd2_field_effect_snapshot(result,i),20+(int)i,64000);
     return 0;
 }
+int fd2_field_game_begin_earthquake(fd2_field_game *current,fd2_vga *vga,
+        fd2_field_effect_frames *result) {
+    return fd2_field_game_prepare_earthquake(current,vga,result);
+}
+int fd2_field_game_effect_actors(const fd2_field_game *current,fd2_vga *vga) {
+    fd2_field_game_render_effect_actors(current,vga);return 0;
+}
 static unsigned visual_calls,terrain_calls;
 static uint64_t visual_stamps[64];
 /* 此处只校接线/退出；真正1297d/11eee实现由field_unit_render真实Game回归验证。 */
@@ -148,6 +155,35 @@ int fd2_field_game_render_transition_mask(const fd2_field_game *current,fd2_vga 
     mask_calls++;if (mask_failure) return -1;
     memset(vga->framebuffer,lut[7],64000);return 0;
 }
+/* 本文件只检呈现adapter；完整Game/page/时钟语义由unit_render覆盖。 */
+int fd2_field_game_effect_terrain_begin(fd2_field_game *current,fd2_vga *vga,fd2_field_page *page) {
+    (void)current;return fd2_field_page_copy_pixels(page,vga->field_page);
+}
+int fd2_field_game_effect_mask_frame(const fd2_field_game *current,fd2_vga *vga,
+    const fd2_field_page *base,const uint8_t lut[256],int x,int y,int radius,int first,int circle12) {
+    (void)first;(void)circle12;
+    if (fd2_field_page_copy_pixels(vga->field_page,base)!=0) return -1;
+    return fd2_field_game_render_transition_mask(current,vga,lut,x,y,radius);
+}
+int fd2_field_game_effect_refresh(fd2_field_game *current,fd2_vga *vga) {
+    if (fd2_field_game_tick_visual(current,battle_test_ticks())!=0) return -1;
+    fd2_field_game_render_effect_background(current,vga);return 0;
+}
+
+static int test_effect_page_stamp(void) {
+    fd2_field_page *page=fd2_field_page_create();CHECK(page);
+    uint8_t pixels[]={0,5,6,7,8,9},opaque[]={1,0,1,0,1,1},row[4];
+    battle_image image={{3,2,pixels},opaque};
+    uint8_t before[]={41,42,43,44};
+    CHECK(fd2_field_page_write(page,71,71,4,1,before,4,4)==0);
+    CHECK(battle_page_image(page,&image,71,71,-1)==0);
+    CHECK(fd2_field_page_read(page,71,71,4,1,row,4,4)==0);
+    CHECK(row[0]==0 && row[1]==42 && row[2]==6 && row[3]==44);
+    CHECK(battle_page_image(page,&image,-2,335,200)==0);
+    CHECK(fd2_field_page_read(page,0,335,2,1,row,4,2)==0 && row[0]==200 && row[1]==0);
+    CHECK(battle_page_image(page,&image,456,0,-1)==0);
+    fd2_field_page_destroy(page);return 0;
+}
 void fd2_vga_set_palette(fd2_vga *vga,const uint8_t pal[768]) {
     memcpy(vga->palette,pal,768);
     for (size_t i=0;i<768;i++) vga->dac[i]=(uint8_t)((pal[i]<<2)|(pal[i]>>4));
@@ -173,24 +209,6 @@ int battle_test_pcm_stop(fd2_pcm_player *player) {
     if (player!=expected_primary) { wrong_stop++; return -1; }
     primary_stops++; return 0;
 }
-int fd2_field_unit_is_hidden(const fd2_field_unit *u) { return (u->flags&1)!=0; }
-size_t fd2_field_unit_cached_sprite_id(const fd2_field_units *units,size_t raw) {
-    if (!units || raw>=units->count) return SIZE_MAX;
-    size_t slot=units->sprite_cache_classes[raw];
-    return units->sprite_cache_exact && slot<units->sprite_cache_count
-        ? units->sprite_cache_ids[slot]:units->items[raw].unit_id;
-}
-/* 本TU替身仅提供真实helper已证raw5/零步契约；真实cache函数本体由
- * field_unit_render/base测试覆盖。本服务必须借phase0基址，不自造ID+1。 */
-size_t fd2_field_unit_cached_frame_index(const fd2_field_units *units,size_t raw,uint8_t phase) {
-    if (!units || raw>=units->count || units->items[raw].direction!=5u ||
-        units->items[raw].frame_phase || !units->sprite_cache_exact ||
-        units->sprite_cache_count>FD2_FIELD_MAX_UNITS || phase!=0) return SIZE_MAX;
-    size_t next=(size_t)units->sprite_cache_classes[raw]+1u;
-    if (next>=units->sprite_cache_count || units->sprite_cache_ids[next]==255u) return SIZE_MAX;
-    return (size_t)units->sprite_cache_ids[next]*12u+3u;
-}
-
 static void reset_observer(void) {
     frames=ticks=delays=cues=primary_stops=quit_frame=wrong_stop=secondary_cues=0; cue_failure=0;skip_frame=0;skip_context=NULL;
     magic_watch=NULL;magic_hash_count=0;mask_calls=0;mask_failure=0;stale_wait200=0;capture_first=0;captured_count=0;
@@ -633,7 +651,7 @@ static int test_magic_heal_raw_numbers_and_quit(void) {
     fd2_map_sprite_blit(digits_expected,&ctx.magic_exchange->digits[114].image,dx+5,dy,0);
     reset_observer();ctx.primary=&primary;expected_primary=&primary;capture_first=1;
     CHECK(magic_finish(&ctx,&e,0)==0 && frames==22 && delays==544 && primary_stops==1);
-    CHECK(!normal_return_calls && effect_return_calls==2 && screen.framebuffer[319]==62);
+    CHECK(!normal_return_calls && effect_return_calls==1 && screen.framebuffer[319]==62);
     CHECK(!memcmp(first_frame,digits_expected->framebuffer,64000));free(digits_expected);
     fd2_vga *water=calloc(1,sizeof(*water));CHECK(water);
     CHECK(fd2_field_water_palette_apply(water,screen.field_water_phase)==0);
@@ -1187,7 +1205,8 @@ static int test_item_map_presentations(void) {
         CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && !mask_calls);
         event.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
         CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && !mask_calls);
-        unsigned style_frames=code==20 || code==24 ? 10u:code==21 ? 8u:11u;
+        /* 1cd17十张染色后还有一次旧snapshot投影，App页并不随之恢复。 */
+        unsigned style_frames=code==21 ? 8u:11u;
         CHECK(frames==(unsigned)k_battle_map_fx_count[id]+1u+style_frames);
         if (code==5 || code==13) CHECK(cues==2); /* 12+1，无Magic13的前置11。 */
         if (code==24) CHECK(cues==0); /* core11直接LMI/ramp，不变成2189a。 */
@@ -1208,6 +1227,55 @@ static int test_item_map_presentations(void) {
         mask_failure=0;fd2_battle_animation_close(&ctx);game.units.count=2;
     }
     return 0;
+}
+
+/* 真LMI/FDICON与App借页接线：PREPARE不得写App；1c2da最后显示旧页，
+ * 实际App却保solid，不能以最后VGA覆盖工作页。Game绘制本体另有独立回归。 */
+static int test_map_app_page_lifetime(void) {
+    fd2_battle_animation ctx;CHECK(setup(&ctx)==0);
+    fd2_field_page *page=fd2_field_page_create();CHECK(page);screen.field_page=page;
+    uint8_t *pixels=malloc(FD2_FIELD_PAGE_SIZE),*before=malloc(FD2_FIELD_PAGE_SIZE);CHECK(pixels&&before);
+    memset(pixels,17,FD2_FIELD_PAGE_SIZE);
+    CHECK(fd2_field_page_write(page,0,0,456,336,pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+    uint8_t targets[]={1};fd2_field_magic_present_event event=magic_event(13,targets,1);
+    event.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;event.effect_id=13;
+    event.action_kind=FD2_FIELD_MAGIC_ACTION_ITEM;event.item_code=5;event.cast_cost_count=0;
+    fd2_field_units units=game.units;
+    CHECK(fd2_field_page_read(page,0,0,456,336,before,FD2_FIELD_PAGE_SIZE,456)==0);
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0);
+    CHECK(fd2_field_page_read(page,0,0,456,336,pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+    CHECK(!memcmp(before,pixels,FD2_FIELD_PAGE_SIZE) && screen.field_page==page && !frames);
+    event.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0);
+    size_t sprite=ctx.magic_exchange->sprite_ids[0]*12u+(game.idle_phase==3?2u:game.idle_phase);
+    uint8_t region[576];const uint8_t *raw=game.sprites.decoded_frames+sprite*576u;
+    CHECK(fd2_field_page_read(page,72+((int)game.units.items[1].x-game.camera_cell_x)*24,
+        66+((int)game.units.items[1].y-game.camera_cell_y)*24,24,24,region,sizeof(region),24)==0);
+    unsigned solid=0;
+    for(size_t i=0;i<576;i++) if(raw[i]) {CHECK(region[i]==200);solid++;}
+    CHECK(solid && !memcmp(ctx.vga->framebuffer,ctx.magic_exchange->board.framebuffer,64000));
+    CHECK(!memcmp(&units,&game.units,sizeof(units)) && !business_rng_calls);
+    CHECK(fd2_field_page_read(page,0,0,1,1,region,sizeof(region),1)==0 && region[0]==17);
+    CHECK(fd2_field_page_read(page,0,0,456,336,before,FD2_FIELD_PAGE_SIZE,456)==0);
+    fd2_field_magic_basic_result result={0};result.hit=1;result.raw_heal=9;
+    event.phase=FD2_FIELD_MAGIC_PRESENT_TARGET;event.target_index=1;
+    event.target_before=event.target_after=&game.units.items[1];event.result=&result;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0);
+    event.phase=FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0);
+    CHECK(fd2_field_page_read(page,0,0,456,336,pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+    CHECK(memcmp(before,pixels,FD2_FIELD_PAGE_SIZE)!=0);
+    CHECK(fd2_field_page_project(page,72,72,pixels,FD2_FIELD_PAGE_SIZE)==0);
+    for(size_t y=4;y<196;y++) CHECK(!memcmp(pixels+y*320+4,screen.framebuffer+y*320+4,312));
+    CHECK(!memcmp(&units,&game.units,sizeof(units)) && !business_rng_calls);
+    CHECK(fd2_field_page_read(page,0,0,456,336,before,FD2_FIELD_PAGE_SIZE,456)==0);
+    memcpy(pixels,screen.framebuffer,64000);unsigned clocks=visual_calls;
+    CHECK(magic_finish(&ctx,&event,0)==0);
+    CHECK(!ctx.magic_exchange && visual_calls==clocks && !memcmp(pixels,screen.framebuffer,64000));
+    CHECK(fd2_field_page_read(page,0,0,456,336,pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+    CHECK(!memcmp(before,pixels,FD2_FIELD_PAGE_SIZE));
+    fd2_battle_animation_close(&ctx);screen.field_page=NULL;fd2_field_page_destroy(page);
+    free(pixels);free(before);return 0;
 }
 
 static int test_item_popup_and_effect_count_contract(void) {
@@ -1401,7 +1469,7 @@ static int test_map_physical_preflight_and_actor_projection(void) {
         ctx.exchange->units[0]=u;game.idle_phase=3;game.units.walk_frames[0]=3;
         for (int viewport=0;viewport<2;viewport++) for (int solid=0;solid<2;solid++) {
             memset(screen.framebuffer,109,64000);memset(expected,109,64000);
-            CHECK(map_physical_actor(&game,ctx.exchange,screen.framebuffer,0,solid,viewport)==0);
+            CHECK(map_physical_actor(&game,ctx.exchange,screen.framebuffer,0,solid,viewport,NULL)==0);
             expected_actor(expected,&u,0,3,solid ? viewport ? 200:64:-1,viewport);
             CHECK(!memcmp(screen.framebuffer,expected,64000));
         }
@@ -1495,7 +1563,7 @@ static int test_raw5_recovery_and_short_preflight(void) {
     uint8_t *expected=malloc(64000);CHECK(expected);
     for (uint8_t phase=0;phase<4;phase++) {
         game.idle_phase=phase;memset(screen.framebuffer,109,64000);memset(expected,109,64000);
-        CHECK(map_physical_actor(&game,ctx.exchange,screen.framebuffer,0,1,1)==0);
+        CHECK(map_physical_actor(&game,ctx.exchange,screen.framebuffer,0,1,1,NULL)==0);
         /* class0→class1真实ID96，而非当前hot126或baseID0+1；raw5索引15
          * 恰为下一class的3号帧。只是夹具等效frame表达，不把5在生产中&3。 */
         fd2_field_unit projected=game.units.items[0];projected.direction=1;
@@ -1810,6 +1878,7 @@ int main(void) {
     game.map.width=4;game.map.height=4;game.map.cells=cells;
     game.terrain.attrs=attrs;game.terrain.attr_count=1;game.units.count=2;
     CHECK(test_mask_and_clipping()==0);
+    CHECK(test_effect_page_stamp()==0);
     CHECK(test_prepare_atomic_and_skip()==0);
     CHECK(test_scene_source_contract()==0);
     CHECK(test_real_scene_and_quit()==0);
@@ -1835,6 +1904,7 @@ int main(void) {
     CHECK(test_teleport_write_boundaries()==0);
     CHECK(test_new_magic_failure_quit_and_cache()==0);
     CHECK(test_item_map_presentations()==0);
+    CHECK(test_map_app_page_lifetime()==0);
     CHECK(test_item_popup_and_effect_count_contract()==0);
     map_captured=malloc(128u*64000u);CHECK(map_captured);
     CHECK(test_map_physical_preflight_and_actor_projection()==0);

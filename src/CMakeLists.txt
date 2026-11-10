@@ -149,6 +149,7 @@ set(FD2SDL_CORE_SOURCES
     third_party/model_ail.c
     field_audio.c
     field_effect.c
+    field_defeat.c
     field_command.c
     field_system_menu.c
     field_manual_slot.c
@@ -161,6 +162,8 @@ set(FD2SDL_CORE_SOURCES
     shape.c
     field.c
     field_unit.c
+    field_page.c
+    field_background.c
     field_unit_base.c
     field_path.c
     field_move.c
@@ -178,6 +181,7 @@ set(FD2SDL_CORE_SOURCES
     field_event.c
     field_visual.c
     field_info.c
+    field_round.c
     field_game.c
     field_save.c
     field_preview.c
@@ -225,6 +229,13 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
     option(FD2SDL_REQUIRE_GUI_TESTS "图形回归依赖不全时配置失败，避免静默缺测" OFF)
+    # 仅显式构建/owned WGC运行的机制alias夹具；不进入产品或自动CTest。
+    add_executable(fd2_g4_common_event_fixture EXCLUDE_FROM_ALL
+        main.c field_play.c field_prepare_play.c tests/g4_common_event_game_fixture.c
+        $<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.]>)
+    target_include_directories(fd2_g4_common_event_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_g4_common_event_fixture PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_property(TARGET fd2_g4_common_event_fixture PROPERTY LINKER_LANGUAGE CXX)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
         add_test(NAME field_play_input_harness
@@ -586,6 +597,7 @@ if(BUILD_TESTING)
     add_executable(fd2_field_effect_test
         tests/field_effect_test.c
         field_effect.c
+        field_page.c
     )
     target_include_directories(fd2_field_effect_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_effect_test PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -649,11 +661,53 @@ if(BUILD_TESTING)
 
     add_executable(fd2_field_event_test
         tests/field_event_test.c
-        field_event.c
+        $<TARGET_OBJECTS:fd2sdl_core>
     )
     target_include_directories(fd2_field_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_event COMMAND fd2_field_event_test)
+
+    add_executable(fd2_field_common_event_test tests/field_common_event_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_common_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_common_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_common_event COMMAND fd2_field_common_event_test)
+
+    add_executable(fd2_common_event_domain_probe ../tools/ida/common_event_domain_probe.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_common_event_domain_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_common_event_domain_probe PRIVATE ${FD2SDL_SDL3_TARGET})
+
+    add_executable(fd2_field_page_test tests/field_page_test.c field_page.c)
+    target_include_directories(fd2_field_page_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME field_page COMMAND fd2_field_page_test)
+
+    add_executable(fd2_field_render_scope_test tests/field_render_scope_test.c field_page.c)
+    target_include_directories(fd2_field_render_scope_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_render_scope_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_render_scope COMMAND fd2_field_render_scope_test)
+
+    add_executable(fd2_field_background_test tests/field_background_test.c
+        field_background.c field_page.c archive.c image.c)
+    target_include_directories(fd2_field_background_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME field_background COMMAND fd2_field_background_test)
+    set_tests_properties(field_background PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_round_test tests/field_round_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_round_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_round_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_round COMMAND fd2_field_round_test)
+    set_tests_properties(field_round PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_phase_test tests/field_phase_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_phase_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_phase_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_phase COMMAND fd2_field_phase_test)
+    set_tests_properties(field_phase PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_defeat_test tests/field_defeat_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_defeat_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_defeat_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_defeat COMMAND fd2_field_defeat_test)
+    set_tests_properties(field_defeat PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_field_visual_test
         tests/field_visual_test.c
@@ -664,6 +718,8 @@ if(BUILD_TESTING)
         image.c
         field.c
         tile.c
+        field_page.c
+        field_path.c
     )
     target_include_directories(fd2_field_visual_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -1239,6 +1295,12 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
     target_compile_definitions(fd2_field_play_result_test PRIVATE
+        fd2_field_game_render=__wrap_fd2_field_game_render
+        fd2_field_game_runtime_refresh=__wrap_fd2_field_game_runtime_refresh
+        fd2_field_round_play=__wrap_fd2_field_round_play
+        fd2_field_phase_play=__wrap_fd2_field_phase_play
+        fd2_field_round_is_ready=__wrap_fd2_field_round_is_ready
+        fd2_field_phase_is_ready=__wrap_fd2_field_phase_is_ready
         fd2_field_game_close=__wrap_fd2_field_game_close
         fd2_field_game_animate_command=__wrap_fd2_field_game_animate_command
         fd2_field_game_open=__wrap_fd2_field_game_open
@@ -1249,6 +1311,7 @@ if(BUILD_TESTING)
         fd2_scene_play_stage_victory=__wrap_fd2_scene_play_stage_victory
         fd2_scene_play_game_over=__wrap_fd2_scene_play_game_over
         fd2_vga_present=__wrap_fd2_vga_present
+        fd2_vga_present_timed=__wrap_fd2_vga_present_timed
         fd2_input_take_action=__wrap_fd2_input_take_action
         fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail
         fd2_field_game_close_detail=__wrap_fd2_field_game_close_detail
@@ -1503,7 +1566,7 @@ if(BUILD_TESTING)
     add_executable(fd2_magic_fx_test tests/magic_fx_test.c magic_fx.c)
     add_executable(fd2_battle_animation_test
         tests/battle_animation_test.c
-        figani.c magic_fx.c tile.c field_info.c field_visual.c field_item.c field_magic.c field_unit_base.c
+        figani.c magic_fx.c tile.c field_page.c field_info.c field_visual.c field_item.c field_magic.c field_unit.c field_unit_base.c
         field_unit_stats.c field_attack.c field_path.c field_move_profile.c
         map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
         audio_pcm.c audio.c audio_pcm_capture.c field_effect.c field_audio.c)

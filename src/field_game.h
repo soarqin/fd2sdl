@@ -16,6 +16,7 @@
 #include "field_manual_slot.h"
 #include "field_handoff.h"
 #include "field_info.h"
+#include "field_round.h"
 #include "field_item.h"
 #include "field_magic.h"
 #include "field_path.h"
@@ -121,6 +122,8 @@ typedef enum {
 } fd2_field_detail_page;
 
 typedef struct fd2_field_game fd2_field_game;
+typedef int (*fd2_field_event_preflight_fn)(const fd2_field_game *game,
+    const fd2_static_flow_node *node, void *userdata);
 
 /* field_unit_experience_reward_execute @0x1e292（原sub_1E292）与
  * field_phase_status_tick @0x1a866（原登记同名）
@@ -239,6 +242,14 @@ typedef struct {
     uint8_t ai_common_tail;
     uint8_t ai_after_magic;
     uint8_t text_ready;
+    /* 352ca/35346/355f0/35730的单层caller-local 1aa1d子流程。
+     * 父descriptor队列/游标原位保留，子仅借同一loot owner的3B和PC。 */
+    struct {
+        fd2_field_loot_notice notice;
+        size_t actor_index;
+        uint8_t descriptor[3];
+        uint8_t active, step, text_ready;
+    } child;
 } fd2_field_loot;
 
 /* 正式战场 session。
@@ -250,6 +261,9 @@ typedef struct {
 struct fd2_field_game {
     /* 借用App/验证caller的FDOTHER；font等保留其raw视图，须晚于game关闭。 */
     const fd2_archive *fdother;
+    /* 仅正式App借用；Game关闭/活动Load不重置App视觉锚，不进SAV。 */
+    fd2_field_visual_state *visual_owner;
+    uint64_t visual_now_ms;
     fd2_archive field_archive;
     fd2_archive fdshap_archive;
     fd2_archive dato_archive;
@@ -347,6 +361,9 @@ struct fd2_field_game {
     fd2_field_physical_present_fn physical_present;
     void *physical_present_userdata;
     fd2_field_magic_present_fn magic_present;
+    fd2_field_runtime_present_fn runtime_present;
+    void *runtime_present_userdata;
+    uint8_t runtime_host_quit; /* 同栈停止信号，不进入SAV或作为业务失败。 */
     void *magic_present_userdata;
     fd2_field_critical_base_fn attack_critical_base;
     void *attack_critical_base_userdata;
@@ -405,15 +422,22 @@ struct fd2_field_game {
     fd2_field_battle_result battle_result;
     int ready;
     fd2_field_pending_cell_event pending_cell_event;
+    /* 有证callback局部量/PC的有限续态；不复制业务状态，不进入SAV。 */
+    fd2_field_event_resume event_resume;
+    fd2_field_event_preflight_fn event_preflight;
+    void *event_preflight_userdata;
     /* field_controller_input @0x117e7 在13565整轮phase之后续行；只保存
      * 原玩家actor，不保存共享pending。waiting为0即无上下文，actor无效。
      * 成功active Load清除，失败Load保留；均不写入SAV。 */
     size_t player_post_actor;
     uint8_t player_post_waiting_phase;
+    uint8_t march_post_waiting_phase; /* 170ba整轮返回尾，不执行controller pending。 */
     /* 原53EC8只在已证调用点清/写；不进SAV，成功Load/END保留它。 */
     uint32_t experience_value;
     /* 原53AE1动态数字；GAIN/LEVEL/GROWTH/毒伤/拾取按原写点共用，Load保留。 */
     uint32_t message_number;
+    /* 原53AD9/53ADD的UI0片段ID；与number同App交接边界，Load保留、不进SAV。 */
+    uint32_t message_new_fragment, message_old_fragment;
     fd2_field_loot loot;
     fd2_field_loot_preflight_fn loot_preflight;
     void *loot_preflight_userdata;
@@ -431,6 +455,16 @@ int fd2_field_game_set_loot_preflight(fd2_field_game *game,
 
 /* 只读冷事件资源预检；借用现有owner构造旁路值，不写live状态或RNG。 */
 int fd2_field_game_event_resources_validate(const fd2_field_game *game, uint8_t action);
+int fd2_field_game_event_resources_validate_actor(const fd2_field_game *game,
+    uint8_t action, size_t actor);
+/* common_event显式ID启动，不自动绑定未知stage。peek呈现叶后只reply一次；
+ * child复用loot的唯一子槽，失败保留已提交事实，pending禁止存档/普通控制。 */
+int fd2_field_game_common_event_begin(fd2_field_game *game, const char *id, size_t actor);
+int fd2_field_game_common_event_peek(const fd2_field_game *game,
+    fd2_static_flow_node *node, size_t *actor);
+int fd2_field_game_common_event_reply(fd2_field_game *game, unsigned port);
+/* 前条旧Scene deferred notice已呈现后驱动同一entry；1仍等旧notice，0成功。 */
+int fd2_field_game_common_event_resume(fd2_field_game *game);
 /* peek同progress的1/0/-1；reply在完整当前呈现/关闭后调用一次。
  * pending时禁止保存和普通行动；取消库存选择不撤销先前已提交效果。 */
 int fd2_field_game_loot_peek(const fd2_field_game *game,
@@ -509,12 +543,34 @@ void fd2_field_game_close(fd2_field_game *game);
 int fd2_field_game_apply_handoff(fd2_field_game *game,
                                  const fd2_field_handoff *handoff);
 
-/* field_view_render_tiles @0x11eee（原同名）首部的terrain-only写口：仅terrain
- * 相位及其last锚点；反击1e611直调该域，不推进idle、菜单、RNG或持久状态。 */
+/* field_view_render_tiles @0x11eee（原同名）首部：正式App推进terrain/range
+ * 及其锚点，headless保原terrain回退；不推进idle、菜单、RNG或持久状态。 */
 int fd2_field_game_tick_terrain_visual(fd2_field_game *game, uint64_t now_ms);
-/* 1297d/11eee组合视觉时钟写口；仅idle/terrain相位及其last锚点四字段。
+/* 1297d有限叶：只推进原idle/cursor，不调用11eee、raw26、水色或玩法。
+ * 1b1e7需要在此叶和11eee之间插入4e31c，不能以整段game_tick替代。 */
+int fd2_field_game_tick_actor_phase_visual(fd2_field_game *game, uint64_t now_ms);
+/* 1297d→11eee组合视觉时钟写口；复用同一App视觉owner及Game投影字段。
  * 演出显式借Game调用，不能用普通tick代替而推进AI/菜单/提交业务。 */
 int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ms);
+/* 资源就绪后绑定App视觉owner；不重置原相位，不推进业务或时钟。 */
+int fd2_field_game_bind_visual(fd2_field_game *game, fd2_vga *vga);
+/* 0对应11cac(0)；3对应10010首11cac(1)；1为1f30a尾11eee+127a9；2为19953的
+ * 1297d+11eee+127a9。1/2只重画App页，无info/water/project；仅0按4e31c门推进water。
+ * 原11cbc..11cc3在arg0==0时才调用水色；3对应的原arg1明确跳过。 */
+int fd2_field_game_runtime_refresh(fd2_field_game *game, fd2_vga *vga,
+    int phase_only);
+/* 与正常render同一图，供离屏资源准备；不提交Game的信息板侧位。 */
+void fd2_field_game_render_preview(const fd2_field_game *game, fd2_vga *vga);
+/* 1acf3原工作页叶：使用本次Scene运动记录/焦点；只在双门允许时
+ * 更新App侧向锚及page。纯绘制，不借旧Game坐标、VGA对话底或时钟。 */
+int fd2_field_game_render_page_info(const fd2_field_game *game, fd2_vga *vga,
+    fd2_field_page *page, const fd2_field_units *units,
+    int camera_cell_x, int camera_cell_y, int focus_x, int focus_y,
+    uint8_t idle_phase);
+/* 35730直调2e2b0：强制FULL，只做既有exchange及贡献写；
+ * finalize/掉落/奖励/acted/控制器尾由caller冷图分别执行。 */
+int fd2_field_game_resolve_event_exchange(fd2_field_game *game,
+    size_t actor, size_t target);
 void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
 /* 16f55/19df7系统notice的同一纯页面：首提示、稳态和结果共用。
  * 原资源全预检；失败不写VGA，成功不改Game/RNG/palette或present。 */
@@ -531,6 +587,22 @@ void fd2_field_game_render_battle_return(const fd2_field_game *game, fd2_vga *vg
  * 不改Game/owner/RNG/present，非法参数无写入；复用field_visual的唯一几何实现。 */
 int fd2_field_game_render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
     const uint8_t lut[256], int center_x, int center_y, int radius);
+/* 21eb1/24618的独立terrain base。prepare只读App资源；begin沿原11eee
+ * 推进terrain/range/背景一次，均不画actor、选择、info，不推进1297d。 */
+int fd2_field_game_effect_terrain_page(const fd2_field_game *game,fd2_vga *vga,
+    fd2_field_page *target);
+int fd2_field_game_effect_terrain_begin(fd2_field_game *game,fd2_vga *vga,
+    fd2_field_page *target);
+/* 当前App页：base全像素copy→circle/full before→127a9 actors/FG→after→project。
+ * circle12只接受first_row0；full保22253等固定first_row。只推进App jitter。 */
+int fd2_field_game_effect_mask_frame(const fd2_field_game *game,fd2_vga *vga,
+    const fd2_field_page *base,const uint8_t lut[256],int center_x,int center_y,
+    int radius,int first_row,int circle12);
+/* 有证尾11cac(0)：按原4e31c门推进water。quake在HP前；21eb1在两组mask后；
+ * 24618没有此尾，caller不可无条件调用。 */
+int fd2_field_game_effect_refresh(fd2_field_game *game,fd2_vga *vga);
+/* 仅127a9 actors/FG→viewport，不铺terrain/推进jitter（归实际caller）。 */
+int fd2_field_game_effect_actors(const fd2_field_game *game,fd2_vga *vga);
 /* 1cff0/15311的51a83=0页：当前地图/actor/info，无cursor/range/modal；
  * 纯绘制，不另存时钟、不修改Game或RNG。 */
 void fd2_field_game_render_effect_background(const fd2_field_game *game, fd2_vga *vga);
@@ -771,7 +843,8 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
                                   void *phase_userdata);
 /* 17aed装备→未选中法术页的bottom-only过渡；两动画接口均为
  * 0完成/-1资源错误/1宿主退出。只改详情页，不提交玩法或controller。
- * 16c57等待／眨眼共享RNG的完整时序尚未恢复。 */
+ * 正式17aed的两次16c57(0)等待由Play消费runtime.detail冷图，
+ * 借App水色及Game共享RNG；这两个接口仅提供过渡叶。 */
 int fd2_field_game_animate_detail_magic_page(
     fd2_field_game *game, fd2_vga *vga,
     fd2_field_detail_phase_fn phase_callback, void *phase_userdata);
@@ -823,6 +896,10 @@ int fd2_field_game_prepare_actor_group_flash(
         uint8_t palette_index, fd2_field_effect_frames *frames);
 int fd2_field_game_prepare_earthquake(fd2_field_game *game, fd2_vga *vga,
                                       fd2_field_effect_frames *frames);
+/* 21548实际CAST的三buffer构造：逐页推进127e0 jitter，并把k0写到App。
+ * PREPARE仍用上方只读口；返回0完成/1hostquit/-1错误。 */
+int fd2_field_game_begin_earthquake(fd2_field_game *game,fd2_vga *vga,
+    fd2_field_effect_frames *frames);
 int fd2_field_game_prepare_stage_transition(
         fd2_field_game *game, fd2_vga *vga,
         int center_screen_x, int center_screen_y,

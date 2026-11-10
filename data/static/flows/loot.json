@@ -6,7 +6,7 @@
     "file": "src/field_game.c",
     "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
     "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记；G2依据完整1aa1d switch补mode4..255 default推进，collector255哨兵另保留；通用0/1/3预检不以stage编号拒绝，callback仍按真实绑定核查。"
+    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记；G2依据完整1aa1d switch补mode4..255 default推进，collector255哨兵另保留；通用0/1/3预检不以stage编号拒绝，callback仍按真实绑定核查。G4 mode2先按真实绑定查询common域，以原caller只读检查资源；未命中保legacy stage0/action4/count14与stage1/action6/count11及notice容量门。common callback的实际呈现由其冷图完成，返回后直接续父descriptor，不再产生legacy FIELD_EVENT通知。没有新增生产stage绑定。 G4完整1548e原指令：SHORT15616与FULL15624共同汇15627，1562f先collect、1563b调用11cac(0)、15643清死亡、15652执行descriptor、1565c再次11cac(0)、1566a奖励。kind5空descriptor亦由同一loot owner闭尾；child只执行caller-local一条，不进入父刷新／奖励。 G4复核190ac无stage门，普通0/1按真实资源/16slot校验跨stage复用。非0/1 mode共用YES后25b45(UI31,12,1)→300ms→200ms(保持框)→196cb close→完整WORD callback(actor)；common直接续父，legacy通知只一次。特殊格callback不自动写完成位，未知真实绑定仍拒。"
   },
   "operations": {
     "emit": {
@@ -618,6 +618,49 @@
     },
     "player_controller_complete": {
       "args": []
+    },
+    "branch_known_common_event": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "event_common_preflight": {
+      "args": []
+    },
+    "branch_collect_action_kind": {
+      "args": [
+        {
+          "name": "comparison",
+          "min": 0,
+          "max": 3
+        },
+        {
+          "name": "value",
+          "min": 0,
+          "max": 65535
+        }
+      ]
+    },
+    "runtime_refresh": {
+      "args": []
+    },
+    "cell_callback_preflight": {
+      "args": []
+    },
+    "cell_cue_preflight": {
+      "args": []
+    },
+    "cell_open_cue": {
+      "args": []
     }
   },
   "flows": [
@@ -650,7 +693,7 @@
           ],
           "on": {
             "yes": "collect.visible",
-            "no": "collect.finalize",
+            "no": "collect.outer.kind",
             "error": "failure"
           }
         },
@@ -773,7 +816,7 @@
           ],
           "on": {
             "yes": "collect.commit",
-            "no": "return.zero",
+            "no": "collect.empty.physical",
             "error": "failure"
           }
         },
@@ -1166,7 +1209,20 @@
           "op": "event_dispatch",
           "args": [],
           "on": {
-            "next": "drop.event",
+            "next": "drop.callback.completed",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "drop.callback.completed",
+          "op": "branch_known_common_event",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "drop.next",
+            "no": "drop.event",
             "error": "failure"
           }
         },
@@ -1263,7 +1319,7 @@
           ],
           "on": {
             "error": "failure",
-            "yes": "cell.yes.delay",
+            "yes": "cell.yes.cue",
             "no": "cell.no.delay",
             "cancel": "cell.no.delay"
           }
@@ -1281,7 +1337,7 @@
           ],
           "on": {
             "error": "failure",
-            "yes": "cell.yes.delay",
+            "yes": "cell.yes.cue",
             "no": "cell.no.delay",
             "cancel": "cell.no.delay"
           }
@@ -1352,7 +1408,7 @@
           ],
           "on": {
             "yes": "cell.capacity",
-            "no": "cell.money.nonzero",
+            "no": "cell.money_mode",
             "error": "failure"
           }
         },
@@ -1948,7 +2004,7 @@
             5
           ],
           "on": {
-            "yes": "finish.reward",
+            "yes": "finish.outer.refresh",
             "no": "finish.magic",
             "error": "failure"
           }
@@ -2198,7 +2254,7 @@
             2
           ],
           "on": {
-            "yes": "preflight.event.stage0",
+            "yes": "preflight.event.common",
             "no": "preflight.drop.mode3",
             "error": "failure"
           }
@@ -2283,6 +2339,28 @@
             "next": "drop.story",
             "yes": "return.zero",
             "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.common",
+          "op": "branch_known_common_event",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "preflight.event.common.resources",
+            "no": "preflight.event.stage0",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.event.common.resources",
+          "op": "event_common_preflight",
+          "args": [],
+          "on": {
+            "next": "return.zero",
+            "error": "reject"
           }
         },
         {
@@ -2407,21 +2485,8 @@
             0
           ],
           "on": {
-            "yes": "preflight.cell.stage",
-            "no": "return.zero",
-            "error": "failure"
-          }
-        },
-        {
-          "id": "preflight.cell.stage",
-          "op": "branch_stage",
-          "args": [
-            2,
-            2
-          ],
-          "on": {
             "yes": "preflight.cell.index",
-            "no": "failure",
+            "no": "return.zero",
             "error": "failure"
           }
         },
@@ -2433,7 +2498,7 @@
             16
           ],
           "on": {
-            "yes": "preflight.cell.mode",
+            "yes": "preflight.cell.cue",
             "no": "failure",
             "error": "failure"
           }
@@ -2447,7 +2512,7 @@
           ],
           "on": {
             "yes": "preflight.cell.mode0",
-            "no": "failure",
+            "no": "preflight.cell.callback",
             "error": "failure"
           }
         },
@@ -2534,7 +2599,7 @@
           ],
           "on": {
             "yes": "preflight.cell.item_chest",
-            "no": "preflight.cell.money_nonzero",
+            "no": "preflight.cell.money_mode",
             "error": "failure"
           }
         },
@@ -2724,6 +2789,173 @@
           "on": {
             "next": "preflight.cell.money_chest",
             "error": "failure"
+          }
+        },
+        {
+          "id": "collect.outer.kind",
+          "op": "branch_collect_action_kind",
+          "args": [
+            0,
+            5
+          ],
+          "on": {
+            "yes": "collect.outer.refresh",
+            "no": "collect.finalize",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.outer.refresh",
+          "op": "runtime_refresh",
+          "args": [],
+          "on": {
+            "next": "collect.finalize",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "collect.empty.physical",
+          "op": "branch_collect_action_kind",
+          "args": [
+            0,
+            5
+          ],
+          "on": {
+            "yes": "collect.commit",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "finish.outer.refresh",
+          "op": "runtime_refresh",
+          "args": [],
+          "on": {
+            "next": "finish.reward",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "preflight.cell.cue",
+          "op": "cell_cue_preflight",
+          "args": [],
+          "on": {
+            "next": "preflight.cell.mode",
+            "error": "reject"
+          }
+        },
+        {
+          "id": "preflight.cell.callback",
+          "op": "cell_callback_preflight",
+          "args": [],
+          "on": {
+            "next": "preflight.cell.chest",
+            "error": "reject"
+          }
+        },
+        {
+          "id": "preflight.cell.money_mode",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "preflight.cell.money_nonzero",
+            "no": "return.zero",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.yes.cue",
+          "op": "cell_open_cue",
+          "args": [],
+          "on": {
+            "next": "cell.yes.delay",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.money_mode",
+          "op": "branch_descriptor_mode",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "cell.money.nonzero",
+            "no": "cell.callback.wait",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.callback.close",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.callback"
+          }
+        },
+        {
+          "id": "cell.callback.wait",
+          "op": "emit",
+          "args": [
+            5,
+            0,
+            0,
+            200,
+            0,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "cell.callback.close"
+          }
+        },
+        {
+          "id": "cell.callback",
+          "op": "event_dispatch",
+          "args": [],
+          "on": {
+            "next": "cell.callback.completed",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.callback.completed",
+          "op": "branch_known_common_event",
+          "args": [
+            0,
+            1
+          ],
+          "on": {
+            "yes": "loot.finish",
+            "no": "cell.callback.legacy",
+            "error": "failure"
+          }
+        },
+        {
+          "id": "cell.callback.legacy",
+          "op": "emit",
+          "args": [
+            6,
+            0,
+            0,
+            0,
+            1,
+            0
+          ],
+          "on": {
+            "error": "failure",
+            "ack": "loot.finish"
           }
         }
       ]

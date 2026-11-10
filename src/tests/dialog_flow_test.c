@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "dialog_flow.h"
 
@@ -12,6 +13,27 @@
 #define TOK(value) \
     (uint8_t)((uint16_t)(value) & 0xffu), \
     (uint8_t)(((uint16_t)(value) >> 8) & 0xffu)
+
+static int test_shared_glyph_phase_survives_display_only_close_and_new_consumer(void) {
+    fd2_dialog_visual_state state={0};
+    static const unsigned expected[]={1,2,1,0,1};
+    for (size_t i=0;i<sizeof(expected)/sizeof(expected[0]);i++) {
+        unsigned draw=99;
+        CHECK(fd2_dialog_visual_glyph_step(&state,&draw)==0 && draw==99 && state.glyph_counter==1);
+        /* 闭嘴/换框仅改变显示方，不调用计数重置；下一consumer接同一state。 */
+        draw=0;
+        CHECK(fd2_dialog_visual_glyph_step(&state,&draw)==1 && draw==expected[i] && !state.glyph_counter);
+    }
+    CHECK(state.mouth_phase==1);
+    fd2_dialog_visual_state before=state;unsigned draw=88;
+    CHECK(fd2_dialog_visual_glyph_step(NULL,&draw)==-1 && draw==88);
+    CHECK(fd2_dialog_visual_glyph_step(&state,NULL)==-1 && state.mouth_phase==before.mouth_phase && state.glyph_counter==before.glyph_counter);
+    state.glyph_counter=2;
+    CHECK(fd2_dialog_visual_glyph_step(&state,&draw)==-1 && state.glyph_counter==2 && state.mouth_phase==before.mouth_phase && draw==88);
+    state.glyph_counter=0;state.mouth_phase=4;
+    CHECK(fd2_dialog_visual_glyph_step(&state,&draw)==-1 && state.mouth_phase==4 && !state.glyph_counter && draw==88);
+    return 0;
+}
 
 static int test_wait_boundary_unit_cases(void) {
     CHECK(FD2_DIALOG_LINE_PITCH == 19);
@@ -41,6 +63,75 @@ static int test_wait_boundary_unit_cases(void) {
     CHECK(line.scroll_before_wait == 0);
     CHECK(line.line == 3);
     CHECK(line.wait == FD2_DIALOG_FLOW_WAIT_SCROLL);
+    return 0;
+}
+
+typedef struct { unsigned calls; uint32_t value; } random_probe;
+static uint32_t counted_random(void *userdata) {
+    random_probe *probe=userdata;probe->calls++;return probe->value;
+}
+static int test_wait_source_postdecrement_and_rng(void) {
+    fd2_dialog_wait_state state;
+    random_probe rng={0,0};
+    CHECK(fd2_dialog_wait_begin(&state,0,1,counted_random,&rng)==0);
+    CHECK(rng.calls==1 && state.countdown==2);
+    fd2_dialog_wait_visual visual={77,88};
+    CHECK(fd2_dialog_wait_update(&state,109,counted_random,&rng,&visual)==0);
+    CHECK(visual.portrait==-1&&visual.arrow==-1&&state.countdown==2);
+    CHECK(fd2_dialog_wait_update(&state,110,counted_random,&rng,&visual)==1);
+    CHECK(state.countdown==1 && visual.portrait==-1 && rng.calls==1);
+    CHECK(fd2_dialog_wait_update(&state,220,counted_random,&rng,&visual)==1);
+    CHECK(state.countdown==0 && visual.portrait==-1);
+    CHECK(fd2_dialog_wait_update(&state,330,counted_random,&rng,&visual)==1);
+    CHECK(visual.portrait==3&&visual.arrow==19&&state.blink_closed&&rng.calls==1);
+    rng.value=29;
+    CHECK(fd2_dialog_wait_update(&state,440,counted_random,&rng,&visual)==1);
+    CHECK(visual.portrait==0&&visual.arrow==-1&&!state.blink_closed&&
+        state.countdown==31&&rng.calls==2);
+    CHECK(fd2_dialog_wait_update(&state,10000,counted_random,&rng,&visual)==1);
+    CHECK(state.countdown==30&&rng.calls==2); /* 不补追全部过去tick。 */
+    CHECK(fd2_dialog_wait_update(&state,2,counted_random,&rng,&visual)==1);
+    CHECK(state.countdown==29&&visual.arrow==18);
+    CHECK(fd2_dialog_wait_begin(&state,0,0,counted_random,&rng)==0);
+    for(unsigned i=1;i<=3;i++) {
+        CHECK(fd2_dialog_wait_update(&state,i*110u,counted_random,&rng,&visual)==1);
+        CHECK(visual.arrow==-1);
+    }
+    fd2_dialog_wait_state before=state;visual=(fd2_dialog_wait_visual){77,88};
+    CHECK(fd2_dialog_wait_update(&state,999,NULL,&rng,&visual)==-1);
+    CHECK(state.last_ms==before.last_ms&&state.countdown==before.countdown&&
+        visual.portrait==77&&visual.arrow==88);
+    CHECK(fd2_dialog_wait_begin(&state,999,2,counted_random,&rng)==-1);
+    CHECK(state.last_ms==before.last_ms&&state.countdown==before.countdown);
+    return 0;
+}
+
+static int test_scroll_cpu_write_set(void) {
+    static uint8_t actual[64000],reference[64000],step_source[64000];
+    for(unsigned origin_index=0;origin_index<2;origin_index++) {
+        for(size_t i=0;i<sizeof(actual);i++)actual[i]=(uint8_t)(i*19u+i/320u);
+        memcpy(reference,actual,sizeof(actual));
+        unsigned origin=origin_index?36887u:1832u;
+        size_t text=origin_index?119u*320u+95u:9u*320u+15u;
+        /* 独立逐byte模型：每轮读该轮快照，验证整64000B写集，非只验一行。
+         * 目标行在源行之前，原顺序memmove与此轮快照读等价。 */
+        for(unsigned step=0;step<6;step++) {
+            memcpy(step_source,reference,sizeof(reference));
+            unsigned delta=step==5?4u:3u;
+            for(size_t row=0;row<72;row++)for(size_t x=0;x<208;x++)
+                reference[text+row*320u+x-1u]=step_source[text+(row+delta)*320u+x-1u];
+            for(size_t x=0;x<208;x++)reference[text+72u*320u+x]=74;
+        }
+        CHECK(fd2_dialog_scroll_pixels(actual,sizeof(actual),origin)==0);
+        CHECK(!memcmp(actual,reference,sizeof(actual)));
+        memcpy(step_source,actual,sizeof(actual));
+        CHECK(fd2_dialog_scroll_pixels(actual,sizeof(actual)-1,origin)==-1);
+        CHECK(!memcmp(actual,step_source,sizeof(actual)));
+        CHECK(fd2_dialog_scroll_pixels(actual,sizeof(actual),0)==0);
+        CHECK(!memcmp(actual,step_source,sizeof(actual)));
+        CHECK(fd2_dialog_scroll_pixels(NULL,0,origin)==-1);
+        CHECK(fd2_dialog_scroll_pixels(NULL,0,1)==0);
+    }
     return 0;
 }
 
@@ -76,7 +167,10 @@ static int test_multi_speaker_fragment_waits(void) {
 }
 
 int main(void) {
-    if (test_wait_boundary_unit_cases() != 0 ||
+    if (test_shared_glyph_phase_survives_display_only_close_and_new_consumer()!=0 ||
+        test_wait_source_postdecrement_and_rng()!=0 ||
+        test_scroll_cpu_write_set()!=0 ||
+        test_wait_boundary_unit_cases() != 0 ||
         test_multi_speaker_fragment_waits() != 0)
         return 1;
     puts("dialog_flow_test: ok");

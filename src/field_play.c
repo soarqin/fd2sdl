@@ -28,12 +28,16 @@
 #include "field_attack.h"
 #include "field_game.h"
 #include "field_rng.h"
+#include "field_round.h"
+#include "field_defeat.h"
 #include "field_visual.h"
+#include "field_render_scope.h"
 #include "font.h"
 #include "input.h"
 #include "portrait.h"
 #include "text.h"
 #include "scene.h"
+#include "static_data.h"
 
 /* 菜单机器码每相位执行一次 field buffer 合成，但没有 BIOS tick delay。
  * SDL 以一个约 60 Hz 宿主帧分隔四个 present，避免连续上传被合并；
@@ -124,17 +128,183 @@ static void field_phase_music(size_t stage, int track,
     (void)fd2_field_play_request_music(userdata, stage, track, name);
 }
 
-/* 16f55/19df7：沿用同一只读notice页，不能先present占位索引底色。 */
-static int play_system_confirmation_text(fd2_field_game *game, fd2_vga *vga,
-        size_t fragment, int fast) {
-    if (fd2_field_game_render_system_notice(game, vga, fragment) != 0) return -1;
-    fd2_vga_present(vga);
-    if (!fast) fd2_delay_ms(250);
-    return 0;
-}
 
 static void drain_frame_keys(fd2_vga *vga) {
     while (fd2_input_take_key(&vga->input, NULL)) {}
+}
+
+typedef struct {
+    fd2_vga *vga;
+    fd2_field_audio *audio;
+    int fast;
+    int host_quit;
+    fd2_field_defeat_visual *defeat; /* 仅本次1db65的图像/临时页，非业务owner。 */
+} field_runtime_presentation;
+
+/* runtime呈现仅回传hostquit时，Game锁存仍是同一退出事实。modal不能把
+ * progress_resume的busy当成可继续工作；已锁存业务错误仍先于宿主退出。 */
+static int play_field_terminal_result(const fd2_field_game *game,fd2_vga *vga) {
+    if (!game || !vga || game->failure!=FD2_FIELD_FAILURE_NONE)
+        return FD2_SCENE_RESULT_ERROR;
+    int quit=fd2_input_take_quit(&vga->input);
+    return game->runtime_host_quit || quit ? FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
+}
+
+static int runtime_wait(fd2_vga *vga, uint32_t ms, unsigned ticks,
+        void *userdata) {
+    field_runtime_presentation *runtime=userdata;
+    if (fd2_input_take_quit(&vga->input)) runtime->host_quit=1;
+    if (runtime->host_quit) return 1;
+    fd2_vga_present(vga);
+    if (!runtime->fast) {
+        if (ticks) fd2_wait_ticks(ticks);
+        else if (ms) fd2_delay_ms(ms);
+    }
+    if (fd2_input_take_quit(&vga->input)) runtime->host_quit=1;
+    return runtime->host_quit?1:0;
+}
+
+static int runtime_project(fd2_vga *vga, void *userdata) {
+    (void)userdata;
+    return fd2_field_page_project(vga->field_page,72,72,
+        vga->framebuffer,sizeof(vga->framebuffer));
+}
+
+typedef struct {
+    field_runtime_presentation *runtime;
+    fd2_field_game *game;
+} field_runtime_scope;
+
+static int runtime_scope_wait(fd2_vga *vga,uint32_t ms,unsigned ticks,void *userdata) {
+    return runtime_wait(vga,ms,ticks,((field_runtime_scope *)userdata)->runtime);
+}
+static int runtime_refresh(fd2_vga *vga,void *userdata) {
+    field_runtime_scope *scope=userdata;
+    return fd2_field_game_runtime_refresh(scope->game,vga,0);
+}
+static int runtime_phase_redraw(fd2_vga *vga,void *userdata) {
+    field_runtime_scope *scope=userdata;
+    return fd2_field_game_runtime_refresh(scope->game,vga,1);
+}
+static int runtime_clear_keys(fd2_vga *vga,void *userdata) {
+    (void)userdata;drain_frame_keys(vga);return 0;
+}
+
+static int runtime_recovery_eligible(const fd2_field_unit *unit) {
+    return unit->side==2u && !(unit->flags&0x81u) &&
+        !unit->detail_status[0] && !unit->detail_status[1] && unit->hp!=unit->hp_max;
+}
+
+static int runtime_recovery_actor(fd2_field_game *game,fd2_vga *vga,
+        size_t raw,unsigned mode) {
+    if (vga->field_visual.actor_idle_phase>3u || vga->field_visual.cursor_phase>3u) return -1;
+    return fd2_field_map_action_page_actor(vga->field_page,&game->sprites,
+        &game->units,raw,game->camera_cell_x,game->camera_cell_y,
+        (uint8_t)vga->field_visual.actor_idle_phase,(uint8_t)vga->field_visual.cursor_phase,mode);
+}
+
+/* field_turn_cycle_run @0x1a30b（原FUN_00017a53）的原有同步显示服务。
+ * 分支/顺序归runtime.turncycle，HP/acted/phase仍只在Game提交。 */
+static int play_runtime_step(fd2_field_game *game,
+        fd2_field_runtime_present_step step,int value,void *userdata) {
+    field_runtime_presentation *runtime=userdata;
+    fd2_vga *vga=runtime->vga;
+    field_runtime_scope scope={runtime,game};
+    const fd2_field_round_hooks hooks={runtime_scope_wait,runtime_project,
+        runtime_refresh,runtime_phase_redraw,runtime_clear_keys};
+    int result=0;
+    /* finally CLOSE必须先于hostquit门，不能让退出锁存泄漏视觉资源。 */
+    if(step==FD2_FIELD_RUNTIME_DEFEAT_CLOSE) {
+        fd2_field_defeat_close(&runtime->defeat);return value? -1:0;
+    }
+    if(step>=FD2_FIELD_RUNTIME_DEFEAT_BEGIN && step<=FD2_FIELD_RUNTIME_DEFEAT_WAIT) {
+        if(fd2_input_take_quit(&vga->input) || runtime->host_quit) {
+            runtime->host_quit=1;return 1;
+        }
+        if(step==FD2_FIELD_RUNTIME_DEFEAT_BEGIN) {
+            if(value)return -1;
+            if(runtime->audio && runtime->audio->player && game->option_values[1] &&
+                (!runtime->audio->ui_bank || fd2_pcm_bank_count(runtime->audio->ui_bank)<=3))return -1;
+            result=fd2_field_defeat_prepare(&runtime->defeat,game,vga,game->fdother);
+        } else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_PAGE)
+            result=value? -1:fd2_field_defeat_rotate(runtime->defeat,game,vga);
+        else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_ACTOR)
+            result=value<0? -1:fd2_field_defeat_actor(runtime->defeat,game,vga,(size_t)value);
+        else if(step==FD2_FIELD_RUNTIME_DEFEAT_ROTATE_PROJECT)
+            result=value? -1:fd2_field_defeat_project(runtime->defeat,game,vga);
+        else if(step==FD2_FIELD_RUNTIME_DEFEAT_BASE)
+            result=value? -1:fd2_field_defeat_base(runtime->defeat,game,vga);
+        else if(step==FD2_FIELD_RUNTIME_DEFEAT_CUE) {
+            if(value || !runtime->defeat)return -1;
+            if(runtime->audio && runtime->audio->player && game->option_values[1])
+                result=fd2_pcm_play_replace(runtime->audio->player,runtime->audio->ui_bank,
+                    3,1,FD2_GAME_SFX_DEFAULT_GAIN);
+        } else if(step==FD2_FIELD_RUNTIME_DEFEAT_FRAME)
+            result=value<0? -1:fd2_field_defeat_frame(runtime->defeat,game,vga,(unsigned)value);
+        else if(step==FD2_FIELD_RUNTIME_DEFEAT_WAIT)
+            result=value!=1 || !runtime->defeat? -1:runtime_wait(vga,0,1,runtime);
+        else result=-1;
+    } else if (step==FD2_FIELD_RUNTIME_CELL_OPEN_CUE) {
+        /* field_special_cell_execute @0x190ac（原登记同名）：YES后的sfx_play_secondary
+         * @0x25b45（原登记同名），UI31/cue12；其后等待归loot冷图。 */
+        if(value!=12)return -1;
+        if(fd2_input_take_quit(&vga->input) || runtime->host_quit) {
+            runtime->host_quit=1;return 1;
+        }
+        if(runtime->audio && runtime->audio->secondary_player && game->option_values[1]) {
+            if(!runtime->audio->ui_bank || fd2_pcm_bank_count(runtime->audio->ui_bank)<=12)return -1;
+            result=fd2_pcm_play_replace(runtime->audio->secondary_player,runtime->audio->ui_bank,
+                12,1,FD2_GAME_SFX_DEFAULT_GAIN);
+        }
+    } else if (step==FD2_FIELD_RUNTIME_RECOVERY_WAIT) {
+        if (value && (!fd2_field_round_is_ready(&game->info_assets) ||
+                !fd2_field_phase_is_ready(&game->info_assets))) return -1;
+        /* 13565/16f55的51AAC跨度覆盖整个turncycle；新Game/Load不重置。 */
+        vga->info_panel_suppressed=1;
+        result=runtime_wait(vga,0,(unsigned)value,runtime);
+    } else if (step==FD2_FIELD_RUNTIME_RECOVERY_HIGHLIGHT) {
+        for (size_t i=0;i<game->units.count;i++)
+            if (runtime_recovery_eligible(&game->units.items[i]) &&
+                runtime_recovery_actor(game,vga,i,2)!=0) return -1;
+        result=runtime_project(vga,NULL);
+    } else if (step==FD2_FIELD_RUNTIME_RECOVERY_CUE) {
+        int any=0;
+        for (size_t i=0;i<game->units.count;i++) any|=runtime_recovery_eligible(&game->units.items[i]);
+        if (any && runtime->audio && runtime->audio->player && game->option_values[1])
+            result=fd2_pcm_play_replace(runtime->audio->player,runtime->audio->ui_bank,
+                4,1,FD2_GAME_SFX_DEFAULT_GAIN);
+    } else if (step==FD2_FIELD_RUNTIME_RECOVERY_NORMAL_ACTOR) {
+        if (value<0 || (size_t)value>=game->units.count) return -1;
+        result=runtime_recovery_actor(game,vga,(size_t)value,0);
+    } else if (step==FD2_FIELD_RUNTIME_RECOVERY_PROJECT) result=runtime_project(vga,NULL);
+    else if (step==FD2_FIELD_RUNTIME_REFRESH) result=runtime_refresh(vga,&scope);
+    else if (step==FD2_FIELD_RUNTIME_ENEMY_TITLE || step==FD2_FIELD_RUNTIME_PLAYER_TITLE)
+        result=fd2_field_phase_play(vga,&game->info_assets,vga->field_page,
+            step==FD2_FIELD_RUNTIME_ENEMY_TITLE?FD2_FIELD_PHASE_ENEMY:FD2_FIELD_PHASE_PLAYER,
+            &hooks,&scope);
+    else if (step==FD2_FIELD_RUNTIME_ROUND)
+        result=fd2_field_round_play(vga,&game->info_assets,game->turn_number,&hooks,&scope);
+    else if (step==FD2_FIELD_RUNTIME_CLEAR_KEYS) {
+        result=runtime_clear_keys(vga,NULL);
+        vga->info_panel_suppressed=0;
+    } else return -1;
+    if (result>0) runtime->host_quit=1;
+    return result;
+}
+
+/* 17898/19953共享53c13/53c17；Game仅持当次渲染投影，不另起live锚。
+ * 普通菜单phase直接使用，确认框必须除2，不能用phase&1。 */
+static void shared_menu_tick(fd2_field_game *game,fd2_vga *vga,uint64_t now) {
+    int command=game->interaction==FD2_FIELD_INTERACTION_COMMAND ||
+        game->interaction==FD2_FIELD_INTERACTION_ITEM_MENU;
+    int system=game->interaction==FD2_FIELD_INTERACTION_SYSTEM_MENU;
+    if (!command && !system) return;
+    int confirm=system && game->system_menu.page==FD2_FIELD_SYSTEM_PAGE_CONFIRMATION;
+    (void)fd2_field_system_menu_highlight_tick(&vga->menu_highlight_phase,
+        &vga->menu_highlight_tick,(uint32_t)(now/55u),confirm);
+    if (command) game->command_highlight_phase=(uint8_t)vga->menu_highlight_phase;
+    if (system) game->system_menu.highlight_phase=(uint8_t)(confirm
+        ?vga->menu_highlight_phase/2u:vga->menu_highlight_phase);
 }
 
 /* field_bottom_notice_open @0x1956b（原sub_1956B）与
@@ -146,9 +316,6 @@ typedef struct {
     fd2_image portraits[4];
     int portrait_origin;
     int row;
-    /* shortcut: 跨框嘴型相位留B6统一接入；此处仅复现框内合法帧。 */
-    unsigned mouth_phase;
-    unsigned glyph_counter;
 } field_progress_box;
 
 typedef fd2_text_expanded field_progress_text;
@@ -188,7 +355,7 @@ static int progress_text_prepare(const fd2_field_game *game,
             break;
         default: return -1;
     }
-    field_text_parameters parameters = {notice->value, SIZE_MAX, SIZE_MAX};
+    field_text_parameters parameters = {notice->value,game->message_new_fragment,game->message_old_fragment};
     if (notice->kind == FD2_FIELD_PROGRESS_LEARN) {
         if (notice->magic_id >= 36) return -1;
         parameters.new_fragment = 441u + notice->magic_id;
@@ -254,11 +421,10 @@ static int progress_box_transition(field_progress_box *box, fd2_vga *vga,
     return FD2_SCENE_RESULT_OK;
 }
 
-static int progress_box_open(field_progress_box *box, fd2_field_game *game,
+static int progress_box_open_portrait(field_progress_box *box, fd2_field_game *game,
                               fd2_vga *vga, const fd2_archive *fdother,
-                              size_t actor_index, int fast) {
-    if (!box || box->page || actor_index >= game->units.count) return -1;
-    unsigned id = game->units.items[actor_index].unit_id;
+                              unsigned id, int fast) {
+    if (!box || box->page) return -1;
     box->portrait_origin = (int)fd2_portrait_notice_origin(id);
     box->row = 2;
     box->background = malloc(VGA_W * VGA_H);
@@ -277,6 +443,13 @@ fail:
     return FD2_SCENE_RESULT_ERROR;
 }
 
+static int progress_box_open(field_progress_box *box, fd2_field_game *game,
+        fd2_vga *vga,const fd2_archive *fdother,size_t actor_index,int fast) {
+    if (actor_index>=game->units.count) return -1;
+    return progress_box_open_portrait(box,game,vga,fdother,
+        game->units.items[actor_index].unit_id,fast);
+}
+
 static int progress_wait(field_progress_box *box, fd2_field_game *game,
                           fd2_vga *vga, const fd2_archive *fdother, int fast,
                           int arrow_mode) {
@@ -293,7 +466,6 @@ static int progress_wait(field_progress_box *box, fd2_field_game *game,
         if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
         if (fd2_input_take_key(&vga->input, NULL)) break;
         uint64_t now = SDL_GetTicks();
-        (void)fd2_field_actor_visual_tick(vga, now);
         (void)fd2_field_water_tick(vga, now);
         if (now < last || now - last >= 110u) {
             if (arrow_mode == 1 && ++arrow_ticks == 3) {
@@ -316,18 +488,8 @@ static int progress_wait(field_progress_box *box, fd2_field_game *game,
     return arrow_mode == 1 ? fd2_scene_field_message_arrow(vga, fdother, 13) : FD2_SCENE_RESULT_OK;
 }
 
-static int progress_scroll(fd2_vga *vga, int fast) {
-    /* dialog_text_scroll_up @0x16e24：底框208×72，五次3px再一次4px。 */
-    for (int step = 0; step < 6; step++) {
-        int delta = step < 5 ? 3 : 4;
-        for (int row = 0; row < 72; row++)
-            memmove(vga->framebuffer + (119 + row) * VGA_STRIDE + 94,
-                vga->framebuffer + (119 + row + delta) * VGA_STRIDE + 94, 208);
-        memset(vga->framebuffer + 191 * VGA_STRIDE + 95, 0x4a, 208);
-        if (!fast) fd2_vga_present(vga);
-        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-    }
-    return FD2_SCENE_RESULT_OK;
+static int progress_scroll(fd2_vga *vga, unsigned origin) {
+    return fd2_dialog_scroll_pixels(vga->framebuffer,sizeof(vga->framebuffer),origin);
 }
 
 static int field_text_play(field_progress_box *box, fd2_field_game *game,
@@ -361,10 +523,12 @@ static int field_text_play(field_progress_box *box, fd2_field_game *game,
         if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
         if (fd2_input_has_any_key(&vga->input)) glyph_step = 0;
         if (glyph_step) {
-            if (++box->glyph_counter == 2) {
-                box->glyph_counter = 0;
-                box->mouth_phase = (box->mouth_phase + 1u) % 4u;
-                progress_portrait(box, vga, box->mouth_phase == 3 ? 1 : box->mouth_phase, 0);
+            unsigned phase;
+            int redraw=fd2_dialog_visual_glyph_step(&vga->dialog_visual,&phase);
+            if(redraw<0)return FD2_SCENE_RESULT_ERROR;
+            if(redraw) {
+                progress_portrait(box,vga,phase,0);
+                fd2_vga_upload_current_frame(vga);
             }
             if (audio) (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_DIALOG_GLYPH);
             fd2_delay_ms(55);
@@ -386,16 +550,27 @@ static int progress_text_play(field_progress_box *box, fd2_field_game *game,
     return field_text_play(box, game, vga, fdother, audio, &text, x, y, fast);
 }
 
+static int32_t progress_bios_tick(uint64_t now_ms) {
+    uint32_t low=(uint32_t)(now_ms/55u)&0xffffu;
+    return low<0x8000u ? (int32_t)low : (int32_t)low-0x10000;
+}
+
+/* field_notice_wait_ticks @0x1e5c0（原sub_1E5C0）：先水色，再查键及两次
+ * signed WORD BIOS tick；不推进127e0/raw26，不在入口清键。STATUS的clear
+ * 属1a866 caller，CLOSE的1e292保已有键。55ms是现宿主tick近似；fast仅诊断。 */
 static int progress_timed_wait(fd2_vga *vga, unsigned ticks, int fast) {
-    drain_frame_keys(vga);
-    if (fast) return FD2_SCENE_RESULT_OK;
-    uint64_t start = SDL_GetTicks();
-    while (SDL_GetTicks() - start < (uint64_t)ticks * 55u) {
+    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (fast) { drain_frame_keys(vga); return FD2_SCENE_RESULT_OK; }
+    int32_t start=progress_bios_tick(SDL_GetTicks());
+    for (;;) {
         if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-        if (fd2_input_has_any_key(&vga->input)) break;
-        (void)fd2_field_actor_visual_tick(vga, SDL_GetTicks());
-        (void)fd2_field_water_tick(vga, SDL_GetTicks());
-        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        if (fd2_field_water_tick(vga,SDL_GetTicks())<0) return FD2_SCENE_RESULT_ERROR;
+        int done=fd2_input_has_any_key(&vga->input);
+        int32_t now=progress_bios_tick(SDL_GetTicks());
+        if ((int64_t)now-start>=(int64_t)ticks) done=1;
+        else if (progress_bios_tick(SDL_GetTicks())<start) done=1;
+        if (done) break;
+        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
     }
     drain_frame_keys(vga);
     return FD2_SCENE_RESULT_OK;
@@ -534,7 +709,10 @@ static field_list_result play_field_unit_list(
     memset(page, 0, sizeof(*page));
     page->actor_jitter_tick=vga->actor_jitter_tick;
     page->actor_jitter_phase=vga->actor_jitter_phase;
-    fd2_field_game_render(game, page);
+    fd2_field_render_scope visual_scope;
+    if (fd2_field_render_scope_begin(&visual_scope, page, vga, 1) != 0) goto done;
+    fd2_field_game_render_preview(game, page);
+    fd2_field_render_scope_end(&visual_scope);
     memcpy(background, page->framebuffer, VGA_W * VGA_H);
     fd2_field_detail_draw(page, &game->info_assets, &game->font,
                           &game->ui_text, unit, &portraits[0]);
@@ -587,7 +765,7 @@ static field_list_result play_field_unit_list(
             }
             if (fd2_input_take_key(&vga->input, &event)) break;
             uint64_t now = SDL_GetTicks();
-            (void)fd2_field_actor_visual_tick(vga, now);
+            /* 1d51d/1b9de→16c57：等待仅water/portrait/RNG，不画127e0。 */
             (void)fd2_field_water_tick(vga, now);
             if (now < last || now - last >= 110u) {
                 if (blink) {
@@ -908,6 +1086,11 @@ static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
     }
     memcpy(overview, vga->framebuffer, VGA_W * VGA_H);
     memcpy(vga->framebuffer, background, VGA_W * VGA_H);
+    /* sub_1B1E7 @0x1b1e7入口：资源预检成功后11eee→127a9，
+     * 不含1297d或water；11eee同时观察terrain/range，127e0推进raw26。 */
+    uint64_t entry_now = SDL_GetTicks();
+    if (fd2_field_game_tick_terrain_visual(game, entry_now) != 0 ||
+        fd2_field_actor_visual_tick(vga, entry_now) < 0) goto done;
     fd2_field_game_render_background(game, vga);
     memcpy(background, vga->framebuffer, VGA_W * VGA_H);
     for (int phase = 0; phase < 12; phase++) {
@@ -922,9 +1105,13 @@ static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
     }
     int reported_open = 0;
     for (;;) {
-        (void)fd2_field_actor_visual_tick(vga, SDL_GetTicks());
-        (void)fd2_field_water_tick(vga, SDL_GetTicks()); /* 稳定总览等待。 */
-        fd2_field_game_tick(game, SDL_GetTicks());
+        /* 同一1b1e7稳定页：1297d→4e31c→11eee→127a9；
+         * 不借game_tick推进模态以外的deadline／玩法字段。 */
+        uint64_t now = SDL_GetTicks();
+        if (fd2_field_game_tick_actor_phase_visual(game, now) != 0 ||
+            fd2_field_water_tick(vga, now) < 0 ||
+            fd2_field_game_tick_terrain_visual(game, now) != 0 ||
+            fd2_field_actor_visual_tick(vga, now) < 0) goto done;
         fd2_field_game_render_background(game, vga);
         /* phase12为四块稳定位置；静态内容已预检并缓存，不重复格式化。 */
         overview_transition_frame(vga, overview, 12, 1);
@@ -1154,26 +1341,109 @@ static void detail_phase_sfx(void *userdata, int opening, int phase) {
         ? FD2_FIELD_SFX_DETAIL_OPEN : FD2_FIELD_SFX_DETAIL_CLOSE);
 }
 
-/* field_unit_detail_present @0x17aed（原sub_17AED）：任意普通键推进一页。
- * native16c57完整等待／眨眼RNG另验，本adapter不编造额外随机流。 */
-static int play_field_detail_step(fd2_field_game *game, fd2_vga *vga,
-                                    fd2_field_audio *audio) {
+/* 17aed的单个翻页/关闭叶；完整open/wait/branch/flip/wait/close在冷图。 */
+static int play_field_detail_transition(fd2_field_game *game,fd2_vga *vga,
+        fd2_field_audio *audio,int flip) {
     if (!vga) return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
     if (!game || !game->detail_visible || game->detail_unit < 0 ||
         (size_t)game->detail_unit >= game->units.count)
         return FD2_SCENE_RESULT_ERROR;
-    int has_next = game->detail_page == FD2_FIELD_DETAIL_EQUIPMENT &&
-        fd2_field_unit_magic_list_build(&game->units.items[game->detail_unit], NULL, 0) != 0;
-    int result = has_next
+    int result = flip
         ? fd2_field_game_animate_detail_magic_page(game, vga, detail_phase_sfx, audio)
         : fd2_field_game_animate_detail(game, vga, 0, detail_phase_sfx, audio);
     drain_frame_keys(vga);
     if (result < 0) return FD2_SCENE_RESULT_ERROR;
     if (result == 1 || fd2_input_take_quit(&vga->input))
         return FD2_SCENE_RESULT_HOST_QUIT;
-    if (!has_next) fd2_field_game_close_detail(game);
+    if (!flip) fd2_field_game_close_detail(game);
     return FD2_SCENE_RESULT_OK;
+}
+
+static int play_field_detail_step(fd2_field_game *game,fd2_vga *vga,fd2_field_audio *audio) {
+    int flip=game && game->detail_visible && game->detail_unit>=0 &&
+        (size_t)game->detail_unit<game->units.count && game->detail_page==FD2_FIELD_DETAIL_EQUIPMENT &&
+        fd2_field_unit_magic_list_build(&game->units.items[game->detail_unit],NULL,0)!=0;
+    return play_field_detail_transition(game,vga,audio,flip);
+}
+
+/* dialog_wait_key @0x16c57（原同名）由17aed两次传0；详情原portrait在
+ * (8,10)，不是普通对白origin1832/36887。局部blink不改App mouth DWORD。
+ * fd2_dialog_wait_*是既有有限原语，使用同一Game借用RNG及App水色。 */
+static int play_field_detail_wait(fd2_field_game *game,fd2_vga *vga,const fd2_image *blink) {
+    if(!game || !vga || !blink || !blink->pixels || blink->width!=80 || blink->height!=80 ||
+        !game->detail_visible || !game->attack_rng || !game->detail_portrait.pixels ||
+        game->detail_portrait.width!=80 || game->detail_portrait.height!=80)return FD2_SCENE_RESULT_ERROR;
+    int result=play_field_terminal_result(game,vga);
+    if(result!=FD2_SCENE_RESULT_OK)return result;
+    fd2_dialog_wait_state wait;
+    if(fd2_dialog_wait_begin(&wait,SDL_GetTicks(),0,game->attack_rng,game->attack_rng_userdata)!=0)
+        return FD2_SCENE_RESULT_ERROR;
+    for(;;) {
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)return result;
+        if(fd2_input_take_key(&vga->input,NULL))return FD2_SCENE_RESULT_OK;
+        uint64_t now=SDL_GetTicks();
+        if(fd2_field_water_tick(vga,now)<0)return FD2_SCENE_RESULT_ERROR;
+        fd2_dialog_wait_visual visual;
+        if(fd2_dialog_wait_update(&wait,now,game->attack_rng,game->attack_rng_userdata,&visual)<0)
+            return FD2_SCENE_RESULT_ERROR;
+        if(visual.portrait>=0)
+            fd2_map_sprite_blit(vga,visual.portrait==3?blink:&game->detail_portrait,8,10,-1);
+        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
+    }
+}
+
+/* field_unit_detail_present @0x17aed（原sub_17AED）：正式Enter/F2共用。
+ * frame3在open写owner/呈现/RNG前预检，生命周期只在此modal借图，
+ * 原Game仍独占detail_portrait0/页/关闭；无新增SAV或业务游标。 */
+static int play_field_detail_present(fd2_field_game *game,fd2_vga *vga,
+        fd2_field_audio *audio,size_t actor) {
+    if(!game || !vga || !game->ready || game->failure!=FD2_FIELD_FAILURE_NONE ||
+        !game->attack_rng || game->detail_visible || actor>=game->units.count ||
+        game->units.count>FD2_FIELD_MAX_UNITS)return FD2_SCENE_RESULT_ERROR;
+    const fd2_static_flow *flow=fd2_static_flow_lookup("runtime","runtime.detail");
+    if(!flow)return FD2_SCENE_RESULT_ERROR;
+    for(size_t i=0;i<flow->count;i++) {
+        const fd2_static_flow_node *node=fd2_static_flow_at(flow,(int)i);
+        if(!node || node->views!=FD2_FLOW_PRESENT ||
+            (strcmp(node->op,"detail_open") && strcmp(node->op,"detail_wait") &&
+             strcmp(node->op,"detail_has_magic") && strcmp(node->op,"detail_flip") &&
+             strcmp(node->op,"detail_close") && strcmp(node->op,"detail_done") &&
+             strcmp(node->op,"detail_fail")))return FD2_SCENE_RESULT_ERROR;
+    }
+    fd2_image blink={0};
+    if(fd2_portrait_decode_frame(&blink,&game->dato_archive,game->units.items[actor].unit_id,3)!=0 ||
+        !blink.pixels || blink.width!=80 || blink.height!=80) {
+        fd2_image_free(&blink);return FD2_SCENE_RESULT_ERROR;
+    }
+    int result=FD2_SCENE_RESULT_ERROR,pc=flow->entry;
+    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
+        const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+        if(!node)break;
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
+        unsigned port=FD2_FLOW_NEXT;
+        if(!strcmp(node->op,"detail_done"))break;
+        if(!strcmp(node->op,"detail_fail")){result=FD2_SCENE_RESULT_ERROR;break;}
+        if(!strcmp(node->op,"detail_open")) {
+            result=fd2_field_game_open_detail(game,actor)!=0?FD2_SCENE_RESULT_ERROR:
+                fd2_field_game_animate_detail(game,vga,1,detail_phase_sfx,audio);
+            drain_frame_keys(vga);
+            if(result==1)result=FD2_SCENE_RESULT_HOST_QUIT;
+        } else if(!strcmp(node->op,"detail_wait"))result=play_field_detail_wait(game,vga,&blink);
+        else if(!strcmp(node->op,"detail_has_magic"))
+            port=fd2_field_unit_magic_list_build(&game->units.items[actor],NULL,0)?FD2_FLOW_YES:FD2_FLOW_NO;
+        else if(!strcmp(node->op,"detail_flip"))result=play_field_detail_transition(game,vga,audio,1);
+        else if(!strcmp(node->op,"detail_close"))result=play_field_detail_transition(game,vga,audio,0);
+        else {result=FD2_SCENE_RESULT_ERROR;break;}
+        if(result==FD2_SCENE_RESULT_HOST_QUIT)break;
+        if(result<0)port=FD2_FLOW_ERROR;
+        pc=fd2_static_flow_edge(flow,node,port);
+        if(pc<0){result=FD2_SCENE_RESULT_ERROR;break;}
+        if(budget+1==FD2_FLOW_STEP_BUDGET)result=FD2_SCENE_RESULT_ERROR;
+    }
+    fd2_image_free(&blink);return result;
 }
 
 typedef enum {
@@ -1284,7 +1554,7 @@ static int loot_inventory_select(fd2_field_game *game, fd2_vga *vga,
                 }
                 if (fd2_input_take_key(&vga->input, &event)) break;
                 uint64_t now = SDL_GetTicks();
-                (void)fd2_field_actor_visual_tick(vga, now);
+                /* 190ac/1aa1d→1b932→1b9de→16c57，同普通库存等待。 */
                 (void)fd2_field_water_tick(vga, now);
                 if (now < last || now - last >= 110u) {
                     if (blinking) {
@@ -1343,7 +1613,8 @@ static int loot_resources_preflight(const fd2_field_game *game,
     if (notice->kind == FD2_FIELD_LOOT_STORY)
         return fd2_scene_field_story_validate(game, notice->fragment);
     if (notice->kind == FD2_FIELD_LOOT_FIELD_EVENT)
-        return fd2_field_game_event_resources_validate(game, (uint8_t)notice->fragment);
+        return fd2_field_game_event_resources_validate_actor(game,
+            (uint8_t)notice->fragment,notice->actor_index);
     const fd2_field_unit *unit = &game->units.items[notice->actor_index];
     if (notice->kind == FD2_FIELD_LOOT_INVENTORY) {
         fd2_vga *page = calloc(1, sizeof(*page));
@@ -1381,78 +1652,165 @@ static void loot_choice_draw(fd2_field_game *game, fd2_vga *vga,
     for (int row = 0; row < 16; row++)
         memcpy(vga->framebuffer + (168 + row) * VGA_STRIDE + 232,
             background + row * 56, 56);
-    fd2_map_sprite_blit(vga, &game->command_assets.frames[48u + (selected == 0 && phase/2u)], 248-displacement, 168, -1);
-    fd2_map_sprite_blit(vga, &game->command_assets.frames[51u + (selected == 1 && phase/2u)], 248+displacement, 168, -1);
+    fd2_map_sprite_blit(vga, &game->command_assets.frames[48u + (selected == 0 && phase/2u)], 248-displacement, 168, 0);
+    fd2_map_sprite_blit(vga, &game->command_assets.frames[51u + (selected == 1 && phase/2u)], 248+displacement, 168, 0);
+}
+
+typedef struct {
+    field_progress_box *box;
+    fd2_field_game *game;
+    fd2_vga *vga;
+    fd2_vga *snapshot;
+    fd2_field_loot_reply *reply;
+    uint8_t background[56*16];
+    uint32_t counter;
+    int selected,blinking;
+} field_choice_scope;
+
+static int play_choice_step(fd2_field_choice_step step,int value,void *userdata) {
+    field_choice_scope *scope=userdata;
+    fd2_vga *vga=scope->vga;
+    fd2_field_game *game=scope->game;
+    if (fd2_input_take_quit(&vga->input)) return 3;
+    if (step==FD2_FIELD_CHOICE_BEGIN) {
+        if (!game->attack_rng || !scope->reply) return -1;
+        scope->selected=0;scope->blinking=0;
+        scope->counter=game->attack_rng(game->attack_rng_userdata)%30u+2u;
+        memcpy(scope->snapshot->framebuffer,vga->framebuffer,sizeof(vga->framebuffer));
+        for (int row=0;row<16;row++) memcpy(scope->background+row*56,
+            vga->framebuffer+(168+row)*VGA_STRIDE+232,56);
+    } else if (step==FD2_FIELD_CHOICE_DRAW || step==FD2_FIELD_CHOICE_STEADY) {
+        /* 19953 opening及197e5 closing用normal帧，不借当前phase。 */
+        memcpy(vga->framebuffer,scope->snapshot->framebuffer,sizeof(vga->framebuffer));
+        loot_choice_draw(game,vga,scope->background,value,scope->selected,
+            step==FD2_FIELD_CHOICE_STEADY?vga->menu_highlight_phase:0);
+        if (fd2_field_page_choice_bottom_write(vga->field_page,vga->framebuffer,
+                sizeof(vga->framebuffer))!=0 || runtime_project(vga,NULL)!=0) return -1;
+        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
+    } else if (step==FD2_FIELD_CHOICE_WAIT_KEY) {
+        return fd2_input_has_any_key(&vga->input)?1:0;
+    } else if (step==FD2_FIELD_CHOICE_READ_KEY) {
+        fd2_input_event event;
+        if (!fd2_input_take_key(&vga->input,&event)) return -1;
+        if (event.key==FD2_INPUT_KEY_LEFT) scope->selected=0;
+        else if (event.key==FD2_INPUT_KEY_RIGHT) scope->selected=1;
+        else if (event.key==FD2_INPUT_KEY_ENTER || event.key==FD2_INPUT_KEY_SPACE ||
+                event.key==FD2_INPUT_KEY_KEYPAD_CONFIRM) {
+            *scope->reply=scope->selected?FD2_FIELD_LOOT_NO:FD2_FIELD_LOOT_YES;
+            return 1;
+        } else if (event.key==FD2_INPUT_KEY_ESCAPE || event.key==FD2_INPUT_KEY_CANCEL) {
+            *scope->reply=FD2_FIELD_LOOT_CANCEL;return 2;
+        }
+    } else if (step==FD2_FIELD_CHOICE_TICK) {
+        uint64_t now=SDL_GetTicks();
+        (void)fd2_field_water_tick(vga,now);
+        int due=fd2_field_system_menu_highlight_tick(&vga->menu_highlight_phase,
+            &vga->menu_highlight_tick,(uint32_t)(now/55u),1);
+        if (due<0) return -1;
+        if (due) return 1;
+        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
+    } else if (step==FD2_FIELD_CHOICE_BLINK) {
+            if (scope->blinking) {
+                progress_portrait(scope->box,scope->snapshot,0,0);
+                scope->counter=game->attack_rng(game->attack_rng_userdata)%30u+10u;
+                scope->blinking=0;
+            } else if (scope->counter--==0u) {
+                progress_portrait(scope->box,scope->snapshot,3,0);scope->blinking=1;
+            }
+    } else if (step==FD2_FIELD_CHOICE_HAS_FIELD) return 1;
+    else if (step==FD2_FIELD_CHOICE_FIELD_REDRAW)
+        return fd2_field_game_runtime_refresh(game,vga,2);
+    else if (step==FD2_FIELD_CHOICE_SNAPSHOT)
+        return fd2_field_page_choice_snapshot_write(vga->field_page,
+            scope->snapshot->framebuffer,sizeof(scope->snapshot->framebuffer));
+    else if (step==FD2_FIELD_CHOICE_FINISH)
+        fd2_field_system_menu_highlight_finish(&vga->menu_highlight_phase);
+    else return -1;
+    return fd2_input_take_quit(&vga->input)?3:0;
 }
 
 static int loot_choice(field_progress_box *box, fd2_field_game *game,
     fd2_vga *vga, fd2_field_loot_reply *reply) {
-    int selected = 0, blinking = 0;
-    unsigned phase = 0;
-    uint32_t counter = game->attack_rng(game->attack_rng_userdata) % 30u + 2u;
-    uint64_t last = SDL_GetTicks();
-    uint8_t background[56*16];
-    for (int row = 0; row < 16; row++)
-        memcpy(background + row * 56,
-            vga->framebuffer + (168 + row) * VGA_STRIDE + 232, 56);
-    drain_frame_keys(vga);
-    for (int step = 1; step <= 4; step++) {
-        loot_choice_draw(game, vga, background, step*4, selected, 0);
-        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
-        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    field_choice_scope scope={0};scope.box=box;scope.game=game;scope.vga=vga;scope.reply=reply;
+    scope.snapshot=calloc(1,sizeof(*scope.snapshot));
+    if (!scope.snapshot) return FD2_SCENE_RESULT_ERROR;
+    int result=fd2_field_choice_run(play_choice_step,&scope);
+    if (!result) {
+        for (int row=0;row<16;row++) memcpy(vga->framebuffer+(168+row)*VGA_STRIDE+232,
+            scope.background+row*56,56);
+        fd2_vga_upload_current_frame(vga);
         drain_frame_keys(vga);
     }
-    for (;;) {
-        loot_choice_draw(game, vga, background, 16, selected, phase);
-        if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-        fd2_input_event event;
-        if (fd2_input_take_key(&vga->input, &event)) {
-            if (event.key == FD2_INPUT_KEY_LEFT) selected = 0;
-            else if (event.key == FD2_INPUT_KEY_RIGHT) selected = 1;
-            else if (event.key == FD2_INPUT_KEY_ENTER || event.key == FD2_INPUT_KEY_SPACE ||
-                     event.key == FD2_INPUT_KEY_KEYPAD_CONFIRM || event.key == FD2_INPUT_KEY_ESCAPE ||
-                     event.key == FD2_INPUT_KEY_CANCEL) {
-                *reply = event.key == FD2_INPUT_KEY_ESCAPE || event.key == FD2_INPUT_KEY_CANCEL
-                    ? FD2_FIELD_LOOT_CANCEL : selected ? FD2_FIELD_LOOT_NO : FD2_FIELD_LOOT_YES;
-                for (int step = 3; step >= 0; step--) {
-                    loot_choice_draw(game, vga, background, step*4, selected, 0);
-                    fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
-                    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-                }
-                for (int row = 0; row < 16; row++)
-                    memcpy(vga->framebuffer + (168+row)*VGA_STRIDE+232,
-                        background+row*56, 56);
-                drain_frame_keys(vga);
-                return FD2_SCENE_RESULT_OK;
-            }
+    free(scope.snapshot);
+    return result>0?FD2_SCENE_RESULT_HOST_QUIT:result<0?FD2_SCENE_RESULT_ERROR:FD2_SCENE_RESULT_OK;
+}
+
+/* 16f55/19df7不借跨帧system page作第二输入owner；普通prompt完成后
+ * 同步执行同一19953，默认YES与blink RNG在每次BEGIN按源恢复。 */
+static int play_system_choice(fd2_field_game *game,fd2_vga *vga,
+        field_progress_box *box,fd2_field_loot_reply *reply) {
+    if (!box->page) return FD2_SCENE_RESULT_ERROR;
+    return loot_choice(box,game,vga,reply);
+}
+
+/* 16f55/19df7共有1956b→15f84→19953→197e5→反馈→200ms→196cb。
+ * 冷choice拥有等待/确认/取消；此口只做已选片段的窄文本/底框呈现。 */
+static int play_system_confirmation_text(fd2_field_game *game,fd2_vga *vga,
+        field_progress_box *box,fd2_field_audio *audio,size_t fragment,int fast) {
+    int prompt=fragment==410u || fragment==413u || fragment==415u || fragment==417u || fragment==419u;
+    if (!game->font.glyphs || !game->font.glyph_count ||
+        game->font.glyph_count>game->font.size/32u) return -1;
+    field_progress_text text;
+    field_text_parameters parameters={game->message_number,game->message_new_fragment,game->message_old_fragment};
+    if (field_text_expand(game,&parameters,fragment,0,&text)!=0) return -1;
+    if (prompt) {
+        if (box->page) return -1;
+        unsigned portrait=fragment==417u
+            ?(game->units.count?game->units.items[0].unit_id:UINT16_MAX):75u;
+        if (fd2_scene_field_message_validate(game->fdother)!=0) return -1;
+        for (unsigned i=0;i<4;i++) {
+            fd2_image image={0};
+            int valid=fd2_portrait_decode_frame(&image,&game->dato_archive,portrait,i)==0 &&
+                image.width==80 && image.height==80;
+            fd2_image_free(&image);
+            if (!valid) return -1;
         }
-        uint64_t now = SDL_GetTicks();
-        (void)fd2_field_actor_visual_tick(vga, now);
-        (void)fd2_field_water_tick(vga, now);
-        if (now < last || now - last >= 110u) {
-            phase = (phase + 1u) % 4u;
-            if (blinking) {
-                progress_portrait(box, vga, 0, 0);
-                counter = game->attack_rng(game->attack_rng_userdata) % 30u + 10u;
-                blinking = 0;
-            } else if (counter-- == 0u) {
-                progress_portrait(box, vga, 3, 0); blinking = 1;
-            }
-            last = now;
-        }
-        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+        if (fd2_field_game_runtime_refresh(game,vga,0)!=0) return -1;
+        int opened=progress_box_open_portrait(box,game,vga,game->fdother,portrait,fast);
+        if (opened) return opened;
+    } else if (!box->page) return -1;
+    int played=field_text_play(box,game,vga,game->fdother,audio,&text,99,prompt?127:146,fast);
+    if (played) return played;
+    if (prompt) {
+        progress_portrait(box,vga,0,0); /* caller16559(0)，之后19953才取blink RNG。 */
+        fd2_vga_upload_current_frame(vga);return 0;
     }
+    if (!fast) fd2_delay_ms(200);
+    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    int box_closed=progress_box_transition(box,vga,0,fast);
+    if (!box_closed) {
+        memcpy(vga->framebuffer,box->background,VGA_W*VGA_H);
+        box_closed=fd2_field_game_runtime_refresh(game,vga,0);
+    }
+    progress_box_free(box);return box_closed;
+}
+
+static int play_system_message(field_runtime_presentation *runtime,
+        fd2_field_game *game,fd2_vga *vga,field_progress_box *box,
+        fd2_field_audio *audio,size_t fragment,int fast) {
+    int result=play_system_confirmation_text(game,vga,box,audio,fragment,fast);
+    if (result==FD2_SCENE_RESULT_HOST_QUIT) runtime->host_quit=1;
+    return result;
 }
 
 static int loot_fixed_wait(fd2_vga *vga, unsigned milliseconds, int fast) {
     uint64_t start = SDL_GetTicks();
     while (!fast && SDL_GetTicks() - start < milliseconds) {
         if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-        (void)fd2_field_actor_visual_tick(vga, SDL_GetTicks());
-        (void)fd2_field_water_tick(vga, SDL_GetTicks());
+        /* field_special_cell_execute @0x190ac（原登记同名）的j___delay
+         * @0x3790a不重画、不推进127e0/4e31c；只借当前帧处理宿主退出。 */
         fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
     }
-    drain_frame_keys(vga);
     return fd2_input_take_quit(&vga->input) ? FD2_SCENE_RESULT_HOST_QUIT : 0;
 }
 
@@ -1461,11 +1819,12 @@ static int play_field_loot(fd2_field_game *game, fd2_vga *vga,
     field_progress_box box = {0};
     int result = 0;
     for (;;) {
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
         fd2_field_loot_notice notice;
         int pending = fd2_field_game_loot_peek(game, &notice);
         if (pending < 0) { result = -1; break; }
         if (!pending) { if (box.page) result = -1; break; }
-        if (fd2_input_take_quit(&vga->input)) { result = FD2_SCENE_RESULT_HOST_QUIT; break; }
         printf("field loot: kind=%d actor=%zu fragment=%u value=%u item=%u old=%u open=%u append=%u close=%u key=%u delay=%u\n",
             (int)notice.kind, notice.actor_index, notice.fragment, notice.value,
             notice.item_id, notice.old_item_id, notice.open_box, notice.append_line,
@@ -1492,7 +1851,7 @@ static int play_field_loot(fd2_field_game *game, fd2_vga *vga,
             progress_portrait(&box, vga, 0, 0);
             if (notice.kind == FD2_FIELD_LOOT_CHOICE) result = loot_choice(&box, game, vga, &reply);
             else if (notice.wait_key) {
-                drain_frame_keys(vga);
+                /* 190ac/1aa1d在此直接16c57；已排帧键仍可完成wait0。 */
                 result = progress_wait(&box, game, vga, fdother, fast, 0);
             }
             if (result == 0 && notice.wait_ms) result = loot_fixed_wait(vga, notice.wait_ms, fast);
@@ -1523,10 +1882,14 @@ static int play_field_loot(fd2_field_game *game, fd2_vga *vga,
         }
         if (fd2_input_take_quit(&vga->input)) { result = FD2_SCENE_RESULT_HOST_QUIT; break; }
         if (fd2_field_game_loot_reply(game, reply, slot) != 0) { result = -1; break; }
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
     }
     progress_box_free(&box);
     return result;
 }
+
+#include "field_common_event_present.h"
 
 static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
                                 const fd2_archive *fdother,
@@ -1537,16 +1900,24 @@ static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
     int result = FD2_SCENE_RESULT_OK;
     int played = 0;
     for (;;) {
-        if (fd2_input_take_quit(&vga->input)) {
-            result = FD2_SCENE_RESULT_HOST_QUIT;
-            break;
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
+        if (game->event_resume.active) {
+            if (box.page) {result=FD2_SCENE_RESULT_ERROR;break;}
+            result=play_common_events(game,vga,fdother,audio,fast);
+            if (result!=FD2_SCENE_RESULT_OK) break;
         }
         result = play_field_loot(game, vga, fdother, audio, fast);
         if (result != FD2_SCENE_RESULT_OK) break;
+        if (game->event_resume.active) continue;
         result = present_field_events_mode(game, vga, fdother, audio, fast);
         if (result != FD2_SCENE_RESULT_OK) break;
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
         int resumed = fd2_field_game_progress_resume(game);
         if (resumed < 0) { result = FD2_SCENE_RESULT_ERROR; break; }
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
         fd2_field_progress_notice notice;
         int pending = fd2_field_game_progress_peek(game, &notice);
         if (pending < 0) { result = FD2_SCENE_RESULT_ERROR; break; }
@@ -1584,15 +1955,18 @@ static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
             if (notice.kind == FD2_FIELD_PROGRESS_LEVEL || notice.kind == FD2_FIELD_PROGRESS_GROWTH)
                 drain_frame_keys(vga);
             if (notice.kind == FD2_FIELD_PROGRESS_GROWTH && box.row == 3) {
-                result = progress_scroll(vga, fast);
+                result = progress_scroll(vga, (unsigned)box.portrait_origin);
                 if (result != FD2_SCENE_RESULT_OK) break;
                 box.row = 2;
             }
             result = progress_text_play(&box, game, vga, fdother, audio, &notice, fast);
             if (result != FD2_SCENE_RESULT_OK) break;
             if (notice.kind == FD2_FIELD_PROGRESS_GAIN) progress_portrait(&box, vga, 0, 0);
-            if (notice.kind == FD2_FIELD_PROGRESS_STATUS)
+            if (notice.kind == FD2_FIELD_PROGRESS_STATUS) {
+                /* 1a928/1a9fb：文本完成后caller清键，再调用1e5c0。 */
+                drain_frame_keys(vga);
                 result = progress_timed_wait(vga, notice.wait_ticks, fast);
+            }
         }
         if (result != FD2_SCENE_RESULT_OK) break;
         if (notice.kind == FD2_FIELD_PROGRESS_STATUS || notice.kind == FD2_FIELD_PROGRESS_CLOSE) {
@@ -1611,6 +1985,8 @@ static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
             result = FD2_SCENE_RESULT_ERROR;
             break;
         }
+        result=play_field_terminal_result(game,vga);
+        if(result!=FD2_SCENE_RESULT_OK)break;
         if (notice.kind == FD2_FIELD_PROGRESS_GROWTH) box.row++;
     }
     if (result == FD2_SCENE_RESULT_OK && played) drain_frame_keys(vga);
@@ -1737,6 +2113,8 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (context) {
         game.experience_value = context->experience_value;
         game.message_number = context->message_number;
+        game.message_new_fragment = context->message_new_fragment;
+        game.message_old_fragment = context->message_old_fragment;
         if (fd2_field_game_set_music_request(&game, field_phase_music, context) != 0) {
             fd2_field_game_close(&game);
             return FD2_FIELD_PLAY_RETURN_ERROR;
@@ -1753,6 +2131,14 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         fd2_field_game_close(&game);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
+    if (fd2_field_game_bind_visual(&game,vga)!=0) {
+        fd2_field_game_close(&game);return FD2_FIELD_PLAY_RETURN_ERROR;
+    }
+    field_runtime_presentation runtime={vga,field_audio,once,0,NULL};
+    game.runtime_present=play_runtime_step;
+    game.runtime_present_userdata=&runtime;
+    game.event_preflight=common_event_resources_preflight;
+    game.event_preflight_userdata=(void *)fdother;
     if (load_active) {
         const uint8_t *palette;
         size_t size;
@@ -1786,6 +2172,21 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             return FD2_FIELD_PLAY_RETURN_ERROR;
         }
     }
+    /* 10010活动Load复用Round但不递增回合、不触发phase2/status，不强开
+     * 51AAC。新entry的main跨度在primary请求之后才恢复信息板。 */
+    if (load_active) {
+        /* sub_10010 @0x10010：51A83=0→11cac(1)→共同Round及其
+         * 11cac(0)/200ms尾→index0→51A83=1；不能提前露cursor。 */
+        game.ordinary_display_mode=0;
+        int round_result=fd2_field_game_runtime_refresh(&game,vga,3);
+        if (!round_result) round_result=play_runtime_step(&game,FD2_FIELD_RUNTIME_ROUND,0,&runtime);
+        if (round_result) {
+            fd2_field_game_close(&game);
+            return round_result>0?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
+        }
+        game.focus_cycle_unit=0;
+        game.ordinary_display_mode=1;
+    } else vga->info_panel_suppressed=0;
     if (!once && (fd2_field_game_set_progress_preflight(
             &game, progress_resources_preflight, (void *)fdother) != 0 ||
         fd2_field_game_set_loot_preflight(
@@ -1826,9 +2227,9 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     uint8_t reported_side = game.active_side;
     int input_ready_reported = 0;
     /* 普通Enter详情返回controller后置；F2是原版独立直接返回分支。 */
-    int detail_controller_actor = -1;
     /* march原版同步turncycle返回后清BIOS；SDL仅记输入尾，不保存pending。 */
     int march_waiting_phase = 0;
+    field_progress_box system_box={0};
     int running = 1;
     fd2_field_play_result play_result = FD2_FIELD_PLAY_RETURN_COMPLETE;
     while (running) {
@@ -1836,6 +2237,20 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             report_session_failure(&game);
             play_result = FD2_FIELD_PLAY_RETURN_ERROR;
             break;
+        }
+        int terminal=play_field_terminal_result(&game,vga);
+        if (terminal!=FD2_SCENE_RESULT_OK || runtime.host_quit) {
+            play_result=terminal==FD2_SCENE_RESULT_ERROR?FD2_FIELD_PLAY_RETURN_ERROR:
+                FD2_FIELD_PLAY_RETURN_HOST_QUIT;break;
+        }
+        if (!once && game.event_resume.active) {
+            int event_result=play_common_events(&game,vga,fdother,field_audio,0);
+            if (event_result!=FD2_SCENE_RESULT_OK) {
+                play_result=event_result==FD2_SCENE_RESULT_HOST_QUIT
+                    ?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
+                break;
+            }
+            input_ready_reported=0;
         }
         if (!once) {
             int had_progress = game.loot.source || game.progress.notice.kind || game.progress.resume;
@@ -1855,11 +2270,17 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             play_result = FD2_FIELD_PLAY_RETURN_ERROR;
             break;
         }
+        terminal=play_field_terminal_result(&game,vga);
+        if(terminal!=FD2_SCENE_RESULT_OK) {
+            play_result=terminal==FD2_SCENE_RESULT_HOST_QUIT?FD2_FIELD_PLAY_RETURN_HOST_QUIT:
+                FD2_FIELD_PLAY_RETURN_ERROR;break;
+        }
         if (was_waiting_phase && !game.player_post_waiting_phase)
             drain_frame_keys(vga); /* native controller尾119a6清BIOS脉冲。 */
         (void)fd2_field_actor_visual_tick(vga, SDL_GetTicks());
         (void)fd2_field_water_tick(vga, SDL_GetTicks()); /* 普通战场等待。 */
         fd2_field_game_tick(&game, SDL_GetTicks());
+        shared_menu_tick(&game,vga,SDL_GetTicks());
         game.battle_result = fd2_field_game_battle_result(&game);
         int continuation_pending = game.loot.source != 0u;
         int automatic_continuation = continuation_pending &&
@@ -1868,6 +2289,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 game.battle_result != FD2_FIELD_BATTLE_ONGOING)) {
             drain_frame_keys(vga);
             march_waiting_phase = 0;
+            vga->info_panel_suppressed=0;
         }
         if (!once && !continuation_pending && game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
             play_result = game.battle_result == FD2_FIELD_BATTLE_VICTORY
@@ -1909,6 +2331,11 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             was_waiting_phase = game.player_post_waiting_phase;
             int ai_result = fd2_field_game_process_automatic_action_visual(
                 &game, vga, 55, march_waiting_phase);
+            terminal=play_field_terminal_result(&game,vga);
+            if(ai_result>=0 && terminal!=FD2_SCENE_RESULT_OK) {
+                play_result=terminal==FD2_SCENE_RESULT_HOST_QUIT?FD2_FIELD_PLAY_RETURN_HOST_QUIT:
+                    FD2_FIELD_PLAY_RETURN_ERROR;break;
+            }
             if (was_waiting_phase && !game.player_post_waiting_phase)
                 drain_frame_keys(vga);
             if (ai_result >= 0 && march_waiting_phase && !game.loot.source &&
@@ -1916,6 +2343,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                  game.battle_result != FD2_FIELD_BATTLE_ONGOING)) {
                 drain_frame_keys(vga);
                 march_waiting_phase = 0;
+                vga->info_panel_suppressed=0;
             }
             if (ai_result >= 0 && game.active_side != 2)
                 game.phase_next_action_ms =
@@ -1950,15 +2378,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     running = 0;
                     if (result == FD2_SCENE_RESULT_ERROR)
                         fprintf(stderr, "单位详情翻页或关闭失败。\n");
-                } else if (!game.detail_visible && detail_controller_actor >= 0) {
-                    int actor = detail_controller_actor;
-                    detail_controller_actor = -1;
-                    if (fd2_field_game_complete_player_controller(
-                            &game, (size_t)actor) != 0) {
-                        report_session_failure(&game);
-                        play_result = FD2_FIELD_PLAY_RETURN_ERROR;
-                        running = 0;
-                    }
                 }
                 continue;
             }
@@ -2001,10 +2420,10 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                         /* 只结束回到浏览的帧；新opening中采到的键仍归新菜单。 */
                         end_input_frame = game.interaction != FD2_FIELD_INTERACTION_SYSTEM_MENU;
                         if (page == FD2_FIELD_SYSTEM_PAGE_CONFIRMATION &&
-                            play_system_confirmation_text(
-                                &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
-                            fprintf(stderr, "取消提示资源无效。\n");
-                            play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            play_system_message(&runtime,
+                                &game, vga, &system_box, field_audio, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
+                            if (!runtime.host_quit) fprintf(stderr, "取消提示资源无效。\n");
+                            play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                             running = 0;
                             break;
                         }
@@ -2092,19 +2511,17 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                         game.units.items[unit_at].unit_id != 0x79 &&
                         game.units.items[unit_at].race != 0x0a &&
                         game.units.items[unit_at].hp != 0) {
-                        int detail_result = fd2_field_game_open_detail(&game, (size_t)unit_at) != 0
-                            ? -1 : fd2_field_game_animate_detail(
-                                &game, vga, 1, detail_phase_sfx, field_audio);
+                        int detail_result = play_field_detail_present(
+                            &game, vga, field_audio, (size_t)unit_at);
                         drain_frame_keys(vga);
                         end_input_frame = 1;
-                        int host_quit = detail_result == 1 || fd2_input_take_quit(&vga->input);
-                        if (detail_result < 0 || host_quit) {
-                            if (detail_result < 0)
+                        if (detail_result != FD2_SCENE_RESULT_OK) {
+                            if (detail_result == FD2_SCENE_RESULT_ERROR)
                                 fprintf(stderr, "单位详情页资源无效。\n");
-                            play_result = detail_result < 0
-                                ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                            play_result = detail_result == FD2_SCENE_RESULT_HOST_QUIT
+                                ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
                             running = 0;
-                        } else detail_controller_actor = -1;
+                        }
                     }
                     break;
                 }
@@ -2172,21 +2589,25 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                             }
                             int detail_result = fd2_field_game_begin_player_controller(
                                     &game, (size_t)unit_at) != 0 ? -1 :
-                                fd2_field_game_open_detail(
-                                    &game, (size_t)unit_at) != 0 ? -1 :
-                                fd2_field_game_animate_detail(&game, vga, 1,
-                                    detail_phase_sfx, field_audio);
+                                play_field_detail_present(
+                                    &game, vga, field_audio, (size_t)unit_at);
                             drain_frame_keys(vga);
                             end_input_frame = 1;
-                            int host_quit = detail_result == 1 || fd2_input_take_quit(&vga->input);
-                            if (detail_result < 0 || host_quit) {
-                                if (detail_result < 0)
+                            if (detail_result != FD2_SCENE_RESULT_OK) {
+                                if (detail_result == FD2_SCENE_RESULT_ERROR)
                                     fprintf(stderr, "单位详情页资源无效。\n");
-                                play_result = detail_result < 0
-                                    ? FD2_FIELD_PLAY_RETURN_ERROR : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+                                play_result = detail_result == FD2_SCENE_RESULT_HOST_QUIT
+                                    ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                             } else {
-                                detail_controller_actor = unit_at;
+                                /* 17aed整段返回后才执行118ee的controller尾；
+                                 * F2直接caller不经过此写点。 */
+                                if(fd2_field_game_complete_player_controller(
+                                        &game,(size_t)unit_at)!=0) {
+                                    report_session_failure(&game);
+                                    play_result=FD2_FIELD_PLAY_RETURN_ERROR;
+                                    running=0;
+                                }
                             }
                             break;
                         }
@@ -2225,14 +2646,26 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                     &game.system_menu,
                                     FD2_FIELD_SYSTEM_CONFIRM_PROMPT,
                                     &fragment) != 0 ||
-                                play_system_confirmation_text(
-                                    &game, vga, fragment, once) != 0) {
-                                fprintf(stderr, "系统确认提示资源无效。\n");
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                play_system_message(&runtime,
+                                    &game, vga, &system_box, field_audio, fragment, once) != 0) {
+                                if (!runtime.host_quit) fprintf(stderr, "系统确认提示资源无效。\n");
+                                play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                                 break;
                             }
-                        } else if (system_action ==
+                            fd2_field_loot_reply reply=FD2_FIELD_LOOT_CANCEL;
+                            int choice_result=play_system_choice(&game,vga,&system_box,&reply);
+                            if (choice_result!=FD2_SCENE_RESULT_OK) {
+                                play_result=choice_result==FD2_SCENE_RESULT_HOST_QUIT
+                                    ?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
+                                running=0;break;
+                            }
+                            game.system_menu.confirmation_yes=(uint8_t)(reply==FD2_FIELD_LOOT_YES);
+                            system_action=reply==FD2_FIELD_LOOT_CANCEL
+                                ?fd2_field_game_cancel_system_menu(&game)
+                                :fd2_field_game_confirm_system_menu(&game);
+                        }
+                        if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION) {
                             int overview_result = play_field_overview(&game, vga);
                             end_input_frame = 1;
@@ -2251,19 +2684,35 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                              * snapshot；四槽 hand_save/hand_load 属于独立
                              * dispatcher @code0 0x19300，不能在此替换。 */
                             size_t fragment = 0;
+                            if (system_action==FD2_FIELD_SYSTEM_ACTION_LOAD) {
+                                /* 19df7原414/200ms/196cb先于stop及10010；
+                                 * Load不得先换session，再用新scene伪造旧提示。 */
+                                int feedback=play_system_message(&runtime,&game,vga,
+                                    &system_box,field_audio,FD2_FIELD_SYSTEM_TEXT_LOAD_ACCEPTED,once);
+                                if (feedback || (context && fd2_field_play_request_music(
+                                        context,game.stage,-1,"active-load-stop")!=0)) {
+                                    play_result=feedback==FD2_SCENE_RESULT_HOST_QUIT
+                                        ?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
+                                    running=0;break;
+                                }
+                            }
                             int success =
                                 fd2_field_game_execute_storage_action(
                                     &game, system_action, save_path,
                                     &fragment) == 1;
                             if (success && system_action ==
                                                FD2_FIELD_SYSTEM_ACTION_LOAD) {
+                                if (fd2_field_game_bind_visual(&game,vga)!=0) {
+                                    play_result=FD2_FIELD_PLAY_RETURN_ERROR;running=0;break;
+                                }
+                                game.runtime_present=play_runtime_step;
+                                game.runtime_present_userdata=&runtime;
                                 reported_event_count = 0;
                                 reported_dropped_events = 0;
                                 apply_field_audio_options(&game, field_audio, context, 0);
                                 if (context) {
                                     const fd2_field_stage_music *music = fd2_field_stage_music_get(game.stage);
                                     if (!music ||
-                                        fd2_field_play_request_music(context, game.stage, -1, "active-load-stop") != 0 ||
                                         fd2_field_play_request_music(context,
                                             game.stage, music->primary, "active-load") != 0) {
                                         play_result = FD2_FIELD_PLAY_RETURN_ERROR;
@@ -2271,21 +2720,30 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                         break;
                                     }
                                 }
+                                /* 10010的活动dispatcher caller同源mode0/1跨度。 */
+                                game.ordinary_display_mode=0;
+                                int round_result=fd2_field_game_runtime_refresh(&game,vga,3);
+                                if (!round_result) round_result=play_runtime_step(
+                                    &game,FD2_FIELD_RUNTIME_ROUND,0,&runtime);
+                                if (round_result) {
+                                    play_result=round_result>0?FD2_FIELD_PLAY_RETURN_HOST_QUIT:
+                                        FD2_FIELD_PLAY_RETURN_ERROR;
+                                    running=0;break;
+                                }
+                                game.focus_cycle_unit=0;
+                                game.ordinary_display_mode=1;
                             }
+                            if (system_action==FD2_FIELD_SYSTEM_ACTION_LOAD) fragment=0;
                             if (fragment != 0) {
-                                game.system_result_fragment =
-                                    (uint16_t)fragment;
-                                game.system_result_until_ms =
-                                    SDL_GetTicks() + 1000u;
-                                if (play_system_confirmation_text(
-                                        &game, vga, fragment, once) != 0) {
+                                if (play_system_message(&runtime,
+                                        &game, vga, &system_box, field_audio, fragment, once) != 0) {
                                     /* 存储动作已返回；呈现失败不能回滚或把已写
                                      * 的Save误报成未写。Load成功也已替换session。 */
                                     const char *status = system_action == FD2_FIELD_SYSTEM_ACTION_SAVE
                                         ? (success ? "活动存档已写入" : "活动存档返回失败")
                                         : (success ? "活动读档已完成" : "活动读档返回失败");
-                                    fprintf(stderr, "%s，但结果提示资源无效。\n", status);
-                                    play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                    if (!runtime.host_quit) fprintf(stderr, "%s，但结果提示资源无效。\n", status);
+                                    play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                     running = 0;
                                     break;
                                 }
@@ -2311,11 +2769,11 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                        FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE) {
                             /* field_secondary_menu_execute @0x19df7：
                              * FDTXT[416] 后返回 -1，main 最终退出游戏。 */
-                            if (play_system_confirmation_text(
-                                    &game, vga,
+                            if (play_system_message(&runtime,
+                                    &game, vga, &system_box, field_audio,
                                     FD2_FIELD_SYSTEM_TEXT_LEAVE_ACCEPTED,
                                     once) != 0) {
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                                 break;
                             }
@@ -2331,15 +2789,13 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                         } else if (system_action ==
                                        FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
                             /* @0x16f55：418提示在固定anchor和逐actor提交之前。 */
-                            if (play_system_confirmation_text(
-                                    &game, vga, FD2_FIELD_SYSTEM_TEXT_MARCH_ACCEPTED,
-                                    1) != 0) {
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            if (play_system_message(&runtime,
+                                    &game, vga, &system_box, field_audio, FD2_FIELD_SYSTEM_TEXT_MARCH_ACCEPTED,
+                                    once) != 0) {
+                                play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                                 break;
                             }
-                            /* @0x16f55 内push200→j___delay；宿主保留名义毫秒参数，非DOS时钟精确复刻。 */
-                            if (!once) fd2_delay_ms(200);
                             if (fd2_input_take_quit(&vga->input)) {
                                 play_result = FD2_FIELD_PLAY_RETURN_HOST_QUIT;
                                 running = 0;
@@ -2349,6 +2805,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                    game.cursor_cell_x, game.cursor_cell_y,
                                    game.turn_number, (unsigned)game.active_side);
                             fflush(stdout);
+                            vga->info_panel_suppressed=1; /* 170ba..17163，含整批移动。 */
                             int march_result = fd2_field_game_march(&game, vga, 55);
                             if (march_result == 0) march_waiting_phase = 1;
                             drain_frame_keys(vga);
@@ -2365,11 +2822,11 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                        FD2_FIELD_SYSTEM_ACTION_END_TURN_CONFIRM) {
                             /* field_empty_focus_menu_execute @0x16f55：
                              * FDTXT[420] 提示先于 field_turn_cycle_run。 */
-                            if (play_system_confirmation_text(
-                                    &game, vga,
+                            if (play_system_message(&runtime,
+                                    &game, vga, &system_box, field_audio,
                                     FD2_FIELD_SYSTEM_TEXT_END_TURN_ACCEPTED,
                                     once) != 0) {
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                                play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                                 break;
                             }
@@ -2383,6 +2840,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                    fd2_field_game_remaining_units(&game, 2));
                             fflush(stdout);
                             game.interaction = FD2_FIELD_INTERACTION_BROWSE;
+                            vga->info_panel_suppressed=1; /* 1726b..17277。 */
                             if (fd2_field_game_end_player_turn(&game) != 0) {
                                 report_session_failure(&game);
                                 play_result = FD2_FIELD_PLAY_RETURN_ERROR;
@@ -2390,10 +2848,10 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                             }
                         } else if (system_action == FD2_FIELD_SYSTEM_ACTION_BACK &&
                                    game.interaction == FD2_FIELD_INTERACTION_BROWSE) {
-                            if (play_system_confirmation_text(
-                                    &game, vga, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
-                                fprintf(stderr, "取消提示资源无效。\n");
-                                play_result = FD2_FIELD_PLAY_RETURN_ERROR;
+                            if (play_system_message(&runtime,
+                                    &game, vga, &system_box, field_audio, FD2_FIELD_SYSTEM_TEXT_CANCELLED, once) != 0) {
+                                if (!runtime.host_quit) fprintf(stderr, "取消提示资源无效。\n");
+                                play_result = runtime.host_quit?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
                                 running = 0;
                             }
                         } else {
@@ -2644,6 +3102,13 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 play_result = FD2_FIELD_PLAY_RETURN_ERROR;
                 running = 0;
             }
+            if (running) {
+                terminal=play_field_terminal_result(&game,vga);
+                if(terminal!=FD2_SCENE_RESULT_OK || runtime.host_quit) {
+                    play_result=terminal==FD2_SCENE_RESULT_ERROR?FD2_FIELD_PLAY_RETURN_ERROR:
+                        FD2_FIELD_PLAY_RETURN_HOST_QUIT;running=0;
+                }
+            }
             if (game.player_post_waiting_phase) end_input_frame = 1;
         }
         fd2_delay_ms(16);
@@ -2652,6 +3117,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (context) {
         /* 22ef6/22f37：本关整段对白/脚本成功后才交接下一准备owner。 */
         if (play_result == FD2_FIELD_PLAY_RETURN_VICTORY) {
+            vga->info_panel_suppressed=1; /* main25e0b..25e5e跨result/prepare/entry。 */
             fd2_save_manual_state prepared;
             int scene_result = FD2_SCENE_RESULT_ERROR;
             if (!fd2_field_stage_battle_is_supported(game.stage)) {
@@ -2675,18 +3141,30 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 play_result = scene_result == FD2_SCENE_RESULT_HOST_QUIT
                     ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
         } else if (play_result == FD2_FIELD_PLAY_RETURN_DEFEAT) {
+            vga->info_panel_suppressed=1; /* main25dde..25dea。 */
             int scene_result = fd2_scene_play_game_over(vga, fdother, context->bgm, once);
+            vga->info_panel_suppressed=0;
             if (scene_result != FD2_SCENE_RESULT_OK)
                 play_result = scene_result == FD2_SCENE_RESULT_HOST_QUIT
                     ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
         }
         context->experience_value = game.experience_value;
         context->message_number = game.message_number;
+        context->message_new_fragment = game.message_new_fragment;
+        context->message_old_fragment = game.message_old_fragment;
     }
+    progress_box_free(&system_box);
+    fd2_field_defeat_close(&runtime.defeat);
     game.physical_present = NULL;
     game.physical_present_userdata = NULL;
     game.magic_present = NULL;
     game.magic_present_userdata = NULL;
+    game.runtime_present=NULL;
+    game.runtime_present_userdata=NULL;
+    if ((runtime.host_quit || game.runtime_host_quit) &&
+        play_result!=FD2_FIELD_PLAY_RETURN_ERROR && game.failure==FD2_FIELD_FAILURE_NONE &&
+        !battle.failed && !(context && context->music_error)) play_result=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+    if (play_result!=FD2_FIELD_PLAY_RETURN_VICTORY) vga->info_panel_suppressed=0;
     fd2_battle_animation_close(&battle);
     fd2_field_game_close(&game);
     return play_result;

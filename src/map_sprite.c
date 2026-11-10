@@ -46,6 +46,20 @@ static int measure_rle_24(const uint8_t *src, size_t src_len, size_t *used) {
     return 0;
 }
 
+int fd2_map_sprite_frame_source(const fd2_map_sprite_bank *bank,
+        size_t frame_idx, const uint8_t **source, size_t *length) {
+    if (!bank || !bank->data || !bank->offsets || !source || !length ||
+        frame_idx >= bank->frame_count || bank->offsets[frame_idx] >= bank->size)
+        return -1;
+    const uint8_t *start = bank->data + bank->offsets[frame_idx];
+    size_t used;
+    if (measure_rle_24(start,bank->size-bank->offsets[frame_idx],&used) != 0)
+        return -1;
+    *source=start;
+    *length=used;
+    return 0;
+}
+
 int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
     memset(bank, 0, sizeof(*bank));
     FILE *f = fopen(path, "rb");
@@ -200,6 +214,9 @@ void fd2_map_sprite_blit_frame(fd2_vga *vga,
 
 void fd2_map_sprite_blit(fd2_vga *vga, const fd2_image *img,
                          int x, int y, int transparent_index) {
+    /* transparent_index==0对应 image_raw_zero_transparent_blit @0x4ed34
+     * （原sub_4ED34）及其CALL的image_raw_zero_transparent_rows @0x4ed4f
+     * （原sub_4ED4F）；raw0保留目的字节，SDL另外界定VGA写域。 */
     if (!vga || !img || !img->pixels) return;
     for (int row = 0; row < img->height; row++) {
         int dy = y + row;

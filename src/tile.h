@@ -6,6 +6,8 @@
 
 #include "archive.h"
 #include "field.h"
+#include "field_page.h"
+#include "field_path.h"
 #include "image.h"
 #include "shape.h"
 #include "vga.h"
@@ -70,6 +72,20 @@ int  fd2_terrain_overlay_frame_from_cell(const fd2_terrain_tileset *terrain,
                                          uint32_t cell,
                                          int anim_phase,
                                          size_t *out_frame_idx);
+/* field_view_render_tiles @0x11eee：任意有证13×8/13×9/14×8块。
+ * dest为456页坐标、map_x/y为格坐标；不清页、不推进视觉时钟。
+ * 先验证整块后写，范围LUT只映实际RLE opaque写，不映SKIP历史。
+ * 非NULL range/lut表示调用方已投影原node+3!=ff的有效选择域。 */
+int fd2_terrain_render_page_block(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int dest_x, int dest_y, int columns, int rows, int map_x, int map_y,
+    int terrain_phase, int actor_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]);
+/* 12ac6单格遮挡，camera为格坐标；越地图或无overlay为成功no-op。 */
+int fd2_terrain_render_page_overlay_cell(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int cell_x, int cell_y, int camera_x, int camera_y, int anim_phase,
+    const uint8_t lut[256]);
 void fd2_terrain_tileset_close(fd2_terrain_tileset *terrain);
 
 void fd2_tileset_blit(fd2_vga *vga, const fd2_image *img,

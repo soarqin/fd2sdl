@@ -94,8 +94,8 @@ static int test_resources_and_sequence(void) {
               image->pixels[24 * 24 - 1] == frame + 1);
     }
     static const uint8_t expected[FD2_FIELD_RANGE_PHASE_COUNT] = {
-        8, 1, 0, 0, 0, 4, 2, 5, 1, 0,
-        0, 0, 4, 2, 5, 1, 0, 0, 0, 4,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+        10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     };
     for (size_t phase = 0; phase < FD2_FIELD_RANGE_PHASE_COUNT; phase++)
         CHECK(fd2_field_range_lut(&visuals, phase)[0] == expected[phase]);
@@ -366,7 +366,119 @@ static int test_actor_visual_shared_tick(void) {
     return 0;
 }
 
-int main(void) {
+static int test_shared_render_clocks(void) {
+    fd2_field_visual_state s={0},before;
+    CHECK(fd2_field_visual_actor_step(&s,4*55)==1);
+    CHECK(s.actor_idle_phase==0 && s.cursor_phase==1 && !s.actor_idle_tick);
+    CHECK(fd2_field_visual_actor_step(&s,5*55)==1);
+    CHECK(s.actor_idle_phase==1 && s.cursor_phase==2 && s.actor_idle_tick==5);
+    CHECK(fd2_field_visual_actor_step(&s,100*55)==1);
+    CHECK(s.actor_idle_phase==2 && s.actor_idle_tick==100); /* 单步，不追赶。 */
+    CHECK(fd2_field_visual_actor_step(&s,100*55)==1 && s.cursor_phase==0);
+    CHECK(fd2_field_visual_tiles_step(&s,100*55,-1)==1);
+    CHECK(s.terrain_phase==1 && s.range_phase==1 && s.range_tick==100);
+    CHECK(fd2_field_visual_tiles_step(&s,102*55,-1)==1);
+    CHECK(s.terrain_phase==0 && s.range_phase==1 && s.range_tick==100);
+    CHECK(fd2_field_visual_tiles_step(&s,103*55,-1)==1);
+    CHECK(s.terrain_phase==1 && s.range_phase==2 && s.range_tick==103);
+    CHECK(fd2_field_visual_tiles_step(&s,103*55,19)==1);
+    CHECK(s.range_phase==19 && s.range_tick==103);
+    CHECK(fd2_field_visual_tiles_step(&s,106*55,-1)==1 && s.range_phase==0);
+    s.actor_idle_tick=s.range_tick=s.terrain_tick=32767;
+    CHECK(fd2_field_visual_actor_step(&s,UINT64_C(32768)*55)==1);
+    CHECK(s.actor_idle_tick==0xffff8000u && s.actor_idle_phase==3);
+    CHECK(fd2_field_visual_tiles_step(&s,UINT64_C(32768)*55,-1)==1);
+    CHECK(s.terrain_tick==0xffff8000u && s.range_tick==0xffff8000u);
+    CHECK(fd2_field_visual_actor_step(&s,UINT64_C(65536)*55)==1);
+    CHECK(s.actor_idle_tick==0 && s.actor_idle_phase==0);
+    before=s;
+    CHECK(fd2_field_visual_tiles_step(&s,0,20)==-1);
+    CHECK(!memcmp(&before,&s,sizeof(s)));
+    s.actor_idle_phase=4;before=s;
+    CHECK(fd2_field_visual_actor_step(&s,1)==-1);
+    CHECK(!memcmp(&before,&s,sizeof(s)));
+    CHECK(fd2_field_visual_tiles_step(NULL,0,-1)==-1);
+    return 0;
+}
+
+static int test_transition_page_bridge(void) {
+    static uint8_t original[FD2_FIELD_PAGE_SIZE],actual[FD2_FIELD_PAGE_SIZE];
+    for(size_t i=0;i<sizeof(original);i++)original[i]=(uint8_t)(i*13u+i/456u);
+    uint8_t lut[256];for(size_t i=0;i<256;i++)lut[i]=(uint8_t)(i+37u);
+    fd2_field_page *page=fd2_field_page_create();CHECK(page);
+    for(unsigned mode=0;mode<2;mode++) {
+        CHECK(fd2_field_page_write(page,0,0,456,336,original,sizeof(original),456)==0);
+        fd2_vga direct={0},projected={0};
+        memset(direct.framebuffer,117,64000);memset(projected.framebuffer,117,64000);
+        CHECK(fd2_field_page_project(page,72,72,direct.framebuffer,64000)==0);
+        if(!mode) {
+            CHECK(fd2_field_transition_lut_before_actors_from(&direct,lut,50,90,34,17)==0);
+            CHECK(fd2_field_transition_page_before_actors_from(page,lut,50,90,34,17)==0);
+            /* 模拟夹在22046两pass间的独立actor写点。 */
+            uint8_t actor[4]={9,10,11,12};
+            direct.framebuffer[104*320+54]=9;direct.framebuffer[104*320+55]=10;
+            direct.framebuffer[105*320+54]=11;direct.framebuffer[105*320+55]=12;
+            CHECK(fd2_field_page_write(page,122,172,2,2,actor,4,2)==0);
+            CHECK(fd2_field_transition_lut_after_actors_from(&direct,lut,50,90,34,17)==0);
+            CHECK(fd2_field_transition_page_after_actors_from(page,lut,50,90,34,17)==0);
+        } else {
+            CHECK(fd2_field_transition_lut_circle12(&direct,lut,50,90,34)==0);
+            CHECK(fd2_field_transition_page_circle12(page,lut,50,90,34)==0);
+        }
+        CHECK(fd2_field_page_project(page,72,72,projected.framebuffer,64000)==0);
+        CHECK(!memcmp(direct.framebuffer,projected.framebuffer,64000));
+        CHECK(fd2_field_page_read(page,0,0,456,336,actual,sizeof(actual),456)==0);
+        for(int y=0;y<336;y++)for(int x=0;x<456;x++)
+            if(x<72 || x>=384 || y<72 || y>=264)
+                CHECK(actual[y*456+x]==original[y*456+x]);
+        CHECK(fd2_field_transition_page_before_actors_from(page,lut,0,0,0,0)==-1);
+        static uint8_t unchanged[FD2_FIELD_PAGE_SIZE];
+        CHECK(fd2_field_page_read(page,0,0,456,336,unchanged,sizeof(unchanged),456)==0);
+        CHECK(!memcmp(actual,unchanged,sizeof(actual)));
+    }
+    fd2_field_page_destroy(page);return 0;
+}
+
+static int emit_clock_vectors(void) {
+    /* 输入只有原DWORD及BIOS WORD，预期由独立Unicorn原指令读取产生。 */
+    static const struct {unsigned kind,tick;int override;uint32_t s[7];} cases[]={
+        {0,0,-1,{0,0,0,0,0,0,0}},
+        {0,4,-1,{0,0,3,0,0,0,0}},
+        {0,5,-1,{0,0,1,0,0,0,0}},
+        {0,100,-1,{3,5,2,1,3,19,2}},
+        {0,32768,-1,{1,32767,0,0,0,0,0}},
+        {0,65535,-1,{2,0xffff8000u,0,0,0,0,0}},
+        {0,0,-1,{3,0xffffffffu,0,0,0,0,0}},
+        {0,0,-1,{3,32767,3,0,0,0,0}},
+        {1,0,-1,{0,0,0,0,0,19,0}},
+        {1,2,-1,{0,0,0,1,1,19,0}},
+        {1,3,-1,{0,0,0,1,1,19,0}},
+        {1,100,-1,{3,9,3,0,0,5,5}},
+        {1,32768,-1,{0,0,0,1,32767,19,32767}},
+        {1,65535,-1,{0,0,0,1,0xffff8000u,19,0xffff8000u}},
+        {1,0,-1,{0,0,0,1,0xffff8000u,19,0xffff8000u}},
+        {1,0,-1,{0,0,0,1,0xffffffffu,19,0xffffffffu}},
+        {1,0,-1,{0,0,0,1,32767,19,32767}},
+        {1,100,19,{0,0,0,0,3,0,99}},
+        {1,100,0,{0,0,0,1,100,19,99}},
+        {1,65535,7,{0,0,0,1,0xffffffffu,7,50}}
+    };
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        const uint32_t *in=cases[i].s;
+        fd2_field_visual_state s={in[0],in[1],in[2],in[3],in[4],in[5],in[6]};
+        int result=cases[i].kind?fd2_field_visual_tiles_step(&s,(uint64_t)cases[i].tick*55u,cases[i].override):
+            fd2_field_visual_actor_step(&s,(uint64_t)cases[i].tick*55u);
+        if(result<0)return 1;
+        printf("{\"kind\":%u,\"tick\":%u,\"override\":%d,\"initial\":[%u,%u,%u,%u,%u,%u,%u],"
+            "\"final\":[%u,%u,%u,%u,%u,%u,%u]}\n",cases[i].kind,cases[i].tick,cases[i].override,
+            in[0],in[1],in[2],in[3],in[4],in[5],in[6],s.actor_idle_phase,s.actor_idle_tick,
+            s.cursor_phase,s.terrain_phase,s.terrain_tick,s.range_phase,s.range_tick);
+    }
+    return 0;
+}
+
+int main(int argc,char **argv) {
+    if(argc==2 && !strcmp(argv[1],"--clock-jsonl"))return emit_clock_vectors();
     CHECK(test_resources_and_sequence() == 0);
     CHECK(test_terrain_animation_and_transparent_lut() == 0);
     CHECK(test_scaled_terrain_sampling() == 0);
@@ -375,6 +487,8 @@ int main(void) {
     CHECK(test_transition_invalid_and_extreme_clipping() == 0);
     CHECK(test_transition_circle12() == 0);
     CHECK(test_actor_visual_shared_tick() == 0);
+    CHECK(test_shared_render_clocks() == 0);
+    CHECK(test_transition_page_bridge()==0);
     puts("field visual tests: ok");
     return 0;
 }

@@ -1,7 +1,13 @@
 /* 活动战场 FD2.SAV snapshot codec 测试。 */
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#endif
 
 #include "field_game.h"
 #include "field_rng.h"
@@ -38,8 +44,9 @@ static void init_game(fd2_field_game *game) {
     game->metadata.unknown_02 = 30;
     game->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
     game->selected_unit = 1;
-    game->detail_unit = 1;
-    game->detail_visible = 1;
+    /* 导出/写档fixture处于可保存边界；详情忙态由专门负例显式开启。 */
+    game->detail_unit = -1;
+    game->detail_visible = 0;
     game->command_selected = 3;
     game->attack_target = 2;
     game->event_log_count = 2;
@@ -317,6 +324,9 @@ static int test_import_is_transactional(void) {
 
     fd2_field_game target;
     init_game(&target);
+    target.detail_unit=1;target.detail_visible=1;
+    target.detail_portrait=(fd2_image){.width=80,.height=80,.pixels=calloc(80u*80u,1)};
+    CHECK(target.detail_portrait.pixels);
     target.units.items[0].hp = 1;
     target.turn_number = 99;
     target.camera_cell_x = 0;
@@ -343,6 +353,7 @@ static int test_import_is_transactional(void) {
     CHECK(memcmp(target.system_menu.option_values, game.option_values,
                  sizeof(target.option_values)) == 0);
     CHECK(target.selected_unit == -1 && target.detail_unit == -1);
+    CHECK(!target.detail_visible && !target.detail_portrait.pixels);
     CHECK(target.command_selected == -1 && target.attack_target == -1);
     CHECK(target.command_animation_opening == 0 &&
           target.command_animation_phase == 0);
@@ -1186,7 +1197,68 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(remove(path) == 0);
     return 0;
 }
+/* Win32保留100ns FILETIME；Linux保留纳秒，不能用粗秒mtime掩盖重写。 */
+static int file_write_identity(const char *path,uint64_t identity[2]) {
+#if defined(_WIN32)
+    WIN32_FILE_ATTRIBUTE_DATA info;
+    if(!GetFileAttributesExA(path,GetFileExInfoStandard,&info))return -1;
+    identity[0]=((uint64_t)info.nFileSizeHigh<<32)|info.nFileSizeLow;
+    identity[1]=((uint64_t)info.ftLastWriteTime.dwHighDateTime<<32)|info.ftLastWriteTime.dwLowDateTime;
+#else
+    struct stat info;
+    if(stat(path,&info)!=0)return -1;
+    identity[0]=(uint64_t)info.st_size;
+    identity[1]=(uint64_t)info.st_mtim.tv_sec*UINT64_C(1000000000)+(uint64_t)info.st_mtim.tv_nsec;
+#endif
+    return 0;
+}
+static uint32_t detail_busy_random(void *userdata) {
+    (*(unsigned *)userdata)++;return 0;
+}
+static int test_detail_busy_preserves_outputs_and_files(void) {
+    /* 真实START→Game详情open；不伪造portrait或把本API负例说成UI故障。 */
+    fd2_archive other={0};fd2_field_game game;fd2_vga vga={0};
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open(&game,&vga,&other,0)==0);
+    CHECK(fd2_field_game_load_active(&game,"original_game/START.SAV")==0);
+    char path[FD2_TEST_PATH_MAX],missing[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path)==0 && remove(path)==0);
+    CHECK(fd2_test_temp_path(missing)==0 && remove(missing)==0);
+    CHECK(fd2_field_game_save_active(&game,path)==0);
+    CHECK(fd2_field_game_save_manual_slot(&game,path,2)==0);
+    uint8_t before_file[FD2_SAVE_FILE_SIZE],after_file[FD2_SAVE_FILE_SIZE];
+    uint64_t before_identity[2],after_identity[2];
+    CHECK(read_save_bytes(path,before_file)==0 && file_write_identity(path,before_identity)==0);
+    unsigned rng_calls=0;
+    game.attack_rng=detail_busy_random;game.attack_rng_userdata=&rng_calls;
+    CHECK(fd2_field_game_open_detail(&game,1)==0 && game.detail_visible);
+    fd2_field_game before=game;
+    fd2_save_battle_snapshot output,sentry;
+    memset(&output,0xa5,sizeof(output));sentry=output;
+    CHECK(fd2_field_game_export_battle_snapshot(&game,&output)==-1);
+    CHECK(!memcmp(&output,&sentry,sizeof(output)) && !memcmp(&before,&game,sizeof(game)));
+    for(int manual=0;manual<2;manual++) {
+        int result=manual?fd2_field_game_save_manual_slot(&game,path,2):fd2_field_game_save_active(&game,path);
+        CHECK(result==-1 && !memcmp(&before,&game,sizeof(game)) && !rng_calls);
+        CHECK(read_save_bytes(path,after_file)==0 && file_write_identity(path,after_identity)==0);
+        CHECK(!memcmp(before_file,after_file,sizeof(before_file)) &&
+            !memcmp(before_identity,after_identity,sizeof(before_identity)));
+        result=manual?fd2_field_game_save_manual_slot(&game,missing,2):fd2_field_game_save_active(&game,missing);
+        CHECK(result==-1 && !memcmp(&before,&game,sizeof(game)) && !rng_calls);
+        FILE *unexpected=fopen(missing,"rb");CHECK(unexpected==NULL);
+    }
+    fd2_field_game_close_detail(&game);
+    CHECK(!game.detail_visible && !game.detail_portrait.pixels);
+    CHECK(fd2_field_game_export_battle_snapshot(&game,&output)==0);
+    CHECK(fd2_field_game_save_active(&game,path)==0 && fd2_field_game_save_manual_slot(&game,path,2)==0);
+    CHECK(!rng_calls);
+    fd2_field_game_close(&game);fd2_archive_close(&other);
+    CHECK(remove(path)==0);
+    return 0;
+}
+
 int main(void) {
+    if(test_detail_busy_preserves_outputs_and_files()!=0)return 1;
     if (test_stage1_manual_owner_preflight() != 0 ||
         test_cross_stage_active_owner_is_transactional() != 0) return 1;
     if (test_progress_owner_load_and_save_boundaries() != 0 ||

@@ -17,7 +17,7 @@ typedef struct {
     int member,receiver,raw_slot,cursor;
     uint8_t product_id,captured_item,required_text;
     uint32_t price,previous_money;
-    size_t new_fragment,old_fragment,quota;
+    size_t quota;
     fd2_field_prepare_promotion promotion;
     unsigned growth_index,growth_line,sprite_phase,highlight_phase;
     uint16_t growth_delta;
@@ -97,7 +97,7 @@ static int test_buy_and_manual_equipment_preflight(void) {
     prepare_ui ui;fd2_field_play_context context;fd2_field_prepare_assets assets;CHECK(init(&ui,&context,&assets,1)==0);
     fd2_save_manual_state *s=&context.preparation;unsigned port;ui.service.selector=1;ui.service.product_id=0;
     CHECK(invoke(&ui,"stock_prepare",0,&port)==1 && ui.service.stock_count<=12u);
-    CHECK(invoke(&ui,"price_prepare",0,&port)==1 && invoke(&ui,"message_name",0,&port)==1 && ui.service.new_fragment==181);
+    CHECK(invoke(&ui,"price_prepare",0,&port)==1 && invoke(&ui,"message_name",0,&port)==1 && ui.context->message_new_fragment==181);
     fd2_field_unit unit=get(s,0);for(size_t i=0;i<8;i++)((uint8_t *)&unit)[10+2*i]=128;
     CHECK(fd2_field_prepare_item_append(&unit,128)==1);put(s,0,&unit);
     fd2_field_play_context before=context;fail_text=k_prepare_buy_messages[3][1];

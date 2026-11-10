@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "field_system_menu.h"
 
@@ -148,10 +149,63 @@ static int test_confirmation_selection(void) {
     return 0;
 }
 
+static int test_raw_options_and_cancel(void) {
+    const uint8_t raw_values[] = {0, 1, 0xfe, 0xff};
+    for (size_t item = 0; item < 4; item++) for (size_t i = 0; i < 4; i++) {
+        fd2_field_system_menu menu;
+        fd2_field_system_menu_init(&menu);
+        uint8_t values[4] = {0xfe, 0xff, 0xfe, 0xff}; values[item] = raw_values[i];
+        fd2_field_system_menu_set_options(&menu, values);
+        CHECK(memcmp(menu.option_values, values, sizeof(values)) == 0);
+        menu.selected = 2;
+        CHECK(fd2_field_system_menu_confirm(&menu) == FD2_FIELD_SYSTEM_ACTION_OPEN_OPTIONS);
+        menu.selected = (uint8_t)item;
+        CHECK(menu.command_ids[item] == (uint8_t)((item == 0 ? 18u : item == 1 ? 20u : item == 2 ? 22u : 24u) +
+            (item == 2 ? values[item] != 0u : values[item] == 0u)));
+        CHECK(fd2_field_system_menu_confirm(&menu) == FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING);
+        values[item] = item < 2u ? (uint8_t)(values[item] == 0u) : (uint8_t)(values[item] ^ 1u);
+        CHECK(memcmp(menu.option_values, values, sizeof(values)) == 0);
+        CHECK(fd2_field_system_menu_cancel(&menu) == FD2_FIELD_SYSTEM_ACTION_BACK);
+        CHECK(memcmp(menu.option_values, values, sizeof(values)) == 0);
+    }
+    return 0;
+}
+
+static int test_original_shared_highlight_clock(void) {
+    uint32_t phase=0,tick=0;
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,3,0)==0 && phase==0 && tick==0);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,4,0)==1 && phase==1 && tick==4);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,400,0)==1 && phase==0 && tick==400);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,400,0)==0 && phase==0 && tick==400);
+    phase=1;
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,402,1)==1 && phase==2 && tick==402);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,403,1)==0 && phase==2 && tick==402);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,404,1)==1 && phase==3 && tick==404);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,600,1)==1 && phase==0 && tick==600);
+    phase=3;fd2_field_system_menu_highlight_finish(&phase);CHECK(phase==0 && tick==600);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,603,0)==0 && phase==0 && tick==600);
+    tick=UINT32_MAX-1u;CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,1,1)==1 && phase==1 && tick==1);
+    phase=0;tick=32767u;
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,32768u,0)==1 && phase==1 && tick==0xffff8000u);
+    phase=0;tick=UINT32_MAX;
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,0,1)==0 && phase==0 && tick==UINT32_MAX);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,1,1)==1 && phase==1 && tick==1);
+    phase=0;tick=10;
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,9,0)==1 && phase==1 && tick==9);
+    uint32_t old_phase=phase,old_tick=tick;
+    CHECK(fd2_field_system_menu_highlight_tick(NULL,&tick,100,0)==-1);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,NULL,100,0)==-1);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&phase,100,0)==-1);
+    CHECK(fd2_field_system_menu_highlight_tick(&phase,&tick,100,2)==-1 && phase==old_phase && tick==old_tick);
+    return 0;
+}
+
 int main(void) {
     if (test_parent_dispatch() != 0 ||
         test_save_load_and_options() != 0 ||
         test_disabled_and_cancel() != 0 ||
+        test_raw_options_and_cancel() != 0 ||
+        test_original_shared_highlight_clock() != 0 ||
         test_confirmation_selection() != 0)
         return 1;
     puts("field_system_menu_test: ok");

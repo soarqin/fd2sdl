@@ -425,6 +425,49 @@ static int test_poison_bad_focus_stops_after_hp_write(void) {
     return reject_without_changes(&game, &calls);
 }
 
+typedef struct { unsigned calls, stop; } quit_trace;
+static int stop_runtime(fd2_field_game *game, fd2_field_runtime_present_step step,
+    int value, void *userdata) {
+    quit_trace *trace=userdata;
+    (void)game; (void)step; (void)value;
+    return ++trace->calls==trace->stop;
+}
+
+static int test_runtime_quit_freezes_same_stack(void) {
+    /* 1a30b组恢复9个呈现边界：NORMAL在HP后、acted前；退出不洗成
+     * 业务失败，也不因active_side仍2而继续controller pending。 */
+    for (unsigned stop=1;stop<=9;stop++) {
+        fd2_field_game game;size_t rolls=0;init_game(&game,&rolls);
+        for (size_t i=0;i<game.units.count;i++) memset(game.units.items[i].detail_status,0,3);
+        game.units.items[0].hp=game.units.items[1].hp=20;
+        quit_trace trace={0,stop};game.runtime_present=stop_runtime;game.runtime_present_userdata=&trace;
+        CHECK(fd2_field_game_end_player_turn(&game)==0);
+        CHECK(trace.calls==stop && game.runtime_host_quit && game.failure==FD2_FIELD_FAILURE_NONE);
+        CHECK(game.active_side==2 && game.turn_number==1 && game.event_log_count==0 && rolls==0);
+        CHECK(game.units.items[0].hp==(stop>=5?30:20));
+        CHECK(game.units.items[1].hp==(stop>=6?30:20));
+        CHECK(fd2_field_unit_has_acted(&game.units.items[0])==(stop>=6));
+        CHECK(fd2_field_unit_has_acted(&game.units.items[1])==(stop>=7));
+        fd2_field_game frozen=game;
+        CHECK(fd2_field_game_resume_player_controller(&game)==1);
+        CHECK(fd2_field_game_progress_resume(&game)==1);
+        CHECK(fd2_field_game_end_player_turn(&game)==-1);
+        CHECK(!memcmp(&game,&frozen,sizeof(game)) && trace.calls==stop);
+    }
+    fd2_field_game game;size_t rolls=0;init_game(&game,&rolls);
+    for(size_t i=0;i<game.units.count;i++) {
+        game.units.items[i].flags|=0x80;
+        memset(game.units.items[i].detail_status,0,3);
+    }
+    game.pending_cell_event=(fd2_field_pending_cell_event){1,77,0};
+    quit_trace trace={0,1};game.runtime_present=stop_runtime;game.runtime_present_userdata=&trace;
+    CHECK(fd2_field_game_complete_player_controller(&game,0)==0);
+    CHECK(game.runtime_host_quit && game.failure==FD2_FIELD_FAILURE_NONE && trace.calls==1);
+    CHECK(game.player_post_waiting_phase && game.pending_cell_event.valid &&
+        game.pending_cell_event.action==77 && game.event_log_count==0 && rolls==0);
+    return 0;
+}
+
 int main(void) {
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
@@ -436,7 +479,8 @@ int main(void) {
         test_poison_death_focus_survives_round_and_export() ||
         test_poison_focus_uses_raw_order_even_for_zero_hp_or_damage() ||
         test_status_expiration_focus_and_failure_order() ||
-        test_poison_bad_focus_stops_after_hp_write())
+        test_poison_bad_focus_stops_after_hp_write() ||
+        test_runtime_quit_freezes_same_stack())
         return 1;
     puts("field_turn_test: ok");
     return 0;

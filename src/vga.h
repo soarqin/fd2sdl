@@ -5,6 +5,9 @@
 #include <SDL3/SDL.h>
 
 #include "input.h"
+#include "dialog_flow.h"
+#include "field_page.h"
+#include "field_visual_state.h"
 
 /* 虚拟 VGA 320x200 256色
  *
@@ -37,12 +40,21 @@ typedef struct {
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
     /* sub_4E31C @0x4e31c：app级DAC视觉owner；活动Load/新session不清零。
-     * 原版object3 60000/60002，仅VGA初始化归零，不写SAV。 */
+     * 原版object3 60000/60002，仅VGA初始化归零，不写SAV。
+     * 11cac(0)调用本门，11cac(1)跳过；独立步态/等键按各自有证调用点推进。 */
     uint16_t field_water_last_tick;
     uint8_t field_water_phase;
     /* sub_127E0 @0x127e0：共享BIOS tick锚与raw26水平0/1px相位，不进SAV。 */
     uint16_t actor_jitter_tick;
     uint8_t actor_jitter_phase;
+    /* 164e8的两个App级DWORD：换框/Load/闭嘴不重置，不进SAV。 */
+    fd2_dialog_visual_state dialog_visual;
+    /* 原51AAC的临时门取反；零初始化对应原初值1，不是用户选项。 */
+    uint8_t info_panel_suppressed;
+    uint32_t menu_highlight_phase, menu_highlight_tick;
+    fd2_field_page *field_page; /* 原53A49的App视觉owner，跨Scene/Game保留。 */
+    fd2_field_visual_state field_visual;
+    uint8_t info_panel_right; /* 原51A0C横偏移1/242的bool投影：0=左，禁显时保留。 */
 } fd2_vga;
 
 /* 初始化 VGA + SDL 窗口/渲染器 */
@@ -72,6 +84,8 @@ void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
 /* 呈现当前 framebuffer，并为该呈现帧采样一次当前键态。上一呈现帧
  * 未读取的输入脉冲立即丢弃。 */
 void fd2_vga_present(fd2_vga *vga);
+/* 同一游戏帧内刷新已改的glyph/mouth像素；不采键、推进时钟或新增等待。 */
+void fd2_vga_upload_current_frame(fd2_vga *vga);
 
 /* 按绝对 deadline 呈现并等待下一帧，避免把本帧渲染耗时叠加到间隔。 */
 void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);

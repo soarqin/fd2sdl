@@ -182,6 +182,74 @@ int fd2_terrain_overlay_frame_from_cell(const fd2_terrain_tileset *terrain,
     return 1;
 }
 
+static int terrain_page_frame(const fd2_terrain_tileset *terrain, size_t frame,
+    const uint8_t **source, size_t *length) {
+    if (!terrain || terrain->sheet.width != 24 || terrain->sheet.height != 24 ||
+        fd2_shape_sheet_get_frame(&terrain->sheet, frame, source, length) != 0)
+        return -1;
+    return fd2_field_page_validate_rle(24, 24, *source, *length);
+}
+
+int fd2_terrain_render_page_block(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int dest_x, int dest_y, int columns, int rows, int map_x, int map_y,
+    int terrain_phase, int actor_phase,
+    const fd2_field_path_result *range, const uint8_t lut[256]) {
+    if (!page || !terrain || !map || !map->cells ||
+        map_x < 0 || map_y < 0 || columns <= 0 || rows <= 0 ||
+        columns > map->width - map_x || rows > map->height - map_y ||
+        dest_x < 0 || dest_y < 0 ||
+        columns > (FD2_FIELD_PAGE_STRIDE - dest_x) / 24 ||
+        rows > (FD2_FIELD_PAGE_HEIGHT - dest_y) / 24)
+        return -1;
+    /* 首遍统一资源预检，防后格坏流留下半幅业务视觉。原始sheet即来源，
+     * 不从decode缓存的color0推断透明，因为opaque0与SKIP语义不同。 */
+    for (int pass = 0; pass < 2; pass++) {
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < columns; x++) {
+                int cx = map_x + x, cy = map_y + y;
+                size_t frame, length;
+                const uint8_t *source;
+                if (fd2_terrain_base_frame_from_cell_animated(terrain,
+                        fd2_field_map_cell(map,cx,cy), terrain_phase,actor_phase,
+                        &frame) != 0 ||
+                    terrain_page_frame(terrain,frame,&source,&length) != 0)
+                    return -1;
+                if (pass) {
+                    const uint8_t *colors = range && lut &&
+                        fd2_field_path_is_destination(range,cx,cy) ? lut : NULL;
+                    int result=colors?fd2_field_page_blit_base_lut_24(page,
+                        dest_x+x*24,dest_y+y*24,source,length,colors):
+                        fd2_field_page_blit_rle(page,dest_x+x*24,dest_y+y*24,
+                            24,24,source,length,NULL);
+                    if(result!=0)return -1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int fd2_terrain_render_page_overlay_cell(fd2_field_page *page,
+    const fd2_terrain_tileset *terrain, const fd2_field_map *map,
+    int cell_x, int cell_y, int camera_x, int camera_y, int anim_phase,
+    const uint8_t lut[256]) {
+    if (!page || !terrain || !map || !map->cells) return -1;
+    if (cell_x < 0 || cell_y < 0 || cell_x >= map->width || cell_y >= map->height)
+        return 0;
+    size_t frame, length;
+    const uint8_t *source;
+    int overlay = fd2_terrain_overlay_frame_from_cell(terrain,
+        fd2_field_map_cell(map,cell_x,cell_y),anim_phase,&frame);
+    if (overlay <= 0) return overlay;
+    if (terrain_page_frame(terrain,frame,&source,&length) != 0) return -1;
+    int64_t x = FD2_FIELD_PAGE_VIEW_X + ((int64_t)cell_x-camera_x)*24;
+    int64_t y = FD2_FIELD_PAGE_VIEW_Y + ((int64_t)cell_y-camera_y)*24;
+    if (x <= -24 || y <= -24 || x >= FD2_FIELD_PAGE_STRIDE ||
+        y >= FD2_FIELD_PAGE_HEIGHT) return 0;
+    return fd2_field_page_blit_rle(page,(int)x,(int)y,24,24,source,length,lut);
+}
+
 void fd2_terrain_tileset_close(fd2_terrain_tileset *terrain) {
     if (!terrain) return;
     if (terrain->frames) {

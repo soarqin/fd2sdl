@@ -16,6 +16,16 @@
 
 #define FD2_FIELD_SYSTEM_MENU_COUNT 4u
 
+/* 17898普通菜单/19953确认框的共享53c13/53c17窄原语。owner在App/VGA，
+ * tick取BIOS低WORD并符号扩展，锚保原DWORD bits；只单步，不追赶。
+ * confirm=0:差>=4、++恰等2归0；confirm=1:差>=2、++恰等4归0。
+ * 负差亦推进；无符号delta>=门等价原两段有符号Jcc。
+ * 返回1推进/0未到门/-1坏参数；不绘制、不读键、不消费RNG。 */
+int fd2_field_system_menu_highlight_tick(uint32_t *phase, uint32_t *last_tick,
+    uint32_t tick, int confirm);
+/* 仅19953确认或取消返回明确清phase；普通菜单关闭不调用，不清tick。 */
+void fd2_field_system_menu_highlight_finish(uint32_t *phase);
+
 typedef enum {
     FD2_FIELD_SYSTEM_PAGE_PARENT = 0,
     FD2_FIELD_SYSTEM_PAGE_SECONDARY,
@@ -70,8 +80,8 @@ typedef struct {
     uint8_t selected;
     uint8_t command_ids[FD2_FIELD_SYSTEM_MENU_COUNT];
     uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT];
-    /* 0/1 对应活动快照 meta[14..17] 的四个原版配置字节；可见标签
-     * 与后三项的业务名称仍待 DOSBox 人工确认。 */
+    /* 保留活动快照原raw byte；显示按零/非零投影，确认前两项归一、
+     * 后两项XOR1。Game仍拥有实际设置，菜单只持同步显示快照。 */
     uint8_t option_values[FD2_FIELD_SYSTEM_MENU_COUNT];
     /* 与单位 command 菜单分离的共享 primitive 呈现状态。 */
     uint8_t highlight_phase;

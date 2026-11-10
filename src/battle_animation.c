@@ -16,6 +16,7 @@
  * field_promotion_idle_cycle @0x2fe14（原登记 sub_2FE14）。
  */
 #include "battle_animation.h"
+#include "field_render_scope.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +79,18 @@ static int refresh_map(const fd2_field_game *game,fd2_battle_animation *ctx,fd2_
 static int map_physical_prepare(const fd2_field_game *game,
     const fd2_field_physical_event *event,fd2_battle_animation *ctx);
 
+/* 同一次真实11eee/11cac投影借App页；离屏VGA只拥有输出像素。 */
+static int battle_field_render(const fd2_field_game *game, fd2_battle_animation *ctx,
+    fd2_vga *target, int mode) {
+    fd2_field_render_scope scope;
+    if (fd2_field_render_scope_begin(&scope,target,ctx->vga,0)!=0) return -1;
+    if (mode==0) fd2_field_game_render_background(game,target);
+    else if (mode==1) fd2_field_game_render_effect_background(game,target);
+    else fd2_field_game_render_effect_tiles(game,target);
+    fd2_field_render_scope_end(&scope);
+    return 0;
+}
+
 static void image_close(battle_image *image) {
     fd2_image_free(&image->image);
     free(image->opaque);
@@ -127,6 +140,30 @@ static void image_blit(uint8_t *dst, int width, int height, int stride,
 static void blit(uint8_t *dst, int width, int height, int stride,
         const battle_image *src, int x, int y, int tint) {
     image_blit(dst,width,height,stride,src,x,y,tint,NULL);
+}
+
+/* 4ebab的LMI写集落在456页；opaque0由image_open/lmi_image分别保留，
+ * 不借VGA回灌。逐行桥保留透明和视窗外margin，越owner部分仅有界省绘制。 */
+static int battle_page_image(fd2_field_page *page,const battle_image *image,
+    int x,int y,int tint) {
+    if (!page || !image || !image->image.pixels || !image->opaque ||
+        image->image.width<=0 || image->image.height<=0) return -1;
+    int left=x<0 ? -x:0,right=image->image.width;
+    if (right>FD2_FIELD_PAGE_STRIDE-x) right=FD2_FIELD_PAGE_STRIDE-x;
+    if (left>=right) return 0;
+    uint8_t row[FD2_FIELD_PAGE_STRIDE];
+    for (int sy=0;sy<image->image.height;sy++) {
+        int dy=y+sy;
+        if (dy<0 || dy>=FD2_FIELD_PAGE_HEIGHT) continue;
+        size_t width=(size_t)(right-left);
+        if (fd2_field_page_read(page,x+left,dy,(int)width,1,row,sizeof(row),width)!=0) return -1;
+        for (int sx=left;sx<right;sx++) {
+            size_t i=(size_t)sy*(size_t)image->image.width+(size_t)sx;
+            if (image->opaque[i]) row[sx-left]=tint<0 ? image->image.pixels[i]:(uint8_t)tint;
+        }
+        if (fd2_field_page_write(page,x+left,dy,(int)width,1,row,sizeof(row),width)!=0) return -1;
+    }
+    return 0;
 }
 
 static void copy_pixels(uint8_t *dst, int dst_stride, const uint8_t *src, int src_stride) {
@@ -618,7 +655,7 @@ fail:
  * idle/walk相位3→1，缓存身份和四方向偏移均保留。原动态stride低byte
  * 决定SOLID色：SHORT直VGA320→64，恢复地图buffer456→200。 */
 static int map_physical_actor(const fd2_field_game *game,fd2_battle_animation_exchange *e,
-        uint8_t *pixels,int actor,int solid,int viewport) {
+        uint8_t *pixels,int actor,int solid,int viewport,fd2_field_page *page) {
     const fd2_field_unit *u=&e->units[actor];
     size_t raw=e->actor[actor];
     unsigned phase=u->frame_phase ? game->units.walk_frames[raw]:game->idle_phase;
@@ -642,6 +679,12 @@ static int map_physical_actor(const fd2_field_game *game,fd2_battle_animation_ex
     int step=4*(int)u->frame_phase;
     switch (u->direction) {case 0:y+=step;break;case 1:x-=step;break;
         case 2:y-=step;break;default:x+=step;break;}
+    if (page) {
+        const uint8_t *rle;size_t length;uint8_t lut[256];
+        if (fd2_map_sprite_frame_source(&game->sprites,frame,&rle,&length)!=0) return -1;
+        for (unsigned i=0;i<256;i++) lut[i]=solid ? 200:(uint8_t)i;
+        return fd2_field_page_blit_rle(page,72+x,72+y,24,24,rle,length,lut);
+    }
     uint8_t *source=game->sprites.decoded_frames+frame*576u;
     /* 已证FDICON所有1680帧无opaque0，decoded0恰为RLE SKIP。 */
     battle_image image={{24,24,source},source};
@@ -776,7 +819,7 @@ static int short_counter_refresh(const fd2_field_game *game,fd2_battle_animation
     e->board.actor_jitter_tick=ctx->vga->actor_jitter_tick;
     e->board.actor_jitter_phase=ctx->vga->actor_jitter_phase;
     memset(e->board.framebuffer,0,64000);
-    fd2_field_game_render_background(game,&e->board);
+    if (battle_field_render(game,ctx,&e->board,0)!=0) return -1;
     size_t last=k_battle_map_action_parameters[SHORT_PANEL_FIRST]+
         k_battle_map_action_parameters[SHORT_PANEL_COUNT]-1u;
     blit(e->board.framebuffer,320,200,320,&e->map_fx[last],e->panel_x[1],e->panel_y[1],-1);
@@ -811,7 +854,7 @@ static int short_strike(const fd2_field_game *game,const fd2_field_physical_even
         if (sample!=255 && play_cue(ctx,&e->map_sound,e->sfx_enabled,
                 event->result->hit ? sample:4)!=0) return -1;
         if (event->result->hit && i<2 &&
-            map_physical_actor(game,e,ctx->vga->framebuffer,target,i==0,0)!=0) return -1;
+            map_physical_actor(game,e,ctx->vga->framebuffer,target,i==0,0,NULL)!=0) return -1;
         memcpy(e->work,ctx->vga->framebuffer,64000);
         blit(ctx->vga->framebuffer,320,200,320,image,x,y,-1);
         map_present_ms(ctx,k_battle_map_action_parameters[SHORT_FX_MS]);
@@ -848,8 +891,7 @@ static int recovery_step(const fd2_field_game *game,const fd2_field_physical_eve
         /* 12d7b→12cea即使same-target亦先11cac(0)，1acf3受51AAB&&51AAC。
          * 玩家WAIT保当前信息板；AI整轮51AAC=0须pure。这里只选既有只读
          * mode3/0，不推进共享clock，也不扩G4设置或改变Magic/Item背景。 */
-        if (e->recovery_with_info) fd2_field_game_render_effect_background(game,&e->board);
-        else fd2_field_game_render_background(game,&e->board);
+        if (battle_field_render(game,ctx,&e->board,e->recovery_with_info?1:0)!=0) return -1;
         memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);e->started=1;
     }
     if (event->recovery_step==FD2_FIELD_RECOVERY_WAIT) present(ctx,event->step_value);
@@ -857,8 +899,10 @@ static int recovery_step(const fd2_field_game *game,const fd2_field_physical_eve
         return play_cue(ctx,&e->map_sound,e->sfx_enabled,(uint8_t)event->step_value);
     else {
         e->units[0]=game->units.items[e->actor[0]];
-        if (map_physical_actor(game,e,e->board.framebuffer,0,event->step_value==2,1)!=0) return -1;
-        for (size_t y=4;y<196;y++)
+        if (map_physical_actor(game,e,e->board.framebuffer,0,event->step_value==2,1,ctx->vga->field_page)!=0) return -1;
+        if (ctx->vga->field_page) {
+            if (fd2_field_page_project(ctx->vga->field_page,72,72,ctx->vga->framebuffer,64000)!=0) return -1;
+        } else for (size_t y=4;y<196;y++)
             memcpy(ctx->vga->framebuffer+y*320u+4,e->board.framebuffer+y*320u+4,312);
         present(ctx,0);
     }
@@ -867,24 +911,20 @@ static int recovery_step(const fd2_field_game *game,const fd2_field_physical_eve
 
 static int map_physical_restore(fd2_battle_animation *ctx,const fd2_field_game *game,int normal) {
     fd2_battle_animation_exchange *e=ctx->exchange;
-    int status=0;
+    (void)game;
     (void)stopped(ctx);
     /* 13fd4的最后一次viewportcopy在第三wait之前；HP/mode写后直接返回。
-     * FINISH只释放scope，不提前调用11cac、上传新HP或推进共享视觉clock。 */
-    if (normal && !ctx->host_quit && e->mode==FD2_FIELD_PHYSICAL_MODE_RECOVERY) {
+     * SHORT也没有FULL内部的11cac(1)尾：1548e在collect后/descriptor后
+     * 的两次11cac(0)由原caller冷尾驱动，不在本服务FINISH提前插入。
+     * 两者均未改palette；正常退出不回滚本轮已到达的water DAC。 */
+    if (normal && !ctx->host_quit) {
         exchange_close(ctx);return 0;
     }
-    if (normal && !ctx->host_quit) {
-        uint64_t now=SDL_GetTicks();
-        if (fd2_field_actor_visual_tick(ctx->vga,now)<0 ||
-            fd2_field_game_tick_visual(ctx->visual_owner,now)!=0) status=-1;
-        if (!status) fd2_field_game_render_battle_return(game,ctx->vga);
-    }
-    if (!normal || ctx->host_quit || status<0) memcpy(ctx->vga->framebuffer,e->map,64000);
+    memcpy(ctx->vga->framebuffer,e->map,64000);
     memcpy(ctx->vga->palette,e->palette,768);memcpy(ctx->vga->dac,e->dac,768);
     /* 原SHORT/13fd4没有额外primary stop。此bank仅借FDOTHER sample bytes，
      * close只释放目录，App归档仍长于voice；不为释放目录提前截断cue。 */
-    exchange_close(ctx);return status;
+    exchange_close(ctx);return 0;
 }
 
 static int restore(fd2_battle_animation *ctx, const fd2_field_game *game, int animate) {
@@ -968,6 +1008,7 @@ struct fd2_battle_magic_exchange {
     battle_image bg, terrain, target_bg, transition[3], map_fx[256], digits[256];
     fd2_pcm_bank sound, map_sound, teleport_sound;
     fd2_field_effect_frames earthquake;
+    fd2_field_page *map_base; /* 本次地图effect的临时像素base，非资源/clock owner。 */
     fd2_vga board;
     uint8_t work[172800]; /* 2ff01原2a300：640stride带30行/160px守卫。 */
     uint8_t map[64000], palette[768], dac[768];
@@ -1018,6 +1059,7 @@ static void magic_close_exchange(fd2_battle_animation *ctx) {
     image_close(&e->bg);image_close(&e->terrain);image_close(&e->target_bg);
     fd2_pcm_bank_close(&e->sound);fd2_pcm_bank_close(&e->map_sound);
     fd2_pcm_bank_close(&e->teleport_sound);fd2_field_effect_frames_close(&e->earthquake);
+    fd2_field_page_destroy(e->map_base);
     free(e);ctx->magic_exchange=NULL;
 }
 
@@ -1033,7 +1075,7 @@ static int magic_map_actor_style(const fd2_battle_magic_exchange *e,uint8_t id) 
     return MAP_ACTORS_NONE;
 }
 
-static int magic_map_assets(fd2_battle_magic_exchange *e,const fd2_field_game *game,
+static int magic_map_assets_impl(fd2_battle_magic_exchange *e,const fd2_field_game *game,
         fd2_battle_animation *ctx,uint8_t id) {
     if (id>=33) return -1;
     int style=magic_map_actor_style(e,id);
@@ -1043,6 +1085,8 @@ static int magic_map_assets(fd2_battle_magic_exchange *e,const fd2_field_game *g
         if (frame>=256 || (!e->map_fx[frame].image.pixels &&
             lmi_image(&e->map_fx[frame],ctx->fdother,6,frame)!=0)) return -1;
     }
+    if (style==MAP_ACTORS_DUOTONE) for (size_t frame=74;frame<=75;frame++)
+        if (!e->map_fx[frame].image.pixels && lmi_image(&e->map_fx[frame],ctx->fdother,6,frame)!=0) return -1;
     int damage=e->action_kind==FD2_FIELD_MAGIC_ACTION_ITEM
         ? k_battle_item_presentations[e->item_code-5][1]==1
         : id<=12 || id==22 || id==26 || id==27 || id==32;
@@ -1084,6 +1128,15 @@ static int magic_map_assets(fd2_battle_magic_exchange *e,const fd2_field_game *g
         if (!bank_sample_valid(&e->teleport_sound,0) || !bank_sample_valid(&e->teleport_sound,1)) return -1;
     }
     return 0;
+}
+
+static int magic_map_assets(fd2_battle_magic_exchange *e,const fd2_field_game *game,
+    fd2_battle_animation *ctx,uint8_t id) {
+    fd2_field_render_scope scope;
+    if (fd2_field_render_scope_begin(&scope,&e->board,ctx->vga,1)!=0) return -1;
+    int result=magic_map_assets_impl(e,game,ctx,id);
+    fd2_field_render_scope_end(&scope);
+    return result;
 }
 
 static int magic_prepare(const fd2_field_game *game,const fd2_field_magic_present_event *event,
@@ -1366,14 +1419,18 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
 static int refresh_map(const fd2_field_game *game,fd2_battle_animation *ctx,fd2_vga *target) {
     uint64_t now=SDL_GetTicks();
     if (stopped(ctx)) return 0;
+    if (ctx->vga->field_page) {
+        if (ctx->visual_owner!=game || fd2_field_game_effect_refresh(ctx->visual_owner,ctx->vga)!=0) return -1;
+        if (target!=ctx->vga) memcpy(target->framebuffer,ctx->vga->framebuffer,64000);
+        return 0;
+    }
     if (ctx->visual_owner!=game || !game->ready || game->failure ||
         fd2_field_water_tick(ctx->vga,now)<0 ||
         fd2_field_actor_visual_tick(ctx->vga,now)<0 ||
         fd2_field_game_tick_visual(ctx->visual_owner,now)!=0) return -1;
     target->actor_jitter_tick=ctx->vga->actor_jitter_tick;
     target->actor_jitter_phase=ctx->vga->actor_jitter_phase;
-    fd2_field_game_render_effect_background(game,target);
-    return 0;
+    return battle_field_render(game,ctx,target,1);
 }
 
 static void map_actor_paint(fd2_battle_magic_exchange *e,const fd2_field_game *game,
@@ -1388,18 +1445,77 @@ static void map_actor_paint(fd2_battle_magic_exchange *e,const fd2_field_game *g
         ((int)u->y-game->camera_cell_y)*24-6,tint);
 }
 
+/* 1cd17按原RLE选择固定direction0、idle3→2；literal0也参与染色。 */
+static int map_actor_page(fd2_battle_magic_exchange *e,const fd2_field_game *game,
+    fd2_field_page *page,size_t index,int tint) {
+    uint8_t lut[256];
+    for (unsigned i=0;i<256;i++) lut[i]=tint<0 ? (uint8_t)i:tint<=255 ? (uint8_t)tint:
+        (uint8_t)(tint+(((tint>>8)+i)&7u));
+    return fd2_field_fixed_page_actor(page,&game->sprites,&game->units,e->targets[index],
+        game->camera_cell_x,game->camera_cell_y,game->idle_phase,lut);
+}
+
+static int magic_map_base(fd2_battle_magic_exchange *e,const fd2_vga *vga) {
+    fd2_field_page_destroy(e->map_base);e->map_base=NULL;
+    if (vga->field_page && !(e->map_base=fd2_field_page_clone(vga->field_page))) return -1;
+    return 0;
+}
+
+static int magic_map_project(fd2_vga *vga) {
+    return fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
+}
+
+static int magic_terrain_base(fd2_battle_magic_exchange *e,fd2_battle_animation *ctx) {
+    if (magic_map_base(e,ctx->vga)!=0) return -1;
+    return e->map_base ? fd2_field_game_effect_terrain_begin(ctx->visual_owner,ctx->vga,e->map_base):0;
+}
+
+/* 1cb94：独立terrain页，各raw按顺序画；目标用LMI74/75，其余固定dir0。
+ * 与127a9不同，无acted/raw26/移动帧和前景，也不带信息板。
+ * 1cac7在1cad5/1cad9与1cafc/1cb00重复同一count/list栈槽；Hex-Rays
+ * 跨尾jump推入的EBP/EDI“第二组”是虚参，不是75页的另一目标组。 */
+static int magic_duotone_page(const fd2_field_game *game,fd2_battle_animation *ctx,
+    fd2_field_page *page,size_t variant) {
+    fd2_battle_magic_exchange *e=ctx->magic_exchange;
+    if (fd2_field_game_effect_terrain_begin(ctx->visual_owner,ctx->vga,page)!=0) return -1;
+    for (size_t raw=0;raw<game->units.count;raw++) {
+        const fd2_field_unit *u=&game->units.items[raw];
+        if (fd2_field_unit_is_hidden(u) || (int)u->x<game->camera_cell_x-1 ||
+            (int)u->x>game->camera_cell_x+13 || (int)u->y<game->camera_cell_y-1 ||
+            (int)u->y>game->camera_cell_y+9) continue;
+        size_t target=0;
+        while (target<e->count && e->targets[target]!=raw) target++;
+        if (target<e->count) {
+            if (battle_page_image(page,&e->map_fx[74+variant],
+                72+((int)u->x-game->camera_cell_x)*24,
+                66+((int)u->y-game->camera_cell_y)*24,-1)!=0) return -1;
+        } else if (fd2_field_fixed_page_actor(page,&game->sprites,&game->units,raw,
+            game->camera_cell_x,game->camera_cell_y,game->idle_phase,NULL)!=0) return -1;
+    }
+    return 0;
+}
+
 /* 1c4cc地图LMI、1cd17染色、1cac7双色闪烁及1c2da实体闪烁。
  * 原各wrapper只选择有限core；此处既不扣费也不运行effect/RNG。 */
 static int magic_map_frames(const fd2_field_game *game,fd2_battle_animation *ctx,uint8_t id) {
     fd2_battle_magic_exchange *e=ctx->magic_exchange;
     int style=magic_map_actor_style(e,id);
     if (id>=33 || style<0 || refresh_map(game,ctx,&e->board)!=0) return -1;
+    if (magic_map_base(e,ctx->vga)!=0) return -1;
     for (unsigned frame=0;frame<k_battle_map_fx_count[id] && !stopped(ctx);frame++) {
         memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
-        for (size_t i=0;i<e->count;i++) blit(ctx->vga->framebuffer+1284,312,192,320,
-            &e->map_fx[(size_t)k_battle_map_fx_start[id]+frame],
-            ((int)e->units[i].x-game->camera_cell_x)*24,
-            ((int)e->units[i].y-game->camera_cell_y)*24-6,-1);
+        if (e->map_base && fd2_field_page_copy_pixels(ctx->vga->field_page,e->map_base)!=0) return -1;
+        for (size_t i=0;i<e->count;i++) {
+            const battle_image *fx=&e->map_fx[(size_t)k_battle_map_fx_start[id]+frame];
+            int x=((int)e->units[i].x-game->camera_cell_x)*24;
+            int y=((int)e->units[i].y-game->camera_cell_y)*24-6;
+            if (e->map_base) {
+                if ((int)e->units[i].x>=game->camera_cell_x-1 && (int)e->units[i].x<=game->camera_cell_x+13 &&
+                    (int)e->units[i].y>=game->camera_cell_y-1 && (int)e->units[i].y<=game->camera_cell_y+9 &&
+                    battle_page_image(ctx->vga->field_page,fx,72+x,72+y,-1)!=0) return -1;
+            } else blit(ctx->vga->framebuffer+1284,312,192,320,fx,x,y,-1);
+        }
+        if (e->map_base && magic_map_project(ctx->vga)!=0) return -1;
         int sample=!frame && k_battle_map_fx_cue[id] ? k_battle_map_fx_cue[id]:-1;
         if (sample<0) for (size_t i=0;i<sizeof(k_battle_map_extra_cues)/sizeof(k_battle_map_extra_cues[0]);i++)
             if (k_battle_map_extra_cues[i][0]==id && k_battle_map_extra_cues[i][1]==frame)
@@ -1410,16 +1526,43 @@ static int magic_map_frames(const fd2_field_game *game,fd2_battle_animation *ctx
     if (stopped(ctx)) return 0;
     if (refresh_map(game,ctx,&e->board)!=0) return -1;
     memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);present(ctx,0);
+    if (magic_map_base(e,ctx->vga)!=0) return -1;
     if (style==MAP_ACTORS_RAMP) {
         for (unsigned frame=0;frame<10 && !stopped(ctx);frame++) {
             memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
+            if (e->map_base && fd2_field_page_copy_pixels(ctx->vga->field_page,e->map_base)!=0) return -1;
             int phase=7-(int)(frame%8u);
             if (!phase) phase=8; /* 原rotation0仍是8色映射，不是实体常色。 */
-            for (size_t i=0;i<e->count;i++) map_actor_paint(e,game,ctx->vga->framebuffer,i,
-                k_battle_map_damage_tint[id]+(phase<<8));
+            for (size_t i=0;i<e->count;i++) {
+                int tint=k_battle_map_damage_tint[id]+(phase<<8);
+                if (e->map_base) {
+                    if (map_actor_page(e,game,ctx->vga->field_page,i,tint)!=0) return -1;
+                } else map_actor_paint(e,game,ctx->vga->framebuffer,i,tint);
+            }
+            if (e->map_base && magic_map_project(ctx->vga)!=0) return -1;
             present(ctx,1);
         }
+        /* 1cd17尾只投影旧snapshot，App仍保最后一帧染色。 */
+        if (!stopped(ctx)) {memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);present(ctx,0);}
     } else if (style==MAP_ACTORS_DUOTONE) {
+        if (e->map_base) {
+            fd2_field_page *alternate=fd2_field_page_create();
+            if (!alternate) return -1;
+            int result=magic_duotone_page(game,ctx,ctx->vga->field_page,0);
+            if (!result) result=magic_duotone_page(game,ctx,alternate,1);
+            for (unsigned frame=0;!result && frame<8 && !stopped(ctx);frame++) {
+                result=fd2_field_page_project(frame&1u ? alternate:ctx->vga->field_page,
+                    72,72,ctx->vga->framebuffer,64000);
+                if (!result) {present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(90);}
+            }
+            fd2_field_page_destroy(alternate);
+            if (result) return -1;
+            if (!stopped(ctx)) {
+                if (refresh_map(game,ctx,ctx->vga)!=0) return -1;
+                present(ctx,0);
+            }
+            return 0;
+        }
         for (unsigned frame=0;frame<8 && !stopped(ctx);frame++) {
             memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
             for (size_t i=0;i<e->count;i++) map_actor_paint(e,game,ctx->vga->framebuffer,i,74+(int)(frame&1u));
@@ -1430,8 +1573,13 @@ static int magic_map_frames(const fd2_field_game *game,fd2_battle_animation *ctx
         /* field_actor_group_flash @0x1c2da（原sub_1C2DA）虽传51f15[id]，
          * map_sprite_solid_blit_24 @0x4e127（原同名）实际只取原stride456低byte。
          * arg_C未消费，不能借SDL stride或caller色表改变原有效常色。 */
-        for (size_t i=0;i<e->count;i++) map_actor_paint(e,game,e->work,i,fd2_battle_animation_map_solid_color());
         if (play_cue(ctx,&e->map_sound,e->sfx_enabled,1)!=0) return -1;
+        for (size_t i=0;i<e->count;i++) {
+            if (e->map_base) {
+                if (map_actor_page(e,game,ctx->vga->field_page,i,fd2_battle_animation_map_solid_color())!=0) return -1;
+            } else map_actor_paint(e,game,e->work,i,fd2_battle_animation_map_solid_color());
+        }
+        if (e->map_base && fd2_field_page_project(ctx->vga->field_page,72,72,e->work,64000)!=0) return -1;
         for (unsigned frame=0;frame<11 && !stopped(ctx);frame++) {
             memcpy(ctx->vga->framebuffer,(frame&1u) ? e->work:e->board.framebuffer,64000);
             present(ctx,frame<10 ? 1u:0u);
@@ -1451,23 +1599,41 @@ static int magic_map_cast(const fd2_field_game *game,const fd2_field_magic_prese
     if (id==23) return 0; /* 2218a的两次22253在明确坐标提交边界分别重放。 */
     int wrapper=e->action_kind==FD2_FIELD_MAGIC_ACTION_MAGIC && e->mode==FD2_FIELD_MAGIC_MODE_MAP;
     if (wrapper && id==10) {
+        /* 21548在真正CAST时生成三页；资源PREPARE的旧视觉快照不能重放成热页。 */
+        fd2_field_effect_frames_close(&e->earthquake);
+        int prepared=fd2_field_game_begin_earthquake(ctx->visual_owner,ctx->vga,&e->earthquake);
+        if (prepared<0) return -1;
+        if (prepared>0) {ctx->host_quit=1;return 0;}
         for (size_t frame=0;frame<60 && !stopped(ctx);frame++) {
             int source=fd2_field_effect_source_index(FD2_FIELD_EFFECT_EARTHQUAKE,frame);
             if (source<0 || (size_t)source>=e->earthquake.snapshot_count) return -1;
             memcpy(ctx->vga->framebuffer,e->earthquake.snapshots[source],64000);
             if (frame<43 && frame%6u==0 && play_cue(ctx,&e->map_sound,e->sfx_enabled,13)!=0) return -1;
+            if (ctx->vga->field_page && fd2_field_effect_apply_page_frame(&e->earthquake,ctx->vga,frame)!=0) return -1;
             present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(10);
         }
+        /* 原21548恢复真实page指针后先11cac(0)，随后才进入HP/RNG写点。 */
+        if (!stopped(ctx) && refresh_map(game,ctx,ctx->vga)!=0) return -1;
+        if (!stopped(ctx)) present(ctx,0);
         return 0;
     }
     if (wrapper && (id==11 || id==12)) {
-        if (play_cue(ctx,&e->map_sound,e->sfx_enabled,2)!=0 || refresh_map(game,ctx,&e->board)!=0) return -1;
+        if (play_cue(ctx,&e->map_sound,e->sfx_enabled,2)!=0) return -1;
+        /* 2189a先11eee临时terrain，不先11cac推进actor/信息板。 */
+        if (!ctx->vga->field_page && refresh_map(game,ctx,&e->board)!=0) return -1;
+        if (magic_terrain_base(e,ctx)!=0) return -1;
         for (int i=0;i<10 && !stopped(ctx);i++) {
             memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
             int radius=(id==11 ? 15:30)+i*(id==11 ? 10:16);
-            if (fd2_field_transition_lut_circle12(ctx->vga,fd2_field_lut_frame(&game->visuals,(size_t)i),
-                (game->cursor_cell_x-game->camera_cell_x)*24+12,
-                (game->cursor_cell_y-game->camera_cell_y)*24+16,radius)!=0) return -1;
+            const uint8_t *lut=fd2_field_lut_frame(&game->visuals,(size_t)i);
+            int x=(game->cursor_cell_x-game->camera_cell_x)*24+12;
+            int y=(game->cursor_cell_y-game->camera_cell_y)*24+16;
+            if (e->map_base ? fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,radius,0,1)!=0:
+                fd2_field_transition_lut_circle12(ctx->vga,lut,x,y,radius)!=0) return -1;
+            present(ctx,0);
+        }
+        if (e->map_base && !stopped(ctx)) {
+            if (refresh_map(game,ctx,ctx->vga)!=0) return -1;
             present(ctx,0);
         }
         return 0;
@@ -1482,15 +1648,19 @@ static int magic_heal_prelude(const fd2_field_game *game,fd2_battle_animation *c
     int x=(game->cursor_cell_x-game->camera_cell_x)*24+12;
     int y=(game->cursor_cell_y-game->camera_cell_y)*24+16;
     int start=k_battle_heal_masks[id-13][0],step=k_battle_heal_masks[id-13][1];
+    if (magic_terrain_base(e,ctx)!=0) return -1;
     for (int i=9;i>0 && !stopped(ctx);i--) {
-        if (fd2_field_game_render_transition_mask(game,ctx->vga,
-            fd2_field_lut_frame(&game->visuals,(size_t)i),x,y,start+(9-i)*step)!=0) return -1;
+        const uint8_t *lut=fd2_field_lut_frame(&game->visuals,(size_t)i);
+        int radius=start+(9-i)*step;
+        if (e->map_base ? fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,radius,0,0)!=0:
+            fd2_field_game_render_transition_mask(game,ctx->vga,lut,x,y,radius)!=0) return -1;
         present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(5);
     }
     if (!stopped(ctx)) fd2_delay_ms(200);
     for (int i=3;i<10 && !stopped(ctx);i++) {
-        if (fd2_field_game_render_transition_mask(game,ctx->vga,
-            fd2_field_lut_frame(&game->visuals,(size_t)i),x,y,start+8*step)!=0) return -1;
+        const uint8_t *lut=fd2_field_lut_frame(&game->visuals,(size_t)i);
+        if (e->map_base ? fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,start+8*step,0,0)!=0:
+            fd2_field_game_render_transition_mask(game,ctx->vga,lut,x,y,start+8*step)!=0) return -1;
         present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(5);
     }
     if (!stopped(ctx) && refresh_map(game,ctx,ctx->vga)!=0) return -1;
@@ -1660,6 +1830,7 @@ static int teleport_mask(const fd2_field_game *game,fd2_battle_animation *ctx,
     const uint8_t *lut=fd2_field_lut_frame(&game->visuals,lut_frame);
     int x=(e->teleport_x-game->camera_cell_x)*24+12;
     int y=(e->teleport_y-game->camera_cell_y)*24+15;
+    if (e->map_base) return fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,11,first_row,0);
     teleport_view_copy(ctx->vga,e->board.framebuffer);
     if (fd2_field_transition_lut_before_actors_from(ctx->vga,lut,x,y,11,first_row)!=0 ||
         fd2_field_actor_visual_tick(ctx->vga,SDL_GetTicks())<0) return -1;
@@ -1685,16 +1856,30 @@ static int magic_teleport(const fd2_field_game *game,
     if (!(phase&1u)) {
         e->teleport_x=phase==0 ? event->target_before->x:event->destination_x;
         e->teleport_y=phase==0 ? event->target_before->y:event->destination_y;
-        fd2_field_game_render_effect_tiles(game,&e->board);
+        if (ctx->vga->field_page) {
+            if (magic_terrain_base(e,ctx)!=0 || fd2_field_page_project(e->map_base,72,72,
+                    e->board.framebuffer,sizeof(e->board.framebuffer))!=0) return -1;
+        } else if (battle_field_render(game,ctx,&e->board,2)!=0) return -1;
         int x=(e->teleport_x-game->camera_cell_x)*24;
         int y=(e->teleport_y-game->camera_cell_y)*24+1;
         for (size_t frame=114;frame<=124 && !stopped(ctx);frame++) {
-            teleport_view_copy(ctx->vga,e->board.framebuffer);
-            blit(ctx->vga->framebuffer+1284,312,192,320,&e->map_fx[frame],x,y,-1);
+            if (e->map_base) {
+                if (fd2_field_page_copy_pixels(ctx->vga->field_page,e->map_base)!=0 ||
+                    battle_page_image(ctx->vga->field_page,&e->map_fx[frame],72+x,72+y,-1)!=0) return -1;
+            } else {
+                teleport_view_copy(ctx->vga,e->board.framebuffer);
+                blit(ctx->vga->framebuffer+1284,312,192,320,&e->map_fx[frame],x,y,-1);
+            }
             if (fd2_field_actor_visual_tick(ctx->vga,SDL_GetTicks())<0) return -1;
-            fd2_field_game_render_effect_actors(game,ctx->vga);present(ctx,1);
+            if (ctx->vga->field_page) {
+                if (fd2_field_game_effect_actors(game,ctx->vga)!=0) return -1;
+            } else fd2_field_game_render_effect_actors(game,ctx->vga);
+            present(ctx,1);
         }
-        blit(e->board.framebuffer+1284,312,192,320,&e->map_fx[124],x,y,-1);
+        if (stopped(ctx)) return 0;
+        if (e->map_base) {
+            if (battle_page_image(e->map_base,&e->map_fx[124],72+x,72+y,-1)!=0) return -1;
+        } else blit(e->board.framebuffer+1284,312,192,320,&e->map_fx[124],x,y,-1);
         if (play_cue(ctx,&e->teleport_sound,e->sfx_enabled,(uint8_t)(phase==2))!=0) return -1;
         int center_y=(e->teleport_y-game->camera_cell_y)*24+15;
         for (int i=5;i>=0 && !stopped(ctx);i--) {
@@ -1869,19 +2054,24 @@ static int floating_values(const fd2_field_game *game,fd2_battle_animation *ctx)
         e->units[i].y<=game->camera_cell_y+8)
         for (size_t slot=0;slot<4;slot++) if (e->popup_glyphs[i][slot]) any=1;
     if (!any) return 0;
+    if (magic_map_base(e,ctx->vga)!=0) return -1;
     for (size_t frame=0;frame<22 && !stopped(ctx);frame++) {
         memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
+        if (e->map_base && fd2_field_page_copy_pixels(ctx->vga->field_page,e->map_base)!=0) return -1;
         for (size_t i=0;i<e->count;i++) {
             const fd2_field_unit *u=&e->units[i];
             if (u->x<game->camera_cell_x || u->x>=game->camera_cell_x+13 ||
                 u->y<game->camera_cell_y-1 || u->y>game->camera_cell_y+8) continue;
             for (size_t slot=0;slot<4;slot++) if (e->popup_glyphs[i][slot]) {
                 const battle_image *digit=&e->digits[e->popup_glyphs[i][slot]];
-                blit(ctx->vga->framebuffer+1284,312,192,320,digit,
-                    ((int)u->x-game->camera_cell_x)*24+e->popup_x[i][slot],
-                    ((int)u->y-game->camera_cell_y)*24+(int)k_battle_heal_curve[frame+slot]-3,-1);
+                int x=((int)u->x-game->camera_cell_x)*24+e->popup_x[i][slot];
+                int y=((int)u->y-game->camera_cell_y)*24+(int)k_battle_heal_curve[frame+slot]-3;
+                if (e->map_base) {
+                    if (battle_page_image(ctx->vga->field_page,digit,72+x,72+y,-1)!=0) return -1;
+                } else blit(ctx->vga->framebuffer+1284,312,192,320,digit,x,y,-1);
             }
         }
+        if (e->map_base && magic_map_project(ctx->vga)!=0) return -1;
         present(ctx,0);if (!stopped(ctx)) fd2_delay_ms(2);
     }
     if (!stopped(ctx)) fd2_delay_ms(500);
@@ -1956,13 +2146,17 @@ static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,in
     if (cinematic || !normal || ctx->host_quit || status<0) {
         memcpy(ctx->vga->palette,e->palette,768);memcpy(ctx->vga->dac,e->dac,768);
     }
-    /* 21b18→21190共享11cac尾；skip正常返回不等于action_failed/host_quit。 */
+    /* 21190的11cac在浮字前（floating_values首部）；1df58/22253末尾
+     * 保最后App页。只有FULL/派生/复合有内部11cac(1)返回，host skip
+     * 另按既有合同恢复当前地图；不能给正常MAP伪造一个浮字后刷新。 */
     if (normal && !ctx->host_quit && status==0) {
-        uint64_t now=SDL_GetTicks();
-        if (fd2_field_actor_visual_tick(ctx->vga,now)<0 ||
-            fd2_field_game_tick_visual(ctx->visual_owner,now)!=0) status=-1;
-        if (status==0) fd2_field_game_render_effect_background(game,ctx->vga);
-        else memcpy(ctx->vga->framebuffer,e->map,64000);
+        if (cinematic || ctx->skip) {
+            uint64_t now=SDL_GetTicks();
+            if (fd2_field_actor_visual_tick(ctx->vga,now)<0 ||
+                fd2_field_game_tick_visual(ctx->visual_owner,now)!=0) status=-1;
+            if (status==0) fd2_field_game_render_effect_background(game,ctx->vga);
+            else memcpy(ctx->vga->framebuffer,e->map,64000);
+        }
     } else memcpy(ctx->vga->framebuffer,e->map,64000);
     if (normal && status==0 && (full || derived) && e->started && !stopped(ctx)) fade(ctx,1);
     if (ctx->host_quit) memcpy(ctx->vga->framebuffer,e->map,64000);

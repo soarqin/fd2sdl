@@ -1,0 +1,4913 @@
+{
+  "schema_version": 1,
+  "domain": "runtime",
+  "source": {
+    "kind": "original_executable",
+    "file": "FD2.EXE",
+    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+    "evidence": "sub_10010 @0x104a1..0x10602 and field_turn_cycle_run @0x1a620..0x1a781 (original FUN_00017a53); G1 Domain complete instruction/fixup readset build/g1/ida/runtime/domain-evidence.json. Same 83..91 zero-transparent LMI on VGA, bank42 three digits only90/91, delay70 then extra500 on91 and VGA restore; m2/3/4/9 frame91+digits on456stride page, visible page(72,72)/312x192 copied to VGA(4,4), tick1, page restored. Final11cac(0)/200ms. round_map_background only reads original working page, never copies VGA UI back. Turn increment/music/acted/phase/event/status and saved state remain caller-owned; activity Load uses same presentation without any new phase/event. Phase: sub_1F1CC @0x1f1cc / sub_1F30A @0x1f30a / sub_1F42D @0x1f42d / sub_4EB59 @0x4eb59 complete Domain original instruction+strict LE readset build/g4/ida/runtime-phase-01. 1a30b only labels82(enemy,20ms hold) and80(player,150ms hold), with common81. Seven entry offsets100/75/50/25/0/1/0, prefix raw0..63999 receives original pre-entry VGA; 16 mosaic factors1..16 and DAC16..255 depths0..15, clear BIOS, hold; 17 close factors17..1 and depths16..0; tiles11eee/actors127a9 (no1297d) then offsets0/25/50/75/100. Each slide/mosaic waits1 BIOS tick, no invented sound/RNG. Turncycle: field_turn_cycle_run complete original1a30b..1a7bd, strict LE/Domain build/g1/ida/runtime; four scheduler-owned return points player_done/side1_done/side0_done/player_ready preserve original async progress/AI owner without a new execution cursor. Group recovery waits1/0/0 once for whole group, HP->normal draw->acted per raw actor; phase/title/round/event ordering remains cold. Labels reflect source caller boundaries, not new game phases. Shared choice19953/197e5: default selector0 and initial RNG%30+2, four normal-button slides4/8/12/16, wait-key before timer/RNG, shared lowWORD signed tick gate2, phase/2, blink reset%30+10, Left/Right only, Enter/Space/extended confirm, Escape/Delete cancel. Both exits clear onlyphase then close offsets12/8/4/0. No added BIOS delay in slide; host16ms present is explicitly an SDL upload boundary. Choice page source: 19953/197e5 use53A51 field resource pointer>1, not portrait coordinates. BEGIN copies VGA320x200 into same page(68,68); in field call1297d/11eee/127a9 at begin, due tick and close. Each slide copies snapshot VGA(5,112)310x86 into page(73,180), writes buttons at page(316+offset,236), then projects312x192. Due tick blinks into snapshot; nonfield<=1 writes full snapshot again, field copies onlybottom after fresh map. Town26152 frees field pointer0;2670e depart temporarily1; hotel0. Cold has_field/redraw/copy edges retain these differences. Defeat: field_defeated_units_finalize @1db65..1debe complete G1 Domain source; witness x[camX-1,camX+13]/y[camY-1,camY+9], all visible zeroHP direction j%4 for13 rotations with wait1, all zeroHP flags=1, temporary153216B no-dead base, UI31 cue3, UI5 LMI68..73 cumulative then74..79 restore base each, project/wait1, free then11cac0. No witness onlyflags=1. Detail17aed: open then16c57(0), nonempty magic flips lower panel then16c57(0), close; any ordinary key advances, no invented cancel option."
+  },
+  "operations": {
+    "round_frame": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 83,
+          "max": 91
+        },
+        {
+          "name": "x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 199
+        }
+      ]
+    },
+    "round_number": {
+      "args": [
+        {
+          "name": "x",
+          "min": 0,
+          "max": 302
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 192
+        }
+      ]
+    },
+    "round_wait_ms": {
+      "args": [
+        {
+          "name": "duration",
+          "min": 1,
+          "max": 1000
+        }
+      ]
+    },
+    "round_wait_ticks": {
+      "args": [
+        {
+          "name": "ticks",
+          "min": 1,
+          "max": 1
+        }
+      ]
+    },
+    "round_restore_vga": {
+      "args": []
+    },
+    "round_map_background": {
+      "args": []
+    },
+    "round_drop": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 91,
+          "max": 91
+        },
+        {
+          "name": "x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 199
+        },
+        {
+          "name": "number_x",
+          "min": 0,
+          "max": 302
+        },
+        {
+          "name": "number_y",
+          "min": 0,
+          "max": 192
+        }
+      ]
+    },
+    "round_refresh": {
+      "args": []
+    },
+    "round_finish": {
+      "args": []
+    },
+    "phase_parameters": {
+      "args": [
+        {
+          "name": "label",
+          "min": 80,
+          "max": 82
+        },
+        {
+          "name": "hold_ms",
+          "min": 20,
+          "max": 150
+        }
+      ]
+    },
+    "phase_slide": {
+      "args": [
+        {
+          "name": "offset",
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "left_x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "right_x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 199
+        },
+        {
+          "name": "common_frame",
+          "min": 81,
+          "max": 81
+        }
+      ]
+    },
+    "phase_capture_prefix": {
+      "args": []
+    },
+    "phase_mosaic": {
+      "args": [
+        {
+          "name": "factor",
+          "min": 1,
+          "max": 17
+        },
+        {
+          "name": "left_x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "right_x",
+          "min": 0,
+          "max": 319
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 199
+        },
+        {
+          "name": "common_frame",
+          "min": 81,
+          "max": 81
+        }
+      ]
+    },
+    "phase_darkness": {
+      "args": [
+        {
+          "name": "first_color",
+          "min": 16,
+          "max": 16
+        },
+        {
+          "name": "last_color",
+          "min": 255,
+          "max": 255
+        },
+        {
+          "name": "depth",
+          "min": 0,
+          "max": 16
+        }
+      ]
+    },
+    "phase_clear_keys": {
+      "args": []
+    },
+    "phase_hold": {
+      "args": []
+    },
+    "phase_redraw": {
+      "args": []
+    },
+    "turn_recovery_wait": {
+      "args": [
+        {
+          "name": "value",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "turn_recovery_highlight": {
+      "args": []
+    },
+    "turn_recovery_cue": {
+      "args": []
+    },
+    "turn_recovery_commit": {
+      "args": []
+    },
+    "turn_recovery_project": {
+      "args": []
+    },
+    "turn_refresh": {
+      "args": []
+    },
+    "turn_stop_if_different": {
+      "args": []
+    },
+    "turn_enemy_title": {
+      "args": []
+    },
+    "turn_player_title": {
+      "args": []
+    },
+    "turn_clear_acted": {
+      "args": []
+    },
+    "turn_enter_phase": {
+      "args": [
+        {
+          "name": "value",
+          "min": 0,
+          "max": 2
+        }
+      ]
+    },
+    "turn_increment": {
+      "args": []
+    },
+    "turn_display_mode": {
+      "args": [
+        {
+          "name": "value",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "turn_primary_music": {
+      "args": []
+    },
+    "turn_round": {
+      "args": []
+    },
+    "turn_focus_reset": {
+      "args": []
+    },
+    "turn_focus_zero": {
+      "args": []
+    },
+    "turn_clear_keys": {
+      "args": []
+    },
+    "turn_done": {
+      "args": []
+    },
+    "choice_begin": {
+      "args": []
+    },
+    "choice_wait_key": {
+      "args": []
+    },
+    "choice_read_key": {
+      "args": []
+    },
+    "choice_tick": {
+      "args": []
+    },
+    "choice_finish": {
+      "args": []
+    },
+    "choice_done": {
+      "args": []
+    },
+    "choice_draw": {
+      "args": [
+        {
+          "name": "displacement",
+          "min": 0,
+          "max": 16
+        }
+      ]
+    },
+    "choice_snapshot": {
+      "args": []
+    },
+    "choice_has_field": {
+      "args": []
+    },
+    "choice_field_redraw": {
+      "args": []
+    },
+    "choice_blink": {
+      "args": []
+    },
+    "choice_steady": {
+      "args": [
+        {
+          "name": "displacement",
+          "min": 16,
+          "max": 16
+        }
+      ]
+    },
+    "defeat_has_visible": {
+      "args": []
+    },
+    "defeat_begin": {
+      "args": []
+    },
+    "defeat_rotate_page": {
+      "args": []
+    },
+    "defeat_mark_hidden": {
+      "args": []
+    },
+    "defeat_base": {
+      "args": []
+    },
+    "defeat_cue": {
+      "args": []
+    },
+    "defeat_close": {
+      "args": []
+    },
+    "defeat_finish": {
+      "args": []
+    },
+    "defeat_fail": {
+      "args": []
+    },
+    "detail_open": {
+      "args": []
+    },
+    "detail_wait": {
+      "args": []
+    },
+    "detail_has_magic": {
+      "args": []
+    },
+    "detail_flip": {
+      "args": []
+    },
+    "detail_close": {
+      "args": []
+    },
+    "detail_done": {
+      "args": []
+    },
+    "detail_fail": {
+      "args": []
+    },
+    "defeat_wait": {
+      "args": [
+        {
+          "name": "ticks",
+          "min": 1,
+          "max": 1
+        }
+      ]
+    },
+    "defeat_frame": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 68,
+          "max": 79
+        }
+      ]
+    },
+    "defeat_rotate_actors": {
+      "args": [
+        {
+          "name": "direction",
+          "min": 0,
+          "max": 3
+        }
+      ]
+    },
+    "defeat_rotate_project": {
+      "args": []
+    }
+  },
+  "flows": [
+    {
+      "id": "round",
+      "entry": "intro.0.frame",
+      "nodes": [
+        {
+          "id": "intro.0.frame",
+          "op": "round_frame",
+          "args": [
+            83,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.0.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.0.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.0.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.0.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.1.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.1.frame",
+          "op": "round_frame",
+          "args": [
+            84,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.1.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.1.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.1.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.1.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.2.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.2.frame",
+          "op": "round_frame",
+          "args": [
+            85,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.2.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.2.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.2.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.3.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.3.frame",
+          "op": "round_frame",
+          "args": [
+            86,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.3.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.3.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.3.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.4.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.4.frame",
+          "op": "round_frame",
+          "args": [
+            87,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.4.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.4.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.4.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.5.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.5.frame",
+          "op": "round_frame",
+          "args": [
+            88,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.5.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.5.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.5.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.5.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.6.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.6.frame",
+          "op": "round_frame",
+          "args": [
+            89,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.6.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.6.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.6.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.6.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.7.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.7.frame",
+          "op": "round_frame",
+          "args": [
+            90,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.7.number"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.7.number",
+          "op": "round_number",
+          "args": [
+            171,
+            91
+          ],
+          "on": {
+            "next": "intro.7.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.7.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.7.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.7.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "intro.8.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.8.frame",
+          "op": "round_frame",
+          "args": [
+            91,
+            120,
+            84
+          ],
+          "on": {
+            "next": "intro.8.number"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.8.number",
+          "op": "round_number",
+          "args": [
+            171,
+            91
+          ],
+          "on": {
+            "next": "intro.8.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.8.wait",
+          "op": "round_wait_ms",
+          "args": [
+            70
+          ],
+          "on": {
+            "next": "intro.8.hold"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.8.hold",
+          "op": "round_wait_ms",
+          "args": [
+            500
+          ],
+          "on": {
+            "next": "intro.8.restore"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "intro.8.restore",
+          "op": "round_restore_vga",
+          "args": [],
+          "on": {
+            "next": "drop.background"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.background",
+          "op": "round_map_background",
+          "args": [],
+          "on": {
+            "next": "drop.2.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.2.frame",
+          "op": "round_drop",
+          "args": [
+            91,
+            120,
+            92,
+            171,
+            98
+          ],
+          "on": {
+            "next": "drop.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.2.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "drop.3.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.3.frame",
+          "op": "round_drop",
+          "args": [
+            91,
+            120,
+            97,
+            171,
+            103
+          ],
+          "on": {
+            "next": "drop.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.3.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "drop.4.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.4.frame",
+          "op": "round_drop",
+          "args": [
+            91,
+            120,
+            104,
+            171,
+            110
+          ],
+          "on": {
+            "next": "drop.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.4.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "drop.9.frame"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.9.frame",
+          "op": "round_drop",
+          "args": [
+            91,
+            120,
+            169,
+            171,
+            175
+          ],
+          "on": {
+            "next": "drop.9.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "drop.9.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "tail.refresh"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "tail.refresh",
+          "op": "round_refresh",
+          "args": [],
+          "on": {
+            "next": "tail.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "tail.wait",
+          "op": "round_wait_ms",
+          "args": [
+            200
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "round_finish",
+          "args": [],
+          "on": {},
+          "views": [
+            "present"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase",
+      "entry": "player",
+      "entries": {
+        "player": "player",
+        "enemy": "enemy"
+      },
+      "nodes": [
+        {
+          "id": "player",
+          "op": "phase_parameters",
+          "args": [
+            80,
+            150
+          ],
+          "on": {
+            "next": "open.background"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "enemy",
+          "op": "phase_parameters",
+          "args": [
+            82,
+            20
+          ],
+          "on": {
+            "next": "open.background"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.background",
+          "op": "round_map_background",
+          "args": [],
+          "on": {
+            "next": "open.slide.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.0",
+          "op": "phase_slide",
+          "args": [
+            100,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.0.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.0.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.1",
+          "op": "phase_slide",
+          "args": [
+            75,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.1.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.1.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.2",
+          "op": "phase_slide",
+          "args": [
+            50,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.2.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.3",
+          "op": "phase_slide",
+          "args": [
+            25,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.3.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.4",
+          "op": "phase_slide",
+          "args": [
+            0,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.4.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.5"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.5",
+          "op": "phase_slide",
+          "args": [
+            1,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.5.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.5.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.slide.6"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.6",
+          "op": "phase_slide",
+          "args": [
+            0,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.slide.6.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.slide.6.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.capture"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.capture",
+          "op": "phase_capture_prefix",
+          "args": [],
+          "on": {
+            "next": "open.mosaic.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.0",
+          "op": "phase_mosaic",
+          "args": [
+            1,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.0",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            0
+          ],
+          "on": {
+            "next": "open.mosaic.0.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.0.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.1",
+          "op": "phase_mosaic",
+          "args": [
+            2,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.1",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.1.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.1.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.2",
+          "op": "phase_mosaic",
+          "args": [
+            3,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.2",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            2
+          ],
+          "on": {
+            "next": "open.mosaic.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.2.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.3",
+          "op": "phase_mosaic",
+          "args": [
+            4,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.3",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            3
+          ],
+          "on": {
+            "next": "open.mosaic.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.3.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.4",
+          "op": "phase_mosaic",
+          "args": [
+            5,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.4",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            4
+          ],
+          "on": {
+            "next": "open.mosaic.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.4.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.5"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.5",
+          "op": "phase_mosaic",
+          "args": [
+            6,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.5"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.5",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            5
+          ],
+          "on": {
+            "next": "open.mosaic.5.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.5.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.6"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.6",
+          "op": "phase_mosaic",
+          "args": [
+            7,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.6"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.6",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            6
+          ],
+          "on": {
+            "next": "open.mosaic.6.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.6.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.7"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.7",
+          "op": "phase_mosaic",
+          "args": [
+            8,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.7"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.7",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            7
+          ],
+          "on": {
+            "next": "open.mosaic.7.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.7.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.8"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.8",
+          "op": "phase_mosaic",
+          "args": [
+            9,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.8"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.8",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            8
+          ],
+          "on": {
+            "next": "open.mosaic.8.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.8.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.9"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.9",
+          "op": "phase_mosaic",
+          "args": [
+            10,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.9"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.9",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            9
+          ],
+          "on": {
+            "next": "open.mosaic.9.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.9.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.10"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.10",
+          "op": "phase_mosaic",
+          "args": [
+            11,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.10"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.10",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            10
+          ],
+          "on": {
+            "next": "open.mosaic.10.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.10.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.11"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.11",
+          "op": "phase_mosaic",
+          "args": [
+            12,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.11"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.11",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            11
+          ],
+          "on": {
+            "next": "open.mosaic.11.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.11.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.12"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.12",
+          "op": "phase_mosaic",
+          "args": [
+            13,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.12"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.12",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            12
+          ],
+          "on": {
+            "next": "open.mosaic.12.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.12.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.13"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.13",
+          "op": "phase_mosaic",
+          "args": [
+            14,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.13"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.13",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            13
+          ],
+          "on": {
+            "next": "open.mosaic.13.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.13.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.14"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.14",
+          "op": "phase_mosaic",
+          "args": [
+            15,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.14"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.14",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            14
+          ],
+          "on": {
+            "next": "open.mosaic.14.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.14.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.mosaic.15"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.15",
+          "op": "phase_mosaic",
+          "args": [
+            16,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "open.darkness.15"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.darkness.15",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            15
+          ],
+          "on": {
+            "next": "open.mosaic.15.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.mosaic.15.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "open.clear_keys"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.clear_keys",
+          "op": "phase_clear_keys",
+          "args": [],
+          "on": {
+            "next": "hold"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "hold",
+          "op": "phase_hold",
+          "args": [],
+          "on": {
+            "next": "close.mosaic.16"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.16",
+          "op": "phase_mosaic",
+          "args": [
+            17,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.16"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.16",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            16
+          ],
+          "on": {
+            "next": "close.mosaic.16.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.16.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.15"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.15",
+          "op": "phase_mosaic",
+          "args": [
+            16,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.15"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.15",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            15
+          ],
+          "on": {
+            "next": "close.mosaic.15.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.15.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.14"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.14",
+          "op": "phase_mosaic",
+          "args": [
+            15,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.14"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.14",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            14
+          ],
+          "on": {
+            "next": "close.mosaic.14.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.14.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.13"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.13",
+          "op": "phase_mosaic",
+          "args": [
+            14,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.13"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.13",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            13
+          ],
+          "on": {
+            "next": "close.mosaic.13.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.13.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.12"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.12",
+          "op": "phase_mosaic",
+          "args": [
+            13,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.12"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.12",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            12
+          ],
+          "on": {
+            "next": "close.mosaic.12.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.12.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.11"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.11",
+          "op": "phase_mosaic",
+          "args": [
+            12,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.11"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.11",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            11
+          ],
+          "on": {
+            "next": "close.mosaic.11.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.11.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.10"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.10",
+          "op": "phase_mosaic",
+          "args": [
+            11,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.10"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.10",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            10
+          ],
+          "on": {
+            "next": "close.mosaic.10.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.10.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.9"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.9",
+          "op": "phase_mosaic",
+          "args": [
+            10,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.9"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.9",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            9
+          ],
+          "on": {
+            "next": "close.mosaic.9.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.9.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.8"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.8",
+          "op": "phase_mosaic",
+          "args": [
+            9,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.8"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.8",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            8
+          ],
+          "on": {
+            "next": "close.mosaic.8.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.8.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.7"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.7",
+          "op": "phase_mosaic",
+          "args": [
+            8,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.7"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.7",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            7
+          ],
+          "on": {
+            "next": "close.mosaic.7.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.7.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.6"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.6",
+          "op": "phase_mosaic",
+          "args": [
+            7,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.6"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.6",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            6
+          ],
+          "on": {
+            "next": "close.mosaic.6.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.6.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.5"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.5",
+          "op": "phase_mosaic",
+          "args": [
+            6,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.5"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.5",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            5
+          ],
+          "on": {
+            "next": "close.mosaic.5.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.5.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.4",
+          "op": "phase_mosaic",
+          "args": [
+            5,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.4",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            4
+          ],
+          "on": {
+            "next": "close.mosaic.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.4.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.3",
+          "op": "phase_mosaic",
+          "args": [
+            4,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.3",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            3
+          ],
+          "on": {
+            "next": "close.mosaic.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.3.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.2",
+          "op": "phase_mosaic",
+          "args": [
+            3,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.2",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            2
+          ],
+          "on": {
+            "next": "close.mosaic.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.2.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.1",
+          "op": "phase_mosaic",
+          "args": [
+            2,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.1",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.1.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.1.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.mosaic.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.0",
+          "op": "phase_mosaic",
+          "args": [
+            1,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.darkness.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.darkness.0",
+          "op": "phase_darkness",
+          "args": [
+            16,
+            255,
+            0
+          ],
+          "on": {
+            "next": "close.mosaic.0.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.mosaic.0.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.redraw"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.redraw",
+          "op": "phase_redraw",
+          "args": [],
+          "on": {
+            "next": "close.background"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.background",
+          "op": "round_map_background",
+          "args": [],
+          "on": {
+            "next": "close.slide.0"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.0",
+          "op": "phase_slide",
+          "args": [
+            0,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.slide.0.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.0.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.slide.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.1",
+          "op": "phase_slide",
+          "args": [
+            25,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.slide.1.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.1.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.slide.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.2",
+          "op": "phase_slide",
+          "args": [
+            50,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.slide.2.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.2.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.slide.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.3",
+          "op": "phase_slide",
+          "args": [
+            75,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.slide.3.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.3.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "close.slide.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.4",
+          "op": "phase_slide",
+          "args": [
+            100,
+            89,
+            169,
+            86,
+            81
+          ],
+          "on": {
+            "next": "close.slide.4.wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.slide.4.wait",
+          "op": "round_wait_ticks",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "round_finish",
+          "args": [],
+          "on": {},
+          "views": [
+            "present"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "turncycle",
+      "entry": "player_done",
+      "entries": {
+        "player_done": "player_done",
+        "side1_done": "side1_done",
+        "side0_done": "side0_done",
+        "player_ready": "player_ready"
+      },
+      "nodes": [
+        {
+          "id": "player_done",
+          "op": "turn_recovery_wait",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "player_done.1"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.1",
+          "op": "turn_recovery_highlight",
+          "args": [],
+          "on": {
+            "next": "player_done.2"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.2",
+          "op": "turn_recovery_cue",
+          "args": [],
+          "on": {
+            "next": "player_done.3"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.3",
+          "op": "turn_recovery_wait",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "player_done.4"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.4",
+          "op": "turn_recovery_commit",
+          "args": [],
+          "on": {
+            "next": "player_done.5"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.5",
+          "op": "turn_recovery_project",
+          "args": [],
+          "on": {
+            "next": "player_done.6"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.6",
+          "op": "turn_recovery_wait",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "player_done.7"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.7",
+          "op": "turn_refresh",
+          "args": [],
+          "on": {
+            "next": "player_done.8"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_done.8",
+          "op": "turn_enter_phase",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side1_done",
+          "op": "turn_stop_if_different",
+          "args": [],
+          "on": {
+            "next": "side1_done.1"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side1_done.1",
+          "op": "turn_enemy_title",
+          "args": [],
+          "on": {
+            "next": "side1_done.2"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side1_done.2",
+          "op": "turn_clear_acted",
+          "args": [],
+          "on": {
+            "next": "side1_done.3"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side1_done.3",
+          "op": "turn_refresh",
+          "args": [],
+          "on": {
+            "next": "side1_done.4"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side1_done.4",
+          "op": "turn_enter_phase",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done",
+          "op": "turn_increment",
+          "args": [],
+          "on": {
+            "next": "side0_done.1"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.1",
+          "op": "turn_stop_if_different",
+          "args": [],
+          "on": {
+            "next": "side0_done.2"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.2",
+          "op": "turn_player_title",
+          "args": [],
+          "on": {
+            "next": "side0_done.3"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.3",
+          "op": "turn_display_mode",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "side0_done.4"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.4",
+          "op": "turn_clear_acted",
+          "args": [],
+          "on": {
+            "next": "side0_done.5"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.5",
+          "op": "turn_refresh",
+          "args": [],
+          "on": {
+            "next": "side0_done.6"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.6",
+          "op": "turn_primary_music",
+          "args": [],
+          "on": {
+            "next": "side0_done.7"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.7",
+          "op": "turn_round",
+          "args": [],
+          "on": {
+            "next": "side0_done.8"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.8",
+          "op": "turn_focus_reset",
+          "args": [],
+          "on": {
+            "next": "side0_done.9"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "side0_done.9",
+          "op": "turn_enter_phase",
+          "args": [
+            2
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_ready",
+          "op": "turn_display_mode",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "player_ready.1"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_ready.1",
+          "op": "turn_focus_zero",
+          "args": [],
+          "on": {
+            "next": "player_ready.2"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "player_ready.2",
+          "op": "turn_clear_keys",
+          "args": [],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "turn_done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic",
+            "present"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "choice",
+      "entry": "begin",
+      "nodes": [
+        {
+          "id": "begin",
+          "op": "choice_begin",
+          "args": [],
+          "on": {
+            "next": "snapshot.begin"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "snapshot.begin",
+          "op": "choice_snapshot",
+          "args": [],
+          "on": {
+            "next": "field.begin"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "field.begin",
+          "op": "choice_has_field",
+          "args": [],
+          "on": {
+            "yes": "redraw.begin",
+            "no": "open.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "redraw.begin",
+          "op": "choice_field_redraw",
+          "args": [],
+          "on": {
+            "next": "open.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.1",
+          "op": "choice_draw",
+          "args": [
+            4
+          ],
+          "on": {
+            "next": "open.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.2",
+          "op": "choice_draw",
+          "args": [
+            8
+          ],
+          "on": {
+            "next": "open.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.3",
+          "op": "choice_draw",
+          "args": [
+            12
+          ],
+          "on": {
+            "next": "open.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "open.4",
+          "op": "choice_draw",
+          "args": [
+            16
+          ],
+          "on": {
+            "next": "wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "wait",
+          "op": "choice_wait_key",
+          "args": [],
+          "on": {
+            "yes": "read",
+            "no": "tick"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "read",
+          "op": "choice_read_key",
+          "args": [],
+          "on": {
+            "next": "wait",
+            "ack": "finish",
+            "cancel": "finish"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "tick",
+          "op": "choice_tick",
+          "args": [],
+          "on": {
+            "yes": "field.tick",
+            "no": "wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "field.tick",
+          "op": "choice_has_field",
+          "args": [],
+          "on": {
+            "yes": "redraw.tick",
+            "no": "blink"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "redraw.tick",
+          "op": "choice_field_redraw",
+          "args": [],
+          "on": {
+            "next": "blink"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "blink",
+          "op": "choice_blink",
+          "args": [],
+          "on": {
+            "next": "field.copy"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "field.copy",
+          "op": "choice_has_field",
+          "args": [],
+          "on": {
+            "yes": "steady",
+            "no": "snapshot.tick"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "snapshot.tick",
+          "op": "choice_snapshot",
+          "args": [],
+          "on": {
+            "next": "steady"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "steady",
+          "op": "choice_steady",
+          "args": [
+            16
+          ],
+          "on": {
+            "next": "wait"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "finish",
+          "op": "choice_finish",
+          "args": [],
+          "on": {
+            "next": "field.close"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "field.close",
+          "op": "choice_has_field",
+          "args": [],
+          "on": {
+            "yes": "redraw.close",
+            "no": "close.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "redraw.close",
+          "op": "choice_field_redraw",
+          "args": [],
+          "on": {
+            "next": "close.1"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.1",
+          "op": "choice_draw",
+          "args": [
+            12
+          ],
+          "on": {
+            "next": "close.2"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.2",
+          "op": "choice_draw",
+          "args": [
+            8
+          ],
+          "on": {
+            "next": "close.3"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.3",
+          "op": "choice_draw",
+          "args": [
+            4
+          ],
+          "on": {
+            "next": "close.4"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "close.4",
+          "op": "choice_draw",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "present"
+          ]
+        },
+        {
+          "id": "done",
+          "op": "choice_done",
+          "args": [],
+          "on": {},
+          "views": [
+            "present"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime.defeat",
+      "entry": "visible",
+      "nodes": [
+        {
+          "id": "visible",
+          "op": "defeat_has_visible",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "yes": "begin",
+            "no": "quiet.hidden",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "quiet.hidden",
+          "op": "defeat_mark_hidden",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "begin",
+          "op": "defeat_begin",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.0.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.0.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            0
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.0.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.0.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.0.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.0.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.1.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.1.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.1.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.1.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.1.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.1.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.2.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.2.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            2
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.2.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.2.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.2.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.2.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.3.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.3.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            3
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.3.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.3.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.3.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.3.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.4.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.4.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            0
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.4.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.4.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.4.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.4.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.5.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.5.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.5.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.5.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.5.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.5.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.6.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.6.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            2
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.6.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.6.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.6.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.6.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.7.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.7.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            3
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.7.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.7.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.7.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.7.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.8.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.8.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            0
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.8.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.8.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.8.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.8.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.9.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.9.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.9.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.9.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.9.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.9.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.10.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.10.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            2
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.10.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.10.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.10.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.10.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.11.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.11.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            3
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.11.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.11.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.11.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.11.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.12.page",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.12.direction",
+          "op": "defeat_rotate_actors",
+          "args": [
+            0
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.12.project",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.12.page",
+          "op": "defeat_rotate_page",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.12.direction",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.12.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "hidden",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "hidden",
+          "op": "defeat_mark_hidden",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "base",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "base",
+          "op": "defeat_base",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "cue",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "cue",
+          "op": "defeat_cue",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.68",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.68",
+          "op": "defeat_frame",
+          "args": [
+            68
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.68.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.68.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.69",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.69",
+          "op": "defeat_frame",
+          "args": [
+            69
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.69.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.69.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.70",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.70",
+          "op": "defeat_frame",
+          "args": [
+            70
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.70.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.70.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.71",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.71",
+          "op": "defeat_frame",
+          "args": [
+            71
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.71.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.71.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.72",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.72",
+          "op": "defeat_frame",
+          "args": [
+            72
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.72.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.72.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.73",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.73",
+          "op": "defeat_frame",
+          "args": [
+            73
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.73.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.73.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.74",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.74",
+          "op": "defeat_frame",
+          "args": [
+            74
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.74.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.74.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.75",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.75",
+          "op": "defeat_frame",
+          "args": [
+            75
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.75.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.75.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.76",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.76",
+          "op": "defeat_frame",
+          "args": [
+            76
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.76.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.76.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.77",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.77",
+          "op": "defeat_frame",
+          "args": [
+            77
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.77.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.77.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.78",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.78",
+          "op": "defeat_frame",
+          "args": [
+            78
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.78.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.78.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.79",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.79",
+          "op": "defeat_frame",
+          "args": [
+            79
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "dissolve.79.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "dissolve.79.wait",
+          "op": "defeat_wait",
+          "args": [
+            1
+          ],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "close",
+          "op": "defeat_close",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "refresh",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "refresh",
+          "op": "turn_refresh",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "defeat_finish",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "defeat_fail",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {}
+        },
+        {
+          "id": "rotate.0.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.0.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.1.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.1.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.2.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.2.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.3.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.3.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.4.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.4.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.5.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.5.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.6.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.6.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.7.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.7.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.8.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.8.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.9.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.9.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.10.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.10.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.11.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.11.wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "rotate.12.project",
+          "op": "defeat_rotate_project",
+          "args": [],
+          "views": [
+            "logic",
+            "present"
+          ],
+          "on": {
+            "next": "rotate.12.wait",
+            "error": "failed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "runtime.detail",
+      "entry": "open",
+      "nodes": [
+        {
+          "id": "open",
+          "op": "detail_open",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "wait",
+          "op": "detail_wait",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "has_magic",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "has_magic",
+          "op": "detail_has_magic",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "yes": "flip",
+            "no": "close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "flip",
+          "op": "detail_flip",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait_magic",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "wait_magic",
+          "op": "detail_wait",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "close",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "close",
+          "op": "detail_close",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "detail_done",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "detail_fail",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {}
+        }
+      ]
+    }
+  ]
+}

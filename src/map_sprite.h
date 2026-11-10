@@ -26,6 +26,10 @@ int  fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path);
 int  fd2_map_sprite_decode_frame(fd2_image *img,
                                  const fd2_map_sprite_bank *bank,
                                  size_t frame_idx);
+/* 只读借原RLE帧。TMP offset可重排/重复，长度按现有24×24测量器确认，
+ * 不能用下一表项相减；不分配、不改bank，不把decoded color0当写掩码。 */
+int fd2_map_sprite_frame_source(const fd2_map_sprite_bank *bank,
+    size_t frame_idx, const uint8_t **source, size_t *length);
 void fd2_map_sprite_bank_close(fd2_map_sprite_bank *bank);
 
 void fd2_map_sprite_blit_frame(fd2_vga *vga,

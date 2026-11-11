@@ -371,6 +371,41 @@ def check_stage2_active_save(before, measured, state, projection, measuring_view
         "stage2_battle_or_turn3_handler_claimed": False}
 
 
+def check_stage2_reloaded_active_save(before, measured, state, projection, expected_view, data, *, cache_policy):
+    """10010活动Load后的19df7 Save：以本端preload实档拥有字节为基准。
+
+    10010只将count*80导入新active，逐raw调用11019按当前ID重建cache；
+    SDL按既有SAV合同保raw2、重建旁路。本场景Save的view只取独立
+    expected_view的meta+3..8；调用方传preload原view，其余已拥有字节
+    保留本端preload。fresh资源堆尾/构造九B不再豁免。
+    """
+    if cache_policy not in ("original", "sdl"):
+        raise ValueError("B7 reload需明确original/sdl cache来源")
+    if len(expected_view) != FILE_SIZE:
+        raise ValueError("B7 reload需独立完整expected view")
+    check_stage2_active_save(before, before, state, projection, before, data)
+    if checksum(measured) != measured:
+        raise AssertionError("B7 stage2 reload实测checksum不符")
+    expected = bytearray(before)
+    expected[META + 3:META + 9] = expected_view[META + 3:META + 9]
+    if cache_policy == "original":
+        ids = []
+        for raw in range(before[META + 1]):
+            unit_id = actor(before, raw)[7]
+            if unit_id not in ids:
+                ids.append(unit_id)
+            expected[UNITS + raw * STRIDE + 2] = ids.index(unit_id)
+    expected = checksum(expected)
+    mismatch = [i for i, (wanted, actual) in enumerate(zip(expected, measured)) if wanted != actual]
+    if mismatch:
+        raise AssertionError(f"B7 stage2 reload已拥有字节不符：{mismatch[:20]}")
+    return {"stage": 2, "turn": 1, "active_count": 15, "persistent_count": 6,
+        "full_roster_slots_unused_active_meta_tails_checked": True,
+        "full_container_reload_checked": True, "loaded_unknown_owner_preserved": True,
+        "cache_policy": cache_policy, "fresh_unknown_exclusions_reused": False,
+        "stage2_battle_or_turn3_handler_claimed": False}
+
+
 def checksum(plain):
     if len(plain) != FILE_SIZE:
         raise ValueError("B7需要完整0x59cb容器")

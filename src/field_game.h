@@ -122,8 +122,15 @@ typedef enum {
 } fd2_field_detail_page;
 
 typedef struct fd2_field_game fd2_field_game;
+/* 资源预检的窄只读身份投影；借用栈内units/roster，不拥有Game/RNG/SAV。
+ * 实际叶仍以live owner重新校验，不能将此视图交接为业务后态。 */
+typedef struct {
+    const fd2_field_units *units;
+    const fd2_field_unit *roster;
+    size_t roster_count;
+} fd2_field_event_resource_view;
 typedef int (*fd2_field_event_preflight_fn)(const fd2_field_game *game,
-    const fd2_static_flow_node *node, void *userdata);
+    const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,void *userdata);
 
 /* field_unit_experience_reward_execute @0x1e292（原sub_1E292）与
  * field_phase_status_tick @0x1a866（原登记同名）
@@ -198,8 +205,7 @@ typedef enum {
     FD2_FIELD_LOOT_CHOICE,
     FD2_FIELD_LOOT_INVENTORY,
     FD2_FIELD_LOOT_STORY,
-    FD2_FIELD_LOOT_DELAY,
-    FD2_FIELD_LOOT_FIELD_EVENT
+    FD2_FIELD_LOOT_DELAY
 } fd2_field_loot_kind;
 typedef struct {
     fd2_field_loot_kind kind;
@@ -251,6 +257,13 @@ typedef struct {
         uint8_t active, step, text_ready;
     } child;
 } fd2_field_loot;
+
+/* 16f55的同一整轮caller槽；不写SAV，不另持phase/动作/输入状态。 */
+typedef enum {
+    FD2_FIELD_TURN_POST_NONE,
+    FD2_FIELD_TURN_POST_MARCH,
+    FD2_FIELD_TURN_POST_END
+} fd2_field_turn_post_caller;
 
 /* 正式战场 session。
  *
@@ -431,7 +444,7 @@ struct fd2_field_game {
      * 成功active Load清除，失败Load保留；均不写入SAV。 */
     size_t player_post_actor;
     uint8_t player_post_waiting_phase;
-    uint8_t march_post_waiting_phase; /* 170ba整轮返回尾，不执行controller pending。 */
+    fd2_field_turn_post_caller turn_post_caller; /* 16f55返回尾，不执行controller pending。 */
     /* 原53EC8只在已证调用点清/写；不进SAV，成功Load/END保留它。 */
     uint32_t experience_value;
     /* 原53AE1动态数字；GAIN/LEVEL/GROWTH/毒伤/拾取按原写点共用，Load保留。 */
@@ -454,7 +467,6 @@ int fd2_field_game_set_loot_preflight(fd2_field_game *game,
     fd2_field_loot_preflight_fn preflight, void *userdata);
 
 /* 只读冷事件资源预检；借用现有owner构造旁路值，不写live状态或RNG。 */
-int fd2_field_game_event_resources_validate(const fd2_field_game *game, uint8_t action);
 int fd2_field_game_event_resources_validate_actor(const fd2_field_game *game,
     uint8_t action, size_t actor);
 /* common_event显式ID启动，不自动绑定未知stage。peek呈现叶后只reply一次；
@@ -463,8 +475,6 @@ int fd2_field_game_common_event_begin(fd2_field_game *game, const char *id, size
 int fd2_field_game_common_event_peek(const fd2_field_game *game,
     fd2_static_flow_node *node, size_t *actor);
 int fd2_field_game_common_event_reply(fd2_field_game *game, unsigned port);
-/* 前条旧Scene deferred notice已呈现后驱动同一entry；1仍等旧notice，0成功。 */
-int fd2_field_game_common_event_resume(fd2_field_game *game);
 /* peek同progress的1/0/-1；reply在完整当前呈现/关闭后调用一次。
  * pending时禁止保存和普通行动；取消库存选择不撤销先前已提交效果。 */
 int fd2_field_game_loot_peek(const fd2_field_game *game,

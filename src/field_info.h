@@ -94,7 +94,9 @@ int fd2_field_unit_summary_draw_at(fd2_vga *vga,
                                  int x, int y);
 
 /* 战况／胜败条件总览：sub_1B41D @0x1b41d、sub_1B5F1 @0x1b5f1。
- * 当前支持stage0/1的FDTXT[0]597/598、599/600普通字形条件。成功返回0；
+ * 正常stage0..29的FDTXT[0]597..656使用普通字形/-2换行（19像素行高）。
+ * stage16另有私有败条件选择尚未绑定，明确拒绝；stage30+不是这段条件数据。
+ * 成功返回0；
  * 资源、文本或输入不受支持时返回 -1，framebuffer 保持不变。
  * 只叠加4块页面，不绘制地图、不提交玩法，也不播放开合或处理输入。 */
 int fd2_field_overview_draw(fd2_vga *vga,

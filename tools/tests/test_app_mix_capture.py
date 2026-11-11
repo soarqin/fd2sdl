@@ -83,9 +83,11 @@ class AppMixTest(unittest.TestCase):
    c=r.AnimationCollectors(capture,SimpleNamespace(sdl_audio_source='app-mix'),record)
    c.ready={'pid':42,'hwnd':'0x1'};c.helpers=[];(d/'animation-series/summary.json').write_text('{"ok":true}')
    make_wave(d/'app-mix/app-mix.wav');receipt={'summary':summary(),'device_output_validated':False}
-   with patch.object(c.app_mix,'finish',return_value=receipt),patch.object(r,'series_index',return_value=[]):c.stop()
+   frames=[{'wgc_timestamp_100ns':1000000},{'wgc_timestamp_100ns':1370000}]
+   with patch.object(c.app_mix,'finish',return_value=receipt),patch.object(r,'series_index',return_value=frames):c.stop()
    self.assertEqual(record['audio_capture']['source_scope'],'app_mix');self.assertEqual(record['audio_capture']['wav']['sample_rate'],48000)
    self.assertNotIn('recorder_summary',record['audio_capture']);self.assertNotIn('first_packet_qpc_100ns',record['audio_capture']['app_mix_summary']);self.assertFalse(record['audio_capture']['A8_validated'])
+   self.assertEqual(record['animation_capture']['observed_intervals']['minimum_ms'],37)
  def test_summary_late_change_remains_sticky_failure(self):
   with tempfile.TemporaryDirectory() as t:
    d=Path(t);original=d/'original';original.mkdir();(original/'asset').write_bytes(b'asset');fixture=d/'fixture';fixture.write_bytes(b'save');save=d/'save';save.write_bytes(b'save')

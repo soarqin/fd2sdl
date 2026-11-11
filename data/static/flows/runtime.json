@@ -5,7 +5,7 @@
     "kind": "original_executable",
     "file": "FD2.EXE",
     "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-    "evidence": "sub_10010 @0x104a1..0x10602 and field_turn_cycle_run @0x1a620..0x1a781 (original FUN_00017a53); G1 Domain complete instruction/fixup readset build/g1/ida/runtime/domain-evidence.json. Same 83..91 zero-transparent LMI on VGA, bank42 three digits only90/91, delay70 then extra500 on91 and VGA restore; m2/3/4/9 frame91+digits on456stride page, visible page(72,72)/312x192 copied to VGA(4,4), tick1, page restored. Final11cac(0)/200ms. round_map_background only reads original working page, never copies VGA UI back. Turn increment/music/acted/phase/event/status and saved state remain caller-owned; activity Load uses same presentation without any new phase/event. Phase: sub_1F1CC @0x1f1cc / sub_1F30A @0x1f30a / sub_1F42D @0x1f42d / sub_4EB59 @0x4eb59 complete Domain original instruction+strict LE readset build/g4/ida/runtime-phase-01. 1a30b only labels82(enemy,20ms hold) and80(player,150ms hold), with common81. Seven entry offsets100/75/50/25/0/1/0, prefix raw0..63999 receives original pre-entry VGA; 16 mosaic factors1..16 and DAC16..255 depths0..15, clear BIOS, hold; 17 close factors17..1 and depths16..0; tiles11eee/actors127a9 (no1297d) then offsets0/25/50/75/100. Each slide/mosaic waits1 BIOS tick, no invented sound/RNG. Turncycle: field_turn_cycle_run complete original1a30b..1a7bd, strict LE/Domain build/g1/ida/runtime; four scheduler-owned return points player_done/side1_done/side0_done/player_ready preserve original async progress/AI owner without a new execution cursor. Group recovery waits1/0/0 once for whole group, HP->normal draw->acted per raw actor; phase/title/round/event ordering remains cold. Labels reflect source caller boundaries, not new game phases. Shared choice19953/197e5: default selector0 and initial RNG%30+2, four normal-button slides4/8/12/16, wait-key before timer/RNG, shared lowWORD signed tick gate2, phase/2, blink reset%30+10, Left/Right only, Enter/Space/extended confirm, Escape/Delete cancel. Both exits clear onlyphase then close offsets12/8/4/0. No added BIOS delay in slide; host16ms present is explicitly an SDL upload boundary. Choice page source: 19953/197e5 use53A51 field resource pointer>1, not portrait coordinates. BEGIN copies VGA320x200 into same page(68,68); in field call1297d/11eee/127a9 at begin, due tick and close. Each slide copies snapshot VGA(5,112)310x86 into page(73,180), writes buttons at page(316+offset,236), then projects312x192. Due tick blinks into snapshot; nonfield<=1 writes full snapshot again, field copies onlybottom after fresh map. Town26152 frees field pointer0;2670e depart temporarily1; hotel0. Cold has_field/redraw/copy edges retain these differences. Defeat: field_defeated_units_finalize @1db65..1debe complete G1 Domain source; witness x[camX-1,camX+13]/y[camY-1,camY+9], all visible zeroHP direction j%4 for13 rotations with wait1, all zeroHP flags=1, temporary153216B no-dead base, UI31 cue3, UI5 LMI68..73 cumulative then74..79 restore base each, project/wait1, free then11cac0. No witness onlyflags=1. Detail17aed: open then16c57(0), nonempty magic flips lower panel then16c57(0), close; any ordinary key advances, no invented cancel option."
+    "evidence": "sub_10010 @0x104a1..0x10602 and field_turn_cycle_run @0x1a620..0x1a781 (original FUN_00017a53); G1 Domain complete instruction/fixup readset build/g1/ida/runtime/domain-evidence.json. Same 83..91 zero-transparent LMI on VGA, bank42 three digits only90/91, delay70 then extra500 on91 and VGA restore; m2/3/4/9 frame91+digits on456stride page, visible page(72,72)/312x192 copied to VGA(4,4), tick1, page restored. Final11cac(0)/200ms. round_map_background only reads original working page, never copies VGA UI back. Turn increment/music/acted/phase/event/status and saved state remain caller-owned; activity Load uses same presentation without any new phase/event. Phase: sub_1F1CC @0x1f1cc / sub_1F30A @0x1f30a / sub_1F42D @0x1f42d / sub_4EB59 @0x4eb59 complete Domain original instruction+strict LE readset build/g4/ida/runtime-phase-01. 1a30b only labels82(enemy,20ms hold) and80(player,150ms hold), with common81. Seven entry offsets100/75/50/25/0/1/0, prefix raw0..63999 receives original pre-entry VGA; 16 mosaic factors1..16 and DAC16..255 depths0..15, clear BIOS, hold; 17 close factors17..1 and depths16..0; tiles11eee/actors127a9 (no1297d) then offsets0/25/50/75/100. Each slide/mosaic waits1 BIOS tick, no invented sound/RNG. Turncycle: field_turn_cycle_run complete original1a30b..1a7bd, strict LE/Domain build/g1/ida/runtime; four scheduler-owned return points player_done/side1_done/side0_done/player_ready preserve original async progress/AI owner without a new execution cursor. Group recovery waits1/0/0 once for whole group, HP->normal draw->acted per raw actor; phase/title/round/event ordering remains cold. Labels reflect source caller boundaries, not new game phases. Shared choice19953/197e5: default selector0 and initial RNG%30+2, four normal-button slides4/8/12/16, wait-key before timer/RNG, shared lowWORD signed tick gate2, phase/2, blink reset%30+10, Left/Right only, Enter/Space/extended confirm, Escape/Delete cancel. Both exits clear onlyphase then close offsets12/8/4/0. No added BIOS delay in slide; host16ms present is explicitly an SDL upload boundary. Choice page source: 19953/197e5 use53A51 field resource pointer>1, not portrait coordinates. BEGIN copies VGA320x200 into same page(68,68); in field call1297d/11eee/127a9 at begin, due tick and close. Each slide copies snapshot VGA(5,112)310x86 into page(73,180), writes buttons at page(316+offset,236), then projects312x192. Due tick blinks into snapshot; nonfield<=1 writes full snapshot again, field copies onlybottom after fresh map. Town26152 frees field pointer0;2670e depart temporarily1; hotel0. Cold has_field/redraw/copy edges retain these differences. Defeat: field_defeated_units_finalize @1db65..1debe complete G1 Domain source; witness x[camX-1,camX+13]/y[camY-1,camY+9], all visible zeroHP direction j%4 for13 rotations with wait1, all zeroHP flags=1, temporary153216B no-dead base, UI31 cue3, UI5 LMI68..73 cumulative then74..79 restore base each, project/wait1, free then11cac0. No witness onlyflags=1. Detail17aed: open then16c57(0), nonempty magic flips lower panel then16c57(0), close; any ordinary key advances, no invented cancel option. G5: sub_13565 caller135b4..135d4 and empty-focus16f55 March17163/END17277 restore byte51AAC only after normal turn-cycle return including stage-result early return. turncycle.caller_return owns only that finite write; player_ready/diagnostic turn and Load never inherit it. BIOS clear itself does not write this display gate. G5 Arrival: complete32999..32d18, strict LE/Domain and original CPU verify_fd2_arrival_owner: UI95/UI9 and153216B snapshot before10b4e append. Runtime.arrival cold53 nodes preserve cue0 before frame1,12LMI/project, postbase6(-8px)/7(11eee,-5px)/8(11eee,127a9), each4e381 then17aa9(1), including empty groups. No1297d/water/info/tail11cac; same short-lived visual resource scope for opening and common. Game append and parent PC remain in common_event, not this renderer. G5: full original 134e4 resets raw direction+3 then calls3790a(20), reused at caller-accurate boundaries. turncycle.directions_reset_refresh adds only source13a9f immediate11cac(0);15055 has no immediate refresh, and uses directions_reset."
   },
   "operations": {
     "round_frame": {
@@ -403,6 +403,66 @@
     },
     "defeat_rotate_project": {
       "args": []
+    },
+    "turn_info_visible": {
+      "args": [
+        {
+          "name": "visible",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "arrival_frame": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 0,
+          "max": 11
+        }
+      ]
+    },
+    "arrival_project": {
+      "args": []
+    },
+    "arrival_postbase": {
+      "args": [
+        {
+          "name": "frame",
+          "min": 6,
+          "max": 8
+        }
+      ]
+    },
+    "arrival_cue": {
+      "args": []
+    },
+    "arrival_clear": {
+      "args": []
+    },
+    "arrival_wait_ticks": {
+      "args": [
+        {
+          "name": "ticks",
+          "min": 1,
+          "max": 1
+        }
+      ]
+    },
+    "arrival_done": {
+      "args": []
+    },
+    "turn_reset_directions": {
+      "args": []
+    },
+    "turn_delay_ms": {
+      "args": [
+        {
+          "name": "milliseconds",
+          "min": 20,
+          "max": 20
+        }
+      ]
     }
   },
   "flows": [
@@ -2933,7 +2993,10 @@
         "player_done": "player_done",
         "side1_done": "side1_done",
         "side0_done": "side0_done",
-        "player_ready": "player_ready"
+        "player_ready": "player_ready",
+        "caller_return": "caller_return",
+        "directions_reset": "directions_reset",
+        "directions_reset_refresh": "directions_reset_refresh"
       },
       "nodes": [
         {
@@ -3277,10 +3340,98 @@
           ]
         },
         {
+          "id": "caller_return",
+          "op": "turn_info_visible",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
           "id": "done",
           "op": "turn_done",
           "args": [],
           "on": {},
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_reset",
+          "op": "turn_reset_directions",
+          "args": [],
+          "on": {
+            "next": "directions_wait"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_wait",
+          "op": "turn_delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "directions_done"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_done",
+          "op": "turn_done",
+          "args": [],
+          "on": {},
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_reset_refresh",
+          "op": "turn_reset_directions",
+          "args": [],
+          "on": {
+            "next": "directions_refresh_wait"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_refresh_wait",
+          "op": "turn_delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "directions_refresh"
+          },
+          "views": [
+            "logic",
+            "present"
+          ]
+        },
+        {
+          "id": "directions_refresh",
+          "op": "turn_refresh",
+          "args": [],
+          "on": {
+            "next": "directions_done"
+          },
           "views": [
             "logic",
             "present"
@@ -4901,6 +5052,647 @@
         {
           "id": "failed",
           "op": "detail_fail",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "runtime.arrival",
+      "entry": "frame.00",
+      "nodes": [
+        {
+          "id": "frame.00",
+          "op": "arrival_frame",
+          "args": [
+            0
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.00"
+          }
+        },
+        {
+          "id": "project.00",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.00"
+          }
+        },
+        {
+          "id": "clear.00",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.00"
+          }
+        },
+        {
+          "id": "wait.00",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "cue"
+          }
+        },
+        {
+          "id": "cue",
+          "op": "arrival_cue",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.01"
+          }
+        },
+        {
+          "id": "frame.01",
+          "op": "arrival_frame",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.01"
+          }
+        },
+        {
+          "id": "project.01",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.01"
+          }
+        },
+        {
+          "id": "clear.01",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.01"
+          }
+        },
+        {
+          "id": "wait.01",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.02"
+          }
+        },
+        {
+          "id": "frame.02",
+          "op": "arrival_frame",
+          "args": [
+            2
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.02"
+          }
+        },
+        {
+          "id": "project.02",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.02"
+          }
+        },
+        {
+          "id": "clear.02",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.02"
+          }
+        },
+        {
+          "id": "wait.02",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.03"
+          }
+        },
+        {
+          "id": "frame.03",
+          "op": "arrival_frame",
+          "args": [
+            3
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.03"
+          }
+        },
+        {
+          "id": "project.03",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.03"
+          }
+        },
+        {
+          "id": "clear.03",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.03"
+          }
+        },
+        {
+          "id": "wait.03",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.04"
+          }
+        },
+        {
+          "id": "frame.04",
+          "op": "arrival_frame",
+          "args": [
+            4
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.04"
+          }
+        },
+        {
+          "id": "project.04",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.04"
+          }
+        },
+        {
+          "id": "clear.04",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.04"
+          }
+        },
+        {
+          "id": "wait.04",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.05"
+          }
+        },
+        {
+          "id": "frame.05",
+          "op": "arrival_frame",
+          "args": [
+            5
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.05"
+          }
+        },
+        {
+          "id": "project.05",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.05"
+          }
+        },
+        {
+          "id": "clear.05",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.05"
+          }
+        },
+        {
+          "id": "wait.05",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.06"
+          }
+        },
+        {
+          "id": "frame.06",
+          "op": "arrival_frame",
+          "args": [
+            6
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.06"
+          }
+        },
+        {
+          "id": "project.06",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "base.06"
+          }
+        },
+        {
+          "id": "base.06",
+          "op": "arrival_postbase",
+          "args": [
+            6
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.06"
+          }
+        },
+        {
+          "id": "clear.06",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.06"
+          }
+        },
+        {
+          "id": "wait.06",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.07"
+          }
+        },
+        {
+          "id": "frame.07",
+          "op": "arrival_frame",
+          "args": [
+            7
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.07"
+          }
+        },
+        {
+          "id": "project.07",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "base.07"
+          }
+        },
+        {
+          "id": "base.07",
+          "op": "arrival_postbase",
+          "args": [
+            7
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.07"
+          }
+        },
+        {
+          "id": "clear.07",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.07"
+          }
+        },
+        {
+          "id": "wait.07",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.08"
+          }
+        },
+        {
+          "id": "frame.08",
+          "op": "arrival_frame",
+          "args": [
+            8
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.08"
+          }
+        },
+        {
+          "id": "project.08",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "base.08"
+          }
+        },
+        {
+          "id": "base.08",
+          "op": "arrival_postbase",
+          "args": [
+            8
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.08"
+          }
+        },
+        {
+          "id": "clear.08",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.08"
+          }
+        },
+        {
+          "id": "wait.08",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.09"
+          }
+        },
+        {
+          "id": "frame.09",
+          "op": "arrival_frame",
+          "args": [
+            9
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.09"
+          }
+        },
+        {
+          "id": "project.09",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.09"
+          }
+        },
+        {
+          "id": "clear.09",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.09"
+          }
+        },
+        {
+          "id": "wait.09",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.10"
+          }
+        },
+        {
+          "id": "frame.10",
+          "op": "arrival_frame",
+          "args": [
+            10
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.10"
+          }
+        },
+        {
+          "id": "project.10",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.10"
+          }
+        },
+        {
+          "id": "clear.10",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.10"
+          }
+        },
+        {
+          "id": "wait.10",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "frame.11"
+          }
+        },
+        {
+          "id": "frame.11",
+          "op": "arrival_frame",
+          "args": [
+            11
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "project.11"
+          }
+        },
+        {
+          "id": "project.11",
+          "op": "arrival_project",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "clear.11"
+          }
+        },
+        {
+          "id": "clear.11",
+          "op": "arrival_clear",
+          "args": [],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "wait.11"
+          }
+        },
+        {
+          "id": "wait.11",
+          "op": "arrival_wait_ticks",
+          "args": [
+            1
+          ],
+          "views": [
+            "present"
+          ],
+          "on": {
+            "next": "done"
+          }
+        },
+        {
+          "id": "done",
+          "op": "arrival_done",
           "args": [],
           "views": [
             "present"

@@ -5,10 +5,37 @@
 #include "field_game.h"
 #include "field_prepare.h"
 #include "field_prepare_item.h"
+#include "scene.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"CHECK %s:%d: %s\n",__FILE__,__LINE__,#x); return -1; } } while(0)
 
 static uint32_t count_event_rng(void *userdata) {
     unsigned *calls=userdata;(*calls)++;return 0;
+}
+
+static int stage_event_resource(const fd2_field_game *game,const fd2_static_flow_node *node,
+        const fd2_field_event_resource_view *view,void *userdata) {
+    const fd2_archive *other=userdata;
+    if(!strcmp(node->op,"clear_keys"))return 0;
+    if(!strcmp(node->op,"delay_ms"))return node->args[0]>0 && node->args[0]<=1000?0:-1;
+    return view?fd2_scene_common_step_validate_view(game,other,node,view->units,view->roster,view->roster_count):
+        fd2_scene_common_step_validate(game,other,node);
+}
+
+/* 仅业务停点：显式完成pan/固定等待叶，不模拟视觉/计时/RNG；move仍用原脚本纯执行器。
+ * 到story4停住，调用者核前缀后必须显式ACK，不能整事件预先跑完。 */
+static int stage1_event_to_story(fd2_field_game *game) {
+    for(unsigned budget=0;budget<32;budget++) {
+        fd2_static_flow_node node;size_t actor;
+        if(fd2_field_game_common_event_peek(game,&node,&actor)!=1 || actor!=0)return -1;
+        if(!strcmp(node.op,"story"))return node.args[0]==4?0:-1;
+        if(!strcmp(node.op,"move")) {
+            const uint8_t *script;size_t size;
+            if(node.args[0]!=13 || node.args[1]!=0 || fd2_field_movement_script_get(13,&script,&size)!=0 ||
+                fd2_field_movement_script_apply(&game->units,script,size)!=0)return -1;
+        } else if(strcmp(node.op,"pan") && strcmp(node.op,"delay_ms"))return -1;
+        if(fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT)!=0)return -1;
+    }
+    return -1;
 }
 
 static int test_settlement(void) {
@@ -73,37 +100,43 @@ static int test_stage1(void) {
         CHECK(g->units.items[i].attack==24 && g->units.items[i].defense==4 &&
               g->units.items[i].accuracy==97 && g->units.items[i].evasion==2);
     CHECK(fd2_field_game_battle_result(g)==FD2_FIELD_BATTLE_ONGOING);
+    g->event_preflight=stage_event_resource;g->event_preflight_userdata=&ar;
+    uint8_t before_anchor[6][2];
+    for(size_t i=5;i<=10;i++){before_anchor[i-5][0]=g->units.items[i].ai_param_35;before_anchor[i-5][1]=g->units.items[i].ai_param_36;}
     g->turn_number=3;
     CHECK(fd2_field_game_end_active_phase(g)==0);
-    CHECK(g->active_side==1 && g->units.count==27 && fd2_field_game_group_count(g,3)==6);
+    CHECK(g->active_side==1 && g->units.count==21 && g->event_resume.active && !g->event_log_count);
+    CHECK(stage1_event_to_story(g)==0 && g->units.count==27 && fd2_field_game_group_count(g,3)==6);
     for(size_t i=21;i<27;i++)
         CHECK(g->units.items[i].attack==31 && g->units.items[i].defense==5 &&
               g->units.items[i].accuracy==98 && g->units.items[i].evasion==3);
-    CHECK(g->event_log_count==1 && g->event_log[0].action==6 && g->event_log[0].presentation_deferred);
+    for(size_t i=5;i<=10;i++)CHECK(g->units.items[i].ai_param_35==before_anchor[i-5][0] &&
+        g->units.items[i].ai_param_36==before_anchor[i-5][1]);
+    CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && !g->event_resume.active && !g->event_log_count);
     for(size_t i=5;i<=10;i++)CHECK(g->units.items[i].ai_param_35==26 && g->units.items[i].ai_param_36==15);
-    g->event_log[0].presentation_deferred=0;
-    CHECK(fd2_field_game_progress_resume(g)==0);
     for(size_t i=5;i<=10;i++)g->units.items[i].flags|=1;
     CHECK(fd2_field_game_battle_result(g)==FD2_FIELD_BATTLE_DEFEAT);
     fd2_field_game_close(g);
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
-    /* 原资源门仅raw追加group3以校验文字身份；count断言仍属正式callback。 */
+    /* 原无21/27捕获人数门；18+6仍缺script13的raw26，实际actor版资源门拒绝。 */
     g->units.count=18;g->turn_number=3;
+    g->event_preflight=stage_event_resource;g->event_preflight_userdata=&ar;
     unsigned rng_calls=0;
     CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,count_event_rng,&rng_calls)==0);
     fd2_field_units before_resources=g->units;
     fd2_field_unit before_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
     memcpy(before_roster,g->roster,sizeof(before_roster));
     size_t before_roster_count=g->roster_count;
-    CHECK(fd2_field_game_event_resources_validate(g,6)==0);
+    CHECK(fd2_field_game_event_resources_validate_actor(g,6,0)==-1);
     CHECK(!memcmp(&before_resources,&g->units,sizeof(before_resources)) &&
           !memcmp(before_roster,g->roster,sizeof(before_roster)) &&
           g->roster_count==before_roster_count && rng_calls==0 &&
           g->failure==FD2_FIELD_FAILURE_NONE);
     CHECK(fd2_field_game_end_player_turn(g)==-1);
-    CHECK(g->failure==FD2_FIELD_FAILURE_EVENT_EXECUTION && g->active_side==1 &&
-          g->failure_notice.action==6 && g->units.count==18 &&
-          g->event_log_count==1 && !g->event_log[0].handled);
+    CHECK(g->failure==FD2_FIELD_FAILURE_ACTION && g->active_side==1 && g->units.count==18 &&
+        !g->event_resume.active && !g->event_log_count && !rng_calls &&
+        !memcmp(&before_resources,&g->units,sizeof(before_resources)) &&
+        !memcmp(before_roster,g->roster,sizeof(before_roster)) && g->roster_count==before_roster_count);
     fd2_field_game_close(g);
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
     size_t bad_template=0;
@@ -111,18 +144,21 @@ static int test_stage1(void) {
           g->metadata.unit_templates[bad_template].bytes[0x15]!=3)bad_template++;
     CHECK(bad_template<g->metadata.unit_template_count);
     g->metadata.unit_templates[bad_template].bytes[5]=215; /* 未知装备派生不可提交半组。 */
+    g->event_preflight=stage_event_resource;g->event_preflight_userdata=&ar;
     fd2_field_units before_group=g->units;
     g->turn_number=3;
     rng_calls=0;
     CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,count_event_rng,&rng_calls)==0);
     memcpy(before_roster,g->roster,sizeof(before_roster));
-    CHECK(fd2_field_game_event_resources_validate(g,6)==0 && rng_calls==0);
+    CHECK(fd2_field_game_event_resources_validate_actor(g,6,0)==0 && rng_calls==0);
     CHECK(!memcmp(&before_group,&g->units,sizeof(before_group)) &&
           !memcmp(before_roster,g->roster,sizeof(before_roster)) &&
           g->roster_count==before_roster_count);
-    CHECK(fd2_field_game_end_player_turn(g)==-1);
-    CHECK(g->failure==FD2_FIELD_FAILURE_EVENT_EXECUTION &&
-          !memcmp(&before_group,&g->units,sizeof(before_group)));
+    CHECK(fd2_field_game_end_player_turn(g)==0 && g->event_resume.active && g->units.count==21);
+    CHECK(stage1_event_to_story(g)==-1); /* pan/delay返回后，真实append派生才失败，不回滚叶。 */
+    CHECK(g->failure==FD2_FIELD_FAILURE_ACTION && !rng_calls &&
+        !memcmp(&before_group,&g->units,sizeof(before_group)) &&
+        !memcmp(before_roster,g->roster,sizeof(before_roster)) && g->roster_count==before_roster_count);
     fd2_field_game_close(g);
     state.unit_count=4;
     CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
@@ -188,8 +224,10 @@ static int test_stage1_settlement_stage2(void) {
     CHECK(fd2_field_game_settlement_project_units(g,&projected)==-1);
     CHECK(!memcmp(&projected,&prior,sizeof(prior))); /* 未经turn3必经事件不得提前结算。 */
     fd2_field_game_close(g);CHECK(fd2_field_game_prepare_stage1(g,&ar,&state)==0);
-    g->turn_number=3;CHECK(fd2_field_game_end_active_phase(g)==0 && g->units.count==27);
-    g->event_log[0].presentation_deferred=0;CHECK(fd2_field_game_progress_resume(g)==0);
+    g->event_preflight=stage_event_resource;g->event_preflight_userdata=&ar;
+    g->turn_number=3;CHECK(fd2_field_game_end_active_phase(g)==0 && g->units.count==21);
+    CHECK(stage1_event_to_story(g)==0 && g->units.count==27);
+    CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && !g->event_resume.active);
     for(size_t i=11;i<27;i++)g->units.items[i].flags|=1;
     /* 奖励可给hidden玩家；raw0全满，raw1首空为slot3。 */
     for(size_t i=0;i<g->units.count;i++)for(size_t slot=0;slot<8;slot++) {

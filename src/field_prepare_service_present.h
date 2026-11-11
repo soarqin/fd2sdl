@@ -25,12 +25,12 @@ static int prepare_service_host_quit(prepare_ui *ui) {
 }
 static int prepare_service_take_key(prepare_ui *ui,fd2_input_event *event) {
     prepare_service *s=&ui->service;
-    if(s->deferred_key_ready){*event=s->deferred_key;s->deferred_key_ready=0;return 1;}
     if(!fd2_input_take_key(&ui->vga->input,event))return 0;
     s->input_epoch++;return 1;
 }
-static void prepare_service_clear_keys(prepare_ui *ui) {
-    ui->service.deferred_key_ready=0;drain(ui);
+static int prepare_service_clear_keys(prepare_ui *ui) {
+    if (prepare_clear_keys(ui)) { ui->service.host_quit=1; return 1; }
+    return 0;
 }
 static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     if (prepare_service_host_quit(ui)) return 1;
@@ -39,7 +39,8 @@ static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     return prepare_service_host_quit(ui);
 }
 static int prepare_service_fade(prepare_ui *ui,int in) {
-    for (int value=in ? 63:0;in ? value>=0:value<64;value+=in ? -1:1) {
+    /* 1f525：mov ebx,40h／dec／jge，64..0共65次；1f882仍0..63。 */
+    for (int value=in ? 64:0;in ? value>=0:value<64;value+=in ? -1:1) {
         fd2_vga_set_brightness(ui->vga,value);
         if (prepare_service_present(ui,2)) return 1;
     }
@@ -115,7 +116,6 @@ static void prepare_service_cleanup(prepare_ui *ui) {
     for(size_t i=0;i<4u;i++)fd2_image_free(&s->equipment_portraits[i]);
     s->equipment_previous_portraits=NULL;
     fd2_image_free(&s->selection_label);fd2_image_free(&s->selection_cursor);
-    s->deferred_key_ready=0;
     prepare_service_portraits_free(s);
 }
 
@@ -318,19 +318,12 @@ static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
             fd2_map_sprite_blit(ui->vga,minus,x+(16-minus->width)/2,y+(16-minus->height)/2,0);
         } else fd2_font_draw_glyph(ui->vga,&ui->assets->font,token,x,y,205,76,74);
         x+=16;
-        /* input_check看到入口已排BIOS键；先保存当前脉冲，再让present采样
-         * 下一帧，避免首glyph上传清掉快显/随后ACK共用的那个键。 */
-        if(slow && !s->deferred_key_ready && fd2_input_has_any_key(&ui->vga->input)) {
-            fd2_input_event event;
-            if(prepare_service_take_key(ui,&event)){s->deferred_key=event;s->deferred_key_ready=1;slow=0;}
-        }
+        /* 原15f84只10620 peek；同一input owner保留早键，不能提前消费
+         * 到服务私有deferred槽。真正read才推进input_epoch。 */
+        if(fd2_input_has_any_key(&ui->vga->input))slow=0;
         if(slow)fd2_vga_present(ui->vga);
         if (prepare_service_host_quit(ui)) return 1;
-        if(s->deferred_key_ready)slow=0;
-        else if(fd2_input_has_any_key(&ui->vga->input)) {
-            fd2_input_event event;
-            if(prepare_service_take_key(ui,&event)) {s->deferred_key=event;s->deferred_key_ready=1;slow=0;}
-        }
+        if(fd2_input_has_any_key(&ui->vga->input))slow=0;
         if (slow) {
             unsigned phase;
             int redraw=fd2_dialog_visual_glyph_step(&ui->vga->dialog_visual,&phase);
@@ -456,7 +449,7 @@ static int prepare_service_animate(prepare_ui *ui) {
         if(prepare_service_present(ui,275))return 1;
     }
     if (ui->service.selector!=5 && prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
-    prepare_service_clear_keys(ui);return 0;
+    return prepare_service_clear_keys(ui);
 }
 
 /* sub_2921A @0x2921a：128固定点正域采样；范围外清0，无双线性插值。 */
@@ -479,7 +472,7 @@ static int prepare_service_zoom(prepare_ui *ui,int phase) {
 }
 
 /* 19953/197e5与field/NoTown共用同一runtime.choice。服务只借现有
- * deferred key、input_epoch、画像与冷confirm出口，不保存第二选择状态。 */
+ * 同一input owner、input_epoch、画像与冷confirm出口，不保存第二选择状态。 */
 static int prepare_service_confirm(prepare_ui *ui,unsigned *port) {
     if(!ui || !port)return -1;
     fd2_vga *base=new_frame(ui->vga);if(!base)return -1;
@@ -497,8 +490,14 @@ static int prepare_service_ui(prepare_ui *ui,const fd2_static_flow_node *node,un
     if (!ui || !node || !node->op || !port) return -1;
     prepare_service *s=&ui->service;int result=0;*port=FD2_FLOW_NEXT;
     if (!strcmp(node->op,"notice_open")) result=prepare_service_notice_open(ui,node->args[0]);
+    else if (!strcmp(node->op,"town_render"))
+        result=fd2_field_prepare_draw_town(ui->vga,ui->assets,&ui->context->preparation,0,0);
+    else if (!strcmp(node->op,"fade")) {
+        if(node->args[0]!=0 && node->args[0]!=1)goto fatal;
+        result=prepare_service_fade(ui,node->args[0]);
+    }
     else if (!strcmp(node->op,"close_page")) result=prepare_service_modal_close(ui);
-    else if (!strcmp(node->op,"clear_keys")) prepare_service_clear_keys(ui);
+    else if (!strcmp(node->op,"clear_keys")) result=prepare_service_clear_keys(ui);
     else if (!strcmp(node->op,"wait_key")) {
         fd2_input_event event;result=prepare_service_wait_event(ui,&event,node->args[0]);
         if(!result)*port=cancel_key(event.key) ? FD2_FLOW_CANCEL:FD2_FLOW_ACK;

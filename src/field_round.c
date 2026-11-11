@@ -238,14 +238,17 @@ static int turn_node(const fd2_static_flow_node *node,
         "turn_stop_if_different", "turn_enemy_title", "turn_player_title",
         "turn_clear_acted", "turn_enter_phase", "turn_increment",
         "turn_display_mode", "turn_primary_music", "turn_round",
-        "turn_focus_reset", "turn_focus_zero", "turn_clear_keys"
+        "turn_focus_reset", "turn_focus_zero", "turn_clear_keys", "turn_info_visible",
+        "turn_reset_directions", "turn_delay_ms"
     };
     if (!node || !step) return -1;
     for (unsigned i=0;i<sizeof(names)/sizeof(names[0]);i++) {
         if (strcmp(node->op,names[i])) continue;
         int value=node->args[0];
-        if (i==FD2_FIELD_TURN_RECOVERY_WAIT || i==FD2_FIELD_TURN_DISPLAY_MODE) {
+        if (i==FD2_FIELD_TURN_RECOVERY_WAIT || i==FD2_FIELD_TURN_DISPLAY_MODE || i==FD2_FIELD_TURN_INFO_VISIBLE) {
             if (value<0 || value>1) return -1;
+        } else if(i==FD2_FIELD_TURN_DELAY_MS) {
+            if(value!=20)return -1;
         } else if (i==FD2_FIELD_TURN_ENTER_PHASE) {
             if (value<0 || value>2) return -1;
         } else if (value!=0) return -1;
@@ -256,7 +259,8 @@ static int turn_node(const fd2_static_flow_node *node,
 
 static int turn_entry_node(const fd2_static_flow *flow,
         fd2_field_turn_entry entry) {
-    static const char *const labels[]={"player_done","side1_done","side0_done","player_ready"};
+    static const char *const labels[]={"player_done","side1_done","side0_done","player_ready","caller_return",
+        "directions_reset","directions_reset_refresh"};
     if (!flow || (unsigned)entry>=sizeof(labels)/sizeof(labels[0])) return -1;
     for (size_t i=0;i<flow->count;i++)
         if (!strcmp(flow->nodes[i].id,labels[entry])) return (int)i;

@@ -106,7 +106,7 @@ void fd2_vga_upload_current_frame(fd2_vga *vga) {
 }
 
 static void fd2_vga_present_impl(fd2_vga *vga) {
-    /* 只有游戏帧present生成输入脉冲；帧内字形/嘴型再上传不重采键。 */
+    /* 同一输入owner归档到达键并采样repeat；纯上传不再消费或清未读键。 */
     fd2_input_begin_frame(&vga->input);
     fd2_vga_upload_current_frame(vga);
 }
@@ -198,8 +198,7 @@ void fd2_wait_ticks(uint32_t ticks) {
 }
 
 int fd2_input_check(fd2_vga *vga) {
-    /* SDL 端只查询最近一次 present 建立的当前帧脉冲；这里不能再次
-     * 泵送或采样，否则一次渲染帧会拥有多个输入生命周期。 */
+    /* 对应10620，只peek现input owner；不泵事件、不消费或清余队。 */
     return vga && fd2_input_has_any_key(&vga->input);
 }
 

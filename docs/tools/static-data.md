@@ -2,7 +2,9 @@
 
 当前内置的已确认冷表位于 `data/static/tables/*.json`，有限事件图位于 `data/static/flows/*.json`；清单与消费契约在 `data/static/manifest.json`。现有 item、magic、unit、movement、stage 等 getter 保留。构建期生成私有 `const` 表；流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。各 SD 阶段是否通过验收，以[阶段记录](../plans/stage-log.md)为准，不能以生成成功代替。
 
-SD 历史基线为79张冷表、四域30份流程、518个节点及6个共享绑定；G2 历史生成范围为168张表、五域36份流程定义、565个节点和6个共享绑定。2026-11-10 的 G4 候选输入为193张表、八域60份流程定义、1,283个节点和12个共享绑定；其中新增 `runtime` 与 `common_event` 两个有限领域，后者当前没有 stage 绑定。**G4 当前未提交，候选的原版／SDL 原生验收尚未全部闭合，以上计数不表示 G4 或 G5 完成门通过。** 正式 START 的 Game 初始化与 Scene 前态继续共用 `scene.init.000`；新增领域不构成通用 VM。数据修改仍须重建，结构／来源检查不自动开放后续关卡，实际阶段验收见[阶段记录](../plans/stage-log.md)。
+SD 历史基线为79张冷表、四域30份流程、518个节点及6个共享绑定；G2 历史生成范围为168张表、五域36份流程定义、565个节点和6个共享绑定。2026-11-10 的 G4 中间候选曾为193张表、八域60份流程定义、1,283个节点和12个共享绑定；当时新增 `runtime` 与 `common_event`，后者尚无 stage 绑定。G4 最终冻结为193张表、八域62份流程、1,390个节点和12个共享绑定，已以 `4ada76b` 提交并集成本地 master；中间候选及失败记录保留原身份，最终依据见阶段记录。
+
+G5 当前冻结输入为194张表、八域65份流程定义、1,476个节点和12个共享绑定；其中6个既有正式事件身份由 scene 迁入 common_event，没有新增关卡支持。**G5 已按本轮来源域完成统一历史回归和逐项签核；表、节点、绑定数不是玩法覆盖率。** 正式 START 的 Game 初始化与 Scene 前态继续共用 `scene.init.000`；新增领域不构成通用 VM。数据修改仍须重建，结构／来源检查不自动开放后续关卡，实际阶段验收见[阶段记录](../plans/stage-log.md)。
 
 ## 构建与修改
 
@@ -54,18 +56,18 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 | 文件 | 冷定义范围 | 代码保留的职责 |
 |---|---|---|
-| `scene.json` | 自然开场、初始化、回合／普通格事件、game over 的呈现顺序 | 资源所有权、逐帧绘制／移动算法与单次副作用 |
+| `scene.json` | 自然开场、初始化及 game over 的呈现顺序 | 资源所有权、逐帧绘制／移动算法与单次副作用；旧六事件不在此重放 |
 | `stage.json` | 支持门、入场、结果查询、胜利、结算、交接及音乐／预检顺序 | 原 session 的建立、替换与错误返回 |
 | `loot.json` | 掉落、特殊格、满包换物、取消、text_ready／ACK、奖励／controller 续接 | 库存槽操作、原动作提交与 owner 边界 |
 | `progress.json` | 奖励门、成长／学习提示与写点、毒伤／到期处理顺序 | 已确认成长计算、装备重算、RNG 与原单位写入 |
 | `magic.json` | 32..35复合组、23传送的焦点／费用／四段呈现／坐标写点，以及Item组效果／浮字／重算／耗槽／恢复EX顺序 | 既有有限effect core、同步结果投影、Game的HP／MP／贡献与库存owner；不重放业务提交 |
 | `preparation.json` | 商店、教会、转职、准备库存、选阵与 town／NoTown 的服务分支、等待、取消和写点 | App 持久 roster／资金／共享 RNG 与现有准备状态；页面缓存不拥有业务副本 |
-| `runtime.json`（G4 候选） | Round、阵营横幅、四个 turn caller 的整组恢复／交接，以及共享确认的等待、取消与工作页复制分支 | 原 Game 回合与单位提交、App 页面／视觉锚和宿主呈现；不增加业务执行游标 |
-| `common_event.json`（G4 候选） | 已解码的通用条件、状态、库存、相对回合、随机、child loot、输入、地图及原源域片段的有限组合 | Game `event_resume` 与原 loot／progress／单位 owner、有限同步提交及呈现 ACK；不自动增加关卡绑定 |
+| `runtime.json` | Round、阵营横幅、turn caller恢复／交接／返回、共享确认、死亡、详情及到场的分支、等待、取消和页操作 | 原 Game 提交、App 页面／视觉锚和同步呈现；不新建持久业务游标 |
+| `common_event.json` | 已解码通用规则／来源片段及原六个正式事件身份的有限组合 | 同一 Game `event_resume` 与原 loot／progress／单位 owner，逐叶写点及呈现 ACK；不自动增加关卡绑定 |
 
 每个 `operations` 条目定义参数名和范围；`flows` 使用稳定字符串 ID，节点用 `op`、有序 `args` 与命名出口 `on` 表达。`entry` 是默认入口，`entries` 仅声明既有 API 的其它入口。`views` 可限定 `logic` 或 `present`；省略则供两端投影。不能把两端各维护一份流程，也不能用一个 native 操作封装完整事件状态机。
 
-同域 `bindings` 把运行入口映射到已有真实流程，例如 `"stage.000.action.000": "event.action.000"`。别名共享生成节点数组，不复制流程；禁止别名链、循环、悬空目标及跨域重名。以后已知组合可增加绑定，仍须经过本关资源／前置校验和既有支持门；同 action 的其它关卡只作为待核实的复用候选，不能自动开放。
+同域 `bindings` 把运行入口映射到已有真实流程，例如 common_event 的 `"stage.000.action.000": "common.legacy.action.000"`。别名共享生成节点数组，不复制流程；禁止别名链、循环、悬空目标及跨域重名。以后已知组合可增加绑定，仍须经过本关资源／前置校验和既有支持门；同 action 的其它关卡只作为待核实的复用候选，不能自动开放。
 
 例如当前满包换物使用下列真实节点（完整上下文见 `loot.json`）：
 
@@ -76,7 +78,7 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 `emit` 的参数依次为提示种类、fragment、呈现 flags、等待毫秒数、fragment 是否取 descriptor、value 是否取当前 message_number；其参数契约在同文件的 `operations.emit`。YES／NO／取消和选槽后的去向由边决定，槽有效性由下一领域节点检查。原有 ACK、text_ready 和槽输入的类型校验仍由 API 负责；未到写点不得授予物品，重复通知不得再次提交。交换成功仍不置完成位，箱内参数保存换出的物品；取消同样不完成。
 
-Game 先提交逻辑、Scene 再呈现的既有合同保持。notice 只增加呈现所需的旧位置／方向／步态快照，避免重放移动两次；单位与资源 owner 不变。原动作确认、事务校验、存档拒绝中途状态及宿主输入分派属于稳定引擎边界；事件图调用这些边界，不能复制它们，也不能借它们隐藏事件分支。
+事件按原写序交错提交有限逻辑叶和呈现叶，成功 NEXT／ACK 后才进入后继；不先整段修改 Game 再由 Scene 重放。父 PC、真实 actor／item 和深度1 child loot沿现有热 owner，晚错／HOST 保留已到达前缀，不复制 Game 或回滚外部 RNG。`event_log` 保留未绑定来源诊断和停止边界，fallback容量及坏external deferred防御仍在，不能据此推成全库没有容量检查。原动作确认、事务校验、存档忙态和宿主输入分派仍是引擎边界；冷图调用它们，不复制 owner，也不借整段 native handler 隐藏分支。
 
 正式 START 的初始成员、部署槽引用和模板选择也由 `scene.init.000` 共用定义。Game 消费 logic 视图，继续调用原 persistent 创建、active 拷贝和模板构造算法；Scene 的开场前隐藏由单独的 present-only 节点表达。生产代码不再保留旧四人成员、group 顺序、装备或派生属性的固定值断言。默认数值兼容性由独立来源与回归核对，运行时仍拒绝无效模板、精灵、profile 和越界引用。初始化节点缺少 logic 视图或带有 Game 未支持的逻辑操作时，构建校验直接拒绝。
 
@@ -88,11 +90,11 @@ Game 先提交逻辑、Scene 再呈现的既有合同保持。notice 只增加�
 
 `required_labels` 还固定 C API 实际查找的外部节点入口。当前 loot 的 preflight.drop、preflight.cell、cell.begin、drop.begin、finish.common 不可仅同步图内引用后随意改名；缺失即构建校验失败。普通内部节点仍可重命名／重排。`entries` 的可达性声明不能代替真实 node.id 的消费合同。
 
-## G4 共享运行与通用事件的来源边界
+## 共享运行与通用事件的来源边界
 
-`runtime.json` 当前有68个有限操作、6份流程和321个节点：Round 42、phase 132、turncycle 28、choice 25、defeat 86、detail 8。`verify_runtime_flows.py` 独立读取固定身份的原 EXE 与严格 LE 页，按原两个 Round caller、phase 函数、整组恢复、`19953／197e5`、`1db65` 和 `17aed` 的 call／jump／立即数推导预期。它检查等待先于 tick、HP／acted 写点、低 WORD 符号扩展、RNG 加值、键分支、清 phase、工作页 snapshot／bottom 复制、地图重画、死亡方向／flags和详情两次等待；不把 JSON 自报来源或生成 C 当作期望。静态验证器正反例、原码执行、真实 C consumer 和 WGC 各自记账。具体证据范围见[共享运行语义 §8](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)。
+G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点：Round 42、phase 132、turncycle 28、choice 25、defeat 86、detail 8。G5 当前为78个操作、7份流程和381个节点，追加到场图及有源的清键／信息板／caller返回和方向reset等待边界。`verify_runtime_flows.py` 独立读取固定身份原 EXE 与严格 LE 页，按原 Round／phase／恢复／确认／死亡／详情等 caller 的 call／jump／立即数推导预期；不把 JSON 自报来源或生成 C 当作期望。静态正反例、原码、真实 C consumer 和 WGC 各自记账；实际等待、写点、工作页和可见内容的有效域见[共享运行语义 §8](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)与[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。
 
-`common_event.json` 当前有47个有限操作、15份未绑定来源流程和115个节点。`verify_common_events.py` 独立核原完整函数／显式片段及17 byte 原表读集，再核冷图控制与错误冻结；局部原码差分、真实 C consumer 测试和私有 Play 夹具分别报告。正式 consumer 已接线不等于当前存在自然 stage 触发；本轮 common39 的非 shipping alias 已有空槽／满包取消及死亡反馈原版／SDL 配对，但不意味着15图全部有自然运行证据，也不增加生产绑定。来源片段的有效域、30项局部机器码差分及原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)和[审计 §11](../plans/common-logic-audit.md#11-g4-实施与定向验收2026-11-10)。
+G4 冻结时，`common_event.json` 有47个有限操作、15份未绑定来源流程和115个节点。G5 当前为54个操作、21份流程和183个节点，六个既有正式身份为stage000 action0..4及stage001 action6；其自然入口证据与15份机制来源夹具分开。`verify_common_events.py` 独立核原完整函数／显式片段、17 byte 原表及冷控制；`verify_fd2_legacy_events.py` 另核六个原 caller 的实际调用／写序。线性身份投影检查 future raw／MOVE，但不证明任意分支组合的完整未来资源。common39 仍是非 shipping 显式alias，空槽／满包取消／死亡反馈配对不自动成为自然 stage 绑定，也不表示21图全部有原生证据。G4 的30项局部机器码差分与原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)；G5 实际候选和剩余门见统一审计及阶段记录。
 
 Windows PowerShell：
 
@@ -142,7 +144,7 @@ python3 -B tools/static_data/audit_stage_data.py --require-supported --output bu
 
 G2的106条计数流均通过严格runtime语法／原字节校验，合计2,896 byte，getter与有限执行器覆盖原三种mode；活动容量恢复96。direction5保留原cache跨帧读取语义与资源校验，不取模改值；脚本引用还须小于当次实际actor count。106条语法可执行不等于所有stage触发绑定、资源或原版运行已通过，不能据此开启S阶段关卡。
 
-v3 报告保守潜在需求集合共 1,171 条记录引用，含重复：51 条有当前已支持定义，468 条属于已知类型／定义但未开放，652 条未明确绑定或未解码；后者含 450 条默认 turn255 潜在匹配。它们不是 1,171 个不同事件，也不是执行轨迹覆盖率。当前仅 0／1 的 `bound_definitions_closed` 为 true；严格支持集合为空。v2 的 721 条计数保留为排除默认填充的历史范围，不能当作严格全范围通过。已解码引用无错误不等于所有未知 raw 引用均有效。
+SD3／G1 的 v3 来源报告保守潜在需求集合共1,171条记录引用，含重复：当时51条有已支持定义，468条属于已知类型／定义但未开放，652条未明确绑定或未解码；后者含450条默认turn255潜在匹配。它们不是1,171个不同事件，也不是当前执行覆盖率。该报告仅0／1的 `bound_definitions_closed` 为true，严格支持集合为空；不拿G5定义计数替换这个历史来源分母。v2的721条保留为排除默认填充的历史范围，不能当作严格全范围通过。已解码引用无错误不等于所有未知raw引用均有效。
 
 常规新关接入：运行批量审计 → 核实 `reuse_candidates` 与原 callback／条件 → 将确认的组合加入唯一 `bindings`／定义 → 运行生成与引用检查、同输入状态／轨迹差分 → 仅对新增语义选代表原版场景。复用候选不会自动转为支持。新增未知控制流先保留源函数／chunk 和阻塞原因，再补最小领域原语及测试；不静默跳过、不写逐关 C handler，也不复制已有 DAT 表。
 
@@ -166,7 +168,7 @@ python3 -B tools/static_data/audit_common_scope.py --output build/g1/common-scop
 python3 -B -m unittest discover -s tools/tests -p test_audit_common_scope.py
 ```
 
-输出分别保留 208 个分发表槽、1,171 条保守引用、106 条脚本和 12 条模板尾。缺少审查、实际 owner／chunk 不符或语义族为未决均不得记为完成；结构数、分类数与运行支持数分别统计。`classification_complete=true` 只表示当前来源全部有归属，`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled` 仍为 false；它不能解除任何游戏支持门。新增 byte／CFG／数据语义先更新证据与审查记录，实施时再把真实条件、分支、等待、取消和写点写进唯一冷定义。
+G1 原分类输出分别保留208个分发表槽、1,171条保守引用、106条脚本和12条模板尾。后续 source-kind 账按1,497行、20个语义族分类，其中15个历史 common_gap族的388条引用不是388项当前未实现功能。缺少审查、owner／chunk不符或语义族未决均不得记为分类完成；结构数、分类数、当前实现和运行支持数分别统计。`classification_complete=true` 只说明该来源有归属，`all_game_semantic_complete`、`original_runtime_executed`、`new_gameplay_enabled` 仍为false，不解除游戏支持门。新增byte／CFG／语义先更新来源账，再把分支、等待、取消和写点写入唯一冷定义；当前完成结论只按28项审计与真实阶段门。
 
 
 ## G2 正常 caster 与 FIGANI 源域

@@ -160,6 +160,18 @@ def turn_program(exe):
         raise ValueError('turncycle组恢复mode/stride/cue/divisor不同')
     sides=[immediate(exe,va,'6a') for va in (0x1a4c5,0x1a4cf,0x1a552,0x1a55c,0x1a78b,0x1a795)]
     if sides!=[1,1,0,0,2,2]:raise ValueError('turncycle事件与status阵营不同')
+    # 51AAC恢复属于13565/March/END caller，不属于1a30b、clear或Load。
+    for va in (0x135b4,0x170ba,0x1726b):require_bytes(exe,va,'c605ac1a000000')
+    for va in (0x135d4,0x17163,0x17277):require_bytes(exe,va,'c605ac1a000001')
+    for at in (0x135c5,0x17154,0x17272):call_target(exe,at,0x1a30b)
+    require_bytes(exe,0x135ca,'c705831a000001000000')
+    require_bytes(exe,0x17159,'c705831a000001000000')
+    reset=source_range(exe,0x134e4,46)
+    if hashlib.sha256(reset).hexdigest()!='dc6f3ac1946072a996c259f094f6bad5da08d74223ad1b35fa150204a655578a':
+        raise ValueError('turncycle方向reset完整原函数不同')
+    require_bytes(exe,0x13507,'6a14');call_target(exe,0x13509,0x3790a)
+    call_target(exe,0x13e88,0x134e4);require_bytes(exe,0x13e8d,'6a00');call_target(exe,0x13e8f,0x11cac)
+    reset_ms=immediate(exe,0x13507,'6a')
     def path(*steps):return [('turn_'+op,args) for op,args in steps]+[('turn_done',[])]
     return {
       'player_done':path(('recovery_wait',[immediate(exe,0x1a328,'6a')]),('recovery_highlight',[]),
@@ -170,7 +182,10 @@ def turn_program(exe):
       'side0_done':path(('increment',[]),('stop_if_different',[]),('player_title',[]),
         ('display_mode',[0]),('clear_acted',[]),('refresh',[]),('primary_music',[]),
         ('round',[]),('focus_reset',[]),('enter_phase',[sides[4]])),
-      'player_ready':path(('display_mode',[1]),('focus_zero',[]),('clear_keys',[]))}
+      'player_ready':path(('display_mode',[1]),('focus_zero',[]),('clear_keys',[])),
+      'caller_return':path(('info_visible',[1])),
+      'directions_reset':path(('reset_directions',[]),('delay_ms',[reset_ms])),
+      'directions_reset_refresh':path(('reset_directions',[]),('delay_ms',[reset_ms]),('refresh',[]))}
 
 
 def choice_program(exe):

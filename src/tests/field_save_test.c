@@ -935,16 +935,26 @@ static int test_original_start_roster_and_recruit_transaction(void) {
     CHECK(fd2_field_game_end_player_turn(&game) == 0);
     CHECK(game.roster_count == 5 && game.roster[4].unit_id == 1 &&
           game.roster[4].level == 3);
-    CHECK(game.event_log_count == 1 && game.event_log[0].handled);
+    /* 真续态只执行到首PAN；后续story/增援仍由同一父PC等待，
+     * 不再追加已处理notice或预先执行整段再Scene重放。 */
+    fd2_static_flow_node leaf;size_t actor;
+    CHECK(game.units.count==13 && game.event_log_count==0 && game.event_total_count==0);
+    CHECK(game.event_resume.active &&
+          fd2_field_game_common_event_peek(&game,&leaf,&actor)==1);
+    CHECK(!strcmp(leaf.op,"pan") && leaf.args[0]==5 && leaf.args[1]==8 && actor==0);
 
     CHECK(fd2_field_game_import_battle_snapshot(&game, &snapshot) == 0);
+    CHECK(!game.event_resume.active);
     game.turn_number = 3;
-    game.placements.count = 0; /* 招募后 group 3 失败，必须一起回滚。 */
+    /* 缺group3身份所需placement，完整只读预检应在招募前拒绝。
+     * 这是预检无写合同，不是执行后回滚已提交前缀。 */
+    game.placements.count = 0;
     fd2_field_unit before_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
     memcpy(before_roster, game.roster, sizeof(before_roster));
     fd2_field_units before_units = game.units;
     CHECK(fd2_field_game_end_player_turn(&game) != 0);
-    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_EXECUTION);
+    CHECK(game.failure == FD2_FIELD_FAILURE_ACTION);
+    CHECK(!game.event_resume.active && game.event_log_count==0 && game.event_total_count==0);
     CHECK(game.roster_count == 4);
     CHECK(memcmp(game.roster, before_roster, sizeof(before_roster)) == 0);
     CHECK(memcmp(&game.units, &before_units, sizeof(before_units)) == 0);

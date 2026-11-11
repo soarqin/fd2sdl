@@ -106,7 +106,7 @@ static int prepare_service_pick_list(prepare_ui *ui,unsigned *port) {
     if (*selected<0 || (size_t)*selected>=count) *selected=0;
     int opened=prepare_service_picker_open(ui);
     if(opened){if(opened==1)s->host_quit=1;*port=FD2_FLOW_ERROR;return -1;}
-    drain(ui);
+    /* 275e6/27d33/27f4a/2a29d/2a857及27738/1974c开页均无4e381。 */
     for (;;) {
         fd2_input_event event;
         int result=prepare_service_read_key(ui,&event,columns==1u ? 2: s->picker_mode==PREPARE_PICK_MEMBER ? 3:1,
@@ -165,7 +165,8 @@ static int prepare_service_selection_open(prepare_ui *ui) {
         fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
         if(present(ui)){s->host_quit=1;return -1;}
     }
-    drain(ui);return 0;
+    /* 2af28打开12帧后明确4e381，后继2b67f只消费一键。 */
+    return prepare_service_clear_keys(ui) ? -1 : 0;
 }
 
 static int prepare_service_selection_close(prepare_ui *ui) {
@@ -198,7 +199,7 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
     prepare_service *s=&ui->service;const char *op=node->op;
     *port=FD2_FLOW_NEXT;
     if(!strcmp(op,"menu_pick")) {
-        s->picker_mode=PREPARE_PICK_MENU;drain(ui);
+        s->picker_mode=PREPARE_PICK_MENU; /* 26e38无入口清队。 */
         for(;;) {
             fd2_input_event event;
             int result=prepare_service_read_key(ui,&event,0,prepare_service_picker_draw);
@@ -239,7 +240,7 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
             fd2_input_event event;
             if(fd2_input_take_key(&ui->vga->input,&event)) {
                 s->input_epoch++;
-                drain(ui);fd2_vga_wait_frame_deadline(ui->vga);
+                fd2_vga_wait_frame_deadline(ui->vga); /* 2b67f读一，不吞余队。 */
                 if(cancel_key(event.key)){*port=FD2_FLOW_CANCEL;return 1;}
                 if(confirm_key(event.key)){*port=FD2_FLOW_SLOT;return 1;}
                 fd2_field_prepare_select_key key;
@@ -277,7 +278,8 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
             fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
             if(present(ui)){s->host_quit=1;return -1;}
         }
-        s->equipment_selected=0;drain(ui);return 1;
+        if(prepare_service_clear_keys(ui))return -1; /* 17e0b尾17ee8。 */
+        s->equipment_selected=0;return 1;
     }
     if(!strcmp(op,"pick_equipment_slot")) {
         fd2_field_unit unit;const fd2_save_manual_state *state=&ui->context->preparation;

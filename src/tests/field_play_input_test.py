@@ -59,12 +59,14 @@ WAIT_EXPECTED = [
 ]
 ATTACK_EXPECTED = [
     "field action: unit=2 command=attack acted=1 remaining=3 phase=2",
-    "field attack: target=10 strikes=1 hit=1 critical=0 base=24 rolled=25 damage=25 total=25 hp=3 defeated=0 hidden=0",
+    # 原1b750派生后敌raw10防御4；2ebe1/2f7b6：攻击26经地形+5%=27，
+    # floor(9*(27-4)/10)=20；4ebe3种子0x7a18的spread余1。
+    "field attack: target=10 strikes=1 hit=1 critical=0 base=20 rolled=21 damage=21 total=21 hp=7 defeated=0 hidden=0",
     "field acted gate: unit=2, interaction=browse",
 ]
 LETHAL_EXPECTED = [
     ATTACK_EXPECTED[0],
-    "field attack: target=10 strikes=2 hit=1 critical=0 base=24 rolled=24 damage=4 total=28 hp=0 defeated=1 hidden=1",
+    "field attack: target=10 strikes=2 hit=1 critical=0 base=20 rolled=20 damage=8 total=28 hp=0 defeated=1 hidden=1",
     ATTACK_EXPECTED[-1],
 ]
 

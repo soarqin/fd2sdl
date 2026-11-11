@@ -90,20 +90,20 @@ class StaticFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name) / "root"
             shutil.copytree(ROOT / "data/static", root / "data/static")
-            path = root / "data/static/flows/scene.json"
+            path = root / "data/static/flows/common_event.json"
             data = generator.load_json(path)
-            data["bindings"]["stage.001.action.042"] = "event.action.006"
+            data["bindings"]["stage.001.action.042"] = "common.legacy.action.006"
             path.write_text(json.dumps(data), encoding="utf-8")
             output = Path(name) / "generated"
             generator.generate(root, output)
             receipt = json.loads((output / "sources.json").read_text(encoding="utf-8"))
-            scene = next(row for row in receipt["flows"] if row["file"] == "scene.json")
+            scene = next(row for row in receipt["flows"] if row["file"] == "common_event.json")
             self.assertEqual(scene["bindings"], data["bindings"])
             self.assertEqual(scene["runtime_flow_count"], len(data["flows"]) + len(data["bindings"]))
             self.assertEqual(scene["node_count"], sum(len(flow["nodes"]) for flow in data["flows"]))
             before = {p.name: p.read_bytes() for p in output.iterdir()}
             generator.generate(root, output, check=True)
-            data["bindings"]["stage.entry.001"] = "event.action.006"
+            data["bindings"]["stage.entry.001"] = "common.legacy.action.006"
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "duplicate global"):
                 generator.generate(root, output)

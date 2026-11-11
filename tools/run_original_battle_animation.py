@@ -549,8 +549,18 @@ def measure(capture, prepared, save, guard, record, checkpoint):
         record['ai5_action_business_evidence']['live_opened_cell_checked_before_Save']=True
     if prepared['scenario']=='ai-item-score20':
         record['ai_item_action_positive_evidence']=oracle.item_action_coverage(prepared,decode_save(save),plan['steps'])
-        if not record['ai_item_action_positive_evidence']['passed']:
-            raise ActionCoverageInconclusive('AI item合法miss或无动作：完整SAV合法但缺少HP下降正证；保留本轮、不重抽')
+
+
+def observe_item_action_after_cleanup(original,prepared,record,work):
+    """命中保原HP门；合法miss另取原资源动作见证，不能提前于owned清理。"""
+    if prepared['scenario']!='ai-item-score20' or record['ai_item_action_positive_evidence']['passed']:
+        return
+    from fd2_ai_item_miss_oracle import observe_case,MissingActionWitness
+    try:
+        record['action_execution_witness']=observe_case(original,prepared,record,work)
+    except MissingActionWitness as error:
+        record['action_execution_witness']={'passed':False,'kind':'exclusive_item56_miss_witness_missing','error':str(error)}
+        raise ActionCoverageInconclusive('AI item合法miss或无动作：完整SAV合法但缺少HP下降或完整执行正证；保留本轮、不重抽') from error
 
 
 def exercise(capture, prepared, save, guard, record, args):
@@ -736,6 +746,7 @@ def run(args, *, _final_report=None):
     if verify_requested:
         prepared['core_sfx_declaration']=sfx_declaration.declare(original,args.scenario)
         prepared['core_sfx_plan']=core_sfx.prepare_core_sfx(original/'FDOTHER.DAT',prepared['core_sfx_declaration'])
+    import fd2_ai_item_miss_oracle  # 窗口启动前将观察器及实际依赖纳入原source快照。
     tools=dependencies()
     if fingerprint(original)!=before:raise AssertionError('纯前置期间原版来源变化；未启动窗口')
     output.mkdir(parents=True,exist_ok=False)
@@ -791,6 +802,7 @@ def run(args, *, _final_report=None):
                     capture=Capture(args.driver.resolve(),process,work,record['inputs'])
                     exercise(capture,prepared,save,guard,record,args)
                     require_source_unchanged(save,*guard)
+                observe_item_action_after_cleanup(original,prepared,record,work)
                 record.update(collection_passed=True,status='collected')
             except Exception as error:
                 record.setdefault('error',str(error))

@@ -106,13 +106,14 @@ grep -Fq 'field phase: turn=2 phase=2 remaining=4' "$wait_log"
 attack_log="$tmpdir/attack.log"
 run_case attack "$attack_log" '' 'field acted gate: unit=2, interaction=browse'
 grep -Fq 'field action: unit=2 command=attack acted=1 remaining=3 phase=2' "$attack_log"
-grep -Fq 'field attack: target=10 strikes=1 hit=1 critical=0 base=24 rolled=25 damage=25 total=25 hp=3 defeated=0 hidden=0' "$attack_log"
+# 原1b750派生后敌raw10防御4；攻击26经地形+5%=27，原2ebe1/2f7b6基础伤害20。
+grep -Fq 'field attack: target=10 strikes=1 hit=1 critical=0 base=20 rolled=21 damage=21 total=21 hp=7 defeated=0 hidden=0' "$attack_log"
 grep -Fq 'field acted gate: unit=2, interaction=browse' "$attack_log"
 
 # seed 496 触发原版 3% 双击；不改 stage 0 坐标、HP 或攻防属性，
-# 第二击把同一真实敌人从剩余 4 HP 提交为隐藏死亡。
+# 第二击把同一真实敌人从剩余 8 HP 提交为隐藏死亡。
 lethal_log="$tmpdir/lethal.log"
 run_case attack "$lethal_log" 496 'field acted gate: unit=2, interaction=browse'
 grep -Fq 'field action: unit=2 command=attack acted=1 remaining=3 phase=2' "$lethal_log"
-grep -Fq 'field attack: target=10 strikes=2 hit=1 critical=0 base=24 rolled=24 damage=4 total=28 hp=0 defeated=1 hidden=1' "$lethal_log"
+grep -Fq 'field attack: target=10 strikes=2 hit=1 critical=0 base=20 rolled=20 damage=8 total=28 hp=0 defeated=1 hidden=1' "$lethal_log"
 grep -Fq 'field acted gate: unit=2, interaction=browse' "$lethal_log"

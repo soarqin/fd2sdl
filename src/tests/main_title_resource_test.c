@@ -26,6 +26,22 @@ static int intro_animation_fault, intro_animation_code, intro_skip_scroll;
 static size_t last_resource;
 static int intro_resource_reads[128], intro_image_decodes[128];
 static int intro_animation_calls[9];
+static int input_contract, input_clears, clear_had_pending[4], menu_queue_empty;
+static int quit_on_clear, presents_at_clear[4];
+static uint64_t input_time;
+static fd2_vga *input_vga;
+
+static void title_queue_key(fd2_vga *vga,SDL_Scancode key) {
+    fd2_input_set_test_key_state(&vga->input,key,1);
+    fd2_input_begin_test_frame(&vga->input,++input_time);
+    fd2_input_set_test_key_state(&vga->input,key,0);
+    fd2_input_begin_test_frame(&vga->input,++input_time);
+}
+static void title_test_input_clear(fd2_input *input) {
+    if(input_clears<4){clear_had_pending[input_clears]=fd2_input_has_any_key(input);presents_at_clear[input_clears]=presents;}
+    input_clears++;fd2_input_clear_keys(input);
+    if(input_clears==quit_on_clear)input->quit_requested=1;
+}
 
 static int title_test_archive_get(const fd2_archive *ar, size_t index,
                                   const uint8_t **data, size_t *length) {
@@ -133,6 +149,7 @@ static int title_test_animation(fd2_vga *vga, const fd2_archive *ani,
     if (index != 1 || delay != FD2_TITLE_ANIM_DELAY_FAST_MS || !check_input)
         unexpected++;
     animation_calls++;
+    if(input_contract)title_queue_key(vga,SDL_SCANCODE_RETURN);
     if (test_animation_result >= 0 && hook) hook(userdata, 0);
     return test_animation_result;
 }
@@ -169,16 +186,16 @@ static void title_test_fade(fd2_vga *vga, int start, int steps,
 }
 static void title_test_present(fd2_vga *vga) { (void)vga; presents++; }
 static void title_test_delay(uint32_t delay) { (void)delay; }
-static int title_test_observe(fd2_input *input) {
+static int title_test_observe(const fd2_input *input) {
     (void)input;
     return intro_skip_scroll;
 }
 static int title_test_quit(fd2_input *input) {
-    (void)input;
-    return menu_quit && menu_frames > 0;
+    return input->quit_requested || (menu_quit && menu_frames > 0);
 }
 static int title_test_action(fd2_input *input, fd2_input_context context,
                               fd2_input_action *action) {
+    if(input_contract){action_reads++;return fd2_input_take_action(input,context,action);}
     (void)input;
     if (context != FD2_INPUT_CONTEXT_TITLE || action_reads++) unexpected++;
     *action = FD2_INPUT_ACTION_CONFIRM;
@@ -187,6 +204,11 @@ static int title_test_action(fd2_input *input, fd2_input_context context,
 static int title_test_menu(int count, int selected, int highlighted,
                             fd2_title_draw_item_fn draw, void *userdata) {
     menu_frames++;
+    if(input_contract && menu_frames==1) {
+        menu_queue_empty=!fd2_input_has_any_key(&input_vga->input);
+        title_queue_key(input_vga,SDL_SCANCODE_DOWN);
+        title_queue_key(input_vga,SDL_SCANCODE_RETURN);
+    }
     return fd2_title_draw_menu_frame(count, selected, highlighted, draw, userdata);
 }
 
@@ -239,13 +261,16 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
 #define fd2_wait_ticks title_test_delay
 #define fd2_input_take_quit title_test_quit
 #define fd2_input_take_action title_test_action
-#define fd2_input_observe_any_key title_test_observe
+#define fd2_input_has_any_key title_test_observe
+#define fd2_input_clear_keys title_test_input_clear
 #define fd2_title_draw_menu_frame title_test_menu
 #ifndef FD2_TITLE_TEST_MAIN
 #define FD2_TITLE_TEST_MAIN "main.c"
 #endif
 #include FD2_TITLE_TEST_MAIN
 #undef main
+#undef fd2_input_has_any_key
+#undef fd2_input_clear_keys
 
 static void reset_test(void) {
     palette_fault = base_fault = test_animation_result = menu_quit = 0;
@@ -255,6 +280,9 @@ static void reset_test(void) {
     intro_enabled = intro_skip_scroll = 0;
     intro_resource_fault = intro_image_fault = intro_animation_fault = -1;
     intro_animation_code = 0;
+    input_contract=input_clears=menu_queue_empty=quit_on_clear=0;input_time=0;input_vga=NULL;
+    memset(clear_had_pending,0,sizeof(clear_had_pending));
+    memset(presents_at_clear,0,sizeof(presents_at_clear));
     memset(intro_resource_reads, 0, sizeof(intro_resource_reads));
     memset(intro_image_decodes, 0, sizeof(intro_image_decodes));
     memset(intro_animation_calls, 0, sizeof(intro_animation_calls));
@@ -376,45 +404,78 @@ static void chain_reset(fd2_field_play_context *context) {
 }
 static int test_app_chain(void) {
     fd2_field_play_context context;fd2_field_handoff handoff={0};chain_reset(&context);
+    fd2_vga vga={0};fd2_input_init(&vga.input);vga.info_panel_suppressed=1;
     chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;chain_results[1]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,0,&handoff,0)==FD2_APP_FLOW_EXIT);
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,0,&handoff,0)==FD2_APP_FLOW_EXIT);
+    CHECK(vga.info_panel_suppressed==1);
     CHECK(chain_battles==2 && chain_preparations==1 && chain_stages[0]==0 && chain_stages[1]==1);
     CHECK(chain_handoffs[0] && !chain_handoffs[1] && !chain_loaded[0] && !chain_loaded[1]);
     CHECK(context.rng.state==0x1236 && context.experience_value==11 && context.message_number==105);
     /* 第一场入口是stage1；战场Load恢复stage0，实际结算后仍交同一准备owner。 */
     chain_reset(&context);chain_first_load_stage=0;
     chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;chain_results[1]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_EXIT);
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_EXIT);
+    CHECK(vga.info_panel_suppressed==1);
     CHECK(chain_battles==2 && chain_preparations==1 && chain_stages[0]==1 && chain_stages[1]==1);
     CHECK(chain_loaded[0] && !chain_loaded[1] && !chain_handoffs[0] && !chain_handoffs[1]);
     CHECK(context.rng.state==0x1236 && context.experience_value==11 && context.message_number==105);
     chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_DEFEAT;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_TITLE);
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,1)==FD2_APP_FLOW_TITLE);
+    CHECK(!vga.info_panel_suppressed);
     CHECK(chain_battles==1 && !chain_preparations && chain_stages[0]==1 && chain_loaded[0] && !chain_handoffs[0]);
     /* 仅返回VICTORY而没有提交准备owner仍必须报错，与B7开放stage1结算无关。 */
-    chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,0)==FD2_APP_FLOW_ERROR);
+    chain_reset(&context);chain_results[0]=FD2_FIELD_PLAY_RETURN_VICTORY;vga.info_panel_suppressed=1;
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_BATTLE,1,NULL,0)==FD2_APP_FLOW_ERROR);
+    CHECK(vga.info_panel_suppressed==1);
     CHECK(chain_battles==1 && !chain_preparations);
     const fd2_field_prepare_result endings[]={FD2_FIELD_PREPARE_TITLE,FD2_FIELD_PREPARE_HOST_QUIT,FD2_FIELD_PREPARE_LEAVE_GAME,FD2_FIELD_PREPARE_ERROR};
     const fd2_app_flow flows[]={FD2_APP_FLOW_TITLE,FD2_APP_FLOW_EXIT,FD2_APP_FLOW_LEAVE_GAME,FD2_APP_FLOW_ERROR};
     for(unsigned stage=1;stage<=2;stage++)for(size_t i=0;i<sizeof(endings)/sizeof(endings[0]);i++){
         chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=(uint8_t)stage;
+        vga.info_panel_suppressed=1;
         fd2_field_play_context before=context;chain_prepare_result=endings[i];
-        CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==flows[i]);
+        CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==flows[i]);
+        CHECK(vga.info_panel_suppressed==(i==0 || i==2 ? 0:1));
         CHECK(!chain_battles && chain_preparations==1 && !memcmp(&context,&before,sizeof(context)));
     }
     /* B7 stage2出阵成功后由Play消费prep owner；宿主退出不重复进入准备页。 */
     chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=2;context.preparation.unit_count=6;
+    vga.info_panel_suppressed=1;
     chain_results[0]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_EXIT);
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_EXIT);
+    CHECK(vga.info_panel_suppressed==1);
     CHECK(chain_battles==1 && chain_preparations==1 && chain_stages[0]==2);
     CHECK(!chain_loaded[0] && !chain_handoffs[0] && !context.has_preparation);
     CHECK(context.preparation.stage_id==2 && context.preparation.unit_count==6);
     CHECK(context.rng.state==0x1235 && context.experience_value==9 && context.message_number==102);
     chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=3;
+    vga.info_panel_suppressed=1;
     fd2_field_play_context before=context;
-    CHECK(run_field_chain(NULL,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
+    CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
+    CHECK(vga.info_panel_suppressed==1);
     CHECK(!chain_battles && chain_preparations==1 && !memcmp(&context,&before,sizeof(context)));
+    return 0;
+}
+
+static int test_title_clear_and_two_ordered_keys(void) {
+    reset_test();input_contract=1;
+    fd2_vga vga={0};input_vga=&vga;fd2_input_init(&vga.input);
+    CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==FD2_TITLE_ACTION_LOAD);
+    CHECK(input_clears==1 && clear_had_pending[0] && menu_queue_empty);
+    CHECK(action_reads==2 && !fd2_input_has_any_key(&vga.input));
+    CHECK(!unexpected && !image_live && archive_opens==archive_closes);
+    for(int skip=0;skip<2;skip++) {
+        reset_test();intro_enabled=1;intro_skip_scroll=skip;
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_NEW_GAME);
+        CHECK(input_clears==3); /* scroll入口、LABEL32的100ms后、title fade后。 */
+    }
+    for(int point=1;point<=3;point++) {
+        reset_test();memset(&vga,0,sizeof(vga));fd2_input_init(&vga.input);
+        intro_enabled=intro_skip_scroll=1;quit_on_clear=point;
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_HOST_QUIT);
+        CHECK(input_clears==point && presents==presents_at_clear[point-1] && !menu_frames && !action_reads);
+        CHECK(!image_live && archive_opens==archive_closes && !unexpected);
+    }
     return 0;
 }
 
@@ -432,6 +493,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
         if (run_intro_case(&intro_cases[i])) return 1;
     CHECK(test_app_chain()==0);
+    CHECK(test_title_clear_and_two_ordered_keys()==0);
     puts("main_title_resource: 29 resource cases + App chain passed; no SDL initialization/window");
     return 0;
 }

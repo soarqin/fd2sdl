@@ -10,9 +10,30 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools/static_data'))
 import generate
 from verify_unit_tables import source_range
+from verify_unit_tables import check_table
 
 
 class RuntimeTablesTest(unittest.TestCase):
+    def test_auxiliary_side_colors_are_three_original_dwords(self):
+        executable=ROOT/'original_game/FD2.EXE'
+        if not executable.exists():self.skipTest('需要本地只读FD2.EXE，不声称原字节通过')
+        raw=executable.read_bytes()
+        document=json.loads((ROOT/'data/static/tables/runtime.json').read_text())
+        generate.validate_document(document)
+        table=next(t for t in document['tables'] if t['name']=='k_field_auxiliary_side_colors')
+        original=source_range(raw,0x5208a,12)
+        self.assertEqual(original,bytes.fromhex('200000005000000048000000'))
+        check_table(table,('k_field_auxiliary_side_colors','uint32_t',(3,),0x5208a),original)
+        for mutation in ('width','value','source_va','source_length','source_hash'):
+            bad=copy.deepcopy(table)
+            if mutation=='width':bad['c_type']='uint8_t'
+            elif mutation=='value':bad['values'][2]^=1
+            elif mutation=='source_va':bad['source']['canonical_va']='0x5208b'
+            elif mutation=='source_length':bad['source']['length']=3
+            else:bad['source']['sha256']='0'*64
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                check_table(bad,('k_field_auxiliary_side_colors','uint32_t',(3,),0x5208a),original)
+
     def test_range_sequence_matches_independent_original_bytes(self):
         executable=ROOT/'original_game/FD2.EXE'
         if not executable.exists():self.skipTest('需要本地只读FD2.EXE，不声称原字节通过')

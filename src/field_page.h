@@ -70,7 +70,8 @@ int fd2_field_page_scaled_view_write(fd2_field_page *page,
 
 /* sub_1F1CC/sub_1F30A @0x1f1cc/0x1f30a的有证例外：原1f1cc把保存的
  * VGA64000字节写到53A49 raw偏移0，随后按320stride作mosaic源。
- * 固定prefix接口仅供这两个caller，不是普通地图/对话页回灌入口。 */
+ * 另有field_view_render_scaled @0x1f558被2000a调用时写同一raw-prefix，
+ * 不同于21548重定向scratch后的visible桥；这些固定caller外不得回灌UI。 */
 int fd2_field_page_phase_prefix_read(const fd2_field_page *page,
     uint8_t *pixels, size_t size);
 int fd2_field_page_phase_prefix_write(fd2_field_page *page,

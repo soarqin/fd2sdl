@@ -477,6 +477,20 @@ static int emit_clock_vectors(void) {
     return 0;
 }
 
+static int test_auxiliary_color_source_domain(void) {
+    static const unsigned original_bases[3]={32,80,72};
+    for(unsigned side=0;side<3;side++)for(unsigned phase=0;phase<8;phase++) {
+        uint8_t color=255;
+        CHECK(fd2_field_auxiliary_marker_color(side,phase,&color)==0);
+        CHECK(color==original_bases[side]+phase);
+    }
+    uint8_t untouched=173;
+    CHECK(fd2_field_auxiliary_marker_color(3,0,&untouched)==-1 && untouched==173);
+    CHECK(fd2_field_auxiliary_marker_color(0,8,&untouched)==-1 && untouched==173);
+    CHECK(fd2_field_auxiliary_marker_color(0,0,NULL)==-1);
+    return 0;
+}
+
 int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--clock-jsonl"))return emit_clock_vectors();
     CHECK(test_resources_and_sequence() == 0);
@@ -489,6 +503,7 @@ int main(int argc,char **argv) {
     CHECK(test_actor_visual_shared_tick() == 0);
     CHECK(test_shared_render_clocks() == 0);
     CHECK(test_transition_page_bridge()==0);
+    CHECK(test_auxiliary_color_source_domain()==0);
     puts("field visual tests: ok");
     return 0;
 }

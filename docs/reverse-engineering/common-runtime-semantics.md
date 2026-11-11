@@ -1,6 +1,6 @@
 # 通用控制、设置与共享运行语义
 
-G1 取证基线为 `c1b6598`；2026-11-10 的 §8—9 另记 G4 实现及其来源。G4 本阶段定向验收与实质审查已完成，各候选原生范围、失败和整阶段提交／集成见[审计 §11](../plans/common-logic-audit.md#11-g4-实施与定向验收2026-11-10)及阶段记录；文中早期「候选／待验」保留当时证据边界，不代替最新阶段收口。G5 仍须先修跨帧输入保留／清键差异并统一回归，未通过通用总门。本文件为[通用逻辑审计](../plans/common-logic-audit.md) C21—C25 的取证依据，优先级仍以[总计划](../plans/development.md)为准。地址均为 canonical relbase VA；object1 `code0 = VA - 0x10000`。不把伪 C 的寄存器参数、`MEMORY` 类型或共享尾猜测为已确认 ABI。
+G1 取证基线为 `c1b6598`；2026-11-10 的 §8—9 另记 G4 实现及其来源。G4 本阶段定向验收与实质审查已完成，各候选原生范围、失败和整阶段提交／集成见[审计 §11](../plans/common-logic-audit.md#11-g4-实施与定向验收2026-11-10)及阶段记录；文中早期「候选／待验」保留当时证据边界，不代替最新阶段收口。G5 已按实际 caller 修复跨帧输入保留／清键及返场合同，并完成本轮统一回归和通用门签核；§10 保留实施过程，最终候选与测量界见[审计 §13](../plans/common-logic-audit.md)。本文件为[通用逻辑审计](../plans/common-logic-audit.md) C21—C25 的取证依据，优先级仍以[总计划](../plans/development.md)为准。地址均为 canonical relbase VA；object1 `code0 = VA - 0x10000`。不把伪 C 的寄存器参数、`MEMORY` 类型或共享尾猜测为已确认 ABI。
 
 ## 1. 本轮方法与来源
 
@@ -143,7 +143,7 @@ G1 当时保留的阻塞包括第3设置完整动作族、通用对话动态参�
 
 `field_system_menu.c`提供纯tick／finish窄口，实际owner归App/VGA，Game只持当次显示投影，不写SAV。设置显示保原raw byte；前两项按`==0`归一，后两项XOR1。常驻板须同时通过用户option3与临时51AAC，侧状态计算／写入也在双门之内，其它UI不随之隐藏。
 
-51AAC原caller：自动换轮`135b4..135d4`、March`170ba..17163`、显式END`1726b..17277`，以及main败北、胜利／准备／entry、标题START与手工LOAD跨度各置0／1。活动`10010`自身没有该写点，继承App门，不因新Game或活动Load重置。END确认源每次先`53C57=0`、`RNG%30+2`再展开左右按钮；仅静态默认YES不能证明历史NO／跳页根因已修，正式首呈现与输入消费仍须定向验收。
+51AAC原caller：自动换轮`135b4..135d4`、March`170ba..17163`、显式END`1726b..17277`，以及main败北、胜利／准备／entry、标题START与手工LOAD跨度各置0／1。活动`10010`自身没有该写点，继承App门，不因新Game或活动Load重置。END确认源每次先`53C57=0`、`RNG%30+2`再展开左右按钮。G5 另核 Suite37→50 的两端首开连续原件：已采完整 normal48／51与后续 YES49／51按独立原资源区分，唯一 Enter 后实际推进 Round002并 Save；当前首次开框／消费的有限合同由这些运行证据和同 owner FIFO／读一／clear 回归共同支撑。历史 NO／跳页根因仍未归因，未采到的首个 present 不补签，也不从静态默认值或本次有限证据推导全局输入同轨；复核收据为 `build/g5/closing-boundary-review-56.md` 及同名 `.json`。
 
 ### 8.2 阵营标题过渡与共用横幅
 
@@ -281,3 +281,33 @@ uv run --no-project --with unicorn python tools/ida/verify_fd2_notice_wait.py --
 Linux Bash 参数相同，以本机只读镜像和对应测试二进制路径替换上述值，用 `python3` 运行 unittest；本轮未执行 Linux，输出仍须选新文件。只读 Domain 提取没有保存数据库或增加名称／ABI，本次不重复发布 IDA。
 
 本次清键修订只恢复现有 App 输入 owner 中仍可见脉冲的消费边界，没有新增全局 FIFO 或宣称 BIOS 键盘队列完全等价。原 BIOS 可以保留延时／滑入中更早到达的键，而 App 普通键在新帧重建脉冲；这是 G5 必须另审的输入／业务边界。审查需覆盖早到确认或取消在后继 `16c57`／choice／callback 中是否仍可见、是否多取 blink RNG 或多等待、是否改变一次提交和后继交互。它不是纯图形／硬件精度差异，未完成审查前不能据此签通用逻辑总门。
+
+## 10. G5 输入、caller 与全场图修复（进行中）
+
+§9 末段保留的是 G4 候选的已知限制。G5 已在同一 `fd2_vga.input` owner 实现跨帧有序键缓存，没有把输入写入 Game／SAV。`10620` 检查、`16c57`／INT16 读一与 `4e381` 显式清队分别消费；具体 caller 合同见[输入设计](../systems/input.md)。普通键 DOWN／UP 完整发生于两次 present 之间仍须可读，UP 不撤销已排键。清队保 held／repeat deadline／quit，并只在原调用点执行；固定 `3790a` 等待不自行吃键，普通 modal 开合也不能统一清空。
+
+缓存容量15／满则丢新键的依据是本次使用的 DOSBox-X `dosbox-x-v2026.10.01`（commit `b6abbd5980a885f5f310a4088c59a8688d1b116c`）[官方 BIOS 实现](https://github.com/joncampbell123/dosbox-x/blob/dosbox-x-v2026.10.01/src/ints/bios_keyboard.cpp)以及既有三份原版 RAM 的 BDA `1e..3e`，不是 FD2 自有容量常量。该实现的 DOSV／ttf_dosv overflow queue 例外另列，不推广到任意 BIOS。普通 Caps／Num／ScrollLock 只改锁状态而不成为普通 OTHER；Ctrl-Break／Pause 特殊路径不冒普通锁键结论。SDL 单窗口失焦源先 ResetKeyboard；本轮 LOST 同轮不由物理 fallback 复活旧键，其后明确新 DOWN 仍可入队，未新增第二套 focus 状态机。500／92 ms typematic 仍是已有宿主近似，不称 BIOS 绝对同轨。
+
+真实旧实现四项测试先失败：cross-frame、arrival-order、between-presents、one-read；新输入 `input-green-ctest-03.log` 通过。业务直接测试随后从真正 421 开框／choice 驱动 Core：第二次 Enter 在300 ms等待首帧到达，经19帧及正文保留到实际 wait0，仍先取一次 blink RNG、一次授予，无 TEXT_READY／晚确认补键。STATUS 是有源 clear 的反例，必须清掉此前键。`progress-error-ctest-09.log` 还核 clear pump 中 HOST 保父PC／已写前缀并拒绝再次回复，而真 ERROR 仍走错误边。最终 28 项签核及统一历史回归尚未完成。
+
+INFO 恢复也按完整 caller 核实：`1a30b` 整轮内没有 `51aac` 写点，`13565`／`16f55` 的成功返回才有；CLEAR_KEYS 因而只清键，冷 `turncycle.caller_return` 独立接 INFO。现有 March 槽就地改为 `NONE／MARCH／END`，只有 March 恢复 `51a83`；没有新持久 owner 或 SAV 字节。Play 正式 present 返回后先重核已发生的业务／音频错误，再判 HOST，once 也不能绕过错误门；finally 释放资源时不补写尚未到达的成功尾。
+
+### 10.1 F1／Page Up 的真实域和工作页
+
+完整 `field_auxiliary_map_execute @0x2000a`、`1f558`、`field_auxiliary_marker_draw @0x1f6ef` 共1,434B经 Domain／strict LE 核实；33个实际 map／shape／terrain 引用另批量核验。原 cache 有效域为至多64×64，不限 stage0／shape0／24×24／288frames。height>40 采用 scale3／采样偏移896／2×2标记，其余 scale4／640／3×3；不能因以往只测 START 而拒绝已支持 stage1／2 的正式全场图。三 DWORD 阵营颜色由原 `0x5208a` 进入 runtime 冷表，实际地块仍按各图 shape 解码。
+
+`1f558` 写入 App 工作页 raw-prefix64000，stride320；`2000a` 再复制到 VGA，稳态标记只写 VGA。候选复用现 raw-prefix 桥，不误用普通456stride投影，尾部哨兵由真实 C 检查。开动画末 clear，稳态 check 后仍调用 INT16 AH10 读一再关闭；保余队，不把关闭键漏给下一控制器。原 `1f525` fade 为64..0共65个2 ms步骤，不是64帧；Town bootstrap 沿现准备冷图接真实整页→fade→clear，NoTown不进入该图。
+
+本轮 `early-cell-native-01/guarded-comparison.json` 已实际原版／SDL fresh pair通过，含早键及后续 END／SaveA／WAIT／Load／SaveB／全22,987B。F1 的 `f1-stage1-native-02` 与 `f1-tall-native-01` 也为实际 fresh pair：各 F1／PageUp 两页至少两个完整64,000像素标记相位、真实关闭返回源 tile／cursor、整SAV与mtime不写、来源／owned正常退出／显示释放通过。高图仅隔离资源树3个 payload别名到原stage7地图／shape，EXE／metadata／SAV／units／RNG不patch，不移动／END／剧情，不扩大正式battle门；oracle仍读只读原资源。这是该保存点的F1范围；其后 N65 已消费本轮 B7 实际 entry 完成 stage2 原版／SDL 新配对，源报告双格式的严格前置校验及实际像素门另在审计 §13 登记。
+
+首轮 `f1-stage1-native-01` 因 SDL WGC 达600帧cap而整体失败，即使内容检查点命中也不改成通过。修后每个完整 load／F1／PageUp modal 独立持续采集，业务键前ready、返回页后显式stop，未跳积压帧、提高cap／时限或降低像素门。8项纯测含采集边界／失败不补键；真实原件仍绑定每轮PID／HWND／PNG／程序来源。上述原生不包含 Game 热态／完整共享RNG dump、全部返回像素或绝对墙钟声明。
+
+G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键／等待和方向复位caller仍在本阶段收口。所有结果保自己的候选身份；上表直接结果不是 G5 全历史回归，也不据此宣布通用总门或启动 S。
+
+最后复审确认 `2000a` 返回尾必须调用完整 `11cac(0)`：原 `1297d` 先推进 actor／cursor，再按实参调用水色门，继而由 `11eee` 推进 terrain／range，最后 raw26 和工作页绘制。F1 已委托现有 `fd2_field_game_runtime_refresh(...,0)`；mode0／3 的公共实现也按该顺序执行，mode3 仅跳水色。真实水色错误回归证明 actor／cursor 已发生的前缀保留，而 terrain／range／raw26／页不得越过失败点；Scene 同次资源错误和 HOST 也须返回 ERROR。旧序在25／27收据失败，修后28四项及29全部112项无窗口 CTest 通过；这些结果不替代新候选 F1 正式路径和图形统一回归。
+
+## 11. G5 最终运行签核（2026-11-11）
+
+§10 的实现、直接源验证和当时待验保留历史身份。FIFO／原 caller 清键、关闭屏障、共享页、完整 `11cac(0)` 返回、到场／方向等待、四设置及共享 Round／通知已在当前来源域完成统一审查与原版／SDL 回归。F1 的 stage1、stage2 和高图资源别名、总览换行别名各有独立实际门；它们不开放相应后期战斗。
+
+成功活动 Load 的新观察器确认原 10010 的完整 Round 后，才要求返场资源、六框边和五种 Round 相位消失及已有稳定窗，避免在原尾清键前错误发送下一菜单键。此改动属于验收观察，不删除产品有源清键，也不声称精确 guest PC／tick 等价。通用完成门及旧新候选、失败、当前 Windows／其他平台、完整 RNG／像素／声音界统一见[审计 §13](../plans/common-logic-audit.md)。

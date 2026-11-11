@@ -1,8 +1,8 @@
-/* 炎龙骑士团 2 SDL3 重写 - 逐呈现帧键态输入
+/* 炎龙骑士团 2 SDL3 重写 - 单owner普通键缓存
  *
  * input_check @code0 0x620（VA 0x10620）只检查 BIOS BDA 键盘缓冲。
- * SDL 适配不建立按键 FIFO：每次 present 后从 SDL_GetKeyboardState
- * 计算当前帧 IsPressed／repeat 脉冲，交互层只读取该呈现帧。
+ * 16c57读取一个BIOS键，4e381明确清队。宿主DOWN/UP和唯一repeat源
+ * 向同一fd2_input有界缓存交付，不因下一present丢未读确认/取消。
  */
 #include "input.h"
 
@@ -96,7 +96,9 @@ static fd2_input_key key_from_scancode(SDL_Scancode scancode) {
     }
 }
 
-static int is_modifier_scancode(SDL_Scancode scancode) {
+static int is_state_only_scancode(SDL_Scancode scancode) {
+    /* 当前IBM BIOS普通Caps/Num/ScrollLock只改锁状态，不产生INT16待取键。
+     * Pause/Ctrl-Break仍走既有宿主退出映射，不把锁键当详情/对白ACK。 */
     return scancode == SDL_SCANCODE_LCTRL ||
            scancode == SDL_SCANCODE_RCTRL ||
            scancode == SDL_SCANCODE_LSHIFT ||
@@ -104,7 +106,10 @@ static int is_modifier_scancode(SDL_Scancode scancode) {
            scancode == SDL_SCANCODE_LALT ||
            scancode == SDL_SCANCODE_RALT ||
            scancode == SDL_SCANCODE_LGUI ||
-           scancode == SDL_SCANCODE_RGUI;
+           scancode == SDL_SCANCODE_RGUI ||
+           scancode == SDL_SCANCODE_CAPSLOCK ||
+           scancode == SDL_SCANCODE_NUMLOCKCLEAR ||
+           scancode == SDL_SCANCODE_SCROLLLOCK;
 }
 
 void fd2_input_init(fd2_input *input) {
@@ -116,18 +121,50 @@ void fd2_input_init(fd2_input *input) {
 static void clear_key_lifecycle(fd2_input *input) {
     if (!input) return;
     memset(input->previous_down, 0, sizeof(input->previous_down));
-    memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
-    memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
-    memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
-    input->frame_modifiers=0;
-    input->pending_function_mask=0;
-    memset(input->pending_function_modifiers,0,sizeof(input->pending_function_modifiers));
-    memset(input->frame_function_modifiers,0,sizeof(input->frame_function_modifiers));
+    input->queued_head=input->queued_count=0;
     memset(input->next_repeat_ms, 0, sizeof(input->next_repeat_ms));
+}
+
+static uint16_t modifiers_from_state(const bool *state) {
+    uint16_t modifiers=0;
+    if(state[SDL_SCANCODE_LSHIFT] || state[SDL_SCANCODE_RSHIFT])modifiers|=SDL_KMOD_SHIFT;
+    if(state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_RCTRL])modifiers|=SDL_KMOD_CTRL;
+    if(state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT])modifiers|=SDL_KMOD_ALT;
+    return modifiers;
+}
+
+static void queue_key(fd2_input *input,SDL_Scancode source,int repeat,uint16_t modifiers) {
+    if(input->queued_count==FD2_INPUT_KEY_QUEUE_CAPACITY)return;
+    unsigned tail=(input->queued_head+input->queued_count)%FD2_INPUT_KEY_QUEUE_CAPACITY;
+    input->queued_keys[tail]=(fd2_input_event){key_from_scancode(source),source,
+        (uint8_t)(repeat!=0),modifiers};
+    input->queued_count++;
+}
+
+static void sample_key_state(fd2_input *input,const bool *state,uint64_t now_ms) {
+    uint16_t modifiers=modifiers_from_state(state);
+    for(int i=1;i<SDL_SCANCODE_COUNT;i++) {
+        SDL_Scancode source=(SDL_Scancode)i;
+        /* Ctrl+C/Pause属于持久宿主退出，物理fallback也不能把它重排为OTHER。 */
+        int down=state[i] && !is_state_only_scancode(source) && source!=SDL_SCANCODE_PAUSE &&
+            !(source==SDL_SCANCODE_C && (modifiers&SDL_KMOD_CTRL));
+        if(!down) {
+            input->previous_down[i]=false;input->next_repeat_ms[i]=0;continue;
+        }
+        if(!input->previous_down[i]) {
+            queue_key(input,source,0,modifiers);
+            input->previous_down[i]=true;
+            input->next_repeat_ms[i]=now_ms+FD2_INPUT_INITIAL_REPEAT_MS;
+        } else if(now_ms>=input->next_repeat_ms[i]) {
+            queue_key(input,source,1,modifiers);
+            input->next_repeat_ms[i]=now_ms+FD2_INPUT_REPEAT_MS;
+        }
+    }
 }
 
 void fd2_input_poll_host_events(fd2_input *input) {
     if (!input) input = active_input;
+    int focus_lost=0;
     SDL_PumpEvents();
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -137,14 +174,8 @@ void fd2_input_poll_host_events(fd2_input *input) {
             if (input) input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
             clear_key_lifecycle(input);
+            focus_lost=1;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
-            if (input && !event.key.repeat && event.key.scancode>=SDL_SCANCODE_F1 &&
-                    event.key.scancode<=SDL_SCANCODE_F12) {
-                unsigned index=(unsigned)(event.key.scancode-SDL_SCANCODE_F1);
-                input->pending_function_modifiers[index]=(uint16_t)(event.key.mod &
-                    (SDL_KMOD_SHIFT|SDL_KMOD_CTRL|SDL_KMOD_ALT));
-                input->pending_function_mask|=(uint16_t)(1u<<index);
-            }
             if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
                 (event.key.scancode == SDL_SCANCODE_C ||
                  event.key.scancode == SDL_SCANCODE_PAUSE)) {
@@ -153,68 +184,39 @@ void fd2_input_poll_host_events(fd2_input *input) {
             } else if (event.key.scancode == SDL_SCANCODE_PAUSE) {
                 request_host_quit();
                 if (input) input->quit_requested = 1;
+            } else if(input && !event.key.repeat && event.key.scancode>SDL_SCANCODE_UNKNOWN &&
+                    event.key.scancode<SDL_SCANCODE_COUNT && !is_state_only_scancode(event.key.scancode) &&
+                    !input->previous_down[event.key.scancode]) {
+                /* 先按SDL事件到达序接受首按；Windows全局Shift修正不改变
+                 * 已接受event的修饰位。UP也不能删除这条BIOS式待取记录。 */
+                queue_key(input,event.key.scancode,0,(uint16_t)(event.key.mod &
+                    (SDL_KMOD_SHIFT|SDL_KMOD_CTRL|SDL_KMOD_ALT)));
+                input->previous_down[event.key.scancode]=true;
+                uint64_t now=input->use_test_key_state?input->test_now_ms:SDL_GetTicks();
+                input->next_repeat_ms[event.key.scancode]=now+FD2_INPUT_INITIAL_REPEAT_MS;
             }
-        } else if (event.type==SDL_EVENT_KEY_UP && input &&
-                event.key.scancode>=SDL_SCANCODE_F1 && event.key.scancode<=SDL_SCANCODE_F12) {
-            input->pending_function_mask&=(uint16_t)~(1u<<(event.key.scancode-SDL_SCANCODE_F1));
-        }
-        /* 不转存普通key事件。F键元数据也只有物理帧脉冲存在时才可消费。 */
-    }
-}
-
-static void begin_frame_from_state(fd2_input *input, const bool *state,
-                                   uint64_t now_ms) {
-    memset(input->frame_trigger, 0, sizeof(input->frame_trigger));
-    memset(input->frame_repeat, 0, sizeof(input->frame_repeat));
-    memset(input->frame_consumed, 0, sizeof(input->frame_consumed));
-    input->frame_modifiers=0;
-    if(state[SDL_SCANCODE_LSHIFT] || state[SDL_SCANCODE_RSHIFT])input->frame_modifiers|=SDL_KMOD_SHIFT;
-    if(state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_RCTRL])input->frame_modifiers|=SDL_KMOD_CTRL;
-    if(state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT])input->frame_modifiers|=SDL_KMOD_ALT;
-
-    for (int i = 1; i < SDL_SCANCODE_COUNT; i++) {
-        SDL_Scancode scancode = (SDL_Scancode)i;
-        bool down = state[i] && !is_modifier_scancode(scancode) &&
-                    scancode != SDL_SCANCODE_PAUSE;
-        if (!down) {
-            input->previous_down[i] = false;
-            input->next_repeat_ms[i] = 0;
-            continue;
-        }
-        if (!input->previous_down[i]) {
-            input->frame_trigger[i] = true;
-            input->previous_down[i] = true;
-            input->next_repeat_ms[i] =
-                now_ms + FD2_INPUT_INITIAL_REPEAT_MS;
-        } else if (now_ms >= input->next_repeat_ms[i]) {
-            input->frame_trigger[i] = true;
-            input->frame_repeat[i] = true;
-            input->next_repeat_ms[i] = now_ms + FD2_INPUT_REPEAT_MS;
+        } else if(event.type==SDL_EVENT_KEY_UP && input &&
+                event.key.scancode>SDL_SCANCODE_UNKNOWN && event.key.scancode<SDL_SCANCODE_COUNT) {
+            input->previous_down[event.key.scancode]=false;
+            input->next_repeat_ms[event.key.scancode]=0;
         }
     }
-    for (unsigned i=0;i<12u;i++) {
-        unsigned source=(unsigned)SDL_SCANCODE_F1+i;
-        input->frame_function_modifiers[i]=input->frame_modifiers;
-        if ((input->pending_function_mask&(1u<<i)) && input->frame_trigger[source] &&
-                !input->frame_repeat[source])
-            input->frame_function_modifiers[i]=input->pending_function_modifiers[i];
-    }
-    input->pending_function_mask=0;
+    /* 当前Windows单窗SDL先ResetKeyboard再发LOST；其它/显式注入路径的
+     * 本轮快照仍可能DOWN。只禁止本轮fallback复活，后续真实DOWN仍按上方入队。 */
+    if(input && !focus_lost)sample_key_state(input,input->use_test_key_state?input->test_key_state:
+        SDL_GetKeyboardState(NULL),input->use_test_key_state?input->test_now_ms:SDL_GetTicks());
 }
 
 void fd2_input_begin_frame(fd2_input *input) {
     if (!input) return;
     fd2_input_poll_host_events(input);
-    const bool *state = input->use_test_key_state
-        ? input->test_key_state
-        : SDL_GetKeyboardState(NULL);
-    begin_frame_from_state(input, state, SDL_GetTicks());
 }
 
 void fd2_input_begin_test_frame(fd2_input *input, uint64_t now_ms) {
     if (!input) return;
     input->use_test_key_state = 1;
-    begin_frame_from_state(input, input->test_key_state, now_ms);
+    input->test_now_ms=now_ms;
+    sample_key_state(input, input->test_key_state, now_ms);
 }
 
 void fd2_input_set_test_key_state(fd2_input *input, SDL_Scancode source,
@@ -227,32 +229,22 @@ void fd2_input_set_test_key_state(fd2_input *input, SDL_Scancode source,
 }
 
 int fd2_input_has_any_key(const fd2_input *input) {
-    if (!input) return 0;
-    for (int i = 1; i < SDL_SCANCODE_COUNT; i++)
-        if (input->frame_trigger[i] && !input->frame_consumed[i]) return 1;
-    return 0;
+    return input && input->queued_count!=0;
 }
 
 int fd2_input_take_key(fd2_input *input, fd2_input_event *event) {
-    if (!input) return 0;
-    for (int i = 1; i < SDL_SCANCODE_COUNT; i++) {
-        if (!input->frame_trigger[i] || input->frame_consumed[i]) continue;
-        input->frame_consumed[i] = true;
-        if (event) {
-            event->source = (SDL_Scancode)i;
-            event->key = key_from_scancode((SDL_Scancode)i);
-            event->repeat = input->frame_repeat[i] ? 1u : 0u;
-            event->modifiers=i>=SDL_SCANCODE_F1 && i<=SDL_SCANCODE_F12 ?
-                input->frame_function_modifiers[i-SDL_SCANCODE_F1]:input->frame_modifiers;
-        }
-        return 1;
-    }
-    return 0;
+    if(!input || !input->queued_count)return 0;
+    fd2_input_event value=input->queued_keys[input->queued_head];
+    input->queued_head=(uint8_t)((input->queued_head+1u)%FD2_INPUT_KEY_QUEUE_CAPACITY);
+    input->queued_count--;
+    if(event)*event=value;
+    return 1;
 }
 
-int fd2_input_observe_any_key(fd2_input *input) {
-    fd2_input_event ignored;
-    return fd2_input_take_key(input, &ignored);
+void fd2_input_clear_keys(fd2_input *input) {
+    if(!input)return;
+    fd2_input_poll_host_events(input);
+    input->queued_head=input->queued_count=0;
 }
 
 uint8_t fd2_input_function_scan(const fd2_input_event *event) {

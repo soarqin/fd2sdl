@@ -92,8 +92,9 @@ static fd2_app_flow run_field_chain(fd2_vga *vga, const fd2_archive *fdother,
             context->has_preparation ? context->preparation.stage_id : -1);
         handoff = NULL; load_active = 0;
     }
-    /* 手工Load取消／返回标题亦结束本次main临时信息板跨度。 */
-    vga->info_panel_suppressed=0;
+    /* 正常离场／标题返回才结束本次信息板跨度；错误／宿主退出保留前缀。 */
+    if(flow==FD2_APP_FLOW_TITLE || flow==FD2_APP_FLOW_LEAVE_GAME)
+        vga->info_panel_suppressed=0;
     return flow;
 }
 
@@ -377,6 +378,9 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
         fd2_title_lightning_state lightning;
         fd2_title_lightning_state_init(&lightning);
         int lightning_palette_active = 0;
+        /* 1f894在五张scroll资源装载后4e381，随后10620只peek跳过键。 */
+        fd2_input_clear_keys(&vga->input);
+        if (fd2_input_take_quit(&vga->input)) { free(offscreen); goto host_quit; }
         for (int scroll_y = 0x217; scroll_y >= 0; scroll_y--) {
             /* 拷贝 offscreen[scroll_y..scroll_y+199] 到 framebuffer */
             int src_start = scroll_y * VGA_STRIDE;
@@ -527,15 +531,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
             if (scroll_y == 0) fd2_delay_ms(1000);
 
-            /* 在原版查询点采样当前键态；宿主退出不能降级为标题跳过。 */
+            /* 原10620仅peek；跳过仍进入LABEL_32淡出／100ms／clear。 */
             if (fd2_input_take_quit(&vga->input)) {
                 free(offscreen);
                 goto host_quit;
             }
-            if (fd2_input_observe_any_key(&vga->input)) {
-                free(offscreen);
-                goto title_screen;
-            }
+            if (fd2_input_has_any_key(&vga->input)) break;
         }
         free(offscreen);
     }
@@ -548,6 +549,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
         fd2_delay_ms(8);
     }
     fd2_delay_ms(100);
+    fd2_input_clear_keys(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) goto host_quit;
 
 title_screen:
     /* === 阶段4: 标题画面 === */
@@ -580,7 +583,6 @@ title_screen:
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;
         if (animation_result < 0) goto resource_error;
-        /* skip 不作为预输入保存；持续按住受 typematic deadline 约束。 */
         /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
@@ -613,6 +615,9 @@ title_screen:
     } else {
         goto resource_error;
     }
+    /* 原1f894标题fade完成后4e381，早到键不能落入其后的菜单读取。 */
+    fd2_input_clear_keys(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) goto host_quit;
 
     /* 标题菜单（对应 FUN_0001d6c1 + 菜单循环）
      * 菜单项位置: y=164/173/182, x=129。
@@ -639,9 +644,8 @@ title_screen:
     }
     fd2_archive_close(&ar7b);
 
-    /* 菜单只在交互循环中按需读取当前键态；动画期间按下又松开的键
-     * 不会形成预输入。若仍保持按下，则受同一物理键的 typematic
-     * deadline 约束，不会在状态切换时立即再次触发。 */
+    /* 菜单INT16每次消费同一owner的一项；以上原clear决定动画键边界，
+     * 不在每次present或换菜单项时清掉后续独立按键。 */
 
     const int y_pos[3] = {164, 173, 182};
     fd2_title_draw_context title_draw = {

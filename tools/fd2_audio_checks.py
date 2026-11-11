@@ -57,15 +57,9 @@ def options_match(frame, oracle, values, selected, kind, offsets):
     matches = []
     for index, command in enumerate(commands):
         at = tuple(a+b for a,b in zip(oracle.focus, offsets[index]))
-        if kind == 'sdl' and index >= 2:
-            # 原disabled全透明，不能当正像素；两种值的normal/bright均须不存在。
-            visible = (66,67,69,70) if index == 2 else (72,73,75,76)
-            if oracle.choices(frame, visible, at): return None
-            matches.append(dict(item=index, disabled_transparent=True, positive_pixels_compared=False))
-        else:
-            found = oracle.choices(frame, (command*3 + (selected == index),), at)
-            if not found: return None
-            matches.append(found)
+        found = oracle.choices(frame, (command*3 + (selected == index),), at)
+        if not found: return None
+        matches.append(found)
     return dict(kind='options', selected=selected, values=list(values), matches=matches)
 
 def first_selected_yes(oracle, observe_any):
@@ -272,17 +266,21 @@ def exercise_opening(capture,kind,prepared,save,record,mix):
         unchanged();return result
     count=short['title_counts'][kind]
     b.wait_title(capture,prepared['titles'][count][0]);unchanged()
+    if mix:
+        # HOST_W会成为任意键ACK；仅在不响应W的标题启动，不能在第29页启动。
+        start_audio(mix,capture.process,record)
+        capture.wait(prepared['titles'][count][0]);unchanged()
+        if kind=='original':record['audio_finalize_on_normal_close']=True
     capture.key('ENTER')  # 默认START；不是CONTINUE，也不导入旧档。
     acknowledgements=[]
     for ordinal,page in enumerate(short['prefix'],1):
         cp(f'opening-{ordinal:02d}-fragment{page["fragment"]}',page)
         if ordinal==29:
-            if mix:start_audio(mix,capture.process,record)
             observe_audio(capture,record,'before-opening-fade-track18');unchanged()
         capture.key('ENTER');acknowledgements.append(dict(ordinal=ordinal,fragment=page['fragment'],token_offset=page['token_offset']))
     cp('opening-first-fragment2-track11-window',short['first'])
     observe_audio(capture,record,'first-fragment2-track11');unchanged()
-    if mix:finish_audio(mix,capture.process,record)
+    if mix and kind!='original':finish_audio(mix,capture.process,record)
     record['opening_acknowledgements']=acknowledgements
     record['terminal_wait_acknowledged']=False
     record['source_save_unchanged']=True
@@ -312,7 +310,7 @@ def load_tools(root):
     names = ('run_original_comparison', 'run_original_battle_menu', 'run_original_end_turn',
              'run_graphics_tests', 'run_original_load', 'run_original_battle_animation',
              'fd2_app_mix_capture', 'fd2_display_requirement', 'fd2_display_power', 'fd2_sfx_oracle',
-             'run_background_input_check')
+             'run_background_input_check', 'run_original_reward', 'run_g4_detail_check')
     result={name: importlib.import_module(name) for name in names}
     if any(Path(module.__file__).resolve().parent!=(root/'tools').resolve() for module in result.values()):
         raise ValueError('cached helper belongs to a different source tree')
@@ -396,8 +394,50 @@ def wait_confirmation(capture, prepared, record, oracle, key, label):
         first_selected_yes(oracle, first), open_key=lambda: key('ENTER'))
 
 
+def observe_audio_active_load(capture, prepared, saved, save, guard, record, key):
+    """10010：同一45s内先完整Round，再返场资源稳定；不在关闭phase误发下一键。"""
+    tools=prepared['tools'];reward=tools['run_original_reward'];detail=tools['run_g4_detail_check']
+    turn=saved[META]
+    peak=reward.load_round_template(prepared['original'],prepared['assets']['palette'],turn)
+    exiting=reward.load_round_template(prepared['original'],prepared['assets']['palette'],turn,exiting=True)
+    round_state=lambda frame:reward.load_round_state(frame,peak,turn,exiting)
+    browse=reward.loaded_browse_state(prepared,saved,(6,14))
+    evidence=dict(checkpoints=[],completed=False,ready_before_unique_load_key=True,
+        timeout_seconds=45,frame_cap=600,interval_ms=33,extra_keys=0,
+        native_PC_or_tick_timing_claimed=False)
+    record['active_load_observation']=evidence
+    quiet=reward.quiet_browse(prepared,saved,(6,14),evidence,'loaded-A-browse')
+    quiet_state=evidence['loaded-A-browse_quiet']
+    def returned(frame):
+        found=browse(frame)
+        if round_state(frame) is not None or found is None:
+            quiet_state.update(first=None,samples=0,resets=quiet_state['resets']+1)
+            return None
+        stable=quiet(frame)
+        return dict(found,round_all_five_phases_absent=True,
+                    resource_quiet=stable['resource_quiet']) if stable else None
+    try:
+        with detail.detail_series(capture,evidence) as scope:
+            evidence['ready_bound_prior_key']=owner_receipt(record,capture.process.pid,scope['ready']['hwnd'])
+            before=len(record['inputs']);started=time.monotonic();deadline=started+45
+            key('ENTER')  # 移入ready后的原唯一Load YES；不补键。
+            evidence['load_key']=owner_receipt(record,capture.process.pid,scope['ready']['hwnd'])
+            if len(record['inputs'])!=before+1 or evidence['load_key'].get('key')!='ENTER':
+                raise AssertionError('active Load must deliver exactly its original ENTER after ready')
+            evidence.update(started_monotonic=started,deadline_monotonic=deadline)
+            for name,predicate in (('loaded-A-round',round_state),('loaded-A-browse',returned)):
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise TimeoutError('active Load exceeded original45s; no extra keys')
+                detail.series_checkpoint(capture,scope,name,predicate,evidence['checkpoints'],timeout=remaining)
+                if time.monotonic()>=deadline:raise TimeoutError('late active Load resource after original45s')
+                tools['run_original_load'].require_source_unchanged(save,*guard)
+        evidence['completed']=True
+    finally:
+        record['checkpoints'].extend(evidence['checkpoints'])
+
+
 class NativeWave:
-    """显式HOST_W首尾；只声明已投递请求和闭合WAV，不冒充首PCM/QPC ready。"""
+    """安全菜单HOST_W首尾，或目标正常关闭封包；不冒充首PCM/QPC ready。"""
     def __init__(self, capture, directory, battle):
         self.capture, self.directory, self.battle = capture, directory, battle
         self.active = False;self.started=False
@@ -415,6 +455,12 @@ class NativeWave:
     def finish(self, process):
         if not self.started or process.poll() is not None:raise RuntimeError('native recording never started or target exited')
         self.request_stop()
+        return self.closed_wave(process, after_exit=False)
+    def finish_after_exit(self, process):
+        if not self.started or process.poll()!=0:raise RuntimeError('native normal close did not complete')
+        self.active=False
+        return self.closed_wave(process, after_exit=True)
+    def closed_wave(self, process, *, after_exit):
         deadline = time.monotonic()+5; prior = None
         while time.monotonic() < deadline:
             paths = list(self.directory.glob('*.wav'))
@@ -426,12 +472,14 @@ class NativeWave:
                         if info['frames'] <= 0: raise AssertionError('empty native WAV')
                         if info['frames']>120*info['sample_rate']:raise AssertionError('native audio exceeds declared120s cap')
                         return dict(backend='DOSBox-native-HOST_W', pid=process.pid,
-                            closed_wave=info, stop_delivery=self.capture.trace[-1],
+                            closed_wave=info,
+                            stop_delivery=({'kind':'owned-normal-window-close','game_key_sent':False}
+                                           if after_exit else self.capture.trace[-1]),
                             first_PCM_clock_observed=False, device_output_validated=False)
                     prior = current
                 except (OSError, ValueError, EOFError, wave.Error):
                     pass
-            if process.poll() is not None: raise RuntimeError('native target exited before WAV finalized')
+            if not after_exit and process.poll() is not None: raise RuntimeError('native target exited before WAV finalized')
             time.sleep(.05)
         raise TimeoutError('exactly one closed native WAV was not produced after HOST_W stop')
 
@@ -466,6 +514,9 @@ def finish_audio(audio, process, record):
 def close_audio_before_host(audio, process, record):
     """失败也先等待封包；已失败的finish不再尝试，不以清理错误覆盖原业务首错。"""
     pending=sys.exc_info()[0] is not None
+    if record.get('audio_finalize_on_normal_close'):
+        # 开场仍停在真实ACK；让owned WM_CLOSE封包，不发送可推进剧情的HOST_W。
+        return
     try:
         if record.get('audio_start_attempted') and not record.get('audio_finish_attempted'):
             finish_audio(audio,process,record)
@@ -538,8 +589,8 @@ def exercise_options_load(capture, kind, prepared, save, record, audio, episode)
                 cp('load-'+branch+'-browse',oracle.closed_browse,transition=oracle.cancellation_notice)
                 open_options('load-'+branch+'-flags');close_options('load-'+branch+'-flags')
                 record['cancellations'].append(dict(branch=branch,live_options=[0,0],disk_unchanged=True))
-            secondary('load-yes',2,'RIGHT');key('ENTER')
-            cp('loaded-A-browse',oracle.closed_browse,timeout=45)
+            secondary('load-yes',2,'RIGHT')
+            observe_audio_active_load(capture,prepared,baseline,save,guard,record,key)
             values[:2]=[1,1];open_options('loaded-A-flags');close_options('loaded-A-flags')
             finish_audio(audio,capture.process,record);active=False
             final=save_now('loaded-A-final');assert_options_only(baseline,final,(1,1))
@@ -781,6 +832,9 @@ def execute_case(args,prepared,scenario,report):
                     record['completed_live_save_fact']=fact(save)
                 finally:
                     close_audio_before_host(audio,process,record)
+            if record.get('audio_finalize_on_normal_close'):
+                record['audio_finish_attempted']=True
+                record['audio_capture']=audio.finish_after_exit(process)
             if fact(save)!=record['completed_live_save_fact']:raise AssertionError('normal close changed verified live Save')
             if kind=='original':
                 if report['processes'][-1].get('native_quiet_requested') is not True:

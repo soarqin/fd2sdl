@@ -138,6 +138,31 @@ static int test_plain_hero_escape_keeps_one_other_effect_and_source_intact(void)
     fd2_field_path_close(&range);free(query);free(before);fd2_field_game_close(g);free(g);fd2_archive_close(&ar);
     return 0;
 }
-int main(void) {return test_hero_rest_and_primary_keep_known_and_future_coverage_minimal()==0 &&
+static int test_simulation_consumes_real_event_pc_without_render_or_wait_rng(void) {
+    fd2_archive ar={0};CHECK(fd2_archive_open(&ar,"original_game/FDOTHER.DAT")==0);
+    fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));CHECK(g && before);
+    fd2_vga vga={0};CHECK(fd2_field_game_open(g,&vga,&ar,0)==0);
+    fd2_field_rng rng;fd2_field_rng_seed(&rng,0x7a18);uint16_t seed=rng.state;
+    CHECK(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,fd2_field_rng_next,&rng)==0);
+    g->turn_number=3;CHECK(fd2_field_game_end_active_phase(g)==0 && g->event_resume.active && g->units.count==13);
+    unsigned stories=0;
+    for(unsigned budget=0;g->event_resume.active && budget<64;budget++) {
+        fd2_static_flow_node n;size_t actor;CHECK(fd2_field_game_common_event_peek(g,&n,&actor)==1);
+        if(!strcmp(n.op,"story")) {
+            CHECK(n.args[0]==(stories?3:11) && g->units.count==(stories?14u:13u));stories++;
+        }
+        CHECK(settle_event_leaf(g)==0 && rng.state==seed);
+    }
+    CHECK(!g->event_resume.active && stories==2 && g->units.count==14 && g->roster_count==5);
+    static const fd2_static_flow_node unknown[]={
+        {.id="unhandled",.op="map_replace",.edges={-1,-1,-1,-1,-1,-1,-1,-1}}};
+    static const fd2_static_flow flow={"diagnostic.must.not.guess",unknown,1,0};
+    g->event_resume=(fd2_field_event_resume){.flow=&flow,.active=1,.actor=0};*before=*g;
+    CHECK(settle_event_leaf(g)==-1 && !memcmp(g,before,sizeof(*g)) && rng.state==seed);
+    fd2_field_game_close(g);free(g);free(before);fd2_archive_close(&ar);return 0;
+}
+
+int main(void) {return test_simulation_consumes_real_event_pc_without_render_or_wait_rng()==0 &&
+    test_hero_rest_and_primary_keep_known_and_future_coverage_minimal()==0 &&
     test_stage1_preserves_hidden_roster_and_plans_real_dimensions()==0 &&
     test_plain_hero_escape_keeps_one_other_effect_and_source_intact()==0?0:1;}

@@ -181,17 +181,38 @@ class BattleFixtureTest(unittest.TestCase):
 
     def test_item_action_gate_stops_after_measured_save_when_only_legal_miss(self):
         p=dict(self.all['ai-item-score20'],assets={})
+        import fd2_ai_item_miss_oracle as miss
         for hp in (5,50):
             data,steps=self.measurement(p,{0:hp})
             with tempfile.TemporaryDirectory() as temp:
                 save=Path(temp)/'FD2.SAV';save.write_bytes(data);guard=[b'old',0];record={'b6_final_save':{}}
                 with patch.object(r,'measure_inventory_save'),patch.object(r,'decode_save',return_value=data):
-                    if hp==50:
-                        with self.assertRaises(r.ActionCoverageInconclusive):r.measure(SimpleNamespace(),p,save,guard,record,Mock())
-                    else:r.measure(SimpleNamespace(),p,save,guard,record,Mock())
+                    r.measure(SimpleNamespace(),p,save,guard,record,Mock())
                 self.assertTrue(record['business_sequence_completed'])
                 self.assertEqual(guard,[data,save.stat().st_mtime_ns])
                 self.assertEqual(record['ai_item_action_positive_evidence']['passed'],hp<50)
+                # 测量HPfalse本身没有通过；owned退出后仍须完整资源正证，否则原inconclusive保留。
+                with patch.object(miss,'observe_case',side_effect=miss.MissingActionWitness('no closed source frames')) as observed:
+                    if hp==50:
+                        with self.assertRaises(r.ActionCoverageInconclusive):
+                            r.observe_item_action_after_cleanup(ORIGINAL,p,record,Path(temp))
+                        self.assertFalse(record['action_execution_witness']['passed'])
+                    else:
+                        r.observe_item_action_after_cleanup(ORIGINAL,p,record,Path(temp))
+                        observed.assert_not_called()
+
+    def test_item_miss_witness_is_separate_and_broken_closed_source_is_fatal(self):
+        import fd2_ai_item_miss_oracle as miss
+        p=dict(self.all['ai-item-score20'],assets={})
+        record={'ai_item_action_positive_evidence':{'passed':False}}
+        witness={'passed':True,'kind':'exclusive_item56_executed_legal_miss'}
+        with patch.object(miss,'observe_case',return_value=witness):
+            r.observe_item_action_after_cleanup(ORIGINAL,p,record,Path('closed'))
+        self.assertIs(record['action_execution_witness'],witness)
+        self.assertFalse(record['ai_item_action_positive_evidence']['passed'])
+        for error in (AssertionError('owner/SHA broken'),OSError('closed artifact missing')):
+            with patch.object(miss,'observe_case',side_effect=error),self.assertRaises(type(error)):
+                r.observe_item_action_after_cleanup(ORIGINAL,p,record,Path('closed'))
 
     def test_item_miss_inconclusive_does_not_mask_source_or_cleanup_failure(self):
         with tempfile.TemporaryDirectory() as temp:

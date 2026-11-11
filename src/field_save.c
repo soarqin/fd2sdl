@@ -78,7 +78,7 @@ int fd2_field_game_export_battle_snapshot(
         game->event_resume.active ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || game->march_post_waiting_phase ||
+        game->player_post_waiting_phase || game->turn_post_caller ||
         !stage_snapshot_supported(game->stage, game->units.count) ||
         game->units.count > FD2_SAVE_BATTLE_MAX_UNITS ||
         game->units.count > FD2_FIELD_MAX_UNITS ||
@@ -307,7 +307,7 @@ static int import_current_stage(
     memset(&game->loot, 0, sizeof(game->loot));
     memset(&game->event_resume, 0, sizeof(game->event_resume));
     game->runtime_host_quit = 0;
-    game->march_post_waiting_phase = 0;
+    game->turn_post_caller = FD2_FIELD_TURN_POST_NONE;
     game->magic_target_id = 0;
     memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
     game->magic_target_count = 0;
@@ -480,7 +480,7 @@ int fd2_field_game_save_manual_slot(fd2_field_game *game, const char *path,
         game->runtime_host_quit || game->loot.source != 0u || game->event_resume.active || game->loot.child.active ||
         game->progress.notice.kind != FD2_FIELD_PROGRESS_NONE ||
         game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
-        game->player_post_waiting_phase || game->march_post_waiting_phase || slot_index >= FD2_SAVE_SLOT_COUNT ||
+        game->player_post_waiting_phase || game->turn_post_caller || slot_index >= FD2_SAVE_SLOT_COUNT ||
         game->stage > 0xfeu || game->roster_count > FD2_SAVE_MAX_UNITS)
         return -1;
     fd2_save_manual_state state = {0};

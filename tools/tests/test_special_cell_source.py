@@ -27,7 +27,11 @@ class SpecialCellSourceTest(unittest.TestCase):
         self.assertEqual(source.validate_source(self.image,self.readset)['va'],0x190ac)
         table=source.callback_table(self.image)
         self.assertEqual((table['count'],table['end'],table['slot0_target']),(90,'0x51cf9','0x34531'))
-        self.assertTrue(source.verify_cold(self.cold)['original_200ms_before_close'])
+        cold=source.verify_cold(self.cold)
+        self.assertTrue(cold['original_200ms_before_close'])
+        self.assertEqual(cold['callback_return_tail'],'loot.finish')
+        self.assertFalse(cold['legacy_replay_notice_present'])
+        self.assertFalse(cold['runtime_parent_PC_execution_claimed'])
 
     def test_wrong_image_missing_chunk_boundary_and_bytes_rejected(self):
         bad=bytearray(self.image);bad[0x190ac]^=1
@@ -57,6 +61,17 @@ class SpecialCellSourceTest(unittest.TestCase):
         for stage,index,mode,value,position in ((2,0,0,45,[14,25]),(6,4,1,5000,[17,10])):
             row=next(r for r in audit['initial_special_cells'] if r['stage']==stage and r['index']==index)
             self.assertEqual((row['mode'],row['value']),(mode,value));self.assertIn(position,row['initial_positions'])
+
+    def test_callback_return_cannot_replay_wait_again_or_skip_owner_tail(self):
+        for choice in ('old_branch','extra_ack','tail_write','tail_edge','hidden_notice'):
+            cold=copy.deepcopy(self.cold);flow=next(f for f in cold['flows'] if f['id']=='loot')
+            nodes={n['id']:n for n in flow['nodes']}
+            if choice=='old_branch':nodes['cell.callback']['on']['next']='cell.callback.completed'
+            elif choice=='extra_ack':nodes['cell.callback']['on']={'ack':'loot.finish','error':'failure'}
+            elif choice=='tail_write':nodes['loot.finish']['op']='descriptor_next'
+            elif choice=='tail_edge':nodes['loot.finish']['on']['next']='done'
+            else:flow['nodes'].append({'id':'hidden.replay','op':'emit','args':[6,0,0,0,1,0],'on':{}})
+            with self.subTest(choice=choice),self.assertRaises(ValueError):source.verify_cold(cold)
 
 
 if __name__=='__main__':unittest.main()

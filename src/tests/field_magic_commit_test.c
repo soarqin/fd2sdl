@@ -31,7 +31,9 @@ static uint32_t rng(void *data) {
         f->observed_acted[i] = (uint8_t)fd2_field_unit_has_acted(&f->game.units.items[0]);
         f->first_target_hp[i] = f->game.units.items[1].hp;
     }
-    if (i == 0 && f->corrupt_cell) f->cells[6 * 24 + 6] = 1;
+    if(i==0 && f->corrupt_cell==1)f->cells[6*24+6]=1;
+    if(i==0 && f->corrupt_cell==2)
+        f->game.metadata.turn_events[0]=(fd2_field_turn_event){7,9,1};
     return f->rolls[i % 32];
 }
 
@@ -301,12 +303,13 @@ static int test_post_commit_failure_preserves_cost_effect_and_freezes(void) {
         fd2_field_game *g = &f.game;
         if (phase_failure) {
             g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
-            g->metadata.turn_events[0] = (fd2_field_turn_event){7,0,1};
-            /* 已知action0执行缺少部署资源；不是未知handler预检。 */
+            f.corrupt_cell=2;
+            /* 首RNG后改成未知callback，是真正晚错；预存坏deployment
+             * 已由common实际raw预检拒绝，不能冒充提交后的失败。 */
         } else f.corrupt_cell = 1; /* 测试回调在首RNG后破坏cell，模拟后段错误。 */
         CHECK(target(&f, 0) == 0);
         CHECK(resolve_and_ack(g) == -1);
-        CHECK(g->failure == (phase_failure ? FD2_FIELD_FAILURE_EVENT_EXECUTION : FD2_FIELD_FAILURE_EVENT_DATA));
+        CHECK(g->failure == (phase_failure ? FD2_FIELD_FAILURE_EVENT_UNSUPPORTED : FD2_FIELD_FAILURE_EVENT_DATA));
         CHECK(g->units.items[0].mp == 6 && g->units.items[1].hp == 0 && g->units.items[1].flags == 1);
         CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && f.calls == 9);
         CHECK(g->units.items[0].experience == (phase_failure ? 42 : 0)); /* lookup先于EX写。 */

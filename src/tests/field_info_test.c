@@ -9,6 +9,7 @@
 #include "field_info.h"
 #include "field_item.h"
 #include "field_magic.h"
+#include "map_sprite.h"
 #include "portrait.h"
 
 #define CHECK(expr) do { \
@@ -295,6 +296,62 @@ static int overview_rejects_unchanged(fd2_vga *vga,
     return 0;
 }
 
+static void overview_test_tokens(uint8_t *bytes, const uint16_t *tokens, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        bytes[i * 2u] = (uint8_t)tokens[i];
+        bytes[i * 2u + 1u] = (uint8_t)(tokens[i] >> 8);
+    }
+}
+
+static int test_overview_multiline_atomic_boundaries(void) {
+    overview_fixture fixture;
+    CHECK(init_overview_fixture(&fixture) == 0);
+    uint8_t bytes[384] = {0};
+    const uint16_t first[] = {0u, 0xfffeu, 1u, 0xffffu};
+    const uint16_t second[] = {1u, 0xfffeu, 0u, 0xffffu};
+    overview_test_tokens(bytes, first, 4u);
+    overview_test_tokens(bytes + 8u, second, 4u);
+    fixture.text.data = bytes; fixture.text.size = 16u; fixture.offsets[598] = 8u;
+    fd2_vga vga = {0};
+    memset(vga.framebuffer, 0xa5, sizeof(vga.framebuffer));
+    fd2_field_units before_units = fixture.units;
+    CHECK(draw_overview(&vga, &fixture) == 0);
+    CHECK(vga.framebuffer[61u * VGA_STRIDE + 80u] == 0xcdu);
+    CHECK(vga.framebuffer[80u * VGA_STRIDE + 81u] == 0xcdu);
+    CHECK(vga.framebuffer[116u * VGA_STRIDE + 81u] == 0xcdu);
+    CHECK(vga.framebuffer[135u * VGA_STRIDE + 80u] == 0xcdu);
+    CHECK(vga.framebuffer[135u * VGA_STRIDE + 96u] == 11u); /* 换行不续旧x。 */
+#define OVERVIEW_ATOMIC_REJECT() do { \
+    fd2_vga before_vga = vga; \
+    CHECK(draw_overview(&vga, &fixture) == -1); \
+    CHECK(!memcmp(&vga, &before_vga, sizeof(vga))); \
+    CHECK(!memcmp(&fixture.units, &before_units, sizeof(before_units))); \
+} while (0)
+    const uint16_t unsupported[] = {0xfffdu, 0xfffcu, 0xfffbu, 0xfffau, 0xffefu, 2u};
+    for (size_t i = 0; i < sizeof(unsupported) / sizeof(unsupported[0]); i++) {
+        const uint16_t bad[] = {1u, unsupported[i], 0xffffu};
+        overview_test_tokens(bytes + 8u, bad, 3u); fixture.text.size = 14u;
+        OVERVIEW_ATOMIC_REJECT(); /* 第一段合法也不得提前画；-6不臆造为0。 */
+    }
+    uint16_t long_line[17] = {0}; long_line[16] = 0xffffu;
+    overview_test_tokens(bytes + 8u, long_line, 17u); fixture.text.size = 42u;
+    OVERVIEW_ATOMIC_REJECT();
+    const uint16_t too_low[] = {0xfffeu, 0xfffeu, 0xfffeu, 0xfffeu, 1u, 0xffffu};
+    overview_test_tokens(bytes + 8u, too_low, 6u); fixture.text.size = 20u;
+    OVERVIEW_ATOMIC_REJECT();
+    const uint16_t no_end[] = {1u, 0xfffeu, 0u};
+    overview_test_tokens(bytes + 8u, no_end, 3u); fixture.text.size = 14u;
+    OVERVIEW_ATOMIC_REJECT();
+    overview_test_tokens(bytes + 8u, second, 4u); fixture.text.size = 16u;
+    const size_t outside[] = {16u, 30u, SIZE_MAX};
+    for (size_t i = 0; i < sizeof(outside) / sizeof(outside[0]); i++) {
+        fixture.data.stage = outside[i]; OVERVIEW_ATOMIC_REJECT();
+    }
+#undef OVERVIEW_ATOMIC_REJECT
+    fd2_field_info_assets_close(&fixture.assets);
+    return 0;
+}
+
 static int test_stage1_overview_conditions(void) {
     overview_fixture fixture;
     CHECK(init_overview_fixture(&fixture) == 0);
@@ -440,6 +497,48 @@ static int open_magic_fixture(magic_fixture *fixture) {
         close_magic_fixture(fixture);
         return -1;
     }
+    return 0;
+}
+
+/* sub_1B41D @0x1b41d把UI0[597+2*stage/598+2*stage]交15f84；
+ * 原普通30关条件仅glyph/-2/-1。独立按原raw token和19像素行高建oracle，
+ * 不使用待测overview_fragment或共享展开结果反造期望。 */
+static int test_original_multiline_overview_conditions(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_field_units units = {0}, before = units;
+    /* 首个stage9/fragment616确有-2，旧stage<=2门在此真实失败。 */
+    for (size_t pass = 0; pass < 31u; pass++) {
+        size_t stage = pass ? pass - 1u : 9u;
+        if (stage == 16u) continue; /* 私有败条件选择另有原predicate，不猜。 */
+        fd2_field_overview data = {stage, 2u, 0u, &units};
+        fd2_vga actual = {0};
+        memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
+        CHECK(fd2_field_overview_draw(&actual, &fixture.assets, &fixture.font,
+                                      &fixture.text, &data) == 0);
+        fd2_vga expected = actual;
+        fd2_map_sprite_blit(&expected, &fixture.assets.overview[1], 75, 37, -1);
+        for (size_t part = 0; part < 2u; part++) {
+            const uint8_t *tokens;
+            size_t count;
+            CHECK(fd2_text_entry_get_fragment(&fixture.text, 597u + stage * 2u + part,
+                                               &tokens, &count) == 0);
+            int x = 80, y = part ? 116 : 61, ended = 0, newlines = 0;
+            for (size_t i = 0; i < count; i++) {
+                uint16_t token = fd2_text_token_at(tokens, i);
+                if (token == 0xffffu) { ended = 1; break; }
+                if (token == 0xfffeu) { x = 80; y += 19; newlines++; continue; }
+                CHECK(token < fixture.font.glyph_count && x + 16 <= VGA_W && y + 17 <= VGA_H);
+                fd2_font_draw_glyph(&expected, &fixture.font, token, x, y, 205, 76, -1);
+                x += 16;
+            }
+            CHECK(ended);
+            if (stage == 9u && part == 1u) CHECK(newlines == 1);
+        }
+        CHECK(!memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)));
+        CHECK(!memcmp(&units, &before, sizeof(units)));
+    }
+    close_magic_fixture(&fixture);
     return 0;
 }
 
@@ -1334,9 +1433,11 @@ int main(void) {
     CHECK(test_panel_layout() == 0);
     CHECK(test_overview_layout_and_counts() == 0);
     CHECK(test_overview_resource_numbers() == 0);
+    CHECK(test_overview_multiline_atomic_boundaries() == 0);
     CHECK(test_stage1_overview_conditions() == 0);
     CHECK(test_overview_rejects_before_drawing() == 0);
     CHECK(test_text_fragment_span_rejection() == 0);
+    CHECK(test_original_multiline_overview_conditions() == 0);
     CHECK(test_magic_asset_owner() == 0);
     CHECK(test_magic_list_real_layout_and_selection() == 0);
     CHECK(test_magic_empty_name_and_opaque_cost() == 0);

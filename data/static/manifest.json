@@ -1214,6 +1214,12 @@
         "dimensions": [
           20
         ]
+      },
+      "k_field_auxiliary_side_colors": {
+        "c_type": "uint32_t",
+        "dimensions": [
+          3
+        ]
       }
     },
     "common_event.json": {
@@ -1559,6 +1565,16 @@
           [
             "next"
           ]
+        ],
+        "action_call_full": [
+          [
+            "next"
+          ]
+        ],
+        "action_delay_ms": [
+          [
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -1566,9 +1582,10 @@
         "phase.status",
         "stationary.recover",
         "physical.full",
-        "physical.short"
+        "physical.short",
+        "physical.caller.full"
       ],
-      "operation_abi_sha256": "a85f4f4dced28dc5b18c2aeee52fb2bda8b8caf35e5d095b2c346fca07d35056"
+      "operation_abi_sha256": "e1a399b25e140aae691798959c1269a4a19c565e22f953ca0e9ad04bfa22e9d9"
     },
     "scene.json": {
       "ports": {
@@ -1727,12 +1744,6 @@
         ]
       },
       "required_ids": [
-        "stage.000.action.000",
-        "stage.000.action.001",
-        "stage.000.action.002",
-        "stage.000.action.003",
-        "stage.000.action.004",
-        "stage.001.action.006",
         "scene.init.000",
         "scene.init.031",
         "scene.init.032",
@@ -1742,10 +1753,11 @@
         "scene.new_game",
         "scene.game_over"
       ],
-      "operation_abi_sha256": "d66d1ba4c771f9239f9c607e68e275794b865391c42f07a2e02f1250a2d7e56b"
+      "operation_abi_sha256": "d66d1ba4c771f9239f9c607e68e275794b865391c42f07a2e02f1250a2d7e56b",
+      "required_labels": {}
     },
     "stage.json": {
-      "operation_abi_sha256": "3a68b41f7aac2a6e844e63b3d46ad86e86bd787ae750f62c05f61646292799cb",
+      "operation_abi_sha256": "54145965c92c3a4bf850b13c0c38fbd654b9a135dfed5b913478c6841a00ca4c",
       "ports": {
         "stage_setup": [
           [
@@ -1954,6 +1966,11 @@
             "no",
             "yes"
           ]
+        ],
+        "sleep_ms": [
+          [
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -1972,7 +1989,7 @@
       ]
     },
     "loot.json": {
-      "operation_abi_sha256": "f5e0d466d7311a506a7d09e12a3bd3db925dfe3b441bc6b63adc0d6fbd24e408",
+      "operation_abi_sha256": "ec309a5693c3e52bab5e627e9c067c42e13bea10e2558edf653bfe0537f71eb5",
       "ports": {
         "collect_reset": [
           [
@@ -2541,6 +2558,12 @@
             "error",
             "next"
           ]
+        ],
+        "runtime_clear_keys": [
+          [
+            "error",
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -2554,6 +2577,12 @@
           "cell.begin",
           "drop.begin",
           "finish.common"
+        ],
+        "action.finish": [
+          "action.acted",
+          "physical.keys",
+          "physical.keys.clear",
+          "controller"
         ]
       }
     },
@@ -2680,7 +2709,7 @@
       ]
     },
     "preparation.json": {
-      "operation_abi_sha256": "cbf4db56f301521f2152c72539580a6264802afbd914118b9f96d0d71782e5ec",
+      "operation_abi_sha256": "617fc96d2deed68c80bc409f4d05f06fc5d0f0866a816d2eb5749411b1ffdc5e",
       "ports": {
         "service_resources": [
           [
@@ -3160,6 +3189,18 @@
             "error",
             "next"
           ]
+        ],
+        "town_render": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "fade": [
+          [
+            "error",
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -3170,7 +3211,8 @@
         "selector.004",
         "selector.005",
         "town.departure",
-        "notown.departure"
+        "notown.departure",
+        "town.bootstrap"
       ],
       "required_labels": {
         "services": [
@@ -3185,11 +3227,18 @@
           "town.entry",
           "select.mode",
           "notown.mode"
+        ],
+        "town.bootstrap": [
+          "render",
+          "fade",
+          "clear",
+          "done",
+          "failure"
         ]
       }
     },
     "runtime.json": {
-      "operation_abi_sha256": "87d939eb3dc5d08f13792062cd68fb27d5212928af0e34bd2473b54195d6263e",
+      "operation_abi_sha256": "9d7f68b849e895c67e704ed45633aa244e03f9301a46d42b5c41fdbb883e2a23",
       "ports": {
         "round_frame": [
           [
@@ -3543,6 +3592,54 @@
         ],
         "detail_fail": [
           []
+        ],
+        "turn_info_visible": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_frame": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_project": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_clear": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_wait_ticks": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_cue": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_postbase": [
+          [
+            "next"
+          ]
+        ],
+        "arrival_done": [
+          []
+        ],
+        "turn_reset_directions": [
+          [
+            "next"
+          ]
+        ],
+        "turn_delay_ms": [
+          [
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -3551,7 +3648,8 @@
         "turncycle",
         "choice",
         "runtime.defeat",
-        "runtime.detail"
+        "runtime.detail",
+        "runtime.arrival"
       ],
       "required_labels": {
         "phase": [
@@ -3563,7 +3661,10 @@
           "side1_done",
           "side0_done",
           "player_ready",
-          "done"
+          "done",
+          "caller_return",
+          "directions_reset",
+          "directions_reset_refresh"
         ],
         "choice": [
           "begin",
@@ -3587,7 +3688,7 @@
       }
     },
     "common_event.json": {
-      "operation_abi_sha256": "0d8a6f4b35afdd6ff29e6673ec480bb5a30601d85a28bf019cbfb2bc90d37162",
+      "operation_abi_sha256": "ecc06f62379840304fe8d03eef217ee5817bd97f22cc31d96055db3d1ce6eba9",
       "ports": {
         "end": [
           []
@@ -3874,6 +3975,48 @@
             "ack",
             "error"
           ]
+        ],
+        "delay_ms": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "display_mode": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "directions_reset": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "arrival_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "arrival_frames": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "arrival_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "ai_anchor": [
+          [
+            "error",
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -3891,7 +4034,13 @@
         "common.map.replace",
         "common.defeat.tail",
         "common.group.turn.source",
-        "common.story.state.source"
+        "common.story.state.source",
+        "common.legacy.action.000",
+        "common.legacy.action.001",
+        "common.legacy.action.002",
+        "common.legacy.action.003",
+        "common.legacy.action.004",
+        "common.legacy.action.006"
       ]
     }
   }

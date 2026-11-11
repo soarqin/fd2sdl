@@ -20,10 +20,14 @@ class CommonEventNativeCheckTest(unittest.TestCase):
         cls.empty=check.prepare(ROOT,'child39-empty')
         cls.full=check.prepare(ROOT,'child39-full-cancel')
 
-    def test_descriptor_source_and_no_production_binding(self):
+    def test_descriptor39_has_no_production_binding_and_six_legacy_aliases_are_exact(self):
         import json
         flow=json.loads((ROOT/'data/static/flows/common_event.json').read_text())
-        self.assertFalse(flow.get('bindings'))
+        expected={f'stage.000.action.{action:03d}':f'common.legacy.action.{action:03d}' for action in range(5)}
+        expected['stage.001.action.006']='common.legacy.action.006'
+        self.assertEqual(flow.get('bindings'),expected)
+        self.assertNotIn('stage.000.action.039',flow['bindings'])
+        self.assertNotIn('common.loot.child.0',flow['bindings'].values())
         for p in (self.empty,self.full):
             self.assertEqual(p['source'][check.base.UNITS+11*80+49:check.base.UNITS+11*80+52],bytes((2,39,0)))
             self.assertFalse(p['manifest']['natural_stage0_callback_claimed'])

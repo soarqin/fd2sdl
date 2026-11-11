@@ -973,6 +973,76 @@ static int effect_page_read(const fd2_field_page *page,uint8_t *pixels) {
         FD2_FIELD_PAGE_HEIGHT,pixels,FD2_FIELD_PAGE_SIZE,FD2_FIELD_PAGE_STRIDE);
 }
 
+/* field_view_refresh @0x11cac：1297d先写actor/cursor，原实参0才调4e31c，
+ * 随后11eee推进terrain/range，127e0才推进raw26。使用真实水色非法域，
+ * 锁住错误前缀而不是只比较最终相位；不注入图形/时钟替身。 */
+static int test_runtime_refresh_original_clock_order(void) {
+    fd2_archive other={0};
+    fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_vga *vga=calloc(1,sizeof(*vga)),*vga_before=malloc(sizeof(*vga_before));
+    uint8_t *page_before=malloc(FD2_FIELD_PAGE_SIZE),*page_after=malloc(FD2_FIELD_PAGE_SIZE);
+    CHECK(game && before && vga && vga_before && page_before && page_after);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open_resources(game,&other,0)==0);
+    CHECK(fd2_field_units_set(&game->units,0,0,0,2,3,3)==0);
+    game->units.items[0].hp=31;game->units.items[0].hp_max=49;
+    game->cursor_cell_x=game->cursor_cell_y=3;game->ordinary_display_mode=0;
+    unsigned calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&calls;
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
+    vga->info_panel_suppressed=1;
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
+    memset(vga->framebuffer,0x7b,sizeof(vga->framebuffer));
+    vga->field_visual=(fd2_field_visual_state){0};
+    vga->field_visual.actor_idle_phase=2;vga->field_visual.cursor_phase=3;
+    vga->field_visual.actor_idle_tick=0x12345678u;
+    vga->field_visual.terrain_phase=1;vga->field_visual.terrain_tick=0x12345678u;
+    vga->field_visual.range_phase=7;vga->field_visual.range_tick=0x12345678u;
+    vga->actor_jitter_phase=1;vga->actor_jitter_tick=123;
+    vga->field_water_phase=255;vga->field_water_last_tick=321;
+    game->idle_phase=2;game->terrain_visual_phase=1;game->range_visual_phase=7;
+    game->visual_now_ms=456;
+    *before=*game;*vga_before=*vga;
+    CHECK(effect_page_read(vga->field_page,page_before)==0);
+    CHECK(fd2_field_game_runtime_refresh(game,vga,0)==-1);
+    CHECK(vga->field_visual.actor_idle_phase==3 && vga->field_visual.cursor_phase==0 &&
+        vga->field_visual.actor_idle_tick!=0x12345678u && game->idle_phase==3);
+    CHECK(vga->field_visual.terrain_phase==1 && vga->field_visual.terrain_tick==0x12345678u &&
+        vga->field_visual.range_phase==7 && vga->field_visual.range_tick==0x12345678u &&
+        game->terrain_visual_phase==1 && game->range_visual_phase==7 && game->visual_now_ms==456);
+    before->idle_phase=3;
+    vga_before->field_visual.actor_idle_phase=3;vga_before->field_visual.cursor_phase=0;
+    vga_before->field_visual.actor_idle_tick=vga->field_visual.actor_idle_tick;
+    CHECK(!memcmp(before,game,sizeof(*game)) && !memcmp(vga_before,vga,sizeof(*vga)) && !calls);
+    CHECK(effect_page_read(vga->field_page,page_after)==0 && !memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+
+    const int modes[]={0,3};
+    for(size_t i=0;i<sizeof(modes)/sizeof(modes[0]);i++) {
+        vga->field_visual.actor_idle_phase=2;vga->field_visual.cursor_phase=3;
+        vga->field_visual.actor_idle_tick=0x12345678u;
+        vga->field_visual.terrain_phase=1;vga->field_visual.terrain_tick=0x12345678u;
+        vga->field_visual.range_phase=7;vga->field_visual.range_tick=0x12345678u;
+        uint16_t old_tick=(uint16_t)(SDL_GetTicks()/55u-10u);
+        vga->actor_jitter_phase=1;vga->actor_jitter_tick=old_tick;
+        vga->field_water_phase=6;vga->field_water_last_tick=old_tick;
+        uint8_t water_dac[48];memcpy(water_dac,vga->dac+224u*3u,sizeof(water_dac));
+        CHECK(fd2_field_game_runtime_refresh(game,vga,modes[i])==0);
+        uint16_t tick=(uint16_t)(game->visual_now_ms/55u);
+        uint32_t signed_tick=tick<0x8000u ? tick:(uint32_t)((int32_t)tick-0x10000);
+        CHECK(vga->field_visual.actor_idle_phase==3 && vga->field_visual.cursor_phase==0 &&
+            vga->field_visual.actor_idle_tick==signed_tick && game->idle_phase==3);
+        CHECK(vga->field_visual.terrain_phase==0 && vga->field_visual.terrain_tick==signed_tick &&
+            vga->field_visual.range_phase==8 && vga->field_visual.range_tick==signed_tick &&
+            game->terrain_visual_phase==0 && game->range_visual_phase==8);
+        CHECK(vga->actor_jitter_phase==0 && vga->actor_jitter_tick==tick && !calls);
+        if(modes[i]==0)CHECK(vga->field_water_phase==7 && vga->field_water_last_tick==tick);
+        else CHECK(vga->field_water_phase==6 && vga->field_water_last_tick==old_tick &&
+            !memcmp(water_dac,vga->dac+224u*3u,sizeof(water_dac)));
+    }
+    fd2_field_game_close(game);fd2_field_page_destroy(vga->field_page);
+    fd2_archive_close(&other);free(page_before);free(page_after);free(vga_before);free(vga);free(before);free(game);
+    return 0;
+}
+
 /* 真实FDICON/FDSHAP/FDOTHER经过正式Game入口；两个有界actor是资源夹具，
  * 不把合成owner检查登记为原版运行。153216B写集与完整Game/VGA快照覆盖
  * PREPARE取消/第二actor坏RLE，并区分1c2da、21548、24618的实际尾页。 */
@@ -1322,6 +1392,7 @@ static int test_raw26_shared_phase_projection(void) {
 }
 
 int main(void) {
+    CHECK(test_runtime_refresh_original_clock_order() == 0);
     CHECK(test_original_constructor_domain() == 0);
     CHECK(test_unit_domain_errors_and_mutations() == 0);
     CHECK(test_original_cache_raw_direction() == 0);

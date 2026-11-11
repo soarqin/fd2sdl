@@ -13,9 +13,7 @@ IMAGE_SHA="8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"
 FUNCTION_SHA="15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3"
 
 
-def check(image,fdother):
-    import unicorn
-    from unicorn.x86_const import UC_X86_REG_EIP,UC_X86_REG_ESP,UC_X86_REG_EAX
+def check(image,fdother,empty=False):
     if hashlib.sha256(image).hexdigest()!=IMAGE_SHA:raise ValueError("strict镜像身份不同")
     if hashlib.sha256(image[0x32999:0x32d18]).hexdigest()!=FUNCTION_SHA:raise ValueError("原32999完整字节不同")
     if fdother[:6]!=b"LLLLLL":raise ValueError("FDOTHER容器不同")
@@ -23,6 +21,8 @@ def check(image,fdother):
     if not 6+11*4<=a<b<=len(fdother):raise ValueError("FDOTHER9边界不同")
     lmi=fdother[a:b]
     if lmi[:4]!=b"LMI1" or len(lmi)<54 or struct.unpack_from("<H",lmi,4)[0]<12:raise ValueError("到达LMI目录不同")
+    import unicorn
+    from unicorn.x86_const import UC_X86_REG_EIP,UC_X86_REG_ESP,UC_X86_REG_EAX
     cpu=unicorn.Uc(unicorn.UC_ARCH_X86,unicorn.UC_MODE_32)
     cpu.mem_map(0x10000,0x54000);cpu.mem_write(0x10000,image[0x10000:0x64000])
     cpu.mem_map(0x100000,0x100000);cpu.mem_map(0x200000,0x10000)
@@ -46,14 +46,15 @@ def check(image,fdother):
             event={"call":hex(address),"frame_after_project":len(projections)-1,"page":word(0x53a49)}
             if address==0x111ba:
                 event["args"]=args(3);cpu.reg_write(UC_X86_REG_EAX,resource if event["args"][2]==9 else 0x190000)
-            elif address==0x3706e:cpu.reg_write(UC_X86_REG_EAX,temporary)
-            elif address==0x10b4e:put(0x53beb,2)
+            elif address==0x3706e:event['args']=args(1);cpu.reg_write(UC_X86_REG_EAX,temporary)
+            elif address==0x10b4e:put(0x53beb,1 if empty else 2)
             elif address==0x3771c:
                 event["args"]=args(3);cpu.reg_write(UC_X86_REG_EAX,event["args"][0])
             elif address==0x4ebab:event["args"]=args(3)
             elif address==0x11eb0:
                 event["args"]=args(6);projections.append(event)
             elif address==0x127e0:event["args"]=args(1)
+            elif address==0x25a96:event['args']=args(3)
             elif address==0x17aa9:event["args"]=args(1)
             events.append(event)
             cpu.reg_write(UC_X86_REG_EIP,word(sp));cpu.reg_write(UC_X86_REG_ESP,sp+4);return
@@ -66,20 +67,64 @@ def check(image,fdother):
     for i,e in enumerate(stamps):
         frame=resource+struct.unpack_from("<I",lmi,6+4*i)[0]
         if e["args"]!=[page+32904+24*(5-1)+10944*3-2736,frame,456]:raise ValueError("原LMI定位不同")
-    if len(stamps)!=12:raise ValueError("原LMI帧数不同")
+    if len(stamps)!=(0 if empty else 12):raise ValueError("原LMI帧数不同")
     actor_calls=[(e["frame_after_project"],e["args"][0],e["page"]) for e in events if e["call"]=="0x127e0"]
-    if actor_calls!=[(6,0,page),(6,1,page-3648),(7,0,page),(7,1,page-2280)]:raise ValueError("原6/7 actor写点不同")
+    expected_actors=[(6,0,page),(7,0,page)] if empty else [(6,0,page),(6,1,page-3648),(7,0,page),(7,1,page-2280)]
+    if actor_calls!=expected_actors:raise ValueError("原6/7 actor写点不同")
     if [e["frame_after_project"] for e in events if e["call"]=="0x11eee"]!=[7,8]:raise ValueError("原terrain写点不同")
     if [e["frame_after_project"] for e in events if e["call"]=="0x127a9"]!=[8]:raise ValueError("原正常actor写点不同")
     if [e["args"] for e in events if e["call"]=="0x17aa9"]!=[[1]]*12:raise ValueError("原等待不同")
+    clears=[(i,e) for i,e in enumerate(events) if e['call']=='0x4e381']
+    waits=[(i,e) for i,e in enumerate(events) if e['call']=='0x17aa9']
+    projects=[(i,e) for i,e in enumerate(events) if e['call']=='0x11eb0']
+    if len(clears)!=12 or [e['frame_after_project'] for _,e in clears]!=list(range(12)):
+        raise ValueError('原12次逐帧清队不同')
+    for frame,((pi,_),(ci,_),(wi,_)) in enumerate(zip(projects,clears,waits)):
+        if not pi<ci<wi or (frame<11 and wi>=projects[frame+1][0]):raise ValueError('原project/clear/wait次序不同')
+        rebuild=[i for i,e in enumerate(events) if e['frame_after_project']==frame and e['call'] in ('0x11eee','0x127e0','0x127a9','0x129ec')]
+        if rebuild and max(rebuild)>=ci:raise ValueError('原postbase不在clear之前')
+    loads=[(i,e) for i,e in enumerate(events) if e['call']=='0x111ba']
+    append=next(i for i,e in enumerate(events) if e['call']=='0x10b4e')
+    capture=next(i for i,e in enumerate(events) if e['call']=='0x3771c' and e['args']==[temporary,page,153216])
+    if [e['args'][2] for _,e in loads]!=[95,9] or not loads[-1][0]<capture<append<projects[0][0]:
+        raise ValueError('原资源/snapshot-before-append不同')
+    if [e['args'] for e in events if e['call']=='0x3706e']!=[[153216]]:raise ValueError('原临时页分配不同')
+    cues=[e for e in events if e['call']=='0x25a96']
+    if len(cues)!=1 or cues[0]['frame_after_project']!=0 or cues[0]['args']!=[0x190000,0,1]:
+        raise ValueError('原cue不是frame1之前95/0/loop1一次')
     if word(0x53a49)!=page or word(0x53c0b)!=2 or word(0x53c07)!=3:raise ValueError("原owner或相位发生额外变化")
     return {"schema":"fd2.g4.arrival-owner-arguments.v1","ok":True,"image_sha256":IMAGE_SHA,
         "function":{"va":"0x32999","end":"0x32d18","sha256":FUNCTION_SHA},
         "fdother_sha256":hashlib.sha256(fdother).hexdigest(),"entry9_sha256":hashlib.sha256(lmi).hexdigest(),
-        "project_count":len(projections),"events":events,"final_page":page,
+        "project_count":len(projections),"clear_count":len(clears),"empty_group":empty,"events":events,"final_page":page,
         "substitutions":["Watcom RET4","res_load uses real FDOTHER9, synthetic PCM handle",
             "group append only raises count1 to2; explicit synthetic actors","malloc/free, memmove, all blits, PCM and waits"],
         "scope":"原caller完整控制流/原实参/owner重定向；无1297d/水色/尾11cac。替身不验证像素或业务/运行。"}
+
+
+def compare_flow(document,original):
+    flows=[f for f in document.get('flows',[]) if f['id']=='runtime.arrival']
+    if len(flows)!=1:raise ValueError('缺少唯一runtime.arrival')
+    flow=flows[0];nodes={n['id']:n for n in flow['nodes']};pc=flow['entry'];actual=[]
+    for _ in range(256):
+        node=nodes.get(pc)
+        if node is None:raise ValueError('arrival冷图缺出口')
+        actual.append([node['op'],node['args']])
+        if node['op']=='arrival_done':break
+        pc=node.get('on',{}).get('next')
+    else:raise ValueError('arrival冷图不终止')
+    expected=[]
+    # 帧数、cue点、postbase点、clear与wait均已由原完整CPU上方单独核实。
+    cue_frame=original['events'][next(i for i,e in enumerate(original['events']) if e['call']=='0x25a96')]['frame_after_project']+1
+    post_frames=sorted({e['frame_after_project'] for e in original['events'] if e['call'] in ('0x11eee','0x127e0','0x127a9')})
+    for frame in range(original['project_count']):
+        if frame==cue_frame:expected.append(['arrival_cue',[]])
+        expected.extend([['arrival_frame',[frame]],['arrival_project',[]]])
+        if frame in post_frames:expected.append(['arrival_postbase',[frame]])
+        expected.extend([['arrival_clear',[]],['arrival_wait_ticks',[1]]])
+    expected.append(['arrival_done',[]])
+    if actual!=expected:raise ValueError('arrival冷图与原完整caller顺序不同')
+    return {'nodes':len(actual),'trace':actual,'empty_group':original['empty_group']}
 
 
 def main():
@@ -87,10 +132,16 @@ def main():
     parser.add_argument("--image",type=Path,required=True)
     parser.add_argument("--fdother",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
-    args=parser.parse_args();result=check(args.image.read_bytes(),args.fdother.read_bytes())
+    parser.add_argument("--flow",type=Path)
+    args=parser.parse_args();image=args.image.read_bytes();fdother=args.fdother.read_bytes();result=check(image,fdother)
+    if args.flow:
+        document=json.loads(args.flow.read_text(encoding='utf-8'));empty=check(image,fdother,True)
+        result={'schema':'fd2.g5.arrival-cold-original.v1','ok':True,'cases':[result,empty],
+            'flow_sha256':hashlib.sha256(args.flow.read_bytes()).hexdigest(),
+            'comparisons':[compare_flow(document,case) for case in (result,empty)]}
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(json.dumps({"ok":True,"project_count":result["project_count"],"output":str(args.output)},ensure_ascii=False))
+    print(json.dumps({"ok":True,"project_count":12,"cases":2 if args.flow else 1,"output":str(args.output)},ensure_ascii=False))
 
 
 if __name__=="__main__":main()

@@ -308,8 +308,9 @@ class Capture:
         self.trace = trace if trace is not None else []
         self.startup_skip = startup_skip
 
-    def key(self, name: str) -> None:
-        event = {"time": time.monotonic(), "pid": self.process.pid, "key": name}
+    def key(self, name: str, *, fast: bool = False) -> None:
+        event = {"time": time.monotonic(), "pid": self.process.pid, "key": name,
+                 "post_release_settle_ms": 0 if fast else 250}
         self.trace.append(event)
         with (self.artifacts / "input-trace.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event) + "\n")
@@ -317,7 +318,7 @@ class Capture:
         delivery = {**event, "accepted":False}
         try:
             try:
-                diagnostic = driver_call(self.driver, "key", self.process, name)
+                diagnostic = driver_call(self.driver, "key-fast" if fast else "key", self.process, name)
             except (RuntimeError, OSError, subprocess.SubprocessError) as error:
                 failure = error
                 diagnostic = getattr(error, "diagnostic", str(error))

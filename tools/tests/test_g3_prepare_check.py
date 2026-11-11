@@ -190,8 +190,67 @@ class PrepareCheckTest(unittest.TestCase):
         protected=[node for node in module.body if isinstance(node,ast.FunctionDef) and node.name in
             ('prepare','exercise','save_measurement')]
         def digest(nodes):return hashlib.sha256('\n'.join(ast.dump(node,include_attributes=False) for node in nodes).encode()).hexdigest()
-        self.assertEqual(len(protected),3);self.assertEqual(digest(protected),runner.PRE_INHERIT_EXECUTION_AST)
-        changed=copy.deepcopy(protected);changed[0].body.append(ast.Return(value=ast.Constant(value=None)))
+        self.assertEqual(len(protected),3)
+        # 58只换真实wait的观察来源并增加stop封口；旧继承常量不改成新hash。
+        self.assertNotEqual(digest(protected),runner.PRE_INHERIT_EXECUTION_AST)
+        case=self
+        class ObservationOnly(ast.NodeTransformer):
+            waits=0;binds=0;boundary_assigns=0;boundary_blocks=0
+            def visit_FunctionDef(self,node):
+                if node.name=='exercise':
+                    case.assertEqual([arg.arg for arg in node.args.kwonlyargs],['ready_wait_visual_only'])
+                    case.assertEqual(ast.dump(node.args.kw_defaults[0]),ast.dump(ast.Constant(value=False)))
+                    node.args.kwonlyargs=[];node.args.kw_defaults=[]
+                return self.generic_visit(node)
+            def visit_With(self,node):
+                case.assertEqual(len(node.items),1)
+                case.assertEqual(ast.dump(node.items[0]),ast.dump(ast.parse('with ExitStack() as visual_owner:\n pass').body[0].items[0]))
+                case.assertEqual(len(node.body),1);case.assertIsInstance(node.body[0],ast.Try)
+                return self.visit(node.body[0])
+            def visit_If(self,node):
+                if 'ready_wait_visual_only' in ast.unparse(node.test):
+                    # 62只删除已逐字冻结的视觉入口/close元数据，不允许任意业务分支变化。
+                    case.assertIn(hashlib.sha256(ast.dump(node,include_attributes=False).encode()).hexdigest(),{
+                        'bd17a26c7ec878a5e0d77dfd72e8a386d6f88373674ee9fd1d4400724d31abfd',
+                        '5911bd5ce82f00702782bb2d29bfe0de76ea8b6d96e509a189dbcf085fd01cc4',
+                        'c18e8cebf5670c8db4d20ac38370f1aa38012fd5bed4bc315350aed5c7cac746'})
+                    return None
+                if ast.dump(node.test)==ast.dump(ast.parse("step.get('page')=='notice_real_wait'",mode='eval').body):
+                    self.waits+=1
+                    case.assertEqual(ast.dump(node.body[0]),ast.dump(ast.parse(
+                        "wait_ready_series(capture,visual_scope if ready_wait_visual_only else ready_wait_scope(collectors),step['name'],predicate,record['checkpoints'],timeout=options['timeout'])").body[0]))
+                    self.visit(node.body[1])
+                    return node.orelse
+                if ast.dump(node.test)==ast.dump(ast.parse('boundary is not None',mode='eval').body):
+                    allowed=[
+                        "boundary['key_call_qpc_bracket']=record['animation_action']['key_call_qpc_bracket']",
+                        "boundary['key_call_qpc_bracket']={'before':key_before,'after':qpc_stamp()}",
+                        "boundary['input']=json.loads(json.dumps(capture.trace[boundary['trace_index']]))\nboundary['trace_length_after']=len(capture.trace)"]
+                    case.assertIn([ast.dump(item) for item in node.body],
+                        [[ast.dump(item) for item in ast.parse(text).body] for text in allowed])
+                    case.assertEqual(node.orelse,[])
+                    self.boundary_blocks+=1;return None
+                return self.generic_visit(node)
+            def visit_Assign(self,node):
+                if len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=='visual_scope':
+                    case.assertEqual(ast.dump(node),ast.dump(ast.parse('visual_scope=None').body[0]));return None
+                if len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id in ('boundary','key_before'):
+                    expected={
+                        'boundary':"boundary=begin_ready_wait_boundary(capture,visual_scope if ready_wait_visual_only else ready_wait_scope(collectors),step['name'],record) if step.get('name') in ('revive-no-candidates','promotion-no-candidates') else None",
+                        'key_before':"key_before=qpc_stamp() if boundary is not None else None"}
+                    case.assertEqual(ast.dump(node),ast.dump(ast.parse(expected[node.targets[0].id]).body[0]))
+                    self.boundary_assigns+=1;return None
+                return self.generic_visit(node)
+            def visit_Expr(self,node):
+                if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name) and node.value.func.id=='bind_ready_series_points':
+                    case.assertEqual(ast.dump(node),ast.dump(ast.parse('bind_ready_series_points(capture,record)').body[0]))
+                    self.binds+=1;return None
+                return self.generic_visit(node)
+        projected=copy.deepcopy(protected);projection=ObservationOnly()
+        projected=[projection.visit(node) for node in projected]
+        self.assertEqual((projection.waits,projection.binds,projection.boundary_assigns,projection.boundary_blocks),(1,2,2,3))
+        self.assertEqual(digest(projected),runner.PRE_INHERIT_EXECUTION_AST)
+        changed=copy.deepcopy(projected);changed[0].body.append(ast.Return(value=ast.Constant(value=None)))
         self.assertNotEqual(digest(changed),runner.PRE_INHERIT_EXECUTION_AST)
 
     def test_original_reuse_final_seal_rejects_changed_or_missing_actual_file(self):

@@ -328,19 +328,78 @@ class StaticStageAuditTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, r"hash mismatch: .*src/field\.c"):
                 audit.validate_definition_sources(provenance)
 
-    def test_canonical_definition_requires_actual_original_identity(self):
-        record={"kind":"canonical_disassembly","file":"FD2.EXE", "file_sha256":audit.digest(b"fixture"),
-                "evidence":"synthetic canonical instruction evidence"}
+    def test_executable_definition_kinds_require_actual_original_identity(self):
+        kinds=("canonical_disassembly","decoded_control_flow",
+               "decoded_domain_control_flow","original_executable")
         with mock.patch.object(audit,"EXE_SHA256",audit.digest(b"fixture")):
-            self.assertEqual(audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"}),
-                             {"FD2.EXE":audit.digest(b"fixture")})
-            for payload in (None,{}, {"FD2.EXE":b"changed"}):
-                with self.assertRaisesRegex(ValueError,"matching original"):
-                    audit.validate_definition_sources([{"source":record}],source_files=payload)
-            for key,value in (("file","other.exe"),("file_sha256","0"*64),("evidence","")):
-                changed=dict(record);changed[key]=value
-                with self.assertRaises(ValueError):
-                    audit.validate_definition_sources([{"source":changed}],source_files={"FD2.EXE":b"fixture"})
+            for kind in kinds:
+                record={"kind":kind,"file":"FD2.EXE","file_sha256":audit.digest(b"fixture"),
+                        "evidence":"synthetic original instruction evidence"}
+                with self.subTest(kind=kind),mock.patch.object(audit.subprocess,"run") as command:
+                    self.assertEqual(audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"}),
+                                     {"FD2.EXE":audit.digest(b"fixture")})
+                    command.assert_not_called()
+                    for payload in (None,{},[],["FD2.EXE"],"fixture",{"other.exe":b"fixture"},
+                                    {"FD2.EXE":None},{"FD2.EXE":"fixture"},
+                                    {"FD2.EXE":bytearray(b"fixture")},{"FD2.EXE":b"changed"}):
+                        with self.subTest(payload=repr(payload)),self.assertRaisesRegex(ValueError,"matching original"):
+                            audit.validate_definition_sources([{"source":record}],source_files=payload)
+                    for key,value in (("file","other.exe"),("file","original_game/FD2.EXE"),
+                                      ("file_sha256","0"*64),("file_sha256",None),
+                                      ("evidence",""),("evidence","  \t"),
+                                      ("evidence",None),("evidence",["claimed evidence"])):
+                        changed=dict(record);changed[key]=value
+                        with self.subTest(key=key,value=value),self.assertRaises(ValueError):
+                            audit.validate_definition_sources([{"source":changed}],source_files={"FD2.EXE":b"fixture"})
+                    command.assert_not_called()
+
+    def test_unknown_source_kind_cannot_borrow_exe_or_git_identity(self):
+        for kind in (None,"","decoded_control_flow_v2","canonical_disassembly_typo",["original_executable"]):
+            for historical in (False,True):
+                record={"kind":kind,"file":"src/field_game.c" if historical else "FD2.EXE",
+                        "file_sha256":audit.digest(b"fixture"),"evidence":"synthetic exact identity",
+                        "baseline_commit":"a"*40,"baseline_source_sha256":audit.digest(b"historical C")}
+                with self.subTest(kind=kind,historical=historical),mock.patch.object(audit,"EXE_SHA256",audit.digest(b"fixture")), \
+                        mock.patch.object(audit.subprocess,"run") as command,self.assertRaises(ValueError):
+                    audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"})
+                command.assert_not_called()
+
+    def test_source_tree_rejects_malformed_records_and_related_sources(self):
+        valid={"kind":"canonical_disassembly","file":"FD2.EXE","file_sha256":audit.digest(b"fixture"),"evidence":"synthetic source"}
+        records=[None,[],"FD2.EXE"]
+        records.extend(dict(valid,related_sources=related) for related in (None,{},"claimed child",[None],["claimed child"]))
+        with mock.patch.object(audit,"EXE_SHA256",audit.digest(b"fixture")):
+            for record in records:
+                with self.subTest(record=record),self.assertRaises(ValueError):
+                    audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"})
+
+    def test_executable_and_historical_nested_sources_keep_both_independent_checks(self):
+        original={"kind":"original_executable","file":"FD2.EXE","file_sha256":audit.digest(b"fixture"),"evidence":"synthetic source"}
+        historical={"kind":"existing_confirmed_definition","file":"src/field_game.c","baseline_commit":"a"*40,
+                    "baseline_source_sha256":audit.digest(b"historical C"),"evidence":"synthetic Git identity"}
+        with mock.patch.object(audit,"EXE_SHA256",audit.digest(b"fixture")):
+            for exe_root in (False,True):
+                record=copy.deepcopy(original if exe_root else historical)
+                record["related_sources"]=[copy.deepcopy(historical if exe_root else original)]
+                with self.subTest(exe_root=exe_root),mock.patch.object(audit.subprocess,"run",return_value=SimpleNamespace(returncode=0,stdout=b"historical C")) as command:
+                    self.assertEqual(audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"}),
+                                     {"FD2.EXE":audit.digest(b"fixture"),"a"*40+":src/field_game.c":audit.digest(b"historical C")})
+                    self.assertEqual(command.call_count,1)
+            for key,value in (("kind","decoded_unknown"),("file_sha256","0"*64)):
+                child=dict(original);child[key]=value
+                record=dict(original,related_sources=[child])
+                with self.subTest(key=key),self.assertRaises(ValueError):
+                    audit.validate_definition_sources([{"source":record}],source_files={"FD2.EXE":b"fixture"})
+
+    def test_historical_source_bad_types_remain_closed_before_git(self):
+        valid={"kind":"existing_confirmed_definition","file":"src/field_game.c","baseline_commit":"a"*40,
+               "baseline_source_sha256":audit.digest(b"historical C"),"evidence":"synthetic Git identity"}
+        for key,value in (("file",None),("file",["src/field_game.c"]),("baseline_commit",None),
+                          ("baseline_commit",["a"*40]),("evidence","  "),("evidence",["claim"])):
+            record=dict(valid);record[key]=value
+            with self.subTest(key=key,value=value),mock.patch.object(audit.subprocess,"run") as command,self.assertRaises(ValueError):
+                audit.validate_definition_sources([{"source":record}])
+            command.assert_not_called()
 
     def test_require_supported_fails_closed_and_keeps_written_report(self):
         report = {"structural_success": True, "semantic_complete": False,

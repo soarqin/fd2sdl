@@ -989,7 +989,11 @@ static int dialog_wait(fd2_vga *vga,
                                const fd2_dialog_state *state,
                                const fd2_scene_field_state *field_state,
                                int arrow_mode, int *skip) {
-    if (!vga || !ui || !state || !field_state || !skip) return -1;
+    if (!vga || !ui || !state || !field_state || !skip ||
+        (!*skip && !field_state->runtime.rng) || (arrow_mode!=0 && arrow_mode!=1)) return -1;
+    if (fd2_input_take_quit(&vga->input)) {
+        scene_host_quit_requested=1;*skip=1;return 0;
+    }
     if (*skip) return 0;
     int arrow_x = state->area == FD2_DIALOG_TOP ? 111 : 191;
     int arrow_y = state->area == FD2_DIALOG_TOP ? 71 : 181;
@@ -1000,7 +1004,6 @@ static int dialog_wait(fd2_vga *vga,
     /* dialog_wait_key @0x16c57：入口一次RNG，只有空等键轮推进water与
      * portrait blink，不额外推进1297d或127e0的idle/raw26时钟。 */
     for (;;) {
-        fd2_vga_present_timed(vga,16);
         if (fd2_input_take_quit(&vga->input)) {
             scene_host_quit_requested = 1;
             *skip = 1;
@@ -1018,6 +1021,7 @@ static int dialog_wait(fd2_vga *vga,
         if(visual.portrait>=0 && state->has_portrait &&
             draw_portrait_frame(vga,dato,state->area,state->portrait_id,
                 (unsigned)visual.portrait)!=0) return -1;
+        fd2_vga_present_timed(vga,16);
     }
     if(arrow_mode==1)blit_ui_tile(vga,ui,13,arrow_x,arrow_y-5);
     return 0;
@@ -1629,23 +1633,45 @@ static int arrival_page_actors(fd2_vga *vga,const fd2_terrain_tileset *terrain,
         state->camera_cell_x,state->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,NULL);
 }
 
-static int opening_actor_arrival(fd2_vga *vga,
-                                 const fd2_archive *fdother,
-                                 const fd2_terrain_tileset *terrain,
-                                 const fd2_field_map *map,
-                                 const fd2_map_sprite_bank *sprites,
-                                 fd2_scene_field_state *state,
-                                 fd2_field_audio *audio,
-                                 size_t first_actor,
-                                 size_t last_actor,
-                                 int fast) {
-    if(!vga || !vga->field_page || !state || state->units.count>FD2_FIELD_MAX_UNITS)return -1;
-    if(poll_scene_quit(vga))return -1;
-    if (last_actor > state->units.count) last_actor = state->units.count;
-    if (first_actor >= last_actor) return 0;
+struct fd2_scene_arrival_visual {
+    fd2_image images[12];
+    fd2_field_page *base;
+    fd2_field_page *owner;
+    size_t first;
+    int started;
+};
 
-    const uint8_t *data;
-    size_t size;
+static int arrival_node_valid(const fd2_static_flow_node *node) {
+    if(!node || !node->op || !(node->views&FD2_FLOW_PRESENT))return 0;
+    if(!strcmp(node->op,"arrival_frame"))return node->args[0]>=0 && node->args[0]<12;
+    if(!strcmp(node->op,"arrival_postbase"))return node->args[0]>=6 && node->args[0]<=8;
+    if(!strcmp(node->op,"arrival_wait_ticks"))return node->args[0]==1;
+    return !strcmp(node->op,"arrival_cue") || !strcmp(node->op,"arrival_project") ||
+        !strcmp(node->op,"arrival_clear") || !strcmp(node->op,"arrival_done");
+}
+
+static int arrival_flow_ready(const fd2_static_flow *flow) {
+    if(!flow || !flow->count || flow->count>254u)return 0;
+    for(size_t i=0;i<flow->count;i++)if(!arrival_node_valid(&flow->nodes[i]))return 0;
+    int pc=flow->entry;
+    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
+        const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+        if(!node)return 0;
+        if(!strcmp(node->op,"arrival_done"))return 1;
+        pc=fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT);
+    }
+    return 0;
+}
+
+/* 原32999先载95/9，再分配和保存整页；准备不触及Game或App像素。 */
+static int arrival_images_open(fd2_scene_arrival_visual *scope,const fd2_archive *fdother) {
+    const uint8_t *data;size_t size;
+    fd2_pcm_bank bank={0};
+    if(!scope || !fdother || fd2_pcm_bank_open(&bank,fdother,95)!=0)return -1;
+    const uint8_t *sample;size_t sample_size;
+    int valid=fd2_pcm_bank_count(&bank)>0 && fd2_archive_get(&bank.archive,0,&sample,&sample_size)==0 && sample_size>0;
+    fd2_pcm_bank_close(&bank);
+    if(!valid)return -1;
     if (fd2_archive_get(fdother, 9, &data, &size) != 0 ||
         size < 6 || memcmp(data, "LMI1", 4) != 0)
         return -1;
@@ -1653,75 +1679,123 @@ static int opening_actor_arrival(fd2_vga *vga,
     if (frame_count < 12 || 6u + (size_t)frame_count * 4u > size)
         return -1;
 
-    fd2_image images[12]={{0}};
-    fd2_field_page *base=fd2_field_page_create();
-    if(!base)return -1;
-    int result=-1;
-    /* 全12帧先解码；坏晚帧不得先写App或Scene的可见状态。 */
     for (uint16_t frame_idx = 0; frame_idx < 12; frame_idx++) {
         uint32_t start = rd_u32_le(data + 6 + (size_t)frame_idx * 4u);
         uint32_t end = frame_idx + 1 < frame_count
                      ? rd_u32_le(data + 6 + (size_t)(frame_idx + 1) * 4u)
                      : (uint32_t)size;
         if (start<6u+(size_t)frame_count*4u || start >= end || end > size ||
-            fd2_lmi_decode_image(&images[frame_idx], data + start, end - start) != 0)goto done;
+            fd2_lmi_decode_image(&scope->images[frame_idx], data + start, end - start) != 0)return -1;
     }
-    /* 只读绘制前缀对应原append后的count；不让预构造的未来隐藏组参与。
-     * 此effect-local资源预检投影不取得Game/存档/RNG业务写权。 */
-    fd2_field_units visible=state->units;visible.count=last_actor;
-    for(size_t raw=first_actor;raw<last_actor;raw++)
-        fd2_field_unit_set_hidden(&visible.items[raw],0);
-    for(size_t raw=0;raw<visible.count;raw++)
-        if(fd2_field_units_render_page_actor(base,sprites,&visible,raw,
-            state->camera_cell_x,state->camera_cell_y,
-            (uint8_t)vga->field_visual.actor_idle_phase,(uint8_t)vga->field_visual.cursor_phase,
-            vga->actor_jitter_phase,0)!=0)goto done;
-    if(fd2_field_page_copy_pixels(base,vga->field_page)!=0 || poll_scene_quit(vga))goto done;
-    for(size_t raw=first_actor;raw<last_actor;raw++)fd2_field_unit_set_hidden(&state->units.items[raw],0);
-    /* field_actor_group_arrival_effect @0x32999（原登记同名）：copy整页底→
-     * LMI→先project；6/7/8才分别重建上抬8px/5px/正常actor的后继底页。
-     * 只直调11eee/127e0/127a9/129ec，没有1297d、水色、info或尾11cac。 */
-    for(uint16_t frame_idx=0;frame_idx<12;frame_idx++) {
-        if(poll_scene_quit(vga))goto done;
-        if (frame_idx == 1 && audio) {
-            /* field_actor_group_arrival_effect @code0 0x22bc0..0x22bd4：
-             * 内部 frame counter 等于 1 时才以 primary handle 播放
-             * FDOTHER[95] sample 0；两次 group 调用各触发一次。 */
-            (void)fd2_field_audio_play(
-                audio, FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL);
-        }
-        if(poll_scene_quit(vga) || fd2_field_page_copy_pixels(vga->field_page,base)!=0)goto done;
-        for(size_t raw=first_actor;raw<last_actor;raw++) {
-            const fd2_field_unit *u=&visible.items[raw];
-            if((int)u->x<state->camera_cell_x-1 || (int)u->x>state->camera_cell_x+13 ||
-                (int)u->y<state->camera_cell_y || (int)u->y>state->camera_cell_y+9)continue;
-            if(scene_page_lmi(vga->field_page,&images[frame_idx],
-                72+((int)u->x-state->camera_cell_x-1)*24,
-                66+((int)u->y-state->camera_cell_y)*24)!=0)goto done;
-        }
-        if(fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)goto done;
-        if(fast)fd2_vga_present(vga);else fd2_vga_present_timed(vga,FD2_BIOS_TICK_MS);
-        if(poll_scene_quit(vga))goto done;
-        if(frame_idx>=6 && frame_idx<=8) {
+    return 0;
+}
+
+void fd2_scene_arrival_visual_close(fd2_scene_arrival_visual **scope) {
+    if(!scope || !*scope)return;
+    fd2_scene_arrival_visual *owned=*scope;*scope=NULL;
+    for(size_t i=0;i<12;i++)fd2_image_free(&owned->images[i]);
+    fd2_field_page_destroy(owned->base);free(owned);
+}
+
+int fd2_scene_arrival_visual_validate(const fd2_archive *fdother) {
+    fd2_scene_arrival_visual *scope=calloc(1,sizeof(*scope));
+    if(!scope)return -1;
+    int result=arrival_flow_ready(fd2_static_flow_lookup("runtime","runtime.arrival"))?
+        arrival_images_open(scope,fdother):-1;
+    fd2_scene_arrival_visual_close(&scope);return result;
+}
+
+int fd2_scene_arrival_visual_prepare(fd2_scene_arrival_visual **scope,
+    fd2_vga *vga,const fd2_archive *fdother,size_t first) {
+    if(!scope || *scope || !vga || !vga->field_page || !fdother || first>FD2_FIELD_MAX_UNITS ||
+        !arrival_flow_ready(fd2_static_flow_lookup("runtime","runtime.arrival")))return -1;
+    fd2_scene_arrival_visual *owned=calloc(1,sizeof(*owned));
+    if(!owned)return -1;
+    if(arrival_images_open(owned,fdother)!=0 ||
+        !(owned->base=fd2_field_page_create()) ||
+        fd2_field_page_copy_pixels(owned->base,vga->field_page)!=0) {
+        fd2_scene_arrival_visual_close(&owned);return -1;
+    }
+    if(poll_scene_quit(vga)) {fd2_scene_arrival_visual_close(&owned);return FD2_SCENE_RESULT_HOST_QUIT;}
+    owned->first=first;owned->owner=vga->field_page;*scope=owned;return 0;
+}
+
+static int arrival_visual_play_view(fd2_scene_arrival_visual *scope,fd2_vga *vga,
+    const fd2_terrain_tileset *terrain,const fd2_field_map *map,
+    const fd2_map_sprite_bank *sprites,const fd2_scene_field_state *state,
+    fd2_field_audio *audio,int fast) {
+    const fd2_static_flow *flow=fd2_static_flow_lookup("runtime","runtime.arrival");
+    if(!scope || !scope->base || !vga || scope->owner!=vga->field_page || !terrain || !map || !sprites ||
+        !state || state->units.count>FD2_FIELD_MAX_UNITS || scope->first>state->units.count || scope->started ||
+        !arrival_flow_ready(flow))return -1;
+    if(poll_scene_quit(vga))return FD2_SCENE_RESULT_HOST_QUIT;
+    scope->started=1;int pc=flow->entry;
+    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
+        const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+        if(!arrival_node_valid(node))return -1;
+        if(poll_scene_quit(vga))return FD2_SCENE_RESULT_HOST_QUIT;
+        if(!strcmp(node->op,"arrival_done"))return 0;
+        if(!strcmp(node->op,"arrival_cue")) {
+            if(audio)(void)fd2_field_audio_play(audio,FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL);
+        } else if(!strcmp(node->op,"arrival_frame")) {
+            unsigned frame_idx=(unsigned)node->args[0];
+            if(fd2_field_page_copy_pixels(vga->field_page,scope->base)!=0)return -1;
+            for(size_t raw=scope->first;raw<state->units.count;raw++) {
+                const fd2_field_unit *u=&state->units.items[raw];
+                if((int)u->x<state->camera_cell_x-1 || (int)u->x>state->camera_cell_x+13 ||
+                    (int)u->y<state->camera_cell_y || (int)u->y>state->camera_cell_y+9)continue;
+                if(scene_page_lmi(vga->field_page,&scope->images[frame_idx],
+                    72+((int)u->x-state->camera_cell_x-1)*24,
+                    66+((int)u->y-state->camera_cell_y)*24)!=0)return -1;
+            }
+        } else if(!strcmp(node->op,"arrival_project")) {
+            if(fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)return -1;
+            fd2_vga_upload_current_frame(vga);
+        } else if(!strcmp(node->op,"arrival_postbase")) {
+            unsigned frame_idx=(unsigned)node->args[0];
             if(frame_idx==6) {
-                if(fd2_field_page_copy_pixels(vga->field_page,base)!=0)goto done;
+                if(fd2_field_page_copy_pixels(vga->field_page,scope->base)!=0)return -1;
             } else if(fd2_field_visual_tiles_step(&vga->field_visual,SDL_GetTicks(),-1)<0 ||
                 fd2_field_background_draw(vga->field_page,72,72,state->camera_cell_x,
                     state->camera_cell_y,0,0,SDL_GetTicks(),1)!=0 ||
                 fd2_terrain_render_page_block(vga->field_page,terrain,map,72,72,13,8,
                     state->camera_cell_x,state->camera_cell_y,(int)vga->field_visual.terrain_phase,
-                    (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)goto done;
-            if(arrival_page_actors(vga,terrain,map,sprites,&visible,state,first_actor,
+                    (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)return -1;
+            if(arrival_page_actors(vga,terrain,map,sprites,&state->units,state,scope->first,
                 frame_idx==6?-8:frame_idx==7?-5:0)!=0 ||
-                fd2_field_page_copy_pixels(base,vga->field_page)!=0)goto done;
+                fd2_field_page_copy_pixels(scope->base,vga->field_page)!=0)return -1;
+        } else if(!strcmp(node->op,"arrival_clear")) {
+            fd2_input_clear_keys(&vga->input);
+        } else if(!strcmp(node->op,"arrival_wait_ticks")) {
+            if(!fast)fd2_wait_ticks((uint32_t)node->args[0]);
         }
-        if(!fast)fd2_vga_wait_frame_deadline(vga);
-        if(poll_scene_quit(vga))goto done;
+        if(poll_scene_quit(vga))return FD2_SCENE_RESULT_HOST_QUIT;
+        pc=fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT);
     }
-    result=0;
-done:
-    for(size_t i=0;i<12;i++)fd2_image_free(&images[i]);
-    fd2_field_page_destroy(base);return result;
+    return -1;
+}
+
+int fd2_scene_arrival_visual_play(fd2_scene_arrival_visual *scope,fd2_vga *vga,
+    const fd2_field_game *game,fd2_field_audio *audio,int fast) {
+    if(!game || !game->ready)return -1;
+    fd2_scene_field_state state={0};state.units=game->units;
+    state.camera_cell_x=game->camera_cell_x;state.camera_cell_y=game->camera_cell_y;
+    return arrival_visual_play_view(scope,vga,&game->terrain,&game->map,&game->sprites,&state,audio,fast);
+}
+
+static int opening_actor_arrival(fd2_vga *vga,const fd2_archive *fdother,
+    const fd2_terrain_tileset *terrain,const fd2_field_map *map,
+    const fd2_map_sprite_bank *sprites,fd2_scene_field_state *state,
+    fd2_field_audio *audio,size_t first_actor,size_t last_actor,int fast) {
+    if(!vga || !fdother || !terrain || !map || !sprites || !state ||
+        state->units.count>FD2_FIELD_MAX_UNITS || last_actor>state->units.count || first_actor>last_actor)return -1;
+    fd2_scene_arrival_visual *scope=NULL;
+    int result=fd2_scene_arrival_visual_prepare(&scope,vga,fdother,first_actor);
+    if(result)return result;
+    for(size_t raw=first_actor;raw<last_actor;raw++)fd2_field_unit_set_hidden(&state->units.items[raw],0);
+    fd2_scene_field_state visible=*state;visible.units.count=last_actor;
+    result=arrival_visual_play_view(scope,vga,terrain,map,sprites,&visible,audio,fast);
+    fd2_scene_arrival_visual_close(&scope);return result;
 }
 
 /* 同一冷流程产生逻辑终态与呈现重放；此解释器只使用原Scene局部状态。 */
@@ -2162,102 +2236,6 @@ static int field_event_append_group(
                                  state->units.count, fast);
 }
 
-/* 运动前态仍归原notice；属性借已提交终态，logic-only写入不被重放覆盖。 */
-static int scene_event_state_init(fd2_scene_field_state *state,
-        const fd2_field_game *game, const fd2_field_event_notice *notice) {
-    if (!state || !game || !notice || game->units.count > FD2_FIELD_MAX_UNITS ||
-        notice->presentation_unit_count > game->units.count) return -1;
-    memset(state,0,sizeof(*state));
-    state->camera_cell_x=notice->presentation_camera_x; state->camera_cell_y=notice->presentation_camera_y;
-    state->focus_cell_x=notice->presentation_focus_x; state->focus_cell_y=notice->presentation_focus_y;
-    state->units=game->units; state->units.count=notice->presentation_unit_count;
-    if (notice->presentation_motion_valid) {
-        for (size_t i=0;i<state->units.count;i++) {
-            const uint8_t *motion=notice->presentation_motion[i];
-            state->units.items[i].x=motion[0]; state->units.items[i].y=motion[1];
-            state->units.items[i].direction=motion[2]; state->units.items[i].frame_phase=motion[3];
-            state->units.walk_frames[i]=motion[4];
-        }
-    }
-    state->persistent=game->roster; state->persistent_count=game->roster_count;
-    scene_state_borrow_game(state,game);
-    return 0;
-}
-
-int fd2_scene_play_field_event(fd2_vga *vga,
-                               const fd2_archive *fdother,
-                               fd2_field_game *game,
-                               fd2_field_event_notice *notice,
-                               fd2_field_audio *audio,
-                               int fast) {
-    if (!vga || !fdother || !game || !notice || !notice->handled ||
-        !notice->presentation_deferred ||
-        (notice->kind != FD2_FIELD_EVENT_TURN && notice->kind != FD2_FIELD_EVENT_CELL) ||
-        notice->presentation_unit_count > game->units.count ||
-        game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
-        return FD2_SCENE_RESULT_ERROR;
-    char flow_id[64];
-    snprintf(flow_id,sizeof(flow_id),"stage.%03zu.action.%03u",game->stage,(unsigned)notice->action);
-    const fd2_static_flow *flow=scene_flow_find(flow_id);
-    if (!flow) return FD2_SCENE_RESULT_ERROR;
-    scene_host_quit_requested = 0;
-
-    fd2_archive fdtxt = {0};
-    fd2_archive dato = {0};
-    fd2_text_entry text = {0};
-    fd2_font font = {0};
-    fd2_ui_sheet ui = {0};
-    fd2_scene_field_state state;
-    memset(&state, 0, sizeof(state));
-    int result = -1;
-
-    if (poll_scene_quit(vga)) goto done;
-    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
-        fd2_archive_open(&dato, "original_game/DATO.DAT") != 0 ||
-        fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
-        fd2_font_open_fdother(&font, fdother, 4) != 0 ||
-        ui_sheet_open_fdother(&ui, fdother, 5) != 0)
-        goto done;
-
-    if (scene_event_state_init(&state,game,notice) != 0) goto done;
-
-    scene_flow_context context={0};
-    context.vga=vga; context.fdother=fdother; context.dato=&dato;
-    context.terrain=&game->terrain; context.map=&game->map; context.sprites=&game->sprites;
-    context.state=&state; context.game=game; context.ui=&ui; context.font=&font;
-    context.text=&text; context.audio=audio; context.fast=fast;
-    if (scene_flow_run(&context,flow) != 0) goto done;
-
-    if (scene_host_quit_requested || poll_scene_quit(vga) ||
-        state.units.count != game->units.count) goto done;
-    for (size_t i = 0; i < game->units.count; i++) {
-        if (memcmp(&state.units.items[i], &game->units.items[i],
-                   sizeof(game->units.items[i])) != 0 ||
-            state.units.source_template_indices[i] !=
-                game->units.source_template_indices[i])
-            goto done;
-    }
-
-    game->camera_cell_x = state.camera_cell_x;
-    game->camera_cell_y = state.camera_cell_y;
-    game->camera_pixel_offset_x = 0;
-    game->camera_pixel_offset_y = 0;
-    game->cursor_cell_x = clamp_int(state.focus_cell_x, 0,
-                                    game->map.width - 1);
-    game->cursor_cell_y = clamp_int(state.focus_cell_y, 0,
-                                    game->map.height - 1);
-    game->idle_phase = (uint8_t)vga->field_visual.actor_idle_phase;
-    notice->presentation_deferred = 0;
-    result = 0;
-
-done:
-    fd2_text_entry_close(&text);
-    fd2_archive_close(&dato);
-    fd2_archive_close(&fdtxt);
-    return scene_host_quit_requested
-        ? FD2_SCENE_RESULT_HOST_QUIT : result;
-}
-
 static int field_story_validate_units(const fd2_field_game *game,
         const fd2_field_units *units, size_t fragment);
 
@@ -2608,7 +2586,7 @@ static int scene_common_raw_animation(fd2_vga *vga,const fd2_archive *fdother,
     }
     if(validate_only) {result=0;goto done;}
     for(size_t i=0;i<count;i++) {
-        if(poll_scene_quit(vga))goto done;
+        if(poll_scene_quit(vga)){result=FD2_SCENE_RESULT_HOST_QUIT;goto done;}
         const scene_raw_part *p=&parts[i];
         for(int y=0;y<p->image.height;y++)for(int x=0;x<p->image.width;x++) {
             int dx=a[4]+p->x+x,dy=a[5]+p->y+y;
@@ -2620,7 +2598,7 @@ static int scene_common_raw_animation(fd2_vga *vga,const fd2_archive *fdother,
         if(!fast) {
             fd2_vga_present_timed(vga,(uint32_t)a[3]*FD2_BIOS_TICK_MS);
             fd2_vga_wait_frame_deadline(vga);
-            if(poll_scene_quit(vga))goto done;
+            if(poll_scene_quit(vga)){result=FD2_SCENE_RESULT_HOST_QUIT;goto done;}
         }
     }
     result=0;
@@ -2629,18 +2607,20 @@ done:
     free(parts);return result;
 }
 
-int fd2_scene_common_step_validate(const fd2_field_game *game,
-    const fd2_archive *fdother,const fd2_static_flow_node *node) {
-    if(!game || !fdother || !node || !node->op ||
-        game->units.count>FD2_FIELD_MAX_UNITS)return -1;
+int fd2_scene_common_step_validate_view(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node,
+    const fd2_field_units *units,const fd2_field_unit *roster,size_t roster_count) {
+    if(!game || !fdother || !node || !node->op || !units ||
+        units->count>FD2_FIELD_MAX_UNITS || roster_count>FD2_SAVE_BATTLE_MAX_ROSTER ||
+        (roster_count && !roster))return -1;
     const int32_t *a=node->args;
     if(!strcmp(node->op,"story")) {
         fd2_text_entry text={0};fd2_ui_sheet ui={0};
         const uint8_t *tokens;size_t count;
-        fd2_scene_field_state state={0};state.units=game->units;
-        state.persistent=game->roster;state.persistent_count=game->roster_count;
+        fd2_scene_field_state state={0};state.units=*units;
+        state.persistent=roster;state.persistent_count=roster_count;
         scene_state_borrow_game(&state,game);
-        int result=a[0]>=0 && game->roster_count<=FD2_SAVE_BATTLE_MAX_ROSTER &&
+        int result=a[0]>=0 &&
             ui_sheet_open_fdother(&ui,fdother,5)==0 &&
             fd2_text_entry_open_entry(&text,&game->fdtxt_archive,game->stage+1u)==0 &&
             fd2_text_entry_get_fragment(&text,(size_t)a[0],&tokens,&count)==0?
@@ -2651,7 +2631,7 @@ int fd2_scene_common_step_validate(const fd2_field_game *game,
         const uint8_t *bytes;size_t length;
         return a[0]>=0 && a[0]<=255 && (a[1]==0 || a[1]==1) &&
             fd2_field_movement_script_get((uint8_t)a[0],&bytes,&length)==0?
-            movement_script_preflight(&game->units,bytes,length,game->idle_phase):-1;
+            movement_script_preflight(units,bytes,length,game->idle_phase):-1;
     }
     if(!strcmp(node->op,"pan"))return a[0]>=0 && a[0]<=255 && a[1]>=0 && a[1]<=255 &&
         game->map.cells && game->map.width>0 && game->map.height>0?0:-1;
@@ -2676,6 +2656,12 @@ int fd2_scene_common_step_validate(const fd2_field_game *game,
     return -1;
 }
 
+int fd2_scene_common_step_validate(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node) {
+    return game?fd2_scene_common_step_validate_view(game,fdother,node,
+        &game->units,game->roster,game->roster_count):-1;
+}
+
 int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
     fd2_field_game *game,const fd2_static_flow_node *node,
     fd2_field_audio *audio,int fast) {
@@ -2694,8 +2680,9 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
         fd2_vga_set_brightness(vga,a[0]);return 0;
     }
     if(!strcmp(node->op,"raw_animation")) {
-        int result=scene_common_raw_animation(vga,fdother,a,fast,0);
-        return scene_host_quit_requested?FD2_SCENE_RESULT_HOST_QUIT:result;
+        /* 资源预解码失败与播放中的宿主退出分别返回ERROR/HOST，
+         * 不借全局host位把真实资源错误重新分类。 */
+        return scene_common_raw_animation(vga,fdother,a,fast,0);
     }
     fd2_scene_field_state state={0};
     state.units=game->units;state.persistent=game->roster;
@@ -2736,8 +2723,11 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
     }
     scene_motion_sync(&state);
     game->idle_phase=(uint8_t)vga->field_visual.actor_idle_phase;
+    /* 同次11cac已确认的资源/绘制错误优先；尾poll仍保留新到的退出位，
+     * 但不能将这次失败变成正常宿主关闭而跳过父图ERROR合同。 */
+    if(scene_render_error)return FD2_SCENE_RESULT_ERROR;
     if(scene_host_quit_requested)return FD2_SCENE_RESULT_HOST_QUIT;
-    return scene_render_error?FD2_SCENE_RESULT_ERROR:result;
+    return result;
 }
 
 /* 固定停顿只传播宿主关闭，不让普通按键跳过22e5c的1/9/36 tick。 */

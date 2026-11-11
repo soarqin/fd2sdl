@@ -1,6 +1,6 @@
 # 战场 session、动作提交与场景交接设计
 
-本文约束现有模块的后续扩展，补齐状态、失败和验收边界，不要求重写引擎。设计始于 `e9a2d81`；2026-11-10 续记 G4 候选的共享运行合同，保留 G2／G3 及各历史阶段原有验收范围。**G4 当前未提交，候选的原版／SDL 原生验收尚未全部闭合，本文不据此通过 G4 或 G5 完成门。** 源码接线、静态／局部原码验证与原版运行验收分别登记。优先级见 [`../plans/development.md`](../plans/development.md)，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
+本文约束现有模块的后续扩展，补齐状态、失败和验收边界，不要求重写引擎。设计始于 `e9a2d81`；2026-11-11 续记 G5 输入、逐叶事件及共享返场合同，保留 G2／G3／G4 和各历史阶段原有验收范围。**G4 已以 `4ada76b` 提交并集成本地 master；G5 已完成本轮来源域的统一历史回归与逐项签核，通用完成门通过，S 尚未启动。阶段提交和本地集成身份以 Git 及最终收据为准。** 源码接线、静态／局部原码验证与原版运行验收分别登记。优先级见 [`../plans/development.md`](../plans/development.md)，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
 
 ## 1. 现有模块与状态所有权
 
@@ -14,7 +14,7 @@
 | `field_system_menu`／`field_manual_slot` | 各自页、选择、确认及动画状态；共享高亮只投影 App owner | 不把活动快照与四槽混成一个 dispatcher，不另建计时真值 |
 | `field_save.c`／`save.c` | session 与原版记录转换、整文件保留式更新和安全写回 | 不把临时交互、指针或额外 RNG 状态写进未知字节 |
 | `scene`／`field_effect`／绘制模块 | 对已确定状态的画面、文本、动画与 cue | 不重复扣 HP/MP、移除物品或设置 acted |
-| `input`／`audio`／`audio_pcm`／`bgm` | 宿主输入帧、播放命令、设备和 source 生命周期 | 不推进战场 RNG、phase 或剧情 |
+| `input`／`audio`／`audio_pcm`／`bgm` | App 普通键队列、held／repeat、持久 quit；播放命令、设备和 source 生命周期 | 不推进战场 RNG、phase 或剧情 |
 
 保留现有分层与调用点。只有某项功能确实需要共享代码时才抽取局部 helper，不先拆分 `field_game.c`、建立通用 command bus、事务框架或剧情 VM。单位和存档的字节布局以 [`../formats/data-formats.md`](../formats/data-formats.md) 为准，本文件不维护第二份格式表。
 
@@ -28,7 +28,7 @@
 - `option_values` 与 `resource_value` 已有 session owner。配置是逐次 toggle 立即提交：未修改时退出不能改状态，已确认 toggle 后退出也不能擅自回滚。
 - `fd2_field_game` 含有拥有所有权的指针；结构体浅复制不等于可独立关闭的 session，也不等于外部 RNG 的快照。不能关闭两个共享资源的副本。
 
-### G4 候选的 App 视觉 owner
+### App 视觉 owner（G4 接入，G5 续记）
 
 `fd2_vga.field_page` 对应原 `53A49`，是 App 唯一的 456×336／153,216 byte 工作页，跨 Scene、Game 和活动 Load 保留；Game 只借用，不在绑定、换框或读档时清空。RLE 的 SKIP 保留页中旧值，opaque 0 则实际写 0。资源预检和隔离预览可以临时深拷贝视觉页，结束即释放，不能把副本交回为第二个持久 owner。普通 UI 不得把显示页任意回灌为地图底图；`1f1cc` 的 raw 64,000 byte 前缀、`19953` 的 `(68,68)` 整帧／`(73,180)` 底部固定复制，以及缩放页桥均走有证的窄接口。
 
@@ -41,7 +41,7 @@
 | `terrain_phase`／`terrain_tick` | `53A40`／`53A00` | `11eee`，仅 XOR phase 的低 byte |
 | `range_phase`／`range_tick` | `53C1F`／`539F4` | `11eee` 的范围相位门；20 步冷表为 `0..10..1` |
 
-水色、raw26 抖动、对话嘴型和菜单高亮有各自的 App 锚，不并入这七个字段，也不另取 UI 随机流。各 caller 按原顺序显式调用 `1297d`、`11eee`、`127e0` 或水色；普通 render／present 不偷偷推进这些状态。`fd2_vga_upload_current_frame` 只上传同帧像素，不采样输入、不增加等待或时钟步。正式 `runtime_refresh` 的 0／3 分别对应完整 `11cac(0)`／`11cac(1)`，0 才按原 `4e31c` 门推进水色，3 跳过水色；1 为 phase 关闭的 tiles＋jitter，2 为 choice 的 actor-clock＋tiles＋jitter，后二者均不画信息板、不投影到 VGA。`51A83` 的显示模式与水色参数分别处理。
+水色、raw26 抖动、对话嘴型和菜单高亮有各自的 App 锚，不并入这七个字段，也不另取 UI 随机流。各 caller 按原顺序显式调用 `1297d`、`11eee`、`127e0` 或水色；普通 render／present 不偷偷推进这些状态。`fd2_vga_upload_current_frame` 只上传同帧像素，不采样输入、不增加等待或时钟步。正式 `runtime_refresh` 的 0／3 分别对应完整 `11cac(0)`／`11cac(1)`：actor／cursor → 仅模式0推进水色 → terrain／range → raw26 jitter → render；中途错误保留已到达的写点，不提前推进后项。1 为 phase 关闭的 tiles＋jitter，2 为 choice 的 actor-clock＋tiles＋jitter，后二者均不画信息板、不投影到 VGA。`51A83` 的显示模式与水色参数分别处理。
 
 信息板有用户选项 3 和原 `51AAC` 两道门，须在绘图和更新 `51A0C` 侧状态前同时成立。`info_panel_suppressed` 是 `51AAC` 的取反投影，零初始化对应原门初值 1。原 `51A0C` 保存横偏移 1／242，初值 1 表示左侧；SDL `info_panel_right` 保存布尔投影，0 为左、1 为右，不能把原 DWORD 初值直接赋给它。START／手动 Load／胜利新入口／败北，以及 END／March／自动回合的临时跨度由 App／Play caller 管理，活动 Load 继承当前门，不借创建新 Game 重置。共享菜单高亮使用同一 phase／tick：低 WORD 符号扩展后判门，确认框以 raw phase 除 2 选帧，离开只清 phase，保留 tick。
 
@@ -121,7 +121,7 @@ Drop 用同一 ITEM_LIST／mode0，code0 可确认；确认先在80字节 actor 
 
 Give 用独立目标与收方列表层。相邻友军使该格可选，确认后按该格首个可见 raw 记录处理，不擅自增加 HP／acted 过滤。收方有空槽则压缩来源并追加；满8槽时打开 mode0 收方列表，双方各移除选中槽、以 flag0 追加交换 ID。只重算送方，保留收方原派生值；源列表、目标和交换列表取消均按原调用链重算送方并返回，不清已成功交接标志。53C53 对应的临时 `item_transfer_committed` 只在新的移动选择或成功 Load 时重置；成功 Give 后 COMMAND 取消保留移动及库存，并走不回血的物品行动尾。
 
-私有 modal 独占列表确认键；退出、资源错误和完整关页在不可逆提交前检查，caller 耗尽当前帧普通输入以免重复确认。Equip 留页复用同一 portrait／page owner，成功重画后继续原索引，不兼容保留当前眨眼画面。提交后重绘失败保留业务结果并冻结，不重试。实现与逻辑测试不等于原版运行验收；各冻结候选的双端 WGC、SAV 和精确随机范围见[阶段记录](../plans/stage-log.md)。
+私有 modal 每次读取一个列表确认键；退出、资源错误和完整关页在不可逆提交前检查，已消费事件不再交给新控制器，余键按原 caller 清键点处理。G5 修复逐帧丢弃后，法术列表开合不额外清队；物品／详情的17e0b打开末保原clear，不能统一吞掉层级切换期间早到键。Equip 留页复用同一 portrait／page owner，成功重画后继续原索引，不兼容保留当前眨眼画面。提交后重绘失败保留业务结果并冻结，不重试。实现与逻辑测试不等于原版运行验收；各冻结候选的双端 WGC、SAV 和精确随机范围见[阶段记录](../plans/stage-log.md)。
 
 普通物理目标同样复用14818／115b6的互斥范围和raw候选owner：按武器min／max与filter0建立范围，首次聚焦首raw，Z／小键盘5先递增再取槽；121占槽而不移动焦点。取消先回actor，再清候选／范围并重开COMMAND，成功尾同样清cache。候选不额外滤HP0／acted，提交仍沿独立物理有效门重验。移动预算0可保留原点，不得在game wrapper整体拒绝而令AI错过原地攻击。
 
@@ -149,18 +149,22 @@ game保存一个有界续态，play只持有背景／空底板／四帧立绘。
 
 B4当时六组实际WGC来源为C4四组＋C5两组，消息资源、详情和完整Save／WAIT／Load／Save均通过；不是G2或最新程序重新跑六组。SDL回合编号横幅未图形对齐，使用有序phase日志与后续真实WGC／完整SAV核验，不把日志当横幅像素；当时未声明完整FIGANI、跨框嘴型相位或共享RNG等价。最终C6仅修AI结果误用玩家HP前值的printf下溢诊断，业务、RNG和呈现不变，无新GUI。
 
-大阶段输入复审另保留两项既存风险：非ITEM的COMMAND关闭动画返回值仍有被忽略的调用，动画期间宿主quit可能先执行WAIT再退出；历史首次END确认落到NO的原因仍未定位。B4新提示的入口／scroll quit已单独处理，不把本阶段定向运行当作这两项已修或全历史输入回归。
+B4 当时另保留了非 ITEM COMMAND 收框返回值被忽略、历史首次 END 落到 NO 两项风险，B4 的定向运行没有关闭它们。G5 当前非 ITEM 分支先检查 `play_command_transition` 返回值和持久 quit，成功后才进入 `confirm_cursor`；`closing_frame_barrier_test` 的十个末帧向量及编号47的无窗口回归验证 HOST／真错不先提交 WAIT，错误优先级和原状态前缀保留。这是私有 Play／Core 故障回归，不是原生窗口退出注入。
+
+历史 NO 的原因仍未归因。当前 END 每次按原 `19953` 重置 selector0，随后由唯一 input owner 读一项；Suite37 的两端首开连续原件分别观察到完整 normal 按钮及 YES 高亮，独立 END 场景在 default YES 后只投一次 Enter，实际推进 Round002 并正式 Save，Suite50 按严格来源链继承。normal 帧48／51本身不证明选择，YES 须匹配49／51；这些证据关闭当前已识别的首开／消费风险，不补签未采到的首个 present，也不声称定位了历史根因。实际原件和候选身份见阶段记录。
 
 AP／DP重算使用binary64 1.15乘积先53位舍入再向0截断，推翻旧nearest-even说明，不能换成整数115/100。直接增益 `old + floor((15*old+100)/100)` 是另一条已证u16公式；AC／EV状态只各加15，不乘1.15。局部原码复现见[IDA工具说明](../tools/ida.md)。
 
 ## 3. 事件执行与停止边界（B0）
 
-`event_log` 最多保存 64 个 notice，兼有诊断与 `presentation_deferred` 驱动用途。当前实现保留这个有界容器，但必需事件在 handler 执行前检查容量，不再丢弃必需 notice 或把未知事件记为 `unhandled, skipped` 后继续。
+已知正式事件由 Game 的 `event_resume` 按冷图逐叶执行：逻辑写点、呈现、ACK 和后继 PC 交错推进，不再先提交整个事件，再由 Scene 重放。原六个正式身份从 scene 迁入 common_event，未新增关卡支持；来源映射和保证边界见[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。
+
+`event_log` 仍最多保存64个 notice，用于未绑定来源诊断及停止边界。fallback 的 `reserve_event_notice` 容量检查保留；未知必需事件不能记录后按成功继续。已知 common 绑定不借日志驱动，也不因旧演出日志满而拒绝合法执行。残留的外部 `presentation_deferred` 状态视为损坏，由 common 预检和 Play 的诊断门明确拒绝，不再交给 Scene 重放；不能把 `progress_resume` 的防御性 pending 返回当作仍有合法演出 producer。
 
 设计决定：
 
 1. 需要改变玩法或推进剧情的 handler 是必需逻辑，未知、失败或容量不足不能算作成功。
-2. 逻辑已提交而必须呈现的 notice 也不能被普通日志溢出策略丢弃。最小实现可在追加前检查容量并显式停止，不要求引入持久事件队列。
+2. 必需呈现由当前事件叶和 ACK 驱动，不能以普通诊断日志的溢出策略跳过，也不新增持久事件队列或第二事件热游标。
 3. 只有确认不影响玩法、呈现和后续控制流的诊断信息才可丢弃，且保留丢弃计数。不能仅因事件名称未知就归入这一类。
 4. 原版要求的 turn event → phase 状态处理 → actor/cell/stage handler 顺序不变。原始 actor 遍历中的 skipped actor 仍可能需要 stage handler。
 5. 若未知 cell/stage handler 只能在动作提交后发现，停止并报告 `stage/actor/action/phase` 与已提交边界；不能改成待机，也不能假称回滚了整个动作。
@@ -171,19 +175,19 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 原版共享路径每步以`match_arg=0`更新单个pending，未匹配保留之前命中；移动循环不分派handler。AI normal common tail查询最终格`match_arg=1`，命中才覆盖，再acted、全方向reset；outer随后分派pending。未知handler在实际分派时冻结，保留已提交效果、坐标和acted；读取损坏事件数据仍明确失败。pending是session旁路状态，不写原版存档，成功活动Load清除，恢复失败保留原状态。
 
-玩家完整路径后进入COMMAND，成功动作先acted再最终lookup；普通command取消回滚并重入移动选择、清pending，下级目标取消或无效确认保留pending。selection取消不acted／不lookup1，仍经过controller后置。零步WAIT恢复HP，非零路径WAIT不恢复；特殊cell-action尚未支持时在WAIT恢复／acted前明确冻结，不能当普通pending处理或报告成功。
+玩家完整路径后进入COMMAND，成功动作先acted再最终lookup；普通command取消回滚并重入移动选择、清pending，下级目标取消或无效确认保留pending。selection取消不acted／不lookup1，仍经过controller后置。零步WAIT恢复HP，非零路径WAIT不恢复。普通特殊格 mode0／1 不附加 stage0／1 限制；mode≥2 保完整 WORD callback，在已证90项表内按真实 caller 分派已知绑定。未知／不支持的 cell-action 在恢复／acted前明确拒绝，不能当普通pending处理或报告成功；仅接通通用分派不开放未知关卡绑定。
 
-当前controller先完成B4奖励续态，再恢复stage0结果门、精确13565门、必要整轮phase后的pending分派与清空。13565只看flags&0x81、side2和raw26，不加HP或bit04门。异步phase期间仅保存原actor与等待标志，不保存pending副本；AI仍可清空／覆盖同一slot，raw尾必须扫描完才换phase。side1尾先全表清acted，再进入phase0事件／状态，删除旧延迟清除补偿。Enter的普通不可操作actor详情关闭后走同一后置，F2直接返回。
+当前controller先完成B4奖励续态，再恢复已绑定结果门、精确13565门、必要整轮phase后的pending分派与清空。13565只看flags&0x81、side2和raw26，不加HP或bit04门。异步phase期间仅保存原actor与等待标志，不保存pending副本；AI仍可清空／覆盖同一slot，raw尾必须扫描完才换phase。side1尾先全表清acted，再进入phase0事件／状态，删除旧延迟清除补偿。Enter的普通不可操作actor详情关闭后走同一后置，F2直接返回。
 
-controller完成时由play owner耗尽当前帧普通键，保留held／repeat；core不接input。等待phase时拒绝导出／保存，成功活动Load清除续行与pending，失败恢复保留完整原状态。此处恢复的是已确认控制顺序；未实现的cell handler、特殊格、物品已交接取消例外及跨地图镜头仍单独登记。
+完整玩家controller在119a6先清共享pending，再经1187a明确清键；Game只调用现有有限呈现叶，真实input仍归App，保held／repeat与quit。18d8c另仅在物理动作acted写后清键，不把任意MAGIC／ITEM／WAIT完成当清队依据。F1／F2／G的原直接return不套此尾。等待phase时拒绝导出／保存，成功活动Load清除续行与pending，失败恢复保留完整原状态。当前未解的关卡绑定仍按来源保留，不以此输入修复解除S支持门。
 
 批量行军按 `field_empty_focus_menu_execute @0x16f55` 的独立顺序提交：确认后捕获固定绝对焦点，按 raw actor 顺序仅处理 `(flags & 0x85)==0 && side==2`，不附加 HP 门。每人先 focus、清共享 pending、执行完整路径的 match0 收集，再分派当前 pending；成功后才重置全表方向、标记当前 acted。无路仍走尾部，不查询最终 match1。当前 handler 失败保留已走路径和先前 actor 的提交，立即停止，不伪造整批回滚或继续 phase。
 
-整批后只启动一次 side1→side0→新玩家回合，不自动 Save。March 期间由既有私有路径呈现参数关闭选择／信息层；play 局部续行把相同参数传给异步 AI visual step，普通 END 默认使用原呈现。恢复玩家阶段或终态后清当前帧普通键，保留 held／repeat，不把显示策略或 pending 副本存入 session。长路径中途的即时宿主退出仍沿现有路径协议，未声明逐动画相位响应通过。
+整批后只启动一次 side1→side0→新玩家回合，不自动 Save。March 期间由既有私有路径呈现参数关闭选择／信息层；play 局部续行把相同参数传给异步 AI visual step，普通 END 默认使用原呈现。同一 Game 的 `turn_post_caller` 区分无调用者／March／END，不另存业务副本；caller_return 冷入口按原成功返回点恢复信息板，仅 March 恢复 `51A83`，END 继承实际显示模式。清键叶不附带信息板写入，错误／HOST 不提前恢复成功尾。新玩家ready的原清键由现turncycle冷图决定，不在March／END返回后再加无源全清；保留 held／repeat，不把显示策略或 pending 副本写入 SAV。长路径中途的即时宿主退出仍沿现有路径协议，未声明逐动画相位响应通过。
 
 攻击、法术或物品进入效果提交后发生的错误保留当前 HP、库存和外部 RNG 进度，锁住 session；behavior 11 已施法而后续物理动作失败时也停止，不再按成功执行 common tail。
 
-成功演出后由呈现 owner 清除 `presentation_deferred`，同一 notice 不在下一帧重放。停止状态禁止保存，以免把部分提交的状态写成正常可恢复快照；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
+成功呈现后才推进当前叶的 NEXT／ACK；子 loot 返回后才推进父 PC，不重复 descriptor、刷新或奖励。HOST 保当前 PC 与已提交前缀，并由现 `runtime_host_quit` 阻止后续 reply／resume；只有真实 ERROR 沿错误边停止，不把 HOST 当 ERROR 推进。短寿命资源释放独立于成功尾，不能借清理补写未到达的 acted／INFO。停止或事件／loot／progress 忙态禁止保存；显式加载有效存档可以恢复并清除错误，加载校验失败则保留完整停止状态和原文件。
 
 ## 4. 战场结果与应用去向
 
@@ -232,9 +236,13 @@ G3 准备服务直接消费 App 的完整持久表、资金和共享 RNG；31 �
 
 四槽保存 `2968d` 在确认后先完成一次真实写盘，再进入可中断收框；酒店成功提示 660 的资源须在提交前预检。收框失败或宿主退出保留已写结果，不重试、不伪造回滚。NoTown 原 caller 直接读键，跳过酒店等待 RNG／头像 129及 660 ACK，保存后仍在同一选槽位置；Load 保持先收框、完整校验／资源准备成功后才交换 owner。原 SAV 布局和未知尾合同均不变。
 
-水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。G4 候选续接 Scene、共享菜单、确认、progress 与有限通用事件的已证等待调用点，保留各自是否推进水色的区别；不能由候选接线推出所有原版 caller 已运行对照，更不承诺 BIOS 与宿主墙钟同相。
+水色 DAC 状态属于应用的 VGA 视觉 owner：`field_water_last_tick/field_water_phase` 不在 session 或 SAV 中，活动 Load／新 session 不清零。只有已确认的等待和步态 caller 显式推进；render／present 不隐式更新时间。原版使用 BIOS 低16位无符号差，差至少2才前进一步，16回绕且不追赶；宿主55ms tick是近似。G4 已续接 Scene、共享菜单、确认、progress 与有限通用事件的已证等待调用点，保留各自是否推进水色的区别；接线不证明所有原版caller均已运行对照，更不承诺 BIOS 与宿主墙钟同相。
 
-F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain，不替换 session cache。开7帧、关6帧；中间只更新阵营／焦点标记，不推进 game tick、RNG 或水色。关闭后正常重绘前显式恢复一次水色更新，长停留不追赶。普通键只关闭页面，不改焦点或继续处理当前帧动作；保留 held／repeat，宿主退出优先。这是 SDL 当前帧适配，不宣称复制 BIOS FIFO 或原版末尾额外清队。
+F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain，不替换 session cache。开7帧、关6帧；中间只更新阵营／焦点标记，不推进 game tick、RNG 或水色。正常关闭后复用完整 `runtime_refresh(0)`，按 actor／cursor → water → terrain／range → jitter → render 返回地图，长停留不追赶；错误优先于 HOST，失败不补后缀。原 `field_auxiliary_map_execute @0x2000a` 在开动画后 clear，稳态10620检查后通过 INT16 AH10 读一键才关闭；117e7的F1分支直接return，没有119a6尾，所以保留其余独立键，不把退出键复用给下一控制器。
+
+G5 已去除只支持stage0／shape0／24×24的非原义门，资源有效性仍逐图检查；地图高度>40时缩放3，否则4，标记边长为scale−1。缩放底图经 App 工作页 raw-prefix64000 的320stride窄桥，开关帧从该页复制到 VGA，稳态标记不回写 App。stage1／stage2正式来源与高图alias均已完成各自当前候选原生门，按审计 §13 的分段来源记账，不外推为晚关战斗或一次全新实机；held／repeat与宿主退出合同保持。
+
+总览条件按原 `1b41d→15f84` 复用 UI0 token 展开，`-2` 以原 origin 和19px行高换行；两段完整预检及坐标验证后才写 VGA。普通来源为 stage0..29、排除尚未绑定私有败条件选择的stage16，不再仅限首三关；657／658的动态 `-4` 属于已有准备页 consumer，不给总览新增参数或 owner。此纯绘制范围不开放相应 battle。当前原生 baseline／换行资源alias的两组配对及全容器结果见阶段记录，不扩为stage16或全关卡自然运行。
 
 继续保留已有入口门：系统菜单只在玩家 phase、browse 且焦点无可见 actor 时打开；secondary Save 在任一未隐藏 actor 带 acted `0x80` 时禁用，hidden actor 的 stale acted 不触发该门。Load 要求完整有效且当前支持的快照，不因磁盘上有同名文件就启用。不能把活动快照的限制直接套到四槽 dispatcher。
 
@@ -250,6 +258,7 @@ F1/Page Up 由 play owner 同步呈现全场缩放图，借用已解码 terrain�
 - 成功恢复清奖励／状态续态，但保留不属于SAV的全局经验贡献；失败保持原owner。奖励、状态、phase或详情忙态拒绝保存，不能把中间写点导出成正常边界。
 - 恢复不能把存档单位再次经过新建构造器重置 HP/MP、装备或等级，也不能再次播放已完成的增援事件。未知 meta、未使用单位尾部及未拥有的 cell-state 字节继续保留。
 - `FD2.TMP` cache class不是职业。热身份写入保留旧cache图形，Load则按原 `0x10010→0x11019` 用当前ID／raw顺序重建旁路cache；保留原80B及存档raw2，不保存旧TMP历史或增添SAV字段。磁盘TMP文件互操作不因旁路重建而自动完成。
+- 验证工具区分 fresh 构造与已 Load owner。fresh 跨端只按独立来源比较已定义字段；构造未写的9B（unit+0x28..0x30）和初始堆尾不据此判为无语义。Loaded 的未知保留以本端 preload 实际容器为基准，仅允许有来源的 cache 重建与独立 view 写集，不能套 fresh 排除区。原活动导入只复制 count×80 的热前缀，SAV unused 区仍由容器保留，不用它给新 append 构造播种。
 - 写回继续使用同目录独占临时文件与受检替换；失败不破坏原档。临时文件唯一不等于多进程更新锁，目前不宣称多个游戏进程并发写档安全。
 
 恢复成功后应用音频 bus 配置，并由 A5 已接入的场景编排请求对应曲目。活动 Load 不重播开场；准备状态 Load 回到酒店／城镇，出阵完成后才请求战场 primary。曲目请求、sequence 生命周期和声音保真分别验收，不能把音量恢复或曲目请求成功当作原版音色／时序一致。
@@ -290,7 +299,7 @@ BGM 仍由应用层持有。A5 已连接 stage 0／1 的 primary/alternate、城
 
 ## 7. 验证要求
 
-事件驱动的冷定义位于 `data/static/flows/`，由同一份生成节点供逻辑、呈现和预检消费。条件、顺序、等待及取消路径由数据决定；有限领域原语保留现有单位／资源 owner、事务及写点。`loot.step`、`progress.flow_step` 及 G4 的 `event_resume` 是当前 session 的热续态，notice 的运动快照只供已提交事件呈现；它们和宿主退出锁存均不写入 SAV。G4 通用机制的未绑定来源夹具不能自动变成 stage 绑定或开放 S。事件流的结构与来源检查见[冷定义工具](../tools/static-data.md)，不能用其通过代替原版运行或声音验收。
+事件驱动的冷定义位于 `data/static/flows/`，由同一份生成节点供逻辑、呈现和预检消费。条件、顺序、等待及取消路径由数据决定；有限领域原语保留现有单位／资源 owner、事务及写点。`loot.step`、`progress.flow_step` 和 `event_resume` 是现有 session 的热续态；事件父 PC／真实 actor／item、深度1 child loot 与宿主退出锁存均不写入 SAV，没有 Scene 整事件重放。线性身份预检只作局部 units／roster 投影，即使无视觉 callback 也检查 counted MOVE／future raw；不复制整 Game、不取 RNG，也不承诺任意分支组合的完整未来身份预测。六个旧正式绑定已迁移，未绑定规则夹具和 common39 私有alias仍不自动成为自然 stage 触发或开放 S。事件流的结构与来源检查见[冷定义工具](../tools/static-data.md)，不能用其通过代替原版运行或声音验收。
 
 G2新增验证分三类，不能由其中一类推出另两类通过：
 

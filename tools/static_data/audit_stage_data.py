@@ -166,18 +166,28 @@ def validate_definition_sources(provenance, repository=ROOT, source_files=None):
         pending = [document["source"]]
         while pending:
             record = pending.pop()
-            pending.extend(record.get("related_sources", []))
-            if record.get("kind") == "canonical_disassembly":
-                payload = (source_files or {}).get("FD2.EXE")
+            if (not isinstance(record, dict) or not isinstance(record.get("evidence"), str)
+                    or not record["evidence"].strip()):
+                raise ValueError("definition source lacks nonempty evidence")
+            related = record.get("related_sources", [])
+            if not isinstance(related, list):
+                raise ValueError("definition related_sources must be a list")
+            pending.extend(related)
+            # 四种已登记标签只区分来源描述，均须实读同一原EXE；
+            # 不按decoded前缀放行，更不把身份通过当作语义/运行已验。
+            if record.get("kind") in ("canonical_disassembly", "decoded_control_flow",
+                                      "decoded_domain_control_flow", "original_executable"):
+                payload = source_files.get("FD2.EXE") if isinstance(source_files, dict) else None
+                actual = digest(payload) if isinstance(payload, bytes) else None
                 if (record.get("file") != "FD2.EXE" or record.get("file_sha256") != EXE_SHA256 or
-                        not record.get("evidence") or not isinstance(payload, bytes) or digest(payload) != EXE_SHA256):
-                    raise ValueError("canonical definition source lacks matching original executable bytes")
-                verified["FD2.EXE"] = digest(payload)
+                        actual != EXE_SHA256):
+                    raise ValueError("executable definition source lacks matching original executable bytes")
+                verified["FD2.EXE"] = actual
                 continue
             commit, file = record.get("baseline_commit", ""), record.get("file", "")
-            if (record.get("kind") != "existing_confirmed_definition" or not record.get("evidence")
-                    or not re.fullmatch(r"[a-f0-9]{40}", commit)
-                    or not file.startswith("src/") or ".." in Path(file).parts or ":" in file):
+            if (record.get("kind") != "existing_confirmed_definition"
+                    or not isinstance(commit, str) or not re.fullmatch(r"[a-f0-9]{40}", commit)
+                    or not isinstance(file, str) or not file.startswith("src/") or ".." in Path(file).parts or ":" in file):
                 raise ValueError("definition source lacks an exact historical source identity/evidence")
             key = f"{commit}:{file}"
             if key not in verified:

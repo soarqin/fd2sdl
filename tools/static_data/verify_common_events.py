@@ -23,6 +23,9 @@ FLOW_IDS={'common.state.once','common.inventory.once','common.turn.relative','co
     'common.item.collection','common.cell.grant','common.key.consume','common.loot.child.0',
     'common.loot.child.1','common.loot.child.2','common.loot.physical','common.map.replace','common.defeat.tail',
     'common.group.turn.source','common.story.state.source'}
+LEGACY_BINDINGS={f'stage.{1 if a==6 else 0:03d}.action.{a:03d}':f'common.legacy.action.{a:03d}'
+    for a in (0,1,2,3,4,6)}
+FLOW_IDS|=set(LEGACY_BINDINGS.values())
 # 完整原函数，不把反编译文本SHA或后续规范名称当字节身份。
 RAW_FUNCTIONS = {
     0x348ea: (0x34940, 'e1952039817b884c914670244ba8bbe51715224949f5052da01a7f0dc5bf758c'),
@@ -104,8 +107,9 @@ def trace(flow, choices):
     raise ValueError('事件关键路径未终止')
 
 def validate_flow(document):
-    if type(document.get('schema_version')) is not int or document['schema_version'] != 1 or document.get('domain') != 'common_event' or document.get('bindings'):
-        raise ValueError('机制夹具不得自动绑定stage/action')
+    if (type(document.get('schema_version')) is not int or document['schema_version'] != 1 or
+        document.get('domain') != 'common_event' or document.get('bindings')!=LEGACY_BINDINGS):
+        raise ValueError('机制夹具不得自动绑定stage/action；只允许原六个shipping绑定迁移')
     if document.get('operations',{}).get('refresh_map',{}).get('args') != [{'name':'skip_water','min':0,'max':1}]:
         raise ValueError('refresh_map须保原0推进/1跳过水色参数域')
     source = document.get('source', {})
@@ -160,7 +164,8 @@ def validate_flow(document):
         for node in flow['nodes']:
             if node['on'] and node['on'].get('error') != 'failed':
                 raise ValueError('事件错误路径必须冻结，不能回entry重放提交')
-    return {'source_control_paths_checked':checked,'flow_count':len(flows),'bindings_added':0}
+    return {'source_control_paths_checked':checked,'flow_count':len(flows),'bindings_added':0,
+        'existing_bindings_migrated':6,'legacy_full_call_order_requires':'verify_fd2_legacy_events.py independent CPU check'}
 
 def verify(executable, root=ROOT):
     exe = Path(executable).read_bytes()

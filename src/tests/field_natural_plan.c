@@ -176,7 +176,8 @@ static int plain_hero_escape(const fd2_field_game *g, const natural_action *a) {
 static int choose_mode(const fd2_field_game *g, natural_choices *choices, int mode) {
     memset(choices,0,sizeof(*choices));
     if(g->stage>1 || g->active_side!=2 || g->failure || g->interaction!=FD2_FIELD_INTERACTION_BROWSE ||
-        g->loot.source || g->progress.resume || g->progress.notice.kind || g->player_post_waiting_phase)return -1;
+        g->loot.source || g->progress.resume || g->progress.notice.kind || g->player_post_waiting_phase ||
+        g->event_resume.active || g->loot.child.active || g->runtime_host_quit)return -1;
     fd2_field_units potential;if(potential_units(g,&potential)!=0)return -1;
     int tank=-1; unsigned highest_dp=0;
     for(size_t i=0;i<g->units.count;i++)if(living(&g->units.items[i]) && g->units.items[i].side==2 &&
@@ -432,11 +433,35 @@ static void print_action(const fd2_field_game *g, const fd2_field_game *query, c
     printf("}");
 }
 
+/* 仅--simulate的无呈现消费：同一正式PC仍逐叶推进，不重放整事件。
+ * PAN只投影终点，MOVE复用原计数流纯原语；不执行帧/文字或原版等待RNG。 */
+static int settle_event_leaf(fd2_field_game *g) {
+    fd2_static_flow_node node;size_t actor;
+    if(fd2_field_game_common_event_peek(g,&node,&actor)!=1)return -1;
+    if(!strcmp(node.op,"pan")) {
+        int max_x=g->map.width-FD2_FIELD_VIEW_CELLS_X,max_y=g->map.height-FD2_FIELD_VIEW_CELLS_Y;
+        if(max_x<0)max_x=0;if(max_y<0)max_y=0;
+        int x=node.args[0]<0?0:node.args[0]>max_x?max_x:node.args[0];
+        int y=node.args[1]<0?0:node.args[1]>max_y?max_y:node.args[1];
+        g->cursor_cell_x+=x-g->camera_cell_x;g->cursor_cell_y+=y-g->camera_cell_y;
+        g->camera_cell_x=x;g->camera_cell_y=y;g->ordinary_display_mode=0;
+    } else if(!strcmp(node.op,"move")) {
+        const uint8_t *bytes;size_t length;
+        if(node.args[0]<0 || node.args[0]>255 ||
+            fd2_field_movement_script_get((uint8_t)node.args[0],&bytes,&length)!=0 ||
+            fd2_field_movement_script_apply(&g->units,bytes,length)!=0)return -1;
+        g->ordinary_display_mode=1;
+    } else if(strcmp(node.op,"story") && strcmp(node.op,"clear_keys") &&
+        strcmp(node.op,"delay_ms") && strcmp(node.op,"refresh_map") &&
+        strcmp(node.op,"arrival_prepare") && strcmp(node.op,"arrival_frames") &&
+        strcmp(node.op,"arrival_close"))return -1;
+    return fd2_field_game_common_event_reply(g,!strcmp(node.op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
+}
+
 /* 无窗口模拟仅ACK已实现业务通知；不伪造WGC、用户输入或原版等待RNG。 */
 static int settle(fd2_field_game *g) {
     for(unsigned guard=0;guard<20000;guard++) {
         if(g->failure)return -1;
-        for(size_t i=0;i<g->event_log_count;i++)g->event_log[i].presentation_deferred=0;
         if(g->loot.notice.kind) {
             fd2_field_loot_notice n=g->loot.notice;
             if(n.kind==FD2_FIELD_LOOT_MESSAGE && !g->loot.text_ready &&
@@ -449,6 +474,10 @@ static int settle(fd2_field_game *g) {
         }
         if(g->progress.notice.kind) { if(fd2_field_game_progress_ack(g)<0){fprintf(stderr,"progress ACK refused\n");return -1;}continue; }
         if(g->progress.resume) { if(fd2_field_game_progress_resume(g)<0){fprintf(stderr,"progress resume refused\n");return -1;}continue; }
+        if(g->event_resume.active && !g->event_resume.child_wait) {
+            if(settle_event_leaf(g)!=0){fprintf(stderr,"simulation event leaf refused\n");return -1;}
+            continue;
+        }
         if(g->player_post_waiting_phase) {
             int r=fd2_field_game_resume_player_controller(g);if(r<0)return -1;
             if(r==0)continue;

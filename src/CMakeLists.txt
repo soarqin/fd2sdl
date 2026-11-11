@@ -562,6 +562,12 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME input COMMAND fd2_input_test)
 
+    add_executable(fd2_animation_input_test tests/animation_input_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_animation_input_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_animation_input_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME animation_input COMMAND fd2_animation_input_test)
+    set_tests_properties(animation_input PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_dialog_flow_test
         tests/dialog_flow_test.c
         dialog_flow.c
@@ -671,6 +677,11 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_common_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_common_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_common_event COMMAND fd2_field_common_event_test)
+    add_executable(fd2_field_legacy_event_test tests/field_legacy_event_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_legacy_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_legacy_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_legacy_event COMMAND fd2_field_legacy_event_test)
+    set_tests_properties(field_legacy_event PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_common_event_domain_probe ../tools/ida/common_event_domain_probe.c $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_common_event_domain_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -1305,7 +1316,8 @@ if(BUILD_TESTING)
         fd2_field_game_animate_command=__wrap_fd2_field_game_animate_command
         fd2_field_game_open=__wrap_fd2_field_game_open
         fd2_field_game_process_automatic_action_visual=__wrap_fd2_field_game_process_automatic_action_visual
-        fd2_scene_play_field_event=__wrap_fd2_scene_play_field_event
+        fd2_scene_play_common_step=__wrap_fd2_scene_play_common_step
+        fd2_field_game_set_loot_preflight=__wrap_fd2_field_game_set_loot_preflight
         fd2_field_game_settlement_prepare=__wrap_fd2_field_game_settlement_prepare
         fd2_field_game_settlement_commit=__wrap_fd2_field_game_settlement_commit
         fd2_scene_play_stage_victory=__wrap_fd2_scene_play_stage_victory

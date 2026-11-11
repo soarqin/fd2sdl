@@ -165,6 +165,71 @@ class DetailCheckTest(unittest.TestCase):
             self.assertEqual(finished,[True])
             self.assertTrue(record['detail_series']['checkpoint_PNGs_bound_to_closed_series'])
 
+    def series_failure(self, body_error=None, cleanup='time_limit', ready_error=None):
+        with tempfile.TemporaryDirectory() as folder:
+            work=Path(folder);process=SimpleNamespace(pid=42,poll=lambda:None)
+            capture=SimpleNamespace(process=process,artifacts=work,last=None,driver=work/'driver.exe')
+            test=self;finished=[];ready=None
+            class Helper:
+                def __init__(self,driver,arguments,output,label,record):
+                    test.assertEqual(arguments,[driver,'capture-series',42,work/'detail-series',45000,33])
+                    self.record=record
+                def start(self):
+                    nonlocal ready
+                    ready,self.rows=test.publish_series(work/'detail-series');return process
+                def finish(self):
+                    finished.append((work/'detail-series/stop').is_file())
+                    self.record['cleaned']=True
+                    if cleanup=='finish':raise RuntimeError('owned helper close failed')
+                    summary={'ok':True,'backend':'WGC-HWND-session','pid':42,'hwnd':'0x123',
+                        'ready_published':True,'session_started':True,'stop_reason':cleanup,'hresult':0,
+                        'color_filter':False,'frames':4,'first_wgc_timestamp_100ns':self.rows[0]['wgc_timestamp_100ns'],
+                        'last_wgc_timestamp_100ns':self.rows[-1]['wgc_timestamp_100ns']}
+                    self.record['summary']=summary
+                    return summary
+            def get_ready(*args):
+                if ready_error is not None:raise ready_error
+                return ready
+            record={'checkpoints':[]};raised=None
+            with patch.object(check,'OwnedHelper',Helper),patch.object(check,'wait_ready',get_ready):
+                try:
+                    with check.detail_series(capture,record):
+                        if body_error is not None:raise body_error
+                except BaseException as error:raised=error
+            return record,raised,finished
+
+    def test_series_preserves_first_body_error_or_cancel_despite_cleanup_failure(self):
+        for error in (TimeoutError('required complete Round missing'),KeyboardInterrupt('cancel fixture')):
+            for cleanup in ('finish','time_limit'):
+                with self.subTest(error=type(error).__name__,cleanup=cleanup):
+                    record,raised,finished=self.series_failure(error,cleanup)
+                    self.assertIs(raised,error)
+                    evidence=record['detail_series']
+                    self.assertEqual(evidence['error'],str(error))
+                    self.assertIn('cleanup_error',evidence)
+                    self.assertTrue(evidence['helper']['cleaned'])
+                    self.assertEqual(finished,[True])
+                    self.assertNotIn('checkpoint_PNGs_bound_to_closed_series',evidence)
+
+    def test_series_clean_body_still_fails_on_time_limit_or_owned_cleanup_error(self):
+        for cleanup in ('finish','time_limit'):
+            with self.subTest(cleanup=cleanup):
+                record,raised,finished=self.series_failure(cleanup=cleanup)
+                self.assertIsInstance(raised,(RuntimeError,AssertionError))
+                evidence=record['detail_series']
+                self.assertEqual(evidence['cleanup_error'],str(raised))
+                self.assertNotIn('error',evidence)
+                self.assertEqual(finished,[True])
+                self.assertNotIn('checkpoint_PNGs_bound_to_closed_series',evidence)
+
+    def test_series_ready_error_is_preserved_and_helper_is_closed(self):
+        first=TimeoutError('ready fixture failed before confirmation')
+        record,raised,finished=self.series_failure(cleanup='finish',ready_error=first)
+        self.assertIs(raised,first)
+        self.assertEqual(finished,[True])
+        self.assertEqual(record['detail_series']['error'],str(first))
+        self.assertEqual(record['detail_series']['cleanup_error'],'owned helper close failed')
+
     def test_single_endpoint_preparation_never_claims_paired_native(self):
         with tempfile.TemporaryDirectory() as directory:
             result=check.run(SimpleNamespace(root=ROOT,artifacts=Path(directory)/'sdl',run=False,kind='sdl'))

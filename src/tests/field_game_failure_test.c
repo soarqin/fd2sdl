@@ -279,7 +279,7 @@ static void fill_notices(fd2_field_game *game, size_t count) {
     for (size_t i = 0; i < count; i++) {
         game->event_log[i].kind = FD2_FIELD_EVENT_TURN;
         game->event_log[i].handled = 1;
-        game->event_log[i].presentation_deferred = 1;
+        game->event_log[i].presentation_deferred = 0;
         game->event_log[i].slot = i;
     }
 }
@@ -297,7 +297,7 @@ static int test_notice_last_slot_and_full_capacity(void) {
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
     CHECK(game.event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY);
     CHECK(game.event_log[FD2_FIELD_EVENT_LOG_CAPACITY - 1].action == 9);
-    CHECK(game.event_log[0].presentation_deferred == 1);
+    CHECK(game.event_log[0].presentation_deferred == 0);
 
     init_game(&game, cells, &attr, &rng);
     keep_player_phase(&game);
@@ -326,15 +326,20 @@ static int test_turn_capacity_before_handler_and_status(void) {
     game.units.items[1].side = 1;
     game.units.items[1].detail_status[0] = 1;
     game.units.items[1].attack_status = 2;
-    game.metadata.turn_events[0] = (fd2_field_turn_event){.turn = 1, .action = 0, .phase = 1};
+    /* 已绑定续态不占log；此处验证未知事件诊断的真容量边界。 */
+    game.metadata.turn_events[0] = (fd2_field_turn_event){.turn = 1, .action = 0xff, .phase = 1};
     fd2_field_units units = game.units;
+    fd2_field_event_notice before[FD2_FIELD_EVENT_LOG_CAPACITY];
+    memcpy(before,game.event_log,sizeof(before));
     CHECK(fd2_field_game_end_active_phase(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_CAPACITY);
     CHECK(game.failure_notice.kind == FD2_FIELD_EVENT_TURN);
+    CHECK(game.failure_notice.action==0xff && game.failure_notice.slot==0);
     CHECK(game.units.count == units.count);
     CHECK(game.units.items[1].hp == units.items[1].hp);
     CHECK(game.units.items[1].attack_status == 2);
     CHECK(game.event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY);
+    CHECK(memcmp(before,game.event_log,sizeof(before))==0);
     CHECK(rng.calls == 0);
     return frozen_after_failure(&game, &rng);
 }
@@ -363,7 +368,16 @@ static int test_unknown_turn_stops_later_events_and_status(void) {
     return frozen_after_failure(&game, &rng);
 }
 
-static int test_turn_execution_failure_stops_later_events(void) {
+static int reject_turn_pan(const fd2_field_game *game,
+        const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,
+        void *userdata) {
+    (void)game; (void)view;
+    if (strcmp(node->op,"pan")) return 0;
+    (*(unsigned *)userdata)++;
+    return -1;
+}
+
+static int test_turn_preflight_failure_stops_later_events(void) {
     fd2_field_game game;
     uint32_t cells[64];
     fd2_terrain_attr attr;
@@ -373,15 +387,25 @@ static int test_turn_execution_failure_stops_later_events(void) {
     game.interaction = FD2_FIELD_INTERACTION_BROWSE;
     game.units.items[1].side = 1;
     game.units.items[1].detail_status[0] = 1;
-    /* 已知 action 0 缺少 group 3 的 placement，应原子拒绝其逻辑部分；
-     * 下一条 unknown action 与 poison tick 都不能继续。 */
+    /* action0的首PAN资源预检失败，尚未进入唯一父PC；
+     * 招募、下一条unknown、毒伤均不能提交。不伪造旧整段事务回滚。 */
+    unsigned pan_checks=0;
+    game.event_preflight=reject_turn_pan;
+    game.event_preflight_userdata=&pan_checks;
+    fd2_field_units before_units=game.units;
+    /* 本headless快速phase-skip先提交当前side的acted，再进入事件预检；
+     * 只允许该已有前缀，不把预检无写误解为回滚caller已提交的acted。 */
+    fd2_field_unit_set_acted(&before_units.items[0],1);
+    fd2_field_unit before_roster[FD2_SAVE_BATTLE_MAX_ROSTER];
+    memcpy(before_roster,game.roster,sizeof(before_roster));
     game.metadata.turn_events[0] = (fd2_field_turn_event){.turn = 1, .action = 0, .phase = 1};
     game.metadata.turn_events[1] = (fd2_field_turn_event){.turn = 1, .action = 0xff, .phase = 1};
     CHECK(fd2_field_game_end_active_phase(&game) == -1);
-    CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_EXECUTION);
-    CHECK(game.failure_notice.action == 0 && game.failure_notice.slot == 0);
-    CHECK(game.event_log_count == 1 && !game.event_log[0].handled);
-    CHECK(game.units.count == 2 && game.units.items[1].hp == 50);
+    CHECK(game.failure == FD2_FIELD_FAILURE_ACTION && pan_checks==1);
+    CHECK(game.failure_notice.unit_index==0 && !game.event_resume.active);
+    CHECK(game.event_log_count==0 && game.event_total_count==0 && !game.roster_count);
+    CHECK(memcmp(&game.units,&before_units,sizeof(before_units))==0);
+    CHECK(memcmp(game.roster,before_roster,sizeof(before_roster))==0 && rng.calls==0);
     CHECK(game.camera_cell_x == 0 && game.camera_cell_y == 0);
     return frozen_after_failure(&game, &rng);
 }
@@ -472,7 +496,7 @@ int main(void) {
         test_notice_last_slot_and_full_capacity() ||
         test_turn_capacity_before_handler_and_status() ||
         test_unknown_turn_stops_later_events_and_status() ||
-        test_turn_execution_failure_stops_later_events() ||
+        test_turn_preflight_failure_stops_later_events() ||
         test_status_recompute_failure_stops_next_actor() ||
         test_ai_commit_failure_does_not_rollback_or_repeat())
         return 1;

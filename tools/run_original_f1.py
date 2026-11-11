@@ -41,9 +41,9 @@ def tile_payload(sheet, index):
 
 def scaled_base(width, height, cells, tiles, palette):
     """独立复现tile跨度0xc00/像素>>7；完整frame预清0源于1399c/1f558。"""
-    if width != 24 or height != 24 or len(cells) != width * height:
-        raise ValueError("本runner仅核实真实stage0的24x24地图")
-    step = 768
+    if not 1 <= width <= 64 or not 1 <= height <= 64 or len(cells) != width * height:
+        raise ValueError("F1原64x64指针表地图域不符")
+    step = 1024 if height > 40 else 768
     start_x, start_y = width * 1536 - 156 * step, height * 1536 - 96 * step
     pixels = bytearray(320 * 200)
     for y in range(192):
@@ -61,6 +61,10 @@ def scaled_base(width, height, cells, tiles, palette):
 
 
 def marker_frames(base, source, focus, bases, width=24, height=24):
+    if not 1 <= width <= 64 or not 1 <= height <= 64:
+        raise ValueError("F1 marker地图域不符")
+    scale = 3 if height > 40 else 4
+    size = scale - 1
     frames, actors = [], []
     for i in range(source[META + 1]):
         record = source[UNITS + i * STRIDE:UNITS + (i + 1) * STRIDE]
@@ -75,15 +79,15 @@ def marker_frames(base, source, focus, bases, width=24, height=24):
     for phase in range(8):
         image = base.copy()
         for index, x, y, side in actors:
-            sx, sy = 4 * x + 160 - 2 * width, 4 * y + 100 - 2 * height
-            image.paste(bases[side] + phase, (sx, sy, sx + 3, sy + 3))
+            sx, sy = scale * x + 160 - scale * width // 2, scale * y + 100 - scale * height // 2
+            image.paste(bases[side] + phase, (sx, sy, sx + size, sy + size))
             if phase == 0:
                 positions.append({"actor": index, "world": [x, y], "side": side, "screen": [sx, sy]})
-        sx, sy = 4 * focus[0] + 160 - 2 * width, 4 * focus[1] + 100 - 2 * height
-        image.paste(24 + phase, (sx, sy, sx + 3, sy + 3))
+        sx, sy = scale * focus[0] + 160 - scale * width // 2, scale * focus[1] + 100 - scale * height // 2
+        image.paste(24 + phase, (sx, sy, sx + size, sy + size))
         frames.append(image)
     return frames, {"actors": positions, "focus_world": list(focus), "focus_screen": [sx, sy],
-                    "focus_drawn_last": True, "marker_size": [3, 3]}
+                    "focus_drawn_last": True, "marker_size": [size, size]}
 
 
 def prepare(original, fixture):

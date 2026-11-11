@@ -128,7 +128,10 @@ def active_load(capture, prepared, save, guard, state, projection, saved, record
     capture.key("LEFT"); checkpoint("b7-stage2-resave-selected",lambda f:menu.secondary(f,1))
     capture.key("ENTER"); checkpoint("b7-stage2-resave-yes",lambda f:menu.buttons(f,0))
     capture.key("ENTER"); measured = wait_measured_save(save,*guard)
-    check = o.check_stage2_active_save(saved,measured,state,projection,saved,prepared["data"])
+    check = o.check_stage2_reloaded_active_save(saved,measured,state,projection,saved,prepared["data"],
+        cache_policy=record["kind"])
+    record["active_load"].update({"full_container_reload_checked":check["full_container_reload_checked"],
+        "loaded_unknown_owner_preserved":check["loaded_unknown_owner_preserved"],"cache_policy":check["cache_policy"]})
     guard[:] = [save.read_bytes(),save.stat().st_mtime_ns]
     path = capture.artifacts/"b7-stage2-reloaded.SAV";path.write_bytes(guard[0])
     record["completed_save"] = {"snapshot":str(path),"sha256":sha(path),"mtime_ns":guard[1],"measurement":check}

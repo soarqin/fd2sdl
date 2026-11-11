@@ -23,7 +23,6 @@ static int ack_progress(fd2_field_game *game) {
         int state=fd2_field_game_progress_peek(game,&notice);
         if(state<0)return -1;
         if(!state) {
-            for(size_t j=0;j<game->event_log_count;j++)game->event_log[j].presentation_deferred=0;
             state=fd2_field_game_progress_resume(game);
             if(state<0)return -1;
             if(!state)return 0;
@@ -222,13 +221,18 @@ static int test_capacity_stops_before_handler(void) {
     init_game(&game, &rng_calls);
     game.units.items[0].hp = 35;
     game.event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY;
+    /* 已绑定common续态不占诊断log；只有未知事件才在失败前保留notice。 */
     game.metadata.turn_events[0] = (fd2_field_turn_event){
-        .turn = 1, .action = 0, .phase = 1};
+        .turn = 1, .action = 0xff, .phase = 1};
+    fd2_field_event_notice before_notices[FD2_FIELD_EVENT_LOG_CAPACITY];
+    memcpy(before_notices,game.event_log,sizeof(before_notices));
     CHECK(end_player_turn_and_ack(&game) == -1);
     CHECK(game.failure == FD2_FIELD_FAILURE_EVENT_CAPACITY);
     CHECK(game.units.items[0].hp == 45 &&
           fd2_field_unit_has_acted(&game.units.items[0]));
     CHECK(game.event_log_count == FD2_FIELD_EVENT_LOG_CAPACITY);
+    CHECK(memcmp(game.event_log,before_notices,sizeof(before_notices))==0);
+    CHECK(game.failure_notice.action==0xff && game.failure_notice.slot==0);
     CHECK(game.event_total_count == 0 && game.units.count == 13);
     CHECK(game.units.items[11].hp == 30 &&
           game.units.items[11].detail_status[0] == 2);
@@ -468,6 +472,58 @@ static int test_runtime_quit_freezes_same_stack(void) {
     return 0;
 }
 
+typedef struct { unsigned info,clear;int stop;uint8_t mode; } caller_info_trace;
+static int caller_info_present(fd2_field_game *game,fd2_field_runtime_present_step step,
+        int value,void *userdata) {
+    caller_info_trace *p=userdata;
+    if(step==FD2_FIELD_RUNTIME_INFO_VISIBLE) {
+        if(value!=1 || game->ordinary_display_mode!=p->mode)return -1;
+        p->info++;return p->stop;
+    }
+    if(step==FD2_FIELD_RUNTIME_CLEAR_KEYS){if(value)return -1;p->clear++;return 0;}
+    return -1;
+}
+
+static int test_info_restore_is_exact_caller_return(void) {
+    for(int caller=1;caller<=3;caller++)for(int ending=0;ending<3;ending++)
+        for(int stop=-1;stop<=1;stop++) {
+        fd2_field_game game;size_t rolls=0;init_game(&game,&rolls);
+        game.active_side=ending?1:2;game.ordinary_display_mode=0;
+        if(ending==1)game.units.items[12].flags=1; /* 合法stage0胜利门。 */
+        if(ending==2)game.units.items[0].hp=0; /* 合法stage0败北门。 */
+        if(caller==3){game.player_post_waiting_phase=1;game.player_post_actor=0;}
+        else game.turn_post_caller=caller==1?FD2_FIELD_TURN_POST_MARCH:FD2_FIELD_TURN_POST_END;
+        caller_info_trace trace={0,0,stop,(uint8_t)(caller==2?0:1)};
+        game.runtime_present=caller_info_present;game.runtime_present_userdata=&trace;
+        fd2_field_units before=game.units;
+        int result=fd2_field_game_resume_player_controller(&game);
+        CHECK(result==(stop<0?-1:stop>0?1:0) && trace.info==1 && !rolls);
+        CHECK(!memcmp(&before,&game.units,sizeof(before)));
+        CHECK(trace.clear==(unsigned)(!stop && caller==3));
+        if(stop) {
+            CHECK((stop>0)==!!game.runtime_host_quit);
+            CHECK((stop<0)==(game.failure!=FD2_FIELD_FAILURE_NONE));
+            CHECK(caller==3?game.player_post_waiting_phase:
+                game.turn_post_caller==(caller==1?FD2_FIELD_TURN_POST_MARCH:FD2_FIELD_TURN_POST_END));
+        } else CHECK(!game.player_post_waiting_phase && game.turn_post_caller==FD2_FIELD_TURN_POST_NONE);
+    }
+    /* 没有真正caller、未完成AI phase、已失败或已hostquit，都不恢复门。 */
+    for(int mode=0;mode<5;mode++) {
+        fd2_field_game game;size_t rolls=0;init_game(&game,&rolls);
+        caller_info_trace trace={0};game.runtime_present=caller_info_present;game.runtime_present_userdata=&trace;
+        game.ordinary_display_mode=0;
+        if(mode)game.turn_post_caller=FD2_FIELD_TURN_POST_END;
+        if(mode==1)game.active_side=1;
+        if(mode==2)game.failure=FD2_FIELD_FAILURE_EVENT_DATA;
+        if(mode==3)game.runtime_host_quit=1;
+        if(mode==4)game.turn_post_caller=(fd2_field_turn_post_caller)3;
+        fd2_field_game before=game;
+        CHECK(fd2_field_game_resume_player_controller(&game)==(mode==2 || mode==4?-1:mode?1:0));
+        CHECK(!trace.info && !trace.clear && !rolls && !memcmp(&before,&game,sizeof(game)));
+    }
+    return 0;
+}
+
 int main(void) {
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
@@ -480,7 +536,8 @@ int main(void) {
         test_poison_focus_uses_raw_order_even_for_zero_hp_or_damage() ||
         test_status_expiration_focus_and_failure_order() ||
         test_poison_bad_focus_stops_after_hp_write() ||
-        test_runtime_quit_freezes_same_stack())
+        test_runtime_quit_freezes_same_stack() ||
+        test_info_restore_is_exact_caller_return())
         return 1;
     puts("field_turn_test: ok");
     return 0;

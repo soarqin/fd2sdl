@@ -373,7 +373,8 @@ static int test_options_toggle_is_menu_local(void) {
     fd2_field_game game;
     test_rng rng = {0x13579bdfu, 0};
     init_game(&game, &rng);
-    /* 原配置按字节恢复；显示按非零判断，未触及项必须保留原值。 */
+    /* 原配置按字节恢复；前两项按==0归一翻转，后两项XOR1。
+     * 四项均有正式caller；未触及项必须保留原值。 */
     game.option_values[0] = 2;
     game.option_values[1] = 255;
     game.option_values[2] = 7;
@@ -386,11 +387,11 @@ static int test_options_toggle_is_menu_local(void) {
           FD2_FIELD_SYSTEM_ACTION_OPEN_OPTIONS);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING);
-    CHECK(game.system_menu.option_values[0] == 1);
-    CHECK(game.system_menu.command_ids[0] == 18);
-    CHECK(game.option_values[0] == 3); /* 原2 XOR1，不将raw非零折成0。 */
+    CHECK(game.system_menu.option_values[0] == 0);
+    CHECK(game.system_menu.command_ids[0] == 19);
+    CHECK(game.option_values[0] == 0);
     CHECK(game.option_values[1] == before.option_values[1]);
-    CHECK(!game.system_menu.disabled[2] && game.system_menu.disabled[3]);
+    for (size_t i=0;i<FD2_FIELD_SYSTEM_MENU_COUNT;i++) CHECK(!game.system_menu.disabled[i]);
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_RIGHT) == 1);
     CHECK(game.option_values[2] == before.option_values[2]);
@@ -401,14 +402,19 @@ static int test_options_toggle_is_menu_local(void) {
 
     CHECK(fd2_field_game_confirm_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING);
     CHECK(game.option_values[2] == 6 && game.system_menu.command_ids[2] == 23);
-    CHECK(fd2_field_game_select_system_menu_direction(&game, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 0);
+    CHECK(fd2_field_game_select_system_menu_direction(&game, FD2_FIELD_COMMAND_DIRECTION_DOWN) == 1);
+    CHECK(game.system_menu.selected==3);
     CHECK(game.option_values[3] == 0xa5);
+    CHECK(fd2_field_game_confirm_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING);
+    CHECK(game.option_values[3] == 0xa4 && game.system_menu.command_ids[3] == 24);
 
     CHECK(fd2_field_game_select_system_menu_direction(
               &game, FD2_FIELD_COMMAND_DIRECTION_LEFT) == 1);
     CHECK(fd2_field_game_confirm_system_menu(&game) ==
           FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING);
-    CHECK(game.option_values[0] == 3 && game.option_values[1] == 254 && game.option_values[2] == 6);
+    CHECK(game.option_values[0] == 0 && game.option_values[1] == 0 &&
+          game.option_values[2] == 6 && game.option_values[3] == 0xa4);
+    CHECK(game.system_menu.command_ids[0]==19 && game.system_menu.command_ids[1]==21);
     CHECK(fd2_field_game_cancel_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_BACK);
     CHECK(fd2_field_game_cancel_system_menu(&game) == FD2_FIELD_SYSTEM_ACTION_CANCEL);
     CHECK(game.interaction == FD2_FIELD_INTERACTION_BROWSE);
@@ -416,6 +422,7 @@ static int test_options_toggle_is_menu_local(void) {
     normalized.option_values[0] = before.option_values[0];
     normalized.option_values[1] = before.option_values[1];
     normalized.option_values[2] = before.option_values[2];
+    normalized.option_values[3] = before.option_values[3];
     CHECK(business_state_unchanged(&normalized, &before));
     CHECK(rng.calls == 0 && rng.state == 0x13579bdfu);
     fd2_field_game_close(&game);

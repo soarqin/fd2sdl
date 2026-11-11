@@ -111,10 +111,11 @@ static int trace_runtime(fd2_field_game *game,fd2_field_runtime_present_step ste
     return play_runtime_step(game,step,value,userdata);
 }
 static const fd2_static_flow_node defeat_nodes[]={
-    {.id="death",.op="finalize_defeated",.edges={1,-1,-1,-1,-1,-1,-1,-1}},
+    {.id="start",.op="clear_keys",.edges={1,-1,-1,-1,-1,-1,-1,-1}},
+    {.id="death",.op="finalize_defeated",.edges={2,-1,-1,-1,-1,-1,-1,-1}},
     {.id="done",.op="end",.edges={-1,-1,-1,-1,-1,-1,-1,-1}}
 };
-static const fd2_static_flow defeat_flow={"test.defeat.actual-owner",defeat_nodes,2,0};
+static const fd2_static_flow defeat_flow={"test.defeat.actual-owner",defeat_nodes,3,0};
 
 static void reset_case(fd2_field_game *game,fd2_vga *vga,field_runtime_presentation *runtime,
     const fd2_field_units *original) {
@@ -139,13 +140,14 @@ static void reset_case(fd2_field_game *game,fd2_vga *vga,field_runtime_presentat
     CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,initial,FD2_FIELD_PAGE_SIZE,456)==0);free(initial);
 }
 static int run_case(fd2_field_game *game) {
-    /* public resume只接旧notice已经ACK后的waiting_legacy返回点。 */
-    game->event_resume=(fd2_field_event_resume){.flow=&defeat_flow,.pc=0,.actor=0,.active=1,.waiting_legacy=1};
-    int result=fd2_field_game_common_event_resume(game);
+    /* 夹具在有限clear叶暂停；正式reply推进原PC后进入完整defeat。
+     * 不借已删除的旧Scene重放返回口，业务与视觉仍由实际consumer执行。 */
+    game->event_resume=(fd2_field_event_resume){.flow=&defeat_flow,.pc=0,.actor=0,.active=1};
+    int result=fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT);
     if(result<0 || (game->event_resume.active && !game->runtime_host_quit))
-        fprintf(stderr,"defeat common result=%d failure=%d quit=%u active=%u pc=%d waiting=%u frames=%u refresh=%u cue=%u live=%u/%u\n",
+        fprintf(stderr,"defeat common result=%d failure=%d quit=%u active=%u pc=%d frames=%u refresh=%u cue=%u live=%u/%u\n",
             result,(int)game->failure,game->runtime_host_quit,game->event_resume.active,
-            game->event_resume.pc,game->event_resume.waiting_legacy,frames,refreshes,cue_steps,live_images,live_pages);
+            game->event_resume.pc,frames,refreshes,cue_steps,live_images,live_pages);
     return result;
 }
 static void expected_image(uint8_t *page,const fd2_image *image,int x,int y) {
@@ -239,7 +241,12 @@ int main(void) {
         reset_case(game,vga,&runtime,&original);frame_pages=trace;quit_at=stops[i];
         CHECK(run_case(game)>=0 && game->runtime_host_quit && !game->failure);
         CHECK(frames==stops[i] && !refreshes && !runtime.defeat && !live_images && !live_pages && !rng_calls);
-        CHECK(game->event_resume.active && game->event_resume.pc==0);
+        CHECK(game->event_resume.active && game->event_resume.flow==&defeat_flow &&
+            game->event_resume.pc==1 &&
+            !strcmp(defeat_flow.nodes[game->event_resume.pc].op,"finalize_defeated"));
+        *saved_game=*game;
+        CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT)==-1 &&
+            !memcmp(game,saved_game,sizeof(*game)) && !rng_calls);
         read_page(vga->field_page,actual);CHECK(!memcmp(actual,trace+(frames-1u)*FD2_FIELD_PAGE_SIZE,FD2_FIELD_PAGE_SIZE));
         CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,&runtime)==0 && !runtime.defeat);
     }

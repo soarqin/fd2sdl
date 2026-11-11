@@ -32,7 +32,9 @@ static uint32_t rng(void *data) {
         f->observed_mp[index] = actor->mp;
         f->observed_target_hp[index] = f->game.units.items[1].hp;
     }
-    if (!index && f->corrupt_cell) f->cells[6 * 24 + 6] = 1;
+    if(!index && f->corrupt_cell==1)f->cells[6*24+6]=1;
+    if(!index && f->corrupt_cell==2)
+        f->game.metadata.turn_events[0]=(fd2_field_turn_event){7,9,1};
     return f->rolls[index % 8];
 }
 
@@ -226,11 +228,11 @@ static int test_post_commit_failure_keeps_effect_consumption_and_acted(void) {
         g->units.items[0].experience = 99;
         if (phase) {
             g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
-            g->metadata.turn_events[0] = (fd2_field_turn_event){7,0,1};
+            f.corrupt_cell=2; /* 先通过合法空turn表，首RNG后才破坏后续绑定。 */
         } else f.corrupt_cell = 1; /* 首RNG后注入后段cell错误，不是预检遗漏。 */
         CHECK(target(&f, 0) == 0);
         CHECK(fd2_field_game_resolve_player_item(g) == -1);
-        CHECK(g->failure == (phase ? FD2_FIELD_FAILURE_EVENT_EXECUTION : FD2_FIELD_FAILURE_EVENT_DATA));
+        CHECK(g->failure == (phase ? FD2_FIELD_FAILURE_EVENT_UNSUPPORTED : FD2_FIELD_FAILURE_EVENT_DATA));
         CHECK(g->units.items[0].hp == 42 && g->units.items[0].mp == 0 && g->units.items[0].experience == 99);
         CHECK(fd2_field_unit_has_acted(&g->units.items[0]) && f.calls == 1);
         fd2_field_unit expected = g->units.items[0];

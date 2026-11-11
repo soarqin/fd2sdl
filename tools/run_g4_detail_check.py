@@ -153,28 +153,36 @@ def detail_series(capture,record):
     record['detail_series']=output
     helper=OwnedHelper(capture.driver,[capture.driver,'capture-series',capture.process.pid,
         directory,45000,33],capture.artifacts,'detail-series-helper',helper_record)
-    ready=None
+    ready=None;first_error=None
     try:
         process=helper.start();ready=wait_ready(directory/'ready.json',process,capture.process)
         if ready.get('pid')!=capture.process.pid or not ready.get('hwnd'):raise ValueError('详情持续WGC ready owner不同')
         output['ready']=ready
         yield {'directory':directory,'ready':ready,'process':process,'after':None}
+    except BaseException as error:
+        first_error=error
+        output['error']=str(error)
+        raise
     finally:
-        if directory.is_dir():(directory/'stop').touch()
-        summary=helper.finish()
-        if ready is not None:
-            frames=series_index(directory,summary,ready,capture.process.pid)
-            output.update(summary=summary,frames=frames)
-            for point in record['checkpoints']:
-                source=point.get('series_frame')
-                if source is None:continue
-                index=source['index']
-                if index>=len(frames) or any(source.get(k)!=frames[index].get(k)
-                    for k in ('pid','hwnd','path','sha256','wgc_timestamp_100ns')):
-                    raise AssertionError('详情检查点不是本轮关闭series中同一原PNG')
-                if sha(point['normalized_PNG']['path'])!=point['normalized_PNG']['sha256']:
-                    raise AssertionError('详情归一检查图在采集期间改变')
-            output['checkpoint_PNGs_bound_to_closed_series']=True
+        try:
+            if directory.is_dir():(directory/'stop').touch()
+            summary=helper.finish()
+            if ready is not None:
+                frames=series_index(directory,summary,ready,capture.process.pid)
+                output.update(summary=summary,frames=frames)
+                for point in record['checkpoints']:
+                    source=point.get('series_frame')
+                    if source is None:continue
+                    index=source['index']
+                    if index>=len(frames) or any(source.get(k)!=frames[index].get(k)
+                        for k in ('pid','hwnd','path','sha256','wgc_timestamp_100ns')):
+                        raise AssertionError('详情检查点不是本轮关闭series中同一原PNG')
+                    if sha(point['normalized_PNG']['path'])!=point['normalized_PNG']['sha256']:
+                        raise AssertionError('详情归一检查图在采集期间改变')
+                output['checkpoint_PNGs_bound_to_closed_series']=True
+        except BaseException as error:
+            output['cleanup_error']=str(error)
+            if first_error is None:raise
 
 
 def series_checkpoint(capture,scope,name,predicate,points,timeout=45):

@@ -257,3 +257,37 @@ FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e71
 该差分逐次记录原机器码的 HP／贡献内存写；C 侧观察每次 RNG 前状态以及 TARGET／FINISH 边界，没有逐次 C 内存写 trace，也未调用 renderer。报告中的目录外 DRAW 数仅为原请求，C 的省绘制由独立 FX／renderer 测试验证。
 
 普通玩家WAIT与AI恢复共用13fd4，但背景上下文不同：12cea入口无条件11cac，玩家COMMAND/selected/side2的既有同步caller在非零option3时保常驻板；END整轮抑制门关闭AI信息板。本次只用局部exchange沿现有caller辨别，不新建Game字段或SAV；G4仍须完成全局设置／抑制门。SHORT初始HP条1e7f6只写VGA，无独立等待或翻页；SDL省去该处多余的零时长上传，首STRIKE统一上传HP条、实体64与FX6后保持原80ms。
+
+## 10. G5 正常库存来源闭包补证
+
+G2 的初始库存检查仍保留 `source_operations_preservation_proven=false` 的历史身份。G5 另以 Domain 全函数／xref 和原机器码补核，未靠修改旧报告布尔值取得结论，也未扩大产品支持门。
+
+库存是 80B record 的 `+0x0a..+0x19` 八个 raw pair。正常初始化／操作来源中存在 n∈0..8：前 n 槽 flag 为 0 或 0x40，其余为 0x80；可见 ID 有原物品表记录，空槽 stale ID 无须清零。独立基底为原 32×24B 初始表、1,887 条有效 FDFIELD 模板，以及 checksum 正确的原 START 活动12／持久4条；未用记录、12条资源尾不作为已初始化基底。
+
+| 完整来源 | 对库存与 count 的已核写入 |
+|---|---|
+| `field_unit_stage_template_append @0x10c50`、`0x112a5` | 仅两构造器初始化逐槽 flags／ID；构造完成后才增加 active／roster count |
+| `field_unit_inventory_item_append @0x1bb8c` | 找首 hidden 槽，整 flag=0 后写 ID；满包拒绝且无写 |
+| `field_unit_inventory_slot_remove @0x1b8e7` | 后续完整 pair 前移，末 flag=0x80，保末 stale ID |
+| `field_unit_equipment_slot_set @0x1c142` | 对同武器／护具组已装备槽清整 flag=0，再 selected flag=0x40；合法 selected 是可见 raw 槽 |
+| `0x1088d／0x11506／0x2b777／0x2b843` | 部署、同步和稳定排序复制已满足前提的整记录；准备借用的是同一持久 owner。隐藏占位整80B清零生成八个可见 item0，仍满足此性质，不能误称空包 |
+| `0x10010／0x25ebb／0x2986f` 及 SAV writer | 恢复正常来源生成的记录，保其未知字节；active count 的3个写点和 roster count 的5个写点均已归属，不会单靠增 count 暴露未初始化槽 |
+
+实际审查读集为 205 个完整函数／99,318 原字节、两记录 owner 的 262／28 个 xref，并核五个直接 writer 的 caller、整记录复制及 count 写点。来源统一为 strict relocated SHA256 `8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1`，没有按 offset 搜索未命中就假定无写。UI、评分、派生和非记录缓冲的同值 offset 已按实际基址区分；`0x28f65` 本次反编译失败仍用完整指令／CFG 和既有成功来源，不称新反编译通过。
+
+`tools/ida/g5_inventory_source_evidence.py` 通过 Domain 只读提取固定读集；`tools/ida/verify_fd2_inventory_closure.py` 拒绝缺项、xref／caller／chunk／原字节变化，并执行原 append／remove／equip／ID getter。实际 23,049 向量覆盖 count0..8、可见0／40组合、所有合法 selected 与 ID 类；只替换栈检查和 libc memmove，检查整80B非库存区不写及正常性质保持。七项纯负例另通过。收据为 `build/g5/inventory-source-closure.json`（SHA256 `284b5dff3fad9adc1c470e7bbf8b6bd8923ee17957cd9833faeba6fe5659c673`），Domain 读集为 `build/g5/inventory-domain-evidence.json`（SHA256 `bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3`）。大型原字节读集不提交，脚本可按 IDA 规范重新生成；不是刷新摘要后自动重证。
+
+原 `flags=0xc0` 外部反例也确实执行：equip 能把 hidden40 清成0并产生洞。这限定结论于原模板／START／已核正常操作及其生成的 SAV；不能推广到任意手改或畸形外部档，也不因该域外反例禁用正常库存服务。CPU／xref 证据不包含 UI 输入、等待 RNG、音画或 DOSBox 运行，G3 代表与 G5 全历史回归继续分账；G5 尚未因此完成。
+
+Windows（PowerShell）：
+
+```powershell
+uv run --no-project --with unicorn python tools/ida/verify_fd2_inventory_closure.py --original original_game --image E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin --evidence build/g5/inventory-domain-evidence.json --output build/g5/inventory-source-closure-NEW.json
+python -B -m unittest discover -s tools/tests -p test_inventory_closure.py -v
+```
+
+Linux 使用本地合法 strict 镜像及 `python3` 执行同参数；本轮未执行 Linux。
+
+## 11. G5 统一签核索引（2026-11-11）
+
+本页各静态、局部原码和运行证据保留自身有效域；其后 G5 已完成本轮审查和当前 Windows 历史回归，最终 C03—C12／C15／C24 等门见[审计 §13](../plans/common-logic-audit.md)。§10 的正常库存闭包不扩大为任意外部 C0／洞存档；fresh 新建未写9B和 Loaded 本端完整保留仍分开，未确认全游戏读者不称无语义，也不默认转为 S。

@@ -1001,13 +1001,92 @@ def execute_end(capture, assets, at, source, report, checkpoint, prefix):
     capture.key("ENTER"); checkpoint(prefix + "-end-parent", lambda frame: oracle.menu(frame, 0))
     capture.key("DOWN"); checkpoint(prefix + "-end-selected", lambda frame: oracle.menu(frame, 3))
     capture.key("ENTER"); checkpoint(prefix + "-end-default-yes", lambda frame: oracle.buttons(frame, 0))
-    capture.key("ENTER")
     if report.get("kind", "original") == "original":
-        def banner(frame):
-            found = match_indexed(frame, assets["give"]["end_banner"], (120, 84))
-            return dict(kind="round_banner", turn=2, **found) if found["ok"] else None
-        _, report["native_round_banner"] = wait_state(capture, prefix + "-round-002", banner, [], timeout=90)
+        from run_original_battle_animation import OwnedHelper, wait_ready, latest_series_frame, series_index
+        from run_original_comparison import normalize, require_content
+        directory = capture.artifacts / (prefix + "-round-002-series")
+        if directory.exists():
+            raise ValueError("END持续WGC目录已存在，禁止覆盖；未发最终确认")
+        record = {"directory": str(directory), "status": "failed", "helper": {},
+            "requested_interval_ms": 32, "capture_backend": "Windows.Graphics.Capture HWND"}
+        report["end_round_capture"] = record
+        helper = OwnedHelper(capture.driver,
+            [capture.driver, "capture-series", capture.process.pid, directory, 120000, 32],
+            capture.artifacts, prefix + "-round-series-helper", record["helper"])
+        ready = witness = after = detail = None
+        first_error = None
+        try:
+            process = helper.start()
+            ready = wait_ready(directory / "ready.json", process, capture.process)
+            if ready.get("pid") != capture.process.pid or not ready.get("hwnd"):
+                raise AssertionError("END持续WGC ready owner不同；未发最终确认")
+            record["ready"] = ready
+            record["confirmation_after_ready"] = True
+            capture.key("ENTER")  # 唯一END确认；阻塞投键期间的570ms横幅由既有session保留。
+            deadline = time.monotonic() + 90
+            while time.monotonic() < deadline and witness is None:
+                latest = latest_series_frame(directory, ready, capture.process.pid, after)
+                if latest is not None:
+                    last, _ = latest
+                    complete = [line for line in (directory / "frames.jsonl").read_bytes().splitlines(keepends=True)
+                                if line.endswith(b"\n")]
+                    # latest已核整段owner/顺序；逐帧消费积压，不能只看最新浏览帧。
+                    for index in range(after["index"] + 1 if after else 0, last["index"] + 1):
+                        row = json.loads(complete[index])
+                        path = directory / row["file"]
+                        with Image.open(path) as image:
+                            if image.format != "PNG" or image.size != (row["client_width"], row["client_height"]):
+                                raise AssertionError("END持续WGC PNG格式/尺寸不同")
+                            frame = normalize(image)
+                        after = {**row, "path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                        capture.last = frame
+                        found = match_indexed(frame, assets["give"]["end_banner"], (120, 84))
+                        if found["ok"]:
+                            require_content(frame)
+                            witness = after
+                            detail = dict(kind="round_banner", turn=2, **found,
+                                cancellation_notice_observed=False, wgc_transient_retries=0, series_frame=witness)
+                            frame.save(capture.artifacts / (prefix + "-round-002.png"))
+                            break
+                if witness is None:
+                    if capture.process.poll() is not None or process.poll() is not None:
+                        raise RuntimeError("END目标或持续WGC在完整横幅前退出；未发送额外按键")
+                    time.sleep(.01)
+            if witness is None:
+                if capture.last is not None:
+                    capture.last.save(capture.artifacts / (prefix + "-round-002-timeout.png"))
+                raise TimeoutError("等待END完整Round 002资源超时；未发送额外按键")
+        except BaseException as error:
+            first_error = error
+            record["error"] = str(error)
+            raise
+        finally:
+            cleanup_error = None
+            try:
+                if directory.is_dir():
+                    (directory / "stop").touch()
+            except BaseException as error:
+                cleanup_error = error
+            try:
+                summary = helper.finish()
+                if ready is not None:
+                    record.update(summary=summary, frames=series_index(directory, summary, ready, capture.process.pid))
+                    if witness is not None:
+                        closed = record["frames"][witness["index"]]
+                        if any(closed.get(key) != witness.get(key) for key in
+                                ("pid", "hwnd", "path", "sha256", "wgc_timestamp_100ns")):
+                            raise AssertionError("END横幅不是同一已关闭series的原PNG")
+                        record["witness_bound_to_closed_series"] = True
+            except BaseException as error:
+                cleanup_error = cleanup_error or error
+            if cleanup_error is not None:
+                record["cleanup_error"] = str(cleanup_error)
+                if first_error is None:
+                    raise cleanup_error
+        report["native_round_banner"] = detail
+        record["status"] = "passed"
     else:
+        capture.key("ENTER")
         from field_play_input_test import wait_log
         text = wait_log(capture.process, capture.artifacts / "game.log", "field phase: turn=2 phase=2 ", timeout=90)
         check_round_phase_log(text)
@@ -2005,10 +2084,11 @@ def run(args):
             report["excluded"] = report["excluded"].removeprefix("SDL pairing; ").removeprefix("SDL pairing, ")
             report["scope"] = report["scope"].replace("original-only ", "")
             report["paired_scope"] = "original first, cleanup+guards, then SDL; exact per-end resource gates and shared static RGB <=3 only"
+        import run_original_battle_animation  # 窗口启动前绑定END持续WGC的实际本地import闭包。
         report["tool_sources"] = {name: {"path": str(Path(module.__file__).resolve()),
             "sha256": hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()}
-            for name in ("fd2_item_list_oracle", "run_original_comparison", "run_original_player", "run_original_magic_list")
-            for module in (sys.modules[name],)}
+            for name, module in tuple(sys.modules.items()) if getattr(module, "__file__", None)
+            and Path(module.__file__).resolve().is_relative_to(Path(__file__).resolve().parent)}
         report["tool_sources"]["run_original_item_list"] = {"path": str(Path(__file__).resolve()),
             "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
         for name, (at, image) in templates.items():

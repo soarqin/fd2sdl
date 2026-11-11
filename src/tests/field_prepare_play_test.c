@@ -5,6 +5,8 @@
 #include <string.h>
 #include "test_temp.h"
 #include "field_prepare_play.h"
+#include "field_visual.h"
+#include "static_data.h"
 
 Uint64 SDLCALL prepare_test_ticks(void);
 void prepare_test_present(fd2_vga *vga);
@@ -19,6 +21,10 @@ static int prepare_test_state_save(const char *path, size_t slot,
 static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *assets,
     const fd2_font *font, const fd2_text_entry *text,
     const fd2_field_unit *unit, int selected);
+static int prepare_test_water(fd2_vga *vga, uint64_t now);
+static void prepare_test_clear_keys(fd2_input *input);
+static void prepare_test_brightness(fd2_vga *vga,int value);
+static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const char *identity);
 
 #define SDL_GetTicks prepare_test_ticks
 #define fd2_vga_present prepare_test_present
@@ -29,6 +35,10 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 #define fd2_bgm_set_music_enabled prepare_test_bgm_option
 #define fd2_save_manual_state_save prepare_test_state_save
 #define fd2_field_magic_list_draw prepare_test_magic_draw
+#define fd2_field_water_tick prepare_test_water
+#define fd2_input_clear_keys prepare_test_clear_keys
+#define fd2_vga_set_brightness prepare_test_brightness
+#define fd2_static_flow_lookup prepare_test_flow_lookup
 #include "../field_prepare_play.c"
 #undef SDL_GetTicks
 #undef fd2_vga_present
@@ -39,6 +49,10 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 #undef fd2_bgm_set_music_enabled
 #undef fd2_save_manual_state_save
 #undef fd2_field_magic_list_draw
+#undef fd2_field_water_tick
+#undef fd2_input_clear_keys
+#undef fd2_vga_set_brightness
+#undef fd2_static_flow_lookup
 
 #define CHECK(expr) do { if (!(expr)) { fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #expr); return 1; } } while (0)
 
@@ -76,6 +90,12 @@ static int sound_loops[32];
 static float sound_last_gain;
 static unsigned magic_draw_calls, fail_magic_draw_call, state_save_calls;
 static int probe_title, title_background_ok, title_palette_ok;
+static unsigned water_calls;
+static unsigned clear_calls, quit_on_clear, frames_at_clear[8];
+static unsigned town_script_origin,town_bootstrap_pending,town_fade_count;
+static int town_fade_values[65],town_bad_pixels,town_pending_at_clear,town_first_black;
+static unsigned town_bootstrap_frames,town_inject_early,town_quit_frame;
+static const uint8_t *town_expected_pixels;
 static uint8_t expected_title_palette[VGA_PALETTE_SIZE];
 static int slot_upper_probe,slot_upper_changed;
 static uint8_t slot_upper_before[112u*VGA_W];
@@ -103,14 +123,45 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
     if (++magic_draw_calls == fail_magic_draw_call) return -1;
     return fd2_field_magic_list_draw(vga, assets, font, text, unit, selected);
 }
+static int prepare_test_water(fd2_vga *vga, uint64_t now) {
+    water_calls++;
+    return fd2_field_water_tick(vga, now);
+}
+static void prepare_test_clear_keys(fd2_input *input) {
+    if(town_bootstrap_pending)town_pending_at_clear=fd2_input_has_any_key(input);
+    fd2_input_clear_keys(input);
+    if(town_bootstrap_pending){town_script_origin=frame_number;town_bootstrap_pending=0;}
+    if(clear_calls<8u)frames_at_clear[clear_calls]=frame_number;
+    if(++clear_calls==quit_on_clear)input->quit_requested=1;
+}
+static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const char *identity) {
+    const fd2_static_flow *flow=fd2_static_flow_lookup(domain,identity);
+    if(flow && !strcmp(domain,"preparation") && !strcmp(identity,"town.bootstrap"))town_bootstrap_pending=1;
+    return flow;
+}
+static void prepare_test_brightness(fd2_vga *vga,int value) {
+    fd2_vga_set_brightness(vga,value);
+    if(town_bootstrap_pending){
+        if(town_fade_count<65u)town_fade_values[town_fade_count]=value;
+        town_fade_count++;
+    }
+}
 
 Uint64 SDLCALL prepare_test_ticks(void) { return clock_ms; }
 void prepare_test_present(fd2_vga *vga) {
     clock_ms += 16; frame_number++;
+    unsigned script_frame=frame_number-town_script_origin;
     if(slot_upper_probe && memcmp(vga->framebuffer,slot_upper_before,sizeof(slot_upper_before)))slot_upper_changed=1;
     memset(vga->input.test_key_state, 0, sizeof(vga->input.test_key_state));
-    for (size_t i = 0; i < pulse_count; i++) if (pulses[i].frame == frame_number)
+    for (size_t i = 0; !town_bootstrap_pending && i < pulse_count; i++) if (pulses[i].frame == script_frame)
         fd2_input_set_test_key_state(&vga->input, pulses[i].key, 1);
+    if(town_bootstrap_pending){
+        town_bootstrap_frames++;
+        if(town_expected_pixels && memcmp(vga->framebuffer,town_expected_pixels,VGA_W*VGA_H))town_bad_pixels=1;
+        if(town_bootstrap_frames==1u){town_first_black=1;for(size_t i=0;i<sizeof(vga->dac);i++)if(vga->dac[i])town_first_black=0;}
+        if(town_inject_early && town_bootstrap_frames==1u)fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_SPACE,1);
+        if(town_quit_frame && town_bootstrap_frames==town_quit_frame)vga->input.quit_requested=1;
+    }
     /* 以原YES/NO两完整raw资源到达最终位置为响应门；不猜文字耗时或延长
      * 固定帧脉冲。只用于已明确进入出阵confirm的测试，命中后单次投递。 */
     if(confirm_probe_assets && probe_image(vga,&confirm_probe_assets->commands.frames[49],232,168) &&
@@ -129,14 +180,15 @@ void prepare_test_present(fd2_vga *vga) {
         if(page){service_route_product_hits++;vga->input.quit_requested=1;}
     }
     fd2_input_begin_test_frame(&vga->input, clock_ms);
-    if (probe_title && frame_number == 70) {
+    if (probe_title && script_frame == 70) {
         title_background_ok = 1;
         for (size_t i = 0; i < 112u * 320u; i++) if (vga->framebuffer[i] != 0) title_background_ok = 0;
         title_palette_ok = memcmp(vga->palette, expected_title_palette, VGA_PALETTE_SIZE) == 0;
         for (size_t i = 0; i < VGA_PALETTE_SIZE; i++)
             if (vga->dac[i] != (uint8_t)((expected_title_palette[i] << 2) | (expected_title_palette[i] >> 4))) title_palette_ok = 0;
     }
-    if ((quit_frame && frame_number == quit_frame) || frame_number > (service_exact_time ? 6000u:150u))
+    if ((!town_bootstrap_pending && quit_frame && script_frame == quit_frame) ||
+            script_frame > (service_exact_time ? 6000u:150u))
         vga->input.quit_requested = 1;
 }
 void prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
@@ -158,6 +210,11 @@ int fd2_field_play_request_music(fd2_field_play_context *context,
 
 static void controls(fd2_vga *vga) {
     fd2_input_init(&vga->input); clock_ms = 0; frame_number = quit_frame = 0;
+    water_calls = 0;
+    clear_calls=quit_on_clear=0;memset(frames_at_clear,0,sizeof(frames_at_clear));
+    town_script_origin=town_bootstrap_pending=town_fade_count=town_bootstrap_frames=town_inject_early=town_quit_frame=0;
+    town_expected_pixels=NULL;town_bad_pixels=town_pending_at_clear=town_first_black=0;
+    memset(town_fade_values,0,sizeof(town_fade_values));
     pulse_count = music_count = 0; memset(pulses, 0, sizeof(pulses));
     memset(music_stages, 0, sizeof(music_stages));
     fail_frame_allocation_at = sound_calls = fail_sound_call = 0;
@@ -501,12 +558,12 @@ static int member_pages(fd2_archive *fdother, fd2_field_prepare_assets *a,
     audio.player=&player;audio.ui_bank=&bank;ui.audio=&audio;
     uint8_t before[VGA_W * VGA_H];
     memset(vga->framebuffer, 0x63, sizeof(vga->framebuffer)); memcpy(before, vga->framebuffer, sizeof(before));
-    controls(vga); pulse(12, SDL_SCANCODE_ESCAPE);
+    controls(vga); pulse(13, SDL_SCANCODE_ESCAPE); /* 17ee8在第12帧后清队。 */
     CHECK(member_detail(&ui, 0) == 0);
     CHECK(sound_calls==4u && sound_samples[0]==5u && sound_samples[1]==5u &&
         sound_samples[2]==6u && sound_samples[3]==6u);
     CHECK(memcmp(before, vga->framebuffer, sizeof(before)) == 0);
-    controls(vga); pulse(12, SDL_SCANCODE_ESCAPE); pulse(27, SDL_SCANCODE_ESCAPE);
+    controls(vga); pulse(13, SDL_SCANCODE_ESCAPE); pulse(27, SDL_SCANCODE_ESCAPE);
     CHECK(member_detail(&ui, 1) == 0); /* unit9必须经过未选中MAGIC页再关闭。 */
     CHECK(memcmp(before, vga->framebuffer, sizeof(before)) == 0);
     CHECK(memcmp(&context.preparation, state, sizeof(*state)) == 0 && context.experience_value == 321);
@@ -535,13 +592,22 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
     /* 首次读键已经成功后，关页／翻页失败仍须返回ERROR，不能沿用0。
      * 等待RNG是合法UI副作用；这里锁准备表、贡献owner与零storage提交。 */
     for (unsigned fault = 0; fault < 5; fault++) {
-        controls(vga); pulse(12, SDL_SCANCODE_ESCAPE); pulse(27, SDL_SCANCODE_ESCAPE);
+        controls(vga); pulse(13, SDL_SCANCODE_ESCAPE); pulse(27, SDL_SCANCODE_ESCAPE);
         if (fault < 4) {
             const unsigned late_cues[4]={3u,3u,4u,5u};
             fail_sound_call=late_cues[fault]; /* 新两次open cue后，关全页/翻页才失败。 */
         }
         else fail_magic_draw_call = 2;
         CHECK(member_detail(&ui, fault == 0 ? 0u : 1u) == -1);
+        /* 关闭cue在phase0而非phase1：它失败时尚未present首个关闭帧。 */
+        const unsigned error_frames[5]={13u,13u,21u,28u,21u};
+        if(frame_number!=error_frames[fault] || vga->input.quit_requested || clear_calls!=1u || frames_at_clear[0]!=12u)
+            fprintf(stderr,"detail late fault=%u frames=%u expected=%u quit=%u clear=%u at=%u sounds=%u magic=%u\n",
+                fault,frame_number,error_frames[fault],vga->input.quit_requested,clear_calls,frames_at_clear[0],sound_calls,magic_draw_calls);
+        CHECK(frame_number==error_frames[fault]);
+        CHECK(!vga->input.quit_requested);
+        CHECK(clear_calls==1u && frames_at_clear[0]==12u);
+        CHECK(fault<4 ? sound_calls==fail_sound_call:magic_draw_calls==2u);
         CHECK(state_save_calls == 0 && music_count == 0);
         CHECK(context.has_preparation && context.experience_value == 321 &&
               memcmp(&context.preparation, state, sizeof(*state)) == 0);
@@ -558,9 +624,10 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
     CHECK(context.has_preparation && context.experience_value == 321 &&
           memcmp(&context.preparation, state, sizeof(*state)) == 0);
     CHECK(read_container(path, before) == 0);
-    controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(24, SDL_SCANCODE_ESCAPE);
-    fail_frame_allocation_at = 37; /* 首个详情正常关闭，下一成员列表才分配失败。 */
-    CHECK(roster_run(&ui) == -1 && frame_number == 37);
+    controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(25, SDL_SCANCODE_ESCAPE);
+    fail_frame_allocation_at = 38; /* 详情24帧打开末清队，25读ACK；关闭后再分配列表。 */
+    CHECK(roster_run(&ui) == -1 && frame_number == 38 && !vga->input.quit_requested);
+    CHECK(clear_calls==1u && frames_at_clear[0]==24u);
     CHECK(state_save_calls == 0 && context.has_preparation && context.experience_value == 321 &&
           memcmp(&context.preparation, state, sizeof(*state)) == 0);
     CHECK(read_container(path, after) == 0 && memcmp(before, after, sizeof(before)) == 0);
@@ -920,14 +987,16 @@ static int service_growth_message_layouts(fd2_archive *fdother,fd2_field_prepare
         fd2_static_flow_node node={.op="show_message",.args={0,596,kind ? 3:5}};unsigned port=99;
         CHECK(prepare_service_ui(&ui,&node,&port)==1 && port==FD2_FLOW_NEXT &&
             !memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H) &&
-            ui.service.growth_line==(kind ? 2u:3u) && ui.service.input_epoch==1u &&
+            ui.service.growth_line==(kind ? 2u:3u) && ui.service.input_epoch==0u &&
             frame_number==1u && !service_delay_count && !sound_calls && !memcmp(context,before,sizeof(*before)));
+        fd2_input_event queued;
+        CHECK(prepare_service_take_key(&ui,&queued) && confirm_key(queued.key) && ui.service.input_epoch==1u);
     }
     free(source);free(expected);free(before);free(context);return 0;
 }
 
 /* G4：69op正式服务的confirm叶必须借runtime.choice，而不是local phase。
- * 真资源/真冷图/真App页；只替宿主采帧和原服务deferred-key来源。 */
+ * 真资源/真冷图/真App页；只替宿主采帧，早键归同一input owner。 */
 static int service_confirm_shared_owner(fd2_archive *fdother,fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state,fd2_vga *vga) {
     fd2_field_play_context context={0};context.initialized=context.has_preparation=1;
@@ -942,14 +1011,14 @@ static int service_confirm_shared_owner(fd2_archive *fdother,fd2_field_prepare_a
         (void)fd2_field_rng_next(&expected);
         fd2_save_manual_state before=context.preparation;
         if(!kind) {
-            ui.service.deferred_key=(fd2_input_event){0};ui.service.deferred_key.key=FD2_INPUT_KEY_ENTER;
-            ui.service.deferred_key_ready=1;ui.service.input_epoch=7;
+            fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
+            fd2_input_begin_test_frame(&vga->input,0);ui.service.input_epoch=7;
         } else if(kind==1) {pulse(4,SDL_SCANCODE_RIGHT);pulse(5,SDL_SCANCODE_RETURN);}
         else pulse(4,SDL_SCANCODE_ESCAPE);
         unsigned port=FD2_FLOW_ERROR;
         CHECK(prepare_service_confirm(&ui,&port)==0);
         CHECK(port==(!kind?FD2_FLOW_YES:kind==1?FD2_FLOW_NO:FD2_FLOW_CANCEL));
-        CHECK(!ui.service.deferred_key_ready && ui.service.input_epoch==(!kind?7u:kind==1?2u:1u));
+        CHECK(!fd2_input_has_any_key(&vga->input) && ui.service.input_epoch==(!kind?8u:kind==1?2u:1u));
         CHECK(context.rng.state==expected.state && !memcmp(&context.preparation,&before,sizeof(before)));
         CHECK(!vga->menu_highlight_phase && vga->menu_highlight_tick==(kind==1?1u:0x1234u));
         uint8_t corner=0;CHECK(fd2_field_page_read(vga->field_page,68,68,1,1,&corner,1,1)==0 && corner==0x61);
@@ -1015,7 +1084,7 @@ static int service_present_leaves(fd2_archive *fdother,fd2_field_prepare_assets 
     ui.context->message_new_fragment=ui.context->message_old_fragment=0;context->message_number=7;
     fd2_field_rng_seed(&context->rng,0x7a18);expected_rng=context->rng;(void)fd2_field_rng_next(&expected_rng);
     pulse(1,SDL_SCANCODE_SPACE);*before=*context;
-    CHECK(prepare_service_text(&ui,490,95,138)==0 && ui.service.input_epoch==1u && !ui.service.deferred_key_ready);
+    CHECK(prepare_service_text(&ui,490,95,138)==0 && ui.service.input_epoch==1u && !fd2_input_has_any_key(&vga->input));
     CHECK(context->rng.state==expected_rng.state && frame_number<6u);
     before->rng=context->rng;CHECK(!memcmp(context,before,sizeof(*before)));
     controls(vga);service_exact_time=1;ui.service=(prepare_service){0};ui.service.notice_origin=36887;
@@ -1023,7 +1092,7 @@ static int service_present_leaves(fd2_archive *fdother,fd2_field_prepare_assets 
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);fd2_input_begin_test_frame(&vga->input,clock_ms);
     fd2_field_rng_seed(&context->rng,0x7a18);expected_rng=context->rng;(void)fd2_field_rng_next(&expected_rng);
     CHECK(prepare_service_text(&ui,490,95,138)==0 && ui.service.input_epoch==1u &&
-        !ui.service.deferred_key_ready && context->rng.state==expected_rng.state && frame_number==1u);
+        !fd2_input_has_any_key(&vga->input) && context->rng.state==expected_rng.state && frame_number==1u);
 
     controls(vga);service_exact_time=1;ui.service=(prepare_service){0};ui.service.selector=1;
     CHECK(fd2_field_prepare_assets_open_service(a,fdother,1)==0);
@@ -1097,6 +1166,152 @@ static int service_raw_icon_transparency(fd2_archive *fdother,fd2_field_prepare_
     free(expected);free(context);return 0;
 }
 
+static void queue_pair(fd2_vga *vga) {
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,1);
+    fd2_input_begin_test_frame(&vga->input,clock_ms);
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,0);
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
+    fd2_input_begin_test_frame(&vga->input,++clock_ms);
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,0);
+    fd2_input_begin_test_frame(&vga->input,++clock_ms);
+}
+
+/* 26eda/16c57/29bcb各读一项，只有源clear叶才清余队；普通文字peek
+ * 不提前计input_epoch，不改变同一SAV/资金/库存owner。 */
+static int prepare_buffered_input_contract(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));
+    CHECK(context);context->initialized=context->has_preparation=1;context->preparation=*state;
+    CHECK(fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    controls(vga);queue_pair(vga);fd2_field_rng_seed(&context->rng,0x5a31);
+    fd2_field_rng expected=context->rng;(void)fd2_field_rng_next(&expected);(void)fd2_field_rng_next(&expected);
+    fd2_input_event event;
+    CHECK(read_key(&ui,&event,1,0)==0 && event.key==FD2_INPUT_KEY_RIGHT);
+    CHECK(!frame_number && !water_calls && fd2_input_has_any_key(&vga->input));
+    CHECK(read_key(&ui,&event,1,0)==0 && event.key==FD2_INPUT_KEY_ENTER);
+    CHECK(!frame_number && !water_calls && !fd2_input_has_any_key(&vga->input));
+    CHECK(context->rng.state==expected.state && !memcmp(&context->preparation,state,sizeof(*state)));
+    for(int mode=0;mode<3;mode++) {
+        controls(vga);clock_ms=110;vga->field_water_phase=3;vga->field_water_last_tick=0;
+        fd2_field_rng_seed(&context->rng,0x5a31);expected=context->rng;
+        if(mode)(void)fd2_field_rng_next(&expected);
+        pulse(1,SDL_SCANCODE_RETURN);
+        CHECK(read_key(&ui,&event,mode,0)==0 && event.key==FD2_INPUT_KEY_ENTER);
+        CHECK(frame_number==1u && water_calls==(mode==1?1u:0u));
+        CHECK(vga->field_water_phase==(mode==1?4u:3u) && context->rng.state==expected.state);
+    }
+    controls(vga);ui.service=(prepare_service){0};ui.service.notice_origin=36887;
+    context->message_new_fragment=context->message_old_fragment=0;context->message_number=7;
+    fd2_field_rng_seed(&context->rng,0x5a31);expected=context->rng;
+    (void)fd2_field_rng_next(&expected);queue_pair(vga);
+    CHECK(prepare_service_text(&ui,490,95,138)==0 && ui.service.input_epoch==1u && !water_calls);
+    CHECK(context->rng.state==expected.state && fd2_input_has_any_key(&vga->input));
+    unsigned frames_before=frame_number;(void)fd2_field_rng_next(&expected);
+    CHECK(prepare_service_wait_key(&ui,&event,0)==0 && event.key==FD2_INPUT_KEY_ENTER);
+    CHECK(ui.service.input_epoch==2u && frame_number==frames_before && !water_calls &&
+          context->rng.state==expected.state && !fd2_input_has_any_key(&vga->input));
+    CHECK(!memcmp(&context->preparation,state,sizeof(*state)));
+    controls(vga);queue_pair(vga);
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_DOWN,1);
+    fd2_input_begin_test_frame(&vga->input,++clock_ms);
+    uint64_t repeat=vga->input.next_repeat_ms[SDL_SCANCODE_DOWN];
+    vga->input.quit_requested=1;CHECK(prepare_service_clear_keys(&ui)==1);
+    CHECK(!fd2_input_has_any_key(&vga->input) && vga->input.quit_requested &&
+          vga->input.previous_down[SDL_SCANCODE_DOWN] && vga->input.next_repeat_ms[SDL_SCANCODE_DOWN]==repeat);
+    for(int mode=0;mode<3;mode++) {
+        controls(vga);queue_pair(vga);vga->input.quit_requested=1;
+        prepare_wait waiting={0};fd2_input_event untouched={0};fd2_input_event event_before=untouched;
+        fd2_field_rng_seed(&context->rng,0x5a31);
+        CHECK(read_key_state(&ui,&untouched,mode,0,&waiting)==1 && !waiting.initialized);
+        CHECK(context->rng.state==0x5a31 && !frame_number && !water_calls &&
+              !memcmp(&untouched,&event_before,sizeof(untouched)) && fd2_input_has_any_key(&vga->input));
+    }
+    free(context);return 0;
+}
+
+static int member_detail_open_clear_and_flip_preserves_queue(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));CHECK(context);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    controls(vga);service_exact_time=1;fd2_field_rng_seed(&context->rng,0x5a31);
+    fd2_field_rng expected=context->rng;(void)fd2_field_rng_next(&expected);(void)fd2_field_rng_next(&expected);
+    pulse(3,SDL_SCANCODE_SPACE); /* 17e0b开动画中的旧键在末尾明确clear。 */
+    pulse(13,SDL_SCANCODE_RIGHT);pulse(14,SDL_SCANCODE_RETURN); /* 第二键早到flip，不得吞。 */
+    CHECK(member_detail(&ui,1)==0);
+    CHECK(frame_number==41u && ui.service.input_epoch==2u && context->rng.state==expected.state);
+    CHECK(!fd2_input_has_any_key(&vga->input) && !memcmp(&context->preparation,state,sizeof(*state)));
+    free(context);return 0;
+}
+
+static int prepare_clear_host_quit_boundaries(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));CHECK(context);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    CHECK(fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    controls(vga);quit_on_clear=1;fd2_field_rng_seed(&context->rng,0x5a31);
+    fd2_static_flow_node node={.op="clear_keys"};unsigned port=FD2_FLOW_NEXT;
+    CHECK(prepare_service_ui(&ui,&node,&port)==-1 && port==FD2_FLOW_ERROR && ui.service.host_quit);
+    CHECK(!frame_number && clear_calls==1u && context->rng.state==0x5a31);
+
+    controls(vga);quit_on_clear=1;ui.service=(prepare_service){0};ui.service.selector=1;
+    ui.service.active_portraits=assets->service.portraits;ui.service.notice_origin=4283;
+    node.op="service_animate";port=FD2_FLOW_NEXT;
+    CHECK(prepare_service_ui(&ui,&node,&port)==-1 && port==FD2_FLOW_ERROR && ui.service.host_quit);
+    CHECK(clear_calls==1u && frame_number==frames_at_clear[0] && context->rng.state==0x5a31);
+
+    controls(vga);quit_on_clear=1;ui.service=(prepare_service){0};
+    CHECK(member_detail(&ui,1)==1 && frame_number==12u && clear_calls==1u);
+    CHECK(!ui.service.input_epoch && context->rng.state==0x5a31);
+
+    controls(vga);quit_on_clear=1;
+    CHECK(fd2_field_prepare_run(vga,fdother,context,"unused.SAV",NULL)==FD2_FIELD_PREPARE_HOST_QUIT);
+    CHECK(clear_calls==1u && frame_number==frames_at_clear[0] && !state_save_calls && context->rng.state==0x5a31);
+    CHECK(!memcmp(&context->preparation,state,sizeof(*state)));
+    free(context);return 0;
+}
+
+/* 不用“给旧pulse加65”代替来源门：直接观察真实Town整页、原1f525
+ * 65次64..0/2ms、末DAC全亮、随后唯一clear；早到键在该cutoff才丢。 */
+static int town_bootstrap_source_contract(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));
+    fd2_vga *expected=calloc(1,sizeof(*expected));CHECK(context && expected);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    fd2_field_rng_seed(&context->rng,0x5a31);
+    CHECK(prepare_town(assets,fdother,state->stage_id)==0);
+    CHECK(fd2_field_prepare_draw_town(expected,assets,state,0,0)==0);
+    const uint8_t *palette;size_t size;CHECK(fd2_archive_get(fdother,0,&palette,&size)==0 && size>=768u);
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    int type=town_type(state->stage_id);
+    fd2_image *town=type==0 ? &assets->town:type==1 ? &assets->town_type1:&assets->town_stage2;
+    for(int kind=0;kind<3;kind++) {
+        controls(vga);service_exact_time=1;town_expected_pixels=expected->framebuffer;
+        town_inject_early=1;town_quit_frame=kind==1 ? 3u:0u;
+        fd2_vga_set_palette(vga,palette);memset(vga->framebuffer,0x61,VGA_W*VGA_H);queue_pair(vga);
+        int saved_width=town->width;if(kind==2)town->width=319;
+        int result=prepare_service_execute(&ui,"town.bootstrap",NULL,0);
+        town->width=saved_width;
+        CHECK(context->rng.state==0x5a31 && !memcmp(&context->preparation,state,sizeof(*state)));
+        if(kind==0) {
+            CHECK(result==0 && clear_calls==1u && frames_at_clear[0]==65u && town_script_origin==65u);
+            CHECK(town_bootstrap_frames==65u && town_fade_count==65u && town_first_black && !town_bad_pixels);
+            for(unsigned i=0;i<65u;i++)CHECK(town_fade_values[i]==64-(int)i && service_delays[i]==2u);
+            CHECK(service_delay_count==65u && town_pending_at_clear && !fd2_input_has_any_key(&vga->input));
+            for(size_t i=0;i<768u;i++)CHECK(vga->dac[i]==(uint8_t)((palette[i]<<2)|(palette[i]>>4)));
+            CHECK(!memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H));
+        } else if(kind==1) {
+            CHECK(result==-2 && frame_number==3u && !clear_calls && town_fade_count==3u && !town_bad_pixels);
+        } else {
+            CHECK(result==-1 && !frame_number && !clear_calls && !town_fade_count && fd2_input_has_any_key(&vga->input));
+            for(size_t i=0;i<VGA_W*VGA_H;i++)CHECK(vga->framebuffer[i]==0x61);
+        }
+    }
+    free(expected);free(context);return 0;
+}
+
 int main(void) {
     CHECK(default_sound_gain() == 0);
     fd2_archive fdother = {0}; fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
@@ -1105,6 +1320,10 @@ int main(void) {
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_prepare_assets_open(assets, &fdother) == 0);
+    CHECK(town_bootstrap_source_contract(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_buffered_input_contract(&fdother,assets,&state,vga)==0);
+    CHECK(member_detail_open_clear_and_flip_preserves_queue(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_clear_host_quit_boundaries(&fdother,assets,&state,vga)==0);
     CHECK(service_resource_pages(&fdother, assets, &state, vga) == 0);
     CHECK(service_present_leaves(&fdother,assets,&state,vga)==0);
     CHECK(service_confirm_shared_owner(&fdother,assets,&state,vga)==0);

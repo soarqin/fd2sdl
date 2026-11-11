@@ -25,7 +25,8 @@ class CommonEventSourcesTest(unittest.TestCase):
     def test_current_source_contract(self):
         verify.validate_tables(self.tables(),self.sources())
         result=verify.validate_flow(self.flows())
-        self.assertEqual((result['flow_count'],result['source_control_paths_checked'],result['bindings_added']),(15,19,0))
+        self.assertEqual((result['flow_count'],result['source_control_paths_checked'],result['bindings_added']),(21,19,0))
+        self.assertEqual(result['existing_bindings_migrated'],6)
     def test_refresh0_calls_water_and_refresh1_skips_from_original_JNZ(self):
         raw=verify.source_range((ROOT/'original_game/FD2.EXE').read_bytes(),0x11cbc,12)
         result=verify.validate_refresh_water_source(raw)

@@ -1,6 +1,6 @@
 /* F1/PageUp纯绘制与modal无窗口回归；测试TU控制呈现，不新增生产hook。
- * 依据sub_2000A @0x2000a、field_view_render_scaled @0x1f558、
- * sub_1F6EF @0x1f6ef。原版probe02只提供原版运行证据，尚无SDL配对。 */
+ * 依据field_auxiliary_map_execute @0x2000a（原sub_2000A）、field_view_render_scaled @0x1f558、
+ * field_auxiliary_marker_draw @0x1f6ef（原sub_1F6EF）。原版probe02只提供原版运行证据，尚无SDL配对。 */
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,13 +14,18 @@
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
     return 1; } } while (0)
 
-static uint32_t cells[24 * 24];
+static uint32_t cells[64 * 64];
+static fd2_field_page *test_page;
+static uint8_t page_snapshot[FD2_FIELD_PAGE_SIZE],page_readback[FD2_FIELD_PAGE_SIZE];
+static int bad_page,close_reads;
+static SDL_Scancode close_read_source;
 static fd2_image test_frames[288];
 static fd2_terrain_attr attrs[288];
 static uint8_t pixels[288][24 * 24];
 static uint64_t clock_ms;
 static int timed_frames, close_frame, quit_frame, restored, old_pulse;
 static int render_calls, tick_calls, hold_f1, route_mode, outer_frames;
+static int refresh_calls, fail_refresh;
 static int after_restore_queries, route_closed;
 static int bad_geometry, bad_pulse;
 static int water_calls, water_changes, bad_frozen_water, bad_restore_order;
@@ -83,6 +88,7 @@ static void init_game(fd2_field_game *game) {
 static void controls_reset(void) {
     clock_ms = 1000;
     timed_frames = restored = old_pulse = render_calls = tick_calls = 0;
+    refresh_calls=fail_refresh=0;
     hold_f1 = route_mode = outer_frames = after_restore_queries = route_closed = 0;
     bad_geometry = bad_pulse = 0;
     water_calls = water_changes = bad_frozen_water = bad_restore_order = 0;
@@ -92,6 +98,9 @@ static void controls_reset(void) {
     quit_frame = 0;
     close_key = SDL_SCANCODE_A;
     live_game = NULL;
+    bad_page=close_reads=0;close_read_source=SDL_SCANCODE_UNKNOWN;
+    memset(page_snapshot,0xd3,sizeof(page_snapshot));
+    if(fd2_field_page_write(test_page,0,0,456,336,page_snapshot,sizeof(page_snapshot),456)!=0)abort();
 }
 
 static uint64_t auxiliary_ticks(void) { return clock_ms; }
@@ -118,6 +127,12 @@ static void input_frame(fd2_vga *vga, int frame) {
 static void auxiliary_present_timed(fd2_vga *vga, uint32_t ms) {
     if (fd2_input_has_any_key(&vga->input)) old_pulse = 1;
     timed_frames++;
+    if(fd2_field_page_read(vga->field_page,0,0,456,336,page_readback,sizeof(page_readback),456)!=0)bad_page=1;
+    if(timed_frames<=7 || timed_frames>close_frame) {
+        if(memcmp(page_readback,vga->framebuffer,64000))bad_page=1;
+        memcpy(page_snapshot,page_readback,64000);
+    } else if(memcmp(page_readback,page_snapshot,64000))bad_page=1; /* marker只写VGA。 */
+    for(size_t i=64000;i<sizeof(page_readback);i++)if(page_readback[i]!=0xd3)bad_page=1;
     if (!frozen_water_valid) {
         memcpy(frozen_dac, vga->dac, sizeof(frozen_dac));
         frozen_water_phase = vga->field_water_phase;
@@ -142,6 +157,15 @@ static void auxiliary_present_timed(fd2_vga *vga, uint32_t ms) {
     vga->frame_deadline_ns = clock_ms * 1000000u;
     vga->frame_interval_ns = (uint64_t)ms * 1000000u;
     input_frame(vga, timed_frames);
+}
+static int auxiliary_read_key(fd2_input *input,fd2_input_event *event) {
+    fd2_input_event read;int result=fd2_input_take_key(input,&read);
+    if(result) {
+        close_reads++;close_read_source=read.source;
+        if(timed_frames!=close_frame)bad_page=1;
+        if(event)*event=read;
+    }
+    return result;
 }
 
 static void auxiliary_present(fd2_vga *vga) {
@@ -185,12 +209,20 @@ static int auxiliary_open(fd2_field_game *game, fd2_vga *vga,
     live_game = game;
     return 0;
 }
+/* 正式dispatcher本用例只拥有synthetic map/cache；像overview同类夹具，
+ * App背景重建单独由真实资源用例验，不借缺失FDOTHER制造错误出口。 */
+static int auxiliary_bind(fd2_field_game *game,fd2_vga *vga) {
+    return route_mode ? game && game->ready && vga && vga->field_page ? 0:-1:
+        fd2_field_game_bind_visual(game,vga);
+}
 static void auxiliary_close(fd2_field_game *game) {
-    /* B6 Play先解除同步演出借用；其余Game与RNG仍逐字保持。 */
+    /* Play先解除物理/法术/共享runtime的同步借用；其余Game与RNG逐字保持。 */
     int detached = !game->physical_present && !game->physical_present_userdata &&
-        !game->magic_present && !game->magic_present_userdata;
+        !game->magic_present && !game->magic_present_userdata &&
+        !game->runtime_present && !game->runtime_present_userdata;
     route_before.physical_present = NULL; route_before.physical_present_userdata = NULL;
     route_before.magic_present = NULL; route_before.magic_present_userdata = NULL;
+    route_before.runtime_present=NULL;route_before.runtime_present_userdata=NULL;
     route_closed = detached && live_game == game &&
         memcmp(game, &route_before, sizeof(*game)) == 0 &&
         ((fd2_field_rng *)game->attack_rng_userdata)->state == route_rng_before;
@@ -212,16 +244,27 @@ static int auxiliary_water_tick(fd2_vga *vga, uint64_t now) {
     return result;
 }
 
+/* 私有Play TU只核2000a尾确实委托完整11cac(0)；相位写序由Game真资源用例核。 */
+static int auxiliary_runtime_refresh(fd2_field_game *game,fd2_vga *vga,int mode) {
+    refresh_calls++;
+    if(mode!=0 || fail_refresh)return -1;
+    if(auxiliary_water_tick(vga,clock_ms)<0)return -1;
+    auxiliary_render(game,vga);return 0;
+}
+
 #define fd2_field_water_tick auxiliary_water_tick
 #define SDL_GetTicks auxiliary_ticks
 #define fd2_vga_present auxiliary_present
 #define fd2_vga_present_timed auxiliary_present_timed
 #define fd2_vga_wait_frame_deadline auxiliary_wait
 #define fd2_field_game_render auxiliary_render
+#define fd2_field_game_runtime_refresh auxiliary_runtime_refresh
 #define fd2_field_game_tick auxiliary_tick
 #define fd2_field_game_open auxiliary_open
+#define fd2_field_game_bind_visual auxiliary_bind
 #define fd2_field_game_close auxiliary_close
 #define fd2_input_take_action auxiliary_take_action
+#define fd2_input_take_key auxiliary_read_key
 #include "field_play.c"
 #undef fd2_field_water_tick
 #undef SDL_GetTicks
@@ -229,10 +272,13 @@ static int auxiliary_water_tick(fd2_vga *vga, uint64_t now) {
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
 #undef fd2_field_game_render
+#undef fd2_field_game_runtime_refresh
 #undef fd2_field_game_tick
 #undef fd2_field_game_open
+#undef fd2_field_game_bind_visual
 #undef fd2_field_game_close
 #undef fd2_input_take_action
+#undef fd2_input_take_key
 
 static int floor_tile(int value) {
     return value >= 0 ? value / 3072 : -((-value + 3071) / 3072);
@@ -240,11 +286,11 @@ static int floor_tile(int value) {
 
 static int check_scaled_frame(const fd2_field_game *game, const fd2_vga *vga,
                                 int phase) {
-    int step = 128 + phase * 640 / 7;
+    int step = 128 + phase * (game->map.height>40 ? 896:640) / 7;
     int start_x = game->camera_cell_x * 3072 + 13 * 1536;
     int start_y = game->camera_cell_y * 3072 + 8 * 1536;
-    int cx = start_x + (24 * 1536 - start_x) * (phase + 1) / 8;
-    int cy = start_y + (24 * 1536 - start_y) * (phase + 1) / 8;
+    int cx = start_x + (game->map.width * 1536 - start_x) * (phase + 1) / 8;
+    int cy = start_y + (game->map.height * 1536 - start_y) * (phase + 1) / 8;
     int checked_zero = 0, checked_negative = 0;
     for (int y = 0; y < 200; y++) {
         for (int x = 0; x < 320; x++) {
@@ -254,10 +300,11 @@ static int check_scaled_frame(const fd2_field_game *game, const fd2_vga *vga,
                 int wy = cy + (y - 100) * step;
                 int tx = floor_tile(wx), ty = floor_tile(wy);
                 if (wx < 0 || wy < 0) checked_negative++;
-                if (tx >= 0 && tx < 24 && ty >= 0 && ty < 24) {
+                if (tx >= 0 && tx < game->map.width && ty >= 0 && ty < game->map.height) {
                     int px = (wx - tx * 3072) / 128;
                     int py = (wy - ty * 3072) / 128;
-                    expected = (uint8_t)((tx * 7 + ty * 13) % 288 + py * 3 + px * 5);
+                    unsigned id=game->map.cells[ty*game->map.width+tx]&1023u;
+                    expected = (uint8_t)(id + py * 3 + px * 5);
                 }
             }
             if (expected == 0) checked_zero++;
@@ -271,7 +318,7 @@ static int check_scaled_frame(const fd2_field_game *game, const fd2_vga *vga,
 
 static int test_full_frame_and_transition(void) {
     fd2_field_game game;
-    fd2_vga vga = {0};
+    fd2_vga vga = {.field_page=test_page};
     controls_reset(); init_game(&game);
     fd2_field_game before = game;
     uint8_t cache_before[sizeof(pixels)];
@@ -293,7 +340,7 @@ static int test_full_frame_and_transition(void) {
 
 static int test_marker_filter_order_and_pulse(void) {
     fd2_field_game game;
-    fd2_vga vga = {0};
+    fd2_vga vga = {.field_page=test_page};
     controls_reset(); init_game(&game);
     game.units.count = 7;
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_ACTED;
@@ -331,12 +378,51 @@ static int test_marker_filter_order_and_pulse(void) {
     return 0;
 }
 
+static int test_cross_stage_shapes_height_boundary_and_page_prefix(void) {
+    static const int cases[][5]={{1,27,21,1,192},{2,18,26,2,288},
+        {7,29,45,7,257},{13,40,40,5,257},{14,50,41,6,257},{28,31,64,9,257}};
+    for(size_t row=0;row<sizeof(cases)/sizeof(cases[0]);row++) {
+        controls_reset();fd2_field_game game;init_game(&game);
+        game.stage=(size_t)cases[row][0];game.map.width=cases[row][1];game.map.height=cases[row][2];
+        game.metadata.shape_index=game.terrain.shape_index=(uint8_t)cases[row][3];
+        game.terrain.sheet.frame_count=(size_t)cases[row][4];game.terrain.attr_count=(size_t)cases[row][4];
+        for(int y=0;y<game.map.height;y++)for(int x=0;x<game.map.width;x++)
+            cells[y*game.map.width+x]=(uint32_t)((x*7+y*13)%cases[row][4]);
+        fd2_field_game before=game;fd2_vga vga={.field_page=test_page};
+        CHECK(auxiliary_field_ready(&game));
+        for(int phase=1;phase<=7;phase++) {
+            CHECK(auxiliary_transition_frame(&game,&vga,phase)==0 && check_scaled_frame(&game,&vga,phase)==0);
+            CHECK(fd2_field_page_read(test_page,0,0,456,336,page_readback,sizeof(page_readback),456)==0);
+            CHECK(!memcmp(page_readback,vga.framebuffer,64000));
+            for(size_t i=64000;i<sizeof(page_readback);i++)CHECK(page_readback[i]==0xd3);
+        }
+        uint8_t base[64000];memcpy(base,vga.framebuffer,sizeof(base));
+        auxiliary_markers(&game,&vga,5);
+        int scale=game.map.height>40?3:4;
+        for(int y=0;y<200;y++)for(int x=0;x<320;x++) {
+            uint8_t expected=base[y*320+x];
+            for(size_t u=0;u<=game.units.count;u++) {
+                int wx=u==game.units.count?game.cursor_cell_x:game.units.items[u].x;
+                int wy=u==game.units.count?game.cursor_cell_y:game.units.items[u].y;
+                int sx=wx*scale+160-game.map.width*scale/2,sy=wy*scale+100-game.map.height*scale/2;
+                if(x>=sx && x<sx+scale-1 && y>=sy && y<sy+scale-1)
+                    expected=u==game.units.count?29:game.units.items[u].side==2?77:37;
+            }
+            CHECK(vga.framebuffer[y*320+x]==expected);
+        }
+        CHECK(fd2_field_page_read(test_page,0,0,456,336,page_readback,sizeof(page_readback),456)==0 &&
+            !memcmp(page_readback,base,64000)); /* marker没有回写App。 */
+        CHECK(!memcmp(&game,&before,sizeof(game)) && test_rng.state==0x3141);
+    }
+    return 0;
+}
+
 static int test_modal_keys_owner_and_held(void) {
     const SDL_Scancode keys[] = {SDL_SCANCODE_A, SDL_SCANCODE_RIGHT,
         SDL_SCANCODE_F1, SDL_SCANCODE_PAGEUP, SDL_SCANCODE_ESCAPE, SDL_SCANCODE_RETURN};
     for (size_t k = 0; k < sizeof(keys)/sizeof(keys[0]); k++) {
         fd2_field_game game;
-        fd2_vga vga = {0};
+        fd2_vga vga = {.field_page=test_page};
         controls_reset(); init_game(&game);
         close_key = keys[k];
         hold_f1 = close_key != SDL_SCANCODE_F1;
@@ -352,7 +438,16 @@ static int test_modal_keys_owner_and_held(void) {
         fd2_field_game before = game;
         CHECK(play_field_auxiliary(&game, &vga) == FD2_SCENE_RESULT_OK);
         CHECK(timed_frames == close_frame + 6 && restored && render_calls == 1);
-        CHECK(!old_pulse && !fd2_input_has_any_key(&vga.input));
+        CHECK(refresh_calls==1);
+        CHECK(old_pulse && close_reads==1 && close_read_source==close_key);
+        fd2_input_event queued;
+        if(close_key!=SDL_SCANCODE_RIGHT) {
+            CHECK(fd2_input_take_key(&vga.input,&queued) && queued.source==SDL_SCANCODE_RIGHT);
+        }
+        const SDL_Scancode remaining[]={SDL_SCANCODE_G,SDL_SCANCODE_DOWN,SDL_SCANCODE_RETURN,SDL_SCANCODE_DOWN};
+        for(size_t i=0;i<sizeof(remaining)/sizeof(remaining[0]);i++)
+            CHECK(fd2_input_take_key(&vga.input,&queued) && queued.source==remaining[i]);
+        CHECK(!fd2_input_has_any_key(&vga.input) && !bad_page);
         CHECK(!bad_geometry && !bad_pulse);
         CHECK(!tick_calls && test_rng.state == 0x3141);
         CHECK(memcmp(&game, &before, sizeof(game)) == 0);
@@ -381,7 +476,7 @@ static int test_modal_keys_owner_and_held(void) {
     }
     controls_reset();
     fd2_field_game game;
-    fd2_vga vga = {0};
+    fd2_vga vga = {.field_page=test_page};
     init_game(&game);
     fd2_input_init(&vga.input);
     close_frame = 130; /* mock时钟跨过0/7的两个重复端点，不实际等待。 */
@@ -398,18 +493,18 @@ static int test_modal_keys_owner_and_held(void) {
 static int test_invalid_preflight_and_quit(void) {
     for (int mode = 0; mode < 15; mode++) {
         fd2_field_game game;
-        fd2_vga vga = {0};
+        fd2_vga vga = {.field_page=test_page};
         controls_reset(); init_game(&game);
         fd2_input_init(&vga.input);
         memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
-        if (mode == 0) game.stage = 1;
+        if (mode == 0) game.map.width = 65;
         if (mode == 1) game.active_side = 0;
         if (mode == 2) game.selected_unit = 0;
         if (mode == 3) game.interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
         if (mode == 4) game.detail_visible = 1;
         if (mode == 5) game.failure = FD2_FIELD_FAILURE_EVENT_UNSUPPORTED;
-        if (mode == 6) game.terrain.shape_index = 1;
-        if (mode == 7) game.terrain.sheet.frame_count = 287;
+        if (mode == 6) game.terrain.sheet.width = 23;
+        if (mode == 7) game.terrain.sheet.frame_count = 0;
         if (mode == 8) test_frames[0].pixels = NULL;
         if (mode == 9) game.cursor_cell_x = INT_MAX;
         if (mode == 10) game.camera_cell_y = INT_MIN;
@@ -427,7 +522,7 @@ static int test_invalid_preflight_and_quit(void) {
     const int quit_at[] = {1, 7, 8, 11, 13, 17, -1, 0};
     for (size_t q = 0; q < sizeof(quit_at)/sizeof(quit_at[0]); q++) {
         fd2_field_game game;
-        fd2_vga vga = {0};
+        fd2_vga vga = {.field_page=test_page};
         controls_reset(); init_game(&game);
         fd2_input_init(&vga.input);
         quit_frame = quit_at[q];
@@ -452,7 +547,7 @@ static int test_formal_route_no_key_fallthrough(void) {
         controls_reset();
         route_mode = 1;
         close_key = key ? SDL_SCANCODE_RETURN : SDL_SCANCODE_RIGHT;
-        fd2_vga vga = {0};
+        fd2_vga vga = {.field_page=test_page};
         fd2_input_init(&vga.input);
         fd2_archive archive = {0};
         CHECK(fd2_field_play_run(&vga, &archive, 0, 0, NULL, NULL, NULL, 0) == FD2_FIELD_PLAY_RETURN_HOST_QUIT);
@@ -460,6 +555,19 @@ static int test_formal_route_no_key_fallthrough(void) {
         CHECK(!after_restore_queries && timed_frames == close_frame + 6);
         CHECK(tick_calls == 2); /* 仅modal前后两次outer tick。 */
     }
+    return 0;
+}
+
+static int test_restore_failure_does_not_present_success(void) {
+    controls_reset();fail_refresh=1;
+    fd2_field_game game;init_game(&game);
+    fd2_vga vga={.field_page=test_page};fd2_input_init(&vga.input);
+    fd2_field_game before=game;
+    CHECK(play_field_auxiliary(&game,&vga)==FD2_SCENE_RESULT_ERROR);
+    CHECK(refresh_calls==1 && timed_frames==close_frame+6 && !restored);
+    CHECK(!render_calls && !water_calls && !tick_calls);
+    CHECK(!memcmp(&game,&before,sizeof(game)) && test_rng.state==0x3141);
+    CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
     return 0;
 }
 
@@ -473,7 +581,7 @@ static uint64_t framebuffer_hash(const fd2_vga *vga) {
 static int test_real_stage0_original_probe_indices(void) {
     fd2_archive archive = {0};
     fd2_field_game game = {0};
-    fd2_vga vga = {0};
+    fd2_vga vga = {.field_page=test_page};
     CHECK(fd2_archive_open(&archive, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_game_open(&game, &vga, &archive, 0) == 0);
     CHECK(fd2_field_game_load_active(&game, "original_game/START.SAV") == 0);
@@ -509,12 +617,16 @@ static int test_real_stage0_original_probe_indices(void) {
 }
 
 int main(void) {
+    test_page=fd2_field_page_create();CHECK(test_page);
     CHECK(test_full_frame_and_transition() == 0);
     CHECK(test_marker_filter_order_and_pulse() == 0);
+    CHECK(test_cross_stage_shapes_height_boundary_and_page_prefix() == 0);
     CHECK(test_modal_keys_owner_and_held() == 0);
     CHECK(test_invalid_preflight_and_quit() == 0);
     CHECK(test_formal_route_no_key_fallthrough() == 0);
+    CHECK(test_restore_failure_does_not_present_success() == 0);
     CHECK(test_real_stage0_original_probe_indices() == 0);
+    fd2_field_page_destroy(test_page);
     puts("field auxiliary tests: ok");
     return 0;
 }

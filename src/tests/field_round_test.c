@@ -109,22 +109,28 @@ static int check_turn_driver(void) {
         {FD2_FIELD_TURN_INCREMENT,FD2_FIELD_TURN_STOP_IF_DIFFERENT,FD2_FIELD_TURN_PLAYER_TITLE,
          FD2_FIELD_TURN_DISPLAY_MODE,FD2_FIELD_TURN_CLEAR_ACTED,FD2_FIELD_TURN_REFRESH,
          FD2_FIELD_TURN_PRIMARY_MUSIC,FD2_FIELD_TURN_ROUND,FD2_FIELD_TURN_FOCUS_RESET,FD2_FIELD_TURN_ENTER_PHASE},
-        {FD2_FIELD_TURN_DISPLAY_MODE,FD2_FIELD_TURN_FOCUS_ZERO,FD2_FIELD_TURN_CLEAR_KEYS}};
-    const int counts[]={9,5,10,3};
-    for (unsigned entry=0;entry<4;entry++) {
+        {FD2_FIELD_TURN_DISPLAY_MODE,FD2_FIELD_TURN_FOCUS_ZERO,FD2_FIELD_TURN_CLEAR_KEYS},
+        {FD2_FIELD_TURN_INFO_VISIBLE},
+        {FD2_FIELD_TURN_RESET_DIRECTIONS,FD2_FIELD_TURN_DELAY_MS},
+        {FD2_FIELD_TURN_RESET_DIRECTIONS,FD2_FIELD_TURN_DELAY_MS,FD2_FIELD_TURN_REFRESH}};
+    const int counts[]={9,5,10,3,1,2,3};
+    for (unsigned entry=0;entry<7;entry++) {
         turn_probe p={0};p.stop=-1;
         CHECK(fd2_field_turn_run((fd2_field_turn_entry)entry,turn_apply,&p)==0 && p.calls==counts[entry]);
         CHECK(!memcmp(p.steps,expected[entry],(size_t)p.calls*sizeof(p.steps[0])));
         if (!entry) CHECK(p.values[0]==1 && p.values[3]==0 && p.values[6]==0 && p.values[8]==1);
         if (entry==2) CHECK(p.values[3]==0 && p.values[9]==2);
         if (entry==3) CHECK(p.values[0]==1);
+        if (entry==4) CHECK(p.values[0]==1);
+        if (entry>=5) CHECK(p.values[0]==0 && p.values[1]==20);
+        if (entry==6) CHECK(p.values[2]==0);
         for (int stop=0;stop<counts[entry];stop++) for (int result=-1;result<=1;result+=2) {
             turn_probe stopped={0};stopped.stop=stop;stopped.result=result;
             CHECK(fd2_field_turn_run((fd2_field_turn_entry)entry,turn_apply,&stopped)==result && stopped.calls==stop+1);
         }
     }
     turn_probe p={0};p.stop=-1;
-    CHECK(fd2_field_turn_run((fd2_field_turn_entry)4,turn_apply,&p)==-1 && !p.calls);
+    CHECK(fd2_field_turn_run((fd2_field_turn_entry)7,turn_apply,&p)==-1 && !p.calls);
     CHECK(fd2_field_turn_run(FD2_FIELD_TURN_PLAYER_DONE,NULL,&p)==-1 && !p.calls);
     return 0;
 }

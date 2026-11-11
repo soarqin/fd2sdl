@@ -15,6 +15,7 @@
 static uint64_t test_clock;
 static int timed_frames, close_frame, quit_frame, modal_started, modal_done;
 static int background_calls, dynamic_seen, old_pulse_seen, bad_free;
+static int early_open_keys;
 static int allocations, frees, fail_allocation, route_mode, action_queries;
 static int post_modal_queries, next_outer_present, hold_enter;
 static int menu_close_calls;
@@ -100,7 +101,7 @@ static void set_physical_frame(fd2_vga *vga, int frame) {
         fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
     if (hold_enter)
         fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
-    if (frame == 3) { /* 打开动画输入必须消耗，不可关闭稳定页。 */
+    if (frame == 3 && early_open_keys) { /* 无入口clear，早键在首稳态才清。 */
         fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_G, 1);
         fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
     }
@@ -253,6 +254,7 @@ static void reset_controls(void) {
     quit_frame = 0;
     close_key = SDL_SCANCODE_A;
     hold_enter = 0;
+    early_open_keys=0;
     memset(allocated, 0, sizeof(allocated));
     fd2_field_rng_seed(&test_rng, 0x3141);
 }
@@ -347,13 +349,10 @@ static int test_modal_keys_and_owner(void) {
         fd2_field_game before = game;
         fd2_vga vga = {0};
         fd2_input_init(&vga.input);
-        fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 1);
-        fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RIGHT, 1);
-        fd2_input_begin_test_frame(&vga.input, test_clock);
         CHECK(play_field_overview(&game, &vga) == FD2_SCENE_RESULT_OK);
         CHECK(timed_frames == close_frame + 12 && modal_done);
         CHECK(background_calls == 1 + close_frame - 12);
-        CHECK(!old_pulse_seen && !fd2_input_has_any_key(&vga.input));
+        CHECK(old_pulse_seen && !fd2_input_has_any_key(&vga.input)); /* 关闭余键由真实尾clear。 */
         CHECK(allocations == 2 && frees == 2 && !bad_free);
         CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
         CHECK(vga.framebuffer[10 * VGA_STRIDE + 10] == 20);
@@ -362,6 +361,17 @@ static int test_modal_keys_and_owner(void) {
         fd2_field_game_close(&game);
     }
     return 0;
+}
+
+static int test_opening_early_keys_wait_until_first_stable_clear(void) {
+    reset_controls();early_open_keys=1;close_frame=100; /* 尚未投计划关闭键。 */
+    fd2_field_game game;CHECK(init_game(&game)==0);
+    fd2_field_game before=game;fd2_vga vga={0};fd2_input_init(&vga.input);
+    CHECK(play_field_overview(&game,&vga)==FD2_SCENE_RESULT_OK);
+    CHECK(timed_frames==25 && background_calls==2 && old_pulse_seen && modal_done);
+    CHECK(!fd2_input_has_any_key(&vga.input) && owner_unchanged(&game,&before) && test_rng.state==0x3141);
+    CHECK(allocations==2 && frees==2 && !bad_free);
+    fd2_field_game_close(&game);return 0;
 }
 
 static int test_modal_failure_and_quit(void) {
@@ -487,7 +497,8 @@ static int test_modal_preserves_held_lifecycle(void) {
     uint64_t repeat_at = vga.input.next_repeat_ms[SDL_SCANCODE_RETURN];
     CHECK(play_field_overview(&game, &vga) == FD2_SCENE_RESULT_OK);
     CHECK(vga.input.previous_down[SDL_SCANCODE_RETURN]);
-    CHECK(vga.input.next_repeat_ms[SDL_SCANCODE_RETURN] == repeat_at);
+    CHECK(vga.input.next_repeat_ms[SDL_SCANCODE_RETURN]>=repeat_at);
+    repeat_at=vga.input.next_repeat_ms[SDL_SCANCODE_RETURN]; /* 宿主采样可正常到repeat门；clear不重置。 */
     fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_DOWN, 0);
     fd2_input_begin_test_frame(&vga.input, repeat_at - 1);
     CHECK(!fd2_input_has_any_key(&vga.input));
@@ -671,6 +682,7 @@ int main(void) {
     CHECK(test_app_clock_entry_and_steady_order() == 0);
     CHECK(test_app_clock_preflight_and_error_boundaries() == 0);
     CHECK(test_modal_keys_and_owner() == 0);
+    CHECK(test_opening_early_keys_wait_until_first_stable_clear()==0);
     CHECK(test_modal_failure_and_quit() == 0);
     CHECK(test_modal_preconditions() == 0);
     CHECK(test_transition_geometry() == 0);

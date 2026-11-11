@@ -43,7 +43,8 @@ static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, 
 static int common_event_leaf(const char *op) {
     static const char *const leaves[] = { "story", "clear_keys", "notice_actor", "message",
         "portrait_frame", "wait_key", "close_box", "map_replace", "raw_animation", "pan",
-        "move", "refresh_map", "background_rebuild", "brightness" };
+        "move", "refresh_map", "background_rebuild", "brightness", "delay_ms",
+        "arrival_prepare", "arrival_frames", "arrival_close" };
     for (size_t i = 0; i < sizeof(leaves)/sizeof(leaves[0]); i++)
         if (!strcmp(op, leaves[i])) return 1;
     return 0;
@@ -63,14 +64,80 @@ static int common_event_literal(const fd2_field_game *game,
     return 0;
 }
 
-static int common_event_preflight_leaf(const fd2_field_game *game, const fd2_static_flow_node *node, size_t actor) {
+static int common_event_preflight_leaf_view(const fd2_field_game *game,const fd2_static_flow_node *node,
+        size_t actor,const fd2_field_event_resource_view *view) {
     fd2_static_flow_node literal = *node;
     if (!strcmp(literal.op, "notice_actor") && literal.args[0] == -1) literal.args[0] = (int32_t)actor;
-    return !game->event_preflight || !game->event_preflight(game, &literal, game->event_preflight_userdata) ? 0 : -1;
+    return !game->event_preflight || !game->event_preflight(game,&literal,view,game->event_preflight_userdata) ? 0:-1;
+}
+
+static int common_event_preflight_leaf(const fd2_field_game *game,const fd2_static_flow_node *node,size_t actor) {
+    return common_event_preflight_leaf_view(game,node,actor,NULL);
+}
+
+/* 有限next/ACK身份前缀：不按stage/action分支、不复制Game或执行派生/RNG。
+ * 未识别的分支/业务组合退回原两可能边资源门，不能把一条投影当所有后态。 */
+static int common_event_preflight_identity(const fd2_field_game *game,const fd2_static_flow *flow,size_t actor) {
+    int pc=flow->entry,linear=0;
+    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
+        const fd2_static_flow_node *n=fd2_static_flow_at(flow,pc);
+        if(!n)return -1;
+        if(!strcmp(n->op,"end")){linear=1;break;}
+        if(strcmp(n->op,"roster_append") && strcmp(n->op,"append_group") &&
+            strcmp(n->op,"display_mode") && strcmp(n->op,"directions_reset") &&
+            strcmp(n->op,"ai_anchor") && strcmp(n->op,"pan") && strcmp(n->op,"move") &&
+            strcmp(n->op,"story") && strcmp(n->op,"refresh_map") && strcmp(n->op,"clear_keys") &&
+            strcmp(n->op,"delay_ms") && strcmp(n->op,"arrival_prepare") &&
+            strcmp(n->op,"arrival_frames") && strcmp(n->op,"arrival_close") &&
+            !( !strcmp(n->op,"unit_field_write") && n->args[2]==FD2_UNIT_SIDE))return 0;
+        pc=fd2_static_flow_edge(flow,n,!strcmp(n->op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
+    }
+    if(!linear)return -1;
+    fd2_field_units units=game->units;
+    fd2_field_unit roster[FD2_SAVE_BATTLE_MAX_ROSTER];
+    if(game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER)return -1;
+    memcpy(roster,game->roster,sizeof(roster));
+    fd2_field_event_resource_view view={&units,roster,game->roster_count};pc=flow->entry;
+    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
+        const fd2_static_flow_node *n=fd2_static_flow_at(flow,pc);if(!n)return -1;
+        if(!strcmp(n->op,"end"))return 1;
+        if(!strcmp(n->op,"append_group")) {
+            size_t first=units.count;
+            uint32_t group=(uint32_t)n->args[0];
+            if(n->args[1]!=0 && n->args[1]!=1)return -1;
+            /* 原DWORD与模板BYTE零扩展比较；高位不匹配，绝不能alias group0。 */
+            if(group<=UINT8_MAX && fd2_field_units_project_group_identity(&units,&game->metadata,&game->placements,
+                (uint8_t)group)!=0)return -1;
+            for(size_t i=first;i<units.count;i++)if(fd2_field_units_sprite_cache_append(&units,i)!=0)return -1;
+        } else if(!strcmp(n->op,"roster_append")) {
+            if(view.roster_count>=FD2_SAVE_BATTLE_MAX_ROSTER || n->args[0]<0 || n->args[0]>31)return -1;
+            if(fd2_field_unit_init(&roster[view.roster_count++],(uint8_t)n->args[0],
+                (uint8_t)n->args[0],2,0,0)!=0)return -1;
+        } else if(!strcmp(n->op,"move")) {
+            const uint8_t *script;size_t size;
+            /* 无Play资源callback的headless caller也必须校验真实未来raw。
+             * 仅借局部units消费已证counted grammar，不抽RNG或写live motion。 */
+            if(n->args[0]<0 || n->args[0]>255 ||
+                fd2_field_movement_script_get((uint8_t)n->args[0],&script,&size)!=0 ||
+                fd2_field_movement_script_apply(&units,script,size)!=0)return -1;
+            if(common_event_preflight_leaf_view(game,n,actor,&view)!=0)return -1;
+        } else if(!strcmp(n->op,"ai_anchor")) {
+            if(n->args[0]<0 || n->args[1]<n->args[0] || (size_t)n->args[1]>=units.count ||
+                n->args[2]<0 || n->args[2]>255 || n->args[3]<0 || n->args[3]>255)return -1;
+        } else if(!strcmp(n->op,"unit_field_write")) {
+            if(n->args[0]<0 || n->args[1]<n->args[0] || n->args[4]<0 || n->args[4]>UINT16_MAX ||
+                fd2_field_units_field_write(&units,(size_t)n->args[0],(size_t)n->args[1],
+                    FD2_UNIT_SIDE,(fd2_field_unit_write)n->args[3],(uint16_t)n->args[4])!=0)return -1;
+        } else if(common_event_leaf(n->op) && common_event_preflight_leaf_view(game,n,actor,&view)!=0)return -1;
+        pc=fd2_static_flow_edge(flow,n,!strcmp(n->op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
+    }
+    return -1;
 }
 
 static int common_event_preflight_flow(const fd2_field_game *game, const fd2_static_flow *flow, size_t actor) {
     if (!game || !flow || !fd2_static_flow_at(flow,flow->entry)) return -1;
+    int projected=common_event_preflight_identity(game,flow,actor);
+    if(projected)return projected>0?0:-1;
     size_t capacity=(size_t)flow->count*2u, used=0;
     uint8_t *seen=calloc(capacity,1);
     uint32_t *pending=malloc(capacity*sizeof(*pending));
@@ -120,7 +187,7 @@ static int common_event_preflight_flow(const fd2_field_game *game, const fd2_sta
 
 static int common_event_run(fd2_field_game *game);
 
-static int common_event_legacy_pending(const fd2_field_game *game) {
+static int common_event_invalid_deferred(const fd2_field_game *game) {
     for(size_t i=0;i<game->event_log_count;i++)
         if(game->event_log[i].presentation_deferred)return 1;
     return 0;
@@ -146,8 +213,7 @@ static int common_event_finish(fd2_field_game *game) {
         if(game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
         if(!game->event_resume.active)apply_phase_status_tick(game,game->active_side);
     } else if(completion==FD2_EVENT_COMPLETE_PLAYER_PENDING) {
-        game->pending_cell_event.valid=0;
-        game->player_post_waiting_phase=0;game->player_post_actor=0;
+        return finish_player_controller_input(game,actor);
     } else if(completion==FD2_EVENT_COMPLETE_AI_PENDING) {
         game->battle_result=fd2_field_game_battle_result(game);
         if(game->battle_result!=FD2_FIELD_BATTLE_ONGOING &&
@@ -155,7 +221,9 @@ static int common_event_finish(fd2_field_game *game) {
     } else if(completion==FD2_EVENT_COMPLETE_LOOT_PENDING)return loot_flow_resume_event_pending(game);
     else if(completion==FD2_EVENT_COMPLETE_MARCH) {
         if(actor>=game->units.count){fail_action(game,actor);return -1;}
-        for(size_t i=0;i<game->units.count;i++)game->units.items[i].direction=0;
+        int reset=run_turn_entry(game,FD2_FIELD_TURN_DIRECTIONS_RESET);
+        if(reset<0){fail_action(game,actor);return -1;}
+        if(reset>0)return 0;
         fd2_field_unit_set_acted(&game->units.items[actor],1);
         game->selected_unit=game->command_selected=-1;game->interaction=FD2_FIELD_INTERACTION_BROWSE;
         return march_continue(game,vga,frame_ms,anchor_x,anchor_y,next);
@@ -165,7 +233,6 @@ static int common_event_finish(fd2_field_game *game) {
 
 static int common_event_advance(fd2_field_game *game, unsigned port) {
     fd2_field_event_resume *r = &game->event_resume;
-    if(r->waiting_legacy)return -1;
     const fd2_static_flow_node *node = fd2_static_flow_at(r->flow, r->pc);
     int next = fd2_static_flow_edge(r->flow, node, port);
     if (next < 0) return common_event_fail(game);
@@ -186,7 +253,7 @@ static int common_event_run(fd2_field_game *game) {
     if (!game || !game->ready || !game->event_resume.active || game->units.count > FD2_FIELD_MAX_UNITS ||
         game->failure != FD2_FIELD_FAILURE_NONE) return -1;
     fd2_field_event_resume *r = &game->event_resume;
-    if(r->waiting_legacy)return 0;
+    if(game->runtime_host_quit)return 0;
     if (r->child_wait) return game->loot.child.active ? 0 : common_event_child_resume(game);
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         if(game->runtime_host_quit)return 0;
@@ -207,6 +274,21 @@ static int common_event_run(fd2_field_game *game) {
             const int32_t *a = node->args;
             int result = -1;
             if (!strcmp(node->op, "completed_cells")) result = complete_cell_tiles(game);
+            else if(!strcmp(node->op,"display_mode")) {
+                if(a[0]<0 || a[0]>1)return common_event_fail(game);
+                game->ordinary_display_mode=(uint8_t)a[0];result=0;
+            } else if(!strcmp(node->op,"directions_reset")) {
+                for(size_t i=0;i<game->units.count;i++)game->units.items[i].direction=0;
+                result=0;
+            } else if(!strcmp(node->op,"ai_anchor")) {
+                if(a[0]<0 || a[1]<a[0] || (size_t)a[1]>=game->units.count ||
+                    a[2]<0 || a[2]>255 || a[3]<0 || a[3]>255)return common_event_fail(game);
+                for(size_t i=(size_t)a[0];i<=(size_t)a[1];i++) {
+                    game->units.items[i].ai_param_35=(uint8_t)a[2];
+                    game->units.items[i].ai_param_36=(uint8_t)a[3];
+                }
+                result=0;
+            }
             else if (!strcmp(node->op, "roster_append")) result = append_persistent_player(game, (uint8_t)a[0]);
             else if (!strcmp(node->op, "roster_sync")) {
                 fd2_save_manual_state persistent = {0};
@@ -261,18 +343,10 @@ int fd2_field_game_common_event_begin(fd2_field_game *game, const char *id, size
 
 static int common_event_bound_begin(fd2_field_game *game,const fd2_static_flow *flow,size_t actor) {
     if(!game || !flow || !game->ready || game->event_resume.active ||
+        game->runtime_host_quit || game->failure!=FD2_FIELD_FAILURE_NONE ||
         game->units.count>FD2_FIELD_MAX_UNITS || actor>=game->units.count ||
-        common_event_preflight_flow(game,flow,actor)!=0)return -1;
+        common_event_invalid_deferred(game) || common_event_preflight_flow(game,flow,actor)!=0)return -1;
     game->event_resume=(fd2_field_event_resume){.flow=flow,.pc=flow->entry,.actor=(uint8_t)actor,.active=1};
-    if(common_event_legacy_pending(game)){game->event_resume.waiting_legacy=1;return 0;}
-    return common_event_run(game);
-}
-
-int fd2_field_game_common_event_resume(fd2_field_game *game) {
-    if(!game || !game->ready || !game->event_resume.active ||
-        !game->event_resume.waiting_legacy || game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
-    if(common_event_legacy_pending(game))return 1;
-    game->event_resume.waiting_legacy=0;
     return common_event_run(game);
 }
 
@@ -280,7 +354,7 @@ int fd2_field_game_common_event_peek(const fd2_field_game *game,
         fd2_static_flow_node *node, size_t *actor) {
     if (!game || !node || !actor || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
     const fd2_field_event_resume *r = &game->event_resume;
-    if (!r->active || r->child_wait || r->waiting_legacy) return 0;
+    if (!r->active || r->child_wait) return 0;
     const fd2_static_flow_node *source = fd2_static_flow_at(r->flow, r->pc);
     if (!source || common_event_literal(game, source, node) != 0 || !common_event_leaf(node->op)) return -1;
     *actor = r->actor;
@@ -288,8 +362,8 @@ int fd2_field_game_common_event_peek(const fd2_field_game *game,
 }
 
 int fd2_field_game_common_event_reply(fd2_field_game *game, unsigned port) {
-    if (!game || !game->event_resume.active || game->event_resume.child_wait || game->event_resume.waiting_legacy ||
-        game->failure != FD2_FIELD_FAILURE_NONE) return -1;
+    if (!game || !game->event_resume.active || game->event_resume.child_wait ||
+        game->runtime_host_quit || game->failure != FD2_FIELD_FAILURE_NONE) return -1;
     const fd2_static_flow_node *node = fd2_static_flow_at(game->event_resume.flow, game->event_resume.pc);
     fd2_static_flow_node literal;
     if (!node || common_event_literal(game, node, &literal) != 0 || !common_event_leaf(literal.op)) return -1;
@@ -302,13 +376,11 @@ int fd2_field_game_common_event_reply(fd2_field_game *game, unsigned port) {
 static int common_event_callback_begin(fd2_field_game *game, uint8_t action, size_t actor) {
     const fd2_static_flow *flow = known_common_event_flow(game,action);
     if (!flow) return 0; /* 尚未绑定的机制夹具不开放新关卡。 */
-    if (game->event_resume.active || actor >= game->units.count ||
+    if (game->event_resume.active || game->runtime_host_quit || game->failure!=FD2_FIELD_FAILURE_NONE ||
+        common_event_invalid_deferred(game) || actor >= game->units.count ||
         common_event_preflight_flow(game, flow, actor) != 0) return -1;
     game->event_resume = (fd2_field_event_resume){.flow=flow,.pc=flow->entry,
         .actor=(uint8_t)actor,.active=1,.from_loot=2};
-    if(common_event_legacy_pending(game)) {
-        game->event_resume.waiting_legacy=1;game->event_resume.from_loot=1;return 1;
-    }
     if (common_event_run(game) != 0) return -1;
     if (game->event_resume.active) game->event_resume.from_loot = 1;
     return 1;

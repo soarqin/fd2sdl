@@ -13,6 +13,7 @@
 #include "field_magic.h"
 #include "field_move.h"
 #include "field_move_profile.h"
+#include "static_data.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -1759,7 +1760,9 @@ static int test_phase_status_tick(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = UINT8_MAX;
+    /* phase返回会消费真实stage music合同；空turn表已排除剧情，
+     * 不拿stage255缺资源当测试毒伤/计时器的合法前置。 */
+    game.stage = 0;
     game.active_side = 2;
 
     /* enter_phase(1) must not touch the side 0 actor. */
@@ -1870,7 +1873,7 @@ static int test_behavior8_outer_loop_boundary(void) {
      * phase cursor 保证下一次调用结束本轮，不能因 remaining_units 仍含
      * 该 actor 而重复执行或永久停留。 */
     init_game(&game, cells, attrs, &rng);
-    game.stage = UINT8_MAX;
+    game.stage = 0; /* 此支真实进入new-player音乐尾，不使用缺音乐的255哨兵。 */
     game.units.items[0].ai_behavior_raw = 8;
     game.units.items[0].direction = 3;
     game.units.items[1].direction = 2;
@@ -1895,7 +1898,7 @@ static int test_phase_acted_lifecycle(void) {
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
-    game.stage = UINT8_MAX;
+    game.stage = 0; /* 完整side0→player尾需要真实音乐定义；turn表仍空。 */
     game.active_side = 2;
     game.units.items[0].side = 2;
     game.units.items[1].side = 1;
@@ -2280,14 +2283,19 @@ static int test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once(void)
         CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,mode,&plan)==0);
         int result=scheduler?fd2_field_game_process_automatic_action(&game):
             fd2_field_game_commit_ai_item(&game,0,1,&plan);
+        fd2_static_flow_node story;size_t actor;
+        CHECK(fd2_field_game_common_event_peek(&game,&story,&actor)==1 && !strcmp(story.op,"story") &&
+            story.args[0]==7 && actor==0 && game.units.items[13].side==1 && rng.cursor==4);
+        fd2_field_units prefix=game.units;
+        CHECK(fd2_field_game_common_event_reply(&game,FD2_FLOW_ACK)==0 && !game.event_resume.active &&
+            !memcmp(&prefix,&game.units,sizeof(prefix)) && rng.cursor==4);
         int okay=result==(scheduler?1:0) && !game.failure && !game.loot.source &&
             !game.loot.notice.kind && !game.loot.resume && !game.progress.resume &&
             fd2_field_unit_has_acted(&game.units.items[0]) &&
             game.units.items[0].direction==0 && game.units.items[2].direction==0 &&
             game.units.items[1].hp==0 && game.units.items[1].flags==1 && game.units.items[2].hp==75 &&
             rng.cursor==4 && rng.first_experience==7 && !game.experience_value &&
-            game.resource_value==5 && game.event_log_count==1 && game.event_total_count==1 &&
-            game.event_log[0].action==4 && game.units.items[13].side==1;
+            game.resource_value==5 && !game.event_log_count && !game.event_total_count && game.units.items[13].side==1;
         printf("sync item tail scheduler=%d descriptor=%u result=%d acted=%d events=%zu hp=%u/%u rng=%zu loot_source=%u loot_resume=%u pass=%d\n",
             scheduler,mode,result,fd2_field_unit_has_acted(&game.units.items[0]),game.event_log_count,
             game.units.items[1].hp,game.units.items[2].hp,rng.cursor,game.loot.source,game.loot.resume,okay);
@@ -2307,8 +2315,12 @@ static int test_item_async_loot_and_rejection_boundaries_remain(void) {
     CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_CANCEL,-1)==-1 &&
         !memcmp(&before,&game,sizeof(game)) && rng.cursor==4);
     CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==0);
+    fd2_static_flow_node story;size_t actor;
+    CHECK(fd2_field_game_common_event_peek(&game,&story,&actor)==1 && !strcmp(story.op,"story") &&
+        story.args[0]==7 && actor==0 && game.units.items[13].side==1 && rng.cursor==4);
+    CHECK(fd2_field_game_common_event_reply(&game,FD2_FLOW_ACK)==0 && !game.event_resume.active && rng.cursor==4);
     CHECK(!game.loot.source && !game.progress.resume && fd2_field_unit_has_acted(&game.units.items[0]) &&
-        game.event_log_count==1 && game.event_total_count==1 && game.units.items[13].side==1 && rng.cursor==4);
+        !game.event_log_count && !game.event_total_count && game.units.items[13].side==1 && rng.cursor==4);
     before=game;
     CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==-1 && !memcmp(&before,&game,sizeof(game)));
     rng=(test_rng){rolls,16,0};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);

@@ -24,6 +24,7 @@ static struct {
     int wait_test, wait_frames, wait_key_at, wait_quit_at, wait_error, water_calls, rng_calls;
     int blink_seen, restore_seen, bad_wait_pixels, decode_blink_failure;
     int wait_step,wait_blink_at,wait_restore_at,route_wait_quit,route_wait_error;
+    int flip_early_key,flip_early_sent;
     uint32_t random_value;
     fd2_field_units final_units;
     int final_selected, final_detail, final_visible;
@@ -143,7 +144,13 @@ static void detail_timed(fd2_vga *vga, uint32_t interval) {
         if (memcmp(vga->framebuffer, expected, sizeof(expected))) control.bad_geometry = 1;
     }
     control.clock += interval;
-    test_input(vga, SDL_SCANCODE_F1, 1);
+    /* 普通路由/几何用例只在明确wait投键；开合余键另有专门回归。
+     * 否则flip早键会合法推进下一wait，不能再期待等待页必有present。 */
+    if(control.route && control.flip_early_key && control.animation==3 && control.animation_frames==1)
+        control.flip_early_sent++;
+    test_input(vga,control.route?(control.flip_early_key && control.animation==3 &&
+        control.animation_frames==1?SDL_SCANCODE_F1:0):
+        SDL_SCANCODE_F1,!control.route);
     if (control.quit_at && control.animation_frames == control.quit_at)
         vga->input.quit_requested = 1;
     vga->frame_deadline_ns = 1;
@@ -161,7 +168,7 @@ static void detail_present(fd2_vga *vga) {
         }
         if (control.check_geometry && control.animation == 2 &&
             memcmp(vga->framebuffer, detail_background, sizeof(detail_background))) control.bad_geometry = 1;
-        test_input(vga, SDL_SCANCODE_F1, 1);
+        test_input(vga, control.route?0:SDL_SCANCODE_F1, !control.route);
         if (control.quit_final || (control.quit_blank && control.animation == 3))
             vga->input.quit_requested = 1;
         return;
@@ -314,6 +321,20 @@ static int test_any_key_routes_and_controller(void) {
     }
     return 0;
 }
+static int test_flip_early_key_survives_to_second_wait(void) {
+    for(int route=1;route<=2;route++) {
+        reset();control.route=route;control.route_actor=1;control.flip_early_key=1;
+        fd2_vga vga={0};vga.field_page=detail_app_page;
+        CHECK(fd2_field_play_run(&vga,&detail_other_archive,0,0,NULL,NULL,
+            "original_game/START.SAV",0)==FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+        CHECK(control.closed==1 && control.controllers==(route==2));
+        CHECK(control.equipment_keys==1 && !control.magic_keys && control.route_stage==2 && control.flip_early_sent==1);
+        CHECK(control.final_detail==-1 && !control.final_visible && control.final_selected==-1);
+        CHECK(!control.buffers && !control.bad_geometry && !control.bad_route);
+    }
+    return 0;
+}
+
 static int test_formal_detail_wait_quit_and_error_priority(void) {
     for(int route=1;route<=2;route++)for(int error=0;error<=1;error++) {
         reset();control.route=route;control.route_actor=1;
@@ -554,6 +575,7 @@ int main(void) {
     CHECK(fd2_archive_open(&detail_other_archive, "original_game/FDOTHER.DAT") == 0);
     detail_app_page=fd2_field_page_create();CHECK(detail_app_page);
     CHECK(test_any_key_routes_and_controller() == 0);
+    CHECK(test_flip_early_key_survives_to_second_wait()==0);
     CHECK(test_formal_detail_wait_quit_and_error_priority()==0);
     CHECK(test_page_owner_and_quit() == 0);
     CHECK(test_wait_blink_owner_and_errors() == 0);

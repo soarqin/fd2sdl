@@ -585,7 +585,10 @@ int main(int argc, char **argv) {
         target.window = NULL;
     }
     /* key失败也输出定向投递收据，窗口不存在时不改用其它对象。 */
-    if (strcmp(argv[1], "key") == 0 && argc == 4) {
+    /* 早键验收仍保持150ms DOWN/UP；fast只省发送后的250ms静候，
+     * 允许在原300ms纯延时内发送第二个独立按键，owner/前台门不变。 */
+    if ((strcmp(argv[1], "key") == 0 || strcmp(argv[1], "key-fast") == 0) && argc == 4) {
+        unsigned long settle_us=strcmp(argv[1],"key-fast")==0?0u:250000u;
         if (strcmp(argv[3], "HOST_W") == 0)
             return tap_native_wave_record(&target) == 0 ? 0 : 1;
         fd2_driver_key_chord chord;
@@ -593,7 +596,7 @@ int main(int argc, char **argv) {
             const WORD symbols[] = {chord.modifier_vk, chord.function_vk};
             /* 复用HOST_W的modifier先DOWN、function先UP以及owner/失焦门。
              * bios_scan_expected只声明候选键表，必须另验原版实际响应。 */
-            return tap_keys(&target, symbols, 2u, 250000u, 0, chord.bios_scan_expected) == 0 ? 0 : 1;
+            return tap_keys(&target, symbols, 2u, settle_us, 0, chord.bios_scan_expected) == 0 ? 0 : 1;
         }
         const struct { const char *name; WORD key; } keys[] = {
             {"ENTER", VK_RETURN}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
@@ -605,7 +608,7 @@ int main(int argc, char **argv) {
         };
         for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
             if (strcmp(argv[3], keys[i].name) == 0)
-                return tap(&target, keys[i].key, 250000) == 0 ? 0 : 1;
+                return tap(&target, keys[i].key, settle_us) == 0 ? 0 : 1;
         return 2;
     }
     if (!target.window) {

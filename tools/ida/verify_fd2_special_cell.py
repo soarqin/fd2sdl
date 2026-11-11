@@ -140,7 +140,10 @@ def verify_cold(document):
         'cell.money_mode':('branch_descriptor_mode',[0,1],{'yes':'cell.money.nonzero','no':'cell.callback.wait','error':'failure'}),
         'cell.callback.wait':('emit',[5,0,0,200,0,0],{'error':'failure','ack':'cell.callback.close'}),
         'cell.callback.close':('emit',[5,0,4,0,0,0],{'error':'failure','ack':'cell.callback'}),
-        'cell.callback':('event_dispatch',[],{'next':'cell.callback.completed','error':'failure'}),
+        # 19511的callback返回后原190ac直接返回；common在同一loot PC等待，
+        # 返回时才走原owner尾，不产生整段Scene重放notice或另一次ACK。
+        'cell.callback':('event_dispatch',[],{'next':'loot.finish','error':'failure'}),
+        'loot.finish':('loot_snapshot_clear',[],{'next':'finish.physical','error':'failure'}),
         'preflight.cell.cue':('cell_cue_preflight',[],{'next':'preflight.cell.mode','error':'reject'}),
         'preflight.cell.callback':('cell_callback_preflight',[],{'next':'preflight.cell.chest','error':'reject'})}
     for label,(op,args,on) in expected.items():
@@ -148,7 +151,12 @@ def verify_cold(document):
         if actual is None or (actual['op'],actual['args'],actual['on'])!=(op,args,on):raise ValueError('190ac冷前缀不同:'+label)
     for label in ('cell.ask_chest','cell.ask_other'):
         if n[label]['on']['yes']!='cell.yes.cue':raise ValueError('确认不能略过cue12')
-    return {'cold_prefix_nodes':len(expected),'original_200ms_before_close':True,'stage_gate_removed':True}
+    if any(label in n for label in ('cell.callback.completed','cell.callback.legacy','drop.event')) or any(
+            x['op']=='emit' and x['args'] and x['args'][0]==6 for x in f['nodes']):
+        raise ValueError('callback返回不能再发旧Scene重放notice')
+    return {'cold_prefix_nodes':len(expected),'original_200ms_before_close':True,'stage_gate_removed':True,
+        'callback_return_tail':'loot.finish','legacy_replay_notice_present':False,
+        'runtime_parent_PC_execution_claimed':False}
 
 
 def main():

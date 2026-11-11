@@ -404,27 +404,32 @@ int fd2_field_magic_list_draw(fd2_vga *vga,
     return 0;
 }
 
-/* stage 0 两段条件只有普通字形及结束符；先检查完整文本，避免画完
- * 第一段后才发现第二段缺失。其他控制码留待其实际关卡得到支持。 */
+/* sub_1B41D @0x1b41d（原sub_1B41D）两次调用15f84，lineheight=19、delay=0。
+ * UI0[597..656]的30组条件仅glyph/-2/-1；657/658已属2b439/2af28选阵提示，
+ * 不按33张地图数量越入另一文本consumer。先核两段及所有行坐标才绘制。 */
 static int overview_fragment(const fd2_text_entry *text, const fd2_font *font,
-                              size_t fragment, const uint8_t **tokens,
-                              size_t *glyph_count) {
+                              size_t fragment, int y, fd2_text_expanded *expanded) {
     const uint8_t *data;
     size_t count;
     if (fd2_text_entry_get_fragment(text, fragment, &data, &count) != 0)
         return -1;
+    /* 本consumer不提供动态参数或等待owner；不能把-6臆造为0、吞掉-3，
+     * 或借选阵657的-4来源为普通胜败条件发明热状态。展开器仍唯一共享。 */
     for (size_t i = 0; i < count; i++) {
         uint16_t token = fd2_text_token_at(data, i);
-        if (token == 0xffffu) {
-            *tokens = data;
-            *glyph_count = i;
-            return 0;
-        }
-        if (token >= 0xff00u || token >= font->glyph_count ||
-            i >= (VGA_W - 80u) / 16u)
-            return -1;
+        if (token == 0xffffu) break;
+        if (token >= 0xff00u && token != 0xfffeu) return -1;
     }
-    return -1;
+    const fd2_text_parameters parameters = {0u, SIZE_MAX, SIZE_MAX};
+    if (fd2_text_expand(text, font->glyph_count, &parameters, fragment, expanded) != 0)
+        return -1;
+    int x = 80;
+    for (size_t i = 0; i < expanded->count; i++) {
+        if (expanded->tokens[i] == 0xfffeu) { x = 80; y += 19; continue; }
+        if (x + 16 > VGA_W || y + 17 > VGA_H) return -1;
+        x += 16;
+    }
+    return 0;
 }
 
 /* ui_number_draw @0x187d6（原登记 ui_number_draw）的八位分支：
@@ -447,7 +452,7 @@ int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_field_overview *data) {
     if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
         font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
-        !data || data->stage > 2u || !data->units ||
+        !data || data->stage >= 30u || data->stage == 16u || !data->units ||
         data->units->count > FD2_FIELD_MAX_UNITS)
         return -1;
     for (size_t i = 0; i < 4; i++) {
@@ -462,15 +467,15 @@ int fd2_field_overview_draw(fd2_vga *vga,
                 return -1;
         }
     }
-    /* sub_1B41D @0x1b41d（原登记同名）：stage+1及597/598+2*stage。
-     * 三阵营最多各64人，无两位溢出；回合可超过999。stage16特例未开放。 */
+    /* sub_1B41D：stage+1及597/598+2*stage；stage16的败条件须由其原
+     * sub_33499(18)选择628/630，现无该私有binding，明确拒绝而不猜。
+     * active上限96仍能用两位人数；回合可超过999。 */
     if (!image_has_size(&assets->digit_overflow[1], 18, 8))
         return -1;
-    const uint8_t *conditions[2];
-    size_t glyph_counts[2];
+    fd2_text_expanded conditions[2];
     for (size_t i = 0; i < 2; i++) {
         if (overview_fragment(text, font, 597u + data->stage * 2u + i,
-                               &conditions[i], &glyph_counts[i]) != 0)
+                               i == 0 ? 61 : 116, &conditions[i]) != 0)
             return -1;
     }
 
@@ -496,11 +501,12 @@ int fd2_field_overview_draw(fd2_vga *vga,
     draw_digits(vga, assets, 182, 159, counts[2], 2, 1);
     draw_digits(vga, assets, 228, 159, counts[1], 2, 1);
     for (size_t i = 0; i < 2; i++) {
-        for (size_t j = 0; j < glyph_counts[i]; j++) {
-            fd2_font_draw_glyph(vga, font,
-                                fd2_text_token_at(conditions[i], j),
-                                80 + (int)j * 16, i == 0 ? 61 : 116,
-                                0xcd, 0x4c, -1);
+        int x = 80, y = i == 0 ? 61 : 116;
+        for (size_t j = 0; j < conditions[i].count; j++) {
+            uint16_t token = conditions[i].tokens[j];
+            if (token == 0xfffeu) { x = 80; y += 19; continue; }
+            fd2_font_draw_glyph(vga, font, token, x, y, 0xcd, 0x4c, -1);
+            x += 16;
         }
     }
     return 0;

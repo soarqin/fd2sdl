@@ -163,10 +163,12 @@ def quiet_browse(prepared, source, world, report, name):
     return match
 
 
-def load_round_template(original, palette, turn):
-    """10010→1a30b：从原LMI91和数字42..51合成实际Save回合，不读SDL表。"""
+def load_round_template(original, palette, turn, *, exiting=False):
+    """10010自身两段Round：原LMI91与数字42..51；退出段数字相对y6，峰值y7。"""
     if type(turn) is not int or not 1 <= turn <= 255:
         raise ValueError("B4活动Load需要有效原byte回合")
+    if type(exiting) is not bool:
+        raise ValueError("B4活动Load只接受原峰值或退出段")
     sheet = archive_entry((original / "FDOTHER.DAT").read_bytes(), 5)
     if sheet[:4] != b"LMI1" or len(sheet) < 6:
         raise ValueError("B4活动Load原LMI目录无效")
@@ -185,15 +187,22 @@ def load_round_template(original, palette, turn):
         number = frame(42 + digit, decode_image)
         if number.width > 6 or number.height != 8:
             raise ValueError("B4原Round数字尺寸无效")
-        image.paste(number, (x, 7), number.point(lambda value: 255 if value else 0, mode="L"))
+        image.paste(number, (x, 6 if exiting else 7), number.point(lambda value: 255 if value else 0, mode="L"))
     image.putpalette(palette)
     return image
 
 
-def load_round_state(frame, template, turn):
-    found = match_indexed(frame, template, (120, 84))
-    return dict(kind="active_load_round_resource", turn=turn, frame91_and_three_digits=True,
-                **found) if found["ok"] else None
+def load_round_state(frame, template, turn, exit_template=None):
+    phases = [(template, (120, 84), "peak", None, 7)]
+    if exit_template is not None:
+        # 10010@10530/10565/105a2：App(116,k²+84)投到VGA(4,4)，数字相对y6；原k5改9。
+        phases.extend((exit_template, (120, k * k + 88), "exit", k, 6) for k in (2, 3, 4, 9))
+    for image, position, phase, k, digit_y in phases:
+        found = match_indexed(frame, image, position)
+        if found["ok"]:
+            return dict(kind="active_load_round_resource", turn=turn, frame91_and_three_digits=True,
+                        phase=phase, position=list(position), exit_k=k, digit_relative_y=digit_y, **found)
+    return None
 
 
 def loaded_browse_state(prepared, source, world):
@@ -215,13 +224,14 @@ def observe_active_load(capture, prepared, saved, save, guard, report):
     from run_g4_detail_check import detail_series, series_checkpoint
     turn = saved[META]
     template = load_round_template(prepared["original"], prepared["assets"]["palette"], turn)
+    exit_template = load_round_template(prepared["original"], prepared["assets"]["palette"], turn, exiting=True)
     evidence = {"checkpoints": []}
     report["active_load"] = evidence
     try:
         with detail_series(capture, evidence) as scope:
             capture.key("ENTER")  # 本场唯一Load肯定；ready之前不投递。
             series_checkpoint(capture, scope, "b4-load-round",
-                lambda frame: load_round_state(frame, template, turn), evidence["checkpoints"])
+                lambda frame: load_round_state(frame, template, turn, exit_template), evidence["checkpoints"])
             require_source_unchanged(save, *guard)
             series_checkpoint(capture, scope, "b4-loaded-browse",
                 loaded_browse_state(prepared, saved, (6, 14)), evidence["checkpoints"])
@@ -377,12 +387,9 @@ def exercise(capture, prepared, save, guard, report):
         checkpoint("b4-learned-command-magic", lambda frame: command(frame, final, view, raw, 1, [2, 4, 6, 9]))
         capture.key("ENTER"); checkpoint("b4-learned-list0", lambda frame: list_state(frame, prepared, 0, learned=True))
         capture.key("UP"); checkpoint("b4-learned-list17", lambda frame: list_state(frame, prepared, 2, learned=True))
-        if report["kind"] == "sdl":
-            for key in ("ENTER", "SPACE"):
-                capture.key(key)
-                checkpoint("b4-unsupported17-refused-" + key.lower(), lambda frame: list_state(frame, prepared, 2, learned=True))
         report["learned_spell_support"] = {"shown_ids": [0, 13, 17], "known_0_13_remain_available": True,
-            "native_spell17_confirmation_sent": False, "sdl_spell17_refused": report["kind"] == "sdl",
+            "native_spell17_confirmation_sent": False, "sdl_spell17_refused": False,
+            "scope": "learning/list persistence and known13 targeting cancel; legal17 effects are covered by G2 action scenarios",
             "spell17_effect_verified": False}
         capture.key("DOWN"); checkpoint("b4-learned-wrap-list0", lambda frame: list_state(frame, prepared, 0, learned=True))
         capture.key("DOWN"); checkpoint("b4-learned-list13", lambda frame: list_state(frame, prepared, 1, learned=True))
@@ -390,7 +397,7 @@ def exercise(capture, prepared, save, guard, report):
         capture.key("ESC"); checkpoint("b4-learned13-cancel-list0", lambda frame: list_state(frame, prepared, 0, learned=True))
         capture.key("ESC"); checkpoint("b4-learned-list-cancel-command", lambda frame: command(frame, final, view, raw, 1, [2, 4, 6, 9]))
     capture.key("DOWN")
-    # 逐entry支持门：新学17不应剥夺现有0/13；未开放17自身仍不提交。
+    # B4学习回归只观察新列表及13取消，不重复G2合法17的效果场景。
     magic_frame = 3 if raw == 1 else 5
     attack_frame = 0 if scenario == "physical-overwrite" else 2
     checkpoint("b4-wait-selected", lambda frame: command(frame, final, view, raw, 3, [attack_frame, magic_frame, 6, 10]))
@@ -539,15 +546,6 @@ def compare_endpoints(cases, output, prepared):
     if [case["kind"] for case in cases] != ["original", "sdl"] or any(not case["probe_cases_passed"] for case in cases):
         raise AssertionError("B4配对必须两个真实端点均已通过")
     endpoints = [paired_checkpoint_records(case, output / case["kind"])[0] for case in cases]
-    role_only = {"b4-unsupported17-refused-enter", "b4-unsupported17-refused-space"} if prepared["scenario"] == "learn" else set()
-    if role_only:
-        if any(name in endpoints[0] for name in role_only) or not role_only.issubset(endpoints[1]):
-            raise AssertionError("B4未开放17的端内拒绝收据不完整或错误落入原版")
-        for name in role_only:
-            row = endpoints[1][name]
-            if row.get("kind") != "b4_magic_list" or row.get("selected") != 2 or row.get("magic_ids") != [0, 13, 17]:
-                raise AssertionError("B4未开放17的端内收据不是完整selected17列表")
-        endpoints[1] = {name: row for name, row in endpoints[1].items() if name not in role_only}
     if endpoints[0].keys() != endpoints[1].keys(): raise AssertionError("B4业务检查点集合不一致")
     results = []
     for page in prepared["pages"]:
@@ -577,7 +575,7 @@ def compare_endpoints(cases, output, prepared):
     if snapshots[0] != snapshots[1]: raise AssertionError("B4两端最终真实SAV全部byte不同")
     return {"resource_text_rgb": results, "whole_save_bytes_equal": True,
             "same_complete_resource_checkpoints": len(endpoints[0]), "shared_rng_aligned": False,
-            "explicit_sdl_only_unsupported17_refusals": sorted(role_only),
+            "explicit_sdl_only_unsupported17_refusals": [],
             "portrait_timing_full_figani_and_audio_compared": False,
             "phase_anchor_policy": "native-only round002 resource when observed before expiry pages; SDL ordered phase log, no SDL banner image claim; both real quiet browse and full turn2 SAV",
             "save_sha256": hashlib.sha256(snapshots[0]).hexdigest()}

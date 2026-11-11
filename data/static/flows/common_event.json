@@ -5,7 +5,7 @@
     "file": "FD2.EXE",
     "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
     "kind": "decoded_control_flow",
-    "evidence": "G4 finite reusable event rules and deliberately unbound source fixtures: complete348ea/35123/35e0e/3623c/35854/35a0d/352ca/35346/355f0/35730, and the item-consumption portion240fa. Complete shared tails3530d/3531b were checked in G1 Domain scope-root-readset. No stage/action bindings or new stage capability are added. source fixture is not all-game source translation or native acceptance. The post-resource-replacement excerpt24754 retains separate4df4c map reset,10652 background rebuild and all following pan/palette/move/story steps; it does not translate the earlier stage-specific cutscene. Complete35677 invokes story5 then35f10(18), whose HP WORD loop and unified defeated-finalize call are separate cold nodes. Dynamic excerpts common.group.turn.source (35833@3583d through10b4e call, shared tail excluded) and common.story.state.source (362e8@3631a through15f84 call, surrounding camera/action choreography excluded) bind the finite source getters to real domain consumption; not complete callbacks."
+    "evidence": "G4 finite reusable event rules and deliberately unbound source fixtures: complete348ea/35123/35e0e/3623c/35854/35a0d/352ca/35346/355f0/35730, and the item-consumption portion240fa. Complete shared tails3530d/3531b were checked in G1 Domain scope-root-readset. No stage/action bindings or new stage capability are added. source fixture is not all-game source translation or native acceptance. The post-resource-replacement excerpt24754 retains separate4df4c map reset,10652 background rebuild and all following pan/palette/move/story steps; it does not translate the earlier stage-specific cutscene. Complete35677 invokes story5 then35f10(18), whose HP WORD loop and unified defeated-finalize call are separate cold nodes. Dynamic excerpts common.group.turn.source (35833@3583d through10b4e call, shared tail excluded) and common.story.state.source (362e8@3631a through15f84 call, surrounding camera/action choreography excluded) bind the finite source getters to real domain consumption; not complete callbacks. G5 migrates exactly six already-supported scene event bindings (000 actions0..4,001 action6) into the same event_resume finite continuation, not new S support. Complete34531/3460b/34673/346cd/34738/34778 original instructions and shared34663 tail, source readset7f5beff4 and strict relocated image8c40 verified. All text waits separate subsequent writes; 134e4 direction reset is followed by explicit source20ms delay. Arrival prepare/snapshot precedes Game group append; runtime.arrival owns the finite12-frame visual sequence. No whole-event rollback or future live writes in presentation replay."
   },
   "operations": {
     "end": {
@@ -604,6 +604,60 @@
           "max": 9
         }
       ]
+    },
+    "display_mode": {
+      "args": [
+        {
+          "name": "value",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    "directions_reset": {
+      "args": []
+    },
+    "ai_anchor": {
+      "args": [
+        {
+          "name": "first",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "last",
+          "min": 0,
+          "max": 95
+        },
+        {
+          "name": "x",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "y",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
+    "delay_ms": {
+      "args": [
+        {
+          "name": "ms",
+          "min": 1,
+          "max": 1000
+        }
+      ]
+    },
+    "arrival_prepare": {
+      "args": []
+    },
+    "arrival_frames": {
+      "args": []
+    },
+    "arrival_close": {
+      "args": []
     }
   },
   "flows": [
@@ -1891,6 +1945,732 @@
           "on": {}
         }
       ]
+    },
+    {
+      "id": "common.legacy.action.000",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "roster_append",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "append_group",
+          "args": [
+            3,
+            0
+          ],
+          "on": {
+            "next": "step.02",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.02",
+          "op": "pan",
+          "args": [
+            5,
+            8
+          ],
+          "on": {
+            "next": "step.03",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.03",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.04",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.04",
+          "op": "delay_ms",
+          "args": [
+            100
+          ],
+          "on": {
+            "next": "step.05",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.05",
+          "op": "move",
+          "args": [
+            7,
+            0
+          ],
+          "on": {
+            "next": "step.06",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.06",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "step.07",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.07",
+          "op": "story",
+          "args": [
+            11
+          ],
+          "on": {
+            "ack": "step.08",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.08",
+          "op": "display_mode",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "step.09",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.09",
+          "op": "append_group",
+          "args": [
+            7,
+            0
+          ],
+          "on": {
+            "next": "step.10",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.10",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.11",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.11",
+          "op": "delay_ms",
+          "args": [
+            100
+          ],
+          "on": {
+            "next": "step.12",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.12",
+          "op": "move",
+          "args": [
+            8,
+            0
+          ],
+          "on": {
+            "next": "step.13",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.13",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "step.14",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.14",
+          "op": "story",
+          "args": [
+            3
+          ],
+          "on": {
+            "ack": "step.15",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.15",
+          "op": "directions_reset",
+          "args": [],
+          "on": {
+            "next": "step.16",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.16",
+          "op": "delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.legacy.action.001",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "pan",
+          "args": [
+            11,
+            16
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "arrival_prepare",
+          "args": [],
+          "on": {
+            "next": "step.02",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.02",
+          "op": "append_group",
+          "args": [
+            4,
+            0
+          ],
+          "on": {
+            "next": "step.03",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.03",
+          "op": "arrival_frames",
+          "args": [],
+          "on": {
+            "next": "step.04",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.04",
+          "op": "arrival_close",
+          "args": [],
+          "on": {
+            "next": "step.05",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.05",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "step.06",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.06",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.07",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.07",
+          "op": "move",
+          "args": [
+            3,
+            0
+          ],
+          "on": {
+            "next": "step.08",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.08",
+          "op": "directions_reset",
+          "args": [],
+          "on": {
+            "next": "step.09",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.09",
+          "op": "delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "step.10",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.10",
+          "op": "story",
+          "args": [
+            4
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.legacy.action.002",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "pan",
+          "args": [
+            0,
+            16
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "arrival_prepare",
+          "args": [],
+          "on": {
+            "next": "step.02",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.02",
+          "op": "append_group",
+          "args": [
+            5,
+            0
+          ],
+          "on": {
+            "next": "step.03",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.03",
+          "op": "arrival_frames",
+          "args": [],
+          "on": {
+            "next": "step.04",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.04",
+          "op": "arrival_close",
+          "args": [],
+          "on": {
+            "next": "step.05",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.05",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "step.06",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.06",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.07",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.07",
+          "op": "move",
+          "args": [
+            4,
+            0
+          ],
+          "on": {
+            "next": "step.08",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.08",
+          "op": "directions_reset",
+          "args": [],
+          "on": {
+            "next": "step.09",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.09",
+          "op": "delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "step.10",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.10",
+          "op": "story",
+          "args": [
+            5
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.legacy.action.003",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "pan",
+          "args": [
+            11,
+            11
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "append_group",
+          "args": [
+            6,
+            1
+          ],
+          "on": {
+            "next": "step.02",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.02",
+          "op": "refresh_map",
+          "args": [
+            1
+          ],
+          "on": {
+            "next": "step.03",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.03",
+          "op": "move",
+          "args": [
+            6,
+            0
+          ],
+          "on": {
+            "next": "step.04",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.04",
+          "op": "directions_reset",
+          "args": [],
+          "on": {
+            "next": "step.05",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.05",
+          "op": "delay_ms",
+          "args": [
+            20
+          ],
+          "on": {
+            "next": "step.06",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.06",
+          "op": "clear_keys",
+          "args": [],
+          "on": {
+            "next": "step.07",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.07",
+          "op": "story",
+          "args": [
+            6
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.legacy.action.004",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "unit_field_write",
+          "args": [
+            13,
+            13,
+            5,
+            0,
+            1
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "story",
+          "args": [
+            7
+          ],
+          "on": {
+            "ack": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
+    },
+    {
+      "id": "common.legacy.action.006",
+      "entry": "step.00",
+      "nodes": [
+        {
+          "id": "step.00",
+          "op": "pan",
+          "args": [
+            9,
+            1
+          ],
+          "on": {
+            "next": "step.01",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.01",
+          "op": "delay_ms",
+          "args": [
+            100
+          ],
+          "on": {
+            "next": "step.02",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.02",
+          "op": "append_group",
+          "args": [
+            3,
+            1
+          ],
+          "on": {
+            "next": "step.03",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.03",
+          "op": "move",
+          "args": [
+            13,
+            0
+          ],
+          "on": {
+            "next": "step.04",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.04",
+          "op": "delay_ms",
+          "args": [
+            200
+          ],
+          "on": {
+            "next": "step.05",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.05",
+          "op": "story",
+          "args": [
+            4
+          ],
+          "on": {
+            "ack": "step.06",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "step.06",
+          "op": "ai_anchor",
+          "args": [
+            5,
+            10,
+            26,
+            15
+          ],
+          "on": {
+            "next": "done",
+            "error": "failed"
+          }
+        },
+        {
+          "id": "done",
+          "op": "end",
+          "args": [],
+          "on": {}
+        },
+        {
+          "id": "failed",
+          "op": "fail",
+          "args": [],
+          "on": {}
+        }
+      ]
     }
-  ]
+  ],
+  "bindings": {
+    "stage.000.action.000": "common.legacy.action.000",
+    "stage.000.action.001": "common.legacy.action.001",
+    "stage.000.action.002": "common.legacy.action.002",
+    "stage.000.action.003": "common.legacy.action.003",
+    "stage.000.action.004": "common.legacy.action.004",
+    "stage.001.action.006": "common.legacy.action.006"
+  }
 }

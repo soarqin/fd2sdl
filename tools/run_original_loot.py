@@ -280,6 +280,21 @@ def save_empty_step(prepared, state):
     raise ValueError("Save量测无合法静态干燥空格：" + json.dumps(rejected, ensure_ascii=False))
 
 
+def early_cell_ack(capture, report):
+    """19113清键之后，两个独立ENTER；第二键在名义300ms窗内，无晚ACK补救。"""
+    capture.key("ENTER", fast=True)
+    first = capture.trace[-1]["delivery"]
+    capture.key("ENTER", fast=True)
+    second = capture.trace[-1]["delivery"]
+    delta = second["down_tick_ms"] - first["down_tick_ms"]
+    if first["up_tick_ms"] > second["down_tick_ms"] or not 0 < delta < 300:
+        raise AssertionError("早键不在两个独立按下的300ms宿主窗内；不继续或补键")
+    report["early_ack"] = {"confirmation": first, "early_key": second,
+        "host_down_delta_ms": delta, "late_message_ack_sent": False,
+        "runtime_BIOS_absolute_clock_measured": False,
+        "late_422_wait_image_claimed": False}
+
+
 def exercise(capture, prepared, save, guard, report):
     source, assets = prepared["source"], prepared["assets"]
     def checkpoint(name, predicate, *, source_guard=True, **kwargs):
@@ -304,13 +319,19 @@ def exercise(capture, prepared, save, guard, report):
         capture.key("ENTER"); report["wait_confirmations"] = 1
     scenario = prepared["scenario"]
     for ordinal, page in enumerate(prepared["pages"]):
+        if prepared.get("early_ack") and page["fragment"] == 422:
+            # 此wait由早键消费；只验后态/整档，不伪造未捕获的422页。
+            continue
         name = f"loot-message-{ordinal:02d}-{page['fragment']}"
         checkpoint(name, lambda frame, p=page: message_match(frame, p, assets), timeout=90)
         if page.get("choice"):
             no = scenario == "chest-no" or scenario == "chest-full-no" and page["fragment"] == 423
             if no:
                 capture.key("RIGHT"); checkpoint(name + "-no", lambda frame, p=page: message_match(frame, p, assets, 1))
-            capture.key("ENTER")
+            if prepared.get("early_ack") and page["fragment"] == 421:
+                early_cell_ack(capture, report)
+            else:
+                capture.key("ENTER")
             if page["fragment"] == 423 and not no:
                 at, image = prepared["source_templates"]["selected_0"]
                 checkpoint("loot-replace-inventory0", lambda frame: {"kind": "loot_inventory", "selected": 0, "position": list(at), "size": list(image.size), **hit} if (hit := exact_tile(frame, image, at)) else None)
@@ -459,11 +480,16 @@ def identity_unchanged(rows):
 
 
 def run(args):
+    if getattr(args,"early_ack",False) and args.scenario != "chest-empty":
+        raise ValueError("早键代表只适用已证chest-empty，无新增关卡绑定")
     root, output = args.root.resolve(), args.artifacts.resolve()
     original = (root / "original_game").resolve()
     if output == original or original in output.parents: raise ValueError("B5产物禁止写入原版证据目录")
     if args.sdl is not None and not args.sdl.is_file(): raise ValueError("SDL程序不存在；未创建产物")
     prepared = prepare(original, args.scenario)
+    prepared["early_ack"] = bool(getattr(args,"early_ack",False))
+    if prepared["early_ack"] and [(p["fragment"], bool(p.get("key"))) for p in prepared["pages"]] != [(421,False),(422,True)]:
+        raise AssertionError("早键来源页合同变化；未创建产物或窗口")
     before, fixture = hashes(original), original / "START.SAV"
     data, stamp = fixture.read_bytes(), fixture.stat().st_mtime_ns
     if hashlib.sha256(data).hexdigest() != prepared["manifest"]["source_sha256"]:
@@ -477,6 +503,7 @@ def run(args):
         "scope": "controlled stage0 loot/special-cell resource ACK; END/turn2/SaveA/raw1WAIT/LoadA/SaveB; original first then SDL",
         "excluded": "natural whole battle, complete FIGANI/audio/shared RNG timing, automatic 200ms text sampling, offscreen command clipping at treasure x0",
         "derived_fixture": prepared["manifest"], "original_before": before,
+        "early_ack_protocol": prepared["early_ack"],
         "tool_sources": {name: {"path": str(Path(sys.modules[name].__file__).resolve()),
             "sha256": hashlib.sha256(Path(sys.modules[name].__file__).read_bytes()).hexdigest()}
             for name in ("fd2_loot_oracle", "fd2_item_list_oracle", "fd2_reward_oracle", "fd2_opening_oracle", "fd2_magic_list_oracle", "fd2_movement_oracle",
@@ -553,6 +580,7 @@ def main():
     for name in ("root", "driver", "dosbox", "artifacts"): parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--sdl", type=Path)
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
+    parser.add_argument("--early-ack", action="store_true", help="仅chest-empty：300ms内第二独立ENTER，后态/整档验证，无晚422 ACK")
     args = parser.parse_args()
     if sys.platform != "win32": parser.error("B5实机对照仅支持当前Windows WGC")
     try:

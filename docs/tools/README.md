@@ -41,14 +41,14 @@ git diff --check
 - 部分 CTest／Python 测试依赖原版资源或本地 LE 产物。Python seed／Ghidra 工具测试还需 `capstone`；缺依赖、跳过或未注册不能记为完整通过。
 - `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 单独编译正式循环并替换依赖，验证错误传播、胜／败、游戏内离场、宿主退出和移动取消；`field_turn` 检查 END 的恢复门、phase 顺序及提交后停止边界，均不启动窗口。
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
-- `field_info` 覆盖stage 0总览及物品纯列表：raw槽选中、空槽压行、全部215项、frame41缺省属性图、raw零色复制，以及完整预检失败全VGA不变；原详情与MAGIC上页组合另有回归。纯绘制测试不代替正式入口和原版WGC验收。
+- `field_info` 覆盖stage0..29普通总览条件（stage16私有败条件未绑定，明确拒绝）、UI0换行／19px行高及两段预检失败全VGA不变；另验物品纯列表的raw槽、空槽压行、全部215项、frame41缺省属性图和raw零色。657／658动态条件属于准备页consumer，不给总览增加owner。纯绘制测试与正式入口／原版WGC分别记账。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
 - `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。另验Drop的mode0装备确认、确认／取消重算、末槽stale、删空回COMMAND、隐藏坏装备拒绝及RNG0。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
 - `field_item_target` 覆盖草药192的纯目标范围、raw候选／121轮询、HP0／acted、取消聚焦回LIST0、坏末项及Load owner；合成光标／地形锁定frame1与LUT，不执行物品提交或代替WGC。
 - `field_item_commit` 覆盖草药逻辑提交的power40／逐目标RNG、压槽及stale ID、MP／EX保留、死亡／phase预测、重复拒绝、提交后错误冻结及正式能力查询／confirm_cursor分派；不借AI尾链，也不代替真实键盘可达性或原版raw字节量测。
 - `field_magic_list_play` 现同时覆盖法术／物品私有列表的真实按键等待逻辑，替换宿主时钟与呈现，不开窗口；检查共享RNG、开合、退出、释放和首错。`field_item_menu_render` 用合成资源检查ITEM IDs8–11、禁用图、高亮、动画与角色最后覆盖；二者均不是SDL物品WGC。
-- `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat 生命周期、同帧输入清理、分配失败、宿主退出及玩法／RNG 不变；另读取真实资源检查干净背景。
-- `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另检查Enter详情与F2来源、controller尾按键耗尽。原版具体格事件与镜头仍按场景验收。
+- `field_play_overview` 不启动窗口，验证总览的开合裁切、任意键关闭、held／repeat生命周期、原caller读一／清键、分配失败、宿主退出及玩法／RNG不变；另读取真实资源检查干净背景。
+- `field_player_controller` 检查玩家整路径收集、取消重入、原地WAIT恢复、acted后分派、精确13565门及共享slot跨phase覆盖；`field_play_result`另验Enter详情与F2来源、controller原clear及COMMAND／SYSTEM末帧返回屏障。只有成功收框才提交，HOST不先执行WAIT，真实ERROR优先；原版具体格事件与镜头仍按场景验收。
 - `field_geometry` 检查原 anchor 优先、整条长路径扫描、局部 profile 覆盖与零预算，并用只读真实 START 逐角色核对已取得的原版终点。它不执行 March 批次、AI／phase 或保存，不能代替正式行军配对。`fd2_movement_oracle.py` 复用 LE loader，从 canonical `0x61646` 提取全部 580 字节并校验摘要；玩家图形 runner 共用此依据，禁止再硬切旧文件偏移。
 - `field_water` 检查 DAC224..239 的精确写集、全部16色窗口、低16位／phase回绕、长停留只一步、Load／新session不重置、纯绘制不推进。`audit_fd2_water.py` 只读比对原版 LE 的93字节有效读集与C的48字节周期，并核对state fixup；它不输出镜像，不等于动态画面或硬件时序验收。
 - `field_unit_render` 检查单actor帧／坐标、acted映色、透明、bank不变、边裁与深度顺序；`python tools/audit_fdicon_opaque_zero.py original_game/FDICON.B24`只读核对原始RLE的opaque0与skip，Linux使用`python3`。
@@ -61,6 +61,30 @@ git diff --check
 G2 的正式 CONTINUE／动作／Save、原资源视觉门、最低声音身份及完整SAV检查见[图形规范](gui-testing.md#g2-通用战斗的定向验收)。`run_g2_battle_check.py`、`run_g2_item_check.py`、`run_g2_map_action_check.py`、`run_g2_short_check.py` 复用同一 owned Job／WGC／后台输入和显示恢复设施；准备模式、采集完成和实际判据通过分开登记。
 
 `verify_fd2_full9_wrapper.py` 是局部原机器码工具，读取严格 relocated 镜像、固定Domain读集与实际 C JSONL；`--image`／`--readset` 可指定已有只读证据位置。它执行原目标循环、完整过渡和真实RNG，与C每次RNG前及TARGET／FINISH边界比较；不执行真实renderer、声音或DOSBox，不能代替上面的窗口验收。原95目标没有据此验证；该组只属C容量。当前源与收据见[战斗语义§9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
+
+### G5 审查修复的定向验证
+
+G5 已有输入caller、逐叶事件、F1共享页／返场及总览换行等修复，统一历史回归与最终签核仍在进行，不预签正在执行的场景或总完成门。以下工具的准备模式不表示原生通过；实际收据、旧失败与精确候选见[阶段记录](../plans/stage-log.md)。沿用 owned Job／WGC HWND／后台输入／显示恢复，产物必须是原证据外的新目录。
+
+| 入口 | 实际范围与边界 |
+|---|---|
+| `run_g5_f1_check.py` | 默认只准备，`--run` 才运行原版／SDL；`stage1`／`stage2` 消费已有原版实际 entry SAV 和绑定报告，`tall-alias7` 只作三槽资源 view 别名。每页完整64,000像素与两个标记相位；不开放后期 battle，不冒热状态／完整RNG dump |
+| `run_g5_null_check.py` | 默认只准备，`--run` 才打开当前正式 App；原START→标题CONTINUE→真实Round／浏览→SYSTEM／Esc→正常退出，明确不可用音频驱动与实际null日志，保持原档／mtime；不是dummy video或旧SD程序继承 |
+| `run_original_loot.py --early-ack` | 仅 `chest-empty`：两个独立Enter在300 ms名义窗口到达，保后续正式END／SaveA／WAIT／Load／SaveB与整档门；驱动 `key-fast` 仍150 ms DOWN／UP，仅省释放后静候，不作精确guest墙钟声明 |
+| `tools/ida/verify_fd2_inventory_closure.py` | strict relocated镜像、Domain固定完整读集及原helper CPU保持性；正常来源闭包与外部C0反例分开，不是窗口业务通过 |
+| `tools/ida/verify_fd2_legacy_events.py` | 六个完整原caller及真实134e4的调用／直接写序与冷图比较；构造／group／motion／text等显式替身，不冒完整业务／图形／文本RNG等价 |
+| `tools/ida/verify_fd2_direction_callers.py` | 20个parent／23个静态callsite与完整函数／共享尾窗口，核reset→20ms及真实外围刷新次数；不把静态callsite数写成执行次数，不代替C adapter或窗口门 |
+| `fd2_stage1_complete_oracle.py`、`fd2_stage2_storage.py` | B7 stage2的fresh构造与Loaded保留分开验证。Loaded从本端实际preload容器出发，只允许原义cache重建和独立view写集，比较完整22987B；pure／既有actual离线重验不是新GUI，旧报告不回写 |
+| `fd2_ai_item_miss_oracle.py` | 已知fixture／唯一合法item动作的独立资源序列和MISS证据；合法miss不依赖HP下降。只作声明范围内的动作见证，不能推出全部target FX、SFX、评分或共享RNG一致 |
+
+Windows PowerShell 的无窗口准备示例；实际原生须另加 `--run` 并包驱动 Job：
+
+```powershell
+python -B tools/run_g5_f1_check.py --root . --scenario tall-alias7 --artifacts build/g5/f1-prepare-NEW
+python -B tools/run_g5_null_check.py --root . --artifacts build/g5/null-prepare-NEW
+```
+
+Linux Bash 使用 `python3` 执行上述准备与纯测试；Windows原生WGC模式不在Linux运行。本轮Linux未执行，G5总门不能由工具已注册或准备成功代替。
 
 ### G3 准备服务的定向验证
 
@@ -105,7 +129,7 @@ G4 继续使用 owned Job、PID／HWND 后台输入、WGC 单窗口与显示需�
 | `audit_g4_render_source.py`、`audit_g4_common_event_identity.py` | 原 FDTXT／FDOTHER 的动态 token、名称、RLE skip／opaque0及有限身份引用；只读资源，不是执行或窗口证据 |
 | `fd2_g4_defeat_oracle.py` | 原资源、有效单位域及声明写集构成的死亡序列判据，由 common runner 使用；独立来源模型不等于真实采集结果 |
 
-自然开场及总览复用 `run_original_opening.py`／`run_original_overview.py`；状态／成长复用既有 reward runner，普通箱子和准备确认复用原场景 runner。它们的实际入口、保存协议与原生限制仍见[图形规范](gui-testing.md)，不另造一套 G4 图形框架。
+自然开场及总览复用 `run_original_opening.py`／`run_original_overview.py`；G5总览以baseline和原stage9换行资源alias分别配对，不开放stage9 battle或stage16私有条件。状态／成长复用既有reward runner，普通箱子和准备确认复用原场景runner。实际入口、保存协议与原生限制仍见[图形规范](gui-testing.md)，不另造图形框架。
 
 Windows（PowerShell）仅准备与纯测试示例：
 
@@ -137,7 +161,7 @@ python3 -B -m unittest tools.tests.test_special_cell_source tools.tests.test_not
 | `verify_fd2_special_cell.py` | 完整190ac的9类 callback前缀、完整WORD与真实caller，另核90项表及原地图引用；高WORD在间接call前停止 |
 | `verify_fd2_notice_wait.py` | 完整1e5c0九类 signed WORD／已有键／两次读钟／尾清键；`--c-probe` 执行真实私有Play测试的 `--notice-wait-json`，省略它不算 C 差分 |
 
-共同事件独立源验证与30类 C／原码探针入口、runtime／common 冷图的逐 op 端口门见[冷定义工具](static-data.md)及[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)。notice 的实际复现命令也列在该文 §9.6。G4 定向通过不等于 G5 全历史回归；更早多帧 BIOS 键缓存与当前 App 帧脉冲差异仍须作为输入／RNG／交互边界单独审查。
+G4的30类 C／原码探针及runtime／common端口门见[冷定义工具](static-data.md)与[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)，notice复现命令见该文§9.6。G5已在同一input owner按原caller修复跨帧FIFO／peek／读一／clear，并将六个旧正式事件迁为父PC逐叶续态，见[输入合同](../systems/input.md)和[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。来源、直接回归、窗口代表及统一门各自登记；G4定向通过或G5局部修复都不代替尚在进行的完整历史签核。
 
 ### A8 音频生命周期验证
 
@@ -205,7 +229,7 @@ Windows（PowerShell）：
 python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
 ```
 
-运行条件、Linux 对应入口和测试范围见[图形自动化测试](gui-testing.md)。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC 单窗口捕获。报告和截图写入构建目录下的 `graphics-artifacts/`，不提交仓库；自动化仅操作本次启动并识别的测试进程。原版 DOSBox 自动对照使用隔离副本及独立判据，不把 SDL 截图自检当作原版一致性证据。
+运行条件、Linux 对应入口和测试范围见[图形自动化测试](gui-testing.md)。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC 单窗口捕获。报告和截图默认写入构建目录下的 `graphics-artifacts/`；可用 `--artifacts PATH` 指定独立的新证据目录，构建目录仍由 `--build-dir` 指定。显式产物目录已存在，或位于解析后的原证据目录内时，工具拒绝执行。产物不提交仓库；自动化仅操作本次启动并识别的测试进程。原版 DOSBox 自动对照使用隔离副本及独立判据，不把 SDL 截图自检当作原版一致性证据。
 
 不验片头动画的场景允许仅在启动等待内发送 Esc 加速（首 1 秒、随后每 2 秒），完整标题资源门通过后立即停止；由场景决定是否启用，命令不增加参数。片头动画专项保持无 skip，并单列实际覆盖，不能把跳过片头当作动画通过。B5 标题 START 后的 117 页引导仍逐页资源 ACK 并核对自然站位，不使用启动 skip 绕过剧情；历史无 skip 证据保留原来源。开启skip本身不能替代该候选的实际验收。
 

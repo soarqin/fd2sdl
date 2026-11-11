@@ -44,7 +44,7 @@ python3 -B -m unittest discover -s tools/tests -p test_natural_foreground.py -v
 
 自然首关另有已证实的到场重叠：turn3 的 action0 从 group3／脚本7、group7／脚本8 追加角色；若主角本轮停在 `(11,12)`，新角色会与其同格，下邻角色还会遮住光标底部。该路径的视觉来源须从原 DAT 和 EXE 独立提取，不以生产 JSON 或计划中的 HP／AI 结果作预期。只有本端完整确认 fragment11、3，并满足原版新回合横幅或 SDL 既有 phase 日志门，才可采用已知到场投影。完整 `24×30` 的地形、光标与角色层共同匹配，保留主角可见身份锚；缺层、错身份、acted 或层序错误均拒绝。未知重叠、地形前景和动态水色继续明确拒绝。
 
-到场投影只用于恢复本端的视觉焦点，不是新回合热状态。随后仍须走真实 UI Save，验证镜头／焦点、完整存档与全部可见角色的 acted 清除后，才能用本端实际存档继续规划。SDL 当前没有原版的新回合横幅演出，不能伪造其横幅证据。完整资源离线检查与实际自然实战分别记账，当前候选的实际执行范围见[阶段记录](../plans/stage-log.md)。
+到场投影只用于恢复本端的视觉焦点，不是新回合热状态。随后仍须走真实 UI Save，验证镜头／焦点、完整存档与全部可见角色的 acted 清除后，才能用本端实际存档继续规划。G4 已接入共用 Round／阵营横幅；自然runner当前仍以SDL有序phase日志和后续WGC／实际Save作为此处门，不能将这条日志升级为横幅像素证明。专用runtime／活动Load横幅门另按其资源、采集和候选登记。完整资源离线检查与实际自然实战分开记账，当前范围见[阶段记录](../plans/stage-log.md)。
 
 正式 turn4／14 人 Save 确认该组合后，首动作导航进入同一格也可复用完整 `24×30` 资源门。必须先尝试普通光标匹配；补充门只接受该源中 raw0／12／13 的位置、双身份字段、side、静止朝向、可见且未行动均符合时的画面，并保留主角缺失负锚。离开同格、行动状态变化或出现其它邻居时不借此组合通过，不增加通用光标模板的任意角色组合。
 
@@ -63,6 +63,20 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 ```
 
 无窗口验证同样按改动选择 CTest 和 Python 测试，物品工具可运行 `python -B -m unittest discover -s tools/tests -p test_original_item_list.py`。Linux 使用 `python3` 执行相同纯逻辑命令；本轮不在 Linux 运行上述 WGC 对照。大阶段统一实机回归移除 `--b3-only`，按后文完整套件执行。
+
+### G5 当前修复与证据边界
+
+G5 已修同一input owner的有限FIFO及原caller读一／clear、六个旧正式事件的父PC逐叶续态、F1共享页／完整返场和总览换行。来源／无窗口回归、局部原码、原生窗口及离线补证分层登记；当前 Windows 统一历史回归与逐项签核已按[审计 §13](../plans/common-logic-audit.md)闭合；各冻结候选的来源和测量界继续分列。既有通过可按严格来源影响链继承，保旧程序／工具SHA和`execution_this_batch=false`；故障原件、分段复验、端点拼接不能改写成一次新fresh pair。
+
+- 正式事件的业务、呈现和ACK按冷图交错推进；HOST保父PC和已提交前缀，真ERROR才走错误边。原六身份的自然入口、common39非shipping alias和原码替身分别报告，机制夹具不冒充新增S绑定。
+- COMMAND／SYSTEM收框后先查返回值与持久quit，再允许Core提交；末帧HOST／真错直接回归不等于原生所有退出时刻的量测。首次END以完整资源区分normal48／51、YES49／51及NO48／52；Suite37首开已采完整／高亮与唯一Enter→Round002实际消费经Suite50严格继承，历史NO根因仍未归因，未采首present不补签。
+- F1正常关闭走完整`11cac(0)`：actor／cursor→water→terrain／range→jitter→render。各地图资源门、原stage1／stage2来源和高图资源alias分别登记；高图alias不开放晚关battle。总览的baseline与stage9换行资源alias核原19px行高／`-2`和完整容器，不把stage16私有条件或657／658准备consumer混入通用总览。
+
+#### 活动 Load 与 fresh／Loaded 的独立判据
+
+原`10010`自身画Round，不应把这段来源写成调用`1a30b`。Load观察器从原FDOTHER[5] LMI91和三位数字构造五个合法完整phase：峰值(120,84)、数字相对y7；退出段原k=2／3／4／9，对应y=92／97／104／169、数字相对y6。中央峰未采到时，只能由已完整匹配的合法退出phase证明该次演出；不能补签旧峰值谓词失败，也不靠补键、扩大采集上限或放宽像素容差通过。连续采集须保首个业务／匹配错误，finally的stop／索引错误另记，不覆盖首错。
+
+fresh构造按独立已定义字段比较；新构造未写9B（unit+0x28..0x30）或初始堆尾的跨端排除不等于这些字节无语义。Loaded必须从**本端preload实际SAV**保留已拥有未知字节，仅允许来源确认的cache重建和独立view写集，完整校验容器／checksum；不能沿用fresh的holes／tail排除。53的永久校验修复以28项pure和两端既有actual的完整22987B离线强核补证，旧GUI报告不回写、不升为新跑。实际交接／Load／Save的source、磁盘mtime、四槽、资金／flags及未知区仍逐端守卫；具体收据见阶段记录。
 
 ### B7 第二关续战、村民结算与 stage 2 交接
 
@@ -272,13 +286,13 @@ python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/b
 python -B -m unittest discover -s tools/tests -p '*reward*.py'
 ```
 
-每场直接运行原版→SDL 配对，不另重复整套原版校准。原版完成全部检查并清理后才启动 SDL；任一端失败立即停止。奖励提示按原版资源和等待点逐页核对，再检查等级、经验、HP/MP与派生值，执行 Save→WAIT→Load→Save，逐字检查完整存档与源文件守卫。学习场景还检查列表 `[0,13,17]` 和逐级取消；SDL 对尚未开放的17拒绝确认，原版不施放该技能。该场景证明学习结果，不宣称17玩家效果已验收。
+每场直接运行原版→SDL 配对，不另重复整套原版校准。原版完成全部检查并清理后才启动 SDL；任一端失败立即停止。奖励提示按原版资源和等待点逐页核对，再检查等级、经验、HP/MP与派生值，执行 Save→WAIT→Load→Save，逐字检查完整存档与源文件守卫。学习场景还检查列表 `[0,13,17]` 和逐级取消，两端均不在这个 B4 场景施放17；当前工具的 `native_spell17_confirmation_sent` 与 `sdl_spell17_refused` 均为false。该场景只证明学习和列表持久性，合法17的玩家效果随G2另验。
 
 WAIT 后存在已行动角色，系统子菜单的 Save 必须显示禁用图41，Load 仍可用。`RoundOracle.secondary` 以 `save_available=False` 完整检查该图，禁用项不可选；默认参数保留其他场景原有的可用 Save 判据。不能因 Load 目标正确就跳过其余菜单图标，也不能为匹配可用 Save 而额外推进回合。
 
 两个物理场景还检查首个 raw 候选自动聚焦，实际发送 Z、小键盘5、Esc 和重新进入目标选择，再确认唯一一次攻击。每次输入前后须通过完整目标／COMMAND 资源门，不给 SDL 单独补方向键绕开差异。当前受控 WGC 场景为单目标回绕；多候选 raw 顺序、121占槽不聚焦和错误原子性另由 C 回归覆盖，不能把它们登记为多目标实机对照。
 
-回合锚点沿用已有流程：原版非 `status` 场景须匹配 Round002 横幅，作为独立端内观察保存；`status` 的提示在该横幅之后，不能先看完提示再要求已经过去的横幅。SDL 用完整的 phase1→phase0→第2回合phase2日志门；两端之后都必须通过稳定战场、详情与完整存档检查。SDL 尚未实现原版编号横幅，不能把日志门写成该横幅的双端图形对齐；相应差异保留到后续回合呈现工作。
+回合锚点沿用已有流程：原版非 `status` 场景须匹配 Round002 横幅，作为独立端内观察保存；`status` 的提示在该横幅之后，不能先看完提示再要求已经过去的横幅。SDL 用完整的 phase1→phase0→第2回合phase2日志门；两端之后都必须通过稳定战场、详情与完整存档检查。这是B4旧runner的日志验收范围，不能写成编号横幅的双端图形对齐。G4已实现共享编号横幅；G5的 `g4-runtime` 另以当前候选复验原生资源，不把该新结果反写为B4旧日志的像素证据。
 
 夹具只在隔离副本修改声明的字段与 checksum，完整保存变化 manifest；不能当作自然整关实战。通过外层 `run-job 6000000` 管理六场进程树，单场限时900秒；失败、超时与成功均遵循同一窗口清理规则。原版单端诊断使用 `tools/run_original_reward.py --root . --driver <driver> --dosbox <DOSBox-X> --scenario <场景> --artifacts <新目录>`；无 `--sdl` 时始终 `ok=false`／`probe_only=true`，不得登记为双端验收。
 
@@ -822,3 +836,9 @@ if ($LASTEXITCODE -ne 0) { throw 'G2 SHORT failed; inspect the retained receipt'
 ```bash
 python3 -B -m unittest tools.tests.test_g2_map_action tools.tests.test_g2_short_oracle tools.tests.test_g2_short_runner
 ```
+
+### G5 音频设置与成功 Load 的观察合同（2026-11-11）
+
+四项设置当前均已接正式入口，原资源四行必须正匹配；旧 SDL 后两行“应不存在”判据已撤除。成功 Load 不能仅凭浏览光标和 y112 边沿消失就发送下一键：196cb 的六种关闭位置及 10010 的 Round 可能仍在忙段。音频观察器复用同一 HWND 连续采集，在原唯一肯定键前 ready，先完整匹配原 Round91 和三位数字的五种合法相位，再核返场资源、六框边和五种 Round 均消失及已有两秒资源稳定窗，正常 stop／closed PNG 绑定后才继续原菜单键。整个 Load 使用一个原 45 秒观察域；其他明亮确认仍 15 秒，帧／PCM 上限不变，不补键，不声称量测了 guest PC 或原硬件 tick。
+
+原失败、有限闭帧重判、原判据重算和新执行分别记账。最终五场音频是两端设置的已封存历史与四场八端新执行联合闭合，不伪造一份十端新运行报告。旧 raw 报告、临时输出和用户档均不覆盖，具体哈希及来源见阶段记录与审计。

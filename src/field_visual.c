@@ -15,6 +15,12 @@
 #include "shape.h"
 #include "static_data/runtime.inc"
 
+int fd2_field_auxiliary_marker_color(unsigned side,unsigned phase,uint8_t *color) {
+    if(!color || side>=3u || phase>=8u)return -1;
+    *color=(uint8_t)(k_field_auxiliary_side_colors[side]+phase);
+    return 0;
+}
+
 _Static_assert(sizeof(k_field_range_sequence)==FD2_FIELD_RANGE_PHASE_COUNT,
                "original range phase count");
 

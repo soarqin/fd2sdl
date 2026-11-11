@@ -170,6 +170,11 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
         return -1;
     }
 
+    /* animation_play @0x20421入口4e381；合法资源预检后清同一input owner，
+     * 不重置仍按住的物理键/repeat deadline。 */
+    fd2_input_clear_keys(&vga->input);
+    if (fd2_input_take_quit(&vga->input)) return -2;
+
     size_t pos = 0xad;
     for (uint16_t frame = 0; frame < frame_count; frame++) {
         if (pos + 8 > entry_len) return -1;
@@ -189,10 +194,12 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
          * 把下一帧解码时间抵扣掉，否则大型 cutaway ANI 会明显偏快。 */
         fd2_vga_present(vga);
         fd2_delay_ms(frame_delay_ms);
-        /* 动画只在原版查询点采样当前键态；delay 期间按下又松开的键
-         * 不会形成预输入，也不会留给后续 UI。 */
         if (fd2_input_take_quit(&vga->input)) return -2;
-        if (check_input && fd2_input_observe_any_key(&vga->input)) return 1;
+        /* 原20421先10620 peek，skip直接返回且不消费；只有继续下一帧时
+         * 才4e381。是否丢弃skip键由实际caller的后续原clear点决定。 */
+        if (check_input && fd2_input_has_any_key(&vga->input)) return 1;
+        fd2_input_clear_keys(&vga->input);
+        if (fd2_input_take_quit(&vga->input)) return -2;
     }
     return 0;
 }

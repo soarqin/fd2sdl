@@ -152,5 +152,99 @@ class Stage1SourceAndFixtureTest(unittest.TestCase):
             [(129, [10, 13], 0, 1), (201, [6, 20], 0, 2), (193, [21, 17], 0, 3)])
 
 
+class Stage2ReloadOwnerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from test_stage1_complete_runner import active_fixture
+        cls.data = o.tables(ORIGINAL)
+        cls.state, _, _ = o.settlement_projection(synthetic_post_turn3(), cls.data)
+        cls.projection = o.stage2_projection(cls.state, cls.data)
+        manual = o.write_stage2_slot(synthetic_post_turn3(), cls.state, 0)
+        preload = bytearray(active_fixture(manual, cls.state, cls.projection, cls.data))
+        preload[1171:2211] = bytes((index * 17 + 3) & 255 for index in range(1040))
+        for raw in range(15):
+            preload[o.UNITS + raw * 80 + 2] = 32 + raw
+            if raw >= 6:
+                preload[o.UNITS + raw * 80 + 40:o.UNITS + raw * 80 + 49] = bytes((raw * 13 + i) & 255 for i in range(9))
+        cls.preload = o.checksum(preload)
+        native = bytearray(cls.preload)
+        # 当前原模板ID为0/9/4/30/51/8/2及八个76；11019按ID首次出现分class。
+        for raw, cache in enumerate(list(range(7)) + [7] * 8):
+            native[o.UNITS + raw * 80 + 2] = cache
+        cls.native = o.checksum(native)
+
+    def check(self, measured, policy, view=None, before=None):
+        return o.check_stage2_reloaded_active_save(self.preload if before is None else before,
+            measured, self.state, self.projection, self.preload if view is None else view, self.data,
+            cache_policy=policy)
+
+    def test_each_endpoint_cache_policy_and_full_owner_positive_without_input_mutation(self):
+        for policy, actual in (("original", self.native), ("sdl", self.preload)):
+            before, measured = bytearray(self.preload), bytearray(actual)
+            saved = bytes(before), bytes(measured)
+            checked = self.check(measured, policy, before=before)
+            self.assertTrue(checked["loaded_unknown_owner_preserved"])
+            self.assertTrue(checked["full_container_reload_checked"])
+            self.assertFalse(checked["fresh_unknown_exclusions_reused"])
+            self.assertEqual(checked["cache_policy"], policy)
+            self.assertNotIn("native_metadata_heap_tail", checked)
+            self.assertNotIn("native_cache_and_exact_ctor_holes", checked)
+            self.assertEqual((before, measured), saved)
+
+    def test_loaded_tail_all_npc_nine_bytes_and_other_owner_corruption_rejected(self):
+        offsets = [1171, 2210]
+        offsets += [o.UNITS + raw * 80 + at for raw in range(6, 15) for at in range(40, 49)]
+        offsets += [0x8a3 + 400 + 40, 0x12a2, o.UNITS + 15 * 80 + 40, 0x30a2,
+            0x30a3, o.META + 10, o.META + 14, o.META + 18, o.UNITS + 5, o.UNITS + 6 * 80 + 5]
+        offsets += [o.SLOT_BASE + slot * o.SLOT_STRIDE + 400 + 40 for slot in range(4)]
+        for policy, actual in (("original", self.native), ("sdl", self.preload)):
+            for at in offsets:
+                changed = bytearray(actual); changed[at] ^= 1
+                with self.subTest(policy=policy, offset=at), self.assertRaises(AssertionError):
+                    self.check(o.checksum(changed), policy)
+
+    def test_only_original_current_id_rebuild_or_sdl_preload_cache_allowed(self):
+        with self.assertRaises(AssertionError): self.check(self.preload, "original")
+        with self.assertRaises(AssertionError): self.check(self.native, "sdl")
+        for policy, actual in (("original", self.native), ("sdl", self.preload)):
+            for raw in (0, 7, 14, 15):
+                changed = bytearray(actual); changed[o.UNITS + raw * 80 + 2] ^= 128
+                with self.subTest(policy=policy, raw=raw), self.assertRaises(AssertionError):
+                    self.check(o.checksum(changed), policy)
+        source = bytearray(self.preload); source[o.UNITS + 2] = 255; source = o.checksum(source)
+        # SDL按原SAV兼容合同保源raw2，不把源未知值变成允许随意改写的mask。
+        self.assertTrue(self.check(source, "sdl", before=source)["loaded_unknown_owner_preserved"])
+
+    def test_independent_expected_view_only_six_meta_bytes_not_measured_view_adoption(self):
+        import fd2_natural_oracle as n
+        view = n.navigation(self.preload, (6, 21))[-1][1]
+        self.assertEqual(list(view[o.META + 5:o.META + 7]), [6, 21])
+        for policy, actual in (("original", self.native), ("sdl", self.preload)):
+            changed = bytearray(actual)
+            changed[o.META + 3:o.META + 9] = view[o.META + 3:o.META + 9]
+            changed = o.checksum(changed)
+            self.assertTrue(self.check(changed, policy, view)["full_container_reload_checked"])
+            with self.assertRaises(AssertionError): self.check(changed, policy)
+            changed = bytearray(changed); changed[o.META + 9] ^= 1
+            with self.assertRaises(AssertionError): self.check(o.checksum(changed), policy, view)
+
+    def test_fresh_entry_holes_still_legal_but_same_loaded_owner_changes_rejected(self):
+        for at in (1171, 2210, *(o.UNITS + 6 * 80 + i for i in range(40, 49))):
+            changed = bytearray(self.preload); changed[at] ^= 1; changed = o.checksum(changed)
+            fresh = o.check_stage2_active_save(self.preload, changed, self.state, self.projection, self.preload, self.data)
+            self.assertEqual(fresh["active_count"], 15)
+            with self.subTest(offset=at), self.assertRaises(AssertionError): self.check(changed, "sdl")
+
+    def test_bad_checksum_length_policy_and_source_checksum_rejected(self):
+        bad = bytearray(self.preload); bad[-1] ^= 1
+        for actual in (bad, self.preload[:-1], self.preload + b"\0"):
+            with self.subTest(length=len(actual)), self.assertRaises((AssertionError, ValueError)):
+                self.check(actual, "sdl")
+        with self.assertRaises(AssertionError): self.check(self.preload, "sdl", before=bad)
+        with self.assertRaises(ValueError): self.check(self.preload, "sdl", view=self.preload[:-1])
+        for policy in (None, "", "native", "original-or-sdl"):
+            with self.subTest(policy=policy), self.assertRaises(ValueError): self.check(self.preload, policy)
+
+
 if __name__ == "__main__":
     unittest.main()

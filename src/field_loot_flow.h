@@ -133,7 +133,7 @@ static int loot_flow_operation(const char *op, int branch) {
         "actor_mark_acted", "magic_reward_normalize", "experience_store_normalized", "magic_list_reset",
         "item_selection_reset", "targets_reset", "command_release", "player_controller_complete",
         "pending_collect_final", "event_common_preflight", "runtime_refresh",
-        "cell_callback_preflight", "cell_cue_preflight", "cell_open_cue"
+        "cell_callback_preflight", "cell_cue_preflight", "cell_open_cue", "runtime_clear_keys"
     };
     static const char *const queries[] = {
         "branch_has_descriptor", "branch_descriptor_mode", "branch_actor_side", "branch_inventory_capacity",
@@ -192,15 +192,9 @@ static int execute_loot_callback(fd2_field_game *game) {
     int common = common_event_callback_begin(game, (uint8_t)action, l->actor_index);
     if (common < 0) return -1;
     if (common > 0) return 0;
-    fd2_field_event_notice e = {.kind = FD2_FIELD_EVENT_CELL, .turn_number = game->turn_number,
-        .phase = game->active_side, .action = (uint8_t)action,
-        .unit_index = (uint8_t)l->actor_index, .slot = SIZE_MAX};
-    if (reserve_event_notice(game, &e) != 0) return -1;
-    snapshot_event_presentation(game, &e);
-    if (execute_known_turn_event(game, e.action, l->actor_index) != 0) return -1;
-    e.handled = e.presentation_deferred = 1;
-    append_event_notice(game, &e);
-    return 0;
+    /* 经过只读known callback门才允许消费；晚绑定变化明确失败。
+     * 未知身份不再伪造已handled的旧Scene事务notice。 */
+    return -1;
 }
 
 static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
@@ -326,6 +320,7 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
         fd2_archive_close(&bank);return valid?0:-1;
     }
     case 49: return turn_present(g,FD2_FIELD_RUNTIME_CELL_OPEN_CUE,12);
+    case 50: return turn_present(g,FD2_FIELD_RUNTIME_CLEAR_KEYS,0);
     default: return -1;
     }
     return 0;
@@ -471,7 +466,7 @@ int fd2_field_game_loot_peek(const fd2_field_game *game, fd2_field_loot_notice *
         *notice = game->loot.child.notice; return 1;
     }
     if (game->loot.notice.kind == FD2_FIELD_LOOT_NONE) return 0;
-    if (game->loot.notice.kind > FD2_FIELD_LOOT_FIELD_EVENT || game->loot.actor_index >= game->units.count) return -1;
+    if (game->loot.notice.kind > FD2_FIELD_LOOT_DELAY || game->loot.actor_index >= game->units.count) return -1;
     *notice = game->loot.notice; return 1;
 }
 

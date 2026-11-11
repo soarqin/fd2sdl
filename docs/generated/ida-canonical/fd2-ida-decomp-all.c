@@ -1016,7 +1016,7 @@ LABEL_15:
       {
         case ';':
         case 'I':
-          sub_2000A();
+          field_auxiliary_map_execute();
           return 0;
         case '<':
         case 'G':
@@ -2447,6 +2447,7 @@ void __cdecl field_actor_path_play(int a1, int a2, int a3)
 //   依据: corrected dual `0x134e4` 遍历 `DAT_00003a45` 的全部 `DAT_00003beb` 条记录，写 `record[0x03]=0`，随后调用 `delay_ms(0x14)`；`field_ai_unit_execute` common tail 在 cell lookup、mark acted 之后调用。
 //   历史地址列 `0x386f8`；旧 Ghidra 名 `FUN_000386f8`；判定 exact
 // [勘误 evidence] 全体方向复位尚未登记自然开场的独立收尾写集 -> field_all_actor_directions_reset只逐actor的record+3写0，随后delay20；不写frame_phase或walk_frames。原版3231b在最后对白后、聚焦主角之前调用。；依据: 权威134e4及原始函数写集；不是13512的acted标记函数。新scene收尾复用已有focus helper，不按捕获相机值直接居中。
+// [勘误 evidence] 完整134e4..13512的46B只遍历全raw表写record+3=0；13507 push20、13509调用3790a等待后返回。20个直接parent共23个静态callsite（不是每次运行23次）：13a9f正常尾在acted后reset20再11cac(0)；15055末20c6f后只有reset20、清53EC8返回，无额外11cac；16f55逐actor在acted前，18890仅非零非FF路径后。1548e SHORT两处reset20、FULL在裸2e2b0返回后一次，18d8c在collect前一次；裸2e2b0自身无reset。32d18两处，32e8c的一处位于共享尾3313b。六个已绑定legacy handler中34531/3460b/34673/346cd各一次，34738/34778没有reset；其余后期私有caller仅登记来源，不开放关卡。原语不写frame_phase、walk、输入或RNG。；依据: verify_fd2_direction_callers.py独立核原EXE、5个既有Domain闭集读集SHA、完整parent chunks/xref/指令头及冷图次序；原46B raw-unrelocated SHA dc6f3ac1946072a996c259f094f6bad5da08d74223ad1b35fa150204a655578a，loader-relocated SHA 1b3991fcb227ba71e5c2de0525206f8051
 int field_all_actor_directions_reset()
 {
   int v0; // eax
@@ -11032,6 +11033,7 @@ void __cdecl field_phase_title_slide_frame(int a1, int a2)
 // [palette_fade_in_light] DAC 暗度 0x40->0 渐入
 //   依据: 反汇编：0x1cc77 循环调用 FUN_0000f488
 //   历史地址列 `0x44739`；旧 Ghidra 名 `FUN_0001cc6d`；判定 exact
+// [勘误 evidence] palette_fade_in_light从darkness64到0逐次应用，共65次；每次原delay_ms(2)，包含darkness0的尾2ms。不是64帧或每次1BIOS tick。保留现规范名，不猜ABI。；依据: G1 scope-callee-closure完整51B SHA1d887e704729a4bf4a69abae92cfb876a364a4d2aee0bbfcce7d8426b7533c39；1f530初值40h，1f551 dec/1f554 jge，循环内push2/call3790a。当前prepare_fade依此修正；source调用/次数不等于宿主硬件绝对2ms已测。
 int palette_fade_in_light()
 {
   int result; // eax
@@ -11060,7 +11062,7 @@ int palette_fade_in_light()
 // [field_view_render_scaled] 以 12.12 定点步长对战场 tile cache 做最近邻缩放采样
 //   依据: 反编译用 `param_3` 作为逐像素步长，按 `0xc00` 跨格、`>>7` 取 24×24 tile 内像素，输出 VGA `(4,4)` 起的 312×192 内区；标准 tile renderer 实际为 `field_view_render_tiles @0x3710c`
 //   历史地址列 `0x44776`；旧 Ghidra 名 `FUN_0001cca0 body`；判定 exact
-// [勘误 evidence] F1缩放采样、黑边与动画中心未完整登记 -> tile跨度0xc00、像素余数右移7；清64000后仅画(4,4)的312×192。开phase1..7中心系数(phase+1)/8，关6..1，不补phase0采样；stage0最终step768、地图96×96，固定原始tile而非动画替代帧。；依据: 已发布field_view_render_scaled及独立原始tile oracle，负坐标floor、黑边/零色/全64000索引与真实START回归；terrain owner不替换。
+// [勘误 evidence] tile跨度0xc00、像素余数右移7；清App53A49 raw-prefix64000B，按320stride画(4,4)312×192，2000a各开/关帧再复制到VGA；非456stride72/72桥。开phase1..7中心系数(phase+1)/8，关6..1，不补phase0采样；高>40最终step1024，否则768；固定原始tile而非动画替代帧。；依据: 完整1f558含共享尾、1f5e5取53A49/1f5ea加504h/1f5fc memset64000，原2000a复制和尺寸分支；独立负坐标floor/黑边/opaque0/全64000源oracle。临时解码cache恢复，App页历史按实写保留；不改terrain热owner。
 void __cdecl field_view_render_scaled(int a1, int a2, int a3, int a4)
 {
   int v4; // esi
@@ -11128,13 +11130,14 @@ void __cdecl field_view_render_scaled(int a1, int a2, int a3, int a4)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1F6EF
+ * IDA 9.5 Hex-Rays: field_auxiliary_marker_draw
  * VA=0x1f6ef..0x1f73f OBJ=1 OFF=0xf6ef size=0x50
  * callers: 0x2000a
  * callees: 0x3702f, 0x37910
  * --------------------------------------------------------------- */
-// [勘误 evidence] F1单位标记门、颜色和脉冲尚未登记 -> stage0每tile4px，标记3×3；按raw顺序排hidden/unit121/race10，不加HP/acted/AI门。side0/1/2基色32/80/72，focus灰24最后覆盖。phase7..0,0..7,7端点重复，原BIOS差2，SDL约110ms且不推进玩法。；依据: 原始object2表5208a和sub_1F6EF循环、原版空格/actor0叠加页；F1 marker过滤不推广为普通actor renderer规则。
-int __cdecl sub_1F6EF(int a1, int a2, int a3, int a4)
+// [勘误 semantic_name] field_auxiliary_marker_draw；依据: 完整80B由2000a两处调用；1f733以scale-1同时作memset宽和行界，320stride直接写VGA。命名仅指固色标记叶，不猜参数ABI。
+// [勘误 evidence] map高>40每tile3px/标记2×2，否则4px/3×3；原1f733取scale-1。caller按raw顺序排hidden/unit121/race10，不加HP/acted/AI门。side0/1/2基色32/80/72，focus灰24最后覆盖。phase7..0,0..7,7端点重复，原BIOS差2，SDL约110ms且不推进玩法。；依据: 完整Domain/strictLE1f6ef及2000a尺寸分支、原始object2表5208a和原版空格/actor0叠加页；F1 marker过滤不推广为普通actor renderer规则。
+int __cdecl field_auxiliary_marker_draw(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
   int i; // esi
@@ -11525,14 +11528,15 @@ int __cdecl title_menu_draw(int a1, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2000A
+ * IDA 9.5 Hex-Rays: field_auxiliary_map_execute
  * VA=0x2000a..0x203bd OBJ=1 OFF=0x1000a size=0x3b3
  * type: int(void)
  * callers: 0x117e7
  * callees: 0x10620, 0x11cac, 0x12e38, 0x1399c, 0x1f558, 0x1f6ef, 0x3702f, 0x3706e, 0x370f0, 0x3771c, 0x3776e, 0x4e381
  * --------------------------------------------------------------- */
-// [勘误 evidence] F1/PageUp辅助页可能是部队列表或另一种战况总览 -> 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。F1/PageUp直接返回，无玩家controller提交。页面期间不推进water，尾部普通重绘恢复一次；当前stage0门为SDL能力限制。；依据: 权威sub_2000A调用链、117e7扫描码3b/49、原版完整WGC研究页；1399c清缓存后RLE解码、1f558地形采样、1f6ef标记及尾11cac(0)。不声明精确开合时间、首次未初始化tick或完整BIOS队列等价。
-int sub_2000A()
+// [勘误 semantic_name] field_auxiliary_map_execute；依据: 完整947B、唯一117e7 caller与1399c/1f558/1f6ef/INT16调用链；正式F1/PageUp和既有stage0完整WGC两相位来源。只确认有限视图流程，不改ABI。
+// [勘误 evidence] 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。高>40选scale3/delta896，否则scale4/delta640，无stage/shape门。开后clear一次，稳态peek后202fa INT16 AH10读一键、余队不清，再关闭。F1直接返回无controller提交；期间不推进water，尾11cac(0)恢复。；依据: 2026-11-10 Domain三函数1434B与strictLE/fixup逐chunk一致；20055/2005e/20063尺寸分支、202e7设AH10/202f8传16h/202fa callint386。原33图最大50x64，stage1真实27x21/shape1/192帧、高图stage7为29x45/shape7/384帧；旧stage0限制属已登记SDL缺口，不声明新晚关/精确时序/首次undefined tick。
+int field_auxiliary_map_execute()
 {
   int v0; // ebp
   int v1; // eax
@@ -11616,9 +11620,9 @@ int sub_2000A()
           break;
         v9 = (unsigned __int8 *)(dword_53A45 + 80 * k);
         if ( (v9[5] & 1) == 0 && v9[7] != 121 && v9[31] != 10 )
-          sub_1F6EF(v0 * *v9 + 160 - v7, v0 * v9[1] + 100 - v8, v25 + v14[v9[6]], v0);
+          field_auxiliary_marker_draw(v0 * *v9 + 160 - v7, v0 * v9[1] + 100 - v8, v25 + v14[v9[6]], v0);
       }
-      sub_1F6EF(v0 * qword_53AB1 + 160 - v7, v0 * HIDWORD(qword_53AB1) + 100 - v8, v25 + 24, v0);
+      field_auxiliary_marker_draw(v0 * qword_53AB1 + 160 - v7, v0 * HIDWORD(qword_53AB1) + 100 - v8, v25 + 24, v0);
       v25 += v20;
       if ( v25 >= 8 )
       {
@@ -21699,6 +21703,7 @@ int __cdecl field_actor_hide(int a1)
 //   依据: 新游戏 stage 0 两次调用参数 1/2；canonical code0 `0x22999` / VA `0x32999` 先加载 FDOTHER[95] 与 FDOTHER[9]，`0x22bc0..0x22bd4` 在 frame counter 等于 1 时经 primary wrapper 播放 bank 95 sample 0；调用点 `0x2289b/0x228bb` 分别加入 group 1/2
 //   历史地址列 `0x57bad`；旧 Ghidra 名 `FUN_000300e1`；判定 exact
 // [勘误 evidence] 完整32999..32d18及FDOTHER9实际12part独立执行：153216B整页snapshot后每帧restore、LMI写53A49再投影；frame6投影后上抬新actor8px并FG存下一base，frame7投影后11eee并上抬5px存base，frame8投影后11eee/127a9存base；尾保frame11工作页。该caller不新增11cac/1297d/water/info，不能把12帧简化为6帧或把最后页回滚成到达前base。；依据: 1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。
+// [勘误 evidence] 32999原到达效果每帧project后，frame6/7/8先完成各自postbase，随后统一到32ba2调用4e381清键队、32ba7 push1、32ba9调用17aa9等待，再递增帧号；正常组及空追加组均12次project/clear/wait。UI95/9加载、153216B快照先于10b4e追加；95/0/loop1 cue在frame1投影之前，尾不补11cac/1297d/水色/info。；依据: verify_fd2_arrival_owner.py复用完整32999..32d18（895B）loader-relocated SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3与strict镜像；正常/空组两次原CPU caller控制流、实参和runtime.arrival 53叶独立比较。绘图、资源/PCM句柄、分配/拷贝、append和等待是显式替身，不声称业务、像素、声音或原生运行等价；不改名或猜ABI。
 int __cdecl field_actor_group_arrival_effect(int a1)
 {
   int v1; // edi

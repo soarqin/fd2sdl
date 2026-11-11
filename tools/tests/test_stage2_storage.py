@@ -79,7 +79,10 @@ class Stage2StorageTest(unittest.TestCase):
             outputs=[];current=plain
             for slot in range(4):
                 current=o.write_stage2_slot(current,state,slot);outputs.append(current)
-            active=active_fixture(current,state,prepared["entry"],self.data);outputs.extend((active,active))
+            active=active_fixture(current,state,prepared["entry"],self.data)
+            loaded=bytearray(active)
+            for raw,cache in enumerate(list(range(7))+[7]*8):loaded[o.UNITS+raw*80+2]=cache
+            outputs.extend((active,o.checksum(loaded)))
             pending=iter(outputs);save=Path(folder)/"working.SAV";save.write_bytes(source.read_bytes())
             guard=[save.read_bytes(),save.stat().st_mtime_ns]
             events=[];record={"kind":"original","checkpoints":[]}
@@ -96,12 +99,67 @@ class Stage2StorageTest(unittest.TestCase):
             self.assertEqual(len(record["active_saves"]),2)
             self.assertEqual(record["manual_load"]["slot"],3)
             self.assertEqual(record["active_load"]["restored_focus"],[6,22])
+            self.assertTrue(record["active_load"]["loaded_unknown_owner_preserved"])
+            self.assertTrue(record["active_load"]["full_container_reload_checked"])
+            self.assertEqual(record["active_load"]["cache_policy"],"original")
             self.assertEqual(len(record["stage2_entry_acknowledgements"]),15)
             self.assertTrue(record["business_sequence_completed"]);self.assertTrue(r.snapshots_unchanged(record))
             self.assertIn(("ack","b7-stage2-hero-detail"),events)
             self.assertIn(("ack","b7-stage2-overview"),events)
             self.assertIn(("ack","b7-stage2-load-restored-focus"),events)
             self.assertFalse(any("end-" in name or "settlement-" in name for kind,name in events if kind=="ack"))
+
+
+    def test_active_load_calls_each_endpoint_policy_without_extra_gui_keys(self):
+        for role in ("original","sdl"):
+            with self.subTest(role=role),tempfile.TemporaryDirectory() as folder:
+                source,path,plain,state,_=self.model_source(folder)
+                prepared=s.prepare(ORIGINAL,source,"stage2-storage",path)
+                save=Path(folder)/"working.SAV";save.write_bytes(source.read_bytes())
+                guard=[save.read_bytes(),save.stat().st_mtime_ns]
+                loaded=bytearray(plain)
+                if role=="original":
+                    for raw,cache in enumerate(list(range(7))+[7]*8):loaded[o.UNITS+raw*80+2]=cache
+                loaded=o.checksum(loaded)
+                events=[]
+                capture=SimpleNamespace(artifacts=Path(folder),key=lambda key:events.append(("key",key)))
+                record={"kind":role,"completed_save":{"snapshot":str(source),"sha256":r.sha(source)}}
+                def checkpoint(name,*args,**kwargs):events.append(("ack",name));return None,{}
+                def measured(target,*args):target.write_bytes(encode(loaded));return loaded
+                with patch.object(s,"wait_measured_save",side_effect=measured):
+                    s.active_load(capture,prepared,save,guard,state,prepared["entry"],plain,record,checkpoint)
+                self.assertEqual([key for kind,key in events if kind=="key"],
+                    ["UP","ENTER","ENTER","RIGHT","ENTER","ENTER","ENTER","ENTER","LEFT","ENTER","ENTER"])
+                self.assertEqual(record["completed_save"]["measurement"]["cache_policy"],role)
+                self.assertTrue(record["completed_save"]["measurement"]["loaded_unknown_owner_preserved"])
+                self.assertEqual(o.decode_save(Path(record["completed_save"]["snapshot"])),loaded)
+                self.assertEqual(events[-1],("ack","b7-stage2-resaved-browse"))
+
+    def test_active_load_corruption_rejected_before_recording_save_or_final_checkpoint(self):
+        for role in ("original","sdl"):
+            for offset in (1171,2210,o.UNITS+6*80+40,o.UNITS+15*80+40,o.SLOT_BASE+440,o.META+10):
+                with self.subTest(role=role,offset=offset),tempfile.TemporaryDirectory() as folder:
+                    source,path,plain,state,_=self.model_source(folder)
+                    prepared=s.prepare(ORIGINAL,source,"stage2-storage",path)
+                    save=Path(folder)/"working.SAV";save.write_bytes(source.read_bytes())
+                    guard=[save.read_bytes(),save.stat().st_mtime_ns]
+                    corrupt=bytearray(plain)
+                    if role=="original":
+                        for raw,cache in enumerate(list(range(7))+[7]*8):corrupt[o.UNITS+raw*80+2]=cache
+                    corrupt[offset]^=1;corrupt=o.checksum(corrupt)
+                    events=[]
+                    capture=SimpleNamespace(artifacts=Path(folder),key=lambda key:events.append(("key",key)))
+                    prior={"snapshot":str(source),"sha256":r.sha(source)}
+                    record={"kind":role,"checkpoints":[],"completed_save":prior}
+                    def checkpoint(name,*args,**kwargs):events.append(("ack",name));return None,{}
+                    def measured(target,*args):target.write_bytes(encode(corrupt));return corrupt
+                    with patch.object(s,"wait_measured_save",side_effect=measured),self.assertRaises(AssertionError):
+                        s.active_load(capture,prepared,save,guard,state,prepared["entry"],plain,record,checkpoint)
+                    self.assertIs(record["completed_save"],prior)
+                    self.assertEqual(record["active_saves"],[prior])
+                    self.assertFalse((Path(folder)/"b7-stage2-reloaded.SAV").exists())
+                    self.assertNotIn(("ack","b7-stage2-resaved-browse"),events)
+                    self.assertNotIn("loaded_unknown_owner_preserved",record["active_load"])
 
 
 if __name__=="__main__":unittest.main()

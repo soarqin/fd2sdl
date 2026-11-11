@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -20,8 +21,9 @@ import fd2_g3_prepare_pages as pages
 from fd2_display_requirement import windows_display_requirement
 from fd2_transition_oracle import picker_image,picker_match,town_images
 from run_g2_battle_check import freeze,unchanged,sha,fingerprint
+from run_g4_detail_check import detail_series,series_checkpoint
 from run_graphics_tests import decode_save
-from run_original_battle_animation import AnimationCollectors,owned_job_required,parse_job,series_index
+from run_original_battle_animation import AnimationCollectors,owned_job_required,parse_job,series_index,latest_series_frame,qpc_stamp
 from run_original_battle_menu import wait_title,wait_state as resource_wait_state
 from run_original_comparison import Capture,running,title_templates,compare
 from run_original_end_turn import RoundOracle,round_assets
@@ -279,34 +281,201 @@ def finalize_ready_waits(prepared,scenario):
     prepared['steps'].insert(index+2,stop)
 
 
-def exercise(capture,prepared,save,guard,record,args):
+def ready_wait_scope(collectors):
+    """只借用既有collector的WGC字段；音频入口直接使用detail_series原scope。"""
+    if (collectors is None or not collectors.started or not collectors.ready or
+            not collectors.helpers or collectors.helpers[0].process is None):return None
+    return {'directory':collectors.series,'ready':collectors.ready,'process':collectors.helpers[0].process,'after':None}
+
+
+def begin_ready_wait_boundary(capture,scope,name,record):
+    """只在原有588/591打开键之前取已发布行；不把gate入口latest当起点。"""
+    try:
+        if name not in ('revive-no-candidates','promotion-no-candidates') or 'ready_wait_boundary' in record:
+            raise AssertionError('教会真实wait边界步骤错误或重复')
+        if (not scope or not scope.get('ready') or not scope.get('process') or
+                scope['ready'].get('pid')!=capture.process.pid or not scope['ready'].get('hwnd')):
+            raise AssertionError('教会前键边界需要本轮已ready的WGC scope')
+        if capture.process.poll() is not None or scope['process'].poll() is not None:
+            raise RuntimeError('教会前键边界的目标或WGC helper已退出；未发键')
+        sample=latest_series_frame(scope['directory'],scope['ready'],capture.process.pid)
+        if sample is None:raise AssertionError('教会前键边界没有已发布原帧；未发键')
+        stamp=qpc_stamp()
+        if (type(stamp.get('qpc')) is not int or type(stamp.get('qpc_frequency')) is not int or
+                stamp['qpc']<=0 or stamp['qpc_frequency']<=0):
+            raise AssertionError('教会前键边界缺有效Windows QPC；未发键')
+        if capture.process.poll() is not None or scope['process'].poll() is not None:
+            raise RuntimeError('教会读取前键原帧期间目标或helper退出；未发键')
+        boundary={'opens_step':name,'wait_name':name+'-real-wait','baseline':sample[0],
+            'trace_index':len(capture.trace),'read_completed_qpc':stamp}
+        record['ready_wait_boundary']=boundary
+        return boundary
+    except BaseException as error:
+        record.setdefault('first_failure',{'checkpoint':name+'-key-boundary',
+            'error':{'type':type(error).__name__,'message':str(error)}})
+        raise
+
+
+def validate_ready_wait_boundary(capture,record,name,ready):
+    """只校验本次固定打开键及其前键原帧；不声明guest实际收键时刻。"""
+    boundary=record.get('ready_wait_boundary',{});baseline=boundary.get('baseline',{})
+    index=boundary.get('trace_index');bracket=boundary.get('key_call_qpc_bracket',{})
+    stamps=[boundary.get('read_completed_qpc',{}),bracket.get('before',{}),bracket.get('after',{})]
+    if (boundary.get('wait_name')!=name or
+            boundary.get('opens_step') not in ('revive-no-candidates','promotion-no-candidates') or
+            boundary['opens_step']+'-real-wait'!=name or
+            type(index) is not int or not 0<=index<len(capture.trace) or
+            baseline.get('pid')!=capture.process.pid or baseline.get('hwnd')!=ready.get('hwnd') or
+            type(baseline.get('index')) is not int or type(baseline.get('wgc_timestamp_100ns')) is not int):
+        raise AssertionError('教会真实wait缺少同次输入的前键边界')
+    event=capture.trace[index];delivery=event.get('delivery',{})
+    if (event!=boundary.get('input') or event.get('key')!='ENTER' or event.get('pid')!=capture.process.pid or
+            boundary.get('trace_length_after')!=index+1 or
+            delivery.get('pid')!=capture.process.pid or delivery.get('hwnd')!=ready.get('hwnd') or
+            delivery.get('backend')!='PostMessageW HWND' or delivery.get('kind')!='key' or
+            delivery.get('ok') is not True or delivery.get('error')!=0 or
+            any(delivery.get(key)!=1 for key in ('keys','sent','release','key_down_sent','key_up_sent'))):
+        raise AssertionError('教会真实wait的唯一ENTER投递或trace归属不同')
+    if (any(type(stamp.get('qpc')) is not int or type(stamp.get('qpc_frequency')) is not int or
+            stamp['qpc_frequency']<=0 for stamp in stamps) or
+            len({stamp['qpc_frequency'] for stamp in stamps})!=1 or
+            not stamps[0]['qpc']<stamps[1]['qpc']<=stamps[2]['qpc']):
+        raise AssertionError('教会真实wait边界不是实际发键调用之前的同钟QPC')
+    times=[stamp.get('host_monotonic') for stamp in stamps]
+    if (any(type(value) not in (int,float) for value in times+[event.get('time')]) or
+            not times[0]<=times[1]<=event['time']<=times[2]):
+        raise AssertionError('教会真实wait的trace输入不在本次实际发键调用区间')
+    return boundary
+
+
+def wait_ready_series(capture,scope,name,predicate,points,*,timeout=30):
+    """16c57 的短 blink 复用已 armed 的同一 WGC，逐条读 backlog，不另截图。"""
+    try:
+        if not scope or not scope.get('ready') or not scope.get('process'):
+            raise AssertionError('教会真实wait需要本次已ready的WGC scope')
+        ready=scope['ready'];process=scope['process']
+        if ready.get('pid')!=capture.process.pid or not ready.get('hwnd'):
+            raise AssertionError('教会真实wait的collector不是本轮owned窗口')
+        if capture.process.poll() is not None or process.poll() is not None:
+            raise RuntimeError('教会真实wait前目标或WGC helper已经退出')
+        record=capture.g3_case_record
+        boundary=validate_ready_wait_boundary(capture,record,name,ready)
+        if any(row.get('key') for row in capture.trace[boundary['trace_index']+1:]):
+            raise AssertionError('教会真实wait之前出现额外输入；未发ACK')
+        scope=dict(scope,after=boundary['baseline'])
+        result=series_checkpoint(capture,scope,name,predicate,points,timeout=timeout)
+        if capture.process.poll() is not None or process.poll() is not None:
+            raise RuntimeError('教会真实wait后目标或WGC helper提前退出；未发ACK')
+        return result
+    except BaseException as error:
+        case=getattr(capture,'g3_case_record',None)
+        if case is not None:
+            case.setdefault('first_failure',{'checkpoint':name,
+                'error':{'type':type(error).__name__,'message':str(error)}})
+        raise
+
+
+def bind_ready_series_points(capture,record,*,visual_only=False):
+    """stop后按既有完整series_index封口；成功观察不等于整个服务已完成。"""
+    points=[point for point in record['checkpoints'] if point.get('name') in
+        ('revive-no-candidates-real-wait','promotion-no-candidates-real-wait')]
+    if not points:return
+    if visual_only:
+        animation=record.get('detail_series',{})
+        if (animation.get('checkpoint_PNGs_bound_to_closed_series') is not True or
+                animation.get('summary',{}).get('stop_reason')!='stop' or animation.get('cleanup_error')):
+            raise AssertionError('教会真实wait的仅视觉WGC没有完整normal stop')
+    else:
+        if record.get('collection_completed') is not True:
+            raise AssertionError('教会真实wait的持续采集没有完整stop')
+        animation=record['animation_capture']
+    ready=animation['ready']
+    frames=animation['frames'];by_index={frame['index']:frame for frame in frames}
+    if len(by_index)!=len(frames):raise AssertionError('教会真实wait的closed series index重复')
+    for point in points:
+        boundary=validate_ready_wait_boundary(capture,record,point['name'],ready)
+        if visual_only and len(capture.trace)!=boundary['trace_length_after']:
+            raise AssertionError('音乐仅视觉WGC关闭期间出现额外业务键；不得取样')
+        source=point.get('series_frame',{});actual=by_index.get(source.get('index'),{})
+        if not source or any(source.get(key)!=actual.get(key) for key in
+                ('index','pid','hwnd','path','sha256','wgc_timestamp_100ns')) or \
+                source.get('pid')!=capture.process.pid or source.get('hwnd')!=ready.get('hwnd'):
+            raise AssertionError('教会真实wait检查点不属于最终同一closed series')
+        baseline=boundary['baseline'];closed_baseline=by_index.get(baseline['index'],{})
+        if (any(baseline.get(key)!=closed_baseline.get(key) for key in
+                ('index','pid','hwnd','path','sha256','wgc_timestamp_100ns')) or
+                sha(Path(baseline['path']))!=baseline['sha256'] or
+                source['index']<=baseline['index'] or source['wgc_timestamp_100ns']<=baseline['wgc_timestamp_100ns']):
+            raise AssertionError('教会真实wait的前键原帧与closed series不同或成功帧未在其后')
+        normalized=point.get('normalized_PNG',{})
+        if sha(Path(source['path']))!=source['sha256'] or not normalized.get('path') or \
+                sha(Path(normalized['path']))!=normalized.get('sha256'):
+            raise AssertionError('教会真实wait的原PNG或归一检查图在采集期间改变')
+    record['ready_wait_closed_series_bound']=True
+    if visual_only:record['ready_wait_visual_only_completed']=True
+
+
+def exercise(capture,prepared,save,guard,record,args,*,ready_wait_visual_only=False):
+    if ready_wait_visual_only:
+        opens=[i for i,step in enumerate(prepared['steps']) if step.get('name') in
+            ('revive-no-candidates','promotion-no-candidates')]
+        if (len(opens)!=1 or opens[0]!=len(prepared['steps'])-2 or
+                prepared['steps'][opens[0]].get('key')!='ENTER' or
+                prepared['steps'][-1].get('name')!=prepared['steps'][opens[0]]['name']+'-real-wait' or
+                prepared['steps'][-1].get('page')!='notice_real_wait' or prepared['steps'][-1].get('key') is not None or
+                any('collector' in step or 'save' in step or step.get('key')=='HOST_W' for step in prepared['steps'])):
+            raise ValueError('音频仅视觉观察只接受588/591原ENTER后止于真实wait的无录音/ACK/Save前缀')
     wait_title(capture,prepared['titles'][3][0],timeout=90);require_source_unchanged(save,*guard)
     collectors=None;first_collected_key=False
-    try:
-        for step in prepared['steps']:
-            if step.get('collector')=='start':
-                collectors=AnimationCollectors(capture,args,record);collectors.start();first_collected_key=True
-                if record.get('native_audio'):
-                    record['native_audio']['scope']='G3 service original PCM recording; music1/sfx1; no full music identity/equivalence claim'
-                continue
-            if step.get('collector')=='stop':
-                active=collectors;collectors=None;active.stop();continue
-            if 'save' in step:
-                save_measurement(capture,prepared,save,guard,record,step['save']);continue
-            if step['key']:
-                if collectors and first_collected_key:
-                    if step['key']!='ENTER':raise AssertionError('G3采集首业务键必须是已声明ENTER')
-                    collectors.confirm();first_collected_key=False
+    visual_scope=None
+    with ExitStack() as visual_owner:
+        try:
+            for step in prepared['steps']:
+                if step.get('collector')=='start':
+                    collectors=AnimationCollectors(capture,args,record);collectors.start();first_collected_key=True
+                    if record.get('native_audio'):
+                        record['native_audio']['scope']='G3 service original PCM recording; music1/sfx1; no full music identity/equivalence claim'
+                    continue
+                if step.get('collector')=='stop':
+                    active=collectors;collectors=None;active.stop();bind_ready_series_points(capture,record);continue
+                if 'save' in step:
+                    save_measurement(capture,prepared,save,guard,record,step['save']);continue
+                if step['key']:
+                    if ready_wait_visual_only and step.get('name') in ('revive-no-candidates','promotion-no-candidates'):
+                        visual_scope=visual_owner.enter_context(detail_series(capture,record))
+                        record['detail_series']['scope']='588/591 original ENTER to real wait; visual only; no PCM/HOST_W'
+                    boundary=begin_ready_wait_boundary(capture,visual_scope if ready_wait_visual_only else ready_wait_scope(collectors),step['name'],record) \
+                        if step.get('name') in ('revive-no-candidates','promotion-no-candidates') else None
+                    if collectors and first_collected_key:
+                        if step['key']!='ENTER':raise AssertionError('G3采集首业务键必须是已声明ENTER')
+                        collectors.confirm();first_collected_key=False
+                        if boundary is not None:
+                            boundary['key_call_qpc_bracket']=record['animation_action']['key_call_qpc_bracket']
+                    else:
+                        key_before=qpc_stamp() if boundary is not None else None
+                        capture.key(step['key'])
+                        if boundary is not None:
+                            boundary['key_call_qpc_bracket']={'before':key_before,'after':qpc_stamp()}
+                        if collectors and capture.trace[-1].get('delivery',{}).get('hwnd')!=collectors.ready.get('hwnd'):
+                            raise AssertionError('G3业务ACK与连续WGC不是同一本轮owned HWND')
+                    if boundary is not None:
+                        boundary['input']=json.loads(json.dumps(capture.trace[boundary['trace_index']]))
+                        boundary['trace_length_after']=len(capture.trace)
+                predicate,options=prepared['checks'][step['name']]
+                if step.get('page')=='notice_real_wait':
+                    wait_ready_series(capture,visual_scope if ready_wait_visual_only else ready_wait_scope(collectors),
+                        step['name'],predicate,record['checkpoints'],timeout=options['timeout'])
+                    if ready_wait_visual_only:
+                        visual_owner.close()
+                        bind_ready_series_points(capture,record,visual_only=True)
                 else:
-                    capture.key(step['key'])
-                    if collectors and capture.trace[-1].get('delivery',{}).get('hwnd')!=collectors.ready.get('hwnd'):
-                        raise AssertionError('G3业务ACK与连续WGC不是同一本轮owned HWND')
-            predicate,options=prepared['checks'][step['name']]
-            wait_state(capture,step['name'],predicate,record['checkpoints'],**options)
-            require_source_unchanged(save,*guard)
-        record['business_sequence_completed']=True
-    finally:
-        if collectors:collectors.stop()
+                    wait_state(capture,step['name'],predicate,record['checkpoints'],**options)
+                require_source_unchanged(save,*guard)
+            record['business_sequence_completed']=True
+        finally:
+            if collectors:
+                collectors.stop()
+                bind_ready_series_points(capture,record)
 
 
 def write_json(path,value):path.write_text(json.dumps(public(value),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

@@ -15,6 +15,7 @@ from PIL import Image
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'tools'))
 import run_g3_audio_runtime_check as runner
 import run_g3_prepare_check as base
+import run_g4_detail_check as detail
 
 
 class AudioRuntimeCheckTest(unittest.TestCase):
@@ -85,7 +86,7 @@ class AudioRuntimeCheckTest(unittest.TestCase):
         p={'original':ROOT/'original_game','expected_music':{'track':11,'loop':1,'intermediate_track':17}}
         source={'g3_music_call_sites':[{'track':17,'loop':1,'runtime_PC_hit_claimed':False}]}
         observation={'ok':True,'sources':source,'scope':{}}
-        def prefix(*a):case['business_sequence_completed']=True
+        def prefix(*a,**kw):case['business_sequence_completed']=True
         binding={'pid':123,'input_count':0}
         return capture,p,save,guard,case,args,observation,prefix,binding
 
@@ -93,7 +94,8 @@ class AudioRuntimeCheckTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='g3-music-original-') as tmp:
             work=Path(tmp);capture,p,save,guard,case,args,observation,prefix,binding=self.exercise_fixture(work)
             rpc=Mock();rpc.snapshot.return_value=(b'original RAM',{'DS_descriptor_before':{'base':0}})
-            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'checkpoint_binding',return_value=binding),\
+            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'seal_visual_artifacts'),\
+                patch.object(runner,'visual_artifacts_unchanged',return_value=True),patch.object(runner,'checkpoint_binding',return_value=binding),\
                 patch.object(runner.original_music,'observe_music',return_value=observation) as observe:
                 runner.exercise(capture,p,save,guard,case,rpc,work,args)
             rpc.snapshot.assert_called_once_with(work,'music-wait')
@@ -115,7 +117,8 @@ class AudioRuntimeCheckTest(unittest.TestCase):
                     else:capture.trace.append({'key':'ENTER'})
                     return b'RAM',{'DS_descriptor_before':{}}
                 rpc.snapshot.side_effect=sample
-                with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'checkpoint_binding',return_value=binding),\
+                with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'seal_visual_artifacts'),\
+                patch.object(runner,'visual_artifacts_unchanged',return_value=True),patch.object(runner,'checkpoint_binding',return_value=binding),\
                     patch.object(runner.original_music,'observe_music',return_value=observation):
                     with self.assertRaises(ValueError):runner.exercise(capture,p,save,guard,case,rpc,work,args)
                 self.assertNotIn('measurement',case)
@@ -126,7 +129,8 @@ class AudioRuntimeCheckTest(unittest.TestCase):
             def take(cdb,target,exe,pdb,output,record,original,track,loop):
                 self.assertFalse(output.exists());record['target_pid']=target.pid
                 return observation,record
-            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'checkpoint_binding',return_value=binding),\
+            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'seal_visual_artifacts'),\
+                patch.object(runner,'visual_artifacts_unchanged',return_value=True),patch.object(runner,'checkpoint_binding',return_value=binding),\
                 patch.object(runner.cdb_music,'take',side_effect=take) as observer,\
                 patch.object(runner.snapshot,'resolve') as resolve:
                 runner.exercise(capture,p,save,guard,case,None,work,args)
@@ -139,7 +143,8 @@ class AudioRuntimeCheckTest(unittest.TestCase):
             work=Path(tmp);capture,p,save,guard,case,args,observation,prefix,binding=self.exercise_fixture(work)
             observation['ok']=False;observation['checks']={'loop_matches':False}
             rpc=Mock();rpc.snapshot.return_value=(b'RAM',{'DS_descriptor_before':{}})
-            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'checkpoint_binding',return_value=binding),\
+            with patch.object(base,'exercise',side_effect=prefix),patch.object(runner,'seal_visual_artifacts'),\
+                patch.object(runner,'visual_artifacts_unchanged',return_value=True),patch.object(runner,'checkpoint_binding',return_value=binding),\
                 patch.object(runner.original_music,'observe_music',return_value=observation):
                 with self.assertRaises(AssertionError):runner.exercise(capture,p,save,guard,case,rpc,work,args)
             self.assertEqual(json.loads((work/'music-observation.json').read_text(encoding='utf-8'))['checks'],{'loop_matches':False})
@@ -196,6 +201,143 @@ class AudioRuntimeCheckTest(unittest.TestCase):
             self.assertFalse(case['business_full_Save_completed']);self.assertTrue(case['guards']['whole_Save_and_mtime_unchanged'])
             self.assertEqual(case['initial_Save']['sha256'],case['final_Save']['sha256'])
             self.assertEqual(case['initial_Save']['mtime_ns'],case['final_Save']['mtime_ns'])
+
+    def visual_prefix(self,work,scenario='p3-revive',kind='original',bad=None):
+        """真实base.exercise与detail_series；只替换owned进程/投键/普通页面等待。"""
+        prepared=copy.deepcopy(self.prepared[scenario]);point=prepared['measurement_checkpoint']
+        prepared['checks'][point][1]['timeout']=.025
+        opens=point.removesuffix('-real-wait');steps=prepared['steps'];events=[];keys=[];clock={'now':0}
+        process=SimpleNamespace(pid=42,poll=lambda:None)
+        capture=SimpleNamespace(process=process,artifacts=work,driver=Path('driver.exe'),trace=[],last=None)
+        case={'kind':kind,'checkpoints':[],'rpc':{'pid':42,'tcp_owner_verified':True},'cdb_music':{}}
+        capture.g3_case_record=case;directory=work/'detail-series';rows=[];helper_process=SimpleNamespace(poll=lambda:None)
+        save=work/'FD2.SAV';save.write_bytes(prepared['encoded']);guard=[save.read_bytes(),save.stat().st_mtime_ns]
+        fragment=588 if scenario=='p3-revive' else 591
+        expected=base.pages.notice(prepared['assets'],fragment,selector=4)
+        def publish(count):
+            selected=copy.deepcopy(rows[:count])
+            if bad=='row_owner' and count>1:selected[1]['hwnd']='0x456'
+            (directory/'frames.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in selected),encoding='utf-8')
+        class Helper:
+            def __init__(self,driver,arguments,artifacts,label,record):
+                self.record=record
+                self.args=arguments
+                self.stdout=work/(label+'.stdout.json');self.stderr=work/(label+'.stderr.log')
+            def start(self):
+                events.append('ready');directory.mkdir()
+                for index,phase in enumerate((0,0 if bad in ('phase0','timeout_stop') else 3,0)):
+                    canvas=expected['text'].copy();image,xy,_=next(row for row in expected['portrait_frames'] if row[2]==phase)
+                    canvas.paste(image,xy);canvas=canvas.convert('RGB')
+                    if bad=='wrong_text' and index==1:
+                        at=next((x,y) for y in range(119,198) for x in range(320) if expected['text'].getpixel((x,y)))
+                        rgb=canvas.getpixel(at);canvas.putpixel(at,tuple(255-c for c in rgb))
+                    path=directory/f'frame{index:05d}.png';canvas.save(path)
+                    rows.append({'index':index,'file':path.name,'pid':42,'hwnd':'0x123',
+                        'wgc_timestamp_100ns':100000+330000*index,'client_width':320,'client_height':200})
+                ready={'ready':True,'pid':42,'hwnd':'0x456' if bad=='ready_owner' else '0x123',
+                    'first_index':0,'wgc_timestamp_100ns':100000}
+                (directory/'ready.json').write_text(json.dumps(ready),encoding='utf-8')
+                publish(0 if bad=='no_baseline' else 1)
+                self.record.update(stdout=str(self.stdout),stderr=str(self.stderr),cleaned=False,forced_cleanup=False)
+                self.stdout.write_text('{}',encoding='utf-8');self.stderr.write_text('',encoding='utf-8')
+                test.assertEqual(self.args[1:],["capture-series",42,directory,45000,33])
+                return helper_process
+            def finish(self):
+                events.append('stop');test.assertTrue((directory/'stop').is_file())
+                if bad=='extra_key_after_gate':key('SPACE')
+                if bad in ('stop','timeout_stop'):raise RuntimeError('visual normal stop failed')
+                if bad=='raw_changed':(directory/'frame00001.png').write_bytes((directory/'frame00000.png').read_bytes())
+                if bad=='baseline_changed':(directory/'frame00000.png').write_bytes((directory/'frame00001.png').read_bytes())
+                count=len((directory/'frames.jsonl').read_text(encoding='utf-8').splitlines())
+                summary={'ok':True,'backend':'WGC-HWND-session','pid':42,'hwnd':'0x123','ready_published':True,
+                    'session_started':True,'stop_reason':'frame_limit' if bad=='cap' else 'stop','hresult':0,
+                    'color_filter':False,'frames':count,'first_wgc_timestamp_100ns':rows[0]['wgc_timestamp_100ns'],
+                    'last_wgc_timestamp_100ns':rows[count-1]['wgc_timestamp_100ns'] if count else 0}
+                (directory/'summary.json').write_text(json.dumps(summary),encoding='utf-8')
+                self.stdout.write_text(json.dumps(summary),encoding='utf-8')
+                self.stderr.write_text('fd2 job: root=17 worker_exit=0 timed_out=0 residual=0 forced=0 cleaned=1 result=0',encoding='utf-8')
+                self.record.update(summary=summary,job=runner.parse_job(self.stderr.read_text(encoding='utf-8')),
+                    cleaned=True,forced_cleanup=False,exit_code=0)
+                return summary
+        opening_index=next(i for i,step in enumerate(steps) if step['name']==opens)
+        expected_keys=[step['key'] for step in steps if step.get('key')]
+        opening_key_index=len([step for step in steps[:opening_index+1] if step.get('key')])
+        def key(value):
+            keys.append(value);events.append('key:'+value)
+            capture.trace.append({'pid':42,'key':value,'time':clock['now']/1000,
+                'delivery':{'pid':42,'hwnd':'0x123','backend':'PostMessageW HWND','kind':'key','ok':True,'error':0,
+                    'keys':1,'sent':1,'release':1,'key_down_sent':True,'key_up_sent':True}})
+            if len(keys)==opening_key_index:publish(3)  # 闭眼在原ENTER返回前发布，末帧又为0。
+        capture.key=key
+        def stamp():clock['now']+=1;return {'qpc':clock['now'],'qpc_frequency':1000,'host_monotonic':clock['now']/1000}
+        def ordinary(capture,name,predicate,points,**options):
+            events.append('page:'+name)
+            if name==opens and bad=='extra_key':key('SPACE')
+        test=self;rpc=Mock()
+        observation={'ok':True,'sources':{'g3_music_call_sites':[{'track':prepared['expected_music']['intermediate_track']}]},'scope':{}}
+        def sample(*args):
+            events.append('sample');test.assertEqual(events[-2],'stop')
+            test.assertTrue(case['ready_wait_visual_only_completed']);test.assertNotIn('collection_completed',case)
+            if bad=='mutate_after_seal':(directory/'frames.jsonl').write_bytes(b'changed after closed seal')
+            return b'RAM',{'DS_descriptor_before':{}}
+        rpc.snapshot.side_effect=sample
+        def cdb(*args):sample();case['cdb_music']['target_pid']=42;return observation,{}
+        args=SimpleNamespace(driver=capture.driver,cdb=Path('cdb.exe'),sdl=Path('fd2sdl.exe'),pdb=Path('fd2sdl.pdb'))
+        with patch.object(base,'wait_title'),patch.object(base,'resource_wait_state',side_effect=ordinary),\
+                patch.object(base,'qpc_stamp',side_effect=stamp),patch.object(detail,'OwnedHelper',Helper),\
+                patch.object(base,'AnimationCollectors',side_effect=AssertionError('audio不得创建PCM collector')),\
+                patch.object(runner.original_music,'observe_music',return_value=observation),\
+                patch.object(runner.cdb_music,'take',side_effect=cdb) as cdb_take:
+            failure=None
+            try:runner.exercise(capture,prepared,save,guard,case,rpc,work,args)
+            except BaseException as error:failure=error
+        return case,capture,events,keys,expected_keys,rpc,cdb_take,failure
+
+    def test_real_audio_prefix_ready_prekey_early_blink_closed_stop_then_one_owner_sample(self):
+        for scenario in runner.SCENARIOS:
+            for kind in ('original','sdl'):
+                with self.subTest(scenario=scenario,kind=kind),tempfile.TemporaryDirectory() as tmp:
+                    case,capture,events,keys,wanted,rpc,cdb,error=self.visual_prefix(Path(tmp),scenario,kind)
+                    self.assertIsNone(error);self.assertEqual(keys,wanted);self.assertNotIn('HOST_W',keys)
+                    self.assertEqual(events[-2:],['stop','sample']);self.assertEqual(events.count('ready'),1)
+                    self.assertEqual(events.count('sample'),1);self.assertTrue(case['ready_wait_visual_only_completed'])
+                    self.assertNotIn('collection_completed',case);self.assertNotIn('audio_capture',case)
+                    self.assertFalse(case['business_full_Save_completed']);self.assertTrue(case['ready_wait_closed_series_bound'])
+                    self.assertEqual(case['checkpoints'][-1]['series_frame']['index'],1)
+                    self.assertEqual(case['checkpoints'][-1]['portrait_match'][0]['checked_pixels'],6400)
+                    self.assertLess(events.index('ready'),events.index('page:'+case['ready_wait_boundary']['opens_step']))
+                    self.assertTrue(runner.visual_artifacts_unchanged(case))
+                    if kind=='original':rpc.snapshot.assert_called_once();cdb.assert_not_called()
+                    else:rpc.snapshot.assert_not_called();cdb.assert_called_once()
+
+    def test_real_audio_bad_visual_scope_never_samples_or_adds_ack(self):
+        for bad in ('phase0','wrong_text','ready_owner','row_owner','raw_changed','baseline_changed',
+                'no_baseline','extra_key','extra_key_after_gate','cap','stop','timeout_stop'):
+            with self.subTest(bad=bad),tempfile.TemporaryDirectory() as tmp:
+                case,capture,events,keys,wanted,rpc,cdb,error=self.visual_prefix(Path(tmp),bad=bad)
+                self.assertIsNotNone(error);rpc.snapshot.assert_not_called();cdb.assert_not_called()
+                self.assertNotIn('sample',events);self.assertNotIn('HOST_W',keys)
+                self.assertFalse(case.get('business_full_Save_completed',False))
+                self.assertNotIn('measurement',case)
+                self.assertEqual(keys,wanted[:-1] if bad in ('no_baseline','ready_owner') else
+                    wanted+['SPACE'] if bad in ('extra_key','extra_key_after_gate') else wanted)
+                if bad=='timeout_stop':
+                    report={'cases':[case]};base.record_failure(report,error)
+                    self.assertEqual(report['error']['type'],'TimeoutError')
+                    self.assertEqual(case['detail_series']['cleanup_error'],'visual normal stop failed')
+
+    def test_all_visual_raw_metadata_and_helper_files_are_guarded_against_late_change(self):
+        for leaf in ('frame00000.png','frames.jsonl','ready.json','summary.json',
+                'detail-series-helper.stdout.json','detail-series-helper.stderr.log'):
+            with self.subTest(leaf=leaf),tempfile.TemporaryDirectory() as tmp:
+                case,capture,events,keys,wanted,rpc,cdb,error=self.visual_prefix(Path(tmp))
+                self.assertIsNone(error)
+                path=next(Path(name) for name in case['visual_artifacts']['sealed_files'] if Path(name).name==leaf)
+                path.write_bytes(path.read_bytes()+b'tampered')
+                self.assertFalse(runner.visual_artifacts_unchanged(case))
+        with tempfile.TemporaryDirectory() as tmp:
+            case,capture,events,keys,wanted,rpc,cdb,error=self.visual_prefix(Path(tmp),bad='mutate_after_seal')
+            self.assertIsInstance(error,ValueError);self.assertNotIn('measurement',case)
 
 
 if __name__=='__main__':unittest.main()

@@ -22,7 +22,7 @@
  *   dac_apply_darkness @0x11d40 = 调色板/DAC 应用（第三参数为暗度）
  *   animation_play @0x20421     = animation_play(anim_idx, delay, check_input)
  *   palette_fade_to @0x2df01    = palette_fade_to(start, end, step, r, g, b)
- *   vsync_wait @0x4e381         = vsync_wait()
+ *   bios_keyboard_buffer_clear @0x4e381 = 清BDA待取键，不是vsync
  */
 
 #define VGA_W 320
@@ -36,7 +36,7 @@ typedef struct {
     uint8_t  dac[VGA_PALETTE_SIZE];      /* 当前 DAC 输出(8-bit)，palette_expand 后 */
     SDL_Renderer *renderer;
     SDL_Texture   *texture;              /* ARGB8888 流式纹理 */
-    fd2_input input;                     /* 唯一 SDL 逐呈现帧输入所有者 */
+    fd2_input input;                     /* 唯一 SDL 键缓存/held/repeat owner */
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
     /* sub_4E31C @0x4e31c：app级DAC视觉owner；活动Load/新session不清零。
@@ -81,8 +81,8 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness);
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
                                uint8_t r, uint8_t g, uint8_t b);
 
-/* 呈现当前 framebuffer，并为该呈现帧采样一次当前键态。上一呈现帧
- * 未读取的输入脉冲立即丢弃。 */
+/* 呈现当前 framebuffer，由同input owner归档到达键并采样repeat；
+ * 不清除跨帧未读项。 */
 void fd2_vga_present(fd2_vga *vga);
 /* 同一游戏帧内刷新已改的glyph/mouth像素；不采键、推进时钟或新增等待。 */
 void fd2_vga_upload_current_frame(fd2_vga *vga);
@@ -94,7 +94,7 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
 void fd2_vga_wait_frame_deadline(fd2_vga *vga);
 
 /* 延时 (对应 thunk_FUN_0003b765 @0x3e01d, 毫秒)。宿主实现分片等待并
- * 检查退出事件；普通按键不排队。 */
+ * 检查退出事件并向同input owner归档普通键。 */
 void fd2_delay_ms(uint32_t ms);
 
 /* 等待 BIOS tick (对应 FUN_000151f1 @0x17aa9)
@@ -102,7 +102,7 @@ void fd2_delay_ms(uint32_t ms);
  * 用于帧同步等待 */
 void fd2_wait_ticks(uint32_t ticks);
 
-/* 查询最近一次 present 建立的当前帧输入脉冲，不重新泵送或采样。 */
+/* 非消费式查询同input owner的待取键，不重新泵送或采样。 */
 int fd2_input_check(fd2_vga *vga);
 
 /* 释放资源 */

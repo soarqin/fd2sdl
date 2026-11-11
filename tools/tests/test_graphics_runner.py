@@ -97,6 +97,24 @@ class SaveEvidenceTest(unittest.TestCase):
 
 
 class EvidencePathTest(unittest.TestCase):
+    def test_explicit_artifacts_keeps_build_and_places_all_evidence_outside_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);build=root/'build';output=root/'another-volume'/'new-evidence'
+            suite=runner.Suite(SimpleNamespace(build_dir=build,artifacts=output,b3_only=True))
+            self.assertEqual(suite.work,output)
+            self.assertEqual(suite.args.build_dir,build)
+            self.assertEqual(suite.trace,output/'input-trace.jsonl')
+            self.assertTrue(output.is_dir());self.assertFalse(build.exists())
+
+    def test_explicit_existing_evidence_and_original_target_are_rejected_before_mkdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);output=root/'existing';output.mkdir()
+            for target in (output,runner.ROOT/'original_game'/'new-evidence'):
+                with self.subTest(target=target),patch.object(Path,'mkdir') as mkdir:
+                    with self.assertRaises(ValueError):
+                        runner.Suite(SimpleNamespace(build_dir=root/'build',artifacts=target,b3_only=True))
+                    mkdir.assert_not_called()
+
     def test_readonly_evidence_paths_are_rejected_before_directory_creation(self):
         for path in (runner.ROOT / "original_game", runner.ROOT / "original_game" / "nested"):
             with self.subTest(path=path), patch.object(Path, "mkdir") as mkdir:

@@ -434,8 +434,6 @@ typedef struct {
     uint16_t growth_delta;
     int notown_mode, done, result, host_quit, irreversible, running;
     uint64_t input_epoch;
-    fd2_input_event deferred_key;
-    int deferred_key_ready;
     uint8_t *page_background, *town_background;
     fd2_vga *page;
     fd2_image notice_portraits[4], selection_label, selection_cursor;
@@ -463,8 +461,9 @@ typedef struct {
 } prepare_ui;
 
 static int quit(prepare_ui *ui) { return fd2_input_take_quit(&ui->vga->input); }
-static void drain(prepare_ui *ui) {
-    while (fd2_input_take_key(&ui->vga->input, NULL)) {}
+static int prepare_clear_keys(prepare_ui *ui) {
+    fd2_input_clear_keys(&ui->vga->input);
+    return quit(ui) ? 1 : 0;
 }
 static int sound_loop(prepare_ui *ui,size_t sample,int loop_count) {
     if(loop_count<1 || loop_count>3)return -1;
@@ -512,6 +511,7 @@ static int present(prepare_ui *ui) {
 typedef struct { uint64_t last; int countdown, portrait, phase, initialized; } prepare_wait;
 static int read_key_state(prepare_ui *ui, fd2_input_event *event, int wait_rng,
         int hotel_portrait, prepare_wait *state) {
+    if (quit(ui)) return 1;
     if (!state->initialized) {
         state->last = SDL_GetTicks(); state->phase = 2; state->portrait = 0;
         state->countdown = !wait_rng ? 0 : wait_rng == 2 ?
@@ -522,8 +522,10 @@ static int read_key_state(prepare_ui *ui, fd2_input_event *event, int wait_rng,
     for (;;) {
         if (quit(ui)) return 1;
         if (fd2_input_take_key(&ui->vga->input, event)) {
-            drain(ui); fd2_vga_wait_frame_deadline(ui->vga); return 0;
+            fd2_vga_wait_frame_deadline(ui->vga); return 0;
         }
+        /* 16c57的空等轮有4e31c；26eda picker及29bcb直读分支均无此叶。 */
+        if (wait_rng == 1 && fd2_field_water_tick(ui->vga, SDL_GetTicks()) < 0) return -1;
         if (wait_rng && SDL_GetTicks() - state->last >= 110u) {
             state->last = SDL_GetTicks();
             state->phase = (state->phase + 1) & 3;
@@ -587,7 +589,6 @@ static int notice(prepare_ui *ui, size_t fragment, int wait, int second_line) {
         12, second_line ? 138 : 119, 205, 74, ui->context->message_number);
     if (result != 0) return -1;
     fd2_map_sprite_blit(ui->vga, &ui->assets->hotel_portraits[0], 107, 5, -1);
-    drain(ui);
     if (present(ui)) return 1;
     if (wait) { fd2_input_event event; return read_key(ui, &event, 1, 1); }
     return 0;
@@ -603,7 +604,7 @@ static int notice_ready(prepare_ui *ui, size_t fragment) {
 }
 
 /* 已有服务确认仍借该唯一19953消费者；这些窄呈现/输入叶的定义在下方
- * service private header，不改变deferred key或input_epoch的原owner。 */
+ * service private header，普通键始终归同一input owner，真实read推进input_epoch。 */
 static int prepare_service_take_key(prepare_ui *ui,fd2_input_event *event);
 static int prepare_service_host_quit(prepare_ui *ui);
 static int prepare_service_present(prepare_ui *ui,unsigned ms);
@@ -640,7 +641,7 @@ static int prepare_choice_step(fd2_field_choice_step step,int value,void *userda
     } else if (step==FD2_FIELD_CHOICE_DRAW || step==FD2_FIELD_CHOICE_STEADY)
         return prepare_choice_draw(scope,value,step==FD2_FIELD_CHOICE_STEADY?ui->vga->menu_highlight_phase:0);
     else if (step==FD2_FIELD_CHOICE_WAIT_KEY) return
-        (scope->service && ui->service.deferred_key_ready) || fd2_input_has_any_key(&ui->vga->input)?1:0;
+        fd2_input_has_any_key(&ui->vga->input)?1:0;
     else if (step==FD2_FIELD_CHOICE_READ_KEY) {
         fd2_input_event event;
         if (!(scope->service?prepare_service_take_key(ui,&event):fd2_input_take_key(&ui->vga->input,&event))) return -1;
@@ -701,7 +702,7 @@ static int choice(prepare_ui *ui, int depart) {
         result=played>0?1:played<0?-1:scope.result;
         if (!played) {
             memcpy(ui->vga->framebuffer,page->framebuffer,VGA_W*VGA_H);
-            fd2_vga_upload_current_frame(ui->vga);drain(ui);
+            fd2_vga_upload_current_frame(ui->vga);
         }
     }
     free(page);return result;
@@ -726,7 +727,6 @@ static int slots_run(prepare_ui *ui, int save_mode, int consumer) {
     if (!background || !page) { free(background); free(page); fd2_save_file_close(&save); return -1; }
     memcpy(background, ui->vga->framebuffer, VGA_W * VGA_H);
     int selected = 0, result = -1;
-    drain(ui);
     for (;;) {
         memcpy(page->framebuffer, background, VGA_W * VGA_H);
         if (fd2_field_prepare_draw_slots(page, ui->assets, &save, selected) != 0) { result = -1; break; }
@@ -866,13 +866,15 @@ static int member_detail(prepare_ui *ui, size_t index) {
     fd2_field_detail_draw(page, &ui->assets->info, &ui->assets->font,
         &ui->assets->text, &unit, &portraits[0]);
     ui->service.active_portraits=portraits;ui->service.notice_origin=3208u;
-    drain(ui);
     for (int phase = 11; phase >= 0; phase--) {
         int cue=fd2_field_detail_sfx_for_phase(1,phase);
         if(cue>=0 && sound(ui,(size_t)cue)!=0)goto done;
         fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
         if (present(ui)) { result = 1; goto done; }
     }
+    /* 29620→17aed→17e0b：打开12帧后17ee8才4e381；flip/close不清队。 */
+    result = prepare_clear_keys(ui);
+    if (result) goto done;
     fd2_input_event event;
     result = prepare_service_wait_key(ui,&event,0);
     if (result != 0) goto done;
@@ -978,7 +980,6 @@ static int hotel_run(prepare_ui *ui) {
     int selected = 0, result = hotel_menu_animation(ui, 1);
     if (result != 0) return result;
     size_t fragment = 585;
-    drain(ui);
     for (;;) {
         if (fd2_field_prepare_draw_hotel(ui->vga, ui->assets, ui->fdother,
                 selected, 1, 0, fragment) != 0) return -1;
@@ -1087,14 +1088,16 @@ fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *
     }
     if (music(&ui, 10, "town") != 0) goto done;
     int selected = 0,preview_track=0; unsigned phase = 0; uint64_t last = SDL_GetTicks();
-    drain(&ui);
+    /* 26152真正draw→1f525 fade→4e381在同一prepare冷域，不把资源合成
+     * 当成已经显示。NoTown在上方独立冷入口，不经过town bootstrap。 */
+    int entered=prepare_service_execute(&ui,"town.bootstrap",NULL,0);
+    if(entered) { result=entered==-2 ? FD2_FIELD_PREPARE_HOST_QUIT:FD2_FIELD_PREPARE_ERROR; goto done; }
     for (;;) {
         if (fd2_field_prepare_draw_town(vga, assets, &context->preparation, selected, phase) != 0) break;
         if (present(&ui)) { result = FD2_FIELD_PREPARE_HOST_QUIT; break; }
         if (SDL_GetTicks() - last >= 220u) { phase = (phase + 1u) & 3u; last = SDL_GetTicks(); }
         fd2_input_event event;
         if (!fd2_input_take_key(&vga->input, &event)) continue;
-        drain(&ui);
         if (event.key == FD2_INPUT_KEY_RIGHT || event.key == FD2_INPUT_KEY_LEFT) {
             selected = event.key==FD2_INPUT_KEY_RIGHT ? (selected<=0 ? 4:selected-1):
                 (selected>=4 ? 0:selected+1);

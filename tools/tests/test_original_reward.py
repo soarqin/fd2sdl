@@ -1,6 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
+import struct
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -122,7 +123,7 @@ class RewardProtocolTest(unittest.TestCase):
         self.assertNotIn("KP5", [call.args[0] for call in capture.key.call_args_list])
         self.assertNotIn("action_confirmations", report)
 
-    def test_learning_does_not_disable_known_spells_and_only_sdl_refuses17(self):
+    def test_learning_keeps_known_spells_without_restoring_obsolete17_gate(self):
         for role in ("original", "sdl"):
             with self.subTest(role=role):
                 _, report, seen = self.exercise("learn", role=role)
@@ -130,7 +131,8 @@ class RewardProtocolTest(unittest.TestCase):
                 self.assertIn("b4-learned13-target", names)
                 self.assertIn("b4-learned13-cancel-list0", names)
                 refused = [name for name in names if name.startswith("b4-unsupported17-refused-")]
-                self.assertEqual(refused, ["b4-unsupported17-refused-enter", "b4-unsupported17-refused-space"] if role == "sdl" else [])
+                self.assertEqual(refused, [])
+                self.assertFalse(report["learned_spell_support"]["sdl_spell17_refused"])
                 self.assertFalse(report["learned_spell_support"]["native_spell17_confirmation_sent"])
                 self.assertFalse(report["learned_spell_support"]["spell17_effect_verified"])
 
@@ -320,6 +322,94 @@ class RewardLoadSourceTest(unittest.TestCase):
         self.assertIsNone(runner.load_round_state(partial, two, 2))
         for bad in (0, 256, True):
             with self.assertRaises(ValueError): runner.load_round_template(ORIGINAL, palette, bad)
+
+    def test_load_phase_coordinates_follow_complete_original_instructions(self):
+        from static_data.verify_unit_tables import source_range
+        exe = (ORIGINAL / "FD2.EXE").read_bytes()
+        self.assertEqual(hashlib.sha256(source_range(exe, 0x10010, 0x610)).hexdigest(),
+            "14c2b2e59981f7941765e99424c54dae5c5d7926002075a02b4fa71cb007b9b5")
+        def immediate(at):
+            return struct.unpack_from("<I", source_range(exe, at, 5), 1)[0]
+        peak_number_y, peak_number_x = divmod(immediate(0x104f4) - 0xa0000, 320)
+        self.assertEqual((peak_number_x, peak_number_y), (171, 91))
+        self.assertEqual(source_range(exe, 0x104c2, 4), b"\x6a\x54\x6a\x78")
+        self.assertEqual((peak_number_x - 120, peak_number_y - 84), (51, 7))
+        # 原App-inner指针差、两条lea、目标VGA(4,4)独立算坐标；不读生产SDL表。
+        self.assertEqual(source_range(exe, 0x10529, 5), b"\x89\xde\x0f\xaf\xf3")
+        self.assertEqual(source_range(exe, 0x10530, 3), b"\x8d\x46\x54")
+        self.assertEqual(source_range(exe, 0x10565, 9), b"\x8d\x56\x5a\x69\xd2\xc8\x01\x00\x00")
+        image_x = source_range(exe, 0x10534, 2)[1]
+        number_x = immediate(0x10573) - immediate(0x10540)
+        project_y, project_x = divmod(immediate(0x105a2) - 0xa0000, 320)
+        self.assertEqual((project_x, project_y, number_x - image_x), (4, 4, 51))
+        first, replacement = immediate(0x1051f), immediate(0x105e1)
+        self.assertEqual(source_range(exe, 0x105d3, 3), b"\x83\xfb\x06")
+        self.assertEqual(source_range(exe, 0x105d8, 3), b"\x83\xfb\x05")
+        phases = []
+        k = first
+        while k < 6:
+            if k == 5: k = replacement
+            phases.append((project_x + image_x, project_y + k * k + 84))
+            k += 1
+        self.assertEqual(phases, [(120, 92), (120, 97), (120, 104), (120, 169)])
+        self.assertEqual((project_y + 90) - (project_y + 84), 6)
+
+    def load_phase_frame(self, turn, position, digit_y, frame_id=91):
+        sheet = runner.archive_entry((ORIGINAL / "FDOTHER.DAT").read_bytes(), 5)
+        def raw(index):
+            start, end = struct.unpack_from("<II", sheet, 6 + 4 * index)
+            return sheet[start:end]
+        image = runner.decode_lmi(raw(frame_id))
+        for digit, x in zip(map(int, f"{turn:03d}"), (51, 57, 63)):
+            number = runner.decode_image(raw(42 + digit))
+            image.paste(number, (x, digit_y), number.point(lambda value: 255 if value else 0, mode="L"))
+        image.putpalette(self.prepared["assets"]["palette"])
+        frame = Image.new("RGB", (320, 200))
+        frame.paste(image.convert("RGB"), position)
+        return frame, image
+
+    def test_load_accepts_each_complete_source_phase_with_its_own_digit_row(self):
+        palette = self.prepared["assets"]["palette"]
+        peak = runner.load_round_template(ORIGINAL, palette, 2)
+        exiting = runner.load_round_template(ORIGINAL, palette, 2, exiting=True)
+        for position, digit_y, k in (((120, 84), 7, None), ((120, 92), 6, 2),
+                ((120, 97), 6, 3), ((120, 104), 6, 4), ((120, 169), 6, 9)):
+            with self.subTest(position=position):
+                frame, independent = self.load_phase_frame(2, position, digit_y)
+                self.assertEqual(independent.tobytes(), (peak if k is None else exiting).tobytes())
+                result = runner.load_round_state(frame, peak, 2, exiting)
+                self.assertEqual((result["position"], result["digit_relative_y"], result["exit_k"]),
+                    (list(position), digit_y, k))
+                self.assertEqual(result["phase"], "peak" if k is None else "exit")
+                self.assertEqual(result["bad_pixels"], 0)
+                self.assertGreater(result["checked_pixels"], 1500)
+                self.assertTrue(result["frame91_and_three_digits"])
+
+    def test_load_rejects_wrong_turn_digit_row_partial90_and_unregistered_position(self):
+        palette = self.prepared["assets"]["palette"]
+        peak = runner.load_round_template(ORIGINAL, palette, 2)
+        exiting = runner.load_round_template(ORIGINAL, palette, 2, exiting=True)
+        phases = [((120, 84), 7), *[((120, y), 6) for y in (92, 97, 104, 169)]]
+        for position, digit_y in phases:
+            for turn in (1, 3):
+                with self.subTest(position=position, wrong_turn=turn):
+                    frame, _ = self.load_phase_frame(turn, position, digit_y)
+                    self.assertIsNone(runner.load_round_state(frame, peak, 2, exiting))
+            for wrong_row in (6 if digit_y == 7 else 7,):
+                frame, _ = self.load_phase_frame(2, position, wrong_row)
+                self.assertIsNone(runner.load_round_state(frame, peak, 2, exiting))
+            partial, _ = self.load_phase_frame(2, position, digit_y, frame_id=90)
+            self.assertIsNone(runner.load_round_state(partial, peak, 2, exiting))
+            shifted, _ = self.load_phase_frame(2, (position[0] + 1, position[1]), digit_y)
+            self.assertIsNone(runner.load_round_state(shifted, peak, 2, exiting))
+            incomplete, _ = self.load_phase_frame(2, position, digit_y)
+            incomplete.paste((0, 0, 0), (*position, position[0] + 40, position[1] + 20))
+            self.assertIsNone(runner.load_round_state(incomplete, peak, 2, exiting))
+        for y in (85, 91, 93, 96, 98, 103, 105, 113, 168, 170):
+            frame, _ = self.load_phase_frame(2, (120, y), 6)
+            self.assertIsNone(runner.load_round_state(frame, peak, 2, exiting), y)
+        with self.assertRaises(ValueError):
+            runner.load_round_template(ORIGINAL, palette, 2, exiting=1)
 
     def test_every_partial_dialog_close_is_rejected_despite_local_cursor_match(self):
         # 专门保留原事故：旧browse局部predicate已经成功，y164仍不能当就绪。

@@ -2,6 +2,8 @@
 
 2026-11-10。本文对应[通用审计](../plans/common-logic-audit.md) C02／C05／C13—C17，登记原来源的语义族、通用能力缺口与关卡实例边界。开发优先级只见[总计划](../plans/development.md)。**来源分类完成不等于事件图全部提取、G2—G4实现完成或原版运行验收通过。**
 
+> 版本口径：§1—6 保留 G1 `5b9619f` 分类时的来源、统计与当时缺口，不作为当前实现状态；其中「仍需 G2／G4」或「本轮未运行」均指该历史分类轮次。G2—G4 的阶段历史见总计划；G5 代码冻结时点的消费者、旧新映射和直接验证范围见 §7；本轮最终统一回归和逐项签核见[审计 §13](../plans/common-logic-audit.md)，通用完成门已按所列来源域通过。§7 的待验描述保留冻结时点身份。
+
 ## 1. 方法、来源与输出
 
 基于原 `FD2.EXE`（SHA256 `bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd`）、33组FDFIELD资源、已发布canonical函数／chunk和现有冷定义，复用 `audit_stage_data.py` 的资源身份、LE页／fixup、IDA发布清单、全表范围与引用校验。新分类器 [`audit_common_scope.py`](../../tools/static_data/audit_common_scope.py) 只在其上增加显式审查映射，不替代或改写SD3结构报告。
@@ -122,3 +124,80 @@ action255索引读取 `0x51f8d`，原字节解释为 `u32=0x02030500`，无inter
 因此，结合[战斗语义](common-battle-semantics.md)对全部初始、template、学习和合法转职的保守并集计算，可以在**正常原资源／START／升级／合法转职及保存这些状态**的来源域内闭合：法术列表最多12项；ID31和36..39没有正常赋值源。当前`>12`及无record位的拒绝门在此域是容量／无效输入保护，不要求发明分页或开放空名31。该结论不涵盖任意手工修改／外部畸形SAV、未声明的运行时注入或未来新增数据；新来源必须重新核对，不把位图容量40bit误当40种合法法术。
 
 G5再按完整机制清单统一审查和全面回归当前平台已支持历史功能。最终剩余S表只允许具体地图／编成／触发／剧情／确有证据的特例，以及已明确不在领域完整结论内的精度与平台测量；不能留下仍未归属的通用谓词、字段写入、等待／取消或服务。
+
+## 7. G5：既有事件按实际等待续行（代码冻结，最终门待验）
+
+G5 复审核实了旧 `execute_known_turn_event` 的真实顺序缺口：先整段 LOGIC 写 live Game，再由 Scene 重放呈现。action0 在 story11 等待前已追加后半组；action6 在 story4 返回前已写 AI 锚点。正常窗口关闭也会留下尚未到达的后缀，失败时整段 rollback 又会撤销已发生的前缀。
+
+当前冻结代码已把原六个正式绑定迁入既有 `common_event`／`event_resume`，删除旧 walker、Game 资源 clone／整段 rollback、运动 snapshot 和 Scene 整事件重放。`waiting_legacy`、只为旧重放续行的公共 resume、无 caller 恒拒资源壳以及 `FIELD_EVENT` notice 也已删除。notice 只保来源诊断；人工注入的坏 deferred 状态明确拒绝，不等待不存在的 producer。业务、RNG、SAV和资源 owner 不变；没有第二事件热游标、业务 Game 或通用 VM，复用既有 Scene／runtime 有限呈现器。
+
+### 7.1 原绑定与冷定义映射
+
+| 原正式身份 | 原 Scene flow | 当前 common flow | 原 caller |
+|---|---|---|---|
+| `stage.000.action.000` | `event.action.000` | `common.legacy.action.000` | `34531` |
+| `stage.000.action.001` | `event.action.001` | `common.legacy.action.001` | `3460b` |
+| `stage.000.action.002` | `event.action.002` | `common.legacy.action.002` | `34673`，含共享尾 `34663` |
+| `stage.000.action.003` | `event.action.003` | `common.legacy.action.003` | `346cd` |
+| `stage.000.action.004` | `event.action.004` | `common.legacy.action.004` | `34738` |
+| `stage.001.action.006` | `event.action.006` | `common.legacy.action.006` | `34778` |
+
+没有新增 stage／callback 身份或开放 S。原 G4 的15个规则／片段夹具仍保各自来源有效域；21个 common flow 不代表21个完整关卡事件。`common39` 原生夹具仍是非 shipping 显式 alias，不计作自然触发绑定。
+
+### 7.2 预检保证与限制
+
+`common_event_preflight_identity` 只识别已列有限操作组成的线性 NEXT／ACK 图。它始终借局部 units 和最多32条 roster 投影身份；即使未注册视觉 `event_preflight`，也消费真实 counted MOVE 语法、检查未来 raw、SIDE 写域及 AI anchor 范围。真实 caller 的 pending 和进入 side1 的 turn 都调用同一预检，后者按原 `1a813` 传 raw0。上述线性身份／raw的坏初始引用在扣 MP、耗库存和取 RNG 前拒绝；合法 known callback 不受诊断日志已满限制。
+
+投影不复制整 Game、不执行装备派生、不取 RNG，也不把未来位置／身份交给 live 业务。原 DWORD group 与模板 BYTE 零扩展比较，高值是无匹配，不截成 group0。视觉 callback 可借只读 view 检查该线性身份前缀对应的文字、portrait 和 movement 资源；实际执行到叶时仍重验当前资源，晚错保已提交前缀。
+
+这个保证**不覆盖任意分支组合的精确未来身份**。未被线性白名单识别的图仍使用既有有限谓词／业务后两候选边资源检查；例如 `common.key.consume` 的条件消耗、追加和对白组合，不因六绑定迁移就获得全部分支身份精确投影证明。当前原资源、正式入口、有限机制测试和晚重验分别保各自有效域；不能承诺所有损坏未来资源都在业务首写前被发现，也不能把未知组合自动列为 S 或宣称已验。
+
+### 7.3 唯一 PC、忙态与一次提交
+
+Game 只在自己的原写点提交；Scene 的 PAN／MOVE 在实际发生的格／帧把 motion 交回同一 Game。每个呈现叶成功返回后才按 NEXT 或 ACK 推进父 PC。原16槽 turn 表逐槽重读 live metadata，callback 返回后从下一槽继续；玩家、AI、March 和 loot 保真实 caller，不保存独立 pending 副本。
+
+子 loot 只占既有 loot owner 的深度1槽。子返回后才推进父 ACK 和 descriptor，不能借父 kind5 重跑刷新／奖励。HOST 保原叶 PC 和已写前缀，并由现 `runtime_host_quit` 阻止后续回复／续行；真实 ERROR 才走错误边。短寿命视觉资源在 finally 释放，清理不补写未达到的 INFO、acted 或控制器尾。已结束流程的重复回复、错误端口和二次 child 压入明确拒绝；连续不同等待仍可消费各自独立的已排键。
+
+event、loot、progress、detail、controller 和 host 忙态仍禁止活动／手工 Save。成功 Load 清本来不入 SAV 的瞬时续态，保原 App input／视觉与借用 RNG 合同；没有新增中途存档格式。孤立 `child.active && !parent.active && !failure && !host` 无正常公开写入路径，人工破坏该不变量不属于新的中途 Save 能力。
+
+### 7.4 独立原 caller 与等待来源
+
+[`verify_fd2_legacy_events.py`](../../tools/ida/verify_fd2_legacy_events.py) 实际执行六个完整原 caller 和 `134e4` 本体，固定 strict relocated 镜像／完整函数摘要、原90分发表的六个指针及 FDFIELD 来源。构造、group、arrival、motion、text、BIOS、delay 是显式替身；原直接 SIDE、AI 成对字节和方向写点由 CPU 真正执行。它不证明完整派生、文字 RNG、声音、像素或原生窗口。
+
+| 原函数 | 原 CPU 确认的关键分界 |
+|---|---|
+| `34531` | roster1／group3→pan／refresh／delay100／move7／clear→story11：count13；story11 返回后 display0／group7／refresh／delay100／move8／clear→story3：count14；末方向 reset→20 ms |
+| `3460b／34673` | pan→32999 group4／5→outer clear／refresh→move3／4→reset／20 ms→story4／5；34673 的共享尾实际调用 story5 |
+| `346cd` | pan→临时 force group6→refresh／move6→reset／20 ms→clear→story6 |
+| `34738` | raw13 SIDE byte 先写1，再 story7；不新增持久玩家 |
+| `34778` | pan／delay100→force group3→move13／delay200→story4：count27、AI仍为旧值；对白返回后，raw5..10 各先写 `+0x35=26` 再 `+0x36=15` |
+
+`134e4` 完整46 B 仅逐 raw 写 direction(+3)=0，再于 `13507` push20／`13509` 调 `3790a`，不改 frame_phase、walk_frames、flags，不取 RNG、推进水色或清键。六个迁移 flow 中 action0—3 各有一次，action4／6不添加该调用。当前冷图保真实 caller 次数：裸 `35730→2e2b0` 无 reset；玩家／AI FULL 外围一次，SHORT 两次；`15055` 内部仅 reset→20 ms，外层 `13a9f` 是另一次 acted 后 reset→20 ms→`11cac(0)`，不能把附近的刷新误归内部尾。FULL／SHORT 的一次／两次只指 `18d8c／1548e` 外围；AI 随后 `13a9f` 的 common 尾另计，不是整个 AI 动作的总次数。
+
+`18890` 仅非零 path 后 reset→20 ms；March `16f55` 在事件返回后、acted 前等待。stage1 入场两处、stage2 入场一处是 present-only 20 ms，逻辑资源准备不 sleep；自然开场已有20 ms不重复补。方向来源工具 [`verify_fd2_direction_callers.py`](../../tools/ida/verify_fd2_direction_callers.py) 核20个 parent、23个静态 callsite、23个完整函数与4个共享尾窗口；这些数不是23次实际运行。原12项方向负例加11项 runtime 测试已通过，不能代替 C adapter 或原生证明。
+
+arrival `32999` 使用同一短寿命视觉 scope：prepare／snapshot→Game append→`runtime.arrival` 53叶→close。每帧 restore＋LMI→project，6／7／8帧再按源 postbase，随后 clear→wait1；空组也有12轮。不新建持久 PC／owner，不在尾部追加无源刷新。该函数独立的正常／空组原调用与冷序比较见 [`verify_fd2_arrival_owner.py`](../../tools/ida/verify_fd2_arrival_owner.py) 及 `build/g5/arrival-cold-original.json`；六 caller CPU 中的 `32999` 是声明的替身，不将两份证据混为完整像素／声音验证。
+
+### 7.5 已执行验证与剩余门
+
+本轮 Windows 证据分层如下，Linux 未执行：
+
+| 层次 | 实际结果与有效域 |
+|---|---|
+| 原 CPU | `build/g5/legacy-original-cpu.json` 六 caller 通过；替身和真实写点范围见 §7.4。13项来源／契约测试通过 |
+| 静态来源／冷合同 | `direction-callers-source.json` 的20 parent／23 callsite 与冷图一致；`direction-runtime-python.log` 的12新方向＋11原 runtime 测试通过。不是 CPU／像素／PCM／原生执行 |
+| 同源旧红／新绿 | G4 `4ada76b` 只读头／已建库上，合法前置后旧实值 active0／side1／count14／failure0，目标断言失败；新 `legacy-green-ctest-13.log` 通过。同一测试 SHA256 `eb283f9dc1f8ab098dce48cf18c2d508341bcaf61b249fa408c81844c4281f36`，旧误工厂／构建失败保留且不计目标红 |
+| IDA 证据发布 | `build/g5/ida/legacy-publication/receipt.json` 实际372项、0重命名／2注释增量，21 strict／14发布测试／最后11项SHA校验通过；原反编译失败保留。发布校验不增加行为或原生证明 |
+| 当前无窗口 CTest | `legacy-all-ctest-16.log` 实际112项中109通过／3失败；同生产候选的 `remaining-three-ctest-17.log` 闭合 failure／Item 两项，`ai-tail-ctest-18.log` 闭合 AI。属于分段109＋2＋1，不称一次112全绿 |
+| Core＋Play 前缀 | `field_progress_play` 真 shipping0／6、资源预检与正式 Scene PAN／MOVE；仅 STORY 叶注入 HOST／ERROR，核 count13／27、AI旧锚、完整 units／camera、忙态拒导档和重复回复无写。fast、未播放文字不作文字 RNG 或原生帧证明 |
+| 最终原生门 | 最终候选的自然0／stage1-turn3／B7、准备服务／跨场景和完整历史回归仍由主线程登记；当前不预填通过 |
+
+真实坏初始 raw／部署由纯 Core 预检拒绝；晚错回归改为首 RNG 后才破坏后续绑定，继续核成本、伤害、acted、EX、库存与 RNG 前缀。旧回调4测试已改为真实 STORY7／父 ACK，dispatcher 夹具在真实 hook 注册成功后才投递有限叶，不以放松生产 busy 使旧夹具通过。
+
+当前只关闭已列实现与直接验证范围。GUI 全历史、最终 Python／来源检查、28项矩阵逐项审查及阶段集成仍是 G5 完成门；不能把上述分段结果提升成通用阶段已完成，也不自动启动 S。
+
+## 8. G5 统一回归与当前结论（2026-11-11）
+
+§7 保留实现冻结时的直接证据。随后完整候选已完成当前 Windows 所列历史回归：自然0／stage1及B7交接、准备服务和跨场景、共享条件／等待／取消及 child39 代表均按各自正式／夹具身份验收，最终来源和失败见[审计 §13](../plans/common-logic-audit.md)与[阶段记录](../plans/stage-log.md)。六个原正式绑定继续由同一 event_resume 逐叶推进，旧 whole LOGIC 预提交、回滚和 Scene 重放不再驱动已知事件。
+
+当前来源域未发现尚未实现的已证通用事件规则。15 份机制图不等于15个自然绑定；未来非线性身份／资源组合仍须按真实使用补取证与预检。新关实例或真正私有剧情留 S，发现新通用语义则先补机制；S 未启动。

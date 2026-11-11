@@ -152,11 +152,13 @@ ea	name	is_func	is_public
 0x1f42d	field_phase_title_slide_frame	1	0
 0x1f525	palette_fade_in_light	1	0
 0x1f558	field_view_render_scaled	1	0
+0x1f6ef	field_auxiliary_marker_draw	1	0
 0x1f73f	intro_cutaway	1	0
 0x1f81e	intro_anim_with_palette	1	0
 0x1f882	palette_fade_out_dark	1	0
 0x1f894	boot_intro_title_menu	1	0
 0x1ff79	title_menu_draw	1	0
+0x2000a	field_auxiliary_map_execute	1	0
 0x203bd	dac_fill_rgb	1	0
 0x20421	animation_play	1	0
 0x206c5	field_stage1_battle_result_check	1	0

@@ -74,4 +74,8 @@ int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ms);
 int fd2_field_water_palette_apply(fd2_vga *vga, unsigned phase);
 int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ms);
 
+/* field_auxiliary_marker_draw @0x1f6ef（原sub_1F6EF）：object2 5208a的3 DWORD阵营色，
+ * 加本轮0..7闪烁相位；非法域不写输出，不访问Game/App/RNG。 */
+int fd2_field_auxiliary_marker_color(unsigned side,unsigned phase,uint8_t *color);
+
 #endif /* FD2_FIELD_VISUAL_H */

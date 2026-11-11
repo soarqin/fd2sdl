@@ -39,6 +39,28 @@
         "view": "raw-unrelocated",
         "evidence": "field_view_render_tiles @0x11eee canonical LUT lookup; G1/G2 source audit and G4 independent strict LE source_range. Original 20 phases are 0..10..1, not the historical SDL dual-window bytes."
       }
+    },
+    {
+      "name": "k_field_auxiliary_side_colors",
+      "c_type": "uint32_t",
+      "dimensions": [
+        3
+      ],
+      "values": [
+        32,
+        80,
+        72
+      ],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "object": 2,
+        "canonical_va": "0x5208a",
+        "length": 12,
+        "sha256": "46d7a413f27b2f6b8ddee0c41fbc216de3f893076b82dc62ecb807b76a36dc95",
+        "view": "raw-unrelocated",
+        "evidence": "sub_1F6EF @0x1f6ef indexes original three DWORD side bases; complete strict LE/Domain G5 auxiliary readset. side0/1/2 bases retain 32-bit source width; blink phase adds 0..7 only in the finite consumer."
+      }
     }
   ]
 }

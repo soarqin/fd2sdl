@@ -10,6 +10,29 @@
 #include "scene.h"
 #include "portrait.h"
 #include "test_temp.h"
+#include "static_data.h"
+
+/* 只给dispatcher交付一个有限STORY叶；业务提交/ACK仍用真实common owner，
+ * 不手造已整段提交的deferred Scene notice。 */
+static const fd2_static_flow_node result_common_nodes[]={
+    {.id="story",.op="story",.args={0},.edges={-1,-1,-1,-1,1,-1,-1,2}},
+    {.id="end",.op="end",.edges={-1,-1,-1,-1,-1,-1,-1,-1}},
+    {.id="fail",.op="fail",.edges={-1,-1,-1,-1,-1,-1,-1,-1}}};
+static const fd2_static_flow result_common_flow={"test.result.common",result_common_nodes,3,0};
+static int pending_common_fixture;
+#undef fd2_field_game_set_loot_preflight
+int fd2_field_game_set_loot_preflight(fd2_field_game *,fd2_field_loot_preflight_fn,void *);
+int __wrap_fd2_field_game_set_loot_preflight(fd2_field_game *game,
+        fd2_field_loot_preflight_fn preflight,void *userdata) {
+    int result=fd2_field_game_set_loot_preflight(game,preflight,userdata);
+    if(!result && pending_common_fixture) {
+        /* 仅测试投递：正式启动先装完所有borrowed hooks才进入首叶。
+         * 不靠在busy Game上绕过真实setter的no-write拒绝门。 */
+        pending_common_fixture=0;
+        game->event_resume=(fd2_field_event_resume){.flow=&result_common_flow,.pc=0,.actor=0,.active=1};
+    }
+    return result;
+}
 
 static void result_frame_refresh_seen(fd2_field_game *game);
 static void render_fixture_owned_info(fd2_field_game *game,fd2_vga *vga);
@@ -114,6 +137,7 @@ static fd2_field_game *active_game;
 static fd2_field_unit unchanged_units[2];
 static uint16_t unchanged_rng;
 static int session_failure_case;
+static int final_info_sentinel_case;
 static int terminal_case;
 static int auxiliary_checked;
 static int leave_text_presented;
@@ -296,7 +320,7 @@ static int is_leave_case(void) {
 int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
                                const fd2_archive *fdother, size_t stage) {
     (void)vga;
-    memset(game, 0, sizeof(*game));
+    memset(game, 0, sizeof(*game));pending_common_fixture=0;
     /* 与真实open相同借App资源owner；新bind_visual必须验证并重建共享底图，
      * 不以空archive绕过正式门。此fake仍不宣称实际地图/Scene呈现已验。 */
     game->fdother=fdother;
@@ -415,9 +439,8 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         game->units.count=2;
         game->units.items[0].side=2;game->units.items[0].hp=1;
         game->units.items[1].side=0;game->units.items[1].hp=1;
-        /* 在注册只读preflight之后，由剧情替身交回真实待续状态。 */
-        game->event_log_count=1;game->event_log[0].handled=1;
-        game->event_log[0].presentation_deferred=1;
+        /* 在有限STORY叶返回点交回真实待续状态，不使用整事件重放。 */
+        pending_common_fixture=1;
         active_game=game;
         return 0;
     }
@@ -595,12 +618,14 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         game->turn_number = 17;
     }
     if (!automatic_failure && !movement_failure && !cancellation_case) {
-        game->event_log_count = 1;
-        game->event_log[0].handled = session_failure_case != 3;
-        game->event_log[0].presentation_deferred = 1;
+        if(session_failure_case==3) {
+            game->event_log_count=1; /* 明确坏的来源诊断仍在正式入口拒绝。 */
+            game->event_log[0].handled=0;
+        } else pending_common_fixture=1;
     }
-    if (session_failure_case == 2) game->event_log_count = 0;
-    if (terminal_case >= 3 || march_case) game->event_log_count = 0;
+    if (session_failure_case == 2) {game->event_log_count=0;pending_common_fixture=0;}
+    if(final_info_sentinel_case){active_game=game;game->event_log_count=0;pending_common_fixture=0;}
+    if (terminal_case >= 3 || march_case) {game->event_log_count=0;pending_common_fixture=0;}
     return 0;
 }
 
@@ -629,6 +654,11 @@ int __wrap_fd2_field_game_process_automatic_action_visual(
         game->turn_number++;
         fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RIGHT, 1);
         fd2_input_begin_test_frame(&vga->input, 1000);
+        /* 本替身跳过真实1a30b/player_ready；明确执行它的源CLEAR叶，
+         * INFO恢复仍由真实resume_player_controller/caller_return完成。 */
+        if(!fd2_input_has_any_key(&vga->input) || !game->runtime_present ||
+            game->runtime_present(game,FD2_FIELD_RUNTIME_CLEAR_KEYS,0,
+                game->runtime_present_userdata)!=0)return -1;
         return 1;
     }
     if (controller_case == 2 || controller_case == 3) {
@@ -645,13 +675,13 @@ int __wrap_fd2_field_game_process_automatic_action_visual(
     return -1;
 }
 
-int __wrap_fd2_scene_play_field_event(fd2_vga *vga,
+int __wrap_fd2_scene_play_common_step(fd2_vga *vga,
         const fd2_archive *fdother, fd2_field_game *game,
-        fd2_field_event_notice *notice, fd2_field_audio *audio, int fast) {
+        const fd2_static_flow_node *node, fd2_field_audio *audio, int fast) {
     (void)vga;
     (void)fdother;
     (void)game;
-    (void)notice;
+    if(!node || strcmp(node->op,"story"))return FD2_SCENE_RESULT_ERROR;
     (void)audio;
     (void)fast;
     if (remainder_case) {
@@ -666,6 +696,12 @@ int __wrap_fd2_scene_play_field_event(fd2_vga *vga,
 }
 
 void __wrap_fd2_vga_present(fd2_vga *vga) {
+    if(final_info_sentinel_case) {
+        vga->info_panel_suppressed=173;
+        if(final_info_sentinel_case<3)vga->input.quit_requested=1;
+        if(final_info_sentinel_case==2)active_game->failure=FD2_FIELD_FAILURE_EVENT_DATA;
+        return;
+    }
     if ((is_leave_case() || march_case) && active_game &&
         active_game->interaction==FD2_FIELD_INTERACTION_SYSTEM_MENU &&
         active_game->system_menu.page==FD2_FIELD_SYSTEM_PAGE_CONFIRMATION) {
@@ -729,6 +765,27 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
     }
     if (summary_case) {
         ++summary_present;
+        if(summary_case==6) {
+            if(summary_present==1) {
+                summary_rng=((fd2_field_rng *)active_game->attack_rng_userdata)->state;
+                fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_G,1);
+                fd2_input_begin_test_frame(&vga->input,1);
+                fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_G,0);
+                fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,1);
+                fd2_input_begin_test_frame(&vga->input,2);
+                fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,0);
+                fd2_input_begin_test_frame(&vga->input,3);
+            } else {
+                summary_checked=summary_dispatches==2 && !summary_confirms && !summary_draws &&
+                    active_game->interaction==FD2_FIELD_INTERACTION_BROWSE && active_game->selected_unit==-1 &&
+                    active_game->cursor_cell_x==2 && active_game->cursor_cell_y==2 &&
+                    !memcmp(unchanged_units,active_game->units.items,sizeof(unchanged_units)) &&
+                    ((fd2_field_rng *)active_game->attack_rng_userdata)->state==summary_rng &&
+                    !fd2_input_has_any_key(&vga->input);
+                vga->input.quit_requested=1;
+            }
+            return;
+        }
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
             fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
         if (summary_present == 1) {
@@ -781,9 +838,9 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             item_initial_rng = ((fd2_field_rng *)active_game->attack_rng_userdata)->state;
         if (item_case == 4) {
             if (item_frames == 1) {
+                /* Give返回COMMAND只打开1741c，不清队；这里仅投本用例声明的确认。
+                 * 第3帧另投Esc+Right，验证176b4/119a6清队及已提交Give的controller尾。 */
                 fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
-                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_ESCAPE, 1);
-                fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_SPACE, 1);
             }
             if (item_frames == 2) {
                 item_menu_checked = active_game->interaction == FD2_FIELD_INTERACTION_COMMAND &&
@@ -1073,6 +1130,15 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
     if (closing_case) return fd2_input_take_action(input, context, action);
     if (summary_case) {
         int result = fd2_input_take_action(input, context, action);
+        if(summary_case==6) {
+            if(result) {
+                if(context!=FD2_INPUT_CONTEXT_FIELD ||
+                    *action!=(summary_dispatches?FD2_INPUT_ACTION_RIGHT:FD2_INPUT_ACTION_FIELD_SPECIAL_G))
+                    summary_bad_owner=1;
+                summary_dispatches++;
+            }
+            return result;
+        }
         if (result && context == FD2_INPUT_CONTEXT_FIELD_MOVEMENT) {
             summary_dispatches++;
             if (*action != (summary_case == 2 ? FD2_INPUT_ACTION_NONE : FD2_INPUT_ACTION_RIGHT))
@@ -1202,7 +1268,7 @@ int __wrap_fd2_field_unit_summary_draw(fd2_vga *vga,
         assets != &active_game->info_assets || font != &active_game->font ||
         text != &active_game->ui_text || relative_x != 1 || fd2_input_has_any_key(&vga->input))
         summary_bad_owner = 1;
-    if (summary_draws == 1) summary_initial_consumed = vga->input.frame_consumed[SDL_SCANCODE_RETURN];
+    if (summary_draws == 1) summary_initial_consumed = !fd2_input_has_any_key(&vga->input);
     return summary_case == 3 ? -1 : 0; /* 实际renderer另由field_info资源回归覆盖。 */
 }
 
@@ -1221,8 +1287,14 @@ void __wrap_fd2_field_game_close_detail(fd2_field_game *game) {
     game->detail_visible = 0;
     game->detail_unit = -1;
     if(controller_case>=3) {
+        /* 17aed关闭本身不清队；Enter详情仍有Right，之后119a6才清。
+         * F2直接返回，测试未投第二键；不把helper尾误当controller尾。 */
+        fd2_input_event queued;
+        fd2_input pending=controller_vga?controller_vga->input:(fd2_input){0}; /* 只读窥探，不动真实队列。 */
         controller_sync_drained=controller_vga &&
-            !fd2_input_has_any_key(&controller_vga->input) &&
+            (controller_case==3 ?
+                (fd2_input_take_key(&pending,&queued) && queued.source==SDL_SCANCODE_RIGHT):
+                !fd2_input_has_any_key(&controller_vga->input)) &&
             controller_vga->input.previous_down[SDL_SCANCODE_RETURN] &&
             controller_vga->input.next_repeat_ms[SDL_SCANCODE_RETURN]==controller_repeat_at &&
             game->selected_unit==-1 && !fd2_field_unit_has_acted(&game->units.items[0]) &&
@@ -1256,6 +1328,8 @@ int __wrap_fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
     if (march_case == 6) {
         /* 明确seed同App侧owner，不能只写已经降为投影的Game字段。 */
         game->info_panel_right = 0;vga->info_panel_right=0;
+        /* 真march在异步phase前登记caller；本替身也须履行该热owner合同。 */
+        game->turn_post_caller=FD2_FIELD_TURN_POST_MARCH;
     }
     return 0;
 }
@@ -1555,7 +1629,7 @@ int main(void) {
         CHECK(failure_called == 0);
         if (session_failure_case == 2) CHECK(action_sent == 1);
     }
-    /* 成功呈现由owner确认一次；替身不清deferred也不能下一帧重放。 */
+    /* 成功叶由同一父PC确认一次，下一帧不能重播同一STORY。 */
     session_failure_case = 4;
     action_sent = 0;
     scene_result = 0;
@@ -1688,7 +1762,12 @@ int main(void) {
         if (item_case == 1) CHECK(item_menu_checked && item_finished_checked && item_frames == 5);
         if (item_case == 2) CHECK(item_invalid_checked && item_finished_checked && item_frames == 5);
         if (item_case == 3) CHECK(item_confirm_calls == 0 && item_frames == 1);
-        if (item_case == 4) CHECK(item_menu_checked && item_finished_checked && item_frames == 4 && item_confirm_calls == 1);
+        if (item_case == 4) {
+            if (!item_menu_checked || !item_finished_checked || item_frames != 4 || item_confirm_calls != 1)
+                fprintf(stderr,"Give routing: command=%d controller=%d frames=%d confirms=%d\n",
+                    item_menu_checked,item_finished_checked,item_frames,item_confirm_calls);
+            CHECK(item_menu_checked && item_finished_checked && item_frames == 4 && item_confirm_calls == 1);
+        }
     }
     item_case = 0;
     remainder_case=1;remainder_scene=remainder_automatic=remainder_checked=action_sent=0;
@@ -1711,7 +1790,23 @@ int main(void) {
         else CHECK(summary_checked && summary_draws == (summary_case == 5 ? 0 : 3));
         if (summary_case != 5) CHECK(summary_initial_consumed);
     }
+    summary_case=6;summary_present=summary_draws=summary_confirms=summary_dispatches=0;
+    summary_checked=summary_bad_owner=0;vga.input.quit_requested=0;
+    CHECK(fd2_field_play_run(&vga,&fdother,0,0,NULL,NULL,NULL,0)==FD2_FIELD_PLAY_RETURN_HOST_QUIT);
+    CHECK(summary_checked && !summary_bad_owner && summary_dispatches==2 && !summary_confirms);
     summary_case = 0;
+    for(final_info_sentinel_case=1;final_info_sentinel_case<=3;final_info_sentinel_case++) {
+        vga.input.quit_requested=0;
+        fd2_field_play_result expected=final_info_sentinel_case==1?FD2_FIELD_PLAY_RETURN_HOST_QUIT:
+            final_info_sentinel_case==2?FD2_FIELD_PLAY_RETURN_ERROR:FD2_FIELD_PLAY_RETURN_COMPLETE;
+        fd2_field_play_result actual=fd2_field_play_run(&vga,&fdother,0,final_info_sentinel_case==3,NULL,NULL,NULL,0);
+        if(actual!=expected || vga.info_panel_suppressed!=173)
+            fprintf(stderr,"INFO cleanup sentinel case=%d actual=%d expected=%d info=%u\n",
+                final_info_sentinel_case,(int)actual,(int)expected,(unsigned)vga.info_panel_suppressed);
+        CHECK(actual==expected);
+        CHECK(vga.info_panel_suppressed==173); /* finally不模拟caller成功尾。 */
+    }
+    final_info_sentinel_case=0;
     fd2_archive_close(&fdother);
     puts("field_play_result_test: ok");
     return 0;

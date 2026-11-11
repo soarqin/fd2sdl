@@ -232,11 +232,15 @@ class Suite:
             if not getattr(args, "b6_only", False) or not requested_b6 or len(requested_b6) != len(set(requested_b6)) or any(name not in B6_SCENARIOS for name in requested_b6):
                 raise ValueError("--b6-scenarios要求--b6-only且场景非空、无重复、全部已登记；未创建产物")
         self.args = args
-        self.work = args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        explicit_artifacts = getattr(args, "artifacts", None)
+        self.work = (Path(explicit_artifacts).resolve() if explicit_artifacts is not None else
+                     args.build_dir / "graphics-artifacts" / datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
         original = (ROOT / "original_game").resolve()
         target = self.work.resolve()
         if target == original or original in target.parents:
             raise ValueError("测试产物不能写入 original_game/，请改用独立构建目录")
+        if explicit_artifacts is not None and self.work.exists():
+            raise ValueError("--artifacts必须是尚不存在的新目录，不覆盖既有证据")
         self.stage1_fixture = None
         self.stage1_fixture_source = None
         self.planner = None
@@ -933,6 +937,7 @@ def main():
     parser.add_argument("--game", type=Path, required=True)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--config", default="Debug")
+    parser.add_argument("--artifacts", type=Path, help="独立的新证据目录；默认在build-dir/graphics-artifacts生成，不改变构建目录")
     parser.add_argument("--driver", type=Path)
     parser.add_argument("--planner", type=Path, help="自然首关只读规划器；默认查build-dir/CONFIG或单配置构建目录")
     parser.add_argument("--dosbox", default=shutil.which("dosbox-x"))

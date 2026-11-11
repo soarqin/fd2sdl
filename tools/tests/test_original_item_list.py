@@ -287,6 +287,172 @@ class InputTest(Fixture, unittest.TestCase):
             self.assertEqual(len(capture.key.call_args_list), 27)
 
 
+class EndObservationTest(Fixture, unittest.TestCase):
+    def model(self, fault=None):
+        import run_original_battle_animation as animation
+        events, keys = [], []
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            directory = work / "use-round-002-series"
+            pid, hwnd = 731, 9981
+            background = Image.new("RGB", (320, 200))
+            background.putdata([(x % 256, y % 256, (x + y) % 256)
+                                for y in range(200) for x in range(320)])
+            template = probe.round_two_template(ROOT / "original_game/FDOTHER.DAT", self.assets["palette"])
+            banner = background.copy()
+            banner.paste(template.convert("RGB"), (120, 84))
+            self.assertTrue(probe.match_indexed(banner, template, (120, 84))["ok"])
+            self.assertFalse(probe.match_indexed(background, template, (120, 84))["ok"])
+            if isinstance(fault, tuple):
+                left, top, right, bottom = fault
+                point = next((x, y) for y in range(top, bottom) for x in range(left, right)
+                             if template.getpixel((x, y)))
+                at = (120 + point[0], 84 + point[1])
+                banner.putpixel(at, (0, 0, 0) if max(banner.getpixel(at)) >= 128 else (255, 255, 255))
+                self.assertEqual(probe.match_indexed(banner, template, (120, 84))["bad_pixels"], 1)
+            rows = []
+            def publish(image):
+                index = len(rows)
+                row = {"index": index, "file": f"frame{index:05d}.png", "pid": pid, "hwnd": hwnd,
+                       "wgc_timestamp_100ns": 1_000_000 + index * 320_000,
+                       "client_width": 320, "client_height": 200}
+                image.save(directory / row["file"])
+                rows.append(row)
+                with (directory / "frames.jsonl").open("ab") as stream:
+                    stream.write((json.dumps(row) + "\n").encode())
+            ready = {"ready": True, "pid": pid, "hwnd": hwnd, "first_index": 0,
+                     "wgc_timestamp_100ns": 1_000_000}
+            outer = self
+            class Helper:
+                def __init__(self, driver, arguments, output, label, record):
+                    outer.assertEqual(arguments, [driver, "capture-series", pid, directory, 120000, 32])
+                    self.record = record
+                def start(self):
+                    events.append("start")
+                    directory.mkdir()
+                    publish(background)
+                    (directory / "ready.json").write_text(json.dumps(ready), encoding="utf-8")
+                    return SimpleNamespace(poll=lambda: None)
+                def finish(self):
+                    events.append("finish")
+                    self.record["cleaned"] = True
+                    outer.assertTrue((directory / "stop").is_file())
+                    if fault == "cleanup":
+                        raise RuntimeError("owned helper cleanup failed")
+                    return {"ok": True, "backend": "WGC-HWND-session", "pid": pid, "hwnd": hwnd,
+                            "ready_published": True, "session_started": True, "stop_reason": "stop",
+                            "hresult": 0, "color_filter": False, "frames": len(rows),
+                            "first_wgc_timestamp_100ns": rows[0]["wgc_timestamp_100ns"],
+                            "last_wgc_timestamp_100ns": rows[-1]["wgc_timestamp_100ns"]}
+            def get_ready(path, process, target):
+                self.assertEqual(keys, ["ENTER", "DOWN", "ENTER"])
+                events.append("ready")
+                if fault == "ready":
+                    raise TimeoutError("ready timeout")
+                return dict(ready, pid=pid + 1) if fault == "owner" else ready
+            def key(value):
+                keys.append(value)
+                if len(keys) == 4:
+                    self.assertEqual(events[-1], "ready")
+                    events.append("final-enter")
+                    if fault == "key":
+                        raise RuntimeError("final input failed")
+                    publish(background if fault == "absent" else banner)
+                    publish(background)  # 阻塞key返回时已是browse；不能丢中间完整横幅。
+            capture = SimpleNamespace(driver=Path("owned-driver.exe"), artifacts=work,
+                process=SimpleNamespace(pid=pid, poll=lambda: None), key=key, last=None,
+                frame=Mock(side_effect=AssertionError("不得再建单帧WGC")))
+            assets = dict(self.assets, give={"end_banner": template, "terrain": {},
+                                           "after_templates": {}, "after_fields": {}})
+            report = {"kind": "original", "original_path": str(ROOT / "original_game")}
+            def checkpoint(name, predicate, **kwargs):
+                if name.endswith("-next-player-browse"):
+                    self.assertEqual(events[-1], "finish")
+                    events.append("browse")
+                return background, {}
+            ticks = iter((0, 0, 91))
+            error = None
+            with patch.object(animation, "OwnedHelper", Helper), patch.object(animation, "wait_ready", get_ready), \
+                    patch.object(probe, "actor_focus_resources", return_value={}), \
+                    patch.object(probe.time, "monotonic", side_effect=lambda: next(ticks, 92)), \
+                    patch.object(probe.time, "sleep"):
+                try:
+                    probe.execute_end(capture, assets, (52, 76), self.source, report, checkpoint, "use")
+                except Exception as caught:
+                    error = caught
+            capture.frame.assert_not_called()
+            return report, keys, events, error
+
+    def test_end_ready_precedes_only_confirmation_and_backlog_keeps_short_banner(self):
+        report, keys, events, error = self.model()
+        self.assertIsNone(error)
+        self.assertEqual(keys, ["ENTER", "DOWN", "ENTER", "ENTER"])
+        self.assertEqual(events, ["start", "ready", "final-enter", "finish", "browse"])
+        record = report["end_round_capture"]
+        self.assertEqual(record["status"], "passed")
+        self.assertTrue(record["witness_bound_to_closed_series"] and record["helper"]["cleaned"])
+        self.assertEqual(len(record["frames"]), 3)
+        self.assertEqual(report["native_round_banner"]["series_frame"]["index"], 1)
+        self.assertEqual(report["native_round_banner"]["bad_pixels"], 0)
+        self.assertGreater(report["native_round_banner"]["checked_pixels"], 100)
+
+    def test_end_needs_complete_original_banner_and_all_three_digits(self):
+        for fault in ("absent", (0, 0, 51, 20), (51, 7, 57, 15), (57, 7, 63, 15), (63, 7, 69, 15)):
+            with self.subTest(fault=fault):
+                report, keys, events, error = self.model(fault)
+                self.assertIsInstance(error, TimeoutError)
+                self.assertEqual(keys, ["ENTER", "DOWN", "ENTER", "ENTER"])
+                self.assertEqual(events[-1], "finish")
+                self.assertNotIn("browse", events)
+                self.assertNotIn("native_round_banner", report)
+                self.assertTrue(report["end_round_capture"]["helper"]["cleaned"])
+                self.assertEqual(report["end_round_capture"]["status"], "failed")
+
+    def test_end_ready_or_owner_failure_cleans_without_final_confirmation(self):
+        for fault in ("ready", "owner"):
+            with self.subTest(fault=fault):
+                report, keys, events, error = self.model(fault)
+                self.assertIsInstance(error, (TimeoutError, AssertionError))
+                self.assertEqual(keys, ["ENTER", "DOWN", "ENTER"])
+                self.assertEqual(events[-1], "finish")
+                self.assertNotIn("browse", events)
+                self.assertNotIn("native_round_banner", report)
+                self.assertTrue(report["end_round_capture"]["helper"]["cleaned"])
+
+    def test_end_input_and_cleanup_failures_never_continue_or_add_ack(self):
+        for fault in ("key", "cleanup"):
+            with self.subTest(fault=fault):
+                report, keys, events, error = self.model(fault)
+                self.assertIsInstance(error, RuntimeError)
+                self.assertEqual(keys, ["ENTER", "DOWN", "ENTER", "ENTER"])
+                self.assertEqual(events[-1], "finish")
+                self.assertNotIn("browse", events)
+                self.assertNotIn("native_round_banner", report)
+                self.assertTrue(report["end_round_capture"]["helper"]["cleaned"])
+
+    def test_standalone_preloads_and_snapshots_helper_closure_before_endpoint(self):
+        model = RunTest("test_original_only_success_keeps_ok_false_and_cleanup_receipt")
+        for name in ("source", "focus", "assets", "actor", "selection", "templates", "fields"):
+            setattr(model, name, getattr(self, name))
+        endpoint = probe.run_endpoint
+        snapshots = []
+        def guarded_endpoint(*args, **kwargs):
+            sources = args[2]["tool_sources"]
+            for name in ("run_original_battle_animation", "run_original_reward", "fd2_battle_animation_oracle",
+                         "fd2_app_mix_capture", "run_original_comparison", "run_original_item_list"):
+                self.assertIn(name, sources)
+                path = Path(sources[name]["path"])
+                self.assertTrue(path.is_relative_to(ROOT / "tools"))
+                self.assertEqual(sources[name]["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+            snapshots.append(sources)
+            return endpoint(*args, **kwargs)
+        with tempfile.TemporaryDirectory() as directory, patch.object(probe, "run_endpoint", guarded_endpoint):
+            result, events = model.model(Path(directory) / "new")
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(events, ["started", "closed"])
+        self.assertEqual(result["status"], "passed")
+
+
 class HerbTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

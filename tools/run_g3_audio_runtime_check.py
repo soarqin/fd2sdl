@@ -26,7 +26,7 @@ import run_g3_prepare_check as base
 from fd2_display_requirement import windows_display_requirement
 from run_g2_battle_check import freeze,unchanged,sha,fingerprint
 from run_graphics_tests import decode_save
-from run_original_battle_animation import owned_job_required
+from run_original_battle_animation import owned_job_required,parse_job,series_index
 from run_original_comparison import Capture,running
 from run_original_load import require_source_unchanged
 
@@ -113,12 +113,44 @@ def checkpoint_binding(capture,prepared,case):
         'page':case['checkpoints'][-1],'no_business_keys_during_observation':False}
 
 
+def seal_visual_artifacts(capture,case):
+    """只封存本入口的视觉helper；不把它记成PCM采集完成。"""
+    visual=case.get('detail_series',{});helper=visual.get('helper',{})
+    directory=capture.artifacts/'detail-series'
+    if (case.get('ready_wait_visual_only_completed') is not True or
+            case.get('ready_wait_closed_series_bound') is not True or
+            visual.get('checkpoint_PNGs_bound_to_closed_series') is not True or visual.get('cleanup_error') or
+            helper.get('cleaned') is not True or helper.get('forced_cleanup') is not False or helper.get('exit_code')!=0):
+        raise ValueError('音乐取样前缺少仅视觉WGC正常stop与前键/成功帧双绑定')
+    for name,key in (('ready.json','ready'),('summary.json','summary')):
+        if json.loads((directory/name).read_text(encoding='utf-8'))!=visual.get(key):
+            raise ValueError('音乐仅视觉WGC原始ready/summary与closed收据不同')
+    if (json.loads(Path(helper['stdout']).read_text(encoding='utf-8'))!=visual['summary'] or
+            parse_job(Path(helper['stderr']).read_text(encoding='utf-8'))!=helper.get('job') or
+            series_index(directory,visual['summary'],visual['ready'],capture.process.pid)!=visual.get('frames')):
+        raise ValueError('音乐仅视觉WGC日志/原PNG与closed帧来源不同')
+    files={path.resolve() for path in directory.rglob('*') if path.is_file()}
+    files.update(Path(helper[key]).resolve() for key in ('stdout','stderr'))
+    files.update(Path(point['normalized_PNG']['path']).resolve() for point in case['checkpoints'] if point.get('series_frame'))
+    if any(not path.is_relative_to(capture.artifacts.resolve()) for path in files):
+        raise ValueError('音乐仅视觉WGC文件离开本端owned产物目录')
+    case['visual_artifacts']={'sealed_files':{str(path):sha(path) for path in sorted(files)},
+        'capture_backend':'Windows.Graphics.Capture HWND','requested_interval_ms':33,'maximum_ms':45000,
+        'visual_only':True,'new_recording_started':False,'HOST_W_sent':False}
+
+
+def visual_artifacts_unchanged(case):
+    files=case.get('visual_artifacts',{}).get('sealed_files',{})
+    return bool(files) and all(Path(path).is_file() and sha(path)==value for path,value in files.items())
+
+
 def exercise(capture,prepared,save,guard,case,rpc,work,args):
     capture.g3_case_record=case
     base.exercise(capture,prepared,save,guard,case,SimpleNamespace(driver=args.driver,
-        sdl_audio_source='app-mix',animation_capture_interval_ms=16))
+        sdl_audio_source='app-mix',animation_capture_interval_ms=16),ready_wait_visual_only=True)
     if case.pop('business_sequence_completed',False) is not True:raise AssertionError('教会前缀没有完成')
     case['source_prefix_completed']=True;case['business_full_Save_completed']=False
+    seal_visual_artifacts(capture,case)
     binding=checkpoint_binding(capture,prepared,case);expected=prepared['expected_music']
     require_source_unchanged(save,*guard)
     if case['kind']=='original':
@@ -135,6 +167,7 @@ def exercise(capture,prepared,save,guard,case,rpc,work,args):
         if case['cdb_music'].get('target_pid')!=capture.process.pid:
             raise ValueError('音乐CDB取样不是本轮owned PID')
     require_source_unchanged(save,*guard)
+    if not visual_artifacts_unchanged(case):raise ValueError('音乐读取期间仅视觉WGC冻结文件变化')
     if capture.process.poll() is not None or len(capture.trace)!=binding['input_count']:
         raise ValueError('音乐读取时目标退出或有额外业务键')
     binding['no_business_keys_during_observation']=True
@@ -225,6 +258,7 @@ def run(args):
                     case['final_Save']={'path':str(save),'size':save.stat().st_size,'sha256':sha(save),'mtime_ns':save.stat().st_mtime_ns}
                     case['guards']={'sources_unchanged':unchanged(inputs,original,before,root,sources),
                         'whole_Save_and_mtime_unchanged':save.read_bytes()==guard[0] and save.stat().st_mtime_ns==guard[1],
+                        'visual_artifacts_unchanged':visual_artifacts_unchanged(case),
                         'normal_owned_cleanup':len(case['processes'])==1 and all(row.get('cleaned') is True and
                             row.get('forced_cleanup') is False and row.get('exit_code')==0 for row in case['processes']),
                         'observer_closed':case['rpc'].get('closed') is True if kind=='original' else
@@ -232,6 +266,7 @@ def run(args):
                     case['ok'] &= all(case['guards'].values());write(work/'comparison.json',case)
                 if not case['ok']:raise AssertionError('音乐端点门未通过：'+kind)
                 if kind=='original':report['original_case_passed']=True
+                inputs.update(case['visual_artifacts']['sealed_files'])
                 for file in work.rglob('*'):
                     if file.is_file() and (file.parent.name=='music-observer' or file.name.startswith('music-') or
                         file.parent==work and (file.suffix=='.png' or file.name in ('input-trace.jsonl','input-delivery.jsonl'))):

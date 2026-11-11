@@ -41,14 +41,19 @@ int fd2_field_phase_play(fd2_vga *vga, const fd2_field_info_assets *assets,
     fd2_field_page *page, fd2_field_phase_kind kind,
     const fd2_field_round_hooks *hooks, void *userdata);
 
-/* 1a30b的四个已有scheduler返回点；图只编排有限领域op，不持有新的
+/* 1a30b的四个已有scheduler返回点及原caller恢复门；图只编排有限领域op，不持有新的
  * phase游标、队伍、RNG或存档状态。ENTER_PHASE后的状态提示/AI仍由Game
  * 原progress/controller续态完成，再从对应caller入口继续。 */
 typedef enum {
     FD2_FIELD_TURN_PLAYER_DONE,
     FD2_FIELD_TURN_SIDE1_DONE,
     FD2_FIELD_TURN_SIDE0_DONE,
-    FD2_FIELD_TURN_PLAYER_READY
+    FD2_FIELD_TURN_PLAYER_READY,
+    /* 13565/16f55在整轮正常或战果早返后恢复51AAC；不属于1a30b本体。 */
+    FD2_FIELD_TURN_CALLER_RETURN,
+    /* 134e4原helper及13a9f紧随的11cac(0)，共用有限执行器。 */
+    FD2_FIELD_TURN_DIRECTIONS_RESET,
+    FD2_FIELD_TURN_DIRECTIONS_RESET_REFRESH
 } fd2_field_turn_entry;
 typedef enum {
     FD2_FIELD_TURN_RECOVERY_WAIT,
@@ -70,7 +75,10 @@ typedef enum {
     FD2_FIELD_TURN_ROUND,
     FD2_FIELD_TURN_FOCUS_RESET,
     FD2_FIELD_TURN_FOCUS_ZERO,
-    FD2_FIELD_TURN_CLEAR_KEYS
+    FD2_FIELD_TURN_CLEAR_KEYS,
+    FD2_FIELD_TURN_INFO_VISIBLE,
+    FD2_FIELD_TURN_RESET_DIRECTIONS,
+    FD2_FIELD_TURN_DELAY_MS
 } fd2_field_turn_step;
 typedef int (*fd2_field_turn_step_fn)(fd2_field_turn_step step,
     int value, void *userdata);
@@ -101,12 +109,14 @@ typedef enum {
     FD2_FIELD_RUNTIME_DEFEAT_WAIT,
     /* 即使hostquit已锁存也须释放本次短寿命视觉资源；调用者直接清理。 */
     FD2_FIELD_RUNTIME_DEFEAT_CLOSE,
-    FD2_FIELD_RUNTIME_CELL_OPEN_CUE
+    FD2_FIELD_RUNTIME_CELL_OPEN_CUE,
+    FD2_FIELD_RUNTIME_INFO_VISIBLE,
+    FD2_FIELD_RUNTIME_DELAY_MS
 } fd2_field_runtime_present_step;
 /* Game借Play的同步呈现服务；没有第二份phase/HP/acted/RNG状态。
  * RECOVERY_WAIT.value=tick0/1；NORMAL_ACTOR.value=原raw索引；
  * DEFEAT_ROTATE_ACTOR.value=原raw索引，DEFEAT_FRAME.value=68..79，
- * DEFEAT_WAIT.value=1，CELL_OPEN_CUE.value=12；其余value=0。
+ * DEFEAT_WAIT.value=1，CELL_OPEN_CUE.value=12，INFO_VISIBLE.value=0/1，DELAY_MS.value=20；其余value=0。
  * 返回0完成/1hostquit/-1失败。纯core未注册只执行已证业务，不冒充呈现。 */
 typedef int (*fd2_field_runtime_present_fn)(struct fd2_field_game *game,
     fd2_field_runtime_present_step step, int value, void *userdata);

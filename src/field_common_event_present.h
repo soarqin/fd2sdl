@@ -38,7 +38,7 @@ static int common_event_message_prepare(const fd2_field_game *game,
 }
 
 static int common_event_resources_preflight(const fd2_field_game *game,
-        const fd2_static_flow_node *node,void *userdata) {
+        const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,void *userdata) {
     const fd2_archive *fdother=userdata;
     if(!game || !node || !node->op || !fdother) return -1;
     const char *op=node->op;
@@ -63,24 +63,21 @@ static int common_event_resources_preflight(const fd2_field_game *game,
     if(!strcmp(op,"portrait_frame"))return node->args[0]>=0 && node->args[0]<=3 ? 0:-1;
     if(!strcmp(op,"wait_key"))return node->args[0]==0 || node->args[0]==1 ? 0:-1;
     if(!strcmp(op,"clear_keys") || !strcmp(op,"close_box"))return 0;
-    return fd2_scene_common_step_validate(game,fdother,node);
+    if(!strcmp(op,"delay_ms"))return node->args[0]>0 && node->args[0]<=1000?0:-1;
+    if(!strcmp(op,"arrival_prepare") || !strcmp(op,"arrival_frames"))
+        return fd2_scene_arrival_visual_validate(fdother);
+    if(!strcmp(op,"arrival_close"))return 0;
+    return view?fd2_scene_common_step_validate_view(game,fdother,node,view->units,view->roster,view->roster_count):
+        fd2_scene_common_step_validate(game,fdother,node);
 }
 
 static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         const fd2_archive *fdother,fd2_field_audio *audio,int fast) {
     field_progress_box box={0};
+    fd2_scene_arrival_visual *arrival=NULL;
     int result=0;
     while(game->event_resume.active) {
         if((result=play_field_terminal_result(game,vga))!=0)break;
-        if(game->event_resume.waiting_legacy) {
-            if(box.page){result=-1;break;}
-            result=present_field_events_mode(game,vga,fdother,audio,fast);
-            if(result!=0)break;
-            result=fd2_field_game_common_event_resume(game);
-            if(result!=0)break;
-            if((result=play_field_terminal_result(game,vga))!=0)break;
-            continue;
-        }
         if(game->event_resume.child_wait) {
             if(box.page){result=-1;break;}
             result=play_field_loot(game,vga,fdother,audio,fast);
@@ -90,7 +87,15 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         fd2_static_flow_node node;size_t actor;
         if(fd2_field_game_common_event_peek(game,&node,&actor)!=1){result=-1;break;}
         unsigned port=FD2_FLOW_NEXT;
-        if(!strcmp(node.op,"clear_keys"))drain_frame_keys(vga);
+        if(!strcmp(node.op,"clear_keys"))fd2_input_clear_keys(&vga->input);
+        else if(!strcmp(node.op,"delay_ms"))result=loot_fixed_wait(vga,(uint32_t)node.args[0],fast);
+        else if(!strcmp(node.op,"arrival_prepare")) {
+            if(box.page || arrival){result=FD2_SCENE_RESULT_ERROR;break;}
+            result=fd2_scene_arrival_visual_prepare(&arrival,vga,fdother,game->units.count);
+        } else if(!strcmp(node.op,"arrival_frames")) {
+            if(box.page || !arrival){result=FD2_SCENE_RESULT_ERROR;break;}
+            result=fd2_scene_arrival_visual_play(arrival,vga,game,audio,fast);
+        } else if(!strcmp(node.op,"arrival_close"))fd2_scene_arrival_visual_close(&arrival);
         else if(!strcmp(node.op,"notice_actor")) {
             size_t selected=node.args[0]==-1 ? actor:(size_t)node.args[0];
             if(box.page || selected>=game->units.count){result=-1;break;}
@@ -111,7 +116,7 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
             result=progress_box_transition(&box,vga,0,fast);
             if(!result){memcpy(vga->framebuffer,box.background,VGA_W*VGA_H);progress_box_free(&box);}
         } else {
-            if(box.page){result=-1;break;}
+            if(box.page || arrival){result=-1;break;}
             result=fd2_scene_play_common_step(vga,fdother,game,&node,audio,fast);
             if(!strcmp(node.op,"story"))port=FD2_FLOW_ACK;
         }
@@ -120,9 +125,14 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         if(fd2_field_game_common_event_reply(game,port)!=0){result=-1;break;}
         if((result=play_field_terminal_result(game,vga))!=0)break;
     }
-    if(result<0 && game->event_resume.active && !game->event_resume.child_wait)
+    /* HOST_QUIT 与 ERROR 都是负值，但关闭窗口不走事件错误边：保留
+     * 已提交前缀和当前叶，使用现有 owner 阻止后续回复推进游标。 */
+    if(result==FD2_SCENE_RESULT_HOST_QUIT)game->runtime_host_quit=1;
+    if(result==FD2_SCENE_RESULT_ERROR && game->event_resume.active && !game->event_resume.child_wait)
         (void)fd2_field_game_common_event_reply(game,FD2_FLOW_ERROR);
     if(!result && box.page)result=-1;
+    if(!result && arrival)result=-1;
+    fd2_scene_arrival_visual_close(&arrival);
     progress_box_free(&box);
     return result;
 }

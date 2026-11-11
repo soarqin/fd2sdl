@@ -148,7 +148,6 @@ typedef struct {
     /* 原callback返回点：控制器/turn/loot继续原调用者，不是事件操作码栈。 */
     uint8_t completion;
     uint8_t next_slot;
-    uint8_t waiting_legacy; /* 前条旧Scene notice呈现完才执行当前entry。 */
     int16_t march_anchor_x, march_anchor_y;
     uint32_t march_frame_ms;
     void *march_vga; /* 仅借本次Game宿主，Load/close先清续态，不拥有设备。 */

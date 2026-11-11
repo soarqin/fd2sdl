@@ -237,7 +237,8 @@ static int test_runtime_dynamic_sources(void) {
 }
 
 static int reject_unreachable_item_text(const fd2_field_game *game,
-        const fd2_static_flow_node *node,void *userdata) {
+        const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,void *userdata) {
+    (void)view;
     (void)game;(void)userdata;
     return !strcmp(node->op,"message") && node->args[0]==422 ? -1:0;
 }
@@ -265,14 +266,12 @@ static int test_runtime_prior_presentation_blocks_writes(void) {
     fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);g->ready=1;g->units.count=1;
     inventory_empty(&g->units.items[0]);g->event_log_count=1;
     g->event_log[0].handled=1;g->event_log[0].presentation_deferred=1;
-    CHECK(fd2_field_game_common_event_begin(g,"common.inventory.once",0)==0 && g->event_resume.waiting_legacy);
+    CHECK(fd2_field_game_common_event_begin(g,"common.inventory.once",0)==-1 && !g->event_resume.active);
     CHECK(fd2_field_unit_inventory_count(&g->units.items[0])==0);
-    CHECK(fd2_field_game_common_event_resume(g)==1 && fd2_field_unit_inventory_count(&g->units.items[0])==0);
     CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==-1);
     g->event_log[0].presentation_deferred=0;
-    CHECK(fd2_field_game_common_event_resume(g)==0 && !g->event_resume.waiting_legacy &&
+    CHECK(fd2_field_game_common_event_begin(g,"common.inventory.once",0)==0 && g->event_resume.active &&
         fd2_field_unit_inventory_count(&g->units.items[0])==1);
-    CHECK(fd2_field_game_common_event_resume(g)==-1);
     CHECK(fd2_field_game_common_event_reply(g,FD2_FLOW_ACK)==0 && g->cell_action_completed[16]==1);
     free(g);return 0;
 }

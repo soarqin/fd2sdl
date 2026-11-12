@@ -19,12 +19,19 @@ static const fd2_static_flow_node result_common_nodes[]={
     {.id="end",.op="end",.edges={-1,-1,-1,-1,-1,-1,-1,-1}},
     {.id="fail",.op="fail",.edges={-1,-1,-1,-1,-1,-1,-1,-1}}};
 static const fd2_static_flow result_common_flow={"test.result.common",result_common_nodes,3,0};
+/* S0真实CONTINUE和controller输入；渲染仍复用本TU已有替身。 */
+static int s0_case, s0_step, s0_frames, s0_early_ok, s0_post_ok, s0_records_ok;
+static fd2_field_unit s0_expected_units[FD2_FIELD_MAX_UNITS];
+static size_t s0_expected_count;
+static fd2_field_battle_result s0_expected_result;
+static void s0_bind_game(fd2_field_game *game);
 static int pending_common_fixture;
 #undef fd2_field_game_set_loot_preflight
 int fd2_field_game_set_loot_preflight(fd2_field_game *,fd2_field_loot_preflight_fn,void *);
 int __wrap_fd2_field_game_set_loot_preflight(fd2_field_game *game,
         fd2_field_loot_preflight_fn preflight,void *userdata) {
     int result=fd2_field_game_set_loot_preflight(game,preflight,userdata);
+    if (!result && s0_case) s0_bind_game(game);
     if(!result && pending_common_fixture) {
         /* 仅测试投递：正式启动先装完所有borrowed hooks才进入首叶。
          * 不靠在busy Game上绕过真实setter的no-write拒绝门。 */
@@ -134,6 +141,7 @@ static int cancellation_case;
 static int cancellation_checked;
 static fd2_input_key cancellation_key;
 static fd2_field_game *active_game;
+static void s0_bind_game(fd2_field_game *game) { active_game = game; }
 static fd2_field_unit unchanged_units[2];
 static uint16_t unchanged_rng;
 static int session_failure_case;
@@ -331,6 +339,8 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         for(size_t i=0;i<27;i++)game->units.items[i].flags=1;
         game->units.items[0].flags=0;game->units.items[0].side=2;
         game->units.items[0].hp=game->units.items[0].hp_max=1;
+        /* 结算frontend夹具从1197b已提交的终局开始，不要求Play每帧重查。 */
+        game->battle_result=FD2_FIELD_BATTLE_VICTORY;
         for(size_t i=5;i<=10;i++) {
             game->units.items[i].flags=0;game->units.items[i].side=1;
             game->units.items[i].hp=game->units.items[i].hp_max=1;
@@ -530,7 +540,7 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
         if (detail_no_target == 1)
             game->cursor_cell_x = game->cursor_cell_y = 2;
         else if (detail_no_target == 2) {
-            game->units.items[2].hp = 0;
+            game->units.items[2].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN;
             game->cursor_cell_x = game->cursor_cell_y = 5;
         }
         memset(game->metadata.turn_events, 0xff, sizeof(game->metadata.turn_events));
@@ -553,8 +563,17 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     }
     game->active_side = automatic_failure ? 0 : 2;
     game->phase_next_action_ms = 1;
-    if (terminal_case == 1 || terminal_case == 5) game->units.items[1].hp = 0;
-    if (terminal_case == 2) game->units.items[0].hp = 0;
+    /* 这些旧终局夹具表示controller已完成；HP0本身不等于原结果门。 */
+    if (terminal_case == 1 || terminal_case == 5) {
+        game->units.items[1].hp = 0;
+        game->units.items[1].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+        game->battle_result = FD2_FIELD_BATTLE_VICTORY;
+    }
+    if (terminal_case == 2) {
+        game->units.items[0].hp = 0;
+        game->units.items[0].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+        game->battle_result = FD2_FIELD_BATTLE_DEFEAT;
+    }
     if (is_leave_case() || terminal_case == 6 || march_case) {
         fd2_input_init(&vga->input);legacy_system_choice_sent=0;legacy_system_frames=0;
         fd2_field_system_menu_init(&game->system_menu);
@@ -645,6 +664,7 @@ int __wrap_fd2_field_game_process_automatic_action_visual(
         /* 3仅为本TU的实际AI11 remainder fixture，不新增生产枚举。 */
         memset(&game->loot,0,sizeof(game->loot));
         fd2_field_unit_set_acted(&game->units.items[1],1);
+        game->battle_result = fd2_field_game_battle_result(game); /* 本AI尾替身也提交真实结果查询。 */
         return 1;
     }
     if (march_case == 6) {
@@ -696,6 +716,50 @@ int __wrap_fd2_scene_play_common_step(fd2_vga *vga,
 }
 
 void __wrap_fd2_vga_present(fd2_vga *vga) {
+    if (s0_case) {
+        for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
+            fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
+        fd2_input_begin_test_frame(&vga->input, (uint64_t)++s0_frames * 100u);
+        SDL_Scancode key = SDL_SCANCODE_UNKNOWN;
+        if (s0_step == 0) {
+            s0_early_ok &= active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
+                active_game->battle_result == FD2_FIELD_BATTLE_ONGOING &&
+                active_game->units.count == s0_expected_count &&
+                !memcmp(active_game->units.items, s0_expected_units,
+                    s0_expected_count * FD2_FIELD_UNIT_RECORD_SIZE);
+            key = s0_case <= 3 ? SDL_SCANCODE_Z : SDL_SCANCODE_F2;
+            s0_step = s0_case <= 3 ? 1 : 2;
+        } else if (s0_step == 1) {
+            s0_early_ok &= active_game->battle_result == FD2_FIELD_BATTLE_ONGOING;
+            key = SDL_SCANCODE_F2; s0_step = 2;
+        } else if (s0_step == 2 && active_game->detail_visible) {
+            s0_early_ok &= active_game->battle_result == FD2_FIELD_BATTLE_ONGOING;
+            key = SDL_SCANCODE_RETURN; s0_step = 3;
+        } else if (s0_step == 3 && !active_game->detail_visible) {
+            /* F2返回仍不经过1197b；随后真实Enter选择或详情才拥有后置点。 */
+            s0_early_ok &= active_game->battle_result == FD2_FIELD_BATTLE_ONGOING;
+            key = SDL_SCANCODE_RETURN; s0_step = 4;
+        } else if (s0_step == 4 && (active_game->detail_visible ||
+                active_game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED)) {
+            s0_early_ok &= active_game->battle_result == FD2_FIELD_BATTLE_ONGOING &&
+                (s0_case <= 3 ? active_game->selected_unit == (s0_case == 2 ? 2 : 0) :
+                    active_game->detail_visible);
+            key = s0_case <= 3 ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN;
+            s0_step = 5;
+        } else if (s0_step == 5 && !active_game->detail_visible &&
+                active_game->interaction == FD2_FIELD_INTERACTION_BROWSE) {
+            s0_post_ok = active_game->battle_result == s0_expected_result &&
+                !active_game->player_post_waiting_phase;
+            s0_step = 6;
+            if (s0_expected_result == FD2_FIELD_BATTLE_ONGOING) vga->input.quit_requested = 1;
+        }
+        if (s0_frames > 80) { s0_early_ok = 0; vga->input.quit_requested = 1; }
+        if (key != SDL_SCANCODE_UNKNOWN) {
+            fd2_input_set_test_key_state(&vga->input, key, 1);
+            fd2_input_begin_test_frame(&vga->input, (uint64_t)s0_frames * 100u + 1u);
+        }
+        return;
+    }
     if(final_info_sentinel_case) {
         vga->info_panel_suppressed=173;
         if(final_info_sentinel_case<3)vga->input.quit_requested=1;
@@ -1031,7 +1095,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
 }
 
 void __wrap_fd2_vga_present_timed(fd2_vga *vga,uint32_t milliseconds) {
-    if(result_frame_case || is_leave_case() || march_case || controller_case>=3)
+    if(s0_case || result_frame_case || is_leave_case() || march_case || controller_case>=3)
         __wrap_fd2_vga_present(vga);
     else fd2_vga_present_timed(vga,milliseconds);
 }
@@ -1057,6 +1121,8 @@ int __wrap_fd2_field_game_animate_command(fd2_field_game *game,
     return fd2_field_game_animate_command(game, vga, opening, delay);
 }
 void __wrap_fd2_field_game_close(fd2_field_game *game) {
+    if (s0_case) s0_records_ok = game->units.count == s0_expected_count &&
+        !memcmp(game->units.items, s0_expected_units, s0_expected_count * FD2_FIELD_UNIT_RECORD_SIZE);
     const fd2_archive *result_borrowed = result_frame_case ? game->fdother : NULL;
     if(app_option_probe){app_closed_music=game->option_values[0];app_closed_sfx=game->option_values[1];}
     if (settlement_case) {
@@ -1121,6 +1187,7 @@ int __wrap_fd2_field_game_execute_storage_action(fd2_field_game *game,
 
 int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
                                  fd2_input_action *action) {
+    if (s0_case) return fd2_input_take_action(input, context, action);
     if (result_frame_case) {
         int result = fd2_input_take_action(input, context, action);
         if (result && active_game->interaction == FD2_FIELD_INTERACTION_BROWSE)
@@ -1213,6 +1280,7 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
 }
 
 int __wrap_fd2_field_game_confirm_cursor(fd2_field_game *game) {
+    if (s0_case) return fd2_field_game_confirm_cursor(game);
     if (result_frame_case) {
         ++result_frame_confirms;
         return fd2_field_game_confirm_cursor(game); /* 暴露真实controller清XP，不伪造结果。 */
@@ -1260,6 +1328,7 @@ int __wrap_fd2_field_game_execute_move(fd2_field_game *game, fd2_vga *vga,
 int __wrap_fd2_field_unit_summary_draw(fd2_vga *vga,
         const fd2_field_info_assets *assets, const fd2_font *font,
         const fd2_text_entry *text, const fd2_field_unit *unit, int relative_x) {
+    if (s0_case) return 0; /* 真实初选等待及Esc由Play/原controller执行。 */
     if (!summary_case)
         return fd2_field_unit_summary_draw(vga, assets, font, text, unit, relative_x);
     ++summary_draws;
@@ -1552,6 +1621,51 @@ static int app_audio_option_handoff_test(fd2_vga *vga,fd2_archive *fdother) {
     CHECK(context.music_enabled==2 && context.sfx_enabled==3 && app_closed_music==2 && app_closed_sfx==3);
     app_option_probe=0;vga->input.quit_requested=0;return 0;
 }
+static int s0_continue_controller_timing_test(fd2_vga *vga, fd2_archive *fdother) {
+    fd2_save_file save = {0};
+    fd2_save_battle_snapshot original, snapshot;
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_save_file_open(&save, "original_game/START.SAV") == 0 &&
+        fd2_save_file_get_battle_snapshot(&save, &original) == 0 && fd2_test_temp_path(path) == 0);
+    s0_expected_count = original.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT];
+    CHECK(s0_expected_count == 12);
+    for (s0_case = 1; s0_case <= 5; s0_case++) {
+        snapshot = original;
+        memcpy(s0_expected_units, snapshot.unit_area, s0_expected_count * FD2_FIELD_UNIT_RECORD_SIZE);
+        for (size_t i = 0; i < s0_expected_count; i++)
+            s0_expected_units[i].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+        s0_expected_units[0].flags = s0_case == 2 || s0_case == 4 ? FD2_FIELD_UNIT_FLAG_HIDDEN :
+            s0_case == 5 ? 0x80 : 0;
+        s0_expected_units[4].flags = s0_case == 1 || s0_case == 5 ? FD2_FIELD_UNIT_FLAG_HIDDEN : 0;
+        if (s0_case == 2 || s0_case >= 4) s0_expected_units[2].flags = 0;
+        if (s0_case == 3 || s0_case == 5) s0_expected_units[0].hp = 0;
+        if (s0_case == 3 || s0_case == 4) s0_expected_units[4].hp = 0;
+        memcpy(snapshot.unit_area, s0_expected_units, s0_expected_count * FD2_FIELD_UNIT_RECORD_SIZE);
+        size_t focus = s0_case == 4 ? 4 : s0_case == 2 ? 2 : 0;
+        snapshot.meta[FD2_SAVE_BATTLE_META_CAMERA_X] = snapshot.meta[FD2_SAVE_BATTLE_META_CAMERA_Y] = 0;
+        snapshot.meta[FD2_SAVE_BATTLE_META_FOCUS_X] = snapshot.meta[FD2_SAVE_BATTLE_META_FOCUS_REL_X] = s0_expected_units[focus].x;
+        snapshot.meta[FD2_SAVE_BATTLE_META_FOCUS_Y] = snapshot.meta[FD2_SAVE_BATTLE_META_FOCUS_REL_Y] = s0_expected_units[focus].y;
+        snapshot.meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC] = snapshot.meta[FD2_SAVE_BATTLE_META_OPTION_SFX] = 0;
+        CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0 && fd2_save_file_write(&save, path) == 0);
+        s0_expected_result = s0_case == 2 || s0_case == 4 ? FD2_FIELD_BATTLE_DEFEAT :
+            s0_case == 3 ? FD2_FIELD_BATTLE_ONGOING : FD2_FIELD_BATTLE_VICTORY;
+        s0_step = s0_frames = s0_post_ok = s0_records_ok = 0; s0_early_ok = 1;
+        fd2_input_init(&vga->input);
+        fd2_field_play_result result = fd2_field_play_run(vga, fdother, 0, 0, NULL, NULL, path, 1);
+        fd2_field_play_result expected = s0_expected_result == FD2_FIELD_BATTLE_DEFEAT ? FD2_FIELD_PLAY_RETURN_DEFEAT :
+            s0_expected_result == FD2_FIELD_BATTLE_VICTORY ? FD2_FIELD_PLAY_RETURN_VICTORY : FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+        fd2_save_file after = {0};
+        CHECK(fd2_save_file_open(&after, path) == 0 && after.size == save.size && !memcmp(after.data, save.data, save.size));
+        fd2_save_file_close(&after);
+        printf("S0 Continue/controller case=%d result=%d step=%d frames=%d early=%d post=%d records=%d\n",
+            s0_case, (int)result, s0_step, s0_frames, s0_early_ok, s0_post_ok, s0_records_ok);
+        CHECK(result == expected && s0_step == 6 && s0_early_ok && s0_post_ok && s0_records_ok);
+    }
+    s0_case = 0; active_game = NULL;
+    fd2_save_file_close(&save); CHECK(remove(path) == 0); fd2_input_init(&vga->input);
+    return 0;
+}
+
 static int continue_audio_option_test(fd2_vga *vga) {
     fd2_archive real={0};fd2_save_file save={0};fd2_save_battle_snapshot snapshot;
     CHECK(fd2_archive_open(&real,"original_game/FDOTHER.DAT")==0 && fd2_save_file_open(&save,"original_game/START.SAV")==0);
@@ -1585,6 +1699,7 @@ int main(void) {
     CHECK(closing_frame_barrier_test(&vga, &fdother) == 0);
     CHECK(app_audio_option_handoff_test(&vga,&fdother)==0);
     CHECK(continue_audio_option_test(&vga)==0);
+    CHECK(s0_continue_controller_timing_test(&vga, &fdother) == 0);
     failure_called=ordinary_automatic_clean=action_sent=0; /* 独立夹具的观测计数重新起点。 */
     automatic_failure = 1;
     CHECK(fd2_field_play_run(&vga, &fdother, 0, 0, NULL, NULL, NULL, 0) ==

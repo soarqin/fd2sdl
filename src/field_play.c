@@ -2266,7 +2266,8 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         (void)fd2_field_water_tick(vga, SDL_GetTicks()); /* 普通战场等待。 */
         fd2_field_game_tick(&game, SDL_GetTicks());
         shared_menu_tick(&game,vga,SDL_GetTicks());
-        game.battle_result = fd2_field_game_battle_result(&game);
+        /* 53ECC只在原controller/phase后置点锁存；10010返回、方向／Z／F2
+         * 和普通呈现帧不能提前执行1197b的结果查询。 */
         int continuation_pending = game.loot.source != 0u;
         int automatic_continuation = continuation_pending &&
             game.loot.notice.kind == FD2_FIELD_LOOT_NONE;
@@ -2487,8 +2488,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                     if (game.interaction == FD2_FIELD_INTERACTION_BROWSE &&
                         unit_at >= 0 &&
                         game.units.items[unit_at].unit_id != 0x79 &&
-                        game.units.items[unit_at].race != 0x0a &&
-                        game.units.items[unit_at].hp != 0) {
+                        game.units.items[unit_at].race != 0x0a) {
                         int detail_result = play_field_detail_present(
                             &game, vga, field_audio, (size_t)unit_at);
                         end_input_frame = 1;
@@ -2558,7 +2558,6 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                             (focused->side != 2u ||
                              fd2_field_unit_has_acted(focused) ||
                              record[0x26] != 0)) {
-                            if (focused->hp == 0) break;
                             if (focused->side == 2u &&
                                 fd2_field_unit_has_acted(focused)) {
                                 printf("field acted gate: unit=%d, interaction=browse\n",

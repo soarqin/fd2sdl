@@ -311,3 +311,16 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 §10 的实现、直接源验证和当时待验保留历史身份。FIFO／原 caller 清键、关闭屏障、共享页、完整 `11cac(0)` 返回、到场／方向等待、四设置及共享 Round／通知已在当前来源域完成统一审查与原版／SDL 回归。F1 的 stage1、stage2 和高图资源别名、总览换行别名各有独立实际门；它们不开放相应后期战斗。
 
 成功活动 Load 的新观察器确认原 10010 的完整 Round 后，才要求返场资源、六框边和五种 Round 相位消失及已有稳定窗，避免在原尾清键前错误发送下一菜单键。此改动属于验收观察，不删除产品有源清键，也不声称精确 guest PC／tick 等价。通用完成门及旧新候选、失败、当前 Windows／其他平台、完整 RNG／像素／声音界统一见[审计 §13](../plans/common-logic-audit.md)。
+
+## 12. S0 结果锁存与活动恢复合同（2026-11-13）
+
+本节修正既有stage0／1结果及已接受snapshot输入域，不重新打开G5，也不扩大S1—S4。来源为完整`sub_205B4 @0x205b4`（含共享`0x2067d`chunk）、`field_stage1_battle_result_check @0x206c5`、`sub_10010 @0x10010`、`field_controller_input @0x117e7`及title／secondary／main调用者；原规范名与旧登记保留，未新命名函数或修改生成证据。
+
+- 原结果先置`53ECC=2`，可见side0覆盖为0，raw0 hidden最后覆盖1；stage1再以raw5..10全hidden覆盖1。原1／2映射SDL败北／胜利，不能复制数值。HP0但visible仍按visible参与，不能以HP代替flags或导入时死亡整理。count0／缺raw0、stage1不足11人的安全防御域单列，不声称原越界行为被模拟。
+- 完整`10010`无`53ECC`读写，尾经`0x22bbe..0x22bc6`共享epilogue返回；同stage和跨stage活动恢复均保留旧结果锁存。Continue的新Game初值ongoing。unit HP／flags、未知SAV区域和既有owner按原恢复，不把锁存写进SAV或新增pending状态。
+- `117e7`的方向／Z／F1／F2及空格菜单直接返回，不走`0x1197b`结果分派；actor Enter经过真实动作／详情返回后才查询，main随后按锁存分派出口。活动Load从secondary菜单返回同一早退路径，不能在Load返回或普通绘制帧偷偷查询。
+- `117e7/18890`的controller选择与详情入口不加HP门；HP0且visible的player可选中并取消，enemy／acted可查看详情。F2直接caller不执行controller后置。S0只修这些已证输入门，不借此放宽攻击提交、AI或其它独立有效域。
+
+局部证据复用Domain只读数据库副本：9完整函数共5,979 B逐chunk核对固定strict relocated镜像，另显式核8 B共享返回尾，不保存数据库。有限执行覆盖576个完整原结果函数向量，与真实C纯查询probe逐输入比较；另有60个完整`117e7`控制点向量、3个Load尾保锁存和10个main出口控制点向量。Watcom栈检查、controller键盘／actor/action／render／奖励／phase等叶替身及完整Load文件IO未执行范围在本地`build/s0/result-cpu-06.json`逐项登记；它不是完整Load CPU差分、原生图形或全RNG证明。可复跑工具是`tools/ida/s0_result_source.py`与`verify_s0_result_contract.py`，C probe沿现有field_save测试的`--s0-vectors`，不增加生产探针。
+
+正式WGC、RPC／CDB只读owner、CONTINUE／活动Load／首次controller出口及当前C测试结果由[阶段记录](../plans/stage-log.md)按实际候选登记；缺对应运行门时仍为待验，不能从本节静态／局部证据推定整阶段完成。

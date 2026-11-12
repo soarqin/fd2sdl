@@ -490,7 +490,7 @@ static int test_info_restore_is_exact_caller_return(void) {
         fd2_field_game game;size_t rolls=0;init_game(&game,&rolls);
         game.active_side=ending?1:2;game.ordinary_display_mode=0;
         if(ending==1)game.units.items[12].flags=1; /* 合法stage0胜利门。 */
-        if(ending==2)game.units.items[0].hp=0; /* 合法stage0败北门。 */
+        if(ending==2)game.units.items[0].flags=FD2_FIELD_UNIT_FLAG_HIDDEN; /* 原stage0败北门是hidden。 */
         if(caller==3){game.player_post_waiting_phase=1;game.player_post_actor=0;}
         else game.turn_post_caller=caller==1?FD2_FIELD_TURN_POST_MARCH:FD2_FIELD_TURN_POST_END;
         caller_info_trace trace={0,0,stop,(uint8_t)(caller==2?0:1)};

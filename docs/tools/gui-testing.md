@@ -842,3 +842,39 @@ python3 -B -m unittest tools.tests.test_g2_map_action tools.tests.test_g2_short_
 四项设置当前均已接正式入口，原资源四行必须正匹配；旧 SDL 后两行“应不存在”判据已撤除。成功 Load 不能仅凭浏览光标和 y112 边沿消失就发送下一键：196cb 的六种关闭位置及 10010 的 Round 可能仍在忙段。音频观察器复用同一 HWND 连续采集，在原唯一肯定键前 ready，先完整匹配原 Round91 和三位数字的五种合法相位，再核返场资源、六框边和五种 Round 均消失及已有两秒资源稳定窗，正常 stop／closed PNG 绑定后才继续原菜单键。整个 Load 使用一个原 45 秒观察域；其他明亮确认仍 15 秒，帧／PCM 上限不变，不补键，不声称量测了 guest PC 或原硬件 tick。
 
 原失败、有限闭帧重判、原判据重算和新执行分别记账。最终五场音频是两端设置的已封存历史与四场八端新执行联合闭合，不伪造一份十端新运行报告。旧 raw 报告、临时输出和用户档均不覆盖，具体哈希及来源见阶段记录与审计。
+
+## S0 结果／活动恢复定向入口
+
+`tools/run_s0_result_check.py`是Windows独立阶段入口，不调用G全历史套件。默认只生成受控夹具与来源manifest（`prepared_only`），只有`--run`才启动原版／SDL。六类代表为HP0可见主角、HP0可见敌方、hidden败北覆盖、hidden胜利、正式活动Load后hidden败北、stage1村民覆盖；每场由原版先行，原版失败不启动SDL。HP0主角场必须实际选中raw0，不以其它健康单位代替。
+
+每场先WGC确认浏览、RPC／CDB单owner读取完整active HP／flags／身份和结果锁存0，再核Z不查询，最后由真实Enter选择／ESC触发首次后置查询。ongoing保持浏览，败北核GAME OVER／实际标题，胜利只核首段原对白资源，不延伸整段结算。F2／enemy或acted详情的HP0路径另由正式dispatcher测试及独立原码分账，不冒称每项都有原生画面。所有注入明确为受控接受域，不证明自然产生。
+
+Windows PowerShell（本轮实际版本路径；其它机器替换为已核的本机可执行文件）：
+
+```powershell
+cmake --build src/build-win --config Debug --target fd2sdl fd2_field_save_test fd2_field_play_input_driver --parallel 8
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 900000 python -B tools/run_s0_result_check.py --root . --original E:/Projects/fd2sdl/original_game --sdl src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe --scenario leader-hp0-visible --artifacts build/s0/new-native-leader --run
+```
+
+其它`--scenario`为`hostile-hp0-visible`、`hidden-defeat-priority`、`hidden-victory`、`active-load-hidden-defeat`、`stage1-villager-priority`。stage1还需`--stage1-source`与`--stage1-report`指向真实原版entry来源，复用原有严格来源／资源核验；来源身份与路径登记于本地manifest，不生成假自然存档。每次使用尚不存在的目录；原用户档及资源只读，活动Load场只替换测试副本的FD2.SAV。
+
+只读原RPC采样若恰在guest临时离开PM／进入v86时跨视图，旧guard继续拒绝该dump。S0只对两种明确坏视图在同一最多3次预算内重取完整快照：前PM、后非PM／v86且descriptor完全不变；或桥层过但owner原码锚失败，且完整16MiB非零dump精确为同一64KiB重复256次（独立DOSBox寻址源码证明16bit环读）。每次独立目录并保存失败dump／请求／摘要，从RPC到双锚／fixup／完整owner及HP／flags重新验证，不复用任何字段，不补键；普通anchor缺失、全零、非精确周期或状态不符不重取。真正descriptor变化、before非PM、短读或owner错误立即失败，耗尽仍失败。WGC与输入观察不降低门；显示需求、正常owned退出和源守卫按既有规范执行，不改混音器。
+
+局部原码复跑（固定strict relocated镜像与Domain读集均为本地只读依据，不能用任意dump替换）：
+
+```powershell
+uv run --no-project --with unicorn python tools/ida/verify_s0_result_contract.py --image E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin --readset build/s0/result-domain-02.json --c-probe src/build-win/Debug/fd2_field_save_test.exe --output build/s0/new-result-cpu.json
+python -B -m unittest tools.tests.test_s0_result_contract tools.tests.test_s0_native tools.tests.test_cdb_prepare_snapshot tools.tests.test_dosbox_snapshot tools.tests.test_static_flows tools.tests.test_static_data
+```
+
+Domain读集按[IDA流程](ida.md)在隔离DB只读执行`tools/ida/s0_result_source.py::collect(db, image, output)`，核9完整函数／5,979 B及独立8 B共享尾，不保存数据库。局部执行只有完整结果函数、controller有限替身及Load尾／main控制点，不执行完整文件Load；C探针通过现field_save测试`--s0-vectors`消费同批输入并绑定二进制摘要。完整原版文件Load由上述原生场景另验。
+
+Linux Bash只保留无窗口复跑说明（本轮未执行，镜像／读集须先按本机IDA流程生成；WGC／RPC／CDB入口不冒充Linux图形验收）：
+
+```bash
+cmake --build src/build --target fd2_field_save_test
+uv run --no-project --with unicorn python tools/ida/verify_s0_result_contract.py --image tools/fd2_le_relocated_relbase.bin --readset build/s0/result-domain.json --c-probe src/build/fd2_field_save_test --output build/s0/new-result-cpu.json
+python3 -B -m unittest tools.tests.test_s0_result_contract tools.tests.test_static_flows tools.tests.test_static_data
+```
+
+阶段内的实际候选、失败／复验、静态／SDL／原码／原版范围见[阶段记录](../plans/stage-log.md)，不将多工具版本结果合写成一次fresh全绿。

@@ -316,3 +316,9 @@ G2新增验证分三类，不能由其中一类推出另两类通过：
 - 每种正式命令、存取与退出原因均通过真实 SDL 输入到达；快速入口与直接 session API 测试分别报告，不互相替代。
 - 新显示场景保留 DOSBox 截图／操作／时序证据，可按[图形自动化测试](../tools/gui-testing.md)在独立副本上自动获取；没有确认判据的自动运行不记为通过。Windows 原生窗口输入与 Linux Xvfb/XTest 的执行结果分别登记。现有菜单机器码差分只验证坐标与帧选择，RLE 差分只验证指定解码分支，范围见 [`../reverse-engineering/ida-bytecheck-9.5.md`](../reverse-engineering/ida-bytecheck-9.5.md)。
 - 静态 LE／IDA 已通过；严格运行时 BSS 仍需新转储，不把它重新包装成一般玩法开发的前置，也不宣称该验收已通过。
+
+## S0 结果查询与恢复边界
+
+`fd2_field_game_battle_result`是只读查询；`game.battle_result`对应原`53ECC`锁存，由既有controller／phase后置写点更新。stage0／1结果图不以HP代替hidden；正常源域及安全防御域分别核验。活动snapshot导入保留HP／flags与旧锁存，同stage和跨stageowner替换一致；Continue新Game初值ongoing。不因Load、方向／Z／F1／F2、空格菜单或呈现帧提前刷新结果，actor Enter动作／详情返回后才走原后置查询。HP0可见记录仍能进入已证选择／详情，攻击和AI的独立有效域不据此改变。
+
+恢复成功／失败／取消不额外改写SAV／RNG；锁存不是第二状态或存档字段，不新增“待结果”标志，也不靠整体Game回滚复原外部owner。完整原义、时点与局部执行限制见[运行语义§12](../reverse-engineering/common-runtime-semantics.md#12-s0-结果锁存与活动恢复合同2026-11-13)，本轮实际验证与未验范围见[阶段记录](../plans/stage-log.md)。

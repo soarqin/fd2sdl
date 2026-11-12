@@ -6,7 +6,7 @@
     "file": "src/field_game.c",
     "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
     "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_stage1_entry_play @0x32d18; field_stage2_entry_play @0x32e8c; field_stage1_victory_play @0x22f37; field_stage1_battle_result_check @0x206c5; src/scene.c confirmed presentation order; result.default is existing SDL fallback, not original stage2 acceptance G4 result consumers share the const common_event query widths for explicit actor/state/turn/roster/inventory conditions (20926/20957 family); no caller is fabricated, actor=-1 and branch_caller are not registered in result domain. This registers finite mechanism capabilities without binding any later stage result. G5: stage.entry.001/002 use original134e4 reset plus20ms; reset is logic/present, sleep ispresent-only so resource preparation/projection never waits.3231b opening already declares its own20ms and is unchanged.",
+    "evidence": "field_stage1_entry_play @0x32d18; field_stage2_entry_play @0x32e8c; field_stage1_victory_play @0x22f37; field_stage1_battle_result_check @0x206c5; src/scene.c confirmed presentation order; result.default is existing SDL fallback, not original stage2 acceptance G4 result consumers share the const common_event query widths for explicit actor/state/turn/roster/inventory conditions (20926/20957 family); no caller is fabricated, actor=-1 and branch_caller are not registered in result domain. This registers finite mechanism capabilities without binding any later stage result. G5: stage.entry.001/002 use original134e4 reset plus20ms; reset is logic/present, sleep ispresent-only so resource preparation/projection never waits.3231b opening already declares its own20ms and is unchanged. S0: original205b4/206c5 results inspect hidden/side, not HP; original117e7 queries only after actual actor input returns.10010 restores bytes without reading/writing53ECC. Current stage0/1 flow disables the legacy SDL HP guard; default remains internal fallback only.",
     "related_sources": [
       {
         "file": "src/scene.c",
@@ -1670,7 +1670,7 @@
           "op": "result_leader_dead",
           "args": [
             0,
-            1
+            0
           ],
           "on": {
             "yes": "defeat",
@@ -1685,7 +1685,7 @@
           "op": "result_side_present",
           "args": [
             0,
-            1
+            0
           ],
           "on": {
             "yes": "ongoing",
@@ -1783,7 +1783,7 @@
           "op": "result_side_present",
           "args": [
             0,
-            1
+            0
           ],
           "on": {
             "yes": "ongoing",

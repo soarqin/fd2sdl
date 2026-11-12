@@ -432,6 +432,7 @@ struct fd2_field_game {
      * 不表示目标overlay的2..6，不进入SAV；Scene只读借用。 */
     uint8_t ordinary_display_mode;
     int info_panel_right;
+    /* 原53ECC结果锁存；Load/绘制保留，只由原controller/phase写点更新。 */
     fd2_field_battle_result battle_result;
     int ready;
     fd2_field_pending_cell_event pending_cell_event;
@@ -657,7 +658,8 @@ int fd2_field_game_cancel_manual_slot_picker(fd2_field_game *game);
 
 /* code0 0x9f7a..0xa136 / 0x10..0x44b 的活动战场快照 codec。
  * snapshot 必须来自完整 save 容器，以保留未知字节。原版 loader 返回
- * 玩家 side 2 控制器边界；快照不保存 RNG，SDL 也不伪造 checkpoint。 */
+ * 玩家side2控制器边界，不查询/覆盖结果锁存，不做HP/hidden死亡整理；
+ * 快照不保存RNG，SDL也不伪造checkpoint。 */
 int fd2_field_game_export_battle_snapshot(
     const fd2_field_game *game, fd2_save_battle_snapshot *snapshot);
 int fd2_field_game_import_battle_snapshot(

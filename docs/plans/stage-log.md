@@ -1628,3 +1628,49 @@ N69 原件 `F:/fd2sdl-evidence/g5-audio-remainder-20261111-1115/comparison.json`
 独立补充S0的发现依据是现有 `field_save_test.c::test_import_result_uses_shared_query` 接受HP0且visible的snapshot并按HP判胜败，`field_save.c` 导入后直接查询，及结果冷图／consumer与原`0x205b4` hidden-only谓词差异。只读核实源码／现有测试内容，未跑该测试，未做原版Load动态复现，不把静态差异扩签为自然场景运行结论。S0修正旧stage0／1结果与恢复合同；审计表达滞后仍唯一归S1，新结果族／别名和未来身份路径能力仍唯一归S2，不重复造待办。
 
 本轮检查只含文档链接／锚点、范围和状态一致性、Git差异及主档／原资源守卫；SDL自动测试、局部机器码动态对照、原版运行和历史GUI均未执行，未改代码／原资源／支持门。提交及本地集成身份以Git和 `build/plan-readability-20261113/local-integration.json` 实际收据为准，不预填自身hash、不远程推送。
+
+## S0 结果判定与活动恢复合同修正（2026-11-13）
+
+本阶段从`fdad3b6`实施，只修旧stage0／1结果／活动恢复及直接输入路径，未开始S1—S4。产品、独立来源、定向验收及实质审查已闭合；完整阶段提交／本地master集成、主Debug重建和用户档守卫由Git及主项目`build/s0/local-integration.json`实际登记，不预填self hash。当前入口移至S1但不自动实施。
+
+### 修正与独立原义
+
+- `stage.result.000`两个HP参数、`stage.result.001`敌方HP参数禁用，按原`205b4`的visible side0／raw0 hidden和`206c5`村民raw5..10全hidden最后覆盖败北；原结果1／2正确映射SDL败北／胜利。保留count0／缺raw0、stage1不足11人的SDL安全门，不模拟原版越界。
+- 原`10010`无53ECC读写，故同stage导入不再查询，跨stage资源替换显式带旧结果锁存；Continue新Game初值ongoing。删除Play每帧查询，只消费已有controller／phase实际写点。不改HP／flags／未知SAV、RNG、原owner或存档布局，不增加pending／第二热状态或整体回滚。
+- 原`117e7`方向／Z／F1／F2／空格菜单早退，actor Enter动作／详情返回才经1197b查询，main随后分派。实审补齐Play F2、Enter详情和正常player初选的三处额外HP0拒绝；只改controller入口，AI／攻击／法术／物品独立提交门不变。
+
+完整读集及合同见[运行语义§12](../reverse-engineering/common-runtime-semantics.md#12-s0-结果锁存与活动恢复合同2026-11-13)和[session边界](../systems/battle-session.md#s0-结果查询与恢复边界)。没有新确认命名或修改IDA生成证据；复用原已登记函数语义，只修消费者。
+
+### 分层验证与最终候选
+
+工作树候选02 App SHA256为`a0377afa8e7b076edf2873cba85d390a0fa414f2a50fcf1386644a7f9658de33`；最终主项目重建另记新二进制身份，不能冒称主项目新App做过同一轮GUI。
+
+| 层 | 实际结果 | 结论上限 |
+|---|---|---|
+| 独立完整来源 | Domain只读隔离库的9完整函数5,979 B与固定strict relocated镜像一致，另8 B Load共享epilogue；`result-domain-02.json` | 原EXE／CFG／xref身份，不是原版运行；DB未保存，原资源未写 |
+| 原码与真实C差分 | 最终`result-cpu-06.json`：576完整结果函数向量与当前C probe一致，另60 controller替身、3Load尾、10main控制点向量；C probe执行前后摘要守卫与负例通过 | Load只跑尾段，不是完整文件Load CPU；键盘／action／页面／奖励／phase等替身逐项列明，不证明全随机／像素 |
+| SDL／codec／输入定向 | 候选02的13项适用CTest通过（6.85 s），后续只扩充并单复验field_save安全域通过。240个结果／导入组合（stage0 48、stage1 192）各3次purequery；完整80 B／snapshot不写、cache保留、RNG0、成功／跨stage／取消／失败owner；另5个正式CONTINUE dispatcher输入场景通过 | 测试TU呈现有显式替身；13含codec／生成检查，不是13场原生窗口。没有重跑G全历史 |
+| 工具与静态校验 | 最终64项Python工具／静态／RPC／CDB测试通过，0skip；构建生成及`git diff --check`通过 | 含坏源／缺chunk／差分不符／探针变更、精确端口和采样拒绝边界；不是原版玩法验收 |
+| 原版／SDL WGC | 下列6类、12端点实际完成；每场恢复后、Z后只读owner证明HP／flags／身份和cache0，selection ESC后才核ongoing或出口；完整测试SAV字节／mtime、原资源／源代码守卫、正常owned退出与显示释放通过 | 受控接受域，非自然产生或整关实战；胜利仅首对白资源，F2／HP0敌详情由上列dispatcher及原码另账 |
+
+| 代表与本地产物 | 实际门 | 来源身份 |
+|---|---|---|
+| `native-c02-leader` | HP0可见raw0本身实际选中／ESC，结果仍ongoing | App候选02、工具02 |
+| `native-c02-hostile-hp0-visible` | 可见HP0敌方仍ongoing | App候选02、工具02 |
+| `native-c02-hidden-defeat-priority` | raw0 hidden覆盖敌全hidden的胜利条件，GAME OVER并返标题 | App候选02、工具02 |
+| `native-c02-hidden-victory` | raw0可见、敌全hidden，首次controller返回后首胜利对白完整资源 | App候选02、工具02；不继续整段结算 |
+| `native-c03-stage1-villager-priority` | 真实已证stage1 entry派生，全村民hidden覆盖胜利，败北并返标题 | App候选02、工具03；原自然entry／来源报告独立复核 |
+| `native-c04-active-load-hidden-defeat` | 正式系统Load：先健康CONTINUE，隔离文件替换并YES加载；恢复／Z后cache0，selection ESC后败北 | App候选02、工具04；当前有效快照逐份完整owner／状态通过 |
+
+前4类／stage1／活动Load分属工具02／03／04，保各报告实际来源，不拼成单轮同工具fresh6场。各SDL内存观察均由CDB/PDB独立绑定上述App身份，原端用两原码锚／合法fixup取得本轮owner，不按单位内容扫描。早期报告保留进程命令、原夹具、程序／PDB身份及`sources_unchanged`结果；完整逐文件输入摘要map为之后仅报告元数据的补充，未冒充原先报告已经写入或重跑。
+
+集成前另核到主项目缓存仍为SDL3 3.2.12／CPM 0.40.8，候选02使用工作树默认SDL3 3.4.20；未升级主项目依赖。使用`src/build-s0-baseline`导入主项目既有3.2.12静态库，生成冷定义逐文件一致，App SHA256为`c6cb0d120a76187245848c0b40e8a640ef766df57134379ed20b8865129c1d11`。该候选的完整13项定向CTest新一轮通过（6.82 s），`result-cpu-07-baseline.json`同域576／60／3／10比较通过；`native-baseline-leader-hp0-visible`及`native-baseline-active-load-hidden-defeat`两组原版／SDL新配对通过，含输入摘要map、程序／PDB身份、SAV／源守卫、owned正常清理和显示释放。两组是上述代表的SDK兼容复验，不新增语义分母，不累加原码向量。候选02及3.2.12候选的程序／PDB分别封存于本地`build/s0/candidate02/`和`candidate-baseline-sdk/`；主缓存重建身份仍由集成收据另记。
+
+### 保留的失败、修复与审查
+
+- 红回归`red-field-save.log`确认旧实现跨stage Load覆盖旧cache。候选01移除提前查询后，旧stage1终局夹具因依赖每帧查询而超时；改为显式已controller提交的fixture，保留新的真实输入时点测试。候选02的旧field_turn败北夹具、详情“无目标”夹具仍分别用HP0当hidden／无目标，按独立原义改为hidden；前失败不改签。
+- `native-c01-leader`只验证选择其它健康actor的旧工具路径，虽双端通过，未计入最终raw0 HP0门。最终使用c02实际选择HP0主角。
+- `native-c02-active-load-hidden-defeat`失败于RPC前后guest从PM进入real mode；descriptor字段实际相同，旧guard正确拒绝。`native-c03-active-load-hidden-defeat`的16MiB dump精确为64KiB重复256次，原码锚不成立，仍失败。独立同tag DOSBox源码`Is16BitSegment/GetAddress/SaveMemoryBin`解释real／v86下16bit地址环读；未接受、清洗或复用旧dump。
+- S0仅对上述两种精确坏视图，在同一最多3次预算内从零取完整新快照，每次重新过双锚／fixup／owner及HP／flags门，所有拒绝attempt落独立dump／请求／摘要。普通锚缺失、状态错误、before坏模式、真正descriptor变化、短读／全零／非精确周期仍失败。共享guard／游戏未改；新协议、debugger BREAK、写内存或通用诊断框架均未引入。c04实际取到完整有效快照，原失败保持原件。
+
+独立源码／原码工具／输入及新reader实审后，无剩余S0确证问题或阻塞；补上C探针执行前后身份绑定，保测试-only入口和源/采样拒绝。没有逐关C逻辑、VM、新生产状态、放宽坏数据或静默跳过。复跑入口见[图形规范S0](../tools/gui-testing.md#s0-结果活动恢复定向入口)。当前只完成S0，审计表达同步仍归S1、新族／别名／未来身份投影仍归S2；严格BSS、全音画／全RNG、设备与其它平台等旧未验边界不扩签。

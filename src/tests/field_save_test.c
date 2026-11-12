@@ -1,4 +1,7 @@
-/* 活动战场 FD2.SAV snapshot codec 测试。 */
+/* 活动战场 FD2.SAV snapshot codec 测试。
+ * S0结果依据：sub_205B4 @0x205b4 与 field_stage1_battle_result_check
+ * @0x206c5（原登记sub_206C5）的hidden/side扫描及覆盖顺序；不按HP猜结果。
+ */
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -859,37 +862,96 @@ static int test_original_start_load_focus_and_sprite_bounds(void) {
     return 0;
 }
 
-static int test_import_result_uses_shared_query(void) {
-    fd2_field_game source, target;
-    init_game(&source);
-    init_game(&target);
-    for (size_t i = 0; i < source.units.count; i++) {
-        source.units.items[i].flags = 0;
-        source.units.items[i].side = (uint8_t)(i == 0 ? 2 : i == 1 ? 0 : 1);
+/* 独立按原函数写序计算：205b4先2、side0可见写0、raw0隐藏写1；
+ * 206c5再以raw5..10全hidden覆盖1。这里映射原1/2到SDL枚举，不读冷图。 */
+static fd2_field_battle_result original_record_result(const fd2_field_game *game) {
+    unsigned result = 2;
+    for (size_t i = 0; i < game->units.count; i++)
+        if (!(game->units.items[i].flags & 1) && game->units.items[i].side == 0)
+            result = 0;
+    if (game->units.items[0].flags & 1) result = 1;
+    if (game->stage == 1) {
+        unsigned hidden = 0;
+        for (size_t i = 5; i <= 10; i++) hidden += !!(game->units.items[i].flags & 1);
+        if (hidden == 6) result = 1;
     }
-    fd2_save_battle_snapshot original, snapshot;
-    memset(&original, 0xa5, sizeof(original));
-    CHECK(fd2_field_game_export_battle_snapshot(&source, &original) == 0);
-    const fd2_field_battle_result expected[] = {
-        FD2_FIELD_BATTLE_ONGOING, FD2_FIELD_BATTLE_VICTORY,
-        FD2_FIELD_BATTLE_DEFEAT, FD2_FIELD_BATTLE_DEFEAT,
-        FD2_FIELD_BATTLE_VICTORY};
-    for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
-        snapshot = original;
-        if (i == 1) snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 5u] = 1;
-        if (i == 2) snapshot.unit_area[5] = 1;
-        if (i == 3) snapshot.unit_area[0x40] = snapshot.unit_area[0x41] = 0;
-        if (i == 4) {
-            snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 0x40] = 0;
-            snapshot.unit_area[FD2_FIELD_UNIT_RECORD_SIZE + 0x41] = 0;
+    return result == 1 ? FD2_FIELD_BATTLE_DEFEAT :
+        result == 2 ? FD2_FIELD_BATTLE_VICTORY : FD2_FIELD_BATTLE_ONGOING;
+}
+
+static int test_import_preserves_result_latch_and_original_query(void) {
+    static const unsigned villager_masks[] = {0, 1, 32, 63};
+    for (size_t stage = 0; stage <= 1; stage++) {
+        fd2_field_game source, target;
+        init_game(&source); init_game(&target);
+        source.stage = target.stage = stage;
+        source.units.count = stage ? 12 : 2;
+        size_t enemy = stage ? 11 : 1;
+        for (size_t i = 0; i < source.units.count; i++) {
+            memset(&source.units.items[i], (int)(0x30u + i), FD2_FIELD_UNIT_RECORD_SIZE);
+            source.units.items[i].x = (uint8_t)(4u + i);
+            source.units.items[i].y = (uint8_t)(10u + i);
+            source.units.items[i].unit_id = (uint8_t)(20u + i);
+            source.units.items[i].flags = 0;
+            source.units.items[i].side = (uint8_t)(1u + (i & 1u));
+            source.units.items[i].hp = source.units.items[i].hp_max = 20;
         }
-        target.focus_cycle_unit = 2;
-        CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
-        CHECK(target.battle_result == expected[i]);
-        CHECK(target.battle_result == fd2_field_game_battle_result(&target));
-        CHECK(target.focus_cycle_unit == 0);
+        source.units.items[0].side = 2;
+        fd2_field_rng rng;
+        fd2_field_rng_seed(&rng, 0x3141);
+        target.attack_rng = count_load_rng;
+        target.attack_rng_userdata = &rng;
+        load_rng_calls = 0;
+        for (unsigned leader_hidden = 0; leader_hidden < 2; leader_hidden++)
+        for (unsigned enemy_hidden = 0; enemy_hidden < 2; enemy_hidden++)
+        for (unsigned side = 0; side < 3; side++)
+        for (unsigned hp = 0; hp < 4; hp++)
+        for (size_t mask = 0; mask < (stage ? 4u : 1u); mask++) {
+            source.units.items[0].flags = (uint8_t)leader_hidden;
+            source.units.items[0].hp = (hp & 1u) ? 20 : 0;
+            source.units.items[enemy].flags = (uint8_t)enemy_hidden;
+            source.units.items[enemy].side = (uint8_t)side;
+            source.units.items[enemy].hp = (hp & 2u) ? 20 : 0;
+            if (stage) for (size_t i = 5; i <= 10; i++) {
+                source.units.items[i].flags = (uint8_t)((villager_masks[mask] >> (i - 5u)) & 1u);
+                source.units.items[i].hp = (hp & 1u) ? 20 : 0;
+            }
+            fd2_save_battle_snapshot snapshot;
+            memset(&snapshot, 0xa5, sizeof(snapshot));
+            CHECK(fd2_field_game_export_battle_snapshot(&source, &snapshot) == 0);
+            fd2_save_battle_snapshot before_snapshot = snapshot;
+            fd2_field_battle_result expected = original_record_result(&source);
+            /* 10010仅恢复，不调用1197b；旧53ECC由实际controller后置点更新。 */
+            target.battle_result = hp & 1u ? FD2_FIELD_BATTLE_VICTORY : FD2_FIELD_BATTLE_DEFEAT;
+            fd2_field_battle_result latch = target.battle_result;
+            target.focus_cycle_unit = 2;
+            CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
+            CHECK(target.battle_result == latch && target.focus_cycle_unit == 0);
+            CHECK(!memcmp(&snapshot, &before_snapshot, sizeof(snapshot)));
+            CHECK(!memcmp(target.units.items, snapshot.unit_area,
+                target.units.count * FD2_FIELD_UNIT_RECORD_SIZE));
+            fd2_field_game before_query = target;
+            for (unsigned repeat = 0; repeat < 3; repeat++)
+                CHECK(fd2_field_game_battle_result(&target) == expected);
+            CHECK(!memcmp(&target, &before_query, sizeof(target)));
+            CHECK(target.attack_rng == count_load_rng && target.attack_rng_userdata == &rng);
+            CHECK(load_rng_calls == 0 && rng.state == 0x3141);
+        }
+        fd2_field_metadata_close(&target.metadata);
     }
-    fd2_field_metadata_close(&target.metadata);
+    /* 原函数正常域之外仅验SDL安全门，不向原码oracle发送空表/缺村民。 */
+    fd2_field_game defensive = {0};
+    defensive.ready = 1;
+    defensive.battle_result = FD2_FIELD_BATTLE_VICTORY;
+    for (size_t stage = 0; stage <= 1; stage++) {
+        defensive.stage = stage;
+        for (size_t count = 0; count < (stage ? 11u : 1u); count++) {
+            defensive.units.count = count;
+            fd2_field_game before = defensive;
+            CHECK(fd2_field_game_battle_result(&defensive) == FD2_FIELD_BATTLE_DEFEAT);
+            CHECK(!memcmp(&defensive, &before, sizeof(before)));
+        }
+    }
     return 0;
 }
 
@@ -1140,6 +1202,7 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     game.pending_cell_event.valid = 1;
     game.player_post_waiting_phase = 1;
     game.focus_cycle_unit = 3;
+    game.battle_result = FD2_FIELD_BATTLE_DEFEAT;
     load_rng_calls = 0;
     fd2_save_battle_snapshot sentry = next, sentry_before = next;
     CHECK(fd2_field_game_export_battle_snapshot(&game, &sentry) != 0);
@@ -1172,6 +1235,7 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(memcmp(&game, &before, sizeof(game)) == 0);
     CHECK(fd2_field_game_load_active(&game, path) == 0);
     CHECK(game.stage == 1 && game.map.width == 27 && game.map.height == 21);
+    CHECK(game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
     CHECK(game.metadata.shape_index == 1 && game.metadata.unit_template_count == 40);
     CHECK(game.stage_runtime_entry_offset == 0x238du && game.turn_number == 6);
     CHECK(game.fdother == &fdother && game.font.glyphs != NULL);
@@ -1196,11 +1260,15 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(read_save_bytes(path, bytes_after) == 0);
     CHECK(memcmp(bytes_before, bytes_after, sizeof(bytes_before)) == 0);
     /* 反向再次预备/交接，旧资源关闭一次；没有ctor、phase或intro副作用。 */
+    game.battle_result = FD2_FIELD_BATTLE_VICTORY;
     CHECK(fd2_field_game_import_battle_snapshot(&game, &original) == 0);
     CHECK(game.stage == 0 && game.stage_runtime_entry_offset == 0 &&
-          game.experience_value == 631 && game.attack_rng_userdata == &rng);
+          game.experience_value == 631 && game.attack_rng_userdata == &rng &&
+          game.battle_result == FD2_FIELD_BATTLE_VICTORY);
+    game.battle_result = FD2_FIELD_BATTLE_DEFEAT;
     CHECK(fd2_field_game_import_battle_snapshot(&game, &next) == 0);
-    CHECK(load_rng_calls == 0 && preflight_calls == 0 && rng.state == 0x5678);
+    CHECK(load_rng_calls == 0 && preflight_calls == 0 && rng.state == 0x5678 &&
+          game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
     fd2_field_game_close(&game);
     fd2_save_file_close(&source);
     fd2_archive_close(&fdother);
@@ -1267,7 +1335,39 @@ static int test_detail_busy_preserves_outputs_and_files(void) {
     return 0;
 }
 
-int main(void) {
+/* test-only stdin协议供完整原码向量逐条比较真实C consumer，不解析JSON。
+ * 正常源域以外的count不送入原函数；取消/恢复时点由上面的回归单独验证。 */
+static int result_vector_probe(void) {
+    unsigned stage, count;
+    char hex[FD2_FIELD_MAX_UNITS * FD2_FIELD_UNIT_RECORD_SIZE * 2u + 1u];
+    for (;;) {
+        int parsed = scanf("%u %u %15360s", &stage, &count, hex);
+        if (parsed == EOF) return 0;
+        if (parsed != 3 || stage > 1 || count > FD2_FIELD_MAX_UNITS ||
+            count < (stage ? 11u : 1u) || strlen(hex) != count * FD2_FIELD_UNIT_RECORD_SIZE * 2u)
+            return 2;
+        fd2_field_game game = {0};
+        game.ready = 1; game.stage = stage; game.units.count = count;
+        uint8_t *records = (uint8_t *)game.units.items;
+        for (size_t i = 0; i < count * FD2_FIELD_UNIT_RECORD_SIZE; i++) {
+            unsigned value = 0;
+            for (size_t j = 0; j < 2; j++) {
+                char c = hex[i * 2u + j];
+                unsigned digit = c >= '0' && c <= '9' ? (unsigned)(c - '0') :
+                    c >= 'a' && c <= 'f' ? (unsigned)(c - 'a') + 10u :
+                    c >= 'A' && c <= 'F' ? (unsigned)(c - 'A') + 10u : 16u;
+                if (digit == 16u) return 2;
+                value = value * 16u + digit;
+            }
+            records[i] = (uint8_t)value;
+        }
+        printf("%u %d\n", stage, (int)fd2_field_game_battle_result(&game));
+    }
+}
+
+int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--s0-vectors")) return result_vector_probe();
+    if (argc != 1) return 2;
     if(test_detail_busy_preserves_outputs_and_files()!=0)return 1;
     if (test_stage1_manual_owner_preflight() != 0 ||
         test_cross_stage_active_owner_is_transactional() != 0) return 1;
@@ -1289,7 +1389,7 @@ int main(void) {
         test_metadata_capacity_and_invalid_export() != 0 ||
         test_stage0_metadata_matches_resource_and_preserves_tail() != 0 ||
         test_original_start_load_focus_and_sprite_bounds() != 0 ||
-        test_import_result_uses_shared_query() != 0 ||
+        test_import_preserves_result_latch_and_original_query() != 0 ||
         test_original_start_roster_and_recruit_transaction() != 0)
         return 1;
     puts("field_save_test: ok");

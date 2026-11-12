@@ -2,7 +2,7 @@
 
 2026-11-12，代码基线为本地 master `4d7ed15`。本文给出 S 工作包的来源、转换边界与验收设计；**唯一优先级仍在[总计划 §4](development.md#4-新优先级与依赖)**。本轮只做只读研究、最小候选转换和计划修订，没有开放新关卡，也没有启动后续玩法实施。
 
-2026-11-13状态定位：本文保留上轮研究事实与复跑记录，不是当前阶段状态表。下一阶段及补充归属只查[当前计划](development.md)：既有结果／snapshot差异独立归S0，审计同步归S1，新结果族／别名和未来身份路径归S2；五阶段均未开始，研究候选不算实施。已完成范围见[归档](completed-stages.md)。
+2026-11-13状态定位：本文保留上轮研究事实与复跑记录，不是当前阶段状态表。下一阶段及补充归属只查[当前计划](development.md)：既有结果／snapshot差异已由独立S0闭合，审计同步仍归S1，新结果族／别名和未来身份路径归S2；S1—S4均未开始，研究候选不算实施。已完成范围见[归档](completed-stages.md)。
 
 ## 1. 推荐与基线
 
@@ -94,7 +94,7 @@ result表中 stage `0,2,3,4,5,6,7,8,10,13,23` 的11槽均到 `0x205b4`。例如 
 {"runtime_id":"stage.result.002","definition":"stage.result.000","status":"candidate","semantic_conversion_approved":false,"source":{"original_slot":2,"source_canonical_va":"0x51b21","target_va":"0x205b4"},"shipping_definition_changed":false}
 ```
 
-这11个引用可共用一次原函数恢复：1个已有定义引用、10个新候选，涉及1个结果来源族。**目前仍不能把11个候选直接发布成原函数等价别名**：`stage.result.000` 的 `result_leader_dead [0,1]`／`result_side_present [0,1]` 含SDL既有HP防护，原函数只看hidden／side；缺raw0的防御域也不同。上轮将它列为S2前置；本轮发现既有snapshot导入接受HP0且visible并直接按HP判胜败，因此旧stage0／1合同修正独立归S0。S2复用S0已修正的合同，再证明新caller／别名有效域与结果码映射；在此之前提案保持 `semantic_conversion_approved=false`。同target去重的可行性确定，现图全状态等价未证明。
+这11个引用可共用一次原函数恢复：1个已有定义引用、10个新候选，涉及1个结果来源族。**目前仍不能把11个候选直接发布成原函数等价别名**：`stage.result.000` 的 `result_leader_dead [0,1]`／`result_side_present [0,1]` 含SDL既有HP防护，原函数只看hidden／side；缺raw0的防御域也不同。上轮将它列为S2前置；本轮发现既有snapshot导入接受HP0且visible并直接按HP判胜败，该旧stage0／1合同现已在S0修正，正式图禁用HP门并由真实controller后置锁存；原研究的`[0,1]`只保历史基线。S2复用S0已修正的合同，再证明新caller／别名有效域与结果码映射；在此之前提案保持 `semantic_conversion_approved=false`。同target去重的可行性确定，现图全状态等价未证明。
 
 后续生产绑定经审核后由 `generate.py` 写入既有只读定义，`field_game` 的结果查询消费。当前 stage/result 查找合同仍需 S2/S3 扩展别名索引或生成对应现有节点形式；本原型不修改生产文件，不声称已经消费新alias。其它entry／victory／callback、资源及状态轨迹未闭合时，stage2乃至其它10个场景都不能只因结果函数相同而开放。
 

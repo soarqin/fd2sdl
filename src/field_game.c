@@ -293,7 +293,8 @@ static const fd2_static_flow *stage_flow_get(const char *kind, size_t stage) {
 }
 
 /* sub_205B4 @0x205b4、field_stage1_battle_result_check @0x206c5（原sub_206C5）：
- * 结果覆盖顺序与SDL既有HP防护均在冷图；default仅保留既有内部fallback身份。 */
+ * 正式结果按hidden/side及原覆盖顺序查询，不以HP替代死亡整理；
+ * default仅保留既有内部fallback身份。纯查询不提交53ECC结果锁存。 */
 fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
     if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
     const fd2_static_flow *flow = stage_flow_get("result", game->stage);
@@ -2641,13 +2642,15 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
         if (unit_index >= 0 && fd2_field_game_begin_player_controller(game, (size_t)unit_index) != 0)
             return -1;
         if (unit_index < 0 ||
-            !unit_can_act_for_side(&game->units.items[unit_index],
-                                   game->active_side) ||
+            game->units.items[unit_index].side != game->active_side ||
+            fd2_field_unit_is_hidden(&game->units.items[unit_index]) ||
             fd2_field_unit_has_acted(&game->units.items[unit_index]) ||
             game->units.items[unit_index].detail_status[1] != 0u ||
             game->units.items[unit_index].unit_id == 0x79u ||
             game->units.items[unit_index].race == 0x0au)
             return -1;
+        /* 117e7/18890的controller入口只查flags/side，不因已Load的HP0
+         * 可见记录跳过选择及取消后的1197b；攻击/AI各自的HP门不变。 */
         int selected = begin_move_selection(game, unit_index);
         if (selected >= 0) game->ordinary_display_mode = 1; /* 18890 @18a2e。 */
         return selected;

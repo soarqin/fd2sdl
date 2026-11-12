@@ -511,6 +511,9 @@ static int test_confirmation_cancel_closes_without_commit(void) {
     fd2_field_game game;
     test_rng rng = {0x76543210u, 0};
     init_game(&game, &rng);
+    /* 取消本身不能因HP0或当前hidden终局提前查询／覆盖controller旧latch。 */
+    game.units.items[0].hp = 0;
+    game.units.items[1].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
     fd2_field_game before = game;
     const struct {
         int secondary;

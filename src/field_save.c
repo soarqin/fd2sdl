@@ -341,7 +341,8 @@ static int import_current_stage(
     game->last_idle_ms = 0;
     game->last_terrain_visual_ms = 0;
     game->last_range_visual_ms = 0;
-    game->battle_result = fd2_field_game_battle_result(game);
+    /* sub_10010 @0x10010（原登记同名）不读写53ECC；Load只恢复记录，
+     * 保留既有结果锁存，首次查询仍由117e7实际actor返回的1197b调用。 */
     game->ordinary_display_mode = 1; /* sub_10010返回controller的普通cursor。 */
     return 0;
 }
@@ -349,6 +350,7 @@ static int import_current_stage(
 /* 只借外部owner，绝不保存/复制其RNG状态，也不调用它们做预检。 */
 static void carry_runtime_owners(fd2_field_game *dst,
                                   const fd2_field_game *src) {
+    dst->battle_result = src->battle_result; /* 跨stage资源替换亦不新增结果查询。 */
     dst->attack_target_allowed = src->attack_target_allowed;
     dst->attack_target_userdata = src->attack_target_userdata;
     dst->attack_rng = src->attack_rng;

@@ -114,6 +114,8 @@ python3 -B -m unittest tools.tests.test_static_runtime_flows tools.tests.test_st
 
 ## 批量来源与覆盖审计
 
+2026-11-12 的全量计数、同目标候选转换、审计口径滞后及S接入门见[批量调研](../plans/stage-batch.md)。研究工具 `tools/static_data/research_stage_batch.py` 只读取本地audit并在 `build/research-stage-batch/` 输出规范化来源与候选，不写正式定义、不提权支持状态，也不允许覆盖输入审计。该工具不是任意EXE控制流翻译器；具体复跑命令及负例在调研§7。
+
 `audit_stage_data.py` 只读提取 FDFIELD 的全部组、原始槽／模板／placement、地图实际格引用，以及严格 LE fixup 分发表目标。它校验原文件身份、已发布 IDA 的清单／EXE 身份／函数 chunk 与历史 Git 源 blob；报告保留源跨度、摘要、未知字节和未覆盖项。schema、固定操作 ABI、出口和引用复用生产校验，原始 EXE／DAT 预期从独立读集取得，不取生成 C 作为 expected。
 
 Windows PowerShell：

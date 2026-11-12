@@ -8,6 +8,8 @@
 
 ## 1. 目标、推荐与完成边界
 
+2026-11-12 批量接入补记：SD／G 完成历史不重开。后续按[总计划 S1—S4](development.md#4-新优先级与依赖)完成全量来源账、按共享语义族转换、按闭包批量接入和统一验收；盘点、真实转换样例及小规模可复跑验证见[关卡批量调研](stage-batch.md)。当前审计器的51／468／652为保守引用分类，不能作为G5实际机制缺口；同步descriptor完整WORD／default读集是S1前置工作。已有DAT定义仍直接读取，规范化账只作来源和转换输入，不另建生产真值。
+
 冷数据包括不可变的游戏定义，也包括**事件驱动本身：触发条件、分支、执行顺序、交互等待、取消路径和动作编排**。脚本描述的是运行时如何变化，脚本本身仍是冷数据。例如满包换物的「满包判断 → 是否交换 → 选槽／取消 → 换物 → 提示」应可通过修改静态流程定义改变；不能仅将物品 ID 外置，或用一个 `native_full_inventory_handler` 名称包住原有分支就算完成。
 
 热数据包括背包内容、当前箱内物品、玩家选择、完成标记、脚本执行位置及等待状态。保留现有 session、单位记录、loot／progress、存档 owner 和提交方式，不重写热状态系统。算法与宿主能力仍由 C/C++ 提供，如伤害公式、寻路、库存单步操作、资源解码、输入等待和呈现。
@@ -142,6 +144,8 @@ JSON 是项目定义的唯一编辑输入，生成 C 不是另一份可编辑真
 以下保留 **SD 设计时的拟议 schema**，不是当前生成 ABI。§6.1 的 `commit_then_notice_replay` 是当时的迁移边界，已由 G5 的逐叶续态替代，不再是开发要求；旧符号及缺口描述只用于追溯。当前 `stage.001.action.006` 绑定到 `common.legacy.action.006`，以 `data/static/flows/common_event.json`、有限 consumer 和[共同事件语义](../reverse-engineering/common-event-semantics.md)为准。历史样例仍说明参数、条件、分支和编排可修改，不能据此恢复旧整段重放。
 
 ### 6.1 stage 1 第三回合 action6
+
+下列为SD调研时的历史设计样例，不是现行输入格式或提交合同。G5已将该绑定迁到 `common.legacy.action.006`，以同一 `event_resume` 在真实等待点逐叶执行，并补100／200 ms与原方向reset20 ms边界；不再先提交终态再Scene重放。现行源→目标与消费链见[批量调研 §4](stage-batch.md#4-真实源样例与现有消费目标)，具体定义只维护在 `data/static/flows/common_event.json`。
 
 已只读核对 FDFIELD entry4（文件 offset 6129，长度 1171）slot0 原记录 `(turn=3, action=6, phase=1)`；旧笔误 action5 已在权威伪 C 勘误，正确 callback 为 `field_stage1_turn3_execute @0x34778`。`field_game.c::execute_known_turn_event`、`scene.c::fd2_scene_play_field_event` 与 `field_stage_transition_test.c::test_stage1` 可交叉定位。
 

@@ -2,6 +2,8 @@
 
 2026-11-12，代码基线为本地 master `4d7ed15`。本文给出 S 工作包的来源、转换边界与验收设计；**唯一优先级仍在[总计划 §4](development.md#4-新优先级与依赖)**。本轮只做只读研究、最小候选转换和计划修订，没有开放新关卡，也没有启动后续玩法实施。
 
+2026-11-13状态定位：本文保留上轮研究事实与复跑记录，不是当前阶段状态表。下一阶段及补充归属只查[当前计划](development.md)：既有结果／snapshot差异独立归S0，审计同步归S1，新结果族／别名和未来身份路径归S2；五阶段均未开始，研究候选不算实施。已完成范围见[归档](completed-stages.md)。
+
 ## 1. 推荐与基线
 
 推荐扩展现有 `audit_stage_data.py`、`audit_common_scope.py` 和冷定义生成器，以「全量来源账 → 按共享语义转换 → 按依赖闭包接入 → 统一验收」组织后续工作。地图和原资源表继续直接读取；EXE 表批量提取引用；已确认的控制流转换为现有有限 flow。开发和验证的主要单位是共享语义族，不是关卡编号或事件引用次数。
@@ -92,7 +94,7 @@ result表中 stage `0,2,3,4,5,6,7,8,10,13,23` 的11槽均到 `0x205b4`。例如 
 {"runtime_id":"stage.result.002","definition":"stage.result.000","status":"candidate","semantic_conversion_approved":false,"source":{"original_slot":2,"source_canonical_va":"0x51b21","target_va":"0x205b4"},"shipping_definition_changed":false}
 ```
 
-这11个引用可共用一次原函数恢复：1个已有定义引用、10个新候选，涉及1个结果来源族。**目前仍不能把11个候选直接发布成原函数等价别名**：`stage.result.000` 的 `result_leader_dead [0,1]`／`result_side_present [0,1]` 含SDL既有HP防护，原函数只看hidden／side；缺raw0的防御域也不同。S2须证明正式死亡整理后的有效域与结果码映射，或用现有节点的hidden-only参数生成一份有独立原义校验的共享图；在此之前提案保持 `semantic_conversion_approved=false`。同target去重的可行性确定，现图全状态等价未证明。
+这11个引用可共用一次原函数恢复：1个已有定义引用、10个新候选，涉及1个结果来源族。**目前仍不能把11个候选直接发布成原函数等价别名**：`stage.result.000` 的 `result_leader_dead [0,1]`／`result_side_present [0,1]` 含SDL既有HP防护，原函数只看hidden／side；缺raw0的防御域也不同。上轮将它列为S2前置；本轮发现既有snapshot导入接受HP0且visible并直接按HP判胜败，因此旧stage0／1合同修正独立归S0。S2复用S0已修正的合同，再证明新caller／别名有效域与结果码映射；在此之前提案保持 `semantic_conversion_approved=false`。同target去重的可行性确定，现图全状态等价未证明。
 
 后续生产绑定经审核后由 `generate.py` 写入既有只读定义，`field_game` 的结果查询消费。当前 stage/result 查找合同仍需 S2/S3 扩展别名索引或生成对应现有节点形式；本原型不修改生产文件，不声称已经消费新alias。其它entry／victory／callback、资源及状态轨迹未闭合时，stage2乃至其它10个场景都不能只因结果函数相同而开放。
 
@@ -142,7 +144,7 @@ metadata 的第三回合 action6 经 callback6 `0x34778`，现唯一绑定为 `s
 
 ## 6. 如何减少开发与验收轮次
 
-完整阶段及顺序见总计划的 S1—S4。工作包按共享语义族展开，例外只进入同一异常队列：`source_id／target／family／missing_semantics／blocking_bindings／evidence／next_check`。同族一次取证、补机制、生成所有适用定义和夹具，再验证整族；不因发现一个新关重复开一个阶段。
+本节保留上轮批量S1—S4的设计依据；当前增加的旧结果恢复补充S0及完整执行顺序只见[总计划](development.md#4-新优先级与依赖)，不在本页另排。工作包按共享语义族展开，例外只进入同一异常队列：`source_id／target／family／missing_semantics／blocking_bindings／evidence／next_check`。同族一次取证、补机制、生成所有适用定义和夹具，再验证整族；不因发现一个新关重复开一个阶段。
 
 S1先让每条来源都有去向；S2按结果条件、增援／招募、相对回合、物品／特殊格、剧情／换图和entry／victory交接等来源族集中恢复CFG。已证条件／动作直接复用；真正新通用语义先以最小原语和代表来源闭合。上述族是组织方式，不能预设每族语义已完整；发现跨族共享写点时合并取证，未解间接控制流保持阻塞。S3按依赖闭包生成少量兼容批次，包含能共用机制的多个场景，不预填关卡名单或固定几关一批。不能把每关拆成一个新S阶段，也不能把闭包尚未通过的全游戏一把开放。
 

@@ -67,6 +67,44 @@ def stage_fixture():
 
 
 class StaticStageAuditTest(unittest.TestCase):
+    def test_effect_result_actual_binding_and_resource_story_are_audited(self):
+        field,shape,text,flows,aliases,dispatch=stage_fixture()
+        flows.pop("stage.result.000")
+        flows["common.result.source_test"]=flow("common.result.source_test","story",[0])
+        aliases["stage.000.result"]="common.result.source_test"
+        report=audit.audit_stage(0,field,shape,text,flows,aliases,dispatch)
+        self.assertEqual(report["dispatch"]["result"]["runtime_id"],"stage.000.result")
+        self.assertEqual(report["dispatch"]["result"]["runtime_domain"],"common_event")
+        self.assertEqual(report["dispatch"]["result"]["classification"],audit.SUPPORTED)
+        flows["common.result.source_test"]["nodes"][0]["args"]=[1]
+        self.assertTrue(any("stage.000.result" in error for error in audit.audit_stage(0,field,shape,text,flows,aliases,dispatch)["reference_errors"]))
+        flows["stage.result.000"]=flow("stage.result.000")
+        with self.assertRaisesRegex(ValueError,"duplicate pure/effect"):
+            audit.audit_stage(0,field,shape,text,flows,aliases,dispatch)
+
+    def test_source_victory_handoff_does_not_require_parallel_settlement_flow(self):
+        field,shape,text,flows,aliases,dispatch=stage_fixture()
+        flows.pop("stage.victory.000")
+        flows["stage.source.victory.000"]=flow("stage.source.victory.000")
+        aliases["stage.victory.000"]="stage.source.victory.000"
+        report=audit.audit_stage(0,field,shape,text,flows,aliases,dispatch)
+        self.assertEqual(report["handoff_contract"]["kind"],"source_victory_once_then_export_preparation")
+        self.assertFalse(report["handoff_contract"]["legacy_settlement_required"])
+        self.assertIsNone(report["handoff_contract"]["settlement_definition"])
+        self.assertFalse(report["handoff_contract"]["old_resources_can_run_next_stage_controller"])
+
+    def test_source_bound_entry_does_not_duplicate_deployment_count_in_capability(self):
+        field,shape,text,flows,aliases,dispatch=stage_fixture()
+        flows.pop("stage.entry.000")
+        flows["stage.source.entry.000"]=flow("stage.source.entry.000")
+        aliases["stage.entry.000"]="stage.source.entry.000"
+        flows["stage.capability.000"]["nodes"][0]["args"]=[0,0,0,0]
+        dispatch["stage_entry"]["records"][0]["target_va"]="0x10000"
+        report=audit.audit_stage(0,field,shape,text,flows,aliases,dispatch)
+        self.assertTrue(report["entry_supported"])
+        self.assertFalse(report["battle_enabled"])
+        self.assertFalse(report["selected_semantics_supported"])
+
     def test_archive_requires_full_directory_and_eof(self):
         entries = [b"abc", b"defg", b"unknown\xff"]
         raw = archive(entries)

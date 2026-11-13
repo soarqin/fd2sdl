@@ -258,10 +258,7 @@ int fd2_field_event_hidden_count(const fd2_field_units *units,
 
 int fd2_field_event_roster_has_text(const fd2_field_unit *roster,
         size_t count, uint8_t text_id) {
-    if (!roster || count > 32u) return -1;
-    for (size_t i = 0; i < count; i++)
-        if (roster[i].text_id == text_id) return 1;
-    return 0;
+    return fd2_field_roster_has_text(roster, count, text_id);
 }
 
 static int event_item_slot(const fd2_field_unit *unit, uint8_t item,

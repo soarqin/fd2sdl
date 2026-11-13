@@ -45,7 +45,15 @@ typedef struct {
     uint32_t turn_number;
     uint32_t resource_value;
     const fd2_field_units *units;
+    const fd2_field_unit *roster; /* 借用现Game持久owner；普通关卡不要求。 */
+    size_t roster_count;
 } fd2_field_overview;
+
+/* field_battle_overview_draw @0x1b41d（原sub_1B41D）的同一只读条件选择：
+ * 只借stage/roster返回UI0片段，
+ * 不查active、不读资源或结果锁存。失败时fragments两项均保留。 */
+int fd2_field_overview_conditions_get(const fd2_field_overview *data,
+                                      size_t fragments[2]);
 
 /* FDOTHER[5] 战场格子/单位信息面板资源。
  * field_cell_info_panel_draw @0x1acf3（Watcom __chkstk body 在 +0xa，
@@ -93,9 +101,11 @@ int fd2_field_unit_summary_draw_at(fd2_vga *vga,
                                  const fd2_field_unit *unit,
                                  int x, int y);
 
-/* 战况／胜败条件总览：sub_1B41D @0x1b41d、sub_1B5F1 @0x1b5f1。
+/* 战况／胜败条件总览：field_battle_overview_draw @0x1b41d（原sub_1B41D）、
+ * sub_1B5F1 @0x1b5f1。
  * 正常stage0..29的FDTXT[0]597..656使用普通字形/-2换行（19像素行高）。
- * stage16另有私有败条件选择尚未绑定，明确拒绝；stage30+不是这段条件数据。
+ * 私有条件按唯一field_info冷规则借现roster选择，不查active或提交结果；
+ * 缺必需roster owner明确拒绝，stage30+不是这段条件数据。
  * 成功返回0；
  * 资源、文本或输入不受支持时返回 -1，framebuffer 保持不变。
  * 只叠加4块页面，不绘制地图、不提交玩法，也不播放开合或处理输入。 */

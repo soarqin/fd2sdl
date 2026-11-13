@@ -700,6 +700,21 @@ if(BUILD_TESTING)
     target_link_libraries(fd2_field_result_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_result_source COMMAND fd2_field_result_source_test)
 
+    add_executable(fd2_s3_game_contract_test tests/s3_game_contract_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s3_game_contract_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s3_game_contract_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s3_game_contract COMMAND fd2_s3_game_contract_test)
+    set_tests_properties(s3_game_contract PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    # 非分发fixture编译真实Game一次，仅在lookup边界叠加可观测等待图。
+    # 过滤掉Core同名对象，Windows .obj与Unix .c.o均保同一链接域。
+    add_executable(fd2_s3_result_caller_test tests/s3_result_caller_test.c
+        "$<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.](c[.])?(obj|o)$>")
+    target_include_directories(fd2_s3_result_caller_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s3_result_caller_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s3_result_caller COMMAND fd2_s3_result_caller_test)
+    set_tests_properties(s3_result_caller PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
     add_executable(fd2_field_s2_visual_test tests/field_s2_visual_test.c $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_field_s2_visual_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_s2_visual_test PRIVATE ${FD2SDL_SDL3_TARGET})
@@ -716,6 +731,12 @@ if(BUILD_TESTING)
     target_link_libraries(fd2_s2_transition_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME s2_transition_source COMMAND fd2_s2_transition_source_test)
     set_tests_properties(s2_transition_source PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_s3_stage_batch_test tests/s3_stage_batch_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s3_stage_batch_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s3_stage_batch_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s3_stage_batch COMMAND fd2_s3_stage_batch_test)
+    set_tests_properties(s3_stage_batch PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_s2_callback_source_test tests/s2_callback_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_s2_callback_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

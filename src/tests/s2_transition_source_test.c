@@ -42,7 +42,8 @@ static int prepare(fd2_field_game *g,const fd2_archive *other,unsigned stage) {
 }
 static int test_source_resource_and_setup_boundary(const fd2_archive *other) {
     fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
-    CHECK(fd2_field_game_open_resources(g,other,3)==-1 && !g->ready);
+    CHECK(fd2_field_game_open_resources(g,other,3)==0 && g->ready && !g->units.count);
+    fd2_field_game_close(g);
     CHECK(prepare(g,other,3)==0 && g->ready && g->units.count==0 && g->roster_count==6);
     CHECK(g->map.cells && g->sprites.frame_count && g->metadata.unknown_01);
     fd2_field_game_close(g);
@@ -94,17 +95,17 @@ static int test_capacity_retains_prior_prefix(const fd2_archive *other) {
     CHECK(!memcmp(&before,&g->units,sizeof(before)) && g->units.items[0].detail_status[1]==100);
     fd2_field_game_close(g);free(g);return 0;
 }
-static int test_source_story_stage3_without_shipping_alias(const fd2_archive *other,fd2_vga *vga) {
+static int test_explicit_source_id_and_shipping_story_domain(const fd2_archive *other,fd2_vga *vga) {
     fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);CHECK(prepare(g,other,3)==0);
-    CHECK(!fd2_field_stage_is_supported(3) && !fd2_field_stage_battle_is_supported(3));
-    CHECK(fd2_scene_field_story_validate(g,0)==-1);
+    CHECK(fd2_field_stage_is_supported(3) && fd2_field_stage_battle_is_supported(3));
+    CHECK(fd2_scene_field_story_validate(g,0)==0); /* S3公开该静态对白域；仍未执行初始化。 */
     CHECK(fd2_scene_play_stage_source_flow(vga,other,g,NULL,1,"stage.entry.003")==FD2_SCENE_RESULT_ERROR);
     CHECK(!g->units.count);
     trace t={vga,-1,0,0,0,0};g->event_preflight=prefix;g->event_preflight_userdata=&t;
     g->attack_rng=no_rng;g->attack_rng_userdata=&t;
     CHECK(fd2_scene_play_stage_source_flow(vga,other,g,NULL,1,"stage.source.entry.003")==FD2_SCENE_RESULT_OK);
     CHECK(t.stories>0 && !t.rng && g->units.count>=g->metadata.unknown_01);
-    CHECK(!fd2_field_stage_is_supported(3) && fd2_scene_field_story_validate(g,0)==-1);
+    CHECK(fd2_field_stage_is_supported(3) && fd2_scene_field_story_validate(g,0)==0);
     fd2_field_game_close(g);free(g);return 0;
 }
 static int test_filtered_position_original_bounds(void) {
@@ -241,7 +242,7 @@ int main(int argc,char **argv) {
     fd2_vga_set_palette(vga,palette);fd2_input_init(&vga->input);
     int failed=test_source_resource_and_setup_boundary(&other) || test_actual_scene_prefix(&other,vga) ||
         test_capacity_retains_prior_prefix(&other) || test_actual_layout_prefix(&other,vga) ||
-        test_source_story_stage3_without_shipping_alias(&other,vga) || test_filtered_position_original_bounds() ||
+        test_explicit_source_id_and_shipping_story_domain(&other,vga) || test_filtered_position_original_bounds() ||
         test_dynamic_text_source_prefix(&other,vga) || test_source_rejects_owned_continuations_unchanged(&other,vga);
     fd2_field_page_destroy(vga->field_page);free(vga);fd2_archive_close(&other);
     if(!failed)puts("S2 source transition resource/prefix/Scene tests passed (no native GUI)");

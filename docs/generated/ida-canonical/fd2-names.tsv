@@ -103,6 +103,7 @@ ea	name	is_func	is_public
 0x1aa1d	field_loot_descriptors_execute	1	0
 0x1acf3	field_cell_info_panel_draw	1	0
 0x1aeb1	field_cell_info_modifier_draw	1	0
+0x1b41d	field_battle_overview_draw	1	0
 0x1b653	field_defeated_story_loot_collect	1	0
 0x1b6b7	field_defeated_loot_collect	1	0
 0x1b722	field_unit_item_id_at	1	0
@@ -275,7 +276,7 @@ ea	name	is_func	is_public
 0x34dcf	_R_FExtension	0	0
 0x35123	field_event_item89_grant_once	1	0
 0x352ca	field_event_item211_story11	1	0
-0x35346	field_event_story3_item213_story11	1	0
+0x35346	field_event_story3_item213_story4	1	0
 0x355f0	field_event_item101_story11	1	0
 0x35638	field_event_turn_group_pair_camera_flash	1	0
 0x35677	field_event_story5_defeat_tail18	1	0

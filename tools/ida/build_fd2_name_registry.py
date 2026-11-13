@@ -2395,6 +2395,46 @@ for _va, _chunks, _bindings in _S2_TRANSITION_SOURCE_BINDINGS:
                "12未决目标不因附近CALL或已知部分写集开放。",
     })
 
+CORRECTIONS[0x35346].append({
+    "target": "semantic_name",
+    "was": "field_event_story3_item213_story11",
+    "now": "field_event_story3_item213_story4",
+    "why": "S3复核完整owner35346..353b5（111B，strict relocated SHA256 "
+           "033ae1e66dabfd9187eadac8ab3e72de78a27e6ddc353929391e3add158cd65f）及真实共享尾入口："
+           "353ae push4后跳3530d，执行3530d/35313/35318/3531b/3531e/3531f/35320，"
+           "绕过352ca路径的3530b push11。因此callback41真实顺序为story3→1aa1d(count1，item213)→story4，"
+           "不能按共享tail所在owner名推成story11。"
+           "build/s3/callback-binding-source02-red/comparison.json（SHA256 "
+           "e18663a532e725584231b8638eb996c590e21c39f26fee576a75b7d4298b17b5）"
+           "独立执行5个原caller各36、合计180个x86向量，全部41轨迹均到story4；"
+           "该red收据actualC=false，C失败属于另一个caller39的child owner，不据此称C或原生通过。"
+           "旧错误命名及当时依据保留历史，本条只改正35346名称/注释，不改边界、指令、原型或共享尾owner。",
+})
+
+CORRECTIONS[0x1B41D].extend([{
+    "target": "semantic_name", "was": "sub_1B41D",
+    "now": "field_battle_overview_draw",
+    "why": "S3完整1b41d..1b5f1（468B）CFG和真实19df7→1b1e7 caller："
+           "本函数只绘制四底板、关卡/回合/资源/三阵营计数与两段条件，不拥有输入或modal生命周期。"
+           "完整Domain读集build/s3/ida-overview-source02/domain.json SHA256 "
+           "d0a1f4f023ae9b02f88723573302913fb2a48269570363906723bf1744ee7352，"
+           "含1b41d/1b5f1/33499/34894共669B，每个chunk及连续指令与strict relocated一致。"
+           "verify_s3_overview.py独立执行完整四函数242向量，绘制/文本/栈检查为显式替身；"
+           "只确认语义名，不保存猜测原型，也不据此签真实字体、原版WGC或尚未运行的实际C门。",
+}, {
+    "target": "evidence",
+    "was": "旧总览切片只开放stage0/1；stage16私有败条件未绑定，普通条件598+2*stage不足以描述该分支",
+    "now": "胜条件始终597+2*stage。stage16先画胜条件629，再调用field_roster_has_text @0x33499(18)："
+           "持久roster存在text18时败条件630，缺席时628；active中的text18不参与，roster的HP/hidden/side均不滤。"
+           "SDL本轮以field_info冷表投影原常量/条件，借现Game持久roster；普通stage不要求这个owner。"
+           "旧未绑记载保留当时事实，不能当作当前剩余阻塞。",
+    "why": "完整1b41d CFG及33499 fullDWORD参数18、独立53bf7/53bfb roster读取；"
+           "原码242向量覆盖stage0..29、roster0/1/32、首尾text18、HP0/hidden/side噪声，"
+           "并检查原active/roster无写。资料缺失/容量越界是SDL安全拒绝域，不送原码越界执行；"
+           "真实资源渲染、实际C、原版运行范围分别登记，不把纯query或源CPU当作整场景通过。",
+}])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

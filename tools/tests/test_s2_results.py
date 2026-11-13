@@ -96,15 +96,19 @@ class ResultSourceTests(unittest.TestCase):
             with patch.object(oracle.subprocess, "run", side_effect=changed):
                 with self.assertRaisesRegex(ValueError, "changed"): oracle.compare_c(probe, [case], [expected])
 
-    def test_candidates_exist_once_and_no_stage_alias_was_opened(self):
+    def test_candidates_exist_once_and_shipping_aliases_require_exact_source_identity(self):
         docs = {name: json.loads((ROOT / f"data/static/flows/{name}.json").read_text(encoding="utf-8"))
                 for name in ("stage", "common_event")}
         for va in source.TARGETS:
             domain, identity = source.source_flow(va)
             self.assertEqual(sum(f["id"] == identity for f in docs[domain]["flows"]), 1)
         for stage in range(2, 30):
-            self.assertNotIn(f"stage.result.{stage:03d}", docs["stage"].get("bindings", {}))
             self.assertFalse(any(f["id"] == f"stage.result.{stage:03d}" for f in docs["stage"]["flows"]))
+            domain,identity=source.source_flow(source.SLOTS[stage])
+            pure=docs['stage'].get('bindings',{}).get(f'stage.result.{stage:03d}')
+            effect=docs['common_event'].get('bindings',{}).get(f'stage.{stage:03d}.result')
+            if pure is not None:self.assertTrue(2<=stage<=20 and domain=='stage' and pure==identity)
+            if effect is not None:self.assertTrue(2<=stage<=19 and domain=='common_event' and effect==identity)
         for name in docs:
             for flow in docs[name]["flows"]:
                 if ".result.source_" not in flow["id"]: continue

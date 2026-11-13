@@ -16,6 +16,20 @@ const fd2_static_flow *fd2_field_stage_flow_find(const char *id) {
     return fd2_static_flow_lookup("stage", id);
 }
 
+/* main @0x25bf4 的entry/victory分派：只有明确发布的同一冷图才走
+ * 单次来源consumer；source库存存在本身不授予正式入口能力。 */
+int fd2_field_stage_source_is_bound(size_t stage, const char *kind) {
+    if (!kind || (strcmp(kind, "entry") && strcmp(kind, "victory"))) return 0;
+    char bound_id[64], source_id[64];
+    int a = snprintf(bound_id, sizeof(bound_id), "stage.%s.%03zu", kind, stage);
+    int b = snprintf(source_id, sizeof(source_id), "stage.source.%s.%03zu", kind, stage);
+    if (a < 0 || b < 0 || (size_t)a >= sizeof(bound_id) || (size_t)b >= sizeof(source_id)) return 0;
+    const fd2_static_flow *bound = fd2_static_flow_lookup("stage", bound_id);
+    const fd2_static_flow *source = fd2_static_flow_lookup("stage", source_id);
+    return bound && source && bound->nodes == source->nodes && bound->count == source->count &&
+        bound->entry == source->entry;
+}
+
 int fd2_field_stage_capability_get(size_t stage, fd2_field_stage_capability *out) {
     char id[64];
     int written = snprintf(id, sizeof(id), "stage.capability.%03zu", stage);

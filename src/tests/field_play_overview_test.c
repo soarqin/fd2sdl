@@ -413,7 +413,7 @@ static int test_modal_preconditions(void) {
         reset_controls();
         fd2_field_game game;
         CHECK(init_game(&game) == 0);
-        if (mode == 0) game.stage = 3;
+        if (mode == 0) game.stage = 21; /* S3闭包之外，不能因UI数据已读而开放。 */
         if (mode == 1) game.active_side = 0;
         if (mode == 2) game.selected_unit = 0;
         if (mode == 3) game.interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;

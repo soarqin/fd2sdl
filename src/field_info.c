@@ -4,7 +4,7 @@
  * field_cell_info_panel_draw @0x1acf3、field_unit_detail_open @0x17e0b、
  * field_unit_detail_draw @0x17eef、field_unit_detail_stats_draw @0x17fc0
  * 与 field_unit_detail_equipment_draw @0x184c0。总览依据
- * sub_1B41D @0x1b41d（原登记 sub_1B41D）和人数门
+ * field_battle_overview_draw @0x1b41d（原登记 sub_1B41D）和人数门
  * sub_1B5F1 @0x1b5f1（原登记 sub_1B5F1）。原版从 FDOTHER[5] 取 frame 130
  * 底板、frame 131/132 正负号及两组 HP 数字，在当前地形上叠加
  * 光标格单位的固定 idle sprite，并显示两项地形修正和当前 HP。
@@ -25,6 +25,7 @@
 #include "field_magic.h"
 #include "map_sprite.h"
 #include "portrait.h"
+#include "static_data/field_info.inc"
 
 #define FD2_FIELD_INFO_FDOTHER_ENTRY 5u
 #define FD2_FIELD_INFO_REQUIRED_FRAMES 137u
@@ -445,6 +446,28 @@ static void draw_overview_resource(fd2_vga *vga,
                             140 + (int)i * 6, 176, 0);
 }
 
+int fd2_field_overview_conditions_get(const fd2_field_overview *data,
+                                      size_t fragments[2]) {
+    if (!data || !fragments || data->stage >= 30u) return -1;
+    int64_t base = (int64_t)k_field_overview_condition_policy[0] +
+        (int64_t)data->stage * k_field_overview_condition_policy[1];
+    int64_t selected[2] = {base, base + k_field_overview_condition_policy[2]};
+    for (size_t i = 0; i < sizeof(k_field_overview_roster_rules) /
+            sizeof(k_field_overview_roster_rules[0]); i++) {
+        const int32_t *rule = k_field_overview_roster_rules[i];
+        if (rule[0] < 0 || (size_t)rule[0] != data->stage) continue;
+        if (rule[1] < 0) return -1;
+        int found = fd2_field_roster_has_text(data->roster, data->roster_count,
+                                            (uint32_t)rule[1]);
+        if (found < 0) return -1;
+        selected[1] += rule[found ? 3 : 2];
+    }
+    if (selected[0] < 0 || selected[1] < 0 ||
+        (uint64_t)selected[0] > SIZE_MAX || (uint64_t)selected[1] > SIZE_MAX) return -1;
+    fragments[0] = (size_t)selected[0]; fragments[1] = (size_t)selected[1];
+    return 0;
+}
+
 int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_field_info_assets *assets,
                             const fd2_font *font,
@@ -452,7 +475,7 @@ int fd2_field_overview_draw(fd2_vga *vga,
                             const fd2_field_overview *data) {
     if (!vga || !assets || !assets->ready || !font || !font->glyphs ||
         font->glyph_count == 0 || font->glyph_count > font->size / 32u ||
-        !data || data->stage >= 30u || data->stage == 16u || !data->units ||
+        !data || data->stage >= 30u || !data->units ||
         data->units->count > FD2_FIELD_MAX_UNITS)
         return -1;
     for (size_t i = 0; i < 4; i++) {
@@ -467,14 +490,16 @@ int fd2_field_overview_draw(fd2_vga *vga,
                 return -1;
         }
     }
-    /* sub_1B41D：stage+1及597/598+2*stage；stage16的败条件须由其原
-     * sub_33499(18)选择628/630，现无该私有binding，明确拒绝而不猜。
-     * active上限96仍能用两位人数；回合可超过999。 */
+    /* field_battle_overview_draw @0x1b41d（原登记sub_1B41D）：条件常量/
+     * 私有roster分支唯一来自field_info冷表。
+     * victory先绘制的基数不受defeat规则影响；人数仍取active，条件借roster。 */
     if (!image_has_size(&assets->digit_overflow[1], 18, 8))
         return -1;
     fd2_text_expanded conditions[2];
+    size_t fragments[2];
+    if (fd2_field_overview_conditions_get(data, fragments) != 0) return -1;
     for (size_t i = 0; i < 2; i++) {
-        if (overview_fragment(text, font, 597u + data->stage * 2u + i,
+        if (overview_fragment(text, font, fragments[i],
                                i == 0 ? 61 : 116, &conditions[i]) != 0)
             return -1;
     }

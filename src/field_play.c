@@ -1086,7 +1086,8 @@ static int play_field_overview(fd2_field_game *game, fd2_vga *vga) {
      * 对象借用framebuffer。成功缓存四块后，A才改为最初干净背景。 */
     memcpy(background, vga->framebuffer, VGA_W * VGA_H);
     fd2_field_overview data = {
-        game->stage, game->turn_number, game->resource_value, &game->units
+        game->stage, game->turn_number, game->resource_value, &game->units,
+        game->roster, game->roster_count
     };
     if (fd2_field_overview_draw(vga, &game->info_assets, &game->font,
                                 &game->ui_text, &data) != 0) {
@@ -2050,6 +2051,10 @@ static int begin_victory_flow(fd2_field_game *game, fd2_field_play_context *cont
     int written = snprintf(id, sizeof(id), "stage.victory.%03zu", game->stage);
     if (written < 0 || (size_t)written >= sizeof(id)) return -1;
     const fd2_static_flow *flow = fd2_field_stage_flow_find(id);
+    /* main @0x25bf4 的25e0b片段：先stop再进胜利caller。来源图只消费一次，
+     * 不能用旧settlement投影提前提交对白后缀或再同步一次持久队伍。 */
+    if (fd2_field_stage_source_is_bound(game->stage, "victory"))
+        flow = fd2_field_stage_flow_find("stage.victory.source.prefix");
     int pc = flow ? flow->entry : -1;
     int music_requested = 0;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
@@ -2273,8 +2278,10 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         shared_menu_tick(&game,vga,SDL_GetTicks());
         /* 53ECC只在原controller/phase后置点锁存；10010返回、方向／Z／F2
          * 和普通呈现帧不能提前执行1197b的结果查询。 */
-        int continuation_pending = game.loot.source != 0u;
-        int automatic_continuation = continuation_pending &&
+        /* 结果图可在当前controller/phase叶内先写latch再等待剧情。
+         * 原caller返回前不得据中间latch离场；新等待沿既有event owner排空。 */
+        int continuation_pending = game.loot.source != 0u || game.event_resume.active;
+        int automatic_continuation = game.loot.source != 0u &&
             game.loot.notice.kind == FD2_FIELD_LOOT_NONE;
         if (!once && !continuation_pending && game.battle_result != FD2_FIELD_BATTLE_ONGOING) {
             play_result = game.battle_result == FD2_FIELD_BATTLE_VICTORY
@@ -3105,6 +3112,21 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             int scene_result = FD2_SCENE_RESULT_ERROR;
             if (!fd2_field_stage_battle_is_supported(game.stage)) {
                 fprintf(stderr, "当前关卡结算尚未开放，已停止跨关（stage=%zu）。\n", game.stage);
+            } else if (fd2_field_stage_source_is_bound(game.stage, "victory")) {
+                if (begin_victory_flow(&game, context) == 0) {
+                    scene_result = fd2_scene_play_stage_victory(vga, fdother, &game, field_audio, once);
+                    if (scene_result == FD2_SCENE_RESULT_OK) {
+                        if (fd2_field_game_export_preparation(&game, &prepared) != 0)
+                            scene_result = FD2_SCENE_RESULT_ERROR;
+                        else {
+                            context->preparation = prepared;
+                            context->has_preparation = 1;
+                            printf("field settlement: stage=%u persistent=%u resource=%u\n",
+                                prepared.stage_id, prepared.unit_count, prepared.gold_or_flags);
+                            fflush(stdout);
+                        }
+                    }
+                }
             } else if (fd2_field_game_settlement_prepare(&game, &prepared) == 0 &&
                 begin_victory_flow(&game, context) == 0) {
                 scene_result = fd2_scene_play_stage_victory(vga, fdother, &game, field_audio, once);

@@ -1032,324 +1032,6 @@
       ]
     },
     {
-      "id": "stage.entry.002",
-      "entry": "setup",
-      "nodes": [
-        {
-          "id": "setup",
-          "op": "stage_setup",
-          "args": [
-            2,
-            6,
-            15,
-            6
-          ],
-          "on": {
-            "next": "entry_dark"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "entry_dark",
-          "op": "brightness",
-          "args": [
-            64
-          ],
-          "on": {
-            "next": "entry_present"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "entry_present",
-          "op": "present_base",
-          "args": [],
-          "on": {
-            "next": "entry_fade"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "entry_fade",
-          "op": "palette_fade_in",
-          "args": [
-            0
-          ],
-          "on": {
-            "next": "camera_a"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "camera_a",
-          "op": "pan",
-          "args": [
-            3,
-            17
-          ],
-          "on": {
-            "next": "delay_a"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "delay_a",
-          "op": "delay",
-          "args": [
-            200
-          ],
-          "on": {
-            "next": "text0"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "text0",
-          "op": "text",
-          "args": [
-            0
-          ],
-          "on": {
-            "next": "move18"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "move18",
-          "op": "move",
-          "args": [
-            18,
-            0
-          ],
-          "on": {
-            "next": "group1"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "group1",
-          "op": "append_group",
-          "args": [
-            1,
-            0,
-            0
-          ],
-          "on": {
-            "next": "count15"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "count15",
-          "op": "assert_unit_count",
-          "args": [
-            15
-          ],
-          "on": {
-            "next": "camera_b"
-          },
-          "views": [
-            "logic"
-          ]
-        },
-        {
-          "id": "camera_b",
-          "op": "pan",
-          "args": [
-            3,
-            6
-          ],
-          "on": {
-            "next": "delay_b"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "delay_b",
-          "op": "delay",
-          "args": [
-            200
-          ],
-          "on": {
-            "next": "move17"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "move17",
-          "op": "move",
-          "args": [
-            17,
-            0
-          ],
-          "on": {
-            "next": "text1"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "text1",
-          "op": "text",
-          "args": [
-            1
-          ],
-          "on": {
-            "next": "move19"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "move19",
-          "op": "move",
-          "args": [
-            19,
-            0
-          ],
-          "on": {
-            "next": "text2"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "text2",
-          "op": "text",
-          "args": [
-            2
-          ],
-          "on": {
-            "next": "camera_c"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "camera_c",
-          "op": "pan",
-          "args": [
-            3,
-            17
-          ],
-          "on": {
-            "next": "text3"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "text3",
-          "op": "text",
-          "args": [
-            3
-          ],
-          "on": {
-            "next": "directions"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "directions",
-          "op": "reset_directions",
-          "args": [],
-          "on": {
-            "next": "directions.wait"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "directions.wait",
-          "op": "sleep_ms",
-          "args": [
-            20
-          ],
-          "on": {
-            "next": "leader"
-          },
-          "views": [
-            "present"
-          ]
-        },
-        {
-          "id": "leader",
-          "op": "focus_actor",
-          "args": [
-            0
-          ],
-          "on": {
-            "next": "display"
-          },
-          "views": [
-            "logic",
-            "present"
-          ]
-        },
-        {
-          "id": "display",
-          "op": "display_mode",
-          "args": [
-            1
-          ],
-          "on": {
-            "next": "end"
-          },
-          "views": [
-            "logic"
-          ]
-        },
-        {
-          "id": "end",
-          "op": "end",
-          "args": [],
-          "on": {},
-          "views": [
-            "logic",
-            "present"
-          ]
-        }
-      ]
-    },
-    {
       "id": "stage.victory.000",
       "entry": "app_preflight",
       "nodes": [
@@ -2152,10 +1834,10 @@
           "id": "capability",
           "op": "stage_capability",
           "args": [
-            0,
-            0,
+            1,
             15,
-            6
+            0,
+            0
           ],
           "on": {},
           "views": [
@@ -2735,7 +2417,7 @@
           "id": "domain",
           "op": "result_count_at_least",
           "args": [
-            65
+            1
           ],
           "on": {
             "yes": "turn",
@@ -2753,13 +2435,20 @@
             6
           ],
           "on": {
-            "yes": "hidden64",
+            "yes": "late.domain",
             "no": "leader",
             "error": "invalid"
           },
           "views": [
             "logic"
           ]
+        },
+        {
+          "id": "late.domain",
+          "op": "result_count_at_least",
+          "args": [65],
+          "on": {"yes": "hidden64", "no": "invalid"},
+          "views": ["logic"]
         },
         {
           "id": "hidden64",
@@ -5070,12 +4759,198 @@
         {"id":"n127","op":"delay","args":[2],"on":{"next":"n128"},"views":["logic","present"]},
         {"id":"n128","op":"end","args":[],"on":{}}
       ]
+    },
+    {
+      "id": "stage.capability.003",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,24,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.004",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,42,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.005",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,33,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.006",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,34,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.007",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,29,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.008",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,34,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.009",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,53,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.010",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,39,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.011",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,25,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.012",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,59,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.013",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,67,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.014",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,74,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.015",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,76,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.016",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,52,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.017",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,53,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.018",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,64,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.019",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[1,83,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.capability.020",
+      "entry": "capability",
+      "nodes": [
+        {"id":"capability","op":"stage_capability","args":[0,75,0,0],"on":{},"views":["logic"]}
+      ]
+    },
+    {
+      "id": "stage.victory.source.prefix",
+      "entry": "app_music",
+      "nodes": [
+        {"id":"app_music","op":"victory_music","args":[-1],"on":{"next":"done"},"views":["logic"]},
+        {"id":"done","op":"end","args":[],"on":{},"views":["logic"]}
+      ]
     }
   ],
   "bindings": {
     "stage.source.entry.015": "stage.source.entry.012",
     "stage.source.entry.018": "stage.source.entry.012",
     "stage.source.entry.019": "stage.source.entry.012",
-    "stage.source.entry.020": "stage.source.entry.012"
+    "stage.source.entry.020": "stage.source.entry.012",
+    "stage.result.002": "stage.result.000",
+    "stage.result.003": "stage.result.000",
+    "stage.result.004": "stage.result.000",
+    "stage.result.005": "stage.result.000",
+    "stage.result.006": "stage.result.000",
+    "stage.result.007": "stage.result.000",
+    "stage.result.008": "stage.result.000",
+    "stage.result.009": "stage.result.source_020707",
+    "stage.result.010": "stage.result.000",
+    "stage.result.011": "stage.result.source_02073d",
+    "stage.result.013": "stage.result.000",
+    "stage.result.014": "stage.result.source_020822",
+    "stage.result.015": "stage.result.source_02084a",
+    "stage.result.017": "stage.result.source_0208cf",
+    "stage.result.018": "stage.result.source_020926",
+    "stage.entry.002": "stage.source.entry.002",
+    "stage.entry.003": "stage.source.entry.003",
+    "stage.entry.004": "stage.source.entry.004",
+    "stage.entry.005": "stage.source.entry.005",
+    "stage.entry.006": "stage.source.entry.006",
+    "stage.entry.007": "stage.source.entry.007",
+    "stage.entry.008": "stage.source.entry.008",
+    "stage.entry.009": "stage.source.entry.009",
+    "stage.entry.010": "stage.source.entry.010",
+    "stage.entry.011": "stage.source.entry.011",
+    "stage.entry.012": "stage.source.entry.012",
+    "stage.entry.013": "stage.source.entry.013",
+    "stage.entry.014": "stage.source.entry.014",
+    "stage.entry.015": "stage.source.entry.012",
+    "stage.entry.016": "stage.source.entry.016",
+    "stage.entry.017": "stage.source.entry.017",
+    "stage.entry.018": "stage.source.entry.012",
+    "stage.entry.019": "stage.source.entry.012",
+    "stage.entry.020": "stage.source.entry.012",
+    "stage.victory.002": "stage.source.victory.002",
+    "stage.victory.003": "stage.source.victory.003",
+    "stage.victory.004": "stage.source.victory.004",
+    "stage.victory.005": "stage.source.victory.005",
+    "stage.victory.006": "stage.source.victory.006",
+    "stage.victory.007": "stage.source.victory.007",
+    "stage.victory.008": "stage.source.victory.008",
+    "stage.victory.009": "stage.source.victory.009",
+    "stage.victory.010": "stage.source.victory.010",
+    "stage.victory.011": "stage.source.victory.011",
+    "stage.victory.012": "stage.source.victory.012",
+    "stage.victory.013": "stage.source.victory.013",
+    "stage.victory.014": "stage.source.victory.014",
+    "stage.victory.015": "stage.source.victory.015",
+    "stage.victory.016": "stage.source.victory.016",
+    "stage.victory.017": "stage.source.victory.017",
+    "stage.victory.018": "stage.source.victory.018",
+    "stage.victory.019": "stage.source.victory.019"
   }
 }

@@ -146,7 +146,7 @@ typedef struct {
     fd2_field_overview data;
     uint8_t glyphs[64];
     uint8_t tokens[24];
-    uint16_t offsets[603];
+    uint16_t offsets[659];
 } overview_fixture;
 
 static int make_image(fd2_image *image, int width, int height, uint8_t color) {
@@ -182,7 +182,7 @@ static int init_overview_fixture(overview_fixture *fixture) {
     fixture->offsets[598] = 4;
     fixture->text = (fd2_text_entry){fixture->tokens, 8,
                                      fixture->offsets, 599};
-    fixture->data = (fd2_field_overview){0, 1, 0, &fixture->units};
+    fixture->data = (fd2_field_overview){0, 1, 0, &fixture->units, NULL, 0};
     return 0;
 }
 
@@ -456,6 +456,64 @@ static int test_overview_rejects_before_drawing(void) {
     return 0;
 }
 
+static int test_stage16_overview_roster_conditions(void) {
+    overview_fixture fixture;
+    CHECK(init_overview_fixture(&fixture) == 0);
+    fixture.data.stage = 16; fixture.text.fragment_count = 631;
+    fixture.text.size = 12;
+    fixture.offsets[628] = 0; fixture.offsets[629] = 4; fixture.offsets[630] = 8;
+    fixture.tokens[0] = 0; fixture.tokens[2] = fixture.tokens[3] = 0xff;
+    fixture.tokens[4] = 1; fixture.tokens[6] = fixture.tokens[7] = 0xff;
+    fixture.tokens[8] = 1; fixture.tokens[10] = fixture.tokens[11] = 0xff;
+    fd2_field_unit roster[32] = {0};
+    for (size_t i = 0; i < 32; i++) roster[i].text_id = 17;
+    fixture.data.roster = roster; fixture.data.roster_count = 32;
+    /* active恰有text18不算持久入队；计数和条件分别借原owner。 */
+    fixture.units.count = 1; fixture.units.items[0].text_id = 18;
+    fixture.units.items[0].side = 2;
+    fd2_field_units active_before = fixture.units;
+    fd2_field_unit roster_before[32]; memcpy(roster_before, roster, sizeof(roster));
+    fd2_vga vga = {0}; size_t fragments[2] = {1, 2};
+    CHECK(fd2_field_overview_conditions_get(&fixture.data, fragments) == 0 && fragments[0] == 629 && fragments[1] == 628);
+    CHECK(draw_overview(&vga, &fixture) == 0);
+    CHECK(vga.framebuffer[61 * VGA_STRIDE + 81] == 0xcd);
+    CHECK(vga.framebuffer[116 * VGA_STRIDE + 80] == 0xcd);
+    CHECK(vga.framebuffer[116 * VGA_STRIDE + 81] != 0xcd);
+    for (size_t at = 0; at < 2; at++) for (unsigned flags = 0; flags < 2; flags++)
+    for (unsigned hp = 0; hp < 2; hp++) for (unsigned side = 0; side < 4; side++) {
+        memcpy(roster, roster_before, sizeof(roster));
+        size_t index = at ? 31 : 0;
+        roster[index].text_id = 18; roster[index].flags = flags ? 0xff : 0;
+        roster[index].hp = hp ? 65535 : 0;
+        roster[index].side = side == 3 ? 255 : (uint8_t)side;
+        fd2_field_unit expected[32]; memcpy(expected, roster, sizeof(roster));
+        CHECK(fd2_field_overview_conditions_get(&fixture.data, fragments) == 0 && fragments[0] == 629 && fragments[1] == 630);
+        CHECK(draw_overview(&vga, &fixture) == 0);
+        CHECK(vga.framebuffer[61 * VGA_STRIDE + 81] == 0xcd);
+        CHECK(vga.framebuffer[116 * VGA_STRIDE + 81] == 0xcd);
+        CHECK(vga.framebuffer[116 * VGA_STRIDE + 80] != 0xcd);
+        CHECK(!memcmp(expected, roster, sizeof(roster)) && !memcmp(&active_before, &fixture.units, sizeof(active_before)));
+        CHECK(fd2_field_roster_has_text(roster, 32, 274) == 0); /* 不能截成BYTE18。 */
+    }
+    fixture.data.roster_count = 0;
+    CHECK(fd2_field_overview_conditions_get(&fixture.data, fragments) == 0 && fragments[1] == 628);
+    fixture.data.roster = NULL; fragments[0] = 123; fragments[1] = 456;
+    CHECK(fd2_field_overview_conditions_get(&fixture.data, fragments) == -1 && fragments[0] == 123 && fragments[1] == 456);
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.data.roster = roster; fixture.data.roster_count = 33;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.data.roster_count = 32; roster[0].text_id = 18;
+    fixture.text.fragment_count = 630; /* 缺选中败条件，不能先画胜条件。 */
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.text.fragment_count = 631;
+    fixture.tokens[8] = 2;
+    CHECK(overview_rejects_unchanged(&vga, &fixture) == 0);
+    fixture.data.stage = 0; fixture.data.roster = NULL; fixture.data.roster_count = SIZE_MAX;
+    CHECK(fd2_field_overview_conditions_get(&fixture.data, fragments) == 0 && fragments[0] == 597 && fragments[1] == 598);
+    fd2_field_info_assets_close(&fixture.assets);
+    return 0;
+}
+
 static int test_text_fragment_span_rejection(void) {
     const uint8_t data[] = {0, 1, 2, 3, 4};
     uint16_t offsets[] = {0, 6};
@@ -508,10 +566,14 @@ static int test_original_multiline_overview_conditions(void) {
     CHECK(open_magic_fixture(&fixture) == 0);
     fd2_field_units units = {0}, before = units;
     /* 首个stage9/fragment616确有-2，旧stage<=2门在此真实失败。 */
-    for (size_t pass = 0; pass < 31u; pass++) {
-        size_t stage = pass ? pass - 1u : 9u;
-        if (stage == 16u) continue; /* 私有败条件选择另有原predicate，不猜。 */
-        fd2_field_overview data = {stage, 2u, 0u, &units};
+    for (size_t pass = 0; pass < 32u; pass++) {
+        size_t stage = pass == 31u ? 16u : pass ? pass - 1u : 9u;
+        int roster18 = pass == 31u;
+        fd2_field_unit roster[32] = {0}, before_roster[32];
+        for (size_t i = 0; i < 32u; i++) roster[i].text_id = 17;
+        if (roster18) { roster[31].text_id = 18; roster[31].flags = 0xff; }
+        memcpy(before_roster, roster, sizeof(roster));
+        fd2_field_overview data = {stage, 2u, 0u, &units, roster, 32u};
         fd2_vga actual = {0};
         memset(actual.framebuffer, 0xa5, sizeof(actual.framebuffer));
         CHECK(fd2_field_overview_draw(&actual, &fixture.assets, &fixture.font,
@@ -521,7 +583,8 @@ static int test_original_multiline_overview_conditions(void) {
         for (size_t part = 0; part < 2u; part++) {
             const uint8_t *tokens;
             size_t count;
-            CHECK(fd2_text_entry_get_fragment(&fixture.text, 597u + stage * 2u + part,
+            size_t fragment = stage == 16u && part && !roster18 ? 628u : 597u + stage * 2u + part;
+            CHECK(fd2_text_entry_get_fragment(&fixture.text, fragment,
                                                &tokens, &count) == 0);
             int x = 80, y = part ? 116 : 61, ended = 0, newlines = 0;
             for (size_t i = 0; i < count; i++) {
@@ -537,6 +600,7 @@ static int test_original_multiline_overview_conditions(void) {
         }
         CHECK(!memcmp(actual.framebuffer, expected.framebuffer, sizeof(actual.framebuffer)));
         CHECK(!memcmp(&units, &before, sizeof(units)));
+        CHECK(!memcmp(roster, before_roster, sizeof(roster)));
     }
     close_magic_fixture(&fixture);
     return 0;
@@ -1427,7 +1491,30 @@ static int test_battle_summary_destinations(void) {
     return 0;
 }
 
-int main(void) {
+static int overview_vector_probe(void) {
+    char line[8192], hex[5121];
+    while (fgets(line, sizeof(line), stdin)) {
+        size_t stage, count;
+        if (sscanf(line, "%zu %zu %5120s", &stage, &count, hex) != 3 || count > 32u) return 2;
+        fd2_field_unit roster[32] = {0}, before[32];
+        if (count == 0 ? strcmp(hex, "-") != 0 : strlen(hex) != count * 160u) return 2;
+        for (size_t i = 0; i < count * 80u; i++) {
+            unsigned value;
+            if (sscanf(hex + 2u*i, "%2x", &value) != 1) return 2;
+            ((uint8_t *)roster)[i] = (uint8_t)value;
+        }
+        memcpy(before, roster, sizeof(roster));
+        fd2_field_overview data = {stage, 1, 0, NULL, roster, count};
+        size_t fragments[2] = {123, 456};
+        int status = fd2_field_overview_conditions_get(&data, fragments);
+        printf("{\"status\":%d,\"fragments\":[%zu,%zu],\"owner_unchanged\":%s}\n",
+            status, fragments[0], fragments[1], !memcmp(before, roster, sizeof(roster)) ? "true" : "false");
+    }
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "--overview-vectors") == 0) return overview_vector_probe();
     CHECK(test_detail_transition() == 0);
     CHECK(test_item_table() == 0);
     CHECK(test_panel_layout() == 0);
@@ -1436,6 +1523,7 @@ int main(void) {
     CHECK(test_overview_multiline_atomic_boundaries() == 0);
     CHECK(test_stage1_overview_conditions() == 0);
     CHECK(test_overview_rejects_before_drawing() == 0);
+    CHECK(test_stage16_overview_roster_conditions() == 0);
     CHECK(test_text_fragment_span_rejection() == 0);
     CHECK(test_original_multiline_overview_conditions() == 0);
     CHECK(test_magic_asset_owner() == 0);

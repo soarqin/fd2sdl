@@ -74,7 +74,8 @@ int fd2_scene_arrival_visual_play(fd2_scene_arrival_visual *scope,fd2_vga *vga,
     const fd2_field_game *game,fd2_field_audio *audio,int fast);
 void fd2_scene_arrival_visual_close(fd2_scene_arrival_visual **scope);
 
-/* 只读核当前胜利图的投影、脚本、文本和cursor资源，不呈现或切曲。 */
+/* 旧预投影胜利图的只读提前检查，不呈现或切曲。
+ * 单次source图不预跑终态，沿实际Scene叶晚验，不能用此接口预签该域。 */
 int fd2_scene_stage_victory_validate(const fd2_field_game *game);
 
 /* 按当前stage的同源冷流程执行，缺少已支持绑定明确失败。 */

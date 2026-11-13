@@ -1,6 +1,6 @@
 # 战场 session、动作提交与场景交接设计
 
-本文约束现有模块的后续扩展，补齐状态、失败和验收边界，不要求重写引擎。设计始于 `e9a2d81`；2026-11-11 续记 G5 输入、逐叶事件及共享返场合同，保留 G2／G3／G4 和各历史阶段原有验收范围。**G4 已以 `4ada76b` 提交并集成本地 master；G5 已完成本轮来源域的统一历史回归与逐项签核，通用完成门通过，S 尚未启动。阶段提交和本地集成身份以 Git 及最终收据为准。** 源码接线、静态／局部原码验证与原版运行验收分别登记。优先级见 [`../plans/development.md`](../plans/development.md)，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
+本文约束现有模块的后续扩展，补齐状态、失败和验收边界，不要求重写引擎。设计始于 `e9a2d81`；2026-11-11 续记 G5 输入、逐叶事件及共享返场合同，2026-11-14 补充 S3 结果调用与准备交接，保留各历史阶段原有验收范围。G4 `4ada76b` 及 G5 的来源域内完成结论保持原候选身份；阶段状态、支持清单、提交和本地集成统一查[总计划](../plans/development.md)与[阶段记录](../plans/stage-log.md)。源码接线、静态／局部原码验证与原版运行验收分别登记，工作包见 [`../plans/battlefield.md`](../plans/battlefield.md)。
 
 ## 1. 现有模块与状态所有权
 
@@ -157,7 +157,7 @@ AP／DP重算使用binary64 1.15乘积先53位舍入再向0截断，推翻旧nea
 
 ## 3. 事件执行与停止边界（B0）
 
-已知正式事件由 Game 的 `event_resume` 按冷图逐叶执行：逻辑写点、呈现、ACK 和后继 PC 交错推进，不再先提交整个事件，再由 Scene 重放。原六个正式身份从 scene 迁入 common_event，未新增关卡支持；来源映射和保证边界见[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。
+已知正式事件由 Game 的 `event_resume` 按冷图逐叶执行：逻辑写点、呈现、ACK 和后继 PC 交错推进，不再先提交整个事件，再由 Scene 重放。G5 将原六个正式身份从 scene 迁入 common_event，当时未新增关卡支持；来源映射和保证边界见[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。S3 的正式绑定继续使用同一 owner，新增合同见本文末节，实际开放清单仍只查总计划。
 
 `event_log` 仍最多保存64个 notice，用于未绑定来源诊断及停止边界。fallback 的 `reserve_event_notice` 容量检查保留；未知必需事件不能记录后按成功继续。已知 common 绑定不借日志驱动，也不因旧演出日志满而拒绝合法执行。残留的外部 `presentation_deferred` 状态视为损坏，由 common 预检和 Play 的诊断门明确拒绝，不再交给 Scene 重放；不能把 `progress_resume` 的防御性 pending 返回当作仍有合法演出 producer。
 
@@ -191,14 +191,14 @@ session 的 `failure` 与 `failure_notice` 只记录首个不可恢复错误及�
 
 ## 4. 战场结果与应用去向
 
-`battle_result` 的 stage 0／1 专用结果门通过 `fd2_field_play_result` 与 `app_flow` 分别传给应用层。正式循环先处理 session 错误和宿主退出，再推进下一 actor；快速检查不触发真实胜败结算。
+`battle_result` 通过 `fd2_field_play_result` 与 `app_flow` 传给应用层；stage 0／1 的既有结果门保留 S0 适用域，S3 增量按本文末节的真实调用点执行。正式循环先处理 session 错误和宿主退出，再推进下一 actor；快速检查不触发真实胜败结算。
 
 `COMPLETE` 仅表示无交互快速检查结束。B5 候选的正式 App 流程在 stage 0 胜利后播放本关结算，同步持久表并进入 stage 1 准备页；败北完成 Game Over 后返回标题。独立 `--field-play` 不持有 App 准备状态，仍只报告胜／败并退出 `2`，不能把该调试结果当作跨关完成。游戏内离场、宿主关闭／快速检查退出 `0`，错误退出 `1`。离场使用独立 `LEAVE_GAME` 来源，不能改作重新进入标题。B5受支持范围及其后的统一历史回归已完成，具体来源见阶段记录。
 
 | 结果 | 应用职责 |
 |---|---|
 | 仍在战斗 | 继续当前 session，不离场 |
-| 胜利 | stage 0／1 完整结算后交接下一准备状态，再按 stage 1／2 的独立入口出阵；未知后续关卡仍拒绝 |
+| 胜利 | 完成已绑定结算后交接下一准备状态；既有 stage 0／1 沿原合同，S3 来源绑定沿末节单次提交／只读导出合同；未知后续关卡仍拒绝 |
 | 失败 | 完成已确认 Game Over 流程后回标题；不能按胜利结算、递增 stage 或吞掉失败 |
 | 游戏内离开战场 | FDTXT[416] 后独立返回 `LEAVE_GAME` 并退出应用；资源失败为错误，提示期间宿主关闭仍为 `HOST_QUIT` |
 | 宿主关闭 | 结束应用，不重新进入标题 |
@@ -211,7 +211,7 @@ stage 1 的结算按 `field_stage1_victory_play @0x22f37` 顺序处理：先检�
 
 原 `51A83` 的普通光标模式0／1由 Game 的 `ordinary_display_mode` 记录，供结算 Scene 读取，不进入 SAV。`0x13565` 的自动整轮控制返回时恢复1；显式 END 继承 AI 的最后实际写点。只有 fragment6／7 的入口继承该值，不能按最后动作种类猜测。Scene 按 `0x165ac` 在说话人聚焦前置0、聚焦后置1；后一次写入不会立即重画地图，文字与闭框仍使用无光标的缓存背景。随后 `0x135dd` 的 PAN 无条件置0，group4和脚本14均不改该值，因此 fragment8入口为0；其内部仍按说话人更新，fragment8／9结束后另有明确置0。目标覆盖层的模式2..6不由此字段推断。
 
-stage 2 使用独立入口 `0x32e8c`，按六个部署槽、脚本18、group1九人、脚本17／19及最终方向重置构造15人活动表。准备页读取 `0x623ac` 的 type2，背景为 FDOTHER62，标记坐标也取 type2原表。当前仅开放入场、浏览、详情、总览和存读档；第三回合 action9 `0x34818` 未接入，玩家提交与 END 在入口拒绝，不以逐人 WAIT 绕过能力门。
+stage 2 使用独立入口 `0x32e8c`，按六个部署槽、脚本18、group1九人、脚本17／19及最终方向重置构造15人活动表。准备页读取 `0x623ac` 的 type2，背景为 FDOTHER62，标记坐标也取 type2原表。B7 当时仅开放入场、浏览、详情、总览和存读档；第三回合 action9 `0x34818`、玩家提交与 END 是当时保留的支持边界。S3 的增量接入不改签 B7 证据，当前绑定与验收状态由总计划和阶段记录登记。
 
 B5 的交接顺序应先确认原版 callback、持续单位字段和剧情，再准备下一关资源及 roster；成功后切换 owner，最后释放旧 session。不用 `stage++`、重放新游戏模板或复制旧地图代替关卡初始化。失败时不破坏原档；下一关尚未准备完成时，不释放唯一可诊断的旧状态。
 
@@ -319,16 +319,49 @@ G2新增验证分三类，不能由其中一类推出另两类通过：
 
 ## S0 结果查询与恢复边界
 
-`fd2_field_game_battle_result`是只读查询；`game.battle_result`对应原`53ECC`锁存，由既有controller／phase后置写点更新。stage0／1结果图不以HP代替hidden；正常源域及安全防御域分别核验。活动snapshot导入保留HP／flags与旧锁存，同stage和跨stageowner替换一致；Continue新Game初值ongoing。不因Load、方向／Z／F1／F2、空格菜单或呈现帧提前刷新结果，actor Enter动作／详情返回后才走原后置查询。HP0可见记录仍能进入已证选择／详情，攻击和AI的独立有效域不据此改变。
+S0 的 `fd2_field_game_battle_result` 是已证 stage0／1 有效域的只读查询；`game.battle_result` 对应原 `53ECC` 锁存，由既有 controller／phase 后置写点更新。stage0／1 结果图不以 HP 代替 hidden；正常源域及安全防御域分别核验。活动 snapshot 导入保留 HP／flags 与旧锁存，同 stage 和跨 stage owner 替换一致；Continue 新 Game 初值 ongoing。不因 Load、方向／Z／F1／F2、空格菜单或呈现帧提前刷新结果，actor Enter 动作／详情返回后才走原后置查询。HP0 可见记录仍能进入已证选择／详情，攻击和 AI 的独立有效域不据此改变。S3 正式输入使用下文的 checked 查询处理新增条件有效域，不把旧枚举接口用于坏输入。
 
 恢复成功／失败／取消不额外改写SAV／RNG；锁存不是第二状态或存档字段，不新增“待结果”标志，也不靠整体Game回滚复原外部owner。完整原义、时点与局部执行限制见[运行语义§12](../reverse-engineering/common-runtime-semantics.md#12-s0-结果锁存与活动恢复合同2026-11-13)，本轮实际验证与未验范围见[阶段记录](../plans/stage-log.md)。
 
 ## S2 显式来源机制与只读投影
 
-`stage.source.*`、`stage.result.source.*` 和新增 `common.callback.*` 是有来源身份的机制定义，不构成正式关卡支持清单。App 的普通 stage 入口、controller 和存档支持门保持原范围。来源机制夹具显式选择定义并声明受控状态，不能据此声称该关自然可达。
+S2 交付的 `stage.source.*`、`stage.result.source.*` 和新增 `common.callback.*` 是有来源身份的机制定义，当时未改普通 stage 入口、controller 和存档支持门。定义本身仍不构成正式关卡支持清单。来源机制夹具显式选择定义并声明受控状态，不能据此声称该关自然可达；S3 的实际绑定须另过依赖闭包与正式流程门。
 
 来源 Scene 只借用空闲的现有 Game／Scene owner；pending progress（包括没有 notice 的 resume）、loot／child／completion、后置等待或交互均在写入前拒绝。资源准备只建立资源和原 roster，active 表在冷 `stage_setup_source` 叶到达时才建立。每个业务叶直接写原 owner，运动叶同步到该 owner；不先执行整个 Game 图再回放演出。HOST／错误保留已到达前缀，不自动从 entry 重放。`next_stage` 只改原 stage 值，旧资源仍归原 owner；调用者须关闭并重新准备资源后才能进入下一场景，不能继续拿旧地图运行新 controller。
 
 事件预检使用局部、只读的单位／roster／状态／地图投影，最多 64 条路径、合计 65,536 步。新增单位只确认已证身份字段，HP／库存等未知条件检查两边；复杂战斗／奖励不在预检中执行或消费 RNG。这个投影不保存、不拥有资源、不回写 Game，也不替代逐叶晚验。缺源、容量和错误路径按现有失败前缀合同停止，不提供整图事务或回滚。
 
 公共冷流 entry 扩为 WORD，以容纳来源 callback76 的固定动作序列；common_event 节点上限 32,767，原 BYTE 热游标域仍限制 254。Scene 仅共享固定 init／fadein／fadeout 三类冷子图，使用已有 Scene 栈和预算，不新增通用调用栈或热 PC。精确来源、原码替身域及代表验收见[S2 报告](../plans/s2-shared-semantics.md)，当前顺序只查[总计划](../plans/development.md)。
+
+## S3 结果调用与准备交接的增量合同
+
+### 结果查询、错误与原调用点
+
+正式路径使用 `fd2_field_game_battle_result_query`，输入为 `const fd2_field_game *`，输出为 `fd2_field_battle_result *out`：成功返回 `0` 并写 `out`；缺少实际分支所需的 raw、锁存值有误或定义不可消费时返回 `-1`，`out` 与 Game 均不变。纯结果绑定沿现有 const 图查询；带故事／写锁存的绑定只读当前锁存，不在 getter 中执行故事。原枚举接口仅保留给已证有效域的兼容调用，正式控制器、自动入口、动作收尾、返场和结算投影均使用 checked 路径。
+
+可写调用点只在查询成功后更新既有 `battle_result`；失败进入首个 `failure`，保留已提交的单位、资金、库存、RNG 和 owner 前缀。const 结算投影仅返回失败，不修改 Game 或输出。不能将失败改判为 ongoing／胜利／败北，也不能终止进程代替 session 错误。活动 Load 接受的 64 人 stage18 在晚期回合缺 raw64 时，允许完成原快照恢复，再在需要该 raw 的查询边界拒绝；不抬高人数下界以挡住合法早期恢复。
+
+原结果表有五个已证 CALLsite，分别属于玩家后置、phase 状态和 AI 两类 outer；完整地址、参数与条件 raw 域见[共享运行语义 §14](../reverse-engineering/common-runtime-semantics.md#14-s3-结果调用者与条件有效域2026-11-14)。side1 按每个 raw 查询，side0 两个 pass 都按每个 raw 查询，包含未进入 AI 本体的 raw；不能仅凭 `1197b` 的来源记录省略 phase／AI 查询。正式 App scheduler 拥有 AI outer；同步 `commit_ai_*` 机制 API 仍是动作 helper，不因此升级为完整 outer。
+
+### 结果等待沿现有 owner 返回
+
+`event_resume.completion` 只标记当前结果图的有限返回点，不增加业务副本、平行 PC 或 SAV 字段：
+
+| 完成标记 | 等待结束后的唯一续点 |
+|---|---|
+| `FD2_EVENT_COMPLETE_PLAYER_RESULT` | 原玩家结果调用已返回，再执行 `13565`／必要 phase／pending 尾，不重新查询结果 |
+| `FD2_EVENT_COMPLETE_AI_RESULT` | 当前 raw 的 outer 结果调用已返回，再判锁存与下一 raw／pass |
+| `FD2_EVENT_COMPLETE_STATUS_RESULT` | phase 的结果调用已返回，再从原 progress PC 继续逐 raw／byte 的六状态计时循环 |
+| `FD2_EVENT_COMPLETE_LOOT_RESULT` | 返回 loot 图 `finish.result` 的后继边，不重启 descriptor、奖励或查询 |
+
+奖励 CLOSE 提交 EX 并清原全局后，才恢复 AI tail／pending／结果调用。phase 先完成全部中毒提示和死亡整理，再查询结果；结果故事未 ACK 时不能递减六状态。成功交给结果等待时清除已消费的 progress notice，保留 resume／side／cursor／PC；旧 notice 的重复 ACK 不得改变 Game 或 RNG。失败前不清尚未交接的 owner。
+
+已写锁存不等于结果函数已经返回。Play 必须等 `event_resume`、loot／progress 和原后置续行结束，才交接胜败；HOST 与真实 ERROR 保留各自原返回合同及当前前缀。39／41 的 mode0 物品 child 对非 side2 的原 no-op 只结束 child，再回父故事；不能清空父 loot 缓存或执行父奖励尾。库存写点、满包 Cancel 和 HOST 不消费未到达的后缀。
+
+### 来源 entry／victory 与只读准备导出
+
+正式来源 entry 的准备只建立本 stage 资源和原 roster，active 表由 Scene 在 `stage_setup_source` 叶单次构造。正式 wrapper 保留原准备记录偏移 `0x238d + (stage - 1) * 31`；显式 S2 来源机制 API 的旧 offset0 域保持原身份。`prepare_stage2` 复用统一正式入口，不能再先执行整段 Game entry 后重放 Scene。
+
+来源 victory 的持久同步、追加、等待和 `next_stage` 按同一冷图单次执行。结束后 `fd2_field_game_export_preparation` 只复制当前 stage、完整 32 条 roster 区（含未用尾）、人数、资金及选项到准备状态，成功返回 `0`；busy、缺原准备记录或不具备下一入口能力时返回 `-1`，不改 Game 或输出。它不再同步 active、不重算、不新建角色、不消费 RNG、不写 SAV，也不关闭资源。
+
+部署槽数继续读取原 metadata byte1；来源 capability 不手抄一份槽数。`next_stage` 只改变原 stage 值，旧地图／资源仍归旧 Game。App／Play 在取得只读导出后按正式交接路径关闭旧资源并准备新场景，不拿旧资源运行新 controller，也不再调用一次 legacy settlement 提交。导出成功不代表已写盘或完成下一关入口；实际失败、原生门和阶段完成只在阶段记录登记。

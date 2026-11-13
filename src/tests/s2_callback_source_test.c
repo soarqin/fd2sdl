@@ -67,6 +67,23 @@ static void close_fixture(fd2_field_game *g) {
     fd2_field_placements_close(&g->placements);
 }
 
+/* S3真实caller的1aa1d子owner沿原有限接口完成；呈现/输入明确替身，
+ * 满包只走Cancel，不从原码expected捏造替换slot或跳过业务消费者。 */
+static int finish_child(fd2_field_game *g) {
+    unsigned steps=0;
+    while(g->event_resume.child_wait) {
+        fd2_field_loot_notice notice;
+        if(++steps>32 || fd2_field_game_loot_peek(g,&notice)!=1)return -1;
+        if(notice.kind==FD2_FIELD_LOOT_MESSAGE || notice.kind==FD2_FIELD_LOOT_STORY) {
+            if(fd2_field_game_loot_text_ready(g)!=0)return -1;
+        }
+        fd2_field_loot_reply reply=notice.kind==FD2_FIELD_LOOT_CHOICE ||
+            notice.kind==FD2_FIELD_LOOT_INVENTORY?FD2_FIELD_LOOT_CANCEL:FD2_FIELD_LOOT_ACK;
+        if(fd2_field_game_loot_reply(g,reply,-1)!=0)return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) return 1;
     fd2_archive field = {0};
@@ -98,6 +115,10 @@ int main(int argc, char **argv) {
         unsigned leaves = 0;
         printf("{\"case_id\":%u,\"begin_result\":%d,\"checkpoints\":[", id, begin);
         while (!status && g->event_resume.active) {
+            if(g->event_resume.child_wait) {
+                if(finish_child(g)!=0){status=-25;break;}
+                if(!g->event_resume.active)break;
+            }
             fd2_static_flow_node node; size_t actor;
             if (fd2_field_game_common_event_peek(g, &node, &actor) != 1 || actor != caller) { status = -20; break; }
             if (leaves++) printf(",");

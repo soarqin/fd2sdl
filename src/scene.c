@@ -2373,11 +2373,18 @@ static int scene_flow_preflight(const fd2_field_game *game,
     return -1;
 }
 
-/* field_stage1_entry_play @0x32d18（原sub_32D18）与
- * field_stage2_entry_play @0x32e8c（原sub_32E8C）：仅两条已确认入口，
- * 业务已准备终态；此处重放脚本/对白，再只交还动态坐标与镜头。 */
+/* 正式source绑定单次逐叶执行；旧field_stage1_entry_play @0x32d18（原sub_32D18）与
+ * field_stage2_entry_play @0x32e8c（原sub_32E8C）兼容域保留，
+ * 旧域业务已准备终态；此处重放脚本/对白，再只交还动态坐标与镜头。 */
 int fd2_scene_play_stage_entry(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, fd2_field_audio *audio, int fast) {
+    if (game && fd2_field_stage_source_is_bound(game->stage, "entry")) {
+        char id[64];
+        int length = snprintf(id, sizeof(id), "stage.source.entry.%03zu", game->stage);
+        return length > 0 && (size_t)length < sizeof(id)
+            ? fd2_scene_play_stage_source_flow(vga, fdother, game, audio, fast, id)
+            : FD2_SCENE_RESULT_ERROR;
+    }
     if (!vga || !fdother || !game || !game->ready ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER || game->failure != FD2_FIELD_FAILURE_NONE)
         return FD2_SCENE_RESULT_ERROR;
@@ -2620,6 +2627,13 @@ done:
 
 int fd2_scene_play_stage_victory(fd2_vga *vga, const fd2_archive *fdother,
         fd2_field_game *game, fd2_field_audio *audio, int fast) {
+    if (game && fd2_field_stage_source_is_bound(game->stage, "victory")) {
+        char id[64];
+        int length = snprintf(id, sizeof(id), "stage.source.victory.%03zu", game->stage);
+        return length > 0 && (size_t)length < sizeof(id)
+            ? fd2_scene_play_stage_source_flow(vga, fdother, game, audio, fast, id)
+            : FD2_SCENE_RESULT_ERROR;
+    }
     return scene_play_stage_victory_with_owner(vga,fdother,game,audio,fast,game);
 }
 

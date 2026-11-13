@@ -335,3 +335,49 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 `17aa9` 使用 signed WORD BIOS tick 差并在负值加 65,536，目标为 signed DWORD；非正值仍轮询一次，超过单圈的不可终止目标拒绝。SDL 使用有界名义 tick 等待，不声明 BIOS 相位一致。`11df2` 为六位基色加 raw 增量再夹至63；`11d40` 为逐分量减暗并夹至0，二者只改 DAC，不重写基 palette 或 framebuffer。
 
 `1f882`（含共享尾）依次执行 dark0..63，`1f525` 执行 dark64..0，每次减法后等待2ms；两者不清键、不刷新水色、不写 actor／RNG。`1f82e` 是函数内部地址，不另立函数。精确等级／顺序由完整原码差分证明；WGC 代表只证明声明的可见阶段和相对轨迹，不冒称捕获每个2ms等级。
+
+## 14. S3 结果调用者与条件有效域（2026-11-14）
+
+本节补充 S3 正式 consumer 所需的调用域与读点，保留 §12 的 S0 及 §13 的 S2 原完成范围，不重做或改签旧结果／Load 证据。阶段完成和原生代表只查[阶段记录](../plans/stage-log.md)；本文不维护开放批次或另一份优先级。
+
+### 14.1 结果表的五个原调用点
+
+`DS:0x1b19`（canonical `0x51b19`）的完整 xref 对应以下五条间接 CALL。读取完整 `117e7`、`1a30b`、`1a866`、`1d80b`、`1d8ba` 的 chunks／指令／CFG 后核定，不按邻近 CALL 推断控制流。
+
+| CALLsite | 原调用者及传参 | 调用前后顺序 |
+|---|---|---|
+| `0x1197b` | `field_controller_input @0x117e7`，本次 actor | actor 动作／普通详情返回 → render → 奖励 → 结果 → `13565`／必要整轮 phase → 当前 pending 分派／清空 |
+| `0x1a94d` | `field_phase_status_tick @0x1a866`，raw0 | 完整毒伤扫描与提示 → `1db65` 死亡整理 → 结果 → 逐 raw／逐 byte 的六状态计时循环 |
+| `0x1d8a0` | `field_side1_phase_execute @0x1d80b`，当前 raw | 每个 raw 起点清 pending → 可选 AI 本体 → pending → 结果 → 非零锁存则退出，否则下一 raw |
+| `0x1d96c` | `field_side0_phase_execute @0x1d8ba` 首 pass，当前 raw | 完整 raw 表；AI 的候选分值门只控制本体，随后仍是 pending → 结果；非零锁存直接返回 |
+| `0x1d9fc` | 同函数第二 pass，当前 raw | 从 raw0 再扫完整表，按本 pass 的 AI 门执行本体，然后 pending → 结果 → 非零退出检查 |
+
+side1 及 side0 两个 pass 中，阵营不符、hidden、acted、状态阻断或 AI 内部门未通过的 raw 也到达结果调用，不能用「没有执行 AI」省略带写点／等待的结果函数。纯无写结果在未改变其读集的连续跳过段可以保留既有调度优化；这不允许跳过实际 effect 绑定。同步 `commit_ai_*` API 只承诺动作 helper，正式 App scheduler 才拥有 outer；本节不把同步机制接口升级为完整 outer 等价。
+
+原 phase 的 HP 写指令 `0x1a8d0` 先于结果 CALL `0x1a94d`；计时 DEC `0x1a99f` 在结果返回后处理 `record+0x22..0x27`。带故事的结果函数必须等故事返回，不能先递减状态或仅提交最终枚举值。SDL 的有限完成标记、旧 notice 消费和父 PC 恢复见[session 增量合同](../systems/battle-session.md#s3-结果调用与准备交接的增量合同)。
+
+### 14.2 条件 raw 前缀在实际读点验证
+
+原结果函数的最大 raw 索引不是所有分支都必须具备的入口人数。下表的「基础前缀」是结果函数的读取要求，不是 Load 或正式关卡 capability 的人数声明。turn 条件沿原 DWORD 有符号比较；roster 查询沿 `33499`，按完整持久表人数比较 text BYTE 与完整 DWORD 参数，不以 hidden 排除成员。
+
+| 原 target／适用绑定 | 基础前缀 | 需要额外 raw 的条件与拒绝点 | 对应 entry／增援来源的人数 |
+|---|---|---|---|
+| `0x20765`／stage12 | raw0..26，即 27 条 | 仅 signed turn `>5` 才在读取 raw59 前要求 60 条；缺失走错误边 | 初始 59 条；turn4／phase1 的 callback5 追加 group1 后可达 60 条 |
+| `0x20872`／stage16 | raw0，即 1 条 | 先查 roster text18；存在时不读 raw52，不存在才在该读点要求 53 条 | entry 的 roster18 分支为 52 条，另一分支追加 group1 后为 53 条 |
+| `0x20926`／stage18 | raw0，即 1 条 | 仅 signed turn `>6` 才在读取 raw64 前要求 65 条；缺失进入 `result_invalid` | 初始 64 条；turn4／phase2 的 callback44 追加 group1 后可达 65 条 |
+
+这些条件门补充 S2 来源图的入口有效域，不改原 HP／hidden、覆盖优先级或保锁存分支，也不改 S0 已单列的 count0／缺 raw 安全防御域。既有原资源字段只引用，不补虚构单位。能恢复的快照仍可能在未来分支缺少所需 raw；正式 checked 查询明确失败并冻结当前 session，不调用会终止进程的兼容枚举 getter，不将错误伪造为胜败，也不提高固定 Load 下界来挡住合法早期状态。
+
+### 14.3 当前局部证据与不适用范围
+
+| 证据 | 当前有限结论 |
+|---|---|
+| [`s3_result_callers.py`](../../tools/ida/s3_result_callers.py)；本地 `build/s3/ida-result-callers/domain.json` | 五个完整函数读集、CFG、五个表 xref 与 strict relocated 原字节一致；`1a30b` 是父级来源读取，不是下行 27 例的执行目标 |
+| [`verify_s2_results.py`](../../tools/ida/verify_s2_results.py)；本地 `build/s3/oracles-candidate09/result916.json` | 候选 09 的 916 条原函数／实际 C 对照，含 84 条条件前缀；18 个结果函数与 2 个 helper 的原 CFG blocks／edges 全到达。结果、写锁存和故事入口前缀按报告分别比较 |
+| [`verify_s3_result_callers.py`](../../tools/ida/verify_s3_result_callers.py)；本地 `build/s3/oracles-candidate09/callers27.json` | 27 个受控原 caller 路径证明五个 CALLsite 的参数、raw 顺序、pending 先后及状态写点；实际 C 的 side0／side1 两条完整 raw 序列匹配。C probe 同时执行真实结果图续点及错误／HOST／重复 ACK／Load 防御回归，不冒称 27 组完整 AI 逐项差分 |
+
+两个候选 09 报告各自记录实际 probe 的执行前后 SHA，均保持不变；原件只留本地，不分发镜像／转储。916 工具沿用 S2 source-candidate 映射，其 `new_runtime_bindings=0` 表示工具不安装玩法绑定，不是当前 S3 产品支持数；同一原表的五个 caller 也不计成五套结果机制。
+
+916 例执行原 `34894`／`33499`，Watcom 栈检查和文本呈现是明确替身；不证明文本内部、输入等待或共享 RNG。27 例执行原 caller 的受控路径，AI／候选、结果叶、输入／呈现／奖励、死亡整理及 `13565` 本体有明确替身；`1a866` 在共享返回 `0x190a7` 处停止，未执行该返回尾，不声称完整 ABI 返回。完整来源读取、局部机器码、实际 C 和原生图形分账，均不据此证明完整 AI、全部输入分支、绝对时序、自然整关或跨平台运行。
+
+S3 继续使用 S2 的唯一来源减法 fade 子图。旧 Scene 的 17 级比例近似仍只归属[总计划 S4](../plans/development.md#s4统一审查全历史回归与精简)，不能借本节结果调用或 S2 新来源证据倒签旧 fade 的中间等级。

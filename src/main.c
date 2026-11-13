@@ -1074,7 +1074,8 @@ application_title:
         printf("ANI.DAT: %zu entries\n", g_ani.count);
 
         /* title_action_dispatch @0x25ebb：START直接自然开场，LOAD恢复准备，
-         * CONTINUE只恢复stage0/1活动快照；败北返回标题而不重播片头。 */
+         * CONTINUE按已发布capability显示；实际导入仍验证快照和资源。
+         * 败北返回标题而不重播片头。 */
         int first_title = !new_game_play;
         while (rc == 0) {
             fd2_save_file title_save = {0};
@@ -1082,9 +1083,7 @@ application_title:
             int title_continue_available =
                 fd2_save_file_open(&title_save, save_path) == 0 &&
                 fd2_save_file_get_battle_snapshot(&title_save, &title_snapshot) == 0 &&
-                (title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 0u ||
-                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 1u ||
-                 title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] == 2u);
+                fd2_field_stage_is_supported(title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE]);
             fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
                 &vga, bgm, title_audio_ptr, first_title, title_continue_available);
@@ -1114,9 +1113,7 @@ application_title:
                 fd2_save_file save = {0}; fd2_save_battle_snapshot snapshot;
                 if (fd2_save_file_open(&save, save_path) != 0 ||
                     fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
-                    (snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 0u &&
-                     snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 1u &&
-                     snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] != 2u)) {
+                    !fd2_field_stage_is_supported(snapshot.meta[FD2_SAVE_BATTLE_META_STAGE])) {
                     fprintf(stderr, "活动快照无法恢复：%s\n", save_path);
                     flow = FD2_APP_FLOW_ERROR;
                 } else {

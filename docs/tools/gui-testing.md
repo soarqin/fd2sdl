@@ -932,3 +932,31 @@ ticks 原版的静态平台由 S2 专用有界 watcher 按需追加真实 WGC �
 ```bash
 uv run --no-project --with unicorn python3 -B -m unittest tools.tests.test_s2_results tools.tests.test_s2_visual
 ```
+
+## S3 正式 App 批量接入的代表入口
+
+`run_s3_stage_check.py` 运行无参数正式 `fd2sdl.exe`，复用 owned Job、单 HWND WGC、后台输入和正常退出清理。它拒绝 S2 机制夹具；`--build-dir` 必须是本树实际游戏构建目录，冻结该目录的生成文件、EXE／PDB、产品源和已导入工具，不混入 `build-win` 的旧生成物。实际候选、复跑命令和逐轮状态统一见[S3 报告](../plans/s3-batch-integration.md#4-正式原生代表与复跑)，本节不另记通过清单。
+
+| `--scenario` | 真实正式链与受控边界 |
+|---|---|
+| `stage2-turn3-storage` | 原 B7 入场 SAV 的隔离副本；NPC 不行动 flag 和三个玩家合法空格重排逐字节登记。正式 CONTINUE、两次 END 到 turn3／phase2 的原 action9、group2／story4、活动 Save、Load 取消／确认与完整再存。不是从 API 触发 callback，也不称自然战斗整关 |
+| `stage2-victory3-entry` | 只派生敌军 hidden；真实选择取消触发结果和胜利2、story7、准备3酒店四槽 Save。正常结束首个 owned 进程后，第二个进程从标题 LOAD／准备／出阵进入 stage3，核完整 entry 及活动存取 |
+| `stage12-entry-cancel-storage` | 从真实后期持久表保序选15人写手动槽；标题 LOAD／准备／出阵至59人，真实 Enter／Esc 后取得一次 ongoing 查询，再 Save／Load。第二个 owned 进程正式 CONTINUE 使用这份实际 Save；随后只向本轮磁盘副本派生 raw15..26 的 hidden 及 checksum，再通过真正活动 Load／Save 核完整导入。最后真实选择取消触发 story10，完整 ACK 后才允许 GAME OVER 末帧和自动回标题 |
+
+stage12 追加使用 `native/s3_defeat.py`，不改运行时内存或调用结果快入口。原 `20765` 在 turn1 不读 raw59；十二村民全 hidden 时先写败北锁存，再等待 story10。`main @0x25bf4` 在 controller 返回后才调用 `22e5c`，播放 GAME OVER 后清锁存并回标题。工具完整匹配故事文字／头像／箭头与最终64000像素 GAME OVER 合成，最后故事 ACK 后不补退出键。SDL 还须恰有一次真实 query 完成和 Play 败北日志，故事等待中出现该日志即失败；原版仅登记完整源合同、实际输入／画面和 SAV，不伪造未转储的运行时锁存。
+
+原 `1088d` 的 stage<13／raw6 保留门同样属于观察模型：当前持久项不是 text2 时，raw6 清零80字节后只写 hidden，不消费 roster 或 placement。本例保留15条持久记录，实际部署前14条并留一个空槽，再追加44个 group0，active count仍为59。未出场的 text13 沿本次持久 owner 解析头像，不虚构 actor 或移焦；故事焦点与相机按原规则累积，不贴截图坐标常量。原资料字段继续只引用。
+
+所有存取先校来源和本端写点：原版 fresh metadata 的 DAT 末尾到 `0x8a3` 是显式 heap 排除域；SDL 必须保留目标 SAV 的同段旧字节。活动 Load 后两端均核完整22987字节，不沿用 fresh 构造豁免，也不互借另一端缓存或未知尾。Load 取消只声明实际观察及磁盘字节／mtime 不变，不声称全内存或共享 RNG 快照相等。stage12 的受控写入只允许当前 owned 工作目录 `FD2.SAV`，保留派生前真实 Save、派生输入及逐字节改动；这些输入不是自然剧情产生的档案。
+
+开窗前预检与运行使用相同资源读集。S3 的 stage2 奖励观察显式传入 `reward_resource_stage=2`，从当前 active 与真实 `FDFIELD[7]` 取得候选，而不借首关六人白名单或首关模板。每个候选仍通过原增长行、普通 DATO 四帧80×80、完整文字／头像／箭头及跨级页面可区分门；未建模资源明确拒绝。旧 B5 默认域保持。预建观察页不证明该奖励在本场发生，也不扩大玩法支持。
+
+默认不带 `--run` 只生成 `prepared` 报告，`ok=false`，不启动窗口。正式运行须给真实 `--sdl`、`--driver`、`--dosbox`、`--build-dir`，由驱动 `run-job` 串行包裹。每轮用新输出目录，失败原件不改签；成功、失败、超时都核 owned 清理、原资料／用户档未变和显示需求释放，不解除用户静音。
+
+定向工具纯测（不启动游戏、driver 或 GUI；需只读原资源和现有 Python 依赖）：
+
+```powershell
+python -B -m unittest tools.tests.test_s3_stage_native tools.tests.test_s3_defeat_native
+```
+
+Linux Bash 使用 `python3` 执行相同纯测模块；本轮 Linux 未执行。WGC 与实际 Windows App／DOSBox 代表不能据此记成 Linux 图形通过。三组是共享族与正式交接的少量代表，未选绑定、完整 AI／RNG、全部渲染时序和自然整关仍按阶段报告保留边界。

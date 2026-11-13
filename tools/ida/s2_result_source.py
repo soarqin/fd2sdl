@@ -25,9 +25,22 @@ CHUNKS = {
     **{a: ((a, b),) for a, b in zip(TARGETS[1:], TARGETS[2:] + (0x20C6F,))},
     0x34894: ((0x34894, 0x348BB),), 0x33499: ((0x33499, 0x334D9),),
 }
-# 正常原raw前缀；缺失记录不由current C的安全扩展反推原版语义。
+# 全分支最大原raw前缀；条件读点的早期域另由required_raw_prefix表达。
 MINIMUM = dict(zip(TARGETS, (1, 11, 52, 15, 60, 65, 66, 53, 53, 65,
                             83, 18, 2, 19, 17, 3, 2, 21)))
+CONDITIONAL_PREFIX = {0x20765: (5,27,60), 0x20926: (6,1,65)}
+
+
+def required_raw_prefix(target,turn,roster=b''):
+    """完整原CFG的实际读点：20765/20926的signed回合及20872的33499早返。"""
+    if target==0x20872 and any(roster[i+8]==18 for i in range(0,len(roster)-79,80)):
+        return 1
+    threshold=CONDITIONAL_PREFIX.get(target)
+    if threshold is None:return MINIMUM[target]
+    value=turn&0xffffffff
+    signed=value if value<0x80000000 else value-0x100000000
+    limit,early,late=threshold
+    return early if signed<=limit else late
 EFFECTFUL = (0x20765, 0x20872, 0x20957, 0x20B72, 0x20BF5)
 PRESERVING = (0x208CF, 0x20AAF, 0x20B72, 0x20BF5)
 FAMILIES = {
@@ -87,6 +100,11 @@ def closure_mapping():
              "target_va": hex(va), "definition_domain": source_flow(va)[0],
              "definition_id": source_flow(va)[1], "minimum_raw_prefix": MINIMUM[va],
              "semantic_family": FAMILIES[va],
+             **({"conditional_raw_prefix": {"signed_turn_lte": CONDITIONAL_PREFIX[va][0],
+                  "early": CONDITIONAL_PREFIX[va][1], "late": CONDITIONAL_PREFIX[va][2]}}
+                if va in CONDITIONAL_PREFIX else {}),
+             **({"conditional_raw_prefix": {"roster_text_present":18,"early":1,"late":53}}
+                if va==0x20872 else {}),
              "preserves_latch": va in PRESERVING, "ordered_text": va in EFFECTFUL,
              "new_runtime_binding": False, "binding_gate": "S3 caller/resource closure"}
             for stage, va in enumerate(SLOTS)]

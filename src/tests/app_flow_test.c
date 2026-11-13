@@ -59,7 +59,9 @@ int main(void) {
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,-1)==FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,0)==FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,2)==FD2_APP_FLOW_PREPARE);
-    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,3)==FD2_APP_FLOW_ERROR);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,3)==FD2_APP_FLOW_PREPARE);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,20)==FD2_APP_FLOW_PREPARE);
+    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,21)==FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_DEFEAT,-1)==FD2_APP_FLOW_TITLE);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_HOST_QUIT,1)==FD2_APP_FLOW_EXIT);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_LEAVE_GAME,1)==FD2_APP_FLOW_LEAVE_GAME);

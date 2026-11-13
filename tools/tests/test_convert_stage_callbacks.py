@@ -21,7 +21,7 @@ class CallbackConversionTest(unittest.TestCase):
         self.assertEqual(set(self.programs) | set(converter.EXISTING) | {82}, set(range(90)))
         self.assertFalse(set(self.programs) & set(converter.EXISTING))
         self.assertNotIn(82, self.programs)
-        self.assertEqual(len(converter.EXISTING), 17)
+        self.assertEqual(len(converter.EXISTING), 16)
 
     def test_existing_reference_requires_full_graph_digest(self):
         flows = {flow["id"]: flow for flow in self.document["flows"]}
@@ -30,6 +30,14 @@ class CallbackConversionTest(unittest.TestCase):
         changed = copy.deepcopy(flows[converter.EXISTING[12]])
         changed["nodes"][1]["args"] = [99]
         self.assertNotEqual(converter.digest(converter.encode(changed).encode()), converter.EXISTING_FLOW_SHA[12])
+
+    def test_shared_tail41_keeps_own_four_and_legacy_mechanism_unchanged(self):
+        flow=converter.cold_flow("common.callback.041",self.programs[41])
+        actual=next(f for f in self.document["flows"] if f["id"]==flow["id"])
+        self.assertEqual(actual,flow)
+        self.assertEqual(self.programs[41],[("story",[3]),("loot_child",[1,-1]),("story",[4])])
+        old=next(f for f in self.document["flows"] if f["id"]=="common.loot.child.1")
+        self.assertEqual(converter.digest(converter.encode(old).encode()),"6fa7527cb03af747d24ea77e659aa11ec75d69241a5db63bdf88eeb7be205644")
 
     def test_real_shared_entries_and_noops_deduplicate_without_new_state(self):
         self.assertEqual(self.programs[5], self.programs[32])
@@ -40,7 +48,7 @@ class CallbackConversionTest(unittest.TestCase):
     def test_all_generated_edges_and_arg_widths_validate(self):
         flows = [converter.cold_flow(f"test.{slot}", program) for slot, program in self.programs.items()]
         converter.validate_candidates(flows, self.ops)
-        self.assertEqual(len(flows), 72)
+        self.assertEqual(len(flows), 73)
         self.assertEqual(len(converter.cold_flow("pulse", self.programs[76])["nodes"]), 1546)
 
     def test_nested_branches_have_unique_nodes_and_both_paths(self):

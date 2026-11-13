@@ -355,7 +355,7 @@ static int test_cross_stage_cell_resources_and_cancel(void) {
     for(unsigned scenario=0;scenario<2;scenario++) {
         fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));fd2_archive ar;unsigned calls=0;
         CHECK(g && before && fixture(g,&ar,&calls)==0);
-        /* 只加载原资源的窄机制夹具，不走S关卡entry或开放battle门。 */
+        /* 窄机制夹具只借原资源，不冒称已执行本关正式entry/轨迹。 */
         fd2_field_map_close(&g->map);fd2_field_metadata_close(&g->metadata);fd2_terrain_tileset_close(&g->terrain);
         CHECK(fd2_field_map_open_stage(&g->map,&g->field_archive,stages[scenario])==0 &&
             fd2_field_metadata_open_stage(&g->metadata,&g->field_archive,stages[scenario])==0 &&
@@ -366,14 +366,14 @@ static int test_cross_stage_cell_resources_and_cancel(void) {
             g->metadata.cell_actions[index].param==values[scenario]);
         cell_cue_trace trace={0};g->runtime_present=cell_cue_present;g->runtime_present_userdata=&trace;
         *before=*g;CHECK(loot_flow_preflight_cell(g,0)==0 && !memcmp(before,g,sizeof(*g)) && !calls && !trace.calls);
-        CHECK(!fd2_field_stage_battle_is_supported(g->stage) && begin_wait_cell(g,0)==1);
+        CHECK(fd2_field_stage_battle_is_supported(g->stage) && begin_wait_cell(g,0)==1);
         CHECK(g->loot.notice.kind==FD2_FIELD_LOOT_CHOICE);
         CHECK(reply(g,FD2_FIELD_LOOT_CANCEL,-1)==0 && g->loot.notice.wait_ms==100);
         CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->loot.notice.fragment==412 && g->loot.notice.wait_ms==200);
         CHECK(fd2_field_game_loot_text_ready(g)==0 && g->loot.text_ready && !trace.calls && !calls &&
             !g->cell_action_completed[index] && g->resource_value==before->resource_value &&
             !memcmp(&g->units,&before->units,sizeof(g->units)) && fd2_field_map_cell(&g->map,x[scenario],y[scenario])==cell);
-        /* 停在返回原outer controller前；正式S战斗入口仍明确拒绝。 */
+        /* 尚有真实loot等待，已发布battle也不能越过它直接进controller。 */
         CHECK(fd2_field_game_complete_player_controller(g,0)==-1);
         fd2_field_game_close(g);fd2_archive_close(&ar);free(before);free(g);
     }

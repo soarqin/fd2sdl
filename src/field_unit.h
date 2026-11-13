@@ -67,6 +67,16 @@ typedef struct {
     uint16_t evasion;           /* 0x4e: 普通攻击回避值 */
 } fd2_field_unit;
 
+/* field_roster_has_text @0x33499（原sub_33499）：独立roster的+8 BYTE与
+ * 完整DWORD比较，不过滤hidden/HP/side；仅借用已有32条容量owner。 */
+static inline int fd2_field_roster_has_text(const fd2_field_unit *roster,
+        size_t count, uint32_t text_id) {
+    if (!roster || count > 32u) return -1;
+    for (size_t i = 0; i < count; i++)
+        if ((uint32_t)roster[i].text_id == text_id) return 1;
+    return 0;
+}
+
 typedef struct {
     /* items 保持原版 0x50 字节步长；SDL 派生状态必须放在旁路数组中。 */
     fd2_field_unit items[FD2_FIELD_MAX_UNITS];

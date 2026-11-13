@@ -2,6 +2,8 @@
 
 2026-11-13 补充收口：G1—G5 及 §13 原完成域保留，旧结果／snapshot 差异已由独立 S0 修正，证据只查[S0 记录](stage-log.md#s0-结果判定与活动恢复合同修正2026-11-13)。S1 已闭合全量来源账及 descriptor caller／完整 WORD／default 审计表达；旧 `common_gap` 和统计仍留历史投影，未改 consumer 或支持门。来源、差异和未决见[S1 记录](stage-log.md#s1-全量来源账审计同步与批量夹具2026-11-13)。S2 实施和冻结域见[S2 来源报告](s2-shared-semantics.md)，当前状态只查[统一计划](development.md#4-新优先级与依赖)；不重开 G 历史或推断全游戏完整率。
 
+2026-11-14 的 §15 另记 S3 消费者的结果调用、条件有效域和只读交接增量；§13—14 的完成结论与「S 尚未启动／不开放新关」保留各自历史时点。本文不代替总计划维护当前批次，也不凭局部测试宣告 S3 完成。
+
 2026-11-09 的只读审计基线为 `c1b6598`。本文保留原审计发现，并登记其后 G1—G5 的实现、证据与验收；**开发顺序只由 [development.md §4](development.md#4-新优先级与依赖) 决定**。原审计阶段只交付计划，后续实施已另获授权；不能将基线缺口当作当前待办，也不据此开放未知玩法。
 
 实施授权补记（2026-11-09—10）：计划 `b4c4bfa` 交付后，用户已授权在同一任务、同一工作树连续完成 G1—G5。本页原「本次」为审计历史口径，不限制后续已授权开发。§3 保留原审计基线，后续实现与证据按 §9—§13 更新，不将已补缺口重新当作待实现。G1 新证据见[通用战斗语义](../reverse-engineering/common-battle-semantics.md)、[准备服务](../reverse-engineering/common-preparation-semantics.md)、[共享控制与呈现](../reverse-engineering/common-runtime-semantics.md)；静态合同、实际实现、原版运行和阶段完成分别记账。
@@ -410,3 +412,21 @@ S2 的纯结果图和带故事／锁存写点的结果事件分开。原码 `334
 原 `11d40` 的减法 DAC 与 `11df2` 的加法 DAC 是不同原语。新来源淡入／淡出使用唯一冷 helper（65／64 级，各级尾 2 ms），短等待按剩余时间切片；普通旧 Scene 的 17 级比例近似尚未迁移，唯一归属为[总计划 S4](development.md#s4统一审查全历史回归与精简)。新来源域证据不能倒签旧近似的中间级或绝对时序。
 
 完整转换统计、隔离异常、实际原码／SDL／原版代表和失败候选见[S2 报告](s2-shared-semantics.md)与[阶段记录](stage-log.md#s2-共享语义转换与能力补充2026-11-13)。G1—G5 和 S0／S1 的原完成域继续有效；S3 才决定依赖闭包和正式绑定，本轮不开放新关卡。
+
+## 15. S3 消费者增量与结果调用审计（2026-11-14）
+
+本节登记与新来源正式绑定直接相关的共享 consumer 修正，保留 G1—G5、S0／S1／S2 的原完成域。binding 是否开放和阶段是否交付，仍由[总计划](development.md)、本阶段报告及[阶段记录](stage-log.md)决定，不能从相同 target、定义存在或以下局部测试自动提权。
+
+| 收口项 | 当前有源合同 | 验收及保留边界 |
+|---|---|---|
+| C13／C17：结果读取与坏输入 | 正式调用使用 `fd2_field_game_battle_result_query`；const 失败不写 Game／out，可写路径传播首个 `failure` 并保留提交前缀，不伪造胜败或终止进程 | 已接受的 stage18／64 人 snapshot，早期 turn6 可查询，turn7 缺 raw64 时仍允许 Load，再由 player／AI／status／collector／返场的 checked 查询明确拒绝；不能提高 Load 下界掩盖条件域 |
+| C13／C14／C17：完整结果调用者 | `1197b`、`1a94d`、`1d8a0`、`1d96c`、`1d9fc` 共用原结果来源；side0 两 pass 及 side1 均保含 skip raw 的 outer 调用；结果等待复用 `event_resume` 的 PLAYER／AI／STATUS／LOOT_RESULT 完成标记 | 不将 `original_caller=1197b` 的 S2 候选投影当作排除 phase／AI 的证明。同步 `commit_ai_*` 只作动作 helper；不将五个 caller 累计为五套独立结果机制 |
+| C13：三类条件 raw 有效域 | `20765` 的 raw59 仅在 signed turn>5，`20926` 的 raw64 仅在 signed turn>6，`20872` 的 raw52 仅在 roster 无 text18 时才要求；对应读点有显式 guard | 原人数、引用和分支保留；不补虚构单位，不改 S0 的 HP／hidden／安全防御域。完整前缀表及 source／oracle 见[运行语义 §14](../reverse-engineering/common-runtime-semantics.md#14-s3-结果调用者与条件有效域2026-11-14) |
+| C14：异步成功／失败前缀 | 奖励 CLOSE 后才到结果；状态结果返回后才推进计时器；成功交给结果等待时只清已消费 notice，保存原 resume／cursor／PC；loot 从 `finish.result` 后继恢复 | wrong／重复 ACK、HOST、坏资源及 ERROR 分别验证，不重启 entry／descriptor／奖励、不补写未到达后缀，不复制 RNG owner。39／41 的 mode0 物品 child 非 side2 时只返回父故事，不抹父 loot 缓存；满包 Cancel 沿原 child 合同 |
+| C17／C18：准备与资源交接 | 正式 source entry 资源准备和 Scene 单次构造分开；source victory 按冷图完成同步／追加／`next_stage` 后，以 `fd2_field_game_export_preparation` 只读复制完整 32 条持久区、人数、资金与选项 | 导出不再次同步、重算、构造、耗 RNG、写 SAV 或关闭资源；下一 stage 数字不改变旧资源 owner。App／Play 另行关闭／准备资源，不能再走一次 legacy settlement；具体 owner 合同见[session](../systems/battle-session.md#s3-结果调用与准备交接的增量合同) |
+
+候选 09 的本地 `build/s3/oracles-candidate09/result916.json` 记录 916 条原结果函数／实际 C 对照，含 84 条条件前缀；`callers27.json` 记录 27 个受控原 caller 路径及实际 C 的 side0／side1 两条 raw 序列匹配。各自 probe 执行前后 SHA 不变；来源与替身清单集中维护在[运行语义 §14.3](../reverse-engineering/common-runtime-semantics.md#143-当前局部证据与不适用范围)。独立的 callback39／41 调用域证据与正式绑定审计另按本阶段实际报告登记，不将 G5 单一玩家夹具推广到所有新 caller。
+
+这些证据不证明完整 AI、原呈现／文本／等待、全部输入分支、共享 RNG 同轨或自然整关。C 测试中的真实资源／snapshot／consumer 集成不等于正式按键或原版 WGC；原生代表、失败候选及其他平台仍按实际收据分账。S2 的 source-candidate 工具输出不安装玩法绑定，不能将其中 `new_runtime_bindings=0` 当作 S3 产品支持数，也不能把重复引用数当覆盖率。
+
+旧 Scene 17 级比例 fade 仍只归属[总计划 S4](development.md#s4统一审查全历史回归与精简)。本次结果 consumer、来源淡入淡出和准备交接均不改签该旧近似，也不新增平行整改阶段。

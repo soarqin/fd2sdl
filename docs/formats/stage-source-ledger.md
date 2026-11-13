@@ -73,9 +73,9 @@ descriptor 的独立依据为原 `1aa1d`、`1b6b7`、`1b653`、`190ac` 四个完
 - 特殊格 `190ac`：mode0／1 走 item／money，其余 mode（含 3、203、255）按完整 WORD callback。0..89 只查精确 caller 绑定；90／`0x0100` 明确拒绝，不截低 BYTE，不模拟表外调用。
 - 450 条默认 turn255／phase0 记录保留潜在匹配及 callback255 拒绝域，不静默忽略。未知 CFG 没有合成空事件或默认胜利。
 
-真实样例 `stage:14:drop:00033` 来自 `FDFIELD.DAT` entry43、相对 offset1011、绝对 offset90953，3 B 为 `cb0000`（mode203／WORD0）。规范化保留 raw 与 caller `defeated_collector -> drop_execute`，得到 `semantic_kind=default_noop`、`disposition=confirmed`；旧 `unmapped_semantics` 与当前 `decoded_unopened` 并列。它只确认 caller 规则，stage14 仍未开放。`stage:02:drop:00000` 的 `030900` 指向 `text:003:00009`；story 的文本引用与 callback 的分派引用分开。
+真实样例 `stage:14:drop:00033` 来自 `FDFIELD.DAT` entry43、相对 offset1011、绝对 offset90953，3 B 为 `cb0000`（mode203／WORD0）。规范化保留 raw 与 caller `defeated_collector -> drop_execute`，得到 `semantic_kind=default_noop`、`disposition=confirmed`；旧 `unmapped_semantics` 与当前 `decoded_unopened` 并列。它只确认 caller 规则；S1 生成时 stage14 未开放，当前正式绑定另见下文 S3 合同。`stage:02:drop:00000` 的 `030900` 指向 `text:003:00009`；story 的文本引用与 callback 的分派引用分开。
 
-`dispatch:stage_runtime_result:002` 与 stage0 同指 `0x205b4`，账仍保留 S2 绑定阻塞并指向已确认 stage0 证据，不重复生成结果图或自动开放 stage2。既有 callback0..4／6 登记其精确六个 caller 定义，其他来源仍单独检查。
+`dispatch:stage_runtime_result:002` 与 stage0 同指 `0x205b4`，S1 原账保留当时待 S2 闭合的绑定阻塞并指向已确认 stage0 证据，不重复生成结果图或自动开放 stage2。既有 callback0..4／6 登记其精确六个 caller 定义，其他来源仍单独检查。
 
 本版本处置为 confirmed 69,628、excluded 2,077、rejected 450、unresolved 315；这是不同粒度的来源去向，不能算运行覆盖率。1,171 条保守需求的旧 51／468／652 与当前 51／469／651（supported／decoded unopened／unmapped）另账，只有两个固定 descriptor 分类表达变化。G1 的 `common_gap=388` 只属历史投影，不重开 G5。
 
@@ -108,7 +108,7 @@ S1 是不可回写的来源基线。S2 的完整函数读集、候选、原码�
 
 去向叠加保留 S1 的 315 条 `unresolved`：301 条已有来源图或既有 primitive 可供后续闭合，14 条仍有阻塞依赖；450 条 `rejected` 全部保留为有源拒绝。208 槽与 315 条未决有重叠，三组按 `source_id` 去重的并集为 778，不能相加为 973 个独立机制，也不能换算玩法覆盖率。运行支持状态继续取唯一冷支持门和精确 caller 绑定。
 
-transition 行的 `flow_id` 保留逻辑来源 ID，`canonical_definition` 指向实际唯一图，`source_only_alias` 明确是否去重。当前 `stage.source.entry.015`／`.018`／`.019`／`.020` 与 `.012` 的完整图同义，只在 stage 域内引用 `.012`；原表槽、target、owner、参数和来源记录仍分别保存。`source_bindings` 必须与唯一 stage 输入的 `bindings` 完全相等，不允许别名链、循环或悬空目标。这些 source-only alias 不属于 `stage.NNN.action.NNN` 正式绑定。
+transition 行的 `flow_id` 保留逻辑来源 ID，`canonical_definition` 指向实际唯一图，`source_only_alias` 明确是否去重。当前 `stage.source.entry.015`／`.018`／`.019`／`.020` 与 `.012` 的完整图同义，只在 stage 域内引用 `.012`；原表槽、target、owner、参数和来源记录仍分别保存。`source_bindings` 必须与唯一 stage 输入中 `stage.source.*` 的别名子集完全相等，不允许别名链、循环或悬空目标。这些 source-only alias 不属于 `stage.NNN.action.NNN` 正式绑定。
 
 `definition_present_in_static_input` 只说明规范终点存在，不能单独作为成功门。叠加工具还核 callback 的 `definition_sha256`、候选完整图内容、manifest 中原码／C 收据摘要，以及 transition 唯一图和 alias 合同。同 ID 换图、缺图或错终点必须重新生成并复核，不能继续借用旧候选的通过记录。
 
@@ -136,6 +136,47 @@ end；无命中时保留现有锁存
 
 新源图的 `palette_add` 是基色加值、上限 63；`palette_subtract` 是减暗度、下限 0，两者只写 DAC，保留基色和索引帧。旧比例 `brightness` 不作为这两种原义的替代。淡出 `1f882` 为 0..63 共 64 级，淡入 `1f525` 为 64..0 共 65 级，各级尾均等待 2 ms；级数和等待置于唯一冷子图。`17aa9` 保留 signed WORD 时钟差和 signed DWORD goal，正值大于 65,535 明确拒绝；名义 SDL／55 映射不声明硬件时钟相位一致。普通键不跳过固定等待，HOST／错误沿原 owner 停在当前前缀。
 
-`common_event` 的原 G4 校验器仍只签既有 21 图；新来源图的 ID 另列为未由该工具证明，须通过 S2 专属完整来源／原码／C 门。旧六个 shipping alias、支持门、SAV 和共享 RNG 合同均不因生成新图而扩大。
+`common_event` 的原 G4 校验器仍只签既有 21 图；新来源图的 ID 另列为未由该工具证明，须通过 S2 专属完整来源／原码／C 门。S2 未因生成新图而扩大旧六个 shipping alias 或支持门；S3 的新增正式绑定另按下文核验，SAV 布局和共享 RNG 合同继续沿用。
 
 夹具保留原 ID、顺序、参数、读集摘要、引用和去向，支持批量来源／规则验证；夹具由本账派生，不是独立原义 oracle，不替代原码轨迹、取消／失败状态测试或原版代表性运行。S1 未新增 CFG 转换、运行绑定或新关卡，未证明全部文本 token／字形／头像、图像像素一致、动态地图／身份路径及全部玩法。
+
+## S3 发布域与活动恢复合同
+
+S3 读取固定 S1 包、S2 去向与完整 Domain 来源，另外核当前生产定义和正式绑定；S1 的 72,470 条记录、315 条未决和 450 条拒绝不回写、不重编号。S2 历史报告保留原工具／图／probe 身份。当前命令、实际 Windows 产物与计数见[冷定义工具的 S3 入口](../tools/static-data.md#s3-正式绑定与发布域校验)。
+
+### 来源勘误与独立消费门
+
+`dispatch:event_callback:041` 的真实入口为 `0x35346`。完整原入口在 `0x353ae` 压入 4，再从 `0x353b0` 跳至共享尾 `0x3530d`，不会执行原 owner `0x352ca` 中 `0x3530b` 的 `push 11`。正确来源组合为 `story(3) → loot_child(1,-1) → story(4)`，对应唯一新图 `common.callback.041` 与正式 `stage.016.action.041`。旧 `common.loot.child.1` 的 story11 组合及 G 阶段已证域不修改。
+
+这是对 S2 `existing_definition_reference` 分类的来源勘误，不给旧 S2 候选或原生报告改签。`s3_callback_binding_source.py` 另存 `S2_refinement`、完整 owner chunks、显式 non-owner 指令、条件两边、逐例输入、原检查点与 `actual_C` 状态。callback8／12／26／39／41 的新 caller 参数门共 180 例原指令及 192 例实际 C；非玩家 child no-op、满包 Cancel、wrong ACK、HOST 和错误输入仍分别校验，失败原件保留。原呈现／helper 替身范围随报告登记，不把 child 的原返回值喂成伪造 C expected。
+
+当前 `convert_stage_callbacks.py` 因而得到 73 个转换槽／67 图／2,045 节点、16 个既有引用和 callback82 一项阻塞；S2 历史计数仍为 72／66／2,040／17。`verify_stage_release_traces.py` 读取唯一正式 `bindings`，逐绑定核 stage、原 caller 引用、定义全文摘要，再用该 stage 实际 DAT 资源执行原指令与实际 C。冻结 09 产物覆盖 38 个新模板绑定／36 个定义；3 个既有模板绑定由独立 caller 门签核。两项计数合为 41 个正式 callback 绑定，不是 41 个独立机制。
+
+### 发布闭包产物
+
+`stage_release_scope.py` 输出 `fd2-stage-release-scope-v1` 的 `scope.json`。它只读既有真值，既不生成正式绑定，也不成为第二份可编辑关卡定义：
+
+| 字段／检查 | 合同 |
+|---|---|
+| `input_sha256`／`S2_history_retained` | 原 S1／S2 身份、当前定义、工具及 caller 勘误证据分别登记；原资源和输入晚变即拒绝 |
+| `stages[].bindings` | 每条正式 runtime ID 保留原 source ID、target、定义域／规范终点；source-only alias 精确核 `stage.source.*` 子集，新增 shipping alias 单独核，不用来源图存在代替授权 |
+| `map`／`metadata`／`placements` | 从实际 DAT entry 复核位置、长度、摘要及已解码引用；原模板／group／部署容量仍由 DAT 读取器提供，不手抄第二套资源 |
+| `entry_count`／`capability` | 从完整冷 entry 成功路径和实际 group 计算人数集合，与支持门下界相联；不取当次 SDL 构造输出作为原义 expected，不用初始 group0 数冒充完整 entry |
+| `callback_source_references` | 保完整 WORD action、原 caller、父模板 group 和原跨度；`required_for_battle_scope=false` 只保留非战斗来源，不表示已有活动绑定 |
+| `resource_references` | 已解码文本与移动引用保留来源／参数；未来人数、身份、地图和换图后资源仍需实际有限 C 投影及到达叶预检，结构检查不替代这些消费者 |
+| `victory_handoffs` | 每个成功 next_stage 必须有已绑定 entry、capability 和独立核原字节的 31 B 准备记录；当前2..19→3..20。单次 source Scene 完成后只读导出准备，App 关闭旧资源再打开下关，不预执行下关 controller |
+| `default255_refusals`／`strict_supported` | 默认槽原 raw `ffff00` 和拒绝 source ID 原样保留；结构发布闭合不提升为严格全状态支持 |
+
+当前新增正式域包含 battle2..19 与 entry-only20，共 96 个绑定／86 个不同原 target：19 entry、18 victory、18 result、41 callback。`stage.json` 新增 52 个 shipping alias，`common_event.json` 新增 44 个；既有 stage0／1 不计入这个增量。result 的 15 个无等待绑定由 stage 域消费，3 个带副作用绑定用 `stage.NNN.result` 的 common-event 续态；同关同时存在两种正式结果绑定应拒绝，不能用不存在的 pure 图冒充闭合。
+
+55 条 callback 来源引用中，battle2..19 必需 50 条，entry-only20 保留 5 条。stage20 仅入场、浏览、已证准备及存取；battle／END 仍关闭。13 个隔离源槽为 entry22／24／26／27／29、victory20／21／22／23／26／28／29，以及 callback82；后者还关联 `stage:29:turn:00000`，故共 14 条受影响来源。它们没有新增正式绑定，不由同 target、邻近 CALL 或已有模板推定未知 CFG／ABI 已闭合。
+
+### 默认槽、人数与 owner 边界
+
+本发布域2..20 保留 265 条默认 turn255 拒绝来源，battle2..19 为 254，entry-only20 为 11。全 S1 的 450 条是33组总数，其中0..29 为 406，30..32 为 44；不能把450当本批关卡的拒绝数。默认槽可以存在于合法 Load 的 metadata 中，到实际 turn255／phase0 分派才明确拒绝 callback255；不静默删除，也不以全 metadata 预检阻止恢复。
+
+source-bound capability 的 `preparation_slots=0` 表示只读原 DAT 的部署容量，不能解释为零部署人数。snapshot 人数在原 96 容量内使用已证 entry 下界、`exact=0`，允许实际增援和 hidden 状态。stage12 的初始59与 stage18 的初始64不应为未来 raw59／raw64 读取补假单位；原条件和已证增援时序决定何时需要额外前缀。stage16 的 entry 成功人数可为52或53，按持久 roster 分支取合法下界，后续结果读取仍守实际分支。人数下界不宣称任意外部 SAV 全状态等价。
+
+活动／手动 Load 完整恢复已存 metadata、schedule_turn、原单位及未知字节，不要求 metadata 与原资源恒等，不重放 entry、不额外自动查询结果；到真实 controller／END／结果／交接调用点再按当前有限语义和资源核验。失败、HOST、错误 ACK 或取消继续沿 Game／Loot／Scene owner，保留已到达前缀；不能借候选图新建热状态、修改 SAV 格式、复制资源 owner 或回滚共享 RNG。
+
+`structural_binding_scope_closed=true` 只签当前来源／定义／精确正式绑定闭包；原码模板、实际 C、正式 controller／END／恢复链和少量原版原生代表分别留证。该工具的 `runtime_paths_validated`、`new_native_runtime_executed` 和 `all_text_glyph_portrait_semantics_validated` 仍为 false，不以夹具自验或静态读取替代运行证据。

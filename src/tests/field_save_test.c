@@ -14,6 +14,7 @@
 
 #include "field_game.h"
 #include "field_rng.h"
+#include "static_data.h"
 #include "test_temp.h"
 
 #define CHECK(expr) do { \
@@ -1104,16 +1105,16 @@ static int test_stage1_manual_owner_preflight(void) {
     CHECK(fd2_field_game_validate_manual_state(&state) != 0);
     state.stage_id = 2;
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
-    state.stage_id = 3;
+    state.stage_id = 21;
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
-    CHECK(!fd2_field_stage_is_supported(3) && !fd2_field_stage_battle_is_supported(3));
+    CHECK(!fd2_field_stage_is_supported(21) && !fd2_field_stage_battle_is_supported(21));
     /* 26行普通准备及NoTown27..29只验全局浏览资源，不读取未支持战场。
      * 所有完整32人/金额原bits/unknown尾不变，codec与entry支持门保持独立。 */
     for (uint8_t stage=1;stage<30;stage++) {
         state.stage_id=stage;fd2_save_manual_state unchanged=state;
         CHECK(fd2_field_game_validate_manual_state(&state)==0);
         CHECK(!memcmp(&state,&unchanged,sizeof(state)));
-        if (stage>=3) CHECK(!fd2_field_stage_is_supported(stage));
+        if (stage>=21) CHECK(!fd2_field_stage_is_supported(stage));
     }
     CHECK(!fd2_field_stage_prepare_record_get(27));
     const uint8_t invalid_stages[]={0,30,31,32,255};
@@ -1275,6 +1276,119 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(remove(path) == 0);
     return 0;
 }
+
+/* S3只测10010的资源/存档交接：构造沿1088d部署槽及10b4e原group，
+ * 不把跳过对白/移动的隔离前态称作完整entry或原版自然战局。 */
+static int prepare_batch_save_game(fd2_field_game *game,const fd2_archive *other,
+        const fd2_save_battle_snapshot *original,size_t stage) {
+    fd2_save_manual_state state={0};
+    state.stage_id=(uint8_t)stage;
+    state.unit_count=original->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT];
+    memcpy(state.unit_area,original->roster,sizeof(state.unit_area));
+    char id[64];snprintf(id,sizeof(id),"stage.source.entry.%03zu",stage);
+    CHECK(fd2_field_game_prepare_stage_source_flow(game,other,&state,id)==0);
+    fd2_static_flow_node setup={0};setup.op="stage_setup_source";
+    unsigned port;
+    CHECK(fd2_field_game_stage_source_node(game,&setup,&port)>0);
+    const char *ids[]={"stage.source.initialize",id};
+    for(size_t i=0;i<2;i++) {
+        const fd2_static_flow *flow=fd2_static_flow_lookup("stage",ids[i]);
+        CHECK(flow);
+        for(size_t j=0;j<flow->count;j++) {
+            const fd2_static_flow_node *node=fd2_static_flow_at(flow,(int)j);
+            if(!strcmp(node->op,"append_group"))
+                CHECK(fd2_field_game_stage_source_node(game,node,&port)>0);
+        }
+    }
+    return 0;
+}
+
+static int test_batch_stage_snapshot_capability_and_growth(void) {
+    static const size_t stages[]={2,3,12};
+    static const size_t initial_counts[]={15,24,59};
+    fd2_archive other={0};fd2_save_file file={0};
+    fd2_save_battle_snapshot original;
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_save_file_open(&file,"original_game/START.SAV")==0);
+    CHECK(fd2_save_file_get_battle_snapshot(&file,&original)==0);
+    fd2_field_game *live=calloc(1,sizeof(*live)),*source=calloc(1,sizeof(*source));
+    fd2_field_game *before=malloc(sizeof(*before));
+    CHECK(live && source && before);
+    CHECK(fd2_field_game_open_resources(live,&other,0)==0);
+    CHECK(fd2_field_game_import_battle_snapshot(live,&original)==0);
+    fd2_field_rng rng;fd2_field_rng_seed(&rng,0x6271);
+    live->attack_rng=count_load_rng;live->attack_rng_userdata=&rng;load_rng_calls=0;
+    unsigned preflight_calls=0;
+    live->progress_preflight=load_preflight_probe;
+    live->progress_preflight_userdata=&preflight_calls;
+    live->music_request=load_music_probe;live->music_request_userdata=&preflight_calls;
+    char path[FD2_TEST_PATH_MAX];CHECK(fd2_test_temp_path(path)==0);
+    for(size_t si=0;si<sizeof(stages)/sizeof(stages[0]);si++) {
+        CHECK(prepare_batch_save_game(source,&other,&original,stages[si])==0);
+        CHECK(source->units.count==initial_counts[si]);
+        fd2_field_stage_capability cap;
+        CHECK(fd2_field_stage_capability_get(stages[si],&cap)==0 && !cap.exact_units);
+        for(unsigned growth=0;growth<2;growth++) {
+            if(growth) {
+                size_t prior=source->units.count;
+                CHECK(fd2_field_units_append_group_placed(&source->units,&source->metadata,
+                    &source->placements,&source->map,2,1)==0 && source->units.count>prior);
+            }
+            /* 控制隐藏前态允许原BYTE回绕；raw0可见HP0仍原样保存。 */
+            for(size_t i=0;i<source->units.count;i++)source->units.items[i].flags|=1u;
+            source->units.items[0].flags=0;source->units.items[0].x=source->units.items[0].y=0;
+            source->units.items[0].hp=0;
+            size_t last=source->units.count-1u;
+            source->units.items[last].x=source->units.items[last].y=255;
+            source->turn_number=255;source->active_side=2;
+            source->camera_cell_x=source->camera_cell_y=0;
+            source->cursor_cell_x=source->cursor_cell_y=0;
+            /* schedule_turn的BYTE是快照状态，不要求等于DAT，也不把
+             * 默认action255预检成不可Load；实际到达由原dispatcher拒绝。 */
+            source->metadata.turn_events[15]=(fd2_field_turn_event){255,255,0};
+            source->metadata.turn_events[0].turn=17;
+            source->cell_action_completed[31]=0x9d;
+            fd2_save_battle_snapshot snap=original;
+            memset(snap.meta+18,0x7b,sizeof(snap.meta)-18u);
+            size_t prefix=0x83u+source->metadata.unit_template_count*FD2_FIELD_UNIT_TEMPLATE_SIZE;
+            memset(snap.metadata+prefix,0xa7,sizeof(snap.metadata)-prefix);
+            CHECK(fd2_field_game_export_battle_snapshot(source,&snap)==0);
+            fd2_save_battle_snapshot frozen=snap;
+            CHECK(fd2_save_file_update_battle_snapshot(&file,&snap)==0 && fd2_save_file_write(&file,path)==0);
+            *before=*live;
+            CHECK(fd2_field_game_save_resource_available(live,path)==1 && !memcmp(before,live,sizeof(*live)));
+            live->battle_result=FD2_FIELD_BATTLE_DEFEAT;
+            CHECK(fd2_field_game_load_active(live,path)==0);
+            CHECK(live->stage==stages[si] && live->units.count==source->units.count &&
+                live->battle_result==FD2_FIELD_BATTLE_DEFEAT && live->turn_number==255 &&
+                live->active_side==2 && live->focus_cycle_unit==0 && !live->event_resume.active &&
+                live->interaction==FD2_FIELD_INTERACTION_BROWSE && live->fdother==&other);
+            CHECK(!memcmp(live->units.items,snap.unit_area,live->units.count*FD2_FIELD_UNIT_RECORD_SIZE));
+            CHECK(live->metadata.turn_events[0].turn==17 && live->metadata.turn_events[15].action==255 &&
+                live->cell_action_completed[31]==0x9d && !load_rng_calls && !preflight_calls && rng.state==0x6271);
+            CHECK(live->attack_rng==count_load_rng && live->attack_rng_userdata==&rng &&
+                live->progress_preflight==load_preflight_probe && live->progress_preflight_userdata==&preflight_calls &&
+                live->music_request==load_music_probe && live->music_request_userdata==&preflight_calls);
+            fd2_save_battle_snapshot roundtrip=frozen;
+            CHECK(fd2_field_game_export_battle_snapshot(live,&roundtrip)==0 && !memcmp(&roundtrip,&frozen,sizeof(frozen)));
+            *before=*live;
+            fd2_save_battle_snapshot bad=snap;
+            bad.unit_area[last*FD2_FIELD_UNIT_RECORD_SIZE+5u]&=0xfeu;
+            CHECK(fd2_field_game_import_battle_snapshot(live,&bad)==-1 && !memcmp(before,live,sizeof(*live)));
+            bad=snap;bad.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=(uint8_t)(cap.minimum_units-1u);
+            CHECK(fd2_save_file_update_battle_snapshot(&file,&bad)==0 && fd2_save_file_write(&file,path)==0);
+            CHECK(fd2_field_game_save_resource_available(live,path)==0 && !memcmp(before,live,sizeof(*live)));
+            CHECK(fd2_field_game_load_active(live,path)==-1 && !memcmp(before,live,sizeof(*live)));
+            bad=snap;bad.meta[FD2_SAVE_BATTLE_META_STAGE]=29;
+            CHECK(fd2_field_game_import_battle_snapshot(live,&bad)==-1 && !memcmp(before,live,sizeof(*live)));
+            CHECK(!load_rng_calls && !preflight_calls && rng.state==0x6271 && !memcmp(&snap,&frozen,sizeof(snap)));
+        }
+        fd2_field_game_close(source);
+    }
+    fd2_field_game_close(live);free(live);free(source);free(before);
+    fd2_save_file_close(&file);fd2_archive_close(&other);CHECK(remove(path)==0);
+    return 0;
+}
 /* Win32保留100ns FILETIME；Linux保留纳秒，不能用粗秒mtime掩盖重写。 */
 static int file_write_identity(const char *path,uint64_t identity[2]) {
 #if defined(_WIN32)
@@ -1368,6 +1482,7 @@ static int result_vector_probe(void) {
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--s0-vectors")) return result_vector_probe();
     if (argc != 1) return 2;
+    if (test_batch_stage_snapshot_capability_and_growth() != 0) return 1;
     if(test_detail_busy_preserves_outputs_and_files()!=0)return 1;
     if (test_stage1_manual_owner_preflight() != 0 ||
         test_cross_stage_active_owner_is_transactional() != 0) return 1;

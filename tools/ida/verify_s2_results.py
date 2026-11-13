@@ -15,7 +15,8 @@ import struct
 import subprocess
 
 from s2_result_source import (TARGETS, HELPERS, CHUNKS, MINIMUM, EFFECTFUL,
-                              FAMILIES, source_flow, closure_mapping, validate_source, dispatch_source)
+                              FAMILIES, source_flow, closure_mapping, validate_source, dispatch_source,
+                              required_raw_prefix)
 
 UNIT, ROSTER, STATE, STACK, STOP = 0x100000, 0x110000, 0x120000, 0x208000, 0x400000
 RESULT, TEXT = 0x53ECC, 0x15F84
@@ -80,11 +81,33 @@ def vector_inputs():
                    "roster": b"", "state": bytes(32), "initial": 0, "stop": stop}
 
 
+def conditional_prefix_inputs():
+    """S3自然59/64入口及signed边界；原函数读点由机器码read hook独立守卫。"""
+    for target,counts,limit in ((0x20765,(27,59),5),(0x20926,(1,64),6)):
+        for count,turn in itertools.product(counts,(0x80000000,limit)):
+            for enemy,leader,group_hidden in itertools.product((False,True) if count>1 else (False,),
+                    (False,True),(False,True) if target==0x20765 else (False,)):
+                hidden=set(range(15,27)) if group_hidden else set()
+                yield {"target":target,"records":records(hidden,enemy=enemy,leader=leader,count=count),
+                    "turn":turn,"roster":b"","state":bytes(32),"initial":0,"stop":0}
+        for enemy,leader,late_hidden in itertools.product((False,True),repeat=3):
+            count=MINIMUM[target];hidden={count-1} if late_hidden else set()
+            yield {"target":target,"records":records(hidden,enemy=enemy,leader=leader,count=count),
+                "turn":limit+1,"roster":b"","state":bytes(32),"initial":0,"stop":0}
+    for count in (1,52):
+        for enemy,leader,last,hidden in itertools.product((False,True) if count>1 else (False,),
+                (False,True),(False,True),(False,True)):
+            roster=bytearray(160 if last else 80);at=80 if last else 0
+            roster[at+8]=18;roster[at+5]=int(hidden)
+            yield {"target":0x20872,"records":records(enemy=enemy,leader=leader,count=count),
+                "turn":1,"roster":bytes(roster),"state":bytes(32),"initial":0,"stop":0}
+
+
 def execute(image, functions, case):
     import unicorn
     from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP, UC_X86_REG_EAX
     target, unit = case["target"], case["records"]
-    if (target not in TARGETS or len(unit) % 80 or not MINIMUM[target] <= len(unit)//80 <= 96
+    if (target not in TARGETS or len(unit) % 80 or not required_raw_prefix(target,case['turn'],case['roster']) <= len(unit)//80 <= 96
             or len(case["roster"]) % 80 or len(case["roster"])//80 > 96
             or len(case["state"]) != 32 or case["initial"] not in RAW_TO_SDL):
         raise ValueError("case outside original result domain")
@@ -101,6 +124,7 @@ def execute(image, functions, case):
     put(STACK, STOP); cpu.reg_write(UC_X86_REG_ESP, STACK)
     ranges = [span for spans in CHUNKS.values() for span in spans]
     writes, stories, visited, edges, last = [], [], set(), set(), {}
+    highest_raw_read=[-1]
     blocks = {b["start"]: (va, b) for va, row in functions.items() for b in row["blocks"]}
     def code(machine, address, size, data):
         sp = cpu.reg_read(UC_X86_REG_ESP)
@@ -129,7 +153,12 @@ def execute(image, functions, case):
             writes.append(RAW_TO_SDL[value])
         elif not 0x200000 <= address < 0x210000:
             raise ValueError(f"undeclared original write {address:#x}")
+    def read(machine,access,address,size,value,data):
+        if UNIT<=address<ROSTER:
+            if address+size>UNIT+len(unit):raise ValueError('original read outside declared raw prefix')
+            highest_raw_read[0]=max(highest_raw_read[0],(address+size-1-UNIT)//80)
     cpu.hook_add(unicorn.UC_HOOK_CODE, code); cpu.hook_add(unicorn.UC_HOOK_MEM_WRITE, write)
+    cpu.hook_add(unicorn.UC_HOOK_MEM_READ, read)
     cpu.emu_start(target, STOP, count=100000)
     stopped = case["stop"] != 0 and len(stories) == case["stop"]
     if not stopped and cpu.reg_read(UC_X86_REG_EIP) != STOP:
@@ -137,7 +166,8 @@ def execute(image, functions, case):
     if bytes(cpu.mem_read(UNIT, len(unit))) != unit or bytes(cpu.mem_read(STATE, 32)) != case["state"]:
         raise ValueError("original changed records/event state")
     return {"target": hex(target), "result": RAW_TO_SDL[get(RESULT)], "writes": writes,
-            "stories": stories, "stopped_at_story": stopped, "visited": sorted(visited), "edges": sorted(edges)}
+            "stories": stories, "stopped_at_story": stopped, "highest_raw_read":highest_raw_read[0],
+            "visited": sorted(visited), "edges": sorted(edges)}
 
 
 def probe_line(case):
@@ -178,6 +208,7 @@ def main(argv=None):
     parser.add_argument("--original", required=True, type=Path)
     parser.add_argument("--ida-directory", type=Path, default=Path("docs/generated/ida-canonical"))
     parser.add_argument("--probe", type=Path)
+    parser.add_argument("--conditional-prefixes",action="store_true",help="追加S3按真实signed分支读点的低count有效域")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
     if args.output.exists(): raise ValueError("output already exists")
@@ -185,7 +216,8 @@ def main(argv=None):
     readset = json.loads(readset_bytes)
     functions = validate_source(image, readset)
     table = dispatch_source(args.original / "FD2.EXE", args.ida_directory)
-    cases = list(vector_inputs()); results = [execute(image, functions, case) for case in cases]
+    cases = list(vector_inputs())+(list(conditional_prefix_inputs()) if args.conditional_prefixes else [])
+    results = [execute(image, functions, case) for case in cases]
     probe_identity = compare_c(args.probe, cases, results) if args.probe else None
     if args.image.read_bytes() != image or args.readset.read_bytes() != readset_bytes:
         raise ValueError("source evidence changed while executing")
@@ -206,6 +238,7 @@ def main(argv=None):
                          "new_source_definitions": 16, "new_runtime_bindings": 0,
                          "pure_targets": 13, "cases": len(results), "c_compared": len(results) if args.probe else 0,
                          "prefix_cases": sum(c["stop"] != 0 for c in cases)},
+              "conditional_prefix_cases":len(cases)-832,
               "candidate_mapping": closure_mapping(), "coverage": coverage,
               "substitutes": ["watcom_stack_check", "text_dialog_render_tokens: no RNG/drawing/input; records entry and optional explicit stop"],
               "limits": ["synthetic normal raw domain", "not complete gameplay, DOSBox, text internals or natural stage reachability",

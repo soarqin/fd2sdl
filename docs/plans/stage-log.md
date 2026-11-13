@@ -1779,3 +1779,51 @@ S2冻结域无剩余实现或必要证据阻塞。13来源槽／14引用仍是�
 收口补验：callback32 只因旧host缺少持久化输入摘要而重取，业务／像素／输入／存档判据不变；现 `input_sha256` 与 `product_source_paths` 保留实际freeze及动态追加config／隔离只读资源。既有CLI纯测新增实际SHA／路径／追加项断言，6项通过；旧callback21通过留其原身份，不回填旧值。最终签核改用callback32。`final-evidence.json` 列四对最终报告与封存二进制摘要。
 
 `qualification/qualification.json` 单独核旧轮次工具资格：result21／ticks31／layout22的全部产品源码与当前逐字节相等；G4 host 仅新增摘要输出，删除该单一AST语句后与按旧SHA精确重建的源码一致。layout22的S2桥随后仅将descriptor前态比较屏蔽accessed bit，精确重建旧源码匹配该轮SHA，5个不同实际采样（报告重复嵌入为11条）在旧／新谓词结果完全相同；其余dumper和owner守卫未变。这是离线源影响资格，不是新GUI或将旧失败改绿。最终报告保留每轮原工具SHA，不声称全部工具文件字节相同。
+
+## S3 按依赖闭包批量接入正式流程（2026-11-14）
+
+从已集成S2 `54ebc72` 在同一工作树实施，完整阶段／一次独立提交；没有启动S4。批次为stage2—10、11—19战斗／END／来源事件和胜利交接，附stage20仅入场／浏览／存取；13隔离槽／14引用、450默认255拒绝保留。详细绑定、源修正和五层边界见[S3报告](s3-batch-integration.md)，当前状态只查总计划。
+
+### 源闭包、共享补充与最终逻辑候选
+
+- 正式来源绑定96／86不同目标，19 entry、18 victory、18 result、41 callback；这是新增或替换的绑定数，不是机制数。原资源读取不复制；source capability的slots0由DAT metadata实际读取部署数。18个胜利出口与下一个3..20准备行／entry闭合；20战斗因victory20私有生命期隔离，25不跨未知自然链单开。
+- 完整原caller复核修callback41共享尾文本4；原child1文本11图保其旧域。五个结果CALL续点、12／16／18条件raw有效域、带故事latch与event_resume、AI奖励尾查询、状态notice、父子奖励owner和checked查询安全拒绝一起集中闭合，不写逐stage C故事链。
+- 原1b41d闭合stage16总览持久text18分支，新field_info冷表／共同roster查询；Domain生成名称35346与1b41d，1,312函数边界／3段原bytes不变，21 LE＋14发布＋11摘要门通过。初次发布13／14因误把函数内25e0b作owner拒绝，修成main25bf4内片段后完整发布，旧失败留本地。
+- 候选09产品、PDB、161生产来源／23实际生成inc及探针封存于 `native-candidate09/manifest.json`。实际通过system package导入主项目SDL3 3.2.12，未使用工作树回退CPM／SDL版本；主项目CPM0.40.8不升级。23项直接影响CTest同轮全过（16.92秒），未跑全历史CTest／GUI。
+- 同候选09收据：`oracles-candidate09`916结果／27 caller；`callback-binding-source04`180原caller／192 C；`callback-candidate07`1,971正常＋144等待＋1容量；`binding-traces-final09`38绑定／36图、1,026原码／C正常＋90等待＋1容量，另3既有模板caller单签；`overview-cpu-C-final09`242。各域有重叠、原码有明确叶替身，不能相加当完整AI／所有运行状态。
+- 来源闭包 `release-scope-candidate03` 保55条callback metadata引用（战斗50、仅entry20的5条未绑定）、新战斗254及entry20的11条255拒绝；全33组450＝406战场＋44资源域，严格支持集合仍空。旧S1／S2账与失败不重写。
+
+### 保留的失败与修正
+
+候选02新存档测试漏声明使指针截断，补正确头；候选03旧stage3禁用expected按新源绑定独立校准；后续候选发现合法Load晚期缺raw曾被旧安全谓词解释死亡／旧enum接口abort，改为真实读点checked拒绝，未提高Load人数门。奖励返回值、状态已消费notice和nonplayer child的实际C红件均修后才封09。旧候选和旧probe SHA保留，不能用早期CPU通过替最终09。
+
+首组 `native-turn3-final09` 已到真实CONTINUE，但END前构造ProgressReader时，误用首关专用奖励reader的六portrait／stage0资源门失败；无奖励页运行证据，owned正常清理／无残留、来源守卫不变。工具改为S3显式stage2资源域，按真实active与FDFIELD[7]读取0／2／4／8／9／30／51，37页保完整portrait／文字／growth／箭头门；B5默认不变，preflight提前构造。14项S3纯测和11项既有奖励／stage1协议通过后，以新目录r2重新整对取证，未改产品／受控夹具或给旧失败改绿。
+
+根与独立复审另发现新Play等待恢复必须有正式App失败出口门：S2 result21机制夹具不是正式App，stage12单独post0也不证明故事ACK前不离场。因此在本次stage12代表追加受控活动Load／真实controller／story10／原实际败北出口，不能靠旧机制门豁免。
+
+### 原生验收与本地集成
+
+早期候选时仍在串行原版／SDL正式WGC验收，未标完整S3完成、未提交／集成。报告按每轮实际输入／工具／候选保身份，最终必需门齐全后在本节补收据；不预签原版或将多候选累计成同轮通过。S4的旧Scene比例fade与全历史回归保持未开始。
+
+候选10收口补记：仅修main标题CONTINUE按已发布capability判断（旧0／1／2硬编码），产品EXE为eb682106…0b02c；23项定向CTest同轮通过（10.86秒）。四个原码C probe／全部生成inc及其源保持09身份；`turn3-candidate10-qualification.json`精确还原09 main并核stage2门同值，第一组仅按来源影响继承，不称10新GUI。`field_prepare`另单独补跑通过，复核本次后期roster部署直接路径，不重复全历史。
+
+`native-turn3-final09-r2`原版／SDL两端通过（57／53条trace、52／51检查点），Job3524正常退出／无残留／无强制清理；`native-victory-final10`两端各两个owned进程通过（88／77条trace、69／65检查点），Job28208同样正常清理。两份完整源／用户档守卫为真，同线程显示释放为真；每轮原工具身份保留，53份旧导入工具源另封存`native-tools-r2/`，不改写失败或假称所有轮次工具相同。
+
+`native-stage12-final10`在原端phase0 fullbrowse等待时，根审查发现新增败北工具的QUERY常量没有实际caller／actor尾，旧mock也复用该不完整常量，自证失效。经核本轮owned DOSBox PID31396的可执行路径／独立conf后正常WM_CLOSE中止，报告保failed／目标提前exit0；Job38408残留0／强制0，source守卫真、display释放真。没有把开场七页通过记成该轮正式entry通过。
+
+离线同时定位stage12 fullbrowse预测错误：Python直接抄15条roster，漏完整1088d的stage<13保留active6/text2门；本实际late记录槽6为unit58/text8，原应清零80B并hidden，roster／placement不推进。正式field_prepare已有正确冷gate，产品不用改。此场只消费14人，末text13不出场；旧工具虚构其(6,18)故事移焦而推camY12。按完整部署、对话和原12cea重算自然得到camera0,11／focus3,15，原PNG的原有完整focus498px门通过（bad0、maxRGBdelta3），独立terrain扫描亦吻合；没有改坐标常量迎合截图，也没有引入玩家nearest-free。日志门另补真实整行、早查询／出口、wrongcaller／actor／result、重复／缺失拒绝；旧mock红件与修后纯测分账。当时安排新目录r2重新完整双端验收。
+
+
+### 最终原生门、审查与阶段收口
+
+stage12工具另两处owner／观察边界修正均只在研究工具：观察view补本次手动Load的完整32条roster区域，不能以旧B7六人owner处理未部署说话人；r2在完整GAME OVER／自动title后仍因把三条capture_error计成补键失败，原报告15449f2c…108e0保failed。final07改为末ACK后仅拒key／delivery，原观察trace保留，真实ENTER／ESC／delivery-only负例先红4后绿，不提前记录零输入的title通过。20项对应纯测及最终121项直接影响工具测试通过。
+
+`native-stage12-final10-r3`原端完整通过，SDL亦过phase0正式entry／Save／活动Load，但phase1 CONTINUE由main另一处0／1／2执行白名单拒绝；这是本轮产品漏点，不是环境。C11将执行门与显示门统一已有capability；完整main→run_field_chain→Play→open_resources→field_save复审无其它公共旧白名单。stage0 START／调试和stage1／2专名兼容wrapper的合法约束不放宽，stage20仍可恢复浏览而不可战斗。
+
+C12仅在C11上同步三文件旧范围注释（精确回替、行数不变），完整24项直接影响CTest同轮通过10.79秒；3个变化探针的新实际C差分重新完成：916结果、27caller、180原／192 C caller、1,971＋144＋1 callback和1,026＋90＋1正式绑定。overview探针与09原SHA完全相同，242项严格继承；scope03的51输入仅field_game.c注释不同、其余50相同，按精确来源影响继承，不称新结构运行。旧原件仍原身份。
+
+最终 `native-stage12-final12` 新双端完整通过：各2个owned进程，原／SDL分别89／72条trace及69／65检查点，story10各1 ACK；SDL在末ACK后恰有一次完整player/raw0/result2查询返回及一次Play败北行，之前均无query／exit。原版完整源合同、WGC和SAV证明等待及出口，但没有转储runtime latch。trace含无按键的采集观察，不将条数当真实按键数。正式CONTINUE、活动Load取消／成功／再存、受控hidden村民、真实选择取消、完整故事、64000像素末GAME OVER及无补键自动回标题齐全；不称自然战斗产生。
+
+三组最终代表为turn3-r2（C09）、victory（C10）和stage12（C12）。前两组只在精确还原main、stage2两能力谓词同值及其余注释／不变逻辑的范围继承；不是C12重跑前三组或主项目新二进制又跑GUI。后者是C12新原生。全部owned正常退出／Job残留0／强制0、来源守卫真、同线程显示释放真，无电源计划或用户混音器变更。`final-gate.json`核三个原报告、当前161生产源／23inc／探针及51原资源／用户档，所有摘要与mtime守卫通过。
+
+根与独立实审闭合本轮来源／分类、参数／宽度、结果调用／资源／owner／SAV／RNG、正式门和取证工具问题，无剩余S3阻塞；13隔离槽／14引用及450默认255域仍未开放，不因本阶段完成而抹去。下一入口S4未开始，旧Scene fade及统一历史回归不在本次实施。完整S3为一次独立提交；本地主项目FF、同版SDK重建／定向检查、来源资格与用户档守卫由后置 `build/s3/local-integration.json`登记，Git为提交身份，不远程push。

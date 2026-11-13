@@ -134,6 +134,7 @@ static int loot_flow_operation(const char *op, int branch) {
         "item_selection_reset", "targets_reset", "command_release", "player_controller_complete",
         "pending_collect_final", "event_common_preflight", "runtime_refresh",
         "cell_callback_preflight", "cell_cue_preflight", "cell_open_cue", "runtime_clear_keys"
+        ,"stage_result_post"
     };
     static const char *const queries[] = {
         "branch_has_descriptor", "branch_descriptor_mode", "branch_actor_side", "branch_inventory_capacity",
@@ -212,7 +213,7 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
         memcpy(ctx->pending.descriptors[ctx->pending.count++], (const uint8_t *)&g->units.items[ctx->scan] + 0x31, 3); break;
     case 3: ctx->scan++; break;
     case 4: return finalize_zero_hp_units(g);
-    case 5: g->battle_result = fd2_field_game_battle_result(g); break;
+    case 5: return refresh_battle_result(g,ctx->actor);
     case 6: *l = ctx->pending; ctx->started = 1; break;
     case 7: { if (!u || value > UINT8_MAX || !fd2_field_item_record_get(d[1])) return -1;
         fd2_field_unit shadow = *u;
@@ -251,7 +252,10 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
         if (l->cell_index >= FD2_FIELD_EVENT_SLOTS) return -1;
         g->metadata.cell_actions[l->cell_index].param = ctx->remembered; break;
     case 19: return complete_cell_tiles(g);
-    case 20: ctx->saved = *l; memset(l, 0, sizeof(*l)); break;
+    case 20:
+        if(ctx->child)memset(&l->child,0,sizeof(l->child));
+        else {ctx->saved=*l;memset(l,0,sizeof(*l));}
+        break;
     case 21:
         ctx->last = begin_reward(g, ctx->saved.actor_index, ctx->saved.resume, ctx->saved.action_actor);
         return ctx->last < 0 ? -1 : 0;
@@ -321,6 +325,11 @@ static int loot_flow_action(fd2_loot_flow_context *ctx, int action) {
     }
     case 49: return turn_present(g,FD2_FIELD_RUNTIME_CELL_OPEN_CUE,12);
     case 50: return turn_present(g,FD2_FIELD_RUNTIME_CLEAR_KEYS,0);
+    case 51: {
+        int result=begin_stage_result_call(g,ctx->saved.action_actor,FD2_EVENT_COMPLETE_LOOT_RESULT);
+        if(result==0)log_stage_result_return(g,"ai-loot",ctx->saved.action_actor);
+        return result;
+    }
     default: return -1;
     }
     return 0;
@@ -338,7 +347,7 @@ static int loot_flow_run(fd2_loot_flow_context *ctx, int pc) {
         const fd2_static_flow_node *node = fd2_static_flow_at(flow, pc);
         if (!node || !(node->views & FD2_FLOW_LOGIC)) break;
         /* 子只执行caller-local这一条descriptor；不走父战斗奖励/controller尾。 */
-        if (ctx->child && !ctx->game->loot.child.active && !strcmp(node->op, "branch_has_descriptor"))
+        if (ctx->child && !ctx->game->loot.child.active)
             return 0;
         unsigned port = FD2_FLOW_NEXT;
         int query = loot_flow_operation(node->op, 1);
@@ -364,14 +373,19 @@ static int loot_flow_run(fd2_loot_flow_context *ctx, int pc) {
             }
         } else if (action >= 0) {
             if (action == 31) return ctx->last;
-            if ((action == 14 || action == 27) && !ctx->child) {
+            if ((action == 14 || action == 27 || action==51) && !ctx->child) {
                 ctx->game->loot.step = (uint8_t)pc;
-                if(action==27)ctx->game->loot.actor_index=ctx->actor;
+                if(action==27 || action==51) {
+                    ctx->game->loot.actor_index=ctx->saved.action_actor;
+                    ctx->game->loot.action_actor=ctx->saved.action_actor;
+                }
             }
             if (loot_flow_action(ctx, action) < 0) port = FD2_FLOW_ERROR;
             else if (action == 14 && ctx->game->event_resume.active) return 0;
             else if (action == 27 && ctx->game->event_resume.active) {
                 ctx->game->event_resume.completion=FD2_EVENT_COMPLETE_LOOT_PENDING;
+                return 0;
+            } else if(action==51 && ctx->game->event_resume.active) {
                 return 0;
             }
         } else if (!strcmp(node->op, "emit")) {
@@ -555,6 +569,15 @@ static int loot_flow_resume_event_pending(fd2_field_game *game) {
     const fd2_static_flow *flow=loot_flow();
     const fd2_static_flow_node *node=fd2_static_flow_at(flow,game->loot.step);
     if(!node || strcmp(node->op,"pending_dispatch"))return -1;
+    fd2_loot_flow_context ctx=loot_flow_reply_context(game,-1);
+    ctx.saved.action_actor=game->loot.action_actor;
+    return loot_flow_run(&ctx,fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT));
+}
+
+static int loot_flow_resume_event_result(fd2_field_game *game) {
+    const fd2_static_flow *flow=loot_flow();
+    const fd2_static_flow_node *node=fd2_static_flow_at(flow,game->loot.step);
+    if(!node || strcmp(node->op,"stage_result_post"))return -1;
     fd2_loot_flow_context ctx=loot_flow_reply_context(game,-1);
     return loot_flow_run(&ctx,fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT));
 }

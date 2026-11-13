@@ -277,19 +277,21 @@ static int test_secondary_dynamic_disabled(void) {
 }
 
 static int test_overview_stage_gate(void) {
-    /* B7已开放stage0..2总览；stage2仍禁止March/END，stage3保持未开放。 */
-    for (uint8_t stage = 0; stage <= 3; stage++) {
+    /* S3发布的battle与entry-only边界分别核门；不把UI资源存在当开放。 */
+    const uint8_t stages[] = {0,1,2,3,19,20,21};
+    for (size_t index = 0; index < sizeof(stages); index++) {
+        uint8_t stage = stages[index];
         fd2_field_game game;
         test_rng rng = {0x13579bdfu, 0};
         init_game(&game, &rng);
         game.stage = stage;
         fd2_field_game before = game;
         CHECK(fd2_field_game_open_system_menu(&game) == 0);
-        CHECK(game.system_menu.disabled[1] == (stage > 1)); /* March */
-        CHECK(game.system_menu.disabled[3] == (stage > 1)); /* END */
+        CHECK(game.system_menu.disabled[1] == (stage >= 20)); /* March */
+        CHECK(game.system_menu.disabled[3] == (stage >= 20)); /* END */
         CHECK(fd2_field_game_confirm_system_menu(&game) ==
               FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-        if (stage <= 2) {
+        if (stage <= 20) {
             CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
             CHECK(fd2_field_game_confirm_system_menu(&game) ==
                   FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
@@ -636,9 +638,9 @@ static int test_confirmation_buttons(void) {
 }
 
 static int test_march_supported_stage_gate(void) {
-    const size_t stages[] = {0, 1, 2};
-    const int available[] = {1, 1, 0};
-    for (size_t i = 0; i < 3; i++) {
+    const size_t stages[] = {0, 1, 2, 3, 19, 20, 21};
+    const int available[] = {1, 1, 1, 1, 1, 0, 0};
+    for (size_t i = 0; i < sizeof(stages)/sizeof(stages[0]); i++) {
         fd2_field_game game;
         test_rng rng = {0x27182818u, 0};
         init_game(&game, &rng);

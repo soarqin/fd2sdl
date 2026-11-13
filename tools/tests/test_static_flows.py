@@ -14,6 +14,40 @@ spec.loader.exec_module(generator)
 
 
 class StaticFlowTest(unittest.TestCase):
+    def test_source_capability_requires_exact_entry_victory_and_result_owner_bindings(self):
+        manifest = generator.load_json(ROOT / "data/static/manifest.json")
+        docs = {p.name: generator.load_json(p) for p in (ROOT / "data/static/flows").glob("*.json")}
+        scripts = {t["source"]["script_id"] for t in generator.load_json(
+            ROOT / "data/static/tables/movement_scripts.json")["tables"]}
+
+        def check(current):
+            index = {name: flow for d in current.values() for name, flow in generator.flow_index(d).items()}
+            generator.validate_flow_contract(current["stage.json"], manifest["flow_contracts"]["stage.json"], scripts, index)
+
+        check(docs)
+        for case in ("entry", "entry_label", "victory", "result", "duplicate_result", "prefix", "copy_slots", "closed_boundary"):
+            bad = copy.deepcopy(docs)
+            stage = bad["stage.json"]
+            if case == "entry":
+                del stage["bindings"]["stage.entry.020"]
+            elif case == "entry_label":
+                source = next(f for f in stage["flows"] if f["id"] == "stage.source.entry.003")
+                source["entry"] = next(n["id"] for n in source["nodes"] if n["op"] != "call_init")
+            elif case == "victory":
+                del stage["bindings"]["stage.victory.012"]
+            elif case == "result":
+                del bad["common_event.json"]["bindings"]["stage.012.result"]
+            elif case == "duplicate_result":
+                stage["bindings"]["stage.result.012"] = "stage.result.000"
+            elif case == "prefix":
+                stage["flows"] = [f for f in stage["flows"] if f["id"] != "stage.victory.source.prefix"]
+            elif case == "copy_slots":
+                next(f for f in stage["flows"] if f["id"] == "stage.capability.012")["nodes"][0]["args"][3] = 15
+            else:
+                next(f for f in stage["flows"] if f["id"] == "stage.capability.020")["nodes"][0]["args"][0] = 1
+            with self.subTest(case=case), self.assertRaisesRegex(ValueError, "source"):
+                check(bad)
+
     def test_large_source_sequence_preserves_uint16_entry_and_int16_edge_limit(self):
         data=self.document();data['domain']='common_event';flow=data["flows"][0]
         flow["nodes"]=[{"id":f"n{i}","op":"end" if i==1545 else "test",

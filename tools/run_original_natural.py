@@ -71,13 +71,14 @@ def sparse_match(frame, page, matcher, assets):
 class ProgressReader:
     """本首关有限的资源事件；只有已确认等键页才发送一键。"""
     def __init__(self, original, source, assets, report, *, stories=None, victory_fragment=9, cell_contract=None,
-            nonphase_story_fragments=(8, 9)):
+            nonphase_story_fragments=(8, 9), reward_resource_stage=None):
         self.original, self.source, self.assets, self.report = original, source, assets, report
         self.stories = stage0_pages(original, assets) if stories is None else stories
         self.victory_fragment = victory_fragment
         self.cell_contract = cell_contract
         self.nonphase_story_fragments = nonphase_story_fragments
-        self.rewards = required_reward_pages(original, assets, source)
+        self.rewards = (required_reward_pages(original, assets, source) if reward_resource_stage is None else
+            required_reward_pages(original, assets, source, resource_stage=reward_resource_stage))
         self.fragments = {fragment: [p for p in self.stories if p["fragment"] == fragment]
                           for fragment in sorted({p["fragment"] for p in self.stories})}
         self.story = None

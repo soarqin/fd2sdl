@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "k_field_overview_condition_policy",
+      "c_type": "int32_t",
+      "dimensions": [3],
+      "values": [597, 2, 1],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "kind": "decoded_control_flow",
+        "canonical_va": "0x1b41d",
+        "evidence": "sub_1B41D @0x1b41d complete468B: victory=597+2*stage; defeat is the chosen base+1. This is an editable projection of instruction constants/control flow, not a native EXE table or copied FDTXT data."
+      }
+    },
+    {
+      "name": "k_field_overview_roster_rules",
+      "c_type": "int32_t",
+      "dimensions": [1, 4],
+      "values": [[16, 18, -2, 0]],
+      "source": {
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "kind": "decoded_control_flow",
+        "canonical_va": "0x1b41d",
+        "evidence": "Full1b41d CFG: after drawing victory629, stage16 calls field_roster_has_text @0x33499(18); absent subtracts2 only before defeat text, selecting628; present selects630. Rows are stage/text_id/absent_delta/present_delta applied only to defeat. 33499 scans the independent32-record roster's text BYTE against a full DWORD, with no HP/hidden/side filter. Existing20872 uses this same roster predicate; overview neither queries nor writes the battle-result latch."
+      }
+    }
+  ]
+}

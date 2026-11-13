@@ -4,7 +4,7 @@
 
 SD 历史基线为79张冷表、四域30份流程、518个节点及6个共享绑定；G2 历史生成范围为168张表、五域36份流程定义、565个节点和6个共享绑定。2026-11-10 的 G4 中间候选曾为193张表、八域60份流程定义、1,283个节点和12个共享绑定；当时新增 `runtime` 与 `common_event`，后者尚无 stage 绑定。G4 最终冻结为193张表、八域62份流程、1,390个节点和12个共享绑定，已以 `4ada76b` 提交并集成本地 master；中间候选及失败记录保留原身份，最终依据见阶段记录。
 
-G5 当前冻结输入为194张表、八域65份流程定义、1,476个节点和12个共享绑定；其中6个既有正式事件身份由 scene 迁入 common_event，没有新增关卡支持。**G5 已按本轮来源域完成统一历史回归和逐项签核；表、节点、绑定数不是玩法覆盖率。** 正式 START 的 Game 初始化与 Scene 前态继续共用 `scene.init.000`；新增领域不构成通用 VM。数据修改仍须重建，结构／来源检查不自动开放后续关卡，实际阶段验收见[阶段记录](../plans/stage-log.md)。
+G5 历史冻结输入为194张表、八域65份流程定义、1,476个节点和12个共享绑定；其中6个既有正式事件身份由 scene 迁入 common_event，没有新增关卡支持。**G5 已按当时来源域完成统一历史回归和逐项签核；表、节点、绑定数不是玩法覆盖率。** 正式 START 的 Game 初始化与 Scene 前态继续共用 `scene.init.000`；新增领域不构成通用 VM。数据修改仍须重建，结构／来源检查不自动开放后续关卡，实际阶段验收见[阶段记录](../plans/stage-log.md)。
 
 ## 构建与修改
 
@@ -92,9 +92,9 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 ## 共享运行与通用事件的来源边界
 
-G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点：Round 42、phase 132、turncycle 28、choice 25、defeat 86、detail 8。G5 当前为78个操作、7份流程和381个节点，追加到场图及有源的清键／信息板／caller返回和方向reset等待边界。`verify_runtime_flows.py` 独立读取固定身份原 EXE 与严格 LE 页，按原 Round／phase／恢复／确认／死亡／详情等 caller 的 call／jump／立即数推导预期；不把 JSON 自报来源或生成 C 当作期望。静态正反例、原码、真实 C consumer 和 WGC 各自记账；实际等待、写点、工作页和可见内容的有效域见[共享运行语义 §8](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)与[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。
+G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点：Round 42、phase 132、turncycle 28、choice 25、defeat 86、detail 8。G5 冻结为78个操作、7份流程和381个节点，追加到场图及有源的清键／信息板／caller返回和方向reset等待边界。`verify_runtime_flows.py` 独立读取固定身份原 EXE 与严格 LE 页，按原 Round／phase／恢复／确认／死亡／详情等 caller 的 call／jump／立即数推导预期；不把 JSON 自报来源或生成 C 当作期望。静态正反例、原码、真实 C consumer 和 WGC 各自记账；实际等待、写点、工作页和可见内容的有效域见[共享运行语义 §8](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)与[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。
 
-G4 冻结时，`common_event.json` 有47个有限操作、15份未绑定来源流程和115个节点。G5 当前为54个操作、21份流程和183个节点，六个既有正式身份为stage000 action0..4及stage001 action6；其自然入口证据与15份机制来源夹具分开。`verify_common_events.py` 独立核原完整函数／显式片段、17 byte 原表及冷控制；`verify_fd2_legacy_events.py` 另核六个原 caller 的实际调用／写序。线性身份投影检查 future raw／MOVE，但不证明任意分支组合的完整未来资源。common39 仍是非 shipping 显式alias，空槽／满包取消／死亡反馈配对不自动成为自然 stage 绑定，也不表示21图全部有原生证据。G4 的30项局部机器码差分与原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)；G5 实际候选和剩余门见统一审计及阶段记录。
+G4 冻结时，`common_event.json` 有47个有限操作、15份未绑定来源流程和115个节点。G5 冻结为54个操作、21份流程和183个节点，六个既有正式身份为stage000 action0..4及stage001 action6；其自然入口证据与15份机制来源夹具分开。`verify_common_events.py` 独立核原完整函数／显式片段、17 byte 原表及冷控制；`verify_fd2_legacy_events.py` 另核六个原 caller 的实际调用／写序。线性身份投影检查 future raw／MOVE，但不证明任意分支组合的完整未来资源。G5 冻结时 common39 是非 shipping 显式alias，空槽／满包取消／死亡反馈配对不自动成为自然 stage 绑定，也不表示21图全部有原生证据。G4 的30项局部机器码差分与原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)；G5 实际候选和剩余门见统一审计及阶段记录。
 
 Windows PowerShell：
 
@@ -138,7 +138,7 @@ python3 -B tools/static_data/audit_stage_data.py --stage 0 --stage 1 --require-s
 python3 -B tools/static_data/audit_stage_data.py --require-supported --output build/sd3-audit/required-all.json
 ```
 
-第二、三条对当前原资源均应返回非零，并保留阻塞报告。默认 `(255,255,0)` 在turn255／phase0命中；G1已确认原DWORD回合无255上限、分派无action255哨兵，其表外读值不是合法code fixup。SDL保留原槽并在该边界显式拒绝，不补callback255或假定永远不到255；原版运行后果未据此宣称已测。`bound_definitions_closed`仅说明排除默认候选后的已绑定集合闭合，当前0／1为true；`--require-supported`仍拒绝默认候选、其它未知／未开放语义及引用错误，当前0..32均不通过。报告保留 `semantic_complete=false`。stage2入场支持与战斗禁用分别登记。
+第二、三条对当前原资源均应返回非零，并保留阻塞报告。默认 `(255,255,0)` 在turn255／phase0命中；G1已确认原DWORD回合无255上限、分派无action255哨兵，其表外读值不是合法code fixup。SDL保留原槽并在该边界显式拒绝，不补callback255或假定永远不到255；原版运行后果未据此宣称已测。`bound_definitions_closed`仅说明排除默认候选后的已绑定集合闭合，历史 v3 报告中仅0／1为true；`--require-supported`仍拒绝默认候选、其它未知／未开放语义及引用错误，当前0..32均不通过。报告保留 `semantic_complete=false`。S3 的正式绑定／入场域另由[发布域校验](#s3-正式绑定与发布域校验)登记，不沿用历史 stage2 战斗禁用状态。
 
 这里的 `entry_supported` 对应原战场 entry 分发表；stage31／32 没有该表的槽，不用它判定 `scene.new_game` 中已支持的开场段落。开场链及两端实际运行证据另按对应冷图和阶段记录核对。
 
@@ -158,7 +158,7 @@ SD3／G1 的 v3 来源报告保守潜在需求集合共1,171条记录引用，�
 
 ## S2 批量转换与去向复现
 
-S2 继续消费冻结的 S1 来源包，另存完整 Domain 读集、候选冷图、独立原指令轨迹和实际 C 比较，不回写 S1。固定字段、计数与同义别名的消费合同见[来源账规范的 S2 叠加合同](../formats/stage-source-ledger.md#s2-转换叠加合同)。这些命令不编辑 `data/static/`、不启动 GUI，也不批准新关卡绑定；阶段完成与原生代表仍以阶段记录为准。
+S2 历史冻结产物继续引用同一 S1 来源包，另存完整 Domain 读集、候选冷图、独立原指令轨迹和实际 C 比较，不回写 S1。固定字段、计数与同义别名的消费合同见[来源账规范的 S2 叠加合同](../formats/stage-source-ledger.md#s2-转换叠加合同)。这些命令不编辑 `data/static/`、不启动 GUI，也不批准新关卡绑定；阶段完成与原生代表仍以阶段记录为准。
 
 复跑前需有合法原资源、已通过严格 LE 验收的 relocated 镜像、完整的本地 Domain 读集，以及当前平台实际构建的 C probe。缺少读集时，按 [IDA 流程](ida.md)在隔离数据库中调用 `convert_stage_callbacks.collect_domain(db, original, output, strict_image)`、`convert_stage_transitions.collect_domain(db, ledger_path, image_path, output)` 或 `s2_result_source.collect(db, image_path, executable, ida_directory, output)`；保留完整 owner、全部 shared chunk、xref 和镜像身份，不用手写 JSON 或附近 CALL 代替。原始读集和完整转换产物不随源码分发。
 
@@ -184,7 +184,7 @@ python3 -B tools/static_data/s2_source_disposition.py --original original_game -
 uv run --no-project --with unicorn python3 -B -m unittest tools.tests.test_convert_stage_callbacks tools.tests.test_convert_stage_transitions tools.tests.test_s2_source_disposition
 ```
 
-| 工具／产物 | 通过条件与边界 |
+| S2 冻结工具／产物 | 当时通过条件与边界 |
 |---|---|
 | callback `candidates.json`／`original-traces.json` | 90 槽逐一核原指针、原 ID、实际入口／owner、完整指令和 metadata caller 引用。72 个转换槽复用 66 份新图；17 槽引用精确既有图；callback82 保持明确阻塞。图／节点数不等于机制覆盖率 |
 | callback `C-original-comparison.json`／`manifest.json` | 正式 Game `begin/peek/reply` 对独立 x86 检查点；正常 1,944 例，wrong ACK／HOST／错误前缀各 47 例，另有 1 例容量拒绝。旧字段 `wait_guard_cases=142` 含容量例；叠加报告将等待守卫规范为 141，容量另计 1，不重复累加 |
@@ -196,6 +196,55 @@ callback 的原码／C 比较明确替换构造器新增记录区域、stats、r
 完整有限序列可展开为冷节点，例如 callback76 的 1,546 节点 pulse；不能压成整段 native handler。当前只读 flow `entry` 使用 `uint16_t`，`common_event` 单图上限为 32,767 节点，其他域仍为 254；edge 继续使用 `int16_t`，总执行预算仍有界。这些是只读定义 ABI，不增加 Game／SAV 字段、任意脚本 VM 或新的热执行栈。
 
 重复生成使用新目录；比较候选的图内容、逐槽决策、原指令轨迹和输入／probe 摘要，不把命令退出 0、JSON 导出、静态图存在或结构 `confirmed` 当作运行绑定通过。原资源或工具发生变化后，旧 S1／S2 收据保留原身份；重新生成当前批，不能覆盖旧文件或更新预期摘要掩盖差异。
+
+## S3 正式绑定与发布域校验
+
+S3 在唯一 `data/static/` 定义和精确 caller 绑定上核发布闭包，不修改 S1 来源包或 S2 历史报告。当前转换器已修正 callback41 的旧来源引用；上节 S2 的 72 槽／66 图／17 个既有引用是当时冻结计数，复现它们须使用相应历史工具输入。当前工具重新生成的 S3 候选为 73 槽／67 图／16 个既有引用，callback82 仍阻塞。两批不得混签。
+
+下面按原 caller 参数、完整 callback 候选、逐正式绑定轨迹、发布域闭包的顺序执行。`NEW` 替换为各自尚不存在的目录名；这些命令只读原资源，不启动 GUI，不写正式定义。Windows 示例使用本轮实际主项目资源与严格镜像路径：
+
+```powershell
+$original = 'E:/Projects/fd2sdl/original_game'
+$ledger = 'build/s1/ledger-candidate07'
+$domain = 'build/s2/ida-callbacks/domain-evidence02.json'
+$image = 'E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin'
+$probe = 'src/build-s0-baseline/Debug/fd2_s2_callback_source_test.exe'
+uv run --no-project --with unicorn python -B tools/ida/s3_callback_binding_source.py --original $original --ledger $ledger --domain $domain --image $image --c-probe $probe --output build/s3/binding-source-NEW
+uv run --no-project --with unicorn python -B tools/static_data/convert_stage_callbacks.py --original $original --ledger-dir $ledger --domain $domain --image $image --c-probe $probe --output-dir build/s3/callback-NEW
+uv run --no-project --with unicorn python -B tools/static_data/verify_stage_release_traces.py --original $original --ledger-dir $ledger --domain $domain --image $image --candidates build/s3/callback-NEW/candidates.json --c-probe $probe --output-dir build/s3/binding-traces-NEW
+python -B tools/static_data/stage_release_scope.py --original $original --ledger $ledger --s2-disposition build/s2/source-disposition-final03/disposition.json --callbacks build/s3/callback-NEW/candidates.json --transitions build/s2/transitions-candidate18/conversion.json --binding-source build/s3/binding-source-NEW/comparison.json --battle-stages 2:19 --entry-stages 20 --output build/s3/release-scope-NEW
+python -B -m unittest tools.tests.test_s3_callback_binding_source tools.tests.test_stage_release_scope tools.tests.test_convert_stage_callbacks tools.tests.test_static_stage_audit tools.tests.test_s2_source_disposition -q
+```
+
+Linux Bash（本轮未执行；须先准备本机合法原资源、严格镜像、同源读集和独立 Linux 构建）：
+
+```bash
+original=original_game
+ledger=build/s1/ledger-candidate07
+domain=build/s2/ida-callbacks/domain-evidence02.json
+image=tools/fd2_le_relocated_relbase.bin
+probe=src/build/fd2_s2_callback_source_test
+uv run --no-project --with unicorn python3 -B tools/ida/s3_callback_binding_source.py --original "$original" --ledger "$ledger" --domain "$domain" --image "$image" --c-probe "$probe" --output build/s3/binding-source-NEW
+uv run --no-project --with unicorn python3 -B tools/static_data/convert_stage_callbacks.py --original "$original" --ledger-dir "$ledger" --domain "$domain" --image "$image" --c-probe "$probe" --output-dir build/s3/callback-NEW
+uv run --no-project --with unicorn python3 -B tools/static_data/verify_stage_release_traces.py --original "$original" --ledger-dir "$ledger" --domain "$domain" --image "$image" --candidates build/s3/callback-NEW/candidates.json --c-probe "$probe" --output-dir build/s3/binding-traces-NEW
+python3 -B tools/static_data/stage_release_scope.py --original "$original" --ledger "$ledger" --s2-disposition build/s2/source-disposition-final03/disposition.json --callbacks build/s3/callback-NEW/candidates.json --transitions build/s2/transitions-candidate18/conversion.json --binding-source build/s3/binding-source-NEW/comparison.json --battle-stages 2:19 --entry-stages 20 --output build/s3/release-scope-NEW
+python3 -B -m unittest tools.tests.test_s3_callback_binding_source tools.tests.test_stage_release_scope tools.tests.test_convert_stage_callbacks tools.tests.test_static_stage_audit tools.tests.test_s2_source_disposition -q
+```
+
+| 门／本轮 Windows 产物 | 实际检查与计数 |
+|---|---|
+| 原 caller：`build/s3/callback-binding-source04/comparison.json` | callback8／12／26／39／41 完整原入口、共享尾和参数，各 36 例，共 180 例原指令；实际 C 为 180 例正常加 12 例 wrong ACK／HOST／错误输入，共 192 例。保留此前失败原件，不过滤非玩家 side 求通过 |
+| 完整候选：`build/s3/callback-candidate07/` | 90 槽／90 target／88 owner；73 槽转换成 67 图、2,045 节点，16 槽引用既有定义，1 槽阻塞。原码／实际 C 正常 1,971 例，另有 144 例等待前缀、1 例容量拒绝，实际 C 共 2,116 例；旧字段 `wait_guard_cases=145` 包含容量例 |
+| 正式绑定：`build/s3/binding-traces-final09/` | 38 个新模板绑定／36 份不同定义，按各自真实 stage DAT 资源代入 1,026 例原码／实际 C 正常轨迹，另有 90 例等待前缀、1 例容量拒绝，实际 C 共 1,117 例。3 个既有模板绑定另走上述 caller 参数门，不把它们计为本工具的新图轨迹 |
+| 发布域：`build/s3/release-scope-candidate03/scope.json` | 新增正式域为 battle2..19 与 entry-only20；96 个绑定对应 86 个不同原 target，其中 19 个 entry、18 个 victory、18 个 result、41 个 callback。55 条 callback 源引用含 battle 必需 50 条和 entry-only20 保留 5 条，不将后者当活动绑定 |
+
+这三份原码／C 报告使用冻结 09 callback probe，SHA256 为 `4d0d880192e71acee202007cb03d9a6b0cad96d5c040f4954e17c999c81b9c79`。后续构建必须登记自己的 probe 身份，不能沿用这个摘要或通过结论。原指令比较中的构造区域、stats、renderer／text／keyboard、child 呈现等替身按各报告声明保留；实际 C 使用正式 Game `begin/peek/reply` 和 Loot 业务。它们不证明自然可达性、全部 RNG／像素／时序，原生窗口与少量原版代表另记。
+
+`stage_release_scope.py` 直接复核固定 S1 包／S2 去向、原 DAT、当前唯一图及正式绑定；输出不参与 App 构建。它核每个胜利成功边的 next_stage→正式 entry／capability／原 31 B 准备记录闭包，2..19 交接到 3..20。stage20 仅入场、浏览、已证准备和存取；battle／END 关闭，不能因 entry 图存在越过 victory20 隔离。13 个未决源槽及 14 条受影响来源仍保留，精确列表见[来源账的 S3 合同](../formats/stage-source-ledger.md#s3-发布域与活动恢复合同)。
+
+source-bound capability 的 `preparation_slots=0` 表示部署容量从原 DAT metadata 读取，不表示零个部署槽；snapshot `min/exact` 上限为 96，部署字段上限为 20。`exact=0` 允许真实增援及 hidden 状态，人数下界来自完整 entry 的成功路径。Load 保留已存 metadata／schedule_turn／未知字节，不强迫与原 metadata 恒等，也不重放 entry。条件 raw 读取仍在实际到达叶核前缀，不能把未来最大 raw 下标变成所有存档的统一人数门。
+
+默认 turn255 不因发布而消失：全 S1 仍有 450 条拒绝来源（战场表0..29 为 406，资源组30..32 为 44）；本发布域2..20 为 265 条，其中 battle2..19 为 254，entry-only20 为 11。Load 可保留这些槽，到实际 turn255／phase0 分派 callback255 时明确拒绝。`scope.json` 的 `structural_binding_scope_closed=true` 与逐关 `strict_supported=false` 可以同时成立；结构、正式绑定、实际消费者和原生验收分别签核，不把严格审计改成全玩法通过。
 
 ## G1 通用机制来源分类
 

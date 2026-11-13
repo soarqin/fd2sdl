@@ -7,6 +7,9 @@
 #include "archive.h"
 #include "static_flow.h"
 
+/* 明确发布的entry/victory绑定是否与同stage的已证来源图共享实例。 */
+int fd2_field_stage_source_is_bound(size_t stage, const char *kind);
+
 /* FDFIELD.DAT 战场地图读取
  *
  * 已用 original_game/FDFIELD.DAT 验证：每 3 个条目为一组，组内第 0 个

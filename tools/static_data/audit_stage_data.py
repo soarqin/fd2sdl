@@ -243,7 +243,8 @@ def capability(stage, flows, aliases):
         raise ValueError("invalid capability declaration")
     args = flow["nodes"][0]["args"]
     if (len(args) != 4 or any(type(value) is not int for value in args)
-            or args[0] not in (0, 1) or any(not 0 <= value <= 64 for value in args[1:])):
+            or args[0] not in (0, 1) or any(not 0 <= value <= 96 for value in args[1:3])
+            or not 0 <= args[3] <= 20):
         raise ValueError("invalid capability arguments")
     return args
 
@@ -512,7 +513,7 @@ def descriptor(mode, param, stage, enabled, fragments, flows, aliases, *, cell=F
 
 def bound_stage_flows(stage, flows, aliases):
     for key in sorted(set(flows) | set(aliases)):
-        match = re.fullmatch(r"(?:stage\.(?:entry|victory|settlement)|scene\.(?:init|opening))\.(\d+)|stage\.(\d+)\.action\.\d+", key)
+        match = re.fullmatch(r"(?:stage\.(?:entry|result|victory|settlement)|scene\.(?:init|opening))\.(\d+)|stage\.(\d+)\.(?:action\.\d+|result)", key)
         if match and int(match.group(1) or match.group(2)) == stage:
             yield key, resolve(key, flows, aliases)
 
@@ -624,14 +625,22 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
             op, args = node["op"], node["args"]
             if op == "move" and args[0] not in SCRIPT_IDS: errors.append(f"{key}/{node['id']}: unsupported movement script")
             # 原10b4e没有匹配group时正常返回；保留空group，而非编造资源依赖。
-            if op == "text" and not 0 <= args[0] < fragments: errors.append(f"{key}/{node['id']}: text fragment out of range")
+            if op in ("text", "story") and not 0 <= args[0] < fragments: errors.append(f"{key}/{node['id']}: text fragment out of range")
     stages = {}
     for table, kind in (("stage_runtime_result", "result"), ("stage_entry", "entry"), ("stage_victory", "victory")):
         original = dispatch[table]["records"][stage] if stage < dispatch[table]["count"] else None
         start_entry = bool(original and original["target_va"] == "0x3231b" and "scene.new_game" in flows)
         # 入场/准备不要求开放战斗；stage0使用已证START图，其余取cap的准备槽声明。
-        entry_enabled = bool(cap and (cap[3] or start_entry))
-        binding = classify(f"stage.{kind}.{stage:03d}", entry_enabled if kind == "entry" else enabled, flows, aliases)
+        source_entry = resolve(f"stage.entry.{stage:03d}", flows, aliases)
+        source_entry_bound = bool(source_entry and source_entry["id"].startswith("stage.source.entry."))
+        entry_enabled = bool(cap and (cap[3] or start_entry or source_entry_bound))
+        runtime_id=f"stage.{kind}.{stage:03d}"
+        runtime_domain="stage"
+        if kind=="result" and resolve(f"stage.{stage:03d}.result",flows,aliases):
+            if resolve(runtime_id,flows,aliases):raise ValueError("duplicate pure/effect result runtime binding")
+            runtime_id=f"stage.{stage:03d}.result";runtime_domain="common_event"
+        binding = classify(runtime_id, entry_enabled if kind == "entry" else enabled, flows, aliases)
+        binding["runtime_domain"]=runtime_domain
         # 已证new_game_opening_play入口是显式新游戏图，不伪造stage.entry.000运行别名。
         if kind == "entry" and start_entry:
             binding = {"runtime_id": None, "definition": "scene.new_game", "classification": SUPPORTED if entry_enabled else UNOPENED,
@@ -640,6 +649,9 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
         if original: requirements.append(binding)
     unknown = [row for row in requirements if row.get("classification") != SUPPORTED]
     bound_unknown = [row for row in unknown if not row.get("default_fill", False)]
+    victory_flow=resolve(f"stage.victory.{stage:03d}",flows,aliases)
+    source_victory=bool(victory_flow and victory_flow["id"].startswith("stage.source.victory."))
+    settlement_flow=resolve(f"stage.settlement.{stage:03d}",flows,aliases)
     return {"stage": stage, "battle_enabled": enabled, "entry_supported": stages["entry"]["classification"] == SUPPORTED, "capability": cap,
             "map": {"entry": stage * 3, "file_offset": map_offset, "width": width, "height": height,
                     "length": len(grid), "sha256": digest(grid), "raw_hex": grid.hex(), "event_cells": event_cells},
@@ -652,6 +664,13 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
                            "sha256": digest(raw_placement), "raw_hex": raw_placement.hex(), "records": [list(p) for p in placements]},
             "terrain_attributes": {"entry": attr_index, "file_offset": attr_offset, "length": len(attrs), "sha256": digest(attrs)},
             "text_reference": {"entry": stage + 1, "fragment_count": fragments}, "dispatch": stages,
+            "handoff_contract":{"kind":"source_victory_once_then_export_preparation" if source_victory else
+                "legacy_settlement" if settlement_flow else "unbound",
+                "legacy_settlement_required":bool(settlement_flow and not source_victory),
+                "settlement_definition":settlement_flow["id"] if settlement_flow else None,
+                "source_victory_definition":victory_flow["id"] if source_victory else None,
+                "owner":"Scene consumes source once; fd2_field_game_export_preparation only copies; App closes old resources before next entry",
+                "old_resources_can_run_next_stage_controller":False},
             "reference_errors": errors, "active_classification_counts": dict(Counter(row["classification"] for row in requirements)),
             "legacy_active_classification_counts": dict(Counter(row.get("legacy_classification", row["classification"]) for row in requirements)),
             "unsupported_active_requirements": unknown,

@@ -514,12 +514,13 @@ int fd2_field_game_open(fd2_field_game *game,
                         fd2_vga *vga,
                         const fd2_archive *fdother,
                         size_t stage);
-/* 1088d/10010共用资源准备；只支持stage0/1/2，不构造单位、推进phase、
+/* 1088d/10010共用资源准备；按已发布capability判门，不构造单位、推进phase、
  * 写VGA/palette/RNG。输出须是新owner（先close旧Game），失败后可安全close。
  * fdother借用至game关闭；失败释放已取得资源。 */
 int fd2_field_game_open_resources(fd2_field_game *game,
     const fd2_archive *fdother, size_t stage);
-/* 准备owner按stage.entry图构建业务终态，无输入/演出；完整成功后才交App播放。
+/* 准备owner按stage.entry图建立会话：已发布source图只借资源/roster，
+ * 逻辑写点与呈现由Scene同一冷图逐叶消费；旧图仍作既有逻辑投影。
  * 32d18/32e8c的部署槽与group/script顺序来自同一冷定义；完整32人roster
  * 保留，实际active名额取metadata，未支持stage仍无entry图。 */
 int fd2_field_game_prepare_stage(fd2_field_game *game,
@@ -556,6 +557,10 @@ int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state);
 int fd2_field_game_settlement_prepare(const fd2_field_game *game,
     fd2_save_manual_state *out);
 int fd2_field_game_settlement_commit(fd2_field_game *game,
+    fd2_save_manual_state *out);
+/* 源victory已单次提交后的只读Game→准备交接；完整保留32人区域及未用尾，
+ * 不重算/同步active、不推进或清owner。失败不写out；App成功接收后close旧资源。 */
+int fd2_field_game_export_preparation(const fd2_field_game *game,
     fd2_save_manual_state *out);
 /* field_completed_chest_tiles_apply @0x12263（原sub_12263）：对base map按完整completed32B重建flags20地形。
  * 先验证所有输入/改变后的帧，失败不写map；不写resources/metadata/completed。 */
@@ -724,7 +729,7 @@ int fd2_field_game_end_magic_list(fd2_field_game *game);
 
 /* field_player_item_command_execute @0x1bbdc（原登记同名）、
  * field_unit_inventory_select @0x1b932（原sub_1B932）的纯session边界。
- * 只支持stage0/1与密集已知ID库存；密集门是SDL支持范围，不是原版规则。
+ * 按已发布战斗能力与密集已知ID库存判门；密集门是SDL范围，不是原版规则。
  * 正式COMMAND由item_is_available限制效果能力；低层纯session不混此门。
  * 正式菜单按各自能力开放Use/Give/Equip/Drop；confirm借同一
  * ITEM_LIST与command_selected区分mode1/0，不缓存槽ID。
@@ -761,7 +766,7 @@ int fd2_field_game_equip_item(fd2_field_game *game);
 
 /* 正式ITEM能力查询：Use/Give/Equip/Drop任一可用即开放菜单；可见库存须密集
  * 且ID已知，Use支持表中code5..24，Drop/Give须全8槽可完成派生重算。
- * code0武器/装备可看列表，确认仍留页。要求stage0/1可行动玩家及共享RNG，
+ * code0武器/装备可看列表，确认仍留页。要求已发布战斗域内的可行动玩家及共享RNG，
  * 不套MP/+27/移动后禁法/EX99门。查询不写状态或消费RNG。
  * COMMAND、ITEM_MENU与ITEM_TARGETING正式confirm均重新检查此门；
  * confirm_cursor成功返回原actor index，非法格/拒绝/错误返回-1。 */
@@ -893,7 +898,7 @@ int fd2_field_game_end_player_turn(fd2_field_game *game);
 /* field_empty_focus_menu_execute @0x16f55（原登记同名）的批量行军。
  * 固定调用时的绝对focus anchor，raw顺序逐actor提交，不保存/回滚批次。
  * 0=全部提交并进入side1；1=宿主关闭（保留已提交事实）；-1=失败冻结。
- * 调用方负责FDTXT418提示与输入隔离；复用已恢复stage0/1的phase/event门。 */
+ * 调用方负责FDTXT418提示与输入隔离；复用当前已发布的phase/event门。 */
 int fd2_field_game_march(fd2_field_game *game, fd2_vga *vga,
                          uint32_t frame_delay_ms);
 int fd2_field_game_process_automatic_action(fd2_field_game *game);
@@ -908,6 +913,11 @@ size_t fd2_field_game_remaining_units(const fd2_field_game *game,
  * 未知ID／缺原raw有效域返回-1，失败不写out。 */
 int fd2_field_game_result_query_flow(const fd2_field_game *game,
     const char *id, fd2_field_battle_result *out);
+/* 正式读取的checked接口：缺raw/坏锁存返回-1，out和Game均不变；
+ * 有副作用结果绑定只读已提交latch，调用时点仍由原五个CALLsite拥有。 */
+int fd2_field_game_battle_result_query(const fd2_field_game *game,
+    fd2_field_battle_result *out);
+/* 兼容已证有效域的枚举接口；正式输入/Load路径使用上方checked接口。 */
 fd2_field_battle_result fd2_field_game_battle_result(
     const fd2_field_game *game);
 int fd2_field_game_compute_move_range(const fd2_field_game *game,

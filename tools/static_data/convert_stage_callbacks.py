@@ -127,7 +127,7 @@ def cold_flow(identity, program):
             else:
                 op, args = item
                 node = {"id": label, "op": op, "args": args,
-                        "on": {"ack" if op in ("story", "story_source", "wait_key") else "next": following,
+                        "on": {"ack" if op in ("story", "story_source", "wait_key", "loot_child") else "next": following,
                                "error": "failed"}}
             # 分支递归先增加子节点，入口名必须在递归后取唯一值。
             node["id"] = f"n{len(nodes):04d}"
@@ -146,7 +146,7 @@ FIELD_OFFSETS = (0, 1, 3, 4, 5, 6, 7, 8, 0x22, 0x23, 0x24,
 
 EXISTING = {**{i: f"common.legacy.action.{i:03d}" for i in (0, 1, 2, 3, 4, 6)},
             8: "common.inventory.once", 12: "common.state.once",
-            39: "common.loot.child.0", 41: "common.loot.child.1", 51: "common.loot.child.2",
+            39: "common.loot.child.0", 51: "common.loot.child.2",
             53: "common.defeat.tail", 55: "common.loot.physical", 58: "common.cell.grant",
             61: "common.key.consume", 69: "common.turn.relative", 79: "common.random.pair"}
 EXISTING_FLOW_SHA = {
@@ -159,7 +159,6 @@ EXISTING_FLOW_SHA = {
     8: "95e4f50ed02bc6f2faeca70fcdca6dc23be95052c517fde7c70f4cbf71d19ee4",
     12: "ac9391d34a8e8da80934ed8b9111206167d17a5f96ba95b52e3d69bdd9595a42",
     39: "70a7b2593c9b8652032e428fa077d62c999309ddbfd7c824b4fef63564d951bd",
-    41: "6fa7527cb03af747d24ea77e659aa11ec75d69241a5db63bdf88eeb7be205644",
     51: "abedd1adae12ffcd5658775e1f9a5382ba6ee66a7bb5af6adb46c4722bbeff42",
     53: "283c38a31e5d29a9a51aaca04e22ed644cc50d043c48231e136367139ff8d96a",
     55: "d7379705aa3f12def4ee308f45ef4acc62714b79eae83b97b5a7fcd4c7353a5c",
@@ -275,6 +274,9 @@ def programs():
         84: [ai(16, 79, 0)],
         **{i: [] for i in range(85, 90)},
     }
+    # 35346在353ae先push4再跳3530d，未执行352ca的push11。
+    # 旧G机制图保原身份；新caller必须使用自己的完整共享尾参数。
+    p[41] = [story(3), a("loot_child", 1, -1), story(4)]
     if set(p) | set(EXISTING) | {82} != set(range(90)):
         raise ValueError("callback转换去向不完整")
     return p
@@ -310,7 +312,8 @@ def source_trace(image, domain, slot, case, groups):
     nargs = {0x10b4e: 1, 0x112a5: 1, 0x135dd: 2, 0x11cac: 1, 0x3790a: 1,
              0x17aa9: 1, 0x1366a: 1, 0x4e381: 0, 0x15f84: 9, 0x32999: 1,
              0x344f2: 3, 0x34894: 1, 0x32975: 1, 0x13512: 1, 0x11df2: 3,
-             0x134e4: 0, 0x35f10: 1, 0x1956b: 1, 0x16559: 1, 0x16c57: 1, 0x196cb: 0}
+             0x134e4: 0, 0x35f10: 1, 0x1956b: 1, 0x16559: 1, 0x16c57: 1, 0x196cb: 0,
+             0x1aa1d: 3, 0x1b8a6: 1, 0x1bb8c: 2}
     leaves = {"story", "pan", "refresh_map", "delay_ms", "delay_ticks", "move", "clear_keys",
               "palette_add", "arrival_prepare", "arrival_frames", "arrival_close", "notice_actor",
               "message", "portrait_frame", "wait_key", "close_box"}
@@ -379,6 +382,31 @@ def source_trace(image, domain, slot, case, groups):
             elif address == 0x16559: result.append(("portrait_frame", args))
             elif address == 0x16c57: result.append(("wait_key", args))
             elif address == 0x196cb: result.append(("close_box", []))
+            elif address == 0x1b8a6:
+                raw=cpu.mem_read(units+args[0]*80,80)
+                retval=sum(not(raw[10+i*2]&128) for i in range(8))
+            elif address in (0x1aa1d,0x1bb8c):
+                recipient=args[0]
+                if recipient>=word(0x53beb):raise ValueError("inventory/child recipient outside original count")
+                if address==0x1aa1d:
+                    descriptor=bytes(cpu.mem_read(args[2],3))
+                    children=bytes(cpu.mem_read(0x52742,12))
+                    matches=[i for i in range(4) if children[i*3:i*3+3]==descriptor]
+                    if args[1]!=1 or descriptor[0]!=0 or len(matches)!=1:
+                        raise ValueError("unreviewed child descriptor/count")
+                    item=int.from_bytes(descriptor[1:],"little")
+                    result.append(("loot_child",[matches[0],-1]))
+                    allowed=cpu.mem_read(units+recipient*80+6,1)[0]==2
+                else:
+                    item=args[1];allowed=True
+                    result.append(("event_item_append",[recipient,item]))
+                if item>255:raise ValueError("item WORD outside reviewed byte consumer")
+                if allowed:
+                    for slot_index in range(8):
+                        at=units+recipient*80+10+slot_index*2
+                        if cpu.mem_read(at,1)[0]&128:
+                            prefix_guard[0]=None;cpu.mem_write(at,bytes([0,item]));break
+                    # 满包的callee呈现/选择替身明确Cancel；不编造替换slot。
             for op, values in result[trace_start:]:
                 if op in leaves:
                     checkpoints.append({"op": op, "args": values,
@@ -475,7 +503,7 @@ def graph_trace(flow, case, groups, stop_after=None):
             if op == "story_source": op, args = "story", [source_value(args[0], case["turn"], state)]
             if op == "notice_actor": args = [actor(args[0])]
             result.append((op, args))
-            if op in ("story", "wait_key"): port = "ack"
+            if op in ("story", "wait_key", "loot_child"): port = "ack"
         if stop_after is not None and len(result) >= stop_after:
             return {"trace": result[:stop_after], "branches": branches}
         pc = node["on"][port]
@@ -547,7 +575,7 @@ def source_cfg_branches(domain, slot):
     primitives = {0x3702f, 0x10b4e, 0x112a5, 0x135dd, 0x11cac, 0x3790a,
                   0x17aa9, 0x1366a, 0x4e381, 0x15f84, 0x32999, 0x344f2,
                   0x34894, 0x32975, 0x13512, 0x11df2, 0x134e4, 0x35f10,
-                  0x1956b, 0x16559, 0x16c57, 0x196cb}
+                  0x1956b, 0x16559, 0x16c57, 0x196cb, 0x1aa1d, 0x1b8a6, 0x1bb8c}
     pending, seen, branches = [(target, ())], set(), {}
     while pending:
         at, stack = pending.pop()
@@ -653,7 +681,7 @@ def validate_candidates(flows, operations):
             spec = operations[op]["args"]
             if len(n["args"]) != len(spec) or any(type(v) is not int or not s["min"] <= v <= s["max"] for v, s in zip(n["args"], spec)):
                 raise ValueError("候选图参数位宽/值域不同")
-            expected = set() if op in ("end", "fail") else {"yes", "no", "error"} if op.startswith("branch_") else {"ack", "error"} if op in ("story", "story_source", "wait_key") else {"next", "error"}
+            expected = set() if op in ("end", "fail") else {"yes", "no", "error"} if op.startswith("branch_") else {"ack", "error"} if op in ("story", "story_source", "wait_key", "loot_child") else {"next", "error"}
             if set(n["on"]) != expected: raise ValueError("候选图等待/错误端口不同")
             pending.extend(n["on"].values())
         if reached != set(nodes): raise ValueError("候选图有不可达节点")

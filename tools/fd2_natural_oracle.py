@@ -828,18 +828,26 @@ def stage0_pages(original, assets):
         if page["fragment"] in (3,4,5,6,7,8,9,11)]
 
 
-def required_reward_pages(original, assets, source):
-    """只匹配本次新写的一行+原portrait+箭头，不把未知随机gain猜作数字。"""
+def required_reward_pages(original, assets, source, *, resource_stage=None):
+    """只匹配本次新写的一行+原portrait+箭头，不把未知随机gain猜作数字。
+
+    默认保留B5首关六人域。显式stage只扩原资源观察读集，必须等于当前
+    snapshot关卡；每个新ID仍验证成长行与普通DATO完整四帧，不证明奖励可达。
+    """
+    if resource_stage is not None and (type(resource_stage) is not int or not 0<=resource_stage<30 or
+            len(source)!=0x59cb or source[META+2]!=resource_stage or not 0<source[META+1]<=96):
+        raise ValueError('奖励资源观察必须绑定当前stage及完整snapshot')
     tables,_=reward_tables(original/"FD2.EXE");pages=[]
     identities={actor(source,i)[7] for i in range(source[META+1]) if actor(source,i)[6] in (1,2) and actor(source,i)[7]<68}
-    metadata=archive_entry((original/"FDFIELD.DAT").read_bytes(),1)
+    metadata=archive_entry((original/"FDFIELD.DAT").read_bytes(),1 if resource_stage is None else 3*resource_stage+1)
+    if len(metadata)<131 or (len(metadata)-131)%26:raise ValueError('奖励资源观察需要完整关卡模板')
     identities.update(metadata[i+1] for i in range(0x83,len(metadata),26) if metadata[i] in (1,2) and metadata[i+1]<68)
     for identity in sorted(identities):
-        if identity not in (0,1,3,4,9,30):
+        if resource_stage is None and identity not in (0,1,3,4,9,30):
             raise ValueError("自然奖励等待序列仅已核六种portrait")
         row=tables["growth"][identity*11:(identity+1)*11]
         # 1e529第二个非零成长先scroll19，移走y138的旧LEVEL行。
-        # 本首关六人各至少四项，故末成长后新489可与旧页资源区分。
+        # 只在各至少四项的已证资源域内，末成长后新489可与旧页资源区分。
         if sum(bool(row[2*i+1]) for i in range(5))<4:
             raise ValueError("自然奖励成长项不足，不能沿用跨级页面可区分合同")
         events=[{"fragment":489,"kind":"level","value":0,"line":1,"requires_key":True}]

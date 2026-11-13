@@ -6,6 +6,7 @@
     "common_event.json",
     "field_audio.json",
     "field_background.json",
+    "field_info.json",
     "items.json",
     "magic.json",
     "magic_fx.json",
@@ -220,6 +221,16 @@
           11,
           2
         ]
+      }
+    },
+    "field_info.json": {
+      "k_field_overview_condition_policy": {
+        "c_type": "int32_t",
+        "dimensions": [3]
+      },
+      "k_field_overview_roster_rules": {
+        "c_type": "int32_t",
+        "dimensions": [1, 4]
       }
     },
     "items.json": {
@@ -2136,7 +2147,7 @@
       ]
     },
     "loot.json": {
-      "operation_abi_sha256": "ec309a5693c3e52bab5e627e9c067c42e13bea10e2558edf653bfe0537f71eb5",
+      "operation_abi_sha256": "ab73d3725aaa3adcc7d660fd66c3452ca6fbe9c8aca64a4883eb740e85d4f2fb",
       "ports": {
         "collect_reset": [
           [
@@ -2707,6 +2718,12 @@
           ]
         ],
         "runtime_clear_keys": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "stage_result_post": [
           [
             "error",
             "next"

@@ -158,7 +158,11 @@ enum {
     FD2_EVENT_COMPLETE_PLAYER_PENDING,
     FD2_EVENT_COMPLETE_AI_PENDING,
     FD2_EVENT_COMPLETE_LOOT_PENDING,
-    FD2_EVENT_COMPLETE_MARCH
+    FD2_EVENT_COMPLETE_MARCH,
+    FD2_EVENT_COMPLETE_PLAYER_RESULT,
+    FD2_EVENT_COMPLETE_AI_RESULT,
+    FD2_EVENT_COMPLETE_STATUS_RESULT,
+    FD2_EVENT_COMPLETE_LOOT_RESULT
 };
 int fd2_field_event_child_begin(fd2_field_event_resume *continuation,
     const fd2_static_flow *flow, int parent_pc, size_t actor, size_t actor_count);

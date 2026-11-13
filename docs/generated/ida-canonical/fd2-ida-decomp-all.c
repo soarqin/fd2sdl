@@ -8077,7 +8077,7 @@ void __usercall sub_1B1E7(int a1@<ebp>)
   field_view_render_tiles(dword_53A49 + 32904, 456, 13, 8, dword_53AA9, dword_53AAD);
   sub_127A9();
   memcpy_vga(v1 + 1284, 320, dword_53A49 + 32904, 456, 312, 192);
-  sub_1B41D(v2, 320);
+  field_battle_overview_draw(v2, 320);
   for ( i = 0; i < 12; ++i )
   {
     memmove(dword_53A49, v1, 64000);
@@ -8096,7 +8096,7 @@ void __usercall sub_1B1E7(int a1@<ebp>)
       sub_4E31C(v4);
       field_view_render_tiles(dword_53A49 + 32904, 456, 13, 8, dword_53AA9, dword_53AAD);
       sub_127A9();
-      sub_1B41D(dword_53A49 + 31076, 456);
+      field_battle_overview_draw(dword_53A49 + 31076, 456);
       memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
     }
     if ( (_BYTE)retaddr != 0 )
@@ -8122,14 +8122,16 @@ void __usercall sub_1B1E7(int a1@<ebp>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1B41D
+ * IDA 9.5 Hex-Rays: field_battle_overview_draw
  * VA=0x1b41d..0x1b5f1 OBJ=1 OFF=0xb41d size=0x1d4
  * callers: 0x1b1e7
  * callees: 0x15f84, 0x16886, 0x187d6, 0x1b5f1, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 evidence] 未登记总览内容，旧 secondary 说明将其描述为逐 actor 属性列表 -> 战况与胜败条件总览绘制：FDOTHER[5] 的 133..136 四底板，关卡、回合、八位资源、side 0/2/1 人数及 FDTXT[0] 的 597+2*stage／598+2*stage 条件。stage 0 为敵全滅／索爾死亡。SDL 此切片只开放 stage 0 的纯绘制，完整预检后才写画面。；依据: 已发布 sub_1B41D 伪 C 与 sub_1B5F1 调用，FDOTHER[5] 原始四帧尺寸、数字 bank 31/42 与 FDTXT[0] 两段只读解码；ui_number_draw @0x187d6 八位分支取格式化结果前八字符。保留中性函数名，未修改数据库或权威伪 C；原版页面 WGC 另验。
 // [勘误 evidence] 原函数关卡数字为stage+1，胜/败条件为597+2*stage及598+2*stage；stage1正常使用599/600，沿既有四底板/数字/资源/阵营人数owner。stage16另有私有分支，不据此宣称所有关卡总览已通用验收。SDL本B5直接扩已证stage1，不新增禁用透明图例外。；依据: 完整published sub_1B41D及1B5F1计数/原资源；C3准备链真实SDL在总览能力门处失败，因此保两端原secondary0默认协议并修生产stage索引。该说明不替代其后实际双端验收。
-void __cdecl sub_1B41D(int a1, int a2)
+// [S3 semantic_name] field_battle_overview_draw；依据: S3完整1b41d..1b5f1（468B）CFG和真实19df7→1b1e7 caller：本函数只绘制四底板、关卡/回合/资源/三阵营计数与两段条件，不拥有输入或modal生命周期。完整Domain读集build/s3/ida-overview-source02/domain.json SHA256 d0a1f4f023ae9b02f88723573302913fb2a48269570363906723bf1744ee7352，含1b41d/1b5f1/33499/34894共669B，每个chunk及连续指令与strict relocated一致。verify_s3_overview.py独立执行完整四函数242向量，绘制/文本/栈检查为显式替身；只确认语义名，不保存猜测原型，也不据此签真实字体、原版WGC或尚未运行的实际C门。
+// [S3 evidence] 胜条件始终597+2*stage。stage16先画胜条件629，再调用field_roster_has_text @0x33499(18)：持久roster存在text18时败条件630，缺席时628；active中的text18不参与，roster的HP/hidden/side均不滤。SDL本轮以field_info冷表投影原常量/条件，借现Game持久roster；普通stage不要求这个owner。旧未绑记载保留当时事实，不能当作当前剩余阻塞。；依据: 完整1b41d CFG及33499 fullDWORD参数18、独立53bf7/53bfb roster读取；原码242向量覆盖stage0..29、roster0/1/32、首尾text18、HP0/hidden/side噪声，并检查原active/roster无写。资料缺失/容量越界是SDL安全拒绝域，不送原码越界执行；真实资源渲染、实际C、原版运行范围分别登记，不把纯query或源CPU当作整场景通过。
+void __cdecl field_battle_overview_draw(int a1, int a2)
 {
   int v3; // eax
   int v4; // eax
@@ -23584,13 +23586,14 @@ void sub_35321()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: field_event_story3_item213_story11
+ * IDA 9.5 Hex-Rays: field_event_story3_item213_story4
  * VA=0x35346..0x353b5 OBJ=1 OFF=0x25346 size=0x6f
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x1aa1d, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_event_story3_item213_story11；依据: 完整主111B及352ca共享尾/callback表/descriptor52745；先story3再1aa1d(count1)后story11。
-void __cdecl field_event_story3_item213_story11(unsigned __int8 *a1)
+// [勘误 semantic_name] field_event_story3_item213_story4；依据: S3复核完整owner35346..353b5（111B，strict relocated SHA256 033ae1e66dabfd9187eadac8ab3e72de78a27e6ddc353929391e3add158cd65f）及真实共享尾入口：353ae push4后跳3530d，执行3530d/35313/35318/3531b/3531e/3531f/35320，绕过352ca路径的3530b push11。因此callback41真实顺序为story3→1aa1d(count1，item213)→story4，不能按共享tail所在owner名推成story11。build/s3/callback-binding-source02-red/comparison.json（SHA256 e18663a532e725584231b8638eb996c590e21c39f26fee576a75b7d4298b17b5）独立执行5个原caller各36、合计180个x86向量，全部41轨迹均到story4；该red收据actualC=false，C失败属于另一个caller39的child owner，不据此称C或原生通过。旧错误命名及当时依据保留历史，本条只改正35346名称/注释，不改边界、指令、原型或共享尾owner。
+void __cdecl field_event_story3_item213_story4(unsigned __int8 *a1)
 {
   _DWORD v1[3]; // [esp-Ch] [ebp-Ch] BYREF
 

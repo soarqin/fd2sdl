@@ -147,7 +147,8 @@ def validate_definition_contents(callbacks, transitions, catalog, static_binding
     proposed = {flow["id"]: flow for flow in transitions["flows"]}
     if len(proposed) != len(transitions["flows"]): raise ValueError("transition候选/共享图重复")
     aliases = transitions.get("source_bindings", {})
-    actual_aliases = static_bindings or {}
+    actual_aliases = {key: value for key, value in (static_bindings or {}).items()
+                      if key.startswith("stage.source.")}
     if type(aliases) is not dict or aliases != actual_aliases:
         raise ValueError("transition source-only别名不等于唯一静态输入bindings")
     for alias, canonical in aliases.items():

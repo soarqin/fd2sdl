@@ -10,6 +10,8 @@ S1 全量来源账、规范化输入／批量夹具、caller 分类和原来源�
 
 S2 的完整 callback／entry／victory 转换、实际 C probe 和 208 槽去向叠加命令见[冷定义工具](static-data.md#s2-批量转换与去向复现)；原 ID、同义 source-only alias、315 条未决及 450 条拒绝的统计合同见[来源账 S2 规范](../formats/stage-source-ledger.md#s2-转换叠加合同)。转换／图存在与正式关卡绑定分别验收，原生结果不由这些命令代签。
 
+S3 的无参数正式 App 代表使用 `run_s3_stage_check.py`，覆盖 END／增援、胜利到准备与下一入口、活动存取及带故事的败北交接；受控输入、两端 owner 和完整 SAV 分账。工具边界见[图形规范 S3](gui-testing.md#s3-正式-app-批量接入的代表入口)，实际候选、命令与通过状态只查[S3 报告](../plans/s3-batch-integration.md#4-正式原生代表与复跑)。默认准备模式不启动窗口，不等于原生通过。
+
 ## 构建与回归
 
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。
@@ -47,7 +49,7 @@ git diff --check
 - 部分 CTest／Python 测试依赖原版资源或本地 LE 产物。Python seed／Ghidra 工具测试还需 `capstone`；缺依赖、跳过或未注册不能记为完整通过。
 - `resource` 检查 .DAT／RLE 错误与原版资源兼容；`field_play_result` 单独编译正式循环并替换依赖，验证错误传播、胜／败、游戏内离场、宿主退出和移动取消；`field_turn` 检查 END 的恢复门、phase 顺序及提交后停止边界，均不启动窗口。
 - `font` 使用合成字模逐字比较完整受保护 VGA 内存，检查下左／正下阴影、背景预清、字形 10、0 色写入及边缘裁切；不读取资源或启动窗口。
-- `field_info` 覆盖stage0..29普通总览条件（stage16私有败条件未绑定，明确拒绝）、UI0换行／19px行高及两段预检失败全VGA不变；另验物品纯列表的raw槽、空槽压行、全部215项、frame41缺省属性图和raw零色。657／658动态条件属于准备页consumer，不给总览增加owner。纯绘制测试与正式入口／原版WGC分别记账。
+- `field_info` 覆盖stage0..29总览条件，stage16借原持久roster的text18选择败条件628／630，胜条件629固定；另验UI0换行／19px行高、双条件预检失败全VGA不变和坏owner拒绝。物品纯列表覆盖raw槽、空槽压行、全部215项、frame41缺省属性图和raw零色。657／658动态条件属于准备页consumer。纯绘制、完整条件原码／实际C与正式入口／原版WGC分别记账。
 - `field_item_select` 覆盖共享8槽计数、纯列表导航／Use确认／取消、稀疏槽和未知ID支持门，检查错误无写入及单位全记录不变。START三槽为已确认字节构造样例，不直接读取存档；没有物品UI、效果或原版运行验收。
 - `field_item_flow` 覆盖ITEM_MENU／ITEM_LIST的纯session取消层级、重开归0、临时移动／pending保留、错误无写入及Load清理；list step本身不提交handler。另验Drop的mode0装备确认、确认／取消重算、末槽stale、删空回COMMAND、隐藏坏装备拒绝及RNG0。正式Use能力门／confirm_cursor与目标提交另有回归，原版单端校准与SDL图形配对分别登记。
 - `field_item_target` 覆盖草药192的纯目标范围、raw候选／121轮询、HP0／acted、取消聚焦回LIST0、坏末项及Load owner；合成光标／地形锁定frame1与LUT，不执行物品提交或代替WGC。

@@ -6,6 +6,7 @@
 #include "field_prepare.h"
 #include "field_prepare_item.h"
 #include "scene.h"
+#include "field_page.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"CHECK %s:%d: %s\n",__FILE__,__LINE__,#x); return -1; } } while(0)
 
 static uint32_t count_event_rng(void *userdata) {
@@ -210,6 +211,9 @@ static int test_group_landing(void){
 }
 static int test_stage1_settlement_stage2(void) {
     fd2_archive ar={0};CHECK(fd2_archive_open(&ar,"original_game/FDOTHER.DAT")==0);
+    fd2_vga *vga=calloc(1,sizeof(*vga));CHECK(vga);
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
+    fd2_input_init(&vga->input);
     fd2_save_manual_state state={0};state.stage_id=1;state.unit_count=5;state.gold_or_flags=321;
     memset(state.unit_area,0x5a,sizeof(state.unit_area));
     const uint8_t ids[5]={0,9,4,30,1};
@@ -266,6 +270,8 @@ static int test_stage1_settlement_stage2(void) {
     fd2_field_game_close(g);
     CHECK(fd2_field_game_validate_manual_state(&out)==0);
     CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==0);
+    CHECK(!g->units.count && fd2_field_game_bind_visual(g,vga)==0);
+    CHECK(fd2_scene_play_stage_entry(vga,&ar,g,NULL,1)==FD2_SCENE_RESULT_OK);
     CHECK(g->stage==2 && g->units.count==15 && g->roster_count==6 && g->map.width==18 && g->map.height==26);
     CHECK(g->metadata.shape_index==2 && g->metadata.unknown_01==6 && g->metadata.unit_template_count==40);
     CHECK(g->stage_runtime_entry_offset==0x23ac && g->ordinary_display_mode==1);
@@ -275,11 +281,9 @@ static int test_stage1_settlement_stage2(void) {
     CHECK(fd2_field_game_export_battle_snapshot(g,&snap)==0);
     CHECK(fd2_field_game_import_battle_snapshot(g,&snap)==0 && g->stage_runtime_entry_offset==0x23ac);
     CHECK(g->ordinary_display_mode==1 && !memcmp(g->roster,out.unit_area,sizeof(g->roster)));
-    /* 第二关已确认入口/浏览/存读档，未知turn3事件不由按钮或自动WAIT绕过。 */
-    prior=g->units;uint32_t turn=g->turn_number;uint8_t side=g->active_side;
-    CHECK(fd2_field_game_end_player_turn(g)==-1 && g->turn_number==turn && g->active_side==side);
-    CHECK(fd2_field_game_begin_player_controller(g,0)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
-    CHECK(fd2_field_game_complete_player_controller(g,0)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
+    /* S3已独立接入turn3与结果/交接；本用例只核stage1→单次source entry2。
+     * 新的正式END/取消门另由S3批量及原生代表签核，不沿用旧禁战断言。 */
+    CHECK(fd2_field_stage_battle_is_supported(2) && fd2_field_stage_source_is_bound(2,"victory"));
     snap.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=14;prior=g->units;
     CHECK(fd2_field_game_import_battle_snapshot(g,&snap)==-1 && !memcmp(&prior,&g->units,sizeof(prior)));
     fd2_field_game_close(g);
@@ -288,11 +292,13 @@ static int test_stage1_settlement_stage2(void) {
         memcpy(out.unit_area+i*80,&u,80);
     }
     out.unit_count=32;fd2_save_manual_state untouched=out;
-    CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==0 && g->roster_count==32 && g->units.count==15);
+    CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==0 && g->roster_count==32 && !g->units.count);
+    CHECK(fd2_field_game_bind_visual(g,vga)==0 &&
+        fd2_scene_play_stage_entry(vga,&ar,g,NULL,1)==FD2_SCENE_RESULT_OK && g->units.count==15);
     CHECK(!memcmp(g->roster,out.unit_area,sizeof(g->roster)) && !memcmp(&out,&untouched,sizeof(out)));
     fd2_field_game_close(g);out.unit_count=33;
     CHECK(fd2_field_game_prepare_stage2(g,&ar,&out)==-1 && !g->ready && !g->map.cells);
-    free(g);fd2_archive_close(&ar);return 0;
+    free(g);fd2_field_page_destroy(vga->field_page);free(vga);fd2_archive_close(&ar);return 0;
 }
 /* 用实际未开放关的只读资源核通用1088d投影，不运行其entry/剧情/AI。 */
 static int test_full_roster_deployment_projection(void) {

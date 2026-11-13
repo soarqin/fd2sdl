@@ -64,7 +64,8 @@ fd2_app_flow fd2_app_flow_after_battle(fd2_app_field_result result,
         fd2_field_stage_capability capability;
         return prepared_stage >= 0 &&
             fd2_field_stage_capability_get((size_t)prepared_stage, &capability) == 0 &&
-            capability.preparation_slots ? FD2_APP_FLOW_PREPARE : FD2_APP_FLOW_ERROR;
+            (capability.preparation_slots || fd2_field_stage_source_is_bound((size_t)prepared_stage, "entry"))
+                ? FD2_APP_FLOW_PREPARE : FD2_APP_FLOW_ERROR;
     }
     if (result == FD2_APP_FIELD_DEFEAT) return FD2_APP_FLOW_TITLE;
     return fd2_app_flow_from_field(result);

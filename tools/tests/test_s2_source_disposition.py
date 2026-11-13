@@ -88,6 +88,9 @@ class DispositionTest(unittest.TestCase):
             "flow_id": "stage.source.entry.015", "canonical_definition": flow["id"], "source_only_alias": True}]}
         catalog = {("stage", flow["id"]): flow}
         disposition.validate_definition_contents(callbacks, transitions, catalog, aliases)
+        # S2只签source别名；S3正式绑定仍由独立发布闭包门核caller/资源。
+        disposition.validate_definition_contents(callbacks, transitions, catalog,
+            {**aliases, "stage.entry.015": flow["id"]})
         with self.assertRaisesRegex(ValueError, "bindings"): disposition.validate_definition_contents(callbacks, transitions, catalog, {})
         transitions["rows"][0]["canonical_definition"] = "stage.source.entry.020"
         with self.assertRaisesRegex(ValueError, "规范终点"): disposition.validate_definition_contents(callbacks, transitions, catalog, aliases)

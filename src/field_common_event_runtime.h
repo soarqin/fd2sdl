@@ -113,10 +113,18 @@ static int common_event_finish(fd2_field_game *game) {
         if(!game->event_resume.active)apply_phase_status_tick(game,game->active_side);
     } else if(completion==FD2_EVENT_COMPLETE_PLAYER_PENDING) {
         return finish_player_controller_input(game,actor);
+    } else if(completion==FD2_EVENT_COMPLETE_PLAYER_RESULT) {
+        return complete_player_controller_after_result(game,actor);
+    } else if(completion==FD2_EVENT_COMPLETE_AI_RESULT) {
+        return finish_ai_outer_after_result(game,actor);
+    } else if(completion==FD2_EVENT_COMPLETE_STATUS_RESULT) {
+        log_stage_result_return(game,"status",0);
+        return advance_status_progress(game);
+    } else if(completion==FD2_EVENT_COMPLETE_LOOT_RESULT) {
+        log_stage_result_return(game,"ai-loot",actor);
+        return loot_flow_resume_event_result(game);
     } else if(completion==FD2_EVENT_COMPLETE_AI_PENDING) {
-        game->battle_result=fd2_field_game_battle_result(game);
-        if(game->battle_result!=FD2_FIELD_BATTLE_ONGOING &&
-            fd2_field_game_resume_player_controller(game)<0)return -1;
+        return finish_ai_outer_result(game,actor);
     } else if(completion==FD2_EVENT_COMPLETE_LOOT_PENDING)return loot_flow_resume_event_pending(game);
     else if(completion==FD2_EVENT_COMPLETE_MARCH) {
         if(actor>=game->units.count){fail_action(game,actor);return -1;}

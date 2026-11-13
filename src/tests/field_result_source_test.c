@@ -94,7 +94,7 @@ static int invalid_domains(void) {
     static const struct { const char *id;size_t minimum; } sources[]={
         {"stage.result.source_020707",52},{"stage.result.source_02073d",15},
         {"stage.result.source_020822",65},{"stage.result.source_02084a",66},
-        {"stage.result.source_0208cf",53},{"stage.result.source_020926",65},
+        {"stage.result.source_0208cf",53},{"stage.result.source_020926",1},
         {"stage.result.source_020a51",18},{"stage.result.source_020a87",2},
         {"stage.result.source_020aaf",19},{"stage.result.source_020b14",17},
         {"stage.result.source_020b3c",3}};
@@ -106,7 +106,7 @@ static int invalid_domains(void) {
               result==FD2_FIELD_BATTLE_VICTORY && !memcmp(game,before,sizeof(*game)));
     }
     setup(game,83);*before=*game;fd2_field_battle_result result=FD2_FIELD_BATTLE_VICTORY;
-    CHECK(fd2_field_game_result_query_flow(game,"stage.result.002",&result)==-1 && result==FD2_FIELD_BATTLE_VICTORY);
+    CHECK(fd2_field_game_result_query_flow(game,"stage.result.030",&result)==-1 && result==FD2_FIELD_BATTLE_VICTORY);
     CHECK(fd2_field_game_result_query_flow(game,"common.result.source_020765",&result)==-1);
     CHECK(fd2_field_game_result_query_flow(game,"stage.entry.001",&result)==-1 && !memcmp(game,before,sizeof(*game)));
     /* result_set只写既有latch；预检和坏值不改Game，不经const谓词执行。 */
@@ -128,7 +128,7 @@ static int prefix_errors(void) {
     static const char *const ids[]={"common.result.source_020765","common.result.source_020872",
         "common.result.source_020957","common.result.source_020b72","common.result.source_020bf5"};
     fd2_field_game *game=malloc(sizeof(*game)),*before=malloc(sizeof(*before));CHECK(game && before);
-    const size_t minimum[]={60,53,83,2,21};
+    const size_t minimum[]={27,53,83,2,21};
     for(size_t i=0;i<5;i++) {
         setup(game,minimum[i]-1);game->battle_result=FD2_FIELD_BATTLE_VICTORY;*before=*game;
         CHECK(fd2_field_game_common_event_begin(game,ids[i],0)==-1 && !memcmp(game,before,sizeof(*game)));
@@ -167,8 +167,8 @@ static int prefix_errors(void) {
             CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_ACK)==-1 && !memcmp(game,before,sizeof(*game)));
         }
     }
-    /* 任何新source图都未绑定stage战斗门。 */
-    for(size_t stage=2;stage<30;stage++)CHECK(!fd2_field_stage_battle_is_supported(stage));
+    /* S3显式批次之外仍不因source库存存在而开放战斗。 */
+    for(size_t stage=20;stage<30;stage++)CHECK(!fd2_field_stage_battle_is_supported(stage));
     free(game);free(before);return 0;
 }
 

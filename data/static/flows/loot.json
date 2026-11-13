@@ -664,6 +664,9 @@
     },
     "runtime_clear_keys": {
       "args": []
+    },
+    "stage_result_post": {
+      "args": []
     }
   },
   "flows": [
@@ -2139,7 +2142,7 @@
         },
         {
           "id": "finish.result",
-          "op": "battle_result_refresh",
+          "op": "stage_result_post",
           "args": [],
           "on": {
             "next": "finish.ongoing",

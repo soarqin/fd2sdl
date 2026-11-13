@@ -486,13 +486,31 @@ def validate_flow_contract(document, contract, script_ids, all_flows):
             if exact and (exact < minimum or exact < slots):
                 raise ValueError("stage capability unit bounds inconsistent")
             identity = flow["id"].rsplit(".", 1)[1]
-            if slots:
-                entry = all_flows.get("stage.entry." + identity)
+            entry = all_flows.get("stage.entry." + identity)
+            source_entry = all_flows.get("stage.source.entry." + identity)
+            source_bound = entry is not None and entry is source_entry
+            if identity != "000" and not slots and not source_bound:
+                raise ValueError("source capability lacks an explicit entry binding")
+            if source_bound:
+                entry_node = next((node for node in entry["nodes"] if node["id"] == entry["entry"]), None)
+                if slots or entry_node is None or entry_node["op"] != "call_init":
+                    raise ValueError("source capability must reference metadata deployment via shared initialization")
+            elif slots:
                 setup = [n for n in entry["nodes"] if n["op"] == "stage_setup"] if entry else []
                 if len(setup) != 1 or setup[0]["args"][1] != slots:
                     raise ValueError("capability/entry preparation slots inconsistent")
-            if battle and any("stage." + kind + "." + identity not in all_flows for kind in ("result", "victory", "settlement")):
-                raise ValueError("battle capability lacks result/victory/settlement flows")
+            if battle:
+                victory = all_flows.get("stage.victory." + identity)
+                if source_bound:
+                    result = all_flows.get("stage.result." + identity)
+                    effect_result = all_flows.get("stage." + identity + ".result")
+                    if ((result is None) == (effect_result is None) or
+                            (effect_result is not None and not effect_result["id"].startswith("common.result.source_")) or
+                            victory is None or victory is not all_flows.get("stage.source.victory." + identity) or
+                            "stage.victory.source.prefix" not in all_flows):
+                        raise ValueError("source battle capability lacks unique result/victory/App prefix binding")
+                elif any("stage." + kind + "." + identity not in all_flows for kind in ("result", "victory", "settlement")):
+                    raise ValueError("battle capability lacks result/victory/settlement flows")
         if flow["id"].startswith("stage.result."):
             queries = {"branch_event_byte", "branch_turn", "branch_actor", "branch_hidden_count",
                        "branch_roster_text", "branch_item", "branch_item_occurrences"}

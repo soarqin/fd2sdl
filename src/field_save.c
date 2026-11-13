@@ -383,7 +383,8 @@ static void carry_runtime_owners(fd2_field_game *dst,
 int fd2_field_game_import_battle_snapshot(
         fd2_field_game *game, const fd2_save_battle_snapshot *snapshot) {
     if (!game || !game->ready || !snapshot ||
-        snapshot->meta[FD2_SAVE_BATTLE_META_STAGE] > 2u) return -1;
+        !stage_snapshot_supported(snapshot->meta[FD2_SAVE_BATTLE_META_STAGE],
+            snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT])) return -1;
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
     if (stage == game->stage) return import_current_stage(game, snapshot);
     /* font借FDOTHER的内存；必须沿用App活着的archive，不能关掉临时
@@ -410,7 +411,9 @@ int fd2_field_game_import_battle_snapshot(
 
 static int snapshot_is_importable(const fd2_field_game *game,
                                   const fd2_save_battle_snapshot *snapshot) {
-    if (!game || !game->ready || !snapshot) return 0;
+    if (!game || !game->ready || !snapshot ||
+        !stage_snapshot_supported(snapshot->meta[FD2_SAVE_BATTLE_META_STAGE],
+            snapshot->meta[FD2_SAVE_BATTLE_META_UNIT_COUNT])) return 0;
     size_t stage = snapshot->meta[FD2_SAVE_BATTLE_META_STAGE];
     fd2_field_map map = {0};
     if (stage == game->stage) {
@@ -418,7 +421,7 @@ static int snapshot_is_importable(const fd2_field_game *game,
         fd2_field_map_close(&map);
         return available;
     }
-    if (!fd2_field_stage_is_supported(stage) || !game->fdother) return 0;
+    if (!game->fdother) return 0;
     fd2_field_game *resources = calloc(1, sizeof(*resources));
     if (!resources) return 0;
     int available = fd2_field_game_open_resources(resources, game->fdother, stage) == 0 &&

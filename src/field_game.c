@@ -100,6 +100,13 @@ static int teleport_destination_is_legal(const fd2_field_game *game, size_t raw)
 static int effect_deaths_are_supported(fd2_field_game *game, size_t recipient,
     const uint8_t *targets, size_t count, uint8_t magic_id, int item_heal, int magic_collector);
 static int complete_player_controller_tail(fd2_field_game *game, size_t actor_index);
+static int complete_player_controller_after_result(fd2_field_game *game, size_t actor_index);
+static int begin_stage_result_call(fd2_field_game *game,size_t actor,unsigned completion);
+static int finish_ai_outer_result(fd2_field_game *game,size_t actor);
+static int finish_ai_outer_after_result(fd2_field_game *game,size_t actor);
+static int skip_ai_outer_result(fd2_field_game *game,size_t actor);
+static int refresh_battle_result(fd2_field_game *game,size_t actor);
+static void log_stage_result_return(const fd2_field_game *game,const char *caller,size_t actor);
 static int finish_and_dispatch_ai_action(fd2_field_game *game, size_t actor_index);
 static int dispatch_pending_cell_event(fd2_field_game *game, size_t actor_index);
 static int advance_status_progress(fd2_field_game *game);
@@ -233,7 +240,7 @@ static void init_option_values(fd2_field_game *game) {
 
 static void refresh_secondary_menu_disabled(fd2_field_game *game) {
     if (!game) return;
-    /* 总览沿1b41d的stage索引取已核条件；stage2只开放浏览/存读档。 */
+    /* 总览沿1b41d索引取条件；菜单能力由当前发布绑定决定。 */
     uint8_t disabled[FD2_FIELD_SYSTEM_MENU_COUNT] = {0, 0, 0, 0};
     disabled[0] = !fd2_field_stage_is_supported(game->stage);
     if (!game->save_resource_available)
@@ -253,7 +260,7 @@ static void refresh_system_menu_disabled(fd2_field_game *game) {
     if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_SECONDARY) {
         refresh_secondary_menu_disabled(game);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_PARENT) {
-        /* stage2仅完成真实入场/存读档，turn3 action9尚未接入，不开放END。 */
+        /* END与行军按当前批次战斗能力判门，entry-only域保持关闭。 */
         const uint8_t disabled[] = {0, !fd2_field_stage_battle_is_supported(game->stage), 0, !fd2_field_stage_battle_is_supported(game->stage)};
         fd2_field_system_menu_set_disabled(&game->system_menu, disabled);
     } else if (game->system_menu.page == FD2_FIELD_SYSTEM_PAGE_OPTIONS) {
@@ -292,6 +299,11 @@ static const fd2_static_flow *stage_flow_get(const char *kind, size_t stage) {
         ? fd2_static_flow_lookup("stage", id) : NULL;
 }
 
+static const fd2_static_flow *stage_result_event_flow(size_t stage) {
+    char id[64];int length=snprintf(id,sizeof(id),"stage.%03zu.result",stage);
+    return length>0 && (size_t)length<sizeof(id)?fd2_static_flow_lookup("common_event",id):NULL;
+}
+
 /* sub_205B4 @0x205b4、field_stage1_battle_result_check @0x206c5（原sub_206C5）：
  * 正式结果按hidden/side及原覆盖顺序查询，不以HP替代死亡整理；
  * default仅保留既有内部fallback身份。纯查询不提交53ECC结果锁存。 */
@@ -327,13 +339,24 @@ int fd2_field_game_result_query_flow(const fd2_field_game *game, const char *id,
     return -1;
 }
 
-fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
-    if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
+int fd2_field_game_battle_result_query(const fd2_field_game *game,fd2_field_battle_result *out) {
+    if (!game || !game->ready || !out || game->units.count>FD2_FIELD_MAX_UNITS) return -1;
+    /* 含story/53ECC写点的来源仅在原player/phase/AI的五个后置CALLsite执行。
+     * 普通绘制、AI检查及存取的const查询只读已提交锁存，不能重播剧情。 */
+    if (stage_result_event_flow(game->stage)) {
+        if (game->battle_result<FD2_FIELD_BATTLE_ONGOING || game->battle_result>FD2_FIELD_BATTLE_DEFEAT)return -1;
+        *out=game->battle_result;return 0;
+    }
     const fd2_static_flow *flow = stage_flow_get("result", game->stage);
     if (!flow) flow = fd2_static_flow_lookup("stage", "stage.result.default");
+    return flow?fd2_field_game_result_query_flow(game,flow->id,out):-1;
+}
+
+fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
+    if(!game || !game->ready)return FD2_FIELD_BATTLE_ONGOING;
     fd2_field_battle_result result;
-    if (flow && fd2_field_game_result_query_flow(game, flow->id, &result) == 0) return result;
-    /* 构建期已拒绝缺图/未知操作/环；此处只防御二进制内部定义损坏，不能伪造胜败。 */
+    if(fd2_field_game_battle_result_query(game,&result)==0)return result;
+    /* 保留旧ABI的已证域接口；正式存取/控制器不得经这里处理坏输入。 */
     fprintf(stderr, "corrupt internal battle result flow (stage=%zu)\n", game->stage);
     abort();
 }
@@ -407,6 +430,12 @@ static void fail_action(fd2_field_game *game, size_t actor_index) {
         .slot = SIZE_MAX,
     };
     fail_session(game, FD2_FIELD_FAILURE_ACTION, &notice);
+}
+
+static int refresh_battle_result(fd2_field_game *game,size_t actor) {
+    fd2_field_battle_result value;
+    if(fd2_field_game_battle_result_query(game,&value)!=0){fail_action(game,actor);return -1;}
+    game->battle_result=value;return 0;
 }
 
 int fd2_field_game_set_progress_preflight(fd2_field_game *game,
@@ -533,12 +562,11 @@ int fd2_field_game_progress_ack(fd2_field_game *game) {
             result = complete_player_controller_tail(game, actor);
         else if (resume == FD2_FIELD_PROGRESS_RESUME_AI_DIRECT ||
                  resume == FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER) {
+            result=0; /* reward_finish的1是已返回，不是跳过outer后置的业务状态。 */
             if (common_tail) result = finish_ai_action(game, actor);
             if (result == 0 && !game->runtime_host_quit) result = dispatch_pending_cell_event(game, actor);
             if (result == 0 && !game->runtime_host_quit && !game->event_resume.active) {
-                game->battle_result = fd2_field_game_battle_result(game);
-                if (game->battle_result != FD2_FIELD_BATTLE_ONGOING &&
-                    fd2_field_game_resume_player_controller(game) < 0) result = -1;
+                result=finish_ai_outer_result(game,actor);
             }
         }
     }
@@ -716,7 +744,20 @@ static int run_status_flow(fd2_field_game *game, fd2_field_progress *progress,
             }
             else for (size_t i = 0; i < units->count; i++) if (!units->items[i].hp) units->items[i].flags = 1;
         } else if (!strcmp(op, "status_result")) {
-            if (!preflight) game->battle_result = fd2_field_game_battle_result(game);
+            if (!preflight) {
+                int result=begin_stage_result_call(game,0,FD2_EVENT_COMPLETE_STATUS_RESULT);
+                if(result<0)return -1;
+                if(result>0) {
+                    int next=fd2_static_flow_edge(flow,n,FD2_FLOW_NEXT);
+                    if(next<0 || next>UINT8_MAX)return -1;
+                    progress->flow_step=(uint8_t)next;
+                    /* 旧487/状态提示已由原ACK消费；结果story接管等待后，
+                     * 不能再暴露旧notice供第二次ACK。失败前不清未交接owner。 */
+                    memset(&progress->notice,0,sizeof(progress->notice));
+                    return 0;
+                }
+                log_stage_result_return(game,"status",0);
+            }
         } else if (!strcmp(op, "status_timer_reset")) {
             progress->status_pass = 1; progress->status_cursor = progress->status_byte = 0;
         } else if (!strcmp(op, "status_byte_available"))
@@ -983,7 +1024,7 @@ static int open_resources_for_flow(fd2_field_game *game,
     game->detail_unit = -1;
     game->detail_acknowledged_unit = -1;
 
-    /* 仅stage0..2有独立已恢复入口；资源准备不开放未知后续handler。 */
+    /* 正式资源门按capability；显式source机制域保留30槽上界。 */
     if (source_only ? stage >= 30u : !fd2_field_stage_is_supported(stage)) return -1;
 
     if (fd2_archive_open(&game->field_archive,
@@ -1392,6 +1433,17 @@ static int prepare_stage_flow(fd2_field_game *game, const fd2_archive *fdother,
 
 int fd2_field_game_prepare_stage(fd2_field_game *game,
         const fd2_archive *fdother, const fd2_save_manual_state *state) {
+    if (game && state && fd2_field_stage_source_is_bound(state->stage_id, "entry")) {
+        if (!fd2_field_stage_is_supported(state->stage_id)) {
+            memset(game, 0, sizeof(*game)); return -1;
+        }
+        char id[64];
+        int length=snprintf(id,sizeof(id),"stage.source.entry.%03u",(unsigned)state->stage_id);
+        if (length<0 || (size_t)length>=sizeof(id)) { memset(game,0,sizeof(*game)); return -1; }
+        int result=fd2_field_game_prepare_stage_source_flow(game,fdother,state,id);
+        if (result==0) game->stage_runtime_entry_offset=0x238du+(uint32_t)(state->stage_id-1u)*31u;
+        return result;
+    }
     return prepare_stage_flow(game, fdother, state,
         state ? stage_flow_get("entry", state->stage_id) : NULL);
 }
@@ -1404,7 +1456,8 @@ int fd2_field_game_prepare_stage1(fd2_field_game *game,
 /* field_stage2_entry_play @0x32e8c（原sub_32E8C）：script18先于group1的顺序由图保留。 */
 int fd2_field_game_prepare_stage2(fd2_field_game *game,
         const fd2_archive *fdother, const fd2_save_manual_state *state) {
-    return prepare_stage_flow(game, fdother, state, stage_flow_get("entry", 2));
+    if (!state || state->stage_id!=2u) { if(game)memset(game,0,sizeof(*game));return -1; }
+    return fd2_field_game_prepare_stage(game,fdother,state);
 }
 
 /* field_stage1_victory_play @0x22f37（原sub_22F37）：只读投影原版提交顺序；
@@ -1414,8 +1467,9 @@ int fd2_field_game_settlement_project_units(const fd2_field_game *game,
         fd2_field_units *out) {
     if (!game || !out || !game->ready || !fd2_field_stage_battle_is_supported(game->stage) ||
         game->failure != FD2_FIELD_FAILURE_NONE || progress_pending(game) ||
-        game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
-        fd2_field_game_battle_result(game) != FD2_FIELD_BATTLE_VICTORY) return -1;
+        game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+    fd2_field_battle_result result;
+    if(fd2_field_game_battle_result_query(game,&result)!=0 || result!=FD2_FIELD_BATTLE_VICTORY)return -1;
     fd2_field_units shadow = game->units;
     stage_flow_context context = {game, NULL, &shadow, NULL, NULL, NULL};
     if (run_stage_logic(stage_flow_get("victory", game->stage), &context) != 0) return -1;
@@ -1449,6 +1503,24 @@ int fd2_field_game_settlement_commit(fd2_field_game *game, fd2_save_manual_state
     game->ready = 0; /* 旧stage资源仍由close释放，不允许继续导出/操作。 */
     *out = shadow;
     return 0;
+}
+
+/* main @0x25bf4的胜利caller已经按源图完成11506/追加/next_stage。
+ * 此处仅导出原持久owner，不再投影active或重放结算；旧资源由App随后close。 */
+int fd2_field_game_export_preparation(const fd2_field_game *game, fd2_save_manual_state *out) {
+    fd2_field_stage_capability capability;
+    if (!out || !fd2_field_game_stage_source_is_idle(game) || !game->stage ||
+        game->stage>=30u || game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER ||
+        !fd2_field_stage_prepare_record_get(game->stage) ||
+        fd2_field_stage_capability_get(game->stage,&capability)!=0 ||
+        (!capability.preparation_slots && !fd2_field_stage_source_is_bound(game->stage,"entry"))) return -1;
+    fd2_save_manual_state shadow={0};
+    shadow.unit_count=(uint8_t)game->roster_count;shadow.stage_id=(uint8_t)game->stage;
+    shadow.gold_or_flags=game->resource_value;
+    shadow.options[0]=game->option_values[3];shadow.options[1]=game->option_values[2];
+    shadow.options[2]=game->option_values[0];shadow.options[3]=game->option_values[1];
+    memcpy(shadow.unit_area,game->roster,sizeof(game->roster));
+    *out=shadow;return 0;
 }
 
 int fd2_field_game_apply_handoff(fd2_field_game *game,
@@ -5579,7 +5651,7 @@ int fd2_field_game_resume_player_controller(fd2_field_game *game) {
     if (game->turn_post_caller != FD2_FIELD_TURN_POST_NONE) {
         if (game->turn_post_caller != FD2_FIELD_TURN_POST_MARCH &&
             game->turn_post_caller != FD2_FIELD_TURN_POST_END) return -1;
-        game->battle_result = fd2_field_game_battle_result(game);
+        if(refresh_battle_result(game,game->player_post_actor)!=0)return -1;
         if (game->active_side != 2u && game->battle_result == FD2_FIELD_BATTLE_ONGOING) return 1;
         /* 17159只属于March；END原caller仅恢复51AAC，继承51A83。 */
         if (game->turn_post_caller == FD2_FIELD_TURN_POST_MARCH) game->ordinary_display_mode = 1;
@@ -5591,7 +5663,7 @@ int fd2_field_game_resume_player_controller(fd2_field_game *game) {
     }
     if (!game->player_post_waiting_phase) return 0;
     /* native turncycle也可因stage结果在side1/0提前返回controller。 */
-    game->battle_result = fd2_field_game_battle_result(game);
+    if(refresh_battle_result(game,game->player_post_actor)!=0)return -1;
     if (game->active_side != 2u &&
         game->battle_result == FD2_FIELD_BATTLE_ONGOING)
         return 1;
@@ -5624,7 +5696,54 @@ static int complete_player_controller_tail(fd2_field_game *game, size_t actor_in
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return -1;
     /* 原117e7在奖励关闭后再进stage结果/整轮控制器。 */
-    game->battle_result = fd2_field_game_battle_result(game);
+    int result=begin_stage_result_call(game,actor_index,FD2_EVENT_COMPLETE_PLAYER_RESULT);
+    if(result<0)return -1;
+    if(result>0)return 0;
+    return complete_player_controller_after_result(game,actor_index);
+}
+
+/* 1197b、1a866、1d80b/1d8ba共用真实分派；PC/actor仍在原owner中。
+ * 1=源结果函数等待呈现，0=已经返回；const getter永不执行此入口。 */
+static int begin_stage_result_call(fd2_field_game *game,size_t actor,unsigned completion) {
+    const fd2_static_flow *flow=stage_result_event_flow(game->stage);
+    if(!flow)return refresh_battle_result(game,actor);
+    if(common_event_bound_begin(game,flow,actor)!=0)return -1;
+    if(game->event_resume.active){game->event_resume.completion=(uint8_t)completion;return 1;}
+    return 0;
+}
+
+static void log_stage_result_return(const fd2_field_game *game,const char *caller,size_t actor) {
+    printf("field result query: stage=%zu result=%d caller=%s actor=%zu\n",
+        game->stage,(int)game->battle_result,caller,actor);fflush(stdout);
+}
+
+static int finish_ai_outer_after_result(fd2_field_game *game,size_t actor) {
+    log_stage_result_return(game,"ai",actor);
+    if(game->battle_result!=FD2_FIELD_BATTLE_ONGOING &&
+        fd2_field_game_resume_player_controller(game)<0)return -1;
+    return 0;
+}
+
+static int finish_ai_outer_result(fd2_field_game *game,size_t actor) {
+    int result=begin_stage_result_call(game,actor,FD2_EVENT_COMPLETE_AI_RESULT);
+    return result<0?-1:result?0:finish_ai_outer_after_result(game,actor);
+}
+
+/* 1d80b/1d8ba的gate只跳AI本体，不跳结果表。纯无写图在连续跳过的
+ * raw状态不变时沿旧调度合并；含写/等待图每个raw均真正调用一次。 */
+static int skip_ai_outer_result(fd2_field_game *game,size_t actor) {
+    if(!stage_result_event_flow(game->stage))return 0;
+    game->phase_unit_cursor=actor+1u;
+    if(finish_ai_outer_result(game,actor)<0){fail_action(game,actor);return -1;}
+    return game->event_resume.active || game->runtime_host_quit || game->battle_result!=FD2_FIELD_BATTLE_ONGOING;
+}
+
+/* 原1197b返回后才到13565/pending；story ACK续此处，不重新查询结果。 */
+static int complete_player_controller_after_result(fd2_field_game *game,size_t actor_index) {
+    if (!game || !game->ready || game->failure!=FD2_FIELD_FAILURE_NONE ||
+        actor_index>=game->units.count || game->active_side!=2u ||
+        game->interaction!=FD2_FIELD_INTERACTION_BROWSE) return -1;
+    log_stage_result_return(game,"player",actor_index);
     /* sub_13565 @0x13565（原登记同名）：不含HP与bit04门。 */
     for (size_t i = 0; i < game->units.count; i++) {
         const fd2_field_unit *unit = &game->units.items[i];
@@ -6889,12 +7008,10 @@ int fd2_field_game_process_automatic_action_visual(
         game->selected_unit >= 0 ||
         game->interaction != FD2_FIELD_INTERACTION_BROWSE)
         return 0;
-    /* side 1/0 outer loop 原本在每个 raw actor（包括阵营不符、hidden、
-     * acted、状态阻断或 AI gate 拒绝者）后无条件调用 DS:0x1b19[stage]。
-     * 当前正式 session 只开放 stage 0；其 handler 只依赖整张 actor 表，
-     * 因而可在分步 scheduler 入口及每次已提交动作后等价刷新。其他
-     * stage 的私有 handler 未恢复，不能用通用全灭判定冒充其脚本。 */
-    game->battle_result = fd2_field_game_battle_result(game);
+    /* side1/side0 outer @1d80b/1d8ba每raw在pending之后调用51b19。
+     * 此入口纯检查只读已有latch；新含写/等待绑定不得在这里额外执行，
+     * 而在以下每raw真实返回点（含被gate跳过者）使用同一有限续态。 */
+    if(refresh_battle_result(game,game->phase_unit_cursor<game->units.count?game->phase_unit_cursor:0)!=0)return -1;
     if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
         return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 0;
     /* tick 只安排自动阶段时间；有 VGA 的 play owner 负责同步路径演出，
@@ -6913,8 +7030,11 @@ int fd2_field_game_process_automatic_action_visual(
             fd2_field_unit *unit = &game->units.items[i];
             if (!ai_unit_can_execute(unit, 0u) ||
                 fd2_field_unit_has_acted(unit) ||
-                unit->detail_status[1] != 0u)
+                unit->detail_status[1] != 0u) {
+                int result=skip_ai_outer_result(game,i);
+                if(result<0)return -1;if(result>0)return 1;
                 continue;
+            }
             fd2_field_ai_magic_candidate magic;
             fd2_field_ai_item_candidate item;
             int magic_ready = fd2_field_ai_choose_magic_candidate(
@@ -6923,7 +7043,11 @@ int fd2_field_game_process_automatic_action_visual(
             int item_ready = fd2_field_ai_choose_item_candidate(
                 &game->map, &game->terrain, &game->units, i, 0,
                 &item) == 0 && item.score >= 6;
-            if (!magic_ready && !item_ready) continue;
+            if (!magic_ready && !item_ready) {
+                int result=skip_ai_outer_result(game,i);
+                if(result<0)return -1;if(result>0)return 1;
+                continue;
+            }
             game->phase_unit_cursor = i + 1u;
             /* 13a9f没有统一聚焦；各实际动作wrapper按自身原调用点处理。 */
             int run_common_tail = 1;
@@ -6940,19 +7064,13 @@ int fd2_field_game_process_automatic_action_visual(
             if (run_common_tail && finish_ai_action(game, i) != 0)
                 return -1;
             if(game->runtime_host_quit)return 1;
-            /* side phase owner 在 AI 返回后才按 DS:0x1b91[event_code]
-             * 分派 cell handler。SDL 尚未恢复这些 stage-private handler；
-             * 动作与 acted 已提交后必须停止，不能继续下一个 actor，亦
-             * 不能伪造外部 RNG 回滚。 */
+            /* side outer在AI后分派1b91；已绑定走同common owner，未知仍
+             * 在真实边界冻结，不能吞掉已提交动作或伪造外部RNG回滚。 */
             if (game->failure != FD2_FIELD_FAILURE_NONE ||
                 dispatch_pending_cell_event(game, i) != 0)
                 return -1;
             if(game->event_resume.active)return 1;
-            /* 等价于本 raw actor 的 cell handler 返回后调用 stage 0
-             * DS:0x1b19 handler；必须先于下一 actor 和 phase 推进。 */
-            game->battle_result = fd2_field_game_battle_result(game);
-            if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
-                return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
+            if(finish_ai_outer_result(game,i)<0)return -1;
             return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
         }
         game->phase_ai_pass = 1u;
@@ -6963,8 +7081,11 @@ int fd2_field_game_process_automatic_action_visual(
         game->pending_cell_event.valid = 0;
         fd2_field_unit *unit = &game->units.items[i];
         if (!ai_unit_can_execute(unit, game->active_side) ||
-            fd2_field_unit_has_acted(unit) || unit->detail_status[1] != 0u)
+            fd2_field_unit_has_acted(unit) || unit->detail_status[1] != 0u) {
+            int result=skip_ai_outer_result(game,i);
+            if(result<0)return -1;if(result>0)return 1;
             continue;
+        }
         game->phase_unit_cursor = i + 1u;
         int run_common_tail = 1;
         int action_result = run_ai_behavior(
@@ -6988,11 +7109,7 @@ int fd2_field_game_process_automatic_action_visual(
             dispatch_pending_cell_event(game, i) != 0)
             return -1;
         if(game->event_resume.active)return 1;
-        /* 原版 stage handler 对本 raw actor 无条件执行；stage 0 的
-         * 全表结果门在动作提交后于此刷新。 */
-        game->battle_result = fd2_field_game_battle_result(game);
-        if (game->battle_result != FD2_FIELD_BATTLE_ONGOING)
-            return fd2_field_game_resume_player_controller(game) < 0 ? -1 : 1;
+        if(finish_ai_outer_result(game,i)<0)return -1;
         return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
     }
     /* 扫到raw尾（含被跳过者）才换phase；不能remaining=0提前跳过清slot。 */

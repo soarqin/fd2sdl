@@ -47,6 +47,15 @@ UNOPENED = "decoded_unopened"
 UNKNOWN = "unmapped_semantics"
 MOVEMENT_POINTER_COUNT = 106
 MOVEMENT_PAYLOAD_VA = 0x62980
+DESCRIPTOR_SOURCE_SPANS = (
+    # G1完整Domain caller读集与G2/G4已审原义；摘要为raw-unrelocated原页。
+    ("cell_execute", 0x190AC, 0x1956B, "4e78883e3c83d7043ab94084479b15ceb07b7732793066428d577873aa12a70a"),
+    ("drop_execute", 0x1AA1D, 0x1ACF3, "01f0b93310d7441ab6e1ede05c93bde7a32e0bd15b3b24bf283a8f1f04099267"),
+    ("ai_story_collector", 0x1B653, 0x1B6B7, "eac8dc89737cdcd6b8aad22ef15caba0737e96a41f32f0b57a720fc99baf4b29"),
+    ("defeated_collector", 0x1B6B7, 0x1B722, "24d4f68717d397e47be71887e91b36a2b8baa69e54f66fd3f853da4fadea799e"),
+    ("collector_return_tail", 0x1B64D, 0x1B653, "c6d7835030e05f1ba551d25d1b51f942eae5c9ca1193fb2e579317f7a572b7db"),
+    ("drop_return_tail", 0x22BBE, 0x22BC6, "b389950002ba37dbf8ee72e175c575064b3a60d86d656fbc1a0aebbdf240f405"),
+)
 
 
 def digest(data):
@@ -398,7 +407,58 @@ def read_movement_table(executable, runtime_sources):
                 "unconfirmed_direction_ids": [row["id"] for row in records if row["counted_structure_observation"]["unconfirmed_directions"]]}}
 
 
-def descriptor(mode, param, stage, enabled, fragments, flows, aliases, *, cell=False):
+def descriptor_source_evidence(executable):
+    """独立原页核完整caller／共享返回尾，不从冷图或当前C取expected。"""
+    raw = Path(executable).read_bytes()
+    if digest(raw) != EXE_SHA256:
+        raise ValueError("descriptor original EXE identity mismatch")
+    spans = []
+    for caller, start, end, expected in DESCRIPTOR_SOURCE_SPANS:
+        actual = source_range(raw, start, end-start)
+        if digest(actual) != expected:
+            raise ValueError(f"descriptor original caller bytes differ: {caller}")
+        spans.append({"caller": caller, "canonical_va": hex(start), "end": hex(end),
+                      "length": end-start, "raw_unrelocated_sha256": expected})
+    return {"file": "FD2.EXE", "sha256": EXE_SHA256, "address_view": "canonical relbase VA; raw-unrelocated",
+            "spans": spans, "strict_source_bytes_checked": True,
+            "semantic_basis": ["docs/reverse-engineering/common-battle-semantics.md#64-descriptor默认分支是有依据的无效果",
+                               "docs/reverse-engineering/common-runtime-semantics.md"],
+            "independent_original_probes": ["tools/ida/verify_fd2_descriptor_default.py", "tools/ida/verify_fd2_special_cell.py"],
+            "original_machine_code_executed_this_audit": False, "new_gameplay_enabled": False}
+
+
+def descriptor_semantics(mode, param, *, caller="drop_execute"):
+    """原mode／WORD按真实caller解释；collector只核mode过滤，不声称可达。"""
+    if type(mode) is not int or not 0 <= mode <= 255 or type(param) is not int or not 0 <= param <= 65535:
+        raise ValueError("descriptor requires raw BYTE mode and WORD param")
+    if caller not in ("drop_execute", "defeated_collector", "ai_story_collector", "cell_execute"):
+        raise ValueError("unknown descriptor caller")
+    result = {"caller": caller, "param_u16": param, "callback_u16": None, "callback_in_table": None}
+    sources = [hex(next(a for name, a, _, _ in DESCRIPTOR_SOURCE_SPANS if name == caller))]
+    if caller == "defeated_collector" and mode == 255:
+        kind, reason = "collector_sentinel", "1b6b7 excludes mode255 before queue execution; not the direct1aa1d default"
+    elif caller == "ai_story_collector" and mode != 3:
+        kind, reason = "collector_filtered", "1b653 only collects mode3; runtime nonhidden/HP0 eligibility is separate"
+    else:
+        if caller in ("defeated_collector", "ai_story_collector"):
+            sources.append("0x1aa1d")
+        kind = "callback" if caller == "cell_execute" and mode >= 2 else {
+            0: "item", 1: "money", 2: "callback", 3: "story"}.get(mode, "default_noop")
+        if kind == "callback":
+            result.update(callback_u16=param, callback_in_table=param < 90)
+            reason = ("190ac non0/1 mode" if caller == "cell_execute" else "1aa1d mode2") + \
+                " dispatches full WORD into the90-slot callback table; " + \
+                ("exact stage binding remains required" if param < 90 else "out-of-table target is explicitly refused; no low-BYTE alias")
+        elif kind == "default_noop":
+            reason = "1aa1d modes4..255 clear input per descriptor then continue; no business/RNG effect"
+        else:
+            reason = f"{'190ac' if caller == 'cell_execute' else '1aa1d'} confirmed {kind} branch; raw WORD retained"
+    result.update(semantic_kind=kind, classification_reason=reason, source_canonical_vas=sources)
+    return result
+
+
+def legacy_descriptor(mode, param, stage, enabled, fragments, flows, aliases, *, cell=False):
+    """保留SD3旧读集的分类快照，仅供差异账；不作当前原义判据。"""
     result = {"mode": mode, "param_u16": param, "classification": UNKNOWN, "reference_errors": []}
     if mode == 255 and not cell:
         result["classification"] = "unused_descriptor"
@@ -416,6 +476,37 @@ def descriptor(mode, param, stage, enabled, fragments, flows, aliases, *, cell=F
         result["classification"] = SUPPORTED if enabled and "loot" in flows else UNOPENED if "loot" in flows else UNKNOWN
     if result["reference_errors"]:
         result["classification"] = UNKNOWN
+    return result
+
+
+def descriptor(mode, param, stage, enabled, fragments, flows, aliases, *, cell=False, caller=None):
+    if caller is None:
+        caller = "cell_execute" if cell else "defeated_collector"
+    if cell and caller != "cell_execute":
+        raise ValueError("cell descriptor caller mismatch")
+    semantic = descriptor_semantics(mode, param, caller=caller)
+    legacy = legacy_descriptor(mode, param, stage, enabled, fragments, flows, aliases, cell=caller == "cell_execute")
+    result = {"mode": mode, "classification": UNKNOWN, "reference_errors": [], **semantic,
+              "legacy_classification": legacy["classification"],
+              "legacy_reference_errors": legacy["reference_errors"],
+              "legacy_reason": "SD3 audit mode0..3/cell0..1 and mode2 low-BYTE classification; historical comparison only"}
+    if "runtime_id" in legacy:
+        result["legacy_runtime_id"] = legacy["runtime_id"]
+    kind = semantic["semantic_kind"]
+    if kind in ("collector_sentinel", "collector_filtered"):
+        result["classification"] = "unused_descriptor"
+        return result
+    if kind == "callback":
+        # 先核原完整WORD域，再查精确stage/action绑定；同target不授予支持。
+        if semantic["callback_in_table"]:
+            result.update(classify(f"stage.{stage:03d}.action.{param:03d}", enabled, flows, aliases))
+        return result
+    if kind == "item" and param >= 215:
+        result["reference_errors"].append("item ID outside the confirmed table")
+    elif kind == "story" and param >= fragments:
+        result["reference_errors"].append("story fragment outside stage text entry")
+    if not result["reference_errors"]:
+        result["classification"] = SUPPORTED if enabled and "loot" in flows else UNOPENED if "loot" in flows else UNKNOWN
     return result
 
 
@@ -562,6 +653,7 @@ def audit_stage(stage, field, shape, text, flows, aliases, dispatch):
             "terrain_attributes": {"entry": attr_index, "file_offset": attr_offset, "length": len(attrs), "sha256": digest(attrs)},
             "text_reference": {"entry": stage + 1, "fragment_count": fragments}, "dispatch": stages,
             "reference_errors": errors, "active_classification_counts": dict(Counter(row["classification"] for row in requirements)),
+            "legacy_active_classification_counts": dict(Counter(row.get("legacy_classification", row["classification"]) for row in requirements)),
             "unsupported_active_requirements": unknown,
             "bound_definitions_closed": bool(enabled and not bound_unknown and not errors),
             "selected_semantics_supported": bool(enabled and not unknown and not errors), "semantic_complete": False}
@@ -594,6 +686,7 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
             "sources": {name: {"sha256": digest(raw), "length": len(raw)} for name, raw in sources.items()},
             "definition_sources": definition_sources, "verified_baseline_blobs": baseline_sources,
             "flow_bindings": aliases, "ida_evidence_sources": ida_sources,
+            "descriptor_source_evidence": descriptor_source_evidence(original / "FD2.EXE"),
             "dispatch_tables": tables, "adjacent_nonpointer_bytes": gap, "function_catalog": functions,
             "movement_sources": {str(i): {"canonical_va": hex(s.canonical_va), "length": len(s.data), "sha256": digest(s.data), "raw_hex": s.data.hex()} for i, s in scripts.items()},
             "movement_source_scope": "movement_sources contains all 106 reviewed counted streams; movement_pointer_table separately preserves all source slots and the complete 2898-byte raw candidate payload (counted stream sum 2896, overlapping/remaining candidates retained). Runtime grammar availability does not enable stage bindings",
@@ -612,6 +705,7 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
                 "unconsumed_resource_template_tails": sum(not t["effective_template"] for r in rows for t in r["metadata"]["templates"]),
                 "default_turn255_candidates": sum(t["default_fill"] for r in rows for t in r["metadata"]["turn_slots"]),
                 "active_classification_counts": dict(sum((Counter(r["active_classification_counts"]) for r in rows), Counter())),
+                "legacy_active_classification_counts": dict(sum((Counter(r["legacy_active_classification_counts"]) for r in rows), Counter())),
                 "bound_definitions_closed_stages": [r["stage"] for r in rows if r["bound_definitions_closed"]],
                 "supported_selected_stages": [r["stage"] for r in rows if r["selected_semantics_supported"]],
                 "reference_error_count": sum(len(r["reference_errors"]) for r in rows)}}
@@ -628,6 +722,8 @@ def main():
     args = parser.parse_args()
     try:
         output = args.output.resolve()
+        if output.exists():
+            raise ValueError("audit output already exists; keep historical report and choose a new path")
         if any(output.is_relative_to(path.resolve()) for path in (args.original, args.definitions, args.ida_evidence, ROOT / "docs")):
             raise ValueError("report must not overwrite original resources, definitions or published evidence/docs")
         report = audit(args.original, args.definitions, args.ida_evidence, args.stage)

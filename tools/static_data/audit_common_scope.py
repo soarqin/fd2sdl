@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""G1：原来源逐项映射到经审查的通用语义族；结构成功不提升为玩法完整。
+"""保留G1来源族投影，另列S1当前caller语义；结构成功不提升为玩法完整。
 
 原字节、fixup、资源和发布证据校验复用 audit_stage_data；本层只消费
-显式review的VA／chunk摘要和来源ID，不用stage编号自动推断语义。
+显式review的VA／chunk摘要和来源ID；当前descriptor路由复用已证caller规则。
 """
 from __future__ import annotations
 
@@ -58,7 +58,8 @@ def family_result(families, review):
 
 
 def classify_callback(action, dispatch, review):
-    if type(action) is not int or not 0 <= action <= 255:
+    # turn/lookup是BYTE，descriptor callback为完整WORD，不能在此截断alias。
+    if type(action) is not int or not 0 <= action <= 65535:
         return {"classification": "unresolved", "families": [], "next": [], "reason": "invalid action domain"}
     if action >= 90:
         fact = review.get("callback_out_of_table")
@@ -70,10 +71,14 @@ def classify_callback(action, dispatch, review):
             return semantic
         return {"classification": "original_out_of_table", "families": ["callback_guard"],
                 "next": ["G4"], "reason": fact["basis"]}
+    if action >= len(dispatch):
+        return {"classification": "unresolved", "families": [], "next": [],
+                "reason": "callback slot lacks a verified source table record"}
     return {**dispatch[action]["semantic"], "dispatch_source_id": dispatch[action]["source_id"]}
 
 
 def classify_descriptor(descriptor, dispatch, review, *, cell=False):
+    """冻结G1投影；旧低BYTE/cell归属仅用于保持历史报告可比。"""
     mode = descriptor["mode"]
     if cell and mode not in (0, 1):
         return {"classification": "unresolved", "families": [], "next": [],
@@ -93,6 +98,33 @@ def classify_descriptor(descriptor, dispatch, review, *, cell=False):
         return {"classification": "original_default_noop", "families": ["descriptor_default"],
                 "next": ["G2"], "reason": fact["basis"]}
     return {"classification": "unresolved", "families": [], "next": [], "reason": "unreviewed descriptor mode"}
+
+
+def current_descriptor_semantic(descriptor, dispatch, review, *, cell=False):
+    """S1按已证caller分流；family/next仍是G1审查标签，不是当前实施状态。"""
+    caller = descriptor.get("caller", "cell_execute" if cell else "defeated_collector")
+    route = source_audit.descriptor_semantics(descriptor["mode"], descriptor["param_u16"], caller=caller)
+    kind = route["semantic_kind"]
+    if kind == "callback":
+        semantic = classify_callback(route["callback_u16"], dispatch, review)
+    elif descriptor.get("reference_errors"):
+        semantic = {"classification": "unresolved", "families": [], "next": [],
+                    "reason": "descriptor has unresolved source reference"}
+    elif kind in ("item", "money", "story"):
+        semantic = family_result(["loot_known"], review)
+    elif kind == "default_noop":
+        semantic = family_result(["descriptor_default"], review)
+        if semantic["classification"] != "unresolved":
+            semantic = {**semantic, "classification": "original_default_noop"}
+    elif kind in ("collector_sentinel", "collector_filtered"):
+        semantic = family_result(["loot_known"], review)
+        if semantic["classification"] != "unresolved":
+            semantic = {**semantic, "classification": "original_collector_excluded"}
+    else:
+        semantic = {"classification": "unresolved", "families": [], "next": [],
+                    "reason": "descriptor route lacks reviewed primitive-family mapping"}
+    return {**semantic, **route, "family_review_epoch": "G1_not_current_implementation",
+            "runtime_classification": descriptor.get("classification")}
 
 
 def build_ledger(inventory, review):
@@ -150,15 +182,17 @@ def build_ledger(inventory, review):
             if action["referenced_by_map"]:
                 rows.append({"source_id": f"stage:{identity:02d}:cell:{action['slot']:02d}", "kind": "references",
                              "source_entry": metadata["entry"], "source_offset": action["entry_offset"],
-                             "legacy_classification": action["classification"],
-                             "semantic": classify_descriptor(action, callbacks, review, cell=True)})
+                             "legacy_classification": action.get("legacy_classification", action["classification"]),
+                             "semantic": classify_descriptor(action, callbacks, review, cell=True),
+                             "current_semantic": current_descriptor_semantic(action, callbacks, review, cell=True)})
         for template in metadata["templates"]:
             index, drop = template["index"], template["drop"]
             if drop["classification"] != "unused_descriptor":
                 rows.append({"source_id": f"stage:{identity:02d}:drop:{index:03d}", "kind": "references",
                              "source_entry": metadata["entry"], "source_offset": template["entry_offset"] + 22,
-                             "legacy_classification": drop["classification"],
-                             "semantic": classify_descriptor(drop, callbacks, review)})
+                             "legacy_classification": drop.get("legacy_classification", drop["classification"]),
+                             "semantic": classify_descriptor(drop, callbacks, review),
+                             "current_semantic": current_descriptor_semantic(drop, callbacks, review)})
             if template["placement_index"] is None:
                 key = f"stage:{identity:02d}:template:{index:03d}"
                 fact = review["placement_tails"].get(key)
@@ -205,12 +239,21 @@ def build_ledger(inventory, review):
     counts = dict(Counter(row["kind"] for row in rows))
     if counts != EXPECTED_COUNTS:
         raise ValueError(f"source ledger scope differs: {counts}")
+    for row in rows:
+        row.setdefault("current_semantic", dict(row["semantic"]))
     unknown = [row["source_id"] for row in rows if row["semantic"]["classification"] == "unresolved"]
+    current_unknown = [row["source_id"] for row in rows if row["current_semantic"]["classification"] == "unresolved"]
     return {"schema": "fd2-common-scope-ledger-v1", "structural_success": inventory["structural_success"],
             "classification_complete": not unknown, "all_game_semantic_complete": False,
             "new_gameplay_enabled": False, "original_runtime_executed": False,
+            "current_phase": "S1", "historical_fields": "semantic, classification_counts and classification_complete are frozen_G1_projection",
+            "projection_scope": "frozen G1 potential-requirement subset; not the complete S1 resource ledger",
+            "family_label_boundary": "common_gap, binding_only and next in both projections are G1 review labels, not current gaps, completion or priority",
             "boundary": "reviewed primitive-family classification; implementation, extraction of every flow edge and runtime acceptance remain separate gates",
             "counts": counts, "classification_counts": dict(Counter(row["semantic"]["classification"] for row in rows)),
+            "current_classification_complete": not current_unknown,
+            "current_classification_counts": dict(Counter(row["current_semantic"]["classification"] for row in rows)),
+            "current_unresolved_source_ids": current_unknown,
             "unresolved_source_ids": unknown, "sources": inventory["sources"], "rows": rows}
 
 
@@ -223,8 +266,12 @@ def main():
     args = parser.parse_args()
     try:
         output = args.output.resolve()
+        if output.exists():
+            raise ValueError("ledger output already exists; keep historical report and choose a new path")
         if any(output.is_relative_to(path.resolve()) for path in (args.original, ROOT / "data", ROOT / "docs")):
             raise ValueError("ledger output must not overwrite resources, definitions or documents")
+        if output == args.review.resolve():
+            raise ValueError("ledger output must not overwrite its semantic review input")
         reviewed_bytes = args.review.read_bytes()
         review = json.loads(reviewed_bytes)
         ledger = build_ledger(source_audit.audit(args.original), review)
@@ -233,9 +280,10 @@ def main():
         ledger["review_sha256"] = hashlib.sha256(reviewed_bytes).hexdigest()
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(ledger, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({key: ledger[key] for key in ("classification_complete", "counts", "classification_counts")}, ensure_ascii=False))
-        if args.require_classified and not ledger["classification_complete"]:
-            raise ValueError("unresolved source IDs block G1 classification")
+        print(json.dumps({key: ledger[key] for key in ("classification_complete", "current_classification_complete", "counts",
+                                                     "classification_counts", "current_classification_counts")}, ensure_ascii=False))
+        if args.require_classified and not (ledger["classification_complete"] and ledger["current_classification_complete"]):
+            raise ValueError("unresolved source IDs block historical or current classification")
     except (ValueError, KeyError, TypeError, OSError) as error:
         parser.exit(1, f"通用来源分类失败：{error}\n")
 

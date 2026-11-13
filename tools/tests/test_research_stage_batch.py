@@ -56,6 +56,7 @@ class NormalizeSlotTest(unittest.TestCase):
         self.assertEqual(rows[0]["runtime_id"], "stage.result.002")
         self.assertEqual(rows[0]["status"], "candidate")
         self.assertTrue(rows[0]["enablement_blocked_by"])
+        self.assertFalse(any("current HP guard" in text for text in rows[0]["enablement_blocked_by"]))
         self.assertFalse(rows[0]["shipping_definition_changed"])
         self.assertFalse(rows[0]["semantic_conversion_approved"])
         source["ida_owners"] = []

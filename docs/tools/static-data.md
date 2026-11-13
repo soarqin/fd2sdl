@@ -114,9 +114,13 @@ python3 -B -m unittest tools.tests.test_static_runtime_flows tools.tests.test_st
 
 ## 批量来源与覆盖审计
 
-2026-11-12 的全量计数、同目标候选转换、审计口径滞后及S接入门见[批量调研](../plans/stage-batch.md)。研究工具 `tools/static_data/research_stage_batch.py` 只读取本地audit并在 `build/research-stage-batch/` 输出规范化来源与候选，不写正式定义、不提权支持状态，也不允许覆盖输入审计。该工具不是任意EXE控制流翻译器；具体复跑命令及负例在调研§7。
+当前 S1 全量来源入口为 `tools/static_data/stage_source_ledger.py`；固定 schema、Windows／Linux 命令、原字节／caller 合同、批量夹具及拒绝边界见[来源账规范](../formats/stage-source-ledger.md)。它扩展既有严格 audit／common-scope／LE／RLE 读取器，生成本地来源与转换输入，不改正式冷定义、consumer 或支持门。新输出必须是 `build/` 下不存在的目录，且不在解析后的原资源子树内；`--verify` 从原来源重生成比较。
+
+2026-11-12 的历史计数、候选与当时审计口径见[批量调研](../plans/stage-batch.md)。`research_stage_batch.py` 保留为历史最小原型，不是当前全量合同；新运行不再把已由 S0 闭合的旧 HP 门列为阻塞，旧报告仍保留原身份。它不写正式定义或提权支持状态，不是任意 EXE 控制流翻译器。
 
 `audit_stage_data.py` 只读提取 FDFIELD 的全部组、原始槽／模板／placement、地图实际格引用，以及严格 LE fixup 分发表目标。它校验原文件身份、已发布 IDA 的清单／EXE 身份／函数 chunk 与历史 Git 源 blob；报告保留源跨度、摘要、未知字节和未覆盖项。schema、固定操作 ABI、出口和引用复用生产校验，原始 EXE／DAT 预期从独立读集取得，不取生成 C 作为 expected。
+
+S1 另列 `descriptor_semantics()` 的 drop_execute／defeated_collector／ai_story_collector／cell_execute 四种真实 caller，保完整 WORD callback 与旧分类差异；mode203 default 不再记为未知机制，cell 非0／1模式仍是 callback，collector255 与直接 default 不合并。`audit_common_scope.py` 的 1,497 行及 G1 `semantic`／`common_gap` 仅为冻结历史投影，`current_semantic` 单列当前路由，不代表当前缺机制。两个 audit CLI 均拒覆盖已有输出；复跑需换新文件名。源资源中的450个默认turn255候选和严格支持失败保留。
 
 Windows PowerShell：
 

@@ -1674,3 +1674,44 @@ N69 原件 `F:/fd2sdl-evidence/g5-audio-remainder-20261111-1115/comparison.json`
 - S0仅对上述两种精确坏视图，在同一最多3次预算内从零取完整新快照，每次重新过双锚／fixup／owner及HP／flags门，所有拒绝attempt落独立dump／请求／摘要。普通锚缺失、状态错误、before坏模式、真正descriptor变化、短读／全零／非精确周期仍失败。共享guard／游戏未改；新协议、debugger BREAK、写内存或通用诊断框架均未引入。c04实际取到完整有效快照，原失败保持原件。
 
 独立源码／原码工具／输入及新reader实审后，无剩余S0确证问题或阻塞；补上C探针执行前后身份绑定，保测试-only入口和源/采样拒绝。没有逐关C逻辑、VM、新生产状态、放宽坏数据或静默跳过。复跑入口见[图形规范S0](../tools/gui-testing.md#s0-结果活动恢复定向入口)。当前只完成S0，审计表达同步仍归S1、新族／别名／未来身份投影仍归S2；严格BSS、全音画／全RNG、设备与其它平台等旧未验边界不扩签。
+
+## S1 全量来源账审计同步与批量夹具（2026-11-13）
+
+本阶段从已集成本地主线的 S0 `02bf7d8` 在现有工作树实施；只修改工具、对应测试和文档，不改 `src/`、`data/static/`、正式支持门及热 owner／SAV／RNG。S1 的完整实现、来源验收、实质审查和精简已闭合，独立提交／本地集成身份、主项目复验及用户档守卫以 Git 和主项目 `build/s1/local-integration.json` 为准，不预填自身提交哈希。当前入口移至 S2，本次不启动 S2—S4。
+
+### 完整交付与来源口径
+
+`stage_source_ledger.py` 直接复用现有严格 audit、common-scope、DAT／LE／fixup、计数流及 RLE 审计，发布固定 schema 的全量规范化输入、每来源夹具、target 去重、语义族／来源去向和异常索引。完整原字节只留 ignored `build/s1/`；App 仍从原资源及唯一 `data/static/` 冷定义读取。规范、源样例及 PowerShell／Bash 复跑命令见[来源账合同](../formats/stage-source-ledger.md)。不造 VM、第二状态或通用 CFG 翻译器。
+
+| 独立统计域 | 本轮原来源实际值 |
+|---|---|
+| DAT／地图／metadata | 199 entries／3 个完整目录；FDFIELD 99 项／33 组，43,734 格／622 个事件标记格；turn／lookup／action 各 528 原槽 |
+| 模板／位置 | 1,899 模板，有效 1,887／尾 12；2,322 WORD 位置，静态分为同索引模板前缀 1,887 和声明部署容量 435。后者保 ordinal／条件读取边界，不声称都实际消费 |
+| 资源引用 | 33 帧包／8,256 帧的 RLE 语法、9,366 属性；34 文本目录／1,016 片段。已核 40 个 story 引用及 43,734 格至属性／lookup／action／潜在图帧引用，44979 条潜在图帧边不是运行帧数 |
+| EXE | 主分派 180 槽／166 目标，加独立 magic 后 208 槽／193 目标；187 IDA owner／208 chunks，caller 与 shared tail 不造新函数 |
+| 移动 | 106 指针／106 流、350 groups／1,045 actor-direction pairs。计数和 2,896 B／原跨度 union 2,894 B／payload 2,898 B；ID24 重叠与 `0x63221..0x63225` 的 4 B 未消费字节分别保存 |
+| 规范化去向 | 72,470 来源／72,470 夹具；19 来源结构族／20 既有审查语义族；confirmed 69,628、excluded 2,077、rejected 450、unresolved 315，数量闭合 |
+
+confirmed 指已核结构或 caller 规则，不能作为运行通过率。父子／函数共享／drop 子记录重叠不能相加当独占字节覆盖。新语义转换／正式绑定均为 0；已有 20 条定义引用和六个精确 callback0..4／6 caller 定义不作为新转换。未决和拒绝共 765 条均进入 `exception_index`，逐条保留绑定／语义族、反向引用、原证据和下一取证动作；同 `0x205b4` 的新来源复用 S0 已证函数，只要求新 caller／参数／资源闭合，不重复逐槽恢复或自动提权。
+
+### caller 审计同步与历史差异
+
+独立核原 `1aa1d`／`1b6b7`／`1b653`／`190ac` 四个完整函数 2,148 B 和两个共享尾 14 B 的固定 EXE／raw 页摘要，复用原 G 的 Domain／原码及运行证据。drop 执行与两个 collector、cell caller 分开；callback 使用完整 WORD，0..89 查精确 caller，90／`0x0100` 不低 BYTE alias；直接 drop255 的 default 与 collector255 哨兵不混合。未新增语义确认或修改 IDA／命名发布物。
+
+2427 条原 descriptor（528 cell＋1899 drop）的规则分别为 item700、money102、callback36、collector_sentinel1548、story40、default_noop1，合法 callback36／表外0。固定来源中实际分类表达变化仅两处：未被初始地图引用的 stage0 cell12 mode2／WORD0 从 UNKNOWN 改为既有精确 action0 的 SUPPORTED；stage14 template33 mode203／WORD0 从 UNKNOWN 改为已证 default 的 UNOPENED。原 bytes／mode／param 不变，前者未开放新 caller，后者未开放 stage14。
+
+1,171 条保守需求旧 supported／unopened／unmapped 为 51／468／652，当前 51／469／651；缺省 turn255 的450条拒绝域保留，严格支持集合仍为空、bound closed 仍为 `[0,1]`。common-scope 1,497 行及 622 binding_only／388 common_gap／450 out_of_table／1 default_noop／36 existing_supported 仍为冻结 G1 历史投影，当前 caller 路由另列，不把 388 当当前 G5 缺机制。旧报告和研究原型保留原身份；新原型输出只去掉已由 S0 闭合的旧 HP blocker，当前输入以 S1 schema 为准。
+
+### 五层验收及审查
+
+| 层 | 本轮实际证据／成功判据 | 未扩签范围 |
+|---|---|---|
+| 独立原来源 | 独立脚本不导入新 normalizer，逐条以原 DAT 切片、原 EXE strict raw／fixup／发布 IDA TSV 核 candidate07 的 72,470 条 ID／坐标／跨度／raw／SHA／引用，0 errors。DAT 细分叶跨度 union 完整覆盖 243169／3557794／120502 B；`resource-review-independent07.json` 绑定 ledger SHA `1a47357ba1f179db74bd0d99bf2096748596e6fc46c1ab1aabf30950eb3e6202` | 初始源结构及有限资源投影，不证明动态换图／身份或任意 SAV 域 |
+| 静态与工具 | 最终四模块 76 项 unittest 全过，15.270 s、无 skip；包含 caller／WORD边界、collector255、default255、尾、同字节错槽、缺源／坏 offset／摘要／重复 ID／引用／schema、输出和原副本／Junction保护。candidate07 `--verify` 从原资源新生成逐份比较通过；单来源夹具与按族队列覆盖闭合 | 夹具派生不是独立语义 oracle，不称 72,470 次玩法执行 |
+| 原码／轨迹 | 复核四 caller／共享尾固定读集；独立单位表9／8,528 B＋两 alias48 B、stage6表973 B＋11 cue／11负例、移动106／2,896 B通过。复用 G 已证 descriptor default／collector／cell 原义 | 本轮没有新增 CPU 动态执行或状态轨迹，不把摘要／工具测试写成新实机 |
+| SDL 正式流程 | 不改 runtime；318 个受保护 `src/`／`data/static/` 跟踪文件摘要守卫，194 表生成成功、22 payload 与主项目已构建输入逐份一致 | 本轮不跑 SDL 游戏测试或重建 App，旧 S0 二进制／运行证据身份保持 |
+| 原版代表 | 复用对应 G 的已证 caller／初始化与资源来源；本轮只做只读校验 | 不运行原版窗口、WGC、电源或音频 API，不重跑 G／S0 GUI；Linux／macOS 未执行 |
+
+审查实修了固定 source ID 与同字节相邻槽可以错配、输出可能落入 `build` 内原资源副本两个保护缺口；补全 story／图帧引用、已证六 callback 精确来源、4 B 尾及原部署容量角色。候选06的同 target 证据列表曾与真实 references 共用 list，新增测试在旧代码取得真红，`red-reuse-reference-alias.log` 保留；修后 candidate07 只向证据表增加复用来源，不伪造原指针引用或 CFG。早期 candidate01 因 raw object2 BSS 不属于文件映射而正确拒绝，修为严格 reader 仅缓存初始化文件页；其余候选和旧通过只保本身身份，不改签为07。
+
+两次独立实质审查后，无剩余 S1 实现或来源验收阻塞。315 条未决的完整 CFG／具体绑定与450条明确拒绝域是已交付的 S2 输入，不被静默忽略，也不表示 S1 未完成。文本全部 token／字形／头像、图像像素、动态资源／身份投影、新语义／绑定和原版运行仍按 S2—S4 适用门处理。

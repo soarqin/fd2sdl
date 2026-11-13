@@ -20,6 +20,7 @@
 ## 数据格式
 
 - [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
+- [关卡来源账与批量夹具](formats/stage-source-ledger.md)：S1 固定 schema、原字节／caller／引用、全量去向、异常队列与复跑入口；不是 App 数据或玩法脚本。
 - [文字映射](formats/font-text-mapping.md)：FDTXT token、Unicode 和缺字规则。
 - [字形映射表](formats/font-glyph-map.tsv)：完整映射数据。
 

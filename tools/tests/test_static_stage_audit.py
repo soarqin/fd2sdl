@@ -420,6 +420,117 @@ class StaticStageAuditTest(unittest.TestCase):
             self.assertEqual(json.loads(output.read_text(encoding="utf-8")), report)
 
 
+class DescriptorCallerSemanticsTest(unittest.TestCase):
+    def classify(self, mode, param, **kwargs):
+        definitions = {"loot": flow("loot"), "stage.000.action.000": flow("stage.000.action.000"),
+                       "stage.000.action.089": flow("stage.000.action.089"),
+                       "stage.000.action.256": flow("stage.000.action.256")}
+        return audit.descriptor(mode, param, 0, True, 2, definitions, {}, **kwargs)
+
+    def test_complete_word_callback_does_not_alias_low_byte_or_open_outside_table(self):
+        for caller, mode in (("drop_execute", 2), ("defeated_collector", 2), ("cell_execute", 3),
+                             ("cell_execute", 203), ("cell_execute", 255)):
+            for value in (0, 89, 90, 0x100, 65535):
+                with self.subTest(caller=caller, mode=mode, word=value):
+                    row = self.classify(mode, value, caller=caller)
+                    self.assertEqual((row["mode"], row["param_u16"]), (mode, value))
+                    self.assertEqual(row["semantic_kind"], "callback")
+                    self.assertEqual(row["callback_u16"], value)
+                    self.assertEqual(row["callback_in_table"], value < 90)
+                    self.assertEqual(row["classification"], audit.SUPPORTED if value < 90 else audit.UNKNOWN)
+                    if value >= 90:
+                        self.assertNotIn("runtime_id", row)
+                        self.assertIn("explicitly refused", row["classification_reason"])
+        high = self.classify(2, 0x100)
+        self.assertEqual(high["legacy_classification"], audit.SUPPORTED)
+        self.assertEqual(high["legacy_runtime_id"], "stage.000.action.000")
+        self.assertEqual(high["classification"], audit.UNKNOWN)
+
+    def test_drop_execution_default_and_collector_sentinel_remain_distinct(self):
+        for mode in (4, 203, 254, 255):
+            direct = self.classify(mode, 65535, caller="drop_execute")
+            self.assertEqual(direct["semantic_kind"], "default_noop")
+            self.assertIsNone(direct["callback_u16"])
+            self.assertEqual(direct["classification"], audit.SUPPORTED)
+            self.assertEqual(direct["reference_errors"], [])
+            collected = self.classify(mode, 65535)
+            self.assertEqual(collected["semantic_kind"], "collector_sentinel" if mode == 255 else "default_noop")
+            self.assertEqual(collected["classification"], "unused_descriptor" if mode == 255 else audit.SUPPORTED)
+        self.assertEqual(self.classify(203, 0)["legacy_classification"], audit.UNKNOWN)
+        self.assertEqual(self.classify(255, 0, caller="drop_execute")["legacy_classification"], "unused_descriptor")
+
+    def test_ai_collector_only_mode3_without_claiming_runtime_eligibility(self):
+        for mode in range(256):
+            row = self.classify(mode, 1, caller="ai_story_collector")
+            self.assertEqual(row["semantic_kind"], "story" if mode == 3 else "collector_filtered")
+            self.assertEqual(row["classification"], audit.SUPPORTED if mode == 3 else "unused_descriptor")
+        row = self.classify(2, 0, caller="ai_story_collector")
+        self.assertIn("nonhidden/HP0 eligibility is separate", row["classification_reason"])
+
+    def test_mode3_drop_text_vs_cell_word_callback_and_same_target_do_not_grant_binding(self):
+        self.assertEqual(self.classify(3, 1)["semantic_kind"], "story")
+        self.assertEqual(self.classify(3, 90)["reference_errors"], ["story fragment outside stage text entry"])
+        cell = self.classify(3, 0, cell=True)
+        self.assertEqual(cell["semantic_kind"], "callback")
+        self.assertEqual(cell["classification"], audit.SUPPORTED)
+        self.assertEqual(cell["legacy_classification"], audit.UNKNOWN)
+        self.assertEqual(cell, self.classify(3, 0, caller="cell_execute"))
+        row = audit.descriptor(2, 0, 7, False, 2, {"loot": flow("loot"),
+                               "stage.000.action.000": flow("stage.000.action.000")}, {})
+        self.assertEqual(row["classification"], audit.UNKNOWN)
+        self.assertIsNone(row["definition"])
+
+    def test_byte_word_caller_domains_and_current_reference_checks_fail_closed(self):
+        for mode, param, caller in ((True, 0, "drop_execute"), (256, 0, "drop_execute"),
+                                   (0, -1, "cell_execute"), (0, 65536, "drop_execute"),
+                                   (2, 0, ""), (2, 0, "guessed_callback")):
+            with self.subTest(mode=mode, param=param, caller=caller), self.assertRaises(ValueError):
+                self.classify(mode, param, caller=caller)
+        with self.assertRaisesRegex(ValueError, "mismatch"):
+            self.classify(3, 0, cell=True, caller="drop_execute")
+        self.assertTrue(self.classify(0, 215)["reference_errors"])
+        self.assertEqual(self.classify(1, 65535)["reference_errors"], [])
+
+    def test_complete_original_caller_sources_checked_independently(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "FD2.EXE"
+            executable.write_bytes(b"fixture")
+            spans = (("fixture", 0x10000, 0x10003, audit.digest(b"abc")),)
+            with mock.patch.object(audit, "EXE_SHA256", audit.digest(b"fixture")), \
+                    mock.patch.object(audit, "DESCRIPTOR_SOURCE_SPANS", spans), \
+                    mock.patch.object(audit, "source_range", return_value=b"abc"):
+                report = audit.descriptor_source_evidence(executable)
+                self.assertTrue(report["strict_source_bytes_checked"])
+                self.assertFalse(report["original_machine_code_executed_this_audit"])
+                with mock.patch.object(audit, "source_range", return_value=b"bad"), self.assertRaises(ValueError):
+                    audit.descriptor_source_evidence(executable)
+                executable.write_bytes(b"changed")
+                with self.assertRaisesRegex(ValueError, "identity"):
+                    audit.descriptor_source_evidence(executable)
+
+    def test_legacy_requirement_count_retained_but_default_classification_changes(self):
+        fixture = list(stage_fixture())
+        metadata = bytearray(fixture[0][1][1]); metadata[0x83+22] = 203
+        fixture[0][1] = (20, bytes(metadata))
+        row = audit.audit_stage(0, *fixture)
+        self.assertEqual(sum(row["active_classification_counts"].values()),
+                         sum(row["legacy_active_classification_counts"].values()))
+        self.assertEqual(row["metadata"]["templates"][0]["drop"]["legacy_classification"], audit.UNKNOWN)
+        self.assertFalse(row["selected_semantics_supported"])
+        self.assertFalse(row["semantic_complete"])
+
+    def test_audit_does_not_replace_historical_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "audit.json"
+            output.write_bytes(b"historical evidence")
+            with mock.patch.object(sys, "argv", ["audit_stage_data.py", "--output", str(output)]), \
+                    mock.patch.object(audit, "audit") as run, contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaises(SystemExit):
+                audit.main()
+            run.assert_not_called()
+            self.assertEqual(output.read_bytes(), b"historical evidence")
+
+
 class FullMovementSourceTest(unittest.TestCase):
     def fixture(self):
         raw = bytearray(0x34D2)

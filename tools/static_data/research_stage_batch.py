@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""研究用途：将 audit_stage_data 的本地来源报告规范化为引用，不生成玩法。
+"""历史研究原型；当前全量来源合同使用 stage_source_ledger.py，不生成玩法。
 
 依据 audit_stage_data.py 已确认的 FDFIELD 读集与当前冷定义分类；未知项
 逐项保留，不根据相同 callback 目标或邻近 CALL 推导控制流。输出仅作本地证据。
@@ -116,7 +116,7 @@ def result_reuse_candidates(report, definitions):
                                   "read_sha256": hashlib.sha256(bytes.fromhex(row["raw_hex"])).hexdigest(),
                                   "target_va": row["target_va"], "ida_owners": row["ida_owners"], "function_chunks": chunks},
                        "enablement_blocked_by": ["stage-specific resources and entry/callback/victory closure",
-                                                "original hidden-only result versus current HP guard: effective-domain and result-code mapping not approved",
+                                                "existing S0 result contract does not prove a new exact caller/parameter/resource binding",
                                                 "result effective-domain fixtures and source trajectory checks"],
                        "shipping_definition_changed": False})
     return result

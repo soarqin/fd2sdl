@@ -6,6 +6,8 @@ Windows x64 本地 Release 的源码快照、实际 CMake／PE 依赖记录、�
 
 S0结果／活动恢复的独立原码探针、CONTINUE／活动Load定向WGC入口及复跑命令见[图形规范S0](gui-testing.md#s0-结果活动恢复定向入口)，不调用旧G全历史套件。
 
+S1 全量来源账、规范化输入／批量夹具、caller 分类和原来源重读复核见[来源账规范](../formats/stage-source-ledger.md)；当前输出入口为 `stage_source_ledger.py`，历史研究格式不作新的转换合同。不开放玩法，不运行历史 GUI。
+
 ## 构建与回归
 
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。

@@ -53,11 +53,15 @@ static int vectors(void) {
     if(!vga || !before){free(vga);free(before);return 1;}int failed=0;
     while(fgets(line,sizeof(line),stdin)) {
         if(sscanf(line,"%15s",kind)!=1){failed=1;break;}
-        if(!strcmp(kind,"palette") || !strcmp(kind,"subtract")) {
+        if(!strcmp(kind,"palette") || !strcmp(kind,"subtract") || !strcmp(kind,"brightness")) {
             int first,last,add;unsigned seed;
             if(sscanf(line,"%15s %d %d %d %u %c",kind,&first,&last,&add,&seed,&extra)!=5){failed=1;break;}
-            palette(vga,seed);*before=*vga;int status=!strcmp(kind,"palette")?
-                fd2_vga_palette_add(vga,first,last,add):fd2_vga_palette_subtract(vga,first,last,add);
+            palette(vga,seed);*before=*vga;int status;
+            if(!strcmp(kind,"brightness")) {
+                if(first!=0 || last!=255){failed=1;break;}
+                fd2_vga_set_brightness(vga,add);status=0;
+            } else status=!strcmp(kind,"palette")?fd2_vga_palette_add(vga,first,last,add):
+                fd2_vga_palette_subtract(vga,first,last,add);
             printf("{\"kind\":\"%s\",\"status\":%d,\"dac_hex\":\"",kind,status);
             for(unsigned i=0;i<768;i++)printf("%02x",vga->dac[i]);
             memcpy(before->dac,vga->dac,768);
@@ -152,6 +156,20 @@ static int subtract_and_short_ms(void) {
             unsigned value=vga->palette[i]>darkness?vga->palette[i]-darkness:0;
             CHECK(vga->dac[i]==(uint8_t)((value<<2)|(value>>4)));
         }
+        memcpy(before->dac,vga->dac,768);CHECK(!memcmp(before,vga,sizeof(*vga)));
+        /* 旧void接口沿同一真实原语；全基色域必须能区分比例缩放。 */
+        palette(vga,17);*before=*vga;fd2_vga_set_brightness(vga,(int)darkness);
+        for(unsigned i=0;i<768;i++) {
+            unsigned value=vga->palette[i]>darkness?vga->palette[i]-darkness:0;
+            CHECK(vga->dac[i]==(uint8_t)((value<<2)|(value>>4)));
+        }
+        memcpy(before->dac,vga->dac,768);CHECK(!memcmp(before,vga,sizeof(*vga)));
+    }
+    const int clamp_values[]={-1,65,255};
+    for(unsigned n=0;n<sizeof(clamp_values)/sizeof(clamp_values[0]);n++) {
+        palette(vga,17);*before=*vga;fd2_vga_set_brightness(vga,clamp_values[n]);
+        for(unsigned i=0;i<768;i++)CHECK(vga->dac[i]==(clamp_values[n]<0 ?
+            (uint8_t)((vga->palette[i]<<2)|(vga->palette[i]>>4)):0));
         memcpy(before->dac,vga->dac,768);CHECK(!memcmp(before,vga,sizeof(*vga)));
     }
     palette(vga,0);*before=*vga;

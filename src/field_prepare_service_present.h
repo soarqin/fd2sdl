@@ -39,12 +39,16 @@ static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     return prepare_service_host_quit(ui);
 }
 static int prepare_service_fade(prepare_ui *ui,int in) {
-    /* 1f525：mov ebx,40h／dec／jge，64..0共65次；1f882仍0..63。 */
-    for (int value=in ? 64:0;in ? value>=0:value<64;value+=in ? -1:1) {
-        fd2_vga_set_brightness(ui->vga,value);
-        if (prepare_service_present(ui,2)) return 1;
+    /* 26152/2670e借用palette_fade_in_light @0x1f525与
+     * palette_fade_out_dark @0x1f882（原登记同名）：共用减法冷序列，
+     * 分别65/64级且各有尾2ms；不以比例brightness替代11d40。 */
+    if (prepare_service_host_quit(ui)) return 1;
+    int result=fd2_scene_palette_fade(ui->vga,in,0);
+    if (result==FD2_SCENE_RESULT_HOST_QUIT) {
+        ui->service.host_quit=1;
+        return 1;
     }
-    return 0;
+    return result==FD2_SCENE_RESULT_OK ? 0:-1;
 }
 
 /* 1956b初帧总reverse；16559仅36887继续reverse，特殊origin正向。

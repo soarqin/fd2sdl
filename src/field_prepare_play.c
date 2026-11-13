@@ -1159,11 +1159,10 @@ fd2_field_prepare_result fd2_field_prepare_load_title(fd2_vga *vga,
         fd2_field_prepare_draw_slots(checked_page, assets, &checked_save, 0) == 0;
     free(checked_page); fd2_save_file_close(&checked_save);
     if (!ready) { fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_ERROR; }
-    for (int brightness = 0; brightness < 64; brightness++) {
-        if (quit(&ui)) { fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_HOST_QUIT; }
-        fd2_vga_set_brightness(vga, brightness);
-        fd2_vga_present_timed(vga, 2); /* 沿宿主既有title fade节奏，不声称BIOS时刻一致。 */
-        if (quit(&ui)) { fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_HOST_QUIT; }
+    int faded = fd2_scene_palette_fade(vga, 0, 0);
+    if (faded != FD2_SCENE_RESULT_OK) {
+        fd2_field_prepare_assets_close(assets); free(assets);
+        return faded == FD2_SCENE_RESULT_HOST_QUIT ? FD2_FIELD_PREPARE_HOST_QUIT : FD2_FIELD_PREPARE_ERROR;
     }
     fd2_vga_set_palette(vga, palette);
     fd2_vga_clear(vga, 0);

@@ -17,17 +17,18 @@ ROOT=TOOLS.parent
 class CommonEventNativeCheckTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.empty=check.prepare(ROOT,'child39-empty')
-        cls.full=check.prepare(ROOT,'child39-full-cancel')
+        # 原来源/发布绑定验证器有独立正负例；这里隔离native夹具模型。
+        with patch.object(check,'verify_common_source',return_value={'ok':True,'native_WGC_acceptance':False}):
+            cls.empty=check.prepare(ROOT,'child39-empty')
+            cls.full=check.prepare(ROOT,'child39-full-cancel')
 
-    def test_descriptor39_has_no_production_binding_and_six_legacy_aliases_are_exact(self):
+    def test_descriptor39_has_no_stage0_binding_and_six_legacy_aliases_are_exact(self):
         import json
         flow=json.loads((ROOT/'data/static/flows/common_event.json').read_text())
         expected={f'stage.000.action.{action:03d}':f'common.legacy.action.{action:03d}' for action in range(5)}
         expected['stage.001.action.006']='common.legacy.action.006'
-        self.assertEqual(flow.get('bindings'),expected)
+        self.assertEqual({key:flow['bindings'].get(key) for key in expected},expected)
         self.assertNotIn('stage.000.action.039',flow['bindings'])
-        self.assertNotIn('common.loot.child.0',flow['bindings'].values())
         for p in (self.empty,self.full):
             self.assertEqual(p['source'][check.base.UNITS+11*80+49:check.base.UNITS+11*80+52],bytes((2,39,0)))
             self.assertFalse(p['manifest']['natural_stage0_callback_claimed'])
@@ -44,7 +45,8 @@ class CommonEventNativeCheckTest(unittest.TestCase):
         self.assertEqual(after[0x48:0x50],before[0x48:0x50])
 
     def test_death_audio_fixture_only_disables_declared_game_music(self):
-        p=check.prepare(ROOT,'child39-empty',capture_defeat=True)
+        with patch.object(check,'verify_common_source',return_value={'ok':True,'native_WGC_acceptance':False}):
+            p=check.prepare(ROOT,'child39-empty',capture_defeat=True)
         self.assertEqual([i for i,(a,b) in enumerate(zip(self.empty['source'][:-4],p['source'][:-4])) if a!=b],
             [check.base.META+16])
         self.assertEqual(p['source'][check.base.META+16:check.base.META+18],bytes((0,1)))
@@ -120,12 +122,15 @@ class CommonEventNativeCheckTest(unittest.TestCase):
             with self.assertRaises(AssertionError):check.base.compare_saves(expected,broken)
 
     def test_prepare_only_never_requests_window_or_display(self):
-        with tempfile.TemporaryDirectory() as directory,patch.object(check,'running') as launch,patch.object(check,'windows_display_requirement') as display:
+        with tempfile.TemporaryDirectory() as directory,patch.object(check,'running') as launch,patch.object(check,'windows_display_requirement') as display,\
+                patch.object(check,'verify_common_source',return_value={'ok':True}) as source_check:
             output=Path(directory)/'prepared'
-            result=check.run(SimpleNamespace(root=ROOT,artifacts=output,scenario='child39-full-cancel',run=False))
+            receipt=Path(directory)/'scope.json'
+            result=check.run(SimpleNamespace(root=ROOT,artifacts=output,scenario='child39-full-cancel',run=False,release_scope=receipt))
             self.assertEqual(result['status'],'prepared_only');self.assertFalse(result['ok'])
             self.assertEqual(check.decode_save(output/'controlled.SAV'),self.full['source'])
             launch.assert_not_called();display.assert_not_called()
+            source_check.assert_called_once_with((ROOT/'original_game').resolve()/'FD2.EXE',ROOT,release_scope=receipt)
 
     def test_original_output_rejected_before_write(self):
         with self.assertRaises(ValueError):

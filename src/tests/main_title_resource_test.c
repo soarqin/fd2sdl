@@ -5,12 +5,14 @@
 #include <string.h>
 #include "archive.h"
 #include "app_flow.h"
+#include "field.h"
 #include "field_prepare_play.h"
 #include "animation.h"
 #include "image.h"
 #include "input.h"
 #include "title.h"
 #include "vga.h"
+#include "scene.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -30,6 +32,9 @@ static int input_contract, input_clears, clear_had_pending[4], menu_queue_empty;
 static int quit_on_clear, presents_at_clear[4];
 static uint64_t input_time;
 static fd2_vga *input_vga;
+static int fade_calls, fade_fail_call, fade_fail_result, fade_directions[32];
+static int white_calls, white_error;
+static int title_test_quit(fd2_input *input);
 
 static void title_queue_key(fd2_vga *vga,SDL_Scancode key) {
     fd2_input_set_test_key_state(&vga->input,key,1);
@@ -180,12 +185,29 @@ static void title_test_brightness(fd2_vga *vga, int brightness) {
     (void)vga;
     (void)brightness;
 }
+static int title_test_palette_add(fd2_vga *vga,int first,int last,int add) {
+    white_calls++;
+    if(first!=0 || last!=255 || add!=64){unexpected++;return -1;}
+    if(white_error)return -1;
+    if(fd2_vga_palette_add(vga,first,last,add)!=0)return -1;
+    for(size_t i=0;i<sizeof(vga->dac);i++)if(vga->dac[i]!=255u){unexpected++;return -1;}
+    return 0;
+}
 static void title_test_fade(fd2_vga *vga, int start, int steps,
                             uint8_t r, uint8_t g, uint8_t b) {
     (void)vga; (void)start; (void)steps; (void)r; (void)g; (void)b;
 }
 static void title_test_present(fd2_vga *vga) { (void)vga; presents++; }
 static void title_test_delay(uint32_t delay) { (void)delay; }
+/* 此TU只核真实caller的次序/返回传播；65/64级与DAC公式由Scene原码门验证。 */
+static int title_test_palette_fade(fd2_vga *vga,int fade_in,int fast) {
+    if ((fade_in!=0 && fade_in!=1) || fast || fade_calls>=32) { unexpected++;return FD2_SCENE_RESULT_ERROR; }
+    fade_directions[fade_calls++]=fade_in;
+    if (fade_calls==fade_fail_call) return fade_fail_result;
+    if (title_test_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
+    for(int i=0;i<(fade_in?65:64);i++)title_test_present(vga);
+    return FD2_SCENE_RESULT_OK;
+}
 static int title_test_observe(const fd2_input *input) {
     (void)input;
     return intro_skip_scroll;
@@ -228,7 +250,7 @@ static fd2_field_play_result chain_battle(fd2_vga *vga, const fd2_archive *fdoth
     chain_stages[index]=stage;chain_loaded[index]=load_active;chain_handoffs[index]=handoff!=NULL;
     if(index==0 && chain_first_load_stage>=0)stage=(size_t)chain_first_load_stage;
     context->rng.state++;context->experience_value+=2;context->message_number+=3;
-    if(stage==1u || stage==2u)context->has_preparation=0;
+    if(stage>0u && fd2_field_stage_is_supported(stage))context->has_preparation=0;
     if(stage==0u && chain_results[index]==FD2_FIELD_PLAY_RETURN_VICTORY){
         context->preparation.stage_id=1;context->preparation.unit_count=5;context->has_preparation=1;
     }
@@ -255,6 +277,8 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
 #define fd2_vga_clear title_test_clear
 #define fd2_vga_set_palette title_test_palette
 #define fd2_vga_set_brightness title_test_brightness
+#define fd2_vga_palette_add title_test_palette_add
+#define fd2_scene_palette_fade title_test_palette_fade
 #define fd2_vga_palette_fade_to title_test_fade
 #define fd2_vga_present title_test_present
 #define fd2_delay_ms title_test_delay
@@ -271,6 +295,8 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
 #undef main
 #undef fd2_input_has_any_key
 #undef fd2_input_clear_keys
+#undef fd2_scene_palette_fade
+#undef fd2_vga_palette_add
 
 static void reset_test(void) {
     palette_fault = base_fault = test_animation_result = menu_quit = 0;
@@ -281,6 +307,8 @@ static void reset_test(void) {
     intro_resource_fault = intro_image_fault = intro_animation_fault = -1;
     intro_animation_code = 0;
     input_contract=input_clears=menu_queue_empty=quit_on_clear=0;input_time=0;input_vga=NULL;
+    fade_calls=fade_fail_call=fade_fail_result=0;memset(fade_directions,0,sizeof(fade_directions));
+    white_calls=white_error=0;
     memset(clear_had_pending,0,sizeof(clear_had_pending));
     memset(presents_at_clear,0,sizeof(presents_at_clear));
     memset(intro_resource_reads, 0, sizeof(intro_resource_reads));
@@ -295,6 +323,7 @@ static int run_case(const char *name) {
     else if (!strcmp(name, "palette-short")) palette_fault = 2;
     else if (!strcmp(name, "base-error")) base_fault = 1;
     else if (!strcmp(name, "animation-error")) test_animation_result = -1;
+    else if (!strcmp(name, "title-white-error")) white_error = 1;
     else if (!strcmp(name, "animation-quit")) {
         test_animation_result = -2;
         expected = FD2_TITLE_ACTION_HOST_QUIT;
@@ -321,6 +350,7 @@ static int run_case(const char *name) {
         CHECK(!menu_decodes && !menu_frames && !action_reads);
         if (test_animation_result < 0) CHECK(!title_reads && !base_decodes && !presents);
         if (base_fault) CHECK(title_reads == 1 && base_decodes == 1 && !presents);
+        if (white_error) CHECK(white_calls==1 && !title_reads && !base_decodes && !presents);
     } else {
         CHECK(title_reads == 2 && base_decodes == 1 && menu_decodes == 6);
         CHECK(menu_frames == (menu_quit ? 1 : 1 + FD2_TITLE_CONFIRM_FLASH_FRAMES));
@@ -448,7 +478,18 @@ static int test_app_chain(void) {
     CHECK(!chain_loaded[0] && !chain_handoffs[0] && !context.has_preparation);
     CHECK(context.preparation.stage_id==2 && context.preparation.unit_count==6);
     CHECK(context.rng.state==0x1235 && context.experience_value==9 && context.message_number==102);
-    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=3;
+    /* S3已发布stage3及20入场；此处只核App路由，20不冒称战斗开放。 */
+    const unsigned published[]={3,20};
+    for(size_t i=0;i<sizeof(published)/sizeof(published[0]);i++) {
+        chain_reset(&context);context.has_preparation=1;
+        context.preparation.stage_id=(uint8_t)published[i];context.preparation.unit_count=6;
+        chain_results[0]=FD2_FIELD_PLAY_RETURN_HOST_QUIT;
+        CHECK(fd2_field_stage_is_supported(published[i]));
+        CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_EXIT);
+        CHECK(chain_battles==1 && chain_preparations==1 && chain_stages[0]==published[i] && !context.has_preparation);
+    }
+    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=21;
+    CHECK(!fd2_field_stage_is_supported(21));
     vga.info_panel_suppressed=1;
     fd2_field_play_context before=context;
     CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
@@ -479,6 +520,25 @@ static int test_title_clear_and_two_ordered_keys(void) {
     return 0;
 }
 
+static int test_intro_fade_callers(void) {
+    static const int directions[]={1,0,0,1, 0,1,0,1, 0,0,0,1,
+        0,0,0,1, 0,0,1, 0,1, 0,1,0,1, 0};
+    fd2_vga vga={0};
+    reset_test();intro_enabled=1;
+    CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_NEW_GAME);
+    CHECK(fade_calls==(int)(sizeof(directions)/sizeof(directions[0])) &&
+        !memcmp(fade_directions,directions,sizeof(directions)));
+    for(int fault=1;fault<=26;fault++)for(int host=0;host<2;host++) {
+        reset_test();memset(&vga,0,sizeof(vga));intro_enabled=1;
+        fade_fail_call=fault;fade_fail_result=host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==
+            (host?FD2_TITLE_ACTION_HOST_QUIT:FD2_TITLE_ACTION_ERROR));
+        CHECK(fade_calls==fault && !image_live && archive_opens==archive_closes && !unexpected);
+        if(fault<26)CHECK(!menu_frames && !action_reads);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc == 2) {
         for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
@@ -486,7 +546,7 @@ int main(int argc, char **argv) {
         return run_case(argv[1]);
     }
     const char *cases[] = {"palette-missing", "palette-short", "base-error",
-                          "animation-error", "animation-quit", "menu-quit",
+                          "animation-error", "animation-quit", "title-white-error", "menu-quit",
                           "normal", "animation-skip"};
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
         if (run_case(cases[i])) return 1;
@@ -494,6 +554,7 @@ int main(int argc, char **argv) {
         if (run_intro_case(&intro_cases[i])) return 1;
     CHECK(test_app_chain()==0);
     CHECK(test_title_clear_and_two_ordered_keys()==0);
-    puts("main_title_resource: 29 resource cases + App chain passed; no SDL initialization/window");
+    CHECK(test_intro_fade_callers()==0);
+    puts("main_title_resource: 30 resource cases + App chain/fade callers passed; no SDL initialization/window");
     return 0;
 }

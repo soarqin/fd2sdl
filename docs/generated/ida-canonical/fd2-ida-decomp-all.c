@@ -14539,6 +14539,7 @@ void sub_244B6()
 // [field_stage_transition_effect_core] `field_stage_transition_effect` 的 Watcom `__chkstk` 后主体
 //   依据: Ghidra 将入口与主体误拆成两个函数；真实调用均进入 `0x4982c`
 //   历史地址列 `0x49836`（`0x24622` 是 __chkstk body，入口为 `0x24618`）；旧 Ghidra 名 `FUN_00049836`；判定 chkstk-body
+// [S4 evidence] 完整24618尾在原9帧/释放临时页后delay_ms(500)，随后j=0..62、step2共32次pal_partial_set(0,255,j) @0x11df2，各有尾delay_ms(4)。11df2对基色逐分量加j并夹63，所以是加色变白，不是11d40减色或1f882淡出；保留原入口名、边界和业务owner。；依据: S4完整六caller Domain读集build/s4/fade-caller-source01/domain.json SHA256 b94010fe3b42eef5a9ed2c4b50aeaaee6c21c03a8a5303133d3b694e97a87043，含24618..24754全316B/完整CFG、xref及callee；六函数3885B逐chunk与strict relocated镜像一致。本条只澄清完整原控制流和调用参数；不把已有SDL比例近似当原义，也不提前签尚未执行的C/原码oracle或原生图像/绝对4ms时序。
 int __cdecl field_stage_transition_effect(int a1, int a2, int a3, int a4)
 {
   int v5; // ebp

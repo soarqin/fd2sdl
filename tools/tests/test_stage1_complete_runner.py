@@ -113,18 +113,60 @@ class Stage1ControlledRunnerTest(unittest.TestCase):
                 with self.subTest(offset=at), self.assertRaises(AssertionError):
                     o.check_stage2_active_save(before, o.checksum(wrong), state, p["entry"], view, p["data"])
 
-    def test_stage2_parent_checks_four_resources_per_endpoint_and_off_phase(self):
-        assets = r.round_assets(ORIGINAL); menu = r.RoundOracle(assets, (76, 124))
-        for role, frames in (("original", [21,15,18,12]), ("sdl", [21,17,18,14]), ("sdl", [22,17,18,14])):
-            frame = Image.new("RGB", (320, 200))
-            for item, identity in enumerate(frames):
-                image = assets["commands"][identity]; at = tuple(a + b for a, b in zip(menu.focus, r.MENU_OFFSETS[item]))
-                frame.paste(image.convert("RGB"), at, image.point(lambda p: 255 if p else 0, mode="L"))
-            proof = r.stage2_parent(frame, menu, role)
-            self.assertEqual([m["frame"] for m in proof["matches"]], frames)
-            self.assertEqual(proof["selected"], 0 if frames[0] == 22 else None)
-            self.assertIsNone(r.stage2_parent(frame, menu, "sdl" if role == "original" else "original"))
+    def stage2_menu_frame(self, identities):
+        # 直接解FDOTHER完整command表，独立于round_assets产物与被测predicate。
+        archive = (ORIGINAL / "FDOTHER.DAT").read_bytes()
+        sheet = r.archive_entry(archive, 2)
+        self.assertEqual(struct.unpack_from("<I", sheet)[0], 78 * 4)
+        palette6 = r.archive_entry(archive, 0)
+        self.assertEqual(len(palette6), 768); self.assertLessEqual(max(palette6), 63)
+        palette = [value << 2 for value in palette6]
+        frame = Image.new("RGB", (320, 200)); focus = (76, 124)
+        for item, identity in enumerate(identities):
+            begin = struct.unpack_from("<I", sheet, identity * 4)[0]
+            finish = struct.unpack_from("<I", sheet, (identity + 1) * 4)[0]
+            self.assertTrue(312 <= begin < finish <= len(sheet))
+            self.assertEqual(struct.unpack_from("<HH", sheet, begin), (24, 20))
+            self.assertEqual(finish - begin, 4 + 24 * 20)
+            image = Image.frombytes("P", (24, 20), sheet[begin + 4:finish])
+            image.putpalette(palette)
+            at = tuple(a + b for a, b in zip(focus, r.MENU_OFFSETS[item]))
+            frame.paste(image.convert("RGB"), at, image.point(lambda p: 255 if p else 0, mode="L"))
+        return frame
 
+    def test_stage2_parent_checks_four_enabled_full_resources_and_selected0_phase(self):
+        assets = r.round_assets(ORIGINAL); menu = r.RoundOracle(assets, (76, 124))
+        for role in ("original", "sdl"):
+            for first in (21, 22):
+                frames = [first, 15, 18, 12]
+                proof = r.stage2_parent(self.stage2_menu_frame(frames), menu, role)
+                self.assertEqual([m["frame"] for m in proof["matches"]], frames)
+                self.assertEqual(proof["selected"], 0 if first == 22 else None)
+                self.assertEqual(proof["default_selection_observed"], first == 22)
+                self.assertFalse(proof["March_END_unavailable_on_SDL"])
+
+    def test_stage2_parent_rejects_disabled_wrong_selected_double_and_missing_resources(self):
+        assets = r.round_assets(ORIGINAL); menu = r.RoundOracle(assets, (76, 124))
+        wrong = ([21, 17, 18, 14], [21, 17, 18, 12], [21, 15, 18, 14],
+                 [23, 15, 18, 12], [21, 16, 18, 12], [21, 15, 19, 12],
+                 [21, 15, 18, 13], [22, 16, 18, 12], [22, 15, 19, 12], [22, 15, 18, 13])
+        for role in ("original", "sdl"):
+            for frames in wrong:
+                with self.subTest(role=role, frames=frames):
+                    self.assertIsNone(r.stage2_parent(self.stage2_menu_frame(frames), menu, role))
+            for missing in range(4):
+                frame = self.stage2_menu_frame([22, 15, 18, 12])
+                at = tuple(a + b for a, b in zip(menu.focus, r.MENU_OFFSETS[missing]))
+                frame.paste((255, 0, 255), (*at, at[0] + 24, at[1] + 20))
+                self.assertIsNone(r.stage2_parent(frame, menu, role))
+            self.assertIsNone(r.stage2_parent(Image.new("RGB", (320, 200)), menu, role))
+
+    def test_stage2_parent_rejects_unknown_role_before_resource_matching(self):
+        for role in (None, "", "SDL", "bogus"):
+            menu = Mock()
+            with self.subTest(role=role), self.assertRaises(ValueError):
+                r.stage2_parent(None, menu, role)
+            menu.choices.assert_not_called()
     def test_hotel_blink_off_is_unobserved_wrong_or_double_highlight_rejected(self):
         from fd2_transition_oracle import resources, hotel_menu_match
         assets = resources(ORIGINAL)

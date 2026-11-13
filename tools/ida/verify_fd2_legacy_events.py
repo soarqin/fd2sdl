@@ -8,6 +8,11 @@ import hashlib
 import json
 from pathlib import Path
 import struct
+import sys
+
+ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'tools/static_data'))
+from verify_common_events import LEGACY_BINDINGS, validate_release_scope
 
 IMAGE_SHA='8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1'
 FUNCTIONS={
@@ -109,7 +114,7 @@ def cold_program(flow):
         pc=n['on'][port]
     raise ValueError('冷事件未正常结束')
 
-def check(image,field,document):
+def check(image,field,document,release_scope=None,executable=None):
     if hashlib.sha256(image).hexdigest()!=IMAGE_SHA:raise ValueError('strict relocated镜像身份不同')
     if hashlib.sha256(field).hexdigest()!='81310211c6e96ebd89e79648650696691c740229fa4095ece37e7226bc27b74d':
         raise ValueError('原FDFIELD身份不同')
@@ -118,23 +123,32 @@ def check(image,field,document):
     entries=[0x34531,0x3460b,0x34673,0x346cd,0x34738,0x34778];actions=[0,1,2,3,4,6]
     if any(struct.unpack_from('<I',image,0x51b91+action*4)[0]!=entry for action,entry in zip(actions,entries)):
         raise ValueError('原callback表绑定不同')
-    expected={f'stage.{1 if a==6 else 0:03d}.action.{a:03d}':f'common.legacy.action.{a:03d}' for a in actions}
-    if document.get('bindings')!=expected:raise ValueError('只可迁移原六绑定，不可新增S绑定')
+    expected=LEGACY_BINDINGS
+    if expected != {f'stage.{1 if a==6 else 0:03d}.action.{a:03d}':f'common.legacy.action.{a:03d}' for a in actions}:
+        raise ValueError('六个原actions与唯一legacy绑定登记不同')
+    if any(document.get('bindings',{}).get(key)!=value for key,value in expected.items()):
+        raise ValueError('原六绑定必须精确保留')
+    additional={'additional_binding_semantics_proven_by_this_tool':False}
+    if set(document['bindings'])-expected.keys():
+        if release_scope is None or executable is None:
+            raise ValueError('新增绑定必须另给--release-scope及原EXE；六caller原码门不签S绑定')
+        additional=validate_release_scope(document,release_scope,executable)
     flows={f['id']:f for f in document['flows']};cases=[]
     for entry,action in zip(entries,actions):
         row=execute(image,field,entry)
         if cold_program(flows[f'common.legacy.action.{action:03d}'])!=row['program']:
             raise ValueError(f'冷图不等于完整原调用/写序 {entry:#x}')
         cases.append(row)
-    return {'ok':True,'schema':'fd2.g5.legacy-original-cpu.v1','cases':cases,'image_sha256':IMAGE_SHA,
+    return {'ok':True,'schema':'fd2.g5.legacy-original-cpu.v1','cases':cases,'image_sha256':IMAGE_SHA,**additional,
         'field_sha256':hashlib.sha256(field).hexdigest(),'original_cpu_executed':True,
         'scope':'six complete callers and real134e4; constructors/group/arrival/motion/text/BIOS/delay explicitly stubbed; not full gameplay, pixels, text RNG or native WGC'}
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--image',type=Path,required=True)
     p.add_argument('--field',type=Path,required=True);p.add_argument('--flows',type=Path,required=True)
+    p.add_argument('--release-scope',type=Path);p.add_argument('--executable',type=Path,default=ROOT/'original_game/FD2.EXE')
     p.add_argument('--output',type=Path,required=True);a=p.parse_args()
-    result=check(a.image.read_bytes(),a.field.read_bytes(),json.loads(a.flows.read_text()))
+    result=check(a.image.read_bytes(),a.field.read_bytes(),json.loads(a.flows.read_text()),a.release_scope,a.executable)
     a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({'ok':True,'cases':len(result['cases'])}))
 

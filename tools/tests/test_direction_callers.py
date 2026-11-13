@@ -115,11 +115,26 @@ class DirectionCallersTest(unittest.TestCase):
 
     def test_stage_both_reset_sites_and_shared_stage2_tail_keep_wait(self):
         for identity, label in (("stage.entry.001", "directions_a.wait"),
-                                ("stage.entry.001", "directions_b.wait"),
-                                ("stage.entry.002", "directions.wait")):
+                                ("stage.entry.001", "directions_b.wait")):
             documents = self.document()
             self.node(documents, "stage", identity, label)["args"] = [0]
             self.assert_cold_rejected(documents)
+        documents=self.document();entry=verify.flow(documents['stage'],'stage.entry.002')
+        reset=next(n for n in entry['nodes'] if n['op']=='reset_directions')
+        self.node(documents,'stage','stage.entry.002',reset['on']['next'])['args']=[0]
+        self.assert_cold_rejected(documents)
+
+    def test_stage2_alias_keeps_unique_source_without_chain_missing_or_shadow(self):
+        document=self.document()['stage']
+        self.assertEqual(verify.flow(document,'stage.entry.002')['id'],'stage.source.entry.002')
+        for change in ('chain','missing','shadow','wrong_source'):
+            documents=self.document();d=documents['stage']
+            if change=='chain':d['bindings']['stage.source.entry.002']='stage.source.entry.003'
+            elif change=='missing':d['bindings']['stage.entry.002']='missing'
+            elif change=='shadow':
+                old=copy.deepcopy(verify.flow(d,'stage.entry.002'));old['id']='stage.entry.002';d['flows'].append(old)
+            else:d['bindings']['stage.entry.002']='stage.source.entry.003'
+            with self.subTest(change=change):self.assert_cold_rejected(documents)
 
     def test_common_four_reset_handlers_and_two_no_reset_handlers(self):
         for action in (0, 1, 2, 3):

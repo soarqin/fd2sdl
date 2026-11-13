@@ -289,11 +289,14 @@ static int test_formal_query_and_weapon_only_list(void) {
     close_fixture(&f);
 
     CHECK(fd2_field_game_item_is_available(NULL) == 0);
-    for (unsigned which = 0; which < 16; which++) {
+    CHECK(fd2_field_stage_battle_is_supported(2));
+    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
+    CHECK(!fd2_field_stage_is_supported(21));
+    for (unsigned which = 0; which < 17; which++) {
         init(&f); g = &f.game;
         switch (which) {
             case 0: g->attack_rng = NULL; break;
-            case 1: g->stage = 2; break;
+            case 1: g->stage = 20; break; /* S3入场域不授权ITEM动作。 */
             case 2: g->active_side = 1; break;
             case 3: g->player_post_waiting_phase = 1; break;
             case 4: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
@@ -308,6 +311,7 @@ static int test_formal_query_and_weapon_only_list(void) {
             case 13: g->failure = FD2_FIELD_FAILURE_EVENT_DATA; break;
             case 14: g->ready = 0; break;
             case 15: g->units.items[0].side = 1; break;
+            case 16: g->stage = 21; break;
         }
         before = *g;
         CHECK(fd2_field_game_item_is_available(g) == 0 && !memcmp(g, &before, sizeof(before)) && !f.calls);

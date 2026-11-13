@@ -2395,6 +2395,19 @@ for _va, _chunks, _bindings in _S2_TRANSITION_SOURCE_BINDINGS:
                "12未决目标不因附近CALL或已知部分写集开放。",
     })
 
+CORRECTIONS.setdefault(0x24618, []).append({
+    "target": "evidence",
+    "was": "field_stage_transition_effect：播放9帧区域转场，等待500ms后渐暗",
+    "now": "完整24618尾在原9帧/释放临时页后delay_ms(500)，随后j=0..62、step2共32次"
+           "pal_partial_set(0,255,j) @0x11df2，各有尾delay_ms(4)。11df2对基色逐分量加j并夹63，"
+           "所以是加色变白，不是11d40减色或1f882淡出；保留原入口名、边界和业务owner。",
+    "why": "S4完整六caller Domain读集build/s4/fade-caller-source01/domain.json SHA256 "
+           "b94010fe3b42eef5a9ed2c4b50aeaaee6c21c03a8a5303133d3b694e97a87043，"
+           "含24618..24754全316B/完整CFG、xref及callee；六函数3885B逐chunk与strict relocated镜像一致。"
+           "本条只澄清完整原控制流和调用参数；不把已有SDL比例近似当原义，"
+           "也不提前签尚未执行的C/原码oracle或原生图像/绝对4ms时序。",
+})
+
 CORRECTIONS[0x35346].append({
     "target": "semantic_name",
     "was": "field_event_story3_item213_story11",

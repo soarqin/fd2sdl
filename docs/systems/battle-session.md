@@ -365,3 +365,11 @@ S2 交付的 `stage.source.*`、`stage.result.source.*` 和新增 `common.callba
 来源 victory 的持久同步、追加、等待和 `next_stage` 按同一冷图单次执行。结束后 `fd2_field_game_export_preparation` 只复制当前 stage、完整 32 条 roster 区（含未用尾）、人数、资金及选项到准备状态，成功返回 `0`；busy、缺原准备记录或不具备下一入口能力时返回 `-1`，不改 Game 或输出。它不再同步 active、不重算、不新建角色、不消费 RNG、不写 SAV，也不关闭资源。
 
 部署槽数继续读取原 metadata byte1；来源 capability 不手抄一份槽数。`next_stage` 只改变原 stage 值，旧地图／资源仍归旧 Game。App／Play 在取得只读导出后按正式交接路径关闭旧资源并准备新场景，不拿旧资源运行新 controller，也不再调用一次 legacy settlement 提交。导出成功不代表已写盘或完成下一关入口；实际失败、原生门和阶段完成只在阶段记录登记。
+
+## S4 旧调色调用与错误前缀
+
+旧 Scene、App 和准备页的 fade 共用 `stage.source.fade.in/out`，不再维护比例色阶或副本。公共 `fd2_scene_palette_fade` 只接当前单 App／VGA 的固定 helper：HOST 和 Scene 真错误保留终态并向上返回，不能复位失败后继续提交业务。fast 保终态且不等待，旧入口不增加中间上传；source 机制原有 fast 上传合同不变。
+
+转场 Game API 保留前段布局与 FX，仅把 `24618` 的 500 ms／32 级加白尾交给唯一 `stage.palette.transition.finish`。三个固定调色 helper 只允许 palette_add／palette_subtract／delay／end，沿现 Scene walker、栈和预算，不借假 Game 或增加热执行状态。独立插值原语仍保留；普通 void／clamp 暗度接口委托原减法。
+
+每叶错误／HOST 保留已到达 DAC，不改 base palette、Game、SAV、RNG，也不执行后继业务或伪造整体回滚。纯 DAC 上传不推进动作／水色或读取普通键；原 delay 处理宿主事件，普通输入仍归原交互读取点。全部原函数、合法 6 bit 域、等待替身和实际原生边界见 [S4 报告](../plans/s4-unified-review.md)，不承诺每个 2 ms 请求均成为独立物理显示帧。

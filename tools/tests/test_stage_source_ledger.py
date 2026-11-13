@@ -43,7 +43,7 @@ class SourceLedgerTest(unittest.TestCase):
         self.assertEqual(raw,bytes([203,0,0]))
         self.assertEqual(row['decoded']['caller_semantics']['semantic_kind'],'default_noop')
         self.assertEqual(row['decoded']['legacy_classification'],'unmapped_semantics')
-        self.assertEqual(row['decoded']['audit_classification'],'decoded_unopened')
+        self.assertEqual(row['decoded']['audit_classification'],'supported_definition')
         self.assertEqual(row['disposition'],'confirmed') # caller rule，非运行支持
         self.assertIn('text:003:00009',self.by_id['stage:02:drop:00000']['references'])
 
@@ -68,9 +68,14 @@ class SourceLedgerTest(unittest.TestCase):
 
     def test_target_dedup_does_not_approve_other_binding(self):
         existing=self.by_id['dispatch:stage_runtime_result:000']
-        candidate=self.by_id['dispatch:stage_runtime_result:002']
+        bound=self.by_id['dispatch:stage_runtime_result:002']
+        candidate=self.by_id['dispatch:stage_runtime_result:023']
         self.assertEqual(existing['decoded']['target_va'],candidate['decoded']['target_va'])
         self.assertEqual(existing['disposition'],'confirmed')
+        self.assertEqual(bound['decoded']['target_va'],existing['decoded']['target_va'])
+        self.assertEqual(bound['disposition'],'confirmed')
+        stage=json.loads((ROOT/'data/static/flows/stage.json').read_text())
+        self.assertEqual(stage['bindings']['stage.result.002'],bound['definition'])
         self.assertEqual(candidate['disposition'],'unresolved')
         self.assertTrue(candidate['blocker']['source_evidence'])
         self.assertFalse(self.ledger['claims']['same_target_approves_binding'])

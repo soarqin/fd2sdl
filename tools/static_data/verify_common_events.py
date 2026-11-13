@@ -107,10 +107,99 @@ def trace(flow, choices):
         pc = n['on'][port]
     raise ValueError('事件关键路径未终止')
 
-def validate_flow(document):
+def validate_release_scope(document, path, executable, root=ROOT):
+    """只核新增alias的已审来源身份；不把S3收据提升为G4语义证明。"""
+    import stage_release_scope as release
+    root = Path(root).resolve()
+    raw = Path(path).read_bytes()
+    scope = json.loads(raw, object_pairs_hook=release.audit.unique_keys)
+    if (scope.get('schema') != 'fd2-stage-release-scope-v1' or
+            scope.get('structural_binding_scope_closed') is not True):
+        raise ValueError('新增绑定缺已闭合的发布域来源收据')
+    inputs = scope.get('input_sha256', {})
+    if not inputs or any(digest(Path(name).read_bytes()) != sha for name, sha in inputs.items()):
+        raise ValueError('发布域来源收据输入已改变，必须重新核当前来源')
+    required = {root/'data/static/flows/common_event.json', root/'data/static/flows/stage.json'}
+    if not required <= {Path(name).resolve() for name in inputs}:
+        raise ValueError('发布域收据缺当前唯一冷定义身份')
+    overlays = [Path(name) for name, sha in inputs.items() if sha == release.S2_SHA256]
+    evidence = {}
+    for name in inputs:
+        if Path(name).name in ('candidates.json', 'comparison.json'):
+            value = release.read(name)
+            evidence.setdefault(value.get('schema'), []).append(value)
+    callbacks = evidence.get('fd2-s2-callback-candidates-v1', [])
+    proofs = evidence.get('fd2-s3-callback-binding-source-v1', [])
+    if len(overlays) != 1 or len(callbacks) != 1 or len(proofs) != 1:
+        raise ValueError('发布域缺冻结S2去向及唯一S3 callback来源关联')
+    dispatch, _ = release.refine_callbacks(release.read(overlays[0])['dispatch'], callbacks[0], proofs[0])
+    sources = release.ledger_tool.Sources(Path(executable).parent)
+    flows, aliases, _ = release.audit.load_definitions(root/'data/static')
+    actual = {flow['id']: flow for flow in document['flows']}
+    current_flows = {**flows, **actual}
+    current_aliases = {**aliases, **document['bindings']}
+    inventory = release.audit.audit(Path(executable).parent, root/'data/static', root/'docs/generated/ida-canonical')
+    required_bindings = set()
+    for stage in inventory['stages']:
+        if stage['stage'] < 2 or not stage['battle_enabled']:
+            continue
+        required_bindings.update(f"stage.{stage['stage']:03d}.action.{action:03d}"
+            for _, _, action in release.callback_requirements(stage))
+        result = dispatch[f"dispatch:stage_runtime_result:{stage['stage']:03d}"]
+        if result['definition_domain'] == 'common_event':
+            required_bindings.add(f"stage.{stage['stage']:03d}.result")
+    expected = {}
+    for stage in scope.get('stages', []):
+        for binding in stage['bindings']:
+            if binding['definition_domain'] != 'common_event':
+                continue
+            identity = binding['runtime_id']
+            match = re.fullmatch(r'stage\.([0-9]{3})\.(?:action\.([0-9]{3})|(result))', identity)
+            if (not match or not 2 <= int(match[1]) < 30 or int(match[1]) != stage['stage'] or
+                    stage.get('battle_enabled') is not True or
+                    release.audit.capability(stage['stage'], flows, aliases) != stage['capability'] or
+                    not stage['capability'][0] or identity in expected):
+                raise ValueError('新增绑定的stage/capability/来源身份不同')
+            slot = int(match[2]) if match[2] else stage['stage']
+            table, base = ('event_callback', 0x51b91) if match[2] else ('stage_runtime_result', 0x51b19)
+            va = base + slot*4
+            source = binding['source']; target = sources.fixups.get(va)
+            original = sources.read(source)
+            flow = actual.get(binding['definition_id'])
+            joined = release.check_binding(identity, binding['source_id'], dispatch, current_flows, current_aliases)
+            if (slot >= (90 if match[2] else 30) or
+                    binding['source_id'] != f'dispatch:{table}:{slot:03d}' or
+                    source['canonical_va'] != hex(va) or source['length'] != 4 or
+                    source['raw_hex'] != original.hex() or source['read_sha256'] != digest(original) or
+                    not target or target[0] != 1 or binding['original_target'] != hex(target[2]) or
+                    joined['definition_id'] != binding['definition_id'] or joined['definition_domain'] != 'common_event' or
+                    flow is None or binding['definition_sha256'] != digest(release.disposition.encode(flow).encode())):
+                raise ValueError('新增绑定的原槽/target/唯一冷图摘要不同')
+            expected[identity] = binding['definition_id']
+    additional = {key: value for key, value in document['bindings'].items() if key not in LEGACY_BINDINGS}
+    if not expected or additional != expected or set(expected) != required_bindings:
+        raise ValueError('新增绑定不等于已审发布域；未知、隔离、缺失或错误alias不得通过')
+    sources.unchanged()
+    if Path(path).read_bytes() != raw or any(digest(Path(name).read_bytes()) != sha for name, sha in inputs.items()):
+        raise ValueError('发布域来源收据或输入在核验期间改变')
+    return {'additional_shipping_bindings_source_checked': len(expected),
+            'additional_shipping_bindings_not_semantically_checked': sorted(expected),
+            'additional_binding_scope': {'path': str(path), 'sha256': digest(raw)},
+            'additional_binding_semantics_proven_by_this_tool': False}
+
+
+def validate_flow(document, release_scope=None, executable=None, root=ROOT):
     if (type(document.get('schema_version')) is not int or document['schema_version'] != 1 or
-        document.get('domain') != 'common_event' or document.get('bindings')!=LEGACY_BINDINGS):
-        raise ValueError('机制夹具不得自动绑定stage/action；只允许原六个shipping绑定迁移')
+        document.get('domain') != 'common_event' or not isinstance(document.get('bindings'), dict) or
+        any(document['bindings'].get(key) != value for key, value in LEGACY_BINDINGS.items())):
+        raise ValueError('原六个shipping绑定必须精确保留')
+    additional = {'additional_shipping_bindings_source_checked': 0,
+                  'additional_shipping_bindings_not_semantically_checked': [],
+                  'additional_binding_semantics_proven_by_this_tool': False}
+    if set(document['bindings']) - LEGACY_BINDINGS.keys():
+        if release_scope is None or executable is None:
+            raise ValueError('新增绑定必须提供当前可核验的--release-scope与原EXE')
+        additional = validate_release_scope(document, release_scope, executable, root)
     if document.get('operations',{}).get('refresh_map',{}).get('args') != [{'name':'skip_water','min':0,'max':1}]:
         raise ValueError('refresh_map须保原0推进/1跳过水色参数域')
     source = document.get('source', {})
@@ -170,11 +259,11 @@ def validate_flow(document):
         for node in flow['nodes']:
             if node['on'] and node['on'].get('error') != 'failed':
                 raise ValueError('事件错误路径必须冻结，不能回entry重放提交')
-    return {'source_control_paths_checked':checked,'flow_count':len(FLOW_IDS),'bindings_added':0,
+    return {'source_control_paths_checked':checked,'flow_count':len(FLOW_IDS),'bindings_added':0,**additional,
         'additional_source_candidates_not_semantically_checked':sorted(extras),
         'existing_bindings_migrated':6,'legacy_full_call_order_requires':'verify_fd2_legacy_events.py independent CPU check'}
 
-def verify(executable, root=ROOT):
+def verify(executable, root=ROOT, release_scope=None):
     exe = Path(executable).read_bytes()
     if digest(exe) != EXE_SHA256:
         raise ValueError('FD2.EXE身份不同')
@@ -192,7 +281,7 @@ def verify(executable, root=ROOT):
     sources = {name:source_range(exe,s[2],s[3]) for name,s in TABLES.items()}
     tables = json.loads((root/'data/static/tables/common_event.json').read_text(encoding='utf-8'))
     flows = json.loads((root/'data/static/flows/common_event.json').read_text(encoding='utf-8'))
-    validate_tables(tables,sources); result=validate_flow(flows)
+    validate_tables(tables,sources); result=validate_flow(flows,release_scope,executable,root)
     if Path(executable).read_bytes() != exe:
         raise ValueError('核对期间原来源变化')
     return {'ok':True,'schema':'fd2-g4-common-events-source-v1',**result,'refresh_water_source':refresh_water,
@@ -207,7 +296,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('executable',type=Path)
     parser.add_argument('--json',type=Path)
-    args=parser.parse_args(); result=verify(args.executable)
+    parser.add_argument('--release-scope',type=Path)
+    args=parser.parse_args(); result=verify(args.executable,release_scope=args.release_scope)
     encoded=json.dumps(result,ensure_ascii=False,indent=2)+'\n'
     if args.json:
         args.json.parent.mkdir(parents=True,exist_ok=True);args.json.write_text(encoded,encoding='utf-8')

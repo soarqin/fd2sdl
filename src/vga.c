@@ -41,27 +41,11 @@ void fd2_vga_set_palette(fd2_vga *vga, const uint8_t pal6[768]) {
 }
 
 void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
-    /* 历史宿主暗度缩放，保留已验旧caller行为；S2完整原fade改用
-     * fd2_vga_palette_subtract，不把乘法缩放称11d40的逐分量减法。
-     * 注意第三参数是“暗度”而不是亮度：
-     *   brightness=0x40 -> DAC 全黑
-     *   brightness=0    -> 当前调色板完整亮度
-     * 证据：palette_fade_in_light @0x1f525（旧 Ghidra FUN_0001cc6d）
-     *       从 0x40 递减到 0，是淡入；
-     *       palette_fade_out_dark @0x1f882（旧 Ghidra FUN_0001cfca）
-     *       从 0 递增到 0x3f，是淡出。 */
+    /* 旧void/clamp接口兼容；合法6bit域统一复用dac_apply_darkness @0x11d40
+     * （原登记同名）。原“暗度”是逐分量减法，不是乘法亮度比例。 */
     if (brightness < 0) brightness = 0;
     if (brightness > 0x40) brightness = 0x40;
-    int level = 0x40 - brightness;
-    for (int i = 0; i < 256; i++) {
-        int idx = i * 3;
-        uint8_t r = (uint8_t)((vga->palette[idx]   * level) / 0x40);
-        uint8_t g = (uint8_t)((vga->palette[idx+1] * level) / 0x40);
-        uint8_t b = (uint8_t)((vga->palette[idx+2] * level) / 0x40);
-        vga->dac[idx]   = pal_expand6(r);
-        vga->dac[idx+1] = pal_expand6(g);
-        vga->dac[idx+2] = pal_expand6(b);
-    }
+    (void)fd2_vga_palette_subtract(vga,0,255,brightness);
 }
 
 int fd2_vga_palette_add(fd2_vga *vga, int first, int last, int32_t raw_add) {

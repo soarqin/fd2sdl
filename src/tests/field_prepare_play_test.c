@@ -7,6 +7,7 @@
 #include "field_prepare_play.h"
 #include "field_visual.h"
 #include "static_data.h"
+#include "scene.h"
 
 Uint64 SDLCALL prepare_test_ticks(void);
 void prepare_test_present(fd2_vga *vga);
@@ -24,6 +25,7 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 static int prepare_test_water(fd2_vga *vga, uint64_t now);
 static void prepare_test_clear_keys(fd2_input *input);
 static void prepare_test_brightness(fd2_vga *vga,int value);
+static int prepare_test_palette_fade(fd2_vga *vga,int fade_in,int fast);
 static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const char *identity);
 
 #define SDL_GetTicks prepare_test_ticks
@@ -38,6 +40,7 @@ static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const 
 #define fd2_field_water_tick prepare_test_water
 #define fd2_input_clear_keys prepare_test_clear_keys
 #define fd2_vga_set_brightness prepare_test_brightness
+#define fd2_scene_palette_fade prepare_test_palette_fade
 #define fd2_static_flow_lookup prepare_test_flow_lookup
 #include "../field_prepare_play.c"
 #undef SDL_GetTicks
@@ -52,6 +55,7 @@ static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const 
 #undef fd2_field_water_tick
 #undef fd2_input_clear_keys
 #undef fd2_vga_set_brightness
+#undef fd2_scene_palette_fade
 #undef fd2_static_flow_lookup
 
 #define CHECK(expr) do { if (!(expr)) { fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #expr); return 1; } } while (0)
@@ -90,6 +94,8 @@ static int sound_loops[32];
 static float sound_last_gain;
 static unsigned magic_draw_calls, fail_magic_draw_call, state_save_calls;
 static int probe_title, title_background_ok, title_palette_ok;
+static unsigned title_fade_calls;
+static int title_fade_result,title_fade_in,title_fade_fast;
 static unsigned water_calls;
 static unsigned clear_calls, quit_on_clear, frames_at_clear[8];
 static unsigned town_script_origin,town_bootstrap_pending,town_fade_count;
@@ -222,10 +228,30 @@ static void controls(fd2_vga *vga) {
     memset(sound_loops,0,sizeof(sound_loops));
     magic_draw_calls = fail_magic_draw_call = state_save_calls = 0;
     probe_title = title_background_ok = title_palette_ok = 0;
+    title_fade_calls=0;title_fade_result=FD2_SCENE_RESULT_OK;title_fade_in=title_fade_fast=-1;
     service_exact_time=service_capture_first=0;service_delay_count=0;
     confirm_probe_assets=NULL;confirm_probe_hits=0;
     service_route_assets=NULL;service_route_products=NULL;service_route_menu_hits=service_route_product_hits=0;
     slot_upper_probe=slot_upper_changed=0;
+}
+
+/* caller I/O替身：保留原65/64次呈现的输入cutoff；精确源图由Scene测试执行。 */
+static int prepare_test_palette_fade(fd2_vga *vga,int fade_in,int fast) {
+    title_fade_calls++;title_fade_in=fade_in;title_fade_fast=fast;
+    if((fade_in!=0 && fade_in!=1) || fast)return FD2_SCENE_RESULT_ERROR;
+    if(title_fade_result!=FD2_SCENE_RESULT_OK)return title_fade_result;
+    for(int step=0;step<(fade_in?65:64);step++) {
+        int dark=fade_in?64-step:step;
+        if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
+        if(fd2_vga_palette_subtract(vga,0,255,dark)!=0)return FD2_SCENE_RESULT_ERROR;
+        if(town_bootstrap_pending) {
+            if(town_fade_count<65u)town_fade_values[town_fade_count]=dark;
+            town_fade_count++;
+        }
+        prepare_test_present_timed(vga,2);
+        if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
+    }
+    return FD2_SCENE_RESULT_OK;
 }
 static void pulse(unsigned frame, SDL_Scancode key) {
     pulses[pulse_count].frame = frame; pulses[pulse_count++].key = key;
@@ -318,6 +344,7 @@ static int title_cancel_and_load(fd2_archive *fdother,
     CHECK(context.rng.state == 0x1234 && context.experience_value == 631);
     CHECK(title_background_ok && title_palette_ok);
     CHECK(option_sync_count==0 && music_count==0);
+    CHECK(title_fade_calls==1u && title_fade_in==0 && title_fade_fast==0);
     for (size_t i = 0; i < sizeof(vga->framebuffer); i++) CHECK(vga->framebuffer[i] == 0);
     controls(vga); pulse(70, SDL_SCANCODE_RETURN);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_DEPART);
@@ -330,6 +357,15 @@ static int title_cancel_and_load(fd2_archive *fdother,
     before = context.preparation;
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_HOST_QUIT);
     CHECK(memcmp(&before, &context.preparation, sizeof(before)) == 0);
+    CHECK(title_fade_calls==1u && frame_number==3u);
+    for(int host=0;host<2;host++) {
+        controls(vga);title_fade_result=host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
+        fd2_field_play_context prefix=context;
+        CHECK(fd2_field_prepare_load_title(vga,fdother,&context,path,NULL)==
+            (host?FD2_FIELD_PREPARE_HOST_QUIT:FD2_FIELD_PREPARE_ERROR));
+        CHECK(title_fade_calls==1u && !frame_number && !state_save_calls && !music_count &&
+            !memcmp(&prefix,&context,sizeof(context)));
+    }
     controls(vga);
     fd2_vga unchanged = *vga;
     fd2_field_play_context unchanged_context = context;
@@ -1273,6 +1309,36 @@ static int prepare_clear_host_quit_boundaries(fd2_archive *fdother,
     free(context);return 0;
 }
 
+static int prepare_service_fade_returns(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context context={0};context.initialized=context.has_preparation=1;
+    context.preparation=*state;fd2_field_rng_seed(&context.rng,0x5a31);
+    CHECK(fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    prepare_ui ui={vga,fdother,assets,&context,NULL,"unused.SAV",-1,0,-1};
+    for(int in=0;in<2;in++)for(int outcome=0;outcome<3;outcome++) {
+        controls(vga);ui.service=(prepare_service){0};
+        title_fade_result=outcome==1?FD2_SCENE_RESULT_HOST_QUIT:
+            outcome==2?FD2_SCENE_RESULT_ERROR:FD2_SCENE_RESULT_OK;
+        fd2_field_play_context before=context;
+        CHECK(prepare_service_fade(&ui,in)==(outcome==1?1:outcome==2?-1:0));
+        CHECK(title_fade_calls==1u && title_fade_in==in && !title_fade_fast &&
+            ui.service.host_quit==(outcome==1) && !memcmp(&before,&context,sizeof(context)));
+        CHECK(frame_number==(outcome?0u:in?65u:64u));
+    }
+    for(int outcome=1;outcome<3;outcome++) {
+        controls(vga);ui.service=(prepare_service){0};
+        title_fade_result=outcome==1?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
+        fd2_static_flow_node node={.op="service_enter"};unsigned port=FD2_FLOW_NEXT;
+        fd2_field_play_context before=context;
+        CHECK(prepare_service_ui(&ui,&node,&port)==-1 && port==FD2_FLOW_ERROR);
+        CHECK(title_fade_calls==1u && !frame_number && !service_delay_count &&
+            ui.service.host_quit==(outcome==1) && !memcmp(&before,&context,sizeof(context)));
+    }
+    controls(vga);ui.service=(prepare_service){.host_quit=1};
+    CHECK(prepare_service_fade(&ui,1)==1 && !title_fade_calls && !frame_number);
+    return 0;
+}
+
 /* 不用“给旧pulse加65”代替来源门：直接观察真实Town整页、原1f525
  * 65次64..0/2ms、末DAC全亮、随后唯一clear；早到键在该cutoff才丢。 */
 static int town_bootstrap_source_contract(fd2_archive *fdother,
@@ -1324,6 +1390,7 @@ int main(void) {
     CHECK(prepare_buffered_input_contract(&fdother,assets,&state,vga)==0);
     CHECK(member_detail_open_clear_and_flip_preserves_queue(&fdother,assets,&state,vga)==0);
     CHECK(prepare_clear_host_quit_boundaries(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_service_fade_returns(&fdother,assets,&state,vga)==0);
     CHECK(service_resource_pages(&fdother, assets, &state, vga) == 0);
     CHECK(service_present_leaves(&fdother,assets,&state,vga)==0);
     CHECK(service_confirm_shared_owner(&fdother,assets,&state,vga)==0);

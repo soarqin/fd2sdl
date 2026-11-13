@@ -2,7 +2,7 @@
 
 使用原版数据，以 SDL3 重写《炎龙骑士团 2：黄金城传说》（Flame Dragon 2: Legend of Golden Castle，汉堂国际，1995）。运行重写版不需要原版 `FD2.EXE`。
 
-**项目仍在开发中**：当前支持stage0／1既有战斗、stage2—19已证战斗绑定／END／事件及胜利准备交接，stage20仅入场、浏览和存取，并保留已证准备服务及四槽恢复。S0—S3均已交付，下一阶段S4尚未开始。当前支持域、隔离限制与唯一开发顺序见[统一计划](docs/plans/development.md)，实际双端代表、源码／原码差分和未验边界见[S3报告](docs/plans/s3-batch-integration.md)。不承诺全部自然整关、无限回合、全像素／共享RNG／声音或其它平台一致。
+**项目仍在开发中**：当前支持stage0／1既有战斗、stage2—19已证战斗绑定／END／事件及胜利准备交接，stage20仅入场、浏览和存取，并保留已证准备服务及四槽恢复。S0—S4均已交付，当前未授权后续开发阶段。支持域、隔离限制与唯一开发顺序见[统一计划](docs/plans/development.md)，实际批次见[S3报告](docs/plans/s3-batch-integration.md)，旧调色修复、统一回归／审查和证据边界见[S4报告](docs/plans/s4-unified-review.md)。不承诺全部自然整关、无限回合、全像素／共享RNG／声音或其它平台一致。
 
 ## 准备与构建
 

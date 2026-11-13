@@ -1827,3 +1827,41 @@ C12仅在C11上同步三文件旧范围注释（精确回替、行数不变）�
 三组最终代表为turn3-r2（C09）、victory（C10）和stage12（C12）。前两组只在精确还原main、stage2两能力谓词同值及其余注释／不变逻辑的范围继承；不是C12重跑前三组或主项目新二进制又跑GUI。后者是C12新原生。全部owned正常退出／Job残留0／强制0、来源守卫真、同线程显示释放真，无电源计划或用户混音器变更。`final-gate.json`核三个原报告、当前161生产源／23inc／探针及51原资源／用户档，所有摘要与mtime守卫通过。
 
 根与独立实审闭合本轮来源／分类、参数／宽度、结果调用／资源／owner／SAV／RNG、正式门和取证工具问题，无剩余S3阻塞；13隔离槽／14引用及450默认255域仍未开放，不因本阶段完成而抹去。下一入口S4未开始，旧Scene fade及统一历史回归不在本次实施。完整S3为一次独立提交；本地主项目FF、同版SDK重建／定向检查、来源资格与用户档守卫由后置 `build/s3/local-integration.json`登记，Git为提交身份，不远程push。
+
+## S4 统一审查、全历史回归与精简（2026-11-14）
+
+从 S3 `ad5a63e` 在原 elegant-pasteur 工作树连续实施，仅 S4；未恢复旧工作树、未启动后续功能。支持域沿 S3 冻结：stage0／1 原域，stage2—10／11—19 战斗批次，stage20 仅入场／浏览／存取。96 来源绑定／86 目标不是运行覆盖率；13 隔离槽／14 引用与 450 默认 turn255 拒绝保留。
+
+### 实现与来源
+
+- 旧 Scene 的17级比例 fade、App／准备页重复循环统一到唯一原减法冷子图，65／64级、各级尾2ms。普通 void／clamp brightness 委托同一原语，独立真插值保留；没有第二热状态或通用VM。
+- 完整 `1f894/1f73f/1f81e/25ebb` 补标题确认尾、START分派、cutaway的真实fade；标题图前改为原 `11df2+64` 全白，不再误作置黑。`1f81e`尾为fall-through到1f882，不由附近CALL猜流程。
+- 完整24618证明既有Game调试转场尾应500ms后32级加白／步2／尾4ms；只迁移该尾，完整page/mask/ABI隔离仍不解除。Domain隔离发布只修证据，1312函数名称／边界／chunk／signature与段bytes不变，LE21／发布14项通过，未重签全运行时BSS。
+- G4旧六绑定门补严格S3 source join：固定S2去向→已证callback41细化→原fixup/真实DAT caller/cap→唯一冷定义，保旧21图／19路／六caller原义。44额外alias在此工具只签来源，不能靠同时改scope、alias和inputsha伪造通过。方向源工具仅放精确stage2单跳alias，reset/20ms不降。
+
+### 最终候选与实际门
+
+产品始终为 C01，EXE SHA `993470f3e483c5ab238a4c0fa5eba129f1fd12ef4ccb86e46bb0ea77f23e2a19`；MSVC14.52、SDL3.2.12静态system package，实际F盘普通构建目录已核FileTracker/tlog。161生产源／23实际生成inc封存，不混用旧build-win。后续仅修测试／工具，不累计不同产品候选。
+
+| 层 | 实际最终收据／范围 |
+|---|---|
+| 来源／静态 | 33组、208槽／193目标、106移动流、72470源对象与S1冻结相同；fresh scope96／86、13槽14ref、450／265拒绝；196表，211图／5112节点／112全部alias含历史，未新增玩法绑定 |
+| Python工具 | `source-final02/python312-full-final02-receipt.json`：3.12.10固定依赖，单次1661项／0skip／1098.796s，682工具／数据／src含tests文件前后不变；早期1655／1659各保原工具身份，不加总 |
+| 当前原码／C | `source-final01`新执行结果916、受控caller27、overview242、prep47、callback来源180／C192、callback1971+144等待+1容量、绑定1026+90等待+1容量、原六callerCPU；有替身／切片域，不称全AI／共享RNG／原生 |
+| 调色原码／C | `fade-scene-final02.json`：85减法、68兼容setter、51实际Scene dispatcher／fast／转场轨迹，逐DAC／尾等待／owner对照；HOST/error及不执行后缀独立C门，非物理时钟 |
+| SDL全注册回归 | `ctest02`单次120/120、114.12s、0skip、前后来源守卫真，真实input wait／attack／lethal三场、正常owned Job及显示释放；含Python／逻辑注册项，不称120项WGC |
+| 历史有限资格 | `history-audit/actual-finite-qualification03.json`闭合30组／146登记的有限子门；604旧source事实桥接，602整体匹配含全部产品／静态源，652函数token／Game275及旧冷图独立核。两G3旧tool身份不足及B7变化门由新pair替换；不是146场全fresh |
+
+六个新原版／SDL正式代表：自然START117页；标题LOAD／四槽／Town／旧entry1；stage12受控entry／取消／存取及另CONTINUE／story10败北→GAMEOVER／标题；G3装备重选和不同物品Give取消两场；B7受控胜利至stage2的30结算页＋15入场页／启用菜单／活动存档。详见[S4报告](s4-unified-review.md)的实际检查点／身份，不逐关实机重验。全部sources／原资源／用户档／owned正常清理及同线程display释放通过，不改混音器、不变电源计划。
+
+额外调试CLI加白观察 `native-effect-observer03` 通过：49张原WGC完整序列在strict stop后重核，实际两个逻辑VGA页的64000像素逐通道不降，60860像素至少一通道上升、3140像素饱和保持，minRGB97→162；采集helper stop／0、CLI自然exit0。只签实际加亮反馈，不声称见到末4ms／add62或32级均有物理帧；它不是旧84／62遗漏门，也不替原版整转场ABI门。
+
+### 失败原件与修复资格
+
+- 初次main资源测试及全CTest `ctest01` 的116／120失败来自旧stage2／3未发布负例、全图预检和整Game回滚断言。负例改entry-only20及未发布21，HP0动作域不改；源entry2按完整32e8c及原DAT验证每叶／已到PAN前缀。`history-fixture-fix01`又暴露fast PAN原本会呈现1帧，修正精确门后`fix02`通过；不编造旧8段GUI故事（8日志原为4预检+4渲染）。
+- 较早Python环境／读集／依赖及旧六alias拒绝的红项留 `source-audit01`；使用3.12证据解释器、补只读输入并修严格来源工具。初审scope因stage／Game变化真实拒绝，`release-scope-drift.json`保留；共同篡改错图负例推动source join补严，最终完整单套另跑，不把早期全绿改签。
+- stage12首次F盘输出被现工具build/保护门拒绝，未开窗口；`stage12-01-wrapper`为false，改合法新目录02后整pair通过。
+- B7 `native-b7-entry2-01`原端全过，SDL30／15页和browse过，旧工具仍要求March／END禁用而超时。保截图／输入／false；真FDOTHER完整资源正反例11项后，两端严格启用（只Overview默认项允许blink），新02整pair通过。原失败不补签，五个此前新pair的工具closure通过精确函数外不变且未调用该predicate的资格桥接。
+- 额外observer01误将960×600物理缩放像素当原调色表，02标准整幅normalize后又因批量／二次解码积压81ms错过strictstop。两个false和raw不改；离线分析只解释原因，不当新runtime。03复用既有latest归一化帧实时门、stop后全量核raw，160门及像素规则未降，无CDB／hold／补帧／target-exit错误重签。
+
+根及独立实审闭合本阶段源码／来源账／冷热／owner／SAV／RNG／资源生命周期与错误前缀问题，已消除旧近似、重复数据算法和过期测试门；无剩余S4必修或验收阻塞。完整S4一次独立提交，不远程push／发布。主项目FF／同SDK必要重建／直接影响复验／用户档及51文件守卫由后置 `build/s4/local-integration.json`登记；不称集成二进制又跑了全部原版。当前没有自动启动的后续阶段，未验精度／平台及隔离域仍保原边界。

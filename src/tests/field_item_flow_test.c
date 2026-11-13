@@ -175,20 +175,24 @@ static void invalidate(fd2_field_game *g, unsigned which) {
         case 8: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
         case 9: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
         case 10: g->units.items[0].hp = 0; break;
-        case 11: g->stage = 2; break; /* B5已支持0/1，2仍未开放。 */
+        case 11: g->stage = 20; break; /* S3只发布入场，不允许战斗ITEM。 */
         case 12: for (unsigned i = 0; i < 8; i++) slot(&g->units.items[0], i, 0x80, 0xff); break;
         case 13: slot(&g->units.items[0], 1, 0x80, 0xff); break;
         case 14: slot(&g->units.items[0], 2, 0, 255); break;
+        case 15: g->stage = 21; break;
     }
 }
 
 static int test_rejections_have_no_write_set(void) {
+    CHECK(fd2_field_stage_battle_is_supported(2));
+    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
+    CHECK(!fd2_field_stage_is_supported(21));
     CHECK(fd2_field_game_begin_item_menu(NULL) == -1);
     CHECK(fd2_field_game_confirm_item_menu(NULL) == -1);
     CHECK(fd2_field_game_item_list_step(NULL, FD2_FIELD_ITEM_LIST_KEY_CANCEL) == -2);
     CHECK(fd2_field_game_end_item_list(NULL) == -1);
     CHECK(fd2_field_game_end_item_menu(NULL) == -1);
-    for (unsigned which = 0; which < 15; which++) {
+    for (unsigned which = 0; which < 16; which++) {
         fixture f;
         CHECK(init(&f, 0) == 0);
         fd2_field_game *g = &f.game;

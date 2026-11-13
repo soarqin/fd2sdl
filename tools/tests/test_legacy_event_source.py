@@ -17,6 +17,8 @@ class LegacySourceTest(unittest.TestCase):
         if not path.exists():raise unittest.SkipTest('缺少已验strict镜像；不宣称原码通过')
         cls.image=path.read_bytes();cls.field=(ROOT/'original_game/FDFIELD.DAT').read_bytes()
         cls.doc=json.loads((ROOT/'data/static/flows/common_event.json').read_text())
+        # 原六caller机码与写序独立检查；当前S3扩展收据门由共享验证器另测。
+        cls.doc['bindings']=dict(source.LEGACY_BINDINGS)
 
     def test_complete_original_callers_and_direct_writes(self):
         r=source.check(self.image,self.field,self.doc)
@@ -46,5 +48,11 @@ class LegacySourceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'镜像身份'):source.check(image,self.field,self.doc)
         field=bytearray(self.field);field[-1]^=1
         with self.assertRaisesRegex(ValueError,'FDFIELD身份'):source.check(self.image,field,self.doc)
+
+    def test_extra_binding_without_scope_does_not_borrow_six_caller_pass(self):
+        document=copy.deepcopy(self.doc)
+        document['bindings']['stage.002.action.009']='common.callback.009'
+        with self.assertRaisesRegex(ValueError,'release-scope'):
+            source.check(self.image,self.field,document)
 
 if __name__=='__main__':unittest.main()

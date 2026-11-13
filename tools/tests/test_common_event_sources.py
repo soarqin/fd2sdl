@@ -1,9 +1,12 @@
 """G4事件原来源合同：ACK前后顺序、整数身份、未绑定和错误重放负例。"""
 import importlib.util
+import copy
 import json
+import shutil
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools/static_data'))
@@ -14,7 +17,36 @@ class CommonEventSourcesTest(unittest.TestCase):
     def tables(self):
         return json.loads((ROOT/'data/static/tables/common_event.json').read_text(encoding='utf-8'))
     def flows(self):
-        return json.loads((ROOT/'data/static/flows/common_event.json').read_text(encoding='utf-8'))
+        document=json.loads((ROOT/'data/static/flows/common_event.json').read_text(encoding='utf-8'))
+        # 原21图语义回归只用原六绑定；S3新增绑定由下列独立receipt合同测试覆盖。
+        document['bindings']=dict(verify.LEGACY_BINDINGS)
+        return document
+    def release_fixture(self):
+        import stage_release_scope as release
+        document=json.loads((ROOT/'data/static/flows/common_event.json').read_text(encoding='utf-8'))
+        sources=release.ledger_tool.Sources(ROOT/'original_game')
+        flows,aliases,_=release.audit.load_definitions(ROOT/'data/static')
+        stages={}
+        for identity,definition in document['bindings'].items():
+            if identity in verify.LEGACY_BINDINGS:continue
+            parts=identity.split('.');stage=int(parts[1]);callback=parts[2]=='action'
+            slot=int(parts[3]) if callback else stage;va=(0x51b91 if callback else 0x51b19)+slot*4
+            source=sources.exe(va,4);raw=sources.read(source)
+            source.update(raw_hex=raw.hex(),read_sha256=verify.digest(raw))
+            row=stages.setdefault(stage,{'stage':stage,'battle_enabled':True,
+                'capability':release.audit.capability(stage,flows,aliases),'bindings':[]})
+            row['bindings'].append({'runtime_id':identity,'definition_domain':'common_event',
+                'definition_id':definition,'source_id':f'dispatch:{"event_callback" if callback else "stage_runtime_result"}:{slot:03d}',
+                'original_target':hex(sources.fixups[va][2]),'source':source,
+                'definition_sha256':verify.digest(release.disposition.encode(flows[definition]).encode())})
+        receipt={'schema':'fd2-stage-release-scope-v1','structural_binding_scope_closed':True,
+            'input_sha256':{str(path):verify.digest(path.read_bytes()) for path in
+                (ROOT/'data/static/flows/common_event.json',ROOT/'data/static/flows/stage.json',
+                 ROOT/'build/s2/source-disposition-final03/disposition.json',
+                 ROOT/'build/s3/callback-candidate12/candidates.json',
+                 ROOT/'build/s3/callback-binding-source-candidate12/comparison.json')},
+            'stages':list(stages.values())}
+        return document,receipt
     def sources(self):
         return {'k_common_event_nested_descriptors':bytes([0,211,0,0,213,0,0,101,0,0,11,0]),
                 'k_common_event_cell_items':bytes([29,43,51,61,71])}
@@ -79,5 +111,66 @@ class CommonEventSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'未审'):verify.validate_flow(d)
         d=self.flows();d['flows'].append({'id':'unreviewed.callback','entry':'end','nodes':[{'id':'end','op':'end','args':[],'on':{}}]})
         with self.assertRaisesRegex(ValueError,'未审'):verify.validate_flow(d)
+
+    def test_S3_bindings_need_current_source_receipt_without_expanding_G4_semantics(self):
+        document,receipt=self.release_fixture()
+        with self.assertRaisesRegex(ValueError,'release-scope'):verify.validate_flow(document)
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'scope.json';path.write_text(json.dumps(receipt),encoding='utf-8')
+            result=verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE')
+            self.assertEqual((result['flow_count'],result['source_control_paths_checked'],result['existing_bindings_migrated']),(21,19,6))
+            self.assertEqual(result['additional_shipping_bindings_source_checked'],44)
+            self.assertEqual(len(result['additional_shipping_bindings_not_semantically_checked']),44)
+            self.assertFalse(result['additional_binding_semantics_proven_by_this_tool'])
+            self.assertEqual(result['bindings_added'],0)
+            # 同时篡改收据行和alias也不能借两份自报SHA把原slot9接成另一个已知图。
+            forged=copy.deepcopy(document);forged_receipt=copy.deepcopy(receipt)
+            identity='stage.002.action.009';replacement='common.callback.026'
+            forged['bindings'][identity]=replacement
+            for stage in forged_receipt['stages']:
+                for row in stage['bindings']:
+                    if row['runtime_id']==identity:
+                        row['definition_id']=replacement
+                        import stage_release_scope as release
+                        row['definition_sha256']=verify.digest(release.disposition.encode(self.flow(forged,replacement)).encode())
+            # 实际临时冷输入和scope输入摘要也一并更新，排除只靠旧file SHA挡住的假负例。
+            mirror=Path(directory)/'project'
+            shutil.copytree(ROOT/'data/static',mirror/'data/static')
+            shutil.copytree(ROOT/'docs/generated/ida-canonical',mirror/'docs/generated/ida-canonical')
+            (mirror/'data/static/flows/common_event.json').write_text(json.dumps(forged),encoding='utf-8')
+            for name in ('common_event','stage'):
+                old=ROOT/f'data/static/flows/{name}.json';new=mirror/f'data/static/flows/{name}.json'
+                forged_receipt['input_sha256'].pop(str(old))
+                forged_receipt['input_sha256'][str(new)]=verify.digest(new.read_bytes())
+            path.write_text(json.dumps(forged_receipt),encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'binding differs'):
+                verify.validate_flow(forged,path,ROOT/'original_game/FD2.EXE',root=mirror)
+            # 已知callback26也不能移植到原metadata没有该caller的stage2。
+            forged=copy.deepcopy(document);forged_receipt=copy.deepcopy(receipt)
+            new=copy.deepcopy(next(row for stage in receipt['stages'] for row in stage['bindings']
+                if row['runtime_id']=='stage.006.action.026'))
+            new['runtime_id']='stage.002.action.026';forged['bindings'][new['runtime_id']]=new['definition_id']
+            next(stage for stage in forged_receipt['stages'] if stage['stage']==2)['bindings'].append(new)
+            path.write_text(json.dumps(forged_receipt),encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'发布域'):
+                verify.validate_flow(forged,path,ROOT/'original_game/FD2.EXE')
+            path.write_text(json.dumps(receipt),encoding='utf-8')
+            for mutate in (lambda d:d['bindings'].update({'stage.020.action.082':'common.callback.009'}),
+                    lambda d:d['bindings'].__setitem__('stage.002.action.009','common.callback.026'),
+                    lambda d:d['bindings'].pop('stage.012.result'),
+                    lambda d:self.flow(d,'common.callback.009')['nodes'][0]['args'].append(999)):
+                bad=copy.deepcopy(document);mutate(bad)
+                with self.subTest(bindings=bad['bindings']),self.assertRaises(ValueError):
+                    verify.validate_flow(bad,path,ROOT/'original_game/FD2.EXE')
+            for mutate in (lambda r:r.update(structural_binding_scope_closed=False),
+                    lambda r:r['input_sha256'].__setitem__(str(ROOT/'data/static/flows/stage.json'),'0'*64),
+                    lambda r:r['stages'][0]['bindings'][0].update(source_id='dispatch:event_callback:082'),
+                    lambda r:r['stages'][0]['bindings'][0].update(original_target='0x362e8'),
+                    lambda r:r['stages'][0].update(battle_enabled=False),
+                    lambda r:r['stages'][0]['bindings'][0].update(definition_sha256='0'*64),
+                    lambda r:r['stages'][0]['bindings'].append(r['stages'][0]['bindings'][0])):
+                bad=copy.deepcopy(receipt);mutate(bad);path.write_text(json.dumps(bad),encoding='utf-8')
+                with self.subTest(receipt=bad),self.assertRaises(ValueError):
+                    verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE')
 
 if __name__=='__main__':unittest.main()

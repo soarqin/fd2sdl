@@ -7,6 +7,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import wave
 
 import numpy as np
@@ -24,7 +25,9 @@ class DefeatOracleTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original = ROOT/'original_game'
-        with contextlib.redirect_stdout(io.StringIO()): p = prepare(ROOT, 'child39-empty')
+        # 来源/新增绑定收据另有完整门；这里仅建立败亡资源判据的独立单位夹具。
+        with contextlib.redirect_stdout(io.StringIO()), patch('run_g4_common_event_check.verify_common_source',return_value={'ok':True}):
+            p = prepare(ROOT, 'child39-empty')
         cls.source = p['target_view']
         cls.resources = oracle.resources(cls.original, cls.source)
 

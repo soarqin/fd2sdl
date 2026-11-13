@@ -73,11 +73,11 @@ def story11(original,assets,source):
         'text':canvas,'known_text_pixels':sum(value!=0 for value in canvas.getdata()),'arrow_position':None}
 
 
-def prepare(root,scenario,*,capture_defeat=False):
+def prepare(root,scenario,*,capture_defeat=False,release_scope=None):
     if scenario not in SCENARIOS:raise ValueError('未知common机制代表')
     original=(root/'original_game').resolve()
     # 独立原字节/表和冷图核验，不把它当作新原生执行。
-    source_contract=verify_common_source(original/'FD2.EXE',root)
+    source_contract=verify_common_source(original/'FD2.EXE',root,release_scope=release_scope)
     p=base.prepare(original,'loot-item');source=bytearray(p['source'])
     full=scenario.endswith('full-cancel')
     # 原START没有text_id1；显式提供合法说话人，不能用原空指针+7的DATO0读取作oracle。
@@ -198,7 +198,8 @@ def run(args,*,prepare_case=prepare,exercise_case=exercise,alias_message=ALIAS_M
         fixture_source=None,scope=None,excluded=None,input_paths=()):
     root=args.root.resolve();original=(root/'original_game').resolve();output=args.artifacts.resolve()
     if output.exists() or output==original or original in output.parents:raise ValueError('产物需原资源外新目录')
-    p=prepare_case(root,args.scenario,capture_defeat=getattr(args,'capture_defeat',False))
+    p=prepare_case(root,args.scenario,capture_defeat=getattr(args,'capture_defeat',False),
+        release_scope=getattr(args,'release_scope',None))
     if getattr(args,'capture_defeat',False):p['defeat']=defeat_oracle.resources(original,p['target_view'],target_raw=11)
     output.mkdir(parents=True)
     (output/'controlled.SAV').write_bytes(p['encoded']);write(output/'fixture.json',p['manifest'])
@@ -215,6 +216,7 @@ def run(args,*,prepare_case=prepare,exercise_case=exercise,alias_message=ALIAS_M
     binaries=[args.sdl.resolve(),args.driver.resolve(),args.dosbox.resolve(),
         Path(fixture_source) if fixture_source else root/'src/tests/g4_common_event_game_fixture.c',root/'src/CMakeLists.txt']
     binaries.extend(Path(path).resolve() for path in input_paths)
+    if getattr(args,'release_scope',None):binaries.append(args.release_scope.resolve())
     if (original.parent/'FD2.SAV').is_file():binaries.append(original.parent/'FD2.SAV')
     inputs,before,sources=freeze(root,original,binaries)
     # 保留本轮实际比较的摘要；后续新增的隔离config/资源也归同一账，
@@ -287,6 +289,7 @@ def main():
     for name in ('sdl','driver','dosbox'):parser.add_argument('--'+name,type=Path)
     parser.add_argument('--scenario',choices=SCENARIOS,required=True);parser.add_argument('--run',action='store_true')
     parser.add_argument('--capture-defeat',action='store_true',help='持续WGC及原生WAV/App mix验证败亡原资源和cue3有限身份；不是完整音画等价')
+    parser.add_argument('--release-scope',type=Path,help='当前stage_release_scope来源收据；新增正式绑定存在时必需')
     args=parser.parse_args()
     args.sdl_audio_source='app-mix';args.animation_capture_interval_ms=16
     if args.run and any(getattr(args,n) is None or not getattr(args,n).is_file() for n in ('sdl','driver','dosbox')):

@@ -96,11 +96,17 @@ G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点�
 
 G4 冻结时，`common_event.json` 有47个有限操作、15份未绑定来源流程和115个节点。G5 冻结为54个操作、21份流程和183个节点，六个既有正式身份为stage000 action0..4及stage001 action6；其自然入口证据与15份机制来源夹具分开。`verify_common_events.py` 独立核原完整函数／显式片段、17 byte 原表及冷控制；`verify_fd2_legacy_events.py` 另核六个原 caller 的实际调用／写序。线性身份投影检查 future raw／MOVE，但不证明任意分支组合的完整未来资源。G5 冻结时 common39 是非 shipping 显式alias，空槽／满包取消／死亡反馈配对不自动成为自然 stage 绑定，也不表示21图全部有原生证据。G4 的30项局部机器码差分与原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)；G5 实际候选和剩余门见统一审计及阶段记录。
 
+当前存在 S3 新增正式绑定时，`verify_common_events.py` 必须同时给出 `--release-scope`。先按下文 [S3 入口](#s3-正式绑定与发布域校验)运行 `stage_release_scope.py`，输出到新的 `build/s4/` 子目录，再传该批 `scope.json`；下例 `NEW` 必须替换为刚生成的当前目录；输入变化后须重新生成，不复用 S3 或 S4 旧摘要。验证器复用原来源读取与当前 capability，核收据全部输入摘要，并从固定 S2 去向与 S3 callback 来源重建原 owner／definition 关联，再按真实 DAT 和当前 capability 核 caller 集合；逐 alias 检查原槽／fixup target／唯一图摘要和完整映射。不能仅凭收据自报闭合，或共同改写 scope、alias 与输入摘要，把原槽接到另一份已有图。旧 21 图／6 绑定的语义计数不变，新增 44 个绑定仅列为来源已核、未由本工具签语义；缺收据、陈旧输入、未知／隔离／错 alias 或同 ID 换图均拒绝。仅含原六个绑定的独立 G4 fixture 仍可不提供该参数。
+
+`verify_fd2_legacy_events.py` 共享同一个发布域收据门，新增参数为 `--release-scope PATH --executable FD2.EXE`；其原指令执行仍只签六个完整 caller，不借此扩成 44 个新 caller 的原码证明。
+
+`run_g4_common_event_check.py` 的准备和实际运行也透传 `--release-scope PATH`，并把收据纳入实际运行输入守卫。prepare-only 继续不启动窗口；原码、C consumer 和原生门仍分别登记，不能借收据把新增绑定计入 G4 的既有原义范围。
+
 Windows PowerShell：
 
 ```powershell
 python -B tools/static_data/verify_runtime_flows.py --output build/g4/runtime-source.json
-python -B tools/static_data/verify_common_events.py original_game/FD2.EXE --json build/g4/common-event-source.json
+python -B tools/static_data/verify_common_events.py original_game/FD2.EXE --release-scope build/s4/release-scope-NEW/scope.json --json build/s4/common-event-source-NEW.json
 python -B -m unittest tools.tests.test_static_runtime_flows tools.tests.test_static_runtime_tables
 ```
 
@@ -108,7 +114,7 @@ Linux Bash（本轮未执行）：
 
 ```bash
 python3 -B tools/static_data/verify_runtime_flows.py --output build/g4/runtime-source.json
-python3 -B tools/static_data/verify_common_events.py original_game/FD2.EXE --json build/g4/common-event-source.json
+python3 -B tools/static_data/verify_common_events.py original_game/FD2.EXE --release-scope build/s4/release-scope-NEW/scope.json --json build/s4/common-event-source-NEW.json
 python3 -B -m unittest tools.tests.test_static_runtime_flows tools.tests.test_static_runtime_tables
 ```
 

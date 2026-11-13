@@ -1586,19 +1586,6 @@ static void opening_delay(fd2_vga *vga,
     }
 }
 
-static void opening_palette_fade_in(fd2_vga *vga, int fast) {
-    if (fast) {
-        fd2_vga_set_brightness(vga, 0);
-        return;
-    }
-    /* 旧flag0路径的17级比例亮度近似，仅保留历史端点域；不是完整1f525。
-     * S2源流程用stage.source.fade.in的65级减法/每级2ms，旧路由迁移归S4。 */
-    for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
-        fd2_vga_set_brightness(vga, darkness);
-        fd2_vga_present_timed(vga, 12);
-    }
-}
-
 /* 4ebab只跳颜色0；固定工作页LMI叶，不把VGA/UI反馈到App。 */
 static int scene_page_lmi(fd2_field_page *page,const fd2_image *image,int x,int y) {
     if(!page || !image || !image->pixels || image->width<=0 || image->height<=0)return -1;
@@ -1881,7 +1868,6 @@ static int field_event_append_group(fd2_vga *vga, const fd2_archive *fdother,
     uint8_t group, int force, int arrival_effect, fd2_field_audio *audio,
     int fast, const fd2_field_units *projected);
 static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast);
-static int scene_result_fade(fd2_vga *vga, int fade_in, int fast);
 static int scene_game_over_frame(fd2_vga *vga, scene_game_over_data *data,
     size_t index, int fast);
 static int field_story_validate_units(const fd2_field_game *game,
@@ -1904,6 +1890,9 @@ static int scene_flow_run(scene_flow_context *c, const fd2_static_flow *flow);
 
 static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *flow) {
     if (!c || !flow) return -1;
+    /* 两个固定调色子图也供App/准备页使用，不借Game或开放其它source操作。 */
+    int palette_flow = flow->id && (!strcmp(flow->id,"stage.source.fade.in") ||
+        !strcmp(flow->id,"stage.source.fade.out") || !strcmp(flow->id,"stage.palette.transition.finish"));
     /* 分支读取入口快照，不让呈现中的移动或库存投影重新选择业务路径。 */
     uint8_t hidden[FD2_FIELD_MAX_UNITS] = {0};
     size_t initial_count = c->state ? c->state->units.count : 0;
@@ -1914,6 +1903,8 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
     while (c->flow_steps++ < FD2_FLOW_STEP_BUDGET) {
         const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
         if (!n) return -1;
+        if (palette_flow && strcmp(n->op,"palette_subtract") && strcmp(n->op,"palette_add") &&
+                strcmp(n->op,"delay") && strcmp(n->op,"end")) return -1;
         fd2_static_flow_node source_literal;
         if (scene_host_quit_requested || poll_scene_quit(c->vga)) return -1;
         if (c->source_flow) {
@@ -1960,9 +1951,10 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
                 !strcmp(n->op, "call_fade_in") ? "stage.source.fade.in" : "stage.source.fade.out";
             if (!c->source_flow || scene_flow_run(c, fd2_static_flow_lookup("stage", id)) != 0) return -1;
         } else if (!strcmp(n->op, "palette_subtract") || !strcmp(n->op, "palette_add")) {
-            if (!c->source_flow || !c->vga || (!strcmp(n->op, "palette_subtract") ?
+            if ((!c->source_flow && !palette_flow) || !c->vga || (!strcmp(n->op, "palette_subtract") ?
                     fd2_vga_palette_subtract(c->vga,a[0],a[1],a[2]) : fd2_vga_palette_add(c->vga,a[0],a[1],a[2])) != 0) return -1;
-            fd2_vga_upload_current_frame(c->vga); /* DAC可见，不推进输入/clock/帧预算。 */
+            /* 旧fast入口不增加中间上传；原source机制夹具的fast行为保留。 */
+            if (!c->fast || c->source_flow) fd2_vga_upload_current_frame(c->vga);
         } else if (!strcmp(n->op, "pan")) {
             if (!field) return -1;
             pan_camera_to(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],a[1],c->fast);
@@ -1986,8 +1978,8 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
                 opening_text(c->vga,c->terrain,c->map,c->dato,c->ui,c->sprites,c->state,
                     c->font,c->text,c->audio,(size_t)a[0],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "delay")) {
-            if (!field) return -1;
-            if (c->source_flow) {
+            if (!field && !palette_flow) return -1;
+            if (c->source_flow || palette_flow) {
                 /* 原3790a只等待；不能额外推进11cac、水色或actor视觉锚。 */
                 if (!c->fast) fd2_delay_ms((uint32_t)a[0]);
                 (void)poll_scene_quit(c->vga);
@@ -2017,9 +2009,9 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "bgm")) {
             if (c->bgm && (a[0] < 0 ? fd2_bgm_stop(c->bgm) : fd2_bgm_play(c->bgm,(unsigned)a[0],0)) != 0) return -1;
         } else if (!strcmp(n->op, "fade")) {
-            if (!c->vga) return -1;
-            if (c->game_over) { if (scene_result_fade(c->vga,a[0],c->fast) != 0) return -1; }
-            else { if (a[0] != 1) return -1; opening_palette_fade_in(c->vga,c->fast); }
+            if (!c->vga || (a[0] != 0 && a[0] != 1) || (!c->game_over && a[0] != 1) ||
+                scene_flow_run(c,fd2_static_flow_lookup("stage",a[0] ?
+                    "stage.source.fade.in" : "stage.source.fade.out")) != 0) return -1;
         } else if (!strcmp(n->op, "brightness")) {
             if (!c->vga) return -1;
             fd2_vga_set_brightness(c->vga,a[0]);
@@ -2034,8 +2026,8 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (!field) return -1;
             present_base_frame(c->vga,c->terrain,c->map,c->sprites,c->state,0);
         } else if (!strcmp(n->op, "palette_fade_in")) {
-            if (!c->vga) return -1;
-            opening_palette_fade_in(c->vga,c->fast);
+            if (!c->vga || scene_flow_run(c,fd2_static_flow_lookup("stage",
+                    "stage.source.fade.in")) != 0) return -1;
             /* 开场fast仍交一帧；准备入场已有单独的黑帧，不能多交一帧。 */
             if (c->fast && a[0]) fd2_vga_present(c->vga);
         } else if (!strcmp(n->op, "move_up")) {
@@ -2133,6 +2125,26 @@ static int scene_flow_run(scene_flow_context *c, const fd2_static_flow *flow) {
     int result=scene_flow_run_nodes(c,flow);
     c->flow_depth--;
     return result;
+}
+
+static int scene_palette_play(fd2_vga *vga, const char *identity, int fast) {
+    if (!vga || (fast != 0 && fast != 1)) return FD2_SCENE_RESULT_ERROR;
+    if (scene_host_quit_requested || poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
+    if (scene_render_error) return FD2_SCENE_RESULT_ERROR;
+    scene_flow_context c={0};c.vga=vga;c.fast=fast;
+    int result=scene_flow_run(&c,fd2_static_flow_lookup("stage",identity));
+    if (scene_render_error) return FD2_SCENE_RESULT_ERROR;
+    if (scene_host_quit_requested) return FD2_SCENE_RESULT_HOST_QUIT;
+    return result==0 ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
+}
+
+int fd2_scene_palette_fade(fd2_vga *vga, int fade_in, int fast) {
+    if (fade_in != 0 && fade_in != 1) return FD2_SCENE_RESULT_ERROR;
+    return scene_palette_play(vga,fade_in ? "stage.source.fade.in" : "stage.source.fade.out",fast);
+}
+
+int fd2_scene_stage_transition_finish(fd2_vga *vga) {
+    return scene_palette_play(vga,"stage.palette.transition.finish",0);
 }
 
 static int init_opening_field_state(fd2_scene_field_state *state, size_t stage,
@@ -2918,20 +2930,6 @@ static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast) {
     uint64_t started = SDL_GetTicks();
     while (SDL_GetTicks() - started < (uint64_t)ticks * FD2_BIOS_TICK_MS) {
         fd2_vga_present_timed(vga, 16);
-        if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
-    }
-    return FD2_SCENE_RESULT_OK;
-}
-
-static int scene_result_fade(fd2_vga *vga, int fade_in, int fast) {
-    /* 历史17级比例近似；新源64/65级减法子图的证据不覆盖本旧路径。 */
-    if (fast) {
-        fd2_vga_set_brightness(vga, fade_in ? 0 : 0x40);
-        return poll_scene_quit(vga) ? FD2_SCENE_RESULT_HOST_QUIT : 0;
-    }
-    for (int step = 0; step <= 0x40; step += 4) {
-        fd2_vga_set_brightness(vga, fade_in ? 0x40 - step : step);
-        fd2_vga_present_timed(vga, 12);
         if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
     }
     return FD2_SCENE_RESULT_OK;

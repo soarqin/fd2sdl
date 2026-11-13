@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "scene.h"
+#include "field_prepare.h"
 #include "portrait.h"
 #include "static_data.h"
 
@@ -49,8 +50,38 @@ static unsigned cursor_by_fragment[16];
 static int current_darkness, presented_darkness[32];
 static const fd2_static_flow *bound_flow_override;
 static int auto_confirm=1;
+/* 只观察真实Scene dispatcher/真实VGA原语；等待与上传为显式宿主I/O替身。 */
+typedef struct { int kind,status,args[3]; uint8_t dac[768]; } palette_trace_event;
+static palette_trace_event palette_trace[256];
+static unsigned palette_tracking,palette_trace_count,palette_attempts,palette_uploads,palette_delays;
+static unsigned palette_fail_at,palette_quit_upload,palette_quit_delay;
+static const fd2_static_flow *palette_flow_override;
+static int palette_lookup_missing;
+
+static void palette_record(fd2_vga *vga,int kind,int first,int last,int value,int status) {
+    if(!palette_tracking)return;
+    if(palette_trace_count>=256u)abort();
+    palette_trace_event *e=&palette_trace[palette_trace_count++];
+    e->kind=kind;e->status=status;e->args[0]=first;e->args[1]=last;e->args[2]=value;
+    memcpy(e->dac,vga->dac,sizeof(e->dac));
+}
+static int scene_test_palette_subtract(fd2_vga *vga,int first,int last,int32_t value) {
+    if(palette_tracking)palette_attempts++;
+    int result=palette_tracking && palette_attempts==palette_fail_at ? -1:
+        fd2_vga_palette_subtract(vga,first,last,value);
+    if(!result)current_darkness=value;
+    palette_record(vga,1,first,last,value,result);return result;
+}
+static int scene_test_palette_add(fd2_vga *vga,int first,int last,int32_t value) {
+    if(palette_tracking)palette_attempts++;
+    int result=palette_tracking && palette_attempts==palette_fail_at ? -1:
+        fd2_vga_palette_add(vga,first,last,value);
+    palette_record(vga,2,first,last,value,result);return result;
+}
 
 static const fd2_static_flow *scene_test_flow_lookup(const char *domain, const char *id) {
+    if(palette_lookup_missing && !strcmp(domain,"stage") && !strncmp(id,"stage.source.fade.",18))return NULL;
+    if(palette_flow_override && !strcmp(domain,"stage") && !strcmp(id,palette_flow_override->id))return palette_flow_override;
     if(arrival_flow_override && !strcmp(domain,"runtime") && !strcmp(id,"runtime.arrival"))return arrival_flow_override;
     if (bound_flow_override && !strcmp(domain,"scene") && !strcmp(id,bound_flow_override->id))
         return bound_flow_override;
@@ -172,6 +203,10 @@ static void scene_test_present_timed(fd2_vga *vga, uint32_t ms) {
 
 static void scene_test_delay(uint32_t ms) {
     test_ms += ms;
+    if(palette_tracking) {
+        palette_record(current_vga,3,(int)ms,0,0,0);palette_delays++;
+        if(palette_delays==palette_quit_delay)current_vga->input.quit_requested=1;
+    }
     if (((quit_on_preview_delay && ms == 800) || (quit_on_delay_ms && ms==quit_on_delay_ms)) && current_vga)
         current_vga->input.quit_requested = 1;
 }
@@ -182,6 +217,10 @@ static fd2_field_page *scene_test_page_create(void) {
     return fd2_field_page_create();
 }
 static void scene_test_upload(fd2_vga *vga) {
+    if(palette_tracking) {
+        palette_uploads++;
+        if(palette_uploads==palette_quit_upload)vga->input.quit_requested=1;
+    }
     if(!arrival_tracking)return;
     if(arrival_uploads!=arrival_waits)arrival_bad_order=1;
     arrival_uploads++;
@@ -258,6 +297,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define fd2_scene_field_notice_page scene_test_notice_page
 #define fd2_scene_field_message_box scene_test_message_box
 #define fd2_scene_field_message_arrow scene_test_message_arrow
+#define fd2_scene_palette_fade scene_test_palette_fade
+#define fd2_scene_stage_transition_finish scene_test_transition_finish
 #define fd2_archive_open scene_test_archive_open
 #define fd2_archive_close scene_test_archive_close
 #define fd2_archive_get scene_test_archive_get
@@ -271,6 +312,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define fd2_vga_present scene_test_present
 #define fd2_vga_present_timed scene_test_present_timed
 #define fd2_vga_set_brightness scene_test_brightness
+#define fd2_vga_palette_subtract scene_test_palette_subtract
+#define fd2_vga_palette_add scene_test_palette_add
 #define fd2_delay_ms scene_test_delay
 #define fd2_wait_ticks scene_test_wait_ticks
 #define fd2_input_clear_keys scene_test_clear_keys
@@ -278,6 +321,9 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define SDL_GetTicks scene_test_ticks
 #define fd2_field_water_tick scene_test_water_tick
 #define fd2_static_flow_lookup scene_test_flow_lookup
+/* scene.h已在宏前读取；为旧entry到后定义source入口的调用保留私有原型。 */
+int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
+    fd2_field_game *game,fd2_field_audio *audio,int fast,const char *source_id);
 #include "../scene.c"
 #undef fd2_scene_play_new_game_prologue_handoff
 #undef fd2_scene_play_new_game_prologue_handoff_with_runtime
@@ -304,6 +350,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #undef fd2_scene_field_notice_page
 #undef fd2_scene_field_message_box
 #undef fd2_scene_field_message_arrow
+#undef fd2_scene_palette_fade
+#undef fd2_scene_stage_transition_finish
 #undef fd2_archive_open
 #undef fd2_archive_close
 #undef fd2_archive_get
@@ -317,6 +365,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_set_brightness
+#undef fd2_vga_palette_subtract
+#undef fd2_vga_palette_add
 #undef fd2_delay_ms
 #undef fd2_wait_ticks
 #undef fd2_input_clear_keys
@@ -354,6 +404,9 @@ static void reset_controls(fd2_vga *vga) {
     trace_fragments = 0; fragment_log_count = 0; last_fragment = 0;
     tracked_cursor = NULL; memset(cursor_by_fragment, 0, sizeof(cursor_by_fragment));
     current_darkness=0;memset(presented_darkness,-1,sizeof(presented_darkness));
+    palette_tracking=palette_trace_count=palette_attempts=palette_uploads=palette_delays=0;
+    palette_fail_at=palette_quit_upload=palette_quit_delay=0;palette_flow_override=NULL;
+    palette_lookup_missing=0;
     bound_flow_override=NULL;
     scene_render_error=0;
     auto_confirm=1;
@@ -703,7 +756,7 @@ static int test_portrait_decode_error_has_no_handoff(const fd2_archive *fdother)
     return 0;
 }
 
-/* 从真实冷图截取入场前缀；fast帧合同和正常17帧不由C隐藏编排补齐。 */
+/* 从真实冷图截取入场前缀；正常65级减法/尾2ms，fast保旧交帧合同。 */
 static int test_scene_entry_prefix(const fd2_field_game *game) {
     const char *ids[]={"stage.entry.001","scene.opening.032"};
     for (size_t kind=0;kind<2;kind++) {
@@ -724,10 +777,16 @@ static int test_scene_entry_prefix(const fd2_field_game *game) {
         context.sprites=&game->sprites;context.state=&state;
         for (int fast=0;fast<=1;fast++) {
             reset_controls(&vga);scene_host_quit_requested=0;context.fast=fast;
+            palette_tracking=1;
             CHECK(scene_flow_run(&context,&flow)==0 && current_darkness==0);
-            CHECK(presents==(fast ? 1 : kind ? 17 : 18));
+            CHECK(presents==(fast ? 1 : kind ? 0 : 1));
+            CHECK(palette_attempts==65u && palette_uploads==(fast ? 0u:65u) &&
+                palette_delays==(fast ? 0u:65u));
             if (fast) CHECK(presented_darkness[0]==(kind ? 0 : 64));
-            else for (int i=0;i<17;i++) CHECK(presented_darkness[i+(kind ? 0 : 1)]==64-4*i);
+            else for (unsigned i=0;i<65u;i++) {
+                CHECK(palette_trace[2*i].kind==1 && palette_trace[2*i].args[2]==64-(int)i);
+                CHECK(palette_trace[2*i+1].kind==3 && palette_trace[2*i+1].args[0]==2);
+            }
         }
         if (!kind) {
             int present=fd2_static_flow_label(&flow,"entry_present");CHECK(present>=0);
@@ -953,9 +1012,25 @@ static int test_stage2_presentation(const fd2_archive *fdother) {
     }
     fd2_field_game *game=calloc(1,sizeof(*game)), *before=calloc(1,sizeof(*before));CHECK(game&&before);
     CHECK(fd2_field_game_prepare_stage2(game,fdother,&prepared)==0);*before=*game;
+    /* S3源入口只准备资源/roster；完整32e8c明确205da→script18→group1
+     * →script17→text1→script19→text2/3。此独立字面顺序不读新冷图。 */
+    CHECK(game->units.count==0 && game->roster_count==6);
+    fd2_field_units base,expected_units;
+    CHECK(fd2_field_prepare_deployment_project(&prepared,2,&game->map,&game->metadata,&game->placements,&base)==0 && base.count==6);
+    expected_units=base;const uint8_t *script;size_t script_size;
+    CHECK(fd2_field_movement_script_get(18,&script,&script_size)==0 &&
+        fd2_field_movement_script_apply(&expected_units,script,script_size)==0);
+    CHECK(fd2_field_units_append_group_placed(&expected_units,&game->metadata,&game->placements,&game->map,1,0)==0 && expected_units.count==15);
+    CHECK(fd2_field_movement_script_get(17,&script,&script_size)==0 &&
+        fd2_field_movement_script_apply(&expected_units,script,script_size)==0);
+    CHECK(fd2_field_movement_script_get(19,&script,&script_size)==0 &&
+        fd2_field_movement_script_apply(&expected_units,script,script_size)==0);
+    for(size_t i=0;i<15;i++)expected_units.items[i].direction=0;
     fd2_vga vga;reset_controls(&vga);trace_fragments=1;
     CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==0);
-    const size_t expected[]={0,1,2,3,0,1,2,3};
+    /* 每叶先纯资源验证再呈现；原caller只有0→1→2→3四段，
+     * 不能再期待旧“整图预跑四段，再重放四段”的读取次序。 */
+    const size_t expected[]={0,0,1,1,2,2,3,3};
     CHECK(fragment_log_count==8 && !memcmp(fragment_log,expected,sizeof(expected)));
     CHECK(game->units.count==15 && game->stage==2 && game->turn_number==1 && game->active_side==2);
     /* 32e8c fragment3 text8先聚焦(7,24)，12cea滚至map高26-8=18；
@@ -963,15 +1038,23 @@ static int test_stage2_presentation(const fd2_archive *fdother) {
      * 不是只构造单位表的prepare_stage2或最后PAN(3,17)。 */
     CHECK(game->cursor_cell_x==7 && game->cursor_cell_y==22 &&
           game->camera_cell_x==3 && game->camera_cell_y==18);
-    CHECK(!memcmp(game->units.items,before->units.items,15*80) &&
+    CHECK(!memcmp(game->units.items,expected_units.items,15*80) &&
           !memcmp(game->roster,before->roster,sizeof(game->roster)) && archive_opens==archive_closes);
     for(size_t i=0;i<15;i++)CHECK(game->units.items[i].direction==0);
     *before=*game;reset_controls(&vga);quit_at_frame=1;
     CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_HOST_QUIT);
-    CHECK(!memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
-    reset_controls(&vga);fail_portrait_decode_at=1;
+    CHECK(game->units.count==6 && game->roster_count==6 &&
+        !memcmp(game->roster,before->roster,sizeof(game->roster)) && archive_opens==archive_closes);
+    for(size_t i=0;i<6;i++)CHECK(game->units.items[i].x==base.items[i].x && game->units.items[i].y==base.items[i].y);
+    reset_controls(&vga);fail_portrait_decode_at=1;trace_fragments=1;
     CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==FD2_SCENE_RESULT_ERROR);
-    CHECK(!presents && !memcmp(game,before,sizeof(*game)) && archive_opens==archive_closes);
+    /* 135dd的fast PAN仍交一帧，原32e8c在它和200ms之后才到text0。
+     * 首次portrait预检失败时保此帧/PAN；无text0绘制或script18后缀。 */
+    CHECK(presents==1 && portrait_decode_calls==1 && fragment_log_count==1 && fragment_log[0]==0);
+    CHECK(game->units.count==6 && game->roster_count==6);
+    CHECK(game->camera_cell_x==3 && game->camera_cell_y==17 && !game->ordinary_display_mode);
+    CHECK(!memcmp(game->roster,before->roster,sizeof(game->roster)) && archive_opens==archive_closes);
+    for(size_t i=0;i<6;i++)CHECK(game->units.items[i].x==base.items[i].x && game->units.items[i].y==base.items[i].y);
     fd2_field_game_close(game);free(before);free(game);return 0;
 }
 
@@ -1688,7 +1771,160 @@ static int test_source_logic_only_end(void) {
     free(game);return 0;
 }
 
+static void palette_test_start(fd2_vga *vga,unsigned seed) {
+    reset_controls(vga);scene_host_quit_requested=0;
+    for(unsigned i=0;i<768u;i++)vga->palette[i]=(uint8_t)((i*17u+seed)%64u);
+    memset(vga->dac,0xa5,sizeof(vga->dac));memset(vga->framebuffer,0x96,sizeof(vga->framebuffer));
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_Z,1);
+    fd2_input_begin_test_frame(&vga->input,test_ms);
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_Z,0);
+    fd2_input_begin_test_frame(&vga->input,test_ms);
+    auto_confirm=0;palette_tracking=1;
+}
+
+/* 公共API和旧冷op都走真实Scene TU；Game仅借用，后置actor写用于证伪越界续跑。 */
+static int palette_dispatch(fd2_vga *vga,const char *kind,int fast,
+        fd2_field_game *game,fd2_scene_field_state *state) {
+    if(!strcmp(kind,"public_in"))return scene_test_palette_fade(vga,1,fast);
+    if(!strcmp(kind,"public_out"))return scene_test_palette_fade(vga,0,fast);
+    if(!strcmp(kind,"transition"))return fast ? -1:scene_test_transition_finish(vga);
+    scene_flow_context c={0};c.vga=vga;c.fast=fast;c.game=c.mutable_game=game;c.state=state;
+    if(!strcmp(kind,"source_in") || !strcmp(kind,"source_out")) {
+        c.source_flow=1;
+        return scene_flow_run(&c,fd2_static_flow_lookup("stage",
+            !strcmp(kind,"source_in")?"stage.source.fade.in":"stage.source.fade.out"));
+    }
+    scene_game_over_data over={0};
+    fd2_static_flow_node nodes[3]={
+        {.id="fade",.op="palette_fade_in",.args={1},.views=FD2_FLOW_PRESENT},
+        {.id="suffix",.op="actor_hidden",.args={0,0,1},.views=FD2_FLOW_PRESENT},
+        {.id="done",.op="end",.views=FD2_FLOW_PRESENT}};
+    if(!strcmp(kind,"legacy_entry"))nodes[0].args[0]=0;
+    else if(!strcmp(kind,"gameover_in") || !strcmp(kind,"gameover_out")) {
+        c.game_over=&over;nodes[0].op="fade";nodes[0].args[0]=!strcmp(kind,"gameover_in");
+    } else if(strcmp(kind,"legacy_in"))return -1;
+    for(unsigned i=0;i<3;i++)for(unsigned p=0;p<FD2_FLOW_PORT_COUNT;p++)nodes[i].edges[p]=-1;
+    nodes[0].edges[FD2_FLOW_NEXT]=1;nodes[1].edges[FD2_FLOW_NEXT]=2;
+    fd2_static_flow flow={"test.s4.legacy.palette",nodes,3,0};
+    return scene_flow_run(&c,&flow);
+}
+
+static int palette_trace_exact(const fd2_vga *vga,int in,int fast,int source) {
+    unsigned count=in?65u:64u;
+    CHECK(palette_attempts==count && palette_uploads==(!fast || source ? count:0u));
+    CHECK(palette_delays==(fast?0u:count) && palette_trace_count==count*(fast?1u:2u));
+    for(unsigned i=0;i<count;i++) {
+        unsigned at=i*(fast?1u:2u);const palette_trace_event *event=&palette_trace[at];
+        int dark=in?64-(int)i:(int)i;
+        CHECK(event->kind==1 && !event->status && !event->args[0] && event->args[1]==255 && event->args[2]==dark);
+        for(unsigned b=0;b<768u;b++) {
+            unsigned value=vga->palette[b]>(unsigned)dark ? vga->palette[b]-(unsigned)dark:0u;
+            CHECK(event->dac[b]==(uint8_t)((value<<2)|(value>>4)));
+        }
+        if(!fast)CHECK(palette_trace[at+1].kind==3 && palette_trace[at+1].args[0]==2 &&
+            !memcmp(palette_trace[at+1].dac,event->dac,768));
+    }
+    return 0;
+}
+
+static int test_palette_consumers(void) {
+    static const char *kinds[]={"public_in","public_out","legacy_in","legacy_entry",
+        "gameover_in","gameover_out","source_in","source_out"};
+    fd2_vga *vga=malloc(sizeof(*vga));fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_scene_field_state *state=calloc(1,sizeof(*state));CHECK(vga&&game&&before&&state);
+    for(unsigned k=0;k<sizeof(kinds)/sizeof(kinds[0]);k++)for(int fast=0;fast<2;fast++) {
+        palette_test_start(vga,17);memset(game,0,sizeof(*game));memset(state,0,sizeof(*state));
+        game->ready=1;game->units.count=state->units.count=1;
+        unsigned calls=0;game->attack_rng=scene_counted_random;game->attack_rng_userdata=&calls;*before=*game;
+        uint8_t base[768],pixels[VGA_W*VGA_H];memcpy(base,vga->palette,768);memcpy(pixels,vga->framebuffer,sizeof(pixels));
+        int in=strstr(kinds[k],"out")==NULL,source=!strncmp(kinds[k],"source_",7);
+        CHECK(palette_dispatch(vga,kinds[k],fast,game,state)==0);
+        CHECK(palette_trace_exact(vga,in,fast,source)==0);
+        CHECK(!memcmp(game,before,sizeof(*game)) && !calls && !memcmp(base,vga->palette,768) &&
+            !memcmp(pixels,vga->framebuffer,sizeof(pixels)) && !water_calls);
+        CHECK(fd2_input_has_any_key(&vga->input)); /* 逐级不清已到按键。 */
+        CHECK(presents==(fast && !strcmp(kinds[k],"legacy_in") ? 1:0));
+        CHECK(fd2_field_unit_is_hidden(&state->units.items[0])==
+            (!strncmp(kinds[k],"legacy_",7) || !strncmp(kinds[k],"gameover_",9)));
+    }
+    /* 已到达DAC前缀保留；HOST/真错都不能运行后置业务叶或后续尾等待。 */
+    for(unsigned mode=0;mode<3;mode++) {
+        palette_test_start(vga,17);memset(state,0,sizeof(*state));state->units.count=1;
+        memset(game,0,sizeof(*game));game->ready=1;game->units.count=1;*before=*game;
+        if(mode==0)palette_quit_upload=1;
+        else if(mode==1)palette_quit_delay=1;
+        else palette_fail_at=2;
+        CHECK(palette_dispatch(vga,"gameover_out",0,game,state)==-1);
+        CHECK(!fd2_field_unit_is_hidden(&state->units.items[0]) && !memcmp(game,before,sizeof(*game)));
+        CHECK(palette_uploads==1u && palette_attempts==(mode==2?2u:1u) && palette_delays==(mode==0?0u:1u));
+        CHECK(scene_host_quit_requested==(mode!=2) && !memcmp(vga->dac,palette_trace[0].dac,768));
+    }
+    /* 公共返回码、预存HOST、坏base、缺图及固定palette域禁止业务op。 */
+    palette_test_start(vga,17);palette_quit_upload=1;
+    CHECK(scene_test_palette_fade(vga,0,0)==FD2_SCENE_RESULT_HOST_QUIT && palette_uploads==1u && !palette_delays);
+    palette_test_start(vga,17);palette_fail_at=2;
+    CHECK(scene_test_palette_fade(vga,0,0)==FD2_SCENE_RESULT_ERROR && palette_uploads==1u && palette_delays==1u);
+    palette_test_start(vga,17);vga->input.quit_requested=1;
+    CHECK(scene_test_palette_fade(vga,1,0)==FD2_SCENE_RESULT_HOST_QUIT && !palette_attempts);
+    palette_test_start(vga,17);vga->palette[767]=64;
+    CHECK(scene_test_palette_fade(vga,1,0)==FD2_SCENE_RESULT_ERROR && palette_attempts==1u && !palette_uploads && !palette_delays);
+    for(unsigned i=0;i<768;i++)CHECK(vga->dac[i]==0xa5);
+    palette_test_start(vga,17);
+    CHECK(scene_test_palette_fade(NULL,1,0)==FD2_SCENE_RESULT_ERROR &&
+        scene_test_palette_fade(vga,2,0)==FD2_SCENE_RESULT_ERROR &&
+        scene_test_palette_fade(vga,1,2)==FD2_SCENE_RESULT_ERROR && !palette_attempts);
+    palette_lookup_missing=1;
+    CHECK(scene_test_palette_fade(vga,1,0)==FD2_SCENE_RESULT_ERROR && !palette_attempts);
+    palette_lookup_missing=0;
+    fd2_static_flow_node bad={.id="business",.op="actor_hidden",.args={0,0,1},.views=FD2_FLOW_PRESENT};
+    for(unsigned p=0;p<FD2_FLOW_PORT_COUNT;p++)bad.edges[p]=-1;
+    fd2_static_flow wrong={"stage.source.fade.in",&bad,1,0};palette_flow_override=&wrong;
+    CHECK(scene_test_palette_fade(vga,1,0)==FD2_SCENE_RESULT_ERROR && !palette_attempts);
+    /* 24618只测已证500ms后32级加白尾；不声称前置布局/FX已在此运行。 */
+    palette_test_start(vga,17);CHECK(scene_test_transition_finish(vga)==FD2_SCENE_RESULT_OK);
+    CHECK(palette_attempts==32u && palette_uploads==32u && palette_delays==33u && palette_trace_count==65u);
+    CHECK(palette_trace[0].kind==3 && palette_trace[0].args[0]==500);
+    for(unsigned i=0;i<32u;i++) {
+        CHECK(palette_trace[1+2*i].kind==2 && palette_trace[1+2*i].args[2]==(int)(2*i));
+        CHECK(palette_trace[2+2*i].kind==3 && palette_trace[2+2*i].args[0]==4);
+    }
+    palette_test_start(vga,17);palette_quit_delay=1;
+    CHECK(scene_test_transition_finish(vga)==FD2_SCENE_RESULT_HOST_QUIT && !palette_attempts && palette_delays==1u);
+    palette_test_start(vga,17);palette_fail_at=2;
+    CHECK(scene_test_transition_finish(vga)==FD2_SCENE_RESULT_ERROR && palette_uploads==1u && palette_delays==2u);
+    free(vga);free(game);free(before);free(state);palette_tracking=0;return 0;
+}
+
+static int palette_vectors(void) {
+    fd2_vga *vga=malloc(sizeof(*vga));fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_scene_field_state *state=calloc(1,sizeof(*state));CHECK(vga&&game&&before&&state);
+    char line[128],kind[32],extra;int fast;unsigned seed;
+    while(fgets(line,sizeof(line),stdin)) {
+        if(sscanf(line,"%31s %d %u %c",kind,&fast,&seed,&extra)!=3 || fast<0 || fast>1 || seed>63u)return 1;
+        palette_test_start(vga,seed);memset(game,0,sizeof(*game));memset(state,0,sizeof(*state));
+        game->ready=1;game->units.count=state->units.count=1;*before=*game;
+        uint8_t base[768],pixels[VGA_W*VGA_H];memcpy(base,vga->palette,768);memcpy(pixels,vga->framebuffer,sizeof(pixels));
+        int status=palette_dispatch(vga,kind,fast,game,state);
+        printf("{\"kind\":\"%s\",\"fast\":%d,\"seed\":%u,\"status\":%d,\"uploads\":%u,\"presents\":%d,\"owner_unchanged\":%s,\"trace\":[",
+            kind,fast,seed,status,palette_uploads,presents,
+            !memcmp(game,before,sizeof(*game)) && !memcmp(base,vga->palette,768) &&
+            !memcmp(pixels,vga->framebuffer,sizeof(pixels)) && !water_calls ? "true":"false");
+        for(unsigned i=0;i<palette_trace_count;i++) {
+            palette_trace_event *e=&palette_trace[i];
+            printf("%s{\"op\":\"%s\",\"args\":[%d",i?",":"",e->kind==1?"palette_subtract":e->kind==2?"palette_add":"delay_ms",e->args[0]);
+            if(e->kind!=3)printf(",%d,%d",e->args[1],e->args[2]);
+            printf("],\"status\":%d,\"dac_hex\":\"",e->status);
+            for(unsigned b=0;b<768u;b++)printf("%02x",e->dac[b]);
+            printf("\"}");
+        }
+        puts("]}");
+    }
+    CHECK(!ferror(stdin));free(vga);free(game);free(before);free(state);return 0;
+}
+
 int main(int argc, char **argv) {
+    if(argc==2 && !strcmp(argv[1],"--s4-palette-vectors"))return palette_vectors();
+    CHECK(test_palette_consumers()==0);
     CHECK(test_scene_flow_graph()==0);
     CHECK(test_source_logic_only_end()==0);
     CHECK(test_scene_flow_view_commit()==0);

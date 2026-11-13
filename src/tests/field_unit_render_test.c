@@ -968,6 +968,42 @@ static int test_resource_effect_wrappers(void) {
     return 0;
 }
 
+/* 24618最后的11df2是加色变白；调用真实Game→Scene固定冷图，
+ * 无窗口。坏基色只在9帧已提交后拒绝，不回滚最后mask帧或写Game/RNG。 */
+static int test_transition_whitening_finish(void) {
+    fd2_archive other={0};
+    fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_vga *vga=calloc(1,sizeof(*vga));
+    uint8_t *last=malloc(VGA_W*VGA_H);CHECK(game && before && vga && last);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open(game,vga,&other,0)==0);
+    unsigned calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&calls;
+    for(int bad=0;bad<2;bad++) {
+        uint8_t palette[768],dac[768];
+        for(size_t i=0;i<sizeof(palette);i++)palette[i]=(uint8_t)(i%64u);
+        fd2_vga_set_palette(vga,palette);
+        fd2_field_effect_frames frames={0};
+        CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&frames)==0);
+        memcpy(last,frames.snapshots[8],VGA_W*VGA_H);
+        fd2_field_effect_frames_close(&frames);
+        if(bad)vga->palette[767]=64;
+        memcpy(dac,vga->dac,sizeof(dac));*before=*game;
+        CHECK(fd2_field_game_play_stage_transition(game,vga,NULL,84,88,10,8,1)==(bad?-1:0));
+        CHECK(!memcmp(game,before,sizeof(*game)) && !calls &&
+            !memcmp(vga->framebuffer,last,VGA_W*VGA_H));
+        if(bad)CHECK(!memcmp(vga->dac,dac,sizeof(dac)));
+        else for(size_t i=0;i<sizeof(dac);i++) {
+            unsigned value=palette[i]+62u;if(value>63u)value=63u;
+            CHECK(vga->dac[i]==(uint8_t)((value<<2)|(value>>4)));
+        }
+    }
+    vga->input.quit_requested=1;*before=*game;
+    CHECK(fd2_field_game_play_stage_transition(game,vga,NULL,84,88,10,8,1)==1 &&
+        !memcmp(game,before,sizeof(*game)) && !calls);
+    fd2_field_game_close(game);fd2_archive_close(&other);
+    free(last);free(vga);free(before);free(game);return 0;
+}
+
 static int effect_page_read(const fd2_field_page *page,uint8_t *pixels) {
     return fd2_field_page_read(page,0,0,FD2_FIELD_PAGE_STRIDE,
         FD2_FIELD_PAGE_HEIGHT,pixels,FD2_FIELD_PAGE_SIZE,FD2_FIELD_PAGE_STRIDE);
@@ -1399,6 +1435,7 @@ int main(void) {
     CHECK(test_raw26_shared_phase_projection() == 0);
     CHECK(test_actor_group_flash_solid_color() == 0);
     CHECK(test_resource_effect_wrappers() == 0);
+    CHECK(test_transition_whitening_finish() == 0);
     CHECK(test_app_page_effect_owners() == 0);
     CHECK(test_normal_tick_single_visual_advance() == 0);
     CHECK(test_terrain_only_visual_clock() == 0);

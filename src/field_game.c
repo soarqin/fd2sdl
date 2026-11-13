@@ -7417,11 +7417,8 @@ int fd2_field_game_play_stage_transition(
     } else result=fd2_field_effect_play(&frames,vga,audio,timed);
     fd2_field_effect_frames_close(&frames);
     if (result != 0 || !timed) return result;
-    fd2_delay_ms(500);
-    for (int brightness = 0; brightness < 0x40; brightness += 2) {
-        fd2_vga_set_brightness(vga, brightness);
-        fd2_vga_present_timed(vga, 4);
-    }
-    fd2_vga_wait_frame_deadline(vga);
-    return 0;
+    /* field_stage_transition_effect @0x24618（原登记FUN_0004982c）：
+     * 原尾500ms后32次11df2加色0..62/每级4ms，不能当作渐暗fade。 */
+    result=fd2_scene_stage_transition_finish(vga);
+    return result==FD2_SCENE_RESULT_HOST_QUIT ? 1 : result==FD2_SCENE_RESULT_OK ? 0 : -1;
 }

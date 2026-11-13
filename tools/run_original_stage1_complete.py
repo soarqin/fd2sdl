@@ -158,17 +158,19 @@ def entry_browse(frame, prepared):
 
 
 def stage2_parent(frame, menu, role):
-    """仅stage2存储入口：原版March/END仍正常，SDL明确禁用；四图均核。"""
+    """stage2已正式开放战斗；两端四项均启用，仅默认项0允许亮灭相位。"""
+    if role not in ("original", "sdl"):
+        raise ValueError("B7 stage2菜单端点必须为original或sdl")
     matches = []
     for index, command in enumerate(PARENT_IDS):
         position = tuple(a + b for a, b in zip(menu.focus, MENU_OFFSETS[index]))
-        states = (0, 1) if index == 0 else (2,) if role == "sdl" and index in (1, 3) else (0,)
+        states = (0, 1) if index == 0 else (0,)
         found = menu.choices(frame, [command * 3 + state for state in states], position)
         if found is None: return None
         matches.append(found)
     selected = 0 if matches[0]["frame"] == 22 else None
     return {"kind": "stage2_parent_capability_resources", "matches": matches, "selected": selected,
-        "default_selection_observed": selected == 0, "March_END_unavailable_on_SDL": role == "sdl"}
+        "default_selection_observed": selected == 0, "March_END_unavailable_on_SDL": False}
 
 
 def hotel_menu_state(frame, assets, selected):

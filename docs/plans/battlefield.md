@@ -6,7 +6,7 @@
 
 ## 1. 当前可用范围与剩余缺口
 
-S1[全量来源账](../formats/stage-source-ledger.md)与S2[共享语义](s2-shared-semantics.md)保留原完成域。S3按两批接入stage2—10及11—19的已证战斗／END／来源事件和胜利准备交接，附stage20仅入场／浏览／存取；stage0／1既有战斗继续有效。活动恢复、正式CONTINUE、准备四槽及本轮共享结果／owner修正的适用证据见[S3报告](s3-batch-integration.md)。13隔离槽／14引用和默认255拒绝保留，不按图存在整库开放；下一执行阶段只查总计划。
+S1[全量来源账](../formats/stage-source-ledger.md)与S2[共享语义](s2-shared-semantics.md)保留原完成域。S3按两批接入stage2—10及11—19的已证战斗／END／来源事件和胜利准备交接，附stage20仅入场／浏览／存取；stage0／1既有战斗继续有效。活动恢复、正式CONTINUE、准备四槽及共享结果／owner修正的适用证据见[S3报告](s3-batch-integration.md)，旧调色修复和统一历史门见[S4报告](s4-unified-review.md)。13隔离槽／14引用和默认255拒绝保留，不按图存在整库开放；当前未授权后续阶段，状态只查总计划。
 
 G2玩家MAGIC按正常持有位支持0..30、32..35，涵盖普通area／cast0、传送双选、轴线30、signed派生及32..35复合族；31／36..39没有正常记录／赋值源，不为任意外部SAV造新技能。玩家与AI的FULL／MAP分派、intro marker费用、状态和奖励原写序及必要呈现已接正式调用，FULL9多目标保留原共享计数／HP／贡献／RNG，仅省不存在的beam part绘制；非side0 FULL9缺selector仍单列源域限制。效果选项2和信息板选项3已分别随 G2／G4 接通，保留原byte XOR1。活动容量恢复96，32人持久表独立保留；同索引模板／placement、48／66实际构造alias、cache／raw26及106条有限移动脚本已实现各自有证域，机制证明不自动开放其它来源；正式范围仅以上发布清单为准。
 

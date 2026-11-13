@@ -214,22 +214,6 @@ static void draw_title_menu_item(void *userdata,
                129, context->y_positions[item_index]);
 }
 
-static void fade_in_light(fd2_vga *vga) {
-    for (int b = 0x40; b >= 0; b--) {
-        fd2_vga_set_brightness(vga, b);
-        fd2_vga_present(vga);
-        fd2_delay_ms(2);
-    }
-}
-
-static void fade_out_dark(fd2_vga *vga) {
-    for (int b = 0; b < 0x40; b++) {
-        fd2_vga_set_brightness(vga, b);
-        fd2_vga_present(vga);
-        fd2_delay_ms(2);
-    }
-}
-
 static void restore_scroll_frame(fd2_vga *vga, const uint8_t *offscreen,
                                  int scroll_total_h, int scroll_y) {
     int src_start = scroll_y * VGA_STRIDE;
@@ -260,7 +244,9 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
     fd2_vga_set_brightness(vga, 0);
     int result = fd2_animation_play(vga, &g_ani, anim_idx, delay_ms, 0);
     if (result < 0) return result;
-    fade_out_dark(vga);
+    int faded = fd2_scene_palette_fade(vga, 0, 0);
+    if (faded != FD2_SCENE_RESULT_OK)
+        return faded == FD2_SCENE_RESULT_HOST_QUIT ? -2 : -1;
     return result;
 }
 
@@ -274,6 +260,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
     fd2_title_action result = FD2_TITLE_ACTION_ERROR;
+    int faded;
     /* main @0x25bf4 体内 0x25db1: music_track_play(18, 0) 紧接着调用
      * title_action_dispatch @0x25ebb，后者第一步进入 boot_intro_title_menu。
      * 片头和标题共用循环 track 18，标题入口不切曲。 */
@@ -311,14 +298,18 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     }
 
     /* FUN_0001cc6d(): 渐入 (brightness 0x40->0, 暗->亮, 65步x2ms) */
-    fade_in_light(vga);
+    faded = fd2_scene_palette_fade(vga, 1, 0);
+    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+    if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
 
     /* FUN_000151f1(1) + FUN_000151f1(0x1e): 等 1+30 ticks (~1.7s) */
     fd2_wait_ticks(1);
     fd2_wait_ticks(0x1e);
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40, 亮->暗, 64步x2ms) */
-    fade_out_dark(vga);
+    faded = fd2_scene_palette_fade(vga, 0, 0);
+    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+    if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
 
     /* 切调色板[99] + 清屏 + brightness=0。
      * 原版此处为 FUN_0000f488(0,0xff,0)：DAC 完整亮度，
@@ -339,7 +330,9 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
      * 交互还要等待 typematic 初始 deadline，不能立即确认标题菜单。 */
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40) */
-    fade_out_dark(vga);
+    faded = fd2_scene_palette_fade(vga, 0, 0);
+    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+    if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
 
     /* === 阶段3: 5帧片头滚动入场 === */
     /* 反编译:
@@ -399,7 +392,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             /* 原版在首个滚动帧 iVar6==0x217 后调用 FUN_0001cc6d，
              * 将 DAC 暗度从 0x40 渐到 0，滚动画面由黑渐入。 */
             if (scroll_y == 0x217) {
-                fade_in_light(vga);
+                faded = fd2_scene_palette_fade(vga, 1, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
+                }
             }
 
             /* 调色板/动画切换（对应 FUN_0001cf66 各分支）。
@@ -411,7 +409,14 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
              * 每段动画结束后恢复滚动缓冲、重载 pal[0x65] 并淡入。 */
             if (scroll_y == 0x14a || scroll_y == 0xd2 ||
                 scroll_y == 0x6e || scroll_y == 0x19) {
-                if (scroll_y != 0x19) fade_out_dark(vga);
+                if (scroll_y != 0x19) {
+                    faded = fd2_scene_palette_fade(vga, 0, 0);
+                    if (faded != FD2_SCENE_RESULT_OK) {
+                        free(offscreen);
+                        if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                        goto resource_error;
+                    }
+                }
 
                 if (scroll_y == 0x14a) {
                     animation_result = play_intro_animation_with_palette(
@@ -442,7 +447,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 const uint8_t *rp = res_load_palette(0x65);
                 if (!rp) { free(offscreen); goto resource_error; }
                 fd2_vga_set_palette(vga, rp);
-                fade_in_light(vga);
+                faded = fd2_scene_palette_fade(vga, 1, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
+                }
             }
 
             /* 切入动画（对应 FUN_0001ce87）
@@ -454,9 +464,13 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             if (scroll_y == 0x1c2 || scroll_y == 10) {
                 int img_idx = (scroll_y == 0x1c2) ? 100 : 0x4b;
                 int pal_idx = (scroll_y == 0x1c2) ? 99 : 0x4c;
-                /* 渐出到黑 */
-                fd2_vga_palette_fade_to(vga, 0, 0, 0, 0, 0);
-                fd2_vga_present(vga);
+                /* intro_cutaway @0x1f73f：两个out/in均调用同一原减法fade。 */
+                faded = fd2_scene_palette_fade(vga, 0, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
+                }
                 /* 清屏 + 加载切入调色板和图像 */
                 fd2_vga_clear(vga, 0);
                 const uint8_t *cp = res_load_palette(pal_idx);
@@ -470,20 +484,21 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                     free(offscreen);
                     goto resource_error;
                 }
-                /* 渐入 */
-                for (int s = 0; s <= 0x40; s += 4) {
-                    fd2_vga_palette_fade_to(vga, 0, s, 0, 0, 0);
-                    fd2_vga_present(vga);
-                    fd2_delay_ms(2);
+                faded = fd2_scene_palette_fade(vga, 1, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
                 }
-                fd2_vga_set_palette(vga, cp);
-                fd2_vga_present(vga);
                 /* 等 1+6 tick (FUN_000151f1) */
                 fd2_wait_ticks(1);
                 fd2_wait_ticks(6);
-                /* 渐出到黑 */
-                fd2_vga_palette_fade_to(vga, 0, 0, 0, 0, 0);
-                fd2_vga_present(vga);
+                faded = fd2_scene_palette_fade(vga, 0, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
+                }
                 /* 恢复滚动调色板[0x65]和滚动画面 */
                 const uint8_t *rp = res_load_palette(0x65);
                 if (!rp) { free(offscreen); goto resource_error; }
@@ -494,13 +509,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 if (copy_rows2 > 0)
                     memcpy(vga->framebuffer, offscreen + src_start2,
                            (size_t)copy_rows2 * VGA_STRIDE);
-                /* 渐入回亮 */
-                for (int s = 0; s <= 0x40; s += 4) {
-                    fd2_vga_palette_fade_to(vga, 0, s, 0, 0, 0);
-                    fd2_vga_present(vga);
-                    fd2_delay_ms(2);
+                faded = fd2_scene_palette_fade(vga, 1, 0);
+                if (faded != FD2_SCENE_RESULT_OK) {
+                    free(offscreen);
+                    if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+                    goto resource_error;
                 }
-                fd2_vga_set_palette(vga, rp);
             }
 
             /* title_action_menu @code0 0xfbb7..0xfbd6：所有当前滚动位置
@@ -561,7 +575,7 @@ title_screen:
      *   FUN_0000f488(0,0xff,0);                     // 完整亮度
      *   FUN_0001db69(1,0xf,1);                     // 标题前 ANI.DAT[1]
      *   FUN_0002328d(local_18,3,1);
-     *   FUN_0000f53a(0,0xff,0x40);                  // 标题图先置为黑
+     *   FUN_0000f53a(0,0xff,0x40);                  // 11df2加色，标题图先置为白
      *   FUN_00013fce(0xa0000,0x140,title,0);        // blit标题图
      *   for(i=0;i<0x29;i++) FUN_0002b649(0,0xff,i,0x38,0x3c,0x3f);  // 从基色渐变
      *
@@ -588,13 +602,14 @@ title_screen:
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
         fd2_vga_set_palette(vga, pal);
 
-        /* FUN_0000f53a(0,0xff,0x40)：标题图绘制前先把 DAC 置暗。 */
-        fd2_vga_set_brightness(vga, 0x40);
+        /* boot_intro_title_menu @0x1f894：此处为11df2(0,255,64)全白，
+         * 随后的palette_fade_to从56/60/63插值；不是11d40减色全黑。 */
+        if (fd2_vga_palette_add(vga, 0, 255, 64) != 0) goto resource_error;
 
         /* 加载标题图 [7] -> sub[0] */
         fd2_image img_title;
         if (res_load_nested_image(&img_title, 7, 0) == 0) {
-            blit_image(vga, &img_title, 0, 0);  /* blit (不可见, DAC=黑) */
+            blit_image(vga, &img_title, 0, 0);  /* DAC全白，随后按原基色插值显图。 */
 
             /* FUN_0002b649: 从基色(0x38,0x3c,0x3f)渐变到完整调色板, 0x29步
              * dac = (pal - base) * step / 0x28 + base
@@ -706,6 +721,12 @@ title_screen:
         }
     }
 
+    if (selection != FD2_TITLE_ACTION_HOST_QUIT) {
+        /* boot_intro_title_menu @0x1f894：确认闪烁后先1f882再返回分派。 */
+        faded = fd2_scene_palette_fade(vga, 0, 0);
+        if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
+        if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
+    }
     result = fd2_title_action_from_selection(selection, continue_available);
     goto done;
 
@@ -1102,10 +1123,14 @@ application_title:
                 flow = fd2_app_flow_from_prepare((fd2_app_prepare_result)result);
                 if (flow == FD2_APP_FLOW_BATTLE) flow = FD2_APP_FLOW_PREPARE;
             } else if (flow == FD2_APP_FLOW_START_NEW_GAME) {
-                vga.info_panel_suppressed=1; /* 25f04..25f2e：throughopening/entry/primary。 */
-                app_context.has_preparation = 0; /* 只废弃旧准备owner，不重置53EC8/53AE1/RNG。 */
-                int result = play_app_prologue(
-                    &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff,&app_context);
+                /* title_action_dispatch @0x25ebb：START在标题返回的fade后再1f882。 */
+                int result = fd2_scene_palette_fade(&vga, 0, 0);
+                if (result == FD2_SCENE_RESULT_OK) {
+                    vga.info_panel_suppressed=1; /* 25f04..25f2e：throughopening/entry/primary。 */
+                    app_context.has_preparation = 0; /* 只废弃旧准备owner，不重置53EC8/53AE1/RNG。 */
+                    result = play_app_prologue(
+                        &vga, &g_fdother, bgm, field_audio_ptr, 0, &handoff,&app_context);
+                }
                 flow = result == FD2_SCENE_RESULT_OK ? FD2_APP_FLOW_BATTLE :
                     result == FD2_SCENE_RESULT_HOST_QUIT ? FD2_APP_FLOW_EXIT : FD2_APP_FLOW_ERROR;
                 if (result == FD2_SCENE_RESULT_OK) opening = &handoff;

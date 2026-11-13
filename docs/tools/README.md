@@ -12,6 +12,8 @@ S2 的完整 callback／entry／victory 转换、实际 C probe 和 208 槽去�
 
 S3 的无参数正式 App 代表使用 `run_s3_stage_check.py`，覆盖 END／增援、胜利到准备与下一入口、活动存取及带故事的败北交接；受控输入、两端 owner 和完整 SAV 分账。工具边界见[图形规范 S3](gui-testing.md#s3-正式-app-批量接入的代表入口)，实际候选、命令与通过状态只查[S3 报告](../plans/s3-batch-integration.md#4-正式原生代表与复跑)。默认准备模式不启动窗口，不等于原生通过。
 
+S4 复用上述工具及历史原生入口，不另建逐关套件。调色原码门 `verify_s2_fades.py` 可加 `--scene-probe` 和 `--transition-readset` 核真实旧 dispatcher／转场尾；完整命令、候选、历史继承资格和失败原件见 [S4 报告](../plans/s4-unified-review.md)。工具回归中的冻结 AST 身份使用 Python 3.12.10；正常构建的 Python 最低版本不因证据解释器固定而改变。
+
 ## 构建与回归
 
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。

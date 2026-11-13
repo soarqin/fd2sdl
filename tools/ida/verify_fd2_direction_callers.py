@@ -16,6 +16,7 @@ import sys
 STATIC_DATA = Path(__file__).resolve().parents[1] / "static_data"
 sys.path.insert(0, str(STATIC_DATA))
 from verify_unit_tables import source_range
+from audit_stage_data import resolve
 
 EXE_SHA = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 RESET_SHA = "dc6f3ac1946072a996c259f094f6bad5da08d74223ad1b35fa150204a655578a"
@@ -129,10 +130,16 @@ def verify_source(exe, documents):
 
 
 def flow(document, identity):
-    found = [f for f in document["flows"] if f["id"] == identity]
-    if len(found) != 1:
+    flows = {f['id']: f for f in document['flows']}
+    aliases = document.get('bindings', {})
+    target = aliases.get(identity, identity)
+    if (len(flows) != len(document['flows']) or
+            identity in aliases and (identity in flows or target in aliases)):
+        raise ValueError('冷图alias重复/链/同名shadow ' + identity)
+    found = resolve(identity, flows, aliases)
+    if found is None:
         raise ValueError("缺少唯一冷图 " + identity)
-    return found[0]
+    return found
 
 
 def traces(definition, entry=None):
@@ -172,6 +179,8 @@ def reset_pairs(definition, operation, wait_operation, count, delay):
 
 def compare_flows(documents, original):
     delay = original["function"]["delay_ms"]
+    if documents['stage'].get('bindings',{}).get('stage.entry.002') != 'stage.source.entry.002':
+        raise ValueError('stage2必须复用精确source入口alias，不能重复或替换原流程')
     runtime = flow(documents["runtime"], "turncycle")
     expected = [["turn_reset_directions", []], ["turn_delay_ms", [delay]]]
     for entry, refresh in (("directions_reset", False), ("directions_reset_refresh", True)):
@@ -224,7 +233,7 @@ def verify(root, exe):
     comparison = compare_flows(cold, original)
     return {"schema": "fd2.g5.direction-callers-source.v1", "ok": True, "exe_sha256": EXE_SHA,
             "readsets": READSETS, "original": original, "cold_comparison": comparison,
-            "scope": "20个直接parent/23静态callsite完整原chunk与xref；已支持冷caller的reset/20ms顺序。7个后期私有parent仅保来源，不开放关卡。C adapter接线、完整运行分支、像素/PCM/时钟实测另验。",
+            "scope": "20个直接parent/23静态callsite完整原chunk与xref；选定冷caller的reset/20ms顺序。7个后期私有parent在本工具只保来源，其正式绑定与运行另按S3/S4门核。C adapter接线、完整运行分支、像素/PCM/时钟实测另验。",
             "CPU_execution_claimed": False, "native_execution_claimed": False,
             "new_GUI_started": False, "database_modified": False}
 

@@ -214,14 +214,19 @@ static int test_hp0_actor_completes_before_phase_failure(void) {
 }
 
 static int test_guards_and_host_quit_before_batch(void) {
-    for (int which = 0; which < 5; which++) {
+    /* S3发布合同：20只有入场，21未发布；不是原版动作语义的负例。 */
+    CHECK(fd2_field_stage_battle_is_supported(2));
+    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
+    CHECK(!fd2_field_stage_is_supported(21));
+    for (int which = 0; which < 6; which++) {
         fixture f; init(&f);
         fd2_field_game *g = &f.game;
-        if (which == 0) g->stage = 2; /* B5已开放0/1，2仍无对应stage handler。 */
+        if (which == 0) g->stage = 20;
         if (which == 1) g->active_side = 0;
         if (which == 2) g->player_post_waiting_phase = 1;
         if (which == 3) g->selected_unit = 0;
         if (which == 4) g->failure = FD2_FIELD_FAILURE_ACTION;
+        if (which == 5) g->stage = 21;
         fd2_field_game before = *g;
         CHECK(fd2_field_game_march(g, NULL, 0) == -1);
         CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);

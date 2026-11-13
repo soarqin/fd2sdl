@@ -247,6 +247,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define fd2_scene_play_stage2_entry scene_test_stage2_entry
 #define fd2_scene_stage_victory_validate scene_test_stage_victory_validate
 #define fd2_scene_play_stage_entry scene_test_stage_entry
+#define fd2_scene_play_stage_source_flow scene_test_stage_source_flow
+#define fd2_scene_common_step_validate_resource_view scene_test_common_step_validate_resource_view
 #define fd2_scene_play_stage_victory scene_test_stage_victory
 #define fd2_scene_play_stage1_victory scene_test_stage1_victory
 #define fd2_scene_play_field_story scene_test_field_story
@@ -291,6 +293,8 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #undef fd2_scene_play_stage2_entry
 #undef fd2_scene_stage_victory_validate
 #undef fd2_scene_play_stage_entry
+#undef fd2_scene_play_stage_source_flow
+#undef fd2_scene_common_step_validate_resource_view
 #undef fd2_scene_play_stage_victory
 #undef fd2_scene_play_stage1_victory
 #undef fd2_scene_play_field_story
@@ -1667,8 +1671,26 @@ static int test_arrival_public_scope_and_boundaries(const fd2_archive *fdother) 
     fd2_field_game_close(game);free(game);free(vga);free(game_before);free(pixels);free(clears);return 0;
 }
 
+static int test_source_logic_only_end(void) {
+    fd2_vga vga;reset_controls(&vga);scene_host_quit_requested=0;
+    fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);game->ready=1;
+    game->battle_result=FD2_FIELD_BATTLE_DEFEAT;
+    fd2_scene_field_state state={0};
+    fd2_static_flow_node nodes[2]={{.id="reset",.op="entry_result_reset",.views=FD2_FLOW_LOGIC},
+        {.id="done",.op="end",.views=FD2_FLOW_LOGIC}};
+    for(size_t i=0;i<2;i++)for(unsigned port=0;port<FD2_FLOW_PORT_COUNT;port++)nodes[i].edges[port]=-1;
+    nodes[0].edges[FD2_FLOW_NEXT]=1;
+    fd2_static_flow flow={"stage.source.logic-end-fixture",nodes,2,0};
+    scene_flow_context context={0};context.vga=&vga;context.game=context.mutable_game=game;
+    context.state=&state;context.source_flow=1;context.fast=1;
+    CHECK(scene_flow_run(&context,&flow)==0 && game->battle_result==FD2_FIELD_BATTLE_ONGOING);
+    CHECK(!presents && !archive_opens && !water_calls);
+    free(game);return 0;
+}
+
 int main(int argc, char **argv) {
     CHECK(test_scene_flow_graph()==0);
+    CHECK(test_source_logic_only_end()==0);
     CHECK(test_scene_flow_view_commit()==0);
     CHECK(test_scene_reset_sleep_boundary()==0);
     fd2_archive fdother = {0};

@@ -8,6 +8,8 @@ S0结果／活动恢复的独立原码探针、CONTINUE／活动Load定向WGC入
 
 S1 全量来源账、规范化输入／批量夹具、caller 分类和原来源重读复核见[来源账规范](../formats/stage-source-ledger.md)；当前输出入口为 `stage_source_ledger.py`，历史研究格式不作新的转换合同。不开放玩法，不运行历史 GUI。
 
+S2 的完整 callback／entry／victory 转换、实际 C probe 和 208 槽去向叠加命令见[冷定义工具](static-data.md#s2-批量转换与去向复现)；原 ID、同义 source-only alias、315 条未决及 450 条拒绝的统计合同见[来源账 S2 规范](../formats/stage-source-ledger.md#s2-转换叠加合同)。转换／图存在与正式关卡绑定分别验收，原生结果不由这些命令代签。
+
 ## 构建与回归
 
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。

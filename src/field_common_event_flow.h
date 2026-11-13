@@ -20,46 +20,68 @@ static int common_event_actor(const fd2_field_game *game, size_t caller,
 
 /* 纯白名单：1=已处理query，0=不是query，-1=数据错误。const Game只读，
  * 不混入演出/写点；stage result图与事件执行共用完全相同的比较宽度。 */
-static int common_event_query(const fd2_field_game *game, size_t caller,
+static int common_event_query_values(const fd2_field_units *units,
+        const uint8_t state[FD2_FIELD_EVENT_STATE_SIZE],uint32_t turn,
+        const fd2_field_unit *roster,size_t roster_count,size_t caller,
         const fd2_static_flow_node *node, unsigned *port) {
-    if (!game || !node || !node->op || !port || game->units.count > FD2_FIELD_MAX_UNITS) return -1;
+    if (!units || !state || !node || !node->op || !port || units->count > FD2_FIELD_MAX_UNITS) return -1;
     const char *op = node->op;
     const int32_t *a = node->args;
     size_t actor;
     int result;
-    if (!strcmp(op, "branch_caller")) {
-        if (caller >= game->units.count || a[1] < 0) return -1;
+    if (!strcmp(op, "result_count_at_least")) {
+        result = units->count >= (size_t)a[0];
+    } else if (!strcmp(op, "result_leader_dead")) {
+        size_t at = (size_t)a[0];
+        result = at >= units->count || fd2_field_unit_is_hidden(&units->items[at]) ||
+            (a[1] && !units->items[at].hp);
+    } else if (!strcmp(op, "result_side_present")) {
+        result = 0;
+        for (size_t i = 0; i < units->count; i++) {
+            const fd2_field_unit *unit = &units->items[i];
+            if (unit->side == a[0] && !fd2_field_unit_is_hidden(unit) && (!a[1] || unit->hp)) result = 1;
+        }
+    } else if (!strcmp(op, "result_all_hidden")) {
+        result = 1;
+        for (int32_t i = a[0]; i <= a[1]; i++)
+            if ((size_t)i < units->count && !fd2_field_unit_is_hidden(&units->items[i])) result = 0;
+    } else if (!strcmp(op, "branch_caller")) {
+        if (caller >= units->count || a[1] < 0) return -1;
         result = fd2_field_event_compare_unsigned((uint32_t)caller,
             (fd2_field_event_compare)a[0], (uint32_t)a[1]);
     } else if (!strcmp(op, "branch_event_byte")) {
         if (a[0] < 0 || a[2] < 0 || a[2] > UINT8_MAX) return -1;
-        result = fd2_field_event_state_compare(game->cell_action_completed,
+        result = fd2_field_event_state_compare(state,
             (size_t)a[0], (fd2_field_event_compare)a[1], (uint8_t)a[2]);
     } else if (!strcmp(op, "branch_turn")) {
-        result = fd2_field_event_compare_turn(game->turn_number,
+        result = fd2_field_event_compare_turn(turn,
             (fd2_field_event_compare)a[0], a[1]);
     } else if (!strcmp(op, "branch_actor")) {
-        if (common_event_actor(game, caller, a[0], &actor) != 0 || a[3] < 0) return -1;
-        result = fd2_field_event_actor_compare(&game->units, actor,
+        if (a[0] < -1 || a[3] < 0) return -1;
+        actor=a[0]==-1?caller:(size_t)a[0];
+        if(actor>=units->count)return -1;
+        result = fd2_field_event_actor_compare(units, actor,
             (fd2_field_event_actor_field)a[1], (fd2_field_event_compare)a[2], (uint32_t)a[3]);
     } else if (!strcmp(op, "branch_hidden_count")) {
         size_t count;
         if (a[0] < 0 || a[1] < 0 || a[3] < 0 ||
-            fd2_field_event_hidden_count(&game->units, (size_t)a[0], (size_t)a[1], &count) != 0)
+            fd2_field_event_hidden_count(units, (size_t)a[0], (size_t)a[1], &count) != 0)
             return -1;
         result = fd2_field_event_compare_unsigned((uint32_t)count,
             (fd2_field_event_compare)a[2], (uint32_t)a[3]);
     } else if (!strcmp(op, "branch_roster_text")) {
         if (a[0] < 0 || a[0] > UINT8_MAX) return -1;
-        result = fd2_field_event_roster_has_text(game->roster, game->roster_count, (uint8_t)a[0]);
+        result = fd2_field_event_roster_has_text(roster, roster_count, (uint8_t)a[0]);
     } else if (!strcmp(op, "branch_item")) {
-        if (common_event_actor(game, caller, a[0], &actor) != 0 || a[1] < 0 || a[1] > UINT8_MAX)
+        if (a[0] < -1 || a[1] < 0 || a[1] > UINT8_MAX)
             return -1;
-        result = fd2_field_event_item_find(&game->units, actor, (uint8_t)a[1], NULL);
+        actor=a[0]==-1?caller:(size_t)a[0];
+        if(actor>=units->count)return -1;
+        result = fd2_field_event_item_find(units, actor, (uint8_t)a[1], NULL);
     } else if (!strcmp(op, "branch_item_occurrences")) {
         size_t count;
         if (a[0] < 0 || a[1] < 0 || a[2] < 0 || a[3] > UINT8_MAX || a[5] < 0 ||
-            a[3] < a[2] || fd2_field_event_item_occurrences(&game->units,
+            a[3] < a[2] || fd2_field_event_item_occurrences(units,
                 (size_t)a[0], (size_t)a[1], (uint8_t)a[2], (uint8_t)a[3], &count) != 0) return -1;
         result = fd2_field_event_compare_unsigned((uint32_t)count,
             (fd2_field_event_compare)a[4], (uint32_t)a[5]);
@@ -67,6 +89,12 @@ static int common_event_query(const fd2_field_game *game, size_t caller,
     if (result < 0) return -1;
     *port = result ? FD2_FLOW_YES : FD2_FLOW_NO;
     return 1;
+}
+
+static int common_event_query(const fd2_field_game *game,size_t caller,
+        const fd2_static_flow_node *node,unsigned *port) {
+    return game?common_event_query_values(&game->units,game->cell_action_completed,
+        game->turn_number,game->roster,game->roster_count,caller,node,port):-1;
 }
 
 /* 1=本域处理，0=由既有场景/loot/resource领域处理，-1=错误。
@@ -83,7 +111,13 @@ static int common_event_domain(fd2_field_game *game, size_t caller,
     size_t actor;
     int result;
     *port = FD2_FLOW_NEXT;
-    if (!strcmp(op, "event_byte_write")) {
+    /* 20765/20872/20957/20b72/20bf5：只提交原53ECC锁存；
+     * 查询、写点与story的先后关系留在冷图，validate_only不写。 */
+    if (!strcmp(op, "result_set")) {
+        if (a[0] < FD2_FIELD_BATTLE_ONGOING || a[0] > FD2_FIELD_BATTLE_DEFEAT) return -1;
+        if (!validate_only) game->battle_result = (fd2_field_battle_result)a[0];
+        return 1;
+    } else if (!strcmp(op, "event_byte_write")) {
         if (a[0] < 0 || a[1] < a[0] || a[1] > 31 ||
             a[2] < 0 || a[2] > UINT8_MAX || (a[3] != 0 && a[3] != 1)) return -1;
         if (!validate_only && fd2_field_event_state_write(game->cell_action_completed,

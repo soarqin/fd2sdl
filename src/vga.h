@@ -69,11 +69,24 @@ void fd2_vga_clear(fd2_vga *vga, uint8_t fill);
  * 复现: DAT_00003a65 = res_load(...,idx); FUN_0000f488(0,0xff,flag) */
 void fd2_vga_set_palette(fd2_vga *vga, const uint8_t pal6[768]);
 
-/* 设置调色板暗度 (对应 dac_apply_darkness @0x11d40 的第三参数)
+/* 历史宿主暗度缩放接口；并非11d40逐分量减法的精确投影。
  * brightness=0x40: 全黑, brightness=0: 完整调色板
  * 公式: dac[i] = pal[i] * (0x40 - brightness) / 0x40
  * 用于 FUN_0001cc6d(渐入 0x40->0) 和 FUN_0001cfca(渐出 0->0x3f) */
 void fd2_vga_set_brightness(fd2_vga *vga, int brightness);
+
+/* pal_partial_set @0x11df2：基色加原DWORD正偏移，上限63，只改选中DAC。
+ * 当前已证source域first/last0..255、raw_add0..255、基色6bit；逆区间为空。
+ * 坏域返回-1且不写；不更改palette或framebuffer。 */
+int fd2_vga_palette_add(fd2_vga *vga, int first, int last, int32_t raw_add);
+
+/* dac_apply_darkness @0x11d40：6bit基色减原darkness并夹0，只改所选DAC。
+ * S2已证fade域darkness0..64；坏参数/基色先拒绝，不改palette/framebuffer。 */
+int fd2_vga_palette_subtract(fd2_vga *vga, int first, int last, int32_t darkness);
+
+/* bios_tick_delay @0x17aa9：signed WORD之差，负值加65536。
+ * 与1e5c0的signed倒退提前结束合同不同。 */
+int32_t fd2_vga_bios_tick_elapsed(uint16_t start, uint16_t now);
 
 /* 渐变到目标调色板 (对应 FUN_0002b649 @0x2df01)
  * 从 (r,g,b) 基色渐变到 vga.palette，分 steps 步

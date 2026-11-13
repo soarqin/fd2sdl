@@ -128,6 +128,8 @@ typedef struct {
     const fd2_field_units *units;
     const fd2_field_unit *roster;
     size_t roster_count;
+    int map_entry, shape_index; /* -1保当前map；仅局部预检，原资源owner不交接。 */
+    unsigned has_map_override;
 } fd2_field_event_resource_view;
 typedef int (*fd2_field_event_preflight_fn)(const fd2_field_game *game,
     const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,void *userdata);
@@ -522,6 +524,18 @@ int fd2_field_game_open_resources(fd2_field_game *game,
  * 保留，实际active名额取metadata，未支持stage仍无entry图。 */
 int fd2_field_game_prepare_stage(fd2_field_game *game,
     const fd2_archive *fdother, const fd2_save_manual_state *state);
+/* 205da/1088d的显式源机制入口；必须有匹配的stage.source.entry冷图。
+ * 只准备资源/借现roster，active在冷setup叶才构造；不开放cap或存档。 */
+int fd2_field_game_prepare_stage_source_flow(fd2_field_game *game,
+    const fd2_archive *fdother, const fd2_save_manual_state *state,
+    const char *source_id);
+/* 单次source演出只借空闲原owner；检查现有event/loot/progress/post续态，
+ * 包含无notice的resume，不新增忙标记，不推进或清除任何状态。 */
+int fd2_field_game_stage_source_is_idle(const fd2_field_game *game);
+/* 有限source图的一叶，1已执行/0交呈现/-1首错；复用既有query/writer，
+ * 不存PC、不开放普通关卡入口。Scene以冷边推进，HOST/错误保留已到达前缀。 */
+int fd2_field_game_stage_source_node(fd2_field_game *game,
+    const fd2_static_flow_node *node, unsigned *port);
 /* stage1兼容入口，仍要求输入stage1；不再复制一套编排。 */
 int fd2_field_game_prepare_stage1(fd2_field_game *game,
     const fd2_archive *fdother, const fd2_save_manual_state *state);
@@ -890,6 +904,10 @@ int fd2_field_game_process_automatic_action_visual(
     int clean_background);
 size_t fd2_field_game_remaining_units(const fd2_field_game *game,
                                       uint8_t side);
+/* S2 source候选的只读显式查询；不绑定stage，不执行文本或提交锁存。
+ * 未知ID／缺原raw有效域返回-1，失败不写out。 */
+int fd2_field_game_result_query_flow(const fd2_field_game *game,
+    const char *id, fd2_field_battle_result *out);
 fd2_field_battle_result fd2_field_game_battle_result(
     const fd2_field_game *game);
 int fd2_field_game_compute_move_range(const fd2_field_game *game,

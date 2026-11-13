@@ -60,6 +60,9 @@ int fd2_scene_common_step_validate(const fd2_field_game *game,
 int fd2_scene_common_step_validate_view(const fd2_field_game *game,
     const fd2_archive *fdother,const fd2_static_flow_node *node,
     const fd2_field_units *units,const fd2_field_unit *roster,size_t roster_count);
+int fd2_scene_common_step_validate_resource_view(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node,
+    const fd2_field_event_resource_view *view);
 
 /* field_actor_group_arrival_effect @0x32999（原sub_32999）：资源／App底页
  * 先于原Game追加；12帧顺序、clear和wait由runtime.arrival决定。scope仅视觉。 */
@@ -79,6 +82,10 @@ int fd2_scene_play_stage_entry(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, fd2_field_audio *audio, int fast);
 int fd2_scene_play_stage_victory(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, fd2_field_audio *audio, int fast);
+/* 明确source.entry/victory冷图的逐叶机制入口；不自动绑定关卡。
+ * 错误/宿主退出保留已到达前缀，已有App入口仍用上面的正式支持门。 */
+int fd2_scene_play_stage_source_flow(fd2_vga *vga, const fd2_archive *fdother,
+    fd2_field_game *game, fd2_field_audio *audio, int fast, const char *source_id);
 
 /* field_stage1_entry_play @0x32d18（原sub_32D18）：五个persistent部署槽的stage1开场；只交接动态
  * 坐标/镜头，不再次构造或结算单位。game须先由prepare_stage1预检。 */

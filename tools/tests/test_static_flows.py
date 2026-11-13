@@ -14,6 +14,25 @@ spec.loader.exec_module(generator)
 
 
 class StaticFlowTest(unittest.TestCase):
+    def test_large_source_sequence_preserves_uint16_entry_and_int16_edge_limit(self):
+        data=self.document();data['domain']='common_event';flow=data["flows"][0]
+        flow["nodes"]=[{"id":f"n{i}","op":"end" if i==1545 else "test",
+                        "args":[] if i==1545 else [1],"on":{} if i==1545 else {"next":f"n{i+1}"}}
+                       for i in range(1546)]
+        flow["entry"]="n300";flow["entries"]={"source_prefix":"n0"}
+        generator.validate_flows(data)
+        self.assertIn(b", 1546, 300}",generator.render_flows(data,"0"*64))
+        flow["nodes"]=[flow["nodes"][0]]*32768
+        with self.assertRaisesRegex(ValueError,"capacity"):generator.validate_flows(data)
+
+    def test_byte_cursor_domains_keep_original_capacity(self):
+        for domain in ('progress','unit_base','stage','scene','runtime','loot'):
+            data=self.document();data['domain']=domain;flow=data['flows'][0]
+            flow['entry']='n0';flow['nodes']=[{'id':f'n{i}','op':'end' if i==254 else 'test',
+                'args':[] if i==254 else [1],'on':{} if i==254 else {'next':f'n{i+1}'}} for i in range(255)]
+            with self.subTest(domain=domain), self.assertRaisesRegex(ValueError,'capacity'):
+                generator.validate_flows(data)
+
     def document(self):
         return {"schema_version": 1, "domain": "test", "source": {"evidence": "synthetic"},
                 "operations": {"test": {"args": [{"name": "value", "min": 0, "max": 5}]}, "end": {"args": []}},

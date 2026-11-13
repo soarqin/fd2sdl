@@ -41,7 +41,8 @@ void fd2_vga_set_palette(fd2_vga *vga, const uint8_t pal6[768]) {
 }
 
 void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
-    /* 复现启动流程中 FUN_0000f488(0, 0xff, brightness) 的可见效果。
+    /* 历史宿主暗度缩放，保留已验旧caller行为；S2完整原fade改用
+     * fd2_vga_palette_subtract，不把乘法缩放称11d40的逐分量减法。
      * 注意第三参数是“暗度”而不是亮度：
      *   brightness=0x40 -> DAC 全黑
      *   brightness=0    -> 当前调色板完整亮度
@@ -61,6 +62,39 @@ void fd2_vga_set_brightness(fd2_vga *vga, int brightness) {
         vga->dac[idx+1] = pal_expand6(g);
         vga->dac[idx+2] = pal_expand6(b);
     }
+}
+
+int fd2_vga_palette_add(fd2_vga *vga, int first, int last, int32_t raw_add) {
+    /* pal_partial_set @0x11df2（原登记同名），包括1951f共享返回尾。
+     * source的有符号DWORD加法在0..255偏移／6bit基色内无溢出。 */
+    if (!vga || first < 0 || first > 255 || last < 0 || last > 255 || raw_add < 0 || raw_add > 255) return -1;
+    for (int i = first*3; i < (last+1)*3; i++) if (vga->palette[i] > 63) return -1;
+    for (int i = first*3; i < (last+1)*3; i++) {
+        int32_t value = (int32_t)vga->palette[i] + raw_add;
+        if (value > 63) value = 63;
+        vga->dac[i] = pal_expand6((uint8_t)value);
+    }
+    return 0;
+}
+
+int fd2_vga_palette_subtract(fd2_vga *vga, int first, int last, int32_t darkness) {
+    /* dac_apply_darkness @0x11d40（原登记同名）及1951f只读返回尾。
+     * 原1f882/1f525在完整冷序列中分别传0..63/64..0；不改base palette。 */
+    if (!vga || first < 0 || first > 255 || last < 0 || last > 255 || darkness < 0 || darkness > 64) return -1;
+    for (int i = first * 3; i < (last + 1) * 3; i++) if (vga->palette[i] > 63) return -1;
+    for (int i = first * 3; i < (last + 1) * 3; i++) {
+        int32_t value = (int32_t)vga->palette[i] - darkness;
+        if (value < 0) value = 0;
+        vga->dac[i] = pal_expand6((uint8_t)value);
+    }
+    return 0;
+}
+
+int32_t fd2_vga_bios_tick_elapsed(uint16_t start, uint16_t now) {
+    int32_t first = start < 0x8000u ? (int32_t)start : (int32_t)start - 65536;
+    int32_t current = now < 0x8000u ? (int32_t)now : (int32_t)now - 65536;
+    int32_t delta = current - first;
+    return delta < 0 ? delta + 65536 : delta;
 }
 
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,

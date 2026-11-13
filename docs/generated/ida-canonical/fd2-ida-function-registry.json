@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 372,
+ "canonical_functions": 495,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -435,6 +435,14 @@
      "source_line": 41
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2完整fade/减法DAC尚未与历史宿主近似消费域分列",
+     "now": "dac_apply_darkness：完整11d40..11df2及1951f..19523共享返回尾；每个6bit基色分量减有符号DWORD darkness，负值夹0后写DAC，不改base palette。S2新source消费只接dark0..64；不能用旧宿主base*(64-dark)/64的乘法缩放作本原义oracle，旧已验brightness caller行为未在此重写",
+     "why": "S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。"
+    }
+   ],
    "end_va": 73202,
    "is_lib": false,
    "prototype": "",
@@ -463,6 +471,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 79
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2新增palette/tick消费域未登记完整caller/WORD边界",
+     "now": "palette BYTE零扩展加有符号DWORD偏移，signed大于63才夹63，first..last含两端逐DAC端口写；逆区间为空、未改基色；本轮consumer仅接基色0..63/add0..255，不推广负数DAC或DWORD溢出硬件域；不是乘性brightness",
+     "why": "s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。"
     }
    ],
    "end_va": 73392,
@@ -2740,6 +2756,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 91
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2新增palette/tick消费域未登记完整caller/WORD边界",
+     "now": "signed WORD BIOS tick先减，负差加65536，与signed DWORD goal比较；<=0仍读一轮，53A2C scratch无外部reader；不清键/不推进水色",
+     "why": "s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。"
     }
    ],
    "end_va": 97005,
@@ -5563,6 +5587,12 @@
      "was": "淡入暗度终点与等待次数未完整登记",
      "now": "palette_fade_in_light从darkness64到0逐次应用，共65次；每次原delay_ms(2)，包含darkness0的尾2ms。不是64帧或每次1BIOS tick。保留现规范名，不猜ABI。",
      "why": "G1 scope-callee-closure完整51B SHA1d887e704729a4bf4a69abae92cfb876a364a4d2aee0bbfcce7d8426b7533c39；1f530初值40h，1f551 dec/1f554 jge，循环内push2/call3790a。当前prepare_fade依此修正；source调用/次数不等于宿主硬件绝对2ms已测。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2完整fade/减法DAC尚未与历史宿主近似消费域分列",
+     "now": "palette_fade_in_light：完整51B从dark64递减至0，共65次11d40(0,255,dark)后各delay_ms(2)，包含dark0尾2ms；与fade-out的64次不同。1f82e位于1f81e内部，不能将其误登记成新fade-in入口；旧Scene17级/12ms近似不作为新source冷序列的依据",
+     "why": "S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。"
     }
    ],
    "end_va": 128344,
@@ -5734,6 +5764,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 58
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2完整fade/减法DAC尚未与历史宿主近似消费域分列",
+     "now": "palette_fade_out_dark：主18B与1f503..1f525共享34B为同一完整函数域：先dark0，按0..63共64次11d40(0,255,dark)后各delay_ms(2)，包含dark63后的尾2ms；无清键、BIOS等待、RNG或Game热字段写。共享tail不是独立fade函数",
+     "why": "S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。"
     }
    ],
    "end_va": 129172,
@@ -6015,6 +6053,374 @@
     }
    ],
    "end_va": 132871,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 132871,
+   "off": 67335,
+   "ida_name": "field_battle_result_leaders50_51_check",
+   "size": 54,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20707",
+     "now": "field_battle_result_leaders50_51_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw50/51任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 132925,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 132925,
+   "off": 67389,
+   "ida_name": "field_battle_result_leader14_check",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2073D",
+     "now": "field_battle_result_leader14_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw14 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 132965,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 132965,
+   "off": 67429,
+   "ida_name": "field_battle_result_villagers15_26_turn59_check",
+   "size": 189,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20765",
+     "now": "field_battle_result_villagers15_26_turn59_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be；raw15..26全hidden时先写败北再story10；其后signed turn>5且raw59 hidden再写败北、story2，两段可同次依序发生。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133154,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133154,
+   "off": 67618,
+   "ida_name": "field_battle_result_leader64_check",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20822",
+     "now": "field_battle_result_leader64_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw64 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133194,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133194,
+   "off": 67658,
+   "ida_name": "field_battle_result_leader65_check",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2084A",
+     "now": "field_battle_result_leader65_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw65 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133234,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133234,
+   "off": 67698,
+   "ida_name": "field_battle_result_roster18_actor52_check",
+   "size": 93,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20872",
+     "now": "field_battle_result_roster18_actor52_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be，再33499(18)；roster text18缺席且raw52 hidden时先story2、返回后才写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133327,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133327,
+   "off": 67791,
+   "ida_name": "field_battle_result_latched_actor52_check",
+   "size": 87,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_208CF",
+     "now": "field_battle_result_latched_actor52_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不调用普通主体、不初始化53ECC；先raw0/16/17任hidden写败北，再raw52 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133414,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133414,
+   "off": 67878,
+   "ida_name": "field_battle_result_turn6_actor64_check",
+   "size": 49,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20926",
+     "now": "field_battle_result_turn6_actor64_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；20930明确CALL205be（205b4内普通主体入口），再signed turn>6且raw64 hidden时写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133463,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133463,
+   "off": 67927,
+   "ida_name": "field_battle_result_allies53_60_enemies_check",
+   "size": 250,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20957",
+     "now": "field_battle_result_allies53_60_enemies_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be；raw53..60全hidden先写败北再story10；其后raw0/52任hidden写败北；末raw36..51和61..82均全hidden再写胜利覆盖，包括先前raw0败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133713,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133713,
+   "off": 68177,
+   "ida_name": "field_battle_result_leaders16_17_check",
+   "size": 54,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20A51",
+     "now": "field_battle_result_leaders16_17_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw16/17任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133767,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133767,
+   "off": 68231,
+   "ida_name": "field_battle_result_leader1_check",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20A87",
+     "now": "field_battle_result_leader1_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw1 hidden写败北；stage21/26/27三个原槽保留各自来源，不因同target提权。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133807,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133807,
+   "off": 68271,
+   "ida_name": "field_battle_result_latched_actor18_check",
+   "size": 101,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20AAF",
+     "now": "field_battle_result_latched_actor18_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不调用普通主体、不初始化53ECC；先raw0/1/16/17任hidden写败北，再raw18 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133908,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133908,
+   "off": 68372,
+   "ida_name": "field_battle_result_leader16_check",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20B14",
+     "now": "field_battle_result_leader16_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw16 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 133948,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 133948,
+   "off": 68412,
+   "ida_name": "field_battle_result_leaders1_2_check",
+   "size": 54,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20B3C",
+     "now": "field_battle_result_leaders1_2_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw1/2任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 134002,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 134002,
+   "off": 68466,
+   "ida_name": "field_battle_result_latched_state18_20_check",
+   "size": 131,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20B72",
+     "now": "field_battle_result_latched_state18_20_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不初始化53ECC；state18/19/20三个BYTE全非0先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story9、返回后写败北；无命中保留入口锁存。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 134133,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 134133,
+   "off": 68597,
+   "ida_name": "field_battle_result_latched_actor20_check",
+   "size": 122,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_20BF5",
+     "now": "field_battle_result_latched_actor20_check",
+     "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不初始化53ECC；raw20 hidden先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story7、返回后写败北；无命中保留入口锁存。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。"
+    }
+   ],
+   "end_va": 134255,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -6362,6 +6768,75 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 143602,
+   "off": 78066,
+   "ida_name": "sub_230F2",
+   "size": 420,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x230f2 完整chunks[0x230f2..0x23296]及该表入口可达切片；dispatch:stage_victory:002 target=0x230f2→stage.source.victory.002; dispatch:stage_victory:003 target=0x231bc→stage.source.victory.003; dispatch:stage_victory:004 target=0x231f9→stage.source.victory.004。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 144022,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 144022,
+   "off": 78486,
+   "ida_name": "sub_23296",
+   "size": 82,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23296 完整chunks[0x23296..0x232e8]及该表入口可达切片；dispatch:stage_victory:005 target=0x23296→stage.source.victory.005。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 144104,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 144104,
+   "off": 78568,
+   "ida_name": "sub_232E8",
+   "size": 222,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x232e8 完整chunks[0x232e8..0x233c6]及该表入口可达切片；dispatch:stage_victory:006 target=0x232e8→stage.source.victory.006。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 144326,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 144326,
    "off": 78790,
    "ida_name": "field_cutscene_setup_units_camera",
@@ -6387,6 +6862,259 @@
    "historical_names": [
     "field_cutscene_setup_units_camera"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 144571,
+   "off": 79035,
+   "ida_name": "sub_234BB",
+   "size": 257,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x234bb 完整chunks[0x234bb..0x235bc]及该表入口可达切片；dispatch:stage_victory:007 target=0x234bb→stage.source.victory.007。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 144828,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 144828,
+   "off": 79292,
+   "ida_name": "sub_235BC",
+   "size": 61,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x235bc 完整chunks[0x235bc..0x235f9]及该表入口可达切片；dispatch:stage_victory:008 target=0x235bc→stage.source.victory.008。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 144889,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 144889,
+   "off": 79353,
+   "ida_name": "sub_235F9",
+   "size": 407,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x235f9 完整chunks[0x235f9..0x23790]及该表入口可达切片；dispatch:stage_victory:009 target=0x235f9→stage.source.victory.009。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 145296,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 145296,
+   "off": 79760,
+   "ida_name": "sub_23790",
+   "size": 69,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23790 完整chunks[0x23790..0x237d5]及该表入口可达切片；dispatch:stage_victory:010 target=0x23790→stage.source.victory.010。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 145365,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 145365,
+   "off": 79829,
+   "ida_name": "sub_237D5",
+   "size": 488,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x237d5 完整chunks[0x237d5..0x239bd]及该表入口可达切片；dispatch:stage_victory:011 target=0x237d5→stage.source.victory.011; dispatch:stage_victory:012 target=0x2389f→stage.source.victory.012; dispatch:stage_victory:013 target=0x238dc→stage.source.victory.013。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 145853,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 145853,
+   "off": 80317,
+   "ida_name": "sub_239BD",
+   "size": 77,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x239bd 完整chunks[0x239bd..0x23a0a]及该表入口可达切片；dispatch:stage_victory:014 target=0x239bd→stage.source.victory.014。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 145930,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 145930,
+   "off": 80394,
+   "ida_name": "sub_23A0A",
+   "size": 341,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23a0a 完整chunks[0x23a0a..0x23b5f]及该表入口可达切片；dispatch:stage_victory:015 target=0x23a0a→stage.source.victory.015。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 146271,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 146271,
+   "off": 80735,
+   "ida_name": "sub_23B5F",
+   "size": 374,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23b5f 完整chunks[0x23b5f..0x23cd5]及该表入口可达切片；dispatch:stage_victory:016 target=0x23b5f→stage.source.victory.016。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 146645,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 146645,
+   "off": 81109,
+   "ida_name": "sub_23CD5",
+   "size": 356,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23cd5 完整chunks[0x23cd5..0x23e39]及该表入口可达切片；dispatch:stage_victory:017 target=0x23cd5→stage.source.victory.017。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 147001,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 147001,
+   "off": 81465,
+   "ida_name": "sub_23E39",
+   "size": 59,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23e39 完整chunks[0x23e39..0x23e74]及该表入口可达切片；dispatch:stage_victory:018 target=0x23e39→stage.source.victory.018。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 147060,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 147060,
+   "off": 81524,
+   "ida_name": "sub_23E74",
+   "size": 646,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x23e74 完整chunks[0x23e74..0x240fa]及该表入口可达切片；dispatch:stage_victory:019 target=0x23e74→stage.source.victory.019。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 147706,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -6436,6 +7164,75 @@
    "chkstk_body_rows": [
     154
    ]
+  },
+  {
+   "va": 151026,
+   "off": 85490,
+   "ida_name": "sub_24DF2",
+   "size": 142,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x24df2 完整chunks[0x24df2..0x24e80]及该表入口可达切片；dispatch:stage_victory:024 target=0x24df2→stage.source.victory.024。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 151168,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 151168,
+   "off": 85632,
+   "ida_name": "sub_24E80",
+   "size": 466,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x24e80 完整chunks[0x24e80..0x25052]及该表入口可达切片；dispatch:stage_victory:025 target=0x24e80→stage.source.victory.025。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 151634,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 152676,
+   "off": 87140,
+   "ida_name": "sub_25464",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x25464 完整chunks[0x25464..0x2548c]及该表入口可达切片；dispatch:stage_victory:027 target=0x25464→stage.source.victory.027。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 152716,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
   },
   {
    "va": 153975,
@@ -8603,6 +9400,12 @@
      "was": "1281B区间全属于单一stage1入口",
      "now": "旧32d18..33219误含六个有独立十字节序言和stage表fixup的入口。stage1主块止32e8c，保共享33206文字尾与33140聚焦尾；32e8c为独立stage2入口，其它32fb2/33049/3314b/33169仅修真实边界、保中性名。共同尾按实际jump连接，不造entry/core wrapper或改ABI。",
      "why": "B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x32d18 完整chunks[0x32d18..0x32e8c,0x33140..0x3314b,0x33206..0x33219]及该表入口可达切片；dispatch:stage_entry:001 target=0x32d18→stage.source.entry.001。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
     }
    ],
    "end_va": 208524,
@@ -8626,9 +9429,498 @@
      "was": "sub_32E8C",
      "now": "field_stage2_entry_play",
      "why": "stage入口表51d71[2]的fixup源51d79明确指向32e8c；独立push28/call3702f序言。主块294B，尾部共享3312d..33140与33140..3314b，不猜ABI。205da后PAN3,17/delay200/片段0；mode0/script18/group1/PAN3,6/delay200/script17/片段1；mode0/script19/片段2；mode0/PAN3,17/片段3一次，再全方向reset、focus actor0。FDFIELD[7]头2,6,40、group0空，六部署槽加group1九人得到15active。此初始化不等于stage2 turn3 action9或整关已实现/验收。 依据：B7隔离IDA Domain完整指令/xref、原LE fixup、FDFIELD/FDTXT与脚本14..19只读数据；静态取证不替代后续原版实际流程。未写函数猜测原型。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x32e8c 完整chunks[0x32e8c..0x32fb2,0x3312d..0x33140,0x33140..0x3314b]及该表入口可达切片；dispatch:stage_entry:002 target=0x32e8c→stage.source.entry.002。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
     }
    ],
    "end_va": 208818,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 208818,
+   "off": 143282,
+   "ida_name": "sub_32FB2",
+   "size": 151,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x32fb2 完整chunks[0x32fb2..0x33049,0x3312d..0x33140]及该表入口可达切片；dispatch:stage_entry:003 target=0x32fb2→stage.source.entry.003。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 208969,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 208969,
+   "off": 143433,
+   "ida_name": "sub_33049",
+   "size": 228,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33049 完整chunks[0x33049..0x3312d,0x3312d..0x33140,0x33140..0x3314b]及该表入口可达切片；dispatch:stage_entry:004 target=0x33049→stage.source.entry.004。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209197,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209227,
+   "off": 143691,
+   "ida_name": "sub_3314B",
+   "size": 30,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3314b 完整chunks[0x3314b..0x33169,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:005 target=0x3314b→stage.source.entry.005。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209257,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209257,
+   "off": 143721,
+   "ida_name": "sub_33169",
+   "size": 157,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33169 完整chunks[0x33169..0x33206,0x33140..0x3314b,0x33206..0x33219]及该表入口可达切片；dispatch:stage_entry:006 target=0x33169→stage.source.entry.006。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209414,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209433,
+   "off": 143897,
+   "ida_name": "sub_33219",
+   "size": 100,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33219 完整chunks[0x33219..0x3327d]及该表入口可达切片；dispatch:stage_entry:007 target=0x33219→stage.source.entry.007。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209533,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209533,
+   "off": 143997,
+   "ida_name": "sub_3327D",
+   "size": 174,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3327d 完整chunks[0x3327d..0x3332b]及该表入口可达切片；dispatch:stage_entry:008 target=0x3327d→stage.source.entry.008。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209707,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209707,
+   "off": 144171,
+   "ida_name": "sub_3332B",
+   "size": 60,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3332b 完整chunks[0x3332b..0x33367,0x33206..0x33219,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:009 target=0x3332b→stage.source.entry.009。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209767,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209767,
+   "off": 144231,
+   "ida_name": "sub_33367",
+   "size": 142,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33367 完整chunks[0x33367..0x333f5]及该表入口可达切片；dispatch:stage_entry:010 target=0x33367→stage.source.entry.010。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209909,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 209909,
+   "off": 144373,
+   "ida_name": "sub_333F5",
+   "size": 88,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x333f5 完整chunks[0x333f5..0x3344d]及该表入口可达切片；dispatch:stage_entry:011 target=0x333f5→stage.source.entry.011。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 209997,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210027,
+   "off": 144491,
+   "ida_name": "sub_3346B",
+   "size": 17,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3346b 完整chunks[0x3346b..0x3347c,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:012 target=0x3346b→stage.source.entry.012。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210044,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210044,
+   "off": 144508,
+   "ida_name": "sub_3347C",
+   "size": 29,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3347c 完整chunks[0x3347c..0x33499,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:013 target=0x3347c→stage.source.entry.013。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210073,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210073,
+   "off": 144537,
+   "ida_name": "field_roster_has_text",
+   "size": 64,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_33499",
+     "now": "field_roster_has_text",
+     "why": "S2完整64B、7个真实caller xref及20872实参18；扫描53BF7独立roster的53BFB条80B记录，record+8 BYTE零扩展后与完整栈DWORD比较，参数不截BYTE；不查HP/hidden，不是active身份查找；不保存猜测ABI。"
+    }
+   ],
+   "end_va": 210137,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210137,
+   "off": 144601,
+   "ida_name": "sub_334D9",
+   "size": 199,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x334d9 完整chunks[0x334d9..0x335a0]及该表入口可达切片；dispatch:stage_entry:014 target=0x334d9→stage.source.entry.014。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210336,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210336,
+   "off": 144800,
+   "ida_name": "sub_335A0",
+   "size": 10,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x335a0 完整chunks[0x335a0..0x335aa]及该表入口可达切片；dispatch:stage_entry:015 target=0x335a0→stage.source.entry.015 (source-only alias→stage.source.entry.012)。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210346,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210346,
+   "off": 144810,
+   "ida_name": "sub_335AA",
+   "size": 48,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x335aa 完整chunks[0x335aa..0x335da,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:016 target=0x335aa→stage.source.entry.016。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210394,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210394,
+   "off": 144858,
+   "ida_name": "sub_335DA",
+   "size": 154,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x335da 完整chunks[0x335da..0x33674]及该表入口可达切片；dispatch:stage_entry:017 target=0x335da→stage.source.entry.017。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210548,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210548,
+   "off": 145012,
+   "ida_name": "sub_33674",
+   "size": 10,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33674 完整chunks[0x33674..0x3367e]及该表入口可达切片；dispatch:stage_entry:018 target=0x33674→stage.source.entry.018 (source-only alias→stage.source.entry.012); dispatch:stage_entry:019 target=0x33674→stage.source.entry.019 (source-only alias→stage.source.entry.012); dispatch:stage_entry:020 target=0x33674→stage.source.entry.020 (source-only alias→stage.source.entry.012)。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210558,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 210558,
+   "off": 145022,
+   "ida_name": "sub_3367E",
+   "size": 34,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x3367e 完整chunks[0x3367e..0x336a0]及该表入口可达切片；dispatch:stage_entry:021 target=0x3367e→stage.source.entry.021。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 210592,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 211140,
+   "off": 145604,
+   "ida_name": "sub_338C4",
+   "size": 166,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x338c4 完整chunks[0x338c4..0x3396a]及该表入口可达切片；dispatch:stage_entry:023 target=0x338c4→stage.source.entry.023。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 211306,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 211630,
+   "off": 146094,
+   "ida_name": "sub_33AAE",
+   "size": 67,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33aae 完整chunks[0x33aae..0x33af1]及该表入口可达切片；dispatch:stage_entry:025 target=0x33aae→stage.source.entry.025。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 211697,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 212410,
+   "off": 146874,
+   "ida_name": "sub_33DBA",
+   "size": 130,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+     "now": "实际owner 0x33dba 完整chunks[0x33dba..0x33e3c]及该表入口可达切片；dispatch:stage_entry:028 target=0x33dba→stage.source.entry.028。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+     "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，12未决目标不因附近CALL或已知部分写集开放。"
+    }
+   ],
+   "end_va": 212540,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -8839,6 +10131,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 215064,
+   "off": 149528,
+   "ida_name": "sub_34818",
+   "size": 124,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34818 完整chunks[0x34818..0x34894]；dispatch:event_callback:009 target=0x34818 (function_entry)→common.callback.009。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215188,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 215188,
    "off": 149652,
    "ida_name": "field_actor_is_hidden",
@@ -8869,6 +10184,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 215227,
+   "off": 149691,
+   "ida_name": "sub_348BB",
+   "size": 47,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x348bb 完整chunks[0x348bb..0x348ea]；dispatch:event_callback:011 target=0x348bb (function_entry)→common.callback.011。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215274,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 215274,
    "off": 149738,
    "ida_name": "field_event_state16_ai7_once",
@@ -8892,6 +10230,351 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 215360,
+   "off": 149824,
+   "ida_name": "sub_34940",
+   "size": 68,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34940 完整chunks[0x34940..0x34984]；dispatch:event_callback:014 target=0x34940 (function_entry)→common.callback.014。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215428,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215428,
+   "off": 149892,
+   "ida_name": "sub_34984",
+   "size": 104,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34984 完整chunks[0x34984..0x349ec]；dispatch:event_callback:015 target=0x34984 (function_entry)→common.callback.015。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215532,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215532,
+   "off": 149996,
+   "ida_name": "sub_349EC",
+   "size": 50,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x349ec 完整chunks[0x349ec..0x34a1e]；dispatch:event_callback:016 target=0x349ec (function_entry)→common.callback.016。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215582,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215582,
+   "off": 150046,
+   "ida_name": "sub_34A1E",
+   "size": 78,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34a1e 完整chunks[0x34a1e..0x34a6c]；dispatch:event_callback:017 target=0x34a1e (function_entry)→common.callback.017。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215660,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215660,
+   "off": 150124,
+   "ida_name": "sub_34A6C",
+   "size": 155,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34a6c 完整chunks[0x34a6c..0x34b07]；dispatch:event_callback:019 target=0x34a6c (function_entry)→common.callback.019。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215815,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215815,
+   "off": 150279,
+   "ida_name": "sub_34B07",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34b07 完整chunks[0x34b07..0x34b2f]；dispatch:event_callback:020 target=0x34b07 (function_entry)→common.callback.020。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215855,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215855,
+   "off": 150319,
+   "ida_name": "sub_34B2F",
+   "size": 64,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34b2f 完整chunks[0x34b2f..0x34b6f]；dispatch:event_callback:021 target=0x34b2f (function_entry)→common.callback.021。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 215919,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 215919,
+   "off": 150383,
+   "ida_name": "sub_34B6F",
+   "size": 267,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34b6f 完整chunks[0x34b6f..0x34c7a,0x35f6e..0x35f78]；dispatch:event_callback:022 target=0x34b6f (function_entry)→common.callback.022; dispatch:event_callback:023 target=0x34b9a (explicit_shared_chunk_entry)→common.callback.023; dispatch:event_callback:024 target=0x34c52 (explicit_shared_chunk_entry)→common.callback.024。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216186,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216186,
+   "off": 150650,
+   "ida_name": "sub_34C7A",
+   "size": 119,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34c7a 完整chunks[0x34c7a..0x34cf1]；dispatch:event_callback:025 target=0x34c7a (function_entry)→common.callback.025。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216305,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216305,
+   "off": 150769,
+   "ida_name": "sub_34CF1",
+   "size": 62,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34cf1 完整chunks[0x34cf1..0x34d2f]；dispatch:event_callback:026 target=0x34cf1 (function_entry)→common.callback.026。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216367,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216367,
+   "off": 150831,
+   "ida_name": "sub_34D2F",
+   "size": 53,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34d2f 完整chunks[0x34d2f..0x34d64]；dispatch:event_callback:027 target=0x34d2f (function_entry)→common.callback.027。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216420,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216420,
+   "off": 150884,
+   "ida_name": "sub_34D64",
+   "size": 46,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34d64 完整chunks[0x34d64..0x34d92]；dispatch:event_callback:028 target=0x34d64 (function_entry)→common.callback.028。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216466,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216466,
+   "off": 150930,
+   "ida_name": "sub_34D92",
+   "size": 62,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34d92 完整chunks[0x34d92..0x34dd0]；dispatch:event_callback:029 target=0x34d92 (function_entry)→common.callback.029。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216528,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216528,
+   "off": 150992,
+   "ida_name": "sub_34DD0",
+   "size": 227,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34dd0 完整chunks[0x34dd0..0x34eb3]；dispatch:event_callback:030 target=0x34dd0 (function_entry)→common.callback.030。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216755,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216755,
+   "off": 151219,
+   "ida_name": "sub_34EB3",
+   "size": 133,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34eb3 完整chunks[0x34eb3..0x34f38]；dispatch:event_callback:031 target=0x34eb3 (function_entry)→common.callback.031。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 216888,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 216888,
    "off": 151352,
    "ida_name": "sub_34F38",
@@ -8904,9 +10587,176 @@
      "was": "只有5B前缀，Hex-Rays无法反编译",
      "now": "event_callback[32]的入口34f38是push28h并自然落入34f3d..34f74共享尾；与350be的push28h/jmp34f3d共用stack_check、append_group(1)、text(fragment1)和ret。不能据旧5B主chunk判为no-op；补共享tail引用但保留350be的原owner，不扩大成吞并其它入口的函数。",
      "why": "G1 Domain逐指令/现chunkowner与strict LE/fixup表51c11→34f38双证；完整60B SHA256 cf7734a4bca09f70340a01c1b01bfc9ae3a80002b7f58c8f1aca7329dffc5ab0；原返回清栈与350be同尾证据见common-event-semantics.md及本地34f38-boundary.json。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34f38 完整chunks[0x34f38..0x34f3d,0x34f3d..0x34f74]；dispatch:event_callback:032 target=0x34f38 (function_entry)→common.callback.005。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
     }
    ],
    "end_va": 216893,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 216948,
+   "off": 151412,
+   "ida_name": "sub_34F74",
+   "size": 78,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34f74 完整chunks[0x34f74..0x34fc2]；dispatch:event_callback:033 target=0x34f74 (function_entry)→common.callback.033。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217026,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217026,
+   "off": 151490,
+   "ida_name": "sub_34FC2",
+   "size": 10,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34fc2 完整chunks[0x34fc2..0x34fcc]；dispatch:event_callback:034 target=0x34fc2 (function_entry)→common.callback.024。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217036,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217036,
+   "off": 151500,
+   "ida_name": "sub_34FCC",
+   "size": 61,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x34fcc 完整chunks[0x34fcc..0x35009]；dispatch:event_callback:035 target=0x34fcc (function_entry)→common.callback.035。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217097,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217097,
+   "off": 151561,
+   "ida_name": "sub_35009",
+   "size": 25,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35009 完整chunks[0x35009..0x35022]；dispatch:event_callback:036 target=0x35009 (function_entry)→common.callback.036。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217122,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217122,
+   "off": 151586,
+   "ida_name": "sub_35022",
+   "size": 156,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35022 完整chunks[0x35022..0x350be,0x35f6e..0x35f78]；dispatch:event_callback:037 target=0x35022 (function_entry)→common.callback.037。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217278,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217278,
+   "off": 151742,
+   "ida_name": "sub_350BE",
+   "size": 10,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x350be 完整chunks[0x350be..0x350c8,0x34f3d..0x34f74]；dispatch:event_callback:005 target=0x350be (function_entry)→common.callback.005。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217288,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217288,
+   "off": 151752,
+   "ida_name": "sub_350C8",
+   "size": 91,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x350c8 完整chunks[0x350c8..0x35123]；dispatch:event_callback:007 target=0x350c8 (function_entry)→common.callback.007。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217379,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -8938,6 +10788,98 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 217489,
+   "off": 151953,
+   "ida_name": "sub_35191",
+   "size": 85,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35191 完整chunks[0x35191..0x351e6]；dispatch:event_callback:010 target=0x35191 (function_entry)→common.callback.010。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217574,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217574,
+   "off": 152038,
+   "ida_name": "sub_351E6",
+   "size": 114,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x351e6 完整chunks[0x351e6..0x35258]；dispatch:event_callback:013 target=0x351e6 (function_entry)→common.callback.013。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217688,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217688,
+   "off": 152152,
+   "ida_name": "sub_35258",
+   "size": 64,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35258 完整chunks[0x35258..0x35298]；dispatch:event_callback:018 target=0x35258 (function_entry)→common.callback.018。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217752,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 217752,
+   "off": 152216,
+   "ida_name": "sub_35298",
+   "size": 50,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35298 完整chunks[0x35298..0x352ca]；dispatch:event_callback:038 target=0x35298 (function_entry)→common.callback.038。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217802,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 217802,
    "off": 152266,
    "ida_name": "field_event_item211_story11",
@@ -8961,6 +10903,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 217889,
+   "off": 152353,
+   "ida_name": "sub_35321",
+   "size": 37,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35321 完整chunks[0x35321..0x35346]；dispatch:event_callback:040 target=0x35321 (function_entry)→common.callback.040。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 217926,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 217926,
    "off": 152390,
    "ida_name": "field_event_story3_item213_story11",
@@ -8976,6 +10941,213 @@
     }
    ],
    "end_va": 218037,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218037,
+   "off": 152501,
+   "ida_name": "sub_353B5",
+   "size": 50,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x353b5 完整chunks[0x353b5..0x353e7]；dispatch:event_callback:042 target=0x353b5 (function_entry)→common.callback.042。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218087,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218087,
+   "off": 152551,
+   "ida_name": "sub_353E7",
+   "size": 19,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x353e7 完整chunks[0x353e7..0x353fa]；dispatch:event_callback:043 target=0x353e7 (function_entry)→common.callback.043。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218106,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218106,
+   "off": 152570,
+   "ida_name": "sub_353FA",
+   "size": 21,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x353fa 完整chunks[0x353fa..0x3540f]；dispatch:event_callback:044 target=0x353fa (function_entry)→common.callback.044。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218127,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218127,
+   "off": 152591,
+   "ida_name": "sub_3540F",
+   "size": 19,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x3540f 完整chunks[0x3540f..0x35422]；dispatch:event_callback:045 target=0x3540f (function_entry)→common.callback.045。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218146,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218146,
+   "off": 152610,
+   "ida_name": "sub_35422",
+   "size": 70,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35422 完整chunks[0x35422..0x35468]；dispatch:event_callback:046 target=0x35422 (function_entry)→common.callback.046。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218216,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218216,
+   "off": 152680,
+   "ida_name": "sub_35468",
+   "size": 180,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35468 完整chunks[0x35468..0x3551c]；dispatch:event_callback:047 target=0x35468 (function_entry)→common.callback.047。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218396,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218396,
+   "off": 152860,
+   "ida_name": "sub_3551C",
+   "size": 35,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x3551c 完整chunks[0x3551c..0x3553f]；dispatch:event_callback:048 target=0x3551c (function_entry)→common.callback.048。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218431,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218431,
+   "off": 152895,
+   "ida_name": "sub_3553F",
+   "size": 120,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x3553f 完整chunks[0x3553f..0x355b7,0x35d76..0x35d85]；dispatch:event_callback:049 target=0x3553f (function_entry)→common.callback.049。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218551,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 218551,
+   "off": 153015,
+   "ida_name": "sub_355B7",
+   "size": 57,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x355b7 完整chunks[0x355b7..0x355f0]；dispatch:event_callback:050 target=0x355b7 (function_entry)→common.callback.050。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218608,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -9019,6 +11191,12 @@
      "was": "sub_35638",
      "now": "field_event_turn_group_pair_camera_flash",
      "why": "完整63B/callback表；两次AL(turn-14)*2/+1后MOVZX，分别35b78(2,11)/(26,11)。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35638 完整chunks[0x35638..0x35677]；dispatch:event_callback:052 target=0x35638 (function_entry)→common.callback.052。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
     }
    ],
    "end_va": 218743,
@@ -9053,6 +11231,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 218803,
+   "off": 153267,
+   "ida_name": "sub_356B3",
+   "size": 111,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x356b3 完整chunks[0x356b3..0x35722]；dispatch:event_callback:054 target=0x356b3 (function_entry)→common.callback.054。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 218914,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 218928,
    "off": 153392,
    "ida_name": "field_event_actor17_exchange_item11_once",
@@ -9076,6 +11277,52 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 219101,
+   "off": 153565,
+   "ida_name": "sub_357DD",
+   "size": 86,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x357dd 完整chunks[0x357dd..0x35833]；dispatch:event_callback:056 target=0x357dd (function_entry)→common.callback.056。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 219187,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 219187,
+   "off": 153651,
+   "ida_name": "sub_35833",
+   "size": 33,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35833 完整chunks[0x35833..0x35854]；dispatch:event_callback:057 target=0x35833 (function_entry)→common.callback.057。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 219220,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 219220,
    "off": 153684,
    "ida_name": "field_event_cell_reward_complete_first_five",
@@ -9091,6 +11338,52 @@
     }
    ],
    "end_va": 219543,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 219543,
+   "off": 154007,
+   "ida_name": "sub_35997",
+   "size": 52,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35997 完整chunks[0x35997..0x359cb]；dispatch:event_callback:059 target=0x35997 (function_entry)→common.callback.059。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 219595,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 219595,
+   "off": 154059,
+   "ida_name": "sub_359CB",
+   "size": 66,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x359cb 完整chunks[0x359cb..0x35a0d]；dispatch:event_callback:060 target=0x359cb (function_entry)→common.callback.060。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 219661,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -9147,6 +11440,12 @@
      "was": "field_camera_music_flash",
      "now": "field_camera_group_append_flash",
      "why": "主118B及35722..35730共享14B尾，与33c9d/33dba/35638/35c1d/35c40/35d1e/35d9e/35e5b/35f48/35f88调用；pan→group(BYTEarg8)→300ms→pal255→200ms→pal0→11cac(0)→400ms，无music_track_play；纠正旧名music推断。"
+    },
+    {
+     "target": "evidence",
+     "was": "S2新增palette/tick消费域未登记完整caller/WORD边界",
+     "now": "pan→append group(BYTEarg8)→300ms→palette add255→200ms→add0→11cac(0)→400ms，无music",
+     "why": "s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。"
     }
    ],
    "end_va": 220142,
@@ -9158,6 +11457,167 @@
    "aliases": [
     "field_camera_music_flash"
    ],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220142,
+   "off": 154606,
+   "ida_name": "sub_35BEE",
+   "size": 47,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35bee 完整chunks[0x35bee..0x35c1d]；dispatch:event_callback:062 target=0x35bee (function_entry)→common.callback.062。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220189,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220189,
+   "off": 154653,
+   "ida_name": "sub_35C1D",
+   "size": 35,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35c1d 完整chunks[0x35c1d..0x35c40]；dispatch:event_callback:063 target=0x35c1d (function_entry)→common.callback.063。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220224,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220224,
+   "off": 154688,
+   "ida_name": "sub_35C40",
+   "size": 177,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35c40 完整chunks[0x35c40..0x35cf1]；dispatch:event_callback:064 target=0x35c40 (function_entry)→common.callback.064。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220401,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220401,
+   "off": 154865,
+   "ida_name": "sub_35CF1",
+   "size": 45,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35cf1 完整chunks[0x35cf1..0x35d1e]；dispatch:event_callback:065 target=0x35cf1 (function_entry)→common.callback.065。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220446,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220446,
+   "off": 154910,
+   "ida_name": "sub_35D1E",
+   "size": 88,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35d1e 完整chunks[0x35d1e..0x35d76]；dispatch:event_callback:066 target=0x35d1e (function_entry)→common.callback.066。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220534,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220549,
+   "off": 155013,
+   "ida_name": "sub_35D85",
+   "size": 25,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35d85 完整chunks[0x35d85..0x35d9e]；dispatch:event_callback:067 target=0x35d85 (function_entry)→common.callback.067。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220574,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220574,
+   "off": 155038,
+   "ida_name": "sub_35D9E",
+   "size": 112,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35d9e 完整chunks[0x35d9e..0x35e0e]；dispatch:event_callback:068 target=0x35d9e (function_entry)→common.callback.068。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220686,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
   },
@@ -9177,6 +11637,52 @@
     }
    ],
    "end_va": 220763,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220763,
+   "off": 155227,
+   "ida_name": "sub_35E5B",
+   "size": 102,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35e5b 完整chunks[0x35e5b..0x35ec1]；dispatch:event_callback:070 target=0x35e5b (function_entry)→common.callback.070。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220865,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 220865,
+   "off": 155329,
+   "ida_name": "sub_35EC1",
+   "size": 79,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35ec1 完整chunks[0x35ec1..0x35f10]；dispatch:event_callback:071 target=0x35ec1 (function_entry)→common.callback.071。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 220944,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -9208,6 +11714,190 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 221000,
+   "off": 155464,
+   "ida_name": "sub_35F48",
+   "size": 38,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35f48 完整chunks[0x35f48..0x35f6e]；dispatch:event_callback:072 target=0x35f48 (function_entry)→common.callback.072。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221038,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221049,
+   "off": 155513,
+   "ida_name": "sub_35F79",
+   "size": 15,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35f79 完整chunks[0x35f79..0x35f88]；dispatch:event_callback:073 target=0x35f79 (function_entry)→common.callback.073。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221064,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221064,
+   "off": 155528,
+   "ida_name": "sub_35F88",
+   "size": 71,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35f88 完整chunks[0x35f88..0x35fcf]；dispatch:event_callback:074 target=0x35f88 (function_entry)→common.callback.074。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221135,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221135,
+   "off": 155599,
+   "ida_name": "sub_35FCF",
+   "size": 231,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x35fcf 完整chunks[0x35fcf..0x360b6]；dispatch:event_callback:075 target=0x35fcf (function_entry)→common.callback.075。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221366,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221366,
+   "off": 155830,
+   "ida_name": "sub_360B6",
+   "size": 250,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x360b6 完整chunks[0x360b6..0x361b0]；dispatch:event_callback:076 target=0x360b6 (function_entry)→common.callback.076。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221616,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221616,
+   "off": 156080,
+   "ida_name": "sub_361B0",
+   "size": 100,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2新增palette/tick消费域未登记完整caller/WORD边界",
+     "now": "palette add0..63每次8ms，400ms，再add62..0每次8ms；完整循环顺序不是fade-out brightness",
+     "why": "s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。"
+    }
+   ],
+   "end_va": 221716,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221716,
+   "off": 156180,
+   "ida_name": "sub_36214",
+   "size": 20,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36214 完整chunks[0x36214..0x36228]；dispatch:event_callback:077 target=0x36214 (function_entry)→common.callback.077。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221736,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221736,
+   "off": 156200,
+   "ida_name": "sub_36228",
+   "size": 20,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36228 完整chunks[0x36228..0x3623c]；dispatch:event_callback:078 target=0x36228 (function_entry)→common.callback.078。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221756,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 221756,
    "off": 156220,
    "ida_name": "field_event_turn_slot2_random_pair",
@@ -9223,6 +11913,213 @@
     }
    ],
    "end_va": 221872,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221872,
+   "off": 156336,
+   "ida_name": "sub_362B0",
+   "size": 21,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x362b0 完整chunks[0x362b0..0x362c5]；dispatch:event_callback:080 target=0x362b0 (function_entry)→common.callback.080。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221893,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 221893,
+   "off": 156357,
+   "ida_name": "sub_362C5",
+   "size": 35,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x362c5 完整chunks[0x362c5..0x362e8]；dispatch:event_callback:081 target=0x362c5 (function_entry)→common.callback.081。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 221928,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222174,
+   "off": 156638,
+   "ida_name": "sub_363DE",
+   "size": 56,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x363de 完整chunks[0x363de..0x36416]；dispatch:event_callback:083 target=0x363de (function_entry)→common.callback.083。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222230,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222230,
+   "off": 156694,
+   "ida_name": "sub_36416",
+   "size": 24,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36416 完整chunks[0x36416..0x3642e]；dispatch:event_callback:084 target=0x36416 (function_entry)→common.callback.084。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222254,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222254,
+   "off": 156718,
+   "ida_name": "sub_3642E",
+   "size": 11,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x3642e 完整chunks[0x3642e..0x36439]；dispatch:event_callback:085 target=0x3642e (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222265,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222265,
+   "off": 156729,
+   "ida_name": "sub_36439",
+   "size": 7,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36439 完整chunks[0x36439..0x36440]；dispatch:event_callback:086 target=0x36439 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222272,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222272,
+   "off": 156736,
+   "ida_name": "sub_36440",
+   "size": 7,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36440 完整chunks[0x36440..0x36447]；dispatch:event_callback:087 target=0x36440 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222279,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222279,
+   "off": 156743,
+   "ida_name": "sub_36447",
+   "size": 7,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x36447 完整chunks[0x36447..0x3644e]；dispatch:event_callback:088 target=0x36447 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222286,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 222286,
+   "off": 156750,
+   "ida_name": "sub_3644E",
+   "size": 7,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "S2批量callback完整来源与唯一冷图关联未登记",
+     "now": "实际owner 0x3644e 完整chunks[0x3644e..0x36455]；dispatch:event_callback:089 target=0x3644e (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+     "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。"
+    }
+   ],
+   "end_va": 222293,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],

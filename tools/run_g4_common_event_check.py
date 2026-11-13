@@ -194,26 +194,32 @@ def exercise(capture,p,save,record,args):
     record['child_cancel_preserved_full_inventory']=p['full']
 
 
-def run(args):
+def run(args,*,prepare_case=prepare,exercise_case=exercise,alias_message=ALIAS_MESSAGE,
+        fixture_source=None,scope=None,excluded=None,input_paths=()):
     root=args.root.resolve();original=(root/'original_game').resolve();output=args.artifacts.resolve()
     if output.exists() or output==original or original in output.parents:raise ValueError('产物需原资源外新目录')
-    p=prepare(root,args.scenario,capture_defeat=getattr(args,'capture_defeat',False))
+    p=prepare_case(root,args.scenario,capture_defeat=getattr(args,'capture_defeat',False))
     if getattr(args,'capture_defeat',False):p['defeat']=defeat_oracle.resources(original,p['target_view'],target_raw=11)
     output.mkdir(parents=True)
     (output/'controlled.SAV').write_bytes(p['encoded']);write(output/'fixture.json',p['manifest'])
     if decode_save(output/'controlled.SAV')!=p['source']:raise ValueError('机制夹具SAV往返不同')
     report={'ok':False,'status':'prepared_only','scenario':args.scenario,'fixture':p['manifest'],'cases':[],
-        'scope':'真实输入/原回调与非shipping SDL alias消费者；child211一次提交、满包Cancel、story11、整SAV',
-        'excluded':['生产stage自然绑定','S战斗','全15图原生','共享RNG整轨','完整音画/绝对时序','其它平台'],
+        'scope':scope or '真实输入/原回调与非shipping SDL alias消费者；child211一次提交、满包Cancel、story11、整SAV',
+        'excluded':excluded or ['生产stage自然绑定','S战斗','全15图原生','共享RNG整轨','完整音画/绝对时序','其它平台'],
         'source_contract':p['source_contract'],'display_requirement':{}}
     if 'defeat' in p:
         report['defeat_declaration']={'visual':p['defeat']['contract'],'sound':p['defeat']['sound']}
         write(output/'defeat-declaration.json',report['defeat_declaration'])
     if not args.run:write(output/'comparison.json',report);return report
     owned_job_required()
-    binaries=[args.sdl.resolve(),args.driver.resolve(),args.dosbox.resolve(),root/'src/tests/g4_common_event_game_fixture.c',root/'src/CMakeLists.txt']
+    binaries=[args.sdl.resolve(),args.driver.resolve(),args.dosbox.resolve(),
+        Path(fixture_source) if fixture_source else root/'src/tests/g4_common_event_game_fixture.c',root/'src/CMakeLists.txt']
+    binaries.extend(Path(path).resolve() for path in input_paths)
     if (original.parent/'FD2.SAV').is_file():binaries.append(original.parent/'FD2.SAV')
     inputs,before,sources=freeze(root,original,binaries)
+    # 保留本轮实际比较的摘要；后续新增的隔离config/资源也归同一账，
+    # 不能仅靠 sources_unchanged 的布尔值追认旧二进制身份。
+    report.update(input_sha256=inputs,product_source_paths=sources)
     for name in ('controlled.SAV','fixture.json'):inputs[str(output/name)]=sha(output/name)
     try:
         with windows_display_requirement(report['display_requirement']):
@@ -249,8 +255,8 @@ def run(args):
                     if not unchanged(inputs,original,before,root,sources):raise ValueError('首窗口前来源变化')
                     with running(command,cwd,env,work/'game.log',args.driver.resolve(),record['processes']) as process:
                         capture=Capture(args.driver.resolve(),process,work,record['inputs'])
-                        exercise(capture,p,save,record,args)
-                    if kind=='sdl' and ALIAS_MESSAGE not in (work/'game.log').read_text(encoding='utf-8',errors='replace'):
+                        exercise_case(capture,p,save,record,args)
+                    if kind=='sdl' and alias_message not in (work/'game.log').read_text(encoding='utf-8',errors='replace'):
                         raise ValueError('SDL未报告本机制alias；不可用shipping程序代替')
                     record['ok']=True
                 finally:

@@ -194,10 +194,12 @@ def destination_match(frame,prepared):
 
 
 @contextmanager
-def series(capture, record):
+def series(capture, record, *, interval_ms=33):
+    if type(interval_ms) is not int or not 16<=interval_ms<=67:
+        raise ValueError("连续WGC采样间隔必须为16..67整数毫秒")
     directory = capture.artifacts / "action-series"
     slot = {}; record["series_helper"] = slot
-    helper = OwnedHelper(capture.driver, [capture.driver,"capture-series",capture.process.pid,directory,45000,33],
+    helper = OwnedHelper(capture.driver, [capture.driver,"capture-series",capture.process.pid,directory,45000,interval_ms],
         capture.artifacts, "g2-series", slot)
     ready = None
     try:

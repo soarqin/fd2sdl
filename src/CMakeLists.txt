@@ -236,6 +236,23 @@ if(BUILD_TESTING)
     target_include_directories(fd2_g4_common_event_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_g4_common_event_fixture PRIVATE ${FD2SDL_SDL3_TARGET})
     set_property(TARGET fd2_g4_common_event_fixture PROPERTY LINKER_LANGUAGE CXX)
+    add_executable(fd2_s2_callback_native_fixture EXCLUDE_FROM_ALL
+        main.c field_play.c field_prepare_play.c tests/s2_callback_native_fixture.c
+        $<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.]>)
+    target_include_directories(fd2_s2_callback_native_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s2_callback_native_fixture PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_property(TARGET fd2_s2_callback_native_fixture PROPERTY LINKER_LANGUAGE CXX)
+    add_executable(fd2_s2_result_native_fixture EXCLUDE_FROM_ALL
+        tests/s2_result_native_fixture.c tests/s2_result_native_game_fixture.c
+        $<FILTER:$<FILTER:$<TARGET_OBJECTS:fd2sdl_core>,EXCLUDE,field_game[.]>,EXCLUDE,field_save[.]>)
+    target_include_directories(fd2_s2_result_native_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s2_result_native_fixture PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_property(TARGET fd2_s2_result_native_fixture PROPERTY LINKER_LANGUAGE CXX)
+    add_executable(fd2_s2_layout_native_fixture EXCLUDE_FROM_ALL
+        tests/s2_layout_native_fixture.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s2_layout_native_fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s2_layout_native_fixture PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_property(TARGET fd2_s2_layout_native_fixture PROPERTY LINKER_LANGUAGE CXX)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
         add_test(NAME field_play_input_harness
@@ -677,6 +694,32 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_common_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_common_event_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_common_event COMMAND fd2_field_common_event_test)
+
+    add_executable(fd2_field_result_source_test tests/field_result_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_result_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_result_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_result_source COMMAND fd2_field_result_source_test)
+
+    add_executable(fd2_field_s2_visual_test tests/field_s2_visual_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_s2_visual_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_s2_visual_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_s2_visual COMMAND fd2_field_s2_visual_test)
+
+    add_executable(fd2_field_source_projection_test tests/field_source_projection_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_source_projection_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_source_projection_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME field_source_projection COMMAND fd2_field_source_projection_test)
+    set_tests_properties(field_source_projection PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_s2_transition_source_test tests/s2_transition_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s2_transition_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s2_transition_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s2_transition_source COMMAND fd2_s2_transition_source_test)
+    set_tests_properties(s2_transition_source PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_s2_callback_source_test tests/s2_callback_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s2_callback_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s2_callback_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_executable(fd2_field_legacy_event_test tests/field_legacy_event_test.c $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_field_legacy_event_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_legacy_event_test PRIVATE ${FD2SDL_SDL3_TARGET})

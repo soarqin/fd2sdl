@@ -156,15 +156,23 @@ def original_active(memory, original, descriptor):
                    "active_pointer_DS_offset": pointer, "actor_content_scan_used": False}
 
 
-def snapshot_retry_reason(requests, error):
+def snapshot_requests_match(requests,*,explicit_selectors=False):
+    if len(requests)!=6 or any(row.get('ok') is not True for row in requests):return False
+    ev='EXEC EV '+' '.join(rpc_api.REGISTERS)
+    try:before=rpc_api.parse_registers(requests[0]['response'])
+    except (KeyError,TypeError,ValueError):return False
+    cs=f'{before["CS"]:X}' if explicit_selectors else 'CS'
+    ds=f'{before["DS"]:X}' if explicit_selectors else 'DS'
+    return ([r.get('command') for r in requests[:3]]==[ev,'EXEC SELINFO '+cs,'EXEC SELINFO '+ds] and
+        requests[3].get('command','').startswith(f'EXEC MEMDUMPBIN {before["DS"]:X}:0 {rpc_api.RAM_SIZE:X} ' if explicit_selectors else 'EXEC MEMDUMPBIN ') and
+        requests[4].get('command')==ev and requests[5].get('command')==f'EXEC SELINFO {before["DS"]:X}')
+
+
+def snapshot_retry_reason(requests, error,*,explicit_selectors=False):
     """只识别dump后guest暂离PM；真实descriptor/owner/短读错误仍拒绝。"""
     if not isinstance(error, ValueError) or str(error) != "RPC前后protected descriptor改变；不拼接不同视图" or len(requests) != 6:
         return None
-    ev = "EXEC EV " + " ".join(rpc_api.REGISTERS)
-    if ([row.get("command") for row in requests[:3]] != [ev, "EXEC SELINFO CS", "EXEC SELINFO DS"]
-            or not requests[3].get("command", "").startswith("EXEC MEMDUMPBIN ")
-            or requests[4].get("command") != ev or any(row.get("ok") is not True for row in requests)):
-        return None
+    if not snapshot_requests_match(requests,explicit_selectors=explicit_selectors):return None
     try:
         before = rpc_api.parse_registers(requests[0]["response"])
         after = rpc_api.parse_registers(requests[4]["response"])
@@ -195,7 +203,7 @@ def wrapped_address_retry_reason(memory, error):
             "source_basis": "DOSBox-X2026.10.01 debug.cpp Is16BitSegment/GetAddress/SaveMemoryBin; offsets wrap before seg<<4"}
 
 
-def original_snapshot(rpc, work, label, record, *, owner_decoder=None):
+def original_snapshot(rpc, work, label, record, *, owner_decoder=None,explicit_selectors=False):
     """最多3个完整独立attempt；生产调用须在同attempt内通过owner/状态验证。"""
     attempts = record.setdefault("rpc_snapshot_attempts", [])
     record["rpc_snapshot_attempt_limit"] = 3
@@ -208,7 +216,7 @@ def original_snapshot(rpc, work, label, record, *, owner_decoder=None):
         receipt = None
         memory = None
         try:
-            memory, receipt = rpc.snapshot(directory, label)
+            memory, receipt = rpc.snapshot(directory,label,explicit_selectors=True) if explicit_selectors else rpc.snapshot(directory,label)
             if owner_decoder is not None:
                 attempt["owner_validation_attempted"] = True
                 decoded_owner = owner_decoder(memory, receipt)
@@ -223,11 +231,17 @@ def original_snapshot(rpc, work, label, record, *, owner_decoder=None):
             if dump.is_file():
                 attempt["discarded_dump"] = {"path": str(dump), "size": dump.stat().st_size,
                                               "sha256": digest(dump.read_bytes()), "decoded_or_reused": False}
+            retry_requests=requests
+            if explicit_selectors:
+                window=getattr(rpc,'snapshot_request_start',start)
+                retry_requests=rpc.record['requests'][window:] if type(window) is int and start<=window<=len(rpc.record['requests']) else []
+                attempt['numeric_retry_window']={'request_start':window,'request_count':len(retry_requests),
+                    'exact_six':snapshot_requests_match(retry_requests,explicit_selectors=True)}
             if receipt is not None:
                 attempt["bridge_snapshot"] = receipt
-                reason = wrapped_address_retry_reason(memory, error)
+                reason = wrapped_address_retry_reason(memory,error) if not explicit_selectors or snapshot_requests_match(retry_requests,explicit_selectors=True) else None
             else:
-                reason = snapshot_retry_reason(requests, error)
+                reason = snapshot_retry_reason(retry_requests,error,explicit_selectors=explicit_selectors)
             attempt["retry_classification"] = reason
             attempt["retry_scheduled"] = reason is not None and index < 3
             (directory / "attempt.json").write_text(json.dumps(attempt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

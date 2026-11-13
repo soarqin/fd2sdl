@@ -1291,6 +1291,7 @@ int __cdecl sub_11CAC(int a1)
 // [dac_apply_darkness] 应用当前调色板到 VGA DAC，第三参数为暗度(0x40=黑,0=全亮)
 //   依据: 调用点：FUN_0001cc6d/FUN_0001cfca 亮暗循环；SDL 对照修正
 //   历史地址列 `0x46f54`；旧 Ghidra 名 `FUN_0000f488`；判定 exact
+// [勘误 evidence] dac_apply_darkness：完整11d40..11df2及1951f..19523共享返回尾；每个6bit基色分量减有符号DWORD darkness，负值夹0后写DAC，不改base palette。S2新source消费只接dark0..64；不能用旧宿主base*(64-dark)/64的乘法缩放作本原义oracle，旧已验brightness caller行为未在此重写；依据: S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。
 void __cdecl dac_apply_darkness(int a1, int a2, int a3)
 {
   int v4; // eax
@@ -1328,6 +1329,7 @@ void __cdecl dac_apply_darkness(int a1, int a2, int a3)
 // [pal_partial_set] 部分调色板设置
 //   依据: boot_intro_title内调用
 //   历史地址列 `0x47006`；旧 Ghidra 名 `FUN_0000f53a`；判定 exact
+// [勘误 evidence] palette BYTE零扩展加有符号DWORD偏移，signed大于63才夹63，first..last含两端逐DAC端口写；逆区间为空、未改基色；本轮consumer仅接基色0..63/add0..255，不推广负数DAC或DWORD溢出硬件域；不是乘性brightness；依据: s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。
 void __cdecl pal_partial_set(int a1, int a2, int a3)
 {
   int v4; // eax
@@ -5713,6 +5715,7 @@ void __cdecl field_command_menu_draw(int a1, int a2)
 // [bios_tick_delay] 按 BIOS 计时器等待指定 tick
 //   依据: 当前权威 code0 读取物理地址 `0x046c` 的低 16 位计时器；1 tick 约 54.9 ms；`text_dialog_glyph_step` 每字调用 `bios_tick_delay(1)`
 //   历史地址列 `code0 0x7aa9（dual 0x17aa9）`；旧 Ghidra 名 `旧 Ghidra 错记为 FUN_000151f1 @0x3ccbd`；判定 exact
+// [勘误 evidence] signed WORD BIOS tick先减，负差加65536，与signed DWORD goal比较；<=0仍读一轮，53A2C scratch无外部reader；不清键/不推进水色；依据: s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。
 int __cdecl bios_tick_delay(int a1)
 {
   int v1; // eax
@@ -8149,7 +8152,7 @@ void __cdecl sub_1B41D(int a1, int a2)
   ui_number_draw(a1 + 228 + 159 * a2, a2, v5, 42, 2);
   v6 = (unsigned __int8 *)(2 * dword_53C03 + 597);
   text_dialog_render_tokens(v6, dword_53A7D, (int)v6, a1 + 80 + 61 * a2, a2, 205, 76, 0, 19, 0);
-  if ( dword_53C03 == 16 && sub_33499(18) == 0 )
+  if ( dword_53C03 == 16 && field_roster_has_text(18) == 0 )
     v6 -= 2;
   text_dialog_render_tokens(v6 + 1, dword_53A7D, (int)(v6 + 1), a1 + 80 + 116 * a2, a2, 205, 76, 0, 19, 0);
 }
@@ -11034,6 +11037,7 @@ void __cdecl field_phase_title_slide_frame(int a1, int a2)
 //   依据: 反汇编：0x1cc77 循环调用 FUN_0000f488
 //   历史地址列 `0x44739`；旧 Ghidra 名 `FUN_0001cc6d`；判定 exact
 // [勘误 evidence] palette_fade_in_light从darkness64到0逐次应用，共65次；每次原delay_ms(2)，包含darkness0的尾2ms。不是64帧或每次1BIOS tick。保留现规范名，不猜ABI。；依据: G1 scope-callee-closure完整51B SHA1d887e704729a4bf4a69abae92cfb876a364a4d2aee0bbfcce7d8426b7533c39；1f530初值40h，1f551 dec/1f554 jge，循环内push2/call3790a。当前prepare_fade依此修正；source调用/次数不等于宿主硬件绝对2ms已测。
+// [勘误 evidence] palette_fade_in_light：完整51B从dark64递减至0，共65次11d40(0,255,dark)后各delay_ms(2)，包含dark0尾2ms；与fade-out的64次不同。1f82e位于1f81e内部，不能将其误登记成新fade-in入口；旧Scene17级/12ms近似不作为新source冷序列的依据；依据: S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。
 int palette_fade_in_light()
 {
   int result; // eax
@@ -11225,6 +11229,7 @@ int __cdecl intro_anim_with_palette(int a1, int a2, int a3)
 // [palette_fade_out_dark] DAC 暗度 0->0x3f 渐出
 //   依据: 反汇编：跳入 0x1cc4b 循环调用 FUN_0000f488
 //   历史地址列 `0x44a96`；旧 Ghidra 名 `FUN_0001cfca`；判定 exact
+// [勘误 evidence] palette_fade_out_dark：主18B与1f503..1f525共享34B为同一完整函数域：先dark0，按0..63共64次11d40(0,255,dark)后各delay_ms(2)，包含dark63后的尾2ms；无清键、BIOS等待、RNG或Game热字段写。共享tail不是独立fade函数；依据: S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。
 int palette_fade_out_dark()
 {
   int result; // eax
@@ -11827,12 +11832,13 @@ int field_stage1_battle_result_check()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20707
+ * IDA 9.5 Hex-Rays: field_battle_result_leaders50_51_check
  * VA=0x20707..0x2073d OBJ=1 OFF=0x10707 size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20707()
+// [勘误 semantic_name] field_battle_result_leaders50_51_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw50/51任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leaders50_51_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -11847,12 +11853,13 @@ int sub_20707()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2073D
+ * IDA 9.5 Hex-Rays: field_battle_result_leader14_check
  * VA=0x2073d..0x20765 OBJ=1 OFF=0x1073d size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_2073D()
+// [勘误 semantic_name] field_battle_result_leader14_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw14 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leader14_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -11867,12 +11874,13 @@ int sub_2073D()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20765
+ * IDA 9.5 Hex-Rays: field_battle_result_villagers15_26_turn59_check
  * VA=0x20765..0x20822 OBJ=1 OFF=0x10765 size=0xbd
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_20765(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_battle_result_villagers15_26_turn59_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be；raw15..26全hidden时先写败北再story10；其后signed turn>5且raw59 hidden再写败北、story2，两段可同次依序发生。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+void __usercall field_battle_result_villagers15_26_turn59_check(unsigned __int8 *a1@<edi>)
 {
   __int64 v1; // rax
   int i; // ebx
@@ -11900,12 +11908,13 @@ void __usercall sub_20765(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20822
+ * IDA 9.5 Hex-Rays: field_battle_result_leader64_check
  * VA=0x20822..0x2084a OBJ=1 OFF=0x10822 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20822()
+// [勘误 semantic_name] field_battle_result_leader64_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw64 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leader64_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -11920,12 +11929,13 @@ int sub_20822()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2084A
+ * IDA 9.5 Hex-Rays: field_battle_result_leader65_check
  * VA=0x2084a..0x20872 OBJ=1 OFF=0x1084a size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_2084A()
+// [勘误 semantic_name] field_battle_result_leader65_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw65 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leader65_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -11940,18 +11950,19 @@ int sub_2084A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20872
+ * IDA 9.5 Hex-Rays: field_battle_result_roster18_actor52_check
  * VA=0x20872..0x208cf OBJ=1 OFF=0x10872 size=0x5d
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x33499, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_20872(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_battle_result_roster18_actor52_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be，再33499(18)；roster text18缺席且raw52 hidden时先story2、返回后才写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+void __usercall field_battle_result_roster18_actor52_check(unsigned __int8 *a1@<edi>)
 {
   __int64 v1; // rax
 
   v1 = watcom_stack_check(40);
   ((void (__fastcall *)(_DWORD, _DWORD))loc_205BE)(v1, HIDWORD(v1));
-  if ( sub_33499(18) == 0 && field_actor_is_hidden(52) != 0 )
+  if ( field_roster_has_text(18) == 0 && field_actor_is_hidden(52) != 0 )
   {
     text_dialog_render_tokens(a1, dword_53A79, 2, 655360, 320, 205, 76, 74, 19, 1);
     dword_53ECC = 1;
@@ -11960,12 +11971,13 @@ void __usercall sub_20872(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_208CF
+ * IDA 9.5 Hex-Rays: field_battle_result_latched_actor52_check
  * VA=0x208cf..0x20926 OBJ=1 OFF=0x108cf size=0x57
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_208CF()
+// [勘误 semantic_name] field_battle_result_latched_actor52_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不调用普通主体、不初始化53ECC；先raw0/16/17任hidden写败北，再raw52 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_latched_actor52_check()
 {
   int result; // eax
 
@@ -11980,12 +11992,13 @@ int sub_208CF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20926
+ * IDA 9.5 Hex-Rays: field_battle_result_turn6_actor64_check
  * VA=0x20926..0x20957 OBJ=1 OFF=0x10926 size=0x31
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20926()
+// [勘误 semantic_name] field_battle_result_turn6_actor64_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；20930明确CALL205be（205b4内普通主体入口），再signed turn>6且raw64 hidden时写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_turn6_actor64_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12003,12 +12016,13 @@ int sub_20926()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20957
+ * IDA 9.5 Hex-Rays: field_battle_result_allies53_60_enemies_check
  * VA=0x20957..0x20a51 OBJ=1 OFF=0x10957 size=0xfa
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int __usercall sub_20957@<eax>(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_battle_result_allies53_60_enemies_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be；raw53..60全hidden先写败北再story10；其后raw0/52任hidden写败北；末raw36..51和61..82均全hidden再写胜利覆盖，包括先前raw0败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int __usercall field_battle_result_allies53_60_enemies_check@<eax>(unsigned __int8 *a1@<edi>)
 {
   __int64 v1; // rax
   int i; // ebx
@@ -12052,12 +12066,13 @@ int __usercall sub_20957@<eax>(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20A51
+ * IDA 9.5 Hex-Rays: field_battle_result_leaders16_17_check
  * VA=0x20a51..0x20a87 OBJ=1 OFF=0x10a51 size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20A51()
+// [勘误 semantic_name] field_battle_result_leaders16_17_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw16/17任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leaders16_17_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12072,12 +12087,13 @@ int sub_20A51()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20A87
+ * IDA 9.5 Hex-Rays: field_battle_result_leader1_check
  * VA=0x20a87..0x20aaf OBJ=1 OFF=0x10a87 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20A87()
+// [勘误 semantic_name] field_battle_result_leader1_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw1 hidden写败北；stage21/26/27三个原槽保留各自来源，不因同target提权。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leader1_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12092,12 +12108,13 @@ int sub_20A87()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20AAF
+ * IDA 9.5 Hex-Rays: field_battle_result_latched_actor18_check
  * VA=0x20aaf..0x20b14 OBJ=1 OFF=0x10aaf size=0x65
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20AAF()
+// [勘误 semantic_name] field_battle_result_latched_actor18_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不调用普通主体、不初始化53ECC；先raw0/1/16/17任hidden写败北，再raw18 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_latched_actor18_check()
 {
   int result; // eax
 
@@ -12117,12 +12134,13 @@ int sub_20AAF()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20B14
+ * IDA 9.5 Hex-Rays: field_battle_result_leader16_check
  * VA=0x20b14..0x20b3c OBJ=1 OFF=0x10b14 size=0x28
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20B14()
+// [勘误 semantic_name] field_battle_result_leader16_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw16 hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leader16_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12137,12 +12155,13 @@ int sub_20B14()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20B3C
+ * IDA 9.5 Hex-Rays: field_battle_result_leaders1_2_check
  * VA=0x20b3c..0x20b72 OBJ=1 OFF=0x10b3c size=0x36
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x205be, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-int sub_20B3C()
+// [勘误 semantic_name] field_battle_result_leaders1_2_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；先CALL205be普通主体，再raw1/2任一hidden写败北。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+int field_battle_result_leaders1_2_check()
 {
   __int64 v0; // rax
   int result; // eax
@@ -12157,12 +12176,13 @@ int sub_20B3C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20B72
+ * IDA 9.5 Hex-Rays: field_battle_result_latched_state18_20_check
  * VA=0x20b72..0x20bf5 OBJ=1 OFF=0x10b72 size=0x83
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_20B72(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_battle_result_latched_state18_20_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不初始化53ECC；state18/19/20三个BYTE全非0先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story9、返回后写败北；无命中保留入口锁存。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+void __usercall field_battle_result_latched_state18_20_check(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   if ( *(_BYTE *)(dword_53AD5 + 18) != 0 && *(_BYTE *)(dword_53AD5 + 19) != 0 && *(_BYTE *)(dword_53AD5 + 20) != 0 )
@@ -12178,12 +12198,13 @@ void __usercall sub_20B72(unsigned __int8 *a1@<edi>)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_20BF5
+ * IDA 9.5 Hex-Rays: field_battle_result_latched_actor20_check
  * VA=0x20bf5..0x20c6f OBJ=1 OFF=0x10bf5 size=0x7a
  * callers: 0x117e7, 0x1a866, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
-void __usercall sub_20BF5(unsigned __int8 *a1@<edi>)
+// [勘误 semantic_name] field_battle_result_latched_actor20_check；依据: S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；不初始化53ECC；raw20 hidden先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story7、返回后写败北；无命中保留入口锁存。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。
+void __usercall field_battle_result_latched_actor20_check(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
   if ( field_actor_is_hidden(20) != 0 )
@@ -13784,6 +13805,7 @@ void __usercall field_stage1_victory_play(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x233c6, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x230f2 完整chunks[0x230f2..0x23296]及该表入口可达切片；dispatch:stage_victory:002 target=0x230f2→stage.source.victory.002; dispatch:stage_victory:003 target=0x231bc→stage.source.victory.003; dispatch:stage_victory:004 target=0x231f9→stage.source.victory.004。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同
 void sub_230F2()
 {
   _BYTE v0[7]; // [esp+20h] [ebp-20h] BYREF
@@ -13822,6 +13844,7 @@ void sub_230F2()
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x135dd, 0x1366a, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23296 完整chunks[0x23296..0x232e8]及该表入口可达切片；dispatch:stage_victory:005 target=0x23296→stage.source.victory.005。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_23296()
 {
   watcom_stack_check(40);
@@ -13839,6 +13862,7 @@ void sub_23296()
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x233c6, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x232e8 完整chunks[0x232e8..0x233c6]及该表入口可达切片；dispatch:stage_victory:006 target=0x232e8→stage.source.victory.006。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_232E8()
 {
   _BYTE v0[9]; // [esp+0h] [ebp-2Ch] BYREF
@@ -13936,6 +13960,7 @@ void __cdecl field_cutscene_setup_units_camera(
  * callers: 0x25bf4
  * callees: 0x11d40, 0x1366a, 0x15f84, 0x233c6, 0x3702f, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x234bb 完整chunks[0x234bb..0x235bc]及该表入口可达切片；dispatch:stage_victory:007 target=0x234bb→stage.source.victory.007。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_234BB()
 {
   _WORD v0[5]; // [esp+0h] [ebp-20h] BYREF
@@ -13971,6 +13996,7 @@ void sub_234BB()
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x235bc 完整chunks[0x235bc..0x235f9]及该表入口可达切片；dispatch:stage_victory:008 target=0x235bc→stage.source.victory.008。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_235BC()
 {
   watcom_stack_check(40);
@@ -13988,6 +14014,7 @@ void sub_235BC()
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x11cac, 0x13536, 0x1366a, 0x15f84, 0x1f525, 0x1f882, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x235f9 完整chunks[0x235f9..0x23790]及该表入口可达切片；dispatch:stage_victory:009 target=0x235f9→stage.source.victory.009。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 int sub_235F9()
 {
   int i; // eax
@@ -14056,6 +14083,7 @@ int sub_235F9()
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23790 完整chunks[0x23790..0x237d5]及该表入口可达切片；dispatch:stage_victory:010 target=0x23790→stage.source.victory.010。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void __usercall sub_23790(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -14072,6 +14100,7 @@ void __usercall sub_23790(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x237d5 完整chunks[0x237d5..0x239bd]及该表入口可达切片；dispatch:stage_victory:011 target=0x237d5→stage.source.victory.011; dispatch:stage_victory:012 target=0x2389f→stage.source.victory.012; dispatch:stage_victory:013 target=0x238dc→stage.source.victory.013。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同
 int sub_237D5()
 {
   int result; // eax
@@ -14110,13 +14139,14 @@ int sub_237D5()
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x239bd 完整chunks[0x239bd..0x23a0a]及该表入口可达切片；dispatch:stage_victory:014 target=0x239bd→stage.source.victory.014。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void __usercall sub_239BD(unsigned __int8 *a1@<edi>)
 {
-  char v1; // al
+  char has_text; // al
 
   watcom_stack_check(40);
-  v1 = sub_33499(12);
-  text_dialog_render_tokens(a1, dword_53A79, (unsigned __int8)((v1 ^ 1) + 12), 655360, 320, 205, 76, 74, 19, 1);
+  has_text = field_roster_has_text(12);
+  text_dialog_render_tokens(a1, dword_53A79, (unsigned __int8)((has_text ^ 1) + 12), 655360, 320, 205, 76, 74, 19, 1);
   persistent_roster_sync_from_battle();
   JUMPOUT(0x237C8);
 }
@@ -14128,6 +14158,7 @@ void __usercall sub_239BD(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23a0a 完整chunks[0x23a0a..0x23b5f]及该表入口可达切片；dispatch:stage_victory:015 target=0x23a0a→stage.source.victory.015。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_23A0A()
 {
   int i; // ebx
@@ -14172,6 +14203,7 @@ void sub_23A0A()
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x233c6, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23b5f 完整chunks[0x23b5f..0x23cd5]及该表入口可达切片；dispatch:stage_victory:016 target=0x23b5f→stage.source.victory.016。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 int sub_23B5F()
 {
   int result; // eax
@@ -14182,7 +14214,7 @@ int sub_23B5F()
   *(_OWORD *)v2 = unk_521A3;
   v1 = unk_521B3;
   persistent_roster_sync_from_battle();
-  if ( sub_33499(18) != 0 )
+  if ( field_roster_has_text(18) != 0 )
   {
     text_dialog_render_tokens(v2, dword_53A79, 5, 655360, 320, 205, 76, 74, 19, 1);
     dword_51A83 = 0;
@@ -14215,6 +14247,7 @@ int sub_23B5F()
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23cd5 完整chunks[0x23cd5..0x23e39]及该表入口可达切片；dispatch:stage_victory:017 target=0x23cd5→stage.source.victory.017。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 int sub_23CD5()
 {
   int result; // eax
@@ -14252,6 +14285,7 @@ int sub_23CD5()
  * callers: 0x25bf4
  * callees: 0x11506, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23e39 完整chunks[0x23e39..0x23e74]及该表入口可达切片；dispatch:stage_victory:018 target=0x23e39→stage.source.victory.018。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void __usercall sub_23E39(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -14267,6 +14301,7 @@ void __usercall sub_23E39(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x11cac, 0x13536, 0x1366a, 0x15f84, 0x1f525, 0x1f882, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x23e74 完整chunks[0x23e74..0x240fa]及该表入口可达切片；dispatch:stage_victory:019 target=0x23e74→stage.source.victory.019。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_23E74()
 {
   int i; // eax
@@ -14764,6 +14799,7 @@ char __cdecl sub_24D22(int a1)
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x112a5, 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x24df2 完整chunks[0x24df2..0x24e80]及该表入口可达切片；dispatch:stage_victory:024 target=0x24df2→stage.source.victory.024。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void __usercall sub_24DF2(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -14784,6 +14820,7 @@ void __usercall sub_24DF2(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x11506, 0x1366a, 0x15f84, 0x233c6, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x24e80 完整chunks[0x24e80..0x25052]及该表入口可达切片；dispatch:stage_victory:025 target=0x24e80→stage.source.victory.025。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_24E80()
 {
   int i; // edx
@@ -14973,6 +15010,7 @@ void sub_250CC()
  * callers: 0x25bf4
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x25464 完整chunks[0x25464..0x2548c]及该表入口可达切片；dispatch:stage_victory:027 target=0x25464→stage.source.victory.027。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源__
 void sub_25464()
 {
   watcom_stack_check(40);
@@ -18687,7 +18725,7 @@ int field_deployment_select_execute()
     for ( k = 0; k < dword_53BFB; ++k )
       fdicon_cache_append_unit(*(unsigned __int8 *)(dword_53BF7 + 80 * k + 7), v16);
     fclose(v16);
-    if ( dword_53C03 == 16 && sub_33499(18) != 0 )
+    if ( dword_53C03 == 16 && field_roster_has_text(18) != 0 )
     {
       v9 = field_deployment_required_member_check(v0, 18);
     }
@@ -21814,6 +21852,7 @@ LABEL_22:
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_stage1_entry_play；依据: 完整1281B；main/标题的stage1入口。205da从camera/focus0初始化，PAN13,11，脚本9/10、FDTXT[2]片段0/1、group1/脚本11/片段2，重置方向PAN6,12，强制group2/脚本12/重置方向/片段3后focus actor0。25个已知等待及21几何由原始脚本/placement独立构造；此命名不将逻辑近似camera或SDL ctor当原版oracle。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
 // [勘误 evidence] 旧32d18..33219误含六个有独立十字节序言和stage表fixup的入口。stage1主块止32e8c，保共享33206文字尾与33140聚焦尾；32e8c为独立stage2入口，其它32fb2/33049/3314b/33169仅修真实边界、保中性名。共同尾按实际jump连接，不造entry/core wrapper或改ABI。；依据: B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。
+// [勘误 evidence] 实际owner 0x32d18 完整chunks[0x32d18..0x32e8c,0x33140..0x3314b,0x33206..0x33219]及该表入口可达切片；dispatch:stage_entry:001 target=0x32d18→stage.source.entry.001。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot s
 void __usercall field_stage1_entry_play(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21854,6 +21893,7 @@ void __usercall field_stage1_entry_play(unsigned __int8 *a1@<edi>)
  * callees: 0x10b4e, 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_stage2_entry_play；依据: stage入口表51d71[2]的fixup源51d79明确指向32e8c；独立push28/call3702f序言。主块294B，尾部共享3312d..33140与33140..3314b，不猜ABI。205da后PAN3,17/delay200/片段0；mode0/script18/group1/PAN3,6/delay200/script17/片段1；mode0/script19/片段2；mode0/PAN3,17/片段3一次，再全方向reset、focus actor0。FDFIELD[7]头2,6,40、group0空，六部署槽加group1九人得到15active。此初始化不等于stage2 turn3 action9或整关已实现/验收。 依据：B7隔离IDA Domain完整指令/xref、原LE fixup、FDFIELD/FDTXT与脚本14..19只读数据；静态取证不替代后续原版实际流程。未写函数猜测原型。
+// [勘误 evidence] 实际owner 0x32e8c 完整chunks[0x32e8c..0x32fb2,0x3312d..0x33140,0x33140..0x3314b]及该表入口可达切片；dispatch:stage_entry:002 target=0x32e8c→stage.source.entry.002。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot s
 void __usercall field_stage2_entry_play(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21885,6 +21925,7 @@ void __usercall field_stage2_entry_play(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x32fb2 完整chunks[0x32fb2..0x33049,0x3312d..0x33140]及该表入口可达切片；dispatch:stage_entry:003 target=0x32fb2→stage.source.entry.003。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新c
 void __usercall sub_32FB2(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21908,6 +21949,7 @@ void __usercall sub_32FB2(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x11cac, 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33049 完整chunks[0x33049..0x3312d,0x3312d..0x33140,0x33140..0x3314b]及该表入口可达切片；dispatch:stage_entry:004 target=0x33049→stage.source.entry.004。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot s
 void __usercall sub_33049(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21936,6 +21978,7 @@ void __usercall sub_33049(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3314b 完整chunks[0x3314b..0x33169,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:005 target=0x3314b→stage.source.entry.005。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新c
 void sub_3314B()
 {
   watcom_stack_check(40);
@@ -21951,6 +21994,7 @@ void sub_3314B()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x12d7b, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33169 完整chunks[0x33169..0x33206,0x33140..0x3314b,0x33206..0x33219]及该表入口可达切片；dispatch:stage_entry:006 target=0x33169→stage.source.entry.006。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot s
 void __usercall sub_33169(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21974,6 +22018,7 @@ void __usercall sub_33169(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33219 完整chunks[0x33219..0x3327d]及该表入口可达切片；dispatch:stage_entry:007 target=0x33219→stage.source.entry.007。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_33219(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -21993,6 +22038,7 @@ void __usercall sub_33219(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x12d7b, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3327d 完整chunks[0x3327d..0x3332b]及该表入口可达切片；dispatch:stage_entry:008 target=0x3327d→stage.source.entry.008。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 int __usercall sub_3327D@<eax>(unsigned __int8 *a1@<edi>)
 {
   int i; // edx
@@ -22017,6 +22063,7 @@ int __usercall sub_3327D@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3332b 完整chunks[0x3332b..0x33367,0x33206..0x33219,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:009 target=0x3332b→stage.source.entry.009。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot s
 void __usercall sub_3332B(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22035,6 +22082,7 @@ void __usercall sub_3332B(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33367 完整chunks[0x33367..0x333f5]及该表入口可达切片；dispatch:stage_entry:010 target=0x33367→stage.source.entry.010。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_33367(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22055,6 +22103,7 @@ void __usercall sub_33367(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x333f5 完整chunks[0x333f5..0x3344d]及该表入口可达切片；dispatch:stage_entry:011 target=0x333f5→stage.source.entry.011。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void sub_333F5()
 {
   watcom_stack_check(40);
@@ -22077,6 +22126,7 @@ void sub_333F5()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3346b 完整chunks[0x3346b..0x3347c,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:012 target=0x3346b→stage.source.entry.012。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新c
 void sub_3346B()
 {
   watcom_stack_check(40);
@@ -22091,6 +22141,7 @@ void sub_3346B()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3347c 完整chunks[0x3347c..0x33499,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:013 target=0x3347c→stage.source.entry.013。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新c
 void sub_3347C()
 {
   watcom_stack_check(40);
@@ -22101,12 +22152,13 @@ void sub_3347C()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_33499
+ * IDA 9.5 Hex-Rays: field_roster_has_text
  * VA=0x33499..0x334d9 OBJ=1 OFF=0x23499 size=0x40
  * callers: 0x1b41d, 0x20872, 0x239bd, 0x23b5f, 0x2af28, 0x334d9, 0x335aa
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_33499(int a1)
+// [勘误 semantic_name] field_roster_has_text；依据: S2完整64B、7个真实caller xref及20872实参18；扫描53BF7独立roster的53BFB条80B记录，record+8 BYTE零扩展后与完整栈DWORD比较，参数不截BYTE；不查HP/hidden，不是active身份查找；不保存猜测ABI。
+int __cdecl field_roster_has_text(int a1)
 {
   int i; // edx
 
@@ -22126,13 +22178,14 @@ int __cdecl sub_33499(int a1)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x12d7b, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x334d9 完整chunks[0x334d9..0x335a0]及该表入口可达切片；dispatch:stage_entry:014 target=0x334d9→stage.source.entry.014。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_334D9(unsigned __int8 *a1@<edi>)
 {
   int v1; // ebx
 
   watcom_stack_check(44);
   sub_205DA();
-  v1 = (unsigned __int8)(3 * (sub_33499(12) ^ 1));
+  v1 = (unsigned __int8)(3 * (field_roster_has_text(12) ^ 1));
   text_dialog_render_tokens(a1, dword_53A79, v1, 655360, 320, 205, 76, 74, 19, 1);
   field_camera_pan_to(24, 17);
   text_dialog_render_tokens(a1, dword_53A79, v1 + 1, 655360, 320, 205, 76, 74, 19, 1);
@@ -22149,6 +22202,7 @@ void __usercall sub_334D9(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x335a0 完整chunks[0x335a0..0x335aa]及该表入口可达切片；dispatch:stage_entry:015 target=0x335a0→stage.source.entry.015 (source-only alias→stage.source.entry.012)。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，
 void sub_335A0()
 {
   JUMPOUT(0x33470);
@@ -22161,11 +22215,12 @@ void sub_335A0()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x205da, 0x33499, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x335aa 完整chunks[0x335aa..0x335da,0x3344d..0x3346b]及该表入口可达切片；dispatch:stage_entry:016 target=0x335aa→stage.source.entry.016。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新c
 void sub_335AA()
 {
   watcom_stack_check(40);
   sub_205DA();
-  if ( sub_33499(18) == 0 )
+  if ( field_roster_has_text(18) == 0 )
     field_actor_group_append(1);
   JUMPOUT(0x33206);
 }
@@ -22177,6 +22232,7 @@ void sub_335AA()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x335da 完整chunks[0x335da..0x33674]及该表入口可达切片；dispatch:stage_entry:017 target=0x335da→stage.source.entry.017。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_335DA(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22198,6 +22254,7 @@ void __usercall sub_335DA(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33674 完整chunks[0x33674..0x3367e]及该表入口可达切片；dispatch:stage_entry:018 target=0x33674→stage.source.entry.018 (source-only alias→stage.source.entry.012); dispatch:stage_entry:019 target=0x33674→stage.source.entry.019 (source-only alias→stage.source.entry.012); dispatch:stage_entry:020 target=0x33674→stage.source.entry.020 (source-only alias→stage.source.entry.012)。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门
 void sub_33674()
 {
   JUMPOUT(0x33470);
@@ -22210,6 +22267,7 @@ void sub_33674()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3367e 完整chunks[0x3367e..0x336a0]及该表入口可达切片；dispatch:stage_entry:021 target=0x3367e→stage.source.entry.021。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void sub_3367E()
 {
   watcom_stack_check(40);
@@ -22280,6 +22338,7 @@ void __usercall sub_336A0(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x205da, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x338c4 完整chunks[0x338c4..0x3396a]及该表入口可达切片；dispatch:stage_entry:023 target=0x338c4→stage.source.entry.023。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_338C4(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22336,6 +22395,7 @@ void __usercall sub_3396A(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x205da, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33aae 完整chunks[0x33aae..0x33af1]及该表入口可达切片；dispatch:stage_entry:025 target=0x33aae→stage.source.entry.025。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void sub_33AAE()
 {
   watcom_stack_check(40);
@@ -22422,6 +22482,7 @@ void __usercall sub_33C9D(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x33dba 完整chunks[0x33dba..0x33e3c]及该表入口可达切片；dispatch:stage_entry:028 target=0x33dba→stage.source.entry.028。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。；依据: convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定
 void __usercall sub_33DBA(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22851,6 +22912,7 @@ void __usercall field_stage1_turn3_execute(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x34894, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34818 完整chunks[0x34818..0x34894]；dispatch:event_callback:009 target=0x34818 (function_entry)→common.callback.009。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_34818(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22888,6 +22950,7 @@ int __cdecl field_actor_is_hidden(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x348bb 完整chunks[0x348bb..0x348ea]；dispatch:event_callback:011 target=0x348bb (function_entry)→common.callback.011。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_348BB()
 {
   watcom_stack_check(40);
@@ -22926,6 +22989,7 @@ int __usercall field_event_state16_ai7_once@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34940 完整chunks[0x34940..0x34984]；dispatch:event_callback:014 target=0x34940 (function_entry)→common.callback.014。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34940()
 {
   watcom_stack_check(40);
@@ -22941,6 +23005,7 @@ void sub_34940()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34984 完整chunks[0x34984..0x349ec]；dispatch:event_callback:015 target=0x34984 (function_entry)→common.callback.015。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34984()
 {
   watcom_stack_check(40);
@@ -22963,6 +23028,7 @@ void sub_34984()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x349ec 完整chunks[0x349ec..0x34a1e]；dispatch:event_callback:016 target=0x349ec (function_entry)→common.callback.016。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_349EC()
 {
   watcom_stack_check(40);
@@ -22977,6 +23043,7 @@ void sub_349EC()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x1366a, 0x15f84, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34a1e 完整chunks[0x34a1e..0x34a6c]；dispatch:event_callback:017 target=0x34a1e (function_entry)→common.callback.017。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_34A1E(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22993,6 +23060,7 @@ void __usercall sub_34A1E(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34a6c 完整chunks[0x34a6c..0x34b07]；dispatch:event_callback:019 target=0x34a6c (function_entry)→common.callback.019。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_34A6C(unsigned __int8 *a1@<edi>)
 {
   int i; // ebx
@@ -23018,6 +23086,7 @@ void __usercall sub_34A6C(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34b07 完整chunks[0x34b07..0x34b2f]；dispatch:event_callback:020 target=0x34b07 (function_entry)→common.callback.020。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34B07()
 {
   watcom_stack_check(40);
@@ -23031,6 +23100,7 @@ void sub_34B07()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34b2f 完整chunks[0x34b2f..0x34b6f]；dispatch:event_callback:021 target=0x34b2f (function_entry)→common.callback.021。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_34B2F(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23045,6 +23115,7 @@ void __usercall sub_34B2F(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x32975, 0x344f2, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34b6f 完整chunks[0x34b6f..0x34c7a,0x35f6e..0x35f78]；dispatch:event_callback:022 target=0x34b6f (function_entry)→common.callback.022; dispatch:event_callback:023 target=0x34b9a (explicit_shared_chunk_entry)→common.callback.023; dispatch:event_callback:024 target=0x34c52 (explicit_shared_chunk_entry)→common.callback.024。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/call
 void sub_34B6F()
 {
   watcom_stack_check(40);
@@ -23063,6 +23134,7 @@ void sub_34B6F()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34c7a 完整chunks[0x34c7a..0x34cf1]；dispatch:event_callback:025 target=0x34c7a (function_entry)→common.callback.025。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_34C7A@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
@@ -23090,6 +23162,7 @@ int __usercall sub_34C7A@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34cf1 完整chunks[0x34cf1..0x34d2f]；dispatch:event_callback:026 target=0x34cf1 (function_entry)→common.callback.026。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __cdecl sub_34CF1(int a1)
 {
   int result; // eax
@@ -23112,6 +23185,7 @@ int __cdecl sub_34CF1(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34d2f 完整chunks[0x34d2f..0x34d64]；dispatch:event_callback:027 target=0x34d2f (function_entry)→common.callback.027。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34D2F()
 {
   watcom_stack_check(12);
@@ -23128,6 +23202,7 @@ void sub_34D2F()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba, 0x34d92
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34d64 完整chunks[0x34d64..0x34d92]；dispatch:event_callback:028 target=0x34d64 (function_entry)→common.callback.028。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_34D64()
 {
   __int64 i; // rax
@@ -23147,6 +23222,7 @@ int sub_34D64()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x34d64, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34d92 完整chunks[0x34d92..0x34dd0]；dispatch:event_callback:029 target=0x34d92 (function_entry)→common.callback.029。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_34D92@<eax>(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23161,6 +23237,7 @@ int __usercall sub_34D92@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34dd0 完整chunks[0x34dd0..0x34eb3]；dispatch:event_callback:030 target=0x34dd0 (function_entry)→common.callback.030。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_34DD0@<eax>(unsigned __int8 *a1@<edi>)
 {
   int i; // edx
@@ -23196,6 +23273,7 @@ int __usercall sub_34DD0@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34eb3 完整chunks[0x34eb3..0x34f38]；dispatch:event_callback:031 target=0x34eb3 (function_entry)→common.callback.031。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34EB3()
 {
   watcom_stack_check(12);
@@ -23219,6 +23297,7 @@ void sub_34EB3()
  * callees: 0x10b4e, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 evidence] event_callback[32]的入口34f38是push28h并自然落入34f3d..34f74共享尾；与350be的push28h/jmp34f3d共用stack_check、append_group(1)、text(fragment1)和ret。不能据旧5B主chunk判为no-op；补共享tail引用但保留350be的原owner，不扩大成吞并其它入口的函数。；依据: G1 Domain逐指令/现chunkowner与strict LE/fixup表51c11→34f38双证；完整60B SHA256 cf7734a4bca09f70340a01c1b01bfc9ae3a80002b7f58c8f1aca7329dffc5ab0；原返回清栈与350be同尾证据见common-event-semantics.md及本地34f38-boundary.json。
+// [勘误 evidence] 实际owner 0x34f38 完整chunks[0x34f38..0x34f3d,0x34f3d..0x34f74]；dispatch:event_callback:032 target=0x34f38 (function_entry)→common.callback.005。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_34F38(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23233,6 +23312,7 @@ void __usercall sub_34F38(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34f74 完整chunks[0x34f74..0x34fc2]；dispatch:event_callback:033 target=0x34f74 (function_entry)→common.callback.033。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_34F74@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
@@ -23252,6 +23332,7 @@ int __usercall sub_34F74@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34fc2 完整chunks[0x34fc2..0x34fcc]；dispatch:event_callback:034 target=0x34fc2 (function_entry)→common.callback.024。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_34FC2()
 {
   JUMPOUT(0x34C57);
@@ -23264,6 +23345,7 @@ void sub_34FC2()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x34fcc 完整chunks[0x34fcc..0x35009]；dispatch:event_callback:035 target=0x34fcc (function_entry)→common.callback.035。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_34FCC()
 {
   watcom_stack_check(12);
@@ -23282,6 +23364,7 @@ int sub_34FCC()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35009 完整chunks[0x35009..0x35022]；dispatch:event_callback:036 target=0x35009 (function_entry)→common.callback.036。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_35009()
 {
   int result; // eax
@@ -23299,6 +23382,7 @@ int sub_35009()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35022 完整chunks[0x35022..0x350be,0x35f6e..0x35f78]；dispatch:event_callback:037 target=0x35022 (function_entry)→common.callback.037。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35022@<eax>(unsigned __int8 *a1@<edi>)
 {
   int v1; // edx
@@ -23329,6 +23413,7 @@ int __usercall sub_35022@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x350be 完整chunks[0x350be..0x350c8,0x34f3d..0x34f74]；dispatch:event_callback:005 target=0x350be (function_entry)→common.callback.005。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_350BE(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23343,6 +23428,7 @@ void __usercall sub_350BE(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x134e4, 0x135dd, 0x1366a, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x350c8 完整chunks[0x350c8..0x35123]；dispatch:event_callback:007 target=0x350c8 (function_entry)→common.callback.007。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_350C8()
 {
   watcom_stack_check(40);
@@ -23393,6 +23479,7 @@ int __usercall field_event_item89_grant_once@<eax>(unsigned __int8 *a1@<edi>, in
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35191 完整chunks[0x35191..0x351e6]；dispatch:event_callback:010 target=0x35191 (function_entry)→common.callback.010。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35191@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
@@ -23416,6 +23503,7 @@ int __usercall sub_35191@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x351e6 完整chunks[0x351e6..0x35258]；dispatch:event_callback:013 target=0x351e6 (function_entry)→common.callback.013。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_351E6@<eax>(unsigned __int8 *a1@<edi>)
 {
   int i; // edx
@@ -23435,6 +23523,7 @@ int __usercall sub_351E6@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35258 完整chunks[0x35258..0x35298]；dispatch:event_callback:018 target=0x35258 (function_entry)→common.callback.018。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35258@<eax>(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23449,6 +23538,7 @@ int __usercall sub_35258@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35298 完整chunks[0x35298..0x352ca]；dispatch:event_callback:038 target=0x35298 (function_entry)→common.callback.038。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35298()
 {
   watcom_stack_check(40);
@@ -23483,6 +23573,7 @@ void __cdecl field_event_item211_story11(unsigned __int8 *a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35321 完整chunks[0x35321..0x35346]；dispatch:event_callback:040 target=0x35321 (function_entry)→common.callback.040。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35321()
 {
   watcom_stack_check(40);
@@ -23521,6 +23612,7 @@ void __cdecl field_event_story3_item213_story11(unsigned __int8 *a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x353b5 完整chunks[0x353b5..0x353e7]；dispatch:event_callback:042 target=0x353b5 (function_entry)→common.callback.042。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_353B5()
 {
   watcom_stack_check(40);
@@ -23535,6 +23627,7 @@ void sub_353B5()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x353e7 完整chunks[0x353e7..0x353fa]；dispatch:event_callback:043 target=0x353e7 (function_entry)→common.callback.043。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_353E7()
 {
   watcom_stack_check(16);
@@ -23548,6 +23641,7 @@ void sub_353E7()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x353fa 完整chunks[0x353fa..0x3540f]；dispatch:event_callback:044 target=0x353fa (function_entry)→common.callback.044。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_353FA()
 {
   watcom_stack_check(16);
@@ -23561,6 +23655,7 @@ void sub_353FA()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3540f 完整chunks[0x3540f..0x35422]；dispatch:event_callback:045 target=0x3540f (function_entry)→common.callback.045。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_3540F()
 {
   watcom_stack_check(16);
@@ -23574,6 +23669,7 @@ void sub_3540F()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x112a5, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35422 完整chunks[0x35422..0x35468]；dispatch:event_callback:046 target=0x35422 (function_entry)→common.callback.046。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35422@<eax>(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23589,6 +23685,7 @@ int __usercall sub_35422@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x17aa9, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35468 完整chunks[0x35468..0x3551c]；dispatch:event_callback:047 target=0x35468 (function_entry)→common.callback.047。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_35468(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23613,6 +23710,7 @@ void __usercall sub_35468(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3551c 完整chunks[0x3551c..0x3553f]；dispatch:event_callback:048 target=0x3551c (function_entry)→common.callback.048。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_3551C()
 {
   watcom_stack_check(16);
@@ -23627,6 +23725,7 @@ void sub_3551C()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x17aa9, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3553f 完整chunks[0x3553f..0x355b7,0x35d76..0x35d85]；dispatch:event_callback:049 target=0x3553f (function_entry)→common.callback.049。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_3553F(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23646,6 +23745,7 @@ void __usercall sub_3553F(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x112a5, 0x135dd, 0x17aa9, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x355b7 完整chunks[0x355b7..0x355f0]；dispatch:event_callback:050 target=0x355b7 (function_entry)→common.callback.050。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_355B7()
 {
   watcom_stack_check(40);
@@ -23686,6 +23786,7 @@ void __cdecl field_event_item101_story11(unsigned __int8 *a1)
  * callees: 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_event_turn_group_pair_camera_flash；依据: 完整63B/callback表；两次AL(turn-14)*2/+1后MOVZX，分别35b78(2,11)/(26,11)。
+// [勘误 evidence] 实际owner 0x35638 完整chunks[0x35638..0x35677]；dispatch:event_callback:052 target=0x35638 (function_entry)→common.callback.052。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int field_event_turn_group_pair_camera_flash()
 {
   watcom_stack_check(16);
@@ -23715,6 +23816,7 @@ int __usercall field_event_story5_defeat_tail18@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x356b3 完整chunks[0x356b3..0x35722]；dispatch:event_callback:054 target=0x356b3 (function_entry)→common.callback.054。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_356B3()
 {
   watcom_stack_check(12);
@@ -23769,6 +23871,7 @@ void __cdecl field_event_actor17_exchange_item11_once(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x1366a, 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x357dd 完整chunks[0x357dd..0x35833]；dispatch:event_callback:056 target=0x357dd (function_entry)→common.callback.056。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_357DD@<eax>(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -23786,6 +23889,7 @@ int __usercall sub_357DD@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35833 完整chunks[0x35833..0x35854]；dispatch:event_callback:057 target=0x35833 (function_entry)→common.callback.057。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35833()
 {
   watcom_stack_check(12);
@@ -23846,6 +23950,7 @@ char __cdecl field_event_cell_reward_complete_first_five(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35997 完整chunks[0x35997..0x359cb]；dispatch:event_callback:059 target=0x35997 (function_entry)→common.callback.059。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __cdecl sub_35997(int a1)
 {
   int result; // eax
@@ -23864,6 +23969,7 @@ int __cdecl sub_35997(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x359cb 完整chunks[0x359cb..0x35a0d]；dispatch:event_callback:060 target=0x359cb (function_entry)→common.callback.060。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __cdecl sub_359CB(int a1)
 {
   int result; // eax
@@ -23937,6 +24043,7 @@ void __usercall field_event_key208_recruit31(unsigned __int8 *a1@<edi>, int a2)
 //   依据: 反编译顺序调用 `field_camera_pan_to`、`FUN_0000e296`、延时、`pal_partial_set`
 //   历史地址列 `0x5ad8c`；旧 Ghidra 名 `FUN_000332c0`；判定 exact
 // [勘误 semantic_name] field_camera_group_append_flash；依据: 主118B及35722..35730共享14B尾，与33c9d/33dba/35638/35c1d/35c40/35d1e/35d9e/35e5b/35f48/35f88调用；pan→group(BYTEarg8)→300ms→pal255→200ms→pal0→11cac(0)→400ms，无music_track_play；纠正旧名music推断。
+// [勘误 evidence] pan→append group(BYTEarg8)→300ms→palette add255→200ms→add0→11cac(0)→400ms，无music；依据: s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。
 int __cdecl field_camera_group_append_flash(int a1, int a2, unsigned __int8 a3)
 {
   watcom_stack_check(16);
@@ -23957,6 +24064,7 @@ int __cdecl field_camera_group_append_flash(int a1, int a2, unsigned __int8 a3)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35bee 完整chunks[0x35bee..0x35c1d]；dispatch:event_callback:062 target=0x35bee (function_entry)→common.callback.062。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_35BEE()
 {
   int result; // eax
@@ -23979,6 +24087,7 @@ int sub_35BEE()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35c1d 完整chunks[0x35c1d..0x35c40]；dispatch:event_callback:063 target=0x35c1d (function_entry)→common.callback.063。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35C1D()
 {
   watcom_stack_check(16);
@@ -23993,6 +24102,7 @@ void sub_35C1D()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x35f10, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35c40 完整chunks[0x35c40..0x35cf1]；dispatch:event_callback:064 target=0x35c40 (function_entry)→common.callback.064。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35C40@<eax>(unsigned __int8 *a1@<edi>)
 {
   int v1; // eax
@@ -24025,6 +24135,7 @@ int __usercall sub_35C40@<eax>(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35cf1 完整chunks[0x35cf1..0x35d1e]；dispatch:event_callback:065 target=0x35cf1 (function_entry)→common.callback.065。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_35CF1()
 {
   int result; // eax
@@ -24047,6 +24158,7 @@ int sub_35CF1()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35d1e 完整chunks[0x35d1e..0x35d76]；dispatch:event_callback:066 target=0x35d1e (function_entry)→common.callback.066。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_35D1E(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -24062,6 +24174,7 @@ void __usercall sub_35D1E(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35d85 完整chunks[0x35d85..0x35d9e]；dispatch:event_callback:067 target=0x35d85 (function_entry)→common.callback.067。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_35D85()
 {
   int result; // eax
@@ -24079,6 +24192,7 @@ int sub_35D85()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35d9e 完整chunks[0x35d9e..0x35e0e]；dispatch:event_callback:068 target=0x35d9e (function_entry)→common.callback.068。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35D9E@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
@@ -24126,6 +24240,7 @@ int __cdecl field_event_side_state_turn_slot2_once(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x344f2, 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35e5b 完整chunks[0x35e5b..0x35ec1]；dispatch:event_callback:070 target=0x35e5b (function_entry)→common.callback.070。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_35E5B(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -24143,6 +24258,7 @@ void __usercall sub_35E5B(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x35f10, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35ec1 完整chunks[0x35ec1..0x35f10]；dispatch:event_callback:071 target=0x35ec1 (function_entry)→common.callback.071。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int __usercall sub_35EC1@<eax>(unsigned __int8 *a1@<edi>)
 {
   int result; // eax
@@ -24181,6 +24297,7 @@ int __cdecl field_actor_tail_defeat_apply(int a1)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35f48 完整chunks[0x35f48..0x35f6e]；dispatch:event_callback:072 target=0x35f48 (function_entry)→common.callback.072。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35F48()
 {
   watcom_stack_check(16);
@@ -24209,6 +24326,7 @@ void nullsub_6()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35f79 完整chunks[0x35f79..0x35f88]；dispatch:event_callback:073 target=0x35f79 (function_entry)→common.callback.073。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35F79()
 {
   watcom_stack_check(4);
@@ -24222,6 +24340,7 @@ void sub_35F79()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x35b78, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35f88 完整chunks[0x35f88..0x35fcf]；dispatch:event_callback:074 target=0x35f88 (function_entry)→common.callback.074。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_35F88()
 {
   watcom_stack_check(16);
@@ -24238,6 +24357,7 @@ void sub_35F88()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x35fcf 完整chunks[0x35fcf..0x360b6]；dispatch:event_callback:075 target=0x35fcf (function_entry)→common.callback.075。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 _BYTE *__usercall sub_35FCF@<eax>(unsigned __int8 *a1@<edi>, int a2)
 {
   _BYTE *result; // eax
@@ -24274,6 +24394,7 @@ _BYTE *__usercall sub_35FCF@<eax>(unsigned __int8 *a1@<edi>, int a2)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x13512, 0x15f84, 0x361b0, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x360b6 完整chunks[0x360b6..0x361b0]；dispatch:event_callback:076 target=0x360b6 (function_entry)→common.callback.076。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_360B6(unsigned __int8 *a1@<edi>)
 {
   int v1; // edx
@@ -24318,6 +24439,7 @@ void __usercall sub_360B6(unsigned __int8 *a1@<edi>)
  * callers: 0x2548c, 0x33e3c, 0x360b6
  * callees: 0x11df2, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] palette add0..63每次8ms，400ms，再add62..0每次8ms；完整循环顺序不是fade-out brightness；依据: s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。
 int sub_361B0()
 {
   int i; // ebx
@@ -24346,6 +24468,7 @@ int sub_361B0()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36214 完整chunks[0x36214..0x36228]；dispatch:event_callback:077 target=0x36214 (function_entry)→common.callback.077。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_36214()
 {
   int result; // eax
@@ -24363,6 +24486,7 @@ int sub_36214()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36228 完整chunks[0x36228..0x3623c]；dispatch:event_callback:078 target=0x36228 (function_entry)→common.callback.078。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_36228()
 {
   int result; // eax
@@ -24400,6 +24524,7 @@ int field_event_turn_slot2_random_pair()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x362b0 完整chunks[0x362b0..0x362c5]；dispatch:event_callback:080 target=0x362b0 (function_entry)→common.callback.080。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_362B0()
 {
   watcom_stack_check(16);
@@ -24413,6 +24538,7 @@ void sub_362B0()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x362c5 完整chunks[0x362c5..0x362e8]；dispatch:event_callback:081 target=0x362c5 (function_entry)→common.callback.081。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 int sub_362C5()
 {
   int result; // eax
@@ -24473,6 +24599,7 @@ void __usercall sub_362E8(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x15f84, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x363de 完整chunks[0x363de..0x36416]；dispatch:event_callback:083 target=0x363de (function_entry)→common.callback.083。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void __usercall sub_363DE(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -24487,6 +24614,7 @@ void __usercall sub_363DE(unsigned __int8 *a1@<edi>)
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36416 完整chunks[0x36416..0x3642e]；dispatch:event_callback:084 target=0x36416 (function_entry)→common.callback.084。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_36416()
 {
   watcom_stack_check(16);
@@ -24500,6 +24628,7 @@ void sub_36416()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3642e 完整chunks[0x3642e..0x36439]；dispatch:event_callback:085 target=0x3642e (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 __int64 sub_3642E()
 {
   return watcom_stack_check(4);
@@ -24512,6 +24641,7 @@ __int64 sub_3642E()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36439 完整chunks[0x36439..0x36440]；dispatch:event_callback:086 target=0x36439 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_36439()
 {
   JUMPOUT(0x36433);
@@ -24524,6 +24654,7 @@ void sub_36439()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36440 完整chunks[0x36440..0x36447]；dispatch:event_callback:087 target=0x36440 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_36440()
 {
   JUMPOUT(0x36433);
@@ -24536,6 +24667,7 @@ void sub_36440()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x36447 完整chunks[0x36447..0x3644e]；dispatch:event_callback:088 target=0x36447 (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_36447()
 {
   JUMPOUT(0x36433);
@@ -24548,6 +24680,7 @@ void sub_36447()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 实际owner 0x3644e 完整chunks[0x3644e..0x36455]；dispatch:event_callback:089 target=0x3644e (function_entry)→common.callback.085。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。；依据: convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。
 void sub_3644E()
 {
   JUMPOUT(0x36433);

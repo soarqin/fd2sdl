@@ -1591,7 +1591,8 @@ static void opening_palette_fade_in(fd2_vga *vga, int fast) {
         fd2_vga_set_brightness(vga, 0);
         return;
     }
-    /* palette_fade_in_light @0x1f525：暗度 0x40→0。 */
+    /* 旧flag0路径的17级比例亮度近似，仅保留历史端点域；不是完整1f525。
+     * S2源流程用stage.source.fade.in的65级减法/每级2ms，旧路由迁移归S4。 */
     for (int darkness = 0x40; darkness >= 0; darkness -= 4) {
         fd2_vga_set_brightness(vga, darkness);
         fd2_vga_present_timed(vga, 12);
@@ -1840,7 +1841,37 @@ typedef struct {
     size_t opening_part;
     unsigned flow_steps, flow_depth;
     int fast;
+    int source_flow; /* 显式源入口临时视图；不进入Game/SAV。 */
 } scene_flow_context;
+
+static int scene_source_commit(scene_flow_context *c) {
+    if (!c || !c->source_flow || !c->mutable_game || !c->state ||
+            c->state->units.count > FD2_FIELD_MAX_UNITS) return -1;
+    fd2_field_game *game = c->mutable_game;
+    game->units = c->state->units;
+    game->camera_cell_x = c->state->camera_cell_x;
+    game->camera_cell_y = c->state->camera_cell_y;
+    game->camera_pixel_offset_x = c->state->camera_offset_x;
+    game->camera_pixel_offset_y = c->state->camera_offset_y;
+    game->cursor_cell_x = c->state->focus_cell_x;
+    game->cursor_cell_y = c->state->focus_cell_y;
+    game->ordinary_display_mode = c->state->cursor ? 1u : 0u;
+    return 0;
+}
+
+static void scene_source_load(scene_flow_context *c) {
+    const fd2_field_game *game = c->game;
+    c->state->units = game->units;
+    c->state->camera_cell_x = game->camera_cell_x;
+    c->state->camera_cell_y = game->camera_cell_y;
+    c->state->camera_offset_x = game->camera_pixel_offset_x;
+    c->state->camera_offset_y = game->camera_pixel_offset_y;
+    c->state->focus_cell_x = game->cursor_cell_x;
+    c->state->focus_cell_y = game->cursor_cell_y;
+    c->state->persistent = game->roster;
+    c->state->persistent_count = game->roster_count;
+    c->state->cursor = game->ordinary_display_mode ? c->state->ordinary_cursor : NULL;
+}
 
 static int opening_stage_open(fd2_opening_stage *scene,
     const fd2_archive *field, const fd2_archive *fdshap,
@@ -1853,6 +1884,10 @@ static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast);
 static int scene_result_fade(fd2_vga *vga, int fade_in, int fast);
 static int scene_game_over_frame(fd2_vga *vga, scene_game_over_data *data,
     size_t index, int fast);
+static int field_story_validate_units(const fd2_field_game *game,
+        const fd2_field_units *units, size_t fragment);
+static int field_story_validate_units_domain(const fd2_field_game *game,
+        const fd2_field_units *units, size_t fragment, int source_only);
 
 static const fd2_static_flow *scene_flow_find(const char *id) {
     const fd2_static_flow *flow = fd2_static_flow_lookup("scene", id);
@@ -1879,7 +1914,40 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
     while (c->flow_steps++ < FD2_FLOW_STEP_BUDGET) {
         const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
         if (!n) return -1;
+        fd2_static_flow_node source_literal;
         if (scene_host_quit_requested || poll_scene_quit(c->vga)) return -1;
+        if (c->source_flow) {
+            if (scene_source_commit(c) != 0) return -1;
+            if (!strcmp(n->op, "text_state_offset")) {
+                if (n->args[0] < 0 || n->args[0] > 31 || n->args[1] < 0 || n->args[1] > UINT8_MAX) return -1;
+                /* 24f35/24fb6：直接零扩展当前event BYTE后加常量，无消息锁存副写。 */
+                source_literal = *n; source_literal.op = "text";
+                source_literal.args[0] = c->game->cell_action_completed[n->args[0]] + n->args[1];
+                n = &source_literal;
+            }
+            if (c->game->event_preflight && (!strcmp(n->op, "text") || !strcmp(n->op, "pan") ||
+                    !strcmp(n->op, "move") || !strcmp(n->op, "refresh") || !strcmp(n->op, "delay"))) {
+                fd2_static_flow_node literal = *n;
+                if (!strcmp(n->op, "text")) literal.op = "story";
+                else if (!strcmp(n->op, "refresh")) literal.op = "refresh_map";
+                else if (!strcmp(n->op, "delay")) literal.op = "delay_ms";
+                if (c->game->event_preflight(c->game, &literal, NULL, c->game->event_preflight_userdata) != 0)
+                    return -1;
+            }
+            unsigned port = FD2_FLOW_NEXT;
+            int handled = fd2_field_game_stage_source_node(c->mutable_game, n, &port);
+            if (handled < 0) return -1;
+            if (handled) {
+                scene_source_load(c);
+                if (!strcmp(n->op, "stage_setup_source") &&
+                        fd2_field_background_rebuild(c->vga->field_page, c->fdother, c->game->stage) != 0)
+                    return -1;
+                pc = fd2_static_flow_edge(flow, n, port);
+                continue;
+            }
+            if (!strcmp(n->op, "end")) return scene_render_error ? -1 : 0;
+            if (!(n->views & FD2_FLOW_PRESENT) && strcmp(n->op, "end")) return -1;
+        }
         if (!(n->views & FD2_FLOW_PRESENT)) {
             pc = fd2_static_flow_edge(flow, n, FD2_FLOW_NEXT);
             continue;
@@ -1887,12 +1955,21 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         const int32_t *a = n->args;
         int field = c->vga && c->terrain && c->map && c->sprites && c->state;
         if (!strcmp(n->op, "end")) return scene_render_error?-1:0;
-        if (!strcmp(n->op, "pan")) {
+        if (!strcmp(n->op, "call_init") || !strcmp(n->op, "call_fade_in") || !strcmp(n->op, "call_fade_out")) {
+            const char *id = !strcmp(n->op, "call_init") ? "stage.source.initialize" :
+                !strcmp(n->op, "call_fade_in") ? "stage.source.fade.in" : "stage.source.fade.out";
+            if (!c->source_flow || scene_flow_run(c, fd2_static_flow_lookup("stage", id)) != 0) return -1;
+        } else if (!strcmp(n->op, "palette_subtract") || !strcmp(n->op, "palette_add")) {
+            if (!c->source_flow || !c->vga || (!strcmp(n->op, "palette_subtract") ?
+                    fd2_vga_palette_subtract(c->vga,a[0],a[1],a[2]) : fd2_vga_palette_add(c->vga,a[0],a[1],a[2])) != 0) return -1;
+            fd2_vga_upload_current_frame(c->vga); /* DAC可见，不推进输入/clock/帧预算。 */
+        } else if (!strcmp(n->op, "pan")) {
             if (!field) return -1;
             pan_camera_to(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],a[1],c->fast);
         } else if (!strcmp(n->op, "move")) {
             const uint8_t *bytes; size_t size;
             if (!field || fd2_field_movement_script_get((uint8_t)a[0],&bytes,&size) != 0 ||
+                (c->source_flow && movement_script_preflight(&c->state->units,bytes,size,0) != 0) ||
                 play_opening_move_script(c->vga,c->terrain,c->map,c->sprites,c->state,
                     c->audio,bytes,size,a[1],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "text")) {
@@ -1905,13 +1982,21 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
                 }
             }
             if (!field || !c->dato || !c->ui || !c->font || !c->text ||
+                (c->source_flow && field_story_validate_units_domain(c->game,&c->state->units,(size_t)a[0],1) != 0) ||
                 opening_text(c->vga,c->terrain,c->map,c->dato,c->ui,c->sprites,c->state,
                     c->font,c->text,c->audio,(size_t)a[0],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "delay")) {
             if (!field) return -1;
-            opening_delay(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],c->fast);
+            if (c->source_flow) {
+                /* 原3790a只等待；不能额外推进11cac、水色或actor视觉锚。 */
+                if (!c->fast) fd2_delay_ms((uint32_t)a[0]);
+                (void)poll_scene_quit(c->vga);
+            } else opening_delay(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],c->fast);
         } else if (!strcmp(n->op, "sleep_ms")) {
             if (!c->fast) fd2_delay_ms((uint32_t)a[0]);
+        } else if (!strcmp(n->op, "clear_keys")) {
+            if (!c->source_flow || !c->vga) return -1;
+            fd2_input_clear_keys(&c->vga->input);
         } else if (!strcmp(n->op, "append_group")) {
             if (!field || !c->game || field_event_append_group(c->vga,c->fdother,c->game,
                     c->state,(uint8_t)a[0],a[1],a[2],c->audio,c->fast,c->projected) != 0) return -1;
@@ -1942,6 +2027,9 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (!field) return -1;
             /* 205da初始化入口：原11cac(1)，不借51A83推断水色。 */
             render_scene_11cac(c->vga,c->terrain,c->map,c->sprites,c->state,1);
+        } else if (!strcmp(n->op, "refresh")) {
+            if (!field || !c->source_flow || (a[0] != 0 && a[0] != 1)) return -1;
+            render_scene_11cac(c->vga,c->terrain,c->map,c->sprites,c->state,a[0]);
         } else if (!strcmp(n->op, "present_base")) {
             if (!field) return -1;
             present_base_frame(c->vga,c->terrain,c->map,c->sprites,c->state,0);
@@ -2030,6 +2118,7 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "gameover_frame")) {
             if (!c->vga || !c->game_over || scene_game_over_frame(c->vga,c->game_over,(size_t)a[0],c->fast) != 0) return -1;
         } else return -1;
+        if (c->source_flow && scene_source_commit(c) != 0) return -1;
         if(scene_render_error)return -1;
         pc=fd2_static_flow_edge(flow,n,FD2_FLOW_NEXT);
     }
@@ -2362,6 +2451,47 @@ done:
     return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
 }
 
+/* 完整源caller序列的单次执行；只接受已生成的明确source ID。
+ * 复用原Scene临时呈现视图，逐叶和失败/HOST出口交回原Game；不预跑整图。 */
+int fd2_scene_play_stage_source_flow(fd2_vga *vga, const fd2_archive *fdother,
+        fd2_field_game *game, fd2_field_audio *audio, int fast, const char *source_id) {
+    if (!vga || !vga->field_page || !fdother || !source_id ||
+            !fd2_field_game_stage_source_is_idle(game) || game->stage >= 30u)
+        return FD2_SCENE_RESULT_ERROR;
+    char entry_id[64], victory_id[64];
+    if (snprintf(entry_id, sizeof(entry_id), "stage.source.entry.%03zu", game->stage) < 0 ||
+            snprintf(victory_id, sizeof(victory_id), "stage.source.victory.%03zu", game->stage) < 0 ||
+            (strcmp(source_id, entry_id) && strcmp(source_id, victory_id)))
+        return FD2_SCENE_RESULT_ERROR;
+    const fd2_static_flow *flow = fd2_static_flow_lookup("stage", source_id);
+    if (!flow) return FD2_SCENE_RESULT_ERROR;
+    fd2_text_entry text = {0}; fd2_ui_sheet ui = {0};
+    fd2_scene_field_state state = {0};
+    scene_flow_context context = {0};
+    int result = FD2_SCENE_RESULT_ERROR;
+    scene_host_quit_requested = scene_render_error = 0;
+    if (fd2_text_entry_open_entry(&text, &game->fdtxt_archive, game->stage + 1u) != 0 ||
+            ui_sheet_open_fdother(&ui, fdother, 5) != 0) goto done;
+    state.ordinary_cursor = fd2_field_cursor_frame(&game->visuals, 0);
+    if (!state.ordinary_cursor || state.ordinary_cursor->width != 24 || state.ordinary_cursor->height != 24)
+        goto done;
+    state.motion_owner = game;
+    scene_state_borrow_game(&state, game);
+    context.vga = vga; context.fdother = fdother; context.dato = &game->dato_archive;
+    context.terrain = &game->terrain; context.map = &game->map; context.sprites = &game->sprites;
+    context.state = &state; context.game = context.mutable_game = game;
+    context.ui = &ui; context.font = &game->font; context.text = &text;
+    context.audio = audio; context.fast = fast; context.source_flow = 1;
+    scene_source_load(&context);
+    result = scene_flow_run(&context, flow);
+    /* 叶内HOST/首错也保留实际移动、对话焦点和已提交业务前缀。 */
+    if (scene_source_commit(&context) != 0 || scene_render_error) result = FD2_SCENE_RESULT_ERROR;
+done:
+    fd2_text_entry_close(&text);
+    if (result == FD2_SCENE_RESULT_ERROR && scene_render_error) return result;
+    return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+}
+
 int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,
     fd2_field_game *game, fd2_field_audio *audio, int fast) {
     if (!game || game->stage != 1u) return FD2_SCENE_RESULT_ERROR;
@@ -2374,10 +2504,10 @@ int fd2_scene_play_stage2_entry(fd2_vga *vga, const fd2_archive *fdother,
     return fd2_scene_play_stage_entry(vga, fdother, game, audio, fast);
 }
 
-static int field_story_validate_units(const fd2_field_game *game,
-        const fd2_field_units *units, size_t fragment) {
+static int field_story_validate_units_domain(const fd2_field_game *game,
+        const fd2_field_units *units, size_t fragment, int source_only) {
     if (!game || !units || !game->ready ||
-        !fd2_field_stage_is_supported(game->stage) ||
+        (source_only ? game->stage >= 30u : !fd2_field_stage_is_supported(game->stage)) ||
         units->count > FD2_FIELD_MAX_UNITS || !game->font.glyphs ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
@@ -2430,6 +2560,11 @@ done:
     fd2_text_entry_close(&text);
     fd2_archive_close(&archive);
     return result;
+}
+
+static int field_story_validate_units(const fd2_field_game *game,
+        const fd2_field_units *units, size_t fragment) {
+    return field_story_validate_units_domain(game, units, fragment, 0);
 }
 
 int fd2_scene_field_story_validate(const fd2_field_game *game, size_t fragment) {
@@ -2607,6 +2742,19 @@ done:
     free(parts);return result;
 }
 
+/* 11eee/12ac6有限phase域：换图提交前核完整地形引用，不推进视觉时钟。 */
+static int scene_map_resource_validate(const fd2_field_map *map,
+        const fd2_terrain_tileset *terrain) {
+    if(!map || !terrain || !map->cells || map->width<=0 || map->height<=0)return -1;
+    for(size_t i=0;i<(size_t)map->width*(size_t)map->height;i++) {
+        size_t frame;
+        for(int phase=0;phase<2;phase++)for(int idle=0;idle<4;idle+=2)
+            if(fd2_terrain_base_frame_from_cell_animated(terrain,map->cells[i],phase,idle,&frame)!=0 ||
+               fd2_terrain_overlay_frame_from_cell(terrain,map->cells[i],phase,&frame)<0)return -1;
+    }
+    return 0;
+}
+
 int fd2_scene_common_step_validate_view(const fd2_field_game *game,
     const fd2_archive *fdother,const fd2_static_flow_node *node,
     const fd2_field_units *units,const fd2_field_unit *roster,size_t roster_count) {
@@ -2643,7 +2791,8 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
         fd2_field_map map={0};fd2_terrain_tileset terrain={0};
         int result=a[0]>=0 && a[1]>=0 &&
             fd2_field_map_open_entry(&map,&game->field_archive,(size_t)a[0])==0 &&
-            fd2_terrain_tileset_open(&terrain,&game->fdshap_archive,(size_t)a[1])==0?0:-1;
+            fd2_terrain_tileset_open(&terrain,&game->fdshap_archive,(size_t)a[1])==0?
+            scene_map_resource_validate(&map,&terrain):-1;
         fd2_field_map_close(&map);fd2_terrain_tileset_close(&terrain);return result;
     }
     if(!strcmp(node->op,"background_rebuild") || !strcmp(node->op,"background_scroll")) {
@@ -2654,6 +2803,24 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
         fd2_field_page_destroy(page);return result;
     }
     return -1;
+}
+
+int fd2_scene_common_step_validate_resource_view(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node,
+    const fd2_field_event_resource_view *view) {
+    if(!game || !view || !node)return -1;
+    if(!view->has_map_override)return fd2_scene_common_step_validate_view(game,fdother,node,
+        view->units,view->roster,view->roster_count);
+    fd2_field_map map={0};fd2_terrain_tileset terrain={0};int result=-1;
+    if(view->map_entry<0 || view->shape_index<0 ||
+        fd2_field_map_open_entry(&map,&game->field_archive,(size_t)view->map_entry)!=0 ||
+        fd2_terrain_tileset_open(&terrain,&game->fdshap_archive,(size_t)view->shape_index)!=0)goto done;
+    if(scene_map_resource_validate(&map,&terrain)!=0)goto done;
+    if(!strcmp(node->op,"pan"))result=node->args[0]>=0 && node->args[0]<=255 &&
+        node->args[1]>=0 && node->args[1]<=255?0:-1;
+    else result=fd2_scene_common_step_validate_view(game,fdother,node,view->units,view->roster,view->roster_count);
+done:
+    fd2_field_map_close(&map);fd2_terrain_tileset_close(&terrain);return result;
 }
 
 int fd2_scene_common_step_validate(const fd2_field_game *game,
@@ -2743,6 +2910,7 @@ static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast) {
 }
 
 static int scene_result_fade(fd2_vga *vga, int fade_in, int fast) {
+    /* 历史17级比例近似；新源64/65级减法子图的证据不覆盖本旧路径。 */
     if (fast) {
         fd2_vga_set_brightness(vga, fade_in ? 0 : 0x40);
         return poll_scene_quit(vga) ? FD2_SCENE_RESULT_HOST_QUIT : 0;

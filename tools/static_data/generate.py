@@ -263,7 +263,9 @@ def validate_flows(document):
             raise ValueError("invalid/duplicate flow ID")
         flow_ids.add(flow["id"])
         nodes = flow["nodes"]
-        if not isinstance(nodes, list) or not 1 <= len(nodes) <= 254:
+        # 只有common_event的现有宽PC热owner消费S2长序列；reward等仍是BYTE游标。
+        maximum_nodes = 32767 if document['domain'] == 'common_event' else 254
+        if not isinstance(nodes, list) or not 1 <= len(nodes) <= maximum_nodes:
             raise ValueError("flow node capacity exceeded")
         ids = set()
         for node in nodes:
@@ -312,12 +314,14 @@ def validate_flows(document):
         # 循环可表示原来的遍历；消费端每次推进均受不可配置预算限制。
         # 全图必须有明确出口，不能把闭合循环误当成功结束。
         terminals = {n["id"] for n in nodes if not n["on"]}
-        can_finish = set(terminals)
-        while True:
-            expanded = can_finish | {n["id"] for n in nodes if set(n["on"].values()) & can_finish}
-            if expanded == can_finish:
-                break
-            can_finish = expanded
+        can_finish, pending = set(terminals), list(terminals)
+        parents = {identity: [] for identity in ids}
+        for node in nodes:
+            for target in node["on"].values():parents[target].append(node["id"])
+        while pending:
+            for parent in parents[pending.pop()]:
+                if parent not in can_finish:
+                    can_finish.add(parent);pending.append(parent)
         if ids - can_finish:
             raise ValueError(f"flow has no reachable exit: {sorted(ids-can_finish)}")
     bindings = document.get("bindings", {})
@@ -368,7 +372,48 @@ def render_flows(document, digest):
     return "\n".join(lines).encode("utf-8")
 
 
+def validate_stage_source_calls(document):
+    """只准三个固定cold调用；共享现Scene深度8/总叶65536，不引入VM。"""
+    if document['domain'] != 'stage': return
+    calls = {'call_init': 'stage.source.initialize', 'call_fade_in': 'stage.source.fade.in',
+             'call_fade_out': 'stage.source.fade.out'}
+    flows = {flow['id']: flow for flow in document['flows']}
+    for operation in calls:
+        if operation in document['operations'] and document['operations'][operation] != {'args': []}:
+            raise ValueError('fixed stage source call ABI differs')
+    memo = {}
+    def flow_cost(identity, ancestry=()):
+        if identity in ancestry or len(ancestry) >= 8:
+            raise ValueError('stage source helper cycle/depth exceeds Scene contract')
+        if identity in memo: return memo[identity]
+        if identity not in flows: raise ValueError('fixed stage source helper missing')
+        flow = flows[identity]; nodes = {node['id']: node for node in flow['nodes']}
+        visited, active, pending = {}, set(), [(flow['entry'], False)]
+        while pending:
+            label, exiting = pending.pop()
+            if label in visited: continue
+            node = nodes[label]
+            if exiting:
+                cost = 1 + (flow_cost(calls[node['op']], ancestry + (identity,)) if node['op'] in calls else 0)
+                visited[label] = cost + max((visited[target] for target in node['on'].values()), default=0)
+                active.remove(label)
+            else:
+                if label in active: raise ValueError('stage source graph cycle')
+                active.add(label); pending.append((label, True))
+                pending.extend((target, False) for target in node['on'].values() if target not in visited)
+        total = visited[flow['entry']]
+        if total > 65536: raise ValueError('expanded stage source path exceeds Scene budget')
+        memo[identity] = total
+        return total
+    for flow in document['flows']:
+        if any(node['op'] in calls for node in flow['nodes']):
+            if not flow['id'].startswith('stage.source.'):
+                raise ValueError('fixed source calls cannot change existing stage routes')
+            flow_cost(flow['id'])
+
+
 def validate_flow_contract(document, contract, script_ids, all_flows):
+    validate_stage_source_calls(document)
     required = {"operation_abi_sha256", "ports", "required_ids"}
     if not isinstance(contract, dict) or not required <= contract.keys() or set(contract) - required - {"required_labels"}:
         raise ValueError("invalid consumer flow contract")
@@ -449,7 +494,11 @@ def validate_flow_contract(document, contract, script_ids, all_flows):
             if battle and any("stage." + kind + "." + identity not in all_flows for kind in ("result", "victory", "settlement")):
                 raise ValueError("battle capability lacks result/victory/settlement flows")
         if flow["id"].startswith("stage.result."):
-            if any(not n["op"].startswith("result_") or (not n["on"] and n["op"] != "result_return") for n in flow["nodes"]):
+            queries = {"branch_event_byte", "branch_turn", "branch_actor", "branch_hidden_count",
+                       "branch_roster_text", "branch_item", "branch_item_occurrences"}
+            terminals = {"result_return", "result_keep", "result_invalid"}
+            if any((not n["op"].startswith("result_") and n["op"] not in queries) or
+                   (not n["on"] and n["op"] not in terminals) for n in flow["nodes"]):
                 raise ValueError("result flow requires result predicates and explicit result terminals")
             by_id = {n["id"]: n for n in flow["nodes"]}
             done, visiting = set(), set()

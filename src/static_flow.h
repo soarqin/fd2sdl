@@ -36,7 +36,7 @@ typedef struct {
     const char *id;
     const fd2_static_flow_node *nodes;
     uint16_t count;
-    uint8_t entry;
+    uint16_t entry; /* S2原有限调色板序列冷展开可超过254节点；不进入热态/SAV。 */
 } fd2_static_flow;
 
 static inline const fd2_static_flow *fd2_static_flow_find(

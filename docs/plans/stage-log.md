@@ -1715,3 +1715,67 @@ confirmed 指已核结构或 caller 规则，不能作为运行通过率。父�
 审查实修了固定 source ID 与同字节相邻槽可以错配、输出可能落入 `build` 内原资源副本两个保护缺口；补全 story／图帧引用、已证六 callback 精确来源、4 B 尾及原部署容量角色。候选06的同 target 证据列表曾与真实 references 共用 list，新增测试在旧代码取得真红，`red-reuse-reference-alias.log` 保留；修后 candidate07 只向证据表增加复用来源，不伪造原指针引用或 CFG。早期 candidate01 因 raw object2 BSS 不属于文件映射而正确拒绝，修为严格 reader 仅缓存初始化文件页；其余候选和旧通过只保本身身份，不改签为07。
 
 两次独立实质审查后，无剩余 S1 实现或来源验收阻塞。315 条未决的完整 CFG／具体绑定与450条明确拒绝域是已交付的 S2 输入，不被静默忽略，也不表示 S1 未完成。文本全部 token／字形／头像、图像像素、动态资源／身份投影、新语义／绑定和原版运行仍按 S2—S4 适用门处理。
+
+
+## S2 共享语义转换与能力补充（2026-11-13）
+
+本阶段从已集成本地 master 的 S1 `35e3f26` 实施。实现、适用证据和独立实质审查已闭合；本完整阶段提交及本地集成的最终身份由 `build/s2/local-integration.json` 与 Git 登记，不以中途候选或研究转换标完成。只实施 S2，未启动 S3／S4，未改正式关卡门、用户 SAV 或原资源。
+
+### 全量冻结域与独立原来源
+
+新冷定义126个：common_event新增71（66 callback＋5效果结果）、stage新增55（44来源转场／helper＋11纯结果），旧图分别21／12保留。主表208槽／193不同target，去向为135转换来源槽、32旧定义引用、28既有G2原语caller域、13隔离槽。S1的315未决引用为301源图／原语可用、14隔离依赖；450拒绝域保持。三集合source-ID并集778；均非独立机制数、全游戏支持率或新关运行数。完整定义／源样例／转换规则／拒绝域只查[S2报告](s2-shared-semantics.md)，schema与字段见[来源账合同](../formats/stage-source-ledger.md#s2-转换叠加合同)。
+
+输入沿S1 `ledger-candidate07/ledger.json` SHA `1a47357ba1f179db74bd0d99bf2096748596e6fc46c1ab1aabf30950eb3e6202`；不重写其72,470条记录和夹具。callback正式读集为103 owner／helper、9,736B，transition为80 owner、23,170B，result为20函数、1,663B，visual为4函数、494B；相互有共享函数，不能合计成独占覆盖字节。Domain／idalib完整chunk、严格镜像、fixup、实际入口与owner区别逐项保留，未知CFG无伪造边。
+
+### 最终静态／原码／C证据
+
+| 层／范围 | 本轮实际结果与本地收据 | 适用边界 |
+|---|---|---|
+| 全来源去向 | `source-disposition-final03/disposition.json` SHA `59fd72f29377e12249a7bb077338ba05d651484517e39cb2c1172f4ee6fab120`；208/315/450三集合闭合，4别名保留完整caller，复现性28项校验及S1四原文件摘要重核 | 图／原语存在不提升为正式绑定。12转场＋callback82仍隔离；后者连stage29 turn引用，所以13槽／14引用 |
+| callback | `callback-candidate05/`：90槽／90target／88owner，72来源→66图/2,040node、17旧引用、callback82唯一阻塞；actual C 1,944正常＋141等待错误／HOST／wrong-ACK＋1容量＝2,086；31原条件两边均达 | 逐叶原活动80B前缀、写序／状态／roster／display／贡献、未到达后缀；新增构造区和全共享RNG沿既有原语域，不称整库constructor重验 |
+| result | `result-cpu-final20.json`：30槽／18target／9族，832/832实际原码与C，124blocks/158edges全达，832例内含6个story停点 | 13纯target与5效果target分开；纯查询不代替锁存／story写序。count0／缺raw／固定索引不足防御域拒绝，不模拟原越界 |
+| 转场 | `transitions-candidate18/conversion.json`：60槽/58target，45转换来源=41caller图＋4别名，另3helper；原caller161、roster14、布局40、flash4；真实C布局40过 | caller叶有明确替身；layout实际C比较96×80B及视口，不称45整关原生。342B/27原EXE布局源窗无重复编辑发射 |
+| 加色／时钟／减色 | `visual-cpu-final20.json`：335＋11＝346实际C对照；`fade-source-C-final20.json`：85减色向量及完整原fade序列；`fade-shared-static-check.json`逐叶核唯一共享冷图 | 单独2条flash caller为source-only。真实时钟、BIOS相位、逐2ms捕获不由此证明；旧flag0比例fade不借此倒签 |
+| 生成及工具 | `tools-source-final22.log`：58项来源／转换／schema工具测试通过；`tools-native-final31.log`：93项原生工具／旧S0桥／WGC／CLI前置合同纯测全过；`existing-common-source-final20.json`仅继续签原21图，新图明确交S2专属门 | CLI/生成器不是自身原义oracle；默认turn255严格域仍拒绝。Linux命令保兼容、未执行 |
+| SDL直接消费 | `ctest-final20.log`：12项直接影响Ctests全过；`ctest-transition-format-final.log`补最终source探针，`ctest-failure-direct.log`另验直接受影响的failure owner路径，共13项不同Ctests。真实Game／Scene／Play、15类busy owner、未来身份／map／容量、短等待、HOST／错误前缀、结果／存档／loot／post路径 | 无窗口与原生分账；只测本阶段及直接影响，不将G全历史重新跑成S2 |
+| IDA发布 | `ida-publication-final20/`：495来源名验证、17新语义名／133注释、1,312原函数边界；21/21静态、11个SHA清单全过，生成器最后刷新 | 无字节／猜测类型／函数拆分；静态fixup通过不等于严格运行时BSS或全游戏验收 |
+
+证据目录均相对本地 `build/s2/`，原始dump／资源／完整转储不提交或分发。canonical摘要和命名产物由生成器重发，不手改生成文件。
+
+### 原生代表：当前候选逐项登记
+
+Windows native使用SDL3.2.12，已封存 `native-candidate20/` EXE／PDB；仅机制夹具，不分发。输入为owned PID/HWND后台投递、WGC单窗口；原资源与完整用户档守卫、串行窗口清理及同线程显示需求释放分别登记。旧G专属电源计划权限未扩用，本轮没有修改电源计划或混音器。
+
+| 代表与入口 | 最终收据／状态 | 实际门与未扩签 |
+|---|---|---|
+| result29 `20bf5` | `native-result-final21/comparison.json` 双端passed（最终numeric工具） | 原真实CONTINUE／controller查询与SDL显式common源图，query前0／story入口0／ACK后2，完整受控SAV不变；不是stage29正式dispatcher开放 |
+| callback70 `35e5b` | `native-callback-final32/comparison.json` 双端passed | 三段全白、18页ACK、AI写前缀、END至turn2、UI Save完整容器及cache byte2独立差异，未知字节保持；空group夹具不证明自然stage22或完整构造／RNG |
+| ticks callback47 `35468` | `native-ticks-final31/comparison.json` 双端passed | 原stage20真实特殊格→190ac→WORD47，SDL显式源图；四角有序／稳定跨度与active前缀已验、相机／焦点、caller acted后缀分账 |
+| victory2 `230f2/233c6` | `native-layout-final22/comparison.json` 双端passed | 原CONTINUE→真实胜利2，SDL显式Scene；布局／原资源12页对白已验、黑界／恢复、招募及stage3静态标记。原活动owner释放后禁止再读它 |
+
+所有夹具修改逐byte登记：原记录复制、身份／位置、raw数、descriptor或metadata边界均明确是受控注入，不称自然产生。WGC只核声明反馈和轨迹，完整共享RNG、声音、所有中间像素、设备和其它平台仍未验。终态Source-only Game写stage3后保旧资源，夹具不再运行新controller；S3须用现App／Progress真正交接。
+
+### 失败、审查与去冗
+
+- early callback01／02／03保留：原探针假count80再append越96，及Python ID／TEXT／direction映射错误造成的假阳性被真实C拒绝；修成真实源最小前缀并独立ABI断言，030／075冷图按原字段／顺序修正。04与最终05图／原轨迹逐项相等，最终签的是05探针身份。
+- direct12 的私有Scene测试缺新API宏重命名导致链接重复；unified投影漏旧move核心域、源初始化错误期待无匹配group0新增人数，及新source story误套旧stage门均已修。12旧失败／14一项夹具失败不改签；final20十二项全过。probe漏声明头导致`0xC0000005`另修测试头，candidate18真实C40再过，不拿旧纯CTest替代。
+- `native-result-c11-01` 原端过、SDL因wrapper `wait_log`参数漏process失败，正常清理；修后C11-02过，产品最终20又双端实做。callback wrapper缺`capture_defeat`在开跑前由实际CLI bootstrap回归修复。
+- `native-callback-final20` 原端到story6但只有两段全白，旧33ms主动丢15个新WGC帧；扫描混合帧不可拼接为第三白。独立源确认两个直接call和一个明确JMP共享尾合成三次35b78，工具仅将本代表改16ms、保原3段／252门；final21双端完整通过。`callback-wgc-missed-frame-review.json`保逐帧身份和不可恢复丢帧限制。
+- `native-ticks-final20` 首DS为已见16bit protected小段、无dump即拒；final21补门后又因错误以DS.limit约束EBP而拒，DS并非SS，已移除这个取证假设。`native-layout-final20` 原端布局／fade（含两张全黑）／12页均过，末snapshot动态`SELINFO DS`在beforeEV后切换selector，严格后descriptor guard正确拒。失败RAM不解码、不重用；本轮集中修S2数字selector绑定及有界就绪，完整原S0 dump/双锚/fixup/owner规则不豁免。
+- 根与两次独立复审闭合真实caller／target、位宽、写序、owner和失败前缀。预检不另造Game／RNG，固定三类Scene冷helper复用原栈／预算；common旧重复walker已删。整图去重／4alias／共享fade及格式压缩完成；8图的32个有源条件尾node是有限条件树表达，不为少量静态尾另造DAG编译器。13 uncertain站点的具体child／finalize域独立证据闭合，不外推任意未知child。
+
+已识别旧flag0 Scene 17级比例fade与原64/65级减法的差异，唯一归属总计划S4，原G完成范围不重开。S2新来源域用精确唯一helper，不借未来S4掩盖本轮必需门。隔离源只阻塞后续依赖它们的批次，不将它们标成已实现或删255求绿。
+
+
+最终 ticks31 原版前三角连续观测跨度316.82／300.14／316.81ms，末角2帧16.68ms；SDL对应416.86／416.85／450.21／3518.27ms。末角不要求200ms，仍由原版acted后缀、SDL done日志／event inactive独立证明最后等待已返回。原版使用3个新鲜短WGC会话（上限4，最后角由主流已有两帧覆盖）；SDL用完整primary16ms原表，未构造辅助会话。所有新帧按真实SystemRelativeTime／QPC核验，完整raw合并、相同stamp去重／冲突拒绝、非匹配断run及2帧／前三200ms门不变。没有补帧、强制重绘、延长游戏等待或默认通过。
+
+取证修订历史按实际候选保留，不从失败日志改绿：ticks20／21／22／24为前置位宽、错误DS栈假设或accessed分类的严拒，ticks23／25为连续帧不足；26初始只查地形过弱，首次selection输入没有业务响应，加入完整focus／单次预定Z资源前置后才再跑，未在超时后补键。27在源帧后200ms才启动又耗280ms冷启动，错过平台；改即时启动但接受时间门不变。28原端完整过、SDL因无用aux启动晚失败；29前三角过但末角静态单帧，按原门扩到最后角按需补采；30原端完整过、SDL同样因无用aux失败。最终31原端静态BIOS等待用按需真实补采，SDL生产等待循环每16ms present，故其完整primary直接进同一门，不构造无用aux。旧28／30的SDL主流离线可通过不等于旧整轮通过，也未当作31的新实做。相关 observer、numeric、输入前置均经独立正负测试和代码复审，不增加产品热状态。
+
+最终四份双端收据分别为 result21、callback32、layout22、ticks31，全部 `ok=true`／`sources_unchanged=true`，owned Job为0、无强制清理或残留；同线程display需求释放真，电源计划未变。它们使用同一 `native-candidate20` 的对应EXE／PDB，各工具的实际SHA和轮次保留；不是一次历史全套fresh。产品源冻结后只发生测试头修复、JSON等义排版和取证工具修订，未借新工具改签旧失败。工作树字节SHA与 Git规范换行后主项目的新来源身份分列；集成只证明同Git内容／冷定义语义及新构建，不伪称主项目新二进制又重跑了四组窗口。
+
+S2冻结域无剩余实现或必要证据阻塞。13来源槽／14引用仍是有源隔离依赖，不属于已运行绑定；默认turn255拒绝域仍非零，当前正式支持门未扩大。开发入口移至S3（未开始），本轮不实施它。完成提交与集成收据、实际必要重建／直接检查、原资源和用户 `FD2.SAV` 的51文件守卫统一写入 `build/s2/local-integration.json`，不远程推送或发布。
+
+
+收口补验：callback32 只因旧host缺少持久化输入摘要而重取，业务／像素／输入／存档判据不变；现 `input_sha256` 与 `product_source_paths` 保留实际freeze及动态追加config／隔离只读资源。既有CLI纯测新增实际SHA／路径／追加项断言，6项通过；旧callback21通过留其原身份，不回填旧值。最终签核改用callback32。`final-evidence.json` 列四对最终报告与封存二进制摘要。
+
+`qualification/qualification.json` 单独核旧轮次工具资格：result21／ticks31／layout22的全部产品源码与当前逐字节相等；G4 host 仅新增摘要输出，删除该单一AST语句后与按旧SHA精确重建的源码一致。layout22的S2桥随后仅将descriptor前态比较屏蔽accessed bit，精确重建旧源码匹配该轮SHA，5个不同实际采样（报告重复嵌入为11条）在旧／新谓词结果完全相同；其余dumper和owner守卫未变。这是离线源影响资格，不是新GUI或将旧失败改绿。最终报告保留每轮原工具SHA，不声称全部工具文件字节相同。

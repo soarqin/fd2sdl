@@ -235,15 +235,15 @@ def message_match(frame, page, assets, selected=0):
     return detail
 
 
-def story_pages(original, source, assets, fragment):
+def story_pages(original, source, assets, fragment, *, stage=0):
     """复用已发布opening token/字模/portrait primitive，只构当前story片段。
 
     不能先构0..fragment的其它剧情：受控active14没有那些剧情的raw15/16。
     只收原1aa1d/34738所到7、8中已确认的普通字、换行和等键控制。
     """
-    if fragment not in (7, 8): raise ValueError("loot工具只确认stage0 story7/8")
+    if (stage,fragment) not in ((0,7),(0,8),(2,7),(29,7)): raise ValueError("工具仅确认stage0 story7/8和S2 stage2/29 story7")
     text_data = (original / "FDTXT.DAT").read_bytes()
-    tokens = dict(fragments(text_data, 0, fragment + 1))[fragment]
+    tokens = dict(fragments(text_data, stage, fragment + 1))[fragment]
     other = (original / "FDOTHER.DAT").read_bytes()
     font, sheet = archive_entry(other, 4), archive_entry(other, 5)
     arrows = [raw_ui(sheet, i) for i in (18, 19)]
@@ -260,7 +260,7 @@ def story_pages(original, source, assets, fragment):
         if not candidates: raise ValueError("story说话人没有显式active记录")
         actor = next((actor for actor in candidates if not actor[5] & 1), candidates[-1])
         bottom = control == -18
-        result.append({"stage": 0, "fragment": fragment, "token_offset": offset, "reason": reason,
+        result.append({"stage": stage, "fragment": fragment, "token_offset": offset, "reason": reason,
             "speaker_control": control, "speaker_argument": argument,
             "portrait_id": actor[7], "portrait_position": (8, 115) if bottom else (232, 5),
             "portraits": portraits(original, actor[7], assets["palette"], bottom),

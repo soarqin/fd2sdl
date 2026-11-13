@@ -324,3 +324,14 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 局部证据复用Domain只读数据库副本：9完整函数共5,979 B逐chunk核对固定strict relocated镜像，另显式核8 B共享返回尾，不保存数据库。有限执行覆盖576个完整原结果函数向量，与真实C纯查询probe逐输入比较；另有60个完整`117e7`控制点向量、3个Load尾保锁存和10个main出口控制点向量。Watcom栈检查、controller键盘／actor/action／render／奖励／phase等叶替身及完整Load文件IO未执行范围在本地`build/s0/result-cpu-06.json`逐项登记；它不是完整Load CPU差分、原生图形或全RNG证明。可复跑工具是`tools/ida/s0_result_source.py`与`verify_s0_result_contract.py`，C probe沿现有field_save测试的`--s0-vectors`，不增加生产探针。
 
 正式WGC、RPC／CDB只读owner、CONTINUE／活动Load／首次controller出口及当前C测试结果由[阶段记录](../plans/stage-log.md)按实际候选登记；缺对应运行门时仍为待验，不能从本节静态／局部证据推定整阶段完成。
+
+
+## 13. S2 来源结果与等待原义（2026-11-13）
+
+完整 Domain 读集、原指令轨迹、定义和 consumer 的对应关系见[S2 报告](../plans/s2-shared-semantics.md)。新增 source 结果域不改 S0 的 stage0／1 调度：纯查询只返回结果；带故事的原函数先写／保留原锁存，再按原分支等待，不能把最终枚举结果替代中间写点。原 0／1／2 表示进行／失败／胜利，SDL 0／1／2 表示进行／胜利／失败，映射在来源叶明确保持。
+
+`208cf`／`20aaf` 在没有命中条件时保留旧锁存，胜利可覆盖先前失败；纯 const 图只返回同一最终值，不声称执行了原写序。`20bf5` 不重置锁存：raw20 hidden 写胜，raw0 hidden 写败，raw1 hidden 经 story7 后再写败。原函数只读 hidden／side 的条件不额外加 HP 门。原缺 raw、count0 或不足固定索引的越界域明确拒绝，不能靠模拟原越界求全状态等价。
+
+`17aa9` 使用 signed WORD BIOS tick 差并在负值加 65,536，目标为 signed DWORD；非正值仍轮询一次，超过单圈的不可终止目标拒绝。SDL 使用有界名义 tick 等待，不声明 BIOS 相位一致。`11df2` 为六位基色加 raw 增量再夹至63；`11d40` 为逐分量减暗并夹至0，二者只改 DAC，不重写基 palette 或 framebuffer。
+
+`1f882`（含共享尾）依次执行 dark0..63，`1f525` 执行 dark64..0，每次减法后等待2ms；两者不清键、不刷新水色、不写 actor／RNG。`1f82e` 是函数内部地址，不另立函数。精确等级／顺序由完整原码差分证明；WGC 代表只证明声明的可见阶段和相对轨迹，不冒称捕获每个2ms等级。

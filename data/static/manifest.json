@@ -1757,7 +1757,7 @@
       "required_labels": {}
     },
     "stage.json": {
-      "operation_abi_sha256": "54145965c92c3a4bf850b13c0c38fbd654b9a135dfed5b913478c6841a00ca4c",
+      "operation_abi_sha256": "8d762520811e990097cd38a68499ad84afb8573c41ed823b73f8c3b5865a5a44",
       "ports": {
         "stage_setup": [
           [
@@ -1971,6 +1971,105 @@
           [
             "next"
           ]
+        ],
+        "result_keep": [
+          []
+        ],
+        "result_invalid": [
+          []
+        ],
+        "stage_setup_source": [
+          [
+            "next"
+          ]
+        ],
+        "entry_result_reset": [
+          [
+            "next"
+          ]
+        ],
+        "entry_view_reset": [
+          [
+            "next"
+          ]
+        ],
+        "entry_turn_reset": [
+          [
+            "next"
+          ]
+        ],
+        "clear_keys": [
+          [
+            "next"
+          ]
+        ],
+        "clear_acted": [
+          [
+            "next"
+          ]
+        ],
+        "call_init": [
+          [
+            "next"
+          ]
+        ],
+        "call_fade_in": [
+          [
+            "next"
+          ]
+        ],
+        "call_fade_out": [
+          [
+            "next"
+          ]
+        ],
+        "fail": [
+          []
+        ],
+        "event_byte_write": [
+          [
+            "next"
+          ]
+        ],
+        "unit_field_write": [
+          [
+            "next"
+          ]
+        ],
+        "palette_subtract": [
+          [
+            "next"
+          ]
+        ],
+        "refresh": [
+          [
+            "next"
+          ]
+        ],
+        "view_set": [
+          [
+            "next"
+          ]
+        ],
+        "clear_screen": [
+          [
+            "next"
+          ]
+        ],
+        "palette_add": [
+          [
+            "next"
+          ]
+        ],
+        "unit_id_position": [
+          [
+            "next"
+          ]
+        ],
+        "text_state_offset": [
+          [
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -1985,7 +2084,55 @@
         "stage.result.default",
         "stage.capability.000",
         "stage.capability.001",
-        "stage.capability.002"
+        "stage.capability.002",
+        "stage.source.entry.001",
+        "stage.source.entry.002",
+        "stage.source.entry.003",
+        "stage.source.entry.004",
+        "stage.source.entry.005",
+        "stage.source.entry.006",
+        "stage.source.entry.007",
+        "stage.source.entry.008",
+        "stage.source.entry.009",
+        "stage.source.entry.010",
+        "stage.source.entry.011",
+        "stage.source.entry.012",
+        "stage.source.entry.013",
+        "stage.source.entry.014",
+        "stage.source.entry.015",
+        "stage.source.entry.016",
+        "stage.source.entry.017",
+        "stage.source.entry.018",
+        "stage.source.entry.019",
+        "stage.source.entry.020",
+        "stage.source.entry.021",
+        "stage.source.entry.023",
+        "stage.source.entry.025",
+        "stage.source.entry.028",
+        "stage.source.victory.002",
+        "stage.source.victory.003",
+        "stage.source.victory.004",
+        "stage.source.victory.005",
+        "stage.source.victory.006",
+        "stage.source.victory.007",
+        "stage.source.victory.008",
+        "stage.source.victory.009",
+        "stage.source.victory.010",
+        "stage.source.victory.011",
+        "stage.source.victory.012",
+        "stage.source.victory.013",
+        "stage.source.victory.014",
+        "stage.source.victory.015",
+        "stage.source.victory.016",
+        "stage.source.victory.017",
+        "stage.source.victory.018",
+        "stage.source.victory.019",
+        "stage.source.victory.024",
+        "stage.source.victory.025",
+        "stage.source.victory.027",
+        "stage.source.initialize",
+        "stage.source.fade.in",
+        "stage.source.fade.out"
       ]
     },
     "loot.json": {
@@ -3688,7 +3835,7 @@
       }
     },
     "common_event.json": {
-      "operation_abi_sha256": "ecc06f62379840304fe8d03eef217ee5817bd97f22cc31d96055db3d1ce6eba9",
+      "operation_abi_sha256": "8029de54a787bd73236c1e79a32a740b3261c8b96e6e3f922779991f7662f1ec",
       "ports": {
         "end": [
           []
@@ -4013,6 +4160,54 @@
           ]
         ],
         "ai_anchor": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "result_count_at_least": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "result_leader_dead": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "result_side_present": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "result_all_hidden": [
+          [
+            "no",
+            "yes"
+          ]
+        ],
+        "result_set": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "palette_add": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "delay_ticks": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "palette_subtract": [
           [
             "error",
             "next"

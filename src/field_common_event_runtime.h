@@ -44,7 +44,7 @@ static int common_event_leaf(const char *op) {
     static const char *const leaves[] = { "story", "clear_keys", "notice_actor", "message",
         "portrait_frame", "wait_key", "close_box", "map_replace", "raw_animation", "pan",
         "move", "refresh_map", "background_rebuild", "brightness", "delay_ms",
-        "arrival_prepare", "arrival_frames", "arrival_close" };
+        "arrival_prepare", "arrival_frames", "arrival_close", "palette_add", "palette_subtract", "delay_ticks" };
     for (size_t i = 0; i < sizeof(leaves)/sizeof(leaves[0]); i++)
         if (!strcmp(op, leaves[i])) return 1;
     return 0;
@@ -75,114 +75,13 @@ static int common_event_preflight_leaf(const fd2_field_game *game,const fd2_stat
     return common_event_preflight_leaf_view(game,node,actor,NULL);
 }
 
-/* 有限next/ACK身份前缀：不按stage/action分支、不复制Game或执行派生/RNG。
- * 未识别的分支/业务组合退回原两可能边资源门，不能把一条投影当所有后态。 */
-static int common_event_preflight_identity(const fd2_field_game *game,const fd2_static_flow *flow,size_t actor) {
-    int pc=flow->entry,linear=0;
-    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
-        const fd2_static_flow_node *n=fd2_static_flow_at(flow,pc);
-        if(!n)return -1;
-        if(!strcmp(n->op,"end")){linear=1;break;}
-        if(strcmp(n->op,"roster_append") && strcmp(n->op,"append_group") &&
-            strcmp(n->op,"display_mode") && strcmp(n->op,"directions_reset") &&
-            strcmp(n->op,"ai_anchor") && strcmp(n->op,"pan") && strcmp(n->op,"move") &&
-            strcmp(n->op,"story") && strcmp(n->op,"refresh_map") && strcmp(n->op,"clear_keys") &&
-            strcmp(n->op,"delay_ms") && strcmp(n->op,"arrival_prepare") &&
-            strcmp(n->op,"arrival_frames") && strcmp(n->op,"arrival_close") &&
-            !( !strcmp(n->op,"unit_field_write") && n->args[2]==FD2_UNIT_SIDE))return 0;
-        pc=fd2_static_flow_edge(flow,n,!strcmp(n->op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
-    }
-    if(!linear)return -1;
-    fd2_field_units units=game->units;
-    fd2_field_unit roster[FD2_SAVE_BATTLE_MAX_ROSTER];
-    if(game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER)return -1;
-    memcpy(roster,game->roster,sizeof(roster));
-    fd2_field_event_resource_view view={&units,roster,game->roster_count};pc=flow->entry;
-    for(unsigned budget=0;budget<FD2_FLOW_STEP_BUDGET;budget++) {
-        const fd2_static_flow_node *n=fd2_static_flow_at(flow,pc);if(!n)return -1;
-        if(!strcmp(n->op,"end"))return 1;
-        if(!strcmp(n->op,"append_group")) {
-            size_t first=units.count;
-            uint32_t group=(uint32_t)n->args[0];
-            if(n->args[1]!=0 && n->args[1]!=1)return -1;
-            /* 原DWORD与模板BYTE零扩展比较；高位不匹配，绝不能alias group0。 */
-            if(group<=UINT8_MAX && fd2_field_units_project_group_identity(&units,&game->metadata,&game->placements,
-                (uint8_t)group)!=0)return -1;
-            for(size_t i=first;i<units.count;i++)if(fd2_field_units_sprite_cache_append(&units,i)!=0)return -1;
-        } else if(!strcmp(n->op,"roster_append")) {
-            if(view.roster_count>=FD2_SAVE_BATTLE_MAX_ROSTER || n->args[0]<0 || n->args[0]>31)return -1;
-            if(fd2_field_unit_init(&roster[view.roster_count++],(uint8_t)n->args[0],
-                (uint8_t)n->args[0],2,0,0)!=0)return -1;
-        } else if(!strcmp(n->op,"move")) {
-            const uint8_t *script;size_t size;
-            /* 无Play资源callback的headless caller也必须校验真实未来raw。
-             * 仅借局部units消费已证counted grammar，不抽RNG或写live motion。 */
-            if(n->args[0]<0 || n->args[0]>255 ||
-                fd2_field_movement_script_get((uint8_t)n->args[0],&script,&size)!=0 ||
-                fd2_field_movement_script_apply(&units,script,size)!=0)return -1;
-            if(common_event_preflight_leaf_view(game,n,actor,&view)!=0)return -1;
-        } else if(!strcmp(n->op,"ai_anchor")) {
-            if(n->args[0]<0 || n->args[1]<n->args[0] || (size_t)n->args[1]>=units.count ||
-                n->args[2]<0 || n->args[2]>255 || n->args[3]<0 || n->args[3]>255)return -1;
-        } else if(!strcmp(n->op,"unit_field_write")) {
-            if(n->args[0]<0 || n->args[1]<n->args[0] || n->args[4]<0 || n->args[4]>UINT16_MAX ||
-                fd2_field_units_field_write(&units,(size_t)n->args[0],(size_t)n->args[1],
-                    FD2_UNIT_SIDE,(fd2_field_unit_write)n->args[3],(uint16_t)n->args[4])!=0)return -1;
-        } else if(common_event_leaf(n->op) && common_event_preflight_leaf_view(game,n,actor,&view)!=0)return -1;
-        pc=fd2_static_flow_edge(flow,n,!strcmp(n->op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
-    }
-    return -1;
-}
+#include "field_common_event_projection.h"
 
 static int common_event_preflight_flow(const fd2_field_game *game, const fd2_static_flow *flow, size_t actor) {
     if (!game || !flow || !fd2_static_flow_at(flow,flow->entry)) return -1;
-    int projected=common_event_preflight_identity(game,flow,actor);
-    if(projected)return projected>0?0:-1;
-    size_t capacity=(size_t)flow->count*2u, used=0;
-    uint8_t *seen=calloc(capacity,1);
-    uint32_t *pending=malloc(capacity*sizeof(*pending));
-    if(!seen || !pending){free(seen);free(pending);return -1;}
-    uint32_t initial=(uint32_t)flow->entry*2u;
-    pending[used++]=initial;seen[initial]=1;
-    int result=0;
-    while(used) {
-        uint32_t state=pending[--used];
-        const fd2_static_flow_node *source=&flow->nodes[state/2u];
-        unsigned uncertain=state&1u;
-        if(!strcmp(source->op,"end") || !strcmp(source->op,"fail"))continue;
-        fd2_static_flow_node literal;
-        if(common_event_literal(game,source,&literal)!=0){result=-1;break;}
-        unsigned ports[2]={FD2_FLOW_NEXT,FD2_FLOW_NEXT},count=1;
-        int leaf=common_event_leaf(literal.op);
-        if(leaf) {
-            if(common_event_preflight_leaf(game,&literal,actor)!=0){result=-1;break;}
-            ports[0]=!strcmp(literal.op,"story") || !strcmp(literal.op,"wait_key") ? FD2_FLOW_ACK:FD2_FLOW_NEXT;
-        } else {
-            unsigned port;
-            int query=common_event_query(game,actor,source,&port);
-            if(query==1 && !uncertain)ports[0]=port;
-            else if(query!=0){
-                /* 业务写点后的谓词不能假用写前值；资源检查两条可能边，
-                 * 不抽RNG/复制Game，也不把检查路径当作真实执行轨迹。 */
-                if(query<0 && !uncertain){result=-1;break;}
-                ports[0]=FD2_FLOW_YES;ports[1]=FD2_FLOW_NO;count=2;
-            } else {
-                uncertain=1;
-                if(!strcmp(source->op,"loot_child"))ports[0]=FD2_FLOW_ACK;
-                else if(!strcmp(source->op,"event_item_append") || !strcmp(source->op,"event_item_remove")) {
-                    ports[0]=FD2_FLOW_YES;ports[1]=FD2_FLOW_NO;count=2;
-                }
-            }
-        }
-        for(unsigned i=0;i<count;i++) {
-            int next=fd2_static_flow_edge(flow,source,ports[i]);
-            if(next<0){result=-1;break;}
-            uint32_t following=(uint32_t)next*2u+uncertain;
-            if(!seen[following]){seen[following]=1;pending[used++]=following;}
-        }
-        if(result)break;
-    }
-    free(pending);free(seen);return result;
+    /* 单一有界投影同时守核心raw/写点和可选视觉资源门；
+     * 即使未注册UI callback，move等已知源仍必须核原raw索引。 */
+    return common_event_preflight_identity(game,flow,actor)>0?0:-1;
 }
 
 static int common_event_run(fd2_field_game *game);

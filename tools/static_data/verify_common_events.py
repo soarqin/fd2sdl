@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 from verify_unit_tables import EXE_SHA256, source_range
 
@@ -116,7 +117,12 @@ def validate_flow(document):
     if source.get('file') != 'FD2.EXE' or source.get('file_sha256') != EXE_SHA256:
         raise ValueError('事件图原EXE身份不同')
     flows = {f['id']: f for f in document['flows']}
-    if len(flows) != len(document['flows']) or set(flows) != FLOW_IDS:
+    extras=set(flows)-FLOW_IDS
+    # 本工具只证明G4既有21图。S2源图由各完整原码/consumer oracle另核；
+    # 保留其身份，不能把扩展图数算入本工具的原义通过范围。
+    if (len(flows) != len(document['flows']) or not FLOW_IDS<=set(flows) or
+        any(not re.fullmatch(r'common\.(?:callback\.[0-9]{3}|result\.source_[0-9a-f]{6})',identity)
+            for identity in extras)):
         raise ValueError('未审事件机制flow缺失/重复/新增')
     checked = 0
     def check(identity, choices, wanted):
@@ -160,11 +166,12 @@ def validate_flow(document):
     # 明确的原参数/调用片段，不把尾跳转或周围关卡编排伪装成已翻译。
     check('common.group.turn.source', {}, [('append_group_source',[0,0]),*end])
     check('common.story.state.source', {}, [('story_source',[9]),*end])
-    for flow in flows.values():
+    for flow in (flows[identity] for identity in FLOW_IDS):
         for node in flow['nodes']:
             if node['on'] and node['on'].get('error') != 'failed':
                 raise ValueError('事件错误路径必须冻结，不能回entry重放提交')
-    return {'source_control_paths_checked':checked,'flow_count':len(flows),'bindings_added':0,
+    return {'source_control_paths_checked':checked,'flow_count':len(FLOW_IDS),'bindings_added':0,
+        'additional_source_candidates_not_semantically_checked':sorted(extras),
         'existing_bindings_migrated':6,'legacy_full_call_order_requires':'verify_fd2_legacy_events.py independent CPU check'}
 
 def verify(executable, root=ROOT):

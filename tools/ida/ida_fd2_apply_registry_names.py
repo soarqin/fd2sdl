@@ -44,6 +44,14 @@ def main() -> int:
                 wanted[va] = row["now"]
     report = {"method": "IDA Domain names/comments; one verified shared-tail reference; no prototypes or instruction writes", "verified": [], "renamed": [], "commented": [], "shared_tails": []}
     with Database.open(str(args.idb), IdaCommandOptions(auto_analysis=False), save_on_close=True) as db:
+        # 仅新增证据的root也须写入真实库；保留其当前中性/FLIRT名，
+        # 不因没有旧registry行而漏掉，也不据cold图ID猜新函数名。
+        for va in CORRECTIONS:
+            if va not in wanted:
+                function=db.functions.get_at(va)
+                if not function or function.start_ea!=va:
+                    raise ValueError(f"新证据不是原函数入口: {va:#x}")
+                wanted[va]=db.functions.get_name(function)
         # All preconditions precede the first write. Unknown boundaries are never forced.
         for va, name in wanted.items():
             function = db.functions.get_at(va)

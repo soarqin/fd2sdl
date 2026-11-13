@@ -102,13 +102,20 @@ class OwnedRPC:
         self._owner()
         if not entry['ok']:raise ValueError('DOSBox RPC拒绝命令：'+str(lines))
         return lines
-    def snapshot(self,work,label):
+    def _snapshot_view_validate(self,registers,cs,ds):
+        pass  # S2薄适配可收窄numeric前态；旧默认路径不调用。
+    def _snapshot_registers_validate(self,registers):
+        pass  # S2可仅据EV等待PM；默认路径不添加前置采样或改变命令。
+    def snapshot(self,work,label,*,explicit_selectors=False):
         work=Path(work).resolve();path=work/(label+'-ram.bin')
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,60}',label) or path.exists() or not str(path).isascii():
             raise ValueError('RPC snapshot需要新ASCII隔离路径与合法label')
         def registers():return parse_registers(self.request('EXEC EV '+' '.join(REGISTERS)))
         before=registers()
-        cs=parse_selector(self.request('EXEC SELINFO CS'));ds=parse_selector(self.request('EXEC SELINFO DS'))
+        if explicit_selectors:self._snapshot_registers_validate(before)
+        cs=parse_selector(self.request('EXEC SELINFO '+(f'{before["CS"]:X}' if explicit_selectors else 'CS')))
+        ds=parse_selector(self.request('EXEC SELINFO '+(f'{before["DS"]:X}' if explicit_selectors else 'DS')))
+        if explicit_selectors:self._snapshot_view_validate(before,cs,ds)
         if not before['CR0']&1 or before['EFLAGS']&(1<<17) or not before['DS'] or ds['limit']<RAM_SIZE-1 or \
             len(ds['flags'])!=5 or ds['flags'][0]!='1' or ds['flags'][-2]!='1':
             raise ValueError('RPC尚未在已证32bit protected DS容量内；未猜默认selector/base')
@@ -126,6 +133,7 @@ class OwnedRPC:
             'single_main_emulation_thread_command':True,'break_or_extra_window':False,
             'registers_are_separate_observations_not_atomic_guest_stack_trace':True,
             'UI_RNG_snapshot_not_compared':True}
+        if explicit_selectors:result['descriptor_selectors_bound_to_before_EV']=True
         self.record.setdefault('snapshots',[]).append(result);return data,result
     def __exit__(self,*exception):
         if self.stream:self.stream.close()

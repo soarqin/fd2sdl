@@ -295,33 +295,26 @@ static const fd2_static_flow *stage_flow_get(const char *kind, size_t stage) {
 /* sub_205B4 @0x205b4、field_stage1_battle_result_check @0x206c5（原sub_206C5）：
  * 正式结果按hidden/side及原覆盖顺序查询，不以HP替代死亡整理；
  * default仅保留既有内部fallback身份。纯查询不提交53ECC结果锁存。 */
-fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
-    if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
-    const fd2_static_flow *flow = stage_flow_get("result", game->stage);
-    if (!flow) flow = fd2_static_flow_lookup("stage", "stage.result.default");
+int fd2_field_game_result_query_flow(const fd2_field_game *game, const char *id,
+                                    fd2_field_battle_result *out) {
+    if (!game || !game->ready || !id || !out || strncmp(id, "stage.result.", 13)) return -1;
+    const fd2_static_flow *flow = fd2_static_flow_lookup("stage", id);
     int pc = flow ? flow->entry : -1;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         const fd2_static_flow_node *n = fd2_static_flow_at(flow, pc);
         if (!n || !(n->views & FD2_FLOW_LOGIC)) break;
-        int yes = 0;
         if (!strcmp(n->op, "result_return")) {
-            if (n->args[0] >= FD2_FIELD_BATTLE_ONGOING && n->args[0] <= FD2_FIELD_BATTLE_DEFEAT)
-                return (fd2_field_battle_result)n->args[0];
-            break;
-        } else if (!strcmp(n->op, "result_count_at_least")) yes = game->units.count >= (size_t)n->args[0];
-        else if (!strcmp(n->op, "result_leader_dead")) {
-            size_t at = (size_t)n->args[0];
-            yes = at >= game->units.count || fd2_field_unit_is_hidden(&game->units.items[at]) ||
-                (n->args[1] && !game->units.items[at].hp);
-        } else if (!strcmp(n->op, "result_side_present")) {
-            for (size_t i = 0; i < game->units.count; i++) {
-                const fd2_field_unit *u = &game->units.items[i];
-                if (u->side == n->args[0] && !fd2_field_unit_is_hidden(u) && (!n->args[1] || u->hp)) yes = 1;
+            if (n->args[0] >= FD2_FIELD_BATTLE_ONGOING && n->args[0] <= FD2_FIELD_BATTLE_DEFEAT) {
+                *out = (fd2_field_battle_result)n->args[0];
+                return 0;
             }
-        } else if (!strcmp(n->op, "result_all_hidden")) {
-            yes = 1;
-            for (int32_t i = n->args[0]; i <= n->args[1]; i++)
-                if ((size_t)i < game->units.count && !fd2_field_unit_is_hidden(&game->units.items[i])) yes = 0;
+            break;
+        } else if (!strcmp(n->op, "result_keep")) {
+            if (game->battle_result < FD2_FIELD_BATTLE_ONGOING || game->battle_result > FD2_FIELD_BATTLE_DEFEAT) break;
+            *out = game->battle_result;
+            return 0;
+        } else if (!strcmp(n->op, "result_invalid")) {
+            return -1;
         } else {
             /* 20957类结果条件与事件共用同一const谓词，不发明raw0 caller。
              * stage域只登记明确actor的条件；覆盖优先级由各结果冷图决定。 */
@@ -330,8 +323,16 @@ fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game)
             pc = fd2_static_flow_edge(flow, n, port);
             continue;
         }
-        pc = fd2_static_flow_edge(flow, n, yes ? FD2_FLOW_YES : FD2_FLOW_NO);
     }
+    return -1;
+}
+
+fd2_field_battle_result fd2_field_game_battle_result(const fd2_field_game *game) {
+    if (!game || !game->ready) return FD2_FIELD_BATTLE_ONGOING;
+    const fd2_static_flow *flow = stage_flow_get("result", game->stage);
+    if (!flow) flow = fd2_static_flow_lookup("stage", "stage.result.default");
+    fd2_field_battle_result result;
+    if (flow && fd2_field_game_result_query_flow(game, flow->id, &result) == 0) return result;
     /* 构建期已拒绝缺图/未知操作/环；此处只防御二进制内部定义损坏，不能伪造胜败。 */
     fprintf(stderr, "corrupt internal battle result flow (stage=%zu)\n", game->stage);
     abort();
@@ -461,7 +462,8 @@ static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t g
     if (result <= 0) return result;
     const fd2_static_flow *flow = fd2_reward_graph();
     if (!flow) return -1;
-    fd2_reward_cursor cursor = {0}; cursor.step = flow->entry;
+    /* progress冷域仍由生成器限制254节点；不扩大原热游标。 */
+    fd2_reward_cursor cursor = {0}; cursor.step = (uint8_t)flow->entry;
     shadow = *unit;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         fd2_reward_notice value;
@@ -485,7 +487,7 @@ static int begin_reward(fd2_field_game *game, size_t actor_index,
     memset(&game->progress, 0, sizeof(game->progress));
     const fd2_static_flow *flow = fd2_reward_graph();
     if (!flow) return -1;
-    game->progress.flow_step = flow->entry;
+    game->progress.flow_step = (uint8_t)flow->entry;
     game->progress.notice.actor_index = actor_index;
     game->progress.resume = resume;
     game->progress.resume_actor = resume_actor;
@@ -798,7 +800,7 @@ static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
     if (!flow) { fail_action(game, 0); return; }
     /* 同图只模拟可预测写入以枚举资源；focus及派生错误保留其原实际写点。 */
     fd2_field_units units = game->units;
-    fd2_field_progress preview = {0}; preview.status_side = side; preview.flow_step = flow->entry;
+    fd2_field_progress preview = {0}; preview.status_side = side; preview.flow_step = (uint8_t)flow->entry;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         int result = run_status_flow(game, &preview, &units, 1);
         if (result == 1) break;
@@ -811,7 +813,7 @@ static void apply_phase_status_tick(fd2_field_game *game, uint8_t side) {
     memset(&game->progress, 0, sizeof(game->progress));
     game->progress.resume = FD2_FIELD_PROGRESS_RESUME_PHASE;
     game->progress.status_side = side;
-    game->progress.flow_step = flow->entry;
+    game->progress.flow_step = (uint8_t)flow->entry;
     (void)fd2_field_game_progress_resume(game);
 }
 
@@ -960,9 +962,9 @@ static void clear_view_border(fd2_vga *vga) {
     }
 }
 
-int fd2_field_game_open_resources(fd2_field_game *game,
+static int open_resources_for_flow(fd2_field_game *game,
                         const fd2_archive *fdother,
-                        size_t stage) {
+                        size_t stage, int source_only) {
     if (!game) return -1;
     memset(game, 0, sizeof(*game));
     if (!fdother) return -1;
@@ -982,7 +984,7 @@ int fd2_field_game_open_resources(fd2_field_game *game,
     game->detail_acknowledged_unit = -1;
 
     /* 仅stage0..2有独立已恢复入口；资源准备不开放未知后续handler。 */
-    if (!fd2_field_stage_is_supported(stage)) return -1;
+    if (source_only ? stage >= 30u : !fd2_field_stage_is_supported(stage)) return -1;
 
     if (fd2_archive_open(&game->field_archive,
                          "original_game/FDFIELD.DAT") != 0 ||
@@ -1043,6 +1045,11 @@ fail:
     return -1;
 }
 
+int fd2_field_game_open_resources(fd2_field_game *game,
+        const fd2_archive *fdother, size_t stage) {
+    return open_resources_for_flow(game, fdother, stage, 0);
+}
+
 int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
                         const fd2_archive *fdother, size_t stage) {
     if (!game) return -1;
@@ -1073,22 +1080,25 @@ fail:
 /* sub_1088D @0x1088d与field_stage1_entry_play @0x32d18（原sub_32D18）：只重建active交互字段，
  * 不调用初始构造器重置已成长的persistent记录。 */
 static int prepare_deployment(fd2_field_game *game, const fd2_archive *fdother,
-        const fd2_save_manual_state *state, size_t stage, size_t slots) {
+        const fd2_save_manual_state *state, size_t stage, size_t slots, int source_only) {
     if (!game) return -1;
     memset(game, 0, sizeof(*game));
-    if (!fdother || !state || !slots || slots > FD2_FIELD_MAX_UNITS || state->stage_id != stage ||
+    if (!fdother || !state || (!source_only && !slots) || slots > FD2_FIELD_MAX_UNITS || state->stage_id != stage ||
         !state->unit_count || state->unit_count > FD2_SAVE_MAX_UNITS) return -1;
-    if (fd2_field_game_open_resources(game, fdother, stage) != 0) return -1;
+    if (open_resources_for_flow(game, fdother, stage, source_only) != 0) return -1;
+    if (source_only) slots = game->metadata.unknown_01;
+    if (!slots || slots > FD2_FIELD_MAX_UNITS) goto fail;
     if (game->metadata.unknown_01 != slots) goto fail;
     memcpy(game->roster, state->unit_area, sizeof(game->roster));
     game->roster_count = state->unit_count;
     game->resource_value = state->gold_or_flags;
-    game->stage_runtime_entry_offset = 0x238du + (uint32_t)(stage - 1u) * 31u;
+    game->stage_runtime_entry_offset = source_only ? 0 : 0x238du + (uint32_t)(stage - 1u) * 31u;
     game->option_values[0] = state->options[2];
     game->option_values[1] = state->options[3];
     game->option_values[2] = state->options[1];
     game->option_values[3] = state->options[0];
     fd2_field_system_menu_set_options(&game->system_menu, game->option_values);
+    if (source_only) return 0; /* 1088d的active写集留在明确stage_setup_source叶。 */
     /* 1088d @10ae1..10b20：有限冷gate决定是否消费；跳空时roster和
      * placement都不前进，不能以active序号猜持久前缀的位置。 */
     if (fd2_field_prepare_deployment_project(state,stage,&game->map,&game->metadata,
@@ -1099,6 +1109,34 @@ static int prepare_deployment(fd2_field_game *game, const fd2_archive *fdother,
 fail:
     fd2_field_game_close(game);
     return -1;
+}
+
+/* sub_205DA @0x205da（原登记同名）：仅按明确源图准备1088d的base active。
+ * 不预跑pan/group/script或对白后缀；manual输入的旧结果锁存不在SAV中，
+ * 此入口只借现roster/资源，active仍为空；真实1088d写集由冷setup叶执行。 */
+int fd2_field_game_prepare_stage_source_flow(fd2_field_game *game,
+        const fd2_archive *fdother, const fd2_save_manual_state *state,
+        const char *source_id) {
+    if (!game) return -1;
+    memset(game, 0, sizeof(*game));
+    if (!state || !source_id || !state->stage_id || state->stage_id >= 30u) return -1;
+    char expected[64];
+    if (snprintf(expected, sizeof(expected), "stage.source.entry.%03u", (unsigned)state->stage_id) < 0 ||
+            strcmp(source_id, expected)) return -1;
+    const fd2_static_flow *flow = fd2_static_flow_lookup("stage", source_id);
+    if (!flow) return -1;
+    const fd2_static_flow_node *first = fd2_static_flow_at(flow, flow->entry);
+    const fd2_static_flow *init = fd2_static_flow_lookup("stage", "stage.source.initialize");
+    const fd2_static_flow_node *mode = init ? fd2_static_flow_at(init, init->entry) : NULL;
+    const fd2_static_flow_node *reset = mode ? fd2_static_flow_at(init,
+        fd2_static_flow_edge(init, mode, FD2_FLOW_NEXT)) : NULL;
+    const fd2_static_flow_node *setup = reset ? fd2_static_flow_at(init,
+        fd2_static_flow_edge(init, reset, FD2_FLOW_NEXT)) : NULL;
+    /* 有效域固定为先205da；不能把构造预投影到用户重排的story前缀之前。 */
+    if (!first || strcmp(first->op, "call_init") || !mode || !reset || !setup ||
+            strcmp(mode->op, "display_mode") || mode->args[0] != 0 ||
+            strcmp(reset->op, "entry_result_reset") || strcmp(setup->op, "stage_setup_source")) return -1;
+    return prepare_deployment(game, fdother, state, state->stage_id, 0, 1);
 }
 
 /* persistent_roster_sync_from_battle @0x11506：固定记录投影算法，不决定剧情分支。 */
@@ -1120,6 +1158,101 @@ static int settlement_roster_sync(const fd2_field_units *units, fd2_save_manual_
         }
     }
     return 0;
+}
+
+static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, int force);
+
+int fd2_field_game_stage_source_is_idle(const fd2_field_game *game) {
+    if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
+            game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
+            game->event_log_count > sizeof(game->event_log) / sizeof(game->event_log[0]) ||
+            progress_pending(game) || game->player_post_waiting_phase ||
+            game->turn_post_caller != FD2_FIELD_TURN_POST_NONE ||
+            game->loot.notice.kind != FD2_FIELD_LOOT_NONE || game->loot.resume != FD2_FIELD_PROGRESS_RESUME_NONE ||
+            game->event_resume.child_wait || game->event_resume.completion != FD2_EVENT_COMPLETE_NONE ||
+            game->interaction != FD2_FIELD_INTERACTION_BROWSE) return 0;
+    for (size_t i = 0; i < game->event_log_count; i++)
+        if (game->event_log[i].presentation_deferred) return 0;
+    return 1;
+}
+
+/* 205da／33499／11506的源机制叶；分支及先后只由明确的stage源冷图控制。
+ * 1=本叶已执行，0=交Scene呈现，-1=停在当前前缀；不查结果、不存新续态。 */
+int fd2_field_game_stage_source_node(fd2_field_game *game,
+        const fd2_static_flow_node *node, unsigned *port) {
+    if (!game || !game->ready || !node || !node->op || !port ||
+            game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
+        return -1;
+    const int32_t *a = node->args;
+    *port = FD2_FLOW_NEXT;
+    if (!strcmp(node->op, "stage_setup_source")) {
+        if (!game->stage || game->stage >= 30u || !game->metadata.unknown_01) return -1;
+        fd2_save_manual_state state = {0};
+        state.stage_id = (uint8_t)game->stage;
+        state.unit_count = game->roster_count;
+        memcpy(state.unit_area, game->roster, sizeof(game->roster));
+        fd2_field_units units;
+        if (fd2_field_prepare_deployment_project(&state, game->stage, &game->map, &game->metadata,
+                &game->placements, &units) != 0) return -1;
+        for (size_t i = 0; i < units.count; i++)
+            if (fd2_field_unit_cached_frame_index(&units, i, 0) >= game->sprites.frame_count) return -1;
+        game->units = units;
+    } else if (!strcmp(node->op, "entry_result_reset")) {
+        game->battle_result = FD2_FIELD_BATTLE_ONGOING;
+    } else if (!strcmp(node->op, "entry_view_reset")) {
+        game->camera_cell_x = game->camera_cell_y = 0;
+        game->camera_pixel_offset_x = game->camera_pixel_offset_y = 0;
+        game->cursor_cell_x = game->cursor_cell_y = 0;
+    } else if (!strcmp(node->op, "entry_turn_reset")) {
+        game->turn_number = 1;
+    } else if (!strcmp(node->op, "view_set")) {
+        for (size_t i = 0; i < 4; i++) if (a[i] < 0 || a[i] > 255) return -1;
+        game->cursor_cell_x = a[0]; game->cursor_cell_y = a[1];
+        game->camera_cell_x = a[2]; game->camera_cell_y = a[3];
+        game->camera_pixel_offset_x = game->camera_pixel_offset_y = 0;
+    } else if (!strcmp(node->op, "clear_acted")) {
+        for (size_t i = 0; i < game->units.count; i++) fd2_field_unit_set_acted(&game->units.items[i], 0);
+    } else if (!strcmp(node->op, "unit_id_position")) {
+        /* 24ec6..24ef0：只改first..count中ID匹配的x/y；不按HP/hidden过滤。 */
+        if (a[0] < 0 || a[0] > FD2_FIELD_MAX_UNITS || a[1] < 0 || a[1] > UINT8_MAX ||
+                a[2] < 0 || a[2] > UINT8_MAX || a[3] < 0 || a[3] > UINT8_MAX) return -1;
+        for (size_t i = (size_t)a[0]; i < game->units.count; i++) if (game->units.items[i].unit_id == (uint8_t)a[1]) {
+            game->units.items[i].x = (uint8_t)a[2]; game->units.items[i].y = (uint8_t)a[3];
+        }
+    } else if (!strcmp(node->op, "branch_any_hidden")) {
+        if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= game->units.count) return -1;
+        int hidden = 0;
+        for (int32_t i = a[0]; i <= a[1]; i++) if (fd2_field_unit_is_hidden(&game->units.items[i])) hidden = 1;
+        *port = hidden ? FD2_FLOW_YES : FD2_FLOW_NO;
+    } else if (!strcmp(node->op, "fail")) {
+        return -1;
+    } else if (!strcmp(node->op, "event_byte_write") || !strcmp(node->op, "unit_field_write") ||
+            !strncmp(node->op, "branch_", 7)) {
+        return common_event_domain(game, 0, node, port, 0);
+    } else if (!strcmp(node->op, "display_mode")) {
+        if (a[0] < 0 || a[0] > 1) return -1;
+        game->ordinary_display_mode = (uint8_t)a[0];
+    } else if (!strcmp(node->op, "append_group")) {
+        if (a[0] < 0 || a[0] > UINT8_MAX || a[1] < 0 || a[1] > 1 || a[2] != 0)
+            return -1; /* 到场prepare/frames必须由其已证冷序列另行表达。 */
+        return common_event_append_group_wide(game, (uint32_t)a[0], a[1]) == 0 ? 1 : -1;
+    } else if (!strcmp(node->op, "reset_directions")) {
+        for (size_t i = 0; i < game->units.count; i++) game->units.items[i].direction = 0;
+    } else if (!strcmp(node->op, "roster_append")) {
+        if (a[0] < 0 || a[0] > 31 || append_persistent_player(game, (uint8_t)a[0]) != 0) return -1;
+    } else if (!strcmp(node->op, "roster_sync")) {
+        fd2_save_manual_state state = {0};
+        state.unit_count = game->roster_count;
+        memcpy(state.unit_area, game->roster, sizeof(game->roster));
+        int result = settlement_roster_sync(&game->units, &state);
+        /* 首错之前已经同步的持久记录不回滚。 */
+        memcpy(game->roster, state.unit_area, sizeof(game->roster));
+        if (result != 0) return -1;
+    } else if (!strcmp(node->op, "next_stage")) {
+        if (a[0] < 1 || a[0] >= 30) return -1;
+        game->stage = (size_t)a[0];
+    } else return 0;
+    return 1;
 }
 
 typedef struct {
@@ -1183,7 +1316,7 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
                 }
             } else if (!strcmp(op, "stage_setup")) {
                 if (!entry || !context->deployment || prepare_deployment(entry, context->fdother,
-                        context->deployment, (size_t)n->args[0], (size_t)n->args[1]) != 0 ||
+                        context->deployment, (size_t)n->args[0], (size_t)n->args[1], 0) != 0 ||
                         entry->metadata.unknown_01 != n->args[3]) return -1;
             } else if (!strcmp(op, "pan")) {
                 if (!entry) return -1;

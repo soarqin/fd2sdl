@@ -1,6 +1,6 @@
 # 通用逻辑完整性审计与缺口矩阵
 
-2026-11-13 补充收口：G1—G5 及 §13 原完成域保留，旧结果／snapshot 差异已由独立 S0 修正，证据只查[S0 记录](stage-log.md#s0-结果判定与活动恢复合同修正2026-11-13)。S1 已闭合全量来源账及 descriptor caller／完整 WORD／default 审计表达；旧 `common_gap` 和统计仍留历史投影，未改 consumer 或支持门。来源、差异和未决见[S1 记录](stage-log.md#s1-全量来源账审计同步与批量夹具2026-11-13)。下一步为[统一计划 S2](development.md#4-新优先级与依赖)，未自动开始，不重开 G 历史或推断全游戏完整率。
+2026-11-13 补充收口：G1—G5 及 §13 原完成域保留，旧结果／snapshot 差异已由独立 S0 修正，证据只查[S0 记录](stage-log.md#s0-结果判定与活动恢复合同修正2026-11-13)。S1 已闭合全量来源账及 descriptor caller／完整 WORD／default 审计表达；旧 `common_gap` 和统计仍留历史投影，未改 consumer 或支持门。来源、差异和未决见[S1 记录](stage-log.md#s1-全量来源账审计同步与批量夹具2026-11-13)。S2 实施和冻结域见[S2 来源报告](s2-shared-semantics.md)，当前状态只查[统一计划](development.md#4-新优先级与依赖)；不重开 G 历史或推断全游戏完整率。
 
 2026-11-09 的只读审计基线为 `c1b6598`。本文保留原审计发现，并登记其后 G1—G5 的实现、证据与验收；**开发顺序只由 [development.md §4](development.md#4-新优先级与依赖) 决定**。原审计阶段只交付计划，后续实施已另获授权；不能将基线缺口当作当前待办，也不据此开放未知玩法。
 
@@ -397,3 +397,16 @@ G4 `4ada76b` 已集成本地 master。G5 尚未提交或集成，统一回归进
 | N69 最终 parent | `F:/fd2sdl-evidence/g5-audio-remainder-20261111-1115/comparison.json` | `27a2126e602d7e8739f6fca2e0b75a8ef2a87dc11fa5917eb5b34266135a6359`；62/62 与精确五场联合门，source／user／closed evidence／owned／display 全闭。仍保 runner 的 `full_G5_signed_off=false`，不由 runner 代签整个项目。 |
 | N69 四场新报告 | `F:/fd2sdl-evidence/g5-audio-remainder-20261111-1115/audio-five/comparison.json` | `d81ab28b28dae012f904e122c6d55094cc4fb0695efecf0d4607780e1b2742b1`；active-load／opening／end-turn／sfx-reenable 各原／SDL 共 8 新端均 passed；音频实际采集与声明的有限 sample8 身份按原门通过，设备可听／波形／绝对时序不扩签。 |
 | N69 outer | `build/g5/post-audio-remainder-69.log` | `10e54ed0b062c7888b600f647cbc470562483c05f1476c775664ff4b0b85330d`；Job29520 正常 worker0／timeout0／residual0／forced0／cleaned1，无 owned 遗留。 |
+
+
+## 14. S2 共享来源域与保留边界（2026-11-13）
+
+新增来源图继续使用既有有限 consumer。全量来源叠加账对 208 分派槽、315 条 S1 未决及 450 条拒绝域分别闭合；这些是重叠的来源／引用统计，不能相加为独立机制数或运行通过率。真实 target、caller、原宽度、读写 owner、原 CFG 和参数有效域均保留，定义存在不自动使绑定可运行。
+
+S2 的纯结果图和带故事／锁存写点的结果事件分开。原码 `33499` 比较 roster BYTE 与完整 DWORD 参数，普通结果共享 `205be` 的函数内入口；新别名不能仅凭同 target 绕过 count／raw／资源有效域。stage0／1 的 S0 合同保持，未将新来源图改绑到正式 stage controller。
+
+新图前态预检改为有界只读投影，保留已知 ID／人数／状态／地图，构造后 HP／库存等未证字段不猜值；错误在实际叶仍需晚验，原 RNG／SAV／owner 不变。来源 Scene 的业务叶与呈现叶按冷顺序推进，空闲 owner 门在首写前核验；取消和错误保留前缀，未增加事务、平行热状态或通用脚本 VM。
+
+原 `11d40` 的减法 DAC 与 `11df2` 的加法 DAC 是不同原语。新来源淡入／淡出使用唯一冷 helper（65／64 级，各级尾 2 ms），短等待按剩余时间切片；普通旧 Scene 的 17 级比例近似尚未迁移，唯一归属为[总计划 S4](development.md#s4统一审查全历史回归与精简)。新来源域证据不能倒签旧近似的中间级或绝对时序。
+
+完整转换统计、隔离异常、实际原码／SDL／原版代表和失败候选见[S2 报告](s2-shared-semantics.md)与[阶段记录](stage-log.md#s2-共享语义转换与能力补充2026-11-13)。G1—G5 和 S0／S1 的原完成域继续有效；S3 才决定依赖闭包和正式绑定，本轮不开放新关卡。

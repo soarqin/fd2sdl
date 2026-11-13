@@ -2183,6 +2183,218 @@ for _va, _facts in _G5_DIRECTION_ARRIVAL_EVIDENCE.items():
     })
 
 
+_S2_RESULT_NAMES = {
+    0x20707: ("leaders50_51", "先CALL205be普通主体，再raw50/51任一hidden写败北"),
+    0x2073D: ("leader14", "先CALL205be普通主体，再raw14 hidden写败北"),
+    0x20765: ("villagers15_26_turn59", "先CALL205be；raw15..26全hidden时先写败北再story10；其后signed turn>5且raw59 hidden再写败北、story2，两段可同次依序发生"),
+    0x20822: ("leader64", "先CALL205be普通主体，再raw64 hidden写败北"),
+    0x2084A: ("leader65", "先CALL205be普通主体，再raw65 hidden写败北"),
+    0x20872: ("roster18_actor52", "先CALL205be，再33499(18)；roster text18缺席且raw52 hidden时先story2、返回后才写败北"),
+    0x208CF: ("latched_actor52", "不调用普通主体、不初始化53ECC；先raw0/16/17任hidden写败北，再raw52 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返"),
+    0x20926: ("turn6_actor64", "20930明确CALL205be（205b4内普通主体入口），再signed turn>6且raw64 hidden时写败北"),
+    0x20957: ("allies53_60_enemies", "先CALL205be；raw53..60全hidden先写败北再story10；其后raw0/52任hidden写败北；末raw36..51和61..82均全hidden再写胜利覆盖，包括先前raw0败北"),
+    0x20A51: ("leaders16_17", "先CALL205be普通主体，再raw16/17任一hidden写败北"),
+    0x20A87: ("leader1", "先CALL205be普通主体，再raw1 hidden写败北；stage21/26/27三个原槽保留各自来源，不因同target提权"),
+    0x20AAF: ("latched_actor18", "不调用普通主体、不初始化53ECC；先raw0/1/16/17任hidden写败北，再raw18 hidden写胜利覆盖；均不满足时保留入口锁存，没有胜利早返"),
+    0x20B14: ("leader16", "先CALL205be普通主体，再raw16 hidden写败北"),
+    0x20B3C: ("leaders1_2", "先CALL205be普通主体，再raw1/2任一hidden写败北"),
+    0x20B72: ("latched_state18_20", "不初始化53ECC；state18/19/20三个BYTE全非0先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story9、返回后写败北；无命中保留入口锁存"),
+    0x20BF5: ("latched_actor20", "不初始化53ECC；raw20 hidden先写胜利；随后raw0 hidden写败北；随后raw1 hidden先story7、返回后写败北；无命中保留入口锁存"),
+}
+for _va, (_suffix, _meaning) in _S2_RESULT_NAMES.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "semantic_name", "was": f"sub_{_va:X}",
+        "now": f"field_battle_result_{_suffix}_check",
+        "why": "S2完整30槽/18target及205b4/34894/33499读集，所有shared chunk逐字节核strict relocated；"
+               + _meaning + "。205be是205b4内既有共享入口/主体，不拆新函数；hidden只取record+5 bit0，不查HP。"
+               "原结果码0进行/1败北/2胜利，与SDL enum显式映射；不推断参数类型。"
+               "verify_s2_results.py独立执行原指令832例，完整124块/158边及实际C等待前缀核验；"
+               "仅Watcom栈探测和文本呈现为明确替身，34894/33499查询实际执行；不等同原生、全游戏或缺raw越界域。",
+    })
+CORRECTIONS.setdefault(0x33499, []).append({
+    "target": "semantic_name", "was": "sub_33499", "now": "field_roster_has_text",
+    "why": "S2完整64B、7个真实caller xref及20872实参18；扫描53BF7独立roster的53BFB条80B记录，"
+           "record+8 BYTE零扩展后与完整栈DWORD比较，参数不截BYTE；不查HP/hidden，不是active身份查找；不保存猜测ABI。",
+})
+for _va, _meaning in {
+    0x11DF2: "palette BYTE零扩展加有符号DWORD偏移，signed大于63才夹63，first..last含两端逐DAC端口写；逆区间为空、未改基色；本轮consumer仅接基色0..63/add0..255，不推广负数DAC或DWORD溢出硬件域；不是乘性brightness",
+    0x17AA9: "signed WORD BIOS tick先减，负差加65536，与signed DWORD goal比较；<=0仍读一轮，53A2C scratch无外部reader；不清键/不推进水色",
+    0x35B78: "pan→append group(BYTEarg8)→300ms→palette add255→200ms→add0→11cac(0)→400ms，无music",
+    0x361B0: "palette add0..63每次8ms，400ms，再add62..0每次8ms；完整循环顺序不是fade-out brightness",
+}.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "S2新增palette/tick消费域未登记完整caller/WORD边界", "now": _meaning,
+        "why": "s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；"
+               "verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。"
+               "outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。",
+    })
+
+
+_S2_FADE_EVIDENCE = {
+    0x11D40: ("dac_apply_darkness", "完整11d40..11df2及1951f..19523共享返回尾；每个6bit基色分量减"
+              "有符号DWORD darkness，负值夹0后写DAC，不改base palette。S2新source消费只接dark0..64；"
+              "不能用旧宿主base*(64-dark)/64的乘法缩放作本原义oracle，旧已验brightness caller行为未在此重写"),
+    0x1F882: ("palette_fade_out_dark", "主18B与1f503..1f525共享34B为同一完整函数域：先dark0，"
+              "按0..63共64次11d40(0,255,dark)后各delay_ms(2)，包含dark63后的尾2ms；"
+              "无清键、BIOS等待、RNG或Game热字段写。共享tail不是独立fade函数"),
+    0x1F525: ("palette_fade_in_light", "完整51B从dark64递减至0，共65次11d40(0,255,dark)后各"
+              "delay_ms(2)，包含dark0尾2ms；与fade-out的64次不同。1f82e位于1f81e内部，"
+              "不能将其误登记成新fade-in入口；旧Scene17级/12ms近似不作为新source冷序列的依据"),
+}
+for _va, (_name, _meaning) in _S2_FADE_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "S2完整fade/减法DAC尚未与历史宿主近似消费域分列",
+        "now": _name + "：" + _meaning,
+        "why": "S2 Domain完整六函数/CFG/xref及1951f显式4B尾逐chunk等strict relocated；"
+               "本地fade-source-02/domain.json SHA256 b334003f6e657028582790ef62ab732f6982da8bd80b82cdeeb7d7363d0b47d3。"
+               "verify_s2_fades.py执行完整11d40并和实际VGA C比85向量，含全部64基色×65暗度组合；"
+               "原1f882/1f525各128/130步调用轨迹与共享冷子图stage.source.fade.out/in独立逐节点相等。"
+               "栈检查、outp捕获和delay调用为明确替身；不称原生DAC/WGC或宿主绝对2ms已测，不改name/type。",
+    })
+
+
+# S2只记录source→唯一冷图的审阅关联；不复制节点/raw、不改名/类型/函数边界。
+# 入口位于shared chunk或函数内部时登记到原owner；不创建mid-entry函数。
+_S2_CALLBACK_SOURCE_BINDINGS = (
+    (0x34818, '0x34818..0x34894', 'dispatch:event_callback:009 target=0x34818 (function_entry)→common.callback.009'),
+    (0x348BB, '0x348bb..0x348ea', 'dispatch:event_callback:011 target=0x348bb (function_entry)→common.callback.011'),
+    (0x34940, '0x34940..0x34984', 'dispatch:event_callback:014 target=0x34940 (function_entry)→common.callback.014'),
+    (0x34984, '0x34984..0x349ec', 'dispatch:event_callback:015 target=0x34984 (function_entry)→common.callback.015'),
+    (0x349EC, '0x349ec..0x34a1e', 'dispatch:event_callback:016 target=0x349ec (function_entry)→common.callback.016'),
+    (0x34A1E, '0x34a1e..0x34a6c', 'dispatch:event_callback:017 target=0x34a1e (function_entry)→common.callback.017'),
+    (0x34A6C, '0x34a6c..0x34b07', 'dispatch:event_callback:019 target=0x34a6c (function_entry)→common.callback.019'),
+    (0x34B07, '0x34b07..0x34b2f', 'dispatch:event_callback:020 target=0x34b07 (function_entry)→common.callback.020'),
+    (0x34B2F, '0x34b2f..0x34b6f', 'dispatch:event_callback:021 target=0x34b2f (function_entry)→common.callback.021'),
+    (0x34B6F, '0x34b6f..0x34c7a,0x35f6e..0x35f78', 'dispatch:event_callback:022 target=0x34b6f (function_entry)→common.callback.022; dispatch:event_callback:023 target=0x34b9a (explicit_shared_chunk_entry)→common.callback.023; dispatch:event_callback:024 target=0x34c52 (explicit_shared_chunk_entry)→common.callback.024'),
+    (0x34C7A, '0x34c7a..0x34cf1', 'dispatch:event_callback:025 target=0x34c7a (function_entry)→common.callback.025'),
+    (0x34CF1, '0x34cf1..0x34d2f', 'dispatch:event_callback:026 target=0x34cf1 (function_entry)→common.callback.026'),
+    (0x34D2F, '0x34d2f..0x34d64', 'dispatch:event_callback:027 target=0x34d2f (function_entry)→common.callback.027'),
+    (0x34D64, '0x34d64..0x34d92', 'dispatch:event_callback:028 target=0x34d64 (function_entry)→common.callback.028'),
+    (0x34D92, '0x34d92..0x34dd0', 'dispatch:event_callback:029 target=0x34d92 (function_entry)→common.callback.029'),
+    (0x34DD0, '0x34dd0..0x34eb3', 'dispatch:event_callback:030 target=0x34dd0 (function_entry)→common.callback.030'),
+    (0x34EB3, '0x34eb3..0x34f38', 'dispatch:event_callback:031 target=0x34eb3 (function_entry)→common.callback.031'),
+    (0x34F38, '0x34f38..0x34f3d,0x34f3d..0x34f74', 'dispatch:event_callback:032 target=0x34f38 (function_entry)→common.callback.005'),
+    (0x34F74, '0x34f74..0x34fc2', 'dispatch:event_callback:033 target=0x34f74 (function_entry)→common.callback.033'),
+    (0x34FC2, '0x34fc2..0x34fcc', 'dispatch:event_callback:034 target=0x34fc2 (function_entry)→common.callback.024'),
+    (0x34FCC, '0x34fcc..0x35009', 'dispatch:event_callback:035 target=0x34fcc (function_entry)→common.callback.035'),
+    (0x35009, '0x35009..0x35022', 'dispatch:event_callback:036 target=0x35009 (function_entry)→common.callback.036'),
+    (0x35022, '0x35022..0x350be,0x35f6e..0x35f78', 'dispatch:event_callback:037 target=0x35022 (function_entry)→common.callback.037'),
+    (0x350BE, '0x350be..0x350c8,0x34f3d..0x34f74', 'dispatch:event_callback:005 target=0x350be (function_entry)→common.callback.005'),
+    (0x350C8, '0x350c8..0x35123', 'dispatch:event_callback:007 target=0x350c8 (function_entry)→common.callback.007'),
+    (0x35191, '0x35191..0x351e6', 'dispatch:event_callback:010 target=0x35191 (function_entry)→common.callback.010'),
+    (0x351E6, '0x351e6..0x35258', 'dispatch:event_callback:013 target=0x351e6 (function_entry)→common.callback.013'),
+    (0x35258, '0x35258..0x35298', 'dispatch:event_callback:018 target=0x35258 (function_entry)→common.callback.018'),
+    (0x35298, '0x35298..0x352ca', 'dispatch:event_callback:038 target=0x35298 (function_entry)→common.callback.038'),
+    (0x35321, '0x35321..0x35346', 'dispatch:event_callback:040 target=0x35321 (function_entry)→common.callback.040'),
+    (0x353B5, '0x353b5..0x353e7', 'dispatch:event_callback:042 target=0x353b5 (function_entry)→common.callback.042'),
+    (0x353E7, '0x353e7..0x353fa', 'dispatch:event_callback:043 target=0x353e7 (function_entry)→common.callback.043'),
+    (0x353FA, '0x353fa..0x3540f', 'dispatch:event_callback:044 target=0x353fa (function_entry)→common.callback.044'),
+    (0x3540F, '0x3540f..0x35422', 'dispatch:event_callback:045 target=0x3540f (function_entry)→common.callback.045'),
+    (0x35422, '0x35422..0x35468', 'dispatch:event_callback:046 target=0x35422 (function_entry)→common.callback.046'),
+    (0x35468, '0x35468..0x3551c', 'dispatch:event_callback:047 target=0x35468 (function_entry)→common.callback.047'),
+    (0x3551C, '0x3551c..0x3553f', 'dispatch:event_callback:048 target=0x3551c (function_entry)→common.callback.048'),
+    (0x3553F, '0x3553f..0x355b7,0x35d76..0x35d85', 'dispatch:event_callback:049 target=0x3553f (function_entry)→common.callback.049'),
+    (0x355B7, '0x355b7..0x355f0', 'dispatch:event_callback:050 target=0x355b7 (function_entry)→common.callback.050'),
+    (0x35638, '0x35638..0x35677', 'dispatch:event_callback:052 target=0x35638 (function_entry)→common.callback.052'),
+    (0x356B3, '0x356b3..0x35722', 'dispatch:event_callback:054 target=0x356b3 (function_entry)→common.callback.054'),
+    (0x357DD, '0x357dd..0x35833', 'dispatch:event_callback:056 target=0x357dd (function_entry)→common.callback.056'),
+    (0x35833, '0x35833..0x35854', 'dispatch:event_callback:057 target=0x35833 (function_entry)→common.callback.057'),
+    (0x35997, '0x35997..0x359cb', 'dispatch:event_callback:059 target=0x35997 (function_entry)→common.callback.059'),
+    (0x359CB, '0x359cb..0x35a0d', 'dispatch:event_callback:060 target=0x359cb (function_entry)→common.callback.060'),
+    (0x35BEE, '0x35bee..0x35c1d', 'dispatch:event_callback:062 target=0x35bee (function_entry)→common.callback.062'),
+    (0x35C1D, '0x35c1d..0x35c40', 'dispatch:event_callback:063 target=0x35c1d (function_entry)→common.callback.063'),
+    (0x35C40, '0x35c40..0x35cf1', 'dispatch:event_callback:064 target=0x35c40 (function_entry)→common.callback.064'),
+    (0x35CF1, '0x35cf1..0x35d1e', 'dispatch:event_callback:065 target=0x35cf1 (function_entry)→common.callback.065'),
+    (0x35D1E, '0x35d1e..0x35d76', 'dispatch:event_callback:066 target=0x35d1e (function_entry)→common.callback.066'),
+    (0x35D85, '0x35d85..0x35d9e', 'dispatch:event_callback:067 target=0x35d85 (function_entry)→common.callback.067'),
+    (0x35D9E, '0x35d9e..0x35e0e', 'dispatch:event_callback:068 target=0x35d9e (function_entry)→common.callback.068'),
+    (0x35E5B, '0x35e5b..0x35ec1', 'dispatch:event_callback:070 target=0x35e5b (function_entry)→common.callback.070'),
+    (0x35EC1, '0x35ec1..0x35f10', 'dispatch:event_callback:071 target=0x35ec1 (function_entry)→common.callback.071'),
+    (0x35F48, '0x35f48..0x35f6e', 'dispatch:event_callback:072 target=0x35f48 (function_entry)→common.callback.072'),
+    (0x35F79, '0x35f79..0x35f88', 'dispatch:event_callback:073 target=0x35f79 (function_entry)→common.callback.073'),
+    (0x35F88, '0x35f88..0x35fcf', 'dispatch:event_callback:074 target=0x35f88 (function_entry)→common.callback.074'),
+    (0x35FCF, '0x35fcf..0x360b6', 'dispatch:event_callback:075 target=0x35fcf (function_entry)→common.callback.075'),
+    (0x360B6, '0x360b6..0x361b0', 'dispatch:event_callback:076 target=0x360b6 (function_entry)→common.callback.076'),
+    (0x36214, '0x36214..0x36228', 'dispatch:event_callback:077 target=0x36214 (function_entry)→common.callback.077'),
+    (0x36228, '0x36228..0x3623c', 'dispatch:event_callback:078 target=0x36228 (function_entry)→common.callback.078'),
+    (0x362B0, '0x362b0..0x362c5', 'dispatch:event_callback:080 target=0x362b0 (function_entry)→common.callback.080'),
+    (0x362C5, '0x362c5..0x362e8', 'dispatch:event_callback:081 target=0x362c5 (function_entry)→common.callback.081'),
+    (0x363DE, '0x363de..0x36416', 'dispatch:event_callback:083 target=0x363de (function_entry)→common.callback.083'),
+    (0x36416, '0x36416..0x3642e', 'dispatch:event_callback:084 target=0x36416 (function_entry)→common.callback.084'),
+    (0x3642E, '0x3642e..0x36439', 'dispatch:event_callback:085 target=0x3642e (function_entry)→common.callback.085'),
+    (0x36439, '0x36439..0x36440', 'dispatch:event_callback:086 target=0x36439 (function_entry)→common.callback.085'),
+    (0x36440, '0x36440..0x36447', 'dispatch:event_callback:087 target=0x36440 (function_entry)→common.callback.085'),
+    (0x36447, '0x36447..0x3644e', 'dispatch:event_callback:088 target=0x36447 (function_entry)→common.callback.085'),
+    (0x3644E, '0x3644e..0x36455', 'dispatch:event_callback:089 target=0x3644e (function_entry)→common.callback.085'),
+)
+for _va, _chunks, _bindings in _S2_CALLBACK_SOURCE_BINDINGS:
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "S2批量callback完整来源与唯一冷图关联未登记",
+        "now": "实际owner " + hex(_va) + " 完整chunks[" + _chunks + "]；" + _bindings +
+               "。保留原中性名称；条件、顺序、等待和取消只维护于data/static/flows/common_event.json，不把候选视为新绑定。",
+        "why": "convert_stage_callbacks.py的callback04完整103-owner Domain读集SHA256 "
+               "299fd2d5f5a9b250c58db1b0a1bc31acc528880228c228e55c9bf926152f5306；strict relocated逐chunk等原码。"
+               "72源caller的1944独立x86/实际Game begin-peek-reply C逐叶前缀、141 wrong-ACK/HOST/error及1容量拒绝。"
+               "constructor新增区、stats、renderer/text/keyboard/delay/DAC为显式替身，既有helper写集单列；不签自然可达、"
+               "全部原生/RNG等价。turn/lookup为BYTE、descriptor为完整WORD；每个新stage/caller/参数/resource绑定仍须S3。"
+               "原callback82未闭合teleport ABI不在本映射；全部17旧图引用与未知去向由S2来源账另列，不向未决提权。",
+    })
+
+_S2_TRANSITION_SOURCE_BINDINGS = (
+    (0x230F2, '0x230f2..0x23296', 'dispatch:stage_victory:002 target=0x230f2→stage.source.victory.002; dispatch:stage_victory:003 target=0x231bc→stage.source.victory.003; dispatch:stage_victory:004 target=0x231f9→stage.source.victory.004'),
+    (0x23296, '0x23296..0x232e8', 'dispatch:stage_victory:005 target=0x23296→stage.source.victory.005'),
+    (0x232E8, '0x232e8..0x233c6', 'dispatch:stage_victory:006 target=0x232e8→stage.source.victory.006'),
+    (0x234BB, '0x234bb..0x235bc', 'dispatch:stage_victory:007 target=0x234bb→stage.source.victory.007'),
+    (0x235BC, '0x235bc..0x235f9', 'dispatch:stage_victory:008 target=0x235bc→stage.source.victory.008'),
+    (0x235F9, '0x235f9..0x23790', 'dispatch:stage_victory:009 target=0x235f9→stage.source.victory.009'),
+    (0x23790, '0x23790..0x237d5', 'dispatch:stage_victory:010 target=0x23790→stage.source.victory.010'),
+    (0x237D5, '0x237d5..0x239bd', 'dispatch:stage_victory:011 target=0x237d5→stage.source.victory.011; dispatch:stage_victory:012 target=0x2389f→stage.source.victory.012; dispatch:stage_victory:013 target=0x238dc→stage.source.victory.013'),
+    (0x239BD, '0x239bd..0x23a0a', 'dispatch:stage_victory:014 target=0x239bd→stage.source.victory.014'),
+    (0x23A0A, '0x23a0a..0x23b5f', 'dispatch:stage_victory:015 target=0x23a0a→stage.source.victory.015'),
+    (0x23B5F, '0x23b5f..0x23cd5', 'dispatch:stage_victory:016 target=0x23b5f→stage.source.victory.016'),
+    (0x23CD5, '0x23cd5..0x23e39', 'dispatch:stage_victory:017 target=0x23cd5→stage.source.victory.017'),
+    (0x23E39, '0x23e39..0x23e74', 'dispatch:stage_victory:018 target=0x23e39→stage.source.victory.018'),
+    (0x23E74, '0x23e74..0x240fa', 'dispatch:stage_victory:019 target=0x23e74→stage.source.victory.019'),
+    (0x24DF2, '0x24df2..0x24e80', 'dispatch:stage_victory:024 target=0x24df2→stage.source.victory.024'),
+    (0x24E80, '0x24e80..0x25052', 'dispatch:stage_victory:025 target=0x24e80→stage.source.victory.025'),
+    (0x25464, '0x25464..0x2548c', 'dispatch:stage_victory:027 target=0x25464→stage.source.victory.027'),
+    (0x32D18, '0x32d18..0x32e8c,0x33140..0x3314b,0x33206..0x33219', 'dispatch:stage_entry:001 target=0x32d18→stage.source.entry.001'),
+    (0x32E8C, '0x32e8c..0x32fb2,0x3312d..0x33140,0x33140..0x3314b', 'dispatch:stage_entry:002 target=0x32e8c→stage.source.entry.002'),
+    (0x32FB2, '0x32fb2..0x33049,0x3312d..0x33140', 'dispatch:stage_entry:003 target=0x32fb2→stage.source.entry.003'),
+    (0x33049, '0x33049..0x3312d,0x3312d..0x33140,0x33140..0x3314b', 'dispatch:stage_entry:004 target=0x33049→stage.source.entry.004'),
+    (0x3314B, '0x3314b..0x33169,0x3344d..0x3346b', 'dispatch:stage_entry:005 target=0x3314b→stage.source.entry.005'),
+    (0x33169, '0x33169..0x33206,0x33140..0x3314b,0x33206..0x33219', 'dispatch:stage_entry:006 target=0x33169→stage.source.entry.006'),
+    (0x33219, '0x33219..0x3327d', 'dispatch:stage_entry:007 target=0x33219→stage.source.entry.007'),
+    (0x3327D, '0x3327d..0x3332b', 'dispatch:stage_entry:008 target=0x3327d→stage.source.entry.008'),
+    (0x3332B, '0x3332b..0x33367,0x33206..0x33219,0x3344d..0x3346b', 'dispatch:stage_entry:009 target=0x3332b→stage.source.entry.009'),
+    (0x33367, '0x33367..0x333f5', 'dispatch:stage_entry:010 target=0x33367→stage.source.entry.010'),
+    (0x333F5, '0x333f5..0x3344d', 'dispatch:stage_entry:011 target=0x333f5→stage.source.entry.011'),
+    (0x3346B, '0x3346b..0x3347c,0x3344d..0x3346b', 'dispatch:stage_entry:012 target=0x3346b→stage.source.entry.012'),
+    (0x3347C, '0x3347c..0x33499,0x3344d..0x3346b', 'dispatch:stage_entry:013 target=0x3347c→stage.source.entry.013'),
+    (0x334D9, '0x334d9..0x335a0', 'dispatch:stage_entry:014 target=0x334d9→stage.source.entry.014'),
+    (0x335A0, '0x335a0..0x335aa', 'dispatch:stage_entry:015 target=0x335a0→stage.source.entry.015 (source-only alias→stage.source.entry.012)'),
+    (0x335AA, '0x335aa..0x335da,0x3344d..0x3346b', 'dispatch:stage_entry:016 target=0x335aa→stage.source.entry.016'),
+    (0x335DA, '0x335da..0x33674', 'dispatch:stage_entry:017 target=0x335da→stage.source.entry.017'),
+    (0x33674, '0x33674..0x3367e', 'dispatch:stage_entry:018 target=0x33674→stage.source.entry.018 (source-only alias→stage.source.entry.012); dispatch:stage_entry:019 target=0x33674→stage.source.entry.019 (source-only alias→stage.source.entry.012); dispatch:stage_entry:020 target=0x33674→stage.source.entry.020 (source-only alias→stage.source.entry.012)'),
+    (0x3367E, '0x3367e..0x336a0', 'dispatch:stage_entry:021 target=0x3367e→stage.source.entry.021'),
+    (0x338C4, '0x338c4..0x3396a', 'dispatch:stage_entry:023 target=0x338c4→stage.source.entry.023'),
+    (0x33AAE, '0x33aae..0x33af1', 'dispatch:stage_entry:025 target=0x33aae→stage.source.entry.025'),
+    (0x33DBA, '0x33dba..0x33e3c', 'dispatch:stage_entry:028 target=0x33dba→stage.source.entry.028'),
+)
+for _va, _chunks, _bindings in _S2_TRANSITION_SOURCE_BINDINGS:
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "S2入场/胜利完整caller来源与source冷图关联未登记",
+        "now": "实际owner " + hex(_va) + " 完整chunks[" + _chunks + "]及该表入口可达切片；" + _bindings +
+               "。原ID、branch及确切共享尾保持；流程仅在data/static/flows/stage.json编辑，不改中性名/类型/边界。",
+        "why": "convert_stage_transitions.py的完整80-owner Domain/CFG/xref读集SHA256 "
+               "ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；每chunk/instruction等strict relocated。"
+               "candidate15的45表入口独立原caller CPU161向量和14完整predicate向量；叶、实时等待、绘制/构造为显式替身。"
+               "原233c6完整写集与13536/shared tail独立核，fade原码/实际VGA C85向量及共享冷子图序列另证；"
+               "实际Scene逐叶C/probe门由独立最终收据登记，本注释不提前签仍未跑的C或原生结果。"
+               "45caller复用41唯一图（4个全图同义source-only alias）及stage.source.initialize/fade.in/fade.out；共用现Scene深度/预算，无新hot stack，所有新caller资源绑定留S3，"
+               "12未决目标不因附近CALL或已知部分写集开放。",
+    })
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

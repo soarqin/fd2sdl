@@ -1797,11 +1797,16 @@ static int play_system_message(field_runtime_presentation *runtime,
 
 static int loot_fixed_wait(fd2_vga *vga, unsigned milliseconds, int fast) {
     uint64_t start = SDL_GetTicks();
-    while (!fast && SDL_GetTicks() - start < milliseconds) {
+    while (!fast) {
+        uint64_t elapsed=SDL_GetTicks()-start;
+        if(elapsed>=milliseconds)break;
         if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
         /* field_special_cell_execute @0x190ac（原登记同名）的j___delay
-         * @0x3790a不重画、不推进127e0/4e31c；只借当前帧处理宿主退出。 */
-        fd2_vga_present_timed(vga, FD2_FIELD_COMMAND_FRAME_MS);
+         * @0x3790a不重画、不推进127e0/4e31c；只借当前帧处理宿主退出。
+         * S2 source的2/8ms不是16ms：尾slice只等当前deadline剩余量。 */
+        unsigned remaining=milliseconds-(unsigned)elapsed;
+        fd2_vga_present_timed(vga,remaining<FD2_FIELD_COMMAND_FRAME_MS?
+            remaining:FD2_FIELD_COMMAND_FRAME_MS);
     }
     return fd2_input_take_quit(&vga->input) ? FD2_SCENE_RESULT_HOST_QUIT : 0;
 }

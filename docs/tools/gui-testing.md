@@ -878,3 +878,57 @@ python3 -B -m unittest tools.tests.test_s0_result_contract tools.tests.test_stat
 ```
 
 阶段内的实际候选、失败／复验、静态／SDL／原码／原版范围见[阶段记录](../plans/stage-log.md)，不将多工具版本结果合写成一次fresh全绿。
+
+## S2 四组来源机制的定向入口
+
+本节说明 S2 新结果、调色板、等待和布局机制的 Windows 定向验证，不调用历史全套图形流程。三个 `fd2_s2_*_native_fixture.exe` 均为非分发夹具；生成来源图或运行夹具不开放新关卡，也不改变正式支持门。四组实际双端通过轮次为 result21／callback32／layout22／ticks31，来源身份分别登记于本地收据；本节只维护复跑规范，不将多轮合成一次fresh全套。实际运行、失败、修复与阶段签核统一查[阶段记录](../plans/stage-log.md)。
+
+| 入口 | 原版入口与 SDL 对应机制 | 本代表的验证边界 |
+|---|---|---|
+| `run_s2_result_check.py` | 受控 stage29／21 人真实 CONTINUE → controller 结果槽 29／`0x20bf5`；SDL 显式执行 `common.result.source_020bf5` | story7 前结果锁存保持 `0`，ACK 后写 SDL defeat `2`；核原资源文字／头像和只读 owner。原版最后 ACK 后只读静态结果锁存，不读取可能已释放的活动表 |
+| `run_s2_callback_check.py` | 受控 stage0／46 人物理败亡 → mode2 WORD70 → `0x35e5b`／`0x35b78`；SDL 仅由测试 lookup 将 action70 指向 `common.callback.070` | 核 story5／6、AI raw41..45 写集、三段完整全白反馈、END 和 UI Save 完整容器。`metadata.byte2=0` 是显式空 group 域，不证明追加构造或自然 stage22 绑定 |
+| `run_s2_ticks_check.py` | 受控 stage20／18 人，在真实特殊格 `(7,19)` 零步 WAIT → `0x190ac` YES → mode2 WORD47／`0x35468`；SDL 显式执行 `common.callback.047` | 核 `delay_ticks(1)` 后四角 pan 与四次 `delay_ticks(8)` 的有序反馈、有限完成及状态。原 WAIT 恢复前缀和 raw0 acted 后缀分列；SDL 显式来源不模拟 caller，不宣称完整 caller 相等 |
+| `run_s2_layout_check.py` | 受控 stage2／15 人真实 CONTINUE → Z／选择 ESC → 胜利 `0x230f2`／布局 `0x233c6`；SDL 显式执行 `stage.source.victory.002` | 核独立 EXE 数组给出的 raw0..6 布局、全表 clearacted、双 fade 边界和 story7 的 12 个等待资源门。最后 ACK 后静态完成门允许 `(stage,roster)=(2,4)/(2,5)`，到 `(3,5)` 才完成；不要求采到每个中间态，不读取原版后续活动 owner，也不运行 SDL stage3 controller |
+
+原版资源和用户档只读。受控输入的 SAV 改动、记录复制和身份覆写均写入本轮 `fixture.json`；未知区保留，实际 Load 缓存差异只按已声明规则处理。原版先行，原版失败不启动 SDL。每次使用尚不存在的输出目录，窗口启动前冻结程序、PDB、产品源和实际工具导入闭包；运行期间不修改这些输入。
+
+默认不带 `--run` 时只准备夹具，状态为 `prepared` 或 `prepared_only`，不计原生通过。结果、ticks 和 layout 入口指定 `--sdl` 时还会运行该夹具的真实 C `--check`，只核无窗口资源／首叶有效域。结果与 ticks 复用同一个来源夹具，ticks 的 wrapper 固定传入 `--flow common.callback.047`。callback 入口从 `--root/original_game` 读取原资源，没有 `--original` 参数；须先核实该目录的真实目标。
+
+Windows PowerShell（项目根执行；以下使用已冻结的 `native-candidate20`，不在组间重新构建；相邻 `.pdb` 由 wrapper 自动选择）：
+
+```powershell
+$Driver = 'src/build-win/Debug/fd2_field_play_input_driver.exe'
+$Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
+$Cdb = 'C:/Program Files (x86)/Windows Kits/10/Debuggers/x64/cdb.exe'
+$Original = 'E:/Projects/fd2sdl/original_game'
+$Result = 'build/s2/native-candidate20/fd2_s2_result_native_fixture.exe'
+$Callback = 'build/s2/native-candidate20/fd2_s2_callback_native_fixture.exe'
+$Layout = 'build/s2/native-candidate20/fd2_s2_layout_native_fixture.exe'
+
+& $Driver run-job 900000 python -B tools/run_s2_result_check.py --root . --original $Original --sdl $Result --driver $Driver --dosbox $Dosbox --cdb $Cdb --artifacts build/s2/new-native-result --run
+if ($LASTEXITCODE -ne 0) { throw 'S2 结果代表未通过；检查保留收据，停止后续窗口。' }
+& $Driver run-job 900000 python -B tools/run_s2_callback_check.py --root . --sdl $Callback --driver $Driver --dosbox $Dosbox --artifacts build/s2/new-native-callback --run
+if ($LASTEXITCODE -ne 0) { throw 'S2 callback 代表未通过；检查保留收据，停止后续窗口。' }
+& $Driver run-job 900000 python -B tools/run_s2_ticks_check.py --root . --original $Original --sdl $Result --driver $Driver --dosbox $Dosbox --cdb $Cdb --artifacts build/s2/new-native-ticks --run
+if ($LASTEXITCODE -ne 0) { throw 'S2 ticks 代表未通过；检查保留收据，停止后续窗口。' }
+& $Driver run-job 900000 python -B tools/run_s2_layout_check.py --root . --original $Original --sdl $Layout --driver $Driver --dosbox $Dosbox --cdb $Cdb --artifacts build/s2/new-native-layout --run
+if ($LASTEXITCODE -ne 0) { throw 'S2 布局代表未通过；检查保留收据。' }
+```
+
+四组继续使用 WGC 单 HWND、owned PID 后台输入和串行 Job。成功、失败或超时都要核窗口／子进程清理、来源未变及同线程显示需求释放，不修改用户混音器。原 RPC 复用 S0 已定义的完整快照／双锚／fixup／descriptor 规则，业务未完成不属于桥错误；layout 的静态完成门只在有限次数／截止时间内等待上述合法前缀，异常写序立即失败。
+
+结果、ticks 和 layout 三个 S2 代表共用 `fd2_s2_snapshot.py` 的只读 numeric selector 适配，显式启用 `explicit_selectors=True`。每次先取得本次 `EV` 的 CS／DS 数值，再查询这两个数字 selector；同一个 tuple 决定实际 dump 的 DS，随后仍重查该数字 DS、PM 状态和完整 owner。不得以动态 `SELINFO DS` 的稍后值替代较早 `EV` 的 DS，也不复用历史 selector／base 或上次 ready tuple。S0 默认动态六请求路径保持原样。
+
+共享适配只将两类尚未 dump 的观察列为未就绪：唯一完整 `EV` 证明 PE=0 或 VM=1（不查询 descriptor）；或完整三个 numeric 请求证明已观察的 16bit protected 小 DS。在同一最多 5 秒／32 组预算内重新采完整 tuple，不读取短 DS。DS32 不等于 CS32：已实际观察的 16bit CS／32bit DS 组合，在 PE／VM、descriptor 类型和属性、CS 的 EIP 界及 DS 容量均合格时可进入原完整 dump；不据此推断栈或 ABI。前态 type 仅屏蔽 accessed 位（CS `1A/1B`、DS `12/13`），仍保留原 type；访问位不是新布局，实际 dump 后仍完整比较 descriptor。逆向的 32bit CS／小 16bit DS、未知 protected descriptor、其它未登记混合视图、不完整响应或预算耗尽立即失败。每组完整请求及分类分别留在 `view-sample-NN.json`，总账为 `view-readiness.json`。实际 dump 后的 descriptor、短读、双锚／fixup／owner 规则不放宽；原两类可识别瞬态在 S2 中也须精确匹配本次 numeric 六请求，最多三个 whole attempt，失败 dump 不复用。这是 S2 显式适配，不扩大 S0 默认的错误重取范围。
+
+连续帧只证明声明的可见反馈：callback 显式请求 16 ms 采样，要求三段全帧通道下限 252 的全白；DAC 扫描混合帧不算完整白帧，不能因漏采放宽门。共享 `series` 的其它旧 caller 仍默认 33 ms。ticks 也显式请求 16 ms，要求四角有序，前三角各至少两张连续帧、稳定跨度至少 200 ms，并另核末尾完成；layout 请求 16 ms 采样，以正常亮度 → 全帧最大通道不高于 12 的近黑 → 恢复为边界门。不能补帧、插值或据此宣称每个 2 ms 淡变级、首个 BIOS tick 相位、全部中间 RGB 或绝对时序相等。64／65 级 fade、signed WORD 时钟差和结果分支由独立原码／实际 C 对照另行证明；原码替身、SDL 自测和原版 WGC 分账。
+
+ticks 原版的静态平台由 S2 专用有界 watcher 按需追加真实 WGC 观察；SDL 不启动该 watcher，直接把主 16 ms 会话的完整时间线交给同一个 `continuous_gate`，不足两帧／200 ms 时仍硬失败，没有 fallback 或自动通过。两端的 `backend_observation` 分别登记模式与来源：原 `bios_tick_delay @0x17aa9` 不 present；SDL 的 `common_event_delay_ticks` 在等待循环调用 `fd2_vga_present_timed`，`FD2_FIELD_COMMAND_FRAME_MS=16`。此差异只决定观察方式，不替代图像门。
+
+原版 watcher 的主 16 ms 会话继续运行，完整读取 live index，并按每个已验证原帧维护连续 run；非匹配或不同姿态均断 run。某角已由主会话独立满足原门时，记录 `covered_by_primary`、支撑原行及跨度，不启动无用补采：前三角须至少两张真帧且连续跨度至少 200 ms，第四角只须两张时间戳不同的连续真帧。仍缺证的四角首次匹配且主会话尚未观察到离开时，各最多立即启动一次同 PID／HWND 的短会话，总计最多四次，不在冷启动前额外等待 200 ms。总观察预算仍为 12 秒；每个短会话最多等待 1 秒 ready、从请求起最多 1500 ms；首帧过早时只在同一次会话内等真实新帧，不另开会话。首帧的 `SystemRelativeTime` 必须不早于该请求的实际 QPC；被接受帧还须严格晚于原角首帧且姿态相同，前三角另须相差至少 200 ms，第四角不增加跨度门。取得正证后立即显式 stop 并完成 owned 清理，不等待时限退出。PNG／arrival 的新时间不能替代旧 WGC 时间戳。允许短会话只有一张真实帧；保留完整 ready、summary、raw index、PNG SHA、几何、被接受帧及 Job 来源，再将主／短会话的全部原帧按绝对 WGC 时间合并，过早帧和期间非匹配帧均不删除。同时间戳只计一次并保留全部来源，像素／owner／几何冲突立即拒绝；所有非匹配帧仍断 run。启动慢、旧首帧、错过平台、来源或清理失败均不得签通过；不发键、不强制重绘、不延长游戏平台，也不改变原两帧／前三角 200 ms 门。末尾原版 acted 后缀、SDL source-done／event inactive 仍由原状态门单独核验，第四角新帧不能替代完成证明。该采集扩展仍须本轮实际原版／SDL 收据验收，不从纯工具测试预签。
+
+本节不证明自然关卡可达、完整 Load、全部热状态／共享 RNG／声音一致或 stage3 后续资源交接。Linux 原生 GUI 未执行；以下 Bash 命令仅为无窗口来源／工具守卫，不替代上述 Windows 四组：
+
+```bash
+uv run --no-project --with unicorn python3 -B -m unittest tools.tests.test_s2_results tools.tests.test_s2_visual
+```

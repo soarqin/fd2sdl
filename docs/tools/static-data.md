@@ -67,7 +67,7 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 每个 `operations` 条目定义参数名和范围；`flows` 使用稳定字符串 ID，节点用 `op`、有序 `args` 与命名出口 `on` 表达。`entry` 是默认入口，`entries` 仅声明既有 API 的其它入口。`views` 可限定 `logic` 或 `present`；省略则供两端投影。不能把两端各维护一份流程，也不能用一个 native 操作封装完整事件状态机。
 
-同域 `bindings` 把运行入口映射到已有真实流程，例如 common_event 的 `"stage.000.action.000": "common.legacy.action.000"`。别名共享生成节点数组，不复制流程；禁止别名链、循环、悬空目标及跨域重名。以后已知组合可增加绑定，仍须经过本关资源／前置校验和既有支持门；同 action 的其它关卡只作为待核实的复用候选，不能自动开放。
+同域 `bindings` 把入口 ID 映射到已有真实流程，例如 common_event 的 `"stage.000.action.000": "common.legacy.action.000"`。别名共享生成节点数组，不复制流程；禁止别名链、循环、悬空目标及跨域重名。实际运行支持由 caller 和支持门决定；S2 的 `stage.source.*` 同义别名仅供显式来源入口。以后已知组合可增加正式绑定，仍须经过本关资源／前置校验和既有支持门；同 action 的其它关卡只作为待核实的复用候选，不能自动开放。
 
 例如当前满包换物使用下列真实节点（完整上下文见 `loot.json`）：
 
@@ -155,6 +155,47 @@ SD3／G1 的 v3 来源报告保守潜在需求集合共1,171条记录引用，�
 常规新关接入：运行批量审计 → 核实 `reuse_candidates` 与原 callback／条件 → 将确认的组合加入唯一 `bindings`／定义 → 运行生成与引用检查、同输入状态／轨迹差分 → 仅对新增语义选代表原版场景。复用候选不会自动转为支持。新增未知控制流先保留源函数／chunk 和阻塞原因，再补最小领域原语及测试；不静默跳过、不写逐关 C handler，也不复制已有 DAT 表。
 
 报告含原始资源／代码字节，只放 ignored 的本地构建证据目录；不提交、不进入发布包。离线 App 构建不依赖该审计工具、Git 历史、IDA 产物或原版文件。
+
+## S2 批量转换与去向复现
+
+S2 继续消费冻结的 S1 来源包，另存完整 Domain 读集、候选冷图、独立原指令轨迹和实际 C 比较，不回写 S1。固定字段、计数与同义别名的消费合同见[来源账规范的 S2 叠加合同](../formats/stage-source-ledger.md#s2-转换叠加合同)。这些命令不编辑 `data/static/`、不启动 GUI，也不批准新关卡绑定；阶段完成与原生代表仍以阶段记录为准。
+
+复跑前需有合法原资源、已通过严格 LE 验收的 relocated 镜像、完整的本地 Domain 读集，以及当前平台实际构建的 C probe。缺少读集时，按 [IDA 流程](ida.md)在隔离数据库中调用 `convert_stage_callbacks.collect_domain(db, original, output, strict_image)`、`convert_stage_transitions.collect_domain(db, ledger_path, image_path, output)` 或 `s2_result_source.collect(db, image_path, executable, ida_directory, output)`；保留完整 owner、全部 shared chunk、xref 和镜像身份，不用手写 JSON 或附近 CALL 代替。原始读集和完整转换产物不随源码分发。
+
+下例中的 S1／Domain 路径是本轮本地证据身份，`NEW` 必须替换成尚不存在的目录名。Windows probe 路径保留本轮 `src/build-s0-baseline/Debug/`，不改称通用 `build-win` 已验结果；其他构建目录须使用自己的实际 exe／PDB。`uv` 仅为原指令执行提供 Unicorn，App 和冷定义构建不依赖它。
+
+Windows PowerShell：
+
+```powershell
+$image = 'E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin'
+uv run --no-project --with unicorn python -B tools/static_data/convert_stage_callbacks.py --original original_game --ledger-dir build/s1/ledger-candidate07 --domain build/s2/ida-callbacks/domain-evidence02.json --image $image --c-probe src/build-s0-baseline/Debug/fd2_s2_callback_source_test.exe --output-dir build/s2/callback-NEW
+uv run --no-project --with unicorn python -B tools/static_data/convert_stage_transitions.py --readset build/s2/transitions-source-05/domain.json --image $image --c-probe src/build-s0-baseline/Debug/fd2_s2_transition_source_test.exe --definition data/static/flows/stage.json --output-dir build/s2/transitions-NEW
+python -B tools/static_data/s2_source_disposition.py --original original_game --ledger-dir build/s1/ledger-candidate07 --callbacks build/s2/callback-NEW/candidates.json --transitions build/s2/transitions-NEW/conversion.json --result-domain build/s2/ida-results/result-domain-02.json --image $image --output-dir build/s2/disposition-NEW
+uv run --no-project --with unicorn python -B -m unittest tools.tests.test_convert_stage_callbacks tools.tests.test_convert_stage_transitions tools.tests.test_s2_source_disposition
+```
+
+Linux Bash（本轮未执行；先准备本机严格镜像、同源读集和独立 Linux 构建）：
+
+```bash
+image=tools/fd2_le_relocated_relbase.bin
+uv run --no-project --with unicorn python3 -B tools/static_data/convert_stage_callbacks.py --original original_game --ledger-dir build/s1/ledger-candidate07 --domain build/s2/ida-callbacks/domain-evidence02.json --image "$image" --c-probe src/build/fd2_s2_callback_source_test --output-dir build/s2/callback-NEW
+uv run --no-project --with unicorn python3 -B tools/static_data/convert_stage_transitions.py --readset build/s2/transitions-source-05/domain.json --image "$image" --c-probe src/build/fd2_s2_transition_source_test --definition data/static/flows/stage.json --output-dir build/s2/transitions-NEW
+python3 -B tools/static_data/s2_source_disposition.py --original original_game --ledger-dir build/s1/ledger-candidate07 --callbacks build/s2/callback-NEW/candidates.json --transitions build/s2/transitions-NEW/conversion.json --result-domain build/s2/ida-results/result-domain-02.json --image "$image" --output-dir build/s2/disposition-NEW
+uv run --no-project --with unicorn python3 -B -m unittest tools.tests.test_convert_stage_callbacks tools.tests.test_convert_stage_transitions tools.tests.test_s2_source_disposition
+```
+
+| 工具／产物 | 通过条件与边界 |
+|---|---|
+| callback `candidates.json`／`original-traces.json` | 90 槽逐一核原指针、原 ID、实际入口／owner、完整指令和 metadata caller 引用。72 个转换槽复用 66 份新图；17 槽引用精确既有图；callback82 保持明确阻塞。图／节点数不等于机制覆盖率 |
+| callback `C-original-comparison.json`／`manifest.json` | 正式 Game `begin/peek/reply` 对独立 x86 检查点；正常 1,944 例，wrong ACK／HOST／错误前缀各 47 例，另有 1 例容量拒绝。旧字段 `wait_guard_cases=142` 含容量例；叠加报告将等待守卫规范为 141，容量另计 1，不重复累加 |
+| transition `conversion.json` | 60 槽保留 3 个既有引用、45 个转换来源及 12 个未决；45 个来源共享 41 份 caller 图和 3 份固定子图。`--definition` 核唯一 stage 输入与 4 个 source-only alias；`--c-probe` 另核实际 C 的布局／视图写集／flash 消费，缺参数则对应门为未验，不将这项门扩成全部 caller 的实际 C 执行 |
+| `disposition.json`／`manifest.json` | 208 槽和 S1 的 315 未决／450 拒绝完整连接；核原 raw／跨度／摘要、当前唯一冷图的完整语义、callback 收据摘要及 source-only alias 的规范终点。缺图、同 ID 换图、错 alias 或输入晚变均失败，不借旧 C 门签新图 |
+
+callback 的原码／C 比较明确替换构造器新增记录区域、stats、renderer／text／keyboard／delay／DAC，以及另证的 helper 写集；它不是全部副作用或原生窗口 oracle。结果目标的 `verify_s2_results.py` 原码／C 收据、视觉原语的 `verify_s2_visual.py`／`verify_s2_fades.py` 收据，以及必要 WGC 代表分别签核。去向工具只核结果来源和定义存在，不暗称已签这些外部 C／原生门。
+
+完整有限序列可展开为冷节点，例如 callback76 的 1,546 节点 pulse；不能压成整段 native handler。当前只读 flow `entry` 使用 `uint16_t`，`common_event` 单图上限为 32,767 节点，其他域仍为 254；edge 继续使用 `int16_t`，总执行预算仍有界。这些是只读定义 ABI，不增加 Game／SAV 字段、任意脚本 VM 或新的热执行栈。
+
+重复生成使用新目录；比较候选的图内容、逐槽决策、原指令轨迹和输入／probe 摘要，不把命令退出 0、JSON 导出、静态图存在或结构 `confirmed` 当作运行绑定通过。原资源或工具发生变化后，旧 S1／S2 收据保留原身份；重新生成当前批，不能覆盖旧文件或更新预期摘要掩盖差异。
 
 ## G1 通用机制来源分类
 

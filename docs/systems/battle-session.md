@@ -322,3 +322,13 @@ G2新增验证分三类，不能由其中一类推出另两类通过：
 `fd2_field_game_battle_result`是只读查询；`game.battle_result`对应原`53ECC`锁存，由既有controller／phase后置写点更新。stage0／1结果图不以HP代替hidden；正常源域及安全防御域分别核验。活动snapshot导入保留HP／flags与旧锁存，同stage和跨stageowner替换一致；Continue新Game初值ongoing。不因Load、方向／Z／F1／F2、空格菜单或呈现帧提前刷新结果，actor Enter动作／详情返回后才走原后置查询。HP0可见记录仍能进入已证选择／详情，攻击和AI的独立有效域不据此改变。
 
 恢复成功／失败／取消不额外改写SAV／RNG；锁存不是第二状态或存档字段，不新增“待结果”标志，也不靠整体Game回滚复原外部owner。完整原义、时点与局部执行限制见[运行语义§12](../reverse-engineering/common-runtime-semantics.md#12-s0-结果锁存与活动恢复合同2026-11-13)，本轮实际验证与未验范围见[阶段记录](../plans/stage-log.md)。
+
+## S2 显式来源机制与只读投影
+
+`stage.source.*`、`stage.result.source.*` 和新增 `common.callback.*` 是有来源身份的机制定义，不构成正式关卡支持清单。App 的普通 stage 入口、controller 和存档支持门保持原范围。来源机制夹具显式选择定义并声明受控状态，不能据此声称该关自然可达。
+
+来源 Scene 只借用空闲的现有 Game／Scene owner；pending progress（包括没有 notice 的 resume）、loot／child／completion、后置等待或交互均在写入前拒绝。资源准备只建立资源和原 roster，active 表在冷 `stage_setup_source` 叶到达时才建立。每个业务叶直接写原 owner，运动叶同步到该 owner；不先执行整个 Game 图再回放演出。HOST／错误保留已到达前缀，不自动从 entry 重放。`next_stage` 只改原 stage 值，旧资源仍归原 owner；调用者须关闭并重新准备资源后才能进入下一场景，不能继续拿旧地图运行新 controller。
+
+事件预检使用局部、只读的单位／roster／状态／地图投影，最多 64 条路径、合计 65,536 步。新增单位只确认已证身份字段，HP／库存等未知条件检查两边；复杂战斗／奖励不在预检中执行或消费 RNG。这个投影不保存、不拥有资源、不回写 Game，也不替代逐叶晚验。缺源、容量和错误路径按现有失败前缀合同停止，不提供整图事务或回滚。
+
+公共冷流 entry 扩为 WORD，以容纳来源 callback76 的固定动作序列；common_event 节点上限 32,767，原 BYTE 热游标域仍限制 254。Scene 仅共享固定 init／fadein／fadeout 三类冷子图，使用已有 Scene 栈和预算，不新增通用调用栈或热 PC。精确来源、原码替身域及代表验收见[S2 报告](../plans/s2-shared-semantics.md)，当前顺序只查[总计划](../plans/development.md)。

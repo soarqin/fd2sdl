@@ -4,8 +4,29 @@
 #ifndef FD2_FIELD_COMMON_EVENT_PRESENT_H
 #define FD2_FIELD_COMMON_EVENT_PRESENT_H
 
+/* bios_tick_delay @0x17aa9（原登记同名）：只读有符号WORD时钟与有界goal。
+ * 53A2C仅是该函数的scratch（Domain全xref为两写一读），此处用局部start；
+ * 不新增App热状态。SDL/55为既有名义BIOS映射，不承诺真实18.206Hz精度。
+ * 正goal>65535在原16bit差域不能结束，明确拒绝；<=0仍读一轮。
+ * fast只跳等待的诊断模式；不取普通键、不清键、不推进水色/actor/RNG。 */
+static int common_event_delay_ticks(fd2_vga *vga,int32_t ticks,int fast) {
+    if(!vga || ticks>65535)return FD2_SCENE_RESULT_ERROR;
+    if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
+    if(fast)return FD2_SCENE_RESULT_OK;
+    uint16_t start=(uint16_t)(SDL_GetTicks()/55u);
+    for(;;) {
+        if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
+        uint16_t now=(uint16_t)(SDL_GetTicks()/55u);
+        if(fd2_vga_bios_tick_elapsed(start,now)>=ticks)break;
+        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
+    }
+    /* 原尾再读WORD并覆写自身scratch；没有外部reader，不投射新owner。 */
+    (void)SDL_GetTicks();
+    return fd2_input_take_quit(&vga->input)?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
+}
+
 static int common_event_message_prepare(const fd2_field_game *game,
-        const fd2_static_flow_node *node, field_progress_text *text) {
+        const fd2_static_flow_node *node, field_progress_text *text,const fd2_field_map *map) {
     if (!game || !node || strcmp(node->op,"message") || !text ||
         !game->font.glyphs || !game->font.glyph_count ||
         game->font.glyph_count>game->font.size/32u || node->args[0]<0 ||
@@ -17,7 +38,7 @@ static int common_event_message_prepare(const fd2_field_game *game,
     if (!node->args[1] && node->args[0]==422) {
         uint8_t item;
         if (game->event_resume.active && game->event_resume.has_item) item=game->event_resume.item_id;
-        else if (fd2_field_event_cell_item(&game->map,game->cursor_cell_x,game->cursor_cell_y,&item)!=0) return -1;
+        else if (fd2_field_event_cell_item(map?map:&game->map,game->cursor_cell_x,game->cursor_cell_y,&item)!=0) return -1;
         parameters.new_fragment=181u+item;
     }
     fd2_text_entry primary={0};
@@ -43,17 +64,21 @@ static int common_event_resources_preflight(const fd2_field_game *game,
     if(!game || !node || !node->op || !fdother) return -1;
     const char *op=node->op;
     if(!strcmp(op,"message")) {
-        field_progress_text text;
-        return fd2_scene_field_message_validate(fdother)!=0 ? -1:
-            common_event_message_prepare(game,node,&text);
+        field_progress_text text;fd2_field_map map={0};
+        if(view && view->has_map_override && (view->map_entry<0 ||
+            fd2_field_map_open_entry(&map,&game->field_archive,(size_t)view->map_entry)!=0))return -1;
+        int result=fd2_scene_field_message_validate(fdother)!=0 ? -1:
+            common_event_message_prepare(game,node,&text,map.cells?&map:NULL);
+        fd2_field_map_close(&map);return result;
     }
     if(!strcmp(op,"notice_actor")) {
-        if(node->args[0]<0 || (size_t)node->args[0]>=game->units.count ||
+        const fd2_field_units *units=view?view->units:&game->units;
+        if(!units || node->args[0]<0 || (size_t)node->args[0]>=units->count ||
             fd2_scene_field_message_validate(fdother)!=0) return -1;
         for(unsigned frame=0;frame<4;frame++) {
             fd2_image portrait={0};
             int valid=fd2_portrait_decode_frame(&portrait,&game->dato_archive,
-                game->units.items[node->args[0]].unit_id,frame)==0 &&
+                units->items[node->args[0]].unit_id,frame)==0 &&
                 portrait.width==80 && portrait.height==80;
             fd2_image_free(&portrait);
             if(!valid)return -1;
@@ -64,10 +89,15 @@ static int common_event_resources_preflight(const fd2_field_game *game,
     if(!strcmp(op,"wait_key"))return node->args[0]==0 || node->args[0]==1 ? 0:-1;
     if(!strcmp(op,"clear_keys") || !strcmp(op,"close_box"))return 0;
     if(!strcmp(op,"delay_ms"))return node->args[0]>0 && node->args[0]<=1000?0:-1;
+    if(!strcmp(op,"delay_ticks"))return node->args[0]<=65535?0:-1;
+    if(!strcmp(op,"palette_add"))return node->args[0]>=0 && node->args[0]<=255 &&
+        node->args[1]>=0 && node->args[1]<=255 && node->args[2]>=0 && node->args[2]<=255?0:-1;
+    if(!strcmp(op,"palette_subtract"))return node->args[0]>=0 && node->args[0]<=255 &&
+        node->args[1]>=0 && node->args[1]<=255 && node->args[2]>=0 && node->args[2]<=64?0:-1;
     if(!strcmp(op,"arrival_prepare") || !strcmp(op,"arrival_frames"))
         return fd2_scene_arrival_visual_validate(fdother);
     if(!strcmp(op,"arrival_close"))return 0;
-    return view?fd2_scene_common_step_validate_view(game,fdother,node,view->units,view->roster,view->roster_count):
+    return view?fd2_scene_common_step_validate_resource_view(game,fdother,node,view):
         fd2_scene_common_step_validate(game,fdother,node);
 }
 
@@ -89,6 +119,15 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         unsigned port=FD2_FLOW_NEXT;
         if(!strcmp(node.op,"clear_keys"))fd2_input_clear_keys(&vga->input);
         else if(!strcmp(node.op,"delay_ms"))result=loot_fixed_wait(vga,(uint32_t)node.args[0],fast);
+        else if(!strcmp(node.op,"delay_ticks"))result=common_event_delay_ticks(vga,node.args[0],fast);
+        else if(!strcmp(node.op,"palette_add")) {
+            result=fd2_vga_palette_add(vga,node.args[0],node.args[1],node.args[2]);
+            if(!result)fd2_vga_upload_current_frame(vga);
+        }
+        else if(!strcmp(node.op,"palette_subtract")) {
+            result=fd2_vga_palette_subtract(vga,node.args[0],node.args[1],node.args[2]);
+            if(!result)fd2_vga_upload_current_frame(vga);
+        }
         else if(!strcmp(node.op,"arrival_prepare")) {
             if(box.page || arrival){result=FD2_SCENE_RESULT_ERROR;break;}
             result=fd2_scene_arrival_visual_prepare(&arrival,vga,fdother,game->units.count);
@@ -103,7 +142,7 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
             result=progress_box_open(&box,game,vga,fdother,selected,fast);
         } else if(!strcmp(node.op,"message")) {
             field_progress_text text;
-            if(!box.page || common_event_message_prepare(game,&node,&text)!=0){result=-1;break;}
+            if(!box.page || common_event_message_prepare(game,&node,&text,NULL)!=0){result=-1;break;}
             result=field_text_play(&box,game,vga,fdother,audio,&text,node.args[2],node.args[3],fast);
         } else if(!strcmp(node.op,"portrait_frame")) {
             if(!box.page || node.args[0]<0 || node.args[0]>3){result=-1;break;}

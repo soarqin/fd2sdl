@@ -146,7 +146,7 @@ FIELD_OFFSETS = (0, 1, 3, 4, 5, 6, 7, 8, 0x22, 0x23, 0x24,
 
 EXISTING = {**{i: f"common.legacy.action.{i:03d}" for i in (0, 1, 2, 3, 4, 6)},
             8: "common.inventory.once", 12: "common.state.once",
-            39: "common.loot.child.0", 51: "common.loot.child.2",
+            39: "common.loot.child.0",
             53: "common.defeat.tail", 55: "common.loot.physical", 58: "common.cell.grant",
             61: "common.key.consume", 69: "common.turn.relative", 79: "common.random.pair"}
 EXISTING_FLOW_SHA = {
@@ -159,7 +159,6 @@ EXISTING_FLOW_SHA = {
     8: "95e4f50ed02bc6f2faeca70fcdca6dc23be95052c517fde7c70f4cbf71d19ee4",
     12: "ac9391d34a8e8da80934ed8b9111206167d17a5f96ba95b52e3d69bdd9595a42",
     39: "70a7b2593c9b8652032e428fa077d62c999309ddbfd7c824b4fef63564d951bd",
-    51: "abedd1adae12ffcd5658775e1f9a5382ba6ee66a7bb5af6adb46c4722bbeff42",
     53: "283c38a31e5d29a9a51aaca04e22ed644cc50d043c48231e136367139ff8d96a",
     55: "d7379705aa3f12def4ee308f45ef4acc62714b79eae83b97b5a7fcd4c7353a5c",
     58: "bebe3ab7947ce6048708db3060f79e50f9f4d6478473c843458305cf88b4594e",
@@ -240,6 +239,8 @@ def programs():
         48: [ai(35, 42, 3), ai(67, 74, 3)],
         49: [gsource(2), a("pan", 32, 35), a("delay_ticks", 8), a("pan", 0, 35), a("delay_ticks", 8), branch("branch_turn", [0, 3], [story(1)])],
         50: [group(2), a("pan", 16, 42), a("delay_ticks", 8), a("roster_append", 20), story(2)],
+        # 355f0@35631 push3→3530d；不经过352ca自身push11，旧G child.2不改。
+        51: [a('loot_child',2,-1),story(3)],
         52: [*flash(2, 11, source=3), *flash(26, 11, source=4)],
         54: [gsource(0), a("pan", 0, 4), a("delay_ms", 400), a("pan", 0, 22), a("delay_ms", 400), a("pan", 26, 24), a("delay_ms", 400), a("pan", 26, 2), a("delay_ms", 400)],
         56: [a("pan", 6, 40), group(1), a("move", 74, 0), story(5), *directions],

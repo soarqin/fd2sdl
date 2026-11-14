@@ -118,7 +118,7 @@ def check_binding(runtime_id, source_id, dispatch, flows, aliases):
             "prefix_scope": "source full-readset maximum; actual conditional node validates when reached"}
 
 
-def refine_callbacks(dispatch, callbacks, proof):
+def refine_callbacks(dispatch, callbacks, proof,callback51_proof=None):
     """S2旧归属不改签；S3仅凭完整原caller/实际C门纠正41共享尾参数。"""
     rows={r["source_id"]:dict(r) for r in dispatch}
     decisions=callbacks.get("decisions",[])
@@ -131,6 +131,19 @@ def refine_callbacks(dispatch, callbacks, proof):
             raise ValueError("callback original target changed")
         new=candidate.get("definition")
         if old.get("definition_id")==new:continue
+        if identity=='dispatch:event_callback:051':
+            p=callback51_proof or {}
+            if (old.get('definition_id')!='common.loot.child.2' or new!='common.callback.051' or
+                    candidate['disposition']!='converted_candidate' or p.get('schema')!='fd2-s5-callback51-source-v1' or
+                    p.get('source_id')!=identity or p.get('target_va')!=old['target_va'] or
+                    p.get('original_CPU_executed') is not True or p.get('actual_C',{}).get('verified') is not True or
+                    p.get('definition')!=new or p.get('definition_sha256')!=candidate.get('definition_sha256') or
+                    p.get('expected_definition_sha256')!=candidate.get('definition_sha256')):
+                raise ValueError('callback51 needs exact complete source/actualC refinement; old G story11 cannot be reused')
+            old['S2_frozen_definition_id']=old['definition_id'];old['definition_id']=new;old['disposition']='converted_candidate'
+            refinements.append({'source_id':identity,'previous_definition':'common.loot.child.2','current_definition':new,
+                'stage':'S5','reason':'355f0 pushes3 before shared3530d; previous G definition11 remains unchanged'})
+            continue
         if (identity!="dispatch:event_callback:041" or old.get("definition_id")!="common.loot.child.1" or
                 new!="common.callback.041" or candidate["disposition"]!="converted_candidate"):
             raise ValueError("new callback refinement lacks reviewed complete source")
@@ -151,13 +164,34 @@ def next_stage_targets(flow):
         pc,target=pending.pop()
         if (pc,target) in seen:continue
         seen.add((pc,target));node=nodes[pc]
-        if node["op"]=="fail":continue
+        if node["op"] in ("fail","terminal_wait"):continue
         if node["op"]=="next_stage":target=node["args"][0]
         if node["op"]=="end":
             if target is None:raise ValueError("victory success path lacks original next_stage write")
             targets.add(target);continue
         pending.extend((dst,target) for port,dst in node["on"].items() if port!="error")
     return targets
+
+
+def preparation_handoff(target, executable, prepare_table, no_town_table):
+    """26152先按523e7分派NoTown；不能为27..29访问不存在的第27行城镇。"""
+    if type(target) is not int or not 1<=target<30:raise ValueError('handoff stage outside ordinary preparation domain')
+    source=no_town_table['source'];values=no_town_table['values']
+    if source.get('canonical_va')!='0x523e7' or source.get('length')!=30 or len(values)!=30:
+        raise ValueError('NoTown source exact30-byte domain differs')
+    raw=audit.source_range(executable,0x523e7,30)
+    if (any(type(value) is not int or value not in (0,1) for value in values) or
+            bytes(values)!=raw or audit.digest(raw)!=source['sha256']):
+        raise ValueError('NoTown source/raw/hash differs')
+    if values[target]:
+        return {'kind':'NoTown','source':{'file':'FD2.EXE','canonical_va':hex(0x523e7+target),
+            'length':1,'sha256':audit.digest(raw[target:target+1])},
+            'town_record_read':False,'gate':'26152 NoTown dispatch precedes any31B town table read'}
+    if target>len(prepare_table['values']):raise ValueError('handoff lacks original31B preparation record')
+    record=audit.source_range(executable,0x6238d+(target-1)*31,31)
+    if bytes(prepare_table['values'][target-1])!=record:raise ValueError('next_stage preparation source differs')
+    return {'kind':'town','source':{'file':'FD2.EXE','canonical_va':hex(0x6238d+(target-1)*31),
+        'length':31,'sha256':audit.digest(record)},'town_record_read':True}
 
 
 def resource_references(stage, bindings, flows, scripts):
@@ -193,7 +227,7 @@ def resource_references(stage, bindings, flows, scripts):
 
 
 def build(original, ledger_directory, overlay_path, callbacks_path, transitions_path,
-          battle_stages, entry_stages, binding_source=None):
+          battle_stages, entry_stages, binding_source=None, s5_extension=None,callback51_source=None):
     original, ledger_directory = Path(original), Path(ledger_directory)
     manifest = read(ledger_directory / "manifest.json")
     if manifest.get("schema") != ledger_tool.SCHEMA or set(manifest["files"]) != {
@@ -245,7 +279,31 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
     stage_document = read(ROOT / "data/static/flows/stage.json")
     disposition.validate_definition_contents(callbacks, transitions, catalog, stage_document.get("bindings", {}))
     disposition.validate_dispatch_mapping(ledger, overlay["dispatch"])
-    dispatch,refinements=refine_callbacks(overlay["dispatch"],callbacks,proof)
+    proof51=None
+    if callback51_source:
+        path=Path(callback51_source);inputs[path]=path.read_bytes();proof51=read(path)
+        for name,digest in proof51.get('inputs_sha256',{}).items():
+            path=Path(name);inputs[path]=path.read_bytes()
+            if audit.digest(inputs[path])!=digest:raise ValueError('S5 callback51 proof inputs changed')
+        actual=proof51.get('actual_C',{})
+        if not actual.get('probe') or audit.digest(Path(actual['probe']).read_bytes())!=actual.get('probe_sha256'):
+            raise ValueError('S5 callback51 actualC executable identity differs')
+    dispatch,refinements=refine_callbacks(overlay["dispatch"],callbacks,proof,proof51)
+    s5_changes=[];s5_definition_ids=set();s5_resources=None
+    if s5_extension:
+        path=Path(s5_extension);inputs[path]=path.read_bytes()
+        extension=read(path)
+        dispatch,s5_changes,source_inputs=disposition.apply_source_extension(list(dispatch.values()),extension,catalog)
+        inputs.update(source_inputs)
+        import s5_stage_transitions
+        tool=Path(s5_stage_transitions.__file__);inputs[tool]=tool.read_bytes()
+        import s5_stage_resources
+        s5_resources=s5_stage_resources.ResourceReferences(original,sources.data)
+        inputs.update(s5_resources.snapshots)
+        s5_definition_ids={row['definition_id'] for row in extension['rows']}
+        for tool in (Path(s5_stage_resources.__file__),ROOT/'tools/audit_g4_render_source.py',
+                     ROOT/'tools/static_data/audit_caster_domain.py'):
+            inputs[tool]=tool.read_bytes()
     source_rows = {r["source_id"]: r for r in ledger["records"]}
     for identity, row in dispatch.items():
         if row["source"] != source_rows[identity]["source"]:
@@ -267,6 +325,7 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
             raise ValueError("enabled stage missing from declared release scope")
     report_rows = []
     prepare_table=next(t for t in read(ROOT/"data/static/tables/stage.json")["tables"] if t["name"]=="k_stage_prepare")
+    no_town_table=next(t for t in read(ROOT/'data/static/tables/preparation.json')['tables'] if t['name']=='k_prepare_no_town')
     for stage in inventory["stages"]:
         st = stage["stage"]
         if st not in selected: continue
@@ -288,12 +347,11 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
             for target in sorted(next_stage_targets(flows[victory["definition_id"]])):
                 if target not in selected:raise ValueError("victory next_stage leaves declared entry/owner closure")
                 entry=check_binding(f"stage.entry.{target:03d}",f"dispatch:stage_entry:{target:03d}",dispatch,flows,aliases)
-                if not audit.capability(target,flows,aliases) or not 1<=target<=26:
-                    raise ValueError("victory handoff lacks capability/original31B preparation record")
-                raw=audit.source_range(sources.data["FD2.EXE"],0x6238d+(target-1)*31,31)
-                if bytes(prepare_table["values"][target-1])!=raw:raise ValueError("next_stage preparation source differs")
+                if not audit.capability(target,flows,aliases):
+                    raise ValueError("victory handoff lacks capability/original preparation domain")
+                preparation=preparation_handoff(target,sources.data['FD2.EXE'],prepare_table,no_town_table)
                 handoffs.append({"next_stage":target,"entry_definition":entry["definition_id"],
-                    "preparation_source":{"file":"FD2.EXE","canonical_va":hex(0x6238d+(target-1)*31),"length":31,"sha256":audit.digest(raw)},
+                    "preparation_source":preparation['source'],'preparation_route':preparation,
                     "entry_only":target in entry_stages,"owner_gate":"export preparation then close old Game; reopen entry; never run new controller with old resources"})
         raw = sources.entries["FDFIELD.DAT"][st*3+1][1]
         counts = entry_counts(flows[bindings[0]["definition_id"]], audit.parse_metadata(raw), flows, aliases)
@@ -312,6 +370,12 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
                 "parent_source_id":source["parent_id"],
                 "template_group":parent.get("decoded",{}).get("group") if kind=="drop" else None,
                 "required_for_battle_scope":battle})
+        ordinary=[b for b in bindings if b['definition_id'] not in s5_definition_ids]
+        resources=resource_references(stage,ordinary,flows,inventory['movement_sources'])
+        if s5_resources:
+            for binding in bindings:
+                if binding['definition_id'] in s5_definition_ids:
+                    resources.extend(s5_resources.references(st,binding,flows,inventory['movement_sources']))
         report_rows.append({"stage": st, "battle_enabled": battle, "entry_only": not battle,
             "capability": cap, "entry_count": sorted(counts), "source_record_counts": dict(kinds),
             "map": {k:stage["map"][k] for k in ("entry","file_offset","width","height","length","sha256")},
@@ -319,7 +383,7 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
             "placements": {k:stage["placements"][k] for k in ("entry","file_offset","length","sha256")},
             "bindings": bindings, "victory_handoffs":handoffs,
             "callback_source_references": callback_sources,
-            "resource_references": resource_references(stage,bindings,flows,inventory["movement_sources"]),
+            "resource_references": resources,
             "default255_refusals": [{"source_id":r["source_id"],"source":r["source"],"gate":"load preserves mutable metadata; actual turn255/phase0 dispatch explicitly refuses action255"} for r in defaults],
             "strict_supported": stage["selected_semantics_supported"],
             "structural_reference_errors": stage["reference_errors"]})
@@ -328,7 +392,8 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
     return {"schema":"fd2-stage-release-scope-v1", "structural_binding_scope_closed":True,
         "input_sha256":{str(p):audit.digest(raw) for p,raw in inputs.items()},
         "battle_stages":sorted(battle_stages), "entry_only_stages":sorted(entry_stages), "stages":report_rows,
-        "S2_history_retained":True,"S3_callback_refinements":refinements,
+        "S2_history_retained":True,"S3_callback_refinements":[r for r in refinements if r.get('stage')!='S5'],
+        'S5_callback_refinements':[r for r in refinements if r.get('stage')=='S5'],"S5_source_refinements":s5_changes,
         "summary":{"bindings":sum(len(r["bindings"]) for r in report_rows),
             "different_targets":len({b["original_target"] for r in report_rows for b in r["bindings"]}),
             "callback_source_references":sum(len(r["callback_source_references"]) for r in report_rows),
@@ -340,6 +405,7 @@ def build(original, ledger_directory, overlay_path, callbacks_path, transitions_
             "S1_rejected_sources":len(overlay["S1_rejected"])},
         "claims":{"runtime_paths_validated":False,"new_native_runtime_executed":False,
             "all_text_glyph_portrait_semantics_validated":False,"RNG_or_hot_state_changed":False,
+            "dynamic_roster_FIGANI_portrait_identity_fully_validated":False,
             "strict_turn255_was_ignored":False,"new_shipping_bindings_written":False},
         "next_gates":["actual finite C count/identity/map/roster projection and each leaf resource preflight",
             "conditional result reads incl stage12/18 after prior reinforcement; no global max-prefix gate",
@@ -355,14 +421,19 @@ def main():
     parser.add_argument("--callbacks",type=Path,required=True)
     parser.add_argument("--transitions",type=Path,required=True)
     parser.add_argument("--binding-source",type=Path)
+    parser.add_argument("--s5-extension",type=Path)
+    parser.add_argument('--callback51-source',type=Path)
     parser.add_argument("--battle-stages",type=stages,required=True)
     parser.add_argument("--entry-stages",type=stages,default=[])
     parser.add_argument("--output",type=Path,required=True)
     args=parser.parse_args()
     try:
-        output=ledger_tool.validate_output(args.output,ROOT,args.original)
+        if args.s5_extension:
+            from s5_output import validate_output
+            output=validate_output(args.output,args.original)
+        else:output=ledger_tool.validate_output(args.output,ROOT,args.original)
         report=build(args.original,args.ledger,args.s2_disposition,args.callbacks,args.transitions,
-                     args.battle_stages,args.entry_stages,args.binding_source)
+                     args.battle_stages,args.entry_stages,args.binding_source,args.s5_extension,args.callback51_source)
         output.mkdir(parents=True)
         raw=disposition.encode(report).encode("utf8");(output/"scope.json").write_bytes(raw)
         print(json.dumps({"output":str(output),"sha256":audit.digest(raw),**report["summary"]},ensure_ascii=False))

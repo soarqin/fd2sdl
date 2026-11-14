@@ -49,8 +49,9 @@ static int test_source_resource_and_setup_boundary(const fd2_archive *other) {
     fd2_field_game_close(g);
     fd2_save_manual_state state;CHECK(manual(&state,3)==0);
     CHECK(fd2_field_game_prepare_stage_source_flow(g,other,&state,"stage.source.entry.002")==-1 && !g->ready);
-    CHECK(manual(&state,29)==0);
-    CHECK(fd2_field_game_prepare_stage_source_flow(g,other,&state,"stage.source.entry.029")==-1 && !g->ready);
+    /* S5已开放entry29；resource30只属内部credits，没有正式战场入口。 */
+    CHECK(manual(&state,30)==0);
+    CHECK(fd2_field_game_prepare_stage_source_flow(g,other,&state,"stage.source.entry.030")==-1 && !g->ready);
     CHECK(prepare(g,other,1)==0 && g->units.count==0);
     unsigned port;fd2_static_flow_node reset=node("entry_result_reset");
     g->battle_result=FD2_FIELD_BATTLE_DEFEAT;CHECK(fd2_field_game_stage_source_node(g,&reset,&port)==1);

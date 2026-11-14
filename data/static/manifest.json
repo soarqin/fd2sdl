@@ -226,11 +226,16 @@
     "field_info.json": {
       "k_field_overview_condition_policy": {
         "c_type": "int32_t",
-        "dimensions": [3]
+        "dimensions": [
+          3
+        ]
       },
       "k_field_overview_roster_rules": {
         "c_type": "int32_t",
-        "dimensions": [1, 4]
+        "dimensions": [
+          1,
+          4
+        ]
       }
     },
     "items.json": {
@@ -1768,7 +1773,7 @@
       "required_labels": {}
     },
     "stage.json": {
-      "operation_abi_sha256": "8d762520811e990097cd38a68499ad84afb8573c41ed823b73f8c3b5865a5a44",
+      "operation_abi_sha256": "6188f7b3dd10ab08c5075d0dbea38ef0e7b2d34e8d52a22329d59e3e8d3e9c04",
       "ports": {
         "stage_setup": [
           [
@@ -1778,35 +1783,63 @@
         "pan": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "move": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
         "text": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "delay": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
         "append_group": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "reset_directions": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "focus_actor": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
@@ -1818,6 +1851,10 @@
         "display_mode": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "branch_any_hidden": [
@@ -1828,6 +1865,10 @@
         ],
         "grant_party_item": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
@@ -1849,15 +1890,27 @@
         "next_stage": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "roster_append": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "roster_sync": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
@@ -1981,6 +2034,10 @@
         "sleep_ms": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "result_keep": [
@@ -2012,25 +2069,45 @@
         "clear_keys": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "clear_acted": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
         "call_init": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "call_fade_in": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "call_fade_out": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
@@ -2045,30 +2122,54 @@
         "unit_field_write": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "palette_subtract": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
         "refresh": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "view_set": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
         "clear_screen": [
           [
             "next"
+          ],
+          [
+            "error",
+            "next"
           ]
         ],
         "palette_add": [
           [
+            "next"
+          ],
+          [
+            "error",
             "next"
           ]
         ],
@@ -2079,6 +2180,627 @@
         ],
         "text_state_offset": [
           [
+            "next"
+          ]
+        ],
+        "delay_ticks": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_commit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_contract": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_expand": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_icon": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_release": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_sound": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_sprite": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_top": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "teleport_wipe": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "background_rebuild": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "background_scroll": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "bank80_validate": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "bgm": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "branch_cin_credits_part": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_credits_skip": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_input": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_roster_count": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_stage": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "call_cinematic_card_last": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_cinematic_card_normal": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_cinematic_credits": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_cinematic_ending": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_teleport": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_transition_finish": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_animation": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_audio_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_audio_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_audio_play": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_circle_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_circle_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_circle_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_copy": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_actor": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_actor_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_assets_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_assets_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_blink_reset": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_card": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_card_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_epoch": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_idle": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_idle_reset": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_intro": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_intro_finish": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_part": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_part_wait": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_roll_text": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_credits_skip_set": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_image_blit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_portrait": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_slide": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_text": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_notice_wait": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_page_alloc": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_page_clear": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_page_free": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_palette_save": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_present": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_shake_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_shake_prepare": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_sheet_blit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_sheet_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_sheet_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_water": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_work_clear": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "credits_setup": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "defeated_finalize": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "event_item_consume": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "flash_actor": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "focus_cell": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "map_replace": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "map_reset_cells": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "roster_restore": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_begin": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "terminal_wait": [
+          []
+        ],
+        "transition_begin": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "transition_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "transition_release": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "transition_sfx": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "unit_hp_zero_tail": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "call_cinematic_card_first": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_palette_validate": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "branch_cin_montage_half": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_montage_last_marker": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_montage_marker": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_montage_part": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_montage_rng": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_cin_montage_tick": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "call_cinematic_montage_round": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_close": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_cue": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_frame": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_half": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_hit": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_intro": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_intro_finish": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_montage_open": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_palette_load": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "cin_palette_restore": [
+          [
+            "error",
             "next"
           ]
         ]
@@ -2143,7 +2865,26 @@
         "stage.source.victory.027",
         "stage.source.initialize",
         "stage.source.fade.in",
-        "stage.source.fade.out"
+        "stage.source.fade.out",
+        "stage.source.teleport",
+        "stage.cinematic.ending",
+        "stage.cinematic.credits",
+        "stage.cinematic.card_normal",
+        "stage.cinematic.card_last",
+        "stage.source.entry.022",
+        "stage.source.entry.024",
+        "stage.source.entry.026",
+        "stage.source.entry.027",
+        "stage.source.entry.029",
+        "stage.source.victory.020",
+        "stage.source.victory.021",
+        "stage.source.victory.022",
+        "stage.source.victory.023",
+        "stage.source.victory.026",
+        "stage.source.victory.028",
+        "stage.source.victory.029",
+        "stage.cinematic.card_first",
+        "stage.cinematic.montage_round"
       ]
     },
     "loot.json": {
@@ -3852,7 +4593,7 @@
       }
     },
     "common_event.json": {
-      "operation_abi_sha256": "8029de54a787bd73236c1e79a32a740b3261c8b96e6e3f922779991f7662f1ec",
+      "operation_abi_sha256": "8adc5e9dcb7b105716a0c62c193573e7fe86133358f43822a8bb8d393dd1f82c",
       "ports": {
         "end": [
           []
@@ -4229,6 +4970,30 @@
             "error",
             "next"
           ]
+        ],
+        "call_teleport": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "focus_cell": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "teleport_begin": [
+          [
+            "error",
+            "next"
+          ]
+        ],
+        "unit_ai_write_source": [
+          [
+            "error",
+            "next"
+          ]
         ]
       },
       "required_ids": [
@@ -4252,7 +5017,8 @@
         "common.legacy.action.002",
         "common.legacy.action.003",
         "common.legacy.action.004",
-        "common.legacy.action.006"
+        "common.legacy.action.006",
+        "common.callback.082"
       ]
     }
   }

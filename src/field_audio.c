@@ -102,3 +102,11 @@ int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue) {
 int fd2_field_audio_stop(fd2_field_audio *audio) {
     return audio ? fd2_pcm_stop(audio->player) : -1;
 }
+
+int fd2_field_audio_play_borrowed_bank(fd2_field_audio *audio,
+    const fd2_pcm_bank *bank, int sample_index, int loop_count) {
+    if (!audio || !audio->player || sample_index < -1) return -1;
+    if (sample_index == -1) return fd2_pcm_stop(audio->player);
+    return fd2_pcm_play_replace(audio->player, bank, (size_t)sample_index,
+        loop_count, FD2_GAME_SFX_DEFAULT_GAIN);
+}

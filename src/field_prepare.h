@@ -11,6 +11,11 @@
 
 #define FD2_FIELD_PREPARE_COMPANION_CAPACITY (FD2_SAVE_MAX_UNITS - 1u)
 
+/* field_town_prepare_execute @0x26152：NoTown在31B城镇行读取之前分派。
+ * 27..29有已证NoTown入口，不延长只有26行的城镇资源表。 */
+int fd2_field_prepare_stage_is_notown(size_t stage);
+int fd2_field_prepare_stage_is_valid(size_t stage);
+
 typedef enum {
     FD2_FIELD_PREPARE_SELECT_LEFT=0,
     FD2_FIELD_PREPARE_SELECT_RIGHT,

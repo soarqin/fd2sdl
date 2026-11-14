@@ -65,4 +65,12 @@ void fd2_field_audio_init(fd2_field_audio *audio,
 int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue);
 int fd2_field_audio_stop(fd2_field_audio *audio);
 
+/* sfx_play @0x25a96：借用原primary AIL handle播放临时FDOTHER81/88等源bank。
+ * index==-1只走既有stop；disabled门仍在bank读取/stop之前。bank在同步play时
+ * 有效，所借App原字节保持到全部引用voice退休；不转移player/原字节所有权，
+ * 不改变音量或混音器。关闭临时bank只释放目录，不释放App原数据。
+ * 循环次数沿Miles约定0=无限、正数=总次数，坏输入返回-1。 */
+int fd2_field_audio_play_borrowed_bank(fd2_field_audio *audio,
+    const fd2_pcm_bank *bank, int sample_index, int loop_count);
+
 #endif /* FD2_FIELD_AUDIO_H */

@@ -17,7 +17,7 @@
 #include "save.h"
 #include "portrait.h"
 #include "field_prepare_item.h"
-#include "static_data/preparation.inc"
+#include "field_prepare.h"
 
 static int stage_snapshot_supported(size_t stage, size_t count) {
     fd2_field_stage_capability capability;
@@ -536,8 +536,8 @@ static int manual_resources_open(manual_resources *resources,const fd2_archive *
 int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
     /* field_manual_slot_load @0x2986f恢复准备表，不运行1088d、不把slot
      * 当active。codec可保存32人；这里不添加出阵选择器的16人容量门。 */
-    if (!state || state->unit_count>FD2_SAVE_MAX_UNITS || state->stage_id>=sizeof(k_prepare_no_town) ||
-        (!k_prepare_no_town[state->stage_id] && !fd2_field_stage_prepare_record_get(state->stage_id))) return -1;
+    if (!state || state->unit_count>FD2_SAVE_MAX_UNITS ||
+        !fd2_field_prepare_stage_is_valid(state->stage_id)) return -1;
     fd2_archive fdother = {0};
     manual_resources *resources = calloc(1, sizeof(*resources));
     if (!resources) return -1;

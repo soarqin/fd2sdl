@@ -27,7 +27,7 @@ class ReleaseTraceTest(unittest.TestCase):
     def test_bad_target_blocker_and_unpublished_stage_refuse(self):
         for definition, row, key in [('wrong', self.row, 'stage.012.action.005'),
                                      ('callback5', {**self.row, 'blocker': {'reason': 'unknown'}}, 'stage.012.action.005'),
-                                     ('callback5', self.row, 'stage.020.action.005')]:
+                                     ('callback5', self.row, 'stage.030.action.005')]:
             with self.subTest(key=key, definition=definition), self.assertRaises(ValueError):
                 list(traces.bound_callbacks({'bindings': {key: definition}}, [row]))
 

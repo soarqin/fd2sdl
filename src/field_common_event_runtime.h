@@ -9,8 +9,8 @@
  * field_event_cell_reward_complete_first_five @0x35854（原sub_35854）；
  * field_event_key208_recruit31 @0x35a0d（原sub_35A0D）；
  * field_event_item211_story11 @0x352ca（原sub_352CA）；
- * field_event_story3_item213_story11 @0x35346（原sub_35346）；
- * field_event_item101_story11 @0x355f0（原sub_355F0）；
+ * field_event_story3_item213_story4 @0x35346（原sub_35346）；
+ * sub_355F0 @0x355f0：item101后story3，旧story11归属已撤回；
  * field_event_actor17_exchange_item11_once @0x35730（原sub_35730）；
  * field_event_story5_defeat_tail18 @0x35677（原sub_35677）。 */
 #ifndef FD2_FIELD_COMMON_EVENT_RUNTIME_H
@@ -44,7 +44,8 @@ static int common_event_leaf(const char *op) {
     static const char *const leaves[] = { "story", "clear_keys", "notice_actor", "message",
         "portrait_frame", "wait_key", "close_box", "map_replace", "raw_animation", "pan",
         "move", "refresh_map", "background_rebuild", "brightness", "delay_ms",
-        "arrival_prepare", "arrival_frames", "arrival_close", "palette_add", "palette_subtract", "delay_ticks" };
+        "arrival_prepare", "arrival_frames", "arrival_close", "palette_add", "palette_subtract", "delay_ticks",
+        "focus_cell", "teleport_begin", "call_teleport" };
     for (size_t i = 0; i < sizeof(leaves)/sizeof(leaves[0]); i++)
         if (!strcmp(op, leaves[i])) return 1;
     return 0;
@@ -60,6 +61,11 @@ static int common_event_literal(const fd2_field_game *game,
         if (fd2_field_event_source_value((fd2_field_event_value_source)source->args[0],
             game->turn_number, game->cell_action_completed, &value) != 0 || value > UINT16_MAX) return -1;
         literal->op = "story"; literal->args[0] = (int32_t)value;
+    } else if (!strcmp(source->op,"teleport_begin")) {
+        uint32_t actor;
+        if (common_event_teleport_actor(source->args[0],game->cell_action_completed,&actor)!=0 ||
+                actor>=game->units.count) return -1;
+        literal->args[0]=(int32_t)actor;
     }
     return 0;
 }

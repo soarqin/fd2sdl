@@ -1865,3 +1865,37 @@ C12仅在C11上同步三文件旧范围注释（精确回替、行数不变）�
 - 额外observer01误将960×600物理缩放像素当原调色表，02标准整幅normalize后又因批量／二次解码积压81ms错过strictstop。两个false和raw不改；离线分析只解释原因，不当新runtime。03复用既有latest归一化帧实时门、stop后全量核raw，160门及像素规则未降，无CDB／hold／补帧／target-exit错误重签。
 
 根及独立实审闭合本阶段源码／来源账／冷热／owner／SAV／RNG／资源生命周期与错误前缀问题，已消除旧近似、重复数据算法和过期测试门；无剩余S4必修或验收阻塞。完整S4一次独立提交，不远程push／发布。主项目FF／同SDK必要重建／直接影响复验／用户档及51文件守卫由后置 `build/s4/local-integration.json`登记；不称集成二进制又跑了全部原版。当前没有自动启动的后续阶段，未验精度／平台及隔离域仍保原边界。
+
+
+## S5 隔离语义闭合与后续批量接入（2026-11-14）
+
+基线S4 `0cca15f`；继续同一`cindy/elegant-pasteur`工作树。阶段一次独立提交并集成本地master，不远程push／发布、不自动启动后续阶段。完整交付、适用范围和命令见[S5报告](s5-batch-expansion.md)；阶段内候选／原HP疑点与旧计数见[研究历史](s5-investigation-history.md)。本记录不重开G／SD或S0—S4已完成范围。
+
+交付stage20—25普通战斗／END／事件／结算准备交接及26—29分支／终章两批。原13槽／14引用闭合，source10为141完整owner、20图／17002节点；stage2—29正式163绑定／149目标／112callback来源引用。315原未决均已有源去向，450默认callback255拒绝保留；这些身份／引用数字不是独立机制数或可运行覆盖率。resource30仅内部31active尾声，stage31／32开场另账。
+
+主要实现与修复：有限Scene转场／传送／临时页／credits／montage共用原owner及唯一冷图；RNG、分支、循环／等待／取消／marker及写序仍在数据。修callback51旧story11误归属为真实story3，保旧图和报告；热stage变化后借实际文本owner，不重开错误FDTXT；Game失败前缀及teleport ordinary cursor/display保持；NoTown统一既有flags并恢复原清屏后的normal DAC，未扩展普通城镇表。真实Play曾把source2000ms等待投影成旧common最多1000ms而退出，改为source自身0..65535校验，保其他资源门；薄binder让正式Play和快慢测试绑定同一回调。真实ANI0／2无decoder缺失，不补op3／padding。
+
+原蒙太奇HP不确定性已由完整自然caller消除：`3771c push esi`在`P−112`留下`0xAF8C0`，原DWORD与marker低WORD63680各保宽度；旧240poison向量不改签自然caller。20对次序／每part／tick／两侧RNG／HP／提前返回均在六固定子图中，最终59没有正常返回边。原PC驱动有限C叶40组、3596命令／2779完整64000B索引帧逐byte相等；与实际Scene全图（宿主I/O替身）及原生首末观察分账，不扩签全RGB／声音／物理帧。
+
+最终检查：`candidate-final-C22-ctest.log`单次18／18适用CTest、41.34s，其中`s5_source_tools`124项、0skip。额外8门及旧红／修绿各留原候选，不与最终计数加总。HOST六场移到真实commit后、pre-wipe的私有Scene节点，保成功／ERROR／HOST×display0／1、缺cursor、Game整byte／RNG／队列／scope owner；旧delay资源钩子注入已移除，不声称两像素前缀相同。删两临时诊断fprintf，保返回／flags和原失败日志，strict单行PASS／空stderr不放宽。
+
+来源最终入口`build/s5/source-final-C22-index02.json`：fresh module8／408、82双TU+CMake/target、正式参数1890正常＋147等待负例＋1容量、scope／disposition／G4／G5及资源门全过；C21独立Game三矩阵36／C39、180／C192、1998／147＋1按声明输入全等继承。7报告235路径／225实际文件，合资源门229current文件及5探针全SHA复核；1873引用／154archive entry、3sheet／232part与80FIGANI／630part分账。source10生成前快照保历史，其逐源／图／ABI由当前门重新连接，不改SHA求绿。
+
+正式原生与有限资格：
+
+| 身份 | 实际通过范围 | 严格边界 |
+|---|---|---|
+| C17 stage21／24原双端 | stage21入场／真实取消／活动Save/Load及受控END；stage24 NoTown选择／quake／Save | 旧UI标题两项／首次Load禁用和24初始NoTown RGB不签当前；21早期两份复用临时SAV已被最后测量替代，不签现读复核，最后Load与turn2原件仍同SHA |
+| C18 stage20双端 | 原count前缀6物品→真实结果／sheet101→追加24,23→Town21→四手工槽 | 受控；6有序anchor不降门，非101物理帧全捕 |
+| C19 stage26good双端 | 真实结果→27 NoTown／选19／强制text9→24618入场／34active／活动Save | 各79业务检查点；总88／83另含WGC瞬态。最终有效域经1446输入／成功路径资格承接，不称C22重跑 |
+| C20 original29＋C21 SDL29 | 分别完整CONTINUE→胜利→31文本／通知→credits首／末卡→montage0／19→完整59保持／HOST | C20整pair报告仍false，仅original case true；C21为SDL-only true。C22只删错误日志资格承接，不拼成同候选一次fresh pair |
+| C22 stage26bad SDL-only | 正式输入→坏臂story／FDTXT27七通知→共享credits／montage／终态 | 原版共享ending代表与完整250cc原码／写集另证；不冒签坏臂新原版 |
+| C22 entry29原双端 | 标题LOAD／NoTown真实选19／script87／29页ACK／七传送／脉冲／27active／整活动Save | 各61业务检查点；4＋3段WGC每caller一原LMI正证，全部写序由原码／C另证，非全相位。ff5200为turn255／phase0，未造“自然82” |
+
+均用WGC HWND／owned PID后台输入与串行正常清理，原源／用户档51文件大小、mtime、SHA守卫真，显示同线程释放，未改电源计划／用户混音器。当前Windows通过，Linux／macOS未执行。原版32通知快照门只执行原glyph／portrait／UI／scroll／memmove／memset，开闭页／输入／BIOS等替身明确；不改签WGC。
+
+失败原件均保留：21标题／Load错域、20首hidden物品位置及35号anchor采样失败；26白DAC；29两轮notice遮挡／箭头与fixed95滚行模型、蒙太奇bool→dict协议错误；C20 SDL source等待错接旧界限及C21旧HOST测试seam红。原数据／不同候选结果未累加，工具修正未补按键或放低像素门。
+
+人数边界另证`credits-roster-bound04/receipt.json`：正常一次性招募ID0..31中18／19互斥且不删其记录，上界31；原1088d仅初始化31active，外来count32会令31c49读未初始化raw31，当前明确拒绝，不造原写点。SAV32容量不改，不签外来／修改SAV或人为重复callback。450拒绝、严格BSS／全共享RNG／完整音画／绝对时序等原边界继续保留。
+
+根及独立实审已修复本阶段问题、消除错误预检／重复真值和临时诊断，无剩余S5必修或验收阻塞。准确提交、本地主线快进、必要重建／集成复验和证据转移最终见`build/s5/local-integration.json`；不声称集成后又跑全部原版。当前没有已授权后续阶段。

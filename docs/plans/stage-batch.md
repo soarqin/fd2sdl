@@ -2,7 +2,7 @@
 
 2026-11-12，代码基线为本地 master `4d7ed15`。本文给出 S 工作包的来源、转换边界与验收设计；**唯一优先级仍在[总计划 §4](development.md#4-新优先级与依赖)**。本轮只做只读研究、最小候选转换和计划修订，没有开放新关卡，也没有启动后续玩法实施。
 
-2026-11-14 状态定位：本文保留上轮研究事实与复跑记录，不是当前阶段状态表。S0 结果／恢复补充和 S1 全量账／审计同步已分别交付；当前转换输入和复跑合同见[来源账规范](../formats/stage-source-ledger.md)。S2 转换和有限能力、S3 正式批量接入及 S4 统一审查均已交付，见[S2报告](s2-shared-semantics.md)、[S3报告](s3-batch-integration.md)和[S4报告](s4-unified-review.md)。当前未授权后续阶段，只查[当前计划](development.md)，完成范围见[归档](completed-stages.md)。下文旧计数和 HP blocker 均保留研究时点身份，不作为当前缺陷。
+2026-11-14状态定位：本文保留上轮研究事实，不是当前状态表。S0／S1及[S2](s2-shared-semantics.md)、[S3](s3-batch-integration.md)、[S4](s4-unified-review.md)各保原身份。S5原13隔离槽的共享补充和批量接入适用验收已闭合，stage0／1原范围及stage2..29战斗／END／事件／交接与结局已证，resource30不作battle、450默认拒绝保留。新增entry29正式七传送pair和其它有限代表见[S5报告](s5-batch-expansion.md)，C22输入／编译依赖／复跑见[来源账规范](../formats/stage-source-ledger.md)。来源、consumer与原生精度分账，正常招募上界31不扩大为所有32人credits或自然整关一致；提交／集成和顺序只查[当前计划](development.md)。下文旧计数与HP blocker保留研究时点身份，不作为当前缺陷。
 
 ## 1. 推荐与基线
 

@@ -18,6 +18,16 @@ static int common_event_actor(const fd2_field_game *game, size_t caller,
     return 0;
 }
 
+/* 362e8→33f78的三种固定actor来源；负码仅为冷ABI，不能当caller/raw。 */
+static int common_event_teleport_actor(int32_t requested,
+        const uint8_t state[FD2_FIELD_EVENT_STATE_SIZE], uint32_t *actor) {
+    if (!actor || requested < -3) return -1;
+    if (requested >= 0) { *actor=(uint32_t)requested; return 0; }
+    fd2_field_event_value_source source=requested==-1 ? FD2_EVENT_VALUE_STATE16_REVERSE_ACTOR :
+        requested==-2 ? FD2_EVENT_VALUE_STATE16_FIRST_ACTOR : FD2_EVENT_VALUE_STATE16_SECOND_ACTOR;
+    return fd2_field_event_source_value(source,0,state,actor);
+}
+
 /* 纯白名单：1=已处理query，0=不是query，-1=数据错误。const Game只读，
  * 不混入演出/写点；stage result图与事件执行共用完全相同的比较宽度。 */
 static int common_event_query_values(const fd2_field_units *units,
@@ -174,6 +184,15 @@ static int common_event_domain(fd2_field_game *game, size_t caller,
             game->units.count > FD2_FIELD_MAX_UNITS || (size_t)a[1] >= game->units.count) return -1;
         if (!validate_only && fd2_field_event_item_consume(&game->units, (size_t)a[0], (size_t)a[1],
             (uint8_t)a[2], (uint8_t)a[3]) != 0) return -1;
+        return 1;
+    } else if (!strcmp(op,"unit_ai_write_source")) {
+        uint32_t selected;
+        if (a[1]<0 || a[1]>UINT8_MAX ||
+                fd2_field_event_source_value((fd2_field_event_value_source)a[0],
+                    game->turn_number,game->cell_action_completed,&selected)!=0 ||
+                selected>=game->units.count) return -1;
+        if (!validate_only && fd2_field_units_ai_behavior_write(&game->units,selected,selected,
+                (uint8_t)a[1])!=0) return -1;
         return 1;
     } else if (!strcmp(op, "unit_field_write") || !strcmp(op, "unit_ai_write")) {
         if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= game->units.count ||

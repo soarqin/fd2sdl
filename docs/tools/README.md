@@ -14,6 +14,10 @@ S3 的无参数正式 App 代表使用 `run_s3_stage_check.py`，覆盖 END／�
 
 S4 复用上述工具及历史原生入口，不另建逐关套件。调色原码门 `verify_s2_fades.py` 可加 `--scene-probe` 和 `--transition-readset` 核真实旧 dispatcher／转场尾；完整命令、候选、历史继承资格和失败原件见 [S4 报告](../plans/s4-unified-review.md)。工具回归中的冻结 AST 身份使用 Python 3.12.10；正常构建的 Python 最低版本不因证据解释器固定而改变。
 
+S5适用验收已闭合，已证stage0／1原范围及stage2..29战斗／END／事件／交接和结局；resource30内部、450默认255拒绝不变。正式代表使用`run_s5_stage_check.py`、`run_s5_cinematic_check.py`、`run_s5_late_check.py`、`run_s5_entry29_check.py`；默认prepared，后批与entry29需同候选`--snapshot-probe`。entry29 C22完整pair已过，26坏臂自动仅SDL；29结局的原C20／SDL C21与C22日志清理资格分别保留，未合成一次新pair。命令见[图形规范S5](gui-testing.md#s5-后续批量接入的定向代表)，提交／本地集成查[S5报告](../plans/s5-batch-expansion.md)。
+
+C22来源工具索引`build/s5/source-final-C22-index02.json`分别保C21 Game三矩阵与C22 fresh Scene／82／正式参数，235路径／225文件、合资源门229声明文件当前SHA全等；Play层的新scope TU、CMake和target必需。等待本域／薄binder、失败前缀和复跑命令见[冷定义工具](static-data.md#s5-扩展正式参数与独立-82-门)。正常招募可达上界31；外来32人credits拒绝与SAV32条容器分账，不据来源或容量宣称所有人数组合通过。
+
 ## 构建与回归
 
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。

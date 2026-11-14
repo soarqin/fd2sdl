@@ -2448,6 +2448,148 @@ CORRECTIONS[0x1B41D].extend([{
 }])
 
 
+# S5只给完整原入口登记来源/消费边界；冷图仍以data/static为唯一可编辑输入。
+# 本清单不是第二套剧情表，也不把读集中全部owner都当作语义已确认。
+_S5_SOURCE_EVIDENCE = (
+    (0x336A0, 'dispatch:stage_entry:022→stage.source.entry.022',
+     '初始化后raw0..15置hidden；24618相对focus(+6,+5,10,8)；仅HP WORD非0者显现/方向2；追加group1及故事0..4，末方向复位20ms/focus0。'),
+    (0x3396A, 'dispatch:stage_entry:024→stage.source.entry.024',
+     '借FDOTHER88、sample1/loop1四次；清App整153216B并按20/20/20/60次24b4d帧编排；1d512 push53B13再跳1a80a共享free切片，不能套owner上游53B0F条件。'),
+    (0x33AF1, 'dispatch:stage_entry:026→stage.source.entry.026',
+     '保item100分支、script76/81、三次不同focus-relative24618及共享3312d故事7入口；条件、原序和reset/20ms均在冷定义。'),
+    (0x33C9D, 'dispatch:stage_entry:027→stage.source.entry.027',
+     'raw0..19先hidden、HP WORD非0者恢复；三次script85、group6/7闪现和显式方向/20ms；不以HP_MAX代HP。'),
+    (0x33E3C, 'dispatch:stage_entry:029→stage.source.entry.029',
+     'script87、七次33f78/22253确切actor/destination/focus序与361b0脉冲；相同传送冷序只存唯一stage.source.teleport。'),
+    (0x240FA, 'dispatch:stage_victory:020→stage.source.victory.020',
+     '完整233c6写集后计首16 raw中209..214物品出现数；六件匹配才消费/授100并走24336；不匹配故事6。两臂后持久追加raw24/23、11506并stage21。'),
+    (0x244B6, 'dispatch:stage_victory:021→stage.source.victory.021',
+     '布局、故事4..6/scripts65/66后24618相对(0,+3,10,8)；保白页、原淡出、11506和共享stage22尾。'),
+    (0x24754, 'dispatch:stage_victory:022→stage.source.victory.022',
+     'item100与持久roster text18两条件；248b5读取signed DWORD53BEF turn并与15比较，绝非53BFB roster_count。stage先增23后仍用原FDTXT23故事14..17；circle/shake与map69/shape23替换顺序保持。'),
+    (0x24C1E, 'dispatch:stage_victory:023→stage.source.victory.023',
+     'scroll speed2..9各30次refresh(1)/tick1，10..14各12次darkness/refresh(0)/tick1；复用已有312×192背景owner和tick门，不把300 refresh当300实际scroll。'),
+    (0x250CC, 'dispatch:stage_victory:026→stage.source.victory.026',
+     '首16 raw的item100保两臂；正常stage27，缺失则raw1传送255/255、恢复roster、31529后25462原不返循环。1c2da实COUNT1/list52326=[1]只闪raw1，arg19不是raw范围/调色板。ending pair自然caller的HP栈cell末写/有效域待复核，仍显式阻塞，不提前称整来源可运行。'),
+    (0x2548C, 'dispatch:stage_victory:028→stage.source.victory.028',
+     '35f10/1db65只有败亡反馈，无loot/reward collector；raw20只写ID/text126、不伪造cache重建。三次361b0各自返回后都有delay300（25687/25699/256ab push12c）；其后故事15/淡出/11506/stage29。'),
+    (0x25757, 'dispatch:stage_victory:029→stage.source.victory.029',
+     'stage++到30后先1088d(30)再FDTXT31故事0/1、pan/script89；31c49内再构造30一次。31529返回后25975为原不返尾；30仅内部终章资源，不是普通battle/preparation capability。'),
+    (0x362E8, 'dispatch:event_callback:082→common.callback.082',
+     'STATE16=0..4完整caller：故事s+2、reverse24-s、追加group s及25+2s/26+2s传送；s4改raw20 AI低域11。末display1，不递增STATE16；共享35f6e由完整34b6f/35022 owner承担，不能称unowned或新函数。'),
+)
+_S5_SOURCE_WHY = (
+    'S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；'
+    '新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、'
+    'victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、'
+    'teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，'
+    '每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。'
+    '来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json '
+    'SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。'
+    '13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。'
+    '完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按development/实际收据，不由此静态注释签核。'
+)
+for _va, _source, _meaning in _S5_SOURCE_EVIDENCE:
+    CORRECTIONS.setdefault(_va, []).append({'target':'evidence','was':'S2该原入口保持隔离或部分语义未闭合',
+        'now':_source+'。'+_meaning+' 保持原中性名、完整边界/共享chunk和持久类型。', 'why':_S5_SOURCE_WHY})
+
+_S5_HELPER_EVIDENCE = {
+    0x24618:'原五参数读取focus-relative cells，九帧LUT9..1按radius+i*step增长；后delay500及32次11df2加色/尾4ms，不是减色。八个实际callsite四参数各保来源，单叶不隐藏循环。',
+    0x22253:'五参actor/dstX/dstY/drawX/drawY；114..124逐sprite/tick、sample由两组xy相等选择；icon124；两次tick后先写raw.xy再copybase/mask，不先present；dy==0擦18行否则24行，各10ms，expand0..9各tick。借原App/page/Game owner，无SAV新状态。',
+    0x22470:'sprite原frame114..124共11帧，每帧BIOS tick1；不把终帧125误加进LMI资源域。',
+    0x22547:'icon124后contract LUT5..0，每步10ms；shared tail返回原LUT0/mult0。原row与focus-relative中心读取保留，不靠draw坐标反算。',
+    0x22656:'固定expand LUT0..9每帧tick1；完整owner/共享尾单列，不生成通用脚本VM。',
+    0x24336:'FDOTHER34完整101part；frame0叠snapshot，1..68写真实App raw前64000后到VGA，water/tick3/clear键；ANI(0,15,0)及palette时序后69..100仍tick3/clear但无water。资源字段只引用原archive。',
+    0x2189A:'一次terrain快照后十次circle12/127a9投影；半径、LUT次序及无额外等待按完整caller冷展开。',
+    0x24B4D:'terrain首13×9与11cac(0)准备后交替两行/20ms，循环次数由原caller冷定义；不在renderer重采输入或追加16ms。',
+    0x1C2DA:'250cc四push为(0,19,COUNT1,&52326byte1)；真实第三参是count、第四参是BYTE列表，不是raw0..19。只闪raw1，solid200及原有限定时表沿G4；原未用参数不猜新义。',
+    0x31BDF:'普通通知origin84,119/background74/pitch19；clear/open，phase5..0 slide，clear/text/portrait0/wait0，phase1..5 slide，close/clear；1974c/16f04共享尾无暗加tick或16ms。',
+    0x31529:'终章固定序列含FDOTHER54/60/58/57/59、通知、40宽页帧/200帧/credits及20组pair。31c49前WORK原free、BASE最后读取后仅现代owned清理不冒原free ABI。2ebe1未自行初始化的HP栈cell影响3%重复，但完整自然caller链的末写/有效域尚待复核；当前首pair显式fail，不能签整终章等价。',
+    0x31C49:'1088d参数30不写热Game.stage；FDTXT31 fragment44滚500帧、raw j=0/1互换、intro8..0无等待、20idle帧、byte2个part按part+6等tick、220/440卡帧。输入改原j=1而不break内帧，末卡可重播；RNG借现Game。class/movement_profile是raw+20h而非level+21h；textID+12先BYTE wrap再查片段。',
+    0x26152:'NoTown先于任何(stage-1)*31城镇记录读取。原523e7完整30B中22..24及27..29非0，26为0；27..29不能越界延长只有26行的城镇表。普通prepare域1..29与内部credits资源30分离。',
+    0x2EBE1:'S5 callee受控240向量仅证marker分支读取未自行初始化的局部HP栈cell并影响RNG相关3%重复。完整31529→2e2b0及prior2e9a8→memmove链的实际末写/有效域尚待复核；未自初始化不等于自然caller的HP任意，不提前断言无法恢复或作安全差异取舍。当前pair保持阻塞，不改ABI类型。',
+}
+for _va, _meaning in _S5_HELPER_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({'target':'evidence','was':'S5新caller/资源/失败前缀适用边界尚未归档',
+        'now':_meaning,'why':_S5_SOURCE_WHY+' 仅复核上述已证有限合同，不把读集中其他owner一并提升语义确认。'})
+
+CORRECTIONS.setdefault(0x355F0, []).extend([{
+    'target':'semantic_name','was':'field_event_item101_story11','now':'sub_355F0',
+    'why':'撤销错误语义名并保中性入口。完整355f0..35638（72B）在35631原6a03 push3、35633跳3530d，'
+          '不执行352ca自己的push11；callback51真实loot_child[2,-1]后story3。旧G common.loot.child.2仍保原已测story11组合，'
+          'S5新common.callback.051与stage021精确binding修正旧S2误归属，不改签旧报告。'}, {
+    'target':'evidence','was':'S2将callback51视为common.loot.child.2已有引用，未核共享尾实际push',
+    'now':'355f0原入口/352ca真实共享尾与52748的3B descriptor保留；side0/1/2、库存0/7/8、满包Cancel均先1aa1d后story3。'
+          '原72B main与shared tail不能据owner旧名猜成story11；不改函数边界、chunk、签名或指令。',
+    'why':'F:/fd2sdl-evidence/s5-20261114/callback51-old-mapping-red01/comparison.json原CPU36、旧C13实际story11红件保留；'
+          'callback51-source-c15-01/comparison.json独立原CPU36与真实C39（3错ACK/HOST/error）通过，'
+          'probe SHA6a2ec667649b7baac8300b511a9467956918ba0ae1f78af15cb7065af00b8867。'
+          '该门为真实Game/Loot有限consumer，渲染/键盘及原child呈现为明确替身，不证明原生、全RNG/时钟或完整游戏。'}])
+
+
+# publication02当时的未决边界保留；本块只追加后来完整原caller与有限C证据。
+# 这些记录不是第二份ending定义，不把sourceavailable改称整终章runtime通过。
+_S5_MONTAGE_CLOSURE_WHY = (
+    '完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json '
+    'SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；'
+    'natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 '
+    '分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。'
+    '完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，'
+    'AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。'
+    'natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b140ebd384614b61c8991afad8583aa45ae079 '
+    '登记53A45热owner、credits之后时点、WORD写及音频门。'
+    'montage-actualC18-01/comparison.json SHA688b62ed183e0c6c207f29eff3903efe663ae4e3916194756cfe535797cf5c50 '
+    '核20pair×RNG0/50共40例、3596原PC操作、2779完整64000B索引帧及HP/RNG/branch；'
+    '实际有限C叶由原PC事件驱动，80次RNG/2419次BIOS调用/199次原SFX门另计。'
+    '该门不签完整31529/credits/冷walker/自然App/GUI或硬件时钟音色；'
+    'source10的13源完整候选和315来源可用与实际C、正式绑定、原生门分别登记。'
+    'publication02、旧240个poison callee向量及37040探索误入口拒绝均保原身份；'
+    '正确stackprobe入口为37042，不改3702f中性无原型。'
+)
+_S5_MONTAGE_CLOSURE_EVIDENCE = {
+    0x250CC: 'publication02中的ending自然栈待复核已由完整caller闭合；item100好臂仍11506→stage27→25089，'
+        '坏臂25089→31529后保持原25462不返。坏臂热stage26不被credits资源30构造强写为30；'
+        'montage在31c49返回后才发生，不能用旧stage26两名战场actor或独立render假actor代替53A45。'
+        '当前来源候选可用不是本注释给坏结局、任意SAV或整终章原生批准。',
+    0x25757: 'stage++30后原1088d(30)、FDTXT31故事0/1和script89顺序保持；'
+        '31529内部31c49再构造resource30，故后来pair写的是该时点的53A45热active。'
+        '原25975不返尾不变，30仍仅终章资源/终端域，不能据sourceavailable新增普通battlecap30。',
+    0x31529: '撤销publication02首pair仍fail的当前推断，仅保留其历史。20组原526e9/526fd/52711参数在31c49返回后，'
+        '逐组写53A45 raw0/1的side(+6)/unitID(+7)，不改cache(+2)、textID(+8)或roster/SAV。'
+        '63680的marker HP写也属于这些真实active；不是malloc视觉页的两个临时actor。'
+        '每组两次RNG：首侧3%最多两轮且idle/抖动不重置，第二侧仍取RNG但最后marker整part后返回一轮。'
+        'overlay58时53A65切到FDOTHER57，组间与末尾恢复保存的base palette；不凭临时palette改永久owner。'
+        '分支、重复、HP写、逐帧和等待放唯一冷图，C仅有限资源/单帧叶。',
+    0x31C49: '资源constructor参数30不写热stage；返回31529之前已重建53A45 active和相关资源，'
+        '随后montage沿这一热owner写raw0/1。26坏结局热stage26与29终章热stage30均可到此，但不开放battle30。'
+        '既有500滚页、j0/1互换、220/440卡帧、BYTE(textID+12)和raw+20h职业文本合同保持，'
+        '不把31529之后的actor覆盖倒推成此前credits已使用这些改写身份。',
+    0x2E2B0: '仅31529这20组非split场景：borrow原53A45 raw0/1，54133取原scene override；'
+        '首侧完整2ebe1及真实counter-query仍执行，override使普通反击/伤害分派路径受限；随后override=1执行第二侧。'
+        '两方FIGANI和BG/TAI从真实资源读取，冷图只用有界22part/10tick族；'
+        '不将此montage合同推广到1548e/18d8c等普通物理caller或旧B6未验域，不修改持久ABI类型。',
+    0x2E9A8: '31529非split实际资源下完整原intro尾经11eb0→3771c。令P=2e2b0入口ESP-64，'
+        '最后memmove入口P-108，push ESI写P-112；下一2ebe1入口P-36，其var4C正是(P-36)-0x4c=P-112。'
+        'ESI是VGA末行0xa0000+199*320=0xaf8c0；多种旧栈poison/heap布局均被这个实际末写覆盖，'
+        '不能将callee未自初始化误报自然HP任意，也不能给别的caller假定相同栈深。',
+    0x2EBE1: '本函数未自行初始化的局部HP读不等于31529自然值未知：原2ef80按signed DWORD读719040，'
+        'override将damage清0，2ef9e向真实target+40h只写低WORD63680，每个marker即使duration0也写。'
+        '首侧正DWORD保3%第二轮；第二侧override1在最后marker完整part之后早返，仍消耗其一次RNG。'
+        'typed HP/条件/轮次/等待在冷图，marker为非0不等于固定图像帧数；'
+        '旧240poison向量仍证明受控callee依赖，不改签为自然域、全物理战斗或完整C/GUI。',
+    0x25A96: 'S5 montage调用仍遵守完整device&&sfx_option&&54133==0门。首侧override>1、第二侧1，'
+        '在读bank或AIL stop/sample之前返回；因此不能依据clip的bank_selector加载额外音库。'
+        '原CPU将设备/选项置开且两bank设未映射仍完整通过，AIL到达硬拒；该结论仅此override域，'
+        '不改变其他正常caller的sample/loop行为或用户混音器静音状态。',
+    0x3771C: '保FLIRT memmove原名/类型。仅在上述完整31529自然栈链，入口push ESI的保存槽成为下一2ebe1局部HP cell末写；'
+        '值0xaf8c0由上层VGA最后scanline给出。这是已证caller栈别名，不把通用memmove重命名成HP初始化函数。',
+}
+for _va, _meaning in _S5_MONTAGE_CLOSURE_EVIDENCE.items():
+    CORRECTIONS.setdefault(_va, []).append({'target':'evidence',
+        'was':'publication02阶段自然栈/热owner及完整C帧范围尚待闭合；旧记录保历史',
+        'now':_meaning,'why':_S5_MONTAGE_CLOSURE_WHY})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

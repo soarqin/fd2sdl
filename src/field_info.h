@@ -149,6 +149,10 @@ void fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_text_entry *text,
                            const fd2_field_unit *unit,
                            const fd2_image *portrait);
+/* 168b6(5,7,5,5)：详情与31c49卡片共用同一边框算法；纯绘制。
+ * 完整17 tile预检，失败不写VGA，不含portrait/文本/输入或等待。 */
+int fd2_field_detail_portrait_border_draw(fd2_vga *vga,
+    const fd2_field_info_assets *assets);
 /* 17fc0的共享统计层；底图/portrait/库存仍由调用方绘制。不改单位或RNG。 */
 void fd2_field_detail_stats_draw(fd2_vga *vga,
     const fd2_field_info_assets *assets, const fd2_font *font,

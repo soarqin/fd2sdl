@@ -44,7 +44,9 @@ class StaticFlowTest(unittest.TestCase):
             elif case == "copy_slots":
                 next(f for f in stage["flows"] if f["id"] == "stage.capability.012")["nodes"][0]["args"][3] = 15
             else:
-                next(f for f in stage["flows"] if f["id"] == "stage.capability.020")["nodes"][0]["args"][0] = 1
+                # S5开放20后，内部credits资源30仍不能伪作普通战场。
+                unavailable=copy.deepcopy(next(f for f in stage['flows'] if f['id']=='stage.capability.020'))
+                unavailable['id']='stage.capability.030';stage['flows'].append(unavailable)
             with self.subTest(case=case), self.assertRaisesRegex(ValueError, "source"):
                 check(bad)
 

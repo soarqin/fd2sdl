@@ -4,6 +4,8 @@
 #ifndef FD2_FIELD_COMMON_EVENT_PRESENT_H
 #define FD2_FIELD_COMMON_EVENT_PRESENT_H
 
+#include "scene_teleport.h"
+
 /* bios_tick_delay @0x17aa9（原登记同名）：只读有符号WORD时钟与有界goal。
  * 53A2C仅是该函数的scratch（Domain全xref为两写一读），此处用局部start；
  * 不新增App热状态。SDL/55为既有名义BIOS映射，不承诺真实18.206Hz精度。
@@ -97,6 +99,13 @@ static int common_event_resources_preflight(const fd2_field_game *game,
     if(!strcmp(op,"arrival_prepare") || !strcmp(op,"arrival_frames"))
         return fd2_scene_arrival_visual_validate(fdother);
     if(!strcmp(op,"arrival_close"))return 0;
+    if(!strcmp(op,"teleport_begin")) {
+        const fd2_field_units *units=view?view->units:&game->units;
+        if(!units || node->args[0]<0 || (size_t)node->args[0]>=units->count)return -1;
+        for(unsigned i=1;i<5;i++)if(node->args[i]<0 || node->args[i]>255)return -1;
+        return fd2_scene_teleport_validate(fdother);
+    }
+    if(!strcmp(op,"call_teleport"))return 0; /* begin已核资源，投影另核有限scope。 */
     return view?fd2_scene_common_step_validate_resource_view(game,fdother,node,view):
         fd2_scene_common_step_validate(game,fdother,node);
 }
@@ -105,6 +114,7 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         const fd2_archive *fdother,fd2_field_audio *audio,int fast) {
     field_progress_box box={0};
     fd2_scene_arrival_visual *arrival=NULL;
+    fd2_scene_teleport_scope *teleport=NULL;
     int result=0;
     while(game->event_resume.active) {
         if((result=play_field_terminal_result(game,vga))!=0)break;
@@ -116,6 +126,7 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         }
         fd2_static_flow_node node;size_t actor;
         if(fd2_field_game_common_event_peek(game,&node,&actor)!=1){result=-1;break;}
+        if(teleport && strcmp(node.op,"call_teleport")){result=-1;break;}
         unsigned port=FD2_FLOW_NEXT;
         if(!strcmp(node.op,"clear_keys"))fd2_input_clear_keys(&vga->input);
         else if(!strcmp(node.op,"delay_ms"))result=loot_fixed_wait(vga,(uint32_t)node.args[0],fast);
@@ -127,6 +138,14 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         else if(!strcmp(node.op,"palette_subtract")) {
             result=fd2_vga_palette_subtract(vga,node.args[0],node.args[1],node.args[2]);
             if(!result)fd2_vga_upload_current_frame(vga);
+        }
+        else if(!strcmp(node.op,"teleport_begin")) {
+            if(box.page || arrival || teleport){result=FD2_SCENE_RESULT_ERROR;break;}
+            result=fd2_scene_teleport_begin(&teleport,game,vga,fdother,(size_t)node.args[0],
+                node.args[1],node.args[2],node.args[3],node.args[4]);
+        } else if(!strcmp(node.op,"call_teleport")) {
+            if(box.page || arrival || !teleport){result=FD2_SCENE_RESULT_ERROR;break;}
+            result=fd2_scene_play_teleport_scope(vga,fdother,game,audio,fast,&teleport);
         }
         else if(!strcmp(node.op,"arrival_prepare")) {
             if(box.page || arrival){result=FD2_SCENE_RESULT_ERROR;break;}
@@ -171,6 +190,8 @@ static int play_common_events(fd2_field_game *game,fd2_vga *vga,
         (void)fd2_field_game_common_event_reply(game,FD2_FLOW_ERROR);
     if(!result && box.page)result=-1;
     if(!result && arrival)result=-1;
+    if(!result && teleport)result=-1;
+    fd2_scene_teleport_release(&teleport);
     fd2_scene_arrival_visual_close(&arrival);
     progress_box_free(&box);
     return result;

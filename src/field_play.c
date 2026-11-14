@@ -137,6 +137,7 @@ typedef struct {
     int fast;
     int host_quit;
     fd2_field_defeat_visual *defeat; /* 仅本次1db65的图像/临时页，非业务owner。 */
+    fd2_field_play_context *context; /* 借原App音乐owner，源剧情同步报错。 */
 } field_runtime_presentation;
 
 /* runtime呈现仅回传hostquit时，Game锁存仍是同一退出事实。modal不能把
@@ -289,6 +290,9 @@ static int play_runtime_step(fd2_field_game *game,
         if(value!=20)return -1;
         int wait=loot_fixed_wait(vga,(unsigned)value,runtime->fast);
         result=wait==FD2_SCENE_RESULT_HOST_QUIT?1:wait;
+    } else if(step==FD2_FIELD_RUNTIME_MUSIC_TRACK) {
+        if(value < -1 || value > 255)return -1;
+        result=runtime->context ? fd2_field_play_request_music(runtime->context,game->stage,value,"source"):0;
     } else if(step==FD2_FIELD_RUNTIME_INFO_VISIBLE) {
         if(value<0 || value>1)return -1;
         if(fd2_input_take_quit(&vga->input) || runtime->host_quit){runtime->host_quit=1;return 1;}
@@ -1887,6 +1891,13 @@ static int play_field_loot(fd2_field_game *game, fd2_vga *vga,
 
 #include "field_common_event_present.h"
 
+int fd2_field_play_bind_event_preflight(fd2_field_game *game,const fd2_archive *fdother) {
+    if(!game || !fdother)return -1;
+    game->event_preflight=common_event_resources_preflight;
+    game->event_preflight_userdata=(void *)fdother;
+    return 0;
+}
+
 static int play_field_progress(fd2_field_game *game, fd2_vga *vga,
                                 const fd2_archive *fdother,
                                 fd2_field_audio *audio, int fast) {
@@ -2134,11 +2145,12 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (fd2_field_game_bind_visual(&game,vga)!=0) {
         fd2_field_game_close(&game);return FD2_FIELD_PLAY_RETURN_ERROR;
     }
-    field_runtime_presentation runtime={vga,field_audio,once,0,NULL};
+    field_runtime_presentation runtime={vga,field_audio,once,0,NULL,context};
     game.runtime_present=play_runtime_step;
     game.runtime_present_userdata=&runtime;
-    game.event_preflight=common_event_resources_preflight;
-    game.event_preflight_userdata=(void *)fdother;
+    if(fd2_field_play_bind_event_preflight(&game,fdother)!=0) {
+        fd2_field_game_close(&game);return FD2_FIELD_PLAY_RETURN_ERROR;
+    }
     if (load_active) {
         const uint8_t *palette;
         size_t size;

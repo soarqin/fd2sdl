@@ -24,6 +24,7 @@ SUPPORTING_OWNERS = (0x1088D, 0x134E4, 0x13536, 0x17E0B, 0x1F525, 0x1F882,
                      0x15311, 0x1B41D, 0x1D4F6, 0x24336, 0x24D22, 0x24618, 0x24B14,
                      0x24BDE, 0x33F78, 0x35B78, 0x35F10, 0x31529, 0x111BA)
 IMAGE_SHA256 = "8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"
+S2_DOMAIN_SHA256 = "ac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6"
 # 参数数来自已审完整caller的push／清栈，非Hex-Rays推断原型。
 LEAVES = {0x205DA: ("stage_setup_source", 0), 0x135DD: ("pan", 2),
           0x1366A: ("move", 1), 0x15F84: ("text", 9),
@@ -89,6 +90,126 @@ def source_index(readset, image):
     for ref in refs.values():
         by_from.setdefault(ref["from"], []).append(ref)
     return instructions, by_from
+
+
+def verified_extension_function(function, image):
+    """扩展读集保完整原chunk、每条指令和CFG；不从相邻head猜长度。"""
+    owner = function.get('va')
+    if type(owner) is not int or not function.get('chunks') or not function.get('blocks'):
+        raise ValueError('extension lacks complete function/chunk/CFG')
+    covered, instructions = set(), {}
+    chunks = []
+    for chunk in function['chunks']:
+        start, end = chunk['start'], chunk['end']
+        if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(image)):
+            raise ValueError('extension chunk span is invalid')
+        raw = image[start:end]
+        if raw.hex() != chunk['raw_hex'] or hashlib.sha256(raw).hexdigest() != chunk['sha256']:
+            raise ValueError('extension chunk differs from strict original image')
+        if covered.intersection(range(start, end)):
+            raise ValueError('extension function contains duplicate/overlapping chunks')
+        covered.update(range(start, end)); chunks.append((start, end, chunk['raw_hex'], chunk['sha256']))
+    observed = set()
+    for instruction in function.get('instructions', []):
+        if not {'ea', 'size', 'raw_hex', 'disasm'} <= instruction.keys():
+            raise ValueError('extension instruction lacks exact size/raw bytes')
+        ea, size = instruction['ea'], instruction['size']
+        if (type(ea) is not int or type(size) is not int or not 0 < size <= 15 or
+                ea in instructions or not instruction['disasm'] or
+                instruction['raw_hex'] != image[ea:ea + size].hex()):
+            raise ValueError('extension instruction span/raw differs')
+        span = set(range(ea, ea + size))
+        if not span <= covered or observed.intersection(span):
+            raise ValueError('extension instruction overlap/outside chunk')
+        observed.update(span); instructions[ea] = instruction
+    if observed != covered or owner not in instructions:
+        raise ValueError('extension instructions do not cover complete owner chunks')
+    blocks = []
+    for block in function['blocks']:
+        start, end = block['start'], block['end']
+        successors = block['successors']
+        # Domain flowchart保留外部零长出口块；它不是已恢复的指令或可执行callee。
+        external_sink = start == end and successors == [] and start not in instructions
+        if (type(start) is not int or type(end) is not int or
+                not external_sink and (start not in instructions or end <= start or not set(range(start, end)) <= covered) or
+                not isinstance(successors, list) or
+                any(type(target) is not int for target in successors) or len(set(successors)) != len(successors)):
+            raise ValueError('extension CFG block/span differs')
+        blocks.append((start, end, tuple(sorted(successors))))
+    if len(set(blocks)) != len(blocks):
+        raise ValueError('extension duplicate CFG block')
+    refs = []
+    for ref in function.get('xrefs', []):
+        if (type(ref.get('from')) is not int or type(ref.get('to')) is not int or
+                not isinstance(ref.get('type'), str)):
+            raise ValueError('extension xref identity differs')
+        refs.append((ref['from'], ref['to'], ref['type']))
+    if len(set(refs)) != len(refs):
+        raise ValueError('extension duplicate xref')
+    fingerprint = (tuple(sorted(chunks)), tuple(sorted(blocks)),
+                   tuple((ea, node['size'], node['raw_hex']) for ea, node in sorted(instructions.items())),
+                   tuple(sorted(refs)))
+    return instructions, fingerprint
+
+
+def extend_source_index(readset, image, extensions):
+    """S5只追加有完整Domain证据的owner；S2的80-owner原门先执行且不放宽。"""
+    instructions, xrefs = source_index(readset, image)
+    owners = {function['va']: verified_extension_function(function, image)[1]
+              for function in readset['functions']}
+    refs = {(ref['from'], ref['to'], ref['type']): ref
+            for function in readset['functions'] for ref in function['xrefs']}
+    provenance = []
+    for extension in extensions:
+        schema = extension.get('schema')
+        if schema == 'fd2-s5-transition-domain-v1':
+            valid = (extension.get('strict_image_sha256') == IMAGE_SHA256 and
+                     extension.get('validation', {}).get('strict_byte_match') is True and
+                     extension.get('database_before_sha256') == extension.get('database_after_sha256') and
+                     isinstance(extension.get('database_before_sha256'), str))
+        elif schema in ('fd2-s5-victory-domain-v1', 'fd2-s5-teleport-domain-v1'):
+            valid = (extension.get('image_sha256') == IMAGE_SHA256 and
+                     extension.get('database_saved') is False and extension.get('strict_byte_match') is True and
+                     extension.get('S2_readset', {}).get('sha256') == S2_DOMAIN_SHA256)
+        else:
+            raise ValueError('unreviewed S5 extension schema')
+        if not valid or not extension.get('functions'):
+            raise ValueError('extension strict image/base/database identity differs')
+        observed, added = set(), []
+        for function in extension['functions']:
+            owner = function['va']
+            extra, fingerprint = verified_extension_function(function, image)
+            if owner in observed:
+                raise ValueError('extension duplicate actual owner')
+            observed.add(owner)
+            if owner in owners and owners[owner] != fingerprint:
+                raise ValueError('extension changes an existing owner/chunk/CFG/xref')
+            if owner not in owners:
+                owners[owner] = fingerprint; added.append(hex(owner))
+            for ea, instruction in extra.items():
+                if ea in instructions and any(instructions[ea][key] != instruction[key] for key in ('size', 'raw_hex')):
+                    raise ValueError('extension changes shared original instruction')
+                instructions.setdefault(ea, instruction)
+            for ref in function.get('xrefs', []):
+                refs[ref['from'], ref['to'], ref['type']] = ref
+        for requested in extension.get('requested_entries', []):
+            owner, entry = requested['owner_va'], requested['requested_va']
+            function = next((f for f in extension['functions'] if f['va'] == owner), None)
+            if (function is None or entry not in {i['ea'] for i in function['instructions']} or
+                    requested.get('is_owner_start') is not (entry == owner)):
+                raise ValueError('extension requested entry differs from actual owner/slice')
+        for table in extension.get('tables', []):
+            va, size = table['va'], table['size']
+            if (type(va) is not int or type(size) is not int or size <= 0 or not 0 <= va < va + size <= len(image) or
+                    image[va:va + size].hex() != table['raw_hex'] or
+                    hashlib.sha256(image[va:va + size]).hexdigest() != table['sha256']):
+                raise ValueError('extension constant source span/hash differs')
+        provenance.append({'schema': schema, 'complete_owners': len(observed), 'new_actual_owners': added,
+                           'source_tables': len(extension.get('tables', [])), 'new_semantics_proven': False})
+    merged = {}
+    for ref in refs.values(): merged.setdefault(ref['from'], []).append(ref)
+    return instructions, merged, {'S2_base_owners': len(readset['functions']), 'merged_owners': len(owners),
+                                 'extensions': provenance, 'unknown_CFG_promoted': False}
 
 
 def linear_path(entry, instructions, xrefs, branch_edges=None):

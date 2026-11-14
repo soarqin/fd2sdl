@@ -225,11 +225,10 @@ fail:
 
 /* 26152/265ec：准备能力独立于战场handler；NoTown先于普通31byte行。 */
 static int prepare_is_notown(size_t stage) {
-    return stage<sizeof(k_prepare_no_town) && k_prepare_no_town[stage]!=0;
+    return fd2_field_prepare_stage_is_notown(stage);
 }
 static int prepare_stage_valid(size_t stage) {
-    return stage>0u && stage<sizeof(k_prepare_no_town) &&
-        (prepare_is_notown(stage) || fd2_field_stage_prepare_record_get(stage));
+    return fd2_field_prepare_stage_is_valid(stage);
 }
 static int town_type(size_t stage) {
     const uint8_t *row = fd2_field_stage_prepare_record_get(stage);

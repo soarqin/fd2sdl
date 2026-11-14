@@ -362,7 +362,7 @@ S2 交付的 `stage.source.*`、`stage.result.source.*` 和新增 `common.callba
 
 正式来源 entry 的准备只建立本 stage 资源和原 roster，active 表由 Scene 在 `stage_setup_source` 叶单次构造。正式 wrapper 保留原准备记录偏移 `0x238d + (stage - 1) * 31`；显式 S2 来源机制 API 的旧 offset0 域保持原身份。`prepare_stage2` 复用统一正式入口，不能再先执行整段 Game entry 后重放 Scene。
 
-来源 victory 的持久同步、追加、等待和 `next_stage` 按同一冷图单次执行。结束后 `fd2_field_game_export_preparation` 只复制当前 stage、完整 32 条 roster 区（含未用尾）、人数、资金及选项到准备状态，成功返回 `0`；busy、缺原准备记录或不具备下一入口能力时返回 `-1`，不改 Game 或输出。它不再同步 active、不重算、不新建角色、不消费 RNG、不写 SAV，也不关闭资源。
+来源 victory 的持久同步、追加、等待和 `next_stage` 按同一冷图单次执行。结束后 `fd2_field_game_export_preparation` 只复制当前 stage、完整 32 条 roster 区（含未用尾）、人数、资金及选项到准备状态，成功返回 `0`；busy、无有效准备域或不具备下一入口能力时返回 `-1`，不改 Game 或输出。准备域先查原 NoTown flags，再查普通31byte行；27—29没有普通行不等于没有准备域，30内部资源则不能导出为下一战场。它不再同步 active、不重算、不新建角色、不消费 RNG、不写 SAV，也不关闭资源。
 
 部署槽数继续读取原 metadata byte1；来源 capability 不手抄一份槽数。`next_stage` 只改变原 stage 值，旧地图／资源仍归旧 Game。App／Play 在取得只读导出后按正式交接路径关闭旧资源并准备新场景，不拿旧资源运行新 controller，也不再调用一次 legacy settlement 提交。导出成功不代表已写盘或完成下一关入口；实际失败、原生门和阶段完成只在阶段记录登记。
 
@@ -373,3 +373,36 @@ S2 交付的 `stage.source.*`、`stage.result.source.*` 和新增 `common.callba
 转场 Game API 保留前段布局与 FX，仅把 `24618` 的 500 ms／32 级加白尾交给唯一 `stage.palette.transition.finish`。三个固定调色 helper 只允许 palette_add／palette_subtract／delay／end，沿现 Scene walker、栈和预算，不借假 Game 或增加热执行状态。独立插值原语仍保留；普通 void／clamp 暗度接口委托原减法。
 
 每叶错误／HOST 保留已到达 DAC，不改 base palette、Game、SAV、RNG，也不执行后继业务或伪造整体回滚。纯 DAC 上传不推进动作／水色或读取普通键；原 delay 处理宿主事件，普通输入仍归原交互读取点。全部原函数、合法 6 bit 域、等待替身和实际原生边界见 [S4 报告](../plans/s4-unified-review.md)，不承诺每个 2 ms 请求均成为独立物理显示帧。
+
+## S5 源入口、局部资源与终态合同
+
+S5适用验收已闭合，已证域为stage0／1原范围及stage2..29的战斗／END／事件／胜败交接与结局；默认255仍有源拒绝，resource30只供内部尾声。提交／本地集成及各候选实际身份见[S5工作包](../plans/s5-batch-expansion.md)，本文维护消费者合同，不扩大为自然全游戏／全随机或任意外部存档等价。
+
+`24754`在改变热stage后仍使用已打开的FDTXT23；`25757`先改热stage为30，再显式打开FDTXT31。Scene借用当前文本入口向正式Play资源预检传递`text_override`，和只读units／roster／map视图同寿命。预检与实际对白消费同一资源，不在Game／SAV记录第二入口，也不关闭借用的owner。
+
+`fd2_field_play_bind_event_preflight`只向Game写入同一私有资源preflight callback及借用的fdother userdata两字段；正式Play和来源Scene使用相同binder。source `delay`是无资源引用的原纯等待，合法域为0..65535ms，不能转成common `delay_ms` 后受1000ms上限截断。等待不额外刷新地图、推进水色／actor或取得业务RNG；fast仍沿HOST检查。该合同不扩大common等待叶的参数域，也不为资源预检保留测试专用调用。
+
+`24618`临时页、`22253`传送及终章绘制资源均由当前Scene scope拥有，所有出口释放局部分配。PCM bank只借App存活的原archive字节；播放器仍使用现有primary channel与禁用门。释放bank索引不销毁正在播放的原样本。条件、帧序、等待、skip、分支与返回／不返回合同只维护在冷图；固定callee白名单、深度8和局部预算不变，不接受任意目标跳转。
+
+传送原写点先提交raw.xy，再执行mask与逐行wipe；后续资源错误不恢复旧坐标。callback82通过现有event PC→Play→唯一Scene helper→reply执行，每叶保留原等待、HOST及失败前缀，不新增业务执行游标或平行热状态。
+
+C22的HOST前缀测试在真实`teleport_commit`完成后、下一`teleport_top`节点进入wipe前交付quit，xy由真实module写入。display0／1各自的成功、ERROR、HOST六场及缺cursor门由同Play目标链接的`field_s5_callback82_scope_checks.c`私有Scene TU执行，不借已移除的delay资源钩子，不写假坐标。旧C21钩子未触发的失败保原身份；删除临时诊断fprintf没有放宽精确PASS／空stderr门，也不把失败前缀测试称作原版宿主退出等价。
+
+credits的`1088d(30)`只替换原资源、构造active及其缓存，不强制把坏结局热stage26改成30，不重置turn／camera／focus／event／result／roster／RNG。29 caller本身已先改热stage30。内部metadata部署字节31不套普通准备UI20槽；resource30不是新增战场能力。
+
+S5 `cin_animation`仅消费完整原caller确认的ANI0／2。原20421的52766是临时调色区，未写永久53A65或DAC；复用现decoder时每帧present前恢复进入该叶的base／DAC。像素、输入、时钟和失败前缀照常保留，旧ANI调用路径不因此重新签证。
+
+
+原`31529`的montage位于`319d3 call31c49`返回之后，活跃表已由credits的resource30构造。`31a9c..31add`直接写同一`53A45`的raw0／1 side与ID，`2ef9e`写target+0x40的HP WORD63680；不是另建两条业务记录。冷图沿既有`unit_field_write`提交这些实际Game写点，图像桥仅借两记录的绘制快照，不能让副本成为HP owner，也不重算cache／textID或同步roster。HOST／失败保留已到前缀，credits之前不得凭新蒙太奇提前改这些字段。
+
+`stage.cinematic.montage_round`是第6个固定、只准ending调用的冷callee，最大22part／10tick仅为已证40clip的有限支持界；part数、duration、marker仍从FIGANI逐叶读取。两侧、3%最多二轮、marker HP、半场最后marker早返与每tick等待在冷图，沿既有Game RNG；原override将25a96挡在bank解引用／AIL之前，不伪造新clipbank声音。真原码／C索引帧相等不提升为整段RGB、声音或绝对时间相等。
+
+Scene source 业务叶失败时先将 Game 已到达前缀装回当前 Scene view，再传播错误；不能让旧 view 在收尾时覆盖刚提交的身份、HP、坐标或状态。呈现 scope 只释放本次临时页／sheet／索引，未到达的冷后继不执行。宿主关闭同样沿现 HOST 结果返回，不把已提交业务或外部 RNG 伪装成可回滚事务。
+
+NoTown 准备沿原 flags 独立于普通31 B准备行。`26152` 的入口顺序为清 VGA64000字节→`11d40(0,255,0)`→notice75／text410；恢复的是当前 base palette 对应 DAC，不改 base。这样 `250cc` 的白 DAC 不会泄入 stage27 准备。原退出 darkness255 仍在自己的写点，不能用入口正常色省略它，也不能因上一场景恰为 normal 跳过入口叶。
+
+`terminal_wait` 是无正常返回边的末端，只有既有 HOST 出口；普通键不使26坏结局或29终章继续到下一战场。终章 helper 内部返回与 caller 的不返回分别表达。其执行期间仍持有当前 Game／资源 owner，不能提前导出准备、关闭或复用为 stage30 battle。活动／四槽存取继续只允许既有空闲边界；中途等待、terminal或失败状态不增加可保存的平行字段。
+
+正常招募的已证人数上界为31；外来32人credits超出原构造／raw引用有效域时明确拒绝，不伪造第32个active或截断持久表。完整32条roster及96条active的SAV格式保持，资源构造、动态raw／头像和每个实际到达叶仍需自己的前缀检查，不能据容量声称所有人数组合等价。正式entry29的Title LOAD／NoTown／七次共享22253与27active存档已由C22完整pair另验，独立于82分层组件；turn255／phase0的82绑定未被伪称入场turn1触发。
+
+该人数界来自原caller而非缩小格式：`3231b`初始四ID为0／9／4／30，完整已恢复招募literal与初始集覆盖0..31，但18／19互斥。`23a0a`招18；`24754`先经`24bde(18)`查整张roster，仅无18且signed turn<15才招19。`11506`按原textID同步，不删除人数或改身份；正常单次触发域不能推广到外来重复callback。`1088d(30)`虽malloc96容量，原metadata.byte1=31只初始化raw0..30；credits从`count-1`开始且无源clamp。外来32人不能将未初始化raw31或另一持久记录补成已证active。

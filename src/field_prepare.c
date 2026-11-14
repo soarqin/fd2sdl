@@ -19,6 +19,15 @@
 #include "field_unit_base.h"
 #include "static_data/preparation.inc"
 
+int fd2_field_prepare_stage_is_notown(size_t stage) {
+    return stage<sizeof(k_prepare_no_town) && k_prepare_no_town[stage]!=0;
+}
+
+int fd2_field_prepare_stage_is_valid(size_t stage) {
+    return stage>0u && stage<sizeof(k_prepare_no_town) &&
+        (fd2_field_prepare_stage_is_notown(stage) || fd2_field_stage_prepare_record_get(stage));
+}
+
 static int state_valid(const fd2_save_manual_state *state) {
     return state && state->unit_count<=FD2_SAVE_MAX_UNITS;
 }

@@ -95,6 +95,8 @@ static float sound_last_gain;
 static unsigned magic_draw_calls, fail_magic_draw_call, state_save_calls;
 static int probe_title, title_background_ok, title_palette_ok;
 static unsigned title_fade_calls;
+static unsigned brightness_count;
+static int brightness_values[32];
 static int title_fade_result,title_fade_in,title_fade_fast;
 static unsigned water_calls;
 static unsigned clear_calls, quit_on_clear, frames_at_clear[8];
@@ -147,6 +149,8 @@ static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const 
 }
 static void prepare_test_brightness(fd2_vga *vga,int value) {
     fd2_vga_set_brightness(vga,value);
+    if(brightness_count<32u)brightness_values[brightness_count]=value;
+    brightness_count++;
     if(town_bootstrap_pending){
         if(town_fade_count<65u)town_fade_values[town_fade_count]=value;
         town_fade_count++;
@@ -229,6 +233,7 @@ static void controls(fd2_vga *vga) {
     magic_draw_calls = fail_magic_draw_call = state_save_calls = 0;
     probe_title = title_background_ok = title_palette_ok = 0;
     title_fade_calls=0;title_fade_result=FD2_SCENE_RESULT_OK;title_fade_in=title_fade_fast=-1;
+    brightness_count=0;memset(brightness_values,0,sizeof(brightness_values));
     service_exact_time=service_capture_first=0;service_delay_count=0;
     confirm_probe_assets=NULL;confirm_probe_hits=0;
     service_route_assets=NULL;service_route_products=NULL;service_route_menu_hits=service_route_product_hits=0;
@@ -1378,6 +1383,32 @@ static int town_bootstrap_source_contract(fd2_archive *fdother,
     free(expected);free(context);return 0;
 }
 
+/* 26152 NoTown 原分支：清屏后先11d40(0,255,0)，才开启75肖像/410。
+ * 250cc好结局留下白DAC；入口不得依赖上个场景恰好为normal。
+ * 实际冷入口执行到首个notice开框的HOST，检查已到写点及未到业务写点。 */
+static int notown_entry_restores_dac(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    const uint8_t *palette;size_t size;
+    CHECK(fd2_archive_get(fdother,0,&palette,&size)==0 && size>=VGA_PALETTE_SIZE);
+    for(int incoming=0;incoming<3;incoming++) {
+        fd2_field_play_context context={0};context.initialized=context.has_preparation=1;
+        context.preparation=*state;context.preparation.stage_id=27;
+        fd2_field_rng_seed(&context.rng,0x4321u);
+        fd2_field_play_context before=context;
+        prepare_ui ui={vga,fdother,assets,&context,NULL,"unused.SAV",-1,0,-1};
+        controls(vga);fd2_vga_set_palette(vga,palette);
+        if(incoming<2)memset(vga->dac,incoming?255:0,sizeof(vga->dac));
+        memset(vga->framebuffer,0x61,VGA_W*VGA_H);quit_frame=3;
+        CHECK(prepare_service_execute(&ui,"deployment","notown.mode",2)==-2);
+        CHECK(brightness_count==1u && brightness_values[0]==0);
+        for(size_t i=0;i<VGA_PALETTE_SIZE;i++)
+            CHECK(vga->dac[i]==(uint8_t)((palette[i]<<2)|(palette[i]>>4)));
+        CHECK(!memcmp(vga->palette,palette,VGA_PALETTE_SIZE));
+        CHECK(!memcmp(&context,&before,sizeof(context)) && !state_save_calls && !music_count);
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(default_sound_gain() == 0);
     fd2_archive fdother = {0}; fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
@@ -1386,6 +1417,7 @@ int main(void) {
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_prepare_assets_open(assets, &fdother) == 0);
+    CHECK(notown_entry_restores_dac(&fdother,assets,&state,vga)==0);
     CHECK(town_bootstrap_source_contract(&fdother,assets,&state,vga)==0);
     CHECK(prepare_buffered_input_contract(&fdother,assets,&state,vga)==0);
     CHECK(member_detail_open_clear_and_flip_preserves_queue(&fdother,assets,&state,vga)==0);

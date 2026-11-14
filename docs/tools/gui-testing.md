@@ -960,3 +960,68 @@ python -B -m unittest tools.tests.test_s3_stage_native tools.tests.test_s3_defea
 ```
 
 Linux Bash 使用 `python3` 执行相同纯测模块；本轮 Linux 未执行。WGC 与实际 Windows App／DOSBox 代表不能据此记成 Linux 图形通过。三组是共享族与正式交接的少量代表，未选绑定、完整 AI／RNG、全部渲染时序和自然整关仍按阶段报告保留边界。
+
+## S5 后续批量接入的定向代表
+
+S5适用实现与验收门已闭合：stage0／1既有范围及stage2..29已证战斗／END／事件／胜败交接和结局。resource30是内部尾声，不新增battle；450条默认255拒绝保持。实际原生采用新运行与严格继承联合证据，提交／本地集成只查[S5报告](../plans/s5-batch-expansion.md)和总计划，不将以下命令表称为一次全部新跑通过。
+
+`run_s5_stage_check.py`从真实原档的完整记录区派生声明过的stage21手动槽，按原entry独立建模。实际入口为标题LOAD→Town→入场对白→正式选择／取消→活动Save／Load取消及成功→受控敌方状态注入后Load→真实END。保存完整容器、差异manifest与未知尾，不用API跳过controller。注入不是自然战斗进展。
+
+`run_s5_cinematic_check.py`复用同一owned／来源／存档／显示守卫：`stage24-notown-shake`走NoTown真实出阵选择到stage24入场和shake；`stage20-sixhits-sheet101`由六次原物品presence的受控CONTINUE走真实结果查询、101part演出、完整story10、append24→23→11506同步，最后进入stage21 Town并实际保存四槽。物品放原首hidden槽，条件按原计数后的raw前缀求命中，不以任意八槽presence或贴图成功证明真臂。原版CONTINUE重建cache与SDL保留80B的模型分开；完整持久表和未知尾依本端写点比较。
+
+`run_s5_late_check.py`的三个后批入口如下。默认仍只是prepared；带`--run`时必须给同候选`--snapshot-probe`，在开窗前用真实完整容器consumer校验派生输入、原资源和EXE前后SHA，不能只用Python模型自证。
+
+| `--scenario` | 正式链与观察边界 |
+|---|---|
+| `stage26-victory27-notown` | 受控活动档CONTINUE→真实选择取消→26正常胜利→11506／25089恢复→27 NoTown提示／Save／19人选择→entry27及活动存取。初始raw0保原部署位置和合法range，内部资源30或26坏结局不由该代表代签 |
+| `stage29-credits-montage-terminal` | 正式CONTINUE→真实结果分派→29对白／转场→内部resource30构造／对白→notice与credits→montage字样→final59静留。明确保留helper返回与caller不返回，不补退出键伪造正常完成，也不将resource30记作普通battle |
+| `stage26-bad-ending-sdl` | 原count前缀中去除item100后的受控活动档→正式CONTINUE／结果→26坏臂→共享credits／montage／final59。该scenario自动仅SDL，`required_backends=['sdl']`、`original_runtime_executed=false`；成功不称坏臂双端fresh |
+
+普通29代表默认完整pair，显式`--sdl-only`仅补SDL新证据，既有原版须按自身来源另行资格化。实际29来源为原C20-02的original case与C21-final01的SDL-only，C22只删失败诊断日志的有限资格另列，不能合写一次C22 pair。
+
+`run_s5_entry29_check.py`是新增正式共享22253门，无`--scenario`或`--sdl-only`：标题LOAD→NoTown29选19人→20部署+7group0／script87→完整29页对白及七次源`33f78→22253`→27active活动Save。两batch按caller顺序各要求一张非遮挡原LMI资源正证，最终完整SAV另核七次xy写序（含raw24两次迁移）；不是每次完整动画或所有物理相位。原`ff5200`槽是turn255／phase0，本场turn1不伪触发82。`native-entry29-C22-01`已完整双端通过。
+
+WGC只验证声明的资源姿态、遮挡和次序；20的连续采集门独立匹配parts1／35／68／69／85／100，不将抽样称为101帧全覆盖。29的notice合成须服从原静态背景、文字／头像owner及遮挡，观察模型错误保留失败原件后修模型，不改产品或放宽像素门。原码／C逐帧解码、PCM调用、实际声音与原生少量检查点分别登记，不改混音器。
+
+以下是Windows复跑模板，输出必须为新目录。此会话普通构建目录在F盘；其他机器替换实际构建与DOSBox路径，App／driver／generated必须同一源码和配置。`F:/fd2sdl-evidence/s5-20261114/`是本轮显式本地证据域，除此以外仍沿项目`build/`输出保护，不允许覆盖已有报告或写入原资源。
+
+```powershell
+$Build = 'F:/fd2sdl-work/s5-elegant-pasteur/build-win'
+$Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
+$Snapshot = Join-Path $Build 'Debug/fd2_field_s5_owner_test.exe'
+$Evidence = 'F:/fd2sdl-evidence/s5-20261114'
+$Common = @('--root', '.', '--sdl', 'src/Debug/fd2sdl.exe', '--driver', $Driver,
+    '--dosbox', 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe', '--build-dir', $Build, '--run')
+$Runs = @(
+    @('tools/run_s5_stage_check.py', '--artifacts', "$Evidence/native-stage21-new"),
+    @('tools/run_s5_cinematic_check.py', '--scenario', 'stage24-notown-shake', '--artifacts', "$Evidence/native-stage24-new"),
+    @('tools/run_s5_cinematic_check.py', '--scenario', 'stage20-sixhits-sheet101', '--artifacts', "$Evidence/native-stage20-new"),
+    @('tools/run_s5_late_check.py', '--scenario', 'stage26-victory27-notown', '--snapshot-probe', $Snapshot, '--artifacts', "$Evidence/native-stage26-new"),
+    @('tools/run_s5_late_check.py', '--scenario', 'stage29-credits-montage-terminal', '--snapshot-probe', $Snapshot, '--artifacts', "$Evidence/native-stage29-new"),
+    @('tools/run_s5_late_check.py', '--scenario', 'stage26-bad-ending-sdl', '--snapshot-probe', $Snapshot, '--artifacts', "$Evidence/native-stage26-bad-sdl-new"),
+    @('tools/run_s5_entry29_check.py', '--snapshot-probe', $Snapshot, '--artifacts', "$Evidence/native-entry29-new")
+)
+foreach ($Run in $Runs) {
+    & $Driver run-job 1800000 python -B @Run @Common
+    if ($LASTEXITCODE -ne 0) { throw '本场失败；保留报告，停止后续窗口。' }
+}
+```
+
+所有场景串行，不并开原版／SDL窗口。pair先完整原版并正常清理，再启动SDL；显式SDL-only只登记本端。失败立即停止，保留原件，不补键或复用目录。冻结全产品源码、冷定义、实际构建生成物、App／PDB／driver及导入的工具；前后原资源、用户档、测试容器与显示释放全部为真才允许`ok=true`。默认准备报告始终`ok=false`；只读原码、快速入口、单端或未到最终检查点不能代签。以上为复跑模板，不是一次全部通过的状态清单。
+
+Linux Bash可复现无窗口准备（本轮未执行），实际`--run`当前明确拒绝非Windows：
+
+```bash
+python3 -B tools/run_s5_stage_check.py --root . --artifacts build/s5/native-stage21-prepared-new
+python3 -B tools/run_s5_cinematic_check.py --root . --scenario stage24-notown-shake --artifacts build/s5/native-stage24-prepared-new
+python3 -B tools/run_s5_late_check.py --root . --scenario stage26-victory27-notown --artifacts build/s5/native-stage26-prepared-new
+python3 -B tools/run_s5_entry29_check.py --root . --artifacts build/s5/native-entry29-prepared-new
+```
+
+最终实际候选、失败和严格继承在[S5报告](../plans/s5-batch-expansion.md)分别登记：entry29为C22完整pair；26坏臂为`native-stage26-bad-C22-01` SDL-only；29结局为原C20-02 original case＋C21-final01 SDL-only及C22仅删失败日志的成功路径资格。旧整报告false不改写，坏臂也未记为双端fresh。自然整关、全音画／绝对时序和其他平台没有因此通过。
+
+C22 source纯等待0..65535ms不再转入common资源preflight，实际终章长等待和薄binder按同一资源owner验收。六场display／HOST／错误组件门在真实commit后、wipe前交付HOST，不是旧delay钩子或坐标副本模拟。新TU／CMake／目标身份和精确PASS／空stderr由[来源工具](static-data.md#s5-扩展正式参数与独立-82-门)核验；C21旧夹具未注入的失败、C20原版／C21 SDL来源及C22日志清理资格分别保留，不倒签旧像素／绝对等待。
+
+这些代表处于已证正常招募人数上界31的有限域；外来32人credits超原构造／raw引用域时明确拒绝，不将存档32条持久区缩为31或伪造缺失active。完整容器保留与片尾人数支持分开验证，不以本轮少量代表宣称所有人数、身份或条件组合逐一原版通过。
+
+收据中的WGC瞬态条目保原错误与时间，但不计为业务检查点。比如C19的26→27记录原版88条／SDL83条，其中9条／4条是`wgc_transient`，实际业务检查点两端均79。连续帧的混合扫描图不能拼成缺失完整帧；丢失帧不可从日志恢复。源／EXE或模型变化后的重跑与严格继承分别登记，旧失败不改签，也不把纯注释资格桥接称为新候选GUI运行。

@@ -21,6 +21,10 @@ INTEGER_TYPES = {
 }
 STRUCT_TYPES = {"fd2_field_stage_music": ["uint8_t", "uint8_t"]}
 PORTS = ("next", "yes", "no", "cancel", "ack", "text_ready", "slot", "error")
+S5_CINEMATIC_IDS = {"stage.cinematic."+name for name in
+    ("ending","credits","card_normal","card_last","card_first","montage_round")}
+S5_SOURCE_WIDE_IDS = {f"stage.source.{kind}.{stage:03d}" for kind,stages in (
+    ("entry",(24,29)), ("victory",(20,22,23,26,28,29))) for stage in stages}
 
 
 def reject_duplicates(pairs):
@@ -264,7 +268,8 @@ def validate_flows(document):
         flow_ids.add(flow["id"])
         nodes = flow["nodes"]
         # 只有common_event的现有宽PC热owner消费S2长序列；reward等仍是BYTE游标。
-        maximum_nodes = 32767 if document['domain'] == 'common_event' else 254
+        maximum_nodes = 32767 if (document['domain'] == 'common_event' or
+            document['domain'] == 'stage' and flow['id'] in S5_CINEMATIC_IDS|S5_SOURCE_WIDE_IDS) else 254
         if not isinstance(nodes, list) or not 1 <= len(nodes) <= maximum_nodes:
             raise ValueError("flow node capacity exceeded")
         ids = set()
@@ -291,6 +296,9 @@ def validate_flows(document):
                     raise ValueError("invalid common event BYTE field value")
             if not isinstance(node["on"], dict) or set(node["on"]) - set(PORTS):
                 raise ValueError(f"invalid node ports: {node['id']}")
+            if node['op']=='terminal_wait' and (node['on'] or document['domain']!='stage' or
+                    flow['id'] not in {'stage.source.victory.026','stage.source.victory.029'}):
+                raise ValueError('original terminal loop cannot have a fabricated return port/caller')
             views = node.get("views", ["logic", "present"])
             if not isinstance(views, list) or not views or len(set(views)) != len(views) or set(views) - {"logic", "present"}:
                 raise ValueError("invalid node execution views")
@@ -373,14 +381,53 @@ def render_flows(document, digest):
 
 
 def validate_stage_source_calls(document):
-    """只准三个固定cold调用；共享现Scene深度8/总叶65536，不引入VM。"""
+    """固定有源callee白名单；普通source保原总预算，credits按原局部卡片域。"""
     if document['domain'] != 'stage': return
     calls = {'call_init': 'stage.source.initialize', 'call_fade_in': 'stage.source.fade.in',
-             'call_fade_out': 'stage.source.fade.out'}
+             'call_fade_out': 'stage.source.fade.out',
+             'call_teleport': 'stage.source.teleport',
+             'call_transition_finish': 'stage.palette.transition.finish',
+             'call_cinematic_ending': 'stage.cinematic.ending',
+             'call_cinematic_credits': 'stage.cinematic.credits',
+             'call_cinematic_card_normal': 'stage.cinematic.card_normal',
+             'call_cinematic_card_last': 'stage.cinematic.card_last',
+             'call_cinematic_card_first': 'stage.cinematic.card_first',
+             'call_cinematic_montage_round': 'stage.cinematic.montage_round'}
+    cinematic_ids = {value for key,value in calls.items() if key.startswith('call_cinematic_')}
     flows = {flow['id']: flow for flow in document['flows']}
     for operation in calls:
         if operation in document['operations'] and document['operations'][operation] != {'args': []}:
             raise ValueError('fixed stage source call ABI differs')
+    cinematic_callers = {
+        'call_cinematic_ending': {'stage.source.victory.026','stage.source.victory.029'},
+        'call_cinematic_credits': {'stage.cinematic.ending'},
+        'call_cinematic_card_normal': {'stage.cinematic.credits'},
+        'call_cinematic_card_last': {'stage.cinematic.credits'},
+        'call_cinematic_card_first': {'stage.cinematic.card_normal','stage.cinematic.card_last'},
+        'call_cinematic_montage_round': {'stage.cinematic.ending'}}
+    for flow in document['flows']:
+        for node in flow['nodes']:
+            if node['op']=='cin_animation' and node['args'][0] not in (0,2):
+                raise ValueError('cinematic ANI outside confirmed 0/2 caller domain')
+            if node['op'] in cinematic_callers and flow['id'] not in cinematic_callers[node['op']]:
+                raise ValueError('fixed cinematic call outside original caller domain')
+            if node['op']=='cin_credits_epoch' and flow['id']!='stage.cinematic.credits':
+                raise ValueError('credits epoch outside original outer loop')
+        if flow['id'] in cinematic_ids:
+            # 每条视觉回边必须穿过credits原outer边界；其它固定callee不能
+            # 借epoch预算复位形成新脚本循环。cut后的图须为DAG。
+            nodes={n['id']:n for n in flow['nodes']};degree={key:0 for key in nodes}
+            for n in nodes.values():
+                if n['op']=='cin_credits_epoch': continue
+                for target in n['on'].values():degree[target]+=1
+            pending=[key for key,value in degree.items() if not value];visited=0
+            while pending:
+                current=nodes[pending.pop()];visited+=1
+                if current['op']=='cin_credits_epoch': continue
+                for target in current['on'].values():
+                    degree[target]-=1
+                    if not degree[target]:pending.append(target)
+            if visited!=len(nodes):raise ValueError('cinematic cycle lacks original credits epoch')
     memo = {}
     def flow_cost(identity, ancestry=()):
         if identity in ancestry or len(ancestry) >= 8:
@@ -388,6 +435,18 @@ def validate_stage_source_calls(document):
         if identity in memo: return memo[identity]
         if identity not in flows: raise ValueError('fixed stage source helper missing')
         flow = flows[identity]; nodes = {node['id']: node for node in flow['nodes']}
+        if identity in cinematic_ids:
+            # 原credits的有限outer/card状态及输入skip可回到卡片。逐次callee
+            # 仍受Scene预算/深度约束；不把32张卡的累计量伪作一张卡的PC容量。
+            total=len(nodes)
+            for node in flow['nodes']:
+                if node['op'] in calls:
+                    callee_cost=flow_cost(calls[node['op']],ancestry+(identity,))
+                    if calls[node['op']] not in cinematic_ids: total+=callee_cost
+            if len(nodes)>32767 or total>65536:
+                raise ValueError('cinematic local graph exceeds Scene budget')
+            memo[identity]=total
+            return total
         visited, active, pending = {}, set(), [(flow['entry'], False)]
         while pending:
             label, exiting = pending.pop()
@@ -407,7 +466,7 @@ def validate_stage_source_calls(document):
         return total
     for flow in document['flows']:
         if any(node['op'] in calls for node in flow['nodes']):
-            if not flow['id'].startswith('stage.source.'):
+            if not flow['id'].startswith('stage.source.') and flow['id'] not in cinematic_ids:
                 raise ValueError('fixed source calls cannot change existing stage routes')
             flow_cost(flow['id'])
 

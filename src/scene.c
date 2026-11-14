@@ -35,6 +35,9 @@
 #include "tile.h"
 #include "static_flow.h"
 #include "static_data.h"
+#include "scene_transition.h"
+#include "scene_teleport.h"
+#include "scene_cinematic.h"
 
 /* 完整新游戏开场由 new_game_opening_play @code0 0x2231b 驱动：
  * stage 32 / FDTXT[33] → stage 31 / FDTXT[32] → stage 0 / FDTXT[1]。
@@ -864,18 +867,14 @@ static void pan_camera_to(fd2_vga *vga,
     }
 }
 
-static void focus_camera_on_actor(fd2_vga *vga,
+static void focus_camera_to_cell(fd2_vga *vga,
                                   const fd2_terrain_tileset *terrain,
                                   const fd2_field_map *map,
                                   const fd2_map_sprite_bank *sprites,
                                   fd2_scene_field_state *field_state,
-                                  int actor_idx,
-                                  int fast) {
-    if (!field_state || actor_idx < 0 ||
-        (size_t)actor_idx >= field_state->units.count)
-        return;
-
-    const fd2_field_unit *actor = &field_state->units.items[actor_idx];
+                                  int target_x, int target_y,
+                                  int fast, int source) {
+    if (!field_state) return;
 
     int max_cam_x = map ? map->width - FD2_FIELD_VIEW_CELLS_X : 0;
     int max_cam_y = map ? map->height - FD2_FIELD_VIEW_CELLS_Y : 0;
@@ -888,8 +887,8 @@ static void focus_camera_on_actor(fd2_vga *vga,
      * 向外达到 x=2/11、y=2/6 阈值后才同步卷动镜头。最终镜头位置
      * 取决于此前焦点，不等同于直接把角色固定到某个屏幕格。
      * 这不是额外的文本控制码，也不需要过场显式调用镜头指令。 */
-    while (field_state->focus_cell_x != actor->x) {
-        int dx = field_state->focus_cell_x < actor->x ? 1 : -1;
+    while (field_state->focus_cell_x != target_x) {
+        int dx = field_state->focus_cell_x < target_x ? 1 : -1;
         int rel_x = field_state->focus_cell_x - field_state->camera_cell_x;
         int camera_x = field_state->camera_cell_x;
         if (dx < 0 && rel_x < 2 && camera_x > 0)
@@ -901,13 +900,14 @@ static void focus_camera_on_actor(fd2_vga *vga,
                         field_state->camera_cell_y);
         if (!fast) {
             present_base_frame_timed(vga, terrain, map, sprites,
-                                     field_state, 17,0);
+                                     field_state, source && !field_state->cursor ? 0:17,0);
             if(scene_render_error || scene_host_quit_requested)return;
 
         }
+        if (source) fd2_input_clear_keys(&vga->input);
     }
-    while (field_state->focus_cell_y != actor->y) {
-        int dy = field_state->focus_cell_y < actor->y ? 1 : -1;
+    while (field_state->focus_cell_y != target_y) {
+        int dy = field_state->focus_cell_y < target_y ? 1 : -1;
         int rel_y = field_state->focus_cell_y - field_state->camera_cell_y;
         int camera_y = field_state->camera_cell_y;
         if (dy < 0 && rel_y < 2 && camera_y > 0)
@@ -919,14 +919,23 @@ static void focus_camera_on_actor(fd2_vga *vga,
                         camera_y);
         if (!fast) {
             present_base_frame_timed(vga, terrain, map, sprites,
-                                     field_state, 17,0);
+                                     field_state, source && !field_state->cursor ? 0:17,0);
             if(scene_render_error || scene_host_quit_requested)return;
 
         }
+        if (source) fd2_input_clear_keys(&vga->input);
     }
 
     if (fast)
         present_base_frame(vga, terrain, map, sprites, field_state,0);
+}
+
+static void focus_camera_on_actor(fd2_vga *vga,const fd2_terrain_tileset *terrain,
+        const fd2_field_map *map,const fd2_map_sprite_bank *sprites,
+        fd2_scene_field_state *state,int actor,int fast) {
+    if (!state || actor<0 || (size_t)actor>=state->units.count) return;
+    focus_camera_to_cell(vga,terrain,map,sprites,state,state->units.items[actor].x,
+        state->units.items[actor].y,fast,0);
 }
 
 static int redraw_dialog(fd2_vga *vga,
@@ -1829,6 +1838,11 @@ typedef struct {
     unsigned flow_steps, flow_depth;
     int fast;
     int source_flow; /* 显式源入口临时视图；不进入Game/SAV。 */
+    fd2_scene_transition_scope *transition;
+    fd2_scene_teleport_scope *teleport;
+    fd2_scene_cinematic *cinematic;
+    fd2_text_entry *source_text; /* 本次Scene拥有的原FDTXT视图，1088d(30)重绑。 */
+    fd2_dialog_state cinematic_notice; /* 31bdf原底框局部状态，不进入Game/SAV。 */
 } scene_flow_context;
 
 static int scene_source_commit(scene_flow_context *c) {
@@ -1872,8 +1886,7 @@ static int scene_game_over_frame(fd2_vga *vga, scene_game_over_data *data,
     size_t index, int fast);
 static int field_story_validate_units(const fd2_field_game *game,
         const fd2_field_units *units, size_t fragment);
-static int field_story_validate_units_domain(const fd2_field_game *game,
-        const fd2_field_units *units, size_t fragment, int source_only);
+static int scene_common_map_replace(fd2_field_game *game,int32_t entry,int32_t shape);
 
 static const fd2_static_flow *scene_flow_find(const char *id) {
     const fd2_static_flow *flow = fd2_static_flow_lookup("scene", id);
@@ -1887,6 +1900,27 @@ static const fd2_static_flow *scene_stage_flow(const char *prefix, size_t stage)
 }
 
 static int scene_flow_run(scene_flow_context *c, const fd2_static_flow *flow);
+
+static int scene_source_status(int result) {
+    if (result==FD2_SCENE_RESULT_HOST_QUIT) scene_host_quit_requested=1;
+    return result ? -1:0;
+}
+
+static int scene_source_actor(const fd2_field_game *game,int32_t selector,size_t *actor) {
+    if (!game || !actor) return -1;
+    uint32_t raw;
+    if (selector>=0) raw=(uint32_t)selector;
+    else if (selector>=-3) {
+        fd2_field_event_value_source source=selector==-1 ? FD2_EVENT_VALUE_STATE16_REVERSE_ACTOR:
+            selector==-2 ? FD2_EVENT_VALUE_STATE16_FIRST_ACTOR:FD2_EVENT_VALUE_STATE16_SECOND_ACTOR;
+        if (fd2_field_event_source_value(source,game->turn_number,game->cell_action_completed,&raw)) return -1;
+    } else if (selector==-4 && game->units.count) raw=(uint32_t)game->units.count-1u;
+    else return -1;
+    if (raw>=game->units.count) return -1;
+    *actor=raw; return 0;
+}
+
+#include "scene_cinematic_flow.h"
 
 static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *flow) {
     if (!c || !flow) return -1;
@@ -1906,6 +1940,7 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         if (palette_flow && strcmp(n->op,"palette_subtract") && strcmp(n->op,"palette_add") &&
                 strcmp(n->op,"delay") && strcmp(n->op,"end")) return -1;
         fd2_static_flow_node source_literal;
+        if (c->game && c->game->runtime_host_quit) scene_host_quit_requested=1;
         if (scene_host_quit_requested || poll_scene_quit(c->vga)) return -1;
         if (c->source_flow) {
             if (scene_source_commit(c) != 0) return -1;
@@ -1916,18 +1951,27 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
                 source_literal.args[0] = c->game->cell_action_completed[n->args[0]] + n->args[1];
                 n = &source_literal;
             }
+            /* source纯等待没有资源引用；保自己的0..65535ms域，不借
+             * common delay_ms的1..1000ms caller域截断31529的2000ms。 */
             if (c->game->event_preflight && (!strcmp(n->op, "text") || !strcmp(n->op, "pan") ||
-                    !strcmp(n->op, "move") || !strcmp(n->op, "refresh") || !strcmp(n->op, "delay"))) {
+                    !strcmp(n->op, "move") || !strcmp(n->op, "refresh"))) {
                 fd2_static_flow_node literal = *n;
                 if (!strcmp(n->op, "text")) literal.op = "story";
                 else if (!strcmp(n->op, "refresh")) literal.op = "refresh_map";
-                else if (!strcmp(n->op, "delay")) literal.op = "delay_ms";
-                if (c->game->event_preflight(c->game, &literal, NULL, c->game->event_preflight_userdata) != 0)
+                fd2_field_event_resource_view view = {&c->game->units,
+                    c->game->roster, c->game->roster_count, -1, -1, 0, c->text};
+                if (c->game->event_preflight(c->game, &literal, &view, c->game->event_preflight_userdata) != 0)
                     return -1;
             }
             unsigned port = FD2_FLOW_NEXT;
             int handled = fd2_field_game_stage_source_node(c->mutable_game, n, &port);
-            if (handled < 0) return -1;
+            if (handled < 0) {
+                /* Game叶失败仍可已到原写点（如1db65逐actor转向）；
+                 * 顶层提交只能保该前缀，不能用叶前Scene副本覆盖它。
+                 * Scene自身移动/对白失败仍由各自的state前缀交回。 */
+                scene_source_load(c);
+                return -1;
+            }
             if (handled) {
                 scene_source_load(c);
                 if (!strcmp(n->op, "stage_setup_source") &&
@@ -1946,7 +1990,89 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         const int32_t *a = n->args;
         int field = c->vga && c->terrain && c->map && c->sprites && c->state;
         if (!strcmp(n->op, "end")) return scene_render_error?-1:0;
-        if (!strcmp(n->op, "call_init") || !strcmp(n->op, "call_fade_in") || !strcmp(n->op, "call_fade_out")) {
+        unsigned cinematic_port=FD2_FLOW_NEXT;
+        int cinematic=scene_cinematic_node(c,n,&cinematic_port);
+        if (cinematic<0 || scene_render_error || scene_host_quit_requested) return -1;
+        if (cinematic) { pc=fd2_static_flow_edge(flow,n,cinematic_port); continue; }
+        if (!strcmp(n->op, "call_teleport") || !strcmp(n->op,"call_transition_finish")) {
+            const char *id=!strcmp(n->op,"call_teleport") ? "stage.source.teleport":"stage.palette.transition.finish";
+            if (!c->source_flow || scene_flow_run(c,fd2_static_flow_lookup("stage",id))) return -1;
+        } else if (!strcmp(n->op,"bank80_validate")) {
+            if (!c->source_flow || fd2_scene_transition_bank80(c->fdother,c->audio)) return -1;
+        } else if (!strcmp(n->op,"transition_begin")) {
+            if (!c->source_flow || !field || scene_source_status(fd2_scene_transition_begin(&c->transition,
+                    c->mutable_game,c->vga,c->state->focus_cell_x-c->state->camera_cell_x+a[0],
+                    c->state->focus_cell_y-c->state->camera_cell_y+a[1]))) return -1;
+        } else if (!strcmp(n->op,"transition_sfx")) {
+            if (scene_source_status(fd2_scene_transition_play_sfx(c->transition,c->audio))) return -1;
+        } else if (!strcmp(n->op,"transition_frame")) {
+            if (scene_source_status(fd2_scene_transition_frame(c->transition,(unsigned)a[0],a[1]))) return -1;
+        } else if (!strcmp(n->op,"transition_release")) fd2_scene_transition_release(&c->transition);
+        else if (!strcmp(n->op,"teleport_begin")) {
+            size_t actor;
+            if (!c->source_flow || scene_source_actor(c->game,a[0],&actor)) return -1;
+            int x=a[3]==-1 ? c->game->units.items[actor].x:a[3];
+            int y=a[4]==-1 ? c->game->units.items[actor].y:a[4];
+            if (scene_source_status(fd2_scene_teleport_begin(&c->teleport,c->mutable_game,c->vga,c->fdother,
+                    actor,a[1],a[2],x,y))) return -1;
+        } else if (!strcmp(n->op,"teleport_sprite")) {
+            if (scene_source_status(fd2_scene_teleport_sprite(c->teleport,(unsigned)a[0]))) return -1;
+        } else if (!strcmp(n->op,"teleport_sound")) {
+            if (scene_source_status(fd2_scene_teleport_sound(c->teleport,c->audio))) return -1;
+        } else if (!strcmp(n->op,"teleport_icon")) {
+            if (scene_source_status(fd2_scene_teleport_icon(c->teleport))) return -1;
+        } else if (!strcmp(n->op,"teleport_contract")) {
+            if (scene_source_status(fd2_scene_teleport_contract(c->teleport,(unsigned)a[0],(unsigned)a[1]))) return -1;
+        } else if (!strcmp(n->op,"teleport_commit")) {
+            int result=fd2_scene_teleport_commit(c->teleport);
+            scene_source_load(c); /* 已到达的真实xy不能被Scene旧视图覆盖。 */
+            if (scene_source_status(result)) return -1;
+        } else if (!strcmp(n->op,"teleport_top")) {
+            int top=fd2_scene_teleport_top(c->teleport);
+            if (top<0) return scene_source_status(top);
+            pc=fd2_static_flow_edge(flow,n,top ? FD2_FLOW_YES:FD2_FLOW_NO); continue;
+        } else if (!strcmp(n->op,"teleport_wipe")) {
+            if (scene_source_status(fd2_scene_teleport_wipe(c->teleport,(unsigned)a[0]))) return -1;
+        } else if (!strcmp(n->op,"teleport_expand")) {
+            if (scene_source_status(fd2_scene_teleport_expand(c->teleport,(unsigned)a[0]))) return -1;
+        } else if (!strcmp(n->op,"teleport_release")) fd2_scene_teleport_release(&c->teleport);
+        else if (!strcmp(n->op,"credits_setup")) {
+            if (!c->source_flow || !c->mutable_game ||
+                    fd2_field_background_rebuild(c->vga->field_page,c->fdother,c->game->stage)) return -1;
+            int result=fd2_field_game_source_credits_setup(c->mutable_game);
+            scene_source_load(c);
+            if (result) return -1;
+            if (c->source_text) {
+                fd2_text_entry_close(c->source_text);
+                if (fd2_text_entry_open_entry(c->source_text,&c->game->fdtxt_archive,31)) return -1;
+                c->text=c->source_text;
+            }
+        } else if (!strcmp(n->op,"background_scroll")) {
+            if (!c->vga || a[0]<0 || a[0]>255 || fd2_field_background_scroll(c->vga->field_page,(uint8_t)a[0])) return -1;
+        } else if (!strcmp(n->op,"background_rebuild")) {
+            if (!c->source_flow || !c->vga || fd2_field_background_rebuild(c->vga->field_page,c->fdother,c->game->stage)) return -1;
+        } else if (!strcmp(n->op,"map_replace")) {
+            if (!c->source_flow || scene_common_map_replace(c->mutable_game,a[0],a[1])) return -1;
+        } else if (!strcmp(n->op,"flash_actor")) {
+            if (!c->source_flow || a[0]<0 || (size_t)a[0]>=c->game->units.count) return -1;
+            /* 250cc真实push(0,19,1,&byte52326)：COUNT1/list{1}；
+             * 原arg4未用于绘色，4e127固定200，不把伪C“0..19”当范围。 */
+            uint8_t actor=(uint8_t)a[0];
+            int result=fd2_field_game_play_actor_group_flash(c->mutable_game,c->vga,c->audio,
+                &actor,1,200,!c->fast);
+            if (result>0) scene_host_quit_requested=1;
+            if (result) return -1;
+        } else if (!strcmp(n->op,"focus_cell")) {
+            if (!field || a[0]<0 || a[1]<0 || a[0]>=c->map->width || a[1]>=c->map->height) return -1;
+            render_scene_11cac(c->vga,c->terrain,c->map,c->sprites,c->state,0);
+            focus_camera_to_cell(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],a[1],c->fast,1);
+        } else if (!strcmp(n->op,"terminal_wait")) {
+            /* 25462/25975原无限JMP：不消费普通键、不增stage、不回标题。
+             * 宿主泵仅供关闭窗口；不会从这个叶正常返回。 */
+            if (!c->source_flow) return -1;
+            while (!poll_scene_quit(c->vga)) fd2_vga_present_timed(c->vga,16);
+            return -1;
+        } else if (!strcmp(n->op, "call_init") || !strcmp(n->op, "call_fade_in") || !strcmp(n->op, "call_fade_out")) {
             const char *id = !strcmp(n->op, "call_init") ? "stage.source.initialize" :
                 !strcmp(n->op, "call_fade_in") ? "stage.source.fade.in" : "stage.source.fade.out";
             if (!c->source_flow || scene_flow_run(c, fd2_static_flow_lookup("stage", id)) != 0) return -1;
@@ -1974,12 +2100,12 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
                 }
             }
             if (!field || !c->dato || !c->ui || !c->font || !c->text ||
-                (c->source_flow && field_story_validate_units_domain(c->game,&c->state->units,(size_t)a[0],1) != 0) ||
                 opening_text(c->vga,c->terrain,c->map,c->dato,c->ui,c->sprites,c->state,
                     c->font,c->text,c->audio,(size_t)a[0],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "delay")) {
             if (!field && !palette_flow) return -1;
             if (c->source_flow || palette_flow) {
+                if(a[0]<0 || a[0]>65535)return -1;
                 /* 原3790a只等待；不能额外推进11cac、水色或actor视觉锚。 */
                 if (!c->fast) fd2_delay_ms((uint32_t)a[0]);
                 (void)poll_scene_quit(c->vga);
@@ -2102,7 +2228,7 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "cursor_visible")) {
             if (!c->state) return -1;
             c->state->cursor=a[0] ? c->state->ordinary_cursor : NULL;
-        } else if (!strcmp(n->op, "fixed_ticks")) {
+        } else if (!strcmp(n->op, "fixed_ticks") || !strcmp(n->op,"delay_ticks")) {
             if (!c->vga || scene_fixed_ticks(c->vga,(unsigned)a[0],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "clear_screen")) {
             if (!c->vga) return -1;
@@ -2136,6 +2262,27 @@ static int scene_palette_play(fd2_vga *vga, const char *identity, int fast) {
     if (scene_render_error) return FD2_SCENE_RESULT_ERROR;
     if (scene_host_quit_requested) return FD2_SCENE_RESULT_HOST_QUIT;
     return result==0 ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
+}
+
+int fd2_scene_play_teleport_scope(fd2_vga *vga,const fd2_archive *fdother,
+        fd2_field_game *game,fd2_field_audio *audio,int fast,
+        fd2_scene_teleport_scope **scope) {
+    if (!scope || !*scope || !game || !vga || !fdother) return FD2_SCENE_RESULT_ERROR;
+    scene_flow_context c={0}; fd2_scene_field_state state={0};
+    state.ordinary_cursor=fd2_field_cursor_frame(&game->visuals,0);
+    if (game->ordinary_display_mode && (!state.ordinary_cursor ||
+            state.ordinary_cursor->width!=24 || state.ordinary_cursor->height!=24))
+        return FD2_SCENE_RESULT_ERROR;
+    c.vga=vga; c.fdother=fdother; c.game=c.mutable_game=game;
+    c.terrain=&game->terrain; c.map=&game->map; c.sprites=&game->sprites;
+    c.state=&state; c.audio=audio; c.fast=fast; c.source_flow=1;
+    c.teleport=*scope; *scope=NULL;
+    scene_source_load(&c);
+    scene_host_quit_requested=scene_render_error=0;
+    int result=scene_flow_run(&c,fd2_static_flow_lookup("stage","stage.source.teleport"));
+    *scope=c.teleport;
+    return scene_render_error ? FD2_SCENE_RESULT_ERROR:
+        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT:result;
 }
 
 int fd2_scene_palette_fade(fd2_vga *vga, int fade_in, int fast) {
@@ -2499,13 +2646,16 @@ int fd2_scene_play_stage_source_flow(fd2_vga *vga, const fd2_archive *fdother,
     context.vga = vga; context.fdother = fdother; context.dato = &game->dato_archive;
     context.terrain = &game->terrain; context.map = &game->map; context.sprites = &game->sprites;
     context.state = &state; context.game = context.mutable_game = game;
-    context.ui = &ui; context.font = &game->font; context.text = &text;
+    context.ui = &ui; context.font = &game->font; context.text = &text; context.source_text=&text;
     context.audio = audio; context.fast = fast; context.source_flow = 1;
     scene_source_load(&context);
     result = scene_flow_run(&context, flow);
     /* 叶内HOST/首错也保留实际移动、对话焦点和已提交业务前缀。 */
     if (scene_source_commit(&context) != 0 || scene_render_error) result = FD2_SCENE_RESULT_ERROR;
 done:
+    fd2_scene_transition_release(&context.transition);
+    fd2_scene_teleport_release(&context.teleport);
+    fd2_scene_cinematic_close(&context.cinematic);
     fd2_text_entry_close(&text);
     if (result == FD2_SCENE_RESULT_ERROR && scene_render_error) return result;
     return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
@@ -2523,10 +2673,10 @@ int fd2_scene_play_stage2_entry(fd2_vga *vga, const fd2_archive *fdother,
     return fd2_scene_play_stage_entry(vga, fdother, game, audio, fast);
 }
 
-static int field_story_validate_units_domain(const fd2_field_game *game,
-        const fd2_field_units *units, size_t fragment, int source_only) {
+static int field_story_validate_units(const fd2_field_game *game,
+        const fd2_field_units *units, size_t fragment) {
     if (!game || !units || !game->ready ||
-        (source_only ? game->stage >= 30u : !fd2_field_stage_is_supported(game->stage)) ||
+        !fd2_field_stage_is_supported(game->stage) ||
         units->count > FD2_FIELD_MAX_UNITS || !game->font.glyphs ||
         game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
@@ -2579,11 +2729,6 @@ done:
     fd2_text_entry_close(&text);
     fd2_archive_close(&archive);
     return result;
-}
-
-static int field_story_validate_units(const fd2_field_game *game,
-        const fd2_field_units *units, size_t fragment) {
-    return field_story_validate_units_domain(game, units, fragment, 0);
 }
 
 int fd2_scene_field_story_validate(const fd2_field_game *game, size_t fragment) {
@@ -2781,6 +2926,30 @@ static int scene_map_resource_validate(const fd2_field_map *map,
     return 0;
 }
 
+/* 24754先改变热stage，旧FDTXT owner仍留给后续对白；25757则显式重开31。
+ * 只借用入口，不保存新热状态，也不按stage重新猜测调用者的文本资源。 */
+static int scene_story_resource_validate(const fd2_field_game *game,
+    const fd2_archive *fdother,const fd2_static_flow_node *node,
+    const fd2_field_units *units,const fd2_field_unit *roster,size_t roster_count,
+    const fd2_text_entry *borrowed) {
+    if(!game || !fdother || !node || !units || units->count>FD2_FIELD_MAX_UNITS ||
+        roster_count>FD2_SAVE_BATTLE_MAX_ROSTER || (roster_count && !roster))return -1;
+    fd2_text_entry owned={0};fd2_ui_sheet ui={0};const uint8_t *tokens;size_t count;
+    fd2_scene_field_state state={0};state.units=*units;
+    state.persistent=roster;state.persistent_count=roster_count;
+    scene_state_borrow_game(&state,game);
+    int result=-1;
+    if(node->args[0]<0 || ui_sheet_open_fdother(&ui,fdother,5)!=0)goto done;
+    if(!borrowed) {
+        if(fd2_text_entry_open_entry(&owned,&game->fdtxt_archive,game->stage+1u)!=0)goto done;
+        borrowed=&owned;
+    }
+    if(fd2_text_entry_get_fragment(borrowed,(size_t)node->args[0],&tokens,&count)==0)
+        result=scene_fragment_preflight(&game->dato_archive,&ui,&game->font,tokens,count,&state);
+done:
+    fd2_text_entry_close(&owned);return result;
+}
+
 int fd2_scene_common_step_validate_view(const fd2_field_game *game,
     const fd2_archive *fdother,const fd2_static_flow_node *node,
     const fd2_field_units *units,const fd2_field_unit *roster,size_t roster_count) {
@@ -2789,17 +2958,7 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
         (roster_count && !roster))return -1;
     const int32_t *a=node->args;
     if(!strcmp(node->op,"story")) {
-        fd2_text_entry text={0};fd2_ui_sheet ui={0};
-        const uint8_t *tokens;size_t count;
-        fd2_scene_field_state state={0};state.units=*units;
-        state.persistent=roster;state.persistent_count=roster_count;
-        scene_state_borrow_game(&state,game);
-        int result=a[0]>=0 &&
-            ui_sheet_open_fdother(&ui,fdother,5)==0 &&
-            fd2_text_entry_open_entry(&text,&game->fdtxt_archive,game->stage+1u)==0 &&
-            fd2_text_entry_get_fragment(&text,(size_t)a[0],&tokens,&count)==0?
-            scene_fragment_preflight(&game->dato_archive,&ui,&game->font,tokens,count,&state):-1;
-        fd2_text_entry_close(&text);return result;
+        return scene_story_resource_validate(game,fdother,node,units,roster,roster_count,NULL);
     }
     if(!strcmp(node->op,"move")) {
         const uint8_t *bytes;size_t length;
@@ -2807,6 +2966,8 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
             fd2_field_movement_script_get((uint8_t)a[0],&bytes,&length)==0?
             movement_script_preflight(units,bytes,length,game->idle_phase):-1;
     }
+    if(!strcmp(node->op,"focus_cell"))return a[0]>=0 && a[1]>=0 &&
+        a[0]<game->map.width && a[1]<game->map.height && game->map.cells?0:-1;
     if(!strcmp(node->op,"pan"))return a[0]>=0 && a[0]<=255 && a[1]>=0 && a[1]<=255 &&
         game->map.cells && game->map.width>0 && game->map.height>0?0:-1;
     if(!strcmp(node->op,"brightness"))return a[0]>=0 && a[0]<=64?0:-1;
@@ -2834,7 +2995,10 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
 int fd2_scene_common_step_validate_resource_view(const fd2_field_game *game,
     const fd2_archive *fdother,const fd2_static_flow_node *node,
     const fd2_field_event_resource_view *view) {
-    if(!game || !view || !node)return -1;
+    if(!game || !view || !node || !node->op)return -1;
+    if(!strcmp(node->op,"story") && view->text_override)
+        return scene_story_resource_validate(game,fdother,node,view->units,view->roster,
+            view->roster_count,view->text_override);
     if(!view->has_map_override)return fd2_scene_common_step_validate_view(game,fdother,node,
         view->units,view->roster,view->roster_count);
     fd2_field_map map={0};fd2_terrain_tileset terrain={0};int result=-1;
@@ -2888,7 +3052,12 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
     state.ordinary_cursor=fd2_field_cursor_frame(&game->visuals,0);
     state.cursor=game->ordinary_display_mode?state.ordinary_cursor:NULL;
     int result=-1;
-    if(!strcmp(node->op,"pan")) {
+    if(!strcmp(node->op,"focus_cell")) {
+        if(a[0]<0 || a[1]<0 || a[0]>=game->map.width || a[1]>=game->map.height)return -1;
+        render_scene_11cac(vga,&game->terrain,&game->map,&game->sprites,&state,0);
+        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,a[0],a[1],fast,1);
+        result=0;
+    } else if(!strcmp(node->op,"pan")) {
         pan_camera_to(vga,&game->terrain,&game->map,&game->sprites,&state,a[0],a[1],fast);
         result=0;
     } else if(!strcmp(node->op,"move")) {
@@ -2925,10 +3094,13 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
 
 /* 固定停顿只传播宿主关闭，不让普通按键跳过22e5c的1/9/36 tick。 */
 static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast) {
+    if (!vga || ticks>65535u) return FD2_SCENE_RESULT_ERROR;
     if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
     if (fast) return FD2_SCENE_RESULT_OK;
-    uint64_t started = SDL_GetTicks();
-    while (SDL_GetTicks() - started < (uint64_t)ticks * FD2_BIOS_TICK_MS) {
+    /* 17aa9按原低WORD差有符号比较；跨65535回绕不能改成无符号ms差。
+     * 原goal>32767不可由signed差满足，保留HOST退出而不伪造完成。 */
+    uint16_t started=(uint16_t)(SDL_GetTicks()/FD2_BIOS_TICK_MS);
+    while (fd2_vga_bios_tick_elapsed(started,(uint16_t)(SDL_GetTicks()/FD2_BIOS_TICK_MS)) < (int32_t)ticks) {
         fd2_vga_present_timed(vga, 16);
         if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
     }

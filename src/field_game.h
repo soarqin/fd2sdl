@@ -130,6 +130,8 @@ typedef struct {
     size_t roster_count;
     int map_entry, shape_index; /* -1保当前map；仅局部预检，原资源owner不交接。 */
     unsigned has_map_override;
+    /* 源caller可在热stage改变后继续读既有FDTXT owner；借用当前Scene入口。 */
+    const fd2_text_entry *text_override;
 } fd2_field_event_resource_view;
 typedef int (*fd2_field_event_preflight_fn)(const fd2_field_game *game,
     const fd2_static_flow_node *node,const fd2_field_event_resource_view *view,void *userdata);
@@ -628,6 +630,12 @@ int fd2_field_game_effect_terrain_begin(fd2_field_game *game,fd2_vga *vga,
 int fd2_field_game_effect_mask_frame(const fd2_field_game *game,fd2_vga *vga,
     const fd2_field_page *base,const uint8_t lut[256],int center_x,int center_y,
     int radius,int first_row,int circle12);
+/* 22253坐标写点后的22046只改App页；逐行wipe才写VGA。 */
+int fd2_field_game_effect_mask_page(const fd2_field_game *game,fd2_vga *vga,
+    const fd2_field_page *base,const uint8_t lut[256],int center_x,int center_y,
+    int radius,int first_row,int circle12);
+/* 31c49的1088d(30)，只供已证26坏结局／29终章冷caller。 */
+int fd2_field_game_source_credits_setup(fd2_field_game *game);
 /* 有证尾11cac(0)：按原4e31c门推进water。quake在HP前；21eb1在两组mask后；
  * 24618没有此尾，caller不可无条件调用。 */
 int fd2_field_game_effect_refresh(fd2_field_game *game,fd2_vga *vga);

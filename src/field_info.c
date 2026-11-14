@@ -836,6 +836,20 @@ static void draw_detail_portrait_border(
 #undef BORDER_TILE
 }
 
+int fd2_field_detail_portrait_border_draw(fd2_vga *vga,
+        const fd2_field_info_assets *assets) {
+    if (!vga || !assets || !assets->ready) return -1;
+    for (size_t i=1;i<18;i++) {
+        int width=i<=4 || i==10 || i==11 || i>=14 ? 3:16;
+        int height=i<=9 || i==12 ? 3:16;
+        if (!assets->detail_border[i].pixels ||
+            assets->detail_border[i].width!=width ||
+            assets->detail_border[i].height!=height) return -1;
+    }
+    draw_detail_portrait_border(vga,assets);
+    return 0;
+}
+
 /* 准备浏览与活动详情共用17fc0的只读上页资源门；无需伪造ready Game。 */
 int fd2_field_detail_upper_is_ready(const fd2_field_info_assets *assets,
         const fd2_font *font, const fd2_text_entry *text, const fd2_field_unit *unit) {

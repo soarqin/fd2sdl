@@ -167,7 +167,50 @@ def validate_definition_contents(callbacks, transitions, catalog, static_binding
                 raise ValueError("transition来源行与source-only别名规范终点不等")
 
 
-def build(original, ledger_directory, callbacks_path, transitions_path, result_domain, image_path):
+def apply_source_extension(dispatch, extension, catalog):
+    """S5只叠加原13隔离来源，不重写S2原件；源/图门不提升成运行证明。"""
+    import s5_stage_transitions as s5
+    decisions, expected, snapshots = s5.validate_candidate(extension,catalog)
+    rows={r['source_id']:dict(r) for r in dispatch}
+    if len(rows)!=208 or len(dispatch)!=208:raise ValueError('S5 needs complete original208 dispatch')
+    fixed={'call_teleport':'stage.source.teleport',
+           'call_cinematic_ending':'stage.cinematic.ending','call_cinematic_credits':'stage.cinematic.credits',
+           'call_cinematic_card_first':'stage.cinematic.card_first',
+           'call_cinematic_card_normal':'stage.cinematic.card_normal','call_cinematic_card_last':'stage.cinematic.card_last',
+           'call_cinematic_montage_round':'stage.cinematic.montage_round'}
+    def installed_closure(domain,identity,seen):
+        key=(domain,identity)
+        if key in seen:return
+        seen.add(key)
+        if key not in catalog or catalog[key]!=expected[key]:
+            raise ValueError('S5 converted source lacks exact installed unique cold definition/dependency: '+identity)
+        for node in expected[key]['nodes']:
+            if node['op'] in fixed:installed_closure('stage',fixed[node['op']],seen)
+    changes=[]
+    for candidate in decisions:
+        identity=candidate['source_id'];old=rows.get(identity)
+        if (old is None or old['target_va']!=candidate['target_va'] or
+                old['disposition'] not in ('blocked','unresolved')):
+            raise ValueError('S5 extension may only close exact frozen quarantined caller/target')
+        old['S2_frozen_disposition']=old['disposition'];old['S2_frozen_blocker']=old.get('blocker')
+        if candidate['disposition']=='converted_candidate':
+            installed_closure(candidate['definition_domain'],candidate['definition_id'],set())
+            old.update(disposition='converted_candidate',definition_domain=candidate['definition_domain'],
+                       definition_id=candidate['definition_id'],blocker=None)
+        else:
+            old.update(disposition='blocked',blocker={'family':'source_conversion_incomplete',
+                'reason':'partial source graph is not runnable conversion',
+                'source_id':identity,'next_evidence':'complete original source/cold graph plus independent C/required native gates'})
+        old['S5_source_candidate']={'definition_id':candidate['definition_id'],
+            'definition_sha256':candidate['definition_sha256'],'source_CFG_complete':True,
+            'original_CPU_executed':False,'actual_C_compared':False,'native_GUI_executed':False,
+            'source_graph_is_runtime_approval':False}
+        changes.append({'source_id':identity,'target_va':old['target_va'],'disposition':old['disposition'],
+                        'S2_history_preserved':True,'new_runtime_binding':False})
+    return rows,changes,snapshots
+
+
+def build(original, ledger_directory, callbacks_path, transitions_path, result_domain, image_path,s5_extension=None):
     ledger_directory = Path(ledger_directory)
     paths = [Path(__file__), ledger_directory / "manifest.json", Path(callbacks_path), Path(transitions_path), Path(result_domain),
              Path(image_path), ROOT / "tools/ida/s2_result_source.py", ROOT / "tools/static_data/verify_magic_contracts.py",
@@ -217,7 +260,18 @@ def build(original, ledger_directory, callbacks_path, transitions_path, result_d
     for row in callbacks["decisions"]:
         candidates.append({**row, "definition_domain": "common_event", "definition_id": row.get("definition")})
     magic, receipt = magic_destinations(ledger, original); candidates.extend(magic)
+    changes=[]
+    if s5_extension:
+        path=Path(s5_extension);snapshots[path]=path.read_bytes()
+        updated,changes,extension_inputs=apply_source_extension(candidates,read(path),catalog)
+        candidates=list(updated.values());snapshots.update(extension_inputs)
+        import s5_stage_transitions
+        tool=Path(s5_stage_transitions.__file__);snapshots[tool]=tool.read_bytes()
     report = overlay(ledger, candidates, definitions)
+    if changes:
+        report['S5_source_refinements']=changes
+        report['S5_source_only_scope']='fresh overlay; S1/S2/S3/S4 old receipts unchanged; original/C/native gates remain independent'
+        report['S5_actual_C_excluded_from_older_callback_receipt']=True
     report["S1_ledger_sha256"] = digest(snapshots[ledger_directory / "ledger.json"])
     report["input_sha256"] = {str(path): digest(raw) for path, raw in snapshots.items()}
     report["existing_magic_contract_receipt"] = receipt
@@ -248,10 +302,14 @@ def main():
     parser.add_argument("--result-domain", type=Path, required=True)
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument('--s5-extension',type=Path)
     args = parser.parse_args()
     try:
-        output = validate_output(args.output_dir, original=args.original)
-        report = build(args.original, args.ledger_dir, args.callbacks, args.transitions, args.result_domain, args.image)
+        if args.s5_extension:
+            from s5_output import validate_output as s5_output
+            output=s5_output(args.output_dir,args.original)
+        else:output = validate_output(args.output_dir, original=args.original)
+        report = build(args.original, args.ledger_dir, args.callbacks, args.transitions, args.result_domain, args.image,args.s5_extension)
         output.mkdir(parents=True); raw = encode(report).encode(); (output / "disposition.json").write_bytes(raw)
         (output / "manifest.json").write_text(encode({"schema": report["schema"], "files": {"disposition.json": digest(raw)}, "summary": report["summary"]}), encoding="utf8")
         print(encode(report["summary"]), end="")

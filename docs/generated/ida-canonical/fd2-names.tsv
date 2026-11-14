@@ -277,7 +277,6 @@ ea	name	is_func	is_public
 0x35123	field_event_item89_grant_once	1	0
 0x352ca	field_event_item211_story11	1	0
 0x35346	field_event_story3_item213_story4	1	0
-0x355f0	field_event_item101_story11	1	0
 0x35638	field_event_turn_group_pair_camera_flash	1	0
 0x35677	field_event_story5_defeat_tail18	1	0
 0x35730	field_event_actor17_exchange_item11_once	1	0

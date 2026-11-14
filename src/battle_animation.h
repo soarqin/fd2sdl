@@ -17,6 +17,7 @@
 
 typedef struct fd2_battle_animation_exchange fd2_battle_animation_exchange;
 typedef struct fd2_battle_magic_exchange fd2_battle_magic_exchange;
+typedef struct fd2_battle_montage fd2_battle_montage;
 
 /* 1c2da→4e127的有效地图常色，只读唯一冷定义；与宿主framebuffer stride无关。 */
 uint8_t fd2_battle_animation_map_solid_color(void);
@@ -84,5 +85,24 @@ int fd2_prepare_promotion_open(fd2_prepare_promotion **out, fd2_vga *vga,
 int fd2_prepare_promotion_step(fd2_prepare_promotion *scope,
     fd2_prepare_promotion_phase phase, unsigned value);
 void fd2_prepare_promotion_close(fd2_prepare_promotion *scope, int restore);
+
+/* 31529→2e2b0 override双caller的非split绘制窄口；复用同一clip/RLE核心。
+ * open仅资源/离屏base，不改Game/VGA/RNG；逐帧不上传、不等待、不消费输入。
+ * parts<=22/duration<=10是40个原clip的有限支持界，具体值仍读原资源。
+ * half仅保存原idle/shake局部；轮次、marker HP、RNG、等待由冷图调度。
+ * 25a96在override!=0时先拒，故本域不加载clipbank或触碰AIL handle。 */
+int fd2_battle_montage_open(fd2_battle_montage **out,fd2_vga *vga,
+    const fd2_archive *figani,const fd2_field_unit actors[2],
+    uint8_t first,uint8_t second,uint8_t scene);
+void fd2_battle_montage_close(fd2_battle_montage **scope);
+int fd2_battle_montage_intro(fd2_battle_montage *scope,unsigned phase);
+int fd2_battle_montage_intro_finish(fd2_battle_montage *scope);
+int fd2_battle_montage_half(fd2_battle_montage *scope,unsigned half);
+int fd2_battle_montage_current_half(const fd2_battle_montage *scope,unsigned *half);
+int fd2_battle_montage_part_count(const fd2_battle_montage *scope,size_t *count);
+int fd2_battle_montage_part_info(const fd2_battle_montage *scope,size_t index,
+    uint8_t *marker,uint8_t *ticks,int *last_marker);
+int fd2_battle_montage_hit(fd2_battle_montage *scope);
+int fd2_battle_montage_frame(fd2_battle_montage *scope,size_t part);
 
 #endif

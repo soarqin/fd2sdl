@@ -111,7 +111,8 @@ typedef enum {
     FD2_FIELD_RUNTIME_DEFEAT_CLOSE,
     FD2_FIELD_RUNTIME_CELL_OPEN_CUE,
     FD2_FIELD_RUNTIME_INFO_VISIBLE,
-    FD2_FIELD_RUNTIME_DELAY_MS
+    FD2_FIELD_RUNTIME_DELAY_MS,
+    FD2_FIELD_RUNTIME_MUSIC_TRACK
 } fd2_field_runtime_present_step;
 /* Game借Play的同步呈现服务；没有第二份phase/HP/acted/RNG状态。
  * RECOVERY_WAIT.value=tick0/1；NORMAL_ACTOR.value=原raw索引；

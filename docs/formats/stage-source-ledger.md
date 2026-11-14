@@ -124,7 +124,7 @@ raw1 hidden?  → story(7) → ACK → result_set(SDL defeat=2)
 end；无命中时保留现有锁存
 ```
 
-`fd2_field_game_common_event_begin/peek/reply` 复用既有 Game 续态；Play／Scene 播放成功、检查 HOST 后才回复 ACK。文本未完成或退出时不提前写结果，不整体回滚已到达写点。它是来源定义，没有新增 stage29 正式绑定。原结果码 `0/1/2` 对应 SDL `ongoing/defeat/victory`，必须显式映射。旧 stage0／1 的 S0 合同继续有效，不能用结果图的安全缺 raw 拒绝去模拟原越界行为。
+`fd2_field_game_common_event_begin/peek/reply` 复用既有 Game 续态；Play／Scene 播放成功、检查 HOST 后才回复 ACK。文本未完成或退出时不提前写结果，不整体回滚已到达写点。S2 冻结时它仅为来源定义，没有新增 stage29 正式绑定；S5 的正式绑定另按下文核验。原结果码 `0/1/2` 对应 SDL `ongoing/defeat/victory`，必须显式映射。旧 stage0／1 的 S0 合同继续有效，不能用结果图的安全缺 raw 拒绝去模拟原越界行为。
 
 `dispatch:event_callback:075` 对 caller 的 `record+8` 与 9 比较，是 `branch_actor(field=TEXT_ID)`，不是 `unit_id`；`030` 的两个身份字段终值虽同，原 `+7` 再 `+8` 的写序仍保留。S2 的早期 Python 对照曾与候选共用错误偏移表，正式 C 前缀比较将其拒绝；失败候选留本地，不计入最终通过。`offsetof`／枚举／WORD 断言与逐叶原码比较分别守卫 ABI 和写序。
 
@@ -150,7 +150,7 @@ S3 读取固定 S1 包、S2 去向与完整 Domain 来源，另外核当前生�
 
 这是对 S2 `existing_definition_reference` 分类的来源勘误，不给旧 S2 候选或原生报告改签。`s3_callback_binding_source.py` 另存 `S2_refinement`、完整 owner chunks、显式 non-owner 指令、条件两边、逐例输入、原检查点与 `actual_C` 状态。callback8／12／26／39／41 的新 caller 参数门共 180 例原指令及 192 例实际 C；非玩家 child no-op、满包 Cancel、wrong ACK、HOST 和错误输入仍分别校验，失败原件保留。原呈现／helper 替身范围随报告登记，不把 child 的原返回值喂成伪造 C expected。
 
-当前 `convert_stage_callbacks.py` 因而得到 73 个转换槽／67 图／2,045 节点、16 个既有引用和 callback82 一项阻塞；S2 历史计数仍为 72／66／2,040／17。`verify_stage_release_traces.py` 读取唯一正式 `bindings`，逐绑定核 stage、原 caller 引用、定义全文摘要，再用该 stage 实际 DAT 资源执行原指令与实际 C。冻结 09 产物覆盖 38 个新模板绑定／36 个定义；3 个既有模板绑定由独立 caller 门签核。两项计数合为 41 个正式 callback 绑定，不是 41 个独立机制。
+S3冻结时，`convert_stage_callbacks.py` 因而得到 73 个转换槽／67 图／2,045 节点、16 个既有引用和 callback82 一项阻塞；S2 历史计数仍为 72／66／2,040／17。`verify_stage_release_traces.py` 读取唯一正式 `bindings`，逐绑定核 stage、原 caller 引用、定义全文摘要，再用该 stage 实际 DAT 资源执行原指令与实际 C。冻结 09 产物覆盖 38 个新模板绑定／36 个定义；3 个既有模板绑定由独立 caller 门签核。两项计数合为 41 个正式 callback 绑定，不是 41 个独立机制。
 
 ### 发布闭包产物
 
@@ -164,12 +164,12 @@ S3 读取固定 S1 包、S2 去向与完整 Domain 来源，另外核当前生�
 | `entry_count`／`capability` | 从完整冷 entry 成功路径和实际 group 计算人数集合，与支持门下界相联；不取当次 SDL 构造输出作为原义 expected，不用初始 group0 数冒充完整 entry |
 | `callback_source_references` | 保完整 WORD action、原 caller、父模板 group 和原跨度；`required_for_battle_scope=false` 只保留非战斗来源，不表示已有活动绑定 |
 | `resource_references` | 已解码文本与移动引用保留来源／参数；未来人数、身份、地图和换图后资源仍需实际有限 C 投影及到达叶预检，结构检查不替代这些消费者 |
-| `victory_handoffs` | 每个成功 next_stage 必须有已绑定 entry、capability 和独立核原字节的 31 B 准备记录；当前2..19→3..20。单次 source Scene 完成后只读导出准备，App 关闭旧资源再打开下关，不预执行下关 controller |
+| `victory_handoffs` | 每个成功 next_stage 必须有已绑定 entry、capability 和独立核原字节的准备记录；S3 冻结域为2..19→3..20的31 B普通准备行，S5另核NoTown。单次 source Scene 完成后只读导出准备，App 关闭旧资源再打开下关，不预执行下关 controller |
 | `default255_refusals`／`strict_supported` | 默认槽原 raw `ffff00` 和拒绝 source ID 原样保留；结构发布闭合不提升为严格全状态支持 |
 
-当前新增正式域包含 battle2..19 与 entry-only20，共 96 个绑定／86 个不同原 target：19 entry、18 victory、18 result、41 callback。`stage.json` 新增 52 个 shipping alias，`common_event.json` 新增 44 个；既有 stage0／1 不计入这个增量。result 的 15 个无等待绑定由 stage 域消费，3 个带副作用绑定用 `stage.NNN.result` 的 common-event 续态；同关同时存在两种正式结果绑定应拒绝，不能用不存在的 pure 图冒充闭合。
+S3冻结新增正式域包含 battle2..19 与 entry-only20，共 96 个绑定／86 个不同原 target：19 entry、18 victory、18 result、41 callback。`stage.json` 新增 52 个 shipping alias，`common_event.json` 新增 44 个；既有 stage0／1 不计入这个增量。result 的 15 个无等待绑定由 stage 域消费，3 个带副作用绑定用 `stage.NNN.result` 的 common-event 续态；同关同时存在两种正式结果绑定应拒绝，不能用不存在的 pure 图冒充闭合。
 
-55 条 callback 来源引用中，battle2..19 必需 50 条，entry-only20 保留 5 条。stage20 仅入场、浏览、已证准备及存取；battle／END 仍关闭。13 个隔离源槽为 entry22／24／26／27／29、victory20／21／22／23／26／28／29，以及 callback82；后者还关联 `stage:29:turn:00000`，故共 14 条受影响来源。它们没有新增正式绑定，不由同 target、邻近 CALL 或已有模板推定未知 CFG／ABI 已闭合。
+S3 冻结的55条 callback 来源引用中，battle2..19 必需50条，entry-only20 保留5条。stage20 当时仅入场、浏览、已证准备及存取，battle／END 关闭。13个隔离源槽为 entry22／24／26／27／29、victory20／21／22／23／26／28／29，以及 callback82；后者还关联 `stage:29:turn:00000`，故共14条受影响来源。S3 当时未为这些隔离源新增正式绑定；S5 用完整来源和消费者门逐族闭合，不能给旧报告改签。
 
 ### 默认槽、人数与 owner 边界
 
@@ -180,3 +180,49 @@ source-bound capability 的 `preparation_slots=0` 表示只读原 DAT 的部署�
 活动／手动 Load 完整恢复已存 metadata、schedule_turn、原单位及未知字节，不要求 metadata 与原资源恒等，不重放 entry、不额外自动查询结果；到真实 controller／END／结果／交接调用点再按当前有限语义和资源核验。失败、HOST、错误 ACK 或取消继续沿 Game／Loot／Scene owner，保留已到达前缀；不能借候选图新建热状态、修改 SAV 格式、复制资源 owner 或回滚共享 RNG。
 
 `structural_binding_scope_closed=true` 只签当前来源／定义／精确正式绑定闭包；原码模板、实际 C、正式 controller／END／恢复链和少量原版原生代表分别留证。该工具的 `runtime_paths_validated`、`new_native_runtime_executed` 和 `all_text_glyph_portrait_semantics_validated` 仍为 false，不以夹具自验或静态读取替代运行证据。
+
+## S5 来源扩展与候选资格
+
+S5适用实现与验收已闭合，已证域为stage0／1原范围及stage2..29战斗／END／事件／胜败交接和结局；resource30不是普通战场。当前优先级、提交／集成状态只查[总计划](../plans/development.md)，依赖与实际候选见[S5工作包](../plans/s5-batch-expansion.md)。本节扩展S1原ID和S2／S3去向合同，不删除历史隔离标签或改签为当时已完成。复跑命令见[冷定义工具的S5入口](../tools/static-data.md#s5-扩展正式参数与独立-82-门)。
+
+`convert_stage_transitions.py` 的扩展先执行原 S2 完整80-owner门；`s5_stage_transitions.py` 再从新增完整 owner／chunk／CFG、strict relocated 字节和独立 cinematic 合同生成 `fd2-s5-transition-candidates-v1`。13个原来源槽分别保留 caller、原目标和原跨度；callback82 另有 stage29 turn00000 引用，仍按13槽／14引用计数。中途 source08 的128-owner／19图／15,059节点及两个 ending 阻塞保持原身份。source10 严格合并141个完整 owner，13个来源均有完整候选，共20图／17,002节点；这些结构计数不表示141个独立机制或全状态运行通过。
+
+扩展的`input_sha256`区分原字节／生产者代码和生成前静态JSON快照，后者保留生成时身份，不要求安装后整个JSON仍等旧摘要。`validate_candidate`重读独立原字节及当前生产者；`cold_flow`逐图与当前唯一冷定义精确比对，当前操作ABI由生成器与manifest另核。安装新绑定不为旧快照补签，其复现自检也不充当独立原义oracle。来源scope以原fixup／S1来源及明确S5扩展join正式binding，同target不能自动提升其它caller。未知、显式fail及未资格化绑定继续阻塞依赖批次。
+
+新增普通交接沿原31 B准备行；NoTown 核 `0x523e7` 原30 B flags，22／23／24及27／28／29不要求不存在的普通行，26仍是普通 Town。`victory_handoffs` 只登记能到普通 `end` 的 next-stage 路径；26正常臂交接27，坏结局保热 stage26、借 resource30，29先改热 stage30再构造 resource30。两种终章均到无正常返回端口的 `terminal_wait`，不产生 stage30 普通战场或准备能力。
+
+本轮全绑定预检另发现callback51旧alias误归属。完整`355f0`及`35631 push3→35633 JMP3530d`要求descriptor索引2的mode0／item101 child后story3（`52748=006500`），不能将callback分派mode2误作物品模式；新`common.callback.051`承接此独立原caller，旧`common.loot.child.2`和其story11历史图保持。它是既有已分类来源的细化，不增加或伪造新的S1来源ID，也不计入原13隔离槽；新定义与真实C／原CPU对照单独资格化。
+
+### 完整来源、正式绑定与 82 分层门
+
+`s2_source_disposition.py --s5-extension` 保持208槽／193个不同 target、S1 的315条未决原记录和450条拒绝不变。source10 叠加后，315条均有来源图或已审 primitive 可供消费，源去向不再有未决项；原记录的历史标签不回写，来源可用也不表示已经运行。按 source ID 去重的并集仍为778，不能把引用或重叠集合相加为独立机制数。
+
+当前2..29正式绑定结构域包含163绑定／149个不同原target：28 entry、28 victory、28 result、79 callback；其中5个副作用result走common-event，其余23个走stage域。结构闭合与实际C、正式输入和原版门分别签核，未将163绑定称为163个独立运行机制。112条callback来源引用与79条正式callback绑定分列。`scope.json`保留379条域内默认turn255拒绝；全33资源组仍为450条，战场0..29的406与资源30..32的44另列。默认槽可合法Load，实际到turn255／phase0的callback255分派仍拒绝，不能删除或在恢复前静默归零。
+
+26..29的 snapshot 下界分别为63／34／76／27，`exact=0` 允许原增援与 hidden 状态，容量仍为96；`slots=0` 只表示部署容量取原 DAT。人数下界和恢复合同不替代每个实际叶对未来 raw、身份、地图和资源的重验，也不宣称任意外部 SAV 等价。旧0..25绑定及 entry26 的原 alias 不因 B 补丁重写。
+
+通用 callback converter 保留90槽、74转换来源、15既有引用和82一项明确阻塞；source82由独立 S5 分层门覆盖，不从通用 ACK 模拟实际 teleport。`verify_stage_release_traces.py --callback82-proof` 核原槽 target `0x362e8`、S1 caller `stage:29:turn:00000`、正式 `stage.029.action.082`、当前20-node图及唯一147-node共享图，并重核所有输入、二级原码／实际C及 EXE 摘要。同 ID 换图，即使同时修改收据摘要也须被来源模板门拒绝。
+
+82 原 caller 轨迹覆盖 state16=0..4及33f78；实际 teleport module 覆盖8状态／408有序前缀；实际 Play→Scene 代表为state0／4及 ACK／HOST／错误、display／cursor边界；projection 另覆盖五状态。这些范围不能合称五状态完整 Play 像素运行。正式批量报告将82单列 `separately_verified`，其通用 ACK 向量贡献为0；70个普通模板绑定／67定义的1,890原码／C轨迹和8个既有模板引用另账。
+
+C22分层协议仍为`fd2-s5-callback82-layered-C18-v1`，名称是schema版本，不是C18运行身份。当前Play层必须声明`build_target=fd2_field_s5_callback82_play_test`；输入SHA必须包含`src/CMakeLists.txt`、原Play main和新增`src/tests/field_s5_callback82_scope_checks.c`。严格门核CMake唯一同名目标实际列入双TU，缺项、错摘要、同改收据但删／移接TU、假注释recipe或重复目标均拒绝。新TU在真实commit后、wipe前注入HOST；旧delay preflight钩子不再承担该测试，未回签原版或旧候选的等待／像素范围。
+
+### 自然栈来源与冷编排边界
+
+原 `2ebe1` 不在自身入口初始化 HP 栈 cell，不能据此推断自然值任意。完整 `31529 → 2e2b0 → 2e9a8 → memmove` 原栈链已证明末写 DWORD 为 `0xAF8C0`，marker 按 WORD 写入 `0xF8C0`（63680）；资格仅用于31529的20组原参数和非split资源，不扩大到其他战斗 caller。旧240个受控 poison 向量仍属原 callee依赖域，不改签为自然状态。
+
+marker、typed HP写、两侧 RNG、首侧3%最多两轮、第二侧最后marker之后返回以及等待都在唯一冷图。duration0仍经过HP／hit／cue，但没有帧等待。六个固定 cinematic callee 和有界22 part／10 tick来自已证族，不能变成任意脚本 VM、整pair native handler或新热状态／SAV字段。
+
+发布 scope、默认255拒绝、独立原码、实际C、SDL正式输入和原版代表分别留证。当前来源账不签自然全流程、所有时钟相位／音色／像素、未用资源尾或原越界行为；错误、HOST和取消继续保留原owner已到达前缀。
+
+### 输入变化与定向继承
+
+C18来源索引 `build/s5/source-full-c18-index02.json` 的七份主报告共记录233种输入路径；解析相对／绝对路径和原资源junction后为223个实际文件。source10生成前的三个静态JSON快照独立保留，不加入安装后全文件相等门；完整来源和当前冷图仍由scope／disposition重核。路径条数、文件数、来源数和机制数不得混计。
+
+C19当时仅在这些输入中的`preparation.json`增加`notown.normal`的darkness0及来源说明。完整G1 `26152`读集独立给出`2628b`清VGA→`2629c`调用`11d40(0,255,0)`→`262a6`notice75→`262d0`text410；三个暗度参数均占原32bit栈槽。旧出口`26370`的darkness255保留。当时scope／disposition和G4／G5来源join在新目录重跑，去掉输入manifest后与C18逐JSON相等；回调、正式参数、82分层和封存探针按其未变输入继承。该结论不跨过后续runtime注释、source等待／binder或HOST测试变化。
+
+C19历史资格索引为`F:/fd2sdl-evidence/s5-20261114/source-C19-qualification03/index.json`；完整原字节与受影响读集另见同目录`notown-source.json`。当前严格闭包使用`build/s5/source-final-C22-index02.json`：七份主报告235种路径／225实际文件，加入fresh资源门后229个声明文件逐SHA全等；三份C22 Scene／Play／projection探针、C22正式参数Game探针及继承C21 Game探针另核身份。回调Game三矩阵保持C21原身份，82／module／正式参数／scope／disposition／资源及G4／G5由C22 fresh门连接，不能统一改称C22重新执行了全部旧门。
+
+source10的三份生成前JSON快照保历史SHA，当前wholefile相等门不包含它们；其原来源／逐图／ABI由fresh工具重验。当前资源扫描仍为1,873引用／154 archive entry；正常招募已证人数上界31，外来32人credits超出原构造／raw引用域时明确拒绝，不改变SAV32条持久容器，也不代表所有未来身份组合已证。以后即使只有注释改动，也需记录精确旧输入重建、相关定义／可执行文件和参数域的资格；真实业务或冷序变化必须补受影响门。旧失败和旧报告始终保持原身份。
+
+人数来源为初始4 ID＋已恢复招募literal的有限caller，18／19由`23a0a`与`24754→24bde(18)`及signed turn条件互斥。原`1088d(30)`只初始化31条active；`31c49`按`count-1`读取，malloc96不构成raw31已初始化的证明。该异常边界保原来源并显式拒绝，不回写S1账、不改32条roster容器，也不以重复callback或外来32人快照扩签正常路径。

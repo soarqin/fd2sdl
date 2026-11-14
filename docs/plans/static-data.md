@@ -2,7 +2,7 @@
 
 **定位：SD1—SD3已完成的历史工作包，不是当前待办。** 交付提交及完成门见[完成归档](completed-stages.md)，详细候选／失败／补验留[阶段记录](stage-log.md#sd3-最终验收与提交门2026-11-09)。本文2026-11-08的调研基线为`88b47d7`，历史样例不代表现行消费格式；当前JSON／ABI与热续态合同以[冷定义工具](../tools/static-data.md)为准。
 
-2026-11-14 入口：当前状态和未开放域只见[当前计划](development.md)。旧结果恢复补充已由 S0 闭合；审计表达同步和全量转换输入已由独立 S1 交付，当前合同见[来源账规范](../formats/stage-source-ledger.md)。新图能力／候选别名见[S2报告](s2-shared-semantics.md)，实际发布绑定／正式消费见[S3报告](s3-batch-integration.md)，旧调色修复及统一审查见[S4报告](s4-unified-review.md)。不重新打开 SD 或 G；[批量研究](stage-batch.md)保留原研究身份。
+2026-11-14入口：S5适用实现与验收已闭合，stage0／1原范围及stage2..29战斗／END／事件／交接与结局已证；resource30内部和450默认255拒绝不变。S1全量账、C22来源／scope／82双TU编译合同见[来源账规范](../formats/stage-source-ledger.md)，纯等待本域、薄binder和HOST前缀延续同一冷热边界。S2、S3、S4原身份分别保[S2报告](s2-shared-semantics.md)、[S3报告](s3-batch-integration.md)、[S4报告](s4-unified-review.md)；S5有限人数和运行身份见[报告](s5-batch-expansion.md)，提交／集成与顺序只查[当前计划](development.md)。不重开SD或G，不在本文排第二份优先级；[批量研究](stage-batch.md)保留原时点。
 
 ## 1. 目标、推荐与完成边界
 
@@ -282,4 +282,4 @@ SD3 的全量回归是本优化大阶段的最终交付门，现已完成所列�
 
 ## G5 现行消费与完成门（2026-11-11）
 
-SD 调研样例和盘点继续保留历史身份。G5 已以现有有限领域执行器完成六个旧正式事件的逐叶条件、顺序、等待、取消与提交，保留原热 owner／SAV／RNG，去除旧整段预提交及重放。当前定义规模和源码消费合同见[冷定义工具](../tools/static-data.md)；完整审查、来源有效域和当前 Windows 回归见[审计 §13](common-logic-audit.md)。通用完成门已按本轮来源签核，S 尚未启动；结构计数不是全游戏覆盖率，本页不再另排下一阶段。
+SD 调研样例和盘点继续保留历史身份。G5 已以现有有限领域执行器完成六个旧正式事件的逐叶条件、顺序、等待、取消与提交，保留原热 owner／SAV／RNG，去除旧整段预提交及重放。当前定义规模和源码消费合同见[冷定义工具](../tools/static-data.md)；G5完整审查、来源有效域和当时Windows回归见[审计 §13](common-logic-audit.md)。「S 尚未启动」仅为G5历史时点；后续S阶段及当前S5验收只查总计划和[审计 §17](common-logic-audit.md#17-s5-来源闭合与有限消费者审计2026-11-14)。有界冷展开、固定callee和领域单帧叶延续同一冷热边界，结构计数不是全游戏覆盖率，本页不另排下一阶段。

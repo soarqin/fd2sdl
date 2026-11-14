@@ -26,7 +26,8 @@ static int make_preparation(fd2_save_manual_state *state, size_t stage) {
 }
 
 static int batch(const fd2_archive *other, fd2_vga *vga, int source_inventory) {
-    for (size_t stage=2;stage<=20;stage++) {
+    /* S5扩展同一批次消费者门；六人/隐藏部署空位是受控前置，非自然战史。 */
+    for (size_t stage=2;stage<=29;stage++) {
         fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
         fd2_save_manual_state preparation;CHECK(make_preparation(&preparation,stage)==0);
         char id[64];snprintf(id,sizeof(id),"stage.source.entry.%03zu",stage);
@@ -45,18 +46,21 @@ static int batch(const fd2_archive *other, fd2_vga *vga, int source_inventory) {
         if (!source_inventory) {
             CHECK(fd2_field_stage_is_supported(stage));
             CHECK(fd2_field_stage_source_is_bound(stage,"entry"));
-            CHECK(fd2_field_stage_battle_is_supported(stage)==(stage<20));
+            CHECK(fd2_field_stage_battle_is_supported(stage));
             fd2_save_battle_snapshot snapshot={0};
             CHECK(fd2_field_game_export_battle_snapshot(game,&snapshot)==0);
             CHECK(fd2_field_game_import_battle_snapshot(game,&snapshot)==0);
             CHECK(game->units.count==snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]);
             if (stage==20) {
+                /* S5已接20战斗；守下一未发布的30资源域不能误当普通战场。 */
+                game->stage=30;
                 fd2_field_units prior=game->units;
                 uint32_t turn=game->turn_number;
                 CHECK(fd2_field_game_end_player_turn(game)==-1 && game->turn_number==turn &&
                     !memcmp(&prior,&game->units,sizeof(prior)));
                 CHECK(fd2_field_game_begin_player_controller(game,0)==-1 &&
                     !memcmp(&prior,&game->units,sizeof(prior)));
+                game->stage=stage;
             }
         }
         printf("S3 entry stage=%zu active=%zu roster=%zu mode=%s\n",stage,game->units.count,

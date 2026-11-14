@@ -39,6 +39,11 @@ typedef struct {
 
 void fd2_field_play_context_init(fd2_field_play_context *context,
                                  fd2_bgm_player *bgm);
+struct fd2_field_game;
+/* 正式Play与无窗口集成门绑定同一只读资源预检；fdother借用至Game关闭。
+ * 只设置已有callback/userdata，不扩展common叶参数域或建立新owner。 */
+int fd2_field_play_bind_event_preflight(struct fd2_field_game *game,
+    const fd2_archive *fdother);
 /* 仅发起音乐请求，不推进战场；-1沿已有播放器请求4秒异步fade。 */
 int fd2_field_play_request_music(fd2_field_play_context *context,
     size_t stage, int track, const char *reason);

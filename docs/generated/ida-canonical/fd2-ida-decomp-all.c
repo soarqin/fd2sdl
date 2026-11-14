@@ -8901,6 +8901,7 @@ void __cdecl field_unit_magic_list_build(int a1, int a2)
 //   历史地址列 `0x414f8`（`0x1c2e4` 是 __chkstk body，入口为 `0x1c2da`）；旧 Ghidra 名 `FUN_000414f8`；判定 chkstk-body
 // [勘误 evidence] field_actor_group_flash接收caller色值，非固定192；原51f15的30B颜色表由effect ID索引，13=192、17=146、18=72、19=216、22=35。ramp/duotone有独立caller合同，不套此表。；依据: G1 Domain完整1c2da及各wrapper调用链、原51f15..51f33字节SHA256 c09f95968698a256f582dab5bf428e1b495d54a8be6ce0df20406248477dcf0c；G2原件34离线flash分类揭示SDL硬192差异，冷表消费及真像素回归另验。不新增命名/ABI或把静态来源当完整动态RGB对照。
 // [勘误 evidence] caller仍传51f15[effectID]，但4e127实际忽略第四个颜色参数；map stride456低BYTE被复制到AH并填全部RLE写点，所以此路径的有效色恒为200。30B原表13=192/17=146/18=72/19=216/22=35是未生效参数，不能用它替代最终色。；依据: 完整Domain1c2da caller及4e127原callee交叉复核；原callee读取arg8为EDX步幅，4e13b读取同一arg8为EAX，4e13e mov ah,al，后续mov al,ah而未读argC。原34连续WGC实体完整写mask的blue色与palette200一致，推翻只按caller推断的146/72/216。原51f15..51f33 SHA256 c09f95968698a256f582dab5bf428e1b495d54a8be6ce0df20406248477dcf0c保留为来源，不保留无真实消费者的新增冷表；有效200另作有证呈现常量。
+// [勘误 evidence] 250cc四push为(0,19,COUNT1,&52326byte1)；真实第三参是count、第四参是BYTE列表，不是raw0..19。只闪raw1，solid200及原有限定时表沿G4；原未用参数不猜新义。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是__
 int __cdecl field_actor_group_flash(int a1, int a2, int a3, int a4)
 {
   int i; // esi
@@ -12803,6 +12804,7 @@ void __cdecl sub_2185F(int a1)
  * callers: 0x15055, 0x2185f, 0x21a9e, 0x24754
  * callees: 0x11cac, 0x11eb0, 0x11eee, 0x127a9, 0x219ad, 0x3702f, 0x3706e, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
+// [勘误 evidence] 一次terrain快照后十次circle12/127a9投影；半径、LUT次序及无额外等待按完整caller冷展开。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按development/实际收
 int __cdecl sub_2189A(int a1, int a2, int a3)
 {
   int v4; // ebp
@@ -13161,6 +13163,7 @@ int __cdecl field_actor_teleport_execute(int a1, int a2, unsigned __int8 *a3)
  * callers: 0x2218a, 0x250cc, 0x2548c, 0x33f78
  * callees: 0x111ba, 0x11eee, 0x22046, 0x22470, 0x22547, 0x22656, 0x25a96, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 五参actor/dstX/dstY/drawX/drawY；114..124逐sprite/tick、sample由两组xy相等选择；icon124；两次tick后先写raw.xy再copybase/mask，不先present；dy==0擦18行否则24行，各10ms，expand0..9各tick。借原App/page/Game owner，无SAV新状态。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的_
 int __cdecl sub_22253(int a1, int a2, int a3, int a4, int a5)
 {
   int v5; // edi
@@ -13231,6 +13234,7 @@ int __cdecl sub_22253(int a1, int a2, int a3, int a4, int a5)
  * callers: 0x22253
  * callees: 0x11eb0, 0x127a9, 0x17aa9, 0x3702f, 0x3771c, 0x4ebab
  * --------------------------------------------------------------- */
+// [勘误 evidence] sprite原frame114..124共11帧，每帧BIOS tick1；不把终帧125误加进LMI资源域。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按development/实际收据，不由此静态__
 int __cdecl sub_22470(int a1, int a2, int a3)
 {
   int result; // eax
@@ -13257,6 +13261,7 @@ int __cdecl sub_22470(int a1, int a2, int a3)
  * callers: 0x22253
  * callees: 0x11eb0, 0x17aa9, 0x22046, 0x3702f, 0x3771c, 0x3790a, 0x4ebab
  * --------------------------------------------------------------- */
+// [勘误 evidence] icon124后contract LUT5..0，每步10ms；shared tail返回原LUT0/mult0。原row与focus-relative中心读取保留，不靠draw坐标反算。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范
 void __cdecl sub_22547(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int i; // ebx
@@ -13284,6 +13289,7 @@ void __cdecl sub_22547(int a1, int a2, int a3, int a4, int a5, int a6)
  * callers: 0x22253
  * callees: 0x11eb0, 0x17aa9, 0x22046, 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 固定expand LUT0..9每帧tick1；完整owner/共享尾单列，不生成通用脚本VM。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按development/实际收据，不由此静态注
 int __cdecl sub_22656(int a1, int a2, int a3, int a4, int a5)
 {
   int result; // eax
@@ -14377,6 +14383,7 @@ void sub_23E74()
  * callers: 0x25bf4
  * callees: 0x112a5, 0x11506, 0x1366a, 0x15f84, 0x1b8e7, 0x1c220, 0x233c6, 0x24336, 0x2aedb, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:020→stage.source.victory.020。完整233c6写集后计首16 raw中209..214物品出现数；六件匹配才消费/授100并走24336；不匹配故事6。两臂后持久追加raw24/23、11506并stage21。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分__
 void sub_240FA()
 {
   int v0; // ebx
@@ -14447,6 +14454,7 @@ void sub_240FA()
  * callers: 0x240fa
  * callees: 0x111ba, 0x11df2, 0x135dd, 0x17aa9, 0x20421, 0x2eb9f, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x4e31c, 0x4e381
  * --------------------------------------------------------------- */
+// [勘误 evidence] FDOTHER34完整101part；frame0叠snapshot，1..68写真实App raw前64000后到VGA，water/tick3/clear键；ANI(0,15,0)及palette时序后69..100仍tick3/clear但无water。资源字段只引用原archive。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来_
 void sub_24336()
 {
   int v0; // ebp
@@ -14497,6 +14505,7 @@ void sub_24336()
  * callers: 0x25bf4
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x1f882, 0x233c6, 0x24618, 0x3702f, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:021→stage.source.victory.021。布局、故事4..6/scripts65/66后24618相对(0,+3,10,8)；保白页、原淡出、11506和共享stage22尾。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有__
 // bad sp value at call has been detected, the output may be wrong!
 void sub_244B6()
 {
@@ -14540,6 +14549,7 @@ void sub_244B6()
 //   依据: Ghidra 将入口与主体误拆成两个函数；真实调用均进入 `0x4982c`
 //   历史地址列 `0x49836`（`0x24622` 是 __chkstk body，入口为 `0x24618`）；旧 Ghidra 名 `FUN_00049836`；判定 chkstk-body
 // [S4 evidence] 完整24618尾在原9帧/释放临时页后delay_ms(500)，随后j=0..62、step2共32次pal_partial_set(0,255,j) @0x11df2，各有尾delay_ms(4)。11df2对基色逐分量加j并夹63，所以是加色变白，不是11d40减色或1f882淡出；保留原入口名、边界和业务owner。；依据: S4完整六caller Domain读集build/s4/fade-caller-source01/domain.json SHA256 b94010fe3b42eef5a9ed2c4b50aeaaee6c21c03a8a5303133d3b694e97a87043，含24618..24754全316B/完整CFG、xref及callee；六函数3885B逐chunk与strict relocated镜像一致。本条只澄清完整原控制流和调用参数；不把已有SDL比例近似当原义，也不提前签尚未执行的C/原码oracle或原生图像/绝对4ms时序。
+// [勘误 evidence] 原五参数读取focus-relative cells，九帧LUT9..1按radius+i*step增长；后delay500及32次11df2加色/尾4ms，不是减色。八个实际callsite四参数各保来源，单叶不隐藏循环。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷
 int __cdecl field_stage_transition_effect(int a1, int a2, int a3, int a4)
 {
   int v5; // ebp
@@ -14581,6 +14591,7 @@ int __cdecl field_stage_transition_effect(int a1, int a2, int a3, int a4)
  * callers: 0x25bf4
  * callees: 0x10652, 0x111ba, 0x112a5, 0x11506, 0x11df2, 0x135dd, 0x1366a, 0x15f84, 0x2189a, 0x233c6, 0x24b14, 0x24b4d, 0x24bde, 0x32975, 0x3702f, 0x3790a, 0x4df4c
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:022→stage.source.victory.022。item100与持久roster text18两条件；248b5读取signed DWORD53BEF turn并与15比较，绝非53BFB roster_count。stage先增23后仍用原FDTXT23故事14..17；circle/shake与map69/shape23替换顺序保持。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13_
 void sub_24754()
 {
   int i; // ebx
@@ -14684,6 +14695,7 @@ int __cdecl sub_24B14(int a1)
  * callers: 0x24754, 0x2548c, 0x3396a
  * callees: 0x11cac, 0x11eb0, 0x11eee, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] terrain首13×9与11cac(0)准备后交替两行/20ms，循环次数由原caller冷定义；不在renderer重采输入或追加16ms。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按de
 int __cdecl sub_24B4D(int a1)
 {
   int result; // eax
@@ -14727,6 +14739,7 @@ int __cdecl sub_24BDE(int a1)
  * callers: 0x25bf4
  * callees: 0x11506, 0x11cac, 0x11d40, 0x15f84, 0x17aa9, 0x24d22, 0x3702f, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:023→stage.source.victory.023。scroll speed2..9各30次refresh(1)/tick1，10..14各12次darkness/refresh(0)/tick1；复用已有312×192背景owner和tick门，不把300 refresh当300实际scroll。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等
 void __usercall sub_24C1E(unsigned __int8 *a1@<edi>)
 {
   int v1; // esi
@@ -14939,6 +14952,8 @@ int sub_25089()
  * callers: 0x25bf4
  * callees: 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x1c2da, 0x1f882, 0x22253, 0x233c6, 0x24618, 0x24b14, 0x25052, 0x25089, 0x31529, 0x3702f, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:026→stage.source.victory.026。首16 raw的item100保两臂；正常stage27，缺失则raw1传送255/255、恢复roster、31529后25462原不返循环。1c2da实COUNT1/list52326=[1]只闪raw1，arg19不是raw范围/调色板。ending pair自然caller的HP栈cell末写/有效域待复核，仍显式阻塞，不提前称整来源可运行。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candi
+// [勘误 evidence] publication02中的ending自然栈待复核已由完整caller闭合；item100好臂仍11506→stage27→25089，坏臂25089→31529后保持原25462不返。坏臂热stage26不被credits资源30构造强写为30；montage在31c49返回后才发生，不能用旧stage26两名战场actor或独立render假actor代替53A45。当前来源候选可用不是本注释给坏结局、任意SAV或整终章原生批准。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5
 void sub_250CC()
 {
   unsigned __int8 i; // bl
@@ -15027,6 +15042,7 @@ void sub_25464()
  * callers: 0x25bf4
  * callees: 0x10b4e, 0x11506, 0x11df2, 0x12cea, 0x135dd, 0x15f84, 0x22253, 0x24b4d, 0x35f10, 0x361b0, 0x3702f, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:028→stage.source.victory.028。35f10/1db65只有败亡反馈，无loot/reward collector；raw20只写ID/text126、不伪造cache重建。三次361b0各自返回后都有delay300（25687/25699/256ab push12c）；其后故事15/淡出/11506/stage29。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9__
 void __usercall sub_2548C(unsigned __int8 *a1@<edi>)
 {
   int v1; // edx
@@ -15102,6 +15118,8 @@ void __usercall sub_2548C(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4
  * callees: 0x1088d, 0x11cac, 0x11df2, 0x12cea, 0x135dd, 0x1366a, 0x15f84, 0x17aa9, 0x233c6, 0x24618, 0x25089, 0x31529, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_victory:029→stage.source.victory.029。stage++到30后先1088d(30)再FDTXT31故事0/1、pan/script89；31c49内再构造30一次。31529返回后25975为原不返尾；30仅内部终章资源，不是普通battle/preparation capability。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与__
+// [勘误 evidence] stage++30后原1088d(30)、FDTXT31故事0/1和script89顺序保持；31529内部31c49再构造resource30，故后来pair写的是该时点的53A45热active。原25975不返尾不变，30仍仅终章资源/终端域，不能据sourceavailable新增普通battlecap30。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b140ebd384614b61c8991afad8583aa45ae079 登记53A45热owner、credits之后时点、WORD写及音频门。montage-actualC18-01/com
 // bad sp value at call has been detected, the output may be wrong!
 void __noreturn sub_25757()
 {
@@ -15224,6 +15242,7 @@ int __cdecl music_track_play(int a1, int a2)
 // [sfx_play] 从嵌套样本 bank 按索引播放数字音效
 //   依据: corrected code0 `0x3acaa` 读取 `container+6+index*4` 的起止 offset，将样本地址、长度和 loop count 依次提交给 AIL sample handle；`DAT_00003eec` 来自 FDOTHER[31]
 //   历史地址列 `0x4acaa`；旧 Ghidra 名 `FUN_000231de`；判定 exact
+// [勘误 evidence] S5 montage调用仍遵守完整device&&sfx_option&&54133==0门。首侧override>1、第二侧1，在读bank或AIL stop/sample之前返回；因此不能依据clip的bank_selector加载额外音库。原CPU将设备/选项置开且两bank设未映射仍完整通过，AIL到达硬拒；该结论仅此override域，不改变其他正常caller的sample/loop行为或用户混音器静音状态。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b1
 int __cdecl sfx_play(int a1, int a2, int a3)
 {
   int result; // eax
@@ -15525,6 +15544,7 @@ int title_action_dispatch()
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_town_prepare_execute；依据: 完整1178B；main结算和标题手工LOADcaller。释放活动资源、从persistent重建FDICON，按stage-1准备记录开五项town；NoTown另分支四槽/部署。type0的酒店/武器/出口/道具/教会五项，左右反向循环，26x31完整表与FDOTHER10/11/13及495..499文本独立复核。 依据：2026-11-05既有IDA9.5 Domain完整函数/xref与strict LE原字节一致；运行范围另登记。
 // [勘误 evidence] stage2准备记录623ac首byte2；原52405三资源为11/61/62，故使用FDOTHER62。NoTown[2]=0，town曲10；stage2战场entry返回后main才请求primary19，alternate为1。；依据: B7隔离IDA Domain完整raw/调用链与原stage数据读集；32e8c与共享尾的边界修正另有独立table fixup和Watcom十字节序言证据。只修已证事实，既有9类型与3702f中性无型保护不变。
+// [勘误 evidence] NoTown先于任何(stage-1)*31城镇记录读取。原523e7完整30B中22..24及27..29非0，26为0；27..29不能越界延长只有26行的城镇表。普通prepare域1..29与内部credits资源30分离。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源
 bool field_town_prepare_execute()
 {
   int v0; // esi
@@ -19743,6 +19763,7 @@ int __usercall sub_2DFC8@<eax>(int a1@<edi>, int a2)
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f0dc, 0x1f525, 0x1f882, 0x25a96, 0x2e95b, 0x2e9a8, 0x2eb9f, 0x2ebe1, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2E2B0。完整物理场景按actor side及当前stage/terrain选择BG/TAI，加载两方FIGANI idle和攻击条目，按split字段走2e9a8/2ebe1，并在原反击门后交换双方继续；正常退出重取当前战场资源、重画地图和当前HP信息后渐亮。共享pop epilogue2e956不是独立入口。；依据: 完整1707B、1548e/18d8c等caller及52470/526e3相关表；terrain immune/profile例外与unit28分支直接来自原指令，不把stage0捕获当通用默认。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+// [勘误 evidence] 仅31529这20组非split场景：borrow原53A45 raw0/1，54133取原scene override；首侧完整2ebe1及真实counter-query仍执行，override使普通反击/伤害分派路径受限；随后override=1执行第二侧。两方FIGANI和BG/TAI从真实资源读取，冷图只用有界22part/10tick族；不将此montage合同推广到1548e/18d8c等普通物理caller或旧B6未验域，不修改持久ABI类型。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5
 int __cdecl sub_2E2B0(int a1, int a2)
 {
   int v2; // esi
@@ -19953,6 +19974,7 @@ int fd2tmp_map_sprite_load()
  * callees: 0x11d40, 0x11eb0, 0x2eb9f, 0x3702f, 0x4e98d
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2E9A8。按attacker side选择640stride工作页半边，i/j8到0以10px位移引入idle/TAI，逐帧dac darkness6*i；普通与split层不同。2e956为共享返回尾，不将跳转地址登记为新函数。；依据: 完整caller2e2b0与原指令，25a96音效门独立；逐通道减暗度不等于比例brightness。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+// [勘误 evidence] 31529非split实际资源下完整原intro尾经11eb0→3771c。令P=2e2b0入口ESP-64，最后memmove入口P-108，push ESI写P-112；下一2ebe1入口P-36，其var4C正是(P-36)-0x4c=P-112。ESI是VGA末行0xa0000+199*320=0xaf8c0；多种旧栈poison/heap布局均被这个实际末写覆盖，不能将callee未自初始化误报自然HP任意，也不能给别的caller假定相同栈深。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b1
 int __cdecl sub_2E9A8(int a1, int a2, int a3, int a4, int a5, int a6, int a7)
 {
   int j; // esi
@@ -20012,6 +20034,8 @@ int __cdecl sub_2EB9F(int a1, int a2, int a3, int a4, int a5)
  * callees: 0x11eb0, 0x17aa9, 0x25a96, 0x2eb9f, 0x2f4d4, 0x2f631, 0x2f7b6, 0x2facd, 0x3702f, 0x3790a, 0x37910, 0x37ae5, 0x4ebe3
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2EBE1。完整物理流程先消费一次3%机会，再于首次2f7b6的type3标记额外加一，最多三击；HP0中止后击。part+4非零分段写HP并夹0，+5为cue，+6为本part绘制tick数，+7 bit0与side共同决定双层前后；idle计时器为byte，不能把duration0偷换成统一1tick。split与普通布局走不同640/400stride。；依据: 完整raw/xref、5266c/52684抖动表和2f7b6输出；以canonical VA定位原分支。输出结构只按原写集描述，不保存推断的C参数或结构类型；完整三击尚非原版运行验收。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+// [勘误 evidence] S5 callee受控240向量仅证marker分支读取未自行初始化的局部HP栈cell并影响RNG相关3%重复。完整31529→2e2b0及prior2e9a8→memmove链的实际末写/有效域尚待复核；未自初始化不等于自然caller的HP任意，不提前断言无法恢复或作安全差异取舍。当前pair保持阻塞，不改ABI类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d7
+// [勘误 evidence] 本函数未自行初始化的局部HP读不等于31529自然值未知：原2ef80按signed DWORD读719040，override将damage清0，2ef9e向真实target+40h只写低WORD63680，每个marker即使duration0也写。首侧正DWORD保3%第二轮；第二侧override1在最后marker完整part之后早返，仍消耗其一次RNG。typed HP/条件/轮次/等待在冷图，marker为非0不等于固定图像帧数；旧240poison向量仍证明受控callee依赖，不改签为自然域、全物理战斗或完整C/GUI。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到__
 int __cdecl sub_2EBE1(int a1, int a2, unsigned __int8 *a3, _BYTE *a4, int a5, int a6, int a7, int a8)
 {
   int v8; // esi
@@ -21183,6 +21207,8 @@ int __cdecl sub_314DE(int a1)
  * callers: 0x250cc, 0x25757
  * callees: 0x111ba, 0x11d40, 0x11df2, 0x11eb0, 0x17aa9, 0x1f525, 0x1f882, 0x20421, 0x25977, 0x2e2b0, 0x2eb9f, 0x31bdf, 0x31c49, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
+// [勘误 evidence] 终章固定序列含FDOTHER54/60/58/57/59、通知、40宽页帧/200帧/credits及20组pair。31c49前WORK原free、BASE最后读取后仅现代owned清理不冒原free ABI。2ebe1未自行初始化的HP栈cell影响3%重复，但完整自然caller链的末写/有效域尚待复核；当前首pair显式fail，不能签整终章等价。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9_
+// [勘误 evidence] 撤销publication02首pair仍fail的当前推断，仅保留其历史。20组原526e9/526fd/52711参数在31c49返回后，逐组写53A45 raw0/1的side(+6)/unitID(+7)，不改cache(+2)、textID(+8)或roster/SAV。63680的marker HP写也属于这些真实active；不是malloc视觉页的两个临时actor。每组两次RNG：首侧3%最多两轮且idle/抖动不重置，第二侧仍取RNG但最后marker整part后返回一轮。overlay58时53A65切到FDOTHER57，组间与末尾恢复保存的base palette；不凭临时palette改永久owner。分支、重复、HP写、逐帧和等待放唯一冷图，C仅有限资源/单帧叶。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整rend
 int sub_31529()
 {
   int v0; // esi
@@ -21371,6 +21397,7 @@ int sub_31529()
  * callers: 0x31529
  * callees: 0x15f84, 0x16559, 0x16c57, 0x1956b, 0x26996, 0x3702f, 0x4e381
  * --------------------------------------------------------------- */
+// [勘误 evidence] 普通通知origin84,119/background74/pitch19；clear/open，phase5..0 slide，clear/text/portrait0/wait0，phase1..5 slide，close/clear；1974c/16f04共享尾无暗加tick或16ms。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支_
 int __usercall sub_31BDF@<eax>(unsigned __int8 *a1@<edi>, int a2, int a3)
 {
   int v3; // eax
@@ -21396,6 +21423,8 @@ int __usercall sub_31BDF@<eax>(unsigned __int8 *a1@<edi>, int a2, int a3)
  * callers: 0x31529
  * callees: 0x10620, 0x1088d, 0x111ba, 0x11d40, 0x11eb0, 0x15f84, 0x168b6, 0x17aa9, 0x1f882, 0x25977, 0x2e9a8, 0x2eb9f, 0x311e5, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e381, 0x4e98d, 0x4ebe3, 0x4ebff
  * --------------------------------------------------------------- */
+// [勘误 evidence] 1088d参数30不写热Game.stage；FDTXT31 fragment44滚500帧、raw j=0/1互换、intro8..0无等待、20idle帧、byte2个part按part+6等tick、220/440卡帧。输入改原j=1而不break内帧，末卡可重播；RNG借现Game。class/movement_profile是raw+20h而非level+21h；textID+12先BYTE wrap再查片段。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真
+// [勘误 evidence] 资源constructor参数30不写热stage；返回31529之前已重建53A45 active和相关资源，随后montage沿这一热owner写raw0/1。26坏结局热stage26与29终章热stage30均可到此，但不开放battle30。既有500滚页、j0/1互换、220/440卡帧、BYTE(textID+12)和raw+20h职业文本合同保持，不把31529之后的actor覆盖倒推成此前credits已使用这些改写身份。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37
 void __usercall sub_31C49(unsigned __int8 *a1@<edi>)
 {
   int v1; // esi
@@ -22286,6 +22315,7 @@ void sub_3367E()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x10b4e, 0x11cac, 0x11df2, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x32975, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_entry:022→stage.source.entry.022。初始化后raw0..15置hidden；24618相对focus(+6,+5,10,8)；仅HP WORD非0者显现/方向2；追加group1及故事0..4，末方向复位20ms/focus0。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点
 void __usercall sub_336A0(unsigned __int8 *a1@<edi>)
 {
   int i; // ebx
@@ -22366,6 +22396,7 @@ void __usercall sub_338C4(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x111ba, 0x12d7b, 0x135dd, 0x15f84, 0x205da, 0x24b4d, 0x25a96, 0x3702f, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_entry:024→stage.source.entry.024。借FDOTHER88、sample1/loop1四次；清App整153216B并按20/20/20/60次24b4d帧编排；1d512 push53B13再跳1a80a共享free切片，不能套owner上游53B0F条件。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等__
 void __usercall sub_3396A(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22415,6 +22446,7 @@ void sub_33AAE()
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x11df2, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x24b14, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_entry:026→stage.source.entry.026。保item100分支、script76/81、三次不同focus-relative24618及共享3312d故事7入口；条件、原序和reset/20ms均在冷定义。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在__
 void __usercall sub_33AF1(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -22445,6 +22477,7 @@ void __usercall sub_33AF1(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x11cac, 0x11df2, 0x134e4, 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x24618, 0x32975, 0x35b78, 0x3702f, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_entry:027→stage.source.entry.027。raw0..19先hidden、HP WORD非0者恢复；三次script85、group6/7闪现和显式方向/20ms；不以HP_MAX代HP。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有
 void __usercall sub_33C9D(unsigned __int8 *a1@<edi>)
 {
   int i; // ebx
@@ -22505,6 +22538,7 @@ void __usercall sub_33DBA(unsigned __int8 *a1@<edi>)
  * callers: 0x25bf4, 0x25ebb
  * callees: 0x135dd, 0x1366a, 0x15f84, 0x205da, 0x33f78, 0x361b0, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:stage_entry:029→stage.source.entry.029。script87、七次33f78/22253确切actor/destination/focus序与361b0脉冲；相同传送冷序只存唯一stage.source.teleport。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷__
 void __usercall sub_33E3C(unsigned __int8 *a1@<edi>)
 {
   int v1; // edx
@@ -23762,13 +23796,15 @@ void sub_355B7()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: field_event_item101_story11
+ * IDA 9.5 Hex-Rays: sub_355F0
  * VA=0x355f0..0x35638 OBJ=1 OFF=0x255f0 size=0x48
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x1aa1d, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_event_item101_story11；依据: 完整主72B及352ca共享尾/callback表/descriptor52748；1aa1d(count1)后story11。
-void __cdecl field_event_item101_story11(unsigned __int8 *a1)
+// [勘误 semantic_name] sub_355F0；依据: 撤销错误语义名并保中性入口。完整355f0..35638（72B）在35631原6a03 push3、35633跳3530d，不执行352ca自己的push11；callback51真实loot_child[2,-1]后story3。旧G common.loot.child.2仍保原已测story11组合，S5新common.callback.051与stage021精确binding修正旧S2误归属，不改签旧报告。
+// [勘误 evidence] 355f0原入口/352ca真实共享尾与52748的3B descriptor保留；side0/1/2、库存0/7/8、满包Cancel均先1aa1d后story3。原72B main与shared tail不能据owner旧名猜成story11；不改函数边界、chunk、签名或指令。；依据: F:/fd2sdl-evidence/s5-20261114/callback51-old-mapping-red01/comparison.json原CPU36、旧C13实际story11红件保留；callback51-source-c15-01/comparison.json独立原CPU36与真实C39（3错ACK/HOST/error）通过，probe SHA6a2ec667649b7baac8300b511a9467956918ba0ae1f78af15cb7065af00b8867。该门为真实Game/Loot有限consumer，渲染/键盘及原child呈现为明确替身，不证明原生、全RNG/时钟或完整游戏。
+void __cdecl sub_355F0(unsigned __int8 *a1)
 {
   _DWORD v1[3]; // [esp-Ch] [ebp-Ch] BYREF
 
@@ -24561,6 +24597,7 @@ int sub_362C5()
  * callers: 0x117e7, 0x16f55, 0x190ac, 0x1a813, 0x1aa1d, 0x1d80b, 0x1d8ba
  * callees: 0x10b4e, 0x135dd, 0x15f84, 0x33f78, 0x344f2, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] dispatch:event_callback:082→common.callback.082。STATE16=0..4完整caller：故事s+2、reverse24-s、追加group s及25+2s/26+2s传送；s4改raw20 AI低域11。末display1，不递增STATE16；共享35f6e由完整34b6f/35022 owner承担，不能称unowned或新函数。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9_
 void __usercall sub_362E8(unsigned __int8 *a1@<edi>)
 {
   watcom_stack_check(40);
@@ -26312,6 +26349,7 @@ int __cdecl _doclose(int a1, int a2)
  * callers: 0x10010, 0x1088d, 0x10c50, 0x112a5, 0x11506, 0x11eb0, 0x16e24, 0x175a9, 0x17643, 0x17aed, 0x17e0b, 0x182ad, 0x18312, 0x1839b, 0x18409, 0x1956b, 0x196cb, 0x1974c, 0x197e5, 0x19953, 0x19df7, 0x1af1e, 0x1af99, 0x1b019, 0x1b0ad, 0x1b14b, 0x1b1e7, 0x1b653, 0x1b6b7, 0x1b8e7, 0x1b932, 0x1bffe, 0x1c2da, 0x1c4cc, 0x1cd17, 0x1cff0, 0x1db65, 0x1df58, 0x1f1cc, 0x1f30a, 0x2000a, 0x2189a, 0x21eb1, 0x22253, 0x22470, 0x22547, 0x22656, 0x24336, 0x24618, 0x24d22, 0x25ebb, 0x265ec, 0x2670e, 0x26996, 0x26c9b, 0x26ce4, 0x27738, 0x27816, 0x278e7, 0x279bc, 0x27d33, 0x27f4a, 0x29300, 0x2968d, 0x2986f, 0x29bcb, 0x29daa, 0x2a29d, 0x2a857, 0x2af28, 0x2b4fb, 0x2b67f, 0x2b777, 0x2b843, 0x2d80d, 0x2fb2c, 0x31529, 0x31c49, 0x32999, 0x34366, 0x3f950, 0x423e0, 0x43270, 0x443d0, 0x44af0, 0x452f0
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 保FLIRT memmove原名/类型。仅在上述完整31529自然栈链，入口push ESI的保存槽成为下一2ebe1局部HP cell末写；值0xaf8c0由上层VGA最后scanline给出。这是已证caller栈别名，不把通用memmove重命名成HP初始化函数。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b140ebd384614b61c8991afad8583aa45ae079 登记53A45热owner、credits之后时点、WORD写及音频门。montage-actualC18-01/compariso
 char *__cdecl memmove(char *a1, char *a2, unsigned int a3)
 {
   char *result; // eax

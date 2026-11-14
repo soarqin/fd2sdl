@@ -84,14 +84,14 @@ def continue_stage(capture,p,cp):
     cp('s3-formal-continue-stage2',lambda f:natural.focus_match(f,p['original'],p['source'],p['assets']),timeout=90)
 
 
-def save_activity(capture,p,state,save,guard,record,cp,label,validate):
+def save_activity(capture,p,state,save,guard,record,cp,label,validate,*,load_available=True):
     bank=natural.cursor_bank(p['original'],state,p['assets'])
     tile=natural.empty_tile(p['original'],state,p['assets'],capture.last)
     view=protocol.navigate(capture,p['original'],state,p['assets'],bank,tile['world'],cp,label+'-navigate')
     menu=RoundOracle(p['assets'],screen(view,tile['world']))
     capture.key('ENTER');cp(label+'-system',lambda f:menu.menu(f,0))
-    capture.key('ENTER');cp(label+'-secondary',lambda f:menu.secondary(f,0))
-    capture.key('LEFT');cp(label+'-save-selected',lambda f:menu.secondary(f,1))
+    capture.key('ENTER');cp(label+'-secondary',lambda f:menu.secondary(f,0,load_available=load_available))
+    capture.key('LEFT');cp(label+'-save-selected',lambda f:menu.secondary(f,1,load_available=load_available))
     capture.key('ENTER');cp(label+'-save-yes',lambda f:menu.buttons(f,0))
     before=oracle.decode_save(save);capture.key('ENTER');after=wait_measured_save(save,*guard)
     guard[:]=[save.read_bytes(),save.stat().st_mtime_ns]
@@ -143,7 +143,8 @@ def turn3_storage(capture,p,save,guard,record):
 
 def preparation_town(p,state):
     assets=resources(p['original']);raw=p['data']['raw'];stage=state['stage'];row=raw[0x6238d+(stage-1)*31:0x6238d+stage*31]
-    if stage not in (3,12) or row[0]!=(0 if stage==3 else 1):raise ValueError('准备页不是stage3/type0或stage12/type1的固定来源域')
+    expected_type={3:0,12:1,21:1}.get(stage)
+    if expected_type is None or row[0]!=expected_type:raise ValueError('准备页不在已核stage3/type0、12/21/type1来源域')
     city_type=row[0];other=(p['original']/'FDOTHER.DAT').read_bytes()
     from run_original_comparison import archive_entry,decode_image
     assets['background']=decode_image(archive_entry(other,raw[0x52405+city_type]));assets['background'].putpalette(assets['palette'])
@@ -160,22 +161,28 @@ def preparation_town(p,state):
     return {'assets':assets,'towns':towns,'source_stage':stage,'source_prepare_type':city_type}
 
 
-def manual_slots(capture,p,save,guard,record,state):
+def manual_slots(capture,p,save,guard,record,state,*,label_prefix=None):
+    # 只参数化证据标签/文件名；旧S3默认完全保留，Town/输入/全容器判据不变。
+    if label_prefix is not None and (not isinstance(label_prefix,str) or not label_prefix or
+        any(not ch.isascii() or not(ch.isalnum() or ch in '-_') for ch in label_prefix)):
+        raise ValueError('手工四槽证据前缀必须是非空ASCII标识符')
+    stage_label=label_prefix if label_prefix is not None else 's3-stage3'
+    common_label=label_prefix if label_prefix is not None else 's3'
     cp=checkpoint(capture,record,save,guard);town=preparation_town(p,state);assets=town['assets']
-    cp('s3-stage3-prepare',lambda f:town_match(f,town,0),timeout=90)
+    cp(stage_label+'-prepare',lambda f:town_match(f,town,0),timeout=90)
     def hotel(selected,fragment):
         notice=notice_resources(p['original'],assets,fragment)
         return lambda f:dict(found,notice=text) if (found:=hotel_menu_state(f,assets,selected)) and (text:=notice_match(f,notice,p['assets'])) else None
-    capture.key('ENTER');cp('s3-stage3-hotel',hotel(0,585))
-    capture.key('RIGHT');cp('s3-stage3-save-command',hotel(1,585));capture.key('ENTER')
+    capture.key('ENTER');cp(stage_label+'-hotel',hotel(0,585))
+    capture.key('RIGHT');cp(stage_label+'-save-command',hotel(1,585));capture.key('ENTER')
     before=oracle.decode_save(save);record['manual_saves']=[]
     for slot in range(4):
         if slot:capture.key('DOWN')
-        cp('s3-picker-'+str(slot),lambda f,s=slot,b=before:picker_match(f,picker_image(assets,b,s)),allow_low_color_resource=True)
+        cp(common_label+'-picker-'+str(slot),lambda f,s=slot,b=before:picker_match(f,picker_image(assets,b,s)),allow_low_color_resource=True)
         capture.key('ENTER');after=wait_measured_save(save,*guard);guard[:]=[save.read_bytes(),save.stat().st_mtime_ns]
-        target=capture.artifacts/('s3-stage3-manual'+str(slot)+'.SAV');target.write_bytes(guard[0])
+        target=capture.artifacts/(stage_label+'-manual'+str(slot)+'.SAV');target.write_bytes(guard[0])
         check=oracle.check_manual(before,after,state,slot);record['manual_saves'].append({'slot':slot,'snapshot':str(target),'sha256':sha(target),'measurement':check})
-        cp('s3-manual-saved-'+str(slot),lambda f:notice_match(f,notice_resources(p['original'],assets,660),p['assets']))
+        cp(common_label+'-manual-saved-'+str(slot),lambda f:notice_match(f,notice_resources(p['original'],assets,660),p['assets']))
         capture.key('ENTER');before=after
     record['completed_save']={'snapshot':str(target),'sha256':sha(target),'mtime_ns':guard[1]}
 

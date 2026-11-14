@@ -16,7 +16,7 @@ import convert_stage_callbacks as callbacks
 from stage_source_ledger import validate_output
 
 
-def bound_callbacks(document, decisions):
+def bound_callbacks(document, decisions, separate82=None):
     by_slot = {row['slot']: row for row in decisions}
     for identity, definition in sorted(document.get('bindings', {}).items()):
         match = re.fullmatch(r'stage\.(\d{3})\.action\.(\d{3})', identity)
@@ -26,24 +26,49 @@ def bound_callbacks(document, decisions):
         if stage < 2:
             continue
         row = by_slot.get(slot)
-        if stage > 19 or row is None or definition != row.get('definition') or row.get('blocker'):
+        if slot==82:
+            if (separate82 is None or stage!=29 or identity!=separate82.get('binding_id') or
+                    definition!=separate82.get('definition') or row is None or
+                    row.get('source_id')!=separate82.get('source_id') or
+                    row.get('target_va')!=separate82.get('target_va') or
+                    not any(s.startswith('stage:29:') for s in row.get('caller_sources',[]))):
+                raise ValueError('callback82 requires separate complete S5 source/actual Scene-Play proof; pure ACK probe cannot sign teleport writes')
+            yield identity,stage,{**row,'definition':definition,'disposition':'separately_verified',
+                                  'separate_proof':separate82}
+            continue
+        if stage > 29 or row is None or definition != row.get('definition') or row.get('blocker'):
             raise ValueError(f'正式callback绑定无已证目标/域: {identity}')
         if not any(source.startswith(f'stage:{stage:02d}:') for source in row.get('caller_sources', [])):
             raise ValueError(f'正式callback绑定无此stage原caller: {identity}')
         yield identity, stage, row
 
 
-def build(original, ledger_directory, domain_path, image_path, candidate_path, c_probe):
+def build(original, ledger_directory, domain_path, image_path, candidate_path, c_probe, callback82_proof=None):
+    own_path=Path(__file__);own_raw=own_path.read_bytes()
     ledger, _, domain, image, sources, snapshots = callbacks.load_inputs(
         original, ledger_directory, domain_path, image_path)
     document = json.loads(snapshots[callbacks.ROOT / 'data/static/flows/common_event.json'])
     candidate_raw = Path(candidate_path).read_bytes()
     candidate = json.loads(candidate_raw)
+    snapshots[own_path]=own_raw
+    separate82=None
+    if callback82_proof:
+        import s5_callback82_proof
+        stage_path=callbacks.ROOT/'data/static/flows/stage.json'
+        snapshots[stage_path]=stage_path.read_bytes()
+        stage=json.loads(snapshots[stage_path],object_pairs_hook=callbacks.audit.unique_keys)
+        decision=next((r for r in candidate['decisions'] if r['slot']==82),None)
+        if decision is None:raise ValueError('callback82 candidate source row missing')
+        separate82,inputs=s5_callback82_proof.validate(callback82_proof,document,stage,decision,ledger,image)
+        snapshots.update(inputs)
     actual = {flow['id']: flow for flow in document['flows']}
     field = callbacks.audit.archive_entries(sources['FDFIELD.DAT'])
     scripts = callbacks.audit.source_scripts(Path(original) / 'FD2.EXE')
-    traces, bindings, inherited = [], [], []
-    for identity, stage, row in bound_callbacks(document, candidate['decisions']):
+    traces, bindings, inherited, separate = [], [], [], []
+    for identity, stage, row in bound_callbacks(document, candidate['decisions'],separate82):
+        if row['disposition']=='separately_verified':
+            separate.append(row['separate_proof'])
+            continue
         if row['disposition'] != 'converted_candidate':
             inherited.append({'binding_id': identity, 'stage': stage, 'slot': row['slot'],
                               'definition': row['definition'],
@@ -89,10 +114,13 @@ def build(original, ledger_directory, domain_path, image_path, candidate_path, c
             'summary': {'new_template_bindings_compared': len(bindings),
                         'different_definitions_compared': len({r['definition'] for r in bindings}),
                         'original_vectors': len(traces), 'inherited_template_bindings': len(inherited),
+                        'separately_verified_bindings':len(separate),
+                        'callback82_generic_ACK_vectors':0,
                         'C_normal': comparison['normal_cases'],
                         'C_wait_prefix': sum(row['mode'] in (1, 2, 3) for row in comparison['cases']),
                         'C_capacity': comparison['capacity_refusal_cases']},
             'bindings': bindings, 'existing_template_caller_proof_separate': inherited,
+            'separately_verified':separate,
             'scope': 'explicit caller stages and both original conditional edges, actual C begin/peek/reply; original leaf stubs and appended constructor-region exclusions remain; not native GUI/natural reachability/all-state coverage'}, comparison
 
 
@@ -100,10 +128,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('original', 'ledger-dir', 'domain', 'image', 'candidates', 'c-probe', 'output-dir'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--callback82-proof',type=Path)
     args = parser.parse_args()
     try:
-        output = validate_output(args.output_dir, original=args.original)
-        report, comparison = build(args.original, args.ledger_dir, args.domain, args.image, args.candidates, args.c_probe)
+        if args.callback82_proof:
+            from s5_output import validate_output as s5_output
+            output=s5_output(args.output_dir,args.original)
+        else:output = validate_output(args.output_dir, original=args.original)
+        report, comparison = build(args.original, args.ledger_dir, args.domain, args.image, args.candidates, args.c_probe,args.callback82_proof)
         output.mkdir(parents=True)
         for name, value in [('bindings.json', report), ('C-original-comparison.json', comparison)]:
             (output / name).write_text(callbacks.encode(value), encoding='utf-8')

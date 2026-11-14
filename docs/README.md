@@ -6,24 +6,25 @@
 
 - [总计划](plans/development.md)：下一执行阶段、**唯一当前待办顺序**、补充阶段、状态依据及测试门。
 - [已完成阶段归档](plans/completed-stages.md)：B／A／R／SD／G／S完成摘要、提交、长历史和收据索引；不维护当前优先级。
-- [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类、新旧工作项映射及进入关卡阶段的完成门；顺序仍以总计划为准。
+- [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类及S5来源／有限消费者增量；顺序和完成状态仍以总计划为准。
 - [静态数据层与事件流程](plans/static-data.md)：已完成的 SD1—SD3 调研与工作包；覆盖冷定义、可修改的事件分支与编排、提取／验证和存档边界。
 - [关卡批量读取与转换调研](plans/stage-batch.md)：全量来源盘点、真实转换样例、能力上限、可复跑研究；研究候选不等于当前阶段实施，状态只查总计划。
 - [S2共享语义报告](plans/s2-shared-semantics.md)：冻结来源图、有限能力和隔离依赖，保留当时机制证据。
 - [S3批量正式接入报告](plans/s3-batch-integration.md)：实际批次／绑定、共享修正、五层验收与未开放原因；当前状态只查总计划。
 - [S4统一审查报告](plans/s4-unified-review.md)：旧调色调用修正、冻结支持域、全历史门的实际运行／严格继承和残余边界；当前状态只查总计划。
+- [S5隔离闭合与后续批量接入](plans/s5-batch-expansion.md)：stage20—29已证支持域、C22来源／consumer与各候选原生身份；resource30内部、默认255和31／32人数边界分账，提交／集成状态只查总计划与收据。
 - [战场工作包](plans/battlefield.md)：B0～B7 的范围和验收。
 - [音频工作包](plans/audio.md)：A0～A8 已有支持范围和证据边界；后续随通用机制与场景补证。
 
 ## 系统设计
 
-- [战场 session](systems/battle-session.md)：状态／资源 owner、动作与 RNG 提交、必需事件、结果、存档和跨关交接。
+- [战场 session](systems/battle-session.md)：状态／资源owner、动作与RNG提交、存取／交接，以及S5 source纯等待、薄binder、真实HP／xy及HOST前缀。
 - [输入](systems/input.md)：原版键值语义、逐呈现帧采样和 SDL 宿主边界。
 
 ## 数据格式
 
 - [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
-- [关卡来源账与批量夹具](formats/stage-source-ledger.md)：S1 固定 schema、原字节／caller／引用、全量去向、异常队列与复跑入口；不是 App 数据或玩法脚本。
+- [关卡来源账与批量夹具](formats/stage-source-ledger.md)：S1固定schema、S5去向／82分层、C22双TU／CMake编译身份与输入继承；不是App数据、第二份冷定义或玩法完成清单。
 - [文字映射](formats/font-text-mapping.md)：FDTXT token、Unicode 和缺字规则。
 - [字形映射表](formats/font-glyph-map.tsv)：完整映射数据。
 

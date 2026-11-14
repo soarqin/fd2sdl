@@ -287,6 +287,7 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define fd2_scene_stage_victory_validate scene_test_stage_victory_validate
 #define fd2_scene_play_stage_entry scene_test_stage_entry
 #define fd2_scene_play_stage_source_flow scene_test_stage_source_flow
+#define fd2_scene_play_teleport_scope scene_test_teleport_scope
 #define fd2_scene_common_step_validate_resource_view scene_test_common_step_validate_resource_view
 #define fd2_scene_play_stage_victory scene_test_stage_victory
 #define fd2_scene_play_stage1_victory scene_test_stage1_victory
@@ -340,6 +341,7 @@ int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
 #undef fd2_scene_stage_victory_validate
 #undef fd2_scene_play_stage_entry
 #undef fd2_scene_play_stage_source_flow
+#undef fd2_scene_play_teleport_scope
 #undef fd2_scene_common_step_validate_resource_view
 #undef fd2_scene_play_stage_victory
 #undef fd2_scene_play_stage1_victory
@@ -1028,10 +1030,10 @@ static int test_stage2_presentation(const fd2_archive *fdother) {
     for(size_t i=0;i<15;i++)expected_units.items[i].direction=0;
     fd2_vga vga;reset_controls(&vga);trace_fragments=1;
     CHECK(scene_test_stage2_entry(&vga,fdother,game,NULL,1)==0);
-    /* 每叶先纯资源验证再呈现；原caller只有0→1→2→3四段，
-     * 不能再期待旧“整图预跑四段，再重放四段”的读取次序。 */
-    const size_t expected[]={0,0,1,1,2,2,3,3};
-    CHECK(fragment_log_count==8 && !memcmp(fragment_log,expected,sizeof(expected)));
+    /* 无外部event_preflight时，opening_text本身按实际借用入口逐叶预检；
+     * 原32e8c只有0→1→2→3，不额外按可变Game.stage重开并重复读取。 */
+    const size_t expected[]={0,1,2,3};
+    CHECK(fragment_log_count==4 && !memcmp(fragment_log,expected,sizeof(expected)));
     CHECK(game->units.count==15 && game->stage==2 && game->turn_number==1 && game->active_side==2);
     /* 32e8c fragment3 text8先聚焦(7,24)，12cea滚至map高26-8=18；
      * 最后12d7b Hero(7,22)保rel(4,4)。镜头终态属于完整Scene的handoff，

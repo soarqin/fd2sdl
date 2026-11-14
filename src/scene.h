@@ -8,6 +8,7 @@
 #include "field_handoff.h"
 #include "vga.h"
 #include "text.h"
+#include "scene_teleport.h"
 
 /* App/Game借用：Scene不自seed、不另存消息值或视觉phase。-4/-5实际查UI0，
  * -6使用message_number；new/old/value均是原App DWORD的当前投影。 */
@@ -30,6 +31,9 @@ int fd2_scene_palette_fade(fd2_vga *vga, int fade_in, int fast);
 /* field_stage_transition_effect @0x24618（原登记同名）的500ms/32级加白尾。
  * 只消费固定冷子图，返回Scene状态；不重放转场帧或修改Game。 */
 int fd2_scene_stage_transition_finish(fd2_vga *vga);
+/* callback82与stage源共用同一个有限传送冷子图；scope由当前Play调用拥有。 */
+int fd2_scene_play_teleport_scope(fd2_vga *vga,const fd2_archive *fdother,
+    fd2_field_game *game,fd2_field_audio *audio,int fast,fd2_scene_teleport_scope **scope);
 
 /* 完整新游戏初始过场预览。
  *

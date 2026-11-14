@@ -192,6 +192,9 @@ set(FD2SDL_CORE_SOURCES
     map_sprite.c
     save.c
     scene.c
+    scene_transition.c
+    scene_teleport.c
+    scene_cinematic.c
     animation.c
     vga.c
     palette.c
@@ -725,6 +728,49 @@ if(BUILD_TESTING)
     target_link_libraries(fd2_field_source_projection_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_source_projection COMMAND fd2_field_source_projection_test)
     set_tests_properties(field_source_projection PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_scene_transition_source_test tests/scene_transition_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_scene_transition_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_scene_transition_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_transition_source COMMAND fd2_scene_transition_source_test)
+    set_tests_properties(s5_transition_source PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_scene_teleport_source_test tests/scene_teleport_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_scene_teleport_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_scene_teleport_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_teleport_source COMMAND fd2_scene_teleport_source_test)
+    set_tests_properties(s5_teleport_source PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_s5_callback82_test tests/field_s5_callback82_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_s5_callback82_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_s5_callback82_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_callback82_projection COMMAND fd2_field_s5_callback82_test)
+    set_tests_properties(s5_callback82_projection PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_s5_callback82_play_test tests/field_s5_callback82_play_test.c
+        tests/field_s5_callback82_scope_checks.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_s5_callback82_play_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_s5_callback82_play_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_callback82_play COMMAND fd2_field_s5_callback82_play_test)
+    set_tests_properties(s5_callback82_play PROPERTIES TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_s5_owner_test tests/field_s5_owner_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_s5_owner_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_s5_owner_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_owner COMMAND fd2_field_s5_owner_test)
+    set_tests_properties(s5_owner PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_scene_cinematic_test tests/scene_cinematic_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_scene_cinematic_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_scene_cinematic_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_cinematic COMMAND fd2_scene_cinematic_test)
+    set_tests_properties(s5_cinematic PROPERTIES TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+    add_executable(fd2_s5_stage_source_test tests/s5_stage_source_test.c field_play.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_s5_stage_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_s5_stage_source_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME s5_stage_source COMMAND fd2_s5_stage_source_test)
+    set_tests_properties(s5_stage_source PROPERTIES TIMEOUT 90 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_s2_transition_source_test tests/s2_transition_source_test.c $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_s2_transition_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -1716,6 +1762,10 @@ if(BUILD_TESTING)
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_data.py)
     add_test(NAME static_flow_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_flows.py)
+    add_test(NAME s5_source_tools COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p "test_s5_*.py")
+    set_tests_properties(s5_source_tools PROPERTIES TIMEOUT 120
+        WORKING_DIRECTORY "${FD2_STATIC_ROOT}")
     add_test(NAME inventory_source_gate COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_inventory_sources.py)
     add_test(NAME g2_battle_oracle COMMAND ${Python3_EXECUTABLE} -B -m unittest discover

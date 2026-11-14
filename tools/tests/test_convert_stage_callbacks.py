@@ -21,7 +21,9 @@ class CallbackConversionTest(unittest.TestCase):
         self.assertEqual(set(self.programs) | set(converter.EXISTING) | {82}, set(range(90)))
         self.assertFalse(set(self.programs) & set(converter.EXISTING))
         self.assertNotIn(82, self.programs)
-        self.assertEqual(len(converter.EXISTING), 16)
+        # S2旧17→S3纠正41后16；S5再独立纠正51，共15，旧收据不改签。
+        self.assertEqual(len(converter.EXISTING), 15)
+        self.assertEqual(self.programs[51], [('loot_child',[2,-1]),('story',[3])])
 
     def test_existing_reference_requires_full_graph_digest(self):
         flows = {flow["id"]: flow for flow in self.document["flows"]}
@@ -48,7 +50,7 @@ class CallbackConversionTest(unittest.TestCase):
     def test_all_generated_edges_and_arg_widths_validate(self):
         flows = [converter.cold_flow(f"test.{slot}", program) for slot, program in self.programs.items()]
         converter.validate_candidates(flows, self.ops)
-        self.assertEqual(len(flows), 73)
+        self.assertEqual(len(flows), 74)  # S3 73 + S5完整355f0参数纠正51。
         self.assertEqual(len(converter.cold_flow("pulse", self.programs[76])["nodes"]), 1546)
 
     def test_nested_branches_have_unique_nodes_and_both_paths(self):

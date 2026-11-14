@@ -132,12 +132,31 @@ def validate_release_scope(document, path, executable, root=ROOT):
     proofs = evidence.get('fd2-s3-callback-binding-source-v1', [])
     if len(overlays) != 1 or len(callbacks) != 1 or len(proofs) != 1:
         raise ValueError('发布域缺冻结S2去向及唯一S3 callback来源关联')
-    dispatch, _ = release.refine_callbacks(release.read(overlays[0])['dispatch'], callbacks[0], proofs[0])
+    proofs51=evidence.get('fd2-s5-callback51-source-v1',[])
+    if len(proofs51)>1:raise ValueError('发布域callback51来源证明重复')
+    dispatch, _ = release.refine_callbacks(release.read(overlays[0])['dispatch'], callbacks[0], proofs[0],
+                                          proofs51[0] if proofs51 else None)
     sources = release.ledger_tool.Sources(Path(executable).parent)
     flows, aliases, _ = release.audit.load_definitions(root/'data/static')
     actual = {flow['id']: flow for flow in document['flows']}
     current_flows = {**flows, **actual}
     current_aliases = {**aliases, **document['bindings']}
+    # S5只接收scope已记录的唯一完整来源扩展；仍复用同一原槽→图的拒绝门。
+    # 本工具不借此给新增callback82/终章签G4六图语义或实际运行证明。
+    extensions=[]
+    for name in inputs:
+        if Path(name).name=='conversion.json':
+            candidate=release.read(name)
+            if candidate.get('schema')=='fd2-s5-transition-candidates-v1':extensions.append(candidate)
+    if scope.get('S5_source_refinements'):
+        if len(extensions)!=1:raise ValueError('发布域缺唯一S5完整来源扩展身份')
+        catalog={(d['domain'],f['id']):f for p in (root/'data/static/flows').glob('*.json')
+                 for d in [release.read(p)] for f in d['flows']}
+        catalog.update({('common_event',f['id']):f for f in document['flows']})
+        dispatch,changes,_=release.disposition.apply_source_extension(list(dispatch.values()),extensions[0],catalog)
+        if changes!=scope['S5_source_refinements']:raise ValueError('S5来源变更去向不同于当前scope')
+    elif extensions:
+        raise ValueError('S5扩展不能脱离scope来源去向声明')
     inventory = release.audit.audit(Path(executable).parent, root/'data/static', root/'docs/generated/ida-canonical')
     required_bindings = set()
     for stage in inventory['stages']:

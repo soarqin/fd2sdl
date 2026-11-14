@@ -96,9 +96,9 @@ G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点�
 
 G4 冻结时，`common_event.json` 有47个有限操作、15份未绑定来源流程和115个节点。G5 冻结为54个操作、21份流程和183个节点，六个既有正式身份为stage000 action0..4及stage001 action6；其自然入口证据与15份机制来源夹具分开。`verify_common_events.py` 独立核原完整函数／显式片段、17 byte 原表及冷控制；`verify_fd2_legacy_events.py` 另核六个原 caller 的实际调用／写序。线性身份投影检查 future raw／MOVE，但不证明任意分支组合的完整未来资源。G5 冻结时 common39 是非 shipping 显式alias，空槽／满包取消／死亡反馈配对不自动成为自然 stage 绑定，也不表示21图全部有原生证据。G4 的30项局部机器码差分与原生范围见[共享运行语义 §9](../reverse-engineering/common-runtime-semantics.md#9-g4-有限通用事件续态与有效域)；G5 实际候选和剩余门见统一审计及阶段记录。
 
-当前存在 S3 新增正式绑定时，`verify_common_events.py` 必须同时给出 `--release-scope`。先按下文 [S3 入口](#s3-正式绑定与发布域校验)运行 `stage_release_scope.py`，输出到新的 `build/s4/` 子目录，再传该批 `scope.json`；下例 `NEW` 必须替换为刚生成的当前目录；输入变化后须重新生成，不复用 S3 或 S4 旧摘要。验证器复用原来源读取与当前 capability，核收据全部输入摘要，并从固定 S2 去向与 S3 callback 来源重建原 owner／definition 关联，再按真实 DAT 和当前 capability 核 caller 集合；逐 alias 检查原槽／fixup target／唯一图摘要和完整映射。不能仅凭收据自报闭合，或共同改写 scope、alias 与输入摘要，把原槽接到另一份已有图。旧 21 图／6 绑定的语义计数不变，新增 44 个绑定仅列为来源已核、未由本工具签语义；缺收据、陈旧输入、未知／隔离／错 alias 或同 ID 换图均拒绝。仅含原六个绑定的独立 G4 fixture 仍可不提供该参数。
+存在原六个 legacy alias 之外的正式绑定时，`verify_common_events.py` 必须同时给出 `--release-scope`。S4 的44个新增 alias 及下例 `build/s4/` 路径保留历史；当前 S5 应使用下文 [S5 入口](#s5-扩展正式参数与独立-82-门)新生成的完整发布域收据。输入变化后须重新生成，不复用旧摘要。验证器复用原来源读取与当前 capability，核收据全部输入摘要，并从固定 S2 去向及明确的 S3／S5 来源扩展重建原 owner／definition 关联，再按真实 DAT 核 caller 集合；逐 alias 检查原槽／fixup target／唯一图摘要和完整映射。不能共同改写 scope、alias 与输入摘要，把原槽接到另一份已有图。旧21图／6绑定的语义计数不变；S5 当前84个额外 alias 只列为来源已核、未由本工具签语义。缺收据、陈旧输入、未知／隔离／错 alias 或同 ID 换图均拒绝。仅含原六绑定的独立 G4 fixture 仍可不提供该参数。
 
-`verify_fd2_legacy_events.py` 共享同一个发布域收据门，新增参数为 `--release-scope PATH --executable FD2.EXE`；其原指令执行仍只签六个完整 caller，不借此扩成 44 个新 caller 的原码证明。
+`verify_fd2_legacy_events.py` 共享同一个发布域收据门，新增参数为 `--release-scope PATH --executable FD2.EXE`；其原指令执行仍只签六个完整 caller，不借此给额外 alias 签原码证明。
 
 `run_g4_common_event_check.py` 的准备和实际运行也透传 `--release-scope PATH`，并把收据纳入实际运行输入守卫。prepare-only 继续不启动窗口；原码、C consumer 和原生门仍分别登记，不能借收据把新增绑定计入 G4 的既有原义范围。
 
@@ -205,7 +205,7 @@ callback 的原码／C 比较明确替换构造器新增记录区域、stats、r
 
 ## S3 正式绑定与发布域校验
 
-S3 在唯一 `data/static/` 定义和精确 caller 绑定上核发布闭包，不修改 S1 来源包或 S2 历史报告。当前转换器已修正 callback41 的旧来源引用；上节 S2 的 72 槽／66 图／17 个既有引用是当时冻结计数，复现它们须使用相应历史工具输入。当前工具重新生成的 S3 候选为 73 槽／67 图／16 个既有引用，callback82 仍阻塞。两批不得混签。
+S3 在唯一 `data/static/` 定义和精确 caller 绑定上核发布闭包，不修改 S1 来源包或 S2 历史报告。S3 转换器修正 callback41 的旧来源引用；上节 S2 的 72 槽／66 图／17 个既有引用是当时冻结计数，复现它们须使用相应历史工具输入。S3 冻结候选为 73 槽／67 图／16 个既有引用，callback82 当时仍阻塞。当前 S5 工具和绑定见下节，不能用当前工具为旧批次补签。
 
 下面按原 caller 参数、完整 callback 候选、逐正式绑定轨迹、发布域闭包的顺序执行。`NEW` 替换为各自尚不存在的目录名；这些命令只读原资源，不启动 GUI，不写正式定义。Windows 示例使用本轮实际主项目资源与严格镜像路径：
 
@@ -246,11 +246,68 @@ python3 -B -m unittest tools.tests.test_s3_callback_binding_source tools.tests.t
 
 这三份原码／C 报告使用冻结 09 callback probe，SHA256 为 `4d0d880192e71acee202007cb03d9a6b0cad96d5c040f4954e17c999c81b9c79`。后续构建必须登记自己的 probe 身份，不能沿用这个摘要或通过结论。原指令比较中的构造区域、stats、renderer／text／keyboard、child 呈现等替身按各报告声明保留；实际 C 使用正式 Game `begin/peek/reply` 和 Loot 业务。它们不证明自然可达性、全部 RNG／像素／时序，原生窗口与少量原版代表另记。
 
-`stage_release_scope.py` 直接复核固定 S1 包／S2 去向、原 DAT、当前唯一图及正式绑定；输出不参与 App 构建。它核每个胜利成功边的 next_stage→正式 entry／capability／原 31 B 准备记录闭包，2..19 交接到 3..20。stage20 仅入场、浏览、已证准备和存取；battle／END 关闭，不能因 entry 图存在越过 victory20 隔离。13 个未决源槽及 14 条受影响来源仍保留，精确列表见[来源账的 S3 合同](../formats/stage-source-ledger.md#s3-发布域与活动恢复合同)。
+`stage_release_scope.py` 直接复核固定 S1 包／S2 去向、原 DAT、当前唯一图及正式绑定；输出不参与 App 构建。S3 冻结域核每个胜利成功边的 next_stage→正式 entry／capability／原 31 B 准备记录闭包，2..19 交接到 3..20。S3 当时的 stage20 仅入场、浏览、已证准备和存取，battle／END 关闭；13 个未决源槽及 14 条受影响来源另保留。精确历史列表见[来源账的 S3 合同](../formats/stage-source-ledger.md#s3-发布域与活动恢复合同)，S5 不回写这些旧收据。
 
 source-bound capability 的 `preparation_slots=0` 表示部署容量从原 DAT metadata 读取，不表示零个部署槽；snapshot `min/exact` 上限为 96，部署字段上限为 20。`exact=0` 允许真实增援及 hidden 状态，人数下界来自完整 entry 的成功路径。Load 保留已存 metadata／schedule_turn／未知字节，不强迫与原 metadata 恒等，也不重放 entry。条件 raw 读取仍在实际到达叶核前缀，不能把未来最大 raw 下标变成所有存档的统一人数门。
 
 默认 turn255 不因发布而消失：全 S1 仍有 450 条拒绝来源（战场表0..29 为 406，资源组30..32 为 44）；本发布域2..20 为 265 条，其中 battle2..19 为 254，entry-only20 为 11。Load 可保留这些槽，到实际 turn255／phase0 分派 callback255 时明确拒绝。`scope.json` 的 `structural_binding_scope_closed=true` 与逐关 `strict_supported=false` 可以同时成立；结构、正式绑定、实际消费者和原生验收分别签核，不把严格审计改成全玩法通过。
+
+## S5 扩展、正式参数与独立 82 门
+
+S5适用实现与验收门已闭合：stage0／1保原范围，stage2..29已证战斗／END／事件／胜败交接及结局；resource30只为内部尾声，默认255拒绝不变。提交／本地集成只查[总计划](../plans/development.md)。继续引用同一S1来源ID、S2冻结去向和原DAT；`s5_stage_transitions.py`先过原S2完整80-owner门，再严格合并新增完整owner／chunk／逐指令字节／CFG／xref，不据附近CALL猜流程。source10的141-owner索引、13来源槽、20图和17,002节点是不同粒度，不表示141种机制或全玩法通过。
+
+首次生成需要完整扩展读集、严格 relocated 镜像、cinematic 有限 ABI 合同，以及原 montage 自然 caller 证明。当前来源资格为 `victory-stack02/domain07.json` 和 `natural-stack-cpu03.json`；旧 `domain01` 将指令内部 `0x37040` 当入口的探索记录已被严格门拒绝，保留失败原件，不能过滤 requested-entry 后给旧输入改签。CPU03 分列 60 个原 intro、40 个连接原 caller 和 80 个派生 WORD body 向量；只闭合 `31529` 的 20 组非 split 参数域。该域的 DWORD `719040` 由真实调用栈末写提供，marker 按原宽度写 WORD `63680`，不能推成所有 `2ebe1` caller 的通用 HP 默认值。
+
+`stage.cinematic.montage_round` 是第六份固定 cinematic 子图。RNG、至多两轮、marker、HP 写、逐 part／tick、等待及第二侧最后 marker 后返回仍在冷图；C 只提供有界资源和单帧操作。资源实际给出 part／duration，超出已证 22 part／10 tick、split 或缺 marker 时拒绝。普通 stage30 战场能力没有开放；26 坏结局保热 stage26、借 resource30，29 先改热 stage30，最终 `terminal_wait` 没有正常返回端口。
+
+callback51 另有来源勘误：`355f0` 经 `35631 push3 → 35633 JMP3530d`，要求 descriptor 索引2的 mode0／item101 child 后 story3。`common.callback.051` 承接新 caller，旧 `common.loot.child.2` 的 story11 图及 S2 旧报告不改签。当前通用 converter 为 74 个转换槽／68 图／2,049 节点、15 个既有引用；90 槽中的 82 仍由通用工具明确拒绝，并由下面的独立门接入。
+
+| 工具／产物 | 实际合同 |
+|---|---|
+| `s5_stage_transitions.py`／`conversion.json` | 只生成来源候选和可审阅 `s5_extension`，不安装定义或绑定。`--montage-source-proof`／`--montage-readset` 必填；完整复跑 argv 见本地 `build/s5/source-B-candidate10-index.json` |
+| `s5_stage_resources.py`／`references.json` | 检查固定调用闭包、原资源身份、literal entry／frame／RLE、文本资源重绑和 owner。当前 1,873 条引用对应 154 个不同 archive entry；FDOTHER 3 份 sheet／232 part 与 montage FIGANI 80 entry／630 part 分开统计。动态 roster、头像、未来身份和实际 C 仍单独验 |
+| `s5_release_patch.py`／`patch.json` | 从唯一当前图和原 caller 生成补丁，不写生产 JSON。B 补丁新增 35 alias，保 entry26 原 alias；只替换 26..29 四个 capability。`min=63/34/76/27`、`exact=0`、`slots=0`；部署容量仍只读 DAT |
+| `verify_stage_release_traces.py --callback82-proof` | 读取正式绑定及实际 stage DAT，通用模板走原指令与真实 Game consumer。82 必须连接 `s5_callback82_proof.py` 的分层门，并单列 `separately_verified`；不给通用 ACK probe 添加伪造 teleport 写点或向量 |
+| `s2_source_disposition.py --s5-extension` | 208 槽／193 target、S1 的 315 条未决与 450 条拒绝完整连接。当前 315 条均有来源图或已审 primitive 可用，未知源去向为零；这些状态不批准新运行路径 |
+| `stage_release_scope.py --s5-extension --callback51-source` | 当前2..29正式结构域为163绑定／149个不同target，112条callback源引用；来源、实际consumer与原生门仍分账。379条域内默认turn255拒绝保留；全33资源组仍是450条，其中战场0..29为406、资源30..32为44 |
+| `verify_common_events.py`／`verify_fd2_legacy_events.py` | 使用当前完整 scope 核84个额外 common alias 的来源；前者旧21图、后者六个完整原 caller 的语义域保持。不能将84条来源 join 改称新增84个原码／C机制通过 |
+
+82 分层收据必须同时保留原 `362e8` 的 state16=0..4、`33f78`、完整修正读集、实际 teleport module 8 状态／408 个有序前缀、真实 Play→Scene 的 state0／4 和 ACK／HOST／错误边界，以及 projection 的五状态。工具核当前 20-node `common.callback.082` 与唯一 147-node `stage.source.teleport`，并重新连接 S1 原槽／target／caller、全部输入和二级原码／C 收据。顶层 `passed`、同名图、旧 C14 文件或缺失实际 C 层均不足以通过。分层收据沿既有单行 `json.dumps(sort_keys=True)`、无末换行编码计算图摘要；通用 converter 的 indent2 加末换行摘要是另一个字段域，不能混用。
+
+当前Play层还必须声明`build_target=fd2_field_s5_callback82_play_test`，并在`inputs_sha256`中给出`src/CMakeLists.txt`、main TU和`src/tests/field_s5_callback82_scope_checks.c`。严格门核唯一同名CMake目标确实编译双TU；缺项、错摘要、将TU移接其它目标、重复目标或注释中的假recipe均拒绝。协议仍叫`fd2-s5-callback82-layered-C18-v1`，名称不表示C18执行身份。新TU以真实Scene节点边界在commit后／pre-wipe注入HOST，保六个display／结果前缀和缺cursor门；精确PASS与空stderr要求不变。
+
+C22沿source纯等待自己的0..65535ms域，不能借common `delay_ms` 的1000ms上限或资源hook。正式Play与source Scene的薄binder只复用同一私有preflight及借用fdother两字段，未建第二套validator／Game热状态。C21旧HOST夹具依赖delay资源hook而未注入的失败保原；C22修测试I/O seam，未恢复错误资源门，也未将新HOST组件结果改签为旧delay像素／原版退出证据。
+
+最终工具批次显式固定Python 3.12.10。C18封存和先前3.12解析到3.12.14的收据保原身份；当前精确链见`build/s5/source-final-C22-index02.json`。独立Game三矩阵以C21封存probe及不变声明输入保留：通用原码／C 1,998正常、147等待前缀和1容量；callback51原36／C39；五类caller原180／C192。C22 fresh模块／82及正式参数另签：70模板绑定／67定义、原码／C 1,890正常、147等待前缀和1容量，8个既有模板另账；82单列1个分层绑定，通用ACK向量为0。没有把这些报告统一改名为C22全部重跑，也没有据此签自然App／原生窗口。
+
+本轮原始证据和大产物位于F盘；`original_game/`只读。下列PowerShell命令使用C22闭包及已核仍current的C21 Game输入。复跑须使用新目录；批次`run.py`调用同一公开接口并通过`s5_output.validate_output`保护F输出。复制该本地脚本并更换输出标识，不能覆盖已有批次；Game／Scene探针身份分别保留。完整argv和SHA由上述机读索引记录。
+
+```powershell
+$evidence = 'F:/fd2sdl-evidence/s5-20261114'
+$original = 'E:/Projects/fd2sdl/original_game'
+$image = 'E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin'
+$ledger = 'build/s1/ledger-candidate07'
+$domain = 'build/s2/ida-callbacks/domain-evidence02.json'
+uv run --no-project --python 3.12.10 --with unicorn --with pillow --with capstone --with numpy --with scipy python -B "$evidence/source-C22-driver01/run.py"
+uv run --no-project --python 3.12.10 --with unicorn python -B tools/static_data/verify_stage_release_traces.py --original $original --ledger-dir $ledger --domain $domain --image $image --candidates "$evidence/callback-candidate-c21-01/candidates.json" --c-probe "$evidence/callback82-C22/fd2_s2_callback_source_test.exe" --callback82-proof "$evidence/callback82-C22/callback82-layered-C22.json" --output-dir "$evidence/binding-traces-NEW"
+uv run --no-project --python 3.12.10 python -B tools/static_data/stage_release_scope.py --original $original --ledger $ledger --s2-disposition build/s2/source-disposition-final03/disposition.json --callbacks "$evidence/callback-candidate-c21-01/candidates.json" --transitions build/s2/transitions-candidate18/conversion.json --binding-source "$evidence/callback-binding-source-c21-01/comparison.json" --callback51-source "$evidence/callback51-source-c21-01/comparison.json" --s5-extension "$evidence/transition-candidate10/conversion.json" --battle-stages 2:29 --output "$evidence/scope-NEW"
+uv run --no-project --python 3.12.10 python -B tools/static_data/s2_source_disposition.py --original $original --ledger-dir $ledger --callbacks "$evidence/callback-candidate-c21-01/candidates.json" --transitions build/s2/transitions-candidate18/conversion.json --result-domain build/s2/ida-results/result-domain-02.json --image $image --s5-extension "$evidence/transition-candidate10/conversion.json" --output-dir "$evidence/disposition-NEW"
+uv run --no-project --python 3.12.10 python -B tools/static_data/s5_stage_resources.py --original $original --s5-extension "$evidence/transition-candidate10/conversion.json" --output-dir "$evidence/resources-NEW"
+uv run --no-project --python 3.12.10 python -B tools/static_data/verify_common_events.py "$original/FD2.EXE" --release-scope "$evidence/scope-NEW/scope.json" --json "$evidence/common-source-NEW.json"
+uv run --no-project --python 3.12.10 --with unicorn python -B tools/ida/verify_fd2_legacy_events.py --image $image --field "$original/FDFIELD.DAT" --flows data/static/flows/common_event.json --release-scope "$evidence/scope-NEW/scope.json" --executable "$original/FD2.EXE" --output "$evidence/legacy-source-NEW.json"
+uv run --no-project --python 3.12.10 python -B -m unittest tools.tests.test_s5_callback82_proof tools.tests.test_stage_release_traces tools.tests.test_s5_stage_conversions tools.tests.test_s5_stage_resources tools.tests.test_s5_stage_scope
+```
+
+C19的233路径／223文件和NoTown darkness0资格保历史索引`source-C19-qualification03/index.json`。C22因新TU／CMake依赖扩为七份主报告235路径／225实际文件；合入fresh资源扫描后229个声明文件当前SHA全等，C21继承Game探针与四份C22封存探针另核身份。资源扫描`source-resources-C22-01`的1,873引用／154entry及实际字段与旧扫描相等，stage输入摘要已重新取得；source10三份生成前JSON快照只作历史，不混入current wholefile相等门。
+
+这些本地研究脚本只组织公开工具与只读原件；完整argv／输入SHA／日志在`source-final-C22-02/index.json`及manifest中。它们不参与构建，不是第二份冷定义。若原输入或consumer改变，应生成新门而非改摘要迎合旧资格。C22适用18项CTest及其中124项S5工具测试已过，原生代表另按[图形规范S5](gui-testing.md#s5-后续批量接入的定向代表)的实际候选／后端登记，未重跑全历史原版。正常招募已证人数上界31，外来32人credits超原构造／raw引用域时拒绝；SAV32条持久容器不变，不据此承诺所有身份组合。原码替身、索引帧、实际consumer和WGC分别签核，采集瞬态不计业务通过。
+
+Linux 未执行本轮 S5。普通模板可按下面命令使用本机 probe 和新输出；完整 S5 扩展／82 分层还需本机真实消费者收据及同源读集路径资格。Windows 原收据保留绝对路径和 exe 身份，不能改路径或摘要后称 Linux 已通过。
+
+```bash
+uv run --no-project --python 3.12.10 --with unicorn python3 -B tools/static_data/convert_stage_callbacks.py --original original_game --ledger-dir build/s1/ledger-candidate07 --domain build/s2/ida-callbacks/domain-evidence02.json --image tools/fd2_le_relocated_relbase.bin --c-probe src/build/fd2_s2_callback_source_test --output-dir build/s5/callback-NEW
+uv run --no-project --python 3.12.10 python3 -B -m unittest tools.tests.test_s5_callback82_proof tools.tests.test_stage_release_traces tools.tests.test_s5_stage_conversions tools.tests.test_s5_stage_resources tools.tests.test_s5_stage_scope
+```
 
 ## G1 通用机制来源分类
 

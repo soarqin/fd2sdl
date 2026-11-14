@@ -459,6 +459,29 @@ static void flash(fd2_battle_animation *ctx, uint8_t r, uint8_t g, uint8_t b) {
     memset(ctx->vga->dac,0,3);
 }
 
+/* 2ebe1的单个non/split绘制tick；同步物理与31529只复用画面，不共享提交。 */
+static void full_tick_draw(fd2_battle_animation *ctx,const battle_clip *attack,
+        const battle_clip *idle,size_t index,int side) {
+    fd2_battle_animation_exchange *e=ctx->exchange;
+    const fd2_figani_part *part=&attack->parts[index].part;
+    int dx=shake_x[e->shake],dy=attack->clip.split_mode?0:shake_y[e->shake];
+    copy_board(e,400,16040);
+    int first=side?(part->layer_flags&1):!(part->layer_flags&1);
+    if(first)part_draw(e->work,400,320,400,attack,index,40,40,-1);
+    part_draw(e->work,400,320,400,idle,e->idle_part,
+        40+(side?-dx:dx),40+(side?-dy:dy),e->tint);
+    if(!first)part_draw(e->work,400,320,400,attack,index,40,40,-1);
+    copy_view(ctx,400,16040);
+}
+static void full_tick_advance(fd2_battle_animation_exchange *e,const battle_clip *idle) {
+    if(++e->idle_ticks==idle->parts[e->idle_part].part.duration) {
+        e->idle_ticks=0;
+        if(++e->idle_part==idle->clip.part_count)e->idle_part=0;
+    }
+    if(e->shake)e->shake--;
+    e->tint=-1;
+}
+
 static int strike(const fd2_field_game *game, const fd2_field_physical_event *event,
         fd2_battle_animation *ctx) {
     fd2_battle_animation_exchange *e=ctx->exchange;
@@ -518,14 +541,7 @@ static int strike(const fd2_field_game *game, const fd2_field_physical_event *ev
         } else if (p->cue && cue(ctx,attack,p->cue) != 0) return -1;
         for (unsigned tick=0;tick<p->duration;tick++) {
             if (stopped(ctx)) return 0;
-            int dx=shake_x[e->shake],dy=attack->clip.split_mode ? 0:shake_y[e->shake];
-            copy_board(e,400,16040);
-            int first=side ? (p->layer_flags&1):!(p->layer_flags&1);
-            if (first) part_draw(e->work,400,320,400,attack,i,40,40,-1);
-            part_draw(e->work,400,320,400,idle,e->idle_part,
-                40+(side ? -dx:dx),40+(side ? -dy:dy),e->tint);
-            if (!first) part_draw(e->work,400,320,400,attack,i,40,40,-1);
-            copy_view(ctx,400,16040);
+            full_tick_draw(ctx,attack,idle,i,side);
             if (p->effect_marker==1 && seen==markers) {
                 if (event->pre_hit_status_applied) flash(ctx,1,32,0);
                 if (event->result->critical) {
@@ -535,12 +551,7 @@ static int strike(const fd2_field_game *game, const fd2_field_physical_event *ev
                 }
             }
             present(ctx,1);
-            if (++e->idle_ticks==idle->parts[e->idle_part].part.duration) {
-                e->idle_ticks=0;
-                if (++e->idle_part==idle->clip.part_count) e->idle_part=0;
-            }
-            if (e->shake) e->shake--;
-            e->tint=-1;
+            full_tick_advance(e,idle);
         }
     }
     return 0;
@@ -2362,4 +2373,112 @@ void fd2_prepare_promotion_close(fd2_prepare_promotion *scope,int restore_visual
     clip_close(&scope->old_idle);clip_close(&scope->new_idle);
     for (size_t i=0;i<3;i++) image_close(&scope->background[i]);
     free(scope);
+}
+
+/* 31529实际20组全部non-split；这里只借同一RLE/工作页单帧核心。
+ * 原2e9a8最后memmove保存ESI，使2ebe1 var4C为0xAF8C0；其HP写和
+ * 3%重复仍是冷图业务，不在本renderer模拟栈或构造physical事件。 */
+struct fd2_battle_montage {
+    fd2_battle_animation render;
+    unsigned intro_zero, intro_finished;
+};
+
+void fd2_battle_montage_close(fd2_battle_montage **owner) {
+    if(!owner || !*owner)return;
+    fd2_battle_montage *scope=*owner;
+    exchange_close(&scope->render);
+    fd2_archive_close(&scope->render.backgrounds);
+    fd2_archive_close(&scope->render.terrain_images);
+    free(scope);*owner=NULL;
+}
+
+int fd2_battle_montage_open(fd2_battle_montage **out,fd2_vga *vga,
+        const fd2_archive *figani,const fd2_field_unit actors[2],
+        uint8_t first,uint8_t second,uint8_t scene) {
+    if(!out || *out || !vga || !figani || !actors || first>127u || second>127u ||
+        !scene || scene>63u || actors[0].unit_id!=first || actors[1].unit_id!=second ||
+        actors[0].side!=(first<76u?2u:0u) || actors[1].side!=(second<76u?2u:0u))return -1;
+    fd2_battle_montage *scope=calloc(1,sizeof(*scope));if(!scope)return -1;
+    fd2_battle_animation *ctx=&scope->render;ctx->vga=vga;ctx->figani=figani;
+    ctx->exchange=calloc(1,sizeof(*ctx->exchange));
+    if(!ctx->exchange || ensure_backgrounds(ctx)!=0)goto fail;
+    fd2_battle_animation_exchange *e=ctx->exchange;
+    e->units[0]=actors[0];e->units[1]=actors[1];e->last_attacker=-1;e->tint=-1;
+    uint8_t ids[2]={first,second};
+    for(size_t half=0;half<2;half++) {
+        if(clip_open_visual(&e->idle[half],figani,(size_t)ids[half]*3u)!=0 ||
+            clip_open_visual(&e->attack[half],figani,(size_t)ids[half]*3u+1u)!=0 ||
+            e->attack[half].clip.split_mode || e->attack[half].clip.part_count>22u)goto fail;
+        unsigned markers=0;
+        for(size_t part=0;part<e->attack[half].clip.part_count;part++) {
+            const fd2_figani_part *p=&e->attack[half].parts[part].part;
+            if(p->duration>10u)goto fail;
+            markers+=p->effect_marker!=0;
+        }
+        if(!markers)goto fail;
+    }
+    size_t terrain=first==26u || first==54u || second==55u?3u:scene;
+    if(image_entry(&e->bg[0],&ctx->backgrounds,scene)!=0 ||
+        image_entry(&e->terrain,&ctx->terrain_images,terrain)!=0)goto fail;
+    blit(e->board.framebuffer,320,200,320,&e->bg[0],0,50,-1);
+    *out=scope;return 0;
+fail:
+    fd2_battle_montage_close(&scope);return -1;
+}
+
+int fd2_battle_montage_intro(fd2_battle_montage *scope,unsigned phase) {
+    if(!scope || phase>8u || scope->intro_finished)return -1;
+    fd2_battle_animation *ctx=&scope->render;fd2_battle_animation_exchange *e=ctx->exchange;
+    int side=e->units[0].side!=0,base=side?0:320;
+    if(!side && phase==8u)blit(e->board.framebuffer,320,200,320,&e->terrain,164,157,-1);
+    copy_pixels(e->work+base,640,e->board.framebuffer,320);
+    if(side)part_draw(e->work,640,200,640,&e->idle[1],0,0,0,-1);
+    if(side)blit(e->work,640,200,640,&e->terrain,164+10*(int)phase,157,-1);
+    part_draw(e->work,640,200,640,&e->idle[0],0,base+(side?10:-10)*(int)phase,0,-1);
+    if(!side)part_draw(e->work,640,200,640,&e->idle[1],0,320,0,-1);
+    copy_pixels(ctx->vga->framebuffer,320,e->work+base,640);
+    if(!phase)scope->intro_zero=1;
+    return 0;
+}
+int fd2_battle_montage_intro_finish(fd2_battle_montage *scope) {
+    if(!scope || !scope->intro_zero || scope->intro_finished)return -1;
+    fd2_battle_animation_exchange *e=scope->render.exchange;
+    if(e->units[0].side)blit(e->board.framebuffer,320,200,320,&e->terrain,164,157,-1);
+    scope->intro_finished=1;return 0;
+}
+int fd2_battle_montage_half(fd2_battle_montage *scope,unsigned half) {
+    if(!scope || !scope->intro_finished || half>1u)return -1;
+    fd2_battle_animation_exchange *e=scope->render.exchange;
+    e->last_attacker=(int)half;e->idle_part=e->idle_ticks=e->shake=0;e->tint=-1;return 0;
+}
+int fd2_battle_montage_current_half(const fd2_battle_montage *scope,unsigned *half) {
+    if(!scope || !half || scope->render.exchange->last_attacker<0)return -1;
+    *half=(unsigned)scope->render.exchange->last_attacker;return 0;
+}
+int fd2_battle_montage_part_count(const fd2_battle_montage *scope,size_t *count) {
+    unsigned half;if(!count || fd2_battle_montage_current_half(scope,&half)!=0)return -1;
+    *count=scope->render.exchange->attack[half].clip.part_count;return 0;
+}
+int fd2_battle_montage_part_info(const fd2_battle_montage *scope,size_t index,
+        uint8_t *marker,uint8_t *ticks,int *last_marker) {
+    unsigned half;if(!marker || !ticks || !last_marker ||
+        fd2_battle_montage_current_half(scope,&half)!=0)return -1;
+    const battle_clip *clip=&scope->render.exchange->attack[half];
+    if(index>=clip->clip.part_count)return -1;
+    size_t last=clip->clip.part_count;
+    while(last && !clip->parts[last-1u].part.effect_marker)last--;
+    *marker=clip->parts[index].part.effect_marker;*ticks=clip->parts[index].part.duration;
+    *last_marker=last && index==last-1u;return 0;
+}
+int fd2_battle_montage_hit(fd2_battle_montage *scope) {
+    unsigned half;if(fd2_battle_montage_current_half(scope,&half)!=0)return -1;
+    scope->render.exchange->shake=5;scope->render.exchange->tint=33;return 0;
+}
+int fd2_battle_montage_frame(fd2_battle_montage *scope,size_t part) {
+    unsigned half;uint8_t marker,ticks;int last;
+    if(fd2_battle_montage_current_half(scope,&half)!=0 ||
+        fd2_battle_montage_part_info(scope,part,&marker,&ticks,&last)!=0)return -1;
+    fd2_battle_animation_exchange *e=scope->render.exchange;
+    full_tick_draw(&scope->render,&e->attack[half],&e->idle[1u-half],part,e->units[half].side!=0);
+    full_tick_advance(e,&e->idle[1u-half]);return 0;
 }

@@ -1203,6 +1203,38 @@ static int settlement_roster_sync(const fd2_field_units *units, fd2_save_manual_
 
 static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, int force);
 
+/* sub_1088D @0x1088d（原同名）的内部credits资源域：只换实际resource30，
+ * 不借205da重置turn/focus/event/result，也不把坏结局的热stage26改成30。
+ * 同一Game继续拥有map/metadata/placements/terrain和原96条active记录。 */
+int fd2_field_game_source_credits_setup(fd2_field_game *game) {
+    if (!game || !game->ready || (game->stage!=26u && game->stage!=30u) ||
+            !game->roster_count || game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+    fd2_field_map map={0}; fd2_field_metadata metadata={0};
+    fd2_field_placements placements={0}; fd2_terrain_tileset terrain={0};
+    int result=-1;
+    if (fd2_field_map_open_stage(&map,&game->field_archive,30) ||
+            fd2_field_metadata_open_stage(&metadata,&game->field_archive,30) ||
+            fd2_field_placements_open_stage(&placements,&game->field_archive,30) ||
+            fd2_terrain_tileset_open_stage(&terrain,&game->fdshap_archive,&game->field_archive,30) ||
+            fd2_field_event_map_reset_cells(&map)) goto done;
+    fd2_save_manual_state state={0}; fd2_field_units units;
+    state.stage_id=30; state.unit_count=(uint8_t)game->roster_count;
+    memcpy(state.unit_area,game->roster,sizeof(game->roster));
+    if (fd2_field_prepare_deployment_project(&state,30,&map,&metadata,&placements,&units)) goto done;
+    for (size_t i=0;i<units.count;i++)
+        if (fd2_field_unit_cached_frame_index(&units,i,0)>=game->sprites.frame_count) goto done;
+    fd2_field_map_close(&game->map); game->map=map; memset(&map,0,sizeof(map));
+    fd2_field_metadata_close(&game->metadata); game->metadata=metadata; memset(&metadata,0,sizeof(metadata));
+    fd2_field_placements_close(&game->placements); game->placements=placements; memset(&placements,0,sizeof(placements));
+    fd2_terrain_tileset_close(&game->terrain); game->terrain=terrain; memset(&terrain,0,sizeof(terrain));
+    game->units=units;
+    result=common_event_append_group_wide(game,0,0);
+done:
+    fd2_field_map_close(&map); fd2_field_metadata_close(&metadata);
+    fd2_field_placements_close(&placements); fd2_terrain_tileset_close(&terrain);
+    return result;
+}
+
 int fd2_field_game_stage_source_is_idle(const fd2_field_game *game) {
     if (!game || !game->ready || game->failure != FD2_FIELD_FAILURE_NONE ||
             game->units.count > FD2_FIELD_MAX_UNITS || game->roster_count > FD2_SAVE_BATTLE_MAX_ROSTER ||
@@ -1268,8 +1300,16 @@ int fd2_field_game_stage_source_node(fd2_field_game *game,
     } else if (!strcmp(node->op, "fail")) {
         return -1;
     } else if (!strcmp(node->op, "event_byte_write") || !strcmp(node->op, "unit_field_write") ||
+            !strcmp(node->op,"event_item_consume") || !strcmp(node->op,"unit_hp_zero_tail") ||
+            !strcmp(node->op,"map_reset_cells") ||
             !strncmp(node->op, "branch_", 7)) {
         return common_event_domain(game, 0, node, port, 0);
+    } else if (!strcmp(node->op,"grant_party_item")) {
+        if (a[0]<0 || a[0]>255) return -1;
+        /* 同1c220：side2/raw首空槽，hidden/acted不排除，不重算stats。 */
+        for (size_t i=0;i<game->units.count;i++)
+            if (game->units.items[i].side==2u &&
+                    inventory_first_empty_add(&game->units.items[i],(uint8_t)a[0])==1) break;
     } else if (!strcmp(node->op, "display_mode")) {
         if (a[0] < 0 || a[0] > 1) return -1;
         game->ordinary_display_mode = (uint8_t)a[0];
@@ -1289,8 +1329,20 @@ int fd2_field_game_stage_source_node(fd2_field_game *game,
         /* 首错之前已经同步的持久记录不回滚。 */
         memcpy(game->roster, state.unit_area, sizeof(game->roster));
         if (result != 0) return -1;
+    } else if (!strcmp(node->op, "bgm")) {
+        if (a[0]<-1 || a[0]>255 || turn_present(game,FD2_FIELD_RUNTIME_MUSIC_TRACK,a[0])<0) return -1;
+    } else if (!strcmp(node->op, "roster_restore")) {
+        /* sub_25089：逐persistent flags=0、HP=HPmax、MP=MPmax，无active同步。 */
+        for (size_t i=0;i<game->roster_count;i++) {
+            game->roster[i].flags=0;
+            game->roster[i].hp=game->roster[i].hp_max;
+            game->roster[i].mp=game->roster[i].mp_max;
+        }
+    } else if (!strcmp(node->op, "defeated_finalize")) {
+        int result=finalize_zero_hp_units(game);
+        if (result<0) return -1;
     } else if (!strcmp(node->op, "next_stage")) {
-        if (a[0] < 1 || a[0] >= 30) return -1;
+        if (a[0] < 1 || a[0] > 30) return -1;
         game->stage = (size_t)a[0];
     } else return 0;
     return 1;
@@ -1511,7 +1563,7 @@ int fd2_field_game_export_preparation(const fd2_field_game *game, fd2_save_manua
     fd2_field_stage_capability capability;
     if (!out || !fd2_field_game_stage_source_is_idle(game) || !game->stage ||
         game->stage>=30u || game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER ||
-        !fd2_field_stage_prepare_record_get(game->stage) ||
+        !fd2_field_prepare_stage_is_valid(game->stage) ||
         fd2_field_stage_capability_get(game->stage,&capability)!=0 ||
         (!capability.preparation_slots && !fd2_field_stage_source_is_bound(game->stage,"entry"))) return -1;
     fd2_save_manual_state shadow={0};
@@ -2001,7 +2053,7 @@ int fd2_field_game_effect_terrain_begin(fd2_field_game *game,fd2_vga *vga,
     return effect_terrain_draw(game,vga,target,1);
 }
 
-int fd2_field_game_effect_mask_frame(const fd2_field_game *game,fd2_vga *vga,
+int fd2_field_game_effect_mask_page(const fd2_field_game *game,fd2_vga *vga,
     const fd2_field_page *base,const uint8_t lut[256],int x,int y,
     int radius,int first_row,int circle12) {
     if(!game || !game->ready || !vga || !vga->field_page || !base || !lut ||
@@ -2020,7 +2072,14 @@ int fd2_field_game_effect_mask_frame(const fd2_field_game *game,fd2_vga *vga,
             game->terrain_visual_phase,NULL,NULL)!=0)return -1;
     if(!circle12 && fd2_field_transition_page_after_actors_from(page,lut,x,y,radius,first_row)!=0)
         return -1;
-    return fd2_field_page_project(page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
+    return 0;
+}
+
+int fd2_field_game_effect_mask_frame(const fd2_field_game *game,fd2_vga *vga,
+    const fd2_field_page *base,const uint8_t lut[256],int x,int y,
+    int radius,int first_row,int circle12) {
+    if (fd2_field_game_effect_mask_page(game,vga,base,lut,x,y,radius,first_row,circle12)) return -1;
+    return fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
 }
 
 int fd2_field_game_effect_refresh(fd2_field_game *game,fd2_vga *vga) {

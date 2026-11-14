@@ -1107,14 +1107,14 @@ static int test_stage1_manual_owner_preflight(void) {
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
     state.stage_id = 21;
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
-    CHECK(!fd2_field_stage_is_supported(21) && !fd2_field_stage_battle_is_supported(21));
-    /* 26行普通准备及NoTown27..29只验全局浏览资源，不读取未支持战场。
+    CHECK(fd2_field_stage_is_supported(21) && fd2_field_stage_battle_is_supported(21));
+    /* S5候选沿26行普通准备及NoTown27..29核全局浏览资源。
      * 所有完整32人/金额原bits/unknown尾不变，codec与entry支持门保持独立。 */
     for (uint8_t stage=1;stage<30;stage++) {
         state.stage_id=stage;fd2_save_manual_state unchanged=state;
         CHECK(fd2_field_game_validate_manual_state(&state)==0);
         CHECK(!memcmp(&state,&unchanged,sizeof(state)));
-        if (stage>=21) CHECK(!fd2_field_stage_is_supported(stage));
+        CHECK(fd2_field_stage_is_supported(stage) && fd2_field_stage_battle_is_supported(stage));
     }
     CHECK(!fd2_field_stage_prepare_record_get(27));
     const uint8_t invalid_stages[]={0,30,31,32,255};

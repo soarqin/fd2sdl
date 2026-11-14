@@ -57,7 +57,8 @@ def portraits(original,identity,palette,bottom):
     return images
 
 
-def build_pages(original,assets,*,stage_plan=None,identities_by_stage=None,text_identities_by_stage=None):
+def build_pages(original,assets,*,stage_plan=None,identities_by_stage=None,text_identities_by_stage=None,
+                fragment_indices_by_stage=None):
     """精确维护16e24的像素mask；只要求已知文字写集，不猜空白背景。"""
     text_data = (original/"FDTXT.DAT").read_bytes()
     other = (original/"FDOTHER.DAT").read_bytes()
@@ -75,6 +76,8 @@ def build_pages(original,assets,*,stage_plan=None,identities_by_stage=None,text_
         if identities_by_stage is not None and stage in identities_by_stage:
             identities = identities_by_stage[stage]
         for fragment,tokens in fragments(text_data,stage,count):
+            if fragment_indices_by_stage is not None and stage in fragment_indices_by_stage and \
+                    fragment not in fragment_indices_by_stage[stage]:continue
             canvas = Image.new("P",(320,200),0)
             canvas.putpalette(assets["palette"])
             speaker = None

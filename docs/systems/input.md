@@ -10,7 +10,7 @@
 2. 需要具体按键的 UI 调用 BIOS `INT 16h, AH=0x10`，取得并消费一项扫描码和 ASCII 值。
 3. 对话逐字阶段只调用 `input_check`；页面等待 helper 才执行实际读取。
 
-G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2_vga.input` 唯一 owner 保存为有序有限队列，不进入 Game、SAV 或独立事件系统。同 owner 的FIFO、peek／读一／clear、正式caller和早键路径已有直接与定向原生证据；G5 统一历史回归及最终签核仍在进行，不能由这些代表代签通用完成门。旧策略由 `0516c01` 引入，没有可追溯的用户豁免原话；跨帧丢键会影响后续等待与 blink RNG，不能归为显示精度。
+G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2_vga.input` 唯一 owner 保存为有序有限队列，不进入 Game、SAV 或独立事件系统。同 owner 的FIFO、peek／读一／clear、正式caller和早键路径已有直接与定向原生证据；G5统一历史回归及原范围签核已完成，不扩为全键值／typematic／全轨迹证明，新目标见[对齐矩阵A10—A13](../plans/full-alignment-audit.md#4-差异与证据矩阵)。旧策略由 `0516c01` 引入，没有可追溯的用户豁免原话；跨帧丢键会影响后续等待与 blink RNG，不能归为显示精度。
 
 - 现有宿主 poll 按 SDL 事件到达顺序收首按，keyup 不删除已接受项；两次 present 之间完整 DOWN／UP 也保留。
 - present 继续采物理电平及推进唯一 repeat 来源，`500 ms` 初始延迟／`92 ms` 间隔仍是宿主近似，忽略 SDL 自带 repeat 的重复来源，不补追赶。

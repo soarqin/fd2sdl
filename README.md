@@ -4,6 +4,8 @@
 
 **项目仍在开发中**：当前支持stage0／1原范围、stage2—29已证战斗绑定／END／事件与胜利准备交接，以及26坏结局和29终章的credits／特殊战斗／终端。S0—S5已交付；resource30仅内部尾声资源，不开放普通战场。支持域、450条默认拒绝与唯一开发入口见[统一计划](docs/plans/development.md)，新增批次和分层证据见[S5报告](docs/plans/s5-batch-expansion.md)，历史统一回归见[S4报告](docs/plans/s4-unified-review.md)。不承诺全部自然整关、任意外来存档、无限回合、全像素／共享RNG／声音或其它平台一致。
 
+新的原版对齐审查与补完路线已形成，尚未实施：[差异与证据矩阵](docs/plans/full-alignment-audit.md)、[F1—F6统一计划](docs/plans/development.md)。最终验收平台为Windows；按用户选择保留Nuked声音并明确记录为差异，不能称原版全部声音完全一致。
+
 ## 准备与构建
 
 需要 CMake 3.16+、Python 3.9+（仅标准库，用于构建期生成冷定义）、C11／C++14 编译器，以及合法取得的原版游戏数据。Windows 使用带 C++ 桌面开发组件和 Windows SDK 的 Visual Studio Build Tools；图形测试驱动另需 C++17 与 C++/WinRT SDK。Linux 使用 GCC 或 Clang。将数据文件放入 `original_game/`；本仓库不分发原版资源。

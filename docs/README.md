@@ -5,6 +5,7 @@
 ## 开发计划
 
 - [总计划](plans/development.md)：下一执行阶段、**唯一当前待办顺序**、补充阶段、状态依据及测试门。
+- [原版完全对齐审查](plans/full-alignment-audit.md)：495e7d9基线、全量分母、A01—A22差异／证据矩阵和独立基准；Windows终态及保留Nuked声音差异，F1—F6顺序只查总计划。
 - [已完成阶段归档](plans/completed-stages.md)：B／A／R／SD／G／S完成摘要、提交、长历史和收据索引；不维护当前优先级。
 - [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类及S5来源／有限消费者增量；顺序和完成状态仍以总计划为准。
 - [静态数据层与事件流程](plans/static-data.md)：已完成的 SD1—SD3 调研与工作包；覆盖冷定义、可修改的事件分支与编排、提取／验证和存档边界。

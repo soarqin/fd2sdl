@@ -84,6 +84,29 @@ class PureTest(unittest.TestCase):
 
 
 class DisplayContextTest(PureTest):
+    def test_strict_on_rejects_off_dim_and_unknown_before_request_or_wake(self):
+        for value in (0,2,None):
+            state=on();state['console_display']['state']=value
+            api=FakeWindows(state);record={}
+            with self.subTest(value=value),patch.object(display,'_windows_calls',return_value=api):
+                with self.assertRaisesRegex(RuntimeError,'显示未确认ON'):
+                    with display.windows_display_requirement(record,require_display_on=True):self.fail('entered')
+            self.assertEqual(api.sets,[]);self.assertNotIn('zero_move',api.events)
+            self.assertFalse(record['requested'] or record['acquired'] or record['released'])
+
+    def test_strict_on_holds_and_restores_without_any_wake_path(self):
+        api=self.fake(FakeWindows());record={}
+        with display.windows_display_requirement(record,require_display_on=True):api.events.append('owned_cleanup')
+        self.assertEqual(api.events,['query',('set',display.REQUIRED_FLAGS),'owned_cleanup',('set',api.previous)])
+        self.assertFalse(record['wake_requested'] or record['separate_wake_API_called'] or record['powerplan_changed'])
+        self.assertTrue(record['released'])
+
+    def test_strict_on_cannot_recover_or_create_a_powerplan_journal(self):
+        api=self.fake(FakeWindows());record={}
+        with self.assertRaisesRegex(ValueError,'journal'):
+            with display.windows_display_requirement(record,power_journal='unused',require_display_on=True):self.fail('entered')
+        self.assertEqual(api.events,[])
+
     def test_interrupt_after_register_fills_handle_still_unregisters_or_retains(self):
         for unregister_code in (0, 5):
             with self.subTest(unregister_code=unregister_code):

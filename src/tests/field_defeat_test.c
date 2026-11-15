@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "field_defeat.h"
 #include "field_game.h"
@@ -161,6 +162,163 @@ static void read_page(const fd2_field_page *page,uint8_t *data) {
     CHECK(fd2_field_page_read(page,0,0,456,336,data,FD2_FIELD_PAGE_SIZE,456)==0);
 }
 
+/* 独立来源不变量：source09完整1db65，筛选1dba2..1dbe5，方向1dd17，
+ * flags精确赋1位于1dc61/1dd4c。这里只校业务80B写集，不用C的30锚cap
+ * 预测原FX，也不把合成32..96状态称为正常输入可达。 */
+static size_t source_visible_count(const fd2_field_units *units,int camera_x,int camera_y) {
+    size_t visible=0;
+    for(size_t raw=0;raw<units->count;raw++) {
+        const fd2_field_unit *u=&units->items[raw];
+        int64_t dx=(int64_t)u->x-camera_x,dy=(int64_t)u->y-camera_y;
+        if(!u->hp && !(u->flags&1u) && dx>=-1 && dx<=13 && dy>=-1 && dy<=9)visible++;
+    }
+    return visible;
+}
+static void source_units_after(fd2_field_units *expected,const fd2_field_units *before,
+    int camera_x,int camera_y,unsigned stopped_after_wait) {
+    *expected=*before;
+    int visible=source_visible_count(before,camera_x,camera_y)!=0;
+    for(size_t raw=0;raw<before->count;raw++) {
+        const fd2_field_unit *u=&before->items[raw];
+        if(u->hp)continue;
+        if(visible && !(u->flags&1u))expected->items[raw].direction=
+            stopped_after_wait && stopped_after_wait<=13 ? (uint8_t)((stopped_after_wait-1u)%4u):0;
+        if(!stopped_after_wait || stopped_after_wait>13)expected->items[raw].flags=1;
+    }
+}
+static void capacity_units(fd2_field_units *units,size_t count) {
+    memset(units,0,sizeof(*units));
+    for(size_t raw=0;raw<FD2_FIELD_MAX_UNITS;raw++) {
+        CHECK(fd2_field_units_set(units,raw,0,0,(uint8_t)(raw%3u),2,3)==0);
+        fd2_field_unit *u=&units->items[raw];u->movement_profile=19;
+        u->direction=(uint8_t)(raw%4u);u->flags=(uint8_t)(raw&1u?0x80:4);
+        for(size_t j=0;j<sizeof(u->data_09_1e);j++)u->data_09_1e[j]=(uint8_t)(raw+j+37u);
+        for(size_t j=0;j<sizeof(u->data_28_33);j++)u->data_28_33[j]=(uint8_t)(raw+j+93u);
+        if(raw>=count) { /* 若误扫描inactive，会被当可见死者并读坏sprite。 */
+            u->direction=255;u->unit_id=255;u->movement_profile=255;u->flags=0;
+        }
+    }
+    units->count=count;
+}
+static void check_capacity_matrix(fd2_field_game *game,fd2_vga *vga,
+    field_runtime_presentation *runtime) {
+    fd2_field_units input,expected;unsigned vectors=0;
+    for(size_t count=0;count<=FD2_FIELD_MAX_UNITS;count++) {
+        if(count>1 && count<30)continue;
+        capacity_units(&input,count);reset_case(game,vga,runtime,&input);
+        if(count<=30) {
+            CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==(count?0:-1));
+            if(count)CHECK(runtime->defeat->count==source_visible_count(&input,0,0));
+            CHECK(!memcmp(&game->units,&input,sizeof(input)));
+            CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,runtime)==0);
+            CHECK(!live_images && !live_pages);
+        }
+        source_units_after(&expected,&input,0,0,0);
+        CHECK(run_case(game)==0 && !game->failure && !game->event_resume.active);
+        CHECK(!memcmp(&game->units,&expected,sizeof(expected)));
+        CHECK(frames==(count?25u:0u) && refreshes==(count?1u:0u) && cue_steps==(count?1u:0u));
+        CHECK(!rng_calls && !runtime->defeat && !live_images && !live_pages);vectors++;
+    }
+    CHECK(vectors==69);
+    /* 容量外首先拒绝；不访问items[96]，也不留下任何视觉owner。 */
+    capacity_units(&input,96);reset_case(game,vga,runtime,&input);game->units.count=97;
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==-1);
+    CHECK(game->units.count==97 && !runtime->defeat && !page_creates && !live_images && !live_pages);
+}
+static void check_filter_matrix(fd2_field_game *game,fd2_vga *vga,
+    field_runtime_presentation *runtime,uint8_t *page_before,uint8_t *page_after) {
+    /* 包含四条闭边、四角及各边第一条排除格；坐标都是合法BYTE。 */
+    static const int positions[][2]={{9,10},{23,10},{10,9},{10,19},{9,9},{23,19},
+        {9,19},{23,9},{8,10},{24,10},{10,8},{10,20}};
+    static const uint8_t flags[]={0,4,0x80,0x84,1,5,0x81,0x85};
+    fd2_field_units input,expected;
+    for(size_t xy=0;xy<sizeof(positions)/sizeof(positions[0]);xy++)
+    for(size_t flag=0;flag<sizeof(flags);flag++)
+    for(unsigned hp=0;hp<2;hp++) {
+        capacity_units(&input,1);input.items[0].x=(uint8_t)positions[xy][0];
+        input.items[0].y=(uint8_t)positions[xy][1];input.items[0].flags=flags[flag];
+        input.items[0].hp=(uint16_t)hp;input.items[0].direction=3;
+        reset_case(game,vga,runtime,&input);game->camera_cell_x=game->camera_cell_y=10;
+        size_t visible=source_visible_count(&input,10,10);read_page(vga->field_page,page_before);
+        CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==(visible?0:-1));
+        if(visible) {
+            CHECK(runtime->defeat && runtime->defeat->count==1);
+            CHECK(runtime->defeat->x[0]==48+24*(positions[xy][0]-10));
+            CHECK(runtime->defeat->y[0]==42+24*(positions[xy][1]-10));
+        }
+        CHECK(!memcmp(&game->units,&input,sizeof(input)));
+        read_page(vga->field_page,page_after);CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+        CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,runtime)==0);
+        CHECK(!live_images && !live_pages);
+        source_units_after(&expected,&input,10,10,0);
+        CHECK(run_case(game)==0 && !memcmp(&game->units,&expected,sizeof(expected)));
+        CHECK(frames==(visible?25u:0u) && !runtime->defeat && !live_images && !live_pages && !rng_calls);
+    }
+    /* int极值只检宿主拒绝/无溢出边界，不冒称原camera正常可达。 */
+    for(unsigned axis=0;axis<2;axis++)for(unsigned edge=0;edge<2;edge++) {
+        capacity_units(&input,1);reset_case(game,vga,runtime,&input);
+        if(axis)game->camera_cell_y=edge?INT_MAX:INT_MIN;
+        else game->camera_cell_x=edge?INT_MAX:INT_MIN;
+        CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==-1);
+        CHECK(!runtime->defeat && !live_images && !live_pages && !page_creates && !rng_calls);
+        CHECK(!memcmp(&game->units,&input,sizeof(input)));
+    }
+}
+static void check_owner_boundaries(fd2_field_game *game,fd2_vga *vga,
+    field_runtime_presentation *runtime,fd2_field_game *saved_game,fd2_vga *saved_vga,
+    uint8_t *page_before,uint8_t *page_after) {
+    fd2_field_units input,expected;capacity_units(&input,96);
+    reset_case(game,vga,runtime,&input);vga->input.quit_requested=1;
+    *saved_game=*game;*saved_vga=*vga;read_page(vga->field_page,page_before);
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==1);
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
+    CHECK(!runtime->defeat && !page_creates && !live_images && !live_pages);
+
+    reset_case(game,vga,runtime,&input);
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==0);
+    /* 失配owner在每个叶的首次绘制/时钟写前失败，保留本scope供统一close。 */
+    game->camera_cell_x++;*saved_game=*game;*saved_vga=*vga;
+    CHECK(test_defeat_rotate(runtime->defeat,game,vga)==-1);
+    CHECK(test_defeat_actor(runtime->defeat,game,vga,0)==-1);
+    CHECK(test_defeat_project(runtime->defeat,game,vga)==-1);
+    CHECK(test_defeat_base(runtime->defeat,game,vga)==-1);
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
+    read_page(vga->field_page,page_after);CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+    game->camera_cell_x--;vga->input.quit_requested=1;*saved_game=*game;*saved_vga=*vga;
+    CHECK(test_defeat_rotate(runtime->defeat,game,vga)==1);
+    CHECK(test_defeat_actor(runtime->defeat,game,vga,0)==1);
+    CHECK(test_defeat_project(runtime->defeat,game,vga)==1);
+    CHECK(test_defeat_base(runtime->defeat,game,vga)==1);
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
+    read_page(vga->field_page,page_after);CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+    vga->input.quit_requested=0;
+    for(size_t raw=0;raw<game->units.count;raw++)game->units.items[raw].flags=1;
+    CHECK(test_defeat_base(runtime->defeat,game,vga)==0);
+    vga->input.quit_requested=1;*saved_game=*game;*saved_vga=*vga;
+    CHECK(test_defeat_frame(runtime->defeat,game,vga,68)==1);
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
+    read_page(vga->field_page,page_after);CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,runtime)==0);
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,runtime)==0);
+    CHECK(!runtime->defeat && !live_images && !live_pages);
+
+    /* 准备失败不写业务/页；晚退出保原方向/flags提交前缀，绝不整体回滚。 */
+    reset_case(game,vga,runtime,&input);fail_page_create=2;
+    *saved_game=*game;*saved_vga=*vga;read_page(vga->field_page,page_before);
+    CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,runtime)==-1);
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
+    read_page(vga->field_page,page_after);CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+    CHECK(!runtime->defeat && !live_images && !live_pages);
+    static const unsigned stops[]={1,13,14};
+    for(size_t i=0;i<sizeof(stops)/sizeof(stops[0]);i++) {
+        reset_case(game,vga,runtime,&input);quit_at=stops[i];
+        CHECK(run_case(game)>=0 && game->runtime_host_quit && !game->failure && frames==stops[i]);
+        source_units_after(&expected,&input,0,0,stops[i]);
+        CHECK(!memcmp(&game->units,&expected,sizeof(expected)) && !refreshes && !rng_calls);
+        CHECK(!runtime->defeat && !live_images && !live_pages);
+    }
+}
+
 int main(void) {
     fd2_archive other={0};CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
     fd2_field_game *game=calloc(1,sizeof(*game)),*saved_game=malloc(sizeof(*game));
@@ -251,7 +409,7 @@ int main(void) {
         CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,&runtime)==0 && !runtime.defeat);
     }
 
-    /* 原30锚之后只省FX读取，全部31个合法热记录仍旋转/flags1。 */
+    /* 当前30锚策略仍处理31条热记录；原第31目的落临时页，全页差异留F4，不签原FX等值。 */
     fd2_field_units many={0};
     for(size_t i=0;i<31;i++) {CHECK(fd2_field_units_set(&many,i,0,0,0,2,3)==0);many.items[i].movement_profile=19;}
     reset_case(game,vga,&runtime,&many);
@@ -265,8 +423,11 @@ int main(void) {
     CHECK(game->units.items[0].direction==2 && game->units.items[1].direction==3 && game->units.items[2].direction==3);
     for(size_t i=0;i<3;i++)CHECK(game->units.items[i].flags==1);
     CHECK(!memcmp(vga,saved_vga,sizeof(*vga)));
+    check_capacity_matrix(game,vga,&runtime);
+    check_filter_matrix(game,vga,&runtime,base,actual);
+    check_owner_boundaries(game,vga,&runtime,saved_game,saved_vga,base,actual);
     fd2_field_page_destroy(vga->field_page);fd2_field_game_close(game);fd2_archive_close(&other);
     free(game);free(saved_game);free(vga);free(saved_vga);free(trace);free(expected);free(actual);free(base);
-    puts("field_defeat_test: real App pages/25 cold frames/flags boundary/late resources/quit/30-anchor bound passed; no GUI");
+    puts("field_defeat_test: App pages/25 cold frames; 69 active-count vectors, 192 filter vectors, 96-record owner/quit/failure write sets passed; no GUI/original-execution or 31+ FX equivalence claim");
     return 0;
 }

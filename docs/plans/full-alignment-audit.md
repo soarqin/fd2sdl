@@ -1,5 +1,9 @@
 # 原版完全对齐审查与差异矩阵
 
+推进策略更新（2026-11-15）：用户授权按真实依赖后置QK未完成验证。F1主体范围交付，F2—F5独立机制继续；A04／A05／A08相关资格及受影响输入／RNG／音画轨迹仍由[QK专项](qk-behavior-followup.md)在F6前闭合。下文事故时点的“F1阻塞”不再冻结全部开发，延期项不改签通过，最终完全对齐门不变。
+
+实施状态补记（2026-11-14）：审查计划39422ae交付后，用户已授权本会话／现工作树连续实施F1—F6；当前F1实施中。本报告的“本轮只审查”及原测试结果保留审查时点身份，新增实现／证据由[总计划](development.md)和后续阶段记录登记，不将候选或局部修正签作整阶段完成。
+
 审查日期：2026-11-14。代码、冷定义和发布证据基线：本地 master `495e7d9`。本会话的 `cindy/fierce-newton` 从 `88b47d7` 快进到该提交后开始审查。当前待办顺序只由[总计划](development.md)维护；本文记录事实、差异 ID 和验收依据，不建立另一套优先级。本轮只审查、取证和写计划，不实施补完功能。
 
 结论：S5 已完成原定交付，原 13 隔离槽／14 引用不再是待办，stage20—29、26 坏结局、29 终章已接入。当前尚不能声明完全对齐：存在固定启动随机状态、宿主输入／时间近似，以及完整正常有效域、全部反馈和独立动态证据的缺口。新目标必须在这些已完成范围之上扩签，不能重做旧阶段，也不能把旧的有限验收自动提升为全游戏等价。
@@ -56,9 +60,11 @@
 
 不能先把拒绝项放进 U 域再免验。默认 turn255 的触发、实际读取目标和当次内存来源仍需调查；也不能以历史「不支持无限回合」排除正常长时间游玩。外来 32 人档、修改资源、随意重复 callback 不自动属于 V，但必须通过来源分析证明，不能靠旧门名称判定。S5 已证明的特殊战斗自然 HP 来源不再列为 U。
 
+F1补充对象来源准则：初始化按具体语义字段和当前owner有效期核查。新分配槽位中，尚无构造、合法active记录回读、明确字段写入或独立来源合同的值，不能仅因底层字节能追到已释放PCM而升级为人物属性。判U必须证明从分配／恢复到首次语义消费的相关writer闭包；`raw>=count`本身不够。合法Save的opaque字节复制、原逻辑明确保留的未知字节、显式xy-only写，以及已独立证明的live-owner／完整自然caller来源合同仍按各自V合同保留。S5自然HP的完整栈写序合同继续成立。此准则落实本次已定义的“原未初始化”域，不扩张成任意heap／错误内存的机器模拟；具体闭包未证的项仍未决，不能只改分类过门。
+
 ## 2. 本次实际审查与证据边界
 
-本轮从 `main.c → run_field_chain → Play／Game／Scene → preparation／title`、当前冷定义及正式 bindings、支持／预检拒绝、原发布 IDA、来源账和实际收据交叉审查。重点覆盖历史边界和共享机制，未逐行重新证明所有 C／C++、第三方合成器或 1,312 个原函数。未进行新的全游戏自然通关、GUI／原版实机、录音或运行时全对象 dump。下文的「未审计」是显式剩余工作，不是隐藏在审查通过中的空白。
+39422ae原审查从 `main.c → run_field_chain → Play／Game／Scene → preparation／title`、当前冷定义及正式 bindings、支持／预检拒绝、原发布 IDA、来源账和实际收据交叉审查。重点覆盖历史边界和共享机制，未逐行重新证明所有 C／C++、第三方合成器或 1,312 个原函数。未进行新的全游戏自然通关、GUI／原版实机、录音或运行时全对象 dump。下文的「未审计」是显式剩余工作，不是隐藏在审查通过中的空白。
 
 | 层 | 本轮实际执行 | 不能据此声称 |
 |---|---|---|
@@ -91,7 +97,7 @@
 
 本轮来源账恰好闭合：72,470＝69,901 confirmed＋450 rejected＋2,077 excluded＋42 unresolved。1,171个保守需求＝712 supported_definition＋456 unmapped_semantics＋3 decoded_unopened。**这些标签不能当新增功能缺陷数。**
 
-42项拆分为：8个资源记录（stage1未被地图引用的action12；stage31四turn、未引用action12及两drop）＋6个callback分派槽58／85..89＋28个独立magic槽。后34项的分类器未识别现有非stage alias消费者／source-only；callback58已有完整来源图，85..89有已解no-op共享定义。456＝450默认255＋stage31四turn／两drop；3个decoded_unopened均属stage31。stage31是开场专用资源，不能据此宣布“缺第31关战斗”。F1 要补正式可达性和消费者去向，不改标签冒充功能完成。
+39422ae审查时的42项拆分为：8个资源记录（stage1未被地图引用的action12；stage31四turn、未引用action12及两drop）＋6个callback分派槽58／85..89＋28个独立magic槽。后34项的分类器未识别现有非stage alias消费者／source-only；callback58已有完整来源图，85..89有已解no-op共享定义。456＝450默认255＋stage31四turn／两drop；3个decoded_unopened均属stage31。stage31是开场专用资源，不能据此宣布“缺第31关战斗”。F1后来已用独立原caller／writer proof和正式consumer join闭合这42项，来源09当前视图为69,935 confirmed／450 rejected／2,085 excluded／0 unresolved；原历史分类不改，去向闭合也不等于功能／全语义完成。
 
 ### 3.2 冷定义与绑定
 
@@ -129,7 +135,7 @@
 
 | ID | 主题 | 分类 | 严重度 | 归属 |
 |---|---|---|---|---|
-| A01 | 审计器当前消费者／历史分类失配 | 差异 | 高 | F1 |
+| A01 | 审计器当前消费者／历史分类失配 | 来源分账已修，待F1整阶段签核 | 高 | F1 |
 | A02 | 参照全集及运行配置身份 | 证据 | 高 | F1 |
 | A03 | 默认turn255及全部有源拒绝 | 未审计／拒绝差异 | 高 | F1 |
 | A04 | raw／人物／移动／容量与构造写集 | 差异／未审计 | 高 | F1、F3 |
@@ -137,18 +143,18 @@
 | A06 | 全剧情、隐藏、结局与自然前提 | 证据 | 高 | F3 |
 | A07 | 动态地图／身份／人数组合 | 证据／未审计 | 高 | F3 |
 | A08 | HP／hidden／结果及调用续点 | 证据 | 高 | F3 |
-| A09 | SAV回合门、兼容及错误／取消／重载owner | 拒绝差异待判域／证据 | 高 | F3 |
+| A09 | SAV兼容及错误／取消／重载owner | 写集差异／证据；回合门已判正常域 | 高 | F3 |
 | A10 | FIFO／typematic／确认／等待相位 | 已知近似／证据 | 高 | F2 |
 | A11 | 启动RNG来源和预推进 | 初始化／调用序差异 | 高 | F2 |
 | A12 | 全共享RNG调用及真实写序 | 证据 | 高 | F2 |
 | A13 | BIOS／PIC／帧与绝对时间 | 差异／证据 | 高 | F2 |
 | A14 | 全像素、底图／palette／水色／嘴型 | 证据 | 高 | F4 |
-| A15 | 各动作FULL／SHORT、全部目标FX | 证据／未审计 | 高 | F4 |
+| A15 | 各动作FULL／SHORT、全部目标FX | 有限域差异／证据／未审计 | 高 | F4 |
 | A16 | 全资源解码／文本／字形消费者 | 证据／未审计 | 中 | F4 |
 | A17 | 全曲／事件／寄存器及音频时序 | 证据／已有时序不符 | 高 | F5 |
 | A18 | 全PCM／cue／混音／波形 | 证据 | 高 | F5 |
 | A19 | 设备退化／路由／停止／清理 | 证据／宿主适配 | 中 | F5 |
-| A20 | 全对象运行时BSS／未知读者 | 证据／严格门未过 | 高 | F1 |
+| A20 | 全对象运行时BSS／未知读者 | L0严格门通过；L1／未知读者另账 | 高 | F1 |
 | A21 | Windows全历史／完整完成声明 | 证据 | 高 | F6 |
 | A22 | Nuked响度／音色 | 用户选择的例外 | 中 | F5 |
 
@@ -156,7 +162,9 @@
 
 定位：`tools/static_data/stage_source_ledger.py::normalize`、`audit_stage_data.py`、`tools/tests/test_stage_source_ledger.py:79`、`data/static/flows/stage.json`及`common_event.json`的source.evidence。原来源为五分派表、已发布函数登记及S5 overlay。
 
-实际复现：当前stage23 result已有绑定，单测仍要求unresolved，17项中该项失败；42条unresolved中34条不能作为未实现。stage顶层来源说明仍混有candidate03“undefined HP／no shipping binding”等旧措辞，而最终S5已闭合。影响是误开旧阶段、错判功能缺口。依赖A02；验收以原槽／完整来源、正式consumer join和反例测试为准。旧标签保历史身份，新增当前视图；所有剩余行有可达／排除／拒绝／未决去向，分类数闭合，不能仅修改expected求绿。
+39422ae原审查复现：stage23 result已有绑定，单测仍要求unresolved，17项中该项失败；42条unresolved中34条不能作为未实现。stage顶层来源说明仍混有candidate03“undefined HP／no shipping binding”等旧措辞，而最终S5已闭合。影响是误开旧阶段、错判功能缺口。依赖A02；验收以原槽／完整来源、正式consumer join和反例测试为准。旧标签保历史身份，新增当前视图；所有剩余行有可达／排除／拒绝／未决去向，分类数闭合，不能仅修改expected求绿。
+
+F1更新：上述为39422ae审查时复现，现已修正。历史72,470行及69901／450／2077／42保留，当前consumer视图69935／450／2085／0需显式独立proof；另8条由原开场caller与完整map writer闭包排除，不因零未决宣称全语义对齐。修正S3测试夹具误混S5及callback51完整caller门，缺proof／协同回退负例仍拒绝。当前收据见[F1报告](f1-reference-domain.md#2-来源和本地证据身份)。
 
 ### A02：固定可重复的参照全集
 
@@ -164,11 +172,15 @@
 
 影响：不同DOSBox构建／cycles、声卡驱动或字体可能使时序／音色比较无同一对象。无前置依赖；用全运行文件白名单摘要、DOSBox EXE／配置／驱动摘要和证据来源清单作为夹具。通过要求缺文件／换身份必拒绝，用户数据与运行资源分账；不以本地证据目录仍存在替代逐引用核验。
 
+F1更新：[参照身份](../formats/original-reference.md)已冻结20文件＋字库，并查明即使传`-conf`仍先读版本化userconf的配置链。原发行来源未知，不能从哈希推定零售标签；完整配置派生值、实际启动argv与动态driver／硬件测量仍分层登记。
+
 ### A03：默认turn255和其它有源拒绝
 
 定位：`field_event.c` turn/callback查询、`field_game.c` phase预检、`audit_stage_data.py`默认项、原`field_turn_event_check @0x1a813`和callback表`0x51b91`。当前450条ff ff 00有源拒绝（战场0..29内406条；stage2..29内379条），而原turn为DWORD，不能先假设永不到255。
 
-未确认这些正常长回合命中后原程序的实际call target／第一处U边界；不新增callback255，也不把已知ff5200 callback82算进450。影响是正常长局可能被安全门截断，或原程序本身进入U域。依赖A02、A20；夹具为turn254→255→256、各phase／重复触发、32位边界及合法callback反例，先局部原码和真实内存目标，再最小原版代表。每条拒绝须有V实现或U证明；确认U后有效前缀仍要等值，最终声明须披露正常可达U出口。
+原审查尚未确认这些正常长回合命中后的实际call target／第一处U边界；不新增callback255，也不把已知ff5200 callback82算进450。影响是正常长局可能被安全门截断，或原程序本身进入U域。依赖A02、A20；夹具为turn254→255→256、各phase／重复触发、32位边界及合法callback反例，先局部原码和真实内存目标，再最小原版代表。每条拒绝须有V实现或U证明；确认U后有效前缀仍要等值，最终声明须披露正常可达U出口。
+
+F1更新：完整原1a813的12个turn／phase向量已核默认255读取`51f8d`的`00050302`后尝试取指`02030500`；无fixup、无FD2对象代码target。另以全部turn writer、phase0支配增量点的完整原CFG、30战场不可改默认slot15及Load BYTE来源作结构归纳，证明正常V前缀不能返回并增长至256，故Save>255门不是正常V差异；这项证明独立于旧支持门，随完整F1门统一签核。续审一度将stage27 callback66误拼到35677，经原分派表独立复核，66实为35d1e、53才为35677；该假线索已剔除，不作为回合判域新阻塞。整局自然到255尚未运行，先前合法callback必须保有效前缀；stage8／29已有原码和实际C前缀回归，不能新增callback255 no-op或提前吞掉早slot。
 
 ### A04：从正常来源证明人物和容量边界
 
@@ -178,17 +190,23 @@
 
 另有已确认的构造写集差异：`field_unit_base.c:199::fd2_field_unit_stage_template_apply`先全80B清零；原`field_unit_stage_template_append @0x10c50`以原active槽为底，仅写指定字段。fresh未写9B、reused槽和heap尾的全游戏读者未封闭，**玩法可观察影响尚未证明**。F1建原逐字段写掩码／来源／读者，F3依据真实fresh与reused preload修正，不凭stage0捕获常量补未知。
 
+F1更新：全部1,887有效模板×两种preload及32个持久构造已取原写集。第29关两个drop81同phase合并使state16=2，原82只append group2、count27→29，再传送raw22／29／30；完整22253对inactive29／30零目标字段读取、仅写xy，仍在原96槽allocation内，属于有效写域。当前窄修复仅放宽该显式五参写址，保其余78B、count及普通active读取门；原码／C、fresh03分层门及正式pair04均通过。37／66的提前拒绝也已修，source writer闭包在首次无producer身份读前保有效前缀；75当前实现已等值，不重复修复。自然早触发、构造未知区及全部玩法闭包仍须分账，不能由受控向量升级成自然已跑。
+
+原1db65另有实际frame补证：31个合成屏内死者可完整返回，第31个地址槽位于124B局部区的offset120，随后被临时页指针覆盖；12次FX原读取实际消费该临时页base。后续真实1a866／205b4状态caller在32..35仍可返回，不能以savedEBP覆盖普判U；36例在写返回槽后、RET进入工作页前停止。当前C截30锚与这些有限原写集不同；正常同时死者来源、完整renderer和其余caller域仍须分开证明。完整八caller内部复审当时因子模型轮次以`cyber_policy`结束而中止，最后工具成功，不能误称已定位的工具内容拒绝；父会话现以[正常调用合同](f1-defeat-caller-contracts.md)及独立C写集继续复核，不待申诉、不重发失败子任务。八caller来源身份新核通过，C的69个人数／192个筛选组合定向通过，但未直接签正常32+可达或全部ABI。正常参数域仍归F1；帧／临时页写集补完归F4，不将参数反例冒称自然玩法反例。
+
 ### A05：全控制流和正式分派的独立闭合
 
 定位：8个冷flow域、`static_flow.h`、`field_common_event_*`、`field_page.*`、`scene_transition.*`、`scene_teleport.*`、Game／Scene walker；原208分派槽及其callee／xref，`24618`、`22253`、`362e8`等已列发布依据。
 
 已有S5完整13来源与有限参数门、82真实Play桥；不是尚缺实现。新目标仍需把全部正常caller的条件、共享尾、宽度、page/mask和前缀失败参数域封闭。依赖A01、A02、A04；用独立原CFG／指令字节生成边清单，再与冷节点／consumer逐边join，ABI向量从真实caller生成。入口相同但参数、时点或写序不同必须另分；成功为已达边／源排除边／U边全账，未知边为零，生成器自检不充当oracle。
 
+F1参数更新：五个22253原caller的focus／camera不变量、first_row及工作页读窗已由独立原源和正式consumer连接，未发现正常参数被现门截断；250cc坏臂单独核布局／移动／对白超集。此项关闭参数包含关系，不签像素／时序。预算结构上界与当前图分母另有独立审查；移动仍须把原固定出阵槽、必经追加和当次初始化字段分开，不能拿可能总人数作读取下界。具体资格与剩余读者查[F1报告](f1-reference-domain.md)。
+
 ### A06：全部故事和分支前提
 
 定位：`scene.c`、`scene_cinematic.*`、`field_prepare*`、stage／scene flows；原entry／victory表、26的`250cc`、29的`25757→31529`及31／32开场链。已实现好坏结局、终章和非返回终端；已有自然首关、受控后期正式代表，未证自然全游戏所有分支。
 
-缺口是招募互斥、物品前缀、隐藏条件、重复／一次触发、全部正常卡身份／outer-index组合及20组montage的真实时点覆盖。31是单次正常roster上界；正常来源身份并集为ID0..31，18／19互斥分支须分别验，不能缩成总共31种卡。依赖A04、A05、A12；以原CFG条件／输入状态做分支夹具，正式App路径验证分支可达、文本owner和完整SAV，不按每关另开开发轮。可复用相同语义证据，仅对新时点／反馈追加代表；未跑全链不得声称全自然通关。
+缺口是招募互斥、物品前缀、隐藏条件、重复／一次触发、全部正常卡身份／outer-index组合及20组montage的真实时点覆盖。31是单次正常roster上界；正常招募人物的text_id身份并集为0..31；热unit_id另含转职／原视觉变换域，18／19互斥分支须分别验，不能缩成总共31种卡。依赖A04、A05、A12；以原CFG条件／输入状态做分支夹具，正式App路径验证分支可达、文本owner和完整SAV，不按每关另开开发轮。可复用相同语义证据，仅对新时点／反馈追加代表；未跑全链不得声称全自然通关。
 
 ### A07：动态地图、身份和人数
 
@@ -198,9 +216,11 @@
 
 ### A08：原结果合同与调用续点
 
-定位：`field_round.c`、`field_game.c` result／progress、`field_save.c`、stage result flows；原205b4／206c5、117e7、10010及其余18种result目标。S0已恢复hidden／side而非HP的判定、result latch和Load不改写；S5特殊HP也已闭合。
+定位：`field_round.c`、`field_game.c` result／progress、`field_save.c`、stage result flows；原30槽／18个result目标（含205b4／206c5）、117e7和10010。S0已恢复hidden／side而非HP的判定、result latch和Load不改写；S5特殊HP也已闭合。
 
 剩余是全部阶段和动态身份／主角HP0、hidden、已有result、输入返回时点组合，不能用一个result API通过代正式调用序。依赖A05、A07、A12；原caller返回前后状态／读写轨迹与正式Play测试配对。成功要求每种结果族及不同调用时点的状态、写序、终端完全一致；重复执行和HOST／ERROR不多推进。
+
+F1续审已逐原入口核清18个result目标对incoming保存寄存器的使用，关闭该接口性质，不升级为全result玩法通过。[死亡调用合同](f1-defeat-caller-contracts.md)另给出明确的条件性行为：在前置collector未破坏所需现场时，D32..35的HP尾写可使`1aa1d`提前结束当前掉落队列；victory28的D33+可把非零EDI传到`main@25e8f`标题／退出分支。当前`field_loot_flow.h`／`field_defeat_flow.h`／`app_flow.c`依显式owner推进，并未一般复现这些栈别名传值；正常触发与可观察差异仍待F3核证。collector的K条写入又是独立维度，可能在D较小时就改变保存值，完整Q／K写集仍由F1补证；不能只用死亡人数门或“逻辑条数后即U”消除此问题。
 
 ### A09：存档兼容和失败／取消owner
 
@@ -208,7 +228,9 @@
 
 剩余是所有有效档状态和跨Scene／Town／战场的失败、取消、反复重载；fresh未写9B、heap尾与原读者未封闭。坏档预检无副作用、缺设备仍运行等属于H扩展，不能称原DOS坏档等价。依赖A04、A07、A08、A20；原→SDL→原／SDL→原→SDL完整容器及未知区逐byte比对，owner故障注入和取消／HOST确认无悬挂。失败前后保已提交前缀，不能整体回滚原已写结果。
 
-明确的拒绝门是`field_save.c:86::fd2_field_game_export_battle_snapshot`在`turn_number>0xff`时失败；原运行回合是DWORD，保存字段是BYTE。是否存在正常可达且可保存的256以上回合须与A03共同判定；不能当作坏外部存档排除，也不能在未核原writer前直接截断或放宽。夹具覆盖254／255／256／DWORD边界及加载续态，比较原写出的完整文件和恢复行为。
+F1另定位Load的raw2写集：原10010逐raw调用11019，按当前unit_id重建cache并写record+2；当前`field_unit.c::fd2_field_units_sprite_cache_restore`只重建旁路class，刻意保持80B原记录，`field_save.c`随后导出仍取这些记录。旧视觉映射正确不能代签这个保存写集。F3须以正式可保存的热身份变化／cache重排夹具核原Load→Save并按原写点修正；当前是静态写集差异，不宣称已运行自然原版反例，也不任意重算其它未知字节。
+
+原审查定位的拒绝门是`field_save.c:86::fd2_field_game_export_battle_snapshot`在`turn_number>0xff`时失败；原运行回合是DWORD，保存字段是BYTE。F1已核完整turn写者、phase0支配增回合点、不可改slot15和metadata／Save来源：正常V前缀不能返回并增至256，因此该拒绝不再列正常V差异。不是仅据局部255试验作排除；注入／外来状态另记H。F3仍核正常254／255的完整文件与Load续态，并以256／DWORD边界验证H拒绝无副作用；自然长局到255的输入证据未执行。
 
 ### A10：输入重复率与跨框相位
 
@@ -222,7 +244,9 @@
 
 定位：`field_play.c:86..103`的`field_rng_initial_seed／context_init`、`field_rng.c`；原main@25bf4、`field_rng_next @0x4ebe3`。SDL未设环境变量固定0x7a18，只seed；原main在25d83读取BIOS46Ch，25d90调用Watcom rand，取模256后25da7循环调用共享RNG，再进入标题。
 
-本轮Domain只读核完整main711B摘要`be0ce16a0b644231f4c39655270e9a3b95e15bff58df91897cdf7199e78e7e2e`；4ebe3完整28B确认word627B8加9014再ROL3，算法与C一致。**已确认缺原启动推进；未量出rand初态／循环次数与全部启动读者**，不把某次捕获值当通用初值。可改变后续随机轨迹与玩法结果，未声称每次运行的初态值必然不同。保原有符号取余／循环比较；BIOS读与rand来源分别核，不先假定BIOS直接seed rand。依赖A02、A20、A13；冻结冷初态、rand来源、启动tick，原CPU和原版状态捕获对照，再接正式START／标题／Load。保留显式测试seed为调试控制，默认正式启动要还原来源及调用序。
+39422ae审查时Domain只读核完整main711B摘要`be0ce16a0b644231f4c39655270e9a3b95e15bff58df91897cdf7199e78e7e2e`；4ebe3完整28B确认word627B8加9014再ROL3，算法与C一致。**已确认缺原启动推进；未量出rand初态／循环次数与全部启动读者**，不把某次捕获值当通用初值。可改变后续随机轨迹与玩法结果，未声称每次运行的初态值必然不同。保原有符号取余／循环比较；BIOS读与rand来源分别核，不先假定BIOS直接seed rand。依赖A02、A20、A13；冻结冷初态、rand来源、启动tick，原CPU和原版状态捕获对照，再接正式START／标题／Load。保留显式测试seed为调试控制，默认正式启动要还原来源及调用序。
+
+F1前置取证更新：文件初态为Watcom rand DWORD=1、共享RNG WORD=0；完整CRT后及25d83的原版两次实际RAM捕获均保该初态，25db1观察rand `41c67ea6`／RNG `5885`／ESI=EDI=198。原CPU五个BIOS向量独立复现198次推进；BIOS低WORD只写视觉clock，不seed rand。该证据不等于已实现F2，也未证明标题／所有caller共享流与绝对时序；相应默认初始化差异仍待F2修复。
 
 ### A12：完整共享RNG和逐写序
 
@@ -249,6 +273,8 @@
 定位：`battle_animation.c`、`figani.c`、`magic_fx.c`、`field_effect.c`、attack／item／magic消费链；原物理及magic28槽、FIGANI408项与FULL／SHORT各caller。现有通用动作、派生／复合、dynamic bank及skip提交合同已实现，不重新列为缺功能。
 
 缺证是所有有效caster／目标、marker次数、FULL／SHORT、命中／miss／免疫／死亡、镜像／多目标的FX与调用组合。10个magic bank行含82重复，不能算10种不同bank；AI30组业务不能签目标FX。依赖A04、A05、A12—A14；从原资源和marker建立语义等价类、全参数验证，差异时点挑最小原生代表；MP逐marker、重复轮相位和受门SFX仍按原顺序。成功为全绑定引用均落入有原证的类，新增视觉／调用差异无遗漏。
+
+F1已确认一个有限参数差异：当前`field_defeat.c`截30锚，原1db65第31锚会读取临时页指针；32..35在已取状态caller向量中也可返回。写集、callee替身和剩余八caller／正常同屏参数资格见[F1报告](f1-reference-domain.md)，F4须补相应呈现／有效前缀；不将该参数反例改写为自然同时死亡已证，也不以伪C30槽普判U。
 
 ### A16：全资源、文字和字形
 
@@ -278,9 +304,11 @@
 
 ### A20：严格运行时BSS与原未知读者
 
-定位：`tools/verify_le_runtime_dump.py`、[LE严格门](../reverse-engineering/le-validation.md)、原对象／627B8等数据源。静态7,959记录／7,948唯一source／11相同重复已复核；旧runtime object2有21个非零BSS／stack字节，严格全对象门未过。
+定位：`tools/verify_le_runtime_dump.py`、[LE严格门](../reverse-engineering/le-validation.md)、原对象／627B8等数据源。静态7,959记录／7,948唯一source／11相同重复已复核；旧runtime实际LE入口有21个非零BSS／stack字节，旧严格失败保留。
 
 不得以“loader栈”解释直接豁免，也不得把不匹配镜像升级为权威。依赖A02；每次新取selector／object base／relocation delta，在进入逻辑前获取全部virtual size、BSS及每条relocation source，按规范逐byte比较，失败保原件。fresh9B／heap尾如被正常读者使用须追真实写源；字节门通过也不等于玩法一致。无法闭合则相关原初态／严格运行时声明继续阻塞。
+
+F1更新：正式04的L0全对象严格通过，L1对旧静态零模型仍为21B RED，原件保留。后续把有界LOGL折回现有入口，新正式startup01／Domain六窗／layered三份同轮收据闭合：从L0独立预测66B启动写入，全部293,547B／7,959记录／7,948唯一fixup source相同、零mask／豁免。111来源守卫、采样及正常owned清理通过；没有拿L1差异值作expected或将整个栈域排除。该层只签固定Windows参照及本次LE入口，不代全RAM、玩法／malloc初值、其它unknown读者或整个F1；具体身份见[F1报告](f1-reference-domain.md#a20当前正式工具的分层资格)。
 
 ### A21：全量复审及Windows完成门
 
@@ -345,4 +373,4 @@ Windows和Nuked选择已解决，不再等待确认。本轮没有需要用户�
 
 本轮及后续定向原生实验须使用WGC HWND、owned后台输入、串行执行、正常关闭后必要的owned终止；不捕全桌面裁切、不抢前台、不动用户混音器。**本新审查不扩张旧G阶段的电源授权**，不修改电源计划／全局设置；显示或采集条件不满足时保留失败和缺证，安排可运行窗口。原资源／用户Save只读，写入隔离副本。
 
-新阶段只测新增、修改和共享代码直接影响路径及对应原版代表；F6统一全面历史审查、复测、修复、精简后最终验收。无未经测量的工期估算；未知范围在F1展开到source ID与读者，而不是承诺全自动游戏等价。本次提交只包含审查／计划和必要文档索引，不自动启动F1功能实现或推送远程。
+新阶段只测新增、修改和共享代码直接影响路径及对应原版代表；F6统一全面历史审查、复测、修复、精简后最终验收。无未经测量的工期估算；未知范围在F1展开到source ID与读者，不承诺全自动游戏等价。39422ae只交付审查／计划；用户随后已明确授权本会话连续实施F1—F6，当前[F1实施中](f1-reference-domain.md)，每完整阶段提交／本地集成后汇报并继续，不推送远程。

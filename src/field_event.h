@@ -43,6 +43,12 @@ int fd2_field_cell_event_find(
 int fd2_field_movement_script_apply(fd2_field_units *units,
                                     const uint8_t *script,
                                     size_t script_size);
+/* 原1366a的source投影：0完整，1在normal组首身份读前停止，-1语法／域错。
+ * 0/1交回已定义完整组及其数量；-1不修改units或defined_groups。
+ * 调用者沿用构造/合法Load的已定义count前缀；此门只识别已证source
+ * normal首raw失去producer的情形，不解释任意其它字段的初始化状态。 */
+int fd2_field_movement_script_project_source(fd2_field_units *units,
+    const uint8_t *script,size_t script_size,size_t *defined_groups);
 
 /* 原0x627d8的全106条计数流。该getter不解除任何stage/事件支持门。
  * mode80/raw5保留原朝向与cache跨class语义，不规范化为普通四方向。

@@ -6,6 +6,7 @@
 
 - [总计划](plans/development.md)：下一执行阶段、**唯一当前待办顺序**、补充阶段、状态依据及测试门。
 - [原版完全对齐审查](plans/full-alignment-audit.md)：495e7d9基线、全量分母、A01—A22差异／证据矩阵和独立基准；Windows终态及保留Nuked声音差异，F1—F6顺序只查总计划。
+- [QK行为收尾专项](plans/qk-behavior-followup.md)：F1未完成性质的实际依赖、正常操作／SAV／WGC补证方案及F6最终门；不阻挡无依赖开发，不改签为已通过。
 - [已完成阶段归档](plans/completed-stages.md)：B／A／R／SD／G／S完成摘要、提交、长历史和收据索引；不维护当前优先级。
 - [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类及S5来源／有限消费者增量；顺序和完成状态仍以总计划为准。
 - [静态数据层与事件流程](plans/static-data.md)：已完成的 SD1—SD3 调研与工作包；覆盖冷定义、可修改的事件分支与编排、提取／验证和存档边界。
@@ -26,6 +27,7 @@
 
 - [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
 - [关卡来源账与批量夹具](formats/stage-source-ledger.md)：S1固定schema、S5去向／82分层、C22双TU／CMake编译身份与输入继承；不是App数据、第二份冷定义或玩法完成清单。
+- [原版参照身份](formats/original-reference.md)：20个原文件及字库摘要、DOSBox配置与运行资格分账、只读生成／校验和负例；不替代原版运行证据。
 - [文字映射](formats/font-text-mapping.md)：FDTXT token、Unicode 和缺字规则。
 - [字形映射表](formats/font-glyph-map.tsv)：完整映射数据。
 

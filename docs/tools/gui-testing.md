@@ -1025,3 +1025,21 @@ C22 source纯等待0..65535ms不再转入common资源preflight，实际终章长
 这些代表处于已证正常招募人数上界31的有限域；外来32人credits超原构造／raw引用域时明确拒绝，不将存档32条持久区缩为31或伪造缺失active。完整容器保留与片尾人数支持分开验证，不以本轮少量代表宣称所有人数、身份或条件组合逐一原版通过。
 
 收据中的WGC瞬态条目保原错误与时间，但不计为业务检查点。比如C19的26→27记录原版88条／SDL83条，其中9条／4条是`wgc_transient`，实际业务检查点两端均79。连续帧的混合扫描图不能拼成缺失完整帧；丢失帧不可从日志恢复。源／EXE或模型变化后的重跑与严格继承分别登记，旧失败不改签，也不把纯注释资格桥接称为新候选GUI运行。
+
+## F1 合并调度与容量传送代表
+
+`tools/run_f1_coalesced82_check.py`复用S5正式App、owned后台输入、WGC及完整Save／Load合同。默认只准备；`--run`需要同候选App、driver、构建目录和实际snapshot consumer。来源是C22原版entry29实际27人Save及同轮报告／七张PNG守卫，默认路径在`F:/fd2sdl-evidence/s5-20261114/native-entry29-C22-01/original/`。缺少原件应报告材料缺失，不能拿SDL档、任意晚关档或重写旧报告替代。
+
+夹具明确登记20个byte改动以表示两次81调度、四条已死亡记录及AI隔离，不声称跑过自然双杀。正式链为CONTINUE→Save→活动Load取消／确认→Save→END至Round002／27人Save→第二END／story4两页ACK→三个22253 caller→Round003／29人Save。原Save只复制active前缀，因此inactive29／30运行时xy不能由磁盘尾部反推；实际C／原码写集另证。完整带数字的原90、91资源均可作为Round见证，分别检查全部1,785、1,615个非透明像素；不裁边框、忽略数字或声称全相位／全RGB一致。
+
+本轮F1只使用`require_display_on=True`：首窗口前必须确认活动console／session均ON，OFF／DIM／未知时不申请显示需求、不唤醒、不修改电源方案。ON时临时显示需求仍由取得它的同一线程在全部owned清理和来源检查后恢复；读取与申请不是原子操作，不保证每帧持续ON。该入口不沿用上文旧G专属的电源方案授权，不改混音器。memory-only loader取证另按[DOSBox转储](dosbox-debug.md)执行，不冒称WGC资格。
+
+Windows PowerShell复跑模板（输出目录必须不存在）：
+
+```powershell
+$Build = 'src/build-win'
+$Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
+& $Driver run-job 900000 python -B tools/run_f1_coalesced82_check.py --root . --artifacts build/f1/coalesced82-native-NEW --sdl src/Debug/fd2sdl.exe --driver $Driver --dosbox 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe' --build-dir $Build --snapshot-probe "$Build/Debug/fd2_field_s5_owner_test.exe" --bootstrap-config 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf' --run
+```
+
+这是Windows原生入口及Windows归档依赖，不提供未经验证的Linux原生等价命令；Linux常规构建／逻辑检查见[跨平台约定](platforms.md)，本轮未执行。实际运行、失败保留、检查器修正及当前资格统一记在[F1报告](../plans/f1-reference-domain.md#合并82正式代表的失败与检查器修正)，上述复跑模板不表示本场已通过。

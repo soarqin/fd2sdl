@@ -90,6 +90,16 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 `required_labels` 还固定 C API 实际查找的外部节点入口。当前 loot 的 preflight.drop、preflight.cell、cell.begin、drop.begin、finish.common 不可仅同步图内引用后随意改名；缺失即构建校验失败。普通内部节点仍可重命名／重排。`entries` 的可达性声明不能代替真实 node.id 的消费合同。
 
+### 执行预算的独立结构审查
+
+`tools/audit_static_flow_budget.py` 直接读取八域唯一 JSON 源及已人工审阅的 C consumer 合同，不导入生成器，也不以生成 C 为 expected。Windows 用 `python -B tools/audit_static_flow_budget.py --output build/f1/static-flow-budget-NEW.json`；Linux 对应 `python3 -B`，本轮 Linux 未执行。输出须为不存在的本地文件，原资源目录拒绝写入。合成负例用 `python -B -m unittest discover -s tools/tests -p test_f1_flow_budget.py -v`。
+
+工具分别核 Scene 的共享调用、cinematic 子调用独立计数并恢复父计数、credits 节点计数后重开 epoch，以及各 Game／准备页 API 的本地 advance、真实读键 epoch 和有界游标。common_event 的身份预检另算全部 pending 分支的累计访问数及 64 槽工作栈，汇合尾部按每条投影重复计费。common_event 的 teleport 叶经 Play 创建新的零初始化 Scene context，因此另有 root 预算／深度；`action_call_full` 也有独立的固定 caller 和本地预算，不能混为 Scene 的深度 8。
+
+对当前源，Scene／stage 全部 122 份真实图（83 绑定、233 个显式／隐式调用点）的每 epoch 上界为 9,293 步、深度为 5；credits 的 32 个真实 epoch 边界间上界为 2,045。八域共 241 图、22,128 节点、179 绑定，仅是结构分母。准备服务／部署的真实输入 epoch 上界为 55／33；loot、reward、phase.status 单次 advance 的保守上界为 5,018／60／10,766。reward／status 资源预检分别最多调用 advance 3,075／673 次；choice 采用没有该步数门的正常输入等待。身份预检累计访问上界为 1,542，pending 上界为 7。这些数值只适用于同一收据的源身份，不是原版语义或功能覆盖率。
+
+`consumer_C_change_requires_manual_requalification=true` 是资格限制：片段存在检查和整文件摘要不会解释任意 C 变更。consumer、循环变量／重置、调用、分支或参数域变化后，须重审实际代码并重新生成收据；未知回边、绕过比较、假 epoch、深度或预算超限均失败。证明只保证已核当前图在正常计数域内不触发这些损坏定义停止门，不签分支正常可达性、领域叶内部等待、时序、输入、资源或原版等价；`whole_F1_complete` 始终为 `false`。
+
 ## 共享运行与通用事件的来源边界
 
 G4 冻结时，`runtime.json` 有68个有限操作、6份流程和321个节点：Round 42、phase 132、turncycle 28、choice 25、defeat 86、detail 8。G5 冻结为78个操作、7份流程和381个节点，追加到场图及有源的清键／信息板／caller返回和方向reset等待边界。`verify_runtime_flows.py` 独立读取固定身份原 EXE 与严格 LE 页，按原 Round／phase／恢复／确认／死亡／详情等 caller 的 call／jump／立即数推导预期；不把 JSON 自报来源或生成 C 当作期望。静态正反例、原码、真实 C consumer 和 WGC 各自记账；实际等待、写点、工作页和可见内容的有效域见[共享运行语义 §8](../reverse-engineering/common-runtime-semantics.md#8-g4-共享菜单与-phaseround-实施依据)与[共同事件语义 §7](../reverse-engineering/common-event-semantics.md#7-g5既有事件按实际等待续行代码冻结最终门待验)。

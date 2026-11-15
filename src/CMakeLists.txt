@@ -1073,6 +1073,7 @@ if(BUILD_TESTING)
         target_compile_options(fd2_field_turn_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME field_turn COMMAND fd2_field_turn_test)
+    set_tests_properties(field_turn PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
     add_executable(fd2_field_player_controller_test
         tests/field_player_controller_test.c
@@ -1762,6 +1763,14 @@ if(BUILD_TESTING)
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_data.py)
     add_test(NAME static_flow_schema COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_static_flows.py)
+    add_test(NAME original_reference_contract COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p test_original_reference.py)
+    set_tests_properties(original_reference_contract PROPERTIES TIMEOUT 30
+        WORKING_DIRECTORY "${FD2_STATIC_ROOT}")
+    add_test(NAME f1_source_contract COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
+        -s "${FD2_STATIC_ROOT}/tools/tests" -p "test_f1_*.py")
+    set_tests_properties(f1_source_contract PROPERTIES TIMEOUT 120
+        WORKING_DIRECTORY "${FD2_STATIC_ROOT}")
     add_test(NAME s5_source_tools COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p "test_s5_*.py")
     set_tests_properties(s5_source_tools PROPERTIES TIMEOUT 120

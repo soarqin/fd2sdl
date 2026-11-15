@@ -5,7 +5,7 @@
 ## 结论与适用范围
 
 - **静态模型已通过独立复核**：项目 parser／独立 decoder 与 IDA loader 的 object、全部 fixup 和字节一致；LE/LX fixup 可靠性疑虑已关闭。历史依据为 [IDA 9.4 报告](ida-crosscheck.md)，[9.5 重导出](ida-bytecheck-9.5.md)再次通过 21 项静态检查。
-- **严格运行时全对象验收尚未通过**：历史 DOSBox 捕获的 file-backed 区和 relocation source 匹配，但 object2 BSS/stack 有 21 个非零字节，需要新转储。不能用「loader 建栈」或静态 BSS 规范化自动豁免差异。
+- **新装载态的严格全对象字节门已通过**：F1 在 loader 完成装载／重定位、写启动栈前取得新快照，全部 object 的完整 virtual size、BSS 和 7,959 条 relocation source 均相同。真实 LE 入口的另一快照仍有 21 个非零 BSS/stack 字节，与静态零模型比较仍失败；两个采样点不得混用，也不自动豁免入口差异。运行配置链与字节门的资格分别登记，详见 [F1 报告](../plans/f1-reference-domain.md)。
 - **玩法／视听另行验收**：静态、运行时字节检查和局部机器码执行都不替代 DOSBox 场景对照。允许在独立副本上自动操作与捕获，仍须有状态、截图／存档／trace 和已确认判据。
 
 ## 产物与写入边界
@@ -52,6 +52,13 @@ python3 tools/ida/verify_ida_vs_project.py
 3. **写入受限**：raw 与 relocated 分开输出；只在 manifest 覆盖的 source 范围写入，非 relocation 字节逐字节不变。重复、重叠和冲突必须显式验证，不能以后写覆盖处理。
 4. **运行身份可靠**：只用 `dosbox-debug` 转储已经加载的原版对象，在进入游戏逻辑或 overlay 改写前获取全部已提交 page、BSS 和 relocation source；selector、object base 与 relocation delta 必须来自该次运行。
 5. **全对象一致**：静态输出与运行时转储在全部 object 的完整 virtual size 内逐字节相同，包括 BSS；每个 relocation source 的运行时值也逐条验证。只匹配入口、几个函数、少数表或 hash 抽样不构成通过。
+
 6. **缺项即失败**：任一字节不同、记录未覆盖或步骤无法执行，只能报告未通过；不得声称「完全正确」，也不得把未通过的镜像提升为权威基线或用于 Ghidra 权威重建。
+
+运行时比较须注明采样点。`L0` 是全部对象已装载／重定位、loader 尚未向对象内启动栈写入参数的时点；这是静态装载输出的逐字节 oracle。`L1` 是实际 LE entry，已经包含 loader 执行的写入。L0 通过不能把 L1 与静态零模型的失败改签为通过，更不能把 L0 用作进入玩法后的全 RAM 初值。若某个字段需要 L1 或更晚的初态，须另取对应运行证据及写源；原程序未写字节的全部读者仍按 F1／F3 追踪。
+
+固定Windows参照另有显式L1有源分层门：`run_le_preentry_check.py --startup-trace`从同进程L0取最多8,192条原指令到真实entry，`export_le_startup_domain.py`核当次runtime两段六窗，`verify_le_startup_writes.py`从L0前态和原写源独立计算expected，再比全部object／BSS及7,959记录／7,948唯一fixup source。它不采用L1差异值作expected、不屏蔽字节，不改变原静态零BSS validator。固定原loader窗口／调用序或任一源身份不符即失败，不扩成任意x86解释器。该层通过也只签该次参照／同进程入口，不提升为静态patched权威镜像、全RAM或玩法堆初态。
+
+2026-11-15的新工具实际资格为`build/f1/loaded-image-startup01/`、其`-domain/`与`-layered/`三份关联收据；全部293,547B及fixup相同、66B写账、零豁免，L1对旧静态零模型仍FAIL。完整输入、失败原件和范围见[F1报告](../plans/f1-reference-domain.md)；命令只在[DOSBox手册](../tools/dosbox-debug.md#l1-有源启动写账的可复跑入口)维护。
 
 运行时转储的具体命令、历史输入身份及地址重取步骤只在 [DOSBox 手册](../tools/dosbox-debug.md)维护。新的转储不能沿用其中的历史绝对地址。

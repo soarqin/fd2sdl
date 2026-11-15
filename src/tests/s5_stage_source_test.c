@@ -393,6 +393,66 @@ static int s5_bind_real_preflight(fd2_field_game *game,const fd2_archive *other)
     s5_real_resource_preflight=game->event_preflight;
     game->event_preflight=s5_source_resource_preflight;return 0;
 }
+/* 35022先story/pan/appendg3才到script43首未构造身份；244b6先
+ * 233c6纯写raw72并完成script66前46组。只签这些source的producer合同，
+ * 并不把任意count外字段解释为通用U；完整96×80原CPU比较另留独立收据。 */
+static int s5_source_movement_prefix(const fd2_archive *other) {
+    for(int host=0;host<2;host++) {
+        fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+        fd2_vga *vga=calloc(1,sizeof(*vga));CHECK(game && before && vga && s5_prepare(game,other,11)==0);
+        game->units.count=25;memset(game->units.items+25,0xa5,71*80);
+        CHECK(fd2_field_units_sprite_cache_restore(&game->units)==0);
+        vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+        s5_reset_io(vga);CHECK(s5_bind_real_preflight(game,other)==0);
+        CHECK(fd2_field_game_common_event_begin(game,"common.callback.037",15)==0);
+        const char *ops[]={"story","pan","move"};
+        for(unsigned i=0;i<3;i++) {
+            fd2_static_flow_node node;size_t actor;
+            CHECK(fd2_field_game_common_event_peek(game,&node,&actor)==1 && !strcmp(node.op,ops[i]));
+            if(i<2) {
+                CHECK(s5_fd2_scene_play_common_step(vga,other,game,&node,NULL,1)==0);
+                CHECK(fd2_field_game_common_event_reply(game,i?FD2_FLOW_NEXT:FD2_FLOW_ACK)==0);
+            }else {
+                CHECK(node.args[0]==43 && game->units.count==31 &&
+                    game->camera_cell_x==15 && game->camera_cell_y==34);
+                *before=*game;if(host)vga->input.quit_requested=1;
+                CHECK(s5_fd2_scene_play_common_step(vga,other,game,&node,NULL,1)==
+                    (host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR));
+                CHECK(!memcmp(game,before,sizeof(*game)));
+                if(host)game->runtime_host_quit=1;
+                else CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_ERROR)==-1);
+                *before=*game;
+                CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT)==-1 &&
+                    !memcmp(game,before,sizeof(*game)) && game->units.count==31);
+            }
+        }
+        fd2_field_game_close(game);fd2_field_page_destroy(vga->field_page);free(game);free(before);free(vga);
+    }
+    for(size_t count=66;count<=72;count+=6) {
+        fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
+        CHECK(game && vga && s5_prepare(game,other,21)==0);fd2_field_units_clear(&game->units);
+        for(size_t i=0;i<count;i++) {
+            CHECK(fd2_field_units_set(&game->units,i,i==1?24:0,i==1?24:(uint8_t)i,i<16?2:0,
+                20+(int)(i%4),42+(int)(i/4))==0);
+            game->units.items[i].hp=game->units.items[i].hp_max=100;
+        }
+        memset(game->units.items+count,0xa5,(96-count)*80);
+        fd2_field_unit raw72=game->units.items[72];raw72.x=22;raw72.y=25;raw72.direction=2;
+        fd2_field_unit tail[23];memcpy(tail,game->units.items+73,sizeof(tail));
+        vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+        s5_reset_io(vga);CHECK(s5_bind_real_preflight(game,other)==0);
+        game->battle_result=FD2_FIELD_BATTLE_VICTORY;
+        CHECK(s5_fd2_scene_play_stage_source_flow(vga,other,game,NULL,1,"stage.source.victory.021")==-1);
+        const uint8_t xy[][2]={{22,19},{22,18},{22,17},{23,17},{21,17},{21,18},{21,19},{23,18},
+            {23,19},{20,18},{20,19},{20,20},{24,18},{24,19},{21,20},{23,25}};
+        for(size_t i=0;i<16;i++)CHECK(game->units.items[i].x==xy[i][0] && game->units.items[i].y==xy[i][1]);
+        CHECK(game->units.count==count && game->stage==21 && game->failure==FD2_FIELD_FAILURE_NONE &&
+            !game->runtime_host_quit && game->camera_cell_x==16 && game->camera_cell_y==16 &&
+            !memcmp(game->units.items+72,&raw72,80) && !memcmp(game->units.items+73,tail,sizeof(tail)));
+        fd2_field_game_close(game);fd2_field_page_destroy(vga->field_page);free(game);free(vga);
+    }
+    return 0;
+}
 static int s5_source_wait_domain(const fd2_archive *other) {
     fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
     fd2_vga *vga=calloc(1,sizeof(*vga));
@@ -483,6 +543,7 @@ int main(int argc,char **argv){
         CHECK(s5_text_owner_case(&other,22)==0 && s5_text_owner_case(&other,29)==0);
         CHECK(s5_game_leaf_failure_prefix(&other)==0);
         CHECK(s5_source_wait_domain(&other)==0);
+        CHECK(s5_source_movement_prefix(&other)==0);
         CHECK(s5_full_ending(&other,26,0)==0 && s5_full_ending(&other,29,0)==0);
         CHECK(s5_full_ending(&other,29,1)==0);
         CHECK(s5_vector(&other,20,6,1,0)==0 && s5_vector(&other,20,9,1,0)==0);

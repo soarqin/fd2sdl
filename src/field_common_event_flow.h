@@ -195,7 +195,7 @@ static int common_event_domain(fd2_field_game *game, size_t caller,
                 (uint8_t)a[1])!=0) return -1;
         return 1;
     } else if (!strcmp(op, "unit_field_write") || !strcmp(op, "unit_ai_write")) {
-        if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= game->units.count ||
+        if (a[0] < 0 || a[1] < a[0] || (size_t)a[1] >= FD2_FIELD_MAX_UNITS ||
             game->units.count > FD2_FIELD_MAX_UNITS) return -1;
         /* G2已有typed writer完整参数校验；借单个临时units用于纯验证，
          * 不复制Game/资源owner，也不承诺对已提交事件作回滚。 */
@@ -203,7 +203,7 @@ static int common_event_domain(fd2_field_game *game, size_t caller,
         fd2_field_units *units = &game->units;
         if (validate_only) { validation = game->units; units = &validation; }
         if (!strcmp(op, "unit_ai_write")) {
-            if (a[2] < 0 || a[2] > UINT8_MAX) return -1;
+            if ((size_t)a[1]>=game->units.count || a[2] < 0 || a[2] > UINT8_MAX) return -1;
             result = fd2_field_units_ai_behavior_write(units, (size_t)a[0], (size_t)a[1], (uint8_t)a[2]);
         } else {
             if (a[4] < 0 || a[4] > UINT16_MAX) return -1;

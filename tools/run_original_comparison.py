@@ -189,7 +189,9 @@ def quiet_game_command(command: list[str], env: dict):
 
 @contextmanager
 def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
-            receipts: list[dict], *, expected_exit=0):
+            receipts: list[dict], *, expected_exit=0, hidden_console=False):
+    if hidden_console and sys.platform != "win32":
+        raise ValueError("隐藏原生console仅用于Windows loader取证")
     command, env, quiet = quiet_game_command(command, env)
     with log.open("w", encoding="utf-8") as stream:
         launch = {}
@@ -201,12 +203,20 @@ def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
             startup = subprocess.STARTUPINFO()
             startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startup.wShowWindow = 4  # SW_SHOWNOACTIVATE，保持窗口可见供HWND WGC捕获。
+            if hidden_console:
+                # DOSBox debugger的curses需要真实console，不能继承无效pipe句柄。
+                startup.wShowWindow = 0
+                launch["creationflags"] = subprocess.CREATE_NEW_CONSOLE
             launch["startupinfo"] = startup
-        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=stream, **launch)
+        output = {} if hidden_console else {"stdout": stream, "stderr": stream}
+        process = subprocess.Popen(command, cwd=cwd, env=env, **output, **launch)
         receipt = {"pid": process.pid, "command": command, "log": str(log),
                    "forced_cleanup": False, "cleaned": False, "expected_exit": expected_exit,
                    "input_backend": "PostMessageW HWND"}
         receipt.update(quiet)
+        if hidden_console:
+            receipt["new_hidden_console"] = True
+            receipt["log"] = None  # 模拟器通过独立[log]写文件，不伪称捕获console输出。
         receipts.append(receipt)
         body_failed = False
         try:

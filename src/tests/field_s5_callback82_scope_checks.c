@@ -130,9 +130,42 @@ static int shared_scope_rejects_missing_cursor(void) {
     fd2_scene_teleport_release(&scope);CHECK(logic_unchanged(f)==0);
     game->visuals.cursor_frame_count=count;close_game_fixture(f);free(f);return 0;
 }
+static int source_inactive_write_scope(int draw_from_actor) {
+    fixture *f=malloc(sizeof(*f));CHECK(f && setup(f,0)==0);
+    fd2_field_game *game=f->game;game->units.count=29;
+    memset(game->units.items+29,0xa5,(FD2_FIELD_MAX_UNITS-29)*sizeof(fd2_field_unit));
+    CHECK(fd2_field_units_sprite_cache_restore(&game->units)==0);
+    game->camera_cell_x=16;game->camera_cell_y=14;game->cursor_cell_x=21;game->cursor_cell_y=18;
+    *f->before=*game;
+    size_t actor=0;
+    CHECK(scene_source_teleport_actor(game,29,&actor)==0 && actor==29);
+    CHECK(scene_source_teleport_actor(game,96,&actor)==-1);
+    fd2_static_flow_node nodes[3]={0};
+    const char *ops[]={"teleport_begin","call_teleport","end"};
+    for(unsigned i=0;i<3;i++) {
+        nodes[i].op=ops[i];nodes[i].views=FD2_FLOW_PRESENT;
+        for(unsigned j=0;j<FD2_FLOW_PORT_COUNT;j++)nodes[i].edges[j]=-1;
+        if(i<2)nodes[i].edges[FD2_FLOW_NEXT]=(int16_t)(i+1);
+    }
+    nodes[0].args[0]=29;nodes[0].args[1]=nodes[0].args[3]=21;
+    nodes[0].args[2]=nodes[0].args[4]=18;
+    if(draw_from_actor)nodes[0].args[3]=-1;
+    fd2_static_flow flow={"F1-source-inactive-xy",nodes,3,0};
+    fd2_scene_field_state state={0};scene_flow_context c={0};
+    c.game=c.mutable_game=game;c.vga=f->vga;c.fdother=&f->fdother;c.state=&state;
+    c.terrain=&game->terrain;c.map=&game->map;c.sprites=&game->sprites;c.fast=c.source_flow=1;
+    state.ordinary_cursor=fd2_field_cursor_frame(&game->visuals,0);scene_source_load(&c);
+    scene_host_quit_requested=scene_render_error=0;
+    CHECK(scene_flow_run(&c,&flow)==(draw_from_actor?-1:0));
+    CHECK(scene_source_commit(&c)==0); /* 整容量load/store保留xy与其它78B。 */
+    if(!draw_from_actor) {f->before->units.items[29].x=21;f->before->units.items[29].y=18;}
+    fd2_scene_teleport_release(&c.teleport);CHECK(logic_unchanged(f)==0);
+    close_game_fixture(f);free(f);return 0;
+}
 int callback82_scope_checks(void) {
     for(unsigned display=0;display<2;display++)for(int mode=0;mode<3;mode++)
         CHECK(shared_scope_preserves_display(display,mode)==0);
     CHECK(shared_scope_rejects_missing_cursor()==0);
+    CHECK(source_inactive_write_scope(0)==0 && source_inactive_write_scope(1)==0);
     return 0;
 }

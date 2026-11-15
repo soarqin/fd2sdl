@@ -1360,6 +1360,19 @@ static int test_unit_domain_errors_and_mutations(void) {
     CHECK(fd2_field_units_field_write(&units,95,95,(fd2_field_unit_field)99,FD2_UNIT_SET,1)==-1);
     CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_FLAGS,FD2_UNIT_SET,256)==-1);
     CHECK(!memcmp(&saved,&units,sizeof(units)));
+    units.count=2;memset(&units.items[95],0xa5,sizeof(units.items[95]));saved=units;
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_X,FD2_UNIT_SET,22)==0);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_Y,FD2_UNIT_SET,25)==0);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_DIRECTION,FD2_UNIT_SET,2)==0);
+    saved.items[95].x=22;saved.items[95].y=25;saved.items[95].direction=2;
+    CHECK(units.count==2 && !memcmp(&saved,&units,sizeof(units)));
+    CHECK(fd2_field_units_field_write(&units,95,96,FD2_UNIT_X,FD2_UNIT_SET,1)==-1);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_X,FD2_UNIT_AND,1)==-1);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_ID,FD2_UNIT_SET,1)==-1);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_HP,FD2_UNIT_SET,1)==-1);
+    CHECK(fd2_field_units_field_write(&units,95,95,FD2_UNIT_FRAME_PHASE,FD2_UNIT_SET,1)==-1);
+    CHECK(fd2_field_units_ai_behavior_write(&units,95,95,1)==-1);
+    CHECK(!memcmp(&saved,&units,sizeof(units)));
     return 0;
 }
 

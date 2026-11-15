@@ -123,11 +123,29 @@ static int test_scene_future_map_resource_guard(void) {
     CHECK(g->map.cells==original.cells && g->map.width==original.width && g->map.height==original.height);
     fd2_field_game_close(g);free(g);fd2_archive_close(&other);return 0;
 }
+
+static int test_move_source_boundary_preserves_entry(void) {
+    trace t={0};fd2_field_game *g=game(&t);CHECK(g);
+    fd2_static_flow_node nodes[3];nodes[0]=node("move");nodes[0].args[0]=75;
+    nodes[0].edges[FD2_FLOW_NEXT]=1;
+    nodes[1]=node("story");nodes[1].args[0]=2;nodes[1].edges[FD2_FLOW_ACK]=2;
+    nodes[2]=node("end");
+    CHECK(run_unchanged(g,nodes,3,1)==0 && !t.stories && !t.rng);
+    nodes[0].args[0]=106;CHECK(run_unchanged(g,nodes,3,-1)==0);
+    /* 233c6只写xy/dir，不以该SET把后续身份分支变成已构造actor。 */
+    nodes[0]=node("unit_field_write");nodes[0].args[0]=nodes[0].args[1]=72;
+    nodes[0].args[2]=FD2_UNIT_X;nodes[0].args[4]=22;nodes[0].edges[FD2_FLOW_NEXT]=1;
+    nodes[1]=node("end");CHECK(run_unchanged(g,nodes,2,1)==0);
+    nodes[0].args[2]=FD2_UNIT_ID;CHECK(run_unchanged(g,nodes,2,-1)==0);
+    nodes[0].op="unit_ai_write";nodes[0].args[2]=1;CHECK(run_unchanged(g,nodes,2,-1)==0);
+    free(g);return 0;
+}
 int main(void) {
     CHECK(test_identity_write_then_known_branch()==0);
     CHECK(test_append_future_raw_and_capacity()==0);
     CHECK(test_state_roster_and_map_paths()==0);
     CHECK(test_unknown_inventory_keeps_known_state_branch()==0);
     CHECK(test_scene_future_map_resource_guard()==0);
+    CHECK(test_move_source_boundary_preserves_entry()==0);
     puts("S2 bounded source projection: ok");return 0;
 }

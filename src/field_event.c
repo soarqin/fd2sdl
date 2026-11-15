@@ -93,31 +93,48 @@ static void move_one(fd2_field_unit *unit, uint8_t direction) {
     }
 }
 
-int fd2_field_movement_script_apply(fd2_field_units *units,
-                                    const uint8_t *script,
-                                    size_t script_size) {
-    if (!units || !script || script_size == 0 ||
-        units->count > FD2_FIELD_MAX_UNITS)
-        return -1;
+static int movement_script_format(const uint8_t *script, size_t script_size) {
+    if (!script || !script_size) return -1;
+    size_t pos=1;
+    for (size_t group=0;group<script[0];group++) {
+        if (pos+2u>script_size) return -1;
+        uint8_t mode=script[pos++],count=script[pos++];
+        if (count>32u || (size_t)count*2u>script_size-pos) return -1;
+        for (size_t i=0;i<count;i++,pos+=2u)
+            if (script[pos]>=FD2_FIELD_MAX_UNITS ||
+                (script[pos+1u]>3u && !(mode==0x80u && script[pos+1u]==5u))) return -1;
+    }
+    return pos==script_size?0:-1;
+}
+
+static int movement_script_apply(fd2_field_units *units,const uint8_t *script,
+        size_t script_size,size_t *defined_groups) {
+    if (!units || units->count>FD2_FIELD_MAX_UNITS ||
+            movement_script_format(script,script_size)!=0) return -1;
 
     fd2_field_units updated = *units;
     size_t pos = 1;
     size_t group_count = script[0];
     for (size_t group = 0; group < group_count; group++) {
-        if (pos + 2u > script_size) return -1;
         uint8_t mode = script[pos++];
         uint8_t actor_count = script[pos++];
-        if (actor_count > 32u) return -1; /* 原1366a两组32B局部数组。 */
         size_t pair_bytes = (size_t)actor_count * 2u;
-        if (pair_bytes > script_size - pos) return -1;
         const uint8_t *pairs = script + pos;
         pos += pair_bytes;
+
+        /* 1366a@1391e先32230(first raw)读身份，之后才写该组DIR/frame。
+         * 35022/244b6的早调用在此失去actor producer；只交还此前完整组。 */
+        if (defined_groups && mode && !(mode&0x80u) && actor_count &&
+                pairs[0]>=updated.count) {
+            *defined_groups=group;
+            *units=updated;
+            return 1;
+        }
 
         for (size_t i = 0; i < actor_count; i++) {
             uint8_t actor = pairs[i * 2u];
             uint8_t direction = pairs[i * 2u + 1u];
-            if (actor >= updated.count ||
-                (direction > 3u && !(mode == 0x80u && direction == 5u))) return -1;
+            if (actor >= updated.count) return -1;
             if (mode != 0) updated.items[actor].direction = direction;
         }
         if ((mode & 0x80u) != 0) continue;
@@ -131,9 +148,20 @@ int fd2_field_movement_script_apply(fd2_field_units *units,
             }
         }
     }
-    if (pos != script_size) return -1;
     *units = updated;
+    if (defined_groups) *defined_groups=group_count;
     return 0;
+}
+
+int fd2_field_movement_script_apply(fd2_field_units *units,
+        const uint8_t *script,size_t script_size) {
+    return movement_script_apply(units,script,script_size,NULL);
+}
+
+int fd2_field_movement_script_project_source(fd2_field_units *units,
+        const uint8_t *script,size_t script_size,size_t *defined_groups) {
+    if (!defined_groups) return -1;
+    return movement_script_apply(units,script,script_size,defined_groups);
 }
 
 int fd2_field_movement_script_get(uint8_t script_id,

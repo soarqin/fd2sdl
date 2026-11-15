@@ -102,7 +102,7 @@ static int safety(void) {
     fail_bank=0;fail_page=1;
     CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,0,11,14,11,14)==-1 && !scope);
     fail_page=0;
-    CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,1,11,14,11,14)==-1 && !scope);
+    CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,FD2_FIELD_MAX_UNITS,11,14,11,14)==-1 && !scope);
     CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,0,-1,14,11,14)==-1 && !scope);
     f->vga->input.quit_requested=1;
     CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,0,11,14,11,14)==-2 && !scope);
@@ -155,6 +155,49 @@ static void hex(const uint8_t *data,size_t size) {
     static const char digits[]="0123456789abcdef";
     for(size_t i=0;i<size;i++){putchar(digits[data[i]>>4]);putchar(digits[data[i]&15]);}
 }
+/* 原362e8在state2/count29的两次写址是29/30；其余78B不是actor输入。
+ * 95只是allocation上界防御用例，不称正常callback82可达状态。 */
+static int inactive_vectors(int emit) {
+    const unsigned actors[]={29,30,95};
+    for(unsigned a=0;a<3;a++)for(unsigned mode=0;mode<5;mode++) {
+        fixture *f=malloc(sizeof(*f));CHECK(f && fixture_open(f)==0);
+        f->game->units.count=29;
+        for(unsigned i=1;i<29;i++)f->game->units.items[i]=f->game->units.items[0];
+        memset(f->game->units.items+29,0xa5,(FD2_FIELD_MAX_UNITS-29)*sizeof(fd2_field_unit));
+        CHECK(fd2_field_units_sprite_cache_restore(&f->game->units)==0);
+        *f->before=*f->game;
+        unsigned actor=actors[a];int dx=actor==30?23:21;
+        fd2_scene_teleport_scope *scope=NULL;
+        CHECK(test_teleport_begin(&scope,f->game,f->vga,&f->fdother,actor,dx,18,dx,18)==0);
+        CHECK(!memcmp(f->before->units.items+actor,f->game->units.items+actor,sizeof(fd2_field_unit)));
+        int result=0,committed=mode==0 || mode==3;
+        if(mode==1) { /* 正常释放就是取消；没有到22253的xy写点。 */
+            test_teleport_release(&scope);
+        } else if(mode==2) {
+            f->vga->input.quit_requested=1;result=test_teleport_commit(scope);
+            CHECK(result==FD2_SCENE_RESULT_HOST_QUIT);
+        } else if(mode==4) {
+            fd2_field_page *owner=f->vga->field_page;f->vga->field_page=NULL;
+            result=test_teleport_commit(scope);f->vga->field_page=owner;
+            CHECK(result==FD2_SCENE_RESULT_ERROR);
+        } else {
+            fail_commit=mode==3;result=test_teleport_commit(scope);
+            CHECK(result==(mode==3?FD2_SCENE_RESULT_ERROR:FD2_SCENE_RESULT_OK));
+        }
+        if(committed) {
+            f->before->units.items[actor].x=(uint8_t)dx;
+            f->before->units.items[actor].y=18;
+        }
+        test_teleport_release(&scope);CHECK(!scope && logic_unchanged(f)==0);
+        if(emit) {
+            printf("{\"actor\":%u,\"active_count\":29,\"mode\":%u,\"result\":%d,\"committed\":%s,\"record_hex\":\"",
+                actor,mode,result,committed?"true":"false");
+            hex((const uint8_t *)&f->game->units.items[actor],sizeof(fd2_field_unit));puts("\"}");
+        }
+        fixture_close(f);free(f);
+    }
+    return 0;
+}
 static int record(fixture *f,fd2_scene_teleport_scope *scope,const char *tag,int index,int first) {
     CHECK(fd2_field_page_read(f->vga->field_page,0,0,456,336,f->page_bytes,FD2_FIELD_PAGE_SIZE,456)==0);
     printf("%s{\"tag\":\"%s\",\"index\":%d,\"x\":%u,\"y\":%u,\"page_hex\":\"",first?"":",",tag,index,
@@ -194,6 +237,7 @@ static int vectors(void) {
 }
 int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--s5-teleport-vectors"))return vectors();
-    CHECK(argc==1 && safety()==0);
+    if(argc==2 && !strcmp(argv[1],"--f1-inactive-teleport-vectors"))return inactive_vectors(1);
+    CHECK(argc==1 && safety()==0 && inactive_vectors(0)==0);
     puts("scene_teleport_source: actual Game/page/LMI consumers and error/xy-prefix checks PASS");return 0;
 }

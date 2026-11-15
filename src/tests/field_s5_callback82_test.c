@@ -10,11 +10,21 @@
 static int common_event_leaf(const char *op) {
     return !strcmp(op,"teleport_begin") || !strcmp(op,"call_teleport") || !strcmp(op,"story");
 }
-static unsigned begins,calls,stories,projected_state;
+static unsigned begins,calls,stories,projected_state,inactive_actor;
 static int common_event_preflight_leaf_view(const fd2_field_game *game,
         const fd2_static_flow_node *node,size_t actor,const fd2_field_event_resource_view *view) {
     (void)actor;
     if(!game || !view || !view->units || game->cell_action_completed[16]!=0)return -1;
+    if(inactive_actor) {
+        fd2_field_unit expected;memset(&expected,0xa5,sizeof(expected));
+        if(!strcmp(node->op,"teleport_begin")) {
+            begins++;if(node->args[0]!=(int)inactive_actor)return -1;
+        } else if(!strcmp(node->op,"call_teleport"))calls++;
+        else if(!strcmp(node->op,"story")) {
+            stories++;expected.x=21;expected.y=18;
+        }
+        return view->units->count==29 && !memcmp(&expected,&view->units->items[inactive_actor],sizeof(expected))?0:-1;
+    }
     if(!strcmp(node->op,"teleport_begin")) {
         begins++;
         if(node->args[0]!=(int)(24-projected_state) || view->units->items[24-projected_state].x!=3)return -1;
@@ -92,7 +102,34 @@ static int test_projection_scope_and_future_state(void) {
     CHECK(common_event_preflight_identity(game,&flow,0)==-1 && !memcmp(game,before,sizeof(*game)));
     free(before);free(game);return 0;
 }
+static int test_inactive_xy_projection(void) {
+    fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));CHECK(game && before);
+    game->ready=1;game->units.count=29;
+    memset(game->units.items+29,0xa5,(FD2_FIELD_MAX_UNITS-29)*sizeof(fd2_field_unit));
+    fd2_static_flow_node nodes[5];
+    nodes[0]=node("event_byte_write",1);nodes[0].args[0]=16;nodes[0].args[1]=16;nodes[0].args[2]=2;
+    nodes[1]=node("teleport_begin",2);nodes[1].args[0]=-2;
+    nodes[1].args[1]=nodes[1].args[3]=21;nodes[1].args[2]=nodes[1].args[4]=18;
+    nodes[2]=node("call_teleport",3);nodes[3]=node("story",-1);nodes[3].edges[FD2_FLOW_ACK]=4;
+    nodes[4]=node("end",-1);
+    fd2_static_flow flow={"F1-inactive-xy-projection",nodes,5,0};*before=*game;
+    const int selectors[]={-2,-3,95};const unsigned actors[]={29,30,95};
+    for(unsigned i=0;i<3;i++) {
+        nodes[1].args[0]=selectors[i];inactive_actor=actors[i];begins=calls=stories=0;
+        CHECK(common_event_preflight_identity(game,&flow,0)==1 && begins==1 && calls==1 && stories==1);
+        CHECK(!memcmp(game,before,sizeof(*game)));
+    }
+    nodes[1].args[0]=96;CHECK(common_event_preflight_identity(game,&flow,0)==-1 && !memcmp(game,before,sizeof(*game)));
+    nodes[1].args[0]=-2;nodes[0].args[2]=36;
+    CHECK(common_event_preflight_identity(game,&flow,0)==-1 && !memcmp(game,before,sizeof(*game)));
+    fd2_static_flow_node write=node("unit_ai_write",-1);write.args[0]=write.args[1]=29;write.args[2]=1;
+    unsigned port=0;
+    CHECK(common_event_domain(game,0,&write,&port,0)==-1 && !memcmp(game,before,sizeof(*game)));
+    write=node("branch_actor",-1);write.args[0]=29;write.args[1]=FD2_EVENT_ACTOR_ID;
+    CHECK(common_event_query(game,0,&write,&port)==-1 && !memcmp(game,before,sizeof(*game)));
+    inactive_actor=0;free(before);free(game);return 0;
+}
 int main(void) {
-    CHECK(test_selectors_and_AI_write()==0 && test_projection_scope_and_future_state()==0);
+    CHECK(test_selectors_and_AI_write()==0 && test_projection_scope_and_future_state()==0 && test_inactive_xy_projection()==0);
     puts("field_s5_callback82: selector/AI writes and local resource projection PASS (no GUI)");return 0;
 }

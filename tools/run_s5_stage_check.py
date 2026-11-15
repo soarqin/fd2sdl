@@ -187,7 +187,7 @@ def run(args):
          'whole shared RNG equality','Linux/macOS'])
 
 
-def run_prepared(args,p,exercise,stages,scenario,excluded,*,kinds=('original','sdl')):
+def run_prepared(args,p,exercise,stages,scenario,excluded,*,kinds=('original','sdl'),require_display_on=False):
     """有限代表共用同一host/owned/source/SAV闭包；各原资源模型及业务输入显式传入。"""
     root=args.root.resolve();original=(root/'original_game').resolve(strict=True)
     if type(kinds)is not tuple or kinds not in(('original','sdl'),('sdl',)):
@@ -209,16 +209,20 @@ def run_prepared(args,p,exercise,stages,scenario,excluded,*,kinds=('original','s
     owned_job_required()
     if args.sdl.name.lower() not in ('fd2sdl.exe','fd2sdl'):raise ValueError('必须传正式App，不接受机制fixture')
     binaries=[args.sdl.resolve(),args.sdl.with_suffix('.pdb').resolve(),args.driver.resolve(),args.dosbox.resolve(),original/'FD2.SAV']
+    binaries.extend(Path(path).resolve() for path in p.get('source_evidence_paths',()))
     user_save=original.parent/'FD2.SAV'
     if user_save.exists():binaries.append(user_save)
     inputs,baseline,sources=shared.freeze(root,original,binaries,args.build_dir.resolve())
+    for path,value in p['manifest'].get('source_guards',{}).items():
+        if inputs.get(str(Path(path).resolve()))!=value:
+            raise ValueError('首窗口前显式来源与夹具冻结身份不一致')
     for policy in report['title_menu_policy'].values():
         if inputs.get(policy['stage_definition_path'])!=policy['stage_definition_sha256']:
             raise ValueError('标题UI政策与冻结stage定义身份不一致')
     inputs[str((root/'src/CMakeLists.txt').resolve())]=sha(root/'src/CMakeLists.txt')
     report.update(input_sha256=inputs,product_source_paths=sources,actual_build_directory=str(args.build_dir.resolve()))
     try:
-        with windows_display_requirement(report['display_requirement']),state_oracle.resource_domain(original,stages):
+        with windows_display_requirement(report['display_requirement'],require_display_on=require_display_on),state_oracle.resource_domain(original,stages):
             for kind in kinds:
                 work=output/kind;work.mkdir();record={'kind':kind,'ok':False,'processes':[],'inputs':[],'checkpoints':[],
                     'title_menu_policy':report['title_menu_policy'][kind]}

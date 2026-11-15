@@ -89,13 +89,13 @@ def teleport_gate(frames,p,indices):
 
 
 @contextmanager
-def observed_batch(capture,record,label,p,indices):
+def observed_batch(capture,record,label,p,indices,*,interval_ms=16):
     # 唯一WGC/owned实现仍为既有series；只给两个独立目录，不复制采集器或输入driver。
     directory=capture.artifacts/label;directory.mkdir()
     view=SimpleNamespace(driver=capture.driver,process=capture.process,artifacts=directory)
     batch={'label':label,'source_call_indices':list(indices)}
     record.setdefault('teleport_batches',[]).append(batch)
-    with series(view,batch,interval_ms=16):yield
+    with series(view,batch,interval_ms=interval_ms):yield
     batch['gate']=teleport_gate(batch['continuous_wgc']['frames'],p,indices)
 
 

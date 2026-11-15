@@ -373,8 +373,12 @@ int fd2_field_units_find_visible_text_id(const fd2_field_units *units,
  * @0x344f2（原登记同名）。这里只执行一个有界领域写点，不合并事件顺序。 */
 int fd2_field_units_field_write(fd2_field_units *units, size_t first, size_t last,
         fd2_field_unit_field field, fd2_field_unit_write operation, uint16_t value) {
+    /* 233c6@2344b..23458可只写capacity内未构造槽的xy/dir，不读取身份。 */
+    int capacity_set=operation==FD2_UNIT_SET &&
+        (field==FD2_UNIT_X || field==FD2_UNIT_Y || field==FD2_UNIT_DIRECTION);
     if (!units || units->count > FD2_FIELD_MAX_UNITS || first > last ||
-        last >= units->count || operation < FD2_UNIT_SET || operation > FD2_UNIT_OR)
+        last >= (capacity_set?FD2_FIELD_MAX_UNITS:units->count) ||
+        operation < FD2_UNIT_SET || operation > FD2_UNIT_OR)
         return -1;
     size_t offset;
     switch (field) {
@@ -404,10 +408,12 @@ int fd2_field_units_field_write(fd2_field_units *units, size_t first, size_t las
     if (!word && value > UINT8_MAX) return -1;
     for (size_t i=first;i<=last;i++) {
         uint8_t *record=(uint8_t *)&units->items[i];
-        uint16_t old=record[offset];
-        if (word) old|=(uint16_t)record[offset+1u]<<8;
-        uint16_t changed=operation==FD2_UNIT_SET ? value :
-            operation==FD2_UNIT_AND ? (uint16_t)(old&value) : (uint16_t)(old|value);
+        uint16_t changed=value;
+        if (operation!=FD2_UNIT_SET) {
+            uint16_t old=record[offset];
+            if (word) old|=(uint16_t)record[offset+1u]<<8;
+            changed=operation==FD2_UNIT_AND ? (uint16_t)(old&value) : (uint16_t)(old|value);
+        }
         record[offset]=(uint8_t)changed;
         if (word) record[offset+1u]=(uint8_t)(changed>>8);
     }

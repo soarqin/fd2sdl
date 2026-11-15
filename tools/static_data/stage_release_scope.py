@@ -109,6 +109,11 @@ def check_binding(runtime_id, source_id, dispatch, flows, aliases):
     expected = audit.resolve(source["definition_id"], flows, aliases)
     if actual is None or expected is None or actual["id"] != expected["id"]:
         raise ValueError(f"{runtime_id}: exact original caller/target binding differs: {source_id}")
+    if source_id == 'dispatch:event_callback:051':
+        import convert_stage_callbacks as callback_source
+        original = callback_source.cold_flow('common.callback.051', [('loot_child',[2,-1]), ('story',[3])])
+        if source['target_va'] != '0x355f0' or expected['id'] != original['id'] or actual != original:
+            raise ValueError(f"{runtime_id}: callback51 exact original caller/story3 binding differs")
     return {"runtime_id": runtime_id, "source_id": source_id,
             "original_target": source["target_va"], "original_caller": source["original_caller"],
             "source": source["source"], "definition_domain": source["definition_domain"],

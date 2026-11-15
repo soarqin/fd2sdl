@@ -213,14 +213,17 @@ def _on(snapshot):
 
 
 @contextmanager
-def windows_display_requirement(record, *, power_journal=None):
+def windows_display_requirement(record, *, power_journal=None, require_display_on=False):
     """一次入口一次申请；异常仍先完成body的owned清理，再同线程撤销。
 
     record由入口最终写入报告。硬终止不保证Python finally，不伪造released。
     """
     record.update(platform=sys.platform, requested=False, acquired=False, released=False,
         status="not_applicable", powerplan_changed=False, separate_wake_API_called=False,
-        acquire_can_force_display_on=True, conditional_acquire_not_atomic=True)
+        acquire_can_force_display_on=True, conditional_acquire_not_atomic=True,
+        require_display_on=require_display_on)
+    if require_display_on and power_journal is not None:
+        raise ValueError('ON先验模式不允许电源方案或恢复journal')
     if sys.platform != "win32":
         yield record
         return
@@ -241,6 +244,9 @@ def windows_display_requirement(record, *, power_journal=None):
         if not interactive or not notifications:
             record["status"] = "blocked_environment"
             raise RuntimeError("非活动console或显示通知无效；未启动窗口")
+        if require_display_on and not _on(before):
+            record['status']='blocked_environment'
+            raise RuntimeError('显示未确认ON；ON先验模式未申请需求或唤醒，未启动窗口')
         record["input_desktop"] = api.desktop()
         if record["input_desktop"].get("ok") is not True:
             record["status"] = "blocked_environment"

@@ -37,7 +37,7 @@ static int teleport_owner(const fd2_scene_teleport_scope *scope) {
     if (!scope || !scope->game || !scope->game->ready || !scope->vga || !scope->base ||
             scope->vga->field_page!=scope->owner || scope->game->stage!=scope->stage ||
             scope->game->units.count>FD2_FIELD_MAX_UNITS ||
-            scope->actor>=scope->game->units.count) return FD2_SCENE_RESULT_ERROR;
+            scope->actor>=FD2_FIELD_MAX_UNITS) return FD2_SCENE_RESULT_ERROR;
     return fd2_input_take_quit(&scope->vga->input) ? FD2_SCENE_RESULT_HOST_QUIT:0;
 }
 
@@ -56,7 +56,7 @@ int fd2_scene_teleport_begin(fd2_scene_teleport_scope **scope,
         fd2_field_game *game,fd2_vga *vga,const fd2_archive *fdother,
         size_t actor,int destination_x,int destination_y,int draw_x,int draw_y) {
     if (!scope || *scope || !game || !game->ready || !vga || !vga->field_page || !fdother ||
-            game->units.count>FD2_FIELD_MAX_UNITS || actor>=game->units.count ||
+            game->units.count>FD2_FIELD_MAX_UNITS || actor>=FD2_FIELD_MAX_UNITS ||
             destination_x<0 || destination_x>255 || destination_y<0 || destination_y>255 ||
             draw_x<0 || draw_x>255 || draw_y<0 || draw_y>255) return -1;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;

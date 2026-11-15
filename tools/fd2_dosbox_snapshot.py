@@ -81,6 +81,10 @@ class OwnedRPC:
         self._owner()
         if command!='PING' and not command.startswith(('EXEC EV ','EXEC SELINFO ','EXEC MEMDUMPBIN ')):
             raise ValueError('RPC只允许本工具EV/SELINFO/MEMDUMPBIN；禁止BREAK/写操作')
+        return self._exchange(command)
+    def _exchange(self,command):
+        """共享有界帧协议；额外调试caller须先在自身request中收窄命令。"""
+        self._owner()
         if '\n' in command or '\r' in command or len(command)>2048:raise ValueError('RPC单行命令无效')
         self.sequence+=1;identity=str(self.sequence);entry={'id':identity,'command':command,'started':time.monotonic(),'ok':False}
         self.record['requests'].append(entry)

@@ -101,7 +101,8 @@ static int common_event_resources_preflight(const fd2_field_game *game,
     if(!strcmp(op,"arrival_close"))return 0;
     if(!strcmp(op,"teleport_begin")) {
         const fd2_field_units *units=view?view->units:&game->units;
-        if(!units || node->args[0]<0 || (size_t)node->args[0]>=units->count)return -1;
+        if(!units || units->count>FD2_FIELD_MAX_UNITS || node->args[0]<0 ||
+            (size_t)node->args[0]>=FD2_FIELD_MAX_UNITS)return -1;
         for(unsigned i=1;i<5;i++)if(node->args[i]<0 || node->args[i]>255)return -1;
         return fd2_scene_teleport_validate(fdother);
     }

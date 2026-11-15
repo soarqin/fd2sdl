@@ -154,6 +154,7 @@ typedef enum {
     FD2_UNIT_HP, FD2_UNIT_MP
 } fd2_field_unit_field;
 typedef enum { FD2_UNIT_SET, FD2_UNIT_AND, FD2_UNIT_OR } fd2_field_unit_write;
+/* 233c6的X/Y/DIRECTION纯SET可写原96槽；其余操作仍要求active，不提升count。 */
 int fd2_field_units_field_write(fd2_field_units *units, size_t first, size_t last,
     fd2_field_unit_field field, fd2_field_unit_write operation, uint16_t value);
 /* 344f2: AI34 = arg | (old & f0)，arg是原BYTE，不擅自截断到低4位。 */

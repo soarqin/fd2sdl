@@ -9,7 +9,8 @@ typedef struct fd2_field_defeat_visual fd2_field_defeat_visual;
 
 /* field_defeated_units_finalize @0x1db65（原登记同名）的effect-local资源。
  * 只读预检12张LMI、旋转用sprite及临时页；成功前不改输出指针、Game、
- * App像素或任何clock。原v19只有30个锚，extra仅省未定义FX图形，
+ * App像素或任何clock。当前C仅存30个FX锚；正常参数域由F1取证，
+ * 31+锚像素差异归F4，不按局部数组长度判未定义。
  * Game仍对完整active表旋转/提交flags，不据此缩减队伍或拒绝动作。 */
 int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
     const struct fd2_field_game *game,const fd2_vga *vga,const fd2_archive *fdother);

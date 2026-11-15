@@ -1,0 +1,204 @@
+{
+  "schema": "fd2-original-reference-v1",
+  "identity": "fd2-local-reference-20261114",
+  "provenance": {
+    "description": "Existing user-provided local original_game byte set, independently matched against S5 guard. No release/distribution claim.",
+    "release_label": null,
+    "distribution_source": null
+  },
+  "files": {
+    "FD2.EXE": {
+      "size": 509158,
+      "sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+      "role": "core"
+    },
+    "ANI.DAT": {
+      "size": 2437547,
+      "sha256": "be909c71d0f1121b6632ae931d978e990f6d54c830f4e0509cd6862187c4d963",
+      "role": "core"
+    },
+    "BG.DAT": {
+      "size": 624564,
+      "sha256": "b9fc21d019d6256a4bb7e6da1cefcb0bfe331d8ff74a52a8201570afc98b56de",
+      "role": "core"
+    },
+    "DATO.DAT": {
+      "size": 1979029,
+      "sha256": "dff859783606ee95d9811e1e564bcb230ef53c4df9130e8b6d42ad37bc8c27bd",
+      "role": "core"
+    },
+    "FDFIELD.DAT": {
+      "size": 243169,
+      "sha256": "81310211c6e96ebd89e79648650696691c740229fa4095ece37e7226bc27b74d",
+      "role": "core"
+    },
+    "FDICON.B24": {
+      "size": 624010,
+      "sha256": "7efb4448d05f19c1e17ebd53f3e3afead235f5c008d5167548d834c3686b1e44",
+      "role": "core"
+    },
+    "FDMUS.DAT": {
+      "size": 80367,
+      "sha256": "4105ebde543fe1c497e852728f6bc333bda80edeb7fb3671e487504bee74e998",
+      "role": "core"
+    },
+    "FDOTHER.DAT": {
+      "size": 3382481,
+      "sha256": "882580dfa31bd22e069eb151b7a86a2b8dbcd8194ec755b00036c96a4a0e0667",
+      "role": "core"
+    },
+    "FDSHAP.DAT": {
+      "size": 3557794,
+      "sha256": "901b70ea82d5d977192759fad510921ffe16a0ab6af6ab7c32757de03e30aa3c",
+      "role": "core"
+    },
+    "FDTXT.DAT": {
+      "size": 120502,
+      "sha256": "b47e39ee727482528da061a8705f5cdee8a9cf759447aeda298afe17d9dd8bcc",
+      "role": "core"
+    },
+    "FIGANI.DAT": {
+      "size": 15310188,
+      "sha256": "c0cef326c5f8bc61252f03394140dbeed2280ddba0da99bfacdee1bf568846f8",
+      "role": "core"
+    },
+    "TAI.DAT": {
+      "size": 94917,
+      "sha256": "d56fea9c43f8bb59aad89ad76698885d7e07f380d12a4547888a0b60ea5e0410",
+      "role": "core"
+    },
+    "TITLE.DAT": {
+      "size": 23377,
+      "sha256": "06120a4605e054f2ff1e08f882661b9b345b39978aabf5126ec137e1207815b3",
+      "role": "core"
+    },
+    "SAMPLE.AD": {
+      "size": 3242,
+      "sha256": "87ddb683096b504bcaea693f8a84d1d36fd431df0c576eaafcf0bf8e21e3ed5b",
+      "role": "audio_bank"
+    },
+    "SAMPLE.OPL": {
+      "size": 3242,
+      "sha256": "87ddb683096b504bcaea693f8a84d1d36fd431df0c576eaafcf0bf8e21e3ed5b",
+      "role": "audio_bank"
+    },
+    "SAMPLE.BNK": {
+      "size": 10780,
+      "sha256": "0cf6052cbbde9c2e969d5ec09d22d3e8d27490fed9c55f6bcc00c6ba77b83b0f",
+      "role": "audio_bank"
+    },
+    "MDI.INI": {
+      "size": 194,
+      "sha256": "ee6b1c355df34893568508c10723d0cc8eb0e47db38942fd978f43d530f07cc6",
+      "role": "audio_config"
+    },
+    "DIG.INI": {
+      "size": 197,
+      "sha256": "bec9e7653fc572c0de49581f8c36d7d515aa3027e6a872ee63ab1be68022348d",
+      "role": "audio_config"
+    },
+    "SBPRO2.MDI": {
+      "size": 16541,
+      "sha256": "2aa48568783f6c41df8dfb7e699181299e306fa330415a178fc48b23036c9a77",
+      "role": "audio_driver"
+    },
+    "SB16.DIG": {
+      "size": 2812,
+      "sha256": "865fab2e1318f341848dd12db578e881ecb45264e794ed39d47adc235071580e",
+      "role": "audio_driver"
+    }
+  },
+  "font": {
+    "container": "FDOTHER.DAT",
+    "index": 4,
+    "size": 58368,
+    "sha256": "3d9493f204254c58600f2b08beb47e372d2aa950d686a97f7ed73aa1f709c871",
+    "glyph_stride": 32,
+    "glyph_count": 1824
+  },
+  "dosbox": {
+    "filename": "dosbox-x.exe",
+    "sha256": "a82adcfa7af2784566cfeff74c077cefed08505396db2948b7e6aa7d4cee0832",
+    "version_label": "2026.10.01",
+    "version_basis": "Installed Scoop manifest and Windows PE version metadata; executable not invoked"
+  },
+  "explicit_settings": {
+    "sdl.fullscreen": "false",
+    "sdl.output": "surface",
+    "sdl.showmenu": "false",
+    "sdl.autolock": "false",
+    "sdl.waitonerror": "false",
+    "dosbox.machine": "svga_s3",
+    "dosbox.memsize": "16",
+    "render.aspect": "false",
+    "render.scaler": "normal2x",
+    "cpu.core": "normal",
+    "cpu.cycles": "fixed 20000",
+    "mixer.nosound": "true"
+  },
+  "excluded_local_files": [
+    "FD2.SAV",
+    "START.SAV",
+    "FD2.TMP",
+    "FD2_.EXE",
+    "FD2_OLD.EXE",
+    "SETSOUND.EXE"
+  ],
+  "boundaries": [
+    "SAV/TMP and fixture files are per-test inputs, not immutable resources.",
+    "Unselected audio drivers are outside this frozen SBPRO2.MDI/SB16.DIG reference.",
+    "Font bytes are FDOTHER[4]; no host TTF participates in the verified graphics-mode path.",
+    "Config files and CLI overrides identify declared configuration, not measured runtime resolution or driver pointers.",
+    "Bootstrap/conf/CLI order is supported by pinned upstream source; dynamic file reads, unlisted effective values and hardware resolution are not measured here."
+  ],
+  "configuration_source": {
+    "repo": "joncampbell123/dosbox-x",
+    "ref": "dosbox-x-v2026.10.01",
+    "commit": "b6abbd5980a885f5f310a4088c59a8688d1b116c",
+    "files": {
+      "src/gui/sdlmain.cpp": {
+        "git_blob_sha": "719e5ed31af612692e5b1ad28bf88fdc2075a776",
+        "sha256": "0e2978912e692f9e016c67f15fc4e8e54de69ab481ba5c73a4c8edc086a8bf6c"
+      },
+      "src/misc/cross.cpp": {
+        "git_blob_sha": "28339267a57e6cfc94906ba3eefaeb84976599ac",
+        "sha256": "ebd4f0710e60bb9b7624ab67239dfd0bcf48b2593428df9b9a9abf6381be0004"
+      },
+      "src/misc/setup.cpp": {
+        "git_blob_sha": "e6c434a02f5032c4fde40313ee4b377cde97a0f3",
+        "sha256": "a1066a549753795fe6e4cd996bdadbbd87bb381fe91aa7a6f01fe423e5524b2c"
+      },
+      "include/control.h": {
+        "git_blob_sha": "af660d7aea370376cfc379d570153f3e4deb0492",
+        "sha256": "11441513d6d8d92244e35fa0d4e5379320ca8869303f84c243ae41c21ccaacf5"
+      }
+    },
+    "bootstrap": {
+      "size": 124891,
+      "sha256": "0d19342e41a9c73304a0923cfb10b0acd433cc57e6482eefec9932536c056d38"
+    },
+    "inherited_settings": {
+      "cpu.cputype": "auto",
+      "mixer.rate": "48000",
+      "sblaster.sbtype": "sb16",
+      "sblaster.sbbase": "220",
+      "sblaster.irq": "7",
+      "sblaster.dma": "1",
+      "sblaster.hdma": "5",
+      "sblaster.oplmode": "auto",
+      "sblaster.oplemu": "default",
+      "sblaster.oplrate": "49716",
+      "dos.keyboardlayout": "auto",
+      "sdl.usescancodes": "auto"
+    },
+    "order": [
+      "versioned user configuration prepass",
+      "ClearExtraData clears strings, retains properties",
+      "explicit conf working-directory prepass",
+      "ClearExtraData clears strings, retains properties",
+      "explicit final conf order",
+      "CLI set order",
+      "reject DOSBOX_* environment overrides"
+    ]
+  }
+}

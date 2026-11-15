@@ -107,6 +107,33 @@ def trace(flow, choices):
         pc = n['on'][port]
     raise ValueError('事件关键路径未终止')
 
+def validate_callback51_source(executable, document):
+    """原355f0完整caller保push3/shared3530d；旧G story11不属于此入口。"""
+    import convert_stage_callbacks as callbacks
+    raw = Path(executable).read_bytes()
+    if digest(raw) != EXE_SHA256:
+        raise ValueError('callback51原EXE身份不同')
+    spans = []
+    for va in (0x355f0, 0x352ca):
+        end, expected = RAW_FUNCTIONS[va]
+        if digest(source_range(raw, va, end-va)) != expected:
+            raise ValueError('callback51完整原caller/共享尾不同')
+        spans.append({'canonical_va':hex(va), 'end':hex(end), 'sha256':expected})
+    branch = source_range(raw, 0x35633, 5)
+    if (source_range(raw, 0x35631, 2) != bytes.fromhex('6a03') or branch[0] != 0xe9 or
+            0x35638 + int.from_bytes(branch[1:], 'little', signed=True) != 0x3530d):
+        raise ValueError('callback51原push3/shared3530d控制流不同')
+    expected = callbacks.cold_flow('common.callback.051', [('loot_child',[2,-1]), ('story',[3])])
+    actual = [f for f in document['flows'] if f['id'] == expected['id']]
+    if actual != [expected]:
+        raise ValueError('callback51原caller要求child2后story3；不能复用旧story11或改变顺序')
+    if Path(executable).read_bytes() != raw:
+        raise ValueError('callback51来源读取期间改变')
+    return {'source_id':'dispatch:event_callback:051', 'target_va':'0x355f0', 'complete_source_spans':spans,
+            'definition_sha256':callbacks.digest(callbacks.encode(expected).encode()),
+            'original_machine_code_executed':False, 'actual_C_executed':False}
+
+
 def validate_release_scope(document, path, executable, root=ROOT):
     """只核新增alias的已审来源身份；不把S3收据提升为G4语义证明。"""
     import stage_release_scope as release
@@ -134,6 +161,11 @@ def validate_release_scope(document, path, executable, root=ROOT):
         raise ValueError('发布域缺冻结S2去向及唯一S3 callback来源关联')
     proofs51=evidence.get('fd2-s5-callback51-source-v1',[])
     if len(proofs51)>1:raise ValueError('发布域callback51来源证明重复')
+    if any(re.fullmatch(r'stage\.[0-9]{3}\.action\.051',identity) for identity in document['bindings']) and len(proofs51)!=1:
+        raise ValueError('callback51正式绑定必须有独立S5原caller/actualC证明；旧S2 story11不获准重用')
+    source51 = validate_callback51_source(executable, document) if proofs51 else None
+    if source51 and any(proofs51[0].get(key) != source51['definition_sha256'] for key in ('definition_sha256','expected_definition_sha256')):
+        raise ValueError('callback51独立原caller与CPU/C收据图身份不同')
     dispatch, _ = release.refine_callbacks(release.read(overlays[0])['dispatch'], callbacks[0], proofs[0],
                                           proofs51[0] if proofs51 else None)
     sources = release.ledger_tool.Sources(Path(executable).parent)

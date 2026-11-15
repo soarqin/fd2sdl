@@ -76,6 +76,14 @@ class SourceLedgerTest(unittest.TestCase):
         self.assertEqual(bound['disposition'],'confirmed')
         stage=json.loads((ROOT/'data/static/flows/stage.json').read_text())
         self.assertEqual(stage['bindings']['stage.result.002'],bound['definition'])
+        # S5已正式绑定23；反例移除本槽绑定，不能继续借同target自动批准。
+        self.assertEqual(candidate['disposition'],'confirmed')
+        self.assertEqual(stage['bindings']['stage.result.023'],candidate['definition'])
+        inventory=copy.deepcopy(self.inventory)
+        binding=inventory['stages'][23]['dispatch']['result']
+        binding.update(classification=ledger.audit.UNKNOWN,definition=None)
+        unbound=ledger.normalize(inventory,self.sources,self.common)
+        candidate=next(row for row in unbound['records'] if row['source_id']=='dispatch:stage_runtime_result:023')
         self.assertEqual(candidate['disposition'],'unresolved')
         self.assertTrue(candidate['blocker']['source_evidence'])
         self.assertFalse(self.ledger['claims']['same_target_approves_binding'])
@@ -85,6 +93,104 @@ class SourceLedgerTest(unittest.TestCase):
         callback=self.by_id['dispatch:event_callback:000']
         self.assertEqual(callback['decoded']['existing_exact_bindings'][0]['runtime_id'],'stage.000.action.000')
         self.assertEqual(callback['disposition'],'confirmed')
+
+    def test_current_consumers_refine_history_without_approving_runtime(self):
+        current=self.ledger['current_consumer_summary']
+        self.assertEqual(len(current['refined_source_ids']),34)
+        self.assertEqual(len(current['current_unresolved_source_ids']),8)
+        self.assertEqual(current['current_disposition_counts'],{'confirmed':69935,'excluded':2077,'rejected':450,'unresolved':8})
+        for slot in range(28):
+            row=self.by_id[f'dispatch:adjacent_magic:{slot:03d}']
+            self.assertEqual(row['disposition'],'unresolved')
+            consumer=row['current_consumer']
+            self.assertEqual(consumer['status'],'existing_primitive_caller_domain')
+            self.assertFalse(consumer['all_normal_paths_proven'])
+            self.assertFalse(consumer['original_runtime_executed'])
+        alias=self.by_id['dispatch:adjacent_magic:024']['current_consumer']
+        self.assertEqual(alias['projection']['MAGIC_MAP_EFFECT_IDS'],16)
+        self.assertEqual(alias['projection']['MAGIC_MAP_COST_IDS'],16)
+        self.assertIn('player24 uses FULL',alias['caller_scope']['alias24'])
+        for slot in (58,85,86,87,88,89):
+            row=self.by_id[f'dispatch:event_callback:{slot:03d}']
+            self.assertEqual(row['current_consumer']['status'],'source_only_definition')
+            self.assertEqual(row['current_consumer']['incoming_sources'],[])
+            self.assertEqual(row['current_consumer']['formal_bindings'],[])
+        for identity in current['current_unresolved_source_ids']:
+            consumer=self.by_id[identity]['current_consumer']
+            self.assertTrue(consumer['next_evidence'])
+            self.assertIn('reachability remains unresolved',consumer['exclusion_scope'])
+        self.assertEqual(self.by_id['stage:29:turn:00000']['source']['raw_hex'],'ff5200')
+        self.assertNotIn('stage:29:turn:00000',current['current_unresolved_source_ids'])
+
+    def test_source_only_caller_or_changed_definition_is_not_auto_approved(self):
+        row=self.by_id['dispatch:event_callback:058']
+        caller={'source_id':'synthetic:caller','kind':'cell_action','disposition':'confirmed','references':[row['source_id']]}
+        with self.assertRaisesRegex(ValueError,'acquired a caller'):
+            ledger.current_consumer_overlay(self.inventory,self.sources,[copy.deepcopy(row),caller])
+        flows,aliases,provenance=ledger.audit.load_definitions(ROOT/'data/static')
+        for identity in ('common.cell.grant','common.callback.085','magic.effect.023'):
+            bad=copy.deepcopy(flows);bad.pop(identity)
+            with self.subTest(identity=identity),mock.patch.object(ledger.audit,'load_definitions',return_value=(bad,aliases,provenance)),self.assertRaisesRegex(ValueError,'lacks'):
+                ledger.current_consumer_overlay(self.inventory,self.sources,copy.deepcopy([r for r in self.rows if r['kind']=='dispatch']))
+        bad=copy.deepcopy(flows);bad['common.cell.grant']['nodes'][0]['args']=[1]
+        with mock.patch.object(ledger.audit,'load_definitions',return_value=(bad,aliases,provenance)),self.assertRaisesRegex(ValueError,'reviewed full-source'):
+            ledger.current_consumer_overlay(self.inventory,self.sources,[copy.deepcopy(row)])
+
+    def test_current_consumer_summary_and_claim_tampering_fail(self):
+        for name,value in [('current_disposition_counts',{}),('refined_source_ids',[]),('original_runtime_executed',True)]:
+            changed={**self.ledger,'current_consumer_summary':{**self.ledger['current_consumer_summary'],name:value}}
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'current consumer'):
+                ledger.validate_ledger(changed,self.sources)
+
+    def test_excluded_current_rows_require_proof_and_exact_input_and_row_joins(self):
+        import f1_consumer_exclusion as exclusion
+        # 只测已验证proof返回值的admission合同；原来源由独立工具与CLI实跑验证。
+        verified={'path':'fixture-proof','sha256':'verified-proof','excluded_source_ids':list(exclusion.EXCLUDED_IDS),
+                  'qualified_scope':'fixture-normal-original-only'}
+        proof_inputs={Path('fixture-source'):b'independent source snapshot'}
+        document=copy.deepcopy(self.ledger)
+        summary=document['current_consumer_summary'];summary['exclusion_proof']=verified
+        summary['current_disposition_counts'].update(excluded=2085,unresolved=0)
+        summary['current_unresolved_source_ids']=[]
+        summary['refined_source_ids']+=list(exclusion.EXCLUDED_IDS)
+        # 正规顺序须沿源账，不按拼接的proof清单重排。
+        summary['refined_source_ids']=[r['source_id'] for r in document['records'] if r['source_id'] in summary['refined_source_ids']]
+        document['summary']['current_consumer_disposition_counts']=dict(summary['current_disposition_counts'])
+        document['inputs']['f1_exclusion_proof']=verified
+        document['inputs']['f1_exclusion_inputs_sha256']={str(p):ledger.audit.digest(raw) for p,raw in proof_inputs.items()}
+        for row in document['records']:
+            if row['source_id'] in exclusion.EXCLUDED_IDS:
+                row['current_consumer'].update(disposition='excluded',status='normal_original_consumer_excluded',
+                    normal_source_consumer_exclusion_proven=True,exclusion_proof_sha256=verified['sha256'],
+                    exclusion_scope=verified['qualified_scope'])
+        with mock.patch.object(exclusion,'validate',return_value=(verified,proof_inputs)):
+            ledger.validate_ledger(document,self.sources)
+            def wrong_row(d):
+                next(r for r in d['records'] if r['source_id']==exclusion.EXCLUDED_IDS[0])['current_consumer']['exclusion_proof_sha256']='other'
+            def wrong_id(d):
+                row=next(r for r in d['records'] if r['source_id']==exclusion.EXCLUDED_IDS[0])
+                row['current_consumer'].update(disposition='unresolved',status='unresolved')
+                d['current_consumer_summary']['current_disposition_counts'].update(excluded=2084,unresolved=1)
+                d['summary']['current_consumer_disposition_counts'].update(excluded=2084,unresolved=1)
+                d['current_consumer_summary']['current_unresolved_source_ids']=[exclusion.EXCLUDED_IDS[0]]
+                d['current_consumer_summary']['refined_source_ids'].remove(exclusion.EXCLUDED_IDS[0])
+            mutations=(lambda d:d.pop('current_consumer_summary'),
+                lambda d:d['current_consumer_summary'].update(exclusion_proof=None),
+                lambda d:d['inputs'].update(f1_exclusion_proof=None,f1_exclusion_inputs_sha256={}),
+                lambda d:d['inputs'].update(f1_exclusion_inputs_sha256={}),wrong_row,wrong_id)
+            for change in mutations:
+                bad=copy.deepcopy(document);change(bad)
+                with self.subTest(change=change),self.assertRaisesRegex(ValueError,'consumer exclusion'):
+                    ledger.validate_ledger(bad,self.sources)
+            bad=copy.deepcopy(document);bad['current_consumer_summary']['exclusion_proof']=None
+            bad['inputs'].update(f1_exclusion_proof=None,f1_exclusion_inputs_sha256={})
+            with self.assertRaisesRegex(ValueError,'explicit verified F1 proof'):
+                ledger.validate_ledger(bad,self.sources)
+        # 无current视图的旧S1格式继续可读，不会自动要求F1证明。
+        old=copy.deepcopy(self.ledger);old.pop('current_consumer_summary')
+        old['summary'].pop('current_consumer_disposition_counts')
+        for row in old['records']:row.pop('current_consumer',None)
+        ledger.validate_ledger(old,self.sources)
 
     def test_all_references_fixtures_and_semantic_joins_close(self):
         ids=set(self.by_id)

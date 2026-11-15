@@ -4,6 +4,7 @@
  * 合成 session 验证 SDL 逻辑与停止边界，不替代原版运行对照。
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "field_game.h"
@@ -76,6 +77,84 @@ static void init_game(fd2_field_game *game, size_t *rng_calls) {
     game->units.items[12].hp = 30;
     game->attack_rng = next_roll;
     game->attack_rng_userdata = rng_calls;
+}
+
+/* 原stage8 turn槽0/1均ff1f00，slot2才首次ffff00；31先按state16
+ * 追加g0、加state，再追加g1。仅控制到phase0入口，呈现叶显式ACK；
+ * 这不是从START自然打到255，也不签地图/人物像素或constructor未知字节。 */
+static int original_stage_groups(fd2_field_game *game,size_t *rolls,size_t stage,size_t players) {
+    init_game(game,rolls);game->stage=stage;game->units.count=players;
+    for(size_t i=0;i<FD2_FIELD_MAX_UNITS;i++)game->units.source_template_indices[i]=FD2_FIELD_UNIT_NO_TEMPLATE;
+    for(size_t i=0;i<players;i++)game->units.items[i]=(fd2_field_unit){.hp=100,.hp_max=100,.side=2,.unit_id=(uint8_t)i,.text_id=(uint8_t)i,.level=1,.movement_points=1};
+    CHECK(fd2_archive_open(&game->field_archive,"original_game/FDFIELD.DAT")==0);
+    CHECK(fd2_field_map_open_stage(&game->map,&game->field_archive,stage)==0);
+    CHECK(fd2_field_metadata_open_stage(&game->metadata,&game->field_archive,stage)==0);
+    CHECK(fd2_field_placements_open_stage(&game->placements,&game->field_archive,stage)==0);
+    CHECK(fd2_field_units_sprite_cache_restore(&game->units)==0);
+    fd2_static_flow_node append={.op="append_group",.args={0,0}};unsigned port;
+    CHECK(fd2_field_game_stage_source_node(game,&append,&port)==1 && game->units.count==(stage==8?34u:27u));
+    CHECK(fd2_field_game_group_count(game,0)==(stage==8?23u:7u));
+    return 0;
+}
+static int test_repeat_group_source_domain(void) {
+    fd2_field_game *game=calloc(1,sizeof(*game));size_t rolls=0;CHECK(game);
+    CHECK(original_stage_groups(game,&rolls,8,11)==0);
+    fd2_static_flow_node append={.op="append_group",.args={0,0}};unsigned port;
+    CHECK(fd2_field_game_stage_source_node(game,&append,&port)==1 && game->units.count==57);
+    CHECK(fd2_field_game_stage_source_node(game,&append,&port)==1 && game->units.count==80);
+    CHECK(fd2_field_game_group_count(game,0)==69 && !rolls);
+    game->units.count=95;fd2_field_units before=game->units;
+    CHECK(fd2_field_game_stage_source_node(game,&append,&port)==-1 && !memcmp(&before,&game->units,sizeof(before)));
+    fd2_field_game_close(game);free(game);return 0;
+}
+static int test_live255_repeated_group_prefix(int emit) {
+    fd2_field_game *game=calloc(1,sizeof(*game));size_t rolls=0;CHECK(game);
+    CHECK(original_stage_groups(game,&rolls,8,11)==0);
+    CHECK(game->metadata.turn_events[0].turn==255 && game->metadata.turn_events[0].action==31 &&
+        game->metadata.turn_events[1].turn==255 && game->metadata.turn_events[1].action==31 &&
+        game->metadata.turn_events[2].turn==255 && game->metadata.turn_events[2].action==255);
+    game->turn_number=255;game->active_side=1;
+    CHECK(fd2_field_game_end_active_phase(game)==0 && game->event_resume.active && game->units.count==57);
+    size_t observed[2]={0};unsigned completed=0;
+    for(unsigned budget=0;budget<40 && game->failure==FD2_FIELD_FAILURE_NONE;budget++) {
+        fd2_static_flow_node n;size_t actor;
+        CHECK(fd2_field_game_common_event_peek(game,&n,&actor)==1 && actor==0);
+        CHECK(!strcmp(n.op,"pan") || !strcmp(n.op,"delay_ms"));
+        size_t count=game->units.count;
+        int result=fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT);
+        if(game->units.count!=count) {CHECK(completed==0 && count==57 && game->units.count==62);observed[completed++]=count;}
+        if(result<0)CHECK(game->failure==FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+    }
+    observed[completed++]=game->units.count;
+    CHECK(completed==2 && observed[0]==57 && observed[1]==62);
+    CHECK(game->failure==FD2_FIELD_FAILURE_EVENT_UNSUPPORTED && game->failure_notice.slot==2 && game->failure_notice.action==255);
+    CHECK(game->units.count==62 && game->cell_action_completed[16]==2 && game->active_side==0 && game->turn_number==255);
+    CHECK(fd2_field_game_group_count(game,0)==46 && fd2_field_game_group_count(game,1)==5 && !rolls);
+    if(emit)printf("{\"stage\":8,\"initial_count\":34,\"callback_counts\":[57,62],\"state16\":2,\"turn\":255,\"phase\":0,\"first_rejected_slot\":2,\"group0\":46,\"group1\":5}\n");
+    fd2_field_game_close(game);free(game);return 0;
+}
+/* 与原1a813同源的29首slot82→appendg0→slot1 U前缀；这里只ACK
+ * 呈现叶，未替teleport写xy，不代签已有实际Play/Scene或408帧门。 */
+static int test_live255_callback82_group_prefix(int emit) {
+    fd2_field_game *game=calloc(1,sizeof(*game));size_t rolls=0;CHECK(game);
+    CHECK(original_stage_groups(game,&rolls,29,20)==0);
+    CHECK(game->metadata.turn_events[0].turn==255 && game->metadata.turn_events[0].action==82 &&
+        game->metadata.turn_events[1].turn==255 && game->metadata.turn_events[1].action==255);
+    game->turn_number=255;game->active_side=1;
+    CHECK(fd2_field_game_end_active_phase(game)==0 && game->event_resume.active && game->units.count==27);
+    for(unsigned budget=0;budget<32 && game->failure==FD2_FIELD_FAILURE_NONE;budget++) {
+        fd2_static_flow_node n;size_t actor;
+        CHECK(fd2_field_game_common_event_peek(game,&n,&actor)==1 && actor==0);
+        CHECK(!strcmp(n.op,"pan") || !strcmp(n.op,"story") || !strcmp(n.op,"focus_cell") ||
+            !strcmp(n.op,"teleport_begin") || !strcmp(n.op,"call_teleport"));
+        int result=fd2_field_game_common_event_reply(game,!strcmp(n.op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT);
+        if(result<0)CHECK(game->failure==FD2_FIELD_FAILURE_EVENT_UNSUPPORTED);
+    }
+    CHECK(game->failure==FD2_FIELD_FAILURE_EVENT_UNSUPPORTED && game->failure_notice.slot==1 && game->failure_notice.action==255);
+    CHECK(game->units.count==34 && game->cell_action_completed[16]==0 && game->active_side==0 && game->turn_number==255);
+    CHECK(fd2_field_game_group_count(game,0)==14 && !rolls);
+    if(emit)printf("{\"stage\":29,\"initial_count\":27,\"final_count\":34,\"state16\":0,\"turn\":255,\"phase\":0,\"first_rejected_slot\":1,\"group0\":14,\"teleport_IO_boundary_only\":true}\n");
+    fd2_field_game_close(game);free(game);return 0;
 }
 
 static int reject_without_changes(fd2_field_game *game, size_t *rng_calls) {
@@ -524,7 +603,9 @@ static int test_info_restore_is_exact_caller_return(void) {
     return 0;
 }
 
-int main(void) {
+int main(int argc,char **argv) {
+    if(argc==2 && !strcmp(argv[1],"--f1-live255-groups"))return test_live255_repeated_group_prefix(1) || test_live255_callback82_group_prefix(1);
+    CHECK(argc==1);
     if (test_recovery_gates_and_phase_order() ||
         test_player_turn_guards() ||
         test_unknown_event_preserves_recovery_and_stops_status() ||
@@ -537,7 +618,8 @@ int main(void) {
         test_status_expiration_focus_and_failure_order() ||
         test_poison_bad_focus_stops_after_hp_write() ||
         test_runtime_quit_freezes_same_stack() ||
-        test_info_restore_is_exact_caller_return())
+        test_info_restore_is_exact_caller_return() ||
+        test_repeat_group_source_domain() || test_live255_repeated_group_prefix(0) || test_live255_callback82_group_prefix(0))
         return 1;
     puts("field_turn_test: ok");
     return 0;

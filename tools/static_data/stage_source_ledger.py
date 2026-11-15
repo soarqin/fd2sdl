@@ -459,11 +459,103 @@ def normalize(inventory, sources, common):
             'not_checked':['shape rendered pixel equivalence','all text token/glyph/portrait semantics','new callback CFG edges','dynamic reachability and hot-state projections','S2/S3 binding enablement']}
 
 
+def current_consumer_overlay(inventory, sources, rows, exclusion_proof=None):
+    """F1当前消费视图；保留此前分类器视图，不把source-only提升为运行资格。"""
+    import convert_stage_callbacks as callbacks
+    import verify_common_events as common_source
+    import verify_magic_contracts as magic_source
+
+    flows, aliases, _ = audit.load_definitions(ROOT / 'data/static')
+    tables = json.loads((ROOT / 'data/static/tables/magic.json').read_bytes(), object_pairs_hook=audit.unique_keys)
+    magic_receipt = magic_source.check(tables, sources.paths['FD2.EXE'])
+    values = {table['name']: table['values'] for table in tables['tables']}
+    changed = []
+    for row in rows:
+        if row['kind'] != 'dispatch' and row['disposition'] != 'unresolved':
+            continue
+        current = {'disposition': row['disposition'], 'status': 'formal_binding' if row['disposition'] == 'confirmed' else 'unresolved',
+                   'original_target_va': row['decoded'].get('target_va'),
+                   'definition': row['definition'], 'formal_bindings': row['decoded'].get('existing_exact_bindings', []),
+                   'original_runtime_executed': False, 'all_normal_paths_proven': False}
+        if row['kind'] == 'dispatch':
+            table, slot = row['decoded']['table'], row['decoded']['slot']
+            if table == 'adjacent_magic':
+                current.update(disposition='confirmed', status='existing_primitive_caller_domain',
+                    definition='magic.effect.023' if slot == 23 else None,
+                    projection={name: values[name][slot] for name in magic_source.NAMES},
+                    consumer={'profile': 'src/field_magic.c::fd2_field_magic_map_profile_get',
+                              'effect': 'src/field_game.c::execute_teleport_magic' if slot == 23 else 'src/field_game.c::execute_map_magic'},
+                    caller_scope={'player': 'FULL before map table' if slot < 9 or slot == 24 else 'dedicated teleport selection' if slot == 23 else 'map wrapper',
+                                  'AI': 'existing normal-source eligibility; FULL iff id<10 and SHORT option0, otherwise map',
+                                  'alias24': 'map24 consumes record16; player24 uses FULL' if slot == 24 else None},
+                    evidence=['tools/static_data/verify_magic_contracts.py', 'docs/reverse-engineering/common-battle-semantics.md#2-28-槽地图法术分派与-36-条法术记录'])
+                if slot == 23 and audit.resolve(current['definition'], flows, aliases) is None:
+                    raise ValueError('current teleport consumer lacks its cold definition')
+            elif table == 'event_callback' and slot in (58, 85, 86, 87, 88, 89):
+                target = int(row['decoded']['target_va'], 16)
+                identity = 'common.cell.grant' if slot == 58 else 'common.callback.085'
+                flow = audit.resolve(identity, flows, aliases)
+                if flow is None:
+                    raise ValueError('reviewed source-only callback lacks its definition')
+                if slot == 58:
+                    end, expected = common_source.RAW_FUNCTIONS[0x35854]
+                    if target != 0x35854 or audit.digest(source_range(sources.data['FD2.EXE'], target, end-target)) != expected:
+                        raise ValueError('source-only callback58 original full function differs')
+                    if callbacks.digest(callbacks.encode(flow).encode()) != callbacks.EXISTING_FLOW_SHA[58]:
+                        raise ValueError('source-only callback58 definition differs from its reviewed full-source graph')
+                    source_evidence = {'canonical_va': hex(target), 'end': hex(end), 'raw_unrelocated_sha256': expected}
+                else:
+                    # 原完整39B：85执行stack-check后ret；86..89均跳同一序言尾。
+                    expected = bytes.fromhex('6804000000e8f70b0000c36804000000ebf36804000000ebec6804000000ebe56804000000ebde')
+                    if (source_range(sources.data['FD2.EXE'], 0x3642e, len(expected)) != expected or
+                            target != (0x3642e, 0x36439, 0x36440, 0x36447, 0x3644e)[slot-85] or
+                            [(n['op'], n['args'], n['on']) for n in flow['nodes']] != [('end', [], {})]):
+                        raise ValueError('original shared no-op callback/definition differs')
+                    source_evidence = {'canonical_va': '0x3642e', 'length': len(expected), 'raw_unrelocated_sha256': audit.digest(expected)}
+                current.update(disposition='confirmed', status='source_only_definition', definition=identity,
+                    consumer='src/field_game.c::fd2_field_game_common_event_begin', source_evidence=source_evidence,
+                    incoming_sources=[other['source_id'] for other in rows if row['source_id'] in other['references']],
+                    evidence=['tools/static_data/convert_stage_callbacks.py', 'docs/reverse-engineering/common-event-semantics.md'])
+                if current['incoming_sources'] or current['formal_bindings']:
+                    raise ValueError('source-only callback acquired a caller; close its exact binding before claiming current coverage')
+            elif row['disposition'] == 'confirmed':
+                kind = {'stage_runtime_result':'result', 'stage_entry':'entry', 'stage_victory':'victory'}.get(table)
+                if kind:
+                    binding = inventory['stages'][slot]['dispatch'][kind]
+                    current['formal_bindings'] = [{key: binding.get(key) for key in ('runtime_id','runtime_domain','definition','classification')}]
+                current['consumer'] = ('src/field_game.c::fd2_field_game_battle_result_query' if table == 'stage_runtime_result' else
+                                       'src/scene.c::scene_flow_run' if table in ('stage_entry', 'stage_victory') else
+                                       'src/field_game.c::known_common_event_flow')
+                current['evidence'] = ['exact source slot/fixup', 'current unique cold binding; parameter/runtime evidence separate']
+        else:
+            # 无初始引用不证明动态不可达；专用opening不等于普通battle分派。
+            current['status'] = 'no_initial_map_reference' if row['kind'] == 'cell_action' and not row['decoded']['referenced_by_map'] else 'opening_resource_without_battle_consumer' if row['stage'] == 31 else 'unresolved'
+            current['consumer'] = 'src/scene.c::opening_stage_open / scene.new_game' if row['stage'] == 31 else row['caller']
+            current['next_evidence'] = ('prove original3231b opening never dispatches these turn/drop records; do not create stage31 battle aliases'
+                                        if row['stage'] == 31 else 'prove no normal map replacement/runtime writer can expose this unreferenced action slot')
+            current['exclusion_scope'] = 'initial resource/current formal consumer only; normal dynamic reachability remains unresolved'
+            if exclusion_proof is not None and row['source_id'] in exclusion_proof['excluded_source_ids']:
+                current.update(disposition='excluded', status='normal_original_consumer_excluded',
+                    exclusion_scope=exclusion_proof['qualified_scope'], normal_source_consumer_exclusion_proven=True,
+                    exclusion_proof_sha256=exclusion_proof['sha256'])
+                current.pop('next_evidence')
+        row['current_consumer'] = current
+        if current['disposition'] != row['disposition']:
+            changed.append(row['source_id'])
+    counts = Counter(row.get('current_consumer', {}).get('disposition', row['disposition']) for row in rows)
+    return {'schema': 'fd2-current-source-consumers-v1', 'historical_dispositions_preserved': True,
+            'current_disposition_counts': {name:counts[name] for name in DISPOSITIONS}, 'refined_source_ids': changed,
+            'current_unresolved_source_ids': [row['source_id'] for row in rows if row.get('current_consumer', {}).get('disposition', row['disposition']) == 'unresolved'],
+            'magic_source_check': magic_receipt, 'exclusion_proof':exclusion_proof, 'original_runtime_executed': False,
+            'all_game_semantic_complete': False, 'new_runtime_bindings': False}
+
+
 def fixtures(ledger):
     """每来源一例，按共享族聚合；只检查来源与已证规则，不执行剧情。"""
     cases=[{'case_id':r['source_id'],'source_id':r['source_id'],'read_sha256':r['source']['read_sha256'],
             'expected_decoded':r['decoded'],'expected_disposition':r['disposition'],
-            'expected_references':r['references'],'family':r['family']} for r in ledger['records']]
+            'expected_references':r['references'],'family':r['family'],
+            **({'expected_current_consumer':r['current_consumer']} if 'current_consumer' in r else {})} for r in ledger['records']]
     return {'schema':FIXTURE_SCHEMA,'ledger_sha256':audit.digest(encode(ledger).encode()),'cases':cases,
             'families':ledger['family_index'],'runtime_executed':False,
             'oracle_boundary':'source-derived fixtures; caller semantics are supported by independent complete original readsets, not by this projection'}
@@ -508,31 +600,90 @@ def validate_ledger(ledger,sources):
         for family in row['semantic_families']:semantic[family].append(row['source_id'])
     if dict(semantic)!=ledger['reviewed_semantic_family_index']:
         raise ValueError('semantic index loses a source or changes order')
+    current = ledger.get('current_consumer_summary')
+    if current is None and (any('current_consumer' in row for row in rows) or
+            'current_consumer_disposition_counts' in summary or
+            ledger.get('inputs',{}).get('f1_exclusion_proof') is not None or
+            ledger.get('inputs',{}).get('f1_exclusion_inputs_sha256')):
+        raise ValueError('current consumer exclusion/view lacks its required summary')
+    if current is not None:
+        counts = Counter(row.get('current_consumer', {}).get('disposition', row['disposition']) for row in rows)
+        refined = [row['source_id'] for row in rows if row.get('current_consumer', {}).get('disposition', row['disposition']) != row['disposition']]
+        unresolved = [row['source_id'] for row in rows if row.get('current_consumer', {}).get('disposition', row['disposition']) == 'unresolved']
+        if (current.get('schema') != 'fd2-current-source-consumers-v1' or
+                current.get('historical_dispositions_preserved') is not True or
+                current.get('current_disposition_counts') != {name:counts[name] for name in DISPOSITIONS} or
+                summary.get('current_consumer_disposition_counts') != {name:counts[name] for name in DISPOSITIONS} or
+                current.get('refined_source_ids') != refined or current.get('current_unresolved_source_ids') != unresolved or
+                any(current.get(key) is not False for key in ('original_runtime_executed', 'all_game_semantic_complete', 'new_runtime_bindings'))):
+            raise ValueError('current consumer summary/claims do not close')
+        for row in rows:
+            consumer = row.get('current_consumer')
+            if consumer is not None and (consumer.get('disposition') not in DISPOSITIONS or
+                    consumer.get('original_runtime_executed') is not False or consumer.get('all_normal_paths_proven') is not False):
+                raise ValueError('current consumer exceeds its static evidence scope')
+        exclusions = [row for row in rows if row.get('current_consumer',{}).get('disposition') == 'excluded' and row['disposition'] != 'excluded']
+        marked = [row for row in rows if row.get('current_consumer',{}).get('normal_source_consumer_exclusion_proven') or
+                  row.get('current_consumer',{}).get('status') == 'normal_original_consumer_excluded' or
+                  'exclusion_proof_sha256' in row.get('current_consumer',{})]
+        proof = current.get('exclusion_proof')
+        inputs = ledger.get('inputs',{})
+        if proof is None:
+            if exclusions or marked or inputs.get('f1_exclusion_proof') is not None or inputs.get('f1_exclusion_inputs_sha256'):
+                raise ValueError('current consumer exclusions require explicit verified F1 proof')
+        else:
+            import f1_consumer_exclusion
+            if (not isinstance(proof,dict) or {row['source_id'] for row in exclusions} != set(f1_consumer_exclusion.EXCLUDED_IDS) or
+                    {row['source_id'] for row in marked} != set(f1_consumer_exclusion.EXCLUDED_IDS)):
+                raise ValueError('current consumer exclusion source IDs differ from F1 scope')
+            verified, proof_inputs = f1_consumer_exclusion.validate(proof['path'],sources)
+            if (proof != verified or inputs.get('f1_exclusion_proof') != verified or
+                    inputs.get('f1_exclusion_inputs_sha256') != {str(path):audit.digest(raw) for path,raw in proof_inputs.items()}):
+                raise ValueError('current consumer exclusion proof/input identities differ')
+            for row in exclusions:
+                consumer = row['current_consumer']
+                if (consumer.get('status') != 'normal_original_consumer_excluded' or
+                        consumer.get('normal_source_consumer_exclusion_proven') is not True or
+                        consumer.get('exclusion_proof_sha256') != verified['sha256'] or
+                        consumer.get('exclusion_scope') != verified['qualified_scope']):
+                    raise ValueError('current consumer exclusion row/proof join differs')
 
 
-def build(original,review_path=scope.DEFAULT_REVIEW):
+def build(original,review_path=scope.DEFAULT_REVIEW,f1_proof=None):
     paths=[Path(__file__),Path(audit.__file__),Path(scope.__file__),review_path,
            *sorted((ROOT/'data/static').rglob('*.json')),
            *[ROOT/'tools'/name for name in ['dump_fd2_fixup_table.py','rebuild_fd2_analysis.py','audit_fdicon_opaque_zero.py',
-                'static_data/verify_unit_tables.py','static_data/verify_movement_scripts.py','static_data/generate.py']]]
+                'static_data/verify_unit_tables.py','static_data/verify_movement_scripts.py','static_data/generate.py',
+                'static_data/verify_magic_contracts.py','static_data/verify_common_events.py','static_data/convert_stage_callbacks.py',
+                'static_data/f1_consumer_exclusion.py']],
+           *[ROOT/'src'/name for name in ('field_magic.c','field_game.c','scene.c','field_common_event_runtime.h')]]
     snapshots={path:path.read_bytes() for path in paths}
     sources=Sources(original)
     inventory=audit.audit(original)
     review_raw=review_path.read_bytes();review=json.loads(review_raw,object_pairs_hook=audit.unique_keys)
     common=scope.build_ledger(inventory,review)
     ledger=normalize(inventory,sources,common)
+    proof=None;proof_inputs={}
+    if f1_proof is not None:
+        import f1_consumer_exclusion
+        proof,proof_inputs=f1_consumer_exclusion.validate(f1_proof,sources)
+    ledger['current_consumer_summary']=current_consumer_overlay(inventory,sources,ledger['records'],proof)
+    ledger['summary']['current_consumer_disposition_counts']=ledger['current_consumer_summary']['current_disposition_counts']
+    ledger['summary']['disposition_scope']='disposition_counts retains the prior classifier; current_consumer_disposition_counts includes source-only/primitive consumer joins, never runtime approval'
     ledger['inputs']={'semantic_review_sha256':audit.digest(review_raw),'definition_sources':inventory['definition_sources'],
                       'ida_evidence_sources':inventory['ida_evidence_sources'],'audit_schema':inventory['schema_version'],
                       'descriptor_source_evidence':inventory['descriptor_source_evidence'],
-                      'pipeline_inputs_sha256':{str(path.relative_to(ROOT)):audit.digest(raw) for path,raw in snapshots.items()}}
+                      'pipeline_inputs_sha256':{str(path.relative_to(ROOT)):audit.digest(raw) for path,raw in snapshots.items()},
+                      'f1_exclusion_proof':proof,
+                      'f1_exclusion_inputs_sha256':{str(path):audit.digest(raw) for path,raw in proof_inputs.items()}}
     validate_ledger(ledger,sources)
     sources.unchanged()
-    if any(path.read_bytes()!=raw for path,raw in snapshots.items()):
+    if any(path.read_bytes()!=raw for path,raw in {**snapshots,**proof_inputs}.items()):
         raise ValueError('pipeline input changed during ledger generation')
     return inventory,common,ledger,fixtures(ledger)
 
 
-def verify_bundle(directory,original):
+def verify_bundle(directory,original,f1_proof=None):
     manifest=json.loads((directory/'manifest.json').read_text(encoding='utf8'),object_pairs_hook=audit.unique_keys)
     names=('inventory.json','common-scope.json','ledger.json','fixtures.json')
     if manifest.get('schema')!=SCHEMA or set(manifest['files'])!=set(names):
@@ -542,7 +693,7 @@ def verify_bundle(directory,original):
         raw=(directory/name).read_bytes()
         if audit.digest(raw)!=manifest['files'][name]:raise ValueError('bundle file digest mismatch')
         actual.append(json.loads(raw,object_pairs_hook=audit.unique_keys))
-    expected=build(original)
+    expected=build(original,f1_proof=f1_proof)
     if any(encode(a)!=encode(e) for a,e in zip(actual,expected)):
         raise ValueError('bundle differs from fresh original source/caller/input derivation')
     if manifest['sources']!=expected[2]['sources'] or manifest['summary']!=expected[2]['summary']:
@@ -563,16 +714,17 @@ def validate_output(path,root=ROOT,original=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--original',type=Path,default=ROOT/'original_game')
+    parser.add_argument('--f1-proof',type=Path,help='explicit frozen F1 source/CPU exclusion manifest; absent retains8 unresolved')
     mode=parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--output-dir',type=Path)
     mode.add_argument('--verify',type=Path)
     args=parser.parse_args()
     try:
         if args.verify:
-            print(json.dumps({'verified':True,**verify_bundle(args.verify,args.original.resolve())},ensure_ascii=False))
+            print(json.dumps({'verified':True,**verify_bundle(args.verify,args.original.resolve(),args.f1_proof)},ensure_ascii=False))
             return
         output=validate_output(args.output_dir,original=args.original)
-        inventory,common,ledger,cases=build(args.original.resolve())
+        inventory,common,ledger,cases=build(args.original.resolve(),f1_proof=args.f1_proof)
         validate_fixtures(cases,ledger)
         output.mkdir(parents=True,exist_ok=False)
         hashes={}

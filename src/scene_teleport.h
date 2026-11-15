@@ -4,7 +4,9 @@
 #include "field_game.h"
 
 /* sub_22253 @0x22253（原同名）的五参Scene局部资源。
- * 每个API只处理一个源叶；帧序、等待、坐标提交点由冷图决定。 */
+ * 每个API只处理一个源叶；帧序、等待、坐标提交点由冷图决定。
+ * actor是原96槽allocation内的xy-only写址，不要求<count；不读取该槽
+ * 其余78B、不提升count。隐含绘制坐标的caller须另守active读取边界。 */
 typedef struct fd2_scene_teleport_scope fd2_scene_teleport_scope;
 int fd2_scene_teleport_validate(const fd2_archive *fdother);
 int fd2_scene_teleport_begin(fd2_scene_teleport_scope **scope,

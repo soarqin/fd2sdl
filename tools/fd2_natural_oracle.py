@@ -911,11 +911,14 @@ def cursor_match(frame, assets, bank, at):
         "full_resource_compared":all(part["full_resource_compared"] for part in bands)}
 
 
-def round_banner(original, assets, turn):
+def round_banner(original, assets, turn, *, frame_id=91):
     if not 1<=turn<=255:raise ValueError("自然回合编号超出SAV byte范围")
+    # 原1a63d..1a68d依次画83..91；esi>6时，90和91均带同一回合数字。
+    # 只允许这两个完整带数字资源，不以裁掉边框或数字的ROI作为正证。
+    if frame_id not in (90,91):raise ValueError("回合数字资源只允许原90/91帧")
     sheet=archive_entry((original/"FDOTHER.DAT").read_bytes(),5)
-    image=sheet_frame(sheet,91,lmi=True);image.putpalette(assets["palette"])
-    if image.size!=(87,20):raise ValueError("回合横幅不是原87x20")
+    image=sheet_frame(sheet,frame_id,lmi=True);image.putpalette(assets["palette"])
+    if image.size!=(87,21 if frame_id==90 else 20):raise ValueError("回合横幅不是原90/91尺寸")
     for digit,x in zip(f"{turn:03d}",(51,57,63)):
         start,end=struct.unpack_from("<II",sheet,6+4*(42+int(digit)))
         part=decode_image(sheet[start:end]);part.putpalette(assets["palette"])

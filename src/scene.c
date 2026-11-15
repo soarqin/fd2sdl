@@ -1414,14 +1414,18 @@ static int opening_actor_move_up_follow_camera(
     return 0;
 }
 
-static int movement_script_preflight(const fd2_field_units *units,
-        const uint8_t *script, size_t script_len, uint8_t idle_phase) {
+static int movement_script_preflight_domain(const fd2_field_units *units,
+        const uint8_t *script, size_t script_len, uint8_t idle_phase,size_t *defined_groups) {
     if (!units || !script || !script_len) return -1;
-    /* 一次检查完整流及全部actor域，错误不留下半段演出的热状态。 */
+    /* 格式全检；source只校验首未构造身份读之前的完整组及其资源。
+     * 此处不写热状态，实际演出按原顺序提交已定义前缀后才停。 */
     fd2_field_units checked = *units;
-    if (fd2_field_movement_script_apply(&checked, script, script_len) != 0) return -1;
+    int result=defined_groups ? fd2_field_movement_script_project_source(&checked,script,script_len,defined_groups):
+        fd2_field_movement_script_apply(&checked,script,script_len);
+    if (result<0) return -1;
     size_t check_at=1;
-    for (size_t group=0;group<script[0];group++) {
+    size_t groups=defined_groups?*defined_groups:script[0];
+    for (size_t group=0;group<groups;group++) {
         uint8_t mode=script[check_at++],count=script[check_at++];
         for (size_t i=0;i<count;i++,check_at+=2) {
             size_t actor=script[check_at];uint8_t direction=script[check_at+1u];
@@ -1432,7 +1436,12 @@ static int movement_script_preflight(const fd2_field_units *units,
             }
         }
     }
-    return 0;
+    return result;
+}
+
+static int movement_script_preflight(const fd2_field_units *units,
+        const uint8_t *script,size_t script_len,uint8_t idle_phase) {
+    return movement_script_preflight_domain(units,script,script_len,idle_phase,NULL);
 }
 
 static int play_opening_move_script(fd2_vga *vga,
@@ -1444,14 +1453,19 @@ static int play_opening_move_script(fd2_vga *vga,
                                     const uint8_t *script,
                                     size_t script_len,
                                     int fade_out,
-                                    int fast) {
+                                    int fast,int source) {
     if (!state || !script || script_len == 0) return -1;
-    if (movement_script_preflight(&state->units,script,script_len,(uint8_t)vga->field_visual.actor_idle_phase) != 0) return -1;
+    size_t defined_groups=script[0];
+    if (movement_script_preflight_domain(&state->units,script,script_len,
+            (uint8_t)vga->field_visual.actor_idle_phase,source?&defined_groups:NULL)<0) return -1;
     size_t pos = 1;
     uint8_t group_count = script[0];
     int darkness = 1;
 
     for (uint8_t group = 0; group < group_count; group++) {
+        /* 原normal组先32230/1f1a3，首未构造身份前没有DIR/frame写。
+         * 保此前完整组；不把截断前缀当完整脚本再补1398a尾刷新。 */
+        if (group==defined_groups) {scene_motion_sync(state);return -1;}
         if (pos + 2 > script_len) return -1;
         uint8_t mode = script[pos++];
         uint8_t actor_count = script[pos++];
@@ -1906,8 +1920,10 @@ static int scene_source_status(int result) {
     return result ? -1:0;
 }
 
-static int scene_source_actor(const fd2_field_game *game,int32_t selector,size_t *actor) {
-    if (!game || !actor) return -1;
+/* 22253只把xy写回原96槽allocation；362e8合并state2时29/30可以
+ * 位于active尾后。普通focus/绘制/动作读取仍由各自<count门约束。 */
+static int scene_source_teleport_actor(const fd2_field_game *game,int32_t selector,size_t *actor) {
+    if (!game || !actor || game->units.count>FD2_FIELD_MAX_UNITS) return -1;
     uint32_t raw;
     if (selector>=0) raw=(uint32_t)selector;
     else if (selector>=-3) {
@@ -1916,7 +1932,7 @@ static int scene_source_actor(const fd2_field_game *game,int32_t selector,size_t
         if (fd2_field_event_source_value(source,game->turn_number,game->cell_action_completed,&raw)) return -1;
     } else if (selector==-4 && game->units.count) raw=(uint32_t)game->units.count-1u;
     else return -1;
-    if (raw>=game->units.count) return -1;
+    if (raw>=FD2_FIELD_MAX_UNITS) return -1;
     *actor=raw; return 0;
 }
 
@@ -2010,7 +2026,8 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op,"transition_release")) fd2_scene_transition_release(&c->transition);
         else if (!strcmp(n->op,"teleport_begin")) {
             size_t actor;
-            if (!c->source_flow || scene_source_actor(c->game,a[0],&actor)) return -1;
+            if (!c->source_flow || scene_source_teleport_actor(c->game,a[0],&actor) ||
+                    (actor>=c->game->units.count && (a[3]==-1 || a[4]==-1))) return -1;
             int x=a[3]==-1 ? c->game->units.items[actor].x:a[3];
             int y=a[4]==-1 ? c->game->units.items[actor].y:a[4];
             if (scene_source_status(fd2_scene_teleport_begin(&c->teleport,c->mutable_game,c->vga,c->fdother,
@@ -2087,9 +2104,8 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "move")) {
             const uint8_t *bytes; size_t size;
             if (!field || fd2_field_movement_script_get((uint8_t)a[0],&bytes,&size) != 0 ||
-                (c->source_flow && movement_script_preflight(&c->state->units,bytes,size,0) != 0) ||
                 play_opening_move_script(c->vga,c->terrain,c->map,c->sprites,c->state,
-                    c->audio,bytes,size,a[1],c->fast) != 0) return -1;
+                    c->audio,bytes,size,a[1],c->fast,c->source_flow) != 0) return -1;
         } else if (!strcmp(n->op, "text")) {
             if(c->state) {
                 if(c->game) {
@@ -2961,10 +2977,10 @@ int fd2_scene_common_step_validate_view(const fd2_field_game *game,
         return scene_story_resource_validate(game,fdother,node,units,roster,roster_count,NULL);
     }
     if(!strcmp(node->op,"move")) {
-        const uint8_t *bytes;size_t length;
-        return a[0]>=0 && a[0]<=255 && (a[1]==0 || a[1]==1) &&
-            fd2_field_movement_script_get((uint8_t)a[0],&bytes,&length)==0?
-            movement_script_preflight(units,bytes,length,game->idle_phase):-1;
+        const uint8_t *bytes;size_t length,groups;
+        if(a[0]<0 || a[0]>255 || (a[1]!=0 && a[1]!=1) ||
+                fd2_field_movement_script_get((uint8_t)a[0],&bytes,&length)!=0)return -1;
+        return movement_script_preflight_domain(units,bytes,length,game->idle_phase,&groups)<0?-1:0;
     }
     if(!strcmp(node->op,"focus_cell"))return a[0]>=0 && a[1]>=0 &&
         a[0]<game->map.width && a[1]<game->map.height && game->map.cells?0:-1;
@@ -3065,7 +3081,7 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
         if(a[0]>=0 && a[0]<=255 &&
             fd2_field_movement_script_get((uint8_t)a[0],&bytes,&length)==0)
             result=play_opening_move_script(vga,&game->terrain,&game->map,
-                &game->sprites,&state,audio,bytes,length,a[1],fast);
+                &game->sprites,&state,audio,bytes,length,a[1],fast,1);
     } else if(!strcmp(node->op,"story")) {
         fd2_ui_sheet ui={0};fd2_text_entry text={0};
         if(a[0]>=0 && ui_sheet_open_fdother(&ui,fdother,5)==0 &&

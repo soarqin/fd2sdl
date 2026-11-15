@@ -1504,7 +1504,7 @@ static int test_scene_water_callers(const fd2_archive *fdother) {
         reset_controls(vga);scene_host_quit_requested=0;
         state=(fd2_scene_field_state){0};state.units=game->units;
         CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
-            &state,NULL,cases[i].script,sizeof(cases[i].script),cases[i].fade,0)==0);
+            &state,NULL,cases[i].script,sizeof(cases[i].script),cases[i].fade,0,0)==0);
         CHECK(water_calls==cases[i].waters && presents==(int)cases[i].frames);
         CHECK(vga->field_visual.cursor_phase==cases[i].cursor);
         CHECK(state.units.items[0].frame_phase==0);
@@ -1546,10 +1546,24 @@ static int test_scene_water_callers(const fd2_archive *fdother) {
     reset_controls(vga);scene_host_quit_requested=0;quit_at_frame=2;
     state=(fd2_scene_field_state){0};state.units=game->units;
     CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
-        &state,NULL,cases[0].script,5,0,0)==-1);
+        &state,NULL,cases[0].script,5,0,0,0)==-1);
     CHECK(water_calls==2 && presents==2 && vga->field_visual.cursor_phase==2);
     CHECK(state.units.items[0].x==3 && state.units.items[0].frame_phase==2);
     CHECK(!memcmp(&game->units.items[0],&state.units.items[0],2));
+    const uint8_t partial[]={2,1,1,0,3,1,1,95,2};
+    reset_controls(vga);scene_host_quit_requested=0;
+    state=(fd2_scene_field_state){0};state.units=game->units;
+    memset(&state.units.items[95],0xa5,80);fd2_field_unit inactive=state.units.items[95];
+    CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
+        &state,NULL,partial,sizeof(partial),0,1,1)==-1);
+    CHECK(state.units.items[0].x==4 && state.units.items[0].frame_phase==0 && presents==1 &&
+        !memcmp(&state.units.items[95],&inactive,80)); /* 不伪造脚本尾刷新/首U组DIR。 */
+    reset_controls(vga);scene_host_quit_requested=0;quit_at_frame=2;
+    state=(fd2_scene_field_state){0};state.units=game->units;state.units.items[95]=inactive;
+    CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
+        &state,NULL,partial,sizeof(partial),0,0,1)==-1);
+    CHECK(scene_host_quit_requested && presents==2 && state.units.items[0].x==3 &&
+        state.units.items[0].frame_phase==2 && !memcmp(&state.units.items[95],&inactive,80));
     reset_controls(vga);scene_host_quit_requested=0;
     fd2_field_game_close(game);free(game);free(before);free(saved);free(actual);free(vga);
     return 0;
@@ -1745,11 +1759,15 @@ static int test_arrival_public_scope_and_boundaries(const fd2_archive *fdother) 
     CHECK(!memcmp(game_before,game,sizeof(*game)));game->sprites.offsets[0]=saved_offset;
     scene_test_arrival_close(&scope);
 
-    /* 资源预检可借未来单位identity，不把影子写回Game。 */
+    /* source预检允许已知格式的有限前缀，未来identity视图仍不写回Game；
+     * 旧完整脚本入口保留active门，不将前缀资格冒称全脚本有效。 */
     fd2_static_flow_node move={.op="move",.args={13,0}};
     fd2_field_units *projected=malloc(sizeof(*projected));CHECK(projected);*projected=game->units;
     game->units.count=1;memcpy(game_before,game,sizeof(*game));
-    CHECK(scene_test_common_validate(game,fdother,&move)==-1);
+    const uint8_t *move_bytes;size_t move_size;
+    CHECK(fd2_field_movement_script_get(13,&move_bytes,&move_size)==0);
+    CHECK(movement_script_preflight(&game->units,move_bytes,move_size,0)==-1);
+    CHECK(scene_test_common_validate(game,fdother,&move)==0);
     CHECK(scene_test_common_validate_view(game,fdother,&move,projected,game->roster,game->roster_count)==0);
     CHECK(!memcmp(game_before,game,sizeof(*game)));free(projected);
     reset_controls(vga);scene_host_quit_requested=0;

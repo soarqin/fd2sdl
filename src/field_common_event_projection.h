@@ -70,8 +70,9 @@ static int common_event_project_write(const fd2_field_game *game,
         if(p->roster_count>=FD2_SAVE_BATTLE_MAX_ROSTER || a[0]<0 || a[0]>31)return -1;
         if(fd2_field_unit_init(&p->roster[p->roster_count++],(uint8_t)a[0],(uint8_t)a[0],2,0,0)!=0)return -1;
     } else if(!strcmp(op,"unit_field_write") || !strcmp(op,"unit_ai_write")) {
-        if(a[0]<0 || a[1]<a[0] || (size_t)a[1]>=p->units.count)return -1;
+        if(a[0]<0 || a[1]<a[0] || (size_t)a[1]>=FD2_FIELD_MAX_UNITS)return -1;
         if((!strcmp(op,"unit_ai_write") && (a[2]<0 || a[2]>255)) ||
+           (!strcmp(op,"unit_ai_write") && (size_t)a[1]>=p->units.count) ||
            (!strcmp(op,"unit_field_write") && (a[4]<0 || a[4]>UINT16_MAX)))return -1;
         int result=!strcmp(op,"unit_ai_write")?
             fd2_field_units_ai_behavior_write(&p->units,(size_t)a[0],(size_t)a[1],(uint8_t)a[2]):
@@ -120,7 +121,7 @@ static int common_event_project_write(const fd2_field_game *game,
 static int common_event_preflight_identity(const fd2_field_game *game,
         const fd2_static_flow *flow,size_t actor) {
     enum { MAX_PATHS=64 };
-    if(game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER)return -1;
+    if(game->roster_count>FD2_SAVE_BATTLE_MAX_ROSTER || game->units.count>FD2_FIELD_MAX_UNITS)return -1;
     common_event_projection *pending=calloc(MAX_PATHS,sizeof(*pending));
     if(!pending)return -1;
     pending[0].units=game->units;pending[0].roster_count=game->roster_count;
@@ -148,7 +149,7 @@ static int common_event_preflight_identity(const fd2_field_game *game,
             } else if(!strcmp(n.op,"teleport_begin")) {
                 uint32_t selected;
                 if(p.teleport_active || common_event_teleport_actor(n.args[0],p.state,&selected)!=0 ||
-                        selected>=p.units.count){result=-1;break;}
+                        selected>=FD2_FIELD_MAX_UNITS){result=-1;break;}
                 for(unsigned i=1;i<5;i++)if(n.args[i]<0 || n.args[i]>255)result=-1;
                 if(result<0)break;
                 n.args[0]=(int32_t)selected;
@@ -168,14 +169,16 @@ static int common_event_preflight_identity(const fd2_field_game *game,
                 }
             } else if(common_event_leaf(n.op)) {
                 fd2_field_event_resource_view view={&p.units,p.roster,p.roster_count,p.map_entry,p.shape_index,p.map_entry>=0};
+                int movement_stop=0;
                 if(!strcmp(n.op,"move")) {
-                    const uint8_t *bytes;size_t length;
+                    const uint8_t *bytes;size_t length,groups;
                     if(n.args[0]<0 || n.args[0]>255 || fd2_field_movement_script_get((uint8_t)n.args[0],&bytes,&length)!=0 ||
-                        fd2_field_movement_script_apply(&p.units,bytes,length)!=0){result=-1;break;}
+                        (movement_stop=fd2_field_movement_script_project_source(&p.units,bytes,length,&groups))<0){result=-1;break;}
                 }
                 if(common_event_preflight_leaf_view(game,&n,actor,&view)!=0){result=-1;break;}
+                if(movement_stop)break; /* 保真实叶前缀；不投影首次未构造身份读之后。 */
                 if(!strcmp(n.op,"call_teleport")) {
-                    if(p.teleport_actor>=p.units.count){result=-1;break;}
+                    if(p.teleport_actor>=FD2_FIELD_MAX_UNITS){result=-1;break;}
                     p.units.items[p.teleport_actor].x=(uint8_t)p.teleport_x;
                     p.units.items[p.teleport_actor].y=(uint8_t)p.teleport_y;
                     p.teleport_active=0;

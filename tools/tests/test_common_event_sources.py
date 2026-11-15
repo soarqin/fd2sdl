@@ -23,9 +23,22 @@ class CommonEventSourcesTest(unittest.TestCase):
         return document
     def release_fixture(self):
         import stage_release_scope as release
-        document=json.loads((ROOT/'data/static/flows/common_event.json').read_text(encoding='utf-8'))
+        # 这是S3原2..19来源合同夹具；不能把S5全部正式绑定交给旧S3证据。
+        temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
+        project=Path(temporary.name)/'s3-project'
+        shutil.copytree(ROOT/'data/static',project/'data/static')
+        shutil.copytree(ROOT/'docs/generated/ida-canonical',project/'docs/generated/ida-canonical')
+        path=project/'data/static/flows/common_event.json'
+        document=json.loads(path.read_text(encoding='utf-8'))
+        document['bindings']={key:value for key,value in document['bindings'].items() if int(key.split('.')[1])<20}
+        path.write_text(json.dumps(document),encoding='utf-8')
+        path=project/'data/static/flows/stage.json';stage_document=json.loads(path.read_bytes())
+        for flow in stage_document['flows']:
+            if flow['id'].startswith('stage.capability.') and int(flow['id'].split('.')[-1])>=20:
+                flow['nodes'][0]['args'][0]=0
+        path.write_text(json.dumps(stage_document),encoding='utf-8')
         sources=release.ledger_tool.Sources(ROOT/'original_game')
-        flows,aliases,_=release.audit.load_definitions(ROOT/'data/static')
+        flows,aliases,_=release.audit.load_definitions(project/'data/static')
         stages={}
         for identity,definition in document['bindings'].items():
             if identity in verify.LEGACY_BINDINGS:continue
@@ -41,12 +54,12 @@ class CommonEventSourcesTest(unittest.TestCase):
                 'definition_sha256':verify.digest(release.disposition.encode(flows[definition]).encode())})
         receipt={'schema':'fd2-stage-release-scope-v1','structural_binding_scope_closed':True,
             'input_sha256':{str(path):verify.digest(path.read_bytes()) for path in
-                (ROOT/'data/static/flows/common_event.json',ROOT/'data/static/flows/stage.json',
+                (project/'data/static/flows/common_event.json',project/'data/static/flows/stage.json',
                  ROOT/'build/s2/source-disposition-final03/disposition.json',
                  ROOT/'build/s3/callback-candidate12/candidates.json',
                  ROOT/'build/s3/callback-binding-source-candidate12/comparison.json')},
             'stages':list(stages.values())}
-        return document,receipt
+        return document,receipt,project
     def sources(self):
         return {'k_common_event_nested_descriptors':bytes([0,211,0,0,213,0,0,101,0,0,11,0]),
                 'k_common_event_cell_items':bytes([29,43,51,61,71])}
@@ -112,17 +125,55 @@ class CommonEventSourcesTest(unittest.TestCase):
         d=self.flows();d['flows'].append({'id':'unreviewed.callback','entry':'end','nodes':[{'id':'end','op':'end','args':[],'on':{}}]})
         with self.assertRaisesRegex(ValueError,'未审'):verify.validate_flow(d)
 
+    def test_current_S5_callback51_has_independent_original_shared_tail_guard(self):
+        import stage_release_scope as release
+        document=json.loads((ROOT/'data/static/flows/common_event.json').read_bytes())
+        original=verify.validate_callback51_source(ROOT/'original_game/FD2.EXE',document)
+        self.assertEqual(original['target_va'],'0x355f0')
+        self.assertFalse(original['original_machine_code_executed'])
+        flows={f['id']:f for f in document['flows']}
+        identity='dispatch:event_callback:051';runtime='stage.021.action.051'
+        source={'disposition':'converted_candidate','definition_id':'common.callback.051',
+            'definition_domain':'common_event','target_va':'0x355f0','original_caller':'complete355f0/shared3530d', 'source':{}}
+        actual=release.check_binding(runtime,identity,{identity:source},flows,document['bindings'])
+        self.assertEqual(actual['definition_sha256'],original['definition_sha256'])
+        for mode in ('story11','old_alias','coordinated_old_source_alias','target','reordered'):
+            bad=copy.deepcopy(document);binding=copy.deepcopy(source)
+            if mode=='story11':
+                next(n for n in self.flow(bad,'common.callback.051')['nodes'] if n['op']=='story')['args']=[11]
+            elif mode=='old_alias':bad['bindings'][runtime]='common.loot.child.2'
+            elif mode=='coordinated_old_source_alias':
+                bad['bindings'][runtime]=binding['definition_id']='common.loot.child.2'
+            elif mode=='target':binding['target_va']='0x352ca'
+            else:self.flow(bad,'common.callback.051')['nodes'].reverse();self.flow(bad,'common.callback.051')['entry']='done'
+            # caller元数据/alias/图一起伪造也必须被固定原来源规则拒绝。
+            badflows={f['id']:f for f in bad['flows']}
+            with self.subTest(mode=mode),self.assertRaisesRegex(ValueError,'binding differs|callback51'):
+                release.check_binding(runtime,identity,{identity:binding},badflows,bad['bindings'])
+            if mode in ('story11','reordered'):
+                with self.assertRaisesRegex(ValueError,'story3'):
+                    verify.validate_callback51_source(ROOT/'original_game/FD2.EXE',bad)
+        with tempfile.TemporaryDirectory() as directory:
+            wrong=Path(directory)/'FD2.EXE';raw=bytearray((ROOT/'original_game/FD2.EXE').read_bytes())
+            # object1 VA35632的立即数3改11；独立原身份门先拒绝，不执行该副本。
+            raw[0x36014+0x35632-0x10000]=11;wrong.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError,'原EXE身份'):
+                verify.validate_callback51_source(wrong,document)
+
     def test_S3_bindings_need_current_source_receipt_without_expanding_G4_semantics(self):
-        document,receipt=self.release_fixture()
+        document,receipt,project=self.release_fixture()
         with self.assertRaisesRegex(ValueError,'release-scope'):verify.validate_flow(document)
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'scope.json';path.write_text(json.dumps(receipt),encoding='utf-8')
-            result=verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE')
+            result=verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE',root=project)
             self.assertEqual((result['flow_count'],result['source_control_paths_checked'],result['existing_bindings_migrated']),(21,19,6))
             self.assertEqual(result['additional_shipping_bindings_source_checked'],44)
             self.assertEqual(len(result['additional_shipping_bindings_not_semantically_checked']),44)
             self.assertFalse(result['additional_binding_semantics_proven_by_this_tool'])
             self.assertEqual(result['bindings_added'],0)
+            old51=copy.deepcopy(document);old51['bindings']['stage.021.action.051']='common.loot.child.2'
+            with self.assertRaisesRegex(ValueError,'callback51.*S5'):
+                verify.validate_flow(old51,path,ROOT/'original_game/FD2.EXE',root=project)
             # 同时篡改收据行和alias也不能借两份自报SHA把原slot9接成另一个已知图。
             forged=copy.deepcopy(document);forged_receipt=copy.deepcopy(receipt)
             identity='stage.002.action.009';replacement='common.callback.026'
@@ -135,11 +186,11 @@ class CommonEventSourcesTest(unittest.TestCase):
                         row['definition_sha256']=verify.digest(release.disposition.encode(self.flow(forged,replacement)).encode())
             # 实际临时冷输入和scope输入摘要也一并更新，排除只靠旧file SHA挡住的假负例。
             mirror=Path(directory)/'project'
-            shutil.copytree(ROOT/'data/static',mirror/'data/static')
-            shutil.copytree(ROOT/'docs/generated/ida-canonical',mirror/'docs/generated/ida-canonical')
+            shutil.copytree(project/'data/static',mirror/'data/static')
+            shutil.copytree(project/'docs/generated/ida-canonical',mirror/'docs/generated/ida-canonical')
             (mirror/'data/static/flows/common_event.json').write_text(json.dumps(forged),encoding='utf-8')
             for name in ('common_event','stage'):
-                old=ROOT/f'data/static/flows/{name}.json';new=mirror/f'data/static/flows/{name}.json'
+                old=project/f'data/static/flows/{name}.json';new=mirror/f'data/static/flows/{name}.json'
                 forged_receipt['input_sha256'].pop(str(old))
                 forged_receipt['input_sha256'][str(new)]=verify.digest(new.read_bytes())
             path.write_text(json.dumps(forged_receipt),encoding='utf-8')
@@ -153,7 +204,7 @@ class CommonEventSourcesTest(unittest.TestCase):
             next(stage for stage in forged_receipt['stages'] if stage['stage']==2)['bindings'].append(new)
             path.write_text(json.dumps(forged_receipt),encoding='utf-8')
             with self.assertRaisesRegex(ValueError,'发布域'):
-                verify.validate_flow(forged,path,ROOT/'original_game/FD2.EXE')
+                verify.validate_flow(forged,path,ROOT/'original_game/FD2.EXE',root=project)
             path.write_text(json.dumps(receipt),encoding='utf-8')
             for mutate in (lambda d:d['bindings'].update({'stage.020.action.082':'common.callback.009'}),
                     lambda d:d['bindings'].__setitem__('stage.002.action.009','common.callback.026'),
@@ -161,9 +212,9 @@ class CommonEventSourcesTest(unittest.TestCase):
                     lambda d:self.flow(d,'common.callback.009')['nodes'][0]['args'].append(999)):
                 bad=copy.deepcopy(document);mutate(bad)
                 with self.subTest(bindings=bad['bindings']),self.assertRaises(ValueError):
-                    verify.validate_flow(bad,path,ROOT/'original_game/FD2.EXE')
+                    verify.validate_flow(bad,path,ROOT/'original_game/FD2.EXE',root=project)
             for mutate in (lambda r:r.update(structural_binding_scope_closed=False),
-                    lambda r:r['input_sha256'].__setitem__(str(ROOT/'data/static/flows/stage.json'),'0'*64),
+                    lambda r:r['input_sha256'].__setitem__(str(project/'data/static/flows/stage.json'),'0'*64),
                     lambda r:r['stages'][0]['bindings'][0].update(source_id='dispatch:event_callback:082'),
                     lambda r:r['stages'][0]['bindings'][0].update(original_target='0x362e8'),
                     lambda r:r['stages'][0].update(battle_enabled=False),
@@ -171,6 +222,6 @@ class CommonEventSourcesTest(unittest.TestCase):
                     lambda r:r['stages'][0]['bindings'].append(r['stages'][0]['bindings'][0])):
                 bad=copy.deepcopy(receipt);mutate(bad);path.write_text(json.dumps(bad),encoding='utf-8')
                 with self.subTest(receipt=bad),self.assertRaises(ValueError):
-                    verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE')
+                    verify.validate_flow(document,path,ROOT/'original_game/FD2.EXE',root=project)
 
 if __name__=='__main__':unittest.main()

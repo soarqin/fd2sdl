@@ -76,7 +76,7 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
         if(u->hp || fd2_field_unit_is_hidden(u) ||
             (int64_t)u->x<(int64_t)v->camera_x-1 || (int64_t)u->x>(int64_t)v->camera_x+13 ||
             (int64_t)u->y<(int64_t)v->camera_y-1 || (int64_t)u->y>(int64_t)v->camera_y+9)continue;
-        /* 原30槽后是未定义堆栈图形；只限锚，旋转/flags仍由Game处理全表。 */
+        /* 当前保留30锚；原第31锚与临时页指针重叠的有效域另归F4，不能按伪C长度判U。 */
         if(v->count<DEFEAT_ANCHORS) {
             v->x[v->count]=72+((int)u->x-v->camera_x-1)*24;
             v->y[v->count]=66+((int)u->y-v->camera_y-1)*24;v->count++;

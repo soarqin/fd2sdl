@@ -64,7 +64,7 @@ static int common_event_literal(const fd2_field_game *game,
     } else if (!strcmp(source->op,"teleport_begin")) {
         uint32_t actor;
         if (common_event_teleport_actor(source->args[0],game->cell_action_completed,&actor)!=0 ||
-                actor>=game->units.count) return -1;
+                game->units.count>FD2_FIELD_MAX_UNITS || actor>=FD2_FIELD_MAX_UNITS) return -1;
         literal->args[0]=(int32_t)actor;
     }
     return 0;

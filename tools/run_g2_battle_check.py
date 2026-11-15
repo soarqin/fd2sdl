@@ -201,19 +201,36 @@ def series(capture, record, *, interval_ms=33):
     slot = {}; record["series_helper"] = slot
     helper = OwnedHelper(capture.driver, [capture.driver,"capture-series",capture.process.pid,directory,45000,interval_ms],
         capture.artifacts, "g2-series", slot)
-    ready = None
+    ready = None; body_error = None
     try:
         child = helper.start(); ready = wait_ready(directory / "ready.json", child, capture.process)
         if ready.get("pid") != capture.process.pid or not ready.get("hwnd"):
             raise AssertionError("G2持续WGC的ready owner不符")
         yield
+    except BaseException as error:
+        body_error=error
+        record['series_body_error']={'type':type(error).__name__,'message':str(error)}
+        raise
     finally:
-        if directory.exists(): (directory / "stop").write_text("stop\n", encoding="utf-8")
-        helper.finish()
+        errors=[]
+        def failed(stage,error):
+            errors.append(error)
+            record.setdefault('series_cleanup_errors',[]).append(
+                {'stage':stage,'type':type(error).__name__,'message':str(error)})
+        try:
+            if directory.exists(): (directory / "stop").write_text("stop\n", encoding="utf-8")
+        except BaseException as error:failed('stop',error)
+        try:helper.finish()
+        except BaseException as error:failed('helper_finish',error)
         if ready is not None:
-            frames = series_index(directory, slot["summary"], ready, capture.process.pid)
-            record["continuous_wgc"] = {"ready": ready, "summary": slot["summary"], "frames": frames,
-                "complete_raw_collection": True, "full_RGB_equivalence_claimed": False}
+            collection={"ready":ready,"summary":slot.get("summary"),"complete_raw_collection":False,
+                "full_RGB_equivalence_claimed":False};record['continuous_wgc']=collection
+            if 'summary' in slot:
+                try:collection['frames']=series_index(directory,slot['summary'],ready,capture.process.pid)
+                except BaseException as error:failed('index',error)
+                else:collection['complete_raw_collection']=not errors
+            elif not errors:failed('index',ValueError('持续WGC缺已关闭helper的summary'))
+        if errors and body_error is None:raise errors[0]
 
 
 def save_measurement(capture, prepared, save, guard, record, checkpoint):

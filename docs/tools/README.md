@@ -1,5 +1,11 @@
 # 项目工具速查
 
+F1原版参照身份使用`tools/original_reference.py create/verify`，完整PowerShell／Bash命令、20文件／字库分母和配置链资格见[原参照规范](../formats/original-reference.md)。纯合成合同测试注册为CTest `original_reference_contract`；原文件身份通过不等于原版动态／BSS／玩法通过。
+
+F1合并81→82的正式容量代表使用`tools/run_f1_coalesced82_check.py`；完整来源、两次END、严格ON前提和复跑参数见[图形规范F1](gui-testing.md#f1-合并调度与容量传送代表)。该入口缺原C22归档不可运行；失败与当前资格只查[F1报告](../plans/f1-reference-domain.md)。
+
+F1的L1有源启动门复用`run_le_preentry_check.py --startup-trace`，另接`tools/ida/export_le_startup_domain.py`和`verify_le_startup_writes.py`；三层收据缺一不可，旧静态零BSS失败不回签。复跑及平台边界见[DOSBox手册](dosbox-debug.md#l1-有源启动写账的可复跑入口)。
+
 以下命令从项目根目录执行。命令按 PowerShell／Bash 标注，Python、环境变量、临时目录、二进制比较和历史绝对路径的转换见[跨平台约定](platforms.md)。先查本文及专题，不为回忆语法反复调用 `--help`；工具版本／行为改变后再修订对应命令。开发约束见 [AGENTS.md](../../AGENTS.md)，完整分类见[文档索引](../README.md)。
 
 Windows x64 本地 Release 的源码快照、实际 CMake／PE 依赖记录、白名单打包及离线重建命令统一见 [Windows Release](windows-release.md)。自有代码为 MIT，包保留第三方许可与匹配重建材料，不包含原资源，也不自动发布；Linux／macOS 发布未验。

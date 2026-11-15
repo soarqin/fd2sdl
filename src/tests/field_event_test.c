@@ -108,6 +108,34 @@ static int test_stage0_scripts(void) {
     return 0;
 }
 
+static int test_source_movement_prefix(void) {
+    fd2_field_units units={0};units.count=1;units.items[0].x=4;units.items[0].y=5;
+    memset(&units.items[2],0xa5,sizeof(units.items[2]));
+    const uint8_t script[]={2,1,1,0,3,1,1,2,0};
+    fd2_field_units before=units;size_t groups=77;
+    CHECK(fd2_field_movement_script_apply(&units,script,sizeof(script))==-1);
+    CHECK(!memcmp(&units,&before,sizeof(units)));
+    CHECK(fd2_field_movement_script_project_source(&units,script,sizeof(script),&groups)==1 && groups==1);
+    CHECK(units.count==1 && units.items[0].x==5 && units.items[0].direction==3);
+    CHECK(!memcmp(&units.items[2],&before.items[2],sizeof(units.items[2])));
+    const uint8_t late_bad[]={3,1,1,0,3,1,1,2,0,1,1,96,0};
+    units=before;groups=77;
+    CHECK(fd2_field_movement_script_project_source(&units,late_bad,sizeof(late_bad),&groups)==-1);
+    CHECK(groups==77 && !memcmp(&units,&before,sizeof(units)));
+    const uint8_t high_wait[]={1,0x81,1,2,0};
+    CHECK(fd2_field_movement_script_project_source(&units,high_wait,sizeof(high_wait),&groups)==-1);
+    CHECK(!memcmp(&units,&before,sizeof(units))); /* 本修正不开放high-bit未知raw。 */
+    const uint8_t *bytes;size_t length;
+    for(unsigned id=0;id<106;id++) {
+        fd2_field_units strict={0},projected={0};strict.count=projected.count=96;
+        CHECK(fd2_field_movement_script_get((uint8_t)id,&bytes,&length)==0);
+        CHECK(fd2_field_movement_script_apply(&strict,bytes,length)==0);
+        CHECK(fd2_field_movement_script_project_source(&projected,bytes,length,&groups)==0 && groups==bytes[0]);
+        CHECK(!memcmp(&strict,&projected,sizeof(strict)));
+    }
+    return 0;
+}
+
 static int test_cell_events(void) {
     uint32_t cell = 5u | (3u << 16);
     fd2_field_map map = {.width = 1, .height = 1, .cells = &cell};
@@ -327,6 +355,7 @@ int main(void) {
     CHECK(test_turn_events() == 0);
     CHECK(test_movement_script() == 0);
     CHECK(test_stage0_scripts() == 0);
+    CHECK(test_source_movement_prefix() == 0);
     CHECK(test_cell_events() == 0);
     CHECK(test_common_predicates_and_writes() == 0);
     CHECK(test_event_inventory_and_rng() == 0);

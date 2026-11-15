@@ -13,10 +13,9 @@
 from __future__ import annotations
 
 import argparse
-import struct
 from pathlib import Path
 
-from rebuild_fd2_analysis import decode_fixup_record_end, parse_le, parse_objects, u32
+from rebuild_fd2_analysis import parse_fixups, parse_le, parse_objects
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXE = ROOT / "original_game" / "FD2.EXE"
@@ -39,40 +38,20 @@ def collect_internal_offset_fixups(exe: Path) -> dict[int, tuple[int, int, int]]
     le = parse_le(buf)
     objects = parse_objects(buf, le)
 
-    page_to_obj: dict[int, tuple[object, int]] = {}
-    for obj in objects:
-        for page_i in range(obj.page_count):
-            page_to_obj[obj.page_map_index - 1 + page_i] = (obj, page_i)
-
-    page_table = le.le_off + le.fixup_page_table_off
-    rec_base = le.le_off + le.fixup_record_table_off
     out: dict[int, tuple[int, int, int]] = {}
-
-    for page_index in range(le.num_pages):
-        start = u32(buf, page_table + page_index * 4)
-        end = u32(buf, page_table + (page_index + 1) * 4)
-        p = rec_base + start
-        limit = rec_base + end
-        while p < limit:
-            rec_end = decode_fixup_record_end(buf, p, limit)
-            if rec_end is None:
-                break
-            rec = buf[p:rec_end]
-            # FD2 中函数/数据表常见两种：
-            #   07 00 <src:u16> <obj:u8> <off:u16>
-            #   07 10 <src:u16> <obj:u8> <off:u32>
-            if len(rec) in (7, 9) and rec[0] == 0x07 and 1 <= rec[4] <= len(objects):
-                source_offset = struct.unpack_from("<H", rec, 2)[0]
-                source_obj, source_page_i = page_to_obj.get(page_index, (objects[0], page_index))
-                source_relbase = source_obj.relbase + source_page_i * le.page_size + source_offset
-                target_object = rec[4]
-                if rec[1] & 0x10:
-                    target_offset = struct.unpack_from("<I", rec, 5)[0]
-                else:
-                    target_offset = struct.unpack_from("<H", rec, 5)[0]
-                target_linear = objects[target_object - 1].relbase + target_offset
-                out[source_relbase] = (target_object, target_offset, target_linear)
-            p = rec_end
+    # 复用已独立验证的FD2解析器：source_offset是signed16，负值表示跨页
+    # source，不能将FFFF变成+65535而制造另一个高64KiB的地址。
+    for record in parse_fixups(buf, le, objects):
+        source = record.source_addr_relbase
+        target = (record.target_object, record.target_offset, record.target_linear)
+        if source in out and out[source] != target:
+            raise ValueError(f"conflicting fixups at {source:#x}")
+        out[source] = target  # 完全相同的跨页重复显式合并。
+    previous_end = 0
+    for source in sorted(out):
+        if source < previous_end:
+            raise ValueError(f"overlapping fixups at {source:#x}")
+        previous_end = source + 4
     return out
 
 

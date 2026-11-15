@@ -20,6 +20,50 @@ def valid_plain(value):
 
 
 class G2BattleRunnerTest(unittest.TestCase):
+    def series_case(self,directory):
+        capture=SimpleNamespace(artifacts=Path(directory),driver=Path('unused-driver'),process=SimpleNamespace(pid=42))
+        helper=mock.Mock();helper.start.return_value=SimpleNamespace()
+        ready={'pid':42,'hwnd':7};return capture,helper,ready
+
+    def test_series_body_error_stays_primary_when_index_cap_also_fails(self):
+        with tempfile.TemporaryDirectory()as directory:
+            capture,helper,ready=self.series_case(directory);record={};primary=ValueError('story4 first page timeout')
+            def finish():record['series_helper']['summary']={'stop_reason':'600cap'}
+            helper.finish.side_effect=finish
+            with mock.patch.object(runner,'OwnedHelper',return_value=helper),\
+                 mock.patch.object(runner,'wait_ready',return_value=ready),\
+                 mock.patch.object(runner,'series_index',side_effect=AssertionError('explicit stop missing:600cap')):
+                with self.assertRaises(ValueError)as caught:
+                    with runner.series(capture,record):raise primary
+            self.assertIs(caught.exception,primary);helper.finish.assert_called_once()
+            self.assertEqual(record['series_body_error']['message'],'story4 first page timeout')
+            self.assertEqual(record['series_cleanup_errors'][0]['stage'],'index')
+            self.assertEqual(record['continuous_wgc']['summary']['stop_reason'],'600cap')
+            self.assertFalse(record['continuous_wgc']['complete_raw_collection'])
+
+    def test_series_helper_finish_error_cannot_mask_body_or_skip_owner_cleanup(self):
+        with tempfile.TemporaryDirectory()as directory:
+            capture,helper,ready=self.series_case(directory);record={};primary=KeyboardInterrupt('cancelled body')
+            helper.finish.side_effect=OSError('helper stop failure')
+            with mock.patch.object(runner,'OwnedHelper',return_value=helper),\
+                 mock.patch.object(runner,'wait_ready',return_value=ready):
+                with self.assertRaises(KeyboardInterrupt)as caught:
+                    with runner.series(capture,record):raise primary
+            self.assertIs(caught.exception,primary);helper.finish.assert_called_once()
+            self.assertEqual(record['series_cleanup_errors'][0]['stage'],'helper_finish')
+            self.assertFalse(record['continuous_wgc']['complete_raw_collection'])
+
+    def test_series_without_body_error_still_rejects_incomplete_capture(self):
+        with tempfile.TemporaryDirectory()as directory:
+            capture,helper,ready=self.series_case(directory);record={};failure=AssertionError('600cap')
+            helper.finish.side_effect=lambda:record['series_helper'].update(summary={'stop_reason':'600cap'})
+            with mock.patch.object(runner,'OwnedHelper',return_value=helper),\
+                 mock.patch.object(runner,'wait_ready',return_value=ready),\
+                 mock.patch.object(runner,'series_index',side_effect=failure):
+                with self.assertRaises(AssertionError)as caught:
+                    with runner.series(capture,record):pass
+            self.assertIs(caught.exception,failure);self.assertNotIn('series_body_error',record)
+
     def save_case(self,directory,*,different_snapshot):
         capture=SimpleNamespace(artifacts=Path(directory),key=mock.Mock())
         save=Path(directory)/"FD2.SAV"

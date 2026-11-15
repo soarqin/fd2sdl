@@ -1107,6 +1107,7 @@ LABEL_15:
  * callers: 0x117e7
  * callees: 0x10620, 0x11cac, 0x3702f, 0x370f0, 0x4e31c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 先peek，空队4e31c，低WORD与App539f2不同才11cac(0)，返回后重新读WORD写539f2；早键不刷新，锚不随每次读键/Load重置。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int sub_11AA8()
 {
   watcom_stack_check(20);
@@ -1397,6 +1398,7 @@ int __cdecl memcpy_vga(int a1, int a2, int a3, int a4, int a5, int a6)
 //   依据: 逐格读取 map node offset `0x07`；值不为 `0xff` 时，以 `DS:0x1a97[phase]` 选择 FDOTHER[3] 的 256 字节表并调用 `shape_blit_palette_lut_24x24`
 //   历史地址列 `0x3710c`（`0x11ef8` 是 __chkstk body，入口为 `0x11eee`）；旧 Ghidra 名 `FUN_0000f640 body`；判定 chkstk-body
 // major system-notice / visual-clock evidence: 函数首仅当BIOS当前tick!=53a00时翻转53a40一次并重取当前tick，不按经过周期奇偶补追。attrs08加2*53a40、10加53c0b/2、04加53a40；角色idle由1297d另管，范围LUT53c1f亦为独立门。 依据：既有完整11eee(885B)与1297d及tile flag分支；本次私有修复仅将55/275ms宿主近似的视觉锚按原调用点单次推进，不宣称BIOS时钟、全局RNG、水DAC或所有地形动画已同步。保持field_view_render_tiles既名/类型。
+// [勘误 evidence] 11eff比较terrain tick，xor后11f16重读锚；随后实际wave/scroll背景更新及其fresh锚，1210f/12122的range门和1214b fresh锚，12164才选LUT并绘tile。固定51a93值直接写range phase而不取range clock。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 void __cdecl field_view_render_tiles(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int v6; // ebx
@@ -1562,6 +1564,7 @@ char field_completed_chest_tiles_apply()
 // [field_selection_overlay_draw] 按选择模式在焦点格附近绘制 FDOTHER[1] 选择框帧
 //   依据: corrected code0 `0x274f0`；模式 1/2 在焦点格画 frame 0/1，模式 3..5 组合 frame 1..18，模式 6 把当前 node offset `0x07` 置 0
 //   历史地址列 `0x374f0`；旧 Ghidra 名 `merged in FUN_0000f9ab`；判定 exact
+// [勘误 evidence] 122dc仅对mode1..6分派；6清node而无sprite，其它值走无sprite的default。15311确实无条件以magic record+4加2聚焦；原magic10/11/12的area5/7/9产生mode7/9/11，12cea仍按非0且非6等待，不能以renderer只列到6拒绝这些原值。；依据: 既有Domain source09完整122dc..126f7 SHA866692f43bd2736ade9ce526425241d33af53a54064647104dc76f96317a3a55，15311..1548e SHA967b72e576507cea33c9ec1d085aa9af182acd3c7e7402348c5488223999050e；原EXE object3 MAGIC252B@619fd SHA d516dc85c98d06e860477701ff1c018ac3a3f0953d79d0a6022aaf7a98f014c3独立读字节核field4完整域0/1/2/3/5/7/9。只核该分派/等待域，不代签完整AI范围/FX。
 int field_selection_overlay_draw()
 {
   int result; // eax
@@ -1679,6 +1682,7 @@ int __cdecl field_selection_sprite_blit(int a1, int a2, int a3)
  * callers: 0x11cac, 0x12eaa, 0x1300d, 0x13185, 0x13315, 0x1741c, 0x17898, 0x18b84, 0x197e5, 0x19953, 0x1b1e7, 0x1db65, 0x1e611, 0x1f30a, 0x2189a, 0x22046, 0x22470, 0x32999
  * callees: 0x127e0, 0x129ec, 0x34894, 0x3702f
  * --------------------------------------------------------------- */
+// [勘误 evidence] 127c2先筛hidden，非hidden按raw递增在127cf逐个调用127e0，全部actor后才127d9调用129ec前景；空表及全hidden不调用127e0。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int sub_127A9()
 {
   int is_hidden; // eax
@@ -1703,6 +1707,7 @@ int sub_127A9()
  * --------------------------------------------------------------- */
 // [勘误 evidence] 未区分战场单actor绘制与全表绘制、COMMAND末尾遮挡顺序 -> 只按传入index画一个actor，位置相对camera且上移6px，frame由direction/cache class/idle或walk组成。acted调用4e1a6映色。COMMAND四图标后仅再画focus actor，不重铺terrainoverlay；raw26另有横向抖动与frame门，本SDL切片仍未实现该视觉分支。；依据: 已发布sub_127E0无全表循环、stride456和dest常量30168，sub_127A9负责全表与遮挡；179d5末尾call127e0。真实原版COMMAND截图上图标底6行由FDICON actor0 frame1覆盖，完整20行资源合成476像素bad0、delta<=3；不是截图缺失。
 // [勘误 evidence] 原127f1..12810比较BIOS低WORD与53A08，tick变化只翻53A04低byte一次；128e7..128ef在actor+26非零时加共享0/1px，12914后同条件强制frame0。不改业务坐标、状态或RNG，acted映色及原层序独立。SDL用App VGA视觉owner对应；运行精度按阶段收据，不把接口存在当原版整帧通过。；依据: 完整413B原指令 SHA68b24e0d28affff7c08ed4eb1df55f3a558021c170f77019191b5f0f8b5094e4；G1完整读集与G2 clock/render回归。
+// [勘误 evidence] 127f1/127f6在camera/raw26之前读BIOS低WORD；不等则12801翻共享抖动phase，12808/1280d重新取锚。相机外及raw26=0也经过该门，direct本体不含batch的hidden筛选。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 void __cdecl sub_127E0(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -1787,6 +1792,7 @@ void __cdecl sub_127E0(int a1)
 //   依据: `tick_delta > 4` 时推进共享 `DAT_00003c0b`；`map_actor_blit_24x24` 对 offset `0x04 == 0` 的 actor 使用该值并将 phase 3 映射为 1，约每 275 ms 切换一次
 //   历史地址列 `0x37b91`；旧 Ghidra 名 `FUN_000100c5`；判定 exact
 // major system-notice / visual-clock evidence: 1297d只在signed BIOS tick差>4或负数时把53c0b加一并模4，53c0f直接重取当前tick，不补追全部经过周期。另53c07每次调用加一模4，与11eee的地形开关53a40不同；不能把它们当同一时钟。11cac先调用1297d再绘tile/actor/1acf3面板；21eb1尾11cac→200ms→1c4cc首11cac后冻结FX背景，共用唯一视觉相位/last锚。 依据：既有canonical完整1297d(111B)/11cac/21eb1/1c4cc及validated relocated原字节。C4 heal13实际原/SDL同一FX59两页1678差异全部为idle1→2：actor1374+底栏304；各端整2346底栏源模型bad0/max3，无E0..EF。只作为视觉时钟差异与本轮图像归因，修复后的实机完整帧验收尚待；不改函数名/类型/ABI。
+// [勘误 evidence] 12987先读signed差>4，失败才1299a另读负差；成功推进idle后129c5重新读钟存53c0f，cursor每调用推进。不复用一次宿主时间覆盖这些读取点。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int field_animation_phase_update()
 {
   int result; // eax
@@ -2061,6 +2067,7 @@ void __cdecl field_focus_move_to_actor(int a1)
  * callers: 0x115b6
  * callees: 0x10620, 0x11cac, 0x3702f, 0x370f0, 0x4e31c
  * --------------------------------------------------------------- */
+// [勘误 evidence] 115b6的ESI候选索引传入本次局部等待；先peek，空队water，signed低WORD不同才11cac(0)，返回后fresh读ESI。读一返回结束局部生命，不能借539f2跨调用保存。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int __usercall sub_12DAC@<eax>(int a1@<esi>)
 {
   watcom_stack_check(24);
@@ -2169,7 +2176,7 @@ void __cdecl field_actor_move_down_follow_camera(int a1)
     sub_127A9();
     v4 += v1;
     v5 = memcpy_vga(656644, 320, v4 + dword_53A49, 456, 312, 192);
-    sub_13460(v5);
+    field_movement_tick_edge_wait(v5);
   }
   v2[1] = v8 + 1;
   dword_53AAD += v9;
@@ -2234,7 +2241,7 @@ int __cdecl field_actor_move_left_follow_camera(int a1)
     sub_127A9();
     v4 += v1;
     v6 = memcpy_vga(656644, 320, v4 + dword_53A49, 456, 312, 192);
-    sub_13460(v6);
+    field_movement_tick_edge_wait(v6);
   }
   *v2 = v8 - 1;
   dword_53AA9 += v10;
@@ -2307,7 +2314,7 @@ void __cdecl field_actor_move_up_follow_camera(int a1)
     sub_127A9();
     v3 += v1;
     v4 = memcpy_vga(656644, 320, v3 + dword_53A49, 456, 312, 192);
-    sub_13460(v4);
+    field_movement_tick_edge_wait(v4);
   }
   v2[1] = v7 - 1;
   dword_53AAD += v8;
@@ -2370,7 +2377,7 @@ void __cdecl field_actor_move_right_follow_camera(int a1)
     sub_127A9();
     v4 += v1;
     v5 = memcpy_vga(656644, 320, v4 + dword_53A49, 456, 312, 192);
-    sub_13460(v5);
+    field_movement_tick_edge_wait(v5);
   }
   *v2 = v8 + 1;
   dword_53AA9 += v9;
@@ -2380,13 +2387,15 @@ void __cdecl field_actor_move_right_follow_camera(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_13460
+ * IDA 9.5 Hex-Rays: field_movement_tick_edge_wait
  * VA=0x13460..0x13488 OBJ=1 OFF=0x3460 size=0x28
  * type: int __fastcall(_DWORD)
  * callers: 0x12eaa, 0x1300d, 0x13185, 0x13315
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int sub_13460()
+// [勘误 semantic_name] field_movement_tick_edge_wait；依据: 完整13460..13488共40B及12eaa/1300d/13185/13315正常移动caller；1346f将BIOS[46c]低WORD符号扩展，与App DWORD53a0c相等才回读；不等后1347a..13482重新读当前tick并写anchor，不是每相位新鲜等1tick。既有Domain source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517，完整chunk SHA1ffd7e099e8a1ba4a19f45f6a80825aeabad462024147e87f0b8032a677022de，逐字节匹配strict relocated；不保存参数/返回类型或猜测ABI。
+// [勘误 evidence] 普通四方向每格六相位共用53a0c anchor；比较通过后重读并保存signed lowWORD。本函数不调用4e381、不清普通键队；anchor属于App，不随Scene/Game/Load重置。初始53a0c四字节0有strict文件及既有F1 loader/entry转储依据，不把这项初态观察扩为新postCRT时钟测量。；依据: 完整13460与四方向caller的既有Domain读集、strict镜像和F1运行时来源分账；F2 BIOS共享时钟/边界测试只验证C消费者，不替代正常原版时序与输入运行对照。
+int field_movement_tick_edge_wait()
 {
   watcom_stack_check(4);
   while ( MEMORY[0x46C] == dword_53A0C )
@@ -2554,6 +2563,7 @@ int sub_13565()
 //   依据: 反编译确认先完成 X 再完成 Y；每格调用 `FUN_0000f3f4(0)` 与 `vsync_wait`
 //   历史地址列 `0x387f1`；旧 Ghidra 名 `FUN_00010d25`；判定 exact
 // [勘误 evidence] pan每个镜头格都调用11cac(0)，包括两方向移动；共享工作页和water随该原caller刷新，不把所有Scene render统一套skip-water，也不在纯delay虚构刷新。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
+// [勘误 evidence] field_camera_pan_to先完成X再Y；每格11cac(0)后4e381清普通BIOS FIFO，没有17ms或显式tick等待。入口清51a83；零距离不执行逐格clear。；依据: 完整135dd..1366a共141B，X在13622刷新/1362a清键，Y在1365b刷新/13663清键；既有Domain source09完整chunk SHA60f0ad6883f634fc4d3eec83a5e32b0d2af9ed285ff0c934b3e68bfea7a158bd逐字节匹配strict relocated；旧vsync登记是语义误判，不据此新增渲染节流或声明真实时序已验。
 void __cdecl field_camera_pan_to(int a1, int a2)
 {
   int v2; // eax
@@ -2605,6 +2615,7 @@ void __cdecl field_camera_pan_to(int a1, int a2)
 //   依据: 每格 6 个 4 px 相位且各等待 1 BIOS tick；`DAT_00003afb!=0/0x40` 时同步递增 DAC 暗度
 //   历史地址列 `0x3887e`；旧 Ghidra 名 `FUN_00010db2`；判定 exact
 // [勘误 evidence] 脚本相位的11cac实参按当前53AFB选择：0或64时传0，非0非64传1；渐暗可在同脚本内到64而切回0。高位wait及上抬恢复分支传0；1398a脚本尾固定传1。尾仍重画一次但跳water，不能把它当普通相位刷新或省掉。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
+// [勘误 evidence] field_movement_script_play正常每相位render→17aa9(1)→4e381 clear；high-bit非零等待同序；jump先wait1、临时上抬合成、wait2、11cac(0)、clear。1398c尾仍11cac(1)，不追加clear；4e381本身没有等待。；依据: 完整1366a..1399c共818B及138fd/13905、1380f/13817、136db/137ae/137b8/137c0、1398c原调用；既有Domain source09完整chunk SHA9fa0bc803cd6303e62a2c49bb86b1bfdd139affc15de18b84c21e3c141a10ddf逐字节匹配strict relocated。这里只更正普通输入/等待来源，不签脚本全域、像素、绝对时序或RNG全轨迹。
 int __cdecl field_movement_script_play(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -3532,12 +3543,13 @@ void __cdecl field_target_range_build(int a1, int a2, int a3, int a4, int a5, in
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_149F8
+ * IDA 9.5 Hex-Rays: field_line_targets_collect
  * VA=0x149f8..0x14b16 OBJ=1 OFF=0x49f8 size=0x11e
  * callers: 0x15055, 0x1567e, 0x1cff0
  * callees: 0x12c0d, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_149F8(int a1, int a2, int a3, __int64 a4, int a5, int a6)
+// [勘误 evidence] 七实参的arg_C/10为扫描起点，arg_0/4只决定方向；先将focus写起点，每轮先步进再lookup并按raw顺序收录，最后恢复旧focus。15055及1567e传当前actor坐标为起点、selected为方向点；1cff0同源。不能反向从selected朝actor扫描。原SP=S的[esp+2c/30]在本体固定栈深1c下对应[S+10/14]，不是按伪C参数名猜测。；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。
+void __cdecl field_line_targets_collect(int a1, int a2, int a3, __int64 a4, int a5, int a6)
 {
   int v6; // ebx
   int i; // esi
@@ -3884,7 +3896,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
   {
     HIDWORD(v13) = v2[1];
     LODWORD(v13) = *v2;
-    sub_149F8(dword_53C37, dword_53C3B, (int)v14, v13, v15 - 16, 0);
+    field_line_targets_collect(dword_53C37, dword_53C3B, (int)v14, v13, v15 - 16, 0);
   }
   v7 = v6;
   field_map_runtime_cell_bits_reset(dword_53A51);
@@ -3896,7 +3908,7 @@ int __cdecl field_ai_item_action_execute(int a1, int a2)
     sub_11CAC(1);
     bios_tick_delay(1);
     bios_tick_delay(2);
-    sub_2DFC8(a1);
+    field_ai_ray_item_cast_present(a1);
     sub_2189A(a1, 80, -4);
     j___delay(200);
     for ( i = 64; i >= 0; --i )
@@ -4161,7 +4173,7 @@ int __cdecl field_ai_item_candidate_evaluate(int a1, int a2)
           if ( v8 <= 0xFu )
             field_target_range_build(v21, v22, (int)v13, (unsigned __int8)v3[18], 0, v7);
           else
-            sub_149F8(v21, v22, (int)v13, v17, v8 - 16, 0);
+            field_line_targets_collect(v21, v22, (int)v13, v17, v8 - 16, 0);
           v10 = v9;
           field_map_runtime_cell_bits_reset(dword_53A51);
           if ( v10 != 0 )
@@ -5419,6 +5431,7 @@ int __cdecl field_command_first_enabled_select(int a1)
 // [field_command_menu_open] 展开通用战场四向图形菜单
 //   依据: 当前权威 code0 `0x741c`；播放 FDOTHER[31] SFX 8，并按调用者提供的 command ID／disabled 表从当前焦点四相位展开。单位 action、空焦点、次级菜单和设置页复用该 primitive。
 //   历史地址列 `0x1741c`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 1749d..174e7仅入口一次1297d→11eee→127a9→info→175a9；四相位各17643恢复72x72、四图标、可见focus的direct127e0、project。无water、122dc、每相位全图重画或显式16ms。focus raw由入口lookup锁定；五个正常菜单caller共用两张四项表，不由伪C多实参猜ABI。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
 void __cdecl field_command_menu_open(
         int a1,
         int a2,
@@ -5449,14 +5462,14 @@ void __cdecl field_command_menu_open(
   field_view_render_tiles(dword_53A49 + 32904, 456, 13, 8, dword_53AA9, dword_53AAD);
   sub_127A9();
   v13 = field_cell_info_panel_draw(dword_53A49 + 32904, 456);
-  v14 = sub_175A9(v13);
+  v14 = field_command_menu_background_save(v13);
   for ( i = 0; i < 4; ++i )
   {
     retaddr -= 2280;
     a1 -= 6;
     a2 += 6;
     a3 += 2280;
-    sub_17643(v14);
+    field_command_menu_background_restore(v14);
     for ( j = 0; j < 4; ++j )
       image_raw_zero_transparent_blit(
         &(&retaddr)[j][v12],
@@ -5471,13 +5484,14 @@ void __cdecl field_command_menu_open(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_175A9
+ * IDA 9.5 Hex-Rays: field_command_menu_background_save
  * VA=0x175a9..0x17643 OBJ=1 OFF=0x75a9 size=0x9a
  * type: int __fastcall(_DWORD)
  * callers: 0x1741c
  * callees: 0x3702f, 0x3706e, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
-int sub_175A9()
+// [勘误 evidence] 原53a71跨open/wait/close保存同一菜单底图：先free旧buffer再malloc5184，每行18个DWORD、共72行，从当前focus附近的456-stride工作页复制72x72。不是按每个开合函数重新生成的底图。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
+int field_command_menu_background_save()
 {
   int result; // eax
   int v1; // esi
@@ -5499,13 +5513,14 @@ int sub_175A9()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_17643
+ * IDA 9.5 Hex-Rays: field_command_menu_background_restore
  * VA=0x17643..0x176b4 OBJ=1 OFF=0x7643 size=0x71
  * type: int __fastcall(_DWORD)
  * callers: 0x1741c, 0x176b4
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
-int sub_17643()
+// [勘误 evidence] 按当前focus对应地址，将53a71的72行连续72B恢复到456-stride工作页；只写页，不刷新terrain/actor或投影。原调用者在图标和direct127e0之前调用它。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
+int field_command_menu_background_restore()
 {
   int result; // eax
   int v1; // esi
@@ -5532,6 +5547,7 @@ int sub_17643()
 // [field_command_menu_close] 收起通用战场四向图形菜单
 //   依据: 当前权威 code0 `0x76b4`；同样播放 SFX 8，按独立初值收起，不是打开坐标的简单倒序。
 //   历史地址列 `0x176b4`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 入口仅SFX及可见focus lookup，没有1297d/11eee/127a9/info；四相位各恢复原72x72、画四图标、direct127e0、project。177ed再恢复一次工作页而不project，177f2才4e381清FIFO。HOST/H失败保已执行前缀，不伪造成功尾clear。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
 void __cdecl field_command_menu_close(int a1, int a2)
 {
   int v2; // edi
@@ -5558,7 +5574,7 @@ void __cdecl field_command_menu_close(int a1, int a2)
     v6 += 6;
     v7 -= 6;
     v8 -= 2280;
-    sub_17643();
+    field_command_menu_background_restore();
     for ( j = 0; j < 4; ++j )
       image_raw_zero_transparent_blit(
         v2 + *(&v5 + j),
@@ -5568,7 +5584,7 @@ void __cdecl field_command_menu_close(int a1, int a2)
       sub_127E0(v9);
     memcpy_vga(656644, 320, dword_53A49 + 32904, 456, 312, 192);
   }
-  v4 = sub_17643();
+  v4 = field_command_menu_background_restore();
   bios_keyboard_buffer_clear(v4);
   JUMPOUT(0x13FCC);
 }
@@ -5635,6 +5651,7 @@ int __cdecl field_command_menu_input(int a1, _DWORD *a2)
 // [field_command_menu_wait_key] 等待菜单按键并驱动高亮闪烁
 //   依据: 当前权威 code0 `0x7898`；等待期间推进战场动画，将 keypad 扫描码 `0x52` 规范化为确认 `0x1c`，将 `0x53` 规范化为取消 `0x01`。
 //   历史地址列 `0x17898`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 每个空FIFO循环water→共享四tick高亮→1297d→11eee→127a9→1acf3→179d5→project；无BIOS-change外门、122dc或RNG。高亮phase写后重新读signed低WORD存53c17。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int __cdecl field_command_menu_wait_key(int a1, int a2)
 {
   watcom_stack_check(40);
@@ -5742,6 +5759,7 @@ int __cdecl bios_tick_delay(int a1)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] sub_17AED -> field_unit_detail_present；依据: 完整642B与117e7/29620的xref：打开actor装备详情，16c57等任意键；法术非空时仅卷下页、画1ceed(actor,-1)并再等任意键，最后整页关闭。F2直接返回，普通Enter的controller后置在调用者；不扣MP或标acted。
 // [勘误 evidence] 猜测第二actor实参或Esc直接跳过所有详情页 -> 17af8与17c40在不同栈深度读同一初始actor实参，不据伪C的a2写ABI。out1839b相位0..6，独立只保留上块的空底页present，然后底板frame21与未选中法术列表，in6..0；最终18409相位0..11。上下块固定86x86/223x86，底部拷贝310x102包含底板99行外的缓存背景。；依据: published17aed..17d6f及strictLE raw全642B SHA fdabaa88e2e33df5cb9b8040e9b8b7d3caabf3bbf3c9fba30537968801f471c5。17bba..17c0f空底页没有额外等待门；两处等待均16c57。此为缓存IDA及独立raw核对，未新建数据库或重写伪C类型，完整等待RNG/时序另验。
+// [勘误 evidence] 整页关闭0..11后另恢复完整64000B snapshot；法术下页0..6滑出、独立空底条提交、6..0滑入。两处任意键16c57与有限相位分账。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 void __cdecl field_unit_detail_present(int a1, int a2)
 {
   int i; // ebx
@@ -5831,6 +5849,7 @@ int __cdecl field_stat_bar_columns_draw(int a1, int a2, int a3, int a4)
 // [field_unit_detail_open] 保存战场画面并组合单位详情页、装备列表及开合动画
 //   依据: corrected code0 `0x2d01f`；分配三张 64000 字节缓冲，调用 `field_unit_detail_draw` 与 `field_unit_detail_equipment_draw`，再按 12 条带开合
 //   历史地址列 `0x3d01f`；旧 Ghidra 名 `merged into FUN_0003cd01`；判定 exact
+// [勘误 evidence] 详情打开以18409提交相位11..0，共12次，17ee8尾清键；有限相位无16ms或BIOS等待。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 int __cdecl field_unit_detail_open(int a1)
 {
   int v1; // eax
@@ -6075,6 +6094,7 @@ int __cdecl field_unit_detail_transition_bottom(int a1, int a2, int a3)
 // [field_unit_detail_transition_frame] 组合详情页一帧三段开合效果
 //   依据: corrected code0 `0x2d61d`；每帧先复制完整背景，再按 phase 调用左上、右上、下方三个区域 helper，最后复制到 VGA
 //   历史地址列 `0x3d61d`；旧 Ghidra 名 `FUN_0003d61d`；判定 exact
+// [勘误 evidence] 详情单相位裁切/拷贝后提交，不自行等clock；开关相位及额外snapshot恢复由caller分别决定。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 int __cdecl field_unit_detail_transition_frame(int a1, int a2, int a3, int a4)
 {
   watcom_stack_check(24);
@@ -6426,6 +6446,7 @@ LABEL_18:
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x122dc, 0x127a9, 0x1297d, 0x18c6d, 0x1acf3, 0x3702f, 0x4e31c
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_unit_selection_summary_wait；依据: 完整233B、18890唯一caller及115b6紧随调用：while(!input_check())逐BIOS tick重绘terrain/selector/actor，再18c6d与下方cell板，最后复制page到VGA。相对X>=7时上板(9,9)，否则(160,9)。发现下一键即返回而不读取/清键，由115b6消费同键；最初选择键已由上层消费，不是持续UNIT_SELECTED板。原版多场6258px完整板及首方向后板消失已独立重放；raw SHA ebabd1f40c050dff9b29b3bfc4a99f83b9a9988e938e65ee8c19537d56478326。
+// [勘误 evidence] 18bab peek；空则water一次，完整ESI与signed低WORD不等才第二次water→1297d→11eee→122dc→127a9→summary→info→project，最后18c65 fresh存ESI。summary侧由入口屏内focus X锁定。ESI来自18890所选actor地址，首次比较的全正常启动地址域仍未闭合，不用0/入口tick/宿主C指针代替。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型__
 void __usercall field_unit_selection_summary_wait(int a1@<esi>, int a2)
 {
   int v2; // edi
@@ -6818,6 +6839,7 @@ char __cdecl field_special_cell_execute(int a1)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_bottom_notice_open；依据: 完整352B及系统确认/1a866/1e292等caller：分配三个64000B缓冲，保存初始VGA并拼310x86的bottom底板，载入DATO初帧reverse，i5..0以1974c(13*i+112)滑入。不是奖励专用；128..132有特殊origin。raw SHA e5b8b359f8371ce6513766b7d0badb2189dd8ea58af75a4e8abda637d0733026。
 // major system-notice / visual-clock evidence: 确认框/奖励/库存页共用notice owner：先完整保存初VGA，FDOTHER[5] tiles拼310x86 bottom，再DATO初帧reverse，非128..132由36887=(87,115)向左绘80列；特殊origin原表保留。三缓冲的静态初板用于关闭，不是detail_bottom(详情用99高帧)。原意无0xcd整块占位/独立palette切换。 依据：既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。
+// [勘误 evidence] 底框按Y177/164/151/138/125/112提交六次，没有各相位16ms。入口和逐字等待仍由原caller执行。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 int __cdecl field_bottom_notice_open(int a1)
 {
   int result; // eax
@@ -6867,6 +6889,7 @@ int __cdecl field_bottom_notice_open(int a1)
  * callees: 0x11cac, 0x1974c, 0x3702f, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_bottom_notice_close；依据: 完整129B与1956b配对caller：i1..5调用1974c滑出初始静态底板，恢复打开前VGA、释放三缓冲并11cac(0)刷新；关闭不以当前文字页作源。raw SHA 9ed5ae278e9018f35c52d1abc69d2f475dcfb56d1dfc09b7d6f5441276c766e5。
+// [勘误 evidence] 底框按Y125/138/151/164/177提交五次，随后整页snapshot恢复，释放三个buffer，最后11cac(0)。不是六次关闭，也不把释放后移至尾刷新之后。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 int field_bottom_notice_close()
 {
   int i; // ebx
@@ -6889,6 +6912,7 @@ int field_bottom_notice_close()
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_bottom_notice_slide_draw；依据: 完整153B及1956b/196cb和底部选择页caller：先复制53C5F初始背景，再从源(5,112)逐行复制310像素到目标y，最多86行并裁到200，交接完整VGA后走既有同步尾；不移动camera或修改actor。raw SHA 86eee771d050f98da4a5a88143f434f340cc0e7e84c8a7f987c525527fb688c8。
+// [勘误 evidence] 底框单相位只裁切/提交，不设置16ms或BIOS等待；26996的准备页尾与196cb的战场尾不同。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 void __cdecl field_bottom_notice_slide_draw(int a1, int a2, int a3)
 {
   int v3; // esi
@@ -6914,6 +6938,7 @@ void __cdecl field_bottom_notice_slide_draw(int a1, int a2, int a3)
  * callees: 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x3702f, 0x3771c, 0x4ed34
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_choice_buttons_close；依据: 主366B及17e03..17e0b共享8B epilogue，12个原caller及FDOTHER5按钮：53a51>1才地图重画，保bottom页桥、四步收回与310x86恢复；不改变原owner/ABI。
+// [勘误 evidence] 选择框单相位不等待；19953打开4/8/12/16、关闭12/8/4/0，各四次。正常高亮与画像的2tick稳态门不属于有限开合。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 void field_choice_buttons_close()
 {
   char *v0; // edi
@@ -6965,6 +6990,7 @@ void field_choice_buttons_close()
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x3702f, 0x370f0, 0x3771c, 0x4e31c, 0x4ebe3, 0x4ebff, 0x4ec31, 0x4ed34
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_choice_buttons_wait；依据: 主1188B及13fcc..13fd4共享8B返回尾、12个原caller、16f55/1aa1d/准备服务链：默认selector0、snapshot/四步展开、先查键后tick，blink RNG+2/+10、共享phase/tick，确认/取消清phase；不推类型。
+// [勘误 evidence] 19b1e比较高亮门，19b49在phase写后重读signed低WORD存53c17；重开眼先画portrait0再19be0抽RNG%30+10。不把实际portrait绘制后移到RNG之后。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 void field_choice_buttons_wait()
 {
   int v0; // eax
@@ -8060,6 +8086,7 @@ int __cdecl sub_1B14B(int a1, int a2)
  * callees: 0x10620, 0x11eb0, 0x11eee, 0x127a9, 0x1297d, 0x1af1e, 0x1af99, 0x1b019, 0x1b0ad, 0x1b14b, 0x1b41d, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x37910, 0x4e31c, 0x4e381
  * --------------------------------------------------------------- */
 // [勘误 evidence] 战况总览尚未登记开合、背景和关闭键边界 -> 双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。；依据: 已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。
+// [勘误 evidence] 总览打开0..11、关闭11..0均无显式等待；稳态1b2fb/1b2fe将signed BIOS低WORD与继承EBP比较，相等跳过actor/water/tile/units块。该函数不写EBP，不可猜成每轮fresh锚；正常入口EBP资格另记。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 void __usercall sub_1B1E7(int a1@<ebp>)
 {
   int v1; // edi
@@ -9546,7 +9573,7 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
     v9 = v14;
     field_map_runtime_cell_bits_reset(dword_53A51);
     if ( v28[dword_53C57] == 30 )
-      sub_149F8(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, __SPAIR64__(v29, v13), v7[3] - 16, 1);
+      field_line_targets_collect(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, __SPAIR64__(v29, v13), v7[3] - 16, 1);
     else
       field_target_range_build(qword_53AB1, SHIDWORD(qword_53AB1), (int)v26, v7[4], 0, v7[6]);
     v10 = v15;
@@ -9571,7 +9598,7 @@ int __cdecl field_player_magic_command_execute(unsigned __int8 *a1)
     else
     {
       sub_1D4CB(v20);
-      sub_1D6C8((unsigned __int8)v28[dword_53C57]);
+      field_map_magic_cast_flash((unsigned __int8)v28[dword_53C57]);
       v21 = funcs_1541F[(unsigned __int8)v28[dword_53C57]]((int)a1, v10, (int)v26);
       sub_1D4F6(v21);
     }
@@ -9692,12 +9719,13 @@ void __cdecl field_player_magic_list_select_step(int a1, int a2, int a3, int a4,
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1D6C8
+ * IDA 9.5 Hex-Rays: field_map_magic_cast_flash
  * VA=0x1d6c8..0x1d79c OBJ=1 OFF=0xd6c8 size=0xd4
  * callers: 0x1cff0
  * callees: 0x17aa9, 0x25a96, 0x3702f, 0x37ae5
  * --------------------------------------------------------------- */
-int __cdecl sub_1D6C8(int a1)
+// [勘误 evidence] 入口先sfx_play(53b13,0,1)，四轮DAC0写51aad/51ad1/51af5[id]→wait1→DAC0黑→wait1。1cff0仅id9..27且非24在双selector成功、mode0/11cac(0)/bank准备之后调用，随后才分派51d01 handler及其MP成本；AI/Item/FULL不是此唯一caller域。23取消第二目的地不进入该前缀，不能提前闪烁。；依据: F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。
+int __cdecl field_map_magic_cast_flash(int a1)
 {
   int result; // eax
   int i; // esi
@@ -9939,6 +9967,7 @@ LABEL_22:
 //   依据: 无可见死亡单位时 `0x42e4a..0x42e79` 直接遍历完整 actor 表写 flags；有演出时 `0x42e7b..0x42f37` 播放 13 帧旋转，`0x42f39..0x42f64` 再执行相同全表写入。赋值是精确写 1，不是 OR bit。
 //   历史地址列 `0x42d83`（`0x1db6f` 是 __chkstk body，入口为 `0x1db65`）；旧 Ghidra 名 `FUN_00042d83`；判定 chkstk-body
 // [勘误 evidence] 无演出时只需把全部HP0的flags写1 -> 只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于x[camX-1,camX+13]／y[camY-1,camY+9]，13帧循环会把全体非hiddenHP0（含离屏者）方向最终写0；hidden死者方向不改。无屏内见证者则不改方向；最后全部HP0 flags精确赋1，不能OR原flags或重置所有存活者方向。；依据: 已发布1db65的收集门及j0..12全表循环、strictLE object2 VA51a87/51a8b原始8字节0d00000008000000，与现13x8 viewport相等。SDL共享清理用于phase/physical/AI magic/item及新player magic，扩边界与屏内外／hidden组合锁终态；此项不证明旋转／消散帧已实现。
+// [勘误 evidence] 1dcd4/1dd81分别调用完整11eee，仍为terrain→实际背景→range→tile的独立读取点；1dd1b逐raw直接127e0，1dd95经127a9批量调用。不能将死亡演出的terrain/background/range或actor成功重读锚冻结在一次now采样。预检advance0只借页不推进clock；第31锚别名及caller保存值资格另账，不由这些读取点代签。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不__
 int field_defeated_units_finalize()
 {
   int result; // eax
@@ -11268,6 +11297,7 @@ int palette_fade_out_dark()
 // [勘误 semantic_name] boot_intro_title / boot_intro_title_entry / title_action_menu 三条独立登记 -> boot_intro_title_menu（同一函数）；依据: `0x44aa8 - 0x25214 = 0x1f894`，`0x44ab2 - 0x25214 = 0x1f89e` 即其 __chkstk body；IDA 只有一个函数 `0x1f894..0x1ff79`。
 // [勘误 evidence] corrected code0 `0x15db1` 在进入 `title_action_dispatch` 前调用 `music_track_play(18,0)` -> 该描述属于 `main @0x25bf4` 体内 `0x25db1`，不是本函数。；依据: IDA 由 Watcom FLIRT 确认 `main @0x25bf4..0x25ebb`，其主循环为 music_track_play(18,0) -> title_action_dispatch @0x25ebb。
 // [勘误 evidence] 标题为 new-game/exit 两项，有活动快照时在中间插入恢复项 -> 基础标题为 START/LOAD；完整存档与活动 stage 校验通过时在末尾追加 CONTINUE。默认索引 0，三项标题按 Up 回绕到索引 2 CONTINUE；LOAD 与 CONTINUE 是不同分派。；依据: 复用已发布 boot_intro_title_menu @0x1f894 伪 C 的项数门、上下键回绕与 FDOTHER[7] 菜单资源；2026-11-04 原版 WGC Up→CONTINUE→stage 0 运行证据。未新建 IDB 或改写伪 C。
+// [勘误 evidence] 1fe37绘制菜单后1fe48..1fe60以INT16/AH10阻塞读一，方向或无映射键返回1fe2c后再绘；确认直接进入原四轮normal/highlight各80ms。没有批量取完FIFO后的50ms。宿主空等pump不属于原显式等待。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
 int __cdecl boot_intro_title_menu()
 {
   int v0; // ebp
@@ -11544,6 +11574,7 @@ int __cdecl title_menu_draw(int a1, int a2, int a3)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_auxiliary_map_execute；依据: 完整947B、唯一117e7 caller与1399c/1f558/1f6ef/INT16调用链；正式F1/PageUp和既有stage0完整WGC两相位来源。只确认有限视图流程，不改ABI。
 // [勘误 evidence] 独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。高>40选scale3/delta896，否则scale4/delta640，无stage/shape门。开后clear一次，稳态peek后202fa INT16 AH10读一键、余队不清，再关闭。F1直接返回无controller提交；期间不推进water，尾11cac(0)恢复。；依据: 2026-11-10 Domain三函数1434B与strictLE/fixup逐chunk一致；20055/2005e/20063尺寸分支、202e7设AH10/202f8传16h/202fa callint386。原33图最大50x64，stage1真实27x21/shape1/192帧、高图stage7为29x45/shape7/384帧；旧stage0限制属已登记SDL缺口，不声明新晚关/精确时序/首次undefined tick。
+// [勘误 evidence] 辅助图打开1..7、关闭6..1无有限相位等待；开尾清队、退出读一、尾11cac(0)。稳态先键/clock门再marker，首次比较字节源于前一int386的FS/GS，非2000a初始化clock；正常selector返回合同另记，不用常量替代。；依据: F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。
 int field_auxiliary_map_execute()
 {
   int v0; // ebp
@@ -16129,6 +16160,7 @@ int field_prepare_menu_select()
  * callees: 0x10620, 0x16559, 0x27079, 0x3702f, 0x370f0, 0x4ebe3, 0x4ed34
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_prepare_picker_wait_key；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整415B，菜单/商品/成员/购买候选/复活/转职picker六caller；入口一次共享RNG%50+8，highlight初2，按2 BIOS tick推进27079及立绘0/3，blink后RNG%30+2；读BIOS键并规范扩展确认/取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 入口只置App53f52=2而不清53f72；do tick门后才peek/read，成功tick后fresh写局部锚。普通画像只在close/open事件绘制，不每轮覆盖portrait0。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int __cdecl field_prepare_picker_wait_key(int a1)
 {
   int v1; // edi
@@ -16209,6 +16241,7 @@ int __cdecl field_prepare_picker_wait_key(int a1)
  * callees: 0x2810b, 0x3702f, 0x4e29c, 0x4ebff, 0x4ed34
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_prepare_picker_tick_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 每mode均按共享53f52奇偶推进53f72，仅++恰等4归0；名单/成员/复活/转职借53f72，菜单/箭头借53f52。城镇26152也写53f52，不能用三份局部phase代替两App DWORD。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int __cdecl field_prepare_picker_tick_draw(int a1, int a2)
 {
   int result; // eax
@@ -18865,6 +18898,7 @@ int __usercall field_deployment_required_member_check@<eax>(unsigned __int8 *a1@
  * callees: 0x1297d, 0x17fc0, 0x187d6, 0x2b749, 0x3702f, 0x3771c, 0x4e1a6, 0x4e22a
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_deployment_selection_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整388B及2b434共享返回，2af28/2b67f；复制底页，画名额/剩余数、1297d共享idle、当前raw+1详情和10列同伴网格。已选普通sprite下移3px、未选灰阶；不改变选择位图。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 数字/selection count后无条件1297d，再详情/网格。实际App phase写发生于后续绘图之前，不能以成功绘制后提交的视觉副本替代原前缀。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 void __cdecl field_deployment_selection_draw(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8)
 {
   int v8; // eax
@@ -18908,6 +18942,7 @@ void __cdecl field_deployment_selection_draw(int a1, int a2, int a3, int a4, int
  * callees: 0x10620, 0x2b4fb, 0x3702f, 0x370f0, 0x3771c
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_deployment_selection_wait_key；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整202B，2af28唯一caller；输入未就绪时BIOS tick变化才2b4fb重绘并复制页，读取键后规范Enter/Space及扩展确认、Delete取消；本体不调用业务RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 先查键；空队比较App53f46，变化时重新读钟写锚再2b4fb及copy。后续宿主绘图失败不回滚已经执行的53f46写；此H规则不冒称原版坏资源oracle。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 int __usercall field_deployment_selection_wait_key@<eax>(
         int a1@<ebx>,
         int a2@<ebp>,
@@ -19679,12 +19714,13 @@ int __cdecl palette_fade_to(int a1, int a2, int a3, unsigned __int8 a4, unsigned
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2DFC8
+ * IDA 9.5 Hex-Rays: field_ai_ray_item_cast_present
  * VA=0x2dfc8..0x2e2b0 OBJ=1 OFF=0x1dfc8 size=0x2e8
  * callers: 0x15055
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f525, 0x1f882, 0x25a96, 0x2e9a8, 0x2eb9f, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
-int __usercall sub_2DFC8@<eax>(int a1@<edi>, int a2)
+// [勘误 evidence] 唯一直接caller15055的高射程Item路径；EDI为149f8返回的目标数，1511c写入并经face/11cac/17aa9/2e9a8正常保存。本函数不初始化EDI，从该part起点至part_count逐项演出并等待，不能从0重播；起点不小于part_count时自然零part，仍执行尾wait6。临时资源释放及地图cache恢复在尾wait6之前；随后fadeout/清VGA/11cac(1)/停止源声/fadein。15055的2189a、200ms、渐白及远端focus/phase循环在caller，20c6f效果只执行一次，不能替换成另一套FULL业务。；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分
+int __usercall field_ai_ray_item_cast_present@<eax>(int a1@<edi>, int a2)
 {
   unsigned __int8 *v2; // ebx
   int v3; // esi
@@ -51348,6 +51384,7 @@ int sub_4E310()
  * callees: 0x4e310
  * --------------------------------------------------------------- */
 // [勘误 evidence] 未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0 -> unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写DAC224..239，结束重读last，一次调用不追赶。状态60000/60002属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。；依据: 原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。严格LE canonical60003有效93字节，后45恰重复首15个RGB，16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。
+// [勘误 evidence] 低WORD unsigned差>=2才单步推进水色，完成16色DAC写后4e373再次4e310取锚，不复用比较值或追赶。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
 void __spoils<> sub_4E31C()
 {
   unsigned __int8 *v0; // esi
@@ -51396,6 +51433,7 @@ void __spoils<> sub_4E31C()
 //   依据: 反编译：端口读
 //   历史地址列 `0x73595`；旧 Ghidra 名 `FUN_0004bac9`；判定 exact
 // [勘误 semantic_name] vsync_wait（等待垂直同步） -> bios_keyboard_buffer_clear；依据: 原15字节 56 be1a040000 66 8b06 66 894602 5e c3 将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。
+// [勘误 evidence] bios_keyboard_buffer_clear只将BDA head复制至tail；12cea、135dd、1366a的各明确clear时点必须保留，不能用等待代替，也不能把普通四方向13460等待变成清键。；依据: 既有完整15B本体和source09的12cea/135dd/1366a/13185 caller交叉；按键队列、held/typematic与HOST为不同owner合同，当前命名更正不等于跨端全部输入资格。
 __int16 bios_keyboard_buffer_clear()
 {
   MEMORY[0x41C] = MEMORY[0x41A];
@@ -52484,6 +52522,7 @@ void __cdecl __spoils<> sub_4EBAB(_BYTE *a1, __int16 *a2, int a3)
 // [field_rng_next] 更新并返回 16 位伪随机状态
 //   依据: 原始指令为 `state = rol16(state + 0x9014, 3)`；先清 EAX、以 AX 读写状态，因此返回值低 16 位为新状态。`field_physical_attack_resolve @0x43edb` 在命中、暴击和伤害浮动路径调用该流；DOSBox debugger 在第一次调用入口捕获 loader 初值 `DS:0x27b8=0x7a18`。当前 code0 `0x15d90..0x15daf` 显示每次进入战场控制器前按计时器低 8 位推进该流；活动快照 writer／loader 均不保存 `DS:0x27b8`。
 //   历史地址列 `0x73df7`；旧 Ghidra 名 `FUN_00073df7`；判定 exact
+// [勘误 evidence] 原文件与真实CRT后共享RNG WORD=0，Watcom rand DWORD=1；main25d90首次rand返回16838，内部状态41c67ea6，%256=198，25da7推进198次后共享WORD=5885。25d83的BIOS低WORD只初始化视觉clock，不seed rand；Game/Load不重建App流。；依据: F1 startup-native02的CRT后/25d83/25db1原版RAM及startup-original-cpu五BIOS向量；原CPU报告SHA0794806103d24778492609290966f3439376fc1c6141700aa3af40b66c19cf37，原运行报告SHA56dd479b8e77dfb4c6d91264d109814485bc41904f5827e57494730dbc55b8cb；F2 bootstrap逐项比较198次调用前状态与末态。5885是推进后的值，不是原初值，不将启动资格扩为标题后全部caller或严格绝对时序。
 __int16 field_rng_next()
 {
   __int16 result; // ax

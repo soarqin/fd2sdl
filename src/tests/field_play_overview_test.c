@@ -1,3 +1,5 @@
+#include "field_visual.h"
+#include <stdint.h>
 /* 总览modal无窗口回归：测试TU私有替身控制分配、present和当前帧键态；
  * 包含正式field_play.c以测试其私有modal，不给生产代码新增测试hook。 */
 #include <stdio.h>
@@ -7,6 +9,7 @@
 #include "field_play.h"
 #include "field_rng.h"
 #include "scene.h"
+#include "bios_clock.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -14,6 +17,8 @@
 
 static uint64_t test_clock;
 static int timed_frames, close_frame, quit_frame, modal_started, modal_done;
+static int finite_frames,source_timed_frames;
+static int actual_close_frame;
 static int background_calls, dynamic_seen, old_pulse_seen, bad_free;
 static int early_open_keys;
 static int allocations, frees, fail_allocation, route_mode, action_queries;
@@ -119,7 +124,7 @@ static void set_physical_frame(fd2_vga *vga, int frame) {
     if (quit_frame != 0 && frame == quit_frame) vga->input.quit_requested = 1;
 }
 
-static void overview_present_timed(fd2_vga *vga, uint32_t ms) {
+static void overview_submit(fd2_vga *vga,uint32_t ms) {
     if (fd2_input_has_any_key(&vga->input)) old_pulse_seen = 1;
     timed_frames++;
     test_clock += ms;
@@ -131,7 +136,19 @@ static void overview_present_timed(fd2_vga *vga, uint32_t ms) {
     set_physical_frame(vga, timed_frames);
 }
 
+static void overview_present_timed(fd2_vga *vga,uint32_t ms) {
+    source_timed_frames++;
+    if(modal_started && (timed_frames<12 || actual_close_frame))bad_free=1;
+    overview_submit(vga,ms);
+}
 static void overview_present(fd2_vga *vga) {
+    /* 每次CPU提交仍选择16ms外部耗时保原向量；finite无source timed。 */
+    if(modal_started && !modal_done && (timed_frames<12 ||
+            (actual_close_frame && timed_frames<actual_close_frame+12))) {
+        finite_frames++;overview_submit(vga,16);
+        vga->frame_deadline_ns=vga->frame_interval_ns=0;
+        return;
+    }
     if (route_mode && !modal_started) {
         /* 正式loop的打开帧：Enter先被action消费，Right仍待modal清除。 */
         test_clock += 16;
@@ -156,6 +173,12 @@ static void overview_present(fd2_vga *vga) {
     }
     overview_wait_deadline(vga);
 }
+/* 计划key脉冲不是关闭事实：早键可在首steady退出。source的首次clear
+ * 正好锁定真实关闭边界；后续12相位仍须逐次观察，不能误当finalrestore。 */
+static void overview_clear(fd2_input *input) {
+    if(modal_started && !modal_done && !actual_close_frame)actual_close_frame=timed_frames;
+    fd2_input_clear_keys(input);
+}
 
 static void overview_background(fd2_field_game *game, fd2_vga *vga) {
     clock_mark('R');
@@ -175,6 +198,16 @@ static void overview_background(fd2_field_game *game, fd2_vga *vga) {
     memset(vga->framebuffer, 20 + game->idle_phase, sizeof(vga->framebuffer));
 }
 
+/* modal adapter使用固定时间保既有像素/输入夹具；正式live多读与page组合
+ * 由field_visual_live、field_unit_live和field_unit_render单独核，不混入真时钟。 */
+static int overview_runtime_refresh(fd2_field_game *game,fd2_vga *vga,int steady) {
+    uint64_t now=overview_ticks()*UINT64_C(1000000);
+    if(steady && (overview_actor_phase(game,now)!=0 || overview_water(vga,now)<0))return -1;
+    if(overview_terrain_phase(game,now)!=0 || overview_raw26(vga,now)<0)return -1;
+    overview_background(game,vga);
+    return 0;
+}
+
 static int overview_open(fd2_field_game *, fd2_vga *, const fd2_archive *, size_t);
 /* public dispatcher夹具没有map RLE/FDOTHER，也不宣称App绑定验收。
  * 实际App clock/API与背景像素由本TU的独立用例覆盖，生产不加fallback。 */
@@ -185,6 +218,13 @@ static int overview_bind(fd2_field_game *game,fd2_vga *vga) {
 static void overview_render(fd2_field_game *game,fd2_vga *vga) {
     if (!route_mode) fd2_field_game_render(game, vga);
     else memset(vga->framebuffer, 20+game->idle_phase, sizeof(vga->framebuffer));
+}
+static int overview_menu_refresh(fd2_field_game *game,fd2_vga *vga) {
+    overview_render(game,vga);return 0; /* public route无原地图资源，只签dispatcher。 */
+}
+static int overview_field_refresh(fd2_field_game *game,fd2_vga *vga,int phase) {
+    if(phase!=0)return -1;
+    overview_render(game,vga);return 0;
 }
 static int overview_menu_close(fd2_field_game *game, fd2_vga *vga,
                                int opening, uint32_t frame_delay_ms) {
@@ -206,20 +246,27 @@ static int overview_take_action(fd2_input *input, fd2_input_context context,
 #define malloc overview_malloc
 #define free overview_free
 #define SDL_GetTicks overview_ticks
+uint64_t overview_ticks_ns(void);
+#define SDL_GetTicksNS overview_ticks_ns
 #define fd2_delay_ms overview_delay
 #define fd2_vga_present overview_present
 #define fd2_vga_present_timed overview_present_timed
 #define fd2_vga_wait_frame_deadline overview_wait_deadline
 #define fd2_field_game_render_background overview_background
+#define fd2_field_game_runtime_overview_refresh overview_runtime_refresh
+#define fd2_field_game_runtime_menu_refresh overview_menu_refresh
+#define fd2_field_game_runtime_refresh overview_field_refresh
 #define fd2_field_game_open overview_open
 #define fd2_field_game_bind_visual overview_bind
 #define fd2_field_game_render overview_render
 #define fd2_field_game_animate_system_menu overview_menu_close
 #define fd2_input_take_action overview_take_action
+#define fd2_input_clear_keys overview_clear
 #define fd2_field_game_tick_actor_phase_visual overview_actor_phase
 #define fd2_field_game_tick_terrain_visual overview_terrain_phase
 #define fd2_field_actor_visual_tick overview_raw26
 #define fd2_field_water_tick overview_water
+#define fd2_field_water_tick_live(vga_) overview_water((vga_),SDL_GetTicksNS())
 #include "../field_play.c"
 #undef malloc
 #undef free
@@ -229,19 +276,27 @@ static int overview_take_action(fd2_input *input, fd2_input_context context,
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
 #undef fd2_field_game_render_background
+#undef fd2_field_game_runtime_overview_refresh
+#undef fd2_field_game_runtime_menu_refresh
+#undef fd2_field_game_runtime_refresh
 #undef fd2_field_game_open
 #undef fd2_field_game_bind_visual
 #undef fd2_field_game_render
 #undef fd2_field_game_animate_system_menu
 #undef fd2_input_take_action
+#undef fd2_input_clear_keys
 #undef fd2_field_game_tick_actor_phase_visual
 #undef fd2_field_game_tick_terrain_visual
 #undef fd2_field_actor_visual_tick
+#undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 
 static void reset_controls(void) {
+    fd2_bios_clock_reset(0,0);
     test_clock = 1000;
     timed_frames = modal_started = modal_done = background_calls = 0;
+    finite_frames=source_timed_frames=0;
+    actual_close_frame=0;
     dynamic_seen = old_pulse_seen = bad_free = allocations = frees = 0;
     fail_allocation = route_mode = action_queries = post_modal_queries = 0;
     next_outer_present = route_owner_unchanged = 0;
@@ -351,6 +406,7 @@ static int test_modal_keys_and_owner(void) {
         fd2_input_init(&vga.input);
         CHECK(play_field_overview(&game, &vga) == FD2_SCENE_RESULT_OK);
         CHECK(timed_frames == close_frame + 12 && modal_done);
+        CHECK(finite_frames==24 && source_timed_frames==close_frame-12);
         CHECK(background_calls == 1 + close_frame - 12);
         CHECK(old_pulse_seen && !fd2_input_has_any_key(&vga.input)); /* 关闭余键由真实尾clear。 */
         CHECK(allocations == 2 && frees == 2 && !bad_free);
@@ -369,6 +425,7 @@ static int test_opening_early_keys_wait_until_first_stable_clear(void) {
     fd2_field_game before=game;fd2_vga vga={0};fd2_input_init(&vga.input);
     CHECK(play_field_overview(&game,&vga)==FD2_SCENE_RESULT_OK);
     CHECK(timed_frames==25 && background_calls==2 && old_pulse_seen && modal_done);
+    CHECK(actual_close_frame==13 && finite_frames==24 && source_timed_frames==1);
     CHECK(!fd2_input_has_any_key(&vga.input) && owner_unchanged(&game,&before) && test_rng.state==0x3141);
     CHECK(allocations==2 && frees==2 && !bad_free);
     fd2_field_game_close(&game);return 0;
@@ -413,7 +470,7 @@ static int test_modal_preconditions(void) {
         reset_controls();
         fd2_field_game game;
         CHECK(init_game(&game) == 0);
-        if (mode == 0) game.stage = 21; /* S3闭包之外，不能因UI数据已读而开放。 */
+        if (mode == 0) game.stage = SIZE_MAX; /* S5已开放21；用真实无绑定stage核前置拒绝。 */
         if (mode == 1) game.active_side = 0;
         if (mode == 2) game.selected_unit = 0;
         if (mode == 3) game.interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
@@ -497,13 +554,26 @@ static int test_modal_preserves_held_lifecycle(void) {
     uint64_t repeat_at = vga.input.next_repeat_ms[SDL_SCANCODE_RETURN];
     CHECK(play_field_overview(&game, &vga) == FD2_SCENE_RESULT_OK);
     CHECK(vga.input.previous_down[SDL_SCANCODE_RETURN]);
-    CHECK(vga.input.next_repeat_ms[SDL_SCANCODE_RETURN]>=repeat_at);
-    repeat_at=vga.input.next_repeat_ms[SDL_SCANCODE_RETURN]; /* 宿主采样可正常到repeat门；clear不重置。 */
+    /* modal内其它make已接管单last-key；clear保物理held，不恢复旧Return。 */
+    CHECK(!vga.input.next_repeat_ms[SDL_SCANCODE_RETURN] &&
+        vga.input.repeat_key==SDL_SCANCODE_DOWN && !fd2_input_has_any_key(&vga.input));
     fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_DOWN, 0);
-    fd2_input_begin_test_frame(&vga.input, repeat_at - 1);
+    fd2_input_begin_test_frame(&vga.input, test_clock + 1u);
+    fd2_input_begin_test_frame(&vga.input, repeat_at + 1000u);
+    CHECK(vga.input.repeat_key==SDL_SCANCODE_UNKNOWN &&
+        vga.input.previous_down[SDL_SCANCODE_RETURN]);
+    CHECK(!fd2_input_has_any_key(&vga.input));
+    fd2_input_event event;
+    fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 0);
+    fd2_input_begin_test_frame(&vga.input, repeat_at + 1001u);
+    fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&vga.input, repeat_at + 1002u);
+    CHECK(fd2_input_take_key(&vga.input,&event) && !event.repeat && event.source==SDL_SCANCODE_RETURN);
+    CHECK(vga.input.next_repeat_ms[SDL_SCANCODE_RETURN]==repeat_at+1502u);
+    repeat_at=vga.input.next_repeat_ms[SDL_SCANCODE_RETURN];
+    fd2_input_begin_test_frame(&vga.input,repeat_at-1u);
     CHECK(!fd2_input_has_any_key(&vga.input));
     fd2_input_begin_test_frame(&vga.input, repeat_at);
-    fd2_input_event event;
     CHECK(fd2_input_take_key(&vga.input, &event) && event.repeat &&
           event.source == SDL_SCANCODE_RETURN);
     fd2_input_set_test_key_state(&vga.input, SDL_SCANCODE_RETURN, 0);
@@ -614,7 +684,7 @@ static int test_app_clock_entry_and_steady_order(void) {
           steady_visual.range_phase == 9 && steady_visual.range_tick == 21);
     CHECK(vga.actor_jitter_tick == 21 && vga.actor_jitter_phase == 1);
     CHECK(vga.field_water_phase == 7 && vga.field_water_last_tick == 21);
-    CHECK(game.visual_now_ms == 1192 && game.phase_next_action_ms == 12345 && test_rng.state == 0x3141);
+    CHECK(game.visual_now_ns == UINT64_C(1192000000) && game.phase_next_action_ms == 12345 && test_rng.state == 0x3141);
     CHECK(!bad_free && allocations == 2 && frees == 2);
     fd2_field_game_close(&game);
     return 0;
@@ -651,26 +721,26 @@ static int test_actor_phase_api_normal_and_error_contract(void) {
     CHECK(init_game(&game) == 0);
     fd2_vga vga = {0}; fd2_input_init(&vga.input); set_app_clocks(&game, &vga);
     fd2_field_visual_state before = vga.field_visual;
-    CHECK(fd2_field_game_tick_actor_phase_visual(&game, 1000) == 0);
+    CHECK(fd2_field_game_tick_actor_phase_visual(&game,(1000)*UINT64_C(1000000)) == 0);
     CHECK(vga.field_visual.actor_idle_phase == 3 && vga.field_visual.actor_idle_tick == 18 &&
           vga.field_visual.cursor_phase == 0 && game.idle_phase == 3);
     CHECK(vga.field_visual.terrain_phase == before.terrain_phase && vga.field_visual.terrain_tick == before.terrain_tick &&
           vga.field_visual.range_phase == before.range_phase && vga.field_visual.range_tick == before.range_tick);
-    CHECK(!game.visual_now_ms && !vga.actor_jitter_tick && vga.actor_jitter_phase == 1 &&
+    CHECK(!game.visual_now_ns && !vga.actor_jitter_tick && vga.actor_jitter_phase == 1 &&
           vga.field_water_phase == 6 && vga.field_water_last_tick == 2);
-    CHECK(fd2_field_game_tick_visual(&game, 1000) == 0);
+    CHECK(fd2_field_game_tick_visual(&game,(1000)*UINT64_C(1000000)) == 0);
     CHECK(vga.field_visual.actor_idle_phase == 3 && vga.field_visual.cursor_phase == 1 &&
           vga.field_visual.terrain_phase == 0 && vga.field_visual.range_phase == 8);
     vga.field_visual.actor_idle_phase = 4; before = vga.field_visual;
-    CHECK(fd2_field_game_tick_actor_phase_visual(&game, 2000) == -1 &&
+    CHECK(fd2_field_game_tick_actor_phase_visual(&game,(2000)*UINT64_C(1000000)) == -1 &&
           !memcmp(&before, &vga.field_visual, sizeof(before)));
     vga.field_visual.actor_idle_phase = 3; game.ready = 0; before = vga.field_visual;
-    CHECK(fd2_field_game_tick_actor_phase_visual(&game, 2000) == -1 &&
+    CHECK(fd2_field_game_tick_actor_phase_visual(&game,(2000)*UINT64_C(1000000)) == -1 &&
           !memcmp(&before, &vga.field_visual, sizeof(before)));
     game.ready = 1; vga.field_visual.terrain_phase = 2;
     unsigned cursor_before = vga.field_visual.cursor_phase;
     /* 组合口保已有部分错误合同：1297d成功后，11eee拒坏状态不回滚前者。 */
-    CHECK(fd2_field_game_tick_visual(&game, 1000) == -1 &&
+    CHECK(fd2_field_game_tick_visual(&game,(1000)*UINT64_C(1000000)) == -1 &&
           vga.field_visual.cursor_phase == (cursor_before+1u)%4u && vga.field_visual.terrain_phase == 2);
     CHECK(test_rng.state == 0x3141 && game.phase_next_action_ms == 12345);
     fd2_field_game_close(&game);
@@ -692,3 +762,6 @@ int main(void) {
     puts("field_play_overview_test: ok");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t overview_ticks_ns(void) { return overview_ticks()*UINT64_C(1000000); }

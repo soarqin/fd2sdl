@@ -2,6 +2,34 @@
   "schema_version": 1,
   "tables": [
     {
+      "name": "k_battle_ai_ray_item_present",
+      "c_type": "int16_t",
+      "dimensions": [13, 3],
+      "values": [[1, 0, 0], [2, 1, 0], [3, 0, 0], [4, 0, 0], [5, 6, 0], [1, 0, 0], [6, 0, 0], [7, 3, 0], [8, 0, 0], [1, 1, 0], [9, 80, -4], [10, 200, 0], [11, 64, 4]],
+      "source": {
+        "kind": "decoded_call_constants",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_ranges": ["0x2dfc8", "0x2e0c4", "0x2e137", "0x2e19b", "0x2e1d3", "0x2e24f", "0x2e272", "0x2e284", "0x2e2a3", "0x15195", "0x151a2", "0x151af", "0x151be"],
+        "columns": ["operation", "value", "step"],
+        "evidence": "完整744B sub_2DFC8与15055 strict Domain原指令：fade-out、单actor intro(a2=1)、从继承EDI=原149f8目标count开始逐part绘制且每part一次duration等待(含0)、释放临时图形、重建唯一地图owner后wait6、fade-out/clear/11cac(1)/stop/fade-in；15055随后2189a(actor,80,-4)、delay200、64..0 pal_partial_set各delay4。有限op 1 fade、2 intro、3 parts、4 release、5 ticks、6 clear、7 return、8 stop、9 circle、10 ms、11 white-recover；不含后续20c6f真实效果，不消费业务RNG。"
+      }
+    },
+    {
+      "name": "k_battle_map_cast_preamble",
+      "c_type": "uint8_t",
+      "dimensions": [8, 2],
+      "values": [[1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1]],
+      "source": {
+        "kind": "decoded_call_constants",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_ranges": ["0x1d6c8", "0x1d73f", "0x1d785", "0x1d790"],
+        "columns": ["use_magic_rgb", "wait_ticks"],
+        "evidence": "完整sub_1D6C8 212B strict Domain源：1d790 cmp4循环，每轮DAC0写51aad/51ad1/51af5[id]后1d741 wait1，再DAC0写黑后1d787 wait1。唯一原caller1cff0在1d459调用，限定id9..27且排除24，位于handler成本前；RGB继续复用k_battle_cast_colors。有限色/黑次序外置，不新增业务owner或RNG。"
+      }
+    },
+    {
       "name": "shake_x",
       "c_type": "int",
       "dimensions": [

@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 519,
+ "canonical_functions": 528,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -393,6 +393,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 72360,
+   "off": 6824,
+   "ida_name": "sub_11AA8",
+   "size": 160,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "先peek，空队4e31c，低WORD与App539f2不同才11cac(0)，返回后重新读WORD写539f2；早键不刷新，锚不随每次读键/Load重置。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
+    }
+   ],
+   "end_va": 72520,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 72876,
    "off": 7340,
    "ida_name": "sub_11CAC",
@@ -558,6 +581,12 @@
      "was": "地形phase的一般描述",
      "now": "函数首仅当BIOS当前tick!=53a00时翻转53a40一次并重取当前tick，不按经过周期奇偶补追。attrs08加2*53a40、10加53c0b/2、04加53a40；角色idle由1297d另管，范围LUT53c1f亦为独立门。",
      "why": "既有完整11eee(885B)与1297d及tile flag分支；本次私有修复仅将55/275ms宿主近似的视觉锚按原调用点单次推进，不宣称BIOS时钟、全局RNG、水DAC或所有地形动画已同步。保持field_view_render_tiles既名/类型。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "11eff比较terrain tick，xor后11f16重读锚；随后实际wave/scroll背景更新及其fresh锚，1210f/12122的range门和1214b fresh锚，12164才选LUT并绘tile。固定51a93值直接写range phase而不取range clock。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 74339,
@@ -618,6 +647,14 @@
      "source_line": 99
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "普通cursor指针或玩家interaction可代替所有51a83值",
+     "now": "122dc仅对mode1..6分派；6清node而无sprite，其它值走无sprite的default。15311确实无条件以magic record+4加2聚焦；原magic10/11/12的area5/7/9产生mode7/9/11，12cea仍按非0且非6等待，不能以renderer只列到6拒绝这些原值。",
+     "why": "既有Domain source09完整122dc..126f7 SHA866692f43bd2736ade9ce526425241d33af53a54064647104dc76f96317a3a55，15311..1548e SHA967b72e576507cea33c9ec1d085aa9af182acd3c7e7402348c5488223999050e；原EXE object3 MAGIC252B@619fd SHA d516dc85c98d06e860477701ff1c018ac3a3f0953d79d0a6022aaf7a98f014c3独立读字节核field4完整域0/1/2/3/5/7/9。只核该分派/等待域，不代签完整AI范围/FX。"
+    }
+   ],
    "end_va": 75511,
    "is_lib": false,
    "prototype": "",
@@ -659,6 +696,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 75689,
+   "off": 10153,
+   "ida_name": "sub_127A9",
+   "size": 55,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "127c2先筛hidden，非hidden按raw递增在127cf逐个调用127e0，全部actor后才127d9调用129ec前景；空表及全hidden不调用127e0。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
+    }
+   ],
+   "end_va": 75744,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 75744,
    "off": 10208,
    "ida_name": "sub_127E0",
@@ -677,6 +737,12 @@
      "was": "raw26视觉仍未实现的旧切片状态",
      "now": "原127f1..12810比较BIOS低WORD与53A08，tick变化只翻53A04低byte一次；128e7..128ef在actor+26非零时加共享0/1px，12914后同条件强制frame0。不改业务坐标、状态或RNG，acted映色及原层序独立。SDL用App VGA视觉owner对应；运行精度按阶段收据，不把接口存在当原版整帧通过。",
      "why": "完整413B原指令 SHA68b24e0d28affff7c08ed4eb1df55f3a558021c170f77019191b5f0f8b5094e4；G1完整读集与G2 clock/render回归。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "127f1/127f6在camera/raw26之前读BIOS低WORD；不等则12801翻共享抖动phase，12808/1280d重新取锚。相机外及raw26=0也经过该门，direct本体不含batch的hidden筛选。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 76157,
@@ -713,6 +779,12 @@
      "was": "约每275ms推进phase",
      "now": "1297d只在signed BIOS tick差>4或负数时把53c0b加一并模4，53c0f直接重取当前tick，不补追全部经过周期。另53c07每次调用加一模4，与11eee的地形开关53a40不同；不能把它们当同一时钟。11cac先调用1297d再绘tile/actor/1acf3面板；21eb1尾11cac→200ms→1c4cc首11cac后冻结FX背景，共用唯一视觉相位/last锚。",
      "why": "既有canonical完整1297d(111B)/11cac/21eb1/1c4cc及validated relocated原字节。C4 heal13实际原/SDL同一FX59两页1678差异全部为idle1→2：actor1374+底栏304；各端整2346底栏源模型bad0/max3，无E0..EF。只作为视觉时钟差异与本轮图像归因，修复后的实机完整帧验收尚待；不改函数名/类型/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "12987先读signed差>4，失败才1299a另读负差；成功推进idle后129c5重新读钟存53c0f，cursor每调用推进。不复用一次宿主时间覆盖这些读取点。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 76268,
@@ -937,6 +1009,29 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 77228,
+   "off": 11692,
+   "ida_name": "sub_12DAC",
+   "size": 140,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "115b6的ESI候选索引传入本次局部等待；先peek，空队water，signed低WORD不同才11cac(0)，返回后fresh读ESI。读一返回结束局部生命，不能借539f2跨调用保存。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
+    }
+   ],
+   "end_va": 77368,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 77368,
    "off": 11832,
    "ida_name": "map_cell_info_at",
@@ -1082,6 +1177,35 @@
    "historical_names": [
     "field_actor_move_right_follow_camera"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 78944,
+   "off": 13408,
+   "ida_name": "field_movement_tick_edge_wait",
+   "size": 40,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_13460",
+     "now": "field_movement_tick_edge_wait",
+     "why": "完整13460..13488共40B及12eaa/1300d/13185/13315正常移动caller；1346f将BIOS[46c]低WORD符号扩展，与App DWORD53a0c相等才回读；不等后1347a..13482重新读当前tick并写anchor，不是每相位新鲜等1tick。既有Domain source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517，完整chunk SHA1ffd7e099e8a1ba4a19f45f6a80825aeabad462024147e87f0b8032a677022de，逐字节匹配strict relocated；不保存参数/返回类型或猜测ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "普通移动等待按55ms或每调用等待一个新tick理解",
+     "now": "普通四方向每格六相位共用53a0c anchor；比较通过后重读并保存signed lowWORD。本函数不调用4e381、不清普通键队；anchor属于App，不随Scene/Game/Load重置。初始53a0c四字节0有strict文件及既有F1 loader/entry转储依据，不把这项初态观察扩为新postCRT时钟测量。",
+     "why": "完整13460与四方向caller的既有Domain读集、strict镜像和F1运行时来源分账；F2 BIOS共享时钟/边界测试只验证C消费者，不替代正常原版时序与输入运行对照。"
+    }
+   ],
+   "end_va": 78984,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -1280,6 +1404,12 @@
    "corrections": [
     {
      "target": "evidence",
+     "was": "每格调用vsync_wait等待垂直同步",
+     "now": "field_camera_pan_to先完成X再Y；每格11cac(0)后4e381清普通BIOS FIFO，没有17ms或显式tick等待。入口清51a83；零距离不执行逐格clear。",
+     "why": "完整135dd..1366a共141B，X在13622刷新/1362a清键，Y在1365b刷新/13663清键；既有Domain source09完整chunk SHA60f0ad6883f634fc4d3eec83a5e32b0d2af9ed285ff0c934b3e68bfea7a158bd逐字节匹配strict relocated；旧vsync登记是语义误判，不据此新增渲染节流或声明真实时序已验。"
+    },
+    {
+     "target": "evidence",
      "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
      "now": "pan每个镜头格都调用11cac(0)，包括两方向移动；共享工作页和water随该原caller刷新，不把所有Scene render统一套skip-water，也不在纯delay虚构刷新。",
      "why": "完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。"
@@ -1316,6 +1446,12 @@
     }
    ],
    "corrections": [
+    {
+     "target": "evidence",
+     "was": "脚本帧后4e381是vsync等待，可用名义17ms代替",
+     "now": "field_movement_script_play正常每相位render→17aa9(1)→4e381 clear；high-bit非零等待同序；jump先wait1、临时上抬合成、wait2、11cac(0)、clear。1398c尾仍11cac(1)，不追加clear；4e381本身没有等待。",
+     "why": "完整1366a..1399c共818B及138fd/13905、1380f/13817、136db/137ae/137b8/137c0、1398c原调用；既有Domain source09完整chunk SHA9fa0bc803cd6303e62a2c49bb86b1bfdd139affc15de18b84c21e3c141a10ddf逐字节匹配strict relocated。这里只更正普通输入/等待来源，不签脚本全域、像素、绝对时序或RNG全轨迹。"
+    },
     {
      "target": "evidence",
      "was": "共享Scene刷新未区分原11cac水色参数或把它误称刷新等待",
@@ -1755,6 +1891,35 @@
    "historical_names": [
     "field_target_range_build"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 84472,
+   "off": 18936,
+   "ida_name": "field_line_targets_collect",
+   "size": 286,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_149F8",
+     "now": "field_line_targets_collect",
+     "why": "F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。"
+    },
+    {
+     "target": "evidence",
+     "was": "射线起点/调用ABI及演出返回合同尚未完整登记",
+     "now": "七实参的arg_C/10为扫描起点，arg_0/4只决定方向；先将focus写起点，每轮先步进再lookup并按raw顺序收录，最后恢复旧focus。15055及1567e传当前actor坐标为起点、selected为方向点；1cff0同源。不能反向从selected朝actor扫描。原SP=S的[esp+2c/30]在本体固定栈深1c下对应[S+10/14]，不是按伪C参数名猜测。",
+     "why": "F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。"
+    }
+   ],
+   "end_va": 84758,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -2600,12 +2765,78 @@
      "source_line": 130
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+     "now": "1749d..174e7仅入口一次1297d→11eee→127a9→info→175a9；四相位各17643恢复72x72、四图标、可见focus的direct127e0、project。无water、122dc、每相位全图重画或显式16ms。focus raw由入口lookup锁定；五个正常菜单caller共用两张四项表，不由伪C多实参猜ABI。",
+     "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。"
+    }
+   ],
    "end_va": 95657,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "field_command_menu_open"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 95657,
+   "off": 30121,
+   "ida_name": "field_command_menu_background_save",
+   "size": 154,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_175A9",
+     "now": "field_command_menu_background_save",
+     "why": "完整154B/113B及1741c、176b4两caller和53a71读写证明72x72菜单底图保存/恢复；不按邻近或函数大小猜名。"
+    },
+    {
+     "target": "evidence",
+     "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+     "now": "原53a71跨open/wait/close保存同一菜单底图：先free旧buffer再malloc5184，每行18个DWORD、共72行，从当前focus附近的456-stride工作页复制72x72。不是按每个开合函数重新生成的底图。",
+     "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。"
+    }
+   ],
+   "end_va": 95811,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 95811,
+   "off": 30275,
+   "ida_name": "field_command_menu_background_restore",
+   "size": 113,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_17643",
+     "now": "field_command_menu_background_restore",
+     "why": "完整154B/113B及1741c、176b4两caller和53a71读写证明72x72菜单底图保存/恢复；不按邻近或函数大小猜名。"
+    },
+    {
+     "target": "evidence",
+     "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+     "now": "按当前focus对应地址，将53a71的72行连续72B恢复到456-stride工作页；只写页，不刷新terrain/actor或投影。原调用者在图标和direct127e0之前调用它。",
+     "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。"
+    }
+   ],
+   "end_va": 95924,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -2628,6 +2859,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 131
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+     "now": "入口仅SFX及可见focus lookup，没有1297d/11eee/127a9/info；四相位各恢复原72x72、画四图标、direct127e0、project。177ed再恢复一次工作页而不project，177f2才4e381清FIFO。HOST/H失败保已执行前缀，不伪造成功尾clear。",
+     "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。"
     }
    ],
    "end_va": 96252,
@@ -2688,6 +2927,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 133
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "每个空FIFO循环water→共享四tick高亮→1297d→11eee→127a9→1acf3→179d5→project；无BIOS-change外门、122dc或RNG。高亮phase写后重新读signed低WORD存53c17。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 96725,
@@ -2795,6 +3042,12 @@
      "was": "猜测第二actor实参或Esc直接跳过所有详情页",
      "now": "17af8与17c40在不同栈深度读同一初始actor实参，不据伪C的a2写ABI。out1839b相位0..6，独立只保留上块的空底页present，然后底板frame21与未选中法术列表，in6..0；最终18409相位0..11。上下块固定86x86/223x86，底部拷贝310x102包含底板99行外的缓存背景。",
      "why": "published17aed..17d6f及strictLE raw全642B SHA fdabaa88e2e33df5cb9b8040e9b8b7d3caabf3bbf3c9fba30537968801f471c5。17bba..17c0f空底页没有额外等待门；两处等待均16c57。此为缓存IDA及独立raw核对，未新建数据库或重写伪C类型，完整等待RNG/时序另验。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "整页关闭0..11后另恢复完整64000B snapshot；法术下页0..6滑出、独立空底条提交、6..0滑入。两处任意键16c57与有限相位分账。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 97647,
@@ -2846,6 +3099,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 26
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "详情打开以18409提交相位11..0，共12次，17ee8尾清键；有限相位无16ms或BIOS等待。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 98031,
@@ -3052,6 +3313,14 @@
      "source_line": 33
     }
    ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "详情单相位裁切/拷贝后提交，不自行等clock；开关相位及额外snapshot恢复由caller分别决定。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
+    }
+   ],
    "end_va": 99520,
    "is_lib": false,
    "prototype": "",
@@ -3220,6 +3489,12 @@
      "was": "sub_18B84",
      "now": "field_unit_selection_summary_wait",
      "why": "完整233B、18890唯一caller及115b6紧随调用：while(!input_check())逐BIOS tick重绘terrain/selector/actor，再18c6d与下方cell板，最后复制page到VGA。相对X>=7时上板(9,9)，否则(160,9)。发现下一键即返回而不读取/清键，由115b6消费同键；最初选择键已由上层消费，不是持续UNIT_SELECTED板。原版多场6258px完整板及首方向后板消失已独立重放；raw SHA ebabd1f40c050dff9b29b3bfc4a99f83b9a9988e938e65ee8c19537d56478326。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "18bab peek；空则water一次，完整ESI与signed低WORD不等才第二次water→1297d→11eee→122dc→127a9→summary→info→project，最后18c65 fresh存ESI。summary侧由入口屏内focus X锁定。ESI来自18890所选actor地址，首次比较的全正常启动地址域仍未闭合，不用0/入口tick/宿主C指针代替。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 101485,
@@ -3361,6 +3636,12 @@
      "was": "系统notice首帧/稳态/结果使用详情底板或占位底色；caption坐标未由literal核算",
      "now": "确认框/奖励/库存页共用notice owner：先完整保存初VGA，FDOTHER[5] tiles拼310x86 bottom，再DATO初帧reverse，非128..132由36887=(87,115)向左绘80列；特殊origin原表保留。三缓冲的静态初板用于关闭，不是detail_bottom(详情用99高帧)。原意无0xcd整块占位/独立palette切换。",
      "why": "既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "底框按Y177/164/151/138/125/112提交六次，没有各相位16ms。入口和逐字等待仍由原caller执行。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 104139,
@@ -3384,6 +3665,12 @@
      "was": "sub_196CB",
      "now": "field_bottom_notice_close",
      "why": "完整129B与1956b配对caller：i1..5调用1974c滑出初始静态底板，恢复打开前VGA、释放三缓冲并11cac(0)刷新；关闭不以当前文字页作源。raw SHA 9ed5ae278e9018f35c52d1abc69d2f475dcfb56d1dfc09b7d6f5441276c766e5。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "底框按Y125/138/151/164/177提交五次，随后整页snapshot恢复，释放三个buffer，最后11cac(0)。不是六次关闭，也不把释放后移至尾刷新之后。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 104268,
@@ -3407,6 +3694,12 @@
      "was": "sub_1974C",
      "now": "field_bottom_notice_slide_draw",
      "why": "完整153B及1956b/196cb和底部选择页caller：先复制53C5F初始背景，再从源(5,112)逐行复制310像素到目标y，最多86行并裁到200，交接完整VGA后走既有同步尾；不移动camera或修改actor。raw SHA 86eee771d050f98da4a5a88143f434f340cc0e7e84c8a7f987c525527fb688c8。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "底框单相位只裁切/提交，不设置16ms或BIOS等待；26996的准备页尾与196cb的战场尾不同。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 104421,
@@ -3430,6 +3723,12 @@
      "was": "sub_197E5",
      "now": "field_choice_buttons_close",
      "why": "主366B及17e03..17e0b共享8B epilogue，12个原caller及FDOTHER5按钮：53a51>1才地图重画，保bottom页桥、四步收回与310x86恢复；不改变原owner/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "选择框单相位不等待；19953打开4/8/12/16、关闭12/8/4/0，各四次。正常高亮与画像的2tick稳态门不属于有限开合。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 104787,
@@ -3453,6 +3752,12 @@
      "was": "sub_19953",
      "now": "field_choice_buttons_wait",
      "why": "主1188B及13fcc..13fd4共享8B返回尾、12个原caller、16f55/1aa1d/准备服务链：默认selector0、snapshot/四步展开、先查键后tick，blink RNG+2/+10、共享phase/tick，确认/取消清phase；不推类型。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "19b1e比较高亮门，19b49在phase写后重读signed低WORD存53c17；重开眼先画portrait0再19be0抽RNG%30+10。不把实际portrait绘制后移到RNG之后。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 105975,
@@ -3870,6 +4175,12 @@
      "was": "战况总览尚未登记开合、背景和关闭键边界",
      "now": "双64000字节缓冲保存最初干净战场与四块静态页面；打开0..11、关闭11..0，稳定页继续地形／actor动画，不画光标／信息面板、不提交玩法；任意普通键关闭并清缓冲键。",
      "why": "已发布 sub_1B1E7 及五个矩形合成 helper 的调用链、FDOTHER[5] 133..136 资源；0x1b14b 原始指令 0x1b19e/0x1b1de/0x1b1e0 确认资源 phase8 高度为负且 signed jl 不复制，人数 phase5 同样不复制。保留中性名，未改数据库或权威伪 C；精确帧时序与完整画面另验。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "总览打开0..11、关闭11..0均无显式等待；稳态1b2fb/1b2fe将signed BIOS低WORD与继承EBP比较，相等跳过actor/water/tile/units块。该函数不写EBP，不可猜成每轮fresh锚；正常入口EBP资格另记。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 111645,
@@ -4883,6 +5194,35 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 120520,
+   "off": 54984,
+   "ida_name": "field_map_magic_cast_flash",
+   "size": 212,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_1D6C8",
+     "now": "field_map_magic_cast_flash",
+     "why": "F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。"
+    },
+    {
+     "target": "evidence",
+     "was": "玩家MAP费用之前的公共声画前缀尚未独立登记",
+     "now": "入口先sfx_play(53b13,0,1)，四轮DAC0写51aad/51ad1/51af5[id]→wait1→DAC0黑→wait1。1cff0仅id9..27且非24在双selector成功、mode0/11cac(0)/bank准备之后调用，随后才分派51d01 handler及其MP成本；AI/Item/FULL不是此唯一caller域。23取消第二目的地不进入该前缀，不能提前闪烁。",
+     "why": "F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。"
+    }
+   ],
+   "end_va": 120732,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 120732,
    "off": 55196,
    "ida_name": "field_unit_magic_bit_set",
@@ -5074,6 +5414,12 @@
      "was": "无演出时只需把全部HP0的flags写1",
      "now": "只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于x[camX-1,camX+13]／y[camY-1,camY+9]，13帧循环会把全体非hiddenHP0（含离屏者）方向最终写0；hidden死者方向不改。无屏内见证者则不改方向；最后全部HP0 flags精确赋1，不能OR原flags或重置所有存活者方向。",
      "why": "已发布1db65的收集门及j0..12全表循环、strictLE object2 VA51a87/51a8b原始8字节0d00000008000000，与现13x8 viewport相等。SDL共享清理用于phase/physical/AI magic/item及新player magic，扩边界与屏内外／hidden组合锁终态；此项不证明旋转／消散帧已实现。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "1dcd4/1dd81分别调用完整11eee，仍为terrain→实际背景→range→tile的独立读取点；1dd1b逐raw直接127e0，1dd95经127a9批量调用。不能将死亡演出的terrain/background/range或actor成功重读锚冻结在一次now采样。预检advance0只借页不推进clock；第31锚别名及caller保存值资格另账，不由这些读取点代签。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 122558,
@@ -5868,6 +6214,12 @@
      "was": "再调用通用 six-entry selector `0x17d33`",
      "now": "标题菜单自带 BIOS INT 16h/AH=10h 读取循环：scan 48h/50h 上下回绕，ASCII 0Dh/20h 或 scan E0h/52h 确认；其余键继续循环，ESC 没有取消或返回分支。完整 0x1f894..0x1ff79 不调用 six-entry selector；历史 code0 17d33 对应 canonical 27d33 的 shop selector，不能把其 ESC 取消推广至标题",
      "why": "完整1765B反编译与原始指令/完整callee集合双证；自有BIOS菜单循环的全部key compare/branch均保留在只读readset。只更正证据comment，不改原name/type，不新增GUI或声称实机ESC验收。"
+    },
+    {
+     "target": "evidence",
+     "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+     "now": "1fe37绘制菜单后1fe48..1fe60以INT16/AH10阻塞读一，方向或无映射键返回1fe2c后再绘；确认直接进入原四轮normal/highlight各80ms。没有批量取完FIFO后的50ms。宿主空等pump不属于原显式等待。",
+     "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。"
     }
    ],
    "end_va": 130937,
@@ -5937,6 +6289,12 @@
      "was": "F1/PageUp辅助页可能是部队列表或另一种战况总览",
      "now": "独立的全场缩放地形图，使用原始terrain cache；开7帧、稳态标记、关6帧后普通重绘。高>40选scale3/delta896，否则scale4/delta640，无stage/shape门。开后clear一次，稳态peek后202fa INT16 AH10读一键、余队不清，再关闭。F1直接返回无controller提交；期间不推进water，尾11cac(0)恢复。",
      "why": "2026-11-10 Domain三函数1434B与strictLE/fixup逐chunk一致；20055/2005e/20063尺寸分支、202e7设AH10/202f8传16h/202fa callint386。原33图最大50x64，stage1真实27x21/shape1/192帧、高图stage7为29x45/shape7/384帧；旧stage0限制属已登记SDL缺口，不声明新晚关/精确时序/首次undefined tick。"
+    },
+    {
+     "target": "evidence",
+     "was": "有限UI相位、稳态与caller尾合同尚未分账",
+     "now": "辅助图打开1..7、关闭6..1无有限相位等待；开尾清队、退出读一、尾11cac(0)。稳态先键/clock门再marker，首次比较字节源于前一int386的FS/GS，非2000a初始化clock；正常selector返回合同另记，不用常量替代。",
+     "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。"
     }
    ],
    "end_va": 132029,
@@ -8027,6 +8385,12 @@
      "was": "sub_26EDA",
      "now": "field_prepare_picker_wait_key",
      "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整415B，菜单/商品/成员/购买候选/复活/转职picker六caller；入口一次共享RNG%50+8，highlight初2，按2 BIOS tick推进27079及立绘0/3，blink后RNG%30+2；读BIOS键并规范扩展确认/取消。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "入口只置App53f52=2而不清53f72；do tick门后才peek/read，成功tick后fresh写局部锚。普通画像只在close/open事件绘制，不每轮覆盖portrait0。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 159865,
@@ -8050,6 +8414,12 @@
      "was": "sub_27079",
      "now": "field_prepare_picker_tick_draw",
      "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "每mode均按共享53f52奇偶推进53f72，仅++恰等4归0；名单/成员/复活/转职借53f72，菜单/箭头借53f52。城镇26152也写53f52，不能用三份局部phase代替两App DWORD。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 160464,
@@ -8966,6 +9336,12 @@
      "was": "sub_2B4FB",
      "now": "field_deployment_selection_draw",
      "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整388B及2b434共享返回，2af28/2b67f；复制底页，画名额/剩余数、1297d共享idle、当前raw+1详情和10列同伴网格。已选普通sprite下移3px、未选灰阶；不改变选择位图。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "数字/selection count后无条件1297d，再详情/网格。实际App phase写发生于后续绘图之前，不能以成功绘制后提交的视觉副本替代原前缀。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 177791,
@@ -8989,6 +9365,12 @@
      "was": "sub_2B67F",
      "now": "field_deployment_selection_wait_key",
      "why": "G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整202B，2af28唯一caller；输入未就绪时BIOS tick变化才2b4fb重绘并复制页，读取键后规范Enter/Space及扩展确认、Delete取消；本体不调用业务RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "先查键；空队比较App53f46，变化时重新读钟写锚再2b4fb及copy。后续宿主绘图失败不回滚已经执行的53f46写；此H规则不冒称原版坏资源oracle。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 177993,
@@ -9256,6 +9638,35 @@
    "historical_names": [
     "palette_fade_to"
    ],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 188360,
+   "off": 122824,
+   "ida_name": "field_ai_ray_item_cast_present",
+   "size": 744,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_2DFC8",
+     "now": "field_ai_ray_item_cast_present",
+     "why": "F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。"
+    },
+    {
+     "target": "evidence",
+     "was": "射线起点/调用ABI及演出返回合同尚未完整登记",
+     "now": "唯一直接caller15055的高射程Item路径；EDI为149f8返回的目标数，1511c写入并经face/11cac/17aa9/2e9a8正常保存。本函数不初始化EDI，从该part起点至part_count逐项演出并等待，不能从0重播；起点不小于part_count时自然零part，仍执行尾wait6。临时资源释放及地图cache恢复在尾wait6之前；随后fadeout/清VGA/11cac(1)/停止源声/fadein。15055的2189a、200ms、渐白及远端focus/phase循环在caller，20c6f效果只执行一次，不能替换成另一套FULL业务。",
+     "why": "F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。"
+    }
+   ],
+   "end_va": 189104,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -14272,6 +14683,12 @@
      "was": "未登记水色DAC更新，可能把FDOTHER初始bank当运行中cycle0",
      "now": "unsigned低16位差>=2才先递增phase，16回0；固定RGB6滑窗只写DAC224..239，结束重读last，一次调用不追赶。状态60000/60002属于app视觉owner，Load不重置；F1本体暂停，尾普通重绘恢复一次。",
      "why": "原始4e323/4e32e/4e330/4e359/4e373及全部fixup引用。严格LE canonical60003有效93字节，后45恰重复首15个RGB，16个滑窗与C循环表一致；FDOTHER初始各分量少1，不能冒记cycle0。当前接普通等待、总览稳定及步态；剧情/通用对话/timed wait未全覆盖。"
+    },
+    {
+     "target": "evidence",
+     "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+     "now": "低WORD unsigned差>=2才单步推进水色，完成16色DAC写后4e373再次4e310取锚，不复用比较值或追赶。",
+     "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。"
     }
    ],
    "end_va": 320385,
@@ -14308,6 +14725,12 @@
      "was": "vsync_wait（等待垂直同步）",
      "now": "bios_keyboard_buffer_clear",
      "why": "原15字节 56 be1a040000 66 8b06 66 894602 5e c3 将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "135dd/1366a的4e381沿旧vsync名解释为呈现等待",
+     "now": "bios_keyboard_buffer_clear只将BDA head复制至tail；12cea、135dd、1366a的各明确clear时点必须保留，不能用等待代替，也不能把普通四方向13460等待变成清键。",
+     "why": "既有完整15B本体和source09的12cea/135dd/1366a/13185 caller交叉；按键队列、held/typematic与HOST为不同owner合同，当前命名更正不等于跨端全部输入资格。"
     }
    ],
    "end_va": 320400,
@@ -14747,6 +15170,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 218
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "loader初态7a18，按计时器低8位每战场推进",
+     "now": "原文件与真实CRT后共享RNG WORD=0，Watcom rand DWORD=1；main25d90首次rand返回16838，内部状态41c67ea6，%256=198，25da7推进198次后共享WORD=5885。25d83的BIOS低WORD只初始化视觉clock，不seed rand；Game/Load不重建App流。",
+     "why": "F1 startup-native02的CRT后/25d83/25db1原版RAM及startup-original-cpu五BIOS向量；原CPU报告SHA0794806103d24778492609290966f3439376fc1c6141700aa3af40b66c19cf37，原运行报告SHA56dd479b8e77dfb4c6d91264d109814485bc41904f5827e57494730dbc55b8cb；F2 bootstrap逐项比较198次调用前状态与末态。5885是推进后的值，不是原初值，不将启动资格扩为标题后全部caller或严格绝对时序。"
     }
    ],
    "end_va": 322559,

@@ -1,4 +1,7 @@
+/* VGA投影／调色及bios_tick_delay @0x17aa9（原FUN_000151f1）、
+ * field_movement_tick_edge_wait @0x13460（原sub_13460）的共享等待边界。 */
 #include "vga.h"
+#include "bios_clock.h"
 #include <string.h>
 
 /* 6-bit VGA -> 8-bit 扩展: (v << 2) | (v >> 4)
@@ -200,8 +203,7 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
 
 void fd2_delay_ms(uint32_t ms) {
     /* 复现 thunk_FUN_0003b765 @0x3e01d: delay_ms(N)。DOS 原版忙等待；
-     * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键不在
-     * delay 中排队；随后交互读取只采样届时仍按下的物理键。 */
+     * SDL 版分成至多 8 ms 的片段并持续检查宿主退出。普通按键由统一BIOS FIFO owner排队；delay不消费这些键。 */
     if (ms == 0) {
         fd2_input_poll_host_events(NULL);
         return;
@@ -210,9 +212,31 @@ void fd2_delay_ms(uint32_t ms) {
 }
 
 void fd2_wait_ticks(uint32_t ticks) {
-    /* 复现 FUN_000151f1 @0x17aa9: wait_ticks(N)
-     * 等待 N 个 BIOS tick (18.2Hz, 1 tick ≈ 54.9ms)。 */
-    fd2_delay_ms(ticks * 55);
+    /* bios_tick_delay @0x17aa9（原FUN_000151f1）：低WORD符号扩展后
+     * 相减，负差加65536；等待绝对tick边界，而不是N*55ms。
+     * 正常caller目标0..65535。宿主退出不消费普通FIFO键。 */
+    uint16_t started=fd2_bios_tick_low_ns(SDL_GetTicksNS());
+    for (;;) {
+        fd2_input_poll_host_events(NULL);
+        if(fd2_input_host_quit_requested())break;
+        uint64_t now=SDL_GetTicksNS();
+        if(fd2_vga_bios_tick_elapsed(started,fd2_bios_tick_low_ns(now)) >= (int64_t)ticks)break;
+        fd2_delay_until(fd2_bios_clock_deadline_ns(now,1));
+    }
+}
+
+int fd2_vga_wait_movement_tick(fd2_vga *vga) {
+    if(!vga)return -1;
+    for(;;) {
+        fd2_input_poll_host_events(NULL);
+        if(fd2_input_take_quit(&vga->input))return 1;
+        uint64_t now=SDL_GetTicksNS();
+        if(fd2_bios_tick_signed_ns(now)!=vga->movement_tick)break;
+        fd2_delay_until(fd2_bios_clock_deadline_ns(now,1));
+    }
+    /* 1347a..13482在判断通过后重读；不是保存此前比较值。 */
+    vga->movement_tick=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+    return 0;
 }
 
 int fd2_input_check(fd2_vga *vga) {

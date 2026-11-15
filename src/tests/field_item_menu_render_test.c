@@ -95,8 +95,8 @@ static int test_tick_animation_entry_and_nonmenu_isolation(void) {
     fixture f;
     init(&f);
     fd2_vga vga = {0}; /* 无窗口／renderer；present函数只走空owner。 */
-    fd2_field_game_tick(&f.game, 1);
-    fd2_field_game_tick(&f.game, 221);
+    fd2_field_game_tick(&f.game,(1)*UINT64_C(1000000));
+    fd2_field_game_tick(&f.game,(221)*UINT64_C(1000000));
     CHECK(f.game.command_highlight_phase == 1 && f.game.last_command_highlight_ms == 221);
     fd2_field_units before = f.game.units;
     CHECK(fd2_field_game_animate_command(&f.game, &vga, 1, 0) == 0);

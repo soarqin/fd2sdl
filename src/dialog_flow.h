@@ -26,9 +26,9 @@ int fd2_dialog_visual_glyph_step(fd2_dialog_visual_state *state,
 
 typedef uint32_t (*fd2_dialog_random_fn)(void *userdata);
 /* 16c57局部等待状态，不跨wait保存，不是另一个App mouth owner。
- * BIOS两tick采用现宿主110ms近似，逾时一次只推进一次，不追赶。 */
+ * BIOS低WORD有符号差>=2时推进一次，不追赶；回退不另推进。 */
 typedef struct {
-    uint64_t last_ms;
+    int32_t last_tick;
     uint32_t countdown;
     uint8_t blink_closed, arrow_frame, arrow_ticks, arrow_mode;
 } fd2_dialog_wait_state;
@@ -36,10 +36,13 @@ typedef struct {
     int portrait; /* -1不画，0睁眼，3闭眼；不写共享mouth DWORD。 */
     int arrow;    /* -1不画，否则18/19。 */
 } fd2_dialog_wait_visual;
-int fd2_dialog_wait_begin(fd2_dialog_wait_state *state, uint64_t now_ms,
+int fd2_dialog_wait_begin(fd2_dialog_wait_state *state, uint64_t now_ns,
     int arrow_mode, fd2_dialog_random_fn rng, void *userdata);
-int fd2_dialog_wait_update(fd2_dialog_wait_state *state, uint64_t now_ms,
-    fd2_dialog_random_fn rng, void *userdata, fd2_dialog_wait_visual *visual);
+/* 空等轮先water再采now_ns；本叶只推进局部计数并给绘制请求。
+ * 返回1后caller依次画arrow/portrait；portrait==0才取RNG%30+2，最后重新
+ * 读取BIOS写last_tick。不得把water/绘制/RNG前后的读点合并为一时刻。 */
+int fd2_dialog_wait_step(fd2_dialog_wait_state *state, uint64_t now_ns,
+    fd2_dialog_wait_visual *visual);
 /* dialog_text_scroll_up @0x16e24：仅原portrait origin1832/36887有写。
  * 208×72按5次3px+1次4px上卷，底一行填74；其余origin成功no-op。
  * 仅CPU复制，无present/wait/RNG/input；有效origin要求完整64000B显示页。 */

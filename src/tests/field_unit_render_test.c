@@ -5,10 +5,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
 #include "field_attack.h"
+#include "field_ai.h"
 #include "field_unit.h"
 #include "field_game.h"
+#include "field_background.h"
 #include "field_unit_base.h"
+#include "bios_clock.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -432,6 +437,121 @@ static uint32_t return_rng(void *userdata) {
     return ++*calls;
 }
 
+typedef struct {
+    fd2_field_game *game;
+    fd2_vga *vga;
+    SDL_AtomicInt stop,done;
+    int fired,failed;
+} movement_host_probe;
+
+/* Game只在主线程读取；worker仅把有限观察排入真实SDL事件泵，不开窗口。 */
+static void SDLCALL movement_host_on_main(void *userdata) {
+    movement_host_probe *probe=userdata;
+    if(SDL_GetAtomicInt(&probe->stop))return;
+    const fd2_field_unit *actor=&probe->game->units.items[0];
+    if(actor->x==12u && actor->y==4u && actor->frame_phase==2u) {
+        probe->vga->input.quit_requested=1;probe->fired++;
+        SDL_SetAtomicInt(&probe->stop,1);
+    }
+}
+static int SDLCALL movement_host_worker(void *userdata) {
+    movement_host_probe *probe=userdata;
+    uint64_t until=SDL_GetTicks()+3000u;
+    while(!SDL_GetAtomicInt(&probe->stop) && SDL_GetTicks()<until) {
+        if(!SDL_RunOnMainThread(movement_host_on_main,probe,true)){probe->failed=1;break;}
+        SDL_Delay(1);
+    }
+    SDL_SetAtomicInt(&probe->done,1);return 0;
+}
+
+/* 真实Game→present→13460等待；首格已提交，次格相位2才送HOST。
+ * 同时覆盖AI两种借用路径及March，纯像素/事件进程，不代WGC原版对照。 */
+static int test_movement_host_prefix(void) {
+    CHECK(SDL_Init(SDL_INIT_EVENTS));
+    for(unsigned kind=0;kind<4u;kind++) {
+        fd2_input_install_interrupt_handlers();
+        fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
+        CHECK(game && vga);
+        uint32_t cells[256]={0};fd2_image images[4];fd2_terrain_attr attrs[4];uint8_t pixels[4][576];
+        init_overlay(game,cells,images,attrs,pixels);
+        game->map.width=game->map.height=16;game->turn_number=17;
+        game->selected_unit=game->command_selected=game->attack_target=game->detail_unit=-1;
+        game->interaction=FD2_FIELD_INTERACTION_BROWSE;
+        memset(game->metadata.turn_events,0xff,sizeof(game->metadata.turn_events));
+        memset(game->metadata.cell_lookup,0xff,sizeof(game->metadata.cell_lookup));
+        cells[4u*16u+12u]=1u<<16;
+        game->metadata.cell_lookup[0]=(fd2_field_cell_lookup){9,0};
+        CHECK(fd2_field_units_set(&game->units,0,0,0,kind==1u || kind==2u?0:2,11,4)==0);
+        CHECK(fd2_field_units_set(&game->units,1,1,1,2,kind==1u?14:1,kind==1u?4:1)==0);
+        for(size_t i=0;i<2u;i++) {
+            fd2_field_unit *unit=&game->units.items[i];
+            unit->hp=unit->hp_max=50;unit->attack=200;unit->defense=1;unit->accuracy=100;
+            unit->movement_profile=1;unit->movement_points=3;unit->level=1;
+            ((uint8_t *)unit)[0x31]=255;
+        }
+        ((uint8_t *)&game->units.items[0])[0x0a]=0x40;
+        game->active_side=kind==1u || kind==2u?0:2;
+        game->phase_ai_pass=1;
+        game->cursor_cell_x=13;game->cursor_cell_y=4;
+        unsigned calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&calls;
+        fd2_input_init(&vga->input);vga->info_panel_suppressed=1;
+        game->visual_owner=&vga->field_visual;
+        uint8_t *owned_path=malloc(4);CHECK(owned_path);memset(owned_path,3,4);
+        game->move_path=owned_path;game->move_path_capacity=4;game->move_path_length=3;
+        fd2_field_unit other=game->units.items[1];
+        movement_host_probe probe={.game=game,.vga=vga};SDL_Thread *thread=NULL;
+        if(kind==0u || kind==3u) {
+            thread=SDL_CreateThread(movement_host_worker,"movement-host",&probe);CHECK(thread);
+        } else vga->input.quit_requested=1;
+        int result;
+        if(kind==0u) {
+            game->selected_unit=0;game->move_path_length=2;game->move_preview_valid=1;
+            game->interaction=FD2_FIELD_INTERACTION_MOVING;
+            result=fd2_field_game_execute_move(game,vga,55);
+        } else if(kind==1u) {
+            game->stage=UINT8_MAX;
+            fd2_field_path_result range=FD2_FIELD_PATH_RESULT_INITIALIZER;
+            fd2_field_ai_physical_candidate plan;
+            CHECK(fd2_field_game_compute_move_range(game,0,&range)==0);
+            CHECK(fd2_field_ai_choose_physical_candidate(&game->map,&game->terrain,&game->units,0,0,&range,&plan)==0);
+            fd2_field_path_close(&range);CHECK(plan.priority>=6 && plan.destination_x!=11);
+            result=fd2_field_game_commit_ai_physical(game,0,0,&plan,vga,55);
+        } else if(kind==2u) {
+            game->stage=UINT8_MAX;game->units.items[0].ai_behavior_raw=7;
+            game->units.items[0].ai_param_35=13;game->units.items[0].ai_param_36=4;
+            result=fd2_field_game_process_automatic_action_visual(game,vga,55,0);
+        } else result=fd2_field_game_march(game,vga,55);
+        if(thread) {
+            SDL_SetAtomicInt(&probe.stop,1);
+            while(!SDL_GetAtomicInt(&probe.done)){SDL_PumpEvents();SDL_Delay(1);}
+            SDL_WaitThread(thread,NULL);
+        }
+        CHECK(result==(kind==1u?0:1) && game->runtime_host_quit && game->failure==FD2_FIELD_FAILURE_NONE);
+        CHECK(!calls && !memcmp(&other,&game->units.items[1],sizeof(other)));
+        CHECK(game->selected_unit==0 && game->interaction==FD2_FIELD_INTERACTION_MOVING &&
+            game->units.items[0].direction==3 && !fd2_field_unit_has_acted(&game->units.items[0]));
+        CHECK(game->turn_number==17u && game->active_side==(kind==1u || kind==2u?0:2) &&
+            game->turn_post_caller==FD2_FIELD_TURN_POST_NONE && !game->event_log_count &&
+            !game->event_resume.active && game->progress.resume==FD2_FIELD_PROGRESS_RESUME_NONE && !game->loot.source);
+        CHECK(game->move_path==owned_path && game->move_path_capacity==4 &&
+            game->move_path_length==(kind==0u?2u:3u) && game->move_preview_valid==(kind==0u));
+        if(thread) {
+            CHECK(probe.fired==1 && !probe.failed && game->units.items[0].x==12u &&
+                game->units.items[0].y==4u && game->units.items[0].frame_phase==2u && game->units.walk_frames[0]==2u);
+            CHECK(game->camera_cell_x==1 && game->camera_pixel_offset_x==8 &&
+                game->cursor_cell_x==12 && game->cursor_cell_y==4 &&
+                game->pending_cell_event.valid && game->pending_cell_event.action==9 &&
+                game->pending_cell_event.source_slot==0);
+        } else CHECK(game->units.items[0].x==11u && game->units.items[0].frame_phase==1u && !game->pending_cell_event.valid);
+        if(kind==2u)CHECK(!game->ordinary_display_mode && game->phase_unit_cursor==1u);
+        game->failure=FD2_FIELD_FAILURE_EVENT_DATA;
+        fd2_field_game before=*game;
+        CHECK(fd2_field_game_execute_move(game,vga,55)==-1 && !memcmp(game,&before,sizeof(before)));
+        free(owned_path);free(vga);free(game);
+    }
+    fd2_input_install_interrupt_handlers();SDL_QuitSubSystem(SDL_INIT_EVENTS);return 0;
+}
+
 static int test_battle_return_plain_cursor_and_invalid(void) {
     fd2_field_game game;
     uint32_t cells[25]; fd2_image images[4]; fd2_terrain_attr attrs[4];
@@ -721,7 +841,7 @@ static int test_visual_phase_projection_during_blocking_animation(void) {
     memcpy(cells,g->map.cells,map_bytes);
     for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
         *before=*g;
-        CHECK(fd2_field_game_tick_visual(g,cases[i].now)==0);
+        CHECK(fd2_field_game_tick_visual(g,(cases[i].now)*UINT64_C(1000000))==0);
         CHECK(g->idle_phase==cases[i].idle && g->terrain_visual_phase==cases[i].terrain);
         CHECK(g->last_idle_ms==cases[i].last_idle && g->last_terrain_visual_ms==cases[i].last_terrain);
         CHECK(unchanged_except_visual(g,before) && !calls && !memcmp(cells,g->map.cells,map_bytes));
@@ -744,10 +864,10 @@ static int test_visual_phase_projection_during_blocking_animation(void) {
         free(panel);
     }
     *before=*g;g->failure=FD2_FIELD_FAILURE_EVENT_DATA;before->failure=g->failure;
-    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,before,sizeof(*g)) && !calls);
+    CHECK(fd2_field_game_tick_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,before,sizeof(*g)) && !calls);
     g->failure=FD2_FIELD_FAILURE_NONE;g->ready=0;*before=*g;
-    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,before,sizeof(*g)));
-    CHECK(fd2_field_game_tick_visual(NULL,10000)==-1);
+    CHECK(fd2_field_game_tick_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,before,sizeof(*g)));
+    CHECK(fd2_field_game_tick_visual(NULL,(10000)*UINT64_C(1000000))==-1);
     free(cells);free(before);free(pages);fd2_field_game_close(g);free(g);fd2_archive_close(&fdother);return 0;
 }
 
@@ -755,15 +875,15 @@ static int test_visual_phase_projection_during_blocking_animation(void) {
 static int test_normal_tick_single_visual_advance(void) {
     fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g);
     g->ready=1;g->active_side=2;
-    fd2_field_game_tick(g,0);
+    fd2_field_game_tick(g,(0)*UINT64_C(1000000));
     CHECK(g->idle_phase==0 && g->last_idle_ms==0);
-    fd2_field_game_tick(g,1000);
+    fd2_field_game_tick(g,(1000)*UINT64_C(1000000));
     CHECK(g->idle_phase==0 && g->last_idle_ms==1000);
-    fd2_field_game_tick(g,4000);
+    fd2_field_game_tick(g,(4000)*UINT64_C(1000000));
     CHECK(g->idle_phase==1 && g->last_idle_ms==4000);
-    fd2_field_game_tick(g,4200);
+    fd2_field_game_tick(g,(4200)*UINT64_C(1000000));
     CHECK(g->idle_phase==1 && g->last_idle_ms==4000);
-    fd2_field_game_tick(g,4475);
+    fd2_field_game_tick(g,(4475)*UINT64_C(1000000));
     CHECK(g->idle_phase==2 && g->last_idle_ms==4475);
     free(g);return 0;
 }
@@ -789,7 +909,7 @@ static int test_terrain_only_visual_clock(void) {
     for(size_t i=0;i<sizeof(only)/sizeof(only[0]);i++) {
         *expected=*g;expected->terrain_visual_phase=only[i].phase;
         expected->last_terrain_visual_ms=only[i].last;
-        CHECK(fd2_field_game_tick_terrain_visual(g,only[i].now)==0);
+        CHECK(fd2_field_game_tick_terrain_visual(g,(only[i].now)*UINT64_C(1000000))==0);
         CHECK(!memcmp(g,expected,sizeof(*g)) && cell==0x12345678u && !calls);
     }
     g->idle_phase=2;g->last_idle_ms=1000;
@@ -803,19 +923,19 @@ static int test_terrain_only_visual_clock(void) {
         *terrain=*g;*expected=*g;
         expected->terrain_visual_phase=combined[i].phase;
         expected->last_terrain_visual_ms=combined[i].terrain_last;
-        CHECK(fd2_field_game_tick_terrain_visual(terrain,combined[i].now)==0);
+        CHECK(fd2_field_game_tick_terrain_visual(terrain,(combined[i].now)*UINT64_C(1000000))==0);
         CHECK(!memcmp(terrain,expected,sizeof(*terrain)));
         expected->idle_phase=combined[i].idle;expected->last_idle_ms=combined[i].idle_last;
-        CHECK(fd2_field_game_tick_visual(g,combined[i].now)==0);
+        CHECK(fd2_field_game_tick_visual(g,(combined[i].now)*UINT64_C(1000000))==0);
         CHECK(!memcmp(g,expected,sizeof(*g)) && cell==0x12345678u && !calls);
     }
     g->ready=0;*expected=*g;
-    CHECK(fd2_field_game_tick_terrain_visual(g,10000)==-1 && !memcmp(g,expected,sizeof(*g)));
-    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,expected,sizeof(*g)));
+    CHECK(fd2_field_game_tick_terrain_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,expected,sizeof(*g)));
+    CHECK(fd2_field_game_tick_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,expected,sizeof(*g)));
     g->ready=1;g->failure=FD2_FIELD_FAILURE_ACTION;*expected=*g;
-    CHECK(fd2_field_game_tick_terrain_visual(g,10000)==-1 && !memcmp(g,expected,sizeof(*g)));
-    CHECK(fd2_field_game_tick_visual(g,10000)==-1 && !memcmp(g,expected,sizeof(*g)));
-    CHECK(fd2_field_game_tick_terrain_visual(NULL,10000)==-1 && !calls);
+    CHECK(fd2_field_game_tick_terrain_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,expected,sizeof(*g)));
+    CHECK(fd2_field_game_tick_visual(g,(10000)*UINT64_C(1000000))==-1 && !memcmp(g,expected,sizeof(*g)));
+    CHECK(fd2_field_game_tick_terrain_visual(NULL,(10000)*UINT64_C(1000000))==-1 && !calls);
     free(terrain);free(expected);free(g);return 0;
 }
 
@@ -1012,6 +1132,12 @@ static int effect_page_read(const fd2_field_page *page,uint8_t *pixels) {
 /* field_view_refresh @0x11cac：1297d先写actor/cursor，原实参0才调4e31c，
  * 随后11eee推进terrain/range，127e0才推进raw26。使用真实水色非法域，
  * 锁住错误前缀而不是只比较最终相位；不注入图形/时钟替身。 */
+static int tick_in_read_span(uint32_t bits,uint16_t first,uint16_t last) {
+    uint16_t low=(uint16_t)bits;
+    uint32_t signed_bits=low<0x8000u?low:(uint32_t)((int32_t)low-65536);
+    return bits==signed_bits && (uint16_t)(low-first)<=(uint16_t)(last-first);
+}
+
 static int test_runtime_refresh_original_clock_order(void) {
     fd2_archive other={0};
     fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
@@ -1036,7 +1162,7 @@ static int test_runtime_refresh_original_clock_order(void) {
     vga->actor_jitter_phase=1;vga->actor_jitter_tick=123;
     vga->field_water_phase=255;vga->field_water_last_tick=321;
     game->idle_phase=2;game->terrain_visual_phase=1;game->range_visual_phase=7;
-    game->visual_now_ms=456;
+    game->visual_now_ns=456;
     *before=*game;*vga_before=*vga;
     CHECK(effect_page_read(vga->field_page,page_before)==0);
     CHECK(fd2_field_game_runtime_refresh(game,vga,0)==-1);
@@ -1044,12 +1170,19 @@ static int test_runtime_refresh_original_clock_order(void) {
         vga->field_visual.actor_idle_tick!=0x12345678u && game->idle_phase==3);
     CHECK(vga->field_visual.terrain_phase==1 && vga->field_visual.terrain_tick==0x12345678u &&
         vga->field_visual.range_phase==7 && vga->field_visual.range_tick==0x12345678u &&
-        game->terrain_visual_phase==1 && game->range_visual_phase==7 && game->visual_now_ms==456);
+        game->terrain_visual_phase==1 && game->range_visual_phase==7 && game->visual_now_ns==456);
     before->idle_phase=3;
     vga_before->field_visual.actor_idle_phase=3;vga_before->field_visual.cursor_phase=0;
     vga_before->field_visual.actor_idle_tick=vga->field_visual.actor_idle_tick;
     CHECK(!memcmp(before,game,sizeof(*game)) && !memcmp(vga_before,vga,sizeof(*vga)) && !calls);
     CHECK(effect_page_read(vga->field_page,page_after)==0 && !memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
+
+    /* 后段range错误不执行尚未到达的VGA清边与Game panel投影。 */
+    vga->field_water_phase=0;vga->field_visual.range_phase=20;
+    game->info_panel_right=0;vga->info_panel_right=1;
+    CHECK(fd2_field_game_runtime_refresh(game,vga,0)==-1);
+    CHECK(game->info_panel_right==0 && vga->info_panel_right==1);
+    for(size_t p=0;p<sizeof(vga->framebuffer);p++)CHECK(vga->framebuffer[p]==0x7b);
 
     const int modes[]={0,3};
     for(size_t i=0;i<sizeof(modes)/sizeof(modes[0]);i++) {
@@ -1057,20 +1190,23 @@ static int test_runtime_refresh_original_clock_order(void) {
         vga->field_visual.actor_idle_tick=0x12345678u;
         vga->field_visual.terrain_phase=1;vga->field_visual.terrain_tick=0x12345678u;
         vga->field_visual.range_phase=7;vga->field_visual.range_tick=0x12345678u;
-        uint16_t old_tick=(uint16_t)(SDL_GetTicks()/55u-10u);
+        uint16_t old_tick=(uint16_t)(fd2_bios_tick_low_ns(SDL_GetTicksNS())-10u);
         vga->actor_jitter_phase=1;vga->actor_jitter_tick=old_tick;
         vga->field_water_phase=6;vga->field_water_last_tick=old_tick;
         uint8_t water_dac[48];memcpy(water_dac,vga->dac+224u*3u,sizeof(water_dac));
+        uint16_t first=fd2_bios_tick_low_ns(SDL_GetTicksNS());
         CHECK(fd2_field_game_runtime_refresh(game,vga,modes[i])==0);
-        uint16_t tick=(uint16_t)(game->visual_now_ms/55u);
-        uint32_t signed_tick=tick<0x8000u ? tick:(uint32_t)((int32_t)tick-0x10000);
+        uint16_t last=fd2_bios_tick_low_ns(SDL_GetTicksNS());
+        /* 真时钟可能跨tick；不得再用过期visual_now_ns强令所有读点同值。 */
         CHECK(vga->field_visual.actor_idle_phase==3 && vga->field_visual.cursor_phase==0 &&
-            vga->field_visual.actor_idle_tick==signed_tick && game->idle_phase==3);
-        CHECK(vga->field_visual.terrain_phase==0 && vga->field_visual.terrain_tick==signed_tick &&
-            vga->field_visual.range_phase==8 && vga->field_visual.range_tick==signed_tick &&
+            tick_in_read_span(vga->field_visual.actor_idle_tick,first,last) && game->idle_phase==3);
+        CHECK(vga->field_visual.terrain_phase==0 && tick_in_read_span(vga->field_visual.terrain_tick,first,last) &&
+            vga->field_visual.range_phase==8 && tick_in_read_span(vga->field_visual.range_tick,first,last) &&
             game->terrain_visual_phase==0 && game->range_visual_phase==8);
-        CHECK(vga->actor_jitter_phase==0 && vga->actor_jitter_tick==tick && !calls);
-        if(modes[i]==0)CHECK(vga->field_water_phase==7 && vga->field_water_last_tick==tick);
+        CHECK(vga->actor_jitter_phase==0 &&
+            (uint16_t)(vga->actor_jitter_tick-first)<=(uint16_t)(last-first) && !calls);
+        if(modes[i]==0)CHECK(vga->field_water_phase==7 &&
+            (uint16_t)(vga->field_water_last_tick-first)<=(uint16_t)(last-first));
         else CHECK(vga->field_water_phase==6 && vga->field_water_last_tick==old_tick &&
             !memcmp(water_dac,vga->dac+224u*3u,sizeof(water_dac)));
     }
@@ -1104,7 +1240,7 @@ static int test_app_page_effect_owners(void) {
     CHECK(fd2_field_game_bind_visual(game,vga)==0);
     /* 11cbc原JNZ：只有arg0调用4e31c。宿主已过水色门也不能把
      * 10010的arg1（mode3）或纯11eee/127a9重画误作推进。 */
-    uint16_t water_before=(uint16_t)(SDL_GetTicks()/55u-10u);
+    uint16_t water_before=(uint16_t)(SDL_GetTicksNS()*1193182u/UINT64_C(65536000000000)-10u);
     vga->field_water_last_tick=water_before;vga->field_water_phase=6;
     uint8_t water_dac[48];memcpy(water_dac,vga->dac+224u*3u,sizeof(water_dac));
     const int no_water_modes[]={3,1,2};
@@ -1188,6 +1324,10 @@ static int test_app_page_effect_owners(void) {
     CHECK(fd2_field_game_play_stage_transition(game,vga,NULL,84,88,10,8,0)==0);
     CHECK(!memcmp(&game->units,&before->units,sizeof(game->units)) && !calls);
     fd2_field_page *base=fd2_field_page_create();CHECK(base);
+    game->failure=FD2_FIELD_FAILURE_ACTION;*before=*game;*vga_before=*vga;
+    CHECK(fd2_field_game_effect_terrain_begin(game,vga,base)==-1 &&
+        !memcmp(game,before,sizeof(*game)) && !memcmp(vga,vga_before,sizeof(*vga)));
+    game->failure=FD2_FIELD_FAILURE_NONE;
     projection=calloc(1,sizeof(*projection));CHECK(projection);
     projection->field_page=fd2_field_page_create();CHECK(projection->field_page);
     projection->field_visual=vga->field_visual;
@@ -1440,7 +1580,354 @@ static int test_raw26_shared_phase_projection(void) {
     CHECK(!memcmp(&unit,&saved,sizeof(unit)));return 0;
 }
 
+/* 17898/179d5的独立组合：真实资源叶按源顺序造工作页，核菜单无122dc、
+ * 图标与focus重画确实回同一page。phase借最终owner；多次读钟由live专测核。 */
+static int test_runtime_menu_page_composition(void) {
+    fd2_archive other={0};
+    fd2_field_game *game=calloc(1,sizeof(*game));
+    fd2_vga *vga=calloc(1,sizeof(*vga)),*expected=calloc(1,sizeof(*expected));
+    uint8_t *actual_pixels=malloc(FD2_FIELD_PAGE_SIZE),*expected_pixels=malloc(FD2_FIELD_PAGE_SIZE);
+    CHECK(game && vga && expected && actual_pixels && expected_pixels);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open_resources(game,&other,0)==0);
+    CHECK(fd2_field_units_set(&game->units,0,0,0,2,3,3)==0);
+    game->units.items[0].hp=game->units.items[0].hp_max=31;
+    game->active_side=2;game->selected_unit=0;game->cursor_cell_x=game->cursor_cell_y=3;
+    game->command_selected=2;game->command_animation_phase=0;game->command_animation_opening=0;
+    game->ordinary_display_mode=1;game->option_values[3]=0;
+    unsigned rng_calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&rng_calls;
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
+    fd2_field_page *oracle=fd2_field_page_create();CHECK(oracle);
+    const uint8_t ids[3][4]={{0,1,2,3},{8,9,10,11},{7,5,6,4}};
+    for(unsigned kind=0;kind<4;kind++) {
+        memset(expected_pixels,0x5d,FD2_FIELD_PAGE_SIZE);
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,expected_pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+        CHECK(fd2_field_page_copy_pixels(oracle,vga->field_page)==0);
+        memset(vga->framebuffer,0,sizeof(vga->framebuffer));
+        memset(expected->framebuffer,0,sizeof(expected->framebuffer));
+        vga->field_water_phase=6;vga->field_water_last_tick=321;
+        uint8_t saved_dac[768];memcpy(saved_dac,vga->dac,sizeof(saved_dac));
+        game->interaction=kind==0?FD2_FIELD_INTERACTION_COMMAND:kind==1?
+            FD2_FIELD_INTERACTION_ITEM_MENU:kind==2?FD2_FIELD_INTERACTION_SYSTEM_MENU:FD2_FIELD_INTERACTION_BROWSE;
+        game->command_highlight_phase=1;game->system_menu.highlight_phase=1;
+        game->system_menu.selected=2;
+        if(kind==3)CHECK(fd2_field_game_runtime_overview_refresh(game,vga,0)==0);
+        else CHECK(fd2_field_game_runtime_menu_refresh(game,vga)==0);
+        CHECK(fd2_terrain_render_page_block(oracle,&game->terrain,&game->map,72,72,13,8,0,0,
+            game->terrain_visual_phase,game->idle_phase,NULL,NULL)==0);
+        CHECK(fd2_field_units_render_page(oracle,&game->sprites,&game->units,0,0,game->idle_phase,
+            (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase)==0);
+        CHECK(fd2_field_units_render_page_terrain_overlays(oracle,&game->terrain,&game->map,&game->units,
+            0,0,game->terrain_visual_phase,NULL,NULL)==0);
+        CHECK(fd2_field_page_project(oracle,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0);
+        if(kind<3) {
+            uint8_t disabled[4]={0};
+            fd2_field_command_draw_id_animation(expected,&game->command_assets,76,76,ids[kind],2,disabled,1,0,0);
+            CHECK(fd2_field_page_write(oracle,72,72,312,192,expected->framebuffer+1284,
+                sizeof(expected->framebuffer)-1284,320)==0);
+            CHECK(fd2_field_units_render_page_actor(oracle,&game->sprites,&game->units,0,0,0,game->idle_phase,
+                (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0)==0);
+        }
+        CHECK(effect_page_read(vga->field_page,actual_pixels)==0 && effect_page_read(oracle,expected_pixels)==0);
+        CHECK(!memcmp(actual_pixels,expected_pixels,FD2_FIELD_PAGE_SIZE));
+        CHECK(fd2_field_page_project(oracle,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0 &&
+            !memcmp(vga->framebuffer,expected->framebuffer,sizeof(vga->framebuffer)));
+        CHECK(vga->field_water_phase==6 && vga->field_water_last_tick==321 &&
+            !memcmp(saved_dac,vga->dac,sizeof(saved_dac)) && !rng_calls);
+    }
+    fd2_field_page_destroy(oracle);fd2_field_page_destroy(vga->field_page);
+    fd2_field_game_close(game);fd2_archive_close(&other);
+    free(actual_pixels);free(expected_pixels);free(expected);free(vga);free(game);
+    return 0;
+}
+
+/* 18b84 body的独立叶组合：真实资源，完整153216B页/64000B投影。
+ * 只借最终phase核绘序；逐读取钟另测，不签未接的首次ESI与后续比较门。 */
+static int summary_body_oracle(fd2_field_game *game,fd2_vga *vga,fd2_field_page *page,
+        fd2_vga *expected,int left,int failed_summary) {
+    CHECK(fd2_field_background_draw_from(vga->field_page,page,72,72,0,0,0,0,0,0)==0);
+    CHECK(fd2_terrain_render_page_block(page,&game->terrain,&game->map,72,72,13,8,0,0,
+        game->terrain_visual_phase,game->idle_phase,NULL,NULL)==0);
+    CHECK(fd2_field_page_project(page,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0);
+    /* 本组只用原mode0/1/7；7是122dc真实default，不强制普通cursor。 */
+    if(game->ordinary_display_mode==1) {
+        const fd2_image *cursor=fd2_field_cursor_frame(&game->visuals,0);CHECK(cursor);
+        fd2_map_sprite_blit(expected,cursor,game->cursor_cell_x*24+4,game->cursor_cell_y*24+4,0);
+    }
+    CHECK(fd2_field_page_write(page,72,72,312,192,expected->framebuffer+1284,
+        sizeof(expected->framebuffer)-1284,320)==0);
+    CHECK(fd2_field_units_render_page(page,&game->sprites,&game->units,0,0,game->idle_phase,
+        (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase)==0);
+    CHECK(fd2_field_units_render_page_terrain_overlays(page,&game->terrain,&game->map,&game->units,
+        0,0,game->terrain_visual_phase,NULL,NULL)==0);
+    if(!failed_summary) {
+        CHECK(fd2_field_page_project(page,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0);
+        int x=left?9:160;
+        CHECK(fd2_field_unit_summary_draw_at(expected,&game->info_assets,&game->font,&game->ui_text,
+            &game->units.items[0],x,9)==0);
+        CHECK(fd2_field_page_write(page,x+68,77,149,42,expected->framebuffer+9u*320u+(size_t)x,
+            sizeof(expected->framebuffer)-(9u*320u+(size_t)x),320)==0);
+        CHECK(fd2_field_game_render_page_info(game,expected,page,&game->units,0,0,
+            game->cursor_cell_x,game->cursor_cell_y,game->idle_phase)==0);
+    }
+    return 0;
+}
+
+static int test_runtime_summary_body(void) {
+    fd2_archive other={0};
+    fd2_field_game *game=calloc(1,sizeof(*game)),*before=malloc(sizeof(*before));
+    fd2_vga *vga=calloc(1,sizeof(*vga)),*expected=calloc(1,sizeof(*expected)),*old_vga=malloc(sizeof(*old_vga));
+    uint8_t *actual_pixels=malloc(FD2_FIELD_PAGE_SIZE),*expected_pixels=malloc(FD2_FIELD_PAGE_SIZE);
+    CHECK(game && before && vga && expected && old_vga && actual_pixels && expected_pixels);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    CHECK(fd2_field_game_open_resources(game,&other,0)==0);
+    CHECK(fd2_field_units_set(&game->units,0,0,0,2,6,6)==0 &&
+        fd2_field_units_set(&game->units,1,1,1,2,1,0)==0 &&
+        fd2_field_units_set(&game->units,2,2,2,2,8,0)==0);
+    for(size_t raw=0;raw<3;raw++) {
+        game->units.items[raw].hp=31;game->units.items[raw].hp_max=49;
+        game->units.items[raw].mp=11;game->units.items[raw].mp_max=19;
+    }
+    game->active_side=2;game->selected_unit=0;game->interaction=FD2_FIELD_INTERACTION_UNIT_SELECTED;
+    game->option_values[3]=1;game->system_result_fragment=7;game->system_result_until_ms=1;
+    unsigned rng_calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&rng_calls;
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
+    fd2_field_page *oracle=fd2_field_page_clone(vga->field_page);CHECK(oracle);
+    /* 第三项显式交付入口锁存的raw0/右板，而热selected/focus已不同；body
+     * 不得重选二者。这是参数生命周期性质，不称等待期间自然移动focus。 */
+    const int focus[]={6,7,7,0,0},left[]={0,1,0,0,0},display[]={1,0,1,7,1};
+    for(unsigned kind=0;kind<5;kind++) {
+        int failed=kind==4;
+        game->selected_unit=kind==2?1:0;
+        game->cursor_cell_x=focus[kind];game->cursor_cell_y=6;
+        game->units.items[0].x=(uint8_t)(kind==2?6:focus[kind]);
+        game->ordinary_display_mode=(uint8_t)display[kind];game->info_panel_right=0;
+        vga->info_panel_right=expected->info_panel_right=0;
+        vga->info_panel_suppressed=expected->info_panel_suppressed=0;
+        memset(expected_pixels,0x5d,FD2_FIELD_PAGE_SIZE);
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,expected_pixels,FD2_FIELD_PAGE_SIZE,456)==0 &&
+            fd2_field_page_copy_pixels(oracle,vga->field_page)==0);
+        memset(vga->framebuffer,0x77,sizeof(vga->framebuffer));
+        memset(expected->framebuffer,0,sizeof(expected->framebuffer));
+        memset(vga->palette,0x35,sizeof(vga->palette));memset(vga->dac,0x6b,sizeof(vga->dac));
+        vga->field_water_phase=9;vga->field_water_last_tick=123;
+        /* 离屏fixture只构造本地FIFO，不把稍后free的VGA注册为全局宿主owner。 */
+        memset(&vga->input,0,sizeof(vga->input));
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_A,1);
+        fd2_input_begin_test_frame(&vga->input,1000);CHECK(fd2_input_has_any_key(&vga->input));
+        if(failed)game->info_assets.unit_summary.width=148;
+        *before=*game;*old_vga=*vga;
+        CHECK(fd2_field_game_runtime_summary_refresh(game,vga,0,left[kind])==(failed?-1:0));
+        CHECK(summary_body_oracle(game,vga,oracle,expected,left[kind],failed)==0);
+        CHECK(effect_page_read(vga->field_page,actual_pixels)==0 && effect_page_read(oracle,expected_pixels)==0 &&
+            !memcmp(actual_pixels,expected_pixels,FD2_FIELD_PAGE_SIZE));
+        if(failed) {
+            CHECK(!memcmp(vga->framebuffer,old_vga->framebuffer,sizeof(vga->framebuffer)) &&
+                vga->info_panel_right==0 && game->info_panel_right==0);
+            int changed=0;
+            for(size_t p=0;p<FD2_FIELD_PAGE_SIZE;p++)if(actual_pixels[p]!=0x5d){changed=1;break;}
+            CHECK(changed); /* 页保留实际tile/actor前缀，未回滚为初始哨兵。 */
+        } else {
+            CHECK(fd2_field_page_project(oracle,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0 &&
+                !memcmp(vga->framebuffer,expected->framebuffer,sizeof(vga->framebuffer)) &&
+                vga->info_panel_right==expected->info_panel_right && game->info_panel_right==vga->info_panel_right);
+            before->info_panel_right=game->info_panel_right;
+        }
+        before->idle_phase=game->idle_phase;before->terrain_visual_phase=game->terrain_visual_phase;
+        before->range_visual_phase=game->range_visual_phase;
+        CHECK(!memcmp(before,game,sizeof(*game)) && !rng_calls &&
+            !memcmp(&vga->input,&old_vga->input,sizeof(vga->input)) &&
+            !memcmp(vga->palette,old_vga->palette,sizeof(vga->palette)) &&
+            !memcmp(vga->dac,old_vga->dac,sizeof(vga->dac)) &&
+            vga->field_water_phase==9 && vga->field_water_last_tick==123);
+        if(failed)game->info_assets.unit_summary.width=149;
+    }
+    /* 坏raw/板侧在首个clock/page写入之前拒绝。 */
+    for(int invalid=0;invalid<2;invalid++) {
+        *before=*game;*old_vga=*vga;CHECK(effect_page_read(vga->field_page,expected_pixels)==0);
+        CHECK(fd2_field_game_runtime_summary_refresh(game,vga,invalid?0:game->units.count,invalid?2:0)==-1);
+        CHECK(!memcmp(before,game,sizeof(*game)) && !memcmp(old_vga,vga,sizeof(*vga)) &&
+            effect_page_read(vga->field_page,actual_pixels)==0 &&
+            !memcmp(actual_pixels,expected_pixels,FD2_FIELD_PAGE_SIZE) && !rng_calls);
+    }
+    fd2_field_page_destroy(oracle);fd2_field_page_destroy(vga->field_page);
+    fd2_field_game_close(game);fd2_archive_close(&other);
+    free(actual_pixels);free(expected_pixels);free(old_vga);free(expected);free(vga);free(before);free(game);
+    return 0;
+}
+
+static int menu_base_oracle(fd2_field_game *game,fd2_vga *vga,fd2_field_page *page,fd2_vga *expected) {
+    CHECK(fd2_field_background_draw_from(vga->field_page,page,72,72,0,0,0,0,0,0)==0);
+    CHECK(fd2_terrain_render_page_block(page,&game->terrain,&game->map,72,72,13,8,0,0,
+        game->terrain_visual_phase,game->idle_phase,NULL,NULL)==0);
+    CHECK(fd2_field_units_render_page(page,&game->sprites,&game->units,0,0,game->idle_phase,
+        (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase)==0);
+    CHECK(fd2_field_units_render_page_terrain_overlays(page,&game->terrain,&game->map,&game->units,
+        0,0,game->terrain_visual_phase,NULL,NULL)==0);
+    CHECK(fd2_field_game_render_page_info(game,expected,page,&game->units,0,0,
+        game->cursor_cell_x,game->cursor_cell_y,game->idle_phase)==0);
+    return 0;
+}
+
+static int menu_phase_oracle(fd2_field_game *game,fd2_vga *vga,fd2_field_page *page,
+        fd2_vga *expected,const uint8_t saved[72*72],const uint8_t ids[4],
+        const uint8_t disabled[4],int opening,int phase,int actor) {
+    int x=48+game->cursor_cell_x*24,y=48+game->cursor_cell_y*24;
+    CHECK(fd2_field_page_write(page,x,y,72,72,saved,72*72,72)==0);
+    fd2_vga *icons=calloc(1,sizeof(*icons));CHECK(icons);
+    CHECK(fd2_field_page_read(page,x,y,72,72,icons->framebuffer,sizeof(icons->framebuffer),320)==0);
+    fd2_field_command_draw_id_animation(icons,&game->command_assets,24,24,ids,-1,disabled,0,opening,(uint8_t)phase);
+    CHECK(fd2_field_page_write(page,x,y,72,72,icons->framebuffer,sizeof(icons->framebuffer),320)==0);
+    free(icons);
+    if(actor>=0)CHECK(fd2_field_units_render_page_actor(page,&game->sprites,&game->units,(size_t)actor,
+        0,0,game->idle_phase,(uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0)==0);
+    memset(expected->framebuffer,0,sizeof(expected->framebuffer));
+    CHECK(fd2_field_page_project(page,72,72,expected->framebuffer,sizeof(expected->framebuffer))==0);
+    return 0;
+}
+
+typedef struct {
+    fd2_field_game *game;fd2_vga *vga;int error,fired,phase,bad_thread;
+    SDL_ThreadID main_thread;SDL_AtomicInt queued;
+} menu_prefix_probe;
+static void SDLCALL menu_prefix_on_main(void *userdata) {
+    menu_prefix_probe *probe=userdata;
+    if(SDL_GetCurrentThreadID()!=probe->main_thread){probe->bad_thread=1;return;}
+    probe->fired++;probe->phase=probe->game->command_animation_phase;
+    if(probe->phase!=1)return; /* 错时点不伪造成首present前缀。 */
+    if(probe->error)probe->vga->actor_jitter_phase=2; /* 下一direct叶的明确拒绝域。 */
+    else probe->vga->input.quit_requested=1;
+}
+static int SDLCALL menu_prefix_queue(void *userdata) {
+    menu_prefix_probe *probe=userdata;
+    SDL_SetAtomicInt(&probe->queued,SDL_RunOnMainThread(menu_prefix_on_main,probe,false)?1:-1);
+    return 0;
+}
+
+/* 1741c/176b4共用五种caller表，真实资源全page/VGA与跨函数原底图。
+ * 只核clock调用族/索引及组合；不声明四相位都实际被显示器扫描。 */
+static int test_menu_transition_source_owner(void) {
+    /* EVENTS本身不建立SDL_MainThreadID；否则RunOnMainThread会在worker立即调用。 */
+    SDL_SetMainReady();
+    CHECK(SDL_Init(SDL_INIT_EVENTS));
+    fd2_archive other={0};fd2_field_game *game=calloc(1,sizeof(*game));
+    fd2_vga *vga=calloc(1,sizeof(*vga)),*expected=calloc(1,sizeof(*expected));
+    uint8_t *actual=malloc(FD2_FIELD_PAGE_SIZE),*want=malloc(FD2_FIELD_PAGE_SIZE);
+    CHECK(game && vga && expected && actual && want);
+    CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0 &&
+        fd2_field_game_open_resources(game,&other,0)==0);
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
+    fd2_field_page *oracle=fd2_field_page_clone(vga->field_page);CHECK(oracle);
+    const uint8_t ids[5][4]={{0,1,2,3},{8,9,10,11},{7,5,6,4},{12,13,14,15},{18,21,22,25}};
+    const int focus[5][2]={{0,0},{12,7},{6,4},{2,6},{10,6}};
+    unsigned rng_calls=0;game->attack_rng=return_rng;game->attack_rng_userdata=&rng_calls;
+    for(unsigned kind=0;kind<7;kind++) {
+        unsigned table=kind<5?kind:0;
+        CHECK(fd2_field_units_set(&game->units,0,0,0,2,focus[table][0],focus[table][1])==0);
+        game->units.items[0].hp=31;game->units.items[0].hp_max=49;
+        game->active_side=2;game->selected_unit=0;game->cursor_cell_x=focus[table][0];game->cursor_cell_y=focus[table][1];
+        game->interaction=table==0?FD2_FIELD_INTERACTION_COMMAND:table==1?
+            FD2_FIELD_INTERACTION_ITEM_MENU:FD2_FIELD_INTERACTION_SYSTEM_MENU;
+        game->system_menu.page=table==3?FD2_FIELD_SYSTEM_PAGE_SECONDARY:
+            table==4?FD2_FIELD_SYSTEM_PAGE_OPTIONS:FD2_FIELD_SYSTEM_PAGE_PARENT;
+        memcpy(game->system_menu.command_ids,ids[table],4);
+        uint8_t disabled[4]={0,1,0,0};memcpy(game->command_disabled,disabled,4);
+        memcpy(game->system_menu.disabled,disabled,4);
+        game->ordinary_display_mode=1;game->option_values[3]=1;game->failure=FD2_FIELD_FAILURE_NONE;
+        game->command_backdrop_owner=NULL;game->command_animation_phase=game->system_menu.animation_phase=0;
+        game->command_animation_opening=game->system_menu.animation_opening=0;
+        vga->input.quit_requested=0;vga->actor_jitter_phase=0;vga->field_visual=(fd2_field_visual_state){0};
+        vga->field_visual.actor_idle_tick=vga->field_visual.terrain_tick=vga->field_visual.range_tick=0x12345678u;
+        vga->field_visual.cursor_phase=3;vga->field_water_phase=9;vga->field_water_last_tick=123;
+        vga->info_panel_right=expected->info_panel_right=0;game->info_panel_right=0;
+        memset(vga->dac,0x61,768);uint8_t dac[768];memcpy(dac,vga->dac,768);
+        /* present显式交付此input；heap fixture不得注册成稍后悬空的全局owner。 */
+        memset(&vga->input,0,sizeof(vga->input));
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_A,1);
+        fd2_input_begin_test_frame(&vga->input,1000);
+        memset(want,0x5d,FD2_FIELD_PAGE_SIZE);
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,want,FD2_FIELD_PAGE_SIZE,456)==0 &&
+            fd2_field_page_copy_pixels(oracle,vga->field_page)==0);
+        menu_prefix_probe probe={0};probe.game=game;probe.vga=vga;probe.error=kind==6;
+        probe.main_thread=SDL_GetCurrentThreadID();SDL_Thread *thread=NULL;
+        if(kind>=5) {
+            thread=SDL_CreateThread(menu_prefix_queue,"menu-prefix",&probe);CHECK(thread);
+            uint64_t until=SDL_GetTicks()+3000u;
+            while(!SDL_GetAtomicInt(&probe.queued) && SDL_GetTicks()<until)SDL_Delay(1);
+            if(SDL_GetAtomicInt(&probe.queued)!=1) {
+                SDL_WaitThread(thread,NULL);CHECK(SDL_GetAtomicInt(&probe.queued)==1);
+            }
+        }
+        int result=table<2?fd2_field_game_animate_command(game,vga,1,999):
+            fd2_field_game_animate_system_menu(game,vga,1,999);
+        if(thread)SDL_WaitThread(thread,NULL);
+        CHECK(result==(kind==5?1:kind==6?-1:0) && (!thread ||
+            (probe.fired==1 && probe.phase==1 && !probe.bad_thread)));
+        if(vga->field_visual.cursor_phase!=0 || vga->field_water_phase!=9 ||
+            vga->field_water_last_tick!=123 || memcmp(dac,vga->dac,768) || rng_calls ||
+            vga->frame_deadline_ns || !fd2_input_has_any_key(&vga->input))
+            fprintf(stderr,"menu source kind=%u cursor=%u water=%u water_tick=%u dac=%d rng=%u deadline=%llu queued=%u phase=%u/%u\n",
+                kind,(unsigned)vga->field_visual.cursor_phase,(unsigned)vga->field_water_phase,
+                (unsigned)vga->field_water_last_tick,memcmp(dac,vga->dac,768),rng_calls,
+                (unsigned long long)vga->frame_deadline_ns,(unsigned)vga->input.queued_count,
+                (unsigned)game->command_animation_phase,(unsigned)game->system_menu.animation_phase);
+        CHECK(vga->field_visual.cursor_phase==0 && vga->field_water_phase==9 &&
+            vga->field_water_last_tick==123 && !memcmp(dac,vga->dac,768) && !rng_calls &&
+            !vga->frame_deadline_ns && fd2_input_has_any_key(&vga->input));
+        if(kind==6) {
+            CHECK(vga->actor_jitter_phase==2);
+            vga->actor_jitter_phase=0; /* raw26=0的纯像素oracle不读错误clock状态。 */
+        }
+        CHECK(menu_base_oracle(game,vga,oracle,expected)==0);
+        uint8_t saved[72*72];int x=48+game->cursor_cell_x*24,y=48+game->cursor_cell_y*24;
+        CHECK(fd2_field_page_read(oracle,x,y,72,72,saved,sizeof(saved),72)==0 &&
+            !memcmp(saved,game->command_backdrop,sizeof(saved)) && game->command_backdrop_owner==vga->field_page);
+        if(kind==6) {
+            CHECK(menu_phase_oracle(game,vga,oracle,expected,saved,ids[table],disabled,1,1,0)==0);
+            CHECK(!memcmp(vga->framebuffer,expected->framebuffer,64000));
+            CHECK(menu_phase_oracle(game,vga,oracle,expected,saved,ids[table],disabled,1,2,-1)==0);
+            CHECK(game->command_animation_phase==2 && game->command_animation_opening==1);
+        } else CHECK(menu_phase_oracle(game,vga,oracle,expected,saved,ids[table],disabled,1,kind==5?1:4,0)==0);
+        CHECK(effect_page_read(vga->field_page,actual)==0 && effect_page_read(oracle,want)==0 &&
+            !memcmp(actual,want,FD2_FIELD_PAGE_SIZE));
+        if(kind>=5)continue;
+        CHECK(!memcmp(vga->framebuffer,expected->framebuffer,64000));
+        fd2_field_visual_state before=vga->field_visual;
+        /* wait可改当前page；close必须取open保存的历史底图，不能重新截图。 */
+        uint8_t changed=247;CHECK(fd2_field_page_write(vga->field_page,x+2,y+2,1,1,&changed,1,1)==0);
+        changed=246;CHECK(fd2_field_page_write(vga->field_page,0,0,1,1,&changed,1,1)==0 &&
+            fd2_field_page_write(oracle,0,0,1,1,&changed,1,1)==0);
+        CHECK((table<2?fd2_field_game_animate_command(game,vga,0,999):
+            fd2_field_game_animate_system_menu(game,vga,0,999))==0);
+        CHECK(!memcmp(&before,&vga->field_visual,sizeof(before)) && !game->command_backdrop_owner &&
+            fd2_input_has_any_key(&vga->input)); /* 尾clear在Play成功边界。 */
+        CHECK(menu_phase_oracle(game,vga,oracle,expected,saved,ids[table],disabled,0,4,0)==0 &&
+            !memcmp(vga->framebuffer,expected->framebuffer,64000));
+        CHECK(fd2_field_page_write(oracle,x,y,72,72,saved,sizeof(saved),72)==0 &&
+            effect_page_read(vga->field_page,actual)==0 && effect_page_read(oracle,want)==0 &&
+            !memcmp(actual,want,FD2_FIELD_PAGE_SIZE) && !rng_calls);
+        CHECK((table<2?fd2_field_game_animate_command(game,vga,0,999):
+            fd2_field_game_animate_system_menu(game,vga,0,999))==-1); /* 无有效open owner。 */
+    }
+    /* 入口HOST是另一个确切前缀：不能执行base/保存/phase或清键。 */
+    fd2_field_game *saved_game=malloc(sizeof(*game));fd2_vga *saved_vga=malloc(sizeof(*vga));
+    CHECK(saved_game && saved_vga);vga->input.quit_requested=1;
+    *saved_game=*game;*saved_vga=*vga;CHECK(effect_page_read(vga->field_page,want)==0);
+    CHECK(fd2_field_game_animate_command(game,vga,1,999)==1 &&
+        !memcmp(saved_game,game,sizeof(*game)) && !memcmp(saved_vga,vga,sizeof(*vga)) &&
+        effect_page_read(vga->field_page,actual)==0 && !memcmp(actual,want,FD2_FIELD_PAGE_SIZE));
+    free(saved_game);free(saved_vga);
+    fd2_field_page_destroy(oracle);fd2_field_page_destroy(vga->field_page);fd2_field_game_close(game);
+    fd2_archive_close(&other);free(actual);free(want);free(expected);free(vga);free(game);SDL_Quit();return 0;
+}
+
 int main(void) {
+    CHECK(test_menu_transition_source_owner() == 0);
+    CHECK(test_runtime_summary_body() == 0);
+    CHECK(test_runtime_menu_page_composition() == 0);
     CHECK(test_runtime_refresh_original_clock_order() == 0);
     CHECK(test_original_constructor_domain() == 0);
     CHECK(test_unit_domain_errors_and_mutations() == 0);
@@ -1467,6 +1954,7 @@ int main(void) {
     CHECK(test_page_actor_raw_order_and_margin() == 0);
     CHECK(test_page_tile_skip_and_lut_domain() == 0);
     CHECK(test_stage32_defined_skip_history() == 0);
+    CHECK(test_movement_host_prefix() == 0);
     puts("field_unit_render_test: ok");
     return 0;
 }

@@ -168,7 +168,7 @@ static int test_glyph_peek_preserves_key_for_wait(void) {
     return 0;
 }
 
-static int test_typematic_is_frame_based(void) {
+static int test_typematic_integer_millisecond_boundaries(void) {
     fd2_input input;
     fd2_input_init(&input);
     fd2_input_set_test_key_state(&input, SDL_SCANCODE_DOWN, 1);
@@ -511,8 +511,11 @@ static int test_host_repeat_is_not_a_second_repeat_source(void) {
     fd2_input_begin_test_frame(&input,deadline);
     CHECK(!fd2_input_take_key(&input,&event));
     fd2_input_begin_test_frame(&input,deadline+10000u);
-    CHECK(fd2_input_take_key(&input,&event) && event.repeat);
-    CHECK(!fd2_input_take_key(&input,&event)); /* 无while追赶重放。 */
+    /* 原硬件1ms handler在渲染停顿时继续生产；满BIOS队列丢新。
+     * 这不同于visual helper每次调用只推进一步。 */
+    for(unsigned i=0;i<FD2_INPUT_KEY_QUEUE_CAPACITY;i++)
+        CHECK(fd2_input_take_key(&input,&event) && event.repeat);
+    CHECK(!fd2_input_take_key(&input,&event));
     SDL_Quit();return 0;
 }
 
@@ -615,6 +618,13 @@ static int test_ctrl_c_quit_never_becomes_physical_fallback_other(void) {
     CHECK(!fd2_input_take_key(&input,&event)); /* 不靠清掉已有普通键掩盖多入队。 */
     fd2_input_begin_test_frame(&input,1000);
     CHECK(!fd2_input_has_any_key(&input) && fd2_input_take_quit(&input));
+    /* 与Windows Shift修正同类：DOWN有Ctrl，末尾物理快照已无Ctrl。
+     * HOST组合不能在fallback或后续repeat中变成普通C。 */
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_C,1);
+    CHECK(buffer_push_key(SDL_EVENT_KEY_DOWN,SDL_SCANCODE_C,SDL_KMOD_CTRL));
+    fd2_input_poll_host_events(&input);fd2_input_begin_test_frame(&input,1000);
+    CHECK(!fd2_input_has_any_key(&input) && fd2_input_take_quit(&input));
     SDL_Quit();return 0;
 }
 
@@ -625,8 +635,8 @@ static int test_lock_state_keys_never_ack_or_repeat(void) {
         fd2_input input;fd2_input_init(&input);
         fd2_input_set_test_key_state(&input,locks[i],1);
         fd2_input_begin_test_frame(&input,100);
-        CHECK(!fd2_input_has_any_key(&input) && !input.previous_down[locks[i]] &&
-            !input.next_repeat_ms[locks[i]]);
+        CHECK(!fd2_input_has_any_key(&input) && input.previous_down[locks[i]] &&
+            input.repeat_key==locks[i]); /* 不入FIFO，但make参与last-key。 */
         fd2_input_begin_test_frame(&input,700);
         fd2_input_action action;
         CHECK(!fd2_input_take_action(&input,FD2_INPUT_CONTEXT_FIELD_DETAIL,&action));
@@ -663,6 +673,359 @@ static int test_polled_lock_keys_preserve_ordinary_queue_without_ack(void) {
     SDL_Quit();return 0;
 }
 
+/* 预期取自固定b6abbd5 BIOS AX表与增强键分支，不从待测mapper生成。 */
+static int test_bios_ax_and_modified_game_keys(void) {
+    const struct {SDL_Scancode key,modifier;uint16_t ax;fd2_input_key game;} cases[]={
+        {SDL_SCANCODE_A,SDL_SCANCODE_UNKNOWN,0x1e61,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_A,SDL_SCANCODE_LSHIFT,0x1e41,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_A,SDL_SCANCODE_RCTRL,0x1e01,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_A,SDL_SCANCODE_LALT,0x1e00,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_UP,SDL_SCANCODE_UNKNOWN,0x48e0,FD2_INPUT_KEY_UP},
+        {SDL_SCANCODE_UP,SDL_SCANCODE_LSHIFT,0x48e0,FD2_INPUT_KEY_UP},
+        {SDL_SCANCODE_UP,SDL_SCANCODE_LCTRL,0x8de0,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_UP,SDL_SCANCODE_RALT,0x9800,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_F1,SDL_SCANCODE_LSHIFT,0x5400,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_F2,SDL_SCANCODE_LALT,0x6900,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_RETURN,SDL_SCANCODE_LCTRL,0x1c0a,FD2_INPUT_KEY_ENTER},
+        {SDL_SCANCODE_KP_ENTER,SDL_SCANCODE_LCTRL,0xe00a,FD2_INPUT_KEY_KEYPAD_CONFIRM},
+        {SDL_SCANCODE_KP_ENTER,SDL_SCANCODE_LALT,0xa600,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_KP_DIVIDE,SDL_SCANCODE_UNKNOWN,0xe02f,FD2_INPUT_KEY_KEYPAD_CONFIRM},
+        {SDL_SCANCODE_KP_DIVIDE,SDL_SCANCODE_LCTRL,0x9500,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_2,SDL_SCANCODE_LCTRL,0x0300,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_TAB,SDL_SCANCODE_LCTRL,0x9400,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_TAB,SDL_SCANCODE_LSHIFT,0x0f00,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_BACKSPACE,SDL_SCANCODE_LALT,0x0e00,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_KP_8,SDL_SCANCODE_LCTRL,0x8d00,FD2_INPUT_KEY_OTHER},
+        {SDL_SCANCODE_KP_8,SDL_SCANCODE_LSHIFT,0x4838,FD2_INPUT_KEY_UP},
+        {SDL_SCANCODE_KP_DECIMAL,SDL_SCANCODE_LSHIFT,0x532e,FD2_INPUT_KEY_CANCEL},
+        {SDL_SCANCODE_NONUSBACKSLASH,SDL_SCANCODE_UNKNOWN,0x565c,FD2_INPUT_KEY_OTHER},
+    };
+    for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        fd2_input input;fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input,cases[i].modifier,1);
+        fd2_input_set_test_key_state(&input,cases[i].key,1);
+        fd2_input_begin_test_frame(&input,0);fd2_input_event event;
+        CHECK(fd2_input_take_key(&input,&event));
+        CHECK(event.bios_code==cases[i].ax && event.key==cases[i].game);
+        CHECK(!fd2_input_take_key(&input,&event));
+    }
+    const struct {SDL_Scancode key,modifier;} absent[]={
+        {SDL_SCANCODE_RETURN,SDL_SCANCODE_LALT},
+        {SDL_SCANCODE_TAB,SDL_SCANCODE_LALT},
+        {SDL_SCANCODE_1,SDL_SCANCODE_LCTRL},
+        {SDL_SCANCODE_SEMICOLON,SDL_SCANCODE_LCTRL},
+        {SDL_SCANCODE_NONUSBACKSLASH,SDL_SCANCODE_LALT}};
+    for(unsigned i=0;i<sizeof(absent)/sizeof(absent[0]);i++) {
+        fd2_input input;fd2_input_init(&input);
+        fd2_input_set_test_key_state(&input,absent[i].modifier,1);
+        fd2_input_set_test_key_state(&input,absent[i].key,1);
+        fd2_input_begin_test_frame(&input,0);
+        CHECK(!fd2_input_has_any_key(&input));
+    }
+    return 0;
+}
+
+static int test_single_last_key_and_release_never_resumes_old_key(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(fd2_input_take_key(&input,&event) && event.source==SDL_SCANCODE_A);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_B,1);
+    fd2_input_begin_test_frame(&input,200);
+    CHECK(fd2_input_take_key(&input,&event) && event.source==SDL_SCANCODE_B);
+    CHECK(!input.next_repeat_ms[SDL_SCANCODE_A]);
+    fd2_input_begin_test_frame(&input,500);CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_begin_test_frame(&input,700);
+    CHECK(fd2_input_take_key(&input,&event) && event.repeat && event.source==SDL_SCANCODE_B);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_B,0);
+    fd2_input_begin_test_frame(&input,701);
+    fd2_input_begin_test_frame(&input,2000);
+    CHECK(input.previous_down[SDL_SCANCODE_A] && input.repeat_key==SDL_SCANCODE_UNKNOWN);
+    CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_B,1);
+    fd2_input_begin_test_frame(&input,2001);
+    CHECK(fd2_input_take_key(&input,&event) && !event.repeat);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,0);
+    fd2_input_begin_test_frame(&input,2002);
+    fd2_input_begin_test_frame(&input,2501);
+    CHECK(fd2_input_take_key(&input,&event) && event.source==SDL_SCANCODE_B && event.repeat);
+    CHECK(!fd2_input_has_any_key(&input));
+    return 0;
+}
+
+static int test_modifier_make_arbitrates_but_is_not_an_ack(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_DOWN,1);
+    fd2_input_begin_test_frame(&input,0);CHECK(fd2_input_take_key(&input,&event));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,1);
+    fd2_input_begin_test_frame(&input,100);
+    fd2_input_begin_test_frame(&input,700);
+    CHECK(input.repeat_key==SDL_SCANCODE_LSHIFT && !fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,0);
+    fd2_input_begin_test_frame(&input,701);
+    fd2_input_begin_test_frame(&input,3000);
+    CHECK(input.previous_down[SDL_SCANCODE_DOWN] && !fd2_input_has_any_key(&input));
+    return 0;
+}
+
+static int test_repeat_runs_while_consumer_waits_and_keeps_tick_phase(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    CHECK(FD2_INPUT_INITIAL_REPEAT_MS==500 && FD2_INPUT_REPEAT_MS==33);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_DOWN,1);
+    fd2_input_begin_test_frame(&input,100);CHECK(fd2_input_take_key(&input,&event));
+    fd2_input_begin_test_frame(&input,1600);
+    CHECK(input.queued_count==15u && input.next_repeat_ms[SDL_SCANCODE_DOWN]==1623u);
+    for(unsigned i=0;i<15u;i++)CHECK(fd2_input_take_key(&input,&event) && event.repeat);
+    fd2_input_begin_test_frame(&input,1622);CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_begin_test_frame(&input,1623);
+    CHECK(fd2_input_take_key(&input,&event) && event.repeat);
+    fd2_input_begin_test_frame(&input,UINT64_MAX);
+    CHECK(input.queued_count==15u); /* 仍为有界FIFO，未逐毫秒循环。 */
+    return 0;
+}
+
+static int test_initial_repeat_deadline_overflow_keeps_first_make(void) {
+    const uint64_t remaining[]={0,1,499,500,501};
+    for(size_t i=0;i<sizeof(remaining)/sizeof(*remaining);i++) {
+        fd2_input input;fd2_input_init(&input);fd2_input_event event;
+        uint64_t start=UINT64_MAX-remaining[i];
+        fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+        fd2_input_begin_test_frame(&input,start);
+        CHECK(fd2_input_take_key(&input,&event) && !event.repeat && event.bios_code==0x1e61);
+        CHECK(input.previous_down[SDL_SCANCODE_A]);
+        fd2_input_begin_test_frame(&input,start);
+        CHECK(!fd2_input_has_any_key(&input));
+        fd2_input_begin_test_frame(&input,UINT64_MAX);
+        if(remaining[i]>=500u)
+            CHECK(fd2_input_take_key(&input,&event) && event.repeat && event.bios_code==0x1e61);
+        CHECK(!fd2_input_has_any_key(&input) && input.repeat_key==SDL_SCANCODE_UNKNOWN);
+        CHECK(!input.next_repeat_ms[SDL_SCANCODE_A] && input.previous_down[SDL_SCANCODE_A]);
+        fd2_input_begin_test_frame(&input,UINT64_MAX);
+        CHECK(!fd2_input_has_any_key(&input));
+    }
+    return 0;
+}
+
+static int test_lock_break_and_keypad_num_shift_xor(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_CAPSLOCK,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(!(input.lock_modifiers&SDL_KMOD_CAPS));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_CAPSLOCK,0);
+    fd2_input_begin_test_frame(&input,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,2);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e41);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,1);
+    fd2_input_begin_test_frame(&input,3);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,4);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e61);
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_NUMLOCKCLEAR,1);
+    fd2_input_begin_test_frame(&input,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_NUMLOCKCLEAR,0);
+    fd2_input_begin_test_frame(&input,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_8,1);
+    fd2_input_begin_test_frame(&input,2);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x4838);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_8,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,1);
+    fd2_input_begin_test_frame(&input,3);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_8,1);
+    fd2_input_begin_test_frame(&input,4);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x4800);
+    return 0;
+}
+
+static int test_alt_keypad_byte_token_and_both_alt_release(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_RALT,1);
+    fd2_input_begin_test_frame(&input,0);
+    const SDL_Scancode digits[]={SDL_SCANCODE_KP_7,SDL_SCANCODE_KP_8};
+    for(unsigned i=0;i<2u;i++) {
+        fd2_input_set_test_key_state(&input,digits[i],1);fd2_input_begin_test_frame(&input,1u+2u*i);
+        fd2_input_set_test_key_state(&input,digits[i],0);fd2_input_begin_test_frame(&input,2u+2u*i);
+    }
+    CHECK(input.alt_token==78 && !fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_RALT,0);fd2_input_begin_test_frame(&input,5);
+    CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,0);fd2_input_begin_test_frame(&input,6);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==78 && !event.repeat);
+    CHECK(!fd2_input_has_any_key(&input) && !input.alt_token);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_7,1);
+    fd2_input_begin_test_frame(&input,7);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_7,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_DECIMAL,1);
+    fd2_input_begin_test_frame(&input,8);
+    CHECK(input.alt_token==70 && !fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_DECIMAL,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,0);
+    fd2_input_begin_test_frame(&input,9);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==70);
+    /* 长gap的Alt数字token仍须等价于全部硬件repeat，而不是只保第一项。 */
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_KP_7,1);
+    fd2_input_begin_test_frame(&input,10);
+    fd2_input_begin_test_frame(&input,1000000);
+    unsigned expected=0;
+    for(unsigned i=0;i<8u;i++)expected=(10u*expected+7u)&255u;
+    CHECK(input.alt_token==expected && !fd2_input_has_any_key(&input));
+    return 0;
+}
+
+static int test_title_uses_original_ax_not_physical_confirm(void) {
+    const struct {SDL_Scancode key,modifier;fd2_input_action action;} cases[]={
+        {SDL_SCANCODE_RETURN,SDL_SCANCODE_LCTRL,FD2_INPUT_ACTION_NONE},
+        {SDL_SCANCODE_M,SDL_SCANCODE_LCTRL,FD2_INPUT_ACTION_CONFIRM}, /* AL=0d */
+        {SDL_SCANCODE_KP_0,SDL_SCANCODE_UNKNOWN,FD2_INPUT_ACTION_CONFIRM}, /* AH52 */
+        {SDL_SCANCODE_KP_0,SDL_SCANCODE_LSHIFT,FD2_INPUT_ACTION_CONFIRM},
+        {SDL_SCANCODE_KP_DIVIDE,SDL_SCANCODE_UNKNOWN,FD2_INPUT_ACTION_CONFIRM}, /* AHe0 */
+        {SDL_SCANCODE_UP,SDL_SCANCODE_LCTRL,FD2_INPUT_ACTION_NONE},
+        {SDL_SCANCODE_SPACE,SDL_SCANCODE_LALT,FD2_INPUT_ACTION_CONFIRM}};
+    for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        fd2_input input;fd2_input_init(&input);fd2_input_action action;
+        fd2_input_set_test_key_state(&input,cases[i].modifier,1);
+        fd2_input_set_test_key_state(&input,cases[i].key,1);
+        fd2_input_begin_test_frame(&input,0);
+        CHECK(fd2_input_take_action(&input,FD2_INPUT_CONTEXT_TITLE,&action));
+        CHECK(action==cases[i].action && !fd2_input_has_any_key(&input));
+    }
+    return 0;
+}
+
+static int test_all_function_keys_and_modifier_priority(void) {
+    const SDL_Scancode modifiers[]={SDL_SCANCODE_UNKNOWN,SDL_SCANCODE_LSHIFT,
+        SDL_SCANCODE_LCTRL,SDL_SCANCODE_LALT};
+    const unsigned first10[]={59,84,94,104},last2[]={133,135,137,139};
+    for(unsigned key=0;key<24u;key++)for(unsigned mod=0;mod<4u;mod++) {
+        fd2_input input;fd2_input_init(&input);fd2_input_event event;
+        SDL_Scancode source=(SDL_Scancode)(key<12u?SDL_SCANCODE_F1+key:SDL_SCANCODE_F13+key-12u);
+        fd2_input_set_test_key_state(&input,modifiers[mod],1);
+        fd2_input_set_test_key_state(&input,source,1);fd2_input_begin_test_frame(&input,0);
+        unsigned index=key%12u,effective=key>=12u && mod<2u?1u:mod;
+        unsigned scan=index<10u?first10[effective]+index:last2[effective]+index-10u;
+        CHECK(fd2_input_take_key(&input,&event));
+        CHECK(event.bios_code==(uint16_t)(scan<<8) && fd2_input_function_scan(&event)==scan);
+        CHECK(!fd2_input_has_any_key(&input));
+    }
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LALT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_RCTRL,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_RSHIFT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x6800);
+    return 0;
+}
+
+static int test_hardware_extra_keys_and_fake_shift(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LGUI,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0xd200);
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F13,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x5400);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,1);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e41);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F13,0);
+    fd2_input_begin_test_frame(&input,2);
+    fd2_input_begin_test_frame(&input,501);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e61 && event.repeat);
+    /* AddKey1的F13 break也发送LShift break，即使真实LShift尚未释放。
+     * 旧物理快照不构成新的make，不能把BIOS Shift位重新打开。 */
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F13,1);
+    fd2_input_begin_test_frame(&input,0);CHECK(fd2_input_take_key(&input,&event));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F13,0);
+    fd2_input_begin_test_frame(&input,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,2);
+    CHECK(input.previous_down[SDL_SCANCODE_LSHIFT]);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e61);
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,1);
+    fd2_input_begin_test_frame(&input,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F13,1);
+    fd2_input_begin_test_frame(&input,1);CHECK(fd2_input_take_key(&input,&event));
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LSHIFT,0);
+    fd2_input_begin_test_frame(&input,2);
+    CHECK(!(input.held_modifiers&SDL_KMOD_LSHIFT));
+    fd2_input_begin_test_frame(&input,501);
+    CHECK(fd2_input_take_key(&input,&event) && event.repeat && event.bios_code==0x5400);
+    CHECK(input.held_modifiers&SDL_KMOD_LSHIFT); /* repeat确实重新发fake make。 */
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_A,1);
+    fd2_input_begin_test_frame(&input,502);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x1e41);
+    return 0;
+}
+
+/* 固定b6abbd5 AddKey1 PrintScreen case：make/break均清repeat。
+ * US437 hook不映射2a，IRQ1 2a/aa写/清LShift；预期直接取原字节路径。 */
+static int test_printscreen_break_cancels_current_repeat_and_tracks_fake_shift(void) {
+    fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,1);
+    fd2_input_begin_test_frame(&input,0);
+    CHECK(!fd2_input_has_any_key(&input) && input.repeat_key==SDL_SCANCODE_UNKNOWN &&
+        (input.held_modifiers&SDL_KMOD_LSHIFT) && !input.previous_down[SDL_SCANCODE_LSHIFT]);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_B,1);
+    fd2_input_begin_test_frame(&input,1);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x3042 && !event.repeat &&
+        input.repeat_key==SDL_SCANCODE_B);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,0);
+    fd2_input_begin_test_frame(&input,2);
+    CHECK(!(input.held_modifiers&SDL_KMOD_LSHIFT) && input.repeat_key==SDL_SCANCODE_UNKNOWN &&
+        !input.next_repeat_ms[SDL_SCANCODE_B] && input.previous_down[SDL_SCANCODE_B]);
+    fd2_input_begin_test_frame(&input,501);CHECK(!fd2_input_has_any_key(&input));
+
+    const SDL_Scancode modifiers[]={SDL_SCANCODE_LSHIFT,SDL_SCANCODE_LCTRL,SDL_SCANCODE_LALT};
+    for(size_t i=0;i<sizeof(modifiers)/sizeof(modifiers[0]);i++) {
+        fd2_input_init(&input);fd2_input_set_test_key_state(&input,modifiers[i],1);
+        fd2_input_begin_test_frame(&input,0);uint16_t before=input.held_modifiers;
+        fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,1);
+        fd2_input_begin_test_frame(&input,1);
+        CHECK(input.held_modifiers==before && !fd2_input_has_any_key(&input));
+        fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,0);
+        fd2_input_begin_test_frame(&input,2);
+        CHECK(input.held_modifiers==before && input.repeat_key==SDL_SCANCODE_UNKNOWN &&
+            !input.next_repeat_ms[modifiers[i]] && !fd2_input_has_any_key(&input));
+    }
+    /* 选make/break字节各看当时的物理mod；不能按“PrtSc曾fake”统一配对清除。
+     * plain make→Ctrl DOWN→PrtSc UP不发aa，Ctrl UP后fake Shift仍保留。 */
+    fd2_input_init(&input);fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,1);
+    fd2_input_begin_test_frame(&input,0);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LCTRL,1);fd2_input_begin_test_frame(&input,1);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_PRINTSCREEN,0);fd2_input_begin_test_frame(&input,2);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_LCTRL,0);fd2_input_begin_test_frame(&input,3);
+    CHECK((input.held_modifiers&SDL_KMOD_LSHIFT) && !input.previous_down[SDL_SCANCODE_LSHIFT]);
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_F1,1);fd2_input_begin_test_frame(&input,4);
+    CHECK(fd2_input_take_key(&input,&event) && event.bios_code==0x5400 && event.key==FD2_INPUT_KEY_OTHER);
+    return 0;
+}
+
+static int test_printscreen_polled_make_key_break_preserves_fifo_not_repeat(void) {
+    CHECK(SDL_Init(SDL_INIT_EVENTS));fd2_input input;fd2_input_init(&input);fd2_input_event event;
+    int host_before=fd2_input_host_quit_requested();
+    fd2_input_set_test_key_state(&input,SDL_SCANCODE_B,1);
+    CHECK(buffer_push_key(SDL_EVENT_KEY_DOWN,SDL_SCANCODE_PRINTSCREEN,SDL_KMOD_NONE));
+    CHECK(buffer_push_key(SDL_EVENT_KEY_DOWN,SDL_SCANCODE_B,SDL_KMOD_NONE));
+    CHECK(buffer_push_key(SDL_EVENT_KEY_UP,SDL_SCANCODE_PRINTSCREEN,SDL_KMOD_NONE));
+    fd2_input_poll_host_events(&input);
+    CHECK(input.queued_count==1u && fd2_input_take_key(&input,&event) && event.bios_code==0x3042 &&
+        input.repeat_key==SDL_SCANCODE_UNKNOWN && !input.next_repeat_ms[SDL_SCANCODE_B] &&
+        !(input.held_modifiers&SDL_KMOD_LSHIFT) && !input.quit_requested &&
+        fd2_input_host_quit_requested()==host_before);
+    fd2_input_begin_test_frame(&input,500);CHECK(!fd2_input_has_any_key(&input));
+    SDL_Quit();return 0;
+}
+
 int main(int argc,char **argv) {
     if(argc==3 && !strcmp(argv[1],"--buffer-case"))return buffer_regression(argv[2])?1:0;
     if(argc!=1)return 1;
@@ -673,7 +1036,7 @@ int main(int argc,char **argv) {
         test_press_exists_for_one_present_frame() != 0 ||
         test_unread_press_survives_present() != 0 ||
         test_glyph_peek_preserves_key_for_wait() != 0 ||
-        test_typematic_is_frame_based() != 0 ||
+        test_typematic_integer_millisecond_boundaries() != 0 ||
         test_release_repress_is_new_press() != 0 ||
         test_modifier_not_game_key() != 0 ||
         test_preparation_function_scan() != 0 ||
@@ -694,7 +1057,19 @@ int main(int argc,char **argv) {
         test_two_short_taps_and_unknown_action_each_consume_one() != 0 ||
         test_ctrl_c_quit_never_becomes_physical_fallback_other() != 0 ||
         test_lock_state_keys_never_ack_or_repeat() != 0 ||
-        test_polled_lock_keys_preserve_ordinary_queue_without_ack() != 0)
+        test_polled_lock_keys_preserve_ordinary_queue_without_ack() != 0 ||
+        test_bios_ax_and_modified_game_keys() != 0 ||
+        test_single_last_key_and_release_never_resumes_old_key() != 0 ||
+        test_modifier_make_arbitrates_but_is_not_an_ack() != 0 ||
+        test_repeat_runs_while_consumer_waits_and_keeps_tick_phase() != 0 ||
+        test_initial_repeat_deadline_overflow_keeps_first_make() != 0 ||
+        test_lock_break_and_keypad_num_shift_xor() != 0 ||
+        test_alt_keypad_byte_token_and_both_alt_release() != 0 ||
+        test_title_uses_original_ax_not_physical_confirm() != 0 ||
+        test_all_function_keys_and_modifier_priority() != 0 ||
+        test_hardware_extra_keys_and_fake_shift() != 0 ||
+        test_printscreen_break_cancels_current_repeat_and_tracks_fake_shift() != 0 ||
+        test_printscreen_polled_make_key_break_preserves_fifo_not_repeat() != 0)
         return 1;
     puts("input_test: ok");
     return 0;

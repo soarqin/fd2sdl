@@ -34,6 +34,8 @@ static uint64_t input_time;
 static fd2_vga *input_vga;
 static int fade_calls, fade_fail_call, fade_fail_result, fade_directions[32];
 static int white_calls, white_error;
+static int menu_deferred, menu_idle_polls, menu_bad_delay, menu_flash_delays;
+static int menu_selected, read_count, read_frames[4], read_selections[4];
 static int title_test_quit(fd2_input *input);
 
 static void title_queue_key(fd2_vga *vga,SDL_Scancode key) {
@@ -198,7 +200,21 @@ static void title_test_fade(fd2_vga *vga, int start, int steps,
     (void)vga; (void)start; (void)steps; (void)r; (void)g; (void)b;
 }
 static void title_test_present(fd2_vga *vga) { (void)vga; presents++; }
-static void title_test_delay(uint32_t delay) { (void)delay; }
+static void title_test_delay(uint32_t delay) {
+    if (!input_contract || !menu_frames) return;
+    if (delay==FD2_TITLE_CONFIRM_FLASH_DELAY_MS) { menu_flash_delays++;return; }
+    if (delay!=1u || !menu_deferred || menu_idle_polls || menu_frames!=1) {
+        menu_bad_delay++;return;
+    }
+    menu_idle_polls++;
+    if (menu_deferred==2) input_vga->input.quit_requested=1;
+    else {
+        /* 无映射键也只读一项；下一轮须保留同一菜单，再读方向与确认。 */
+        title_queue_key(input_vga,SDL_SCANCODE_A);
+        title_queue_key(input_vga,SDL_SCANCODE_DOWN);
+        title_queue_key(input_vga,SDL_SCANCODE_RETURN);
+    }
+}
 /* 此TU只核真实caller的次序/返回传播；65/64级与DAC公式由Scene原码门验证。 */
 static int title_test_palette_fade(fd2_vga *vga,int fade_in,int fast) {
     if ((fade_in!=0 && fade_in!=1) || fast || fade_calls>=32) { unexpected++;return FD2_SCENE_RESULT_ERROR; }
@@ -217,7 +233,16 @@ static int title_test_quit(fd2_input *input) {
 }
 static int title_test_action(fd2_input *input, fd2_input_context context,
                               fd2_input_action *action) {
-    if(input_contract){action_reads++;return fd2_input_take_action(input,context,action);}
+    if(input_contract){
+        action_reads++;
+        int result=fd2_input_take_action(input,context,action);
+        if (result) {
+            if (read_count>=4) unexpected++;
+            else {read_frames[read_count]=menu_frames;read_selections[read_count]=menu_selected;}
+            read_count++;
+        }
+        return result;
+    }
     (void)input;
     if (context != FD2_INPUT_CONTEXT_TITLE || action_reads++) unexpected++;
     *action = FD2_INPUT_ACTION_CONFIRM;
@@ -226,10 +251,13 @@ static int title_test_action(fd2_input *input, fd2_input_context context,
 static int title_test_menu(int count, int selected, int highlighted,
                             fd2_title_draw_item_fn draw, void *userdata) {
     menu_frames++;
+    menu_selected=selected;
     if(input_contract && menu_frames==1) {
         menu_queue_empty=!fd2_input_has_any_key(&input_vga->input);
-        title_queue_key(input_vga,SDL_SCANCODE_DOWN);
-        title_queue_key(input_vga,SDL_SCANCODE_RETURN);
+        if (!menu_deferred) {
+            title_queue_key(input_vga,SDL_SCANCODE_DOWN);
+            title_queue_key(input_vga,SDL_SCANCODE_RETURN);
+        }
     }
     return fd2_title_draw_menu_frame(count, selected, highlighted, draw, userdata);
 }
@@ -309,6 +337,9 @@ static void reset_test(void) {
     input_contract=input_clears=menu_queue_empty=quit_on_clear=0;input_time=0;input_vga=NULL;
     fade_calls=fade_fail_call=fade_fail_result=0;memset(fade_directions,0,sizeof(fade_directions));
     white_calls=white_error=0;
+    menu_deferred=menu_idle_polls=menu_bad_delay=menu_flash_delays=0;
+    menu_selected=read_count=0;
+    memset(read_frames,0,sizeof(read_frames));memset(read_selections,0,sizeof(read_selections));
     memset(clear_had_pending,0,sizeof(clear_had_pending));
     memset(presents_at_clear,0,sizeof(presents_at_clear));
     memset(intro_resource_reads, 0, sizeof(intro_resource_reads));
@@ -479,7 +510,7 @@ static int test_app_chain(void) {
     CHECK(context.preparation.stage_id==2 && context.preparation.unit_count==6);
     CHECK(context.rng.state==0x1235 && context.experience_value==9 && context.message_number==102);
     /* S3已发布stage3及20入场；此处只核App路由，20不冒称战斗开放。 */
-    const unsigned published[]={3,20};
+    const unsigned published[]={3,20,21,29};
     for(size_t i=0;i<sizeof(published)/sizeof(published[0]);i++) {
         chain_reset(&context);context.has_preparation=1;
         context.preparation.stage_id=(uint8_t)published[i];context.preparation.unit_count=6;
@@ -488,8 +519,9 @@ static int test_app_chain(void) {
         CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_EXIT);
         CHECK(chain_battles==1 && chain_preparations==1 && chain_stages[0]==published[i] && !context.has_preparation);
     }
-    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=21;
-    CHECK(!fd2_field_stage_is_supported(21));
+    /* S5已绑定21..29；资源30是内部尾声，不能充作普通战场入口。 */
+    chain_reset(&context);context.has_preparation=1;context.preparation.stage_id=30;
+    CHECK(!fd2_field_stage_is_supported(30));
     vga.info_panel_suppressed=1;
     fd2_field_play_context before=context;
     CHECK(run_field_chain(&vga,NULL,NULL,"unused",&context,FD2_APP_FLOW_PREPARE,0,NULL,0)==FD2_APP_FLOW_ERROR);
@@ -504,6 +536,9 @@ static int test_title_clear_and_two_ordered_keys(void) {
     CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==FD2_TITLE_ACTION_LOAD);
     CHECK(input_clears==1 && clear_had_pending[0] && menu_queue_empty);
     CHECK(action_reads==2 && !fd2_input_has_any_key(&vga.input));
+    CHECK(read_count==2 && read_frames[0]==1 && read_frames[1]==2 &&
+          read_selections[0]==0 && read_selections[1]==1);
+    CHECK(!menu_idle_polls && !menu_bad_delay && menu_flash_delays==8);
     CHECK(!unexpected && !image_live && archive_opens==archive_closes);
     for(int skip=0;skip<2;skip++) {
         reset_test();intro_enabled=1;intro_skip_scroll=skip;
@@ -516,6 +551,26 @@ static int test_title_clear_and_two_ordered_keys(void) {
         CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_HOST_QUIT);
         CHECK(input_clears==point && presents==presents_at_clear[point-1] && !menu_frames && !action_reads);
         CHECK(!image_live && archive_opens==archive_closes && !unexpected);
+    }
+    return 0;
+}
+
+static int test_title_blocked_read_one(void) {
+    for(int host=0;host<2;host++) {
+        reset_test();input_contract=1;menu_deferred=host?2:1;
+        fd2_vga vga={0};input_vga=&vga;fd2_input_init(&vga.input);
+        CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==
+            (host?FD2_TITLE_ACTION_HOST_QUIT:FD2_TITLE_ACTION_LOAD));
+        CHECK(menu_idle_polls==1 && !menu_bad_delay && !unexpected && !image_live);
+        CHECK(archive_opens==archive_closes && input_clears==1);
+        if(host) {
+            CHECK(read_count==0 && menu_frames==1 && !menu_flash_delays);
+        } else {
+            CHECK(read_count==3 && read_frames[0]==1 && read_frames[1]==2 && read_frames[2]==3);
+            CHECK(read_selections[0]==0 && read_selections[1]==0 && read_selections[2]==1);
+            CHECK(menu_frames==3+FD2_TITLE_CONFIRM_FLASH_FRAMES && menu_flash_delays==8);
+            CHECK(!fd2_input_has_any_key(&vga.input));
+        }
     }
     return 0;
 }
@@ -554,6 +609,7 @@ int main(int argc, char **argv) {
         if (run_intro_case(&intro_cases[i])) return 1;
     CHECK(test_app_chain()==0);
     CHECK(test_title_clear_and_two_ordered_keys()==0);
+    CHECK(test_title_blocked_read_one()==0);
     CHECK(test_intro_fade_callers()==0);
     puts("main_title_resource: 30 resource cases + App chain/fade callers passed; no SDL initialization/window");
     return 0;

@@ -39,7 +39,7 @@ int fd2_field_preview_run(fd2_vga *vga,
 
     int running = 1;
     while (running) {
-        fd2_field_game_tick(&game, SDL_GetTicks());
+        fd2_field_game_tick(&game, SDL_GetTicksNS());
         fd2_field_game_render(&game, vga);
         fd2_vga_present(vga);
         if (once) break;

@@ -1,3 +1,6 @@
+#include "field_visual.h"
+#include "field_background.h"
+#include <stdint.h>
 /* B4呈现边界：1e292/1e529/1a866，真实资源，无窗口；不替代原版WGC。 */
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +40,13 @@ static unsigned choice_redraws;
 static int choice_check_zeros,choice_zeros_checked;
 static uint8_t choice_before[64000];
 static uint64_t close_started;
+static int finite_probe,finite_open,finite_quit,finite_refresh_error,finite_timed_quit;
+static unsigned finite_plain,finite_timed,finite_refresh;
+static const uint8_t *finite_background,*finite_page;
+static void *finite_owned[2];
+static unsigned finite_freed;
+static const int finite_open_y[6]={177,164,151,138,125,112};
+static const int finite_close_y[5]={125,138,151,164,177};
 static unsigned inject_common_on_reply,common_injected,single_box_guard;
 static unsigned cell_pcm_calls;
 static unsigned water_calls;
@@ -134,6 +144,10 @@ static void *test_calloc(size_t count, size_t size) {
     if (++allocation_calls == fail_allocation) return NULL;
     return calloc(count, size);
 }
+static void test_free(void *pointer) {
+    for(unsigned i=0;i<2;i++)if(pointer && pointer==finite_owned[i])finite_freed|=1u<<i;
+    free(pointer);
+}
 static int test_decode(fd2_image *image, const fd2_archive *archive, size_t id, size_t frame) {
     int result = fd2_portrait_decode_frame(image, archive, id, frame);
     if (result == 0) { live_images++; if(single_box_guard)CHECK(live_images<=4); }
@@ -163,7 +177,7 @@ static int test_water(fd2_vga *vga, uint64_t now) {
         CHECK(wait_phase==2);wait_phase=3;
         if(wait_case->steps[wait_step].key && !(wait_case->queued && wait_step==0)) {
             fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
-            fd2_input_begin_test_frame(&vga->input,now);
+            fd2_input_begin_test_frame(&vga->input,now/UINT64_C(1000000));
         }
         if(wait_water_failure)return -1;
     }
@@ -218,6 +232,11 @@ static void test_render(const fd2_field_game *source, fd2_vga *vga) {
 static int test_runtime_refresh(fd2_field_game *game,fd2_vga *vga,int mode) {
     CHECK(game && vga && vga->field_page==test_field_page);
     CHECK(mode>=0 && mode<=3);
+    if(finite_probe && mode==0) {
+        finite_refresh++;
+        CHECK(finite_plain==6u && finite_freed==3u && !memcmp(vga->framebuffer,finite_background,64000));
+        if(finite_refresh_error)return -1;
+    }
     if(mode==2)choice_redraws++;
     return 0;
 }
@@ -284,8 +303,35 @@ static void test_frame(fd2_vga *vga, unsigned interval) {
         vga->input.quit_requested=1;
     CHECK(test_frames < 2000);
 }
-static void test_present(fd2_vga *vga) { test_frame(vga, 16); }
-static void test_present_timed(fd2_vga *vga, uint32_t interval) { test_frame(vga, interval); }
+static void test_present(fd2_vga *vga) {
+    if(finite_probe) {
+        finite_plain++;
+        if(vga->frame_deadline_ns>(now_ms*UINT64_C(1000000)))
+            now_ms=(vga->frame_deadline_ns+999999u)/UINT64_C(1000000);
+        vga->frame_deadline_ns=vga->frame_interval_ns=0;
+        if(finite_background) {
+            CHECK(finite_plain<=6u);
+            uint8_t expected[64000];memcpy(expected,finite_background,sizeof(expected));
+            int y=finite_open?finite_open_y[finite_plain-1]:finite_plain<=5u?finite_close_y[finite_plain-1]:200;
+            for(int row=0;row<86 && row+y<200;row++)
+                memcpy(expected+(row+y)*320+5,finite_page+(row+112)*320+5,310);
+            CHECK(!memcmp(vga->framebuffer,expected,sizeof(expected)));
+        }
+        if(finite_quit && finite_plain==(unsigned)finite_quit)vga->input.quit_requested=1;
+        return;
+    }
+    test_frame(vga, 16);
+}
+static void test_present_timed(fd2_vga *vga, uint32_t interval) {
+    if(finite_probe) {
+        finite_timed++;now_ms+=interval;
+        vga->frame_deadline_ns=(now_ms+interval)*UINT64_C(1000000);
+        vga->frame_interval_ns=(uint64_t)interval*UINT64_C(1000000);
+        if(finite_timed_quit)vga->input.quit_requested=1;
+        return;
+    }
+    test_frame(vga, interval);
+}
 static uint32_t test_rng(void *context) { (void)context; rng_calls++; return 0; }
 static int test_peek(const fd2_field_game *source, fd2_field_progress_notice *notice) {
     if(real_progress)return fd2_field_game_progress_peek(source,notice);
@@ -319,15 +365,19 @@ static int test_ack(fd2_field_game *source) {
     return 0;
 }
 
+#define free test_free
 #define malloc test_malloc
 #define calloc test_calloc
 #define fd2_portrait_decode_frame test_decode
 #define fd2_image_free test_image_free
 #define SDL_GetTicks test_ticks
+uint64_t test_ticks_ns(void);
+#define SDL_GetTicksNS test_ticks_ns
 #define fd2_delay_ms test_delay
 #define fd2_field_audio_play test_audio
 #define fd2_pcm_play_replace test_pcm_replace
 #define fd2_field_water_tick test_water
+#define fd2_field_water_tick_live(vga_) test_water((vga_),SDL_GetTicksNS())
 #define fd2_input_has_any_key test_notice_has_key
 #define fd2_input_take_key test_notice_take_key
 #define fd2_input_clear_keys test_notice_clear
@@ -488,6 +538,7 @@ done:
     return result;
 }
 
+#undef free
 #undef malloc
 #undef calloc
 #undef fd2_portrait_decode_frame
@@ -496,6 +547,7 @@ done:
 #undef fd2_delay_ms
 #undef fd2_field_audio_play
 #undef fd2_pcm_play_replace
+#undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 #undef fd2_input_has_any_key
 #undef fd2_input_take_key
@@ -515,6 +567,9 @@ done:
 static void reset(fd2_vga *vga) {
     CHECK(live_images == 0);
     now_ms = test_frames = rng_calls = allocation_calls = fail_allocation = 0;
+    finite_probe=finite_open=finite_quit=finite_refresh_error=finite_timed_quit=0;
+    finite_plain=finite_timed=finite_refresh=0;finite_background=finite_page=NULL;
+    finite_owned[0]=finite_owned[1]=NULL;finite_freed=0;
     water_calls=0;
     wait_case=NULL;wait_phase=wait_step=wait_clock_reads=wait_key_checks=wait_clear_calls=0;
     wait_water_failure=0;
@@ -536,11 +591,13 @@ static void reset(fd2_vga *vga) {
     fd2_input_init(&vga->input);
 }
 static void test_resources(void) {
+    static fd2_vga vga;reset(&vga); /* 每个测试自行建立零RNG/资源观察起点。 */
     fd2_field_progress_notice notice = {FD2_FIELD_PROGRESS_GAIN, 0, 488, 630, 0, 0};
     field_progress_text text;
     CHECK(progress_text_prepare(&fixture_game, &notice, &text) == 0);
     CHECK(text.count == 9 && text.tokens[4] == 6 && text.tokens[5] == 3 && text.tokens[6] == 0);
-    CHECK(progress_resources_preflight(&fixture_game, &notice, &fixture_other) == 0 && live_images == 0 && rng_calls == 0);
+    CHECK(progress_resources_preflight(&fixture_game, &notice, &fixture_other) == 0);
+    CHECK(live_images == 0 && rng_calls == 0);
     notice.value = UINT32_MAX; CHECK(progress_text_prepare(&fixture_game, &notice, &text) == 0);
     CHECK(text.tokens[4]==FIELD_TEXT_SAFE_MINUS && text.tokens[5]==1);
     notice = (fd2_field_progress_notice){FD2_FIELD_PROGRESS_LEARN, 0, 587, 0, 17, 0};
@@ -1162,6 +1219,65 @@ static void test_shipping_story_host_and_error_keep_live_prefix(void) {
         free(stopped);fd2_field_game_close(game);free(game);
     }
 }
+/* 完整1956b/196cb/1974c：独立列出六/五个y坐标，逐次比较64000B；
+ * no-wait仅指没有额外合成deadline，不称显示器看见全部CPU提交。 */
+static void test_notice_finite_source_and_tail(void) {
+    static fd2_vga vga;
+    uint8_t *background=malloc(64000),*page=malloc(64000);CHECK(background && page);
+    memset(background,0x21,64000);
+    for(unsigned i=0;i<64000;i++)page[i]=(uint8_t)(i*7u+i/320u);
+    for(int kind=0;kind<5;kind++) {
+        reset(&vga);finite_probe=1;finite_background=background;finite_page=page;
+        field_progress_box box={0};box.background=malloc(64000);box.page=calloc(1,sizeof(*box.page));
+        CHECK(box.background && box.page);memcpy(box.background,background,64000);memcpy(box.page->framebuffer,page,64000);
+        finite_owned[0]=box.background;finite_owned[1]=box.page;
+        fd2_field_units units=fixture_game.units;
+        finite_open=kind==0;finite_quit=kind==2?2:0;finite_refresh_error=kind==3;
+        if(kind==4)vga.input.quit_requested=1;
+        int result=kind==0?progress_box_transition(&box,&vga,1,0):progress_box_close(&box,&fixture_game,&vga,0);
+        CHECK(result==(kind==2 || kind==4?FD2_SCENE_RESULT_HOST_QUIT:kind==3?FD2_SCENE_RESULT_ERROR:0));
+        CHECK(finite_plain==(kind==2?2u:kind==4?0u:6u));
+        CHECK(finite_refresh==(kind==1 || kind==3?1u:0u));
+        CHECK(!finite_timed && !now_ms && !rng_calls && !water_calls &&
+            !memcmp(&units,&fixture_game.units,sizeof(units)));
+        if(kind==1 || kind==3)CHECK(!box.page && !box.background && finite_freed==3u);
+        progress_box_free(&box);
+    }
+    free(background);free(page);finite_probe=0;
+}
+
+/* 19953/197e5有限4/4与有源2tick稳态分账。scope ticket仅撤销自己H16ms，
+ * READ后不持有合成最后一帧；已有其它来源deadline必须照常履行。 */
+static void test_choice_finite_deadline_owner(void) {
+    static fd2_vga vga;reset(&vga);finite_probe=1;
+    CHECK(fd2_field_command_assets_open(&fixture_game.command_assets,&fixture_other)==0);
+    field_choice_scope scope={0};fd2_field_loot_reply reply=FD2_FIELD_LOOT_CANCEL;
+    scope.game=&fixture_game;scope.vga=&vga;scope.reply=&reply;scope.snapshot=calloc(1,sizeof(*scope.snapshot));
+    CHECK(scope.snapshot && play_choice_step(FD2_FIELD_CHOICE_BEGIN,0,&scope)==0);
+    const int open[4]={4,8,12,16},close[4]={12,8,4,0};
+    for(unsigned i=0;i<4;i++)CHECK(play_choice_step(FD2_FIELD_CHOICE_DRAW,open[i],&scope)==0);
+    CHECK(finite_plain==4u && !finite_timed && !now_ms && rng_calls==1 && !water_calls);
+    CHECK(play_choice_step(FD2_FIELD_CHOICE_STEADY,16,&scope)==0 && finite_timed==1u && scope.host_deadline);
+    vga.input.queued_keys[0]=(fd2_input_event){.key=FD2_INPUT_KEY_ENTER};vga.input.queued_head=0;vga.input.queued_count=1;
+    CHECK(play_choice_step(FD2_FIELD_CHOICE_READ_KEY,0,&scope)==1 && reply==FD2_FIELD_LOOT_YES &&
+        !vga.frame_deadline_ns && !vga.frame_interval_ns && !scope.host_deadline);
+    for(unsigned i=0;i<4;i++)CHECK(play_choice_step(FD2_FIELD_CHOICE_DRAW,close[i],&scope)==0);
+    CHECK(play_choice_step(FD2_FIELD_CHOICE_FINISH,0,&scope)==0 && finite_plain==8u &&
+        finite_timed==1u && now_ms==16 && rng_calls==1 && !water_calls);
+    vga.frame_deadline_ns=UINT64_C(90000000);vga.frame_interval_ns=UINT64_C(10000000);
+    CHECK(play_choice_step(FD2_FIELD_CHOICE_DRAW,4,&scope)==0 && now_ms==90); /* 不撤销外来10ms帧。 */
+    scope.host_deadline=UINT64_C(120000000);vga.frame_deadline_ns=UINT64_C(140000000);
+    vga.frame_interval_ns=UINT64_C(25000000);
+    CHECK(play_choice_step(FD2_FIELD_CHOICE_FINISH,0,&scope)==0 &&
+        vga.frame_deadline_ns==UINT64_C(140000000) && vga.frame_interval_ns==UINT64_C(25000000));
+    free(scope.snapshot);
+    reset(&vga);finite_probe=finite_timed_quit=1;field_progress_box box={0};reply=FD2_FIELD_LOOT_CANCEL;
+    CHECK(loot_choice(&box,&fixture_game,&vga,&reply)==FD2_SCENE_RESULT_HOST_QUIT &&
+        finite_plain==4u && finite_timed==1u && !vga.frame_deadline_ns && !vga.frame_interval_ns &&
+        reply==FD2_FIELD_LOOT_CANCEL && rng_calls==1 && water_calls==1);
+    finite_probe=0;fd2_field_command_assets_close(&fixture_game.command_assets);
+}
+
 int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--notice-wait-json")) {test_notice_wait_vectors(1);return 0;}
     test_field_page=fd2_field_page_create();CHECK(test_field_page);
@@ -1179,6 +1295,7 @@ int main(int argc,char **argv) {
         for (int row = 0; row < 10; row++)
             memcpy(arrow_pixels[i] + row * 14, page.framebuffer + (181 + row) * VGA_STRIDE + 191, 14);
     }
+    test_notice_finite_source_and_tail();test_choice_finite_deadline_owner();
     test_resources(); test_signed_number_safe_projection(); test_box_and_wait(); test_notice_wait_vectors(0); test_script_boundary();
     test_attack_validation_preserves_quit_result(); test_loot_presentation_contract();
     test_loot_accumulated_text_and_no_arrow_wait();
@@ -1197,4 +1314,13 @@ int main(int argc,char **argv) {
     fd2_field_page_destroy(test_field_page);
     puts("field_progress_play_test: ok (resources, wait/RNG, staged ACK, cleanup; no GUI)");
     return 0;
+}
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t test_ticks_ns(void) {
+    uint64_t sampled=test_ticks();
+    if(!wait_case)return sampled*UINT64_C(1000000);
+    /* 向量直接给原低WORD读数；独立ceil转换到PIT边界，不再以55ms造tick。 */
+    uint64_t tick=sampled/55u;
+    return (tick*UINT64_C(65536000000000)+1193181u)/1193182u;
 }

@@ -5,6 +5,8 @@
  * 0x2944b、0x2ab9e、0x2a892 枚举物理／法术／物品候选，
  * 0x2ad8b/0x2afb6/0x2aa94 计算非物理目标分数。本模块只复现已确认的
  * 查询和计划，不在纯查询层提前提交效果、消耗或 phase 状态。
+ * F2同源修正：field_line_targets_collect @0x149f8（原登记 sub_149F8）依15055/1567e的
+ * 真实七push/ESP合同，从当前actor朝selected扫描；不保留旧反向近似。
  */
 #include "field_ai.h"
 
@@ -586,6 +588,7 @@ int fd2_field_ai_item_candidate_is_better(
 }
 
 static int collect_line_targets(
+        const fd2_field_map *map,
         const fd2_field_units *units,
         int origin_x, int origin_y,
         int target_x, int target_y,
@@ -594,18 +597,22 @@ static int collect_line_targets(
         uint8_t *indices,
         size_t capacity,
         size_t *count) {
-    if (!units || !indices || !count) return -1;
-    /* sub_149F8 @0x149f8（旧 dual 0x39c16，body 在 +0xa）从候选格开始，沿轴向朝 actor 原点走
-     * `steps` 格；候选距离小于 steps 时会越过 actor 继续同方向。 */
-    int dx = target_x == origin_x ? 0 : origin_x < target_x ? -1 : 1;
+    if (!map || !units || !indices || !count) return -1;
+    /* field_line_targets_collect @0x149f8（原登记 sub_149F8）：15055/1567e七个实push表明
+     * arg_C/10是当前actor坐标，arg_0/4是selected候选。14a6b..78先以
+     * actor为focus，14a90/9a先向selected走一步再lookup；同格向下，
+     * 走满steps，不在selected停止。原14aa0..c0每步排除地图外格。
+     * 试算与提交均借传入units的当前actor，不偷换成旧坐标或移动候选。 */
+    int dx = target_x == origin_x ? 0 : origin_x < target_x ? 1 : -1;
     int dy = target_x == origin_x
-        ? (origin_y < target_y ? -1 : 1) : 0;
+        ? (origin_y <= target_y ? 1 : -1) : 0;
     size_t result_count = 0;
-    int x = target_x;
-    int y = target_y;
+    int x = origin_x;
+    int y = origin_y;
     for (uint8_t step = 0; step < steps; step++) {
         x += dx;
         y += dy;
+        if (x < 0 || y < 0 || x >= map->width || y >= map->height) continue;
         for (size_t i = 0; i < units->count; i++) {
             const fd2_field_unit *target = &units->items[i];
             if ((target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0 ||
@@ -680,7 +687,7 @@ int fd2_field_ai_choose_item_candidate(
                 size_t target_count = 0;
                 if (outer_raw > 15u) {
                     if (collect_line_targets(
-                            units, actor->x, actor->y, x, y,
+                            map, units, actor->x, actor->y, x, y,
                             (uint8_t)(outer_raw - 16u), 0,
                             target_indices, sizeof(target_indices),
                             &target_count) != 0) {
@@ -781,7 +788,7 @@ int fd2_field_ai_collect_item_targets(
     const fd2_field_unit *actor = &units->items[actor_index];
     if (item[0x10u] > 15u)
         return collect_line_targets(
-            units, actor->x, actor->y, target_x, target_y,
+            map, units, actor->x, actor->y, target_x, target_y,
             (uint8_t)(item[0x10u] - 16u), 0,
             indices, capacity, count);
     fd2_field_path_result target_range =

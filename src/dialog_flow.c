@@ -7,6 +7,7 @@
  * 对话，再把逻辑行号退回 2；-1 在关闭最终框前调用 FUN_00016c57(0)。
  */
 #include "dialog_flow.h"
+#include "bios_clock.h"
 
 #include <string.h>
 
@@ -25,22 +26,24 @@ int fd2_dialog_visual_glyph_step(fd2_dialog_visual_state *state,
 
 /* dialog_wait_key @0x16c57（原登记同名）：入口一次RNG，闭眼后一相位
  * 恢复frame0并再取RNG；闭眼门是post-decrement旧值0，不是减到0。 */
-int fd2_dialog_wait_begin(fd2_dialog_wait_state *state, uint64_t now_ms,
+int fd2_dialog_wait_begin(fd2_dialog_wait_state *state, uint64_t now_ns,
     int arrow_mode, fd2_dialog_random_fn rng, void *userdata) {
     if(!state || !rng || (arrow_mode!=0 && arrow_mode!=1)) return -1;
-    *state=(fd2_dialog_wait_state){now_ms,rng(userdata)%30u+2u,
+    *state=(fd2_dialog_wait_state){fd2_bios_tick_signed_ns(now_ns),rng(userdata)%30u+2u,
         0,18,0,(uint8_t)arrow_mode};
     return 0;
 }
 
-int fd2_dialog_wait_update(fd2_dialog_wait_state *state, uint64_t now_ms,
-    fd2_dialog_random_fn rng, void *userdata, fd2_dialog_wait_visual *visual) {
-    if(!state || !rng || !visual || state->blink_closed>1u ||
+int fd2_dialog_wait_step(fd2_dialog_wait_state *state, uint64_t now_ns,
+    fd2_dialog_wait_visual *visual) {
+    if(!state || !visual || state->blink_closed>1u ||
         state->arrow_mode>1u || state->arrow_ticks>2u ||
         (state->arrow_frame!=18u && state->arrow_frame!=19u) ||
         (!state->blink_closed && state->countdown>31u)) return -1;
     *visual=(fd2_dialog_wait_visual){-1,-1};
-    if(now_ms>=state->last_ms && now_ms-state->last_ms<110u) return 0;
+    int32_t tick=fd2_bios_tick_signed_ns(now_ns);
+    /* 16d13..16d18只有signed差>=2；低WORD翻负或回退不另造推进门。 */
+    if(tick-state->last_tick<2) return 0;
     if(state->arrow_mode && ++state->arrow_ticks==3u) {
         state->arrow_ticks=0;
         state->arrow_frame=state->arrow_frame==18u?19u:18u;
@@ -48,13 +51,11 @@ int fd2_dialog_wait_update(fd2_dialog_wait_state *state, uint64_t now_ms,
     }
     if(state->blink_closed) {
         visual->portrait=0;
-        state->countdown=rng(userdata)%30u+2u;
         state->blink_closed=0;
     } else if(state->countdown--==0u) {
         visual->portrait=3;
         state->blink_closed=1;
     }
-    state->last_ms=now_ms;
     return 1;
 }
 

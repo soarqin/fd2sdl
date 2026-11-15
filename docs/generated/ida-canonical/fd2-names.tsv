@@ -28,6 +28,7 @@ ea	name	is_func	is_public
 0x1300d	field_actor_move_left_follow_camera	1	0
 0x13185	field_actor_move_up_follow_camera	1	0
 0x13315	field_actor_move_right_follow_camera	1	0
+0x13460	field_movement_tick_edge_wait	1	0
 0x13488	field_actor_path_play	1	0
 0x134e4	field_all_actor_directions_reset	1	0
 0x13512	field_actor_mark_acted	1	0
@@ -45,6 +46,7 @@ ea	name	is_func	is_public
 0x146a7	field_cell_zoc_mark	1	0
 0x146d1	field_friendly_destination_block	1	0
 0x14818	field_target_range_build	1	0
+0x149f8	field_line_targets_collect	1	0
 0x14b78	field_ai_move_toward_cell	1	0
 0x14ef0	field_ai_try_attack	1	0
 0x15055	field_ai_item_action_execute	1	0
@@ -69,6 +71,8 @@ ea	name	is_func	is_public
 0x1728c	field_options_menu_execute	1	0
 0x173e7	field_command_first_enabled_select	1	0
 0x1741c	field_command_menu_open	1	0
+0x175a9	field_command_menu_background_save	1	0
+0x17643	field_command_menu_background_restore	1	0
 0x176b4	field_command_menu_close	1	0
 0x177fc	field_command_menu_input	1	0
 0x17898	field_command_menu_wait_key	1	0
@@ -130,6 +134,7 @@ ea	name	is_func	is_public
 0x1ceed	field_unit_magic_list_draw	1	0
 0x1cff0	field_player_magic_command_execute	1	0
 0x1d51d	field_player_magic_list_select_step	1	0
+0x1d6c8	field_map_magic_cast_flash	1	0
 0x1d79c	field_unit_magic_bit_set	1	0
 0x1d80b	field_side1_phase_execute	1	0
 0x1d8ba	field_side0_phase_execute	1	0
@@ -253,6 +258,7 @@ ea	name	is_func	is_public
 0x2cf30	field_derived_magic_full_execute	1	0
 0x2d80d	field_composite_magic_full_execute	1	0
 0x2df01	palette_fade_to	1	0
+0x2dfc8	field_ai_ray_item_cast_present	1	0
 0x2e95b	fd2tmp_map_sprite_load	1	0
 0x2fb2c	field_promotion_visual_execute	1	0
 0x2fe14	field_promotion_idle_cycle	1	0

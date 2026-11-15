@@ -205,7 +205,12 @@ static int test_wait_recovery_and_special_cell_gate(void) {
         if (which == 2) g->units.items[0].detail_status[0] = 1;
         CHECK(command_at(&f, which == 3 ? 2 : 1, 1) == 0);
         if (which == 4) g->units.items[0].detail_status[1] = 1;
-        if (which == 5) { f.attr.flags = 0x20; g->metadata.cell_actions[0].mode = 9; }
+        if (which == 5) {
+            f.attr.flags = 0x20;g->metadata.cell_actions[0].mode = 9;
+            /* 非0/1 mode按WORD调用原90槽表；mode9本身不是拒绝理由。
+             * 90是表外负例，保原“提交前失败、原owner无写入”性质。 */
+            g->metadata.cell_actions[0].param = 90;
+        }
         uint16_t before = g->units.items[0].hp;
         if (which == 5) {
             g->pending_cell_event = (fd2_field_pending_cell_event){1, 7, 3};

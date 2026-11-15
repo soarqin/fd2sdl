@@ -280,7 +280,7 @@ struct fd2_field_game {
     const fd2_archive *fdother;
     /* 仅正式App借用；Game关闭/活动Load不重置App视觉锚，不进SAV。 */
     fd2_field_visual_state *visual_owner;
-    uint64_t visual_now_ms;
+    uint64_t visual_now_ns;
     fd2_archive field_archive;
     fd2_archive fdshap_archive;
     fd2_archive dato_archive;
@@ -347,6 +347,10 @@ struct fd2_field_game {
     uint8_t command_animation_phase;
     uint8_t command_animation_opening;
     uint64_t last_command_highlight_ms;
+    /* 原53A71：1741c保存、17898沿用、176b4恢复的唯一72×72菜单底图。
+     * COMMAND/ITEM/SYSTEM共用同一App页owner；不进入SAV，不是另一份场景状态。 */
+    uint8_t command_backdrop[72 * 72];
+    const fd2_field_page *command_backdrop_owner;
     /* field_player_magic_command_execute @0x1cff0 的53C57等价索引；
      * 只归列表交互，不写入原版单位或存档。 */
     int magic_list_selected;
@@ -577,13 +581,13 @@ int fd2_field_game_apply_handoff(fd2_field_game *game,
 
 /* field_view_render_tiles @0x11eee（原同名）首部：正式App推进terrain/range
  * 及其锚点，headless保原terrain回退；不推进idle、菜单、RNG或持久状态。 */
-int fd2_field_game_tick_terrain_visual(fd2_field_game *game, uint64_t now_ms);
+int fd2_field_game_tick_terrain_visual(fd2_field_game *game, uint64_t now_ns);
 /* 1297d有限叶：只推进原idle/cursor，不调用11eee、raw26、水色或玩法。
  * 1b1e7需要在此叶和11eee之间插入4e31c，不能以整段game_tick替代。 */
-int fd2_field_game_tick_actor_phase_visual(fd2_field_game *game, uint64_t now_ms);
+int fd2_field_game_tick_actor_phase_visual(fd2_field_game *game, uint64_t now_ns);
 /* 1297d→11eee组合视觉时钟写口；复用同一App视觉owner及Game投影字段。
  * 演出显式借Game调用，不能用普通tick代替而推进AI/菜单/提交业务。 */
-int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ms);
+int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ns);
 /* 资源就绪后绑定App视觉owner；不重置原相位，不推进业务或时钟。 */
 int fd2_field_game_bind_visual(fd2_field_game *game, fd2_vga *vga);
 /* 0对应11cac(0)；3对应10010首11cac(1)；1为1f30a尾11eee+127a9；2为19953的
@@ -591,6 +595,15 @@ int fd2_field_game_bind_visual(fd2_field_game *game, fd2_vga *vga);
  * 原11cbc..11cc3在arg0==0时才调用水色；3对应的原arg1明确跳过。 */
 int fd2_field_game_runtime_refresh(fd2_field_game *game, fd2_vga *vga,
     int phase_only);
+/* 17898空队等待中的场景/四向菜单，不含water/highlight/selection/RNG。 */
+int fd2_field_game_runtime_menu_refresh(fd2_field_game *game,fd2_vga *vga);
+/* 18b84已证body：1297d→11eee/122dc/127a9→summary→info→project。
+ * actor及summary_left在Play等待入口锁定；left=1对应VGA(9,9)，0为(160,9)。
+ * 不包含water、输入、完整DWORD ESI比较/首次来源、fresh anchor或deadline。 */
+int fd2_field_game_runtime_summary_refresh(fd2_field_game *game,fd2_vga *vga,
+    size_t actor,int summary_left);
+/* 1b1e7地图总览的入口(0)/稳态(1)；无选择、info、RNG或宿主deadline。 */
+int fd2_field_game_runtime_overview_refresh(fd2_field_game *game,fd2_vga *vga,int steady);
 /* 与正常render同一图，供离屏资源准备；不提交Game的信息板侧位。 */
 void fd2_field_game_render_preview(const fd2_field_game *game, fd2_vga *vga);
 /* 1acf3原工作页叶：使用本次Scene运动记录/焦点；只在双门允许时
@@ -603,7 +616,9 @@ int fd2_field_game_render_page_info(const fd2_field_game *game, fd2_vga *vga,
  * finalize/掉落/奖励/acted/控制器尾由caller冷图分别执行。 */
 int fd2_field_game_resolve_event_exchange(fd2_field_game *game,
     size_t actor, size_t target);
-void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ms);
+void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ns);
+/* 只推进既有宿主期限，不调用原1297d/11eee或更新视觉锚。 */
+void fd2_field_game_tick_deadlines(fd2_field_game *game, uint64_t now_ms);
 /* 16f55/19df7系统notice的同一纯页面：首提示、稳态和结果共用。
  * 原资源全预检；失败不写VGA，成功不改Game/RNG/palette或present。 */
 int fd2_field_game_render_system_notice(const fd2_field_game *game,
@@ -668,6 +683,8 @@ fd2_field_system_action fd2_field_game_cancel_system_menu(
     fd2_field_game *game);
 void fd2_field_game_set_save_resource_available(fd2_field_game *game,
                                                 int available);
+/* 正式App页：原1741c/176b4有限四相位，无额外毫秒门；0成功、1HOST、-1错误。
+ * 无page诊断仍使用frame_delay_ms；关闭成功后的原FIFO clear由Play输入owner执行。 */
 int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
                                        int opening,
                                        uint32_t frame_delay_ms);

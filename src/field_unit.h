@@ -209,6 +209,19 @@ int fd2_field_units_render_page(fd2_field_page *page,
     const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
     int camera_x, int camera_y, uint8_t idle_phase, uint8_t cursor_phase,
     uint8_t jitter_phase);
+/* sub_127A9 @0x127a9（原登记同名）：保留纯全表资源预检；正式绘制按raw
+ * 筛hidden后逐actor读唯一VGA jitter owner。相机外/raw26=0仍经过原读钟点。
+ * 不含129ec前景；caller须在全actor之后另绘，不投影/写业务/RNG。 */
+int fd2_field_units_render_page_live(fd2_vga *vga, fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    int camera_x, int camera_y, uint8_t idle_phase, uint8_t cursor_phase);
+/* sub_127E0 @0x127e0（原登记同名）：结构非法无副作用；其余先读clock再
+ * 交纯叶，资源错误可以已有clock前缀。direct原无hidden筛选，当前纯叶仍
+ * 省hidden像素的残余独立登记；此处不能因hidden而省略原读钟点。 */
+int fd2_field_units_render_page_actor_live(fd2_vga *vga, fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
+    uint8_t cursor_phase, int offset_y);
 int fd2_field_units_render_page_terrain_overlays(fd2_field_page *page,
     const fd2_terrain_tileset *terrain, const fd2_field_map *map,
     const fd2_field_units *units, int camera_x, int camera_y, int anim_phase,

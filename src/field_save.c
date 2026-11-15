@@ -364,7 +364,7 @@ static void carry_runtime_owners(fd2_field_game *dst,
     dst->event_preflight = src->event_preflight;
     dst->event_preflight_userdata = src->event_preflight_userdata;
     dst->visual_owner = src->visual_owner;
-    dst->visual_now_ms = src->visual_now_ms;
+    dst->visual_now_ns = src->visual_now_ns;
     dst->attack_critical_base = src->attack_critical_base;
     dst->attack_critical_base_userdata = src->attack_critical_base_userdata;
     dst->progress_preflight = src->progress_preflight;

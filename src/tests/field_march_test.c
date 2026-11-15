@@ -214,19 +214,20 @@ static int test_hp0_actor_completes_before_phase_failure(void) {
 }
 
 static int test_guards_and_host_quit_before_batch(void) {
-    /* S3发布合同：20只有入场，21未发布；不是原版动作语义的负例。 */
+    /* S5已发布20/21；原30为内部尾声，不能再用旧支持门挡合法战场。 */
     CHECK(fd2_field_stage_battle_is_supported(2));
-    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
-    CHECK(!fd2_field_stage_is_supported(21));
+    CHECK(fd2_field_stage_is_supported(20) && fd2_field_stage_battle_is_supported(20));
+    CHECK(fd2_field_stage_is_supported(21) && fd2_field_stage_battle_is_supported(21));
+    CHECK(!fd2_field_stage_battle_is_supported(30));
     for (int which = 0; which < 6; which++) {
         fixture f; init(&f);
         fd2_field_game *g = &f.game;
-        if (which == 0) g->stage = 20;
+        if (which == 0) g->stage = 30;
         if (which == 1) g->active_side = 0;
         if (which == 2) g->player_post_waiting_phase = 1;
         if (which == 3) g->selected_unit = 0;
         if (which == 4) g->failure = FD2_FIELD_FAILURE_ACTION;
-        if (which == 5) g->stage = 21;
+        if (which == 5) g->stage = SIZE_MAX;
         fd2_field_game before = *g;
         CHECK(fd2_field_game_march(g, NULL, 0) == -1);
         CHECK(!memcmp(g, &before, sizeof(before)) && f.rng_calls == 0);

@@ -370,10 +370,14 @@ int fd2_scene_cinematic_circle_close(fd2_scene_cinematic *scope) {
 int fd2_scene_cinematic_shake_prepare(fd2_scene_cinematic *scope) {
     if(!scope || !scope->game || !scope->vga->field_page)return -1;
     fd2_field_game *game=scope->game;
-    if(fd2_field_game_tick_terrain_visual(game,SDL_GetTicks())!=0 ||
-        fd2_field_background_draw(scope->vga->field_page,72,72,game->camera_cell_x,
-            game->camera_cell_y,0,0,game->visual_now_ms,1)!=0 ||
-        fd2_terrain_render_page_block(scope->vga->field_page,&game->terrain,&game->map,
+    /* 24b4d的独立11eee先terrain，再实际背景，再range；不推进1297d。 */
+    if(fd2_field_visual_terrain_step_live(&scope->vga->field_visual)<0)return -1;
+    game->terrain_visual_phase=(uint8_t)scope->vga->field_visual.terrain_phase;
+    if(fd2_field_background_draw_live(scope->vga->field_page,72,72,game->camera_cell_x,
+            game->camera_cell_y,0,0,1)!=0 ||
+        fd2_field_visual_range_step_live(&scope->vga->field_visual,-1)<0)return -1;
+    game->range_visual_phase=(uint8_t)scope->vga->field_visual.range_phase;
+    if(fd2_terrain_render_page_block(scope->vga->field_page,&game->terrain,&game->map,
             72,72,13,9,game->camera_cell_x,game->camera_cell_y,
             game->terrain_visual_phase,game->idle_phase,NULL,NULL)!=0)return -1;
     return fd2_field_game_runtime_refresh(game,scope->vga,0);

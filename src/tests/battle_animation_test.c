@@ -1,3 +1,4 @@
+#include <stdint.h>
 /* B6物理服务离屏回归：2e2b0/2ebe1/2e9a8/2f4d4/2f631原调用边界。
  * present/BIOS等待/PCM启动替身不创建窗口、不打开设备；真实目录/RLE/summary照常执行。 */
 #include <stdio.h>
@@ -5,6 +6,8 @@
 #include <string.h>
 
 #define SDL_GetTicks battle_test_ticks
+uint64_t battle_test_ticks_ns(void);
+#define SDL_GetTicksNS battle_test_ticks_ns
 #define fd2_pcm_play_replace battle_test_pcm_replace
 #define fd2_pcm_stop battle_test_pcm_stop
 #include "../battle_animation.c"
@@ -27,6 +30,10 @@ static fd2_battle_animation *watch;
 static uint16_t watched_hp[16];
 static size_t watched_count;
 static uint8_t last_present_dac[3], dark_samples[80];
+static unsigned preamble_capture,preamble_waits,preamble_bad_wait;
+static unsigned ray_capture,ray_wait_count,ray_quit_at_six,ray_white_calls,ray_bad_white;
+static uint32_t ray_wait_values[32];static unsigned ray_wait_frames[32];
+static uint8_t preamble_colors[8][3];
 static unsigned dark_sample_count, bad_white_wait, delay2_calls, return_calls;
 static unsigned normal_return_calls, effect_return_calls;
 static unsigned background_return_calls;
@@ -58,6 +65,7 @@ static fd2_archive fdother, fdtxt, figani_fixture;
 void fd2_vga_clear(fd2_vga *vga,uint8_t fill) { memset(vga->framebuffer,fill,64000); }
 void fd2_vga_present(fd2_vga *vga) {
     frames++;
+    if(preamble_capture && frames<=8)memcpy(preamble_colors[frames-1],vga->dac,3);
     if (capture_map && map_captured && map_captured_count<128)
         memcpy(map_captured+64000u*map_captured_count++,vga->framebuffer,64000);
     if(skip_context && skip_frame==frames)fd2_battle_animation_set_skip(skip_context,1);
@@ -72,7 +80,14 @@ void fd2_vga_present(fd2_vga *vga) {
         watched_hp[watched_count++]=watch->exchange->units[1].hp;
     if (quit_frame && frames==quit_frame) vga->input.quit_requested=1;
 }
-void fd2_wait_ticks(uint32_t value) { ticks+=value;fake_ms+=(uint64_t)value*55u; }
+void fd2_wait_ticks(uint32_t value) {
+    if(preamble_capture){preamble_waits++;if(value!=1u || frames!=preamble_waits)preamble_bad_wait++;}
+    if(ray_capture && ray_wait_count<32u) {
+        ray_wait_values[ray_wait_count]=value;ray_wait_frames[ray_wait_count++]=frames;
+        if(ray_quit_at_six && value==6u)screen.input.quit_requested=1;
+    }
+    ticks+=value;fake_ms+=(uint64_t)value*55u;
+}
 void fd2_delay_ms(uint32_t value) {
     delays+=value;fake_ms+=value;
     if (value==2) delay2_calls++;
@@ -125,21 +140,49 @@ int fd2_field_game_effect_actors(const fd2_field_game *current,fd2_vga *vga) {
 }
 static unsigned visual_calls,terrain_calls;
 static uint64_t visual_stamps[64];
+static unsigned runtime_calls,runtime_phase,runtime_frames;
+static uint32_t runtime_display_mode;
+static int runtime_failure;
+static uint8_t runtime_pixel(unsigned phase,int x,int y) {
+    return (uint8_t)(40u+((unsigned)x*7u+(unsigned)y*11u+phase*3u)%173u);
+}
+/* 只签Battle如何调用原phase叶/借App页；逐读取钟、selection/info及
+ * 11eee/127a9真实语义由Game/unit_render/live-clock测试独立验证。 */
+int fd2_field_game_runtime_refresh(fd2_field_game *current,fd2_vga *vga,int phase) {
+    if(current!=&game || vga!=&screen || !vga->field_page ||
+        current->visual_owner!=&vga->field_visual || (phase!=1 && phase!=3))return -1;
+    runtime_calls++;runtime_phase=(unsigned)phase;runtime_frames=frames;
+    runtime_display_mode=current->ordinary_display_mode;
+    if(runtime_failure) {
+        uint8_t prefix=239;
+        if(fd2_field_page_write(vga->field_page,72,72,1,1,&prefix,1,1)!=0)return -1;
+        return -1;
+    }
+    uint8_t row[312];
+    for(int y=0;y<192;y++) {
+        for(int x=0;x<312;x++)row[x]=runtime_pixel((unsigned)phase,x,y);
+        if(fd2_field_page_write(vga->field_page,72,72+y,312,1,row,sizeof(row),312)!=0)return -1;
+    }
+    return phase==3 ? fd2_field_page_project(vga->field_page,72,72,
+        vga->framebuffer,sizeof(vga->framebuffer)):0;
+}
 /* 此处只校接线/退出；真正1297d/11eee实现由field_unit_render真实Game回归验证。 */
-int fd2_field_game_tick_terrain_visual(fd2_field_game *g,uint64_t now) {
+int fd2_field_game_tick_terrain_visual(fd2_field_game *g,uint64_t now_ns) {
+    uint64_t now=now_ns/UINT64_C(1000000);
     if(!g || !g->ready || g->failure) return -1;
     terrain_calls++;
     if(!g->last_terrain_visual_ms)g->last_terrain_visual_ms=now;
     else if(now<g->last_terrain_visual_ms || now-g->last_terrain_visual_ms>=55) {g->terrain_visual_phase^=1u;g->last_terrain_visual_ms=now;}
     return 0;
 }
-int fd2_field_game_tick_visual(fd2_field_game *g,uint64_t now) {
+int fd2_field_game_tick_visual(fd2_field_game *g,uint64_t now_ns) {
+    uint64_t now=now_ns/UINT64_C(1000000);
     if(!g || !g->ready || g->failure) return -1;
     if(visual_calls<64)visual_stamps[visual_calls]=now;
     visual_calls++;
     if(!g->last_idle_ms)g->last_idle_ms=now;
     else if(now<g->last_idle_ms || now-g->last_idle_ms>=275) {g->idle_phase=(g->idle_phase+1u)&3u;g->last_idle_ms=now;}
-    return fd2_field_game_tick_terrain_visual(g,now);
+    return fd2_field_game_tick_terrain_visual(g,now_ns);
 }
 static int unchanged_except_visual(const fd2_field_game *g,const fd2_field_game *before) {
     fd2_field_game *copy=malloc(sizeof(*copy));if(!copy)return 0;*copy=*g;
@@ -166,7 +209,7 @@ int fd2_field_game_effect_mask_frame(const fd2_field_game *current,fd2_vga *vga,
     return fd2_field_game_render_transition_mask(current,vga,lut,x,y,radius);
 }
 int fd2_field_game_effect_refresh(fd2_field_game *current,fd2_vga *vga) {
-    if (fd2_field_game_tick_visual(current,battle_test_ticks())!=0) return -1;
+    if (fd2_field_game_tick_visual(current,(battle_test_ticks())*UINT64_C(1000000))!=0) return -1;
     fd2_field_game_render_effect_background(current,vga);return 0;
 }
 
@@ -194,6 +237,13 @@ void fd2_vga_set_brightness(fd2_vga *vga,int darkness) {
         vga->dac[i]=(uint8_t)((v<<2)|(v>>4));
     }
 }
+/* 仅观察新caller如何传原pal_partial_set参数；实际DAC加法的独立回归归vga。 */
+int fd2_vga_palette_add(fd2_vga *vga,int first,int last,int32_t value) {
+    if(!vga || first!=0 || last!=255 || value<0 || value>64)return -1;
+    if(ray_capture && (ray_white_calls>=65 || value!=64-(int32_t)ray_white_calls))ray_bad_white++;
+    ray_white_calls++;
+    return 0;
+}
 int battle_test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
         size_t index,int loops,float gain) {
     if (capture_map && map_cue_count<64) {
@@ -210,11 +260,14 @@ int battle_test_pcm_stop(fd2_pcm_player *player) {
     primary_stops++; return 0;
 }
 static void reset_observer(void) {
+    ray_capture=ray_wait_count=ray_quit_at_six=ray_white_calls=ray_bad_white=0;
+    preamble_capture=preamble_waits=preamble_bad_wait=0;memset(preamble_colors,0,sizeof(preamble_colors));
     frames=ticks=delays=cues=primary_stops=quit_frame=wrong_stop=secondary_cues=0; cue_failure=0;skip_frame=0;skip_context=NULL;
     magic_watch=NULL;magic_hash_count=0;mask_calls=0;mask_failure=0;stale_wait200=0;capture_first=0;captured_count=0;
     watch=NULL;watched_count=0;dark_sample_count=bad_white_wait=delay2_calls=return_calls=0;
     normal_return_calls=effect_return_calls=0;
     background_return_calls=0;effect_info_marker=0;
+    runtime_calls=runtime_phase=runtime_frames=0;runtime_display_mode=0;runtime_failure=0;
     screen.input.quit_requested=0;
     capture_sequence=0;frame_digest=UINT64_C(14695981039346656037);
     capture_map=0;map_captured_count=map_cue_count=0;
@@ -511,10 +564,141 @@ static fd2_field_magic_present_event magic_event(uint8_t id,uint8_t *targets,siz
     e.actor_before=&game.units.items[0];
     return e;
 }
+
+/* sub1d6c8完整原212B：四次[DAC0=color;wait1;DAC0=black;wait1]。
+ * id13原strict镜像51aba/51ade/51b02为RGB6=63/61/46，独立RGB8=255/247/186；
+ * 不从新sequence或生成表反推expected。时钟本体另由bios_wait/live测试覆盖。 */
+static int test_player_map_caller_preamble(void) {
+    fd2_field_game *before=malloc(sizeof(*before));CHECK(before);
+    for(int kind=0;kind<6;kind++) {
+        fd2_battle_animation ctx;CHECK(setup(&ctx)==0);game.active_side=2;
+        ctx.primary=(fd2_pcm_player *)(uintptr_t)1;expected_primary=ctx.primary;
+        if(kind==1)game.option_values[1]=0;
+        if(kind==2)fd2_battle_animation_set_skip(&ctx,1);
+        if(kind==3){skip_context=&ctx;skip_frame=1;}
+        if(kind==4)quit_frame=1;
+        if(kind==5)cue_failure=1;
+        fd2_field_magic_present_event event={0};event.phase=FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE;
+        event.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;event.magic_id=event.effect_id=13;
+        *before=game;preamble_capture=1;
+        int result=fd2_battle_animation_magic_present(&game,&event,&ctx);
+        CHECK(result==(kind==4?1:kind==5?-1:0));
+        CHECK(!memcmp(before,&game,sizeof(game)) && !ctx.exchange && !ctx.magic_exchange && !business_rng_calls);
+        CHECK(!preamble_bad_wait && !delays && !secondary_cues && !wrong_stop);
+        if(kind<2) {
+            CHECK(frames==8 && ticks==8 && preamble_waits==8 && cues==(kind?0u:1u) && !primary_stops);
+            for(size_t i=0;i<8;i++) {
+                const uint8_t color[3]={255,247,186},black[3]={0,0,0};
+                CHECK(!memcmp(preamble_colors[i],i%2?black:color,3));
+            }
+            CHECK(!screen.dac[0] && !screen.dac[1] && !screen.dac[2]);
+        } else if(kind==2 || kind==5) {
+            CHECK(!frames && !ticks && !preamble_waits && cues==(kind==5?1u:0u) && !primary_stops);
+            CHECK(screen.dac[0]==47 && screen.dac[1]==47 && screen.dac[2]==47);
+        } else {
+            const uint8_t color[3]={255,247,186};
+            CHECK(frames==1 && !ticks && !preamble_waits && cues==1 && !memcmp(screen.dac,color,3));
+            CHECK(!!ctx.host_quit==(kind==4) && primary_stops==(kind==4?1u:0u));
+        }
+        for(size_t i=0;i<64000;i++)CHECK(screen.framebuffer[i]==71);
+        for(size_t i=3;i<768;i++)CHECK(screen.dac[i]==47);
+        fd2_battle_animation_close(&ctx);
+    }
+    fd2_battle_animation ctx;CHECK(setup(&ctx)==0);game.active_side=2;
+    fd2_field_magic_present_event event={0};event.phase=FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE;
+    event.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;event.magic_id=13;
+    for(int kind=0;kind<5;kind++) {
+        fd2_field_magic_present_event bad=event;
+        if(kind==0)bad.magic_id=8;
+        if(kind==1)bad.magic_id=24;
+        if(kind==2)bad.presentation_mode=FD2_FIELD_MAGIC_MODE_FULL;
+        if(kind==3)bad.action_kind=FD2_FIELD_MAGIC_ACTION_ITEM;
+        if(kind==4)bad.actor_index=game.units.count;
+        CHECK(fd2_battle_animation_magic_present(&game,&bad,&ctx)==-1);
+        CHECK(!frames && !ticks && !cues && !ctx.magic_exchange);
+    }
+    fd2_battle_animation_close(&ctx);
+    CHECK(setup(&ctx)==0);game.active_side=2;
+    uint8_t target[]={1};event=magic_event(13,target,1);
+    event.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;event.cast_cost_count=1;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && ctx.magic_exchange);
+    event.phase=FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==-1 && ctx.magic_exchange && !frames && !ticks);
+    event.phase=FD2_FIELD_MAGIC_PRESENT_FINISH;event.action_failed=1;
+    CHECK(fd2_battle_animation_magic_present(&game,&event,&ctx)==0 && !ctx.magic_exchange);
+    fd2_battle_animation_close(&ctx);free(before);return 0;
+}
 static int magic_finish(fd2_battle_animation *ctx,fd2_field_magic_present_event *e,int failure) {
     e->phase=FD2_FIELD_MAGIC_PRESENT_FINISH;e->action_failed=failure;
     return fd2_battle_animation_magic_present(&game,e,ctx);
 }
+/* 独立原FIGANI58字节：unit19 casting共7part，duration=[2,2,10,2,2,2,4]，
+ * cue仅part3=5。2dfc8从EDI=count2播part2..6，每part只提交一帧；
+ * count7自然零part仍保wait6。固定renderer/clock替身只签路由与源序，
+ * 不签自然高射程场景或原设备速率。variant7是明确合成duration0边界。 */
+static int test_ai_ray_item_single_present(void) {
+    for(unsigned variant=0;variant<8u;variant++) {
+        fd2_battle_animation ctx;CHECK(setup(&ctx)==0);
+        game.stage=0;game.units.count=8;game.active_side=0;
+        actor(&game.units.items[0],19,0,1);
+        for(size_t i=1;i<8;i++)actor(&game.units.items[i],96,2,2);
+        game.cursor_cell_x=game.units.items[0].x;game.cursor_cell_y=game.units.items[0].y;
+        fd2_field_visual_state *owner=game.visual_owner;game.visual_owner=&screen.field_visual;
+        fd2_field_page *page=fd2_field_page_create();CHECK(page);screen.field_page=page;
+        fd2_pcm_player primary={0};ctx.primary=&primary;expected_primary=&primary;
+        uint8_t targets[]={1,2,3,4,5,6,7};
+        fd2_field_magic_present_event event={0};
+        event.phase=FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM;
+        event.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;event.action_kind=FD2_FIELD_MAGIC_ACTION_ITEM;
+        event.actor_index=0;event.magic_id=3;event.item_code=24;event.item_power=3;
+        event.targets=targets;event.target_count=variant==1?7u:2u;
+        fd2_field_game *before=malloc(sizeof(game));CHECK(before);*before=game;
+        uint32_t before_frame_hash=hud_hash(screen.framebuffer);
+        ray_capture=1;
+        if(variant==2)ctx.skip=1;
+        if(variant==3)quit_frame=74;
+        if(variant==4)cue_failure=1;
+        if(variant==5)ray_quit_at_six=1;
+        if(variant==6)runtime_failure=1;
+        uint8_t *duration=NULL,saved_duration=0;
+        if(variant==7) {
+            const uint8_t *clip;size_t size;CHECK(fd2_archive_get(&figani_fixture,58,&clip,&size)==0);
+            uint32_t part=battle_u32(clip+8+2*4);CHECK(part+7u<size && clip[part+6]==10);
+            duration=(uint8_t *)clip+part+6;saved_duration=*duration;*duration=0;
+        }
+        int result=fd2_battle_animation_magic_present(&game,&event,&ctx);
+        if(duration)*duration=saved_duration;
+        CHECK(result==(variant==3 || variant==5?1:variant==4 || variant==6?-1:0));
+        CHECK(!ctx.exchange && !ctx.magic_exchange && !business_rng_calls && !wrong_stop &&
+            unchanged_except_visual(&game,before));
+        if(variant==0 || variant==1 || variant==7) {
+            static const uint32_t expected[]={10,2,2,2,4,6};
+            CHECK(frames==(variant==1?279u:284u) && ticks==(variant==1?6u:variant==7?16u:26u) &&
+                delays==846 && runtime_calls==1 && runtime_phase==3 && mask_calls==10 &&
+                ray_white_calls==65 && !ray_bad_white &&
+                primary_stops==1 && cues==(variant==1?0u:1u) &&
+                ray_wait_count==(variant==1?1u:6u));
+            if(variant==1)CHECK(ray_wait_values[0]==6 && ray_wait_frames[0]==73);
+            else for(unsigned i=0;i<6u;i++)CHECK(ray_wait_values[i]==(variant==7 && !i?0u:expected[i]) &&
+                ray_wait_frames[i]==(i<5u?74u+i:78u));
+            for(unsigned i=0;i<10;i++)CHECK(mask_radius[i]==80-4*(int)i);
+        } else if(variant==2)CHECK(!frames && !ticks && !delays && !primary_stops && !ray_wait_count);
+        else if(variant==3)CHECK(frames==74 && !ticks && !runtime_calls && !mask_calls && primary_stops==1);
+        else if(variant==4)CHECK(frames==74 && ticks==10 && ray_wait_count==1 && !runtime_calls &&
+            !mask_calls && ctx.failed && primary_stops==1);
+        else if(variant==5)CHECK(frames==78 && ticks==26 && ray_wait_count==6 && !runtime_calls &&
+            !mask_calls && primary_stops==1);
+        else {
+            uint8_t prefix=0;CHECK(frames==142 && ticks==26 && runtime_calls==1 && !mask_calls &&
+                ctx.failed && primary_stops==1 && fd2_field_page_read(page,72,72,1,1,&prefix,1,1)==0 && prefix==239);
+        }
+        if(variant==3 || variant==4)CHECK(hud_hash(screen.framebuffer)!=before_frame_hash);
+        free(before);fd2_battle_animation_close(&ctx);
+        game.visual_owner=owner;screen.field_page=NULL;fd2_field_page_destroy(page);
+    }
+    return 0;
+}
+
 static int test_magic_zero_cost_metadata_and_skip(void) {
     const uint8_t ids[]={8,9,12,7},costs[]={0,1,2,4};
     for (size_t i=0;i<4;i++) {
@@ -1515,7 +1699,7 @@ static int test_short_panels_counter_and_layout(void) {
     unsigned backgrounds=background_return_calls,effects=effect_return_calls;
     fd2_vga *vga_before=malloc(sizeof(screen));CHECK(vga_before);*vga_before=screen;
     uint16_t water_tick=screen.field_water_last_tick;uint8_t water_phase=screen.field_water_phase;
-    uint16_t jitter_tick=(uint16_t)(fake_ms/55u);
+    uint16_t jitter_tick=(uint16_t)(fake_ms*1193182u/UINT64_C(65536000));
     uint8_t jitter_phase=(uint8_t)(screen.actor_jitter_phase^(screen.actor_jitter_tick!=jitter_tick));
     CHECK(fd2_battle_animation_physical_present(&game,&event,&ctx)==0 && map_captured_count==11);
     CHECK(game.terrain_visual_phase==(uint8_t)(counter_before->terrain_visual_phase^1u));
@@ -1544,6 +1728,151 @@ static int test_short_panels_counter_and_layout(void) {
     for (size_t i=0;i<4;i++) {
         fd2_field_unit u={0};u.x=position[i][0];u.y=position[i][1];u.direction=position[i][2];
         int x,y;short_panel_position(&game,&u,&x,&y);CHECK(x==wanted[i][0] && y==wanted[i][1]);
+    }
+    return 0;
+}
+
+static int check_runtime_page(const fd2_field_page *page,unsigned phase,int failure,int touched) {
+    uint8_t *pixels=malloc(FD2_FIELD_PAGE_SIZE);CHECK(pixels);
+    CHECK(fd2_field_page_read(page,0,0,456,336,pixels,FD2_FIELD_PAGE_SIZE,456)==0);
+    int same=1;
+    for(int y=0;y<336 && same;y++)for(int x=0;x<456;x++) {
+        uint8_t expected=17;
+        if(touched && failure && x==72 && y==72)expected=239;
+        else if(touched && !failure && x>=72 && x<384 && y>=72 && y<264)
+            expected=runtime_pixel(phase,x-72,y-72);
+        if(pixels[(size_t)y*456u+(size_t)x]!=expected){same=0;break;}
+    }
+    free(pixels);CHECK(same);return 0;
+}
+
+/* 真正SHORT阶段经公开adapter到达1e611；只替Game源phase叶，不替
+ * App→board投影或真实面板/HP条。失败保App已写前缀，不执行面板/present。 */
+static int test_app_page_short_counter_adapter(void) {
+    for(int failure=0;failure<2;failure++) {
+        fd2_battle_animation ctx;CHECK(setup(&ctx)==0);game.units.count=2;
+        game.units.items[0].x=5;game.units.items[1].x=6;
+        game.units.items[0].y=game.units.items[1].y=4;
+        game.units.items[0].direction=3;game.units.items[1].direction=0;
+        fd2_field_physical_event event=map_physical_event(FD2_FIELD_PHYSICAL_MODE_SHORT,FD2_FIELD_PHYSICAL_PREPARE);
+        CHECK(fd2_battle_animation_physical_present(&game,&event,&ctx)==0);
+        event.phase=FD2_FIELD_PHYSICAL_SHORT_MAP;
+        CHECK(fd2_battle_animation_physical_present(&game,&event,&ctx)==0);
+        event.phase=FD2_FIELD_PHYSICAL_SHORT_BEGIN;
+        CHECK(fd2_battle_animation_physical_present(&game,&event,&ctx)==0);
+        fd2_field_page *page=fd2_field_page_create();CHECK(page);screen.field_page=page;
+        fd2_field_visual_state *owner=game.visual_owner;game.visual_owner=&screen.field_visual;
+        uint8_t *expected=malloc(FD2_FIELD_PAGE_SIZE),*board_before=malloc(64000);
+        fd2_field_game *before=malloc(sizeof(game));fd2_vga *vbefore=malloc(sizeof(screen));
+        CHECK(expected && board_before && before && vbefore);
+        memset(expected,17,FD2_FIELD_PAGE_SIZE);
+        CHECK(fd2_field_page_write(page,0,0,456,336,expected,FD2_FIELD_PAGE_SIZE,456)==0);
+        game.units.items[1].hp=21;*before=game;*vbefore=screen;
+        memcpy(board_before,ctx.exchange->board.framebuffer,64000);
+        unsigned old_frames=frames,old_visual=visual_calls,old_terrain=terrain_calls;
+        unsigned old_returns=return_calls;runtime_failure=failure;
+        event.phase=FD2_FIELD_PHYSICAL_COUNTER_REFRESH;
+        CHECK(fd2_battle_animation_physical_present(&game,&event,&ctx)==(failure?-1:0));
+        CHECK(runtime_calls==1 && runtime_phase==1 && runtime_display_mode==before->ordinary_display_mode);
+        CHECK(visual_calls==old_visual && terrain_calls==old_terrain && return_calls==old_returns);
+        CHECK(!memcmp(&game,before,sizeof(game)) && !business_rng_calls);
+        CHECK(!memcmp(screen.palette,vbefore->palette,768) && !memcmp(screen.dac,vbefore->dac,768) &&
+            !memcmp(&screen.field_visual,&vbefore->field_visual,sizeof(screen.field_visual)) &&
+            screen.actor_jitter_tick==vbefore->actor_jitter_tick &&
+            screen.actor_jitter_phase==vbefore->actor_jitter_phase &&
+            screen.field_water_last_tick==vbefore->field_water_last_tick &&
+            screen.field_water_phase==vbefore->field_water_phase);
+        CHECK(check_runtime_page(page,1,failure,1)==0);
+        if(failure) {
+            CHECK(frames==old_frames && !memcmp(board_before,ctx.exchange->board.framebuffer,64000) &&
+                !memcmp(screen.framebuffer,vbefore->framebuffer,64000));
+        } else {
+            memset(expected,0,64000);
+            for(int y=0;y<192;y++)for(int x=0;x<312;x++)
+                expected[(y+4)*320+x+4]=runtime_pixel(1,x,y);
+            int x=ctx.exchange->panel_x[1],y=ctx.exchange->panel_y[1];
+            expected_image(expected,&ctx.exchange->map_fx[48],x,y);expected_bar(expected,x+7,y+6,55);
+            x=ctx.exchange->panel_x[0];y=ctx.exchange->panel_y[0];
+            expected_image(expected,&ctx.exchange->map_fx[48],x,y);expected_bar(expected,x+7,y+6,35);
+            CHECK(frames==old_frames+1u && !memcmp(expected,screen.framebuffer,64000) &&
+                !memcmp(expected,ctx.exchange->board.framebuffer,64000));
+        }
+        CHECK(map_physical_finish(&ctx,FD2_FIELD_PHYSICAL_MODE_SHORT,1)==0);
+        fd2_battle_animation_close(&ctx);game.visual_owner=owner;screen.field_page=NULL;
+        fd2_field_page_destroy(page);free(expected);free(board_before);free(before);free(vbefore);
+    }
+    return 0;
+}
+
+/* FULL物理/基本法术、派生、复合与MAP skip共同归还真实Game owner；
+ * 这里签FINISH adapter，不将没有重放整套cast的控制向量称原版演出证据。 */
+static int test_app_page_normal_return_adapter(void) {
+    const uint8_t ids[]={0,0,28,32,13},casters[]={0,0,19,52,9};
+    const uint32_t modes[]={0,1,7,11,0};
+    const size_t cast_entries[]={0,1,59,157,0};
+    for(unsigned kind=0;kind<5;kind++)for(unsigned outcome=0;outcome<4;outcome++) {
+        fd2_battle_animation ctx;CHECK(setup(&ctx)==0);game.units.count=2;
+        actor(&game.units.items[0],casters[kind],2,1);game.ordinary_display_mode=modes[kind];
+        if(kind==4) {
+            game.units.items[0].mp=game.units.items[0].mp_max=30;
+            actor(&game.units.items[1],0,2,2);game.units.items[1].hp=21;
+            game.cursor_cell_x=2;game.cursor_cell_y=1;
+        }
+        fd2_field_page *page=fd2_field_page_create();CHECK(page);screen.field_page=page;
+        fd2_field_visual_state *owner=game.visual_owner;game.visual_owner=&screen.field_visual;
+        uint8_t *seed=malloc(FD2_FIELD_PAGE_SIZE);fd2_field_game *before=malloc(sizeof(game));
+        CHECK(seed && before);memset(seed,17,FD2_FIELD_PAGE_SIZE);
+        CHECK(fd2_field_page_write(page,0,0,456,336,seed,FD2_FIELD_PAGE_SIZE,456)==0);free(seed);
+        uint8_t targets[]={1};fd2_field_magic_present_event magic=magic_event(ids[kind],targets,1);
+        if(kind==4) {
+            /* execute_map_magic的正式事件：MAP固定一次费用，独立于FIGANI
+             * intro marker；CAST/FINISH时51A83=0。本例只签返回adapter。 */
+            magic.presentation_mode=FD2_FIELD_MAGIC_MODE_MAP;
+            magic.effect_id=13;magic.cast_cost_count=1;
+        }
+        if(kind>=1 && kind<=3) {
+            fd2_figani_magic_cast plan;
+            CHECK(fd2_figani_magic_action_plan(&plan,ctx.figani,casters[kind],ids[kind])==0);
+            /* 固定FIGANI真实目录：entry1/59/157的intro各有一个费用marker；
+             * 基本FULL也须提供元数据，不能把零初始化的event当合法无费用cast。 */
+            CHECK(!plan.clip.empty && plan.selected_entry==cast_entries[kind] && plan.cost_marker_count==1);
+            magic.cast_cost_count=plan.cost_marker_count;
+            if(kind>=2)magic.presentation_mode=kind==2?FD2_FIELD_MAGIC_MODE_DERIVED:FD2_FIELD_MAGIC_MODE_COMPOSITE;
+            if(kind==3){magic.group_pass=UINT8_MAX;magic.effect_id=ids[kind];}
+        }
+        fd2_field_physical_event physical=make_event(FD2_FIELD_PHYSICAL_PREPARE);
+        int prepared=kind?fd2_battle_animation_magic_present(&game,&magic,&ctx):
+            fd2_battle_animation_physical_present(&game,&physical,&ctx);
+        if(prepared!=0)fprintf(stderr,"App page return fixture PREPARE kind=%u outcome=%u cost=%u failed\n",
+            kind,outcome,(unsigned)magic.cast_cost_count);
+        CHECK(prepared==0);
+        if(outcome==1 || (kind==4 && outcome==2))fd2_battle_animation_set_skip(&ctx,1);
+        /* 真STRIKE使FULL失败例已经started，错误后不能再走成功fade-in。 */
+        if(kind==0 && outcome==2) {
+            fd2_field_attack_result hit={0};hit.hit=1;hit.rolled_damage=9;hit.hp_after=33;
+            physical.phase=FD2_FIELD_PHYSICAL_STRIKE;physical.actor_before=&game.units.items[0];
+            physical.target_before=&game.units.items[1];physical.result=&hit;
+            CHECK(fd2_battle_animation_physical_present(&game,&physical,&ctx)==0);
+        }
+        *before=game;unsigned clocks=visual_calls,terrains=terrain_calls,returns=return_calls;
+        uint16_t jitter_tick=screen.actor_jitter_tick,water_tick=screen.field_water_last_tick;
+        uint8_t jitter_phase=screen.actor_jitter_phase,water_phase=screen.field_water_phase;
+        fd2_field_visual_state visual=screen.field_visual;
+        runtime_failure=outcome==2;if(outcome==3)screen.input.quit_requested=1;
+        CHECK((kind?magic_finish(&ctx,&magic,0):finish(&ctx,0))==(outcome==2?-1:0));
+        unsigned called=outcome!=3 && (kind!=4 || outcome==1 || outcome==2);
+        CHECK(runtime_calls==called && (!called || (runtime_phase==3 && runtime_display_mode==modes[kind])));
+        CHECK(visual_calls==clocks && terrain_calls==terrains && return_calls==returns);
+        CHECK(!memcmp(&game,before,sizeof(game)) && !business_rng_calls &&
+            !memcmp(&screen.field_visual,&visual,sizeof(visual)) &&
+            screen.actor_jitter_tick==jitter_tick && screen.actor_jitter_phase==jitter_phase &&
+            screen.field_water_last_tick==water_tick && screen.field_water_phase==water_phase);
+        CHECK(check_runtime_page(page,3,outcome==2,(int)called)==0);
+        if(outcome==2)CHECK(frames==runtime_frames && !ctx.exchange && !ctx.magic_exchange);
+        if(called && outcome!=2)for(int y=0;y<192;y++)for(int x=0;x<312;x++)
+            CHECK(screen.framebuffer[(y+4)*320+x+4]==runtime_pixel(3,x,y));
+        fd2_battle_animation_close(&ctx);game.visual_owner=owner;screen.field_page=NULL;
+        fd2_field_page_destroy(page);free(before);
     }
     return 0;
 }
@@ -1886,6 +2215,8 @@ int main(void) {
     CHECK(test_marker_layers_idle_and_miss()==0);
     CHECK(test_sfx_option_gate()==0);
     CHECK(test_exact_dac_intro_and_fade()==0);
+    CHECK(test_player_map_caller_preamble()==0);
+    CHECK(test_ai_ray_item_single_present()==0);
     CHECK(test_magic_zero_cost_metadata_and_skip()==0);
     CHECK(test_magic_zero_impacts_layers_and_targets()==0);
     CHECK(test_magic_heal_raw_numbers_and_quit()==0);
@@ -1909,6 +2240,8 @@ int main(void) {
     map_captured=malloc(128u*64000u);CHECK(map_captured);
     CHECK(test_map_physical_preflight_and_actor_projection()==0);
     CHECK(test_short_panels_counter_and_layout()==0);
+    CHECK(test_app_page_short_counter_adapter()==0);
+    CHECK(test_app_page_normal_return_adapter()==0);
     CHECK(test_raw5_recovery_and_short_preflight()==0);
     CHECK(test_short_six_weapon_families_and_miss()==0);
     CHECK(test_recovery_steps_zero_max_skip_and_quit()==0);
@@ -1924,3 +2257,6 @@ int main(void) {
     fd2_archive_close(&figani_fixture);fd2_archive_close(&fdtxt);fd2_archive_close(&fdother);
     puts("battle_animation: headless groups PASS; no device/window/RNG/effect");return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t battle_test_ticks_ns(void) { return battle_test_ticks()*UINT64_C(1000000); }

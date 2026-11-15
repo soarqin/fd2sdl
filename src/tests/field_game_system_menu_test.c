@@ -277,8 +277,8 @@ static int test_secondary_dynamic_disabled(void) {
 }
 
 static int test_overview_stage_gate(void) {
-    /* S3发布的battle与entry-only边界分别核门；不把UI资源存在当开放。 */
-    const uint8_t stages[] = {0,1,2,3,19,20,21};
+    /* S5正式battle已达29；内部resource30不增造普通入口。 */
+    const uint8_t stages[] = {0,1,2,3,19,20,21,29,30};
     for (size_t index = 0; index < sizeof(stages); index++) {
         uint8_t stage = stages[index];
         fd2_field_game game;
@@ -287,11 +287,11 @@ static int test_overview_stage_gate(void) {
         game.stage = stage;
         fd2_field_game before = game;
         CHECK(fd2_field_game_open_system_menu(&game) == 0);
-        CHECK(game.system_menu.disabled[1] == (stage >= 20)); /* March */
-        CHECK(game.system_menu.disabled[3] == (stage >= 20)); /* END */
+        CHECK(game.system_menu.disabled[1] == (stage >= 30)); /* March */
+        CHECK(game.system_menu.disabled[3] == (stage >= 30)); /* END */
         CHECK(fd2_field_game_confirm_system_menu(&game) ==
               FD2_FIELD_SYSTEM_ACTION_OPEN_SECONDARY);
-        if (stage <= 20) {
+        if (stage < 30) {
             CHECK(game.system_menu.selected == 0 && !game.system_menu.disabled[0]);
             CHECK(fd2_field_game_confirm_system_menu(&game) ==
                   FD2_FIELD_SYSTEM_ACTION_SCREEN_TRANSITION);
@@ -355,15 +355,15 @@ static int test_highlight_state_is_independent(void) {
     game.last_command_highlight_ms = 77;
     CHECK(fd2_field_game_open_system_menu(&game) == 0);
     CHECK(game.system_menu.highlight_phase == 0);
-    fd2_field_game_tick(&game, 1000);
+    fd2_field_game_tick(&game,(1000)*UINT64_C(1000000));
     CHECK(game.command_highlight_phase == 0 &&
           game.last_command_highlight_ms == 0);
     CHECK(game.system_menu.highlight_phase == 0 &&
           game.system_menu.last_highlight_ms == 1000);
-    fd2_field_game_tick(&game, 1220);
+    fd2_field_game_tick(&game,(1220)*UINT64_C(1000000));
     CHECK(game.system_menu.highlight_phase == 1 &&
           game.system_menu.last_highlight_ms == 1220);
-    fd2_field_game_tick(&game, 1440);
+    fd2_field_game_tick(&game,(1440)*UINT64_C(1000000));
     CHECK(game.system_menu.highlight_phase == 0 &&
           game.system_menu.last_highlight_ms == 1440);
     CHECK(rng.calls == 0 && rng.state == 0x27182818u);
@@ -638,8 +638,9 @@ static int test_confirmation_buttons(void) {
 }
 
 static int test_march_supported_stage_gate(void) {
-    const size_t stages[] = {0, 1, 2, 3, 19, 20, 21};
-    const int available[] = {1, 1, 1, 1, 1, 0, 0};
+    /* S5的20..29正式战场已开放；30内部尾声及表外仍无March入口。 */
+    const size_t stages[] = {0, 1, 2, 3, 19, 20, 21, 29, 30, SIZE_MAX};
+    const int available[] = {1, 1, 1, 1, 1, 1, 1, 1, 0, 0};
     for (size_t i = 0; i < sizeof(stages)/sizeof(stages[0]); i++) {
         fd2_field_game game;
         test_rng rng = {0x27182818u, 0};

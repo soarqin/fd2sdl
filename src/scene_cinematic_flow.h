@@ -230,7 +230,9 @@ static int scene_cinematic_node(scene_flow_context *c,
         if(!c->fast)fd2_vga_upload_current_frame(c->vga);
         result=0;
     } else if(!strcmp(op,"cin_water")) {
-        result=fd2_field_water_tick(c->vga,SDL_GetTicks())<0?-1:0;
+        /* sub_4E31C @0x4e31c（原登记同名）：比较与DAC写后取锚
+         * 各自读4e310；本共享op不能预取宿主ms或复用固定时间。 */
+        result=fd2_field_water_tick_live(c->vga)<0?-1:0;
     } else if(!strcmp(op,"cin_animation")) {
         if((a[0]!=0 && a[0]!=2) || a[1]<0 || (a[2]!=0 && a[2]!=1))return -1;
         fd2_archive archive={0};

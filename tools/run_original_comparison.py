@@ -150,7 +150,9 @@ def driver_call(driver: Path, command: str, process: subprocess.Popen,
     if process.poll() is not None:
         raise RuntimeError(f"目标进程提前结束：PID {process.pid}，exit={process.returncode}")
     args = [str(driver), command, str(process.pid)]
-    if argument is not None:
+    if isinstance(argument, (tuple, list)):
+        args.extend(str(item) for item in argument)
+    elif argument is not None:
         args.append(str(argument))
     # 驱动诊断统一UTF-8；保留异常原始字节的转义，不能让Windows reader
     # thread因ANSI窗口标题解码失败而把整段stderr丢成None。
@@ -318,9 +320,14 @@ class Capture:
         self.trace = trace if trace is not None else []
         self.startup_skip = startup_skip
 
-    def key(self, name: str, *, fast: bool = False) -> None:
+    def key(self, name: str, *, fast: bool = False, hold_ms: int | None = None) -> None:
+        if hold_ms is not None and (type(hold_ms) is not int or
+                not 150 <= hold_ms <= 3000 or name not in ("UP", "DOWN")):
+            raise ValueError("有界长按只接受UP/DOWN及150..3000ms；未发送输入")
         event = {"time": time.monotonic(), "pid": self.process.pid, "key": name,
-                 "post_release_settle_ms": 0 if fast else 250}
+                 "post_release_settle_ms": 0 if fast or hold_ms is not None else 250}
+        if hold_ms is not None:
+            event["requested_hold_ms"] = hold_ms
         self.trace.append(event)
         with (self.artifacts / "input-trace.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event) + "\n")
@@ -328,7 +335,9 @@ class Capture:
         delivery = {**event, "accepted":False}
         try:
             try:
-                diagnostic = driver_call(self.driver, "key-fast" if fast else "key", self.process, name)
+                diagnostic = driver_call(self.driver, "hold-key" if hold_ms is not None else
+                    "key-fast" if fast else "key", self.process,
+                    (name, hold_ms) if hold_ms is not None else name)
             except (RuntimeError, OSError, subprocess.SubprocessError) as error:
                 failure = error
                 diagnostic = getattr(error, "diagnostic", str(error))

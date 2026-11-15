@@ -189,7 +189,7 @@ static int test_preflight_errors_keep_all_owners_and_rng(void) {
             case 14:
                 g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
                 g->metadata.turn_events[0] = (fd2_field_turn_event){7,0,1};
-                g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY; break;
+                g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY + 1u; break; /* 坏计数；已绑定common不占log。 */
             case 15:
                 g->units.items[3].hp = 0;
                 ((uint8_t *)&g->units.items[3])[0x31] = 2;
@@ -198,11 +198,40 @@ static int test_preflight_errors_keep_all_owners_and_rng(void) {
                 g->units.items[2].hp = 0;
                 g->metadata.turn_events[0] = (fd2_field_turn_event){7,9,1}; break;
         }
-        CHECK(reject_unchanged(&f) == 0 && !f.calls);
+        int rejected=reject_unchanged(&f);
+        if(rejected || f.calls)fprintf(stderr,"item preflight negative vector=%u calls=%zu\n",which,f.calls);
+        CHECK(rejected == 0 && !f.calls);
         CHECK(g->move_range.nodes != NULL);
         close_fixture(&f);
     }
     return 0;
+}
+
+/* 原游戏没有C诊断log；已绑定事件的真实owner是common续态。
+ * 独立性质：仅诊断容量不同不得改变同输入的业务/效果/RNG，旧case14误作拒门。 */
+static int test_bound_common_tail_does_not_consume_diagnostic_log(void) {
+    fixture empty,full;init(&empty);init(&full);
+    fixture *cases[]={&empty,&full};
+    for(size_t i=0;i<2;i++) {
+        fixture *f=cases[i];CHECK(target(f,1)==0);
+        f->game.units.items[2].flags=FD2_FIELD_UNIT_FLAG_ACTED;
+        f->game.metadata.turn_events[0]=(fd2_field_turn_event){7,0,1};
+    }
+    full.game.event_log_count=FD2_FIELD_EVENT_LOG_CAPACITY;
+    fd2_field_event_notice saved_log[FD2_FIELD_EVENT_LOG_CAPACITY];
+    memcpy(saved_log,full.game.event_log,sizeof(saved_log));
+    CHECK(fd2_field_game_resolve_player_item(&empty.game)==0);
+    CHECK(fd2_field_game_resolve_player_item(&full.game)==0);
+    CHECK(!empty.game.failure && !full.game.failure && empty.calls==1 && full.calls==1);
+    CHECK(!memcmp(&empty.game.units,&full.game.units,sizeof(empty.game.units)));
+    CHECK(full.game.units.items[1].hp>20 && fd2_field_unit_has_acted(&full.game.units.items[0]));
+    CHECK(empty.game.active_side==full.game.active_side && empty.game.turn_number==full.game.turn_number);
+    CHECK(empty.game.event_resume.active==full.game.event_resume.active &&
+        empty.game.event_resume.flow==full.game.event_resume.flow &&
+        empty.game.event_resume.pc==full.game.event_resume.pc);
+    CHECK(!empty.game.event_log_count && full.game.event_log_count==FD2_FIELD_EVENT_LOG_CAPACITY &&
+        !memcmp(saved_log,full.game.event_log,sizeof(saved_log)));
+    close_fixture(&empty);close_fixture(&full);return 0;
 }
 
 static int test_revive_prediction_and_live_drop_descriptor(void) {
@@ -290,13 +319,19 @@ static int test_formal_query_and_weapon_only_list(void) {
 
     CHECK(fd2_field_game_item_is_available(NULL) == 0);
     CHECK(fd2_field_stage_battle_is_supported(2));
-    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
-    CHECK(!fd2_field_stage_is_supported(21));
+    /* S5已接20..29；内部尾声30与表外33仍不属于普通battle能力。 */
+    const size_t current_stages[]={20,21,29};
+    for(size_t i=0;i<sizeof(current_stages)/sizeof(*current_stages);i++) {
+        init(&f);g=&f.game;g->stage=current_stages[i];before=*g;
+        CHECK(fd2_field_stage_is_supported(g->stage) && fd2_field_stage_battle_is_supported(g->stage));
+        CHECK(fd2_field_game_item_is_available(g)==1 && !memcmp(g,&before,sizeof(before)) && !f.calls);
+        close_fixture(&f);
+    }
     for (unsigned which = 0; which < 17; which++) {
         init(&f); g = &f.game;
         switch (which) {
             case 0: g->attack_rng = NULL; break;
-            case 1: g->stage = 20; break; /* S3入场域不授权ITEM动作。 */
+            case 1: g->stage = 30; break; /* 内部尾声无普通battle能力。 */
             case 2: g->active_side = 1; break;
             case 3: g->player_post_waiting_phase = 1; break;
             case 4: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
@@ -311,7 +346,7 @@ static int test_formal_query_and_weapon_only_list(void) {
             case 13: g->failure = FD2_FIELD_FAILURE_EVENT_DATA; break;
             case 14: g->ready = 0; break;
             case 15: g->units.items[0].side = 1; break;
-            case 16: g->stage = 21; break;
+            case 16: g->stage = 33; break;
         }
         before = *g;
         CHECK(fd2_field_game_item_is_available(g) == 0 && !memcmp(g, &before, sizeof(before)) && !f.calls);
@@ -645,6 +680,7 @@ int main(void) {
     CHECK(test_full_injured_and_ex99_keep_mp_ex_direction() == 0);
     CHECK(test_same_cell_raw_order_one_removal_and_no_wait_heal() == 0);
     CHECK(test_preflight_errors_keep_all_owners_and_rng() == 0);
+    CHECK(test_bound_common_tail_does_not_consume_diagnostic_log() == 0);
     CHECK(test_revive_prediction_and_live_drop_descriptor() == 0);
     CHECK(test_post_commit_failure_keeps_effect_consumption_and_acted() == 0);
     CHECK(test_last_player_controller_and_death_cleanup() == 0);

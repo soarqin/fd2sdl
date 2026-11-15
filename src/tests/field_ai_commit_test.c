@@ -332,6 +332,130 @@ static int test_ai_line_item_and_no_action_focus(void) {
     return 0;
 }
 
+typedef struct {
+    test_rng *rng;
+    unsigned delay,refreshes,waits,ray,far_focus,range_frames;
+    unsigned prepared,cast,targets,popup,finished,invalid;
+    int stop;
+} ai_ray_probe;
+
+static int observe_ai_ray_runtime(fd2_field_game *game,
+        fd2_field_runtime_present_step step,int value,void *userdata) {
+    ai_ray_probe *p=userdata;
+    unsigned was_invalid=p->invalid;
+    if(step==FD2_FIELD_RUNTIME_DELAY_MS && value==200) {
+        if(p->delay++ || p->rng->cursor || game->cursor_cell_x!=15 ||
+            game->cursor_cell_y!=8)p->invalid=1;
+    } else if(step==FD2_FIELD_RUNTIME_REFRESH && value==3) {
+        p->refreshes++;
+        /* 1f0c8/ca/cc：actorY8>targetY7，JLE不取，raw+3明确写2。 */
+        if(!p->delay || p->rng->cursor || game->units.items[0].direction!=2)p->invalid=1;
+        if(!p->ray) {
+            if(p->refreshes!=1 || game->ordinary_display_mode!=6 || game->cursor_cell_y!=8)p->invalid=1;
+        } else {
+            unsigned expected=++p->range_frames;
+            if(!p->far_focus || expected>8 || game->ordinary_display_mode ||
+                game->cursor_cell_y!=0 || game->range_visual_phase!=expected ||
+                !game->visual_owner || game->visual_owner->range_phase!=expected)p->invalid=1;
+            if(p->stop==5 && expected==3)return 1;
+        }
+    } else if(step==FD2_FIELD_RUNTIME_WAIT_TICKS) {
+        unsigned index=p->waits++;
+        /* 15182/1518c；八次152b2；152d0。连续等待不能重复refresh。 */
+        static const int expected[]={1,2,1,1,1,1,1,1,1,1,2};
+        if(index>=sizeof(expected)/sizeof(*expected) || value!=expected[index] ||
+            p->rng->cursor || p->refreshes!=(index<2?1u:index==10?9u:index))p->invalid=1;
+        if(p->stop==4 && index==0)return 1;
+    } else if(step==FD2_FIELD_RUNTIME_FOCUS_BEGIN && p->ray && game->ordinary_display_mode==6) {
+        if(p->far_focus++ || game->cursor_cell_y!=8 || p->waits!=2)p->invalid=1;
+    }
+    if(p->invalid && !was_invalid)fprintf(stderr,
+        "AI ray runtime stop=%d step=%d value=%d delay=%u refresh=%u wait=%u ray=%u far=%u range=%u cursor=%d,%d camera=%d,%d mode=%u phase=%u rng=%zu direction=%u\n",
+        p->stop,(int)step,value,p->delay,p->refreshes,p->waits,p->ray,p->far_focus,p->range_frames,
+        game->cursor_cell_x,game->cursor_cell_y,game->camera_cell_x,game->camera_cell_y,
+        (unsigned)game->ordinary_display_mode,(unsigned)game->range_visual_phase,p->rng->cursor,
+        (unsigned)game->units.items[0].direction);
+    return p->invalid?-1:0;
+}
+
+static int observe_ai_ray_magic(const fd2_field_game *game,
+        const fd2_field_magic_present_event *event,void *userdata) {
+    ai_ray_probe *p=userdata;
+    if(event->phase==FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM) {
+        if(p->ray++ || p->waits!=2 || p->refreshes!=1 || p->rng->cursor ||
+            game->cursor_cell_x!=15 || game->cursor_cell_y!=8 || game->ordinary_display_mode!=6 ||
+            event->action_kind!=FD2_FIELD_MAGIC_ACTION_ITEM || event->presentation_mode!=FD2_FIELD_MAGIC_MODE_MAP ||
+            event->item_code!=24 || event->item_power!=3 || event->magic_id!=3 ||
+            event->target_count!=2 || event->targets[0]!=1 || event->targets[1]!=2 ||
+            event->actor_before!=&game->units.items[0])p->invalid=1;
+        if(p->stop==3)((fd2_field_game *)game)->failure=FD2_FIELD_FAILURE_ACTION;
+        if(p->stop==6)((fd2_field_game *)game)->runtime_host_quit=1;
+        if(p->invalid || p->stop==2 || p->stop==6)return -1;
+        return p->stop==1 || p->stop==3 ? 1:0;
+    }
+    if(p->ray!=1 || p->far_focus!=1 || p->range_frames!=8 || p->waits!=11 ||
+        game->cursor_cell_y!=7 || game->camera_cell_y!=1 || game->ordinary_display_mode ||
+        fd2_field_unit_has_acted(&game->units.items[0]))p->invalid=1;
+    if(event->phase==FD2_FIELD_MAGIC_PRESENT_PREPARE) {p->prepared++;if(p->rng->cursor)p->invalid=1;}
+    else if(event->phase==FD2_FIELD_MAGIC_PRESENT_CAST)p->cast++;
+    else if(event->phase==FD2_FIELD_MAGIC_PRESENT_TARGET)p->targets++;
+    else if(event->phase==FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP)p->popup++;
+    else if(event->phase==FD2_FIELD_MAGIC_PRESENT_FINISH)p->finished++;
+    else p->invalid=1;
+    return p->invalid?-1:0;
+}
+
+/* 源literal时序/业务写集回归；正常接口夹具，不声称自然SAV/原机运行。
+ * 15055 face/ref3/wait1/2必须在2dfc8之前；far/range8/首target在之后。
+ * 原20c6f仍独立执行一次，H/error前缀不继续费用、RNG、loot或acted。 */
+static int test_ai_ray_item_caller_order_and_stop(void) {
+    for(int stop=0;stop<7;stop++) {
+        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        uint32_t cells[24*24]={0};fd2_terrain_attr attrs[1];fd2_field_game game;
+        init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;
+        game.map.width=game.map.height=24;game.units.count=3;
+        set_unit(&game.units.items[0],0,15,8);set_unit(&game.units.items[1],2,15,7);
+        set_unit(&game.units.items[2],2,15,6);
+        for(size_t i=0;i<3;i++)game.units.items[i].hp=game.units.items[i].hp_max=30000;
+        memset((uint8_t *)&game.units.items[0]+10,0x80,16);
+        ((uint8_t *)&game.units.items[0])[10]=0;((uint8_t *)&game.units.items[0])[11]=79;
+        fd2_field_visual_state visual={0};game.visual_owner=&visual;
+        ai_ray_probe p={.rng=&rng,.stop=stop};
+        game.runtime_present=observe_ai_ray_runtime;game.runtime_present_userdata=&p;
+        game.magic_present=observe_ai_ray_magic;game.magic_present_userdata=&p;
+        fd2_field_ai_item_candidate plan;
+        CHECK(fd2_field_ai_choose_item_candidate(&game.map,&game.terrain,&game.units,0,0,&plan)==0 &&
+            plan.item_id==79 && plan.target_x==15 && plan.target_y==0);
+        int result=fd2_field_game_commit_ai_item(&game,0,0,&plan);
+        int error=stop==2 || stop==3 || stop==6;
+        if(result!=(error?-1:0) || p.invalid || p.delay!=1)fprintf(stderr,
+            "AI ray result stop=%d result=%d expected_error=%d invalid=%u delay=%u refresh=%u wait=%u ray=%u far=%u range=%u phases=%u,%u,%u,%u,%u failure=%d host=%d rng=%zu cursor=%d,%d hp=%u/%u/%u acted=%d\n",
+            stop,result,error,p.invalid,p.delay,p.refreshes,p.waits,p.ray,p.far_focus,p.range_frames,
+            p.prepared,p.cast,p.targets,p.popup,p.finished,(int)game.failure,game.runtime_host_quit,rng.cursor,
+            game.cursor_cell_x,game.cursor_cell_y,(unsigned)game.units.items[0].hp,
+            (unsigned)game.units.items[1].hp,(unsigned)game.units.items[2].hp,
+            fd2_field_unit_has_acted(&game.units.items[0]));
+        CHECK(result==(error?-1:0) && !p.invalid && p.delay==1);
+        if(!stop) {
+            CHECK(p.ray==1 && p.refreshes==9 && p.waits==11 && p.range_frames==8 &&
+                p.prepared==1 && p.cast==1 && p.targets==2 && p.popup==1 && p.finished==1 &&
+                rng.cursor==4 && fd2_field_unit_has_acted(&game.units.items[0]) &&
+                game.units.items[1].hp<30000 && game.units.items[2].hp<30000);
+        } else {
+            CHECK(!p.prepared && !p.cast && !p.targets && !p.popup && !p.finished && !rng.cursor &&
+                !fd2_field_unit_has_acted(&game.units.items[0]) && game.units.items[0].hp==30000 &&
+                game.units.items[1].hp==30000 && game.units.items[2].hp==30000 &&
+                !game.loot.source && !game.event_log_count &&
+                game.failure==(error?FD2_FIELD_FAILURE_ACTION:FD2_FIELD_FAILURE_NONE));
+            CHECK(p.ray==(stop==4?0u:1u));
+            CHECK(game.runtime_host_quit==(stop==2?0:1));
+            if(stop==5)CHECK(game.cursor_cell_y==0 && game.range_visual_phase==3 && visual.range_phase==3);
+            else CHECK(game.cursor_cell_y==8 && !p.far_focus);
+        }
+    }
+    return 0;
+}
+
 static int test_magic_commit(void) {
     static const uint32_t rolls[] = {0, 0};
     test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
@@ -363,7 +487,7 @@ typedef struct {
     test_rng *rng;
     fd2_field_magic_action_kind kind;
     uint8_t code;
-    unsigned prepared, cast, targets, popup, finished;
+    unsigned prepared, cast, targets, popup, finished, ray;
     size_t visual_count, effect_count;
 } ai_map_observer;
 
@@ -373,7 +497,13 @@ static int observe_ai_map(const fd2_field_game *game,
     CHECK(event->action_kind == seen->kind && event->presentation_mode == FD2_FIELD_MAGIC_MODE_MAP);
     CHECK(seen->kind == FD2_FIELD_MAGIC_ACTION_MAGIC ? event->magic_id == 9 : event->item_code == seen->code);
     CHECK(!fd2_field_unit_has_acted(&game->units.items[event->actor_index]));
-    if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+    if (event->phase == FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM) {
+        /* 15055→2dfc8仅是item79的前缀，不代替随后20c6f的完整effect生命周期。 */
+        CHECK(seen->kind == FD2_FIELD_MAGIC_ACTION_ITEM && seen->code == 24);
+        CHECK(event->item_power == 3 && event->target_count > 0);
+        CHECK(!seen->rng->cursor && !seen->prepared && !seen->ray);
+        seen->ray++;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
         CHECK(!seen->rng->cursor && !seen->prepared);
         seen->visual_count = event->target_count;
         seen->effect_count = event->effect_target_count ? event->effect_target_count : event->target_count;
@@ -436,6 +566,7 @@ static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
             &game.units, 0, heals ? 1 : 0, &candidate) == 0 && candidate.score >= 6);
         CHECK(fd2_field_game_commit_ai_item(&game, 0, heals ? 1 : 0, &candidate) == 0);
         CHECK(seen.prepared == 1 && seen.cast == 1 && seen.finished == 1 && seen.popup == 1);
+        CHECK(seen.ray == (unsigned)(ids[i] == 79));
         CHECK(game.units.items[0].mp == 7 && !game.experience_value);
     }
     return 0;
@@ -2415,6 +2546,7 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
 }
 
 int main(void) {
+    if(test_ai_ray_item_caller_order_and_stop()!=0)return 1;
     if (test_ai11_physical_environment_probe_before_magic() != 0) return 1;
     if (test_ai_recovery_probe_before_effects() != 0) return 1;
     if (test_ai_map9_full_visual_list_and_item_present_owner() != 0) return 1;

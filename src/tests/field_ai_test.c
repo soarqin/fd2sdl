@@ -1,3 +1,5 @@
+/* 纯AI查询回归；F2线靶依据field_line_targets_collect @0x149f8（原sub_149F8）
+ * 完整指令与15055/1567e实push，夹具不作为自然原版场景验收。 */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -197,6 +199,48 @@ static void equip_weapon(fd2_field_unit *unit, uint8_t item_id) {
     uint8_t *record = (uint8_t *)unit;
     record[0x0a] = 0x40u;
     record[0x0b] = item_id;
+}
+
+/* 149f8完整原指令的literal走格：14a6b/74以actor起步，14a90/9a先走
+ * 再lookup；同X且actorY<=selectedY向下。仅原AI filter0(非side0)域，
+ * 其它side的首可见raw挡掉同格后raw，hidden不挡；不由被测算法生成expected。
+ * F2正式15055/2dfc8的EDI来源核查发现此F3线靶玩法依赖，连同producer修复。 */
+static int test_line_item_source_scan(void) {
+    uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_map map;
+    fd2_terrain_tileset terrain;fd2_field_units units={0};
+    init_flat_map(&map,&terrain,cells,attrs,8,8);
+    units.count=13;
+    set_unit(&units,0,0,4,4);
+    set_unit(&units,1,1,7,4);set_unit(&units,2,2,3,4);
+    set_unit(&units,3,0,6,4);set_unit(&units,4,2,6,4);
+    set_unit(&units,5,2,5,4);set_unit(&units,6,2,4,3);
+    set_unit(&units,7,1,4,2);set_unit(&units,8,2,4,5);
+    set_unit(&units,9,0,4,6);set_unit(&units,10,2,4,7);
+    set_unit(&units,11,1,4,7);set_unit(&units,12,2,8,4);
+    units.items[10].flags=FD2_FIELD_UNIT_FLAG_HIDDEN;
+    static const struct {int x,y;uint8_t count,targets[2];} cases[]={
+        {7,4,2,{5,1}}, {1,4,1,{2,0}}, {4,1,2,{6,7}},
+        {4,7,2,{8,11}}, {4,4,2,{8,11}}
+    };
+    fd2_field_units before=units;uint32_t before_cells[64];memcpy(before_cells,cells,sizeof(cells));
+    for(size_t i=0;i<sizeof(cases)/sizeof(*cases);i++) {
+        uint8_t targets[16];memset(targets,0xa5,sizeof(targets));size_t count=99;
+        CHECK(fd2_field_ai_collect_item_targets(&map,&terrain,&units,0,79,
+            cases[i].x,cases[i].y,(uint8_t)(i&1u),targets,sizeof(targets),&count)==0);
+        CHECK(count==cases[i].count && !memcmp(targets,cases[i].targets,count));
+        CHECK(targets[count]==0xa5 && !memcmp(&units,&before,sizeof(units)) &&
+            !memcmp(cells,before_cells,sizeof(cells)));
+    }
+    /* 地图边界独立于单位字节域；raw12坐标8不可被地图外lookup收录。 */
+    uint8_t targets[16]={0};size_t count=0;
+    CHECK(fd2_field_ai_collect_item_targets(&map,&terrain,&units,0,79,7,4,0,
+        targets,sizeof(targets),&count)==0 && count==2 && targets[0]==5 && targets[1]==1);
+    /* 提交/评分借调用方当前actor位置；不是此前保存的actor坐标。 */
+    units.items[0].x=3;
+    CHECK(fd2_field_ai_collect_item_targets(&map,&terrain,&units,0,79,1,4,0,
+        targets,sizeof(targets),&count)==0 && count==0);
+    CHECK(!memcmp(cells,before_cells,sizeof(cells)));
+    return 0;
 }
 
 /* field_ai_item_targets_score @0x15880（原登记同名）：指令 VA 0x1597a
@@ -595,7 +639,8 @@ static int test_physical_candidate_and_dispatch(void) {
 }
 
 int main(void) {
-    if (test_item_damage_threshold_boundaries() != 0 ||
+    if (test_line_item_source_scan() != 0 ||
+        test_item_damage_threshold_boundaries() != 0 ||
         test_magic_bitmap_query() != 0 ||
         test_behavior_and_nearest_target() != 0 ||
         test_destination_order() != 0 ||

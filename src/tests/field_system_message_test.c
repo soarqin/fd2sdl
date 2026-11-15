@@ -1,3 +1,5 @@
+#include "field_visual.h"
+#include <stdint.h>
 /* B1必需系统提示错误出口；真实存储后端只写Temp隔离副本，不创建窗口。
  * 测试TU私有呈现/输入替身，正式text/font解析与Save/Load不替换。 */
 #include <stdio.h>
@@ -6,6 +8,7 @@
 #include "field_game.h"
 #include "field_play.h"
 #include "field_rng.h"
+#include "bios_clock.h"
 #include "scene.h"
 #include "test_temp.h"
 
@@ -24,8 +27,10 @@ enum { BAD_NONE, BAD_MISSING, BAD_GLYPH };
 static int route_kind, bad_kind, in_route, actions, presents, delay_calls;
 static int backend_calls, backend_done, backend_result, closed;
 static int choice_active,choice_frames;
+static unsigned menu_closes,menu_opens,menu_waits;
 static int owner_ok, backend_rng_ok;
 static uint64_t mock_ms;
+static unsigned glyph_tick_calls;
 static const uint8_t *expected_present_frame;
 static unsigned unexpected_present_frames;
 static uint32_t original_resource, submitted_resource;
@@ -42,6 +47,11 @@ static const uint8_t glyph_bytes[64] = {0x80,0,0,0,0,0,0,0,
 
 static uint64_t message_ticks(void) { return mock_ms; }
 static void message_delay(uint32_t ms) { delay_calls++; mock_ms += ms; }
+static void message_tick_wait(uint32_t ticks) {
+    glyph_tick_calls++;
+    uint64_t ns=fd2_bios_clock_deadline_ns(mock_ms*UINT64_C(1000000),ticks);
+    mock_ms=(ns+UINT64_C(999999))/UINT64_C(1000000);
+}
 static void message_wait(fd2_vga *vga) {
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
 }
@@ -135,6 +145,10 @@ static void message_close(fd2_field_game *game) {
 
 static int message_storage(fd2_field_game *game, fd2_field_system_action action,
                              const char *path, size_t *fragment) {
+    if(!menu_closes || choice_active) {
+        fprintf(stderr,"storage before completed menu/choice: closes=%u choice=%d\n",menu_closes,choice_active);
+        return -1;
+    }
     backend_calls++;
     rng_before_backend = ((fd2_field_rng *)game->attack_rng_userdata)->state;
     int result = fd2_field_game_execute_storage_action(game, action, path, fragment);
@@ -157,15 +171,41 @@ static int message_action(fd2_input *input, fd2_input_context context,
 static int message_refresh(fd2_field_game *game,fd2_vga *vga,int phase_only) {
     (void)game;(void)vga;return phase_only>=0 && phase_only<=3?0:-1;
 }
+/* 此存储/坏文本夹具直接构造SYSTEM_MENU，并用2字形字体隔离坏片段；
+ * 没有1741c保存的72x72背景，不能冒充正常菜单close owner。菜单完整
+ * page/owner由unit_render真资源测试另验，这里仅保正式业务adapter调用。 */
+static int message_menu_transition(fd2_field_game *game,fd2_vga *vga,
+        int opening,uint32_t frame_delay_ms) {
+    if(!game || !game->ready || !vga || !vga->field_page ||
+            game->interaction!=FD2_FIELD_INTERACTION_SYSTEM_MENU ||
+            (opening!=0 && opening!=1) || frame_delay_ms!=16u ||
+            game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
+    if(game->runtime_host_quit || fd2_input_take_quit(&vga->input))return 1;
+    if(opening)menu_opens++;else menu_closes++;
+    return 0;
+}
+static int message_menu_wait(fd2_field_game *game,fd2_vga *vga) {
+    if(!game || !game->ready || !vga || !vga->field_page ||
+            game->interaction!=FD2_FIELD_INTERACTION_SYSTEM_MENU ||
+            game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
+    if(game->runtime_host_quit || fd2_input_take_quit(&vga->input))return -1;
+    menu_waits++;return 0;
+}
 static int message_choice(fd2_field_choice_step_fn apply,void *userdata) {
     choice_active=1;choice_frames=0;
     int result=fd2_field_choice_run(apply,userdata);
     choice_active=0;return result;
 }
 #define fd2_field_game_runtime_refresh message_refresh
+#define fd2_field_game_animate_system_menu message_menu_transition
+#define fd2_field_game_runtime_menu_refresh message_menu_wait
 #define fd2_field_choice_run message_choice
 #define SDL_GetTicks message_ticks
+uint64_t message_ticks_ns(void);
+#define SDL_GetTicksNS message_ticks_ns
+#define fd2_field_water_tick_live(vga_) fd2_field_water_tick((vga_),SDL_GetTicksNS())
 #define fd2_delay_ms message_delay
+#define fd2_wait_ticks message_tick_wait
 #define fd2_vga_present message_present
 #define fd2_vga_present_timed message_present_timed
 #define fd2_vga_wait_frame_deadline message_wait
@@ -176,8 +216,11 @@ static int message_choice(fd2_field_choice_step_fn apply,void *userdata) {
 #include "field_play.c"
 #undef SDL_GetTicks
 #undef fd2_field_game_runtime_refresh
+#undef fd2_field_game_animate_system_menu
+#undef fd2_field_game_runtime_menu_refresh
 #undef fd2_field_choice_run
 #undef fd2_delay_ms
+#undef fd2_wait_ticks
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -188,7 +231,9 @@ static int message_choice(fd2_field_choice_step_fn apply,void *userdata) {
 
 static void reset_controls(void) {
     in_route = actions = presents = delay_calls = 0;
+    glyph_tick_calls=0;fd2_bios_clock_reset(0,0);
     choice_active=choice_frames=0;
+    menu_closes=menu_opens=menu_waits=0;
     backend_calls = backend_done = closed = owner_ok = backend_rng_ok = 0;
     backend_result = -99;
     mock_ms = 1000;
@@ -265,7 +310,8 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     /* 必须核首个真正present的整页，不能等下一轮稳态render掩盖亮色占位。 */
     expected_present_frame = NULL;
     CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == 0);
-    CHECK(presents == 8 && delay_calls == 2 && unexpected_present_frames == 0);
+    /* 两个字形各执行原164e8 wait1，不再以两个55ms DOS delay模拟。 */
+    CHECK(presents == 8 && glyph_tick_calls == 2 && delay_calls == 0 && unexpected_present_frames == 0);
     CHECK(box.page && box.portraits[0].pixels);progress_box_free(&box);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     CHECK(memcmp(vga.palette, original_palette, sizeof(original_palette)) == 0 &&
@@ -343,6 +389,7 @@ static int test_formal_errors_preserve_storage_facts(void) {
                 kind,bad,(int)result,backend_calls,backend_result,actions,presents,closed,owner_ok,resource_at_close);
             CHECK(result == (bad == BAD_NONE ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR));
             CHECK(closed == 1 && owner_ok);
+            CHECK(menu_closes>=1u);
             int executed=kind>=ROUTE_SAVE && !(kind==ROUTE_LOAD && bad!=BAD_NONE);
             CHECK(backend_calls==executed);
             if (bad != BAD_NONE) CHECK(actions == 1);
@@ -426,7 +473,7 @@ static int test_notice_resource_owner_and_stable_page(void) {
         CHECK(expected_notice(expected,game,portrait,prompt,0)==0);
         memcpy(before,game,sizeof(*before));reset_controls();backend_rng_ok=1;
         CHECK(play_system_confirmation_text(game,vga,&box,NULL,prompt,0)==0);
-        CHECK(presents>6 && delay_calls>0 && box.page && backend_rng_ok);
+        CHECK(presents>6 && glyph_tick_calls>0 && box.page && backend_rng_ok);
         CHECK(!memcmp(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer)));
         CHECK(!memcmp(before,game,sizeof(*before)));
         unsigned frames_before=(unsigned)presents,delays_before=(unsigned)delay_calls;
@@ -453,3 +500,6 @@ int main(void) {
     puts("field system message tests: ok");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t message_ticks_ns(void) { return message_ticks()*UINT64_C(1000000); }

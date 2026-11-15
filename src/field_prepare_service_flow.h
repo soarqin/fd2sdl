@@ -253,7 +253,7 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         if (node->args[0]<0 || node->args[0]>255 || fd2_field_prepare_roster_front(state,(uint8_t)node->args[0])!=1) goto fatal;
         s->irreversible=1;
     } else if (!strcmp(op,"selection_reset")) {
-        if (fd2_field_prepare_selection_init(s->selection)!=0) goto fatal;s->cursor=0;s->sprite_phase=s->highlight_phase=0;
+        if (fd2_field_prepare_selection_init(s->selection)!=0) goto fatal;s->cursor=0;
     } else if (!strcmp(op,"selection_toggle")) {
         int cursor=s->cursor;
         if (fd2_field_prepare_selection_step(state->unit_count,s->selection,&cursor,FD2_FIELD_PREPARE_SELECT_TOGGLE)!=1) goto fatal;

@@ -8,6 +8,7 @@
  */
 
 #include "field_visual.h"
+#include "bios_clock.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -29,45 +30,99 @@ static int32_t visual_signed_bits(uint32_t bits) {
         (int32_t)((int64_t)bits - INT64_C(0x100000000));
 }
 
-static int32_t visual_bios_tick(uint64_t now_ms) {
-    uint32_t low=(uint32_t)(now_ms/55u)&0xffffu;
-    return low<0x8000u ? (int32_t)low : (int32_t)low-0x10000;
+/* fixed只供同tick向量；live的每个原WORD读取点都重新读取唯一App clock。 */
+static uint64_t visual_clock_ns(const uint64_t *fixed_ns) {
+    return fixed_ns ? *fixed_ns : SDL_GetTicksNS();
 }
 
-int fd2_field_visual_actor_step(fd2_field_visual_state *state,uint64_t now_ms) {
+static int32_t visual_clock_tick(const uint64_t *fixed_ns) {
+    return fd2_bios_tick_signed_ns(visual_clock_ns(fixed_ns));
+}
+
+static int visual_actor_step(fd2_field_visual_state *state,const uint64_t *fixed_ns) {
     if(!state || state->actor_idle_phase>=4 || state->cursor_phase>=4)return -1;
-    int32_t tick=visual_bios_tick(now_ms);
+    int32_t tick=visual_clock_tick(fixed_ns);
     int32_t delta=visual_signed_bits((uint32_t)tick-state->actor_idle_tick);
-    if(delta>4 || delta<0) {
+    /* 12987先读差>4；不成立才在1299a重读负差，成功129c5再取锚。 */
+    if(delta>4 || visual_signed_bits((uint32_t)visual_clock_tick(fixed_ns)-
+            state->actor_idle_tick)<0) {
         state->actor_idle_phase=(state->actor_idle_phase+1u)&3u;
-        state->actor_idle_tick=(uint32_t)tick;
+        state->actor_idle_tick=(uint32_t)visual_clock_tick(fixed_ns);
     }
     state->cursor_phase=(state->cursor_phase+1u)&3u;
     return 1; /* cursor在同tick调用也实际推进。 */
 }
 
-int fd2_field_visual_tiles_step(fd2_field_visual_state *state,uint64_t now_ms,
-        int32_t range_override) {
-    if(!state || state->terrain_phase>1 || state->range_phase>=20 ||
-        range_override < -1 || range_override>=20)return -1;
+int fd2_field_visual_actor_step(fd2_field_visual_state *state,uint64_t now_ns) {
+    return visual_actor_step(state,&now_ns);
+}
+
+int fd2_field_visual_actor_step_live(fd2_field_visual_state *state) {
+    return visual_actor_step(state,NULL);
+}
+
+static int visual_terrain_step(fd2_field_visual_state *state,const uint64_t *fixed_ns) {
+    if(!state || state->terrain_phase>1)return -1;
     int changed=0;
-    int32_t tick=visual_bios_tick(now_ms);
-    if((uint32_t)tick!=state->terrain_tick) {
+    if((uint32_t)visual_clock_tick(fixed_ns)!=state->terrain_tick) {
         state->terrain_phase^=1u;
-        state->terrain_tick=(uint32_t)tick;
-        changed=1;
-    }
-    if(range_override!=-1) {
-        changed|=state->range_phase!=(uint32_t)range_override;
-        state->range_phase=(uint32_t)range_override;
-    } else if(visual_signed_bits((uint32_t)tick-state->range_tick)>2 ||
-              tick<visual_signed_bits(state->range_tick)) {
-        state->range_phase++;
-        if(state->range_phase==20)state->range_phase=0;
-        state->range_tick=(uint32_t)tick;
+        /* 11eff比较，11f16在xor之后重新读钟写53a00。 */
+        state->terrain_tick=(uint32_t)visual_clock_tick(fixed_ns);
         changed=1;
     }
     return changed;
+}
+
+static int visual_range_step(fd2_field_visual_state *state,const uint64_t *fixed_ns,
+        int32_t range_override) {
+    if(!state || state->range_phase>=20 || range_override < -1 || range_override>=20)return -1;
+    int changed=0;
+    if(range_override!=-1) {
+        changed|=state->range_phase!=(uint32_t)range_override;
+        state->range_phase=(uint32_t)range_override;
+    } else if(visual_signed_bits((uint32_t)visual_clock_tick(fixed_ns)-state->range_tick)>2 ||
+              visual_clock_tick(fixed_ns)<visual_signed_bits(state->range_tick)) {
+        state->range_phase++;
+        if(state->range_phase==20)state->range_phase=0;
+        /* 1210f/12122两条件惰性读取；1214b成功后重新取539f4。 */
+        state->range_tick=(uint32_t)visual_clock_tick(fixed_ns);
+        changed=1;
+    }
+    return changed;
+}
+
+int fd2_field_visual_tiles_step(fd2_field_visual_state *state,uint64_t now_ns,
+        int32_t range_override) {
+    /* 旧组合接口先全检，非法range不能留下terrain前缀。 */
+    if(!state || state->terrain_phase>1 || state->range_phase>=20 ||
+        range_override < -1 || range_override>=20)return -1;
+    int terrain=visual_terrain_step(state,&now_ns);
+    int range=visual_range_step(state,&now_ns,range_override);
+    return terrain || range;
+}
+
+int fd2_field_visual_terrain_step_live(fd2_field_visual_state *state) {
+    return visual_terrain_step(state,NULL);
+}
+
+int fd2_field_visual_terrain_step(fd2_field_visual_state *state,uint64_t now_ns) {
+    return visual_terrain_step(state,&now_ns);
+}
+
+int fd2_field_visual_range_step_live(fd2_field_visual_state *state,int32_t range_override) {
+    return visual_range_step(state,NULL,range_override);
+}
+
+int fd2_field_visual_range_step(fd2_field_visual_state *state,uint64_t now_ns,int32_t range_override) {
+    return visual_range_step(state,&now_ns,range_override);
+}
+
+int fd2_field_visual_tiles_step_live(fd2_field_visual_state *state,int32_t range_override) {
+    if(!state || state->terrain_phase>1 || state->range_phase>=20 ||
+        range_override < -1 || range_override>=20)return -1;
+    int terrain=fd2_field_visual_terrain_step_live(state);
+    int range=fd2_field_visual_range_step_live(state,range_override);
+    return terrain || range;
 }
 
 /* 22046只改53A49内区，VGA几何叶的(4,4)正好对应page(72,72)。 */
@@ -296,13 +351,22 @@ int fd2_field_transition_lut_circle12(fd2_vga *vga,
     return 0;
 }
 
-int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ms) {
+static int actor_visual_tick(fd2_vga *vga,const uint64_t *fixed_ns) {
     if (!vga || vga->actor_jitter_phase>1u) return -1;
-    uint16_t tick=(uint16_t)(now_ms/55u);
+    uint16_t tick=fd2_bios_tick_low_ns(visual_clock_ns(fixed_ns));
     if (tick==vga->actor_jitter_tick) return 0;
-    vga->actor_jitter_tick=tick;
     vga->actor_jitter_phase^=1u;
+    /* 127f1比较、12801 xor之后，12808重新读钟写共享锚。 */
+    vga->actor_jitter_tick=fd2_bios_tick_low_ns(visual_clock_ns(fixed_ns));
     return 1;
+}
+
+int fd2_field_actor_visual_tick(fd2_vga *vga,uint64_t now_ns) {
+    return actor_visual_tick(vga,&now_ns);
+}
+
+int fd2_field_actor_visual_tick_live(fd2_vga *vga) {
+    return actor_visual_tick(vga,NULL);
 }
 
 /* sub_4E31C @0x4e31c（原登记 sub_4E31C）：DAC224..239固定水色窗口。
@@ -328,18 +392,27 @@ int fd2_field_water_palette_apply(fd2_vga *vga, unsigned phase) {
     return 0;
 }
 
-int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ms) {
+static int field_water_tick(fd2_vga *vga,const uint64_t *fixed_ns) {
     if (!vga) return -1;
     if (fd2_input_take_quit(&vga->input)) return 0;
     if (vga->field_water_phase >= 16) return -1;
     /* sub_4E310 @0x4e310（原登记sub_4E310）实际lodsw读BIOS低16位；
-     * 原4e32e是unsigned jb。55ms沿用宿主BIOS近似，不声称精确硬件时钟。
+     * 原4e32e是unsigned jb；clock只提供共享PIT低WORD，不改此门。
      * 原版长停顿后只更新一次并重取last；不能用while追赶消耗暂停时间。 */
-    uint16_t tick = (uint16_t)(now_ms / 55u);
+    uint16_t tick = fd2_bios_tick_low_ns(visual_clock_ns(fixed_ns));
     if ((uint16_t)(tick - vga->field_water_last_tick) < 2u) return 0;
     unsigned phase = ((unsigned)vga->field_water_phase + 1u) & 15u;
-    (void)fd2_field_water_palette_apply(vga, phase);
     vga->field_water_phase = (uint8_t)phase;
-    vga->field_water_last_tick = tick;
+    (void)fd2_field_water_palette_apply(vga, phase);
+    /* 4e373：16色DAC写完之后重新4e310，不复用比较时的tick。 */
+    vga->field_water_last_tick = fd2_bios_tick_low_ns(visual_clock_ns(fixed_ns));
     return 1;
+}
+
+int fd2_field_water_tick(fd2_vga *vga,uint64_t now_ns) {
+    return field_water_tick(vga,&now_ns);
+}
+
+int fd2_field_water_tick_live(fd2_vga *vga) {
+    return field_water_tick(vga,NULL);
 }

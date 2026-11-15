@@ -89,6 +89,25 @@ static int s5_cinematic_checks(void) {
     CHECK(scene_cinematic_node(context,&close,&port)==-1);
     CHECK(!memcmp(before,game,sizeof(*game)));
 
+    /* stage20的68个cin_water节点共享一个op；只核路由/owner/返回门，
+     * 不把本TU的固定tick适配器当原clock oracle。真实live叶的比较读→
+     * DAC写→fresh锚另由field_visual_live:test_water_reads核，不能在op预取ms。 */
+    {
+        fd2_static_flow_node water=s5_cin_node("water","cin_water");
+        const int statuses[]={0,1,-1};unsigned clocks=s5_clock_reads;
+        unsigned presents=s5_presents,uploads=s5_uploads,delays=s5_delays,ticks=s5_ticks;
+        s5_water_probe=1;s5_water_owner=vga;s5_water_calls=s5_water_bad_owner=0;
+        for(size_t i=0;i<sizeof(statuses)/sizeof(statuses[0]);i++) {
+            s5_water_result=statuses[i];port=99;
+            CHECK(scene_cinematic_node(context,&water,&port)==(statuses[i]<0?-1:1));
+            CHECK(port==FD2_FLOW_NEXT && s5_water_calls==i+1 && !s5_water_bad_owner);
+            CHECK(s5_clock_reads==clocks && rng_count==1);
+            CHECK(s5_presents==presents && s5_uploads==uploads && s5_delays==delays && s5_ticks==ticks);
+            CHECK(!memcmp(before,game,sizeof(*game)));
+        }
+        s5_water_probe=0;s5_water_owner=NULL;
+    }
+
     /* 六个固定call的独立局部预算仍由唯一walker使用；父计数/深度还原。 */
     context->fast=1;context->flow_depth=1;context->flow_steps=FD2_FLOW_STEP_BUDGET-1;
     fd2_static_flow_node nodes[3];

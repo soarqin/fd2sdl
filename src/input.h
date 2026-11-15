@@ -13,9 +13,10 @@
 
 #include <SDL3/SDL.h>
 
-/* PC/AT 常见默认 typematic 的宿主近似值；不是 FD2.EXE 内部常量。 */
+/* 固定DOSBox-X b6abbd5 keyboard.cpp::KEYBOARD_Reset：整数1ms服务tick。
+ * 不是BIOS 18.2Hz tick，也不是FD2内部常量；初始化/AL00均为500/33。 */
 #define FD2_INPUT_INITIAL_REPEAT_MS 500u
-#define FD2_INPUT_REPEAT_MS 92u
+#define FD2_INPUT_REPEAT_MS 33u
 /* DOSBox-X dosbox-x-v2026.10.01(b6abbd5) bios_keyboard.cpp:370..456：
  * 普通IBM/non-DOSV的BDA 1e..3e有16个word槽，留一空槽，有效15/满队丢新。
  * 本项目svga_s3证据；不是FD2常量或DOS/V额外缓存合同。quit不占槽。 */
@@ -46,12 +47,17 @@ typedef struct {
     SDL_Scancode source;
     uint8_t repeat;
     uint16_t modifiers; /* 首按用该键DOWN的修饰位，repeat用本帧物理位；不生成modifier键。 */
+    uint16_t bios_code; /* IBM INT16/AH10的AX；含AL，非游戏普通键同样保留。 */
 } fd2_input_event;
 
 typedef struct {
     /* 物理生命周期用于首按去重与唯一repeat源；普通待取键只有下方ring。 */
     bool previous_down[SDL_SCANCODE_COUNT];
-    uint64_t next_repeat_ms[SDL_SCANCODE_COUNT];
+    uint64_t next_repeat_ms[SDL_SCANCODE_COUNT]; /* 仅repeat_key项非0；保既有观察接口。 */
+    SDL_Scancode repeat_key; /* 原硬件只有一个last-key；release不恢复旧held。 */
+    uint64_t repeat_sample_ms;
+    uint16_t held_modifiers, lock_modifiers; /* BIOS flags；F13/PrtSc fake Shift可与previous_down物理态不同。 */
+    uint8_t alt_token; /* 原BIOS Alt+数字小键盘BYTE累积，末Alt释放才入队。 */
     bool test_key_state[SDL_SCANCODE_COUNT];
     int use_test_key_state;
     uint64_t test_now_ms; /* 测试pump/clear共用最近一次确定性时钟，不混真实uptime。 */
@@ -95,7 +101,7 @@ void fd2_input_install_interrupt_handlers(void);
 int fd2_input_host_quit_requested(void);
 
 /* 唯一宿主事件泵：普通DOWN入同owner缓存；UP不删除已接受的键。
- * modifier不成为普通键，SDL repeat不与现500/92ms源重复入队。 */
+ * modifier也参与原last-key仲裁但不入普通FIFO；忽略SDL自带repeat。 */
 void fd2_input_poll_host_events(fd2_input *input);
 
 /* 每次呈现调用一次物理采样；不清普通键缓存。 */

@@ -172,6 +172,7 @@ set(FD2SDL_CORE_SOURCES
     field_ai.c
     field_combat.c
     field_rng.c
+    bios_clock.c
     field_item.c
     field_prepare_item.c
     field_prepare.c
@@ -590,7 +591,7 @@ if(BUILD_TESTING)
 
     add_executable(fd2_dialog_flow_test
         tests/dialog_flow_test.c
-        dialog_flow.c
+        dialog_flow.c bios_clock.c
     )
     target_include_directories(fd2_dialog_flow_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR})
@@ -600,6 +601,7 @@ if(BUILD_TESTING)
         target_compile_options(fd2_dialog_flow_test PRIVATE
             -Wall -Wextra -Wpedantic)
     endif()
+    target_link_libraries(fd2_dialog_flow_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME dialog_flow COMMAND fd2_dialog_flow_test)
 
     add_executable(fd2_audio_pcm_test
@@ -807,8 +809,9 @@ if(BUILD_TESTING)
     add_test(NAME field_render_scope COMMAND fd2_field_render_scope_test)
 
     add_executable(fd2_field_background_test tests/field_background_test.c
-        field_background.c field_page.c archive.c image.c)
+        field_background.c field_page.c archive.c image.c bios_clock.c)
     target_include_directories(fd2_field_background_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_background_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_background COMMAND fd2_field_background_test)
     set_tests_properties(field_background PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
@@ -832,7 +835,7 @@ if(BUILD_TESTING)
 
     add_executable(fd2_field_visual_test
         tests/field_visual_test.c
-        field_visual.c
+        field_visual.c bios_clock.c
         input.c
         archive.c
         shape.c
@@ -974,6 +977,26 @@ if(BUILD_TESTING)
         ${FD2SDL_SDL3_TARGET}
     )
     add_test(NAME field_attack COMMAND fd2_field_attack_test)
+
+    add_executable(fd2_bios_clock_test tests/bios_clock_test.c)
+    target_include_directories(fd2_bios_clock_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bios_clock_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_bios_clock_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_bios_clock_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bios_clock COMMAND fd2_bios_clock_test)
+
+    add_executable(fd2_bios_wait_test tests/bios_wait_test.c bios_clock.c input.c field_page.c)
+    target_include_directories(fd2_bios_wait_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bios_wait_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_bios_wait_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_bios_wait_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bios_wait COMMAND fd2_bios_wait_test)
 
     add_executable(fd2_field_rng_test
         tests/field_rng_test.c
@@ -1417,8 +1440,16 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
     target_compile_definitions(fd2_field_play_result_test PRIVATE
+        fd2_wait_ticks=__wrap_fd2_wait_ticks
+        fd2_bios_tick_low_ns=__wrap_fd2_bios_tick_low_ns
+        fd2_bios_tick_signed_ns=__wrap_fd2_bios_tick_signed_ns
+        fd2_field_water_tick_live=__wrap_fd2_field_water_tick_live
+        fd2_input_clear_keys=__wrap_fd2_input_clear_keys
+        fd2_input_take_key=__wrap_fd2_input_take_key
+        fd2_input_has_any_key=__wrap_fd2_input_has_any_key
         fd2_field_game_render=__wrap_fd2_field_game_render
         fd2_field_game_runtime_refresh=__wrap_fd2_field_game_runtime_refresh
+        fd2_field_game_runtime_menu_refresh=__wrap_fd2_field_game_runtime_menu_refresh
         fd2_field_round_play=__wrap_fd2_field_round_play
         fd2_field_phase_play=__wrap_fd2_field_phase_play
         fd2_field_round_is_ready=__wrap_fd2_field_round_is_ready
@@ -1443,7 +1474,7 @@ if(BUILD_TESTING)
         fd2_field_game_execute_move=__wrap_fd2_field_game_execute_move
         fd2_field_game_animate_system_menu=__wrap_fd2_field_game_animate_system_menu
         fd2_field_game_execute_storage_action=__wrap_fd2_field_game_execute_storage_action
-        fd2_field_unit_summary_draw=__wrap_fd2_field_unit_summary_draw
+        fd2_field_game_runtime_summary_refresh=__wrap_fd2_field_game_runtime_summary_refresh
         fd2_field_game_march=__wrap_fd2_field_game_march
         fd2_bgm_play=__wrap_fd2_bgm_play
         fd2_bgm_stop=__wrap_fd2_bgm_stop
@@ -1615,6 +1646,48 @@ if(BUILD_TESTING)
     set_tests_properties(field_progress PROPERTIES
         TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
+    add_executable(fd2_field_unit_live_test
+        tests/field_unit_live_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_unit_live_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_unit_live_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_unit_live_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_unit_live_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_unit_live COMMAND fd2_field_unit_live_test)
+    set_tests_properties(field_unit_live PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_visual_live_test
+        tests/field_visual_live_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_visual_live_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_visual_live_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_visual_live_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_visual_live_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_visual_live COMMAND fd2_field_visual_live_test)
+    set_tests_properties(field_visual_live PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
+    add_executable(fd2_field_input_wait_test
+        tests/field_input_wait_test.c
+        $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_field_input_wait_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_field_input_wait_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_field_input_wait_test PRIVATE /W4)
+    else()
+        target_compile_options(fd2_field_input_wait_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME field_input_wait COMMAND fd2_field_input_wait_test)
+    set_tests_properties(field_input_wait PROPERTIES
+        TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+
     add_executable(fd2_field_system_message_test
         tests/field_system_message_test.c
         $<TARGET_OBJECTS:fd2sdl_core>)
@@ -1689,7 +1762,7 @@ if(BUILD_TESTING)
     add_executable(fd2_magic_fx_test tests/magic_fx_test.c magic_fx.c)
     add_executable(fd2_battle_animation_test
         tests/battle_animation_test.c
-        figani.c magic_fx.c tile.c field_page.c field_info.c field_visual.c field_item.c field_magic.c field_unit.c field_unit_base.c
+        figani.c magic_fx.c tile.c field_page.c field_info.c field_visual.c bios_clock.c field_item.c field_magic.c field_unit.c field_unit_base.c
         field_unit_stats.c field_attack.c field_path.c field_move_profile.c
         map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
         audio_pcm.c audio.c audio_pcm_capture.c field_effect.c field_audio.c)

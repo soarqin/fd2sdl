@@ -106,7 +106,6 @@ int fd2_scene_teleport_sprite(fd2_scene_teleport_scope *scope,unsigned frame) {
     int result=teleport_owner(scope); if (result) return result;
     if (frame<114 || frame>124 || fd2_field_page_copy_pixels(scope->owner,scope->base) ||
             teleport_blit(scope,scope->owner,frame) ||
-            fd2_field_actor_visual_tick(scope->vga,SDL_GetTicks())<0 ||
             fd2_field_game_effect_actors(scope->game,scope->vga)) return -1;
     fd2_vga_upload_current_frame(scope->vga); return teleport_owner(scope);
 }

@@ -38,6 +38,13 @@ static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     fd2_vga_wait_frame_deadline(ui->vga);
     return prepare_service_host_quit(ui);
 }
+/* 28b41的17aa9等待与4ms DOS delay分离；仍只上传当前页和检查HOST。 */
+static int prepare_service_present_ticks(prepare_ui *ui,unsigned ticks) {
+    if (prepare_service_host_quit(ui)) return 1;
+    fd2_vga_present(ui->vga);
+    fd2_wait_ticks(ticks);
+    return prepare_service_host_quit(ui);
+}
 static int prepare_service_fade(prepare_ui *ui,int in) {
     /* 26152/2670e借用palette_fade_in_light @0x1f525与
      * palette_fade_out_dark @0x1f882（原登记同名）：共用减法冷序列，
@@ -86,9 +93,12 @@ static int prepare_service_modal_transition(prepare_ui *ui,int opening) {
         for (int row=0;row<86 && y+row<VGA_H;row++)
             memcpy(ui->vga->framebuffer+(y+row)*VGA_STRIDE+5,
                 s->page->framebuffer+(112+row)*VGA_STRIDE+5,310);
-        if (prepare_service_present(ui,16)) return 1;
+        if (prepare_service_present(ui,0)) return 1;
     }
-    if (!opening) memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
+    if (!opening) {
+        memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
+        if(prepare_service_present(ui,0))return 1;
+    }
     return 0;
 }
 static int prepare_service_modal_open(prepare_ui *ui,const fd2_vga *page,int page_kind) {
@@ -177,14 +187,16 @@ static int prepare_service_arrow(prepare_ui *ui,unsigned frame) {
 }
 static int prepare_service_wait_event(prepare_ui *ui,fd2_input_event *event,int mode) {
     if (!event || (mode!=0 && mode!=1)) return -1;
+    int32_t last=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
     unsigned countdown=fd2_field_rng_next(&ui->context->rng)%30u+2u;
-    uint64_t last=SDL_GetTicks();int blink=0;unsigned arrow=18,arrow_ticks=0;
+    int blink=0;unsigned arrow=18,arrow_ticks=0;
     if (mode==1 && prepare_service_arrow(ui,18)!=0) return -1;
     for (;;) {
         if (prepare_service_host_quit(ui)) return 1;
         if (prepare_service_take_key(ui,event)) break;
-        uint64_t now=SDL_GetTicks();(void)fd2_field_water_tick(ui->vga,now);
-        if (now-last>=110u) {
+        if (fd2_field_water_tick_live(ui->vga)<0) return -1;
+        int32_t tick=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+        if (tick-last>=2) {
             if (mode==1 && ++arrow_ticks==3u) {
                 arrow_ticks=0;arrow=arrow==18u ? 19u:18u;
                 if (prepare_service_arrow(ui,arrow)!=0) return -1;
@@ -195,7 +207,7 @@ static int prepare_service_wait_event(prepare_ui *ui,fd2_input_event *event,int 
             } else if (countdown--==0u) {
                 if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;blink=1;
             }
-            last=now;
+            last=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
         }
         if (prepare_service_present(ui,16)) return 1;
     }
@@ -213,26 +225,25 @@ static int prepare_service_wait_key(prepare_ui *ui,fd2_input_event *event,int mo
 static int prepare_service_read_key(prepare_ui *ui,fd2_input_event *event,
         int animation_mode,int (*redraw)(prepare_ui *)) {
     if (!event || animation_mode<0 || animation_mode>3 || !redraw) return -1;
-    prepare_service *s=&ui->service;uint64_t last=SDL_GetTicks();int blink=0;
+    int32_t last=fd2_bios_tick_signed_ns(SDL_GetTicksNS());int blink=0;
     unsigned countdown=fd2_field_rng_next(&ui->context->rng)%50u+8u;
-    s->highlight_phase=2;
-    if (redraw(ui)!=0 || prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
+    ui->vga->prepare_highlight_phase=2;
+    if (redraw(ui)!=0) return -1;
     for (;;) {
         if (prepare_service_host_quit(ui)) return 1;
-        if (prepare_service_take_key(ui,event)) return 0;
-        uint64_t now=SDL_GetTicks();
-        if (now<last || now-last>=110u) {
-            s->highlight_phase=(s->highlight_phase+1u)&3u;
-            if (s->highlight_phase&1u) s->sprite_phase=(s->sprite_phase+1u)&3u;
-            if (redraw(ui)!=0 || prepare_service_portrait(ui,ui->vga,blink ? 3u:0u,0)!=0) return -1;
+        int32_t tick=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+        if (tick-last>=2 || tick<last) {
+            prepare_picker_phase_advance(ui->vga);
+            if (redraw(ui)!=0) return -1;
             if (blink) {
                 if (prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
                 countdown=fd2_field_rng_next(&ui->context->rng)%30u+2u;blink=0;
             } else if (countdown--==0u) {
                 if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;blink=1;
             }
-            last=now;
+            last=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
         }
+        if (prepare_service_take_key(ui,event)) return 0;
         if (prepare_service_present(ui,16)) return 1;
     }
 }
@@ -337,7 +348,7 @@ static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
                 fd2_vga_upload_current_frame(ui->vga);
             }
             if (sound(ui,2)!=0) return -1;
-            if (prepare_service_present(ui,55)) return 1;
+            if (prepare_service_present_ticks(ui,1)) return 1;
         }
     }
     fd2_vga_present(ui->vga);return prepare_service_host_quit(ui);
@@ -425,14 +436,14 @@ static int prepare_service_animate(prepare_ui *ui) {
         default:return -1;
     }
     for(size_t i=0;i<count;i++)if(!a->animation_frames[i].pixels)return -1;
-    if (ui->service.selector==3 && prepare_service_present(ui,55)) return 1;
+    if (ui->service.selector==3 && prepare_service_present_ticks(ui,1)) return 1;
     if (ui->service.selector==4) {
         if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;
-        if (prepare_service_present(ui,110)) return 1;
+        if (prepare_service_present_ticks(ui,2)) return 1;
     }
     for(size_t i=0;i<count;i++) {
         fd2_map_sprite_blit(ui->vga,&a->animation_frames[i],x,y,0);
-        if (prepare_service_present(ui,ui->service.selector==3 ? 440u:110u)) return 1;
+        if (prepare_service_present_ticks(ui,ui->service.selector==3 ? 8u:2u)) return 1;
     }
     if (ui->service.selector==4) {
         for(int value=0;value<64;value+=2) {
@@ -442,7 +453,7 @@ static int prepare_service_animate(prepare_ui *ui) {
             }
             if(prepare_service_present(ui,4))return 1;
         }
-        if(prepare_service_present(ui,550))return 1;
+        if(prepare_service_present_ticks(ui,10))return 1;
         for(int value=62;value>=0;value-=2) {
             for(size_t i=0;i<VGA_PALETTE_SIZE;i++) {
                 unsigned channel=(unsigned)ui->vga->palette[i]+(unsigned)value;
@@ -450,7 +461,7 @@ static int prepare_service_animate(prepare_ui *ui) {
             }
             if(prepare_service_present(ui,4))return 1;
         }
-        if(prepare_service_present(ui,275))return 1;
+        if(prepare_service_present_ticks(ui,5))return 1;
     }
     if (ui->service.selector!=5 && prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
     return prepare_service_clear_keys(ui);
@@ -483,6 +494,7 @@ static int prepare_service_confirm(prepare_ui *ui,unsigned *port) {
     if(ui->service.page)memcpy(ui->service.page->framebuffer,ui->vga->framebuffer,VGA_W*VGA_H);
     prepare_choice_scope scope={0};scope.ui=ui;scope.page=base;scope.service=1;scope.port=port;
     int result=fd2_field_choice_run(prepare_choice_step,&scope);
+    prepare_choice_release(&scope); /* HOST/错误亦不遗留本choice宿主deadline。 */
     if(!result) {
         memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
         fd2_vga_upload_current_frame(ui->vga);
@@ -495,7 +507,8 @@ static int prepare_service_ui(prepare_ui *ui,const fd2_static_flow_node *node,un
     prepare_service *s=&ui->service;int result=0;*port=FD2_FLOW_NEXT;
     if (!strcmp(node->op,"notice_open")) result=prepare_service_notice_open(ui,node->args[0]);
     else if (!strcmp(node->op,"town_render"))
-        result=fd2_field_prepare_draw_town(ui->vga,ui->assets,&ui->context->preparation,0,0);
+        result=fd2_field_prepare_draw_town(ui->vga,ui->assets,&ui->context->preparation,
+            0,ui->vga->prepare_highlight_phase);
     else if (!strcmp(node->op,"fade")) {
         if(node->args[0]!=0 && node->args[0]!=1)goto fatal;
         result=prepare_service_fade(ui,node->args[0]);

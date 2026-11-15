@@ -39,10 +39,11 @@ static int defeat_valid(const fd2_field_defeat_visual *v,const fd2_field_game *g
 }
 
 static int defeat_tiles(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *target) {
-    uint64_t now=SDL_GetTicks();
-    if(fd2_field_visual_tiles_step(&vga->field_visual,now,-1)<0 ||
-        fd2_field_background_draw_from(vga->field_page,target,72,72,
-            game->camera_cell_x,game->camera_cell_y,0,0,now,1)!=0)return -1;
+    /* 1db65的11eee仍按terrain→实际背景→range，分别沿原读取点取钟。 */
+    if(fd2_field_visual_terrain_step_live(&vga->field_visual)<0 ||
+        fd2_field_background_draw_from_live(vga->field_page,target,72,72,
+            game->camera_cell_x,game->camera_cell_y,0,0,1)!=0 ||
+        fd2_field_visual_range_step_live(&vga->field_visual,-1)<0)return -1;
     return fd2_terrain_render_page_block(target,&game->terrain,&game->map,72,72,13,8,
         game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,
         (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL);
@@ -51,7 +52,7 @@ static int defeat_tiles(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *
 static int defeat_actors(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *target) {
     for(size_t raw=0;raw<game->units.count;raw++) {
         if(fd2_field_unit_is_hidden(&game->units.items[raw]))continue;
-        if(fd2_field_actor_visual_tick(vga,SDL_GetTicks())<0 ||
+        if(fd2_field_actor_visual_tick_live(vga)<0 ||
             fd2_field_units_render_page_actor(target,&game->sprites,&game->units,raw,
                 game->camera_cell_x,game->camera_cell_y,(uint8_t)vga->field_visual.actor_idle_phase,
                 (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0)!=0)return -1;
@@ -106,8 +107,8 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
             vga->actor_jitter_phase)!=0)goto failure;
     }
     for(unsigned phase=0;phase<2;phase++)
-        if(fd2_field_background_draw_from(vga->field_page,scratch,72,72,v->camera_x,v->camera_y,
-            0,0,SDL_GetTicks(),0)!=0 ||
+        if(fd2_field_background_draw_from_live(vga->field_page,scratch,72,72,v->camera_x,v->camera_y,
+            0,0,0)!=0 ||
             fd2_terrain_render_page_block(scratch,&game->terrain,&game->map,72,72,13,8,
                 v->camera_x,v->camera_y,(int)phase,(uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)goto failure;
     fd2_field_page_destroy(scratch);*visual=v;return 0;
@@ -125,7 +126,7 @@ int fd2_field_defeat_actor(fd2_field_defeat_visual *v,const fd2_field_game *game
     if(!defeat_valid(v,game,vga) || raw>=game->units.count)return -1;
     if(fd2_input_take_quit(&vga->input))return 1;
     if(fd2_field_unit_is_hidden(&game->units.items[raw]))return 0;
-    if(fd2_field_actor_visual_tick(vga,SDL_GetTicks())<0)return -1;
+    if(fd2_field_actor_visual_tick_live(vga)<0)return -1;
     return fd2_field_units_render_page_actor(vga->field_page,&game->sprites,&game->units,raw,
         game->camera_cell_x,game->camera_cell_y,(uint8_t)vga->field_visual.actor_idle_phase,
         (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0);

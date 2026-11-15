@@ -1,3 +1,4 @@
+#include <stdint.h>
 /* 1db65：真实FDOTHER/FDICON/FDSHAP，正式Game common→runtime.defeat→Play
  * 服务。只私有替换时钟、上传与资源故障，不创建窗口，不代替原版运行。 */
 #include <stdio.h>
@@ -8,6 +9,8 @@
 #include "field_defeat.h"
 #include "field_game.h"
 #include "field_rng.h"
+#include "field_background.h"
+#include "field_visual.h"
 
 #define CHECK(x) do { if(!(x)) {fprintf(stderr,"field_defeat_test:%d %s\n",__LINE__,#x);exit(1);} } while(0)
 static uint64_t test_now;
@@ -18,6 +21,30 @@ static uint8_t frame_idle[25],frame_cursor[25],frame_jitter[25];
 static fd2_field_game *current_game;
 static const uint8_t *bad_ui;
 static size_t bad_ui_size;
+static int observe_live_order,live_order[8];
+static size_t live_order_count;
+uint64_t defeat_ticks_ns(void);
+
+/* 这里只观察正式caller的叶次序；各live叶的多次读取由field_visual_live独立核。
+ * 既有完整帧夹具仍用其固定外部时钟，不用host uptime生成像素expected。 */
+static void defeat_observe_live(int role) {
+    if(observe_live_order) {CHECK(live_order_count<8);live_order[live_order_count++]=role;}
+}
+static int defeat_terrain_live(fd2_field_visual_state *state) {
+    defeat_observe_live(1);return fd2_field_visual_terrain_step(state,defeat_ticks_ns());
+}
+static int defeat_background_live(fd2_field_page *owner,fd2_field_page *target,
+    int x,int y,int camera_x,int camera_y,int px,int py,int advance) {
+    if(advance)defeat_observe_live(2);
+    return fd2_field_background_draw_from(owner,target,x,y,camera_x,camera_y,px,py,
+        advance?defeat_ticks_ns():0,advance);
+}
+static int defeat_range_live(fd2_field_visual_state *state,int32_t override) {
+    defeat_observe_live(3);return fd2_field_visual_range_step(state,defeat_ticks_ns(),override);
+}
+static int defeat_actor_live(fd2_vga *vga) {
+    defeat_observe_live(4);return fd2_field_actor_visual_tick(vga,defeat_ticks_ns());
+}
 
 static uint64_t defeat_ticks(void) {return test_now;}
 static int defeat_get(const fd2_archive *a,size_t i,const uint8_t **data,size_t *size) {
@@ -44,11 +71,16 @@ static void defeat_page_destroy(fd2_field_page *page) {
 }
 
 #define SDL_GetTicks defeat_ticks
+#define SDL_GetTicksNS defeat_ticks_ns
 #define fd2_archive_get defeat_get
 #define fd2_lmi_decode_image defeat_decode
 #define fd2_image_free defeat_free_image
 #define fd2_field_page_create defeat_page_create
 #define fd2_field_page_destroy defeat_page_destroy
+#define fd2_field_visual_terrain_step_live defeat_terrain_live
+#define fd2_field_background_draw_from_live defeat_background_live
+#define fd2_field_visual_range_step_live defeat_range_live
+#define fd2_field_actor_visual_tick_live defeat_actor_live
 #define fd2_field_defeat_prepare test_defeat_prepare
 #define fd2_field_defeat_rotate test_defeat_rotate
 #define fd2_field_defeat_actor test_defeat_actor
@@ -57,6 +89,10 @@ static void defeat_page_destroy(fd2_field_page *page) {
 #define fd2_field_defeat_frame test_defeat_frame
 #define fd2_field_defeat_close test_defeat_close
 #include "../field_defeat.c"
+#undef fd2_field_visual_terrain_step_live
+#undef fd2_field_background_draw_from_live
+#undef fd2_field_visual_range_step_live
+#undef fd2_field_actor_visual_tick_live
 #undef fd2_archive_get
 #undef fd2_lmi_decode_image
 #undef fd2_image_free
@@ -136,6 +172,7 @@ static void reset_case(fd2_field_game *game,fd2_vga *vga,field_runtime_presentat
     vga->actor_jitter_phase=0;vga->actor_jitter_tick=0;vga->info_panel_suppressed=0;
     runtime->host_quit=0;runtime->fast=0;
     test_now=1000;frames=quit_at=refreshes=cue_steps=rng_calls=page_creates=fail_page_create=0;
+    observe_live_order=0;live_order_count=0;
     bad_ui=NULL;frame_pages=NULL;
     uint8_t *initial=malloc(FD2_FIELD_PAGE_SIZE);CHECK(initial);memset(initial,85,FD2_FIELD_PAGE_SIZE);
     CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,initial,FD2_FIELD_PAGE_SIZE,456)==0);free(initial);
@@ -336,11 +373,25 @@ int main(void) {
     fd2_field_units original=game->units;vga->field_page=fd2_field_page_create();CHECK(vga->field_page);
     field_runtime_presentation runtime={vga,NULL,0,0,NULL};current_game=game;
     reset_case(game,vga,&runtime,&original);*saved_game=*game;*saved_vga=*vga;read_page(vga->field_page,base);
+    observe_live_order=1;
     CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_BEGIN,0,&runtime)==0);
+    CHECK(!live_order_count); /* PREPARE的advance0没有真实clock叶。 */
     CHECK(runtime.defeat && runtime.defeat->count==1 && live_images==12 && live_pages==1);
     CHECK(runtime.defeat->x[0]==96 && runtime.defeat->y[0]==114);
     CHECK(!memcmp(game,saved_game,sizeof(*game)) && !memcmp(vga,saved_vga,sizeof(*vga)));
     read_page(vga->field_page,actual);CHECK(!memcmp(actual,base,FD2_FIELD_PAGE_SIZE));
+    CHECK(test_defeat_rotate(runtime.defeat,game,vga)==0);
+    static const int source_live_order[]={1,2,3,4};
+    CHECK(live_order_count==3 && !memcmp(live_order,source_live_order,3*sizeof(int)));
+    CHECK(test_defeat_actor(runtime.defeat,game,vga,0)==0);
+    CHECK(live_order_count==4 && !memcmp(live_order,source_live_order,sizeof(source_live_order)));
+    CHECK(test_defeat_actor(runtime.defeat,game,vga,2)==0 && live_order_count==4);
+    vga->input.quit_requested=1;
+    CHECK(test_defeat_rotate(runtime.defeat,game,vga)==1 && live_order_count==4);
+    game->failure=FD2_FIELD_FAILURE_ACTION;
+    CHECK(test_defeat_rotate(runtime.defeat,game,vga)==-1 && live_order_count==4);
+    game->failure=FD2_FIELD_FAILURE_NONE;vga->input.quit_requested=0;observe_live_order=0;
+    CHECK(!memcmp(game,saved_game,sizeof(*game)) && !rng_calls);
     CHECK(play_runtime_step(game,FD2_FIELD_RUNTIME_DEFEAT_CLOSE,0,&runtime)==0 && !runtime.defeat);
     CHECK(!live_images && !live_pages);
 
@@ -431,3 +482,6 @@ int main(void) {
     puts("field_defeat_test: App pages/25 cold frames; 69 active-count vectors, 192 filter vectors, 96-record owner/quit/failure write sets passed; no GUI/original-execution or 31+ FX equivalence claim");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t defeat_ticks_ns(void) { return defeat_ticks()*UINT64_C(1000000); }

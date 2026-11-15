@@ -13,6 +13,7 @@
  */
 
 #include "scene.h"
+#include "bios_clock.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,11 +70,9 @@
 /* bios_tick_delay @code0 0x7aa9 读取 BIOS 计时器 0x046c；
  * text_dialog_glyph_step @code0 0x64e8 每显示一个字先调用
  * sfx_play(DAT_00003eec, 2, 1)，再等待 1 tick，约 54.9 ms。
- * SDL 端取整为 55 ms。dialog_box_open @0x165ac 的展开步间等待则
+ * 共享PIT clock按原tick边界等待。dialog_box_open @0x165ac 的展开步间等待则
  * 调用 delay_ms(10)，不是 BIOS tick。 */
-#define FD2_BIOS_TICK_MS 55
 #define FD2_DIALOG_TRANSITION_DELAY_MS 10
-#define FD2_TEXT_GLYPH_DELAY_MS FD2_BIOS_TICK_MS
 
 /* FDTXT 控制码；text_dialog_render_tokens @code0 0x5f84 使用
  * signed u16 解释。 */
@@ -566,18 +565,18 @@ static void render_scene_base_with_water(fd2_vga *vga,
     if(!vga || !vga->field_page || !field_state) {scene_render_error=1;return;}
     scene_motion_sync(field_state);
     int camera_x=field_state->camera_cell_x,camera_y=field_state->camera_cell_y;
-    uint64_t now=SDL_GetTicks();
-    if(fd2_field_visual_actor_step(&vga->field_visual,now)<0) {
+    if(fd2_field_visual_actor_step_live(&vga->field_visual)<0) {
         scene_render_error=1;return;
     }
-    if(water && fd2_field_water_tick(vga,now)<0) {scene_render_error=1;return;}
-    if(fd2_field_visual_tiles_step(&vga->field_visual,now,-1)<0) {
+    if(water && fd2_field_water_tick_live(vga)<0) {scene_render_error=1;return;}
+    if(fd2_field_visual_terrain_step_live(&vga->field_visual)<0) {
         scene_render_error=1;return;
     }
     /* 11eee只按原opaque写工作页，最终11cac才复制内区；绝不每次清0或
      * 把live VGA对话/UI当透明底图。相位由真实caller先推进后借入。 */
-    if(fd2_field_background_draw(vga->field_page,72,72,camera_x,camera_y,
-            0,0,SDL_GetTicks(),1)!=0 ||
+    if(fd2_field_background_draw_live(vga->field_page,72,72,camera_x,camera_y,
+            0,0,1)!=0 ||
+        fd2_field_visual_range_step_live(&vga->field_visual,-1)<0 ||
         fd2_terrain_render_page_block(vga->field_page,terrain,map,72,72,13,8,
             camera_x,camera_y,(int)vga->field_visual.terrain_phase,
             (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0) {
@@ -606,10 +605,9 @@ static void render_scene_base_with_water(fd2_vga *vga,
             scene_render_error=1;return;
         }
     }
-    fd2_field_actor_visual_tick(vga,SDL_GetTicks());
-    if(fd2_field_units_render_page(vga->field_page,sprites,&field_state->units,
+    if(fd2_field_units_render_page_live(vga,vga->field_page,sprites,&field_state->units,
             camera_x,camera_y,(uint8_t)vga->field_visual.actor_idle_phase,
-            (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase)!=0) {
+            (uint8_t)vga->field_visual.cursor_phase)!=0) {
         scene_render_error=1;return;
     }
     /* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC）只恢复
@@ -657,19 +655,6 @@ static void present_base_frame(fd2_vga *vga,
     render_scene_11cac(vga, terrain, map, sprites, field_state,skip_water);
     if(scene_render_error)return;
     fd2_vga_present(vga);
-    (void)poll_scene_quit(vga);
-}
-
-static void present_base_frame_timed(fd2_vga *vga,
-                                     const fd2_terrain_tileset *terrain,
-                                     const fd2_field_map *map,
-                                     const fd2_map_sprite_bank *sprites,
-                                     const fd2_scene_field_state *field_state,
-                                     uint32_t frame_ms,int skip_water) {
-    if (scene_host_quit_requested || poll_scene_quit(vga)) return;
-    render_scene_11cac(vga, terrain, map, sprites, field_state,skip_water);
-    if(scene_render_error)return;
-    fd2_vga_present_timed(vga, frame_ms);
     (void)poll_scene_quit(vga);
 }
 
@@ -841,17 +826,18 @@ static void pan_camera_to(fd2_vga *vga,
         return;
     }
 
-    /* field_camera_pan_to @0x135dd 先完整调整 X，再调整 Y；每格只等待
-     * 一次 vsync。确认键不打断镜头，留给随后对话消费。 */
+    /* field_camera_pan_to @0x135dd 先完整调整 X，再调整 Y；每格执行
+     * 一次11cac(0)再4e381清普通FIFO；该CALL不是vsync等待。 */
     while (field_state->camera_cell_x != target_x) {
         int cx = field_state->camera_cell_x;
         int dx = cx < target_x ? 1 : -1;
         cx += dx;
         field_state->focus_cell_x += dx;
         set_camera_cell(field_state, map, cx, field_state->camera_cell_y);
-        present_base_frame_timed(vga, terrain, map, sprites,
-                                 field_state, 17,0);
+        present_base_frame(vga, terrain, map, sprites,field_state,0);
         if(scene_render_error || scene_host_quit_requested)return;
+        fd2_input_clear_keys(&vga->input);
+        if(poll_scene_quit(vga))return;
 
     }
     while (field_state->camera_cell_y != target_y) {
@@ -860,9 +846,10 @@ static void pan_camera_to(fd2_vga *vga,
         cy += dy;
         field_state->focus_cell_y += dy;
         set_camera_cell(field_state, map, field_state->camera_cell_x, cy);
-        present_base_frame_timed(vga, terrain, map, sprites,
-                                 field_state, 17,0);
+        present_base_frame(vga, terrain, map, sprites,field_state,0);
         if(scene_render_error || scene_host_quit_requested)return;
+        fd2_input_clear_keys(&vga->input);
+        if(poll_scene_quit(vga))return;
 
     }
 }
@@ -873,7 +860,7 @@ static void focus_camera_to_cell(fd2_vga *vga,
                                   const fd2_map_sprite_bank *sprites,
                                   fd2_scene_field_state *field_state,
                                   int target_x, int target_y,
-                                  int fast, int source) {
+                                  int fast, uint32_t display_mode) {
     if (!field_state) return;
 
     int max_cam_x = map ? map->width - FD2_FIELD_VIEW_CELLS_X : 0;
@@ -887,6 +874,11 @@ static void focus_camera_to_cell(fd2_vga *vga,
      * 向外达到 x=2/11、y=2/6 阈值后才同步卷动镜头。最终镜头位置
      * 取决于此前焦点，不等同于直接把角色固定到某个屏幕格。
      * 这不是额外的文本控制码，也不需要过场显式调用镜头指令。 */
+    /* 12d01入口刷新即使零距离也发生；各步再按原51A83条件等待。 */
+    if(!fast) {
+        present_base_frame(vga,terrain,map,sprites,field_state,0);
+        if(scene_render_error || scene_host_quit_requested)return;
+    }
     while (field_state->focus_cell_x != target_x) {
         int dx = field_state->focus_cell_x < target_x ? 1 : -1;
         int rel_x = field_state->focus_cell_x - field_state->camera_cell_x;
@@ -895,16 +887,22 @@ static void focus_camera_to_cell(fd2_vga *vga,
             camera_x--;
         else if (dx > 0 && rel_x >= 11 && camera_x < max_cam_x)
             camera_x++;
+        int camera_changed = camera_x != field_state->camera_cell_x;
         field_state->focus_cell_x += dx;
         set_camera_cell(field_state, map, camera_x,
                         field_state->camera_cell_y);
+        scene_motion_sync(field_state);
         if (!fast) {
-            present_base_frame_timed(vga, terrain, map, sprites,
-                                     field_state, source && !field_state->cursor ? 0:17,0);
-            if(scene_render_error || scene_host_quit_requested)return;
-
+            /* 12b98..12c43：mode0且镜头不动时只改焦点，不推进视觉。 */
+            if(display_mode!=0 || camera_changed) {
+                present_base_frame(vga,terrain,map,sprites,field_state,0);
+                if(scene_render_error || scene_host_quit_requested)return;
+            }
+            if(display_mode!=0 && display_mode!=6)fd2_wait_ticks(1);
+            if(poll_scene_quit(vga))return;
         }
-        if (source) fd2_input_clear_keys(&vga->input);
+        fd2_input_clear_keys(&vga->input);
+        if(poll_scene_quit(vga))return;
     }
     while (field_state->focus_cell_y != target_y) {
         int dy = field_state->focus_cell_y < target_y ? 1 : -1;
@@ -914,16 +912,21 @@ static void focus_camera_to_cell(fd2_vga *vga,
             camera_y--;
         else if (dy > 0 && rel_y >= 6 && camera_y < max_cam_y)
             camera_y++;
+        int camera_changed = camera_y != field_state->camera_cell_y;
         field_state->focus_cell_y += dy;
         set_camera_cell(field_state, map, field_state->camera_cell_x,
                         camera_y);
+        scene_motion_sync(field_state);
         if (!fast) {
-            present_base_frame_timed(vga, terrain, map, sprites,
-                                     field_state, source && !field_state->cursor ? 0:17,0);
-            if(scene_render_error || scene_host_quit_requested)return;
-
+            if(display_mode!=0 || camera_changed) {
+                present_base_frame(vga,terrain,map,sprites,field_state,0);
+                if(scene_render_error || scene_host_quit_requested)return;
+            }
+            if(display_mode!=0 && display_mode!=6)fd2_wait_ticks(1);
+            if(poll_scene_quit(vga))return;
         }
-        if (source) fd2_input_clear_keys(&vga->input);
+        fd2_input_clear_keys(&vga->input);
+        if(poll_scene_quit(vga))return;
     }
 
     if (fast)
@@ -963,9 +966,9 @@ static int redraw_dialog(fd2_vga *vga,
     return 0;
 }
 
-static void wait_for_dialog_step(fd2_vga *vga, int ms, int *skip) {
+static void wait_for_dialog_step(fd2_vga *vga, int *skip) {
     if (!vga || !skip || *skip) return;
-    fd2_delay_ms((uint32_t)ms);
+    fd2_wait_ticks(1);
     if (fd2_input_take_quit(&vga->input)) {
         scene_host_quit_requested = 1;
         *skip = 1;
@@ -1007,7 +1010,7 @@ static int dialog_wait(fd2_vga *vga,
     int arrow_x = state->area == FD2_DIALOG_TOP ? 111 : 191;
     int arrow_y = state->area == FD2_DIALOG_TOP ? 71 : 181;
     fd2_dialog_wait_state wait;
-    if(fd2_dialog_wait_begin(&wait,SDL_GetTicks(),arrow_mode,
+    if(fd2_dialog_wait_begin(&wait,SDL_GetTicksNS(),arrow_mode,
             field_state->runtime.rng,field_state->runtime.rng_userdata)!=0) return -1;
     if(arrow_mode==1)draw_continuation_arrow_frame(vga,ui,18,arrow_x,arrow_y);
     /* dialog_wait_key @0x16c57：入口一次RNG，只有空等键轮推进water与
@@ -1020,16 +1023,20 @@ static int dialog_wait(fd2_vga *vga,
         }
         fd2_input_event event;
         if (fd2_input_take_key(&vga->input, &event)) break;
-        uint64_t now = SDL_GetTicks();
-        (void)fd2_field_water_tick(vga,now);
+        if(fd2_field_water_tick_live(vga)<0)return -1;
         fd2_dialog_wait_visual visual;
-        if(fd2_dialog_wait_update(&wait,now,field_state->runtime.rng,
-                field_state->runtime.rng_userdata,&visual)<0) return -1;
+        int updated=fd2_dialog_wait_step(&wait,SDL_GetTicksNS(),&visual);
+        if(updated<0)return -1;
         if(visual.arrow>=0)
             draw_continuation_arrow_frame(vga,ui,visual.arrow,arrow_x,arrow_y);
         if(visual.portrait>=0 && state->has_portrait &&
             draw_portrait_frame(vga,dato,state->area,state->portrait_id,
                 (unsigned)visual.portrait)!=0) return -1;
+        if(updated) {
+            if(visual.portrait==0)wait.countdown=
+                field_state->runtime.rng(field_state->runtime.rng_userdata)%30u+2u;
+            wait.last_tick=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+        }
         fd2_vga_present_timed(vga,16);
     }
     if(arrow_mode==1)blit_ui_tile(vga,ui,13,arrow_x,arrow_y-5);
@@ -1208,7 +1215,7 @@ static int scene_text_glyph(fd2_vga *vga, const fd2_archive *dato,
         if(redraw && state->has_portrait)fd2_vga_upload_current_frame(vga);
         if(audio && fd2_field_audio_play(audio,FD2_FIELD_SFX_DIALOG_GLYPH)<0)
             return -1;
-        wait_for_dialog_step(vga,FD2_TEXT_GLYPH_DELAY_MS,skip);
+        wait_for_dialog_step(vga,skip);
     }
     return 0;
 }
@@ -1365,39 +1372,41 @@ static int opening_actor_move_up_follow_camera(
         if (!fast) {
             for (size_t phase = 0; phase < sizeof(k_walk_phases); phase++) {
                 opening_footstep_play(audio,state,actor_idx);
-                (void)fd2_field_water_tick(vga,SDL_GetTicks());
+                if(fd2_field_water_tick_live(vga)<0)return -1;
                 state->units.walk_frames[actor_idx] = k_walk_phases[phase];
                 actor->frame_phase = (uint8_t)phase + 1u;
                 state->camera_offset_y = camera_dy * (int)(phase + 1u) * 4;
                 scene_motion_sync(state);
-                if(fd2_field_visual_actor_step(&vga->field_visual,SDL_GetTicks())<0 ||
-                    fd2_field_visual_tiles_step(&vga->field_visual,SDL_GetTicks(),-1)<0)
+                if(fd2_field_visual_actor_step_live(&vga->field_visual)<0 ||
+                    fd2_field_visual_terrain_step_live(&vga->field_visual)<0)
                     return -1;
                 /* 13185先铺上沿13×9 margin，再移动投影源；格camera仅末尾写。 */
                 if(!vga->field_page ||
-                    fd2_field_background_draw(vga->field_page,72,
+                    fd2_field_background_draw_live(vga->field_page,72,
                         72+camera_dy*(int)(phase+1u)*4,state->camera_cell_x,
                         state->camera_cell_y>0?state->camera_cell_y-1:0,0,
                         state->camera_cell_y>0?6+camera_dy*(int)(phase+1u):0,
-                        SDL_GetTicks(),1)!=0 ||
+                        1)!=0 ||
+                    fd2_field_visual_range_step_live(&vga->field_visual,-1)<0 ||
                     fd2_terrain_render_page_block(vga->field_page,terrain,map,
                         72,state->camera_cell_y>0?48:72,13,9,
                         state->camera_cell_x,state->camera_cell_y>0?
                         state->camera_cell_y-1:0,(int)vga->field_visual.terrain_phase,
                         (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)
                     return -1;
-                fd2_field_actor_visual_tick(vga,SDL_GetTicks());
-                if(fd2_field_units_render_page(vga->field_page,sprites,&state->units,
+                if(fd2_field_units_render_page_live(vga,vga->field_page,sprites,&state->units,
                         state->camera_cell_x,state->camera_cell_y,(uint8_t)vga->field_visual.actor_idle_phase,
-                        (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase)!=0 ||
+                        (uint8_t)vga->field_visual.cursor_phase)!=0 ||
                     fd2_field_units_render_page_terrain_overlays(vga->field_page,
                         terrain,map,&state->units,state->camera_cell_x,
                         state->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,NULL)!=0 ||
                     fd2_field_page_project(vga->field_page,72,
                         72+camera_dy*(int)(phase+1u)*4,vga->framebuffer,
                         sizeof(vga->framebuffer))!=0) return -1;
-                fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
-                fd2_vga_wait_frame_deadline(vga);
+                fd2_vga_present(vga);
+                int waited=fd2_vga_wait_movement_tick(vga);
+                if(waited>0){scene_host_quit_requested=1;return -1;}
+                if(waited<0){scene_render_error=1;return -1;}
                 if(poll_scene_quit(vga))return -1;
 
             }
@@ -1478,6 +1487,8 @@ static int play_opening_move_script(fd2_vga *vga,
             if (mode && actor_id < state->units.count)
                 state->units.items[actor_id].direction = pairs[i * 2 + 1];
         }
+        /* 原DIR为同一热记录；jump首wait之前也必须交回真实owner。 */
+        scene_motion_sync(state);
 
         if (mode & 0x80u) {
             int frames = mode & 0x7fu;
@@ -1485,14 +1496,15 @@ static int play_opening_move_script(fd2_vga *vga,
                 /* 1366a/1374b：原工作页指针-5472，即所选actor临时上抬12px。
                  * 按raw顺序画全表（不是普通深度排序），位置和frame_phase不写回。 */
                 if (!fast) {
-                    fd2_delay_ms(FD2_BIOS_TICK_MS);
+                    fd2_wait_ticks(1);
+                    if(poll_scene_quit(vga))return -1;
                     int camera_x=state->camera_cell_x,camera_y=state->camera_cell_y;
-                    fd2_field_actor_visual_tick(vga,SDL_GetTicks());
-                    if(fd2_field_visual_tiles_step(&vga->field_visual,SDL_GetTicks(),-1)<0)
+                    if(fd2_field_visual_terrain_step_live(&vga->field_visual)<0)
                         return -1;
                     if(!vga->field_page ||
-                        fd2_field_background_draw(vga->field_page,72,72,
-                            camera_x,camera_y,0,0,SDL_GetTicks(),1)!=0 ||
+                        fd2_field_background_draw_live(vga->field_page,72,72,
+                            camera_x,camera_y,0,0,1)!=0 ||
+                        fd2_field_visual_range_step_live(&vga->field_visual,-1)<0 ||
                         fd2_terrain_render_page_block(vga->field_page,terrain,map,
                             72,72,13,8,camera_x,camera_y,
                             (int)vga->field_visual.terrain_phase,(uint8_t)vga->field_visual.actor_idle_phase,
@@ -1500,27 +1512,33 @@ static int play_opening_move_script(fd2_vga *vga,
                     for (size_t raw=0;raw<state->units.count;raw++) {
                         int selected=0;
                         for (size_t i=0;i<actor_count;i++) if (pairs[i*2u]==raw) selected=1;
-                        if(fd2_field_units_render_page_actor(vga->field_page,sprites,
+                        if(fd2_field_units_render_page_actor_live(vga,vga->field_page,sprites,
                                 &state->units,raw,camera_x,camera_y,(uint8_t)vga->field_visual.actor_idle_phase,
-                                (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,selected?-12:0)!=0) return -1;
+                                (uint8_t)vga->field_visual.cursor_phase,selected?-12:0)!=0) return -1;
                     }
                     if(fd2_field_units_render_page_terrain_overlays(vga->field_page,
                             terrain,map,&state->units,camera_x,camera_y,
                             (int)vga->field_visual.terrain_phase,NULL,NULL)!=0 ||
                         fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,
                             sizeof(vga->framebuffer))!=0) return -1;
-                    fd2_vga_present_timed(vga,FD2_BIOS_TICK_MS*2);
-                    fd2_vga_wait_frame_deadline(vga);
-
+                    fd2_vga_present(vga);
+                    fd2_wait_ticks(2);
+                    if(poll_scene_quit(vga))return -1;
                     present_base_frame(vga,terrain,map,sprites,state,0);
+                    if(scene_render_error || scene_host_quit_requested)return -1;
+                    fd2_input_clear_keys(&vga->input);
+                    if(poll_scene_quit(vga))return -1;
                 }
                 continue;
             }
             if (!fast) {
                 for (int frame = 0; frame < frames; frame++) {
-                    present_base_frame_timed(vga, terrain, map, sprites,
-                                             state, FD2_BIOS_TICK_MS,0);
+                    present_base_frame(vga,terrain,map,sprites,state,0);
                     if(scene_render_error || scene_host_quit_requested)return -1;
+                    fd2_wait_ticks(1);
+                    if(poll_scene_quit(vga))return -1;
+                    fd2_input_clear_keys(&vga->input);
+                    if(poll_scene_quit(vga))return -1;
 
                 }
             }
@@ -1543,16 +1561,17 @@ static int play_opening_move_script(fd2_vga *vga,
                     /* 138b8..138f3：只在53AFB非0/0x40的渐暗相位跳水色。 */
                     int fading=fade_out && darkness!=0 && darkness!=0x40;
                     render_scene_11cac(vga, terrain, map, sprites, state,fading);
+                    if(scene_render_error || scene_host_quit_requested)return -1;
                     if (fading) {
                         if (darkness < 0x40) darkness++;
                         fd2_vga_set_brightness(vga, darkness);
                     }
-                    /* field_movement_script_play @0x1366a 每个 4 px 相位
-                     * 调用 bios_tick_delay(1) 后再等 vsync。宿主端以绝对
-                     * deadline 扣除本帧渲染耗时，避免步态节奏抖动。 */
-                    fd2_vga_present_timed(vga, FD2_BIOS_TICK_MS);
-                    fd2_vga_wait_frame_deadline(vga);
+                    /* 138fd wait1后13905是FIFO clear；无vsync/渲染补偿。 */
+                    fd2_vga_present(vga);
+                    fd2_wait_ticks(1);
                     if(scene_render_error || poll_scene_quit(vga))return -1;
+                    fd2_input_clear_keys(&vga->input);
+                    if(poll_scene_quit(vga))return -1;
 
                 }
             }
@@ -1634,11 +1653,10 @@ static int arrival_page_actors(fd2_vga *vga,const fd2_terrain_tileset *terrain,
     const fd2_field_units *units,const fd2_scene_field_state *state,size_t first,int offset) {
     for(size_t raw=0;raw<units->count;raw++) {
         if(fd2_field_unit_is_hidden(&units->items[raw]))continue;
-        if(fd2_field_actor_visual_tick(vga,SDL_GetTicks())<0 ||
-            fd2_field_units_render_page_actor(vga->field_page,sprites,units,raw,
+        if(fd2_field_units_render_page_actor_live(vga,vga->field_page,sprites,units,raw,
                 state->camera_cell_x,state->camera_cell_y,
                 (uint8_t)vga->field_visual.actor_idle_phase,(uint8_t)vga->field_visual.cursor_phase,
-                vga->actor_jitter_phase,raw>=first?offset:0)!=0)return -1;
+                raw>=first?offset:0)!=0)return -1;
     }
     return fd2_field_units_render_page_terrain_overlays(vga->field_page,terrain,map,units,
         state->camera_cell_x,state->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,NULL);
@@ -1766,9 +1784,10 @@ static int arrival_visual_play_view(fd2_scene_arrival_visual *scope,fd2_vga *vga
             unsigned frame_idx=(unsigned)node->args[0];
             if(frame_idx==6) {
                 if(fd2_field_page_copy_pixels(vga->field_page,scope->base)!=0)return -1;
-            } else if(fd2_field_visual_tiles_step(&vga->field_visual,SDL_GetTicks(),-1)<0 ||
-                fd2_field_background_draw(vga->field_page,72,72,state->camera_cell_x,
-                    state->camera_cell_y,0,0,SDL_GetTicks(),1)!=0 ||
+            } else if(fd2_field_visual_terrain_step_live(&vga->field_visual)<0 ||
+                fd2_field_background_draw_live(vga->field_page,72,72,state->camera_cell_x,
+                    state->camera_cell_y,0,0,1)!=0 ||
+                fd2_field_visual_range_step_live(&vga->field_visual,-1)<0 ||
                 fd2_terrain_render_page_block(vga->field_page,terrain,map,72,72,13,8,
                     state->camera_cell_x,state->camera_cell_y,(int)vga->field_visual.terrain_phase,
                     (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)return -1;
@@ -2081,8 +2100,9 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (result) return -1;
         } else if (!strcmp(n->op,"focus_cell")) {
             if (!field || a[0]<0 || a[1]<0 || a[0]>=c->map->width || a[1]>=c->map->height) return -1;
-            render_scene_11cac(c->vga,c->terrain,c->map,c->sprites,c->state,0);
-            focus_camera_to_cell(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],a[1],c->fast,1);
+            uint32_t mode=c->state->motion_owner ? c->state->motion_owner->ordinary_display_mode :
+                c->state->cursor ? 1u : 0u;
+            focus_camera_to_cell(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],a[1],c->fast,mode);
         } else if (!strcmp(n->op,"terminal_wait")) {
             /* 25462/25975原无限JMP：不消费普通键、不增stage、不回标题。
              * 宿主泵仅供关闭窗口；不会从这个叶正常返回。 */
@@ -2918,8 +2938,8 @@ static int scene_common_raw_animation(fd2_vga *vga,const fd2_archive *fdother,
                     a[6]<0?p->image.pixels[at]:(uint8_t)a[6];
         }
         if(!fast) {
-            fd2_vga_present_timed(vga,(uint32_t)a[3]*FD2_BIOS_TICK_MS);
-            fd2_vga_wait_frame_deadline(vga);
+            fd2_vga_present(vga);
+            fd2_wait_ticks((uint32_t)a[3]);
             if(poll_scene_quit(vga)){result=FD2_SCENE_RESULT_HOST_QUIT;goto done;}
         }
     }
@@ -3070,8 +3090,7 @@ int fd2_scene_play_common_step(fd2_vga *vga,const fd2_archive *fdother,
     int result=-1;
     if(!strcmp(node->op,"focus_cell")) {
         if(a[0]<0 || a[1]<0 || a[0]>=game->map.width || a[1]>=game->map.height)return -1;
-        render_scene_11cac(vga,&game->terrain,&game->map,&game->sprites,&state,0);
-        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,a[0],a[1],fast,1);
+        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,a[0],a[1],fast,game->ordinary_display_mode);
         result=0;
     } else if(!strcmp(node->op,"pan")) {
         pan_camera_to(vga,&game->terrain,&game->map,&game->sprites,&state,a[0],a[1],fast);
@@ -3114,9 +3133,9 @@ static int scene_fixed_ticks(fd2_vga *vga, unsigned ticks, int fast) {
     if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
     if (fast) return FD2_SCENE_RESULT_OK;
     /* 17aa9按原低WORD差有符号比较；跨65535回绕不能改成无符号ms差。
-     * 原goal>32767不可由signed差满足，保留HOST退出而不伪造完成。 */
-    uint16_t started=(uint16_t)(SDL_GetTicks()/FD2_BIOS_TICK_MS);
-    while (fd2_vga_bios_tick_elapsed(started,(uint16_t)(SDL_GetTicks()/FD2_BIOS_TICK_MS)) < (int32_t)ticks) {
+     * 负差加65536，允许目标0..65535；宿主退出仍优先。 */
+    uint16_t started=fd2_bios_tick_low_ns(SDL_GetTicksNS());
+    while (fd2_vga_bios_tick_elapsed(started,fd2_bios_tick_low_ns(SDL_GetTicksNS())) < (int32_t)ticks) {
         fd2_vga_present_timed(vga, 16);
         if (poll_scene_quit(vga)) return FD2_SCENE_RESULT_HOST_QUIT;
     }

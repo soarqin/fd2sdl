@@ -8,7 +8,7 @@
 
 typedef struct {
     /* 只做本次已绘帧的等待/上传和hostquit检查，不消费普通键或推进
-     * RNG/水DAC/idle。ms与ticks恰有一项非零；tick沿宿主既有换算。 */
+     * RNG/水DAC/idle。ms与ticks恰有一项非零；tick沿共享PIT边界。 */
     int (*wait)(fd2_vga *vga, uint32_t ms, unsigned ticks, void *userdata);
     /* 同一App工作页的纯可见区投影，不画VGA信息板、不推进时钟。
      * 初次drop前只调用一次；不可从intro的VGA图反灌工作页。 */
@@ -112,12 +112,22 @@ typedef enum {
     FD2_FIELD_RUNTIME_CELL_OPEN_CUE,
     FD2_FIELD_RUNTIME_INFO_VISIBLE,
     FD2_FIELD_RUNTIME_DELAY_MS,
-    FD2_FIELD_RUNTIME_MUSIC_TRACK
+    FD2_FIELD_RUNTIME_MUSIC_TRACK,
+    /* 12cea入口及方向helper的11cac(0)；value保原51A83。 */
+    FD2_FIELD_RUNTIME_FOCUS_BEGIN,
+    FD2_FIELD_RUNTIME_FOCUS_STEP,
+    FD2_FIELD_RUNTIME_CURSOR_STEP,
+    /* 15055的独立17aa9，不借恢复/回合资源或额外画面提交。 */
+    FD2_FIELD_RUNTIME_WAIT_TICKS
 } fd2_field_runtime_present_step;
 /* Game借Play的同步呈现服务；没有第二份phase/HP/acted/RNG状态。
  * RECOVERY_WAIT.value=tick0/1；NORMAL_ACTOR.value=原raw索引；
  * DEFEAT_ROTATE_ACTOR.value=原raw索引，DEFEAT_FRAME.value=68..79，
- * DEFEAT_WAIT.value=1，CELL_OPEN_CUE.value=12，INFO_VISIBLE.value=0/1，DELAY_MS.value=20；其余value=0。
+ * DEFEAT_WAIT.value=1，CELL_OPEN_CUE.value=12，INFO_VISIBLE.value=0/1，DELAY_MS.value=20/200；
+ * WAIT_TICKS.value=0..65535，仅等tick；REFRESH.value=0/3，3对应原11cac(1)并提交。
+ * FOCUS_BEGIN/STEP/CURSOR_STEP.value=原mode；已证producer含7/9/11。
+ * FOCUS_STEP仅mode!=0/6等1tick；每格CLEAR_KEYS由Game另调；CURSOR_STEP无wait/clear。
+ * 其余value=0。
  * 返回0完成/1hostquit/-1失败。纯core未注册只执行已证业务，不冒充呈现。 */
 typedef int (*fd2_field_runtime_present_fn)(struct fd2_field_game *game,
     fd2_field_runtime_present_step step, int value, void *userdata);

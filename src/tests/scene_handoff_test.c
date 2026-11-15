@@ -1,3 +1,4 @@
+#include <stdint.h>
 /* new_game_opening_play @0x3231b：真实 32→31→0 资源的无窗口交接回归。
  * 私有 TU 仅替换呈现/等待和故障注入，不增加生产测试入口。
  * 终态来自 FDFIELD placement 与原版 script 0/1/2/5 的写集，不读取 START.SAV。 */
@@ -6,6 +7,7 @@
 #include <string.h>
 #include "scene.h"
 #include "field_prepare.h"
+#include "field_background.h"
 #include "portrait.h"
 #include "static_data.h"
 
@@ -18,6 +20,18 @@ static int presents, quit_at_frame, quit_on_preview_delay;
 static uint32_t quit_on_delay_ms;
 static unsigned water_calls;
 static int quit_on_water_tick;
+static unsigned clock_leaf_tracking,clock_leaf_count;
+static char clock_leaf_order[16];
+static void scene_clock_leaf(char leaf) {
+    if(!clock_leaf_tracking)return;
+    if(clock_leaf_count>=sizeof(clock_leaf_order))abort();
+    clock_leaf_order[clock_leaf_count++]=leaf;
+}
+/* 原12cea/135dd/1366a的步骤观察，独立于arrival冷图的另一套门。 */
+static unsigned motion_tracking,motion_clears,motion_waits,motion_wait_ticks;
+static unsigned motion_quit_clear,motion_quit_wait;
+static fd2_field_game *motion_owner;
+static int motion_owner_x[16],motion_owner_y[16];
 static uint8_t *arrival_page_trace;
 static uint8_t *arrival_clear_trace;
 static uint32_t arrival_terrain_trace[12];
@@ -232,6 +246,13 @@ static void scene_test_upload(fd2_vga *vga) {
     if(arrival_uploads==arrival_quit_upload)vga->input.quit_requested=1;
 }
 static void scene_test_clear_keys(fd2_input *input) {
+    if(motion_tracking) {
+        if(motion_clears<16u && motion_owner) {
+            motion_owner_x[motion_clears]=motion_owner->cursor_cell_x;
+            motion_owner_y[motion_clears]=motion_owner->cursor_cell_y;
+        }
+        motion_clears++;
+    }
     if(arrival_tracking) {
         if(arrival_uploads!=arrival_clears+1u || arrival_waits!=arrival_clears)arrival_bad_order=1;
         if(arrival_clears && fd2_input_has_any_key(input))arrival_key_seen_before_clear++;
@@ -241,9 +262,14 @@ static void scene_test_clear_keys(fd2_input *input) {
         arrival_clears++;
     }
     fd2_input_clear_keys(input);
+    if(motion_tracking && motion_clears==motion_quit_clear)input->quit_requested=1;
     if(arrival_tracking && arrival_clears==arrival_quit_clear)input->quit_requested=1;
 }
 static void scene_test_wait_ticks(uint32_t ticks) {
+    if(motion_tracking) {
+        motion_waits++;motion_wait_ticks+=ticks;
+        if(motion_waits==motion_quit_wait)current_vga->input.quit_requested=1;
+    }
     if(arrival_tracking) {
         if(ticks!=1u || arrival_clears!=arrival_waits+1u || arrival_uploads!=arrival_clears ||
             fd2_input_has_any_key(&current_vga->input))arrival_bad_order=1;
@@ -269,6 +295,53 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
     int result=fd2_field_water_tick(vga,now);
     if(quit_on_water_tick)vga->input.quit_requested=1;
     return result;
+}
+
+/* 既有向量冻结每个叶内的tick；live逐读/跨tick资格由专用live测试验证。
+ * 不让链接core的真实SDL时钟绕过本TU的受控时间轴。 */
+uint64_t scene_test_ticks_ns(void);
+static int scene_test_actor_live(fd2_field_visual_state *state) {
+    scene_clock_leaf('A');
+    return fd2_field_visual_actor_step(state,scene_test_ticks_ns());
+}
+static int scene_test_terrain_live(fd2_field_visual_state *state) {
+    scene_clock_leaf('T');
+    return fd2_field_visual_terrain_step(state,scene_test_ticks_ns());
+}
+static int scene_test_range_live(fd2_field_visual_state *state,int32_t override) {
+    scene_clock_leaf('R');
+    return fd2_field_visual_range_step(state,scene_test_ticks_ns(),override);
+}
+static int scene_test_water_live(fd2_vga *vga) {
+    scene_clock_leaf('W');
+    return scene_test_water_tick(vga,scene_test_ticks_ns());
+}
+static int scene_test_background_live(fd2_field_page *page,int dx,int dy,
+        int cx,int cy,int px,int py,int advance) {
+    scene_clock_leaf('B');
+    return fd2_field_background_draw(page,dx,dy,cx,cy,px,py,scene_test_ticks_ns(),advance);
+}
+static int scene_test_actor_page_live(fd2_vga *vga,fd2_field_page *page,
+        const fd2_map_sprite_bank *sprites,const fd2_field_units *units,size_t raw,
+        int cx,int cy,uint8_t idle,uint8_t cursor,int offset) {
+    if(!vga || !page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+            raw>=units->count || idle>3u || cursor>3u)return -1;
+    if(fd2_field_actor_visual_tick(vga,scene_test_ticks_ns())<0)return -1;
+    return fd2_field_units_render_page_actor(page,sprites,units,raw,cx,cy,
+        idle,cursor,vga->actor_jitter_phase,offset);
+}
+static int scene_test_actors_page_live(fd2_vga *vga,fd2_field_page *page,
+        const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+        int cx,int cy,uint8_t idle,uint8_t cursor) {
+    scene_clock_leaf('U');
+    if(!vga || !page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+            idle>3u || cursor>3u)return -1;
+    /* 同一tick反复采样幂等；只压缩此受控向量，不模拟live batch预检。 */
+    for(size_t raw=0;raw<units->count;raw++)if(!fd2_field_unit_is_hidden(&units->items[raw])) {
+        if(fd2_field_actor_visual_tick(vga,scene_test_ticks_ns())<0)return -1;
+        break;
+    }
+    return fd2_field_units_render_page(page,sprites,units,cx,cy,idle,cursor,vga->actor_jitter_phase);
 }
 
 /* core 中仍有正式 scene.o；本 TU 的公开入口私有改名，避免重复定义。 */
@@ -320,7 +393,16 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 #define fd2_input_clear_keys scene_test_clear_keys
 #define fd2_field_audio_play scene_test_audio
 #define SDL_GetTicks scene_test_ticks
+uint64_t scene_test_ticks_ns(void);
+#define SDL_GetTicksNS scene_test_ticks_ns
 #define fd2_field_water_tick scene_test_water_tick
+#define fd2_field_visual_actor_step_live scene_test_actor_live
+#define fd2_field_visual_terrain_step_live scene_test_terrain_live
+#define fd2_field_visual_range_step_live scene_test_range_live
+#define fd2_field_water_tick_live scene_test_water_live
+#define fd2_field_background_draw_live scene_test_background_live
+#define fd2_field_units_render_page_actor_live scene_test_actor_page_live
+#define fd2_field_units_render_page_live scene_test_actors_page_live
 #define fd2_static_flow_lookup scene_test_flow_lookup
 /* scene.h已在宏前读取；为旧entry到后定义source入口的调用保留私有原型。 */
 int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
@@ -375,6 +457,13 @@ int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
 #undef fd2_field_audio_play
 #undef SDL_GetTicks
 #undef fd2_field_water_tick
+#undef fd2_field_visual_actor_step_live
+#undef fd2_field_visual_terrain_step_live
+#undef fd2_field_visual_range_step_live
+#undef fd2_field_water_tick_live
+#undef fd2_field_background_draw_live
+#undef fd2_field_units_render_page_actor_live
+#undef fd2_field_units_render_page_live
 #undef fd2_static_flow_lookup
 
 static void reset_controls(fd2_vga *vga) {
@@ -387,6 +476,9 @@ static void reset_controls(fd2_vga *vga) {
     test_ms = 1000;
     presents = quit_at_frame = quit_on_preview_delay = 0;
     quit_on_delay_ms=0;water_calls=0;quit_on_water_tick=0;
+    motion_tracking=motion_clears=motion_waits=motion_wait_ticks=0;
+    motion_quit_clear=motion_quit_wait=0;motion_owner=NULL;
+    memset(motion_owner_x,0,sizeof(motion_owner_x));memset(motion_owner_y,0,sizeof(motion_owner_y));
     arrival_page_trace=NULL;arrival_data_override=NULL;arrival_data_override_size=0;
     arrival_clear_trace=NULL;arrival_uploads=arrival_clears=arrival_waits=arrival_cues=arrival_cue_after_upload=0;
     arrival_quit_upload=arrival_quit_clear=arrival_quit_wait=0;
@@ -1343,8 +1435,8 @@ static int test_common_refresh_resource_error_and_quit(const fd2_archive *fdothe
     for(unsigned kind=0;kind<4;kind++) {
         reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;
         vga->info_panel_suppressed=1;
-        vga->field_visual.actor_idle_tick=(uint32_t)(test_ms/55u);
-        vga->field_visual.terrain_tick=vga->field_visual.range_tick=(uint32_t)(test_ms/55u);
+        vga->field_visual.actor_idle_tick=(uint32_t)(test_ms*1193182u/UINT64_C(65536000));
+        vga->field_visual.terrain_tick=vga->field_visual.range_tick=(uint32_t)(test_ms*1193182u/UINT64_C(65536000));
         memset(vga->framebuffer,211,sizeof(vga->framebuffer));
         memset(page_before,85,FD2_FIELD_PAGE_SIZE);
         CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,page_before,FD2_FIELD_PAGE_SIZE,456)==0);
@@ -1567,6 +1659,114 @@ static int test_scene_water_callers(const fd2_archive *fdother) {
     reset_controls(vga);scene_host_quit_requested=0;
     fd2_field_game_close(game);free(game);free(before);free(saved);free(actual);free(vga);
     return 0;
+}
+
+/* 来源12cea/方向helpers、135dd和1366a的完整调用顺序；期望为源分支
+ * 的独立常量，不从生产focus计算器或C最终画面回推。此处不测宿主绝对时间。 */
+/* 正式11cac叶的独立顺序及晚失败写集：range坏相位只能在实际BG之后拒绝。
+ * 原顺序由11eff/11f16、背景分支、1210f..12164给出，不用生成器制造expected。 */
+static int test_scene_live_clock_order(const fd2_archive *fdother) {
+    fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
+    CHECK(game && vga && fd2_field_game_open_resources(game,fdother,9)==0);
+    uint8_t before[312u*192u],after[312u*192u];memset(before,0xa5,sizeof(before));
+    for(unsigned bad_range=0;bad_range<2;bad_range++) {
+        reset_controls(vga);fd2_bios_clock_reset(0,0);scene_host_quit_requested=0;
+        CHECK(fd2_field_background_rebuild(vga->field_page,fdother,9)==0);
+        CHECK(fd2_field_page_write(vga->field_page,72,72,312,192,before,sizeof(before),312)==0);
+        fd2_scene_field_state state={0};
+        vga->field_visual.range_phase=bad_range?20u:0u;
+        fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_F2,1);
+        fd2_input_begin_test_frame(&vga->input,test_ms);
+        fd2_input input_before=vga->input;
+        clock_leaf_count=0;clock_leaf_tracking=1;
+        render_scene_base_with_water(vga,&game->terrain,&game->map,&game->sprites,&state,1);
+        clock_leaf_tracking=0;
+        CHECK(scene_render_error==(int)bad_range && !scene_host_quit_requested);
+        CHECK(clock_leaf_count==(bad_range?5u:6u) &&
+            !memcmp(clock_leaf_order,"AWTBRU",clock_leaf_count));
+        CHECK(vga->field_visual.actor_idle_phase==1 && vga->field_visual.cursor_phase==1 &&
+            vga->field_visual.terrain_phase==1 && vga->field_water_phase==1);
+        CHECK(vga->field_visual.range_phase==(bad_range?20u:1u));
+        CHECK(!vga->actor_jitter_phase); /* 空batch不产生虚假的127e0 clock。 */
+        CHECK(!memcmp(&vga->input,&input_before,sizeof(input_before)));
+        CHECK(fd2_field_page_read(vga->field_page,72,72,312,192,after,sizeof(after),312)==0);
+        CHECK(memcmp(before,after,sizeof(before))!=0); /* 晚range失败保留已完成背景写。 */
+    }
+    fd2_field_game_close(game);free(game);free(vga);return 0;
+}
+
+static int test_scene_motion_steps(const fd2_archive *fdother) {
+    fd2_field_game *game=calloc(1,sizeof(*game));
+    fd2_vga *vga=calloc(1,sizeof(*vga));CHECK(game && vga);
+    CHECK(fd2_field_game_open_resources(game,fdother,0)==0);
+    CHECK(fd2_field_units_set(&game->units,0,0,0,2,3,3)==0);
+    for(unsigned mode=0;mode<=6;mode++) {
+        reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;
+        motion_tracking=1;motion_owner=game;
+        fd2_scene_field_state state={0};state.units=game->units;state.motion_owner=game;
+        state.focus_cell_x=3;state.focus_cell_y=3;
+        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,5,4,0,mode);
+        CHECK(!scene_render_error && !scene_host_quit_requested && motion_clears==3);
+        CHECK(presents==(mode?4:1) && water_calls==(unsigned)presents);
+        CHECK(motion_waits==((mode && mode!=6)?3u:0u) && motion_wait_ticks==motion_waits);
+        CHECK(motion_owner_x[0]==4 && motion_owner_y[0]==3 &&
+            motion_owner_x[1]==5 && motion_owner_y[1]==3 &&
+            motion_owner_x[2]==5 && motion_owner_y[2]==4);
+        CHECK(game->cursor_cell_x==5 && game->cursor_cell_y==4);
+        reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;motion_tracking=1;
+        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,5,4,0,mode);
+        CHECK(presents==1 && !motion_waits && !motion_clears);
+    }
+    reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;motion_tracking=1;
+    fd2_scene_field_state state={0};state.units=game->units;state.motion_owner=game;
+    state.focus_cell_x=11;state.focus_cell_y=3;
+    focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,13,3,0,0);
+    CHECK(!scene_render_error && presents==3 && motion_clears==2 && !motion_waits &&
+        state.camera_cell_x==2 && state.focus_cell_x==13);
+    /* wait先收到HOST：原clear尚未到达；clear收到HOST：下一步坐标不能写。 */
+    for(int at_wait=0;at_wait<2;at_wait++) {
+        reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;
+        motion_tracking=1;motion_owner=game;
+        motion_quit_wait=at_wait?1u:0u;motion_quit_clear=at_wait?0u:1u;
+        state=(fd2_scene_field_state){0};state.units=game->units;state.motion_owner=game;
+        state.focus_cell_x=3;state.focus_cell_y=3;
+        focus_camera_to_cell(vga,&game->terrain,&game->map,&game->sprites,&state,5,4,0,at_wait?1u:0u);
+        CHECK(scene_host_quit_requested && state.focus_cell_x==4 && state.focus_cell_y==3 &&
+            game->cursor_cell_x==4 && game->cursor_cell_y==3);
+        CHECK(motion_clears==(at_wait?0u:1u) && motion_waits==(at_wait?1u:0u));
+    }
+    reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;
+    motion_tracking=1;motion_quit_clear=1;
+    state=(fd2_scene_field_state){0};state.units=game->units;
+    pan_camera_to(vga,&game->terrain,&game->map,&game->sprites,&state,2,1,0);
+    CHECK(scene_host_quit_requested && presents==1 && motion_clears==1 && !motion_waits &&
+        state.camera_cell_x==1 && state.camera_cell_y==0 && state.focus_cell_x==1);
+    static const uint8_t scripts[][5]={{1,1,1,0,3},{1,0x82,1,0,3},{1,0x80,1,0,3}};
+    const fd2_field_units original_units=game->units;
+    for(unsigned branch=0;branch<3;branch++) {
+        reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;motion_tracking=1;
+        motion_quit_clear=branch<2?1u:0u;motion_quit_wait=branch==2?1u:0u;
+        game->units=original_units;
+        state=(fd2_scene_field_state){0};state.units=game->units;state.motion_owner=game;
+        CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
+            &state,NULL,scripts[branch],5,0,0,0)==-1);
+        CHECK(scene_host_quit_requested && !scene_render_error && state.units.items[0].x==3);
+        CHECK(presents==(branch==2?0:1) && motion_waits==1 &&
+            motion_clears==(branch==2?0u:1u));
+        CHECK(state.units.items[0].frame_phase==(branch==0?1:0));
+        CHECK(!memcmp(&state.units.items[0],&game->units.items[0],sizeof(fd2_field_unit)) &&
+            game->units.items[0].direction==3);
+    }
+    reset_controls(vga);auto_confirm=0;scene_host_quit_requested=0;motion_tracking=1;
+    game->units=original_units;
+    state=(fd2_scene_field_state){0};state.units=game->units;
+    fd2_field_page *page=vga->field_page;vga->field_page=NULL;
+    CHECK(play_opening_move_script(vga,&game->terrain,&game->map,&game->sprites,
+        &state,NULL,scripts[0],5,1,0,0)==-1);
+    CHECK(scene_render_error && !scene_host_quit_requested && !presents && !motion_waits &&
+        !motion_clears && !current_darkness && state.units.items[0].frame_phase==1);
+    vga->field_page=page;reset_controls(vga);
+    fd2_field_game_close(game);free(game);free(vga);return 0;
 }
 
 static void arrival_expected_image(uint8_t *page,const fd2_image *image,int x,int y) {
@@ -1951,7 +2151,9 @@ int main(int argc, char **argv) {
     CHECK(test_scene_reset_sleep_boundary()==0);
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(test_scene_live_clock_order(&fdother)==0);
     CHECK(test_scene_water_callers(&fdother)==0);
+    CHECK(test_scene_motion_steps(&fdother)==0);
     CHECK(test_arrival_page_and_clocks(&fdother)==0);
     CHECK(test_arrival_public_scope_and_boundaries(&fdother)==0);
     CHECK(test_scene_actual_dynamic_consumer(&fdother)==0);
@@ -1983,3 +2185,6 @@ int main(int argc, char **argv) {
     puts("scene_handoff_test: ok");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t scene_test_ticks_ns(void) { return scene_test_ticks()*UINT64_C(1000000); }

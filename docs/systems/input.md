@@ -13,14 +13,16 @@
 G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2_vga.input` 唯一 owner 保存为有序有限队列，不进入 Game、SAV 或独立事件系统。同 owner 的FIFO、peek／读一／clear、正式caller和早键路径已有直接与定向原生证据；G5统一历史回归及原范围签核已完成，不扩为全键值／typematic／全轨迹证明，新目标见[对齐矩阵A10—A13](../plans/full-alignment-audit.md#4-差异与证据矩阵)。旧策略由 `0516c01` 引入，没有可追溯的用户豁免原话；跨帧丢键会影响后续等待与 blink RNG，不能归为显示精度。
 
 - 现有宿主 poll 按 SDL 事件到达顺序收首按，keyup 不删除已接受项；两次 present 之间完整 DOWN／UP 也保留。
-- present 继续采物理电平及推进唯一 repeat 来源，`500 ms` 初始延迟／`92 ms` 间隔仍是宿主近似，忽略 SDL 自带 repeat 的重复来源，不补追赶。
+- F2候选按固定DOSBox-X `b6abbd5` 默认 `500 ms`／`33 ms` 推进唯一last-key repeat，忽略SDL自带repeat。modifier／锁键的make也能夺取owner；松开最后一键不恢复此前held的重复。到期项按时间顺序补入，受15项FIFO上限约束，满队丢新。
 - `has_any_key` 只 peek；`take_key`／`take_action` 消费最老一项。已消费的同一事件不再交给新控制器，后续独立项不因换帧或换页自动丢失。
 - 原 `bios_keyboard_buffer_clear @0x4e381` 调用点显式清队，保物理 held、repeat deadline 与宿主 quit；不能将所有旧 `drain` 一律升级为全清。
 - delay 泵送同一个 owner 的宿主事件；has／take 不 pump。明确 clear 只泵一次后清截至该点已收到项，不声称与硬件中断原子同步。
 
-`500 ms`／`92 ms` 是 PC/AT 常见默认 typematic 的宿主近似值，不是从 `FD2.EXE` 提取的游戏常量。
+原有 `500 ms`／`92 ms` 近似已在F2候选替换。`500 ms`／`33 ms` 来自固定DOSBox-X的keyboard reset／AL00设置，属于参照设备配置，不是FD2游戏常量；整数1ms键盘服务与BIOS PIT时钟分开。长按投递时长、目标实际生成项及UI最终状态分别记证，不能由其中一个推出另两个。候选及动态未验边界见[F2证据](../plans/f2-time-input-rng.md)。
 
-准备页的隐藏入口另需 F1—F12 的 BIOS 修饰扫描码。首按的 `SDL_EVENT_KEY_DOWN.mod` 随该队列项保留，keyup 后仍按原组合消费；repeat 使用产生时的物理修饰位，modifier 本身不入普通队列。原因是当前 Windows SDL 在 pump 末端按 `GetKeyState(VK_LSHIFT/RSHIFT)` 修正 Shift；合法后台定向消息已在 DOWN 中携带 Shift，但全局物理键态可为未按，单读修正后的 `SDL_GetKeyboardState()` 会把 Shift+F1 错作 F1。失焦清普通队列和 held 生命周期，宿主 quit 独立持久。
+PrintScreen的make和break均取消当时的last-key重复，包括已经由另一键接管的情形；已入FIFO的普通键仍保留。固定参照在无物理Alt／Ctrl／Shift时还分别发送fake LShift make／break，按每次当时的物理修饰位选择，不强制配对清理。候选沿现 `previous_down` 区分物理位与BIOS flags，不新建第二owner。上游同commit的内置US437子表及hook已静态核无scan2a映射，aa超出映射范围；这不代签运行中实际布局、foreign／外部布局或硬件全状态。来源与回归见F2报告。
+
+准备页的隐藏入口读取完整BIOS AX：酒店按raw AH匹配冷表，并非仅限物理F1—F12；普通确认还包含原AL20。队列保存原AX，UI按各自原比较消费。首按的 `SDL_EVENT_KEY_DOWN.mod` 随该队列项保留，keyup 后仍按原组合消费；repeat 使用产生时的物理修饰位，modifier 本身不入普通队列。原因是当前 Windows SDL 在 pump 末端按 `GetKeyState(VK_LSHIFT/RSHIFT)` 修正 Shift；合法后台定向消息已在 DOWN 中携带 Shift，但全局物理键态可为未按，单读修正后的 `SDL_GetKeyboardState()` 会把 Shift+F1 错作 F1。失焦清普通队列和 held 生命周期，宿主 quit 独立持久。
 
 G3 的实际后台组合键验收将输送收据与业务响应分开：原版／SDL 均须先从酒店焦点切到隐藏焦点及 caption500，再由独立 Enter 进入 bank63 商店。其余来源组合键保留纯映射／条件验证范围，不因 Shift+F1 一例通过而声称全部逐键实机通过。窗口不激活，不设置全局键态；旧元数据逐帧过期的历史结果保留身份，G5 新保留／清键合同的实际候选与受影响路径回归分别见阶段记录。
 
@@ -127,7 +129,7 @@ COMMAND 与 SYSTEM 收框会泵送宿主事件，返回后必须再次检查动�
 
 2026-11-06，App C10 在受控 Save8 CONTINUE 校准 C13 中完成原版／SDL 同一 raw13 选择页的实际对照：每端校验完整简表 6,258 像素、actor／cursor 前景组合 515 像素及板外强 LUT 范围 216 像素，bad 均为 0；两端简表矩形的实际 RGB 完全相等。范围相位原版为 7、SDL 为 4，只证明各自合法，不宣称同相或整帧等价。普通键等待、OTHER、退出和取消生命周期另有定向无窗口回归。该受控恢复不覆盖连续 START 的 117 页及完整自然实战；C13 原顶层因跨端阵亡结果比较失败，补充离线复核与原报告分开保留，不能将这一稳定页对照升级为整场通过。
 
-法术列表私有modal直接逐键读取，未知键同样消费一次原版等待。Up／Down整表回绕并播放选择音（只有1项也播放），Left／Right每列4项，仅跨列成功才播放；Enter／Space／小键盘确认只在MP足够时离开，Esc／Delete取消。每次 `sub_16C57 @0x16c57` 等待入口及头像眨眼复位消费session共享RNG，110ms只推进一步、不补追赶；1cff0 开合无额外 clear，保留余队、宿主退出优先。正式 MAGIC 受 G2 已证合法来源与资源域约束，不恢复旧仅0／13的能力门。
+法术列表私有modal直接逐键读取，未知键同样消费一次原版等待。Up／Down整表回绕并播放选择音（只有1项也播放），Left／Right每列4项，仅跨列成功才播放；Enter／Space／小键盘确认只在MP足够时离开，Esc／Delete取消。每次 `sub_16C57 @0x16c57` 等待入口及头像眨眼复位消费session共享RNG，原signed低WORD差>=2才推进一步、不补追赶；不是固定110ms；1cff0 开合无额外 clear，保留余队、宿主退出优先。正式 MAGIC 受 G2 已证合法来源与资源域约束，不恢复旧仅0／13的能力门。
 
 法术目标使用独立 `FIELD_MAGIC_TARGETING` 上下文：四方向可离开castmask，只有合法格才能提交；Z／小键盘5轮换本次raw候选，不复用browse索引。Esc／Delete取消后先聚焦施法者，再打开列表第0项；列表取消才回COMMAND。modal返回后结束本帧输入，不能把同一次确认交给目标提交。原版unit121保留轮换槽，但跳过该槽的聚焦。
 

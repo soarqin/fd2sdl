@@ -39,6 +39,8 @@
 
 ## 2. 长历史与实际收据
 
+F2共享机制主体随本次 `fix(core): align shared timing input and RNG mechanisms` 整阶段提交交付；默认198次RNG、完整AX／FIFO／repeat、PIT整数时钟、正式逐读／等待／相位与MAP／AI共用前缀已落实。新普通目录Debug构建及46项直接CTest通过，冷表3／冷流程11／IDA14与工具19分别保原运行；标题／移动／准备三双端代表实际候选为a57，新构建为ce，不拼成一次全fresh。详情及全部未过项见[F2报告](f2-time-input-rng.md)，本地整合收据为 `build/f2/subject-delivery-20261115/local-integration.json`。**A10—A13完整正常域仍未合签**：三比较门、provider／21db2入口、全输入与RNG联合轨迹、像素／PCM／PIC按原矩阵留F4—F6；主体完成不等于F2原全称目标通过，不新增真实性豁免。
+
 F1主体在2026-11-15用户调整范围后作为一个阶段提交交付：固定参照／来源分母、已证有效域、37／66前缀和82容量修复、A20正式工具与装载资格。提交身份为本次F1主体提交；本地集成收据为`build/f1/rescope-20261115/local-integration.json`。[F1报告](f1-reference-domain.md)保各候选实际测试／原码／原生和继承边界。**QK专项未通过**，不计入已完成范围，见[专项](qk-behavior-followup.md)；不是原F1完整域无条件全绿。
 
 中途候选、旧顺序、数量、失败和诊断由[stage-log](stage-log.md)及其链接的历史报告维护，S5调查另归[研究过程归档](s5-investigation-history.md)。这些记录均不维护当前优先级；细节回到以下原始入口，不另复制一份流水账：
@@ -74,4 +76,4 @@ B／A／R历史路线为B0—B7及所需A→A7／A8→R1，之后SD1→SD2→SD3
 | 未知字节／资源有效域 | fresh未写9B、heap尾与全游戏读者未完全确认；Loaded已有字节按本端preload保留。未确认资源／未来CFG拒绝；不以SAV unused补热初值或以节点数作完整率 |
 | 平台／发布 | 历史Linux证据保原身份，后续Windows验收不反写为Linux／macOS已验；R1仅Windows本地包和已列离线重建，不是其它平台发布或自动分发 |
 
-这些边界忠实保留旧交付身份，不代表原版一致。2026-11-14用户要求新的完全对齐审查，剩余差异／未证域已统一进入[新矩阵A01—A22](full-alignment-audit.md)及[当前计划F1—F6](development.md#4-新优先级与依赖)，不重开G／SD／S历史。用户重新选定Windows最终验收及保留Nuked声音并明记差异；其余旧有限域不作为永久豁免。`39422ae`仅交付审查计划；用户随后授权连续实施，当前F1尚未通过完整阶段门，证据与残余查[F1报告](f1-reference-domain.md)。
+这些边界忠实保留旧交付身份，不代表原版一致。2026-11-14用户要求新的完全对齐审查，剩余差异／未证域已统一进入[新矩阵A01—A22](full-alignment-audit.md)及[当前计划F1—F6](development.md#4-新优先级与依赖)，不重开G／SD／S历史。用户重新选定Windows最终验收及保留Nuked声音并明记差异；其余旧有限域不作为永久豁免。`39422ae`仅交付审查计划；用户随后授权连续实施，F1已按主体范围交付，QK仍未通过；F2机制主体与最终联合残余分别见[F2报告](f2-time-input-rng.md)。

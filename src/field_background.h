@@ -17,12 +17,20 @@ int fd2_field_background_rebuild(fd2_field_page *page,
  * 不做stage分支，不推进terrain/idle/water/RNG。kind0为成功no-op。 */
 int fd2_field_background_draw(fd2_field_page *page,
     int dest_x, int dest_y, int camera_x, int camera_y,
-    int parallax_x, int parallax_y, uint64_t now_ms, int advance);
+    int parallax_x, int parallax_y, uint64_t now_ns, int advance);
 /* 21eb1/24618的临时terrain目标仍借同一App背景资源/539F8，不能通过
  * clone目的页造第二个真实资源clock。PREPARE传临时owner，实际传App。 */
 int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *target,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,
-    uint64_t now_ms,int advance);
+    uint64_t now_ns,int advance);
+
+/* live只在wave/scroll的advance门实际读取共享BIOS；行更新后重取last。
+ * none/parallax、advance=0及前检拒绝不读钟；更新失败不重读/写锚。
+ * 不另起背景clock owner。 */
+int fd2_field_background_draw_live(fd2_field_page *page,
+    int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance);
+int fd2_field_background_draw_from_live(fd2_field_page *owner,fd2_field_page *target,
+    int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance);
 
 /* sub_24D22 @0x24d22：非0只写BYTE速度，0按当前速度立即轮转背景；
  * 不触碰539F8，调用者保留原控制/等待顺序。仅有源312×192滚动资源可轮转。 */

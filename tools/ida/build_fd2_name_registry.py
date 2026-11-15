@@ -1074,6 +1074,62 @@ CORRECTIONS: dict[int, list[dict]] = {
                "signed jl 不复制，人数 phase5 同样不复制。保留中性名，"
                "未改数据库或权威伪 C；精确帧时序与完整画面另验。",
     }],
+    0x13460: [{
+        "target": "semantic_name", "was": "sub_13460",
+        "now": "field_movement_tick_edge_wait",
+        "why": "完整13460..13488共40B及12eaa/1300d/13185/13315正常移动caller；"
+               "1346f将BIOS[46c]低WORD符号扩展，与App DWORD53a0c相等才回读；"
+               "不等后1347a..13482重新读当前tick并写anchor，不是每相位新鲜等1tick。"
+               "既有Domain source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517，"
+               "完整chunk SHA1ffd7e099e8a1ba4a19f45f6a80825aeabad462024147e87f0b8032a677022de，"
+               "逐字节匹配strict relocated；不保存参数/返回类型或猜测ABI。",
+    }, {
+        "target": "evidence", "was": "普通移动等待按55ms或每调用等待一个新tick理解",
+        "now": "普通四方向每格六相位共用53a0c anchor；比较通过后重读并保存signed lowWORD。"
+               "本函数不调用4e381、不清普通键队；anchor属于App，不随Scene/Game/Load重置。"
+               "初始53a0c四字节0有strict文件及既有F1 loader/entry转储依据，"
+               "不把这项初态观察扩为新postCRT时钟测量。",
+        "why": "完整13460与四方向caller的既有Domain读集、strict镜像和F1运行时来源分账；"
+               "F2 BIOS共享时钟/边界测试只验证C消费者，不替代正常原版时序与输入运行对照。",
+    }],
+    0x135DD: [{
+        "target": "evidence", "was": "每格调用vsync_wait等待垂直同步",
+        "now": "field_camera_pan_to先完成X再Y；每格11cac(0)后4e381清普通BIOS FIFO，"
+               "没有17ms或显式tick等待。入口清51a83；零距离不执行逐格clear。",
+        "why": "完整135dd..1366a共141B，X在13622刷新/1362a清键，Y在1365b刷新/13663清键；"
+               "既有Domain source09完整chunk SHA60f0ad6883f634fc4d3eec83a5e32b0d2af9ed285ff0c934b3e68bfea7a158bd"
+               "逐字节匹配strict relocated；旧vsync登记是语义误判，不据此新增渲染节流或声明真实时序已验。",
+    }],
+    0x1366A: [{
+        "target": "evidence", "was": "脚本帧后4e381是vsync等待，可用名义17ms代替",
+        "now": "field_movement_script_play正常每相位render→17aa9(1)→4e381 clear；"
+               "high-bit非零等待同序；jump先wait1、临时上抬合成、wait2、11cac(0)、clear。"
+               "1398c尾仍11cac(1)，不追加clear；4e381本身没有等待。",
+        "why": "完整1366a..1399c共818B及138fd/13905、1380f/13817、136db/137ae/137b8/137c0、1398c原调用；"
+               "既有Domain source09完整chunk SHA9fa0bc803cd6303e62a2c49bb86b1bfdd139affc15de18b84c21e3c141a10ddf"
+               "逐字节匹配strict relocated。这里只更正普通输入/等待来源，不签脚本全域、像素、绝对时序或RNG全轨迹。",
+    }],
+    0x122DC: [{
+        "target": "evidence", "was": "普通cursor指针或玩家interaction可代替所有51a83值",
+        "now": "122dc仅对mode1..6分派；6清node而无sprite，其它值走无sprite的default。"
+               "15311确实无条件以magic record+4加2聚焦；原magic10/11/12的area5/7/9产生mode7/9/11，"
+               "12cea仍按非0且非6等待，不能以renderer只列到6拒绝这些原值。",
+        "why": "既有Domain source09完整122dc..126f7 SHA866692f43bd2736ade9ce526425241d33af53a54064647104dc76f96317a3a55，"
+               "15311..1548e SHA967b72e576507cea33c9ec1d085aa9af182acd3c7e7402348c5488223999050e；"
+               "原EXE object3 MAGIC252B@619fd SHA d516dc85c98d06e860477701ff1c018ac3a3f0953d79d0a6022aaf7a98f014c3"
+               "独立读字节核field4完整域0/1/2/3/5/7/9。只核该分派/等待域，不代签完整AI范围/FX。",
+    }],
+    0x4EBE3: [{
+        "target": "evidence", "was": "loader初态7a18，按计时器低8位每战场推进",
+        "now": "原文件与真实CRT后共享RNG WORD=0，Watcom rand DWORD=1；main25d90首次rand返回16838，"
+               "内部状态41c67ea6，%256=198，25da7推进198次后共享WORD=5885。"
+               "25d83的BIOS低WORD只初始化视觉clock，不seed rand；Game/Load不重建App流。",
+        "why": "F1 startup-native02的CRT后/25d83/25db1原版RAM及startup-original-cpu五BIOS向量；"
+               "原CPU报告SHA0794806103d24778492609290966f3439376fc1c6141700aa3af40b66c19cf37，"
+               "原运行报告SHA56dd479b8e77dfb4c6d91264d109814485bc41904f5827e57494730dbc55b8cb；"
+               "F2 bootstrap逐项比较198次调用前状态与末态。5885是推进后的值，不是原初值，"
+               "不将启动资格扩为标题后全部caller或严格绝对时序。",
+    }],
     0x4E381: [{
         "target": "semantic_name",
         "was": "vsync_wait（等待垂直同步）",
@@ -1082,6 +1138,12 @@ CORRECTIONS: dict[int, list[dict]] = {
                "将 word[BDA 0x41a] head 复制至 word[BDA 0x41c] tail；"
                "无端口读取或等待。@0x1b1e7 在关闭前后调用它清键盘队列。"
                "原登记 FUN_0004bac9／历史0x73595 仅用于追溯，不保存猜测ABI。",
+    }, {
+        "target": "evidence", "was": "135dd/1366a的4e381沿旧vsync名解释为呈现等待",
+        "now": "bios_keyboard_buffer_clear只将BDA head复制至tail；12cea、135dd、1366a的各明确clear时点"
+               "必须保留，不能用等待代替，也不能把普通四方向13460等待变成清键。",
+        "why": "既有完整15B本体和source09的12cea/135dd/1366a/13185 caller交叉；"
+               "按键队列、held/typematic与HOST为不同owner合同，当前命名更正不等于跨端全部输入资格。",
     }],
     0x1B41D: [{
         "target": "evidence",
@@ -2588,6 +2650,127 @@ for _va, _meaning in _S5_MONTAGE_CLOSURE_EVIDENCE.items():
     CORRECTIONS.setdefault(_va, []).append({'target':'evidence',
         'was':'publication02阶段自然栈/热owner及完整C帧范围尚待闭合；旧记录保历史',
         'now':_meaning,'why':_S5_MONTAGE_CLOSURE_WHY})
+
+
+# F2逐读取点合同：只追加来源说明，不将C回归或代表运行提升为全时序资格。
+_F2_CLOCK_READ_CONTRACTS = {
+    0x1297D: "12987先读signed差>4，失败才1299a另读负差；成功推进idle后129c5重新读钟存53c0f，cursor每调用推进。不复用一次宿主时间覆盖这些读取点。",
+    0x11EEE: "11eff比较terrain tick，xor后11f16重读锚；随后实际wave/scroll背景更新及其fresh锚，1210f/12122的range门和1214b fresh锚，12164才选LUT并绘tile。固定51a93值直接写range phase而不取range clock。",
+    0x127A9: "127c2先筛hidden，非hidden按raw递增在127cf逐个调用127e0，全部actor后才127d9调用129ec前景；空表及全hidden不调用127e0。",
+    0x127E0: "127f1/127f6在camera/raw26之前读BIOS低WORD；不等则12801翻共享抖动phase，12808/1280d重新取锚。相机外及raw26=0也经过该门，direct本体不含batch的hidden筛选。",
+    0x4E31C: "低WORD unsigned差>=2才单步推进水色，完成16色DAC写后4e373再次4e310取锚，不复用比较值或追赶。",
+    0x11AA8: "先peek，空队4e31c，低WORD与App539f2不同才11cac(0)，返回后重新读WORD写539f2；早键不刷新，锚不随每次读键/Load重置。",
+    0x12DAC: "115b6的ESI候选索引传入本次局部等待；先peek，空队water，signed低WORD不同才11cac(0)，返回后fresh读ESI。读一返回结束局部生命，不能借539f2跨调用保存。",
+    0x17898: "每个空FIFO循环water→共享四tick高亮→1297d→11eee→127a9→1acf3→179d5→project；无BIOS-change外门、122dc或RNG。高亮phase写后重新读signed低WORD存53c17。",
+    0x19953: "19b1e比较高亮门，19b49在phase写后重读signed低WORD存53c17；重开眼先画portrait0再19be0抽RNG%30+10。不把实际portrait绘制后移到RNG之后。",
+    0x26EDA: "入口只置App53f52=2而不清53f72；do tick门后才peek/read，成功tick后fresh写局部锚。普通画像只在close/open事件绘制，不每轮覆盖portrait0。",
+    0x27079: "每mode均按共享53f52奇偶推进53f72，仅++恰等4归0；名单/成员/复活/转职借53f72，菜单/箭头借53f52。城镇26152也写53f52，不能用三份局部phase代替两App DWORD。",
+    0x2B4FB: "数字/selection count后无条件1297d，再详情/网格。实际App phase写发生于后续绘图之前，不能以成功绘制后提交的视觉副本替代原前缀。",
+    0x2B67F: "先查键；空队比较App53f46，变化时重新读钟写锚再2b4fb及copy。后续宿主绘图失败不回滚已经执行的53f46写；此H规则不冒称原版坏资源oracle。",
+    0x18B84: "18bab peek；空则water一次，完整ESI与signed低WORD不等才第二次water→1297d→11eee→122dc→127a9→summary→info→project，最后18c65 fresh存ESI。summary侧由入口屏内focus X锁定。ESI来自18890所选actor地址，首次比较的全正常启动地址域仍未闭合，不用0/入口tick/宿主C指针代替。",
+    0x1DB65: "1dcd4/1dd81分别调用完整11eee，仍为terrain→实际背景→range→tile的独立读取点；1dd1b逐raw直接127e0，1dd95经127a9批量调用。不能将死亡演出的terrain/background/range或actor成功重读锚冻结在一次now采样。预检advance0只借页不推进clock；第31锚别名及caller保存值资格另账，不由这些读取点代签。",
+}
+for _va, _contract in _F2_CLOCK_READ_CONTRACTS.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "共享时钟的一次采样或局部相位投影尚未按全部原读点扩签",
+        "now": _contract,
+        "why": "F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；"
+               "11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。"
+               "17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。"
+               "4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。"
+               "新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。",
+    })
+
+
+# F2正常输入和菜单开合：完整原指令核序，ABI不从伪C参数表推定。
+_F2_MENU_WAIT_CONTRACTS = {
+    0x1F894: "1fe37绘制菜单后1fe48..1fe60以INT16/AH10阻塞读一，方向或无映射键返回1fe2c后再绘；确认直接进入原四轮normal/highlight各80ms。没有批量取完FIFO后的50ms。宿主空等pump不属于原显式等待。",
+    0x1741C: "1749d..174e7仅入口一次1297d→11eee→127a9→info→175a9；四相位各17643恢复72x72、四图标、可见focus的direct127e0、project。无water、122dc、每相位全图重画或显式16ms。focus raw由入口lookup锁定；五个正常菜单caller共用两张四项表，不由伪C多实参猜ABI。",
+    0x175A9: "原53a71跨open/wait/close保存同一菜单底图：先free旧buffer再malloc5184，每行18个DWORD、共72行，从当前focus附近的456-stride工作页复制72x72。不是按每个开合函数重新生成的底图。",
+    0x17643: "按当前focus对应地址，将53a71的72行连续72B恢复到456-stride工作页；只写页，不刷新terrain/actor或投影。原调用者在图标和direct127e0之前调用它。",
+    0x176B4: "入口仅SFX及可见focus lookup，没有1297d/11eee/127a9/info；四相位各恢复原72x72、画四图标、direct127e0、project。177ed再恢复一次工作页而不project，177f2才4e381清FIFO。HOST/H失败保已执行前缀，不伪造成功尾clear。",
+}
+_F2_MENU_HELPER_NAMES = {
+    0x175A9: ("sub_175A9", "field_command_menu_background_save"),
+    0x17643: ("sub_17643", "field_command_menu_background_restore"),
+}
+for _va, (_old, _new) in _F2_MENU_HELPER_NAMES.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "semantic_name", "was": _old, "now": _new,
+        "why": "完整154B/113B及1741c、176b4两caller和53a71读写证明72x72菜单底图保存/恢复；不按邻近或函数大小猜名。",
+    })
+for _va, _contract in _F2_MENU_WAIT_CONTRACTS.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "正常标题读键与四向菜单开合尚未按全部原读点扩签",
+        "now": _contract,
+        "why": "F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，"
+               "10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。"
+               "C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。",
+    })
+
+
+# F2有限UI提交不含等待；稳态clock门与额外caller尾另行登记。
+_F2_UI_TRANSITION_CONTRACTS = {
+    0x17E0B: "详情打开以18409提交相位11..0，共12次，17ee8尾清键；有限相位无16ms或BIOS等待。",
+    0x18409: "详情单相位裁切/拷贝后提交，不自行等clock；开关相位及额外snapshot恢复由caller分别决定。",
+    0x17AED: "整页关闭0..11后另恢复完整64000B snapshot；法术下页0..6滑出、独立空底条提交、6..0滑入。两处任意键16c57与有限相位分账。",
+    0x1956B: "底框按Y177/164/151/138/125/112提交六次，没有各相位16ms。入口和逐字等待仍由原caller执行。",
+    0x196CB: "底框按Y125/138/151/164/177提交五次，随后整页snapshot恢复，释放三个buffer，最后11cac(0)。不是六次关闭，也不把释放后移至尾刷新之后。",
+    0x1974C: "底框单相位只裁切/提交，不设置16ms或BIOS等待；26996的准备页尾与196cb的战场尾不同。",
+    0x197E5: "选择框单相位不等待；19953打开4/8/12/16、关闭12/8/4/0，各四次。正常高亮与画像的2tick稳态门不属于有限开合。",
+    0x1B1E7: "总览打开0..11、关闭11..0均无显式等待；稳态1b2fb/1b2fe将signed BIOS低WORD与继承EBP比较，相等跳过actor/water/tile/units块。该函数不写EBP，不可猜成每轮fresh锚；正常入口EBP资格另记。",
+    0x2000A: "辅助图打开1..7、关闭6..1无有限相位等待；开尾清队、退出读一、尾11cac(0)。稳态先键/clock门再marker，首次比较字节源于前一int386的FS/GS，非2000a初始化clock；正常selector返回合同另记，不用常量替代。",
+}
+for _va, _contract in _F2_UI_TRANSITION_CONTRACTS.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "有限UI相位、稳态与caller尾合同尚未分账",
+        "now": _contract,
+        "why": "F2 ui-transition-source01/source01.json SHA256 9aaac5b34cb503ceacb54a1f5bf97e45b2352c2b237db9f925847381a1fc4902，"
+               "14完整函数；1b1e7另见source02/source01.json SHA256 a13af3e357f12eacfbcaabcfbfcdc085580e9a2ce225746fe88a7d05d13978b4。"
+               "2000a沿input-wait-source01及overview-initial-time-review01的完整来源。逐chunk连续指令/strict bytes匹配，源DB与镜像身份守卫不变。"
+               "这是静态功能复现合同，不代签初值全域、WGC可见帧、绝对CPU时刻或整阶段原生等价；不改类型或ABI。",
+    })
+
+
+_F2_MAP_CAST_PREAMBLE_WHY = (
+    "F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，"
+    "完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。"
+    "完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。"
+    "不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。"
+)
+CORRECTIONS.setdefault(0x1D6C8, []).extend([
+    {"target": "semantic_name", "was": "sub_1D6C8",
+     "now": "field_map_magic_cast_flash", "why": _F2_MAP_CAST_PREAMBLE_WHY},
+    {"target": "evidence", "was": "玩家MAP费用之前的公共声画前缀尚未独立登记",
+     "now": "入口先sfx_play(53b13,0,1)，四轮DAC0写51aad/51ad1/51af5[id]→wait1→DAC0黑→wait1。"
+            "1cff0仅id9..27且非24在双selector成功、mode0/11cac(0)/bank准备之后调用，随后才分派51d01 handler及其MP成本；"
+            "AI/Item/FULL不是此唯一caller域。23取消第二目的地不进入该前缀，不能提前闪烁。",
+     "why": _F2_MAP_CAST_PREAMBLE_WHY},
+])
+
+
+_F2_RAY_CONTRACTS = {
+    0x149F8: ("sub_149F8", "field_line_targets_collect",
+              "七实参的arg_C/10为扫描起点，arg_0/4只决定方向；先将focus写起点，每轮先步进再lookup并按raw顺序收录，最后恢复旧focus。"
+              "15055及1567e传当前actor坐标为起点、selected为方向点；1cff0同源。不能反向从selected朝actor扫描。"
+              "原SP=S的[esp+2c/30]在本体固定栈深1c下对应[S+10/14]，不是按伪C参数名猜测。"),
+    0x2DFC8: ("sub_2DFC8", "field_ai_ray_item_cast_present",
+              "唯一直接caller15055的高射程Item路径；EDI为149f8返回的目标数，1511c写入并经face/11cac/17aa9/2e9a8正常保存。"
+              "本函数不初始化EDI，从该part起点至part_count逐项演出并等待，不能从0重播；起点不小于part_count时自然零part，仍执行尾wait6。"
+              "临时资源释放及地图cache恢复在尾wait6之前；随后fadeout/清VGA/11cac(1)/停止源声/fadein。"
+              "15055的2189a、200ms、渐白及远端focus/phase循环在caller，20c6f效果只执行一次，不能替换成另一套FULL业务。"),
+}
+for _va, (_old, _new, _contract) in _F2_RAY_CONTRACTS.items():
+    _why = ("F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 "
+            "18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；"
+            "2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。"
+            "完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；"
+            "C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。")
+    CORRECTIONS.setdefault(_va, []).extend([
+        {"target": "semantic_name", "was": _old, "now": _new, "why": _why},
+        {"target": "evidence", "was": "射线起点/调用ABI及演出返回合同尚未完整登记",
+         "now": _contract, "why": _why},
+    ])
 
 
 def main() -> int:

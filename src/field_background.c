@@ -4,9 +4,11 @@
  * 临时canvas首次SKIP未定义字节最小置0，后续page透明历史绝不清0。
  * 仅投影CPU叶终态，不宣称复制/行轮转的内部逐写轨迹与BIOS墙钟等价。 */
 #include "field_background.h"
+#include "bios_clock.h"
 #include "field_page_private.h"
 #include "image.h"
 
+#include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -94,33 +96,38 @@ int fd2_field_background_scroll(fd2_field_page *page, uint8_t amount) {
     return scroll_rows(&page->background);
 }
 
-int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *page,
+static uint32_t background_clock_tick(const uint64_t *fixed_ns) {
+    return (uint32_t)fd2_bios_tick_signed_ns(fixed_ns ? *fixed_ns : SDL_GetTicksNS());
+}
+
+static int background_draw_from(fd2_field_page *owner,fd2_field_page *page,
     int dest_x, int dest_y, int camera_x, int camera_y,
-    int parallax_x, int parallax_y, uint64_t now_ms, int advance) {
+    int parallax_x, int parallax_y,const uint64_t *fixed_ns,int advance) {
     if(!owner || !page || (advance!=0 && advance!=1))return -1;
     fd2_field_background_state *state=&owner->background;
     if(state->kind==BACKGROUND_NONE)return 0;
     if(!state->source || dest_x<0 || dest_y<0 ||
         dest_x>FD2_FIELD_PAGE_STRIDE-312 || dest_y>FD2_FIELD_PAGE_HEIGHT-192)
         return -1;
-    uint32_t low=(uint32_t)(now_ms/55u)&0xffffu;
     /* 11eee的539F8与terrain锚同为movsx WORD[46c]后的DWORD位型。 */
-    uint32_t tick=low<0x8000u?low:low|0xffff0000u;
     if(state->kind==BACKGROUND_WAVE) {
         if(!state->work || state->phase>=16u)return -1;
-        if(advance && tick!=state->last_tick) {
+        if(advance && background_clock_tick(fixed_ns)!=state->last_tick) {
             for(size_t row=0;row<192u;row++)
                 memcpy(state->work+row*320u,
                     state->source+row*320u+k_field_background_wave[(row+state->phase)&15u],312u);
-            state->last_tick=tick;state->phase=(uint8_t)((state->phase+1u)&15u);
+            /* 11f76实际波纹行更新完成，11f7e再读539f8，随后才inc539fc。 */
+            state->last_tick=background_clock_tick(fixed_ns);
+            state->phase=(uint8_t)((state->phase+1u)&15u);
         }
         return fd2_field_page_write(page,dest_x,dest_y,312,192,
             state->work,state->work_size,320);
     }
     if(state->kind==BACKGROUND_SCROLL) {
-        if(advance && tick!=state->last_tick) {
+        if(advance && background_clock_tick(fixed_ns)!=state->last_tick) {
             if(scroll_rows(state)!=0)return -1;
-            state->last_tick=tick;
+            /* 120b1的实际轮转先完成，120b9重新读钟写共享539f8。 */
+            state->last_tick=background_clock_tick(fixed_ns);
         }
         return fd2_field_page_write(page,dest_x,dest_y,312,192,
             state->source,state->source_size,312);
@@ -136,9 +143,28 @@ int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *page,
     return -1;
 }
 
+int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *page,
+    int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,
+    uint64_t now_ns,int advance) {
+    return background_draw_from(owner,page,dest_x,dest_y,camera_x,camera_y,
+        parallax_x,parallax_y,&now_ns,advance);
+}
+
+int fd2_field_background_draw_from_live(fd2_field_page *owner,fd2_field_page *page,
+    int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance) {
+    return background_draw_from(owner,page,dest_x,dest_y,camera_x,camera_y,
+        parallax_x,parallax_y,NULL,advance);
+}
+
 int fd2_field_background_draw(fd2_field_page *page,
     int dest_x,int dest_y,int camera_x,int camera_y,
-    int parallax_x,int parallax_y,uint64_t now_ms,int advance) {
+    int parallax_x,int parallax_y,uint64_t now_ns,int advance) {
     return fd2_field_background_draw_from(page,page,dest_x,dest_y,camera_x,camera_y,
-        parallax_x,parallax_y,now_ms,advance);
+        parallax_x,parallax_y,now_ns,advance);
+}
+
+int fd2_field_background_draw_live(fd2_field_page *page,
+    int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance) {
+    return fd2_field_background_draw_from_live(page,page,dest_x,dest_y,camera_x,camera_y,
+        parallax_x,parallax_y,advance);
 }

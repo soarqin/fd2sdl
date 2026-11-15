@@ -78,7 +78,14 @@ typedef enum {
     FD2_FIELD_MAGIC_PRESENT_POPUP_CLEAR,
     FD2_FIELD_MAGIC_PRESENT_TELEPORT_OUT_COMMIT,
     FD2_FIELD_MAGIC_PRESENT_TELEPORT_IN_COMMIT,
-    FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP
+    FD2_FIELD_MAGIC_PRESENT_POPUP_GROUP,
+    /* 1cff0→1d6c8：双selector成功后的玩家MAP成本前缀，不用于AI/Item/FULL。
+     * 无exchange：0成功/skip、1HOST、-1错误；不触业务/RNG，异常保VGA前缀。 */
+    FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE,
+    /* 15055射线物品：2dfc8 caster场景→2189a(80,-4)→200ms/渐白。
+     * target_count同时是原EDI的part起点；无需exchange/第二业务状态。
+     * 不执行后续20c6f地图效果；0成功/skip、1HOST、-1错误。 */
+    FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM
 } fd2_field_magic_present_phase;
 
 typedef enum {

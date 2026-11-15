@@ -304,14 +304,28 @@ static int owned_window_noactivate(const InputTarget *target,
     return 0;
 }
 
-static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
-                     unsigned long delay_us, int wave, unsigned bios_scan_expected) {
+static DWORD input_qpc_read(LONGLONG *value, LONGLONG *previous) {
+    LARGE_INTEGER sample;
+    if (!QueryPerformanceCounter(&sample)) return ERROR_GEN_FAILURE;
+    if (sample.QuadPart < 0 || sample.QuadPart < *previous) return ERROR_INVALID_DATA;
+    *value = *previous = sample.QuadPart;
+    return 0;
+}
+
+static int tap_keys_duration(InputTarget *target, const WORD *symbols, unsigned count,
+                     unsigned long delay_us, int wave, unsigned bios_scan_expected,
+                     unsigned long hold_ms) {
     HWND foreground_before = GetForegroundWindow();
     HWND foreground_after;
     LONG_PTR style_before = 0, style_after = 0;
     int noactivate_verified = 0;
     int foreground_guard_failed = target->window && foreground_before == target->window;
     ULONGLONG started = GetTickCount64(), down_tick = 0, up_tick = 0;
+    LONGLONG down_qpc = 0, up_qpc = 0, previous_qpc = -1;
+    LARGE_INTEGER qpc_frequency = {0};
+    uint64_t hold_qpc_ticks = 0, tail_qpc_ticks = 0;
+    int precise_hold = hold_ms > 150u;
+    DWORD qpc_error = 0;
     unsigned sent = 0, released = 0, release_retries = 0;
     DWORD error = 0, target_exit_code = STILL_ACTIVE;
     int release_not_needed = 0;
@@ -319,9 +333,17 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
     HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
                                   FALSE, target->pid);
     if (!process) { error = GetLastError(); goto done; }
-    if (!symbols || !count || count > 2u) {
+    if (!symbols || !count || count > 2u || hold_ms<150u || hold_ms>3000u) {
         error = ERROR_INVALID_PARAMETER;
         goto done;
+    }
+    if (precise_hold) {
+        if (!QueryPerformanceFrequency(&qpc_frequency) || qpc_frequency.QuadPart <= 0 ||
+            qpc_frequency.QuadPart > (INT64_MAX - 999) / hold_ms) {
+            error = qpc_error = ERROR_INVALID_DATA; goto done;
+        }
+        hold_qpc_ticks = ((uint64_t)qpc_frequency.QuadPart * hold_ms + 999u) / 1000u;
+        tail_qpc_ticks = ((uint64_t)qpc_frequency.QuadPart * 20u + 999u) / 1000u;
     }
     if (foreground_guard_failed) {
         error = ERROR_INVALID_STATE;
@@ -351,30 +373,74 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
     }
     for (unsigned i = 0; i < count; ++i) {
         ULONGLONG tick = GetTickCount64();
+        LONGLONG counter = 0;
         if (GetForegroundWindow() == target->window) {
             foreground_guard_failed = 1;
             error = ERROR_INVALID_STATE;
             break;
+        }
+        if (precise_hold && (qpc_error = input_qpc_read(&counter, &previous_qpc)) != 0) {
+            error = qpc_error; break;
         }
         if (post_owned_key(target, symbols[i], 1, down[i]) != 0) {
             error = GetLastError();
             if (!error) error = ERROR_GEN_FAILURE;
             break;
         }
-        if (!sent) down_tick = tick;
+        if (!sent) { down_tick = tick; down_qpc = counter; }
         ++sent;
     }
-    /* 保持生产逐帧键态可见，仍低于500ms repeat门；不追加DOWN重试。 */
-    if (sent == count) Sleep(150);
+    /* 旧tap保150ms；F2长按仅发一次DOWN，交目标自身typematic生产repeat。
+     * 正Sleep最多10ms复核owner/存活/前台；最后20ms让出并用QPC截止，
+     * 不改变系统timer粒度。QPC仅量宿主投递时点，不代表目标消费时点。 */
+    if (sent == count) {
+        if(hold_ms==150u)Sleep(150);
+        else {
+            for (;;) {
+                DWORD alive=WaitForSingleObject(process,0);
+                if(alive==WAIT_OBJECT_0)break;
+                if(alive!=WAIT_TIMEOUT) {
+                    error=GetLastError();if(!error)error=ERROR_GEN_FAILURE;break;
+                }
+                DWORD owner=0;
+                if(!IsWindow(target->window) ||
+                    !GetWindowThreadProcessId(target->window,&owner) || owner!=target->pid) {
+                    error=ERROR_INVALID_WINDOW_HANDLE;break;
+                }
+                if(GetForegroundWindow()==target->window) {
+                    foreground_guard_failed=1;error=ERROR_INVALID_STATE;break;
+                }
+                LONGLONG counter;
+                if((qpc_error=input_qpc_read(&counter,&previous_qpc))!=0) {
+                    error=qpc_error;break;
+                }
+                uint64_t elapsed=(uint64_t)(counter-down_qpc);
+                if(elapsed>=hold_qpc_ticks)break;
+                /* 独立粗钟只防坏计数器无限等，不代替QPC精度验收门。 */
+                if(GetTickCount64()-down_tick>hold_ms+50u) {
+                    error=qpc_error=ERROR_TIMEOUT;break;
+                }
+                Sleep(hold_qpc_ticks-elapsed>tail_qpc_ticks ? 10u:0u);
+            }
+        }
+    }
     if (target->window && GetForegroundWindow() == target->window) {
         foreground_guard_failed = 1;
         if (!error) error = ERROR_INVALID_STATE;
     }
     for (unsigned i = sent; i > 0; --i) {
-        if (WaitForSingleObject(process, 0) == WAIT_OBJECT_0) break;
+        DWORD alive=WaitForSingleObject(process,0);
+        if (alive == WAIT_OBJECT_0) break;
+        if (alive != WAIT_TIMEOUT && !error) {
+            error=GetLastError();if(!error)error=ERROR_GEN_FAILURE;
+        }
         up_tick = GetTickCount64();
+        LONGLONG counter=0;
+        DWORD measured=precise_hold ? input_qpc_read(&counter,&previous_qpc):0;
+        if(measured) {qpc_error=measured;if(!error)error=measured;}
         if (post_owned_key(target, symbols[i - 1], 0, up[i - 1]) == 0) {
             ++released;
+            if(precise_hold && !measured)up_qpc=counter;
         } else {
             if (!error) {
                 error = GetLastError();
@@ -382,9 +448,13 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
             }
             /* 释放失败仅重试本轮已DOWN的同一PID/HWND；不触碰全局键态。 */
             ++release_retries;
-            if (WaitForSingleObject(process, 0) != WAIT_OBJECT_0 &&
-                post_owned_key(target, symbols[i - 1], 0, up[i - 1]) == 0)
-                ++released;
+            if (WaitForSingleObject(process, 0) != WAIT_OBJECT_0) {
+                measured=precise_hold ? input_qpc_read(&counter,&previous_qpc):0;
+                if(measured) {qpc_error=measured;if(!error)error=measured;}
+                if(post_owned_key(target,symbols[i-1],0,up[i-1])==0) {
+                    ++released;if(precise_hold && !measured)up_qpc=counter;
+                }
+            }
         }
     }
     if (sent == count && released != count &&
@@ -411,6 +481,7 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         "\"noactivate_style_before\":\"0x%llx\",\"noactivate_style_after\":\"0x%llx\","
         "\"noactivate_verified\":%s,\"foreground_guard_ok\":%s,"
         "\"down_tick_ms\":%llu,\"up_tick_ms\":%llu,\"elapsed_ms\":%llu,"
+        "\"down_qpc\":%llu,\"up_qpc\":%llu,\"qpc_frequency\":%llu,\"qpc_valid\":%s,"
         "\"release_retries\":%u,\"target_exited_before_release\":%s,"
         "\"release_not_needed\":%s,\"target_exit_code\":%lu,"
         "\"modifier_vk\":%u,\"function_vk\":%u,\"bios_scan_expected\":%u,"
@@ -424,7 +495,11 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         noactivate_verified ? "true" : "false",
         target->window && !foreground_guard_failed ? "true" : "false",
         (unsigned long long)down_tick, (unsigned long long)up_tick,
-        (unsigned long long)(GetTickCount64() - started), release_retries,
+        (unsigned long long)(GetTickCount64() - started),
+        (unsigned long long)down_qpc,(unsigned long long)up_qpc,
+        (unsigned long long)qpc_frequency.QuadPart,
+        precise_hold && !qpc_error && sent==count && released==count && count ? "true":"false",
+        release_retries,
         release_not_needed ? "true" : "false", release_not_needed ? "true" : "false",
         (unsigned long)target_exit_code,
         bios_scan_expected && symbols && count == 2u ? (unsigned)symbols[0] : 0u,
@@ -432,6 +507,11 @@ static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
         bios_scan_expected, (unsigned long)error, result == 0 ? "true" : "false");
     fflush(stderr);
     return result;
+}
+
+static int tap_keys(InputTarget *target, const WORD *symbols, unsigned count,
+                     unsigned long delay_us, int wave, unsigned bios_scan_expected) {
+    return tap_keys_duration(target,symbols,count,delay_us,wave,bios_scan_expected,150u);
 }
 
 static int tap(InputTarget *target, KeySym symbol, unsigned long delay_us) {
@@ -569,7 +649,7 @@ int main(int argc, char **argv) {
         LocalFree(wide);
         return result;
     }
-    if (argc < 3 || argc > 4) {
+    if (argc < 3 || argc > 5) {
         fprintf(stderr, "usage: %s wait|attack|wait-focused|attack-focused|close PID, or key|capture PID KEY|PATH\n", argv[0]);
         return 2;
     }
@@ -583,6 +663,14 @@ int main(int argc, char **argv) {
         fprintf(stderr, "ambiguous visible windows for PID %lu: count=%u\n",
                 pid, target.windows_found);
         target.window = NULL;
+    }
+    if(strcmp(argv[1],"hold-key")==0 && argc==5) {
+        unsigned long hold_ms=0;
+        if(series_number(argv[4],3000u,&hold_ms)!=0 || hold_ms<150u)return 2;
+        WORD symbol=strcmp(argv[3],"DOWN")==0?VK_DOWN:
+            strcmp(argv[3],"UP")==0?VK_UP:0;
+        if(!symbol)return 2;
+        return tap_keys_duration(&target,&symbol,1u,0,0,0,hold_ms)==0?0:1;
     }
     /* key失败也输出定向投递收据，窗口不存在时不改用其它对象。 */
     /* 早键验收仍保持150ms DOWN/UP；fast只省发送后的250ms静候，

@@ -1,3 +1,5 @@
+#include "field_visual.h"
+#include <stdint.h>
 /* S2 pal_partial_set11df2/bios_tick_delay17aa9：实际VGA helper与私有Play叶。
  * 时钟/呈现为显式替身；不创建窗口，不冒充真实DAC/BIOS/WGC验收。 */
 #include <stdio.h>
@@ -27,6 +29,9 @@ static void test_present_timed(fd2_vga *vga,uint32_t ms) {
 }
 static void test_upload(fd2_vga *vga) {(void)vga;uploads++;}
 #define SDL_GetTicks test_ticks
+uint64_t test_ticks_ns(void);
+#define SDL_GetTicksNS test_ticks_ns
+#define fd2_field_water_tick_live(vga_) fd2_field_water_tick((vga_),SDL_GetTicksNS())
 #define fd2_vga_present_timed test_present_timed
 #define fd2_vga_upload_current_frame test_upload
 #include "field_play.c"
@@ -237,3 +242,6 @@ int main(int argc,char **argv) {
     if(argc!=1 || safety()!=0 || play_consumer()!=0 || subtract_and_short_ms()!=0 || play_subtract_consumer()!=0)return 1;
     puts("S2 visual leaf tests passed");return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t test_ticks_ns(void) { return test_ticks()*UINT64_C(1000000); }

@@ -1947,3 +1947,21 @@ SDL主项目已有Debug的6项无窗口组件通过，未重建本树、未跑�
 QK作为F6最终门独立列在qk-behavior-followup.md，仍关联A04／A05／A08及受影响输入／RNG／音画项。下一步先做合法存档／正常操作的少量行为代表，按原资源、完整22987B SAV、WGC动画阶段和后续动作／多回合比对扩证；历史受控HP／人数夹具不能冒充自然边界。缺夹具、随机和不可保存中间态的局限如实保留；未闭合不得宣布全计划完全对齐。
 
 主体经审查提交并本地集成后直接继续F2；提交／重建／直接集成检查身份见本地build/f1/rescope-20261115/local-integration.json。主项目用户FD2.SAV保留，不远程push／发布，不改混音器或扩大显示／电源授权。
+
+## F2共享机制主体交付与最终联合门（2026-11-15）
+
+本次以完整共享机制及已证consumer为一个提交单元，接F1 `503fe54b`，不是逐内部步骤提交。修默认RNG启动198次／共享App流；完整BIOS AX、15槽FIFO、500／33ms单owner重复与修饰键；唯一整数PIT时间、原signed／unsigned及逐读／fresh顺序；正式浏览／选择／菜单／移动／Scene／准备／结算等等待、有限UI相位和HOST／首错前缀。去重复focus和无来源的视觉推进，保冷热和原session owner。
+
+全读点库存21 owner／42 caller／96静态CALL不是功能覆盖率。独立原源新增确认并修复：1cff0双selector之后的1d6c8公共闪光；AI item79的15055／2dfc8完整有限编排，及149f8从actor向selected扫描。冷表／progress图为唯一编辑输入，没有新通用VM、持久PC或第二RNG。当前C接口／原part literal、目标顺序、取消／HOST／错误／费用／RNG／acted回归与原版实机分别登记。
+
+`ai-ray-ctest01`的旧夹具错误、`ctest02`的旧observer未识别新增前缀，以及方向oracle修正均保原失败；最终只按原义补显式phase／无诊断log消费的正例，不放宽生产支持门。最终新普通构建 `C:/Projects/fd2sdl-builds/fierce-newton-f2-20261115` Debug成功，`c-build-ctest01.log`46项直接影响检查通过且无skip；冷表3项、冷流程来源／负例11项、IDA发布14项及有界读取工具19项另账。旧E盘收口构建因磁盘满失败，没有算成功；仅移除108个可再生产`.ilk`缓存，保清单、PDB、二进制及所有取证。新根经FileTracker API和实际关键头tlog核验未排除。
+
+App a57的 `input-native03`、`motion-native04`、`prepare-native03` 原版先／SDL后三双端代表均通过，strict ON、WGC HWND、隔离存档／来源和正常owned清理闭合。新构建ce与三原生代表的源／工具／冷数据完全一致，但PE节并不逐byte同一；原生证据保a57身份及解释继承，不写成ce实际新跑或一次全候选全绿。运动03错误启动路径发生于首窗口前，04正确重跑另目录保原件。
+
+`normal-clock-native01`因命令时模式与补零语义未资格；修有界纯读取模式门后的02两页映射／人数／code/fixup/长度均过，aux五EV三本体仅支持当次FS0／GS20，overview12秒172EV零本体，整体仍失败。没有BREAK、寄存器／返回地址操纵或重放QK实验；callee不代本体／首比较。原件及独立只读复核保留。
+
+隔离Domain发布仅五个已证函数名及18处合同注释；1312函数strict bytes／边界／签名／flags／chunks不变，C仅五标识正规化后token相同。528登记及11发布SHA逐项核验，旧静态／原型报告只继承源身份，不重新签语义。无完整二进制／媒体入提交。
+
+实际依赖复核后，三门（18b84首指针、2000a首FS／GS、1b1e7继承EBP全steady）、type9 provider／21db2正常入口、完整输入／RNG联合轨迹仍明确未过，详见[F2残余表](f2-time-input-rng.md#主体交付与最后联合门)。这些不是构造／Load／存档、解码或PCM算法的实现前置，继续F3；F4／F5补全像素、非例外PCM／PIC及新反馈原版代表，F6逐性质合签。发现正常反例必须修复，不能靠拒绝、改名或文案豁免。QK仍由原专项负责；Windows／EX-AUDIO-NUKED选择未变。
+
+本地提交／集成、原始构建／定向检查、物理字节及用户SAV保护的实际身份见两树 `build/f2/subject-delivery-20261115/local-integration.json`；收据仅按已执行结果写入。提交后继续F3，不远程push／发布、不改混音器或扩大显示／电源授权。

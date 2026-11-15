@@ -35,6 +35,16 @@ const uint8_t *fd2_field_range_lut(const fd2_field_visuals *visuals,
 const uint8_t *fd2_field_lut_frame(const fd2_field_visuals *visuals,
                                    size_t frame_index);
 
+/* 固定now_ns接口见field_visual_state.h，限定一次调用的全部读钟同值。
+ * 正式live保1297d、11eee各原读取点及条件短路，不新增时钟owner。
+ * 11eee正式顺序为terrain→实际背景→range→tile draw；无背景时才用tiles组合。 */
+int fd2_field_visual_actor_step_live(fd2_field_visual_state *state);
+int fd2_field_visual_terrain_step(fd2_field_visual_state *state,uint64_t now_ns);
+int fd2_field_visual_range_step(fd2_field_visual_state *state,uint64_t now_ns,int32_t range_override);
+int fd2_field_visual_terrain_step_live(fd2_field_visual_state *state);
+int fd2_field_visual_range_step_live(fd2_field_visual_state *state,int32_t range_override);
+int fd2_field_visual_tiles_step_live(fd2_field_visual_state *state,int32_t range_override);
+
 /* 把现有 framebuffer 矩形中的 palette index 逐像素映射。 */
 void fd2_field_apply_palette_lut(fd2_vga *vga,
                                  int x, int y, int width, int height,
@@ -66,13 +76,16 @@ int fd2_field_transition_page_circle12(fd2_field_page *page,
     const uint8_t lut[256],int center_x,int center_y,int radius);
 /* 127e0的53a04/53a08独立共享抖动门，与1297d的idle相位不同。
  * 原低WORD tick变化才翻0/1一次；App视觉owner，不入Game/SAV/RNG。 */
-int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ms);
+int fd2_field_actor_visual_tick(fd2_vga *vga, uint64_t now_ns);
+int fd2_field_actor_visual_tick_live(fd2_vga *vga);
 
 /* 只应用已确认水色到DAC224..239，不改变base palette或phase；非法输入原子拒绝。
  * tick由已确认战场等待caller显式调用；render/present不隐式推进。
- * now_ms以55ms宿主近似转换BIOS低16位，差>=2才推进一次，不追赶。 */
+ * now_ns经共享PIT时钟转换BIOS低16位，差>=2才推进一次，不追赶。 */
 int fd2_field_water_palette_apply(fd2_vga *vga, unsigned phase);
-int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ms);
+int fd2_field_water_tick(fd2_vga *vga, uint64_t now_ns);
+/* live在比较／成功写锚分别读钟；water写锚晚于phase及DAC写入。 */
+int fd2_field_water_tick_live(fd2_vga *vga);
 
 /* field_auxiliary_marker_draw @0x1f6ef（原sub_1F6EF）：object2 5208a的3 DWORD阵营色，
  * 加本轮0..7闪烁相位；非法域不写输出，不访问Game/App/RNG。 */

@@ -65,6 +65,14 @@
       }
     },
     "battle_animation.json": {
+      "k_battle_ai_ray_item_present": {
+        "c_type": "int16_t",
+        "dimensions": [13, 3]
+      },
+      "k_battle_map_cast_preamble": {
+        "c_type": "uint8_t",
+        "dimensions": [8, 2]
+      },
       "shake_x": {
         "c_type": "int",
         "dimensions": [
@@ -1288,6 +1296,18 @@
   "flow_contracts": {
     "progress.json": {
       "ports": {
+        "ray_cells_clear": [["next"]],
+        "ray_delay_ms": [["next"]],
+        "ray_area_display": [["next"]],
+        "ray_is_long": [["no", "yes"]],
+        "ray_face_first": [["next"]],
+        "ray_refresh": [["next"]],
+        "ray_wait_ticks": [["next"]],
+        "ray_present": [["next"]],
+        "ray_display": [["next"]],
+        "ray_range": [["next"]],
+        "ray_focus": [["next"]],
+        "ray_done": [[]],
         "reward_gate": [
           [
             "no",
@@ -1594,6 +1614,7 @@
         ]
       },
       "required_ids": [
+        "ai.item.ray",
         "reward",
         "phase.status",
         "stationary.recover",
@@ -1601,7 +1622,7 @@
         "physical.short",
         "physical.caller.full"
       ],
-      "operation_abi_sha256": "e1a399b25e140aae691798959c1269a4a19c565e22f953ca0e9ad04bfa22e9d9"
+      "operation_abi_sha256": "cc75241d57f34f59e6575caf046cf08b5f941db1c75198dc1983bb43530e399b"
     },
     "scene.json": {
       "ports": {

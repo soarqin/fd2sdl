@@ -144,10 +144,10 @@ F1补充对象来源准则：初始化按具体语义字段和当前owner有效�
 | A07 | 动态地图／身份／人数组合 | 证据／未审计 | 高 | F3 |
 | A08 | HP／hidden／结果及调用续点 | 证据 | 高 | F3 |
 | A09 | SAV兼容及错误／取消／重载owner | 写集差异／证据；回合门已判正常域 | 高 | F3 |
-| A10 | FIFO／typematic／确认／等待相位 | 已知近似／证据 | 高 | F2 |
-| A11 | 启动RNG来源和预推进 | 初始化／调用序差异 | 高 | F2 |
-| A12 | 全共享RNG调用及真实写序 | 证据 | 高 | F2 |
-| A13 | BIOS／PIC／帧与绝对时间 | 差异／证据 | 高 | F2 |
+| A10 | FIFO／typematic／确认／等待相位 | 机制主体已修；完整联合证据未签 | 高 | F2、F6 |
+| A11 | 启动RNG来源和预推进 | 默认启动已修／独立已证；App联合另签 | 高 | F2、F6 |
+| A12 | 全共享RNG调用及真实写序 | 族接线已修；完整轨迹／入口未知 | 高 | F2—F6 |
+| A13 | BIOS／PIC／帧与绝对时间 | 主体已修；三比较门候选／PIC等未验 | 高 | F2、F5、F6 |
 | A14 | 全像素、底图／palette／水色／嘴型 | 证据 | 高 | F4 |
 | A15 | 各动作FULL／SHORT、全部目标FX | 有限域差异／证据／未审计 | 高 | F4 |
 | A16 | 全资源解码／文本／字形消费者 | 证据／未审计 | 中 | F4 |
@@ -234,19 +234,23 @@ F1另定位Load的raw2写集：原10010逐raw调用11019，按当前unit_id重�
 
 ### A10：输入重复率与跨框相位
 
-定位：`input.h:19`的500ms／92ms、`input.c`队列与repeat、Play modal／dialog caller；原BIOS FIFO、16c57／clear读者和[输入依据](../systems/input.md)。15有效槽、满队丢新、读一保余键、caller清键已修；本轮input／dialog组件通过。
+审计快照定位：`input.h:19`的500ms／92ms、`input.c`队列与repeat、Play modal／dialog caller；原BIOS FIFO、16c57／clear读者和[输入依据](../systems/input.md)。15有效槽、满队丢新、读一保余键、caller清键已有旧范围证据。
 
-已确认采用PC/AT固定宿主近似，尚未量出与冻结参照的数值／仲裁是否相同，不能写成已测得500／92ms必然错误；全部确认／等待／跨框相位尚无整轨迹。旧首次END默认NO症状原因未证，后YES成功不抹掉原记录。依赖A02、A13；固定DOSBox配置量测首按／长按／多键／满队，记录原入队、取键、clear及caller时点，SDL正式pump同时间轴复跑。成功是FIFO内容和业务消费逐事件相同；任意按键关闭、非法确认、取消和HOST均有反例。
+F2主体交付更新（完整联合门尚未合签）：固定DOSBox-X源确认reset为500/33ms及单一last-key仲裁，候选已修，并保存完整BIOS AX、Alt数字及修饰/锁键状态。16c57的signed两tick门、portrait→RNG→重新采clock顺序及准备页raw AL/AH入口正在按实际caller补齐；原镜头135dd的4e381是FIFO clear，旧vsync注释不能签17ms等待。组件/正式路径与原版边界见[F2报告](f2-time-input-rng.md)，不把源码默认值写成实际入口配置已测。
+
+39422ae采用PC/AT固定宿主近似，当时未量出与冻结参照的数值／仲裁是否相同，不能将后续源复核写成当时已测得500／92ms必然错误。当前候选及动态未验边界见上文；全部确认／等待／跨框相位尚无整轨迹。旧首次END默认NO症状原因未证，后YES成功不抹掉原记录。依赖A02、A13；固定DOSBox配置量测首按／长按／多键／满队，记录原入队、取键、clear及caller时点，SDL正式pump同时间轴复跑。成功是FIFO内容和业务消费逐事件相同；任意按键关闭、非法确认、取消和HOST均有反例。
 
 全键值域还需枚举Ctrl／Alt方向、NumLock／Shift小键盘、非游戏普通键及F1..F12修饰组合，以原INT16的AH／AL返回值和实际caller读取方式为oracle。双held的repeat仲裁及长阻塞恢复时点未被单测自证；Ctrl+C／Pause进程退出、失焦清held属于明确H适配，不混作原键盘语义。
 
 ### A11：启动初始化和预推进缺口
 
-定位：`field_play.c:86..103`的`field_rng_initial_seed／context_init`、`field_rng.c`；原main@25bf4、`field_rng_next @0x4ebe3`。SDL未设环境变量固定0x7a18，只seed；原main在25d83读取BIOS46Ch，25d90调用Watcom rand，取模256后25da7循环调用共享RNG，再进入标题。
+审计快照定位：`field_play.c:86..103`的`field_rng_initial_seed／context_init`、`field_rng.c`；原main@25bf4、`field_rng_next @0x4ebe3`。39422ae的SDL未设环境变量固定0x7a18，只seed；原main在25d83读取BIOS46Ch，25d90调用Watcom rand，取模256后25da7循环调用共享RNG，再进入标题。
 
-39422ae审查时Domain只读核完整main711B摘要`be0ce16a0b644231f4c39655270e9a3b95e15bff58df91897cdf7199e78e7e2e`；4ebe3完整28B确认word627B8加9014再ROL3，算法与C一致。**已确认缺原启动推进；未量出rand初态／循环次数与全部启动读者**，不把某次捕获值当通用初值。可改变后续随机轨迹与玩法结果，未声称每次运行的初态值必然不同。保原有符号取余／循环比较；BIOS读与rand来源分别核，不先假定BIOS直接seed rand。依赖A02、A20、A13；冻结冷初态、rand来源、启动tick，原CPU和原版状态捕获对照，再接正式START／标题／Load。保留显式测试seed为调试控制，默认正式启动要还原来源及调用序。
+F2候选已恢复文件/CRT已证初态及198次启动推进，修复once入口丢弃prologue context的问题；有效调试seed保持推进后覆盖。独立启动向量及C回归见[F2报告](f2-time-input-rng.md)。该默认启动机制随本次F2主体交付；A12完整共享轨迹仍未通过，不因局部修复扩签。
 
-F1前置取证更新：文件初态为Watcom rand DWORD=1、共享RNG WORD=0；完整CRT后及25d83的原版两次实际RAM捕获均保该初态，25db1观察rand `41c67ea6`／RNG `5885`／ESI=EDI=198。原CPU五个BIOS向量独立复现198次推进；BIOS低WORD只写视觉clock，不seed rand。该证据不等于已实现F2，也未证明标题／所有caller共享流与绝对时序；相应默认初始化差异仍待F2修复。
+39422ae审查时Domain只读核完整main711B摘要`be0ce16a0b644231f4c39655270e9a3b95e15bff58df91897cdf7199e78e7e2e`；4ebe3完整28B确认word627B8加9014再ROL3，算法与C一致。当时确认缺启动推进，rand初态／循环次数尚未取得；这部分证据随后由下述F1取证补齐，不把某次捕获值当通用初值。可改变后续随机轨迹与玩法结果，未声称每次运行的初态值必然不同。保原有符号取余／循环比较；BIOS读与rand来源分别核，不先假定BIOS直接seed rand。依赖A02、A20、A13；冻结冷初态、rand来源、启动tick，原CPU和原版状态捕获对照，再接正式START／标题／Load。保留显式测试seed为调试控制，默认正式启动要还原来源及调用序。
+
+F1前置取证更新：文件初态为Watcom rand DWORD=1、共享RNG WORD=0；完整CRT后及25d83的原版两次实际RAM捕获均保该初态，25db1观察rand `41c67ea6`／RNG `5885`／ESI=EDI=198。原CPU五个BIOS向量独立复现198次推进；BIOS低WORD只写视觉clock，不seed rand。该F1证据当时不包含F2实现；当前默认初始化候选及回归见上文。标题后所有caller共享流与绝对时序仍另验。
 
 ### A12：完整共享RNG和逐写序
 
@@ -254,11 +258,15 @@ F1前置取证更新：文件初态为Watcom rand DWORD=1、共享RNG WORD=0；�
 
 缺口是等待、眨眼、嘴型、FULL／SHORT、跳过和重载相互交织的调用数、取值用途及写序。依赖A05、A11、A13；原trace按caller／PC／时钟／前后state标记，SDL通过实际owner记录，同一输入和时间基准逐次比较。SAV无需新增不属于原格式的RNG真值；不同端自然实战结果不能直接归因随机数，也不能用强制同seed掩盖漏调用。
 
+F2候选更新：已逐族核原23个静态caller与当前C owner，修复16c57、酒店／服务26eda及19953的实际绘制→RNG→freshclock。准备页53F52／53F72改借两个App owner，跨酒店、服务和城镇重入的C轨迹已过；受控准备页双端代表另有通过，尚不代签自然连续全轨迹。21db2的两条真实CALL已找到，但所属子图在已解析应用入口／分派中未绑定；82个系统间接点现为78个有限正常target集、2个正常ABI续点及2个host-type9外部provider未决点。F1三个同进程快照只支持该进程的type1条件排除，不扩为所有启动；既不判U，也不据此盲目增加每施法三抽样。详见[F2证据及最终残余](f2-time-input-rng.md#主体交付与最后联合门)。静态CALL数不是执行次数；A12尚未通过，F3—F5补直接caller、F6联合关闭。
+
 ### A13：共享时间域与硬件时序
 
 定位：`field_visual.c`、`dialog_flow.h`、`scene.c`、`vga.c`、`field_game.c`、`field_play.c`。55ms换算BIOS tick、110ms等待、菜单16ms和自动行动150ms均有宿主取舍；原BIOS低16位、timer／PIC和无delay菜单循环不等于60Hz宿主帧。
 
 这些是已知近似，不因S4精确DAC修复而消失。影响反馈相位、早键、RNG和音画同步；原A7严格PIC比较仍RED。依赖A02；先还原实际clock读点和wrap／不追赶规则，再用一个原虚拟时钟驱动现有owner，而非第二套热状态或全局休眠补丁。夹具含相邻tick、长停留、低WORD回绕、帧丢失和暂停／失焦；原时间轨迹与SDL正式入口相同，宿主采集延迟单独测量，不能用模糊时间容差通过。
+
+F2候选已用共享整数PIT时钟及NS读者替换有源55／110ms换算，普通移动恢复共享13460 tick-edge，镜头4e381恢复FIFO clear。正式自动阶段已去无来源150ms宿主期限（离屏诊断API旧期限另账），浏览／目标／菜单按不同原外门及fresh读取接线，127a9按实际actor调用读取。有限UI相位的无源16ms、胜败controller返回后的额外等待／渲染及Scene水色毫秒／NS混用已修，并有直接回归。全读点盘点发现的玩家MAP扣费前1d6c8及AI高射程2dfc8遗漏已修，并修149f8的actor起点；新增直接回归保前缀／HOST／错误／RNG／acted合同，不由旧FULL／MAP测试扩签原生像素或绝对时序。18b84首次指针比较、2000a首FS／GS及1b1e7继承EBP门的正常初值资格、真实CPU绘制成本、PIC相位和跨端绝对时序仍须分别核证；组件和完整工作页通过不代签这些性质。
 
 阶段边界：F2关闭共享时间／输入／RNG合同和BGM时间基准接口；SBPRO2／PIC音乐驱动调度及非例外音频端时刻的修正、严格RED关闭归A17／F5。F2不先要求F5完成，F5依赖F2时间基准，避免循环依赖。
 

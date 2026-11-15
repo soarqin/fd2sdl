@@ -23,7 +23,7 @@ typedef struct fd2_battle_montage fd2_battle_montage;
 uint8_t fd2_battle_animation_map_solid_color(void);
 typedef struct {
     fd2_vga *vga;
-    struct fd2_field_game *visual_owner; /* Play借入真实Game；只经tick_visual写四视觉字段。 */
+    struct fd2_field_game *visual_owner; /* Play借入真实Game；经共享live叶更新App视觉owner。 */
     fd2_pcm_player *primary;
     fd2_pcm_player *secondary;
     const fd2_archive *fdother; /* 借用App；须晚于服务和全部PCM voice关闭。 */

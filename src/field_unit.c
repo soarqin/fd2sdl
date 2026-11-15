@@ -17,6 +17,7 @@
 
 #include "field_unit_base.h"
 #include "field_attack.h"
+#include "field_visual.h"
 
 /* field_actor_terrain_overlays_draw @0x129ec（原sub_129EC），经
  * map_tile_blit_visible @0x12ac6（原FUN_0001020e）恢复角色附近遮挡。
@@ -664,20 +665,60 @@ int fd2_field_flash_page_actor(fd2_field_page *page,
     return fd2_field_fixed_page_actor(page,sprites,units,actor,camera_x,camera_y,idle_phase,solid);
 }
 
-int fd2_field_units_render_page(fd2_field_page *page,
+static int page_actors_preflight(fd2_field_page *page,
     const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
-    int camera_x, int camera_y, uint8_t idle_phase,uint8_t cursor_phase,uint8_t jitter_phase) {
+    int camera_x, int camera_y, uint8_t idle_phase, uint8_t cursor_phase) {
     if (!page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
-        idle_phase>3u || cursor_phase>3u || jitter_phase>1u) return -1;
+        idle_phase>3u || cursor_phase>3u) return -1;
     /* 先验全表可见资源，坏后项不留下前项的半绘制。 */
     for(size_t i=0;i<units->count;i++) {
         const uint8_t *source; size_t length;
         if(page_actor_source(sprites,units,i,camera_x,camera_y,idle_phase,cursor_phase,
                 &source,&length)<0) return -1;
     }
+    return 0;
+}
+
+int fd2_field_units_render_page(fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    int camera_x, int camera_y, uint8_t idle_phase,uint8_t cursor_phase,uint8_t jitter_phase) {
+    if (jitter_phase>1u || page_actors_preflight(page,sprites,units,
+            camera_x,camera_y,idle_phase,cursor_phase)!=0) return -1;
     for(size_t i=0;i<units->count;i++)
         if(fd2_field_units_render_page_actor(page,sprites,units,i,camera_x,camera_y,
                 idle_phase,cursor_phase,jitter_phase,0)<0) return -1;
+    return 0;
+}
+
+/* sub_127E0 @0x127e0（原登记同名）：127f1..12810的共享抖动门在
+ * camera/raw26读取之前；结构合法的direct调用先读clock，即使纯叶省绘制。
+ * 原direct本体无hidden门；当前纯叶仍省hidden像素，此差异不由本接线开放。 */
+int fd2_field_units_render_page_actor_live(fd2_vga *vga, fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
+    uint8_t cursor_phase, int offset_y) {
+    if (!vga || !page || !sprites || !units ||
+        units->count>FD2_FIELD_MAX_UNITS || actor>=units->count ||
+        idle_phase>3u || cursor_phase>3u || vga->actor_jitter_phase>1u) return -1;
+    if (fd2_field_actor_visual_tick_live(vga)<0) return -1;
+    return fd2_field_units_render_page_actor(page,sprites,units,actor,
+        camera_x,camera_y,idle_phase,cursor_phase,vga->actor_jitter_phase,offset_y);
+}
+
+/* sub_127A9 @0x127a9（原登记同名）：raw递增，127c2先筛hidden，
+ * 每个实际127cf调用独立读clock，不能共用一帧now或只筛raw26/相机内。
+ * 预检只验资源；129ec前景仍由caller在全表之后执行，不交错或预检推进。 */
+int fd2_field_units_render_page_live(fd2_vga *vga, fd2_field_page *page,
+    const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
+    int camera_x, int camera_y, uint8_t idle_phase, uint8_t cursor_phase) {
+    if (!vga || vga->actor_jitter_phase>1u ||
+        page_actors_preflight(page,sprites,units,camera_x,camera_y,
+            idle_phase,cursor_phase)!=0) return -1;
+    for (size_t i=0;i<units->count;i++) {
+        if (fd2_field_unit_is_hidden(&units->items[i])) continue;
+        if (fd2_field_units_render_page_actor_live(vga,page,sprites,units,i,
+                camera_x,camera_y,idle_phase,cursor_phase,0)<0) return -1;
+    }
     return 0;
 }
 

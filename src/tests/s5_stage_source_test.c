@@ -1,3 +1,4 @@
+#include <stdint.h>
 /* S5完整源caller的真实Scene消费门。
  * 240fa/24754/250cc/2548c/25757完整原CPU分支另由verify_s5_stage_callers核；
  * 本TU只替换宿主上传/计时，不把64actor受控状态冒称自然部署或原生GUI。 */
@@ -7,12 +8,16 @@
 #include <limits.h>
 #include "field_game.h"
 #include "field_prepare.h"
+#include "field_background.h"
 #include "field_play.h"
 #include "field_item.h"
 #include "static_data.h"
 #include "animation.h"
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);return 1;}}while(0)
 static uint64_t s5_test_ms;
+static unsigned s5_clock_reads,s5_water_probe,s5_water_calls,s5_water_bad_owner;
+static int s5_water_result;
+static fd2_vga *s5_water_owner;
 static unsigned s5_presents,s5_uploads,s5_delays,s5_ticks;
 static size_t s5_text_entries[16],s5_text_entry_count;
 static int s5_visual_timing[1024][4];
@@ -51,7 +56,48 @@ static void s5_present_timed(fd2_vga *vga,uint32_t ms){
 static void s5_delay(uint32_t ms){s5_delays++;s5_test_ms+=ms;
     if(s5_quit_on_delay && s5_delays==s5_quit_on_delay)s5_active_vga->input.quit_requested=1;}
 static void s5_wait_ticks(uint32_t ticks){s5_ticks+=ticks;s5_test_ms+=(uint64_t)ticks*55u;}
-static Uint64 s5_clock(void){return s5_test_ms;}
+static Uint64 s5_clock(void){s5_clock_reads++;return s5_test_ms;}
+/* 本TU的既有固定tick向量；跨读钟及live actor顺序另由独立测试签核。 */
+uint64_t s5_clock_ns(void);
+static int s5_actor_live(fd2_field_visual_state *state) {
+    return fd2_field_visual_actor_step(state,s5_clock_ns());
+}
+static int s5_terrain_live(fd2_field_visual_state *state) {
+    return fd2_field_visual_terrain_step(state,s5_clock_ns());
+}
+static int s5_range_live(fd2_field_visual_state *state,int32_t override) {
+    return fd2_field_visual_range_step(state,s5_clock_ns(),override);
+}
+static int s5_water_live(fd2_vga *vga) {
+    if(s5_water_probe) {
+        s5_water_calls++;if(vga!=s5_water_owner)s5_water_bad_owner++;
+        return s5_water_result;
+    }
+    return fd2_field_water_tick(vga,s5_clock_ns());
+}
+static int s5_background_live(fd2_field_page *page,int dx,int dy,int cx,int cy,int px,int py,int advance) {
+    return fd2_field_background_draw(page,dx,dy,cx,cy,px,py,s5_clock_ns(),advance);
+}
+static int s5_actor_page_live(fd2_vga *vga,fd2_field_page *page,
+        const fd2_map_sprite_bank *sprites,const fd2_field_units *units,size_t raw,
+        int cx,int cy,uint8_t idle,uint8_t cursor,int offset) {
+    if(!vga || !page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+            raw>=units->count || idle>3u || cursor>3u)return -1;
+    if(fd2_field_actor_visual_tick(vga,s5_clock_ns())<0)return -1;
+    return fd2_field_units_render_page_actor(page,sprites,units,raw,cx,cy,
+        idle,cursor,vga->actor_jitter_phase,offset);
+}
+static int s5_actors_page_live(fd2_vga *vga,fd2_field_page *page,
+        const fd2_map_sprite_bank *sprites,const fd2_field_units *units,
+        int cx,int cy,uint8_t idle,uint8_t cursor) {
+    if(!vga || !page || !sprites || !units || units->count>FD2_FIELD_MAX_UNITS ||
+            idle>3u || cursor>3u)return -1;
+    for(size_t raw=0;raw<units->count;raw++)if(!fd2_field_unit_is_hidden(&units->items[raw])) {
+        if(fd2_field_actor_visual_tick(vga,s5_clock_ns())<0)return -1;
+        break;
+    }
+    return fd2_field_units_render_page(page,sprites,units,cx,cy,idle,cursor,vga->actor_jitter_phase);
+}
 static const fd2_static_flow_node *s5_node_at(const fd2_static_flow *flow,int pc){
     const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
     if(node && !strcmp(flow->id,"stage.cinematic.card_last"))s5_last_card_started=1;
@@ -138,6 +184,15 @@ static int s5_animation_play_hooked(fd2_vga *vga,const fd2_archive *ani,int inde
 #define fd2_delay_ms s5_delay
 #define fd2_wait_ticks s5_wait_ticks
 #define SDL_GetTicks s5_clock
+uint64_t s5_clock_ns(void);
+#define SDL_GetTicksNS s5_clock_ns
+#define fd2_field_visual_actor_step_live s5_actor_live
+#define fd2_field_visual_terrain_step_live s5_terrain_live
+#define fd2_field_visual_range_step_live s5_range_live
+#define fd2_field_water_tick_live s5_water_live
+#define fd2_field_background_draw_live s5_background_live
+#define fd2_field_units_render_page_actor_live s5_actor_page_live
+#define fd2_field_units_render_page_live s5_actors_page_live
 #define fd2_static_flow_lookup s5_flow_lookup
 #define fd2_text_entry_open_entry s5_text_open
 #define fd2_static_flow_at s5_node_at
@@ -177,6 +232,13 @@ static int s5_animation_play_hooked(fd2_vga *vga,const fd2_archive *ani,int inde
 #undef fd2_delay_ms
 #undef fd2_wait_ticks
 #undef SDL_GetTicks
+#undef fd2_field_visual_actor_step_live
+#undef fd2_field_visual_terrain_step_live
+#undef fd2_field_visual_range_step_live
+#undef fd2_field_water_tick_live
+#undef fd2_field_background_draw_live
+#undef fd2_field_units_render_page_actor_live
+#undef fd2_field_units_render_page_live
 #undef fd2_static_flow_lookup
 #undef fd2_text_entry_open_entry
 #undef fd2_static_flow_at
@@ -238,6 +300,7 @@ static int s5_vector(const fd2_archive *other,unsigned stage,unsigned variant,in
     fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
     CHECK(game && vga);CHECK(s5_prepare(game,other,stage)==0);
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
     const uint8_t *palette;size_t palette_size;CHECK(fd2_archive_get(other,0,&palette,&palette_size)==0 && palette_size>=768);
     fd2_vga_set_palette(vga,palette);s5_reset_io(vga);game->turn_number=(uint32_t)turn;
     s5_trace trace={stage,1,0,0,{0}};game->event_preflight=s5_preflight;game->event_preflight_userdata=&trace;
@@ -322,6 +385,8 @@ static int s5_text_owner_case(const fd2_archive *other,unsigned stage){
     fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
     CHECK(game && vga && s5_prepare(game,other,stage)==0);
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+    /* 与正式Play相同，Scene/teleport共借此VGA唯一visual与背景owner。 */
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
     const uint8_t *palette;size_t size;CHECK(fd2_archive_get(other,0,&palette,&size)==0 && size>=768);
     fd2_vga_set_palette(vga,palette);s5_reset_io(vga);
     if(stage==22){game->roster[18].text_id=70;game->turn_number=14;}
@@ -356,6 +421,7 @@ static int s5_game_leaf_failure_prefix(const fd2_archive *other){
         fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
         CHECK(game && vga && s5_prepare(game,other,28)==0);
         vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+        CHECK(fd2_field_game_bind_visual(game,vga)==0);
         const uint8_t *palette;size_t size;CHECK(fd2_archive_get(other,0,&palette,&size)==0 && size>=768);
         fd2_vga_set_palette(vga,palette);s5_reset_io(vga);
         for(size_t i=0;i<game->units.count;i++)game->units.items[i].direction=3;
@@ -403,6 +469,7 @@ static int s5_source_movement_prefix(const fd2_archive *other) {
         game->units.count=25;memset(game->units.items+25,0xa5,71*80);
         CHECK(fd2_field_units_sprite_cache_restore(&game->units)==0);
         vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+        CHECK(fd2_field_game_bind_visual(game,vga)==0);
         s5_reset_io(vga);CHECK(s5_bind_real_preflight(game,other)==0);
         CHECK(fd2_field_game_common_event_begin(game,"common.callback.037",15)==0);
         const char *ops[]={"story","pan","move"};
@@ -440,6 +507,7 @@ static int s5_source_movement_prefix(const fd2_archive *other) {
         fd2_field_unit raw72=game->units.items[72];raw72.x=22;raw72.y=25;raw72.direction=2;
         fd2_field_unit tail[23];memcpy(tail,game->units.items+73,sizeof(tail));
         vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+        CHECK(fd2_field_game_bind_visual(game,vga)==0);
         s5_reset_io(vga);CHECK(s5_bind_real_preflight(game,other)==0);
         game->battle_result=FD2_FIELD_BATTLE_VICTORY;
         CHECK(s5_fd2_scene_play_stage_source_flow(vga,other,game,NULL,1,"stage.source.victory.021")==-1);
@@ -458,6 +526,7 @@ static int s5_source_wait_domain(const fd2_archive *other) {
     fd2_vga *vga=calloc(1,sizeof(*vga));
     CHECK(game && before && vga && s5_prepare(game,other,29)==0);
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
     s5_reset_io(vga);CHECK(s5_bind_real_preflight(game,other)==0);
     *before=*game;
     CHECK(fd2_field_play_bind_event_preflight(NULL,other)==-1 &&
@@ -493,6 +562,7 @@ static int s5_full_ending(const fd2_archive *other,unsigned stage,int real_slow)
     game->roster_count=31;
     fd2_field_unit before[32];memcpy(before,game->roster,sizeof(before));
     vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+    CHECK(fd2_field_game_bind_visual(game,vga)==0);
     const uint8_t *palette,*final;size_t palette_size,final_size;
     CHECK(fd2_archive_get(other,0,&palette,&palette_size)==0 && palette_size==768 &&
         fd2_archive_get(other,59,&final,&final_size)==0);
@@ -554,3 +624,6 @@ int main(int argc,char **argv){
     }
     fd2_archive_close(&other);return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t s5_clock_ns(void) { return s5_clock()*UINT64_C(1000000); }

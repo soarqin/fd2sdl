@@ -52,6 +52,12 @@ typedef struct {
     /* 原51AAC的临时门取反；零初始化对应原初值1，不是用户选项。 */
     uint8_t info_panel_suppressed;
     uint32_t menu_highlight_phase, menu_highlight_tick;
+    /* 26152/265ec/26eda/27079共享53F52，27079独立推进53F72；
+     * App初始化为0，切服务/详情/Load不重置，不进SAV。 */
+    uint32_t prepare_highlight_phase, prepare_sprite_phase;
+    uint32_t prepare_pick_tick; /* 53F46：2b67f持久signed低WORD锚；不入SAV/Load。 */
+    int32_t movement_tick; /* 53A0C：13460共享tick-edge锚；装载初态0，不入SAV。 */
+    uint16_t browse_input_tick; /* 539F2：11aa8空等刷新锚，App初态0，不随Load重置。 */
     fd2_field_page *field_page; /* 原53A49的App视觉owner，跨Scene/Game保留。 */
     fd2_field_visual_state field_visual;
     uint8_t info_panel_right; /* 原51A0C横偏移1/242的bool投影：0=左，禁显时保留。 */
@@ -105,6 +111,10 @@ void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
 /* 等待 timed present 已登记的最后一个 deadline，并结束该时间序列；
  * 不重复上传或呈现 framebuffer。 */
 void fd2_vga_wait_frame_deadline(fd2_vga *vga);
+/* field_movement_tick_edge_wait @0x13460（原sub_13460）：
+ * 只等当前signed低WORD不同于App旧锚，再重新读取并写锚。
+ * render期间已跨tick时立即返回；不清普通FIFO，HOST返回1，坏owner为-1。 */
+int fd2_vga_wait_movement_tick(fd2_vga *vga);
 
 /* 延时 (对应 thunk_FUN_0003b765 @0x3e01d, 毫秒)。宿主实现分片等待并
  * 检查退出事件并向同input owner归档普通键。 */

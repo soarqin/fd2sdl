@@ -284,7 +284,7 @@ static int test_all_preflight_rejections_are_before_mp_and_rng(void) {
             case 14:
                 g->units.items[2].flags = FD2_FIELD_UNIT_FLAG_ACTED;
                 g->metadata.turn_events[0] = (fd2_field_turn_event){7,0,1};
-                g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY; break;
+                g->event_log_count = FD2_FIELD_EVENT_LOG_CAPACITY + 1u; break; /* 坏计数；已绑定common不占log。 */
             case 15: g->units.items[0].detail_status[2] = 1; break;
             case 16:
                 g->units.items[1].hp = g->units.items[1].hp_max = 100;
@@ -428,11 +428,18 @@ typedef struct {
     unsigned target_calls;
     size_t observed_calls[2];
     int8_t jitters[2][7];
+    unsigned preambles;
 } magic_observer;
 
 static int observe_magic(const fd2_field_game *game,
         const fd2_field_magic_present_event *event, void *userdata) {
     magic_observer *o = userdata;
+    if(event->phase==FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE) {
+        CHECK(game==&o->f->game && event->actor_index==0 && event->magic_id==13 &&
+            event->presentation_mode==FD2_FIELD_MAGIC_MODE_MAP &&
+            !o->f->calls && game->units.items[0].mp==8 && !o->seen[0] && !o->seen[1] && !o->seen[2] && !o->seen[3]);
+        o->preambles++;return 0;
+    }
     CHECK(event->phase <= FD2_FIELD_MAGIC_PRESENT_FINISH);
     o->seen[event->phase]++;
     CHECK(game == &o->f->game && event->actor_index == 0);
@@ -499,6 +506,7 @@ static int test_full_magic_events_and_jitter_order(void) {
         CHECK(target(&f, kind ? 13 : 0) == 0 && resolve_and_ack(&f.game) == 0);
         CHECK(f.calls == 1 && observer.target_calls == 1 && observer.observed_calls[0] == 1);
         CHECK(observer.seen[3] == 1);
+        CHECK(observer.preambles==(unsigned)kind);
         close_fixture(&f);
     }
     return 0;
@@ -582,18 +590,26 @@ static int test_caster_cost_markers_zero_multiple_and_wrap(void) {
 typedef struct {
     fixture *fixture;
     uint8_t id;
-    unsigned prepared, finished, steps, targets, teleport[4];
+    unsigned prepared, finished, steps, targets, teleport[4],preambles,refreshes;
     unsigned map_casts;
     uint8_t passes[4];
     uint8_t target_order[FD2_FIELD_MAX_UNITS];
-    int fail_step;
+    int fail_step,preamble_result,preamble_failure,refresh_result;
 } extended_observer;
 
 static int observe_extended_magic(const fd2_field_game *game,
         const fd2_field_magic_present_event *event, void *data) {
     extended_observer *seen = data;
     CHECK(game == &seen->fixture->game && event->magic_id == seen->id);
-    if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
+    if(event->phase==FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE) {
+        seen->preambles++;
+        CHECK(!seen->prepared && !seen->finished && !seen->fixture->calls &&
+            game->units.items[0].mp==1000 && game->ordinary_display_mode==0 &&
+            event->presentation_mode==FD2_FIELD_MAGIC_MODE_MAP && event->action_kind==FD2_FIELD_MAGIC_ACTION_MAGIC &&
+            seen->id>=9u && seen->id<=27u && seen->id!=24u);
+        if(seen->preamble_failure)seen->fixture->game.failure=FD2_FIELD_FAILURE_ACTION;
+        return seen->preamble_result;
+    } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
         seen->prepared++;
         CHECK(!seen->fixture->calls && game->units.items[0].mp == 1000);
     } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_CAST &&
@@ -669,6 +685,39 @@ static int begin_extended_magic(fixture *f, uint8_t id, extended_observer *seen)
     return 0;
 }
 
+static int observe_map_caller_refresh(fd2_field_game *game,
+        fd2_field_runtime_present_step step,int value,void *data) {
+    extended_observer *seen=data;
+    CHECK(game==&seen->fixture->game && step==FD2_FIELD_RUNTIME_REFRESH && value==0);
+    CHECK(!seen->preambles && !seen->prepared && !seen->fixture->calls &&
+        game->ordinary_display_mode==0 && game->units.items[0].mp==1000);
+    seen->refreshes++;return seen->refresh_result;
+}
+
+/* 独立原1d459在handler成本前；负值/Host不能洗成继续CAST/费用/acted。
+ * 合成记录仅核真实Game提交门，不替代Battle实际DAC/设备或自然原版战斗。 */
+static int test_map_caller_preamble_stops_before_cost(void) {
+    for(int kind=1;kind<=4;kind++) {
+        fixture f;extended_observer seen;
+        CHECK(begin_extended_magic(&f,13,&seen)==0);
+        fd2_field_game *g=&f.game;
+        fd2_field_unit before[4];memcpy(before,g->units.items,sizeof(before));
+        g->runtime_present=observe_map_caller_refresh;g->runtime_present_userdata=&seen;
+        seen.preamble_result=kind==2?-1:1;
+        seen.preamble_failure=kind==3;
+        seen.refresh_result=kind==4?1:0;
+        int result=fd2_field_game_resolve_player_magic(g);
+        CHECK(result==(kind==2 || kind==3?-1:0));
+        CHECK(seen.refreshes==1 && seen.preambles==(kind==4?0u:1u) && !seen.prepared && !seen.finished);
+        CHECK(!f.calls && !memcmp(before,g->units.items,sizeof(before)) && g->selected_unit==0 &&
+            !fd2_field_unit_has_acted(&g->units.items[0]));
+        CHECK(g->failure==(kind==2 || kind==3?FD2_FIELD_FAILURE_ACTION:FD2_FIELD_FAILURE_NONE));
+        CHECK(!!g->runtime_host_quit==(kind!=2)); /* failure+positive仍保原H锁，分类ERROR。 */
+        close_fixture(&f);
+    }
+    return 0;
+}
+
 static int test_all_normal_magic_routes_and_compound_order(void) {
     for (unsigned id = 0; id < 36; id++) {
         if (id == 31u) continue; /* G1来源闭包：空名31没有正常赋值源。 */
@@ -693,6 +742,7 @@ static int test_all_normal_magic_routes_and_compound_order(void) {
         int camera_x = game->camera_cell_x, camera_y = game->camera_cell_y;
         CHECK(resolve_and_ack(game) == 0 && !game->failure);
         CHECK(seen.prepared == 1 && seen.finished == 1);
+        CHECK(seen.preambles==(id>=9u && id<=27u && id!=24u));
         CHECK(game->units.items[0].mp == (uint16_t)(1000u -
             fd2_field_magic_record_get((uint8_t)(id == 17u ? 18u : id))[5] * cost_count));
         CHECK(fd2_field_unit_has_acted(&game->units.items[0]) && game->active_side == 2);
@@ -721,12 +771,13 @@ static int test_special_step_failure_and_teleport_second_cancel(void) {
     CHECK(begin_extended_magic(&f, 23, &seen) == 0);
     CHECK(fd2_field_game_resolve_player_magic(&f.game) == 0);
     CHECK(f.game.interaction == FD2_FIELD_INTERACTION_MAGIC_TELEPORTING);
+    CHECK(!seen.preambles); /* 原1d238第二selector尚未返回，不进1d459。 */
     f.game.cursor_cell_x = 8; f.game.cursor_cell_y = 6;
     CHECK(fd2_field_game_magic_target_is_legal(&f.game) == 1); /* 原target自己的格允许。 */
     f.game.cursor_cell_x = 5;
     CHECK(fd2_field_game_magic_target_is_legal(&f.game) == 0); /* 可见enemy占格。 */
     CHECK(fd2_field_game_cancel_magic_targeting(&f.game) == 0 && f.game.interaction == FD2_FIELD_INTERACTION_MAGIC_LIST);
-    CHECK(!f.calls && f.game.units.items[0].mp == 1000 && !seen.prepared);
+    CHECK(!f.calls && f.game.units.items[0].mp == 1000 && !seen.prepared && !seen.preambles);
     close_fixture(&f);
     return 0;
 }
@@ -808,6 +859,7 @@ static int test_cure_predicts_revive_only_with_original_status(void) {
 }
 
 int main(void) {
+    CHECK(test_map_caller_preamble_stops_before_cost()==0);
     CHECK(test_cure_predicts_revive_only_with_original_status() == 0);
     CHECK(test_player_heal_over_max_keeps_signed_multi_target_reward() == 0);
     CHECK(test_range_zero_query_and_axis_same_center_contract() == 0);

@@ -30,6 +30,7 @@
 #include "scene.h"
 #include "animation.h"
 #include "vga.h"
+#include "bios_clock.h"
 
 #define WINDOW_W 960
 #define WINDOW_H 600
@@ -680,28 +681,36 @@ title_screen:
             selection = FD2_TITLE_ACTION_HOST_QUIT;
             break;
         }
+        /* boot_intro_title_menu @0x1f894：1fe48..1fe60以INT16阻塞读一，
+         * 每一项返回1fe2c后才重绘。不能批量吞掉队列再等50ms。
+         * 仅无键时用现input owner泵宿主；1ms是宿主空等，不推进原画面。 */
         fd2_input_action action;
-        while (!menu_done &&
-               fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_TITLE,
-                                     &action)) {
-            switch (action) {
-                case FD2_INPUT_ACTION_UP:
-                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
-                    selection = selection > 0 ? selection - 1 : menu_count - 1;
-                    break;
-                case FD2_INPUT_ACTION_DOWN:
-                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
-                    selection = selection + 1 < menu_count ? selection + 1 : 0;
-                    break;
-                case FD2_INPUT_ACTION_CONFIRM:
-                    (void)title_audio_play(title_audio, FD2_TITLE_SFX_CONFIRM);
-                    menu_done = 1;
-                    break;
-                default:
-                    break;
+        for (;;) {
+            if (fd2_input_take_quit(&vga->input)) {
+                selection = FD2_TITLE_ACTION_HOST_QUIT;
+                break;
             }
+            if (fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_TITLE,
+                                      &action)) break;
+            fd2_delay_ms(1);
         }
-        fd2_delay_ms(50);
+        if (selection == FD2_TITLE_ACTION_HOST_QUIT) break;
+        switch (action) {
+            case FD2_INPUT_ACTION_UP:
+                (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
+                selection = selection > 0 ? selection - 1 : menu_count - 1;
+                break;
+            case FD2_INPUT_ACTION_DOWN:
+                (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
+                selection = selection + 1 < menu_count ? selection + 1 : 0;
+                break;
+            case FD2_INPUT_ACTION_CONFIRM:
+                (void)title_audio_play(title_audio, FD2_TITLE_SFX_CONFIRM);
+                menu_done = 1;
+                break;
+            default:
+                break;
+        }
     }
 
     /* title_action_menu @code0 0xfef0..0xff30：选中项 normal 与
@@ -936,6 +945,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if (fd2_bios_clock_init()!=0) {
+        fprintf(stderr,"cannot initialize BIOS clock: %s\n",SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
     SDL_Window *win = SDL_CreateWindow("FD2-SDL", WINDOW_W, WINDOW_H, 0);
     if (!win) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -1044,6 +1059,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "audio: unavailable; continuing without sound\n");
     }
 
+    /* main @0x25bf4 的0x25d83：标题前读BIOS，随后才建立共享随机流。 */
+    vga.field_visual.actor_idle_tick=(uint32_t)fd2_bios_tick_signed_ns(SDL_GetTicksNS());
     fd2_field_play_context app_context;
     fd2_field_play_context_init(&app_context, bgm);
     int rc = 0;
@@ -1069,8 +1086,8 @@ int main(int argc, char **argv) {
             rc = 0;
         else if (rc == 0) {
             if (new_game_play_once) {
-                rc = field_result_status(fd2_field_play_run(&vga, &g_fdother, 0,
-                    1, &handoff, field_audio_ptr, save_path, 0), 0);
+                rc = field_result_status(fd2_field_play_run_context(&vga, &g_fdother, 0,
+                    1, &handoff, field_audio_ptr, save_path, 0, &app_context), 0);
             } else {
                 fd2_app_flow flow = run_field_chain(&vga, &g_fdother, field_audio_ptr,
                     save_path, &app_context, FD2_APP_FLOW_BATTLE, 0, &handoff, 0);

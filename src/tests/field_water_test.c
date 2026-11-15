@@ -6,6 +6,12 @@
 #include "archive.h"
 #include "field_game.h"
 #include "field_visual.h"
+#include "bios_clock.h"
+
+/* 独立ceil(tick*65536e9/1193182)，本文件tick<=65537；不借生产换算。 */
+static uint64_t tick_ns(uint64_t tick) {
+    return (tick*65536u*UINT64_C(1000000000)+1193181u)/1193182u;
+}
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -68,25 +74,25 @@ static int test_tick_boundaries_and_single_step(void) {
     fd2_input_init(&vga.input);
     fd2_vga_set_palette(&vga, initial_palette);
     fd2_vga before = vga;
-    const uint64_t not_due[] = {0, 54, 55, 109};
+    const uint64_t not_due[] = {0, tick_ns(1)-1u, tick_ns(1), tick_ns(2)-1u};
     for (size_t i = 0; i < sizeof(not_due)/sizeof(not_due[0]); i++) {
         CHECK(fd2_field_water_tick(&vga, not_due[i]) == 0);
         CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
     }
-    CHECK(fd2_field_water_tick(&vga, 110) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(2)) == 1);
     CHECK(vga.field_water_phase == 1 && vga.field_water_last_tick == 2);
     CHECK(check_dac(&vga, 1) == 0); /* 首次更新先increment，不先画phase0。 */
     before = vga;
-    CHECK(fd2_field_water_tick(&vga, 110) == 0);
-    CHECK(fd2_field_water_tick(&vga, 219) == 0);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(2)) == 0);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(4)-1u) == 0);
     CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
-    CHECK(fd2_field_water_tick(&vga, 220) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(4)) == 1);
     CHECK(vga.field_water_phase == 2 && vga.field_water_last_tick == 4);
-    CHECK(fd2_field_water_tick(&vga, 1000000) == 1);
-    CHECK(vga.field_water_phase == 3 && vga.field_water_last_tick == (uint16_t)(1000000u / 55u));
+    CHECK(fd2_field_water_tick(&vga, tick_ns(18181)) == 1);
+    CHECK(vga.field_water_phase == 3 && vga.field_water_last_tick == 18181u);
     CHECK(check_dac(&vga, 3) == 0);
     before = vga;
-    CHECK(fd2_field_water_tick(&vga, 1000000) == 0);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(18181)) == 0);
     CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
     CHECK(memcmp(vga.palette, initial_palette, sizeof(initial_palette)) == 0);
     return 0;
@@ -97,27 +103,27 @@ static int test_low16_wrap_phase_wrap_and_quit(void) {
     fd2_input_init(&vga.input);
     vga.field_water_last_tick = UINT16_MAX;
     vga.field_water_phase = 15;
-    CHECK(fd2_field_water_tick(&vga, UINT64_C(65536) * 55u) == 0); /* unsigned差1。 */
-    CHECK(fd2_field_water_tick(&vga, UINT64_C(65537) * 55u) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(65536)) == 0); /* unsigned差1。 */
+    CHECK(fd2_field_water_tick(&vga, tick_ns(65537)) == 1);
     CHECK(vga.field_water_phase == 0 && vga.field_water_last_tick == 1);
     CHECK(check_dac(&vga, 0) == 0);
     vga.field_water_last_tick = 1000;
-    CHECK(fd2_field_water_tick(&vga, 500u * 55u) == 1); /* 原unsigned差，不当signed负数跳过。 */
+    CHECK(fd2_field_water_tick(&vga, tick_ns(500)) == 1); /* 原unsigned差，不当signed负数跳过。 */
     CHECK(vga.field_water_phase == 1 && vga.field_water_last_tick == 500);
     for (unsigned i = 0; i < 16; i++) {
-        CHECK(fd2_field_water_tick(&vga, (502u + i * 2u) * 55u) == 1);
+        CHECK(fd2_field_water_tick(&vga, tick_ns(502u + i * 2u)) == 1);
         CHECK(vga.field_water_phase == ((i + 2u) & 15u));
         CHECK(check_dac(&vga, vga.field_water_phase) == 0);
     }
     vga.input.quit_requested = 1;
     fd2_vga before = vga;
-    CHECK(fd2_field_water_tick(&vga, 3000u * 55u) == 0);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(3000)) == 0);
     CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
     vga.field_water_phase = 255;
-    CHECK(fd2_field_water_tick(&vga, 3000u * 55u) == 0); /* hostquit先于能力门。 */
+    CHECK(fd2_field_water_tick(&vga, tick_ns(3000)) == 0); /* hostquit先于能力门。 */
     vga.input.quit_requested = 0;
     before = vga;
-    CHECK(fd2_field_water_tick(&vga, 3000u * 55u) == -1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(3000)) == -1);
     CHECK(memcmp(&vga, &before, sizeof(vga)) == 0);
     CHECK(fd2_field_water_tick(NULL, 0) == -1);
     return 0;
@@ -129,7 +135,7 @@ static int test_load_render_pause_and_resume_owner(void) {
     fd2_vga vga = {0};
     CHECK(fd2_archive_open(&archive, "original_game/FDOTHER.DAT") == 0);
     CHECK(fd2_field_game_open(&game, &vga, &archive, 0) == 0);
-    CHECK(fd2_field_water_tick(&vga, 110) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(2)) == 1);
     fd2_vga before_load = vga;
     CHECK(fd2_field_game_load_active(&game, "original_game/START.SAV") == 0);
     CHECK(game.units.count == 12 && game.roster_count == 4);
@@ -146,7 +152,7 @@ static int test_load_render_pause_and_resume_owner(void) {
     }
     CHECK(memcmp(&game, &before_render, sizeof(game)) == 0);
     /* 无tick的暂停时间不隐式推进；恢复时只一步，不追赶F1停留时间。 */
-    CHECK(fd2_field_water_tick(&vga, 600000) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(10909)) == 1);
     CHECK(vga.field_water_phase == 2);
     CHECK(check_dac(&vga, 2) == 0);
     uint16_t last = vga.field_water_last_tick;
@@ -154,7 +160,7 @@ static int test_load_render_pause_and_resume_owner(void) {
     CHECK(fd2_field_game_open(&game, &vga, &archive, 0) == 0);
     CHECK(vga.field_water_phase == 2 && vga.field_water_last_tick == last);
     /* 新session可重装base palette，但不能重置app级时钟/phase。 */
-    CHECK(fd2_field_water_tick(&vga, 600110) == 1);
+    CHECK(fd2_field_water_tick(&vga, tick_ns(10911)) == 1);
     CHECK(vga.field_water_phase == 3 && check_dac(&vga, 3) == 0);
     fd2_field_game_close(&game);
     fd2_archive_close(&archive);
@@ -162,6 +168,7 @@ static int test_load_render_pause_and_resume_owner(void) {
 }
 
 int main(void) {
+    fd2_bios_clock_reset(0,0);
     CHECK(load_palette() == 0);
     CHECK(test_palette_write_set_and_errors() == 0);
     CHECK(test_tick_boundaries_and_single_step() == 0);

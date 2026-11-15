@@ -1,3 +1,5 @@
+#include "field_visual.h"
+#include <stdint.h>
 /* field_player_magic_command_execute @0x1cff0（原登记同名）与
  * field_unit_inventory_select @0x1b932（原sub_1B932）的私有modal无窗口
  * 回归及sub_1BFFE @0x1bffe（原登记同名）的EQT留页重绘；
@@ -25,6 +27,7 @@ static struct {
     uint64_t now, rng_time[32];
     unsigned interval;
     int frames, presents, waits, render_calls, water_calls, sound_calls, command_calls;
+    int finite_frames,timed_frames,bad_phase_timing;
     int command_quit, command_error;
     int command_quit_at, command_error_at, command_keys;
     fd2_field_interaction command_states[8];
@@ -61,7 +64,7 @@ static uint32_t modal_rng(void *userdata) {
     if (controls.rng_calls < 32)
         controls.rng_time[controls.rng_calls] = controls.now;
     controls.rng_calls++;
-    return 0; /* 原版counter=2：第三个110ms步画3，第四步画0并再消费。 */
+    return 0; /* 原版counter=2：第三个2tick步画3，第四步画0并再消费。 */
 }
 
 static uint64_t modal_ticks(void) { return controls.now; }
@@ -138,7 +141,7 @@ static void modal_preview(const fd2_field_game *game, fd2_vga *vga) {
 }
 static int modal_water(fd2_vga *vga, uint64_t now) {
     controls.water_calls++;
-    if (controls.real_water) return fd2_field_water_tick(vga, now);
+    if (controls.real_water) return fd2_field_water_tick(vga,now);
     return 0; /* 独立water owner已有回归；此处只检查无键等待调用边界。 */
 }
 static int modal_audio(fd2_field_audio *audio, fd2_field_sfx cue) {
@@ -253,12 +256,14 @@ static int matches_portrait(const fd2_vga *vga, const fd2_image *portrait) {
     }
     return 1;
 }
-static void modal_present_timed(fd2_vga *vga, uint32_t interval) {
+static void modal_submit(fd2_vga *vga,uint32_t interval,int timed) {
     controls.frames++;
+    if(timed)controls.timed_frames++;else controls.finite_frames++;
     if (controls.closing && controls.drop_game &&
         fd2_field_unit_inventory_count(&controls.drop_game->units.items[0]) != controls.drop_initial_count)
         controls.early_drop = 1;
     if (controls.frames <= 12 || controls.closing) {
+        if(timed)controls.bad_phase_timing=1;
         uint8_t expected[VGA_W * VGA_H];
         int phase = controls.closing ? controls.frames - controls.closing_start - 1 :
                                       12 - controls.frames;
@@ -272,16 +277,24 @@ static void modal_present_timed(fd2_vga *vga, uint32_t interval) {
             matches_portrait(vga, &reference_portraits[0]) ? 1 :
             matches_portrait(vga, &reference_portraits[1]) ? 3 : -1;
     }
+    /* 本fixture为每次CPU提交选择相同的16ms外部耗时，以保原等待向量。
+     * 这不是生产delay；finite的0timed另断言，零耗时向量在detail/progress。 */
     controls.now += controls.interval ? controls.interval : interval;
-    vga->frame_deadline_ns = controls.now * UINT64_C(1000000);
-    vga->frame_interval_ns = (uint64_t)interval * UINT64_C(1000000);
+    vga->frame_deadline_ns = timed?controls.now*UINT64_C(1000000):0;
+    vga->frame_interval_ns = timed?(uint64_t)interval*UINT64_C(1000000):0;
     modal_frame_input(vga, controls.frames);
     if (controls.frames > 120) {
         controls.deadline = 1;
         vga->input.quit_requested = 1;
     }
 }
+static void modal_present_timed(fd2_vga *vga,uint32_t interval) {
+    modal_submit(vga,interval,1);
+}
 static void modal_present(fd2_vga *vga) {
+    if(controls.frames<12 || (controls.closing && controls.frames-controls.closing_start<12)) {
+        modal_submit(vga,16,0);return;
+    }
     controls.presents++;
     if (controls.eqt_game && !controls.closing) {
         controls.eqt_redraws++;
@@ -317,7 +330,10 @@ static void modal_present(fd2_vga *vga) {
 #define fd2_field_game_animate_command modal_command
 #define fd2_field_audio_play modal_audio
 #define fd2_field_water_tick modal_water
+#define fd2_field_water_tick_live(vga_) modal_water((vga_),SDL_GetTicksNS())
 #define SDL_GetTicks modal_ticks
+uint64_t modal_ticks_ns(void);
+#define SDL_GetTicksNS modal_ticks_ns
 #define fd2_vga_present modal_present
 #define fd2_vga_present_timed modal_present_timed
 #define fd2_vga_wait_frame_deadline modal_wait
@@ -336,6 +352,7 @@ static void modal_present(fd2_vga *vga) {
 #undef fd2_input_take_key
 #undef fd2_field_game_animate_command
 #undef fd2_field_audio_play
+#undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 #undef SDL_GetTicks
 #undef fd2_vga_present
@@ -424,6 +441,7 @@ static int released(void) {
     CHECK(!controls.deadline);
     CHECK(!controls.bad_cue);
     CHECK(!controls.bad_transition);
+    CHECK(!controls.bad_phase_timing);
     CHECK(!controls.eqt_bad_redraw);
     return 0;
 }
@@ -529,21 +547,21 @@ static int test_blink_wait_boundaries(void) {
     controls.key_count = 1;
     uint8_t id = 0xa5;
     CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
-    CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 640);
-    CHECK(controls.portrait_at_frame[33] == 1 && controls.portrait_at_frame[34] == 3);
-    CHECK(controls.portrait_at_frame[40] == 3 && controls.portrait_at_frame[41] == 1);
+    CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 608);
+    CHECK(controls.portrait_at_frame[31] == 1 && controls.portrait_at_frame[32] == 3);
+    CHECK(controls.portrait_at_frame[38] == 3 && controls.portrait_at_frame[39] == 1);
     CHECK(released() == 0);
     reset(&game, &vga);
     controls.keys_at[0] = (key_frame){35, SDL_SCANCODE_A, 0};
     controls.keys_at[1] = (key_frame){66, SDL_SCANCODE_ESCAPE, 0};
     controls.key_count = 2;
     CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
-    CHECK(controls.rng_calls == 3 && controls.rng_time[1] == 560 && controls.rng_time[2] == 1008);
-    CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[63] == 3);
-    CHECK(controls.portrait_at_frame[64] == 1);
+    CHECK(controls.rng_calls == 3 && controls.rng_time[1] == 560 && controls.rng_time[2] == 992);
+    CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[62] == 3);
+    CHECK(controls.portrait_at_frame[63] == 1);
     CHECK(released() == 0);
     reset(&game, &vga);
-    controls.interval = 1000; /* 每次只推进一个110ms步骤，不追赶10步。 */
+    controls.interval = 1000; /* 每次只推进一个2tick步骤，不追赶10步。 */
     controls.keys_at[0] = (key_frame){16, SDL_SCANCODE_ESCAPE, 0};
     controls.key_count = 1;
     CHECK(play_field_magic_list(&game, &vga, NULL, &id) == FIELD_LIST_CANCELLED);
@@ -825,9 +843,9 @@ static int test_item_blink_and_quit(void) {
     uint8_t slot = 0xa5;
     CHECK(play_field_item_list(&game, &vga, NULL, &slot) == FIELD_LIST_CANCELLED);
     CHECK(slot == 0xa5 && controls.rng_calls == 3);
-    CHECK(controls.rng_time[0] == 192 && controls.rng_time[1] == 560 && controls.rng_time[2] == 1008);
-    CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[63] == 3);
-    CHECK(controls.portrait_at_frame[64] == 1 && controls.water_calls > 0);
+    CHECK(controls.rng_time[0] == 192 && controls.rng_time[1] == 560 && controls.rng_time[2] == 992);
+    CHECK(controls.portrait_at_frame[36] == 3 && controls.portrait_at_frame[62] == 3);
+    CHECK(controls.portrait_at_frame[63] == 1 && controls.water_calls > 0);
     CHECK(released() == 0);
     const int frames[] = {1,7,12,13,14,25};
     for (size_t i = 0; i < sizeof(frames) / sizeof(frames[0]); i++) {
@@ -1504,8 +1522,8 @@ static int test_modal_wait_clock_domains(void) {
         CHECK(vga.actor_jitter_tick == 0xa123 && vga.actor_jitter_phase == 1);
         CHECK(!memcmp(&visual_before, &vga.field_visual, sizeof(visual_before)));
         CHECK(controls.water_calls == 33 && vga.field_water_phase == 8 && vga.field_water_last_tick == 11);
-        CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 640);
-        CHECK(controls.portrait_at_frame[34] == 3 && controls.portrait_at_frame[41] == 1);
+        CHECK(controls.rng_calls == 2 && controls.rng_time[0] == 192 && controls.rng_time[1] == 608);
+        CHECK(controls.portrait_at_frame[32] == 3 && controls.portrait_at_frame[39] == 1);
         CHECK(released() == 0);
     }
     return 0;
@@ -1588,3 +1606,6 @@ int main(void) {
     puts("field magic/item list play tests: ok");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t modal_ticks_ns(void) { return modal_ticks()*UINT64_C(1000000); }

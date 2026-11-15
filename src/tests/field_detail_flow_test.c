@@ -1,3 +1,5 @@
+#include "field_visual.h"
+#include <stdint.h>
 /* field_unit_detail_present @0x17aed（原sub_17AED）的装备→法术→关闭，无窗口私有TU。
  * 包含正式game/play，仅替换呈现、时钟和故障点；构建排除core field_game对象。
  * 覆盖runtime.detail的两次16c57(0)、共享RNG、水色与0/3帧，
@@ -21,6 +23,7 @@ static struct {
     int animation, animation_frames, timed_frames, quit_at, quit_final, quit_blank;
     int bad_geometry, check_geometry, route, route_actor, route_stage;
     int equipment_keys, magic_keys, controllers, closed, bad_route;
+    int bad_rng_portrait_order;
     int wait_test, wait_frames, wait_key_at, wait_quit_at, wait_error, water_calls, rng_calls;
     int blink_seen, restore_seen, bad_wait_pixels, decode_blink_failure;
     int wait_step,wait_blink_at,wait_restore_at,route_wait_quit,route_wait_error;
@@ -36,6 +39,7 @@ static fd2_field_game *live_game;
 static uint8_t detail_background[VGA_W * VGA_H], detail_equipment_frame[VGA_W * VGA_H], detail_magic_frame[VGA_W * VGA_H];
 static fd2_archive detail_other_archive;
 static fd2_field_page *detail_app_page;
+static fd2_vga *wait_active_vga;
 static fd2_image wait_blink;
 static uint8_t wait_background[VGA_W * VGA_H];
 
@@ -126,7 +130,8 @@ static void detail_timed(fd2_vga *vga, uint32_t interval) {
             test_input(vga,0,0);vga->input.quit_requested=1;
             if(control.route_wait_error)live_game->failure=FD2_FIELD_FAILURE_ACTION;
         } else detail_present(vga);
-        vga->frame_deadline_ns=1;
+        vga->frame_deadline_ns=(control.clock+interval)*UINT64_C(1000000);
+        vga->frame_interval_ns=(uint64_t)interval*UINT64_C(1000000);
         return;
     }
     control.animation_frames++;
@@ -156,23 +161,23 @@ static void detail_timed(fd2_vga *vga, uint32_t interval) {
     vga->frame_deadline_ns = 1;
 }
 static void detail_present(fd2_vga *vga) {
-    control.clock += 16;
     if (control.animation) {
-        if (control.animation == 3) {
-            control.animation_frames++;
-            if (control.check_geometry) {
-                uint8_t expected[VGA_W * VGA_H];
-                expected_bottom(expected, detail_equipment_frame, 7);
-                if (memcmp(vga->framebuffer, expected, sizeof(expected))) control.bad_geometry = 1;
-            }
+        /* 原18409/1839b每次memmove即提交，无额外16ms；保全部几何、
+         * 中途HOST及早键检测。关闭另有第13次完整snapshot恢复。 */
+        if(control.animation!=2 || control.animation_frames<12) {
+            detail_timed(vga,0);control.timed_frames--;
+            vga->frame_deadline_ns=vga->frame_interval_ns=0;
+            if(control.quit_blank && control.animation==3 && control.animation_frames==8)
+                vga->input.quit_requested=1;
+        } else {
+            if(control.check_geometry && memcmp(vga->framebuffer,detail_background,sizeof(detail_background)))
+                control.bad_geometry=1;
+            test_input(vga,control.route?0:SDL_SCANCODE_F1,!control.route);
+            if(control.quit_final)vga->input.quit_requested=1;
         }
-        if (control.check_geometry && control.animation == 2 &&
-            memcmp(vga->framebuffer, detail_background, sizeof(detail_background))) control.bad_geometry = 1;
-        test_input(vga, control.route?0:SDL_SCANCODE_F1, !control.route);
-        if (control.quit_final || (control.quit_blank && control.animation == 3))
-            vga->input.quit_requested = 1;
         return;
     }
+    control.clock += 16;
     if (!control.route) { test_input(vga, 0, 0); return; }
     if (control.route_stage == 0) {
         test_input(vga, control.route == 2 ? SDL_SCANCODE_RETURN : SDL_SCANCODE_F2, 0);
@@ -202,7 +207,14 @@ static int detail_water(fd2_vga *vga, uint64_t ms) {
     (void)vga;(void)ms;control.water_calls++;return 0;
 }
 static uint32_t detail_random(void *userdata) {
-    (void)userdata;control.rng_calls++;return control.random_value;
+    (void)userdata;
+    if(control.wait_test && control.rng_calls && wait_active_vga) {
+        fd2_vga sample={0};memcpy(sample.framebuffer,wait_background,sizeof(wait_background));
+        fd2_map_sprite_blit(&sample,&live_game->detail_portrait,8,10,-1);
+        if(memcmp(sample.framebuffer,wait_active_vga->framebuffer,sizeof(wait_background)))
+            control.bad_rng_portrait_order=1;
+    }
+    control.rng_calls++;return control.random_value;
 }
 
 #define malloc detail_alloc
@@ -277,8 +289,11 @@ int fd2_field_game_animate_detail_magic_page(fd2_field_game *game, fd2_vga *vga,
 }
 
 #define SDL_GetTicks detail_ticks
+uint64_t detail_ticks_ns(void);
+#define SDL_GetTicksNS detail_ticks_ns
 #define fd2_delay_ms detail_delay
 #define fd2_field_water_tick detail_water
+#define fd2_field_water_tick_live(vga_) detail_water((vga_),SDL_GetTicksNS())
 #include "field_play.c"
 #undef malloc
 #undef free
@@ -288,10 +303,11 @@ int fd2_field_game_animate_detail_magic_page(fd2_field_game *game, fd2_vga *vga,
 #undef fd2_vga_wait_frame_deadline
 #undef SDL_GetTicks
 #undef fd2_delay_ms
+#undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 
 static void reset(void) {
-    memset(&control,0,sizeof(control));control.advance_key=SDL_SCANCODE_ESCAPE;
+    wait_active_vga=NULL;memset(&control,0,sizeof(control));control.advance_key=SDL_SCANCODE_ESCAPE;
     control.wait_step=110;control.wait_blink_at=4;control.wait_restore_at=5;
 }
 static int open_game(fd2_field_game *game, fd2_vga *vga) {
@@ -372,7 +388,7 @@ static int test_page_owner_and_quit(void) {
         } else {
             control.quit_blank = 1;
             CHECK(play_field_detail_step(&game, &vga, NULL) == FD2_SCENE_RESULT_HOST_QUIT);
-            CHECK(control.timed_frames == 7 && control.animation_frames == 8);
+            CHECK(!control.timed_frames && control.animation_frames == 8);
             CHECK(game.detail_page == FD2_FIELD_DETAIL_EQUIPMENT);
         }
         CHECK(game.detail_visible && game.selected_unit == -1 && !control.controllers);
@@ -383,6 +399,39 @@ static int test_page_owner_and_quit(void) {
     }
     return 0;
 }
+typedef struct {fd2_field_game *game;int phase;} detail_fault;
+static void detail_fault_at_phase(void *userdata,int opening,int phase) {
+    detail_fault *fault=userdata;
+    if(opening && phase==fault->phase) {
+        fault->game->failure=FD2_FIELD_FAILURE_ACTION;
+        fault->game->runtime_host_quit=1;
+    }
+}
+/* 完整17e0b/17aed有限拷贝不引入clock/RNG/water；错误在下一次
+ * source写之前截断，并保已提交的整64000B前缀，业务错误优先HOST。 */
+static int test_finite_detail_source_prefix(void) {
+    static fd2_vga vga;
+    for(int kind=0;kind<4;kind++) {
+        reset();fd2_field_game game;CHECK(open_game(&game,&vga)==0);
+        CHECK(fd2_field_game_open_detail(&game,1)==0);
+        control.check_geometry=1;uint64_t before_clock=control.clock;fd2_field_units units=game.units;
+        int result;
+        if(kind==2)result=fd2_field_game_animate_detail_magic_page(&game,&vga,NULL,NULL);
+        else {
+            detail_fault fault={&game,8};
+            result=fd2_field_game_animate_detail(&game,&vga,kind!=1,
+                kind==3?detail_fault_at_phase:NULL,kind==3?&fault:NULL);
+        }
+        CHECK(result==(kind==3?-1:0));
+        CHECK(control.animation_frames==(kind==2?15:kind==3?3:12) && !control.timed_frames &&
+            control.clock==before_clock && !control.water_calls && !control.rng_calls && !control.bad_geometry);
+        CHECK(!memcmp(&units,&game.units,sizeof(units)) && !control.buffers);
+        if(kind==3)CHECK(game.failure==FD2_FIELD_FAILURE_ACTION && game.runtime_host_quit && game.detail_visible);
+        fd2_field_game_close(&game);
+    }
+    return 0;
+}
+
 static int test_wait_blink_owner_and_errors(void) {
     /* RNG恒0：入口countdown2；第三个110ms相位闭眼、下一相位恢复。
      * 逐帧比较整VGA，故同时锁8,10原点、不画箭头及ROI外无写。 */
@@ -398,10 +447,10 @@ static int test_wait_blink_owner_and_errors(void) {
         game.attack_rng=detail_random;game.attack_rng_userdata=NULL;
         vga.dialog_visual=(fd2_dialog_visual_state){1,2};
         fd2_field_game before=game;
-        control.wait_test=1;control.wait_key_at=5;control.advance_key=keys[k];
+        wait_active_vga=&vga;control.wait_test=1;control.wait_key_at=5;control.advance_key=keys[k];
         CHECK(play_field_detail_wait(&game,&vga,&wait_blink)==FD2_SCENE_RESULT_OK);
         CHECK(control.wait_frames==5 && control.water_calls==5 && control.rng_calls==2);
-        CHECK(control.blink_seen==1 && control.restore_seen==1 && !control.bad_wait_pixels);
+        CHECK(control.blink_seen==1 && control.restore_seen==1 && !control.bad_wait_pixels && !control.bad_rng_portrait_order);
         CHECK(vga.dialog_visual.glyph_counter==1 && vga.dialog_visual.mouth_phase==2);
         CHECK(!memcmp(&before,&game,sizeof(game)) && !control.controllers && !control.buffers);
         fd2_image_free(&wait_blink);fd2_field_game_close(&game);
@@ -446,10 +495,10 @@ static int test_wait_blink_owner_and_errors(void) {
     return 0;
 }
 static int test_wait_dense_frames_and_nonzero_random_classes(void) {
-    /* 使用宿主16ms多帧：每满7帧才到110ms门。直接期望6400px闭眼
-     * 连续保持7帧，不能只检恰好绘图时那一帧，也不能只测RNG=0。 */
+    /* 使用宿主16ms多帧：按1193182/65536有理数跨两个BIOS tick。独立原义时序表检查6400px闭眼
+     * 持续区间，不能只检恰好绘图时那一帧，也不能只测RNG=0。 */
     static const struct {uint32_t random;int blink,restore;} cases[]={
-        {0,22,29},{1,29,36},{29,225,232},{UINT32_MAX,127,134}};
+        {0,22,29},{1,29,36},{29,221,228},{UINT32_MAX,125,132}};
     for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
         reset();fd2_field_game game;fd2_vga vga;
         CHECK(open_game(&game,&vga)==0 && fd2_field_game_open_detail(&game,1)==0);
@@ -457,12 +506,12 @@ static int test_wait_dense_frames_and_nonzero_random_classes(void) {
         fd2_field_detail_draw(&vga,&game.info_assets,&game.font,&game.ui_text,&game.units.items[1],&game.detail_portrait);
         memcpy(wait_background,vga.framebuffer,sizeof(wait_background));
         game.attack_rng=detail_random;game.attack_rng_userdata=NULL;
-        control.wait_test=1;control.wait_step=16;control.random_value=cases[i].random;
+        wait_active_vga=&vga;control.wait_test=1;control.wait_step=16;control.random_value=cases[i].random;
         control.wait_blink_at=cases[i].blink;control.wait_restore_at=cases[i].restore;
         control.wait_key_at=cases[i].restore;
         CHECK(play_field_detail_wait(&game,&vga,&wait_blink)==FD2_SCENE_RESULT_OK);
         CHECK(control.rng_calls==2 && control.wait_frames==cases[i].restore);
-        CHECK(!control.bad_wait_pixels && control.blink_seen==1 && control.restore_seen==1);
+        CHECK(!control.bad_wait_pixels && control.blink_seen==1 && control.restore_seen==1 && !control.bad_rng_portrait_order);
         fd2_image_free(&wait_blink);fd2_field_game_close(&game);
     }
     return 0;
@@ -578,6 +627,7 @@ int main(void) {
     CHECK(test_flip_early_key_survives_to_second_wait()==0);
     CHECK(test_formal_detail_wait_quit_and_error_priority()==0);
     CHECK(test_page_owner_and_quit() == 0);
+    CHECK(test_finite_detail_source_prefix()==0);
     CHECK(test_wait_blink_owner_and_errors() == 0);
     CHECK(test_wait_dense_frames_and_nonzero_random_classes()==0);
     CHECK(test_animation_allocation_failures() == 0);
@@ -588,3 +638,6 @@ int main(void) {
     puts("field detail flow tests: ok");
     return 0;
 }
+
+/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
+uint64_t detail_ticks_ns(void) { return detail_ticks()*UINT64_C(1000000); }

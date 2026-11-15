@@ -4,7 +4,13 @@
 #include <string.h>
 
 #include "field_visual.h"
+#include "bios_clock.h"
 #include "tile.h"
+
+/* 独立有理数oracle：测试最大tick65536，乘积在uint64域；不调生产转换。 */
+static uint64_t tick_ns(uint64_t tick) {
+    return (tick*65536u*UINT64_C(1000000000)+1193181u)/1193182u;
+}
 
 /* tile.c 的测试链接只需要清屏 primitive，不创建 SDL window。 */
 void fd2_vga_clear(fd2_vga *vga, uint8_t color) {
@@ -356,11 +362,11 @@ static int test_transition_circle12(void) {
 static int test_actor_visual_shared_tick(void) {
     fd2_vga vga;memset(&vga,0,sizeof(vga));
     CHECK(fd2_field_actor_visual_tick(&vga,0)==0 && vga.actor_jitter_phase==0);
-    CHECK(fd2_field_actor_visual_tick(&vga,55)==1 && vga.actor_jitter_phase==1);
-    CHECK(fd2_field_actor_visual_tick(&vga,109)==0 && vga.actor_jitter_phase==1);
-    CHECK(fd2_field_actor_visual_tick(&vga,5500)==1 && vga.actor_jitter_phase==0);
+    CHECK(fd2_field_actor_visual_tick(&vga,tick_ns(1))==1 && vga.actor_jitter_phase==1);
+    CHECK(fd2_field_actor_visual_tick(&vga,tick_ns(2)-1u)==0 && vga.actor_jitter_phase==1);
+    CHECK(fd2_field_actor_visual_tick(&vga,tick_ns(100))==1 && vga.actor_jitter_phase==0);
     vga.actor_jitter_tick=65535;
-    CHECK(fd2_field_actor_visual_tick(&vga,UINT64_C(65536)*55u)==1);
+    CHECK(fd2_field_actor_visual_tick(&vga,tick_ns(65536))==1);
     CHECK(vga.actor_jitter_tick==0 && vga.actor_jitter_phase==1);
     CHECK(fd2_field_actor_visual_tick(NULL,0)==-1);
     return 0;
@@ -368,28 +374,28 @@ static int test_actor_visual_shared_tick(void) {
 
 static int test_shared_render_clocks(void) {
     fd2_field_visual_state s={0},before;
-    CHECK(fd2_field_visual_actor_step(&s,4*55)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(4))==1);
     CHECK(s.actor_idle_phase==0 && s.cursor_phase==1 && !s.actor_idle_tick);
-    CHECK(fd2_field_visual_actor_step(&s,5*55)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(5))==1);
     CHECK(s.actor_idle_phase==1 && s.cursor_phase==2 && s.actor_idle_tick==5);
-    CHECK(fd2_field_visual_actor_step(&s,100*55)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(100))==1);
     CHECK(s.actor_idle_phase==2 && s.actor_idle_tick==100); /* 单步，不追赶。 */
-    CHECK(fd2_field_visual_actor_step(&s,100*55)==1 && s.cursor_phase==0);
-    CHECK(fd2_field_visual_tiles_step(&s,100*55,-1)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(100))==1 && s.cursor_phase==0);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(100),-1)==1);
     CHECK(s.terrain_phase==1 && s.range_phase==1 && s.range_tick==100);
-    CHECK(fd2_field_visual_tiles_step(&s,102*55,-1)==1);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(102),-1)==1);
     CHECK(s.terrain_phase==0 && s.range_phase==1 && s.range_tick==100);
-    CHECK(fd2_field_visual_tiles_step(&s,103*55,-1)==1);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(103),-1)==1);
     CHECK(s.terrain_phase==1 && s.range_phase==2 && s.range_tick==103);
-    CHECK(fd2_field_visual_tiles_step(&s,103*55,19)==1);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(103),19)==1);
     CHECK(s.range_phase==19 && s.range_tick==103);
-    CHECK(fd2_field_visual_tiles_step(&s,106*55,-1)==1 && s.range_phase==0);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(106),-1)==1 && s.range_phase==0);
     s.actor_idle_tick=s.range_tick=s.terrain_tick=32767;
-    CHECK(fd2_field_visual_actor_step(&s,UINT64_C(32768)*55)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(32768))==1);
     CHECK(s.actor_idle_tick==0xffff8000u && s.actor_idle_phase==3);
-    CHECK(fd2_field_visual_tiles_step(&s,UINT64_C(32768)*55,-1)==1);
+    CHECK(fd2_field_visual_tiles_step(&s,tick_ns(32768),-1)==1);
     CHECK(s.terrain_tick==0xffff8000u && s.range_tick==0xffff8000u);
-    CHECK(fd2_field_visual_actor_step(&s,UINT64_C(65536)*55)==1);
+    CHECK(fd2_field_visual_actor_step(&s,tick_ns(65536))==1);
     CHECK(s.actor_idle_tick==0 && s.actor_idle_phase==0);
     before=s;
     CHECK(fd2_field_visual_tiles_step(&s,0,20)==-1);
@@ -466,8 +472,8 @@ static int emit_clock_vectors(void) {
     for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
         const uint32_t *in=cases[i].s;
         fd2_field_visual_state s={in[0],in[1],in[2],in[3],in[4],in[5],in[6]};
-        int result=cases[i].kind?fd2_field_visual_tiles_step(&s,(uint64_t)cases[i].tick*55u,cases[i].override):
-            fd2_field_visual_actor_step(&s,(uint64_t)cases[i].tick*55u);
+        int result=cases[i].kind?fd2_field_visual_tiles_step(&s,tick_ns(cases[i].tick),cases[i].override):
+            fd2_field_visual_actor_step(&s,tick_ns(cases[i].tick));
         if(result<0)return 1;
         printf("{\"kind\":%u,\"tick\":%u,\"override\":%d,\"initial\":[%u,%u,%u,%u,%u,%u,%u],"
             "\"final\":[%u,%u,%u,%u,%u,%u,%u]}\n",cases[i].kind,cases[i].tick,cases[i].override,
@@ -492,6 +498,7 @@ static int test_auxiliary_color_source_domain(void) {
 }
 
 int main(int argc,char **argv) {
+    fd2_bios_clock_reset(0,0);
     if(argc==2 && !strcmp(argv[1],"--clock-jsonl"))return emit_clock_vectors();
     CHECK(test_resources_and_sequence() == 0);
     CHECK(test_terrain_animation_and_transparent_lut() == 0);

@@ -1686,7 +1686,8 @@ static int observe_followup_physical(const fd2_field_game *game,
         if (event->phase!=FD2_FIELD_PHYSICAL_PREPARE || !event->actor_before || !event->target_before ||
             seen->rng->cursor || game->units.items[0].mp!=100 || game->units.items[1].hp!=300 ||
             event->actor_before->unit_id!=game->units.items[0].unit_id ||
-            memcmp(event->target_before,&game->units.items[1],sizeof(fd2_field_unit))) seen->invalid=1;
+            event->target_index<1u || event->target_index>2u ||
+            memcmp(event->target_before,&game->units.items[event->target_index],sizeof(fd2_field_unit))) seen->invalid=1;
         if (!seen->invalid) {
             uint16_t terrain=fd2_field_cell_terrain(fd2_field_map_cell(&game->map,
                 event->actor_before->x,event->actor_before->y));
@@ -1703,7 +1704,8 @@ static int observe_followup_physical(const fd2_field_game *game,
 }
 
 static int test_ai11_physical_environment_probe_before_magic(void) {
-    for (int full=0;full<2;full++) for (int reject=0;reject<2;reject++) {
+    for (int full=0;full<2;full++) for (int reject=0;reject<2;reject++)
+    for (unsigned distinct_retained=0;distinct_retained<2;distinct_retained++) {
         static const uint32_t rolls[]={0,0,50,0,99,0};test_rng rng={rolls,6,0};
         uint32_t cells[64];fd2_terrain_attr attrs[2];fd2_field_game game;
         init_game(&game,cells,attrs,&rng);game.option_values[2]=(uint8_t)!full;
@@ -1716,12 +1718,24 @@ static int test_ai11_physical_environment_probe_before_magic(void) {
          * 因此只能共享seen集合，不能整体略过这个actor。 */
         game.units.items[2]=game.units.items[1];game.units.items[2].x=game.units.items[2].y=7;
         game.units.count=3;
+        /* 合法owner/Load可保留非零28h..30h。整个record资源key可增加
+         * 保守预检组，但不应改变动作/RNG或反写这些来源字节。 */
+        for(size_t i=0;i<3;i++)for(size_t j=0;j<9;j++)
+            ((uint8_t *)&game.units.items[i])[0x28u+j]=
+                (uint8_t)(0x83u+j*7u+(i==2u ? distinct_retained:0u));
         followup_physical_observer seen={.rng=&rng,.reject_scene_one=reject,
             .mode=full ? FD2_FIELD_PHYSICAL_MODE_FULL:FD2_FIELD_PHYSICAL_MODE_SHORT};
         game.physical_present=observe_followup_physical;game.physical_present_userdata=&seen;
         fd2_field_units before=game.units;
         CHECK(fd2_field_game_process_automatic_action(&game)==(reject ? -1:1));
-        CHECK(seen.probes==2 && seen.scene_mask==3 && !seen.invalid);
+        size_t expected_probes=2u+(reject ? 0u:distinct_retained);
+        if(seen.probes!=expected_probes || seen.scene_mask!=3 || seen.invalid)
+            fprintf(stderr,"followup retained: full=%d reject=%d distinct=%u probes=%zu expected=%zu mask=%u invalid=%d\n",
+                full,reject,distinct_retained,seen.probes,expected_probes,seen.scene_mask,seen.invalid);
+        CHECK(seen.probes==expected_probes && seen.scene_mask==3 && !seen.invalid);
+        for(size_t i=0;i<3;i++)
+            CHECK(!memcmp((uint8_t *)&game.units.items[i]+0x28,
+                (uint8_t *)&before.items[i]+0x28,9));
         if (reject) CHECK(!rng.cursor && !seen.prepares && !seen.finishes &&
             !memcmp(&before,&game.units,sizeof(before)) && game.failure==FD2_FIELD_FAILURE_ACTION);
         else CHECK(seen.prepares==1 && seen.finishes==1 && rng.cursor==6 &&

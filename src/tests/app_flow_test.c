@@ -61,7 +61,11 @@ int main(void) {
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,2)==FD2_APP_FLOW_PREPARE);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,3)==FD2_APP_FLOW_PREPARE);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,20)==FD2_APP_FLOW_PREPARE);
-    CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,21)==FD2_APP_FLOW_ERROR);
+    /* S5已完成正常entry1..29；30..32是内部尾声/开场资源，不作准备入口。 */
+    for(int stage=1;stage<=29;stage++)
+        CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,stage)==FD2_APP_FLOW_PREPARE);
+    for(int stage=30;stage<=32;stage++)
+        CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_VICTORY,stage)==FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_DEFEAT,-1)==FD2_APP_FLOW_TITLE);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_HOST_QUIT,1)==FD2_APP_FLOW_EXIT);
     CHECK(fd2_app_flow_after_battle(FD2_APP_FIELD_LEAVE_GAME,1)==FD2_APP_FLOW_LEAVE_GAME);

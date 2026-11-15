@@ -902,7 +902,10 @@ static int play_app_prologue(fd2_vga *vga,const fd2_archive *fdother,
         fd2_bgm_player *bgm,fd2_field_audio *audio,int once,
         fd2_field_handoff *handoff,fd2_field_play_context *context) {
     fd2_scene_runtime runtime={app_scene_rng,context,{context->message_number,
-        context->message_new_fragment,context->message_old_fragment}};
+        context->message_new_fragment,context->message_old_fragment},&context->preparation};
+    /* title_action_dispatch @0x25ebb（原同名）25efa只重置53BFB。
+     * 保留已拥有的完整53BF7；stage/gold由新开场的原写点决定。 */
+    context->preparation.unit_count=0;
     vga->info_panel_suppressed=1; /* START的main跨度延续至entry/primary。 */
     int result=fd2_scene_play_new_game_prologue_handoff_with_runtime(
         vga,fdother,bgm,audio,once,handoff,&runtime);

@@ -16,6 +16,9 @@ typedef struct {
     fd2_field_combat_rng_fn rng;
     void *rng_userdata;
     fd2_text_parameters text;
+    /* 25efa只清count；3231b的四次112a5原位写现App完整A00。
+     * 仅新游戏开场借用；普通Scene/Game不由此取得另一张roster。 */
+    fd2_save_manual_state *new_game_roster;
 } fd2_scene_runtime;
 
 typedef enum {

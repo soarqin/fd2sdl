@@ -145,7 +145,7 @@ static void scene_state_borrow_game(fd2_scene_field_state *state,
         const fd2_field_game *game) {
     state->info_game=game;
     state->runtime=(fd2_scene_runtime){game->attack_rng,game->attack_rng_userdata,
-        {game->message_number,game->message_new_fragment,game->message_old_fragment}};
+        {game->message_number,game->message_new_fragment,game->message_old_fragment},NULL};
     state->names=&game->ui_text;
 }
 
@@ -510,8 +510,8 @@ static int opening_actor_set_template(
         x < 0 || x > 0xff || y < 0 || y > 0xff)
         return -1;
 
-    fd2_field_unit unit;
-    memset(&unit, 0, sizeof(unit));
+    /* 10c50只写原构造字段，Scene重用目标槽时也保其余已拥有字节。 */
+    fd2_field_unit unit = state->units.items[actor_idx];
     unit.x = (uint8_t)x;
     unit.y = (uint8_t)y;
     if (fd2_field_unit_stage_template_apply(&unit, template_record) == 0) {
@@ -535,7 +535,7 @@ static int opening_actor_set_template(
 
 static int init_opening_field_state(fd2_scene_field_state *state, size_t stage,
     const fd2_field_map *map, const fd2_field_metadata *metadata,
-    const fd2_field_placements *placements);
+    const fd2_field_placements *placements, const fd2_scene_runtime *runtime);
 
 static void opening_camera_pixels(const fd2_field_map *map,
                                   const fd2_scene_field_state *field_state,
@@ -1909,7 +1909,7 @@ static void scene_source_load(scene_flow_context *c) {
 
 static int opening_stage_open(fd2_opening_stage *scene,
     const fd2_archive *field, const fd2_archive *fdshap,
-    const fd2_archive *fdtxt, size_t stage);
+    const fd2_archive *fdtxt, size_t stage,const fd2_scene_runtime *runtime);
 static int field_event_append_group(fd2_vga *vga, const fd2_archive *fdother,
     const fd2_field_game *game, fd2_scene_field_state *state,
     uint8_t group, int force, int arrival_effect, fd2_field_audio *audio,
@@ -2201,8 +2201,29 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "init_player")) {
             uint8_t x, y;
             if (!c->state || fd2_field_unit_deployment_position(c->metadata,
-                    c->placements,(size_t)a[3],&x,&y) != 0 ||
-                opening_actor_set(c->state,(size_t)a[0],(uint16_t)a[1],x,y) != 0) return -1;
+                    c->placements,(size_t)a[3],&x,&y) != 0) return -1;
+            if(c->runtime && c->runtime->new_game_roster) {
+                /* new_game_opening_play @0x3231b（原同名）327f7..32815：
+                 * 四次112a5在现53BF7目标槽写58B，余22B及unused尾仍归App。
+                 * Scene仅部署该记录；Game之后消费同一来源，不再重构roster。 */
+                fd2_save_manual_state *roster=c->runtime->new_game_roster;
+                size_t actor=(size_t)a[0];
+                if(a[0]<0 || actor!=c->state->units.count || actor!=roster->unit_count ||
+                    actor>=FD2_SAVE_MAX_UNITS || a[1]<0 || a[1]>31)return -1;
+                fd2_field_unit unit;
+                memcpy(&unit,roster->unit_area+actor*sizeof(unit),sizeof(unit));
+                if(fd2_field_unit_persistent_create(&unit,(uint8_t)a[1])!=0)return -1;
+                memcpy(roster->unit_area+actor*sizeof(unit),&unit,sizeof(unit));
+                roster->unit_count++;
+                unit.x=x;unit.y=y;unit.direction=unit.frame_phase=0;unit.side=2;
+                ((uint8_t *)&unit)[0x31]=0xff;
+                memset((uint8_t *)&unit+0x22,0,6);
+                c->state->units.items[actor]=unit;
+                c->state->units.walk_frames[actor]=1;
+                c->state->units.source_template_indices[actor]=FD2_FIELD_UNIT_NO_TEMPLATE;
+                c->state->units.count=actor+1u;
+                if(fd2_field_units_sprite_cache_append(&c->state->units,actor)!=0)return -1;
+            } else if(opening_actor_set(c->state,(size_t)a[0],(uint16_t)a[1],x,y)!=0)return -1;
         } else if (!strcmp(n->op, "init_templates")) {
             if (!c->state || !c->placements || !c->metadata || a[0] < 0) return -1;
             size_t count;
@@ -2221,7 +2242,7 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             }
         } else if (!strcmp(n->op, "opening_stage")) {
             if (!c->opening || !c->field_archive || !c->shape_archive || !c->text_archive ||
-                opening_stage_open(c->opening,c->field_archive,c->shape_archive,c->text_archive,(size_t)a[0]) != 0 ||
+                opening_stage_open(c->opening,c->field_archive,c->shape_archive,c->text_archive,(size_t)a[0],c->runtime) != 0 ||
                 !c->vga || fd2_field_background_rebuild(c->vga->field_page,
                     c->fdother,(size_t)a[0])!=0) return -1;
             c->terrain=&c->opening->terrain; c->map=&c->opening->map;
@@ -2332,11 +2353,11 @@ int fd2_scene_stage_transition_finish(fd2_vga *vga) {
 
 static int init_opening_field_state(fd2_scene_field_state *state, size_t stage,
         const fd2_field_map *map, const fd2_field_metadata *metadata,
-        const fd2_field_placements *placements) {
+        const fd2_field_placements *placements, const fd2_scene_runtime *runtime) {
     if (!state || !map || !placements || !placements->records || !metadata) return -1;
     memset(state,0,sizeof(*state));
     scene_flow_context c={0};
-    c.state=state; c.map=map; c.metadata=metadata; c.placements=placements;
+    c.state=state; c.map=map; c.metadata=metadata; c.placements=placements;c.runtime=runtime;
     return scene_flow_run(&c,scene_stage_flow("scene.init",stage));
 }
 
@@ -2354,7 +2375,7 @@ static int opening_stage_open(fd2_opening_stage *scene,
                               const fd2_archive *field,
                               const fd2_archive *fdshap,
                               const fd2_archive *fdtxt,
-                              size_t stage) {
+                              size_t stage, const fd2_scene_runtime *runtime) {
     opening_stage_close(scene);
     scene->stage = stage;
     if (fd2_field_map_open_stage(&scene->map, field, stage) != 0 ||
@@ -2366,7 +2387,7 @@ static int opening_stage_open(fd2_opening_stage *scene,
         return -1;
     }
     if (init_opening_field_state(&scene->field_state, stage,
-            &scene->map, &scene->metadata, &scene->placements) != 0) {
+            &scene->map, &scene->metadata, &scene->placements,runtime) != 0) {
         opening_stage_close(scene);
         return -1;
     }

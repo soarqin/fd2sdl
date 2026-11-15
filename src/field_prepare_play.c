@@ -482,10 +482,12 @@ static int prepare_service_selection_sound(prepare_ui *ui,size_t sample,int seco
     return fd2_pcm_play_replace(ui->audio->secondary_player,ui->audio->ui_bank,
         sample,1,FD2_GAME_SFX_DEFAULT_GAIN);
 }
-static int sync_audio_options(prepare_ui *ui) {
+static int sync_context_options(prepare_ui *ui) {
     if (ui->context->has_preparation) {
         ui->context->music_enabled = ui->context->preparation.options[2];
         ui->context->sfx_enabled = ui->context->preparation.options[3];
+        ui->context->camera_option=ui->context->preparation.options[0];
+        ui->context->effect_option=ui->context->preparation.options[1];
         if (ui->context->bgm && fd2_bgm_set_music_enabled(ui->context->bgm,
                 ui->context->preparation.options[2] != 0, 0) != 0) return -1;
         if (ui->audio && ui->audio->player && ui->audio->player->audio && fd2_pcm_player_set_enabled(ui->audio->player,
@@ -496,7 +498,7 @@ static int sync_audio_options(prepare_ui *ui) {
     return 0;
 }
 static int music(prepare_ui *ui, int track, const char *reason) {
-    if (sync_audio_options(ui) != 0) return -1;
+    if (sync_context_options(ui) != 0) return -1;
     size_t stage = ui->context->has_preparation ? ui->context->preparation.stage_id : 1u;
     return fd2_field_play_request_music(ui->context, stage, track, reason);
 }
@@ -862,7 +864,7 @@ static int slots_run(prepare_ui *ui, int save_mode, int consumer) {
             ui->context->has_preparation = 1;
             /* field_manual_slot_load @0x2986f（原同名登记）只恢复flag；
              * 酒店13不重开/不变音量，未来cue立即服从新flag。 */
-            if (sync_audio_options(ui) != 0) { result = -1; break; }
+            if (sync_context_options(ui) != 0) { result = -1; break; }
             printf("prepare load: slot=%d stage=%u roster=%u title=%d\n", selected,
                 loaded.stage_id, loaded.unit_count, title_mode); fflush(stdout);
             if (!title_mode) { result = notice(ui, 478, 1, 0); if (result != 0) break; }

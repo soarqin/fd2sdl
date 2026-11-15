@@ -1457,6 +1457,7 @@ if(BUILD_TESTING)
         fd2_field_game_close=__wrap_fd2_field_game_close
         fd2_field_game_animate_command=__wrap_fd2_field_game_animate_command
         fd2_field_game_open=__wrap_fd2_field_game_open
+        fd2_field_game_open_from_roster=__wrap_fd2_field_game_open_from_roster
         fd2_field_game_process_automatic_action_visual=__wrap_fd2_field_game_process_automatic_action_visual
         fd2_scene_play_common_step=__wrap_fd2_scene_play_common_step
         fd2_field_game_set_loot_preflight=__wrap_fd2_field_game_set_loot_preflight

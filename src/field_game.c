@@ -171,7 +171,8 @@ static int append_persistent_player(fd2_field_game *game, uint8_t unit_id) {
     return 0;
 }
 
-static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow);
+static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow,
+    const fd2_save_manual_state *initial_roster);
 
 size_t fd2_field_game_group_count(const fd2_field_game *game, uint8_t group) {
     size_t count = 0;
@@ -1094,12 +1095,13 @@ int fd2_field_game_open_resources(fd2_field_game *game,
     return open_resources_for_flow(game, fdother, stage, 0);
 }
 
-int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
-                        const fd2_archive *fdother, size_t stage) {
+static int open_initial_game(fd2_field_game *game, fd2_vga *vga,
+        const fd2_archive *fdother, size_t stage,
+        const fd2_save_manual_state *initial_roster) {
     if (!game) return -1;
     if (!vga || stage != 0u) { memset(game, 0, sizeof(*game)); return -1; }
     if (fd2_field_game_open_resources(game, fdother, stage) != 0) return -1;
-    if (load_initial_units(game, fd2_static_flow_lookup("scene", "scene.init.000")) != 0)
+    if (load_initial_units(game, fd2_static_flow_lookup("scene", "scene.init.000"), initial_roster) != 0)
         goto fail;
     const uint8_t *palette;
     size_t palette_size;
@@ -1119,6 +1121,20 @@ int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
 fail:
     fd2_field_game_close(game);
     return -1;
+}
+
+int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
+        const fd2_archive *fdother, size_t stage) {
+    return open_initial_game(game,vga,fdother,stage,NULL);
+}
+
+int fd2_field_game_open_from_roster(fd2_field_game *game, fd2_vga *vga,
+        const fd2_archive *fdother, const fd2_save_manual_state *roster) {
+    if (!roster || roster->unit_count!=4u) {
+        if(game)memset(game,0,sizeof(*game));
+        return -1;
+    }
+    return open_initial_game(game,vga,fdother,0,roster);
 }
 
 /* sub_1088D @0x1088d与field_stage1_entry_play @0x32d18（原sub_32D18）：只重建active交互字段，
@@ -1358,6 +1374,7 @@ typedef struct {
     const fd2_archive *fdother;
     const fd2_save_manual_state *deployment;
     fd2_save_manual_state *prepared;
+    const fd2_save_manual_state *initial_roster; /* 仅START已构造来源，不新增热owner。 */
 } stage_flow_context;
 
 /* entry/victory/settlement共用冷节点；Scene只消费相同来源的present视图。 */
@@ -1383,13 +1400,24 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
                     return -1;
                 uint8_t x, y;
                 if (fd2_field_unit_deployment_position(&entry->metadata, &entry->placements,
-                        ordinal, &x, &y) != 0 || x >= entry->map.width || y >= entry->map.height ||
-                    append_persistent_player(entry, (uint8_t)n->args[1]) != 0 ||
-                    fd2_field_units_set(units, actor, (uint8_t)n->args[1], (uint8_t)n->args[1], 2,
+                        ordinal, &x, &y) != 0 || x >= entry->map.width || y >= entry->map.height)
+                    return -1;
+                size_t persistent;
+                if(context->initial_roster) {
+                    if(entry->roster_count!=tail || actor>=entry->roster_count ||
+                        entry->roster[actor].unit_id!=(uint8_t)n->args[1] ||
+                        entry->roster[actor].text_id!=(uint8_t)n->args[1])return -1;
+                    persistent=actor;
+                } else {
+                    if(append_persistent_player(entry,(uint8_t)n->args[1])!=0)return -1;
+                    persistent=entry->roster_count-1u;
+                }
+                if (fd2_field_units_set(units, actor, (uint8_t)n->args[1], (uint8_t)n->args[1], 2,
                         x, y) != 0) return -1;
-                /* 1088d仍先创建persistent，再拷贝active；成员和部署引用取同一冷图。 */
+                /* 1088d拷persistent后部署；正式START的112a5已由Scene原写点完成，
+                 * 独立field入口才在本TU构造。成员和部署引用仍取同一冷图。 */
                 fd2_field_unit *active = &units->items[actor];
-                *active = entry->roster[entry->roster_count - 1u];
+                *active = entry->roster[persistent];
                 active->x = x; active->y = y;
                 active->direction = active->frame_phase = 0;
                 ((uint8_t *)active)[0x31] = 0xff;
@@ -1468,11 +1496,16 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
 
 /* new_game_opening_play @0x3231b：Scene与Game共用初始成员和模板选择，
  * 仅Scene消费present-only的开场前藏显；Game不重放对白和移动。 */
-static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow) {
+static int load_initial_units(fd2_field_game *game, const fd2_static_flow *flow,
+        const fd2_save_manual_state *initial_roster) {
     if (!game || !flow) return -1;
     fd2_field_units_clear(&game->units);
     game->roster_count = 0;
-    stage_flow_context context = {game, game, &game->units, NULL, NULL, NULL};
+    if(initial_roster) {
+        memcpy(game->roster,initial_roster->unit_area,sizeof(game->roster));
+        game->roster_count=initial_roster->unit_count;
+    }
+    stage_flow_context context = {game, game, &game->units, NULL, NULL, NULL,initial_roster};
     if (run_stage_logic(flow, &context) != 0) return -1;
     return validate_initial_units(game);
 }
@@ -1481,7 +1514,7 @@ static int prepare_stage_flow(fd2_field_game *game, const fd2_archive *fdother,
         const fd2_save_manual_state *state, const fd2_static_flow *flow) {
     if (!game) return -1;
     memset(game, 0, sizeof(*game));
-    stage_flow_context context = {game, game, &game->units, fdother, state, NULL};
+    stage_flow_context context = {game, game, &game->units, fdother, state, NULL,NULL};
     if (run_stage_logic(flow, &context) == 0) return 0;
     fd2_field_game_close(game);
     return -1;
@@ -1527,7 +1560,7 @@ int fd2_field_game_settlement_project_units(const fd2_field_game *game,
     fd2_field_battle_result result;
     if(fd2_field_game_battle_result_query(game,&result)!=0 || result!=FD2_FIELD_BATTLE_VICTORY)return -1;
     fd2_field_units shadow = game->units;
-    stage_flow_context context = {game, NULL, &shadow, NULL, NULL, NULL};
+    stage_flow_context context = {game, NULL, &shadow, NULL, NULL, NULL,NULL};
     if (run_stage_logic(stage_flow_get("victory", game->stage), &context) != 0) return -1;
     *out = shadow;
     return 0;
@@ -1544,7 +1577,7 @@ int fd2_field_game_settlement_prepare(const fd2_field_game *game,
     shadow.options[0] = game->option_values[3]; shadow.options[1] = game->option_values[2];
     shadow.options[2] = game->option_values[0]; shadow.options[3] = game->option_values[1];
     memcpy(shadow.unit_area, game->roster, sizeof(game->roster));
-    stage_flow_context context = {game, NULL, &units, NULL, NULL, &shadow};
+    stage_flow_context context = {game, NULL, &units, NULL, NULL, &shadow,NULL};
     if (run_stage_logic(stage_flow_get("settlement", game->stage), &context) != 0) return -1;
     *out = shadow;
     return 0;

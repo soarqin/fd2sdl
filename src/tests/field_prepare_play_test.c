@@ -517,10 +517,13 @@ static int selector_test(void) {
 
 static int title_cancel_and_load(fd2_archive *fdother,
         const fd2_save_manual_state *state, fd2_vga *vga) {
+    /* 26080/26088读原byte；25efa不写这两个App配置，不能bool化。 */
+    fd2_save_manual_state raw_state=*state;raw_state.options[0]=0xfe;raw_state.options[1]=0x7b;state=&raw_state;
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
     CHECK(fd2_save_manual_state_save(path, 0, state) == 0);
     fd2_field_play_context context = {0}; context.initialized = 1;
     context.experience_value = 631; context.message_number = 99;
+    context.camera_option=0x93;context.effect_option=0x8e;
     context.bgm = (fd2_bgm_player *)&context; option_sync_count=0;
     fd2_field_rng_seed(&context.rng, 0x1234);
     fd2_save_manual_state before = context.preparation;
@@ -532,6 +535,7 @@ static int title_cancel_and_load(fd2_archive *fdother,
     controls(vga); probe_title = 1; pulse(70, SDL_SCANCODE_ESCAPE);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_TITLE);
     CHECK(!context.has_preparation && memcmp(&before, &context.preparation, sizeof(before)) == 0);
+    CHECK(context.camera_option==0x93 && context.effect_option==0x8e);
     CHECK(context.rng.state == 0x1234 && context.experience_value == 631);
     CHECK(title_background_ok && title_palette_ok);
     CHECK(option_sync_count==0 && music_count==0);
@@ -542,12 +546,18 @@ static int title_cancel_and_load(fd2_archive *fdother,
     CHECK(context.has_preparation && context.preparation.stage_id == state->stage_id && context.preparation.unit_count == state->unit_count);
     CHECK(option_sync_count==1 && option_sync_enabled==(state->options[2]!=0) && option_sync_fade==0 && music_count==0);
     CHECK(context.music_enabled==(state->options[2]!=0) && context.sfx_enabled==(state->options[3]!=0));
+    CHECK(context.camera_option==0xfe && context.effect_option==0x7b);
     CHECK(memcmp(context.preparation.unit_area, state->unit_area, sizeof(state->unit_area)) == 0);
     CHECK(context.experience_value == 631 && context.rng.state == 0x1234);
+    controls(vga);option_sync_count=0;pulse(70,SDL_SCANCODE_RETURN);
+    CHECK(fd2_field_prepare_load_title(vga,fdother,&context,path,NULL)==FD2_FIELD_PREPARE_DEPART &&
+        option_sync_count==1 && context.camera_option==0xfe && context.effect_option==0x7b &&
+        !memcmp(context.preparation.unit_area,state->unit_area,sizeof(state->unit_area)));
     controls(vga); quit_frame = 3;
     before = context.preparation;
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_HOST_QUIT);
     CHECK(memcmp(&before, &context.preparation, sizeof(before)) == 0);
+    CHECK(context.camera_option==0xfe && context.effect_option==0x7b);
     CHECK(title_fade_calls==1u && frame_number==3u);
     for(int host=0;host<2;host++) {
         controls(vga);title_fade_result=host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
@@ -589,7 +599,8 @@ static int hotel_save_reopen(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 99;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3]; context.experience_value = 99;
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     fd2_field_rng_seed(&context.rng, 17);
     prepare_ui ui = {vga, fdother, a, &context, NULL, path, -1, 0, -1};
     controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(13, SDL_SCANCODE_ESCAPE); pulse(19, SDL_SCANCODE_ESCAPE);
@@ -605,7 +616,8 @@ static int hotel_save_reopen(fd2_archive *fdother, fd2_field_prepare_assets *a,
 static int town_roundtrip(fd2_archive *fdother, const fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 42; context.message_number = 7;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3]; context.experience_value = 42; context.message_number = 7;
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     controls(vga);
     pulse(1, SDL_SCANCODE_RETURN); /* town0 ->hotel */
     pulse(6, SDL_SCANCODE_ESCAPE); /* hotel ->town */
@@ -705,7 +717,8 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 0xfeed1234u;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3]; context.experience_value = 0xfeed1234u;
+    context.camera_option=0xfe;context.effect_option=0x7b;
     prepare_ui ui = {vga, fdother, a, &context, NULL, path, -1, 0, -1};
     controls(vga); pulse(6, SDL_SCANCODE_ESCAPE);
     CHECK(slots_run(&ui, 1, 0) == 0);
@@ -738,6 +751,7 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
     controls(vga);
     CHECK(slots_run(&ui, 1, 0) == -1 && frame_number == 0);
     CHECK(memcmp(&context.preparation, state, sizeof(*state)) == 0);
+    CHECK(context.camera_option==0xfe && context.effect_option==0x7b);
     CHECK(remove(path) == 0);
     (void)fdother;
     return 0;
@@ -746,7 +760,8 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
 static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3];
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     for (size_t i = state->unit_count; i < 17; i++) memcpy(context.preparation.unit_area + i * 80u, state->unit_area, 80);
     context.preparation.unit_count = 17;
     fd2_save_manual_state before = context.preparation;
@@ -766,7 +781,8 @@ static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(prepare_service_selection_close(&selection_ui)==0 && frame_number==25u &&
           !memcmp(&context.preparation,&before,sizeof(before)));
     prepare_service_cleanup(&selection_ui);
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3];
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     CHECK(fd2_field_prepare_assets_bind_roster(a,&context.preparation)==0);
     prepare_ui ui = {vga, fdother, a, &context, NULL, "unused.SAV", -1, 0, -1};
     controls(vga); pulse(5, SDL_SCANCODE_RIGHT); pulse(7, SDL_SCANCODE_RIGHT); pulse(9, SDL_SCANCODE_RIGHT);
@@ -779,7 +795,8 @@ static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_ass
 static int member_pages(fd2_archive *fdother, fd2_field_prepare_assets *a,
         const fd2_save_manual_state *state, fd2_vga *vga) {
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 321;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3]; context.experience_value = 321;
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     prepare_ui ui = {vga, fdother, a, &context, NULL, "unused.SAV", -1, 0, -1};
     fd2_pcm_player player={0};fd2_pcm_bank bank={0};fd2_field_audio audio={0};
     audio.player=&player;audio.ui_bank=&bank;ui.audio=&audio;
@@ -812,7 +829,8 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
     uint8_t before[FD2_SAVE_FILE_SIZE], after[FD2_SAVE_FILE_SIZE];
     CHECK(read_container(path, before) == 0);
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = *state; context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0; context.experience_value = 321;
+    context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3]; context.experience_value = 321;
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     fd2_pcm_player player = {0}; fd2_pcm_bank bank = {0};
     fd2_field_audio audio = {0}; audio.player = &player; audio.ui_bank = &bank;
     prepare_ui ui = {vga, fdother, a, &context, &audio, path, -1, 0, -1};
@@ -875,7 +893,8 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(title_cancel_and_load(fdother, &state, vga) == 0);
 
     fd2_field_play_context context = {0}; context.initialized = context.has_preparation = 1;
-    context.preparation = state; context.music_enabled=state.options[2]!=0;context.sfx_enabled=state.options[3]!=0; context.experience_value = 0xfeed1234u;
+    context.preparation = state; context.music_enabled=state.options[2];context.sfx_enabled=state.options[3]; context.experience_value = 0xfeed1234u;
+    context.camera_option=state.options[0];context.effect_option=state.options[1];
     context.message_number = 123456; fd2_field_rng_seed(&context.rng, 0x4321);
     fd2_field_play_context before = context;
     controls(vga); quit_frame = 1;
@@ -901,7 +920,9 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
     CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
           !memcmp(vga,&unchanged,sizeof(*vga)));
-    context.preparation = state; context.music_enabled=state.options[2]!=0;context.sfx_enabled=state.options[3]!=0; context.preparation.unit_area[7] = 255; before = context;
+    context.preparation = state; context.music_enabled=state.options[2];context.sfx_enabled=state.options[3];
+    context.camera_option=state.options[0];context.effect_option=state.options[1];
+    context.preparation.unit_area[7] = 255; before = context;
     controls(vga); unchanged = *vga;
     CHECK(fd2_field_prepare_run(vga,fdother,&context,"unused.SAV",NULL) == FD2_FIELD_PREPARE_ERROR);
     CHECK(!frame_number && !music_count && !memcmp(&context,&before,sizeof(context)) &&
@@ -928,7 +949,9 @@ static int stage2_preparation_routes(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(prepare_town(assets,fdother,1) == 0 && prepare_town(assets,fdother,2) == -1 && !assets->town_stage2.pixels);
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0 && remove(path) == 0);
     CHECK(fd2_save_manual_state_save(path,0,&state) == 0);
-    context.preparation=*stage1; context.has_preparation=1; before=context;
+    context.preparation=*stage1; context.has_preparation=1;
+    context.music_enabled=stage1->options[2];context.sfx_enabled=stage1->options[3];
+    context.camera_option=stage1->options[0];context.effect_option=stage1->options[1];before=context;
     prepare_ui ui={vga,fdother,assets,&context,NULL,path,-1,0,-1};
     controls(vga); pulse(6,SDL_SCANCODE_RETURN);
     CHECK(slots_run(&ui,0,1) == -1);
@@ -943,10 +966,12 @@ static int hotel_load_keeps_sequence(fd2_archive *fdother, fd2_field_prepare_ass
         const fd2_save_manual_state *state, fd2_vga *vga) {
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path)==0 && remove(path)==0);
     fd2_save_manual_state loaded=*state; loaded.options[2]=!state->options[2]; loaded.options[3]=!state->options[3];
+    loaded.options[0]=0xfe;loaded.options[1]=0x7b;
     CHECK(fd2_save_manual_state_save(path,0,&loaded)==0);
     uint8_t before[FD2_SAVE_FILE_SIZE],after[FD2_SAVE_FILE_SIZE]; CHECK(read_container(path,before)==0);
     fd2_field_play_context context={0};context.initialized=context.has_preparation=1;
-    context.preparation=*state;context.music_enabled=state->options[2]!=0;context.sfx_enabled=state->options[3]!=0;context.bgm=(fd2_bgm_player *)&context;context.experience_value=99;
+    context.preparation=*state;context.music_enabled=state->options[2];context.sfx_enabled=state->options[3];context.bgm=(fd2_bgm_player *)&context;context.experience_value=99;
+    context.camera_option=state->options[0];context.effect_option=state->options[1];
     prepare_ui ui={vga,fdother,assets,&context,NULL,path,-1,0,-1};
     controls(vga);option_sync_count=0;
     CHECK(music(&ui,13,"hotel")==0);
@@ -954,11 +979,14 @@ static int hotel_load_keeps_sequence(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(slots_run(&ui,0,0)==2);
     CHECK(option_sync_count==2 && option_sync_enabled==(loaded.options[2]!=0) && option_sync_fade==0);
     CHECK(context.music_enabled==(loaded.options[2]!=0) && context.sfx_enabled==(loaded.options[3]!=0));
+    CHECK(context.camera_option==0xfe && context.effect_option==0x7b);
     CHECK(music_count==1 && music_tracks[0]==13); /* Load不是退出酒店，不得发-1/10/13。 */
     CHECK(!memcmp(&context.preparation,&loaded,sizeof(loaded)) && context.experience_value==99);
     CHECK(read_container(path,after)==0 && !memcmp(before,after,sizeof(before)));
     context.preparation.options[2]=2;context.preparation.options[3]=3;
-    CHECK(sync_audio_options(&ui)==0 && context.music_enabled==2 && context.sfx_enabled==3);
+    context.preparation.options[0]=0x81;context.preparation.options[1]=0x72;
+    CHECK(sync_context_options(&ui)==0 && context.music_enabled==2 && context.sfx_enabled==3 &&
+        context.camera_option==0x81 && context.effect_option==0x72);
     CHECK(option_sync_enabled==1 && option_sync_fade==0 && music_count==1);
     CHECK(remove(path)==0);return 0;
 }
@@ -1158,6 +1186,7 @@ static int services_buy_reaches_products(fd2_archive *fdother,fd2_field_prepare_
     fd2_vga *products=calloc(1,sizeof(*products));CHECK(context&&expected&&products);
     context->initialized=context->has_preparation=1;context->preparation=*state;
     context->music_enabled=state->options[2];context->sfx_enabled=state->options[3];
+    context->camera_option=state->options[0];context->effect_option=state->options[1];
     context->experience_value=0x12345678u;fd2_field_rng_seed(&context->rng,0x4321);
     CHECK(fd2_field_prepare_assets_open_service(assets,fdother,1)==0 &&
         fd2_field_prepare_assets_bind_roster(assets,state)==0);

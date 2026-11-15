@@ -144,6 +144,7 @@ void fd2_field_play_context_init(fd2_field_play_context *context,
     (void)fd2_field_rng_bootstrap(&context->rng, getenv("FD2SDL_FIELD_RNG_SEED"));
     context->bgm = bgm;
     context->music_enabled = context->sfx_enabled = 1;
+    context->camera_option=1;context->effect_option=0;
     context->initialized = 1;
 }
 
@@ -1506,7 +1507,7 @@ done:
 }
 
 
-static void apply_field_audio_options(const fd2_field_game *game,
+static void apply_field_options(const fd2_field_game *game,
         fd2_field_audio *field_audio, fd2_field_play_context *context, int fade_music) {
     if (!game) return;
     /* field_options_menu_execute @0x1728c（原同名登记）：toggle为1秒sequence渐变。
@@ -1515,6 +1516,8 @@ static void apply_field_audio_options(const fd2_field_game *game,
     if (context) {
         context->music_enabled = game->option_values[0];
         context->sfx_enabled = game->option_values[1];
+        context->effect_option=game->option_values[2];
+        context->camera_option=game->option_values[3];
         if (context->bgm) (void)fd2_bgm_set_music_enabled(context->bgm, context->music_enabled != 0, fade_music);
     }
     if (field_audio && field_audio->player && field_audio->player->audio)
@@ -2260,6 +2263,23 @@ static int begin_victory_flow(fd2_field_game *game, fd2_field_play_context *cont
     return -1;
 }
 
+/* main@25bf4的53BF7跨Game/标题仍活着；只交还roster/count，不激活准备
+ * 或用旧stage/gold/options覆盖已完成的结算。真实未建立的Game不交接。 */
+static void play_roster_return(const fd2_field_game *game,fd2_field_play_context *context) {
+    if(context && game->roster_count<=FD2_SAVE_BATTLE_MAX_ROSTER) {
+        memcpy(context->preparation.unit_area,game->roster,sizeof(game->roster));
+        context->preparation.unit_count=(uint8_t)game->roster_count;
+        context->music_enabled=game->option_values[0];
+        context->sfx_enabled=game->option_values[1];
+        context->effect_option=game->option_values[2];
+        context->camera_option=game->option_values[3];
+    }
+}
+static void play_game_close(fd2_field_game *game,fd2_field_play_context *context,int roster_owned) {
+    if(roster_owned)play_roster_return(game,context);
+    fd2_field_game_close(game);
+}
+
 fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                        const fd2_archive *fdother, size_t stage, int once,
                        const fd2_field_handoff *handoff,
@@ -2269,20 +2289,25 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (!vga || !fdother || (context && !context->initialized))
         return FD2_FIELD_PLAY_RETURN_ERROR;
     int prepared_entry = context && context->has_preparation && !load_active;
+    int opening_roster=context && handoff && handoff->valid && !prepared_entry && !load_active && stage==0u;
+    int roster_owned=context && (prepared_entry || opening_roster);
     int opened = prepared_entry
         ? (context->preparation.stage_id != stage ? -1 :
             fd2_field_game_prepare_stage(&game, fdother, &context->preparation))
         : load_active ? fd2_field_game_open_resources(&game, fdother, stage)
+        : opening_roster ? fd2_field_game_open_from_roster(&game,vga,fdother,&context->preparation)
         : fd2_field_game_open(&game, vga, fdother, stage);
     if (opened != 0) {
         fprintf(stderr, "cannot load stage %zu field game\n", stage);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     /* main @0x25bf4（原同名登记）→title_action_dispatch @0x25ebb
-     * （原同名登记）的START不重置51E61/62；只覆盖新场次的两个默认投影。 */
+     * （原同名登记）的START不写四个原option byte；不从准备meta继承。 */
     if (context && !load_active && !prepared_entry) {
         game.option_values[0] = context->music_enabled;
         game.option_values[1] = context->sfx_enabled;
+        game.option_values[2] = context->effect_option;
+        game.option_values[3] = context->camera_option;
         fd2_field_system_menu_set_options(&game.system_menu, game.option_values);
     }
     /* 正式 App 的标题／Scene／准备／Game／Load 始终借同一 context 流。
@@ -2294,7 +2319,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (fd2_field_game_set_attack_hooks(
             &game, NULL, NULL, NULL, NULL,
             fd2_field_rng_next, runtime_rng) != 0) {
-        fd2_field_game_close(&game);
+        play_game_close(&game,context,roster_owned);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     if (context) {
@@ -2303,35 +2328,36 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         game.message_new_fragment = context->message_new_fragment;
         game.message_old_fragment = context->message_old_fragment;
         if (fd2_field_game_set_music_request(&game, field_phase_music, context) != 0) {
-            fd2_field_game_close(&game);
+            play_game_close(&game,context,roster_owned);
             return FD2_FIELD_PLAY_RETURN_ERROR;
         }
     }
     if (handoff && fd2_field_game_apply_handoff(&game, handoff) != 0) {
         fprintf(stderr, "cannot apply stage %zu opening handoff\n", stage);
-        fd2_field_game_close(&game);
+        play_game_close(&game,context,roster_owned);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     if (load_active && fd2_field_game_load_active(&game, save_path) != 0) {
         fprintf(stderr, "cannot import active field save: %s\n",
                 save_path ? save_path : "(null)");
-        fd2_field_game_close(&game);
+        play_game_close(&game,context,roster_owned);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
+    if(load_active && context)roster_owned=1;
     if (fd2_field_game_bind_visual(&game,vga)!=0) {
-        fd2_field_game_close(&game);return FD2_FIELD_PLAY_RETURN_ERROR;
+        play_game_close(&game,context,roster_owned);return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     field_runtime_presentation runtime={vga,field_audio,once,0,NULL,context};
     game.runtime_present=play_runtime_step;
     game.runtime_present_userdata=&runtime;
     if(fd2_field_play_bind_event_preflight(&game,fdother)!=0) {
-        fd2_field_game_close(&game);return FD2_FIELD_PLAY_RETURN_ERROR;
+        play_game_close(&game,context,roster_owned);return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     if (load_active) {
         const uint8_t *palette;
         size_t size;
         if (fd2_archive_get(fdother, 0, &palette, &size) != 0 || size < 768) {
-            fd2_field_game_close(&game);
+            play_game_close(&game,context,roster_owned);
             return FD2_FIELD_PLAY_RETURN_ERROR;
         }
         /* 标题CONTINUE先恢复共用调色板，活动快照不重播205da开场。 */
@@ -2341,7 +2367,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     if (prepared_entry) {
         int entry_result = fd2_scene_play_stage_entry(vga, fdother, &game, field_audio, once);
         if (entry_result != FD2_SCENE_RESULT_OK) {
-            fd2_field_game_close(&game);
+            play_game_close(&game,context,roster_owned);
             return entry_result == FD2_SCENE_RESULT_HOST_QUIT
                 ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
         }
@@ -2349,14 +2375,14 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     }
     fd2_field_game_set_save_resource_available(
         &game, fd2_field_game_save_resource_available(&game, save_path));
-    apply_field_audio_options(&game, field_audio, context, 0);
+    apply_field_options(&game, field_audio, context, 0);
     if (context) {
         const fd2_field_stage_music *music = fd2_field_stage_music_get(game.stage);
         if (!music ||
             (load_active && fd2_field_play_request_music(context, game.stage, -1, "continue-stop") != 0) ||
             fd2_field_play_request_music(context, game.stage,
                 music->primary, load_active ? "continue" : "entry") != 0) {
-            fd2_field_game_close(&game);
+            play_game_close(&game,context,roster_owned);
             return FD2_FIELD_PLAY_RETURN_ERROR;
         }
     }
@@ -2369,7 +2395,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
         int round_result=fd2_field_game_runtime_refresh(&game,vga,3);
         if (!round_result) round_result=play_runtime_step(&game,FD2_FIELD_RUNTIME_ROUND,0,&runtime);
         if (round_result) {
-            fd2_field_game_close(&game);
+            play_game_close(&game,context,roster_owned);
             return round_result>0?FD2_FIELD_PLAY_RETURN_HOST_QUIT:FD2_FIELD_PLAY_RETURN_ERROR;
         }
         game.focus_cycle_unit=0;
@@ -2379,7 +2405,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             &game, progress_resources_preflight, (void *)fdother) != 0 ||
         fd2_field_game_set_loot_preflight(
             &game, loot_resources_preflight, (void *)fdother) != 0)) {
-        fd2_field_game_close(&game);
+        play_game_close(&game,context,roster_owned);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
 
@@ -2390,7 +2416,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             field_audio ? field_audio->player : NULL,
             field_audio ? field_audio->secondary_player : NULL,
             fdother, &game.figani_archive, &game) != 0) {
-        fd2_field_game_close(&game);
+        play_game_close(&game,context,roster_owned);
         return FD2_FIELD_PLAY_RETURN_ERROR;
     }
     fd2_battle_animation_set_skip(&battle, once);
@@ -2849,7 +2875,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                             fd2_field_game_confirm_system_menu(&game);
                         if (system_action ==
                                 FD2_FIELD_SYSTEM_ACTION_OPTIONS_TOGGLE_PENDING) {
-                            apply_field_audio_options(&game, field_audio, context,
+                            apply_field_options(&game, field_audio, context,
                                                       game.system_menu.selected == 0);
                             unsigned index = game.system_menu.selected;
                             printf("field option: index=%u value=%u\n", index,
@@ -2927,7 +2953,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                                 game.runtime_present_userdata=&runtime;
                                 reported_event_count = 0;
                                 reported_dropped_events = 0;
-                                apply_field_audio_options(&game, field_audio, context, 0);
+                                apply_field_options(&game, field_audio, context, 0);
                                 if (context) {
                                     const fd2_field_stage_music *music = fd2_field_stage_music_get(game.stage);
                                     if (!music ||
@@ -3376,6 +3402,9 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                 play_result = scene_result == FD2_SCENE_RESULT_HOST_QUIT
                     ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR;
         } else if (play_result == FD2_FIELD_PLAY_RETURN_DEFEAT) {
+            /* controller已返回；22e5c不再写persistent，先交还真实live表，
+             * HOST/呈现失败也不能丢掉败北前已到达的Load/业务前缀。 */
+            if(roster_owned){play_roster_return(&game,context);roster_owned=0;}
             vga->info_panel_suppressed=1; /* main25dde..25dea。 */
             int scene_result = fd2_scene_play_game_over(vga, fdother, context->bgm, once);
             if(scene_result==FD2_SCENE_RESULT_OK)vga->info_panel_suppressed=0;
@@ -3402,7 +3431,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
     /* App门沿实际caller已到写点继承；错误/host cleanup只释放借用资源，
      * 不凭离场将51AAC恢复为尚未发生的成功尾。 */
     fd2_battle_animation_close(&battle);
-    fd2_field_game_close(&game);
+    play_game_close(&game,context,roster_owned);
     return play_result;
 }
 

@@ -492,12 +492,13 @@ camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
 `DAT_00003bf3` 的 32 位资源值，`meta[14..17]` 依次对应 `DS:0x3af9、0x1aab、
 0x1e61、0x1e62` 四个配置字节。options loop @code0 `0x735b..0x73e2`
 确认四个selector均立即对原byte作XOR1，保留非0／1值；第三项仅在command-ID显示条件上反向。第一项控制音乐音量淡入／静音，第二项控制SFX；第三项是原动作FULL／SHORT调用选择，G2已接正式选项与Load。第四项信息板设置仍归G4；具体可见标签及运行覆盖以实际WGC收据为准。其余字节保持不透明。
-SDL 活动快照写入当前 session 的关卡 metadata 有效前缀、完整 `0xa00` 持久 roster、`meta[0..17]`、当前单位前缀和
-完整 32 字节 cell-state。metadata 的 shape、事件／action 表及模板来自本关资源和 session；stage 0 有效长度为 `0x83+31*26=937`，stage 1 为 `0x83+40*26=1171`。SDL 将 metadata 未用尾及其他未拥有区域从目标容器逐字保留；roster 的未知尾则随整个表在 session 中恢复和写回，不能混用目标容器的旧尾。不能把整份旧关卡 metadata 当成无关字节保留，否则原版会按首字节选错 FDSHAP。导入时要求 metadata shape 与目标关卡资源一致，并只解析已确认的模板数。
+SDL活动快照写入session已拥有的metadata来源及当前已知字段、完整`0xa00`持久roster、`meta[0..17]`、当前单位前缀及完整32B cell-state。metadata的shape、事件／action表与模板仍由本关解析结构唯一决定；stage0有效前缀为`0x83+31*26=937`，stage1为`0x83+40*26=1171`。活动Load按`10010@101c3..101cf`恢复整2211B到同一metadata owner，导出先保来源再覆盖当前已知字段，尾不能混用目标容器旧值。active meta[18..]和unit-area非active磁盘尾仍保目标字节；roster未知尾随完整表归session。导入要求shape与目标资源一致，只解析资源已确认的模板数；序列化backing不是第二业务真值。
 
-原版 `field_secondary_menu_execute @0x19df7` 每次写出整块 `2211` 字节 metadata。新阶段资源较短时，其后的运行期内存尾部不能假设等于旧存档；B5 原版运行中已观察到 stage 1 的 `1171..2210` 区间变化。这部分不作为新建关卡的精确双端字节判据，也不猜默认值。已知前缀、完整持久表和各已确认字段仍严格比较；既有档案的未知字节由导入／保存 owner 保留。
+原版`field_secondary_menu_execute @0x19df7`每次写整2211B metadata。F3完整`res_load @0x111ba`及allocator源已证fresh每条资源独立malloc(N)：普通0..29中仅14／20／26资源为2211B，其余27条的实际payload上界也小于2211B，故该Save拷贝会跨owner。按原memmove方向精确定位首U，不把N即当首U，也不把分配内slack自动判U。活动Load的完整2211B来源则须保留。SDL对短资源保`source_size`及已知字段、余尾保目标，是原首U之后的H安全继续；不猜原heap、不新增Save拒绝，也不声明fresh整2211B等值。方向、有效前缀和来源见[F3报告](../plans/f3-gameplay-lifecycle.md#31-短metadata的第一处越owner读)。B5原stage1尾变化观察保留原有限资格，不扩签。
 
-活动 Load 支持已恢复完整入口的 stage 0／1。先准备目标资源、从原地图重建网格，再按完成位应用 `field_completed_chest_tiles_apply @0x12263`（原 `sub_12263`），最后整体交接；失败保留当前 session。已开箱存档与旧未开箱存档双向恢复，不能在当前地图上重复增量加地形 ID。隐藏空部署槽可能经原脚本产生越界 byte 坐标，格式层保留该记录；可见单位仍要求有效地图坐标。
+目标文件不存在时，原19df7只初始化四个slot stage哨兵；其余未写位置会被checksum消费。metadata、roster、全部活动记录、cell和已知meta均有合法来源的前提下，正常DF=0的首欠来源byte为`K=0x12a3+80*count`（count<96），96时为`0x30d5`；4df1d读取／4df1e数值使用是未初始化U，位于合法分配内。仅metadata完整不够，fresh人物字段须另核可能更早的欠来源消费。此时wb可能已创建空文件但尚未fwrite。SDL整ff新容器是明确的H初始化策略，不能称原writer整ff。合法旧容器及完整roster／metadata的opaque来源不在该U分类内；完整写集与checksum次序见[F3报告](../plans/f3-gameplay-lifecycle.md#32-新建目标的未初始化输入)。
+
+活动Load按当前cold capability支持stage0..29，人数的minimum／exact门另核，不把有门当全部存取组合已验。先准备目标资源、从原地图重建网格，再按完成位应用`field_completed_chest_tiles_apply @0x12263`，按当前身份顺序恢复cache并同步raw+2，最后整体交接；失败保当前session。已开／未开箱双向恢复，不能在当前地图上重复增量加地形ID。隐藏空部署槽可能经原脚本产生越界byte坐标，格式层保留该记录；可见单位仍要求有效地图坐标。手工Load的cache不写回persistent raw2，不能混用此活动合同。
 
 不得要求 `meta[9] == meta[1]` 或 roster 不超过当前活动数量。原版 `START.SAV` 的两数为 `12/4`，本地 `FD2.SAV` 为 `27/31`；后者本关 side 2 仅 20 人，也不能按当前玩家数重算 roster。`sub_112A5 @0x112a5` 在 `dword_53BF7 + 80*dword_53BFB` 追加持久角色并递增其 count；`sub_11506 @0x11506` 按 text ID 将已确认持续状态回写该独立表。活动恢复 `sub_10010 @0x10010` 分别恢复两个表及其数量。此前将 `meta[9]` 认作冗余副本的结论已被这些原版数据与调用链反证。
 原版 loader 读回

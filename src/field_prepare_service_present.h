@@ -562,7 +562,7 @@ static int prepare_service_ui(prepare_ui *ui,const fd2_static_flow_node *node,un
                 ui->vga->framebuffer+row*VGA_STRIDE+5,63);
         }
     } else if (!strcmp(node->op,"music")) {
-        if(node->args[0]<-1 || node->args[0]>28 || node->args[1]<0 || node->args[1]>1 || sync_audio_options(ui)!=0)goto fatal;
+        if(node->args[0]<-1 || node->args[0]>28 || node->args[1]<0 || node->args[1]>1 || sync_context_options(ui)!=0)goto fatal;
         if(ui->context->bgm)result=node->args[0]==-1 ? fd2_bgm_stop(ui->context->bgm):
             fd2_bgm_play(ui->context->bgm,(size_t)node->args[0],node->args[1]);
     } else if (!strcmp(node->op,"sfx")) {

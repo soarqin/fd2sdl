@@ -23,8 +23,11 @@
 - 原版单位始终是 `fd2_field_unit` 的 `0x50` 字节记录。玩法字段写入唯一记录，不能再保存第二份 HP、坐标或装备真值。
 - 模板新建、开场构造、完整存档恢复、转职和派生重算是不同层，不存在可代替全部路径的通用构造器。基础表覆盖角色 ID `0..31`、敌军 ID `68..135`；G2 另支持原实际调用的 ID48／66 相邻读取窗，不能将其命名为新基础表或推广成任意 ID32..67 新建。成长／转职具有自己的有效域；stage 0 捕获值只作夹具，不是通用默认值。模板有效前缀与部署位置读取原 metadata byte2／byte1，不用资源总条数或同 ID 次序代替同索引 placement。
 - FDICON 负责地图帧，DATO 当前只确认是立绘包，FIGANI 负责战斗演出；不能拿立绘索引猜属性或复用 TMP cache class 当职业。
-- phase cursor、范围／路径、菜单、演出快照、计时与 sprite cache 是 SDL 临时或派生状态，不直接序列化。
-- 地图 sprite 使用原 cache 映射；热身份改写不自动换图。Load 按当前 ID 和活动 raw 顺序重建派生 cache，保留存档的完整80B与 raw cache byte，不增加 SAV 字段。方向5等超出普通12帧组的读取只接受有来源的 cache 映射与资源窗，不能取模成方向0..3或猜 ID+1。
+- phase cursor、范围／路径、菜单、演出快照、计时与sprite cache映射数组是临时或派生状态，不直接序列化；单位raw+2本身是原80B记录中的字节，按caller合同保留或重写。
+- 地图sprite使用原cache映射；热身份改写不自动换图。活动Load按当前ID及全部raw顺序重建cache（含hidden），并由`10010@10391`写回raw+2，保其余79B；手工`2986f`只重建cache，不改persistent raw+2，不增加SAV字段。方向5等超出普通12帧组的读取只接受有来源的cache映射与资源窗，不能取模成方向0..3或猜ID+1。
+- 模板`10c50`以目标槽已有80B为底，保`28h..30h`九B，weapon=ff另保`0dh`；原明确清零字段仍清零。正式append与Scene也必须传实际owner底，不能用零局部抹掉这些字节。这不等于已证fresh原堆为零或任何固定资源值。
+- `53BF7`的完整A00在App建立时只分配一次。复用`context.preparation.unit_area`为Game外的既有backing；`has_preparation`只标记准备入口可用，START只清count。Scene在四个原112a5节点原位构造，Game窄入口消费同一来源，不重构或从磁盘代读；真实Game关闭前交还完整roster/count，失败Load不交还空表。成功结算先更新Game，再交新准备状态，关闭不得用旧表覆盖它。
+- START保留camera／effect／music／SFX四个raw byte，只在对应消费点转bool；新局资源值在原32969清0。不能随旧准备metadata盲继承stage／gold，也不能以创建Game为由重置原App选项。
 - `option_values` 与 `resource_value` 已有 session owner。配置是逐次 toggle 立即提交：未修改时退出不能改状态，已确认 toggle 后退出也不能擅自回滚。
 - `fd2_field_game` 含有拥有所有权的指针；结构体浅复制不等于可独立关闭的 session，也不等于外部 RNG 的快照。不能关闭两个共享资源的副本。
 

@@ -520,6 +520,10 @@ int fd2_field_game_open(fd2_field_game *game,
                         fd2_vga *vga,
                         const fd2_archive *fdother,
                         size_t stage);
+/* 正式START：Scene已在原112a5写点构造四条persistent。本入口只消费
+ * 完整A00及count，不继承旧stage/gold/options，也不再次构造持久成员。 */
+int fd2_field_game_open_from_roster(fd2_field_game *game, fd2_vga *vga,
+    const fd2_archive *fdother, const fd2_save_manual_state *roster);
 /* 1088d/10010共用资源准备；按已发布capability判门，不构造单位、推进phase、
  * 写VGA/palette/RNG。输出须是新owner（先close旧Game），失败后可安全close。
  * fdother借用至game关闭；失败释放已取得资源。 */

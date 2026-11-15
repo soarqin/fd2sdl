@@ -1,5 +1,6 @@
 """Load恢复的字段allowlist、观察边界和真实导航序列模型；无窗口无子进程。"""
 from pathlib import Path
+import json
 import os
 import sys
 import tempfile
@@ -95,6 +96,70 @@ class LoadMeasurementTest(unittest.TestCase):
                 load.require_source_unchanged(save, b"identical source A", original_stat.st_mtime_ns)
 
 
+class ActiveLoadCacheMeasurementTest(unittest.TestCase):
+    """完整原10010/11019的独立literal向量；不是自然游戏前提证明。"""
+    def setUp(self):
+        # 身份在+7；+4移动相位特设为不同值，防止字段错位自证。
+        identities = (7, 0, 7, 68, 68, 5, 0, 121, 121, 3, 8, 4)
+        self.expected_classes = (0, 1, 0, 2, 2, 3, 1, 4, 4, 5, 6, 7)
+        data = bytearray(source_snapshot())
+        for raw, identity in enumerate(identities):
+            base = load.UNITS + raw * load.STRIDE
+            data[base + 7] = identity
+            data[base + 2] = (raw + 3) % 8
+            data[base + 4] = (raw + 1) % 6
+        data[load.UNITS + 5] = 1  # 首个hidden身份仍占cache class0。
+        self.source = checksum(data)
+        for raw, expected in enumerate(self.expected_classes):
+            data[load.UNITS + raw * load.STRIDE + 2] = expected
+        self.measured = checksum(data)
+
+    def test_literal_first_identity_order_including_hidden_is_verified(self):
+        report = load.check_active_load_measurement(self.source, self.measured, ())
+        self.assertTrue(report['cache_classes_original_10010_verified'])
+        self.assertNotIn('cache_class_changes_excluded', report)
+        self.assertTrue(report['cache_class_rewrites_verified'])
+        self.assertEqual(report['measurement_camera_focus'], [5, 11, 8, 15, 3, 4])
+
+    def test_retaining_saved_classes_is_rejected(self):
+        with self.assertRaisesRegex(AssertionError, 'original10010'):
+            load.check_active_load_measurement(self.source, self.source, ())
+
+    def test_arbitrary_measured_class_cannot_be_an_oracle(self):
+        for raw in range(12):
+            bad = bytearray(self.measured)
+            bad[load.UNITS + raw * load.STRIDE + 2] ^= 1
+            with self.subTest(raw=raw), self.assertRaisesRegex(AssertionError, 'original10010'):
+                load.check_active_load_measurement(self.source, checksum(bad), ())
+
+    def test_measured_identity_or_inactive_tail_change_still_fails(self):
+        for position in (load.UNITS + 7, load.UNITS + 12 * load.STRIDE + 2):
+            bad = bytearray(self.measured)
+            bad[position] ^= 1
+            with self.subTest(position=position), self.assertRaisesRegex(AssertionError, 'outside the declared'):
+                load.check_active_load_measurement(self.source, checksum(bad), ())
+
+    def test_zero_and_full_disk_capacity_use_same_original_loop(self):
+        for count in (0, 96):
+            source = bytearray(self.source)
+            source[load.META + 1] = count
+            for raw in range(count):
+                source[load.UNITS + raw * load.STRIDE + 7] = raw % 7
+                source[load.UNITS + raw * load.STRIDE + 2] = 6
+            measured = bytearray(source)
+            for raw in range(count):
+                measured[load.UNITS + raw * load.STRIDE + 2] = raw % 7
+            with self.subTest(count=count):
+                report = load.check_active_load_measurement(checksum(source), checksum(measured), ())
+                self.assertTrue(report['cache_classes_original_10010_verified'])
+
+    def test_outside_disk_capacity_is_not_parsed_as_actor_records(self):
+        source = bytearray(self.source)
+        source[load.META + 1] = 97
+        with self.assertRaisesRegex(AssertionError, '96-record'):
+            load.check_active_load_measurement(checksum(source), self.measured, ())
+
+
 class LoadObservationTest(unittest.TestCase):
     def setUp(self):
         self.image = Image.new("RGB", (320, 200), (30, 60, 90))
@@ -168,6 +233,31 @@ class LoadObservationTest(unittest.TestCase):
             startup.assert_called_once()
             capture.wait.assert_called_once()  # Load之后不会再调用startup wait或补Esc。
 
+    def test_load_write_set_scope_has_no_z_or_unverified_return_navigation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save=Path(directory)/'FD2.SAV';save.write_bytes(b'source A');stamp=save.stat().st_mtime_ns
+            capture=Mock();capture.process.poll.return_value=None;observation={}
+            with patch.object(load,'wait_title'),\
+                    patch.object(load,'wait_state',return_value=(self.image,{'focus_screen':[148,28]})) as state,\
+                    patch.object(load,'wait_measured_save',return_value=b'measured plaintext') as measure,\
+                    patch.object(load,'require_source_unchanged',wraps=load.require_source_unchanged) as guard:
+                result=load.exercise(capture,'original',{},(76,100),(("LEFT",(52,100)),),
+                    {3:[self.image]*3},self.image,save,b'source A',Mock(),[],observation,
+                    source_mtime=stamp,focus_cycle=None)
+            self.assertEqual(result,b'measured plaintext');self.assertFalse(observation['focus_cycle_executed'])
+            self.assertEqual(observation['focus_cycle_before_load'],[])
+            self.assertNotIn('focus_cycle_after_load',observation)
+            self.assertEqual([x['branch'] for x in observation['cancellations']],['escape','no'])
+            open_load=['ENTER','UP','ENTER','RIGHT','ENTER']
+            expected=(['UP','ENTER','LEFT','ENTER','DOWN','ENTER','ENTER','LEFT']+
+                open_load+['ESC']+open_load+['RIGHT','ENTER']+open_load+
+                ['ENTER','LEFT','ENTER','UP','ENTER','LEFT','ENTER','ENTER'])
+            self.assertEqual([c.args[0] for c in capture.key.call_args_list],expected)
+            self.assertEqual(guard.call_count,5);measure.assert_called_once()
+            names=[c.args[1] for c in state.call_args_list]
+            self.assertFalse(any('focus-cycle' in name for name in names))
+            self.assertLess(names.index('original-loaded-source-focus-restored'),names.index('original-measurement-empty-step-1'))
+
     def test_missing_original_round2_banner_stops_before_load_or_save(self):
         capture = Mock()
         def wait(capture, name, predicate, checkpoints, **kwargs):
@@ -207,6 +297,49 @@ class LoadObservationTest(unittest.TestCase):
                 self.assertEqual(keys[-1], "Z")
                 self.assertEqual(keys.count("Z"), 2 if failed.startswith("round2") else 6)
                 measure.assert_not_called()
+
+
+class LoadLateGuardTest(unittest.TestCase):
+    def fixture(self, root):
+        original=root/'original_game';original.mkdir()
+        (original/'FDFIELD.DAT').write_bytes(b'metadata')
+        for name in ('game.exe','driver.exe','dosbox.exe','input.SAV'):
+            (root/name).write_bytes(name.encode())
+        return SimpleNamespace(root=root,artifacts=root/'out',game=root/'game.exe',
+            driver=root/'driver.exe',dosbox=root/'dosbox.exe',save_fixture=root/'input.SAV')
+
+    def test_business_error_survives_both_late_identity_read_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=self.fixture(Path(directory));read=Path.read_bytes;fixture_reads=0
+            def observe(path):
+                nonlocal fixture_reads
+                if path==args.save_fixture:
+                    fixture_reads+=1
+                    if fixture_reads>1:raise OSError('late fixture guard')
+                return read(path)
+            with patch.object(load,'hashes',side_effect=[{'EXE':'before'},OSError('late original guard')]),\
+                    patch.object(Path,'read_bytes',autospec=True,side_effect=observe),\
+                    patch.object(load,'archive_entry',side_effect=AssertionError('business mismatch')),\
+                    patch.object(load,'running') as running:
+                report=load.run(args)
+            self.assertFalse(report['ok']);self.assertEqual(report['error'],'business mismatch')
+            self.assertEqual(report['guard_errors'],[
+                {'guard':'original','text':'late original guard'},
+                {'guard':'fixture','text':'late fixture guard'}])
+            self.assertFalse(report['original_unchanged']);self.assertFalse(report['fixture_unchanged'])
+            self.assertEqual(json.loads((args.artifacts/'comparison.json').read_text()),report)
+            running.assert_not_called()
+
+    def test_report_write_error_preserves_business_error_for_outer_owner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=self.fixture(Path(directory))
+            with patch.object(load,'hashes',return_value={'EXE':'before'}),\
+                    patch.object(load,'archive_entry',side_effect=AssertionError('business mismatch')),\
+                    patch.object(Path,'write_text',side_effect=OSError('report disk failure')),\
+                    patch.object(load,'running') as running:
+                with self.assertRaisesRegex(RuntimeError,'business mismatch; report_write_error=report disk failure'):
+                    load.run(args)
+            running.assert_not_called()
 
 
 class LoadFocusCycleOracleTest(unittest.TestCase):

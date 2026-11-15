@@ -1,12 +1,15 @@
 /* 炎龙骑士团 2 SDL3 重写 - 正式战场 session 与 FD2.SAV 活动快照
  *
  * 逆向依据：field_secondary_menu_execute @0x19df7（原登记同名）
- * 写回完整 0x8a3 metadata 前缀，再将当前单位表写入
+ * 写回完整 0x8a3 metadata 窗口，再将当前单位表写入
  * plain+0x12a3、32 字节 cell state 写入 +0x30a3，并更新
  * +0x30c3 起的活动快照 meta；启动恢复入口 code0 0x10..0x44b 原样
  * 读回相同区域。meta[0..8]、资源字段 [10..13] 与配置字节 [14..17] 已有
- * SDL owner；metadata 的已用长度来自当前资源模板数，未使用尾部、
- * 其余 meta 和 unit-area 尾部保持原文件字节。独立 roster 整块归 session。
+ * SDL owner；metadata 的解析长度来自当前资源模板数，完整Load来源随
+ * metadata owner保留。res_load @0x111ba（原同名）按单资源长度分配；
+ * 27个普通fresh资源的原2211B读会越owner，memmove @0x3771c按地址选向。
+ * SDL只写已有来源，短资源尾保目标是首U之后的H安全继续，不模拟旧堆。
+ * 其余meta和unit-area尾保持目标字节，roster归session。
  */
 
 #include "field_game.h"
@@ -18,6 +21,9 @@
 #include "portrait.h"
 #include "field_prepare_item.h"
 #include "field_prepare.h"
+
+_Static_assert(FD2_FIELD_METADATA_BACKING_SIZE == FD2_SAVE_BATTLE_METADATA_SIZE,
+               "metadata source window must match the original 2211B writer");
 
 static int stage_snapshot_supported(size_t stage, size_t count) {
     fd2_field_stage_capability capability;
@@ -40,7 +46,8 @@ static void wr_u32_le(uint8_t *p, uint32_t value) {
 static size_t metadata_prefix_size(const fd2_field_metadata *metadata) {
     const size_t max_templates =
         (FD2_SAVE_BATTLE_METADATA_SIZE - 0x83u) / FD2_FIELD_UNIT_TEMPLATE_SIZE;
-    if (metadata->unit_template_count > max_templates ||
+    if (metadata->source_size > sizeof(metadata->source_bytes) ||
+        metadata->unit_template_count > max_templates ||
         (metadata->unit_template_count != 0u && !metadata->unit_templates))
         return 0;
     return 0x83u + metadata->unit_template_count * FD2_FIELD_UNIT_TEMPLATE_SIZE;
@@ -48,6 +55,9 @@ static size_t metadata_prefix_size(const fd2_field_metadata *metadata) {
 
 static void export_metadata(const fd2_field_metadata *metadata,
                              uint8_t *bytes, size_t size) {
+    /* 10010@101c3..101cf保完整来源；已知可变字段覆盖同一序列化窗口，
+     * source_bytes不是第二份可变业务状态。未提供的fresh尾不假补。 */
+    memcpy(bytes, metadata->source_bytes, metadata->source_size);
     bytes[0] = metadata->shape_index;
     bytes[1] = metadata->unknown_01;
     bytes[2] = metadata->unknown_02;
@@ -93,8 +103,9 @@ int fd2_field_game_export_battle_snapshot(
     if (metadata_size == 0u) return -1;
 
     /* snapshot 必须来自 fd2_save_file_get_battle_snapshot；只覆盖原版
-     * writer 明确写回且已有 owner 的 metadata 已用前缀、完整 roster、
-     * 单位前缀、cell state、meta[0..17]。metadata 未使用尾不重建。
+     * writer 明确写回且已有 owner 的metadata来源/解析字段、完整roster、
+     * 单位前缀、cell state、meta[0..17]。Loaded metadata整2211B归session；
+     * fresh短资源尾保目标为原跨owner读之后的H策略，不声称原堆一致。
      * 其中 meta[9] 是独立 roster count，meta[10..13] 是资源值。 */
     export_metadata(&game->metadata, snapshot->metadata, metadata_size);
     memcpy(snapshot->roster, game->roster, sizeof(game->roster));
@@ -217,6 +228,10 @@ static int import_current_stage(
     if (fd2_field_metadata_open_mem(&loaded_metadata, snapshot->metadata,
                                     metadata_prefix_size(&game->metadata)) != 0)
         return -1;
+    /* sub_10010@101c3..101cf：解析域仍取资源长度，恢复域是完整8a3h。 */
+    memcpy(loaded_metadata.source_bytes, snapshot->metadata,
+           sizeof(loaded_metadata.source_bytes));
+    loaded_metadata.source_size = sizeof(loaded_metadata.source_bytes);
     fd2_field_map loaded_map = {0};
     /* sub_10010 @0x10010每次从FDFIELD重读闭箱底图再调sub_12263。
      * 不能沿用当前已开箱map，否则Load旧档无法恢复闭箱。无map的纯记录
@@ -234,14 +249,16 @@ static int import_current_stage(
         loaded.walk_frames[i] = 1;
         loaded.source_template_indices[i] = FD2_FIELD_UNIT_NO_TEMPLATE;
     }
-    /* G2：10010读档后按raw actor顺序／当前ID重建cache，不信存档旧class。
-     * SDL以旁路表达重建class，保留原80B（也兼容旧SDL全0的raw+2）。
+    /* sub_10010@1036a..1039c按raw顺序/当前ID调用11019，10391将返回class
+     * 写回raw+2；手工2986f只建cache，不含这个写点，不改共享restore helper。
      * 必须先于live交接；失败仍保留原session及其资源owner。 */
     if (fd2_field_units_sprite_cache_restore(&loaded) != 0) {
         fd2_field_map_close(&loaded_map);
         fd2_field_metadata_close(&loaded_metadata);
         return -1;
     }
+    for (size_t i = 0; i < loaded.count; i++)
+        loaded.items[i].sprite_cache_class = loaded.sprite_cache_classes[i];
 
     fd2_field_metadata_close(&game->metadata);
     game->metadata = loaded_metadata;

@@ -11,6 +11,7 @@
 #include "field_background.h"
 #include "field_play.h"
 #include "field_item.h"
+#include "field_unit_base.h"
 #include "static_data.h"
 #include "animation.h"
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);return 1;}}while(0)
@@ -30,6 +31,7 @@ static unsigned s5_terminal_watch,s5_terminal_seen,s5_terminal_pumps,s5_montage_
 static unsigned s5_last_card_started,s5_wait_preflight_calls;
 static fd2_field_event_preflight_fn s5_real_resource_preflight;
 static unsigned s5_quit_on_delay;
+static const char *s5_predicate_last_op,*s5_predicate_last_id;
 static void s5_reset_io(fd2_vga *vga);
 static const fd2_static_flow *s5_flow_lookup(const char *domain,const char *id) {
     if(s5_flow_override && !strcmp(domain,"stage") && !strcmp(id,s5_flow_override->id))return s5_flow_override;
@@ -100,6 +102,9 @@ static int s5_actors_page_live(fd2_vga *vga,fd2_field_page *page,
 }
 static const fd2_static_flow_node *s5_node_at(const fd2_static_flow *flow,int pc){
     const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+    if(node && !strncmp(flow->id,"stage.source.",13)){
+        s5_predicate_last_op=node->op;s5_predicate_last_id=node->id;
+    }
     if(node && !strcmp(flow->id,"stage.cinematic.card_last"))s5_last_card_started=1;
     if(node && s5_terminal_watch){
         if(!strcmp(node->op,"cin_montage_open"))s5_montage_opens++;
@@ -251,6 +256,7 @@ static void s5_reset_io(fd2_vga *vga){
     s5_terminal_watch=s5_terminal_seen=s5_terminal_pumps=s5_montage_opens=s5_ending_enters=0;
     s5_last_card_started=s5_wait_preflight_calls=0;
     s5_real_resource_preflight=NULL;s5_quit_on_delay=0;
+    s5_predicate_last_op=s5_predicate_last_id=NULL;
     scene_host_quit_requested=scene_render_error=0;
 }
 #include "s5_cinematic_flow_checks.h"
@@ -604,11 +610,206 @@ static int s5_full_ending(const fd2_archive *other,unsigned stage,int real_slow)
     fd2_image_free(&expected);fd2_field_game_close(game);fd2_field_page_destroy(vga->field_page);free(vga);free(game);
     return 0;
 }
+
+/* F3参数补证：独立expected来自S2 transitions-candidate18的原caller
+ * vectors93..101/128..135/148..151及33499原指令14例；不读冷图生成期望。
+ * 232e8/23a0a/23e74、entry14/victory14仅签受控参数与真实Scene caller，
+ * 不是自然招募/死亡/回合producer或新原CPU运行。 */
+typedef struct {unsigned count,rng,stop;int host;fd2_vga *vga;int stories[8];} s5_predicate_trace;
+static uint32_t s5_predicate_rng(void *data){((s5_predicate_trace *)data)->rng++;return 7;}
+static int s5_predicate_story(const fd2_field_game *game,const fd2_static_flow_node *node,
+        const fd2_field_event_resource_view *view,void *data){
+    (void)game;(void)view;s5_predicate_trace *t=data;
+    if(!strcmp(node->op,"story")){
+        if(t->count>=8)return -1;t->stories[t->count++]=node->args[0];
+        if(t->stop && t->count==t->stop){
+            if(t->host)t->vga->input.quit_requested=1;
+            else return -1;
+        }
+    }
+    return 0;
+}
+static int s5_predicate_stage_case(const fd2_archive *other,unsigned stage,int entry,
+        unsigned state,unsigned hidden,int turn,unsigned hpmax,int recruited,unsigned stop,int host){
+    fd2_field_game *g=calloc(1,sizeof(*g));fd2_vga *vga=calloc(1,sizeof(*vga));
+    CHECK(g && vga && s5_prepare(g,other,stage)==0);
+    vga->field_page=fd2_field_page_create();CHECK(vga->field_page);fd2_input_init(&vga->input);
+    CHECK(fd2_field_game_bind_visual(g,vga)==0);s5_reset_io(vga);
+    if(stage==15)g->roster_count=16;
+    if(stage==14){
+        /* 完整合法persistent记录移除12；正臂将原12放最后槽，故不在
+         * 16个deployment内。HP0/hidden仍须被33499看见，不造text70。 */
+        fd2_field_unit twelve=g->roster[12];
+        memmove(g->roster+12,g->roster+13,7*sizeof(*g->roster));g->roster_count=19;
+        if(recruited){twelve.hp=0;twelve.flags|=1;g->roster[g->roster_count++]=twelve;}
+    }
+    if(!entry){
+        /* 真实entry产生身份/placement：19为16+67=83，14为16+58，
+         * 15为16+60；不能用64人通用页代正常victory的raw producer。
+         * 19早臂追加group1到raw83，原script60@62fe8才有合法身份。 */
+        CHECK(s5_fd2_scene_play_stage_entry(vga,other,g,NULL,1)==FD2_SCENE_RESULT_OK);
+        if(stage==19)CHECK(g->units.count==83);
+        if(stage==14)CHECK(g->units.count==74);
+        if(stage==15)CHECK(g->units.count==76);
+        if(stage==6){
+            /* 原entry6为9部署+group1的25条；正式turn10/action25在
+             * state16=1时追加group2十条，才产生victory读取的raw43。
+             * 这里只控制该callback前提并执行真实Game/Scene，不签自然lookup链。 */
+            CHECK(g->units.count==34);g->cell_action_completed[16]=1;
+            CHECK(fd2_field_game_common_event_begin(g,"stage.006.action.025",0)==0);
+            for(unsigned i=0;g->event_resume.active;i++){
+                fd2_static_flow_node node;size_t actor;CHECK(i<8 && fd2_field_game_common_event_peek(g,&node,&actor)==1);
+                CHECK(s5_fd2_scene_play_common_step(vga,other,g,&node,NULL,1)==FD2_SCENE_RESULT_OK);
+                CHECK(fd2_field_game_common_event_reply(g,!strcmp(node.op,"story")?FD2_FLOW_ACK:FD2_FLOW_NEXT)==0);
+            }
+            CHECK(g->units.count==44 && g->cell_action_completed[17]==1);
+        }
+        s5_reset_io(vga);
+    }
+    g->turn_number=(uint32_t)turn;
+    if(stage==6){g->cell_action_completed[17]=(uint8_t)state;g->units.items[43].flags=(uint8_t)hidden;}
+    if(stage==15){
+        g->units.items[0].hp_max=(uint16_t)hpmax;
+        for(unsigned i=0;i<8;i++)g->units.items[66+i].flags=(uint8_t)(i<hidden);
+    }
+    size_t count=g->units.count,roster=g->roster_count;
+    s5_predicate_trace t={0,0,stop,host,vga,{0}};
+    g->event_preflight=s5_predicate_story;g->event_preflight_userdata=&t;
+    g->attack_rng=s5_predicate_rng;g->attack_rng_userdata=&t;
+    char id[64];snprintf(id,sizeof(id),"stage.source.%s.%03u",entry?"entry":"victory",stage);
+    int result=s5_fd2_scene_play_stage_source_flow(vga,other,g,NULL,1,id);
+    int want[8]={0};unsigned n=0,added=0;
+    if(stage==6){want[n++]=(state==1 && !hidden)?4:5;added=(state==1 && !hidden);}
+    if(stage==15){
+        if(hidden<=4 && turn<=18 && hpmax>=320){want[n++]=4;added=1;}
+        else {want[n++]=2;want[n++]=3;}
+    }
+    if(stage==19){want[n++]=11;want[n++]=12;added=1;
+        if(turn<=15){want[n++]=14;want[n++]=15;want[n++]=16;added++;}want[n++]=13;}
+    if(stage==14){if(entry){want[n++]=recruited?0:3;want[n++]=recruited?1:4;want[n++]=recruited?2:5;}
+        else {want[n++]=recruited?12:13;added=1;}}
+    if(stop){n=stop;added=0;}
+    if(result!=(stop?(host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR):FD2_SCENE_RESULT_OK) ||
+            t.count!=n || memcmp(want,t.stories,n*sizeof(int)))
+        fprintf(stderr,"predicate stage=%u entry=%d state=%u hidden=%u turn=%d hpmax=%u recruit=%d stop=%u host=%d result=%d stories=%u [%d,%d,%d,%d,%d,%d] active=%zu roster=%zu failure=%d last=%s/%s\n",
+            stage,entry,state,hidden,turn,hpmax,recruited,stop,host,result,t.count,
+            t.stories[0],t.stories[1],t.stories[2],t.stories[3],t.stories[4],t.stories[5],
+            g->units.count,g->roster_count,g->failure,s5_predicate_last_id?s5_predicate_last_id:"-",s5_predicate_last_op?s5_predicate_last_op:"-");
+    CHECK(result==(stop?(host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR):FD2_SCENE_RESULT_OK));
+    CHECK(t.count==n && !memcmp(want,t.stories,n*sizeof(int)) && !t.rng);
+    CHECK(g->roster_count==roster+added);
+    if(!entry)CHECK(g->units.count>=count && g->stage==(stop?stage:stage+1));
+    if(stage==15 && added)CHECK(g->roster[roster].text_id==18);
+    if(stage==19 && !stop){CHECK(g->roster[roster].text_id==25);if(added==2)CHECK(g->roster[roster+1].text_id==28);}
+    if(stage==6 && added)CHECK(g->roster[roster].text_id==12);
+    if(stage==14 && !entry && !stop)CHECK(g->roster[roster].text_id==15);
+    fd2_field_game_close(g);fd2_field_page_destroy(vga->field_page);free(vga);free(g);return 0;
+}
+static int s5_predicate_stage_parameters(const fd2_archive *other){
+    for(unsigned state=0;state<3;state++)for(unsigned hidden=0;hidden<2;hidden++)
+        CHECK(s5_predicate_stage_case(other,6,0,state,hidden,1,100,0,0,0)==0);
+    for(unsigned hidden=4;hidden<=5;hidden++)for(int turn=18;turn<=19;turn++)for(unsigned hp=319;hp<=320;hp++)
+        CHECK(s5_predicate_stage_case(other,15,0,0,hidden,turn,hp,0,0,0)==0);
+    CHECK(s5_predicate_stage_case(other,15,0,0,4,-1,320,0,0,0)==0);
+    CHECK(s5_predicate_stage_case(other,15,0,0,4,18,321,0,0,0)==0);
+    const int turns[]={15,16,-1};for(unsigned i=0;i<3;i++)
+        CHECK(s5_predicate_stage_case(other,19,0,0,0,turns[i],100,0,0,0)==0);
+    for(int entry=0;entry<2;entry++)for(int recruited=0;recruited<2;recruited++)
+        CHECK(s5_predicate_stage_case(other,14,entry,0,0,1,100,recruited,0,0)==0);
+    for(int host=0;host<2;host++)CHECK(s5_predicate_stage_case(other,15,0,0,4,18,320,0,1,host)==0);
+    return 0;
+}
+
+/* field_event_actor17_exchange_item11_once @0x35730（原sub_35730）：
+ * G4完整173B+3531b尾，caller0/state0→story0→真实exchange/finalize→
+ * hidden17（不是side）→state0/tiles/refresh/child item11→contribution0。
+ * field_event_key208_recruit31 @0x35a0d（原sub_35A0D）：完整363B，
+ * remove208先于message3/ACK，动画后才state12/group1/roster31/story4。
+ * 此组只用静态原源expected；Game业务真实，呈现/动画显式ACK，非新原CPU。 */
+static int s5_predicate_common_case(const fd2_archive *other,int key,unsigned state,int positive,int stop){
+    fd2_field_game *g=calloc(1,sizeof(*g));CHECK(g && s5_prepare(g,other,key?25:24)==0);
+    s5_predicate_trace t={0};g->attack_rng=s5_predicate_rng;g->attack_rng_userdata=&t;
+    unsigned initial_roster=(unsigned)g->roster_count,initial_count=(unsigned)g->units.count;
+    g->experience_value=777;g->cell_action_completed[key?12:0]=(uint8_t)state;
+    if(key && positive)s5_item(&g->units.items[0],0,208);
+    if(!key){
+        fd2_field_unit *a=&g->units.items[17],*b=&g->units.items[0];
+        /* 通用sprite夹具的movement_profile=0未经过原base构造，不能进
+         * critical/profile读取。用同一正式base_apply派生合法profile后，
+         * 只控制本例的HP/攻击/装备与几何，不猜一个profile常数。 */
+        CHECK(fd2_field_unit_base_apply(a,1)==0 && fd2_field_unit_base_apply(b,1)==0);
+        a->side=0;a->x=3;a->y=3;a->hp=a->hp_max=(uint16_t)(positive?1:1000);a->attack=1;a->defense=100;
+        b->x=4;b->y=3;b->attack=(uint16_t)(positive?500:1);b->defense=500;
+        a->accuracy=b->accuracy=100;a->evasion=b->evasion=0;
+        ((uint8_t*)a)[10]=((uint8_t*)b)[10]=0x40;((uint8_t*)a)[11]=((uint8_t*)b)[11]=0;
+    }
+    CHECK(fd2_field_game_common_event_begin(g,key?"common.key.consume":"common.loot.physical",0)==0);
+    unsigned messages=0,stories=0,animations=0,child=0,steps=0;int fragment=-1;
+    for(;steps<128 && g->event_resume.active;steps++){
+        if(g->loot.child.active){
+            fd2_field_loot_notice notice;CHECK(fd2_field_game_loot_peek(g,&notice)==1);
+            CHECK(notice.kind==FD2_FIELD_LOOT_MESSAGE && notice.item_id==11);child++;
+            CHECK(g->cell_action_completed[0]==1);
+            CHECK(fd2_field_game_loot_text_ready(g)==0);
+            CHECK(fd2_field_game_loot_reply(g,FD2_FIELD_LOOT_ACK,-1)==0);continue;
+        }
+        fd2_static_flow_node node;size_t actor;CHECK(fd2_field_game_common_event_peek(g,&node,&actor)==1 && actor==0);
+        if(!strcmp(node.op,"message")){messages++;fragment=node.args[0];
+            if(key && positive){CHECK(fragment==3 && !fd2_field_unit_inventory_count(&g->units.items[0]) && !g->cell_action_completed[12]);
+                if(stop){fd2_field_units before=g->units;unsigned rng=t.rng;
+                    if(stop==2)g->runtime_host_quit=1;
+                    CHECK(fd2_field_game_common_event_reply(g,stop==2?FD2_FLOW_NEXT:FD2_FLOW_ERROR)==-1);
+                    CHECK(!memcmp(&before,&g->units,sizeof(before)) && !g->cell_action_completed[12] && t.rng==rng &&
+                        g->roster_count==initial_roster);break;}
+            }
+        }
+        if(!strcmp(node.op,"story")){stories++;fragment=node.args[0];
+            if(key)CHECK(fragment==4 && g->cell_action_completed[12]==1 && g->roster_count==initial_roster+1);
+            else {CHECK(fragment==0 && !g->cell_action_completed[0] && !t.rng);
+                if(stop){if(stop==2)g->runtime_host_quit=1;
+                    CHECK(fd2_field_game_common_event_reply(g,stop==2?FD2_FLOW_ACK:FD2_FLOW_ERROR)==-1);
+                    CHECK(!t.rng && !g->cell_action_completed[0] && g->units.items[17].hp==(positive?1:1000));break;}
+            }
+        }
+        if(!strcmp(node.op,"raw_animation")){animations++;CHECK(key && !g->cell_action_completed[12] && g->roster_count==initial_roster);}
+        unsigned port=(!strcmp(node.op,"story") || !strcmp(node.op,"wait_key"))?FD2_FLOW_ACK:FD2_FLOW_NEXT;
+        int reply_result=fd2_field_game_common_event_reply(g,port);
+        if(reply_result)fprintf(stderr,"common predicate key=%d state=%u positive=%d stop=%d op=%s port=%u result=%d failure=%d host=%u child=%u active=%u pc=%d hp0=%u hp17=%u profile0=%u profile17=%u rng=%u\n",
+            key,state,positive,stop,node.op,port,reply_result,g->failure,g->runtime_host_quit,g->loot.child.active,
+            g->event_resume.active,g->event_resume.pc,g->units.items[0].hp,g->units.items[17].hp,
+            g->units.items[0].movement_profile,g->units.items[17].movement_profile,t.rng);
+        CHECK(reply_result==0);
+    }
+    CHECK(steps<128);
+    if(!stop){
+        CHECK(!g->event_resume.active && !g->failure && !g->runtime_host_quit);
+        if(state){CHECK(!messages && !stories && !animations && !child && !t.rng &&
+            g->cell_action_completed[key?12:0]==state && g->roster_count==initial_roster && g->units.count==initial_count);}
+        else if(key){CHECK(messages==1 && fragment==(positive?4:2) && stories==(unsigned)positive &&
+            animations==(unsigned)positive && !t.rng && g->cell_action_completed[12]==(unsigned)positive &&
+            g->roster_count==initial_roster+(unsigned)positive);
+            if(positive)CHECK(g->roster[initial_roster].text_id==31 && g->units.count>initial_count);
+        }else {CHECK(stories==1 && g->cell_action_completed[0]==(unsigned)positive &&
+            fd2_field_unit_is_hidden(&g->units.items[17])==positive && g->experience_value==0);
+            /* slot0的实际weapon0也属于原八slot库存；child另增item11。 */
+            CHECK(child==(unsigned)positive && fd2_field_unit_inventory_count(&g->units.items[0])==1u+(unsigned)positive);}
+    }
+    fd2_field_game_close(g);free(g);return 0;
+}
+static int s5_predicate_common_parameters(const fd2_archive *other){
+    for(int key=0;key<2;key++)for(unsigned state=0;state<2;state++)for(int positive=0;positive<2;positive++)
+        CHECK(s5_predicate_common_case(other,key,state,positive,0)==0);
+    for(int key=0;key<2;key++)for(int stop=1;stop<=2;stop++)
+        CHECK(s5_predicate_common_case(other,key,0,1,stop)==0);
+    return 0;
+}
 int main(int argc,char **argv){
     fd2_archive other={0};CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
     if(argc==2 && !strcmp(argv[1],"--s5-stage-vectors")){unsigned stage,variant;int turn;
         while(scanf("%u %u %d",&stage,&variant,&turn)==3)CHECK(s5_vector(&other,stage,variant,turn,1)==0);
     }else{
+        CHECK(s5_predicate_stage_parameters(&other)==0);
+        CHECK(s5_predicate_common_parameters(&other)==0);
         CHECK(s5_cinematic_checks()==0);
         CHECK(s5_text_owner_case(&other,22)==0 && s5_text_owner_case(&other,29)==0);
         CHECK(s5_game_leaf_failure_prefix(&other)==0);

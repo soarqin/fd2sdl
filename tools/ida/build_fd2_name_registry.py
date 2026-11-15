@@ -2773,6 +2773,71 @@ for _va, (_old, _new, _contract) in _F2_RAY_CONTRACTS.items():
     ])
 
 
+_F3_STATE_SAVE_CONTRACTS = {
+    0x10010: "10186..101cf为metadata申请并恢复完整2211B；资源只决定模板解析前缀。"
+             "1037c读actor+7身份，逐raw调用11019，10391把首次身份cache class写回actor+2，包括hidden记录。"
+             "G2历史SDL只改旁路、保持raw2；F3活动Load在交接前同步raw2，其余79B保留。2986f手工Load无此raw写点。",
+    0x10C50: "以现有80B目标槽构造；28h..30h九字节不写，weapon=ff时0dh也不写。"
+             "10ee5/10f02/10f77/10f99等显式零写仍须保留；不能把未写字段统清0。"
+             "F3修共用构造及append/Scene outer的来源保留；fresh初值、全部动态别名读者另账。",
+    0x111BA: "非空old先free，读取相邻两个目录DWORD求N，malloc(N)后fread完整N并返回独立资源owner。"
+             "不是whole-DAT借片、固定2211B或old容量复用；53BFF只是临时最近资源长度，后续加载会覆盖。",
+    0x3D5C0: "成功malloc请求N令Q=max(12,(N+7)&~3)，所选free F>=Q；余块>=12则S=Q，否则S=F；"
+             "tag=S|1，返回用户payload的extent A=S-4，保守Q-4<=A<=Q+7。不提供payload清零合同。"
+             "不从heap arena可读推定跨owner有效，也未确定某次B/tag/空闲块。",
+    0x3771C: "memmove按地址选向：src>=dst或src+len<=dst走forward DWORD再余BYTE，否则backward WORD再余BYTE。"
+             "19df7短metadata过长2211B范围可与另一合法目标owner相交；不能因两个实际分配不重叠就固定forward。"
+             "forward首次跨源owner的DWORD起4*floor(A/4)，首非法源byte=B+A；backward首WORD=B+2209，短块上界2119之外。",
+    0x19DF7: "Save写整2211B metadata、整0xa00 roster、count*80B active、32B cell、meta前18B。"
+             "fresh普通0..29中27条资源malloc payload上界<2211，14/20/26三条及完整Loaded owner有全部来源。"
+             "短块首越owner发生在metadata memmove，早于wb/checksum/fwrite，无磁盘payload前缀已提交。"
+             "目标不存在分支只写四slot stage=ff，非整22987B初始化；其未赋值区后被checksum消费。"
+             "后一条件若metadata完整，wb已创建空文件而尚未fwrite；不能混用两个U时点。",
+    0x4DF09: "正常DF=0从输入偏移0顺序LODSB，4df1e ADD以0..255参与32位和，处理size-4字节；本函数不CLD。"
+             "19df7新目标以metadata/roster/全部count条完整活动记录/cell/已知meta均有合法来源为前提，"
+             "完整writer闭包下count<96首欠来源byte K=12a3h+80*count，count=96时K=30d5h；"
+             "第K+1次4df1d读取、4df1e首次语义使用，早于crypt，属于当前owner未初始化来源而非OOB。"
+             "合法旧容器opaque回读具有来源，不能照此判U。",
+    0x4DF28: "正常DF=0令DX=a5h，逐byte先ADD9014h再ROL3，AL XOR DL后STOSB，处理完整size；本函数不CLD。"
+             "它是读后原地转换，不为新存档未知区补初始化；19df7在此之前已完成checksum读取。",
+}
+for _va, _contract in _F3_STATE_SAVE_CONTRACTS.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "构造保留域、活动Load写集和fresh Save来源尚未按owner区分",
+        "now": _contract,
+        "why": "F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；"
+               "allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；"
+               "checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。"
+               "原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。"
+               "未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。",
+    })
+
+_F3_APP_ROSTER_CONTRACTS = {
+    0x25BF4: "25d54..25d61在标题外循环前唯一malloc A00并存53BF7。"
+             "25dd5..25e00普通败北只播放22e5c并回标题，不调用11506，不清roster/count。"
+             "该App期owner完整A00须跨Game关闭保留；不能把has_preparation清除等同原表销毁。",
+    0x25EBB: "START先fade，再stage=0、重载palette资源、25efa仅令53BFB=0；"
+             "不清53BF7的A00，也不写51AAB/53AF9/51E61/51E62四个raw option byte。"
+             "2604a..26056手工Load恢复整A00，26070另恢复count；配置写点只属于相应Load分支。",
+    0x3231B: "327f7/32801/3280b/32815对原roster四目标槽依次112a5(0/9/4/30)。"
+             "各条58写22保；index4..31共2240B未用尾不由新局覆盖。32969独立将53BF3清0。"
+             "Game消费Scene已构造来源，不能在另一个清零底本再构造或盲继承旧stage/gold。",
+    0x10010: "1010f..10121把整A00恢复到现53BF7；active则申请独立1e00，"
+             "只恢复count*80B，不为其inactive后缀提供初始化合同。"
+             "whole Load的roster与count内80B有文件来源，不能与fresh未写字节统判U。",
+}
+for _va, _contract in _F3_APP_ROSTER_CONTRACTS.items():
+    CORRECTIONS.setdefault(_va, []).append({
+        "target": "evidence", "was": "START或关闭Game可以丢弃完整持久表及camera/effect配置来源",
+        "now": _contract,
+        "why": "F3只读完整caller/owner复核：F1 source09 SHA256 "
+               "18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；"
+               "G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。"
+               "53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。"
+               "不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。",
+    })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", type=Path, default=OUT / "ida-name-audit.json")

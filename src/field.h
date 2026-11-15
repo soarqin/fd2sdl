@@ -55,6 +55,7 @@ typedef struct {
 
 #define FD2_FIELD_EVENT_SLOTS 16
 #define FD2_FIELD_UNIT_TEMPLATE_SIZE 26
+#define FD2_FIELD_METADATA_BACKING_SIZE 0x08a3u
 
 typedef struct {
     uint8_t turn;
@@ -85,6 +86,12 @@ typedef struct {
     fd2_field_cell_action cell_actions[FD2_FIELD_EVENT_SLOTS];
     size_t unit_template_count;
     fd2_field_unit_template *unit_templates;
+    /* sub_10010 @0x10010 / field_secondary_menu_execute @0x19df7：
+     * 完整2211B随metadata owner恢复/写出。仅作序列化来源；上方已知字段
+     * 仍是唯一业务真值，导出时覆盖对应字节。source_size之外没有已证来源，
+     * 不能把内联数组的零初始化当作原malloc尾；资源可比本窗口更长。 */
+    uint8_t source_bytes[FD2_FIELD_METADATA_BACKING_SIZE];
+    size_t source_size;
 } fd2_field_metadata;
 
 typedef struct {

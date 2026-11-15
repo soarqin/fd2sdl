@@ -195,12 +195,15 @@ int fd2_field_unit_stage_template_apply(
         const fd2_field_unit_template *template_record) {
     if (!unit || !template_record) return -1;
 
-    fd2_field_unit updated;
-    memset(&updated, 0, sizeof(updated));
-    updated.x = unit->x;
-    updated.y = unit->y;
+    /* 10ee5/10f02/10f77/10f99明确清这些字段；28h..30h及
+     * weapon=ff时0dh不写。输入是owner已有80B，不猜fresh堆初值。 */
+    fd2_field_unit updated = *unit;
+    updated.sprite_cache_class = 0; /* 10ee2的cache结果由正式append/Scene登记。 */
+    updated.direction = updated.frame_phase = updated.flags = 0;
     const uint8_t *tpl = template_record->bytes;
     uint8_t *record = (uint8_t *)&updated;
+    record[0x09] = record[0x1e] = 0;
+    memset(record + 0x22, 0, 6);
     updated.side = tpl[0x00];
     updated.unit_id = tpl[0x01];
     updated.text_id = tpl[0x01];

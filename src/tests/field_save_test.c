@@ -1,6 +1,8 @@
 /* 活动战场 FD2.SAV snapshot codec 测试。
  * S0结果依据：sub_205B4 @0x205b4 与 field_stage1_battle_result_check
  * @0x206c5（原登记sub_206C5）的hidden/side扫描及覆盖顺序；不按HP猜结果。
+ * F3恢复写集：sub_10010@101c3整2211B metadata、10391写raw+2，
+ * 11019按首次ID顺序返回class；2986f手工恢复没有raw+2写点。
  */
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
@@ -63,6 +65,7 @@ static void init_game(fd2_field_game *game) {
         game->units.items[i].x = (uint8_t)(4u + i);
         game->units.items[i].y = (uint8_t)(10u + i);
         game->units.items[i].unit_id = (uint8_t)(20u + i);
+        game->units.items[i].sprite_cache_class = (uint8_t)i;
         game->units.items[i].hp = (uint16_t)(100u + i);
         game->units.walk_frames[i] = 5;
         game->units.source_template_indices[i] = (uint16_t)i;
@@ -174,28 +177,83 @@ static int test_roster_capacity_is_independent(void) {
     return 0;
 }
 
-static int test_import_rebuilds_cache_without_rewriting_records(void) {
-    for (int legacy = 0; legacy < 2; legacy++) {
+/* 独立字节oracle：原1036a读取record+7，11019首次ID排名，10391仅写+2。
+ * 不调用SDL cache函数，也不从被测旁路输出反填expected。 */
+static void original_active_load_records(uint8_t *records, size_t count) {
+    uint8_t first_class[256];
+    memset(first_class, 0xff, sizeof(first_class));
+    uint8_t next_class = 0;
+    for (size_t i = 0; i < count; i++) {
+        uint8_t *record = records + i * 0x50u;
+        if (first_class[record[7]] == 0xffu)
+            first_class[record[7]] = next_class++;
+        record[2] = first_class[record[7]];
+    }
+}
+
+static int original_active_units_match(const fd2_field_units *units,
+                                       const fd2_save_battle_snapshot *snapshot) {
+    uint8_t expected[FD2_SAVE_BATTLE_UNIT_AREA_SIZE];
+    memcpy(expected, snapshot->unit_area, sizeof(expected));
+    original_active_load_records(expected, units->count);
+    return memcmp(units->items, expected, units->count * 0x50u) == 0;
+}
+
+static int test_import_rebuilds_cache_and_writes_only_class(void) {
+    const size_t counts[] = {1, 3, 31, 32, 96};
+    const uint8_t ids[] = {68, 20, 68, 121, 0, 20, 135, 121};
+    for (size_t row = 0; row < sizeof(counts) / sizeof(counts[0]); row++) {
         fd2_field_game source, target;
         init_game(&source); init_game(&target);
+        source.units.count = counts[row];
         for (size_t i = 0; i < source.units.count; i++) {
-            source.units.items[i].sprite_cache_class = legacy ? 0 : (uint8_t)i;
-            source.units.items[i].direction = source.units.items[i].frame_phase = 0;
+            uint8_t *record = (uint8_t *)&source.units.items[i];
+            for (size_t byte = 0; byte < 0x50u; byte++)
+                record[byte] = (uint8_t)(i * 37u + byte * 13u + row);
+            source.units.items[i].unit_id = ids[i % sizeof(ids)];
+            source.units.items[i].x = (uint8_t)(i % 24u);
+            source.units.items[i].y = (uint8_t)((i * 3u) % 24u);
+            source.units.items[i].flags = (uint8_t)((i & 1u) ? 1u : 0u);
+            source.units.items[i].direction = (uint8_t)(i % 4u);
+            source.units.items[i].frame_phase = (uint8_t)(i % 3u);
+            source.units.items[i].hp = (uint16_t)((i % 3u) ? 27u : 0u);
+            source.units.items[i].sprite_cache_class =
+                (uint8_t)((row & 1u) ? 0u : 255u);
         }
         fd2_save_battle_snapshot snapshot;
         memset(&snapshot, 0xa5, sizeof(snapshot));
         CHECK(fd2_field_game_export_battle_snapshot(&source, &snapshot) == 0);
+        fd2_save_battle_snapshot expected = snapshot;
+        original_active_load_records(expected.unit_area, source.units.count);
+        fd2_save_battle_snapshot input_before = snapshot;
+        if (source.units.count <= 32u) {
+            /* 2986f没有10391；共享cache重建叶不能顺手写持久80B。 */
+            fd2_field_units manual = source.units;
+            CHECK(fd2_field_units_sprite_cache_restore(&manual) == 0);
+            CHECK(!memcmp(manual.items, source.units.items, sizeof(manual.items)));
+        }
         CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
-        CHECK(target.units.sprite_cache_count == 3);
+        CHECK(target.units.sprite_cache_count == (counts[row] < 6u ?
+            (counts[row] == 1u ? 1u : 2u) : 5u));
         CHECK(target.units.sprite_cache_exact == 1);
-        CHECK(!memcmp(target.units.items, snapshot.unit_area, 3 * FD2_FIELD_UNIT_RECORD_SIZE));
+        CHECK(!memcmp(target.units.items, expected.unit_area,
+                      source.units.count * 0x50u));
+        CHECK(!memcmp(target.roster, snapshot.roster, sizeof(target.roster)));
+        CHECK(!memcmp(&snapshot, &input_before, sizeof(snapshot)));
         for (size_t i = 0; i < target.units.count; i++) {
-            CHECK(target.units.sprite_cache_ids[i] == 20u + i);
-            CHECK(fd2_field_unit_cached_frame_index(&target.units, i, 0) == (20u + i) * 12u);
+            CHECK(target.units.sprite_cache_classes[i] == expected.unit_area[i * 0x50u + 2u]);
+            CHECK(target.units.sprite_cache_ids[target.units.sprite_cache_classes[i]] ==
+                  target.units.items[i].unit_id);
         }
         fd2_save_battle_snapshot exported = snapshot;
         CHECK(fd2_field_game_export_battle_snapshot(&target, &exported) == 0);
-        CHECK(!memcmp(exported.unit_area, snapshot.unit_area, sizeof(snapshot.unit_area)));
+        CHECK(!memcmp(&exported, &expected, sizeof(expected)));
+        fd2_field_game before = target;
+        snapshot.unit_area[5] = 0;
+        snapshot.unit_area[0] = 255; /* 无效可见坐标，不能部分写class/metadata。 */
+        snapshot.metadata[0x8a2u] ^= 1u;
+        CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) != 0);
+        CHECK(!memcmp(&target, &before, sizeof(target)));
         fd2_field_metadata_close(&target.metadata);
     }
     return 0;
@@ -302,8 +360,9 @@ static int test_loaded_roster_survives_save_to_other_files(void) {
     CHECK(fd2_save_file_get_battle_snapshot(&save, &after) == 0);
     CHECK(memcmp(after.roster, source.roster, sizeof(after.roster)) == 0);
     CHECK(after.meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] == source.roster_count);
-    CHECK(memcmp(after.metadata + 0x83u, before.metadata + 0x83u,
-                 sizeof(after.metadata) - 0x83u) == 0);
+    /* 19df7写完整metadata来源A，不再继承目标B的opaque尾。 */
+    for (size_t i = 0x83u; i < sizeof(after.metadata); i++)
+        CHECK(after.metadata[i] == 0xff);
     fd2_save_file_close(&save);
 
     CHECK(fd2_field_game_save_active(&loaded, path_new) == 0);
@@ -494,6 +553,133 @@ static int read_save_bytes(const char *path, uint8_t bytes[FD2_SAVE_FILE_SIZE]) 
                  fgetc(file) == EOF ? 0 : -1;
     if (fclose(file) != 0) result = -1;
     return result;
+}
+
+/* 4df09/4df28独立文件oracle；不调用被测checksum/XOR或snapshot exporter。 */
+static void original_save_encrypted(const uint8_t *plain, uint8_t *encrypted) {
+    memcpy(encrypted, plain, 0x59cbu);
+    uint32_t sum = 0;
+    for (size_t i = 0; i < 0x59c7u; i++) sum += plain[i];
+    for (unsigned byte = 0; byte < 4u; byte++)
+        encrypted[0x59c7u + byte] = (uint8_t)(sum >> (byte * 8u));
+    unsigned state = 0xa5u;
+    for (size_t i = 0; i < 0x59cbu; i++) {
+        unsigned added = (state + 0x9014u) & 65535u;
+        state = ((added * 8u) & 65535u) + added / 8192u;
+        encrypted[i] ^= (uint8_t)state;
+    }
+}
+
+static int write_original_plain(const char *path, const uint8_t *plain) {
+    uint8_t encrypted[FD2_SAVE_FILE_SIZE];
+    original_save_encrypted(plain, encrypted);
+    FILE *file = fopen(path, "wb");
+    if (!file) return -1;
+    int result = fwrite(encrypted, 1, sizeof(encrypted), file) ==
+        sizeof(encrypted) ? 0 : -1;
+    if (fclose(file) != 0) result = -1;
+    return result;
+}
+
+static int test_loaded_metadata_owner_complete_files_and_reload(void) {
+    /* START合法快照/当前真实资源前缀；只给不解释的metadata尾不同来源。
+     * 这是后端跨文件owner写集，不宣称固定FD2.SAV UI自然发生过。 */
+    fd2_save_file source = {0};
+    fd2_archive other = {0}, field = {0};
+    const uint8_t *resource;
+    size_t resource_size;
+    CHECK(fd2_archive_open(&field, "original_game/FDFIELD.DAT") == 0);
+    CHECK(fd2_archive_get(&field, 1, &resource, &resource_size) == 0);
+    CHECK(resource_size < 0x8a3u);
+    CHECK(fd2_save_file_open(&source, "original_game/START.SAV") == 0);
+    uint8_t a[FD2_SAVE_FILE_SIZE], b[FD2_SAVE_FILE_SIZE];
+    uint8_t expected[FD2_SAVE_FILE_SIZE], encoded[FD2_SAVE_FILE_SIZE];
+    uint8_t actual[FD2_SAVE_FILE_SIZE];
+    memcpy(a, source.data, sizeof(a));
+    memcpy(b, source.data, sizeof(b));
+    fd2_save_file_close(&source);
+    for (size_t i = resource_size; i < 0x8a3u; i++) {
+        a[i] = (uint8_t)(i * 13u + 0x27u);
+        b[i] = (uint8_t)(i * 7u + 0x91u);
+    }
+    size_t count = a[0x30c4u];
+    CHECK(count > 0 && count <= 96u);
+    memset(b + 0x12a3u + count * 80u, 0x6c, 0x1e00u - count * 80u);
+    memset(b + 0x30d5u, 0x9e, 0x68u - 18u);
+    for (size_t slot = 0; slot < 4u; slot++) {
+        size_t tail = 0x312bu + slot * 0xa28u + 0xa00u + 10u;
+        size_t end = 0x312bu + (slot + 1u) * 0xa28u;
+        if (end > 0x59c7u) end = 0x59c7u;
+        memset(b + tail, 0x3b, end - tail);
+    }
+    char paths[3][FD2_TEST_PATH_MAX];
+    for (size_t i = 0; i < 3; i++)
+        CHECK(fd2_test_temp_path(paths[i]) == 0 && remove(paths[i]) == 0);
+    CHECK(write_original_plain(paths[0], a) == 0);
+    CHECK(write_original_plain(paths[1], b) == 0);
+    fd2_field_game *loaded = calloc(1, sizeof(*loaded));
+    fd2_field_game *before = malloc(sizeof(*before));
+    CHECK(loaded && before);
+    CHECK(fd2_archive_open(&other, "original_game/FDOTHER.DAT") == 0);
+    CHECK(fd2_field_game_open_resources(loaded, &other, 0) == 0);
+    CHECK(loaded->metadata.source_size == resource_size);
+    CHECK(!memcmp(loaded->metadata.source_bytes, resource, resource_size));
+    CHECK(fd2_field_game_load_active(loaded, paths[0]) == 0);
+    CHECK(loaded->metadata.source_size == 2211u);
+    CHECK(!memcmp(loaded->metadata.source_bytes, a, 2211u));
+    /* 已解析字段是唯一可变真值；backing仍留Load来源而导出必须用新值。 */
+    loaded->metadata.turn_events[2].turn ^= 0x5au;
+    loaded->metadata.unit_templates[0].bytes[0x11] ^= 0x37u;
+    a[0x09u] ^= 0x5au;
+    a[0x94u] ^= 0x37u;
+    CHECK(loaded->metadata.source_bytes[0x09u] != a[0x09u]);
+    CHECK(loaded->metadata.source_bytes[0x94u] != a[0x94u]);
+    /* 19df7：整metadata+roster、count*80、32B cell、meta前18B。
+     * 其它目标字节原样保留；末4B独立checksum，再比较整22987B密文。 */
+    for (size_t target = 0; target < 3; target++) {
+        if (target == 0) memcpy(expected, a, sizeof(expected));
+        else if (target == 1) memcpy(expected, b, sizeof(expected));
+        /* 新目标整ff是H确定初始化；原19fcd只写四slot哨兵，
+         * 此分支不是原fresh目标未知区的全字节oracle。 */
+        else memset(expected, 0xff, sizeof(expected));
+        memcpy(expected, a, 0x12a3u);
+        memcpy(expected + 0x12a3u, a + 0x12a3u, count * 80u);
+        original_active_load_records(expected + 0x12a3u, count);
+        memcpy(expected + 0x30a3u, a + 0x30a3u, 32u);
+        memcpy(expected + 0x30c3u, a + 0x30c3u, 18u);
+        original_save_encrypted(expected, encoded);
+        CHECK(fd2_field_game_save_active(loaded, paths[target]) == 0);
+        CHECK(read_save_bytes(paths[target], actual) == 0);
+        CHECK(!memcmp(actual, encoded, sizeof(actual)));
+    }
+    /* 取消只退出菜单，不替换metadata owner/actor或写文件。 */
+    loaded->interaction = FD2_FIELD_INTERACTION_SYSTEM_MENU;
+    fd2_field_system_menu_init(&loaded->system_menu);
+    *before = *loaded;
+    CHECK(fd2_field_game_cancel_system_menu(loaded) == FD2_FIELD_SYSTEM_ACTION_CANCEL);
+    CHECK(!memcmp(&loaded->metadata, &before->metadata, sizeof(loaded->metadata)));
+    CHECK(!memcmp(&loaded->units, &before->units, sizeof(loaded->units)));
+    CHECK(read_save_bytes(paths[2], actual) == 0 && !memcmp(actual, encoded, sizeof(actual)));
+    /* A→B→A重载各自完整来源，预检/错误都不清已有owner。 */
+    CHECK(write_original_plain(paths[1], b) == 0);
+    CHECK(fd2_field_game_load_active(loaded, paths[1]) == 0);
+    CHECK(loaded->metadata.source_size == 2211u &&
+          !memcmp(loaded->metadata.source_bytes, b, 2211u));
+    *before = *loaded;
+    CHECK(fd2_field_game_save_resource_available(loaded, paths[0]) == 1);
+    CHECK(!memcmp(loaded, before, sizeof(*loaded)));
+    CHECK(fd2_field_game_load_active(loaded, paths[0]) == 0);
+    CHECK(!memcmp(loaded->metadata.source_bytes, a, 2211u));
+    *before = *loaded;
+    b[0] = 29; /* checksum有效但shape不匹配，不能替换来源/部分写class。 */
+    CHECK(write_original_plain(paths[1], b) == 0);
+    CHECK(fd2_field_game_load_active(loaded, paths[1]) != 0);
+    CHECK(!memcmp(loaded, before, sizeof(*loaded)));
+    fd2_field_game_close(loaded);
+    free(loaded); free(before);
+    fd2_archive_close(&other); fd2_archive_close(&field);
+    for (size_t i = 0; i < 3; i++) CHECK(remove(paths[i]) == 0);
+    return 0;
 }
 
 static int test_invalid_existing_save_is_not_replaced(void) {
@@ -698,6 +884,8 @@ static int test_metadata_serialization_and_atomic_import(void) {
     snapshot.metadata[2] = 0x99;
     CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
     CHECK(target.metadata.unit_template_count == 2);
+    CHECK(target.metadata.source_size == 2211u &&
+          !memcmp(target.metadata.source_bytes, snapshot.metadata, 2211u));
     CHECK(target.metadata.unknown_01 == 0x42 && target.metadata.unknown_02 == 0x99);
     CHECK(memcmp(target.metadata.unit_templates, templates, sizeof(templates)) == 0);
     for (size_t i = 0; i < FD2_FIELD_EVENT_SLOTS; i++) {
@@ -734,6 +922,27 @@ static int test_metadata_capacity_and_invalid_export(void) {
     CHECK(memcmp(&snapshot, &before, sizeof(snapshot)) == 0);
     CHECK(fd2_field_game_import_battle_snapshot(&game, &snapshot) != 0);
     CHECK(fd2_field_game_import_battle_snapshot(&game, NULL) != 0);
+    /* 原资源parser不因序列化backing定长而新增拒绝；超过窗口的完整模板
+     * 仍按既有格式解析。现Save的80模板容量门保持原有合同，不在此扩门。 */
+    uint8_t larger_resource[0x83u + 81u * FD2_FIELD_UNIT_TEMPLATE_SIZE];
+    for (size_t i = 0; i < sizeof(larger_resource); i++)
+        larger_resource[i] = (uint8_t)(i * 11u + 3u);
+    fd2_field_metadata metadata = {0};
+    CHECK(fd2_field_metadata_open_mem(&metadata, larger_resource,
+                                      sizeof(larger_resource)) == 0);
+    CHECK(metadata.unit_template_count == 81u && metadata.source_size == 2211u);
+    CHECK(!memcmp(metadata.source_bytes, larger_resource, 2211u));
+    CHECK(!memcmp(metadata.unit_templates[80].bytes, larger_resource +
+                  0x83u + 80u * FD2_FIELD_UNIT_TEMPLATE_SIZE,
+                  FD2_FIELD_UNIT_TEMPLATE_SIZE));
+    fd2_field_metadata_close(&metadata);
+    for (size_t i = 0; i < sizeof(metadata); i++)
+        CHECK(((const uint8_t *)&metadata)[i] == 0);
+    game.metadata.unit_template_count = 80;
+    game.metadata.unit_templates = templates;
+    game.metadata.source_size = FD2_FIELD_METADATA_BACKING_SIZE + 1u;
+    CHECK(fd2_field_game_export_battle_snapshot(&game, &snapshot) != 0);
+    CHECK(!memcmp(&snapshot, &before, sizeof(snapshot)));
     return 0;
 }
 
@@ -761,7 +970,8 @@ static int test_stage0_metadata_matches_resource_and_preserves_tail(void) {
     CHECK(fd2_field_game_export_battle_snapshot(&game, &snapshot) == 0);
     CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
     CHECK(memcmp(save.data, resource, size) == 0);
-    /* metadata 未使用尾来自目标容器；整个 raw roster 来自 session。 */
+    /* fresh资源只有size字节来源；其后暂保目标，不能签作原堆初值。
+     * 整个raw roster仍来自session，与metadata来源是不同区域。 */
     CHECK(memcmp(save.data + size, preserved + size,
                  FD2_SAVE_BATTLE_ROSTER_BASE - size) == 0);
     CHECK(memcmp(save.data + FD2_SAVE_BATTLE_ROSTER_BASE, game.roster,
@@ -929,8 +1139,7 @@ static int test_import_preserves_result_latch_and_original_query(void) {
             CHECK(fd2_field_game_import_battle_snapshot(&target, &snapshot) == 0);
             CHECK(target.battle_result == latch && target.focus_cycle_unit == 0);
             CHECK(!memcmp(&snapshot, &before_snapshot, sizeof(snapshot)));
-            CHECK(!memcmp(target.units.items, snapshot.unit_area,
-                target.units.count * FD2_FIELD_UNIT_RECORD_SIZE));
+            CHECK(original_active_units_match(&target.units, &snapshot));
             fd2_field_game before_query = target;
             for (unsigned repeat = 0; repeat < 3; repeat++)
                 CHECK(fd2_field_game_battle_result(&target) == expected);
@@ -1087,9 +1296,24 @@ static int test_stage1_manual_owner_preflight(void) {
     memcpy(state.unit_area, snapshot.roster, sizeof(state.unit_area));
     state.gold_or_flags = 0x98765432u;
     memcpy(state.options, (uint8_t[]){1, 0, 1, 0}, 4);
+    /* 手工Load原29974整0xa00恢复，29a17虽调用11019却不存返回class。
+     * 预检也不准把persistent raw2按ID重写，保全80B与inactive尾。 */
+    for (size_t i = 0; i < state.unit_count; i++)
+        state.unit_area[i * 80u + 2u] = (uint8_t)(0xd0u + i);
     fd2_save_manual_state before = state;
     CHECK(fd2_field_game_validate_manual_state(&state) == 0);
     CHECK(memcmp(&state, &before, sizeof(state)) == 0);
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0 && remove(path) == 0);
+    CHECK(fd2_save_manual_state_save(path, 1, &state) == 0);
+    fd2_save_manual_state restored;
+    CHECK(fd2_save_manual_state_load(path, 1, &restored) == 0);
+    CHECK(restored.stage_id == before.stage_id &&
+          restored.unit_count == before.unit_count &&
+          restored.gold_or_flags == before.gold_or_flags &&
+          !memcmp(restored.options, before.options, sizeof(restored.options)) &&
+          !memcmp(restored.unit_area, before.unit_area, sizeof(restored.unit_area)));
+    CHECK(remove(path) == 0);
     /* owner32与部署选择器容量独立；这里不得截断、造默认成员或拒17..32。 */
     for (size_t i = state.unit_count; i < FD2_SAVE_MAX_UNITS; i++)
         memcpy(state.unit_area + i * FD2_SAVE_UNIT_RECORD_SIZE,
@@ -1238,6 +1462,8 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(game.stage == 1 && game.map.width == 27 && game.map.height == 21);
     CHECK(game.battle_result == FD2_FIELD_BATTLE_DEFEAT);
     CHECK(game.metadata.shape_index == 1 && game.metadata.unit_template_count == 40);
+    CHECK(game.metadata.source_size == 2211u &&
+          !memcmp(game.metadata.source_bytes, next.metadata, 2211u));
     CHECK(game.stage_runtime_entry_offset == 0x238du && game.turn_number == 6);
     CHECK(game.fdother == &fdother && game.font.glyphs != NULL);
     CHECK(game.experience_value == 631 && game.attack_rng == count_load_rng &&
@@ -1256,8 +1482,10 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(memcmp(exported.roster, next.roster, sizeof(next.roster)) == 0);
     CHECK(exported.meta[FD2_SAVE_BATTLE_META_OPTION_MUSIC] == 0x7fu &&
           exported.meta[FD2_SAVE_BATTLE_META_OPTION_CAMERA] == 4u);
-    CHECK(memcmp(exported.unit_area, next.unit_area,
-                 game.units.count * FD2_SAVE_UNIT_RECORD_SIZE) == 0);
+    CHECK(original_active_units_match(&game.units, &next));
+    CHECK(!memcmp(exported.unit_area, game.units.items,
+                  game.units.count * FD2_SAVE_UNIT_RECORD_SIZE));
+    CHECK(!memcmp(exported.metadata, next.metadata, sizeof(next.metadata)));
     CHECK(read_save_bytes(path, bytes_after) == 0);
     CHECK(memcmp(bytes_before, bytes_after, sizeof(bytes_before)) == 0);
     /* 反向再次预备/交接，旧资源关闭一次；没有ctor、phase或intro副作用。 */
@@ -1266,6 +1494,8 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(game.stage == 0 && game.stage_runtime_entry_offset == 0 &&
           game.experience_value == 631 && game.attack_rng_userdata == &rng &&
           game.battle_result == FD2_FIELD_BATTLE_VICTORY);
+    CHECK(game.metadata.source_size == 2211u &&
+          !memcmp(game.metadata.source_bytes, original.metadata, 2211u));
     game.battle_result = FD2_FIELD_BATTLE_DEFEAT;
     CHECK(fd2_field_game_import_battle_snapshot(&game, &next) == 0);
     CHECK(load_rng_calls == 0 && preflight_calls == 0 && rng.state == 0x5678 &&
@@ -1334,13 +1564,16 @@ static int test_batch_stage_snapshot_capability_and_growth(void) {
                 CHECK(fd2_field_units_append_group_placed(&source->units,&source->metadata,
                     &source->placements,&source->map,2,1)==0 && source->units.count>prior);
             }
+            /* F1原turn writer/Save BYTE域已证；这里单独核254/255的
+             * 存取边界，不执行默认255 callback、不伪造256自然续局。 */
+            for(unsigned boundary_turn=254;boundary_turn<=255;boundary_turn++) {
             /* 控制隐藏前态允许原BYTE回绕；raw0可见HP0仍原样保存。 */
             for(size_t i=0;i<source->units.count;i++)source->units.items[i].flags|=1u;
             source->units.items[0].flags=0;source->units.items[0].x=source->units.items[0].y=0;
             source->units.items[0].hp=0;
             size_t last=source->units.count-1u;
             source->units.items[last].x=source->units.items[last].y=255;
-            source->turn_number=255;source->active_side=2;
+            source->turn_number=boundary_turn;source->active_side=2;
             source->camera_cell_x=source->camera_cell_y=0;
             source->cursor_cell_x=source->cursor_cell_y=0;
             /* schedule_turn的BYTE是快照状态，不要求等于DAT，也不把
@@ -1360,17 +1593,20 @@ static int test_batch_stage_snapshot_capability_and_growth(void) {
             live->battle_result=FD2_FIELD_BATTLE_DEFEAT;
             CHECK(fd2_field_game_load_active(live,path)==0);
             CHECK(live->stage==stages[si] && live->units.count==source->units.count &&
-                live->battle_result==FD2_FIELD_BATTLE_DEFEAT && live->turn_number==255 &&
+                live->battle_result==FD2_FIELD_BATTLE_DEFEAT && live->turn_number==boundary_turn &&
                 live->active_side==2 && live->focus_cycle_unit==0 && !live->event_resume.active &&
                 live->interaction==FD2_FIELD_INTERACTION_BROWSE && live->fdother==&other);
-            CHECK(!memcmp(live->units.items,snap.unit_area,live->units.count*FD2_FIELD_UNIT_RECORD_SIZE));
+            CHECK(original_active_units_match(&live->units,&snap));
             CHECK(live->metadata.turn_events[0].turn==17 && live->metadata.turn_events[15].action==255 &&
                 live->cell_action_completed[31]==0x9d && !load_rng_calls && !preflight_calls && rng.state==0x6271);
             CHECK(live->attack_rng==count_load_rng && live->attack_rng_userdata==&rng &&
                 live->progress_preflight==load_preflight_probe && live->progress_preflight_userdata==&preflight_calls &&
                 live->music_request==load_music_probe && live->music_request_userdata==&preflight_calls);
             fd2_save_battle_snapshot roundtrip=frozen;
-            CHECK(fd2_field_game_export_battle_snapshot(live,&roundtrip)==0 && !memcmp(&roundtrip,&frozen,sizeof(frozen)));
+            fd2_save_battle_snapshot load_expected=frozen;
+            original_active_load_records(load_expected.unit_area,live->units.count);
+            CHECK(fd2_field_game_export_battle_snapshot(live,&roundtrip)==0 &&
+                  !memcmp(&roundtrip,&load_expected,sizeof(load_expected)));
             *before=*live;
             fd2_save_battle_snapshot bad=snap;
             bad.unit_area[last*FD2_FIELD_UNIT_RECORD_SIZE+5u]&=0xfeu;
@@ -1382,6 +1618,7 @@ static int test_batch_stage_snapshot_capability_and_growth(void) {
             bad=snap;bad.meta[FD2_SAVE_BATTLE_META_STAGE]=29;
             CHECK(fd2_field_game_import_battle_snapshot(live,&bad)==-1 && !memcmp(before,live,sizeof(*live)));
             CHECK(!load_rng_calls && !preflight_calls && rng.state==0x6271 && !memcmp(&snap,&frozen,sizeof(snap)));
+            }
         }
         fd2_field_game_close(source);
     }
@@ -1444,6 +1681,21 @@ static int test_detail_busy_preserves_outputs_and_files(void) {
     CHECK(fd2_field_game_export_battle_snapshot(&game,&output)==0);
     CHECK(fd2_field_game_save_active(&game,path)==0 && fd2_field_game_save_manual_slot(&game,path,2)==0);
     CHECK(!rng_calls);
+    /* 外来turn>BYTE不属F1已证正常前缀；安全拒绝不得改文件/owner。
+     * 手工slot没有turn字段，不能给它另加这个活动Save门。 */
+    CHECK(read_save_bytes(path,before_file)==0 && file_write_identity(path,before_identity)==0);
+    const uint32_t invalid_turns[]={256u,UINT32_MAX};
+    for(size_t i=0;i<sizeof(invalid_turns)/sizeof(invalid_turns[0]);i++) {
+        game.turn_number=invalid_turns[i];before=game;output=sentry;
+        CHECK(fd2_field_game_export_battle_snapshot(&game,&output)==-1 &&
+            !memcmp(&output,&sentry,sizeof(output)) && !memcmp(&before,&game,sizeof(game)));
+        CHECK(fd2_field_game_save_active(&game,path)==-1 && !memcmp(&before,&game,sizeof(game)));
+        CHECK(read_save_bytes(path,after_file)==0 && file_write_identity(path,after_identity)==0 &&
+            !memcmp(before_file,after_file,sizeof(before_file)) &&
+            !memcmp(before_identity,after_identity,sizeof(before_identity)));
+        CHECK(fd2_field_game_save_active(&game,missing)==-1 && !memcmp(&before,&game,sizeof(game)) && !rng_calls);
+        FILE *unexpected=fopen(missing,"rb");CHECK(unexpected==NULL);
+    }
     fd2_field_game_close(&game);fd2_archive_close(&other);
     CHECK(remove(path)==0);
     return 0;
@@ -1490,10 +1742,11 @@ int main(int argc, char **argv) {
         test_export_preserves_unknown() != 0 ||
         test_runtime_unit_capacity() != 0 ||
         test_roster_capacity_is_independent() != 0 ||
-        test_import_rebuilds_cache_without_rewriting_records() != 0 ||
+        test_import_rebuilds_cache_and_writes_only_class() != 0 ||
         test_first_active_save() != 0 ||
         test_first_manual_then_active_save() != 0 ||
         test_loaded_roster_survives_save_to_other_files() != 0 ||
+        test_loaded_metadata_owner_complete_files_and_reload() != 0 ||
         test_import_is_transactional() != 0 ||
         test_manual_save_and_load_unavailable() != 0 ||
         test_file_roundtrip() != 0 ||

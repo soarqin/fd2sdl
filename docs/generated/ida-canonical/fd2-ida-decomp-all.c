@@ -30,6 +30,8 @@
  * --------------------------------------------------------------- */
 // [勘误 evidence] 活动Load后的焦点轮询起点可能沿旧session继续 -> 成功活动Load尾把53AE9置0，下一次Z从raw0开始扫描；不是SAV字段，失败加载不交接owner。SDL同时在交接前检查可见actor完整sprite帧组，并复用现有纯胜败查询，避免恢复门重复漂移。；依据: 权威sub_10010及原始10602清53AE9；真实START与坏ID、成功/失败原子边界回归。sprite预检是SDL显式安全边界，不冒称原版坏ID安全拒绝。
 // [勘误 evidence] 1035c清53BDF；1036a..1039c按raw actor顺序读取+7当前unit ID调用11019，并于10391重写+2；103a9..103cb写新FD2.TMP。热身份变更可保留旧cache sprite，但Load会按当前ID重建。SDL保留原80B、以派生旁路表示新class，不承诺旧TMP保持。；依据: 2026-11-10 Domain窄读10010/11019/2548c/34dd0共2911B与strictLE一致；readset SHA eff244cac03080c8b394489275fbf10018b80b95e31d27f2d4239a3ea10ac84e。未改原型/边界。
+// [勘误 evidence] 10186..101cf为metadata申请并恢复完整2211B；资源只决定模板解析前缀。1037c读actor+7身份，逐raw调用11019，10391把首次身份cache class写回actor+2，包括hidden记录。G2历史SDL只改旁路、保持raw2；F3活动Load在交接前同步raw2，其余79B保留。2986f手工Load无此raw写点。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
+// [勘误 evidence] 1010f..10121把整A00恢复到现53BF7；active则申请独立1e00，只恢复count*80B，不为其inactive后缀提供初始化合同。whole Load的roster与count内80B有文件来源，不能与fresh未写字节统判U。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
 void sub_10010()
 {
   int v0; // ebp
@@ -406,6 +408,7 @@ int __cdecl field_actor_group_append(int a1)
 // [field_unit_stage_template_append] 从 placement、26 字节模板、unit 基础表和 level 构造完整 0x50 stage 单位记录
 //   依据: DOSBox 运行时入口 `0x16cc50` 写入身份、装备、AI、基础属性、移动、HP/MP，调用 `field_unit_combat_stats_recompute` 后递增 actor count
 //   历史地址列 `0x35e6e`（`0x10c5a` 是 __chkstk body，入口为 `0x10c50`）；旧 Ghidra 名 `legacy LAB_0001e398`；判定 chkstk-body
+// [勘误 evidence] 以现有80B目标槽构造；28h..30h九字节不写，weapon=ff时0dh也不写。10ee5/10f02/10f77/10f99等显式零写仍须保留；不能把未写字段统清0。F3修共用构造及append/Scene outer的来源保留；fresh初值、全部动态别名读者另账。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 int __cdecl field_unit_stage_template_append(int a1, int a2)
 {
   int i; // esi
@@ -625,6 +628,7 @@ int __cdecl fdicon_cache_append_unit(int a1, int a2)
 //   依据: 反编译：fseek(idx*4+6)+fread
 //   历史地址列 `0x463ce`；旧 Ghidra 名 `FUN_0000e902`；判定 exact
 // [勘误 address] 0x463ce -> VA 0x111ba / OFF 0x11ba；依据: `FUN_0000e902 + 0x28b8`；机器码 fopen -> fseek(idx*4+6) -> fread，39 个调用点，`main` 用它加载 FDOTHER/FDTXT。
+// [勘误 evidence] 非空old先free，读取相邻两个目录DWORD求N，malloc(N)后fread完整N并返回独立资源owner。不是whole-DAT借片、固定2211B或old容量复用；53BFF只是临时最近资源长度，后续加载会覆盖。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 int __cdecl res_load(int a1, int a2, int a3)
 {
   int v3; // esi
@@ -7144,6 +7148,7 @@ LABEL_57:
 // [勘误 evidence] 活动 meta[9]（DS:0x3bfb）被当作当前 actor count 的副本 -> meta[1] 为当前战场 actor count（DS:0x3beb，格式容量 96）；meta[9] 为独立持久 roster count（DS:0x3bfb，0x8a3 起 0xa00 字节、32 条 0x50 记录）。二者不要求相等，也不以当前 side 2 actor 数量或 active count 为 roster 上限。；依据: 已发布伪 C：sub_112A5 @0x112a5 在 dword_53bf7 + 80*dword_53bfb 追加记录并递增 roster count；sub_11506 @0x11506 对 active actor 遍历独立 roster 同步；@0x19df7 writer 分别写 meta[1]/meta[9]。只读 START.SAV 的两个值为 12/4，FD2.SAV 为 27/31，反证 count-copy 与 roster<=active 假设。保留中性函数名，未新建 IDB 或修改权威伪 C。
 // [勘误 evidence] SDL 将 secondary 肯定离场的 -1 建模为返回标题 -> selector 3 肯定后呈现 FDTXT[416]，返回 -1，经 field_empty_focus_menu_execute @0x16f55 和控制器 @0x117e7 传至 main @0x25bf4，结束 DOS 游戏；不会重新进入标题。SDL 使用独立 LEAVE_GAME，与宿主关闭保留不同来源，均正常退出 0。；依据: 已发布伪 C 调用链与原始 object1 @0x1a301 的 b8 ff ff ff ff 返回值，区别于取消 @0x16fd8 的返回 1；2026-11-04 真实 START 的 WGC 离场输入与自然退出收据，肯定后不再发键、清理前已观察原版 exit 0。仅更新登记输入，未建库、重命名数据库或改写权威伪 C。
 // major system-notice / visual-clock evidence: Save410/Load413/Leave415三条确认均1956b(75)，首提示同原dst0xA9F23；411/414/416或412追加同dst0xAB6E3，保原first prompt和portrait。410..420实际普通tokens不另含speaker控制；15f84/font4ed7a不减4/8坐标。 依据：既有完整canonical函数、caller/xref与validated relocated原字节；独立Domain确认首提示push0xA9F23及后提示0xAB6E3，扣VGA基址直接为(99,127)/(99,146)。C4旧实际窗口确认底色差异；本轮修复后的Windows完整页验收尚待，不以纯SDL回归代替原版。
+// [勘误 evidence] Save写整2211B metadata、整0xa00 roster、count*80B active、32B cell、meta前18B。fresh普通0..29中27条资源malloc payload上界<2211，14/20/26三条及完整Loaded owner有全部来源。短块首越owner发生在metadata memmove，早于wb/checksum/fwrite，无磁盘payload前缀已提交。目标不存在分支只写四slot stage=ff，非整22987B初始化；其未赋值区后被checksum消费。后一条件若metadata完整，wb已创建空文件而尚未fwrite；不能混用两个U时点。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，_
 void __usercall field_secondary_menu_execute(int a1@<ebx>, int a2@<edi>, int a3@<esi>, int a4, int a5, int a6, ...)
 {
   unsigned __int8 *v6; // edi
@@ -15344,6 +15349,7 @@ int __cdecl sfx_play_secondary(int a1, int a2, int a3)
  * callers: 0x4609b
  * callees: 0x111ba, 0x117e7, 0x22e5c, 0x22ef6, 0x22f37, 0x230f2, 0x231bc, 0x231f9, 0x23296, 0x232e8, 0x234bb, 0x235bc, 0x235f9, 0x23790, 0x237d5, 0x2389f, 0x238dc, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x244b6, 0x24754, 0x24c1e, 0x24df2, 0x24e80, 0x250cc, 0x25464, 0x2548c, 0x25757, 0x25977, 0x25ebb, 0x26152, 0x3231b, 0x32d18, 0x32e8c, 0x32fb2, 0x33049, 0x3314b, 0x33169, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3346b, 0x3347c, 0x334d9, 0x335a0, 0x335aa, 0x335da, 0x33674, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x3702f, 0x3706e, 0x370f0, 0x37d3e, 0x37ed8, 0x3908b, 0x392d0, 0x3aa72, 0x3aca3, 0x3cc7d, 0x4e381, 0x4ebe3
  * --------------------------------------------------------------- */
+// [勘误 evidence] 25d54..25d61在标题外循环前唯一malloc A00并存53BF7。25dd5..25e00普通败北只播放22e5c并回标题，不调用11506，不清roster/count。该App期owner完整A00须跨Game关闭保留；不能把has_preparation清除等同原表销毁。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
 int __cdecl main(int argc, const char **argv, const char **envp)
 {
   int v3; // ebx
@@ -15472,6 +15478,7 @@ int __cdecl main(int argc, const char **argv, const char **envp)
 //   历史地址列 `0x25ebb`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
 // [勘误 evidence] 标题只有新游戏与退出，或把 LOAD 与活动快照恢复合并 -> 标题分派 branch 0 进入新游戏，branch 1 调用手工四槽 picker；branch 2 调用 sub_10010 @0x10010 恢复活动快照。LOAD 不等于 CONTINUE。；依据: 复用已发布 title_action_dispatch @0x25ebb 的分支与 xref；结合原版三项标题 WGC 的 Up→CONTINUE→stage 0 检查点，不修改现有函数名或发布新的 IDA 逆向基线。
 // [勘误 evidence] 手工LOAD后续owner尚未确认，可能直接恢复当前战场 -> LOAD1恢复完整持久表、stage/资源/配置后进入城镇出阵准备26152，不直接恢复回合或焦点。START0直接新游戏，CONTINUE2才调用10010活动恢复；四槽可见恢复归B5，B1保留明确未支持门。；依据: 原始25ecf/25f3f/26130分支及26064..26098手工meta写集；260e5先26152、260f5再调DS:1d71。严格LE表51d71[0]指3231b，正常START32→31→0不经过准备页；原版阶段标签已有WGC，准备页及出阵恢复本轮仅静态取证，未冒称运行通过。
+// [勘误 evidence] START先fade，再stage=0、重载palette资源、25efa仅令53BFB=0；不清53BF7的A00，也不写51AAB/53AF9/51E61/51E62四个raw option byte。2604a..26056手工Load恢复整A00，26070另恢复count；配置写点只属于相应Load分支。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
 int title_action_dispatch()
 {
   int v0; // eax
@@ -21663,6 +21670,7 @@ LABEL_12:
 //   历史地址列 `code0 0x2231b（dual 0x3231b）`；旧 Ghidra 名 `FUN_0002fa63`；判定 exact
 // [勘误 evidence] 完整序章脚本已接入，最后对白后的handoff可直接代表自然开场终态 -> stage0最后fragment2之后还须134e4复位全部方向、12d7b聚焦actor0，再清资源值。SDL遗漏这段会把最后说话人raw11的焦点和镜头交给战场；部署调试入口跳过script0也不等于自然开场。；依据: 权威3231b尾和strictLE script0/1/2/5写集；新无窗口完整32→31→0回归不读取START.SAV。原版自然START逐117个资源等待门及UI Save实测12站位、全方向0、focus(7,14)/camera(0,13)。
 // [勘误 evidence] new_game_opening_play既有cold j_delay只是原等待；不能为sleep_ms或每次呈现额外调用11cac。本条仅补既有caller的等待边界说明，不宣称新提取整函数或新增开场运行证据。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
+// [勘误 evidence] 327f7/32801/3280b/32815对原roster四目标槽依次112a5(0/9/4/30)。各条58写22保；index4..31共2240B未用尾不由新局覆盖。32969独立将53BF3清0。Game消费Scene已构造来源，不能在另一个清零底本再构造或盲继承旧stage/gold。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
 void __usercall new_game_opening_play(unsigned __int8 *a1@<edi>)
 {
   unsigned __int8 i; // bl
@@ -26386,6 +26394,7 @@ int __cdecl _doclose(int a1, int a2)
  * callees: -
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保FLIRT memmove原名/类型。仅在上述完整31529自然栈链，入口push ESI的保存槽成为下一2ebe1局部HP cell末写；值0xaf8c0由上层VGA最后scanline给出。这是已证caller栈别名，不把通用memmove重命名成HP初始化函数。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b140ebd384614b61c8991afad8583aa45ae079 登记53A45热owner、credits之后时点、WORD写及音频门。montage-actualC18-01/compariso
+// [勘误 evidence] memmove按地址选向：src>=dst或src+len<=dst走forward DWORD再余BYTE，否则backward WORD再余BYTE。19df7短metadata过长2211B范围可与另一合法目标owner相交；不能因两个实际分配不重叠就固定forward。forward首次跨源owner的DWORD起4*floor(A/4)，首非法源byte=B+A；backward首WORD=B+2209，短块上界2119之外。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 char *__cdecl memmove(char *a1, char *a2, unsigned int a3)
 {
   char *result; // eax
@@ -30498,6 +30507,7 @@ void nullsub_2()
  * callers: 0x3707e
  * callees: -
  * --------------------------------------------------------------- */
+// [勘误 evidence] 成功malloc请求N令Q=max(12,(N+7)&~3)，所选free F>=Q；余块>=12则S=Q，否则S=F；tag=S|1，返回用户payload的extent A=S-4，保守Q-4<=A<=Q+7。不提供payload清零合同。不从heap arena可读推定跨owner有效，也未确定某次B/tag/空闲块。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 unsigned int *__fastcall _MemAllocator(int a1, __int16 a2, _DWORD *a3)
 {
   _BOOL1 v3; // cf
@@ -50624,6 +50634,8 @@ char __cdecl sub_4DEEC(int a1, int a2, _BYTE *a3)
 // [save_checksum_sum] 对 FD2.SAV 除末尾 4 字节外的所有明文字节求 32 位和
 //   依据: 当前权威 code0 `0x3df09`，dual `0x4df09`；循环长度为 `size-4`。本地原版存档解密后 `sum(data[0:-4]) == trailing_u32 == 0x004527c1`。旧 Ghidra `FUN_0007311d` 是不同高地址函数，不再混用。
 //   历史地址列 `0x4df09`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 正常DF=0从输入偏移0顺序LODSB，4df1e ADD以0..255参与32位和，处理size-4字节；本函数不CLD。19df7新目标完整writer闭包下，count<96首欠来源byte K=12a3h+80*count，count=96时K=30d5h；第K+1次4df1d读取、4df1e首次语义使用，早于crypt，属于当前owner未初始化来源而非OOB。合法旧容器opaque回读具有来源，不能照此判U。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
+// [勘误 evidence] 正常DF=0从输入偏移0顺序LODSB，4df1e ADD以0..255参与32位和，处理size-4字节；本函数不CLD。19df7新目标以metadata/roster/全部count条完整活动记录/cell/已知meta均有合法来源为前提，完整writer闭包下count<96首欠来源byte K=12a3h+80*count，count=96时K=30d5h；第K+1次4df1d读取、4df1e首次语义使用，早于crypt，属于当前owner未初始化来源而非OOB。合法旧容器opaque回读具有来源，不能照此判U。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全
 int __cdecl save_checksum_sum(_BYTE *a1, int a2)
 {
   int v3; // ecx
@@ -50653,6 +50665,7 @@ int __cdecl save_checksum_sum(_BYTE *a1, int a2)
 // [save_xor_crypt] FD2.SAV 对称 XOR 加/解密流
 //   依据: 当前权威 code0 `0x3df28`，dual `0x4df28`；`state=0x00a5`，每字节 `rol16(state+0x9014,3)` 后 XOR。旧 Ghidra `FUN_0004b670 @0x7313c` 映射已废弃。
 //   历史地址列 `0x4df28`；旧 Ghidra 名 `Ghidra 未识别边界`；判定 exact
+// [勘误 evidence] 正常DF=0令DX=a5h，逐byte先ADD9014h再ROL3，AL XOR DL后STOSB，处理完整size；本函数不CLD。它是读后原地转换，不为新存档未知区补初始化；19df7在此之前已完成checksum读取。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 char __cdecl save_xor_crypt(char *a1, int a2)
 {
   char *v2; // esi

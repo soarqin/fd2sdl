@@ -1,7 +1,9 @@
 #include "field.h"
 
 /* B5准备表依据sub_4E809 @0x4e809；音乐表依据music_track_play @0x25977
- * 与field_turn_cycle_run @0x1a30b，均为纯只读数据，不推进session。 */
+ * 与field_turn_cycle_run @0x1a30b，均为纯只读数据，不推进session。
+ * metadata来源保留依据sub_10010 @0x10010整块恢复与
+ * field_secondary_menu_execute @0x19df7整块写回；未知尾不推断业务。 */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -157,6 +159,9 @@ int fd2_field_metadata_open_mem(fd2_field_metadata *meta,
                    FD2_FIELD_UNIT_TEMPLATE_SIZE);
         }
     }
+    meta->source_size = size < sizeof(meta->source_bytes) ?
+        size : sizeof(meta->source_bytes);
+    memcpy(meta->source_bytes, data, meta->source_size);
     return 0;
 }
 

@@ -48,9 +48,15 @@ static int preparation_export(void) {
     CHECK(state.stage_id==3 && state.unit_count==32 && state.gold_or_flags==0xabcdef);
     CHECK(!memcmp(state.unit_area,game->roster,sizeof(game->roster)));
     CHECK(state.options[0]==0xf3 && state.options[1]==0xf2 && state.options[2]==0xf0 && state.options[3]==0xf1);
+    /* S5已接1..29及NoTown准备；此处只核export owner/门，不签自然roster。 */
+    for(size_t stage=1;stage<=29;stage++) {
+        *game=*before;game->stage=stage;
+        CHECK(fd2_field_game_export_preparation(game,&state)==0 && state.stage_id==stage);
+        CHECK(state.unit_count==32 && !memcmp(state.unit_area,game->roster,sizeof(game->roster)));
+    }
     for(int bad=0;bad<4;bad++) {
         *game=*before;if(bad==0)game->event_resume.active=1;if(bad==1)game->roster_count=33;
-        if(bad==2)game->stage=29;if(bad==3)game->ready=0;
+        if(bad==2)game->stage=30;if(bad==3)game->ready=0;
         memset(&state,0xa5,sizeof(state));fd2_save_manual_state unchanged=state;
         CHECK(fd2_field_game_export_preparation(game,&state)==-1 && !memcmp(&state,&unchanged,sizeof(state)));
     }

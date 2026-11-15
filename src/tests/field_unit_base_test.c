@@ -79,8 +79,62 @@ static int test_persistent_constructor(void) {
     return 0;
 }
 
+/* 独立oracle：10c50原完整写集/cpu09保留掩码；敌97原10B row为
+ * 01 07 18 00 00 08 03 02 04 21，level3得HP72/AP24/DP9/DX6。
+ * 原item0为AP+10/HIT+95/DP+0/EV+0；1b750八槽写回，cache替身同cpu09=0。
+ * 常量不调用被测构造/派生函数生成，不声称这些preload是fresh堆默认值。 */
+static void template97_expected(fd2_field_unit *out,
+        const fd2_field_unit *before, int two_equipped) {
+    static const uint8_t written[FD2_FIELD_UNIT_RECORD_SIZE] = {
+        [0x07]=97,[0x08]=97,[0x0a]=0x40,[0x0c]=0x80,
+        [0x0e]=0x80,[0x0f]=0xff,[0x10]=0x80,[0x11]=0xff,
+        [0x12]=0x80,[0x13]=0xff,[0x14]=0x80,[0x15]=0xff,
+        [0x16]=0x80,[0x17]=0xff,[0x18]=0x80,[0x19]=0xff,
+        [0x1f]=1,[0x20]=7,[0x21]=3,[0x37]=24,[0x39]=9,[0x3b]=4,
+        [0x3c]=0xff,[0x3d]=1,[0x3e]=6,[0x40]=72,[0x42]=72,
+        [0x48]=34,[0x4a]=9,[0x4c]=101,[0x4e]=6
+    };
+    memcpy(out,written,sizeof(*out));
+    uint8_t *raw=(uint8_t *)out;
+    const uint8_t *prior=(const uint8_t *)before;
+    raw[0]=prior[0];raw[1]=prior[1];
+    memcpy(raw+0x28,prior+0x28,9);
+    if(two_equipped) {raw[0x0c]=0x40;raw[0x48]=44;raw[0x4c]=196;}
+    else raw[0x0d]=prior[0x0d];
+}
+
+static int test_template_constructor_original_write_set(void) {
+    fd2_field_unit_template source={{
+        0,97,1,1,3,0xff,0,0xff,0xff,0xff,0xff,0xff,0xff,
+        0,0,0,0,0,0,0,0,5,0,0,0,0
+    }};
+    for(unsigned preload=0;preload<3;preload++) {
+        for(int armed=0;armed<2;armed++) {
+            fd2_field_unit actual,before,expected;
+            uint8_t *raw=(uint8_t *)&actual;
+            for(size_t i=0;i<sizeof(actual);i++)
+                raw[i]=preload<2 ? (preload ? 0x5a : 0xa5) : (uint8_t)(0x81u+i*3u);
+            actual.x=9;actual.y=12;before=actual;
+            source.bytes[5]=armed ? 0 : 0xff;
+            template97_expected(&expected,&before,armed);
+            CHECK(fd2_field_unit_stage_template_apply(&actual,&source)==0);
+            CHECK(!memcmp(&actual,&expected,sizeof(actual)));
+            /* 同槽重用：上次明确写的0dh成为本次weapon=ff应保的输入。 */
+            before=expected;source.bytes[5]=0xff;
+            template97_expected(&expected,&before,0);
+            CHECK(fd2_field_unit_stage_template_apply(&actual,&source)==0);
+            CHECK(!memcmp(&actual,&expected,sizeof(actual)));
+            before=expected;source.bytes[5]=215;
+            CHECK(fd2_field_unit_stage_template_apply(&actual,&source)==-1);
+            CHECK(!memcmp(&actual,&before,sizeof(actual)));
+        }
+    }
+    return 0;
+}
+
 int main(void) {
     CHECK(test_persistent_constructor() == 0);
+    CHECK(test_template_constructor_original_write_set() == 0);
     /* 新游戏 stage 0 玩家基线。 */
     CHECK(check_unit(0, 1, 1, 1, 4, 42, 0, 6, 4, 2) == 0);
     CHECK(check_unit(9, 1, 1, 5, 4, 28, 8, 3, 2, 1) == 0);

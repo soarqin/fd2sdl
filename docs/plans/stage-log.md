@@ -1965,3 +1965,28 @@ App a57的 `input-native03`、`motion-native04`、`prepare-native03` 原版先�
 实际依赖复核后，三门（18b84首指针、2000a首FS／GS、1b1e7继承EBP全steady）、type9 provider／21db2正常入口、完整输入／RNG联合轨迹仍明确未过，详见[F2残余表](f2-time-input-rng.md#主体交付与最后联合门)。这些不是构造／Load／存档、解码或PCM算法的实现前置，继续F3；F4／F5补全像素、非例外PCM／PIC及新反馈原版代表，F6逐性质合签。发现正常反例必须修复，不能靠拒绝、改名或文案豁免。QK仍由原专项负责；Windows／EX-AUDIO-NUKED选择未变。
 
 本地提交／集成、原始构建／定向检查、物理字节及用户SAV保护的实际身份见两树 `build/f2/subject-delivery-20261115/local-integration.json`；收据仅按已执行结果写入。提交后继续F3，不远程push／发布、不改混音器或扩大显示／电源授权。
+
+## F3实施检查点（2026-11-16，未提交）
+
+在F2 `232aca6`之上修模板构造及两个正式outer的原保留写集、活动Load的raw2写回、完整Loaded metadata来源；保手工2986f独立合同、原58／22持久写集与已有session／RNG／资源owner，不新增热状态或通用VM。当前仍未完成整阶段复审／提交／本地集成，统一状态见[F3报告](f3-gameplay-lifecycle.md)。
+
+实际四项state/save/unit/Scene直接检查通过；11个玩法consumer首轮7过4失败，三个过期S5负例和一个Load旧class期望按原分派／写点修正后，仅复跑4项通过。Scene三个全record控制门的非零九B回归通过；AI11的保守资源key可多分组，成功／错误代表保持动作／RNG／字节合同，首轮漏算拒绝后早停的测试失败保留，修测试后只复跑AI通过。正常254／255存取、256／DWORD上界H拒绝的文件bytes／mtime及owner无副作用也已直接通过。
+
+`load-native02`实际原版／SDL正常END、取消／成功Load及Save，两个端点各11处class重排和完整22987B／checksum通过。输入producer未证，不执行或代签Z；strict ON、WGC HWND、后台owned输入／正常退出、原资源及用户档守卫通过。首轮原生c4与注释重建6654分账，来源影响继承单独有收据；补齐snapshot／copy／配置守卫后，仅追加最后03双端实际复验6654，788源及App／driver均已按实测SHA／mtime归档。两端各11处class及完整容器、reference前后、strict ON及job43776正常清理通过。01在首窗口前的Z预检失败及工具原件保留。
+
+新增静态Domain六函数902B和两函数67B，结合完整writer及全部33条目录，定位27个短fresh metadata Save的首越owner读，以及新目标未赋值checksum输入的首语义读；两种条件、方向和文件副作用时点分别登记。已有Loaded／三个全长fresh／合法opaque来源仍为严格合同，短尾保目标和新文件ff明确为原首U之后的H继续，不猜原heap或新增Save拒绝。8个已证合同同步命名输入及隔离IDA发布，1312函数边界／签名／flags／chunks／bytes和C tokens不变，0改名，529登记含新增allocator证据；11SHA最后刷新并核验，14工具检查通过。静态／原型旧报告只继承，没有重跑其语义。
+
+正式root分母与97参数四栏账已落，实际来源／旧原码／C／自然producer分离。新增缺例正在通过原入口和脚本前态修正后核验，失败保原件，不按测试名或表存在合签。0dh自然prefix与九B动态别名读者仍在源闭包复审；QK相关掉落提前结束和App返回条件仍留原联合专项，不能按人数臆造门。F4只读盘点已准备，不混入本次F3提交，不签全像素／音频或全自然链。
+
+
+## F3主体交付与继续F4（2026-11-16）
+
+构造71/9及weaponFF保0d、活动Load raw2、完整Loaded metadata、App完整A00跨败北／标题／START和四raw options均已修复。Scene原四点58/22只构造一次，Game窄入口消费；Game关闭前交回完整表，失败Load不回交空表。没有第二热roster／RNG／VM；未知byte不猜通用默认。完整范围与失败、当前候选、独立来源分账见[F3报告](f3-gameplay-lifecycle.md)。
+
+97参数四栏账补37例；12生命周期直接检查为CTest01十过、02 Play过、03 Prepare过。链接漏改名、Load不是结果提交点和两处准备测试初态错误保原日志；不提高timeout／放宽memcmp／生产门。Load03实际6654经严格完整容器／11 class写点；START03实际DDC9经两端各117资源等待、首浏览和UI Save字段。它们是两个不同候选，788源及各App／driver精确归档，不能拼成一个全fresh。两端进程均正常退出，所有owned job无残留／强杀。
+
+START01因OFF在首窗前停止；用户随后明确授权主动点亮与必要临时电源计划。02实际一次有界唤醒成功，但参照缺nosound配置又在首窗前停止；03补隔离配置后通过，同线程12872释放显示要求。未改电源计划或系统混音器，前后powercfg记录相同。03共用running追加的幂等quiet CLI经实际command与已守卫配置事后join，全声明／派生设置不变，不补造运行前manifest已含该CLI。原资源与用户档只读，所有来源／配置守卫成立。
+
+有限读者／返回值闭包采用修正后的184关系／91实际调用点；漏外部条件边的01闭合撤回。完整Load→turn3两模板的具体mask与首checksum U、fresh族来源归纳另账，不以未测直接判U；wholeLoad／live／合法sync继续V。IDA末次发布4生命周期注释、530登记，1312函数strict结构／C tokens不变、0改名、11SHA及14工具检查通过。原码3774等仅保给定before80旧身份，不重跑或扩签。
+
+QK三个条件consumer仍未一般表达，Town0先继续后续battle的时点已纠正；正常可达／联合资格及有限outcome实现留同一专项。后期first-App R实际sync／reorder来源、全自然／动态链和败北重开后缀也仍待F6。主体交付不是A04／A06—A09完整终态通过；这些缺口不读取F4解码器或F5采样算法，依已授权真实依赖继续F4。实际提交、物理源、主线构建／定向集成及保护记录只认两树`build/f3/subject-delivery-20261116/local-integration.json`，不远程push／发布。

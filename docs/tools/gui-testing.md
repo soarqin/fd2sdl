@@ -78,6 +78,26 @@ G5 已修同一input owner的有限FIFO及原caller读一／clear、六个旧正
 
 fresh构造按独立已定义字段比较；新构造未写9B（unit+0x28..0x30）或初始堆尾的跨端排除不等于这些字节无语义。Loaded必须从**本端preload实际SAV**保留已拥有未知字节，仅允许来源确认的cache重建和独立view写集，完整校验容器／checksum；不能沿用fresh的holes／tail排除。53的永久校验修复以28项pure和两端既有actual的完整22987B离线强核补证，旧GUI报告不回写、不升为新跑。实际交接／Load／Save的source、磁盘mtime、四槽、资金／flags及未知区仍逐端守卫；具体收据见阶段记录。
 
+### F3 活动Load完整写集代表
+
+`run_f3_load_check.py`在既有Load工具之上要求来源checksum有效且至少有一处旧cache class，用原10010／11019按+7身份的首次出现顺序独立核+2；不能将measured class复制成expected。其余完整22,987B、checksum和明确导航写集仍严格核。历史finite-Save helper的cache排除不用于这个入口，手工2986f也不套用活动写点。
+
+这是沿`run_original_end_turn.py::validate_initial`的单个stage0／turn1／12actor代表：4玩家／8敌、未行动且无状态、玩家满HP、镜头／焦点有效、主角可提供左邻Save测点；不是任意关卡／任意有效档的自动全域验收。额外要求至少一处旧class，使本次确实观察raw2写回。产品正常域另由统一计划管理，不被该代表的前置缩小。
+
+入口只复制已有存档，不修改原档字节；正常END到Round002、Esc／NO取消、成功Load后显式Save。不投递Z，不代签自然生产、整RNG、全时序／像素／音频。Windows strict ON先验、WGC HWND、owned job、后台输入和正常／失败清理沿本规范，不能以缺依赖或前置失败冒充执行通过。来源、fixture、程序与临时配置独立冻结；首业务错和晚守卫／清理错误分别保留。
+
+Windows PowerShell示例，先将三个外部路径设为本机已核版本；输出目录须从未存在。以下仅示范复跑，不是另一轮已执行记录：
+
+```powershell
+$f3Driver = 'src/build-win/Debug/fd2_field_play_input_driver.exe'
+$f3Dosbox = 'C:/path/to/dosbox-x.exe'
+$f3Bootstrap = 'C:/path/to/dosbox-x-version.conf'
+$f3Fixture = 'C:/path/to/existing-valid-FD2.SAV'
+& $f3Driver run-job 240000 python -B tools/run_f3_load_check.py --root . --game src/Debug/fd2sdl.exe --driver $f3Driver --dosbox $f3Dosbox --bootstrap $f3Bootstrap --save-fixture $f3Fixture --artifacts build/f3/load-native-next
+```
+
+Linux不执行该Windows WGC入口。工具纯合同测试可使用`python3 -m unittest tools.tests.test_original_load tools.tests.test_f3_load_check`；当前运行平台、原生候选和实际结果只见[F3报告](../plans/f3-gameplay-lifecycle.md)，不从命令示例推定通过。默认构建路径、当前Windows普通独立构建路径和两者驱动均须按实际二进制身份登记。
+
 ### B7 第二关续战、村民结算与 stage 2 交接
 
 本节规定当前 B7 的判据，完成状态和不同候选的实际覆盖见[阶段记录](../plans/stage-log.md)。自然整关、受控结算、局部原码和 SDL 自测分别记账，不能用其中一种代替另一种。
@@ -1043,3 +1063,10 @@ $Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
 ```
 
 这是Windows原生入口及Windows归档依赖，不提供未经验证的Linux原生等价命令；Linux常规构建／逻辑检查见[跨平台约定](platforms.md)，本轮未执行。实际运行、失败保留、检查器修正及当前资格统一记在[F1报告](../plans/f1-reference-domain.md#合并82正式代表的失败与检查器修正)，上述复跑模板不表示本场已通过。
+
+
+### 2026-11-16 F阶段新增显示授权
+
+用户针对当前F1—F6工作另明确允许自行点亮显示及必要临时电源计划。可沿现`windows_display_requirement`的一次申请／有界唤醒确认console／session ON与Default桌面；这不是游戏输入，不能用来补按键、抢焦点或循环唤醒。先用显示保持，若确需临时方案则先记原活动计划与改动项，采用现journal，成功／失败／取消和owned清理后恢复。系统混音器仍不改。
+
+F3 START02实际唤醒但参照预检先停，03原版／SDL117页及UI Save通过，同线程释放；两次均未改电源计划。旧strict ON失败记录及既有Load入口保原身份／参数，不追认为当时已获此新授权。实际候选和参照CLI事后join边界见[F3报告](../plans/f3-gameplay-lifecycle.md#21-app生命周期直接回归及本轮候选)。

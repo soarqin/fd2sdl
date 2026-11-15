@@ -167,8 +167,9 @@ static int prefix_errors(void) {
             CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_ACK)==-1 && !memcmp(game,before,sizeof(*game)));
         }
     }
-    /* S3显式批次之外仍不因source库存存在而开放战斗。 */
-    for(size_t stage=20;stage<30;stage++)CHECK(!fd2_field_stage_battle_is_supported(stage));
+    /* 原30槽正常战场已由S5完整接入；内部30..32不增造普通战场。 */
+    for(size_t stage=0;stage<30;stage++)CHECK(fd2_field_stage_battle_is_supported(stage));
+    for(size_t stage=30;stage<=32;stage++)CHECK(!fd2_field_stage_battle_is_supported(stage));
     free(game);free(before);return 0;
 }
 

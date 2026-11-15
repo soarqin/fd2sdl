@@ -63,7 +63,9 @@ int fd2_field_unit_persistent_stats_recompute(fd2_field_unit *unit);
 int fd2_field_unit_persistent_create(fd2_field_unit *unit, uint8_t unit_id);
 
 /* 将 FDFIELD 26 字节模板按原10c50重排、基础等级派生及最终1b750装备派生。
- * 初始六状态清零，不用外部缩放；保留预设x/y，坏装备/基础源失败不写记录。 */
+ * 输入必须是owner已初始化的80B槽；保x/y及28h..30h九B，weapon=ff另保0dh。
+ * 原明确direction/frame/flags/09h/1eh/六状态仍清零；cache结果归正式append/Scene。
+ * 不用外部缩放，坏装备/基础源失败不写记录，不推导fresh堆初值。 */
 int fd2_field_unit_stage_template_apply(
     fd2_field_unit *unit,
     const fd2_field_unit_template *template_record);

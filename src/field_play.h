@@ -35,6 +35,8 @@ typedef struct {
     /* 51E61/51E62的App期原byte投影；当期来源仍为Game/prepare，消费才转bool。 */
     uint8_t music_enabled;
     uint8_t sfx_enabled;
+    uint8_t effect_option; /* 53AF9原byte；与camera沿App保留，不bool化。 */
+    uint8_t camera_option; /* 51AAB原byte；preparation仅空闲时拥有roster backing。 */
 } fd2_field_play_context;
 
 void fd2_field_play_context_init(fd2_field_play_context *context,

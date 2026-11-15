@@ -5,7 +5,10 @@
  * field_secondary_menu_execute @0x19df7（原登记同名）与
  * field_manual_slot_save @0x2968d（原sub_2968D）分别
  * 更新活动快照／手工槽；均读取完整0x59cb容器、重算checksum再写回。
- * 未修改区域与未知字节始终保留，手工槽不重建活动战场。
+ * 已有容器的未修改区域与未知字节始终保留，手工槽不重建活动战场。
+ * 新目标19fcd..19fe2只写四个stage哨兵；4df1d/4df1e随后读未赋值
+ * payload参与checksum。create_empty全ff是该U之后的确定安全策略，
+ * 不是原版全文件初始化写集，不声称复现任意旧heap。
  */
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
@@ -84,7 +87,7 @@ int fd2_save_file_create_empty(fd2_save_file *save) {
     if (!save || save->data) return -1;
     uint8_t *data = malloc(FD2_SAVE_FILE_SIZE);
     if (!data) return -1;
-    memset(data, 0xff, FD2_SAVE_FILE_SIZE);
+    memset(data, 0xff, FD2_SAVE_FILE_SIZE); /* H：确定的新文件空槽/未知区。 */
     wr_u32_le(data + FD2_SAVE_FILE_SIZE - FD2_SAVE_CHECKSUM_SIZE,
               fd2_save_checksum_sum(data, FD2_SAVE_FILE_SIZE));
     save->data = data;

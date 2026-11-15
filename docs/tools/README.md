@@ -6,6 +6,8 @@ F1合并81→82的正式容量代表使用`tools/run_f1_coalesced82_check.py`；
 
 F1的L1有源启动门复用`run_le_preentry_check.py --startup-trace`，另接`tools/ida/export_le_startup_domain.py`和`verify_le_startup_writes.py`；三层收据缺一不可，旧静态零BSS失败不回签。复跑及平台边界见[DOSBox手册](dosbox-debug.md#l1-有源启动写账的可复跑入口)。
 
+F3活动Load写集代表使用`tools/run_f3_load_check.py`：只复制已有有效存档，经正常END、取消／确认Load及Save核首次ID cache class和完整容器，不执行Z或声称输入自然生产。严格显示ON、owned job及配置／来源守卫必需；命令与资格见[图形规范F3](gui-testing.md#f3-活动load完整写集代表)和[F3报告](../plans/f3-gameplay-lifecycle.md)。
+
 以下命令从项目根目录执行。命令按 PowerShell／Bash 标注，Python、环境变量、临时目录、二进制比较和历史绝对路径的转换见[跨平台约定](platforms.md)。先查本文及专题，不为回忆语法反复调用 `--help`；工具版本／行为改变后再修订对应命令。开发约束见 [AGENTS.md](../../AGENTS.md)，完整分类见[文档索引](../README.md)。
 
 Windows x64 本地 Release 的源码快照、实际 CMake／PE 依赖记录、白名单打包及离线重建命令统一见 [Windows Release](windows-release.md)。自有代码为 MIT，包保留第三方许可与匹配重建材料，不包含原资源，也不自动发布；Linux／macOS 发布未验。

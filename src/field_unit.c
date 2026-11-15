@@ -130,8 +130,8 @@ int fd2_field_units_sprite_cache_append(fd2_field_units *units, size_t actor) {
     return 0;
 }
 
-/* sub_10010 @0x10010: Load忽略已存class，按当前actor顺序和当前unit ID重建。
- * SDL保持SAV的80B，原重写record+2的结果仅放runtime旁路。 */
+/* fdicon_cache_append_unit @0x11019：本helper只重建派生cache；活动Load
+ * 由caller按10391另同步raw+2，手工Load不借此改persistent记录。 */
 int fd2_field_units_sprite_cache_restore(fd2_field_units *units) {
     if (!units || units->count > FD2_FIELD_MAX_UNITS) return -1;
     uint8_t ids[FD2_FIELD_MAX_UNITS];
@@ -232,8 +232,8 @@ int fd2_field_units_append_template(fd2_field_units *units,
     if (placement_for_template(meta, placements, template_index,
                                &placement) != 0)
         return -1;
-    fd2_field_unit unit;
-    memset(&unit, 0, sizeof(unit));
+    /* 10c79/10c7f：原构造以active末尾的既有槽为底，不清未写字节。 */
+    fd2_field_unit unit = units->items[units->count];
     unit.x = (uint8_t)placement->x;
     unit.y = (uint8_t)placement->y;
 

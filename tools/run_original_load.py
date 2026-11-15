@@ -2,8 +2,10 @@
 """B1.3b：真实START经END到第二回合，再Load回第一回合并由UI Save测量。
 
 依据 field_secondary_menu_execute @0x19df7、sub_10010 @0x10010。
-Load本身不得改磁盘；测量Save逐字对照来源，仅排除active +2 cache class、
-明确记录的测量焦点导航和派生checksum。不比较未对齐的第二回合伤害。
+Load本身不得改磁盘；测量Save逐字对照来源，active +2必须等于原10010／11019
+按当前ID首次出现顺序重建的class，只投影明确测量导航及派生checksum。
+历史共用finite-Save helper的cache排除范围另保留，不作为活动Load资格。
+不比较未对齐的第二回合伤害。
 Windows启动由宿主driver run-job约束整树；原版、SDL串行。
 在第二回合逐键实测Z轮换0→1→2→3→0，再验证Load后的首次Z重回raw0。
 """
@@ -46,7 +48,7 @@ def measuring_focus(source, steps):
 
 
 def check_load_measurement(source, measured, steps):
-    """整容器严格对照；只有已确认cache字段和显式测量导航可与A不同。"""
+    """历史共用finite-Save门；活动Load须再用check_active_load_measurement。"""
     for data in (source, measured):
         if len(data) != 0x59cb or sum(data[:-4]) != int.from_bytes(data[-4:], "little"):
             raise AssertionError("Load measurement save size/checksum invalid")
@@ -73,6 +75,35 @@ def check_load_measurement(source, measured, steps):
             "raw_roster_sha256": hashlib.sha256(measured[0x8a3:UNITS]).hexdigest(),
             "cache_class_changes_excluded": cache_changes,
             "source_equal_except_declared_cache_and_measuring_focus": True}
+
+
+def active_load_cache_classes(source):
+    """原10010清cache后按raw次序调用11019；只读来源+7身份。"""
+    if len(source) != 0x59cb or source[META + 1] > 0x1e00 // STRIDE:
+        raise AssertionError("active Load source exceeds the 96-record disk area")
+    ids, classes = [], []
+    for raw in range(source[META + 1]):
+        identity = source[UNITS + raw * STRIDE + 7]
+        if identity not in ids:
+            ids.append(identity)
+        classes.append(ids.index(identity))
+    return tuple(classes)
+
+
+def check_active_load_measurement(source, measured, steps):
+    """原10010@1035c/1037c/10391：清cache后遍历全部raw，以+7身份重建+2。
+
+    11019按首次ID返回class，hidden也参与。期望仅从来源A和原算法生成，
+    不接受measured值作为expected，不把source中旧class强制保留。
+    """
+    classes = active_load_cache_classes(source)
+    report = check_load_measurement(source, measured, steps)
+    for raw, expected in enumerate(classes):
+        if measured[UNITS + raw * STRIDE + 2] != expected:
+            raise AssertionError(f"active Load raw{raw} cache class differs from original10010: expected {expected}")
+    report["cache_class_rewrites_verified"] = report.pop("cache_class_changes_excluded")
+    report["cache_classes_original_10010_verified"] = True
+    return report
 
 
 def restored_source(frame, oracle):
@@ -186,7 +217,9 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
     require_source_unchanged(save, source_bytes, source_mtime)
     observation["round2_reached_without_save"] = True
     observation["focus_cycle_before_load"] = []
-    for index, actor in enumerate(focus_cycle["actors"] + focus_cycle["actors"][:1], 1):
+    cycle_actors = focus_cycle["actors"] if focus_cycle else []
+    observation["focus_cycle_executed"] = focus_cycle is not None
+    for index, actor in enumerate(cycle_actors + cycle_actors[:1], 1):
         capture.key("Z")
         _, detail = checkpoint(f"round2-focus-cycle-{index}-raw-{actor['raw_actor']}",
                                lambda frame, actor=actor: focused_actor(frame, assets, actor))
@@ -231,12 +264,13 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
     require_source_unchanged(save, source_bytes, source_mtime)
     observation["load_disk_unchanged_before_measurement"] = True
     observation["source_mtime_ns_before_measurement"] = source_mtime
-    capture.key("Z")
-    _, detail = checkpoint("loaded-focus-cycle-raw-0", lambda frame: focused_actor(
-        frame, assets, focus_cycle["actors"][0]))
-    observation["focus_cycle_after_load"] = detail
-    require_source_unchanged(save, source_bytes, source_mtime)
-    for index, (key, position) in enumerate(focus_cycle["returning"], 1):
+    if focus_cycle is not None:
+        capture.key("Z")
+        _, detail = checkpoint("loaded-focus-cycle-raw-0", lambda frame: focused_actor(
+            frame, assets, focus_cycle["actors"][0]))
+        observation["focus_cycle_after_load"] = detail
+        require_source_unchanged(save, source_bytes, source_mtime)
+    for index, (key, position) in enumerate(focus_cycle["returning"] if focus_cycle else [], 1):
         capture.key(key)
         at = RoundOracle(assets, position)
         checkpoint(f"loaded-source-return-step-{index}", at.initial_browse)
@@ -268,7 +302,7 @@ def run(args):
     before_hashes, source_bytes = hashes(original), fixture.read_bytes()
     report = {"ok": False, "scope": "round2 Z raw0/1/2/3/0 -> active Load A -> first Z raw0 -> source focus -> explicit UI Save",
               "cancel_scope": "browse/focus restored, disk unchanged, menu reusable; complete runtime HP/MP/turn/RNG not measured for Esc/NO",
-              "excluded": "pre-Load round2 damage/AI/RNG equality, active +2 cache class, documented measuring-focus navigation, full-frame/audio equivalence",
+              "excluded": "pre-Load round2 damage/AI/RNG equality, documented measuring-focus navigation, full-frame/audio equivalence; active +2 verified against original10010",
               "capture": "Windows.Graphics.Capture HWND only", "platform": platform.platform(),
               "fixture": {"path": str(fixture), "sha256": hashlib.sha256(source_bytes).hexdigest()},
               "original_before": before_hashes, "processes": [], "inputs": [], "checkpoints": [], "cases": []}
@@ -282,8 +316,12 @@ def run(args):
         report["fixture"].update(active_count=source[META + 1], roster_count=check_roster_count(source),
                                  source_focus_screen=list(focus), measuring_navigation=steps)
         assets = round_assets(original)
-        focus_cycle = focus_cycle_assets(original, source, assets)
-        report["focus_cycle_plan"] = {
+        # F3写集代表无需额外Z轮换；旧B1入口默认继续完整cycle资格。
+        focus_cycle = focus_cycle_assets(original, source, assets) if getattr(args, "verify_focus_cycle", True) else None
+        if focus_cycle is None:
+            report["scope"] = "round2 -> active Load A cancellations/confirmation -> source focus -> explicit UI Save"
+            report["focus_cycle_plan"] = {"executed": False, "reason": "Load/write-set representative; no Z-navigation claim"}
+        else:report["focus_cycle_plan"] = {
             "actors": [{key: actor[key] for key in ("raw_actor", "unit_id", "world")}
                        for actor in focus_cycle["actors"]],
             "return_to_source_focus": focus_cycle["returning"],
@@ -326,7 +364,7 @@ def run(args):
                                         source_bytes, work / "game.log", report["checkpoints"], case["observation"],
                                         source_mtime=source_mtime, focus_cycle=focus_cycle)
                     shutil.copy2(save, work / "loaded-source-measured.SAV")
-                    case["measurement"] = check_load_measurement(source, measured, steps)
+                    case["measurement"] = check_active_load_measurement(source, measured, steps)
                 case["status"] = "passed"
             except Exception as error:
                 case["error"] = str(error)
@@ -335,11 +373,25 @@ def run(args):
     except Exception as error:
         report["error"] = str(error)
     finally:
-        report["original_after"] = hashes(original)
-        report["original_unchanged"] = report["original_after"] == before_hashes
-        report["fixture_unchanged"] = fixture.read_bytes() == source_bytes
+        # 晚期身份读取也可能失败；各guard独立留证，不覆盖首个业务错误。
+        try:
+            report["original_after"] = hashes(original)
+            report["original_unchanged"] = report["original_after"] == before_hashes
+        except Exception as error:
+            report["original_unchanged"] = False
+            report.setdefault("guard_errors", []).append({"guard": "original", "text": str(error)})
+            report.setdefault("error", str(error))
+        try:
+            report["fixture_unchanged"] = fixture.read_bytes() == source_bytes
+        except Exception as error:
+            report["fixture_unchanged"] = False
+            report.setdefault("guard_errors", []).append({"guard": "fixture", "text": str(error)})
+            report.setdefault("error", str(error))
         report["ok"] = report["ok"] and report["original_unchanged"] and report["fixture_unchanged"]
-        (output / "comparison.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            (output / "comparison.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as error:
+            raise RuntimeError(f"{report.get('error', 'Load comparison report failed')}; report_write_error={error}") from error
     return report
 
 

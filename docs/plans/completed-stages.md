@@ -39,9 +39,11 @@
 
 ## 2. 长历史与实际收据
 
-F2共享机制主体随本次 `fix(core): align shared timing input and RNG mechanisms` 整阶段提交交付；默认198次RNG、完整AX／FIFO／repeat、PIT整数时钟、正式逐读／等待／相位与MAP／AI共用前缀已落实。新普通目录Debug构建及46项直接CTest通过，冷表3／冷流程11／IDA14与工具19分别保原运行；标题／移动／准备三双端代表实际候选为a57，新构建为ce，不拼成一次全fresh。详情及全部未过项见[F2报告](f2-time-input-rng.md)，本地整合收据为 `build/f2/subject-delivery-20261115/local-integration.json`。**A10—A13完整正常域仍未合签**：三比较门、provider／21db2入口、全输入与RNG联合轨迹、像素／PCM／PIC按原矩阵留F4—F6；主体完成不等于F2原全称目标通过，不新增真实性豁免。
+F3主体一次提交交付构造／Load／metadata及App roster／四raw options来源修复；完整范围、分候选直接C／原生、首错修复与来源归纳见[F3报告](f3-gameplay-lifecycle.md)。Load03为6654，普通START03为DDC9，两端均正常清理；12直接检查按10＋1＋1分次通过，不拼一次全fresh。97参数附录的37新例和1312函数／530登记的注释发布分别保身份。实际提交／集成及主线重建收据为`build/f3/subject-delivery-20261116/local-integration.json`。**完整A04／A06—A09未合签**：QK条件consumer、后期first-App R来源、正常联合链／真实败北重开后缀及当前候选join仍待F6；不以主体交付宣称全游戏对齐，继续F4。
 
-F1主体在2026-11-15用户调整范围后作为一个阶段提交交付：固定参照／来源分母、已证有效域、37／66前缀和82容量修复、A20正式工具与装载资格。提交身份为本次F1主体提交；本地集成收据为`build/f1/rescope-20261115/local-integration.json`。[F1报告](f1-reference-domain.md)保各候选实际测试／原码／原生和继承边界。**QK专项未通过**，不计入已完成范围，见[专项](qk-behavior-followup.md)；不是原F1完整域无条件全绿。
+F2共享机制主体以 `232aca6`（`fix(core): align shared timing input and RNG mechanisms`）整阶段提交交付；默认198次RNG、完整AX／FIFO／repeat、PIT整数时钟、正式逐读／等待／相位与MAP／AI共用前缀已落实。新普通目录Debug构建及46项直接CTest通过，冷表3／冷流程11／IDA14与工具19分别保原运行；标题／移动／准备三双端代表实际候选为a57，新构建为ce，不拼成一次全fresh。详情及全部未过项见[F2报告](f2-time-input-rng.md)，本地整合收据为 `build/f2/subject-delivery-20261115/local-integration.json`。**A10—A13完整正常域仍未合签**：三比较门、provider／21db2入口、全输入与RNG联合轨迹、像素／PCM／PIC按原矩阵留F4—F6；主体完成不等于F2原全称目标通过，不新增真实性豁免。
+
+F1主体在2026-11-15用户调整范围后作为一个阶段提交交付：固定参照／来源分母、已证有效域、37／66前缀和82容量修复、A20正式工具与装载资格。提交身份为`503fe54b`；本地集成收据为`build/f1/rescope-20261115/local-integration.json`。[F1报告](f1-reference-domain.md)保各候选实际测试／原码／原生和继承边界。**QK专项未通过**，不计入已完成范围，见[专项](qk-behavior-followup.md)；不是原F1完整域无条件全绿。
 
 中途候选、旧顺序、数量、失败和诊断由[stage-log](stage-log.md)及其链接的历史报告维护，S5调查另归[研究过程归档](s5-investigation-history.md)。这些记录均不维护当前优先级；细节回到以下原始入口，不另复制一份流水账：
 

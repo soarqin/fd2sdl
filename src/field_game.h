@@ -949,6 +949,8 @@ int fd2_field_game_battle_result_query(const fd2_field_game *game,
 /* 兼容已证有效域的枚举接口；正式输入/Load路径使用上方checked接口。 */
 fd2_field_battle_result fd2_field_game_battle_result(
     const fd2_field_game *game);
+/* 只读源BYTE范围；side2用18890策略，其余用14237物理候选策略。
+ * distance保屏蔽友方前的剩余值投影；previous不是4e4f6路径。 */
 int fd2_field_game_compute_move_range(const fd2_field_game *game,
                                       size_t mover_index,
                                       fd2_field_path_result *result);

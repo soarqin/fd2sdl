@@ -140,6 +140,8 @@ ea	name	is_func	is_public
 0x1d8ba	field_side0_phase_execute	1	0
 0x1da16	map_actor_blit_24x24	1	0
 0x1db65	field_defeated_units_finalize	1	0
+0x1e0db	field_popup_number_enqueue	1	0
+0x1e1dc	field_popup_miss_enqueue	1	0
 0x1e292	field_unit_experience_reward_execute	1	0
 0x1e529	field_growth_stat_present_apply	1	0
 0x1e5c0	field_notice_wait_ticks	1	0
@@ -260,6 +262,7 @@ ea	name	is_func	is_public
 0x2df01	palette_fade_to	1	0
 0x2dfc8	field_ai_ray_item_cast_present	1	0
 0x2e95b	fd2tmp_map_sprite_load	1	0
+0x2facd	field_battle_unit_summary_draw	1	0
 0x2fb2c	field_promotion_visual_execute	1	0
 0x2fe14	field_promotion_idle_cycle	1	0
 0x2ff01	field_magic_battle_animation	1	0
@@ -544,9 +547,14 @@ ea	name	is_func	is_public
 0x4ebff	lmi_rle_blit_forward	1	0
 0x4ec31	lmi_rle_blit_reverse	1	0
 0x4ec65	nullsub_5	1	0
+0x4ec7c	pixel_rect_snapshot_restore	1	0
+0x4eca4	pixel_rect_restore_rows	1	0
+0x4ecbf	pixel_rect_snapshot_capture	1	0
+0x4ecf0	pixel_rect_capture_rows	1	0
 0x4ed34	image_raw_zero_transparent_blit	1	0
 0x4ed4f	image_raw_zero_transparent_rows	1	0
 0x4ed7a	font_glyph_blit_16x16	1	0
+0x4eee0	field_background_wave_rows_copy	1	0
 0x50004	aOutOfMemory	0	0
 0x50018	aRb_0	0	0
 0x5001b	aFd2Sav_2	0	0

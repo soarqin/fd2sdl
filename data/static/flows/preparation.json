@@ -5,7 +5,7 @@
     "file": "FD2.EXE",
     "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
     "kind": "decoded_domain_control_flow",
-    "evidence": "G1 full Domain2872b/28cbd/28efe/28f65/279bc/29daa/2a43e/2aa00/2ac7d/2af28/26152 and strictLE bytes; common-preparation-semantics. Finite UI/domain operations only; transient selection stays in prepare_ui and business in original roster owner. Conditional action routing/ACK/cancel and every inventory/money/promotion/reorder write order are defined here. SDL-only preflight precedes first irreversible write; late error preserves committed bytes. Growth490..494 source text ends -3/-1: their ACK is inside show_message(16c57 mode1), so no duplicate external wait;596 retains external mode0 ACK. 1e529 clears BIOS buffer separately before each nonzero growth text; zero skips do not clear and596 has no added clear. 29620 detail selection/repeat/cancel is cold; detail_member only presents already selected raw member, no hidden roster handler. 26152 nondeployment confirm plays primary FDOTHER31 sample1/loop3 before2670e music stop. UI bank strict monotonic-offset parse has13 entries0..12 (31771B SHA5f871c2348d76bf35cb52b0f04029dfdb765471ad1d6543479e7dfd3b3e19504); first offset62 includes a nonoffset gap, not14 samples. 2b843 after every text-front reorder frees/rebuilds FDICON at2b92f..2b98d; five prefix sites therefore each have explicit cache_rebuild, including separate9/cache then29/cache in stage25. Original machine front traces record the complete post-reorder UID append sequence; no cache operation is hidden inside prefix_reorder. 2ac7d movement596 draws at the line returned by1e529 without another16e24 scroll. show_message layout5 is actor growth-line direct/no-scroll; only movement.say uses it, with original external mode0 ACK retained. NoTown26152@2632f calls2968d(0):29bcb direct BIOS input has no16c57 RNG/blink;2968d@297f7..297fe skips660/ACK whenNoTown. manual_save caller_kind0 preserves this role;1 is the existing hotel wait/feedback caller. Same original save owner and selected-slot repeat are retained. G5 input cutoff:26152 original town render -> palette_fade_in_light1f525 ->4e381 is town.bootstrap.1f525 full Domain has mov ebx,40h/dec/jge:65 calls darkness64..0 and delay2ms;1f882 out remains0..63.Only town_render/fade finite UI leaves are added;bootstrap branch/sequence/error/clear stays cold.NoTown takes its independent entry:26152 clearsVGA then11d40(0,255,0) before the75/410 notice; S5 restores this explicit darkness0 cold leaf, so250cc white DAC cannot leak into27 preparation. ExistingNoTown exit darkness255 remains. Input FIFO is solely vga.input; no private deferred key."
+    "evidence": "G1 full Domain2872b/28cbd/28efe/28f65/279bc/29daa/2a43e/2aa00/2ac7d/2af28/26152 and strictLE bytes; common-preparation-semantics. Finite UI/domain operations only; transient selection stays in prepare_ui and business in original roster owner. Conditional action routing/ACK/cancel and every inventory/money/promotion/reorder write order are defined here. SDL-only preflight precedes first irreversible write; late error preserves committed bytes. Growth490..494 source text ends -3/-1: their ACK is inside show_message(16c57 mode1), so no duplicate external wait;596 retains external mode0 ACK. 1e529 clears BIOS buffer separately before each nonzero growth text; zero skips do not clear and596 has no added clear. 29620 detail selection/repeat/cancel is cold; detail_member only presents already selected raw member, no hidden roster handler. 26152 nondeployment confirm plays primary FDOTHER31 sample1/loop3 before2670e music stop. UI bank strict monotonic-offset parse has13 entries0..12 (31771B SHA5f871c2348d76bf35cb52b0f04029dfdb765471ad1d6543479e7dfd3b3e19504); first offset62 includes a nonoffset gap, not14 samples. 2b843 after every text-front reorder frees/rebuilds FDICON at2b92f..2b98d; five prefix sites therefore each have explicit cache_rebuild, including separate9/cache then29/cache in stage25. Original machine front traces record the complete post-reorder UID append sequence; no cache operation is hidden inside prefix_reorder. 2ac7d movement596 draws at the line returned by1e529 without another16e24 scroll. show_message layout5 is actor growth-line direct/no-scroll; only movement.say uses it, with original external mode0 ACK retained. NoTown26152@2632f calls2968d(0):29bcb direct BIOS input has no16c57 RNG/blink;2968d@297f7..297fe skips660/ACK whenNoTown. manual_save caller_kind0 preserves this role;1 is the existing hotel wait/feedback caller. Same original save owner and selected-slot repeat are retained. G5 input cutoff:26152 original town render -> palette_fade_in_light1f525 ->4e381 is town.bootstrap.1f525 full Domain has mov ebx,40h/dec/jge:65 calls darkness64..0 and delay2ms;1f882 out remains0..63.Only town_render/fade finite UI leaves are added;bootstrap branch/sequence/error/clear stays cold.NoTown takes its independent entry:26152 clearsVGA then11d40(0,255,0) before the75/410 notice; S5 restores this explicit darkness0 cold leaf, so250cc white DAC cannot leak into27 preparation. ExistingNoTown exit darkness255 remains. Input FIFO is solely vga.input; no private deferred key. 2670e town accepted after quota/selection still snapshotsVGA and runs2921a phases1..10 before selector2 skips service; NO/cancel and NoTown skip this tail. Finite transition reuses the existing service_transition leaf/owner."
   },
   "operations": {
     "service_resources": {
@@ -34,6 +34,9 @@
           "max": 1
         }
       ]
+    },
+    "inventory_empty": {
+      "args": []
     },
     "item_append": {
       "args": [
@@ -1734,7 +1737,7 @@
           "op": "pick_equipment_slot",
           "args": [],
           "on": {
-            "slot": "equip.compatible",
+            "slot": "equip.empty",
             "cancel": "equip.detail.close",
             "error": "failure"
           },
@@ -3548,6 +3551,19 @@
           ]
         },
         {
+          "id": "equip.empty",
+          "op": "inventory_empty",
+          "args": [],
+          "on": {
+            "yes": "equip.detail.close",
+            "no": "equip.compatible",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
           "id": "equip.compatible",
           "op": "equipment_compatible",
           "args": [],
@@ -4911,7 +4927,21 @@
           "args": [],
           "on": {
             "yes": "notown.dark",
-            "no": "done",
+            "no": "town.transition",
+            "error": "failure"
+          },
+          "views": [
+            "logic"
+          ]
+        },
+        {
+          "id": "town.transition",
+          "op": "service_transition",
+          "args": [
+            0
+          ],
+          "on": {
+            "next": "done",
             "error": "failure"
           },
           "views": [

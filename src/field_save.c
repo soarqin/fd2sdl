@@ -21,6 +21,7 @@
 #include "portrait.h"
 #include "field_prepare_item.h"
 #include "field_prepare.h"
+#include "field_event.h"
 
 _Static_assert(FD2_FIELD_METADATA_BACKING_SIZE == FD2_SAVE_BATTLE_METADATA_SIZE,
                "metadata source window must match the original 2211B writer");
@@ -212,6 +213,7 @@ static int prepare_saved_map(const fd2_field_game *game,
     if (!game->map.cells) return 0; /* 纯记录codec调用不拥有可重建map。 */
     if (fd2_field_map_open_stage(map, &game->field_archive, game->stage) != 0 ||
         map->width != game->map.width || map->height != game->map.height ||
+        fd2_field_event_map_reset_cells(map) != 0 ||
         fd2_field_game_apply_completed_cells(game, map, snapshot->cell_state) != 0) {
         fd2_field_map_close(map);
         return -1;

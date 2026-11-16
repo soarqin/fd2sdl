@@ -27,7 +27,8 @@ from run_original_comparison import Capture, archive_entry, decode_image, hashes
 from run_original_battle_menu import wait_state, wait_title, match_indexed
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, round_assets, round_two_template, check_round_phase_log, decode_lmi
 from run_original_focus import native_focus_reference
-from run_original_load import focused_actor, require_source_unchanged, check_load_measurement
+from run_original_load import (focused_actor, require_source_unchanged, check_load_measurement,
+    check_active_load_measurement)
 from run_original_player import PlayerOracle, screen, sheet_frame, upper_command_composite, exact_tile
 from run_original_result import selection_probe, selection_state
 from run_original_magic_list import actor_focus_resources, detail_close_terrain
@@ -46,8 +47,11 @@ def actor_view(original, source, assets, raw):
         for sprite in sprites] for index in range(3)})
 
 
-def prepare(original, scenario):
+def prepare(original, scenario, *, short_counter=False):
+    if short_counter and scenario != "counter-multi":
+        raise ValueError("--short-counter仅适用于--scenario counter-multi；未创建产物或窗口")
     encoded, source, manifest = derive_fixture(original, scenario)
+    if short_counter: encoded, source, manifest = short_counter_fixture(encoded, source, manifest, scenario)
     tables, table_evidence = reward_tables(original / "FD2.EXE")
     model = expected_state(original, source, scenario, tables)
     assets = round_assets(original)
@@ -93,7 +97,125 @@ def prepare(original, scenario):
     resources["terrain"] = detail_close_terrain(original, final, assets)
     resources["wait_probe"] = resources["movement"] if scenario == "physical-overwrite" else selection_probe(original, final, raw, assets)
     resources["banner"] = round_two_template(original / "FDOTHER.DAT", assets["palette"])
+    if short_counter: resources["short_counter"] = short_counter_feedback_assets(original, source)
     return resources
+
+
+
+def short_counter_fixture(encoded, source, manifest, scenario):
+    """本场景独立option写集，不放宽derive_active_fixture的active-only合同。"""
+    if scenario != "counter-multi" or len(source) != 22987 or len(encoded) != len(source):
+        raise ValueError("--short-counter只接受固定counter-multi完整夹具")
+    option = META + 14
+    if source[option] != 0 or int.from_bytes(source[-4:], "little") != sum(source[:-4]):
+        raise ValueError("SHORT窄派生要求原effect=0及有效checksum")
+    changed = bytearray(source); changed[option] = 1
+    changed[-4:] = sum(changed[:-4]).to_bytes(4, "little")
+    changed = bytes(changed)
+    cipher = bytes(a ^ b ^ c for a, b, c in zip(encoded, source, changed))
+    def patches(old, new):
+        return [{"offset": i, "before": a, "after": b}
+                for i, (a, b) in enumerate(zip(old, new)) if a != b]
+    # 顶层manifest始终描述START→最终fixture；另记本窄层明/密文delta。
+    original, original_cipher = bytearray(source), bytearray(encoded)
+    for name, destination in (("plaintext_patches", original), ("encrypted_patches", original_cipher)):
+        for row in manifest[name]:
+            if destination[row["offset"]] != row["after"]:
+                raise ValueError("B4上游manifest与实际派生bytes不符")
+            destination[row["offset"]] = row["before"]
+    if (hashlib.sha256(original).hexdigest() != manifest["source_plain_sha256"] or
+            hashlib.sha256(original_cipher).hexdigest() != manifest["source_sha256"]):
+        raise ValueError("B4上游manifest无法还原固定START来源")
+    result = dict(manifest, derived_sha256=hashlib.sha256(cipher).hexdigest(),
+        derived_plain_sha256=hashlib.sha256(changed).hexdigest(),
+        plaintext_patches=patches(original, changed), encrypted_patches=patches(original_cipher, cipher),
+        scope="explicit B4 counter-multi active/focus fields, one effect option0->1 and checksum; not natural acquisition")
+    result["short_counter"] = {"option_offset": option, "before": 0, "after": 1,
+        "parent_cipher_sha256": hashlib.sha256(encoded).hexdigest(),
+        "parent_plain_sha256": hashlib.sha256(source).hexdigest(),
+        "plaintext_patches": patches(source, changed), "encrypted_patches": patches(encoded, cipher),
+        "allowed_extra_offsets": [option, *range(len(source)-4, len(source))],
+        "shared_active_only_gate_unchanged": True,
+        "business_oracle": "1e856 equipment71/type3 sets two strikes; 1ecc7 each2, no spread; hero38 enemy1 before counter",
+        "source_evidence": "native-plan-checks.json sha256143ede3aceab1fe7f75f5964a3c0bebdfc8736e50713ce9b8c5ec742bc8ff81d"}
+    return cipher, changed, result
+
+
+def short_counter_feedback_assets(original, source):
+    """1ec2a布局与1e739列序：独立原RAW/固定DAC，不用C绘图或截图作expected。"""
+    hero, enemy = (source[UNITS+i*STRIDE:UNITS+(i+1)*STRIDE] for i in (0, 11))
+    if (tuple(hero[:2]), tuple(enemy[:2]), struct.unpack_from("<HH", hero, 64),
+            struct.unpack_from("<HH", enemy, 64)) != ((7, 14), (8, 14), (42, 42), (1, 28)):
+        raise ValueError("SHORT反馈源超出已独立算术资格的固定场景")
+    camera = list(source[META+3:META+5]); focus = tuple(source[META+5:META+7])
+    # 正式导航到END，再1548e先聚焦actor、后target；本夹具MOV0不换格。
+    for target in ((6, 14), tuple(enemy[:2]), tuple(hero[:2])):
+        camera = native_focus_reference(camera, focus, target)["camera"]; focus = target
+    data = (original / "FDOTHER.DAT").read_bytes()
+    palette6, sheet = archive_entry(data, 0), archive_entry(data, 5)
+    if len(palette6) != 768 or max(palette6) > 63 or sheet[:4] != b"LMI1":
+        raise ValueError("SHORT原RAW/palette目录不符")
+    count = struct.unpack_from("<H", sheet, 4)[0]; boundary = 6+4*count
+    columns = {}
+    for index in (23, 24, 25, 29, 30):
+        if index+1 >= count or boundary > len(sheet): raise ValueError("SHORT原RAW目录不足")
+        lo, hi = struct.unpack_from("<II", sheet, 6+4*index)
+        raw = sheet[lo:hi]
+        if not boundary <= lo < hi <= len(sheet) or len(raw) != 9 or raw[:4] != b"\1\0\5\0":
+            raise ValueError("SHORT原列必须是完整1x5 RAW")
+        columns[index] = raw[4:]
+    bars = []
+    for label, raw_index, unit, other, hp in (("target", 0, hero, enemy, 38), ("actor", 11, enemy, hero, 1)):
+        dx, dy = other[0]-unit[0], other[1]-unit[1]
+        direction = (0 if dy >= 0 else 2) if abs(dx) <= abs(dy) else (3 if dx >= 0 else 1)
+        x, y = 24*(unit[0]-camera[0])+4, 24*(unit[1]-camera[1])
+        if direction < 2: y += -18 if y >= 18 else 5; x += -86 if x+108 > 319 else 28
+        else: y += 22 if y+37 <= 199 else 5; x += 28 if x-86 < 0 else -88
+        width = 69*hp//struct.unpack_from("<H", unit, 66)[0]+1
+        # 正宽度1e739写0..70列；后段空色/端帽也纳入全部5行。
+        ids = [23 if col == 0 else 24 if col < width else 25 if col == width
+               else 30 if col == 70 else 29 for col in range(71)]
+        indexed = bytes(columns[ids[col]][row] for row in range(5) for col in range(71))
+        colors = set(indexed)
+        if colors & set(range(224, 240)): raise ValueError("本固定条不能借未采样水DAC")
+        rgb = bytes((value << 2) | (value >> 4) for color in indexed for value in palette6[color*3:color*3+3])
+        at = (x+7, y+6)  # App descriptor+75/+74，11d2c从72,72投到VGA4,4。
+        if not (0 <= at[0] <= 249 and 0 <= at[1] <= 195): raise ValueError("SHORT完整条超出VGA")
+        bars.append({"label": label, "raw_actor": raw_index, "direction": direction,
+            "position": at, "size": (71, 5), "width": width, "hp": hp,
+            "raw_index_sha256": hashlib.sha256(indexed).hexdigest(),
+            "RGB_sha256": hashlib.sha256(rgb).hexdigest(), "image": Image.frombytes("RGB", (71, 5), rgb)})
+    return {"camera": camera, "bars": bars, "FDOTHER_sha256": hashlib.sha256(data).hexdigest(),
+        "palette6_sha256": hashlib.sha256(palette6).hexdigest(), "DAC_expansion": "(raw6<<2)|(raw6>>4)",
+        "source": "1548e/1f04a face; 1eb05->1ec2a; 1e611->1e7f6->1e739; fixed SHORT arithmetic proof"}
+
+
+def short_counter_feedback_state(frame, prepared):
+    if frame.size != (320, 200): return None
+    proof = prepared["short_counter"]; matches = []
+    for bar in proof["bars"]:
+        x, y = bar["position"]
+        if frame.crop((x, y, x+71, y+5)).convert("RGB").tobytes() != bar["image"].tobytes(): return None
+        matches.append({key: value for key, value in bar.items() if key != "image"})
+    return {"kind": "short_counter_two_complete_RAW_bars", "bars": matches, "camera": proof["camera"],
+        "RGB_tolerance": 0, "all_five_rows_and_tail_caps": True,
+        "whole_frame_retained_not_whole_frame_equivalence": True,
+        "DAC_expansion": proof["DAC_expansion"], "FDOTHER_sha256": proof["FDOTHER_sha256"],
+        "normalized_full_frame_RGB_sha256": hashlib.sha256(frame.convert("RGB").tobytes()).hexdigest()}
+
+
+def observe_short_counter(capture, prepared, report):
+    from run_g4_detail_check import detail_series, series_checkpoint
+    evidence = {"checkpoints": [], "scope": "only END confirmation through visible counter63/3; no PC or exact PIT claim"}
+    report["short_counter_feedback"] = evidence
+    try:
+        with detail_series(capture, evidence) as scope:
+            capture.key("ENTER")  # helper ready之后才提交本场唯一END。
+            series_checkpoint(capture, scope, "b4-short-counter-bars",
+                lambda frame: short_counter_feedback_state(frame, prepared), evidence["checkpoints"], timeout=40)
+        evidence["passed"] = True
+    finally:
+        report["checkpoints"].extend(evidence["checkpoints"])
 
 
 def command(frame, source, view, raw, selected, expected):
@@ -257,7 +379,8 @@ def end_turn(capture, prepared, checkpoint, report, observe):
     capture.key("ENTER"); checkpoint("b4-end-parent", lambda frame: oracle.menu(frame, 0))
     capture.key("DOWN"); checkpoint("b4-end-selected", lambda frame: oracle.menu(frame, 3))
     capture.key("ENTER"); checkpoint("b4-end-default-yes", lambda frame: oracle.buttons(frame, 0))
-    capture.key("ENTER")
+    if prepared.get("short_counter"): observe_short_counter(capture, prepared, report)
+    else: capture.key("ENTER")
     if observe: observe_pages(capture, prepared, checkpoint, report)
     def banner(frame):
         found = match_indexed(frame, prepared["banner"], (120, 84))
@@ -371,6 +494,13 @@ def exercise(capture, prepared, save, guard, report):
         end_turn(capture, prepared, checkpoint, report, False)
     final = prepared["model"]["final"]
     raw = prepared["model"]["reward_actor"]
+    if prepared.get("short_counter"):
+        saved = save_measure(capture, prepared, save, guard, report, save_checkpoint, "b4-short-counter")
+        report["short_counter_full_save"] = check_active_load_measurement(final, saved,
+            [("LEFT", screen(final, (6, 14)))])
+        report["save_protocol"] = {"save_count": 1, "wait_action_count": 0, "load_count": 0,
+            "whole_container_validated": True, "scope": "one END, resource ACKs, turn2 and one formal Save; no WAIT/Load claim"}
+        return
     world = tuple(final[UNITS + raw * STRIDE:UNITS + raw * STRIDE + 2])
     navigate(capture, prepared, final, (7, 14), world, checkpoint, "b4-to-final-detail")
     show_detail(capture, prepared, checkpoint, report, prefix="b4-before-save")
@@ -450,7 +580,7 @@ def run(args):
     if kind == "sdl" and args.sdl is None:
         raise ValueError("B4单SDL校准需要--sdl；未创建产物或启动窗口")
     endpoints = ("sdl",) if kind == "sdl" else ("original",) if args.sdl is None else ("original", "sdl")
-    prepared = prepare(original, args.scenario)
+    prepared = prepare(original, args.scenario, short_counter=getattr(args, "short_counter", False))
     output.mkdir(parents=True, exist_ok=False)
     before = hashes(original)
     fixture = original / "START.SAV"
@@ -463,6 +593,9 @@ def run(args):
         "tables": prepared["tables"], "original_before": before, "cases": [],
         "binaries": {key: {"path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
                      for key, path in (("driver", args.driver), ("dosbox", args.dosbox)) + ((("sdl", args.sdl),) if args.sdl is not None else ())}}
+    if prepared.get("short_counter"):
+        report["scope"] = "controlled SHORT counter63/3 exact RAW-bar feedback; one END,31 resource pages/30 ACKs,turn2 and one complete Save"
+        report["excluded"] = "whole-frame RGB equivalence, exact PIC/PIT/CPU frames, audio, natural fixture acquisition, shared RNG alignment, WAIT/Load"
     report["tool_sources"] = {name: {"path": str(Path(sys.modules[name].__file__).resolve()),
         "sha256": hashlib.sha256(Path(sys.modules[name].__file__).read_bytes()).hexdigest()}
         for name in ("fd2_reward_oracle", "fd2_item_list_oracle", "run_original_item_list", "run_original_magic_list", "run_original_comparison", "run_original_end_turn")}
@@ -545,6 +678,23 @@ def run(args):
 def compare_endpoints(cases, output, prepared):
     if [case["kind"] for case in cases] != ["original", "sdl"] or any(not case["probe_cases_passed"] for case in cases):
         raise AssertionError("B4配对必须两个真实端点均已通过")
+    if prepared.get("short_counter"):
+        if any(not case.get("short_counter_feedback", {}).get("passed") or
+                not case.get("short_counter_full_save", {}).get("cache_classes_original_10010_verified") or
+                case.get("save_protocol") != {"save_count": 1, "wait_action_count": 0, "load_count": 0,
+                    "whole_container_validated": True, "scope": "one END, resource ACKs, turn2 and one formal Save; no WAIT/Load claim"}
+                for case in cases):
+            raise AssertionError("SHORT配对缺本轮严格反馈或单Save协议")
+        expected_ACKs = [(p["fragment"], "ENTER" if p["requires_key"] else None) for p in prepared["pages"]]
+        if any([(p["fragment"], p["key_sent"]) for p in case.get("reward_acknowledgements", [])] != expected_ACKs for case in cases):
+            raise AssertionError("SHORT配对资源页/ACK序列不完整")
+        snapshots = [Path(case["completed_save"]["snapshot"]).read_bytes() for case in cases]
+        if snapshots[0] != snapshots[1]: raise AssertionError("SHORT两端单Save全部byte不同")
+        return {"both_endpoints_exact_RAW_bars": True, "RGB_tolerance": 0,
+            "whole_save_bytes_equal": True, "save_count_per_endpoint": 1,
+            "WAIT_or_Load_tested": False, "whole_frame_equivalence_claimed": False,
+            "reward_ACK_scope": "existing B4 resource predicates; not strict whole-frame RGB proof",
+            "save_sha256": hashlib.sha256(snapshots[0]).hexdigest()}
     endpoints = [paired_checkpoint_records(case, output / case["kind"])[0] for case in cases]
     if endpoints[0].keys() != endpoints[1].keys(): raise AssertionError("B4业务检查点集合不一致")
     results = []
@@ -588,6 +738,8 @@ def main():
     parser.add_argument("--kind", choices=("pair", "sdl"), default="pair",
                         help="默认原版→SDL；sdl只登记本轮单端，不继承旧原版通过")
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
+    parser.add_argument("--short-counter", action="store_true",
+                        help="仅counter-multi：effect1，严格63/3条，单END/ACK/turn2/Save；不执行WAIT/Load")
     args = parser.parse_args()
     if sys.platform != "win32": parser.error("B4原版对照需要Windows WGC；未启动窗口")
     try:

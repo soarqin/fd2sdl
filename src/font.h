@@ -27,4 +27,15 @@ void fd2_font_draw_glyph(fd2_vga *vga, const fd2_font *font,
                          uint16_t glyph_idx, int x, int y,
                          uint8_t fg, uint8_t shadow, int bg);
 
+/* 原4ed7a的有限linear owner入口：offset为相对pixels的字节位置，
+ * stride按原LOWWORD；不按320/456逻辑行clip。background为原raw BYTE：
+ * 0透明、非0先清16x16；与上方XY的bg=0黑底约定有意分开。
+ * 成功0；首次真实源WORD/目的BYTE越owner返回-1，保此前已写前缀。
+ * glyph10清底后不读font；其它索引按原DWORD<<5后在font.size内逐行读。
+ * 不拥有buffer/font、不present、不输入/RNG/clock。负数SAFE_MINUS另属H，
+ * 不能用此入口执行原font owner外的-3字模或伪造其像素。 */
+int fd2_font_draw_glyph_linear(uint8_t *pixels,size_t size,const fd2_font *font,
+    uint32_t glyph_idx,int64_t offset,uint32_t stride,
+    uint8_t fg,uint8_t shadow,uint8_t background);
+
 #endif /* FD2_FONT_H */

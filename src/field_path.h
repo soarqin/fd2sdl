@@ -40,7 +40,8 @@ typedef struct {
 
 /* 参数化四邻域 Dijkstra。query 返回 1 表示允许该边，0 表示阻挡，
  * -1 表示数据错误。平价路径保留最先发现者；邻域顺序固定为右、左、下、上，
- * 与原版 field reachable/path helper 的展开顺序一致。
+ * 通用Dijkstra的选点/平价前驱与原BYTE DFS不是等价合同；正式移动范围
+ * 归field_move的4e390，路径归4e4f6，不把本API的previous作原路径证据。
  *
  * result 是拥有堆内存的输出对象；首次使用前必须以
  * FD2_FIELD_PATH_RESULT_INITIALIZER 或 `{0}` 初始化。compute 可复用同一对象，

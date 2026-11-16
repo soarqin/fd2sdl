@@ -3,3 +3,8 @@
 
 # Bash 不能将 CRLF 的回车当作命令或 shebang 的一部分。
 *.sh text eol=lf
+
+# 有固定原始字节SHA的图形审查清单，跨宿主checkout保留各自登记换行。
+/tools/fixtures/f4_background_pixels.json text eol=lf
+/tools/fixtures/f4_left_margin.json text eol=lf
+/tools/fixtures/f4_pixel_kernels.json text eol=crlf

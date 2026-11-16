@@ -9,8 +9,10 @@ typedef struct fd2_field_defeat_visual fd2_field_defeat_visual;
 
 /* field_defeated_units_finalize @0x1db65（原登记同名）的effect-local资源。
  * 只读预检12张LMI、旋转用sprite及临时页；成功前不改输出指针、Game、
- * App像素或任何clock。当前C仅存30个FX锚；正常参数域由F1取证，
- * 31+锚像素差异归F4，不按局部数组长度判未定义。
+ * App像素或任何clock。前30个FX目标借App；原第31项在1dd61改为
+ * 临时base+0，其余至96项仍借App，12帧按真实D与原序叠写。
+ * 本服务只消费已拥有的96容量raw与有界页参数，不模拟原控制帧；
+ * 高D的正常可达/父caller合同仍由F6另签，不从容量冒可达证明。
  * Game仍对完整active表旋转/提交flags，不据此缩减队伍或拒绝动作。 */
 int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
     const struct fd2_field_game *game,const fd2_vga *vga,const fd2_archive *fdother);
@@ -18,7 +20,8 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
  * 等待、cue及尾11cac(0)由runtime.defeat冷图与原Game/Play owner负责。
  * rotate只11eee，Game逐raw写方向后actor只127e0，project作129ec+project；
  * base在flags1后画临时无死者页；
- * frame68..73累积写App，74..79先恢复临时底。返回0/1hostquit/-1。 */
+ * frame68..73分别累积写App/base；74..79先恢复旧base到App，再依次写
+ * App normal目标和base alias，因此新base像素下一frame才反馈。返回0/1hostquit/-1。 */
 int fd2_field_defeat_rotate(fd2_field_defeat_visual *visual,
     const struct fd2_field_game *game,fd2_vga *vga);
 int fd2_field_defeat_actor(fd2_field_defeat_visual *visual,

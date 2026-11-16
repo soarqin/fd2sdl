@@ -70,6 +70,14 @@ def adapt_legacy_g3_rate(command,env,bootstrap):
 
 def run(args):
     owned_job_required()
+    inventory_scenario=getattr(args,'inventory_scenario',None)
+    retention_only=getattr(args,'picker_retention_only',False)
+    if retention_only and inventory_scenario!='eqt-empty':
+        raise ValueError('画像反馈只接受eqt-empty正常LOAD前缀')
+    if inventory_scenario:
+        import run_g3_inventory_check as lane
+    else:lane=g3
+    scenario=inventory_scenario or SCENARIO
     root=args.root.resolve();original=(root/'original_game').resolve();out=args.artifacts.resolve()
     validate_output(original,out)
     original_before=g3.fingerprint(original);sources=source_facts(root)
@@ -77,15 +85,21 @@ def run(args):
         args.bootstrap.resolve(),Path(original_reference.REFERENCE).resolve())
     guards={str(p):{'sha256':sha(p),'mtime_ns':p.stat().st_mtime_ns} for p in paths}
     out.mkdir(parents=True,exist_ok=False)
-    report={'schema':'fd2.f2.prepare-native.v1','ok':False,'scenario':SCENARIO,
+    report={'schema':'fd2.f4.equipment-native.v1' if inventory_scenario else 'fd2.f2.prepare-native.v1',
+        'ok':False,'scenario':scenario,
         'source_before':sources,'original_before':original_before,'guards':guards,
         'display_requirement':{},'references':[],'rate_adaptations':[],'launch_attempts':[],'launched_roles':[],
         'controlled_fixture':True,'natural_arrival_claimed':False,
-        'scope':'G3 title LOAD, service self-give, town return and hotel full-container Save',
+        'scope':'F4 title LOAD, empty equipment open/navigation/confirm/cancel, town return and hotel full-container Save' if inventory_scenario else
+            'G3 title LOAD, service self-give, town return and hotel full-container Save',
         'limitations':['G3 original-resource page gates and complete 22987-byte SAV oracle retained',
             'Controlled fixture; no natural arrival or full RNG/FIFO/strict phase trajectory qualification',
             'Legacy palette/resource tolerances retained; no full-pixel or audio equivalence']}
-    previous_running,previous_display=g3.running,g3.windows_display_requirement
+    previous_running,previous_display=lane.running,lane.windows_display_requirement
+    if retention_only:
+        report['scope']='F4 normal LOAD to members; original P0 precondition/DOWN feedback and SDL B/P3/P0/later-eligible/DOWN full-page retention; no equipment detail/Save'
+        report['limitations']=['Prefix ROI gates are navigation only; feedback checkpoints require exact full320x200 independent resource families',
+            'No shared wall-clock/RNG trajectory, absolute timing, full continuous-frame equality or Save claim']
 
     def checks():
         return {'original_unchanged':g3.fingerprint(original)==original_before,
@@ -96,7 +110,7 @@ def run(args):
     @contextmanager
     def display_on(record):
         report['display_requirement']=record
-        with previous_display(record,require_display_on=True):yield record
+        with previous_display(record,require_display_on=not getattr(args,'wake_display',False)):yield record
 
     @contextmanager
     def qualified_running(command,cwd,env,log,driver,receipts,**options):
@@ -130,9 +144,10 @@ def run(args):
             yield process
 
     try:
-        g3.running=qualified_running;g3.windows_display_requirement=display_on
-        result=g3.run(argparse.Namespace(root=root,artifacts=out/'g3',sdl=args.game,
-            driver=args.driver,dosbox=args.dosbox,scenario=SCENARIO,original_evidence=None,prepare_only=False))
+        lane.running=qualified_running;lane.windows_display_requirement=display_on
+        result=lane.run(argparse.Namespace(root=root,artifacts=out/'g3',sdl=args.game,
+            driver=args.driver,dosbox=args.dosbox,scenario=scenario,original_evidence=None,prepare_only=False,run=True,
+            picker_retention_only=retention_only))
         report['comparison']=str(out/'g3/comparison.json');report['legacy_ok']=result['ok']
         report['ok']=result['ok'] and report['launched_roles']==['original','sdl'] and len(report['references'])==1
         if not result['ok']:
@@ -140,7 +155,7 @@ def run(args):
     except BaseException as error:
         report['error']={'type':type(error).__name__,'text':str(error)}
     finally:
-        g3.running=previous_running;g3.windows_display_requirement=previous_display
+        lane.running=previous_running;lane.windows_display_requirement=previous_display
         for name,check in (
             ('original_unchanged',lambda:g3.fingerprint(original)==original_before),
             ('sources_unchanged',lambda:source_facts(root)==sources),
@@ -151,8 +166,12 @@ def run(args):
                 report[name]=False
                 report.setdefault('guard_errors',[]).append({'guard':name,'type':type(error).__name__,'text':str(error)})
         report['ok'] &= all(report.get(name) is True for name in ('original_unchanged','sources_unchanged','guards_unchanged'))
-        report['ok'] &= report['display_requirement'].get('require_display_on') is True and report['display_requirement'].get('released') is True
-        (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        report['ok'] &= report['display_requirement'].get('require_display_on') is (not getattr(args,'wake_display',False)) and report['display_requirement'].get('released') is True
+        try:(out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        except BaseException as error:
+            if report.get('error'):
+                raise RuntimeError(str(report['error'])+'；同时报告写入失败：'+str(error)) from error
+            raise
     return report
 
 
@@ -160,6 +179,12 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('root','game','driver','dosbox','bootstrap','artifacts'):
         parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--inventory-scenario',choices=('eqt-empty',),
+                        help='reuse the qualified preparation harness for the F4 empty equipment path')
+    parser.add_argument('--wake-display',action='store_true',
+                        help='use only with explicit user authorization for one bounded display wake')
+    parser.add_argument('--picker-retention-only',action='store_true',
+                        help='eqt-empty only: normal LOAD to members and bounded full-page portrait feedback; no detail/Save')
     args=parser.parse_args(argv)
     if sys.platform!='win32':parser.error('此代表要求Windows WGC；未启动GUI')
     try:result=run(args)

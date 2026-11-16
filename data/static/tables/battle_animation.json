@@ -2,6 +2,34 @@
   "schema_version": 1,
   "tables": [
     {
+      "name": "k_battle_summary_bottom_override",
+      "c_type": "uint8_t",
+      "dimensions": [
+        2
+      ],
+      "values": [
+        24,
+        17
+      ],
+      "source": {
+        "kind": "decoded_call_constants",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_ranges": [
+          "0x2facd",
+          "0x2fb00",
+          "0x2fb09",
+          "0x2fb10",
+          "0x2fb23"
+        ],
+        "columns": [
+          "stage",
+          "raw_unit_index"
+        ],
+        "evidence": "完整95B sub_2FACD：原side0默认VGA(0,154)，side非0默认(171,4)；stage24且raw index17时强制bottom。raw为53A45记录索引，不是unit_id。九caller依实际actor/target数组保持参数与底图写序；summary painter仍18c6d。strict chunk SHA286b2e579e094c8b6e4498b7439d7faceba42ff2c0cc43c930437d4a1bf8f4c9。"
+      }
+    },
+    {
       "name": "k_battle_ai_ray_item_present",
       "c_type": "int16_t",
       "dimensions": [13, 3],

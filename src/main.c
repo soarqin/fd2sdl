@@ -230,6 +230,36 @@ static void restore_scroll_frame(fd2_vga *vga, const uint8_t *offscreen,
     }
 }
 
+/* animation_play @0x20421（原登记FUN_0001db69）的52766为独立临时
+ * palette；1f894/1f81e借用caller的53A65和当前DAC。AFM parser仍复用现
+ * 播放API，只有本标题caller在每帧提交前及错误/skip/HOST返回时归还色区。
+ * 现9ANI仅首帧op1全写TEMP；op2也全写768，TEMP值没有像素/DAC读者。
+ * 不以这里的保全宣称原TEMP对象本身与vga.palette具有同一逐帧历史。 */
+typedef struct {
+    fd2_vga *vga;
+    uint8_t palette[768],dac[768];
+    fd2_animation_frame_hook caller_hook;
+    void *caller_userdata;
+} title_animation_palette_owner;
+static void title_animation_palette_frame(void *userdata,uint16_t frame) {
+    title_animation_palette_owner *owner=userdata;
+    memcpy(owner->vga->palette,owner->palette,768);
+    memcpy(owner->vga->dac,owner->dac,768);
+    if(owner->caller_hook)owner->caller_hook(owner->caller_userdata,frame);
+}
+static int title_animation_play(fd2_vga *vga,int index,uint32_t delay,int check_input,
+        fd2_animation_frame_hook hook,void *userdata) {
+    if(!vga)return -1;
+    title_animation_palette_owner owner={0};owner.vga=vga;
+    memcpy(owner.palette,vga->palette,768);memcpy(owner.dac,vga->dac,768);
+    owner.caller_hook=hook;owner.caller_userdata=userdata;
+    int result=fd2_animation_play_hooked(vga,&g_ani,index,delay,check_input,
+        title_animation_palette_frame,&owner);
+    /* decode失败可以已有像素/FIFO前缀；只归还本caller借出的两份色区。 */
+    memcpy(vga->palette,owner.palette,768);memcpy(vga->dac,owner.dac,768);
+    return result;
+}
+
 static int play_intro_animation_with_palette(fd2_vga *vga,
                                              int anim_idx,
                                              uint32_t delay_ms,
@@ -243,7 +273,7 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
         fd2_vga_set_palette(vga, pal);
     }
     fd2_vga_set_brightness(vga, 0);
-    int result = fd2_animation_play(vga, &g_ani, anim_idx, delay_ms, 0);
+    int result = title_animation_play(vga, anim_idx, delay_ms, 0, NULL, NULL);
     if (result < 0) return result;
     int faded = fd2_scene_palette_fade(vga, 0, 0);
     if (faded != FD2_SCENE_RESULT_OK)
@@ -320,11 +350,11 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     fd2_vga_set_palette(vga, pal);
     fd2_vga_clear(vga, 0);
     fd2_vga_set_brightness(vga, 0);
-    fd2_vga_present(vga);  /* 黑屏 */
+    fd2_vga_upload_current_frame(vga);  /* 黑屏；原序不消费宿主帧deadline。 */
 
     /* FUN_0001db69(3,0x5a,1)：播放 ANI.DAT[3]，这是首屏后的第二段片头。 */
-    int animation_result = fd2_animation_play(
-        vga, &g_ani, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1);
+    int animation_result = title_animation_play(
+        vga, 3, FD2_TITLE_ANIM_DELAY_SLOW_MS, 1, NULL, NULL);
     if (animation_result == -2) goto host_quit;
     if (animation_result < 0) goto resource_error;
     /* 动画只采样当前键态，不保留 skip 事件；若物理键仍按住，后续
@@ -540,7 +570,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                 lightning_palette_active = lightning_active;
             }
 
-            fd2_vga_present(vga);
+            fd2_vga_upload_current_frame(vga);
             fd2_delay_ms(FD2_TITLE_SCROLL_DELAY_MS); /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
@@ -560,7 +590,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
      * 从当前调色板渐变到红色基色。 */
     for (int step = 0x28; step >= 0; step--) {
         fd2_vga_palette_fade_to(vga, 0, step, 0x3f, 0, 0);
-        fd2_vga_present(vga);
+        fd2_vga_upload_current_frame(vga);
         fd2_delay_ms(8);
     }
     fd2_delay_ms(100);
@@ -592,13 +622,13 @@ title_screen:
          * animation_play 在 frame 0 解码后、首个 15 ms delay 前播放
          * FDOTHER[78] SFX 0，并在动画结束／跳过时停止。AFM 帧内会临时
          * 写动画调色板，动画结束后恢复标题调色板 [8]。 */
-        animation_result = fd2_animation_play_hooked(
-            vga, &g_ani, 1, FD2_TITLE_ANIM_DELAY_FAST_MS, 1,
+        animation_result = title_animation_play(
+            vga, 1, FD2_TITLE_ANIM_DELAY_FAST_MS, 1,
             title_letter_fly_audio_on_frame, title_audio);
         title_letter_fly_audio_stop(title_audio);
         if (animation_result == -2) goto host_quit;
         if (animation_result < 0) goto resource_error;
-        /* title_action_menu @code0 0xfd1c：标题 ANI 结束后，以 secondary
+        /* boot_intro_title_menu @0x1f894：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
         (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
         fd2_vga_set_palette(vga, pal);
@@ -618,12 +648,12 @@ title_screen:
              * step=0x28: 全部=pal(完整) */
             for (int step = 0; step < 0x29; step++) {
                 fd2_vga_palette_fade_to(vga, 0, step, 0x38, 0x3c, 0x3f);
-                fd2_vga_present(vga);
+                fd2_vga_upload_current_frame(vga);
                 fd2_delay_ms(8);
             }
             /* 确保完整调色板 */
             fd2_vga_set_palette(vga, pal);
-            fd2_vga_present(vga);
+            fd2_vga_upload_current_frame(vga);
             fd2_image_free(&img_title);
         } else {
             goto resource_error;
@@ -675,7 +705,7 @@ title_screen:
     while (!menu_done) {
         (void)fd2_title_draw_menu_frame(menu_count, selection, 1,
                                         draw_title_menu_item, &title_draw);
-        fd2_vga_present(vga);
+        fd2_vga_upload_current_frame(vga);
 
         if (fd2_input_take_quit(&vga->input)) {
             selection = FD2_TITLE_ACTION_HOST_QUIT;
@@ -684,7 +714,7 @@ title_screen:
         /* boot_intro_title_menu @0x1f894：1fe48..1fe60以INT16阻塞读一，
          * 每一项返回1fe2c后才重绘。不能批量吞掉队列再等50ms。
          * 仅无键时用现input owner泵宿主；1ms是宿主空等，不推进原画面。 */
-        fd2_input_action action;
+        fd2_input_action action=FD2_INPUT_ACTION_NONE;
         for (;;) {
             if (fd2_input_take_quit(&vga->input)) {
                 selection = FD2_TITLE_ACTION_HOST_QUIT;
@@ -721,7 +751,7 @@ title_screen:
             int highlight = fd2_title_confirm_highlight_for_frame(frame);
             (void)fd2_title_draw_menu_frame(menu_count, selection, highlight,
                                             draw_title_menu_item, &title_draw);
-            fd2_vga_present(vga);
+            fd2_vga_upload_current_frame(vga);
             fd2_delay_ms(FD2_TITLE_CONFIRM_FLASH_DELAY_MS);
             if (fd2_input_take_quit(&vga->input)) {
                 selection = FD2_TITLE_ACTION_HOST_QUIT;

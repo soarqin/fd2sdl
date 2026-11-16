@@ -6,12 +6,16 @@
 #include <string.h>
 #include "test_temp.h"
 #include "field_prepare_play.h"
+#include "field_prepare_view.h"
 #include "field_visual.h"
 #include "static_data.h"
+#include "f4_dynamic_text_hooks.h"
 #include "scene.h"
 
 Uint64 SDLCALL prepare_test_ticks(void);
 void prepare_test_present(fd2_vga *vga);
+static void prepare_test_upload(fd2_vga *vga);
+static void prepare_test_delay(uint32_t ms);
 void prepare_test_present_timed(fd2_vga *vga, uint32_t delay);
 void prepare_test_deadline(fd2_vga *vga);
 static void prepare_test_wait_ticks(uint32_t ticks);
@@ -33,6 +37,8 @@ static int prepare_test_palette_fade(fd2_vga *vga,int fade_in,int fast);
 static const fd2_static_flow *prepare_test_flow_lookup(const char *domain,const char *identity);
 static uint32_t prepare_test_rng(void *userdata);
 static void prepare_test_blit(fd2_vga *,const fd2_image *,int,int,int);
+static int prepare_test_members(fd2_vga *,const fd2_field_prepare_assets *,
+    const fd2_save_manual_state *,size_t,int,unsigned);
 
 #define SDL_GetTicks prepare_test_ticks
 uint64_t prepare_test_ticks_ns(void);
@@ -100,6 +106,8 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 #undef fd2_field_water_tick
 #undef fd2_field_water_tick_live
 #define fd2_vga_present prepare_test_present
+#define fd2_vga_upload_current_frame prepare_test_upload
+#define fd2_delay_ms prepare_test_delay
 #define fd2_vga_present_timed prepare_test_present_timed
 #define fd2_vga_wait_frame_deadline prepare_test_deadline
 #define fd2_wait_ticks prepare_test_wait_ticks
@@ -117,12 +125,20 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 #define fd2_static_flow_lookup prepare_test_flow_lookup
 #define fd2_field_rng_next prepare_test_rng
 #define fd2_map_sprite_blit prepare_test_blit
+#define fd2_field_prepare_draw_members prepare_test_members
+#define fd2_input_take_key f4_dynamic_take_key
+#define fd2_font_draw_glyph_linear f4_dynamic_font_linear
 #include "../field_prepare_play.c"
+#undef fd2_font_draw_glyph_linear
+#undef fd2_input_take_key
+#undef fd2_field_prepare_draw_members
 #undef fd2_field_visual_actor_step_live
 #undef fd2_field_rng_next
 #undef fd2_map_sprite_blit
 #undef SDL_GetTicks
 #undef fd2_vga_present
+#undef fd2_vga_upload_current_frame
+#undef fd2_delay_ms
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
 #undef fd2_wait_ticks
@@ -146,13 +162,17 @@ static int prepare_test_bgm_option(fd2_bgm_player *player, int enabled, int fade
     (void)player; option_sync_count++; option_sync_enabled=enabled; option_sync_fade=fade; return 0;
 }
 static uint64_t clock_ms;
+static unsigned source_upload_active,source_uploads,source_upload_cost_ms;
+static unsigned host_ticket_probe,host_timed_calls,host_deadline_calls,host_water_fail_call;
+static uint64_t host_wait_ms;
 static unsigned clock_reads,clock_advance_on_read,clock_read_advance_ms;
 static const uint64_t *clock_script_ms;
 static size_t clock_script_count;
 static void (*clock_read_observer)(unsigned read);
 static int blink_tracking,blink_bad;
 static unsigned blink_rng_calls,blink_roster_calls;
-static const fd2_image *blink_slots;
+static unsigned fail_members_draw; /* 0关闭，否则在第N次present后成员叶失败。 */
+static unsigned frame_number,quit_frame;
 static fd2_vga *blink_vga;
 static const fd2_vga *blink_expected;
 static prepare_wait *blink_state;
@@ -161,6 +181,7 @@ static const fd2_vga *choice_blink_expected;
 static unsigned choice_blink_rng_calls;
 static int choice_blink_bad;
 static uint32_t prepare_test_rng(void *userdata) {
+    if(f4_dynamic.active)f4_dynamic.rng++;
     if(blink_tracking) {
         blink_rng_calls++;
         if(blink_roster_calls!=1u || !blink_expected ||
@@ -176,10 +197,15 @@ static uint32_t prepare_test_rng(void *userdata) {
     }
     return fd2_field_rng_next(userdata);
 }
+static int prepare_test_members(fd2_vga *vga,const fd2_field_prepare_assets *a,
+        const fd2_save_manual_state *state,size_t first,int selected,unsigned phase) {
+    if(fail_members_draw && frame_number>=fail_members_draw)return -1;
+    int result=fd2_field_prepare_draw_members(vga,a,state,first,selected,phase);
+    /* 观察真实成员widget消费；不再拿已移除的steady底板blit模拟draw成本。 */
+    if(!result && blink_tracking && vga==blink_vga){blink_roster_calls++;clock_ms+=70;}
+    return result;
+}
 static void prepare_test_blit(fd2_vga *vga,const fd2_image *image,int x,int y,int transparent) {
-    if(blink_tracking && image==blink_slots) {
-        blink_roster_calls++;clock_ms+=70;
-    }
     fd2_map_sprite_blit(vga,image,x,y,transparent);
 }
 static int service_exact_time,service_capture_first;
@@ -202,7 +228,6 @@ static int probe_image(const fd2_vga *vga,const fd2_image *image,int x,int y) {
     }
     return opaque!=0;
 }
-static unsigned frame_number, quit_frame;
 static struct { unsigned frame; SDL_Scancode key; } pulses[20];
 static size_t pulse_count;
 static struct { unsigned frame; uint16_t code; } raw_pulses[8];
@@ -242,6 +267,7 @@ static void *prepare_test_calloc(size_t count, size_t size) {
 static int prepare_test_pcm_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
         size_t sample, int loop_count, float gain) {
     (void)player; (void)bank;
+    if(f4_dynamic.active){if(sample!=2u || loop_count!=1)return -1;f4_dynamic.pcm++;}
     if(sound_calls<32u){sound_samples[sound_calls]=sample;sound_loops[sound_calls]=loop_count;}
     sound_last_gain = gain;
     return ++sound_calls == fail_sound_call ? -1 : 0;
@@ -259,7 +285,7 @@ static int prepare_test_magic_draw(fd2_vga *vga, const fd2_field_info_assets *as
 }
 static int prepare_test_water_live(fd2_vga *vga) {
     water_calls++;
-    if(water_failure)return -1;
+    if(water_failure || (host_ticket_probe && water_calls==host_water_fail_call))return -1;
     int result=fd2_field_water_tick(vga,prepare_test_ticks_ns());
     clock_ms+=water_advance_ms;
     return result;
@@ -291,13 +317,13 @@ void prepare_test_present(fd2_vga *vga) {
     if(service_capture_first){memcpy(service_first_frame,vga->framebuffer,sizeof(service_first_frame));service_capture_first=0;}
     if(choice_timing_probe) {
         choice_plain++;frame_number++;
-        if(vga->frame_deadline_ns>clock_ms*UINT64_C(1000000))
+        if(!source_upload_active && vga->frame_deadline_ns>clock_ms*UINT64_C(1000000))
             clock_ms=(vga->frame_deadline_ns+999999u)/UINT64_C(1000000);
-        vga->frame_deadline_ns=vga->frame_interval_ns=0;
+        if(!source_upload_active)vga->frame_deadline_ns=vga->frame_interval_ns=0;
         if(quit_frame && frame_number==quit_frame)vga->input.quit_requested=1;
         return;
     }
-    clock_ms += 16; frame_number++;
+    clock_ms += source_upload_active ? source_upload_cost_ms:16u; frame_number++;
     unsigned script_frame=frame_number-town_script_origin;
     if(slot_upper_probe && memcmp(vga->framebuffer,slot_upper_before,sizeof(slot_upper_before)))slot_upper_changed=1;
     memset(vga->input.test_key_state, 0, sizeof(vga->input.test_key_state));
@@ -346,7 +372,28 @@ void prepare_test_present(fd2_vga *vga) {
             script_frame > (service_exact_time ? 6000u:150u))
         vga->input.quit_requested = 1;
 }
+static void prepare_test_upload(fd2_vga *vga) {
+    source_uploads++;source_upload_active=1;prepare_test_present(vga);source_upload_active=0;
+}
+static void prepare_test_delay(uint32_t ms) {
+    if(service_delay_count<6000u)service_delays[service_delay_count++]=ms;
+    clock_ms+=ms;
+}
 void prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
+    if(host_ticket_probe) {
+        /* vga.c的公开timed合同：先旧target，再独立7ms上传成本；不替helper藏foreign。 */
+        uint64_t interval=(uint64_t)delay*UINT64_C(1000000);
+        uint64_t target=vga->frame_deadline_ns,now=clock_ms*UINT64_C(1000000);
+        int continuing=target && vga->frame_interval_ns==interval && now<=target+interval;
+        if(target>now) {
+            uint64_t next_ms=(target+UINT64_C(999999))/UINT64_C(1000000);
+            host_wait_ms+=next_ms-clock_ms;clock_ms=next_ms;
+        }
+        prepare_test_upload(vga);host_timed_calls++;
+        vga->frame_deadline_ns=continuing ? target+interval:clock_ms*UINT64_C(1000000)+interval;
+        vga->frame_interval_ns=interval;
+        return;
+    }
     if(choice_timing_probe) {
         if(!delay){prepare_test_present(vga);return;}
         choice_timed++;frame_number++;clock_ms+=delay;
@@ -360,6 +407,12 @@ void prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
     prepare_test_present(vga);if(service_exact_time)clock_ms=before+delay;
 }
 void prepare_test_deadline(fd2_vga *vga) {
+    if(host_ticket_probe) {
+        host_deadline_calls++;
+        uint64_t target_ms=(vga->frame_deadline_ns+UINT64_C(999999))/UINT64_C(1000000);
+        if(target_ms>clock_ms){host_wait_ms+=target_ms-clock_ms;clock_ms=target_ms;}
+        vga->frame_deadline_ns=vga->frame_interval_ns=0;return;
+    }
     if(choice_timing_probe) {
         if(vga->frame_deadline_ns>clock_ms*UINT64_C(1000000))
             clock_ms=(vga->frame_deadline_ns+999999u)/UINT64_C(1000000);
@@ -367,6 +420,7 @@ void prepare_test_deadline(fd2_vga *vga) {
     }
 }
 static void prepare_test_wait_ticks(uint32_t ticks) {
+    if(f4_dynamic.active){f4_dynamic_wait_ticks(ticks);return;}
     if(service_tick_count<64u)service_ticks[service_tick_count++]=ticks;
     uint64_t deadline=fd2_bios_clock_deadline_ns(clock_ms*UINT64_C(1000000),ticks);
     clock_ms=(deadline+UINT64_C(999999))/UINT64_C(1000000);
@@ -395,6 +449,8 @@ static int prepare_test_bgm_stop(fd2_bgm_player *player) {
 
 static void controls(fd2_vga *vga) {
     fd2_input_init(&vga->input); clock_ms = 0; frame_number = quit_frame = 0;
+    source_uploads=source_upload_active=source_upload_cost_ms=0;
+    host_ticket_probe=host_timed_calls=host_deadline_calls=host_water_fail_call=0;host_wait_ms=0;
     choice_timing_probe=0;choice_plain=choice_timed=0;
     /* 各用例默认新App；跨页/重入轨迹自行保留这两个owner。 */
     vga->prepare_highlight_phase=vga->prepare_sprite_phase=0;
@@ -402,7 +458,7 @@ static void controls(fd2_vga *vga) {
     clock_script_ms=NULL;clock_script_count=0;clock_read_observer=NULL;
     water_calls = water_advance_ms = 0;water_failure=0;
     blink_tracking=blink_bad=0;blink_rng_calls=blink_roster_calls=0;
-    blink_vga=NULL;blink_expected=NULL;blink_state=NULL;blink_slots=NULL;
+    blink_vga=NULL;blink_expected=NULL;blink_state=NULL;fail_members_draw=0;
     choice_blink_scope=NULL;choice_blink_expected=NULL;choice_blink_rng_calls=0;choice_blink_bad=0;
     clear_calls=quit_on_clear=0;memset(frames_at_clear,0,sizeof(frames_at_clear));
     town_script_origin=town_bootstrap_pending=town_fade_count=town_bootstrap_frames=town_inject_early=town_quit_frame=0;
@@ -472,7 +528,7 @@ static int renderer_test(fd2_archive *fdother, fd2_field_prepare_assets *a,
     static const int marker_y[5] = {50, 113, 167, 143, 69};
     fd2_vga *expected = calloc(1, sizeof(*expected)); CHECK(expected);
     for (int selected = 0; selected < 5; selected++) for (unsigned phase = 0; phase < 4; phase++) {
-        memset(expected->framebuffer, 0, sizeof(expected->framebuffer));
+        memcpy(expected->framebuffer,before,sizeof(before)); /* 源投影保4px外沿。 */
         for (size_t row = 0; row < 192; row++) memcpy(expected->framebuffer + (row + 4) * 320 + 4,
             a->town.pixels + row * 320, 312);
         fd2_map_sprite_blit(expected, &a->town_panel, 248, 166, -1);
@@ -870,7 +926,9 @@ static int late_failures(fd2_archive *fdother, fd2_field_prepare_assets *a,
           memcmp(&context.preparation, state, sizeof(*state)) == 0);
     CHECK(read_container(path, before) == 0);
     controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(25, SDL_SCANCODE_ESCAPE);
-    fail_frame_allocation_at = 38; /* 详情24帧打开末清队，25读ACK；关闭后再分配列表。 */
+    /* 详情24帧打开末清队，25读ACK；frame38重开名单的首2810b拒绝。
+     * widget不再私有calloc整页；不能用失效的new_frame分配hook代caller错误。 */
+    fail_members_draw = 38;
     CHECK(roster_run(&ui) == -1 && frame_number == 38 && !vga->input.quit_requested);
     CHECK(clear_calls==1u && frames_at_clear[0]==24u);
     CHECK(state_save_calls == 0 && context.has_preparation && context.experience_value == 321 &&
@@ -1158,7 +1216,8 @@ static int service_scroll_and_inventory_prices(fd2_archive *fdother,
     const uint8_t *second=fd2_field_item_record_get(ids[1]);CHECK(first&&second);
     CHECK(read16(first+19)==80u && read16(second+19)==50u);
     for(int kind=0;kind<2;kind++) {
-        controls(vga);memset(vga->framebuffer,0x61,VGA_W*VGA_H);*expected=*vga;
+        controls(vga);memset(vga->framebuffer,0x61,VGA_W*VGA_H);
+        fd2_map_sprite_blit(vga,&assets->service.roster_page,5,112,-1);*expected=*vga;
         ui.service=(prepare_service){0};ui.service.picker_mode=PREPARE_PICK_ITEM;
         ui.service.item_kind=kind;ui.service.item_count=2;ui.service.raw_slot=0;
         memcpy(ui.service.visible_items,ids,sizeof(ids));prepare_service old_service=ui.service;*before=*context;
@@ -1193,6 +1252,7 @@ static int services_buy_reaches_products(fd2_archive *fdother,fd2_field_prepare_
     const uint8_t *row=fd2_field_stage_prepare_record_get(state->stage_id);CHECK(row);
     uint8_t stock[12];size_t count=0;
     while(count<12u && row[3u+count]!=255u){stock[count]=row[3u+count];count++;}
+    fd2_map_sprite_blit(products,&assets->service.roster_page,5,112,-1);
     CHECK(count && fd2_field_prepare_draw_items(products,assets,stock,count,0,0,0)==0);
     fd2_map_sprite_blit(products,&assets->service.scroll_arrows[4],298,120,-1);
     fd2_map_sprite_blit(products,&assets->service.scroll_arrows[count>6u ? 3u:4u],298,181,-1);
@@ -1273,7 +1333,7 @@ static int service_confirm_shared_owner(fd2_archive *fdother,fd2_field_prepare_a
         else pulse(4,SDL_SCANCODE_ESCAPE);
         unsigned port=FD2_FLOW_ERROR;
         CHECK(prepare_service_confirm(&ui,&port)==0);
-        CHECK(port==(!kind?FD2_FLOW_YES:kind==1?FD2_FLOW_NO:FD2_FLOW_CANCEL));
+        CHECK(port==(unsigned)(!kind?FD2_FLOW_YES:kind==1?FD2_FLOW_NO:FD2_FLOW_CANCEL));
         CHECK(!fd2_input_has_any_key(&vga->input) && ui.service.input_epoch==(!kind?8u:kind==1?2u:1u));
         CHECK(context.rng.state==expected.state && !memcmp(&context.preparation,&before,sizeof(before)));
         /* finite四次不再耗64ms：kind1首空轮0<1234触门，fresh锚仍0；
@@ -1425,6 +1485,308 @@ static int service_raw_icon_transparency(fd2_archive *fdother,fd2_field_prepare_
     free(expected);free(context);return 0;
 }
 
+/* 原27079/2810b只写bottom列表/箭头；菜单只写raw透明图标。
+ * expected从完整before叠既有各独立view叶，不调用picker_draw生成；
+ * full-page保留性质独立检查source窗口外每一字节。不是新增原像素实机oracle。 */
+static int picker_retained_expected(prepare_ui *ui,fd2_vga *expected,int arrows) {
+    prepare_service *s=&ui->service;
+    const fd2_save_manual_state *state=&ui->context->preparation;
+    size_t first=s->first,count=0,visible=6;int result=-1;
+    switch(s->picker_mode) {
+        case PREPARE_PICK_PRODUCT:
+            first=(size_t)s->product_first;count=s->stock_count;
+            result=fd2_field_prepare_draw_items(expected,ui->assets,s->stock,count,first,s->product_index,0);break;
+        case PREPARE_PICK_ITEM:
+            count=s->item_count;
+            result=fd2_field_prepare_draw_items(expected,ui->assets,s->visible_items,count,first,s->raw_slot,1);break;
+        case PREPARE_PICK_MEMBER:
+            count=state->unit_count;
+            result=fd2_field_prepare_draw_members(expected,ui->assets,state,first,s->cursor,ui->vga->prepare_sprite_phase);break;
+        case PREPARE_PICK_BUY_MEMBER:
+            count=s->candidate_count;visible=3;
+            result=fd2_field_prepare_draw_equipment_recipients(expected,ui->assets,state,s->candidates,
+                count,first,s->cursor,s->product_id,ui->vga->prepare_sprite_phase);break;
+        case PREPARE_PICK_REVIVE:
+            count=s->candidate_count;visible=3;
+            result=fd2_field_prepare_draw_revive_candidates(expected,ui->assets,state,s->candidates,
+                count,first,s->cursor,ui->vga->prepare_sprite_phase);break;
+        case PREPARE_PICK_PROMOTION:
+            count=s->candidate_count;visible=3;
+            result=fd2_field_prepare_draw_promotion_candidates(expected,ui->assets,state,s->candidates,
+                count,first,s->cursor,ui->vga->prepare_sprite_phase);break;
+        case PREPARE_PICK_MENU:
+            for(size_t i=0;i<4u;i++)transparent_expected(expected->framebuffer,
+                &ui->assets->service.icons[2u*i+(i==(size_t)s->selected_command ? ui->vga->prepare_highlight_phase/2u:0u)],
+                201+26*(int)i,169);
+            return 0;
+        default:return -1;
+    }
+    if(result || !arrows)return result;
+    fd2_map_sprite_blit(expected,&ui->assets->service.scroll_arrows[first ? ui->vga->prepare_highlight_phase/2u:4u],298,120,-1);
+    fd2_map_sprite_blit(expected,&ui->assets->service.scroll_arrows[first+visible<count ? 2u+ui->vga->prepare_highlight_phase/2u:4u],298,181,-1);
+    return 0;
+}
+static void picker_retained_history(fd2_vga *vga,const fd2_image *portrait,int history) {
+    if(history==2) {
+        for(size_t i=0;i<112u*VGA_W;i++)vga->framebuffer[i]=(uint8_t)(i*29u+i/VGA_W+17u);
+    } else {
+        /* 原16559特殊origin4283走正向；phase0及3都可成为合法current VGA历史。 */
+        for(int row=0;row<80;row++)memcpy(vga->framebuffer+(13+row)*320+123,portrait->pixels+80*row,80);
+    }
+}
+static int picker_retained_pages(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context)),*before_context=malloc(sizeof(*before_context));
+    fd2_vga *expected=malloc(sizeof(*expected));uint8_t *before=malloc(VGA_W*VGA_H);
+    CHECK(context&&before_context&&expected&&before);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    context->preparation.unit_count=7;
+    for(size_t i=0;i<7u;i++) {
+        memcpy(context->preparation.unit_area+80u*i,state->unit_area,80);
+        context->preparation.unit_area[80u*i+7u]=(uint8_t)i;
+        context->preparation.unit_area[80u*i+8u]=(uint8_t)i;
+        context->preparation.unit_area[80u*i+33u]=(uint8_t)(i<4u ? 20:1);
+        for(size_t slot=0;slot<8u;slot++)context->preparation.unit_area[80u*i+10u+2u*slot]=0x80;
+    }
+    CHECK(fd2_field_prepare_assets_bind_roster(assets,&context->preparation)==0 &&
+        fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    const int modes[]={PREPARE_PICK_PRODUCT,PREPARE_PICK_ITEM,PREPARE_PICK_MEMBER,
+        PREPARE_PICK_BUY_MEMBER,PREPARE_PICK_REVIVE,PREPARE_PICK_PROMOTION,PREPARE_PICK_MENU};
+    for(size_t mode=0;mode<sizeof(modes)/sizeof(modes[0]);mode++)for(int history=0;history<3;history++) {
+        controls(vga);memset(vga->framebuffer,0x39,VGA_W*VGA_H);
+        for(size_t i=0;i<7u;i++) {
+            fd2_field_unit unit;memcpy(&unit,context->preparation.unit_area+80u*i,80);
+            /* 原2a07a按flags bit0收复活候选，价格叶也要求该bit；HP0本身不足。
+             * 仅前四条成为候选；其它模式不继承上一轮的hidden标志。 */
+            int dead=modes[mode]==PREPARE_PICK_REVIVE && i<4u;
+            unit.flags=(uint8_t)(dead ? 1:0);unit.hp=(uint16_t)(dead ? 0:100);unit.hp_max=100;
+            memcpy(context->preparation.unit_area+80u*i,&unit,80);
+        }
+        prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+        prepare_service *s=&ui.service;s->picker_mode=modes[mode];
+        s->stock_count=s->item_count=8;s->candidate_count=4;s->product_id=0;
+        for(size_t i=0;i<8u;i++)s->stock[i]=s->visible_items[i]=(uint8_t)(i&1u ? 20:0);
+        for(size_t i=0;i<4u;i++)s->candidates[i]=(uint8_t)i;
+        if(modes[mode]==PREPARE_PICK_REVIVE || modes[mode]==PREPARE_PICK_PROMOTION) {
+            uint8_t source_candidates[FD2_SAVE_MAX_UNITS];size_t source_count=0;
+            int source_result=modes[mode]==PREPARE_PICK_REVIVE ?
+                fd2_field_prepare_revive_candidates(&context->preparation,source_candidates,FD2_SAVE_MAX_UNITS,&source_count):
+                fd2_field_prepare_promotion_candidates(&context->preparation,source_candidates,FD2_SAVE_MAX_UNITS,&source_count);
+            CHECK(source_result==0 && source_count==s->candidate_count &&
+                !memcmp(source_candidates,s->candidates,source_count));
+        }
+        s->page=new_frame(vga);s->page_background=malloc(VGA_W*VGA_H);CHECK(s->page&&s->page_background);
+        memcpy(s->page_background,vga->framebuffer,VGA_W*VGA_H);
+        picker_retained_history(vga,&assets->service.portraits[history==1 ? 3:0],history);
+        memcpy(before,vga->framebuffer,VGA_W*VGA_H);*expected=*vga;*before_context=*context;
+        int expected_result=picker_retained_expected(&ui,expected,1);
+        if(expected_result)fprintf(stderr,"picker expected rejected: mode=%d history=%d count=%zu flags0=%u profile0=%u\n",
+            modes[mode],history,s->candidate_count,(unsigned)context->preparation.unit_area[5],
+            (unsigned)context->preparation.unit_area[32]);
+        CHECK(expected_result==0);
+        CHECK(prepare_service_picker_draw(&ui)==0 && !memcmp(vga,expected,sizeof(*vga)) &&
+            !memcmp(context,before_context,sizeof(*context)) && !frame_number && !clock_reads && !sound_calls);
+        for(size_t i=0;i<VGA_W*VGA_H;i++) {
+            size_t x=i%VGA_W,y=i/VGA_W;
+            int owned=modes[mode]==PREPARE_PICK_MENU ? x>=201u && x<305u && y>=169u && y<189u:
+                x>=5u && x<315u && y>=112u && y<198u;
+            if(!owned)CHECK(vga->framebuffer[i]==before[i]);
+        }
+        /* C结构参数预检失败也不能先恢复整张旧snapshot。 */
+        if(modes[mode]==PREPARE_PICK_MEMBER) {
+            *expected=*vga;uint8_t count=context->preparation.unit_count;context->preparation.unit_count=0;
+            CHECK(prepare_service_picker_draw(&ui)==-1 && !memcmp(vga,expected,sizeof(*vga)));
+            context->preparation.unit_count=count;
+        }
+        free(s->page);free(s->page_background);s->page=NULL;s->page_background=NULL;
+    }
+    /* 导航/跨页由原27d33本地写名单；上方画像不属于该写集。 */
+    for(int down=0;down<2;down++) {
+        controls(vga);service_exact_time=1;
+        prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+        ui.service.picker_mode=PREPARE_PICK_MEMBER;ui.service.cursor=down ? 4:2;ui.service.first=down ? 0u:2u;
+        memset(vga->framebuffer,0x39,VGA_W*VGA_H);picker_retained_history(vga,&assets->service.portraits[3],1);
+        CHECK(prepare_service_picker_draw(&ui)==0);memcpy(before,vga->framebuffer,VGA_W*VGA_H);
+        size_t first=ui.service.first;int selected=ui.service.cursor;
+        CHECK(prepare_service_picker_key(&ui,&selected,7,&first,2,down ? FD2_INPUT_KEY_DOWN:FD2_INPUT_KEY_UP,0)==0 &&
+            selected==(down ? 6:0) && first==(down ? 2u:0u));
+        ui.service.cursor=selected;ui.service.first=first;*expected=*vga;*before_context=*context;
+        /* 27816/278e7先搬当前VGA，再2810b写新名单；不得用新底板抹stride孔。
+         * 独立终态方程：目标行取原行+/-26，空出的26行填73；外部逐字节保留。 */
+        for(int row=0;row<80;row++)for(int col=0;col<284;col++) {
+            int from=down ? row+26:row-26;
+            expected->framebuffer[(115+row)*320+10+col]=from>=0 && from<80 ?
+                before[(115+from)*320+10+col]:73;
+        }
+        CHECK(picker_retained_expected(&ui,expected,0)==0);
+        CHECK(prepare_service_scroll_rows(&ui,before,expected->framebuffer,down)==0 &&
+            !memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H) &&
+            !memcmp(context,before_context,sizeof(*context)) && frame_number==3u);
+    }
+    /* HOST在首个6px搬移已写后返回；不吞前缀，也不继续余下三步/终态copy。 */
+    controls(vga);service_exact_time=1;quit_frame=1;
+    prepare_ui stopped={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    for(size_t i=0;i<VGA_W*VGA_H;i++)vga->framebuffer[i]=(uint8_t)(i*7u+i/VGA_W);
+    picker_retained_history(vga,&assets->service.portraits[0],0);
+    memcpy(before,vga->framebuffer,VGA_W*VGA_H);*expected=*vga;*before_context=*context;
+    for(int row=0;row<74;row++)memcpy(expected->framebuffer+(115+row)*320+10,
+        before+(121+row)*320+10,284);
+    for(int row=74;row<80;row++)memset(expected->framebuffer+(115+row)*320+10,73,284);
+    CHECK(prepare_service_scroll_rows(&stopped,before,before,1)==1 && stopped.service.host_quit &&
+        frame_number==1u && !memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H) &&
+        !memcmp(context,before_context,sizeof(*context)));
+    free(before);free(expected);free(before_context);free(context);return 0;
+}
+static int picker_retained_modal_boundary(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));
+    uint8_t *before=malloc(VGA_W*VGA_H);CHECK(context&&before);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    CHECK(fd2_field_prepare_assets_bind_roster(assets,state)==0 &&
+        fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    for(int host=0;host<2;host++) {
+        controls(vga);service_exact_time=1;fd2_bios_clock_reset(0,0);
+        memset(vga->framebuffer,0x39,VGA_W*VGA_H);
+        picker_retained_history(vga,&assets->service.portraits[3],1);memcpy(before,vga->framebuffer,VGA_W*VGA_H);
+        prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};ui.service.picker_mode=PREPARE_PICK_MEMBER;
+        fd2_field_rng_seed(&context->rng,1);fd2_field_rng expected_rng=context->rng;
+        (void)fd2_field_rng_next(&expected_rng);
+        if(host)quit_frame=7;else pulse(7,SDL_SCANCODE_ESCAPE);
+        unsigned port=99;CHECK(prepare_service_pick_list(&ui,&port)==(host ? -1:1) &&
+            port==(unsigned)(host ? FD2_FLOW_ERROR:FD2_FLOW_CANCEL) && ui.service.host_quit==host &&
+            ui.service.page && ui.service.page_background &&
+            !memcmp(ui.service.page_background,before,VGA_W*VGA_H) &&
+            !memcmp(vga->framebuffer,before,112u*VGA_W) && context->rng.state==expected_rng.state &&
+            !memcmp(&context->preparation,state,sizeof(*state)) && !clear_calls && !sound_calls);
+        if(!host)CHECK(prepare_service_modal_close(&ui)==0 && !ui.service.page && !ui.service.page_background &&
+            !memcmp(vga->framebuffer,before,VGA_W*VGA_H));
+        prepare_service_cleanup(&ui);CHECK(!ui.service.page && !ui.service.page_background &&
+            !memcmp(vga->framebuffer,before,VGA_W*VGA_H));
+    }
+    free(before);free(context);return 0;
+}
+
+/* 相同原窗口的四个运输步骤必须等于26px终态；before整页非均匀，
+ * expected由坐标方程取源，不调用被测运输器，且逐字节保护箭头/上部。 */
+static int picker_shift_write_set(fd2_vga *vga) {
+    uint8_t *before=malloc(VGA_W*VGA_H),*expected=malloc(VGA_W*VGA_H);CHECK(before&&expected);
+    for(size_t i=0;i<VGA_W*VGA_H;i++)before[i]=(uint8_t)(i*17u+i/VGA_W*13u);
+    static const int deltas[4]={6,6,6,8};
+    for(int down=0;down<2;down++) {
+        memcpy(vga->framebuffer,before,VGA_W*VGA_H);memcpy(expected,before,VGA_W*VGA_H);
+        for(int step=0;step<4;step++)CHECK(prepare_picker_shift_rows(vga->framebuffer,down,deltas[step])==0);
+        for(int row=0;row<80;row++)for(int col=0;col<284;col++) {
+            int from=down ? row+26:row-26;
+            expected[(115+row)*320+10+col]=from>=0 && from<80 ? before[(115+from)*320+10+col]:73;
+        }
+        CHECK(!memcmp(vga->framebuffer,expected,VGA_W*VGA_H));
+        memcpy(vga->framebuffer,before,VGA_W*VGA_H);
+        CHECK(prepare_picker_shift_rows(vga->framebuffer,down,26)==0 && !memcmp(vga->framebuffer,expected,VGA_W*VGA_H));
+        CHECK(prepare_picker_shift_rows(vga->framebuffer,down,0)==-1 && !memcmp(vga->framebuffer,expected,VGA_W*VGA_H));
+    }
+    free(before);free(expected);return 0;
+}
+
+/* adapter oracle：原27079三个mode各调不同叶；view的原token整页oracle另在
+ * field_prepare_view_test。此处只用其已验证公开叶组合，独立核dispatch/写窗。
+ * mode1不得重画name/price；mode2不得重画name/preview；mode0只选中icon。 */
+static int picker_steady_dispatch(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));fd2_vga *expected=malloc(sizeof(*expected));
+    CHECK(context&&expected && state->unit_count>=4u);context->initialized=context->has_preparation=1;context->preparation=*state;
+    CHECK(fd2_field_prepare_assets_bind_roster(assets,state)==0 &&
+        fd2_field_prepare_assets_open_service(assets,fdother,1)==0);
+    const int modes[]={PREPARE_PICK_PRODUCT,PREPARE_PICK_ITEM,PREPARE_PICK_BUY_MEMBER,
+        PREPARE_PICK_REVIVE,PREPARE_PICK_PROMOTION,PREPARE_PICK_MEMBER,PREPARE_PICK_MENU};
+    for(size_t mode=0;mode<sizeof(modes)/sizeof(modes[0]);mode++)for(unsigned phase=0;phase<4u;phase++) {
+        controls(vga);for(size_t i=0;i<VGA_W*VGA_H;i++)vga->framebuffer[i]=(uint8_t)(i*31u+i/VGA_W+mode);
+        vga->prepare_highlight_phase=phase;vga->prepare_sprite_phase=phase;*expected=*vga;
+        prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+        prepare_service *s=&ui.service;s->picker_mode=modes[mode];s->stock_count=s->item_count=8;
+        s->candidate_count=4;s->selected_command=2;
+        for(size_t i=0;i<4u;i++)s->candidates[i]=(uint8_t)i;
+        size_t count=s->picker_mode==PREPARE_PICK_MEMBER ? state->unit_count:
+            s->picker_mode==PREPARE_PICK_PRODUCT || s->picker_mode==PREPARE_PICK_ITEM ? 8u:4u;
+        size_t visible=s->picker_mode>=PREPARE_PICK_BUY_MEMBER && s->picker_mode<=PREPARE_PICK_PROMOTION ? 3u:6u;
+        if(s->picker_mode==PREPARE_PICK_MENU) {
+            transparent_expected(expected->framebuffer,&assets->service.icons[4u+phase/2u],253,169);
+        } else {
+            const fd2_image *up=&assets->service.scroll_arrows[4];
+            const fd2_image *down=&assets->service.scroll_arrows[count>visible ? 2u+phase/2u:4u];
+            for(int row=0;row<9;row++) {
+                memcpy(expected->framebuffer+(120+row)*320+298,up->pixels+row*8,8);
+                memcpy(expected->framebuffer+(181+row)*320+298,down->pixels+row*8,8);
+            }
+            if(s->picker_mode==PREPARE_PICK_MEMBER)
+                CHECK(fd2_field_prepare_draw_members(expected,assets,state,0,0,phase)==0);
+            else if(visible==3u)
+                CHECK(fd2_field_prepare_draw_candidate_sprites(expected,assets,state,s->candidates,4,0,phase)==0);
+        }
+        fd2_save_manual_state saved=context->preparation;uint16_t rng=context->rng.state;
+        CHECK(prepare_service_picker_tick_draw(&ui)==0 && !memcmp(vga,expected,sizeof(*vga)) &&
+            !memcmp(&context->preparation,&saved,sizeof(saved)) && context->rng.state==rng &&
+            !frame_number && !clock_reads && !clear_calls && !sound_calls);
+    }
+    free(expected);free(context);return 0;
+}
+
+/* 29300->29620->27d33->26eda(3)真实酒店名单；预期选择表独立于arrow helper。
+ * 合成5个不同opaque8x9图只测binding/写序，实际原帧另由reader oracle核。 */
+static int hotel_arrows_and_initial_wait(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));fd2_vga *expected=malloc(sizeof(*expected));
+    CHECK(context&&expected);context->initialized=context->has_preparation=1;context->preparation=*state;
+    fd2_image saved[5];uint8_t pixels[5][72];memcpy(saved,assets->hotel_scroll_arrows,sizeof(saved));
+    for(size_t i=0;i<5u;i++) {
+        CHECK(saved[i].pixels && saved[i].width==8 && saved[i].height==9);
+        memset(pixels[i],40+(int)i,sizeof(pixels[i]));pixels[i][0]=0;
+        assets->hotel_scroll_arrows[i]=(fd2_image){.width=8,.height=9,.pixels=pixels[i]};
+    }
+    static const struct {size_t count,first;unsigned up[4],down[4];} vectors[]={
+        {5,0,{4,4,4,4},{4,4,4,4}},{7,0,{4,4,4,4},{2,2,3,3}},
+        {7,2,{0,0,1,1},{4,4,4,4}},{9,2,{0,0,1,1},{2,2,3,3}}};
+    for(size_t test=0;test<4u;test++)for(unsigned phase=0;phase<4u;phase++) {
+        controls(vga);memset(vga->framebuffer,0x61,VGA_W*VGA_H);*expected=*vga;
+        for(int row=0;row<9;row++) {
+            memcpy(expected->framebuffer+(120+row)*320+298,pixels[vectors[test].up[phase]]+row*8,8);
+            memcpy(expected->framebuffer+(181+row)*320+298,pixels[vectors[test].down[phase]]+row*8,8);
+        }
+        uint16_t rng=context->rng.state;
+        CHECK(prepare_picker_arrows(vga,assets->hotel_scroll_arrows,vectors[test].count,vectors[test].first,6,phase)==0 &&
+            !memcmp(vga,expected,sizeof(*vga)) && context->rng.state==rng && !clock_reads && !frame_number && !clear_calls);
+    }
+    /* 原先上再下；坏下图保已写上图，不提前恢复/清页。opaque0也必须写。 */
+    controls(vga);memset(vga->framebuffer,0x61,VGA_W*VGA_H);*expected=*vga;
+    for(int row=0;row<9;row++)memcpy(expected->framebuffer+(120+row)*320+298,pixels[0]+row*8,8);
+    assets->hotel_scroll_arrows[2].width=7;
+    CHECK(prepare_picker_arrows(vga,assets->hotel_scroll_arrows,9,2,6,0)==-1 && !memcmp(vga,expected,sizeof(*vga)));
+    memcpy(assets->hotel_scroll_arrows,saved,sizeof(saved));
+    CHECK(fd2_field_prepare_assets_bind_roster(assets,state)==0);
+    controls(vga);fd2_bios_clock_reset(0,0);memset(vga->framebuffer,0x61,VGA_W*VGA_H);
+    fd2_map_sprite_blit(vga,&assets->slots,5,112,-1);*expected=*vga;
+    CHECK(fd2_field_prepare_draw_roster(expected,assets,state,0,0,0)==0);
+    for(int row=0;row<9;row++) {
+        memcpy(expected->framebuffer+(120+row)*320+298,saved[4].pixels+row*8,8);
+        memcpy(expected->framebuffer+(181+row)*320+298,saved[4].pixels+row*8,8);
+    }
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,0};
+    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_ESCAPE,1);
+    fd2_input_begin_test_frame(&vga->input,0);expected->input=vga->input;
+    fd2_field_rng_seed(&context->rng,1);fd2_field_rng rng=context->rng;(void)fd2_field_rng_next(&rng);
+    prepare_wait wait={0};fd2_input_event event;
+    CHECK(read_key_state(&ui,&event,2,1,&wait)==0 && cancel_key(event.key) && wait.initialized &&
+        context->rng.state==rng.state && vga->prepare_highlight_phase==2u &&
+        !memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H) && !frame_number && !water_calls && !clear_calls);
+    /* HOST在整个入口之前；空队伍也保既有无候选边界，不进箭头读取。 */
+    controls(vga);*expected=*vga;vga->input.quit_requested=1;expected->input=vga->input;
+    uint16_t old_rng=context->rng.state;wait=(prepare_wait){0};
+    CHECK(read_key_state(&ui,&event,2,1,&wait)==1 && context->rng.state==old_rng && !wait.initialized &&
+        !memcmp(vga->framebuffer,expected->framebuffer,VGA_W*VGA_H));
+    controls(vga);context->preparation.unit_count=0;*expected=*vga;
+    CHECK(roster_run(&ui)==0 && !memcmp(vga,expected,sizeof(*vga)) && context->rng.state==old_rng);
+    free(expected);free(context);return 0;
+}
+
 static void queue_pair(fd2_vga *vga) {
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,1);
     fd2_input_begin_test_frame(&vga->input,clock_ms);
@@ -1437,7 +1799,7 @@ static void queue_pair(fd2_vga *vga) {
 
 /* 26eda/16c57/29bcb各读一项，只有源clear叶才清余队；普通文字peek
  * 不提前计input_epoch，不改变同一SAV/资金/库存owner。 */
-/* 原26eda：27079→portrait0→RNG→freshclock，再检查键。
+/* 原26eda eligible：27079→portrait0→RNG→freshclock，再检查键。
  * 此expected只用于确认这组实际绘制已提交，不自证像素正确或sprite相位原义。 */
 static int hotel_wait_write_order(fd2_archive *fdother,fd2_field_prepare_assets *assets,
         const fd2_save_manual_state *state,fd2_vga *vga) {
@@ -1446,9 +1808,12 @@ static int hotel_wait_write_order(fd2_archive *fdother,fd2_field_prepare_assets 
     context->initialized=context->has_preparation=1;context->preparation=*state;
     prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,0};
     controls(vga);fd2_bios_clock_reset(0,0);
-    memset(vga->framebuffer,0x61,sizeof(vga->framebuffer));*expected=*vga;
+    memset(vga->framebuffer,0x61,sizeof(vga->framebuffer));
+    fd2_map_sprite_blit(vga,&assets->slots,5,112,-1);*expected=*vga;
     /* 26eda的highlight2→3仅让独立53F72从0→1，不以highlight3画sprite。 */
     CHECK(fd2_field_prepare_draw_roster(expected,assets,state,0,0,1)==0);
+    fd2_map_sprite_blit(expected,&assets->hotel_scroll_arrows[4],298,120,-1);
+    fd2_map_sprite_blit(expected,&assets->hotel_scroll_arrows[4],298,181,-1);
     fd2_map_sprite_blit(expected,&assets->hotel_portraits[0],107,5,-1);
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
     fd2_input_begin_test_frame(&vga->input,0);
@@ -1457,16 +1822,16 @@ static int hotel_wait_write_order(fd2_archive *fdother,fd2_field_prepare_assets 
     clock_ms=110;fd2_field_rng_seed(&context->rng,0x5a31);
     vga->prepare_highlight_phase=2;
     prepare_wait waiting={.last=0,.countdown=2,.portrait=3,.initialized=1};
-    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;blink_slots=&assets->slots;
+    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;
     fd2_input_event event={0};
     CHECK(read_key_state(&ui,&event,2,1,&waiting)==0 && event.key==FD2_INPUT_KEY_ENTER);
     CHECK(!blink_bad && blink_rng_calls==1 && blink_roster_calls==1 && waiting.last==4 &&
         waiting.portrait==0 && vga->prepare_highlight_phase==3u && vga->prepare_sprite_phase==1u && !frame_number && !water_calls);
-    controls(vga);clock_ms=110;frame_number=1;fail_frame_allocation_at=1;
+    controls(vga);clock_ms=110;frame_number=1;fail_members_draw=1;
     fd2_field_rng_seed(&context->rng,0x5a31);
     vga->prepare_highlight_phase=2;
     waiting=(prepare_wait){.last=0,.countdown=2,.portrait=3,.initialized=1};
-    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;blink_slots=&assets->slots;
+    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;
     CHECK(read_key_state(&ui,&event,2,1,&waiting)==-1 && !blink_rng_calls && !blink_roster_calls &&
         context->rng.state==0x5a31 && waiting.last==0 && waiting.portrait==3 &&
         vga->prepare_highlight_phase==3u && vga->prepare_sprite_phase==1u);
@@ -1475,7 +1840,7 @@ static int hotel_wait_write_order(fd2_archive *fdother,fd2_field_prepare_assets 
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
     fd2_input_begin_test_frame(&vga->input,clock_ms);
     waiting=(prepare_wait){.last=0,.countdown=2,.portrait=3,.initialized=1};
-    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;blink_slots=&assets->slots;
+    blink_tracking=1;blink_vga=vga;blink_expected=expected;blink_state=&waiting;
     CHECK(read_key_state(&ui,&event,1,1,&waiting)==0 && !blink_rng_calls && !blink_roster_calls &&
         context->rng.state==0x5a31 && waiting.last==0 && waiting.portrait==3 && !water_calls);
     controls(vga);free(expected);free(context);return 0;
@@ -1644,11 +2009,14 @@ static int prepare_choice_finite_owner(fd2_archive *fdother,fd2_field_prepare_as
         scope.host_deadline=UINT64_C(100000000);vga->frame_deadline_ns=UINT64_C(150000000);vga->frame_interval_ns=UINT64_C(10000000);
         prepare_choice_release(&scope);
         CHECK(vga->frame_deadline_ns==UINT64_C(150000000) && vga->frame_interval_ns==UINT64_C(10000000));
-        CHECK(prepare_choice_step(FD2_FIELD_CHOICE_DRAW,4,&scope)==0 && clock_ms==150); /* 外来有源deadline不取消。 */
-        /* HOST从STEADY提交返回；outer cleanup不得继续关框或保留H deadline。 */
+        CHECK(prepare_choice_step(FD2_FIELD_CHOICE_DRAW,4,&scope)==0 && clock_ms==after_steady &&
+            vga->frame_deadline_ns==UINT64_C(150000000) && vga->frame_interval_ns==UINT64_C(10000000));
+        /* 纯copy不等待外来deadline，也不拥有/取消它。 */
+        /* HOST从STEADY提交返回；outer cleanup不关框、不保H ticket，也不清foreign。 */
         controls(vga);choice_timing_probe=1;quit_frame=5;ui.service.host_quit=0;port=99;
         CHECK(prepare_service_confirm(&ui,&port)==1 && choice_plain==4 && choice_timed==1 &&
-            !vga->frame_deadline_ns && !vga->frame_interval_ns && port==99);
+            vga->frame_deadline_ns==UINT64_C(150000000) &&
+            vga->frame_interval_ns==UINT64_C(10000000) && port==99);
     }
     choice_timing_probe=0;free(base);free(context);return 0;
 }
@@ -1758,6 +2126,115 @@ static int prepare_buffered_input_contract(fd2_archive *fdother,fd2_field_prepar
     free(context);return 0;
 }
 
+/* 有限copy与源后等待不得借用H deadline；read_key只撤自己的H16 owner。
+ * 源1974c无delay，27816有独立10ms；上传代价7ms由测试单独注入。 */
+static int prepare_finite_copy_clock_contract(fd2_archive *fdother,
+        fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));CHECK(context);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    controls(vga);source_upload_cost_ms=7;
+    vga->frame_deadline_ns=UINT64_C(999999999);vga->frame_interval_ns=16000000;
+    queue_pair(vga);
+    uint64_t initial=clock_ms;
+    CHECK(present_copy(&ui)==0 && source_uploads==1 && clock_ms==initial+7 && !service_delay_count);
+    CHECK(prepare_service_present(&ui,10)==0 && source_uploads==2 && clock_ms==initial+24 &&
+        service_delay_count==1 && service_delays[0]==10);
+    CHECK(prepare_service_present(&ui,0)==0 && source_uploads==3 && clock_ms==initial+31 &&
+        service_delay_count==1 && vga->frame_deadline_ns==UINT64_C(999999999) &&
+        vga->frame_interval_ns==16000000 && !water_calls && fd2_input_has_any_key(&vga->input));
+    controls(vga);choice_timing_probe=1;quit_frame=1;
+    prepare_wait waiting={0};fd2_input_event event={0};
+    CHECK(read_key_state(&ui,&event,0,0,&waiting)==1 && choice_timed==1 &&
+        vga->frame_deadline_ns==UINT64_C(999999999) && vga->frame_interval_ns==16000000 &&
+        !source_uploads && !water_calls);
+    free(context);return 0;
+}
+
+/* H空等只履行自身：独立timed契约向量为0+7=7/next23，再wait23+7=30/next39。
+ * 这不把H16ms称原等待；原26eda/16c57/19953有限尾没有foreign持帧读取。 */
+static int prepare_host_ticket_contract(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));CHECK(context);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+    const uint64_t foreign=UINT64_C(999999999),interval=UINT64_C(42000000);
+    uint64_t entry_deadline=vga->frame_deadline_ns,entry_interval=vga->frame_interval_ns;
+    controls(vga);host_ticket_probe=1;source_upload_cost_ms=7;
+    vga->frame_deadline_ns=foreign;vga->frame_interval_ns=interval;
+    fd2_field_rng_seed(&context->rng,0x5a31);
+    vga->input.queued_keys[0]=(fd2_input_event){.key=FD2_INPUT_KEY_RIGHT};
+    vga->input.queued_keys[1]=(fd2_input_event){.key=FD2_INPUT_KEY_ENTER};vga->input.queued_count=2;
+    uint64_t own=0;
+    CHECK(prepare_host_present(&ui,&own)==0 && clock_ms==7u && own==UINT64_C(23000000));
+    CHECK(prepare_host_present(&ui,&own)==0 && clock_ms==30u && own==UINT64_C(39000000));
+    CHECK(host_timed_calls==2u && host_wait_ms==16u && !host_deadline_calls &&
+        vga->frame_deadline_ns==foreign && vga->frame_interval_ns==interval &&
+        context->rng.state==0x5a31 && vga->input.queued_count==2u && !water_calls);
+    prepare_host_release(&ui,&own);
+    CHECK(!own && clock_ms==30u && vga->frame_deadline_ns==foreign && vga->frame_interval_ns==interval);
+    /* 相同数值也不代表同owner；旧release会误清这份外来16ms字段。 */
+    own=UINT64_C(39000000);vga->frame_deadline_ns=own;vga->frame_interval_ns=UINT64_C(16000000);
+    prepare_host_release(&ui,&own);
+    CHECK(!own && vga->frame_deadline_ns==UINT64_C(39000000) && vga->frame_interval_ns==UINT64_C(16000000));
+
+    for(int outcome=0;outcome<4;outcome++) {
+        controls(vga);host_ticket_probe=1;source_upload_cost_ms=7;
+        vga->frame_deadline_ns=foreign;vga->frame_interval_ns=interval;
+        fd2_field_rng_seed(&context->rng,0x5a31);
+        prepare_wait waiting={.initialized=1,.countdown=30};fd2_input_event event={0};
+        if(outcome==0) { /* early key：无提交、无H等待，FIFO第二项保留。 */
+            vga->input.queued_keys[0]=(fd2_input_event){.key=FD2_INPUT_KEY_RIGHT};
+            vga->input.queued_keys[1]=(fd2_input_event){.key=FD2_INPUT_KEY_ENTER};vga->input.queued_count=2;
+        }
+        else if(outcome==1)pulse(2,SDL_SCANCODE_RETURN);
+        else if(outcome==2){pulse(2,SDL_SCANCODE_RETURN);quit_frame=2;}
+        else host_water_fail_call=2; /* 首次空轮已提交，第二water拒绝。 */
+        int got=read_key_state(&ui,&event,outcome==3,0,&waiting);
+        CHECK(got==(outcome==2?1:outcome==3?-1:0));
+        CHECK(vga->frame_deadline_ns==foreign && vga->frame_interval_ns==interval &&
+            context->rng.state==0x5a31 && !host_deadline_calls);
+        CHECK(clock_ms==(outcome==0?0u:outcome==3?7u:30u) &&
+            host_timed_calls==(outcome==0?0u:outcome==3?1u:2u) &&
+            host_wait_ms==(outcome==1 || outcome==2?16u:0u));
+        CHECK(water_calls==(outcome==3?2u:0u));
+        CHECK(vga->input.queued_count==((outcome==0 || outcome==2)?1u:0u));
+        CHECK(outcome>=2 || event.key==(outcome==0?FD2_INPUT_KEY_RIGHT:FD2_INPUT_KEY_ENTER));
+    }
+    /* 四个真实scope尾：有限开页HOST、资源错误、原fade返回HOST/ERROR，均不等foreign。 */
+    char path[FD2_TEST_PATH_MAX];CHECK(fd2_test_temp_path(path)==0 && remove(path)==0);
+    CHECK(fd2_save_manual_state_save(path,0,state)==0);ui.save_path=path;
+    CHECK(fd2_field_prepare_assets_bind_roster(assets,state)==0);
+    for(int scope=0;scope<7;scope++) {
+        controls(vga);host_ticket_probe=1;source_upload_cost_ms=7;quit_frame=1;
+        vga->frame_deadline_ns=foreign;vga->frame_interval_ns=interval;
+        context->preparation=*state;fd2_field_rng_seed(&context->rng,0x5a31);
+        int got;
+        if(scope==0)got=slots_run(&ui,0,PREPARE_SLOT_TITLE);
+        else if(scope==1)got=member_detail(&ui,0);
+        else if(scope==2)got=roster_run(&ui);
+        else if(scope==3) {
+            context->preparation.unit_area[0x0a]=0;context->preparation.unit_area[0x0b]=255;
+            got=member_detail(&ui,0);
+        } else if(scope<6) {
+            title_fade_result=scope==4?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
+            got=(int)fd2_field_prepare_run(vga,fdother,context,path,NULL);
+        } else {
+            quit_frame=0;pulse(13,SDL_SCANCODE_ESCAPE);got=member_detail(&ui,0);
+        }
+        fd2_field_rng expected_rng;fd2_field_rng_seed(&expected_rng,0x5a31);
+        if(scope==6)(void)fd2_field_rng_next(&expected_rng); /* 16c57本次等待入口唯一一取。 */
+        CHECK(got==(scope<3?1:scope==3?-1:scope==4?FD2_FIELD_PREPARE_HOST_QUIT:scope==5?FD2_FIELD_PREPARE_ERROR:0));
+        CHECK(!host_deadline_calls && !host_timed_calls && !host_wait_ms &&
+            vga->frame_deadline_ns==foreign && vga->frame_interval_ns==interval &&
+            clock_ms==(scope<3?7u:scope==6?198u:0u) && context->rng.state==expected_rng.state && !state_save_calls);
+        if(scope==6)CHECK(frame_number==26u && service_delay_count==1u && service_delays[0]==16u &&
+            !fd2_input_has_any_key(&vga->input)); /* 26次7ms上传+1次H16，无尾持帧。 */
+    }
+    CHECK(remove(path)==0);free(context);controls(vga);
+    vga->frame_deadline_ns=entry_deadline;vga->frame_interval_ns=entry_interval;return 0;
+}
+
 static int member_detail_open_clear_and_flip_preserves_queue(fd2_archive *fdother,
         fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,fd2_vga *vga) {
     fd2_field_play_context *context=calloc(1,sizeof(*context));CHECK(context);
@@ -1841,6 +2318,9 @@ static int town_bootstrap_source_contract(fd2_archive *fdother,
     fd2_field_rng_seed(&context->rng,0x5a31);
     CHECK(prepare_town(assets,fdother,state->stage_id)==0);
     CHECK(fd2_field_prepare_draw_town(expected,assets,state,0,0)==0);
+    /* 原11eb0只投影312x192；本case进入Town前的VGA外沿是0x61。 */
+    for(unsigned y=0;y<200u;y++)for(unsigned x=0;x<320u;x++)
+        if(x<4u || x>=316u || y<4u || y>=196u)expected->framebuffer[y*320u+x]=0x61;
     const uint8_t *palette;size_t size;CHECK(fd2_archive_get(fdother,0,&palette,&size)==0 && size>=768u);
     prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
     int type=town_type(state->stage_id);
@@ -2062,7 +2542,194 @@ static int deployment_visual_owner_boundary(fd2_archive *fdother,fd2_field_prepa
     controls(vga);prepare_service_cleanup(&ui);free(pixels);return 0;
 }
 
-int main(void) {
+/* 原28efe->1bffe->1b9de：空EQT仍进16c57等待，确认后count0才关闭。
+ * 导航期望是原DWORD selector写集，不从pick结果或冷生成器反算。 */
+static int equipment_empty_wait_contract(fd2_archive *fdother,fd2_field_prepare_assets *assets,
+        const fd2_save_manual_state *state,fd2_vga *vga) {
+    fd2_field_play_context *context=calloc(1,sizeof(*context));
+    fd2_save_manual_state *before=malloc(sizeof(*before));CHECK(context && before);
+    context->initialized=context->has_preparation=1;context->preparation=*state;
+    for(size_t slot=0;slot<8;slot++)context->preparation.unit_area[0x0au+2u*slot]=0x80u;
+    *before=context->preparation;
+    CHECK(prepare_equipment_cursor_add(INT32_MAX,1)==INT32_MIN &&
+        prepare_equipment_cursor_add(INT32_MIN,-1)==INT32_MAX);
+    const fd2_static_flow *flow=fd2_static_flow_lookup("preparation","services");CHECK(flow);
+    const fd2_static_flow_node *pick=fd2_static_flow_at(flow,fd2_static_flow_label(flow,"equip.item"));
+    const fd2_static_flow_node *empty=pick ? fd2_static_flow_at(flow,fd2_static_flow_edge(flow,pick,FD2_FLOW_SLOT)):NULL;
+    CHECK(empty && !strcmp(empty->op,"inventory_empty"));
+    const fd2_static_flow_node *close=fd2_static_flow_at(flow,fd2_static_flow_edge(flow,empty,FD2_FLOW_YES));
+    CHECK(close && !strcmp(close->op,"equipment_close"));
+    const unsigned downs[]={0u,0u,1u,15u};
+    const SDL_Scancode final_keys[]={SDL_SCANCODE_RETURN,SDL_SCANCODE_ESCAPE,SDL_SCANCODE_RETURN,SDL_SCANCODE_RETURN};
+    for(size_t test=0;test<4;test++) {
+        controls(vga);service_exact_time=1;
+        prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};
+        ui.service.member=0;
+        fd2_static_flow_node open={.op="equipment_open"};unsigned port=FD2_FLOW_NEXT;
+        CHECK(prepare_service_pick(&ui,&open,&port)==1 && ui.service.page && ui.service.equipment_selected==0);
+        unsigned opened_at=frame_number;
+        for(unsigned i=0;i<downs[test];i++)pulse(opened_at+2u+2u*i,SDL_SCANCODE_DOWN);
+        pulse(opened_at+2u+2u*downs[test],final_keys[test]);
+        fd2_field_rng_seed(&context->rng,0x7a18);fd2_field_rng expected=context->rng;
+        for(unsigned i=0;i<=downs[test];i++)(void)fd2_field_rng_next(&expected);
+        CHECK(prepare_service_pick(&ui,pick,&port)==1 && frame_number>opened_at);
+        CHECK(port==(unsigned)(test==1u?FD2_FLOW_CANCEL:FD2_FLOW_SLOT));
+        CHECK(ui.service.page && ui.service.equipment_selected==(int)downs[test]);
+        CHECK(context->rng.state==expected.state && !memcmp(&context->preparation,before,sizeof(*before)));
+        CHECK(prepare_service_domain(&ui,empty,&port)==1 && port==FD2_FLOW_YES);
+        fd2_static_flow_node shut={.op="equipment_close"};
+        CHECK(prepare_service_pick(&ui,&shut,&port)==1 && !ui.service.page && !ui.service.page_background);
+        CHECK(!memcmp(&context->preparation,before,sizeof(*before)) && !state_save_calls);
+        prepare_service_cleanup(&ui);
+    }
+    controls(vga);service_exact_time=1;
+    prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};ui.service.member=0;
+    fd2_static_flow_node open={.op="equipment_open"};unsigned port=FD2_FLOW_NEXT;
+    CHECK(prepare_service_pick(&ui,&open,&port)==1);quit_frame=frame_number+2u;
+    CHECK(prepare_service_pick(&ui,pick,&port)==-1 && ui.service.host_quit && ui.service.page);
+    CHECK(!memcmp(&context->preparation,before,sizeof(*before)) && !state_save_calls);
+    prepare_service_cleanup(&ui);CHECK(!ui.service.page && !ui.service.page_background);
+    free(before);free(context);return 0;
+}
+
+/* 265ec/2921a：literal source固定写义；不以另一C renderer生成expected。 */
+static void prepare_app_rect(uint8_t *p,int x,int y,int w,int h,uint8_t color) {
+    for(int row=0;row<h;row++)memset(p+(y+row)*456+x,color,(size_t)w);
+}
+
+static int prepare_app_town_and_zoom_source(fd2_archive *other,
+        fd2_field_prepare_assets *real_assets,const fd2_save_manual_state *real_state,fd2_vga *vga) {
+    const size_t P=FD2_FIELD_PAGE_SIZE;
+    uint8_t *before=malloc(P),*want=malloc(P),*actual=malloc(P),*source=malloc(64000);
+    uint8_t *town=malloc(64000),*sprites=calloc(12u,576u),panel[62*26],glyph[32]={0};
+    uint8_t text[501u*4u];
+    fd2_vga *old=malloc(sizeof(*old)),*saved=malloc(sizeof(*saved));
+    fd2_field_prepare_assets *a=calloc(1,sizeof(*a));
+    fd2_field_play_context *ctx=calloc(1,sizeof(*ctx));
+    CHECK(before && want && actual && source && town && sprites && old && saved && a && ctx);
+    memcpy(old,vga,sizeof(*old));
+    CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,before,P,456)==0);
+    uint8_t *original_page=malloc(P);CHECK(original_page);memcpy(original_page,before,P);
+    for(size_t i=0;i<501u;i++) {
+        unsigned offset=1002u+(unsigned)i*2u;text[2*i]=(uint8_t)offset;text[2*i+1]=(uint8_t)(offset>>8);
+        text[offset]=text[offset+1]=0xff;
+    }
+    CHECK(fd2_text_entry_open_mem(&a->text,text,sizeof(text))==0);
+    a->font.glyphs=glyph;a->font.size=sizeof(glyph);a->font.glyph_count=1;a->ready=1;
+    a->town=a->town_type1=a->town_stage2=(fd2_image){320,200,town};
+    a->town_panel=(fd2_image){62,26,panel};memset(panel,84,sizeof(panel));
+    a->sprites.decoded_frames=sprites;a->sprites.frame_count=12;
+    memset(sprites,99,576);memset(sprites+576,100,576);memset(sprites+1152,101,576);
+    fd2_save_manual_state state={0};state.unit_count=1;state.unit_area[7]=0;
+    ctx->initialized=ctx->has_preparation=1;ctx->preparation=*real_state;ctx->preparation.unit_count=1;
+    const int stages[]={1,2,11};
+    for(size_t stage=0;stage<3;stage++)for(int selected=0;selected<6;selected++)for(unsigned phase=0;phase<4;phase++) {
+        controls(vga);state.stage_id=(uint8_t)stages[stage];int type=town_type(state.stage_id);CHECK(type>=0);
+        for(size_t i=0;i<P;i++)before[i]=(uint8_t)(i*17u+i/456u+83u);
+        for(size_t i=0;i<64000u;i++){town[i]=(uint8_t)(i*11u+i/320u+29u);vga->framebuffer[i]=(uint8_t)(i*13u+7u);}
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,before,P,456)==0);
+        memcpy(saved,vga,sizeof(*saved));memcpy(want,before,P);
+        for(size_t y=0;y<200;y++)memcpy(want+(y+72)*456+72,town+y*320,320);
+        prepare_app_rect(want,316,234,62,26,84);
+        prepare_app_rect(want,72+k_prepare_town_x[type][selected],72+k_prepare_town_y[type][selected],24,24,
+            (uint8_t)(99u+(phase==3u?1u:phase)));
+        fd2_save_manual_state state_before=state;
+        CHECK(fd2_field_prepare_draw_town(vga,a,&state,selected,phase)==0);
+        CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,actual,P,456)==0 && !memcmp(actual,want,P));
+        for(int y=0;y<192;y++)memcpy(saved->framebuffer+(y+4)*320+4,want+(y+72)*456+72,312);
+        CHECK(!memcmp(saved,vga,sizeof(*vga)) && !memcmp(&state,&state_before,sizeof(state)));
+    }
+    /* 坏文字在临时页阶段失败，不提前写App或VGA。 */
+    memcpy(before,want,P);memcpy(saved,vga,sizeof(*saved));size_t fragments=a->text.fragment_count;a->text.fragment_count=495;
+    CHECK(fd2_field_prepare_draw_town(vga,a,&state,0,0)==-1);
+    a->text.fragment_count=fragments;
+    CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,actual,P,456)==0 && !memcmp(actual,before,P) && !memcmp(saved,vga,sizeof(*vga)));
+
+    for(size_t i=0;i<64000;i++)source[i]=(uint8_t)(i*11u+i/320u*7u+29u);
+    for(size_t stage=0;stage<3;stage++)for(int selected=0;selected<6;selected++)for(int phase=0;phase<=10;phase++) {
+        controls(vga);service_exact_time=1;ctx->preparation.stage_id=(uint8_t)stages[stage];
+        prepare_ui ui={vga,other,real_assets,ctx,NULL,"unused.SAV",-1,0,-1};
+        ui.service.selector=selected;ui.service.town_background=source;
+        int type=town_type(ctx->preparation.stage_id),step=128-9*phase;
+        int cx=20480+128*(phase*((int)k_prepare_town_x[type][selected]-150)/10);
+        int cy=12800+128*(phase*((int)k_prepare_town_y[type][selected]-100)/10);
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,before,P,456)==0);memcpy(want,before,P);
+        memset(want,0,64000);
+        for(int y=0;y<200;y++)for(int x=0;x<320;x++) {
+            int sx=cx+(x-160)*step,sy=cy+(y-100)*step;
+            if(sx>=0 && sx<40960 && sy>=0 && sy<25600)want[y*320+x]=source[(sy/128)*320+sx/128];
+        }
+        CHECK(prepare_service_zoom(&ui,phase)==0 && source_uploads==1u && !service_delay_count && !service_tick_count);
+        CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,actual,P,456)==0 && !memcmp(actual,want,P));
+        CHECK(!memcmp(vga->framebuffer,want,64000));
+    }
+    /* 同一cold accepted尾；快照只属本次service，成功/HOST都清理，App前缀保留。 */
+    for(int stop=0;stop<2;stop++) {
+        controls(vga);service_exact_time=1;ctx->preparation.stage_id=11;
+        prepare_ui ui={vga,other,real_assets,ctx,NULL,"unused.SAV",-1,0,-1};
+        memcpy(vga->framebuffer,source,64000);CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,before,P,456)==0);
+        quit_frame=stop?1u:0u;
+        int phase=stop?1:10,step=128-9*phase,cx=20480+128*(phase*(53-150)/10),cy=12800+128*(phase*(163-100)/10);
+        memcpy(want,before,P);memset(want,0,64000);
+        for(int y=0;y<200;y++)for(int x=0;x<320;x++) {
+            int sx=cx+(x-160)*step,sy=cy+(y-100)*step;
+            if(sx>=0 && sx<40960 && sy>=0 && sy<25600)want[y*320+x]=source[(sy/128)*320+sx/128];
+        }
+        CHECK(prepare_service_execute(&ui,"deployment","accepted",2)==(stop?-2:1));
+        CHECK(source_uploads==(stop?1u:10u) && !ui.service.town_background && !ui.service.page);
+        CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,actual,P,456)==0 && !memcmp(actual,want,P));
+    }
+    for(int route=0;route<2;route++) {
+        controls(vga);service_exact_time=1;ctx->preparation.stage_id=(uint8_t)(route?11:27);
+        prepare_ui ui={vga,other,real_assets,ctx,NULL,"unused.SAV",-1,0,-1};
+        CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,before,P,456)==0);
+        CHECK(prepare_service_execute(&ui,"deployment",route?"rejected":"notown.dark",2)==(route?0:1));
+        CHECK(!ui.service.town_background && source_uploads==(route?0u:1u));
+        CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,actual,P,456)==0 && !memcmp(actual,before,P));
+    }
+    controls(vga);ctx->preparation.stage_id=11;
+    prepare_ui bad={vga,other,real_assets,ctx,NULL,"unused.SAV",-1,0,-1};bad.service.selector=2;bad.service.town_background=source;
+    bad.service.host_quit=1;memcpy(saved,vga,sizeof(*saved));
+    CHECK(prepare_service_zoom(&bad,11)==-1); /* 参数错误先于既有H。 */
+    CHECK(prepare_service_zoom(&bad,1)==1 && !memcmp(saved,vga,sizeof(*vga)));
+
+    /* 独立旧原payload OTHER-061-000@96,165=70；不是从C取expected。
+     * 原stage11初始group0空，deployment均16,49；这里只造其一名合法roster前态。 */
+    controls(vga);service_exact_time=1;state=*real_state;state.stage_id=11;state.unit_count=1;state.unit_area[7]=0;
+    CHECK(prepare_town(real_assets,other,11)==0 && fd2_field_prepare_draw_town(vga,real_assets,&state,2,0)==0);
+    CHECK(vga->framebuffer[169u*320u+100u]==70u);
+    CHECK(fd2_field_page_read(vga->field_page,178,154,1,1,actual,1,1)==0 && actual[0]==114u);
+    memcpy(source,vga->framebuffer,64000);ctx->preparation=state;
+    prepare_ui real={vga,other,real_assets,ctx,NULL,"unused.SAV",-1,0,-1};real.service.selector=2;real.service.town_background=source;
+    CHECK(prepare_service_zoom(&real,10)==0);
+    CHECK(fd2_field_page_read(vga->field_page,110,86,1,1,actual,1,1)==0 && actual[0]==70u);
+    CHECK(fd2_field_page_read(vga->field_page,178,154,1,1,actual,1,1)==0 && actual[0]==114u);
+    fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
+    CHECK(fd2_field_game_open_resources(game,other,11)==0);
+    memcpy(&game->units.items[0],state.unit_area,80);game->units.count=1;
+    game->units.items[0].x=16;game->units.items[0].y=49;game->units.items[0].direction=game->units.items[0].frame_phase=0;
+    CHECK(fd2_field_units_sprite_cache_restore(&game->units)==0 && fd2_field_game_bind_visual(game,vga)==0);
+    game->camera_cell_x=game->camera_cell_y=0;game->ordinary_display_mode=0;
+    fd2_field_game_render_background(game,vga);
+    CHECK(!game->failure && fd2_field_page_read(vga->field_page,110,86,1,1,actual,1,1)==0 && actual[0]==70u && vga->framebuffer[18u*320u+42u]==70u);
+    fd2_field_game_close(game);free(game);
+    CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,original_page,P,456)==0);*vga=*old;controls(vga);
+    fd2_text_entry_close(&a->text);free(a);free(ctx);free(before);free(want);free(actual);free(source);free(town);free(sprites);free(old);free(saved);free(original_page);
+    return 0;
+}
+
+#define FD2_F4_REMAINDER_PREPARE
+#include "f4_remainder_probe.h"
+#undef FD2_F4_REMAINDER_PREPARE
+
+
+#include "f4_text_prepare_probe.h"
+#include "f4_dynamic_prepare_probe.h"
+
+int main(int argc, char **argv) {
+    if(argc>1 && !strcmp(argv[1],"--f4-dynamic"))return argc==3?f4_dynamic_prepare_run(argv[2]):1;
+    if(argc>1 && !strcmp(argv[1],"--f4-text"))return argc==3?f4_text_cli(argv[2]):1;
+    if(argc>1 && !strcmp(argv[1],"--f4-readers"))return argc==3?f4_reader_cli(argv[2]):1;
     CHECK(default_sound_gain() == 0);
     fd2_archive fdother = {0}; fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     fd2_vga *vga = calloc(1, sizeof(*vga)); fd2_save_manual_state state;
@@ -2073,6 +2740,7 @@ int main(void) {
     CHECK(raw_bios_consumer_boundaries(&fdother,assets,&state,vga)==0);
     CHECK(service_animation_tick_contract(&fdother,assets,&state,vga)==0);
     CHECK(deployment_visual_owner_boundary(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_app_town_and_zoom_source(&fdother,assets,&state,vga)==0);
     CHECK(notown_entry_restores_dac(&fdother,assets,&state,vga)==0);
     CHECK(town_bootstrap_source_contract(&fdother,assets,&state,vga)==0);
     CHECK(prepare_town_phase_lifecycle(&fdother,assets,&state,vga)==0);
@@ -2082,13 +2750,21 @@ int main(void) {
     CHECK(prepare_phase_owner_contract(&fdother,assets,&state,vga)==0);
     CHECK(prepare_choice_finite_owner(&fdother,assets,&state,vga)==0);
     CHECK(prepare_choice_blink_order(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_finite_copy_clock_contract(&fdother,assets,&state,vga)==0);
+    CHECK(prepare_host_ticket_contract(&fdother,assets,&state,vga)==0);
     CHECK(member_detail_open_clear_and_flip_preserves_queue(&fdother,assets,&state,vga)==0);
     CHECK(prepare_clear_host_quit_boundaries(&fdother,assets,&state,vga)==0);
     CHECK(prepare_service_fade_returns(&fdother,assets,&state,vga)==0);
     CHECK(service_resource_pages(&fdother, assets, &state, vga) == 0);
     CHECK(service_present_leaves(&fdother,assets,&state,vga)==0);
+    CHECK(equipment_empty_wait_contract(&fdother,assets,&state,vga)==0);
     CHECK(service_confirm_shared_owner(&fdother,assets,&state,vga)==0);
     CHECK(service_raw_icon_transparency(&fdother,assets,&state,vga)==0);
+    CHECK(picker_retained_pages(&fdother,assets,&state,vga)==0);
+    CHECK(picker_retained_modal_boundary(&fdother,assets,&state,vga)==0);
+    CHECK(picker_shift_write_set(vga)==0);
+    CHECK(picker_steady_dispatch(&fdother,assets,&state,vga)==0);
+    CHECK(hotel_arrows_and_initial_wait(&fdother,assets,&state,vga)==0);
     CHECK(service_scroll_and_inventory_prices(&fdother,assets,&state,vga)==0);
     CHECK(service_growth_message_layouts(&fdother,assets,&state,vga)==0);
     CHECK(services_buy_reaches_products(&fdother,assets,&state,vga)==0);

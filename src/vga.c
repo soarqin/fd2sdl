@@ -4,8 +4,9 @@
 #include "bios_clock.h"
 #include <string.h>
 
-/* 6-bit VGA -> 8-bit 扩展: (v << 2) | (v >> 4)
- * 源自反编译 FUN_0000f488 中的 DAC 写入逻辑 */
+/* 固定DOSBox-X b6abbd5的VGA_DAC_SendColor/dacexpand在6-bit模式使用
+ * (v<<2)|(v>>4)；原11d40/11df2只写DAC分量，不执行这个宿主RGB扩展。
+ * 正常palette组件域0..63；外来8-bit DAC模式不借此公式扩签。 */
 static inline uint8_t pal_expand6(uint8_t v) {
     return (uint8_t)((v << 2) | (v >> 4));
 }
@@ -218,11 +219,14 @@ void fd2_wait_ticks(uint32_t ticks) {
     uint16_t started=fd2_bios_tick_low_ns(SDL_GetTicksNS());
     for (;;) {
         fd2_input_poll_host_events(NULL);
-        if(fd2_input_host_quit_requested())break;
+        if(fd2_input_host_quit_requested())return;
         uint64_t now=SDL_GetTicksNS();
         if(fd2_vga_bios_tick_elapsed(started,fd2_bios_tick_low_ns(now)) >= (int64_t)ticks)break;
         fd2_delay_until(fd2_bios_clock_deadline_ns(now,1));
     }
+    /* 17ae4在比较通过后独立重读WORD；53A2C只是函数scratch。
+     * 不新增持久clock，不以此前比较值替代原尾读。HOST则停在已达前缀。 */
+    (void)fd2_bios_tick_low_ns(SDL_GetTicksNS());
 }
 
 int fd2_vga_wait_movement_tick(fd2_vga *vga) {

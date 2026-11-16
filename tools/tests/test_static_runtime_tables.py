@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import struct
 from pathlib import Path
 import sys
 import unittest
@@ -14,6 +15,25 @@ from verify_unit_tables import check_table
 
 
 class RuntimeTablesTest(unittest.TestCase):
+    def test_quake_three_original_columns_follow_confirmed_call_layout(self):
+        executable=ROOT/'original_game/FD2.EXE'
+        if not executable.exists():self.skipTest('需要本地只读FD2.EXE，不声称原字节通过')
+        raw=executable.read_bytes()
+        document=json.loads((ROOT/'data/static/tables/field_game_effects.json').read_text())
+        generate.validate_document(document)
+        self.assertEqual(len(document['tables']),1)
+        table=document['tables'][0]
+        self.assertEqual((table['name'],table['c_type'],table['dimensions']),
+                         ('k_field_quake_parameters','int32_t',[3,3]))
+        self.assertEqual(table['source']['file_sha256'],hashlib.sha256(raw).hexdigest())
+        # 完整21548的真实SP连接三个原DWORD列；不用C数组或生成器输出作期望。
+        columns=[struct.unpack('<3i',source_range(raw,va,12))
+                 for va in (0x52096,0x520a2,0x520ae)]
+        expected=[list(row) for row in zip(*columns)]
+        self.assertEqual(table['values'],expected)
+        self.assertNotEqual(table['values'],[list(column) for column in columns])
+        self.assertNotEqual(table['values'][0][0],72) # 旧伪C标签错位会漏过shape/range检查。
+
     def test_auxiliary_side_colors_are_three_original_dwords(self):
         executable=ROOT/'original_game/FD2.EXE'
         if not executable.exists():self.skipTest('需要本地只读FD2.EXE，不声称原字节通过')

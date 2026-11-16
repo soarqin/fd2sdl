@@ -45,7 +45,8 @@ int fd2_field_page_copy_pixels(fd2_field_page *destination,const fd2_field_page 
 }
 
 static int rle_visit(fd2_field_page *page, int x, int y, int width, int height,
-    const uint8_t *src, size_t src_len, const uint8_t lut[256],int map_skip) {
+    const uint8_t *src, size_t src_len, const uint8_t lut[256],int map_skip,
+    int linear, int64_t offset) {
     if (!src || width <= 0 || height <= 0 || width > 4096 || height > 4096)
         return -1;
     size_t cursor = 0;
@@ -73,13 +74,22 @@ static int rle_visit(fd2_field_page *page, int x, int y, int width, int height,
             if (mode != 192u && page) {
                 int64_t dy = (int64_t)y + row;
                 for (int i = 0; i < count; i++) {
-                    int64_t dx = (int64_t)x + col +
-                        (mode == 64u ? i * 2 + 1 : i);
-                    if (dx < 0 || dx >= FD2_FIELD_PAGE_STRIDE ||
-                        dy < 0 || dy >= FD2_FIELD_PAGE_HEIGHT) continue;
+                    int column = col + (mode == 64u ? i * 2 + 1 : i);
+                    size_t target;
+                    if (linear) {
+                        int64_t delta = (int64_t)row * FD2_FIELD_PAGE_STRIDE + column;
+                        /* 先界定真实owner再相加，INT64极值也不溢出；SKIP不访问目标。 */
+                        if (offset < -delta || offset > FD2_FIELD_PAGE_SIZE - 1 - delta)
+                            return -1;
+                        target = (size_t)(offset + delta);
+                    } else {
+                        int64_t dx = (int64_t)x + column;
+                        if (dx < 0 || dx >= FD2_FIELD_PAGE_STRIDE ||
+                            dy < 0 || dy >= FD2_FIELD_PAGE_HEIGHT) continue;
+                        target = (size_t)dy * FD2_FIELD_PAGE_STRIDE + (size_t)dx;
+                    }
                     uint8_t color = src[cursor + (mode == 128u ? (size_t)i : 0)];
-                    page->pixels[(size_t)dy * FD2_FIELD_PAGE_STRIDE + (size_t)dx] =
-                        lut ? lut[color] : color;
+                    page->pixels[target] = lut ? lut[color] : color;
                 }
             }
             if (mode == 128u) cursor += (size_t)count;
@@ -92,7 +102,7 @@ static int rle_visit(fd2_field_page *page, int x, int y, int width, int height,
 
 int fd2_field_page_validate_rle(int width, int height,
     const uint8_t *src, size_t src_len) {
-    return rle_visit(NULL, 0, 0, width, height, src, src_len, NULL,0);
+    return rle_visit(NULL, 0, 0, width, height, src, src_len, NULL,0,0,0);
 }
 
 int fd2_field_page_blit_rle(fd2_field_page *page, int x, int y,
@@ -100,13 +110,23 @@ int fd2_field_page_blit_rle(fd2_field_page *page, int x, int y,
     const uint8_t lut[256]) {
     if (!page || fd2_field_page_validate_rle(width, height, src, src_len) != 0)
         return -1;
-    return rle_visit(page, x, y, width, height, src, src_len, lut,0);
+    return rle_visit(page, x, y, width, height, src, src_len, lut,0,0,0);
+}
+
+/* sub_127E0 @0x127e0通过4e22a/4e1a6按456线性地址画actor；
+ * logical x跨行仍属同App，首个真实opaque写越owner时保留已达前缀。 */
+int fd2_field_page_blit_rle_linear(fd2_field_page *page, int64_t offset,
+    int width, int height, const uint8_t *src, size_t src_len,
+    const uint8_t lut[256]) {
+    if (!page || fd2_field_page_validate_rle(width,height,src,src_len)!=0)
+        return -1;
+    return rle_visit(page,0,0,width,height,src,src_len,lut,0,1,offset);
 }
 
 int fd2_field_page_blit_base_lut_24(fd2_field_page *page,int x,int y,
     const uint8_t *src,size_t src_len,const uint8_t lut[256]) {
     if(!page || !lut || fd2_field_page_validate_rle(24,24,src,src_len)!=0)return -1;
-    return rle_visit(page,x,y,24,24,src,src_len,lut,1);
+    return rle_visit(page,x,y,24,24,src,src_len,lut,1,0,0);
 }
 
 int fd2_field_page_choice_snapshot_write(fd2_field_page *page,

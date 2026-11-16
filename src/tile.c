@@ -190,13 +190,29 @@ static int terrain_page_frame(const fd2_terrain_tileset *terrain, size_t frame,
     return fd2_field_page_validate_rle(24, 24, *source, *length);
 }
 
+/* field_view_render_tiles @0x11eee由1300d传cameraX-1：x=-1是有限
+ * linear源；index=-1仍在原map owner的4B WH头内，其余读现cells。
+ * 此关系只供page block，不改变path/lookup等二维map_cell语义。 */
+int fd2_terrain_page_source_cell(const fd2_field_map *map,int x,int y,uint32_t *cell) {
+    if(!map || !map->cells || !cell || map->width<=0 || map->height<=0 ||
+        map->width>256 || map->height>256)return -1;
+    int64_t index=(int64_t)y*map->width+x;
+    if(index==-1) {
+        *cell=(uint32_t)(uint16_t)map->width|((uint32_t)(uint16_t)map->height<<16);
+        return 0;
+    }
+    if(index<0 || index>=(int64_t)map->width*map->height)return -1;
+    *cell=map->cells[(size_t)index];return 0;
+}
+
 int fd2_terrain_render_page_block(fd2_field_page *page,
     const fd2_terrain_tileset *terrain, const fd2_field_map *map,
     int dest_x, int dest_y, int columns, int rows, int map_x, int map_y,
     int terrain_phase, int actor_phase,
     const fd2_field_path_result *range, const uint8_t lut[256]) {
     if (!page || !terrain || !map || !map->cells ||
-        map_x < 0 || map_y < 0 || columns <= 0 || rows <= 0 ||
+        map->width<=0 || map->width>256 || map->height<=0 || map->height>256 ||
+        map_x < -1 || map_y < 0 || columns <= 0 || rows <= 0 ||
         columns > map->width - map_x || rows > map->height - map_y ||
         dest_x < 0 || dest_y < 0 ||
         columns > (FD2_FIELD_PAGE_STRIDE - dest_x) / 24 ||
@@ -208,16 +224,20 @@ int fd2_terrain_render_page_block(fd2_field_page *page,
         for (int y = 0; y < rows; y++) {
             for (int x = 0; x < columns; x++) {
                 int cx = map_x + x, cy = map_y + y;
-                size_t frame, length;
+                size_t frame, length;uint32_t cell;
                 const uint8_t *source;
+                if(fd2_terrain_page_source_cell(map,cx,cy,&cell)!=0 ||
+                    (cx<0 && (cell>>24)!=0xffu && !lut))return -1;
                 if (fd2_terrain_base_frame_from_cell_animated(terrain,
-                        fd2_field_map_cell(map,cx,cy), terrain_phase,actor_phase,
+                        cell, terrain_phase,actor_phase,
                         &frame) != 0 ||
                     terrain_page_frame(terrain,frame,&source,&length) != 0)
                     return -1;
                 if (pass) {
-                    const uint8_t *colors = range && lut &&
-                        fd2_field_path_is_destination(range,cx,cy) ? lut : NULL;
+                    /* 负x实际读header/前行末cell，不能用2D nodes[-1]省掉原LUT。 */
+                    const uint8_t *colors = lut && (cx<0 ? (cell>>24)!=0xffu : range ?
+                        fd2_field_path_is_destination(range,cx,cy) :
+                        (cell>>24)!=0xffu) ? lut : NULL;
                     int result=colors?fd2_field_page_blit_base_lut_24(page,
                         dest_x+x*24,dest_y+y*24,source,length,colors):
                         fd2_field_page_blit_rle(page,dest_x+x*24,dest_y+y*24,
@@ -235,12 +255,17 @@ int fd2_terrain_render_page_overlay_cell(fd2_field_page *page,
     int cell_x, int cell_y, int camera_x, int camera_y, int anim_phase,
     const uint8_t lut[256]) {
     if (!page || !terrain || !map || !map->cells) return -1;
-    if (cell_x < 0 || cell_y < 0 || cell_x >= map->width || cell_y >= map->height)
-        return 0;
+    /* map_tile_blit_visible @0x12ac6（原同名）仅禁负y，x按线性cell
+     * 读取。index=-1是WH头，其余须在同一完整map owner内。 */
+    if((int64_t)cell_x<(int64_t)camera_x-1 ||
+        (int64_t)cell_x>(int64_t)camera_x+13 ||
+        (int64_t)cell_y<(int64_t)camera_y-1 ||
+        (int64_t)cell_y>(int64_t)camera_y+9 || cell_y<0)return 0;
+    uint32_t cell;
+    if(fd2_terrain_page_source_cell(map,cell_x,cell_y,&cell)!=0)return -1;
     size_t frame, length;
     const uint8_t *source;
-    int overlay = fd2_terrain_overlay_frame_from_cell(terrain,
-        fd2_field_map_cell(map,cell_x,cell_y),anim_phase,&frame);
+    int overlay = fd2_terrain_overlay_frame_from_cell(terrain,cell,anim_phase,&frame);
     if (overlay <= 0) return overlay;
     if (terrain_page_frame(terrain,frame,&source,&length) != 0) return -1;
     int64_t x = FD2_FIELD_PAGE_VIEW_X + ((int64_t)cell_x-camera_x)*24;

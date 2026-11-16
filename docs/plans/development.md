@@ -1,10 +1,10 @@
 # 当前开发计划：炎龙骑士团 2 SDL3 重写
 
-**当前推进：F4共享呈现；F3主体实现与有界证据已交付，提交／本地集成见实际收据。A04、A06—A13完整域及QK均未最终合签，留作明确的F6收尾门。** 用户已授权本会话／工作树连续完成F1—F6，并取消“任一验证缺口一概阻挡全部后续”的顺序要求。各阶段按实际依赖和明确范围审查、验证、提交／集成后汇报并继续，不远程推送或发布。
+**当前执行：F4完整共享呈现／资源主体收口，本次整包提交／本地集成后连续推进F5，再做F6最终联合。** F1—F4主体不等于全部A01—A22终态通过；实际提交／集成、分候选证据和边界只查[完成摘要](completed-stages.md)、[阶段记录](stage-log.md)及各F报告。Windows最终验收、保留并披露`EX-AUDIO-NUKED`的选择不变，不远程push或发布。
 
-当前主线继续F4→F5→F6；[F3实施与证据](f3-gameplay-lifecycle.md)保构造、活动Load、完整metadata、App roster／四raw options及两原生候选资格，后期first-App R来源和正常联合待办仍明确保留。[QK行为专项](qk-behavior-followup.md)在相关阶段补正常行为证据，F6最终闭合。[差异审查与矩阵](full-alignment-audit.md)维护A01—A22；不把延期验证写成已通过，也不重开旧阶段。
+[F4记录](f4-presentation.md)维护16300唯一资源span、26行有界算子／正式绑定资格、原／C全页及各实际窗口身份；已修线性页、底图／palette／嘴型、SHORT双HP条、地震三表／圆心／HOST及相关输入前缀。原生四轮失败均保留：C11当前只有原端局部反馈，完整正常before／MP目标／禁Save双端后缀及非Q点解释移交[F6残余](f4-presentation.md#5-f6必须接回的完整域)。全逻辑页与有限正常WGC不能互代；该联合缺口不读取F5 AIL／PCM／PIT，不再一概冻结后续机制。
 
-F2主体已落实默认启动198次RNG、完整BIOS AX／单一重复owner、共享PIT时钟及正式等待／清键／逐读顺序，补地图施法和AI射线的源前缀，详见[F2范围及收据](f2-time-input-rng.md)。原版／SDL标题、移动、准备三个代表及新构建46项直接回归分候选通过；三处原比较门、外部provider、全输入／随机联合轨迹与像素／PCM／PIC后续验收仍未过。主体提交后直接做F3，不用这些未决项冻结无依赖实现。
+**当前待办：** F5非例外音乐事件／PIC、PCM采样／混音与设备生命周期；随后F6接回[QK专项](qk-behavior-followup.md)、[F2首比较与输入RNG](f2-time-input-rng.md#主体交付与最后联合门)、[F3后期R及重开链](f3-gameplay-lifecycle.md#4-继续开发与最终收尾门)和F4正常联合，统一历史复审／修复精简并逐[矩阵A01—A22](full-alignment-audit.md#4-差异与证据矩阵)合签。未知语义、必需缺证或V域差异仍在就不能宣布全计划完成；支持回复不是独立开发的前置。
 
 ## 1. 当前状态与阻塞
 
@@ -13,10 +13,10 @@ F2主体已落实默认启动198次RNG、完整BIOS AX／单一重复owner、共
 | B／A／R／SD／G／S0—S5 | 已完成原定范围 | [完成摘要](completed-stages.md)、[阶段记录](stage-log.md)、[S5报告](s5-batch-expansion.md)；不重开历史编号 |
 | 当前产品 | stage0／1原范围及stage2—29已证战斗／END／事件、结算准备与交接，含26坏结局和29终章 | 原13隔离槽／14引用闭合；resource30内部尾声，31／32开场链，不增造普通战场入口 |
 | 新终态 | Windows正常有效域对齐，保留有名例外 `EX-AUDIO-NUKED` | 用户2026-11-14选定Windows，并选择保留Nuked声音、明确记录差异；不得称全部声音完全一致 |
-| 当前审查发现 | F3构造／Load／metadata及败北后新局的roster／四options来源丢失已修；有限读者与Save首U／H分账。F4已定位direct／batch hidden、80h额外读钟、空EQT等待和FX临时页alias | [矩阵A01—A22](full-alignment-audit.md#4-差异与证据矩阵)；不将缺证等同错误 |
-| 已完成主体 | F1参照／分母／已证域、前缀／容量与A20；F2共享时序／输入／启动RNG；F3构造／状态／存档与App owner修复 | [完成摘要](completed-stages.md)及各F报告按实际候选；不是完整A04、A06—A13无条件全绿 |
-| 继续开发 | F4全资源／呈现、F5非例外音频／设备 | QK、后期R和F2首域不阻挡无依赖机制；相关caller、相位／RNG／FX／cue仍逐项补证 |
-| 收尾待补 | QK条件consumer及正常联合门、后期first-App R来源、败北回标题START后缀；F2三比较门／provider入口／完整输入RNG | [F3收尾](f3-gameplay-lifecycle.md#4-继续开发与最终收尾门)、[QK专项](qk-behavior-followup.md)列真实依赖和完成条件。被拒原形式不重派；支持不是开发前置 |
+| 当前审查发现 | F3构造／Load／metadata及败北后新局的roster／四options来源丢失已修；有限读者与Save首U／H分账。F4共享修复及26行给定有效before的全算子／组合已收口；C11正常双端后缀及未解释非Q像素留F6 | [矩阵A01—A22](full-alignment-audit.md#4-差异与证据矩阵)及[F4记录](f4-presentation.md)；不将缺证等同错误 |
+| 已完成主体 | F1参照／分母／已证域、前缀／容量与A20；F2共享时序／输入／启动RNG；F3构造／状态／存档与App owner修复；F4资源／共享呈现主体 | [完成摘要](completed-stages.md)及各F报告按实际候选；不是完整A04、A06—A13无条件全绿 |
+| 继续开发 | F4主体整包交付后F5非例外音频／设备 | QK、后期R和F2首域不阻挡无依赖机制；相关caller、相位／RNG／FX／cue仍逐项补证 |
+| 收尾待补 | QK条件consumer及正常联合门、后期first-App R来源、败北回标题START后缀；F2三比较门／完整输入RNG；F4 C11正常双端后缀及其它自然before／像素联合 | [F3收尾](f3-gameplay-lifecycle.md#4-继续开发与最终收尾门)、[QK专项](qk-behavior-followup.md)列真实依赖和完成条件。被拒原形式不重派；支持不是开发前置 |
 
 S5源码／参数／有限原码与原生资格保持原身份。C22的18项适用CTest（内含124工具项）、各候选双端或单端原生和严格继承不累加成一次新全绿。450条默认callback255拒绝（与callback82的ff5200不同）、外来32人credits有源拒绝继续存在。F1已证默认255的第一无合法target点、正常turn不增至256及正常roster上界31；stage8／29的首U前缀已有原码／实际C回归。续审stage27 callback66的假调用链已由分派表反证，不作为新阻塞。有效前缀、其它caller和自然运行资格仍分列，不能直接永久排除整段长回合。
 
@@ -47,7 +47,7 @@ S5源码／参数／有限原码与原生资格保持原身份。C22的18项适�
 
 共享机制主体已以`232aca6`提交并集成：默认启动198次RNG、完整BIOS AX／FIFO／单repeat owner、PIT整数时钟、正式逐读／等待及已证MAP／AI公共前缀。实际46项直接回归、分候选三原生代表和发布资格分别见[F2报告](f2-time-input-rng.md)及[完成归档](completed-stages.md)，不拼成一次全fresh。
 
-A10—A13完整正常域仍未合签。[同一残余表](f2-time-input-rng.md#主体交付与最后联合门)保18b84首actor地址／signed16域、2000a首FS／GS、1b1e7继承EBP全steady、type9 provider／21db2入口和完整输入／RNG联合轨迹，F5补外部ABI、F6逐性质关闭。像素、非例外PCM／PIC归F4／F5；后续改动触及caller／分配／返回／cue时只复测直接影响。F3新定位的空EQT等待差异按A10／A14在F4修复，不能被后置资格豁免。
+A10—A13完整正常域仍未合签。[同一残余表](f2-time-input-rng.md#主体交付与最后联合门)保18b84首actor地址／signed16域、2000a首FS／GS、1b1e7继承EBP全steady及完整输入／RNG联合轨迹；两个type9 provider已在F4按固定普通startup有源排除。F5补PIC／设备时序，F6逐性质关闭其余门。像素、非例外PCM／PIC归F4／F5；后续改动触及caller／分配／返回／cue时只复测直接影响。F3新定位的空EQT等待差异按A10／A14在F4修复，不能被后置资格豁免。
 
 ### F3：封闭全部玩法、剧情及状态生命周期
 
@@ -59,13 +59,15 @@ A04／A06—A09完整终态仍待[F3收尾表](f3-gameplay-lifecycle.md#4-继续
 
 F3实读下游另确认准备空EQT被提前取消，原caller会开页等待；与本阶段页、反馈和正式UI代表同批修正，复用A10／A14及现有准备owner，不重开旧G5／F2。另核direct actor的hidden门与1366a跳跃组的额外读钟；这些具体反例必须修，不由后置联合门豁免。
 
+以上三门现已修复并有直接回归；空EQT原版／SDL正常输入、WGC和完整22987B Save通过。有限死亡FX及完整资源／工作页／动作合成的给定输入资格已收口，实际身份与剩余门统一见[F4记录](f4-presentation.md)。主体完整提交；正常联合及完整A14—A16终态仍不签。
+
 **范围／矩阵：A14—A16。依赖：F1—F3的来源／参数／时间轨迹。**
 
 全资源按实际reader分流，覆盖正式可达entry、token／字形／portrait、RLE／页／mask、地图前后景／透明底图／DAC／水色／嘴型／回合。FULL／SHORT及物理、法术、物品、派生／复合动作按真实marker、目标和反馈分族，批量验证，不逐关开发。
 
 代码／冷数据影响：decoder、VGA／palette、tile／field背景、portrait／dialog、battle_animation／FX、Scene page及冷参数。补原1db65第31锚与临时页指针重叠的写集，正常参数／首U按F1来源准则另核，不能按伪C30项假定。保现S4逐分量DAC和S5透明／HP修复，不重开旧bug；修正由新反例或新域来源驱动。
 
-验收：全部可达资源有去向，完整索引帧＋DAC逐byte对照；固定相位后比RGB，WGC核正式呈现。目标／marker／镜像／skip／多目标／死亡覆盖；新层次／反馈／时点增最小原生代表。不能用ROI、palette忽略、宽容差或有限2,779帧替代全域门。提交单元为完整F4资源与共享呈现。
+验收：全部可达资源有去向，完整索引帧＋DAC逐byte对照；固定相位后比RGB，WGC核正式呈现。目标／marker／镜像／skip／多目标／死亡覆盖；新层次／反馈／时点增最小原生代表。不能用ROI、palette忽略、宽容差或有限2,779帧替代全域门。提交单元为完整F4资源与共享呈现。 本轮主体门按26行原义、独立原输出／实际C及共享算子／正式绑定组合收口。C11四轮原生仍未完成正常双端后缀；真实before／输入RNG／PIC与未解释非Q点按[F4第5节](f4-presentation.md#5-f6必须接回的完整域)保F6必需门，不将whole-WGC额外强采样、局部窗或本次范围调整冒充完整终态。
 
 ### F5：补齐非例外音频与Windows设备合同
 
@@ -92,6 +94,7 @@ F3实读下游另确认准备空EQT被提前取消，原caller会开页等待；
 5. U域第一处及有效前缀有证据，H域不侵入V域；严格全对象BSS／source-layout门独立通过。存在正常可达U出口则最终逐项披露，不能写无边界全游戏等价。
 6. 当前Windows适用项实际注册／执行，原版证据和图形清理闭合；其它平台如实未验。明确披露`EX-AUDIO-NUKED`，不称原版全部声音／物理波形一致。
 7. QK及[F2残余表](f2-time-input-rng.md#主体交付与最后联合门)的延期项逐性质有真实结论。若正常行为证据替代原内部形式证明，必须列覆盖范围和替代充分性，内部性质仍标未验；相关正常域、后续动作、存取及输入／RNG／音画资格有缺口则不能宣称全计划完成。
+8. [F4正常联合](f4-presentation.md#5-f6必须接回的完整域)逐性质闭合：C11完整当前双端目标／MP／禁Save与END→Save，真实actor/cursor／before和未解释非Q点均有独立来源。所有旧原生失败保原身份；算子全页／source组合不能代正常输入producer或新正式运行。
 
 F6是一个独立提交单元。前五阶段即使测试全绿，上述任一条不满足仍不得宣布新终态完成。不承诺自动全游戏等价或未经测量工期。
 

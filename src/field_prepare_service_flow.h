@@ -181,6 +181,10 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
             else goto fatal;
         }
         ui->context->message_new_fragment=(uint32_t)fragment;
+    } else if (!strcmp(op,"inventory_empty")) {
+        /* 1bffe@1c04e..1c058：选择器完成后才检查count0，不预先跳过等待。 */
+        if (prepare_domain_read(state,s->member,&unit)!=0) goto fatal;
+        next=fd2_field_unit_inventory_count(&unit)==0u ? FD2_FLOW_YES:FD2_FLOW_NO;
     } else if (!strcmp(op,"inventory_full")) {
         if (node->args[0]<0 || node->args[0]>1 || prepare_domain_read(state,node->args[0] ? s->receiver:s->member,&unit)!=0) goto fatal;
         next=fd2_field_unit_inventory_count(&unit)==8u ? FD2_FLOW_YES:FD2_FLOW_NO;

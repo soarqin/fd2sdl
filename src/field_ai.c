@@ -5,6 +5,8 @@
  * 0x2944b、0x2ab9e、0x2a892 枚举物理／法术／物品候选，
  * 0x2ad8b/0x2afb6/0x2aa94 计算非物理目标分数。本模块只复现已确认的
  * 查询和计划，不在纯查询层提前提交效果、消耗或 phase 状态。
+ * F4同源勘误：field_ai_physical_candidate_evaluate @0x14237（原登记同名）
+ * 的14586每target重置AP-DP，两处1f183非0才修候选地形；不沿旧count累加。
  * F2同源修正：field_line_targets_collect @0x149f8（原登记 sub_149F8）依15055/1567e的
  * 真实七push/ESP合同，从当前actor朝selected扫描；不保留旧反向近似。
  */
@@ -112,7 +114,9 @@ int fd2_field_ai_physical_candidate_is_better(
         const fd2_field_ai_physical_candidate *best,
         int have_best) {
     if (!candidate || !best) return 0;
-    if (!have_best) return 1;
+    /* 14248 best score=0、1427e best priority=0；不接受首个非正平价。 */
+    if (!have_best) return candidate->priority > 0 ||
+        (candidate->priority == 0 && candidate->secondary_score > 0);
     return candidate->priority > best->priority ||
         (candidate->priority == best->priority &&
          candidate->secondary_score > best->secondary_score);
@@ -208,7 +212,9 @@ int fd2_field_ai_choose_physical_candidate(
 
             uint32_t adjusted_attack = actor->attack;
             uint32_t adjusted_defense = actor->defense;
-            if (!fd2_field_attack_unit_ignores_terrain_modifier(actor)) {
+            /* 14237@143cd..143d7：1f183返回非0才修候选AP/DP。
+             * 与实际damage的地形门是不同caller，不套后者的!immune。 */
+            if (fd2_field_attack_unit_ignores_terrain_modifier(actor)) {
                 int32_t attack_percent = 0;
                 int32_t defense_percent = 0;
                 if (attack_percent_at(map, terrain, x, y, 1,
@@ -246,12 +252,8 @@ int fd2_field_ai_choose_physical_candidate(
                 continue;
             }
 
-            /* corrected code0 0x29663 只在每个 destination 开始时把
-             * target_count 装入 ESI；0x29697/0x296bd/0x296d7 对 ESI 的
-             * 修改会传给同一 destination 的下一个 target。这一累积行为
-             * 看似反常，但不能在 target 循环内重置。 */
-            int32_t score = target_count > INT32_MAX
-                ? INT32_MAX : (int32_t)target_count;
+            /* 14586每名target重置ESI=候选AP-targetDP；14448返回的
+             * count只由var34控制枚举，不把上一target的分数累加到下一名。 */
             for (size_t i = 0; i < units->count; i++) {
                 const fd2_field_unit *target = &units->items[i];
                 if (!candidate_target_eligible(target, side_selector))
@@ -262,28 +264,25 @@ int fd2_field_ai_choose_physical_candidate(
                 uint32_t distance = abs_diff(x, target->x) +
                                     abs_diff(y, target->y);
 
-                int32_t priority = 0;
-                if (score > target->hp) {
-                    score = score > INT32_MAX / 2 ? INT32_MAX : score * 2;
-                    priority = 0x12;
-                } else {
-                    /* 0x3979a..0x397ae：terrain-adjusted attack-defense > 2
-                     * 令 priority=8。比较严格按机器码保留 first winner。 */
-                    uint32_t adjusted_target_defense = target->defense;
-                    if (!fd2_field_attack_unit_ignores_terrain_modifier(target)) {
-                        int32_t defense_percent = 0;
-                        if (attack_percent_at(
-                                map, terrain, target->x, target->y, 0,
-                                &defense_percent) != 0 ||
-                            fd2_field_attack_apply_terrain_modifier(
-                                target->defense, defense_percent,
-                                &adjusted_target_defense) != 0) {
-                            fd2_field_path_close(&attack_range);
-                            return -1;
-                        }
+                uint32_t adjusted_target_defense = target->defense;
+                uint32_t adjusted_target_attack = target->attack;
+                /* 14532..14540同样是非0门，先取target坐标的AP和DP修正。 */
+                if (fd2_field_attack_unit_ignores_terrain_modifier(target)) {
+                    int32_t attack_percent = 0, defense_percent = 0;
+                    if (attack_percent_at(map, terrain, target->x, target->y, 1, &attack_percent) != 0 ||
+                        attack_percent_at(map, terrain, target->x, target->y, 0, &defense_percent) != 0 ||
+                        fd2_field_attack_apply_terrain_modifier(target->attack, attack_percent,
+                            &adjusted_target_attack) != 0 ||
+                        fd2_field_attack_apply_terrain_modifier(target->defense, defense_percent,
+                            &adjusted_target_defense) != 0) {
+                        fd2_field_path_close(&attack_range); return -1;
                     }
-                    priority = adjusted_attack > adjusted_target_defense + 2u
-                        ? 8 : 0;
+                }
+                int32_t score = (int32_t)adjusted_attack - (int32_t)adjusted_target_defense;
+                int32_t priority = score > 2 ? 8 : 0; /* 14586..14595。 */
+                if (score > (int32_t)target->hp) { /* 1447b..14485严格>HP。 */
+                    score *= 2;
+                    priority = 0x12;
                 }
 
                 if (distance == 1u && target->detail_status[1] == 0u) {
@@ -293,26 +292,10 @@ int fd2_field_ai_choose_physical_candidate(
                             target, &target_min_range,
                             &target_max_range) == 0 &&
                         target_min_range <= 1u) {
-                        uint32_t adjusted_target_attack = target->attack;
-                        if (!fd2_field_attack_unit_ignores_terrain_modifier(
-                                target)) {
-                            int32_t target_attack_percent = 0;
-                            if (attack_percent_at(
-                                    map, terrain, target->x, target->y, 1,
-                                    &target_attack_percent) != 0 ||
-                                fd2_field_attack_apply_terrain_modifier(
-                                    target->attack, target_attack_percent,
-                                    &adjusted_target_attack) != 0) {
-                                fd2_field_path_close(&attack_range);
-                                return -1;
-                            }
-                        }
-                        int64_t combined = (int64_t)score +
-                            (int64_t)adjusted_defense -
-                            (int64_t)adjusted_target_attack;
-                        score = combined < INT32_MIN ? INT32_MIN :
-                            combined > INT32_MAX ? INT32_MAX :
-                            (int32_t)combined;
+                        /* 原AP/DP为MOVZX WORD，六项百分比范围-5..10；
+                         * 包括完整Load WORD域，这些signed32加减都不溢出。 */
+                        score += (int32_t)adjusted_defense -
+                            (int32_t)adjusted_target_attack;
                     }
                 }
                 if (target->text_id == 0u) {

@@ -188,6 +188,9 @@ def detail_series(capture,record):
 def series_checkpoint(capture,scope,name,predicate,points,timeout=45):
     """读取已发布PNG，不另建WGC；逐个消费积压帧，不让Python判图跳过110ms闭眼。"""
     deadline=time.monotonic()+timeout
+    def require_live():
+        if capture.process.poll() is not None:raise RuntimeError('详情目标在检查点前退出：'+name)
+        if scope['process'].poll() is not None:raise RuntimeError('详情WGC helper在显式stop前结束：'+name)
     while time.monotonic()<deadline:
         latest=latest_series_frame(scope['directory'],scope['ready'],capture.process.pid,scope['after'])
         if latest is not None:
@@ -196,6 +199,8 @@ def series_checkpoint(capture,scope,name,predicate,points,timeout=45):
             first=scope['after']['index']+1 if scope['after'] else 0
             # latest_series_frame已校验所有行的顺序/owner；只消费它已验过的前缀。
             for index in range(first,last['index']+1):
+                if time.monotonic() >= deadline: break
+                require_live()
                 row=json.loads(complete[index]);stamp=row.get('wgc_timestamp_100ns')
                 if row.get('index')!=index or row.get('file')!=f'frame{index:05d}.png' or\
                     row.get('pid')!=capture.process.pid or row.get('hwnd')!=scope['ready']['hwnd'] or\
@@ -210,14 +215,16 @@ def series_checkpoint(capture,scope,name,predicate,points,timeout=45):
                 source={**row,'path':str(path),'sha256':hashlib.sha256(raw).hexdigest()}
                 scope['after']=source;capture.last=frame
                 detail=predicate(frame)
+                # 积压帧的判图也受同一deadline约束，晚返回的真值不能过门。
+                if time.monotonic() >= deadline: break
+                require_live()
                 if detail:
                     output=capture.artifacts/(name+'.png');frame.save(output)
                     points.append({'name':name,'pid':capture.process.pid,'time':time.monotonic(),**detail,
                         'capture_backend':'Windows.Graphics.Capture HWND','series_frame':source,
                         'normalized_PNG':{'path':str(output),'sha256':sha(output)},'no_additional_WGC_session':True})
                     return frame,detail
-        if capture.process.poll() is not None:raise RuntimeError('详情目标在检查点前退出：'+name)
-        if scope['process'].poll() is not None:raise RuntimeError('详情WGC helper在显式stop前结束：'+name)
+        require_live()
         time.sleep(.01)
     if capture.last is not None:capture.last.save(capture.artifacts/(name+'-timeout.png'))
     raise TimeoutError('等待详情持续WGC检查点超时：'+name+'；未发送额外按键')

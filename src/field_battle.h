@@ -85,7 +85,12 @@ typedef enum {
     /* 15055射线物品：2dfc8 caster场景→2189a(80,-4)→200ms/渐白。
      * target_count同时是原EDI的part起点；无需exchange/第二业务状态。
      * 不执行后续20c6f地图效果；0成功/skip、1HOST、-1错误。 */
-    FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM
+    FD2_FIELD_MAGIC_PRESENT_AI_RAY_ITEM,
+    /* 2185f/21a9e：只读radial先于21548内1ca89扣费，后继CAST重放quake。
+     * 仅普通MAP Magic11/12；不用于Item/DERIVED/COMPOSITE，不增加业务owner。
+     * 此相位及普通MAP10..12的CAST/TARGET：0成功/skip、1HOST、-1真实ERROR；
+     * Game锁HOST、保已达费用/HP/RNG并FINISH正常清理；FINISH不输出HOST。 */
+    FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE
 } fd2_field_magic_present_phase;
 
 typedef enum {

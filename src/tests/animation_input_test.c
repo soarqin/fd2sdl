@@ -9,15 +9,19 @@
 
 static fd2_vga *screen;
 static uint64_t now_ms;
-static int frames, inject, inject_quit, clears, quit_on_clear;
+static int frames, inject, inject_quit, clears, quit_on_clear, foreign_presents;
 static void animation_clear(fd2_input *input) {
     fd2_input_clear_keys(input);
     if (++clears==quit_on_clear) input->quit_requested=1;
 }
 
 static void animation_present(fd2_vga *vga) {
+    foreign_presents++;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+}
+static void animation_upload(fd2_vga *vga) {
+    (void)vga;
     frames++;
-    fd2_input_begin_test_frame(&vga->input,now_ms);
 }
 static void animation_delay(uint32_t ms) {
     now_ms += ms;
@@ -34,12 +38,14 @@ static void animation_delay(uint32_t ms) {
 }
 
 #define fd2_vga_present animation_present
+#define fd2_vga_upload_current_frame animation_upload
 #define fd2_delay_ms animation_delay
 #define fd2_input_clear_keys animation_clear
 #define fd2_animation_play_hooked input_test_animation_play_hooked
 #define fd2_animation_play input_test_animation_play
 #include "../animation.c"
 #undef fd2_vga_present
+#undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
 #undef fd2_input_clear_keys
 #undef fd2_animation_play_hooked
@@ -48,7 +54,8 @@ static void animation_delay(uint32_t ms) {
 static void word(uint8_t *p,unsigned value) { p[0]=(uint8_t)value; p[1]=(uint8_t)(value>>8); }
 static void reset(fd2_vga *vga) {
     memset(vga,0,sizeof(*vga));fd2_input_init(&vga->input);
-    screen=vga;now_ms=0;frames=inject=inject_quit=clears=quit_on_clear=0;
+    screen=vga;now_ms=0;frames=inject=inject_quit=clears=quit_on_clear=foreign_presents=0;
+    vga->frame_deadline_ns=UINT64_C(999999999999);vga->frame_interval_ns=16000000;
 }
 
 /* 原20421/36ff4实际ANI0=96帧、ANI2=26帧；仅present/delay替身，
@@ -80,7 +87,13 @@ static int real_ani_checks(fd2_vga *vga) {
     fd2_archive_close(&archive);return 0;
 }
 
-int main(void) {
+#define FD2_F4_READER_ANI
+#include "f4_reader_probe.h"
+#undef FD2_F4_READER_ANI
+
+int main(int argc,char **argv) {
+    if(argc>1 && !strcmp(argv[1],"--f4-readers"))return argc==3?f4_reader_cli(argv[2]):1;
+    if(argc!=1)return 1;
     uint8_t blob[10+173+3*10] = {0};
     memcpy(blob,"LLLLLL",6);blob[6]=10;
     uint8_t *entry=blob+10;memcpy(entry,"AFM - Animation File Manager",28);
@@ -94,6 +107,8 @@ int main(void) {
     fd2_input_begin_test_frame(&vga.input,0);
     uint64_t repeat=vga.input.next_repeat_ms[SDL_SCANCODE_DOWN];
     CHECK(input_test_animation_play(&vga,&archive,0,5,1)==0 && frames==3);
+    CHECK(!foreign_presents && vga.frame_deadline_ns==UINT64_C(999999999999) &&
+          vga.frame_interval_ns==16000000 && now_ms==15);
     CHECK(!fd2_input_has_any_key(&vga.input) && vga.input.previous_down[SDL_SCANCODE_DOWN] &&
           vga.input.next_repeat_ms[SDL_SCANCODE_DOWN]==repeat);
     CHECK(vga.framebuffer[0]==39);
@@ -109,6 +124,8 @@ int main(void) {
     CHECK(input_test_animation_play(&vga,&archive,0,5,0)==0 && frames==3 && !fd2_input_has_any_key(&vga.input));
     reset(&vga);inject=inject_quit=1;
     CHECK(input_test_animation_play(&vga,&archive,0,5,1)==-2 && frames==1 && vga.input.quit_requested);
+    CHECK(!foreign_presents && vga.frame_deadline_ns==UINT64_C(999999999999) &&
+          vga.frame_interval_ns==16000000);
     CHECK(fd2_input_has_any_key(&vga.input));
     reset(&vga);quit_on_clear=1;memset(vga.framebuffer,0x88,sizeof(vga.framebuffer));
     CHECK(input_test_animation_play(&vga,&archive,0,5,1)==-2 && !frames && clears==1);

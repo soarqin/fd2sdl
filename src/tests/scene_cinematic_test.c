@@ -267,7 +267,11 @@ static int montage_vectors(fd2_archive *archive) {
     return ferror(stdin)?1:0;
 }
 
+
+#include "f4_text_cinematic_probe.h"
+
 int main(int argc,char **argv) {
+    if(argc>1 && !strcmp(argv[1],"--f4-text"))return argc==3?f4_text_cli(argv[2]):1;
     fd2_archive archive={0};
     if(fd2_archive_open(&archive,"original_game/FDOTHER.DAT")!=0)return 1;
     int result=argc==2 && !strcmp(argv[1],"--cin-vectors")?vectors(&archive):

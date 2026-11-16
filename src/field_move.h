@@ -25,7 +25,8 @@ int fd2_field_move_unit_at(const fd2_field_units *units,
                            int ignore_index,
                            int visible_only);
 
-/* 复现已确认的原版占格与控制区规则：敌方所在格不可进入；友方所在格
+/* 通用Dijkstra诊断query，只表达占格与控制区边；正式4e390不用此query。
+ * 复现已确认的原版占格与控制区规则：敌方所在格不可进入；友方所在格
  * 可通过但不可停留；进入敌方四邻格后剩余移动力归零。阵营按 side==0
  * 与 side!=0 两类判断。地形 attr[1] 只作为 movement profile cost 索引。 */
 int fd2_field_move_query_step(void *context,
@@ -33,6 +34,9 @@ int fd2_field_move_query_step(void *context,
                               int to_x, int to_y,
                               fd2_field_path_step *step);
 
+/* 4df4c→145cd→4e390→146d1的隔离查询；不改变map。
+ * distance是屏蔽友方前BYTE(budget-raw3)（FF为不可达），不是最短路证明；
+ * can_stop对应屏蔽后raw3!=FF。previous恒-1，路径必须另调4e4f6。 */
 int fd2_field_move_range_compute(fd2_field_path_result *result,
                                  const fd2_field_map *map,
                                  const fd2_terrain_tileset *terrain,
@@ -41,6 +45,16 @@ int fd2_field_move_range_compute(fd2_field_path_result *result,
                                  const uint8_t *movement_profile_costs,
                                  size_t movement_profile_cost_count,
                                  uint32_t movement_points);
+
+/* 正式18890入口145cd→4e390→146d1：从当前map owner的raw字节继续，
+ * 成功才提交map/result；没有隐式4df4c，失败不提交临时copy。 */
+int fd2_field_move_range_apply(fd2_field_path_result *result,
+                               fd2_field_map *map,
+                               const fd2_terrain_tileset *terrain,
+                               const fd2_field_units *units,
+                               size_t mover_index,
+                               const uint8_t *costs, size_t cost_count,
+                               uint32_t movement_points);
 
 /* field_path_find @0x4e4f6（原登记同名）的 mode 参数：
  * mode 0 是普通路径；mode 1 在等剩余成本时比较递归路径形状；mode 2
@@ -54,9 +68,28 @@ typedef enum {
     FD2_FIELD_MOVE_PATH_CLEAR_UNIT_FLAGS = 4
 } fd2_field_move_path_mode;
 
-/* 返回 1 表示找到目标／witness，0 表示未找到，-1 表示输入或数据错误。
- * mode 0/1 把最终方向序列写入 directions/path_length；mode 2 只写
- * witness_x/y。方向缓冲容量不足属于错误，不返回截断路径。 */
+/* 原60073共享输出和60078结果的有界借用视图，不分配／持有持久存储。
+ * written为实际已写prefix长度，result是原BYTE（FF、0、长度或witness1），
+ * mode保原6017a的本次最终值；frame index32会以绝对y覆盖且pop不恢复。 */
+typedef struct {
+    uint8_t *bytes;
+    size_t capacity,written;
+    uint8_t result,mode;
+} fd2_field_move_path_output;
+/* 与下方query相同的隔离工作图，显式输出view保原方向／XY交替写序。
+ * 0完成；-1校验／分配失败（view不改）；-2开始后出错（保已写prefix/result）。
+ * H容量门不等同原caller usable extent或首U，外部60181+表collateral另记。 */
+int fd2_field_move_path_find_raw(const fd2_field_map *map,
+    const fd2_terrain_tileset *terrain,const fd2_field_units *units,size_t mover_index,
+    const uint8_t *costs,size_t cost_count,uint32_t movement_points,
+    fd2_field_move_path_mode mode,int target_x,int target_y,
+    fd2_field_move_path_output *output);
+
+/* 返回1找到typed结果，0未找到，-1错误；输入校验失败不改typed输出。
+ * mode0/1投影原result长度，bytes可能在深mode覆盖后含XY；不按初始mode
+ * 分裂原输出。mode2投影实际已写的前两byte；directions可选借足raw容量，
+ * NULL只提供2B临时视图，深转方向超容量为H错误，不猜原caller extent。
+ * 容量不足仍报错，并保合法写前缀，不返回截断成功。 */
 int fd2_field_move_path_find(const fd2_field_map *map,
                              const fd2_terrain_tileset *terrain,
                              const fd2_field_units *units,

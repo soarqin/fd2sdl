@@ -19,7 +19,8 @@ enum {
 
 typedef struct fd2_field_page fd2_field_page;
 
-/* calloc仅为首次原未定义owner字节提供安全初值；不是任何后续透明像素的依据。 */
+/* calloc提供首次安全底；原未写区的来源另验，不预判U，
+ * 也不是任何后续透明像素的依据。 */
 fd2_field_page *fd2_field_page_create(void);
 void fd2_field_page_destroy(fd2_field_page *page);
 /* 仅resource-only PREPARE/隔离预览的临时视觉快照，背景缓冲也深拷贝。
@@ -35,6 +36,12 @@ int fd2_field_page_copy_pixels(fd2_field_page *destination,const fd2_field_page 
 int fd2_field_page_validate_rle(int width, int height,
     const uint8_t *src, size_t src_len);
 int fd2_field_page_blit_rle(fd2_field_page *page, int x, int y,
+    int width, int height, const uint8_t *src, size_t src_len,
+    const uint8_t lut[256]);
+/* 同一RLE/acted映色循环，固定456stride；offset为真实App字节偏移。
+ * 仅实际写点检验owner，允许合法跨逻辑行；坏源预检不写，目标首错保前缀。
+ * 不改变上方历史XY裁切接口，也不推进clock/资源/业务owner。 */
+int fd2_field_page_blit_rle_linear(fd2_field_page *page, int64_t offset,
     int width, int height, const uint8_t *src, size_t src_len,
     const uint8_t lut[256]);
 /* shape_blit_palette_lut_24x24 @0x4e016（原同名）：base范围格的C0 SKIP
@@ -71,7 +78,8 @@ int fd2_field_page_scaled_view_write(fd2_field_page *page,
 /* sub_1F1CC/sub_1F30A @0x1f1cc/0x1f30a的有证例外：原1f1cc把保存的
  * VGA64000字节写到53A49 raw偏移0，随后按320stride作mosaic源。
  * 另有field_view_render_scaled @0x1f558被2000a调用时写同一raw-prefix，
- * 不同于21548重定向scratch后的visible桥；这些固定caller外不得回灌UI。 */
+ * 不同于21548重定向scratch后的visible桥；另2670e/26ce4调用2921a
+ * 把320stride缩放scratch写入同一raw前缀。其它caller不得回灌UI。 */
 int fd2_field_page_phase_prefix_read(const fd2_field_page *page,
     uint8_t *pixels, size_t size);
 int fd2_field_page_phase_prefix_write(fd2_field_page *page,

@@ -9,14 +9,16 @@
 int fd2_field_prepare_cached_sprite_id(const fd2_save_manual_state *state,
     size_t raw_index, uint8_t *sprite_id);
 
-/* 27738底页(5,112)+272d0商品／压缩库存六格，first为原偶数滚动偏移，
+/* 当前页widget合同：开页caller先显式建立其原310x86初底，导航/steady
+ * 从当前VGA继续写，不隐式重贴service.roster_page；保留4e29c stride2旧像素。
+ * 272d0商品／压缩库存六格，first为原偶数滚动偏移，
  * selected是同一个数字rank，不按raw flag或装备40改高亮／分类图。
  * selling非零按3/4价。成功0；失败-1全VGA不变；不处理输入/等待/RNG。 */
 int fd2_field_prepare_draw_items(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const uint8_t *ids, size_t count,
     size_t first, int selected, int selling);
 
-/* 27f4a底页+2825b三行装备收件预览；candidate_raws来自原职业候选，
+/* 2825b三行装备收件预览；candidate_raws来自原职业候选，
  * first逐行滚动，phase3映1。preview只借28632结果，不改roster／钱／派生。
  * 缺已初始化cache条目只省sprite，其它真实坏资源仍原子拒绝。 */
 int fd2_field_prepare_draw_equipment_recipients(fd2_vga *vga,
@@ -26,7 +28,7 @@ int fd2_field_prepare_draw_equipment_recipients(fd2_vga *vga,
 
 /* 27d33/2810b成员2x3；first为偶数，末页5/6行，selected=-1或当前页raw。
  * 2a0c2复活三行的raws为领域候选原序，selected为候选rank；包含原费用，
- * 不处理支付/清flags/HP写点。两页仅重建service.roster_page所在底页。 */
+ * 不处理支付/清flags/HP写点；两者只写当前页，不重建初底。 */
 int fd2_field_prepare_draw_members(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_manual_state *state,
     size_t first, int selected, unsigned phase);
@@ -40,6 +42,12 @@ int fd2_field_prepare_draw_promotion_candidates(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_manual_state *state,
     const uint8_t *candidate_raws, size_t count, size_t first, int selected,
     unsigned phase);
+
+/* 27079 mode2空等：先由caller画箭头，再仅画至多3名候选的4e29c sprite。
+ * 不画底板/文字/价格/预览；其余原子拒绝/无输入RNG合同同上。 */
+int fd2_field_prepare_draw_candidate_sprites(fd2_vga *vga,
+    const fd2_field_prepare_assets *assets,const fd2_save_manual_state *state,
+    const uint8_t *candidate_raws,size_t count,size_t first,unsigned phase);
 
 /* 2af28/2b4fb选阵整页；quota为同伴名额15/19，cursor为同伴0..count-2。
  * selection_label借FDOTHER[5] frame137(86x86)，cursor_image借FDOTHER[1]

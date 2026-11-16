@@ -18,6 +18,8 @@
 
 保留现有分层与调用点。只有某项功能确实需要共享代码时才抽取局部 helper，不先拆分 `field_game.c`、建立通用 command bus、事务框架或剧情 VM。单位和存档的字节布局以 [`../formats/data-formats.md`](../formats/data-formats.md) 为准，本文件不维护第二份格式表。
 
+概要板`18c6d`的板宽149不是HP条或目的owner边界。正式`18b84`直接在同一456×336 App页绘制，战斗板借320×200 owner；二者共用原signed条长及板／条／数字／姓名顺序。合法线性写可越板或逻辑行，真正越owner时保已写前缀并停止本叶。资源／姓名预检错误仍在首写前拒绝，不把条截成149宽或先画VGA再回交局部矩形。`field_info`只在调用期间借App像素，Game不保留内部指针，也不复制第二页。
+
 ### 持久与临时状态
 
 - 原版单位始终是 `fd2_field_unit` 的 `0x50` 字节记录。玩法字段写入唯一记录，不能再保存第二份 HP、坐标或装备真值。
@@ -272,7 +274,7 @@ G5 已去除只支持stage0／shape0／24×24的非原义门，资源有效性�
 
 B6／G2 的 Game 仍是唯一战斗业务提交 owner；正式随机流由 App context 持有，Game 和已证 UI 等待借用同一 callback／userdata，不另建演出 RNG。物理动作分资源 PREPARE、冷图中的地图／面板步骤、逐击 STRIKE 和一次 FINISH；预检先于费用／随机数，呈现失败后不重复已提交的攻击。玩家物理始终 FULL；AI 才按选项选 FULL 或 SHORT。FULL 按两项独立条件最多三击，SHORT 保留原 OR 条件最多两击；跳过当前呈现不改变所选算法或随机数调用。
 
-`progress.json` 的 `physical.full`、`physical.short` 和 `stationary.recover` 定义顺序及分支。SHORT 先地图刷新、反击朝向、39..48面板，再复位方向和攻击；存活且仍可反击才重画并反击。`1e611` 是地图与 HP 面板重画，不是箭头；其 caller 只传三实参，callee 却读取第四项。SDL 省略这次未定义索引的 HP 条，保留固定55和明确的第二条，不猜栈值。SHORT 的武器序列、FDOTHER64样本、solid64与逐列HP条由有限呈现器完成。counter只推进11eee的地形两字段及App jitter，不推进idle/walk或水DAC。
+`progress.json` 的 `physical.full`、`physical.short` 和 `stationary.recover` 定义顺序及分支。SHORT 先地图刷新、反击朝向、39..48面板，再复位方向和攻击；存活且仍可反击才重画并反击。`1e611` 使用实际传入的三个参数：descriptor、actor、target。真实disp及动态SP证明两处HP读取依次为target和actor，旧“缺第四值”的解释已撤回。写序为target背景→固定55→target比例条→actor背景→actor比例条，最后从同一App投影；不在两个target条之间重画背景。HP0跳过比例，正HP/max0或首owner错误保已写前缀，详见[F4来源及回归](../plans/f4-presentation.md)。SHORT 的武器序列、FDOTHER64样本、solid64与逐列HP条由有限呈现器完成。counter只推进11eee的地形两字段及App jitter，不推进idle/walk或水DAC。
 
 单单位静止恢复在 HP==max 或 raw+0x25／0x26 非零时立即返回，不改显示／焦点／HP。成功顺序是隐藏光标、聚焦、wait1、FDOTHER31声4、solid200、wait1、正常sprite、wait1，最后提交夹到 max 的 HP 并恢复显示；无浮字、无 RNG。恢复与 SHORT 共用现有同步物理呈现接口及 owner，恢复不借用 Magic13。首背景按已证caller及option3区分玩家WAIT信息板与AI纯背景，不另建SAV标志。AI11可能先施法再物理／恢复，所需资源以只读 probe 在首个 RNG 前保守预检；它不预测第二行动，缺资源时可能早于实际分支拒绝。
 
@@ -281,6 +283,8 @@ B6／G2 的 Game 仍是唯一战斗业务提交 owner；正式随机流由 App c
 FULL法术0..9由Game按原phase0..8推进同一个 `magic_fx` 状态，并记录每段FX随机数。效果、贡献、HP插值与抖动随机数按原先后交错；呈现端只读重放记录，不能再调用业务RNG或effect。HP插值到分母上限后，后续有效impact仍耗抖动随机数。effect HP与最终可见HP分别记录：原8及9的后续目标可有贡献却无impact，不能补写HP。FULL9 的 BYTE 计数跨目标及完整九tick过渡保留，回绕后仍可产生impact；省略不存在的part绘制不会跳过计数、cue或业务。真实原目标循环／过渡／RNG与实际 C 的差分范围见[通用战斗语义 §9](../reverse-engineering/common-battle-semantics.md#9-g2-short恢复与-full9-跨目标补充)。
 
 G2沿同一同步 `magic_present` 接口提供FULL／MAP／DERIVED／COMPOSITE四模式。PREPARE先完整检查资源，禁止推进Game/RNG或借可写信息板owner更新布局；CAST、TARGET、STEP及传送四阶段借用当前结果／before／after投影。派生效果由Game先算core贡献、恢复旧HP，再按原caster每part marker写HP，duration0也保留写点；renderer只绘对应片段。32..35回地图后，各组CAST与组间POPUP_CLEAR遵循冷图。Item以action_kind区分来源，POPUP_GROUP显式控制浮字结束位置；这些同步栈结果不形成另一套持久事件队列。
+
+普通 MAP Magic10..12 仅在 `MAP_WRAPPER_PRELUDE`（11/12）、CAST、TARGET 三个同步输出点接受 `0=继续/skip、+1=HOST、-1=ERROR`。Battle 只收宿主 quit 并返回，Game 唯一锁存 `runtime_host_quit`：prelude HOST 不扣费，CAST HOST 保已经扣除的费用，TARGET HOST 保本目标已写 HP／贡献／RNG，并停止下一目标。HOST 仍调用一次 FINISH 正常释放 exchange，不伪置 `action_failed` 或执行 loot／acted 成功尾；FINISH 自身的真实资源错误保 ERROR 且不清除 HOST 锁。玩家和 AI direct／behavior11 的当前调用栈都在后继业务前停止；skip 仍沿既定完整提交。这个限定不改变其它法术族／phase或未定义正返回值的旧错误合同。
 
 Game持有FIGANI原始归档；演出服务借用该字段地址，活动动作期间禁止Load／close。物理／FULL／派生／复合专用演出才按需读取BG／TAI，纯地图或Item恢复不要求无关背景。主、次PCM播放器均由App持有，动态样本借用App的FDOTHER，直到voice retire后才释放。音效开关只抑制cue／stop，不跳过必需资源检查；Game不依赖音频设备是否存在。
 

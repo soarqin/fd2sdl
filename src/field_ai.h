@@ -88,17 +88,18 @@ int fd2_field_ai_choose_destination(
     int anchor_x, int anchor_y,
     fd2_field_ai_destination *destination);
 
-/* 0x3944b（corrected code0 0x2944b）的普通物理候选比较核心。
+/* field_ai_physical_candidate_evaluate @0x14237（原登记同名）的比较核心。
  * priority 只取已确认的 0/8/18；同 priority 时 secondary_score 严格
- * 更大才替换，因此保持原函数的遍历顺序稳定性。 */
+ * 更大才替换；初始priority/score均0，首项也须严格改善。 */
 int fd2_field_ai_physical_candidate_is_better(
     const fd2_field_ai_physical_candidate *candidate,
     const fd2_field_ai_physical_candidate *best,
     int have_best);
 
 /* 从已经生成的可停留移动范围中，枚举“移动后可普通攻击”的
- * (destination,target) 对。candidate_score 由 0x3944b 的机器码公式
- * 生成；不修改单位、范围或 RNG。当前只复现最终候选比较，不生成
+ * (destination,target) 对。14237@14586每target重算候选AP-targetDP，
+ * 两处1f183非0才修地形，严格kill、counter和hero倍率顺序不合并。
+ * 不修改单位、范围或RNG；不生成
  * move path，也不提交战斗。 */
 int fd2_field_ai_choose_physical_candidate(
     const fd2_field_map *map,

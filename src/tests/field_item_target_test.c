@@ -307,7 +307,44 @@ static int test_teleport_first_stage_excludes_whole_caster_cell(void) {
     close_fixture(&f); return 0;
 }
 
+typedef struct { int response,called,invalid; } mode6_cancel_probe;
+static int stop_mode6_cancel_focus(fd2_field_game *game,
+        fd2_field_runtime_present_step step,int value,void *userdata) {
+    mode6_cancel_probe *p=userdata;p->called++;
+    if(step!=FD2_FIELD_RUNTIME_FOCUS_BEGIN || value || game->ordinary_display_mode)
+        p->invalid=1;
+    for(size_t i=0;i<24u*24u;i++)if(game->map.cells[i]!=UINT32_C(0xff100000))p->invalid=1;
+    return p->invalid?-1:p->response;
+}
+
+/* 1bbdc selector返回后先4df4c，再display0/focus caster；本例只核
+ * 真实item79参数的取消及HOST/error前缀，不称原机或完整呈现轨迹。 */
+static int test_mode6_cancel_clears_live_marks(void) {
+    for(unsigned kind=0;kind<3;kind++) {
+        fixture f;CHECK(init(&f)==0);fd2_field_game *g=&f.game;
+        slot(&g->units.items[0],2,0,79);
+        CHECK(fd2_field_game_begin_item_targeting(g)==0 && g->ordinary_display_mode==6);
+        /* 合法零距离取消：曾移动到右邻后已回caster格，仍须入口刷新一次。 */
+        g->cursor_cell_x=g->cursor_cell_y=6;g->camera_cell_x=g->camera_cell_y=0;
+        for(size_t i=0;i<24u*24u;i++)f.cells[i]=UINT32_C(0xff100000);
+        f.cells[6u*24u+6u]=f.cells[6u*24u+7u]=UINT32_C(0x00100000);
+        fd2_field_units before=g->units;
+        mode6_cancel_probe probe={.response=kind==1?1:kind==2?-1:0};
+        g->runtime_present=stop_mode6_cancel_focus;g->runtime_present_userdata=&probe;
+        int result=fd2_field_game_cancel_item_targeting(g);
+        CHECK(result==(kind==2?-1:0) && probe.called==1 && !probe.invalid && !f.rng_calls);
+        CHECK((g->failure!=FD2_FIELD_FAILURE_NONE)==(kind==2) &&
+            g->runtime_host_quit==(kind==1) && !memcmp(&before,&g->units,sizeof(before)));
+        CHECK(g->interaction==(kind?FD2_FIELD_INTERACTION_ITEM_TARGETING:FD2_FIELD_INTERACTION_ITEM_LIST));
+        for(size_t i=0;i<24u*24u;i++)CHECK(f.cells[i]==UINT32_C(0xff100000));
+        CHECK(g->pending_cell_event.valid && g->pending_cell_event.action==9 && g->pending_cell_event.source_slot==4);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_mode6_cancel_clears_live_marks()==0);
     CHECK(test_teleport_first_stage_excludes_whole_caster_cell() == 0);
     CHECK(test_area_cursor_resources_and_cross_range_node_owner() == 0);
     CHECK(test_player_filter_raw_order_and_cycle() == 0);

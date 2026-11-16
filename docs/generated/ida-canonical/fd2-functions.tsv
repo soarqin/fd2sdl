@@ -178,8 +178,8 @@ start_ea	end_ea	size	name	is_default_name	is_lib	is_thunk	is_noret	chunk_count	c
 0x1db65	0x1debe	857	field_defeated_units_finalize	0	0	0	0	1	0x1db65-0x1debe	144	140	0	0			68a8000000e8c09401005356575583ec
 0x1debe	0x1df58	154	sub_1DEBE	1	0	0	0	1	0x1debe-0x1df58	4	0	0	0			6814000000e86791010053568b44240c
 0x1df58	0x1e0db	387	sub_1DF58	1	0	0	0	1	0x1df58-0x1e0db	52	48	0	0			684c000000e8cd9001005356575583ec
-0x1e0db	0x1e1dc	257	sub_1E0DB	1	0	0	0	1	0x1e0db-0x1e1dc	28	24	0	0			6828000000e84a8f01005356575583ec
-0x1e1dc	0x1e292	182	sub_1E1DC	1	0	0	0	1	0x1e1dc-0x1e292	12	8	0	0			680c000000e8498e01005383ec048b4c
+0x1e0db	0x1e1dc	257	field_popup_number_enqueue	0	0	0	0	1	0x1e0db-0x1e1dc	28	24	0	0			6828000000e84a8f01005356575583ec
+0x1e1dc	0x1e292	182	field_popup_miss_enqueue	0	0	0	0	1	0x1e1dc-0x1e292	12	8	0	0			680c000000e8498e01005383ec048b4c
 0x1e292	0x1e529	663	field_unit_experience_reward_execute	0	0	0	0	1	0x1e292-0x1e529	32	28	0	0			6844000000e8938d01005356575583ec
 0x1e529	0x1e5c0	151	field_growth_stat_present_apply	0	0	0	0	1	0x1e529-0x1e5c0	4	0	0	0			6838000000e8fc8a0100535657558b44
 0x1e5c0	0x1e611	81	field_notice_wait_ticks	0	0	0	0	1	0x1e5c0-0x1e611	4	0	0	0			6810000000e8658a01005356578b7c24
@@ -389,7 +389,7 @@ start_ea	end_ea	size	name	is_default_name	is_lib	is_thunk	is_noret	chunk_count	c
 0x2f4d4	0x2f631	349	sub_2F4D4	1	0	0	0	1	0x2f4d4-0x2f631	4	0	0	0			6828000000e8517b00005356578b7c24
 0x2f631	0x2f7b6	389	sub_2F631	1	0	0	0	1	0x2f631-0x2f7b6	4	0	0	0			682c000000e8f4790000535657558b6c
 0x2f7b6	0x2facd	791	sub_2F7B6	1	0	0	0	1	0x2f7b6-0x2facd	76	72	0	0			685c000000e86f7800005356575583ec
-0x2facd	0x2fb2c	95	sub_2FACD	1	0	0	0	1	0x2facd-0x2fb2c	4	0	0	0			6810000000e8587500008b54240889d0
+0x2facd	0x2fb2c	95	field_battle_unit_summary_draw	0	0	0	0	1	0x2facd-0x2fb2c	4	0	0	0			6810000000e8587500008b54240889d0
 0x2fb2c	0x2fe14	744	field_promotion_visual_execute	0	0	0	0	1	0x2fb2c-0x2fe14	32	28	0	0			6838000000e8f97400005356575583ec
 0x2fe14	0x2ff01	237	field_promotion_idle_cycle	0	0	0	0	1	0x2fe14-0x2ff01	28	24	0	0			6834000000e8117200005356575583ec
 0x2ff01	0x30e25	3876	field_magic_battle_animation	0	0	0	0	1	0x2ff01-0x30e25	328	324	0	0			6864010000e8247100005356575581ec
@@ -1302,12 +1302,12 @@ start_ea	end_ea	size	name	is_default_name	is_lib	is_thunk	is_noret	chunk_count	c
 0x4ec31	0x4ec65	52	lmi_rle_blit_reverse	0	0	0	0	1	0x4ec31-0x4ec65	8	0	4	0			558bec608b7d088b750c8b5d1066ad66
 0x4ec65	0x4ec66	1	nullsub_5	1	0	0	0	1	0x4ec65-0x4ec66	4	0	0	0			c3
 0x4ec66	0x4ec7c	22	sub_4EC66	1	0	0	0	1	0x4ec66-0x4ec7c	4	0	0	0			0ae47403feccc3ac3cc0770332e4c38a
-0x4ec7c	0x4eca4	40	sub_4EC7C	1	0	0	0	1	0x4ec7c-0x4eca4	8	0	4	0			558bec608b750866ad66a3b427060066
-0x4eca4	0x4ecbf	27	sub_4ECA4	1	0	0	0	1	0x4eca4-0x4ecbf	8	4	0	0			33c9668b15b6270600668b0db4270600
-0x4ecbf	0x4ecf0	49	sub_4ECBF	1	0	0	0	1	0x4ecbf-0x4ecf0	8	0	4	0			558bec608b7d088b450c66a3b4270600
-0x4ecf0	0x4ed0b	27	sub_4ECF0	1	0	0	0	1	0x4ecf0-0x4ed0b	8	4	0	0			33c9668b15b6270600668b0db4270600
+0x4ec7c	0x4eca4	40	pixel_rect_snapshot_restore	0	0	0	0	1	0x4ec7c-0x4eca4	8	0	4	0			558bec608b750866ad66a3b427060066
+0x4eca4	0x4ecbf	27	pixel_rect_restore_rows	0	0	0	0	1	0x4eca4-0x4ecbf	8	4	0	0			33c9668b15b6270600668b0db4270600
+0x4ecbf	0x4ecf0	49	pixel_rect_snapshot_capture	0	0	0	0	1	0x4ecbf-0x4ecf0	8	0	4	0			558bec608b7d088b450c66a3b4270600
+0x4ecf0	0x4ed0b	27	pixel_rect_capture_rows	0	0	0	0	1	0x4ecf0-0x4ed0b	8	4	0	0			33c9668b15b6270600668b0db4270600
 0x4ed0b	0x4ed34	41	sub_4ED0B	1	0	0	0	1	0x4ed0b-0x4ed34	8	0	4	0			558bec608b7d088b750c8b5d1066ad66
 0x4ed34	0x4ed4f	27	image_raw_zero_transparent_blit	0	0	0	0	1	0x4ed34-0x4ed4f	8	0	4	0			558bec608b7d088b750c8b451066a3a3
 0x4ed4f	0x4ed7a	43	image_raw_zero_transparent_rows	0	0	0	0	1	0x4ed4f-0x4ed7a	4	0	0	0			66ad668be866ad668bd033c933db668b
 0x4ed7a	0x4ee36	188	font_glyph_blit_16x16	0	0	0	0	1	0x4ed7a-0x4ee36	8	0	4	0			558bec608b4508a3ac2706008b450ca3
-0x4eee0	0x4ef29	73	sub_4EEE0	1	0	0	0	1	0x4eee0-0x4ef29	20	12	4	0			558bec5657538b750883c6048b7d0c8b
+0x4eee0	0x4ef29	73	field_background_wave_rows_copy	0	0	0	0	1	0x4eee0-0x4ef29	20	12	4	0			558bec5657538b750883c6048b7d0c8b

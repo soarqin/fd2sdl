@@ -32,7 +32,7 @@ static struct {
     int command_quit_at, command_error_at, command_keys;
     fd2_field_interaction command_states[8];
     int command_openings[8];
-    int closing, quit_frame, quit_final, quit_on_wait, deadline;
+    int closing, quit_frame, quit_final, deadline;
     int allocations, live_buffers, fail_alloc, decode_calls, live_portraits;
     int real_render, panel_after_render, real_water, loot_consumer;
     fd2_vga *quit_during_render;
@@ -71,7 +71,6 @@ static uint64_t modal_ticks(void) { return controls.now; }
 static void modal_wait(fd2_vga *vga) {
     controls.waits++;
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
-    if (controls.quit_on_wait) vga->input.quit_requested = 1;
 }
 static void *modal_malloc(size_t size) {
     controls.allocations++;
@@ -315,6 +314,12 @@ static void modal_present(fd2_vga *vga) {
     modal_frame_input(vga, -1);
 }
 
+static void modal_copy_upload(fd2_vga *vga) {
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    modal_present(vga);
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
 #define malloc modal_malloc
 #define calloc modal_calloc
 #define free modal_free
@@ -335,6 +340,7 @@ static void modal_present(fd2_vga *vga) {
 uint64_t modal_ticks_ns(void);
 #define SDL_GetTicksNS modal_ticks_ns
 #define fd2_vga_present modal_present
+#define fd2_vga_upload_current_frame modal_copy_upload
 #define fd2_vga_present_timed modal_present_timed
 #define fd2_vga_wait_frame_deadline modal_wait
 #include "field_play.c"
@@ -355,6 +361,7 @@ uint64_t modal_ticks_ns(void);
 #undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 #undef SDL_GetTicks
+#undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -473,7 +480,7 @@ static int test_navigation_and_cancel(void) {
     CHECK(controls.keys[0] == FD2_FIELD_MAGIC_LIST_KEY_OTHER);
     CHECK(memcmp(controls.indices + 1, expected, sizeof(expected)) == 0);
     CHECK(controls.sound_calls == 4 && id == 0xa5);
-    CHECK(controls.frames == 35 && controls.presents == 1 && controls.waits == 1);
+    CHECK(controls.frames == 35 && controls.presents == 1 && controls.waits == 0); /* 有限close无尾wait。 */
     CHECK(controls.render_calls == 1 && controls.water_calls > 0);
     CHECK(unchanged_game(&game, &before));
     CHECK(!fd2_input_has_any_key(&vga.input));
@@ -1224,7 +1231,7 @@ static int test_drop_errors_quit_and_postcommit_freeze(void) {
     return released();
 }
 
-static int test_list_cleanup_quit_precedes_drop_or_use_handoff(void) {
+static int test_list_final_restore_quit_precedes_drop_or_use_handoff(void) {
     for (int scenario = 0; scenario < 3; scenario++) {
         fd2_field_game game;
         fd2_vga vga;
@@ -1233,10 +1240,10 @@ static int test_list_cleanup_quit_precedes_drop_or_use_handoff(void) {
         fd2_field_game before = game;
         controls.keys_at[0] = (key_frame){13, scenario == 1 ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN, 0};
         controls.key_count = 1;
-        controls.quit_on_wait = 1; /* 完整close后cleanup才留下已观察的quit。 */
+        controls.quit_final = 1; /* 17aed完整snapshot恢复上传后、handoff前到达HOST。 */
         CHECK(play_field_item_selection(&game, &vga, NULL) == FD2_SCENE_RESULT_HOST_QUIT);
         CHECK(!memcmp(&game, &before, sizeof(game)) && !controls.command_calls && !controls.early_drop);
-        CHECK(controls.frames == 25 && controls.rng_calls == 1 && vga.input.quit_requested);
+        CHECK(controls.frames == 25 && controls.presents==1 && !controls.waits && controls.rng_calls == 1 && vga.input.quit_requested);
         CHECK(released() == 0);
     }
     return 0;
@@ -1467,7 +1474,7 @@ static int test_give_full_modal_quit_cancel_and_postcommit_error(void) {
         fd2_field_units before = game.units;
         controls.keys_at[0] = (key_frame){13,fault == 0 ? SDL_SCANCODE_ESCAPE : SDL_SCANCODE_RETURN,0}; controls.key_count = 1;
         if (fault == 1) controls.quit_frame = 14;
-        if (fault == 2) controls.quit_on_wait = 1;
+        if (fault == 2) controls.quit_final = 1; /* 有源最终restore提交，不造尾wait。 */
         if (fault == 3) controls.command_error = 1;
         if (fault == 4) { game.info_assets.detail_icons[0].pixels = NULL; before = game.units; }
         int result = play_field_item_give_selection(&game, &vga, NULL);
@@ -1475,6 +1482,7 @@ static int test_give_full_modal_quit_cancel_and_postcommit_error(void) {
         if (fault != 3) CHECK(!memcmp(&before, &game.units, sizeof(before)) && !game.item_transfer_committed);
         else CHECK(game.item_transfer_committed && game.interaction == FD2_FIELD_INTERACTION_ITEM_MENU && controls.command_calls == 1);
         CHECK(!fd2_field_unit_has_acted(&game.units.items[0]) && released() == 0);
+        if (fault == 2) CHECK(controls.frames==25 && controls.presents==1 && !controls.waits);
         if (fault == 4) CHECK(!controls.rng_calls && !controls.frames);
     }
     return 0;
@@ -1590,7 +1598,7 @@ int main(void) {
     CHECK(test_item_handoff_errors_and_quit() == 0);
     CHECK(test_drop_closes_before_commit_and_reopens_actual_owner() == 0);
     CHECK(test_drop_errors_quit_and_postcommit_freeze() == 0);
-    CHECK(test_list_cleanup_quit_precedes_drop_or_use_handoff() == 0);
+    CHECK(test_list_final_restore_quit_precedes_drop_or_use_handoff() == 0);
     CHECK(test_eqt_continuous_apply_repeat_incompatible_and_new_close_page() == 0);
     CHECK(test_eqt_success_resets_portrait0_incompatible_keeps_blink() == 0);
     CHECK(test_eqt_quit_before_apply_and_after_commit() == 0);

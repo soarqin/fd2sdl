@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "k_field_quake_parameters",
+      "c_type": "int32_t",
+      "dimensions": [3, 3],
+      "values": [[128, 128, 131], [0, 0, 128], [-128, 128, 125]],
+      "source": {
+        "kind": "decoded_call_constants",
+        "file": "FD2.EXE",
+        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+        "canonical_ranges": ["0x52096..0x520ba", "0x21559", "0x21565", "0x21571", "0x2167e", "0x216a4", "0x216cb"],
+        "columns": ["x_offset_fp", "y_offset_fp", "step_fp"],
+        "evidence": "完整21548按真实SP取P+1c的x、P+28的y、P+10的step；原三组DWORD表52096/520a2/520ae按列转换。F4 source-join SHA8e7c1d130cb7715f43749d6e14d85e69c94c37e8c2c1830993cec4f0d6a006f6逐chunk/head/原表同strict。此表是唯一冷定义，不从旧C首72或测试输出反生。三个完整VGA及page0独立采样回归保原期望。"
+      }
+    }
+  ]
+}

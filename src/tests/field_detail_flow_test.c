@@ -24,6 +24,7 @@ static struct {
     int bad_geometry, check_geometry, route, route_actor, route_stage;
     int equipment_keys, magic_keys, controllers, closed, bad_route;
     int bad_rng_portrait_order;
+    unsigned copy_frames,copy_pumps,copy_cost_ms,tail_waits;
     int wait_test, wait_frames, wait_key_at, wait_quit_at, wait_error, water_calls, rng_calls;
     int blink_seen, restore_seen, bad_wait_pixels, decode_blink_failure;
     int wait_step,wait_blink_at,wait_restore_at,route_wait_quit,route_wait_error;
@@ -199,6 +200,7 @@ static void detail_present(fd2_vga *vga) {
     if (control.clock > 5000) { control.bad_route = 1; vga->input.quit_requested = 1; }
 }
 static void detail_wait(fd2_vga *vga) {
+    control.tail_waits++;
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
 }
 static uint64_t detail_ticks(void) { return control.clock; }
@@ -217,6 +219,16 @@ static uint32_t detail_random(void *userdata) {
     control.rng_calls++;return control.random_value;
 }
 
+static void detail_copy_upload(fd2_vga *vga) {
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    detail_present(vga);control.copy_frames++;control.clock+=control.copy_cost_ms;
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
+static void detail_copy_pump(fd2_input *input) {
+    control.copy_pumps++;fd2_input_begin_frame(input);
+}
+#define fd2_input_begin_frame detail_copy_pump
 #define malloc detail_alloc
 #define free detail_free
 #define fd2_portrait_decode_frame detail_decode
@@ -227,6 +239,7 @@ static uint32_t detail_random(void *userdata) {
 #define fd2_field_game_animate_detail detail_real_animate
 #define fd2_field_game_animate_detail_magic_page detail_real_flip
 #define fd2_vga_present detail_present
+#define fd2_vga_upload_current_frame detail_copy_upload
 #define fd2_vga_present_timed detail_timed
 #define fd2_vga_wait_frame_deadline detail_wait
 #include "field_game.c"
@@ -298,6 +311,8 @@ uint64_t detail_ticks_ns(void);
 #undef malloc
 #undef free
 #undef fd2_portrait_decode_frame
+#undef fd2_input_begin_frame
+#undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -365,6 +380,27 @@ static int test_formal_detail_wait_quit_and_error_priority(void) {
     }
     return 0;
 }
+/* 纯owner失败在离屏64000B详情页截断；不得开始开合/翻页、耗键或进入controller。
+ * 字段是已初始化的有限参数例，不声明原自然HP/MP已达此值。 */
+static int test_detail_owner_failure_stops_before_animation(void) {
+    static fd2_vga vga;
+    for(int flip=0;flip<2;flip++)for(int bank=0;bank<2;bank++) {
+        reset();fd2_field_game game;
+        CHECK(open_game(&game,&vga)==0 && fd2_field_game_open_detail(&game,1)==0);
+        game.units.items[1].hp=bank?0u:32767u;game.units.items[1].hp_max=bank?0u:1u;
+        game.units.items[1].mp=bank?32767u:0u;game.units.items[1].mp_max=bank?1u:0u;
+        fd2_field_units units=game.units;fd2_vga before=vga;
+        CHECK((flip?fd2_field_game_animate_detail_magic_page(&game,&vga,NULL,NULL):
+            fd2_field_game_animate_detail(&game,&vga,1,NULL,NULL))==-1);
+        CHECK(!control.animation_frames && !control.timed_frames && !control.controllers &&
+            !control.water_calls && !control.rng_calls && !control.buffers &&
+            !memcmp(&before,&vga,sizeof(vga)) && !memcmp(&units,&game.units,sizeof(units)) &&
+            game.detail_visible && game.detail_page==FD2_FIELD_DETAIL_EQUIPMENT);
+        fd2_field_game_close(&game);
+    }
+    return 0;
+}
+
 static int test_page_owner_and_quit(void) {
     for (int phase = 0; phase < 4; phase++) {
         reset();
@@ -411,10 +447,12 @@ static void detail_fault_at_phase(void *userdata,int opening,int phase) {
  * source写之前截断，并保已提交的整64000B前缀，业务错误优先HOST。 */
 static int test_finite_detail_source_prefix(void) {
     static fd2_vga vga;
-    for(int kind=0;kind<4;kind++) {
+    for(unsigned cost=0;cost<2;cost++)for(int kind=0;kind<5;kind++) {
         reset();fd2_field_game game;CHECK(open_game(&game,&vga)==0);
         CHECK(fd2_field_game_open_detail(&game,1)==0);
         control.check_geometry=1;uint64_t before_clock=control.clock;fd2_field_units units=game.units;
+        control.copy_cost_ms=cost?7u:0u;control.quit_at=kind==4?2:0;
+        vga.frame_deadline_ns=UINT64_C(900000000);vga.frame_interval_ns=UINT64_C(31000000);
         int result;
         if(kind==2)result=fd2_field_game_animate_detail_magic_page(&game,&vga,NULL,NULL);
         else {
@@ -422,9 +460,12 @@ static int test_finite_detail_source_prefix(void) {
             result=fd2_field_game_animate_detail(&game,&vga,kind!=1,
                 kind==3?detail_fault_at_phase:NULL,kind==3?&fault:NULL);
         }
-        CHECK(result==(kind==3?-1:0));
-        CHECK(control.animation_frames==(kind==2?15:kind==3?3:12) && !control.timed_frames &&
-            control.clock==before_clock && !control.water_calls && !control.rng_calls && !control.bad_geometry);
+        unsigned copies=kind==1?13u:kind==2?15u:kind==3?3u:kind==4?2u:12u;
+        CHECK(result==(kind==3?-1:kind==4?1:0));
+        CHECK(control.animation_frames==(int)(kind==1?12u:copies) && !control.timed_frames &&
+            control.clock==before_clock+copies*control.copy_cost_ms && !control.water_calls && !control.rng_calls && !control.bad_geometry);
+        CHECK(control.copy_frames==copies && control.copy_pumps==copies && !control.tail_waits &&
+            vga.frame_deadline_ns==UINT64_C(900000000) && vga.frame_interval_ns==UINT64_C(31000000));
         CHECK(!memcmp(&units,&game.units,sizeof(units)) && !control.buffers);
         if(kind==3)CHECK(game.failure==FD2_FIELD_FAILURE_ACTION && game.runtime_host_quit && game.detail_visible);
         fd2_field_game_close(&game);
@@ -626,6 +667,7 @@ int main(void) {
     CHECK(test_any_key_routes_and_controller() == 0);
     CHECK(test_flip_early_key_survives_to_second_wait()==0);
     CHECK(test_formal_detail_wait_quit_and_error_priority()==0);
+    CHECK(test_detail_owner_failure_stops_before_animation()==0);
     CHECK(test_page_owner_and_quit() == 0);
     CHECK(test_finite_detail_source_prefix()==0);
     CHECK(test_wait_blink_owner_and_errors() == 0);

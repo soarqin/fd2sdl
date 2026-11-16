@@ -4,6 +4,8 @@
 #include "field_move.h"
 #include "field_move_profile.h"
 #include "field_path.h"
+#include "field_move_source_vectors.h"
+#include "field_path_layout_vectors.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -288,7 +290,157 @@ static int test_hostile_witness_crosses_occupied_cells(void) {
     return 0;
 }
 
+/* expected来自固定完整原指令的独立Python推导；全部2739格逐DWORD比较。
+ * 并非原CPU/实机收据，不从待测C导出值，也不拿range.previous当路径。 */
+static int test_source_byte_range_vectors(void) {
+    for (size_t k=0;k<sizeof(k_source_ranges)/sizeof(k_source_ranges[0]);k++) {
+        const field_range_source_vector *v=&k_source_ranges[k];
+        uint32_t cells[16],before[16];
+        memcpy(cells,v->before,sizeof(cells)); memcpy(before,cells,sizeof(before));
+        fd2_field_map map={.width=(int)v->width,.height=(int)v->height,.cells=cells};
+        fd2_terrain_attr attrs[4]={{0}};
+        for(size_t i=0;i<v->class_count;i++)attrs[i].movement_cost_class=v->classes[i];
+        fd2_terrain_tileset terrain={.attrs=attrs,.attr_count=v->class_count};
+        fd2_field_units units={0};units.count=v->unit_count;
+        for(size_t i=0;i<units.count;i++) {
+            units.items[i].side=v->units[i][0];units.items[i].x=v->units[i][1];
+            units.items[i].y=v->units[i][2];units.items[i].flags=v->units[i][3];
+        }
+        fd2_field_units units_before=units;
+        fd2_field_path_result range={0},applied={0};
+        int result=v->apply
+            ? fd2_field_move_range_apply(&range,&map,&terrain,&units,0,v->costs,v->cost_count,v->budget)
+            : fd2_field_move_range_compute(&range,&map,&terrain,&units,0,v->costs,v->cost_count,v->budget);
+        if(result)fprintf(stderr,"source range %s returned %d\n",v->name,result);
+        CHECK(result==0);
+        if(!v->apply) {
+            CHECK(!memcmp(cells,before,sizeof(cells)));
+            /* 独立4df4c输入前提，正式callee本身不暗清。 */
+            for(size_t i=0;i<v->width*v->height;i++)
+                cells[i]=(cells[i]&UINT32_C(0x001f03ff))|UINT32_C(0xff000000);
+            CHECK(fd2_field_move_range_apply(&applied,&map,&terrain,&units,0,
+                v->costs,v->cost_count,v->budget)==0);
+        }
+        CHECK(!memcmp(cells,v->after,v->width*v->height*sizeof(*cells)));
+        CHECK(!memcmp(&units,&units_before,sizeof(units)));
+        for(size_t i=0;i<v->width*v->height;i++) {
+            const fd2_field_path_node *node=&range.nodes[i];
+            if(node->distance!=v->distance[i] || node->can_stop!=((v->stop>>i)&1u))
+                fprintf(stderr,"source range %s cell %zu: distance %u stop %u\n",
+                    v->name,i,(unsigned)node->distance,node->can_stop);
+            CHECK(node->distance==v->distance[i] && node->can_stop==((v->stop>>i)&1u));
+            CHECK(node->can_expand==((v->expand>>i)&1u) && node->previous==-1);
+            CHECK(node->visited==(v->distance[i]!=FD2_FIELD_PATH_UNREACHABLE));
+            if(!v->apply)CHECK(!memcmp(node,&applied.nodes[i],sizeof(*node)));
+        }
+        fd2_field_path_close(&range);fd2_field_path_close(&applied);
+    }
+    return 0;
+}
+
+static int test_source_path_tie_and_signed_vectors(void) {
+    for(size_t k=0;k<sizeof(k_source_paths)/sizeof(k_source_paths[0]);k++) {
+        const field_path_source_vector *v=&k_source_paths[k];
+        uint32_t cells[16];memcpy(cells,v->cells,sizeof(cells));
+        fd2_field_map map={.width=(int)v->width,.height=(int)v->height,.cells=cells};
+        fd2_terrain_attr attr={.movement_cost_class=0};
+        fd2_terrain_tileset terrain={.attrs=&attr,.attr_count=1};
+        fd2_field_units units={0};units.count=v->unit_count;
+        for(size_t i=0;i<units.count;i++) {
+            units.items[i].side=v->units[i][0];units.items[i].x=v->units[i][1];
+            units.items[i].y=v->units[i][2];units.items[i].flags=v->units[i][3];
+        }
+        fd2_field_units before=units;
+        const uint8_t costs[]={1};uint8_t path[16];memset(path,0x5a,sizeof(path));
+        size_t length=99;int wx=99,wy=99;
+        int found=fd2_field_move_path_find(&map,&terrain,&units,0,costs,1,v->budget,
+            (fd2_field_move_path_mode)v->mode,v->tx,v->ty,path,sizeof(path),&length,&wx,&wy);
+        if(found!=v->found || length!=v->length)
+            fprintf(stderr,"source path %s found %d length %zu\n",v->name,found,length);
+        CHECK(found==v->found && length==v->length && wx==v->wx && wy==v->wy);
+        CHECK(!memcmp(path,v->path,length));
+        CHECK(!memcmp(cells,v->cells,sizeof(cells)) && !memcmp(&units,&before,sizeof(units)));
+    }
+    return 0;
+}
+
+static int test_source_range_error_keeps_owners(void) {
+    uint32_t cells[]={0xff003c00u,0xff003c00u,0xff003c00u};
+    fd2_field_map map={.width=3,.height=1,.cells=cells};
+    fd2_terrain_attr attr={.movement_cost_class=0};
+    fd2_terrain_tileset terrain={.attrs=&attr,.attr_count=1};
+    fd2_field_units units={0};units.count=1;units.items[0].x=1;units.items[0].side=2;
+    uint8_t costs[]={1};fd2_field_path_result range={0};
+    CHECK(fd2_field_move_range_apply(&range,&map,&terrain,&units,0,costs,1,2)==0);
+    uint32_t before[3];memcpy(before,cells,sizeof(before));
+    fd2_field_path_node *owner=range.nodes;fd2_field_path_node node_before=owner[0];
+    attr.movement_cost_class=1; /* 越profile资源门发生在首邻查询；不提交隔离copy。 */
+    CHECK(fd2_field_move_range_apply(&range,&map,&terrain,&units,0,costs,1,2)==-1);
+    CHECK(range.nodes==owner && !memcmp(&owner[0],&node_before,sizeof(node_before)));
+    CHECK(!memcmp(cells,before,sizeof(before)));
+    attr.movement_cost_class=0;
+    CHECK(fd2_field_move_range_compute(&range,&map,&terrain,&units,0,costs,1,256)==-1);
+    CHECK(range.nodes==owner && !memcmp(cells,before,sizeof(before)));
+    fd2_field_path_close(&range);return 0;
+}
+
+static int test_source_path_mode_and_shared_output(void) {
+    for(size_t k=0;k<sizeof(k_path_layout)/sizeof(k_path_layout[0]);k++) {
+        const field_path_layout_vector *v=&k_path_layout[k];
+        uint32_t cells[160];memcpy(cells,v->cells,sizeof(cells));
+        fd2_field_map map={.width=(int)v->width,.height=(int)v->height,.cells=cells};
+        fd2_terrain_attr attrs[2]={{.movement_cost_class=0},{.movement_cost_class=1}};
+        fd2_terrain_tileset terrain={.attrs=attrs,.attr_count=2};
+        fd2_field_units units={0};units.count=v->unit_count;
+        for(size_t i=0;i<units.count;i++) {
+            units.items[i].side=v->units[i][0];units.items[i].x=v->units[i][1];
+            units.items[i].y=v->units[i][2];units.items[i].flags=v->units[i][3];
+        }
+        fd2_field_units before=units;const uint8_t costs[]={1,20};
+        uint8_t output[64];memset(output,0xa5,sizeof(output));
+        fd2_field_move_path_output out={.bytes=output,.capacity=v->capacity,
+            .written=777,.result=0x7e,.mode=0x7e};
+        int status=fd2_field_move_path_find_raw(&map,&terrain,&units,0,costs,2,v->budget,
+            (fd2_field_move_path_mode)v->mode,v->tx,v->ty,&out);
+        if(status!=v->status || out.result!=v->result || out.mode!=v->final_mode ||
+           out.written!=v->written || memcmp(output,v->output,sizeof(output)))
+            fprintf(stderr,"source path layout %s status%d result%u mode%u written%zu\n",
+                v->name,status,out.result,out.mode,out.written);
+        CHECK(status==v->status && out.result==v->result && out.mode==v->final_mode &&
+            out.written==v->written && !memcmp(output,v->output,sizeof(output)));
+        CHECK(!memcmp(cells,v->cells,sizeof(cells)) && !memcmp(&units,&before,sizeof(units)));
+        if(status==0) {
+            memset(output,0xa5,sizeof(output));size_t length=999;int wx=99,wy=99;
+            CHECK(fd2_field_move_path_find(&map,&terrain,&units,0,costs,2,v->budget,
+                (fd2_field_move_path_mode)v->mode,v->tx,v->ty,output,v->capacity,
+                &length,&wx,&wy)==v->typed_found);
+            CHECK(length==v->typed_length && wx==v->wx && wy==v->wy);
+            CHECK(!memcmp(output,v->output,sizeof(output)));
+        }
+        /* typed witness原NULL ABI只借2B；深转方向超view为H，不推原frame首U。 */
+        if(!strcmp(v->name,"requested2-to-normal0")) {
+            size_t length=999;int wx=99,wy=99;
+            CHECK(fd2_field_move_path_find(&map,&terrain,&units,0,costs,2,v->budget,
+                FD2_FIELD_MOVE_PATH_HOSTILE_WITNESS,v->tx,v->ty,NULL,0,
+                &length,&wx,&wy)==-1);
+            CHECK(!length && wx==-1 && wy==-1);
+        }
+        out=(fd2_field_move_path_output){.bytes=output,.capacity=sizeof(output),
+            .written=77,.result=0x7e,.mode=0x7e};
+        fd2_field_move_path_output view_before=out;
+        CHECK(fd2_field_move_path_find_raw(&map,&terrain,&units,0,costs,2,256,
+            FD2_FIELD_MOVE_PATH_NORMAL,0,0,&out)==-1);
+        CHECK(out.bytes==view_before.bytes && out.capacity==view_before.capacity &&
+            out.written==77 && out.result==0x7e && out.mode==0x7e);
+    }
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_source_path_mode_and_shared_output() == 0);
+    CHECK(test_source_byte_range_vectors() == 0);
+    CHECK(test_source_path_tie_and_signed_vectors() == 0);
+    CHECK(test_source_range_error_keeps_owners() == 0);
     CHECK(test_weighted_path() == 0);
     CHECK(test_stop_and_transit() == 0);
     CHECK(test_budget_and_tie_order() == 0);

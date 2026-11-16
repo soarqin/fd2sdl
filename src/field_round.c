@@ -89,8 +89,15 @@ int fd2_field_round_play(fd2_vga *vga, const fd2_field_info_assets *assets,
     if (!saved) return -1;
     uint8_t *map = saved + VGA_W * VGA_H;
     memcpy(saved, vga->framebuffer, VGA_W * VGA_H);
+    /* 10010@1054c..105ca：91实为87x20，数字也在该save-under内。
+     * 只借本次App窗口，不给普通UI开放VGA回灌或新page owner。 */
+    enum { DROP_W=87, DROP_H=20 };
+    uint8_t drop_before[DROP_W*DROP_H];
+    fd2_field_page *app=vga->field_page;
+    int drop_pending=0,drop_x=0,drop_y=0;
     int map_ready = 0, result = -1, pc = flow->entry;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
+        if(vga->field_page!=app)break;
         const fd2_static_flow_node *node = fd2_static_flow_at(flow, pc);
         const int32_t *a = node->args;
         if (!strcmp(node->op, "round_frame")) {
@@ -101,6 +108,12 @@ int fd2_field_round_play(fd2_vga *vga, const fd2_field_info_assets *assets,
             int ticks = !strcmp(node->op, "round_wait_ticks");
             int wait = hooks->wait(vga, ticks ? 0u : (uint32_t)a[0], ticks ? (unsigned)a[0] : 0u, userdata);
             if (wait != 0) { result = wait > 0 ? 1 : -1; break; }
+            /* 原105ca在wait1成功后才还原App；HOST/错误保已画前缀。 */
+            if(drop_pending) {
+                if(vga->field_page!=app || fd2_field_page_write(app,drop_x+68,drop_y+68,
+                        DROP_W,DROP_H,drop_before,sizeof(drop_before),DROP_W)!=0)break;
+                drop_pending=0;
+            }
         } else if (!strcmp(node->op, "round_restore_vga")) {
             memcpy(vga->framebuffer, saved, VGA_W * VGA_H);
         } else if (!strcmp(node->op, "round_map_background")) {
@@ -108,10 +121,25 @@ int fd2_field_round_play(fd2_vga *vga, const fd2_field_info_assets *assets,
             if (background != 0) { result = background > 0 ? 1 : -1; break; }
             memcpy(map, vga->framebuffer, VGA_W * VGA_H); map_ready = 1;
         } else if (!strcmp(node->op, "round_drop")) {
-            if (!map_ready) break;
+            if (!map_ready || drop_pending) break;
+            if(app && (a[1]>VGA_W-DROP_W || a[2]>VGA_H-DROP_H))break;
+            if(app && fd2_field_page_read(app,a[1]+68,a[2]+68,DROP_W,DROP_H,
+                    drop_before,sizeof(drop_before),DROP_W)!=0)break;
             visible_copy(vga->framebuffer, map);
+            if(app)for(int row=0;row<DROP_H;row++)
+                memcpy(vga->framebuffer+(size_t)(a[2]+row)*VGA_STRIDE+(size_t)a[1],
+                    drop_before+(size_t)row*DROP_W,DROP_W);
             fd2_map_sprite_blit(vga, &assets->round_banner[a[0] - 83], a[1], a[2], 0);
             if (fd2_field_info_number_draw(vga, assets, a[3], a[4], (int32_t)turn, 3u, 1u) != 0) break;
+            if(app) {
+                /* 先从真实App借before再绘，仅此原源窗口可回写；
+                 * 非零LMI/数字写点同，孔保刚借到的App值，不取旧VGA底。 */
+                size_t at=(size_t)a[2]*VGA_STRIDE+(size_t)a[1];
+                if(fd2_field_page_write(app,a[1]+68,a[2]+68,DROP_W,DROP_H,
+                        vga->framebuffer+at,sizeof(vga->framebuffer)-at,VGA_STRIDE)!=0)break;
+                drop_x=a[1];drop_y=a[2];drop_pending=1;
+                if(fd2_field_page_project(app,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)break;
+            }
             /* 原copy只覆盖312x192；零透明sprite不得改变外框。 */
             restore_border(vga->framebuffer, saved);
         } else if (!strcmp(node->op, "round_refresh")) {

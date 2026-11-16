@@ -39,6 +39,9 @@
 
 ## 2. 长历史与实际收据
 
+F4共享呈现／资源主体以完整阶段包交付，实际提交／本地集成、主线重建与用户SAV保护见两树`build/f4/subject-delivery-20261117/local-integration.json`。[F4报告](f4-presentation.md)保16300唯一span及26行算子／绑定组合、分候选原CPU／真实C／静态／原生、PUB05与完整源码身份；源／consumer分母不当成功率。SHORT双HP条、线性页／底图／palette、Magic三表／圆心／HOST及工作页owner已修。34直接CTest按32＋两夹具定向修正分账；工具优化保旧公式／透明0／容差、补逐帧deadline和owned活性，并非放宽像素。四轮Magic12原生均FAIL且无SDL后缀，最后原端100帧完整stop及独立Game C9只保各自资格。**完整A14—A16未合签**：[正常before／C11双端及其它联合](f4-presentation.md#5-f6必须接回的完整域)、QK与当前候选join仍待F6；主体交付后继续F5，未扩Nuked例外或改最终目标。两个固定普通startup provider在F4有源闭合，F2历史“未决”状态不继续当当前阻塞。
+
+
 F3主体一次提交交付构造／Load／metadata及App roster／四raw options来源修复；完整范围、分候选直接C／原生、首错修复与来源归纳见[F3报告](f3-gameplay-lifecycle.md)。Load03为6654，普通START03为DDC9，两端均正常清理；12直接检查按10＋1＋1分次通过，不拼一次全fresh。97参数附录的37新例和1312函数／530登记的注释发布分别保身份。实际提交／集成及主线重建收据为`build/f3/subject-delivery-20261116/local-integration.json`。**完整A04／A06—A09未合签**：QK条件consumer、后期first-App R来源、正常联合链／真实败北重开后缀及当前候选join仍待F6；不以主体交付宣称全游戏对齐，继续F4。
 
 F2共享机制主体以 `232aca6`（`fix(core): align shared timing input and RNG mechanisms`）整阶段提交交付；默认198次RNG、完整AX／FIFO／repeat、PIT整数时钟、正式逐读／等待／相位与MAP／AI共用前缀已落实。新普通目录Debug构建及46项直接CTest通过，冷表3／冷流程11／IDA14与工具19分别保原运行；标题／移动／准备三双端代表实际候选为a57，新构建为ce，不拼成一次全fresh。详情及全部未过项见[F2报告](f2-time-input-rng.md)，本地整合收据为 `build/f2/subject-delivery-20261115/local-integration.json`。**A10—A13完整正常域仍未合签**：三比较门、provider／21db2入口、全输入与RNG联合轨迹、像素／PCM／PIC按原矩阵留F4—F6；主体完成不等于F2原全称目标通过，不新增真实性豁免。

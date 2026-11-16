@@ -34,7 +34,7 @@ typedef struct {
     uint8_t y;                  /* 0x01: 地图格 Y */
     uint8_t sprite_cache_class; /* 0x02: FD2.TMP 运行期 cache class */
     uint8_t direction;          /* 0x03: 普通0下1左2上3右；mode80保留已证raw5 */
-    uint8_t frame_phase;        /* 0x04: 移动相位 1..6；0 为静止 */
+    uint8_t frame_phase;        /* 0x04: 普通移动1..6；Load保全BYTE，0为静止 */
     uint8_t flags;              /* 0x05: bit0 隐藏，bit2 AI 不可执行，bit7 acted */
     uint8_t side;               /* 0x06: 阵营 */
     uint8_t unit_id;            /* 0x07: FDICON/DATO 稳定单位编号 */

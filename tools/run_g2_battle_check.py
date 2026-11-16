@@ -17,12 +17,14 @@ import shutil
 import sys
 
 from PIL import Image
+import original_reference
 import fd2_g2_battle_oracle as oracle
 import fd2_g2_derived_oracle as derived
 from fd2_display_requirement import windows_display_requirement
 from fd2_item_list_oracle import inventory_templates
 from fd2_reward_oracle import magic_page, reward_pages, page_match
 from run_original_comparison import Capture, archive_entry, running, title_templates, normalize
+from run_original_comparison import quiet_game_command
 from run_original_battle_animation import OwnedHelper, owned_job_required, wait_ready, series_index
 from run_original_battle_menu import wait_state, wait_title
 from run_original_end_turn import RoundOracle, round_assets, round_two_template, check_round_phase_log
@@ -358,6 +360,11 @@ def exercise(capture, prepared, save, guard, record):
 
 
 def run(args):
+    if getattr(args,"bootstrap",None) is not None:
+        # 在freeze前加载实际参照闭包；G3反向借本模块，故不在模块顶层导入。
+        from run_f2_prepare_check import command_configuration, adapt_legacy_g3_rate
+        if any(key.upper().startswith("DOSBOX_") for key in os.environ):
+            raise ValueError("拒绝未冻结的DOSBOX环境覆盖；未启动窗口")
     root, output = args.root.resolve(), args.artifacts.resolve()
     original = (root / "original_game").resolve()
     if output == original or output.is_relative_to(original): raise ValueError("G2产物不能写入原版只读目录")
@@ -389,7 +396,7 @@ def run(args):
     report.update(status="failed",inputs=inputs,original_before=original_before,source_files=sources)
     display = {}; report["display_requirement"] = display
     try:
-        with windows_display_requirement(display):
+        with windows_display_requirement(display,require_display_on=True):
             for kind in ("original","sdl"):
                 if not sources_unchanged(): raise AssertionError("G2冻结来源在窗口启动前变化")
                 work = output / kind; work.mkdir(); env = os.environ.copy()
@@ -409,7 +416,21 @@ def run(args):
                 save.write_bytes(prepared["encoded"]); guard=[save.read_bytes(),save.stat().st_mtime_ns]
                 record={"kind":kind,"ok":False,"processes":[],"inputs":[],"checkpoints":[]};report["cases"].append(record)
                 try:
+                    actual_command,_,_=quiet_game_command(command_line,env)
+                    if kind=="original" and getattr(args,"bootstrap",None) is not None:
+                        command_line,actual_command,adaptation=adapt_legacy_g3_rate(command_line,env,args.bootstrap)
+                        configs,overrides=command_configuration(actual_command)
+                        record["reference"]=original_reference.build(original,args.dosbox,configs,overrides,args.bootstrap)
+                        if record["reference"]["configs"]!=[{key:row[key] for key in ("path","size","sha256")}
+                                for row in adaptation["configs"]]:
+                            raise AssertionError("G2参照配置在资格读取时改变，未启动窗口")
+                        record["configuration_adaptation"]=adaptation
+                        for path in (*configs,args.bootstrap,Path(original_reference.REFERENCE)):
+                            inputs[str(path.resolve())]=sha(path)
+                    if not sources_unchanged(): raise AssertionError("G2参照资格后来源变化，未启动窗口")
                     with running(command_line,cwd,env,work/"game.log",args.driver.resolve(),record["processes"]) as process:
+                        if record["processes"][-1].get("command")!=actual_command:
+                            raise AssertionError("G2实际启动命令与参照资格不同")
                         capture=Capture(args.driver.resolve(),process,work,record["inputs"])
                         exercise(capture,prepared,save,guard,record)
                     record["ok"]=True
@@ -436,6 +457,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ("root","artifacts"): parser.add_argument("--"+name,type=Path,required=True)
     for name in ("sdl","driver","dosbox"): parser.add_argument("--"+name,type=Path)
+    parser.add_argument("--bootstrap",type=Path,help="qualify the actual original command against the pinned reference")
     parser.add_argument("--scenario",choices=(*oracle.SCENARIOS,*derived.SCENARIOS),required=True)
     parser.add_argument("--prepare-only",action="store_true")
     args=parser.parse_args()

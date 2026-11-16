@@ -62,8 +62,9 @@ int fd2_field_effect_frames_take_page(fd2_field_effect_frames *frames,
 int fd2_field_effect_apply_page_frame(const fd2_field_effect_frames *frames,
     fd2_vga *vga,size_t frame);
 
-/* cue/默认VGA snapshot及page写点之后、present之前的有限逐帧领域叶。
+/* cue/默认VGA snapshot及page写点之后、upload/等待之前的有限逐帧领域叶。
  * caller可重画当前App mask/actors并重新project，不能在PREPARE触发本口。
+ * hook不代tick/ms等待，不持帧deadline；本层在成功返回后统一upload并等待。
  * 返回0完成、1hostquit、-1错误；错误保已实际达到的App像素，不造终态。 */
 typedef int (*fd2_field_effect_frame_fn)(fd2_field_effect effect,size_t frame,
     size_t source,fd2_vga *vga,void *userdata);
@@ -72,8 +73,8 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
     fd2_field_effect_frame_fn apply,void *userdata);
 
 /* 同步播放已生成帧。timed=0 用于确定性快速验证，不等待也不呈现；
- * timed!=0 使用原版 1 BIOS tick／10 ms／5 ms 节奏。转场的渐暗由
- * field_game wrapper 在 500 ms 尾停顿之后执行。 */
+ * timed!=0 先upload再使用原版绝对BIOS tick／10 ms／5 ms等待；flash末页无等待。
+ * 不借用累计deadline。转场加白由field_game wrapper在500 ms尾停顿之后执行。 */
 int fd2_field_effect_play(const fd2_field_effect_frames *frames,
                           fd2_vga *vga,
                           fd2_field_audio *audio,

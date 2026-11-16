@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "field_game.h"
+#include "f4_c11_host_observer.h"
 #include "figani.h"
 
 #define CHECK(e) do { if (!(e)) { \
@@ -591,7 +592,7 @@ typedef struct {
     fixture *fixture;
     uint8_t id;
     unsigned prepared, finished, steps, targets, teleport[4],preambles,refreshes;
-    unsigned map_casts;
+    unsigned map_casts,wrapper_preludes;int fail_wrapper_prelude;
     uint8_t passes[4];
     uint8_t target_order[FD2_FIELD_MAX_UNITS];
     int fail_step,preamble_result,preamble_failure,refresh_result;
@@ -609,6 +610,14 @@ static int observe_extended_magic(const fd2_field_game *game,
             seen->id>=9u && seen->id<=27u && seen->id!=24u);
         if(seen->preamble_failure)seen->fixture->game.failure=FD2_FIELD_FAILURE_ACTION;
         return seen->preamble_result;
+    } else if(event->phase==FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE) {
+        CHECK((seen->id==11u || seen->id==12u) && seen->prepared==1 && !seen->wrapper_preludes &&
+            !seen->fixture->calls && game->units.items[0].mp==1000);
+        seen->wrapper_preludes++;return seen->fail_wrapper_prelude?-1:0;
+    } else if(event->phase==FD2_FIELD_MAGIC_PRESENT_CAST && event->presentation_mode==FD2_FIELD_MAGIC_MODE_MAP &&
+        (seen->id==11u || seen->id==12u)) {
+        CHECK(seen->wrapper_preludes==1 && !seen->fixture->calls &&
+            game->units.items[0].mp==(seen->id==11u?955u:920u)); /* 原cost45/80。 */
     } else if (event->phase == FD2_FIELD_MAGIC_PRESENT_PREPARE) {
         seen->prepared++;
         CHECK(!seen->fixture->calls && game->units.items[0].mp == 1000);
@@ -743,6 +752,7 @@ static int test_all_normal_magic_routes_and_compound_order(void) {
         CHECK(resolve_and_ack(game) == 0 && !game->failure);
         CHECK(seen.prepared == 1 && seen.finished == 1);
         CHECK(seen.preambles==(id>=9u && id<=27u && id!=24u));
+        CHECK(seen.wrapper_preludes==(id==11u || id==12u));
         CHECK(game->units.items[0].mp == (uint16_t)(1000u -
             fd2_field_magic_record_get((uint8_t)(id == 17u ? 18u : id))[5] * cost_count));
         CHECK(fd2_field_unit_has_acted(&game->units.items[0]) && game->active_side == 2);
@@ -754,6 +764,20 @@ static int test_all_normal_magic_routes_and_compound_order(void) {
             game->cursor_cell_x == center_x && game->cursor_cell_y == center_y &&
             game->camera_cell_x == camera_x && game->camera_cell_y == camera_y);
         if (id == 35u) CHECK(seen.map_casts == 3 && seen.passes[0] == 26u && seen.passes[1] == 22u && seen.passes[2] == 27u);
+        close_fixture(&f);
+    }
+    return 0;
+}
+
+/* 2185f/21a9e radial错误在21548内1ca89之前；不扣MP或读业务RNG。 */
+static int test_wrapper_prelude_error_before_cost(void) {
+    for(uint8_t id=11;id<=12;id++) {
+        fixture f;extended_observer seen;CHECK(begin_extended_magic(&f,id,&seen)==0);
+        fd2_field_units before=f.game.units;seen.fail_wrapper_prelude=1;
+        CHECK(fd2_field_game_resolve_player_magic(&f.game)==-1 && seen.prepared==1 &&
+            seen.wrapper_preludes==1 && seen.finished==1 && !seen.targets && !f.calls);
+        CHECK(f.game.units.items[0].mp==1000 && f.game.units.items[1].hp==before.items[1].hp &&
+            f.game.units.items[3].hp==before.items[3].hp && f.game.failure==FD2_FIELD_FAILURE_ACTION);
         close_fixture(&f);
     }
     return 0;
@@ -858,12 +882,83 @@ static int test_cure_predicts_revive_only_with_original_status(void) {
     return 0;
 }
 
+/* 原1c7c6/1c81f：profile1 scale10，spread0时两次idiv分别截断。
+ * Magic10/11/12 WORD功率80/160/340，首目标独立伤害72/144/306；
+ * 一次命中恰耗hit+spread两次RNG，费用18/45/80先于CAST。 */
+static int test_c11_map_host_preserves_player_prefix(void) {
+    static const fd2_field_magic_present_phase stops[]={
+        FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE,
+        FD2_FIELD_MAGIC_PRESENT_CAST,FD2_FIELD_MAGIC_PRESENT_TARGET};
+    static const uint16_t damage[]={72,144,306},cost[]={18,45,80};
+    for(uint8_t id=10;id<=12;id++)for(unsigned phase=0;phase<3;phase++) {
+        if(id==10 && phase==0)continue;
+        for(unsigned outcome=0;outcome<5;outcome++) {
+            fixture f;extended_observer unused;
+            CHECK(begin_extended_magic(&f,id,&unused)==0);
+            fd2_field_game *g=&f.game;
+            for(size_t raw=1;raw<=3;raw+=2) {
+                g->units.items[raw].x=5;g->units.items[raw].y=6; /* 既有同格多raw合法collector合同。 */
+                g->units.items[raw].movement_profile=1;
+                g->units.items[raw].hp=g->units.items[raw].hp_max=1000;
+            }
+            g->experience_value=77;
+            fd2_field_unit before[4];memcpy(before,g->units.items,sizeof(before));
+            fd2_field_game *prefix=malloc(sizeof(*prefix));CHECK(prefix);
+            f4_c11_host_observer seen={0};seen.owner=g;seen.prefix=prefix;seen.id=id;
+            seen.stop_phase=stops[phase];seen.stop_result=outcome==1?-1:outcome==4?2:1;
+            seen.failure_at_stop=outcome==2;seen.cleanup_error=outcome==3;
+            g->magic_present=f4_c11_host_present;g->magic_present_userdata=&seen;
+            int result=fd2_field_game_resolve_player_magic(g);
+            CHECK(result==(outcome? -1:0) && !seen.bad && seen.captured &&
+                seen.prepared==1 && seen.finished==1 && seen.failed_finishes==(outcome==1 || outcome==2 || outcome==4));
+            CHECK(!!g->runtime_host_quit==(outcome!=1 && outcome!=4));
+            CHECK(g->failure==(outcome?FD2_FIELD_FAILURE_ACTION:FD2_FIELD_FAILURE_NONE));
+            CHECK(seen.preludes==(id!=10) && seen.casts==(phase!=0) && seen.targets==(phase==2));
+            CHECK(f.calls==(phase==2?2u:0u) && g->selected_unit==0 &&
+                !fd2_field_unit_has_acted(&g->units.items[0]));
+            before[0].mp=(uint16_t)(1000u-(phase==0?0u:cost[id-10u]));
+            if(phase==2) {before[1].hp=(uint16_t)(1000u-damage[id-10u]);CHECK(seen.target_order[0]==1);}
+            CHECK(!memcmp(before,g->units.items,sizeof(before)) && g->units.items[3].hp==1000);
+            CHECK(prefix->ordinary_display_mode==0 && (phase!=0 || prefix->experience_value==0));
+            if(!outcome) {
+                prefix->runtime_host_quit=1;
+                CHECK(!memcmp(prefix,g,sizeof(*g))); /* FINISH只释放presenter资源，不推进业务尾。 */
+            }
+            free(prefix);close_fixture(&f);
+        }
+    }
+    /* 相同callback返回0继续/skip：两个目标均提交，不把skip误作HOST。 */
+    for(uint8_t id=10;id<=12;id++) {
+        fixture f;extended_observer unused;CHECK(begin_extended_magic(&f,id,&unused)==0);
+        fd2_field_game *g=&f.game;
+        for(size_t raw=1;raw<=3;raw+=2) {
+            g->units.items[raw].x=5;g->units.items[raw].y=6;
+            g->units.items[raw].movement_profile=1;
+            g->units.items[raw].hp=g->units.items[raw].hp_max=1000;
+        }
+        fd2_field_game *prefix=malloc(sizeof(*prefix));CHECK(prefix);
+        f4_c11_host_observer seen={0};seen.owner=g;seen.prefix=prefix;seen.id=id;
+        seen.stop_phase=FD2_FIELD_MAGIC_PRESENT_CAST; /* stop_result0就是原继续合同。 */
+        g->magic_present=f4_c11_host_present;g->magic_present_userdata=&seen;
+        CHECK(resolve_and_ack(g)==0 && !g->failure && !g->runtime_host_quit && !seen.bad);
+        CHECK(seen.prepared==1 && seen.preludes==(id!=10) && seen.casts==1 &&
+            seen.targets==2 && seen.finished==1 && !seen.failed_finishes && f.calls==4);
+        CHECK(g->units.items[0].mp==1000u-cost[id-10u] && fd2_field_unit_has_acted(&g->units.items[0]));
+        CHECK(g->units.items[1].hp==1000u-damage[id-10u] &&
+            g->units.items[3].hp==1000u-damage[id-10u]);
+        free(prefix);close_fixture(&f);
+    }
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_c11_map_host_preserves_player_prefix()==0);
     CHECK(test_map_caller_preamble_stops_before_cost()==0);
     CHECK(test_cure_predicts_revive_only_with_original_status() == 0);
     CHECK(test_player_heal_over_max_keeps_signed_multi_target_reward() == 0);
     CHECK(test_range_zero_query_and_axis_same_center_contract() == 0);
     CHECK(test_all_normal_magic_routes_and_compound_order() == 0);
+    CHECK(test_wrapper_prelude_error_before_cost()==0);
     CHECK(test_special_step_failure_and_teleport_second_cancel() == 0);
     CHECK(test_caster_cost_markers_zero_multiple_and_wrap() == 0);
     CHECK(test_full_magic_events_and_jitter_order() == 0);

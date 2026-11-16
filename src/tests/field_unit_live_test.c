@@ -211,6 +211,37 @@ static void test_empty_and_hidden(void) {
     CHECK(!unit_clock_at);unit_check_no_write();
 }
 
+/* 原127e0/4e22a与4e1a6：fixture的第2帧是24行RUN24/color3。
+ * hidden不进direct条件，flags80才把3映成(3&7)+24=27。
+ * 完整page expected只由此原写矩形和before构成，不调用被测decoder。 */
+static void unit_check_direct_rectangle(uint8_t color) {
+    fd2_field_page *expected=malloc(sizeof(*expected));CHECK(expected);
+    memcpy(expected,&unit_page_before,sizeof(*expected));
+    for(size_t y=114;y<138;y++)for(size_t x=120;x<144;x++)
+        expected->pixels[y*456u+x]=color;
+    CHECK(!memcmp(unit_page,expected,sizeof(*expected)));free(expected);
+}
+static void test_direct_hidden_pixels_and_batch_gate(void) {
+    const uint8_t flags[]={1u,0x81u};
+    for(size_t i=0;i<2;i++) {
+        unit_fixture();unit_records.count=1;
+        unit_records.items[0].x=unit_records.items[0].y=2;
+        unit_records.items[0].flags=flags[i];unit_snapshot();
+        CHECK(fd2_field_units_render_page_actor(unit_page,&unit_bank,&unit_records,
+            0,0,0,2,3,0,0)==0);
+        CHECK(!unit_clock_at);unit_check_direct_rectangle(i?27u:3u);
+        unit_check_owner_write_set();
+    }
+    unit_fixture();unit_records.count=1;
+    unit_records.items[0].x=unit_records.items[0].y=2;
+    unit_records.items[0].flags=1u;unit_offsets[0]=(uint32_t)sizeof(unit_rle)+1u;
+    unit_snapshot();
+    CHECK(fd2_field_units_render_page(unit_page,&unit_bank,&unit_records,0,0,0,0,0)==0);
+    unit_check_no_write();
+    CHECK(fd2_field_units_render_page_live(&unit_vga,unit_page,&unit_bank,&unit_records,0,0,0,0)==0);
+    unit_check_no_write();
+}
+
 static void test_direct_read_gates(void) {
     unit_fixture();unit_records.count=1;
     unit_records.items[0].x=unit_records.items[0].y=2;
@@ -219,7 +250,7 @@ static void test_direct_read_gates(void) {
     CHECK(fd2_field_units_render_page_actor_live(&unit_vga,unit_page,&unit_bank,
         &unit_records,0,0,0,2,3,0)==0);
     CHECK(unit_clock_at==2 && unit_vga.actor_jitter_tick==9 && unit_vga.actor_jitter_phase==1);
-    CHECK(!memcmp(unit_page,&unit_page_before,sizeof(*unit_page)));
+    unit_check_direct_rectangle(3);
     unit_check_owner_write_set();
     unit_records.items[0].flags=0;unit_records.items[0].x=unit_records.items[0].y=200;
     unit_snapshot();CLOCK(10,10);
@@ -279,7 +310,8 @@ static void test_structure_errors(void) {
 
 int main(void) {
     unit_page=fd2_field_page_create();CHECK(unit_page);
-    test_batch_order();test_empty_and_hidden();test_direct_read_gates();
+    test_batch_order();test_empty_and_hidden();test_direct_hidden_pixels_and_batch_gate();
+    test_direct_read_gates();
     test_error_prefixes();test_structure_errors();
     fd2_field_page_destroy(unit_page);
     puts("field_unit_live: passed");

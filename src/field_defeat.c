@@ -11,7 +11,7 @@
 #include "field_visual.h"
 #include "portrait.h"
 
-enum { DEFEAT_ANCHORS=30, DEFEAT_IMAGES=12 };
+enum { DEFEAT_ANCHORS=FD2_FIELD_MAX_UNITS, DEFEAT_BASE_ALIAS=30, DEFEAT_IMAGES=12 };
 struct fd2_field_defeat_visual {
     fd2_image images[DEFEAT_IMAGES];
     fd2_field_page *base;
@@ -46,7 +46,8 @@ static int defeat_tiles(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *
         fd2_field_visual_range_step_live(&vga->field_visual,-1)<0)return -1;
     return fd2_terrain_render_page_block(target,&game->terrain,&game->map,72,72,13,8,
         game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,
-        (uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL);
+        (uint8_t)vga->field_visual.actor_idle_phase,NULL,
+        fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase));
 }
 
 static int defeat_actors(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *target) {
@@ -58,7 +59,8 @@ static int defeat_actors(const fd2_field_game *game,fd2_vga *vga,fd2_field_page 
                 (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0)!=0)return -1;
     }
     return fd2_field_units_render_page_terrain_overlays(target,&game->terrain,&game->map,
-        &game->units,game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,NULL);
+        &game->units,game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,
+        fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase));
 }
 
 int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
@@ -77,11 +79,12 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
         if(u->hp || fd2_field_unit_is_hidden(u) ||
             (int64_t)u->x<(int64_t)v->camera_x-1 || (int64_t)u->x>(int64_t)v->camera_x+13 ||
             (int64_t)u->y<(int64_t)v->camera_y-1 || (int64_t)u->y>(int64_t)v->camera_y+9)continue;
-        /* 当前保留30锚；原第31锚与临时页指针重叠的有效域另归F4，不能按伪C长度判U。 */
-        if(v->count<DEFEAT_ANCHORS) {
-            v->x[v->count]=72+((int)u->x-v->camera_x-1)*24;
-            v->y[v->count]=66+((int)u->y-v->camera_y-1)*24;v->count++;
-        }
+        /* 1dd61仅把index30改为临时base+0；1ddd6/1de43按真实D消费，
+         * 其它index仍是1dc29登记的App锚。每个合法active最多入列一次，
+         * count<=unit_count<=96；不以旧35个前缀样本静默丢弃后续目标。
+         * 这是callee页写前缀；高D的正常来源/父合同另由F6资格化。 */
+        v->x[v->count]=v->count==DEFEAT_BASE_ALIAS?0:72+((int)u->x-v->camera_x-1)*24;
+        v->y[v->count]=v->count==DEFEAT_BASE_ALIAS?0:66+((int)u->y-v->camera_y-1)*24;v->count++;
     }
     if(!v->count)goto failure;
     const uint8_t *data;size_t size;
@@ -110,7 +113,8 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
         if(fd2_field_background_draw_from_live(vga->field_page,scratch,72,72,v->camera_x,v->camera_y,
             0,0,0)!=0 ||
             fd2_terrain_render_page_block(scratch,&game->terrain,&game->map,72,72,13,8,
-                v->camera_x,v->camera_y,(int)phase,(uint8_t)vga->field_visual.actor_idle_phase,NULL,NULL)!=0)goto failure;
+                v->camera_x,v->camera_y,(int)phase,(uint8_t)vga->field_visual.actor_idle_phase,NULL,
+                fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase))!=0)goto failure;
     fd2_field_page_destroy(scratch);*visual=v;return 0;
 failure:
     fd2_field_page_destroy(scratch);fd2_field_defeat_close(&v);return -1;
@@ -136,7 +140,8 @@ int fd2_field_defeat_project(fd2_field_defeat_visual *v,const fd2_field_game *ga
     if(!defeat_valid(v,game,vga))return -1;
     if(fd2_input_take_quit(&vga->input))return 1;
     if(fd2_field_units_render_page_terrain_overlays(vga->field_page,&game->terrain,&game->map,
-        &game->units,game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,NULL)!=0)return -1;
+        &game->units,game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,NULL,
+        fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase))!=0)return -1;
     return fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
 }
 
@@ -173,7 +178,11 @@ int fd2_field_defeat_frame(fd2_field_defeat_visual *v,const fd2_field_game *game
     if(!defeat_valid(v,game,vga) || !v->base_ready || frame<68 || frame>79)return -1;
     if(fd2_input_take_quit(&vga->input))return 1;
     if(frame>=74 && fd2_field_page_copy_pixels(vga->field_page,v->base)!=0)return -1;
-    for(size_t i=0;i<v->count;i++)
-        if(defeat_image(vga->field_page,&v->images[frame-68],v->x[i],v->y[i])!=0)return -1;
+    /* 1ddc9/1de36按真实登记序：只有index30改写临时页，31..95仍借App。
+     * 74..79上面的restore已完成，本帧新base像素要到下一frame才反馈App。 */
+    for(size_t i=0;i<v->count;i++) {
+        fd2_field_page *target=i==DEFEAT_BASE_ALIAS?v->base:vga->field_page;
+        if(defeat_image(target,&v->images[frame-68],v->x[i],v->y[i])!=0)return -1;
+    }
     return fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
 }

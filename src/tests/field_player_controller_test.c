@@ -65,6 +65,8 @@ static void init(fixture *f) {
     g->interaction = FD2_FIELD_INTERACTION_BROWSE;
     g->map.width = g->map.height = 8;
     g->map.cells = f->cells;
+    /* 正式1088d/10010已4df4c；合成地图也以FF raw3进入18890。 */
+    for (size_t i=0;i<64u;i++) f->cells[i]=UINT32_C(0xff000000);
     g->terrain.attrs = &f->attr;
     g->terrain.attr_count = 1;
     f->attr.movement_cost_class = 0; /* profile1 class0成本1；class1成本20。 */
@@ -143,8 +145,8 @@ static int test_full_path_last_match_and_cancel(void) {
     fixture f; init(&f);
     fd2_field_game *g = &f.game;
     g->pending_cell_event = (fd2_field_pending_cell_event){1, 99, 9};
-    f.cells[1 * 8 + 2] = 1u << 16;
-    f.cells[1 * 8 + 3] = 2u << 16;
+    f.cells[1 * 8 + 2] = UINT32_C(0xff010000);
+    f.cells[1 * 8 + 3] = UINT32_C(0xff020000);
     g->metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
     g->metadata.cell_lookup[1] = (fd2_field_cell_lookup){9, 0};
     CHECK(command_at(&f, 4, 1) == 0);
@@ -177,8 +179,8 @@ static int test_final_lookup_after_acted_and_no_retry(void) {
     for (int final_match = 0; final_match < 2; final_match++) {
         fixture f; init(&f);
         fd2_field_game *g = &f.game;
-        f.cells[1 * 8 + 2] = 1u << 16;
-        f.cells[1 * 8 + 3] = 2u << 16;
+        f.cells[1 * 8 + 2] = UINT32_C(0xff010000);
+        f.cells[1 * 8 + 3] = UINT32_C(0xff020000);
         g->metadata.cell_lookup[0] = (fd2_field_cell_lookup){7, 0};
         g->metadata.cell_lookup[1] = (fd2_field_cell_lookup){9, (uint8_t)(final_match ? 1 : 2)};
         CHECK(command_at(&f, 3, 1) == 0);
@@ -334,7 +336,7 @@ static int test_phase_overwrites_player_slot_before_unknown_handler(void) {
     g->units.items[1].side = 1;
     g->units.items[1].ai_behavior_raw = 2;
     g->units.items[1].movement_points = 0;
-    f.cells[6 * 8 + 6] = 1u << 16;
+    f.cells[6 * 8 + 6] = UINT32_C(0xff010000);
     g->metadata.cell_lookup[0] = (fd2_field_cell_lookup){23, 1};
     CHECK(command_at(&f, 1, 1) == 0);
     g->pending_cell_event = (fd2_field_pending_cell_event){1, 99, 7};
@@ -424,8 +426,59 @@ static int test_browse_cycle_original_eligibility_only(void) {
     return 0;
 }
 
+/* 18890 profile28特例+18993/18a0c真实owner写集，合成合法小地图。
+ * 完整6格期望是source4e390/RLDU成本1结果，不由C动态生成。 */
+static int test_source_profile28_and_map_mark_lifecycle(void) {
+    fixture f;init(&f);fd2_field_game *g=&f.game;
+    g->units.items[1].flags=g->units.items[2].flags=FD2_FIELD_UNIT_FLAG_HIDDEN;
+    g->map.width=3;g->map.height=2;
+    g->units.items[0].unit_id=28;g->units.items[0].text_id=7;
+    g->units.items[0].race=5;g->units.items[0].movement_profile=28;
+    g->units.items[0].movement_points=2;
+    for(size_t i=0;i<6u;i++)f.cells[i]=UINT32_C(0xff003c00);
+    static const uint8_t remaining[]={0,1,0,1,2,1};
+    CHECK(fd2_field_game_confirm_cursor(g)==0);
+    for(size_t i=0;i<6u;i++) {
+        CHECK(f.cells[i]==((uint32_t)remaining[i]<<24 | UINT32_C(0x00003c00)));
+        CHECK(g->move_range.nodes[i].distance==2u-remaining[i] && g->move_range.nodes[i].previous==-1);
+    }
+    g->cursor_cell_x=0;g->cursor_cell_y=0;
+    CHECK(fd2_field_game_update_move_preview(g)==0 && g->move_preview_valid);
+    CHECK(g->move_path_length==2 && g->move_path[0]==1 && g->move_path[1]==2);
+    CHECK(fd2_field_game_cancel_selection(g)==1);
+    for(size_t i=0;i<6u;i++)CHECK(f.cells[i]==UINT32_C(0xff000000));
+    CHECK(!g->move_range.nodes && !f.rng_calls && g->units.items[0].x==1 && g->units.items[0].y==1);
+    CHECK(fd2_field_game_confirm_cursor(g)==0);
+    g->cursor_cell_x=0;g->cursor_cell_y=0;
+    CHECK(fd2_field_game_confirm_cursor(g)==0 && g->interaction==FD2_FIELD_INTERACTION_MOVING);
+    for(size_t i=0;i<6u;i++)CHECK(f.cells[i]==UINT32_C(0xff000000));
+    CHECK(!g->move_range.nodes && g->move_path_length==2 && g->move_path[0]==1 && g->move_path[1]==2);
+    CHECK(fd2_field_game_execute_move(g,NULL,0)==0 && g->units.items[0].x==0 && g->units.items[0].y==0);
+    CHECK(fd2_field_game_cancel_selection(g)==1 && g->interaction==FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    for(size_t i=0;i<6u;i++)CHECK((f.cells[i]>>24)==remaining[i]);
+    CHECK(fd2_field_game_cancel_selection(g)==1 && !f.rng_calls);
+    close_fixture(&f);return 0;
+}
+
+static int test_source_player_path_failure_keeps_reset_prefix(void) {
+    fixture f;init(&f);fd2_field_game *g=&f.game;
+    g->units.count=1;CHECK(fd2_field_game_confirm_cursor(g)==0);
+    /* selector未有效返回：无效destination不清marks。 */
+    uint32_t before[64];memcpy(before,f.cells,sizeof(before));
+    g->cursor_cell_x=7;g->cursor_cell_y=7;
+    CHECK(fd2_field_game_confirm_cursor(g)==-1 && !memcmp(before,f.cells,sizeof(before)));
+    g->cursor_cell_x=2;g->cursor_cell_y=1;
+    f.attr.movement_cost_class=20; /* 模拟source资源门错误，保18993已清前缀。 */
+    CHECK(fd2_field_game_confirm_cursor(g)==-1 && g->interaction==FD2_FIELD_INTERACTION_UNIT_SELECTED);
+    for(size_t i=0;i<64u;i++)CHECK(f.cells[i]==UINT32_C(0xff000000));
+    CHECK(!g->move_preview_valid && g->units.items[0].x==1 && g->units.items[0].y==1 && !f.rng_calls);
+    close_fixture(&f);return 0;
+}
+
 int main(void) {
-    if (test_zero_movement_command_and_cancel() ||
+    if (test_source_profile28_and_map_mark_lifecycle() ||
+        test_source_player_path_failure_keeps_reset_prefix() ||
+        test_zero_movement_command_and_cancel() ||
         test_full_path_last_match_and_cancel() ||
         test_final_lookup_after_acted_and_no_retry() ||
         test_wait_recovery_and_special_cell_gate() ||

@@ -173,6 +173,12 @@ static void overview_present(fd2_vga *vga) {
     }
     overview_wait_deadline(vga);
 }
+static void overview_copy_upload(fd2_vga *vga) {
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    overview_present(vga);
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
 /* 计划key脉冲不是关闭事实：早键可在首steady退出。source的首次clear
  * 正好锁定真实关闭边界；后续12相位仍须逐次观察，不能误当finalrestore。 */
 static void overview_clear(fd2_input *input) {
@@ -250,6 +256,7 @@ uint64_t overview_ticks_ns(void);
 #define SDL_GetTicksNS overview_ticks_ns
 #define fd2_delay_ms overview_delay
 #define fd2_vga_present overview_present
+#define fd2_vga_upload_current_frame overview_copy_upload
 #define fd2_vga_present_timed overview_present_timed
 #define fd2_vga_wait_frame_deadline overview_wait_deadline
 #define fd2_field_game_render_background overview_background
@@ -272,6 +279,7 @@ uint64_t overview_ticks_ns(void);
 #undef free
 #undef SDL_GetTicks
 #undef fd2_delay_ms
+#undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -404,13 +412,14 @@ static int test_modal_keys_and_owner(void) {
         fd2_field_game before = game;
         fd2_vga vga = {0};
         fd2_input_init(&vga.input);
+        vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
         CHECK(play_field_overview(&game, &vga) == FD2_SCENE_RESULT_OK);
         CHECK(timed_frames == close_frame + 12 && modal_done);
         CHECK(finite_frames==24 && source_timed_frames==close_frame-12);
         CHECK(background_calls == 1 + close_frame - 12);
         CHECK(old_pulse_seen && !fd2_input_has_any_key(&vga.input)); /* 关闭余键由真实尾clear。 */
         CHECK(allocations == 2 && frees == 2 && !bad_free);
-        CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
+        CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==UINT64_C(23000000));
         CHECK(vga.framebuffer[10 * VGA_STRIDE + 10] == 20);
         CHECK(owner_unchanged(&game, &before) && test_rng.state == 0x3141);
         if (i == 0) CHECK(dynamic_seen);
@@ -440,6 +449,7 @@ static int test_modal_failure_and_quit(void) {
         memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
         fd2_input_init(&vga.input);
         fd2_field_game before = game;
+        vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
         if (mode < 2) fail_allocation = mode + 1;
         if (mode == 2) game.ui_text.fragment_count = 598;
         if (mode == 3) vga.input.quit_requested = 1;
@@ -453,7 +463,7 @@ static int test_modal_failure_and_quit(void) {
         CHECK(owner_unchanged(&game, &before) && test_rng.state == 0x3141);
         CHECK(!allocated[0] && !allocated[1] && !bad_free);
         CHECK(frees == (mode == 0 || mode == 3 ? 0 : mode == 1 ? 1 : 2));
-        CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
+        CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==UINT64_C(23000000));
         if (mode < 4) {
             CHECK(timed_frames == 0 && background_calls == 0);
             for (size_t p = 0; p < sizeof(vga.framebuffer); p++)

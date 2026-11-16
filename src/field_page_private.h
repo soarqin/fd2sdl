@@ -3,7 +3,8 @@
 
 #include "field_page.h"
 
-/* 仅page/background两个实现共享；App唯一owner，禁止Game复制/保存这些指针。 */
+/* 仅page/background及info的有限summary painter共享；App唯一owner。
+ * painter只在当前调用借用像素，禁止Game复制/保存这些指针。 */
 typedef struct {
     uint8_t *source, *work;
     size_t source_size, work_size;

@@ -93,13 +93,20 @@ int fd2_field_unit_summary_draw(fd2_vga *vga,
 
 /* sub_2FACD @0x2facd 调用 field_unit_summary_draw @0x18c6d（原sub_18C6D）：
  * 战斗页按阵营选(171,4)/(0,154)。这里只提供同一原概要板的坐标入口；
- * 所有资源与149x42范围完整预检，失败整个VGA不变，单位只读。 */
+ * 资源与149x42板位错误在首写前拒绝；条的真实owner边界错误保已写前缀。
+ * 条可越板/逻辑行，不裁成149宽或320列；单位只读。 */
 int fd2_field_unit_summary_draw_at(fd2_vga *vga,
                                  const fd2_field_info_assets *assets,
                                  const fd2_font *font,
                                  const fd2_text_entry *text,
                                  const fd2_field_unit *unit,
                                  int x, int y);
+/* 18b84的18c6d正式456页绑定；只借当前App像素，不改background metadata。
+ * 与上方320页共用源顺序，HP条可越149板／逻辑行；首越owner保写前缀。
+ * 资源／姓名错误在首写前拒绝，单位、输入、RNG和clock均不改。 */
+int fd2_field_unit_summary_draw_page(fd2_field_page *page,
+    const fd2_field_info_assets *assets,const fd2_font *font,
+    const fd2_text_entry *text,const fd2_field_unit *unit,int x,int y);
 
 /* 战况／胜败条件总览：field_battle_overview_draw @0x1b41d（原sub_1B41D）、
  * sub_1B5F1 @0x1b5f1。
@@ -143,7 +150,8 @@ int fd2_field_item_list_draw(fd2_vga *vga,
 
 /* 全屏角色详情页主体：复现 field_unit_detail_draw @0x17eef 与
  * field_unit_detail_stats_draw @0x17fc0。portrait 为 DATO 当前单位首帧。 */
-void fd2_field_detail_draw(fd2_vga *vga,
+/* 真VGA owner越界返回-1并保已写前缀；caller不得继续装备/动画。 */
+int fd2_field_detail_draw(fd2_vga *vga,
                            const fd2_field_info_assets *assets,
                            const fd2_font *font,
                            const fd2_text_entry *text,
@@ -154,7 +162,8 @@ void fd2_field_detail_draw(fd2_vga *vga,
 int fd2_field_detail_portrait_border_draw(fd2_vga *vga,
     const fd2_field_info_assets *assets);
 /* 17fc0的共享统计层；底图/portrait/库存仍由调用方绘制。不改单位或RNG。 */
-void fd2_field_detail_stats_draw(fd2_vga *vga,
+/* 与17fc0源序相同；首bar owner错误停止，返回-1。 */
+int fd2_field_detail_stats_draw(fd2_vga *vga,
     const fd2_field_info_assets *assets, const fd2_font *font,
     const fd2_text_entry *text, const fd2_field_unit *unit);
 /* 187d6的数字窄口：bank0/1/2、1..8位，signed负值归0；2/3位沿原overflow。

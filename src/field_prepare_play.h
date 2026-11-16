@@ -28,6 +28,7 @@ typedef struct {
 typedef struct {
     fd2_image town, town_type1, town_stage2, town_panel, hotel, slots;
     fd2_image hotel_icons[8];
+    fd2_image hotel_scroll_arrows[5]; /* 27079：FDOTHER13 frames11..14/17，8x9 LMI。 */
     fd2_image hotel_portraits[4], depart_portraits[4];
     fd2_archive text_archive, dato;
     fd2_font font;
@@ -55,7 +56,9 @@ int fd2_field_prepare_draw_service(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_archive *fdother,
     const fd2_save_manual_state *state, int selected, unsigned highlight,
     unsigned portrait_frame, size_t fragment);
-/* 纯绘制：成功0，错误-1且全VGA不变；不写ctx/RNG/动态数字owner。 */
+/* 纯绘制：成功0，错误-1且全VGA不变；不写ctx/RNG/动态数字owner。
+ * town有App页时提交原265ec已定义320x200区域及面板，再投影内区；
+ * 新town临时底在该区域外的原padding来源未证，不据此补零整页。 */
 int fd2_field_prepare_draw_town(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_manual_state *state,
     int selected, unsigned phase);
@@ -64,6 +67,8 @@ int fd2_field_prepare_draw_hotel(fd2_vga *vga,
     int selected, unsigned highlight, unsigned portrait_frame, size_t fragment);
 int fd2_field_prepare_draw_slots(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_file *save, int selected);
+/* 27d33酒店名单的当前页widget；初开caller先画slots，随后2810b/27079
+ * 保留RLE孔，不在此函数重建底板；错误仍全VGA不变。 */
 int fd2_field_prepare_draw_roster(fd2_vga *vga,
     const fd2_field_prepare_assets *assets, const fd2_save_manual_state *state,
     int selected, size_t first, unsigned phase);

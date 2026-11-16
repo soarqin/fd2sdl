@@ -180,17 +180,17 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
         }
         if(fd2_input_take_quit(&vga->input))return 1;
         if (!timed) continue;
+        /* 原1c43f/1c475、21779、246f3均先copy到VGA再等待。
+         * upload不借上一动画的累计deadline；普通present也会等该deadline。
+         * apply hook只补当前帧像素，不代本调度的原tick/ms等待。 */
+        fd2_vga_upload_current_frame(vga);
+        if(fd2_input_take_quit(&vga->input))return 1;
         if (frames->effect == FD2_FIELD_EFFECT_ACTOR_GROUP_FLASH) {
-            if (frame < 10) fd2_vga_present_timed(vga, 55);
-            else fd2_vga_present(vga);
-        } else if (frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE) {
-            fd2_vga_present_timed(vga, 10);
-        } else {
-            fd2_vga_present_timed(vga, 5);
-        }
+            /* 1c449/1c47f：十次绝对BIOS tick门，末尾原页不再等待。 */
+            if (frame < 10) fd2_wait_ticks(1);
+        } else fd2_delay_ms(frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE ? 10u:5u);
         if(fd2_input_take_quit(&vga->input))return 1;
     }
-    if (timed) fd2_vga_wait_frame_deadline(vga);
     return fd2_input_take_quit(&vga->input)?1:0;
 }
 

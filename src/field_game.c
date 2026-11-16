@@ -49,6 +49,7 @@
 #include "field_unit_stats.h"
 #include "static_flow.h"
 #include "static_data.h"
+#include "static_data/field_game_effects.inc"
 #include "field_reward_flow.h"
 #include "field_common_event_flow.h"
 
@@ -64,6 +65,13 @@ _Static_assert(FD2_FIELD_PROGRESS_GAIN == 1 && FD2_FIELD_PROGRESS_LEVEL == 2 &&
  * normal/highlight 帧，即约 4×55 ms。 */
 #define FD2_FIELD_COMMAND_HIGHLIGHT_MS 220
 #define FD2_FIELD_AUTOMATIC_ACTION_MS 150
+
+/* 有限copy/source显式等待前提交：保同input owner，不履行另一动画的deadline。 */
+static void game_present_copy(fd2_vga *vga) {
+    fd2_input_begin_frame(&vga->input);
+    fd2_vga_upload_current_frame(vga);
+}
+
 
 static int recover_stationary_unit(fd2_field_game *game, size_t actor_index);
 static int turn_present(fd2_field_game *game, fd2_field_runtime_present_step step, int value);
@@ -147,8 +155,8 @@ static int progress_pending(const fd2_field_game *game) {
                     game->progress.resume != FD2_FIELD_PROGRESS_RESUME_NONE);
 }
 
-/* field_selection_overlay_draw @0x122dc（原登记同名）display6写当前
- * node+7=0；逻辑准备显式拥有此写集，纯renderer不暗改范围。 */
+/* field_selection_overlay_draw @0x122dc（原登记同名）display6的候选查询
+ * 投影；App的真实map/node写点归下方selection_cursor_mark，headless仅保逻辑接口。 */
 static void prepare_item_cursor(fd2_field_game *game) {
     if (game->interaction != FD2_FIELD_INTERACTION_ITEM_TARGETING ||
         !game->move_range.nodes) return;
@@ -159,6 +167,18 @@ static void prepare_item_cursor(fd2_field_game *game) {
         (size_t)game->cursor_cell_y * (size_t)game->move_range.width + (size_t)game->cursor_cell_x];
     node->distance = 0;
     node->can_stop = 1;
+}
+
+/* field_selection_overlay_draw @0x122dc（原同名）126f1：只有mode6在
+ * terrain之后、actor/FG之前写当前map raw3=0；其轨迹跨后继mode0保留。 */
+static int selection_cursor_mark(fd2_field_game *game) {
+    if(game->ordinary_display_mode!=6u)return 0;
+    if(!game->map.cells || game->cursor_cell_x<0 || game->cursor_cell_y<0 ||
+        game->cursor_cell_x>=game->map.width || game->cursor_cell_y>=game->map.height)return -1;
+    size_t cell=(size_t)game->cursor_cell_y*(size_t)game->map.width+(size_t)game->cursor_cell_x;
+    game->map.cells[cell]&=UINT32_C(0x00ffffff);
+    prepare_item_cursor(game); /* 现有玩家候选查询投影；不建另一份轨迹。 */
+    return 0;
 }
 
 #include "field_defeat_flow.h"
@@ -991,9 +1011,9 @@ static void advance_phase(fd2_field_game *game) {
 }
 
 static void clear_view_border(fd2_vga *vga) {
-    if (!vga) return;
-    /* field_view_render_tiles @0x11eee 只写 VGA (4,4) 起的
-     * 312×192 内区，外围保持 palette index 0。 */
+    if (!vga || vga->field_page) return;
+    /* 仅无App页的旧离屏诊断裁边。正式11cac只投影312×192，
+     * 不拥有其它4096B VGA旧底；不能把“未写”改成写palette index0。 */
     for (int y = 0; y < VGA_H; y++) {
         uint8_t *row = vga->framebuffer + (size_t)y * VGA_STRIDE;
         if (y < FD2_FIELD_VIEW_BORDER ||
@@ -1059,6 +1079,9 @@ static int open_resources_for_flow(fd2_field_game *game,
         fd2_field_info_assets_open(&game->info_assets, fdother) != 0 ||
         fd2_field_command_assets_open(&game->command_assets, fdother) != 0)
         goto fail;
+
+    /* 1088d@1097a/Load10010@10276的4df4c：资源raw3不是运行期marks初态。 */
+    if(fd2_field_event_map_reset_cells(&game->map)!=0)goto fail;
 
     const uint8_t *palette;
     size_t palette_size;
@@ -1879,6 +1902,8 @@ static void render_manual_slot_result(const fd2_field_game *game,
 static void render_system_result(const fd2_field_game *game,
                                  fd2_vga *vga);
 
+static int render_menu_page_overlay(const fd2_field_game *game,fd2_vga *vga,int live);
+
 static int field_info_panel_side(const fd2_field_game *game) {
     int rel_x = game->cursor_cell_x - game->camera_cell_x;
     int rel_y = game->cursor_cell_y - game->camera_cell_y;
@@ -1891,7 +1916,8 @@ static int field_info_panel_side(const fd2_field_game *game) {
  * 下方旧VGA投影。这里的scratch只从同一page读写选择层，不读显示页。 */
 static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
     int draw_selection, int draw_info, int project,
-    uint8_t idle_phase, uint8_t terrain_phase, fd2_field_game *live_owner) {
+    uint8_t idle_phase, uint8_t terrain_phase, fd2_field_game *live_owner,
+    fd2_field_game *selection_owner) {
     fd2_field_page *page = vga->field_page;
     if (!page) return -1;
     /* 正式11eee按原读取点推进；纯投影不代替这个调用合同。 */
@@ -1905,6 +1931,7 @@ static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
     const fd2_field_path_result *range = NULL;
     const uint8_t *lut = NULL;
     int map_x = game->camera_cell_x, map_y = game->camera_cell_y;
+    int background_map_x = map_x;
     int dest_x = 72, dest_y = 72, cols = 13, rows = 8;
     int offset_x = game->camera_pixel_offset_x, offset_y = game->camera_pixel_offset_y;
     int moving = game->interaction == FD2_FIELD_INTERACTION_MOVING;
@@ -1921,8 +1948,11 @@ static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
             parallax_x = offset_x ? (int)step : 0;
         }
         else if (actor->direction == 1) {
-            /* 1300d左侧总取一列margin；map外未定义读仅有界省绘制。 */
-            if (map_x) { map_x--; dest_x = 48; cols = 14; }
+            /* 1300d@130cb即使cameraX0也减1；pan6/2抵回正常BG源0。
+             * tile另读有限linear源，不能让二维query改写原BG参数。 */
+            background_map_x--;
+            /* 1300d@130cb无条件借左margin；page block支持其有限linear源。 */
+            map_x--; dest_x = 48; cols = 14;
             parallax_x = 6 - (offset_x ? (int)step : 0);
         } else if (actor->direction == 2) {
             rows = 9;
@@ -1930,14 +1960,15 @@ static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
             parallax_y = game->camera_cell_y ? 6 - (offset_y ? (int)step : 0) : 0;
         }
     }
-    /* 关卡图的边缘margin超出原地图不是新业务门；只省未定义的额外格。 */
+    /* 右/下额外margin仍限制到原map末端；左x=-1有独立合法linear源。 */
     if (cols > game->map.width - map_x) cols = game->map.width - map_x;
     if (rows > game->map.height - map_y) rows = game->map.height - map_y;
+    /* 12eaa/13315正向53AF5亦随phase平移；左/上margin已由53AED/53AF1补偿。 */
     int background=live_owner ? fd2_field_background_draw_live(page,
-        72+(offset_x<0?offset_x:0),72+(offset_y<0?offset_y:0),
-        map_x,map_y,parallax_x,parallax_y,1) :
-        fd2_field_background_draw(page, 72 + (offset_x < 0 ? offset_x : 0),
-            72 + (offset_y < 0 ? offset_y : 0), map_x,
+        72+offset_x,72+offset_y,
+        background_map_x,map_y,parallax_x,parallax_y,1) :
+        fd2_field_background_draw(page, 72 + offset_x,
+            72 + offset_y, background_map_x,
             map_y, parallax_x, parallax_y, game->visual_now_ns, 0);
     if(background!=0)return -1;
     /* 1210f..1214b在实际背景更新之后，12164才选择range LUT。 */
@@ -1959,9 +1990,23 @@ static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
             if (!magic || !magic[3]) { range = NULL; lut = NULL; }
         }
     }
+    /* source11eee按map raw3取LUT，不受后继mode0/interaction限制。
+     * 普通查询仍借现nodes投影；mode6轨迹只归同一map raw3。 */
+    if(!game->map.cells || game->map.width<=0 || game->map.height<=0 ||
+        game->map.width>256 || game->map.height>256)return -1;
+    /* cameraY0左margin首格是WH：其raw3为0，map内全ff也必须取LUT。 */
+    int marked=game->ordinary_display_mode==6u || (map_x==-1 && map_y==0);
+    for(size_t i=0;!marked && i<(size_t)game->map.width*(size_t)game->map.height;i++)
+        marked=(game->map.cells[i]>>24)!=0xffu;
+    if(marked && !lut) {
+        lut=fd2_field_range_lut(&game->visuals,game->range_visual_phase);
+        if(!lut)return -1;
+    }
     if (fd2_terrain_render_page_block(page, &game->terrain, &game->map,
             dest_x, dest_y, cols, rows, map_x, map_y,
             terrain_phase, idle_phase, range, lut) != 0) return -1;
+    if(draw_selection && selection_owner &&
+        (selection_owner!=game || selection_cursor_mark(selection_owner)!=0))return -1;
     if (draw_selection && !moving) {
         fd2_vga scratch = {0};
         uint8_t *visible = scratch.framebuffer + 4 * VGA_STRIDE + 4;
@@ -1981,7 +2026,8 @@ static int render_work_page(const fd2_field_game *game, fd2_vga *vga,
     if (actors != 0 ||
         fd2_field_units_render_page_terrain_overlays(page, &game->terrain, &game->map,
             &game->units, game->camera_cell_x, game->camera_cell_y,
-            terrain_phase, range, lut) != 0) return -1;
+            terrain_phase, range, lut ? lut :
+                fd2_field_range_lut(&game->visuals,game->range_visual_phase)) != 0) return -1;
     if (draw_info && !moving && fd2_field_game_render_page_info(game, vga, page,
             &game->units, game->camera_cell_x, game->camera_cell_y,
             game->cursor_cell_x, game->cursor_cell_y, idle_phase) != 0) return -1;
@@ -2001,11 +2047,10 @@ static void render_field(const fd2_field_game *game, fd2_vga *vga,
     if (vga->field_page) {
         int selection = mode == 1 ? 1 : mode == 2 ? 2 : 0;
         if (render_work_page(game, vga, selection, draw_ui, 1,
-                idle_phase, terrain_phase, NULL) != 0) {
+                idle_phase, terrain_phase, NULL, ui_owner) != 0) {
             if (ui_owner) fail_action(ui_owner, 0);
             return;
         }
-        clear_view_border(vga);
         if (ui_owner) ui_owner->info_panel_right = vga->info_panel_right;
         goto overlays;
     }
@@ -2032,17 +2077,32 @@ static void render_field(const fd2_field_game *game, fd2_vga *vga,
     }
 overlays:
     if (!draw_ui || mode >= 2) return;
-    render_field_command(game, vga, camera_x, camera_y);
-    render_field_system_menu(game, vga, camera_x, camera_y);
+    int page_menu=vga->field_page &&
+        (game->interaction==FD2_FIELD_INTERACTION_COMMAND ||
+         game->interaction==FD2_FIELD_INTERACTION_ITEM_MENU ||
+         (game->interaction==FD2_FIELD_INTERACTION_SYSTEM_MENU &&
+          game->system_menu.page!=FD2_FIELD_SYSTEM_PAGE_CONFIRMATION));
+    if(page_menu) {
+        if(render_menu_page_overlay(game,vga,0)!=0) {
+            if(ui_owner)fail_action(ui_owner,0);
+            return;
+        }
+    } else {
+        render_field_command(game, vga, camera_x, camera_y);
+        render_field_system_menu(game, vga, camera_x, camera_y);
+    }
     render_manual_slot_picker(game, vga);
     render_system_result(game, vga);
     render_manual_slot_result(game, vga);
     if (game->detail_visible && game->detail_unit >= 0 &&
         (size_t)game->detail_unit < game->units.count) {
-        fd2_field_detail_draw(vga, &game->info_assets, &game->font,
+        if (fd2_field_detail_draw(vga, &game->info_assets, &game->font,
                               &game->ui_text,
                               &game->units.items[game->detail_unit],
-                              &game->detail_portrait);
+                              &game->detail_portrait) != 0) {
+            if (ui_owner) fail_action(ui_owner, 0);
+            return;
+        }
         if (game->detail_page == FD2_FIELD_DETAIL_MAGIC)
             (void)fd2_field_magic_list_draw(vga, &game->info_assets, &game->font,
                 &game->ui_text, &game->units.items[game->detail_unit], -1);
@@ -2076,7 +2136,7 @@ int fd2_field_game_runtime_refresh(fd2_field_game *game, fd2_vga *vga,
     if (phase_only == 1 || phase_only == 2) {
         if (phase_only==2 && runtime_actor_phase(game,vga)!=0)return -1;
         return render_work_page(game, vga, 0, 0, 0,
-            game->idle_phase, game->terrain_visual_phase,game);
+            game->idle_phase, game->terrain_visual_phase,game,game);
     }
     /* field_view_refresh @0x11cac（原sub_11CAC）：1297d先推进actor/cursor，
      * 原实参0才调用4e31c，然后11eee推进terrain/range，127e0推进raw26。
@@ -2086,11 +2146,39 @@ int fd2_field_game_runtime_refresh(fd2_field_game *game, fd2_vga *vga,
     /* 原11cac直接消费51A83；AI也能给7/9/11，不能从玩家interaction反推。 */
     int selection = game->ordinary_display_mode ? 3:0;
     int result = render_work_page(game, vga, selection, 1, 1,
-        game->idle_phase, game->terrain_visual_phase,game);
+        game->idle_phase, game->terrain_visual_phase,game,game);
     if(result!=0)return result;
-    clear_view_border(vga);
     game->info_panel_right = vga->info_panel_right;
     return result;
+}
+
+/* 17898/179d5的同一page叶；preview不推进clock，正式wait仍逐direct读钟。
+ * 图标和focus先写同一page再投影，不能借清零border掩盖VGA直绘越出视口。 */
+static int render_menu_page_overlay(const fd2_field_game *game,fd2_vga *vga,int live) {
+    if(!game || !vga || !vga->field_page || (live!=0 && live!=1))return -1;
+    int x=48+(game->cursor_cell_x-game->camera_cell_x)*24;
+    int y=48+(game->cursor_cell_y-game->camera_cell_y)*24;
+    fd2_vga icons={0};
+    if(fd2_field_page_read(vga->field_page,x,y,72,72,icons.framebuffer,
+            sizeof(icons.framebuffer),VGA_STRIDE)!=0)return -1;
+    render_field_command_icons(game,&icons,game->cursor_cell_x*24-24,
+        game->cursor_cell_y*24-24);
+    render_field_system_menu(game,&icons,game->cursor_cell_x*24-24,
+        game->cursor_cell_y*24-24);
+    if(fd2_field_page_write(vga->field_page,x,y,72,72,icons.framebuffer,
+            sizeof(icons.framebuffer),VGA_STRIDE)!=0)return -1;
+    int focus=fd2_field_game_unit_at(game,game->cursor_cell_x,game->cursor_cell_y);
+    if(focus>=0) {
+        int actor=live?fd2_field_units_render_page_actor_live(vga,vga->field_page,
+            &game->sprites,&game->units,(size_t)focus,game->camera_cell_x,game->camera_cell_y,
+            game->idle_phase,(uint8_t)vga->field_visual.cursor_phase,0):
+            fd2_field_units_render_page_actor(vga->field_page,&game->sprites,&game->units,
+                (size_t)focus,game->camera_cell_x,game->camera_cell_y,game->idle_phase,
+                (uint8_t)vga->field_visual.cursor_phase,vga->actor_jitter_phase,0);
+        if(actor!=0)return -1;
+    }
+    if(fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)return -1;
+    return 0;
 }
 
 /* field_command_menu_wait_key @0x17898：caller已water/highlight；此处
@@ -2102,21 +2190,9 @@ int fd2_field_game_runtime_menu_refresh(fd2_field_game *game,fd2_vga *vga) {
          (game->interaction!=FD2_FIELD_INTERACTION_SYSTEM_MENU ||
           game->system_menu.page==FD2_FIELD_SYSTEM_PAGE_CONFIRMATION)))return -1;
     if(runtime_actor_phase(game,vga)!=0 ||
-        render_work_page(game,vga,0,1,0,game->idle_phase,game->terrain_visual_phase,game)!=0)
+        render_work_page(game,vga,0,1,0,game->idle_phase,game->terrain_visual_phase,game,game)!=0)
         return -1;
-    int x=game->camera_cell_x*24-4,y=game->camera_cell_y*24-4;
-    fd2_vga icons={0};
-    if(fd2_field_page_project(vga->field_page,72,72,icons.framebuffer,sizeof(icons.framebuffer))!=0)return -1;
-    render_field_command_icons(game,&icons,x,y);
-    render_field_system_menu(game,&icons,x,y);
-    if(fd2_field_page_write(vga->field_page,72,72,312,192,
-            icons.framebuffer+1284,sizeof(icons.framebuffer)-1284,320)!=0)return -1;
-    int focus=fd2_field_game_unit_at(game,game->cursor_cell_x,game->cursor_cell_y);
-    if(focus>=0 && fd2_field_units_render_page_actor_live(vga,vga->field_page,
-        &game->sprites,&game->units,(size_t)focus,game->camera_cell_x,game->camera_cell_y,
-        game->idle_phase,(uint8_t)vga->field_visual.cursor_phase,0)!=0)return -1;
-    if(fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)return -1;
-    clear_view_border(vga);
+    if(render_menu_page_overlay(game,vga,1)!=0)return -1;
     game->info_panel_right=vga->info_panel_right;
     return 0;
 }
@@ -2131,21 +2207,15 @@ int fd2_field_game_runtime_summary_refresh(fd2_field_game *game,fd2_vga *vga,
         actor>=game->units.count || (summary_left!=0 && summary_left!=1))return -1;
     if(runtime_actor_phase(game,vga)!=0 ||
         render_work_page(game,vga,game->ordinary_display_mode?3:0,0,0,
-            game->idle_phase,game->terrain_visual_phase,game)!=0)return -1;
-    fd2_vga scratch={0};
+            game->idle_phase,game->terrain_visual_phase,game,game)!=0)return -1;
     int x=summary_left?9:160;
-    uint8_t *rect=scratch.framebuffer+9u*VGA_STRIDE+(size_t)x;
-    size_t available=sizeof(scratch.framebuffer)-(size_t)(rect-scratch.framebuffer);
-    if(fd2_field_page_read(vga->field_page,x+68,77,149,42,rect,available,VGA_STRIDE)!=0 ||
-        fd2_field_unit_summary_draw_at(&scratch,&game->info_assets,&game->font,&game->ui_text,
-            &game->units.items[actor],x,9)!=0 ||
-        fd2_field_page_write(vga->field_page,x+68,77,149,42,rect,available,VGA_STRIDE)!=0 ||
+    if(fd2_field_unit_summary_draw_page(vga->field_page,&game->info_assets,&game->font,&game->ui_text,
+            &game->units.items[actor],x+68,77)!=0 ||
         fd2_field_game_render_page_info(game,vga,vga->field_page,&game->units,
             game->camera_cell_x,game->camera_cell_y,game->cursor_cell_x,game->cursor_cell_y,
             game->idle_phase)!=0 ||
         fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)
         return -1;
-    clear_view_border(vga);
     game->info_panel_right=vga->info_panel_right;
     return 0;
 }
@@ -2155,8 +2225,7 @@ int fd2_field_game_runtime_summary_refresh(fd2_field_game *game,fd2_vga *vga,
 int fd2_field_game_runtime_overview_refresh(fd2_field_game *game,fd2_vga *vga,int steady) {
     if(!game || !vga || !vga->field_page || (steady!=0 && steady!=1))return -1;
     if(steady && (runtime_actor_phase(game,vga)!=0 || fd2_field_water_tick_live(vga)<0))return -1;
-    if(render_work_page(game,vga,0,0,1,game->idle_phase,game->terrain_visual_phase,game)!=0)return -1;
-    clear_view_border(vga);
+    if(render_work_page(game,vga,0,0,1,game->idle_phase,game->terrain_visual_phase,game,game)!=0)return -1;
     return 0;
 }
 
@@ -2202,7 +2271,7 @@ static int animate_menu_page(fd2_field_game *game,fd2_vga *vga,int opening,int s
     uint8_t *direction=system?&game->system_menu.animation_opening:&game->command_animation_opening;
     if(opening) {
         if(runtime_actor_phase(game,vga)!=0 ||
-            render_work_page(game,vga,0,1,0,game->idle_phase,game->terrain_visual_phase,game)!=0)return -1;
+            render_work_page(game,vga,0,1,0,game->idle_phase,game->terrain_visual_phase,game,game)!=0)return -1;
         status=menu_transition_terminal(game,vga);if(status)return status;
         game->info_panel_right=vga->info_panel_right;
         if(fd2_field_page_read(vga->field_page,x,y,72,72,game->command_backdrop,
@@ -2227,8 +2296,7 @@ static int animate_menu_page(fd2_field_game *game,fd2_vga *vga,int opening,int s
                 (uint8_t)vga->field_visual.cursor_phase,0)!=0) ||
             fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer))!=0)
             return -1;
-        clear_view_border(vga);
-        fd2_vga_present(vga);
+        game_present_copy(vga);
         status=menu_transition_terminal(game,vga);if(status)return status;
     }
     if(!opening) {
@@ -2266,7 +2334,8 @@ static int effect_terrain_draw(const fd2_field_game *game,fd2_vga *vga,
         live_owner->range_visual_phase=(uint8_t)live_owner->visual_owner->range_phase;
     }
     return fd2_terrain_render_page_block(target,&game->terrain,&game->map,72,72,13,8,
-        game->camera_cell_x,game->camera_cell_y,game->terrain_visual_phase,game->idle_phase,NULL,NULL);
+        game->camera_cell_x,game->camera_cell_y,game->terrain_visual_phase,game->idle_phase,NULL,
+        fd2_field_range_lut(&game->visuals,game->range_visual_phase));
 }
 
 int fd2_field_game_effect_terrain_page(const fd2_field_game *game,fd2_vga *vga,
@@ -2295,7 +2364,8 @@ int fd2_field_game_effect_mask_page(const fd2_field_game *game,fd2_vga *vga,
             (uint8_t)vga->field_visual.cursor_phase)!=0 ||
         fd2_field_units_render_page_terrain_overlays(page,&game->terrain,&game->map,
             &game->units,game->camera_cell_x,game->camera_cell_y,
-            game->terrain_visual_phase,NULL,NULL)!=0)return -1;
+            game->terrain_visual_phase,NULL,
+            fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase))!=0)return -1;
     if(!circle12 && fd2_field_transition_page_after_actors_from(page,lut,x,y,radius,first_row)!=0)
         return -1;
     return 0;
@@ -2344,13 +2414,13 @@ static int render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
  * 由唯一Game视觉owner先在原11cac点推进；这里仅画当前相位，不另推时钟。 */
 void fd2_field_game_render_effect_background(const fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
-    memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
+    if(!vga->field_page) memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
     render_field(game, vga, 3, NULL, game->idle_phase, game->terrain_visual_phase);
 }
 
 void fd2_field_game_render_effect_tiles(const fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
-    memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
+    if(!vga->field_page) memset(vga->framebuffer, 0, sizeof(vga->framebuffer));
     if (vga->field_page) {
         if (fd2_field_background_draw(vga->field_page,72,72,game->camera_cell_x,
                 game->camera_cell_y,0,0,game->visual_now_ns,0)!=0 ||
@@ -2384,7 +2454,8 @@ int fd2_field_game_effect_actors(const fd2_field_game *game,fd2_vga *vga) {
         (uint8_t)vga->field_visual.cursor_phase)!=0 ||
         fd2_field_units_render_page_terrain_overlays(vga->field_page,&game->terrain,
             &game->map,&game->units,game->camera_cell_x,game->camera_cell_y,
-            game->terrain_visual_phase,NULL,NULL)!=0)return -1;
+            game->terrain_visual_phase,NULL,
+            fd2_field_range_lut(&game->visuals,vga->field_visual.range_phase))!=0)return -1;
     return fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
 }
 
@@ -2779,7 +2850,7 @@ static void render_field_cursor(const fd2_field_game *game,
      * 15311的magic10..12确实产生7/9/11，不是资源非法值。 */
     if(display==0 || display>=6)return;
     /* 122dc/126f7：每个格先做13×8视口门，再画完整24×24；actor后盖。
-     * display6只由prepare_item_cursor拥有node写集，本处无sprite。 */
+     * display6由工作页selection_cursor_mark拥有map/node写集，本纯像素叶无sprite。 */
     static const int8_t sprites[][3] = {
         {0,0,1},{0,-3,2},{-3,0,3},{3,0,4},{0,3,5},
         {-1,-2,6},{-2,-1,6},{1,-2,7},{2,-1,7},
@@ -2837,7 +2908,7 @@ static int move_cursor_internal(fd2_field_game *game, int dx, int dy) {
 
     game->cursor_cell_x = new_x;
     game->cursor_cell_y = new_y;
-    prepare_item_cursor(game);
+    if(!game->visual_owner)prepare_item_cursor(game); /* 无App页的纯逻辑诊断。 */
     game->detail_acknowledged_unit = -1;
     if (game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED)
         (void)fd2_field_game_update_move_preview(game);
@@ -2927,6 +2998,24 @@ int fd2_field_game_unit_at(const fd2_field_game *game, int x, int y) {
     return -1;
 }
 
+/* 18890：immune→19，否则unit_id28→16；14237：immune→19，否则raw20。
+ * 14b78另按text_id28覆盖为1，不能把三个caller合成全局profile28修正。 */
+static const uint8_t *move_profile(const fd2_field_unit *unit, int player) {
+    uint8_t id = unit->movement_profile;
+    if (fd2_field_attack_unit_ignores_terrain_modifier(unit)) id = 19u;
+    else if (player && unit->unit_id == 28u) id = 16u;
+    return fd2_field_movement_profile_get(id);
+}
+
+static int player_move_range(fd2_field_game *game, size_t actor_index) {
+    const fd2_field_unit *unit = &game->units.items[actor_index];
+    const uint8_t *profile = move_profile(unit, 1);
+    if (!profile) return -1;
+    return fd2_field_move_range_apply(&game->move_range, &game->map,
+        &game->terrain, &game->units, actor_index, profile,
+        FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, unit->movement_points);
+}
+
 static void clear_move_query(fd2_field_game *game) {
     if (!game) return;
     fd2_field_path_close(&game->move_range);
@@ -2963,8 +3052,7 @@ static int begin_move_selection(fd2_field_game *game, int unit_index) {
     game->cursor_cell_y = unit->y;
     game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
 
-    if (fd2_field_game_compute_move_range(game, (size_t)unit_index,
-                                          &game->move_range) != 0 ||
+    if (player_move_range(game, (size_t)unit_index) != 0 ||
         fd2_field_game_update_move_preview(game) != 0) {
         clear_move_query(game);
         game->selected_unit = -1;
@@ -3002,13 +3090,19 @@ int fd2_field_game_update_move_preview(fd2_field_game *game) {
                                         game->cursor_cell_y))
         return 0;
 
-    int length = fd2_field_path_build(&game->move_range,
-                                      game->cursor_cell_x,
-                                      game->cursor_cell_y,
-                                      game->move_path,
-                                      game->move_path_capacity);
-    if (length < 0) return -1;
-    game->move_path_length = (size_t)length;
+    const fd2_field_unit *unit = &game->units.items[game->selected_unit];
+    const uint8_t *profile = move_profile(unit, 1);
+    size_t length = 0;
+    /* 189f8的4e4f6自行按R/L/D/U找路；range.previous没有路径语义。
+     * 光标预览只做同参数纯查询，正式确认另保18993/18a0c两次reset。 */
+    int found = profile ? fd2_field_move_path_find(
+        &game->map, &game->terrain, &game->units, (size_t)game->selected_unit,
+        profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, unit->movement_points,
+        FD2_FIELD_MOVE_PATH_NORMAL, game->cursor_cell_x, game->cursor_cell_y,
+        game->move_path, game->move_path_capacity, &length, NULL, NULL) : -1;
+    if (found < 0) return -1;
+    if (!found) return 0;
+    game->move_path_length = length;
     game->move_preview_valid = 1;
     return 0;
 }
@@ -3183,9 +3277,15 @@ int fd2_field_game_confirm_cursor(fd2_field_game *game) {
     }
 
     if (game->interaction == FD2_FIELD_INTERACTION_UNIT_SELECTED) {
-        if (fd2_field_game_update_move_preview(game) != 0 ||
-            !game->move_preview_valid)
-            return -1;
+        if (!fd2_field_path_is_destination(&game->move_range,
+                game->cursor_cell_x, game->cursor_cell_y)) return -1;
+        /* selector115b6有效返回先18993清图，再189f8找路；18a0c再清图。
+         * 输入无效仍留selector。找路错误保已到达的reset前缀。 */
+        if (fd2_field_event_map_reset_cells(&game->map) != 0 ||
+            fd2_field_game_update_move_preview(game) != 0 ||
+            !game->move_preview_valid) return -1;
+        if (fd2_field_event_map_reset_cells(&game->map) != 0) return -1;
+        fd2_field_path_close(&game->move_range);
         game->interaction = FD2_FIELD_INTERACTION_MOVING;
         return game->selected_unit;
     }
@@ -3923,7 +4023,7 @@ int fd2_field_game_begin_item_targeting(fd2_field_game *game) {
         return -1;
     int result = begin_target_selection(game, record[0x10], record[0x0d] == 23 ? 1 : 0, record[0x15],
                                   FD2_FIELD_INTERACTION_ITEM_TARGETING, 0);
-    if (!result) prepare_item_cursor(game);
+    if (!result && !game->visual_owner) prepare_item_cursor(game);
     return result;
 }
 
@@ -3959,6 +4059,7 @@ int fd2_field_game_cancel_item_targeting(fd2_field_game *game) {
         !(item_target_record(game) && game->interaction == FD2_FIELD_INTERACTION_ITEM_TELEPORTING &&
           target_focus_is_valid(game))) return -1;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
+    if(fd2_field_event_map_reset_cells(&game->map)!=0)return -1;
     game->ordinary_display_mode=0;
     if (focus_to(game, actor->x, actor->y) != 0) return -1;
     if(game->runtime_host_quit)return 0;
@@ -4375,6 +4476,22 @@ failed:
     return -1;
 }
 
+/* 原2185f/21a9e→21548→1c7c6的三个C11同步HOST输出点：
+ * 普通MAP10..12仅0继续/skip、1宿主停止、
+ * -1真实错误。Game唯一锁存；其它族/phase的旧非零错误合同不扩张。 */
+static int map_c11_present(fd2_field_game *game,fd2_field_magic_present_event *event) {
+    int result=game->magic_present ? game->magic_present(game,event,game->magic_present_userdata):0;
+    int c11=event->presentation_mode==FD2_FIELD_MAGIC_MODE_MAP &&
+        event->action_kind==FD2_FIELD_MAGIC_ACTION_MAGIC && event->magic_id>=10u && event->magic_id<=12u &&
+        event->effect_id==event->magic_id &&
+        (event->phase==FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE ||
+         event->phase==FD2_FIELD_MAGIC_PRESENT_CAST || event->phase==FD2_FIELD_MAGIC_PRESENT_TARGET);
+    if(!c11)return result!=0 ? -1:0;
+    if(result==1)game->runtime_host_quit=1;
+    if(result<0 || result>1 || game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
+    return game->runtime_host_quit?1:0;
+}
+
 /* 28槽地图wrapper的共享effect提交：真实目标raw顺序，present只读结果。
  * 普通费用一次，17读18；9只用首目标，24表内别名16（玩家24另走2cf30）。 */
 static int magic_effect_group(fd2_field_game *game, fd2_field_magic_present_event *event,
@@ -4396,8 +4513,8 @@ static int magic_effect_group(fd2_field_game *game, fd2_field_magic_present_even
         event->phase = FD2_FIELD_MAGIC_PRESENT_TARGET; event->target_index = raw;
         event->target_before = &before; event->target_after = &game->units.items[raw];
         event->result = &effect;
-        if (game->magic_present && game->magic_present(game, event,
-                game->magic_present_userdata) != 0) return -1;
+        int presented=map_c11_present(game,event);
+        if(presented)return presented; /* 当前target已提交，HOST不得进入下一目标。 */
     }
     event->target_before = event->target_after = NULL; event->result = NULL;
     return 0;
@@ -4516,18 +4633,39 @@ static int execute_map_magic(fd2_field_game *game, size_t actor_index,
             game->magic_present_userdata) != 0) return -1;
     game->ordinary_display_mode = 0;
     if (clear_contribution) game->experience_value = 0;
+    /* 2185f/21a9e的2189a先于共享21548@215a2费用写点；
+     * presenter只读，Game在radial返回后、quake CAST前恰扣一次。 */
+    if(id==11u || id==12u) {
+        event.phase=FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE;
+        int presented=map_c11_present(game,&event);
+        if(presented<0)goto failed;
+        if(presented>0)goto host_stopped;
+    }
     if (profile.cost_before_cast)
         actor->mp = (uint16_t)(actor->mp - fd2_field_magic_record_get(profile.cost_id)[5]);
     event.phase = FD2_FIELD_MAGIC_PRESENT_CAST;
-    if (game->magic_present && game->magic_present(game, &event,
-            game->magic_present_userdata) != 0) goto failed;
+    int presented=map_c11_present(game,&event);
+    if(presented<0)goto failed;
+    if(presented>0)goto host_stopped;
     if (!profile.cost_before_cast)
         actor->mp = (uint16_t)(actor->mp - fd2_field_magic_record_get(profile.cost_id)[5]);
-    if (magic_effect_group(game, &event, event.effect_id, -1) != 0) goto failed;
+    presented=magic_effect_group(game,&event,event.effect_id,-1);
+    if(presented<0)goto failed;
+    if(presented>0)goto host_stopped;
     event.phase = FD2_FIELD_MAGIC_PRESENT_FINISH;
     event.actor_before = event.target_before = NULL; event.result = NULL;
     if (game->magic_present && game->magic_present(game, &event,
             game->magic_present_userdata) != 0) { fail_action(game, actor_index); return -1; }
+    return 0;
+host_stopped:
+    /* HOST保当前MP/HP/RNG前缀；FINISH正常释放exchange，不走业务成功尾。
+     * 真实cleanup错误仍优先分类，不能借HOST抹掉第一资源错误。 */
+    event.phase=FD2_FIELD_MAGIC_PRESENT_FINISH;
+    event.actor_before=event.target_before=event.target_after=NULL;event.result=NULL;
+    if(game->magic_present && game->magic_present(game,&event,game->magic_present_userdata)!=0) {
+        fail_action(game,actor_index);return -1;
+    }
+    if(game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
     return 0;
 failed:
     fail_action(game, actor_index);
@@ -5003,6 +5141,7 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
         if (code == 23) {
             if (actor->text_id != 24 || actor->mp_max < 20 || !count)
                 return fd2_field_game_cancel_item_targeting(game);
+            if(fd2_field_event_map_reset_cells(&game->map)!=0)return -1;
             /* 1bbdc清旧cast LUT，115b6(mode6)保留首target焦点和普通frame0。
              * 保留同一个候选owner的首raw目标，不新增slot/ID真值缓存。 */
             fd2_field_path_close(&game->move_range);
@@ -5058,6 +5197,8 @@ int fd2_field_game_resolve_player_item(fd2_field_game *game) {
     int final_y = teleport && targets[0] == actor_index ? game->cursor_cell_y : actor->y;
     if (!player_effect_tail_is_supported(game, actor_index, healed_targets,
             healed_count, code == 7, 0, final_x, final_y)) return -1;
+    /* 1bbdc在selector/最终收集后4df4c，取消或Use均不把轨迹交给效果页。 */
+    if(fd2_field_event_map_reset_cells(&game->map)!=0)return -1;
     if (execute_item_effect(game, actor_index, slot_index, record, targets,
             teleport ? 1u : count, growth ? &recomputed : NULL) != 0) return -1;
     if(game->runtime_host_quit)return 0;
@@ -5707,8 +5848,10 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
     game->detail_visible = 1;
     terminal=menu_transition_terminal(game,vga);
     if(terminal) {free(background);free(detail);return terminal;}
-    fd2_field_detail_draw(detail, &game->info_assets, &game->font,
-        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait);
+    if (fd2_field_detail_draw(detail, &game->info_assets, &game->font,
+        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait) != 0) {
+        free(background); free(detail); return -1;
+    }
     if (game->detail_page == FD2_FIELD_DETAIL_MAGIC &&
         fd2_field_magic_list_draw(detail, &game->info_assets, &game->font,
             &game->ui_text, &game->units.items[game->detail_unit], -1) != 0) {
@@ -5725,7 +5868,7 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
             if ((result=menu_transition_terminal(game,vga))!=0) break;
             fd2_field_detail_transition_frame(vga->framebuffer, detail->framebuffer,
                                     background, phase);
-            fd2_vga_present(vga); /* 17e0b→18409：本12相位无额外等待。 */
+            game_present_copy(vga); /* 17e0b→18409：本12相位无额外等待。 */
             if ((result=menu_transition_terminal(game,vga))!=0) break;
         }
     } else {
@@ -5735,16 +5878,15 @@ int fd2_field_game_animate_detail(fd2_field_game *game, fd2_vga *vga,
             if ((result=menu_transition_terminal(game,vga))!=0) break;
             fd2_field_detail_transition_frame(vga->framebuffer, detail->framebuffer,
                                     background, phase);
-            fd2_vga_present(vga); /* 17aed/1b932/1bffe/1cff0关闭同源。 */
+            game_present_copy(vga); /* 17aed/1b932/1bffe/1cff0关闭同源。 */
             if ((result=menu_transition_terminal(game,vga))!=0) break;
         }
         if (result == 0) {
             memcpy(vga->framebuffer, background, VGA_W * VGA_H);
-            fd2_vga_present(vga);
+            game_present_copy(vga);
             result=menu_transition_terminal(game,vga);
         }
     }
-    fd2_vga_wait_frame_deadline(vga);
     free(background);
     free(detail);
     return result;
@@ -5797,17 +5939,17 @@ int fd2_field_game_animate_detail_magic_page(
     game->detail_visible = 1;
     terminal=menu_transition_terminal(game,vga);
     if(terminal) {result=terminal;goto done;}
-    fd2_field_detail_draw(page, &game->info_assets, &game->font,
-        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait);
+    if (fd2_field_detail_draw(page, &game->info_assets, &game->font,
+        &game->ui_text, &game->units.items[game->detail_unit], &game->detail_portrait) != 0) goto done;
     if (phase_callback) phase_callback(phase_userdata, 0, 0);
     for (int phase = 0; phase <= 6; phase++) {
         if ((result=menu_transition_terminal(game,vga))!=0) goto done;
         detail_bottom_frame(vga->framebuffer, page->framebuffer, background, phase);
-        fd2_vga_present(vga); /* 17aed→1839b：连续底条拷贝，无16ms门。 */
+        game_present_copy(vga); /* 17aed→1839b：连续底条拷贝，无16ms门。 */
         if ((result=menu_transition_terminal(game,vga))!=0) goto done;
     }
     detail_bottom_frame(vga->framebuffer, page->framebuffer, background, 7);
-    fd2_vga_present(vga); /* 原版独立空底页，没有额外16ms计时门。 */
+    game_present_copy(vga); /* 原版独立空底页，没有额外16ms计时门。 */
     if ((result=menu_transition_terminal(game,vga))!=0) goto done;
     if (fd2_field_magic_list_draw(page, &game->info_assets, &game->font,
             &game->ui_text, &game->units.items[game->detail_unit], -1) != 0) {
@@ -5818,12 +5960,11 @@ int fd2_field_game_animate_detail_magic_page(
     for (int phase = 6; phase >= 0; phase--) {
         if ((result=menu_transition_terminal(game,vga))!=0) goto done;
         detail_bottom_frame(vga->framebuffer, page->framebuffer, background, phase);
-        fd2_vga_present(vga);
+        game_present_copy(vga);
         if ((result=menu_transition_terminal(game,vga))!=0) goto done;
     }
     result = 0;
 done:
-    fd2_vga_wait_frame_deadline(vga);
     free(page);
     free(background);
     return result;
@@ -5889,9 +6030,7 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
         /* 普通COMMAND取消返回0，controller重入18890后清pending。
          * 53C53已提交的Give例外已由上方分支独立处理。 */
         game->pending_cell_event.valid = 0;
-        if (fd2_field_game_compute_move_range(
-                game, (size_t)game->selected_unit,
-                &game->move_range) != 0 ||
+        if (player_move_range(game, (size_t)game->selected_unit) != 0 ||
             fd2_field_game_update_move_preview(game) != 0) {
             clear_move_query(game);
             game->selected_unit = -1;
@@ -5903,6 +6042,8 @@ int fd2_field_game_cancel_selection(fd2_field_game *game) {
 
     if (game->interaction != FD2_FIELD_INTERACTION_UNIT_SELECTED)
         return 0;
+    /* 18890@18993：selector Esc也清raw1高位/raw2控制位/raw3，随后才聚焦。 */
+    if (fd2_field_event_map_reset_cells(&game->map) != 0) return 0;
     unit->direction = game->move_origin_direction;
     unit->frame_phase = 0;
     game->camera_cell_x = game->move_origin_camera_x;
@@ -5981,9 +6122,8 @@ static int execute_path_playback(fd2_field_game *game,
                 if(vga->field_page) {
                     if(runtime_actor_phase(game,vga)!=0 ||
                         render_work_page(game,vga,mode==FIELD_PATH_MARCH_BROWSE?0:1,
-                            mode!=FIELD_PATH_MARCH_BROWSE,1,game->idle_phase,game->terrain_visual_phase,game)!=0)
+                            mode!=FIELD_PATH_MARCH_BROWSE,1,game->idle_phase,game->terrain_visual_phase,game,game)!=0)
                         return -1;
-                    clear_view_border(vga);
                 } else {
                     /* 无工作页的离屏诊断沿固定快照，不签正式App读钟。 */
                     if(fd2_field_game_tick_visual(game,SDL_GetTicksNS())!=0 ||
@@ -5991,7 +6131,8 @@ static int execute_path_playback(fd2_field_game *game,
                     if(mode==FIELD_PATH_MARCH_BROWSE)fd2_field_game_render_background(game,vga);
                     else fd2_field_game_render(game,vga);
                 }
-                fd2_vga_present(vga);
+                if(vga->field_page)game_present_copy(vga);
+                else fd2_vga_present(vga); /* 无App诊断，不签正式提交时序。 */
                 if(frame_delay_ms) {
                     int waited=fd2_vga_wait_movement_tick(vga);
                     if(waited<0 || game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
@@ -6315,6 +6456,12 @@ static int physical_plan_matches(
         a->secondary_score == b->secondary_score;
 }
 
+static int ai_path_toward_anchor(const fd2_field_game *game,
+                                   size_t actor_index,
+                                   int anchor_x, int anchor_y,
+                                   uint8_t *path, size_t count,
+                                   size_t *path_length);
+
 static int commit_ai_physical_internal(
         fd2_field_game *game,
         size_t actor_index,
@@ -6365,11 +6512,13 @@ static int commit_ai_physical_internal(
         fd2_field_path_close(&range);
         return -1;
     }
-    int path_length = fd2_field_path_build(
-        &range, plan->destination_x, plan->destination_y,
-        directions, node_count);
+    /* 154c6走完整14b78：用其text_id/immune策略及终点选择，不能把
+     * 14237候选范围的previous树或profile当成正式路径。 */
+    size_t path_length = 0;
+    int path_found = ai_path_toward_anchor(game, actor_index,
+        plan->destination_x, plan->destination_y, directions, node_count, &path_length);
     fd2_field_path_close(&range);
-    if (path_length < 0) {
+    if (path_found != 1) {
         free(directions);
         return -1;
     }
@@ -6396,6 +6545,10 @@ static int commit_ai_physical_internal(
     }
     if(game->runtime_host_quit){free(directions);return 0;}
     if (finish_action) game->pending_cell_event.valid = 0;
+    /* 14eaf清图在focus actor之后、首个步态之前；HOST在focus处返回不越过它。 */
+    if (fd2_field_event_map_reset_cells(&game->map) != 0) {
+        free(directions); return -1;
+    }
 
     /* field_ai_move_toward_cell @0x14b78 最终把重建路径交给
      * field_actor_path_play @0x13488；SDL 复用同一六相位 path player。 */
@@ -6425,14 +6578,9 @@ static int commit_ai_physical_internal(
             fd2_field_unit_is_hidden(target)) {
             commit_result = -1;
         } else {
-            fd2_field_target_filter filter = side_selector == 0u
-                ? FD2_FIELD_TARGET_SIDE_NONZERO
-                : FD2_FIELD_TARGET_SIDE_ZERO;
-            if (!fd2_field_attack_target_is_legal_for_filter(
-                    &game->map, &game->terrain, &game->units,
-                    actor_index, plan->unit_index, filter)) {
-                commit_result = -1;
-            }
+            /* 154c6的14b78可用另一profile选择实际落点；1548e之后直接
+             * 聚焦原已选目标并交换，不再用当前位置重验攻击范围。
+             * 首次candidate/stale、HP/hidden、资源预检仍各归原入口。 */
             if (commit_result == 0 && focus_to(game, target->x, target->y) != 0)
                 commit_result = -1;
             if(commit_result==0 && game->runtime_host_quit){path_host=1;goto path_cleanup;}
@@ -6594,6 +6742,7 @@ static int commit_ai_magic_internal(
             return -1;
         }
     }
+    if(plan->magic_id>=10u && plan->magic_id<=12u && game->runtime_host_quit)return 0;
     int loot_result = begin_defeated_loot(game, actor_index, actor_index, PLAYER_ACTION_AI_MAGIC, 0, 1);
     if (loot_result < 0) { fail_action(game, actor_index); return -1; }
     if (loot_result) {
@@ -6837,12 +6986,11 @@ static int commit_ai_path(fd2_field_game *game,
 
 /* field_ai_move_toward_cell @0x14b78（原登记同名）：先probe请求anchor，
  * 必要时沿完整long route更新本回合anchor，最后才排友方占格/选终点。 */
-static int commit_ai_move_toward_anchor(fd2_field_game *game,
-                                         size_t actor_index,
-                                         int anchor_x, int anchor_y,
-                                         fd2_vga *vga,
-                                         uint32_t frame_delay_ms,
-                                         field_path_playback_mode mode) {
+static int ai_path_toward_anchor(const fd2_field_game *game,
+                                   size_t actor_index,
+                                   int anchor_x, int anchor_y,
+                                   uint8_t *path, size_t count,
+                                   size_t *path_length) {
     if (!game || !game->ready || actor_index >= game->units.count ||
         game->map.width <= 0 || game->map.height <= 0 ||
         anchor_x < 0 || anchor_y < 0 || anchor_x >= game->map.width ||
@@ -6860,9 +7008,9 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
     const uint8_t *profile = fd2_field_movement_profile_get(profile_id);
     if (!profile || (size_t)game->map.width > SIZE_MAX / (size_t)game->map.height)
         return -1;
-    size_t count = (size_t)game->map.width * (size_t)game->map.height;
-    uint8_t *path = malloc(count);
-    if (!path) return -1;
+    if (!path || !path_length || count <
+        (size_t)game->map.width * (size_t)game->map.height) return -1;
+    *path_length = 0;
     fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
     int result = -1;
     size_t length = 0;
@@ -6908,8 +7056,8 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
             anchor_x = last_x; anchor_y = last_y;
         }
     }
-    /* @14d47后才最终range/friendly block/sort；Dijkstra的can_stop已表达
-     * 146d1友方终点门，仍允许路径经过同阵营actor。 */
+    /* @14d47后才最终range/friendly block/sort；distance保屏蔽友方前
+     * 传播值，can_stop对应146d1屏蔽后的raw3，不影响沿途经过友方格。 */
     if (fd2_field_move_range_compute(
             &range, &game->map, &game->terrain, &game->units, actor_index,
             profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
@@ -6925,14 +7073,37 @@ static int commit_ai_move_toward_anchor(fd2_field_game *game,
         profile, FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,
         actor->movement_points, FD2_FIELD_MOVE_PATH_NORMAL,
         destination.x, destination.y, path, count, &length, NULL, NULL);
-    if (found != 1 || length == 0) {
+    if (found != 1) {
         result = found < 0 ? -1 : 0;
         goto done;
     }
-    result = commit_ai_path(
-        game, actor_index, path, count, length, vga, frame_delay_ms, mode);
+    *path_length = length;
+    result = 1;
 done:
     fd2_field_path_close(&range);
+    return result;
+}
+
+static int commit_ai_move_toward_anchor(fd2_field_game *game,
+                                         size_t actor_index,
+                                         int anchor_x, int anchor_y,
+                                         fd2_vga *vga,
+                                         uint32_t frame_delay_ms,
+                                         field_path_playback_mode mode) {
+    if (!game || game->map.width <= 0 || game->map.height <= 0 ||
+        (size_t)game->map.width > SIZE_MAX / (size_t)game->map.height) return -1;
+    size_t count = (size_t)game->map.width * (size_t)game->map.height;
+    uint8_t *path = malloc(count);
+    if (!path) return -1;
+    size_t length = 0;
+    int result = ai_path_toward_anchor(game, actor_index, anchor_x, anchor_y,
+                                      path, count, &length);
+    if (result > 0) {
+        /* 14eaf在正式path playback前清同一地图owner。 */
+        if (fd2_field_event_map_reset_cells(&game->map) != 0) result = -1;
+        else result = commit_ai_path(game, actor_index, path, count, length,
+                                      vga, frame_delay_ms, mode);
+    }
     free(path);
     return result;
 }
@@ -7001,7 +7172,8 @@ static int march_continue(fd2_field_game *game,fd2_vga *vga,uint32_t frame_delay
     }
     if (vga) {
         fd2_field_game_render_background(game, vga);
-        fd2_vga_present(vga);
+        if(vga->field_page)game_present_copy(vga);
+        else fd2_vga_present(vga); /* 无App诊断。 */
         if (fd2_input_take_quit(&vga->input)) return 1;
     }
     /* 整批结束才统一turncycle；沿既有逐actor呈现完整side1→0→new2。
@@ -7475,6 +7647,7 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
                 if (commit_ai_magic_internal(
                         game, actor_index, selector, &magic, 0) != 0)
                     return -1;
+                if(magic.magic_id>=10u && magic.magic_id<=12u && game->runtime_host_quit)return 1;
                 cast = 1;
             }
             if (game->loot.notice.kind != FD2_FIELD_LOOT_NONE) {
@@ -7634,8 +7807,9 @@ int fd2_field_game_compute_move_range(const fd2_field_game *game,
     if (!game || !game->ready || mover_index >= game->units.count || !result)
         return -1;
     const fd2_field_unit *unit = &game->units.items[mover_index];
-    const uint8_t *profile =
-        fd2_field_movement_profile_get(unit->movement_profile);
+    /* 只读入口按正式player18890/physical14237调用域选择；14b78在其
+     * 私有planner内独立覆盖text_id28，不借此改全局movement profile。 */
+    const uint8_t *profile = move_profile(unit, unit->side == 2u);
     /* field_reachable_cells_compute @0x4e390先写起点预算；MOV0仍可原地行动。 */
     if (!profile) return -1;
     return fd2_field_move_range_compute(
@@ -7731,13 +7905,13 @@ static int prepare_earthquake(fd2_field_game *game,fd2_vga *vga,
     if(!vga->field_page)fd2_field_game_render_effect_background(game, vga);
     uint8_t baseline[VGA_W * VGA_H];
     memcpy(baseline, vga->framebuffer, sizeof(baseline));
-    /* field_earthquake_effect @0x21527 从 DS:0x2096..0x20b6 复制的
-     * 三组参数：x offset 72/128/0，y offset -128/128/0，
-     * fixed-point step 128/131/128。 */
-    static const int x_offset[3] = {72, 128, 0};
-    static const int y_offset[3] = {-128, 128, 0};
-    static const int step[3] = {128, 131, 128};
+    /* field_earthquake_effect @0x21527 → sub_21548 @0x21548：原三表
+     * 52096/520a2/520ae复制到P+1c/P+28/P+10。2167e/216a4/216cb
+     * 的实际SP分别取step/y/x，不能沿伪C局部标签错移一项。 */
+    _Static_assert(sizeof(k_field_quake_parameters)==9u*sizeof(int32_t),
+                   "original quake has three x/y/step rows");
     for (size_t i = 0; i < 3; i++) {
+        const int32_t *parameters=k_field_quake_parameters[i];
         uint8_t *snapshot = fd2_field_effect_snapshot(frames, i);
         if(vga->field_page) {
             if(live && fd2_input_take_quit(&vga->input)) {
@@ -7750,8 +7924,8 @@ static int prepare_earthquake(fd2_field_game *game,fd2_vga *vga,
             fd2_vga scaled={0};
             /* 1f558的cache按原terrain ID采样；不是11eee动画替代帧。 */
             fd2_terrain_render_field_scaled_animated(&scaled,&game->terrain,&game->map,
-                game->camera_cell_x*0xc00+FD2_FIELD_VIEW_CELLS_X*0x600+x_offset[i],
-                game->camera_cell_y*0xc00+FD2_FIELD_VIEW_CELLS_Y*0x600+y_offset[i],step[i],0,0);
+                game->camera_cell_x*0xc00+FD2_FIELD_VIEW_CELLS_X*0x600+parameters[0],
+                game->camera_cell_y*0xc00+FD2_FIELD_VIEW_CELLS_Y*0x600+parameters[1],parameters[2],0,0);
             if(fd2_field_page_scaled_view_write(page,scaled.framebuffer,64000)!=0) {
                 fd2_field_page_destroy(page);goto failed;
             }
@@ -7768,6 +7942,9 @@ static int prepare_earthquake(fd2_field_game *game,fd2_vga *vga,
                     fd2_field_page_destroy(page);goto failed;
                 }
             }
+            /* 21548@21779只投影312×192到VGA(4,4)；每个快照的4096B
+             * 外框均来自进入时VGA，不借frames calloc的零底。 */
+            memcpy(snapshot,baseline,sizeof(baseline));
             if(fd2_field_page_project(page,72,72,snapshot,64000)!=0 ||
                 (live && !i && fd2_field_page_copy_pixels(vga->field_page,page)!=0) ||
                 fd2_field_effect_frames_take_page(frames,i,page)!=0) {
@@ -7779,11 +7956,11 @@ static int prepare_earthquake(fd2_field_game *game,fd2_vga *vga,
         fd2_vga target = *vga;
         memcpy(target.framebuffer, snapshot, sizeof(target.framebuffer));
         int center_x = game->camera_cell_x * 0xc00 +
-                       FD2_FIELD_VIEW_CELLS_X * 0x600 + x_offset[i];
+                       FD2_FIELD_VIEW_CELLS_X * 0x600 + parameters[0];
         int center_y = game->camera_cell_y * 0xc00 +
-                       FD2_FIELD_VIEW_CELLS_Y * 0x600 + y_offset[i];
+                       FD2_FIELD_VIEW_CELLS_Y * 0x600 + parameters[1];
         fd2_terrain_render_field_scaled_animated(
-            &target, &game->terrain, &game->map, center_x, center_y, step[i],
+            &target, &game->terrain, &game->map, center_x, center_y, parameters[2],
             game->terrain_visual_phase, game->idle_phase);
         int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER;
         int camera_y = game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER;

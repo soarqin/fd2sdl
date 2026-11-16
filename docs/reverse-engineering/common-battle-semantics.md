@@ -250,7 +250,7 @@ G2 的恢复预检不能沿用 B2 的 `HP≤maxHP` 假设：派生负伤害以�
 
 `0x2ce1a` 的 BYTE frame跨全部目标及完整 `0x31266` 九tick过渡延续。首目标60tick从1到61，27次impact，HP分母20；过渡到70。第二目标仍执行命中／伤害核心与贡献，但60tick无impact，HP恢复成旧值后保持。更后目标 BYTE 回绕可再次产生impact。原核心结果与最终 HP 必须分开，不能补写。
 
-FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e712e` 的真实目录只有31part。过渡首先请求合法part30，随后请求31以上。SDL 仅省略 beam 超目录的 DRAW，继续全部 frame、cue、impact、核心与 RNG；其它 FX、有效 part 绘制失败及初始化资源检查仍严格处理。非 side0 FULL9 缺 selector 是独立来源边界，不能用相邻值填补。
+FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e712e` 的格式目录含31part，但该条数本身不能判原owner外读取。F4对完整原caller／allocator／decoder及实际资源只读复核：part31的目录读取仍在资源内，得到offset30、xy0／12546和WH43008／107；原首RUN1写点为work+8048320，已超过请求172800及实际allocator payload上界172811。具体证据与有限有效前缀见[F4报告](../plans/f4-presentation.md)。SDL保留此前合法绘制，首owner违例后的省绘仍是公开的宿主安全差异H，继续frame、cue、impact、核心与RNG，不称原像素相同。其它FX、有效part失败仍严格处理；初始像素、正常多目标及非side0 selector另验，不能由此概括全部FULL9域。
 
 `tools/ida/verify_fd2_full9_wrapper.py` 执行未 patch 的原 `0x2ff01` 目标循环、完整 `0x31266`、`0x2ce1a`、`0x1c75e/0x1c81f` 与真实 `0x4ebe3`，只替换绘制、声音、等待和栈探测。17例（目标1／2／5／8×四seed，加双命中 seed9）与真实 `fd2_field_game_commit_ai_magic` 的 FINISH 全80B、每次 RNG 前全部目标HP／MP／贡献、核心结果和impact抖动全等，收据 `build/g2/full9-wrapper-comparison-final.json`。seed9第二目标核心HP4049且贡献非零，最终HP仍5000。另四例95目标只验证 C 容量，不扩大原wrapper局部数组有效域，也不将 stub 绘制称为原版像素／声音或 DOSBox 验收。
 

@@ -217,7 +217,11 @@ static int choose_mode(const fd2_field_game *g, natural_choices *choices, int mo
             }
             if(gx>=0) {
                 has_waypoint=1;
-                uint8_t route[65536];int n=fd2_field_path_build(&long_range,gx,gy,route,sizeof(route));
+                uint8_t route[65536];size_t route_length=0;
+                int route_found=fd2_field_move_path_find(&g->map,&g->terrain,&g->units,raw,
+                    profile,FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,28,FD2_FIELD_MOVE_PATH_NORMAL,
+                    gx,gy,route,sizeof(route),&route_length,NULL,NULL);
+                int n=route_found==1?(int)route_length:-1;
                 int px=u->x,py=u->y;static const int dx[]={0,-1,0,1},dy[]={1,0,-1,0};
                 for(int i=0;i<n;i++) {px+=dx[route[i]];py+=dy[route[i]];
                     if(fd2_field_path_is_destination(&range,px,py)){waypoint_x=px;waypoint_y=py;}}
@@ -387,8 +391,19 @@ static void print_action(const fd2_field_game *g, const fd2_field_game *query, c
     if(a->actor>=0) {
         printf(",\"actor_record_hex\":");hex_record(&g->units.items[a->actor]);
         fd2_field_path_result range=FD2_FIELD_PATH_RESULT_INITIALIZER;uint8_t path[65536];int n=-1;
-        if(fd2_field_game_compute_move_range(query,(size_t)a->actor,&range)==0)
-            n=fd2_field_path_build(&range,a->x,a->y,path,sizeof(path));
+        if(fd2_field_game_compute_move_range(query,(size_t)a->actor,&range)==0 &&
+            fd2_field_path_is_destination(&range,a->x,a->y)) {
+            const fd2_field_unit *actor=&query->units.items[a->actor];
+            uint8_t profile_id=actor->movement_profile;
+            if(fd2_field_attack_unit_ignores_terrain_modifier(actor))profile_id=19;
+            else if(actor->unit_id==28u)profile_id=16;
+            const uint8_t *profile=fd2_field_movement_profile_get(profile_id);
+            size_t route_length=0;
+            if(profile && fd2_field_move_path_find(&query->map,&query->terrain,&query->units,
+                (size_t)a->actor,profile,FD2_FIELD_MOVEMENT_COST_CLASS_COUNT,actor->movement_points,
+                FD2_FIELD_MOVE_PATH_NORMAL,a->x,a->y,path,sizeof(path),&route_length,NULL,NULL)==1)
+                n=(int)route_length;
+        }
         printf(",\"reachable_path_directions\":[");for(int i=0;i<n;i++)printf("%s%u",i?",":"",path[i]);printf("]");
         fd2_field_path_close(&range);
         fd2_field_game command=*query;

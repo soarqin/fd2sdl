@@ -1,7 +1,10 @@
 /* 背景原义：sub_10652 @0x10652（原登记同名）重建53AFF/53B03；
- * field_view_render_tiles @0x11eee铺底；sub_4EEE0 @0x4eee0波纹逐行；
+ * field_view_render_tiles @0x11eee铺底；field_background_wave_rows_copy
+ * @0x4eee0（原sub_4EEE0）波纹逐行；
  * sub_24D22 @0x24d22滚动。source dispatch与原byte仅编辑field_background.json。
- * 临时canvas首次SKIP未定义字节最小置0，后续page透明历史绝不清0。
+ * 临时canvas首次SKIP以0作安全底；原before来源仍独立验收，不预判U。
+ * 后续page透明历史绝不清0。10652新wave work未有4eee0而首sameTick时，
+ * 120fe/11ed4首读无当前像素producer；calloc零底仅是该条件首U后的H后缀。
  * 仅投影CPU叶终态，不宣称复制/行轮转的内部逐写轨迹与BIOS墙钟等价。 */
 #include "field_background.h"
 #include "bios_clock.h"

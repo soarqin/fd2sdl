@@ -28,6 +28,9 @@ static int fixture_open(fixture *f) {
     CHECK(fd2_pcm_bank_open(&f->bank,&f->fdother,80)==0);
     fd2_field_game *g=f->game;fd2_vga *v=f->vga;
     g->fdother=&f->fdother;g->ready=1;g->stage=0;
+    /* F2正式live入口借唯一App视觉owner；手工资源夹具也须满足该合同。
+     * attrs无动画位且12个actor frame同源，像素不依赖实际clock相位。 */
+    g->visual_owner=&v->field_visual;
     g->camera_cell_x=7;g->camera_cell_y=11;g->cursor_cell_x=11;g->cursor_cell_y=14;
     g->attack_rng=forbidden_rng;
     memset(g->roster,0x5a,sizeof(g->roster));g->roster_count=7;g->resource_value=0x12345678;
@@ -62,9 +65,10 @@ static int fixture_open(fixture *f) {
     *f->before=*g;return 0;
 }
 static int logic_unchanged(fixture *f) {
-    /* 11eee已有视觉锚是明确写集；其余整个Game（含roster/单位/RNG owner）相同。 */
+    /* 11eee的terrain/range投影是明确写集；其余整个Game相同。 */
     f->before->last_terrain_visual_ms=f->game->last_terrain_visual_ms;
     f->before->terrain_visual_phase=f->game->terrain_visual_phase;
+    f->before->range_visual_phase=f->game->range_visual_phase;
     CHECK(!memcmp(f->before,f->game,sizeof(*f->game)) && rng_calls==0);
     CHECK(f->vga->input.queued_count==2 && f->vga->input.queued_keys[0].key==FD2_INPUT_KEY_ENTER &&
         f->vga->input.queued_keys[1].key==FD2_INPUT_KEY_ESCAPE);

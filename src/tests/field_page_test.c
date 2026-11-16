@@ -215,8 +215,34 @@ static void test_effect_pixel_copy_and_scaled_view(void) {
     fd2_field_page_destroy(copy);fd2_field_page_destroy(page);
 }
 
+static void test_linear_owner_writes_only_actual_mask(void) {
+    fd2_field_page *page=fd2_field_page_create();assert(page);
+    static uint8_t before[FD2_FIELD_PAGE_SIZE],expected[FD2_FIELD_PAGE_SIZE],actual[FD2_FIELD_PAGE_SIZE];
+    for(size_t i=0;i<sizeof(before);i++)before[i]=(uint8_t)(i*13u+i/456u);
+    const uint8_t run[]={3,0},alternate[]={0x41,9},skip_then_zero[]={0xc0,0,0},skip[]={0xd7};
+    memcpy(expected,before,sizeof(expected));memset(expected+FD2_FIELD_PAGE_SIZE-3,0,3);
+    assert(fd2_field_page_write(page,0,0,456,336,before,sizeof(before),456)==0);
+    assert(fd2_field_page_blit_rle_linear(page,FD2_FIELD_PAGE_SIZE-3,4,1,run,sizeof(run),NULL)==-1);
+    assert(fd2_field_page_read(page,0,0,456,336,actual,sizeof(actual),456)==0 && !memcmp(actual,expected,sizeof(actual)));
+    assert(fd2_field_page_write(page,0,0,456,336,before,sizeof(before),456)==0);
+    memcpy(expected,before,sizeof(expected));expected[FD2_FIELD_PAGE_SIZE-1]=9;
+    assert(fd2_field_page_blit_rle_linear(page,FD2_FIELD_PAGE_SIZE-2,4,1,alternate,sizeof(alternate),NULL)==-1);
+    assert(fd2_field_page_read(page,0,0,456,336,actual,sizeof(actual),456)==0 && !memcmp(actual,expected,sizeof(actual)));
+    assert(fd2_field_page_write(page,0,0,456,336,before,sizeof(before),456)==0);
+    memcpy(expected,before,sizeof(expected));expected[0]=0;
+    assert(fd2_field_page_blit_rle_linear(page,-1,2,1,skip_then_zero,sizeof(skip_then_zero),NULL)==0);
+    assert(fd2_field_page_read(page,0,0,456,336,actual,sizeof(actual),456)==0 && !memcmp(actual,expected,sizeof(actual)));
+    assert(fd2_field_page_blit_rle_linear(page,INT64_MIN,4,1,run,sizeof(run),NULL)==-1);
+    assert(fd2_field_page_blit_rle_linear(page,INT64_MAX,4,1,run,sizeof(run),NULL)==-1);
+    assert(fd2_field_page_blit_rle_linear(page,INT64_MAX,24,1,skip,sizeof(skip),NULL)==0);
+    assert(fd2_field_page_blit_rle_linear(page,0,4,1,run,sizeof(run)-1,NULL)==-1);
+    assert(fd2_field_page_read(page,0,0,456,336,actual,sizeof(actual),456)==0 && !memcmp(actual,expected,sizeof(actual)));
+    fd2_field_page_destroy(page);
+}
+
 int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--lut-jsonl")) {test_base_lut_skip(1);return 0;}
+    test_linear_owner_writes_only_actual_mask();
     test_write_mask_and_history();
     test_malformed_is_atomic();
     test_projection_and_scratch();

@@ -10,6 +10,7 @@
 
 #include "field_ai.h"
 #include "field_game.h"
+#include "f4_c11_host_observer.h"
 #include "field_magic.h"
 #include "field_move.h"
 #include "field_move_profile.h"
@@ -1354,7 +1355,7 @@ static int test_behavior5_real_chest_and_focus(void) {
         init_game(&game, cells, unused, &rng);
         game.terrain = terrain; /* 只借只读已解码资源，测试不close此Game。 */
         for (size_t i = 0; i < 64; i++) cells[i] = (uint32_t)grass;
-        cells[10] = UINT32_C(0x6b0100f8); /* tile248/index1/未知cache byte3=6b。 */
+        cells[10] = UINT32_C(0x6b0100f8); /* tile248/index1；旧range标记6b须经14eaf清FF。 */
         game.units.items[0].ai_behavior_raw = 0xa5;
         game.units.items[0].data_3d = 1;
         game.units.items[1].x = game.units.items[1].y = 7;
@@ -1369,7 +1370,8 @@ static int test_behavior5_real_chest_and_focus(void) {
         B5_EXPECT(result == 1, "valid chest action must complete");
         B5_EXPECT(game.units.items[0].x == 2 && game.units.items[0].y == 1,
                   "AI must reach the actual chest before completing it");
-        B5_EXPECT(cells[10] == UINT32_C(0x6b0000f9), full ?
+        /* 13c77→14eaf先4df4c清FF；13d1b→122cd/d0才开箱并保当前raw3。 */
+        B5_EXPECT(cells[10] == UINT32_C(0xff0000f9), full ?
                   "full inventory still opens live248->249 and clearsindex1" :
                   "successful loot must open live248->249 and clearindex1");
         B5_EXPECT(record[52] == 7, "native overwrites full behavior byte A5->07");
@@ -2559,7 +2561,144 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
     return 0;
 }
 
+/* 原142d5→immune19与188f9→unit_id28 profile16是不同caller policy。
+ * 1f183首先排unit_id28，不能因race5将其错误归immune。 */
+static int test_source_movement_profile_caller_policies(void) {
+    static const uint32_t rolls[]={0};test_rng rng={rolls,1,0};
+    uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+    init_game(&game,cells,attrs,&rng);game.units.count=1;
+    fd2_field_unit *u=&game.units.items[0];u->unit_id=7;u->race=4;u->movement_profile=2;
+    attrs[0].movement_cost_class=1; /* profile2=20, immune19=1。 */
+    fd2_field_path_result range={0};
+    CHECK(fd2_field_game_compute_move_range(&game,0,&range)==0);
+    CHECK(fd2_field_path_distance(&range,2,1)==1 && fd2_field_path_is_destination(&range,2,1));
+    fd2_field_path_close(&range);
+    u->unit_id=28;u->text_id=7;u->race=5;u->movement_profile=28;
+    attrs[0].movement_cost_class=0; /* physical raw28=20, player16=1。 */
+    CHECK(fd2_field_game_compute_move_range(&game,0,&range)==0);
+    CHECK(!fd2_field_path_is_destination(&range,2,1));
+    fd2_field_path_close(&range);
+    u->side=2;
+    CHECK(fd2_field_game_compute_move_range(&game,0,&range)==0);
+    CHECK(fd2_field_path_distance(&range,2,1)==1 && fd2_field_path_is_destination(&range,2,1));
+    fd2_field_path_close(&range);
+    for(size_t i=0;i<64u;i++)CHECK(cells[i]==0); /* 纯query不回写Game raw3。 */
+    CHECK(!rng.cursor);return 0;
+}
+
+typedef struct {
+    test_rng *rng;
+    unsigned prepares,strikes,finishes;
+    int invalid;
+    fd2_field_physical_present_mode mode;
+} selected_target_observer;
+
+static int observe_selected_target_exchange(const fd2_field_game *game,
+        const fd2_field_physical_event *event,void *userdata) {
+    selected_target_observer *seen=userdata;
+    if(!game || !event || !seen || event->presentation_mode!=seen->mode)return -1;
+    if(event->resource_only)return 0;
+    if(game->units.items[0].x!=3 || game->units.items[0].y!=1 ||
+       game->units.items[1].x!=7 || game->units.items[1].y!=1 ||
+       event->actor_index!=0 || event->target_index!=1)seen->invalid=1;
+    if(event->phase==FD2_FIELD_PHYSICAL_PREPARE) {
+        seen->prepares++;
+        if(seen->rng->cursor)seen->invalid=1;
+    } else if(event->phase==FD2_FIELD_PHYSICAL_STRIKE) {
+        seen->strikes++;
+        if(event->counterattack)seen->invalid=1;
+    } else if(event->phase==FD2_FIELD_PHYSICAL_FINISH)seen->finishes++;
+    return seen->invalid?-1:0;
+}
+
+static int test_physical_selected_target_after_different_profile_move(void) {
+    /* 14237的raw28/class4成本1，14bcc..d5的text28改profile1成本2。
+     * 从(1,1)以MOV5查询唯一近战候选(6,1)，14b78实际终点(3,1)。
+     * 原154c6返回后154de聚焦已选(7,1)，155a9/1561f直接进SHORT/FULL；
+     * 没有再次验相邻。此为原caller参数的受控正常接口夹具，非自然输入链。 */
+    for(int full=0;full<2;full++)for(int reject=0;reject<2;reject++) {
+        static const uint32_t rolls[]={50,0,99,0};test_rng rng={rolls,4,0};
+        uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+        init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;
+        attrs[0].movement_cost_class=4;game.option_values[2]=(uint8_t)!full;
+        fd2_field_unit *actor=&game.units.items[0],*target=&game.units.items[1];
+        actor->unit_id=actor->text_id=28;actor->race=5;actor->movement_profile=28;
+        actor->movement_points=5;((uint8_t *)actor)[0x0b]=1;
+        target->unit_id=target->text_id=7;target->x=7;target->attack=1;equip_weapon(target);
+        fd2_field_ai_physical_candidate plan;
+        CHECK(build_plan(&game,&plan)==0);
+        CHECK(plan.unit_index==1 && plan.destination_x==6 && plan.destination_y==1 &&
+            plan.priority==18 && plan.secondary_score==398);
+        selected_target_observer seen={.rng=&rng,.mode=full?FD2_FIELD_PHYSICAL_MODE_FULL:FD2_FIELD_PHYSICAL_MODE_SHORT};
+        game.physical_present=observe_selected_target_exchange;game.physical_present_userdata=&seen;
+        fd2_field_units before=game.units;uint32_t before_cells[64];memcpy(before_cells,cells,sizeof(cells));
+        if(reject)game.attack_critical_base=failing_critical_hook;
+        CHECK(fd2_field_game_commit_ai_physical(&game,0,0,&plan,NULL,0)==(reject?-1:0));
+        if(reject) {
+            CHECK(!rng.cursor && !seen.prepares && !seen.strikes && !seen.finishes && !seen.invalid);
+            CHECK(!memcmp(&before,&game.units,sizeof(before)) && !memcmp(before_cells,cells,sizeof(cells)));
+        } else {
+            CHECK(actor->x==3 && actor->y==1 && target->hp==0 && rng.cursor==4);
+            CHECK(seen.prepares==1 && seen.strikes==1 && seen.finishes==1 && !seen.invalid);
+            CHECK(fd2_field_unit_has_acted(actor));
+        }
+        free(game.move_path);
+    }
+    return 0;
+}
+
+/* 正常public direct commit及behavior11 scheduler都须停在同一C11叶，
+ * 不让内层return0后再清贡献、进入物理段、收事件或写acted。 */
+static int test_c11_map_host_preserves_public_ai_prefix(void) {
+    static const uint32_t rolls[32]={0};
+    static const fd2_field_magic_present_phase stops[]={
+        FD2_FIELD_MAGIC_PRESENT_MAP_WRAPPER_PRELUDE,
+        FD2_FIELD_MAGIC_PRESENT_CAST,FD2_FIELD_MAGIC_PRESENT_TARGET};
+    static const uint16_t damage[]={72,144,306},cost[]={18,45,80};
+    for(unsigned automatic=0;automatic<2;automatic++)for(uint8_t id=10;id<=12;id++)
+        for(unsigned phase=0;phase<3;phase++) {
+            if(id==10 && phase==0)continue;
+            uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+            test_rng rng={rolls,32,0};init_game(&game,cells,attrs,&rng);
+            game.units.count=3;game.experience_value=77;
+            if(automatic)game.phase_ai_pass=1; /* 正常side0第二pass进入behavior11。 */
+            game.units.items[0].ai_behavior_raw=11;
+            game.units.items[0].mp=game.units.items[0].mp_max=200;
+            game.units.items[0].direction=3;teach_magic(&game.units.items[0],id);
+            for(size_t raw=1;raw<3;raw++) {
+                set_unit(&game.units.items[raw],2,2,1); /* 同格两raw，固定独立目标顺序。 */
+                game.units.items[raw].hp=game.units.items[raw].hp_max=1000;
+                game.units.items[raw].direction=(uint8_t)raw;
+            }
+            fd2_field_ai_magic_candidate plan;
+            CHECK(fd2_field_ai_choose_magic_candidate(&game.map,&game.terrain,&game.units,0,0,&plan)==0 &&
+                plan.magic_id==id && plan.score>=6);
+            fd2_field_unit before[3];memcpy(before,game.units.items,sizeof(before));
+            fd2_field_game *prefix=malloc(sizeof(*prefix));CHECK(prefix);
+            f4_c11_host_observer seen={0};seen.owner=&game;seen.prefix=prefix;seen.id=id;
+            seen.stop_phase=stops[phase];seen.stop_result=1;
+            game.magic_present=f4_c11_host_present;game.magic_present_userdata=&seen;
+            int result=automatic?fd2_field_game_process_automatic_action(&game):
+                fd2_field_game_commit_ai_magic(&game,0,0,&plan);
+            CHECK(result==(automatic?1:0) && !seen.bad && seen.captured && game.runtime_host_quit && !game.failure);
+            CHECK(seen.prepared==1 && seen.finished==1 && !seen.failed_finishes &&
+                seen.preludes==(id!=10) && seen.casts==(phase!=0) && seen.targets==(phase==2));
+            CHECK(rng.cursor==(phase==2?2u:0u) && !fd2_field_unit_has_acted(&game.units.items[0]));
+            before[0].mp=(uint16_t)(200u-(phase==0?0u:cost[id-10u]));
+            if(phase==2) {before[1].hp=(uint16_t)(1000u-damage[id-10u]);CHECK(seen.target_order[0]==1);}
+            CHECK(!memcmp(before,game.units.items,sizeof(before)) && game.units.items[2].hp==1000);
+            CHECK(phase==2 || game.experience_value==77); /* AI原1546a在loot之后，此处未到。 */
+            prefix->runtime_host_quit=1;CHECK(!memcmp(prefix,&game,sizeof(game)));
+            free(prefix);
+            fd2_field_path_close(&game.move_range);free(game.move_path);
+        }
+    return 0;
+}
+
 int main(void) {
+    if(test_c11_map_host_preserves_public_ai_prefix()!=0)return 1;
+    if(test_physical_selected_target_after_different_profile_move()!=0)return 1;
+    if(test_source_movement_profile_caller_policies()!=0)return 1;
     if(test_ai_ray_item_caller_order_and_stop()!=0)return 1;
     if (test_ai11_physical_environment_probe_before_magic() != 0) return 1;
     if (test_ai_recovery_probe_before_effects() != 0) return 1;

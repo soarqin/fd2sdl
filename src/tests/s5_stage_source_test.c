@@ -14,7 +14,14 @@
 #include "field_unit_base.h"
 #include "static_data.h"
 #include "animation.h"
+#include "f4_montage_cold_probe.h"
+#include "f4_credits_private.h"
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);return 1;}}while(0)
+static int f4_credits_enabled;
+static void f4_credits_before_node(const fd2_static_flow *,const fd2_static_flow_node *);
+static void f4_credits_upload(fd2_vga *);
+static void f4_credits_input_frame(fd2_input *);
+static uint64_t f4_credits_clock(void);
 static uint64_t s5_test_ms;
 static unsigned s5_clock_reads,s5_water_probe,s5_water_calls,s5_water_bad_owner;
 static int s5_water_result;
@@ -37,7 +44,16 @@ static const fd2_static_flow *s5_flow_lookup(const char *domain,const char *id) 
     if(s5_flow_override && !strcmp(domain,"stage") && !strcmp(id,s5_flow_override->id))return s5_flow_override;
     return fd2_static_flow_lookup(domain,id);
 }
-static void s5_upload(fd2_vga *vga){(void)vga;s5_uploads++;}
+static void s5_upload(fd2_vga *vga){s5_uploads++;f4_credits_upload(vga);}
+/* 有限提交的宿主输入泵，时间只由本TU显式源wait/delay推进。 */
+static void s5_input_frame(fd2_input *input) {
+    if(f4_credits_enabled){f4_credits_input_frame(input);return;}
+    s5_presents++;
+    fd2_input_set_test_key_state(input,SDL_SCANCODE_RETURN,
+        s5_last_card_started?0:(int)(s5_presents&1u));
+    fd2_input_begin_test_frame(input,s5_test_ms);
+    if(s5_presents>100000u)input->quit_requested=1;
+}
 static void s5_present(fd2_vga *vga){
     s5_presents++;s5_test_ms+=17;
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,
@@ -102,6 +118,8 @@ static int s5_actors_page_live(fd2_vga *vga,fd2_field_page *page,
 }
 static const fd2_static_flow_node *s5_node_at(const fd2_static_flow *flow,int pc){
     const fd2_static_flow_node *node=fd2_static_flow_at(flow,pc);
+    f4_cold_before_node(flow,node);
+    f4_credits_before_node(flow,node);
     if(node && !strncmp(flow->id,"stage.source.",13)){
         s5_predicate_last_op=node->op;s5_predicate_last_id=node->id;
     }
@@ -131,12 +149,14 @@ static int s5_text_open(fd2_text_entry *text,const fd2_archive *archive,size_t e
 /* 同一ANI decoder，只替换窗口/时间；保现spy模式专测错误/HOST前缀。 */
 #define rd_u16_le s5_ani_rd_u16_le
 #define fd2_vga_present s5_present
+#define fd2_vga_upload_current_frame s5_upload
 #define fd2_delay_ms s5_delay
 #define fd2_animation_play_hooked s5_decode_animation_play_hooked
 #define fd2_animation_play s5_decode_animation_play
 #include "../animation.c"
 #undef rd_u16_le
 #undef fd2_vga_present
+#undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
 #undef fd2_animation_play_hooked
 #undef fd2_animation_play
@@ -184,6 +204,7 @@ static int s5_animation_play_hooked(fd2_vga *vga,const fd2_archive *ani,int inde
 #define fd2_scene_field_message_arrow s5_fd2_scene_field_message_arrow
 #include "scene.h"
 #define fd2_vga_upload_current_frame s5_upload
+#define fd2_input_begin_frame s5_input_frame
 #define fd2_vga_present s5_present
 #define fd2_vga_present_timed s5_present_timed
 #define fd2_delay_ms s5_delay
@@ -202,7 +223,148 @@ uint64_t s5_clock_ns(void);
 #define fd2_text_entry_open_entry s5_text_open
 #define fd2_static_flow_at s5_node_at
 #define fd2_animation_play_hooked s5_animation_play_hooked
+#define fd2_scene_cinematic_open f4_credits_private_open
+#define fd2_scene_cinematic_close f4_credits_private_close
+#define fd2_scene_cinematic_page_alloc f4_credits_private_page_alloc
+#define fd2_scene_cinematic_page_release f4_credits_private_page_release
+#define fd2_scene_cinematic_page_clear f4_credits_private_page_clear
+#define fd2_scene_cinematic_work_clear f4_credits_private_work_clear
+#define fd2_scene_cinematic_copy f4_credits_private_copy
+#define fd2_scene_cinematic_pixels f4_credits_private_pixels
+#define fd2_scene_cinematic_sheet_open f4_credits_private_sheet_open
+#define fd2_scene_cinematic_sheet_close f4_credits_private_sheet_close
+#define fd2_scene_cinematic_sheet_info f4_credits_private_sheet_info
+#define fd2_scene_cinematic_sheet_duration f4_credits_private_sheet_duration
+#define fd2_scene_cinematic_sheet_blit f4_credits_private_sheet_blit
+#define fd2_scene_cinematic_image_blit f4_credits_private_image_blit
+#define fd2_scene_cinematic_palette_save f4_credits_private_palette_save
+#define fd2_scene_cinematic_palette_validate f4_credits_private_palette_validate
+#define fd2_scene_cinematic_palette_load f4_credits_private_palette_load
+#define fd2_scene_cinematic_palette_restore f4_credits_private_palette_restore
+#define fd2_scene_cinematic_audio_open f4_credits_private_audio_open
+#define fd2_scene_cinematic_audio_play f4_credits_private_audio_play
+#define fd2_scene_cinematic_audio_close f4_credits_private_audio_close
+#define fd2_scene_cinematic_circle_prepare f4_credits_private_circle_prepare
+#define fd2_scene_cinematic_circle_frame f4_credits_private_circle_frame
+#define fd2_scene_cinematic_circle_close f4_credits_private_circle_close
+#define fd2_scene_cinematic_shake_prepare f4_credits_private_shake_prepare
+#define fd2_scene_cinematic_shake_frame f4_credits_private_shake_frame
+#define fd2_scene_cinematic_credits_actor f4_credits_private_credits_actor
+#define fd2_scene_cinematic_credits_assets_open f4_credits_private_credits_assets_open
+#define fd2_scene_cinematic_credits_assets_close f4_credits_private_credits_assets_close
+#define fd2_scene_cinematic_credits_intro f4_credits_private_credits_intro
+#define fd2_scene_cinematic_credits_intro_finish f4_credits_private_credits_intro_finish
+#define fd2_scene_cinematic_credits_idle_reset f4_credits_private_credits_idle_reset
+#define fd2_scene_cinematic_credits_idle f4_credits_private_credits_idle
+#define fd2_scene_cinematic_credits_part f4_credits_private_credits_part
+#define fd2_scene_cinematic_credits_part_info f4_credits_private_credits_part_info
+#define fd2_scene_cinematic_credits_part_count f4_credits_private_credits_part_count
+#define fd2_scene_cinematic_credits_card_prepare f4_credits_private_credits_card_prepare
+#define fd2_scene_cinematic_credits_blink_reset f4_credits_private_credits_blink_reset
+#define fd2_scene_cinematic_credits_card f4_credits_private_credits_card
+#define fd2_scene_cinematic_credits_actor_close f4_credits_private_credits_actor_close
+#define fd2_scene_cinematic_credits_skip_set f4_credits_private_credits_skip_set
+#define fd2_scene_cinematic_credits_skip_get f4_credits_private_credits_skip_get
+#define fd2_scene_cinematic_credits_roll_text f4_credits_private_credits_roll_text
+#define fd2_scene_cinematic_montage_open f4_credits_private_montage_open
+#define fd2_scene_cinematic_montage_close f4_credits_private_montage_close
+#define fd2_scene_cinematic_montage_intro f4_credits_private_montage_intro
+#define fd2_scene_cinematic_montage_intro_finish f4_credits_private_montage_intro_finish
+#define fd2_scene_cinematic_montage_half f4_credits_private_montage_half
+#define fd2_scene_cinematic_montage_current_half f4_credits_private_montage_current_half
+#define fd2_scene_cinematic_montage_part_count f4_credits_private_montage_part_count
+#define fd2_scene_cinematic_montage_part_info f4_credits_private_montage_part_info
+#define fd2_scene_cinematic_montage_rng f4_credits_private_montage_rng
+#define fd2_scene_cinematic_montage_hit f4_credits_private_montage_hit
+#define fd2_scene_cinematic_montage_cue f4_credits_private_montage_cue
+#define fd2_scene_cinematic_montage_frame f4_credits_private_montage_frame
+#undef fd2_scene_cinematic_montage_open
+#undef fd2_scene_cinematic_montage_intro
+#undef fd2_scene_cinematic_montage_intro_finish
+#undef fd2_scene_cinematic_montage_half
+#undef fd2_scene_cinematic_montage_rng
+#undef fd2_scene_cinematic_montage_hit
+#undef fd2_scene_cinematic_montage_cue
+#undef fd2_scene_cinematic_montage_frame
+#undef fd2_scene_cinematic_montage_close
+#define fd2_scene_cinematic_montage_open f4_cold_open
+#define fd2_scene_cinematic_montage_intro f4_cold_intro
+#define fd2_scene_cinematic_montage_intro_finish f4_cold_finish
+#define fd2_scene_cinematic_montage_half f4_cold_half
+#define fd2_scene_cinematic_montage_rng f4_cold_rng
+#define fd2_scene_cinematic_montage_hit f4_cold_hit
+#define fd2_scene_cinematic_montage_cue f4_cold_cue
+#define fd2_scene_cinematic_montage_frame f4_cold_frame
+#define fd2_scene_cinematic_montage_close f4_cold_close
+#define fd2_field_game_stage_source_node f4_cold_game_node
 #include "../scene.c"
+#undef fd2_scene_cinematic_open
+#undef fd2_scene_cinematic_close
+#undef fd2_scene_cinematic_page_alloc
+#undef fd2_scene_cinematic_page_release
+#undef fd2_scene_cinematic_page_clear
+#undef fd2_scene_cinematic_work_clear
+#undef fd2_scene_cinematic_copy
+#undef fd2_scene_cinematic_pixels
+#undef fd2_scene_cinematic_sheet_open
+#undef fd2_scene_cinematic_sheet_close
+#undef fd2_scene_cinematic_sheet_info
+#undef fd2_scene_cinematic_sheet_duration
+#undef fd2_scene_cinematic_sheet_blit
+#undef fd2_scene_cinematic_image_blit
+#undef fd2_scene_cinematic_palette_save
+#undef fd2_scene_cinematic_palette_validate
+#undef fd2_scene_cinematic_palette_load
+#undef fd2_scene_cinematic_palette_restore
+#undef fd2_scene_cinematic_audio_open
+#undef fd2_scene_cinematic_audio_play
+#undef fd2_scene_cinematic_audio_close
+#undef fd2_scene_cinematic_circle_prepare
+#undef fd2_scene_cinematic_circle_frame
+#undef fd2_scene_cinematic_circle_close
+#undef fd2_scene_cinematic_shake_prepare
+#undef fd2_scene_cinematic_shake_frame
+#undef fd2_scene_cinematic_credits_actor
+#undef fd2_scene_cinematic_credits_assets_open
+#undef fd2_scene_cinematic_credits_assets_close
+#undef fd2_scene_cinematic_credits_intro
+#undef fd2_scene_cinematic_credits_intro_finish
+#undef fd2_scene_cinematic_credits_idle_reset
+#undef fd2_scene_cinematic_credits_idle
+#undef fd2_scene_cinematic_credits_part
+#undef fd2_scene_cinematic_credits_part_info
+#undef fd2_scene_cinematic_credits_part_count
+#undef fd2_scene_cinematic_credits_card_prepare
+#undef fd2_scene_cinematic_credits_blink_reset
+#undef fd2_scene_cinematic_credits_card
+#undef fd2_scene_cinematic_credits_actor_close
+#undef fd2_scene_cinematic_credits_skip_set
+#undef fd2_scene_cinematic_credits_skip_get
+#undef fd2_scene_cinematic_credits_roll_text
+#undef fd2_scene_cinematic_montage_open
+#undef fd2_scene_cinematic_montage_close
+#undef fd2_scene_cinematic_montage_intro
+#undef fd2_scene_cinematic_montage_intro_finish
+#undef fd2_scene_cinematic_montage_half
+#undef fd2_scene_cinematic_montage_current_half
+#undef fd2_scene_cinematic_montage_part_count
+#undef fd2_scene_cinematic_montage_part_info
+#undef fd2_scene_cinematic_montage_rng
+#undef fd2_scene_cinematic_montage_hit
+#undef fd2_scene_cinematic_montage_cue
+#undef fd2_scene_cinematic_montage_frame
+
+#undef fd2_input_begin_frame
+#undef fd2_scene_cinematic_montage_open
+#undef fd2_scene_cinematic_montage_intro
+#undef fd2_scene_cinematic_montage_intro_finish
+#undef fd2_scene_cinematic_montage_half
+#undef fd2_scene_cinematic_montage_rng
+#undef fd2_scene_cinematic_montage_hit
+#undef fd2_scene_cinematic_montage_cue
+#undef fd2_scene_cinematic_montage_frame
+#undef fd2_scene_cinematic_montage_close
+#undef fd2_field_game_stage_source_node
 #undef fd2_scene_palette_fade
 #undef fd2_scene_stage_transition_finish
 #undef fd2_scene_play_teleport_scope
@@ -504,11 +666,19 @@ static int s5_source_movement_prefix(const fd2_archive *other) {
     for(size_t count=66;count<=72;count+=6) {
         fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
         CHECK(game && vga && s5_prepare(game,other,21)==0);fd2_field_units_clear(&game->units);
-        for(size_t i=0;i<count;i++) {
-            CHECK(fd2_field_units_set(&game->units,i,i==1?24:0,i==1?24:(uint8_t)i,i<16?2:0,
+        /* FDFIELD[63]为45×50。仅16个部署槽用受控人物；NPC须取原g0/g1
+         * placement，不能把后50条排到y=50..59再借12ac6越map owner读底。
+         * 此前F1的66/66g1原CPU输入也采用这两组来源，坐标expected不变。 */
+        CHECK(game->map.width==45 && game->map.height==50);
+        for(size_t i=0;i<16;i++) {
+            CHECK(fd2_field_units_set(&game->units,i,i==1?24:0,i==1?24:(uint8_t)i,2,
                 20+(int)(i%4),42+(int)(i/4))==0);
             game->units.items[i].hp=game->units.items[i].hp_max=100;
         }
+        CHECK(fd2_field_units_append_group(&game->units,&game->metadata,&game->placements,0)==0 &&
+              game->units.count==66);
+        if(count==72)CHECK(fd2_field_units_append_group(&game->units,&game->metadata,&game->placements,1)==0);
+        CHECK(game->units.count==count);
         memset(game->units.items+count,0xa5,(96-count)*80);
         fd2_field_unit raw72=game->units.items[72];raw72.x=22;raw72.y=25;raw72.direction=2;
         fd2_field_unit tail[23];memcpy(tail,game->units.items+73,sizeof(tail));
@@ -519,7 +689,15 @@ static int s5_source_movement_prefix(const fd2_archive *other) {
         CHECK(s5_fd2_scene_play_stage_source_flow(vga,other,game,NULL,1,"stage.source.victory.021")==-1);
         const uint8_t xy[][2]={{22,19},{22,18},{22,17},{23,17},{21,17},{21,18},{21,19},{23,18},
             {23,19},{20,18},{20,19},{20,20},{24,18},{24,19},{21,20},{23,25}};
-        for(size_t i=0;i<16;i++)CHECK(game->units.items[i].x==xy[i][0] && game->units.items[i].y==xy[i][1]);
+        for(size_t i=0;i<16;i++) {
+            if(game->units.items[i].x!=xy[i][0] || game->units.items[i].y!=xy[i][1])
+                fprintf(stderr,"source66 count=%zu raw=%zu xy=%u,%u expected=%u,%u last=%s/%s camera=%d,%d render=%d host=%d quit=%d presents=%u clock=%llu\n",
+                    count,i,game->units.items[i].x,game->units.items[i].y,xy[i][0],xy[i][1],
+                    s5_predicate_last_id?s5_predicate_last_id:"-",s5_predicate_last_op?s5_predicate_last_op:"-",
+                    game->camera_cell_x,game->camera_cell_y,scene_render_error,scene_host_quit_requested,
+                    vga->input.quit_requested,s5_presents,(unsigned long long)s5_test_ms);
+            CHECK(game->units.items[i].x==xy[i][0] && game->units.items[i].y==xy[i][1]);
+        }
         CHECK(game->units.count==count && game->stage==21 && game->failure==FD2_FIELD_FAILURE_NONE &&
             !game->runtime_host_quit && game->camera_cell_x==16 && game->camera_cell_y==16 &&
             !memcmp(game->units.items+72,&raw72,80) && !memcmp(game->units.items+73,tail,sizeof(tail)));
@@ -803,8 +981,106 @@ static int s5_predicate_common_parameters(const fd2_archive *other){
         CHECK(s5_predicate_common_case(other,key,0,1,stop)==0);
     return 0;
 }
+/* 原31529独立保留的单pair首尾；只切入口和close之后的唯一边。
+ * 中间真实ending节点、两半RNG分支及共享montage_round均由正式walker消费。
+ * 这不是整个ending/credits；不以C/cold生成任何expected。 */
+static int f4_cold_pair_view(const fd2_static_flow *source,fd2_static_flow *view,
+        fd2_static_flow_node **owned,unsigned first,unsigned second,unsigned scene,
+        int *open_index,int *close_index) {
+    if(!source || !view || !owned || *owned || source->count>10000u)return -1;
+    int found=-1,end=-1;unsigned opens=0,closes=0,ends=0;
+    for(size_t i=0;i<source->count;i++) {
+        const fd2_static_flow_node *n=&source->nodes[i];
+        if(!strcmp(n->op,"cin_montage_open")) {
+            opens++;
+            if(n->args[0]==(int32_t)first && n->args[1]==(int32_t)second && n->args[2]==(int32_t)scene) {
+                if(found>=0)return -1;found=(int)i;
+            }
+        }
+        if(!strcmp(n->op,"cin_montage_close"))closes++;
+        if(!strcmp(n->op,"end")){ends++;end=(int)i;}
+    }
+    if(opens!=20u || closes!=20u || ends!=1u || found<0)return -1;
+    uint8_t *seen=calloc(source->count,1);int *queue=malloc(source->count*sizeof(*queue));
+    if(!seen || !queue){free(seen);free(queue);return -1;}
+    size_t read=0,count=1;queue[0]=found;seen[found]=1;int close=-1,failed=0;
+    while(read<count && !failed) {
+        int at=queue[read++];const fd2_static_flow_node *n=&source->nodes[at];
+        if(!strcmp(n->op,"cin_montage_close")) {
+            if(close>=0 && close!=at){failed=1;break;}close=at;continue;
+        }
+        if(at!=found && !strcmp(n->op,"cin_montage_open")){failed=1;break;}
+        for(unsigned port=0;port<FD2_FLOW_PORT_COUNT;port++) {
+            if(port==FD2_FLOW_ERROR)continue;
+            int next=n->edges[port];if(next<0)continue;
+            if((size_t)next>=source->count){failed=1;break;}
+            if(!seen[next]){seen[next]=1;queue[count++]=next;}
+        }
+    }
+    free(seen);free(queue);if(failed || close<0)return -1;
+    fd2_static_flow_node *copy=malloc(source->count*sizeof(*copy));if(!copy)return -1;
+    memcpy(copy,source->nodes,source->count*sizeof(*copy));copy[close].edges[FD2_FLOW_NEXT]=end;
+    /* 除声明的单一close-next边外，所有node/args/ports逐byte保真。 */
+    for(size_t i=0;i<source->count;i++) {
+        fd2_static_flow_node check;memcpy(&check,&copy[i],sizeof(check));
+        if((int)i==close)check.edges[FD2_FLOW_NEXT]=source->nodes[i].edges[FD2_FLOW_NEXT];
+        if(memcmp(&check,&source->nodes[i],sizeof(check))){free(copy);return -1;}
+    }
+    *view=*source;view->entry=found;view->nodes=copy;*owned=copy;
+    *open_index=found;*close_index=close;return 0;
+}
+static int f4_montage_cold_cli(fd2_archive *other) {
+    char line[128],extra;unsigned first,second,scene,random;
+    if(!fgets(line,sizeof(line),stdin) || sscanf(line,"%u %u %u %u %c",&first,&second,&scene,&random,&extra)!=4 ||
+        first>=128u || second>=128u || scene<1u || scene>63u || (random!=0u && random!=50u) ||
+        fgets(line,sizeof(line),stdin) || ferror(stdin))return 1;
+    fd2_field_game *game=calloc(1,sizeof(*game));fd2_vga *vga=calloc(1,sizeof(*vga));
+    fd2_scene_field_state *state=calloc(1,sizeof(*state));scene_flow_context context={0};
+    fd2_static_flow view={0};fd2_static_flow_node *owned=NULL;int open=-1,close=-1,result=-1;
+    const fd2_static_flow *source=fd2_static_flow_lookup("stage","stage.cinematic.ending");
+    if(!game || !vga || !state || f4_cold_pair_view(source,&view,&owned,first,second,scene,&open,&close))goto done;
+    if(fd2_archive_open(&game->figani_archive,"original_game/FIGANI.DAT"))goto done;
+    game->ready=1;game->stage=26;game->units.count=2;
+    game->units.items[0].unit_id=(uint8_t)first;game->units.items[0].side=first<76u?2:0;
+    game->units.items[1].unit_id=(uint8_t)second;game->units.items[1].side=second<76u?2:0;
+    game->attack_rng=f4_cold_random;game->attack_rng_userdata=NULL;
+    const uint8_t *palette;size_t palette_size;
+    if(fd2_archive_get(other,0,&palette,&palette_size) || palette_size!=768)goto done;
+    fd2_vga_set_palette(vga,palette); /* 继承原2779夹具的palette0输入，不猜初始DAC。 */
+    context.vga=vga;context.fdother=other;context.game=context.mutable_game=game;
+    context.state=state;context.source_flow=1;context.fast=0;
+    s5_reset_io(vga);scene_source_load(&context);fd2_bios_clock_reset(0,0);
+    f4_cold_game=game;f4_cold_vga=vga;f4_cold_rng_value=random;
+    f4_cold_rows=f4_cold_rng_calls=f4_cold_wait_nodes=f4_cold_wait_total=f4_cold_clock_reads=0;
+    f4_cold_clock_tick=100;f4_cold_output_failed=0;f4_cold_cue_count=0;f4_cold_enabled=1;
+    result=scene_flow_run(&context,&view);
+    f4_cold_enabled=0;
+    printf("{\"kind\":\"summary\",\"status\":%d,\"rows\":%u,\"rng\":%u,\"wait_nodes\":%u,\"wait_total\":%u,\"clock_reads\":%u,\"uploads\":%u,\"presents\":%u,\"delay_calls\":%u,\"entry\":\"%s\",\"close\":\"%s\",\"flow_nodes\":%u,\"only_close_next_cut\":true,\"whole_ending_claimed\":false,\"cue_audit\":[",
+        result,f4_cold_rows,f4_cold_rng_calls,f4_cold_wait_nodes,f4_cold_wait_total,f4_cold_clock_reads,
+        s5_uploads,s5_presents,s5_delays,source->nodes[open].id,source->nodes[close].id,(unsigned)source->count);
+    for(unsigned i=0;i<f4_cold_cue_count;i++) {
+        const f4_cold_cue_call *call=&f4_cold_cues[i];
+        printf("%s{\"event_before\":%u,\"half\":%u,\"part\":%u,\"entry\":%u,\"cue\":%u,\"flow\":\"%s\",\"node\":\"%s\",\"rng_before\":%u,\"rng_after\":%u,\"clock_before\":%u,\"clock_after\":%u,\"hp_before\":[%u,%u],\"hp_after\":[%u,%u]}",
+            i?",":"",call->event_before,call->half,call->part,call->entry,call->cue,call->flow,call->node,
+            call->rng_before,call->rng_after,call->clock_before,call->clock_after,
+            (unsigned)call->hp_before[0],(unsigned)call->hp_before[1],(unsigned)call->hp_after[0],(unsigned)call->hp_after[1]);
+    }
+    puts("]}");
+    if(f4_cold_output_failed || ferror(stdout))result=-1;
+done:
+    f4_cold_enabled=0;fd2_scene_cinematic_close(&context.cinematic);
+    if(game)fd2_archive_close(&game->figani_archive);
+    free(owned);free(state);free(vga);free(game);return result?1:0;
+}
+
+#include "f4_credits_cold_probe.h"
+static uint64_t f4_credits_clock(void) {
+    f4_credits_clock_reads++;return fd2_bios_tick_start_ns(f4_credits_clock_tick++);
+}
 int main(int argc,char **argv){
     fd2_archive other={0};CHECK(fd2_archive_open(&other,"original_game/FDOTHER.DAT")==0);
+    if(argc==2 && !strcmp(argv[1],"--f4-credits-cold")) {int result=f4_credits_cold_cli(&other);fd2_archive_close(&other);return result;}
+    if(argc==2 && !strcmp(argv[1],"--f4-montage-cold")) {int result=f4_montage_cold_cli(&other);fd2_archive_close(&other);return result;}
     if(argc==2 && !strcmp(argv[1],"--s5-stage-vectors")){unsigned stage,variant;int turn;
         while(scanf("%u %u %d",&stage,&variant,&turn)==3)CHECK(s5_vector(&other,stage,variant,turn,1)==0);
     }else{
@@ -827,4 +1103,8 @@ int main(int argc,char **argv){
 }
 
 /* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
-uint64_t s5_clock_ns(void) { return s5_clock()*UINT64_C(1000000); }
+uint64_t s5_clock_ns(void) {
+    if(f4_credits_enabled)return f4_credits_clock();
+    if(f4_cold_enabled){f4_cold_clock_reads++;return fd2_bios_tick_start_ns(f4_cold_clock_tick++);}
+    return s5_clock()*UINT64_C(1000000);
+}

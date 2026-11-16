@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import struct
+from collections import Counter
 from pathlib import Path
 
 TEXT_SHA = "b47e39ee727482528da061a8705f5cdee8a9cf759447aeda298afe17d9dd8bcc"
@@ -81,6 +82,41 @@ def rle_writes(width,height,stream):
     return writes
 
 
+def text_syntax_inventory(entries, glyph_count):
+    """15f84语法参数账；speaker参数不当字形，不代caller可达性或呈现。"""
+    if not glyph_count:
+        raise ValueError("字形分母为空")
+    rows=[];total=Counter()
+    for entry,fragments in enumerate(entries):
+        for fragment,tokens in enumerate(fragments):
+            counts=Counter();speakers=[];glyphs=0;at=0;ended=False
+            while at<len(tokens):
+                token=tokens[at];at+=1
+                if token>=0:
+                    if token>=glyph_count:raise ValueError(f"字形越源：{entry}/{fragment}/{token}")
+                    glyphs+=1;continue
+                if token not in (-1,-2,-3,-4,-5,-6,-17,-18,-19,-20):
+                    raise ValueError(f"未知文本控制：{entry}/{fragment}/{token}")
+                counts[str(token)]+=1
+                if token==-1:
+                    if at!=len(tokens):raise ValueError("已解析片段的END后仍有token")
+                    ended=True;break
+                if token in (-17,-18,-19,-20):
+                    if at>=len(tokens):raise ValueError("speaker缺参数")
+                    speakers.append({'control':token,'argument':tokens[at]&65535,
+                        'kind':'text_id' if token in (-17,-18) else 'raw_index'})
+                    at+=1
+            if not ended:raise ValueError("speaker参数不能代替片段END")
+            total.update(counts)
+            raw=struct.pack('<'+'h'*len(tokens),*tokens)
+            rows.append({'entry':entry,'fragment':fragment,'token_sha256':hashlib.sha256(raw).hexdigest(),
+                'token_count':len(tokens),'glyphs':glyphs,'controls':dict(counts),'speakers':speakers})
+    return {'entries':len(entries),'fragments':len(rows),'glyph_count':glyph_count,
+        'literal_glyph_tokens':sum(row['glyphs'] for row in rows),'controls':dict(total),'rows':rows,
+        'scope':'First-END token syntax only; suffix bytes, dynamic values, caller reachability and pixels are separate',
+        'runtime_or_pixel_equivalence_claimed':False}
+
+
 def audit(original):
     text=(original/"FDTXT.DAT").read_bytes()
     other=(original/"FDOTHER.DAT").read_bytes()
@@ -98,7 +134,11 @@ def audit(original):
             if any(value<0 and value!=-1 for value in entries[0][fragment]):
                 raise ValueError(f"正常名称{fragment}含非终止控制符")
             names.append(fragment)
-    cursor=archive_entries(other)[1]
+    other_entries=archive_entries(other)
+    font=other_entries[4]
+    if len(font)%32:raise ValueError("字模owner不是32B整倍数")
+    syntax=text_syntax_inventory(entries,len(font)//32)
+    cursor=other_entries[1]
     width,height,count=struct.unpack_from("<HHH",cursor)
     offsets=struct.unpack_from("<"+"I"*count,cursor,6)
     frames=[]
@@ -109,6 +149,7 @@ def audit(original):
     return {"schema":"fd2.g4.render-source.v1","resource_sha256":{
         "FDTXT.DAT":TEXT_SHA,"FDOTHER.DAT":OTHER_SHA},"text_entry_count":len(entries),
         "dynamic_fragments":dynamic,"all_dynamic_in_ui0":all(x["entry"]==0 for x in dynamic),
+        "text_syntax_inventory":syntax,
         "normal_name_ranges":NAME_RANGES,"plain_name_count":len(names),
         "cursor_dimensions":[width,height,count],"cursor_frames":frames,
         "cursor_decoded_zero_is_skip":all(x["opaque_zero_count"]==0 for x in frames),

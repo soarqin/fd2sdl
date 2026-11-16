@@ -34,14 +34,18 @@ static int prepare_service_clear_keys(prepare_ui *ui) {
 }
 static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     if (prepare_service_host_quit(ui)) return 1;
-    fd2_vga_present_timed(ui->vga,ms);
-    fd2_vga_wait_frame_deadline(ui->vga);
+    fd2_vga_upload_current_frame(ui->vga);
+    if (prepare_service_host_quit(ui)) return 1;
+    /* ms0是有限copy；4/10/200为源后等待，16只在空等轮作H节流。
+     * 不履行先前owner的deadline，也不将上传代价抵扣源等待。 */
+    if(ms)fd2_delay_ms(ms);
     return prepare_service_host_quit(ui);
 }
 /* 28b41的17aa9等待与4ms DOS delay分离；仍只上传当前页和检查HOST。 */
 static int prepare_service_present_ticks(prepare_ui *ui,unsigned ticks) {
     if (prepare_service_host_quit(ui)) return 1;
-    fd2_vga_present(ui->vga);
+    fd2_vga_upload_current_frame(ui->vga);
+    if (prepare_service_host_quit(ui)) return 1;
     fd2_wait_ticks(ticks);
     return prepare_service_host_quit(ui);
 }
@@ -229,6 +233,8 @@ static int prepare_service_read_key(prepare_ui *ui,fd2_input_event *event,
     unsigned countdown=fd2_field_rng_next(&ui->context->rng)%50u+8u;
     ui->vga->prepare_highlight_phase=2;
     if (redraw(ui)!=0) return -1;
+    /* 原26eda mode0在27079初画后，再初始化四个command；steady只改选中项。 */
+    if(animation_mode==0 && redraw==prepare_service_picker_tick_draw && prepare_service_picker_draw(ui)!=0)return -1;
     for (;;) {
         if (prepare_service_host_quit(ui)) return 1;
         int32_t tick=fd2_bios_tick_signed_ns(SDL_GetTicksNS());
@@ -261,15 +267,7 @@ static int prepare_service_scroll_rows(prepare_ui *ui,const uint8_t *before,
     memcpy(ui->vga->framebuffer,before,VGA_W*VGA_H);
     for(int step=0;step<4;step++) {
         int delta=step<3 ? 6:8;
-        if(down) {
-            for(int row=0;row<80-delta;row++)memmove(ui->vga->framebuffer+(115+row)*VGA_STRIDE+10,
-                ui->vga->framebuffer+(115+row+delta)*VGA_STRIDE+10,284);
-            for(int row=80-delta;row<80;row++)memset(ui->vga->framebuffer+(115+row)*VGA_STRIDE+10,73,284);
-        } else {
-            for(int row=79-delta;row>=0;row--)memmove(ui->vga->framebuffer+(115+row+delta)*VGA_STRIDE+10,
-                ui->vga->framebuffer+(115+row)*VGA_STRIDE+10,284);
-            for(int row=0;row<delta;row++)memset(ui->vga->framebuffer+(115+row)*VGA_STRIDE+10,73,284);
-        }
+        if(prepare_picker_shift_rows(ui->vga->framebuffer,down,delta)!=0)return -1;
         if(step<3 && prepare_service_present(ui,10))return 1;
     }
     memcpy(ui->vga->framebuffer,after,VGA_W*VGA_H);return prepare_service_host_quit(ui);
@@ -419,7 +417,7 @@ static int prepare_service_menu_page(prepare_ui *ui,int mode) {
         for (size_t i=0;i<4u;i++)
             fd2_map_sprite_blit(ui->vga,&ui->assets->service.icons[2u*i],
                 240+(int)k_prepare_menu_slide_offsets[i]/(mode ? step+1:4-step),169,0);
-        if (prepare_service_present(ui,16)) {free(base);return 1;}
+        if (prepare_service_present(ui,0)) {free(base);return 1;}
     }
     if (mode) memcpy(ui->vga->framebuffer,base->framebuffer,VGA_W*VGA_H);
     free(base);return 0;
@@ -472,18 +470,24 @@ static int prepare_service_zoom(prepare_ui *ui,int phase) {
     prepare_service *s=&ui->service;
     const uint8_t *record=fd2_field_stage_prepare_record_get(ui->context->preparation.stage_id);
     if (!s->town_background || !record || record[0]>=3u || s->selector<0 || s->selector>=6 || phase<0 || phase>10) return -1;
+    if(prepare_service_host_quit(ui))return 1;
     int type=record[0],step=128-9*phase;
     int cx=20480+128*(phase*((int)k_prepare_town_x[type][s->selector]-150)/10);
     int cy=12800+128*(phase*((int)k_prepare_town_y[type][s->selector]-100)/10);
-    memset(ui->vga->framebuffer,0,VGA_W*VGA_H);
+    uint8_t frame[VGA_W*VGA_H]={0};
     for (int y=0;y<VGA_H;y++) {
         int sy=cy+(y-100)*step;if(sy<0 || sy>=25600)continue;
         for(int x=0;x<VGA_W;x++) {
             int sx=cx+(x-160)*step;if(sx>=0 && sx<40960)
-                ui->vga->framebuffer[y*VGA_STRIDE+x]=s->town_background[(sy/128)*VGA_STRIDE+sx/128];
+                frame[y*VGA_STRIDE+x]=s->town_background[(sy/128)*VGA_STRIDE+sx/128];
         }
     }
-    fd2_vga_set_brightness(ui->vga,4*phase);return prepare_service_present(ui,16);
+    /* sub_2921A @0x2921a：先写53A49 raw前64000，2670e再复制VGA。
+     * App保留真实到达前缀；不能把320stride误改为456坐标窗口。 */
+    if(ui->vga->field_page && fd2_field_page_phase_prefix_write(ui->vga->field_page,
+            frame,sizeof(frame))!=0)return -1;
+    memcpy(ui->vga->framebuffer,frame,sizeof(frame));
+    fd2_vga_set_brightness(ui->vga,4*phase);return prepare_service_present(ui,0);
 }
 
 /* 19953/197e5与field/NoTown共用同一runtime.choice。服务只借现有
@@ -540,6 +544,13 @@ static int prepare_service_ui(prepare_ui *ui,const fd2_static_flow_node *node,un
         result=fd2_field_prepare_assets_open_service(ui->assets,ui->fdother,s->selector);
     } else if (!strcmp(node->op,"service_transition")) {
         if(node->args[0]!=0)goto fatal;
+        if(prepare_service_host_quit(ui)){result=1;goto complete;}
+        /* 2670e的town出阵YES同样走此尾；不加载不使用的service资源。
+         * 快照只属本次service调用，统一cleanup在成功/HOST/错误时释放。 */
+        if(!s->town_background) {
+            s->town_background=malloc(VGA_W*VGA_H);if(!s->town_background)goto fatal;
+            memcpy(s->town_background,ui->vga->framebuffer,VGA_W*VGA_H);
+        }
         for(int phase=1;phase<=10 && !result;phase++)result=prepare_service_zoom(ui,phase);
         if(!result){fd2_vga_set_brightness(ui->vga,64);memset(ui->vga->framebuffer,0,VGA_W*VGA_H);}
     } else if (!strcmp(node->op,"service_enter")) {
@@ -582,9 +593,9 @@ static int prepare_service_ui(prepare_ui *ui,const fd2_static_flow_node *node,un
     } else if (!strcmp(node->op,"darkness")) {
         if(node->args[0]<0 || node->args[0]>255)goto fatal;
         /* 11d40的byte暗度超63输出黑；不让uint8乘法回绕为亮色。 */
-        fd2_vga_set_brightness(ui->vga,node->args[0]);result=prepare_service_present(ui,16);
+        fd2_vga_set_brightness(ui->vga,node->args[0]);result=prepare_service_present(ui,0);
     } else if (!strcmp(node->op,"empty_screen")) {
-        memset(ui->vga->framebuffer,0,VGA_W*VGA_H);result=prepare_service_present(ui,16);
+        memset(ui->vga->framebuffer,0,VGA_W*VGA_H);result=prepare_service_present(ui,0);
     } else return 0;
 complete:
     if(result){*port=FD2_FLOW_ERROR;if(result==1)s->host_quit=1;return -1;}return 1;

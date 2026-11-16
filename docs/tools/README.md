@@ -386,6 +386,34 @@ python3 tools/dump_fd2_fixup_table.py --object 3 --ds 0x27d8 --count 96
 
 不要把未重定位镜像的 dword 直接当运行时指针；明确 object，再使用输出的 code0／relbase 坐标。
 
+## F4资源与共享呈现的分层验证
+
+完整分母、各候选实际执行、旧失败与26行组合资格统一查[F4报告](../plans/f4-presentation.md)。这些工具不构成第二个游戏运行时，也不把生成器输出当原版oracle。
+
+| 工具族 | 用途与证据边界 |
+| --- | --- |
+| `audit_g4_render_source.py`、`verify_f4_resource_pixels.py`及`verify_f4_extra_resources.py`／`verify_f4_remainder_resources.py` | 原资源span／语法去向、冻结原输出与真实loaded-buffer的解码配对；结构、reader与正式binding各用自己的分母 |
+| `verify_f4_*history.py`、`verify_f4_*composition.py`、`replay_f4_montage_cold.py` | 声明合法before、真实owner和完整索引页／DAC的参数或历史配对；先核来源／原件／生产者身份，不以接口存在或某一次reader通过外推全部caller |
+| `verify_f4_quake_stage0.py` | 同一合法隔离Load，经真实Game入口取得三idle×三Q的完整逻辑页；接三次原sampler及独立mask合成。不建窗口、不上传／等待／保存，不等于原生整Q0 |
+| `run_f4_flash_check.py`、`run_f4_dialog_feedback_check.py`、`run_f4_quake_check.py` | 有限正常输入和实际WGC反馈；默认只准备，实跑必须由owned Job串行并冻结当次配置／来源。按完整source写集和各自明确门判断，不拼接帧、加RGB容差或补造保存证据 |
+| `tools/ida/check_src_addresses.py` | 当前C／H注释的规范函数入口审计；不验证函数语义、ABI、原运行或原始字节等价 |
+
+只运行本次修改直接影响的工具检查。Windows（PowerShell）：
+
+```powershell
+python -B -m unittest discover -s tools/tests -p test_f4_quake_stage0.py -v
+python -B tools/ida/check_src_addresses.py --json build/f4/source-address-NEW.json
+```
+
+Linux（Bash；本轮未执行）：
+
+```bash
+python3 -B -m unittest discover -s tools/tests -p test_f4_quake_stage0.py -v
+python3 -B tools/ida/check_src_addresses.py --json build/f4/source-address-NEW.json
+```
+
+原始像素、完整转储、媒体和本地收据不入提交／分发；可复跑脚本及不含完整原资源的合同清单保在仓库。原／C／当前正式PE、静态组合与新自然运行分账；换PE不自动作废独立叶证据，也不能把旧PE的窗口结果写成新PE实跑。
+
 ## 原版资源分析
 
 Windows（PowerShell）：

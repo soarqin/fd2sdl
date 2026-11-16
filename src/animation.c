@@ -189,10 +189,12 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
         pos += data_len;
         if (hook) hook(hook_userdata, frame);
 
-        /* animation_play @code0 0x10555：每帧字节码和可选音效处理完成后
+        /* animation_play @0x20421（原登记FUN_0001db69）：每帧字节码和可选音效处理完成后
          * 固定等待调用方给出的毫秒数。不能使用跨帧 absolute deadline
          * 把下一帧解码时间抵扣掉，否则大型 cutaway ANI 会明显偏快。 */
-        fd2_vga_present(vga);
+        /* 原20421没有承接其它宿主动画的deadline；此处仅提交当前帧。
+         * 事件泵仍在下面的原毫秒等待，不额外推进FIFO采样相位。 */
+        fd2_vga_upload_current_frame(vga);
         fd2_delay_ms(frame_delay_ms);
         if (fd2_input_take_quit(&vga->input)) return -2;
         /* 原20421先10620 peek，skip直接返回且不消费；只有继续下一帧时

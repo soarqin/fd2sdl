@@ -1370,7 +1370,27 @@ static int test_cross_stage_active_owner_is_transactional(void) {
     CHECK(fd2_save_file_open(&source, "original_game/START.SAV") == 0);
     CHECK(fd2_save_file_get_battle_snapshot(&source, &original) == 0);
     CHECK(fd2_field_game_open_resources(&game, &fdother, 0) == 0);
+    /* 1088d@1097a：实际资源的每cell按原4df4c reset，非资源raw0假默认。 */
+    const uint8_t *raw_map;size_t raw_map_size;
+    CHECK(fd2_archive_get(&game.field_archive,0,&raw_map,&raw_map_size)==0 &&
+        raw_map_size==4u+(size_t)game.map.width*(size_t)game.map.height*4u);
+    for(size_t i=0;i<(size_t)game.map.width*(size_t)game.map.height;i++) {
+        const uint8_t *raw=raw_map+4u+i*4u;
+        uint32_t cell=(uint32_t)raw[0]|((uint32_t)raw[1]<<8)|((uint32_t)raw[2]<<16)|((uint32_t)raw[3]<<24);
+        CHECK(game.map.cells[i]==((cell&UINT32_C(0x001f03ff))|UINT32_C(0xff000000)));
+    }
     CHECK(fd2_field_game_import_battle_snapshot(&game, &original) == 0);
+    /* 10010@10276：失败不动live mark；正常Load从资源重建后raw3全ff。 */
+    size_t marker=2u*(size_t)game.map.width+2u;
+    game.map.cells[marker]&=UINT32_C(0x00ffffff);
+    uint32_t marked=game.map.cells[marker];
+    fd2_save_battle_snapshot invalid_marker_snapshot=original;
+    invalid_marker_snapshot.meta[FD2_SAVE_BATTLE_META_UNIT_COUNT]=97;
+    CHECK(fd2_field_game_import_battle_snapshot(&game,&invalid_marker_snapshot)!=0 &&
+        game.map.cells[marker]==marked);
+    CHECK(fd2_field_game_import_battle_snapshot(&game,&original)==0);
+    for(size_t i=0;i<(size_t)game.map.width*(size_t)game.map.height;i++)
+        CHECK((game.map.cells[i]>>24)==0xffu);
     /* 10010→12263：完成态不只是一组byte，必须从原地图重建；否则
      * 同session再次载入未开启的旧档会留下已开箱底图。 */
     uint32_t closed = fd2_field_map_cell(&game.map, 7, 13);

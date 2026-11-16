@@ -851,6 +851,13 @@ int __wrap_fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
     }
     if (cancellation_case) {
         active_game = game;
+        /* 18890 selector Esc经18993真实4df4c；正式所选单位须有map owner。
+         * 旧夹具map=NULL无法表达这条源前缀，不给产品添跳过清图的特例。 */
+        game->map.width=game->map.height=8;
+        game->map.cells=calloc(64,sizeof(*game->map.cells));
+        if(!game->map.cells)return -1;
+        for(size_t i=0;i<64;i++)game->map.cells[i]=UINT32_C(0xff000000);
+        game->map.cells[0]=UINT32_C(0x7be0fc00);
         game->interaction = FD2_FIELD_INTERACTION_UNIT_SELECTED;
         game->selected_unit = 0;
         game->units.items[0].x = 1;
@@ -1603,6 +1610,7 @@ int __wrap_fd2_input_take_action(fd2_input *input, fd2_input_context context,
         }
         if (action_sent == 1) {
             cancellation_checked = context == FD2_INPUT_CONTEXT_FIELD &&
+                active_game->map.cells[0]==UINT32_C(0xff000000) &&
                 active_game->interaction == FD2_FIELD_INTERACTION_BROWSE &&
                 active_game->selected_unit == -1 && active_game->turn_number == 17 &&
                 active_game->active_side == 2 && active_game->phase_next_action_ms == 1 &&

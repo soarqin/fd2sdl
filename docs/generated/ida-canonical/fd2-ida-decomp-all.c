@@ -32,6 +32,7 @@
 // [勘误 evidence] 1035c清53BDF；1036a..1039c按raw actor顺序读取+7当前unit ID调用11019，并于10391重写+2；103a9..103cb写新FD2.TMP。热身份变更可保留旧cache sprite，但Load会按当前ID重建。SDL保留原80B、以派生旁路表示新class，不承诺旧TMP保持。；依据: 2026-11-10 Domain窄读10010/11019/2548c/34dd0共2911B与strictLE一致；readset SHA eff244cac03080c8b394489275fbf10018b80b95e31d27f2d4239a3ea10ac84e。未改原型/边界。
 // [勘误 evidence] 10186..101cf为metadata申请并恢复完整2211B；资源只决定模板解析前缀。1037c读actor+7身份，逐raw调用11019，10391把首次身份cache class写回actor+2，包括hidden记录。G2历史SDL只改旁路、保持raw2；F3活动Load在交接前同步raw2，其余79B保留。2986f手工Load无此raw写点。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
 // [勘误 evidence] 1010f..10121把整A00恢复到现53BF7；active则申请独立1e00，只恢复count*80B，不为其inactive后缀提供初始化合同。whole Load的roster与count内80B有文件来源，不能与fresh未写字节统判U。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
+// [勘误 evidence] 1054c/1057b先在App画UI91与数字，105a7投影、105b1等tick，105ca才恢复。正常终态相同不能省略等待中的App；SDL只借真实87x20原窗口绘制/回写，成功才restore，HOST/error保已达前缀，不开放一般VGA回灌。；依据: source09完整10010及原UI/数字叶；Round新turn0/255共62条全App/VGA历史与每wait退出C通过。BYTE256x15旧资格保原身份，不签全Load/turncycle或绝对PIT。
 void sub_10010()
 {
   int v0; // ebp
@@ -1403,6 +1404,9 @@ int __cdecl memcpy_vga(int a1, int a2, int a3, int a4, int a5, int a6)
 //   历史地址列 `0x3710c`（`0x11ef8` 是 __chkstk body，入口为 `0x11eee`）；旧 Ghidra 名 `FUN_0000f640 body`；判定 chkstk-body
 // major system-notice / visual-clock evidence: 函数首仅当BIOS当前tick!=53a00时翻转53a40一次并重取当前tick，不按经过周期奇偶补追。attrs08加2*53a40、10加53c0b/2、04加53a40；角色idle由1297d另管，范围LUT53c1f亦为独立门。 依据：既有完整11eee(885B)与1297d及tile flag分支；本次私有修复仅将55/275ms宿主近似的视觉锚按原调用点单次推进，不宣称BIOS时钟、全局RNG、水DAC或所有地形动画已同步。保持field_view_render_tiles既名/类型。
 // [勘误 evidence] 11eff比较terrain tick，xor后11f16重读锚；随后实际wave/scroll背景更新及其fresh锚，1210f/12122的range门和1214b fresh锚，12164才选LUT并绘tile。固定51a93值直接写range phase而不取range clock。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
+// [勘误 evidence] 背景目的包含53AF5的正负偏移；12eaa/13315正常向下/右跟随按phase加4px，11eb0从同偏移App位置投影。SDL已修两处仅加负offset的差异。parallax正常四向crop不读47半图x461的SKIP；wave更新后59904B可读work全定义，新rebuild同tick work before仍未知，不将calloc零底或后继fadein作为原义。；依据: F4 dynamic-background-contract01完整source/原独立payload/33dispatch，正向12有源参数实际C整App/VGA/palette/DAC与独立派生页一致；实际构建/tlog及2130项晚守卫，不代自然地图、原CPU或C实际write mask。
+// [勘误 evidence] base与后继foreground消费同一map raw3和当前range LUT；mode0/NULL调用参数不能自动证明无marks。真实33图WH的terrain合法且flags80为0，只排该header overlay分支，不排前行末的marked cell或未知合成WH。；依据: 完整source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；原资源/参数与1024 direct、24 action及独立全App首错回归按F4收据分账。未凭typed相位扩签自然producer或新原版运行；名字/ABI/边界保持。
+// [勘误 evidence] 新wave work由10652明确free/新malloc64000，只发布53B03；完整正常caller未运输旧work，其它live owner writer不别名。若首sameTick跳唯一4eee0，120fe->11eb0->11ed4首源W+0无当前像素producer，为条件未初始化语义U而非OOB；C calloc0仅首U后H。先update后59904B可读区全定义，后sameTick仍V。无需无限旧heap数值，不强制更新或重置last/phase。；依据: wave-first-owner-review03 SHA d0306a008ba22ddb7f25842274fba026beb80d9b21604c39e806415fe5e63a87；七strict函数和现完整canonical显式引用/返回alias/调用前缀复核，更正旧02过强R理由。静态条件分类，不称自然相等已发生、原零底或新设备/运行证据；343原资格保持。
 void __cdecl field_view_render_tiles(int a1, int a2, int a3, int a4, int a5, int a6)
 {
   int v6; // ebx
@@ -1431,7 +1435,7 @@ void __cdecl field_view_render_tiles(int a1, int a2, int a3, int a4, int a5, int
     case 29:
       if ( MEMORY[0x46C] != dword_539F8 )
       {
-        sub_4EEE0(dword_53AFF, dword_53B03, dword_539FC);
+        field_background_wave_rows_copy(dword_53AFF, dword_53B03, dword_539FC);
         dword_539F8 = MEMORY[0x46C];
         if ( ++dword_539FC == 16 )
           dword_539FC = 0;
@@ -1569,6 +1573,7 @@ char field_completed_chest_tiles_apply()
 //   依据: corrected code0 `0x274f0`；模式 1/2 在焦点格画 frame 0/1，模式 3..5 组合 frame 1..18，模式 6 把当前 node offset `0x07` 置 0
 //   历史地址列 `0x374f0`；旧 Ghidra 名 `merged in FUN_0000f9ab`；判定 exact
 // [勘误 evidence] 122dc仅对mode1..6分派；6清node而无sprite，其它值走无sprite的default。15311确实无条件以magic record+4加2聚焦；原magic10/11/12的area5/7/9产生mode7/9/11，12cea仍按非0且非6等待，不能以renderer只列到6拒绝这些原值。；依据: 既有Domain source09完整122dc..126f7 SHA866692f43bd2736ade9ce526425241d33af53a54064647104dc76f96317a3a55，15311..1548e SHA967b72e576507cea33c9ec1d085aa9af182acd3c7e7402348c5488223999050e；原EXE object3 MAGIC252B@619fd SHA d516dc85c98d06e860477701ff1c018ac3a3f0953d79d0a6022aaf7a98f014c3独立读字节核field4完整域0/1/2/3/5/7/9。只核该分派/等待域，不代签完整AI范围/FX。
+// [勘误 evidence] mode6在126f1写当前map raw3=0，位于11eee terrain之后、actor/foreground之前；15055的AI射线转mode0后仍保留并绘八次既有marks，152c6才清。SDL已补同map写点及后继消费；普通nodes与原raw预算全域关系另验。；依据: F4 mode6-contract01的11完整原函数/严格镜像与33map来源；实际Game focus/AIcommit及完整App/VGA、HOST/错误前缀回归，不代替正常原生射线、完整RNG或原物理写总线轨迹。
 int field_selection_overlay_draw()
 {
   int result; // eax
@@ -1712,6 +1717,8 @@ int sub_127A9()
 // [勘误 evidence] 未区分战场单actor绘制与全表绘制、COMMAND末尾遮挡顺序 -> 只按传入index画一个actor，位置相对camera且上移6px，frame由direction/cache class/idle或walk组成。acted调用4e1a6映色。COMMAND四图标后仅再画focus actor，不重铺terrainoverlay；raw26另有横向抖动与frame门，本SDL切片仍未实现该视觉分支。；依据: 已发布sub_127E0无全表循环、stride456和dest常量30168，sub_127A9负责全表与遮挡；179d5末尾call127e0。真实原版COMMAND截图上图标底6行由FDICON actor0 frame1覆盖，完整20行资源合成476像素bad0、delta<=3；不是截图缺失。
 // [勘误 evidence] 原127f1..12810比较BIOS低WORD与53A08，tick变化只翻53A04低byte一次；128e7..128ef在actor+26非零时加共享0/1px，12914后同条件强制frame0。不改业务坐标、状态或RNG，acted映色及原层序独立。SDL用App VGA视觉owner对应；运行精度按阶段收据，不把接口存在当原版整帧通过。；依据: 完整413B原指令 SHA68b24e0d28affff7c08ed4eb1df55f3a558021c170f77019191b5f0f8b5094e4；G1完整读集与G2 clock/render回归。
 // [勘误 evidence] 127f1/127f6在camera/raw26之前读BIOS低WORD；不等则12801翻共享抖动phase，12808/1280d重新取锚。相机外及raw26=0也经过该门，direct本体不含batch的hidden筛选。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
+// [勘误 evidence] direct本身不筛flags bit0；127a9 batch及1366a mode80h组在调用前筛hidden。SDL将门放回caller，保direct live既有读钟时点，不能让pure叶统一拒hidden。；依据: F1 source09完整127e0/127a9/1366a与F4原normal/acted writer；新C整页/错误前缀回归，有限参数不等于自然hidden producer全域。
+// [勘误 evidence] raw4为零扩展BYTE，方向线性增量1824/-4/-1824/4；12937..1293f先检查相对offset负门，随后才加临时App base。selected负12像素不改变该门。逻辑x越列仍可能在同153216B owner内，不得矩形省绘。正常1..6不是完整Load保留BYTE的准入边界。；依据: 完整source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；原资源/参数与1024 direct、24 action及独立全App首错回归按F4收据分账。未凭typed相位扩签自然producer或新原版运行；名字/ABI/边界保持。
 void __cdecl sub_127E0(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -1890,6 +1897,7 @@ LABEL_4:
 //   依据: 反编译读取 `SUB_00003a51 + (y*w+x)*4`、`DAT_00003a69 + terrain_id*4`；阶段 2 FDSHAP 地形映射验证
 //   历史地址列 `0x37cda`；旧 Ghidra 名 `FUN_0001020e`；判定 exact
 // [勘误 evidence] 保留既名。它只绘caller指定格，接纳camera_x-1..camera_x+51A87及camera_y-1..camera_y+51A8B+1且y非负的范围；读取cell低10位terrain_id，仅attr08按53A40加2*phase，attr80才绘FDSHAP frame+1。cell.byte7==FF走原图，否则按51A97[53C1F]作同一格LUT；本helper不决定actor邻域或全图遍历。；依据: IDA9.5 Domain完整327B及唯一caller129ec；12ac6原分支、sheet offset+10和byte7判断与11eee底图→selection→127a9 actor→129ec局部恢复顺序一致。C22空格cursor反例只支持已测455/527/204像素及局部owner，不宣称所有遮挡/动画/RNG或新修复已实机通过。
+// [勘误 evidence] 仅负y及原视口门；map+4+4*(y*width+x)使x=-1读取WH或前行末cell。实际完整map owner不同于二维格边界，源raw3选择range LUT，先前已画tile保首错前缀。；依据: 完整source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；原资源/参数与1024 direct、24 action及独立全App首错回归按F4收据分账。未凭typed相位扩签自然producer或新原版运行；名字/ABI/边界保持。
 int __cdecl map_tile_blit_visible(int a1, int a2, int a3)
 {
   int result; // eax
@@ -2620,6 +2628,7 @@ void __cdecl field_camera_pan_to(int a1, int a2)
 //   历史地址列 `0x3887e`；旧 Ghidra 名 `FUN_00010db2`；判定 exact
 // [勘误 evidence] 脚本相位的11cac实参按当前53AFB选择：0或64时传0，非0非64传1；渐暗可在同脚本内到64而切回0。高位wait及上抬恢复分支传0；1398a脚本尾固定传1。尾仍重画一次但跳water，不能把它当普通相位刷新或省掉。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
 // [勘误 evidence] field_movement_script_play正常每相位render→17aa9(1)→4e381 clear；high-bit非零等待同序；jump先wait1、临时上抬合成、wait2、11cac(0)、clear。1398c尾仍11cac(1)，不追加clear；4e381本身没有等待。；依据: 完整1366a..1399c共818B及138fd/13905、1380f/13817、136db/137ae/137b8/137c0、1398c原调用；既有Domain source09完整chunk SHA9fa0bc803cd6303e62a2c49bb86b1bfdd139affc15de18b84c21e3c141a10ddf逐字节匹配strict relocated。这里只更正普通输入/等待来源，不签脚本全域、像素、绝对时序或RNG全轨迹。
+// [勘误 evidence] mode80h低7位0的raw组在13744测试hidden、13748跳过，早于1374b direct绘制；selected抬高与live actor clock都在该门之后，尾普通重绘仍为另一时点。；依据: 完整source09与Scene first/middle/last/all-hidden及selected有限C接线。
 int __cdecl field_movement_script_play(int a1)
 {
   unsigned __int8 *v1; // eax
@@ -3183,6 +3192,8 @@ void __cdecl sub_14121(int a1, int a2, int a3, int a4, int a5, int a6, int a7, i
 // [field_ai_physical_candidate_evaluate] 枚举 actor 可达格及移动后普通攻击目标，保留优先级／次分数最佳候选
 //   依据: corrected code0 `0x2944b`：先按移动 profile 与 ZOC 构造可停留格，再以武器 `+0x0b/+0x0c` 构造目标；优先级为 0/8/18，同优先级仅在次分数严格更大时替换，故完全平价保持行优先、actor 表先出现者；次分数在 destination 内跨 target 累积，不逐 target 重置。输出 `DS:0x3c43/47/4b/4f`。
 //   历史地址列 `0x3944b`；旧 Ghidra 名 `Ghidra 误并入前一函数`；判定 exact
+// [勘误 evidence] 142d5免疫19，否则raw20；14344范围→14354友方终点屏蔽→14360收集→14372清图。154c6实际移动另调用14b78，不借14237前驱树。；依据: 完整14237与既有1548e来源；范围计算和14b78正式选点/路径属于两个caller合同。
+// [勘误 evidence] 143c9/143cd与14532/14536均对各自actor/target调用1f183，JZ跳地形，故非零才修正。14586每target重装AP-DP；>2、严格>HP的kill、counter、hero3/2向0依序评分，初始priority/score0且只严格改善。AP/DP/HP均MOVZX WORD，完整域算式不需饱和。；依据: source09完整918B/258heads SHA87a17dd126aabd9a3fff0e83925b059d5a22b63beec64a274afe2a4f4af19eb5；source-evidence01 SHAe59af98c73e121500d1ba18cbd4bc26d512abb01f2dc628b83ae70b8221acf8b。独立150谓词/高WORD/负分常量与AI/AICommit/natural_plan定向C通过，非自然位置轨迹。
 int __cdecl field_ai_physical_candidate_evaluate(int a1, int a2)
 {
   unsigned __int8 *v2; // esi
@@ -3553,6 +3564,7 @@ void __cdecl field_target_range_build(int a1, int a2, int a3, int a4, int a5, in
  * callees: 0x12c0d, 0x3702f
  * --------------------------------------------------------------- */
 // [勘误 evidence] 七实参的arg_C/10为扫描起点，arg_0/4只决定方向；先将focus写起点，每轮先步进再lookup并按raw顺序收录，最后恢复旧focus。15055及1567e传当前actor坐标为起点、selected为方向点；1cff0同源。不能反向从selected朝actor扫描。原SP=S的[esp+2c/30]在本体固定栈深1c下对应[S+10/14]，不是按伪C参数名猜测。；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。
+// [勘误 semantic_name] field_line_targets_collect；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。
 void __cdecl field_line_targets_collect(int a1, int a2, int a3, __int64 a4, int a5, int a6)
 {
   int v6; // ebx
@@ -3661,6 +3673,7 @@ int __cdecl sub_14B16(_BYTE *a1)
 //   历史地址列 `0x39d96`（`0x14b82` 是 __chkstk body，入口为 `0x14b78`）；旧 Ghidra 名 `Ghidra 未识别边界`；判定 chkstk-body
 // [勘误 evidence] 先排序合法终点再探路；long route遇不可达即停，tie为abs(dx-abs(dy)) -> 先normal probe原请求anchor，失败后以预算28/mode1仍探该anchor；完整扫描long route，以未做友方终点阻断的distance记录最后可达格，未命中继续。随后才range/friendly block/sort/final path。tie为abs(abs(dx)-abs(dy))，相等保留扫描先项。局部profile先immune→19，再text_id28→1，预算0合法且无HP门，不修改原actor profile。；依据: 权威伪C及原始局部指令14c3a/14c7d/14cd7/14d17/14d47。14e0c push使ESP=S-4，14e15 [esp+8]覆盖S+4为abs(dx)，14e19才弹参；14e27读回该值，旧非对称解释漏算ESP变化。新SDL合成回归与真实START四玩家几何对照，不等于整函数机器执行或March运行验收。
 // [勘误 evidence] normal失败后14c53先4df4c清40/80及byte7，14c7d直接预算28/mode1探原anchor，期间未调用145cd，所以长路没有单位阻挡／ZOC。14c9a再次clear后14ca6才重建145cd，14cc7计算本回合range并扫描完整长路取最后可达格，随后友方终点阻断／排序／普通路径不变。SDL clear-unit-flags组合位只表达此调用环境，不是新增原版mode。；依据: 完整14b78 Domain指令与14121/13a9f调用链；同一真实C10派生stage1文件三END，旧probe重现六终点偏差，两项修复后的六终点精确等于native的13,5/11,3/12,4/15,3/14,4/13,3，该headless probe RNG0且源文件不变。真实双端重验仍按后续GUI收据单列。
+// [勘误 evidence] immune→19后text_id28覆盖1；先normal请求anchor，失败才清flags的budget28/mode1；再用4e390完整长路reachable、最终友方屏蔽及几何排序，最后normal finder。零步最终finder也已先14eaf清图。；依据: 完整14b78@14bbb..14bd5/14c3a/14c7d/14cc7/14d7d/14e9f/14eaf。29个真实profile每cost>=1，固定28的清flags长路最多28步/29activations，可独立排mode alias；动态MOV与首probe clean前提另记。
 int __cdecl field_ai_move_toward_cell(int a1, int a2, int a3, int a4)
 {
   int v4; // ebx
@@ -4049,8 +4062,9 @@ int __cdecl field_ai_magic_action_execute(int a1, int a2)
 // [勘误 evidence] exchange后方向reset→败亡描述符→刷新→死亡清理→掉落→刷新，随后无额外HP门调用1e292给原防御者。caller不清53EC8、不作99cap；1e292入口hidden/等值level门可早退，早退不消费残留全局。；依据: 完整496B、13a9f/14ef0两caller及15627..1566a指令；53EC8完整xref无1548e/1e856/13a9f/14ef0初始化。Load10010/secondary19df7/END1a30b亦无清零写，不能从后来118ee/18dc4选择门推出Load必已清贡献。
 // [勘误 evidence] 完整exchange在154ad先12d7b聚焦攻击者，154c6才执行14b78移动，154de再12d7b聚焦所选防御者，然后进入交战；不能用直接写cursor代替12d7b→12cea的逐格镜头留边。13a9f没有统一动作聚焦，behavior8无动作也不能凭调度主动改焦点。名称与持久ABI不变。；依据: IDA9.5 Domain完整496B、13a9f/14ef0调用xref与154ad/154c6/154de原指令；12d7b在12da3调用12cea。B5 C20实际原版完成、SDL turn11 quiet失败，81块地形共46656px唯一确定SDL camera5,1，而原版0043 camera5,0的422px资源门及Save11保留Hero15,0。这是原动作聚焦遗漏的依据，不改变oracle或把后续修复预记为实机通过。
 // [勘误 evidence] 物理caller在攻击目标聚焦前设置51A83=1，2e2b0正常尾11cac(1)因而保留普通cursor。玩家18d8c亦沿18890的1进入，不能为修法术内部多余cursor而全局删除物理返回cursor。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
-// [勘误 evidence] SHORT先face主动者、mode0/map刷新/mode1，按初始合法反击face目标；1eb05后重置方向再1e856。目标存活且仍可反击才双方face、1e611、反击1e856，最后重置方向。155f3..155fb只push三实参，15600仅清0xc；1e611读arg_C不是已提供第四参。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
 // [勘误 evidence] 完整1548e..1567e原指令中SHORT15616与FULL15624共同汇15627：1562f调用1b6b7收集descriptor，1563b以实参0调用11cac，15643调用1db65清死亡，15652调用1aa1d，1565c再次以0调用11cac，最后1566a调用1e292奖励。两次外围水色刷新适用于全部AI物理，不仅SHORT；它们不代替2e2b0 FULL演出内部的raw1尾。空descriptor count0同样经过1aa1d返回后的第二次刷新。；依据: 1548e复用G2完整Domain原读集，whole chunk SHA bb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；32999复用G1完整Domain原读集，whole chunk SHA 15a88f6d53a73f1644f046cdef06a09247cabd207f48638eebb93f180e2b69a3，永久verify_fd2_arrival_owner.py实际12次原caller投影。arrival的绘图/PCM/分配/拷贝/append均显式替身，只核调用顺序/页目标及参数；不升级为像素、业务、原版WGC或ABI等价，不改名称或猜测类型。
+// [勘误 evidence] SHORT先face主动者、mode0/map刷新/mode1，按初始合法反击face目标；1eb05后重置方向再1e856。目标存活且仍可反击才双方face、1e611、反击1e856，最后重置方向。155f3..155fb实际push target/actor/descriptor三参，15600清0xc；1e611两HP条从真实SP取target/actor，不据伪参数名arg_C推缺第四参。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] 154c6调用14b78后154cb平衡参数，154de直接focus原选目标，SHORT155a9/FULL1561f，没有移动后第二range门。原14237 raw-profile28与14b78 text28->profile1可分叉；SDL仅移除AI私有后置range拒绝，初始准入/stale/资源/反击及玩家门保持。；依据: 原完整496B SHAbb8f00be9623a99c0221c23831e79f659bcfddd5507ce6b27735b2f6543915d0；SHORT/FULL成功与前置拒绝C通过，stage19slot67证角色成本producer而非自然plan。
 int __cdecl field_physical_exchange(int a1, int a2)
 {
   int v2; // esi
@@ -4540,7 +4554,7 @@ LABEL_10:
 int __cdecl sub_15E71(int a1, int a2, int a3)
 {
   watcom_stack_check(20);
-  sub_4EC7C(a1, a2, a3);
+  pixel_rect_snapshot_restore(a1, a2, a3);
   return free(a1);
 }
 
@@ -4563,7 +4577,7 @@ void __cdecl sub_15E9E(__int16 *a1, int a2, int a3, int a4, int a5)
   v5 = a1[1];
   v6 = a4 + a3 * a5;
   v7 = malloc(v5 * v8 + 8);
-  sub_4ECBF(v7, v8, v5, a2, v6, a3);
+  pixel_rect_snapshot_capture(v7, v8, v5, a2, v6, a3);
   image_raw_zero_transparent_blit(a2 + v6, a1, a3);
   JUMPOUT(0x22BBE);
 }
@@ -4589,7 +4603,7 @@ void __cdecl sub_15F0E(int a1, int a2, int a3, int a4, int a5, int a6)
   v7 = v6[1];
   v8 = a4 + a3 * a5;
   v9 = malloc(v7 * v10 + 8);
-  sub_4ECBF(v9, v10, v7, a2, v8, a3);
+  pixel_rect_snapshot_capture(v9, v10, v7, a2, v8, a3);
   sub_4EBAB(a2 + v8, v6, a3);
   JUMPOUT(0x15983);
 }
@@ -4930,19 +4944,19 @@ int *__cdecl dialog_box_open(int a1, int a2, int a3)
   for ( j = 0; j < 5; ++j )
     dword_53A18[j] = malloc(26668);
   v8 = 320 * a3 + 5;
-  sub_4ECBF(dword_53A18[0], 310, 86, 655360, v8, 320);
+  pixel_rect_snapshot_capture(dword_53A18[0], 310, 86, 655360, v8, 320);
   dialog_box_draw_tiles(655360, 320, 5, a3, 4, 2);
   j___delay(10);
-  sub_4ECBF(dword_53A1C, 310, 86, 655360, v8, 320);
+  pixel_rect_snapshot_capture(dword_53A1C, 310, 86, 655360, v8, 320);
   dialog_box_draw_tiles(655360, 320, 5, a3, 8, 3);
   j___delay(10);
-  sub_4ECBF(dword_53A20, 310, 86, 655360, v8, 320);
+  pixel_rect_snapshot_capture(dword_53A20, 310, 86, 655360, v8, 320);
   dialog_box_draw_tiles(655360, 320, 5, a3, 12, 4);
   j___delay(10);
-  sub_4ECBF(dword_53A24, 310, 86, 655360, v8, 320);
+  pixel_rect_snapshot_capture(dword_53A24, 310, 86, 655360, v8, 320);
   dialog_box_draw_tiles(655360, 320, 5, a3, 16, 5);
   j___delay(10);
-  sub_4ECBF(dword_53A28, 310, 86, 655360, v8, 320);
+  pixel_rect_snapshot_capture(dword_53A28, 310, 86, 655360, v8, 320);
   v9 = dialog_box_draw_tiles(655360, 320, 5, a3, 19, 5);
   bios_keyboard_buffer_clear(v9);
   return dword_53A18;
@@ -5495,6 +5509,7 @@ void __cdecl field_command_menu_open(
  * callees: 0x3702f, 0x3706e, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
 // [勘误 evidence] 原53a71跨open/wait/close保存同一菜单底图：先free旧buffer再malloc5184，每行18个DWORD、共72行，从当前focus附近的456-stride工作页复制72x72。不是按每个开合函数重新生成的底图。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
+// [勘误 semantic_name] field_command_menu_background_save；依据: 完整154B/113B及1741c、176b4两caller和53a71读写证明72x72菜单底图保存/恢复；不按邻近或函数大小猜名。
 int field_command_menu_background_save()
 {
   int result; // eax
@@ -5524,6 +5539,7 @@ int field_command_menu_background_save()
  * callees: 0x3702f, 0x3771c
  * --------------------------------------------------------------- */
 // [勘误 evidence] 按当前focus对应地址，将53a71的72行连续72B恢复到456-stride工作页；只写页，不刷新terrain/actor或投影。原调用者在图标和direct127e0之前调用它。；依据: F2 menu-wait-source01/source01.json SHA256 53f1e84db5e2973f2774cdaadc148ac4083ec70a024b012ea2cc404207571952，10完整函数含四叶和五caller，各chunk连续指令/strict字节匹配，源DB/镜像SHA及mtime不变，无类型保存或原版运行。C回归、正式窗口及全帧/绝对CPU时序分别登记，不由本静态合同代签。
+// [勘误 semantic_name] field_command_menu_background_restore；依据: 完整154B/113B及1741c、176b4两caller和53a71读写证明72x72菜单底图保存/恢复；不按邻近或函数大小猜名。
 int field_command_menu_background_restore()
 {
   int result; // eax
@@ -5737,6 +5753,7 @@ void __cdecl field_command_menu_draw(int a1, int a2)
 //   依据: 当前权威 code0 读取物理地址 `0x046c` 的低 16 位计时器；1 tick 约 54.9 ms；`text_dialog_glyph_step` 每字调用 `bios_tick_delay(1)`
 //   历史地址列 `code0 0x7aa9（dual 0x17aa9）`；旧 Ghidra 名 `旧 Ghidra 错记为 FUN_000151f1 @0x3ccbd`；判定 exact
 // [勘误 evidence] signed WORD BIOS tick先减，负差加65536，与signed DWORD goal比较；<=0仍读一轮，53A2C scratch无外部reader；不清键/不推进水色；依据: s2_visual_source.py完整4函数494B含1951f共享4B尾及全部scratch xref；verify_s2_visual.py独立原码与真实VGA/Play叶346例，另记两个完整flash caller源轨迹。outp/时钟为明确替身；名义SDL/55不声明硬件相位/绝对时序。
+// [勘误 evidence] start后至少一次signed低WORD比较，负差加65536，比较通过后17ae4独立fresh尾读；53A2C仅局部scratch。SDL公共wait、common和Scene已补真实PIT读序，等待不上传、不消费普通FIFO或推进水色/actor/RNG；HOST保已达前缀。；依据: 完整68B strict源、F4 field_s2_visual/scene固定读钟脚本与bios_wait真实公共body回归；54.93ms、WORD边界及fresh尾验证，不代完整自然clock/provider联合轨迹。
 int __cdecl bios_tick_delay(int a1)
 {
   int v1; // eax
@@ -6328,6 +6345,7 @@ int __cdecl ui_number_draw(int a1, int a2, int a3, int a4, int a5)
 //   历史地址列 `0x3daae`（`0x1889a` 是 __chkstk body，入口为 `0x18890`）；旧 Ghidra 名 `FUN_0003daae`；判定 chkstk-body
 // [勘误 evidence] 玩家路径逐格执行cell handler，行动尾先格事件后acted -> 入口清pending及物品交接标志53C53；完整路径只收集match0，随后COMMAND。下级取消返回0重开COMMAND并保留pending；普通COMMAND取消恢复起点并return0，由controller重入入口清pending。成功COMMAND先acted，再查询最终match1，返回controller后置。；依据: 已发布玩家函数及原raw 0x188b3/0x188bd入口清零、0x18a52调用共享路径、0x18b0c/0x18b66最终lookup；controller 0x11942..0x1194d重入。53C53=1只确认成功物品交接路径@0x1bfa7，未扩为普通攻击或默认状态。
 // [勘误 evidence] START角色9可移动四格后在同一回合直接施法 -> 非零且非ff路径播放后，unit ID不为18／19／34时将disabled[1]置1，因此MAGIC禁止；零步分支不写此门。旧四步施法预研路线撤回。；依据: 已发布18890与raw18a38..18a7c：18a5f读unit[7]，18a63/68/6d比较三个例外，18a72写[ESP+4]=1，18a7c传同一disabled表；18d8c的空法术／+27状态也写此槽。0x18a38..0x18a8c的84字节SHA 95150fbbe7d8341b73f691ca9ecbbc5cbfb8172d0f11033f003bb719ac1c4fa6。SDL列表状态回归分别检查零步、例外及相邻ID；不从合成能力推断自然学习。
+// [勘误 evidence] immune先选19，否则unit_id28选16，否则raw20；text_id28不是此门。entry145cd→4e390→146d1，不新增4df4c；selector有效返回及Esc均18993清，确认路径189f8后18a0c再清。；依据: 完整18890@188d9..18958/1898d..18a0c与1f183先排unit_id28；独立profile表原580B，正式Game的rawmap owner/确认取消回归。
 int __cdecl field_player_unit_action(int a1)
 {
   unsigned __int8 *v1; // esi
@@ -6487,6 +6505,7 @@ void __usercall field_unit_selection_summary_wait(int a1@<esi>, int a2)
  * callees: 0x15f84, 0x1875d, 0x18795, 0x187d6, 0x3702f, 0x4ebff
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_unit_summary_draw；依据: 完整287B及18b84/2facd共享caller：先FDOTHER5 frame22不透明149x42板，再画HP/MP两条及数字、LV和actor.text_id+1名字。HP/MP及上限均signed16，LV为u8；条起点(21,22)/(21,31)，LV(132,4)，HP/MP数字(126,21)/(126,30)，名字(5,4)。1875d在current==max用bank31否则42；actor/cursor先画，板前景后覆盖，不裁掉头部就冒称完整actor。raw SHA fa85a60e551fb589d541b39ff772e2427cd38e0462f7cd291c0e894a7b08f2af。
+// [勘误 evidence] 板/HP/MP/LV/当前数字/姓名依序写caller实际owner；18b84是456页，2facd是320页。149x42仅板图，条长152/253等可越板及逻辑行；SDL已移除局部149桥和320列裁切，共用有限320/456 painter，首越owner保写前缀，资源/姓名仍预检。；依据: F1 source07 SHA79db0379b9c24d929482dd7f1cc698269fcff7e8c01a1cfebeaf107d808f09fa，四完整bar/number/summary函数逐chunk等strict；独立整VGA失败复现、完整App两侧spill与uniform fill首错闭式期望C通过，非自然HP>max运行证明。
 void __cdecl field_unit_summary_draw(int a1, int a2, int a3)
 {
   int v4; // esi
@@ -8753,6 +8772,7 @@ LABEL_32:
  * --------------------------------------------------------------- */
 // [field_unit_equipment_menu_execute] canonical 0x1bffe; original sub_1BFFE; EQT反复执行mode0库存选择；兼容时切装备并重算/重画，Esc关闭和释放缓冲；确认后仍同页同raw索引。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
 // [勘误 semantic_name] sub_1BFFE -> field_unit_equipment_menu_execute；依据: EQT反复执行mode0库存选择；兼容时切装备并重算/重画，Esc关闭和释放缓冲；确认后仍同页同raw索引。 依据已发布完整canonical pC+xref及strictLE原始函数/表/fixup；仅profile1两场EQT运行校准，不推广全部职业。
+// [勘误 evidence] 空库存不在1b9de选择器入口前取消：仍开详情/列表并等待导航、确认或Esc；返回后count0关闭，不消费为item效果。SDL冷图inventory_empty置于slot返回后。；依据: F2 ui-transition-source01完整caller；F4空EQT正常输入原/SDL及完整22987B Save通过，受控原记录派生夹具，不签自然到达/完整RNG/FIFO或全像素。
 void __cdecl field_unit_equipment_menu_execute(int a1)
 {
   int v1; // esi
@@ -8934,6 +8954,7 @@ void __cdecl field_unit_magic_list_build(int a1, int a2)
 // [勘误 evidence] field_actor_group_flash接收caller色值，非固定192；原51f15的30B颜色表由effect ID索引，13=192、17=146、18=72、19=216、22=35。ramp/duotone有独立caller合同，不套此表。；依据: G1 Domain完整1c2da及各wrapper调用链、原51f15..51f33字节SHA256 c09f95968698a256f582dab5bf428e1b495d54a8be6ce0df20406248477dcf0c；G2原件34离线flash分类揭示SDL硬192差异，冷表消费及真像素回归另验。不新增命名/ABI或把静态来源当完整动态RGB对照。
 // [勘误 evidence] caller仍传51f15[effectID]，但4e127实际忽略第四个颜色参数；map stride456低BYTE被复制到AH并填全部RLE写点，所以此路径的有效色恒为200。30B原表13=192/17=146/18=72/19=216/22=35是未生效参数，不能用它替代最终色。；依据: 完整Domain1c2da caller及4e127原callee交叉复核；原callee读取arg8为EDX步幅，4e13b读取同一arg8为EAX，4e13e mov ah,al，后续mov al,ah而未读argC。原34连续WGC实体完整写mask的blue色与palette200一致，推翻只按caller推断的146/72/216。原51f15..51f33 SHA256 c09f95968698a256f582dab5bf428e1b495d54a8be6ce0df20406248477dcf0c保留为来源，不保留无真实消费者的新增冷表；有效200另作有证呈现常量。
 // [勘误 evidence] 250cc四push为(0,19,COUNT1,&52326byte1)；真实第三参是count、第四参是BYTE列表，不是raw0..19。只闪raw1，solid200及原有限定时表沿G4；原未用参数不猜新义。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是__
+// [勘误 evidence] 五轮原页/solid页各copy后bios_tick_delay(1)，末尾第11次原页copy无等待。SDL共用play原55ms累计deadline不同，现upload后接原tick门，不等待继承frame_deadline，保cue/App/hook及HOST首前缀。；依据: 完整原1c43f/1c449与1c475/1c47f、1c4b0；F4 source-order合同及三族完整trace/错误/HOST回归，正式Scene新时点原生代表另签。
 int __cdecl field_actor_group_flash(int a1, int a2, int a3, int a4)
 {
   int i; // esi
@@ -9730,6 +9751,7 @@ void __cdecl field_player_magic_list_select_step(int a1, int a2, int a3, int a4,
  * callees: 0x17aa9, 0x25a96, 0x3702f, 0x37ae5
  * --------------------------------------------------------------- */
 // [勘误 evidence] 入口先sfx_play(53b13,0,1)，四轮DAC0写51aad/51ad1/51af5[id]→wait1→DAC0黑→wait1。1cff0仅id9..27且非24在双selector成功、mode0/11cac(0)/bank准备之后调用，随后才分派51d01 handler及其MP成本；AI/Item/FULL不是此唯一caller域。23取消第二目的地不进入该前缀，不能提前闪烁。；依据: F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。
+// [勘误 semantic_name] field_map_magic_cast_flash；依据: F2 battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584，完整1d6c8的212B、连续原指令/strict bytes及1cff0唯一caller相交；源DB/镜像SHA与mtime守卫不变。完整1cff0确认23的两次selector均在共用1d3f3/1d459之前，2218a的1ca89是MP helper而非selector。不从伪C参数猜ABI，不以C回归代签原版运行或绝对时序。
 int __cdecl field_map_magic_cast_flash(int a1)
 {
   int result; // eax
@@ -9889,6 +9911,8 @@ int __usercall field_side0_phase_execute@<eax>(int a1@<ebp>, int a2@<edi>)
 //   历史地址列 `0x42c34`（`0x1da20` 是 __chkstk body，入口为 `0x1da16`）；旧 Ghidra 名 `FUN_0000b168`；判定 chkstk-body
 // [勘误 evidence] 24x24专用actor绘制使用已缓存sprite与direction*3，idle/walk phase3映为1（不同于普通127e0的3映2），walking位移乘4；不套raw26抖动或acted灰色。solid实际使用stride低字节：456为200、SHORT VGA320为64，第四色参被4e127忽略。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
 // [勘误 evidence] 24x24专用actor绘制使用已缓存sprite与direction*3，idle/walk phase3映为1（不同于普通127e0的3映2），walking位移乘4；不套raw26抖动或acted灰色。solid实际使用stride低字节：456为200、SHORT VGA320为64，第四色参被4e127忽略。已证静止direction5以class*12+15+phase访问下一cache class的frame3+phase，必须按真实cache映射，不以unit ID加1；SHORT旧5在face/reset前不能被资源预检误拒。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] 目标按原456stride/base消费，但没有127e0的相对offset负门；mode0/2保持自身flags/raw26与固定200映色合同。仅与direct共用有限线性实写叶，不合并caller前提。；依据: 完整source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；原资源/参数与1024 direct、24 action及独立全App首错回归按F4收据分账。未凭typed相位扩签自然producer或新原版运行；名字/ABI/边界保持。
+// [勘误 evidence] raw4==0从全局idle读，raw4非0时以53C07 cursor选择行内帧，phase3映1。Battle两formal caller显式传同VGA owner cursor，不能借局部walk_frames。SHORT refresh与recover FOCUS_BEGIN在三formal绑定支配idle镜像；Play直接用VGA owner。；依据: source09完整1da16/13fd4/1e611/1a30b与已资格actor叶；五个三色owner控制及48几何C通过。只关闭三caller支配关系，不假设所有Scene时刻Game.idle恒等owner。
 void __cdecl map_actor_blit_24x24(int a1, int a2, int a3, int a4)
 {
   unsigned __int8 *v4; // eax
@@ -9973,6 +9997,7 @@ LABEL_22:
 //   历史地址列 `0x42d83`（`0x1db6f` 是 __chkstk body，入口为 `0x1db65`）；旧 Ghidra 名 `FUN_00042d83`；判定 chkstk-body
 // [勘误 evidence] 无演出时只需把全部HP0的flags写1 -> 只省略帧，仍保留旋转后的direction终态：若一个非hidden HP0位于x[camX-1,camX+13]／y[camY-1,camY+9]，13帧循环会把全体非hiddenHP0（含离屏者）方向最终写0；hidden死者方向不改。无屏内见证者则不改方向；最后全部HP0 flags精确赋1，不能OR原flags或重置所有存活者方向。；依据: 已发布1db65的收集门及j0..12全表循环、strictLE object2 VA51a87/51a8b原始8字节0d00000008000000，与现13x8 viewport相等。SDL共享清理用于phase/physical/AI magic/item及新player magic，扩边界与屏内外／hidden组合锁终态；此项不证明旋转／消散帧已实现。
 // [勘误 evidence] 1dcd4/1dd81分别调用完整11eee，仍为terrain→实际背景→range→tile的独立读取点；1dd1b逐raw直接127e0，1dd95经127a9批量调用。不能将死亡演出的terrain/background/range或actor成功重读锚冻结在一次now采样。预检advance0只借页不推进clock；第31锚别名及caller保存值资格另账，不由这些读取点代签。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不__
+// [勘误 evidence] 有限FX写集：第31项借临时base+0，其余真实D项借App；68..73分别累积，74..79先恢复旧base到App，再依raw序绘各target，新base反馈下一frame。原完整循环没有35项cap，SDL已移除静默截断并接已有96个active槽；base构造、高D自然来源及正常caller/QK联合仍未签。；依据: F1 source09及保留有限原参数/状态来源；F4十四组显式双页实际C/独立来源，504完整owner块一致；新D36/96各双底四组再过144完整owner块，报告SHA bbbdb80e4cee360f2e60ae5c1d13d8e80e759270bb151c1b2e9e9caaf853d946。初始化页内参数不等于高D正常可达证明，不能将C容量当原有效域上限。
 int field_defeated_units_finalize()
 {
   int result; // eax
@@ -10161,13 +10186,15 @@ void sub_1DF58()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1E0DB
+ * IDA 9.5 Hex-Rays: field_popup_number_enqueue
  * VA=0x1e0db..0x1e1dc OBJ=1 OFF=0xe0db size=0x101
  * callers: 0x20c6f, 0x21082, 0x2111a, 0x211a4, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x21b18, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22d1b
  * callees: 0x3702f, 0x37b29, 0x37b55
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_1E0DB。仅按原视区条件为一个actor追加4个十进制glyph槽，各槽有actor raw、5*i+2横移和字形索引；空白槽为0，53ec4加4。数值是caller提供的原始量，不在此按HP变化重算。；依据: 完整257B及21b18/物品等caller；sprintf长度及offset写集不等于确认原C ABI或扩展队列容量。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
-void __cdecl sub_1E0DB(int a1, char a2, int a3)
+// [勘误 semantic_name] field_popup_number_enqueue；依据: 完整257B/14caller15真实CALL及当前正式producer join：先原视区门，再signed%d与4glyph/raw/x-offset入队、53EC4加4；原MAGIC/Item WORD、core原量返回及buff MOVZX WORD证明当前非负域，不推ABI/扩容或把任意负数判U。
+// [勘误 evidence] 数字浮字入队：仅按原视区条件为一个actor追加4个十进制glyph槽，各槽有actor raw、5*i+2横移和字形索引；空白槽为0，53ec4加4。数值是caller提供的原始量，不在此按HP变化重算。；依据: 完整257B及14caller/15CALL、原MAGIC/Item表与core返回/零扩展WORD写集；signed%d的正常producer非负，HPdelta/贡献另账，不推ABI或容量。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+void __cdecl field_popup_number_enqueue(int a1, char a2, int a3)
 {
   unsigned int v3; // edi
   int v4; // esi
@@ -10213,12 +10240,14 @@ void __cdecl sub_1E0DB(int a1, char a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_1E1DC
+ * IDA 9.5 Hex-Rays: field_popup_miss_enqueue
  * VA=0x1e1dc..0x1e292 OBJ=1 OFF=0xe1dc size=0xb6
  * callers: 0x20c6f, 0x2111a, 0x21227, 0x213b7, 0x214ad, 0x21548, 0x22721, 0x22866, 0x22997, 0x22af6, 0x22c04, 0x22d1b
  * callees: 0x3702f
  * --------------------------------------------------------------- */
-int __cdecl sub_1E1DC(int a1)
+// [勘误 semantic_name] field_popup_miss_enqueue；依据: 完整182B/正常hit-false及状态已存在caller：原5204a的116/117/118/118四glyph，x偏移2/8/12/17，actor raw及53EC4加4；视区门同数字队列，FDOTHER5实际MISS资源对应，不推ABI/容量。
+// [勘误 evidence] MISS浮字入队：按同一原视区门追加actor raw、原116/117/118/118四glyph及2/8/12/17横移，53EC4加4；不重算命中或消费RNG。；依据: 完整182B/5204a原字节及1e0db相同视区谓词；hit-false和状态已存在caller、FDOTHER5实际MISS glyph共同确认，不推ABI或扩展队列。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
+int __cdecl field_popup_miss_enqueue(int a1)
 {
   int v1; // ebx
   int v2; // edx
@@ -10412,9 +10441,9 @@ int __cdecl field_notice_wait_ticks(int a1)
  * callers: 0x1548e
  * callees: 0x11eee, 0x127a9, 0x15f0e, 0x1e739, 0x1e7f6, 0x3702f
  * --------------------------------------------------------------- */
-// [勘误 semantic_name] field_short_counter_refresh；依据: 完整296B与1548e caller：重画地图、48号双面板、固定55及HP条；不是反击箭头。caller仅三实参而callee读第四项，未初始化读取单列安全边界，不补猜参。
-// [勘误 evidence] 重画地图及普通actor、FDOTHER6 frame48面板，再1e739固定宽55；接着1e6a8读取caller未提供第四实参并用作单位索引。SDL最小安全扩展仅省这一次未定义索引HP条，保固定55与明确arg8第二面板HP条，不把未知栈值猜成actor。其余顺序保留，不称原未定义像素等价。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
-// [勘误 evidence] 重画地图及普通actor、FDOTHER6 frame48面板，再1e739固定宽55；接着1e6a8读取caller未提供第四实参并用作单位索引。SDL最小安全扩展仅省这一次未定义索引HP条，保固定55与明确arg8第二面板HP条，不把未知栈值猜成actor。其余顺序保留，不称原未定义像素等价。1e640直call11eee会推进独立地形53A40门，1e648的127a9推进App raw26抖动；不调用1297d或水DAC门，不应把所有视觉时钟一起推进或全部冻结。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 semantic_name] field_short_counter_refresh；依据: 完整296B与1548e caller：重画地图、48号双面板、固定55及HP条；不是反击箭头。F4按真实disp/动态SP更正：三个实参足够，1e6a8/1e6fc分别取target/actor，不是未提供第四值。
+// [勘误 evidence] 重画地图及普通actor，target frame48面板→固定55→target比例条，再actor frame48面板→actor比例条，最后11d2c投影。1e6a8/1e6fc原disp14h/10h在额外push descriptor后取S+0c/S+8，三个实参充分；撤回旧缺第四值/U/H省条解释。1e640推进独立地形门，1e648推进App raw26抖动；不调用1297d或水DAC。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] 15f0e/1e739/1e7f6的已证面板/条写同一53A49，最后11d2c仅投影312×192；F4已修原SDL只写VGA board及全64000清边的差异，保App页和VGA外框。进一步按真实编码和动态SP更正旧第四值假设：ff742414/ff742410分别是target/actor，并非未写local。SDL已补首target比例条、第二条改actorHP；两个target条之间不重画背景。HP0不除、正HP/max0在比例点返回，线性首owner错误保App前缀。；依据: F4 source-checks20e38f5acbf426db8f0c86b0a77417fad61ec624ae9d8e97faf71d6616d951e7，sp-track-checksc0f190c58926778372cbbe429859a0f02a6d2e8206618ad9142d4465c37c728c；完整六函数/共享tail逐byte，30全App/VGA adapter及Battle/AICommit2CTest通过1.97s。未执行新原CPU/GUI，不签自然高WORD/重叠，旧错误收据保留不改。
 void __cdecl field_short_counter_refresh(_DWORD *a1, int a2, int a3, int a4)
 {
   watcom_stack_check(32);
@@ -12353,9 +12382,9 @@ void __cdecl field_item_use_effect_execute(unsigned __int8 *a1, int a2, int a3, 
                 v13 = &a4[i];
                 v14 = field_magic_damage_profile_apply(a4[i], v19);
                 if ( v14 != 0 )
-                  sub_1E0DB(v14, 94, *v13);
+                  field_popup_number_enqueue(v14, 94, *v13);
                 else
-                  sub_1E1DC(*v13);
+                  field_popup_miss_enqueue(*v13);
               }
               sub_11CAC(0);
               sub_1DF58();
@@ -12382,11 +12411,11 @@ void __cdecl field_item_use_effect_execute(unsigned __int8 *a1, int a2, int a3, 
           if ( *(_WORD *)(dword_53A45 + 80 * v10 + 70) != 0 )
           {
             field_mp_heal_apply(v10, v19);
-            sub_1E0DB(v9, 105, a4[j]);
+            field_popup_number_enqueue(v9, 105, a4[j]);
           }
           else
           {
-            sub_1E1DC(v10);
+            field_popup_miss_enqueue(v10);
           }
         }
         sub_11CAC(0);
@@ -12433,7 +12462,7 @@ int __cdecl field_item_permanent_stat_apply(int a1, int a2, int a3, int a4, int 
   field_actor_group_flash(a1, a7, a5, (int)a6);
   v7 = (_WORD *)(a3 + dword_53A45 + 80 * *a6);
   *v7 += a2;
-  sub_1E0DB(a2, 94, *a6);
+  field_popup_number_enqueue(a2, 94, *a6);
   sub_11CAC(0);
   sub_1DF58();
   field_unit_combat_stats_recompute(a1);
@@ -12461,9 +12490,9 @@ void __usercall sub_2111A(int a1@<ebp>, int a2@<edi>, int a3, int a4, int a5, in
     v7 = (unsigned __int8 *)(a5 + i);
     v8 = field_magic_damage_profile_apply(*(unsigned __int8 *)(a5 + i), a6);
     if ( v8 != 0 )
-      sub_1E0DB(v8, 94, *v7);
+      field_popup_number_enqueue(v8, 94, *v7);
     else
-      sub_1E1DC(*v7);
+      field_popup_miss_enqueue(*v7);
   }
   sub_11CAC(0);
   sub_1DF58();
@@ -12489,7 +12518,7 @@ void __cdecl field_hp_heal_group_execute(int a1, int a2, int a3, int a4)
   for ( i = 0; i < a2; ++i )
   {
     field_hp_heal_apply(*(unsigned __int8 *)(i + a3), a4);
-    sub_1E0DB(v5, 105, *(unsigned __int8 *)(i + a3));
+    field_popup_number_enqueue(v5, 105, *(unsigned __int8 *)(i + a3));
   }
   JUMPOUT(0x21190);
 }
@@ -12530,9 +12559,9 @@ void __cdecl sub_21227(int a1, int a2, int a3, int a4)
     v5 = (unsigned __int8 *)(i + a4);
     v6 = field_magic_damage_profile_apply(*(unsigned __int8 *)(i + a4), a2);
     if ( v6 != 0 )
-      sub_1E0DB(v6, 94, *v5);
+      field_popup_number_enqueue(v6, 94, *v5);
     else
-      sub_1E1DC(*v5);
+      field_popup_miss_enqueue(*v5);
   }
   JUMPOUT(0x21190);
 }
@@ -12612,9 +12641,9 @@ void __usercall sub_213B7(int a1@<ebp>, int a2@<edi>, int a3, int a4, int a5, in
     v7 = (unsigned __int8 *)(i + a6);
     v8 = field_magic_damage_profile_apply(*(unsigned __int8 *)(i + a6), a4);
     if ( v8 != 0 )
-      sub_1E0DB(v8, 94, *v7);
+      field_popup_number_enqueue(v8, 94, *v7);
     else
-      sub_1E1DC(*v7);
+      field_popup_miss_enqueue(*v7);
   }
   JUMPOUT(0x21190);
 }
@@ -12688,9 +12717,9 @@ void __cdecl sub_214AD(int a1, int a2, unsigned __int8 *a3)
   sub_1CA89(a1, 9);
   v3 = field_magic_damage_profile_apply(*a3, 9);
   if ( v3 != 0 )
-    sub_1E0DB(v3, 94, *a3);
+    field_popup_number_enqueue(v3, 94, *a3);
   else
-    sub_1E1DC(*a3);
+    field_popup_miss_enqueue(*a3);
   sub_11CAC(0);
   sub_1DF58();
 }
@@ -12718,6 +12747,8 @@ int __cdecl field_earthquake_effect(int a1, int a2, int a3)
  * callers: 0x21527
  * callees: 0x11cac, 0x11eb0, 0x127e0, 0x12e38, 0x1399c, 0x1c75e, 0x1ca89, 0x1df58, 0x1e0db, 0x1e1dc, 0x1f558, 0x25a96, 0x3702f, 0x3706e, 0x37119, 0x3776e, 0x3790a
  * --------------------------------------------------------------- */
+// [勘误 evidence] 60帧copy后各delay_ms(10)，cue在原指定copy之前；SDL共用play改upload后实际ms等待，删除无源累计deadline尾。；依据: 完整21548/21779/21783与field_effect的60帧有序接口回归；普通MAP另有自己的quake路径，未借本调度签其全部自然时序。
+// [勘误 evidence] 21527/2185f/21a9e共用quake体；215a2只调用1ca89扣MP，无1c4cc/LMI/style。三表52096/520a2/520ae与2167e/216a4/216cb真实SP对应(x,y,step)=(128,128,131)/(0,0,128)/(-128,128,125)，不是旧伪C标签错位的首72。三页按0/1/2/1循环60帧，指定cue13在312x192投影之前，每copy后10ms；VGA4096B外框保进入页。11/12的cue2/radial在此体扣费之前。；依据: F4 map-wrapper-family-candidate04完整23源join SHA8e7c1d130cb7715f43749d6e14d85e69c94c37e8c2c1830993cec4f0d6a006f6；原三表/实际SP/完整caller逐byte等strict。Game原参整VGA/page0、外框/60copy、十个Battle wrapper/错误/HOST及35条Game MP/RNG路由直接回归通过。首Battle测试仅修累计pump基线后单项复跑，其余三项不重跑；不代自然before/PIT/PCM。
 void __cdecl sub_21548(int a1, int a2, int a3, int a4)
 {
   int v4; // eax
@@ -12809,9 +12840,9 @@ void __cdecl sub_21548(int a1, int a2, int a3, int a4)
     v14 = (unsigned __int8 *)(ii + a4);
     v15 = field_magic_damage_profile_apply(*(unsigned __int8 *)(ii + a4), a2);
     if ( v15 != 0 )
-      sub_1E0DB(v15, 94, *v14);
+      field_popup_number_enqueue(v15, 94, *v14);
     else
-      sub_1E1DC(*v14);
+      field_popup_miss_enqueue(*v14);
   }
   sub_11CAC(0);
   sub_1DF58();
@@ -12841,6 +12872,7 @@ void __cdecl sub_2185F(int a1)
  * callees: 0x11cac, 0x11eb0, 0x11eee, 0x127a9, 0x219ad, 0x3702f, 0x3706e, 0x3771c, 0x3776e
  * --------------------------------------------------------------- */
 // [勘误 evidence] 一次terrain快照后十次circle12/127a9投影；半径、LUT次序及无额外等待按完整caller冷展开。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷图不是运行支持许可；当前绑定、C及原生范围另按development/实际收
+// [勘误 evidence] 原传入actor的xy减camera，中心x+12/y+18；不是global cursor或+16。一次terrain快照，十次LUT0..9的circle12→127a9→投影，末11cac(0)。Magic11/12先cue2及本圆环，之后才21548扣MP/quake；AI射线以其actor调用，Scene已同+18。；依据: F4 map-wrapper-family-candidate04 source-join同完整218d3/218e3/218e6与2194d/21951真实push后SP/disp，caller15055/2185f/21a9e/24754均按实际参数连接。当前C共用actor-circle，cursor与actor不等的向量及半径/中心/错误/HOST通过；不保存猜测ABI或把Item/DERIVED/COMPOSITE同编号core扩成普通Magic wrapper。
 int __cdecl sub_2189A(int a1, int a2, int a3)
 {
   int v4; // ebp
@@ -12968,7 +13000,7 @@ void __cdecl sub_21B18(int a1, int a2, int a3, int a4)
   for ( i = 0; i < a3; ++i )
   {
     v5 = field_magic_heal_apply(*(unsigned __int8 *)(i + a4), a2);
-    sub_1E0DB(v5, 105, *(unsigned __int8 *)(i + a4));
+    field_popup_number_enqueue(v5, 105, *(unsigned __int8 *)(i + a4));
   }
   JUMPOUT(0x21190);
 }
@@ -13386,13 +13418,13 @@ void __cdecl sub_22721(int a1, int a2, int a3)
     v5 = (unsigned __int8 *)(i + a3);
     if ( *(_BYTE *)(v4 + 34) != 0 )
     {
-      sub_1E1DC(*v5);
+      field_popup_miss_enqueue(*v5);
     }
     else
     {
       *(_BYTE *)(v4 + 34) = field_rng_next(*(unsigned __int8 *)(v4 + 34)) % 4 + 2;
       v6 = (int)_CHP(v6, *(unsigned __int16 *)(v4 + 72), (double)*(unsigned __int16 *)(v4 + 72) * dbl_50210 + 1.0);
-      sub_1E0DB(v6, 105, *v5);
+      field_popup_number_enqueue(v6, 105, *v5);
       *(_WORD *)(v4 + 72) += v6;
       dword_53EC8 += 2 * v7;
     }
@@ -13444,13 +13476,13 @@ void __cdecl sub_22866(int a1, int a2, int a3)
     v5 = (unsigned __int8 *)(i + a3);
     if ( *(_BYTE *)(v4 + 35) != 0 )
     {
-      sub_1E1DC(*v5);
+      field_popup_miss_enqueue(*v5);
     }
     else
     {
       *(_BYTE *)(v4 + 35) = field_rng_next(*(unsigned __int8 *)(v4 + 35)) % 4 + 2;
       v6 = (int)_CHP(v6, *(unsigned __int16 *)(v4 + 74), (double)*(unsigned __int16 *)(v4 + 74) * dbl_50218 + 1.0);
-      sub_1E0DB(v6, 105, *v5);
+      field_popup_number_enqueue(v6, 105, *v5);
       *(_WORD *)(v4 + 74) += v6;
       dword_53EC8 += 2 * v7;
     }
@@ -13500,14 +13532,14 @@ void __cdecl sub_22997(int a1, int a2, int a3)
     v6 = (unsigned __int8 *)(i + a3);
     if ( *(_BYTE *)(v5 + 36) != 0 )
     {
-      v3 = sub_1E1DC(*v6);
+      v3 = field_popup_miss_enqueue(*v6);
     }
     else
     {
       *(_BYTE *)(v5 + 36) = field_rng_next(v3) % 4 + 2;
       *(_WORD *)(v5 + 76) += 15;
       *(_WORD *)(v5 + 78) += 15;
-      sub_1E0DB(15, 105, *v6);
+      field_popup_number_enqueue(15, 105, *v6);
       dword_53EC8 += 2 * v7;
     }
   }
@@ -13578,13 +13610,13 @@ int __cdecl sub_22AF6(int a1, int a2, int a3, int a4, int a5)
     if ( v9 != 0 )
     {
       field_hp_heal_apply(*v10, 10);
-      sub_1E0DB(v11, 105, *v10);
+      field_popup_number_enqueue(v11, 105, *v10);
       *v8 = 0;
       dword_53EC8 += 4 * v7;
     }
     else
     {
-      sub_1E1DC(*v10);
+      field_popup_miss_enqueue(*v10);
     }
   }
   return sub_11CAC(0);
@@ -13640,7 +13672,7 @@ void __cdecl sub_22C04(int a1, int a2, int a3)
     v4 = (_BYTE *)(80 * *(unsigned __int8 *)(a3 + i) + dword_53A45);
     if ( (char)v4[5] >= 0 )
     {
-      sub_1E1DC(*(unsigned __int8 *)(a3 + i));
+      field_popup_miss_enqueue(*(unsigned __int8 *)(a3 + i));
     }
     else
     {
@@ -13723,11 +13755,11 @@ void __cdecl sub_22D1B(int a1, int a2, int a3, int a4, int a5)
     {
       v5 = *v6;
 LABEL_3:
-      sub_1E1DC(v5);
+      field_popup_miss_enqueue(v5);
       continue;
     }
     field_magic_damage_apply(*v6, 10);
-    sub_1E0DB(v9, 94, *v6);
+    field_popup_number_enqueue(v9, 94, *v6);
     *(_BYTE *)(v7 + a5) = field_rng_next(v10) % 4 + 2;
     dword_53EC8 += 8 * *(unsigned __int8 *)(v7 + 33);
   }
@@ -14586,6 +14618,7 @@ void sub_244B6()
 //   历史地址列 `0x49836`（`0x24622` 是 __chkstk body，入口为 `0x24618`）；旧 Ghidra 名 `FUN_00049836`；判定 chkstk-body
 // [S4 evidence] 完整24618尾在原9帧/释放临时页后delay_ms(500)，随后j=0..62、step2共32次pal_partial_set(0,255,j) @0x11df2，各有尾delay_ms(4)。11df2对基色逐分量加j并夹63，所以是加色变白，不是11d40减色或1f882淡出；保留原入口名、边界和业务owner。；依据: S4完整六caller Domain读集build/s4/fade-caller-source01/domain.json SHA256 b94010fe3b42eef5a9ed2c4b50aeaaee6c21c03a8a5303133d3b694e97a87043，含24618..24754全316B/完整CFG、xref及callee；六函数3885B逐chunk与strict relocated镜像一致。本条只澄清完整原控制流和调用参数；不把已有SDL比例近似当原义，也不提前签尚未执行的C/原码oracle或原生图像/绝对4ms时序。
 // [勘误 evidence] 原五参数读取focus-relative cells，九帧LUT9..1按radius+i*step增长；后delay500及32次11df2加色/尾4ms，不是减色。八个实际callsite四参数各保来源，单叶不隐藏循环。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9。13原分派ID与真实目标保留；有分支/等待/取消/写点的编排在唯一冷定义，C仅有限领域叶。完整来源/冷
+// [勘误 evidence] 九帧copy后各delay_ms(5)，之后500ms及32次加白/尾4ms仍由caller持有；共用play不等待此前动画deadline，hook只补像素不代等待。；依据: 完整246f3/24701及已证尾部合同；F4九帧trace和hook/上传/等待HOST前缀回归，不代实际展示刷新/绝对设备时间。
 int __cdecl field_stage_transition_effect(int a1, int a2, int a3, int a4)
 {
   int v5; // ebp
@@ -14988,8 +15021,8 @@ int sub_25089()
  * callers: 0x25bf4
  * callees: 0x11506, 0x135dd, 0x1366a, 0x15f84, 0x1c2da, 0x1f882, 0x22253, 0x233c6, 0x24618, 0x24b14, 0x25052, 0x25089, 0x31529, 0x3702f, 0x3790a, 0x37910
  * --------------------------------------------------------------- */
-// [勘误 evidence] dispatch:stage_victory:026→stage.source.victory.026。首16 raw的item100保两臂；正常stage27，缺失则raw1传送255/255、恢复roster、31529后25462原不返循环。1c2da实COUNT1/list52326=[1]只闪raw1，arg19不是raw范围/调色板。ending pair自然caller的HP栈cell末写/有效域待复核，仍显式阻塞，不提前称整来源可运行。 保持原中性名、完整边界/共享chunk和持久类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candi
 // [勘误 evidence] publication02中的ending自然栈待复核已由完整caller闭合；item100好臂仍11506→stage27→25089，坏臂25089→31529后保持原25462不返。坏臂热stage26不被credits资源30构造强写为30；montage在31c49返回后才发生，不能用旧stage26两名战场actor或独立render假actor代替53A45。当前来源候选可用不是本注释给坏结局、任意SAV或整终章原生批准。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5
+// [勘误 evidence] dispatch:stage_victory:026→stage.source.victory.026。首16 raw的item100保两臂；正常stage27，缺失则raw1传送255/255、恢复roster、31529后25462原不返循环。1c2da实COUNT1/list52326=[1]只闪raw1，arg19不是raw范围/调色板。此批次当时未签ending pair自然HP来源；下列natural-stack证据已补足该有限合同，不再把此历史缺口作当前阻塞。整来源可运行仍按正式绑定及实际收据另签。 保持原中性名、完整边界/共享chunk和持久类型。；依据: 此历史批次的完整来源保留在S5归档；同VA下后续natural-stack证据列出完整原caller、20-owner读集、原CPU连接及实际C收据。本条不重复长证据，以免IDA注释截断；有限pair资格不代整终章或自然GUI。
 void sub_250CC()
 {
   unsigned __int8 i; // bl
@@ -15350,6 +15383,7 @@ int __cdecl sfx_play_secondary(int a1, int a2, int a3)
  * callees: 0x111ba, 0x117e7, 0x22e5c, 0x22ef6, 0x22f37, 0x230f2, 0x231bc, 0x231f9, 0x23296, 0x232e8, 0x234bb, 0x235bc, 0x235f9, 0x23790, 0x237d5, 0x2389f, 0x238dc, 0x239bd, 0x23a0a, 0x23b5f, 0x23cd5, 0x23e39, 0x23e74, 0x240fa, 0x244b6, 0x24754, 0x24c1e, 0x24df2, 0x24e80, 0x250cc, 0x25464, 0x2548c, 0x25757, 0x25977, 0x25ebb, 0x26152, 0x3231b, 0x32d18, 0x32e8c, 0x32fb2, 0x33049, 0x3314b, 0x33169, 0x33219, 0x3327d, 0x3332b, 0x33367, 0x333f5, 0x3346b, 0x3347c, 0x334d9, 0x335a0, 0x335aa, 0x335da, 0x33674, 0x3367e, 0x336a0, 0x338c4, 0x3396a, 0x33aae, 0x33af1, 0x33c9d, 0x33dba, 0x33e3c, 0x3702f, 0x3706e, 0x370f0, 0x37d3e, 0x37ed8, 0x3908b, 0x392d0, 0x3aa72, 0x3aca3, 0x3cc7d, 0x4e381, 0x4ebe3
  * --------------------------------------------------------------- */
 // [勘误 evidence] 25d54..25d61在标题外循环前唯一malloc A00并存53BF7。25dd5..25e00普通败北只播放22e5c并回标题，不调用11506，不清roster/count。该App期owner完整A00须跨Game关闭保留；不能把has_preparation清除等同原表销毁。；依据: F3只读完整caller/owner复核：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；G5 inventory source SHA256 bf68e6890b77f788f1e7d23963d7239ece6078f61ef5fa20dc4214b9ed10f3d3。53BF7全部28直接xref和53BFB五writer、完整25bf4/25ebb/3231b/10010与strict原字节交叉核。不提供fresh heap数值，不签QK/全自然链或新原版运行；不改ABI/类型/函数边界。
+// [勘误 evidence] 25d47新malloc153216并只发布53A49；成功首次CONTINUE在标题/ANI/资源/active/cache正常非别名owner路径没有App像素运输。Load先清map raw3=FF，11eee1220c的4e22a C0仅SKIP不读旧dst，不能从pre-actor孔直接判首U。若actor/FG/info后仍有未写孔，首次viewport投影读取才是当前owner无像素producer的条件U，calloc0是其后H；同live/Town历史不套此类。；依据: F4 fresh-app-load-owner-peer02 SHAb27bab589db6e1986d65a8af4017df7cae089a6d62e75435ab36128cc9debc94；完整source09/标题ANI实参/原mask重排，stage11 camera0给定后层条件36孔，首App127,81在11eb0第9行source+55；函数级字节位置不冒memmove内部DWORD首读或新原生发生。父source-check02/peer01旧C0读义已撤回，原件保留。
 int __cdecl main(int argc, const char **argv, const char **envp)
 {
   int v3; // ebx
@@ -16249,6 +16283,7 @@ int __cdecl field_prepare_picker_wait_key(int a1)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_prepare_picker_tick_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整599B，26eda唯一caller；highlight为奇数才推53f72并模4，按mode0菜单选中图、1列表箭头、2三行候选sprite、3完整成员sprite绘制。raw cache目录按原索引，phase3取1；不读键、不耗RNG。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
 // [勘误 evidence] 每mode均按共享53f52奇偶推进53f72，仅++恰等4归0；名单/成员/复活/转职借53f72，菜单/箭头借53f52。城镇26152也写53f52，不能用三份局部phase代替两App DWORD。；依据: F2既有完整Domain/strict读集source09（SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517）；11aa8/12dac/18b84/18890另取input-wait-source01的完整函数，source01 SHA256 6f112a51399bdae47e82d208393a27ca9b4f78c451e71aeb21bc254ba6a248c1。17898/26eda/27079/2b4fb/2b67f的来源资格沿既有完整G3 Domain及canonical登记，不冒称它们全在source09。4e31c沿已发布水色函数与strict原字节读集，不列作source09包含项。新增live组件、实际工作页和正式代表分别登记F2报告；不是新原始程序运行、全共享RNG或绝对CPU/PIC时序证明。不改函数名、边界、类型或ABI。
+// [勘误 evidence] 准备picker steady写集按原mode分派：0只选中icon，1只箭头，2先箭头再至多3个candidate sprite，3成员sprite/name后箭头；26eda初开另初始化四icon。酒店正常名单也用13号资源11..14/17箭头，不得以service独占owner漏掉该绑定。SDL已补同源分派及酒店资源清理。；依据: 完整G3 preparation-naming-readset及正常29300->29620->27d33->26eda链；F4真实token写集/16酒店参数/早键/HOST/错误前缀C回归，旧237 WGC历史资格及新导航反馈分账，不代绝对时序。
 int __cdecl field_prepare_picker_tick_draw(int a1, int a2)
 {
   int result; // eax
@@ -16883,6 +16918,7 @@ LABEL_8:
  * callees: 0x15f84, 0x3702f, 0x4e29c
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_prepare_members_draw；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整336B，27079/27d33；两列至多六名，cache目录raw_index*12+共享idle相位，4e29c将sprite skip填73，姓名按text+1并高亮；不按当前unitID另建cache。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 每raw实际CFG先sprite再name，4e29c隔点孔保当前VGA像素；27d33只在开页显式建立frame16底板，steady/导航不重铺。SDL原current-page widget之外的隐式底板刷新已移除，酒店复用同一叶。；依据: 完整G3来源/严格116B 4e29c及ID30三处真实carry token；F4当前C五步0->1->2->1->0全页独立期望与不改业务/坏参断言。
 void __cdecl field_prepare_members_draw(int a1, int a2)
 {
   int i; // esi
@@ -19095,6 +19131,7 @@ int __cdecl persistent_roster_text_front(unsigned __int8 a1)
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2B996。Magic0特效dispatch的phase3初始化7条错开的-2*j状态，phase4/5按524ee层表分别绘制，phase5逐条加一，恰到9返回impact。2ff01调用方在命中effect之后、下一target之前为7个impact各消费一次1-rand()%3；RNG不在只读present层重抽。；依据: 完整4454B函数与2ff01/31266 callers；仅确认Magic0所用case3/4/5合同，其它magic dispatch未据地址/函数大小命名或声称已实现。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 // [勘误 evidence] 保留sub_2B996及原函数边界。524c6的ID0..6窗口分别为2b996/2bb33/2bd6c/2bfd9/2c217/2c441/2c67d，IDA均归此owner；已核全部phase0..8，不能再写仅Magic0。ID4/5 phase0各消费6个原16bit RNG，首target main各4个，过渡及后target继续同state并消费FX RNG；它们与effect hit/spread和impact jitter是不同调用点，skip、emit=NULL和静音不能省略。；依据: 十dispatch原raw窗口与29组真实FX时长/原RNG/math局部机器向量；0..6首impact为7/8/6/14/6/9/11，3/5/6后target分别可20/11/12。2c67d使用原sin/cos/CHP常数及非对称位置交换，不凭伪C转换猜ABI。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
+// [勘误 evidence] 内部selector6入口2c67d仍属于完整2b996函数；原FILD(72*i)/FMUL binary32角后FSTP qword，cos/sin各返回double再按WORD半径、base90/30与double1.2/30逐算，CHP临时向零并恢复CW后FISTP。固定参照启动CW127f的五角两分支及80唯一坐标有限资格已实测，不拆内部入口、不持久化猜测ABI，不推广任意FP环境。；依据: F4 normal-core-source-join01完整官方b6abbd5 decoder与同TU double数学叶；source05/07完整原初始化及76605既有codeheads的14环境指令，WORD5391c初始127f。自有独立DOS numeric03在固定reference实际guest0/owned/ref/晚守卫通过；其两个分支160坐标逐独立Taylor有理模型80坐标与20trig界通过。原游戏未由该程序加载/执行，12其它CW扫描不作正常门；当前C magic_fx29旧原kernel事件向量另以真实59输入/tlog/PE冻结通过，不用生成器自证整像素或自然producer。
 int __cdecl sub_2B996(int a1, int a2, int a3, int a4, char a5)
 {
   int i; // ebx
@@ -19287,6 +19324,7 @@ int __cdecl sub_2CCF4(int a1, int a2, int a3, int a4, char a5)
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2CE1A，524c6的ID9 owner。phase0 frame=1，phase3只返回60；phase5绘part(frame>>1)后递增byte，16<newframe<44返回impact，共27次；frame6/36分别提交primary1/secondary2 cue。前导/收尾各20tick并切换blink，不含FX RNG；不得把impact27当HP插值分母20。；依据: 完整278B与真实side0 FX44/31part局部向量；side非零表缺第十项、九tick过渡后的多target会越真实目录，相关stub失败原件保留且不列为合法29向量。 原Domain dispatch读集SHA2cc7a9b08c1341395805477d07d9e7c6ddae68a876e51fd715266bcd9f05abed；29向量SHAedb866e44dda28deb224b73787264fa5a4e78dcfe047600e0faf701cb21715a6。局部机器执行使用draw/audio stub，未覆盖真实输入、全帧/声音；Game FULL自测另记，不借SDL测试确认原版图形，也不创建1..6新函数或保存猜测类型。
 // [勘误 evidence] BYTE frame跨目标及九tick过渡延续：首target60tick为1到61、27impact；过渡到70，第二target核心与贡献照常但60tick无impact；后续BYTE回绕可再有impact。实际FDOTHER44仅31part，SDL只省beam越目录的DRAW，保全部计数/cue/impact与RNG，不伪造缺图或禁用多target。有效目录/其它FX/有效DRAW失败仍严格拒绝。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
+// [勘误 evidence] FDOTHER44 part31的目录DWORD本身仍在资源内(132→offset30)，unsigned xy=0/12546，image WH43008/107，首token00/a5为RUN1。31266 origin49c0/stride640下首4e9f7 store为work+8048320，越过2ff01请求172800及allocator payload上界172811。SDL从该首owner违例省绘是H，不是原像素等值。0..30编码流/目的extent另核，不代初始像素或全renderer。；依据: F4 full9-resource-prefix-review04及独立复审；G2完整caller/31266、S5 decoder与F3 allocator6e19来源逐chunk严格等image，原FDOTHER44字节只读。17旧请求轨迹仅继承，无新原码/原生、非side0或自然多目标扩签。
 int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
 {
   watcom_stack_check(24);
@@ -19334,6 +19372,7 @@ int __cdecl sub_2CE1A(int a1, int a2, int a3, int a4, char a5)
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_derived_magic_full_execute；依据: 2ff01按24/28..31调用，完整Domain/caller/FIGANI fixed slot2和逐part写集核对；G2实际C核心与原1c81f差分另登记，未推ABI/类型。
 // [勘误 evidence] signed AP乘24:15/28:20/29:12/30..31:18后除10减signed DP，直接1c81f；保存signed旧HP、核心贡献先提交再恢复HP，caster每个effect part marker以BYTE计数写oldHP-damage*count/divisor（28除8，其余1），duration0仍处理marker。intro每marker费用，固定FIGANI unit*3+2无普通fallback。；依据: G1完整battle读集、2cf30全部分支与原FIGANI资源；G2状态/晚失败/skip回归。原版运行范围另列，不将局部代码差分当完整演出验收。
+// [勘误 evidence] 普通FULL物理54133==0的split0/1、FULL法术0..9和DERIVED24/28..31的公共尾：fade-out后清VGA64000，再11cac(1)，fade-in末darkness0写满base DAC；没有入场DAC快照回写。物理非零montage另scope，不经此普通尾。SDL已补清屏并移除正常已started路径在黑DAC刷新前及淡入后的旧DAC恢复；skip/未started诊断/错误/HOST仍按有界宿主合同保快照与已达App前缀。；依据: F4完整2e2b0/2cf30/2ff01、1f882双chunk、1f525、11d40及1951f共享退出逐byte核strict。full-return-dac source_review SHA d1ebd0ff00134c7bdfb7ba2a32343722014152046a3f7d9951eb009af3499acb；20个非零before尾机制例以独立原water5旧DAC区别base，核全App/VGA/DAC及首错；不把已started控制量或公共尾law称全部前置动画/自然身份producer通过。
 int __cdecl field_derived_magic_full_execute(int a1, int a2, int a3, unsigned __int8 *a4)
 {
   int v4; // edi
@@ -19421,11 +19460,11 @@ int __cdecl field_derived_magic_full_execute(int a1, int a2, int a3, unsigned __
   v31 = v8;
   v30 = malloc(&loc_1F400);
   memset(v8, 0, 64000);
-  sub_2FACD(v8, a1);
+  field_battle_unit_summary_draw(v8, a1);
   if ( a2 == 28 )
   {
     blit_image_clipped(v7, 0, 50, v8, 320, -1);
-    sub_2FACD(v8, *a4);
+    field_battle_unit_summary_draw(v8, *a4);
   }
   else
   {
@@ -19474,7 +19513,7 @@ int __cdecl field_derived_magic_full_execute(int a1, int a2, int a3, unsigned __
         v36 = 5;
         v35 = 33;
         *((_WORD *)v29 + 32) = v28 - v27 * (unsigned __int8)++v37 / v38;
-        sub_2FACD(v31, a4[i]);
+        field_battle_unit_summary_draw(v31, a4[i]);
       }
       for ( k = 0; k < v13[6]; ++k )
       {
@@ -19527,6 +19566,7 @@ int __cdecl field_derived_magic_full_execute(int a1, int a2, int a3, unsigned __
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_composite_magic_full_execute；依据: 2ff01对32..35调用；完整Domain/xref、FIGANI fixed slot1、FDOTHER65..68与bank91..94及回图全组写序共同确认，不推ABI/类型。
 // [勘误 evidence] 先完成fixed FIGANI unit*3+1及intro每marker费用，再专用FX/回地图；32走record32伤害；33先全组清25..27再全组恢复800；34全组AP→清浮字→DP→清浮字→HIT/EV；35全组毒26→清浮字→禁法22→清浮字→麻痹27。组内复用core，不重复wrapper费用；不得逐目标合并三次效果。；依据: 完整2ddca..2deec指令、原表/资源与G2冷图/组顺序回归，运行范围另列。
+// [勘误 evidence] 唯一11cac(1)在2dd51，位于整VGA clear之后、41次6ms渐变和MAP效果组之前；2def4经1d4f6→1a80a只stop/free/return，没有末浮字后的刷新或旧DAC恢复。SDL修该位置/water/clear，首factor0承担唯一同状态上传，stop cast bank后关闭借用视图，正常FINISH保末App/VGA/palette/DAC；不把失败/skip清理等同原正常尾。；依据: F4 source09完整1780B及1d4f6/shared free原边；palette2df01的199B/65指令和原RGB表独立核同。四算法实际CAST、原组序及错误/HOST九例与composite34正常原/SDL UI及完整22987B Save通过；原生保其旧PE/ROI导航范围，不代全动画RGB、RNG、PCM或首次App未知底。
 void __cdecl field_composite_magic_full_execute(int a1, int a2, int a3, int a4)
 {
   unsigned __int8 *v4; // edi
@@ -19575,7 +19615,7 @@ void __cdecl field_composite_magic_full_execute(int a1, int a2, int a3, int a4)
   v7 = malloc(&loc_1F400);
   memset(v6, 0, 64000);
   blit_image_clipped(v28, 0, 50, v6, 320, -1);
-  sub_2FACD(v6, a1);
+  field_battle_unit_summary_draw(v6, a1);
   palette_fade_out_dark();
   v8 = 3 * v4[7];
   v23 = res_load((int)aFiganiDat, 0, v8);
@@ -19727,6 +19767,8 @@ int __cdecl palette_fade_to(int a1, int a2, int a3, unsigned __int8 a4, unsigned
  * callees: 0x111ba, 0x11cac, 0x11eb0, 0x12e38, 0x17aa9, 0x1f525, 0x1f882, 0x25a96, 0x2e9a8, 0x2eb9f, 0x2facd, 0x314de, 0x3702f, 0x3706e, 0x3776e, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
 // [勘误 evidence] 唯一直接caller15055的高射程Item路径；EDI为149f8返回的目标数，1511c写入并经face/11cac/17aa9/2e9a8正常保存。本函数不初始化EDI，从该part起点至part_count逐项演出并等待，不能从0重播；起点不小于part_count时自然零part，仍执行尾wait6。临时资源释放及地图cache恢复在尾wait6之前；随后fadeout/清VGA/11cac(1)/停止源声/fadein。15055的2189a、200ms、渐白及远端focus/phase循环在caller，20c6f效果只执行一次，不能替换成另一套FULL业务。；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分
+// [勘误 semantic_name] field_ai_ray_item_cast_present；依据: F2完整Domain/strict原源：149f8的286B及三个真实caller沿source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；2dfc8的744B沿battle-wait-source01/source01.json SHA256 fbba710a24749ed5ca31081fbfde76e4c9381faf6dd9181f7e383bc6418f8584。完整caller实push、SP变化及EDI保存叶交叉核对，不用伪C数组/原型自证。源DB/EXE/镜像身份守卫不变；C范围、像素、正常可达性和原生时序分别登记，不由静态合同合签。
+// [勘误 evidence] AI射线演出同样释放旧App：2e003 free后，2e217传153216、2e21c malloc、2e224发布53A49；2e240重载FDSHAP，2e24f等6tick，清VGA后2e272调用11cac(1)。C保留field_page只属宿主guard；新App按live BG/base、marks、actor/FG的当前producer归纳，None11/32首次未定义消费之后才是保旧底H，不以旧页补新owner来源。；依据: F4 final-binding-review01 SHA78acae8f9d27ffecb75110c7098571bc545effd8fba2ea58212c2df1fb2a5112；source09完整744B/208指令chunk SHA62df84601dad51dd1b31178801fbec66baccdc38d45852d3924756913458aa70逐byte同strict。仅来源/现consumer组合，没有新原CPU/GUI或ABI类型保存。
 int __usercall field_ai_ray_item_cast_present@<eax>(int a1@<edi>, int a2)
 {
   unsigned __int8 *v2; // ebx
@@ -19765,7 +19807,7 @@ int __usercall field_ai_ray_item_cast_present@<eax>(int a1@<edi>, int a2)
   v5 = (unsigned __int8 *)res_load((int)aFiganiDat, 0, 3 * v3 + 1);
   palette_fade_out_dark();
   dword_5413B = res_load((int)aBgDat, dword_5413B, v9);
-  sub_2FACD(v14, a2);
+  field_battle_unit_summary_draw(v14, a2);
   blit_image_clipped(dword_5413B, 0, 50, v14, 320, -1);
   dword_5414B = sub_314DE(v5);
   sub_2E9A8(a2, 1, v13, v13, v4, v14, v12);
@@ -19807,6 +19849,7 @@ int __usercall field_ai_ray_item_cast_present@<eax>(int a1@<edi>, int a2)
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2E2B0。完整物理场景按actor side及当前stage/terrain选择BG/TAI，加载两方FIGANI idle和攻击条目，按split字段走2e9a8/2ebe1，并在原反击门后交换双方继续；正常退出重取当前战场资源、重画地图和当前HP信息后渐亮。共享pop epilogue2e956不是独立入口。；依据: 完整1707B、1548e/18d8c等caller及52470/526e3相关表；terrain immune/profile例外与unit28分支直接来自原指令，不把stage0捕获当通用默认。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
 // [勘误 evidence] 仅31529这20组非split场景：borrow原53A45 raw0/1，54133取原scene override；首侧完整2ebe1及真实counter-query仍执行，override使普通反击/伤害分派路径受限；随后override=1执行第二侧。两方FIGANI和BG/TAI从真实资源读取，冷图只用有界22part/10tick族；不将此montage合同推广到1548e/18d8c等普通物理caller或旧B6未验域，不修改持久ABI类型。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5
+// [勘误 evidence] 普通FULL物理54133==0的split0/1、FULL法术0..9和DERIVED24/28..31的公共尾：fade-out后清VGA64000，再11cac(1)，fade-in末darkness0写满base DAC；没有入场DAC快照回写。物理非零montage另scope，不经此普通尾。SDL已补清屏并移除正常已started路径在黑DAC刷新前及淡入后的旧DAC恢复；skip/未started诊断/错误/HOST仍按有界宿主合同保快照与已达App前缀。；依据: F4完整2e2b0/2cf30/2ff01、1f882双chunk、1f525、11d40及1951f共享退出逐byte核strict。full-return-dac source_review SHA d1ebd0ff00134c7bdfb7ba2a32343722014152046a3f7d9951eb009af3499acb；20个非零before尾机制例以独立原water5旧DAC区别base，核全App/VGA/DAC及首错；不把已started控制量或公共尾law称全部前置动画/自然身份producer通过。
 int __cdecl sub_2E2B0(int a1, int a2)
 {
   int v2; // esi
@@ -19898,7 +19941,7 @@ int __cdecl sub_2E2B0(int a1, int a2)
   palette_fade_out_dark();
   dword_5413B = res_load((int)aBgDat, dword_5413B, v19);
   if ( dword_54133 == 0 )
-    sub_2FACD(v4, a1);
+    field_battle_unit_summary_draw(v4, a1);
   if ( field_counterattack_is_available(a1, a2) == 1 || dword_54133 != 0 )
     v21 = res_load((int)aFiganiDat, v21, 3 * v17 + 1);
   if ( v18 != 0 )
@@ -19923,7 +19966,7 @@ int __cdecl sub_2E2B0(int a1, int a2)
   {
     blit_image_clipped(dword_5413B, 0, 50, v4, 320, -1);
     if ( dword_54133 == 0 )
-      sub_2FACD(v4, a2);
+      field_battle_unit_summary_draw(v4, a2);
   }
   if ( dword_54133 == 0 )
   {
@@ -20077,8 +20120,8 @@ int __cdecl sub_2EB9F(int a1, int a2, int a3, int a4, int a5)
  * callees: 0x11eb0, 0x17aa9, 0x25a96, 0x2eb9f, 0x2f4d4, 0x2f631, 0x2f7b6, 0x2facd, 0x3702f, 0x3790a, 0x37910, 0x37ae5, 0x4ebe3
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保留sub_2EBE1。完整物理流程先消费一次3%机会，再于首次2f7b6的type3标记额外加一，最多三击；HP0中止后击。part+4非零分段写HP并夹0，+5为cue，+6为本part绘制tick数，+7 bit0与side共同决定双层前后；idle计时器为byte，不能把duration0偷换成统一1tick。split与普通布局走不同640/400stride。；依据: 完整raw/xref、5266c/52684抖动表和2f7b6输出；以canonical VA定位原分支。输出结构只按原写集描述，不保存推断的C参数或结构类型；完整三击尚非原版运行验收。 本轮IDA9.5 Domain完整raw/调用读集SHA776a577fad2694ddc2dfcb006168c346c218c456226a5c5577ce21b252711067。仅静态及局部纯测试依据，原版B6图形/声音验收未由本次发布取得；中性名/持久类型不变。
-// [勘误 evidence] S5 callee受控240向量仅证marker分支读取未自行初始化的局部HP栈cell并影响RNG相关3%重复。完整31529→2e2b0及prior2e9a8→memmove链的实际末写/有效域尚待复核；未自初始化不等于自然caller的HP任意，不提前断言无法恢复或作安全差异取舍。当前pair保持阻塞，不改ABI类型。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d7
 // [勘误 evidence] 本函数未自行初始化的局部HP读不等于31529自然值未知：原2ef80按signed DWORD读719040，override将damage清0，2ef9e向真实target+40h只写低WORD63680，每个marker即使duration0也写。首侧正DWORD保3%第二轮；第二侧override1在最后marker完整part之后早返，仍消耗其一次RNG。typed HP/条件/轮次/等待在冷图，marker为非0不等于固定图像帧数；旧240poison向量仍证明受控callee依赖，不改签为自然域、全物理战斗或完整C/GUI。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到__
+// [勘误 evidence] S5 callee受控240向量仅证marker分支读取未自行初始化的局部HP栈cell并影响RNG相关3%重复。当时未签的31529→2e2b0及prior2e9a8→memmove末写已由下列natural-stack证据补足；不再保留当前pair阻塞断言。旧poison向量仍仅属受控callee，不改ABI类型或扩签其它自然caller。；依据: 此历史批次的完整来源保留在S5归档；同VA下后续natural-stack证据列出完整原caller、20-owner读集、原CPU连接及实际C收据。本条不重复长证据，以免IDA注释截断；有限pair资格不代整终章或自然GUI。
 int __cdecl sub_2EBE1(int a1, int a2, unsigned __int8 *a3, _BYTE *a4, int a5, int a6, int a7, int a8)
 {
   int v8; // esi
@@ -20229,7 +20272,7 @@ LABEL_10:
           v29 = 0;
         *(_WORD *)(v28 + 64) = v29;
         if ( dword_54133 == 0 )
-          sub_2FACD(a6, a2);
+          field_battle_unit_summary_draw(a6, a2);
         if ( v18 != 0 )
         {
           if ( v14[5] != 0 )
@@ -20345,7 +20388,7 @@ int __cdecl sub_2F4D4(int a1, int a2, int a3, int a4, int a5)
   memset(a4, 0, &loc_1F400);
   memset(a3, 0, 64000);
   blit_image_clipped(a5, 0, 50, a3, 320, -1);
-  sub_2FACD(a3, a1);
+  field_battle_unit_summary_draw(a3, a1);
   memcpy_vga(a4, 640, a3, 320, 320, 200);
   result = sub_2EB9F(a2, 0, a4, 640, -1);
   for ( j = 9; j >= 0; --j )
@@ -20380,7 +20423,7 @@ int __cdecl sub_2F631(int a1, int a2, int a3, int a4, int a5, int a6)
   memset(a4, 0, 64000);
   blit_image_clipped(a6, 0, 50, a4, 320, -1);
   blit_image_clipped(a3, 164, 157, a4, 320, -1);
-  sub_2FACD(a4, a1);
+  field_battle_unit_summary_draw(a4, a1);
   memcpy_vga(a5 + 320, 640, a4, 320, 320, 200);
   result = sub_2EB9F(a2, 0, a5 + 320, 640, -1);
   for ( j = 1; j <= 10; ++j )
@@ -20538,12 +20581,14 @@ int __cdecl sub_2F7B6(int a1, int a2, _DWORD *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_2FACD
+ * IDA 9.5 Hex-Rays: field_battle_unit_summary_draw
  * VA=0x2facd..0x2fb2c OBJ=1 OFF=0x1facd size=0x5f
  * callers: 0x2cf30, 0x2d80d, 0x2dfc8, 0x2e2b0, 0x2ebe1, 0x2f4d4, 0x2f631, 0x2ff01, 0x30e9d
  * callees: 0x18c6d, 0x3702f
  * --------------------------------------------------------------- */
-void __cdecl sub_2FACD(int a1, int a2)
+// [勘误 semantic_name] field_battle_unit_summary_draw；依据: 完整95B及九caller：按raw index读取80B单位side，stage24/raw17强制VGA(0,154)，其它side非0为(171,4)；最终调用18c6d。不是按unit_id或相邻地址命名。
+// [勘误 evidence] 2cf30/2d80d/2dfc8/2e2b0/2ebe1/2f4d4/2f631/2ff01/30e9d共用raw索引定位；SDL只用唯一冷参数(24,17)与共享定位叶，保持原summary/背景/HP写序。；依据: F1 source09 SHA18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517，完整chunk[2facd,2fb2c) SHA286b2e579e094c8b6e4498b7439d7faceba42ff2c0cc43c930437d4a1bf8f4c9；caller真实push与现owner actor/targets/caster_index逐点连接。source-valid条件，非新自然实机反例。
+void __cdecl field_battle_unit_summary_draw(int a1, int a2)
 {
   int v2; // eax
 
@@ -20632,6 +20677,7 @@ int __cdecl field_promotion_visual_execute(int a1, int a2)
  * callees: 0x11eb0, 0x17aa9, 0x2eb9f, 0x3702f, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_promotion_idle_cycle；依据: G3只读IDA9.5 Domain完整函数/CFG/xref与strict LE原字节一致；完整237B，2fb2c唯一caller；局部BG先加一mod3，每tick绘当前idle part，按原duration推进并在BYTE count回0，wait1；duration0不补1，age非BYTE回绕。正常16→48新idle为三字节empty，SDL仅略未定义sprite目录/时长读取，保BG/等待，非原未定义像素等价。 完整33函数命名读集630d6b7dee0731278a4af07bd3595538c87f536eb72912586fd8f1161b7fbfda，来源/适用域见common-preparation-semantics.md；局部原码与原生运行范围分别登记，不写推测类型/ABI。
+// [勘误 evidence] 16→48的FIGANI144实际请求3B，allocator payload保守界8..19B，不据3B判普遍OOB。2fbec加载后完整当前owner writer仅fread[B,B+3)，2fd4c part0首次2ebb9读[B+8,B+12)：A<12越owner；A>=12无目录初始化producer，到局部首语义U。新work清零/BG已达，2fd6e到VGA copy尚未达；SDL省sprite后继续copy为有限H，不能签后继原像素。；依据: F4 promotion-empty-owner-review01 SHA c66f8438174efc9aa1473bb2491ff99eba8ed287c207c7dc33471e2e00361d69；七完整函数chunk=strict、原FIGANI与F3 allocator写集，未读邻接heap/新增CPU或GUI；实际block与自然转职联合另验。
 int __cdecl field_promotion_idle_cycle(unsigned __int8 *a1, int a2, int a3)
 {
   int result; // eax
@@ -20685,6 +20731,7 @@ int __cdecl field_promotion_idle_cycle(unsigned __int8 *a1, int a2, int a3)
 // [勘误 evidence] 正常尾部恢复地图时调用11cac(1)，该参数只控制刷新等待，不把51A83强制改1。玩家1cff0及AI15311均以51A83=0进入，故FULL法术返回页保持无cursor；物理2e2b0的显示上下文不同。；依据: 完整1cff0/15311/1548e/18d8c/2ff01及122dc显示switch共同确认；真实C5治疗13中SDL目标源720px仅cursor开启模型匹配，原版关闭模型匹配。原资源全地图模型对9个纯实际帧各64000px/max3为0坏点，另1张原版57/58混帧不作完整帧通过；idle相位差另列，不以改色或mask掩盖。只读诊断收据SHA4567c02844a8e3b2b4f54572b58d3fff4dfce7f49b1256203f115be892781044；本条不新增函数名/ABI/类型，也不预称后续修复原版配对通过。
 // [勘误 evidence] G2取消历史ID9多target整动作拒绝：原目标收集逐actor，不按格去重。完整2ff01目标循环、完整31266九tick过渡、2ce1a和真实4ebe3已与public Game逐RNG快照差分；effect/贡献先提交、HP恢复后仅impact插值，后续无impact不可补写coreAfter。原局部指针数组域比较限1/2/5/8目标，C95仅容量边界。非side0的FULL9缺selector仍单列域限制；正常9来源十个模板全side0，玩家9本来走MAP。；依据: 完整17函数Domain指令/CFG/xref与严格LE字节等同，读集SHAa3845664b68aa28bd0e7133242c2921bcfd431d994d04815c7fb0a835f0fdc86；FDOTHER/FIGANI及原分发表独立读取。verify_fd2_full9_wrapper.py执行原目标循环/完整过渡/真实RNG，与实际C FINISH80B及每次RNG前HP/MP/贡献比较；显存/声/等待仍明确stub，不冒称DOSBox运行或全帧声音等价。不改函数边界/类型。
 // [勘误 evidence] 纠正前批‘11cac参数只控制刷新等待’：FULL法术正常尾确实调用11cac(1)，原1跳water，原0才调用4e31c。该参数不写51A83；玩家1cff0与AI15311以mode0进入，因此正常返回仍沿caller无cursor环境。物理和其它caller须分别按源值接水色，不能通过强制mode1或每present更新water替代。；依据: 完整11cac/135dd/1366a既有Domain读集与strict relocated原字节逐chunk一致；205da按已发布入口边界核完整原字节；verify_fd2_scene_water.py执行原指令10例，核raw0/1、pan和脚本fade/wait/尾实参。绘制、DAC、脚步、等待、getter与constructor为明确替身；只证明原条件和调用参数，不证明图像、真实时钟、业务或DOSBox原生，也不改名/类型/边界。
+// [勘误 evidence] 普通FULL物理54133==0的split0/1、FULL法术0..9和DERIVED24/28..31的公共尾：fade-out后清VGA64000，再11cac(1)，fade-in末darkness0写满base DAC；没有入场DAC快照回写。物理非零montage另scope，不经此普通尾。SDL已补清屏并移除正常已started路径在黑DAC刷新前及淡入后的旧DAC恢复；skip/未started诊断/错误/HOST仍按有界宿主合同保快照与已达App前缀。；依据: F4完整2e2b0/2cf30/2ff01、1f882双chunk、1f525、11d40及1951f共享退出逐byte核strict。full-return-dac source_review SHA d1ebd0ff00134c7bdfb7ba2a32343722014152046a3f7d9951eb009af3499acb；20个非零before尾机制例以独立原water5旧DAC区别base，核全App/VGA/DAC及首错；不把已started控制量或公共尾law称全部前置动画/自然身份producer通过。
 void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int8 *a4)
 {
   int i; // edi
@@ -20820,8 +20867,8 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
       v63 = v9;
       v10 = malloc(&loc_2A300);
       memset(v9, 0, 64000);
-      sub_2FACD(v9, a1);
-      sub_2FACD(v9, *a4);
+      field_battle_unit_summary_draw(v9, a1);
+      field_battle_unit_summary_draw(v9, *a4);
       blit_image_clipped(v8, 0, 50, v9, 320, -1);
       v46 = 80 * a1 + dword_53A45;
       v11 = 3 * *(unsigned __int8 *)(v46 + 7);
@@ -20920,7 +20967,7 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
               if ( v23 >= v64 )
               {
                 *((_WORD *)v56 + 32) = v59 - v64 * (v59 - v53) / v23;
-                sub_2FACD(v63, a4[n]);
+                field_battle_unit_summary_draw(v63, a4[n]);
                 ++v64;
               }
               v66 = 0;
@@ -20933,7 +20980,7 @@ void __cdecl field_magic_battle_animation(int a1, int a2, int a3, unsigned __int
         if ( a3 - 1 != n )
         {
           sub_31266(a1, v62, v57, v34[n], v10, v63, v34[n + 1], a2);
-          sub_2FACD(v63, a4[n + 1]);
+          field_battle_unit_summary_draw(v63, a4[n + 1]);
         }
       }
       v55 = funcs_30469[a2](a1, v62, v10, 320, 6);
@@ -21076,7 +21123,7 @@ int __cdecl sub_30E9D(int a1, int a2, int a3, _BYTE *a4, int a5, int a6, int a7,
     if ( v13[4] == 1 )
     {
       sub_1CA89(a1, a2);
-      sub_2FACD(a6, a1);
+      field_battle_unit_summary_draw(a6, a1);
       if ( a2 < 10 || a2 >= 32 )
       {
         v15 = 6;
@@ -21250,8 +21297,8 @@ int __cdecl sub_314DE(int a1)
  * callers: 0x250cc, 0x25757
  * callees: 0x111ba, 0x11d40, 0x11df2, 0x11eb0, 0x17aa9, 0x1f525, 0x1f882, 0x20421, 0x25977, 0x2e2b0, 0x2eb9f, 0x31bdf, 0x31c49, 0x3702f, 0x3706e, 0x3771c, 0x3776e, 0x3790a, 0x37910, 0x4e98d
  * --------------------------------------------------------------- */
-// [勘误 evidence] 终章固定序列含FDOTHER54/60/58/57/59、通知、40宽页帧/200帧/credits及20组pair。31c49前WORK原free、BASE最后读取后仅现代owned清理不冒原free ABI。2ebe1未自行初始化的HP栈cell影响3%重复，但完整自然caller链的末写/有效域尚待复核；当前首pair显式fail，不能签整终章等价。；依据: S5源基底保持S2完整80-owner读集SHAac3849db2e2892117d56d37145eb9f75687781053a2982c3fd356b599fe602d6；新增transition domain05 SHA8d8d8a71301bce4e2ce57b70b8fe031532d4ef9b194b41950a4794d8deb2be0f、victory domain04 SHAa86a98ed7ca90031edef0eb80cce2af1028fb0cf56a809ece3d620178670bdac、teleport完整44-owner domain05 SHA683ec0e987b4fff9d515677df1fc0d9d1d77d9e95ab11f816135fd2bc06cdbb2，每chunk/instruction/xref/CFG保实际owner且逐字节等strict relocated；完整域非附近CALL推断。来源/候选为F:/fd2sdl-evidence/s5-20261114/transition-candidate08/conversion.json SHA37fa5dbdb5a5142a2169eebd68f97be3a1752656c862e21fb9010aea7d70d3c9_
 // [勘误 evidence] 撤销publication02首pair仍fail的当前推断，仅保留其历史。20组原526e9/526fd/52711参数在31c49返回后，逐组写53A45 raw0/1的side(+6)/unitID(+7)，不改cache(+2)、textID(+8)或roster/SAV。63680的marker HP写也属于这些真实active；不是malloc视觉页的两个临时actor。每组两次RNG：首侧3%最多两轮且idle/抖动不重置，第二侧仍取RNG但最后marker整part后返回一轮。overlay58时53A65切到FDOTHER57，组间与末尾恢复保存的base palette；不凭临时palette改永久owner。分支、重复、HP写、逐帧和等待放唯一冷图，C仅有限资源/单帧叶。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整rend
+// [勘误 evidence] 终章固定序列含FDOTHER54/60/58/57/59、通知、40宽页帧/200帧/credits及20组pair。31c49前WORK原free、BASE最后读取后仅现代owned清理不冒原free ABI。publication02曾因2ebe1局部HP来源未签而拒首pair；下列natural-stack证据已取代该判断。保旧失败身份，不再把它当当前阻塞，也不由有限pair合同签整终章等价。；依据: 此历史批次的完整来源保留在S5归档；同VA下后续natural-stack证据列出完整原caller、20-owner读集、原CPU连接及实际C收据。本条不重复长证据，以免IDA注释截断；有限pair资格不代整终章或自然GUI。
 int sub_31529()
 {
   int v0; // esi
@@ -50697,6 +50744,7 @@ char __cdecl save_xor_crypt(char *a1, int a2)
  * callees: -
  * --------------------------------------------------------------- */
 // [勘误 semantic_name] field_map_runtime_cell_bits_reset；依据: 完整56B；10010/1088d/24754及AI调用；逐cell byte3=ff/BYTE2&1f/BYTE1&3，不推ABI。
+// [勘误 evidence] 每cell raw3=ff、byte2&=1f、WORD&=03ff；1088d@1097a和10010@10276在加载资源map后调用，1bbdc按selector取消/确认边界调用。SDL构造/Loaded shadow与取消/Use已补，不在bind或每帧无源reset。；依据: F4 mode6完整caller合同和33map的43734原cell逐项读取，最大50x64；实际field_save构造/Load/失败保旧mark及item_target取消前缀回归。
 char __cdecl field_map_runtime_cell_bits_reset(unsigned __int8 *a1)
 {
   int v1; // ecx
@@ -51464,6 +51512,7 @@ __int16 bios_keyboard_buffer_clear()
 //   依据: corrected code0 `0x635a4` 保存 profile/x/y/budget/map/attr 参数并按右、左、下、上展开
 //   历史地址列 `0x735a4`；旧 Ghidra 名 `FUN_0004bad8`；判定 exact
 // [勘误 evidence] 起点邻敌时也按ZOC禁止展开 -> 起点直接写预算并进入递归，允许先离开起点；只有进入的邻格按ZOC位停止继续扩展。友方终点阻断与可经过规则不变。；依据: 原始4e422写起点预算、4e424无条件调用4e42c；进入格门4e4be在4e4ea..4e4f0按bit80清剩余预算。SDL双方分组回归及无副作用检查；对应近敌原版运行仍待单独取证。
+// [勘误 evidence] 4e4d8的BYTE减成本先用unsigned借位门，4e4df..e1再用signed JLE比较当前raw3。FF是signed -1；预算129/cost1首邻128被拒，预算128可回访并改起点。4e42c按右左下上DFS；传播前没有隐式清图。146d1只在传播后屏蔽同阵营其它可见终点。；依据: 已取得source09完整4e390/4e42c/4e4be、145cd/146d1及strict原镜像；863组合/2739全格源指令推导，当前C验收另记。不签深scratch collateral/正常producer或原实机。
 void __cdecl __spoils<> field_reachable_cells_compute(
         int a1,
         unsigned __int8 a2,
@@ -51594,6 +51643,8 @@ char __usercall sub_4E4BE@<al>(unsigned __int8 a1@<cl>, char *a2@<ebx>, int a3@<
 //   历史地址列 `0x7370a`；旧 Ghidra 名 `FUN_0004bc3e`；判定 exact
 // [勘误 evidence] 普通路径起点与进入格是否同受ZOC门尚未区分 -> 初始化起点后直接递归，起点不经进入格ZOC门；normal/mode1的SDL实现已有该行为，不额外更改。mode2 hostile witness独立。；依据: 原始初始化/递归调用与4e680进入格门；合成回归检查normal、long route、witness和非法起点拒绝。公开API另补坐标/三倍缓冲分配界检查，不据此声明原版完整ABI或全函数机器执行通过。
 // [勘误 evidence] 4e680先减地形成本并以signed比较剩余预算，map byte7初值FF；有效剩余0第二次等值访问也受mode!=1门拒绝。mode2通过该门后才由4e703记录hostile坐标，4e6e5明确CLC，4e5cc继续穿过hostile递归，不受40阻挡或80 ZOC停止。名称和持久ABI不变。；依据: IDA9.5 Domain完整4e5cc/4e680/4e703原指令，4e6a5..b2及4e6de..e6的明确分支；两敌单通道和2x2零剩余反例检出旧实现。B5 stage1真实十二坐标差异另需14b78清图长路合同一并恢复，不能把局部修复单独称为整条路径原版通过。
+// [勘误 evidence] 4e6a5..a9为signed JL/JG；相等只mode1且新方向score更大。4e71f初BH=FF，首direction也计一段，返回连续方向段数*4的BYTE值，不饱和。正式玩家与AI使用该独立finder，范围previous不作路径。；依据: source09完整4e5cc/4e680/4e71f/4e751；65浅参数的独立源推导。root index0时frame index32/depth32（第33次activation）DX写6017a模式字节，深source-layout/producer联合域未据浅向量过门，不以数组长度判U。
+// [勘误 evidence] 60077 depth与60078 result在scratch前，index31 EBX至60178不覆control；index32的DX高byte以绝对y覆6017a，pop不恢复。实际mode控制同60073输出：4e751先result再方向prefix，4e703依X/Y/result1；target writer在child覆mode前，root无条件检查。SDL统一有限raw output view，再按requested mode投影typed接口。；依据: source09六完整strict函数、movement-source-layout-review01；独立源16正成本向量max34activation，11纯检查及八直接CTest通过。H容量不推原输出extent，60181表/间接escape/自然高MOV/原入场图与完整BSS仍未据此过门；不新增31cap或通用内存模拟。
 int __cdecl field_path_find(
         int a1,
         unsigned __int8 a2,
@@ -52652,27 +52703,29 @@ void __spoils<> sub_4EC66()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4EC7C
+ * IDA 9.5 Hex-Rays: pixel_rect_snapshot_restore
  * VA=0x4ec7c..0x4eca4 OBJ=1 OFF=0x3ec7c size=0x28
  * callers: 0x15e71
  * callees: 0x4eca4
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_4EC7C(__int16 *a1)
+// [勘误 semantic_name] pixel_rect_snapshot_restore；依据: 读取8B快照header的WORD宽高/DWORD目标origin，借caller stride逐行恢复。 F4完整四函数143B/55指令、xref及165ac/16b43五级310x86/320正常caller连接；source01 SHA6130f7c9ac741d5966c84b304bf25f3047ef65755b272fe6bbf16d7f148322b2，source02 SHA8b1159ed2f6b9562b4b5e77a9e8b413457dead3575ff5dcd01b1d6cbddfe9446。逐chunk/head等strict镜像，未保存猜测类型/ABI；静态语义不代新原CPU或WGC。
+void __cdecl __spoils<> pixel_rect_snapshot_restore(__int16 *a1)
 {
   word_627B4 = *a1;
   word_627B6 = a1[1];
-  sub_4ECA4();
+  pixel_rect_restore_rows();
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4ECA4
+ * IDA 9.5 Hex-Rays: pixel_rect_restore_rows
  * VA=0x4eca4..0x4ecbf OBJ=1 OFF=0x3eca4 size=0x1b
  * type: int(void)
  * callers: 0x4ec7c
  * callees: -
  * --------------------------------------------------------------- */
-__int64 __usercall sub_4ECA4@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<esi>)
+// [勘误 semantic_name] pixel_rect_restore_rows；依据: 从连续source逐行copy width到destination，每行目的行首加caller stride。 F4完整四函数143B/55指令、xref及165ac/16b43五级310x86/320正常caller连接；source01 SHA6130f7c9ac741d5966c84b304bf25f3047ef65755b272fe6bbf16d7f148322b2，source02 SHA8b1159ed2f6b9562b4b5e77a9e8b413457dead3575ff5dcd01b1d6cbddfe9446。逐chunk/head等strict镜像，未保存猜测类型/ABI；静态语义不代新原CPU或WGC。
+__int64 __usercall pixel_rect_restore_rows@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<esi>)
 {
   __int64 result; // rax
   unsigned __int16 v4; // cx
@@ -52692,30 +52745,32 @@ __int64 __usercall sub_4ECA4@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<e
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4ECBF
+ * IDA 9.5 Hex-Rays: pixel_rect_snapshot_capture
  * VA=0x4ecbf..0x4ecf0 OBJ=1 OFF=0x3ecbf size=0x31
  * callers: 0x15e9e, 0x15f0e, 0x165ac
  * callees: 0x4ecf0
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_4ECBF(int a1, __int16 a2, __int16 a3, int a4, int a5)
+// [勘误 semantic_name] pixel_rect_snapshot_capture；依据: 先写8B header的WORD宽高/DWORD origin，再逐行capture到连续payload。 F4完整四函数143B/55指令、xref及165ac/16b43五级310x86/320正常caller连接；source01 SHA6130f7c9ac741d5966c84b304bf25f3047ef65755b272fe6bbf16d7f148322b2，source02 SHA8b1159ed2f6b9562b4b5e77a9e8b413457dead3575ff5dcd01b1d6cbddfe9446。逐chunk/head等strict镜像，未保存猜测类型/ABI；静态语义不代新原CPU或WGC。
+void __cdecl __spoils<> pixel_rect_snapshot_capture(int a1, __int16 a2, __int16 a3, int a4, int a5)
 {
   word_627B4 = a2;
   *(_WORD *)a1 = a2;
   word_627B6 = a3;
   *(_WORD *)(a1 + 2) = a3;
   *(_DWORD *)(a1 + 4) = a5;
-  sub_4ECF0();
+  pixel_rect_capture_rows();
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4ECF0
+ * IDA 9.5 Hex-Rays: pixel_rect_capture_rows
  * VA=0x4ecf0..0x4ed0b OBJ=1 OFF=0x3ecf0 size=0x1b
  * type: int(void)
  * callers: 0x4ecbf
  * callees: -
  * --------------------------------------------------------------- */
-__int64 __usercall sub_4ECF0@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<esi>)
+// [勘误 semantic_name] pixel_rect_capture_rows；依据: 每行rep movsb width到连续destination，source恢复行首再加caller stride。 F4完整四函数143B/55指令、xref及165ac/16b43五级310x86/320正常caller连接；source01 SHA6130f7c9ac741d5966c84b304bf25f3047ef65755b272fe6bbf16d7f148322b2，source02 SHA8b1159ed2f6b9562b4b5e77a9e8b413457dead3575ff5dcd01b1d6cbddfe9446。逐chunk/head等strict镜像，未保存猜测类型/ABI；静态语义不代新原CPU或WGC。
+__int64 __usercall pixel_rect_capture_rows@<edx:eax>(int a1@<ebp>, char *a2@<edi>, char *a3@<esi>)
 {
   __int64 result; // rax
   unsigned __int16 v4; // cx
@@ -52907,12 +52962,13 @@ void __cdecl __spoils<> font_glyph_blit_16x16(int a1, int a2, int a3, unsigned _
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4EEE0
+ * IDA 9.5 Hex-Rays: field_background_wave_rows_copy
  * VA=0x4eee0..0x4ef29 OBJ=1 OFF=0x3eee0 size=0x49
  * callers: 0x11eee
  * callees: -
  * --------------------------------------------------------------- */
-_BYTE *__cdecl sub_4EEE0(int a1, char *a2, int a3)
+// [勘误 semantic_name] field_background_wave_rows_copy；依据: F4既有PUB03独立副本的完整73B/31指令、唯一caller11eee及CFG/xref，source01 SHA f64dc247c5e8ff970a900d990961dbdad23c33e8bf27e0127ab9eb889ccf5119；逐chunk/head等strict canonical镜像。源raw指针先加4，每行按627c8的16项BYTE相位偏移rep movsd78次，源行距320，目的再加8共stride320，共192行；低WORD phase逐行mod16。接完整11eee的成功update读写序及两原raw15/55，不保存伪C猜测ABI。此正常叶语义不提供首次同tick新work的未知before，也不代原运行。
+_BYTE *__cdecl field_background_wave_rows_copy(int a1, char *a2, int a3)
 {
   int v3; // esi
   int v6; // ebx

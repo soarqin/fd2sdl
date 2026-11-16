@@ -31,6 +31,8 @@ static unsigned menu_closes,menu_opens,menu_waits;
 static int owner_ok, backend_rng_ok;
 static uint64_t mock_ms;
 static unsigned glyph_tick_calls;
+static unsigned copy_pumps,pumped_uploads,raw_uploads,pending_copy_pump;
+static unsigned upload_roles[32],upload_ticks[32],upload_counter[32],upload_mouth[32],tick_args[32];
 static const uint8_t *expected_present_frame;
 static unsigned unexpected_present_frames;
 static uint32_t original_resource, submitted_resource;
@@ -48,7 +50,7 @@ static const uint8_t glyph_bytes[64] = {0x80,0,0,0,0,0,0,0,
 static uint64_t message_ticks(void) { return mock_ms; }
 static void message_delay(uint32_t ms) { delay_calls++; mock_ms += ms; }
 static void message_tick_wait(uint32_t ticks) {
-    glyph_tick_calls++;
+    if(glyph_tick_calls<32u)tick_args[glyph_tick_calls]=ticks;glyph_tick_calls++;
     uint64_t ns=fd2_bios_clock_deadline_ns(mock_ms*UINT64_C(1000000),ticks);
     mock_ms=(ns+UINT64_C(999999))/UINT64_C(1000000);
 }
@@ -196,6 +198,24 @@ static int message_choice(fd2_field_choice_step_fn apply,void *userdata) {
     int result=fd2_field_choice_run(apply,userdata);
     choice_active=0;return result;
 }
+/* pure upload本身不泵：8次I(6开框+2字形)、2次U(第二字嘴型+caller闭嘴)。
+ * 输入泵仍执行真实同owner API，role由调用顺序识别，不由实际总数反算。 */
+static void message_copy_pump(fd2_input *input) {
+    copy_pumps++;pending_copy_pump++;fd2_input_begin_frame(input);
+}
+static void message_copy_upload(fd2_vga *vga) {
+    unsigned ordinal=pumped_uploads+raw_uploads,role=pending_copy_pump?1u:2u;
+    if(pending_copy_pump){pumped_uploads++;pending_copy_pump--;}else raw_uploads++;
+    if(ordinal<32u) {
+        upload_roles[ordinal]=role;upload_ticks[ordinal]=glyph_tick_calls;
+        upload_counter[ordinal]=vga->dialog_visual.glyph_counter;
+        upload_mouth[ordinal]=vga->dialog_visual.mouth_phase;
+    }
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    message_present(vga);
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
 #define fd2_field_game_runtime_refresh message_refresh
 #define fd2_field_game_animate_system_menu message_menu_transition
 #define fd2_field_game_runtime_menu_refresh message_menu_wait
@@ -207,6 +227,8 @@ uint64_t message_ticks_ns(void);
 #define fd2_delay_ms message_delay
 #define fd2_wait_ticks message_tick_wait
 #define fd2_vga_present message_present
+#define fd2_vga_upload_current_frame message_copy_upload
+#define fd2_input_begin_frame message_copy_pump
 #define fd2_vga_present_timed message_present_timed
 #define fd2_vga_wait_frame_deadline message_wait
 #define fd2_field_game_open message_open
@@ -221,6 +243,8 @@ uint64_t message_ticks_ns(void);
 #undef fd2_field_choice_run
 #undef fd2_delay_ms
 #undef fd2_wait_ticks
+#undef fd2_vga_upload_current_frame
+#undef fd2_input_begin_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -232,6 +256,10 @@ uint64_t message_ticks_ns(void);
 static void reset_controls(void) {
     in_route = actions = presents = delay_calls = 0;
     glyph_tick_calls=0;fd2_bios_clock_reset(0,0);
+    copy_pumps=pumped_uploads=raw_uploads=pending_copy_pump=0;
+    memset(upload_roles,0,sizeof(upload_roles));memset(upload_ticks,0,sizeof(upload_ticks));
+    memset(upload_counter,0,sizeof(upload_counter));memset(upload_mouth,0,sizeof(upload_mouth));
+    memset(tick_args,0,sizeof(tick_args));
     choice_active=choice_frames=0;
     menu_closes=menu_opens=menu_waits=0;
     backend_calls = backend_done = closed = owner_ok = backend_rng_ok = 0;
@@ -309,9 +337,19 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     fd2_font_draw_glyph(expected, &game.font, 0, NOTICE_RESULT_OFFSET % VGA_STRIDE, NOTICE_RESULT_OFFSET / VGA_STRIDE, 0xcd, 0x4c, 0x4a);
     /* 必须核首个真正present的整页，不能等下一轮稳态render掩盖亮色占位。 */
     expected_present_frame = NULL;
+    vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
     CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == 0);
     /* 两个字形各执行原164e8 wait1，不再以两个55ms DOS delay模拟。 */
-    CHECK(presents == 8 && glyph_tick_calls == 2 && delay_calls == 0 && unexpected_present_frames == 0);
+    CHECK(presents==10 && copy_pumps==8 && pumped_uploads==8 && raw_uploads==2 && !pending_copy_pump &&
+        glyph_tick_calls==2 && tick_args[0]==1u && tick_args[1]==1u && !delay_calls && !unexpected_present_frames);
+    /* 164e8第二次先重画phase1再wait1；caller16559(0)不复位App嘴型DWORD。 */
+    const unsigned roles[10]={1,1,1,1,1,1,1,1,2,2},ticks[10]={0,0,0,0,0,0,0,1,1,2};
+    const unsigned counters[10]={0,0,0,0,0,0,0,1,0,0},mouth[10]={0,0,0,0,0,0,0,0,1,1};
+    for(unsigned i=0;i<10u;i++)CHECK(upload_roles[i]==roles[i] && upload_ticks[i]==ticks[i] &&
+        upload_counter[i]==counters[i] && upload_mouth[i]==mouth[i]);
+    CHECK(vga.dialog_visual.glyph_counter==0u && vga.dialog_visual.mouth_phase==1u &&
+        !fd2_input_has_any_key(&vga.input) && vga.frame_deadline_ns==UINT64_C(999999999999) &&
+        vga.frame_interval_ns==UINT64_C(23000000));
     CHECK(box.page && box.portraits[0].pixels);progress_box_free(&box);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     CHECK(memcmp(vga.palette, original_palette, sizeof(original_palette)) == 0 &&

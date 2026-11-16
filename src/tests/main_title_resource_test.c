@@ -18,6 +18,20 @@
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
     return 1; } } while (0)
 
+/* C14有限stream仅观察真实boot caller；NULL/0时旧测试不变。 */
+static int title_comp_active,title_comp_bad,title_comp_last_resource;
+static int title_ani_active;
+static int title_ani_decode(fd2_vga *,const fd2_archive *,int,uint32_t,int,fd2_animation_frame_hook,void *);
+static int title_test_intro_animation(fd2_vga *,const fd2_archive *,int,uint32_t,int);
+static void title_comp_upload(fd2_vga *vga);
+static void title_comp_delay(uint32_t ms);
+static void title_comp_wait_ticks(uint32_t ticks);
+static void title_comp_before_fade(fd2_vga *,int,int,uint8_t,uint8_t,uint8_t);
+static void title_comp_after_fade(int,int,uint8_t,uint8_t,uint8_t);
+static void title_comp_fade_endpoint(fd2_vga *,int);
+static void title_comp_ani_boundary(fd2_vga *,int);
+static int title_comp_read_action(fd2_input_action *action);
+static void title_comp_menu_draw(int count,int selected,int highlighted);
 static int palette_fault, base_fault, test_animation_result, menu_quit;
 static int palette_reads, title_reads, base_decodes, menu_decodes;
 static int animation_calls, archive_opens, archive_closes, image_live;
@@ -52,6 +66,8 @@ static void title_test_input_clear(fd2_input *input) {
 
 static int title_test_archive_get(const fd2_archive *ar, size_t index,
                                   const uint8_t **data, size_t *length) {
+    if(title_ani_active)return fd2_archive_get(ar,index,data,length);
+    if(title_comp_active){title_comp_last_resource=(int)index;return fd2_archive_get(ar,index,data,length);}
     (void)ar;
     last_resource = index;
     if (index < 128) intro_resource_reads[index]++;
@@ -89,6 +105,8 @@ static int title_test_archive_get(const fd2_archive *ar, size_t index,
 
 static int title_test_archive_open_mem(fd2_archive *ar,
                                        const uint8_t *data, size_t length) {
+    if(title_ani_active)return fd2_archive_open_mem(ar,data,length);
+    if(title_comp_active){int r=fd2_archive_open_mem(ar,data,length);if(!r)archive_opens++;return r;}
     if (data != &archive_token || length != 1) unexpected++;
     memset(ar, 0, sizeof(*ar));
     ar->count = 7;
@@ -97,12 +115,15 @@ static int title_test_archive_open_mem(fd2_archive *ar,
 }
 
 static void title_test_archive_close(fd2_archive *ar) {
+    if(title_ani_active){fd2_archive_close(ar);return;}
+    if(title_comp_active){fd2_archive_close(ar);archive_closes++;return;}
     memset(ar, 0, sizeof(*ar));
     archive_closes++;
 }
 
 static int title_test_image_decode_entry(fd2_image *image,
                                          const fd2_archive *ar, size_t index) {
+    if(title_comp_active){int r=fd2_image_decode_entry(image,ar,index);if(!r)image_live++;return r;}
     (void)ar;
     memset(image, 0, sizeof(*image));
     if (index == 0) {
@@ -124,6 +145,7 @@ static int title_test_image_decode_entry(fd2_image *image,
 
 static int title_test_image_decode_buf(fd2_image *image,
                                        const uint8_t *data, size_t length) {
+    if(title_comp_active){int r=fd2_image_decode_buf(image,data,length);if(!r)image_live++;return r;}
     memset(image, 0, sizeof(*image));
     if (data != &archive_token || length != 1 || last_resource >= 128) {
         unexpected++;
@@ -141,6 +163,7 @@ static int title_test_image_decode_buf(fd2_image *image,
 }
 
 static void title_test_image_free(fd2_image *image) {
+    if(title_comp_active){if(image->pixels)image_live--;fd2_image_free(image);return;}
     if (image->pixels) {
         free(image->pixels);
         image_live--;
@@ -151,6 +174,9 @@ static void title_test_image_free(fd2_image *image) {
 static int title_test_animation(fd2_vga *vga, const fd2_archive *ani,
                                  int index, uint32_t delay, int check_input,
                                  fd2_animation_frame_hook hook, void *userdata) {
+    if(title_ani_active)return title_ani_decode(vga,ani,index,delay,check_input,hook,userdata);
+    if(index!=1){int result=title_test_intro_animation(vga,ani,index,delay,check_input);if(result>=0&&hook)hook(userdata,0);return result;}
+    if(title_comp_active){if(index!=1||delay!=15u||!check_input)title_comp_bad=1;title_comp_ani_boundary(vga,index);if(hook)hook(userdata,0);return 0;}
     (void)vga;
     (void)ani;
     if (index != 1 || delay != FD2_TITLE_ANIM_DELAY_FAST_MS || !check_input)
@@ -163,6 +189,7 @@ static int title_test_animation(fd2_vga *vga, const fd2_archive *ani,
 
 static int title_test_intro_animation(fd2_vga *vga, const fd2_archive *ani,
                                        int index, uint32_t delay, int check_input) {
+    if(title_comp_active){uint32_t expected=index==0?15u:(index==5||index==7)?50u:90u;if((index!=0&&index!=3&&index!=4&&index!=5&&index!=6&&index!=7&&index!=8)||delay!=expected||check_input!=(index==3))title_comp_bad=1;title_comp_ani_boundary(vga,index);return 0;}
     (void)vga; (void)ani;
     if (index < 0 || index >= 9 || index == 1 || index == 2) {
         unexpected++;
@@ -180,10 +207,12 @@ static void title_test_clear(fd2_vga *vga, uint8_t fill) {
     memset(vga->framebuffer, fill, sizeof(vga->framebuffer));
 }
 static void title_test_palette(fd2_vga *vga, const uint8_t *data) {
+    if(title_comp_active || title_ani_active){fd2_vga_set_palette(vga,data);return;}
     (void)vga;
     if (data != test_palette_data) unexpected++;
 }
 static void title_test_brightness(fd2_vga *vga, int brightness) {
+    if(title_comp_active || title_ani_active){fd2_vga_set_brightness(vga,brightness);return;}
     (void)vga;
     (void)brightness;
 }
@@ -197,10 +226,16 @@ static int title_test_palette_add(fd2_vga *vga,int first,int last,int add) {
 }
 static void title_test_fade(fd2_vga *vga, int start, int steps,
                             uint8_t r, uint8_t g, uint8_t b) {
+    if(title_comp_active){title_comp_before_fade(vga,start,steps,r,g,b);fd2_vga_palette_fade_to(vga,start,steps,r,g,b);title_comp_after_fade(start,steps,r,g,b);return;}
     (void)vga; (void)start; (void)steps; (void)r; (void)g; (void)b;
 }
-static void title_test_present(fd2_vga *vga) { (void)vga; presents++; }
+static void title_test_present(fd2_vga *vga) {
+    if(title_comp_active){title_comp_bad=1;return;}
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;presents++;
+}
+static void title_test_upload(fd2_vga *vga) { if(title_comp_active){title_comp_upload(vga);return;}(void)vga;presents++; }
 static void title_test_delay(uint32_t delay) {
+    if(title_comp_active){title_comp_delay(delay);return;}
     if (!input_contract || !menu_frames) return;
     if (delay==FD2_TITLE_CONFIRM_FLASH_DELAY_MS) { menu_flash_delays++;return; }
     if (delay!=1u || !menu_deferred || menu_idle_polls || menu_frames!=1) {
@@ -217,22 +252,27 @@ static void title_test_delay(uint32_t delay) {
 }
 /* 此TU只核真实caller的次序/返回传播；65/64级与DAC公式由Scene原码门验证。 */
 static int title_test_palette_fade(fd2_vga *vga,int fade_in,int fast) {
+    if(title_ani_active)return fd2_scene_palette_fade(vga,fade_in,1);
+    if(title_comp_active){if(fast)title_comp_bad=1;int r=fd2_scene_palette_fade(vga,fade_in,1);title_comp_fade_endpoint(vga,fade_in);return r;}
     if ((fade_in!=0 && fade_in!=1) || fast || fade_calls>=32) { unexpected++;return FD2_SCENE_RESULT_ERROR; }
     fade_directions[fade_calls++]=fade_in;
     if (fade_calls==fade_fail_call) return fade_fail_result;
     if (title_test_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-    for(int i=0;i<(fade_in?65:64);i++)title_test_present(vga);
+    for(int i=0;i<(fade_in?65:64);i++)title_test_upload(vga);
     return FD2_SCENE_RESULT_OK;
 }
 static int title_test_observe(const fd2_input *input) {
+    if(title_comp_active)return 0;
     (void)input;
     return intro_skip_scroll;
 }
 static int title_test_quit(fd2_input *input) {
+    if(title_comp_active)return title_comp_bad||input->quit_requested;
     return input->quit_requested || (menu_quit && menu_frames > 0);
 }
 static int title_test_action(fd2_input *input, fd2_input_context context,
                               fd2_input_action *action) {
+    if(title_comp_active){if(context!=FD2_INPUT_CONTEXT_TITLE)title_comp_bad=1;return title_comp_read_action(action);}
     if(input_contract){
         action_reads++;
         int result=fd2_input_take_action(input,context,action);
@@ -250,6 +290,7 @@ static int title_test_action(fd2_input *input, fd2_input_context context,
 }
 static int title_test_menu(int count, int selected, int highlighted,
                             fd2_title_draw_item_fn draw, void *userdata) {
+    if(title_comp_active){title_comp_menu_draw(count,selected,highlighted);return fd2_title_draw_menu_frame(count,selected,highlighted,draw,userdata);}
     menu_frames++;
     menu_selected=selected;
     if(input_contract && menu_frames==1) {
@@ -290,6 +331,11 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
     if(context!=chain_context)abort();chain_preparations++;return chain_prepare_result;
 }
 
+static void title_test_wait_ticks(uint32_t ticks) {
+    if(title_comp_active){title_comp_wait_ticks(ticks);return;}
+    title_test_delay(ticks);
+}
+
 /* 只在此测试TU替换I/O；包含完整main，未增加生产hook或复制标题逻辑。 */
 #define fd2_field_play_run_context chain_battle
 #define fd2_field_prepare_run chain_prepare
@@ -309,8 +355,9 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
 #define fd2_scene_palette_fade title_test_palette_fade
 #define fd2_vga_palette_fade_to title_test_fade
 #define fd2_vga_present title_test_present
+#define fd2_vga_upload_current_frame title_test_upload
 #define fd2_delay_ms title_test_delay
-#define fd2_wait_ticks title_test_delay
+#define fd2_wait_ticks title_test_wait_ticks
 #define fd2_input_take_quit title_test_quit
 #define fd2_input_take_action title_test_action
 #define fd2_input_has_any_key title_test_observe
@@ -580,7 +627,9 @@ static int test_intro_fade_callers(void) {
         0,0,0,1, 0,0,1, 0,1, 0,1,0,1, 0};
     fd2_vga vga={0};
     reset_test();intro_enabled=1;
+    vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=16000000;
     CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_NEW_GAME);
+    CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==16000000);
     CHECK(fade_calls==(int)(sizeof(directions)/sizeof(directions[0])) &&
         !memcmp(fade_directions,directions,sizeof(directions)));
     for(int fault=1;fault<=26;fault++)for(int host=0;host<2;host++) {
@@ -594,7 +643,12 @@ static int test_intro_fade_callers(void) {
     return 0;
 }
 
+#include "f4_title_composition_probe.h"
+#include "f4_title_animation_probe.h"
+
 int main(int argc, char **argv) {
+    if(argc>1&&!strcmp(argv[1],"--f4-title-ani"))return argc==3?f4_title_ani_cli(argv[2]):1;
+    if(argc>1&&!strcmp(argv[1],"--f4-title"))return argc==3?f4_title_cli(argv[2]):1;
     if (argc == 2) {
         for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
             if (!strcmp(argv[1], intro_cases[i].name)) return run_intro_case(&intro_cases[i]);
@@ -607,6 +661,7 @@ int main(int argc, char **argv) {
         if (run_case(cases[i])) return 1;
     for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
         if (run_intro_case(&intro_cases[i])) return 1;
+    CHECK(test_title_animation_palette_owner()==0);
     CHECK(test_app_chain()==0);
     CHECK(test_title_clear_and_two_ordered_keys()==0);
     CHECK(test_title_blocked_read_one()==0);

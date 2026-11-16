@@ -25,7 +25,7 @@ from run_original_battle_animation import owned_job_required
 from run_original_comparison import Capture,running
 from run_original_item_list import inventory_detail
 
-SCENARIOS=('eqt-reselect','give-different-cancel')
+SCENARIOS=('eqt-reselect','eqt-empty','give-different-cancel')
 write=base.write_json
 
 
@@ -37,11 +37,25 @@ def _equip(state,raw,slot,t):
 
 
 def prepare(root,scenario):
-    if scenario not in SCENARIOS:raise ValueError('G3 inventory只接受已证EQT/不同成员Give代表')
+    if scenario not in SCENARIOS:raise ValueError('库存验收只接受登记的EQT/不同成员Give代表')
     # 同P2受控五人原记录；不增加物品/钱，不改原资源或共用oracle。
     original=base.prepare(root,'p2-self-give');before=copy.deepcopy(original['before']);t=original['tables']
     if before['stage']!=1 or before['count']!=5:raise ValueError('G3库存代表原五人来源改变')
-    if scenario=='eqt-reselect':
+    empty_patches=[]
+    if scenario=='eqt-empty':
+        unit=oracle.record(before,4);initial=unit
+        # 用已证remove逐次删首项，保末槽stale ID与其余80B；不是全槽清零。
+        while oracle.inventory_count(unit):unit=oracle.remove(unit,0)
+        unit=oracle.recompute(unit,t)
+        roster=bytearray(before['roster']);roster[4*80:5*80]=unit;before['roster']=bytes(roster)
+        plain=oracle.write_slot(original['plain'],before,0)
+        original=dict(original,plain=plain,encoded=oracle.crypt(plain))
+        empty_patches=[{'offset':i,'before':a,'after':b} for i,(a,b) in enumerate(zip(initial,unit)) if a!=b]
+        after=copy.deepcopy(before)
+        parameters={'kind':'equipment_empty','raw':4,'inventory_count':0,
+            'fixture_derivation':'repeat original remove(slot0), then original recompute',
+            'record_patches':empty_patches,'source_cva':['0x28efe','0x1bffe','0x1b9de','0x1b750']}
+    elif scenario=='eqt-reselect':
         unit=oracle.record(before,4)
         if unit[7]!=51 or [(unit[10+2*i],unit[11+2*i]) for i in range(4)]!=[(0,33),(0,195),(64,43),(64,162)]:
             raise ValueError('原late raw5的EQT未装备33/已装备43来源不同')
@@ -60,6 +74,23 @@ def prepare(root,scenario):
         base_scenario='p2-self-give',expected_state_roster_sha256=oracle.digest(after['roster']),
         expected_action={'source':'原1c142→1b750两次重选' if scenario=='eqt-reselect' else '原28f65移除→追加→只重算sender',
             'cancel_commits_business':False,'shared_UI_RNG_or_whole_frame_claimed':False})
+    if scenario=='eqt-empty':
+        source_plain=decode_save(Path(result['original'])/'START.SAV')
+        source_encoded=(Path(result['original'])/'START.SAV').read_bytes()
+        previous_reasons={row['offset']:row['reason'] for row in result['manifest']['plaintext_patches']}
+        result['manifest'].update(fixture_plain_sha256=oracle.digest(result['plain']),
+            fixture_sha256=oracle.digest(result['encoded']),
+            plaintext_patches=[{'offset':i,'before':a,'after':b,
+                'reason':'空EQT受控成员：按原remove(slot0)删空并重算；其余来源保持' if
+                    oracle.SLOT_BASE+4*80 <= i < oracle.SLOT_BASE+5*80 else
+                    previous_reasons.get(i,'完整容器checksum')}
+                for i,(a,b) in enumerate(zip(source_plain,result['plain'])) if a!=b],
+            encrypted_patches=[{'offset':i,'before':a,'after':b,'reason':'原save_xor_crypt编码完整受控明文'}
+                for i,(a,b) in enumerate(zip(source_encoded,result['encoded'])) if a!=b],
+            expected_action={'source':'原1bffe空库存仍开1b9de等待；确认后count门返回，Esc取消',
+                             'business_write_trace':[],'ui_rng_or_timing_claimed':False},
+            supplemental_record_patches=empty_patches,
+            controlled_fixture=True,natural_arrival_claimed=False)
     assets=result['assets'];steps=result['steps']
     def use(step):
         step=dict(step);steps.append(step)
@@ -93,11 +124,24 @@ def prepare(root,scenario):
     def equipment(name,state,selected,key):
         _,templates,fields=inventory_templates(result['original'],oracle.record(state,4))
         # 1bffe已经选中当前slot；上页规则仍17fc0，底页184c0用该slot高亮。
-        templates=dict(templates);templates['unselected']=templates['selected_'+str(selected)]
+        templates=dict(templates)
+        if fields['slots']:templates['unselected']=templates['selected_'+str(selected)]
         result['source_rois'][name]=[(image,xy,label) for label,(xy,image) in templates.items() if not label.startswith('selected_')]
         add(name,lambda f,e=templates,a=fields:inventory_detail(f,e,a),key,page='equipment_detail',raw=4,selected=selected,
             source_cva=['0x28efe','0x1bffe','0x17fc0','0x184c0'])
-    if scenario=='eqt-reselect':
+    if scenario=='eqt-empty':
+        menu('equipment-command1',1,501,'RIGHT');menu('equipment-command2',2,501,'RIGHT')
+        members('equipment-members',before,0,'ENTER');members('equipment-member2',before,2,'DOWN');members('equipment-member4',before,4,'DOWN')
+        equipment('equipment-empty-open',before,0,'ENTER')
+        equipment('equipment-empty-still-open',before,0,None)
+        equipment('equipment-empty-up',before,0,'UP');equipment('equipment-empty-down',before,0,'DOWN')
+        equipment('equipment-empty-down2',before,0,'DOWN')
+        members('equipment-empty-confirm-return',after,0,'ENTER')
+        members('equipment-empty-member2-again',after,2,'DOWN');members('equipment-empty-member4-again',after,4,'DOWN')
+        equipment('equipment-empty-reopen',after,0,'ENTER')
+        members('equipment-empty-cancel-return',after,0,'ESC')
+        menu('service-returned',2,503,'ESC')
+    elif scenario=='eqt-reselect':
         menu('equipment-command1',1,501,'RIGHT');menu('equipment-command2',2,501,'RIGHT')
         members('equipment-members-cancel',before,0,'ENTER');menu('equipment-cancel-return',2,503,'ESC')
         members('equipment-members',before,0,'ENTER');members('equipment-member2',before,2,'DOWN');members('equipment-member4',before,4,'DOWN')
@@ -120,16 +164,21 @@ def prepare(root,scenario):
     tail=next(i for i,s in enumerate(original['steps']) if s.get('name')=='town-after-service')
     for step in original['steps'][tail:]:use(step)
     result['runtime_protocol']={'ready':True,'hotel_slot':0,'source_fixture':'原P2五人完整记录/同源完整22987B',
-        'business_scope':parameters,'actual_cancels':'EQT成员Esc重入' if scenario=='eqt-reselect' else '收件人Esc后完整重选并转交',
+        'business_scope':parameters,'actual_cancels':'空EQT确认返回再重开Esc' if scenario=='eqt-empty' else 'EQT成员Esc重入' if scenario=='eqt-reselect' else '收件人Esc后完整重选并转交',
         'state_gate':'正式酒店Save；完整roster/钱/未知字节/其它slot/active与源模型比较',
         'not_claimed':['UI等待RNG同轨','全动作RGB','新音频录音/音色/曲目身份','自然到达该受控夹具']}
     return result
 
 
 def run(args):
+    retention_only=getattr(args,'picker_retention_only',False)
+    if retention_only and args.scenario!='eqt-empty':raise ValueError('画像反馈只接受eqt-empty')
     root=args.root.resolve();original=(root/'original_game').resolve();output=args.artifacts.resolve()
     if output==original or output.is_relative_to(original) or output.exists():raise ValueError('G3库存验收需新的隔离产物目录')
     before=fingerprint(original);prepared=prepare(root,args.scenario)
+    if retention_only:
+        import fd2_f4_picker_retention as retention
+        prepared=retention.narrow(prepared)
     if fingerprint(original)!=before:raise ValueError('G3库存准备期间原源变化')
     binaries=[p.resolve() for p in (args.driver,args.dosbox,args.sdl) if p is not None]
     inputs,frozen,sources=freeze(root,original,binaries)
@@ -150,6 +199,10 @@ def run(args):
         report['final_sources_unchanged']=unchanged(inputs,original,before,root,sources)
         if not report['final_sources_unchanged']:raise ValueError('G3库存prepare-only来源变化')
         write(output/'comparison.json',report);return report
+    if retention_only:
+        report.update(schema='fd2-f4-picker-retention-check-v1',feedback_only=True,
+            full_frame_checkpoint_pixel_equality_claimed=True,Save_executed=False)
+        report.pop('full_frame_or_UI_RNG_or_audio_equivalence_claimed',None)
     owned_job_required()
     try:
         with windows_display_requirement(report['display_requirement']):
@@ -172,26 +225,53 @@ def run(args):
                     if not unchanged(inputs,original,before,root,sources):raise ValueError('G3库存首窗口前来源变化')
                     with running(command,cwd,env,work/'game.log',args.driver.resolve(),case['processes']) as process:
                         capture=Capture(args.driver.resolve(),process,work,case['inputs']);capture.g3_case_record=case
-                        base.exercise(capture,prepared,save,guard,case,SimpleNamespace(driver=args.driver,sdl_audio_source='app-mix'))
-                        if case.get('business_sequence_completed') is not True or not case.get('state_comparison',{}).get('ok') or not case.get('completed_save'):
-                            raise AssertionError('G3库存缺少正式完成与完整Save量测')
+                        if retention_only:
+                            retention.exercise(capture,prepared,save,guard,case,
+                                SimpleNamespace(driver=args.driver,sdl_audio_source='app-mix'))
+                            if case.get('picker_retention_completed') is not True or case.get('save_executed') is not False:
+                                raise AssertionError('画像反馈缺完整phase/后继写集门')
+                        else:
+                            base.exercise(capture,prepared,save,guard,case,SimpleNamespace(driver=args.driver,sdl_audio_source='app-mix'))
+                            if case.get('business_sequence_completed') is not True or not case.get('state_comparison',{}).get('ok') or not case.get('completed_save'):
+                                raise AssertionError('G3库存缺少正式完成与完整Save量测')
                     case['ok']=True
+                except BaseException as error:
+                    case.setdefault('first_failure',{'checkpoint':'picker_feedback' if retention_only else 'inventory',
+                        'error':{'type':type(error).__name__,'message':str(error)}})
+                    raise
                 finally:
-                    case['guards']={'sources_unchanged':unchanged(inputs,original,before,root,sources),
-                        'save_matches_measured':save.read_bytes()==guard[0] and save.stat().st_mtime_ns==guard[1],
-                        'normal_owned_cleanup':len(case['processes'])==1 and all(p.get('cleaned') is True and p.get('forced_cleanup') is False and p.get('exit_code')==0 for p in case['processes'])}
+                    case['guards']={}
+                    for name,check in (
+                        ('sources_unchanged',lambda:unchanged(inputs,original,before,root,sources)),
+                        ('save_unchanged_without_Save' if retention_only else 'save_matches_measured',
+                            lambda:save.read_bytes()==guard[0] and save.stat().st_mtime_ns==guard[1]),
+                        ('normal_owned_cleanup',lambda:len(case['processes'])==1 and all(p.get('cleaned') is True and p.get('forced_cleanup') is False and p.get('exit_code')==0 for p in case['processes']))):
+                        try:case['guards'][name]=check()
+                        except BaseException as error:
+                            case['guards'][name]=False
+                            case.setdefault('secondary_errors',[]).append({'phase':'late_guard:'+name,
+                                'error':{'type':type(error).__name__,'message':str(error)}})
                     case['ok'] &= all(case['guards'].values());write(work/'comparison.json',case)
                 if not case['ok']:raise AssertionError('G3库存端点门失败：'+kind)
                 for path in work.glob('*'):
                     if path.is_file() and path.suffix in ('.png','.SAV','.jsonl','.bmp'):inputs[str(path)]=sha(path)
         report['ok']=len(report['cases'])==2 and all(c['ok'] for c in report['cases'])
-        report['status']='paired_inventory_pages_full_save_passed' if report['ok'] else 'failed'
+        report['status']=('paired_picker_retention_full_page_checkpoints_passed' if retention_only else
+            'paired_inventory_pages_full_save_passed') if report['ok'] else 'failed'
     except BaseException as error:base.record_failure(report,error);report['status']='failed'
     finally:
-        report['final_sources_unchanged']=unchanged(inputs,original,before,root,sources)
+        try:report['final_sources_unchanged']=unchanged(inputs,original,before,root,sources)
+        except BaseException as error:
+            report['final_sources_unchanged']=False
+            report.setdefault('secondary_errors',[]).append({'phase':'final_sources_guard',
+                'error':{'type':type(error).__name__,'message':str(error)}})
         report['ok'] &= report['final_sources_unchanged'] and report['display_requirement'].get('released') is True
         if not report['ok']:report['status']='failed'
-        write(output/'comparison.json',report)
+        try:write(output/'comparison.json',report)
+        except BaseException as error:
+            if report.get('error'):
+                raise RuntimeError(str(report['error'])+'；同时报告写入失败：'+str(error)) from error
+            raise
     return report
 
 

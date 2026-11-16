@@ -141,6 +141,42 @@ class DetailCheckTest(unittest.TestCase):
                 with self.assertRaises(AssertionError):check.series_checkpoint(capture,scope,'bad',lambda f:True,[],timeout=1)
                 self.assertFalse((work/'bad.png').exists())
 
+    def test_series_backlog_and_slow_positive_cannot_outlive_deadline(self):
+        for positive in (False, True):
+            with self.subTest(positive=positive), tempfile.TemporaryDirectory() as folder:
+                work=Path(folder);directory=work/'detail-series';ready,_=self.publish_series(directory)
+                process=SimpleNamespace(pid=42,poll=lambda:None)
+                capture=SimpleNamespace(process=process,artifacts=work,last=None)
+                scope={'directory':directory,'ready':ready,'process':process,'after':None}
+                clock=[0.0];calls=[];points=[]
+                def predicate(frame):
+                    calls.append(True);clock[0]+=2.0 if positive else 0.6
+                    return {'kind':'late-positive'} if positive else None
+                with patch.object(check.time,'monotonic',side_effect=lambda:clock[0]), \
+                        patch.object(check.time,'sleep'), self.assertRaises(TimeoutError):
+                    check.series_checkpoint(capture,scope,'bounded',predicate,points,timeout=1)
+                self.assertEqual(len(calls),1 if positive else 2)
+                self.assertEqual(points,[])
+                self.assertFalse((work/'bounded.png').exists())
+                self.assertTrue((work/'bounded-timeout.png').exists())
+
+    def test_series_late_positive_requires_target_and_helper_still_live(self):
+        for which in ('target','helper'):
+            with self.subTest(which=which), tempfile.TemporaryDirectory() as folder:
+                work=Path(folder);directory=work/'detail-series';ready,_=self.publish_series(directory)
+                dead={'target':False,'helper':False}
+                process=SimpleNamespace(pid=42,poll=lambda:0 if dead['target'] else None)
+                helper=SimpleNamespace(poll=lambda:0 if dead['helper'] else None)
+                capture=SimpleNamespace(process=process,artifacts=work,last=None)
+                scope={'directory':directory,'ready':ready,'process':helper,'after':None};points=[]
+                def predicate(frame):
+                    dead[which]=True
+                    return {'kind':'stale-positive'}
+                with self.assertRaises(RuntimeError):
+                    check.series_checkpoint(capture,scope,'stale',predicate,points,timeout=1)
+                self.assertEqual(points,[])
+                self.assertFalse((work/'stale.png').exists())
+
     def test_series_body_failure_still_stops_and_closes_owned_helper(self):
         with tempfile.TemporaryDirectory() as folder:
             work=Path(folder);process=SimpleNamespace(pid=42,poll=lambda:None)

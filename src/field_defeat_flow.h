@@ -1,4 +1,4 @@
-/* field_defeated_units_finalize @0x1db65（原登记同名）：完整0x359B。
+/* field_defeated_units_finalize @0x1db65（原登记同名）：完整857B（0x359）。
  * runtime.defeat决定13旋转／12消散／等待与提交顺序；Game只写方向/flags，
  * Play借现runtime callback拥有本次临时视觉页，不增加热PC或SAV状态。 */
 #ifndef FD2_FIELD_DEFEAT_FLOW_H

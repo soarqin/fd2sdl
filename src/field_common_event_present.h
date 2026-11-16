@@ -8,22 +8,24 @@
 
 /* bios_tick_delay @0x17aa9（原登记同名）：只读有符号WORD时钟与有界goal。
  * 53A2C仅是该函数的scratch（Domain全xref为两写一读），此处用局部start；
- * 不新增App热状态。SDL/55为既有名义BIOS映射，不承诺真实18.206Hz精度。
+ * 不新增App热状态；时钟借现bios_clock的固定PIT投影，不再使用SDL/55。
  * 正goal>65535在原16bit差域不能结束，明确拒绝；<=0仍读一轮。
  * fast只跳等待的诊断模式；不取普通键、不清键、不推进水色/actor/RNG。 */
 static int common_event_delay_ticks(fd2_vga *vga,int32_t ticks,int fast) {
     if(!vga || ticks>65535)return FD2_SCENE_RESULT_ERROR;
     if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
     if(fast)return FD2_SCENE_RESULT_OK;
-    uint16_t start=(uint16_t)(SDL_GetTicks()/55u);
+    uint16_t start=fd2_bios_tick_low_ns(SDL_GetTicksNS());
     for(;;) {
         if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
-        uint16_t now=(uint16_t)(SDL_GetTicks()/55u);
+        uint16_t now=fd2_bios_tick_low_ns(SDL_GetTicksNS());
         if(fd2_vga_bios_tick_elapsed(start,now)>=ticks)break;
-        fd2_vga_present_timed(vga,FD2_FIELD_COMMAND_FRAME_MS);
+        /* 原17ac4回边不绘图、不读键；只借1ms宿主pump，普通FIFO原样排队。
+         * 每次仍重新读取低WORD，负goal也须先有一次比较，不转成unsigned。 */
+        fd2_delay_ms(1);
     }
     /* 原尾再读WORD并覆写自身scratch；没有外部reader，不投射新owner。 */
-    (void)SDL_GetTicks();
+    (void)fd2_bios_tick_low_ns(SDL_GetTicksNS());
     return fd2_input_take_quit(&vga->input)?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
 }
 

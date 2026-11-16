@@ -18,12 +18,16 @@ enum { PREPARE_PICK_PRODUCT=1, PREPARE_PICK_ITEM, PREPARE_PICK_MEMBER,
     PREPARE_PICK_BUY_MEMBER, PREPARE_PICK_REVIVE, PREPARE_PICK_PROMOTION,
     PREPARE_PICK_DEPLOYMENT, PREPARE_PICK_MENU };
 
-static int prepare_service_picker_draw(prepare_ui *ui) {
+static int prepare_service_picker_widgets(prepare_ui *ui,int arrows) {
     prepare_service *s=&ui->service;
     const fd2_save_manual_state *state=&ui->context->preparation;
-    if (s->picker_mode==PREPARE_PICK_MENU && s->page)
-        memcpy(ui->vga->framebuffer,s->page->framebuffer,VGA_W*VGA_H);
-    else if (s->page_background) memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
+    /* field_prepare_picker_tick_draw @0x27079（原sub_27079）及27d33导航
+     * 只覆盖各自成员/列表/图标窗口；保留16559已画的画像和其它VGA历史。
+     * 初次开页/关闭仍由modal snapshot负责，不能每tick恢复整页再补portrait0。
+     * field_deployment_selection_draw @0x2b4fb（原sub_2B4FB）另有显式
+     * memmove(53C63,base,64000)，仅该owner保留全页基底重建。 */
+    if (s->picker_mode==PREPARE_PICK_DEPLOYMENT && s->page_background)
+        memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
     int result=-1; size_t first=s->first,count=0,visible=6;
     switch (s->picker_mode) {
         case PREPARE_PICK_PRODUCT:
@@ -62,22 +66,47 @@ static int prepare_service_picker_draw(prepare_ui *ui) {
             result=0;break;
         default:return -1;
     }
-    if (!result && count) {
-        const fd2_image *up=&ui->assets->service.scroll_arrows[first ? ui->vga->prepare_highlight_phase/2u:4u];
-        const fd2_image *down=&ui->assets->service.scroll_arrows[first+visible<count ? 2u+ui->vga->prepare_highlight_phase/2u:4u];
-        fd2_map_sprite_blit(ui->vga,up,298,120,-1);
-        fd2_map_sprite_blit(ui->vga,down,298,181,-1);
-    }
+    if(!result && count && arrows)result=prepare_picker_arrows(ui->vga,ui->assets->service.scroll_arrows,
+        count,first,visible,ui->vga->prepare_highlight_phase);
     return result;
+}
+static int prepare_service_picker_draw(prepare_ui *ui) {return prepare_service_picker_widgets(ui,1);}
+/* 27079真正的空等写集：mode1只箭头，mode2先箭头再3个sprite，
+ * mode3成员sprite/name后箭头。导航的完整widget与初开底板另由caller负责。 */
+static int prepare_service_picker_tick_draw(prepare_ui *ui) {
+    prepare_service *s=&ui->service;size_t count,first=s->first,visible=6;
+    switch(s->picker_mode) {
+        case PREPARE_PICK_MENU:
+            if(s->selected_command<0 || s->selected_command>=4)return -1;
+            fd2_map_sprite_blit(ui->vga,&ui->assets->service.icons[2*s->selected_command+
+                ui->vga->prepare_highlight_phase/2u],201+26*s->selected_command,169,0);return 0;
+        case PREPARE_PICK_PRODUCT:count=s->stock_count;first=(size_t)s->product_first;break;
+        case PREPARE_PICK_ITEM:count=s->item_count;break;
+        case PREPARE_PICK_MEMBER:
+            return prepare_service_picker_draw(ui);
+        case PREPARE_PICK_BUY_MEMBER:case PREPARE_PICK_REVIVE:case PREPARE_PICK_PROMOTION:
+            count=s->candidate_count;visible=3;
+            if(prepare_picker_arrows(ui->vga,ui->assets->service.scroll_arrows,count,first,visible,
+                    ui->vga->prepare_highlight_phase)!=0)return -1;
+            return fd2_field_prepare_draw_candidate_sprites(ui->vga,ui->assets,&ui->context->preparation,
+                s->candidates,count,first,ui->vga->prepare_sprite_phase);
+        default:return -1;
+    }
+    return prepare_picker_arrows(ui->vga,ui->assets->service.scroll_arrows,count,first,visible,
+        ui->vga->prepare_highlight_phase);
 }
 
 static int prepare_service_picker_open(prepare_ui *ui) {
     prepare_service *s=&ui->service;
     if (s->page || s->page_background) return -1;
     fd2_vga *page=new_frame(ui->vga);if(!page)return -1;
+    if(s->picker_mode<PREPARE_PICK_PRODUCT || s->picker_mode>PREPARE_PICK_PROMOTION ||
+        !image_size(&ui->assets->service.roster_page,310,86)){free(page);return -1;}
+    /* 27738/27d33/27f4a/2a29d/2a857初开唯一LMI底板；尚未到26eda箭头。 */
+    fd2_map_sprite_blit(page,&ui->assets->service.roster_page,5,112,-1);
     /* 原选择页在底框出现前先完整预检绘制，失败不展示空白占位。 */
     fd2_vga *live=ui->vga;ui->vga=page;
-    int result=prepare_service_picker_draw(ui);ui->vga=live;
+    int result=prepare_service_picker_widgets(ui,0);ui->vga=live;
     if (!result) result=prepare_service_modal_open(ui,page,2);
     free(page);return result;
 }
@@ -116,7 +145,7 @@ static int prepare_service_pick_list(prepare_ui *ui,unsigned *port) {
     for (;;) {
         fd2_input_event event;
         int result=prepare_service_read_key(ui,&event,columns==1u ? 2: s->picker_mode==PREPARE_PICK_MEMBER ? 3:1,
-            prepare_service_picker_draw);
+            prepare_service_picker_tick_draw);
         prepare_host_release(ui,&host_deadline);
         if(result){if(result==1)s->host_quit=1;*port=FD2_FLOW_ERROR;return -1;}
         if(cancel_key(event.key)){*port=FD2_FLOW_CANCEL;return 1;}
@@ -134,12 +163,18 @@ static int prepare_service_pick_list(prepare_ui *ui,unsigned *port) {
             memcpy(before,ui->vga->framebuffer,VGA_W*VGA_H);
         }
         if(s->picker_mode==PREPARE_PICK_PRODUCT)s->product_first=(int)first;else s->first=first;
-        if(prepare_service_picker_draw(ui)!=0){free(before);return -1;}
+        fd2_vga *next=before ? new_frame(ui->vga):NULL;
+        if(before && !next){free(before);return -1;}
+        fd2_vga *live=ui->vga;
+        if(next) {
+            if(prepare_picker_shift_rows(next->framebuffer,first>previous_first,26)!=0){free(next);free(before);return -1;}
+            ui->vga=next;
+        }
+        int drawn=prepare_service_picker_widgets(ui,0);ui->vga=live;
+        if(drawn){free(next);free(before);return -1;}
         if(before) {
-            uint8_t *after=malloc(VGA_W*VGA_H);if(!after){free(before);return -1;}
-            memcpy(after,ui->vga->framebuffer,VGA_W*VGA_H);
-            int scrolling=prepare_service_scroll_rows(ui,before,after,first>previous_first);
-            free(after);free(before);
+            int scrolling=prepare_service_scroll_rows(ui,before,next->framebuffer,first>previous_first);
+            free(next);free(before);
             if(scrolling){if(scrolling==1)s->host_quit=1;return -1;}
         }
         if(prepare_host_present(ui,&host_deadline)){s->host_quit=1;return prepare_host_stop(ui,&host_deadline,-1);}
@@ -197,10 +232,17 @@ static int prepare_service_equipment_draw(prepare_ui *ui) {
     const fd2_save_manual_state *state=&ui->context->preparation;
     if(s->member<0 || (size_t)s->member>=state->unit_count)return -1;
     memcpy(&unit,state->unit_area+(size_t)s->member*80u,80);
-    fd2_field_detail_draw(ui->vga,&ui->assets->info,&ui->assets->font,&ui->assets->text,&unit,&s->equipment_portraits[0]);
+    if(fd2_field_detail_draw(ui->vga,&ui->assets->info,&ui->assets->font,&ui->assets->text,&unit,&s->equipment_portraits[0])!=0)return -1;
     if(fd2_field_item_list_draw(ui->vga,&ui->assets->info,&ui->assets->font,&ui->assets->text,
             &unit,s->equipment_selected)!=0)return -1;
     return 0;
+}
+
+/* 1b9de的53C57是DWORD；空EQT的导航也保原signed比较／DWORD加减。
+ * 显式解码二补码，不让C signed overflow或size_t(count-1)改原轨迹。 */
+static int prepare_equipment_cursor_add(int cursor,int delta) {
+    uint32_t bits=(uint32_t)cursor+(uint32_t)delta;
+    return bits<=INT32_MAX ? (int)bits:-1-(int)(UINT32_MAX-bits);
 }
 
 static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,unsigned *port) {
@@ -210,13 +252,13 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         s->picker_mode=PREPARE_PICK_MENU; /* 26e38无入口清队。 */
         for(;;) {
             fd2_input_event event;
-            int result=prepare_service_read_key(ui,&event,0,prepare_service_picker_draw);
+            int result=prepare_service_read_key(ui,&event,0,prepare_service_picker_tick_draw);
             if(result){if(result==1)s->host_quit=1;return -1;}
             if(cancel_key(event.key)){*port=FD2_FLOW_CANCEL;return 1;}
             if(confirm_key(event.key)){*port=FD2_FLOW_SLOT;return 1;}
             if(event.key==FD2_INPUT_KEY_LEFT || event.key==FD2_INPUT_KEY_RIGHT) {
                 s->selected_command=(s->selected_command+(event.key==FD2_INPUT_KEY_LEFT ? 3:1))%4;
-                if(sound(ui,0)!=0 || prepare_service_picker_draw(ui)!=0)return -1;
+                if(sound(ui,0)!=0)return -1;
             }
         }
     }
@@ -296,22 +338,21 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         fd2_field_unit unit;const fd2_save_manual_state *state=&ui->context->preparation;
         memcpy(&unit,state->unit_area+(size_t)s->member*80u,80);
         size_t count=fd2_field_unit_inventory_count(&unit);
-        if(!count){*port=FD2_FLOW_CANCEL;return 1;}
-        if(s->equipment_selected<0 || (size_t)s->equipment_selected>=count)s->equipment_selected=0;
+        if(count && (s->equipment_selected<0 || (size_t)s->equipment_selected>=count))s->equipment_selected=0;
         for(;;) {
             memcpy(&unit,state->unit_area+(size_t)s->member*80u,80);
             if(fd2_field_item_list_draw(ui->vga,&ui->assets->info,&ui->assets->font,&ui->assets->text,
-                    &unit,s->equipment_selected)!=0)return -1;
+                    &unit,count?s->equipment_selected:-1)!=0)return -1;
             fd2_input_event event;
             int result=prepare_service_wait_key(ui,&event,0); /* 16c57，保共享RNG及按键 */
             if(result){if(result==1)s->host_quit=1;return -1;}
             if(cancel_key(event.key)){*port=FD2_FLOW_CANCEL;return 1;}
             if(confirm_key(event.key)){s->raw_slot=s->equipment_selected;*port=FD2_FLOW_SLOT;return 1;}
             int old=s->equipment_selected;
-            if(event.key==FD2_INPUT_KEY_UP)s->equipment_selected=old ? old-1:(int)count-1;
-            else if(event.key==FD2_INPUT_KEY_DOWN)s->equipment_selected=(size_t)old+1u<count ? old+1:0;
-            else if(event.key==FD2_INPUT_KEY_LEFT && old>=4)s->equipment_selected=old-4;
-            else if(event.key==FD2_INPUT_KEY_RIGHT && old<=3 && (size_t)old+4u<count)s->equipment_selected=old+4;
+            if(event.key==FD2_INPUT_KEY_UP)s->equipment_selected=old ? prepare_equipment_cursor_add(old,-1):(int)count-1;
+            else if(event.key==FD2_INPUT_KEY_DOWN)s->equipment_selected=old==(int)count-1 ? 0:prepare_equipment_cursor_add(old,1);
+            else if(event.key==FD2_INPUT_KEY_LEFT && old>=4)s->equipment_selected=prepare_equipment_cursor_add(old,-4);
+            else if(event.key==FD2_INPUT_KEY_RIGHT && old<=3 && old<(int)count-4)s->equipment_selected=prepare_equipment_cursor_add(old,4);
             if((s->equipment_selected!=old || event.key==FD2_INPUT_KEY_UP || event.key==FD2_INPUT_KEY_DOWN) && sound(ui,0)!=0)return -1;
         }
     }

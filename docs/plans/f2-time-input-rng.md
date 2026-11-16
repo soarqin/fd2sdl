@@ -127,7 +127,7 @@ App SHA256 `a57b092390db7dbf6daa3771257a8150846303ea78bc35d4a04fbc6146116bb0` �
 | A13：18b84首次ESI | 首次先画仍是候选；actor地址与signed16 tick能否相交未作全正常域证明。成功body后的fresh锚已实现 | F6核正常pool分配／raw地址域或真实相等分支；F3改变构造／Load／人数时更新该域。不得用宿主指针、0或当前tick替代 |
 | A13：2000a首次FS／GS | 当前首次body为候选，postfirst两tick门已实现；native02只给当次FS0／GS20 | 外部服务／ISR／旧IRQ保存材料随F5取得，F6合签全部正常入口的首值集合、早键与首gate。不得固定一次捕获值 |
 | A13／A12：1b1e7继承EBP | C每宿主轮刷新；原固定EBP相等门贯穿steady，会影响raw26与后续RNG，不能称仅首轮缺证 | F6证明正常producer值域和前置callee保值使门恒不等，或实现真正相等语义。禁止换成rolling tick；原生未命中仍留未验 |
-| A12：type9 provider及21db2 | 78有限target／2ABI续点／2外部provider未知；当次type1不证明所有启动。没有已证正式漏调用反例 | F5收外部返回依据、F6关闭全部正常启动入口；不得盲增三次RNG、判全局dead或判U |
+| A12：type9 provider及21db2 | F4补充已核固定普通成功启动的完整AH30合同，78有限target／2ABI续点／2有源条件排除；不再是两个未知target | 见[F4补充](f4-presentation.md#278-固定普通启动的两个provider与map125)；改guest启动环境／外来provider需重签，不判全进程dead，也不代完整RNG联合 |
 | A10／A12：完整输入与共享轨迹 | 机制、单族序列及正常代表已有证；多键／locale／完整FIFO消费及跨F3—F5、QK轨迹未联合通过 | 各后续阶段补直接consumer；F6以独立原PC／值／写序／实际输入及合法存取join，真实缺证不得用C自证或统计近似替代 |
 | A13／A15／A17—A18：像素、设备与绝对时间 | 新前缀的参数／顺序已测，原绘制成本、逐像素／PCM／PIC／事件绝对时刻未因此关闭 | F4核完整page／DAC／FX，F5核driver／PIC／PCM及新时点最小原生代表；F6同候选合签。Nuked只豁免用户已选响度／音色 |
 

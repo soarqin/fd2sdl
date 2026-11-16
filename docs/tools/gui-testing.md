@@ -1070,3 +1070,16 @@ $Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
 用户针对当前F1—F6工作另明确允许自行点亮显示及必要临时电源计划。可沿现`windows_display_requirement`的一次申请／有界唤醒确认console／session ON与Default桌面；这不是游戏输入，不能用来补按键、抢焦点或循环唤醒。先用显示保持，若确需临时方案则先记原活动计划与改动项，采用现journal，成功／失败／取消和owned清理后恢复。系统混音器仍不改。
 
 F3 START02实际唤醒但参照预检先停，03原版／SDL117页及UI Save通过，同线程释放；两次均未改电源计划。旧strict ON失败记录及既有Load入口保原身份／参数，不追认为当时已获此新授权。实际候选和参照CLI事后join边界见[F3报告](../plans/f3-gameplay-lifecycle.md#21-app生命周期直接回归及本轮候选)。
+
+
+## F4分层反馈与连续采集收口（2026-11-17）
+
+F4全资源／软件合成与正常WGC反馈分账，实际候选、失败及残余见[F4报告](../plans/f4-presentation.md#281-新反馈协议与第三轮采集失败)。原sampler／独立mask组合和真实C全64000B／palette／DAC负责给定before的逻辑像素；局部资源窗只证明对应class出现，不能代整页、全部物理present或正常输入来源。旧whole-WGC门未过须保原状态；不能通过拼帧、改RGB容差或放过未知像素签完整对齐。
+
+`run_f4_quake_check.py`默认只准备，`--feedback-mode strict-whole`保旧三整页要求，显式`compound-feedback`仅产分层native组件、另需软件证据join。两mode都保原施法后Save禁用：正常检查目标／MP261／灰态后，在空格看禁用资源，再Esc至parent、再Esc至browse；没有END或完整Save测量。该后缀尚未实际完成双端，不由工具纯测试代签。四轮失败、最后原端ring／Q0局部／HIT322及正常owned清理均见原件；停止同条件采样赌整页，真实normal联合留F6。
+
+连续series仍用同一WGC HWND会话、既定45s／600帧／33ms上限、显式stop和完整闭合检查。逐帧扫描不跳积压帧；每帧前及predicate后检查同一个检查点deadline与目标／helper存活，迟到真值／已退出进程的图不能过门。helper达到time_limit或frame_limit只保部分采集，不算完整系列。识别器的Pillow直方图优化保持旧透明index0、全部计数／最大差、66格唯一性及既有容差；不能把判图优化称作游戏时序修复。
+
+同一个QPC域用整数跨乘比较SRT100ns与按键完成后的QPC上界，并要求poll_started不早于该界；Frame index、PNG mtime或Python monotonic不能代此门。SRT晚于arrival的原因尚未测明，不加固定offset修正。completed-tap是保守投递边界，不签guest某PC消费、最初150ms、真实PIC或扫描时点；host quiet2s也是判图防抖，不是帧时间稳定证明。
+
+当前通用显示授权及owned／原件／用户SAV／配置守卫继续有效；只有本轮拥有的PID／HWND可接收输入，截图与正常关闭均沿统一设施。内层strict ON不等于禁止外层按既有授权作一次有界显示恢复；任何路径都先清owned、核来源，再由原线程恢复显示需求及真正改动的设置，不改混音器或历史F1收据。

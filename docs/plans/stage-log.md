@@ -1990,3 +1990,18 @@ START01因OFF在首窗前停止；用户随后明确授权主动点亮与必要�
 有限读者／返回值闭包采用修正后的184关系／91实际调用点；漏外部条件边的01闭合撤回。完整Load→turn3两模板的具体mask与首checksum U、fresh族来源归纳另账，不以未测直接判U；wholeLoad／live／合法sync继续V。IDA末次发布4生命周期注释、530登记，1312函数strict结构／C tokens不变、0改名、11SHA及14工具检查通过。原码3774等仅保给定before80旧身份，不重跑或扩签。
 
 QK三个条件consumer仍未一般表达，Town0先继续后续battle的时点已纠正；正常可达／联合资格及有限outcome实现留同一专项。后期first-App R实际sync／reorder来源、全自然／动态链和败北重开后缀也仍待F6。主体交付不是A04／A06—A09完整终态通过；这些缺口不读取F4解码器或F5采样算法，依已授权真实依赖继续F4。实际提交、物理源、主线构建／定向集成及保护记录只认两树`build/f3/subject-delivery-20261116/local-integration.json`，不远程push／发布。
+
+
+## F4共享呈现主体交付与继续F5（2026-11-17）
+
+以完整共享资源／呈现实现、26行给定有效before的算子／正式绑定资格为一个提交单元。修direct／batch hidden、80h读钟、线性页及背景／actor边界、App／palette／嘴型／UI历史、SHORT真实三参／双HP、地震三表／actor圆心／11..12漏演出及HOST续行，保持唯一热owner／RNG和冷定义；三组quake参数唯一在field_game_effects.json。没有通用VM或第二场景状态。
+
+完整分母16300唯一span，资源reader、typed／动态文本、对话／标题／credits、FULL／SHORT／MAP／DERIVED／COMPOSITE及正式cold walker分别保原CPU、独立source算式、真实C全页／DAC或组合依据。大量期望／媒体留本地，只提交可复跑工具与无完整原资源的合同。ID6数值provider／有限geometry及五fresh App回图按源分类，不把旧dormant C页作原新owner。原U首点、H后缀和未证normal producer分账；详见[F4报告](f4-presentation.md)，不凭计数宣称完整对齐。
+
+34项直接回归初次32过／两失败；scene_transition漏地图upload观察、s5_stage_source合成raw32超45×50地图边界，均仅修夹具后定向通过，原32项不重跑。SHORT新双端严格63／3条及31页／30ACK、完整Save保自身候选；其它flash／对白／准备代表各保实际来源。PUB05的1312函数字节／类型／边界保持，538登记及11SHA通过，14发布回归；294C／H的998入口审计通过。随后仅工具／文档变化不改C快照。
+
+Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；02整Q0采样缺证且旧投递时间／普通range假阳性后来收紧；03逐帧识别积压超helper45s；04修同义像素比较及内deadline／活性后正常stop100帧，原ring、Q0局部及HIT322正证仍不足原组合门。四轮均未完成SDL／目标／F2 MP261／禁Save后缀；无额外键／Save来凑过门。最后Job10720及原4360正常exit0、无残余／强杀，来源／参照／原件及同线程显示恢复通过；03／04显示本来ON，没有电源／混音器改动。
+
+独立复审确认：原3次sampler／组合9＋真实Game C9整页／palette／DAC＋Battle完整60圈／共用upload可关闭给定有效before的有界软件显示机制；45个src／cold相同，局部只签source-class，不解释未证的37／59非Q点或冒全部物理present。停止同条件GUI赌采样。当前真实normal before、双端后缀、完整END→Save、输入RNG／PIC及fresh来源联合明确移交[F6必需门](f4-presentation.md#5-f6必须接回的完整域)，不把完整A14—A16写成通过。这些门不读取F5 AIL／PCM／设备机制，按已授权实际依赖连续推进F5。
+
+完整主体提交／本地快进、当前主线构建／定向集成、物理字节／换行继承及用户SAV字节mtime的实际结果，以两树`build/f4/subject-delivery-20261117/local-integration.json`为准。旧失败、候选／继承／未验不改签；不远程push／发布，不自动开新功能阶段。

@@ -53,6 +53,12 @@ static int wait_test_summary_refresh(fd2_field_game *game,fd2_vga *vga,size_t ac
     if(refresh_failure)return -1;
     now_ns=after_refresh_ns;return 0;
 }
+static void wait_copy_upload(fd2_vga *vga) {
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    wait_test_present(vga);
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
 #define SDL_GetTicksNS wait_test_ns
 #define fd2_field_water_tick wait_test_water
 #define fd2_field_water_tick_live(vga_) wait_test_water((vga_),SDL_GetTicksNS())
@@ -60,9 +66,11 @@ static int wait_test_summary_refresh(fd2_field_game *game,fd2_vga *vga,size_t ac
 #define fd2_field_game_runtime_menu_refresh wait_test_menu_refresh
 #define fd2_field_game_runtime_summary_refresh wait_test_summary_refresh
 #define fd2_vga_present wait_test_present
+#define fd2_vga_upload_current_frame wait_copy_upload
 #define fd2_wait_ticks wait_test_ticks
 #define fd2_delay_ms wait_test_delay
 #include "../field_play.c"
+#undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_wait_ticks
 #undef fd2_delay_ms

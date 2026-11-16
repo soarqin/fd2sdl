@@ -81,7 +81,10 @@ int fd2_terrain_render_page_block(fd2_field_page *page,
     int dest_x, int dest_y, int columns, int rows, int map_x, int map_y,
     int terrain_phase, int actor_phase,
     const fd2_field_path_result *range, const uint8_t lut[256]);
-/* 12ac6单格遮挡，camera为格坐标；越地图或无overlay为成功no-op。 */
+/* 11eee/12ac6有限map源：index=y*width+x，-1为4B WH头；
+ * 其它须在完整cells内。只供渲染，不改二维path/lookup接口。 */
+int fd2_terrain_page_source_cell(const fd2_field_map *map,int x,int y,uint32_t *cell);
+/* 12ac6单格遮挡，camera为格坐标；源视口/负y门外或无overlay为no-op。 */
 int fd2_terrain_render_page_overlay_cell(fd2_field_page *page,
     const fd2_terrain_tileset *terrain, const fd2_field_map *map,
     int cell_x, int cell_y, int camera_x, int camera_y, int anim_phase,

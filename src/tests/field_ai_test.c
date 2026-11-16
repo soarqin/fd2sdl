@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "field_ai.h"
+#include "field_attack.h"
 #include "field_item.h"
 #include "field_magic.h"
 
@@ -532,12 +533,12 @@ static int test_physical_candidate_and_dispatch(void) {
     fd2_field_ai_physical_candidate candidate;
     CHECK(fd2_field_ai_choose_physical_candidate(
               &map, &terrain, &units, 0, 0, &range, &candidate) == 0);
-    CHECK(candidate.unit_index == 2);
+    CHECK(candidate.unit_index == 1);
     CHECK(candidate.destination_x == 1 && candidate.destination_y == 1);
-    /* target 0 以 score=2 经反击调整到 7；target 1 继承 score=7，
-     * 再调整到 12，故同 priority 下替换为后者。 */
-    CHECK(candidate.priority == 8);
-    CHECK(candidate.secondary_score == 12);
+    /* 原14586每target从20-4=16起分，严格>HP10后32；反击+10-5=37。
+     * 两target同priority18/score37，144d3严格改善保首raw1。 */
+    CHECK(candidate.priority == 0x12);
+    CHECK(candidate.secondary_score == 37);
     CHECK(memcmp(&units, &units_before, sizeof(units)) == 0);
     CHECK(memcmp(nodes, nodes_before, sizeof(nodes)) == 0);
 
@@ -556,21 +557,17 @@ static int test_physical_candidate_and_dispatch(void) {
               &oversized_map, &terrain, &units, 0, 0,
               &range, &candidate) == -1);
 
-    /* 0x29663 只在 destination 开始时载入 target_count；第一个 target
-     * 的 text_id==0 会把 ESI 从 2 改为 3，第二个 target 继承 3，因
-     * 3 > HP(2) 进入 priority 18。若错误地逐 target 重置为 2，则第二
-     * 项只能得到 priority 8，最终仍会保留第一项。 */
+    /* 每名target独立重置，hero raw8=0在37后作3/2向0取整得55。
+     * 第二名HP2也被16击杀得priority18，但score37不超过55，不继承ESI。 */
     units.items[1].text_id = 0;
     units.items[1].hp = 10;
     units.items[2].text_id = 2;
     units.items[2].hp = 2;
     CHECK(fd2_field_ai_choose_physical_candidate(
               &map, &terrain, &units, 0, 0, &range, &candidate) == 0);
-    CHECK(candidate.unit_index == 2);
+    CHECK(candidate.unit_index == 1);
     CHECK(candidate.priority == 0x12);
-    /* target 0: 2 + (10-5) = 7，text_id 0 再变为 10；target 1 继承
-     * 10，因 10 > HP(2) 翻倍为 20，再加反击调整 5。 */
-    CHECK(candidate.secondary_score == 25);
+    CHECK(candidate.secondary_score == 55);
 
     fd2_field_ai_physical_candidate best = {
         .priority = 8,
@@ -638,8 +635,128 @@ static int test_physical_candidate_and_dispatch(void) {
     return 0;
 }
 
+/* 1f183完整原BYTE谓词：ID28优先返回0；其余只分profile19/race4或5。
+ * 这是原比较常量的分类，不调用被测helper来生成expected。 */
+static int test_physical_source_predicate_partition(void) {
+    const uint8_t ids[]={0,7,28,135,255},profiles[]={0,1,19,28,255},races[]={0,3,4,5,6,255};
+    fd2_field_unit unit={0};
+    for(size_t i=0;i<sizeof(ids);i++)for(size_t p=0;p<sizeof(profiles);p++)
+    for(size_t r=0;r<sizeof(races);r++) {
+        unit.unit_id=ids[i];unit.movement_profile=profiles[p];unit.race=races[r];
+        int expected=ids[i]!=28u && (profiles[p]==19u || races[r]==4u || races[r]==5u);
+        CHECK(fd2_field_attack_unit_ignores_terrain_modifier(&unit)==expected);
+    }
+    return 0;
+}
+
+/* 原14237的两处JZ跳过修正：非0才用地形。actor位class4(-5/-5)，
+ * target位class2(-5/+10)：(AP100,DP40)与(AP60,DP50)。
+ * 每target score=AP-DP，未kill再加actorDP-targetAP；四个独立常量30/28/23/21。 */
+static int test_physical_source_score_matrix(void) {
+    static const int32_t expected[2][2]={{30,28},{23,21}};
+    for(unsigned actor_yes=0;actor_yes<2;actor_yes++)for(unsigned target_yes=0;target_yes<2;target_yes++) {
+        fd2_field_units units={0};set_unit(&units,0,0,1,0);set_unit(&units,1,2,2,0);
+        fd2_field_unit *actor=&units.items[0],*target=&units.items[1];
+        actor->unit_id=7;actor->movement_profile=actor_yes?19:1;actor->hp=100;
+        actor->attack=100;actor->defense=40;equip_weapon(actor,0);
+        target->unit_id=8;target->text_id=8;target->movement_profile=target_yes?19:1;
+        target->attack=60;target->defense=50;target->hp=100;equip_weapon(target,0);
+        uint32_t cells[]={0,1,2};fd2_terrain_attr attrs[3]={{0}};
+        attrs[0].movement_cost_class=1;attrs[1].movement_cost_class=4;attrs[2].movement_cost_class=2;
+        fd2_field_map map={.width=3,.height=1,.cells=cells};
+        fd2_terrain_tileset terrain={.attrs=attrs,.attr_count=3};
+        fd2_field_path_node nodes[3];fd2_field_path_result range;init_range(&range,nodes,3,1);
+        add_destination(&range,1,0,0,1);fd2_field_units before=units;
+        fd2_field_ai_physical_candidate out;
+        CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0);
+        CHECK(out.unit_index==1 && out.destination_x==1 && out.destination_y==0 &&
+            out.priority==8 && out.secondary_score==expected[actor_yes][target_yes]);
+        CHECK(!memcmp(&before,&units,sizeof(before)));
+        if(!actor_yes && !target_yes) {
+            /* ID28压过profile19/race5，仍属谓词0，不套!immune规则。 */
+            actor->unit_id=target->unit_id=28;actor->race=target->race=5;
+            actor->movement_profile=target->movement_profile=19;
+            CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+                out.priority==8 && out.secondary_score==30);
+        }
+    }
+    return 0;
+}
+
+static int test_physical_source_kill_and_first_target(void) {
+    fd2_field_units units={0};set_unit(&units,0,0,1,0);set_unit(&units,1,2,0,0);set_unit(&units,2,2,2,0);
+    fd2_field_unit *a=&units.items[0];a->unit_id=7;a->movement_profile=1;a->attack=100;a->defense=40;equip_weapon(a,0);
+    for(size_t i=1;i<3;i++) {
+        fd2_field_unit *t=&units.items[i];t->unit_id=(uint8_t)(i+7);t->text_id=(uint8_t)(i+7);
+        t->movement_profile=1;t->attack=60;t->defense=50;t->hp=100;equip_weapon(t,0);
+    }
+    uint32_t cells[3]={0};fd2_terrain_attr attr={.movement_cost_class=1};
+    fd2_field_map map={.width=3,.height=1,.cells=cells};fd2_terrain_tileset terrain={.attrs=&attr,.attr_count=1};
+    fd2_field_path_node nodes[3];fd2_field_path_result range;init_range(&range,nodes,3,1);add_destination(&range,1,0,0,1);
+    fd2_field_ai_physical_candidate out;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.unit_index==1 && out.priority==8 && out.secondary_score==30); /* exact tie keeps first */
+    units.items[2].attack=59;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.unit_index==2 && out.priority==8 && out.secondary_score==31); /* reset 50+40-59 */
+    units.items[1].text_id=0;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.unit_index==1 && out.secondary_score==45); /* 30*3/2 */
+    units.items[1].text_id=8;units.items[2].flags=FD2_FIELD_UNIT_FLAG_HIDDEN;
+    units.items[1].hp=50;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.priority==8 && out.secondary_score==30); /* damage==HP不double */
+    units.items[1].hp=49;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.priority==18 && out.secondary_score==80); /* (100-50)*2+40-60 */
+    units.items[1].hp=100;a->attack=40;units.items[1].defense=40;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==-1); /* priority0/score-20不越0 */
+    a->attack=41;units.items[1].detail_status[1]=1;
+    CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0 &&
+        out.priority==0 && out.secondary_score==1); /* 正score可写plan，但非action>=6 */
+    return 0;
+}
+
+static int test_physical_source_word_and_signed_score(void) {
+    /* 1426e/14276、1452a/1452e、1447b均MOVZX WORD。期望直接由原
+     * 14586减法、14481严格kill、144a9反击、144b3..c3向0半除导出。 */
+    static const struct {
+        uint16_t ap,dp,target_ap,target_dp,hp;
+        uint8_t actor_immune,target_immune,hero;
+        int32_t score,priority;
+    } cases[]={
+        {32768,1,1,0,65535,0,0,0,32768,8},
+        {65535,65535,65535,32768,65535,0,0,0,32767,8},
+        {65535,65535,65535,32768,65535,1,1,0,26215,8},
+        {32768,0,65535,0,65535,0,0,0,-32767,8},
+        {32768,0,65535,0,65535,0,0,1,-49150,8},
+        {65535,65535,0,0,1,0,0,1,294907,18},
+    };
+    for(size_t n=0;n<sizeof(cases)/sizeof(cases[0]);n++) {
+        fd2_field_units units={0};set_unit(&units,0,0,0,0);set_unit(&units,1,2,1,0);
+        fd2_field_unit *a=&units.items[0],*t=&units.items[1];
+        a->unit_id=7;a->text_id=7;a->movement_profile=cases[n].actor_immune?19:1;
+        a->attack=cases[n].ap;a->defense=cases[n].dp;equip_weapon(a,0);
+        t->unit_id=8;t->text_id=cases[n].hero?0:8;t->movement_profile=cases[n].target_immune?19:1;
+        t->attack=cases[n].target_ap;t->defense=cases[n].target_dp;t->hp=cases[n].hp;equip_weapon(t,0);
+        uint32_t cells[2]={0,1};fd2_terrain_attr attrs[2]={{.movement_cost_class=4},{.movement_cost_class=2}};
+        fd2_field_map map={.width=2,.height=1,.cells=cells};
+        fd2_terrain_tileset terrain={.attrs=attrs,.attr_count=2};
+        fd2_field_path_node nodes[2];fd2_field_path_result range;
+        init_range(&range,nodes,2,1);add_destination(&range,0,0,0,1);
+        fd2_field_ai_physical_candidate out;
+        CHECK(fd2_field_ai_choose_physical_candidate(&map,&terrain,&units,0,0,&range,&out)==0);
+        CHECK(out.unit_index==1 && out.priority==cases[n].priority && out.secondary_score==cases[n].score);
+    }
+    return 0;
+}
+
 int main(void) {
-    if (test_line_item_source_scan() != 0 ||
+    if (test_physical_source_predicate_partition() != 0 ||
+        test_physical_source_score_matrix() != 0 ||
+        test_physical_source_kill_and_first_target() != 0 ||
+        test_physical_source_word_and_signed_score() != 0 ||
+        test_line_item_source_scan() != 0 ||
         test_item_damage_threshold_boundaries() != 0 ||
         test_magic_bitmap_query() != 0 ||
         test_behavior_and_nearest_target() != 0 ||

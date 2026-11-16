@@ -526,6 +526,7 @@ void fd2_field_units_render_actor(fd2_vga *vga,
 }
 
 /* sub_127E0 @0x127e0（原登记同名）的纯绘制叶；actor/camera均不写。
+ * direct不筛hidden；127a9及1366a等批量caller在进入本叶前筛选。
  * 原可见门含一格外沿，实际owner写入不先裁到312×192视窗。 */
 static int page_actor_source(const fd2_map_sprite_bank *sprites,
     const fd2_field_units *units, size_t actor, int camera_x, int camera_y,
@@ -533,8 +534,7 @@ static int page_actor_source(const fd2_map_sprite_bank *sprites,
     if (!sprites || !units || units->count > FD2_FIELD_MAX_UNITS ||
         actor >= units->count || idle_phase > 3u || cursor_phase>3u) return -1;
     const fd2_field_unit *unit=&units->items[actor];
-    if (fd2_field_unit_is_hidden(unit) ||
-        (int64_t)unit->x < (int64_t)camera_x-1 ||
+    if ((int64_t)unit->x < (int64_t)camera_x-1 ||
         (int64_t)unit->x > (int64_t)camera_x+13 ||
         (int64_t)unit->y < (int64_t)camera_y-1 ||
         (int64_t)unit->y > (int64_t)camera_y+9) return 0;
@@ -581,15 +581,17 @@ int fd2_field_units_render_page_actor(fd2_field_page *page,
     else if (unit->direction==1) x-=distance;
     else if (unit->direction==2) y-=distance;
     else x+=distance;
-    if (x<=-24 || y<=-24 || x>=FD2_FIELD_PAGE_STRIDE ||
-        y>=FD2_FIELD_PAGE_HEIGHT) return 0;
+    int64_t offset=y*FD2_FIELD_PAGE_STRIDE+x;
+    /* 12937..1293f只检查合成后的signed线性偏移；raw4为整BYTE。
+     * 走路producer通常1..6，Load保留值不能据此被矩形裁掉。 */
+    if(offset-(int64_t)offset_y*FD2_FIELD_PAGE_STRIDE<0)return 0;
     uint8_t acted[256];
     const uint8_t *lut=NULL;
     if (fd2_field_unit_has_acted(unit)) {
         for(size_t i=0;i<256;i++) acted[i]=(uint8_t)((i&7u)+24u);
         lut=acted;
     }
-    return fd2_field_page_blit_rle(page,(int)x,(int)y,24,24,source,length,lut);
+    return fd2_field_page_blit_rle_linear(page,offset,24,24,source,length,lut);
 }
 
 int fd2_field_map_action_page_actor(fd2_field_page *page,
@@ -629,11 +631,11 @@ int fd2_field_map_action_page_actor(fd2_field_page *page,
     else if(u->direction==1)x-=step;
     else if(u->direction==2)y-=step;
     else x+=step;
-    if(x<=-24 || y<=-24 || x>=FD2_FIELD_PAGE_STRIDE ||
-        y>=FD2_FIELD_PAGE_HEIGHT)return 0;
+    /* 1da16没有127e0的相对偏移负数门；只在实际写点检查owner。 */
+    int64_t offset=y*FD2_FIELD_PAGE_STRIDE+x;
     uint8_t solid[256];
     if(mode==2)memset(solid,FD2_FIELD_PAGE_STRIDE&255,sizeof(solid));
-    return fd2_field_page_blit_rle(page,(int)x,(int)y,24,24,source,length,
+    return fd2_field_page_blit_rle_linear(page,offset,24,24,source,length,
         mode==2?solid:NULL);
 }
 
@@ -672,6 +674,7 @@ static int page_actors_preflight(fd2_field_page *page,
         idle_phase>3u || cursor_phase>3u) return -1;
     /* 先验全表可见资源，坏后项不留下前项的半绘制。 */
     for(size_t i=0;i<units->count;i++) {
+        if(fd2_field_unit_is_hidden(&units->items[i]))continue;
         const uint8_t *source; size_t length;
         if(page_actor_source(sprites,units,i,camera_x,camera_y,idle_phase,cursor_phase,
                 &source,&length)<0) return -1;
@@ -684,15 +687,17 @@ int fd2_field_units_render_page(fd2_field_page *page,
     int camera_x, int camera_y, uint8_t idle_phase,uint8_t cursor_phase,uint8_t jitter_phase) {
     if (jitter_phase>1u || page_actors_preflight(page,sprites,units,
             camera_x,camera_y,idle_phase,cursor_phase)!=0) return -1;
-    for(size_t i=0;i<units->count;i++)
+    for(size_t i=0;i<units->count;i++) {
+        if(fd2_field_unit_is_hidden(&units->items[i]))continue;
         if(fd2_field_units_render_page_actor(page,sprites,units,i,camera_x,camera_y,
                 idle_phase,cursor_phase,jitter_phase,0)<0) return -1;
+    }
     return 0;
 }
 
 /* sub_127E0 @0x127e0（原登记同名）：127f1..12810的共享抖动门在
  * camera/raw26读取之前；结构合法的direct调用先读clock，即使纯叶省绘制。
- * 原direct本体无hidden门；当前纯叶仍省hidden像素，此差异不由本接线开放。 */
+ * 原direct本体无hidden门；127a9批量与1366a等有源caller各自筛hidden。 */
 int fd2_field_units_render_page_actor_live(fd2_vga *vga, fd2_field_page *page,
     const fd2_map_sprite_bank *sprites, const fd2_field_units *units,
     size_t actor, int camera_x, int camera_y, uint8_t idle_phase,
@@ -752,8 +757,14 @@ int fd2_field_units_render_page_terrain_overlays(fd2_field_page *page,
                 (int64_t)cx>(int64_t)camera_x+13 ||
                 (int64_t)cy<(int64_t)camera_y-1 ||
                 (int64_t)cy>(int64_t)camera_y+9) continue;
-            const uint8_t *colors=range&&lut&&
-                fd2_field_path_is_destination(range,cx,cy)?lut:NULL;
+            /* 12ac6在负y早退；负x/行尾仍取同一map owner的线性cell。 */
+            if(cy<0)continue;
+            uint32_t cell;
+            if(fd2_terrain_page_source_cell(map,cx,cy,&cell)!=0)return -1;
+            const uint8_t *colors=lut && (cx<0 || cx>=map->width ?
+                (cell>>24)!=0xffu : range ?
+                fd2_field_path_is_destination(range,cx,cy) :
+                (cell>>24)!=0xffu) ? lut:NULL;
             if(fd2_terrain_render_page_overlay_cell(page,terrain,map,
                     cx,cy,camera_x,camera_y,anim_phase,colors)!=0) return -1;
         }

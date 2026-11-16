@@ -272,6 +272,12 @@ static void auxiliary_present(fd2_vga *vga) {
     }
     auxiliary_wait(vga);
 }
+static void auxiliary_copy_upload(fd2_vga *vga) {
+    uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;
+    auxiliary_present(vga);
+    vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+}
 static void auxiliary_poll(fd2_input *input) {
     if(modal_active && !restored && !close_reads) {
         if(!pump_vga || input!=&pump_vga->input)bad_page=1;
@@ -284,8 +290,9 @@ static void auxiliary_delay(uint32_t ms) {
         host_pumps++;
         /* 请求1ms的H让出允许被测试环境调度为16ms；非生产固定帧门。 */
         if(!pump_vga){bad_page=1;return;}
+        uint64_t deadline=pump_vga->frame_deadline_ns,interval=pump_vga->frame_interval_ns;
         auxiliary_submit(pump_vga,16);
-        pump_vga->frame_deadline_ns=pump_vga->frame_interval_ns=0;
+        pump_vga->frame_deadline_ns=deadline;pump_vga->frame_interval_ns=interval;
         return;
     }
     fd2_delay_ms(ms);
@@ -357,6 +364,7 @@ static int auxiliary_runtime_refresh(fd2_field_game *game,fd2_vga *vga,int mode)
 uint64_t auxiliary_ticks_ns(void);
 #define SDL_GetTicksNS auxiliary_ticks_ns
 #define fd2_vga_present auxiliary_present
+#define fd2_vga_upload_current_frame auxiliary_copy_upload
 #define fd2_vga_present_timed auxiliary_present_timed
 #define fd2_vga_wait_frame_deadline auxiliary_wait
 #define fd2_field_game_render auxiliary_render
@@ -375,6 +383,7 @@ uint64_t auxiliary_ticks_ns(void);
 #undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 #undef SDL_GetTicks
+#undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
@@ -548,6 +557,7 @@ static int test_modal_keys_owner_and_held(void) {
         vga.field_water_phase = 7;
         vga.field_water_last_tick = oracle_tick_low_ns(clock_ms*UINT64_C(1000000));
         fd2_field_game before = game;
+        vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
         CHECK(play_field_auxiliary(&game, &vga) == FD2_SCENE_RESULT_OK);
         CHECK(finite_frames==13 && !source_timed_frames && host_pumps==close_frame-7 && host_polls==host_pumps);
         CHECK(steady_presents==oracle_body_count());
@@ -575,7 +585,7 @@ static int test_modal_keys_owner_and_held(void) {
         CHECK(water_calls == 1 && water_changes == 1);
         CHECK(vga.field_water_phase == 8 &&
               vga.field_water_last_tick == oracle_tick_low_ns(restore_water_ns));
-        CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
+        CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==UINT64_C(23000000));
         if (hold_f1) {
             CHECK(vga.input.previous_down[SDL_SCANCODE_F1]);
             /* 中间close/Down/Return的make已替换last-key；clear保held并不
@@ -652,6 +662,7 @@ static int test_invalid_preflight_and_quit(void) {
         fd2_vga vga = {.field_page=test_page};
         controls_reset(); init_game(&game);
         fd2_input_init(&vga.input);
+        vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
         quit_frame = quit_at[q];
         if (quit_frame == 0) {
             vga.input.quit_requested = 1;
@@ -660,7 +671,7 @@ static int test_invalid_preflight_and_quit(void) {
         fd2_field_game before = game;
         CHECK(play_field_auxiliary(&game, &vga) == FD2_SCENE_RESULT_HOST_QUIT);
         CHECK(memcmp(&game, &before, sizeof(game)) == 0 && !tick_calls);
-        CHECK(!vga.frame_deadline_ns && !vga.frame_interval_ns);
+        CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==UINT64_C(23000000));
         CHECK(timed_frames == (quit_frame > 0 ? quit_frame : quit_frame < 0 ? close_frame + 6 : 0));
         CHECK(!bad_frozen_water && !bad_restore_order);
         CHECK(water_calls == (quit_frame < 0 ? 1 : 0));

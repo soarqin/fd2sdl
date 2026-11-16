@@ -207,6 +207,9 @@ static int dust(fx_call *c, int *out) {
     return 0;
 }
 
+/* sub_2B996 @0x2b996 的selector6内部入口0x2c67d：原cos/sin先返回qword再乘半径。
+ * 固定Windows DOSBox参照/启动CW127f的五角、两数学分支、80坐标已用
+ * 独立普通DOS数值程序及有理界核对；不把其它CW扫描或首越work后的帧签原像素。 */
 static int orbit(fx_call *c, int *out) {
     fd2_magic_fx *fx = c->fx;
     *out = 0;
@@ -322,8 +325,11 @@ static int beam(fx_call *c, int *out) {
     case 3: *out = 60; break;
     case 4: DRAW(0, 0, 0); break;
     case 5:
-        /* 2ce1a/31266：BYTE跨target续增会越过FX44的31part；仅略无定义画帧，
-         * 不阻断cue、回绕或impact。其它FX和真实part的emit错误仍严格传播。 */
+        /* sub_2CE1A @0x2ce1a / 31266：BYTE跨target续增。
+         * FDOTHER44 part31的目录读仍在资源内，但offset30产生y12546，
+         * 原首RUN1写work+8048320，越过172800B分配及allocator slack。
+         * 从该首越owner点省绘属H，非原像素等值；保cue/回绕/impact。
+         * part0..30的源/目标extent另核；其它有效DRAW错误仍传播。 */
         if ((size_t)(fx->state.beam.frame >> 1) < fx->parts.part_count)
             DRAW(fx->state.beam.frame >> 1, 0, 0);
         if (fx->state.beam.frame == 6u) PRIMARY(1);

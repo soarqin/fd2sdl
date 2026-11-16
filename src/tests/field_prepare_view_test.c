@@ -65,7 +65,7 @@ static int test_original_product_families_full_pixels(void) {
     fd2_vga *actual=malloc(sizeof(*actual)),*expected=malloc(sizeof(*expected));CHECK(actual&&expected);
     fd2_field_prepare_assets before=assets;
     for(size_t c=0;c<sizeof(cases)/sizeof(cases[0]);c++) for(int sell=0;sell<2;sell++) {
-        memset(actual,0x5a,sizeof(*actual));base_page(expected);
+        base_page(actual);base_page(expected);
         CHECK(fd2_field_prepare_draw_items(actual,&assets,&cases[c].id,1,0,0,sell)==0);
         fd2_map_sprite_blit(expected,&assets.info.detail_icons[cases[c].icon],10,119,-1);
         CHECK(expected_name(expected,(size_t)cases[c].id+181,38,122,201)==0);
@@ -83,7 +83,7 @@ static int test_original_product_families_full_pixels(void) {
 static int test_item_scroll_and_atomic_errors(void) {
     const uint8_t ids[7]={20,21,22,23,24,25,26};
     fd2_vga *vga=malloc(sizeof(*vga)),*before=malloc(sizeof(*before)),*base=malloc(sizeof(*base));CHECK(vga&&before&&base);
-    memset(vga,0x5a,sizeof(*vga));base_page(base);
+    base_page(vga);base_page(base);
     CHECK(fd2_field_prepare_draw_items(vga,&assets,ids,7,2,6,0)==0);
     for(int y=171;y<198;y++)CHECK(!memcmp(vga->framebuffer+y*320+158,base->framebuffer+y*320+158,147));
     *before=*vga;
@@ -139,7 +139,7 @@ static int test_preview_row_full_pixels_and_cache(void) {
     fd2_field_unit unit;preview_unit(&unit);memcpy(state->unit_area,&unit,80);
     fd2_save_manual_state before=*state;uint8_t raw=0;
     fd2_vga *vga=malloc(sizeof(*vga)),*expected=malloc(sizeof(*expected));CHECK(vga&&expected);
-    memset(vga,0x5a,sizeof(*vga));base_page(expected);
+    base_page(vga);base_page(expected);
     CHECK(fd2_field_prepare_draw_equipment_recipients(vga,&assets,state,&raw,1,0,0,21,3)==0);
     source_sprite(expected,1,14,117,2);
     CHECK(expected_name(expected,1,40,121,201)==0);
@@ -158,7 +158,7 @@ static int test_preview_row_full_pixels_and_cache(void) {
     CHECK(fd2_field_prepare_cached_sprite_id(state,0,&sprite)==1 && sprite==0);
     CHECK(fd2_field_prepare_cached_sprite_id(state,1,&sprite)==1 && sprite==4);
     sprite=0xff;CHECK(fd2_field_prepare_cached_sprite_id(state,2,&sprite)==0 && sprite==0xff);
-    raw=2;memset(vga,0x5a,sizeof(*vga));
+    raw=2;base_page(vga);
     CHECK(fd2_field_prepare_draw_equipment_recipients(vga,&assets,state,&raw,1,0,0,21,1)==0);
     base_page(expected);
     for(int y=117;y<141;y++)CHECK(!memcmp(vga->framebuffer+y*320+14,expected->framebuffer+y*320+14,24));
@@ -190,7 +190,7 @@ static int test_members_and_revive_full_pages(void) {
     fd2_vga *actual=malloc(sizeof(*actual)),*expected=malloc(sizeof(*expected));CHECK(state&&before&&actual&&expected);
     roster_fixture(state,7);*before=*state;
     for(unsigned phase=0;phase<4;phase++) {
-        memset(actual,0x5a,sizeof(*actual));base_page(expected);
+        base_page(actual);base_page(expected);
         CHECK(fd2_field_prepare_draw_members(actual,&assets,state,2,6,phase)==0);
         for(size_t i=0;i<5;i++) {
             int x=132*(int)(i%2),y=26*(int)(i/2);
@@ -205,7 +205,7 @@ static int test_members_and_revive_full_pages(void) {
     CHECK(fd2_field_prepare_draw_members(actual,&assets,state,2,0,0)==-1);
     CHECK(!memcmp(actual,expected,sizeof(*actual)));
     const uint8_t raws[4]={1,5,3,4};const char *prices[3]={"00600","00400","00500"};
-    memset(actual,0x5a,sizeof(*actual));base_page(expected);
+    base_page(actual);base_page(expected);
     CHECK(fd2_field_prepare_draw_revive_candidates(actual,&assets,state,raws,4,1,2,3)==0);
     for(size_t i=0;i<3;i++) {
         int y=26*(int)i;source_sprite(expected,(size_t)raws[i+1]*12u+1u,14,117+y,2);
@@ -284,7 +284,7 @@ static int test_promotion_rows_and_explicit_cache(void) {
     const uint8_t raws[3]={0,1,9};const size_t profiles[3]={159,167,171};
     *before=*state;
     for(unsigned phase=0;phase<4u;phase++) {
-        memset(actual,0x5a,sizeof(*actual));base_page(expected);
+        base_page(actual);base_page(expected);
         CHECK(fd2_field_prepare_draw_promotion_candidates(actual,&assets,state,raws,3,0,1,phase)==0);
         for(size_t i=0;i<3u;i++) {
             int y=26*(int)i;
@@ -302,18 +302,57 @@ static int test_promotion_rows_and_explicit_cache(void) {
     /* 原目录在稳定重排/身份写后保持，只有显式bind才重建。 */
     roster_fixture(state,2);CHECK(fd2_field_prepare_assets_bind_roster(&assets,state)==0);
     uint8_t temp[80];memcpy(temp,state->unit_area,80);memcpy(state->unit_area,state->unit_area+80,80);memcpy(state->unit_area+80,temp,80);
-    memset(actual,0x5a,sizeof(*actual));base_page(expected);
+    base_page(actual);base_page(expected);
     CHECK(fd2_field_prepare_draw_members(actual,&assets,state,0,0,0)==0);
     source_sprite(expected,0,14,117,2);source_sprite(expected,12,146,117,2);
     CHECK(expected_name(expected,2,40,121,201)==0 && expected_name(expected,1,172,121,205)==0);
     CHECK(!memcmp(actual,expected,sizeof(*actual)) && assets.sprite_cache_ids[0]==0);
     CHECK(fd2_field_prepare_assets_bind_roster(&assets,state)==0 && assets.sprite_cache_ids[0]==1);
-    memset(actual,0x5a,sizeof(*actual));base_page(expected);
+    base_page(actual);base_page(expected);
     CHECK(fd2_field_prepare_draw_members(actual,&assets,state,0,0,0)==0);
     source_sprite(expected,12,14,117,2);source_sprite(expected,0,146,117,2);
     CHECK(expected_name(expected,2,40,121,201)==0 && expected_name(expected,1,172,121,205)==0);
     CHECK(!memcmp(actual,expected,sizeof(*actual)));
     assets.sprite_cache_ready=0;assets.sprite_cache_count=0;
+    free(expected);free(actual);free(before);free(state);return 0;
+}
+
+/* 原4e29c/current VGA的独立字节oracle：source_sprite逐原token写，
+ * 不从被测view生成expected；覆盖31号角色(ID30)的stride2历史孔。 */
+static int test_current_member_and_candidate_history(void) {
+    static const uint8_t ids[5]={0,9,4,30,51},names[5]={0,9,4,30,1};
+    static const unsigned phases[5]={0,1,2,1,0};
+    fd2_save_manual_state *state=malloc(sizeof(*state)),*before=malloc(sizeof(*before));
+    fd2_vga *actual=malloc(sizeof(*actual)),*expected=malloc(sizeof(*expected));CHECK(state&&before&&actual&&expected);
+    roster_fixture(state,5);
+    for(size_t i=0;i<5u;i++){state->unit_area[80u*i+7u]=ids[i];state->unit_area[80u*i+8u]=names[i];}
+    CHECK(fd2_field_prepare_assets_bind_roster(&assets,state)==0);*before=*state;
+    base_page(actual);*expected=*actual;
+    for(size_t step=0;step<5u;step++) {
+        unsigned phase=phases[step];
+        for(size_t raw=0;raw<5u;raw++) {
+            int x=132*(int)(raw%2u),y=26*(int)(raw/2u);
+            source_sprite(expected,(size_t)ids[raw]*12u+phase,14+x,117+y,2);
+            CHECK(expected_name(expected,(size_t)names[raw]+1u,40+x,121+y,raw==0u ? 201:205)==0);
+        }
+        CHECK(fd2_field_prepare_draw_members(actual,&assets,state,0,0,phase)==0 &&
+            !memcmp(actual,expected,sizeof(*actual)) && !memcmp(state,before,sizeof(*state)));
+        if(step==2u)CHECK(actual->framebuffer[161u*320u+146u]==254u);
+        if(step==4u)CHECK(actual->framebuffer[161u*320u+167u]==254u && actual->framebuffer[162u*320u+146u]==254u);
+    }
+    /* mode2只动三sprite：姓名/钱/预览区域保持任意合法current-page历史。 */
+    const uint8_t raws[4]={3,0,4,1};memset(actual,0x5a,sizeof(*actual));*expected=*actual;
+    for(size_t step=0;step<5u;step++) {
+        unsigned phase=phases[step];
+        for(size_t i=0;i<3u;i++)source_sprite(expected,(size_t)ids[raws[i]]*12u+phase,14,117+26*(int)i,2);
+        CHECK(fd2_field_prepare_draw_candidate_sprites(actual,&assets,state,raws,4,0,phase)==0 &&
+            !memcmp(actual,expected,sizeof(*actual)) && !memcmp(state,before,sizeof(*state)));
+    }
+    uint8_t bad[1]={5};*expected=*actual;
+    CHECK(fd2_field_prepare_draw_candidate_sprites(actual,&assets,state,bad,1,0,0)==-1 &&
+        !memcmp(actual,expected,sizeof(*actual)));
+    CHECK(fd2_field_prepare_draw_candidate_sprites(actual,&assets,state,raws,4,0,4)==-1 &&
+        !memcmp(actual,expected,sizeof(*actual)));
     free(expected);free(actual);free(before);free(state);return 0;
 }
 
@@ -331,6 +370,7 @@ int main(void) {
     CHECK(test_preview_domain_is_distinct_and_readonly()==0);
     CHECK(test_deployment_full32_and_atomic()==0);
     CHECK(test_promotion_rows_and_explicit_cache()==0);
+    CHECK(test_current_member_and_candidate_history()==0);
     fd2_field_prepare_assets_close(&assets);fd2_archive_close(&other);
     puts("field_prepare_view: source layout/preview/cache/atomic headless PASS; no native UI claim");return 0;
 }

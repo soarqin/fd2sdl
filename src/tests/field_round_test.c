@@ -164,17 +164,100 @@ static int check_choice_driver(void) {
     CHECK(fd2_field_choice_run(NULL,NULL)==-1);return 0;
 }
 
+/* 原10010@1054c/1057b/105a7/wait/105ca的App完整中间态。
+ * 自己构造正常zero-transparent像素叶；原UI91的87x20及数字18x8几何已独立核。
+ * 窗口必须先借真实App，下面故意让VGA intro与App before不同。 */
+typedef struct {
+    probe visual;
+    fd2_field_page *page;
+    uint8_t *before,*expected,*actual;
+} app_probe;
+static int app_background(fd2_vga *vga,void *userdata) {
+    app_probe *p=userdata;p->visual.backgrounds++;
+    CHECK(p->visual.backgrounds==1 && p->visual.waits==10);
+    return fd2_field_page_project(p->page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
+}
+static int app_refresh(fd2_vga *vga,void *userdata) {
+    app_probe *p=userdata;p->visual.refreshes++;
+    CHECK(p->visual.refreshes==1 && p->visual.waits==14);
+    CHECK(fd2_field_page_read(p->page,0,0,456,336,p->actual,FD2_FIELD_PAGE_SIZE,456)==0 &&
+        !memcmp(p->actual,p->before,FD2_FIELD_PAGE_SIZE));
+    return fd2_field_page_project(p->page,72,72,vga->framebuffer,sizeof(vga->framebuffer));
+}
+static int app_wait(fd2_vga *vga,uint32_t ms,unsigned ticks,void *userdata) {
+    app_probe *p=userdata;unsigned index=p->visual.waits;
+    memcpy(p->expected,p->before,FD2_FIELD_PAGE_SIZE);
+    if(index>=10 && index<=13) {
+        static const unsigned m[4]={2,3,4,9};unsigned square=m[index-10]*m[index-10];
+        /* 原坐标Page(188,156+square)，先91的零透明点，再数字。 */
+        for(unsigned y=0;y<20;y++)for(unsigned x=0;x<87;x++) {
+            if((x+2*y)%5u)p->expected[(156u+square+y)*456u+188u+x]=(uint8_t)(33u+(x+3u*y)%71u);
+        }
+        unsigned digits[3]={p->visual.turn/100u,p->visual.turn/10u%10u,p->visual.turn%10u};
+        for(unsigned i=0;i<3;i++) {
+            unsigned width=digits[i]==1?5u:6u;
+            for(unsigned y=0;y<8;y++)for(unsigned x=0;x<width;x++)
+                if((x+y)%3u)p->expected[(162u+square+y)*456u+239u+i*6u+x]=(uint8_t)(90u+digits[i]);
+        }
+    }
+    CHECK(fd2_field_page_read(p->page,0,0,456,336,p->actual,FD2_FIELD_PAGE_SIZE,456)==0 &&
+        !memcmp(p->actual,p->expected,FD2_FIELD_PAGE_SIZE));
+    return wait_frame(vga,ms,ticks,&p->visual);
+}
+static int check_round_app_prefix(const fd2_field_info_assets *assets) {
+    fd2_field_info_assets local=*assets;
+    uint8_t banner[87*20],digits[10][48];
+    for(unsigned y=0;y<20;y++)for(unsigned x=0;x<87;x++)
+        banner[y*87+x]=(x+2*y)%5u?(uint8_t)(33u+(x+3u*y)%71u):0;
+    local.round_banner[8]=(fd2_image){87,20,banner};
+    for(unsigned d=0;d<10;d++) {
+        unsigned width=d==1?5u:6u;
+        for(unsigned y=0;y<8;y++)for(unsigned x=0;x<width;x++)
+            digits[d][y*width+x]=(x+y)%3u?(uint8_t)(90u+d):0;
+        local.digits[1][d]=(fd2_image){(int)width,8,digits[d]};
+    }
+    app_probe *p=calloc(1,sizeof(*p));fd2_vga *vga=calloc(1,sizeof(*vga)),*saved=malloc(sizeof(*saved));
+    CHECK(p && vga && saved);
+    p->page=fd2_field_page_create();p->before=malloc(FD2_FIELD_PAGE_SIZE);
+    p->expected=malloc(FD2_FIELD_PAGE_SIZE);p->actual=malloc(FD2_FIELD_PAGE_SIZE);
+    CHECK(p->page && p->before && p->expected && p->actual);
+    const fd2_field_round_hooks app_hooks={.wait=app_wait,.render_background=app_background,.refresh=app_refresh};
+    for(unsigned value=0;value<2;value++)for(int stop=-1;stop<15;stop++)for(int failure=-1;failure<=1;failure+=2) {
+        if(stop<0 && failure==1)continue;
+        uint32_t turn=value?255u:0u;init(vga,&p->visual,&local,turn);vga->field_page=p->page;
+        p->visual.fail_wait=stop;p->visual.fail_result=failure;*saved=*vga;
+        for(size_t i=0;i<FD2_FIELD_PAGE_SIZE;i++)p->before[i]=(uint8_t)(i*17u+i/456u+103u);
+        CHECK(fd2_field_page_write(p->page,0,0,456,336,p->before,FD2_FIELD_PAGE_SIZE,456)==0);
+        memcpy(p->visual.map,p->visual.intro,64000);
+        for(unsigned y=0;y<192;y++)memcpy(p->visual.map+(y+4u)*320u+4u,
+            p->before+(y+72u)*456u+72u,312);
+        memcpy(p->visual.tail,p->visual.map,64000);
+        CHECK(fd2_field_round_play(vga,&local,turn,&app_hooks,p)==(stop<0?0:failure));
+        CHECK(p->visual.waits==(stop<0?15u:(unsigned)stop+1u));
+        CHECK(p->visual.backgrounds==(stop>=0 && stop<10?0u:1u) &&
+            p->visual.refreshes==(stop>=0 && stop<14?0u:1u));
+        CHECK(fd2_field_page_read(p->page,0,0,456,336,p->actual,FD2_FIELD_PAGE_SIZE,456)==0 &&
+            !memcmp(p->actual,p->expected,FD2_FIELD_PAGE_SIZE));
+        CHECK(check_nonpixels(vga,saved));
+    }
+    fd2_field_page_destroy(p->page);free(p->before);free(p->expected);free(p->actual);free(p);free(vga);free(saved);return 0;
+}
+
 int main(void) {
     CHECK(check_turn_driver()==0 && check_choice_driver()==0);
     fd2_archive archive={0};fd2_field_info_assets assets={0};
     CHECK(fd2_archive_open(&archive,"original_game/FDOTHER.DAT")==0);
     CHECK(fd2_field_info_assets_open(&assets,&archive)==0 && fd2_field_round_is_ready(&assets));
+    CHECK(check_round_app_prefix(&assets)==0);
     fd2_vga *vga=calloc(1,sizeof(*vga)),*before=calloc(1,sizeof(*before));probe *p=calloc(1,sizeof(*p));
     CHECK(vga && before && p);
-    const uint32_t turns[]={0,2,999,1000,UINT32_MAX};
-    for(size_t i=0;i<sizeof(turns)/sizeof(turns[0]);i++) {
-        init(vga,p,&assets,turns[i]);*before=*vga;
-        CHECK(fd2_field_round_play(vga,&assets,turns[i],&hooks,p)==0);
+    /* F4：穷举BYTE参数的完整15帧；自然turn有效域另由F1确认。
+     * 保留原三组API宽值边界，不把它们算成正常游戏回合。 */
+    const uint32_t extended_turns[]={999,1000,UINT32_MAX};
+    for(size_t i=0;i<256u+sizeof(extended_turns)/sizeof(extended_turns[0]);i++) {
+        uint32_t turn=i<256u?(uint32_t)i:extended_turns[i-256u];
+        init(vga,p,&assets,turn);*before=*vga;
+        CHECK(fd2_field_round_play(vga,&assets,turn,&hooks,p)==0);
         CHECK(p->waits==15u && p->backgrounds==1u && p->refreshes==1u && check_nonpixels(vga,before));
     }
     /* 每一个已呈现等待边界分别退出/报错，不继续后续回调或重放。 */

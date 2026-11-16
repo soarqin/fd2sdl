@@ -8,11 +8,16 @@
 #include "field_game.h"
 #include "field_play.h"
 #include "scene.h"
+#include "bios_clock.h"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);return -1; } } while(0)
 static uint16_t clocks[16];static unsigned clock_count,clock_at,frames,uploads,quit_frame,exhausted;
 static unsigned rng_calls;
 static unsigned ms_mode,ms_now,ms_requests[16],ms_request_count;
+static unsigned poll_sleeps,timed_presents;
+static fd2_vga *waiting_vga;
+static uint64_t ns_clocks[16];
+static unsigned exact_ns_mode;
 static uint32_t count_rng(void *userdata) { (*(unsigned *)userdata)++;return 7; }
 static uint64_t test_ticks(void) {
     if(ms_mode)return ms_now;
@@ -20,6 +25,7 @@ static uint64_t test_ticks(void) {
     return (uint64_t)clocks[clock_at++]*55u;
 }
 static void test_present_timed(fd2_vga *vga,uint32_t ms) {
+    timed_presents++;
     if(ms_mode) {
         if(ms_request_count<16)ms_requests[ms_request_count++]=ms;
         ms_now+=ms;
@@ -28,16 +34,27 @@ static void test_present_timed(fd2_vga *vga,uint32_t ms) {
     if((quit_frame && frames==quit_frame) || frames>32)vga->input.quit_requested=1;
 }
 static void test_upload(fd2_vga *vga) {(void)vga;uploads++;}
+static void test_delay_ms(uint32_t ms) {
+    if(ms_mode) {
+        if(ms_request_count<16)ms_requests[ms_request_count++]=ms;
+        ms_now+=ms;frames++;
+    } else poll_sleeps++;
+    if(waiting_vga && ((quit_frame && (ms_mode?frames:poll_sleeps)==quit_frame) ||
+        (ms_mode?frames:poll_sleeps)>32))
+        waiting_vga->input.quit_requested=1;
+}
 #define SDL_GetTicks test_ticks
 uint64_t test_ticks_ns(void);
 #define SDL_GetTicksNS test_ticks_ns
 #define fd2_field_water_tick_live(vga_) fd2_field_water_tick((vga_),SDL_GetTicksNS())
 #define fd2_vga_present_timed test_present_timed
 #define fd2_vga_upload_current_frame test_upload
+#define fd2_delay_ms test_delay_ms
 #include "field_play.c"
 #undef SDL_GetTicks
 #undef fd2_vga_present_timed
 #undef fd2_vga_upload_current_frame
+#undef fd2_delay_ms
 
 static void palette(fd2_vga *vga,unsigned seed) {
     memset(vga,0,sizeof(*vga));
@@ -45,12 +62,14 @@ static void palette(fd2_vga *vga,unsigned seed) {
     memset(vga->framebuffer,0x96,sizeof(vga->framebuffer));
     vga->field_water_last_tick=123;vga->field_water_phase=2;vga->actor_jitter_tick=77;
     vga->input.queued_count=1;vga->input.queued_keys[0].key=FD2_INPUT_KEY_Z;
+    waiting_vga=vga;timed_presents=0;
 }
 
 static void reset_clock(uint16_t start,const uint16_t *polls,unsigned count,uint16_t tail) {
     memset(clocks,0,sizeof(clocks));clocks[0]=start;
     memcpy(clocks+1,polls,count*sizeof(*polls));clocks[count+1]=tail;
-    clock_count=count+2;clock_at=frames=uploads=quit_frame=exhausted=0;
+    clock_count=count+2;clock_at=frames=uploads=quit_frame=exhausted=poll_sleeps=exact_ns_mode=0;
+    fd2_bios_clock_reset(0,0); /* 测试只改自身clock；生产common不重置App时钟。 */
 }
 
 static int vectors(void) {
@@ -134,7 +153,8 @@ static int play_consumer(void) {
         if(mode==2)vga->palette[700]=64;
         int status=play_common_events(game,vga,&other,NULL,0);
         if(mode==0) {
-            CHECK(status==0 && !game->event_resume.active && uploads==2 && frames==1 && clock_at==4 && !exhausted);
+            /* 完整17aa9只有BDA读/比较，无VGA呈现；一次未满足回边仅hostpump。 */
+            CHECK(status==0 && !game->event_resume.active && uploads==2 && !frames && poll_sleeps==1 && clock_at==4 && !exhausted);
             for(unsigned i=0;i<768;i++)CHECK(vga->dac[i]==(uint8_t)((vga->palette[i]<<2)|(vga->palette[i]>>4)));
             CHECK(fd2_field_game_common_event_reply(game,FD2_FLOW_NEXT)==-1);
         } else if(mode==1) {
@@ -185,19 +205,24 @@ static int subtract_and_short_ms(void) {
     CHECK(fd2_vga_palette_subtract(vga,9,5,64)==0 && !memcmp(before,vga,sizeof(*vga)));
     vga->palette[767]=64;*before=*vga;
     CHECK(fd2_vga_palette_subtract(vga,0,255,0)==-1 && !memcmp(before,vga,sizeof(*vga)));
-    const unsigned waits[]={2,8,20};
-    for(unsigned n=0;n<3;n++) {
-        palette(vga,0);*before=*vga;
-        ms_mode=1;ms_now=ms_request_count=frames=quit_frame=0;
+    /* 原190ac只交给源j___delay(2/8)，不在caller切16ms或上传。
+     * 0/20为同接口诊断边界；spy验证源调用，非物理壁钟验收。 */
+    const unsigned waits[]={0,2,8,20};
+    for(unsigned n=0;n<4;n++) {
+        palette(vga,0);vga->frame_deadline_ns=UINT64_C(999999999999);
+        vga->frame_interval_ns=16000000;*before=*vga;
+        ms_mode=1;ms_now=ms_request_count=frames=uploads=quit_frame=0;
         CHECK(loot_fixed_wait(vga,waits[n],0)==0 && ms_now==waits[n]);
-        CHECK(ms_request_count==(waits[n]>16?2u:1u) && ms_requests[0]==(waits[n]>16?16u:waits[n]));
-        if(waits[n]>16)CHECK(ms_requests[1]==waits[n]-16);
+        CHECK(ms_request_count==1 && ms_requests[0]==waits[n] && !timed_presents && !uploads);
         CHECK(!memcmp(before,vga,sizeof(*vga)));
     }
-    palette(vga,0);*before=*vga;ms_now=ms_request_count=frames=0;
+    CHECK(loot_fixed_wait(NULL,8,0)==FD2_SCENE_RESULT_ERROR);
+    palette(vga,0);*before=*vga;ms_now=ms_request_count=frames=uploads=0;
     CHECK(loot_fixed_wait(vga,2,1)==0 && !ms_request_count && !ms_now && !memcmp(before,vga,sizeof(*vga)));
-    quit_frame=1;
-    CHECK(loot_fixed_wait(vga,8,0)==FD2_SCENE_RESULT_HOST_QUIT && ms_request_count==1 && ms_requests[0]==8);
+    vga->input.quit_requested=1;
+    CHECK(loot_fixed_wait(vga,8,0)==FD2_SCENE_RESULT_HOST_QUIT && !ms_request_count && !timed_presents && !uploads);
+    vga->input.quit_requested=0;quit_frame=1;
+    CHECK(loot_fixed_wait(vga,8,0)==FD2_SCENE_RESULT_HOST_QUIT && ms_request_count==1 && ms_requests[0]==8 && !timed_presents && !uploads);
     CHECK(vga->input.queued_count==1 && vga->input.queued_keys[0].key==FD2_INPUT_KEY_Z &&
         vga->field_water_last_tick==123 && vga->field_water_phase==2 && vga->actor_jitter_tick==77);
     ms_mode=quit_frame=0;free(vga);free(before);return 0;
@@ -237,11 +262,58 @@ static int play_subtract_consumer(void) {
     ms_mode=quit_frame=0;free(game);free(before);free(vga);return 0;
 }
 
+/* 原17abc start、17ac9至少一比较、17ae4独立tail，均为signed低WORD。
+ * expected是这三个源读点/回边，不以wait实现生成；无VGA/水/actor/RNG。 */
+static int common_tick_clock_contract(void) {
+    static const struct {int goal;uint16_t start,polls[2],tail;unsigned count,sleeps;} cases[]={
+        {0,100,{100,0},101,1,0},
+        {-1,100,{100,0},101,1,0},
+        {INT32_MIN,100,{100,0},101,1,0},
+        {1,32767,{32767,32768},32769,2,1},
+        {1,65535,{65535,0},1,2,1},
+        {65535,32768,{32767,0},32766,1,0},
+        {8,100,{99,0},98,1,0}};
+    fd2_vga *vga=malloc(sizeof(*vga)),*before=malloc(sizeof(*before));CHECK(vga&&before);
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        palette(vga,4);vga->frame_deadline_ns=123;vga->frame_interval_ns=16000000;
+        *before=*vga;ms_mode=0;reset_clock(cases[i].start,cases[i].polls,cases[i].count,cases[i].tail);
+        CHECK(common_event_delay_ticks(vga,cases[i].goal,0)==FD2_SCENE_RESULT_OK);
+        CHECK(clock_at==cases[i].count+2 && !exhausted && poll_sleeps==cases[i].sleeps);
+        CHECK(!frames && !uploads && !memcmp(vga,before,sizeof(*vga)));
+    }
+    /* 固定PIT第一tick约54.9254ms：54.93ms已到1，而SDLms/55仍为0。
+     * 回边hostpump1ms与独立fresh尾读均显式列出，原源没有新增present。 */
+    palette(vga,4);*before=*vga;ms_mode=0;
+    const uint64_t exact[]={UINT64_C(53920000),UINT64_C(53930000),
+        UINT64_C(54930000),UINT64_C(54931000)};
+    memcpy(ns_clocks,exact,sizeof(exact));clock_count=4;
+    clock_at=frames=uploads=quit_frame=exhausted=poll_sleeps=0;exact_ns_mode=1;
+    fd2_bios_clock_reset(0,0);
+    CHECK(common_event_delay_ticks(vga,1,0)==FD2_SCENE_RESULT_OK);
+    CHECK(clock_at==4 && !exhausted && poll_sleeps==1 && !frames && !uploads &&
+        !memcmp(vga,before,sizeof(*vga)));
+    palette(vga,4);uint16_t polls[]={100,101};reset_clock(100,polls,2,102);
+    quit_frame=1; /* 宿主退出发生在唯一retry的pump，不能再读比较或尾。 */
+    CHECK(common_event_delay_ticks(vga,1,0)==FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(clock_at==2 && poll_sleeps==1 && !frames && !uploads && !exhausted);
+    CHECK(vga->input.queued_count==1 && vga->input.queued_keys[0].key==FD2_INPUT_KEY_Z &&
+        vga->field_water_last_tick==123 && vga->field_water_phase==2 && vga->actor_jitter_tick==77);
+    quit_frame=exact_ns_mode=0;free(before);free(vga);waiting_vga=NULL;return 0;
+}
+
 int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--s2-visual-vectors"))return vectors();
-    if(argc!=1 || safety()!=0 || play_consumer()!=0 || subtract_and_short_ms()!=0 || play_subtract_consumer()!=0)return 1;
+    if(argc!=1 || safety()!=0 || play_consumer()!=0 || subtract_and_short_ms()!=0 ||
+        play_subtract_consumer()!=0 || common_tick_clock_contract()!=0)return 1;
     puts("S2 visual leaf tests passed");return 0;
 }
 
-/* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
-uint64_t test_ticks_ns(void) { return test_ticks()*UINT64_C(1000000); }
+/* tick脚本映成真实PIT边界；ms用例仍保独立ms时钟，不用*55冒充BIOS。 */
+uint64_t test_ticks_ns(void) {
+    if(ms_mode)return test_ticks()*UINT64_C(1000000);
+    if(exact_ns_mode) {
+        if(clock_at>=clock_count){exhausted=1;return ns_clocks[clock_count?clock_count-1:0];}
+        return ns_clocks[clock_at++];
+    }
+    return fd2_bios_tick_start_ns(test_ticks()/55u);
+}

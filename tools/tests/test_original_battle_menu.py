@@ -3,6 +3,7 @@ import sys
 import struct
 import tempfile
 import unittest
+import random
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -296,6 +297,55 @@ class RealRestorationBorderTest(unittest.TestCase):
                     patch.object(menu, "decode_image", side_effect=[self.assets["cursor"].copy(), panel]), \
                     self.assertRaisesRegex(ValueError, message):
                 menu.resource_templates(original / "FDOTHER.DAT", original / "FDTXT.DAT")
+
+
+class IndexedDeltaTest(unittest.TestCase):
+    @staticmethod
+    def reference(frame, template, position):
+        x, y = position
+        crop = frame.crop((x, y, x + template.width, y + template.height)).convert("RGB")
+        deltas = [max(abs(a - b) for a, b in zip(want, got))
+                  for index, want, got in zip(template.getdata(), template.convert("RGB").getdata(), crop.getdata())
+                  if index != 0]
+        bad = sum(delta > menu.TOLERANCE for delta in deltas)
+        return dict(ok=bool(deltas) and bad == 0, bad_pixels=bad,
+                    checked_pixels=len(deltas), max_channel_delta=max(deltas, default=0))
+
+    def test_index_zero_and_exact_tolerance_boundary(self):
+        template = Image.new("P", (3, 1), 0)
+        template.putpalette([0] * 768)
+        template.putdata([0, 1, 2])
+        frame = Image.new("RGB", menu.SIZE)
+        frame.putpixel((10, 10), (255, 255, 255))
+        frame.putpixel((11, 10), (3, 0, 0))
+        frame.putpixel((12, 10), (0, 4, 0))
+        self.assertEqual(menu.match_indexed(frame, template, (10, 10)),
+                         dict(ok=False, bad_pixels=1, checked_pixels=2, max_channel_delta=4))
+        template.putpixel((2, 0), 0)
+        self.assertEqual(menu.match_indexed(frame, template, (10, 10)),
+                         dict(ok=True, bad_pixels=0, checked_pixels=1, max_channel_delta=3))
+        template.putpixel((1, 0), 0)
+        self.assertEqual(menu.match_indexed(frame, template, (10, 10)),
+                         dict(ok=False, bad_pixels=0, checked_pixels=0, max_channel_delta=0))
+
+    def test_histogram_matches_old_scalar_definition_across_modes_and_mutation(self):
+        rng = random.Random(30431)
+        frame = Image.frombytes("RGB", menu.SIZE, rng.randbytes(320 * 200 * 3))
+        for mode in ("P", "L", "RGB", "RGBA", "1", "I;16"):
+            for size in ((1, 1), (3, 2), (24, 24)):
+                template = Image.new(mode, size)
+                values = [rng.randrange(256) if i % 5 else 0 for i in range(size[0] * size[1])]
+                if mode in ("RGB", "RGBA"):
+                    values = [tuple([v] * len(mode)) for v in values]
+                template.putdata(values)
+                if mode == "P": template.putpalette(list(rng.randbytes(768)))
+                for position in ((0, 0), (296, 176), (1.5, 1.5)):
+                    with self.subTest(mode=mode, size=size, position=position):
+                        self.assertEqual(menu.match_indexed(frame, template, position),
+                                         self.reference(frame, template, position))
+                template.putpixel((0, 0), (7,) * len(mode) if mode in ("RGB", "RGBA") else 7)
+                self.assertEqual(menu.match_indexed(frame, template, (20, 20)),
+                                 self.reference(frame, template, (20, 20)))
 
 
 if __name__ == "__main__":

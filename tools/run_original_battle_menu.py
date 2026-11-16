@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 from run_original_comparison import (Capture, SIZE, TOLERANCE, archive_entry,
                                      compare, decode_image, hashes,
@@ -117,12 +117,24 @@ def match_indexed(actual: Image.Image, template: Image.Image, position: tuple) -
         raise ValueError("检查点图像或资源 ROI 越界")
     target = actual.crop((x, y, x + template.width, y + template.height)).convert("RGB")
     expected = template.convert("RGB")
-    deltas = [max(abs(a - b) for a, b in zip(want, got))
-              for index, want, got in zip(template.getdata(), expected.getdata(), target.getdata())
-              if index != 0]
-    bad = sum(delta > TOLERANCE for delta in deltas)
-    return {"ok": bool(deltas) and bad == 0, "bad_pixels": bad,
-            "checked_pixels": len(deltas), "max_channel_delta": max(deltas, default=0)}
+    if target.size != expected.size:
+        # 保留非整数ROI旧crop／zip的边界行为；正式source位置均为整数。
+        deltas = [max(abs(a - b) for a, b in zip(want, got))
+                  for index, want, got in zip(template.getdata(), expected.getdata(), target.getdata())
+                  if index != 0]
+        histogram = [0] * 256
+        for value in deltas: histogram[value] += 1
+    else:
+        # 与原逐像素公式相同：仅非零index，取三个channel差的max。
+        # 不缓存可变template，也不改变透明点、容差、计数或候选扫描范围。
+        mask = template.point([0] + [255] * 255, "L") if template.mode in ("P", "L") else Image.frombytes(
+            "L", template.size, bytes(255 if value != 0 else 0 for value in template.getdata()))
+        red, green, blue = ImageChops.difference(expected, target).split()
+        histogram = ImageChops.lighter(ImageChops.lighter(red, green), blue).histogram(mask)
+    count = sum(histogram)
+    bad = sum(histogram[TOLERANCE + 1:])
+    return {"ok": count != 0 and bad == 0, "bad_pixels": bad,
+            "checked_pixels": count, "max_channel_delta": next((i for i in range(255, -1, -1) if histogram[i]), 0)}
 
 
 class Oracle:

@@ -284,3 +284,26 @@ Windows本轮永久复现器的12函数／4组CPU及4项来源测试已实际通
 最终页 owner 调用复核仅为两个既有名称追加证据：`field_physical_exchange @0x1548e` 的 SHORT／FULL 都经 `1562f collect → 1563b refresh(0) → 15643 finalize → 15652 descriptor → 1565c refresh(0) → 1566a reward`，不把外围两次刷新缩成 SHORT 特例；`field_actor_group_arrival_effect @0x32999` 按原 12 part 逐帧先投影，再在 6／7／8 后更新后续 base，并保留末帧工作页。前者复用 G2 完整 Domain chunk；后者复用 G1 完整 chunk，并由永久 [`verify_fd2_arrival_owner.py`](../../tools/ida/verify_fd2_arrival_owner.py) 执行原 caller，记录 12 次投影、页目标及参数。绘图、PCM、分配、拷贝和 append 均为显式替身，不声称像素、业务或 WGC 等价。
 
 该增量实际保存 0 更名／2 注释，全部 1312 函数的持久签名、边界及 chunk 集合不变，保存前未调用反编译。重新导出后最终仍为 **372 项规范登记、23 项 G4 更名、33 次 G4 依据注释应用**；两项既有汇编反编译失败保留。`apply-final-owner-evidence.json`／`signature-guard-final-owner-evidence.json` 与最终 `receipt.json` 记录本次范围。21 项严格 LE、14 项发布回归及 11 项 SHA 清单逐项校验通过。数据库和大型读集留在 ignored 工作目录，未修改 G3 源库。
+
+## F4 共享呈现元数据（2026-11-16）
+
+本轮从已资格F3 PUB03库复制到隔离目录，经Domain读取全部函数／原型／flags／chunks，复用现命名应用器实际保存七个更名和33个函数注释；全量export／Hex-Rays沿项目工具执行，反编译关闭不保存。before／after／反编译后1312函数的持久类型、边界、flags及严格原字节全同，旧／新伪C去注释后仅有七个已确认标识符替换。registry现为537项；不把G4／F3历史数改写为本轮运行。
+
+新增名称为`field_popup_number_enqueue @1e0db`、`field_popup_miss_enqueue @1e1dc`、四个`4ec7c／4eca4／4ecbf／4ecf0` snapshot／rows helper，以及`field_background_wave_rows_copy @4eee0`。完整源、xref、参数／资源和实际C依据分别见[F4记录](../plans/f4-presentation.md#241-本阶段命名来源的实际发布)。未保存猜测ABI，3702f仍保持中性名且无类型；没有改原EXE、源库、函数字节或全局IDA设置。
+
+本地实际入口为`build/f4/ida-presentation-publication01/publication-receipt.json`，SHA256 `33c3d03006de0d429f34d7685f975cb836a058440a5521c002d4d619eca68eb0`；数据库SHA256 `c348f1d8deb811f8955b98362c813055ee2e4ca58b9245ad7bc2546cb21d0a53`仅留本地。11个发布文件在全部写毕后刷新／核对SHA256SUMS，11项发布产物检查实际通过。静态LE／prototype报告明确继承，运行时BSS／原生／全阶段不由本次发布代签；最终源集合确定后另刷新地址审计及最后清单。Linux未执行。
+
+后续线性actor／范围／状态板复审从该库另复制到独立目录，实际保存`field_battle_unit_summary_draw @2facd`一个更名及十条函数注释，registry为538项。完整1312函数的类型／flags／边界／chunks／strict bytes保持；反编译无持久变更，去注释后的程序token仅替换该一个标识符。实际第二轮入口`build/f4/ida-presentation-publication02/publication-receipt.json` SHA256 `b3cdf001ed0f9c180364f678d73f45fa2c7066fc618c5c781364fb4db257f141`，库SHA256 `9c91e3f719aedc7906409ce747578b7ad332e5a71fc2f2000f0c146ca7198829`。11项发布检查通过0.054s，最后核全部11个SHA；源集合地址审计与整阶段验收仍另记，历史报告不改签。
+
+第三批从PUB02重新复制隔离库，清理八段已被新来源推翻的托管注释，再按当前输入保存14个函数的依据；无更名，registry仍为538项。SHORT的真实三参／两HP条、地震三表／actor圆心、有限ID6数值、路径输出和fresh owner等结论均保规范函数边界，不将内部`2c67d`另登记为函数。全部1312函数的类型、flags、chunks及strict字节不变，反编译后元数据相同，去注释程序token完全相同；原用户注释和无关证据未改。
+
+实际发布入口为`build/f4/ida-presentation-publication04/publication-receipt.json`，SHA256 `062c2daf705ce7d264820bff26da81d01031c34583d308288dcacd5cd5e2bdf8`，隔离库SHA256 `a4f153299f5a4c3c339163bf1fa28a5da35e71fa2d47918bcf2319fe44992aa4`。PUB03未发布：首入口误引用旧driver，在打开库前被来源守卫拦截；改用本轮driver后发现重复长证据会被IDA注释容量截断，精确注释比较未过。旧输出保留。PUB04保同样的原来源与全部守卫，缩短重复证据引用后逐条精确通过，最后核11项SHA。
+
+实际源码地址审计先发现一个内部入口被误写为函数标记，修正注释指向完整owner后，293个当前C／H文件的998个标记均为规范入口。记录为`build/f4/source-address-snapshot-final02.json`，SHA256 `9a0fe1ea2f143a4d107defb5ac0cab66e75464ac43f1e6077202675442dcf607`；发布回归14项通过0.433s。01失败及各轮身份仍分列；历史地址迁移报告保持原件。此结果只签元数据与该源码集合，不代原版运行、自然producer、严格全对象BSS或完整F4。
+
+随后独立绑定复核补出AI射线`2dfc8`的第五个fresh App返回入口，PUB05从合格PUB04副本只保存此一项依据、零更名；不改类型、边界、原字节或程序token。收据`build/f4/ida-presentation-publication05/publication-receipt.json` SHA256 `c1b21ee1756a00ca194fd95e361bd4a5176bbcf1fffca0416b90b9977efc1f88`，库SHA256 `f50f673fc1d6dbd755c8e0644dfcac938e04b3eb408605466e18ed5adac75aab`。538登记、11项SHA及14项发布回归（0.466s）通过。实际C的休眠page仅为宿主guard；原新App按live BG／base与真实后层写集分类，不能以旧页补新owner来源。地址审计03仍为998规范标记；此前源码快照保持其时点身份，后续夹具／注释变更在阶段最终候选另封，不改写旧快照。
+
+
+### F4最终C／H集合补记
+
+PUB05之后，最终源集合包含294个C／H文件、998个规范函数入口；`build/f4/source-address-snapshot-final04.json` SHA256为`39f41d3f5d50fbe37dc9a630953a39e561fabcc7a0c9c218ff0158c1abc83cde`。新增私有quake probe也在该集合，随后只有Python／文档改动，不把旧293文件快照改签。该审计只查地址标记／当前物理身份，不重新确认ABI／语义或原运行；主线构建／集成与继承资格见[F4交付记录](../plans/f4-presentation.md#4-实际检查及阶段完成门)。

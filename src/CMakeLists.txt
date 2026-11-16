@@ -305,7 +305,8 @@ if(BUILD_TESTING)
         target_compile_options(fd2_main_title_resource_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME main_title_resource COMMAND fd2_main_title_resource_test)
-    set_tests_properties(main_title_resource PROPERTIES TIMEOUT 30)
+    set_tests_properties(main_title_resource PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30)
 
     add_executable(fd2_startup_resources_test
         tests/startup_resources_test.c field_play.c field_prepare_play.c
@@ -827,11 +828,21 @@ if(BUILD_TESTING)
     add_test(NAME field_phase COMMAND fd2_field_phase_test)
     set_tests_properties(field_phase PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
-    add_executable(fd2_field_defeat_test tests/field_defeat_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    add_executable(fd2_field_defeat_test tests/field_defeat_test.c
+        tests/audio_probe_output.cpp $<TARGET_OBJECTS:fd2sdl_core>)
     target_include_directories(fd2_field_defeat_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_defeat_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    set_target_properties(fd2_field_defeat_test PROPERTIES LINKER_LANGUAGE CXX
+        CXX_STANDARD 17)
     add_test(NAME field_defeat COMMAND fd2_field_defeat_test)
     set_tests_properties(field_defeat PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME field_defeat_probe_output_paths
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_defeat_probe_output_paths_test.py
+                --probe $<TARGET_FILE:fd2_field_defeat_test>)
+        set_tests_properties(field_defeat_probe_output_paths PROPERTIES TIMEOUT 30
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    endif()
 
     add_executable(fd2_field_visual_test
         tests/field_visual_test.c
@@ -1466,6 +1477,7 @@ if(BUILD_TESTING)
         fd2_scene_play_stage_victory=__wrap_fd2_scene_play_stage_victory
         fd2_scene_play_game_over=__wrap_fd2_scene_play_game_over
         fd2_vga_present=__wrap_fd2_vga_present
+        fd2_vga_upload_current_frame=__wrap_fd2_vga_present
         fd2_vga_present_timed=__wrap_fd2_vga_present_timed
         fd2_input_take_action=__wrap_fd2_input_take_action
         fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail

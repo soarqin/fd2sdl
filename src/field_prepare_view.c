@@ -2,7 +2,8 @@
  * 来源：sub_272D0 @0x272d0、sub_27738 @0x27738、sub_27F4A @0x27f4a、
  * sub_2825B @0x2825b、sub_28632 @0x28632、sub_2810B @0x2810b、
  * sub_2A0C2 @0x2a0c2、sub_2B4FB @0x2b4fb；名称不代表ABI猜测。
- * 底页重建与原内容绘制合并；输入、滑页、等待和live状态仍归prepare owner。
+ * 只改当前页的原widget写集；初底由27d33/27738等开页caller显式建立。
+ * 不重贴roster底板，4e29c stride2孔须保留上一相；输入/滑页仍归prepare owner。
  * G3规范命名（完整Domain函数/xref/原资源依据，非ABI推断）：
  * field_shop_items_draw @0x272d0（原登记 sub_272D0）。
  * field_prepare_members_draw @0x2810b（原登记 sub_2810B）。
@@ -48,8 +49,7 @@ static void name_draw(fd2_vga *vga,const fd2_field_prepare_assets *a,
 }
 
 static int base_valid(const fd2_vga *vga,const fd2_field_prepare_assets *a) {
-    return vga && a && a->ready && a->service.ready && a->info.ready &&
-        image_size(&a->service.roster_page,310,86);
+    return vga && a && a->ready && a->info.ready;
 }
 
 int fd2_field_prepare_cached_sprite_id(const fd2_save_manual_state *state,
@@ -147,7 +147,6 @@ int fd2_field_prepare_draw_items(fd2_vga *vga,const fd2_field_prepare_assets *a,
         if (!image_size(&a->info.detail_icons[i],i<5u ? 24:21,i<5u ? 20:8)) return -1;
     if (!image_size(&a->info.digit_overflow[0],18,8)) return -1;
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
-    fd2_map_sprite_blit(page,&a->service.roster_page,5,112,-1);
     int status=0;
     for (size_t i=0;i<rows && !status;i++) {
         const uint8_t *item=items[i];int x=10+148*(int)(i%2u),y=26*(int)(i/2u);
@@ -200,7 +199,6 @@ int fd2_field_prepare_draw_equipment_recipients(fd2_vga *vga,
         }
     }
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
-    fd2_map_sprite_blit(page,&a->service.roster_page,5,112,-1);
     int status=0;
     for (size_t i=0;i<rows && !status;i++) {
         int y=117+26*(int)i;
@@ -234,7 +232,6 @@ int fd2_field_prepare_draw_members(fd2_vga *vga,const fd2_field_prepare_assets *
             sprite_frame(a,state,first+i,phase,&frames[i])!=0) return -1;
     }
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
-    fd2_map_sprite_blit(page,&a->service.roster_page,5,112,-1);
     int status=0;
     for (size_t i=0;i<rows && !status;i++) {
         int x=132*(int)(i%2u),y=26*(int)(i/2u);
@@ -264,7 +261,6 @@ int fd2_field_prepare_draw_revive_candidates(fd2_vga *vga,const fd2_field_prepar
         for (size_t j=0;j<3;j++) if(name_get(a,fragments[j],&names[i][j])!=0)return -1;
     }
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
-    fd2_map_sprite_blit(page,&a->service.roster_page,5,112,-1);
     int status=0;
     for (size_t i=0;i<rows && !status;i++) {
         int y=26*(int)i,highlight=selected>=0 && first+i==(size_t)selected;
@@ -276,6 +272,24 @@ int fd2_field_prepare_draw_revive_candidates(fd2_vga *vga,const fd2_field_prepar
     }
     if (!status) memcpy(vga->framebuffer,page->framebuffer,sizeof(vga->framebuffer));
     free(page);return status ? -1:0;
+}
+
+/* field_prepare_picker_tick_draw @0x27079 mode2（原sub_27079）：
+ * 只重画至多3个候选sprite；姓名/价格/装备预览不属于该空等tick。 */
+int fd2_field_prepare_draw_candidate_sprites(fd2_vga *vga,const fd2_field_prepare_assets *a,
+        const fd2_save_manual_state *state,const uint8_t *raws,size_t count,
+        size_t first,unsigned phase) {
+    if(!base_valid(vga,a) || !state || !state->unit_count || state->unit_count>FD2_SAVE_MAX_UNITS ||
+        !raws || !count || count>FD2_SAVE_MAX_UNITS || first>=count || phase>3u)return -1;
+    size_t rows=count-first;if(rows>3u)rows=3u;size_t frames[3];
+    for(size_t i=0;i<rows;i++)
+        if(raws[first+i]>=state->unit_count || sprite_frame(a,state,raws[first+i],phase,&frames[i])!=0)return -1;
+    fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
+    int result=0;
+    for(size_t i=0;i<rows && !result;i++)
+        result=sprite_draw(page,&a->sprites,frames[i],14,117+26*(int)i,2);
+    if(!result)memcpy(vga->framebuffer,page->framebuffer,sizeof(vga->framebuffer));
+    free(page);return result ? -1:0;
 }
 
 /* sub_2A694 @0x2a694 / sub_2A857 @0x2a857：目标职业来自原转职记录，
@@ -300,7 +314,7 @@ int fd2_field_prepare_draw_promotion_candidates(fd2_vga *vga,const fd2_field_pre
         for (size_t j=0;j<4;j++) if(name_get(a,fragments[j],&names[i][j])!=0)return -1;
     }
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
-    fd2_map_sprite_blit(page,&a->service.roster_page,5,112,-1);int status=0;
+    int status=0;
     const int xs[4]={40,130,175,239};
     for (size_t i=0;i<rows && !status;i++) {
         int y=26*(int)i;status=sprite_draw(page,&a->sprites,frames[i],14,117+y,2);
@@ -350,7 +364,7 @@ int fd2_field_prepare_draw_deployment(fd2_vga *vga,const fd2_field_prepare_asset
     fd2_map_sprite_blit(page,label,5,7,0);
     int status=fd2_field_info_number_draw(page,&a->info,61,35,(int32_t)quota,2,0);
     if (!status) status=fd2_field_info_number_draw(page,&a->info,61,73,(int32_t)quota-(int32_t)chosen,2,1);
-    if (!status) fd2_field_detail_stats_draw(page,&a->info,&a->font,&a->text,&focus);
+    if (!status) status=fd2_field_detail_stats_draw(page,&a->info,&a->font,&a->text,&focus);
     if (!status) fd2_map_sprite_blit(page,cursor_image,23+28*(int)(cursor%10u),104+30*(int)(cursor/10u),0);
     for (size_t i=0;i+1u<state->unit_count && !status;i++)
         status=sprite_draw(page,&a->sprites,frames[i],23+28*(int)(i%10u),

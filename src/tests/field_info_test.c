@@ -1299,6 +1299,38 @@ static uint64_t summary_hash(const fd2_vga *vga, int x) {
     return value;
 }
 
+/* 17e0b分配64000B，17fc0先HP/MP条再全部数字/姓名/status。
+ * 此为已初始化typed WORD的owner/H参数例，不称自然HP可达或原越界执行。
+ * 闭式最终前缀：cap第一B；fill最后一次写由目的距尾的320B分带决定。 */
+static int test_detail_owner_boundary_prefix(void) {
+    magic_fixture fixture;
+    CHECK(open_magic_fixture(&fixture) == 0);
+    fd2_vga *actual=malloc(sizeof(*actual)),*expected=malloc(sizeof(*expected));
+    CHECK(actual && expected);
+    for(size_t bank=0;bank<2u;bank++) {
+        fd2_field_unit unit={0};
+        unit.hp=bank?0u:32767u;unit.hp_max=bank?0u:1u;
+        unit.mp=bank?32767u:0u;unit.mp_max=bank?1u:0u;
+        unit.level=12;unit.detail_status[0]=unit.detail_status[1]=unit.detail_status[2]=1;
+        fd2_field_unit before=unit;
+        memset(actual,0,sizeof(*actual));memset(expected,0,sizeof(*expected));
+        memset(actual->framebuffer,0xa5,sizeof(actual->framebuffer));
+        memset(expected->framebuffer,0xa5,sizeof(expected->framebuffer));
+        const size_t bar=bank?0x41c6u:0x2a06u,n=sizeof(expected->framebuffer);
+        const uint8_t *cap=fixture.assets.bars[bank].pixels;
+        const uint8_t *fill=fixture.assets.bars[2u+2u*bank].pixels;
+        expected->framebuffer[bar]=cap[0];
+        memset(expected->framebuffer+bar+1u,fill[0],n-4u*320u-bar);
+        for(size_t row=1;row<5u;row++) {
+            size_t at=n-(5u-row)*320u+1u;
+            memset(expected->framebuffer+at,fill[row],row==4u?319u:320u);
+        }
+        CHECK(fd2_field_detail_stats_draw(actual,&fixture.assets,&fixture.font,&fixture.text,&unit)==-1);
+        CHECK(!memcmp(actual,expected,sizeof(*actual)) && !memcmp(&unit,&before,sizeof(unit)));
+    }
+    free(actual);free(expected);close_magic_fixture(&fixture);return 0;
+}
+
 static int test_unit_summary_native_panels(void) {
     magic_fixture fixture;
     CHECK(open_magic_fixture(&fixture) == 0);
@@ -1343,16 +1375,25 @@ static int test_unit_summary_native_panels(void) {
     return 0;
 }
 
+/* 原17d6f逐column的1x5 raw copy；超过逻辑行仍在真实VGA owner内。
+ * 不能复用expected_blit的XY裁切来证明原linear写集。 */
+static void expected_summary_column(fd2_vga *vga,const fd2_image *image,int x,int y) {
+    for(unsigned row=0;row<5u;row++) {
+        size_t at=(size_t)(y+(int)row)*320u+(size_t)x;
+        if(at>=sizeof(vga->framebuffer))abort();
+        vga->framebuffer[at]=image->pixels[row];
+    }
+}
 static void expected_summary_bar(fd2_vga *vga, const fd2_field_info_assets *assets,
                                   size_t bank, int x, int y, int length) {
     if (length == -1000) return; /* max0：原调用不绘任何column。 */
     if (length == 0) {
-        for (int i = 1; i <= 101; i++) expected_blit(vga->framebuffer, &assets->bars[6], x + i, y, -1);
-        expected_blit(vga->framebuffer, &assets->bars[7], x + 102, y, -1);
+        for (int i = 1; i <= 101; i++) expected_summary_column(vga,&assets->bars[6],x+i,y);
+        expected_summary_column(vga,&assets->bars[7],x+102,y);
     } else {
-        expected_blit(vga->framebuffer, &assets->bars[bank], x, y, -1);
-        for (int i = 1; i < length; i++) expected_blit(vga->framebuffer, &assets->bars[2 + 2 * bank], x + i, y, -1);
-        expected_blit(vga->framebuffer, &assets->bars[3 + 2 * bank], x + (length > 1 ? length : 1), y, -1);
+        expected_summary_column(vga,&assets->bars[bank],x,y);
+        for (int i = 1; i < length; i++) expected_summary_column(vga,&assets->bars[2+2*bank],x+i,y);
+        expected_summary_column(vga,&assets->bars[3+2*bank],x+(length>1?length:1),y);
     }
 }
 
@@ -1361,6 +1402,7 @@ static int test_unit_summary_signed_bars_and_numbers(void) {
     CHECK(open_magic_fixture(&fixture) == 0);
     const struct { uint16_t current, maximum; int length; size_t bank; const char *digits; } cases[] = {
         {0, 40, 0, 1, "000"}, {40, 40, 102, 0, "040"}, {41, 50, 83, 1, "041"},
+        {63,42,152,1,"063"}, {105,42,253,1,"105"},
         {65516, 40, -49, 1, "000"}, {65535, 65535, 102, 0, "000"},
         {32768, 32768, 102, 0, "000"}, {1, 65535, -100, 1, "001"},
         {1, 0, -1000, 1, "001"}, {0, 0, -1000, 0, "000"},
@@ -1536,6 +1578,7 @@ int main(int argc, char **argv) {
     CHECK(test_item_list_preflight_leaves_all_state_unchanged() == 0);
     CHECK(test_bad_inventory_does_not_hide_magic_upper_page() == 0);
     CHECK(test_detail_signed_words_and_native_bars() == 0);
+    CHECK(test_detail_owner_boundary_prefix() == 0);
     CHECK(test_unit_summary_native_panels() == 0);
     CHECK(test_unit_summary_signed_bars_and_numbers() == 0);
     CHECK(test_unit_summary_atomic_rejection() == 0);
